@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -143,14 +144,13 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 	for i, ts := range tsAll {
 		task0 := ts.Tasks()[0]
 		waitTasks := task0.WaitTasks()
-		// all tasksets start with prerequisites task, except for
-		// tasksets with just the configure hook of special snaps,
-		// or last taskset.
+
 		if task0.Kind() != "prerequisites" {
 			if i == len(tsAll)-1 {
 				c.Check(task0.Kind(), Equals, "mark-preseeded")
 				c.Check(ts.Tasks()[1].Kind(), Equals, "mark-seeded")
 				c.Check(ts.Tasks(), HasLen, 2)
+
 			} else {
 				c.Check(task0.Kind(), Equals, "run-hook")
 				var hsup hookstate.HookSetup
@@ -180,9 +180,12 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 		switch hsup.Snap {
 		case "core", "core18", "snapd":
 			// ignore
+			//TODO: Higher up it is checked that the install-hooks waits for mark-preseed.
+			// This should be improved to also ensure that, after the first one, they wait
+			// for the previous install hook as well (as is done with the other hooks below)
 		default:
 			// snaps other than core/core18/snapd
-			var waitsForMarkPreseeded, waitsForPreviousSnapHook, waitsForPreviousSnap bool
+			var waitsForMarkPreseeded, waitsForPreviousSnapHook /*, waitsForPreviousSnap*/ bool
 			for _, wt := range hookEdgeTask.WaitTasks() {
 				switch wt.Kind() {
 				case "setup-aliases":
@@ -192,6 +195,9 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 					c.Assert(wt.Get("hook-setup", &wtsup), IsNil)
 					c.Check(wtsup.Snap, Equals, snaps[matched-1])
 					waitsForPreviousSnapHook = true
+					//TODO: This case statement should be updated. The new chaining waits
+					// for previous snaps health check run-hook, which does not trigger the default
+					// as before. It should arguably be more generalized.
 				case "mark-preseeded":
 					waitsForMarkPreseeded = true
 				case "prerequisites":
@@ -199,13 +205,14 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 					snapsup, err := snapstate.TaskSnapSetup(wt)
 					c.Assert(err, IsNil, Commentf("%#v", wt))
 					c.Check(snapsup.SnapName(), Equals, snaps[matched-1], Commentf("%s: %#v", hsup.Snap, wt))
-					waitsForPreviousSnap = true
+					//waitsForPreviousSnap = true
 				}
 			}
 			c.Assert(waitsForMarkPreseeded, Equals, true)
 			c.Assert(waitsForPreviousSnapHook, Equals, true)
 			if snaps[matched-1] != "core" && snaps[matched-1] != "core18" && snaps[matched-1] != "pc" {
-				c.Check(waitsForPreviousSnap, Equals, true, Commentf("%s", snaps[matched-1]))
+				// TODO: This should be removed, see comment above.
+				//c.Check(waitsForPreviousSnap, Equals, true, Commentf("%s", snaps[matched-1]))
 			}
 		}
 
@@ -301,6 +308,9 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
 
+	_, err = devicestatetest.TaskRunOrder(tsAll)
+	c.Assert(err, IsNil)
+
 	chg := st.NewChange("seed", "run the populate from seed changes")
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
@@ -341,6 +351,73 @@ snaps:
 	err = diskState.Get("seeded", &seeded)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
+
+//TODO: Need to get a test with a full set up and running. This test could only run by making changes
+// to allow ubuntu core model on classic system.
+/*func (s *firstbootPreseedingClassic16Suite) TestPreseedOnCoreOrderingNew(c *C) {
+	restore := snapdenv.MockPreseeding(true)
+	defer restore()
+
+	s.WriteAssertions("developer.account", s.devAcct)
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c, "my-model", map[string]interface{}{"base": "core18"})
+	s.WriteAssertions("model.asserts", assertsChain...)
+
+	core18Fname, snapdFname, kernelFname, gadgetFname := s.makeCore18Snaps(c, nil)
+
+	snapYaml := `name: snap-req-other-base
+version: 1.0
+base: other-base
+`
+	snapFname, snapDecl, snapRev := s.MakeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
+	s.WriteAssertions("snap-req-other-base.asserts", s.devAcct, snapRev, snapDecl)
+	baseYaml := `name: other-base
+version: 1.0
+type: base
+`
+	baseFname, baseDecl, baseRev := s.MakeAssertedSnap(c, baseYaml, nil, snap.R(127), "developerid")
+	s.WriteAssertions("other-base.asserts", s.devAcct, baseRev, baseDecl)
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: snapd
+   file: %s
+ - name: core18
+   file: %s
+ - name: pc-kernel
+   file: %s
+ - name: pc
+   file: %s
+ - name: snap-req-other-base
+   file: %s
+ - name: other-base
+   file: %s
+`, snapdFname, core18Fname, kernelFname, gadgetFname, snapFname, baseFname))
+	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	s.startOverlord(c)
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
+	c.Assert(err, IsNil)
+
+	// Print tasks with wait tasks
+	devicestatetest.TaskPrintDeps(tsAll)
+
+	tasks, err := devicestatetest.TaskRunOrder(tsAll)
+	c.Assert(err, IsNil)
+
+	// Print tasks order
+	for _, task := range tasks {
+		fmt.Printf("[%s] %s\n", task.ID(), task.Summary())
+	}
+}*/
 
 func (s *firstbootPreseedingClassic16Suite) TestPreseedClassicWithSnapdOnlyHappy(c *C) {
 	restorePreseedMode := snapdenv.MockPreseeding(true)
@@ -385,6 +462,9 @@ snaps:
 	defer st.Unlock()
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
+	c.Assert(err, IsNil)
+
+	_, err = devicestatetest.TaskRunOrder(tsAll)
 	c.Assert(err, IsNil)
 
 	// now run the change and check the result
@@ -518,6 +598,10 @@ snaps:
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
 	c.Assert(err, IsNil)
+
+	_, err = devicestatetest.TaskRunOrder(tsAll)
+	c.Assert(err, IsNil)
+
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
 	for _, ts := range tsAll {

@@ -1,0 +1,52 @@
+{
+    "type": "model",
+    "series": "16",
+    "authority-id": "developer1",
+    "brand-id": "developer1",
+    "model": "ubuntu-core-20-amd64",
+    "architecture": "amd64",
+    "timestamp": "2018-09-11T22:00:00+00:00",
+    "base": "core20",
+    "grade": "dangerous",
+    "serial-authority": [
+        "generic"
+    ],
+    "snaps": [
+        {
+            "name": "pc",
+            "type": "gadget",
+            "default-channel": "20/stable",
+            "id": "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
+        },
+        {
+            "name": "pc-kernel",
+            "type": "kernel",
+            "default-channel": "20/stable",
+            "id": "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
+        },
+        {
+            "name": "core20",
+            "type": "base",
+            "default-channel": "latest/edge",
+            "id": "DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q"
+        },
+        {
+            "name": "snapd",
+            "type": "snapd",
+            "default-channel": "latest/candidate",
+            "id": "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
+        },
+	{
+            "name": "core",
+            "type": "core",
+            "default-channel": "latest/candidate",
+            "id": "99T7MUlRhtI3U0QFgl5mXXESAiSwt776"
+        },
+	{
+            "name": "test-snapd-with-default-configure-core20",
+            "type": "app",
+            "default-channel": "latest/edge",
+            "id": "9OA8qn7AqId5SFtSUFnMpJkz9oH6Rucv"
+        }
+    ]
+}
