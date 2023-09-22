@@ -5215,38 +5215,6 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20NonFatalError(
 	c.Assert(err, Not(Equals), gadget.ErrSkipUpdateProceedRefresh)
 }
 
-func mockOnDiskForGadgettestMultiVolumeUC20GadgetYaml() map[string]map[int]*gadget.OnDiskStructure {
-	volToIdxToDiskStruct := map[string]map[int]*gadget.OnDiskStructure{
-		"pc": {
-			0: {
-				Name: "mbr",
-			},
-			1: {
-				Name: "BIOS Boot",
-			},
-			2: {
-				Name: "ubuntu-seed",
-			},
-			3: {
-				Name: "ubuntu-boot",
-			},
-			4: {
-				Name: "ubuntu-save",
-			},
-			5: {
-				Name: "ubuntu-data",
-			},
-		},
-		"foo": {
-			0: {Name: "barething"},
-			1: {Name: "nofspart"},
-			2: {Name: "some-filesystem"},
-		},
-	}
-
-	return volToIdxToDiskStruct
-}
-
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C) {
 	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
 	c.Assert(err, IsNil)
@@ -5292,27 +5260,6 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C)
 	c.Assert(m, DeepEquals, map[string]gadget.DiskVolumeDeviceTraits{
 		"pc": gadgettest.VMSystemVolumeDeviceTraits,
 	})
-}
-
-func mockOnDiskForRaspiSimplifiedYaml() map[string]map[int]*gadget.OnDiskStructure {
-	volToIdxToDiskStruct := map[string]map[int]*gadget.OnDiskStructure{
-		"pi": {
-			0: {
-				Name: "ubuntu-seed",
-			},
-			1: {
-				Name: "ubuntu-boot",
-			},
-			2: {
-				Name: "ubuntu-save",
-			},
-			3: {
-				Name: "ubuntu-data",
-			},
-		},
-	}
-
-	return volToIdxToDiskStruct
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) {

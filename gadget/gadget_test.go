@@ -2346,30 +2346,6 @@ func (s *gadgetYamlTestSuite) TestGadgetFromMetaEmpty(c *C) {
 	c.Assert(giCore, IsNil)
 }
 
-func mockOnDiskForMultiVolumeUC20GadgetYaml() map[string]map[int]*gadget.OnDiskStructure {
-	volToIdxToDiskStruct := map[string]map[int]*gadget.OnDiskStructure{
-		"frobinator-image": {
-			0: {
-				Name: "ubuntu-seed",
-			},
-			1: {
-				Name: "ubuntu-save",
-			},
-			2: {
-				Name: "ubuntu-boot",
-			},
-			3: {
-				Name: "ubuntu-data",
-			},
-		},
-		"u-boot-frobinator": {
-			0: {Name: "u-boot"},
-		},
-	}
-
-	return volToIdxToDiskStruct
-}
-
 func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetMultiVolume(c *C) {
 	err := os.WriteFile(s.gadgetYamlPath, mockMultiVolumeUC20GadgetYaml, 0644)
 	c.Assert(err, IsNil)
@@ -2409,28 +2385,6 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetMultiVolume(c *C) {
 			},
 		},
 	})
-}
-
-func mockOnDiskForGadgetYamlPC() map[string]map[int]*gadget.OnDiskStructure {
-	volToIdxToDiskStruct := map[string]map[int]*gadget.OnDiskStructure{
-		"pc": {
-			0: {
-				Name: "mbr",
-			},
-			1: {
-				Name:      "BIOS Boot",
-				Node:      "/dev/vda1",
-				DiskIndex: 1,
-			},
-			2: {
-				Name:      "EFI System",
-				Node:      "/dev/vda2",
-				DiskIndex: 2,
-			},
-		},
-	}
-
-	return volToIdxToDiskStruct
 }
 
 func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetHappy(c *C) {
@@ -2495,33 +2449,6 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetAndDiskFail(c *C) {
 	all, err := gadgettest.LaidOutVolumesFromGadget(s.dir, "", uc20Mod, secboot.EncryptionTypeNone, volToGadgetToDiskStruct)
 	c.Assert(err.Error(), Equals, `internal error: partition "ubuntu-seed" not in disk map`)
 	c.Assert(all, IsNil)
-}
-
-func mockOnDiskForGadgetYamlUC20PC() map[string]map[int]*gadget.OnDiskStructure {
-	volToIdxToDiskStruct := map[string]map[int]*gadget.OnDiskStructure{
-		"pc": {
-			0: {
-				Name: "mbr",
-			},
-			1: {
-				Name: "BIOS Boot",
-			},
-			2: {
-				Name: "ubuntu-seed",
-			},
-			3: {
-				Name: "ubuntu-boot",
-			},
-			4: {
-				Name: "ubuntu-save",
-			},
-			5: {
-				Name: "ubuntu-data",
-			},
-		},
-	}
-
-	return volToIdxToDiskStruct
 }
 
 func (s *gadgetYamlTestSuite) testLaidOutVolumesFromGadgetUCHappy(c *C, gadgetYaml []byte) {
