@@ -17,14 +17,13 @@
  *
  */
 
-package epoll
-
 // Package epoll contains a thin wrapper around the epoll(7) facility.
 //
 // Using epoll from Go is unusual as the language provides facilities that
 // normally make using it directly pointless. Epoll is strictly required for
 // unusual kernel interfaces that use event notification but don't implement
 // file descriptors that provide usual read/write semantics.
+package epoll
 
 import (
 	"errors"
@@ -137,11 +136,11 @@ func (e *Epoll) Register(fd int, mask Readiness) error {
 		Events: uint32(mask),
 		Fd:     int32(fd),
 	})
-	if e.IsClosed() {
-		return ErrEpollClosed
-	}
 	if err != nil {
 		e.decrementRegisteredFdCount()
+		if e.IsClosed() {
+			return ErrEpollClosed
+		}
 		return err
 	}
 	runtime.KeepAlive(e)
@@ -156,10 +155,10 @@ func (e *Epoll) Deregister(fd int) error {
 		return ErrEpollClosed
 	}
 	err := unix.EpollCtl(e.fd, unix.EPOLL_CTL_DEL, fd, &unix.EpollEvent{})
-	if e.IsClosed() {
-		return ErrEpollClosed
-	}
 	if err != nil {
+		if e.IsClosed() {
+			return ErrEpollClosed
+		}
 		return err
 	}
 	e.decrementRegisteredFdCount()
@@ -177,8 +176,7 @@ func (e *Epoll) Modify(fd int, mask Readiness) error {
 		Events: uint32(mask),
 		Fd:     int32(fd),
 	})
-	runtime.KeepAlive(e)
-	if e.IsClosed() {
+	if err != nil && e.IsClosed() {
 		return ErrEpollClosed
 	}
 	return err
@@ -221,10 +219,9 @@ func (e *Epoll) waitTimeoutInternal(duration time.Duration, eventCh chan []Event
 		}
 		sysEvents = make([]unix.EpollEvent, bufLen)
 		n, err = unixEpollWait(e.fd, sysEvents, msec)
-		runtime.KeepAlive(e)
-		// If the epoll fd was closed during epoll_wait
-		// then return ErrEpollClosed immediately.
-		if e.IsClosed() {
+		// If the epoll fd was closed during epoll_wait and an error
+		// occurred, then return ErrEpollClosed immediately.
+		if err != nil && e.IsClosed() {
 			errCh <- ErrEpollClosed
 			return
 		}
