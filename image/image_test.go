@@ -3662,15 +3662,15 @@ AXNpZw==`
 
 	var (
 		preseedCalled    bool
-		accountAssert    *asserts.Account
-		accountKeyAssert *asserts.AccountKey
+		accountAssert    asserts.Assertion
+		accountKeyAssert asserts.Assertion
 	)
 	restorePreseedCore20 := image.MockPreseedCore20(func(opts *preseed.CoreOptions) error {
 		preseedCalled = true
 		c.Assert(opts.PrepareImageDir, Equals, "/a/dir")
 		c.Assert(opts.PreseedSignKey, Equals, &brandPrivKey)
-		c.Assert(opts.PreseedAccountAssert, Equals, accountAssert)
-		c.Assert(opts.PreseedAccountKeyAssert, Equals, accountKeyAssert)
+		c.Assert(opts.PreseedAccountAssert, Equals, accountAssert.(*asserts.Account))
+		c.Assert(opts.PreseedAccountKeyAssert, Equals, accountKeyAssert.(*asserts.AccountKey))
 		c.Assert(opts.AppArmorKernelFeaturesDir, Equals, "/custom/aa/features")
 		c.Assert(opts.SysfsOverlay, Equals, "/sysfs-overlay")
 		return nil
@@ -3681,25 +3681,19 @@ AXNpZw==`
 	fn := filepath.Join(c.MkDir(), "model.assertion")
 	c.Assert(os.WriteFile(fn, asserts.Encode(model), 0644), IsNil)
 
-	accountAssertDecode, err := asserts.Decode([]byte(accountAssertString))
+	accountAssert, err := asserts.Decode([]byte(accountAssertString))
 	c.Assert(err, IsNil)
 
-	accountAssert, ok := accountAssertDecode.(*asserts.Account)
-	c.Assert(ok, Equals, true)
-
-	accountKeyAssertDecode, err := asserts.Decode([]byte(accountKeyAssertString))
+	accountKeyAssert, err = asserts.Decode([]byte(accountKeyAssertString))
 	c.Assert(err, IsNil)
-
-	accountKeyAssert, ok = accountKeyAssertDecode.(*asserts.AccountKey)
-	c.Assert(ok, Equals, true)
 
 	err = image.Prepare(&image.Options{
 		ModelFile:               fn,
 		Preseed:                 true,
 		PrepareDir:              "/a/dir",
 		PreseedSignKey:          &brandPrivKey,
-		PreseedAccountAssert:    accountAssert,
-		PreseedAccountKeyAssert: accountKeyAssert,
+		PreseedAccountAssert:    accountAssert.(*asserts.Account),
+		PreseedAccountKeyAssert: accountKeyAssert.(*asserts.AccountKey),
 		SysfsOverlay:            "/sysfs-overlay",
 
 		AppArmorKernelFeaturesDir: "/custom/aa/features",
