@@ -1,0 +1,82 @@
+summary: Check that preseed delegation for core20 works.
+
+details: |
+  This test checks that preseed delegation for UC20 image with snap-preseed
+  command works.
+
+# This test cannot be executed in arm architecture because the model
+# assertion is made for amd64
+systems: [ubuntu-20.04-64]
+
+environment:
+  PREPARE_IMAGE_DIR: uc20image
+  STORE_ADDR: localhost:11028
+  STORE_DIR: $(pwd)/fake-store-blobdir
+
+prepare: |
+  #shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB"/prepare.sh
+  snap download "--channel=${SNAPD_CHANNEL}" snapd
+  repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks /tmp
+
+  snap pack systemusers-snap
+
+  mkdir -p "$STORE_DIR/asserts"
+  echo Expose the needed assertions through the fakestore
+  cp "${TESTSLIB}/assertions/testrootorg-store.account-key" "${STORE_DIR}/asserts"
+  cp "${TESTSLIB}/assertions/developer1.account"     "${STORE_DIR}/asserts"
+  cp "${TESTSLIB}/assertions/developer1.account-key" "${STORE_DIR}/asserts"
+  cp "${TESTSLIB}/assertions/developer2.account"     "${STORE_DIR}/asserts"
+  cp "${TESTSLIB}/assertions/developer2.account-key" "${STORE_DIR}/asserts"
+
+  "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
+
+  echo "Import preseed signing key for delegate 'developer2'"
+  mkdir -p ~/.snap/gnupg
+  gpg --homedir=~/.snap/gnupg --import < developer2-privkey.asc
+
+restore: |
+  rm -rf "$PREPARE_IMAGE_DIR"
+  "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
+
+debug: |
+  cat preseed.log || true
+
+execute: |
+  # have snap use the fakestore for assertions (but nothing else)
+  export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
+
+  echo "Preseed using delegate key with 'snap prepare-image'"
+  SNAPD_SNAP=$(ls /tmp/snapd*.snap)
+
+  snap prepare-image --preseed --preseed-sign-key="(delegate)" --channel=stable --snap="$SNAPD_SNAP" "$TESTSLIB"/assertions/developer1-20-dangerous.model "$PREPARE_IMAGE_DIR" > preseed.log 2>&1
+
+  echo "Make sure no umount errors were reported during preseeding cleanup"
+  NOMATCH "umount.*failed" < preseed.log
+  NOMATCH "target is busy" < preseed.log
+
+  SYSLABEL=$(ls "$PREPARE_IMAGE_DIR"/system-seed/systems/)
+  PRESEEDAS="$PREPARE_IMAGE_DIR/system-seed/systems/$SYSLABEL/preseed"
+  ARTIFACT="$PREPARE_IMAGE_DIR/system-seed/systems/$SYSLABEL/preseed.tgz"
+
+  echo "Basic check of the generated preseed assertion"
+  if [ ! -f "$PRESEEDAS" ]; then
+    echo "preseed assertion not found"
+    exit 1
+  fi
+  MATCH "type: preseed"            < "$PRESEEDAS"
+  MATCH "type: account"            < "$PRESEEDAS"
+  MATCH "type: account-key"        < "$PRESEEDAS"
+  MATCH "authority-id: developer2" < "$PRESEEDAS"
+  MATCH "brand-id: developer1"     < "$PRESEEDAS"
+  MATCH "system-label: $SYSLABEL"  < "$PRESEEDAS"
+
+  echo "Examine tasks of the preseeded system"
+  tar -xzf "$ARTIFACT" --strip-components=3 var/lib/snapd/state.json
+  snap debug state state.json --change=1 > tasks.log
+
+  echo "Check that critical tasks of preseeded snapd have expected statuses"
+  # Note, these checks match statuses, but not the order
+  # mark-preseeded task is where snap-preseed stopped, therefore it's in Doing.
+  MATCH "Doing .+ mark-preseeded +Mark system pre-seeded" < tasks.log
+  MATCH "Do .+ mark-seeded +Mark system seeded" < tasks.log
