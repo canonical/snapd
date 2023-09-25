@@ -49,8 +49,9 @@ func newBootState20(typ snap.Type, dev snap.Device) bootState {
 }
 
 // modeenvMu is used to protect sections doing:
-//  * read moddeenv/modify it(/reseal from it)
-//  * write modeenv/seal from it
+//   - read moddeenv/modify it(/reseal from it)
+//   - write modeenv/seal from it
+//
 // while we might want to release the global state lock as seal/reseal are slow
 // (see Unlocker for that)
 var (
