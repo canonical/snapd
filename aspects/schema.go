@@ -523,5 +523,9 @@ func (v *intSchema) parseConstraints(constraints map[string]json.RawMessage) err
 		v.max = &max
 	}
 
+	if v.min != nil && v.max != nil && *v.min > *v.max {
+		return fmt.Errorf(`cannot have "min" constraint with value greater than "max"`)
+	}
+
 	return nil
 }

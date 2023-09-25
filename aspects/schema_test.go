@@ -1006,5 +1006,19 @@ func (*schemaSuite) TestIntegerBadMinMaxConstraints(c *C) {
 
 	_, err = aspects.ParseSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot parse "max" constraint: json: cannot unmarshal string into Go value of type int`)
+}
 
+func (*schemaSuite) TestIntegerMinGreaterThanMaxConstraintFail(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "int",
+			"min": 5,
+			"max": 1
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot have "min" constraint with value greater than "max"`)
 }
