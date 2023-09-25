@@ -23,8 +23,28 @@ jobs:
 
     - name: Build snapd snap
       uses: snapcore/action-build@v1
-      with:
-        snapcraft-channel: 4.x/candidate
+
+    - name: Build snapd snap/i386
+      run: |
+        # This step ensures that the snapcraft.yaml is fully compatible
+        # with a build with "build-base: core18" which is the last supported
+        # build-base for i386.
+        #
+        # ensure an 18.04/i386 lxd environment
+        sudo apt update
+        sudo apt install -qy snapd
+        sudo apt remove -y lxd lxd-client
+        sudo snap install lxd
+        sudo snap refresh lxd
+        sudo lxd init --auto
+        sudo lxc launch ubuntu:18.04/i386 bionic-i386
+        # ensure 18.04 compatible snapcraft
+        sudo lxc exec bionic-i386 -- snap wait system seed.loaded
+        sudo lxc exec bionic-i386 -- snap install --classic --channel=5.x snapcraft
+        # test build existing checkout with "build-base: core18"
+        sudo lxc file push -pr . bionic-i386/home/build
+        sudo lxc exec bionic-i386 -- sed -i "s#build-base: core20#build-base: core18#" /home/build/snapd/build-aux/snap/snapcraft.yaml
+        sudo lxc exec --cwd /home/build/snapd bionic-i386 -- snapcraft --destructive-mode
 
     - name: Check built artifact
       run: |
