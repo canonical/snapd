@@ -684,12 +684,6 @@ NeedDaemonReload=no
 	c.Assert(s.restartRequests, HasLen, 0)
 }
 
-type systemctlDisabledServiceError struct{}
-
-func (s systemctlDisabledServiceError) Msg() []byte   { return []byte("disabled") }
-func (s systemctlDisabledServiceError) ExitCode() int { return 1 }
-func (s systemctlDisabledServiceError) Error() string { return "disabled service" }
-
 func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesButDoesNotRestartDisabledServices(c *C) {
 	s.state.Lock()
 	// there is a snap in snap state that needs a service generated for it
