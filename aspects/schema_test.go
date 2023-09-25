@@ -385,6 +385,19 @@ func (*schemaSuite) TestMapSchemaWithUnmetAlternativeOfRequiredEntries(c *C) {
 	c.Assert(err, ErrorMatches, "cannot find required combinations of keys")
 }
 
+func (*schemaSuite) TestMapSchemaRequiredNotInSchema(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": "string",
+		"bar": "string"
+	},
+	"required": ["foo", "baz"]
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse map's "required" constraint: required key "baz" must have schema entry`)
+}
+
 func (*schemaSuite) TestMapInvalidConstraintCombos(c *C) {
 	type testcase struct {
 		name    string

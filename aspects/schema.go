@@ -292,6 +292,14 @@ func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) err
 			} else {
 				v.requiredCombs = requiredCombs
 			}
+
+			for _, requiredComb := range v.requiredCombs {
+				for _, required := range requiredComb {
+					if _, ok := v.entrySchemas[required]; !ok {
+						return fmt.Errorf(`cannot parse map's "required" constraint: required key %q must have schema entry`, required)
+					}
+				}
+			}
 		}
 
 		return nil
