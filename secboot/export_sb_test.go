@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build !nosecboot
-// +build !nosecboot
 
 /*
  * Copyright (C) 2021 Canonical Ltd
@@ -169,7 +168,7 @@ func MockSbMeasureSnapModelToTPM(f func(tpm *sb_tpm2.Connection, pcrIndex int, m
 	}
 }
 
-func MockRandomKernelUUID(f func() string) (restore func()) {
+func MockRandomKernelUUID(f func() (string, error)) (restore func()) {
 	old := randutilRandomKernelUUID
 	randutilRandomKernelUUID = f
 	return func() {

@@ -100,10 +100,10 @@ func MockPrerequisitesRetryTimeout(d time.Duration) (restore func()) {
 	return func() { prerequisitesRetryTimeout = old }
 }
 
-func MockOsutilEnsureUserGroup(mock func(name string, id uint32, extraUsers bool) error) (restore func()) {
-	old := osutilEnsureUserGroup
-	osutilEnsureUserGroup = mock
-	return func() { osutilEnsureUserGroup = old }
+func MockOsutilEnsureSnapUserGroup(mock func(name string, id uint32, extraUsers bool) error) (restore func()) {
+	old := osutilEnsureSnapUserGroup
+	osutilEnsureSnapUserGroup = mock
+	return func() { osutilEnsureSnapUserGroup = old }
 }
 
 var (
@@ -128,9 +128,16 @@ var (
 
 	AffectedByRefresh = affectedByRefresh
 
-	GetDirMigrationOpts = getDirMigrationOpts
-	WriteSeqFile        = writeSeqFile
-	TriggeredMigration  = triggeredMigration
+	GetDirMigrationOpts             = getDirMigrationOpts
+	WriteSeqFile                    = writeSeqFile
+	TriggeredMigration              = triggeredMigration
+	TaskSetsByTypeForEssentialSnaps = taskSetsByTypeForEssentialSnaps
+	SetDefaultRestartBoundaries     = setDefaultRestartBoundaries
+	DeviceModelBootBase             = deviceModelBootBase
+)
+
+const (
+	NoRestartBoundaries = noRestartBoundaries
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
@@ -464,10 +471,22 @@ func MockEnforceValidationSets(f func(*state.State, map[string]*asserts.Validati
 	}
 }
 
+func MockEnforceLocalValidationSets(f func(*state.State, map[string][]string, map[string]int, []*snapasserts.InstalledSnap, map[string]bool) error) func() {
+	old := EnforceLocalValidationSets
+	EnforceLocalValidationSets = f
+	return func() {
+		EnforceLocalValidationSets = old
+	}
+}
+
 func MockCgroupMonitorSnapEnded(f func(string, chan<- string) error) func() {
 	old := cgroupMonitorSnapEnded
 	cgroupMonitorSnapEnded = f
 	return func() {
 		cgroupMonitorSnapEnded = old
 	}
+}
+
+func SetRestoredMonitoring(snapmgr *SnapManager, value bool) {
+	snapmgr.autoRefresh.restoredMonitoring = value
 }

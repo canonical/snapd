@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
 	"time"
 
 	"github.com/snapcore/snapd/client"
@@ -41,6 +40,9 @@ type waitMixin struct {
 	clientMixin
 	NoWait    bool `long:"no-wait"`
 	skipAbort bool
+
+	// Wait also for tasks in the "wait" state.
+	waitForTasksInWaitStatus bool
 }
 
 var waitDescs = mixinDescs{
@@ -84,7 +86,6 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 
 	var lastID string
 	lastLog := map[string]string{}
-	var waitCtrlcMsg sync.Once
 	for {
 		var rebootingErr error
 		chg, err := cli.Change(id)
@@ -95,8 +96,15 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 				return nil, e
 			}
 
-			// an non-client error here means the server most
-			// likely went away
+			// A non-client error here means the server most likely went away.
+			// First thing we should check is whether this is a part of a system restart,
+			// as in that case we want to to report this to user instead of looping here until
+			// the restart does happen. (Or in the case of spread tests, blocks forever).
+			if e, ok := cli.Maintenance().(*client.Error); ok && e.Kind == client.ErrorKindSystemRestart {
+				return nil, e
+			}
+
+			// Otherwise it's most likely a daemon restart, assume it might come up again.
 			// XXX: it actually can be a bunch of other things; fix client to expose it better
 			now := time.Now()
 			if tMax.IsZero() {
@@ -135,16 +143,13 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 		for _, t := range chg.Tasks {
 			if t.Status == "Wait" {
 				maybeShowLog(t)
-				waitCtrlcMsg.Do(func() {
-					fmt.Fprintf(Stderr, i18n.G("WARNING: pressing ctrl-c will abort the running change.\n"))
-				})
 			}
 		}
 
 		// progress reporting
 		for _, t := range chg.Tasks {
 			switch {
-			case t.Status != "Doing":
+			case t.Status != "Doing" && t.Status != "Wait":
 				continue
 			case t.Progress.Total == 1:
 				pb.Spin(t.Summary)
@@ -156,6 +161,10 @@ func (wmx waitMixin) wait(id string) (*client.Change, error) {
 				lastID = t.ID
 			}
 			break
+		}
+
+		if !wmx.waitForTasksInWaitStatus && chg.Status == "Wait" {
+			return chg, nil
 		}
 
 		if chg.Ready {

@@ -276,7 +276,10 @@ func (s *SessionAgent) shutdownServerOnKill() error {
 	// Historically We do something similar in the main daemon
 	// logic as well.
 	s.listener.Close()
-	s.bus.Close()
+	// Note that session bus may be nil, see the comment in tryConnectSessionBus.
+	if s.bus != nil {
+		s.bus.Close()
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 	return s.serve.Shutdown(ctx)

@@ -10,10 +10,7 @@ environment:
     NAMES: /var/cache/snapd/names
 
 prepare: |
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB/systemd.sh"
-
-    systemd_stop_units snapd.service snapd.socket
+    tests.systemd stop-unit snapd.service snapd.socket
     if [ -e "$NAMES" ]; then
         mv "$NAMES" "$NAMES.orig"
     fi

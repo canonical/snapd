@@ -34,11 +34,13 @@ import (
 // encryption keys will be resealed for both models. The device model file which
 // is measured during boot will be updated. The recovery systems that belong to
 // the old model will no longer be usable.
-func DeviceChange(from snap.Device, to snap.Device) error {
+func DeviceChange(from snap.Device, to snap.Device, unlocker Unlocker) error {
 	if !to.HasModeenv() {
 		// nothing useful happens on a non-UC20 system here
 		return nil
 	}
+	modeenvLock()
+	defer modeenvUnlock()
 
 	m, err := loadModeenv()
 	if err != nil {
@@ -71,7 +73,7 @@ func DeviceChange(from snap.Device, to snap.Device) error {
 	// even if there is a reboot before the device/model file is updated, or
 	// before the final reseal with one model
 	const expectReseal = true
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal); err != nil {
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, unlocker); err != nil {
 		// best effort clear the modeenv's try model
 		m.clearTryModel()
 		if mErr := m.Write(); mErr != nil {
@@ -112,7 +114,7 @@ func DeviceChange(from snap.Device, to snap.Device) error {
 
 	// past a successful reseal, the old recovery systems become unusable and will
 	// not be able to access the data anymore
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal); err != nil {
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, unlocker); err != nil {
 		// resealing failed, but modeenv and the file have been modified
 
 		// first restore the modeenv in case we reboot, such that if the

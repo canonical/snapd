@@ -114,6 +114,7 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 				cmd.ActionModifier = "disable"
 			}
 		case inst.Action == "restart":
+			cmd.RestartEnabledNonActive = true
 			if inst.Reload {
 				cmd.Action = "reload-or-restart"
 			} else {
@@ -266,6 +267,18 @@ func NewStatusDecorator(rep interface {
 	}
 }
 
+func (sd *StatusDecorator) hasEnabledActivator(appInfo *client.AppInfo) bool {
+	// Just one activator should be enabled in order for the service to be able
+	// to become enabled. For slot activated services this is always true as we
+	// have no way currently of disabling this.
+	for _, act := range appInfo.Activators {
+		if act.Enabled {
+			return true
+		}
+	}
+	return false
+}
+
 // DecorateWithStatus adds service status information to the given
 // client.AppInfo associated with the given snap.AppInfo.
 // If the snap is inactive or the app is not service it does nothing.
@@ -354,7 +367,12 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 			Type:    "dbus",
 		})
 	}
-
+	// For activated services, the service tends to be reported as Static, meaning
+	// it can't be disabled. However, if all the activators are disabled, then we change
+	// this to appear disabled.
+	if len(appInfo.Activators) > 0 {
+		appInfo.Enabled = sd.hasEnabledActivator(appInfo)
+	}
 	return nil
 }
 

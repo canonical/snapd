@@ -55,8 +55,9 @@ func mockRefreshCandidate(snapName, channel, version string, revision snap.Revis
 			Revision: revision,
 			RealName: snapName,
 		},
+		Version: version,
 	}
-	return snapstate.MockRefreshCandidate(sup, version)
+	return snapstate.MockRefreshCandidate(sup)
 }
 
 func (s *refreshSuite) SetUpTest(c *C) {

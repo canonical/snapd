@@ -951,32 +951,32 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 	if (inv->is_normal_mode) {
 		// In normal mode we use the base snap as / and set up several bind mounts.
 		static const struct sc_mount mounts[] = {
-			{"/dev"},	// because it contains devices on host OS
-			{"/etc"},	// because that's where /etc/resolv.conf lives, perhaps a bad idea
-			{"/home"},	// to support /home/*/snap and home interface
-			{"/root"},	// because that is $HOME for services
-			{"/proc"},	// fundamental filesystem
-			{"/sys"},	// fundamental filesystem
-			{"/tmp"},	// to get writable tmp
-			{"/var/snap"},	// to get access to global snap data
-			{"/var/lib/snapd"},	// to get access to snapd state and seccomp profiles
-			{"/var/tmp"},	// to get access to the other temporary directory
-			{"/run"},	// to get /run with sockets and what not
-			{"/lib/modules",.is_optional = true},	// access to the modules of the running kernel
-			{"/lib/firmware",.is_optional = true},	// access to the firmware of the running kernel
-			{"/usr/src"},	// FIXME: move to SecurityMounts in system-trace interface
-			{"/var/log"},	// FIXME: move to SecurityMounts in log-observe interface
+			{.path = "/dev"},	// because it contains devices on host OS
+			{.path = "/etc"},	// because that's where /etc/resolv.conf lives, perhaps a bad idea
+			{.path = "/home"},	// to support /home/*/snap and home interface
+			{.path = "/root"},	// because that is $HOME for services
+			{.path = "/proc"},	// fundamental filesystem
+			{.path = "/sys"},	// fundamental filesystem
+			{.path = "/tmp"},	// to get writable tmp
+			{.path = "/var/snap"},	// to get access to global snap data
+			{.path = "/var/lib/snapd"},	// to get access to snapd state and seccomp profiles
+			{.path = "/var/tmp"},	// to get access to the other temporary directory
+			{.path = "/run"},	// to get /run with sockets and what not
+			{.path = "/lib/modules",.is_optional = true},	// access to the modules of the running kernel
+			{.path = "/lib/firmware",.is_optional = true},	// access to the firmware of the running kernel
+			{.path = "/usr/src"},	// FIXME: move to SecurityMounts in system-trace interface
+			{.path = "/var/log"},	// FIXME: move to SecurityMounts in log-observe interface
 #ifdef MERGED_USR
-			{"/run/media", true, "/media"},	// access to the users removable devices
+			{.path = "/run/media", .is_bidirectional = true, .altpath = "/media"},	// access to the users removable devices
 #else
-			{"/media", true},	// access to the users removable devices
+			{.path = "/media", .is_bidirectional = true},	// access to the users removable devices
 #endif				// MERGED_USR
-			{"/run/netns", true},	// access to the 'ip netns' network namespaces
+			{.path = "/run/netns", .is_bidirectional = true},	// access to the 'ip netns' network namespaces
 			// The /mnt directory is optional in base snaps to ensure backwards
 			// compatibility with the first version of base snaps that was
 			// released.
-			{"/mnt",.is_optional = true},	// to support the removable-media interface
-			{"/var/lib/extrausers",.is_optional = true},	// access to UID/GID of extrausers (if available)
+			{.path = "/mnt",.is_optional = true},	// to support the removable-media interface
+			{.path = "/var/lib/extrausers",.is_optional = true},	// access to UID/GID of extrausers (if available)
 			{},
 		};
 		struct sc_mount_config normal_config = {
@@ -998,8 +998,8 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 		// In legacy mode we don't pivot to a base snap's rootfs and instead
 		// just arrange bi-directional mount propagation for two directories.
 		static const struct sc_mount mounts[] = {
-			{"/media", true},
-			{"/run/netns", true},
+			{.path = "/media", .is_bidirectional = true},
+			{.path = "/run/netns", .is_bidirectional = true},
 			{},
 		};
 		struct sc_mount_config legacy_config = {

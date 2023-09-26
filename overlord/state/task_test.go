@@ -164,8 +164,38 @@ func (ts *taskSuite) TestSetWaitAfterAbortNoop(c *C) {
 	t := st.NewTask("download", "1...")
 	t.SetStatus(state.AbortStatus)
 	c.Check(t.Status(), Equals, state.AbortStatus)
-	t.SetStatus(state.WaitStatus)
+	t.SetToWait(state.DoneStatus) // noop
 	c.Check(t.Status(), Equals, state.AbortStatus)
+	c.Check(t.WaitedStatus(), Equals, state.DefaultStatus)
+}
+
+func (ts *taskSuite) TestSetWait(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("download", "1...")
+	t.SetToWait(state.DoneStatus)
+	c.Check(t.Status(), Equals, state.WaitStatus)
+	c.Check(t.WaitedStatus(), Equals, state.DoneStatus)
+	t.SetToWait(state.UndoStatus)
+	c.Check(t.Status(), Equals, state.WaitStatus)
+	c.Check(t.WaitedStatus(), Equals, state.UndoStatus)
+}
+
+func (ts *taskSuite) TestTaskMarshalsWaitStatus(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t1 := st.NewTask("download", "1...")
+	t1.SetToWait(state.UndoStatus)
+
+	d, err := t1.MarshalJSON()
+	c.Assert(err, IsNil)
+
+	needle := fmt.Sprintf(`"waited-status":%d`, t1.WaitedStatus())
+	c.Assert(string(d), testutil.Contains, needle)
 }
 
 func (ts *taskSuite) TestIsCleanAndSetClean(c *C) {

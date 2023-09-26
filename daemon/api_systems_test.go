@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -836,7 +837,7 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 			client.StorageEncryptionSupportAvailable, "encrypted", "",
 		},
 	} {
-		mockEncryptionSupportInfo := &devicestate.EncryptionSupportInfo{
+		mockEncryptionSupportInfo := &install.EncryptionSupportInfo{
 			Available:          tc.available,
 			Disabled:           tc.disabled,
 			StorageSafety:      tc.storageSafety,
@@ -844,7 +845,7 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 			UnavailableWarning: tc.unavailableWarning,
 		}
 
-		r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, *devicestate.EncryptionSupportInfo, error) {
+		r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
 			c.Check(label, check.Equals, "20191119")
 			sys := &devicestate.System{
 				Model: s.seedModelForLabel20191119,
@@ -884,7 +885,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelError(c *check.C) {
 	s.daemon(c)
 	s.expectRootAccess()
 
-	r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, *devicestate.EncryptionSupportInfo, error) {
+	r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
 		return nil, nil, nil, fmt.Errorf("boom")
 	})
 	defer r()
@@ -922,7 +923,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 	restore = s.mockSystemSeeds(c)
 	defer restore()
 
-	r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, *devicestate.EncryptionSupportInfo, error) {
+	r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(mgr *devicestate.DeviceManager, label string) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
 		// mockSystemSeed will ensure everything here is coming from
 		// the mocked seed except the encryptionInfo
 		sys, gadgetInfo, encInfo, err := deviceMgr.SystemAndGadgetAndEncryptionInfo(label)
@@ -942,7 +943,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 	c.Assert(rsp.Status, check.Equals, 200)
 	sys := rsp.Result.(client.SystemDetails)
 
-	c.Assert(sys, check.DeepEquals, client.SystemDetails{
+	sd := client.SystemDetails{
 		Label: "20191119",
 		Model: s.seedModelForLabel20191119.Headers(),
 		Actions: []client.SystemAction{
@@ -972,17 +973,20 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 						Type:       "mbr",
 						Role:       "mbr",
 						Offset:     asOffsetPtr(0),
+						MinSize:    440,
 						Size:       440,
 						Content: []gadget.VolumeContent{
 							{
 								Image: "pc-boot.img",
 							},
 						},
+						YamlIndex: 0,
 					},
 					{
 						Name:       "BIOS Boot",
 						VolumeName: "pc",
 						Type:       "DA,21686148-6449-6E6F-744E-656564454649",
+						MinSize:    1 * quantity.SizeMiB,
 						Size:       1 * quantity.SizeMiB,
 						Offset:     asOffsetPtr(1 * quantity.OffsetMiB),
 						OffsetWrite: &gadget.RelativeOffset{
@@ -994,6 +998,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 								Image: "pc-core.img",
 							},
 						},
+						YamlIndex: 1,
 					},
 					{
 						Name:       "ubuntu-seed",
@@ -1002,6 +1007,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 						VolumeName: "pc",
 						Type:       "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
 						Offset:     asOffsetPtr(2 * quantity.OffsetMiB),
+						MinSize:    1200 * quantity.SizeMiB,
 						Size:       1200 * quantity.SizeMiB,
 						Filesystem: "vfat",
 						Content: []gadget.VolumeContent{
@@ -1014,6 +1020,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 								Target:           "EFI/boot/bootx64.efi",
 							},
 						},
+						YamlIndex: 2,
 					},
 					{
 						Name:       "ubuntu-boot",
@@ -1022,8 +1029,10 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 						VolumeName: "pc",
 						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 						Offset:     asOffsetPtr(1202 * quantity.OffsetMiB),
+						MinSize:    750 * quantity.SizeMiB,
 						Size:       750 * quantity.SizeMiB,
 						Filesystem: "ext4",
+						YamlIndex:  3,
 					},
 					{
 						Name:       "ubuntu-save",
@@ -1032,8 +1041,10 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 						VolumeName: "pc",
 						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 						Offset:     asOffsetPtr(1952 * quantity.OffsetMiB),
+						MinSize:    16 * quantity.SizeMiB,
 						Size:       16 * quantity.SizeMiB,
 						Filesystem: "ext4",
+						YamlIndex:  4,
 					},
 					{
 						Name:       "ubuntu-data",
@@ -1042,13 +1053,17 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 						VolumeName: "pc",
 						Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 						Offset:     asOffsetPtr(1968 * quantity.OffsetMiB),
+						MinSize:    1 * quantity.SizeGiB,
 						Size:       1 * quantity.SizeGiB,
 						Filesystem: "ext4",
+						YamlIndex:  5,
 					},
 				},
 			},
 		},
-	})
+	}
+	gadget.SetEnclosingVolumeInStructs(sd.Volumes)
+	c.Assert(sys, check.DeepEquals, sd)
 }
 
 func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevicestate(c *check.C) {

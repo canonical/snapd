@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build !nosecboot
-// +build !nosecboot
 
 /*
  * Copyright (C) 2020 Canonical Ltd
@@ -30,9 +29,8 @@ import (
 )
 
 var (
-	DiskWithSystemSeed                 = diskWithSystemSeed
-	NewEncryptedDeviceLUKS             = newEncryptedDeviceLUKS
-	CreateEncryptedDeviceWithSetupHook = createEncryptedDeviceWithSetupHook
+	DiskWithSystemSeed     = diskWithSystemSeed
+	NewEncryptedDeviceLUKS = newEncryptedDeviceLUKS
 )
 
 func MockSecbootFormatEncryptedDevice(f func(key keys.EncryptionKey, encType secboot.EncryptionType, label, node string) error) (restore func()) {

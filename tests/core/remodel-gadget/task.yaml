@@ -10,10 +10,12 @@ environment:
 prepare: |
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
 
     if [ "$SPREAD_REBOOT" = 0 ]; then
+        # enable the shutdown delay for this test in /etc/environment to properly persist it
+        # in this test
+        echo "SNAPD_SHUTDOWN_DELAY=1" >> /etc/environment
+
         REBOOT_NEEDED=false
         if os.query is-core18 && snap list snapd | NOMATCH ' x1 '; then
             REBOOT_NEEDED=true
@@ -42,8 +44,6 @@ prepare: |
 restore: |
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
 
     if [ "$SPREAD_REBOOT" = 0 ]; then
         REBOOT_NEEDED=false
@@ -85,6 +85,10 @@ restore: |
         find /var/snap
         exit 1
     fi
+
+    # remove SNAPD_SHUTDOWN_DELAY from /etc/environment again
+    #shellcheck disable=SC2005
+    echo "$(grep -v 'SNAPD_SHUTDOWN_DELAY=1' /etc/environment)" > /etc/environment
 
 execute: |
     #shellcheck source=tests/lib/core-config.sh

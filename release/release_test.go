@@ -168,6 +168,26 @@ REDHAT_SUPPORT_PRODUCT_VERSION="7"`
 	c.Check(os.IDLike, DeepEquals, []string{"rhel", "fedora"})
 }
 
+func (s *ReleaseTestSuite) TestUbuntuCoreVariantRelease(c *C) {
+	mockOSRelease := filepath.Join(c.MkDir(), "mock-os-release")
+	dump := `NAME="Ubuntu Core Desktop"
+VERSION="22"
+ID="ubuntu-core"
+VARIANT_ID="desktop"
+VERSION_ID="22"
+"`
+	err := ioutil.WriteFile(mockOSRelease, []byte(dump), 0644)
+	c.Assert(err, IsNil)
+
+	reset := release.MockOSReleasePath(mockOSRelease)
+	defer reset()
+
+	os := release.ReadOSRelease()
+	c.Check(os.ID, Equals, "ubuntu-core")
+	c.Check(os.VariantID, Equals, "desktop")
+	c.Check(os.VersionID, Equals, "22")
+}
+
 func (s *ReleaseTestSuite) TestReadOSReleaseNotFound(c *C) {
 	reset := release.MockOSReleasePath("not-there")
 	defer reset()
@@ -184,6 +204,16 @@ func (s *ReleaseTestSuite) TestOnClassic(c *C) {
 	reset = release.MockOnClassic(false)
 	defer reset()
 	c.Assert(release.OnClassic, Equals, false)
+}
+
+func (s *ReleaseTestSuite) TestOnCoreDesktop(c *C) {
+	reset := release.MockOnCoreDesktop(true)
+	defer reset()
+	c.Assert(release.OnCoreDesktop, Equals, true)
+
+	reset = release.MockOnCoreDesktop(false)
+	defer reset()
+	c.Assert(release.OnCoreDesktop, Equals, false)
 }
 
 func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {

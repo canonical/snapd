@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -190,11 +191,26 @@ func (s *DockerSupportInterfaceSuite) TestInterfaces(c *C) {
 }
 
 func (s *DockerSupportInterfaceSuite) TestAppArmorSpec(c *C) {
+	// no features so should not support userns
+	restore := apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
+	defer restore()
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, "/sys/fs/cgroup/*/docker/   rw,\n")
 	c.Check(spec.UsesPtraceTrace(), Equals, true)
+	c.Check(spec.SnippetForTag("snap.docker.app"), Not(testutil.Contains), "userns,\n")
+
+	// test with apparmor userns support too
+	restore = apparmor_sandbox.MockFeatures(nil, nil, []string{"userns"}, nil)
+	defer restore()
+	spec = &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
+	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, "/sys/fs/cgroup/*/docker/   rw,\n")
+	c.Check(spec.UsesPtraceTrace(), Equals, true)
+	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, "userns,\n")
+
 }
 
 func (s *DockerSupportInterfaceSuite) TestSecCompSpec(c *C) {

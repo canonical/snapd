@@ -793,6 +793,18 @@ hooks:
 	c.Check(err, ErrorMatches, `invalid hook name: "123abc"`)
 }
 
+func (s *ValidateSuite) TestIllegalHookDefaultConfigureWithoutConfigure(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+hooks:
+  default-configure:
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, "cannot specify \"default-configure\" hook without \"configure\" hook")
+}
+
 func (s *ValidateSuite) TestPlugSlotNamesUnique(c *C) {
 	info, err := InfoFromSnapYaml([]byte(`name: snap
 version: 0
@@ -1928,6 +1940,22 @@ system-usernames:
 	c.Assert(info.SystemUsernames, HasLen, 1)
 	err = Validate(info)
 	c.Assert(err, ErrorMatches, `invalid system username "b@d"`)
+}
+
+func (s *ValidateSuite) TestValidateSystemUsernamesHappy(c *C) {
+	const yaml1 = `name: binary
+version: 1.0
+system-usernames:
+  "snap_daemon": shared
+  "_daemon_": shared
+`
+
+	strk := NewScopedTracker()
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml1), nil, strk)
+	c.Assert(err, IsNil)
+	c.Assert(info.SystemUsernames, HasLen, 2)
+	err = Validate(info)
+	c.Assert(err, IsNil)
 }
 
 const yamlNeedDf = `name: need-df

@@ -118,8 +118,7 @@ var LoadProfiles = func(fnames []string, cacheDir string, flags AaParserFlags) e
 		return nil
 	}
 
-	// Use no-expr-simplify since expr-simplify is actually slower on armhf (LP: #1383858)
-	args := []string{"--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s", cacheDir)}
+	args := []string{"--replace", "--write-cache", fmt.Sprintf("--cache-loc=%s", cacheDir)}
 	if flags&ConserveCPU != 0 {
 		args = append(args, numberOfJobsParam())
 	}
@@ -153,34 +152,12 @@ var LoadProfiles = func(fnames []string, cacheDir string, flags AaParserFlags) e
 	return nil
 }
 
-// UnloadProfiles is meant to remove the named profiles from the running
-// kernel and then remove any cache files. Importantly, we can only unload
-// profiles when we are sure there are no lingering processes from the snap
-// (ie, forcibly stop all running processes from the snap). Otherwise, any
-// running processes will become unconfined. Since we don't have this guarantee
-// yet, leave the profiles loaded in the kernel but remove the cache files from
-// the system so the policy is gone on the next reboot. LP: #1818241
-func UnloadProfiles(names []string, cacheDir string) error {
+// Remove any of the AppArmor profiles in names from the AppArmor cache in
+// cacheDir
+func RemoveCachedProfiles(names []string, cacheDir string) error {
 	if len(names) == 0 {
 		return nil
 	}
-
-	/* TODO: uncomment when no lingering snap processes is guaranteed
-	// By the time this function is called, all the profiles (names) have
-	// been removed from dirs.SnapAppArmorDir, so to unload the profiles
-	// from the running kernel we must instead use sysfs and write the
-	// profile names one at a time to
-	// /sys/kernel/security/apparmor/.remove (with no trailing \n).
-	apparmorSysFsRemove := "/sys/kernel/security/apparmor/.remove"
-	if !osutil.IsWritable(appArmorSysFsRemove) {
-	        return fmt.Errorf("cannot unload apparmor profile: %s does not exist\n", appArmorSysFsRemove)
-	}
-	for _, n := range names {
-	        // ignore errors since it is ok if the profile isn't removed
-	        // from the kernel
-	        ioutil.WriteFile(appArmorSysFsRemove, []byte(n), 0666)
-	}
-	*/
 
 	// AppArmor 2.13 and higher has a cache forest while 2.12 and lower has
 	// a flat directory (on 2.12 and earlier, .features and the snap
@@ -317,7 +294,7 @@ var loadHomedirs = func() ([]string, error) {
 // Returns whether any modifications was made to the snap-confine snippets.
 func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 	// Create the local policy directory if it is not there.
-	if err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755); err != nil {
+	if err := os.MkdirAll(SnapConfineAppArmorDir, 0755); err != nil {
 		return false, fmt.Errorf("cannot create snap-confine policy directory: %s", err)
 	}
 
@@ -371,7 +348,7 @@ func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 	}
 
 	// Ensure that generated policy is what we computed above.
-	created, removed, err := osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, "*", policy)
+	created, removed, err := osutil.EnsureDirState(SnapConfineAppArmorDir, "*", policy)
 	if err != nil {
 		return false, fmt.Errorf("cannot synchronize snap-confine policy: %s", err)
 	}
@@ -381,6 +358,6 @@ func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 // RemoveSnapConfineSnippets clears out any previously written apparmor snippets
 // for snap-confine.
 func RemoveSnapConfineSnippets() error {
-	_, _, err := osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, "*", nil)
+	_, _, err := osutil.EnsureDirState(SnapConfineAppArmorDir, "*", nil)
 	return err
 }

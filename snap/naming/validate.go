@@ -163,6 +163,17 @@ func ValidateSocket(name string) error {
 	return nil
 }
 
+// ValidateIfaceTag can be used to check valid tags in interfaces.
+// These tags are used to match plugs with slots, and although they
+// could be arbitrary strings it is nice to keep naming consistent
+// with what we do for snap names.
+func ValidateIfaceTag(name string) error {
+	if !isValidName(name) {
+		return fmt.Errorf("invalid tag name: %q", name)
+	}
+	return nil
+}
+
 // ValidSnapID is a regular expression describing a valid snapd-id
 var ValidSnapID = regexp.MustCompile("^[a-z0-9A-Z]{32}$")
 

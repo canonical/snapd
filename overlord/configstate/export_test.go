@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build !nomanagers
-// +build !nomanagers
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -27,6 +26,7 @@ import (
 )
 
 var NewConfigureHandler = newConfigureHandler
+var NewDefaultConfigureHandler = newDefaultConfigureHandler
 
 func MockConfigcoreExportExperimentalFlags(mock func(tr configcore.ConfGetter) error) (restore func()) {
 	old := configcoreExportExperimentalFlags

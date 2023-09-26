@@ -353,6 +353,9 @@ apps:
   password-manager-service:
     command: bin/run
     plugs: [ password-manager-service ]
+  pcscd:
+    command: bin/run
+    plugs: [ pcscd ]
   physical-memory-control:
     command: bin/run
     plugs: [ physical-memory-control ]
@@ -509,6 +512,9 @@ apps:
   upower-observe:
     command: bin/run
     plugs: [ upower-observe ]
+  userns:
+    command: bin/run
+    plugs: [ userns ]
   vcio:
     command: bin/run
     plugs: [ vcio ]

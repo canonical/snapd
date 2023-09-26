@@ -75,6 +75,7 @@ func (e *ValidationError) Error() string {
 		for _, err := range e.SystemErrors[s] {
 			fmt.Fprintf(&buf, "\n - %s", err)
 		}
+		first = false
 	}
 	return buf.String()
 }

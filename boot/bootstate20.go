@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2022 Canonical Ltd
+ * Copyright (C) 2019-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,8 @@ package boot
 import (
 	"fmt"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
@@ -46,10 +48,38 @@ func newBootState20(typ snap.Type, dev snap.Device) bootState {
 	}
 }
 
+// modeenvMu is used to protect sections doing:
+//   - read moddeenv/modify it(/reseal from it)
+//   - write modeenv/seal from it
+//
+// while we might want to release the global state lock as seal/reseal are slow
+// (see Unlocker for that)
+var (
+	modeenvMu     sync.Mutex
+	modeenvLocked int32
+)
+
+func modeenvLock() {
+	modeenvMu.Lock()
+	atomic.AddInt32(&modeenvLocked, 1)
+}
+
+func modeenvUnlock() {
+	atomic.AddInt32(&modeenvLocked, -1)
+	modeenvMu.Unlock()
+}
+
+func isModeeenvLocked() bool {
+	return atomic.LoadInt32(&modeenvLocked) == 1
+}
+
 func loadModeenv() (*Modeenv, error) {
+	if !isModeeenvLocked() {
+		return nil, fmt.Errorf("internal error: cannot read modeenv without the lock")
+	}
 	modeenv, err := ReadModeenv("")
 	if err != nil {
-		return nil, fmt.Errorf("cannot get snap revision: unable to read modeenv: %v", err)
+		return nil, fmt.Errorf("cannot read modeenv: %v", err)
 	}
 	return modeenv, nil
 }
@@ -154,6 +184,10 @@ func newBootStateUpdate20(m *Modeenv) (*bootStateUpdate20, error) {
 
 // commit will write out boot state persistently to disk.
 func (u20 *bootStateUpdate20) commit() error {
+	if !isModeeenvLocked() {
+		return fmt.Errorf("internal error: cannot commit modeenv without the lock")
+	}
+
 	// The actual actions taken here will depend on what things were called
 	// before commit(), either setNextBoot for a single type of kernel snap, or
 	// markSuccessful for kernel and/or base snaps.
@@ -191,7 +225,7 @@ func (u20 *bootStateUpdate20) commit() error {
 	// changed because of unasserted kernels, then pass a
 	// flag as hint whether to reseal based on whether we
 	// wrote the modeenv
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, u20.writeModeenv, expectReseal); err != nil {
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, u20.writeModeenv, expectReseal, nil); err != nil {
 		return err
 	}
 
@@ -223,22 +257,23 @@ type bootState20Kernel struct {
 	dev snap.Device
 }
 
+func (ks20 *bootState20Kernel) bootloaderOptions() *bootloader.Options {
+	if ks20.blOpts != nil {
+		return ks20.blOpts
+	}
+	// find the run-mode bootloader
+	return &bootloader.Options{
+		Role: bootloader.RoleRunMode,
+	}
+}
+
 func (ks20 *bootState20Kernel) loadBootenv() error {
 	// don't setup multiple times
 	if ks20.bks != nil {
 		return nil
 	}
 
-	// find the run-mode bootloader
-	var opts *bootloader.Options
-	if ks20.blOpts != nil {
-		opts = ks20.blOpts
-	} else {
-		opts = &bootloader.Options{
-			Role: bootloader.RoleRunMode,
-		}
-	}
-	bl, err := bootloader.Find(ks20.blDir, opts)
+	bl, err := bootloader.Find(ks20.blDir, ks20.bootloaderOptions())
 	if err != nil {
 		return err
 	}
@@ -262,13 +297,6 @@ func (ks20 *bootState20Kernel) loadBootenv() error {
 	}
 
 	return nil
-}
-
-func (ks20 *bootState20Kernel) getRebootBootloader() (bootloader.RebootBootloader, error) {
-	if err := ks20.loadBootenv(); err != nil {
-		return nil, err
-	}
-	return ks20.rbl, nil
 }
 
 func (ks20 *bootState20Kernel) revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error) {
@@ -339,13 +367,12 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo, bootCtx NextBootCont
 		if !bootCtx.BootWithoutTry {
 			nextStatus = TryStatus
 		}
-		// kernels are usually loaded directly by the bootloader, for
+		// Kernels are usually loaded directly by the bootloader, for
 		// which we may need to pass additional data to make 'try'
-		// operation more robust - that might be provided by the
-		// RebootBootloader interface
-		if rbi.RebootBootloader, err = ks20.getRebootBootloader(); err != nil {
-			return RebootInfo{RebootRequired: false}, nil, err
-		}
+		// operation more robust. Set the bootloader options so the
+		// reboot code can find the relevant bootloader and get those
+		// arguments.
+		rbi.BootloaderOptions = ks20.bootloaderOptions()
 	}
 
 	currentKernel := ks20.bks.kernel()
@@ -471,7 +498,7 @@ type bootState20Base struct{}
 func (bs20 *bootState20Base) revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error) {
 	modeenv, err := loadModeenv()
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, "", fmt.Errorf("cannot get snap revision: %v", err)
 	}
 	return bs20.revisionsFromModeenv(modeenv)
 }
@@ -887,9 +914,6 @@ func (brs20 *bootState20Model) markSuccessful(update bootStateUpdate) (bootState
 	// sign key ID was not being populated in earlier versions of snapd, try
 	// to remedy that
 	if u20.modeenv.ModelSignKeyID == "" {
-		if err != nil {
-			return nil, err
-		}
 		u20.writeModeenv.ModelSignKeyID = brs20.dev.Model().SignKeyID()
 	}
 	return u20, nil

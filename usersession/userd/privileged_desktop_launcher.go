@@ -20,7 +20,6 @@
 package userd
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
@@ -30,9 +29,9 @@ import (
 
 	"github.com/godbus/dbus"
 
+	"github.com/snapcore/snapd/desktop/desktopentry"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/strutil/shlex"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -85,12 +84,12 @@ func (s *PrivilegedDesktopLauncher) OpenDesktopEntry(desktopFileID string, sende
 		return dbus.MakeFailedError(err)
 	}
 
-	command, icon, err := readExecCommandFromDesktopFile(desktopFile)
+	de, err := desktopentry.Read(desktopFile)
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
 
-	args, err := parseExecCommand(command, icon)
+	args, err := de.ExpandExec(nil)
 	if err != nil {
 		return dbus.MakeFailedError(err)
 	}
@@ -112,7 +111,7 @@ func (s *PrivilegedDesktopLauncher) OpenDesktopEntry(desktopFileID string, sende
 	cmd := exec.Command(args[0], args[1:]...)
 
 	if err := cmd.Run(); err != nil {
-		return dbus.MakeFailedError(fmt.Errorf("cannot run %q: %v", command, err))
+		return dbus.MakeFailedError(fmt.Errorf("cannot run %q: %v", args, err))
 	}
 
 	return nil
@@ -226,84 +225,4 @@ func verifyDesktopFileLocation(desktopFile string) error {
 	}
 
 	return nil
-}
-
-// readExecCommandFromDesktopFile parses the desktop file to get the Exec entry and
-// checks that the BAMF_DESKTOP_FILE_HINT is present and refers to the desktop file.
-func readExecCommandFromDesktopFile(desktopFile string) (exec string, icon string, err error) {
-	file, err := os.Open(desktopFile)
-	if err != nil {
-		return exec, icon, err
-	}
-	defer file.Close()
-	scanner := bufio.NewScanner(file)
-
-	var inDesktopSection, seenDesktopSection bool
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-
-		if line == "[Desktop Entry]" {
-			if seenDesktopSection {
-				return "", "", fmt.Errorf("desktop file %q has multiple [Desktop Entry] sections", desktopFile)
-			}
-			seenDesktopSection = true
-			inDesktopSection = true
-		} else if strings.HasPrefix(line, "[Desktop Action ") {
-			// TODO: add support for desktop action sections
-			inDesktopSection = false
-		} else if strings.HasPrefix(line, "[") {
-			inDesktopSection = false
-		} else if inDesktopSection {
-			if strings.HasPrefix(line, "Exec=") {
-				exec = strings.TrimPrefix(line, "Exec=")
-			} else if strings.HasPrefix(line, "Icon=") {
-				icon = strings.TrimPrefix(line, "Icon=")
-			}
-		}
-	}
-
-	expectedPrefix := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=%s %s", desktopFile, dirs.SnapBinariesDir)
-	if !strings.HasPrefix(exec, expectedPrefix) {
-		return "", "", fmt.Errorf("desktop file %q has an unsupported 'Exec' value: %q", desktopFile, exec)
-	}
-
-	return exec, icon, nil
-}
-
-// Parse the Exec command by stripping any exec variables.
-// Passing exec variables (eg, %foo) between confined snaps is unsupported. Currently,
-// we do not have support for passing them in the D-Bus API but there are security
-// implications that must be thought through regarding the influence of the launching
-// snap over the launcher wrt exec variables. For now we simply filter them out.
-// https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#exec-variables
-func parseExecCommand(command string, icon string) ([]string, error) {
-	origArgs, err := shlex.Split(command)
-	if err != nil {
-		return nil, err
-	}
-
-	args := make([]string, 0, len(origArgs))
-	for _, arg := range origArgs {
-		// We want to keep literal '%' (expressed as '%%') but filter our exec variables
-		// like '%foo'
-		if strings.HasPrefix(arg, "%%") {
-			arg = arg[1:]
-		} else if strings.HasPrefix(arg, "%") {
-			switch arg {
-			case "%f", "%F", "%u", "%U":
-				// If we were launching a file with
-				// the application, these variables
-				// would expand to file names or URIs.
-				// As we're not, they are simply
-				// removed from the argument list.
-			case "%i":
-				args = append(args, "--icon", icon)
-			default:
-				return nil, fmt.Errorf("cannot run %q due to use of %q", command, arg)
-			}
-			continue
-		}
-		args = append(args, arg)
-	}
-	return args, nil
 }

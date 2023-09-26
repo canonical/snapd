@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.59
+Version:        2.60.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -192,6 +192,7 @@ designed for working with self-contained, immutable packages.
 Summary:        Confinement system for snap applications
 License:        GPLv3
 BuildRequires:  autoconf
+BuildRequires:  autoconf-archive
 BuildRequires:  automake
 BuildRequires:  libtool
 BuildRequires:  gcc
@@ -996,6 +997,96 @@ fi
 
 
 %changelog
+* Fri Sep 15 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.60.4
+ - i/b/qualcomm_ipc_router.go: switch to plug/slot and add socket
+   permission
+ - interfaces/builtin: fix custom-device udev KERNEL values
+ - overlord: allow the firmware-updater snap to install user daemons
+ - interfaces: allow loopback as a block-device
+
+* Fri Aug 25 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.60.3
+ - i/b/shared-memory: handle "private" plug attribute in shared-
+   memory interface correctly
+ - i/apparmor: support for home.d tunables from /etc/
+
+* Fri Aug 04 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.60.2
+ - i/builtin: allow directories in private /dev/shm
+ - i/builtin: add read access to /proc/task/schedstat in system-
+   observe
+ - snap-bootstrap: print version information at startup
+ - go.mod: update gopkg.in/yaml.v3 to v3.0.1 to fix CVE-2022-28948
+ - snap, store: filter out invalid snap edited links from store info
+   and persisted state
+ - o/configcore: write netplan defaults to 00-snapd-config on seeding
+ - snapcraft.yaml: pull in apparmor_parser optimization patches from
+   https://gitlab.com/apparmor/apparmor/-/merge_requests/711
+ - snap-confine: fix missing \0 after readlink
+ - cmd/snap: hide append-integrity-data
+ - interfaces/opengl: add support for ARM Mali
+
+* Tue Jul 04 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.60.1
+ - install: fallback to lazy unmount() in writeFilesystemContent
+ - data: include "modprobe.d" and "modules-load.d" in preseeded blob
+ - gadget: fix install test on armhf
+ - interfaces: fix typo in network_manager_observe
+ - sandbox/apparmor: don't let vendored apparmor conflict with system
+ - gadget/update: set parts in laid out data from the ones matched
+ - many: move SnapConfineAppArmorDir from dirs to sandbox/apparmor
+ - many: stop using `-O no-expr-simplify` in apparmor_parser
+ - go.mod: update secboot to latest uc22 branch
+
+* Thu Jun 15 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.60
+ - Support for dynamic snapshot data exclusions
+ - Apparmor userspace is vendored inside the snapd snap
+ - Added a default-configure hook that exposes gadget default
+   configuration options to snaps during first install before
+   services are started
+ - Allow install from initrd to speed up the initial installation
+   for systems that do not have a install-device hook
+ - New `snap sign --chain` flag that appends the account and
+   account-key assertions
+ - Support validation-sets in the model assertion
+ - Support new "min-size" field in gadget.yaml
+ - New interface: "userns"
+
+* Sat May 27 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.59.5
+ - Explicitly disallow the use of ioctl + TIOCLINUX
+   This fixes CVE-2023-1523.
+
+* Fri May 12 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.59.4
+ - Retry when looking for disk label on non-UEFI systems
+   (LP: #2018977)
+ - Fix remodel from UC20 to UC22
+
+* Wed May 03 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.59.3
+ - Fix quiet boot
+ - i/b/physical_memory_observe: allow reading virt-phys page mappings
+ - gadget: warn instead of returning error if overlapping with GPT
+   header
+ - overlord,wrappers: restart always enabled units
+ - go.mod: update github.com/snapcore/secboot to latest uc22
+ - boot: make sure we update assets for the system-seed-null role
+ - many: ignore case for vfat partitions when validating
+
+* Tue Apr 18 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.59.2
+ - Notify users when a user triggered auto refresh finished
+
+* Tue Mar 28 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.59.1
+ - Add udev rules from steam-devices to steam-support interface
+ - Bugfixes for layout path checking, dm_crypt permissions,
+   mount-control interface parameter checking, kernel commandline
+   parsing, docker-support, refresh-app-awareness
+
 * Fri Mar 10 2023 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.59
  - Support setting extra kernel command line parameters via snap

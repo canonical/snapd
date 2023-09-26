@@ -86,7 +86,7 @@ func CreateTransientScopeForTracking(securityTag string, opts *TrackingOptions) 
 	// - the originally started scope must be marked as a delegate, with all
 	//   consequences.
 	// - the method AttachProcessesToUnit is unavailable on Ubuntu 16.04
-	unitName := fmt.Sprintf("%s.%s.scope", securityTag, uuid)
+	unitName := fmt.Sprintf("%s-%s.scope", securityTag, uuid)
 
 	pid := osGetpid()
 	start := time.Now()
@@ -451,10 +451,8 @@ var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) err
 	return doCreateTransientScopeNoSync(conn, unitName, pid)
 }
 
-var randomUUID = func() (string, error) {
-	// The source of the bytes generated here is the same as that of
-	// /dev/urandom which doesn't block and is sufficient for our purposes
-	// of avoiding clashing UUIDs that are needed for all of the non-service
-	// commands that are started with the help of this UUID.
-	return randutil.RandomKernelUUID(), nil
-}
+// The source of the bytes generated here is the same as that of
+// /dev/urandom which doesn't block and is sufficient for our purposes
+// of avoiding clashing UUIDs that are needed for all of the non-service
+// commands that are started with the help of this UUID.
+var randomUUID = randutil.RandomKernelUUID

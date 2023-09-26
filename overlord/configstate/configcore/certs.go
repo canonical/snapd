@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build !nomanagers
-// +build !nomanagers
 
 /*
  * Copyright (C) 2020 Canonical Ltd
@@ -43,7 +42,7 @@ func handleCertConfiguration(tr RunTransaction, opts *fsOnlyContext) error {
 	// TODO: add ways to detect cleanly if tr is a patch, skip the sync code if it is
 	storeCerts, err := filepath.Glob(filepath.Join(dirs.SnapdStoreSSLCertsDir, "*.pem"))
 	if err != nil {
-		return fmt.Errorf("cannot get exiting store certs: %v", err)
+		return fmt.Errorf("cannot get existing store certs: %v", err)
 	}
 	for _, storeCertPath := range storeCerts {
 		optionName := strings.TrimSuffix(filepath.Base(storeCertPath), ".pem")

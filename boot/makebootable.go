@@ -325,6 +325,7 @@ func MakeRecoverySystemBootable(model *asserts.Model, rootdir string, relativeRe
 type makeRunnableOptions struct {
 	Standalone     bool
 	AfterDataReset bool
+	SeedDir        string
 }
 
 func copyBootSnap(orig string, dstInfo *snap.Info, dstSnapBlobDir string) error {
@@ -357,6 +358,8 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	if bootWith.RecoverySystemDir != "" {
 		return fmt.Errorf("internal error: RecoverySystemDir unexpectedly set for MakeRunnableSystem")
 	}
+	modeenvLock()
+	defer modeenvUnlock()
 
 	// TODO:UC20:
 	// - figure out what to do for uboot gadgets, currently we require them to
@@ -525,6 +528,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		flags := sealKeyToModeenvFlags{
 			HasFDESetupHook: hasHook,
 			FactoryReset:    makeOpts.AfterDataReset,
+			SeedDir:         makeOpts.SeedDir,
 		}
 		if makeOpts.Standalone {
 			flags.SnapsDir = snapBlobDir
@@ -595,17 +599,31 @@ func buildOptionalKernelCommandLine(model *asserts.Model, gadgetSnapOrDir string
 // setting up a run system and actually transitioning to it, with hooks, etc.
 // running in between.
 func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
-	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{})
+	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
+		SeedDir: dirs.SnapSeedDir,
+	})
 }
 
 // MakeRunnableStandaloneSystem operates like MakeRunnableSystem but does
-// assume that the run system being set up is related to the current
+// not assume that the run system being set up is related to the current
 // system. This is appropriate e.g when installing from a classic installer.
 func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
 	// TODO consider merging this back into MakeRunnableSystem but need
 	// to consider the properties of the different input used for sealing
 	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
 		Standalone: true,
+		SeedDir:    dirs.SnapSeedDir,
+	})
+}
+
+// MakeRunnableStandaloneSystemFromInitrd is the same as MakeRunnableStandaloneSystem
+// but uses seed dir path expected in initrd.
+func MakeRunnableStandaloneSystemFromInitrd(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
+	// TODO consider merging this back into MakeRunnableSystem but need
+	// to consider the properties of the different input used for sealing
+	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
+		Standalone: true,
+		SeedDir:    filepath.Join(InitramfsRunMntDir, "ubuntu-seed"),
 	})
 }
 
@@ -615,5 +633,6 @@ func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, s
 func MakeRunnableSystemAfterDataReset(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
 	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
 		AfterDataReset: true,
+		SeedDir:        dirs.SnapSeedDir,
 	})
 }

@@ -201,6 +201,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.SysctlBufs = nil
 
 	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	restore := osutil.MockMountInfo("")
 	s.AddCleanup(restore)
@@ -216,6 +217,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.vars = nil
 	s.user = nil
 	s.d = nil
+	s.ctx = nil
 	s.currentSnaps = nil
 	s.actions = nil
 	s.authUser = nil
@@ -233,14 +235,6 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 
 	s.Brands = assertstest.NewSigningAccounts(s.StoreSigning)
 	s.Brands.Register("my-brand", brandPrivKey, nil)
-}
-
-func (s *apiBaseSuite) TearDownTest(c *check.C) {
-	s.d = nil
-	s.ctx = nil
-
-	dirs.SetRootDir("")
-	s.BaseTest.TearDownTest(c)
 }
 
 func (s *apiBaseSuite) mockModel(st *state.State, model *asserts.Model) {

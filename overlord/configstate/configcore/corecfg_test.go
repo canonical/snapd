@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/state"
@@ -148,6 +149,15 @@ func (s *configcoreSuite) SetUpTest(c *C) {
 	s.AddCleanup(osutil.MockMountInfo(""))
 
 	s.systemctlOutput = func(args ...string) []byte {
+		if args[0] == "show" {
+			return []byte(fmt.Sprintf(`Type=notify
+Id=%[1]s
+Names=%[1]s
+ActiveState=inactive
+UnitFileState=enabled
+NeedDaemonReload=no
+`, args[len(args)-1]))
+		}
 		return []byte("ActiveState=inactive")
 	}
 
@@ -173,7 +183,7 @@ func (s *configcoreSuite) SetUpTest(c *C) {
 	mockCmdline := filepath.Join(dirs.GlobalRootDir, "cmdline")
 	err := ioutil.WriteFile(mockCmdline, nil, 0644)
 	c.Assert(err, IsNil)
-	restore = osutil.MockProcCmdline(mockCmdline)
+	restore = kcmdline.MockProcCmdline(mockCmdline)
 	s.AddCleanup(restore)
 }
 

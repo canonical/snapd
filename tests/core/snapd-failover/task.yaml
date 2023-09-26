@@ -59,7 +59,7 @@ execute: |
 
         echo "Verify that a random signal does not trigger the failure handling"
         echo "and snapd is just restarted"
-        systemctl kill --signal=SIGSEGV snapd.service
+        systemctl kill --signal=SIGKILL snapd.service
 
         started_after_rand_sig="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
 
@@ -129,7 +129,7 @@ execute: |
         if os.query is-core16; then
             echo "Manually uninstall the snapd snap on UC16"
             systemctl stop snapd.service snapd.socket snapd.autoimport.service snapd.snap-repair.service snapd.snap-repair.timer
-            umount "/snap/snapd/$(readlink /snap/snapd/current)"
+            retry --wait 3 -n 5 sh -c "umount \"/snap/snapd/$(readlink /snap/snapd/current)\""
 
             rm -f /etc/systemd/system/usr-lib-snapd.mount
             rm -f /etc/systemd/system/snap-snapd-*.mount

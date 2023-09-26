@@ -189,9 +189,10 @@ func validateReservedLabels(vs *VolumeStructure, reservedLabels []string) error 
 	if vs.Label == "" {
 		return nil
 	}
-	if strutil.ListContains(reservedLabels, vs.Label) {
-		// a structure without a role uses one of reserved labels
-		return fmt.Errorf("label %q is reserved", vs.Label)
+	for _, reservedLabel := range reservedLabels {
+		if vs.HasLabel(reservedLabel) {
+			return fmt.Errorf("label %q is reserved", vs.Label)
+		}
 	}
 	return nil
 }
@@ -312,7 +313,7 @@ func checkImplicitLabels(roles map[string]*roleInstance, roleLabels ...roleLabel
 		if volStruct == nil {
 			return fmt.Errorf("internal error: %q not in volume", rlLb.role)
 		}
-		if volStruct.Label != "" && volStruct.Label != rlLb.label {
+		if volStruct.Label != "" && !volStruct.HasLabel(rlLb.label) {
 			return fmt.Errorf("%s structure must have an implicit label or %q, not %q", rlLb.role, rlLb.label, volStruct.Label)
 		}
 	}
@@ -403,7 +404,7 @@ func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) er
 		if kernelSnapRootDir == "" {
 			opts.SkipResolveContent = true
 		}
-		lv, err := LayoutVolume(vol, opts)
+		lv, err := LayoutVolume(vol, nil, opts)
 		if err != nil {
 			return fmt.Errorf("invalid layout of volume %q: %v", name, err)
 		}

@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build !nomanagers
-// +build !nomanagers
 
 /*
  * Copyright (C) 2016-2017 Canonical Ltd
@@ -43,6 +42,9 @@ func MockConfigcoreRun(f func(sysconfig.Device, configcore.RunTransaction) error
 
 func Init(st *state.State, hookManager *hookstate.HookManager) error {
 	delayedCrossMgrInit()
+
+	// Default configuration is handled via the "default-configure" hook
+	hookManager.Register(regexp.MustCompile("^default-configure$"), newDefaultConfigureHandler)
 
 	// Most configuration is handled via the "configure" hook of the
 	// snaps. However some configuration is internally handled

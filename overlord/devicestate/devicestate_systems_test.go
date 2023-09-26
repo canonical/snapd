@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -1441,8 +1442,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 	s.state.Lock()
 
 	c.Assert(chg.Err(), IsNil)
-	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
-	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
+	c.Assert(tskCreate.Status(), Equals, state.WaitStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoStatus)
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
@@ -1491,6 +1492,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 	s.settle(c)
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// simulate a restart and run change to completion
+	s.mockRestartAndSettle(c, s.state, chg)
 
 	c.Assert(chg.Err(), IsNil)
 	c.Check(chg.IsReady(), Equals, true)
@@ -1616,8 +1620,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	defer s.state.Unlock()
 
 	c.Assert(chg.Err(), IsNil)
-	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
-	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
+	c.Assert(tskCreate.Status(), Equals, state.WaitStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoStatus)
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
@@ -1667,6 +1671,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
+
+	// simulate a restart and run change to completion
+	s.mockRestartAndSettle(c, s.state, chg)
 
 	c.Assert(chg.Err(), IsNil)
 	c.Check(chg.IsReady(), Equals, true)
@@ -1817,8 +1824,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 	s.state.Lock()
 
 	c.Assert(chg.Err(), IsNil)
-	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
-	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
+	c.Assert(tskCreate.Status(), Equals, state.WaitStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoStatus)
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	// validity check asserted snaps location
@@ -1869,6 +1876,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 	s.settle(c)
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// simulate a restart and run change to completion
+	s.mockRestartAndSettle(c, s.state, chg)
 
 	c.Assert(chg.Err(), ErrorMatches, "(?s)cannot perform the following tasks.* provoking total undo.*")
 	c.Check(chg.IsReady(), Equals, true)
@@ -1928,8 +1938,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 	s.state.Lock()
 
 	c.Assert(chg.Err(), IsNil)
-	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
-	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
+	c.Assert(tskCreate.Status(), Equals, state.WaitStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoStatus)
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
@@ -1970,6 +1980,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 	s.settle(c)
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// 'create-recovery-system' is pending a restart
+	s.mockRestartAndSettle(c, s.state, chg)
 
 	c.Assert(chg.Err(), ErrorMatches, `(?s)cannot perform the following tasks.* Finalize recovery system with label "1234" \(cannot promote recovery system "1234": system has not been successfully tried\)`)
 	c.Check(chg.IsReady(), Equals, true)
@@ -2111,8 +2124,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemReboo
 
 	// so far so good
 	c.Assert(chg.Err(), IsNil)
-	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
-	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
+	c.Assert(tskCreate.Status(), Equals, state.WaitStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoStatus)
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 2)
@@ -2367,7 +2380,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C)
 	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
 	c.Assert(err, IsNil)
 
-	restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return fmt.Errorf("really no tpm") })
+	restore := install.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return fmt.Errorf("really no tpm") })
 	defer restore()
 
 	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
@@ -2381,7 +2394,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C)
 		},
 	})
 	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
-	c.Check(encInfo, DeepEquals, &devicestate.EncryptionSupportInfo{
+	c.Check(encInfo, DeepEquals, &install.EncryptionSupportInfo{
 		Available:          false,
 		StorageSafety:      asserts.StorageSafetyPreferEncrypted,
 		UnavailableWarning: "not encrypting device storage as checking TPM gave: really no tpm",

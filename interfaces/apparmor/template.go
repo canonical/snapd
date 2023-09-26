@@ -65,6 +65,7 @@ var templateCommon = `
 
 #include <tunables/global>
 
+###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###
 ###INCLUDE_IF_EXISTS_SNAP_TUNING###
 
 # snapd supports the concept of 'parallel installs' where snaps with the same
@@ -113,13 +114,7 @@ var templateCommon = `
   #include <abstractions/python>
   /etc/python3.[0-9]*/**                                r,
 
-  # explicitly deny noisy denials to read-only filesystems (see LP: #1496895
-  # for details)
-  deny /usr/lib/python3*/{,**/}__pycache__/ w,
-  deny /usr/lib/python3*/{,**/}__pycache__/**.pyc.[0-9]* w,
-  # bind mount used here (see 'parallel installs', above)
-  deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/             w,
-  deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/*.pyc.[0-9]* w,
+  ###PYCACHEDENY###
 
   # for perl apps/services
   #include <abstractions/perl>
@@ -848,6 +843,8 @@ var coreSnippet = `
 var classicTemplate = `
 #include <tunables/global>
 
+###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###
+
 ###VAR###
 
 ###PROFILEATTACH### (attach_disconnected,mediate_deleted) {
@@ -902,6 +899,16 @@ deny ptrace (trace),
 deny capability sys_ptrace,
 `
 
+var pycacheDenySnippet = `
+# explicitly deny noisy denials to read-only filesystems (see LP: #1496895
+# for details)
+deny /usr/lib/python3*/{,**/}__pycache__/ w,
+deny /usr/lib/python3*/{,**/}__pycache__/**.pyc.[0-9]* w,
+# bind mount used here (see 'parallel installs', above)
+deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/             w,
+deny @{INSTALL_DIR}/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/__pycache__/*.pyc.[0-9]* w,
+`
+
 var sysModuleCapabilityDenySnippet = `
 # The rtnetlink kernel interface can trigger the loading of kernel modules,
 # first attempting to operate on a network module (this requires the net_admin
@@ -931,6 +938,8 @@ var updateNSTemplate = `
 # vim:syntax=apparmor
 
 #include <tunables/global>
+
+###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###
 
 profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # The next four rules mirror those above. We want to be able to read
@@ -1069,6 +1078,10 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
 
   # snapd logger.go checks /proc/cmdline
   @{PROC}/cmdline r,
+
+  # snap checks if vendored apparmor parser should be used at startup
+  /usr/lib/snapd/info r,
+  /lib/apparmor/functions r,
 
 ###SNIPPETS###
 }

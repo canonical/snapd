@@ -65,10 +65,10 @@ execute: |
         # retrying auto-connect)
         snap debug state --change "$change_id" /var/lib/snapd/state.json > tasks.state
         # both link snaps are done
-        MATCH ' Done\s+.*Make snap "pc-kernel" .* available' < tasks.state
+        MATCH ' Wait\s+.*Make snap "pc-kernel" .* available' < tasks.state
         MATCH " Done\s+.*Make snap \"$core_snap\" .* available" < tasks.state
         # auto-connect of the base is in doing and waiting for reboot
-        MATCH " Doing\s+.*Automatically connect eligible plugs and slots of snap \"$core_snap\"" < tasks.state
+        MATCH " Do\s+.*Automatically connect eligible plugs and slots of snap \"$core_snap\"" < tasks.state
         # auto-connect of the kernel is still queued
         MATCH ' Do\s+.*Automatically connect eligible plugs and slots of snap "pc-kernel"' < tasks.state
 

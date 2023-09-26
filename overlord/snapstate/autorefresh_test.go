@@ -73,7 +73,7 @@ func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store
 	if assertQuery != nil {
 		panic("no assertion query support")
 	}
-	if !opts.IsAutoRefresh {
+	if !opts.Scheduled {
 		panic("AutoRefresh snap action did not set IsAutoRefresh flag")
 	}
 
@@ -1127,7 +1127,7 @@ func (s *autoRefreshTestSuite) TestAutoRefreshCreatesBothRefreshAndPreDownload(c
 
 func checkPreDownloadChange(c *C, chg *state.Change, name string, rev snap.Revision) {
 	c.Assert(chg.Kind(), Equals, "pre-download")
-	c.Assert(chg.Summary(), Equals, "Pre-download tasks for auto-refresh")
+	c.Assert(chg.Summary(), Equals, fmt.Sprintf(`Pre-download "%s" for auto-refresh`, name))
 	c.Assert(chg.Tasks(), HasLen, 1)
 	task := chg.Tasks()[0]
 	c.Assert(task.Kind(), Equals, "pre-download-snap")
@@ -1164,59 +1164,6 @@ func (s *autoRefreshTestSuite) addRefreshableSnap(names ...string) {
 				Revision: snap.R(8),
 			}})
 	}
-}
-
-func (s *autoRefreshTestSuite) TestPartiallyInhibitedAutoRefreshIsContinued(c *C) {
-	now := time.Now()
-	restore := snapstate.MockTimeNow(func() time.Time {
-		return now
-	})
-	defer restore()
-
-	af := snapstate.NewAutoRefresh(s.state)
-	s.state.Lock()
-	s.state.Cache("auto-refresh-continue-attempt", 1)
-	s.state.Unlock()
-
-	err := af.Ensure()
-	c.Check(err, IsNil)
-	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	var lastRefresh time.Time
-	err = s.state.Get("last-refresh", &lastRefresh)
-	c.Assert(err, IsNil)
-	c.Check(lastRefresh.Equal(now), Equals, true)
-	c.Check(s.state.Cached("auto-refresh-continue-attempt"), IsNil)
-}
-
-func (s *autoRefreshTestSuite) TestContinueAutorefreshOnlyFirstOverridesDelay(c *C) {
-	// fail the auto-refresh
-	s.store.err = fmt.Errorf("random store error")
-
-	af := snapstate.NewAutoRefresh(s.state)
-	// run it once so we're in the retry delay
-	err := af.Ensure()
-	c.Assert(err, ErrorMatches, "random store error")
-
-	s.state.Lock()
-	s.state.Cache("auto-refresh-continue-attempt", 1)
-	s.state.Unlock()
-
-	err = af.Ensure()
-	c.Check(err, ErrorMatches, "random store error")
-	c.Check(s.store.ops, DeepEquals, []string{"list-refresh", "list-refresh"})
-	s.state.Lock()
-	c.Check(s.state.Cached("auto-refresh-continue-attempt"), Equals, 2)
-	s.state.Unlock()
-
-	err = af.Ensure()
-	c.Check(err, IsNil)
-	c.Check(s.store.ops, DeepEquals, []string{"list-refresh", "list-refresh"})
-	s.state.Lock()
-	c.Check(s.state.Cached("auto-refresh-continue-attempt"), Equals, 2)
-	s.state.Unlock()
 }
 
 func (s *autoRefreshTestSuite) TestTooSoonError(c *C) {

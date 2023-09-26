@@ -25,11 +25,14 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -60,6 +63,16 @@ func changeWithLanesAndSnapSetups(st *state.State, snapNames ...string) *state.C
 		tsk.SetStatus(state.DoneStatus)
 	}
 	return chg
+}
+
+func (s *reRefreshSuite) SetUpTest(c *C) {
+	s.baseHandlerSuite.SetUpTest(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := restart.Manager(s.state, "boot-id-1", nil)
+	c.Assert(err, IsNil)
 }
 
 func (s *reRefreshSuite) TestDoCheckReRefreshFailsWithoutReRefreshSetup(c *C) {
@@ -130,7 +143,7 @@ func (s *reRefreshSuite) TestDoCheckReRefreshPassesReRefreshSetupData(c *C) {
 	var chgID string
 	defer snapstate.MockReRefreshUpdateMany(func(_ context.Context, _ *state.State, snaps []string, _ []*snapstate.RevisionOptions, userID int, _ snapstate.UpdateFilter, flags *snapstate.Flags, changeID string) ([]string, *snapstate.UpdateTaskSets, error) {
 		c.Check(changeID, Equals, chgID)
-		expected := []string{"won", "too", "tree"}
+		expected := []string{"foo", "bar", "baz"}
 		sort.Strings(expected)
 		sort.Strings(snaps)
 		c.Check(snaps, DeepEquals, expected)
@@ -149,7 +162,7 @@ func (s *reRefreshSuite) TestDoCheckReRefreshPassesReRefreshSetupData(c *C) {
 		"devmode":  true,
 		"jailmode": true,
 	})
-	chg := changeWithLanesAndSnapSetups(s.state, "won", "too", "tree")
+	chg := changeWithLanesAndSnapSetups(s.state, "foo", "bar", "baz")
 	chg.AddTask(task)
 	chgID = chg.ID()
 	s.state.Unlock()
@@ -166,7 +179,7 @@ func (s *reRefreshSuite) TestDoCheckReRefreshPassesReRefreshSetupData(c *C) {
 
 func (s *reRefreshSuite) TestDoCheckReRefreshAddsNewTasks(c *C) {
 	defer snapstate.MockReRefreshUpdateMany(func(_ context.Context, st *state.State, snaps []string, _ []*snapstate.RevisionOptions, _ int, _ snapstate.UpdateFilter, _ *snapstate.Flags, _ string) ([]string, *snapstate.UpdateTaskSets, error) {
-		expected := []string{"won", "too", "tree"}
+		expected := []string{"foo", "bar", "baz"}
 		sort.Strings(expected)
 		sort.Strings(snaps)
 		c.Check(snaps, DeepEquals, expected)
@@ -174,11 +187,11 @@ func (s *reRefreshSuite) TestDoCheckReRefreshAddsNewTasks(c *C) {
 		task := st.NewTask("witness", "...")
 
 		tasksetGrp := &snapstate.UpdateTaskSets{Refresh: []*state.TaskSet{state.NewTaskSet(task)}}
-		return []string{"won"}, tasksetGrp, nil
+		return []string{"foo"}, tasksetGrp, nil
 	})()
 
 	s.state.Lock()
-	chg := changeWithLanesAndSnapSetups(s.state, "won", "too", "tree")
+	chg := changeWithLanesAndSnapSetups(s.state, "foo", "bar", "baz")
 	task := s.state.NewTask("check-rerefresh", "test")
 	task.Set("rerefresh-setup", map[string]interface{}{})
 	chg.AddTask(task)
@@ -191,16 +204,75 @@ func (s *reRefreshSuite) TestDoCheckReRefreshAddsNewTasks(c *C) {
 	defer s.state.Unlock()
 
 	c.Check(task.Status(), Equals, state.DoneStatus)
-	c.Check(logstr(task), Contains, `Found re-refresh for "won".`)
+	c.Check(logstr(task), Contains, `Found re-refresh for "foo".`)
 
 	tasks := chg.Tasks()
 	c.Assert(tasks, HasLen, 5)
 	for i, kind := range []string{
-		"a-task-for-snap-won-in-lane-1",
-		"a-task-for-snap-too-in-lane-2",
-		"a-task-for-snap-tree-in-lane-3",
+		"a-task-for-snap-foo-in-lane-1",
+		"a-task-for-snap-bar-in-lane-2",
+		"a-task-for-snap-baz-in-lane-3",
 		"check-rerefresh",
 		"witness",
+	} {
+		c.Check(tasks[i].Kind(), Equals, kind)
+	}
+}
+
+func (s *reRefreshSuite) TestDoCheckReRefreshWaitOnPendingRestart(c *C) {
+	s.runner.AddHandler("a-task-for-snap-foo", func(task *state.Task, tomb *tomb.Tomb) error {
+		st := task.State()
+		st.Lock()
+		defer st.Unlock()
+		return restart.FinishTaskWithRestart(task, state.DoneStatus, restart.RestartSystem, "foo", nil)
+	}, nil)
+
+	// setup the change for check-rerefresh, then we manually request for
+	// one of the tasks to reboot
+	s.state.Lock()
+
+	chg := s.state.NewChange("sample", "...")
+	lane := s.state.NewLane()
+	tsk := s.state.NewTask("a-task-for-snap-foo", "test")
+	tsk.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "foo"},
+	})
+	// In order for the code to be tested we need a task to go into WaitStatus.
+	restart.MarkTaskAsRestartBoundary(tsk, restart.RestartBoundaryDirectionDo)
+	chg.AddTask(tsk)
+	tsk.JoinLane(lane)
+	task := s.state.NewTask("check-rerefresh", "test")
+	task.Set("rerefresh-setup", map[string]interface{}{})
+	chg.AddTask(task)
+	s.state.Unlock()
+
+	// retry will be hit, so we must ensure again
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+
+		s.state.Lock()
+		status := task.Status()
+		s.state.Unlock()
+		if status == state.WaitStatus {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(task.Status(), Equals, state.WaitStatus)
+	c.Check(task.WaitedStatus(), Equals, state.DoStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+	c.Check(logstr(task), Matches, `*. INFO Task set to wait until a system restart allows to continue`)
+
+	tasks := chg.Tasks()
+	c.Assert(tasks, HasLen, 2)
+	for i, kind := range []string{
+		"a-task-for-snap-foo",
+		"check-rerefresh",
 	} {
 		c.Check(tasks[i].Kind(), Equals, kind)
 	}
