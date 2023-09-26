@@ -529,55 +529,58 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pat
 			snapstate.Flags{}, deviceCtx, fromChange)
 	}
 
+	changed := false
 	if ms.new.Grade() != asserts.ModelGradeUnset {
 		// in UC20+ models, the model can specify a channel for each
 		// snap, thus making it possible to change already installed
 		// kernel or base snaps
-		changed, err := installedSnapChannelChanged(st, ms.newModelSnap.SnapName(), newModelSnapChannel)
+		changed, err = installedSnapChannelChanged(st, ms.newModelSnap.SnapName(), newModelSnapChannel)
 		if err != nil {
 			return nil, err
 		}
-		if changed {
-			ts, err := remodelVar.UpdateWithDeviceContext(st,
-				pathSI, ms.newSnap, newModelSnapChannel, userID,
-				snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
-			if err != nil {
-				return nil, err
-			}
-			if ts != nil {
-				if edgeTask := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge); edgeTask != nil {
-					// no task is marked as being last
-					// before local modifications are
-					// introduced, indicating that the
-					// update is a simple
-					// switch-snap-channel
-					return ts, nil
-				} else {
-					if ms.newModelSnap.SnapType == "kernel" || ms.newModelSnap.SnapType == "base" {
-						// in other cases make sure that
-						// the kernel or base is linked
-						// and available, and that
-						// kernel updates boot assets if
-						// needed
-						ts, err = snapstate.AddLinkNewBaseOrKernel(st, ts)
-						if err != nil {
-							return nil, err
-						}
-					} else if ms.newModelSnap.SnapType == "gadget" {
-						// gadget snaps may need gadget
-						// related tasks such as assets
-						// update or command line update
-						ts, err = snapstate.AddGadgetAssetsTasks(st, ts)
-						if err != nil {
-							return nil, err
-						}
-					}
-					return ts, nil
-				}
-			}
+	}
+
+	if !changed {
+		return addExistingSnapTasks(st, ms.newSnap, fromChange)
+	}
+
+	ts, err := remodelVar.UpdateWithDeviceContext(st,
+		pathSI, ms.newSnap, newModelSnapChannel, userID,
+		snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
+	if err != nil {
+		return nil, err
+	}
+
+	if edgeTask := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge); edgeTask != nil {
+		// no task is marked as being last
+		// before local modifications are
+		// introduced, indicating that the
+		// update is a simple
+		// switch-snap-channel
+		return ts, nil
+	}
+
+	switch ms.newModelSnap.SnapType {
+	case "kernel", "base":
+		// in other cases make sure that
+		// the kernel or base is linked
+		// and available, and that
+		// kernel updates boot assets if
+		// needed
+		ts, err = snapstate.AddLinkNewBaseOrKernel(st, ts)
+		if err != nil {
+			return nil, err
+		}
+	case "gadget":
+		// gadget snaps may need gadget
+		// related tasks such as assets
+		// update or command line update
+		ts, err = snapstate.AddGadgetAssetsTasks(st, ts)
+		if err != nil {
+			return nil, err
 		}
 	}
-	return addExistingSnapTasks(st, ms.newSnap, fromChange)
+	return ts, nil
 }
 
 // collect all prerequisites of a given snap from its task set
