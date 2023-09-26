@@ -36,6 +36,10 @@ func (ts *outputErrSuite) TestOutputErrOutputWithoutNewlines(c *C) {
 	err := fmt.Errorf("test error")
 	formattedErr := osutil.OutputErr([]byte(output), err)
 	c.Check(formattedErr, ErrorMatches, output)
+	formattedErr = osutil.OutputErrCombine([]byte(output), nil, err)
+	c.Check(formattedErr, ErrorMatches, output)
+	formattedErr = osutil.OutputErrCombine([]byte(output), []byte{}, err)
+	c.Check(formattedErr, ErrorMatches, output)
 }
 
 func (ts *outputErrSuite) TestOutputErrOutputWithNewlines(c *C) {
@@ -53,4 +57,13 @@ func (ts *outputErrSuite) TestOutputErrNoOutput(c *C) {
 	err := fmt.Errorf("test error")
 	formattedErr := osutil.OutputErr([]byte{}, err)
 	c.Check(formattedErr, Equals, err)
+}
+
+func (ts *outputErrSuite) TestOutputErrOutputWithStderr(c *C) {
+	output := "test output"
+	stderr := "something bad happened"
+	err := fmt.Errorf("test error")
+	formattedErr := osutil.OutputErrCombine([]byte(output), []byte(stderr), err)
+	c.Check(formattedErr.Error(), Equals, "\n-----\n"+output+"\nstderr:\n"+stderr+
+		"\n-----")
 }
