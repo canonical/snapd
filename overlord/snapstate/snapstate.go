@@ -2197,6 +2197,7 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 			if refreshAll {
 				// doing "refresh all", just skip this snap
 				logger.Noticef("cannot %s automatic aliases for snap %q: %v", op, instanceName, err)
+				st.Warnf("cannot %s automatic aliases for snap %q: %v", op, instanceName, err)
 				continue
 			}
 			return nil, err
