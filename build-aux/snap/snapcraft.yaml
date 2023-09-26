@@ -45,7 +45,7 @@ parts:
     override-pull: |
       snapcraftctl pull
       # set version, this needs dpkg-parsechangelog (from dpkg-dev) and git
-      snapcraftctl set-version "$($SNAPCRAFT_PROJECT_DIR/mkversion.sh --output-only)"
+      snapcraftctl set-version "$(./mkversion.sh --output-only)"
       # Ensure that ./debian/ packaging which we are about to use
       # matches the current `build-base` release. I.e. ubuntu-16.04
       # for build-base:core, etc.
@@ -53,7 +53,7 @@ parts:
       # install build dependencies
       export DEBIAN_FRONTEND=noninteractive
       export DEBCONF_NONINTERACTIVE_SEEN=true
-      sudo -E apt-get build-dep -y "$SNAPCRAFT_PROJECT_DIR"
+      sudo -E apt-get build-dep -y "$SNAPCRAFT_PART_SRC"
       # Get archives from xenial; we are not shipping these, we just need to
       # build against them
       if [ "${SNAPCRAFT_TARGET_ARCH}" = "amd64" ] || [ "${SNAPCRAFT_TARGET_ARCH}" = "i386" ]; then
