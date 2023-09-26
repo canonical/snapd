@@ -20,7 +20,6 @@
 package configcore_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -64,7 +63,7 @@ func (s *piCfgSuite) SetUpTest(c *C) {
 }
 
 func (s *piCfgSuite) mockConfig(c *C, txt string) {
-	err := ioutil.WriteFile(s.mockConfigPath, []byte(txt), 0644)
+	err := os.WriteFile(s.mockConfigPath, []byte(txt), 0644)
 	c.Assert(err, IsNil)
 }
 
@@ -177,9 +176,9 @@ func (s *piCfgSuite) TestUpdateConfigUC20RunMode(c *C) {
 	err = os.MkdirAll(filepath.Dir(uc18PiCfg), 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(piCfg, []byte(mockConfigTxt), 0644)
+	err = os.WriteFile(piCfg, []byte(mockConfigTxt), 0644)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(uc18PiCfg, []byte(mockConfigTxt), 0644)
+	err = os.WriteFile(uc18PiCfg, []byte(mockConfigTxt), 0644)
 	c.Assert(err, IsNil)
 
 	// apply the config
@@ -211,7 +210,7 @@ func (s *piCfgSuite) testUpdateConfigUC20NonRunMode(c *C, mode string) {
 	err := os.MkdirAll(filepath.Dir(piCfg), 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(piCfg, []byte(mockConfigTxt), 0644)
+	err = os.WriteFile(piCfg, []byte(mockConfigTxt), 0644)
 	c.Assert(err, IsNil)
 
 	// apply the config
@@ -245,7 +244,7 @@ func (s *piCfgSuite) TestFilesystemOnlyApply(c *C) {
 
 	// write default config
 	piCfg := filepath.Join(tmpDir, "/boot/uboot/config.txt")
-	c.Assert(ioutil.WriteFile(piCfg, []byte(mockConfigTxt), 0644), IsNil)
+	c.Assert(os.WriteFile(piCfg, []byte(mockConfigTxt), 0644), IsNil)
 
 	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 

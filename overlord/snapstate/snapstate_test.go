@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -308,7 +307,7 @@ SNAPD_APPARMOR_REEXEC=1
 			infoFile := filepath.Join(dirs.SnapMountDir, snapName, rev, dirs.CoreLibExecDir, "info")
 			err = os.MkdirAll(filepath.Dir(infoFile), 0755)
 			c.Assert(err, IsNil)
-			err = ioutil.WriteFile(infoFile, []byte(defaultInfoFile), 0644)
+			err = os.WriteFile(infoFile, []byte(defaultInfoFile), 0644)
 			c.Assert(err, IsNil)
 		}
 	}
@@ -3529,21 +3528,21 @@ SNAPD_APPARMOR_REEXEC=1
 	infoFile := filepath.Join(dirs.SnapMountDir, snapName, "1", dirs.CoreLibExecDir, "info")
 	err := os.MkdirAll(filepath.Dir(infoFile), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(infoFile, []byte(vulnInfoFile), 0644)
+	err = os.WriteFile(infoFile, []byte(vulnInfoFile), 0644)
 	c.Assert(err, IsNil)
 
 	// revision 2 fixed
 	infoFile2 := filepath.Join(dirs.SnapMountDir, snapName, "2", dirs.CoreLibExecDir, "info")
 	err = os.MkdirAll(filepath.Dir(infoFile2), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(infoFile2, []byte(fixedInfoFile), 0644)
+	err = os.WriteFile(infoFile2, []byte(fixedInfoFile), 0644)
 	c.Assert(err, IsNil)
 
 	// revision 11 fixed
 	infoFile11 := filepath.Join(dirs.SnapMountDir, snapName, "11", dirs.CoreLibExecDir, "info")
 	err = os.MkdirAll(filepath.Dir(infoFile11), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(infoFile11, []byte(fixedInfoFile), 0644)
+	err = os.WriteFile(infoFile11, []byte(fixedInfoFile), 0644)
 	c.Assert(err, IsNil)
 
 	// use generic classic model
@@ -3766,9 +3765,9 @@ func (s *snapmgrTestSuite) TestEsnureCleansOldSideloads(c *C) {
 	s1 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-12345")
 	s2 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-67890")
 
-	c.Assert(ioutil.WriteFile(s0, nil, 0600), IsNil)
-	c.Assert(ioutil.WriteFile(s1, nil, 0600), IsNil)
-	c.Assert(ioutil.WriteFile(s2, nil, 0600), IsNil)
+	c.Assert(os.WriteFile(s0, nil, 0600), IsNil)
+	c.Assert(os.WriteFile(s1, nil, 0600), IsNil)
+	c.Assert(os.WriteFile(s2, nil, 0600), IsNil)
 
 	t1 := time.Now()
 	t0 := t1.Add(-time.Hour)
@@ -5365,7 +5364,7 @@ version: 1.0
 `, gadgetSideInfo)
 
 	gadgetYamlWhole := strings.Join(append([]string{gadgetYaml}, extraGadgetYaml...), "")
-	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta/gadget.yaml"), []byte(gadgetYamlWhole), 0600)
+	err := os.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta/gadget.yaml"), []byte(gadgetYamlWhole), 0600)
 	c.Assert(err, IsNil)
 
 	snapstate.Set(s.state, "the-gadget", &snapstate.SnapState{
@@ -8825,7 +8824,7 @@ WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 `[1:], what, dirs.SnapMountDir)
 	os.MkdirAll(dirs.SnapServicesDir, 0755)
-	err := ioutil.WriteFile(mountFile, []byte(mountContent), 0644)
+	err := os.WriteFile(mountFile, []byte(mountContent), 0644)
 	c.Assert(err, IsNil)
 
 	s.reloadOrRestarts[unitName] = 0
@@ -8902,7 +8901,7 @@ WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 `[1:], what, dirs.StripRootDir(dirs.SnapMountDir))
 	os.MkdirAll(dirs.SnapServicesDir, 0755)
-	err := ioutil.WriteFile(mountFile, []byte(mountContent), 0644)
+	err := os.WriteFile(mountFile, []byte(mountContent), 0644)
 	c.Assert(err, IsNil)
 
 	s.reloadOrRestarts[unitName] = 0

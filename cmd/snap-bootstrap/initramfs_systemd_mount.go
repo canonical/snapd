@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -177,7 +176,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 			// unit so that when we isolate to the initrd unit, it does not get
 			// unmounted
 			fname := fmt.Sprintf("snap_bootstrap_%s.conf", whereEscaped)
-			err = ioutil.WriteFile(filepath.Join(targetDir, fname), overrideContent, 0644)
+			err = os.WriteFile(filepath.Join(targetDir, fname), overrideContent, 0644)
 			if err != nil {
 				return err
 			}

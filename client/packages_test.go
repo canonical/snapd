@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"time"
@@ -430,7 +429,7 @@ func (cs *clientSuite) TestClientFindFromPathErrIsWrapped(c *check.C) {
 	var e client.AuthorizationError
 
 	// this will trigger a "client.AuthorizationError"
-	err := ioutil.WriteFile(client.TestStoreAuthFilename(os.Getenv("HOME")), []byte("rubbish"), 0644)
+	err := os.WriteFile(client.TestStoreAuthFilename(os.Getenv("HOME")), []byte("rubbish"), 0644)
 	c.Assert(err, check.IsNil)
 
 	// check that all the functions that use snapsFromPath() get a

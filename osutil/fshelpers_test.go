@@ -20,7 +20,6 @@
 package osutil_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -36,7 +35,7 @@ var _ = Suite(&groupFindGidOwningSuite{})
 
 func (s *groupFindGidOwningSuite) TestSelfOwnedFile(c *C) {
 	name := filepath.Join(c.MkDir(), "testownedfile")
-	err := ioutil.WriteFile(name, nil, 0644)
+	err := os.WriteFile(name, nil, 0644)
 	c.Assert(err, IsNil)
 
 	gid, err := osutil.FindGidOwning(name)

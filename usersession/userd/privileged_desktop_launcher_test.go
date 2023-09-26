@@ -20,7 +20,6 @@
 package userd_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,11 +62,11 @@ func (s *privilegedDesktopLauncherSuite) SetUpTest(c *C) {
 	desktopContent := strings.Replace(tmpMircadeDesktop, "/snap/bin/", dirs.SnapBinariesDir, -1)
 
 	deskTopFile := filepath.Join(dirs.SnapDesktopFilesDir, "mircade_mircade.desktop")
-	c.Assert(ioutil.WriteFile(deskTopFile, []byte(desktopContent), 0644), IsNil)
+	c.Assert(os.WriteFile(deskTopFile, []byte(desktopContent), 0644), IsNil)
 
 	// Create a shadowed desktop file ID
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/usr/share/applications/shadow-test.desktop"), []byte("[Desktop Entry]"), 0644), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "shadow-test.desktop"), []byte("[Desktop Entry]"), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/usr/share/applications/shadow-test.desktop"), []byte("[Desktop Entry]"), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "shadow-test.desktop"), []byte("[Desktop Entry]"), 0644), IsNil)
 
 	s.mockEnv("HOME", filepath.Join(dirs.GlobalRootDir, "/home/user"))
 	s.mockEnv("XDG_DATA_HOME", "")

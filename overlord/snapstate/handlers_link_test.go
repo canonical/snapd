@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -1666,7 +1667,7 @@ func (s *linkSnapSuite) TestLinkSnapInjectsAutoConnectIfMissing(c *C) {
 
 func (s *linkSnapSuite) TestDoLinkSnapFailureCleansUpAux(c *C) {
 	// this is very chummy with the order of LinkSnap
-	c.Assert(ioutil.WriteFile(dirs.SnapSeqDir, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapSeqDir, nil, 0644), IsNil)
 
 	// we start without the auxiliary store info
 	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)

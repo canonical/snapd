@@ -22,7 +22,6 @@ package backend_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -471,7 +470,7 @@ apps:
 
 	guiDir := filepath.Join(s.info.MountDir(), "meta", "gui")
 	c.Assert(os.MkdirAll(guiDir, 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(guiDir, "bin.desktop"), []byte(`
+	c.Assert(os.WriteFile(filepath.Join(guiDir, "bin.desktop"), []byte(`
 [Desktop Entry]
 Name=bin
 Icon=${SNAP}/bin.png

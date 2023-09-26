@@ -779,7 +779,7 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 			// We ignore errors here: if writing the file
 			// fails, we'll just try connecting to D-Bus
 			// again next time.
-			if err = ioutil.WriteFile(portalsUnavailableFile, []byte(""), 0644); err != nil {
+			if err = os.WriteFile(portalsUnavailableFile, []byte(""), 0644); err != nil {
 				logger.Noticef("WARNING: cannot write file at %s: %s", portalsUnavailableFile, err)
 			}
 			return nil

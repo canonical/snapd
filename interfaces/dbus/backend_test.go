@@ -21,7 +21,6 @@ package dbus_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -287,13 +286,13 @@ func makeFakeDbusConfigAndUserdServiceFiles(c *C, coreOrSnapdSnap *snap.Info) {
 	err := os.MkdirAll(filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/session.d"), 0755)
 	c.Assert(err, IsNil)
 	content := fmt.Sprintf("content of snapd.session-services.conf for snap %s", coreOrSnapdSnap.InstanceName())
-	err = ioutil.WriteFile(filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/session.d/snapd.session-services.conf"), []byte(content), 0644)
+	err = os.WriteFile(filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/session.d/snapd.session-services.conf"), []byte(content), 0644)
 	c.Assert(err, IsNil)
 
 	err = os.MkdirAll(filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/system.d"), 0755)
 	c.Assert(err, IsNil)
 	content = fmt.Sprintf("content of snapd.system-services.conf for snap %s", coreOrSnapdSnap.InstanceName())
-	err = ioutil.WriteFile(filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/system.d/snapd.system-services.conf"), []byte(content), 0644)
+	err = os.WriteFile(filepath.Join(coreOrSnapdSnap.MountDir(), "/usr/share/dbus-1/system.d/snapd.system-services.conf"), []byte(content), 0644)
 	c.Assert(err, IsNil)
 
 	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/usr/share/dbus-1/services"), 0755)
@@ -309,7 +308,7 @@ func makeFakeDbusConfigAndUserdServiceFiles(c *C, coreOrSnapdSnap *snap.Info) {
 		"io.snapcraft.Settings.service",
 	} {
 		content := fmt.Sprintf("content of %s for snap %s", fn, coreOrSnapdSnap.InstanceName())
-		err = ioutil.WriteFile(filepath.Join(servicesPath, fn), []byte(content), 0644)
+		err = os.WriteFile(filepath.Join(servicesPath, fn), []byte(content), 0644)
 		c.Assert(err, IsNil)
 	}
 }

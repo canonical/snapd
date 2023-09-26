@@ -23,7 +23,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -1902,7 +1901,7 @@ func (m *DeviceManager) Unregister(opts *UnregisterOptions) error {
 		if err := os.MkdirAll(dirs.SnapRunDir, 0755); err != nil {
 			return err
 		}
-		if err := ioutil.WriteFile(filepath.Join(dirs.SnapRunDir, "noregister"), nil, 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dirs.SnapRunDir, "noregister"), nil, 0644); err != nil {
 			return err
 		}
 	}

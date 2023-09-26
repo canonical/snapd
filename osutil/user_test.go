@@ -21,7 +21,6 @@ package osutil_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -345,7 +344,7 @@ func (s *delUserSuite) TestDelUserRemovesSudoersIfPresent(c *check.C) {
 	f1 := osutil.SudoersFile("u1")
 
 	// only create u1's sudoers file
-	c.Assert(ioutil.WriteFile(f1, nil, 0600), check.IsNil)
+	c.Assert(os.WriteFile(f1, nil, 0600), check.IsNil)
 
 	// neither of the delusers fail
 	c.Assert(osutil.DelUser("u1", s.opts), check.IsNil)

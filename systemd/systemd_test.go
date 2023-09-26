@@ -1146,7 +1146,7 @@ func (s *SystemdTestSuite) TestMountUnitPath(c *C) {
 func makeMockFile(c *C, path string) {
 	err := os.MkdirAll(filepath.Dir(path), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(path, nil, 0644)
+	err = os.WriteFile(path, nil, 0644)
 	c.Assert(err, IsNil)
 }
 
@@ -1219,7 +1219,7 @@ LazyUnmount=yes
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 `[1:], mockSnapPath)
-	err = ioutil.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
+	err = os.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
 	c.Assert(err, IsNil)
 
 	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
@@ -1279,7 +1279,7 @@ LazyUnmount=yes
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 `[1:], mockSnapPath)
-	err = ioutil.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
+	err = os.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
 	c.Assert(err, IsNil)
 
 	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
@@ -1409,7 +1409,7 @@ func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	err := os.MkdirAll(filepath.Dir(mockSnapPath), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
+	err = os.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
 	mountUnitName, err := New(SystemMode, nil).EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
@@ -1455,7 +1455,7 @@ exit 0
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	err := os.MkdirAll(filepath.Dir(mockSnapPath), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
+	err = os.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
 	mountUnitName, err := New(SystemMode, nil).EnsureMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
@@ -1497,7 +1497,7 @@ exit 0
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	err := os.MkdirAll(filepath.Dir(mockSnapPath), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
+	err = os.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
 	mountUnitName, err := New(SystemMode, nil).EnsureMountUnitFile("foo", "x1", mockSnapPath, "/snap/snapname/123", "squashfs")
@@ -1624,7 +1624,7 @@ func (s *SystemdTestSuite) TestIsActiveUnexpectedErr(c *C) {
 
 func makeMockMountUnit(c *C, mountDir string) string {
 	mountUnit := MountUnitPath(dirs.StripRootDir(mountDir))
-	err := ioutil.WriteFile(mountUnit, nil, 0644)
+	err := os.WriteFile(mountUnit, nil, 0644)
 	c.Assert(err, IsNil)
 	return mountUnit
 }
@@ -1843,7 +1843,7 @@ LazyUnmount=yes
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 `[1:], mockSnapPath)
-	err = ioutil.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
+	err = os.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
 	c.Assert(err, IsNil)
 
 	_, err = sysd.EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
@@ -1888,7 +1888,7 @@ LazyUnmount=yes
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 `[1:], mockSnapPath)
-	err = ioutil.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
+	err = os.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
 	c.Assert(err, IsNil)
 
 	mountUnitName, err := sysd.EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
@@ -2091,7 +2091,7 @@ Options=do,not,matter,either
 WantedBy=doesntmatter.target
 X-SnapdOrigin=%s
 `, snapName, where, origin)
-		return ioutil.WriteFile(path, []byte(contents), 0644)
+		return os.WriteFile(path, []byte(contents), 0644)
 	}
 
 	// Prepare the unit files

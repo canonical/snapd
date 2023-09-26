@@ -23,7 +23,6 @@ package configcore
 import (
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -80,7 +79,7 @@ func handleCertConfiguration(tr RunTransaction, opts *fsOnlyContext) error {
 			if err := os.MkdirAll(dirs.SnapdStoreSSLCertsDir, 0755); err != nil {
 				return fmt.Errorf("cannot create store ssl certs dir: %v", err)
 			}
-			if err := ioutil.WriteFile(certPath, []byte(cert), 0644); err != nil {
+			if err := os.WriteFile(certPath, []byte(cert), 0644); err != nil {
 				return fmt.Errorf("cannot write store certificate: %v", err)
 			}
 		}

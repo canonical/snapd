@@ -20,7 +20,6 @@
 package servicestate_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -121,7 +120,7 @@ func (s *serviceControlSuite) mockTestSnap(c *C) *snap.Info {
 	// mock systemd service units, this is required when testing "stop"
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc/systemd/system/"), 0775)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "etc/systemd/system/snap.test-snap.foo.service"), nil, 0644)
+	err = os.WriteFile(filepath.Join(dirs.GlobalRootDir, "etc/systemd/system/snap.test-snap.foo.service"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	return info

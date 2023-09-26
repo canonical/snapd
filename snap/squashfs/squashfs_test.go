@@ -65,17 +65,17 @@ func makeSnapContents(c *C, manifest, data string) string {
 	c.Assert(err, IsNil)
 
 	// our regular snap.yaml
-	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "snap.yaml"), []byte(manifest), 0644)
+	err = os.WriteFile(filepath.Join(tmp, "meta", "snap.yaml"), []byte(manifest), 0644)
 	c.Assert(err, IsNil)
 
 	// some hooks
-	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "hooks", "foo-hook"), nil, 0755)
+	err = os.WriteFile(filepath.Join(tmp, "meta", "hooks", "foo-hook"), nil, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "hooks", "bar-hook"), nil, 0755)
+	err = os.WriteFile(filepath.Join(tmp, "meta", "hooks", "bar-hook"), nil, 0755)
 	c.Assert(err, IsNil)
 	// And a file in another directory in there, just for testing (not a valid
 	// hook)
-	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "hooks", "dir", "baz"), nil, 0755)
+	err = os.WriteFile(filepath.Join(tmp, "meta", "hooks", "dir", "baz"), nil, 0755)
 	c.Assert(err, IsNil)
 
 	// some empty directories
@@ -83,7 +83,7 @@ func makeSnapContents(c *C, manifest, data string) string {
 	c.Assert(err, IsNil)
 
 	// some data
-	err = ioutil.WriteFile(filepath.Join(tmp, "data.bin"), []byte(data), 0644)
+	err = os.WriteFile(filepath.Join(tmp, "data.bin"), []byte(data), 0644)
 	c.Assert(err, IsNil)
 
 	return tmp
@@ -148,7 +148,7 @@ func (s *SquashfsTestSuite) TestNotFileHasSquashfsHeader(c *C) {
 	}
 
 	for _, d := range data {
-		err := ioutil.WriteFile("not-a-snap", []byte(d), 0644)
+		err := os.WriteFile("not-a-snap", []byte(d), 0644)
 		c.Assert(err, IsNil)
 
 		c.Check(squashfs.FileHasSquashfsHeader("not-a-snap"), Equals, false)
@@ -592,9 +592,9 @@ func (s *SquashfsTestSuite) TestBuildAll(c *C) {
 	buildDir := c.MkDir()
 	err := os.MkdirAll(filepath.Join(buildDir, "/random/dir"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(buildDir, "data.bin"), []byte("data"), 0644)
+	err = os.WriteFile(filepath.Join(buildDir, "data.bin"), []byte("data"), 0644)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(buildDir, "random", "data.bin"), []byte("more data"), 0644)
+	err = os.WriteFile(filepath.Join(buildDir, "random", "data.bin"), []byte("more data"), 0644)
 	c.Assert(err, IsNil)
 
 	sn := squashfs.New(filepath.Join(c.MkDir(), "foo.snap"))
@@ -625,13 +625,13 @@ func (s *SquashfsTestSuite) TestBuildUsesExcludes(c *C) {
 	buildDir := c.MkDir()
 	err := os.MkdirAll(filepath.Join(buildDir, "/random/dir"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(buildDir, "data.bin"), []byte("data"), 0644)
+	err = os.WriteFile(filepath.Join(buildDir, "data.bin"), []byte("data"), 0644)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(buildDir, "random", "data.bin"), []byte("more data"), 0644)
+	err = os.WriteFile(filepath.Join(buildDir, "random", "data.bin"), []byte("more data"), 0644)
 	c.Assert(err, IsNil)
 
 	excludesFilename := filepath.Join(buildDir, ".snapignore")
-	err = ioutil.WriteFile(excludesFilename, []byte(`
+	err = os.WriteFile(excludesFilename, []byte(`
 # ignore just one of the data.bin files we just added (the toplevel one)
 data.bin
 # also ignore ourselves
@@ -872,16 +872,16 @@ func (s *SquashfsTestSuite) TestBuildChecksReadDifferentFiles(c *C) {
 
 	err := os.MkdirAll(filepath.Join(d, "ro-dir"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(d, "ro-dir", "in-ro-dir"), []byte("123"), 0664)
+	err = os.WriteFile(filepath.Join(d, "ro-dir", "in-ro-dir"), []byte("123"), 0664)
 	c.Assert(err, IsNil)
 	err = os.Chmod(filepath.Join(d, "ro-dir"), 0000)
 	c.Assert(err, IsNil)
 	// so that tear down does not complain
 	defer os.Chmod(filepath.Join(d, "ro-dir"), 0755)
 
-	err = ioutil.WriteFile(filepath.Join(d, "ro-file"), []byte("123"), 0000)
+	err = os.WriteFile(filepath.Join(d, "ro-file"), []byte("123"), 0000)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(d, "ro-empty-file"), nil, 0000)
+	err = os.WriteFile(filepath.Join(d, "ro-empty-file"), nil, 0000)
 	c.Assert(err, IsNil)
 
 	err = syscall.Mkfifo(filepath.Join(d, "fifo"), 0000)
@@ -907,7 +907,7 @@ func (s *SquashfsTestSuite) TestBuildChecksReadErrorLimit(c *C) {
 	// make more than maxErrPaths entries
 	for i := 0; i < squashfs.MaxErrPaths; i++ {
 		p := filepath.Join(d, fmt.Sprintf("0%d", i))
-		err := ioutil.WriteFile(p, []byte("123"), 0000)
+		err := os.WriteFile(p, []byte("123"), 0000)
 		c.Assert(err, IsNil)
 		err = os.Chmod(p, 0000)
 		c.Assert(err, IsNil)

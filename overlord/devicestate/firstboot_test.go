@@ -21,7 +21,6 @@ package devicestate_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -332,7 +331,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicEmptySeedYaml(c *C) {
 	s.WriteAssertions("model.asserts", assertsChain...)
 
 	// create an empty seed.yaml
-	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
+	err = os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -369,7 +368,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInsta
 }`
 	err := os.MkdirAll(filepath.Dir(dirs.CloudInstanceDataFile), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.CloudInstanceDataFile, []byte(instData), 0600)
+	err = os.WriteFile(dirs.CloudInstanceDataFile, []byte(instData), 0600)
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -555,7 +554,7 @@ snaps:
    unasserted: true
    file: %s
 `, coreFname, kernelFname, gadgetFname, fooFname, filepath.Base(targetSnapFile2)))
-	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err = os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -773,7 +772,7 @@ snaps:
  - name: bar
    file: %s
 `, coreFname, kernelFname, gadgetFname, fooFname, barFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -879,7 +878,7 @@ snaps:
  - name: foo
    file: %s
 `, coreFname, kernelFname, gadgetFname, fooFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -1037,7 +1036,7 @@ snaps:
  - name: foo
    file: %s
 `, coreFname, kernelFname, gadgetFname, fooFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -1415,7 +1414,7 @@ snaps:
  - name: pc
    file: %s
 `, snapdFname, core18Fname, kernelFname, gadgetFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -1538,7 +1537,7 @@ snaps:
  - name: other-base
    file: %s
 `, snapdFname, core18Fname, kernelFname, gadgetFname, snapFname, baseFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -1575,7 +1574,7 @@ snaps:
  - name: pc
    file: %s
 `, snapdFname, core18Fname, kernelFname, gadgetFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -1642,7 +1641,7 @@ snaps:
  - name: gtk-common-themes
    file: %s
 `, coreFname, kernelFname, gadgetFname, calcFname, themesFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -1715,7 +1714,7 @@ snaps:
    file: %s
 `, coreFname, kernelFname, gadgetFname, localFname))
 
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644), IsNil)
 
 	// run the firstboot stuff
 	s.startOverlord(c)
@@ -1763,7 +1762,7 @@ snaps:
  - name: core18
    file: %s
 `, snapdFname, fooFname, core18Fname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -1849,7 +1848,7 @@ snaps:
  - name: core18
    file: %s
 `, snapdFname, core18Fname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -1904,7 +1903,7 @@ snaps:
  - name: pc
    file: %s
 `, snapdFname, fooFname, core18Fname, gadgetFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -2109,7 +2108,7 @@ snaps:
  - name: bar
    file: %s
 `, snapdFname, core18Fname, fooFname, barFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -2186,7 +2185,7 @@ func (s *firstBoot16Suite) mockServer(c *C, reqID string) *httptest.Server {
 	fname := filepath.Join(dirs.SnapdStoreSSLCertsDir, "test-server-certs.pem")
 	err := os.MkdirAll(filepath.Dir(fname), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fname, extraCerts, 0644)
+	err = os.WriteFile(fname, extraCerts, 0644)
 	c.Assert(err, IsNil)
 	return mockServer
 }
@@ -2236,7 +2235,7 @@ snaps:
  - name: pc
    file: %s
 `, snapdFname, core18Fname, kernelFname, gadgetFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff

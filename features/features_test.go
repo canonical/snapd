@@ -19,7 +19,6 @@
 package features_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -98,7 +97,7 @@ func (*featureSuite) TestIsEnabled(c *C) {
 	// If the feature file is a regular file then the feature is enabled.
 	err := os.MkdirAll(dirs.FeaturesDir, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(dirs.FeaturesDir, f.String()), nil, 0644)
+	err = os.WriteFile(filepath.Join(dirs.FeaturesDir, f.String()), nil, 0644)
 	c.Assert(err, IsNil)
 	c.Check(f.IsEnabled(), Equals, true)
 

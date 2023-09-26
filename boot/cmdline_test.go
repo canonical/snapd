@@ -20,7 +20,6 @@
 package boot_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -55,7 +54,7 @@ func (s *kernelCommandLineSuite) SetUpTest(c *C) {
 
 func (s *kernelCommandLineSuite) mockProcCmdlineContent(c *C, newContent string) {
 	mockProcCmdline := filepath.Join(s.rootDir, "proc/cmdline")
-	err := ioutil.WriteFile(mockProcCmdline, []byte(newContent), 0644)
+	err := os.WriteFile(mockProcCmdline, []byte(newContent), 0644)
 	c.Assert(err, IsNil)
 }
 

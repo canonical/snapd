@@ -22,7 +22,6 @@ package configcore_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -74,7 +73,7 @@ func (s *proxySuite) SetUpTest(c *C) {
 }
 
 func (s *proxySuite) makeMockEtcEnvironment(c *C) {
-	err := ioutil.WriteFile(s.mockEtcEnvironment, []byte(`
+	err := os.WriteFile(s.mockEtcEnvironment, []byte(`
 PATH="/usr/bin"
 `), 0644)
 	c.Assert(err, IsNil)

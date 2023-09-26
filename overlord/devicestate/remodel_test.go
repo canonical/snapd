@@ -22,7 +22,6 @@ package devicestate_test
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -960,7 +959,7 @@ func writeDeviceModelToUbuntuBoot(c *C, model *asserts.Model) {
 	var buf bytes.Buffer
 	c.Assert(asserts.NewEncoder(&buf).Encode(model), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"),
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"),
 		buf.Bytes(), 0755),
 		IsNil)
 }

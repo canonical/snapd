@@ -22,7 +22,6 @@ package snapstate_test
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -129,7 +128,7 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml string, hasHook bool) *sn
 
 	if hasHook {
 		c.Assert(os.MkdirAll(snapInfo.HooksDir(), 0775), IsNil)
-		err := ioutil.WriteFile(filepath.Join(snapInfo.HooksDir(), "gate-auto-refresh"), nil, 0755)
+		err := os.WriteFile(filepath.Join(snapInfo.HooksDir(), "gate-auto-refresh"), nil, 0755)
 		c.Assert(err, IsNil)
 	}
 	return snapInfo

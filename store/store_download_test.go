@@ -126,7 +126,7 @@ func (s *storeDownloadSuite) TestDownloadRangeRequest(c *C) {
 	snap.Size = int64(len(expectedContentStr))
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := ioutil.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
+	err := os.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
 	c.Assert(err, IsNil)
 
 	err = s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
@@ -145,7 +145,7 @@ func (s *storeDownloadSuite) TestResumeOfCompleted(c *C) {
 	snap.Size = int64(len(expectedContentStr))
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := ioutil.WriteFile(targetFn+".partial", []byte(expectedContentStr), 0644)
+	err := os.WriteFile(targetFn+".partial", []byte(expectedContentStr), 0644)
 	c.Assert(err, IsNil)
 
 	err = s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
@@ -269,7 +269,7 @@ func (s *storeDownloadSuite) TestResumeOfCompletedRetriedOnHashFailure(c *C) {
 	snap.Size = 50000
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	c.Assert(ioutil.WriteFile(targetFn+".partial", badbuf, 0644), IsNil)
+	c.Assert(os.WriteFile(targetFn+".partial", badbuf, 0644), IsNil)
 	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 
@@ -304,7 +304,7 @@ func (s *storeDownloadSuite) TestResumeOfTooMuchDataWorks(c *C) {
 	snap.Size = int64(len(snapContent))
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	c.Assert(ioutil.WriteFile(targetFn+".partial", []byte(tooMuchLocalData), 0644), IsNil)
+	c.Assert(os.WriteFile(targetFn+".partial", []byte(tooMuchLocalData), 0644), IsNil)
 	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 1)
@@ -365,7 +365,7 @@ func (s *storeDownloadSuite) TestDownloadRangeRequestRetryOnHashError(c *C) {
 	snap.Size = int64(len(expectedContentStr))
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := ioutil.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
+	err := os.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
 	c.Assert(err, IsNil)
 
 	err = s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
@@ -392,7 +392,7 @@ func (s *storeDownloadSuite) TestDownloadRangeRequestFailOnHashError(c *C) {
 	snap.Size = int64(len(partialContentStr) + 1)
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
-	err := ioutil.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
+	err := os.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
 	c.Assert(err, IsNil)
 
 	err = s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
@@ -649,16 +649,16 @@ func (s *storeDownloadSuite) TestApplyDelta(c *C) {
 		targetSnapPath := filepath.Join(dirs.SnapBlobDir, targetSnapName)
 		err := os.MkdirAll(filepath.Dir(currentSnapPath), 0755)
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(currentSnapPath, nil, 0644)
+		err = os.WriteFile(currentSnapPath, nil, 0644)
 		c.Assert(err, IsNil)
 		deltaPath := filepath.Join(dirs.SnapBlobDir, "the.delta")
-		err = ioutil.WriteFile(deltaPath, nil, 0644)
+		err = os.WriteFile(deltaPath, nil, 0644)
 		c.Assert(err, IsNil)
 		// When testing a case where the call to the external
 		// xdelta3 is successful,
 		// simulate the resulting .partial.
 		if testCase.error == "" {
-			err = ioutil.WriteFile(targetSnapPath+".partial", nil, 0644)
+			err = os.WriteFile(targetSnapPath+".partial", nil, 0644)
 			c.Assert(err, IsNil)
 		}
 
@@ -805,7 +805,7 @@ func (s *storeDownloadSuite) TestDownloadStreamCachedOK(c *C) {
 	})()
 
 	c.Assert(os.MkdirAll(dirs.SnapDownloadCacheDir, 0700), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDownloadCacheDir, "sha3_384-of-foo"), expectedContent, 0600), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDownloadCacheDir, "sha3_384-of-foo"), expectedContent, 0600), IsNil)
 
 	cache := store.NewCacheManager(dirs.SnapDownloadCacheDir, 1)
 	defer s.store.MockCacher(cache)()

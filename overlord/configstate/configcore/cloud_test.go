@@ -21,7 +21,6 @@
 package configcore_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -160,7 +159,7 @@ func (s *cloudSuite) TestHandleCloud(c *C) {
 		c.Logf("tc: %v", i)
 		os.Remove(dirs.CloudInstanceDataFile)
 		if t.instData != "" {
-			err = ioutil.WriteFile(dirs.CloudInstanceDataFile, []byte(t.instData), 0600)
+			err = os.WriteFile(dirs.CloudInstanceDataFile, []byte(t.instData), 0600)
 			c.Assert(err, IsNil)
 		}
 
@@ -192,7 +191,7 @@ func (s *cloudSuite) TestHandleCloudAlreadySeeded(c *C) {
 
 	err := os.MkdirAll(filepath.Dir(dirs.CloudInstanceDataFile), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.CloudInstanceDataFile, []byte(instData), 0600)
+	err = os.WriteFile(dirs.CloudInstanceDataFile, []byte(instData), 0600)
 	c.Assert(err, IsNil)
 
 	s.state.Lock()

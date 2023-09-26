@@ -22,7 +22,6 @@ package main_test
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -78,13 +77,13 @@ func (s *mainSuite) TestExecuteMountProfileUpdate(c *C) {
 	desiredProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
 	err := os.MkdirAll(filepath.Dir(desiredProfilePath), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644)
+	err = os.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644)
 	c.Assert(err, IsNil)
 
 	currentProfilePath := fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapRunNsDir, snapName)
 	err = os.MkdirAll(filepath.Dir(currentProfilePath), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(currentProfilePath, nil, 0644)
+	err = os.WriteFile(currentProfilePath, nil, 0644)
 	c.Assert(err, IsNil)
 
 	upCtx := update.NewSystemProfileUpdateContext(snapName, false)
@@ -111,8 +110,8 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 
 	c.Assert(os.MkdirAll(filepath.Dir(currentProfilePath), 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Dir(desiredProfilePath), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(currentProfilePath, []byte(currentProfileContent), 0644), IsNil)
-	c.Assert(ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
+	c.Assert(os.WriteFile(currentProfilePath, []byte(currentProfileContent), 0644), IsNil)
+	c.Assert(os.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
 
 	// In order to make that work, /usr/share had to be converted to a writable
 	// mimic. Some actions were performed under the hood and now we see a
@@ -171,7 +170,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 	defer dirs.SetRootDir("/")
 
 	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
-	c.Assert(ioutil.WriteFile(features.RobustMountNamespaceUpdates.ControlFile(), []byte(nil), 0644), IsNil)
+	c.Assert(os.WriteFile(features.RobustMountNamespaceUpdates.ControlFile(), []byte(nil), 0644), IsNil)
 
 	// The snap `mysnap` no longer wishes to export it's usr/share/mysnap
 	// directory. All the synthetic changes that were associated with that mount
@@ -189,8 +188,8 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 
 	c.Assert(os.MkdirAll(filepath.Dir(currentProfilePath), 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Dir(desiredProfilePath), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(currentProfilePath, []byte(currentProfileContent), 0644), IsNil)
-	c.Assert(ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
+	c.Assert(os.WriteFile(currentProfilePath, []byte(currentProfileContent), 0644), IsNil)
+	c.Assert(os.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
 
 	n := -1
 	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
@@ -255,8 +254,8 @@ func (s *mainSuite) TestApplyingLayoutChanges(c *C) {
 
 	c.Assert(os.MkdirAll(filepath.Dir(currentProfilePath), 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Dir(desiredProfilePath), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(currentProfilePath, []byte(currentProfileContent), 0644), IsNil)
-	c.Assert(ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
+	c.Assert(os.WriteFile(currentProfilePath, []byte(currentProfileContent), 0644), IsNil)
+	c.Assert(os.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
 
 	n := -1
 	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
@@ -298,8 +297,8 @@ func (s *mainSuite) TestApplyingParallelInstanceChanges(c *C) {
 
 	c.Assert(os.MkdirAll(filepath.Dir(currentProfilePath), 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Dir(desiredProfilePath), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(currentProfilePath, []byte(currentProfileContent), 0644), IsNil)
-	c.Assert(ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
+	c.Assert(os.WriteFile(currentProfilePath, []byte(currentProfileContent), 0644), IsNil)
+	c.Assert(os.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
 
 	n := -1
 	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
@@ -341,8 +340,8 @@ func (s *mainSuite) TestApplyIgnoredMissingMount(c *C) {
 
 	c.Assert(os.MkdirAll(filepath.Dir(currentProfilePath), 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Dir(desiredProfilePath), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(currentProfilePath, []byte(currentProfileContent), 0644), IsNil)
-	c.Assert(ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
+	c.Assert(os.WriteFile(currentProfilePath, []byte(currentProfileContent), 0644), IsNil)
+	c.Assert(os.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
 
 	n := -1
 	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
@@ -389,7 +388,7 @@ func (s *mainSuite) TestApplyUserFstab(c *C) {
 	desiredProfilePath := fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, snapName)
 	err := os.MkdirAll(filepath.Dir(desiredProfilePath), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644)
+	err = os.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644)
 	c.Assert(err, IsNil)
 
 	upCtx := update.NewUserProfileUpdateContext(snapName, true, 1000)

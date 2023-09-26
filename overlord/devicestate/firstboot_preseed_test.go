@@ -21,7 +21,6 @@ package devicestate_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -289,7 +288,7 @@ snaps:
  - name: core
    file: %s
 `, fooFname, barFname, coreFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -375,7 +374,7 @@ snaps:
  - name: core18
    file: %s
 `, snapdFname, fooFname, core18Fname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -507,7 +506,7 @@ snaps:
  - name: bar
    file: %s
 `, snapdFname, core18Fname, fooFname, barFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff

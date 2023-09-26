@@ -21,7 +21,6 @@ package configcore_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -180,13 +179,13 @@ func (s *servicesSuite) TestConfigureConsoleConfEnableNotAtRuntime(c *C) {
 recovery_system=20200202
 `
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
 
 	// pretend that console-conf is disabled
 	canary := filepath.Join(dirs.GlobalRootDir, "/var/lib/console-conf/complete")
 	err := os.MkdirAll(filepath.Dir(canary), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(canary, nil, 0644)
+	err = os.WriteFile(canary, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// now enable it
@@ -204,7 +203,7 @@ func (s *servicesSuite) TestConfigureConsoleConfDisableNotAtRuntime(c *C) {
 recovery_system=20200202
 `
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
 
 	// console-conf is not disabled, i.e. there is no
 	// "/var/lib/console-conf/complete" file
@@ -224,7 +223,7 @@ func (s *servicesSuite) TestConfigureConsoleConfEnableAlreadyEnabledIsFine(c *C)
 recovery_system=20200202
 `
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
 
 	// Note that we have no
 	//        /var/lib/console-conf/complete
@@ -243,14 +242,14 @@ func (s *servicesSuite) TestConfigureConsoleConfDisableAlreadyDisabledIsFine(c *
 	canary := filepath.Join(dirs.GlobalRootDir, "/var/lib/console-conf/complete")
 	err := os.MkdirAll(filepath.Dir(canary), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(canary, nil, 0644)
+	err = os.WriteFile(canary, nil, 0644)
 	c.Assert(err, IsNil)
 
 	modeenvContent := `mode=run
 recovery_system=20200202
 `
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
 
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
@@ -266,7 +265,7 @@ func (s *servicesSuite) TestConfigureConsoleConfEnableDuringInstallMode(c *C) {
 recovery_system=20200202
 `
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
 
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,

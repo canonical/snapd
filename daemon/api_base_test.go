@@ -394,7 +394,7 @@ func (s *apiBaseSuite) mkInstalledDesktopFile(c *check.C, name, content string) 
 	df := filepath.Join(dirs.SnapDesktopFilesDir, name)
 	err := os.MkdirAll(filepath.Dir(df), 0755)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(df, []byte(content), 0644)
+	err = os.WriteFile(df, []byte(content), 0644)
 	c.Assert(err, check.IsNil)
 	return df
 }
@@ -469,7 +469,7 @@ version: %s
 	metadir := filepath.Join(snapInfo.MountDir(), "meta")
 	guidir := filepath.Join(metadir, "gui")
 	c.Assert(os.MkdirAll(guidir, 0755), check.IsNil)
-	c.Check(ioutil.WriteFile(filepath.Join(guidir, "icon.svg"), []byte("yadda icon"), 0644), check.IsNil)
+	c.Check(os.WriteFile(filepath.Join(guidir, "icon.svg"), []byte("yadda icon"), 0644), check.IsNil)
 
 	if d == nil {
 		return snapInfo

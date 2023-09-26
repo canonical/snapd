@@ -21,7 +21,6 @@ package seed_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -234,7 +233,7 @@ func (s *seed16Suite) TestLoadMetaInvalidSeedYaml(c *C) {
 		}},
 	})
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.SeedDir, "seed.yaml"), content, 0644)
+	err = os.WriteFile(filepath.Join(s.SeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	err = s.seed16.LoadMeta(seed.AllModes, nil, s.perfTimings)
@@ -410,7 +409,7 @@ func (s *seed16Suite) writeSeed(c *C, seedSnaps []*seed.InternalSnap16) {
 		"snaps": seedSnaps,
 	})
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.SeedDir, "seed.yaml"), content, 0644)
+	err = os.WriteFile(filepath.Join(s.SeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 }
 

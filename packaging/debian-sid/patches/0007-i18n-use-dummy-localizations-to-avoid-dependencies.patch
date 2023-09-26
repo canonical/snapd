@@ -184,7 +184,7 @@ index 81cb050a76b824d1b83e97e02c08628520329d96..86b59f3b439e9c27d37cfb35e21d8472
 -
 -	po := filepath.Join(fullLocaleDir, "snappy-test.po")
 -	mo := filepath.Join(fullLocaleDir, "snappy-test.mo")
--	err = ioutil.WriteFile(po, mockLocalePo, 0644)
+-	err = os.WriteFile(po, mockLocalePo, 0644)
 -	c.Assert(err, IsNil)
 -
 -	cmd := exec.Command("msgfmt", po, "--output-file", mo)

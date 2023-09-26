@@ -22,7 +22,6 @@ package devicestate_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -463,12 +462,12 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 			filepath.Join(seedBootDir, "bootx64.efi"),
 			filepath.Join(seedBootDir, "grubx64.efi"),
 		} {
-			c.Assert(ioutil.WriteFile(p, []byte{}, 0755), IsNil)
+			c.Assert(os.WriteFile(p, []byte{}, 0755), IsNil)
 		}
 
 		bootDir := filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/boot/")
 		c.Assert(os.MkdirAll(bootDir, 0755), IsNil)
-		c.Assert(ioutil.WriteFile(filepath.Join(bootDir, "grubx64.efi"), []byte{}, 0755), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(bootDir, "grubx64.efi"), []byte{}, 0755), IsNil)
 	}
 
 	s.state.Lock()
