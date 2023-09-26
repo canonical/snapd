@@ -2342,13 +2342,13 @@ func (s *SystemdTestSuite) TestSystemdRunError(c *C) {
 	c.Assert(err, ErrorMatches, `cannot run \["bad-cmd" "arg1"\]: fail`)
 }
 
-func (s *SystemdTestSuite) TestSystemdRunHappy(c *C) {
+func (s *SystemdTestSuite) TestSystemdRunHappyNoStderr(c *C) {
 	sr := testutil.MockCommand(c, "systemd-run", `echo "happy output" && >&2 echo "to stderr"`)
 	defer sr.Restore()
 
 	sysd := New(SystemMode, s.rep)
 	output, err := sysd.Run([]string{"happy-cmd", "arg1"}, nil)
-	c.Check(string(output), Equals, "happy output\nto stderr\n")
+	c.Check(string(output), Equals, "happy output\n")
 	c.Check(err, IsNil)
 	c.Check(sr.Calls(), DeepEquals, [][]string{
 		{"systemd-run", "--wait", "--pipe", "--collect", "--service-type=exec", "--quiet", "--", "happy-cmd", "arg1"},
@@ -2392,7 +2392,7 @@ func (s *systemdErrorSuite) TestErrorStringNormalError(c *C) {
 	defer systemctl.Restore()
 
 	_, err := Version()
-	c.Check(err, ErrorMatches, `systemctl command \[--version\] failed with exit status 11: I fail\n`)
+	c.Check(err, ErrorMatches, `systemctl command \[--version\] failed with exit status 11: I fail`)
 }
 
 func (s *systemdErrorSuite) TestErrorStringNoOutput(c *C) {

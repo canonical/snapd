@@ -380,10 +380,10 @@ func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
 
 // ListDir returns the content of a single directory inside a squashfs snap.
 func (s *Snap) ListDir(dirPath string) ([]string, error) {
-	output, err := exec.Command(
-		"unsquashfs", "-no-progress", "-dest", "_", "-l", s.path, dirPath).CombinedOutput()
+	output, stderr, err := osutil.RunSplitOutput(
+		"unsquashfs", "-no-progress", "-dest", "_", "-l", s.path, dirPath)
 	if err != nil {
-		return nil, osutil.OutputErr(output, err)
+		return nil, osutil.OutputErrCombine(output, stderr, err)
 	}
 
 	prefixPath := path.Join("_", dirPath)
