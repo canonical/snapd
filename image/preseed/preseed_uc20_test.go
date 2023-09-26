@@ -41,20 +41,38 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/tooling"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type fakeKeyMgr struct {
-	key asserts.PrivateKey
+	keyStore map[string]asserts.PrivateKey
 }
 
-func (f *fakeKeyMgr) Put(privKey asserts.PrivateKey) error                  { return nil }
-func (f *fakeKeyMgr) Get(keyID string) (asserts.PrivateKey, error)          { return f.key, nil }
-func (f *fakeKeyMgr) Delete(keyID string) error                             { return nil }
-func (f *fakeKeyMgr) GetByName(keyNname string) (asserts.PrivateKey, error) { return f.key, nil }
-func (f *fakeKeyMgr) Export(keyName string) ([]byte, error)                 { return nil, nil }
-func (f *fakeKeyMgr) List() ([]asserts.ExternalKeyInfo, error)              { return nil, nil }
-func (f *fakeKeyMgr) DeleteByName(keyName string) error                     { return nil }
+func (f *fakeKeyMgr) Get(keyID string) (asserts.PrivateKey, error) {
+	for _, key := range f.keyStore {
+		if keyID == key.PublicKey().ID() {
+			return key, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no key with ID %q", keyID)
+}
+
+func (f *fakeKeyMgr) GetByName(keyName string) (asserts.PrivateKey, error) {
+	key, ok := f.keyStore[keyName]
+	if ok {
+		return key, nil
+	}
+
+	return nil, fmt.Errorf("no key with name %q", keyName)
+}
+
+func (f *fakeKeyMgr) Put(privKey asserts.PrivateKey) error     { return nil }
+func (f *fakeKeyMgr) Delete(keyID string) error                { return nil }
+func (f *fakeKeyMgr) Export(keyName string) ([]byte, error)    { return nil, nil }
+func (f *fakeKeyMgr) List() ([]asserts.ExternalKeyInfo, error) { return nil, nil }
+func (f *fakeKeyMgr) DeleteByName(keyName string) error        { return nil }
 
 type toolingStore struct {
 	*seedtest.SeedSnaps
@@ -90,17 +108,25 @@ var sysFsOverlaysGood = []string{"class/backlight", "class/bluetooth", "class/gp
 
 var sysFsOverlaysBad = []string{"class/backlight-xxx", "class/spi", "devices/pci"}
 
-func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, sysfsOverlay string) {
+func (s *preseedSuite) testRunPreseedUC20Happy(c *C, preseedAccountID, customAppArmorFeaturesDir, sysfsOverlay string) {
 
-	testKey, _ := assertstest.GenerateKey(752)
+	accountIDList := []string{"my-brand", "my-delegate"}
+	c.Assert(strutil.ListContains(accountIDList, preseedAccountID), Equals, true)
 
 	ts := &toolingStore{&seedtest.SeedSnaps{}}
 	ts.SeedSnaps.SetupAssertSigning("canonical")
-	ts.Brands.Register("my-brand", testKey, map[string]interface{}{
-		"verification": "verified",
-	})
 
-	assertstest.AddMany(ts.StoreSigning, ts.Brands.AccountsAndKeys("my-brand")...)
+	accountsAndKeys := map[string]asserts.PrivateKey{}
+	for _, accountID := range accountIDList {
+		accountKey, _ := assertstest.GenerateKey(752)
+
+		accountsAndKeys[accountID] = accountKey
+
+		ts.Brands.Register(accountID, accountKey, map[string]interface{}{
+			"verification": "verified",
+		})
+		assertstest.AddMany(ts.StoreSigning, ts.Brands.AccountsAndKeys(accountID)...)
+	}
 
 	tsto := tooling.MockToolingStore(ts)
 	restoreToolingStore := preseed.MockNewToolingStoreFromModel(func(model *asserts.Model, fallbackArchitecture string) (*tooling.ToolingStore, error) {
@@ -117,6 +143,9 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 		"base":         "core20",
 		"grade":        "dangerous",
 		"timestamp":    "2019-11-01T08:00:00+00:00",
+		"preseed-authority": []interface{}{
+			"my-delegate",
+		},
 		"snaps": []interface{}{
 			map[string]interface{}{
 				"name": "pc-kernel",
@@ -158,7 +187,7 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 	})
 	defer restoreSeedOpen()
 
-	keyMgr := &fakeKeyMgr{testKey}
+	keyMgr := &fakeKeyMgr{accountsAndKeys}
 	restoreGetKeypairMgr := preseed.MockGetKeypairManager(func() (signtool.KeypairManager, error) {
 		return keyMgr, nil
 	})
@@ -221,14 +250,17 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "system-seed/systems/20220203"), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), []byte(`hello world`), 0644), IsNil)
 
-	accountAssert := ts.Brands.Account("my-brand")
-	accountKeyAssert := ts.Brands.AccountKey("my-brand")
+	preseedKey, err := keyMgr.GetByName(preseedAccountID)
+	c.Assert(err, IsNil)
+
+	preseedAccountAssert := ts.Brands.Account(preseedAccountID)
+	preseedAccountKeyAssert := ts.Brands.AccountKey(preseedAccountID)
 
 	opts := &preseed.CoreOptions{
 		PrepareImageDir:           tmpDir,
-		PreseedSignKey:            &testKey,
-		PreseedAccountAssert:      accountAssert,
-		PreseedAccountKeyAssert:   accountKeyAssert,
+		PreseedSignKey:            &preseedKey,
+		PreseedAccountAssert:      preseedAccountAssert,
+		PreseedAccountKeyAssert:   preseedAccountKeyAssert,
 		AppArmorKernelFeaturesDir: customAppArmorFeaturesDir,
 		SysfsOverlay:              sysfsOverlay,
 	}
@@ -348,7 +380,7 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 			preseedAs := as.(*asserts.Preseed)
 			c.Check(preseedAs.Revision(), Equals, 0)
 			c.Check(preseedAs.Series(), Equals, "16")
-			c.Check(preseedAs.AuthorityID(), Equals, "my-brand")
+			c.Check(preseedAs.AuthorityID(), Equals, preseedAccountID)
 			c.Check(preseedAs.BrandID(), Equals, "my-brand")
 			c.Check(preseedAs.Model(), Equals, "my-model-uc20")
 			c.Check(preseedAs.SystemLabel(), Equals, "20220203")
@@ -367,18 +399,22 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 	}
 
 	c.Check(seen, DeepEquals, map[string]bool{
-		"account-key:my-brand": true,
-		"account:my-brand":     true,
-		"preseed":              true,
+		"account-key:" + preseedAccountID: true,
+		"account:" + preseedAccountID:     true,
+		"preseed":                         true,
 	})
 }
 
 func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
-	s.testRunPreseedUC20Happy(c, "", "")
+	s.testRunPreseedUC20Happy(c, "my-brand", "", "")
+}
+
+func (s *preseedSuite) TestRunPreseedDelegationUC20Happy(c *C) {
+	s.testRunPreseedUC20Happy(c, "my-delegate", "", "")
 }
 
 func (s *preseedSuite) TestRunPreseedUC20HappyCustomApparmorFeaturesDir(c *C) {
-	s.testRunPreseedUC20Happy(c, "/custom-aa-features", "")
+	s.testRunPreseedUC20Happy(c, "my-brand", "/custom-aa-features", "")
 }
 
 func (s *preseedSuite) TestRunPreseedUC20HappySysfsOverlay(c *C) {
@@ -419,7 +455,7 @@ func (s *preseedSuite) TestRunPreseedUC20HappySysfsOverlay(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	s.testRunPreseedUC20Happy(c, "", tmpdir)
+	s.testRunPreseedUC20Happy(c, "my-brand", "", tmpdir)
 }
 
 func (s *preseedSuite) TestRunPreseedUC20ExecFormatError(c *C) {
