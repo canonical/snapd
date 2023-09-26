@@ -100,8 +100,49 @@ type seqReq struct {
 
 var _ = Suite(&imageSuite{})
 
+const (
+	brandAccountAssertString = `type: account
+authority-id: canonical
+account-id: my-brand
+display-name: my-brand
+username: my-brand
+validation: unproven
+timestamp: 2020-01-01T00:00:00Z
+body-length: 0
+sign-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk
+
+AXNpZw==`
+	delegateAccountAssertString = `type: account
+authority-id: canonical
+account-id: my-brand
+display-name: my-brand
+username: my-brand
+validation: unproven
+timestamp: 2020-01-01T00:00:00Z
+body-length: 0
+sign-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk
+
+AXNpZw==`
+	randomAccountAssertString = `type: account
+authority-id: canonical
+account-id: random-user
+display-name: random-user
+username: random-user
+validation: unproven
+timestamp: 2020-01-01T00:00:00Z
+body-length: 0
+sign-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk
+
+AXNpZw==`
+)
+
 var (
-	brandPrivKey, _ = assertstest.GenerateKey(752)
+	brandPrivKey, _                = assertstest.GenerateKey(752)
+	brandAccountKeyAssertString    = generateAccountKeyAssert("my-brand", brandPrivKey)
+	delegatePrivKey, _             = assertstest.GenerateKey(752)
+	delegateAccountKeyAssertString = generateAccountKeyAssert("my-delegate", brandPrivKey)
+	randomPrivKey, _               = assertstest.GenerateKey(752)
+	randomAccountKeyAssertString   = generateAccountKeyAssert("random-user", brandPrivKey)
 )
 
 func (s *imageSuite) SetUpTest(c *C) {
@@ -3641,20 +3682,6 @@ assets:
 }
 
 func (s *imageSuite) TestPrepareWithUC20Preseed(c *C) {
-	const accountAssertString = `type: account
-authority-id: canonical
-account-id: my-brand
-display-name: my-brand
-username: my-brand
-validation: unproven
-timestamp: 2020-01-01T00:00:00Z
-body-length: 0
-sign-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk
-
-AXNpZw==`
-
-	accountKeyAssertString := generateAccountKeyAssert("my-brand", brandPrivKey)
-
 	restoreSetupSeed := image.MockSetupSeed(func(tsto *tooling.ToolingStore, model *asserts.Model, opts *image.Options) error {
 		return nil
 	})
@@ -3681,10 +3708,10 @@ AXNpZw==`
 	fn := filepath.Join(c.MkDir(), "model.assertion")
 	c.Assert(os.WriteFile(fn, asserts.Encode(model), 0644), IsNil)
 
-	accountAssert, err := asserts.Decode([]byte(accountAssertString))
+	accountAssert, err := asserts.Decode([]byte(brandAccountAssertString))
 	c.Assert(err, IsNil)
 
-	accountKeyAssert, err = asserts.Decode([]byte(accountKeyAssertString))
+	accountKeyAssert, err = asserts.Decode([]byte(brandAccountKeyAssertString))
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -3700,6 +3727,93 @@ AXNpZw==`
 	})
 	c.Assert(err, IsNil)
 	c.Check(preseedCalled, Equals, true)
+}
+
+func (s *imageSuite) TestPrepareWithUC20PreseedDelegation(c *C) {
+	restoreSetupSeed := image.MockSetupSeed(func(tsto *tooling.ToolingStore, model *asserts.Model, opts *image.Options) error {
+		return nil
+	})
+	defer restoreSetupSeed()
+
+	var (
+		preseedCalled            bool
+		delegateAccountAssert    asserts.Assertion
+		delegateAccountKeyAssert asserts.Assertion
+	)
+	restorePreseedCore20 := image.MockPreseedCore20(func(opts *preseed.CoreOptions) error {
+		preseedCalled = true
+		c.Assert(opts.PrepareImageDir, Equals, "/a/dir")
+		c.Assert(opts.PreseedSignKey, Equals, &delegatePrivKey)
+		c.Assert(opts.PreseedAccountAssert, Equals, delegateAccountAssert.(*asserts.Account))
+		c.Assert(opts.PreseedAccountKeyAssert, Equals, delegateAccountKeyAssert.(*asserts.AccountKey))
+		c.Assert(opts.AppArmorKernelFeaturesDir, Equals, "/custom/aa/features")
+		c.Assert(opts.SysfsOverlay, Equals, "/sysfs-overlay")
+		return nil
+	})
+	defer restorePreseedCore20()
+
+	model := s.makeUC20Model(map[string]any{
+		"preseed-authority": []any{"my-delegate"},
+	})
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	c.Assert(ioutil.WriteFile(fn, asserts.Encode(model), 0644), IsNil)
+
+	delegateAccountAssert, err := asserts.Decode([]byte(delegateAccountAssertString))
+	c.Assert(err, IsNil)
+
+	delegateAccountKeyAssert, err = asserts.Decode([]byte(delegateAccountKeyAssertString))
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		ModelFile:               fn,
+		Preseed:                 true,
+		PrepareDir:              "/a/dir",
+		PreseedSignKey:          &delegatePrivKey,
+		PreseedAccountAssert:    delegateAccountAssert.(*asserts.Account),
+		PreseedAccountKeyAssert: delegateAccountKeyAssert.(*asserts.AccountKey),
+		SysfsOverlay:            "/sysfs-overlay",
+
+		AppArmorKernelFeaturesDir: "/custom/aa/features",
+	})
+	c.Assert(err, IsNil)
+	c.Check(preseedCalled, Equals, true)
+}
+
+func (s *imageSuite) TestPrepareWithUC20PreseedDelegationError(c *C) {
+	restoreSetupSeed := image.MockSetupSeed(func(tsto *tooling.ToolingStore, model *asserts.Model, opts *image.Options) error {
+		return nil
+	})
+	defer restoreSetupSeed()
+
+	restorePreseedCore20 := image.MockPreseedCore20(func(opts *preseed.CoreOptions) error {
+		return nil
+	})
+	defer restorePreseedCore20()
+
+	model := s.makeUC20Model(map[string]any{
+		"preseed-authority": []any{"my-delegate"},
+	})
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	c.Assert(ioutil.WriteFile(fn, asserts.Encode(model), 0644), IsNil)
+
+	randomAccountAssert, err := asserts.Decode([]byte(randomAccountAssertString))
+	c.Assert(err, IsNil)
+
+	randomAccountKeyAssert, err := asserts.Decode([]byte(randomAccountKeyAssertString))
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		ModelFile:               fn,
+		Preseed:                 true,
+		PrepareDir:              "/a/dir",
+		PreseedSignKey:          &randomPrivKey,
+		PreseedAccountAssert:    randomAccountAssert.(*asserts.Account),
+		PreseedAccountKeyAssert: randomAccountKeyAssert.(*asserts.AccountKey),
+		SysfsOverlay:            "/sysfs-overlay",
+
+		AppArmorKernelFeaturesDir: "/custom/aa/features",
+	})
+	c.Assert(err, ErrorMatches, `preseed key registered to account "random-user", but expected one of \["my-brand" "my-delegate"\]`)
 }
 
 func (s *imageSuite) TestPrepareWithClassicPreseedError(c *C) {
