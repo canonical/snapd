@@ -37,7 +37,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-var ErrEpollClosed error = errors.New("the epoll instance has been closed")
+var ErrEpollClosed = errors.New("the epoll instance has been closed")
 
 // Readiness is the bit mask of aspects of readiness to monitor with epoll.
 type Readiness int
