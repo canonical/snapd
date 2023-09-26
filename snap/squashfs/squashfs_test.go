@@ -38,6 +38,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/squashfs"
@@ -46,13 +47,6 @@ import (
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
-
-type SquashfsTestSuite struct {
-	oldStdout, oldStderr, outf *os.File
-	testutil.BaseTest
-}
-
-var _ = Suite(&SquashfsTestSuite{})
 
 func makeSnap(c *C, manifest, data string) *squashfs.Snap {
 	cur, _ := os.Getwd()
@@ -107,9 +101,18 @@ func makeSnapInDir(c *C, dir, manifest, data string) *squashfs.Snap {
 	return sn
 }
 
+type SquashfsTestSuite struct {
+	testutil.BaseTest
+
+	oldStdout, oldStderr, outf *os.File
+}
+
+var _ = Suite(&SquashfsTestSuite{})
+
 func (s *SquashfsTestSuite) SetUpTest(c *C) {
 	d := c.MkDir()
 	dirs.SetRootDir(d)
+	s.AddCleanup(func() { dirs.SetRootDir("") })
 	err := os.Chdir(d)
 	c.Assert(err, IsNil)
 
@@ -668,12 +671,17 @@ func (s *SquashfsTestSuite) TestBuildSupportsMultipleExcludesWithOnlyOneWildcard
 		c.Check(cmd, Equals, "/usr/bin/mksquashfs")
 		return nil, errors.New("bzzt")
 	})()
-	mksq := testutil.MockCommand(c, "mksquashfs", "")
+	mksq := testutil.MockCommand(c, "mksquashfs", `/usr/bin/mksquashfs "$@"`)
 	defer mksq.Restore()
 
+	fakeSourcedir := c.MkDir()
+	for _, n := range []string{"exclude1", "exclude2", "exclude3"} {
+		err := os.WriteFile(filepath.Join(fakeSourcedir, n), nil, 0644)
+		c.Assert(err, IsNil)
+	}
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
 	sn := squashfs.New(snapPath)
-	err := sn.Build(c.MkDir(), &squashfs.BuildOpts{
+	err := sn.Build(fakeSourcedir, &squashfs.BuildOpts{
 		SnapType:     "core",
 		ExcludeFiles: []string{"exclude1", "exclude2", "exclude3"},
 	})
@@ -693,7 +701,8 @@ func (s *SquashfsTestSuite) TestBuildUsesMksquashfsFromCoreIfAvailable(c *C) {
 	defer squashfs.MockCommandFromSystemSnap(func(cmd string, args ...string) (*exec.Cmd, error) {
 		usedFromCore = true
 		c.Check(cmd, Equals, "/usr/bin/mksquashfs")
-		return &exec.Cmd{Path: "/bin/true"}, nil
+		fakeCmd := exec.Cmd{Path: "/usr/bin/mksquashfs", Args: []string{"/usr/bin/mksquashfs"}}
+		return &fakeCmd, nil
 	})()
 	mksq := testutil.MockCommand(c, "mksquashfs", "exit 1")
 	defer mksq.Restore()
@@ -714,7 +723,7 @@ func (s *SquashfsTestSuite) TestBuildUsesMksquashfsFromClassicIfCoreUnavailable(
 		c.Check(cmd, Equals, "/usr/bin/mksquashfs")
 		return nil, errors.New("bzzt")
 	})()
-	mksq := testutil.MockCommand(c, "mksquashfs", "")
+	mksq := testutil.MockCommand(c, "mksquashfs", `/usr/bin/mksquashfs "$@"`)
 	defer mksq.Restore()
 
 	buildDir := c.MkDir()
@@ -749,7 +758,7 @@ func (s *SquashfsTestSuite) TestBuildVariesArgsByType(c *C) {
 	defer squashfs.MockCommandFromSystemSnap(func(cmd string, args ...string) (*exec.Cmd, error) {
 		return nil, errors.New("bzzt")
 	})()
-	mksq := testutil.MockCommand(c, "mksquashfs", "")
+	mksq := testutil.MockCommand(c, "mksquashfs", `/usr/bin/mksquashfs "$@"`)
 	defer mksq.Restore()
 
 	buildDir := c.MkDir()
@@ -961,4 +970,28 @@ func (s *SquashfsTestSuite) TestBuildWithCompressionUnhappy(c *C) {
 		Compression: "silly",
 	})
 	c.Assert(err, ErrorMatches, "(?m)^mksquashfs call failed: ")
+}
+
+func (s *SquashfsTestSuite) TestBuildBelowMinimumSize(c *C) {
+	// this snap is empty. without truncating it to be larger, it should be smaller than
+	// the minimum snap size
+	sn := squashfs.New(filepath.Join(c.MkDir(), "truncate_me.snap"))
+	sn.Build(c.MkDir(), nil)
+
+	size, err := sn.Size()
+	c.Assert(err, IsNil)
+
+	c.Assert(size, Equals, squashfs.MinimumSnapSize)
+}
+
+func (s *SquashfsTestSuite) TestBuildAboveMinimumSize(c *C) {
+	// fill a snap with random data that will not compress well. it should be forced
+	// to be bigger than the minimum threshold
+	randomData := randutil.RandomString(int(squashfs.MinimumSnapSize * 2))
+	sn := makeSnapInDir(c, c.MkDir(), "name: do_not_truncate_me", randomData)
+
+	size, err := sn.Size()
+	c.Assert(err, IsNil)
+
+	c.Assert(int(size), testutil.IntGreaterThan, int(squashfs.MinimumSnapSize), Commentf("random snap data: %s", randomData))
 }
