@@ -330,41 +330,11 @@ var (
 	maxRepairScriptSize = 24 * 1024 * 1024
 )
 
-// repairConfig is a set of configuration data that is consumed by the
-// snap-repair command. This struct is duplicated in
-// overlord/configstate/configcore.
-type repairConfig struct {
-	// StoreOffline is true if the store is marked as offline and should not be
-	// accessed.
-	StoreOffline bool `json:"store-offline"`
-}
-
-func isStoreOffline(path string) bool {
-	f, err := os.Open(path)
-	if err != nil {
-		return false
-	}
-	defer f.Close()
-
-	var repairConfig repairConfig
-	if err := json.NewDecoder(f).Decode(&repairConfig); err != nil {
-		return false
-	}
-
-	return repairConfig.StoreOffline
-}
-
-var ErrStoreOffline = errors.New("snap store is marked offline")
-
 // Fetch retrieves a stream with the repair with the given ids and any
 // auxiliary assertions. If revision>=0 the request will include an
 // If-None-Match header with an ETag for the revision, and
 // ErrRepairNotModified is returned if the revision is still current.
 func (run *Runner) Fetch(brandID string, repairID int, revision int) (*asserts.Repair, []asserts.Assertion, error) {
-	if isStoreOffline(dirs.SnapRepairConfigFile) {
-		return nil, nil, ErrStoreOffline
-	}
-
 	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%d", brandID, repairID))
 	if err != nil {
 		return nil, nil, err
@@ -471,10 +441,6 @@ type peekResp struct {
 
 // Peek retrieves the headers for the repair with the given ids.
 func (run *Runner) Peek(brandID string, repairID int) (headers map[string]interface{}, err error) {
-	if isStoreOffline(dirs.SnapRepairConfigFile) {
-		return nil, ErrStoreOffline
-	}
-
 	u, err := run.BaseURL.Parse(fmt.Sprintf("repairs/%s/%d", brandID, repairID))
 	if err != nil {
 		return nil, err
