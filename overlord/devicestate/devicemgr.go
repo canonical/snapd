@@ -1042,6 +1042,17 @@ func (m *DeviceManager) ensureAutoImportAssertions() error {
 }
 
 func (m *DeviceManager) ensureSerialBoundAssertionsProcessed() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	var seeded bool
+	if err := m.state.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
 	if release.OnClassic {
 		return nil
 	}
@@ -1050,23 +1061,12 @@ func (m *DeviceManager) ensureSerialBoundAssertionsProcessed() error {
 		return nil
 	}
 
-	m.state.Lock()
-	defer m.state.Unlock()
-
 	var waitingOnSerial bool
 	err := m.state.Get("assertion-waiting-on-serial", &waitingOnSerial)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		logger.Noticef("failed to get serial-bound assert state")
 	}
 	if !waitingOnSerial {
-		return nil
-	}
-
-	var seeded bool
-	if err := m.state.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-	if !seeded {
 		return nil
 	}
 
