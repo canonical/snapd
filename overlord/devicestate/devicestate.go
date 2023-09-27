@@ -529,11 +529,11 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pat
 			snapstate.Flags{}, deviceCtx, fromChange)
 	}
 
+	// in UC20+ models, the model can specify a channel for each
+	// snap, thus making it possible to change already installed
+	// kernel or base snaps
 	changed := false
 	if ms.new.Grade() != asserts.ModelGradeUnset {
-		// in UC20+ models, the model can specify a channel for each
-		// snap, thus making it possible to change already installed
-		// kernel or base snaps
 		changed, err = installedSnapChannelChanged(st, ms.newModelSnap.SnapName(), newModelSnapChannel)
 		if err != nil {
 			return nil, err
