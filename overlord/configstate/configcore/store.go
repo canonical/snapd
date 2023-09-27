@@ -57,7 +57,7 @@ type repairConfig struct {
 	StoreOffline bool `json:"store-offline"`
 }
 
-func handleStoreAccess(_ sysconfig.Device, cfg ConfGetter, _ *fsOnlyContext) error {
+func handleStoreAccess(_ sysconfig.Device, cfg ConfGetter, opts *fsOnlyContext) error {
 	access, err := coreCfg(cfg, "store.access")
 	if err != nil {
 		return err
@@ -70,9 +70,14 @@ func handleStoreAccess(_ sysconfig.Device, cfg ConfGetter, _ *fsOnlyContext) err
 		return err
 	}
 
-	if err := os.MkdirAll(filepath.Dir(dirs.SnapRepairConfigFile), 0755); err != nil {
+	configFilePath := dirs.SnapRepairConfigFile
+	if opts != nil && opts.RootDir != "" {
+		configFilePath = dirs.SnapRepairConfigFileUnder(opts.RootDir)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(configFilePath), 0755); err != nil {
 		return err
 	}
 
-	return osutil.AtomicWriteFile(dirs.SnapRepairConfigFile, data, 0644, 0)
+	return osutil.AtomicWriteFile(configFilePath, data, 0644, 0)
 }
