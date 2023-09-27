@@ -124,7 +124,10 @@ func InternalToolPath(tool string) (string, error) {
 			// only assume mounted location when path contains
 			// /usr/, but does not start with one
 			prefix := exe[:idx]
-			return filepath.Join(prefix, "/usr/lib/snapd", tool), nil
+			maybeTool := filepath.Join(prefix, "/usr/lib/snapd", tool)
+			if osutil.IsExecutable(maybeTool) {
+				return maybeTool, nil
+			}
 		}
 		if idx == -1 {
 			// or perhaps some other random location, make sure the tool
