@@ -77,3 +77,22 @@ func (s *storeSuite) TestStoreAccessUnhappy(c *C) {
 	})
 	c.Assert(err, ErrorMatches, ".*store access can only be set to 'offline'")
 }
+
+func (s *storeSuite) TestFilesystemOnlyApply(c *C) {
+	conf := configcore.PlainCoreConfig(map[string]interface{}{
+		"store.access": "offline",
+	})
+
+	tmpDir := c.MkDir()
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
+
+	f, err := os.Open(dirs.SnapRepairConfigFileUnder(tmpDir))
+	c.Assert(err, IsNil)
+	defer f.Close()
+
+	var repairConfig configcore.RepairConfig
+	err = json.NewDecoder(f).Decode(&repairConfig)
+	c.Assert(err, IsNil)
+
+	c.Check(repairConfig.StoreOffline, Equals, true)
+}
