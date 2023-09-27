@@ -781,7 +781,7 @@ func (s *usersSuite) TestCreateUserFromAssertionNoSerial(c *check.C) {
 
 	// try creating user
 	s.state.Lock()
-	createdUsers, userErr := devicestate.CreateKnownUsers(s.state, true, serialUser["email"].(string))
+	createdUsers, userErr := devicestate.CreateKnownUsers(s.state, true, "")
 	s.state.Unlock()
 
 	// make sure that no users were created
