@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -76,9 +77,15 @@ func criticalTaskEdges(ts *state.TaskSet) (beginEdge, beforeHooksEdge, hooksEdge
 
 // maybeEnforceValidationSetsTask returns a task for tracking validation-sets. This may
 // return nil if no validation-sets are present.
-func maybeEnforceValidationSetsTask(st *state.State, model *asserts.Model) (*state.Task, error) {
+func maybeEnforceValidationSetsTask(st *state.State, model *asserts.Model, mode string) (*state.Task, error) {
 	vsKey := func(accountID, name string) string {
 		return fmt.Sprintf("%s/%s", accountID, name)
+	}
+
+	// Only enforce validation-sets in run-mode after installing all required snaps
+	if mode != "run" {
+		logger.Debugf("Postponing enforcement of validation-sets in mode %s", mode)
+		return nil, nil
 	}
 
 	// Encode validation-sets included in the seed
@@ -345,7 +352,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 
 	// Start tracking any validation sets included in the seed after
 	// installing the included snaps.
-	if trackVss, err := maybeEnforceValidationSetsTask(st, model); err != nil {
+	if trackVss, err := maybeEnforceValidationSetsTask(st, model, mode); err != nil {
 		return nil, err
 	} else if trackVss != nil {
 		trackVss.WaitAll(ts)
