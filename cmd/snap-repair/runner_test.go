@@ -2380,3 +2380,67 @@ func (s *runner20Suite) TestLoadStateInitDeviceInfoModeenvIncorrectPermissions(c
 	err = runner.LoadState()
 	c.Check(err, ErrorMatches, "cannot set device information: open /.*/modeenv: permission denied")
 }
+
+func (s *runnerSuite) TestStoreOffline(c *C) {
+	runner := repair.NewRunner()
+
+	data, err := json.Marshal(repair.RepairConfig{
+		StoreOffline: true,
+	})
+	c.Assert(err, IsNil)
+
+	err = os.MkdirAll(filepath.Dir(dirs.SnapRepairConfigFile), 0755)
+	c.Assert(err, IsNil)
+
+	err = osutil.AtomicWriteFile(dirs.SnapRepairConfigFile, data, 0644, 0)
+	c.Assert(err, IsNil)
+
+	_, _, err = runner.Fetch("canonical", 2, -1)
+	c.Assert(err, testutil.ErrorIs, repair.ErrStoreOffline)
+
+	_, err = runner.Peek("brand", 0)
+	c.Assert(err, testutil.ErrorIs, repair.ErrStoreOffline)
+}
+
+func (s *runnerSuite) TestStoreOnlineIfFileBroken(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, Equals, "/repairs/canonical/2")
+		accept := r.Header.Get("Accept")
+		switch accept {
+		case "application/x.ubuntu.assertion":
+			io.WriteString(w, testRepair)
+			io.WriteString(w, "\n")
+			io.WriteString(w, testKey)
+		case "application/json":
+			io.WriteString(w, testHeadersResp)
+		default:
+			c.Errorf("unexpected 'Accept' header: %s", accept)
+		}
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	err := os.MkdirAll(filepath.Dir(dirs.SnapRepairConfigFile), 0755)
+	c.Assert(err, IsNil)
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+
+	// file is missing
+	_, _, err = runner.Fetch("canonical", 2, -1)
+	c.Assert(err, IsNil)
+
+	_, err = runner.Peek("canonical", 2)
+	c.Assert(err, IsNil)
+
+	// file is invalid json
+	err = osutil.AtomicWriteFile(dirs.SnapRepairConfigFile, []byte("}{"), 0644, 0)
+	c.Assert(err, IsNil)
+
+	_, _, err = runner.Fetch("canonical", 2, -1)
+	c.Assert(err, IsNil)
+
+	_, err = runner.Peek("canonical", 2)
+	c.Assert(err, IsNil)
+}
