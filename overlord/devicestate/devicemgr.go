@@ -1058,7 +1058,7 @@ func (m *DeviceManager) ensureSerialBoundAssertionsProcessed() error {
 	}
 
 	var waitingOnSerial bool
-	err := m.state.Get("assertion-waiting-on-serial", &waitingOnSerial)
+	err := m.state.Get("system-user-waiting-on-serial", &waitingOnSerial)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		logger.Noticef("failed to get serial-bound assert state")
 	}
@@ -1088,7 +1088,7 @@ func (m *DeviceManager) ensureSerialBoundAssertionsProcessed() error {
 		return err
 	}
 
-	m.state.Set("assertion-waiting-on-serial", false)
+	m.state.Set("system-user-waiting-on-serial", false)
 
 	return nil
 }

@@ -802,10 +802,10 @@ func (s *usersSuite) TestCreateUserFromAssertionNoSerial(c *check.C) {
 	// ensure, thereby creating pending users
 	s.mgr.Ensure()
 
-	// make sure that assertion-waiting-on-serial has been set to false
+	// make sure that system-user-waiting-on-serial has been set to false
 	var waitingOnSerial bool
 	s.state.Lock()
-	err = s.state.Get("assertion-waiting-on-serial", &waitingOnSerial)
+	err = s.state.Get("system-user-waiting-on-serial", &waitingOnSerial)
 	s.state.Unlock()
 
 	c.Assert(err, check.IsNil)

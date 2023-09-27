@@ -104,7 +104,7 @@ func CreateKnownUsers(st *state.State, sudoer bool, email string) ([]*CreatedUse
 	username, expiration, opts, err := getUserDetailsFromAssertion(db, model, serial, email)
 	if err != nil {
 		if errors.Is(err, errSystemUserBoundToSerialButTooEarly) {
-			st.Set("assertion-waiting-on-serial", true)
+			st.Set("system-user-waiting-on-serial", true)
 			logger.Noticef("waiting for serial to add user %q: %s", email, err)
 			return nil, nil
 		}
@@ -191,7 +191,7 @@ func createKnownSystemUser(state *state.State, userAssertion *asserts.SystemUser
 	username, expiration, addUserOpts, err := getUserDetailsFromAssertion(assertDb, model, serial, email)
 	if err != nil {
 		if errors.Is(err, errSystemUserBoundToSerialButTooEarly) {
-			state.Set("assertion-waiting-on-serial", true)
+			state.Set("system-user-waiting-on-serial", true)
 			logger.Noticef("waiting for serial to add user %q: %s", email, err)
 			return nil, nil
 		}
