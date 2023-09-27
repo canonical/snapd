@@ -30,9 +30,12 @@ import (
 )
 
 var (
-	ParseArgs = parseArgs
-	Run       = run
+	ParseArgs       = parseArgs
+	Run             = run
+	ErrStoreOffline = errStoreOffline
 )
+
+type RepairConfig = repairConfig
 
 func MockBaseURL(baseurl string) (restore func()) {
 	orig := baseURL
