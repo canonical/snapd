@@ -259,7 +259,7 @@ volumes:
           - image: pc-core.img
       - name: ubuntu-seed
         role: system-seed
-        filesystem: vfat
+        filesystem: vfat-32
         # UEFI will boot the ESP partition by default first
         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
         size: 1200M
@@ -1367,6 +1367,8 @@ func (s *gadgetYamlTestSuite) TestValidateFilesystem(c *C) {
 		err string
 	}{
 		{"vfat", ""},
+		{"vfat-16", ""},
+		{"vfat-32", ""},
 		{"ext4", ""},
 		{"none", ""},
 		{"btrfs", `invalid filesystem "btrfs"`},
@@ -1554,6 +1556,9 @@ volumes:
 		err              string
 	}{
 		{"foo", "FOO", "vfat", "vfat", `invalid volume "minimal": filesystem label "FOO" is not unique`},
+		{"foo", "FOO", "vfat", "vfat-16", `invalid volume "minimal": filesystem label "FOO" is not unique`},
+		{"foo", "FOO", "vfat-16", "vfat-16", `invalid volume "minimal": filesystem label "FOO" is not unique`},
+		{"foo", "FOO", "vfat-16", "vfat-32", `invalid volume "minimal": filesystem label "FOO" is not unique`},
 		{"foo", "FOO", "ext4", "ext4", ""},
 		{"foo", "FOO", "vfat", "ext4", `invalid volume "minimal": filesystem label "FOO" is not unique`},
 		{"FOO", "foo", "vfat", "ext4", `invalid volume "minimal": filesystem label "foo" is not unique`},
@@ -5158,5 +5163,54 @@ func (s *gadgetYamlTestSuite) TestVolumeCopy(c *C) {
 			newV := v.Copy()
 			c.Assert(newV, DeepEquals, v)
 		}
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestLayoutCompatibilityVfatPartitions(c *C) {
+	const mockFat16Structure = `
+      - name: Writable
+        role: system-data
+        filesystem-label: writable
+        filesystem: vfat-16
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 64M
+`
+
+	gadgetVolumeWithExtras, err := gadgettest.VolumeFromYaml(c.MkDir(), mockSimpleGadgetYaml+mockFat16Structure, nil)
+	c.Assert(err, IsNil)
+	deviceLayout := mockDeviceLayout
+
+	// device matches gadget except for the filesystem type
+	deviceLayout.Structure = append(deviceLayout.Structure,
+		gadget.OnDiskStructure{
+			Node:             "/dev/node2",
+			Name:             "Writable",
+			Size:             64 * quantity.SizeMiB,
+			PartitionFSLabel: "writable",
+			PartitionFSType:  "vfat",
+			StartOffset:      2 * quantity.OffsetMiB,
+		},
+	)
+
+	// strict compatibility check, assuming that the creatable partitions
+	// have already been created will fail
+	opts := &gadget.VolumeCompatibilityOptions{AssumeCreatablePartitionsCreated: true}
+	_, err = gadget.EnsureVolumeCompatibility(gadgetVolumeWithExtras, &deviceLayout, opts)
+	c.Assert(err, IsNil)
+}
+
+func (s *gadgetYamlTestSuite) TestGadgetToLinuxFilesystem(c *C) {
+
+	for i, tc := range []struct {
+		vs    *gadget.VolumeStructure
+		linFs string
+	}{
+		{&gadget.VolumeStructure{Filesystem: "ext4"}, "ext4"},
+		{&gadget.VolumeStructure{Filesystem: "vfat"}, "vfat"},
+		{&gadget.VolumeStructure{Filesystem: "vfat-16"}, "vfat"},
+		{&gadget.VolumeStructure{Filesystem: "vfat-32"}, "vfat"},
+	} {
+		c.Logf("case %d: %s", i, tc.linFs)
+		c.Check(tc.vs.LinuxFilesystem(), Equals, tc.linFs)
 	}
 }
