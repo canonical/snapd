@@ -2024,6 +2024,11 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 				"id":       snaptest.AssertedSnapID("new-required-snap-2"),
 				"presence": "required",
 			},
+			map[string]interface{}{
+				"name":     "new-optional-snap-1",
+				"id":       snaptest.AssertedSnapID("new-optional-snap-1"),
+				"presence": "optional",
+			},
 		},
 	})
 	chg, err := devicestate.Remodel(s.state, new, nil, nil)
