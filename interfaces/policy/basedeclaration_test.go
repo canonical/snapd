@@ -1076,6 +1076,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"mir":                       true,
 		"online-accounts-service":   true,
 		"posix-mq":                  true,
+		"qualcomm-ipc-router":       true,
 		"raw-volume":                true,
 		"shared-memory":             true,
 		"storage-framework-service": true,
@@ -1107,7 +1108,8 @@ func (s *baseDeclSuite) TestConnectionImplicitSlotOnly(c *C) {
 
 	// these allow connect only with an implicit slot
 	autoconnect := map[string]bool{
-		"upower-observe": true,
+		"qualcomm-ipc-router": true,
+		"upower-observe":      true,
 	}
 
 	for _, iface := range all {
