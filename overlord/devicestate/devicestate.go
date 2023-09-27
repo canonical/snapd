@@ -552,29 +552,23 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pat
 	}
 
 	if edgeTask := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge); edgeTask != nil {
-		// no task is marked as being last
-		// before local modifications are
-		// introduced, indicating that the
-		// update is a simple
+		// no task is marked as being last before local modifications are
+		// introduced, indicating that the update is a simple
 		// switch-snap-channel
 		return ts, nil
 	}
 
 	switch ms.newModelSnap.SnapType {
 	case "kernel", "base":
-		// in other cases make sure that
-		// the kernel or base is linked
-		// and available, and that
-		// kernel updates boot assets if
-		// needed
+		// in other cases make sure that the kernel or base is linked and
+		// available, and that kernel updates boot assets if needed
 		ts, err = snapstate.AddLinkNewBaseOrKernel(st, ts)
 		if err != nil {
 			return nil, err
 		}
 	case "gadget":
-		// gadget snaps may need gadget
-		// related tasks such as assets
-		// update or command line update
+		// gadget snaps may need gadget related tasks such as assets update or
+		// command line update
 		ts, err = snapstate.AddGadgetAssetsTasks(st, ts)
 		if err != nil {
 			return nil, err
