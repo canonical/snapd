@@ -150,6 +150,9 @@ func (s *imageSuite) SetUpTest(c *C) {
 		return nil
 	})
 	s.AddCleanup(restore)
+
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
 }
 
 func (s *imageSuite) TearDownTest(c *C) {
@@ -2602,10 +2605,6 @@ func (s *imageSuite) TestSetupSeedBaseNone(c *C) {
 }
 
 func (s *imageSuite) TestSetupSeedCore18GadgetDefaults(c *C) {
-	tmpDir := c.MkDir()
-	dirs.SetRootDir(tmpDir)
-	defer dirs.SetRootDir("")
-
 	systemctlMock := testutil.MockCommand(c, "systemctl", "")
 	defer systemctlMock.Restore()
 

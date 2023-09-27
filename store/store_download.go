@@ -192,6 +192,13 @@ type DownloadOptions struct {
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
 func (s *Store) Download(ctx context.Context, name string, targetPath string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *DownloadOptions) error {
+	// most other store network operations use s.endpointURL, which returns an
+	// error if the store is offline. this doesn't, so we need to explicitly
+	// check.
+	if err := s.checkStoreOnline(); err != nil {
+		return err
+	}
+
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 		return err
 	}
@@ -588,6 +595,13 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 
 // DownloadStream will copy the snap from the request to the io.Reader
 func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, resume int64, user *auth.UserState) (io.ReadCloser, int, error) {
+	// most other store network operations use s.endpointURL, which returns an
+	// error if the store is offline. this doesn't, so we need to explicitly
+	// check.
+	if err := s.checkStoreOnline(); err != nil {
+		return nil, 0, err
+	}
+
 	// XXX: coverage of this is rather poor
 	if path := s.cacher.GetPath(downloadInfo.Sha3_384); path != "" {
 		logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)

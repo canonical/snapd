@@ -41,6 +41,8 @@ type DeviceAndAuthContext interface {
 	ProxyStoreParams(defaultURL *url.URL) (proxyStoreID string, proxySroreURL *url.URL, err error)
 
 	CloudInfo() (*auth.CloudInfo, error)
+
+	StoreOffline() (bool, error)
 }
 
 // DeviceSessionRequestParams gathers the assertions and information to be sent to request a device session.
