@@ -703,6 +703,18 @@ nested_prepare_base() {
     fi 
 }
 
+nested_prepare_essential_snaps() {
+    # shellcheck source=tests/lib/prepare.sh
+    . "$TESTSLIB"/prepare.sh
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
+    nested_prepare_snapd
+    nested_prepare_kernel
+    nested_prepare_gadget
+    nested_prepare_base
+}
+
 nested_create_core_vm() {
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
@@ -1126,7 +1138,7 @@ nested_start_core_vm_unit() {
                 if [ -z "$NESTED_TPM_NO_RESTART" ]; then
                     # reset the tpm state
                     snap stop test-snapd-swtpm > /dev/null
-                    rm /var/snap/test-snapd-swtpm/current/tpm2-00.permall
+                    rm /var/snap/test-snapd-swtpm/current/tpm2-00.permall || true
                     snap start test-snapd-swtpm > /dev/null
                 fi
             else

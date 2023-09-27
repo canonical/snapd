@@ -398,6 +398,10 @@ build_seed() {
     nested_build_seed_cdrom "$@"
 }
 
+prepare_snaps() {
+    nested_prepare_essential_snaps
+}
+
 main() {
     if [ $# -eq 0 ]; then
         show_help
