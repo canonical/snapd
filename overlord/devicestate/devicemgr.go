@@ -1057,10 +1057,6 @@ func (m *DeviceManager) ensureSerialBoundAssertionsProcessed() error {
 		return nil
 	}
 
-	if m.earlyDeviceSeed != nil {
-		return nil
-	}
-
 	var waitingOnSerial bool
 	err := m.state.Get("assertion-waiting-on-serial", &waitingOnSerial)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
