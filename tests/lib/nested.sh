@@ -716,6 +716,8 @@ nested_prepare_essential_snaps() {
 }
 
 nested_configure_default_user() {
+    local IMAGE_NAME
+    IMAGE_NAME="$(nested_get_image_name core)"
     # Configure the user for the vm
     if [ "$NESTED_USE_CLOUD_INIT" = "true" ]; then
         if nested_is_core_20_system || nested_is_core_22_system; then

@@ -1167,9 +1167,6 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20ValidationSetTracking(c *C,
 	bootloader.Force(bloader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
 
-	// since we are in runmode, MakeBootable will already have run from install
-	// mode, and extracted the kernel assets for the kernel snap into the
-	// bootloader, so set the current kernel there
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
 	c.Assert(err, IsNil)
 	r := bloader.SetEnabledKernel(kernel)
