@@ -420,7 +420,7 @@ func resolveContentPathOrRef(gadgetRootDir, kernelRootDir string, kernelInfo *ke
 	//       kernel dir set
 	switch {
 	case gadgetRootDir == "":
-		return "", false, fmt.Errorf("internal error: gadget root dir cannot beempty")
+		return "", false, fmt.Errorf("internal error: gadget root dir cannot be empty")
 	case pathOrRef == "":
 		return "", false, fmt.Errorf("cannot use empty source")
 	}
