@@ -101,7 +101,7 @@ execute: |
     retry -n 200 --wait 1 sh -c "remote.exec snap changes | MATCH 'Done.*Initialize system state'"
 
     # validate the validation set task was there, and done
-    remote.exec snap changes | MATCH 'Done.*Track validation sets'
+    remote.exec snap change 1 | MATCH 'Done.*Track validation sets'
 
     # check validation-sets
     remote.exec "sudo snap validate" | MATCH 'developer1/bar.*valid'
