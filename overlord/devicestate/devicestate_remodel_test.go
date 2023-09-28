@@ -5078,12 +5078,12 @@ plugs:
 			RealName: "foo-missing-deps",
 		})
 		snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
-			SnapType: string(info.Type()),
-			Active:   true,
-			Sequence: []*snap.SideInfo{&info.SideInfo},
-			Current:  info.Revision,
+			SnapType:        string(info.Type()),
+			Active:          true,
+			Sequence:        []*snap.SideInfo{&info.SideInfo},
+			Current:         info.Revision,
+			TrackingChannel: "latest/stable",
 		})
-
 	}
 
 	new := s.brands.Model("canonical", "pc-new-model", map[string]interface{}{
@@ -5273,7 +5273,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSelfContainedModelMissingDepsOfM
 		c.Check(fromChange, Equals, "99")
 		c.Check(opts.Channel, Equals, "latest/stable")
 
-		return nil, nil
+		return state.NewTaskSet(), nil
 	})
 	defer restore()
 
@@ -5296,10 +5296,11 @@ plugs:
 		RealName: "bar-missing-deps",
 	})
 	snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
-		SnapType: string(info.Type()),
-		Active:   true,
-		Sequence: []*snap.SideInfo{&info.SideInfo},
-		Current:  info.Revision,
+		SnapType:        string(info.Type()),
+		Active:          true,
+		Sequence:        []*snap.SideInfo{&info.SideInfo},
+		Current:         info.Revision,
+		TrackingChannel: "latest/stable",
 	})
 
 	new := s.brands.Model("canonical", "pc-new-model", map[string]interface{}{
