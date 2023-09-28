@@ -83,11 +83,10 @@ func writeKeyData(path string, keySetup *fde.InitialSetupResult, auxKey []byte, 
 	} else {
 		handle = *keySetup.Handle
 	}
-	kd, err := sb.NewKeyData(&sb.KeyCreationData{
-		PlatformKeyData: sb.PlatformKeyData{
-			EncryptedPayload: keySetup.EncryptedKey,
-			Handle:           handle,
-		},
+	kd, err := sb.NewKeyData(&sb.KeyParams{
+		EncryptedPayload: keySetup.EncryptedKey,
+		Handle:           handle,
+
 		PlatformName:      fdeHooksPlatformName,
 		AuxiliaryKey:      auxKey,
 		SnapModelAuthHash: crypto.SHA256,
@@ -174,9 +173,17 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(sealedEncryptionKeyFile, sourceDev
 		return res, xerrors.Errorf(fmt, err)
 	}
 
+	// ensure that the model is authorized to open the volume
+	model, err := opts.WhichModel()
+	if err != nil {
+		return res, fmt.Errorf("cannot retrieve which model to unlock for: %v", err)
+	}
+
 	// the output of fde-reveal-key is the unsealed key
 	options := activateVolOpts(opts.AllowRecoveryKey)
-	modChecker, err := sbActivateVolumeWithKeyData(mapperName, sourceDevice, keyData, options)
+	options.Model = model
+	// TODO: provide a AuthRequester, KDF here instead of "nil"
+	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, nil, nil, options, keyData)
 	if err == sb.ErrRecoveryKeyUsed {
 		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
 		res.FsDevice = targetDevice
@@ -194,18 +201,6 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(sealedEncryptionKeyFile, sourceDev
 			}
 		}
 	}()
-	// ensure that the model is authorized to open the volume
-	model, err := opts.WhichModel()
-	if err != nil {
-		return res, fmt.Errorf("cannot retrieve which model to unlock for: %v", err)
-	}
-	ok, err := modChecker.IsModelAuthorized(model)
-	if err != nil {
-		return res, fmt.Errorf("cannot check if model is authorized to unlock disk: %v", err)
-	}
-	if !ok {
-		return res, fmt.Errorf("cannot unlock volume: model %s/%s not authorized", model.BrandID(), model.Model())
-	}
 
 	logger.Noticef("successfully activated encrypted device %q using FDE kernel hooks", sourceDevice)
 	res.FsDevice = targetDevice
@@ -217,8 +212,8 @@ type fdeHookV2DataHandler struct{}
 
 func (fh *fdeHookV2DataHandler) RecoverKeys(data *sb.PlatformKeyData) (sb.KeyPayload, error) {
 	var handle *json.RawMessage
-	if len(data.Handle) != 0 {
-		rawHandle := json.RawMessage(data.Handle)
+	if len(data.EncodedHandle) != 0 {
+		rawHandle := json.RawMessage(data.EncodedHandle)
 		handle = &rawHandle
 	}
 	p := fde.RevealParams{
@@ -227,4 +222,12 @@ func (fh *fdeHookV2DataHandler) RecoverKeys(data *sb.PlatformKeyData) (sb.KeyPay
 		V2Payload: true,
 	}
 	return fde.Reveal(&p)
+}
+
+func (fh *fdeHookV2DataHandler) ChangeAuthKey(handle, old, new []byte) ([]byte, error) {
+	return nil, fmt.Errorf("cannot change auth key yet")
+}
+
+func (fh *fdeHookV2DataHandler) RecoverKeysWithAuthKey(data *sb.PlatformKeyData, key []byte) (sb.KeyPayload, error) {
+	return nil, fmt.Errorf("cannot recover keys with auth keys yet")
 }
