@@ -474,11 +474,9 @@ func ResealKeys(params *ResealKeysParams) error {
 }
 
 func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRProtectionProfile, error) {
-	numModels := len(modelParams)
-	modelPCRProfiles := make([]*sb_tpm2.PCRProtectionProfile, 0, numModels)
-
+	pcrProfile := sb_tpm2.NewPCRProtectionProfile()
 	for _, mp := range modelParams {
-		modelProfile := sb_tpm2.NewPCRProtectionProfile()
+		modelProfile := pcrProfile.RootBranch().AddBranchPoint().AddBranch()
 
 		loadSequences, err := buildLoadSequences(mp.EFILoadChains)
 		if err != nil {
@@ -495,7 +493,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 			//            ensure that the PCR profile is updated before/after sbkeysync executes.
 		}
 
-		if err := sbefiAddSecureBootPolicyProfile(modelProfile, &policyParams); err != nil {
+		if err := sbefiAddSecureBootPolicyProfile(pcrProfile, &policyParams); err != nil {
 			return nil, fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
 		}
 
@@ -519,6 +517,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 				return nil, fmt.Errorf("cannot add systemd EFI stub profile: %v", err)
 			}
 		}
+		modelProfile.EndBranch()
 
 		// Add snap model profile
 		if mp.Model != nil {
@@ -532,14 +531,6 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 			}
 		}
 
-		modelPCRProfiles = append(modelPCRProfiles, modelProfile)
-	}
-
-	var pcrProfile *sb_tpm2.PCRProtectionProfile
-	if numModels > 1 {
-		pcrProfile = sb_tpm2.NewPCRProtectionProfile().AddProfileOR(modelPCRProfiles...)
-	} else {
-		pcrProfile = modelPCRProfiles[0]
 	}
 
 	logger.Debugf("PCR protection profile:\n%s", pcrProfile.String())
@@ -584,7 +575,7 @@ func tpmProvision(tpm *sb_tpm2.Connection, mode TPMProvisionMode, lockoutAuthFil
 }
 
 // buildLoadSequences builds EFI load image event trees from this package LoadChains
-func buildLoadSequences(chains []*LoadChain) (loadseqs []*sb_efi.ImageLoadEvent, err error) {
+func buildLoadSequences(chains []*LoadChain) (loadseqs []sb_efi.ImageLoadActivity, err error) {
 	// this will build load event trees for the current
 	// device configuration, e.g. something like:
 	//
@@ -606,8 +597,8 @@ func buildLoadSequences(chains []*LoadChain) (loadseqs []*sb_efi.ImageLoadEvent,
 }
 
 // loadEvent builds the corresponding load event and its tree
-func (lc *LoadChain) loadEvent(source sb_efi.ImageLoadEventSource) (*sb_efi.ImageLoadEvent, error) {
-	var next []*sb_efi.ImageLoadEvent
+func (lc *LoadChain) loadEvent(source sb_efi.ImageLoadEventSource) (sb_efi.ImageLoadActivity, error) {
+	var next []sb_efi.ImageLoadActivity
 	for _, nextChain := range lc.Next {
 		// everything that is not the root has source shim
 		ev, err := nextChain.loadEvent(sb_efi.Shim)
@@ -620,11 +611,7 @@ func (lc *LoadChain) loadEvent(source sb_efi.ImageLoadEventSource) (*sb_efi.Imag
 	if err != nil {
 		return nil, err
 	}
-	return &sb_efi.ImageLoadEvent{
-		Source: source,
-		Image:  image,
-		Next:   next,
-	}, nil
+	return sb_efi.NewImageLoadActivity(image).Loads(), nil
 }
 
 func efiImageFromBootFile(b *bootloader.BootFile) (sb_efi.Image, error) {

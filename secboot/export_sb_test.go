@@ -22,8 +22,6 @@
 package secboot
 
 import (
-	"io"
-
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
@@ -71,7 +69,7 @@ func MockSbEfiAddSecureBootPolicyProfile(f func(profile *sb_tpm2.PCRProtectionPr
 	}
 }
 
-func MockSbEfiAddBootManagerProfile(f func(profile *sb_tpm2.PCRProtectionProfile, params *sb_efi.BootManagerProfileParams) error) (restore func()) {
+func MockSbEfiAddBootManagerProfile(f func(profile *sb_tpm2.PCRProtectionProfileBranch, params *sb_efi.BootManagerProfileParams) error) (restore func()) {
 	old := sbefiAddBootManagerProfile
 	sbefiAddBootManagerProfile = f
 	return func() {
@@ -79,7 +77,7 @@ func MockSbEfiAddBootManagerProfile(f func(profile *sb_tpm2.PCRProtectionProfile
 	}
 }
 
-func MockSbEfiAddSystemdStubProfile(f func(profile *sb_tpm2.PCRProtectionProfile, params *sb_efi.SystemdStubProfileParams) error) (restore func()) {
+func MockSbEfiAddSystemdStubProfile(f func(profile *sb_tpm2.PCRProtectionProfileBranch, params *sb_efi.SystemdStubProfileParams) error) (restore func()) {
 	old := sbefiAddSystemdStubProfile
 	sbefiAddSystemdStubProfile = f
 	return func() {
@@ -87,7 +85,7 @@ func MockSbEfiAddSystemdStubProfile(f func(profile *sb_tpm2.PCRProtectionProfile
 	}
 }
 
-func MockSbAddSnapModelProfile(f func(profile *sb_tpm2.PCRProtectionProfile, params *sb_tpm2.SnapModelProfileParams) error) (restore func()) {
+func MockSbAddSnapModelProfile(f func(profile *sb_tpm2.PCRProtectionProfileBranch, params *sb_tpm2.SnapModelProfileParams) error) (restore func()) {
 	old := sbAddSnapModelProfile
 	sbAddSnapModelProfile = f
 	return func() {
@@ -95,7 +93,7 @@ func MockSbAddSnapModelProfile(f func(profile *sb_tpm2.PCRProtectionProfile, par
 	}
 }
 
-func MockSbSealKeyToTPMMultiple(f func(tpm *sb_tpm2.Connection, keys []*sb_tpm2.SealKeyRequest, params *sb_tpm2.KeyCreationParams) (sb_tpm2.PolicyAuthKey, error)) (restore func()) {
+func MockSbSealKeyToTPMMultiple(f func(tpm *sb_tpm2.Connection, keys []*sb_tpm2.SealKeyRequest, params *sb_tpm2.KeyCreationParams) (sb.AuxiliaryKey, error)) (restore func()) {
 	old := sbSealKeyToTPMMultiple
 	sbSealKeyToTPMMultiple = f
 	return func() {
@@ -103,7 +101,7 @@ func MockSbSealKeyToTPMMultiple(f func(tpm *sb_tpm2.Connection, keys []*sb_tpm2.
 	}
 }
 
-func MockSbUpdateKeyPCRProtectionPolicyMultiple(f func(tpm *sb_tpm2.Connection, keys []*sb_tpm2.SealedKeyObject, authKey sb_tpm2.PolicyAuthKey, pcrProfile *sb_tpm2.PCRProtectionProfile) error) (restore func()) {
+func MockSbUpdateKeyPCRProtectionPolicyMultiple(f func(tpm *sb_tpm2.Connection, keys []*sb_tpm2.SealedKeyObject, authKey sb.AuxiliaryKey, pcrProfile *sb_tpm2.PCRProtectionProfile) error) (restore func()) {
 	old := sbUpdateKeyPCRProtectionPolicyMultiple
 	sbUpdateKeyPCRProtectionPolicyMultiple = f
 	return func() {
@@ -111,7 +109,7 @@ func MockSbUpdateKeyPCRProtectionPolicyMultiple(f func(tpm *sb_tpm2.Connection, 
 	}
 }
 
-func MockSbSealedKeyObjectRevokeOldPCRProtectionPolicies(f func(sko *sb_tpm2.SealedKeyObject, tpm *sb_tpm2.Connection, authKey sb_tpm2.PolicyAuthKey) error) (restore func()) {
+func MockSbSealedKeyObjectRevokeOldPCRProtectionPolicies(f func(sko *sb_tpm2.SealedKeyObject, tpm *sb_tpm2.Connection, authKey sb.AuxiliaryKey) error) (restore func()) {
 	old := sbSealedKeyObjectRevokeOldPCRProtectionPolicies
 	sbSealedKeyObjectRevokeOldPCRProtectionPolicies = f
 	return func() {
@@ -128,7 +126,7 @@ func MockSbBlockPCRProtectionPolicies(f func(tpm *sb_tpm2.Connection, pcrs []int
 }
 
 func MockSbActivateVolumeWithRecoveryKey(f func(volumeName, sourceDevicePath string,
-	keyReader io.Reader, options *sb.ActivateVolumeOptions) error) (restore func()) {
+	authRequester sb.AuthRequestor, options *sb.ActivateVolumeOptions) error) (restore func()) {
 	old := sbActivateVolumeWithRecoveryKey
 	sbActivateVolumeWithRecoveryKey = f
 	return func() {
@@ -145,7 +143,7 @@ func MockSbActivateVolumeWithKey(f func(volumeName, sourceDevicePath string, key
 	}
 }
 
-func MockSbActivateVolumeWithKeyData(f func(volumeName, sourceDevicePath string, key *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error)) (restore func()) {
+func MockSbActivateVolumeWithKeyData(f func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, kdf sb.KDF, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error) (restore func()) {
 	oldSbActivateVolumeWithKeyData := sbActivateVolumeWithKeyData
 	sbActivateVolumeWithKeyData = f
 	return func() {
@@ -177,7 +175,7 @@ func MockRandomKernelUUID(f func() (string, error)) (restore func()) {
 	}
 }
 
-func MockSbInitializeLUKS2Container(f func(devicePath, label string, key []byte,
+func MockSbInitializeLUKS2Container(f func(devicePath, label string, key sb.DiskUnlockKey,
 	opts *sb.InitializeLUKS2ContainerOptions) error) (restore func()) {
 	old := sbInitializeLUKS2Container
 	sbInitializeLUKS2Container = f
@@ -186,7 +184,7 @@ func MockSbInitializeLUKS2Container(f func(devicePath, label string, key []byte,
 	}
 }
 
-func MockSbAddRecoveryKeyToLUKS2Container(f func(devicePath string, key []byte, recoveryKey sb.RecoveryKey, opts *sb.KDFOptions) error) (restore func()) {
+func MockSbAddRecoveryKeyToLUKS2Container(f func(devicePath, keyslotName string, existingKey sb.DiskUnlockKey, recoveryKey sb.RecoveryKey, options *sb.KDFOptions) error) (restore func()) {
 	old := sbAddRecoveryKeyToLUKS2Container
 	sbAddRecoveryKeyToLUKS2Container = f
 	return func() {
