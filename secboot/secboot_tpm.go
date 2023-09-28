@@ -282,7 +282,8 @@ func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile str
 	}
 	options := activateVolOpts(allowRecovery)
 	// ignoring model checker as it doesn't work with tpm "legacy" platform key data
-	_, err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, keyData, options)
+	// TODO: provide AuthRequestor/KDF instead of nil
+	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, nil, nil, options, keyData)
 	if err == sb.ErrRecoveryKeyUsed {
 		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
 		return UnlockedWithRecoveryKey, nil
@@ -397,7 +398,7 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 	sbKeys := make([]*sb_tpm2.SealKeyRequest, 0, len(keys))
 	for i := range keys {
 		sbKeys = append(sbKeys, &sb_tpm2.SealKeyRequest{
-			Key:  keys[i].Key,
+			Key:  sb.DiskUnlockKey(keys[i].Key),
 			Path: keys[i].KeyFile,
 		})
 	}
