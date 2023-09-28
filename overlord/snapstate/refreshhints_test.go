@@ -567,7 +567,7 @@ func (s *refreshHintsTestSuite) TestSnapStoreOffline(c *C) {
 
 	c.Check(s.store.ops, HasLen, 0)
 
-	setStoreAccess(s.state, "")
+	setStoreAccess(s.state, nil)
 
 	err = rh.Ensure()
 	c.Check(err, IsNil)

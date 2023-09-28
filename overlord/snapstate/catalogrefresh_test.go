@@ -304,7 +304,7 @@ func (s *catalogRefreshTestSuite) TestSnapStoreOffline(c *C) {
 
 	c.Check(s.store.ops, HasLen, 0)
 
-	setStoreAccess(s.state, "")
+	setStoreAccess(s.state, nil)
 
 	err = af.Ensure()
 	c.Check(err, IsNil)

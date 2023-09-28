@@ -1172,7 +1172,7 @@ func (s *autoRefreshTestSuite) TestTooSoonError(c *C) {
 	c.Check(snapstate.TooSoonError{}.Error(), Equals, "cannot auto-refresh so soon")
 }
 
-func setStoreAccess(s *state.State, access string) {
+func setStoreAccess(s *state.State, access any) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -1194,7 +1194,7 @@ func (s *autoRefreshTestSuite) TestSnapStoreOffline(c *C) {
 	c.Check(s.state.Changes(), HasLen, 0)
 	s.state.Unlock()
 
-	setStoreAccess(s.state, "")
+	setStoreAccess(s.state, nil)
 
 	err = af.Ensure()
 	c.Check(err, IsNil)
