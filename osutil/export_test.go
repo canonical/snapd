@@ -149,6 +149,14 @@ func MockLookPath(new func(string) (string, error)) (restore func()) {
 	}
 }
 
+func MockhasAddUserExecutable(new func() bool) (restore func()) {
+	old := hasAddUserExecutable
+	hasAddUserExecutable = new
+	return func() {
+		hasAddUserExecutable = old
+	}
+}
+
 func SetAtomicFileRenamed(aw *AtomicFile, renamed bool) {
 	aw.renamed = renamed
 }
