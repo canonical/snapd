@@ -1194,7 +1194,7 @@ func (s *autoRefreshTestSuite) TestSnapStoreOffline(c *C) {
 	c.Check(s.state.Changes(), HasLen, 0)
 	s.state.Unlock()
 
-	setStoreAccess(s.state, "online")
+	setStoreAccess(s.state, "")
 
 	err = af.Ensure()
 	c.Check(err, IsNil)
