@@ -48,8 +48,8 @@ prepare: |
     "$TESTSTOOLS"/store-state setup-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
     
     # Sign the needed assertions for validation set and model
-    gendeveloper1 sign-model < ./asserts/vs.json > bar.assert
-    gendeveloper1 sign-model < ./asserts/core-20.json > model.assert
+    gendeveloper1 sign-model < ./asserts/bar-vs.json > bar.assert
+    gendeveloper1 sign-model < ./asserts/core-20-model.json > model.assert
 
     echo Expose the needed assertions through the fakestore
     cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$NESTED_FAKESTORE_BLOB_DIR/asserts"

@@ -1146,6 +1146,12 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesSignedRunModeNoKe
 }
 
 func (s *firstBoot20Suite) testPopulateFromSeedCore20ValidationSetTracking(c *C, mode string, valSets []string) *state.Change {
+	s.extraSnapYaml["some-snap"] = `name: some-snap
+version: 1.0
+type: app
+base: core20
+`
+
 	m := boot.Modeenv{
 		Mode:           mode,
 		RecoverySystem: "20191018",
@@ -1159,7 +1165,7 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20ValidationSetTracking(c *C,
 		modelGrade:      "signed",
 		kernelAndGadget: true,
 		valsets:         valSets,
-	})
+	}, "some-snap")
 	// validity check that our returned model has the expected grade
 	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
 
@@ -1266,6 +1272,12 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingHappy(
 				"presence": "required",
 				"revision": "1",
 			},
+			map[string]interface{}{
+				"name":     "some-snap",
+				"id":       s.AssertedSnapID("some-snap"),
+				"presence": "required",
+				"revision": "1",
+			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
@@ -1310,6 +1322,12 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingNotAdd
 			map[string]interface{}{
 				"name":     "pc",
 				"id":       s.AssertedSnapID("pc"),
+				"presence": "required",
+				"revision": "1",
+			},
+			map[string]interface{}{
+				"name":     "some-snap",
+				"id":       s.AssertedSnapID("some-snap"),
 				"presence": "required",
 				"revision": "1",
 			},
