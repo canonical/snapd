@@ -41,6 +41,8 @@ show_help() {
     echo "  transition:                 transition to system mode (just available for uc20)"
     echo "  snap-rev:                   get the snap rev in the vm (prints the installed rev if no channel provided)"
     echo "  build-seed                  build a seed that can be used to boot a vm"
+    echo "  prepare-essential-snaps     download and repack essential snaps (gadget, kernel, snapd) to include current snapd, and debug command lines"
+    echo "  configure-default-user      add either cloudinit user or a system-user assertion that will be auto-imported"
     echo ""
     echo "IMAGE-TYPES:"
     echo "  core:    work with a core image"
@@ -398,8 +400,12 @@ build_seed() {
     nested_build_seed_cdrom "$@"
 }
 
-prepare_snaps() {
+prepare_essential_snaps() {
     nested_prepare_essential_snaps
+}
+
+configure_default_user() {
+    nested_configure_default_user
 }
 
 main() {

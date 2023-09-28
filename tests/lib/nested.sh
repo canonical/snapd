@@ -715,6 +715,22 @@ nested_prepare_essential_snaps() {
     nested_prepare_base
 }
 
+nested_configure_default_user() {
+    # Configure the user for the vm
+    if [ "$NESTED_USE_CLOUD_INIT" = "true" ]; then
+        if nested_is_core_20_system || nested_is_core_22_system; then
+            nested_configure_cloud_init_on_core20_vm "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+        else
+            nested_configure_cloud_init_on_core_vm "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+        fi
+    else
+        nested_create_assertions_disk
+    fi
+
+    # Save a copy of the image
+    cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine"
+}
+
 nested_create_core_vm() {
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
@@ -804,19 +820,7 @@ nested_create_core_vm() {
         fi
     fi
 
-    # Configure the user for the vm
-    if [ "$NESTED_USE_CLOUD_INIT" = "true" ]; then
-        if nested_is_core_20_system || nested_is_core_22_system; then
-            nested_configure_cloud_init_on_core20_vm "$NESTED_IMAGES_DIR/$IMAGE_NAME"
-        else
-            nested_configure_cloud_init_on_core_vm "$NESTED_IMAGES_DIR/$IMAGE_NAME"
-        fi
-    else
-        nested_create_assertions_disk
-    fi
-
-    # Save a copy of the image
-    cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine"
+    nested_configure_default_user
 }
 
 nested_configure_cloud_init_on_core_vm() {

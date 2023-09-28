@@ -1,10 +1,4 @@
-summary: Verify that ubuntu-save is available during install-device hook with specific device
-
-details: |
-    This test verifies that the ubuntu-save partition is available during the install-device
-    hook and that it correctly exposes the SNAP_SAVE_DATA environment variable. We use a simple
-    gadget that contains an install-device hook, which just writes a few files to the path
-    pointed to by SNAP_SAVE_DATA. It verifies we can create a file and a folder.
+summary: Verify that validation-sets are working and correctly tracked after seeding
 
 systems: [ubuntu-20.04-64]
 
@@ -12,8 +6,7 @@ environment:
     # use snapd from the spread run so that we have testkeys trusted in the
     # snapd run
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
-    NESTED_USE_CLOUD_INIT: false
-    NESTED_CUSTOM_MODEL: $(pwd)/asserts/uc-20-dangerous-validation-sets.model
+    NESTED_USE_CLOUD_INIT: true
 
     # sign all the snaps we build for the image with fakestore
     NESTED_SIGN_SNAPS_FAKESTORE: true
@@ -31,7 +24,7 @@ prepare: |
     mkdir -p "$NESTED_FAKESTORE_BLOB_DIR"
 
     add_official_snap_to_fakestore() {
-        SNAP_FILE="$(ls $1_*.snap)"
+        SNAP_FILE="$(ls "$1"_*.snap)"
         SNAP_ID="$2"
         SUFFIX="${SNAP_FILE##*[0-9]}"
         SNAP_REV="${SNAP_FILE%"$SUFFIX"}"
@@ -50,7 +43,7 @@ prepare: |
     # download snaps for the model
     snap download core
     snap download test-snapd-sh --revision=7
-    tests.nested prepare-snaps
+    tests.nested prepare-essential-snaps
 
     "$TESTSTOOLS"/store-state setup-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
     
@@ -82,7 +75,8 @@ prepare: |
 
     IMAGE_DIR=$(tests.nested get images-path)
     IMAGE_NAME=$(tests.nested get image-name core)
-    cp ./pc.img "$IMAGE_DIR/$IMAGE_NAME.pristine"
+    cp ./pc.img "$IMAGE_DIR/$IMAGE_NAME"
+    tests.nested configure-default-user
 
     tests.nested build-image core
     tests.nested create-vm core
@@ -101,10 +95,13 @@ execute: |
         exit
     fi
 
-    ls /nono
+    # wait for the initialize system state change to be done, it's the change that
+    # seeds the system, and it must complete correctly. Initialize device will fail due
+    # to the serial assertion missing at this point
+    retry -n 200 --wait 1 sh -c "remote.exec snap changes | MATCH 'Done.*Initialize system state'"
 
-    # wait for the initialize device task to be done
-    retry -n 200 --wait 1 sh -c "remote.exec snap changes | MATCH 'Done.*Initialize device'"
+    # validate the validation set task was there, and done
+    remote.exec snap changes | MATCH 'Done.*Track validation sets'
 
     # check validation-sets
-    
+    remote.exec "sudo snap validate" | MATCH 'developer1/bar.*valid'
