@@ -45,12 +45,14 @@ import (
 	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	_ "github.com/snapcore/snapd/overlord/snapstate/policy"
+
 	// import to register linkNotify callback
 	_ "github.com/snapcore/snapd/overlord/snapstate/agentnotify"
 	"github.com/snapcore/snapd/overlord/state"
@@ -111,6 +113,7 @@ type Overlord struct {
 	deviceMgr  *devicestate.DeviceManager
 	cmdMgr     *cmdstate.CommandManager
 	shotMgr    *snapshotstate.SnapshotManager
+	noticesMgr *notices.NoticeManager
 	// proxyConf mediates the http proxy config
 	proxyConf func(req *http.Request) (*url.URL, error)
 }
@@ -179,6 +182,7 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 
 	o.addManager(cmdstate.Manager(s, o.runner))
 	o.addManager(snapshotstate.Manager(s, o.runner))
+	o.addManager(notices.Manager(s))
 
 	if err := configstateInit(s, hookMgr); err != nil {
 		return nil, err
@@ -220,6 +224,8 @@ func (o *Overlord) addManager(mgr StateManager) {
 		o.shotMgr = x
 	case *restart.RestartManager:
 		o.restartMgr = x
+	case *notices.NoticeManager:
+		o.noticesMgr = x
 	}
 	o.stateEng.AddManager(mgr)
 }
