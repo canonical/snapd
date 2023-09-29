@@ -2410,11 +2410,6 @@ func (s *deviceMgrSerialSuite) TestDeviceSerialRestoreHappy(c *C) {
 }
 
 func (s *deviceMgrSerialSuite) TestShouldRequestSerial(c *C) {
-	type expected struct {
-		access bool
-		err    error
-	}
-
 	type testCase struct {
 		deviceServiceAccess string
 		deviceServiceURL    string
