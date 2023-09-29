@@ -131,7 +131,10 @@ func (w *noticeWaiter) notify(notice *Notice) {
 
 type noticeManagerKey struct{}
 
-// NoticeManager takes care of notices related state
+// NoticeManager takes care of notices related state. Currently this implementation
+// does not keep things persistent (i.e stored in state), and this is only to keep
+// this POC minimal, to verify the current direction. This needs to change and we
+// need to decide what/how much we need to keep in state.
 type NoticeManager struct {
 	state            *state.State
 	changeListenerID int
