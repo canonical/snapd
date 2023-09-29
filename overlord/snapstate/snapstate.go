@@ -76,6 +76,7 @@ const (
 	MaybeRebootWaitEdge              = state.TaskSetEdge("maybe-reboot-wait")
 	AfterMaybeRebootWaitEdge         = state.TaskSetEdge("after-maybe-reboot-wait")
 	LastBeforeLocalModificationsEdge = state.TaskSetEdge("last-before-local-modifications")
+	EndEdge                          = state.TaskSetEdge("end")
 )
 
 const (
@@ -646,6 +647,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	prev = startSnapServices
 
 	// Do not do that if we are reverting to a local revision
+	var cleanupTask *state.Task
 	if snapst.IsInstalled() && !snapsup.Flags.Revert {
 		retain := refreshRetain(st)
 
@@ -701,7 +703,8 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			addTasksFromTaskSet(ts)
 		}
 
-		addTask(st.NewTask("cleanup", fmt.Sprintf("Clean up %q%s install", snapsup.InstanceName(), revisionStr)))
+		cleanupTask = st.NewTask("cleanup", fmt.Sprintf("Clean up %q%s install", snapsup.InstanceName(), revisionStr))
+		addTask(cleanupTask)
 	}
 
 	installSet := state.NewTaskSet(tasks...)
@@ -728,6 +731,11 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		}
 	}
 	if flags&skipConfigure != 0 {
+		if cleanupTask != nil {
+			installSet.MarkEdge(cleanupTask, EndEdge)
+		} else {
+			installSet.MarkEdge(startSnapServices, EndEdge)
+		}
 		return installSet, nil
 	}
 
@@ -741,6 +749,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	healthCheck := CheckHealthHook(st, snapsup.InstanceName(), snapsup.Revision())
 	healthCheck.WaitAll(installSet)
 	installSet.AddTask(healthCheck)
+	installSet.MarkEdge(healthCheck, EndEdge)
 
 	return installSet, nil
 }
@@ -1671,76 +1680,6 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 // consider.
 type updateFilter func(*snap.Info, *SnapState) bool
 
-func rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs *state.TaskSet) error {
-	haveBase, haveKernel := bootBaseTs != nil, kernelTs != nil
-	if !haveBase && !haveKernel {
-		// neither base nor kernel update
-		return nil
-	}
-	if haveBase != haveKernel {
-		// have one but not the other
-		return nil
-	}
-
-	// both kernel and boot base are being updated, reorder link-snap and
-	// auto-connect tasks from both snaps such that we end up with the
-	// following ordering:
-	//
-	// tasks of base and kernel ->
-	//     link-snap(base) ->
-	//        link-snap(kernel)(r) ->
-	//            auto-connect(base) ->
-	//                auto-connect(kernel) ->
-	//                    remaining tasks of base and kernel
-	//
-	// where (r) denotes the task that can effectively request a reboot
-
-	beforeLinkSnapKernel := kernelTs.MaybeEdge(BeforeMaybeRebootEdge)
-	linkSnapKernel := kernelTs.MaybeEdge(MaybeRebootEdge)
-	autoConnectKernel := kernelTs.MaybeEdge(MaybeRebootWaitEdge)
-
-	if linkSnapKernel == nil || autoConnectKernel == nil || beforeLinkSnapKernel == nil {
-		return fmt.Errorf("internal error: cannot identify link-snap or auto-connect or the preceding task for the kernel snap")
-	}
-	kernelLanes := linkSnapKernel.Lanes()
-
-	linkSnapBase := bootBaseTs.MaybeEdge(MaybeRebootEdge)
-	autoConnectBase := bootBaseTs.MaybeEdge(MaybeRebootWaitEdge)
-	afterAutoConnectBase := bootBaseTs.MaybeEdge(AfterMaybeRebootWaitEdge)
-	if linkSnapBase == nil || autoConnectBase == nil || afterAutoConnectBase == nil {
-		return fmt.Errorf("internal error: cannot identify link-snap or auto-connect or the following task for the base snap")
-	}
-	baseLanes := linkSnapBase.Lanes()
-
-	for _, lane := range kernelLanes {
-		linkSnapBase.JoinLane(lane)
-		autoConnectBase.JoinLane(lane)
-	}
-	for _, lane := range baseLanes {
-		linkSnapKernel.JoinLane(lane)
-		autoConnectKernel.JoinLane(lane)
-	}
-	// make link-snap base wait for the last task directly preceding
-	// link-snap of the kernel
-	linkSnapBase.WaitFor(beforeLinkSnapKernel)
-	// order: link-snap-base -> link-snap-kernel
-	linkSnapKernel.WaitFor(linkSnapBase)
-	// order: link-snap-kernel -> auto-connect-base
-	autoConnectBase.WaitFor(linkSnapKernel)
-	// order: auto-connect-base -> auto-connect-kernel
-	autoConnectKernel.WaitFor(autoConnectBase)
-	// make the first task after auto-connect base wait for auto-connect
-	// kernel, this task already waits for auto-connect of base
-	afterAutoConnectBase.WaitFor(autoConnectKernel)
-
-	// cannot-reboot indicates that a task cannot invoke a reboot
-	linkSnapBase.Set("cannot-reboot", true)
-
-	// first auto connect will wait for reboot, but the restart pending flag
-	// will be cleared for the second one that runs
-	return nil
-}
-
 func updateManyFiltered(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, userID int, filter updateFilter, flags *Flags, fromChange string) ([]string, *UpdateTaskSets, error) {
 	if flags == nil {
 		flags = &Flags{}
@@ -1916,14 +1855,6 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 
 	// first snapd, core, kernel, bases, then rest
 	sort.Stable(byType(updates))
-	prereqs := make(map[string]*state.TaskSet)
-	waitPrereq := func(ts *state.TaskSet, prereqName string) {
-		preTs := prereqs[prereqName]
-		if preTs != nil {
-			ts.WaitAll(preTs)
-		}
-	}
-	var kernelTs, gadgetTs, bootBaseTs *state.TaskSet
 
 	// can only specify a lane when running multiple operations transactionally
 	if globalFlags.Transaction != client.TransactionAllSnaps && globalFlags.Lane != 0 {
@@ -1978,86 +1909,14 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			ts.JoinLane(st.NewLane())
 		}
 
-		// because of the sorting of updates we fill prereqs
-		// first (if branch) and only then use it to setup
-		// waits (else branch)
-		typ := update.Type()
-		if typ == snap.TypeOS || typ == snap.TypeBase || typ == snap.TypeSnapd {
-			// prereq types come first in updates, we
-			// also assume bases don't have hooks, otherwise
-			// they would need to wait on core or snapd
-			prereqs[update.InstanceName()] = ts
-			if typ == snap.TypeBase {
-				waitPrereq(ts, "snapd")
-			}
-		} else {
-			// prereqs were processed already, wait for
-			// them as necessary for the other kind of
-			// snaps
-
-			// because "core" has type "os" it is ordered before all
-			// other updates, right after snapd, that introduces a
-			// dependency on "core" tasks for all other snaps, and
-			// thus preventing us from reordering them to perform a
-			// single reboot when both kernel and base (core in this
-			// case) are updated
-			waitPrereq(ts, defaultCoreSnapName)
-			waitPrereq(ts, "snapd")
-			if update.SnapBase() != "" {
-				// the kernel snap is ordered before the base,
-				// so its task will not have an implicit
-				// dependency on base update
-				waitPrereq(ts, update.SnapBase())
-			}
-		}
-		// keep track of kernel/gadget/base updates
-		switch typ {
-		case snap.TypeKernel:
-			kernelTs = ts
-		case snap.TypeGadget:
-			gadgetTs = ts
-		case snap.TypeBase:
-			if update.InstanceName() == deviceCtx.Model().Base() {
-				// only the boot base is relevant for reboots
-				bootBaseTs = ts
-			}
-		case snap.TypeOS:
-			// nothing to do, we cannot set up a single reboot with
-			// "core" due to all tasks of other snaps impolitely
-			// waiting for all tasks of "core", what makes us end up
-			// with a task wait loop
-		}
-
 		scheduleUpdate(update.InstanceName(), ts)
 		installTasksets = append(installTasksets, ts)
-	}
-	// Kernel must wait for gadget because the gadget may define
-	// new "$kernel:refs". Sorting the other way is impossible
-	// because a kernel with new kernel-assets would never refresh
-	// because the matching gadget could never get installed
-	// because the gadget always waits for the kernel and if the
-	// kernel aborts the wait tasks (the gadget) is put on "Hold".
-	if kernelTs != nil && gadgetTs != nil {
-		kernelTs.WaitAll(gadgetTs)
 	}
 
 	// Make sure each of them are marked with default restart-boundaries to maintain the previous
 	// reboot-behaviour prior to new restart logic.
-	// XXX: Change this when removing the old single-reboot logic
-	if err := SetEssentialSnapsRestartBoundaries(st, nil, installTasksets); err != nil {
+	if err := arrangeSnapTaskSetsLinkageAndRestart(st, nil, installTasksets); err != nil {
 		return nil, nil, err
-	}
-
-	if deviceCtx.Model().Base() != "" && (gadgetTs == nil || enforcedSingleRebootForGadgetKernelBase) {
-		// reordering of kernel and base tasks is supported only on
-		// UC18+ devices
-		// this can only be done safely when the gadget is not a part of
-		// the same update, otherwise there will be a circular
-		// dependency, where gadget waits for base, kernel waits for
-		// gadget, but base waits for some of the kernel tasks
-		if err := rearrangeBaseKernelForSingleReboot(kernelTs, bootBaseTs); err != nil {
-			return nil, nil, err
-		}
 	}
 
 	if len(newAutoAliases) != 0 {
@@ -4176,17 +4035,4 @@ func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (res
 	old := osutilCheckFreeSpace
 	osutilCheckFreeSpace = mock
 	return func() { osutilCheckFreeSpace = old }
-}
-
-// only useful for procuring a buggy behavior in the tests
-var enforcedSingleRebootForGadgetKernelBase = false
-
-func MockEnforceSingleRebootForBaseKernelGadget(val bool) (restore func()) {
-	osutil.MustBeTestBinary("mocking can be done only in tests")
-
-	old := enforcedSingleRebootForGadgetKernelBase
-	enforcedSingleRebootForGadgetKernelBase = val
-	return func() {
-		enforcedSingleRebootForGadgetKernelBase = old
-	}
 }

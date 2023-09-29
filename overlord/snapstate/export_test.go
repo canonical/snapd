@@ -120,14 +120,15 @@ var (
 
 	AffectedByRefresh = affectedByRefresh
 
-	GetDirMigrationOpts             = getDirMigrationOpts
-	WriteSeqFile                    = writeSeqFile
-	TriggeredMigration              = triggeredMigration
-	TaskSetsByTypeForEssentialSnaps = taskSetsByTypeForEssentialSnaps
-	SetDefaultRestartBoundaries     = setDefaultRestartBoundaries
-	DeviceModelBootBase             = deviceModelBootBase
-
-	ReRefreshSummary = reRefreshSummary
+	GetDirMigrationOpts                  = getDirMigrationOpts
+	WriteSeqFile                         = writeSeqFile
+	TriggeredMigration                   = triggeredMigration
+	TaskSetsByTypeForEssentialSnaps      = taskSetsByTypeForEssentialSnaps
+	SetDefaultRestartBoundaries          = setDefaultRestartBoundaries
+	DeviceModelBootBase                  = deviceModelBootBase
+	SplitTaskSetByRebootEdges            = splitTaskSetByRebootEdges
+	ArrangeSnapToWaitForBaseIfPresent    = arrangeSnapToWaitForBaseIfPresent
+	ArrangeSnapTaskSetsLinkageAndRestart = arrangeSnapTaskSetsLinkageAndRestart
 )
 
 const (
