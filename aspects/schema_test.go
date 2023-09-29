@@ -21,6 +21,7 @@ package aspects_test
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/snapcore/snapd/aspects"
 	. "gopkg.in/check.v1"
@@ -201,13 +202,13 @@ func (*schemaSuite) TestMapWithBadValuesConstraint(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
 		"snaps": {
-			"values": "int"
+			"values": "foo"
 		}
 	}
 }`)
 
 	_, err := aspects.ParseSchema(schemaStr)
-	c.Assert(err, ErrorMatches, `cannot parse unknown type "int"`)
+	c.Assert(err, ErrorMatches, `cannot parse unknown type "foo"`)
 }
 
 func (*schemaSuite) TestMapWithUnmetValuesConstraint(c *C) {
@@ -838,4 +839,245 @@ func (*schemaSuite) TestBadUserDefinedTypeName(c *C) {
 	_, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, `cannot parse user-defined type name "-foo": must match ^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$`)
+}
+
+func (*schemaSuite) TestIntegerHappy(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": "int"
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{
+	"foo": 1
+}`)
+	err = schema.Validate(input)
+	c.Assert(err, IsNil)
+}
+func (*schemaSuite) TestIntegerMustMatchChoices(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "int",
+			"choices": [1,	3]
+		}
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	for _, num := range []int{0, 1, 2, 3, 4} {
+		input := []byte(fmt.Sprintf(`{
+	"foo": %d
+}`, num))
+
+		err := schema.Validate(input)
+		if num == 1 || num == 3 {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, fmt.Sprintf(`integer %d is not one of the allowed choices`, num))
+		}
+	}
+}
+
+func (*schemaSuite) TestIntegerMustMatchMinMax(c *C) {
+	min, max := 1, 3
+	schemaStr := []byte(fmt.Sprintf(`{
+	"schema": {
+		"foo": {
+			"type": "int",
+			"min": %d,
+			"max": %d
+		}
+	}
+}`, min, max))
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	for _, num := range []int{0, 1, 2, 3, 4} {
+		input := []byte(fmt.Sprintf(`{
+	"foo": %d
+}`, num))
+
+		err := schema.Validate(input)
+		if num < min {
+			c.Assert(err, ErrorMatches, fmt.Sprintf(`integer %d is less than allowed minimum %d`, num, min))
+		} else if num > max {
+			c.Assert(err, ErrorMatches, fmt.Sprintf(`integer %d is greater than allowed maximum %d`, num, max))
+		} else {
+			c.Assert(err, IsNil)
+		}
+	}
+}
+
+func (*schemaSuite) TestIntegerWithWrongTypes(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": "int"
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{
+	"foo": "bar"
+}`)
+
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `json: cannot unmarshal string into Go value of type int64`)
+
+	input = []byte(`{
+	"foo": 3.14
+}`)
+
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `json: cannot unmarshal number 3.14 into Go value of type int64`)
+}
+
+func (*schemaSuite) TestIntegerChoicesAndMinMaxFail(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "int",
+			"min": 0,
+			"choices": [0]
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot have "choices" and "min" constraints`)
+
+	schemaStr = []byte(`{
+	"schema": {
+		"foo": {
+			"type": "int",
+			"max": 0,
+			"choices": [0]
+		}
+	}
+}`)
+
+	_, err = aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot have "choices" and "max" constraints`)
+}
+
+func (*schemaSuite) TestIntegerEmptyChoicesFail(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "int",
+			"choices": []
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot have "choices" constraint with empty list`)
+}
+
+func (*schemaSuite) TestIntegerBadChoicesConstraint(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "int",
+			"choices": 5
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse "choices" constraint: json: cannot unmarshal number into Go value of type \[\]int64`)
+}
+
+func (*schemaSuite) TestIntegerBadMinMaxConstraints(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "int",
+			"min": "5"
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse "min" constraint: json: cannot unmarshal string into Go value of type int64`)
+
+	schemaStr = []byte(`{
+	"schema": {
+		"foo": {
+			"type": "int",
+			"max": "5"
+		}
+	}
+}`)
+
+	_, err = aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse "max" constraint: json: cannot unmarshal string into Go value of type int64`)
+}
+
+func (*schemaSuite) TestIntegerMinGreaterThanMaxConstraintFail(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "int",
+			"min": 5,
+			"max": 1
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot have "min" constraint with value greater than "max"`)
+}
+
+func (*schemaSuite) TestIntegerMinMaxOver32Bits(c *C) {
+	schemaStr := []byte(fmt.Sprintf(`{
+	"schema": {
+		"foo": {
+			"type": "int",
+			"min": %d,
+			"max": %d
+		}
+	}
+}`, math.MinInt64, math.MaxInt64))
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(fmt.Sprintf(`{
+	"foo": %d
+}`, math.MinInt64))
+
+	err = schema.Validate(input)
+	c.Assert(err, IsNil)
+}
+
+func (*schemaSuite) TestIntegerChoicesOver32Bits(c *C) {
+	schemaStr := []byte(fmt.Sprintf(`{
+	"schema": {
+		"foo": {
+			"type": "int",
+			"choices": [%d, %d]
+		}
+	}
+}`, math.MinInt64, math.MaxInt64))
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	for _, num := range []int64{math.MinInt64, math.MaxInt64} {
+		input := []byte(fmt.Sprintf(`{
+	"foo": %d
+}`, num))
+
+		err = schema.Validate(input)
+		c.Assert(err, IsNil)
+	}
 }
