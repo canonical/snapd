@@ -514,13 +514,13 @@ func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.Privat
 
 	st := t.State()
 
-	shouldRequest, err := shouldRequestSerial(st, regCtx.GadgetForSerialRequestConfig(), device.Serial)
+	shouldRequest, err := shouldRequestSerial(st, regCtx.GadgetForSerialRequestConfig())
 	if err != nil {
 		return nil, nil, err
 	}
 
 	if !shouldRequest {
-		return nil, nil, errors.New("store is marked offline")
+		return nil, nil, nil
 	}
 
 	proxyConf := proxyconf.New(st)
@@ -689,7 +689,7 @@ func getSerialRequestConfig(t *state.Task, regCtx registrationContext, client *h
 	return &cfg, nil
 }
 
-func shouldRequestSerial(s *state.State, gadgetName string, deviceSerial string) (bool, error) {
+func shouldRequestSerial(s *state.State, gadgetName string) (bool, error) {
 	tr := config.NewTransaction(s)
 
 	var storeAccess string
@@ -719,10 +719,9 @@ func shouldRequestSerial(s *state.State, gadgetName string, deviceSerial string)
 		return false, err
 	}
 
-	// if we already have a device serial and we'd be using the fallback
-	// device-service.url (which is the store), then use store.access to
-	// determine if we should request
-	if deviceSerial != "" && deviceServiceURL == "" {
+	// if we'd be using the fallback device-service.url (which is the store),
+	// then use store.access to determine if we should request
+	if deviceServiceURL == "" {
 		return storeAccess != "offline", nil
 	}
 

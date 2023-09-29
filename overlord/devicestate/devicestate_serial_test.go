@@ -2420,7 +2420,6 @@ func (s *deviceMgrSerialSuite) TestShouldRequestSerial(c *C) {
 		deviceServiceURL    string
 		storeAccess         string
 		gadgetName          string
-		deviceSerial        string
 		expected            bool
 	}
 
@@ -2430,7 +2429,6 @@ func (s *deviceMgrSerialSuite) TestShouldRequestSerial(c *C) {
 			gadgetName:          "",
 			deviceServiceAccess: "",
 			deviceServiceURL:    "",
-			deviceSerial:        "",
 			expected:            true,
 		},
 		{
@@ -2438,7 +2436,6 @@ func (s *deviceMgrSerialSuite) TestShouldRequestSerial(c *C) {
 			gadgetName:          "",
 			deviceServiceAccess: "",
 			deviceServiceURL:    "",
-			deviceSerial:        "",
 			expected:            false,
 		},
 		{
@@ -2446,7 +2443,6 @@ func (s *deviceMgrSerialSuite) TestShouldRequestSerial(c *C) {
 			gadgetName:          "gadget",
 			deviceServiceAccess: "offline",
 			deviceServiceURL:    "",
-			deviceSerial:        "",
 			expected:            false,
 		},
 		{
@@ -2454,7 +2450,6 @@ func (s *deviceMgrSerialSuite) TestShouldRequestSerial(c *C) {
 			gadgetName:          "gadget",
 			deviceServiceAccess: "",
 			deviceServiceURL:    "",
-			deviceSerial:        "",
 			expected:            true,
 		},
 		{
@@ -2462,7 +2457,6 @@ func (s *deviceMgrSerialSuite) TestShouldRequestSerial(c *C) {
 			gadgetName:          "gadget",
 			deviceServiceAccess: "",
 			deviceServiceURL:    "https://example.com",
-			deviceSerial:        "serial",
 			expected:            true,
 		},
 		{
@@ -2470,39 +2464,13 @@ func (s *deviceMgrSerialSuite) TestShouldRequestSerial(c *C) {
 			gadgetName:          "gadget",
 			deviceServiceAccess: "",
 			deviceServiceURL:    "",
-			deviceSerial:        "serial",
 			expected:            false,
 		},
 		{
-			storeAccess:         "",
-			gadgetName:          "gadget",
-			deviceServiceAccess: "",
-			deviceServiceURL:    "",
-			deviceSerial:        "serial",
-			expected:            true,
-		},
-		{
-			storeAccess:         "offline",
-			gadgetName:          "gadget",
-			deviceServiceAccess: "",
-			deviceServiceURL:    "",
-			deviceSerial:        "",
-			expected:            true,
-		},
-		{
 			storeAccess:         "offline",
 			gadgetName:          "gadget",
 			deviceServiceAccess: "",
 			deviceServiceURL:    "https://example.com",
-			deviceSerial:        "",
-			expected:            true,
-		},
-		{
-			storeAccess:         "offline",
-			gadgetName:          "gadget",
-			deviceServiceAccess: "",
-			deviceServiceURL:    "https://example.com",
-			deviceSerial:        "serial",
 			expected:            true,
 		},
 	}
@@ -2523,7 +2491,7 @@ func (s *deviceMgrSerialSuite) TestShouldRequestSerial(c *C) {
 		}
 		tr.Commit()
 
-		shouldReqest, err := devicestate.ShouldRequestSerial(s.state, t.gadgetName, t.deviceSerial)
+		shouldReqest, err := devicestate.ShouldRequestSerial(s.state, t.gadgetName)
 		c.Check(err, IsNil)
 		c.Check(shouldReqest, Equals, t.expected, Commentf("%+v", t))
 	}

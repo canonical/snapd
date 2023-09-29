@@ -611,7 +611,7 @@ func (m *DeviceManager) ensureOperational() error {
 		return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
 	}
 
-	willRequestSerial, err := shouldRequestSerial(m.state, gadget, device.Serial)
+	willRequestSerial, err := shouldRequestSerial(m.state, gadget)
 	if err != nil {
 		return err
 	}
