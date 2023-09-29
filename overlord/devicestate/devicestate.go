@@ -709,11 +709,6 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	// go through all the model snaps, see if there are new required snaps
 	// or a track for existing ones needs to be updated
 	for _, modelSnap := range new.SnapsWithoutEssential() {
-		// if the snap isn't required, then we don't do anything right now
-		if modelSnap.Presence != "required" {
-			continue
-		}
-
 		logger.Debugf("adding remodel tasks for non-essential snap %s", modelSnap.Name)
 
 		// TODO|XXX: have methods that take refs directly
@@ -724,7 +719,14 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 			if !isNotInstalled(err) {
 				return nil, err
 			}
-			needsInstall = true
+
+			if modelSnap.Presence == "required" {
+				needsInstall = true
+			} else {
+				// if the snap isn't already installed, and it isn't required,
+				// then there is nothing to do
+				continue
+			}
 		}
 
 		// default channel can be set only in UC20 models
