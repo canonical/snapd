@@ -29,6 +29,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"syscall"
 	"time"
 
@@ -2515,6 +2516,10 @@ func (s *deviceMgrSerialSuite) TestDeviceManagerFullAccess(c *C) {
 	s.state.Lock()
 	tasks := s.state.Tasks()
 	s.state.Unlock()
+
+	sort.Slice(tasks, func(l, r int) bool {
+		return tasks[l].Kind() < tasks[r].Kind()
+	})
 
 	// since device-service.access is unset, then both tasks should be queued
 	c.Assert(tasks, HasLen, 2)
