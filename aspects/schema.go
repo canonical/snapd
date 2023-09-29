@@ -448,14 +448,14 @@ func (v *stringSchema) parseConstraints(constraints map[string]json.RawMessage) 
 }
 
 type intSchema struct {
-	min     *int
-	max     *int
-	choices []int
+	min     *int64
+	max     *int64
+	choices []int64
 }
 
 // Validate that raw is a valid integer and meets the schema's constraints.
 func (v *intSchema) Validate(raw []byte) error {
-	var num int
+	var num int64
 	if err := json.Unmarshal(raw, &num); err != nil {
 		return err
 	}
@@ -487,7 +487,7 @@ func (v *intSchema) Validate(raw []byte) error {
 
 func (v *intSchema) parseConstraints(constraints map[string]json.RawMessage) error {
 	if rawChoices, ok := constraints["choices"]; ok {
-		var choices []int
+		var choices []int64
 		err := json.Unmarshal(rawChoices, &choices)
 		if err != nil {
 			return fmt.Errorf(`cannot parse "choices" constraint: %v`, err)
@@ -505,7 +505,7 @@ func (v *intSchema) parseConstraints(constraints map[string]json.RawMessage) err
 			return fmt.Errorf(`cannot have "choices" and "min" constraints`)
 		}
 
-		var min int
+		var min int64
 		if err := json.Unmarshal(rawMin, &min); err != nil {
 			return fmt.Errorf(`cannot parse "min" constraint: %v`, err)
 		}
@@ -517,7 +517,7 @@ func (v *intSchema) parseConstraints(constraints map[string]json.RawMessage) err
 			return fmt.Errorf(`cannot have "choices" and "max" constraints`)
 		}
 
-		var max int
+		var max int64
 		if err := json.Unmarshal(rawMax, &max); err != nil {
 			return fmt.Errorf(`cannot parse "max" constraint: %v`, err)
 		}
