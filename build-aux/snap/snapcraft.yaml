@@ -54,8 +54,15 @@ parts:
       export DEBIAN_FRONTEND=noninteractive
       export DEBCONF_NONINTERACTIVE_SEEN=true
       sudo -E apt-get build-dep -y "$SNAPCRAFT_PART_SRC"
-      # Get archives from xenial; we are not shipping these, we just need to
-      # build against them
+      # Get libc6 from xenial. Note that we are not shipping these, we
+      # just need to build against them so that only symbols for the
+      # xenial version of glibc are used by go. Later in the "libc6"
+      # part of snapcraft.yaml the most recent modern libc6 is put
+      # into the snapd.snap. The build against old symbols is only
+      # needed to ensure that the snapd snap can start on 16.04 Ubuntu
+      # system. As glibc is full backwards compatible in newer
+      # versions this ensure that it also works on any newer
+      # distro/libc6 combination.
       if [ "${SNAPCRAFT_TARGET_ARCH}" = "amd64" ] || [ "${SNAPCRAFT_TARGET_ARCH}" = "i386" ]; then
           UBUNTU_POOL="archive.ubuntu.com/ubuntu/pool"
       else
