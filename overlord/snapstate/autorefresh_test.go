@@ -1172,7 +1172,7 @@ func (s *autoRefreshTestSuite) TestTooSoonError(c *C) {
 	c.Check(snapstate.TooSoonError{}.Error(), Equals, "cannot auto-refresh so soon")
 }
 
-func setStoreAccess(s *state.State, access any) {
+func setStoreAccess(s *state.State, access interface{}) {
 	s.Lock()
 	defer s.Unlock()
 
