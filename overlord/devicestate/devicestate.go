@@ -620,6 +620,97 @@ func sideInfoAndPathFromID(sis []*snap.SideInfo, paths []string, id string) *pat
 	return nil
 }
 
+<<<<<<< Updated upstream
+=======
+func modelValidationSetsToAsserts(m *asserts.Model, db asserts.RODatabase) (map[*asserts.AtSequence]*asserts.ValidationSet, error) {
+	vsAsserts := make(map[*asserts.AtSequence]*asserts.ValidationSet)
+
+	for _, vs := range m.ValidationSets() {
+		atSeq := vs.AtSequence()
+
+		a, err := resolveValidationSetAssertion(atSeq, db)
+		if err != nil {
+			return nil, fmt.Errorf("internal error: cannot resolve validation-set: %v", err)
+		}
+
+		vsAsserts[atSeq] = a.(*asserts.ValidationSet)
+	}
+
+	return vsAsserts, nil
+}
+
+func resolveValidationSetAssertion(seq *asserts.AtSequence, db asserts.RODatabase) (asserts.Assertion, error) {
+	if seq.Sequence <= 0 {
+		hdrs, err := asserts.HeadersFromSequenceKey(seq.Type, seq.SequenceKey)
+		if err != nil {
+			return nil, err
+		}
+		return db.FindSequence(seq.Type, hdrs, -1, seq.Type.MaxSupportedFormat())
+	}
+	return seq.Resolve(db.Find)
+}
+
+func validationSetsFromModel(model *asserts.Model, st *state.State) (*snapasserts.ValidationSets, error) {
+	db := assertstate.DB(st)
+
+	fromDB := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return ref.Resolve(db.Find)
+	}
+
+	save := func(a asserts.Assertion) error {
+		return assertstate.Add(st, a)
+	}
+
+	fetcher := asserts.NewFetcher(db, fromDB, save)
+
+	// TODO: i have no idea if what i'm doing with this db is right. also, this
+	// could really happen as soon as we have the new model.
+	//
+	// i think this won't actually work since i have to fetch the validation-set
+	// assertions from the store before doing this
+	validationSets, err := modelValidationSetsToAsserts(model)
+	if err != nil {
+		return nil, err
+	}
+
+	vSets := snapasserts.NewValidationSets()
+	for _, vs := range validationSets {
+		vSets.Add(vs)
+	}
+
+	return vSets, nil
+}
+
+func checkForInvalidSnapsInModel(model *asserts.Model, vSets *snapasserts.ValidationSets) error {
+	checkSnapValidInValidationSet := func(snapRef naming.SnapRef) error {
+		invalidSets, err := vSets.CheckPresenceInvalid(snapRef)
+		if err != nil && !errors.Is(err, &snapasserts.PresenceConstraintError{}) {
+			return err
+		}
+
+		if len(invalidSets) > 0 {
+			return fmt.Errorf("snap %q in model is invalid in validation sets: %v", snapRef.SnapName(), invalidSets)
+		}
+
+		return nil
+	}
+
+	for _, sn := range model.EssentialSnaps() {
+		if err := checkSnapValidInValidationSet(sn); err != nil {
+			return err
+		}
+	}
+
+	for _, sn := range model.SnapsWithoutEssential() {
+		if err := checkSnapValidInValidationSet(sn); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+>>>>>>> Stashed changes
 func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model,
 	localSnaps []*snap.SideInfo, paths []string,
 	deviceCtx snapstate.DeviceContext, fromChange string) ([]*state.TaskSet, error) {
