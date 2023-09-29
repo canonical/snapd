@@ -453,6 +453,7 @@ type intSchema struct {
 	choices []int
 }
 
+// Validate that raw is a valid integer and meets the schema's constraints.
 func (v *intSchema) Validate(raw []byte) error {
 	var num int
 	if err := json.Unmarshal(raw, &num); err != nil {
