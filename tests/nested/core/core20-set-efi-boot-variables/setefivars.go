@@ -8,18 +8,20 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-const shimPath string = "/boot/efi/EFI/ubuntu/shimx64.efi"
-const bootPath string = "/boot/efi/EFI/BOOT/BOOTX64.efi"
+var possibleAssets = []string{
+	"/boot/efi/EFI/ubuntu/shimx64.efi",
+	"/boot/efi/EFI/BOOT/BOOTX64.efi",
+	"/boot/efi/EFI/ubuntu/shimaa64.efi",
+	"/boot/efi/EFI/BOOT/BOOTAA64.efi",
+}
 
 func uefiLoadOptionParameters() (description string, assetPath string, optionalData []byte, err error) {
-	if osutil.FileExists(shimPath) {
-		assetPath = shimPath
-	} else if osutil.FileExists(bootPath) {
-		assetPath = bootPath
-	} else {
-		return "", "", nil, fmt.Errorf("cannot find boot or shim EFI binary")
+	for _, assetPath = range possibleAssets {
+		if osutil.FileExists(assetPath) {
+			return "spread-test-var", assetPath, make([]byte, 0), nil
+		}
 	}
-	return "spread-test-var", assetPath, make([]byte, 0), nil
+	return "", "", nil, fmt.Errorf("cannot find boot or shim EFI binary")
 }
 
 func main() {
@@ -30,6 +32,6 @@ func main() {
 
 	err = boot.SetEfiBootVariables(description, assetPath, optionalData)
 	if err != nil {
-		log.Fatalf("cannot set EFI boot variables: %q", err)
+		log.Fatalf("cannot set EFI boot variables for asset path '%s': %q", assetPath, err)
 	}
 }
