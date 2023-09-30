@@ -1,30 +1,9 @@
-summary: Integration tests for the setting EFI boot variables
+summary: Tests for the code that sets EFI boot variables, as if it were a library separate from snapd
 
 systems: [ubuntu-2*]
 
 prepare: |
     "$(command -v go)" build -o setefivars setefivars.go
-
-debug: |
-    remote_exec_efibootmgr() {
-        remote_path="$(remote.exec "echo ${PATH}")"
-        augmented_path="/snap/toolbox/current/bin:/snap/toolbox/current/sbin:/snap/toolbox/current/usr/bin:/snap/toolbox/current/usr/sbin:${remote_path}"
-        remote.exec "PATH=${augmented_path} LD_LIBRARY_PATH='/lib:/usr/lib:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/snap/toolbox/current/lib:/snap/toolbox/current/usr/lib:/snap/toolbox/current/lib/x86_64-linux-gnu:/snap/toolbox/current/usr/lib/x86_64-linux-gnu' sh -c 'efibootmgr -v'"
-    }
-    if [ -f orig_vars.txt ]; then
-        echo "Original EFI boot variables:"
-        cat orig_vars.txt
-        echo "Current EFI boot variables:"
-        remote_exec_efibootmgr
-    else
-        echo "Original EFI variables were never recorded"
-    fi
-
-execute: |
-    if not os.query is-pc-amd64; then
-        echo "test designed for amd64 architecture, exiting..."
-        exit
-    fi
 
     VERSION=$(tests.nested show version)
 
@@ -36,12 +15,31 @@ execute: |
 
     echo "Install toolbox (to get efibootmgr)"
     remote.exec "sudo snap install --channel=$VERSION toolbox" || true
+
+debug: |
     # The usual toolbox setup assumes bash, so just set PATH and LD_LIBRARY_PATH
     # manually when executing efibootmgr.
     remote_exec_efibootmgr() {
-        remote_path=$(remote.exec "echo ${PATH}")
-        augmented_path="/snap/toolbox/current/bin:/snap/toolbox/current/sbin:/snap/toolbox/current/usr/bin:/snap/toolbox/current/usr/sbin:${remote_path}"
-        remote.exec "PATH=${augmented_path} LD_LIBRARY_PATH='/lib:/usr/lib:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/snap/toolbox/current/lib:/snap/toolbox/current/usr/lib:/snap/toolbox/current/lib/x86_64-linux-gnu:/snap/toolbox/current/usr/lib/x86_64-linux-gnu' sh -c 'efibootmgr -v'"
+        augmented_path="/snap/toolbox/current/bin:/snap/toolbox/current/sbin:/snap/toolbox/current/usr/bin:/snap/toolbox/current/usr/sbin:${PATH}" # Host path is fine as base
+        augmented_ld_path="/lib:/usr/lib:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/snap/toolbox/current/lib:/snap/toolbox/current/usr/lib:/snap/toolbox/current/lib/x86_64-linux-gnu:/snap/toolbox/current/usr/lib/x86_64-linux-gnu"
+        remote.exec "PATH=${augmented_path} LD_LIBRARY_PATH=${augmented_ld_path} sh -c 'efibootmgr -v'"
+    }
+    if [ -f orig_vars.txt ]; then
+        echo "Original EFI boot variables:"
+        cat orig_vars.txt
+        echo "Current EFI boot variables:"
+        remote_exec_efibootmgr
+    else
+        echo "Original EFI variables were never recorded"
+    fi
+
+execute: |
+    # The usual toolbox setup assumes bash, so just set PATH and LD_LIBRARY_PATH
+    # manually when executing efibootmgr.
+    remote_exec_efibootmgr() {
+        augmented_path="/snap/toolbox/current/bin:/snap/toolbox/current/sbin:/snap/toolbox/current/usr/bin:/snap/toolbox/current/usr/sbin:${PATH}" # Host path is fine as base
+        augmented_ld_path="/lib:/usr/lib:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/snap/toolbox/current/lib:/snap/toolbox/current/usr/lib:/snap/toolbox/current/lib/x86_64-linux-gnu:/snap/toolbox/current/usr/lib/x86_64-linux-gnu"
+        remote.exec "PATH=${augmented_path} LD_LIBRARY_PATH=${augmented_ld_path} sh -c 'efibootmgr -v'"
     }
 
     echo "Store original variables"
