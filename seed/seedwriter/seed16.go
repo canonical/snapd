@@ -92,7 +92,7 @@ func (pol *policy16) extraSnapDefaultChannel() string {
 	return "stable"
 }
 
-func (pol *policy16) checkBase(info *snap.Info, modes []string, availableByMode map[string]*naming.SnapSet) error {
+func (pol *policy16) checkBase(info *snap.Info, modes []string, availableByMode map[string]*naming.SnapSet, optionsSnaps []*OptionsSnap) error {
 	availableSnaps := availableByMode["run"]
 	// snap needs no base (or it simply needs core which is never listed explicitly): nothing to do
 	if info.Base == "" {

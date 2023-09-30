@@ -93,7 +93,7 @@ func (pol *policy20) extraSnapDefaultChannel() string {
 	return "latest/stable"
 }
 
-func (pol *policy20) checkBase(info *snap.Info, modes []string, availableByMode map[string]*naming.SnapSet) error {
+func (pol *policy20) checkBase(info *snap.Info, modes []string, availableByMode map[string]*naming.SnapSet, optionsSnaps []*OptionsSnap) error {
 	base := info.Base
 	if base == "" {
 		if info.Type() != snap.TypeGadget && info.Type() != snap.TypeApp {
@@ -104,6 +104,14 @@ func (pol *policy20) checkBase(info *snap.Info, modes []string, availableByMode 
 
 	if pol.checkAvailable(naming.Snap(base), modes, availableByMode) {
 		return nil
+	}
+
+	for _, optSnap := range optionsSnaps {
+		if base == optSnap.Name {
+			return nil
+		} else if base == "" && optSnap.Name == "core" {
+			return nil
+		}
 	}
 
 	whichBase := fmt.Sprintf("its base %q", base)

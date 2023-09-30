@@ -236,7 +236,7 @@ type policy interface {
 	modelSnapDefaultChannel() string
 	extraSnapDefaultChannel() string
 
-	checkBase(s *snap.Info, modes []string, availableByMode map[string]*naming.SnapSet) error
+	checkBase(s *snap.Info, modes []string, availableByMode map[string]*naming.SnapSet, optionsSnaps []*OptionsSnap) error
 
 	checkClassicSnap(sn *SeedSnap) error
 
@@ -961,7 +961,7 @@ func (w *Writer) checkBase(info *snap.Info, modes []string) error {
 		return nil
 	}
 
-	return w.policy.checkBase(info, modes, w.availableByMode)
+	return w.policy.checkBase(info, modes, w.availableByMode, w.optionsSnaps)
 }
 
 func (w *Writer) recordUsageWithThePolicy(modSnaps []*asserts.ModelSnap) {
