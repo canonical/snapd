@@ -1609,6 +1609,121 @@ func (m *SnapManager) ensureDownloadsCleaned() error {
 	return nil
 }
 
+func CreateDependencyRemovalTasks(m *SnapManager) ([]string, []*state.TaskSet, error) {
+	changeList := m.state.Changes()
+
+	var latestChange *state.Change
+	for _, change := range changeList {
+		// Only run when there are no pending changes, since we can't know if
+		// a snap is required by changes that are pending
+		if !change.IsReady() {
+			return nil, nil, nil
+		}
+
+		if latestChange == nil {
+			latestChange = change
+			continue
+		}
+
+		if change.SpawnTime().After(latestChange.SpawnTime()) {
+			latestChange = change
+		}
+	}
+
+	if latestChange != nil {
+		fiveMinutesAgo := time.Now().Add(-5 * time.Minute)
+		if latestChange.SpawnTime().Before(fiveMinutesAgo) {
+			return nil, nil, nil
+		}
+	}
+
+	snapList, _, err := InstalledSnaps(m.state)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var removeList []string
+
+	for _, installedSnap := range snapList {
+		var snapst SnapState
+		err = Get(m.state, installedSnap.SnapName(), &snapst)
+
+		if err != nil {
+			// If the snap has already been removed, don't add it to the list
+			if errors.Is(err, state.ErrNoState) {
+				continue
+			}
+			return nil, nil, err
+		}
+
+		if !snapst.ImplicitlyInstalled {
+			continue
+		}
+
+		deviceCtx, err := DeviceCtxFromState(m.state, nil)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		snapInfo, err := Info(m.state, installedSnap.SnapName(), installedSnap.Revision)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		snapType, err := snapst.Type()
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if snapType != snap.TypeBase {
+			continue
+		}
+
+		removeAll := true
+		err = canRemove(m.state, snapInfo, &snapst, removeAll, deviceCtx)
+		if err != nil {
+			continue
+		}
+
+		removeList = append(removeList, installedSnap.SnapName())
+	}
+
+	if len(removeList) == 0 {
+		return nil, nil, nil
+	}
+
+	snapNames, taskSetList, err := RemoveMany(m.state, removeList, &RemoveFlags{})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if len(taskSetList) == 0 {
+		return nil, nil, nil
+	}
+
+	return snapNames, taskSetList, nil
+}
+
+func (m *SnapManager) ensureDependencyRemoval() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	snapNames, taskSetList, err := CreateDependencyRemovalTasks(m)
+	if err != nil {
+		return err
+	}
+
+	change := m.state.NewChange("orphan-removal", "Remove implicitly installed snaps that are no longer required")
+	for _, taskSet := range taskSetList {
+		change.AddAll(taskSet)
+	}
+	if snapNames != nil {
+		change.Set("snap-names", snapNames)
+	}
+
+	return nil
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
 	if m.preseed {
@@ -1631,6 +1746,7 @@ func (m *SnapManager) Ensure() error {
 		m.ensureMountsUpdated(),
 		m.ensureDesktopFilesUpdated(),
 		m.ensureDownloadsCleaned(),
+		m.ensureDependencyRemoval(),
 	}
 
 	//FIXME: use firstErr helper
