@@ -49,16 +49,21 @@ var (
 	CurrentSystemProfilePath = currentSystemProfilePath
 
 	// user
+	IsPlausibleHome        = isPlausibleHome
 	DesiredUserProfilePath = desiredUserProfilePath
 	CurrentUserProfilePath = currentUserProfilePath
 
-	// xdg
+	// expand
 	XdgRuntimeDir        = xdgRuntimeDir
 	ExpandPrefixVariable = expandPrefixVariable
 	ExpandXdgRuntimeDir  = expandXdgRuntimeDir
+	ExpandHomeDir        = expandHomeDir
 
 	// update
 	ExecuteMountProfileUpdate = executeMountProfileUpdate
+
+	// snapenv
+	SnapEnvRealHome = snapEnvRealHome
 )
 
 // SystemCalls encapsulates various system interactions performed by this module.
@@ -171,6 +176,38 @@ func MockReadDir(fn func(string) ([]os.FileInfo, error)) (restore func()) {
 	ioutilReadDir = fn
 	return func() {
 		ioutilReadDir = old
+	}
+}
+
+func MockOSEnvironmentUnescapeUnsafe(fn func(string) (osutil.Environment, error)) (restore func()) {
+	old := osutilOSEnvironmentUnescapeUnsafe
+	osutilOSEnvironmentUnescapeUnsafe = fn
+	return func() {
+		osutilOSEnvironmentUnescapeUnsafe = old
+	}
+}
+
+// MockSnapConfineUserEnv provide the environment variables provided by snap-confine
+// when it calls snap-update-ns for a specific user
+func MockSnapConfineUserEnv(xdgNew, realHomeNew, uidNew string) (restore func()) {
+	xdgCur, xdgExists := os.LookupEnv("XDG_RUNTIME_DIR")
+	realHomeCur, realHomeExists := os.LookupEnv("SNAP_REAL_HOME")
+
+	os.Setenv("XDG_RUNTIME_DIR", xdgNew)
+	os.Setenv("SNAP_REAL_HOME", realHomeNew)
+
+	return func() {
+		if xdgExists {
+			os.Setenv("XDG_RUNTIME_DIR", xdgCur)
+		} else {
+			os.Unsetenv("XDG_RUNTIME_DIR")
+		}
+
+		if realHomeExists {
+			os.Setenv("SNAP_REAL_HOME", realHomeCur)
+		} else {
+			os.Unsetenv("SNAP_REAL_HOME")
+		}
 	}
 }
 

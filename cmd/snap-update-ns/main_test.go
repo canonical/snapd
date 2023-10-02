@@ -371,7 +371,7 @@ func (s *mainSuite) TestApplyIgnoredMissingMount(c *C) {
 	c.Check(currentProfilePath, testutil.FileEquals, "")
 }
 
-func (s *mainSuite) TestApplyUserFstab(c *C) {
+func (s *mainSuite) TestApplyUserFstabHappy(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 
@@ -383,22 +383,38 @@ func (s *mainSuite) TestApplyUserFstab(c *C) {
 	defer restore()
 
 	snapName := "foo"
-	desiredProfileContent := `$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0`
-
+	desiredProfileContent := `$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0
+none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOME 0 0`
 	desiredProfilePath := fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, snapName)
 	err := os.MkdirAll(filepath.Dir(desiredProfilePath), 0755)
 	c.Assert(err, IsNil)
 	err = os.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644)
 	c.Assert(err, IsNil)
 
-	upCtx := update.NewUserProfileUpdateContext(snapName, true, 1000)
+	tmpHomeDir := c.MkDir()
+	restoreEnv := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", tmpHomeDir, "1000")
+	defer restoreEnv()
+	upCtx, err := update.NewUserProfileUpdateContext(snapName, true, 1000)
+	c.Assert(err, IsNil)
 	err = update.ExecuteMountProfileUpdate(upCtx)
 	c.Assert(err, IsNil)
+	c.Assert(changes, HasLen, 2)
+
+	c.Assert(changes[0].Entry.Name, Equals, "none")
+	c.Assert(changes[0].Entry.Dir, Equals, tmpHomeDir+"/.local/share")
+	c.Assert(changes[0].Entry.XSnapdMustExistDir(), Equals, tmpHomeDir)
 
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, 1000)
+	c.Assert(changes[1].Action, Equals, update.Mount)
+	c.Assert(changes[1].Entry.Name, Equals, xdgRuntimeDir+"/doc/by-app/snap.foo")
+	c.Assert(changes[1].Entry.Dir, Matches, xdgRuntimeDir+"/doc")
+}
 
-	c.Assert(changes, HasLen, 1)
-	c.Assert(changes[0].Action, Equals, update.Mount)
-	c.Assert(changes[0].Entry.Name, Equals, xdgRuntimeDir+"/doc/by-app/snap.foo")
-	c.Assert(changes[0].Entry.Dir, Matches, xdgRuntimeDir+"/doc")
+func (s *mainSuite) TestApplyUserFstabHappyErrorCannotRetrieveHome(c *C) {
+	tmpHomeDir := c.MkDir() + "/does-not-exist"
+	snapName := "foo"
+	restoreEnv := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", tmpHomeDir, "1000")
+	defer restoreEnv()
+	_, err := update.NewUserProfileUpdateContext(snapName, true, 1000)
+	c.Assert(err, ErrorMatches, `cannot use invalid home directory "`+tmpHomeDir+`": no such file or directory`)
 }
