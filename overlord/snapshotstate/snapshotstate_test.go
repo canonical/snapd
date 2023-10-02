@@ -627,7 +627,6 @@ func (snapshotSuite) TestSaveIntegration(c *check.C) {
 	o.AddManager(o.TaskRunner())
 
 	st.Lock()
-	defer st.Unlock()
 
 	snapshotOptions := map[string]*snap.SnapshotOptions{
 		"one-snap": {Exclude: []string{"$SNAP_COMMON/exclude-a-snap", "$SNAP_DATA/exclude-a-snap"}},
@@ -672,6 +671,7 @@ func (snapshotSuite) TestSaveIntegration(c *check.C) {
 	c.Assert(o.Settle(5*time.Second), check.IsNil)
 	st.Lock()
 	c.Check(change.Err(), check.IsNil)
+	defer st.Unlock()
 
 	tf := time.Now()
 	c.Assert(backend.Iter(context.TODO(), func(r *backend.Reader) error {
@@ -744,7 +744,6 @@ exec /bin/tar "$@"
 	o.AddManager(o.TaskRunner())
 
 	st.Lock()
-	defer st.Unlock()
 
 	for i, name := range []string{"one-snap", "too-snap", "tri-snap"} {
 		sideInfo := &snap.SideInfo{RealName: name, Revision: snap.R(i + 1)}
@@ -777,6 +776,7 @@ exec /bin/tar "$@"
 	c.Assert(o.Settle(5*time.Second), check.IsNil)
 	st.Lock()
 	c.Check(change.Err(), check.NotNil)
+	defer st.Unlock()
 	tasks := change.Tasks()
 	c.Assert(tasks, check.HasLen, 3)
 
@@ -850,7 +850,6 @@ exec /bin/tar "$@"
 	o.AddManager(o.TaskRunner())
 
 	st.Lock()
-	defer st.Unlock()
 
 	sideInfo := &snap.SideInfo{RealName: "tar-fail-snap", Revision: snap.R(1)}
 	snapstate.Set(st, "tar-fail-snap", &snapstate.SnapState{
@@ -877,6 +876,7 @@ exec /bin/tar "$@"
 	c.Assert(o.Settle(testutil.HostScaledTimeout(5*time.Second)), check.IsNil)
 	st.Lock()
 	c.Check(change.Err(), check.NotNil)
+	defer st.Unlock()
 	tasks := change.Tasks()
 	c.Assert(tasks, check.HasLen, 1)
 
