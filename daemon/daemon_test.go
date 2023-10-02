@@ -84,6 +84,7 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 	}
 	s.notified = nil
 	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
+	s.AddCleanup(MockRebootNoticeWait(0))
 }
 
 func (s *daemonSuite) TearDownTest(c *check.C) {
@@ -665,6 +666,7 @@ version: 1`, si)
 
 func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	d := s.newTestDaemon(c)
+
 	// mark as already seeded
 	s.markSeeded(d)
 
@@ -1016,6 +1018,9 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 
 	err = d.Stop(nil)
 
+	// ensure Stop waited for at least rebootWaitTimeout
+	timeToStop := time.Since(now)
+	c.Check(timeToStop > rebootWaitTimeout+rebootNoticeWait, check.Equals, true)
 	c.Check(err, check.ErrorMatches, fmt.Sprintf("expected %s did not happen", expectedAction))
 
 	c.Check(delays, check.HasLen, 2)
