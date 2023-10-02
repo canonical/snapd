@@ -520,6 +520,7 @@ func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.Privat
 	}
 
 	if !shouldRequest {
+		t.Logf("skipping getting serial, store is marked as offline")
 		return nil, nil, nil
 	}
 
