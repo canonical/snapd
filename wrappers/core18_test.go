@@ -185,6 +185,9 @@ WantedBy=snapd.service
 	}, {
 		filepath.Join(dirs.SnapDesktopFilesDir, "io.snapcraft.SessionAgent.desktop"),
 		"[Desktop Entry]\nName=Snapd User Session Agent",
+	}, {
+		filepath.Join(dirs.SnapDesktopFilesDir, "snap-handle-link.desktop"),
+		"[Desktop Entry]\nName=Handler for snap:// URIs",
 	}} {
 		c.Check(entry[0], testutil.FileEquals, entry[1])
 	}
