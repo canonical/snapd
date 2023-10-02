@@ -11,12 +11,28 @@ environment:
   # edge_first refreshes to snapd/core18 from edge, then to current snapd.
   VARIANT/latest_only: latest_only
   VARIANT/edge_first: edge_first
+  VARIANT/fake_store_refresh: fake_store_refresh
   NESTED_BUILD_SNAPD_FROM_CURRENT: false
   SNAPD_SNAP_URL: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.45.2_5760.snap
   CORE18_SNAP_URL: https://storage.googleapis.com/snapd-spread-tests/snaps/core18_20191126_1279.snap
 
+  # for the fake store
+  NESTED_FAKESTORE_BLOB_DIR/fake_store_refresh: $(pwd)/fake-store-blobdir
+  NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL/fake_store_refresh: http://localhost:11028
+  NESTED_SIGN_SNAPS_FAKESTORE/fake_store_refresh: true
+
 prepare: |
   wget -P "$(tests.nested get extra-snaps-path)" "$SNAPD_SNAP_URL" "$CORE18_SNAP_URL"
+
+  if [ "$SPREAD_VARIANT" = fake_store_refresh ]; then
+    "$TESTSTOOLS"/store-state setup-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
+
+    cp "$TESTSLIB"/assertions/developer1.account "$NESTED_FAKESTORE_BLOB_DIR/asserts"
+    cp "$TESTSLIB"/assertions/developer1.account-key "$NESTED_FAKESTORE_BLOB_DIR/asserts"
+
+    #shellcheck disable=SC2148
+    systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
+  fi
 
   # create core image with old snapd & core18
   tests.nested build-image core
@@ -24,6 +40,12 @@ prepare: |
 
   # for refresh in later step of the test
   "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
+
+restore: |
+  if [ "$SPREAD_VARIANT" = fake_store_refresh ]; then
+    systemctl stop fakedevicesvc || true
+    "$TESTSTOOLS"/store-state teardown-fake-store "$NESTED_FAKESTORE_BLOB_DIR" || true
+  fi
 
 execute: |
   remote.exec "sudo snap wait system seed.loaded"
@@ -46,7 +68,17 @@ execute: |
     remote.exec "retry --wait 1 -n 10 sh -c 'snap changes | MATCH \".* Done .* Refresh snaps.*"core18"\"'"
   fi
 
-  echo "Now refresh snapd with current tree"
-  remote.push "snapd-from-deb.snap"
-  remote.exec "sudo snap install snapd-from-deb.snap --dangerous" || true
-  remote.exec "snap list snapd" | MATCH "snapd .* x1 "
+  if [ "$SPREAD_VARIANT" = fake_store_refresh ]; then
+    boot_id=$(tests.nested boot-id)
+    remote.exec "sudo snap refresh" || true
+    remote.wait-for reboot "${boot_id}"
+    remote.exec "retry --wait 2 -n 10 sh -c 'snap list snapd | NOMATCH \"snapd.*5760\"'"
+    #shellcheck disable=SC2140
+    #shellcheck disable=SC2140
+    remote.exec "retry --wait 1 -n 10 sh -c 'snap changes | MATCH \".* Done .* Refresh snaps.*"core18"\"'"
+  else
+    echo "Now refresh snapd with current tree"
+    remote.push "snapd-from-deb.snap"
+    remote.exec "sudo snap install snapd-from-deb.snap --dangerous" || true
+    remote.exec "snap list snapd" | MATCH "snapd .* x1 "
+  fi
