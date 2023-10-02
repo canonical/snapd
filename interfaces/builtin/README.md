@@ -10,12 +10,12 @@ The overall structure has two top-level keys, plugs and slots which affect the
 plugs and slots of the snap respectively. Beneath these keys are the names of
 interfaces, and for each interface key is an map which has 6 possible keys:
 
-- allow-installation
-- deny-installation
-- allow-connection
-- deny-connection
-- allow-auto-connection
-- deny-auto-connection
+- `allow-installation`
+- `deny-installation`
+- `allow-connection`
+- `deny-connection`
+- `allow-auto-connection`
+- `deny-auto-connection`
 
 Each of these keys can either have a static value of true/false or can be a
 more complex object/list which is “evaluated” by snapd on a device to
@@ -536,45 +536,47 @@ Some interfaces might need complex policies that mix many of these patterns, for
 - uses a tag attribute to match plug and slots, and if the slot could be defined
   lets same publisher plugs auto-connect
 
-    slots:
-      shared-memory:
-        allow-installation:
-          slot-snap-type:
-            - app
-            - gadget
-            - core
-        deny-installation:
-          slot-snap-type:
-            - app
-            - gadget
-        deny-auto-connection: true
-
-    plugs:
-     shared-memory:
-        allow-connection:
-          -
-            plug-attributes:
-              private: false
-            slot-attributes:
-              shared-memory: $PLUG(shared-memory)
-          -
-            plug-attributes:
-              private: true
-            slot-snap-type:
-              - core
-        allow-auto-connection:
-          -
-            plug-attributes:
-              private: false
-            slot-publisher-id:
-              - $PLUG_PUBLISHER_ID
-            slot-attributes:
-              shared-memory: $PLUG(shared-memory)
-          -
-            plug-attributes:
-              private: true
-            slot-snap-type:
-              - core
+```
+ slots:
+   shared-memory:
+     allow-installation:
+       slot-snap-type:
+         - app
+         - gadget
+         - core
+     deny-installation:
+       slot-snap-type:
+         - app
+         - gadget
+     deny-auto-connection: true
+ 
+ plugs:
+  shared-memory:
+     allow-connection:
+       -
+         plug-attributes:
+           private: false
+         slot-attributes:
+           shared-memory: $PLUG(shared-memory)
+       -
+         plug-attributes:
+           private: true
+         slot-snap-type:
+           - core
+     allow-auto-connection:
+       -
+         plug-attributes:
+           private: false
+         slot-publisher-id:
+           - $PLUG_PUBLISHER_ID
+         slot-attributes:
+           shared-memory: $PLUG(shared-memory)
+       -
+         plug-attributes:
+           private: true
+         slot-snap-type:
+           - core
+```
 
 Note the combining of `allow-installation` and `deny-installation`
 `slot-snap-type` constraints to make the slot super-privileged while accounting
