@@ -102,6 +102,9 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		// is to inject the tasksets into the current change, set the flag to
 		// avoid generating one
 		NoDelayedSideEffects: true,
+
+		// any snap being installed as a prerequisite is implicitly installed
+		ImplicitlyInstalled: true,
 	}
 	if flags.Transaction == client.TransactionAllSnaps {
 		lanes := t.Lanes()
