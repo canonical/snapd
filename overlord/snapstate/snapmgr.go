@@ -1616,6 +1616,7 @@ func CreateDependencyRemovalTasks(m *SnapManager) ([]string, []*state.TaskSet, e
 	for _, change := range changeList {
 		// Only run when there are no pending changes, since we can't know if
 		// a snap is required by changes that are pending
+		// TODO: Use changeInFlight?
 		if !change.IsReady() {
 			return nil, nil, nil
 		}
@@ -1675,6 +1676,9 @@ func CreateDependencyRemovalTasks(m *SnapManager) ([]string, []*state.TaskSet, e
 			return nil, nil, err
 		}
 
+		// We need logic which checks the slot information of a snap to see if it can
+		// be potentially connected to a snap installed or being installed on a system. For
+		// now, bail if the snap isn't a base.
 		if snapType != snap.TypeBase {
 			continue
 		}
