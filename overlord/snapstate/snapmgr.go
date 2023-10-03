@@ -1610,32 +1610,8 @@ func (m *SnapManager) ensureDownloadsCleaned() error {
 }
 
 func CreateDependencyRemovalTasks(m *SnapManager) ([]string, []*state.TaskSet, error) {
-	changeList := m.state.Changes()
-
-	var latestChange *state.Change
-	for _, change := range changeList {
-		// Only run when there are no pending changes, since we can't know if
-		// a snap is required by changes that are pending
-		// TODO: Use changeInFlight?
-		if !change.IsReady() {
-			return nil, nil, nil
-		}
-
-		if latestChange == nil {
-			latestChange = change
-			continue
-		}
-
-		if change.SpawnTime().After(latestChange.SpawnTime()) {
-			latestChange = change
-		}
-	}
-
-	if latestChange != nil {
-		fiveMinutesAgo := time.Now().Add(-5 * time.Minute)
-		if latestChange.SpawnTime().Before(fiveMinutesAgo) {
-			return nil, nil, nil
-		}
+	if changeInFlight(m.state) {
+		return nil, nil, nil
 	}
 
 	snapList, _, err := InstalledSnaps(m.state)
