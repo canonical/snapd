@@ -82,6 +82,11 @@ func (iter *PathIterator) CurrentPath() string {
 	return iter.path[:iter.right]
 }
 
+// CurrentCleanPath returns the same value as CurrentPath with the right slash trimmed.
+func (iter *PathIterator) CurrentCleanPath() string {
+	return filepath.Clean(iter.path[:iter.right])
+}
+
 // CurrentBase returns the prefix of the path that was traversed,
 // excluding the current name.  The result never ends in '/' except if
 // current base is root.
