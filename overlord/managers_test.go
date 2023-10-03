@@ -5419,12 +5419,15 @@ version: 20.04`
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	c.Assert(chg.Status(), Equals, state.ErrorStatus)
-
-	// and we are in restarting state
+	// we are in restarting state
 	restarting, restartType := restart.Pending(st)
 	c.Check(restarting, Equals, true)
 	c.Check(restartType, Equals, restart.RestartSystem)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+
+	// Restart and re-run to completion
+	ms.mockRestartAndSettle(c, st, chg)
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 
 	// and the undo gave us our old kernel back
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
@@ -6057,12 +6060,15 @@ func (ms *kernelSuite) TestRemodelSwitchToDifferentKernelUndo(c *C) {
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	c.Assert(chg.Status(), Equals, state.ErrorStatus)
-
-	// and we are in restarting state
+	// we are in restarting state
 	restarting, restartType := restart.Pending(st)
 	c.Check(restarting, Equals, true)
 	c.Check(restartType, Equals, restart.RestartSystem)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+
+	// Restart and re-run to completion
+	ms.mockRestartAndSettle(c, st, chg)
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 
 	// and the undo gave us our old kernel back
 	c.Assert(ms.bloader.BootVars, DeepEquals, map[string]string{
@@ -9597,6 +9603,7 @@ volumes:
 
 		// simulate successful daemon restart happened
 		restart.MockPending(st, restart.RestartUnset)
+		restart.MockAfterRestartForChange(chg)
 
 		// let the change run its course
 		st.Unlock()
@@ -9604,14 +9611,15 @@ volumes:
 		st.Lock()
 		c.Assert(err, IsNil)
 
-		c.Check(chg.Status(), Equals, state.DoneStatus, Commentf("change failed: %v", chg.Err()))
 		restarting, kind = restart.Pending(st)
 		if updated {
+			c.Check(chg.Status(), Equals, state.WaitStatus, Commentf("change failed: %v", chg.Err()))
 			// boot config updated, thus a system restart was
 			// requested
 			c.Check(restarting, Equals, true)
 			c.Assert(kind, Equals, restart.RestartSystem)
 		} else {
+			c.Check(chg.Status(), Equals, state.DoneStatus, Commentf("change failed: %v", chg.Err()))
 			c.Check(restarting, Equals, false)
 		}
 	}

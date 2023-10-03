@@ -865,10 +865,10 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBase(c *C) {
 	restarting, rt := restart.Pending(s.state)
 	c.Check(restarting, Equals, true)
 	c.Check(rt, Equals, restart.RestartSystem)
-	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystem})
 	c.Assert(t.Log(), HasLen, 1)
-	c.Check(t.Log()[0], Matches, `.* INFO Task has requested a system restart`)
+	c.Check(t.Log()[0], Matches, `.* INFO Task set to wait until a system restart allows to continue`)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForKernelClassicWithModes(c *C) {
@@ -913,10 +913,10 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForKernelClassicWithModes(c *
 	// Restart must not have been requested, as we're on classic
 	restarting, _ := restart.Pending(s.state)
 	c.Check(restarting, Equals, false)
-	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(s.restartRequested, HasLen, 0)
 	c.Assert(t.Log(), HasLen, 1)
-	c.Check(t.Log()[0], Matches, `.* INFO Task has requested a system restart`)
+	c.Check(t.Log()[0], Matches, `.* INFO Task set to wait until a system restart allows to continue`)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBaseSystemRestartImmediate(c *C) {
@@ -957,10 +957,10 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBaseSystemRestartImmed
 	restarting, rt := restart.Pending(s.state)
 	c.Check(restarting, Equals, true)
 	c.Check(rt, Equals, restart.RestartSystemNow)
-	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	c.Assert(t.Log(), HasLen, 1)
-	c.Check(t.Log()[0], Matches, `.* INFO Task has requested a system restart`)
+	c.Check(t.Log()[0], Matches, `.* INFO Task set to wait until a system restart allows to continue`)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnClassic(c *C) {

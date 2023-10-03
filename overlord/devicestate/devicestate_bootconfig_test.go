@@ -198,11 +198,20 @@ kernel-cmdline:
 	defer s.state.Unlock()
 
 	restarting, rt := restart.Pending(s.state)
-	c.Assert(chg.IsReady(), Equals, true)
 	if errMatch == "" {
+		if opts.updateAttempted && opts.updateApplied {
+			// Expect the change to be in wait status at this point, as a restart
+			// will have been requested
+			c.Check(tsk.Status(), Equals, state.WaitStatus)
+			c.Check(chg.Status(), Equals, state.WaitStatus)
+			// Restart and re-run to completion
+			s.mockRestartAndSettle(c, s.state, chg)
+		}
+		c.Assert(chg.IsReady(), Equals, true)
 		c.Check(chg.Err(), IsNil)
 		c.Check(tsk.Status(), Equals, state.DoneStatus)
 	} else {
+		c.Assert(chg.IsReady(), Equals, true)
 		c.Check(chg.Err(), ErrorMatches, errMatch)
 		c.Check(tsk.Status(), Equals, state.ErrorStatus)
 	}
@@ -213,7 +222,7 @@ kernel-cmdline:
 			log := tsk.Log()
 			c.Assert(log, HasLen, 2)
 			c.Check(log[0], Matches, ".* updated boot config assets")
-			c.Check(log[1], Matches, ".* INFO Task has requested a system restart")
+			c.Check(log[1], Matches, ".* INFO Task set to wait until a system restart allows to continue")
 			// update was applied, thus a restart was requested
 			c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 			c.Check(restarting, Equals, true)
@@ -268,11 +277,20 @@ kernel-cmdline:
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Assert(chg.IsReady(), Equals, true)
 	if errMatch == "" {
+		if opts.updateAttempted && opts.updateApplied {
+			// Expect the change to be in wait status at this point, as a restart
+			// will have been requested
+			c.Check(tsk.Status(), Equals, state.WaitStatus)
+			c.Check(chg.Status(), Equals, state.WaitStatus)
+			// Restart and re-run to completion
+			s.mockRestartAndSettle(c, s.state, chg)
+		}
+		c.Assert(chg.IsReady(), Equals, true)
 		c.Check(chg.Err(), IsNil)
 		c.Check(tsk.Status(), Equals, state.DoneStatus)
 	} else {
+		c.Assert(chg.IsReady(), Equals, true)
 		c.Check(chg.Err(), ErrorMatches, errMatch)
 		c.Check(tsk.Status(), Equals, state.ErrorStatus)
 	}
@@ -283,7 +301,7 @@ kernel-cmdline:
 			log := tsk.Log()
 			c.Assert(log, HasLen, 2)
 			c.Check(log[0], Matches, ".* updated boot config assets")
-			c.Check(log[1], Matches, ".* INFO Task has requested a system restart")
+			c.Check(log[1], Matches, ".* INFO Task set to wait until a system restart allows to continue")
 		}
 		// There must be no restart request
 		c.Check(s.restartRequests, HasLen, 0)

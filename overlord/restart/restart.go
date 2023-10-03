@@ -460,6 +460,15 @@ func taskIsRestartBoundary(t *state.Task, dir RestartBoundaryDirection) bool {
 	return (boundary & dir) != 0
 }
 
+func changeHasRestartBoundary(chg *state.Change, dir RestartBoundaryDirection) bool {
+	for _, t := range chg.Tasks() {
+		if taskIsRestartBoundary(t, dir) {
+			return true
+		}
+	}
+	return false
+}
+
 // MarkTaskAsRestartBoundary sets a task as a restart boundary. That means
 // the change cannot continue beyond this task, before a restart has taken
 // place. 'path' indicates which execution direction(s) it will be a restart
@@ -506,7 +515,14 @@ func FinishTaskWithRestart(t *state.Task, status state.Status, restartType Resta
 	// only allow these for now as nothing tests with anything else.
 	switch status {
 	case state.DoneStatus, state.UndoneStatus:
-		setTaskToWait := taskIsRestartBoundary(t, boundaryDirectionFromStatus(status))
+		boundaryDir := boundaryDirectionFromStatus(status)
+		// To support upgrade paths to the new restart logic, where changes are only partially
+		// done after snapd has been refreshed, where a snap may need a restart, we default to
+		// tasks *always* needing immediate restart if a change has no restart boundary.
+		setTaskToWait := true
+		if changeHasRestartBoundary(chg, boundaryDir) {
+			setTaskToWait = taskIsRestartBoundary(t, boundaryDir)
+		}
 		markTaskForRestart(t, status, setTaskToWait)
 	default:
 		return fmt.Errorf("internal error: unexpected task status when requesting system restart for task: %s", status)
