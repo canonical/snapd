@@ -87,7 +87,7 @@ func (s *desktopSuite) TestEnsurePackageDesktopFiles(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.desktop"), mockDesktopFile, 0644), IsNil)
 
-	err := wrappers.EnsureSnapDesktopFiles(info)
+	err := wrappers.EnsureSnapDesktopFiles([]*snap.Info{info})
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, true)
 	stat, err := os.Stat(expectedDesktopFilePath)
@@ -104,7 +104,7 @@ func (s *desktopSuite) TestEnsurePackageDesktopFiles(c *C) {
 }
 
 func (s *iconsTestSuite) TestEnsurePackageDesktopFilesNilSnapInfo(c *C) {
-	c.Assert(wrappers.EnsureSnapDesktopFiles(nil), ErrorMatches, "internal error: snap info cannot be nil")
+	c.Assert(wrappers.EnsureSnapDesktopFiles([]*snap.Info{nil}), ErrorMatches, "internal error: snap info cannot be nil")
 }
 
 func (s *desktopSuite) TestRemovePackageDesktopFiles(c *C) {
@@ -190,7 +190,7 @@ func (s *desktopSuite) TestEnsurePackageDesktopFilesCleanup(c *C) {
 	err = os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar2.desktop"), mockDesktopFile, 0644)
 	c.Assert(err, IsNil)
 
-	err = wrappers.EnsureSnapDesktopFiles(info)
+	err = wrappers.EnsureSnapDesktopFiles([]*snap.Info{info})
 	c.Check(err, NotNil)
 	c.Check(osutil.FileExists(mockDesktopFilePath), Equals, false)
 	c.Check(s.mockUpdateDesktopDatabase.Calls(), HasLen, 0)
@@ -587,7 +587,7 @@ func (s *desktopSuite) TestAddRemoveDesktopFiles(c *C) {
 		err = os.WriteFile(filepath.Join(baseDir, "meta", "gui", t.upstreamDesktopFileName), mockDesktopFile, 0644)
 		c.Assert(err, IsNil)
 
-		err = wrappers.EnsureSnapDesktopFiles(info)
+		err = wrappers.EnsureSnapDesktopFiles([]*snap.Info{info})
 		c.Assert(err, IsNil)
 		c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, true)
 

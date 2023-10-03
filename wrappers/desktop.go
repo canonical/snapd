@@ -279,27 +279,32 @@ func deriveDesktopFilesContent(s *snap.Info) (map[string]osutil.FileState, error
 //
 // It also removes desktop files from the applications of the old snap revision to ensure
 // that only new snap desktop files exist.
-func EnsureSnapDesktopFiles(s *snap.Info) error {
-	if s == nil {
-		return fmt.Errorf("internal error: snap info cannot be nil")
-	}
+func EnsureSnapDesktopFiles(snaps []*snap.Info) error {
 	if err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755); err != nil {
 		return err
 	}
 
-	content, err := deriveDesktopFilesContent(s)
-	if err != nil {
-		return err
-	}
+	var updated []string
+	for _, s := range snaps {
+		if s == nil {
+			return fmt.Errorf("internal error: snap info cannot be nil")
+		}
+		content, err := deriveDesktopFilesContent(s)
+		if err != nil {
+			return err
+		}
 
-	desktopFilesGlob := fmt.Sprintf("%s_*.desktop", s.DesktopPrefix())
-	changed, removed, err := osutil.EnsureDirState(dirs.SnapDesktopFilesDir, desktopFilesGlob, content)
-	if err != nil {
-		return err
+		desktopFilesGlob := fmt.Sprintf("%s_*.desktop", s.DesktopPrefix())
+		changed, removed, err := osutil.EnsureDirState(dirs.SnapDesktopFilesDir, desktopFilesGlob, content)
+		if err != nil {
+			return err
+		}
+		updated = append(updated, changed...)
+		updated = append(updated, removed...)
 	}
 
 	// updates mime info etc
-	if err := updateDesktopDatabase(append(changed, removed...)); err != nil {
+	if err := updateDesktopDatabase(updated); err != nil {
 		return err
 	}
 
