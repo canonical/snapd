@@ -237,8 +237,8 @@ func (s *restartSuite) TestFinishTaskWithRestart(c *C) {
 		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartDaemon, classic: true, restart: true},
 		{initial: state.UndoStatus, final: state.UndoneStatus, restartType: restart.RestartDaemon, classic: false, restart: true},
 		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartSystem, classic: false, restart: true, log: ".* INFO Task set to wait until a system restart allows to continue"},
-		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartSystem, classic: true, restart: false, wait: true, log: ".* INFO Task has requested a system restart"},
-		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartSystemNow, classic: true, restart: false, wait: true, log: ".* INFO Task has requested a system restart"},
+		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartSystem, classic: true, restart: false, wait: true, log: ".* INFO Task set to wait until a system restart allows to continue"},
+		{initial: state.DoStatus, final: state.DoneStatus, restartType: restart.RestartSystemNow, classic: true, restart: false, wait: true, log: ".* INFO Task set to wait until a system restart allows to continue"},
 		{initial: state.UndoStatus, final: state.UndoneStatus, restartType: restart.RestartSystem, classic: true, restart: false, log: ".* INFO Skipped automatic system restart on classic system when undoing changes back to previous state"},
 		{initial: state.UndoStatus, final: state.UndoneStatus, restartType: restart.RestartSystem, classic: false, restart: true, log: ".* INFO Task set to wait until a system restart allows to continue"},
 	}
@@ -282,23 +282,16 @@ func (s *restartSuite) TestFinishTaskWithRestart(c *C) {
 		// make it trigger the restart.Request
 		if t.classic && t.final == state.UndoneStatus {
 			c.Check(task.Status(), Equals, state.UndoneStatus)
-		} else if !t.restart {
-			c.Check(task.Status(), Equals, t.final)
 		} else {
 			c.Check(task.Status(), Equals, state.WaitStatus)
 			c.Check(task.WaitedStatus(), Equals, t.final)
-		}
-		restart.ProcessRestartForChange(chg, state.DefaultStatus, state.WaitStatus)
-
-		var waitBootID string
-		if err := task.Get("wait-for-system-restart-from-boot-id", &waitBootID); !errors.Is(err, state.ErrNoState) {
-			c.Check(err, IsNil)
-		}
-		if !t.restart {
-			c.Check(waitBootID, Equals, "")
-		} else {
+			var waitBootID string
+			if err := task.Get("wait-for-system-restart-from-boot-id", &waitBootID); !errors.Is(err, state.ErrNoState) {
+				c.Check(err, IsNil)
+			}
 			c.Check(waitBootID, Equals, "boot-id-1")
 		}
+		restart.ProcessRestartForChange(chg, state.DefaultStatus, state.WaitStatus)
 
 		ok, rst := restart.Pending(st)
 		if t.restart {
@@ -511,8 +504,9 @@ func (s *restartSuite) TestStop(c *C) {
 
 	err = restart.FinishTaskWithRestart(t1, state.DoneStatus, restart.RestartSystemNow, "some-snap", nil)
 	c.Assert(err, IsNil)
-	c.Check(t1.Status(), Equals, state.DoneStatus)
-	c.Check(chg1.Status(), Equals, state.DoneStatus)
+	c.Check(t1.Status(), Equals, state.WaitStatus)
+	c.Check(t1.WaitedStatus(), Equals, state.DoneStatus)
+	c.Check(chg1.Status(), Equals, state.WaitStatus)
 
 	// Expect the handler to have fired
 	c.Check(h.restartRequested, Equals, true)
@@ -535,8 +529,9 @@ func (s *restartSuite) TestStop(c *C) {
 	err = restart.FinishTaskWithRestart(t2, state.DoneStatus, restart.RestartSystemNow, "some-snap", nil)
 	c.Assert(err, IsNil)
 	// Change has indeed changed status
-	c.Check(t2.Status(), Equals, state.DoneStatus)
-	c.Check(chg2.Status(), Equals, state.DoneStatus)
+	c.Check(t2.Status(), Equals, state.WaitStatus)
+	c.Check(t2.WaitedStatus(), Equals, state.DoneStatus)
+	c.Check(chg2.Status(), Equals, state.WaitStatus)
 
 	// The handler should not have been invoked
 	c.Check(h.restartRequested, Equals, false)
@@ -851,7 +846,8 @@ func (s *restartSuite) TestTaskWaitForRestartInvalid(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: only tasks currently in progress \(doing/undoing\) are supported`)
 }
 
-func (s *restartSuite) TestFinishTaskWithRestartDone(c *C) {
+func (s *restartSuite) TestFinishTaskWithRestartDoneWithoutRestartBoundary(c *C) {
+	// Having no restart-boundary acts like all restarts are restart boundaries
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -869,8 +865,18 @@ func (s *restartSuite) TestFinishTaskWithRestartDone(c *C) {
 
 	err = restart.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystemNow, "some-snap", nil)
 	c.Assert(err, IsNil)
-	c.Check(t.Status(), Equals, state.DoneStatus)
-	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Check(t.Status(), Equals, state.WaitStatus)
+	c.Check(t.WaitedStatus(), Equals, state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+
+	// Expect the boot-id to be set here, as without any restart boundaries, all
+	// requests are restart boundaries.
+	var waitBootID string
+	if err := t.Get("wait-for-system-restart-from-boot-id", &waitBootID); !errors.Is(err, state.ErrNoState) {
+		c.Check(err, IsNil)
+	}
+	c.Check(waitBootID, Equals, "boot-id-1")
+
 	c.Check(h.restartRequested, Equals, true)
 	c.Check(h.restartType, Equals, restart.RestartSystemNow)
 	c.Check(h.rebootInfo.BootloaderOptions, IsNil)
@@ -898,6 +904,61 @@ func (s *restartSuite) TestFinishTaskWithRestartDoneWithRestartBoundary(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(t.WaitedStatus(), Equals, state.DoneStatus)
+
+	// Expect the boot-id to be set, as the task is a restart boundary
+	var waitBootID string
+	if err := t.Get("wait-for-system-restart-from-boot-id", &waitBootID); !errors.Is(err, state.ErrNoState) {
+		c.Check(err, IsNil)
+	}
+	c.Check(waitBootID, Equals, "boot-id-1")
+
+	c.Check(h.restartRequested, Equals, true)
+	c.Check(h.rebootInfo, DeepEquals, &boot.RebootInfo{RebootRequired: true})
+	c.Check(h.restartType, Equals, restart.RestartSystemNow)
+}
+
+func (s *restartSuite) TestFinishTaskWithRestartDoneWithRestartBoundaryAndTwoRequesters(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	h := &testHandler{}
+	_, err := restart.Manager(st, "boot-id-1", h)
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("test", "...")
+	t1 := st.NewTask("request-and-not-wait", "...")
+	t2 := st.NewTask("request-and-wait", "...")
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+
+	restart.MarkTaskAsRestartBoundary(t2, restart.RestartBoundaryDirectionDo)
+
+	err = restart.FinishTaskWithRestart(t1, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
+	c.Assert(err, IsNil)
+	c.Check(t1.Status(), Equals, state.DoneStatus)
+
+	// Boot-id should not be set here
+	var waitBootID string
+	if err := t2.Get("wait-for-system-restart-from-boot-id", &waitBootID); !errors.Is(err, state.ErrNoState) {
+		c.Check(err, IsNil)
+	}
+	c.Check(waitBootID, Equals, "")
+
+	err = restart.FinishTaskWithRestart(t2, state.DoneStatus, restart.RestartSystemNow, "some-snap", nil)
+	c.Assert(err, IsNil)
+	c.Check(t2.Status(), Equals, state.WaitStatus)
+	c.Check(t2.WaitedStatus(), Equals, state.DoneStatus)
+
+	// Expect the boot-id to be set, as the task is a restart boundary
+	if err := t2.Get("wait-for-system-restart-from-boot-id", &waitBootID); !errors.Is(err, state.ErrNoState) {
+		c.Check(err, IsNil)
+	}
+	c.Check(waitBootID, Equals, "boot-id-1")
+
 	c.Check(h.restartRequested, Equals, true)
 	c.Check(h.rebootInfo, DeepEquals, &boot.RebootInfo{RebootRequired: true})
 	c.Check(h.restartType, Equals, restart.RestartSystemNow)
@@ -990,8 +1051,9 @@ func (s *restartSuite) TestFinishTaskWithRestartUndoneCore(c *C) {
 
 	err = restart.FinishTaskWithRestart(t, state.UndoneStatus, restart.RestartSystemNow, "some-snap", nil)
 	c.Assert(err, IsNil)
-	c.Check(t.Status(), Equals, state.UndoneStatus)
-	c.Check(chg.Status(), Equals, state.UndoneStatus)
+	c.Check(t.Status(), Equals, state.WaitStatus)
+	c.Check(t.WaitedStatus(), Equals, state.UndoneStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
 
 	// Restart must still be requested
 	c.Check(h.restartRequested, Equals, true)
