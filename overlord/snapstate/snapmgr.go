@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 var (
@@ -64,7 +65,8 @@ type SnapManager struct {
 
 	preseed bool
 
-	ensuredMountsUpdated bool
+	ensuredMountsUpdated       bool
+	ensuredDesktopFilesUpdated bool
 }
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
@@ -1080,6 +1082,15 @@ func MockEnsuredMountsUpdated(m *SnapManager, ensured bool) (restore func()) {
 	}
 }
 
+func MockEnsuredDesktopFilesUpdated(m *SnapManager, ensured bool) (restore func()) {
+	osutil.MustBeTestBinary("ensured desktop files can only be mocked from tests")
+	old := m.ensuredDesktopFilesUpdated
+	m.ensuredDesktopFilesUpdated = ensured
+	return func() {
+		m.ensuredDesktopFilesUpdated = old
+	}
+}
+
 func getSystemD() systemd.Systemd {
 	if snapdenv.Preseeding() {
 		return systemd.NewEmulationMode(dirs.GlobalRootDir)
@@ -1132,6 +1143,46 @@ func (m *SnapManager) ensureMountsUpdated() error {
 	return nil
 }
 
+func (m *SnapManager) ensureDesktopFilesUpdated() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.ensuredDesktopFilesUpdated {
+		return nil
+	}
+
+	// only run after we are seeded
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	allStates, err := All(m.state)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	var snaps []*snap.Info
+	for _, snapSt := range allStates {
+		info, err := snapSt.CurrentInfo()
+		if err != nil {
+			return err
+		}
+		snaps = append(snaps, info)
+	}
+	if err := wrappers.EnsureSnapDesktopFiles(snaps); err != nil {
+		return err
+	}
+
+	m.ensuredDesktopFilesUpdated = true
+
+	return nil
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
 	if m.preseed {
@@ -1153,6 +1204,7 @@ func (m *SnapManager) Ensure() error {
 		m.localInstallCleanup(),
 		m.ensureVulnerableSnapConfineVersionsRemovedOnClassic(),
 		m.ensureMountsUpdated(),
+		m.ensureDesktopFilesUpdated(),
 	}
 
 	//FIXME: use firstErr helper

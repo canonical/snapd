@@ -8934,6 +8934,58 @@ WantedBy=multi-user.target
 	c.Assert(mountFile, testutil.FileEquals, expectedContent)
 }
 
+func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteDesktopFiles(c *C) {
+	restore := snapstate.MockEnsuredDesktopFilesUpdated(s.snapmgr, false)
+	defer restore()
+
+	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
+	testSnapState := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{testSnapSideInfo},
+		Current:  snap.R(42),
+		Active:   true,
+		SnapType: "app",
+	}
+	testYaml := `name: test-snap
+version: v1
+apps:
+  test-snap:
+    command: bin.sh
+`
+
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", testSnapState)
+	info := snaptest.MockSnapCurrent(c, testYaml, testSnapSideInfo)
+	s.fakeBackend.addSnapApp("test-snap", "test-snap")
+	s.state.Unlock()
+
+	guiDir := filepath.Join(info.MountDir(), "meta", "gui")
+	c.Assert(os.MkdirAll(guiDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(guiDir, "test-snap.desktop"), []byte(`
+[Desktop Entry]
+Name=test
+Exec=test-snap
+`[1:]), 0o644), IsNil)
+
+	desktopFile := filepath.Join(dirs.SnapDesktopFilesDir, "test-snap_test-snap.desktop")
+	otherDesktopFile := filepath.Join(dirs.SnapDesktopFilesDir, "test-snap_other.desktop")
+	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(desktopFile, []byte("old content"), 0o644), IsNil)
+	c.Assert(os.WriteFile(otherDesktopFile, []byte("other old content"), 0o644), IsNil)
+
+	err := s.snapmgr.Ensure()
+	c.Assert(err, IsNil)
+
+	expectedContent := fmt.Sprintf(`
+[Desktop Entry]
+X-SnapInstanceName=test-snap
+Name=test
+Exec=env BAMF_DESKTOP_FILE_HINT=%s/test-snap_test-snap.desktop %s/test-snap
+`[1:], dirs.SnapDesktopFilesDir, dirs.SnapBinariesDir)
+
+	c.Assert(desktopFile, testutil.FileEquals, expectedContent)
+	c.Assert(otherDesktopFile, testutil.FileAbsent)
+}
+
 func (s *snapmgrTestSuite) TestSaveRefreshCandidatesOnAutoRefresh(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
