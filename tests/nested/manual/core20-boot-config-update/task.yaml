@@ -92,7 +92,7 @@ execute: |
   echo "Install new (unasserted) snapd and wait for reboot/change finishing"
   boot_id="$( tests.nested boot-id )"
   REMOTE_CHG_ID=$(remote.exec sudo snap install --dangerous snapd-boot-config-update.snap --no-wait)
-  remote.exec sudo snap watch "${REMOTE_CHG_ID}"
+  remote.exec sudo snap watch "${REMOTE_CHG_ID}" || [ $? -eq 255 ]
   if [ "$VARIANT" != "gadget-full" ]; then
     # reboot is automatically requested by snapd only if part of the command
     # line is changed, in case of gadget overriding the command line fully
