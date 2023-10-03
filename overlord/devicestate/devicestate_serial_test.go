@@ -2556,7 +2556,8 @@ func (s *deviceMgrSerialSuite) TestDeviceManagerNoAccessHasKeyID(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	tasks := s.state.Tasks()
+	change := s.findBecomeOperationalChange()
+	tasks := change.Tasks()
 	s.state.Unlock()
 
 	// since device-service.access=offline and the device key ID not set, then
@@ -2591,7 +2592,8 @@ func (s *deviceMgrSerialSuite) TestDeviceManagerNoAccessNoKeyID(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	tasks := s.state.Tasks()
+	change := s.findBecomeOperationalChange()
+	tasks := change.Tasks()
 	s.state.Unlock()
 
 	// since device-service.access=offline and the device key ID is not set,
