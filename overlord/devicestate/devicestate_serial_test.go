@@ -2557,12 +2557,11 @@ func (s *deviceMgrSerialSuite) TestDeviceManagerNoAccessHasKeyID(c *C) {
 
 	s.state.Lock()
 	change := s.findBecomeOperationalChange()
-	tasks := change.Tasks()
 	s.state.Unlock()
 
 	// since device-service.access=offline and the device key ID not set, then
 	// no tasks should have been queued
-	c.Assert(tasks, HasLen, 0)
+	c.Assert(change, IsNil)
 }
 
 func (s *deviceMgrSerialSuite) TestDeviceManagerNoAccessNoKeyID(c *C) {
