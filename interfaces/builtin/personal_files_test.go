@@ -27,6 +27,8 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -49,8 +51,8 @@ func (s *personalFilesInterfaceSuite) SetUpTest(c *C) {
 version: 1.0
 plugs:
  personal-files:
-  read: [$HOME/.read-dir, $HOME/.read-file]
-  write:  [$HOME/.write-dir, $HOME/.write-file]
+  read: [$HOME/.read-dir, $HOME/.read-file, $HOME/.local/share/target]
+  write: [$HOME/.write-dir, $HOME/.write-file, $HOME/.local/share/target, $HOME/.local/share/dir1/dir2/target]
 apps:
  app:
   command: foo
@@ -82,9 +84,70 @@ func (s *personalFilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
 # This is restricted because it gives file access to arbitrary locations.
 owner "@{HOME}/.read-dir{,/,/**}" rk,
 owner "@{HOME}/.read-file{,/,/**}" rk,
+owner "@{HOME}/.local/share/target{,/,/**}" rk,
 owner "@{HOME}/.write-dir{,/,/**}" rwkl,
 owner "@{HOME}/.write-file{,/,/**}" rwkl,
+owner "@{HOME}/.local/share/target{,/,/**}" rwkl,
+owner "@{HOME}/.local/share/dir1/dir2/target{,/,/**}" rwkl,
 `)
+}
+
+func (s *personalFilesInterfaceSuite) TestConnectedPlugMountHappy(c *C) {
+	mountSpec := &mount.Specification{}
+	err := mountSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(mountSpec.MountEntries(), HasLen, 0)
+	c.Assert(mountSpec.UserMountEntries(), HasLen, 2)
+
+	expectedUserMountEntries := []osutil.MountEntry{{
+		Dir:     "$HOME/.local/share",
+		Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=$HOME"},
+	},
+		{
+			Dir:     "$HOME/.local/share/dir1/dir2",
+			Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=$HOME"},
+		}}
+	c.Assert(mountSpec.UserMountEntries(), DeepEquals, expectedUserMountEntries)
+}
+
+func (s *personalFilesInterfaceSuite) TestConnectedPlugMountErrorNotString(c *C) {
+	const mockPlugSnapInfo = `name: other
+version: 1.0
+plugs:
+ personal-files:
+  read: [$HOME/.read-dir, $HOME/.read-file, $HOME/.local/share/target]
+  write: [123]
+apps:
+ app:
+  command: foo
+  plugs: [personal-files]
+`
+	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
+	plugInfo := plugSnap.Plugs["personal-files"]
+	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
+	mountSpec := &mount.Specification{}
+	err := mountSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	c.Assert(err, ErrorMatches, `cannot connect plug personal-files: 123 \(int64\) is not a string`)
+}
+
+func (s *personalFilesInterfaceSuite) TestConnectedPlugMountErrorNotStartWithHome(c *C) {
+	const mockPlugSnapInfo = `name: other
+version: 1.0
+plugs:
+ personal-files:
+  read: [$HOME/.read-dir, $HOME/.read-file, $HOME/.local/share/target]
+  write: [$NOTHOME/.local/share/target]
+apps:
+ app:
+  command: foo
+  plugs: [personal-files]
+`
+	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
+	plugInfo := plugSnap.Plugs["personal-files"]
+	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
+	mountSpec := &mount.Specification{}
+	err := mountSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	c.Assert(err, ErrorMatches, `cannot connect plug personal-files: "\$NOTHOME/.local/share/target" must start with "\$HOME/"`)
 }
 
 func (s *personalFilesInterfaceSuite) TestSanitizeSlot(c *C) {

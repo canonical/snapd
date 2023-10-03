@@ -21,7 +21,11 @@ package builtin
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
+
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/mount"
 )
 
 const personalFilesSummary = `allows access to personal files or directories`
@@ -75,4 +79,64 @@ func init() {
 			extraPathValidate: validateSinglePathHome,
 		},
 	})
+}
+
+// potentiallyMissingDirs returns an ensure directory specification that contains the information
+// required to create potentially missing directories for the given raw path. Potentially missing
+// directories are those that are implicitly required in order to enable the user to create
+// the target directory specified in a write attribute path.
+func potentiallyMissingDirs(rawPath interface{}) (*interfaces.EnsureDirSpec, error) {
+	path, ok := rawPath.(string)
+	if !ok {
+		// BeforePreparePlug should to prevent this
+		return nil, fmt.Errorf("%[1]v (%[1]T) is not a string", rawPath)
+	}
+
+	// All directories between $HOME and the leaf directory are potentially missing
+	path = filepath.Clean(path)
+	pathElements := strings.Split(path, string(filepath.Separator))
+	if pathElements[0] != "$HOME" {
+		// BeforePreparePlug should prevent this
+		return nil, fmt.Errorf(`%q must start with "$HOME/"`, path)
+	}
+	if len(pathElements) < 3 {
+		return nil, nil
+	}
+
+	ensureDirSpec := &interfaces.EnsureDirSpec{
+		// EnsureDir prefix directory that must exist
+		MustExistDir: pathElements[0],
+		// Directory to ensure by creating the missing directories within MustExistDir
+		EnsureDir: filepath.Join(pathElements[:len(pathElements)-1]...),
+	}
+	return ensureDirSpec, nil
+}
+
+func dirsToEnsure(rawPaths []interface{}) ([]*interfaces.EnsureDirSpec, error) {
+	var ensureDirSpecs []*interfaces.EnsureDirSpec
+	for _, rawPath := range rawPaths {
+		ensureDirSpec, err := potentiallyMissingDirs(rawPath)
+		if err != nil {
+			return nil, err
+		}
+		if ensureDirSpec != nil {
+			ensureDirSpecs = append(ensureDirSpecs, ensureDirSpec)
+		}
+	}
+	return ensureDirSpecs, nil
+}
+
+func (iface *personalFilesInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// Create missing directories for write paths only
+	var writes []interface{}
+	_ = plug.Attr("write", &writes)
+
+	ensureDirSpecs, err := dirsToEnsure(writes)
+	if err != nil {
+		return fmt.Errorf("cannot connect plug %s: %v", plug.Name(), err)
+	}
+	if len(ensureDirSpecs) > 0 {
+		spec.AddEnsureDirs(ensureDirSpecs)
+	}
+	return nil
 }

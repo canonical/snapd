@@ -57,6 +57,11 @@ func (s *entrySuite) TestString(c *C) {
 		Options: []string{"rw,noatime"},
 	}
 	c.Assert(ent3.String(), Equals, `/dev/sda5 /media/My\040Files ext4 rw,noatime 0 0`)
+	ent4 := osutil.MountEntry{
+		Dir:     "$HOME/.local/share",
+		Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=$HOME"},
+	}
+	c.Assert(ent4.String(), Equals, "none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOME 0 0")
 }
 
 func (s *entrySuite) TestEqual(c *C) {
@@ -174,6 +179,18 @@ func (s *entrySuite) TestParseMountEntry6(c *C) {
 	c.Assert(e.CheckPassNumber, Equals, 7)
 }
 
+// Test that the typical ensure-dir fstab entry is parsed correctly.
+func (s *entrySuite) TestParseMountEntryEnsureDir(c *C) {
+	e, err := osutil.ParseMountEntry("none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOME 0 0")
+	c.Assert(err, IsNil)
+	c.Assert(e.Name, Equals, "none")
+	c.Assert(e.Dir, Equals, "$HOME/.local/share")
+	c.Assert(e.Type, Equals, "none")
+	c.Assert(e.Options, DeepEquals, []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=$HOME"})
+	c.Assert(e.DumpFrequency, Equals, 0)
+	c.Assert(e.CheckPassNumber, Equals, 0)
+}
+
 // Test (string) options -> (int) flag conversion code.
 func (s *entrySuite) TestMountOptsToFlags(c *C) {
 	flags, err := osutil.MountOptsToFlags(nil)
@@ -243,6 +260,7 @@ func (s *entrySuite) TestOptionHelpers(c *C) {
 	c.Assert(osutil.XSnapdGroup(1000), Equals, "x-snapd.group=1000")
 	c.Assert(osutil.XSnapdMode(0755), Equals, "x-snapd.mode=0755")
 	c.Assert(osutil.XSnapdSymlink("oldname"), Equals, "x-snapd.symlink=oldname")
+	c.Assert(osutil.XSnapdMustExistDir("$HOME"), Equals, "x-snapd.must-exist-dir=$HOME")
 }
 
 func (s *entrySuite) TestXSnapdMode(c *C) {
@@ -412,6 +430,13 @@ func (s *entrySuite) TestXSnapdKind(c *C) {
 
 	// There's a helper function that returns this option string.
 	c.Assert(osutil.XSnapdKindSymlink(), Equals, "x-snapd.kind=symlink")
+
+	// A mount entry can request creation of missing directories within the mount directory.
+	e = &osutil.MountEntry{Options: []string{"x-snapd.kind=ensure-dir"}}
+	c.Assert(e.XSnapdKind(), Equals, "ensure-dir")
+
+	// There is a helper function that returns this option string.
+	c.Assert(osutil.XSnapdKindEnsureDir(), Equals, "x-snapd.kind=ensure-dir")
 }
 
 func (s *entrySuite) TestXSnapdSymlink(c *C) {
@@ -437,4 +462,14 @@ func (s *entrySuite) TestXSnapdIgnoreMissing(c *C) {
 
 	// There's a helper function that returns this option string.
 	c.Assert(osutil.XSnapdIgnoreMissing(), Equals, "x-snapd.ignore-missing")
+}
+
+func (s *entrySuite) TestXSnapdMustExistDir(c *C) {
+	// Entries without the x-snapd.must-exist-dir key return an empty string
+	e := &osutil.MountEntry{}
+	c.Assert(e.XSnapdMustExistDir(), Equals, "")
+
+	// A mount entry can list a symlink target
+	e = &osutil.MountEntry{Options: []string{osutil.XSnapdMustExistDir("$HOME")}}
+	c.Assert(e.XSnapdMustExistDir(), Equals, "$HOME")
 }
