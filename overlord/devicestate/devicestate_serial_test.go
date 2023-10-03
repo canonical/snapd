@@ -2514,7 +2514,8 @@ func (s *deviceMgrSerialSuite) TestDeviceManagerFullAccess(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
-	tasks := s.state.Tasks()
+	change := s.findBecomeOperationalChange()
+	tasks := change.Tasks()
 	s.state.Unlock()
 
 	sort.Slice(tasks, func(l, r int) bool {
