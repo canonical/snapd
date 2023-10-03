@@ -1,0 +1,15 @@
+summary: Check that the implicitly-installed flag is properly set
+
+prepare: |
+  snap install --devmode jq
+  snap pack "$TESTSLIB/snaps/basic18"
+  snap install --dangerous basic18_1.0_all.snap
+
+execute: |
+  jq -r '.data.snaps.core18["implicitly-installed"]'  /var/lib/snapd/state.json | MATCH true
+  jq -r '.data.snaps.basic18["implicitly-installed"]' /var/lib/snapd/state.json | MATCH false
+
+cleanup: |
+  snap remove --purge jq
+  snap remove --purge basic18
+  snap remove --purge core18
