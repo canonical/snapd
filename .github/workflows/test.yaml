@@ -28,7 +28,8 @@ jobs:
       run: |
         # This step ensures that the snapcraft.yaml is fully compatible
         # with a build with "build-base: core18" which is the last supported
-        # build-base for i386.
+        # build-base for i386. Note that this step can be dropped once we
+        # stop updating snapd for i386 (once SD156 is approved).
         #
         # ensure an 18.04/i386 lxd environment
         sudo apt update
