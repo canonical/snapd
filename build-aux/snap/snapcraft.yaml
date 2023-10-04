@@ -79,7 +79,7 @@ parts:
       do
           dpkg -x $PACKAGE $SNAPCRAFT_PART_BUILD/
       done
-      find $SNAPCRAFT_PART_BUILD/{lib,usr}
+
       # Ensure that CGO links against the symbols from the xenial libc6
       # and not from the system libc6
       export CGO_LDFLAGS="-L${SNAPCRAFT_PART_BUILD}/usr/lib/$(dpkg-architecture -qDEB_TARGET_MULTIARCH) -L${SNAPCRAFT_PART_BUILD}/lib/$(dpkg-architecture -qDEB_TARGET_MULTIARCH)"
@@ -129,6 +129,7 @@ parts:
       for p in usr/bin/snap usr/lib/snapd/snapd; do
           # this is for debugging only
           objdump --dynamic-syms "$SNAPCRAFT_PART_INSTALL/$p"
+          # this ensures that the symbols are not too new
           if objdump --dynamic-syms "$SNAPCRAFT_PART_INSTALL/$p" |grep -E '(GLIBC_2.2[4-9]|GLIBC_2.[3-9][0-9])'; then
               echo "glibc symbols should only be up to version 2.23"
               exit 1
