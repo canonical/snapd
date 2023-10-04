@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	sb "github.com/snapcore/secboot"
@@ -79,16 +80,12 @@ while [ "$#" -gt 1 ]; do
       cat > %s
       shift
       ;;
-    --key-file)
-      cat "$2" > %s
-      shift 2
-      ;;
     *)
       shift
       ;;
   esac
 done
-`, filepath.Join(s.rootDir, "new.key"), filepath.Join(s.rootDir, "unlock.key")))
+`, filepath.Join(s.rootDir, "cryptsetup.input")))
 	return cmd
 }
 
@@ -96,12 +93,11 @@ func (s *keymgrSuite) verifyCryptsetupAddKey(c *C, cmd *testutil.MockCmd, unlock
 	c.Assert(cmd, NotNil)
 	calls := cmd.Calls()
 	c.Assert(calls, HasLen, 2)
-	c.Assert(calls[0], HasLen, 16)
-	c.Assert(calls[0][5], testutil.Contains, s.rootDir)
-	calls[0][5] = "<fifo>"
+	c.Assert(calls[0], HasLen, 19)
 	c.Assert(calls[0], DeepEquals, []string{
 		"cryptsetup", "luksAddKey", "--type", "luks2",
-		"--key-file", "<fifo>",
+		"--key-file", "-", "--keyfile-size", strconv.Itoa(len(unlockKey)),
+		"--batch-mode",
 		"--pbkdf", "argon2i",
 		"--pbkdf-force-iterations", "4",
 		"--pbkdf-memory", "202834",
@@ -111,8 +107,8 @@ func (s *keymgrSuite) verifyCryptsetupAddKey(c *C, cmd *testutil.MockCmd, unlock
 	c.Assert(calls[1], DeepEquals, []string{
 		"cryptsetup", "config", "--priority", "prefer", "--key-slot", "0", "/dev/foobar",
 	})
-	c.Check(filepath.Join(s.rootDir, "unlock.key"), testutil.FileEquals, unlockKey)
-	c.Check(filepath.Join(s.rootDir, "new.key"), testutil.FileEquals, newKey)
+	inputToCryptsetup := append(unlockKey, newKey...)
+	c.Check(filepath.Join(s.rootDir, "cryptsetup.input"), testutil.FileEquals, inputToCryptsetup)
 }
 
 func (s *keymgrSuite) TestAddRecoveryKeyToDeviceUnlockFromKeyring(c *C) {
@@ -160,17 +156,6 @@ func (s *keymgrSuite) TestAddRecoveryKeyToDeviceCryptsetupFail(c *C) {
 	defer restore()
 
 	cmd := testutil.MockCommand(c, "cryptsetup", `
-while [ "$#" -gt 1 ]; do
-  case "$1" in
-    --key-file)
-      cat "$2" > /dev/null
-      shift 2
-      ;;
-    *)
-      shift 1
-      ;;
-  esac
-done
 echo "Other error, cryptsetup boom"
 exit 1
 `)
@@ -194,17 +179,6 @@ func (s *keymgrSuite) TestAddRecoveryKeyToDeviceOccupiedSlot(c *C) {
 	defer restore()
 
 	cmd := testutil.MockCommand(c, "cryptsetup", `
-while [ "$#" -gt 1 ]; do
-  case "$1" in
-    --key-file)
-      cat "$2" > /dev/null
-      shift 2
-      ;;
-    *)
-      shift 1
-      ;;
-  esac
-done
 echo "Key slot 1 is full, please select another one." >&2
 exit 1
 `)
@@ -214,7 +188,7 @@ exit 1
 	c.Assert(getCalls, Equals, 1)
 	calls := cmd.Calls()
 	c.Assert(calls, HasLen, 1)
-	c.Assert(calls[0], HasLen, 16)
+	c.Assert(calls[0], HasLen, 19)
 	c.Assert(calls[0][:2], DeepEquals, []string{"cryptsetup", "luksAddKey"})
 	// should match the keyslot full error too
 	c.Assert(keymgr.IsKeyslotAlreadyUsed(err), Equals, true)
@@ -366,13 +340,12 @@ done
 	c.Assert(calls[0], DeepEquals, []string{
 		"cryptsetup", "luksKillSlot", "--type", "luks2", "--key-file", "-", "/dev/foobar", "2",
 	})
-	c.Assert(calls[1], HasLen, 14)
-	c.Assert(calls[1][5], testutil.Contains, dirs.RunDir)
-	calls[1][5] = "<fifo>"
+	c.Assert(calls[1], HasLen, 17)
 	// temporary key
 	c.Assert(calls[1], DeepEquals, []string{
 		"cryptsetup", "luksAddKey", "--type", "luks2",
-		"--key-file", "<fifo>",
+		"--key-file", "-", "--keyfile-size", strconv.Itoa(len(unlockKey)),
+		"--batch-mode",
 		"--pbkdf", "argon2i",
 		"--iter-time", "100",
 		"--key-slot", "2",
@@ -418,13 +391,12 @@ fi
 	c.Assert(calls[0], DeepEquals, []string{
 		"cryptsetup", "luksKillSlot", "--type", "luks2", "--key-file", "-", "/dev/foobar", "2",
 	})
-	c.Assert(calls[1], HasLen, 14)
-	c.Assert(calls[1][5], testutil.Contains, dirs.RunDir)
-	calls[1][5] = "<fifo>"
+	c.Assert(calls[1], HasLen, 17)
 	// temporary key
 	c.Assert(calls[1], DeepEquals, []string{
 		"cryptsetup", "luksAddKey", "--type", "luks2",
-		"--key-file", "<fifo>",
+		"--key-file", "-", "--keyfile-size", strconv.Itoa(len(unlockKey)),
+		"--batch-mode",
 		"--pbkdf", "argon2i",
 		"--iter-time", "100",
 		"--key-slot", "2",
@@ -459,10 +431,6 @@ func (s *keymgrSuite) TestChangeEncryptionTempKeyFails(c *C) {
 	cmd := testutil.MockCommand(c, "cryptsetup", `
 while [ "$#" -gt 1 ]; do
   case "$1" in
-    --key-file)
-      cat "$2" > /dev/null
-      shift
-      ;;
     luksAddKey)
       add=1
       ;;
@@ -490,7 +458,7 @@ done
 
 func (s *keymgrSuite) TestTransitionEncryptionKeyExpectedHappy(c *C) {
 	restore := keymgr.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
-		c.Errorf("unepected call")
+		c.Errorf("unexpected call")
 		return nil, fmt.Errorf("unexpected call")
 	})
 	defer restore()
@@ -532,13 +500,12 @@ fi
 	calls := cmd.Calls()
 	c.Assert(calls, HasLen, 5)
 	// probing the key slot use
-	c.Assert(calls[0], HasLen, 14)
-	c.Assert(calls[0][5], testutil.Contains, dirs.RunDir)
-	calls[0][5] = "<fifo>"
+	c.Assert(calls[0], HasLen, 17)
 	// temporary key
 	c.Assert(calls[0], DeepEquals, []string{
 		"cryptsetup", "luksAddKey", "--type", "luks2",
-		"--key-file", "<fifo>",
+		"--key-file", "-", "--keyfile-size", strconv.Itoa(len(key)),
+		"--batch-mode",
 		"--pbkdf", "argon2i",
 		"--iter-time", "100",
 		"--key-slot", "2",
@@ -549,12 +516,11 @@ fi
 		"cryptsetup", "luksKillSlot", "--type", "luks2", "--key-file", "-", "/dev/foobar", "0",
 	})
 	// adding the new encryption key
-	c.Assert(calls[2], HasLen, 14)
-	c.Assert(calls[2][5], testutil.Contains, dirs.RunDir)
-	calls[2][5] = "<fifo>"
+	c.Assert(calls[2], HasLen, 17)
 	c.Assert(calls[2], DeepEquals, []string{
 		"cryptsetup", "luksAddKey", "--type", "luks2",
-		"--key-file", "<fifo>",
+		"--key-file", "-", "--keyfile-size", strconv.Itoa(len(key)),
+		"--batch-mode",
 		"--pbkdf", "argon2i",
 		"--iter-time", "100",
 		"--key-slot", "0",
@@ -572,7 +538,7 @@ fi
 
 func (s *keymgrSuite) TestTransitionEncryptionKeyHappyKillSlotsInactive(c *C) {
 	restore := keymgr.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
-		c.Errorf("unepected call")
+		c.Errorf("unexpected call")
 		return nil, fmt.Errorf("unexpected call")
 	})
 	defer restore()
@@ -621,7 +587,7 @@ fi
 	calls := cmd.Calls()
 	c.Assert(calls, HasLen, 5)
 	// probing the key slot use
-	c.Assert(calls[0], HasLen, 14)
+	c.Assert(calls[0], HasLen, 17)
 	// temporary key
 	c.Assert(calls[0][:2], DeepEquals, []string{
 		"cryptsetup", "luksAddKey",
@@ -631,12 +597,11 @@ fi
 		"cryptsetup", "luksKillSlot", "--type", "luks2", "--key-file", "-", "/dev/foobar", "0",
 	})
 	// adding the new encryption key
-	c.Assert(calls[2], HasLen, 14)
-	c.Assert(calls[2][5], testutil.Contains, dirs.RunDir)
-	calls[2][5] = "<fifo>"
+	c.Assert(calls[2], HasLen, 17)
 	c.Assert(calls[2], DeepEquals, []string{
 		"cryptsetup", "luksAddKey", "--type", "luks2",
-		"--key-file", "<fifo>",
+		"--key-file", "-", "--keyfile-size", strconv.Itoa(len(key)),
+		"--batch-mode",
 		"--pbkdf", "argon2i",
 		"--iter-time", "100",
 		"--key-slot", "0",
@@ -654,7 +619,7 @@ fi
 
 func (s *keymgrSuite) TestTransitionEncryptionKeyHappyOtherErrs(c *C) {
 	restore := keymgr.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
-		c.Errorf("unepected call")
+		c.Errorf("unexpected call")
 		return nil, fmt.Errorf("unexpected call")
 	})
 	defer restore()
@@ -694,7 +659,7 @@ fi
 	calls := cmd.Calls()
 	c.Assert(calls, HasLen, 3)
 	// probing the key slot use
-	c.Assert(calls[0], HasLen, 14)
+	c.Assert(calls[0], HasLen, 17)
 	// temporary key
 	c.Assert(calls[0][:2], DeepEquals, []string{
 		"cryptsetup", "luksAddKey",
@@ -704,12 +669,11 @@ fi
 		"cryptsetup", "luksKillSlot", "--type", "luks2", "--key-file", "-", "/dev/foobar", "0",
 	})
 	// adding the new encryption key
-	c.Assert(calls[2], HasLen, 14)
-	c.Assert(calls[2][5], testutil.Contains, dirs.RunDir)
-	calls[2][5] = "<fifo>"
+	c.Assert(calls[2], HasLen, 17)
 	c.Assert(calls[2], DeepEquals, []string{
 		"cryptsetup", "luksAddKey", "--type", "luks2",
-		"--key-file", "<fifo>",
+		"--key-file", "-", "--keyfile-size", strconv.Itoa(len(key)),
+		"--batch-mode",
 		"--pbkdf", "argon2i",
 		"--iter-time", "100",
 		"--key-slot", "0",
@@ -722,7 +686,7 @@ func (s *keymgrSuite) TestTransitionEncryptionKeyCannotAddKeyNotStaged(c *C) {
 	// staged
 
 	restore := keymgr.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
-		c.Errorf("unepected call")
+		c.Errorf("unexpected call")
 		return nil, fmt.Errorf("unexpected call")
 	})
 	defer restore()
@@ -733,10 +697,6 @@ while [ "$#" -gt 1 ]; do
     luksAddKey)
       keyadd=1
       shift
-      ;;
-    --key-file)
-      cat "$2" > /dev/null
-      shift 2
       ;;
     *)
       shift 1
@@ -756,13 +716,12 @@ fi
 	calls := cmd.Calls()
 	c.Assert(calls, HasLen, 1)
 	// probing the key slot use
-	c.Assert(calls[0], HasLen, 14)
-	c.Assert(calls[0][5], testutil.Contains, dirs.RunDir)
-	calls[0][5] = "<fifo>"
+	c.Assert(calls[0], HasLen, 17)
 	// temporary key
 	c.Assert(calls[0], DeepEquals, []string{
 		"cryptsetup", "luksAddKey", "--type", "luks2",
-		"--key-file", "<fifo>",
+		"--key-file", "-", "--keyfile-size", strconv.Itoa(len(key)),
+		"--batch-mode",
 		"--pbkdf", "argon2i",
 		"--iter-time", "100",
 		"--key-slot", "2",
@@ -772,7 +731,7 @@ fi
 
 func (s *keymgrSuite) TestTransitionEncryptionKeyPostRebootHappy(c *C) {
 	restore := keymgr.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
-		c.Errorf("unepected call")
+		c.Errorf("unexpected call")
 		return nil, fmt.Errorf("unexpected call")
 	})
 	defer restore()
@@ -797,14 +756,13 @@ done
 	c.Assert(err, IsNil)
 	calls := cmd.Calls()
 	c.Assert(calls, HasLen, 2)
-	c.Assert(calls[0], HasLen, 14)
-	c.Assert(calls[0][5], testutil.Contains, dirs.RunDir)
-	calls[0][5] = "<fifo>"
+	c.Assert(calls[0], HasLen, 17)
 	// adding to a temporary key slot is successful, indicating a previously
 	// successful transition
 	c.Assert(calls[0], DeepEquals, []string{
 		"cryptsetup", "luksAddKey", "--type", "luks2",
-		"--key-file", "<fifo>",
+		"--key-file", "-", "--keyfile-size", strconv.Itoa(len(key)),
+		"--batch-mode",
 		"--pbkdf", "argon2i",
 		"--iter-time", "100",
 		"--key-slot", "2",
@@ -820,7 +778,7 @@ func (s *keymgrSuite) TestTransitionEncryptionKeyPostRebootCannotKillSlot(c *C) 
 	// a post reboot scenario in which the luksKillSlot fails unexpectedly
 
 	restore := keymgr.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
-		c.Errorf("unepected call")
+		c.Errorf("unexpected call")
 		return nil, fmt.Errorf("unexpected call")
 	})
 	defer restore()
@@ -853,7 +811,7 @@ fi
 	c.Assert(err, ErrorMatches, "cannot kill temporary key slot: cryptsetup failed with: mock error")
 	calls := cmd.Calls()
 	c.Assert(calls, HasLen, 2)
-	c.Assert(calls[0], HasLen, 14)
+	c.Assert(calls[0], HasLen, 17)
 	c.Assert(calls[0][:2], DeepEquals, []string{
 		"cryptsetup", "luksAddKey",
 	})
