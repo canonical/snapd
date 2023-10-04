@@ -1177,8 +1177,6 @@ func (s *infoSuite) testDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.CommonDataSaveDir(), Equals, "/var/lib/snapd/save/snap/name")
 	c.Check(info.UserXdgRuntimeDir(12345), Equals, "/run/user/12345/snap.name")
 	// XXX: Those are actually a globs, not directories
-	c.Check(info.DataHomeDirs(nil)[0], Equals, "/home/*/snap/name/1")
-	c.Check(info.CommonDataHomeDirs(nil)[0], Equals, "/home/*/snap/name/common")
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name")
 }
 
@@ -1206,9 +1204,24 @@ func (s *infoSuite) testInstanceDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.CommonDataSaveDir(), Equals, "/var/lib/snapd/save/snap/name_instance")
 	c.Check(info.UserXdgRuntimeDir(12345), Equals, "/run/user/12345/snap.name_instance")
 	// XXX: Those are actually a globs, not directories
-	c.Check(info.DataHomeDirs(nil)[0], Equals, "/home/*/snap/name_instance/1")
-	c.Check(info.CommonDataHomeDirs(nil)[0], Equals, "/home/*/snap/name_instance/common")
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name_instance")
+}
+
+func (s *infoSuite) TestDirMultipleHomeDirs(c *C) {
+	dirs.SetRootDir("")
+	dirs.SetSnapHomeDirs("/home,/home/group1,/home/group2,/home/group3")
+	info := &snap.Info{SuggestedName: "name"}
+	info.SideInfo = snap.SideInfo{Revision: snap.R(1)}
+	s.testDataHomeDirsSlice(c, info)
+}
+
+func (s *infoSuite) testDataHomeDirsSlice(c *C, info snap.PlaceInfo) {
+	homedirs := []string{"/home/*/snap/name/1", "/home/group1/*/snap/name/1", "/home/group2/*/snap/name/1", "/home/group3/*/snap/name/1"}
+	commonHomedirs := []string{"/home/*/snap/name/common", "/home/group1/*/snap/name/common", "/home/group2/*/snap/name/common", "/home/group3/*/snap/name/common"}
+	for i := range homedirs {
+		c.Check(info.DataHomeDirs(nil)[i], Equals, homedirs[i])
+		c.Check(info.CommonDataHomeDirs(nil)[i], Equals, commonHomedirs[i])
+	}
 }
 
 func BenchmarkTestParsePlaceInfoFromSnapFileName(b *testing.B) {
