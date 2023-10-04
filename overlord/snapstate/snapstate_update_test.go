@@ -11354,20 +11354,7 @@ func (s *snapmgrTestSuite) TestUpdateSetsRestartBoundaries(c *C) {
 	c.Check(linkSnap2.Get("restart-boundary", &boundary), ErrorMatches, `no state entry for key "restart-boundary"`)
 }
 
-type customStore struct {
-	*fakeStore
-
-	customSnapAction func(context.Context, []*store.CurrentSnap, []*store.SnapAction, store.AssertionQuery, *auth.UserState, *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error)
-}
-
-func (s customStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
-	return s.customSnapAction(ctx, currentSnaps, actions, assertQuery, user, opts)
-}
-
-func (s *snapmgrTestSuite) TestUpdateManyRevOptsOrder(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
+func (s *snapmgrTestSuite) testUpdateManyRevOptsOrder(c *C, isThrottled map[string]bool) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
@@ -11397,15 +11384,17 @@ func (s *snapmgrTestSuite) TestUpdateManyRevOptsOrder(c *C) {
 	sto := customStore{fakeStore: s.fakeStore}
 	sto.customSnapAction = func(ctx context.Context, cs []*store.CurrentSnap, sa []*store.SnapAction, aq store.AssertionQuery, us *auth.UserState, ro *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
 		if len(sa) == 0 {
-			requestSnapToAction = nil
 			return nil, nil, nil
 		}
 
 		var actionResult []store.SnapActionResult
-		requestSnapToAction = make(map[string]*store.SnapAction, len(sa))
 		for _, action := range sa {
 			requestSnapToAction[action.InstanceName] = action
 
+			// throttle refresh requests if this is an auto-refresh
+			if isThrottled[action.SnapID] && ro.Scheduled {
+				continue
+			}
 			info, err := s.fakeStore.lookupRefresh(refreshCand{snapID: action.SnapID})
 			c.Assert(err, IsNil)
 			actionResult = append(actionResult, store.SnapActionResult{Info: info})
@@ -11437,14 +11426,15 @@ func (s *snapmgrTestSuite) TestUpdateManyRevOptsOrder(c *C) {
 	}
 
 	testOrder := func(names []string) {
-		requestSnapToAction = nil
+		requestSnapToAction = make(map[string]*store.SnapAction, 3)
 		revOpts := getRevOpts(names)
-		_, _, err := snapstate.UpdateMany(context.Background(), s.state, names, revOpts, 0, nil)
+		flags := snapstate.Flags{IsAutoRefresh: isThrottled != nil}
+		_, _, err := snapstate.UpdateMany(context.Background(), s.state, names, revOpts, 0, &flags)
 		c.Assert(err, IsNil)
 		c.Check(requestSnapToAction, NotNil)
-		for _, name := range names {
-			c.Check(requestSnapToAction[name].Revision, Equals, nameToRevOpts[name].Revision, Commentf("snap %q sent revision is incorrect", name))
-			c.Check(requestSnapToAction[name].ValidationSets, DeepEquals, nameToRevOpts[name].ValidationSets, Commentf("snap %q sent validation sets are incorrect", name))
+		for name, action := range requestSnapToAction {
+			c.Check(action.Revision, Equals, nameToRevOpts[name].Revision, Commentf("snap %q sent revision is incorrect", name))
+			c.Check(action.ValidationSets, DeepEquals, nameToRevOpts[name].ValidationSets, Commentf("snap %q sent validation sets are incorrect", name))
 		}
 	}
 
@@ -11513,4 +11503,31 @@ func (s *snapmgrTestSuite) TestSnapdRefreshForRemodel(c *C) {
 	_, err = snapstate.UpdateWithDeviceContext(s.state, "snapd", opts, s.user.ID, snapstate.Flags{}, nil, nil, "")
 	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
 	c.Check(err, ErrorMatches, "remodeling in progress, no other changes allowed until this is done")
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyRevOptsOrder(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.testUpdateManyRevOptsOrder(c, nil)
+}
+
+func (s *snapmgrTestSuite) TestRefreshCandidatesThrottledRevOptsRemap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// simulate existing monitored refresh hint from older refresh
+	cands := map[string]*snapstate.RefreshCandidate{
+		"some-other-snap": {Monitored: true},
+		"snap-c":          {Monitored: true},
+	}
+	s.state.Set("refresh-candidates", &cands)
+
+	// simulate store throttling some snaps' during auto-refresh
+	isThrottled := map[string]bool{
+		"some-other-snap-id": true,
+		"snap-c-id":          true,
+	}
+
+	s.testUpdateManyRevOptsOrder(c, isThrottled)
 }
