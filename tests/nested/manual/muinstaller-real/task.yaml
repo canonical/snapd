@@ -240,8 +240,12 @@ execute: |
       remote.exec "sudo blkid /dev/disk/by-label/ubuntu-data-enc" | MATCH crypto_LUKS
 
       echo "Ensure recovery keys are available on classic FDE too"
-      remote.exec "sudo snap recovery --show-keys" > show-keys.out
-      MATCH 'recovery:\s+[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}' < show-keys.out
+      # We check for the key twice (see LP#2036631)
+      #shellcheck disable=SC2034
+      for i in 1 2; do
+          remote.exec "sudo snap recovery --show-keys" > show-keys.out
+          MATCH 'recovery:\s+[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}-[0-9]{5}' < show-keys.out
+      done
 
       # check disk mappings
       remote.exec "sudo snap install jq"
