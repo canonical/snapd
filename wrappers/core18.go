@@ -635,6 +635,9 @@ func undoSnapdDbusConfigOnCore() error {
 	return err
 }
 
+// Service files that have been written by snapd.
+// Only ever append this list, if a file is no longer installed it needs to
+// remain here so a newer version of snapd can remove it.
 var dbusSessionServices = []string{
 	"io.snapcraft.Launcher.service",
 	"io.snapcraft.Prompt.service",
