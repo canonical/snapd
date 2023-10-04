@@ -2,7 +2,6 @@ package main_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -29,7 +28,7 @@ func makeSnapDirForPack(c *check.C, snapYaml string) string {
 	metaDir := filepath.Join(tempdir, "meta")
 	err := os.Mkdir(metaDir, 0755)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(snapYaml), 0644)
+	err = os.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(snapYaml), 0644)
 	c.Assert(err, check.IsNil)
 
 	return tempdir
@@ -108,7 +107,7 @@ printf "hello world"
 	binDir := filepath.Join(snapDir, "bin")
 	err := os.Mkdir(binDir, 0755)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(filepath.Join(binDir, "hello"), []byte(helloBinContent), 0755)
+	err = os.WriteFile(filepath.Join(binDir, "hello"), []byte(helloBinContent), 0755)
 	c.Assert(err, check.IsNil)
 
 	_, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", snapDir, snapDir})

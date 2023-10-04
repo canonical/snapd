@@ -142,6 +142,10 @@ const fwupdPermanentSlotAppArmor = `
   # os-release from host is needed for UEFI
   /var/lib/snapd/hostfs/{etc,usr/lib}/os-release r,
 
+  # Allow access to drm devices for linux-display plugin
+  /sys/devices/**/drm r,
+  /sys/devices/**/drm/** r,
+
   # DBus accesses
   #include <abstractions/dbus-strict>
   dbus (send)

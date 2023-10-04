@@ -23,7 +23,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -366,7 +365,7 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 	}
 	new := s.brands.Model("canonical", "pc-model", headers)
 
-	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
+	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true, DeviceModel: new, OldDeviceModel: current}
 
 	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, nil, nil, testDeviceCtx, "99")
 	c.Assert(err, IsNil)
@@ -549,7 +548,7 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatNewTrack map[st
 	new.KernelSnap().SnapID = "pckernelidididididididididididid"
 	new.GadgetSnap().SnapID = "pcididididididididididididididid"
 
-	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
+	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true, DeviceModel: new, OldDeviceModel: current}
 
 	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, localSnaps, paths, testDeviceCtx, "99")
 	if expectedErr == "" {
@@ -1390,14 +1389,14 @@ volumes:
 	c.Check(err, ErrorMatches, "cannot read new gadget metadata: .*/new-gadget/1/meta/gadget.yaml: no such file or directory")
 
 	// drop gadget.yaml to the new gadget
-	err = ioutil.WriteFile(filepath.Join(info.MountDir(), "meta/gadget.yaml"), []byte(mockGadget), 0644)
+	err = os.WriteFile(filepath.Join(info.MountDir(), "meta/gadget.yaml"), []byte(mockGadget), 0644)
 	c.Assert(err, IsNil)
 
 	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, remodelCtx)
 	c.Check(err, ErrorMatches, "cannot read current gadget metadata: .*/gadget/123/meta/gadget.yaml: no such file or directory")
 
 	// drop gadget.yaml to the current gadget
-	err = ioutil.WriteFile(filepath.Join(currInfo.MountDir(), "meta/gadget.yaml"), []byte(mockGadget), 0644)
+	err = os.WriteFile(filepath.Join(currInfo.MountDir(), "meta/gadget.yaml"), []byte(mockGadget), 0644)
 	c.Assert(err, IsNil)
 
 	err = devicestate.CheckGadgetRemodelCompatible(s.state, info, currInfo, snapf, snapstate.Flags{}, remodelCtx)
@@ -1747,6 +1746,10 @@ volumes:
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// simulate restart
+	s.mockRestartAndSettle(c, s.state, chg)
+
 	c.Check(chg.IsReady(), Equals, true)
 	c.Check(chg.Err(), IsNil)
 	c.Check(gadgetUpdateCalled, Equals, true)
@@ -1886,7 +1889,7 @@ func (s *deviceMgrSuite) TestRemodelSwitchBase(c *C) {
 		"revision":     "1",
 	})
 
-	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
+	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true, DeviceModel: new, OldDeviceModel: current}
 
 	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, nil, nil, testDeviceCtx, "99")
 	c.Assert(err, IsNil)
@@ -2020,6 +2023,11 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 				"name":     "new-required-snap-2",
 				"id":       snaptest.AssertedSnapID("new-required-snap-2"),
 				"presence": "required",
+			},
+			map[string]interface{}{
+				"name":     "new-optional-snap-1",
+				"id":       snaptest.AssertedSnapID("new-optional-snap-1"),
+				"presence": "optional",
 			},
 		},
 	})
@@ -4110,7 +4118,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 	s.state.Set("tried-systems", []string{expectedLabel})
 
 	resealKeyCalls := 0
-	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, expectReseal bool) error {
+	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, expectReseal bool, u boot.Unlocker) error {
 		resealKeyCalls++
 		c.Assert(len(tc.resealErr) >= resealKeyCalls, Equals, true)
 		c.Check(modeenv.GoodRecoverySystems, DeepEquals, []string{"0000", expectedLabel})
@@ -4417,7 +4425,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 	s.state.Set("tried-systems", []string{expectedLabel})
 
 	resealKeyCalls := 0
-	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, expectReseal bool) error {
+	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, expectReseal bool, u boot.Unlocker) error {
 		resealKeyCalls++
 		c.Check(modeenv.GoodRecoverySystems, DeepEquals, []string{"0000", expectedLabel})
 		c.Check(modeenv.CurrentRecoverySystems, DeepEquals, []string{"0000", expectedLabel})
@@ -4682,7 +4690,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 	s.state.Set("tried-systems", []string{expectedLabel})
 
 	resealKeyCalls := 0
-	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, expectReseal bool) error {
+	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, expectReseal bool, u boot.Unlocker) error {
 		resealKeyCalls++
 		// calls:
 		// 1 - promote recovery system
@@ -4722,6 +4730,8 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 				testutil.FileContains, fmt.Sprintf("model: %s\n", new.Model()))
 			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"),
 				testutil.FileContains, fmt.Sprintf("revision: %v\n", new.Revision()))
+			// check unlocker
+			u()()
 		case 6:
 			c.Check(modeenv.Model, Equals, new.Model())
 			c.Check(modeenv.TryModel, Equals, "")
@@ -4729,6 +4739,8 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 				testutil.FileContains, fmt.Sprintf("model: %s\n", new.Model()))
 			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"),
 				testutil.FileContains, fmt.Sprintf("revision: %v\n", new.Revision()))
+			// check unlocker
+			u()()
 		}
 		if resealKeyCalls > 6 {
 			c.Fatalf("unexpected #%v call to reseal key to modeenv", resealKeyCalls)

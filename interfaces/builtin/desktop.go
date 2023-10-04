@@ -34,11 +34,26 @@ import (
 
 const desktopSummary = `allows access to basic graphical desktop resources`
 
+// The weird allow-installation/deny-installation construct is
+// intended to prevent app snaps from the store that provide this slot
+// from installing without an override, while allowing an unpublished
+// snap to still be installed.
+//
+// The deny-connection and deny-auto-connection rules should ideally
+// use a slot-snap-type constraint when that is supported.
 const desktopBaseDeclarationSlots = `
   desktop:
     allow-installation:
       slot-snap-type:
+        - app
         - core
+    deny-installation:
+      slot-snap-type:
+        - app
+    deny-connection:
+      on-classic: false
+    deny-auto-connection:
+      on-classic: false
 `
 
 const desktopConnectedPlugAppArmor = `
@@ -63,6 +78,57 @@ owner @{HOME}/.local/share/fonts/{,**} r,
 # some applications are known to mmap fonts
 /usr/{,local/}share/fonts/** m,
 
+# Allow access to xdg-document-portal file system.  Access control is
+# handled by bind mounting a snap-specific sub-tree to this location
+# (ie, this is /run/user/<uid>/doc/by-app/snap.@{SNAP_INSTANCE_NAME}
+# on the host).
+owner /run/user/[0-9]*/doc/{,*/} r,
+# Allow rw access without owner match to the documents themselves since
+# the user guided the access and can specify anything DAC allows.
+/run/user/[0-9]*/doc/*/** rw,
+
+# Allow access to xdg-desktop-portal and xdg-document-portal
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.portal.*
+    path=/org/freedesktop/portal/{desktop,documents}{,/**}
+    peer=(label=unconfined),
+
+dbus (receive, send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/freedesktop/portal/{desktop,documents}{,/**}
+    peer=(label=unconfined),
+
+# The portals service is normally running and newer versions of
+# xdg-desktop-portal include AssumedAppArmor=unconfined. Since older
+# systems don't have this and because gtkfilechoosernativeportal.c relies on
+# service activation, allow sends to peer=(name=org.freedesktop.portal.{Desktop,Documents})
+# for service activation.
+dbus (send)
+    bus=session
+    interface=org.freedesktop.portal.*
+    path=/org/freedesktop/portal/desktop{,/**}
+    peer=(name=org.freedesktop.portal.Desktop),
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/freedesktop/portal/desktop{,/**}
+    peer=(name=org.freedesktop.portal.Desktop),
+dbus (send)
+    bus=session
+    interface=org.freedesktop.portal.*
+    path=/org/freedesktop/portal/documents{,/**}
+    peer=(name=org.freedesktop.portal.Documents),
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/freedesktop/portal/documents{,/**}
+    peer=(name=org.freedesktop.portal.Documents),
+
+`
+
+const desktopConnectedPlugAppArmorClassic = `
 # subset of gnome abstraction
 /etc/gtk-3.0/settings.ini r,
 owner @{HOME}/.config/gtk-3.0/settings.ini r,
@@ -237,54 +303,6 @@ dbus (send)
     member={Check,CheckSub,Get,GetSub,Set,SetSub}
     peer=(label=unconfined),
 
-# Allow access to xdg-document-portal file system.  Access control is
-# handled by bind mounting a snap-specific sub-tree to this location
-# (ie, this is /run/user/<uid>/doc/by-app/snap.@{SNAP_INSTANCE_NAME}
-# on the host).
-owner /run/user/[0-9]*/doc/{,*/} r,
-# Allow rw access without owner match to the documents themselves since
-# the user guided the access and can specify anything DAC allows.
-/run/user/[0-9]*/doc/*/** rw,
-
-# Allow access to xdg-desktop-portal and xdg-document-portal
-dbus (receive, send)
-    bus=session
-    interface=org.freedesktop.portal.*
-    path=/org/freedesktop/portal/{desktop,documents}{,/**}
-    peer=(label=unconfined),
-
-dbus (receive, send)
-    bus=session
-    interface=org.freedesktop.DBus.Properties
-    path=/org/freedesktop/portal/{desktop,documents}{,/**}
-    peer=(label=unconfined),
-
-# The portals service is normally running and newer versions of
-# xdg-desktop-portal include AssumedAppArmor=unconfined. Since older
-# systems don't have this and because gtkfilechoosernativeportal.c relies on
-# service activation, allow sends to peer=(name=org.freedesktop.portal.{Desktop,Documents})
-# for service activation.
-dbus (send)
-    bus=session
-    interface=org.freedesktop.portal.*
-    path=/org/freedesktop/portal/desktop{,/**}
-    peer=(name=org.freedesktop.portal.Desktop),
-dbus (send)
-    bus=session
-    interface=org.freedesktop.DBus.Properties
-    path=/org/freedesktop/portal/desktop{,/**}
-    peer=(name=org.freedesktop.portal.Desktop),
-dbus (send)
-    bus=session
-    interface=org.freedesktop.portal.*
-    path=/org/freedesktop/portal/documents{,/**}
-    peer=(name=org.freedesktop.portal.Documents),
-dbus (send)
-    bus=session
-    interface=org.freedesktop.DBus.Properties
-    path=/org/freedesktop/portal/documents{,/**}
-    peer=(name=org.freedesktop.portal.Documents),
-
 # These accesses are noisy and applications can't do anything with the found
 # icon files, so explicitly deny to silence the denials
 deny /var/lib/snapd/desktop/icons/{,**/} r,
@@ -324,7 +342,7 @@ dbus (send, receive)
       peer=(label=unconfined),
 `
 
-var desktopPermanentSlotAppArmor = `
+const desktopPermanentSlotAppArmor = `
 # Description: Can provide various desktop services
 
 #include <abstractions/dbus-session-strict>
@@ -351,6 +369,30 @@ dbus (receive)
     interface=org.gtk.Notifications
     member="{AddNotification,RemoveNotification}"
     peer=(label=unconfined),
+
+# Allow unconfined xdg-desktop-portal to communicate with impl
+# services provided by the snap.
+dbus (receive, send)
+    bus=session
+    path=/org/freedesktop/portal/desktop{,/**}
+    interface=org.freedesktop.impl.portal.*
+    peer=(label=unconfined),
+dbus (receive, send)
+    bus=session
+    path=/org/freedesktop/portal/desktop{,/**}
+    interface=org.freedesktop.DBus.Properties
+    peer=(label=unconfined),
+
+# Allow access to various paths gnome-session and gnome-shell need.
+/etc/fonts{,/**} r,
+/etc/glvnd{,/**} r,
+/etc/gnome/defaults.list r,
+/etc/gtk-3.0{,/**} r,
+/etc/shells r,
+/etc/xdg/autostart{,/**} r,
+/etc/xdg/user-dirs.conf r,
+/etc/xdg/user-dirs.defaults r,
+/run/udev/tags/seat{,/**} r,
 `
 
 type desktopInterface struct {
@@ -389,6 +431,11 @@ func (iface *desktopInterface) fontconfigDirs(plug *interfaces.ConnectedPlug) ([
 
 func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(desktopConnectedPlugAppArmor)
+	if implicitSystemConnectedSlot(slot) {
+		// Extra rules that have not been ported to work with
+		// a desktop slot provided by a snap.
+		spec.AddSnippet(desktopConnectedPlugAppArmorClassic)
+	}
 
 	// Allow mounting document portal
 	emit := spec.AddUpdateNSf
@@ -396,12 +443,9 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	emit("  mount options=(bind) /run/user/[0-9]*/doc/by-app/snap.%s/ -> /run/user/[0-9]*/doc/,\n", plug.Snap().InstanceName())
 	emit("  umount /run/user/[0-9]*/doc/,\n\n")
 
-	if !release.OnClassic {
-		// We only need the font mount rules on classic systems
-		return nil
-	}
-
-	// Allow mounting fonts
+	// Allow mounting fonts. For the app-provided slot case, we
+	// assume that the slot snap is using the boot base snap as
+	// its base, and that base contains fonts.
 	fontDirs, err := iface.fontconfigDirs(plug)
 	if err != nil {
 		return err
@@ -425,11 +469,6 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 		Dir:     "$XDG_RUNTIME_DIR/doc",
 		Options: []string{"bind", "rw", osutil.XSnapdIgnoreMissing()},
 	})
-
-	if !release.OnClassic {
-		// We only need the font mount rules on classic systems
-		return nil
-	}
 
 	fontDirs, err := iface.fontconfigDirs(plug)
 	if err != nil {
@@ -463,6 +502,13 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 		})
 	}
 
+	return nil
+}
+
+func (iface *desktopInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+	if !implicitSystemPermanentSlot(slot) {
+		spec.AddSnippet(desktopPermanentSlotAppArmor)
+	}
 	return nil
 }
 

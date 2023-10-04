@@ -98,7 +98,7 @@ func (snapshotSuite) TestNewSnapshotSetID(c *check.C) {
 	c.Assert(st.Get("last-snapshot-set-id", &stateSetID), check.IsNil)
 	c.Check(stateSetID, check.Equals, uint64(1))
 
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, "9_some-snap-1.zip"), []byte{}, 0644), check.IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapshotsDir, "9_some-snap-1.zip"), []byte{}, 0644), check.IsNil)
 
 	// Disk last set id 9 > state set id 1, use 9++ = 10
 	sid, err = snapshotstate.NewSnapshotSetID(st)
@@ -116,7 +116,7 @@ func (snapshotSuite) TestNewSnapshotSetID(c *check.C) {
 	c.Assert(st.Get("last-snapshot-set-id", &stateSetID), check.IsNil)
 	c.Check(stateSetID, check.Equals, uint64(11))
 
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapshotsDir, "88_some-snap-1.zip"), []byte{}, 0644), check.IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapshotsDir, "88_some-snap-1.zip"), []byte{}, 0644), check.IsNil)
 
 	// Disk last set id 88 > state set id 11, use 88++ = 89
 	sid, err = snapshotstate.NewSnapshotSetID(st)

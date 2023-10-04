@@ -28,7 +28,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -83,14 +82,14 @@ func plugAppLabelExpr(plug *interfaces.ConnectedPlug) string {
 	return labelExpr(plug.Apps(), plug.Hooks(), plug.Snap())
 }
 
-// Determine if the permanent slot side is provided by the system. On classic
-// systems some implicit slots can be provided by the system or by an
-// application snap (eg avahi can be installed as deb or snap).
+// Determine if the permanent slot side is provided by the
+// system. Some implicit slots can be provided by the system or by an
+// application snap (eg avahi can be installed as deb or snap, upower
+// can be part of the base snap or its own snap).
 // - slot owned by the system (core/snapd snap) usually requires no action
 // - slot owned by an application snap typically requires rules updates
 func implicitSystemPermanentSlot(slot *snap.SlotInfo) bool {
-	if release.OnClassic &&
-		(slot.Snap.Type() == snap.TypeOS || slot.Snap.Type() == snap.TypeSnapd) {
+	if slot.Snap.Type() == snap.TypeOS || slot.Snap.Type() == snap.TypeSnapd {
 		return true
 	}
 	return false
@@ -100,8 +99,7 @@ func implicitSystemPermanentSlot(slot *snap.SlotInfo) bool {
 // isPermanentSlotSystemSlot(), the slot can be owned by the system or an
 // application.
 func implicitSystemConnectedSlot(slot *interfaces.ConnectedSlot) bool {
-	if release.OnClassic &&
-		(slot.Snap().Type() == snap.TypeOS || slot.Snap().Type() == snap.TypeSnapd) {
+	if slot.Snap().Type() == snap.TypeOS || slot.Snap().Type() == snap.TypeSnapd {
 		return true
 	}
 	return false

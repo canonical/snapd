@@ -21,7 +21,6 @@ package gadgettest
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -67,7 +66,7 @@ func WriteGadgetYaml(newDir, gadgetYaml string) (string, error) {
 		return "", err
 	}
 
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetYaml), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetYaml), 0644); err != nil {
 		return "", err
 	}
 
@@ -155,19 +154,19 @@ func MakeMockGadget(gadgetRoot, gadgetContent string) error {
 	if err := os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetContent), 0644); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "pc-boot.img"), []byte("pc-boot.img content"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(gadgetRoot, "pc-boot.img"), []byte("pc-boot.img content"), 0644); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "pc-core.img"), []byte("pc-core.img content"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(gadgetRoot, "pc-core.img"), []byte("pc-core.img content"), 0644); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "grubx64.efi"), []byte("grubx64.efi content"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(gadgetRoot, "grubx64.efi"), []byte("grubx64.efi content"), 0644); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "shim.efi.signed"), []byte("shim.efi.signed content"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(gadgetRoot, "shim.efi.signed"), []byte("shim.efi.signed content"), 0644); err != nil {
 		return err
 	}
 

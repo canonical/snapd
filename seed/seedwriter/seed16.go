@@ -21,7 +21,6 @@ package seedwriter
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -235,7 +234,7 @@ func (tr *tree16) writeAssertions(db asserts.RODatabase, modelRefs []*asserts.Re
 			if err != nil {
 				return fmt.Errorf("internal error: lost saved assertion")
 			}
-			if err = ioutil.WriteFile(filepath.Join(seedAssertsDir, afn), asserts.Encode(a), 0644); err != nil {
+			if err = os.WriteFile(filepath.Join(seedAssertsDir, afn), asserts.Encode(a), 0644); err != nil {
 				return err
 			}
 		}

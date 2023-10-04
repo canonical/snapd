@@ -20,7 +20,6 @@
 package configcore_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -150,7 +149,7 @@ func (s *journalSuite) TestDisablePersistentJournalNotManagedBySnapdError(c *C) 
 
 func (s *journalSuite) TestDisablePersistentJournalOnCore(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/log/journal/.snapd-created"), nil, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/log/journal/.snapd-created"), nil, 0755), IsNil)
 
 	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,

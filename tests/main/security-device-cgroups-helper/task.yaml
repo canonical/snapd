@@ -96,6 +96,9 @@ execute: |
     # or changed
     "$libexecdir"/snapd/snap-device-helper change snap_test-strict-cgroup-helper_sh "$DEVICES_PATH_MEM_KMSG" 1:11
     tests.device-cgroup test-strict-cgroup-helper.sh dump | MATCH 'c 1:11 rwm'
+    # or bound to driver
+    "$libexecdir"/snapd/snap-device-helper bind snap_test-strict-cgroup-helper_sh "$DEVICES_PATH_MEM_KMSG" 1:11
+    tests.device-cgroup test-strict-cgroup-helper.sh dump | MATCH 'c 1:11 rwm'
     # and it should be possible to read a line now
     touch /var/snap/test-strict-cgroup-helper/common/ready
     # wait for the snap application we started in the background earlier to
@@ -103,6 +106,10 @@ execute: |
     wait
     NOMATCH 'Operation not permitted' < run.log
     test -n "$(cat run.log)"
+
+    # unbind does not remove the device
+    "$libexecdir"/snapd/snap-device-helper unbind snap_test-strict-cgroup-helper_sh "$DEVICES_PATH_MEM_KMSG" 1:11
+    tests.device-cgroup test-strict-cgroup-helper.sh dump | MATCH 'c 1:11 rwm'
 
     # remove action removes the device from the cgroup
     "$libexecdir"/snapd/snap-device-helper remove snap_test-strict-cgroup-helper_sh "$DEVICES_PATH_MEM_KMSG" 1:11

@@ -21,7 +21,6 @@ package main_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -676,7 +675,7 @@ func (s *SnapSuite) TestFindSnapCachedSection(c *check.C) {
 	})
 
 	os.MkdirAll(path.Dir(dirs.SnapSectionsFile), 0755)
-	ioutil.WriteFile(dirs.SnapSectionsFile, []byte("sec1\nsec2\nsec3"), 0644)
+	os.WriteFile(dirs.SnapSectionsFile, []byte("sec1\nsec2\nsec3"), 0644)
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"find", "--section=foobar", "hello"})
 	c.Logf("stdout: %s", s.Stdout())

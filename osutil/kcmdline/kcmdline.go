@@ -358,6 +358,7 @@ func KernelCommandLine() (string, error) {
 
 type valuePattern interface {
 	Match(value string) bool
+	String() string
 }
 
 type valuePatternAny struct{}
@@ -366,12 +367,20 @@ func (any valuePatternAny) Match(value string) bool {
 	return true
 }
 
+func (any valuePatternAny) String() string {
+	return "*"
+}
+
 type valuePatternConstant struct {
 	constantValue string
 }
 
 func (constant valuePatternConstant) Match(value string) bool {
 	return constant.constantValue == value
+}
+
+func (constant valuePatternConstant) String() string {
+	return fmt.Sprintf(`"%s"`, constant.constantValue)
 }
 
 // ArgumentPattern represents a pattern which can match a Argument
@@ -414,12 +423,7 @@ func NewAnyPattern(param string) ArgumentPattern {
 	return ArgumentPattern{param, valuePatternAny{}}
 }
 
-func (kap *ArgumentPattern) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var arg string
-	if err := unmarshal(&arg); err != nil {
-		return errors.New("cannot unmarshal kernel argument")
-	}
-
+func (kap *ArgumentPattern) unmarshalFromString(arg string) error {
 	parsed := Parse(arg)
 	if len(parsed) != 1 {
 		return fmt.Errorf("%q is not a unique kernel argument", arg)
@@ -440,4 +444,32 @@ func (kap *ArgumentPattern) UnmarshalYAML(unmarshal func(interface{}) error) err
 	}
 
 	return nil
+}
+
+func (kap *ArgumentPattern) marshalToString() string {
+	return fmt.Sprintf(`%s=%s`, kap.param, kap.value.String())
+}
+
+func (kap *ArgumentPattern) UnmarshalBinary(data []byte) error {
+	return kap.unmarshalFromString(string(data))
+}
+
+func (kap *ArgumentPattern) MarshalBinary() ([]byte, error) {
+	return []byte(kap.marshalToString()), nil
+}
+
+func (kap *ArgumentPattern) UnmarshalText(data []byte) error {
+	return kap.unmarshalFromString(string(data))
+}
+
+func (kap *ArgumentPattern) MarshalText() ([]byte, error) {
+	return []byte(kap.marshalToString()), nil
+}
+
+func (kap *ArgumentPattern) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var arg string
+	if err := unmarshal(&arg); err != nil {
+		return fmt.Errorf("cannot unmarshal kernel argument: %v", err)
+	}
+	return kap.unmarshalFromString(arg)
 }

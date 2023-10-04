@@ -20,7 +20,6 @@
 package polkit_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -112,12 +111,12 @@ func (s *backendSuite) TestUnexpectedPolicyFilesremoved(c *C) {
 	policyFile := filepath.Join(dirs.SnapPolkitPolicyDir, "snap.samba.interface.something.policy")
 
 	for _, opts := range testedConfinementOpts {
-		c.Assert(ioutil.WriteFile(policyFile, []byte("<policyconfig/>"), 0644), IsNil)
+		c.Assert(os.WriteFile(policyFile, []byte("<policyconfig/>"), 0644), IsNil)
 		// Installing snap removes unexpected policy files
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
 		c.Check(policyFile, testutil.FileAbsent)
 
-		c.Assert(ioutil.WriteFile(policyFile, []byte("<policyconfig/>"), 0644), IsNil)
+		c.Assert(os.WriteFile(policyFile, []byte("<policyconfig/>"), 0644), IsNil)
 		// Removing snap also removes unexpected policy files
 		s.RemoveSnap(c, snapInfo)
 		c.Check(policyFile, testutil.FileAbsent)

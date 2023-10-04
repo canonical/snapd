@@ -22,7 +22,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -43,7 +42,7 @@ var _ = Suite(&xgettextTestSuite{})
 // test helper
 func makeGoSourceFile(c *C, content []byte) string {
 	fname := filepath.Join(c.MkDir(), "foo.go")
-	err := ioutil.WriteFile(fname, []byte(content), 0644)
+	err := os.WriteFile(fname, []byte(content), 0644)
 	c.Assert(err, IsNil)
 
 	return fname

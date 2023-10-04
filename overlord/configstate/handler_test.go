@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build !nomanagers
-// +build !nomanagers
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -23,7 +22,7 @@ package configstate_test
 
 import (
 	"errors"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -153,7 +152,7 @@ volumes:
 `)
 
 	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(1)})
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
+	err := os.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
@@ -227,7 +226,7 @@ volumes:
 `)
 
 	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(1)})
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
+	err := os.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
@@ -358,7 +357,7 @@ volumes:
 `)
 
 	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(1)})
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
+	err := os.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
 	s.state.Lock()

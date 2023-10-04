@@ -44,7 +44,7 @@ type Backend interface {
 
 	DeviceSessionRequestSigner
 
-	ProxyStoreer
+	StoreOptions
 }
 
 // A DeviceBackend exposes device information and device identity
@@ -69,9 +69,13 @@ type DeviceSessionRequestSigner interface {
 	SignDeviceSessionRequest(serial *asserts.Serial, nonce string) (*asserts.DeviceSessionRequest, error)
 }
 
-type ProxyStoreer interface {
+type StoreOptions interface {
 	// ProxyStore returns the store assertion for the proxy store if one is set.
 	ProxyStore() (*asserts.Store, error)
+
+	// StoreOffline returns a string indicating whether the store should have
+	// network access or not
+	StoreOffline() (bool, error)
 }
 
 // storeContext implements store.DeviceAndAuthContext.
@@ -80,7 +84,7 @@ type storeContext struct {
 
 	deviceBackend    DeviceBackend
 	sessionReqSigner DeviceSessionRequestSigner
-	proxyStoreer     ProxyStoreer
+	storeOptions     StoreOptions
 }
 
 var _ store.DeviceAndAuthContext = (*storeContext)(nil)
@@ -94,15 +98,15 @@ func New(st *state.State, b Backend) store.DeviceAndAuthContext {
 }
 
 // NewComposed returns a store.DeviceAndAuthContext using the given backends.
-func NewComposed(st *state.State, devb DeviceBackend, srqs DeviceSessionRequestSigner, pstoer ProxyStoreer) store.DeviceAndAuthContext {
-	if devb == nil || srqs == nil || pstoer == nil {
+func NewComposed(st *state.State, devb DeviceBackend, srqs DeviceSessionRequestSigner, storeOptions StoreOptions) store.DeviceAndAuthContext {
+	if devb == nil || srqs == nil || storeOptions == nil {
 		panic("store context composable backends cannot be nil")
 	}
 	return &storeContext{
 		state:            st,
 		deviceBackend:    devb,
 		sessionReqSigner: srqs,
-		proxyStoreer:     pstoer,
+		storeOptions:     storeOptions,
 	}
 }
 
@@ -235,7 +239,7 @@ func (sc *storeContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID stri
 	sc.state.Lock()
 	defer sc.state.Unlock()
 
-	sto, err := sc.proxyStoreer.ProxyStore()
+	sto, err := sc.storeOptions.ProxyStore()
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return "", nil, err
 	}
@@ -245,6 +249,18 @@ func (sc *storeContext) ProxyStoreParams(defaultURL *url.URL) (proxyStoreID stri
 	}
 
 	return "", defaultURL, nil
+}
+
+func (sc *storeContext) StoreOffline() (bool, error) {
+	sc.state.Lock()
+	defer sc.state.Unlock()
+
+	offline, err := sc.storeOptions.StoreOffline()
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return false, err
+	}
+
+	return offline, nil
 }
 
 // CloudInfo returns the cloud instance information (if available).

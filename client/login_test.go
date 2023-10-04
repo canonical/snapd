@@ -20,7 +20,6 @@
 package client_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -67,7 +66,7 @@ func (cs *clientSuite) TestClientLoginWhenLoggedIn(c *check.C) {
 	os.Setenv(client.TestAuthFileEnvKey, outfile)
 	defer os.Unsetenv(client.TestAuthFileEnvKey)
 
-	err := ioutil.WriteFile(outfile, []byte(`{"email":"foo@bar.com","macaroon":"macaroon"}`), 0600)
+	err := os.WriteFile(outfile, []byte(`{"email":"foo@bar.com","macaroon":"macaroon"}`), 0600)
 	c.Assert(err, check.IsNil)
 	c.Assert(cs.cli.LoggedInUser(), check.DeepEquals, &client.User{
 		Email:    "foo@bar.com",
@@ -118,7 +117,7 @@ func (cs *clientSuite) TestClientLogout(c *check.C) {
 	os.Setenv(client.TestAuthFileEnvKey, outfile)
 	defer os.Unsetenv(client.TestAuthFileEnvKey)
 
-	err := ioutil.WriteFile(outfile, []byte(`{"macaroon":"macaroon","discharges":["discharged"]}`), 0600)
+	err := os.WriteFile(outfile, []byte(`{"macaroon":"macaroon","discharges":["discharged"]}`), 0600)
 	c.Assert(err, check.IsNil)
 
 	err = cs.cli.Logout()

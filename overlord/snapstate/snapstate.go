@@ -59,6 +59,7 @@ import (
 // control flags for doInstall
 const (
 	skipConfigure = 1 << iota
+	noRestartBoundaries
 )
 
 // control flags for "Configure()"
@@ -393,7 +394,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	targetRevision := snapsup.Revision()
 	revisionStr := fmt.Sprintf(" (%s)", snapsup.Revision())
 
-	ts := state.NewTaskSet()
 	if snapst.IsInstalled() {
 		// consider also the current revision to set plugs-only hint
 		info, err := snapst.CurrentInfo()
@@ -437,6 +437,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 						}
 					}
 
+					ts := state.NewTaskSet()
 					preDownTask := st.NewTask("pre-download-snap", fmt.Sprintf(i18n.G("Pre-download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.Channel))
 					preDownTask.Set("snap-setup", snapsup)
 					preDownTask.Set("refresh-info", busyErr.PendingSnapRefreshInfo())
@@ -706,7 +707,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	installSet := state.NewTaskSet(tasks...)
-	installSet.WaitAll(ts)
 	installSet.MarkEdge(prereq, BeginEdge)
 	installSet.MarkEdge(setupAliases, BeforeHooksEdge)
 	installSet.MarkEdge(setupSecurity, BeforeMaybeRebootEdge)
@@ -724,24 +724,27 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	} else {
 		installSet.MarkEdge(prepare, LastBeforeLocalModificationsEdge)
 	}
+	if flags&noRestartBoundaries == 0 {
+		if err := SetEssentialSnapsRestartBoundaries(st, nil, []*state.TaskSet{installSet}); err != nil {
+			return nil, err
+		}
+	}
 	if flags&skipConfigure != 0 {
 		return installSet, nil
 	}
 
-	ts.AddAllWithEdges(installSet)
-
 	if isConfigureAllowed(snapsup) {
 		confFlags := configureSnapFlags(snapst, snapsup)
 		configSet := ConfigureSnap(st, snapsup.InstanceName(), confFlags)
-		configSet.WaitAll(ts)
-		ts.AddAll(configSet)
+		configSet.WaitAll(installSet)
+		installSet.AddAll(configSet)
 	}
 
 	healthCheck := CheckHealthHook(st, snapsup.InstanceName(), snapsup.Revision())
-	healthCheck.WaitAll(ts)
-	ts.AddTask(healthCheck)
+	healthCheck.WaitAll(installSet)
+	installSet.AddTask(healthCheck)
 
-	return ts, nil
+	return installSet, nil
 }
 
 func findTasksMatchingKindAndSnap(st *state.State, kind string, snapName string, revision snap.Revision) ([]*state.Task, error) {
@@ -921,8 +924,8 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 // setting its status and requesting a restart.
 // It should usually be invoked returning its result immediately
 // from the caller.
-// It delegates the work to restart.FinishTaskWithRestart which can decide
-// to set the task to wait returning state.Wait.
+// It delegates the work to restart.FinishTaskWithRestart which decides
+// on how the restart will be scheduled.
 func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.RestartType, rebootInfo *boot.RebootInfo) error {
 	var rebootRequiredSnap string
 	// If system restart is requested, consider how the change the
@@ -1542,6 +1545,7 @@ func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, us
 		if err != nil {
 			return nil, nil, err
 		}
+
 		// If transactional, use a single lane for all snaps, so when
 		// one fails the changes for all affected snaps will be
 		// undone. Otherwise, have different lanes per snap so failures
@@ -1955,7 +1959,9 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			return nil, nil, err
 		}
 
-		ts, err := doInstall(st, snapst, snapsup, 0, fromChange, inUseFor(deviceCtx))
+		// Do not set any default restart boundaries, we do it when we have access to all
+		// the task-sets in preparation for single-reboot.
+		ts, err := doInstall(st, snapst, snapsup, noRestartBoundaries, fromChange, inUseFor(deviceCtx))
 		if err != nil {
 			if errors.Is(err, &timedBusySnapError{}) && ts != nil {
 				// snap is busy and pre-download tasks were made for it
@@ -2042,6 +2048,13 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 	// kernel aborts the wait tasks (the gadget) is put on "Hold".
 	if kernelTs != nil && gadgetTs != nil {
 		kernelTs.WaitAll(gadgetTs)
+	}
+
+	// Make sure each of them are marked with default restart-boundaries to maintain the previous
+	// reboot-behaviour prior to new restart logic.
+	// XXX: Change this when removing the old single-reboot logic
+	if err := SetEssentialSnapsRestartBoundaries(st, nil, installTasksets); err != nil {
+		return nil, nil, err
 	}
 
 	if deviceCtx.Model().Base() != "" && (gadgetTs == nil || enforcedSingleRebootForGadgetKernelBase) {
@@ -2977,7 +2990,6 @@ func MigrateHome(st *state.State, snaps []string) ([]*state.TaskSet, error) {
 
 // LinkNewBaseOrKernel creates a new task set with prepare/link-snap, and
 // additionally update-gadget-assets for the kernel snap, tasks for a remodel.
-// TODO Should we check conflicts as in SwitchToNewGadget? Missing spread test?
 func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
@@ -2988,7 +3000,7 @@ func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*stat
 		return nil, err
 	}
 
-	if err := CheckChangeConflict(st, name, nil); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, name, nil, fromChange); err != nil {
 		return nil, err
 	}
 

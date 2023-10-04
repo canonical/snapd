@@ -21,7 +21,6 @@ package keymgr_test
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -67,7 +66,7 @@ func (s *keymgrSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(dirs.RunDir, 0755), IsNil)
 
 	mockedMeminfoFile := filepath.Join(c.MkDir(), "meminfo")
-	err := ioutil.WriteFile(mockedMeminfoFile, []byte(mockedMeminfo), 0644)
+	err := os.WriteFile(mockedMeminfoFile, []byte(mockedMeminfo), 0644)
 	c.Assert(err, IsNil)
 	s.AddCleanup(osutil.MockProcMeminfo(mockedMeminfoFile))
 }
@@ -871,7 +870,7 @@ func (s *keymgrSuite) TestRecoveryKDF(c *C) {
 	_, err := keymgr.RecoveryKDF()
 	c.Assert(err, ErrorMatches, "cannot get usable memory for KDF parameters when adding the recovery key: open .*")
 
-	c.Assert(ioutil.WriteFile(mockedMeminfoFile, []byte(mockedMeminfo), 0644), IsNil)
+	c.Assert(os.WriteFile(mockedMeminfoFile, []byte(mockedMeminfo), 0644), IsNil)
 
 	opts, err := keymgr.RecoveryKDF()
 	c.Assert(err, IsNil)
@@ -883,7 +882,7 @@ func (s *keymgrSuite) TestRecoveryKDF(c *C) {
 	const lotsOfMem = `MemTotal:         2097152 kB
 CmaTotal:         131072 kB
 `
-	c.Assert(ioutil.WriteFile(mockedMeminfoFile, []byte(lotsOfMem), 0644), IsNil)
+	c.Assert(os.WriteFile(mockedMeminfoFile, []byte(lotsOfMem), 0644), IsNil)
 	opts, err = keymgr.RecoveryKDF()
 	c.Assert(err, IsNil)
 	c.Assert(opts, DeepEquals, &luks2.KDFOptions{
@@ -894,7 +893,7 @@ CmaTotal:         131072 kB
 	const littleMem = `MemTotal:         262144 kB
 CmaTotal:         131072 kB
 `
-	c.Assert(ioutil.WriteFile(mockedMeminfoFile, []byte(littleMem), 0644), IsNil)
+	c.Assert(os.WriteFile(mockedMeminfoFile, []byte(littleMem), 0644), IsNil)
 	opts, err = keymgr.RecoveryKDF()
 	c.Assert(err, IsNil)
 	c.Assert(opts, DeepEquals, &luks2.KDFOptions{

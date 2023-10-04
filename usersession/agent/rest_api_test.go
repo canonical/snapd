@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -534,7 +533,7 @@ func (s *restSuite) TestPostPendingRefreshNotificationBusyAppDesktopFile(c *C) {
 	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
 	c.Assert(err, IsNil)
 	desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "pkg_app.desktop")
-	err = ioutil.WriteFile(desktopFilePath, []byte(`
+	err = os.WriteFile(desktopFilePath, []byte(`
 [Desktop Entry]
 Icon=app.png
 	`), 0644)
@@ -561,7 +560,7 @@ func (s *restSuite) TestPostPendingRefreshNotificationBusyAppMalformedDesktopFil
 	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
 	c.Assert(err, IsNil)
 	desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "pkg_app.desktop")
-	err = ioutil.WriteFile(desktopFilePath, []byte(`garbage!`), 0644)
+	err = os.WriteFile(desktopFilePath, []byte(`garbage!`), 0644)
 	c.Assert(err, IsNil)
 
 	s.testPostPendingRefreshNotificationBody(c, refreshInfo)

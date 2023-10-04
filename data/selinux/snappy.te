@@ -257,7 +257,7 @@ gen_require(`
 	type usr_t;
 ')
 allow snappy_t usr_t:dir { write remove_name add_name };
-allow snappy_t usr_t:lnk_file { create unlink };
+allow snappy_t usr_t:lnk_file { create unlink rename };
 
 # Allow snapd to use ssh-keygen
 ssh_exec_keygen(snappy_t)

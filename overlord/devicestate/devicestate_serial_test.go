@@ -23,7 +23,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -116,7 +115,7 @@ func (s *deviceMgrSerialSuite) mockServer(c *C, reqID string, bhv *devicestatete
 	fname := filepath.Join(dirs.SnapdStoreSSLCertsDir, "test-server-certs.pem")
 	err := os.MkdirAll(filepath.Dir(fname), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fname, extraCerts, 0644)
+	err = os.WriteFile(fname, extraCerts, 0644)
 	c.Assert(err, IsNil)
 	return mockServer
 }
@@ -1656,6 +1655,27 @@ func (s *deviceMgrSerialSuite) TestStoreContextBackendProxyStore(c *C) {
 	c.Assert(sto.URL().String(), Equals, mockServer.URL)
 }
 
+func (s *deviceMgrSerialSuite) TestStoreContextBackendStoreAccess(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	scb := s.mgr.StoreContextBackend()
+
+	// nothing in the state
+	_, err := scb.StoreOffline()
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
+
+	// set the store access to offline
+	tr := config.NewTransaction(s.state)
+	err = tr.Set("core", "store.access", "offline")
+	tr.Commit()
+	c.Assert(err, IsNil)
+
+	offline, err := scb.StoreOffline()
+	c.Check(err, IsNil)
+	c.Check(offline, Equals, true)
+}
+
 func (s *deviceMgrSerialSuite) TestInitialRegistrationContext(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2256,7 +2276,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationBlockedByNoRegister(c *
 
 	// create /run/snapd/noregister
 	c.Assert(os.MkdirAll(dirs.SnapRunDir, 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapRunDir, "noregister"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapRunDir, "noregister"), nil, 0644), IsNil)
 
 	// attempt to run the whole device registration process
 	s.state.Unlock()

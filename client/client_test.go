@@ -150,7 +150,7 @@ func (cs *clientSuite) TestClientWorks(c *C) {
 
 func makeMaintenanceFile(c *C, b []byte) {
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(dirs.SnapdMaintenanceFile, b, 0644), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapdMaintenanceFile, b, 0644), IsNil)
 }
 
 func (cs *clientSuite) TestClientSetMaintenanceForMaintenanceJSON(c *C) {
@@ -332,7 +332,7 @@ func (cs *clientSuite) TestClientWhoAmINobody(c *C) {
 }
 
 func (cs *clientSuite) TestClientWhoAmIRubbish(c *C) {
-	c.Assert(ioutil.WriteFile(client.TestStoreAuthFilename(os.Getenv("HOME")), []byte("rubbish"), 0644), IsNil)
+	c.Assert(os.WriteFile(client.TestStoreAuthFilename(os.Getenv("HOME")), []byte("rubbish"), 0644), IsNil)
 
 	email, err := cs.cli.WhoAmI()
 	c.Check(err, NotNil)

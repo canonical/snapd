@@ -21,7 +21,6 @@ package servicestate_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -2347,7 +2346,7 @@ func (s *quotaHandlersSuite) TestUpdateJournalQuota(c *C) {
 	// group as a mock, so manually do this here.
 	fooConfPath := filepath.Join(dirs.SnapSystemdDir, "journald@snap-foo.conf")
 	c.Assert(os.MkdirAll(filepath.Dir(fooConfPath), 0755), IsNil)
-	err = ioutil.WriteFile(fooConfPath, []byte(`[Journal]
+	err = os.WriteFile(fooConfPath, []byte(`[Journal]
 SystemMaxUse=16M
 `), 0644)
 	c.Assert(err, IsNil)

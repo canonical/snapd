@@ -1011,6 +1011,12 @@ func compileSlotInstallationConstraints(context *subruleContext, cDef constraint
 // interface slot for a snap relevant to its connection or
 // auto-connection.
 type SlotConnectionConstraints struct {
+	// SlotSnapTypes constraints on the slot side for connections
+	// are only useful in the base-declaration,
+	// as the snap-declaration is for one given snap with its type.
+	// So there is no (new) format iteration to cover this.
+	SlotSnapTypes []string
+
 	PlugSnapTypes    []string
 	PlugSnapIDs      []string
 	PlugPublisherIDs []string
@@ -1065,6 +1071,8 @@ func (c *SlotConnectionConstraints) setAttributeConstraints(field string, cstrs 
 
 func (c *SlotConnectionConstraints) setIDConstraints(field string, cstrs []string) {
 	switch field {
+	case "slot-snap-type":
+		c.SlotSnapTypes = cstrs
 	case "plug-snap-type":
 		c.PlugSnapTypes = cstrs
 	case "plug-snap-id":
@@ -1077,7 +1085,7 @@ func (c *SlotConnectionConstraints) setIDConstraints(field string, cstrs []strin
 }
 
 var (
-	slotIDConstraints = []string{"plug-snap-type", "plug-publisher-id", "plug-snap-id"}
+	slotIDConstraints = []string{"slot-snap-type", "plug-snap-type", "plug-publisher-id", "plug-snap-id"}
 )
 
 func (c *SlotConnectionConstraints) setSlotsPerPlug(a SideArityConstraint) {

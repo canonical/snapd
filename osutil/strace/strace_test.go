@@ -20,7 +20,6 @@
 package strace_test
 
 import (
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -89,7 +88,7 @@ func (s *straceSuite) TestStraceCommandNoStrace(c *C) {
 
 	tmp := c.MkDir()
 	os.Setenv("PATH", tmp)
-	err := ioutil.WriteFile(filepath.Join(tmp, "sudo"), nil, 0755)
+	err := os.WriteFile(filepath.Join(tmp, "sudo"), nil, 0755)
 	c.Assert(err, IsNil)
 
 	_, err = strace.Command(nil, "foo")

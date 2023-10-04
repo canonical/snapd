@@ -358,6 +358,8 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 	if bootWith.RecoverySystemDir != "" {
 		return fmt.Errorf("internal error: RecoverySystemDir unexpectedly set for MakeRunnableSystem")
 	}
+	modeenvLock()
+	defer modeenvUnlock()
 
 	// TODO:UC20:
 	// - figure out what to do for uboot gadgets, currently we require them to
@@ -603,7 +605,7 @@ func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 }
 
 // MakeRunnableStandaloneSystem operates like MakeRunnableSystem but does
-// assume that the run system being set up is related to the current
+// not assume that the run system being set up is related to the current
 // system. This is appropriate e.g when installing from a classic installer.
 func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
 	// TODO consider merging this back into MakeRunnableSystem but need

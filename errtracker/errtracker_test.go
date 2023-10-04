@@ -71,7 +71,7 @@ func (s *ErrtrackerTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(s.tmpdir)
 
 	p := filepath.Join(s.tmpdir, "machine-id")
-	err := ioutil.WriteFile(p, []byte("bbb1a6a5bcdb418380056a2d759c3f7c"), 0644)
+	err := os.WriteFile(p, []byte("bbb1a6a5bcdb418380056a2d759c3f7c"), 0644)
 	c.Assert(err, IsNil)
 	s.AddCleanup(errtracker.MockMachineIDPaths([]string{p}))
 	s.AddCleanup(errtracker.MockHostSnapd(truePath))
@@ -97,7 +97,7 @@ func (s *ErrtrackerTestSuite) SetUpTest(c *C) {
 	mockSelfExe := filepath.Join(s.tmpdir, "self.exe")
 	mockSelfCwd := filepath.Join(s.tmpdir, "self.cwd")
 
-	c.Assert(ioutil.WriteFile(mockCpuinfo, []byte(`
+	c.Assert(os.WriteFile(mockCpuinfo, []byte(`
 processor	: 0
 bugs		: very yes
 etc		: ...
@@ -105,7 +105,7 @@ etc		: ...
 processor	: 42
 bugs		: very yes
 `[1:]), 0644), IsNil)
-	c.Assert(ioutil.WriteFile(mockSelfCmdline, []byte("foo\x00bar\x00baz"), 0644), IsNil)
+	c.Assert(os.WriteFile(mockSelfCmdline, []byte("foo\x00bar\x00baz"), 0644), IsNil)
 	c.Assert(os.Symlink("target of /proc/self/exe", mockSelfExe), IsNil)
 	c.Assert(os.Symlink("target of /proc/self/cwd", mockSelfCwd), IsNil)
 
@@ -135,14 +135,14 @@ func (s *ErrtrackerTestSuite) TestReport(c *C) {
 	snapConfineProfile := filepath.Join(s.tmpdir, "/etc/apparmor.d/usr.lib.snapd.snap-confine")
 	err := os.MkdirAll(filepath.Dir(snapConfineProfile), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(snapConfineProfile, []byte("# fake profile of snap-confine"), 0644)
+	err = os.WriteFile(snapConfineProfile, []byte("# fake profile of snap-confine"), 0644)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(snapConfineProfile+".dpkg-new", []byte{0}, 0644)
+	err = os.WriteFile(snapConfineProfile+".dpkg-new", []byte{0}, 0644)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(snapConfineProfile+".real", []byte{0}, 0644)
+	err = os.WriteFile(snapConfineProfile+".real", []byte{0}, 0644)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(snapConfineProfile+".real.dpkg-new", []byte{0}, 0644)
+	err = os.WriteFile(snapConfineProfile+".real.dpkg-new", []byte{0}, 0644)
 	c.Assert(err, IsNil)
 
 	prev := errtracker.SnapdVersion
@@ -264,7 +264,7 @@ func (s *ErrtrackerTestSuite) TestReportUnderTesting(c *C) {
 func (s *ErrtrackerTestSuite) TestTriesAllKnownMachineIDs(c *C) {
 	p := filepath.Join(c.MkDir(), "machine-id")
 	machineID := []byte("bbb1a6a5bcdb418380056a2d759c3f7c")
-	err := ioutil.WriteFile(p, machineID, 0644)
+	err := os.WriteFile(p, machineID, 0644)
 	c.Assert(err, IsNil)
 	s.AddCleanup(errtracker.MockMachineIDPaths([]string{"/does/not/exist", p}))
 
@@ -414,7 +414,7 @@ bugs		: very yes
 `[1:])
 
 	// if no processor line, just return the whole thing
-	c.Assert(ioutil.WriteFile(fn, []byte("yadda yadda\n"), 0644), IsNil)
+	c.Assert(os.WriteFile(fn, []byte("yadda yadda\n"), 0644), IsNil)
 	c.Check(errtracker.ProcCpuinfoMinimal(), Equals, "yadda yadda\n")
 
 	c.Assert(os.Remove(fn), IsNil)

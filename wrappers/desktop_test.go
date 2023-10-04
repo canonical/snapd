@@ -21,7 +21,6 @@ package wrappers_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -72,26 +71,40 @@ var mockDesktopFile = []byte(`
 Name=foo
 Icon=${SNAP}/foo.png`)
 
-func (s *desktopSuite) TestAddPackageDesktopFiles(c *C) {
+func (s *desktopSuite) TestEnsurePackageDesktopFiles(c *C) {
 	expectedDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
 	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, false)
+
+	oldDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar2.desktop")
+	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755), IsNil)
+	c.Assert(os.WriteFile(oldDesktopFilePath, mockDesktopFile, 0644), IsNil)
+	c.Assert(osutil.FileExists(oldDesktopFilePath), Equals, true)
 
 	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	// generate .desktop file in the package baseDir
 	baseDir := info.MountDir()
-	err := os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755)
-	c.Assert(err, IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.desktop"), mockDesktopFile, 0644), IsNil)
 
-	err = ioutil.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.desktop"), mockDesktopFile, 0644)
-	c.Assert(err, IsNil)
-
-	err = wrappers.AddSnapDesktopFiles(info)
+	err := wrappers.EnsureSnapDesktopFiles(info)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, true)
+	stat, err := os.Stat(expectedDesktopFilePath)
+	c.Assert(err, IsNil)
+	c.Assert(stat.Mode().Perm(), Equals, os.FileMode(0644))
 	c.Assert(s.mockUpdateDesktopDatabase.Calls(), DeepEquals, [][]string{
 		{"update-desktop-database", dirs.SnapDesktopFilesDir},
 	})
+	sanitizedDesktopFileContent := wrappers.SanitizeDesktopFile(info, expectedDesktopFilePath, mockDesktopFile)
+	c.Check(expectedDesktopFilePath, testutil.FileContains, sanitizedDesktopFileContent)
+
+	// Old desktop file should be removed
+	c.Assert(osutil.FileExists(oldDesktopFilePath), Equals, false)
+}
+
+func (s *iconsTestSuite) TestEnsurePackageDesktopFilesNilSnapInfo(c *C) {
+	c.Assert(wrappers.EnsureSnapDesktopFiles(nil), ErrorMatches, "internal error: snap info cannot be nil")
 }
 
 func (s *desktopSuite) TestRemovePackageDesktopFiles(c *C) {
@@ -99,7 +112,7 @@ func (s *desktopSuite) TestRemovePackageDesktopFiles(c *C) {
 
 	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(mockDesktopFilePath, mockDesktopFile, 0644)
+	err = os.WriteFile(mockDesktopFilePath, mockDesktopFile, 0644)
 	c.Assert(err, IsNil)
 	info, err := snap.InfoFromSnapYaml([]byte(desktopAppYaml))
 	c.Assert(err, IsNil)
@@ -118,9 +131,9 @@ func (s *desktopSuite) TestParallelInstancesRemovePackageDesktopFiles(c *C) {
 
 	err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(mockDesktopFilePath, mockDesktopFile, 0644)
+	err = os.WriteFile(mockDesktopFilePath, mockDesktopFile, 0644)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(mockDesktopInstanceFilePath, mockDesktopFile, 0644)
+	err = os.WriteFile(mockDesktopInstanceFilePath, mockDesktopFile, 0644)
 	c.Assert(err, IsNil)
 	info, err := snap.InfoFromSnapYaml([]byte(desktopAppYaml))
 	c.Assert(err, IsNil)
@@ -135,7 +148,7 @@ func (s *desktopSuite) TestParallelInstancesRemovePackageDesktopFiles(c *C) {
 	c.Assert(osutil.FileExists(mockDesktopInstanceFilePath), Equals, true)
 
 	// restore the non-instance file
-	err = ioutil.WriteFile(mockDesktopFilePath, mockDesktopFile, 0644)
+	err = os.WriteFile(mockDesktopFilePath, mockDesktopFile, 0644)
 	c.Assert(err, IsNil)
 
 	s.mockUpdateDesktopDatabase.ForgetCalls()
@@ -151,7 +164,7 @@ func (s *desktopSuite) TestParallelInstancesRemovePackageDesktopFiles(c *C) {
 	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, true)
 }
 
-func (s *desktopSuite) TestAddPackageDesktopFilesCleanup(c *C) {
+func (s *desktopSuite) TestEnsurePackageDesktopFilesCleanup(c *C) {
 	mockDesktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar1.desktop")
 	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
 
@@ -159,7 +172,7 @@ func (s *desktopSuite) TestAddPackageDesktopFilesCleanup(c *C) {
 	c.Assert(err, IsNil)
 
 	mockDesktopInstanceFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo+instance_foobar.desktop")
-	err = ioutil.WriteFile(mockDesktopInstanceFilePath, mockDesktopFile, 0644)
+	err = os.WriteFile(mockDesktopInstanceFilePath, mockDesktopFile, 0644)
 	c.Assert(err, IsNil)
 
 	err = os.MkdirAll(filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar2.desktop", "potato"), 0755)
@@ -172,12 +185,12 @@ func (s *desktopSuite) TestAddPackageDesktopFilesCleanup(c *C) {
 	err = os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar1.desktop"), mockDesktopFile, 0644)
+	err = os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar1.desktop"), mockDesktopFile, 0644)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar2.desktop"), mockDesktopFile, 0644)
+	err = os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar2.desktop"), mockDesktopFile, 0644)
 	c.Assert(err, IsNil)
 
-	err = wrappers.AddSnapDesktopFiles(info)
+	err = wrappers.EnsureSnapDesktopFiles(info)
 	c.Check(err, NotNil)
 	c.Check(osutil.FileExists(mockDesktopFilePath), Equals, false)
 	c.Check(s.mockUpdateDesktopDatabase.Calls(), HasLen, 0)
@@ -571,10 +584,10 @@ func (s *desktopSuite) TestAddRemoveDesktopFiles(c *C) {
 		err := os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755)
 		c.Assert(err, IsNil)
 
-		err = ioutil.WriteFile(filepath.Join(baseDir, "meta", "gui", t.upstreamDesktopFileName), mockDesktopFile, 0644)
+		err = os.WriteFile(filepath.Join(baseDir, "meta", "gui", t.upstreamDesktopFileName), mockDesktopFile, 0644)
 		c.Assert(err, IsNil)
 
-		err = wrappers.AddSnapDesktopFiles(info)
+		err = wrappers.EnsureSnapDesktopFiles(info)
 		c.Assert(err, IsNil)
 		c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, true)
 

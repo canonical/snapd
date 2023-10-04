@@ -21,7 +21,6 @@ package portal_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -88,7 +87,7 @@ func (s *portalSuite) SetUpTest(c *C) {
 
 func (s *portalSuite) TestOpenFile(c *C) {
 	path := filepath.Join(c.MkDir(), "test.txt")
-	c.Assert(ioutil.WriteFile(path, []byte("hello world"), 0644), IsNil)
+	c.Assert(os.WriteFile(path, []byte("hello world"), 0644), IsNil)
 
 	err := portal.OpenFile(s.SessionBus, path)
 	c.Check(err, IsNil)
@@ -101,7 +100,7 @@ func (s *portalSuite) TestOpenFileCallError(c *C) {
 	s.openError = dbus.MakeFailedError(fmt.Errorf("failure"))
 
 	path := filepath.Join(c.MkDir(), "test.txt")
-	c.Assert(ioutil.WriteFile(path, []byte("hello world"), 0644), IsNil)
+	c.Assert(os.WriteFile(path, []byte("hello world"), 0644), IsNil)
 
 	err := portal.OpenFile(s.SessionBus, path)
 	c.Check(err, FitsTypeOf, dbus.Error{})
@@ -115,7 +114,7 @@ func (s *portalSuite) TestOpenFileResponseError(c *C) {
 	s.openResponse = 2
 
 	path := filepath.Join(c.MkDir(), "test.txt")
-	c.Assert(ioutil.WriteFile(path, []byte("hello world"), 0644), IsNil)
+	c.Assert(os.WriteFile(path, []byte("hello world"), 0644), IsNil)
 
 	err := portal.OpenFile(s.SessionBus, path)
 	c.Check(err, FitsTypeOf, (*portal.ResponseError)(nil))
@@ -131,7 +130,7 @@ func (s *portalSuite) TestOpenFileTimeout(c *C) {
 	defer restore()
 
 	file := filepath.Join(c.MkDir(), "test.txt")
-	c.Assert(ioutil.WriteFile(file, []byte("hello world"), 0644), IsNil)
+	c.Assert(os.WriteFile(file, []byte("hello world"), 0644), IsNil)
 
 	err := portal.OpenFile(s.SessionBus, file)
 	c.Check(err, FitsTypeOf, (*portal.ResponseError)(nil))
@@ -160,7 +159,7 @@ func (s *portalSuite) TestOpenMissingFile(c *C) {
 
 func (s *portalSuite) TestOpenUnreadableFile(c *C) {
 	path := filepath.Join(c.MkDir(), "test.txt")
-	c.Assert(ioutil.WriteFile(path, []byte("hello world"), 0644), IsNil)
+	c.Assert(os.WriteFile(path, []byte("hello world"), 0644), IsNil)
 	c.Assert(os.Chmod(path, 0), IsNil)
 
 	err := portal.OpenFile(s.SessionBus, path)

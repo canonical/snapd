@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1096,14 +1095,14 @@ func mockKernel(c *C, kernelYaml string, filesWithContent map[string]string) str
 	kernelRootDir := c.MkDir()
 	err = os.MkdirAll(filepath.Join(kernelRootDir, "meta"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(kernelRootDir, "meta/kernel.yaml"), []byte(kernelYaml), 0644)
+	err = os.WriteFile(filepath.Join(kernelRootDir, "meta/kernel.yaml"), []byte(kernelYaml), 0644)
 	c.Assert(err, IsNil)
 
 	for fname, content := range filesWithContent {
 		p := filepath.Join(kernelRootDir, fname)
 		err = os.MkdirAll(filepath.Dir(p), 0755)
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(p, []byte(content), 0644)
+		err = os.WriteFile(p, []byte(content), 0644)
 		c.Assert(err, IsNil)
 	}
 
