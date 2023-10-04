@@ -1,0 +1,81 @@
+summary: Ensure that the system-files interface works.
+
+details: |
+    The system-files interface allows access specific system files or directories.
+
+environment:
+    # keep in sync with ./test-snapd-sh/meta/snap.yaml
+    TESTDIR: /mnt/testdir
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+    # Fist layer of dirs and files
+    "$TESTSTOOLS"/fs-state mock-dir "$TESTDIR"
+    "$TESTSTOOLS"/fs-state mock-file "$TESTDIR"/.testfile1
+    "$TESTSTOOLS"/fs-state mock-file "$TESTDIR"/readonly_file1
+    "$TESTSTOOLS"/fs-state mock-dir "$TESTDIR"/.testdir1
+    "$TESTSTOOLS"/fs-state mock-dir "$TESTDIR"/testdir1
+
+    # Second layer of dirs and files
+    "$TESTSTOOLS"/fs-state mock-file "$TESTDIR"/.testdir1/.testfile2
+    "$TESTSTOOLS"/fs-state mock-file "$TESTDIR/.testdir1/test file2"
+    "$TESTSTOOLS"/fs-state mock-dir "$TESTDIR"/root
+
+    # Not accessible dirs and files
+    "$TESTSTOOLS"/fs-state mock-dir /root/.testdir1
+    "$TESTSTOOLS"/fs-state mock-file /root/.testfile1
+
+restore: |
+    "$TESTSTOOLS"/fs-state restore-dir "$TESTDIR"
+    "$TESTSTOOLS"/fs-state restore-dir /root/.testdir1
+    "$TESTSTOOLS"/fs-state restore-dir /root/.testfile1
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i system-files | MATCH "\\- +test-snapd-sh:system-files"
+
+    echo "When the interface is connected"
+    snap connect test-snapd-sh:system-files
+
+    echo "Then the snap is able to access all the files and dirs in /testdir"
+    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/.testfile1" | MATCH "mock file"
+    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/readonly_file1" MATCH "mock file"
+    test-snapd-sh.with-system-files-plug -c "ls $TESTDIR/.testdir1"
+    test-snapd-sh.with-system-files-plug -c "ls $TESTDIR/testdir1"
+    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/.testdir1/.testfile2" | MATCH "mock file"
+    test-snapd-sh.with-system-files-plug -c "cat $TESTDIR'/.testdir1/test file2'" | MATCH "mock file"
+    test-snapd-sh.with-system-files-plug -c "ls $TESTDIR/root/"
+
+    echo "Then the snap is able to write just $TESTDIR/.testdir1 and $TESTDIR/.testfile1"
+    test-snapd-sh.with-system-files-plug -c "echo test >> $TESTDIR/.testfile1"
+    test-snapd-sh.with-system-files-plug -c "touch $TESTDIR/.testdir1/testfile2"
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    if test-snapd-sh.with-system-files-plug -c "echo test >> $TESTDIR/readonly_file1" 2> call.error; then
+        echo "Expected permission error writing the system file"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
+
+    echo "Then the snap is not able to to access files and dirs in $HOME"
+    test-snapd-sh.with-system-files-plug -c "ls /root/.testdir1" 2>&1| MATCH "Permission denied"
+    test-snapd-sh.with-system-files-plug -c "cat /root/.testfile1" 2>&1| MATCH "Permission denied"
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-sh:system-files
+
+    echo "Then the snap is not able to read files and dirs in $HOME"
+    if test-snapd-sh.with-system-files-plug -c "ls $TESTDIR/.testdir1" 2> call.error; then
+        echo "Expected permission error accessing the system dir"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
+    if test-snapd-sh.with-system-files-plug -c "cat $TESTDIR/.testfile1" 2> call.error; then
+        echo "Expected permission error accessing the system file"
+        exit 1
+    fi
+    MATCH "Permission denied" < call.error
