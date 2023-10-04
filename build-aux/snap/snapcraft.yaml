@@ -79,7 +79,10 @@ parts:
       do
           dpkg -x $PACKAGE $SNAPCRAFT_PART_BUILD/
       done
-      find $SNAPCRAFT_PART_BUILD/
+      find $SNAPCRAFT_PART_BUILD/{lib,usr}
+      # Ensure that CGO links against the symbols from the xenial libc6
+      # and not from the system libc6
+      export CGO_LDFLAGS="-L${SNAPCRAFT_PART_BUILD}/usr/lib/$(dpkg-architecture -qDEB_TARGET_MULTIARCH) -L${SNAPCRAFT_PART_BUILD}/lib/$(dpkg-architecture -qDEB_TARGET_MULTIARCH)"
 
       # The file $SNAPCRAFT_PART_BUILD/usr/lib/x86_64-linux-gnu/libpthread.so
       # is a linker script which instructs ld to look for pthread in one of
@@ -122,6 +125,15 @@ parts:
       # bother compressing it too much)
       dpkg-buildpackage -b -Zgzip -zfast -uc -us
       dpkg-deb -x $(pwd)/../snapd_*.deb $SNAPCRAFT_PART_INSTALL
+      # xenial has glibc 2.23, ensure we have no symbols newer then 2.23
+      for p in usr/bin/snap usr/lib/snapd/snapd; do
+          # this is for debugging only
+          objdump --dynamic-syms "$SNAPCRAFT_PART_INSTALL/$p"
+          if objdump --dynamic-syms "$SNAPCRAFT_PART_INSTALL/$p" |grep -E '(GLIBC_2.2[4-9]|GLIBC_2.[3-9][0-9])'; then
+              echo "glibc symbols should only be up to version 2.23"
+              exit 1
+          fi
+      done
       # not included in the deb as it's only used with UC20 preseeding.
       cp -a data/preseed.json $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/
       # Note that this check should run *after* dpkg-buildpackage was run

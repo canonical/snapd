@@ -192,8 +192,7 @@ override_dh_auto_build:
 	GOINVOKEFLAGS='-mod=vendor'	GO111MODULE=on SNAPD_VANILLA_GO=$$(which go) \
 	PATH="$$(pwd)/packaging/build-tools/:$$PATH" \
 		dh_auto_build -- -mod=vendor $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS) $(DH_GOPKG)/cmd/...
-
-	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_LDFLAGS="-L$(CURDIR)/usr/lib/$(DEB_HOST_MULTIARCH) -L$(CURDIR)/lib/$(DEB_HOST_MULTIARCH)" go build -mod=vendor $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap)
+	(cd _build/bin && GOPATH=$$(pwd)/.. go build -mod=vendor $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap)
 	(cd _build/bin && GOPATH=$$(pwd)/.. go build -mod=vendor $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap-bootstrap)
 
 	# Generate static snap-exec, snapctl and snap-update-ns - it somehow includes CGO so
