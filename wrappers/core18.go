@@ -667,6 +667,9 @@ func undoSnapdDbusActivationOnCore() error {
 	return err
 }
 
+// Desktop files that have been written by snapd.
+// Only ever append this list, if a file is no longer installed it needs to
+// remain here so a newer version of snapd can remove it.
 var snapdDesktopFileNames = []string{
 	"io.snapcraft.SessionAgent.desktop",
 	"snap-handle-link.desktop",
