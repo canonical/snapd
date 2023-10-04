@@ -73,7 +73,7 @@ func (s *personalFilesInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "personal-files")
 }
 
-func (s *personalFilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
+func (s *personalFilesInterfaceSuite) TestConnectedPlugAppArmorHappy(c *C) {
 	apparmorSpec := &apparmor.Specification{}
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
@@ -90,6 +90,54 @@ owner "@{HOME}/.write-file{,/,/**}" rwkl,
 owner "@{HOME}/.local/share/target{,/,/**}" rwkl,
 owner "@{HOME}/.local/share/dir1/dir2/target{,/,/**}" rwkl,
 `)
+
+	c.Check("\n"+strings.Join(apparmorSpec.UpdateNS(), "\n"), Equals, `
+  # Allow the personal-files interface to create potentially missing directories
+  owner @{HOME}/ rw,
+  owner @{HOME}/.local/ rw,
+  owner @{HOME}/.local/share/ rw,
+  owner @{HOME}/.local/share/dir1/ rw,
+  owner @{HOME}/.local/share/dir1/dir2/ rw,`)
+}
+
+func (s *personalFilesInterfaceSuite) TestConnectedPlugApparmorErrorNotString(c *C) {
+	const mockPlugSnapInfo = `name: other
+version: 1.0
+plugs:
+ personal-files:
+  read: [$HOME/.read-dir, $HOME/.read-file, $HOME/.local/share/target]
+  write: [123]
+apps:
+ app:
+  command: foo
+  plugs: [personal-files]
+`
+	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
+	plugInfo := plugSnap.Plugs["personal-files"]
+	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	c.Assert(err, ErrorMatches, `cannot connect plug personal-files: 123 \(int64\) is not a string`)
+}
+
+func (s *personalFilesInterfaceSuite) TestConnectedPlugApparmorErrorNotStartWithHome(c *C) {
+	const mockPlugSnapInfo = `name: other
+version: 1.0
+plugs:
+ personal-files:
+  read: [$HOME/.read-dir, $HOME/.read-file, $HOME/.local/share/target]
+  write: [$NOTHOME/.local/share/target]
+apps:
+ app:
+  command: foo
+  plugs: [personal-files]
+`
+	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
+	plugInfo := plugSnap.Plugs["personal-files"]
+	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
+	apparmorSpec := &apparmor.Specification{}
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	c.Assert(err, ErrorMatches, `cannot connect plug personal-files: "\$NOTHOME/.local/share/target" must start with "\$HOME/"`)
 }
 
 func (s *personalFilesInterfaceSuite) TestConnectedPlugMountHappy(c *C) {
@@ -99,14 +147,16 @@ func (s *personalFilesInterfaceSuite) TestConnectedPlugMountHappy(c *C) {
 	c.Assert(mountSpec.MountEntries(), HasLen, 0)
 	c.Assert(mountSpec.UserMountEntries(), HasLen, 2)
 
-	expectedUserMountEntries := []osutil.MountEntry{{
-		Dir:     "$HOME/.local/share",
-		Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=$HOME"},
-	},
+	expectedUserMountEntries := []osutil.MountEntry{
+		{
+			Dir:     "$HOME/.local/share",
+			Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=$HOME"},
+		},
 		{
 			Dir:     "$HOME/.local/share/dir1/dir2",
 			Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=$HOME"},
-		}}
+		},
+	}
 	c.Assert(mountSpec.UserMountEntries(), DeepEquals, expectedUserMountEntries)
 }
 

@@ -537,6 +537,26 @@ func (s *specSuite) TestApparmorExtraLayouts(c *C) {
 	// lines 3..9 is the traversal of the prefix for /usr/home/test
 }
 
+func (s *specSuite) TestAllowEnsureDirMounts(c *C) {
+	ensureDirSpecs := []*interfaces.EnsureDirSpec{
+		{MustExistDir: "$HOME", EnsureDir: "$HOME/.local/share"},
+		{MustExistDir: "$HOME", EnsureDir: "$HOME/dir1/dir2"},
+		{MustExistDir: "/", EnsureDir: "/dir1/dir2"},
+		{MustExistDir: "/dir1", EnsureDir: "/dir1"},
+	}
+	s.spec.AllowUserEnsureDirMounts("personal-files", ensureDirSpecs)
+	c.Check("\n"+strings.Join(s.spec.UpdateNS(), "\n"), Equals, `
+  # Allow the personal-files interface to create potentially missing directories
+  owner @{HOME}/ rw,
+  owner @{HOME}/.local/ rw,
+  owner @{HOME}/.local/share/ rw,
+  owner @{HOME}/dir1/ rw,
+  owner @{HOME}/dir1/dir2/ rw,
+  owner / rw,
+  owner /dir1/ rw,
+  owner /dir1/dir2/ rw,`)
+}
+
 func (s *specSuite) TestUsesPtraceTrace(c *C) {
 	c.Assert(s.spec.UsesPtraceTrace(), Equals, false)
 	s.spec.SetUsesPtraceTrace()

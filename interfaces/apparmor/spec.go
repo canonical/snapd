@@ -567,6 +567,61 @@ func snippetFromLayout(layout *snap.Layout) string {
 	return fmt.Sprintf("# Layout path: %s\n# (no extra permissions required for symlink)", mountPoint)
 }
 
+// emitUserEnsureDir creates an apparmor snippet that permits snap-update-ns to create
+// missing directories for the calling user according to the provided ensure directory spec.
+func emitUserEnsureDir(spec *Specification, ifaceName string, ensureDirSpec *interfaces.EnsureDirSpec) {
+	ensureDir := filepath.Clean(ensureDirSpec.EnsureDir)
+	mustExistDir := filepath.Clean(ensureDirSpec.MustExistDir)
+	if ensureDir == mustExistDir {
+		return
+	}
+
+	replacePrefixHome := func(path string) string {
+		if strings.HasPrefix(path, "$HOME") {
+			return strings.Replace(path, "$HOME", "@{HOME}", -1)
+		}
+		return path
+	}
+	appArmorDir := func(path string) string {
+		if path != "/" {
+			path = path + "/"
+		}
+		return path
+	}
+	emit := spec.AddUpdateNSf
+
+	// Create entry for MustExistDir
+	iter, err := strutil.NewPathIterator(ensureDir)
+	if err != nil {
+		panic(err)
+	}
+	for iter.Next() {
+		if iter.CurrentCleanPath() == mustExistDir {
+			emit("  # Allow the %s interface to create potentially missing directories", ifaceName)
+			emit("  owner %s rw,", appArmorDir(replacePrefixHome(mustExistDir)))
+			break
+		}
+	}
+
+	// Create entries for the remaining directories after MustExistDir up to and including EnsureDir
+	for iter.Next() {
+		emit("  owner %s/ rw,", replacePrefixHome(iter.CurrentCleanPath()))
+	}
+}
+
+// AllowUserEnsureDirMounts adds snap-update-ns snippets that permit snap-update-ns to create
+// missing directories according to the provided ensure directory mount specs.
+func (spec *Specification) AllowUserEnsureDirMounts(ifaceName string, ensureDirSpecs []*interfaces.EnsureDirSpec) {
+	// Walk the path specs in deterministic order, by EnsureDir (the mount point).
+	sort.Slice(ensureDirSpecs, func(i, j int) bool {
+		return ensureDirSpecs[i].EnsureDir < ensureDirSpecs[j].EnsureDir
+	})
+
+	for _, ensureDirSpec := range ensureDirSpecs {
+		emitUserEnsureDir(spec, ifaceName, ensureDirSpec)
+	}
+}
+
 // Implementation of methods required by interfaces.Specification
 
 // AddConnectedPlug records apparmor-specific side-effects of having a connected plug.

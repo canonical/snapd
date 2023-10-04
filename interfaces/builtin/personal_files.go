@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
 )
 
@@ -137,5 +138,25 @@ func (iface *personalFilesInterface) MountConnectedPlug(spec *mount.Specificatio
 	if len(ensureDirSpecs) > 0 {
 		spec.AddUserEnsureDirs(ensureDirSpecs)
 	}
+	return nil
+}
+
+func (iface *personalFilesInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if err := iface.commonFilesInterface.AppArmorConnectedPlug(spec, plug, slot); err != nil {
+		return err
+	}
+
+	var writes []interface{}
+	_ = plug.Attr("write", &writes)
+
+	// Add snippet for snap-update-ns
+	ensureDirSpecs, err := dirsToEnsure(writes)
+	if err != nil {
+		return fmt.Errorf("cannot connect plug %s: %v", plug.Name(), err)
+	}
+	if len(ensureDirSpecs) > 0 {
+		spec.AllowUserEnsureDirMounts(iface.commonFilesInterface.commonInterface.name, ensureDirSpecs)
+	}
+
 	return nil
 }
