@@ -3,11 +3,11 @@ summary: A no-strings-attached, no-fuss shell for writing tests
 version: 1.0
 
 plugs:
-    system-files:
-        read: [/mnt/testdir]
-        write: [/mnt/testdir/.testdir1, /mnt/testdir/.testfile1]
+    opt-ros:  
+        interface: ros-opt-data
+        read: [/opt/ros]
 
 apps:
-    with-system-files-plug:
+    app-with-opt-ros-plug:
         command: bin/sh
-        plugs: [system-files]
+        plugs: [opt-ros]
