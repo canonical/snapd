@@ -2474,7 +2474,7 @@ func (s *deviceMgrSerialSuite) TestShouldRequestSerial(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	for _, t := range testCases {
+	for i, t := range testCases {
 		tr := config.NewTransaction(s.state)
 		err := tr.Set("core", "store.access", t.storeAccess)
 		c.Assert(err, IsNil)
@@ -2489,7 +2489,7 @@ func (s *deviceMgrSerialSuite) TestShouldRequestSerial(c *C) {
 
 		shouldRequest, err := devicestate.ShouldRequestSerial(s.state, t.gadgetName)
 		c.Check(err, IsNil)
-		c.Check(shouldRequest, Equals, t.expected, Commentf("%+v", t))
+		c.Check(shouldRequest, Equals, t.expected, Commentf("testcase %d: %+v", i, t))
 	}
 }
 
