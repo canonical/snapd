@@ -284,6 +284,14 @@ func (m *SnapManager) MaybeUndoRemodelBootChanges(t *state.Task) (restartRequest
 	return false, false, err
 }
 
+func MockEnsuredDesktopFilesUpdated(m *SnapManager, ensured bool) (restore func()) {
+	old := m.ensuredDesktopFilesUpdated
+	m.ensuredDesktopFilesUpdated = ensured
+	return func() {
+		m.ensuredDesktopFilesUpdated = old
+	}
+}
+
 func MockPidsOfSnap(f func(instanceName string) (map[string][]int, error)) func() {
 	old := pidsOfSnap
 	pidsOfSnap = f

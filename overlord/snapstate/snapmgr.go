@@ -1082,15 +1082,6 @@ func MockEnsuredMountsUpdated(m *SnapManager, ensured bool) (restore func()) {
 	}
 }
 
-func MockEnsuredDesktopFilesUpdated(m *SnapManager, ensured bool) (restore func()) {
-	osutil.MustBeTestBinary("ensured desktop files can only be mocked from tests")
-	old := m.ensuredDesktopFilesUpdated
-	m.ensuredDesktopFilesUpdated = ensured
-	return func() {
-		m.ensuredDesktopFilesUpdated = old
-	}
-}
-
 func getSystemD() systemd.Systemd {
 	if snapdenv.Preseeding() {
 		return systemd.NewEmulationMode(dirs.GlobalRootDir)

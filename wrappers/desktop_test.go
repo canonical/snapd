@@ -103,6 +103,27 @@ func (s *desktopSuite) TestEnsurePackageDesktopFiles(c *C) {
 	c.Assert(osutil.FileExists(oldDesktopFilePath), Equals, false)
 }
 
+func (s *desktopSuite) TestEnsurePackageDesktopFilesMultiple(c *C) {
+	info1 := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
+	baseDir := info1.MountDir()
+	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.desktop"), mockDesktopFile, 0644), IsNil)
+
+	info2 := snaptest.MockSnap(c, strings.Replace(desktopAppYaml, "name: foo", "name: bar", 1), &snap.SideInfo{Revision: snap.R(12)})
+	baseDir = info2.MountDir()
+	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.desktop"), mockDesktopFile, 0644), IsNil)
+
+	err := wrappers.EnsureSnapDesktopFiles([]*snap.Info{info1, info2})
+	c.Assert(err, IsNil)
+
+	// Desktop files for both snaps were installed
+	desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop")
+	c.Assert(desktopFilePath, testutil.FilePresent)
+	desktopFilePath = filepath.Join(dirs.SnapDesktopFilesDir, "bar_foobar.desktop")
+	c.Assert(desktopFilePath, testutil.FilePresent)
+}
+
 func (s *iconsTestSuite) TestEnsurePackageDesktopFilesNilSnapInfo(c *C) {
 	c.Assert(wrappers.EnsureSnapDesktopFiles([]*snap.Info{nil}), ErrorMatches, "internal error: snap info cannot be nil")
 }
