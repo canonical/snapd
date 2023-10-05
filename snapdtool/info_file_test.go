@@ -21,7 +21,7 @@ package snapdtool_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -41,7 +41,7 @@ func (s *infoFileSuite) TestNoVersionFile(c *C) {
 func (s *infoFileSuite) TestNoVersionData(c *C) {
 	top := c.MkDir()
 	infoFile := filepath.Join(top, "info")
-	c.Assert(ioutil.WriteFile(infoFile, []byte("foo"), 0644), IsNil)
+	c.Assert(os.WriteFile(infoFile, []byte("foo"), 0644), IsNil)
 
 	_, _, err := snapdtool.SnapdVersionFromInfoFile(top)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot find version in snapd info file %q`, infoFile))
@@ -50,7 +50,7 @@ func (s *infoFileSuite) TestNoVersionData(c *C) {
 func (s *infoFileSuite) TestVersionHappy(c *C) {
 	top := c.MkDir()
 	infoFile := filepath.Join(top, "info")
-	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=1.2.3"), 0644), IsNil)
+	c.Assert(os.WriteFile(infoFile, []byte("VERSION=1.2.3"), 0644), IsNil)
 
 	ver, flags, err := snapdtool.SnapdVersionFromInfoFile(top)
 	c.Assert(err, IsNil)
@@ -61,7 +61,7 @@ func (s *infoFileSuite) TestVersionHappy(c *C) {
 func (s *infoFileSuite) TestInfoVersionFlags(c *C) {
 	top := c.MkDir()
 	infoFile := filepath.Join(top, "info")
-	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=1.2.3\nFOO=BAR"), 0644), IsNil)
+	c.Assert(os.WriteFile(infoFile, []byte("VERSION=1.2.3\nFOO=BAR"), 0644), IsNil)
 
 	ver, flags, err := snapdtool.SnapdVersionFromInfoFile(top)
 	c.Assert(err, IsNil)

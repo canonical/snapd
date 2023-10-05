@@ -20,7 +20,6 @@
 package autostart_test
 
 import (
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path"
@@ -184,7 +183,7 @@ func (s *autostartSuite) TestTryAutostartInvalid(c *C) {
 func writeFile(c *C, path string, content []byte) {
 	err := os.MkdirAll(filepath.Dir(path), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(path, content, 0644)
+	err = os.WriteFile(path, content, 0644)
 	c.Assert(err, IsNil)
 }
 

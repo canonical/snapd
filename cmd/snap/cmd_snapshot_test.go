@@ -21,8 +21,8 @@ package main_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -157,7 +157,7 @@ func (s *SnapSuite) TestSnapshotImportHappy(c *C) {
 	ageStr := quantity.FormatDuration(expectedAge.Seconds())
 
 	exportedSnapshotPath := filepath.Join(c.MkDir(), "mocked-snapshot.snapshot")
-	ioutil.WriteFile(exportedSnapshotPath, []byte("this is really snapshot zip file data"), 0644)
+	os.WriteFile(exportedSnapshotPath, []byte("this is really snapshot zip file data"), 0644)
 
 	_, err := main.Parser(main.Client()).ParseArgs([]string{"import-snapshot", exportedSnapshotPath})
 	c.Check(err, IsNil)

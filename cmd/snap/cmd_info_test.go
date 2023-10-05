@@ -22,8 +22,8 @@ package main_test
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -277,7 +277,7 @@ func (s *infoSuite) TestMaybePrintBuildDate(c *check.C) {
 	// some prep
 	dir := c.MkDir()
 	arbfile := filepath.Join(dir, "arb")
-	c.Assert(ioutil.WriteFile(arbfile, nil, 0600), check.IsNil)
+	c.Assert(os.WriteFile(arbfile, nil, 0600), check.IsNil)
 	filename := filepath.Join(c.MkDir(), "foo.snap")
 	diskSnap := squashfs.New(filename)
 	c.Assert(diskSnap.Build(dir, nil), check.IsNil)

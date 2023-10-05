@@ -171,7 +171,6 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"ubuntu-download-manager": true,
 		"unity7":                  true,
 		"unity8":                  true,
-		"upower-observe":          true,
 		"wayland":                 true,
 		"x11":                     true,
 	}
@@ -192,6 +191,33 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		} else {
 			c.Check(err, NotNil, comm)
 		}
+	}
+}
+
+func (s *baseDeclSuite) TestAutoConnectionImplicitSlotOnly(c *C) {
+	all := builtin.Interfaces()
+
+	// these auto-connect only with an implicit slot
+	autoconnect := map[string]bool{
+		"upower-observe": true,
+	}
+
+	for _, iface := range all {
+		if !autoconnect[iface.Name()] {
+			continue
+		}
+		comm := Commentf(iface.Name())
+
+		// check base declaration
+		cand := s.connectCand(c, iface.Name(), fmt.Sprintf(`name: snapd
+type: snapd
+version: 0
+slots:
+  %s:
+`, iface.Name()), "")
+		arity, err := cand.CheckAutoConnect()
+		c.Check(err, IsNil, comm)
+		c.Check(arity.SlotsPerPlugAny(), Equals, false)
 	}
 }
 
@@ -809,6 +835,7 @@ var (
 		"online-accounts-service":   {"app"},
 		"power-control":             {"core"},
 		"ppp":                       {"core"},
+		"polkit-agent":              {"core"},
 		"pulseaudio":                {"app", "core"},
 		"pwm":                       {"core", "gadget"},
 		"qualcomm-ipc-router":       {"core", "app"},
@@ -987,6 +1014,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"packagekit-control":     true,
 		"personal-files":         true,
 		"polkit":                 true,
+		"polkit-agent":           true,
 		"sd-control":             true,
 		"snap-refresh-control":   true,
 		"snap-themes-control":    true,
@@ -1050,6 +1078,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"mir":                       true,
 		"online-accounts-service":   true,
 		"posix-mq":                  true,
+		"qualcomm-ipc-router":       true,
 		"raw-volume":                true,
 		"shared-memory":             true,
 		"storage-framework-service": true,
@@ -1057,6 +1086,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"ubuntu-download-manager":   true,
 		"unity8-calendar":           true,
 		"unity8-contacts":           true,
+		"upower-observe":            true,
 	}
 
 	for _, iface := range all {
@@ -1075,6 +1105,33 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	}
 }
 
+func (s *baseDeclSuite) TestConnectionImplicitSlotOnly(c *C) {
+	all := builtin.Interfaces()
+
+	// these allow connect only with an implicit slot
+	autoconnect := map[string]bool{
+		"qualcomm-ipc-router": true,
+		"upower-observe":      true,
+	}
+
+	for _, iface := range all {
+		if !autoconnect[iface.Name()] {
+			continue
+		}
+		comm := Commentf(iface.Name())
+
+		// check base declaration
+		cand := s.connectCand(c, iface.Name(), fmt.Sprintf(`name: snapd
+type: snapd
+version: 0
+slots:
+  %s:
+`, iface.Name()), "")
+		err := cand.Check()
+		c.Check(err, IsNil, comm)
+	}
+}
+
 func (s *baseDeclSuite) TestConnectionOnClassic(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -1089,7 +1146,6 @@ func (s *baseDeclSuite) TestConnectionOnClassic(c *C) {
 		"network-manager": true,
 		"ofono":           true,
 		"pulseaudio":      true,
-		"upower-observe":  true,
 	}
 
 	for _, onClassic := range []bool{true, false} {
@@ -1241,6 +1297,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"pkcs11":                 true,
 		"posix-mq":               true,
 		"polkit":                 true,
+		"polkit-agent":           true,
 		"qualcomm-ipc-router":    true,
 		"sd-control":             true,
 		"shared-memory":          true,
@@ -1710,6 +1767,24 @@ plugs:
 `
 
 	snapDecl := s.mockSnapDecl(c, "some-snap", "some-snap-with-desktop-launch-id", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	_, err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionPolkitAgentOverride(c *C) {
+	cand := s.connectCand(c, "polkit-agent", "", "")
+	_, err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"polkit-agent\"")
+
+	plugsSlots := `
+plugs:
+  polkit-agent:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "some-snap-with-polkit-agent-id", "canonical", plugsSlots)
 	cand.PlugSnapDeclaration = snapDecl
 	_, err = cand.CheckAutoConnect()
 	c.Check(err, IsNil)

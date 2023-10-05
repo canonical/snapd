@@ -109,9 +109,9 @@ func getHostnameFromSystemHelper(key string) (interface{}, error) {
 
 func getHostnameFromSystem() (string, error) {
 	// try pretty hostname first
-	output, err := exec.Command("hostnamectl", "status", "--pretty").CombinedOutput()
+	output, stderr, err := osutil.RunSplitOutput("hostnamectl", "status", "--pretty")
 	if err != nil {
-		return "", fmt.Errorf("cannot get hostname (pretty): %v", osutil.OutputErr(output, err))
+		return "", fmt.Errorf("cannot get hostname (pretty): %v", osutil.OutputErrCombine(output, stderr, err))
 	}
 	prettyHostname := strings.TrimSpace(string(output))
 	if len(prettyHostname) > 0 {
@@ -119,9 +119,9 @@ func getHostnameFromSystem() (string, error) {
 	}
 
 	// then static hostname
-	output, err = exec.Command("hostnamectl", "status", "--static").CombinedOutput()
+	output, stderr, err = osutil.RunSplitOutput("hostnamectl", "status", "--static")
 	if err != nil {
-		return "", fmt.Errorf("cannot get hostname: %v", osutil.OutputErr(output, err))
+		return "", fmt.Errorf("cannot get hostname: %v", osutil.OutputErrCombine(output, stderr, err))
 	}
 	return strings.TrimSpace(string(output)), nil
 }

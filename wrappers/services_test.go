@@ -1363,10 +1363,10 @@ WantedBy=multi-user.target
 	c.Assert(err, IsNil)
 
 	oldContent := fmt.Sprintf(sliceTempl, "foogroup", memLimit1.String())
-	err = ioutil.WriteFile(sliceFile, []byte(oldContent), 0644)
+	err = os.WriteFile(sliceFile, []byte(oldContent), 0644)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(svcFile, []byte(svcContent), 0644)
+	err = os.WriteFile(svcFile, []byte(svcContent), 0644)
 	c.Assert(err, IsNil)
 
 	// use new memory limit
@@ -1464,10 +1464,10 @@ WantedBy=multi-user.target
 	err := os.MkdirAll(filepath.Dir(sliceFile), 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(sliceFile, []byte(fmt.Sprintf(sliceTempl, "foogroup", memLimit.String(), taskLimit)), 0644)
+	err = os.WriteFile(sliceFile, []byte(fmt.Sprintf(sliceTempl, "foogroup", memLimit.String(), taskLimit)), 0644)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(svcFile, []byte(svcContent), 0644)
+	err = os.WriteFile(svcFile, []byte(svcContent), 0644)
 	c.Assert(err, IsNil)
 
 	resourceLimits := quota.NewResourcesBuilder().WithMemoryLimit(memLimit).WithThreadLimit(taskLimit).Build()
@@ -1529,7 +1529,7 @@ MemoryLimit=1024
 	err = os.MkdirAll(filepath.Dir(sliceFile), 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(sliceFile, []byte(fmt.Sprintf(sliceTempl, "foogroup")), 0644)
+	err = os.WriteFile(sliceFile, []byte(fmt.Sprintf(sliceTempl, "foogroup")), 0644)
 	c.Assert(err, IsNil)
 
 	// removing it deletes it
@@ -2011,7 +2011,7 @@ WantedBy=multi-user.target
 
 	err := os.MkdirAll(filepath.Dir(svc1File), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(svc1File, []byte(svc1Content), 0644)
+	err = os.WriteFile(svc1File, []byte(svc1Content), 0644)
 	c.Assert(err, IsNil)
 
 	// both will be written, one is new
@@ -2104,7 +2104,7 @@ WantedBy=multi-user.target
 
 	err := os.MkdirAll(filepath.Dir(svc1File), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(svc1File, []byte(svc1Content), 0644)
+	err = os.WriteFile(svc1File, []byte(svc1Content), 0644)
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
@@ -2175,7 +2175,7 @@ WantedBy=multi-user.target
 
 	err := os.MkdirAll(filepath.Dir(svcFile), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(svcFile, []byte(origContent), 0644)
+	err = os.WriteFile(svcFile, []byte(origContent), 0644)
 	c.Assert(err, IsNil)
 
 	// now ensuring with no options will not modify anything or trigger a
@@ -2243,7 +2243,7 @@ WantedBy=multi-user.target
 
 	err := os.MkdirAll(filepath.Dir(svcFile), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(svcFile, []byte(origContent), 0644)
+	err = os.WriteFile(svcFile, []byte(origContent), 0644)
 	c.Assert(err, IsNil)
 
 	// now ensuring with the VitalityRank set will modify the file
@@ -2307,7 +2307,7 @@ WantedBy=multi-user.target
 
 	err := os.MkdirAll(filepath.Dir(svcFile), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(svcFile, []byte(origContent), 0644)
+	err = os.WriteFile(svcFile, []byte(origContent), 0644)
 	c.Assert(err, IsNil)
 
 	// make systemctl fail the first time when we try to do a daemon-reload,
@@ -2477,7 +2477,7 @@ WantedBy=multi-user.target
 
 	err := os.MkdirAll(filepath.Dir(svc1File), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(svc1File, []byte(svc1Content), 0644)
+	err = os.WriteFile(svc1File, []byte(svc1Content), 0644)
 	c.Assert(err, IsNil)
 
 	// make systemctl fail the first time when we try to do a daemon-reload,
@@ -2973,7 +2973,7 @@ func (s *servicesTestSuite) TestServicesEnableStateFail(c *C) {
 	defer r.Restore()
 
 	_, err := wrappers.ServicesEnableState(info, progress.Null)
-	c.Assert(err, ErrorMatches, ".*show --property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload snap.hello-snap.svc1.service\\] failed with exit status 1: whoops\n.*")
+	c.Assert(err, ErrorMatches, ".*show --property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload snap.hello-snap.svc1.service\\] failed with exit status 1: whoops.*")
 
 	c.Assert(r.Calls(), DeepEquals, [][]string{
 		{"systemctl", "show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", svc1File},

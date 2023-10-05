@@ -24,6 +24,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -190,10 +191,10 @@ func (cs *clientSuite) TestClientOfflineRemodel(c *C) {
 
 	var err error
 	snapPaths := []string{filepath.Join(dirs.GlobalRootDir, "snap1.snap")}
-	err = ioutil.WriteFile(snapPaths[0], []byte("snap1"), 0644)
+	err = os.WriteFile(snapPaths[0], []byte("snap1"), 0644)
 	c.Assert(err, IsNil)
 	assertsPaths := []string{filepath.Join(dirs.GlobalRootDir, "f1.asserts")}
-	err = ioutil.WriteFile(assertsPaths[0], []byte("asserts1"), 0644)
+	err = os.WriteFile(assertsPaths[0], []byte("asserts1"), 0644)
 	c.Assert(err, IsNil)
 
 	id, err := cs.cli.RemodelOffline(rawModel, snapPaths, assertsPaths)
@@ -237,10 +238,10 @@ func (cs *clientSuite) TestClientOfflineRemodelServerError(c *C) {
 
 	var err error
 	snapPaths := []string{filepath.Join(dirs.GlobalRootDir, "snap1.snap")}
-	err = ioutil.WriteFile(snapPaths[0], []byte("snap1"), 0644)
+	err = os.WriteFile(snapPaths[0], []byte("snap1"), 0644)
 	c.Assert(err, IsNil)
 	assertsPaths := []string{filepath.Join(dirs.GlobalRootDir, "f1.asserts")}
-	err = ioutil.WriteFile(assertsPaths[0], []byte("asserts1"), 0644)
+	err = os.WriteFile(assertsPaths[0], []byte("asserts1"), 0644)
 	c.Assert(err, IsNil)
 
 	id, err := cs.cli.RemodelOffline(rawModel, snapPaths, assertsPaths)

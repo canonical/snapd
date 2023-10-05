@@ -21,7 +21,6 @@ package snapdtool_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -80,13 +79,13 @@ func (s *toolSuite) syscallExec(argv0 string, argv []string, envv []string) (err
 func (s *toolSuite) fakeCoreVersion(c *C, coreDir, version string) {
 	p := filepath.Join(coreDir, "/usr/lib/snapd")
 	c.Assert(os.MkdirAll(p, 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(p, "info"), []byte("VERSION="+version), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(p, "info"), []byte("VERSION="+version), 0644), IsNil)
 }
 
 func (s *toolSuite) fakeInternalTool(c *C, coreDir, toolName string) string {
 	s.fakeCoreVersion(c, coreDir, "42")
 	p := filepath.Join(coreDir, "/usr/lib/snapd", toolName)
-	c.Assert(ioutil.WriteFile(p, nil, 0755), IsNil)
+	c.Assert(os.WriteFile(p, nil, 0755), IsNil)
 
 	return p
 }
@@ -173,7 +172,7 @@ func (s *toolSuite) TestSystemSnapSupportsReExecBadInfoContent(c *C) {
 	// can't understand snapd/info if all it holds are potatoes
 	p := s.snapdPath + "/usr/lib/snapd"
 	c.Assert(os.MkdirAll(p, 0755), IsNil)
-	c.Assert(ioutil.WriteFile(p+"/info", []byte("potatoes"), 0644), IsNil)
+	c.Assert(os.WriteFile(p+"/info", []byte("potatoes"), 0644), IsNil)
 
 	c.Check(snapdtool.SystemSnapSupportsReExec(s.snapdPath), Equals, false)
 }
@@ -277,7 +276,7 @@ func (s *toolSuite) TestInternalToolPathWithOtherDevLocationWhenExecutable(c *C)
 	devTool := filepath.Join(dirs.GlobalRootDir, "/tmp/potato")
 	err := os.MkdirAll(filepath.Dir(devTool), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(devTool, []byte(""), 0755)
+	err = os.WriteFile(devTool, []byte(""), 0755)
 	c.Assert(err, IsNil)
 
 	path, err := snapdtool.InternalToolPath("potato")
@@ -294,7 +293,7 @@ func (s *toolSuite) TestInternalToolPathWithOtherDevLocationNonExecutable(c *C) 
 	devTool := filepath.Join(dirs.GlobalRootDir, "/tmp/non-executable-potato")
 	err := os.MkdirAll(filepath.Dir(devTool), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(devTool, []byte(""), 0644)
+	err = os.WriteFile(devTool, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
 	path, err := snapdtool.InternalToolPath("non-executable-potato")

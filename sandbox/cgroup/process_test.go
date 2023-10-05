@@ -20,7 +20,6 @@
 package cgroup_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -32,7 +31,7 @@ import (
 func (s *cgroupSuite) mockPidCgroup(c *C, text string) int {
 	f := filepath.Join(s.rootDir, "proc/333/cgroup")
 	c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(f, []byte(text), 0755), IsNil)
+	c.Assert(os.WriteFile(f, []byte(text), 0755), IsNil)
 	return 333
 }
 

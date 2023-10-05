@@ -20,7 +20,6 @@
 package wrappers_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -132,14 +131,14 @@ func (s *dbusTestSuite) TestAddSnapDBusActivationFilesRemovesLeftovers(c *C) {
 	c.Assert(os.MkdirAll(dirs.SnapDBusSystemServicesDir, 0755), IsNil)
 
 	sessionSvc := filepath.Join(dirs.SnapDBusSessionServicesDir, "org.example.Baz.service")
-	c.Assert(ioutil.WriteFile(sessionSvc, []byte("[D-BUS Service]\nX-Snap=snapname\n"), 0644), IsNil)
+	c.Assert(os.WriteFile(sessionSvc, []byte("[D-BUS Service]\nX-Snap=snapname\n"), 0644), IsNil)
 	systemSvc := filepath.Join(dirs.SnapDBusSessionServicesDir, "org.example.Baz.service")
-	c.Assert(ioutil.WriteFile(systemSvc, []byte("[D-BUS Service]\nX-Snap=snapname\n"), 0644), IsNil)
+	c.Assert(os.WriteFile(systemSvc, []byte("[D-BUS Service]\nX-Snap=snapname\n"), 0644), IsNil)
 
 	otherSessionSvc := filepath.Join(dirs.SnapDBusSessionServicesDir, "org.example.OtherSnap.service")
-	c.Assert(ioutil.WriteFile(otherSessionSvc, []byte("[D-BUS Service]\nX-Snap=other-snap\n"), 0644), IsNil)
+	c.Assert(os.WriteFile(otherSessionSvc, []byte("[D-BUS Service]\nX-Snap=other-snap\n"), 0644), IsNil)
 	otherSystemSvc := filepath.Join(dirs.SnapDBusSystemServicesDir, "org.example.OtherSnap.service")
-	c.Assert(ioutil.WriteFile(otherSystemSvc, []byte("[D-BUS Service]\nX-Snap=other-snap\n"), 0644), IsNil)
+	c.Assert(os.WriteFile(otherSystemSvc, []byte("[D-BUS Service]\nX-Snap=other-snap\n"), 0644), IsNil)
 
 	info := snaptest.MockSnap(c, dbusSnapYaml, &snap.SideInfo{Revision: snap.R(12)})
 	err := wrappers.AddSnapDBusActivationFiles(info)
@@ -158,14 +157,14 @@ func (s *dbusTestSuite) TestRemoveSnapDBusActivationFiles(c *C) {
 	c.Assert(os.MkdirAll(dirs.SnapDBusSystemServicesDir, 0755), IsNil)
 
 	sessionSvc := filepath.Join(dirs.SnapDBusSessionServicesDir, "org.example.Baz.service")
-	c.Assert(ioutil.WriteFile(sessionSvc, []byte("[D-BUS Service]\nX-Snap=snapname\n"), 0644), IsNil)
+	c.Assert(os.WriteFile(sessionSvc, []byte("[D-BUS Service]\nX-Snap=snapname\n"), 0644), IsNil)
 	systemSvc := filepath.Join(dirs.SnapDBusSessionServicesDir, "org.example.Baz.service")
-	c.Assert(ioutil.WriteFile(systemSvc, []byte("[D-BUS Service]\nX-Snap=snapname\n"), 0644), IsNil)
+	c.Assert(os.WriteFile(systemSvc, []byte("[D-BUS Service]\nX-Snap=snapname\n"), 0644), IsNil)
 
 	otherSessionSvc := filepath.Join(dirs.SnapDBusSessionServicesDir, "org.example.OtherSnap.service")
-	c.Assert(ioutil.WriteFile(otherSessionSvc, []byte("[D-BUS Service]\nX-Snap=other-snap\n"), 0644), IsNil)
+	c.Assert(os.WriteFile(otherSessionSvc, []byte("[D-BUS Service]\nX-Snap=other-snap\n"), 0644), IsNil)
 	otherSystemSvc := filepath.Join(dirs.SnapDBusSystemServicesDir, "org.example.OtherSnap.service")
-	c.Assert(ioutil.WriteFile(otherSystemSvc, []byte("[D-BUS Service]\nX-Snap=other-snap\n"), 0644), IsNil)
+	c.Assert(os.WriteFile(otherSystemSvc, []byte("[D-BUS Service]\nX-Snap=other-snap\n"), 0644), IsNil)
 
 	info := snaptest.MockSnap(c, dbusSnapYaml, &snap.SideInfo{Revision: snap.R(12)})
 	err := wrappers.RemoveSnapDBusActivationFiles(info)

@@ -21,7 +21,6 @@ package servicestate_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -371,7 +370,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesUC18(c
 	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
-	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	err = os.WriteFile(usrLibSnapdMountFile, nil, 0644)
 	c.Assert(err, IsNil)
 
 	r := s.mockSystemctlCalls(c, []expectedSystemctl{
@@ -414,7 +413,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesVitali
 	err = os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
-	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	err = os.WriteFile(usrLibSnapdMountFile, nil, 0644)
 	c.Assert(err, IsNil)
 
 	r := s.mockSystemctlCalls(c, []expectedSystemctl{
@@ -452,7 +451,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndDoe
 	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
-	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	err = os.WriteFile(usrLibSnapdMountFile, nil, 0644)
 	c.Assert(err, IsNil)
 
 	now := time.Now()
@@ -496,7 +495,7 @@ echo %[1]q
 		snapName:             "test-snap",
 		snapRev:              "42",
 	})
-	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
+	err = os.WriteFile(svcFile, []byte(requiresContent), 0644)
 	c.Assert(err, IsNil)
 
 	r = s.mockSystemctlCalls(c, []expectedSystemctl{
@@ -539,7 +538,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndIgn
 	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
-	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	err = os.WriteFile(usrLibSnapdMountFile, nil, 0644)
 	c.Assert(err, IsNil)
 
 	now := time.Now()
@@ -567,7 +566,7 @@ exit 1
 		snapName:             "test-snap",
 		snapRev:              "42",
 	})
-	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
+	err = os.WriteFile(svcFile, []byte(requiresContent), 0644)
 	c.Assert(err, IsNil)
 
 	r = s.mockSystemctlCalls(c, []expectedSystemctl{
@@ -616,7 +615,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
-	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	err = os.WriteFile(usrLibSnapdMountFile, nil, 0644)
 	c.Assert(err, IsNil)
 
 	now := time.Now()
@@ -631,7 +630,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 		snapName:             "test-snap",
 		snapRev:              "42",
 	})
-	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
+	err = os.WriteFile(svcFile, []byte(requiresContent), 0644)
 	c.Assert(err, IsNil)
 
 	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)
@@ -684,12 +683,6 @@ NeedDaemonReload=no
 	c.Assert(s.restartRequests, HasLen, 0)
 }
 
-type systemctlDisabledServiceError struct{}
-
-func (s systemctlDisabledServiceError) Msg() []byte   { return []byte("disabled") }
-func (s systemctlDisabledServiceError) ExitCode() int { return 1 }
-func (s systemctlDisabledServiceError) Error() string { return "disabled service" }
-
 func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesButDoesNotRestartDisabledServices(c *C) {
 	s.state.Lock()
 	// there is a snap in snap state that needs a service generated for it
@@ -702,7 +695,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesButDoe
 	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
-	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	err = os.WriteFile(usrLibSnapdMountFile, nil, 0644)
 	c.Assert(err, IsNil)
 
 	now := time.Now()
@@ -717,7 +710,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesButDoe
 		snapName:             "test-snap",
 		snapRev:              "42",
 	})
-	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
+	err = os.WriteFile(svcFile, []byte(requiresContent), 0644)
 	c.Assert(err, IsNil)
 
 	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)
@@ -781,7 +774,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesKil
 	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
-	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	err = os.WriteFile(usrLibSnapdMountFile, nil, 0644)
 	c.Assert(err, IsNil)
 
 	now := time.Now()
@@ -796,7 +789,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesKil
 		snapName:             "test-snap",
 		snapRev:              "42",
 	})
-	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
+	err = os.WriteFile(svcFile, []byte(requiresContent), 0644)
 	c.Assert(err, IsNil)
 
 	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
@@ -847,7 +840,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesKil
 	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
-	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	err = os.WriteFile(usrLibSnapdMountFile, nil, 0644)
 	c.Assert(err, IsNil)
 
 	now := time.Now()
@@ -862,7 +855,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesKil
 		snapName:             "test-snap",
 		snapRev:              "42",
 	})
-	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
+	err = os.WriteFile(svcFile, []byte(requiresContent), 0644)
 	c.Assert(err, IsNil)
 
 	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
@@ -913,7 +906,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleRewritesServicesFil
 	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
-	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	err = os.WriteFile(usrLibSnapdMountFile, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// this test is about the specific scenario we have now when using systemctl
@@ -945,7 +938,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleRewritesServicesFil
 		snapName:             "test-snap",
 		snapRev:              "42",
 	})
-	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
+	err = os.WriteFile(svcFile, []byte(requiresContent), 0644)
 	c.Assert(err, IsNil)
 
 	r := s.mockSystemctlCalls(c, []expectedSystemctl{
@@ -1006,7 +999,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleRewritesServicesFil
 	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
-	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	err = os.WriteFile(usrLibSnapdMountFile, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// this test is like TestEnsureSnapServicesSimpleRewritesServicesFilesAndRestartsTimePrecisionSilly,
@@ -1038,7 +1031,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleRewritesServicesFil
 		snapName:             "test-snap",
 		snapRev:              "42",
 	})
-	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
+	err = os.WriteFile(svcFile, []byte(requiresContent), 0644)
 	c.Assert(err, IsNil)
 
 	r := s.mockSystemctlCalls(c, []expectedSystemctl{
@@ -1099,7 +1092,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleRewritesServicesFil
 	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
-	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	err = os.WriteFile(usrLibSnapdMountFile, nil, 0644)
 	c.Assert(err, IsNil)
 
 	now := time.Now()
@@ -1117,7 +1110,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleRewritesServicesFil
 		snapName:             "test-snap",
 		snapRev:              "42",
 	})
-	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
+	err = os.WriteFile(svcFile, []byte(requiresContent), 0644)
 	c.Assert(err, IsNil)
 
 	r := s.mockSystemctlCalls(c, []expectedSystemctl{
@@ -1178,7 +1171,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesNoChangeServiceFileDoesNo
 	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
-	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	err = os.WriteFile(usrLibSnapdMountFile, nil, 0644)
 	c.Assert(err, IsNil)
 
 	now := time.Now()
@@ -1193,7 +1186,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesNoChangeServiceFileDoesNo
 		snapName:             "test-snap",
 		snapRev:              "42",
 	})
-	err = ioutil.WriteFile(svcFile, []byte(content), 0644)
+	err = os.WriteFile(svcFile, []byte(content), 0644)
 	c.Assert(err, IsNil)
 
 	// we don't use systemctl at all because we didn't change anything
@@ -1222,7 +1215,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesWhe
 	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
-	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	err = os.WriteFile(usrLibSnapdMountFile, nil, 0644)
 	c.Assert(err, IsNil)
 
 	now := time.Now()
@@ -1236,7 +1229,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesWhe
 		snapName:             "test-snap",
 		snapRev:              "42",
 	})
-	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
+	err = os.WriteFile(svcFile, []byte(requiresContent), 0644)
 	c.Assert(err, IsNil)
 
 	r := s.mockSystemctlCalls(c, []expectedSystemctl{
@@ -1278,7 +1271,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
-	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	err = os.WriteFile(usrLibSnapdMountFile, nil, 0644)
 	c.Assert(err, IsNil)
 
 	now := time.Now()
@@ -1293,7 +1286,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 		snapName:             "test-snap",
 		snapRev:              "42",
 	})
-	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
+	err = os.WriteFile(svcFile, []byte(requiresContent), 0644)
 	c.Assert(err, IsNil)
 
 	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)
@@ -1366,7 +1359,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndTri
 	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
-	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	err = os.WriteFile(usrLibSnapdMountFile, nil, 0644)
 	c.Assert(err, IsNil)
 
 	now := time.Now()
@@ -1381,7 +1374,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndTri
 		snapName:             "test-snap",
 		snapRev:              "42",
 	})
-	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
+	err = os.WriteFile(svcFile, []byte(requiresContent), 0644)
 	c.Assert(err, IsNil)
 
 	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)

@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build !linux
-// +build !linux
 
 /*
  * Copyright (C) 2020 Canonical Ltd

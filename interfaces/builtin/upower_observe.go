@@ -38,8 +38,12 @@ const upowerObserveBaseDeclarationSlots = `
       slot-snap-type:
         - app
         - core
+    deny-auto-connection:
+      slot-snap-type:
+        - app
     deny-connection:
-      on-classic: false
+      slot-snap-type:
+        - app
 `
 
 const upowerObservePermanentSlotAppArmor = `

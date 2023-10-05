@@ -21,7 +21,6 @@ package userd_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -154,7 +153,7 @@ func (s *launcherSuite) TestOpenFileUserAccepts(c *C) {
 	defer restore()
 
 	path := filepath.Join(c.MkDir(), "test.txt")
-	c.Assert(ioutil.WriteFile(path, []byte("Hello world"), 0644), IsNil)
+	c.Assert(os.WriteFile(path, []byte("Hello world"), 0644), IsNil)
 
 	file, err := os.Open(path)
 	c.Assert(err, IsNil)
@@ -175,7 +174,7 @@ func (s *launcherSuite) TestOpenFileUserDeclines(c *C) {
 	defer restore()
 
 	path := filepath.Join(c.MkDir(), "test.txt")
-	c.Assert(ioutil.WriteFile(path, []byte("Hello world"), 0644), IsNil)
+	c.Assert(os.WriteFile(path, []byte("Hello world"), 0644), IsNil)
 
 	file, err := os.Open(path)
 	c.Assert(err, IsNil)
@@ -249,7 +248,7 @@ func (s *launcherSuite) TestFailsOnUbuntuCore(c *C) {
 	defer restore()
 
 	path := filepath.Join(c.MkDir(), "test.txt")
-	c.Assert(ioutil.WriteFile(path, []byte("Hello world"), 0644), IsNil)
+	c.Assert(os.WriteFile(path, []byte("Hello world"), 0644), IsNil)
 	file, err := os.Open(path)
 	c.Assert(err, IsNil)
 	defer file.Close()

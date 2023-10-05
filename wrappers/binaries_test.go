@@ -20,7 +20,6 @@
 package wrappers_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -125,7 +124,7 @@ func (s *binariesTestSuite) prepareReadOnlyLegacyDir(c *C) {
 	}
 
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.CompleteShPath(s.base)), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
 
 	f, err := os.OpenFile(dirs.BashCompletionScript, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
 	c.Assert(err, IsNil)
@@ -150,7 +149,7 @@ func (s *binariesTestSuite) prepareUseLegacy(c *C) {
 	}
 
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.CompleteShPath(s.base)), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
 
 	f, err := os.OpenFile(dirs.BashCompletionScript, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
 	c.Assert(err, IsNil)
@@ -174,7 +173,7 @@ func (s *binariesTestSuite) prepareOldButNotThatOld(c *C) {
 	}
 
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.CompleteShPath(s.base)), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
 
 	f, err := os.OpenFile(dirs.BashCompletionScript, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
 	c.Assert(err, IsNil)
@@ -198,7 +197,7 @@ func (s *binariesTestSuite) prepareUnknownVersion(c *C) {
 	}
 
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.CompleteShPath(s.base)), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
 
 	f, err := os.OpenFile(dirs.BashCompletionScript, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
 	c.Assert(err, IsNil)
@@ -238,7 +237,7 @@ func (s *binariesTestSuite) prepareWithCompleters(c *C) {
 		c.Check(os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd/current/usr/lib/snapd"), 0755), IsNil)
 	}
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.CompleteShPath(s.base)), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
 }
 
 func (s *binariesTestSuite) TestAddSnapBinariesAndRemoveWithCompleters(c *C) {
@@ -259,7 +258,7 @@ func (s *binariesTestSuite) TestAddSnapBinariesAndRemoveWithLegacyCompleters(c *
 		c.Check(os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd/current/usr/lib/snapd"), 0755), IsNil)
 	}
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.CompleteShPath(s.base)), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
 	c.Assert(os.Symlink(dirs.CompleteShPath(s.base), filepath.Join(dirs.LegacyCompletersDir, "hello-snap.world")), IsNil)
 
 	s.testAddSnapBinariesAndRemove(c, false, false)
@@ -291,10 +290,10 @@ func (s *binariesTestSuite) prepareWithExistingCompleters(c *C) {
 		c.Check(os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd/current/usr/lib/snapd"), 0755), IsNil)
 	}
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.CompleteShPath(s.base)), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
 	// existing completers -> they're left alone \o/
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.CompletersDir, "hello-snap.world"), nil, 0644), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.CompletersDir, "hello-snap.universe"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.CompletersDir, "hello-snap.world"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.CompletersDir, "hello-snap.universe"), nil, 0644), IsNil)
 }
 
 func (s *binariesTestSuite) TestAddSnapBinariesAndRemoveWithExistingCompleters(c *C) {
@@ -313,10 +312,10 @@ func (s *binariesTestSuite) prepareWithExistingLegacyCompleters(c *C) {
 		c.Check(os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd/current/usr/lib/snapd"), 0755), IsNil)
 	}
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.CompleteShPath(s.base)), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
 	// existing completers -> they're left alone \o/
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.LegacyCompletersDir, "hello-snap.world"), nil, 0644), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.LegacyCompletersDir, "hello-snap.universe"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.LegacyCompletersDir, "hello-snap.world"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.LegacyCompletersDir, "hello-snap.universe"), nil, 0644), IsNil)
 }
 
 func (s *binariesTestSuite) TestAddSnapBinariesAndRemoveWithExistingLegacyCompleters(c *C) {

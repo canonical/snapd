@@ -182,7 +182,7 @@ func excludesFile() (filename string, err error) {
 		return "", err
 	}
 
-	// inspited by ioutil.WriteFile
+	// inspited by os.WriteFile
 	n, err := tmpf.Write([]byte(excludesContent))
 	if err == nil && n < len(excludesContent) {
 		err = io.ErrShortWrite

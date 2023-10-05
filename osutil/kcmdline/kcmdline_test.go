@@ -22,7 +22,7 @@ package kcmdline_test
 import (
 	"encoding"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -184,7 +184,7 @@ func (s *kcmdlineTestSuite) TestGetKernelCommandLineKeyValue(c *C) {
 		},
 	} {
 		cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
-		err := ioutil.WriteFile(cmdlineFile, []byte(t.cmdline), 0644)
+		err := os.WriteFile(cmdlineFile, []byte(t.cmdline), 0644)
 		c.Assert(err, IsNil)
 		r := kcmdline.MockProcCmdline(cmdlineFile)
 		defer r()
@@ -212,7 +212,7 @@ func (s *kcmdlineTestSuite) TestKernelCommandLine(c *C) {
 	c.Assert(err, ErrorMatches, `.*/cmdline: no such file or directory`)
 	c.Check(cmd, Equals, "")
 
-	err = ioutil.WriteFile(newProcCmdline, []byte("foo bar baz panic=-1\n"), 0644)
+	err = os.WriteFile(newProcCmdline, []byte("foo bar baz panic=-1\n"), 0644)
 	c.Assert(err, IsNil)
 	cmd, err = kcmdline.KernelCommandLine()
 	c.Assert(err, IsNil)

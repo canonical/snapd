@@ -21,7 +21,7 @@ package asserts_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -356,7 +356,7 @@ func (s *repairSuite) TestRepairCanEmbedScripts(c *C) {
 
 	tmpdir := c.MkDir()
 	repairScript := filepath.Join(tmpdir, "repair")
-	err = ioutil.WriteFile(repairScript, []byte(repair.Body()), 0755)
+	err = os.WriteFile(repairScript, []byte(repair.Body()), 0755)
 	c.Assert(err, IsNil)
 	cmd := exec.Command(repairScript)
 	cmd.Dir = tmpdir

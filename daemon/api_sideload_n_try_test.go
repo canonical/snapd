@@ -1006,7 +1006,7 @@ func (s *trySuite) TestTrySnap(c *check.C) {
 	snapYaml := filepath.Join(tryDir, "meta", "snap.yaml")
 	err = os.MkdirAll(filepath.Dir(snapYaml), 0755)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(snapYaml, []byte("name: foo\nversion: 1.0\n"), 0644)
+	err = os.WriteFile(snapYaml, []byte("name: foo\nversion: 1.0\n"), 0644)
 	c.Assert(err, check.IsNil)
 
 	reqForFlags := func(f snapstate.Flags) *http.Request {

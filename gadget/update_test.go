@@ -22,7 +22,6 @@ package gadget_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -823,7 +822,7 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/sda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -845,12 +844,21 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 	defer restore()
 
 	// update all 3 structs
-	// mbr - raw structure
-	newData.Info.Volumes["pc"].Structure[0].Update.Edition = 1
-	// bios - partition w/o filesystem
-	newData.Info.Volumes["pc"].Structure[1].Update.Edition = 1
+
+	// mbr and bios images
+	for i, imgName := range []string{"mbr.img", "bios.img"} {
+		imgPath := filepath.Join(newData.RootDir, imgName)
+		err = os.WriteFile(imgPath, nil, 0644)
+		c.Assert(err, IsNil)
+		newData.Info.Volumes["pc"].Structure[i].Content = []gadget.VolumeContent{{Image: imgName}}
+		newData.Info.Volumes["pc"].Structure[i].Update.Edition = 1
+	}
 	// system-boot - partition w/ filesystem struct
+	grubImg := filepath.Join(newData.RootDir, "grub.efi")
+	err = os.WriteFile(grubImg, nil, 0644)
+	c.Assert(err, IsNil)
 	newData.Info.Volumes["pc"].Structure[2].Update.Edition = 1
+	newData.Info.Volumes["pc"].Structure[2].Content = []gadget.VolumeContent{{UnresolvedSource: "grub.efi"}}
 
 	muo := &mockUpdateProcessObserver{}
 	updaterForStructureCalls := 0
@@ -871,7 +879,7 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 			c.Check(ps.IsPartition(), Equals, false)
 			// no offset since we are updating the MBR itself
 			c.Check(ps.StartOffset, Equals, quantity.Offset(0))
-			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.LaidOutContent, HasLen, 1)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				Device: "/dev/sda",
 				Offset: quantity.Offset(0),
@@ -883,8 +891,8 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 			c.Check(ps.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, quantity.OffsetMiB)
-			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(ps.LaidOutContent, HasLen, 1)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				Device: "/dev/sda",
 				Offset: quantity.OffsetMiB,
@@ -898,7 +906,7 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 			c.Check(ps.VolumeStructure.Size, Equals, 50*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/boot/ubuntu"),
 			})
@@ -998,7 +1006,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -1033,18 +1041,22 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	// system-boot volume can be updated as per policy since the initial mapping
 	// was missing
 
-	// mbr - bare structure
-	newData.Info.Volumes["pc"].Structure[0].Update.Edition = 1
-	// bios - partition w/o filesystem
-	newData.Info.Volumes["pc"].Structure[1].Update.Edition = 1
-	// ubuntu-seed
-	newData.Info.Volumes["pc"].Structure[2].Update.Edition = 1
-	// ubuntu-boot
-	newData.Info.Volumes["pc"].Structure[3].Update.Edition = 1
-	// ubuntu-save
-	newData.Info.Volumes["pc"].Structure[4].Update.Edition = 1
-	// ubuntu-data
-	newData.Info.Volumes["pc"].Structure[5].Update.Edition = 1
+	// mbr - bare structure, and bios - partition w/o filesystem
+	for i, imgName := range []string{"mbr.img", "bios.img"} {
+		imgPath := filepath.Join(newData.RootDir, imgName)
+		err = os.WriteFile(imgPath, nil, 0644)
+		c.Assert(err, IsNil)
+		newData.Info.Volumes["pc"].Structure[i].Content = []gadget.VolumeContent{{Image: imgName}}
+		newData.Info.Volumes["pc"].Structure[i].Update.Edition = 1
+	}
+	// ubuntu-{seed,boot,save,data}
+	for i, fName := range []string{"seed", "boot", "save", "data"} {
+		fPath := filepath.Join(newData.RootDir, fName)
+		err = os.WriteFile(fPath, nil, 0644)
+		c.Assert(err, IsNil)
+		newData.Info.Volumes["pc"].Structure[i+2].Content = []gadget.VolumeContent{{UnresolvedSource: fName}}
+		newData.Info.Volumes["pc"].Structure[i+2].Update.Edition = 1
+	}
 
 	muo := &mockUpdateProcessObserver{}
 	updaterForStructureCalls := 0
@@ -1065,7 +1077,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Check(ps.IsPartition(), Equals, false)
 			// no offset since we are updating the MBR itself
 			c.Check(ps.StartOffset, Equals, quantity.Offset(0))
-			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.LaidOutContent, HasLen, 1)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				Device: "/dev/vda",
 				Offset: quantity.Offset(0),
@@ -1077,8 +1089,8 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Check(ps.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, quantity.OffsetMiB)
-			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(ps.LaidOutContent, HasLen, 1)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				Device: "/dev/vda",
 				Offset: quantity.OffsetMiB,
@@ -1092,7 +1104,8 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(ps.ResolvedContent, HasLen, 1)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed"),
 			})
@@ -1105,7 +1118,8 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Check(ps.VolumeStructure.Size, Equals, 750*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1+1200)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(ps.ResolvedContent, HasLen, 1)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-boot"),
 			})
@@ -1118,7 +1132,8 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Check(ps.VolumeStructure.Size, Equals, 16*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1+1200+750)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(ps.ResolvedContent, HasLen, 1)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save"),
 			})
@@ -1134,7 +1149,8 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeGiB)
 			c.Check(ps.StartOffset, Equals, (1+1+1200+750+16)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(ps.ResolvedContent, HasLen, 1)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data"),
 			})
@@ -1241,7 +1257,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label", disks.BlkIDEncodeLabel("UBUNTU-SEED")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -1277,14 +1293,23 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	// was missing
 
 	// mbr - bare structure
+	imgName := "mbr.img"
+	imgPath := filepath.Join(newData.RootDir, imgName)
+	err = os.WriteFile(imgPath, nil, 0644)
+	c.Assert(err, IsNil)
+	newData.Info.Volumes["pc"].Structure[0].Content = []gadget.VolumeContent{{Image: imgName}}
 	newData.Info.Volumes["pc"].Structure[0].Update.Edition = 1
-	// ubuntu-seed
-	newData.Info.Volumes["pc"].Structure[1].Update.Edition = 1
-	// ubuntu-boot
-	newData.Info.Volumes["pc"].Structure[2].Update.Edition = 1
-	// ubuntu-save
-	newData.Info.Volumes["pc"].Structure[3].Update.Edition = 1
-	// ubuntu-data
+	// ubuntu-{seed,boot,save} - we do not put content in ubuntu-data
+	for i, fName := range []string{"seed", "boot", "save"} {
+		fPath := filepath.Join(newData.RootDir, fName)
+		err = os.WriteFile(fPath, nil, 0644)
+		c.Assert(err, IsNil)
+		newData.Info.Volumes["pc"].Structure[i+1].Content = []gadget.VolumeContent{{UnresolvedSource: fName}}
+		newData.Info.Volumes["pc"].Structure[i+1].Update.Edition = 1
+	}
+
+	// Force an update in "edition" in ubuntu-data even if we do not have
+	// content, to check that updates are ignored in this case.
 	newData.Info.Volumes["pc"].Structure[4].Update.Edition = 1
 
 	muo := &mockUpdateProcessObserver{}
@@ -1306,7 +1331,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Check(ps.IsPartition(), Equals, false)
 			// no offset since we are updating the MBR itself
 			c.Check(ps.StartOffset, Equals, quantity.Offset(0))
-			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.LaidOutContent, HasLen, 1)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				Device: "/dev/vda",
 				Offset: quantity.Offset(0),
@@ -1320,7 +1345,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, 1*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed"),
 			})
@@ -1333,7 +1358,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Check(ps.VolumeStructure.Size, Equals, 750*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1200)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-boot"),
 			})
@@ -1346,27 +1371,10 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Check(ps.VolumeStructure.Size, Equals, 16*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1200+750)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save"),
 			})
-		case 4:
-			// ubuntu-data
-			c.Check(ps.Name(), Equals, "ubuntu-data")
-			c.Check(ps.HasFilesystem(), Equals, true)
-			c.Check(ps.Filesystem(), Equals, "ext4")
-			c.Check(ps.IsPartition(), Equals, true)
-			// NOTE: this is the laid out size, not the actual size (since data
-			// gets expanded), but the update op doesn't actually care about the
-			// size so it's okay
-			c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeGiB)
-			c.Check(ps.StartOffset, Equals, (1+1200+750+16)*quantity.OffsetMiB)
-			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
-			c.Assert(loc, Equals, gadget.StructureLocation{
-				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data"),
-			})
-
 		default:
 			c.Fatalf("unexpected call")
 		}
@@ -1409,20 +1417,18 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	// go go go
 	err = gadget.Update(uc20Model, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, IsNil)
-	c.Assert(updaterForStructureCalls, Equals, 5)
+	c.Assert(updaterForStructureCalls, Equals, 4)
 	c.Assert(backupCalls, DeepEquals, map[string]bool{
 		"mbr":         true,
 		"ubuntu-seed": true,
 		"ubuntu-boot": true,
 		"ubuntu-save": true,
-		"ubuntu-data": true,
 	})
 	c.Assert(updateCalls, DeepEquals, map[string]bool{
 		"mbr":         true,
 		"ubuntu-seed": true,
 		"ubuntu-boot": true,
 		"ubuntu-save": true,
-		"ubuntu-data": true,
 	})
 
 	c.Assert(muo.beforeWriteCalled, Equals, 1)
@@ -1484,7 +1490,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -1518,24 +1524,35 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 	// try to update all structures on both volumes, but only the structures on
 	// the system-boot volume will end up getting updated as per policy
 
-	// mbr - bare structure
-	newData.Info.Volumes["pc"].Structure[0].Update.Edition = 1
-	// bios - partition w/o filesystem
-	newData.Info.Volumes["pc"].Structure[1].Update.Edition = 1
-	// ubuntu-seed
-	newData.Info.Volumes["pc"].Structure[2].Update.Edition = 1
-	// ubuntu-boot
-	newData.Info.Volumes["pc"].Structure[3].Update.Edition = 1
-	// ubuntu-save
-	newData.Info.Volumes["pc"].Structure[4].Update.Edition = 1
-	// ubuntu-data
-	newData.Info.Volumes["pc"].Structure[5].Update.Edition = 1
+	// mbr - bare structure, and bios - partition w/o filesystem
+	for i, imgName := range []string{"mbr.img", "bios.img"} {
+		imgPath := filepath.Join(newData.RootDir, imgName)
+		err = os.WriteFile(imgPath, nil, 0644)
+		c.Assert(err, IsNil)
+		newData.Info.Volumes["pc"].Structure[i].Content = []gadget.VolumeContent{{Image: imgName}}
+		newData.Info.Volumes["pc"].Structure[i].Update.Edition = 1
+	}
+	// ubuntu-{seed,boot,save,data}
+	for i, fName := range []string{"seed", "boot", "save", "data"} {
+		fPath := filepath.Join(newData.RootDir, fName)
+		err = os.WriteFile(fPath, nil, 0644)
+		c.Assert(err, IsNil)
+		newData.Info.Volumes["pc"].Structure[i+2].Content = []gadget.VolumeContent{{UnresolvedSource: fName}}
+		newData.Info.Volumes["pc"].Structure[i+2].Update.Edition = 1
+	}
 
-	// bare structure
-	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
-	// partition without a filesystem
-	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 1
-	// some filesystem
+	for i, imgName := range []string{"bare", "part"} {
+		imgPath := filepath.Join(newData.RootDir, imgName)
+		err = os.WriteFile(imgPath, nil, 0644)
+		c.Assert(err, IsNil)
+		newData.Info.Volumes["foo"].Structure[i].Content = []gadget.VolumeContent{{Image: imgName}}
+		newData.Info.Volumes["foo"].Structure[i].Update.Edition = 1
+	}
+	fName := "some-file"
+	fPath := filepath.Join(newData.RootDir, fName)
+	err = os.WriteFile(fPath, nil, 0644)
+	c.Assert(err, IsNil)
+	newData.Info.Volumes["foo"].Structure[2].Content = []gadget.VolumeContent{{UnresolvedSource: fName}}
 	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 1
 
 	muo := &mockUpdateProcessObserver{}
@@ -1557,7 +1574,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Check(ps.IsPartition(), Equals, false)
 			// no offset since we are updating the MBR itself
 			c.Check(ps.StartOffset, Equals, quantity.Offset(0))
-			c.Assert(ps.LaidOutContent, HasLen, 0)
+			c.Assert(ps.LaidOutContent, HasLen, 1)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				Device: "/dev/vda",
 				Offset: quantity.Offset(0),
@@ -1569,8 +1586,8 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Check(ps.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, quantity.OffsetMiB)
-			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(ps.LaidOutContent, HasLen, 1)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				Device: "/dev/vda",
 				Offset: quantity.OffsetMiB,
@@ -1584,7 +1601,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed"),
 			})
@@ -1597,7 +1614,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Check(ps.VolumeStructure.Size, Equals, 750*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1+1200)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-boot"),
 			})
@@ -1610,7 +1627,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Check(ps.VolumeStructure.Size, Equals, 16*quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, (1+1+1200+750)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save"),
 			})
@@ -1626,7 +1643,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeGiB)
 			c.Check(ps.StartOffset, Equals, (1+1+1200+750+16)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
-			c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+			c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data"),
 			})
@@ -1708,7 +1725,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 	c.Assert(err, IsNil)
 	// write out the provided traits JSON so we can at least load the traits for
 	// mocking via setupForVolumeStructureToLocation
-	err = ioutil.WriteFile(
+	err = os.WriteFile(
 		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
 		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
 		0644,
@@ -1746,7 +1763,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -1782,25 +1799,35 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 	defer restore()
 
 	// update all structures
-
-	// mbr - bare structure
-	newData.Info.Volumes["pc"].Structure[0].Update.Edition = 1
-	// bios - partition w/o filesystem
-	newData.Info.Volumes["pc"].Structure[1].Update.Edition = 1
-	// ubuntu-seed
-	newData.Info.Volumes["pc"].Structure[2].Update.Edition = 1
-	// ubuntu-boot
-	newData.Info.Volumes["pc"].Structure[3].Update.Edition = 1
-	// ubuntu-save
-	newData.Info.Volumes["pc"].Structure[4].Update.Edition = 1
-	// ubuntu-data
-	newData.Info.Volumes["pc"].Structure[5].Update.Edition = 1
-
-	// bare structure
-	newData.Info.Volumes["foo"].Structure[0].Update.Edition = 1
-	// partition without a filesystem
-	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 1
-	// some filesystem
+	// mbr - bare structure, and bios - partition w/o filesystem
+	for i, imgName := range []string{"mbr.img", "bios.img"} {
+		imgPath := filepath.Join(newData.RootDir, imgName)
+		err = os.WriteFile(imgPath, nil, 0644)
+		c.Assert(err, IsNil)
+		newData.Info.Volumes["pc"].Structure[i].Content = []gadget.VolumeContent{{Image: imgName}}
+		newData.Info.Volumes["pc"].Structure[i].Update.Edition = 1
+	}
+	// ubuntu-{seed,boot,save,data}
+	for i, fName := range []string{"seed", "boot", "save", "data"} {
+		fPath := filepath.Join(newData.RootDir, fName)
+		err = os.WriteFile(fPath, nil, 0644)
+		c.Assert(err, IsNil)
+		newData.Info.Volumes["pc"].Structure[i+2].Content = []gadget.VolumeContent{{UnresolvedSource: fName}}
+		newData.Info.Volumes["pc"].Structure[i+2].Update.Edition = 1
+	}
+	// foo
+	for i, imgName := range []string{"bare", "part"} {
+		imgPath := filepath.Join(newData.RootDir, imgName)
+		err = os.WriteFile(imgPath, nil, 0644)
+		c.Assert(err, IsNil)
+		newData.Info.Volumes["foo"].Structure[i].Content = []gadget.VolumeContent{{Image: imgName}}
+		newData.Info.Volumes["foo"].Structure[i].Update.Edition = 1
+	}
+	fName := "some-file"
+	fPath := filepath.Join(newData.RootDir, fName)
+	err = os.WriteFile(fPath, nil, 0644)
+	c.Assert(err, IsNil)
+	newData.Info.Volumes["foo"].Structure[2].Content = []gadget.VolumeContent{{UnresolvedSource: fName}}
 	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 1
 
 	muo := &mockUpdateProcessObserver{}
@@ -1829,7 +1856,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 				c.Check(ps.IsPartition(), Equals, false)
 				// no offset since we are updating the MBR itself
 				c.Check(ps.StartOffset, Equals, quantity.Offset(0))
-				c.Assert(ps.LaidOutContent, HasLen, 0)
+				c.Assert(ps.LaidOutContent, HasLen, 1)
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					Device: "/dev/vda",
 					Offset: quantity.Offset(0),
@@ -1841,8 +1868,8 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 				c.Check(ps.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeMiB)
 				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB)
-				c.Assert(ps.LaidOutContent, HasLen, 0)
-				c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+				c.Assert(ps.LaidOutContent, HasLen, 1)
+				c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					Device: "/dev/vda",
 					Offset: quantity.OffsetMiB,
@@ -1856,7 +1883,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 				c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
 				c.Check(ps.StartOffset, Equals, (1+1)*quantity.OffsetMiB)
 				c.Assert(ps.LaidOutContent, HasLen, 0)
-				c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+				c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed"),
 				})
@@ -1869,7 +1896,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 				c.Check(ps.VolumeStructure.Size, Equals, 750*quantity.SizeMiB)
 				c.Check(ps.StartOffset, Equals, (1+1+1200)*quantity.OffsetMiB)
 				c.Assert(ps.LaidOutContent, HasLen, 0)
-				c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+				c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-boot"),
 				})
@@ -1882,7 +1909,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 				c.Check(ps.VolumeStructure.Size, Equals, 16*quantity.SizeMiB)
 				c.Check(ps.StartOffset, Equals, (1+1+1200+750)*quantity.OffsetMiB)
 				c.Assert(ps.LaidOutContent, HasLen, 0)
-				c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+				c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save"),
 				})
@@ -1898,7 +1925,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 				c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeGiB)
 				c.Check(ps.StartOffset, Equals, (1+1+1200+750+16)*quantity.OffsetMiB)
 				c.Assert(ps.LaidOutContent, HasLen, 0)
-				c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+				c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data"),
 				})
@@ -1927,8 +1954,8 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 				c.Check(ps.IsPartition(), Equals, false)
 				c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(4096))
 				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB)
-				c.Assert(ps.LaidOutContent, HasLen, 0)
-				c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+				c.Assert(ps.LaidOutContent, HasLen, 1)
+				c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					Device: "/dev/vdb",
 					Offset: quantity.OffsetMiB,
@@ -1939,8 +1966,8 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 				c.Check(ps.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(4096))
 				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB+4096)
-				c.Assert(ps.LaidOutContent, HasLen, 0)
-				c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+				c.Assert(ps.LaidOutContent, HasLen, 1)
+				c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					Device: "/dev/vdb",
 					Offset: quantity.OffsetMiB + 4096,
@@ -1953,7 +1980,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 				c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeGiB)
 				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB+4096+4096)
 				c.Assert(ps.LaidOutContent, HasLen, 0)
-				c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+				c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/foo/some-filesystem"),
 				})
@@ -2045,7 +2072,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructure
 	c.Assert(err, IsNil)
 	// write out the provided traits JSON so we can at least load the traits for
 	// mocking via setupForVolumeStructureToLocation
-	err = ioutil.WriteFile(
+	err = os.WriteFile(
 		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
 		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
 		0644,
@@ -2088,6 +2115,11 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapIncompatibleStructure
 	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 2
 	newData.Info.Volumes["foo"].Structure[1].MinSize = quantity.SizeKiB
 	newData.Info.Volumes["foo"].Structure[1].Size = quantity.SizeKiB
+	imgName := "img"
+	imgPath := filepath.Join(newData.RootDir, imgName)
+	err = os.WriteFile(imgPath, nil, 0644)
+	c.Assert(err, IsNil)
+	newData.Info.Volumes["foo"].Structure[1].Content = []gadget.VolumeContent{{Image: imgName}}
 
 	muo := &mockUpdateProcessObserver{}
 	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
@@ -2208,7 +2240,7 @@ volumes:
 	c.Assert(err, IsNil)
 	// write out the provided traits JSON so we can at least load the traits for
 	// mocking via setupForVolumeStructureToLocation
-	err = ioutil.WriteFile(
+	err = os.WriteFile(
 		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
 		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
 		0644,
@@ -2246,7 +2278,7 @@ volumes:
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -2499,6 +2531,9 @@ volumes:
         filesystem: ext4
         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
         size: 1G
+        content:
+          - source: some-file
+            target: /
 `
 
 	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), oldKernelDir, multiVolWithKernel, uc20Model)
@@ -2508,7 +2543,7 @@ volumes:
 	c.Assert(err, IsNil)
 	// write out the provided traits JSON so we can at least load the traits for
 	// mocking via setupForVolumeStructureToLocation
-	err = ioutil.WriteFile(
+	err = os.WriteFile(
 		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
 		[]byte(gadgettest.VMMultiVolumeUC20DiskTraitsJSON),
 		0644,
@@ -2546,7 +2581,7 @@ volumes:
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("BIOS Boot")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -2587,6 +2622,10 @@ volumes:
 	newData.Info.Volumes["pc"].Structure[2].Update.Edition = 1
 
 	// some filesystem
+	someFile := filepath.Join(newData.RootDir, "some-file")
+	err = os.WriteFile(someFile, nil, 0644)
+	c.Assert(err, IsNil)
+	newData.Info.Volumes["foo"].Structure[2].Content = []gadget.VolumeContent{{UnresolvedSource: "some-file"}}
 	newData.Info.Volumes["foo"].Structure[2].Update.Edition = 1
 
 	muo := &mockUpdateProcessObserver{}
@@ -2652,7 +2691,7 @@ volumes:
 				c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeGiB)
 				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB+4096+4096)
 				c.Assert(ps.LaidOutContent, HasLen, 0)
-				c.Assert(ps.VolumeStructure.Content, HasLen, 0)
+				c.Assert(ps.VolumeStructure.Content, HasLen, 1)
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/foo/some-filesystem"),
 				})
@@ -3397,7 +3436,7 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 	err = os.MkdirAll(filepath.Join(rootDir, "/dev/disk/by-label"), 0755)
 	c.Assert(err, IsNil)
 	fakedevice := filepath.Join(rootDir, "/dev/sdxxx2")
-	err = ioutil.WriteFile(fakedevice, []byte(""), 0644)
+	err = os.WriteFile(fakedevice, []byte(""), 0644)
 	c.Assert(err, IsNil)
 	err = os.Symlink(fakedevice, filepath.Join(rootDir, "/dev/disk/by-label/writable"))
 	c.Assert(err, IsNil)
@@ -4526,7 +4565,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemDataUC1
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/sda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -4593,7 +4632,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingImplicitSystemBootSin
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/sda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -4734,7 +4773,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C)
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("ubuntu-seed")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -4781,7 +4820,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) 
 	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/mmcblk0p1")
 	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("ubuntu-seed")))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock the partition device node to mock disk
@@ -4801,7 +4840,7 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20Encryption(c *C) 
 	err = os.MkdirAll(filepath.Dir(markerFile), 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(markerFile, nil, 0644)
+	err = os.WriteFile(markerFile, nil, 0644)
 	c.Assert(err, IsNil)
 
 	vols := map[string]*gadget.Volume{}
@@ -5176,13 +5215,13 @@ func (s *updateTestSuite) setupForVolumeStructureToLocation(c *C,
 			fakedevicepart := filepath.Join(dirs.GlobalRootDir, firstPartDev)
 			err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", partlabel))
 			c.Assert(err, IsNil)
-			err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+			err = os.WriteFile(fakedevicepart, nil, 0644)
 			c.Assert(err, IsNil)
 		case "dos":
 			fakedevicepart := filepath.Join(dirs.GlobalRootDir, firstPartDev)
 			err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label", fslabel))
 			c.Assert(err, IsNil)
-			err = ioutil.WriteFile(fakedevicepart, nil, 0644)
+			err = os.WriteFile(fakedevicepart, nil, 0644)
 			c.Assert(err, IsNil)
 		default:
 			panic(fmt.Sprintf("unexpected schema %s", traits[volName].Schema))
@@ -5216,7 +5255,7 @@ func (s *updateTestSuite) testVolumeStructureToLocationMap(c *C,
 	c.Assert(err, IsNil)
 	// write out the provided traits JSON so we can at least load the traits for
 	// mocking via setupForVolumeStructureToLocation
-	err = ioutil.WriteFile(
+	err = os.WriteFile(
 		filepath.Join(dirs.SnapDeviceDir, "disk-mapping.json"),
 		[]byte(traitsJSON),
 		0644,

@@ -13,8 +13,8 @@
     "snaps": [
         {
             "default-channel": "latest/edge",
-            "id": "tTs9DVS01mt4L11PGqbrSiKcIxFHpUJq",
-            "name": "test-snapd-remodel-pc-min-size",
+            "id": "hZwlp9iRUQE4nLHRXnavvDygTIpfOOwj",
+            "name": "test-snapd-remodel-pc-snakeoil",
             "type": "gadget"
         },
         {

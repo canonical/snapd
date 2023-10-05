@@ -61,7 +61,7 @@ func (s *baseCmdSuite) SetUpTest(c *C) {
 
 	d := c.MkDir()
 	s.markerFile = filepath.Join(d, "marker")
-	err := ioutil.WriteFile(s.markerFile, nil, 0644)
+	err := os.WriteFile(s.markerFile, nil, 0644)
 	c.Assert(err, IsNil)
 }
 
