@@ -10453,3 +10453,107 @@ func (s *snapmgrTestSuite) TestUpdateSetsRestartBoundaries(c *C) {
 	c.Assert(linkSnap2, NotNil)
 	c.Check(linkSnap2.Get("restart-boundary", &boundary), ErrorMatches, `no state entry for key "restart-boundary"`)
 }
+
+type customStore struct {
+	*fakeStore
+
+	customSnapAction func(context.Context, []*store.CurrentSnap, []*store.SnapAction, store.AssertionQuery, *auth.UserState, *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error)
+}
+
+func (s customStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	return s.customSnapAction(ctx, currentSnaps, actions, assertQuery, user, opts)
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyRevOptsOrder(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-other-snap", SnapID: "some-other-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "snap-c", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "snap-c", SnapID: "snap-c-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	var requestSnapToAction map[string]*store.SnapAction
+	sto := customStore{fakeStore: s.fakeStore}
+	sto.customSnapAction = func(ctx context.Context, cs []*store.CurrentSnap, sa []*store.SnapAction, aq store.AssertionQuery, us *auth.UserState, ro *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+		if len(sa) == 0 {
+			requestSnapToAction = nil
+			return nil, nil, nil
+		}
+
+		var actionResult []store.SnapActionResult
+		requestSnapToAction = make(map[string]*store.SnapAction, len(sa))
+		for _, action := range sa {
+			requestSnapToAction[action.InstanceName] = action
+
+			info, err := s.fakeStore.lookupRefresh(refreshCand{snapID: action.SnapID})
+			c.Assert(err, IsNil)
+			actionResult = append(actionResult, store.SnapActionResult{Info: info})
+		}
+
+		return actionResult, nil, nil
+	}
+	snapstate.ReplaceStore(s.state, &sto)
+
+	nameToRevOpts := map[string]*snapstate.RevisionOptions{
+		"some-snap": {
+			Revision:       snap.R(111),
+			ValidationSets: []snapasserts.ValidationSetKey{"1", "1.1"},
+		},
+		"some-other-snap": {
+			Revision:       snap.R(222),
+			ValidationSets: []snapasserts.ValidationSetKey{"2", "2.2"},
+		},
+		"snap-c": {
+			Revision:       snap.R(333),
+			ValidationSets: []snapasserts.ValidationSetKey{"3", "3.3"},
+		},
+	}
+	getRevOpts := func(names []string) (revOpts []*snapstate.RevisionOptions) {
+		for _, name := range names {
+			revOpts = append(revOpts, nameToRevOpts[name])
+		}
+		return revOpts
+	}
+
+	testOrder := func(names []string) {
+		revOpts := getRevOpts(names)
+		_, _, err := snapstate.UpdateMany(context.Background(), s.state, names, revOpts, 0, nil)
+		c.Assert(err, IsNil)
+		c.Check(requestSnapToAction, NotNil)
+		for _, name := range names {
+			c.Check(requestSnapToAction[name].Revision, Equals, nameToRevOpts[name].Revision, Commentf("snap %q sent revision is incorrect", name))
+			c.Check(requestSnapToAction[name].ValidationSets, DeepEquals, nameToRevOpts[name].ValidationSets, Commentf("snap %q sent validation sets are incorrect", name))
+		}
+	}
+
+	// let's check all permutations for good measure
+	testOrder([]string{"some-snap", "some-other-snap", "snap-c"})
+	testOrder([]string{"some-snap", "snap-c", "some-other-snap"})
+
+	testOrder([]string{"some-other-snap", "some-snap", "snap-c"})
+	testOrder([]string{"some-other-snap", "snap-c", "some-snap"})
+
+	testOrder([]string{"snap-c", "some-snap", "some-other-snap"})
+	testOrder([]string{"snap-c", "some-other-snap", "some-snap"})
+}

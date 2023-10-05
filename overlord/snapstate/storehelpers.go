@@ -631,8 +631,6 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, rev
 		}
 	}
 
-	sort.Strings(names)
-
 	var fallbackID int
 	// normalize fallback user
 	if !user.HasStoreAuth() {
@@ -662,6 +660,9 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, rev
 			revOptsByName[names[i]] = opts
 		}
 	}
+
+	// sorting MUST be done after revOptsByName is built to avoid misalignment
+	sort.Strings(names)
 
 	addCand := func(installed *store.CurrentSnap, snapst *SnapState) error {
 		// FIXME: snaps that are not active are skipped for now
