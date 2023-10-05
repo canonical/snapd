@@ -10537,6 +10537,7 @@ func (s *snapmgrTestSuite) TestUpdateManyRevOptsOrder(c *C) {
 	}
 
 	testOrder := func(names []string) {
+		requestSnapToAction = nil
 		revOpts := getRevOpts(names)
 		_, _, err := snapstate.UpdateMany(context.Background(), s.state, names, revOpts, 0, nil)
 		c.Assert(err, IsNil)
