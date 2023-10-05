@@ -19,7 +19,7 @@
 
 package builtin
 
-const rosOptDataSummary = `Allows read-only access to the xacro,yaml,urdf,stl files in /opt/ros folder`
+const rosOptDataSummary = `Allows read-only access to the static data such as xacro,yaml,urdf,stl,... in the standard /opt/ros folder`
 
 const rosOptDataBaseDeclarationSlots = `
   ros-opt-data:
@@ -33,10 +33,19 @@ const rosOptDataConnectedPlugAppArmor = `
 # capability dac_read_search,  # this should not be necessary, the idea is to read only what normal user can read
 /var/lib/snapd/hostfs/opt/ros/ r,
 /var/lib/snapd/hostfs/opt/ros/**/ r,
-/var/lib/snapd/hostfs/opt/ros/**/*.xacro r,
-/var/lib/snapd/hostfs/opt/ros/**/*.yaml r,
-/var/lib/snapd/hostfs/opt/ros/**/*.urdf r,
-/var/lib/snapd/hostfs/opt/ros/**/*.stl r,
+/var/lib/snapd/hostfs/opt/ros/**/*.config r,        # for robot configuration
+/var/lib/snapd/hostfs/opt/ros/**/*.yaml r,          # for robot configuration
+/var/lib/snapd/hostfs/opt/ros/**/*.xacro r,         # for robot macro description files
+/var/lib/snapd/hostfs/opt/ros/**/*.urdf r,          # for robot description files
+/var/lib/snapd/hostfs/opt/ros/**/*.stl r,           # for robot 3d meshes
+/var/lib/snapd/hostfs/opt/ros/**/*.dae r,           # for robot 3d meshes
+/var/lib/snapd/hostfs/opt/ros/**/*.png r,           # for robot meshes
+/var/lib/snapd/hostfs/opt/ros/**/*.jpg r,           # for robot meshes
+/var/lib/snapd/hostfs/opt/ros/**/*.sh r,            # for sourcing the ros workspace from shell
+/var/lib/snapd/hostfs/opt/ros/**/*.zsh r,           # for sourcing the ros workspace from shell
+/var/lib/snapd/hostfs/opt/ros/**/*.bash r,          # for sourcing the ros workspace from shell
+/var/lib/snapd/hostfs/opt/ros/**/package.xml r,     # for package.xml metadata
+
 `
 
 type rosOptDataInterface struct {
