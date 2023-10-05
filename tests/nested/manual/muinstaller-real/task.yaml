@@ -296,7 +296,7 @@ execute: |
       # to not use it at all.
       REMOTE_CHG_ID=$(remote.exec "sudo snap install --no-wait ${snap_name}_*.snap")
       # Wait until we stall in the connection of interface as we wait for a reboot
-      retry --wait 1 -n 120 sh -c "remote.exec \"snap change $REMOTE_CHG_ID | grep -E 'Task set to wait until a manual system restart'\""
+      retry --wait 1 -n 120 sh -c "remote.exec \"snap change $REMOTE_CHG_ID | grep -E 'Task set to wait until a system restart allows to continue'\""
 
       # Check that a reboot notification was setup
       remote.exec test -f /run/reboot-required
