@@ -2487,9 +2487,9 @@ func (s *deviceMgrSerialSuite) TestShouldRequestSerial(c *C) {
 		}
 		tr.Commit()
 
-		shouldReqest, err := devicestate.ShouldRequestSerial(s.state, t.gadgetName)
+		shouldRequest, err := devicestate.ShouldRequestSerial(s.state, t.gadgetName)
 		c.Check(err, IsNil)
-		c.Check(shouldReqest, Equals, t.expected, Commentf("%+v", t))
+		c.Check(shouldRequest, Equals, t.expected, Commentf("%+v", t))
 	}
 }
 
