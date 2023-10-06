@@ -385,11 +385,10 @@ dbus (send)
     peer=(label=unconfined),
 
 # Allow access to GDM's private reauthentication channel socket
-# FIXME: this will break once we upgrade to glib 2.75.x, and GDM
-# starts creating a non-abstract socket in /tmp.
 unix (connect, receive, send)
     type=stream
     peer=(addr="@/tmp/dbus-*"),
+/run/gdm3/dbus/dbus-* rw,
 
 # Allow unconfined xdg-desktop-portal to communicate with impl
 # services provided by the snap.
