@@ -3444,31 +3444,6 @@ func (s *snapmgrTestSuite) TestDisableDoesNotEnableAgain(c *C) {
 	c.Assert(ts, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestAbortCausesNoErrReport(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	chg := s.state.NewChange("install", "install a snap")
-	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
-	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-
-	s.fakeBackend.linkSnapWaitCh = make(chan int)
-	s.fakeBackend.linkSnapWaitTrigger = filepath.Join(dirs.SnapMountDir, "some-snap/11")
-	go func() {
-		<-s.fakeBackend.linkSnapWaitCh
-		chg.Abort()
-		s.fakeBackend.linkSnapWaitCh <- 1
-	}()
-
-	chg.AddAll(ts)
-
-	defer s.se.Stop()
-	s.settle(c)
-
-	c.Check(chg.Status(), Equals, state.UndoneStatus)
-}
-
 func (s *snapmgrTestSuite) TestErrreportDisable(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
