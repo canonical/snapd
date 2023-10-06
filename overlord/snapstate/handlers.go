@@ -659,14 +659,7 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		extra["UbuntuCoreTransitionCount"] = strconv.Itoa(ubuntuCoreTransitionCount)
 	}
 
-	// Only report and error if there is an actual error in the change,
-	// we could undo things because the user canceled the change.
-	for _, tt := range t.Change().Tasks() {
-		if tt.Status() == state.ErrorStatus {
-			tt.Logf("task status failed: %s %s", tt.ID(), tt.Kind())
-			break
-		}
-	}
+	// TODO: telemetry about errors here
 
 	return nil
 }
