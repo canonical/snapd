@@ -146,6 +146,10 @@ const fwupdPermanentSlotAppArmor = `
   /sys/devices/**/drm r,
   /sys/devices/**/drm/** r,
 
+  # Required by plugin amdgpu
+  /sys/devices/**/psp_vbflash rw,
+  /sys/devices/**/psp_vbflash_status r,
+
   # DBus accesses
   #include <abstractions/dbus-strict>
   dbus (send)
