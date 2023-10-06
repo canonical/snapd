@@ -114,7 +114,6 @@ func Configure(st *state.State, snapName string, patch map[string]interface{}, f
 		Hook:        "configure",
 		Optional:    len(patch) == 0,
 		IgnoreError: flags&snapstate.IgnoreHookError != 0,
-		TrackError:  flags&snapstate.TrackHookError != 0,
 		// all configure hooks must finish within this timeout
 		Timeout: ConfigureHookTimeout(),
 	}

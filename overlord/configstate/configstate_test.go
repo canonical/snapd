@@ -259,7 +259,6 @@ func (s *tasksetsSuite) TestDefaultConfigure(c *C) {
 		Optional:    true,
 		Always:      false,
 		IgnoreError: false,
-		TrackError:  false,
 	}
 	c.Assert(hooksup, DeepEquals, expectedHookSetup)
 

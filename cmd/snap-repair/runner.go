@@ -45,7 +45,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -59,8 +58,6 @@ var (
 	// TODO: move inside the repairs themselves?
 	defaultRepairTimeout = 30 * time.Minute
 )
-
-var errtrackerReportRepair = errtracker.ReportRepair
 
 // Repair is a runnable repair.
 type Repair struct {
@@ -220,9 +217,6 @@ func (r *Repair) Run() error {
 	// read from the status-pipe, however report the error
 	if scriptErr != nil {
 		scriptErr = fmt.Errorf("repair %s revision %d failed: %s", r, r.Revision(), scriptErr)
-		if err := r.errtrackerReport(scriptErr, status, logPath); err != nil {
-			logger.Noticef("cannot report error to errtracker: %s", err)
-		}
 		// ensure the error is present in the output log
 		fmt.Fprintf(logf, "\n%s", scriptErr)
 	}
@@ -250,28 +244,6 @@ func readStatus(r io.Reader) RepairStatus {
 		return RetryStatus
 	}
 	return status
-}
-
-// errtrackerReport reports an repairErr with the given logPath to the
-// snap error tracker.
-func (r *Repair) errtrackerReport(repairErr error, status RepairStatus, logPath string) error {
-	errMsg := repairErr.Error()
-
-	scriptOutput, err := ioutil.ReadFile(logPath)
-	if err != nil {
-		logger.Noticef("cannot read %s", logPath)
-	}
-	s := fmt.Sprintf("%s/%d", r.BrandID(), r.RepairID())
-
-	dupSig := fmt.Sprintf("%s\n%s\noutput:\n%s", s, errMsg, scriptOutput)
-	extra := map[string]string{
-		"Revision": strconv.Itoa(r.Revision()),
-		"BrandID":  r.BrandID(),
-		"RepairID": strconv.Itoa(r.RepairID()),
-		"Status":   status.String(),
-	}
-	_, err = errtrackerReportRepair(s, errMsg, dupSig, extra)
-	return err
 }
 
 // Runner implements fetching, tracking and running repairs.

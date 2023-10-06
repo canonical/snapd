@@ -112,7 +112,6 @@ var (
 	restartSnapdCoolOffWait = 12500 * time.Millisecond
 )
 
-// FIXME: also do error reporting via errtracker
 func (c *cmdSnapd) Execute(args []string) error {
 	var snapdPath string
 	// find previous the snapd snap

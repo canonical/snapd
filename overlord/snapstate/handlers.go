@@ -47,7 +47,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/configstate/settings"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -662,21 +661,10 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// Only report and error if there is an actual error in the change,
 	// we could undo things because the user canceled the change.
-	var isErr bool
 	for _, tt := range t.Change().Tasks() {
 		if tt.Status() == state.ErrorStatus {
-			isErr = true
+			tt.Logf("task status failed: %s %s", tt.ID(), tt.Kind())
 			break
-		}
-	}
-	if isErr && !settings.ProblemReportsDisabled(st) {
-		st.Unlock()
-		oopsid, err := errtrackerReport(snapsup.SideInfo.RealName, strings.Join(logMsg, "\n"), strings.Join(dupSig, "\n"), extra)
-		st.Lock()
-		if err == nil {
-			logger.Noticef("Reported install problem for %q as %s", snapsup.SideInfo.RealName, oopsid)
-		} else {
-			logger.Debugf("Cannot report problem: %s", err)
 		}
 	}
 
