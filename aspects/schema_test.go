@@ -1046,14 +1046,14 @@ func (*schemaSuite) TestIntegerMinMaxOver32Bits(c *C) {
 			"max": %d
 		}
 	}
-}`, math.MinInt64, math.MaxInt64))
+}`, int64(math.MinInt64), int64(math.MaxInt64)))
 
 	schema, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	input := []byte(fmt.Sprintf(`{
 	"foo": %d
-}`, math.MinInt64))
+}`, int64(math.MinInt64)))
 
 	err = schema.Validate(input)
 	c.Assert(err, IsNil)
@@ -1067,7 +1067,7 @@ func (*schemaSuite) TestIntegerChoicesOver32Bits(c *C) {
 			"choices": [%d, %d]
 		}
 	}
-}`, math.MinInt64, math.MaxInt64))
+}`, int64(math.MinInt64), int64(math.MaxInt64)))
 
 	schema, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, IsNil)

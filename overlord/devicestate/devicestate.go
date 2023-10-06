@@ -719,10 +719,17 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 			if !isNotInstalled(err) {
 				return nil, err
 			}
-			if modelSnap.Presence == "required" {
-				needsInstall = true
+
+			// if the snap isn't already installed, and it isn't required,
+			// then there is nothing to do. note that if the snap is installed,
+			// we might need to change the channel.
+			if modelSnap.Presence != "required" {
+				continue
 			}
+
+			needsInstall = true
 		}
+
 		// default channel can be set only in UC20 models
 		newModelSnapChannel, err := modelSnapChannelFromDefaultOrPinnedTrack(new, modelSnap)
 		if err != nil {

@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -85,10 +84,9 @@ func getRootHashFromOutput(output []byte) (rootHash string, err error) {
 }
 
 func verityVersion() (major, minor, patch int, err error) {
-	cmd := exec.Command("veritysetup", "--version")
-	output, err := cmd.CombinedOutput()
+	output, stderr, err := osutil.RunSplitOutput("veritysetup", "--version")
 	if err != nil {
-		return -1, -1, -1, osutil.OutputErr(output, err)
+		return -1, -1, -1, osutil.OutputErrCombine(output, stderr, err)
 	}
 
 	exp := regexp.MustCompile(`(\d+)\.(\d+)\.(\d+)`)
@@ -140,11 +138,9 @@ func Format(dataDevice string, hashDevice string) (*Info, error) {
 		os.WriteFile(hashDevice, space, 0644)
 	}
 
-	cmd := exec.Command("veritysetup", "format", dataDevice, hashDevice)
-
-	output, err := cmd.CombinedOutput()
+	output, stderr, err := osutil.RunSplitOutput("veritysetup", "format", dataDevice, hashDevice)
 	if err != nil {
-		return nil, osutil.OutputErr(output, err)
+		return nil, osutil.OutputErrCombine(output, stderr, err)
 	}
 
 	logger.Debugf("cmd: 'veritysetup format %s %s':\n%s", dataDevice, hashDevice, string(output))
