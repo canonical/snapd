@@ -75,16 +75,9 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 }
 
 func writeKeyData(path string, keySetup *fde.InitialSetupResult, auxKey []byte, model sb.SnapModel) error {
-	var handle []byte
-	if keySetup.Handle == nil {
-		// this will reach fde-reveal-key as null but should be ok
-		handle = []byte("null")
-	} else {
-		handle = *keySetup.Handle
-	}
 	kd, err := sb.NewKeyData(&sb.KeyParams{
 		EncryptedPayload: keySetup.EncryptedKey,
-		Handle:           handle,
+		Handle:           keySetup.Handle,
 
 		PlatformName:      fdeHooksPlatformName,
 		AuxiliaryKey:      auxKey,
