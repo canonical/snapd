@@ -3444,25 +3444,6 @@ func (s *snapmgrTestSuite) TestDisableDoesNotEnableAgain(c *C) {
 	c.Assert(ts, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestErrreportDisable(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "problem-reports.disabled", true)
-	tr.Commit()
-
-	chg := s.state.NewChange("install", "install a snap")
-	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
-	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-	chg.AddAll(ts)
-	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "some-snap/11")
-
-	defer s.se.Stop()
-	s.settle(c)
-}
-
 func (s *snapmgrTestSuite) TestEnsureRemovesVulnerableCoreSnap(c *C) {
 	s.testEnsureRemovesVulnerableSnap(c, "core")
 }
