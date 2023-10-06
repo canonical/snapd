@@ -1052,7 +1052,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	logger.Debugf("making the installed system runnable for system label %s", systemLabel)
-	if err := bootMakeRunnableStandalone(sys.Model, bootWith, trustedInstallObserver); err != nil {
+	if err := bootMakeRunnableStandalone(sys.Model, bootWith, trustedInstallObserver, st.Unlocker()); err != nil {
 		return err
 	}
 

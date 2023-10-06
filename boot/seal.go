@@ -122,6 +122,8 @@ type sealKeyToModeenvFlags struct {
 	// SeedDir is the path where to find mounted seed with
 	// essential snaps.
 	SeedDir string
+	// Unlocker is used unlock the snapd state for long operations
+	StateUnlocker Unlocker
 }
 
 // sealKeyToModeenvImpl seals the supplied keys to the parameters specified
@@ -149,6 +151,10 @@ func sealKeyToModeenvImpl(key, saveKey keys.EncryptionKey, model *asserts.Model,
 		return sealKeyToModeenvUsingFDESetupHook(key, saveKey, model, modeenv, flags)
 	}
 
+	if flags.StateUnlocker != nil {
+		relock := flags.StateUnlocker()
+		defer relock()
+	}
 	return sealKeyToModeenvUsingSecboot(key, saveKey, model, modeenv, flags)
 }
 
