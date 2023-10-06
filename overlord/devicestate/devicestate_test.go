@@ -1564,7 +1564,7 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveSystemCtlFails(c 
 
 	err = mgr.StartUp()
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot set up ubuntu-save: systemctl command [start var-lib-snapd-save.mount] failed with exit status 1: failed\n")
+	c.Check(err.Error(), Equals, "cannot set up ubuntu-save: systemctl command [start var-lib-snapd-save.mount] failed with exit status 1: failed")
 	c.Check(sysctlCmd.Calls(), DeepEquals, [][]string{
 		{"systemctl", "start", "var-lib-snapd-save.mount"},
 	})

@@ -115,6 +115,14 @@ func deviceModelBootBase(st *state.State, providedDeviceCtx DeviceContext) (stri
 	return bootBase, nil
 }
 
+func bootBaseSnapType(byTypeTss map[snap.Type]*state.TaskSet) snap.Type {
+	if ts := byTypeTss[snap.TypeBase]; ts != nil {
+		return snap.TypeBase
+	}
+	// On UC16 it's the TypeOS
+	return snap.TypeOS
+}
+
 // SetEssentialSnapsRestartBoundaries sets up default restart boundaries for a list of task-sets. If the
 // list of task-sets contain any updates/installs of essential snaps (base,gadget,kernel), then proper
 // restart boundaries will be set up for them.
@@ -124,18 +132,24 @@ func SetEssentialSnapsRestartBoundaries(st *state.State, providedDeviceCtx Devic
 		return err
 	}
 
-	mappedTss, err := taskSetsByTypeForEssentialSnaps(tss, bootBase)
+	byTypeTss, err := taskSetsByTypeForEssentialSnaps(tss, bootBase)
 	if err != nil {
 		return err
 	}
 
+	bootSnapType := bootBaseSnapType(byTypeTss)
+
 	// XXX: Currently we don't need to go through the correct order, but we do it
 	// just in preparation of when single-reboot functionality is added.
 	for _, o := range essentialSnapsRestartOrder {
-		if mappedTss[o] == nil {
+		if byTypeTss[o] == nil {
 			continue
 		}
-		setDefaultRestartBoundaries(mappedTss[o])
+		// Make sure that the core snap is actually the boot-base
+		if o == snap.TypeOS && bootSnapType != snap.TypeOS {
+			continue
+		}
+		setDefaultRestartBoundaries(byTypeTss[o])
 	}
 	return nil
 }

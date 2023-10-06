@@ -1620,8 +1620,8 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy
 			if err != nil {
 				return nil, err
 			}
-			// Nothing to do after filtering
-			if filter != nil && len(resolvedContent) == 0 && len(newStruct.LaidOutContent) == 0 {
+			// No resolved or raw content that would need updating
+			if len(resolvedContent) == 0 && len(newStruct.LaidOutContent) == 0 {
 				continue
 			}
 			newVol.LaidOutStructure[j].ResolvedContent = resolvedContent

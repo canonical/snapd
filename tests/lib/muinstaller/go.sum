@@ -31,8 +31,8 @@ github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785/go.mod h1:D3Ss
 github.com/snapcore/secboot v0.0.0-20230623151406-4d331d24f830 h1:SCJ9Uiekv6uMqzMGP50Y0KBxkLP7IzPW35aI3Po6iyM=
 github.com/snapcore/secboot v0.0.0-20230623151406-4d331d24f830/go.mod h1:72paVOkm4sJugXt+v9ItmnjXgO921D8xqsbH2OekouY=
 github.com/snapcore/snapd v0.0.0-20201005140838-501d14ac146e/go.mod h1:3xrn7QDDKymcE5VO2rgWEQ5ZAUGb9htfwlXnoel6Io8=
-github.com/snapcore/snapd v0.0.0-20230823151120-37adc7130d48 h1:AC8wR+zUxTSYcS5m9mUqDZAUg9qggHb0Jdsxa5YbdL8=
-github.com/snapcore/snapd v0.0.0-20230823151120-37adc7130d48/go.mod h1:M+wSEB8eBfffw7I69nDtilqKfbdkmCNbtXY1wMJV1v0=
+github.com/snapcore/snapd v0.0.0-20231005121729-5238d0581c9e h1:qdCh1ucrTQeO6bJvSbwIfpKZR/NWrWCzfYqWi7TAk70=
+github.com/snapcore/snapd v0.0.0-20231005121729-5238d0581c9e/go.mod h1:M+wSEB8eBfffw7I69nDtilqKfbdkmCNbtXY1wMJV1v0=
 go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1 h1:A/5uWzF44DlIgdm/PQFwfMkW0JX+cIcQi/SwLAmZP5M=
 go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1/go.mod h1:SNgMg+EgDFwmvSmLRTNKC5fegJjB7v23qTQ0XLGUNHk=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
