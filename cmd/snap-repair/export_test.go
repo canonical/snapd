@@ -129,12 +129,6 @@ func MockDefaultRepairTimeout(d time.Duration) (restore func()) {
 	}
 }
 
-func MockErrtrackerReportRepair(mock func(string, string, string, map[string]string) (string, error)) (restore func()) {
-	prev := errtrackerReportRepair
-	errtrackerReportRepair = mock
-	return func() { errtrackerReportRepair = prev }
-}
-
 func MockTimeNow(f func() time.Time) (restore func()) {
 	origTimeNow := timeNow
 	timeNow = f

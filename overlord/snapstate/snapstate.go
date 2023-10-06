@@ -65,7 +65,6 @@ const (
 // control flags for "Configure()"
 const (
 	IgnoreHookError = 1 << iota
-	TrackHookError
 	UseConfigDefaults
 )
 
@@ -774,7 +773,6 @@ func ConfigureSnap(st *state.State, snapName string, confFlags int) *state.TaskS
 	// type until we actually run the change.
 	if isCoreSnap(snapName) {
 		confFlags |= IgnoreHookError
-		confFlags |= TrackHookError
 	}
 	return Configure(st, snapName, nil, confFlags)
 }

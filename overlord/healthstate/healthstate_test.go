@@ -148,7 +148,6 @@ func (s *healthSuite) testHealth(c *check.C, cond healthHookTestCondition) {
 		Optional:    true,
 		Timeout:     time.Second,
 		IgnoreError: false,
-		TrackError:  false,
 	})
 
 	t0 := time.Now()

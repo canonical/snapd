@@ -34,7 +34,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -98,9 +97,6 @@ func (s *baseHookManagerSuite) commonSetUpTest(c *C) {
 		s.context = context
 		return s.mockHandler
 	})
-	s.AddCleanup(hookstate.MockErrtrackerReport(func(string, string, string, map[string]string) (string, error) {
-		return "", nil
-	}))
 }
 
 func (s *baseHookManagerSuite) commonTearDownTest(c *C) {
@@ -924,67 +920,6 @@ func (s *hookManagerSuite) TestHookTaskRunsRightSnapCmd(c *C) {
 		"snap", "run", "--hook", "configure", "-r", "1", "test-snap",
 	}})
 
-}
-
-func (s *hookManagerSuite) TestHookTaskHandlerReportsErrorIfRequested(c *C) {
-	s.state.Lock()
-	var hooksup hookstate.HookSetup
-	s.task.Get("hook-setup", &hooksup)
-	hooksup.TrackError = true
-	s.task.Set("hook-setup", &hooksup)
-	s.state.Unlock()
-
-	errtrackerCalled := false
-	hookstate.MockErrtrackerReport(func(snap, errmsg, dupSig string, extra map[string]string) (string, error) {
-		c.Check(snap, Equals, "test-snap")
-		c.Check(errmsg, Equals, "hook configure in snap \"test-snap\" failed: hook failed at user request")
-		c.Check(dupSig, Equals, "hook:test-snap:configure:exit status 1\nhook failed at user request\n")
-
-		errtrackerCalled = true
-		return "some-oopsid", nil
-	})
-
-	// Force the snap command to exit 1, and print something to stderr
-	cmd := testutil.MockCommand(
-		c, "snap", ">&2 echo 'hook failed at user request'; exit 1")
-	defer cmd.Restore()
-
-	s.se.Ensure()
-	s.se.Wait()
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	c.Check(errtrackerCalled, Equals, true)
-}
-
-func (s *hookManagerSuite) TestHookTaskHandlerReportsErrorDisabled(c *C) {
-	s.state.Lock()
-	var hooksup hookstate.HookSetup
-	s.task.Get("hook-setup", &hooksup)
-	hooksup.TrackError = true
-	s.task.Set("hook-setup", &hooksup)
-
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "problem-reports.disabled", true)
-	tr.Commit()
-	s.state.Unlock()
-
-	hookstate.MockErrtrackerReport(func(snap, errmsg, dupSig string, extra map[string]string) (string, error) {
-		c.Fatalf("no error reports should be generated")
-		return "", nil
-	})
-
-	// Force the snap command to exit 1, and print something to stderr
-	cmd := testutil.MockCommand(
-		c, "snap", ">&2 echo 'hook failed at user request'; exit 1")
-	defer cmd.Restore()
-
-	s.se.Ensure()
-	s.se.Wait()
-
-	s.state.Lock()
-	defer s.state.Unlock()
 }
 
 func (s *hookManagerSuite) TestHookTasksForSameSnapAreSerialized(c *C) {

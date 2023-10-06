@@ -135,8 +135,7 @@ var (
 
 	SnapshotsDir string
 
-	ErrtrackerDbDir string
-	SysfsDir        string
+	SysfsDir string
 
 	FeaturesDir string
 )
@@ -513,7 +512,6 @@ func SetRootDir(rootdir string) {
 
 	SnapshotsDir = filepath.Join(rootdir, snappyDir, "snapshots")
 
-	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")
 	SysfsDir = filepath.Join(rootdir, "/sys")
 
 	FeaturesDir = FeaturesDirUnder(rootdir)

@@ -4168,7 +4168,6 @@ volumes:
 		Hook:        "configure",
 		Optional:    true,
 		IgnoreError: false,
-		TrackError:  false,
 	}
 
 	contextData := map[string]interface{}{"patch": gi.Defaults}

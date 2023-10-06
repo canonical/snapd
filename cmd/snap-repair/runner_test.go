@@ -1868,13 +1868,6 @@ type runScriptSuite struct {
 	runner     *repair.Runner
 
 	runDir string
-
-	errReport struct {
-		repair string
-		errMsg string
-		dupSig string
-		extra  map[string]string
-	}
 }
 
 var _ = Suite(&runScriptSuite{})
@@ -1884,9 +1877,6 @@ func (s *runScriptSuite) SetUpTest(c *C) {
 	s.runDir = filepath.Join(dirs.SnapRepairRunDir, "canonical", "1")
 
 	s.AddCleanup(snapdenv.SetUserAgentFromVersion("1", nil, "snap-repair"))
-
-	restoreErrTrackerReportRepair := repair.MockErrtrackerReportRepair(s.errtrackerReportRepair)
-	s.AddCleanup(restoreErrTrackerReportRepair)
 }
 
 // setupRunner must be called from the tests so that the *C passed into contains
@@ -1899,15 +1889,6 @@ func (s *runScriptSuite) setupRunner(c *C) {
 	s.runner = repair.NewRunner()
 	s.runner.BaseURL = mustParseURL(s.mockServer.URL)
 	s.runner.LoadState()
-}
-
-func (s *runScriptSuite) errtrackerReportRepair(repair, errMsg, dupSig string, extra map[string]string) (string, error) {
-	s.errReport.repair = repair
-	s.errReport.errMsg = errMsg
-	s.errReport.dupSig = dupSig
-	s.errReport.extra = extra
-
-	return "some-oops-id", nil
 }
 
 func (s *runScriptSuite) testScriptRun(c *C, mockScript string) *repair.Repair {
@@ -1992,24 +1973,6 @@ unhappy output
 
 repair canonical-1 revision 0 failed: exit status 1`)
 	verifyRepairStatus(c, repair.RetryStatus)
-
-	c.Check(s.errReport.repair, Equals, "canonical/1")
-	c.Check(s.errReport.errMsg, Equals, `repair canonical-1 revision 0 failed: exit status 1`)
-	c.Check(s.errReport.dupSig, Equals, `canonical/1
-repair canonical-1 revision 0 failed: exit status 1
-output:
-repair: canonical-1
-revision: 0
-summary: repair one
-output:
-unhappy output
-`)
-	c.Check(s.errReport.extra, DeepEquals, map[string]string{
-		"Revision": "0",
-		"RepairID": "1",
-		"BrandID":  "canonical",
-		"Status":   "retry",
-	})
 }
 
 func (s *runScriptSuite) TestRepairBasicSkip(c *C) {

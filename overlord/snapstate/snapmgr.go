@@ -32,7 +32,6 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -53,9 +52,6 @@ import (
 var (
 	snapdTransitionDelayWithRandomess = 3*time.Hour + randutil.RandomDuration(4*time.Hour)
 )
-
-// overridden in the tests
-var errtrackerReport = errtracker.Report
 
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {

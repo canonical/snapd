@@ -3445,13 +3445,6 @@ func (s *snapmgrTestSuite) TestDisableDoesNotEnableAgain(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestAbortCausesNoErrReport(c *C) {
-	errReported := 0
-	restore := snapstate.MockErrtrackerReport(func(aSnap, aErrMsg, aDupSig string, extra map[string]string) (string, error) {
-		errReported++
-		return "oops-id", nil
-	})
-	defer restore()
-
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -3474,7 +3467,6 @@ func (s *snapmgrTestSuite) TestAbortCausesNoErrReport(c *C) {
 	s.settle(c)
 
 	c.Check(chg.Status(), Equals, state.UndoneStatus)
-	c.Assert(errReported, Equals, 0)
 }
 
 func (s *snapmgrTestSuite) TestErrreportDisable(c *C) {
@@ -3485,12 +3477,6 @@ func (s *snapmgrTestSuite) TestErrreportDisable(c *C) {
 	tr.Set("core", "problem-reports.disabled", true)
 	tr.Commit()
 
-	restore := snapstate.MockErrtrackerReport(func(aSnap, aErrMsg, aDupSig string, extra map[string]string) (string, error) {
-		c.Fatalf("this should not be reached")
-		return "", nil
-	})
-	defer restore()
-
 	chg := s.state.NewChange("install", "install a snap")
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
 	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
@@ -3500,8 +3486,6 @@ func (s *snapmgrTestSuite) TestErrreportDisable(c *C) {
 
 	defer s.se.Stop()
 	s.settle(c)
-
-	// no failure report was generated
 }
 
 func (s *snapmgrTestSuite) TestEnsureRemovesVulnerableCoreSnap(c *C) {
