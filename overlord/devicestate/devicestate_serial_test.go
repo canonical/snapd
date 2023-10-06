@@ -29,6 +29,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"syscall"
 	"time"
 
@@ -2407,4 +2408,195 @@ func (s *deviceMgrSerialSuite) TestDeviceSerialRestoreHappy(c *C) {
 	// and something was logged
 	c.Check(log.String(), testutil.Contains,
 		fmt.Sprintf("restored serial serial-1234 for my-brand/pc-20 signed with key %v", devKey.PublicKey().ID()))
+}
+
+func (s *deviceMgrSerialSuite) TestShouldRequestSerial(c *C) {
+	type testCase struct {
+		deviceServiceAccess string
+		deviceServiceURL    string
+		storeAccess         string
+		gadgetName          string
+		expected            bool
+	}
+
+	testCases := []testCase{
+		{
+			storeAccess:         "",
+			gadgetName:          "",
+			deviceServiceAccess: "",
+			deviceServiceURL:    "",
+			expected:            true,
+		},
+		{
+			storeAccess:         "offline",
+			gadgetName:          "",
+			deviceServiceAccess: "",
+			deviceServiceURL:    "",
+			expected:            false,
+		},
+		{
+			storeAccess:         "",
+			gadgetName:          "gadget",
+			deviceServiceAccess: "offline",
+			deviceServiceURL:    "",
+			expected:            false,
+		},
+		{
+			storeAccess:         "",
+			gadgetName:          "gadget",
+			deviceServiceAccess: "",
+			deviceServiceURL:    "",
+			expected:            true,
+		},
+		{
+			storeAccess:         "offline",
+			gadgetName:          "gadget",
+			deviceServiceAccess: "",
+			deviceServiceURL:    "https://example.com",
+			expected:            true,
+		},
+		{
+			storeAccess:         "offline",
+			gadgetName:          "gadget",
+			deviceServiceAccess: "",
+			deviceServiceURL:    "",
+			expected:            false,
+		},
+		{
+			storeAccess:         "offline",
+			gadgetName:          "gadget",
+			deviceServiceAccess: "",
+			deviceServiceURL:    "https://example.com",
+			expected:            true,
+		},
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for i, t := range testCases {
+		tr := config.NewTransaction(s.state)
+		err := tr.Set("core", "store.access", t.storeAccess)
+		c.Assert(err, IsNil)
+
+		if t.gadgetName != "" {
+			err = tr.Set(t.gadgetName, "device-service.access", t.deviceServiceAccess)
+			c.Assert(err, IsNil)
+			err = tr.Set(t.gadgetName, "device-service.url", t.deviceServiceURL)
+			c.Assert(err, IsNil)
+		}
+		tr.Commit()
+
+		shouldRequest, err := devicestate.ShouldRequestSerial(s.state, t.gadgetName)
+		c.Check(err, IsNil)
+		c.Check(shouldRequest, Equals, t.expected, Commentf("testcase %d: %+v", i, t))
+	}
+}
+
+func (s *deviceMgrSerialSuite) TestDeviceManagerFullAccess(c *C) {
+	s.state.Lock()
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	change := s.findBecomeOperationalChange()
+	tasks := change.Tasks()
+	s.state.Unlock()
+
+	sort.Slice(tasks, func(l, r int) bool {
+		return tasks[l].Kind() < tasks[r].Kind()
+	})
+
+	// since device-service.access is unset, then both tasks should be queued
+	c.Assert(tasks, HasLen, 2)
+	c.Check(tasks[0].Kind(), Equals, "generate-device-key")
+	c.Check(tasks[1].Kind(), Equals, "request-serial")
+}
+
+func (s *deviceMgrSerialSuite) TestDeviceManagerNoAccessHasKeyID(c *C) {
+	s.state.Lock()
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+		KeyID: "key-id",
+	})
+
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+	s.state.Set("seeded", true)
+
+	tr := config.NewTransaction(s.state)
+	err := tr.Set("pc", "device-service.access", "offline")
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	s.state.Unlock()
+
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	change := s.findBecomeOperationalChange()
+	s.state.Unlock()
+
+	// since device-service.access=offline and the device key ID not set, then
+	// no tasks should have been queued
+	c.Assert(change, IsNil)
+}
+
+func (s *deviceMgrSerialSuite) TestDeviceManagerNoAccessNoKeyID(c *C) {
+	s.state.Lock()
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+
+	devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
+	s.state.Set("seeded", true)
+
+	tr := config.NewTransaction(s.state)
+	err := tr.Set("pc", "device-service.access", "offline")
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	s.state.Unlock()
+
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	change := s.findBecomeOperationalChange()
+	tasks := change.Tasks()
+	s.state.Unlock()
+
+	// since device-service.access=offline and the device key ID is not set,
+	// then the "generate-device-key" task should be queued
+	c.Assert(tasks, HasLen, 1)
+	c.Check(tasks[0].Kind(), Equals, "generate-device-key")
 }
