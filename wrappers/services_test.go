@@ -2973,7 +2973,7 @@ func (s *servicesTestSuite) TestServicesEnableStateFail(c *C) {
 	defer r.Restore()
 
 	_, err := wrappers.ServicesEnableState(info, progress.Null)
-	c.Assert(err, ErrorMatches, ".*show --property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload snap.hello-snap.svc1.service\\] failed with exit status 1: whoops\n.*")
+	c.Assert(err, ErrorMatches, ".*show --property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload snap.hello-snap.svc1.service\\] failed with exit status 1: whoops.*")
 
 	c.Assert(r.Calls(), DeepEquals, [][]string{
 		{"systemctl", "show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", svc1File},

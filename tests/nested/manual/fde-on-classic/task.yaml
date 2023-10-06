@@ -88,7 +88,7 @@ execute: |
       remote.push "$snap_filename"
       boot_id=$(tests.nested boot-id)
       # install will exit when waiting for the reboot
-      remote.exec sudo snap install --dangerous "$snap_filename" | MATCH "set to wait until a manual system restart allows to continue"
+      remote.exec sudo snap install --dangerous "$snap_filename" | MATCH "Task set to wait until a system restart allows to continue"
 
       # Check that a reboot notification was setup
       remote.exec test -f /run/reboot-required

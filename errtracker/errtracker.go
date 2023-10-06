@@ -168,15 +168,14 @@ func (db *reportsDB) MarkReported(dupSig string) error {
 }
 
 func whoopsieEnabled() bool {
-	cmd := exec.Command("systemctl", "is-enabled", "whoopsie.service")
-	output, _ := cmd.CombinedOutput()
-	switch string(output) {
+	stdout, stderr, _ := osutil.RunSplitOutput("systemctl", "is-enabled", "whoopsie.service")
+	switch string(stdout) {
 	case "enabled\n":
 		return true
 	case "disabled\n":
 		return false
 	default:
-		logger.Debugf("unexpected output when checking for whoopsie.service (not installed?): %s", output)
+		logger.Debugf("unexpected output when checking for whoopsie.service (not installed?): %s (stderr: %s)", stdout, stderr)
 		return true
 	}
 }
@@ -268,12 +267,11 @@ func ReportRepair(repair, errMsg, dupSig string, extra map[string]string) (strin
 }
 
 func detectVirt() string {
-	cmd := exec.Command("systemd-detect-virt")
-	output, err := cmd.CombinedOutput()
+	stdout, _, err := osutil.RunSplitOutput("systemd-detect-virt")
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(string(output))
+	return strings.TrimSpace(string(stdout))
 }
 
 func journalError() string {

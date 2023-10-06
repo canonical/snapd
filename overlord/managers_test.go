@@ -6940,6 +6940,14 @@ var (
 		{"bootx64.efi", "content"},
 		{"grubx64.efi", "content"},
 	}
+	pcTrack22GadgetFiles = [][]string{
+		{"meta/gadget.yaml", pcGadgetTrack22Yaml},
+		{"grub.conf", ""},
+		{"grub.conf", ""},
+		// SHA3-384: 21e42a075b0d7bb6177c0eb3b3a1c8c6de6d4b4f902759eae5555e9cf3bebd21277a27102fd5426da989bde96c0cf848
+		{"bootx64.efi", "content"},
+		{"grubx64.efi", "content"},
+	}
 	oldPcGadgetFiles = append(pcGadgetFiles, [][]string{
 		{"meta/gadget.yaml", oldPcGadgetYamlForRemodel},
 		// SHA3-384: 7e5c973da86f7398deffd45b9225175da1dd6ae8fcffa1a20219b32bab9f4846da10e823736cd818ceada74d35337c98
@@ -6979,7 +6987,7 @@ var (
 			{"this-is-new", "new-in-core20-rev-33"},
 		},
 		"pc-kernel-track-22": pcKernel22Files,
-		"pc-track-22": append(pcGadgetFiles, []string{
+		"pc-track-22": append(pcTrack22GadgetFiles, []string{
 			"cmdline.extra", "uc22",
 		}),
 	}
@@ -8127,10 +8135,9 @@ func (s *mgrsSuiteCore) TestRemodelUC20BackToPreviousGadget(c *C) {
 	err = s.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
-	// update has been called for all 3 structures because of the remodel
-	// policy (there is no content bump, so there would be no updates
-	// otherwise)
-	c.Check(updater.updateCalls, Equals, 3)
+	// update is called only for the ubuntu-seed partition as it is the
+	// only one with contents (see oldPcGadgetYamlForRemodel).
+	c.Check(updater.updateCalls, Equals, 1)
 	// a reboot was requested, as mock updated were applied
 	restarting, kind = restart.Pending(st)
 	c.Check(restarting, Equals, true)
@@ -8314,10 +8321,9 @@ func (s *mgrsSuiteCore) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) 
 	err = s.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
-	// update has been called for all 3 structures because of the remodel
-	// policy (there is no content bump, so there would be no updates
-	// otherwise)
-	c.Check(updater.updateCalls, Equals, 3)
+	// update is called only for the ubuntu-seed partition as it is the
+	// only one with contents (see oldPcGadgetYamlForRemodel).
+	c.Check(updater.updateCalls, Equals, 1)
 	// a reboot was requested, as mock updated were applied
 	restarting, kind = restart.Pending(st)
 	c.Check(restarting, Equals, true)
@@ -8764,8 +8770,8 @@ func (s *mgrsSuiteCore) TestRemodelUC20ToUC22(c *C) {
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	// gadget update has been applied
-	c.Check(updater.updateCalls, Equals, 3)
+	// gadget update for the seed partition has been applied
+	c.Check(updater.updateCalls, Equals, 1)
 
 	dumpTasks(c, "after gadget install", chg.Tasks())
 
@@ -9810,6 +9816,31 @@ volumes:
         role: system-seed
         filesystem: vfat
         size: 100M
+      - name: ubuntu-boot
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        role: system-boot
+        filesystem: ext4
+        size: 100M
+      - name: ubuntu-data
+        role: system-data
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        filesystem: ext4
+        size: 500M
+`
+
+const pcGadgetTrack22Yaml = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: ubuntu-seed
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        role: system-seed
+        filesystem: vfat
+        size: 100M
+        content:
+          - source: grubx64.efi
+            target: grubx64.efi
       - name: ubuntu-boot
         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
         role: system-boot

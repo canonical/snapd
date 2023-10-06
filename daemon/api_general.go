@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"os/exec"
 	"sort"
 	"time"
 
@@ -91,7 +90,7 @@ func init() {
 		buildID = bid
 	}
 	// cache systemd-detect-virt output as it's unlikely to change :-)
-	if buf, err := exec.Command("systemd-detect-virt").CombinedOutput(); err == nil {
+	if buf, _, err := osutil.RunSplitOutput("systemd-detect-virt"); err == nil {
 		systemdVirt = string(bytes.TrimSpace(buf))
 	}
 }
