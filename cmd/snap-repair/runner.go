@@ -216,6 +216,7 @@ func (r *Repair) Run() error {
 	// if the script had an error exit status still honor what we
 	// read from the status-pipe, however report the error
 	if scriptErr != nil {
+		// TODO: telemetry about errors here
 		scriptErr = fmt.Errorf("repair %s revision %d failed: %s", r, r.Revision(), scriptErr)
 		// ensure the error is present in the output log
 		fmt.Fprintf(logf, "\n%s", scriptErr)
