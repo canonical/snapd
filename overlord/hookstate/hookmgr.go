@@ -401,9 +401,9 @@ func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hoo
 		output, err = runHook(context, tomb)
 	}
 	if err != nil {
+		// TODO: telemetry about errors here
 		err = osutil.OutputErr(output, err)
 		if hooksup.IgnoreError {
-			// TODO: telemetry about errors here
 			context.Lock()
 			context.Errorf("ignoring failure in hook %q: %v", hooksup.Hook, err)
 			context.Unlock()
