@@ -154,7 +154,7 @@ wait_for_device_initialized() {
 
 wait_for_refresh_reboot() {
     wait_for_ssh "$DEFAULT_WAIT_FOR_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_SSH_WAIT"
-    for i in $(seq 3); do
+    for _ in $(seq 3); do
         if remote.exec "sudo journalctl -u snapd -n 30" | grep -q "Waiting for system reboot"; then
             echo "remote.wait-for: waiting for system reboot"
             remote.exec --timeout 3 "sudo reboot" || true
@@ -178,7 +178,7 @@ wait_for_refresh(){
         while remote.exec "snap changes" | grep -Eq "$change_id.*Doing.*(Auto-refresh|Refresh)"; do
             echo -n '.'
             # As the system could reboot anytime, this command could fail
-            wait_for_refresh_reboot | true
+            wait_for_refresh_reboot || true
         done
         echo ""
 
