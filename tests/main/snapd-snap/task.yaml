@@ -84,6 +84,9 @@ prepare: |
             fi
         fi
 
+        echo "Ensure apparmor is updated (see LP#2024637)"
+        apt install -y apparmor
+
         # load the fuse kernel module before installing lxd
         modprobe fuse
 
