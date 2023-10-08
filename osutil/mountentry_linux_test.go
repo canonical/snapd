@@ -246,6 +246,19 @@ func (s *entrySuite) TestOptStr(c *C) {
 	c.Assert(val, Equals, "")
 }
 
+func (s *entrySuite) TestOptMod(c *C) {
+	e := &osutil.MountEntry{Options: []string{"key=value"}}
+	e.OptStrMod("key", "value-mod1")
+	val, ok := e.OptStr("key")
+	c.Assert(ok, Equals, true)
+	c.Assert(val, Equals, "value-mod1")
+
+	e.OptStrMod("missing", "value-mod2")
+	val, ok = e.OptStr("missing")
+	c.Assert(ok, Equals, false)
+	c.Assert(val, Equals, "")
+}
+
 func (s *entrySuite) TestOptBool(c *C) {
 	e := &osutil.MountEntry{Options: []string{"key"}}
 	val := e.OptBool("key")
@@ -472,4 +485,18 @@ func (s *entrySuite) TestXSnapdMustExistDir(c *C) {
 	// A mount entry can list a symlink target
 	e = &osutil.MountEntry{Options: []string{osutil.XSnapdMustExistDir("$HOME")}}
 	c.Assert(e.XSnapdMustExistDir(), Equals, "$HOME")
+}
+
+func (s *entrySuite) TestXSnapdMustExistDirMod(c *C) {
+	// Entries without the x-snapd.must-exist-dir key return an empty string
+	e := &osutil.MountEntry{}
+	c.Assert(e.XSnapdMustExistDir(), Equals, "")
+
+	// A mount entry can list a must-exist-dir
+	e = &osutil.MountEntry{Options: []string{osutil.XSnapdMustExistDir("$HOME")}}
+	c.Assert(e.XSnapdMustExistDir(), Equals, "$HOME")
+
+	// A mount entry can modify the must-exist-dir
+	e.XSnapdMustExistDirMod("/home/user")
+	c.Assert(e.XSnapdMustExistDir(), Equals, "/home/user")
 }

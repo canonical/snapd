@@ -132,6 +132,20 @@ func (e *MountEntry) OptStr(name string) (string, bool) {
 	return "", false
 }
 
+// OptStrMod modifies and existing key=value mount option while
+// preserving the option order.
+func (e *MountEntry) OptStrMod(name string, value string) {
+	prefix := name + "="
+	option := prefix + value
+	for i, opt := range e.Options {
+		if strings.HasPrefix(opt, prefix) {
+			e.Options[i] = option
+			return
+		}
+	}
+	return
+}
+
 // OptBool returns true if a given mount option is present.
 func (e *MountEntry) OptBool(name string) bool {
 	for _, opt := range e.Options {
@@ -289,6 +303,12 @@ func (e *MountEntry) XSnapdIgnoreMissing() bool {
 func (e *MountEntry) XSnapdMustExistDir() string {
 	val, _ := e.OptStr("x-snapd.must-exist-dir")
 	return val
+}
+
+// XSnapdMustExistDirMod modifies the path that must exist as prequisite
+// to a mount operation, if the options exists.
+func (e *MountEntry) XSnapdMustExistDirMod(path string) {
+	e.OptStrMod("x-snapd.must-exist-dir", path)
 }
 
 // XSnapdNeededBy returns the string "x-snapd.needed-by=..." with the given path appended.

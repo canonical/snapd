@@ -65,7 +65,7 @@ func (s *mainSuite) TestExecuteMountProfileUpdate(c *C) {
 		c.Skip("missing local directories (/usr/share/fonts or /usr/local/share/fonts)")
 	}
 
-	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change, upCtx update.MountProfileUpdateContext) ([]*update.Change, error) {
 		return nil, nil
 	})
 	defer restore()
@@ -122,7 +122,7 @@ func (s *mainSuite) TestAddingSyntheticChanges(c *C) {
 	// represented here. The changes have only one goal: tell
 	// snap-update-ns how the mimic can be undone in case it is no longer
 	// needed.
-	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change, upCtx update.MountProfileUpdateContext) ([]*update.Change, error) {
 		// The change that we were asked to perform is to create a bind mount
 		// from within the snap to /usr/share/mysnap.
 		c.Assert(chg, DeepEquals, &update.Change{
@@ -192,7 +192,7 @@ func (s *mainSuite) TestRemovingSyntheticChanges(c *C) {
 	c.Assert(os.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
 
 	n := -1
-	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change, upCtx update.MountProfileUpdateContext) ([]*update.Change, error) {
 		n++
 		switch n {
 		case 0:
@@ -258,7 +258,7 @@ func (s *mainSuite) TestApplyingLayoutChanges(c *C) {
 	c.Assert(os.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
 
 	n := -1
-	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change, upCtx update.MountProfileUpdateContext) ([]*update.Change, error) {
 		n++
 		switch n {
 		case 0:
@@ -301,7 +301,7 @@ func (s *mainSuite) TestApplyingParallelInstanceChanges(c *C) {
 	c.Assert(os.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
 
 	n := -1
-	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change, upCtx update.MountProfileUpdateContext) ([]*update.Change, error) {
 		n++
 		switch n {
 		case 0:
@@ -344,7 +344,7 @@ func (s *mainSuite) TestApplyIgnoredMissingMount(c *C) {
 	c.Assert(os.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644), IsNil)
 
 	n := -1
-	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change, upCtx update.MountProfileUpdateContext) ([]*update.Change, error) {
 		n++
 		switch n {
 		case 0:
@@ -371,19 +371,20 @@ func (s *mainSuite) TestApplyIgnoredMissingMount(c *C) {
 	c.Check(currentProfilePath, testutil.FileEquals, "")
 }
 
-func (s *mainSuite) TestApplyUserFstab(c *C) {
+func (s *mainSuite) TestApplyUserFstabHappy(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 
 	var changes []update.Change
-	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+	restore := update.MockChangePerform(func(chg *update.Change, upCtx update.MountProfileUpdateContext) ([]*update.Change, error) {
 		changes = append(changes, *chg)
 		return nil, nil
 	})
 	defer restore()
 
 	snapName := "foo"
-	desiredProfileContent := `$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0`
+	desiredProfileContent := `$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0
+none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOME 0 0`
 
 	desiredProfilePath := fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, snapName)
 	err := os.MkdirAll(filepath.Dir(desiredProfilePath), 0755)
@@ -391,14 +392,32 @@ func (s *mainSuite) TestApplyUserFstab(c *C) {
 	err = os.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644)
 	c.Assert(err, IsNil)
 
-	upCtx := update.NewUserProfileUpdateContext(snapName, true, 1000)
+	restoreEnv := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", "/home/user", "1000")
+	defer restoreEnv()
+	upCtx, err := update.NewUserProfileUpdateContext(snapName, true, 1000, 1000)
+	c.Assert(err, IsNil)
+	c.Assert(upCtx.UID(), Equals, 1000)
+	c.Assert(upCtx.GID(), Equals, 1000)
 	err = update.ExecuteMountProfileUpdate(upCtx)
 	c.Assert(err, IsNil)
+	c.Assert(changes, HasLen, 2)
 
-	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, 1000)
-
-	c.Assert(changes, HasLen, 1)
 	c.Assert(changes[0].Action, Equals, update.Mount)
-	c.Assert(changes[0].Entry.Name, Equals, xdgRuntimeDir+"/doc/by-app/snap.foo")
-	c.Assert(changes[0].Entry.Dir, Matches, xdgRuntimeDir+"/doc")
+	c.Assert(changes[0].Entry.Name, Equals, "none")
+	c.Assert(changes[0].Entry.Dir, Equals, "/home/user/.local/share")
+	c.Assert(changes[0].Entry.XSnapdMustExistDir(), Equals, "/home/user")
+
+	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, upCtx.UID())
+	c.Assert(changes[1].Action, Equals, update.Mount)
+	c.Assert(changes[1].Entry.Name, Equals, xdgRuntimeDir+"/doc/by-app/snap.foo")
+	c.Assert(changes[1].Entry.Dir, Matches, xdgRuntimeDir+"/doc")
+}
+
+func (s *mainSuite) TestApplyUserFstabHappyErrorCannotRetrieveHome(c *C) {
+	snapName := "foo"
+	restoreEnv := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", "/home/user", "1000")
+	defer restoreEnv()
+	os.Unsetenv("SNAP_UID")
+	_, err := update.NewUserProfileUpdateContext(snapName, true, 1000, 1000)
+	c.Assert(err, ErrorMatches, "cannot retrieve home directory: cannot find environment variable \"SNAP_UID\"")
 }

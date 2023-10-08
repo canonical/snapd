@@ -36,12 +36,41 @@ type userSuite struct{}
 
 var _ = Suite(&userSuite{})
 
+func (s *userSuite) TestNewUserProfileUpdateContextErrorRealHome(c *C) {
+	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", "/home/user", "1234")
+	defer restore()
+	os.Unsetenv("SNAP_REAL_HOME")
+	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234, 1234)
+	c.Assert(upCtx, IsNil)
+	c.Assert(err, ErrorMatches, "cannot retrieve home directory: cannot find environment variable \"SNAP_REAL_HOME\"")
+}
+
+func (s *userSuite) TestUID(c *C) {
+	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", "/home/user", "1234")
+	defer restore()
+	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234, 1234)
+	c.Assert(err, IsNil)
+	uid := upCtx.UID()
+	c.Check(uid, Equals, 1234)
+}
+
+func (s *userSuite) TestGID(c *C) {
+	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", "/home/user", "1234")
+	defer restore()
+	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234, 1234)
+	c.Assert(err, IsNil)
+	gid := upCtx.GID()
+	c.Check(gid, Equals, 1234)
+}
+
 func (s *userSuite) TestLock(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
-
-	upCtx := update.NewUserProfileUpdateContext("foo", false, 1234)
+	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", "/home/user", "1234")
+	defer restore()
+	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234, 1234)
+	c.Assert(err, IsNil)
 
 	// Locking is a no-op.
 	unlock, err := upCtx.Lock()
@@ -51,7 +80,10 @@ func (s *userSuite) TestLock(c *C) {
 }
 
 func (s *userSuite) TestAssumptions(c *C) {
-	upCtx := update.NewUserProfileUpdateContext("foo", false, 1234)
+	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", "/home/user", "1234")
+	defer restore()
+	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234, 1234)
+	c.Assert(err, IsNil)
 	as := upCtx.Assumptions()
 	c.Check(as.UnrestrictedPaths(), IsNil)
 }
@@ -61,11 +93,15 @@ func (s *userSuite) TestLoadDesiredProfile(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 	dirs.XdgRuntimeDirBase = "/run/user"
+	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", "/home/user", "1234")
+	defer restore()
+	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234, 1234)
+	c.Assert(err, IsNil)
 
-	upCtx := update.NewUserProfileUpdateContext("foo", false, 1234)
-
-	input := "$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0\n"
-	output := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"
+	input := "$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0\n" +
+		"none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOME 0 0\n"
+	output := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n" +
+		"none /home/user/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=/home/user 0 0\n"
 
 	// Write a desired user mount profile for snap "foo".
 	path := update.DesiredUserProfilePath("foo")
@@ -78,7 +114,7 @@ func (s *userSuite) TestLoadDesiredProfile(c *C) {
 	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)
 
-	// Note that the profile read back contains expanded $XDG_RUNTIME_DIR.
+	// Note that the profile read back contains expanded $XDG_RUNTIME_DIR and $HOME.
 	c.Check(builder.String(), Equals, output)
 }
 
@@ -86,8 +122,10 @@ func (s *userSuite) TestLoadCurrentProfile(c *C) {
 	// Mock directories.
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
-
-	upCtx := update.NewUserProfileUpdateContext("foo", false, 1234)
+	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", "/home/user", "1234")
+	defer restore()
+	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234, 1234)
+	c.Assert(err, IsNil)
 
 	// Write a current user mount profile for snap "foo".
 	text := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"
@@ -111,8 +149,10 @@ func (s *userSuite) TestSaveCurrentProfile(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 	c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0755), IsNil)
-
-	upCtx := update.NewUserProfileUpdateContext("foo", false, 1234)
+	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", "/home/user", "1234")
+	defer restore()
+	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234, 1234)
+	c.Assert(err, IsNil)
 
 	// Prepare a mount profile to be saved.
 	text := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n"

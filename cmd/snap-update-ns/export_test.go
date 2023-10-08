@@ -52,13 +52,18 @@ var (
 	DesiredUserProfilePath = desiredUserProfilePath
 	CurrentUserProfilePath = currentUserProfilePath
 
-	// xdg
+	// expand
 	XdgRuntimeDir        = xdgRuntimeDir
 	ExpandPrefixVariable = expandPrefixVariable
 	ExpandXdgRuntimeDir  = expandXdgRuntimeDir
+	ExpandHomeDir        = expandHomeDir
 
 	// update
 	ExecuteMountProfileUpdate = executeMountProfileUpdate
+
+	// snapenv
+	SnapEnv         = snapEnv
+	SnapEnvRealHome = snapEnvRealHome
 )
 
 // SystemCalls encapsulates various system interactions performed by this module.
@@ -144,7 +149,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	}
 }
 
-func MockChangePerform(f func(chg *Change, as *Assumptions) ([]*Change, error)) func() {
+func MockChangePerform(f func(chg *Change, upCtx MountProfileUpdateContext) ([]*Change, error)) func() {
 	origChangePerform := changePerform
 	changePerform = f
 	return func() {
@@ -171,6 +176,38 @@ func MockReadDir(fn func(string) ([]os.FileInfo, error)) (restore func()) {
 	ioutilReadDir = fn
 	return func() {
 		ioutilReadDir = old
+	}
+}
+
+// MockSnapConfineUserEnv provide the environment variables provided by snap-confine
+// when it calls snap-update-ns for a specific user
+func MockSnapConfineUserEnv(xdgNew, realHomeNew, uidNew string) (restore func()) {
+	xdgCur, xdgExists := os.LookupEnv("XDG_RUNTIME_DIR")
+	realHomeCur, realHomeExists := os.LookupEnv("SNAP_REAL_HOME")
+	uidCur, uidExists := os.LookupEnv("SNAP_UID")
+
+	os.Setenv("XDG_RUNTIME_DIR", xdgNew)
+	os.Setenv("SNAP_REAL_HOME", realHomeNew)
+	os.Setenv("SNAP_UID", uidNew)
+
+	return func() {
+		if xdgExists {
+			os.Setenv("XDG_RUNTIME_DIR", xdgCur)
+		} else {
+			os.Unsetenv("XDG_RUNTIME_DIR")
+		}
+
+		if realHomeExists {
+			os.Setenv("SNAP_REAL_HOME", realHomeCur)
+		} else {
+			os.Unsetenv("SNAP_REAL_HOME")
+		}
+
+		if uidExists {
+			os.Setenv("SNAP_UID", uidCur)
+		} else {
+			os.Unsetenv("SNAP_UID")
+		}
 	}
 }
 
@@ -221,4 +258,102 @@ func NewCommonProfileUpdateContext(instanceName string, fromSnapConfine bool, cu
 		currentProfilePath: currentProfilePath,
 		desiredProfilePath: desiredProfilePath,
 	}
+}
+
+func MockNeededChangesAndPerformChange(neededChanges func(old, new *osutil.MountProfile) []*Change,
+	changePerform func(chg *Change, upCtx MountProfileUpdateContext) ([]*Change, error)) (restore func()) {
+	if neededChanges == nil {
+		neededChanges = func(*osutil.MountProfile, *osutil.MountProfile) []*Change { return nil }
+	}
+	restore1 := MockNeededChanges(neededChanges)
+
+	if changePerform == nil {
+		changePerform = func(*Change, MountProfileUpdateContext) ([]*Change, error) { return nil, nil }
+	}
+	restore2 := MockChangePerform(changePerform)
+
+	return func() {
+		restore1()
+		restore2()
+	}
+}
+
+// NewTestUpdateContext returns an update context that satisfies MountProfileUpdateContext.
+func NewTestUpdateContext(
+	lock func() (unlock func(), err error),
+	assumptions func() *Assumptions,
+	loadDesiredProfile func() (*osutil.MountProfile, error),
+	loadCurrentProfile func() (*osutil.MountProfile, error),
+	saveCurrentProfile func(*osutil.MountProfile) error,
+	uid func() int,
+	gid func() int,
+) *testUpdateContext {
+	return &testUpdateContext{
+		lock:               lock,
+		assumptions:        assumptions,
+		loadDesiredProfile: loadDesiredProfile,
+		loadCurrentProfile: loadCurrentProfile,
+		saveCurrentProfile: saveCurrentProfile,
+		uid:                uid,
+		gid:                gid,
+	}
+}
+
+type testUpdateContext struct {
+	lock               func() (unlock func(), err error)
+	assumptions        func() *Assumptions
+	loadDesiredProfile func() (*osutil.MountProfile, error)
+	loadCurrentProfile func() (*osutil.MountProfile, error)
+	saveCurrentProfile func(*osutil.MountProfile) error
+	uid                func() int
+	gid                func() int
+}
+
+func (upCtx *testUpdateContext) Lock() (unlock func(), err error) {
+	if upCtx.lock != nil {
+		return upCtx.lock()
+	}
+	return func() {}, nil
+}
+
+func (upCtx *testUpdateContext) Assumptions() *Assumptions {
+	if upCtx.assumptions != nil {
+		return upCtx.assumptions()
+	}
+	return &Assumptions{}
+}
+
+func (upCtx *testUpdateContext) LoadDesiredProfile() (*osutil.MountProfile, error) {
+	if upCtx.loadDesiredProfile != nil {
+		return upCtx.loadDesiredProfile()
+	}
+	return &osutil.MountProfile{}, nil
+}
+
+func (upCtx *testUpdateContext) LoadCurrentProfile() (*osutil.MountProfile, error) {
+	if upCtx.loadCurrentProfile != nil {
+		return upCtx.loadCurrentProfile()
+	}
+	return &osutil.MountProfile{}, nil
+}
+
+func (upCtx *testUpdateContext) SaveCurrentProfile(profile *osutil.MountProfile) error {
+	if upCtx.saveCurrentProfile != nil {
+		return upCtx.saveCurrentProfile(profile)
+	}
+	return nil
+}
+
+func (upCtx *testUpdateContext) UID() int {
+	if upCtx.uid != nil {
+		return upCtx.uid()
+	}
+	return 0
+}
+
+func (upCtx *testUpdateContext) GID() int {
+	if upCtx.gid != nil {
+		return upCtx.gid()
+	}
+	return 0
 }

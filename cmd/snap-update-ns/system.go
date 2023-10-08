@@ -92,6 +92,16 @@ func (upCtx *SystemProfileUpdateContext) Assumptions() *Assumptions {
 	return as
 }
 
+// UID returns the user ID of the system user
+func (upCtx *SystemProfileUpdateContext) UID() int {
+	return 0
+}
+
+// GID returns the group ID of the system user
+func (upCtx *SystemProfileUpdateContext) GID() int {
+	return 0
+}
+
 // desiredSystemProfilePath returns the path of the fstab-like file with the desired, system-wide mount profile for a snap.
 func desiredSystemProfilePath(snapName string) string {
 	return fmt.Sprintf("%s/snap.%s.fstab", dirs.SnapMountPolicyDir, snapName)
