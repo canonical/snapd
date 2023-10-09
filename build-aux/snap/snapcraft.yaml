@@ -171,6 +171,13 @@ parts:
       - usr/bin/*
       - usr/lib/*
       - lib/*
+  # libzstd is needed by squashfs-tools and not available on all cores
+  libzstd1:
+    plugin: nil
+    stage-packages:
+      - libzstd1
+    stage:
+      - usr/lib/*
   # liblzma5 is part of core but the snapd snap needs to run even without core
   liblzma5:
     plugin: nil
