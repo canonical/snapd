@@ -637,8 +637,7 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		if reuse[mountEntryId{unmountOrder[i].Dir, unmountOrder[i].Type}] {
 			changes = append(changes, &Change{Action: Keep, Entry: unmountOrder[i]})
 		} else {
-			var entry osutil.MountEntry = unmountOrder[i]
-			entry.Options = append([]string(nil), entry.Options...)
+			entry := unmountOrder[i]
 			// If the mount entry can potentially host nested mount points then detach
 			// rather than unmount, since detach will always succeed.
 			shouldDetach := entry.Type == "tmpfs" || entry.OptBool("bind") || entry.OptBool("rbind")
@@ -709,7 +708,7 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 			// mount entries it is sufficient to use this assumption.
 			// We check if a mount entry would result in a potential mimic by just
 			// checking if the file/dir/symlink that is the target of the mount exists
-			// already in the form we need to to bind mount on top of it. If it
+			// already in the form we need to bind mount on top of it. If it
 			// doesn't then we need to create a mimic and so we then go looking for
 			// where to create the mimic.
 			for _, entry := range entriesNeedingDir {
@@ -738,7 +737,7 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		// sort the mimic creation dirs to get the correct ordering of mimics to
 		// create dirs in: the sorting algorithm places parent directories
 		// before children.
-		allMimicCreationDirs := []string{}
+		var allMimicCreationDirs []string
 		for mimicDir := range entriesForMimicDir {
 			allMimicCreationDirs = append(allMimicCreationDirs, mimicDir)
 		}
