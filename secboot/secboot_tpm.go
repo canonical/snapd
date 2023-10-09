@@ -610,7 +610,7 @@ func (lc *LoadChain) loadEvent(source sb_efi.ImageLoadEventSource) (sb_efi.Image
 	if err != nil {
 		return nil, err
 	}
-	return sb_efi.NewImageLoadActivity(image).Loads(), nil
+	return sb_efi.NewImageLoadActivity(image, source).Loads(next...), nil
 }
 
 func efiImageFromBootFile(b *bootloader.BootFile) (sb_efi.Image, error) {
@@ -625,10 +625,10 @@ func efiImageFromBootFile(b *bootloader.BootFile) (sb_efi.Image, error) {
 	if err != nil {
 		return nil, err
 	}
-	return sb_efi.SnapFileImage{
-		Container: snapf,
-		FileName:  b.Path,
-	}, nil
+	return sb_efi.NewSnapFileImage(
+		snapf,
+		b.Path,
+	), nil
 }
 
 // PCRHandleOfSealedKey retunrs the PCR handle which was used when sealing a
