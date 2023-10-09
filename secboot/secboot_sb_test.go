@@ -1055,196 +1055,195 @@ func (s *secbootSuite) TestSealKey(c *C) {
 }
 
 func (s *secbootSuite) TestResealKey(c *C) {
-	/*
-		mockErr := errors.New("some error")
+	mockErr := errors.New("some error")
 
-		for _, tc := range []struct {
-			tpmErr                 error
-			tpmEnabled             bool
-			missingFile            bool
-			addEFISbPolicyErr      error
-			addEFIBootManagerErr   error
-			addSystemdEFIStubErr   error
-			addSnapModelErr        error
-			readSealedKeyObjectErr error
-			provisioningErr        error
-			resealErr              error
-			resealCalls            int
-			revokeErr              error
-			revokeCalls            int
-			expectedErr            string
-		}{
-			// happy case
-			{tpmEnabled: true, resealCalls: 1, revokeCalls: 1, expectedErr: ""},
+	for _, tc := range []struct {
+		tpmErr                 error
+		tpmEnabled             bool
+		missingFile            bool
+		addEFISbPolicyErr      error
+		addEFIBootManagerErr   error
+		addSystemdEFIStubErr   error
+		addSnapModelErr        error
+		readSealedKeyObjectErr error
+		provisioningErr        error
+		resealErr              error
+		resealCalls            int
+		revokeErr              error
+		revokeCalls            int
+		expectedErr            string
+	}{
+		// happy case
+		{tpmEnabled: true, resealCalls: 1, revokeCalls: 1, expectedErr: ""},
 
-			// unhappy cases
-			{tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
-			{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
-			{tpmEnabled: true, missingFile: true, expectedErr: "cannot build EFI image load sequences: file .*\/file.efi does not exist"},
-			{tpmEnabled: true, addEFISbPolicyErr: mockErr, expectedErr: "cannot add EFI secure boot policy profile: some error"},
-			{tpmEnabled: true, addEFIBootManagerErr: mockErr, expectedErr: "cannot add EFI boot manager profile: some error"},
-			{tpmEnabled: true, addSystemdEFIStubErr: mockErr, expectedErr: "cannot add systemd EFI stub profile: some error"},
-			{tpmEnabled: true, addSnapModelErr: mockErr, expectedErr: "cannot add snap model profile: some error"},
-			{tpmEnabled: true, readSealedKeyObjectErr: mockErr, expectedErr: "some error"},
-			{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "some error"},
-			{tpmEnabled: true, revokeErr: errors.New("revoke error"), resealCalls: 1, revokeCalls: 1, expectedErr: "revoke error"},
-		} {
-			mockTPMPolicyAuthKey := []byte{1, 3, 3, 7}
-			mockTPMPolicyAuthKeyFile := filepath.Join(c.MkDir(), "policy-auth-key-file")
-			err := os.WriteFile(mockTPMPolicyAuthKeyFile, mockTPMPolicyAuthKey, 0600)
+		// unhappy cases
+		{tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
+		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
+		{tpmEnabled: true, missingFile: true, expectedErr: "cannot build EFI image load sequences: file .*\\/file.efi does not exist"},
+		{tpmEnabled: true, addEFISbPolicyErr: mockErr, expectedErr: "cannot add EFI secure boot policy profile: some error"},
+		{tpmEnabled: true, addEFIBootManagerErr: mockErr, expectedErr: "cannot add EFI boot manager profile: some error"},
+		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, expectedErr: "cannot add systemd EFI stub profile: some error"},
+		{tpmEnabled: true, addSnapModelErr: mockErr, expectedErr: "cannot add snap model profile: some error"},
+		{tpmEnabled: true, readSealedKeyObjectErr: mockErr, expectedErr: "some error"},
+		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "some error"},
+		{tpmEnabled: true, revokeErr: errors.New("revoke error"), resealCalls: 1, revokeCalls: 1, expectedErr: "revoke error"},
+	} {
+		mockTPMPolicyAuthKey := []byte{1, 3, 3, 7}
+		mockTPMPolicyAuthKeyFile := filepath.Join(c.MkDir(), "policy-auth-key-file")
+		err := os.WriteFile(mockTPMPolicyAuthKeyFile, mockTPMPolicyAuthKey, 0600)
+		c.Assert(err, IsNil)
+
+		mockEFI := bootloader.NewBootFile("", filepath.Join(c.MkDir(), "file.efi"), bootloader.RoleRecovery)
+		if !tc.missingFile {
+			err := os.WriteFile(mockEFI.Path, nil, 0644)
 			c.Assert(err, IsNil)
-
-			mockEFI := bootloader.NewBootFile("", filepath.Join(c.MkDir(), "file.efi"), bootloader.RoleRecovery)
-			if !tc.missingFile {
-				err := os.WriteFile(mockEFI.Path, nil, 0644)
-				c.Assert(err, IsNil)
-			}
-
-			tmpdir := c.MkDir()
-			keyFile := filepath.Join(tmpdir, "keyfile")
-			keyFile2 := filepath.Join(tmpdir, "keyfile2")
-			myParams := &secboot.ResealKeysParams{
-				ModelParams: []*secboot.SealKeyModelParams{
-					{
-						EFILoadChains:  []*secboot.LoadChain{secboot.NewLoadChain(mockEFI)},
-						KernelCmdlines: []string{"cmdline"},
-						Model:          &asserts.Model{},
-					},
-				},
-				KeyFiles:             []string{keyFile, keyFile2},
-				TPMPolicyAuthKeyFile: mockTPMPolicyAuthKeyFile,
-			}
-
-			numMockSealedKeyObjects := len(myParams.KeyFiles)
-			mockSealedKeyObjects := make([]*sb_tpm2.SealedKeyObject, 0, numMockSealedKeyObjects)
-			for range myParams.KeyFiles {
-				// Copy of
-				// https://github.com/snapcore/secboot/blob/master/internal/compattest/testdata/v1/key
-				// To create full looking
-				// mockSealedKeyObjects, although {},{} would
-				// have been enough as well
-				mockSealedKeyFile := filepath.Join("test-data", "keyfile")
-				mockSealedKeyObject, err := sb_tpm2.ReadSealedKeyObjectFromFile(mockSealedKeyFile)
-				c.Assert(err, IsNil)
-				mockSealedKeyObjects = append(mockSealedKeyObjects, mockSealedKeyObject)
-			}
-
-			sequences := []*sb_efi.ImageLoadEvent{
-				{
-					Source: sb_efi.Firmware,
-					Image:  sb_efi.FileImage(mockEFI.Path),
-				},
-			}
-
-			// mock TPM connection
-			tpm, restore := mockSbTPMConnection(c, tc.tpmErr)
-			defer restore()
-
-			// mock TPM enabled check
-			restore = secboot.MockIsTPMEnabled(func(t *sb_tpm2.Connection) bool {
-				return tc.tpmEnabled
-			})
-			defer restore()
-
-			// mock adding EFI secure boot policy profile
-			var pcrProfile *sb_tpm2.PCRProtectionProfile
-			addEFISbPolicyCalls := 0
-			restore = secboot.MockSbEfiAddSecureBootPolicyProfile(func(profile *sb_tpm2.PCRProtectionProfile, params *sb_efi.SecureBootPolicyProfileParams) error {
-				addEFISbPolicyCalls++
-				pcrProfile = profile
-				c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
-				c.Assert(params.LoadSequences, DeepEquals, sequences)
-				return tc.addEFISbPolicyErr
-			})
-			defer restore()
-
-			// mock adding EFI boot manager profile
-			addEFIBootManagerCalls := 0
-			restore = secboot.MockSbEfiAddBootManagerProfile(func(profile *sb_tpm2.PCRProtectionProfileBranch, params *sb_efi.BootManagerProfileParams) error {
-				addEFIBootManagerCalls++
-				c.Assert(profile, Equals, pcrProfile)
-				c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
-				c.Assert(params.LoadSequences, DeepEquals, sequences)
-				return tc.addEFIBootManagerErr
-			})
-			defer restore()
-
-			// mock adding systemd EFI stub profile
-			addSystemdEfiStubCalls := 0
-			restore = secboot.MockSbEfiAddSystemdStubProfile(func(profile *sb_tpm2.PCRProtectionProfileBranch, params *sb_efi.SystemdStubProfileParams) error {
-				addSystemdEfiStubCalls++
-				c.Assert(profile, Equals, pcrProfile)
-				c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
-				c.Assert(params.PCRIndex, Equals, 12)
-				c.Assert(params.KernelCmdlines, DeepEquals, myParams.ModelParams[0].KernelCmdlines)
-				return tc.addSystemdEFIStubErr
-			})
-			defer restore()
-
-			// mock adding snap model profile
-			addSnapModelCalls := 0
-			restore = secboot.MockSbAddSnapModelProfile(func(profile *sb_tpm2.PCRProtectionProfileBranch, params *sb_tpm2.SnapModelProfileParams) error {
-				addSnapModelCalls++
-				c.Assert(profile, Equals, pcrProfile)
-				c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
-				c.Assert(params.PCRIndex, Equals, 12)
-				c.Assert(params.Models[0], DeepEquals, myParams.ModelParams[0].Model)
-				return tc.addSnapModelErr
-			})
-			defer restore()
-
-			// mock ReadSealedKeyObject
-			readSealedKeyObjectCalls := 0
-			restore = secboot.MockSbReadSealedKeyObjectFromFile(func(keyfile string) (*sb_tpm2.SealedKeyObject, error) {
-				readSealedKeyObjectCalls++
-				c.Assert(keyfile, Equals, myParams.KeyFiles[readSealedKeyObjectCalls-1])
-				return mockSealedKeyObjects[readSealedKeyObjectCalls-1], tc.readSealedKeyObjectErr
-			})
-			defer restore()
-
-			// mock PCR protection policy update
-			resealCalls := 0
-			restore = secboot.MockSbUpdateKeyPCRProtectionPolicyMultiple(func(t *sb_tpm2.Connection, keys []*sb_tpm2.SealedKeyObject, authKey sb.AuxiliaryKey, profile *sb_tpm2.PCRProtectionProfile) error {
-				resealCalls++
-				c.Assert(t, Equals, tpm)
-				c.Assert(keys, DeepEquals, mockSealedKeyObjects)
-				c.Assert(authKey, DeepEquals, sb.AuxiliaryKey(mockTPMPolicyAuthKey))
-				c.Assert(profile, Equals, pcrProfile)
-				return tc.resealErr
-			})
-			defer restore()
-			// mock PCR protection policy revoke
-			revokeCalls := 0
-			restore = secboot.MockSbSealedKeyObjectRevokeOldPCRProtectionPolicies(func(sko *sb_tpm2.SealedKeyObject, t *sb_tpm2.Connection, authKey sb.AuxiliaryKey) error {
-				revokeCalls++
-				c.Assert(sko, Equals, mockSealedKeyObjects[0])
-				c.Assert(t, Equals, tpm)
-				c.Assert(authKey, DeepEquals, sb.AuxiliaryKey(mockTPMPolicyAuthKey))
-				return tc.revokeErr
-			})
-			defer restore()
-
-			err = secboot.ResealKeys(myParams)
-			if tc.expectedErr == "" {
-				c.Assert(err, IsNil)
-				c.Assert(addEFISbPolicyCalls, Equals, 1)
-				c.Assert(addSystemdEfiStubCalls, Equals, 1)
-				c.Assert(addSnapModelCalls, Equals, 1)
-				c.Assert(keyFile, testutil.FilePresent)
-				c.Assert(keyFile2, testutil.FilePresent)
-			} else {
-				c.Assert(err, ErrorMatches, tc.expectedErr, Commentf("%v", tc))
-				if revokeCalls == 0 {
-					// files were not written out
-					c.Assert(keyFile, testutil.FileAbsent)
-					c.Assert(keyFile2, testutil.FileAbsent)
-				}
-			}
-			c.Assert(resealCalls, Equals, tc.resealCalls)
-			c.Assert(revokeCalls, Equals, tc.revokeCalls)
 		}
 
-	*/
+		tmpdir := c.MkDir()
+		keyFile := filepath.Join(tmpdir, "keyfile")
+		keyFile2 := filepath.Join(tmpdir, "keyfile2")
+		myParams := &secboot.ResealKeysParams{
+			ModelParams: []*secboot.SealKeyModelParams{
+				{
+					EFILoadChains:  []*secboot.LoadChain{secboot.NewLoadChain(mockEFI)},
+					KernelCmdlines: []string{"cmdline"},
+					Model:          &asserts.Model{},
+				},
+			},
+			KeyFiles:             []string{keyFile, keyFile2},
+			TPMPolicyAuthKeyFile: mockTPMPolicyAuthKeyFile,
+		}
+
+		numMockSealedKeyObjects := len(myParams.KeyFiles)
+		mockSealedKeyObjects := make([]*sb_tpm2.SealedKeyObject, 0, numMockSealedKeyObjects)
+		for range myParams.KeyFiles {
+			// Copy of
+			// https://github.com/snapcore/secboot/blob/master/internal/compattest/testdata/v1/key
+			// To create full looking
+			// mockSealedKeyObjects, although {},{} would
+			// have been enough as well
+			mockSealedKeyFile := filepath.Join("test-data", "keyfile")
+			mockSealedKeyObject, err := sb_tpm2.ReadSealedKeyObjectFromFile(mockSealedKeyFile)
+			c.Assert(err, IsNil)
+			mockSealedKeyObjects = append(mockSealedKeyObjects, mockSealedKeyObject)
+		}
+
+		sequences := sb_efi.NewImageLoadSequences().Append(
+			sb_efi.NewImageLoadActivity(
+				sb_efi.NewFileImage(mockEFI.Path),
+				sb_efi.Firmware,
+			),
+		)
+
+		// mock TPM connection
+		tpm, restore := mockSbTPMConnection(c, tc.tpmErr)
+		defer restore()
+
+		// mock TPM enabled check
+		restore = secboot.MockIsTPMEnabled(func(t *sb_tpm2.Connection) bool {
+			return tc.tpmEnabled
+		})
+		defer restore()
+
+		// mock adding EFI secure boot policy profile
+		//var pcrProfile *sb_tpm2.PCRProtectionProfile
+		addEFISbPolicyCalls := 0
+		restore = secboot.MockSbEfiAddSecureBootPolicyProfile(func(profile *sb_tpm2.PCRProtectionProfile, params *sb_efi.SecureBootPolicyProfileParams) error {
+			addEFISbPolicyCalls++
+			//pcrProfile = profile
+			foundSequences := sb_efi.NewImageLoadSequences().Append(params.LoadSequences...)
+			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
+			c.Assert(foundSequences, DeepEquals, sequences)
+			return tc.addEFISbPolicyErr
+		})
+		defer restore()
+
+		// mock adding EFI boot manager profile
+		addEFIBootManagerCalls := 0
+		restore = secboot.MockSbEfiAddBootManagerProfile(func(profile *sb_tpm2.PCRProtectionProfileBranch, params *sb_efi.BootManagerProfileParams) error {
+			addEFIBootManagerCalls++
+			//c.Assert(profile, Equals, pcrProfile)
+			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
+			foundSequences := sb_efi.NewImageLoadSequences().Append(params.LoadSequences...)
+			c.Assert(foundSequences, DeepEquals, sequences)
+			return tc.addEFIBootManagerErr
+		})
+		defer restore()
+
+		// mock adding systemd EFI stub profile
+		addSystemdEfiStubCalls := 0
+		restore = secboot.MockSbEfiAddSystemdStubProfile(func(profile *sb_tpm2.PCRProtectionProfileBranch, params *sb_efi.SystemdStubProfileParams) error {
+			addSystemdEfiStubCalls++
+			//c.Assert(profile, Equals, pcrProfile)
+			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
+			c.Assert(params.PCRIndex, Equals, 12)
+			c.Assert(params.KernelCmdlines, DeepEquals, myParams.ModelParams[0].KernelCmdlines)
+			return tc.addSystemdEFIStubErr
+		})
+		defer restore()
+
+		// mock adding snap model profile
+		addSnapModelCalls := 0
+		restore = secboot.MockSbAddSnapModelProfile(func(profile *sb_tpm2.PCRProtectionProfileBranch, params *sb_tpm2.SnapModelProfileParams) error {
+			addSnapModelCalls++
+			//c.Assert(profile, Equals, pcrProfile)
+			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
+			c.Assert(params.PCRIndex, Equals, 12)
+			c.Assert(params.Models[0], DeepEquals, myParams.ModelParams[0].Model)
+			return tc.addSnapModelErr
+		})
+		defer restore()
+
+		// mock ReadSealedKeyObject
+		readSealedKeyObjectCalls := 0
+		restore = secboot.MockSbReadSealedKeyObjectFromFile(func(keyfile string) (*sb_tpm2.SealedKeyObject, error) {
+			readSealedKeyObjectCalls++
+			c.Assert(keyfile, Equals, myParams.KeyFiles[readSealedKeyObjectCalls-1])
+			return mockSealedKeyObjects[readSealedKeyObjectCalls-1], tc.readSealedKeyObjectErr
+		})
+		defer restore()
+
+		// mock PCR protection policy update
+		resealCalls := 0
+		restore = secboot.MockSbUpdateKeyPCRProtectionPolicyMultiple(func(t *sb_tpm2.Connection, keys []*sb_tpm2.SealedKeyObject, authKey sb.AuxiliaryKey, profile *sb_tpm2.PCRProtectionProfile) error {
+			resealCalls++
+			c.Assert(t, Equals, tpm)
+			c.Assert(keys, DeepEquals, mockSealedKeyObjects)
+			c.Assert(authKey, DeepEquals, sb.AuxiliaryKey(mockTPMPolicyAuthKey))
+			//c.Assert(profile, Equals, pcrProfile)
+			return tc.resealErr
+		})
+		defer restore()
+		// mock PCR protection policy revoke
+		revokeCalls := 0
+		restore = secboot.MockSbSealedKeyObjectRevokeOldPCRProtectionPolicies(func(sko *sb_tpm2.SealedKeyObject, t *sb_tpm2.Connection, authKey sb.AuxiliaryKey) error {
+			revokeCalls++
+			c.Assert(sko, Equals, mockSealedKeyObjects[0])
+			c.Assert(t, Equals, tpm)
+			c.Assert(authKey, DeepEquals, sb.AuxiliaryKey(mockTPMPolicyAuthKey))
+			return tc.revokeErr
+		})
+		defer restore()
+
+		err = secboot.ResealKeys(myParams)
+		if tc.expectedErr == "" {
+			c.Assert(err, IsNil)
+			c.Assert(addEFISbPolicyCalls, Equals, 1)
+			c.Assert(addSystemdEfiStubCalls, Equals, 1)
+			c.Assert(addSnapModelCalls, Equals, 1)
+			c.Assert(keyFile, testutil.FilePresent)
+			c.Assert(keyFile2, testutil.FilePresent)
+		} else {
+			c.Assert(err, ErrorMatches, tc.expectedErr, Commentf("%v", tc))
+			if revokeCalls == 0 {
+				// files were not written out
+				c.Assert(keyFile, testutil.FileAbsent)
+				c.Assert(keyFile2, testutil.FileAbsent)
+			}
+		}
+		c.Assert(resealCalls, Equals, tc.resealCalls)
+		c.Assert(revokeCalls, Equals, tc.revokeCalls)
+	}
 }
 
 func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
