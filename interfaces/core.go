@@ -227,9 +227,15 @@ type StaticInfo struct {
 	// system-packages-doc that could get the flag set back to false.
 	AffectsPlugOnRefresh bool `json:"affects-plug-on-refresh,omitempty"`
 
-	// BaseDeclarationPlugs defines an optional extension to the base-declaration assertion relevant for this interface.
+	// BaseDeclarationPlugs defines optional plug-side rules in the
+	// base-declaration assertion relevant for this interface. See
+	// interfaces/builtin/README.md, especially "Base declaration policy
+	// patterns".
 	BaseDeclarationPlugs string
-	// BaseDeclarationSlots defines an optional extension to the base-declaration assertion relevant for this interface.
+	// BaseDeclarationSlots defines an optional slot-side rules in the
+	// base-declaration assertion relevant for this interface. See
+	// interfaces/builtin/README.md, especially "Base declaration policy
+	// patterns".
 	BaseDeclarationSlots string
 }
 
