@@ -1081,3 +1081,59 @@ func (*schemaSuite) TestIntegerChoicesOver32Bits(c *C) {
 		c.Assert(err, IsNil)
 	}
 }
+
+func (*schemaSuite) TestAnyTypeAcceptsAllTypes(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": "any"
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	for _, val := range []string{`"bar"`, `123`, `{ "a": 1, "b": 2 }`} {
+		input := []byte(fmt.Sprintf(`{
+			"foo": %s
+		}`, val))
+
+		err = schema.Validate(input)
+		c.Assert(err, IsNil, Commentf(`"any" type didn't accept expected value: %s`, val))
+	}
+}
+
+func (*schemaSuite) TestAnyTypeRejectsNull(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "any"
+		}
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{
+	"foo": null
+}`)
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `cannot accept null value: invalid value for "any" type`)
+}
+
+func (*schemaSuite) TestAnyTypeRejectsBadJSON(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": "any"
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{
+	"foo": .
+}`)
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `invalid character .*`)
+}

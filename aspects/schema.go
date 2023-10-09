@@ -144,7 +144,6 @@ func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
 }
 
 func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
-	// TODO: add any, number, bool and array
 	switch typ {
 	case "map":
 		return &mapSchema{topSchema: s}, nil
@@ -152,6 +151,8 @@ func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
 		return &stringSchema{}, nil
 	case "int":
 		return &intSchema{}, nil
+	case "any":
+		return &anySchema{}, nil
 	default:
 		if typ != "" && typ[0] == '$' {
 			return s.getUserType(typ[1:])
@@ -536,5 +537,24 @@ func (v *intSchema) parseConstraints(constraints map[string]json.RawMessage) err
 		return fmt.Errorf(`cannot have "min" constraint with value greater than "max"`)
 	}
 
+	return nil
+}
+
+type anySchema struct{}
+
+func (v *anySchema) Validate(raw []byte) error {
+	var val interface{}
+	if err := json.Unmarshal(raw, &val); err != nil {
+		return err
+	}
+
+	if val == nil {
+		return fmt.Errorf(`cannot accept null value: invalid value for "any" type`)
+	}
+	return nil
+}
+
+func (v *anySchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	// no error because we're not explicitly rejecting unsupported keywords (for now)
 	return nil
 }
