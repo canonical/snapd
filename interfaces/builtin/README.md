@@ -78,7 +78,7 @@ in the base-declaration are said to be **super-privileged**, meaning they
 cannot be used at all without a snap-declaration assertion.
 
 A snap's interface slot provided by a non-system snap is considered
-**super-priveleged** if it has `allow-installation` that evaluates to `false`
+**super-privileged** if it has `allow-installation` that evaluates to `false`
 in the base-declaration. An application snap or gadget defining such slots
 cannot be used without an accompanying snap-declaration assertion.
 
@@ -163,7 +163,7 @@ systems, and either on classic systems depending on re-exec logic).
 
 The `on-store`, `on-brand`, and `on-model` rules are generally not hard-coded
 within snapd interfaces. They are instead specified in store assertions where
-they are known as "device context constraints''. These device context
+they are known as "device context constraints". These device context
 constraints are primarily used to ensure a given rule only applies to a device
 with a serial assertion (and thus model assertion) from a given brand or using
 a given store (as specified by the model). This is because if the assertion and
@@ -196,7 +196,7 @@ a slot has to do with “arity” or how many slots a given plug is being
 considered to connect to and vice versa. This is expressed with the
 `slots-per-plug` and `plugs-per-slot` rules, with the default value of
 `plugs-per-slot` being “`*`” meaning any number of plugs can be connected to a
-specific slot. The default value of `slots-per-plug` is “`1`”, however, meaning
+specific slot. The default value of `slots-per-plug` is "`1`", however, meaning
 that a plug can in general without a special snap-declaration only
 automatically connect to one slot. All that is to say, if there are multiple
 candidate slots, in the default case a plug will auto-connect to neither of
@@ -345,7 +345,7 @@ a store assertion):
 
 ## Unasserted local installation
 
-When a snap in installed without matching assertions using `--dangerous`, many
+When a snap is installed without matching assertions using `--dangerous`, many
 checks are not performed. This helps with local snap development.
 
 For installation only, any slot-snap-type constraint in a base-declaration
@@ -438,11 +438,11 @@ the slot-snap-type (eg, serial-port). Eg:
             - gadget
         deny-auto-connection: true
 
-Denying auto-connection both stops access but also covers the fact that there
-might be multiple slots for an hardware interface for which there is no way to
-choose one.
+Denying auto-connection not only stops access but also covers the fact that
+there might be multiple slots for an hardware interface for which there is no
+way to choose one.
 
-So called super-privileged plugs should also be disallowed installation on a
+So called super-privileged plugs should also disallow installation on a
 system. A snap declaration is required to override the base declaration to
 allow installation (eg, kernel-module-control). Eg:
 
@@ -452,9 +452,11 @@ allow installation (eg, kernel-module-control). Eg:
         deny-auto-connection: true
     (remember this overrides slot side rules)
 
-This pattern makes sense for interfaces that carry great security risk and allow to take control outside of the sandbox, e.g. installing a kernel module.
+This pattern makes sense for interfaces that carry great security risks and
+allow the snap to take control outside of the sandbox, e.g. installing a kernel
+module.
 
-So called super-privileged slot implementations should also be disallowed
+So called super-privileged slot implementations should also disallow
 installation on a system and a snap declaration is required to override the
 base declaration to allow installation (eg, docker). Eg:
 
@@ -464,7 +466,9 @@ base declaration to allow installation (eg, docker). Eg:
         deny-connection: true
         deny-auto-connection: true
 
-This pattern make sense for interfaces where implementing them requires extensive system access, or where there is need for review to check for policy or to avoid resource use/naming clashes.
+This pattern makes sense for interfaces where implementing them requires
+extensive system access, or where there is the need for a review to check for
+policy or to avoid resource use/naming clashes.
 
 Some interfaces have policy that is meant to cover application snap slot
 implementations but also classic systems. Since the slot implementation is
@@ -485,7 +489,7 @@ The idea of this pattern is that on classic we expect the slot to be system
 provided and for it to be app-provide on Core. However, the work on Core
 Desktop means this idea is not always valid. A different approach is to
 deny-connection based on the type of slot carrying snap, e.g for
-`upowser-observe` nowadays, we have:
+`upower-observe` nowadays, we have:
 
     upower-observe:
       allow-installation:
@@ -499,7 +503,7 @@ deny-connection based on the type of slot carrying snap, e.g for
         slot-snap-type:
           - app
 
-Some interfaces have only implicit slots and should be auto-connected only on classic systems (eg, home). Eg:
+Some interfaces only have implicit slots and should be auto-connected only on classic systems (eg, home). Eg:
 
     slots:
       implicit-auto-classic-slot:
