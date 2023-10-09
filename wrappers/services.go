@@ -340,6 +340,9 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 		if !app.IsService() {
 			continue
 		}
+		if strutil.ListContains(disabledSvcs, app.Name) {
+			continue
+		}
 		// Get all units for the service, but we only deal with
 		// the activators here.
 		_, activators := serviceUnits(app)
@@ -1011,31 +1014,6 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 		}
 	}
 	return nil
-}
-
-// ServicesEnableState returns a map of service names from the given snap,
-// together with their enable/disable status.
-func ServicesEnableState(s *snap.Info, inter Interacter) (map[string]bool, error) {
-	sysd := systemd.New(systemd.SystemMode, inter)
-
-	// loop over all services in the snap, querying systemd for the current
-	// systemd state of the snaps
-	snapSvcsState := make(map[string]bool, len(s.Apps))
-	for name, app := range s.Apps {
-		if !app.IsService() {
-			continue
-		}
-		// FIXME: handle user daemons
-		if app.DaemonScope != snap.SystemDaemon {
-			continue
-		}
-		state, err := sysd.IsEnabled(app.ServiceName())
-		if err != nil {
-			return nil, err
-		}
-		snapSvcsState[name] = state
-	}
-	return snapSvcsState, nil
 }
 
 // RemoveQuotaGroup ensures that the slice file for a quota group is removed. It
@@ -1810,6 +1788,91 @@ func generateOnCalendarSchedules(schedule []*timeutil.Schedule) []string {
 	return calendarEvents
 }
 
+// serviceStatus represents the status of a service, and any of its activation
+// service units. It also provides a method isEnabled which can determine the true
+// enable status for services that are activated.
+type serviceStatus struct {
+	name        string
+	service     *systemd.UnitStatus
+	activators  []*systemd.UnitStatus
+	slotEnabled bool
+}
+
+func (s *serviceStatus) isEnabled() bool {
+	// If the service is slot activated, it cannot be disabled and thus always
+	// is enabled.
+	if s.slotEnabled {
+		return true
+	}
+
+	// If there are no activator units, then return status of the
+	// primary service.
+	if len(s.activators) == 0 {
+		return s.service.Enabled
+	}
+
+	// Just a single of those activators need to be enabled for us
+	// to report the service as enabled.
+	for _, a := range s.activators {
+		if a.Enabled {
+			return true
+		}
+	}
+	return false
+}
+
+func appServiceUnitsMany(apps []*snap.AppInfo) []string {
+	var allUnits []string
+	for _, app := range apps {
+		if !app.IsService() {
+			continue
+		}
+		// TODO: handle user daemons
+		if app.DaemonScope != snap.SystemDaemon {
+			continue
+		}
+		svc, activators := serviceUnits(app)
+		allUnits = append(allUnits, svc)
+		allUnits = append(allUnits, activators...)
+	}
+	return allUnits
+}
+
+func queryServiceStatusMany(sysd systemd.Systemd, apps []*snap.AppInfo) ([]*serviceStatus, error) {
+	allUnits := appServiceUnitsMany(apps)
+	unitStatuses, err := sysd.Status(allUnits)
+	if err != nil {
+		return nil, err
+	}
+
+	var appStatuses []*serviceStatus
+	var statusIndex int
+	for _, app := range apps {
+		if !app.IsService() {
+			continue
+		}
+		// TODO: handle user daemons
+		if app.DaemonScope != snap.SystemDaemon {
+			continue
+		}
+
+		// This builds on the principle that sysd.Status returns service unit statuses
+		// in the exact same order we requested them in.
+		_, activators := serviceUnits(app)
+		svcSt := &serviceStatus{
+			name:        app.Name,
+			service:     unitStatuses[statusIndex],
+			slotEnabled: serviceIsSlotActivated(app),
+		}
+		if len(activators) > 0 {
+			svcSt.activators = unitStatuses[statusIndex+1 : statusIndex+1+len(activators)]
+		}
+		appStatuses = append(appStatuses, svcSt)
+		statusIndex += 1 + len(activators)
+	}
+	return appStatuses, nil
+}
+
 type RestartServicesFlags struct {
 	// Reload set if we might need to reload the service definitions.
 	Reload bool
@@ -1828,49 +1891,45 @@ type RestartServicesFlags struct {
 // The list of explicitServices needs to use systemd unit names.
 // TODO: change explicitServices format to be less unusual, more consistent
 // (introduce AppRef?)
-func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
+func RestartServices(apps []*snap.AppInfo, explicitServices []string,
 	flags *RestartServicesFlags, inter Interacter, tm timings.Measurer) error {
 	if flags == nil {
 		flags = &RestartServicesFlags{}
 	}
 	sysd := systemd.New(systemd.SystemMode, inter)
 
-	unitNames := make([]string, 0, len(svcs))
-	for _, srv := range svcs {
-		// they're *supposed* to be all services, but checking doesn't hurt
-		if !srv.IsService() {
-			continue
-		}
-		unitNames = append(unitNames, srv.ServiceName())
-	}
-
-	unitStatuses, err := sysd.Status(unitNames)
+	// Get service statuses for each of the apps
+	sts, err := queryServiceStatusMany(sysd, apps)
 	if err != nil {
 		return err
 	}
 
-	for _, unit := range unitStatuses {
+	for _, st := range sts {
+		unitName := st.service.Name
+		unitActive := st.service.Active
+		unitEnabled := st.isEnabled()
+
 		// If the unit was explicitly mentioned in the command line, restart it
 		// even if it is disabled; otherwise, we only restart units which are
 		// currently enabled or running. Reference:
 		// https://forum.snapcraft.io/t/command-line-interface-to-manipulate-services/262/47
-		if !unit.Active && !strutil.ListContains(explicitServices, unit.Name) {
+		if !unitActive && !strutil.ListContains(explicitServices, unitName) {
 			if !flags.AlsoEnabledNonActive {
-				logger.Noticef("not restarting inactive unit %s", unit.Name)
+				logger.Noticef("not restarting inactive unit %s", unitName)
 				continue
-			} else if !unit.Enabled {
-				logger.Noticef("not restarting disabled and inactive unit %s", unit.Name)
+			} else if !unitEnabled {
+				logger.Noticef("not restarting disabled and inactive unit %s", unitName)
 				continue
 			}
 		}
 
 		var err error
-		timings.Run(tm, "restart-service", fmt.Sprintf("restart service %s", unit.Name), func(nested timings.Measurer) {
+		timings.Run(tm, "restart-service", fmt.Sprintf("restart service %s", unitName), func(nested timings.Measurer) {
 			if flags.Reload {
-				err = sysd.ReloadOrRestart([]string{unit.Name})
+				err = sysd.ReloadOrRestart([]string{unitName})
 			} else {
 				// note: stop followed by start, not just 'restart'
-				err = sysd.Restart([]string{unit.Name})
+				err = sysd.Restart([]string{unitName})
 			}
 		})
 		if err != nil {
@@ -1881,21 +1940,37 @@ func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
 	return nil
 }
 
-// QueryDisabledServices returns a list of all currently disabled snap services
-// in the snap.
-func QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
-	// save the list of services that are in the disabled state before unlinking
-	// and thus removing the snap services
-	snapSvcStates, err := ServicesEnableState(info, pb)
+// ServicesEnableState returns a map of service names from the given snap,
+// together with their enable/disable status.
+func ServicesEnableState(s *snap.Info, inter Interacter) (map[string]bool, error) {
+	sysd := systemd.New(systemd.SystemMode, inter)
+	sts, err := queryServiceStatusMany(sysd, s.Services())
 	if err != nil {
 		return nil, err
 	}
 
-	disabledSnapSvcs := []string{}
+	// loop over all services in the snap, storing the current enable status
+	snapSvcsState := make(map[string]bool, len(sts))
+	for _, st := range sts {
+		snapSvcsState[st.name] = st.isEnabled()
+	}
+	return snapSvcsState, nil
+}
+
+// QueryDisabledServices returns a list of all currently disabled snap services
+// in the snap.
+func QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
+	sysd := systemd.New(systemd.SystemMode, pb)
+	sts, err := queryServiceStatusMany(sysd, info.Services())
+	if err != nil {
+		return nil, err
+	}
+
 	// add all disabled services to the list
-	for svc, isEnabled := range snapSvcStates {
-		if !isEnabled {
-			disabledSnapSvcs = append(disabledSnapSvcs, svc)
+	disabledSnapSvcs := []string{}
+	for _, st := range sts {
+		if !st.isEnabled() {
+			disabledSnapSvcs = append(disabledSnapSvcs, st.name)
 		}
 	}
 

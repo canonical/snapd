@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020-2022 Canonical Ltd
+ * Copyright (C) 2020-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -81,7 +81,7 @@ func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams) error) (rest
 }
 
 // MockResealKeyToModeenv is only useful in testing.
-func MockResealKeyToModeenv(f func(rootdir string, modeenv *Modeenv, expectReseal bool) error) (restore func()) {
+func MockResealKeyToModeenv(f func(rootdir string, modeenv *Modeenv, expectReseal bool, unlocker Unlocker) error) (restore func()) {
 	osutil.MustBeTestBinary("resealKeyToModeenv only can be mocked in tests")
 	old := resealKeyToModeenv
 	resealKeyToModeenv = f
@@ -128,6 +128,10 @@ type sealKeyToModeenvFlags struct {
 // in modeenv.
 // It assumes to be invoked in install mode.
 func sealKeyToModeenvImpl(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
+	if !isModeeenvLocked() {
+		return fmt.Errorf("internal error: cannot seal without the modeenv lock")
+	}
+
 	// make sure relevant locations exist
 	for _, p := range []string{
 		InitramfsSeedEncryptionKeyDir,
@@ -411,7 +415,11 @@ var resealKeyToModeenv = resealKeyToModeenvImpl
 // atomically.  In particular we want to avoid resealing against
 // transient/in-memory information with the risk that successive
 // reseals during in-progress operations produce diverging outcomes.
-func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool) error {
+func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool, unlocker Unlocker) error {
+	if !isModeeenvLocked() {
+		return fmt.Errorf("internal error: cannot reseal without the modeenv lock")
+	}
+
 	method, err := device.SealedKeysMethod(rootdir)
 	if err == device.ErrNoSealedKeys {
 		// nothing to do
@@ -424,6 +432,10 @@ func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool)
 	case device.SealingMethodFDESetupHook:
 		return resealKeyToModeenvUsingFDESetupHook(rootdir, modeenv, expectReseal)
 	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
+		if unlocker != nil {
+			// unlock/relock global state
+			defer unlocker()()
+		}
 		return resealKeyToModeenvSecboot(rootdir, modeenv, expectReseal)
 	default:
 		return fmt.Errorf("unknown key sealing method: %q", method)

@@ -318,7 +318,7 @@ func (s *daemonSuite) TestMaintenanceJsonDeletedOnStart(c *check.C) {
 	b, err := json.Marshal(maintErr)
 	c.Assert(err, check.IsNil)
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755), check.IsNil)
-	c.Assert(ioutil.WriteFile(dirs.SnapdMaintenanceFile, b, 0644), check.IsNil)
+	c.Assert(os.WriteFile(dirs.SnapdMaintenanceFile, b, 0644), check.IsNil)
 
 	d := s.newTestDaemon(c)
 	makeDaemonListeners(c, d)
@@ -1242,7 +1242,7 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF","system-restart-from-boot-id":%q,"daemon-system-restart-at":"%s"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, curBootID, time.Now().UTC().Format(time.RFC3339)))
-	err = ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	err = os.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, check.IsNil)
 
 	oldRebootNoticeWait := rebootNoticeWait
@@ -1297,7 +1297,7 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 
 func (s *daemonSuite) TestRestartExpectedRebootOK(c *check.C) {
 	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF","system-restart-from-boot-id":%q,"daemon-system-restart-at":"%s"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, "boot-id-0", time.Now().UTC().Format(time.RFC3339)))
-	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	err := os.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, check.IsNil)
 
 	cmd := testutil.MockCommand(c, "shutdown", "")
@@ -1321,7 +1321,7 @@ func (s *daemonSuite) TestRestartExpectedRebootGiveUp(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF","system-restart-from-boot-id":%q,"daemon-system-restart-at":"%s","daemon-system-restart-tentative":3},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, curBootID, time.Now().UTC().Format(time.RFC3339)))
-	err = ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	err = os.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, check.IsNil)
 
 	cmd := testutil.MockCommand(c, "shutdown", "")

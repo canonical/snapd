@@ -21,18 +21,13 @@ package luks2
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/osutil"
-
-	"golang.org/x/xerrors"
 )
 
 const (
@@ -115,22 +110,6 @@ type AddKeyOptions struct {
 	Slot int
 }
 
-var writeExistingKeyToFifo = func(fifoPath string, existingKey []byte) error {
-	f, err := os.OpenFile(fifoPath, os.O_WRONLY, 0)
-	if err != nil {
-		return xerrors.Errorf("cannot open FIFO for passing existing key to cryptsetup: %w", err)
-	}
-	defer f.Close()
-
-	if _, err := f.Write(existingKey); err != nil {
-		return xerrors.Errorf("cannot pass existing key to cryptsetup: %w", err)
-	}
-	if err := f.Close(); err != nil {
-		return xerrors.Errorf("cannot close write end of FIFO: %w", err)
-	}
-	return nil
-}
-
 // AddKey adds the supplied key in to a new keyslot for specified LUKS2 container. In order to do this,
 // an existing key must be provided. The KDF for the new keyslot will be configured to use argon2i with
 // the supplied benchmark time. The key will be added to the supplied slot.
@@ -142,77 +121,40 @@ func AddKey(devicePath string, existingKey, key []byte, options *AddKeyOptions) 
 		options = &AddKeyOptions{Slot: AnySlot}
 	}
 
-	fifoPath, cleanupFifo, err := mkFifo()
-	if err != nil {
-		return xerrors.Errorf("cannot create FIFO for passing existing key to cryptsetup: %w", err)
-	}
-	defer cleanupFifo()
-
 	args := []string{
 		// add a new key
 		"luksAddKey",
 		// LUKS2 only
 		"--type", "luks2",
-		// read existing key from named pipe
-		"--key-file", fifoPath}
+		// read existing key from stdin, specifying key size so
+		// cryptsetup knows where the existing key ends and the new key
+		// starts (we are passing both keys via stdin). Otherwise it
+		// would interpret new lines as separator for the keys, while
+		// we actually allow '\n' to be part of the keys.
+		"--key-file", "-",
+		"--keyfile-size", strconv.Itoa(len(existingKey)),
+		// remove warnings and confirmation questions
+		"--batch-mode"}
 
 	// apply KDF options
 	args = options.KDFOptions.appendArguments(args)
 
 	if options.Slot != AnySlot {
+		// TODO use --new-key-slot for newer crypsetup versions
 		args = append(args, "--key-slot", strconv.Itoa(options.Slot))
 	}
 
 	args = append(args,
 		// container to add key to
 		devicePath,
-		// read new key from stdin.
-		// Note that we can't supply the new key and existing key via the same channel
-		// because pipes and FIFOs aren't seekable - we would need to use an actual file
-		// in order to be able to do this.
-		"-")
+		// we read raw bytes up to EOF (so new key can contain '\n':
+		// without the option it would be interpreted as end of key)
+		"-",
+	)
 
-	cmd := exec.Command("cryptsetup", args...)
-	cmd.Stdin = bytes.NewReader(key)
-
-	// Writing to the fifo must happen in a go-routine as it may block
-	// if the other side is not connected. Special care must be taken
-	// about the cleanup.
-	fifoErrCh := make(chan error)
-	go func() {
-		fifoErr := writeExistingKeyToFifo(fifoPath, existingKey)
-		if fifoErr != nil {
-			// kill to ensure cmd is not lingering
-			if cmd.Process != nil {
-				cmd.Process.Kill()
-			}
-			// also ensure fifo is closed
-			cleanupFifo()
-		}
-		fifoErrCh <- fifoErr
-	}()
-
-	output, cmdErr := cmd.CombinedOutput()
-	if cmdErr != nil {
-		// cleanupFifo will open/close the fifo to ensure the
-		// writeExistingKeyToFifo() does not leak while waiting
-		// for the other side of the fifo to connect (it may never
-		// do)
-		cleanupFifo()
-	}
-	fifoErr := <-fifoErrCh
-
-	switch {
-	case cmdErr != nil && (fifoErr == nil || errors.Is(fifoErr, syscall.EPIPE)):
-		// cmdErr and EPIPE means the problem is with cmd, no
-		// need to display the EPIPE error
-		return fmt.Errorf("cryptsetup failed with: %v", osutil.OutputErr(output, cmdErr))
-	case cmdErr != nil || fifoErr != nil:
-		// For all other cases show a generic error message
-		return fmt.Errorf("cryptsetup failed with: %v (fifo failed with: %v)", osutil.OutputErr(output, err), fifoErr)
-	}
-
-	return nil
+	// existing and new key are both read from stdin
+	cmdInput := bytes.NewReader(append(existingKey, key...))
+	return cryptsetupCmd(cmdInput, args...)
 }
 
 // KillSlot erases the keyslot with the supplied slot number from the specified LUKS2 container.

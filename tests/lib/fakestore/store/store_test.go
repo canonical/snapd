@@ -482,7 +482,7 @@ func (s *storeTestSuite) TestAssertionsEndpointFromAssertsDir(c *C) {
 	c.Assert(err, IsNil)
 	rev := a.(*asserts.SnapRevision)
 
-	err = ioutil.WriteFile(filepath.Join(s.store.assertDir, "foo_36.snap-revision"), []byte(exampleSnapRev), 0655)
+	err = os.WriteFile(filepath.Join(s.store.assertDir, "foo_36.snap-revision"), []byte(exampleSnapRev), 0655)
 	c.Assert(err, IsNil)
 
 	resp, err := s.StoreGet(`/v2/assertions/snap-revision/` + rev.SnapSHA3_384())
@@ -496,7 +496,7 @@ func (s *storeTestSuite) TestAssertionsEndpointFromAssertsDir(c *C) {
 }
 
 func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertion(c *C) {
-	err := ioutil.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655)
+	err := os.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655)
 	c.Assert(err, IsNil)
 
 	resp, err := s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=2`)
@@ -510,7 +510,7 @@ func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertion(c *C) {
 }
 
 func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertionLatest(c *C) {
-	err := ioutil.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655)
+	err := os.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655)
 	c.Assert(err, IsNil)
 
 	resp, err := s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=latest`)
@@ -524,7 +524,7 @@ func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertionLatest(c *C) {
 }
 
 func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertionInvalidSequence(c *C) {
-	err := ioutil.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655)
+	err := os.WriteFile(filepath.Join(s.store.assertDir, "base-set.validation-set"), []byte(exampleValidationSet), 0655)
 	c.Assert(err, IsNil)
 
 	resp, err := s.StoreGet(`/v2/assertions/validation-set/16/canonical/base-set?sequence=0`)

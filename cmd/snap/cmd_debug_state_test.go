@@ -21,7 +21,7 @@ package main_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -224,7 +224,7 @@ var stateCyclesJSON = []byte(`
 func (s *SnapSuite) TestDebugChanges(c *C) {
 	dir := c.MkDir()
 	stateFile := filepath.Join(dir, "test-state.json")
-	c.Assert(ioutil.WriteFile(stateFile, stateJSON, 0644), IsNil)
+	c.Assert(os.WriteFile(stateFile, stateJSON, 0644), IsNil)
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--abs-time", "--changes", stateFile})
 	c.Assert(err, IsNil)
@@ -244,7 +244,7 @@ func (s *SnapSuite) TestDebugChangesMissingState(c *C) {
 func (s *SnapSuite) TestDebugTask(c *C) {
 	dir := c.MkDir()
 	stateFile := filepath.Join(dir, "test-state.json")
-	c.Assert(ioutil.WriteFile(stateFile, stateJSON, 0644), IsNil)
+	c.Assert(os.WriteFile(stateFile, stateJSON, 0644), IsNil)
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--task=31", stateFile})
 	c.Assert(err, IsNil)
@@ -265,7 +265,7 @@ func (s *SnapSuite) TestDebugTask(c *C) {
 func (s *SnapSuite) TestDebugTaskEmptyLists(c *C) {
 	dir := c.MkDir()
 	stateFile := filepath.Join(dir, "test-state.json")
-	c.Assert(ioutil.WriteFile(stateFile, stateJSON, 0644), IsNil)
+	c.Assert(os.WriteFile(stateFile, stateJSON, 0644), IsNil)
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--task=12", stateFile})
 	c.Assert(err, IsNil)
@@ -286,7 +286,7 @@ func (s *SnapSuite) TestDebugTaskMissingState(c *C) {
 func (s *SnapSuite) TestDebugTaskNoSuchTaskError(c *C) {
 	dir := c.MkDir()
 	stateFile := filepath.Join(dir, "test-state.json")
-	c.Assert(ioutil.WriteFile(stateFile, stateJSON, 0644), IsNil)
+	c.Assert(os.WriteFile(stateFile, stateJSON, 0644), IsNil)
 
 	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--task=99", stateFile})
 	c.Check(err, ErrorMatches, "no such task: 99")
@@ -295,7 +295,7 @@ func (s *SnapSuite) TestDebugTaskNoSuchTaskError(c *C) {
 func (s *SnapSuite) TestDebugTaskMutuallyExclusiveCommands(c *C) {
 	dir := c.MkDir()
 	stateFile := filepath.Join(dir, "test-state.json")
-	c.Assert(ioutil.WriteFile(stateFile, stateJSON, 0644), IsNil)
+	c.Assert(os.WriteFile(stateFile, stateJSON, 0644), IsNil)
 
 	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--task=99", "--changes", stateFile})
 	c.Check(err, ErrorMatches, "cannot use --changes and --task= together")
@@ -313,7 +313,7 @@ func (s *SnapSuite) TestDebugTaskMutuallyExclusiveCommands(c *C) {
 func (s *SnapSuite) TestDebugTasks(c *C) {
 	dir := c.MkDir()
 	stateFile := filepath.Join(dir, "test-state.json")
-	c.Assert(ioutil.WriteFile(stateFile, stateJSON, 0644), IsNil)
+	c.Assert(os.WriteFile(stateFile, stateJSON, 0644), IsNil)
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--abs-time", "--change=9", stateFile})
 	c.Assert(err, IsNil)
@@ -328,7 +328,7 @@ func (s *SnapSuite) TestDebugTasks(c *C) {
 func (s *SnapSuite) TestDebugTasksWithCycles(c *C) {
 	dir := c.MkDir()
 	stateFile := filepath.Join(dir, "test-state.json")
-	c.Assert(ioutil.WriteFile(stateFile, stateCyclesJSON, 0644), IsNil)
+	c.Assert(os.WriteFile(stateFile, stateCyclesJSON, 0644), IsNil)
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--abs-time", "--change=1", stateFile})
 	c.Assert(err, IsNil)
@@ -353,7 +353,7 @@ func (s *SnapSuite) TestDebugCheckForCycles(c *C) {
 
 	dir := c.MkDir()
 	stateFile := filepath.Join(dir, "test-state.json")
-	c.Assert(ioutil.WriteFile(stateFile, stateCyclesJSON, 0644), IsNil)
+	c.Assert(os.WriteFile(stateFile, stateCyclesJSON, 0644), IsNil)
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--check", "--change=1", stateFile})
 	c.Assert(err, IsNil)
@@ -376,7 +376,7 @@ func (s *SnapSuite) TestDebugTasksMissingState(c *C) {
 func (s *SnapSuite) TestDebugIsSeededHappy(c *C) {
 	dir := c.MkDir()
 	stateFile := filepath.Join(dir, "test-state.json")
-	c.Assert(ioutil.WriteFile(stateFile, stateJSON, 0644), IsNil)
+	c.Assert(os.WriteFile(stateFile, stateJSON, 0644), IsNil)
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--is-seeded", stateFile})
 	c.Assert(err, IsNil)
@@ -388,7 +388,7 @@ func (s *SnapSuite) TestDebugIsSeededHappy(c *C) {
 func (s *SnapSuite) TestDebugIsSeededNo(c *C) {
 	dir := c.MkDir()
 	stateFile := filepath.Join(dir, "test-state.json")
-	c.Assert(ioutil.WriteFile(stateFile, []byte("{}"), 0644), IsNil)
+	c.Assert(os.WriteFile(stateFile, []byte("{}"), 0644), IsNil)
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--is-seeded", stateFile})
 	c.Assert(err, IsNil)
@@ -400,7 +400,7 @@ func (s *SnapSuite) TestDebugIsSeededNo(c *C) {
 func (s *SnapSuite) TestDebugConnections(c *C) {
 	dir := c.MkDir()
 	stateFile := filepath.Join(dir, "test-state.json")
-	c.Assert(ioutil.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
+	c.Assert(os.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--connections", stateFile})
 	c.Assert(err, IsNil)
@@ -421,7 +421,7 @@ func (s *SnapSuite) TestDebugConnections(c *C) {
 func (s *SnapSuite) TestDebugConnectionDetails(c *C) {
 	dir := c.MkDir()
 	stateFile := filepath.Join(dir, "test-state.json")
-	c.Assert(ioutil.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
+	c.Assert(os.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
 
 	for i, connArg := range []string{"gnome-calculator:gtk-3-themes", ",gtk-common-themes:gtk-3-themes"} {
 		s.ResetStdStreams()
@@ -452,7 +452,7 @@ func (s *SnapSuite) TestDebugConnectionDetails(c *C) {
 func (s *SnapSuite) TestDebugConnectionPlugAndSlot(c *C) {
 	dir := c.MkDir()
 	stateFile := filepath.Join(dir, "test-state.json")
-	c.Assert(ioutil.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
+	c.Assert(os.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
 
 	connArg := "gnome-calculator:network,core:network"
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", fmt.Sprintf("--connection=%s", connArg), stateFile})
@@ -471,7 +471,7 @@ func (s *SnapSuite) TestDebugConnectionPlugAndSlot(c *C) {
 func (s *SnapSuite) TestDebugConnectionInvalidCombination(c *C) {
 	dir := c.MkDir()
 	stateFile := filepath.Join(dir, "test-state.json")
-	c.Assert(ioutil.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
+	c.Assert(os.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
 
 	connArg := "gnome-calculator,core:network"
 	_, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", fmt.Sprintf("--connection=%s", connArg), stateFile})
@@ -482,7 +482,7 @@ func (s *SnapSuite) TestDebugConnectionInvalidCombination(c *C) {
 func (s *SnapSuite) TestDebugConnectionDetailsMany(c *C) {
 	dir := c.MkDir()
 	stateFile := filepath.Join(dir, "test-state.json")
-	c.Assert(ioutil.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
+	c.Assert(os.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--connection=core", stateFile})
 	c.Assert(err, IsNil)
@@ -531,7 +531,7 @@ func (s *SnapSuite) TestDebugConnectionDetailsMany(c *C) {
 func (s *SnapSuite) TestDebugConnectionDetailsManySlotSide(c *C) {
 	dir := c.MkDir()
 	stateFile := filepath.Join(dir, "test-state.json")
-	c.Assert(ioutil.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
+	c.Assert(os.WriteFile(stateFile, stateConnsJSON, 0644), IsNil)
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--connection=core:x11", stateFile})
 	c.Assert(err, IsNil)

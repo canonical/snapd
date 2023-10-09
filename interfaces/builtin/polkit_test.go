@@ -20,7 +20,6 @@
 package builtin_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -112,9 +111,9 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkit(c *C) {
 
 	c.Assert(os.MkdirAll(filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit"), 0755), IsNil)
 	policyPath := filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit/polkit.foo.policy")
-	c.Assert(ioutil.WriteFile(policyPath, []byte(samplePolicy1), 0644), IsNil)
+	c.Assert(os.WriteFile(policyPath, []byte(samplePolicy1), 0644), IsNil)
 	policyPath = filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit/polkit.bar.policy")
-	c.Assert(ioutil.WriteFile(policyPath, []byte(samplePolicy2), 0644), IsNil)
+	c.Assert(os.WriteFile(policyPath, []byte(samplePolicy2), 0644), IsNil)
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
@@ -146,7 +145,7 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitBadXML(c *C) {
 	const samplePolicy = `<malformed`
 	c.Assert(os.MkdirAll(filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit"), 0755), IsNil)
 	policyPath := filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit/polkit.foo.policy")
-	c.Assert(ioutil.WriteFile(policyPath, []byte(samplePolicy), 0644), IsNil)
+	c.Assert(os.WriteFile(policyPath, []byte(samplePolicy), 0644), IsNil)
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
@@ -165,7 +164,7 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitBadAction(c *C) {
 </policyconfig>`
 	c.Assert(os.MkdirAll(filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit"), 0755), IsNil)
 	policyPath := filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit/polkit.foo.policy")
-	c.Assert(ioutil.WriteFile(policyPath, []byte(samplePolicy), 0644), IsNil)
+	c.Assert(os.WriteFile(policyPath, []byte(samplePolicy), 0644), IsNil)
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
@@ -185,7 +184,7 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitBadImplies(c *C) {
 </policyconfig>`
 	c.Assert(os.MkdirAll(filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit"), 0755), IsNil)
 	policyPath := filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit/polkit.foo.policy")
-	c.Assert(ioutil.WriteFile(policyPath, []byte(samplePolicy), 0644), IsNil)
+	c.Assert(os.WriteFile(policyPath, []byte(samplePolicy), 0644), IsNil)
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)

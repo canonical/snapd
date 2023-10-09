@@ -129,7 +129,7 @@ execute: |
         if os.query is-core16; then
             echo "Manually uninstall the snapd snap on UC16"
             systemctl stop snapd.service snapd.socket snapd.autoimport.service snapd.snap-repair.service snapd.snap-repair.timer
-            umount "/snap/snapd/$(readlink /snap/snapd/current)"
+            retry --wait 3 -n 5 sh -c "umount \"/snap/snapd/$(readlink /snap/snapd/current)\""
 
             rm -f /etc/systemd/system/usr-lib-snapd.mount
             rm -f /etc/systemd/system/snap-snapd-*.mount

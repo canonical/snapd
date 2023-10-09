@@ -181,7 +181,7 @@ func (s *baseRunnerSuite) freshStateWithBaseAndMode(c *C, base, mode string) {
 	b, err := json.Marshal(stateJSON)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(dirs.SnapRepairStateFile, b, 0600)
+	err = os.WriteFile(dirs.SnapRepairStateFile, b, 0600)
 	c.Assert(err, IsNil)
 }
 
@@ -2223,7 +2223,7 @@ func (s *runner16Suite) SetUpTest(c *C) {
 	err := os.MkdirAll(s.seedAssertsDir, 0755)
 	c.Assert(err, IsNil)
 	seedYamlFn := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
-	err = ioutil.WriteFile(seedYamlFn, nil, 0644)
+	err = os.WriteFile(seedYamlFn, nil, 0644)
 	c.Assert(err, IsNil)
 	seedTime, err := time.Parse(time.RFC3339, "2017-08-11T15:49:49Z")
 	c.Assert(err, IsNil)
@@ -2237,7 +2237,7 @@ func (s *runner16Suite) SetUpTest(c *C) {
 }
 
 func (s *runner16Suite) writeSeedAssert16(c *C, fname string, a asserts.Assertion) {
-	err := ioutil.WriteFile(filepath.Join(s.seedAssertsDir, fname), asserts.Encode(a), 0644)
+	err := os.WriteFile(filepath.Join(s.seedAssertsDir, fname), asserts.Encode(a), 0644)
 	c.Assert(err, IsNil)
 }
 
@@ -2265,7 +2265,7 @@ func (s *runner16Suite) TestLoadStateInitDeviceInfoFail(c *C) {
 		{func() {
 			// broken signature
 			blob := asserts.Encode(s.brandAcct)
-			err := ioutil.WriteFile(filepath.Join(s.seedAssertsDir, "brand.account"), blob[:len(blob)-3], 0644)
+			err := os.WriteFile(filepath.Join(s.seedAssertsDir, "brand.account"), blob[:len(blob)-3], 0644)
 			c.Assert(err, IsNil)
 		}, errPrefix + "cannot decode signature:.*"},
 		{func() { s.writeSeedAssert(c, "model2", s.modelAs) }, errPrefix + "multiple models in seed assertions"},
@@ -2310,7 +2310,7 @@ func (s *runner20Suite) SetUpTest(c *C) {
 	// write sample modeenv
 	err = os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.SnapModeenvFile, mockModeenv, 0644)
+	err = os.WriteFile(dirs.SnapModeenvFile, mockModeenv, 0644)
 	c.Assert(err, IsNil)
 	// validate that modeenv is actually valid
 	_, err = boot.ReadModeenv("")
@@ -2333,7 +2333,7 @@ func (s *runner20Suite) writeSeedAssert20(c *C, fname string, a asserts.Assertio
 	} else {
 		fn = filepath.Join(s.seedAssertsDir, fname)
 	}
-	err := ioutil.WriteFile(fn, asserts.Encode(a), 0644)
+	err := os.WriteFile(fn, asserts.Encode(a), 0644)
 	c.Assert(err, IsNil)
 
 	// ensure model assertion file has the correct seed time
@@ -2361,7 +2361,7 @@ func (s *runner20Suite) TestLoadStateInitDeviceInfoModeenvInvalidContent(c *C) {
 			`cannot set device information: cannot find brand/model in modeenv model string "brand-but-no-model"`,
 		},
 	} {
-		err := ioutil.WriteFile(dirs.SnapModeenvFile, []byte(tc.modelStr), 0644)
+		err := os.WriteFile(dirs.SnapModeenvFile, []byte(tc.modelStr), 0644)
 		c.Assert(err, IsNil)
 		err = runner.LoadState()
 		c.Check(err, ErrorMatches, tc.expectedErr)

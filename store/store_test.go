@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/release"
@@ -244,6 +245,8 @@ type testDauthContext struct {
 
 	storeID string
 
+	storeOffline bool
+
 	cloudInfo *auth.CloudInfo
 }
 
@@ -312,6 +315,10 @@ func (dac *testDauthContext) ProxyStoreParams(defaultURL *url.URL) (string, *url
 		return dac.proxyStoreID, dac.proxyStoreURL, nil
 	}
 	return "", defaultURL, nil
+}
+
+func (dac *testDauthContext) StoreOffline() (bool, error) {
+	return dac.storeOffline, nil
 }
 
 func (dac *testDauthContext) CloudInfo() (*auth.CloudInfo, error) {
@@ -4406,4 +4413,76 @@ func (s *storeTestSuite) TestCreateCohort(c *C) {
 	c.Assert(cohorts, DeepEquals, map[string]string{
 		"potato": "U3VwZXIgc2VjcmV0IHN0dWZmIGVuY3J5cHRlZCBoZXJlLg==",
 	})
+}
+
+func (s *storeTestSuite) TestStoreNoAccess(c *C) {
+	nowhereURL, err := url.Parse("http://nowhere.invalid")
+	c.Assert(err, IsNil)
+
+	dauthCtx := &testDauthContext{storeOffline: true, device: &auth.DeviceState{
+		Serial: "serial",
+	}}
+
+	sto := store.New(&store.Config{
+		StoreBaseURL: nowhereURL,
+	}, dauthCtx)
+
+	_, err = sto.Categories(s.ctx, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, err = sto.ConnectivityCheck()
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, err = sto.CreateCohorts(s.ctx, nil)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	err = sto.Download(s.ctx, "name", c.MkDir(), nil, nil, s.user, nil)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	err = sto.DownloadAssertions([]string{nowhereURL.String()}, nil, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, _, err = sto.DownloadStream(s.ctx, "name", nil, 0, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	err = sto.EnsureDeviceSession()
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, err = sto.Find(s.ctx, &store.Search{Query: "foo", Private: true}, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, _, err = sto.LoginUser("username", "password", "otp")
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	err = sto.ReadyToBuy(s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, err = sto.Sections(s.ctx, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, err = sto.SeqFormingAssertion(asserts.RepairType, nil, 0, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, _, err = sto.SnapExists(s.ctx, store.SnapSpec{Name: "snap"}, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, _, err = sto.SnapAction(s.ctx, nil, []*store.SnapAction{{
+		Action:       "download",
+		InstanceName: "example",
+		Channel:      "stable",
+	}}, nil, s.user, nil)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, err = sto.SnapInfo(s.ctx, store.SnapSpec{Name: "snap"}, s.user)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	_, err = sto.UserInfo("me@example.com")
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+
+	err = sto.WriteCatalogs(s.ctx, io.Discard, nil)
+	c.Check(err, testutil.ErrorIs, store.ErrStoreOffline)
+}
+
+func (s *storeTestSuite) TestStoreNoRetryStoreOffline(c *C) {
+	c.Assert(httputil.ShouldRetryError(store.ErrStoreOffline), Equals, false)
 }

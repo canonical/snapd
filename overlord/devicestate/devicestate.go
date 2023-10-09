@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -528,55 +529,52 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pat
 			snapstate.Flags{}, deviceCtx, fromChange)
 	}
 
+	// in UC20+ models, the model can specify a channel for each
+	// snap, thus making it possible to change already installed
+	// kernel or base snaps
+	changed := false
 	if ms.new.Grade() != asserts.ModelGradeUnset {
-		// in UC20+ models, the model can specify a channel for each
-		// snap, thus making it possible to change already installed
-		// kernel or base snaps
-		changed, err := installedSnapChannelChanged(st, ms.newModelSnap.SnapName(), newModelSnapChannel)
+		changed, err = installedSnapChannelChanged(st, ms.newModelSnap.SnapName(), newModelSnapChannel)
 		if err != nil {
 			return nil, err
 		}
-		if changed {
-			ts, err := remodelVar.UpdateWithDeviceContext(st,
-				pathSI, ms.newSnap, newModelSnapChannel, userID,
-				snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
-			if err != nil {
-				return nil, err
-			}
-			if ts != nil {
-				if edgeTask := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge); edgeTask != nil {
-					// no task is marked as being last
-					// before local modifications are
-					// introduced, indicating that the
-					// update is a simple
-					// switch-snap-channel
-					return ts, nil
-				} else {
-					if ms.newModelSnap.SnapType == "kernel" || ms.newModelSnap.SnapType == "base" {
-						// in other cases make sure that
-						// the kernel or base is linked
-						// and available, and that
-						// kernel updates boot assets if
-						// needed
-						ts, err = snapstate.AddLinkNewBaseOrKernel(st, ts)
-						if err != nil {
-							return nil, err
-						}
-					} else if ms.newModelSnap.SnapType == "gadget" {
-						// gadget snaps may need gadget
-						// related tasks such as assets
-						// update or command line update
-						ts, err = snapstate.AddGadgetAssetsTasks(st, ts)
-						if err != nil {
-							return nil, err
-						}
-					}
-					return ts, nil
-				}
-			}
+	}
+
+	if !changed {
+		return addExistingSnapTasks(st, ms.newSnap, fromChange)
+	}
+
+	ts, err := remodelVar.UpdateWithDeviceContext(st,
+		pathSI, ms.newSnap, newModelSnapChannel, userID,
+		snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
+	if err != nil {
+		return nil, err
+	}
+
+	if edgeTask := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge); edgeTask != nil {
+		// no task is marked as being last before local modifications are
+		// introduced, indicating that the update is a simple
+		// switch-snap-channel
+		return ts, nil
+	}
+
+	switch ms.newModelSnap.SnapType {
+	case "kernel", "base":
+		// in other cases make sure that the kernel or base is linked and
+		// available, and that kernel updates boot assets if needed
+		ts, err = snapstate.AddLinkNewBaseOrKernel(st, ts)
+		if err != nil {
+			return nil, err
+		}
+	case "gadget":
+		// gadget snaps may need gadget related tasks such as assets update or
+		// command line update
+		ts, err = snapstate.AddGadgetAssetsTasks(st, ts)
+		if err != nil {
+			return nil, err
 		}
 	}
-	return addExistingSnapTasks(st, ms.newSnap, fromChange)
+	return ts, nil
 }
 
 // collect all prerequisites of a given snap from its task set
@@ -721,10 +719,17 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 			if !isNotInstalled(err) {
 				return nil, err
 			}
-			if modelSnap.Presence == "required" {
-				needsInstall = true
+
+			// if the snap isn't already installed, and it isn't required,
+			// then there is nothing to do. note that if the snap is installed,
+			// we might need to change the channel.
+			if modelSnap.Presence != "required" {
+				continue
 			}
+
+			needsInstall = true
 		}
+
 		// default channel can be set only in UC20 models
 		newModelSnapChannel, err := modelSnapChannelFromDefaultOrPinnedTrack(new, modelSnap)
 		if err != nil {
@@ -936,6 +941,10 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	}
 	tss = append(tss, state.NewTaskSet(setModel))
 
+	// Ensure correct restart boundaries are set on the new task-set.
+	if err := snapstate.SetEssentialSnapsRestartBoundaries(st, deviceCtx, tss); err != nil {
+		return nil, err
+	}
 	return tss, nil
 }
 
@@ -1167,6 +1176,8 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []s
 		// IDs of the tasks carrying snap-setup
 		SnapSetupTasks: snapSetupTasks,
 	})
+	// Create recovery system requires us to boot into it before finalize
+	restart.MarkTaskAsRestartBoundary(create, restart.RestartBoundaryDirectionDo)
 
 	finalize := st.NewTask("finalize-recovery-system", fmt.Sprintf("Finalize recovery system with label %q", label))
 	finalize.WaitFor(create)

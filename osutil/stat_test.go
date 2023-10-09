@@ -21,7 +21,6 @@ package osutil_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,7 +41,7 @@ func (ts *StatTestSuite) TestFileDoesNotExist(c *C) {
 
 func (ts *StatTestSuite) TestFileExistsSimple(c *C) {
 	fname := filepath.Join(c.MkDir(), "foo")
-	err := ioutil.WriteFile(fname, []byte(fname), 0644)
+	err := os.WriteFile(fname, []byte(fname), 0644)
 	c.Assert(err, IsNil)
 
 	c.Assert(osutil.FileExists(fname), Equals, true)
@@ -50,7 +49,7 @@ func (ts *StatTestSuite) TestFileExistsSimple(c *C) {
 
 func (ts *StatTestSuite) TestFileExistsExistsOddPermissions(c *C) {
 	fname := filepath.Join(c.MkDir(), "foo")
-	err := ioutil.WriteFile(fname, []byte(fname), 0100)
+	err := os.WriteFile(fname, []byte(fname), 0100)
 	c.Assert(err, IsNil)
 
 	c.Assert(osutil.FileExists(fname), Equals, true)
@@ -88,7 +87,7 @@ func (ts *StatTestSuite) TestExecutableExists(c *C) {
 	c.Check(osutil.ExecutableExists("xyzzy"), Equals, false)
 
 	fname := filepath.Join(d, "xyzzy")
-	c.Assert(ioutil.WriteFile(fname, []byte{}, 0644), IsNil)
+	c.Assert(os.WriteFile(fname, []byte{}, 0644), IsNil)
 	c.Check(osutil.ExecutableExists("xyzzy"), Equals, false)
 
 	c.Assert(os.Chmod(fname, 0755), IsNil)
@@ -121,7 +120,7 @@ func makeTestPathInDir(c *C, dir, path string, mode os.FileMode) string {
 	} else {
 		// request for a file
 		c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
-		c.Assert(ioutil.WriteFile(path, nil, mode), IsNil)
+		c.Assert(os.WriteFile(path, nil, mode), IsNil)
 	}
 
 	return path
@@ -232,7 +231,7 @@ func (ts *StatTestSuite) TestIsExecutable(c *C) {
 		err := os.Remove(p)
 		c.Check(err == nil || os.IsNotExist(err), Equals, true)
 
-		err = ioutil.WriteFile(p, []byte(""), tc.mode)
+		err = os.WriteFile(p, []byte(""), tc.mode)
 		c.Assert(err, IsNil)
 		c.Check(osutil.IsExecutable(p), Equals, tc.is)
 	}
@@ -281,7 +280,7 @@ func (ts *StatTestSuite) TestRegularFileExists(c *C) {
 				c.Assert(err, IsNil, comment)
 			} else {
 				// make it a normal file
-				err := ioutil.WriteFile(fullpath, nil, 0644)
+				err := os.WriteFile(fullpath, nil, 0644)
 				c.Assert(err, IsNil, comment)
 			}
 		}

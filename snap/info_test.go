@@ -22,7 +22,6 @@ package snap_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -461,7 +460,7 @@ func (s *infoSuite) TestReadInfoUnparsable(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
 	p := filepath.Join(snap.MinimalPlaceInfo("sample", si.Revision).MountDir(), "meta", "snap.yaml")
 	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(p, []byte(`- :`), 0644), IsNil)
+	c.Assert(os.WriteFile(p, []byte(`- :`), 0644), IsNil)
 
 	info, err := snap.ReadInfo("sample", si)
 	c.Check(info, IsNil)
@@ -476,7 +475,7 @@ func (s *infoSuite) TestReadInfoUnfindable(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
 	p := filepath.Join(snap.MinimalPlaceInfo("sample", si.Revision).MountDir(), "meta", "snap.yaml")
 	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(p, []byte(``), 0644), IsNil)
+	c.Assert(os.WriteFile(p, []byte(``), 0644), IsNil)
 
 	info, err := snap.ReadInfo("sample", si)
 	c.Check(err, ErrorMatches, `cannot find installed snap "sample" at revision 42: missing file .*var/lib/snapd/snaps/sample_42.snap`)
@@ -488,7 +487,7 @@ func (s *infoSuite) TestReadInfoDanglingSymlink(c *C) {
 	mpi := snap.MinimalPlaceInfo("sample", si.Revision)
 	p := filepath.Join(mpi.MountDir(), "meta", "snap.yaml")
 	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(p, []byte(`name: test`), 0644), IsNil)
+	c.Assert(os.WriteFile(p, []byte(`name: test`), 0644), IsNil)
 	c.Assert(os.MkdirAll(filepath.Dir(mpi.MountFile()), 0755), IsNil)
 	c.Assert(os.Symlink("/dangling", mpi.MountFile()), IsNil)
 
@@ -514,7 +513,7 @@ func makeTestSnap(c *C, snapYaml string) string {
 	c.Assert(err, IsNil)
 
 	// our regular snap.yaml
-	err = ioutil.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(snapYaml), 0644)
+	err = os.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(snapYaml), 0644)
 	c.Assert(err, IsNil)
 
 	dest := filepath.Join(tmp, "foo.snap")
@@ -1200,6 +1199,7 @@ func (s *infoSuite) testDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.DataHomeDir(nil), Equals, "/home/*/snap/name/1")
 	c.Check(info.CommonDataHomeDir(nil), Equals, "/home/*/snap/name/common")
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name")
+	c.Check(info.BinaryNameGlobs(), DeepEquals, []string{"name", "name.*"})
 }
 
 func (s *infoSuite) TestMinimalInfoDirAndFileMethodsParallelInstall(c *C) {
@@ -1229,6 +1229,7 @@ func (s *infoSuite) testInstanceDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.DataHomeDir(nil), Equals, "/home/*/snap/name_instance/1")
 	c.Check(info.CommonDataHomeDir(nil), Equals, "/home/*/snap/name_instance/common")
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name_instance")
+	c.Check(info.BinaryNameGlobs(), DeepEquals, []string{"name_instance", "name_instance.*"})
 }
 
 func BenchmarkTestParsePlaceInfoFromSnapFileName(b *testing.B) {

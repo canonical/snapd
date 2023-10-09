@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -219,6 +219,15 @@ var (
 	unlockCheckpointRetryMaxTime  = 5 * time.Minute
 	unlockCheckpointRetryInterval = 3 * time.Second
 )
+
+// Unlocker returns a closure that will unlock and checkpoint the state and
+// in turn return a function to relock it.
+func (s *State) Unlocker() (unlock func() (relock func())) {
+	return func() func() {
+		s.Unlock()
+		return s.Lock
+	}
+}
 
 // Unlock releases the state lock and checkpoints the state.
 // It does not return until the state is correctly checkpointed.
@@ -566,5 +575,7 @@ func ReadState(backend Backend, r io.Reader) (*State, error) {
 	s.modified = false
 	s.cache = make(map[interface{}]interface{})
 	s.pendingChangeByAttr = make(map[string]func(*Change) bool)
+	s.changeHandlers = make(map[int]func(chg *Change, old Status, new Status))
+	s.taskHandlers = make(map[int]func(t *Task, old Status, new Status))
 	return s, err
 }

@@ -23,7 +23,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -45,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/restart"
 
 	// So it registers Configure.
 	_ "github.com/snapcore/snapd/overlord/configstate"
@@ -749,6 +749,45 @@ func (s *snapmgrTestSuite) TestGadgetInstallConflict(c *C) {
 	_, err := snapstate.Install(context.Background(), s.state, "brand-gadget",
 		nil, 0, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "boot config is being updated, no change in kernel commnd line is allowed meanwhile")
+}
+
+func (s *snapmgrTestSuite) TestInstallNoRestartBoundaries(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	r := snapstatetest.MockDeviceModel(DefaultModel())
+	defer r()
+
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "brand-gadget",
+			SnapID:   "brand-gadget",
+			Revision: snap.R(2),
+		},
+		Type: snap.TypeGadget,
+	}
+
+	// Ensure that restart boundaries were set on 'link-snap' as a part of doInstall
+	// when the flag noRestartBoundaries is not set
+	ts1, err := snapstate.DoInstall(s.state, &snapstate.SnapState{}, snapsup, 0, "", inUseCheck)
+	c.Assert(err, IsNil)
+
+	linkSnap1 := ts1.MaybeEdge(snapstate.MaybeRebootEdge)
+	c.Assert(linkSnap1, NotNil)
+
+	var boundary restart.RestartBoundaryDirection
+	c.Check(linkSnap1.Get("restart-boundary", &boundary), IsNil)
+
+	// Ensure that restart boundaries are not set when we do provide the noRestartBoundaries flag
+	ts2, err := snapstate.DoInstall(s.state, &snapstate.SnapState{}, snapsup, snapstate.NoRestartBoundaries, "", inUseCheck)
+	c.Assert(err, IsNil)
+
+	linkSnap2 := ts2.MaybeEdge(snapstate.MaybeRebootEdge)
+	c.Assert(linkSnap2, NotNil)
+	c.Check(linkSnap2.Get("restart-boundary", &boundary), ErrorMatches, `no state entry for key "restart-boundary"`)
 }
 
 func (s *snapmgrTestSuite) TestInstallSnapdConflict(c *C) {
@@ -4116,7 +4155,7 @@ volumes:
 `)
 
 	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(2)})
-	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
+	err := os.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
 	gi, err := gadget.ReadInfo(info.MountDir(), nil)
@@ -5522,7 +5561,7 @@ version: 1
 	c.Assert(os.Chmod(dstDir, 0700), IsNil)
 
 	c.Assert(os.Mkdir(filepath.Join(dstDir, "meta"), 0700), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(dstDir, "meta", "snap.yaml"), yaml, 0700), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dstDir, "meta", "snap.yaml"), yaml, 0700), IsNil)
 
 	// snapdir has /meta/snap.yaml, but / is 0700
 	brokenSnap := filepath.Join(c.MkDir(), "broken.snap")
@@ -5842,4 +5881,32 @@ func (s *snapmgrTestSuite) TestInstallWithTransactionLaneForbidden(c *C) {
 	tss, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "some-snap", nil, 0, snapstate.Flags{Lane: 1}, nil, "")
 	c.Assert(err, ErrorMatches, "transaction lane is unsupported in InstallWithDeviceContext")
 	c.Check(tss, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestInstallManyRestartBoundaries(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	r := snapstatetest.MockDeviceModel(DefaultModel())
+	defer r()
+
+	// install one we expect gets restart boundary set, and one that we don't expect
+	affected, tss, err := snapstate.InstallMany(s.state, []string{"brand-gadget", "some-snap"}, nil, s.user.ID, &snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(affected, DeepEquals, []string{"brand-gadget", "some-snap"})
+	c.Check(tss, HasLen, 2)
+
+	// only ensure that SetEssentialSnapsRestartBoundaries was actually called, we don't
+	// test that all restart boundaries were set, one is enough
+	linkSnap1 := tss[0].MaybeEdge(snapstate.MaybeRebootEdge)
+	linkSnap2 := tss[1].MaybeEdge(snapstate.MaybeRebootEdge)
+	c.Assert(linkSnap1, NotNil)
+	c.Assert(linkSnap2, NotNil)
+
+	var boundary restart.RestartBoundaryDirection
+	c.Check(linkSnap1.Get("restart-boundary", &boundary), IsNil)
+	c.Check(linkSnap2.Get("restart-boundary", &boundary), ErrorMatches, `no state entry for key "restart-boundary"`)
 }

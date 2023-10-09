@@ -20,7 +20,6 @@
 package i18n
 
 import (
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -62,7 +61,7 @@ func makeMockTranslations(c *C, localeDir string) {
 
 	po := filepath.Join(fullLocaleDir, "snappy-test.po")
 	mo := filepath.Join(fullLocaleDir, "snappy-test.mo")
-	err = ioutil.WriteFile(po, mockLocalePo, 0644)
+	err = os.WriteFile(po, mockLocalePo, 0644)
 	c.Assert(err, IsNil)
 
 	cmd := exec.Command("msgfmt", po, "--output-file", mo)

@@ -280,10 +280,26 @@ func (m *autoRefresh) canRefreshRespectingMetered(now, lastRefresh time.Time) (c
 	return false, nil
 }
 
+func isStoreOnline(s *state.State) (bool, error) {
+	tr := config.NewTransaction(s)
+
+	var access string
+	if err := tr.GetMaybe("core", "store.access", &access); err != nil {
+		return false, err
+	}
+
+	return access != "offline", nil
+}
+
 // Ensure ensures that we refresh all installed snaps periodically
 func (m *autoRefresh) Ensure() (err error) {
 	m.state.Lock()
 	defer m.state.Unlock()
+
+	online, err := isStoreOnline(m.state)
+	if err != nil || !online {
+		return err
+	}
 
 	if err := m.restoreMonitoring(); err != nil {
 		return fmt.Errorf("cannot restore monitoring: %v", err)

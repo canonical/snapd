@@ -20,7 +20,6 @@
 package snap_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -78,7 +77,7 @@ version: 1
 	c.Check(stat.Mode().Perm(), Equals, os.FileMode(0700)) // just to be sure
 
 	c.Assert(os.Mkdir(filepath.Join(d, "meta"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(d, "meta", "snap.yaml"), nil, 0444), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "meta", "snap.yaml"), nil, 0444), IsNil)
 
 	// snapdir has /meta/snap.yaml, but / is 0700
 
@@ -113,7 +112,7 @@ version: 1
 	d := c.MkDir()
 	c.Assert(os.Chmod(d, 0755), IsNil)
 	c.Assert(os.Mkdir(filepath.Join(d, "meta"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(d, "meta", "snap.yaml"), nil, 0), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "meta", "snap.yaml"), nil, 0), IsNil)
 
 	// snapdir's / and /meta are 0755 (i.e. OK),
 	// /meta/snap.yaml exists, but isn't readable
@@ -151,7 +150,7 @@ func emptyContainer(c *C) *snapdir.SnapDir {
 	d := c.MkDir()
 	c.Assert(os.Chmod(d, 0755), IsNil)
 	c.Assert(os.Mkdir(filepath.Join(d, "meta"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(d, "meta", "snap.yaml"), nil, 0444), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "meta", "snap.yaml"), nil, 0444), IsNil)
 	return snapdir.New(d)
 }
 
@@ -196,7 +195,7 @@ apps:
   command: foo
 `
 	d := emptyContainer(c)
-	c.Assert(ioutil.WriteFile(filepath.Join(d.Path(), "foo"), nil, 0444), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d.Path(), "foo"), nil, 0444), IsNil)
 
 	// snapdir contains the app, but the app is not executable
 
@@ -216,7 +215,7 @@ apps:
 `
 	d := emptyContainer(c)
 	c.Assert(os.Mkdir(filepath.Join(d.Path(), "apps"), 0700), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(d.Path(), "apps", "foo"), nil, 0555), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d.Path(), "apps", "foo"), nil, 0555), IsNil)
 
 	// snapdir contains executable app, but path to executable isn't rx
 
@@ -237,7 +236,7 @@ apps:
 `
 	d := emptyContainer(c)
 	c.Assert(os.Mkdir(filepath.Join(d.Path(), "svcs"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(d.Path(), "svcs", "bar"), nil, 0), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d.Path(), "svcs", "bar"), nil, 0), IsNil)
 
 	// snapdir contains service, but it isn't executable
 
@@ -258,7 +257,7 @@ apps:
 `
 	d := emptyContainer(c)
 	c.Assert(os.Mkdir(filepath.Join(d.Path(), "cmds"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(d.Path(), "cmds", "foo"), nil, 0555), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d.Path(), "cmds", "foo"), nil, 0555), IsNil)
 	c.Assert(os.Mkdir(filepath.Join(d.Path(), "comp"), 0755), IsNil)
 
 	// snapdir contains executable app, in a rx path, but refers
@@ -301,7 +300,7 @@ apps:
 `
 	d := emptyContainer(c)
 	fn := filepath.Join(d.Path(), "foo")
-	c.Assert(ioutil.WriteFile(fn+".real", nil, 0444), IsNil)
+	c.Assert(os.WriteFile(fn+".real", nil, 0444), IsNil)
 	c.Assert(os.Symlink(fn+".real", fn), IsNil)
 
 	// snapdir contains a command that's a symlink to a file that's not world-rx
@@ -322,7 +321,7 @@ apps:
 `
 	d := emptyContainer(c)
 	fn := filepath.Join(d.Path(), "foo")
-	c.Assert(ioutil.WriteFile(fn+".real", nil, 0555), IsNil)
+	c.Assert(os.WriteFile(fn+".real", nil, 0555), IsNil)
 	c.Assert(os.Symlink(fn+".real", fn), IsNil)
 
 	// snapdir contains a command that's a symlink to a file that's world-rx
@@ -355,12 +354,12 @@ apps:
 `
 	d := emptyContainer(c)
 	c.Assert(os.Mkdir(filepath.Join(d.Path(), "cmds"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(d.Path(), "cmds", "foo"), nil, 0555), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d.Path(), "cmds", "foo"), nil, 0555), IsNil)
 	c.Assert(os.Mkdir(filepath.Join(d.Path(), "comp"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(d.Path(), "comp", "foo.sh"), nil, 0555), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d.Path(), "comp", "foo.sh"), nil, 0555), IsNil)
 
 	c.Assert(os.Mkdir(filepath.Join(d.Path(), "svcs"), 0700), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(d.Path(), "svcs", "bar"), nil, 0500), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d.Path(), "svcs", "bar"), nil, 0500), IsNil)
 
 	c.Assert(os.Mkdir(filepath.Join(d.Path(), "garbage"), 0755), IsNil)
 	c.Assert(os.Mkdir(filepath.Join(d.Path(), "garbage", "zero"), 0), IsNil)

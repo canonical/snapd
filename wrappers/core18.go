@@ -324,7 +324,7 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 	}
 
 	// Handle the user services
-	if err := writeSnapdUserServicesOnCore(s, inter); err != nil {
+	if err := writeSnapdUserServicesOnCore(s, opts, inter); err != nil {
 		return err
 	}
 
@@ -431,7 +431,7 @@ func undoSnapdServicesOnCore(s *snap.Info, sysd systemd.Systemd) error {
 	return nil
 }
 
-func writeSnapdUserServicesOnCore(s *snap.Info, inter Interacter) error {
+func writeSnapdUserServicesOnCore(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter Interacter) error {
 	// Ensure /etc/systemd/user exists
 	if err := os.MkdirAll(dirs.SnapUserServicesDir, 0755); err != nil {
 		return err
@@ -497,6 +497,12 @@ func writeSnapdUserServicesOnCore(s *snap.Info, inter Interacter) error {
 		}
 		if err := sysd.EnableNoReload(units); err != nil {
 			return err
+		}
+	}
+
+	if !opts.Preseeding {
+		if err := userDaemonReload(); err != nil {
+			logger.Noticef("failed to reload user systemd instances: %v", err)
 		}
 	}
 

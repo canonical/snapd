@@ -121,7 +121,7 @@ func (l LaidOutStructure) Label() string {
 
 // Filesystem for formatting the structure.
 func (l LaidOutStructure) Filesystem() string {
-	return l.VolumeStructure.Filesystem
+	return l.VolumeStructure.LinuxFilesystem()
 }
 
 // Role for the structure as specified in the gadget.
@@ -420,7 +420,7 @@ func resolveContentPathOrRef(gadgetRootDir, kernelRootDir string, kernelInfo *ke
 	//       kernel dir set
 	switch {
 	case gadgetRootDir == "":
-		return "", false, fmt.Errorf("internal error: gadget root dir cannot beempty")
+		return "", false, fmt.Errorf("internal error: gadget root dir cannot be empty")
 	case pathOrRef == "":
 		return "", false, fmt.Errorf("cannot use empty source")
 	}

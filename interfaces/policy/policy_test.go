@@ -193,6 +193,10 @@ slots:
     allow-connection:
       plug-snap-type:
         - gadget
+  fromcore:
+    allow-connection:
+      slot-snap-type:
+        - core
   same-slot-publisher-id:
     allow-connection:
       plug-publisher-id:
@@ -393,6 +397,7 @@ plugs:
 
    gadgethelp:
    trustedhelp:
+   fromcore:
 
    precise-plug-snap-id:
    precise-slot-snap-id:
@@ -1094,6 +1099,7 @@ plugs:
    gadgethelp:
 slots:
    trustedhelp:
+   fromcore:
 `, nil)
 
 	coreSnap := snaptest.MockInfo(c, `
@@ -1103,6 +1109,7 @@ type: os
 slots:
    gadgethelp:
    trustedhelp:
+   fromcore:
 `, nil)
 
 	cand := policy.ConnectCandidate{
@@ -1134,6 +1141,20 @@ slots:
 		PlugSnapDeclaration: s.plugDecl,
 		Slot:                interfaces.NewConnectedSlot(s.slotSnap.Slots["trustedhelp"], nil, nil),
 		BaseDeclaration:     s.baseDecl,
+	}
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+
+	cand = policy.ConnectCandidate{
+		Plug:            interfaces.NewConnectedPlug(s.plugSnap.Plugs["fromcore"], nil, nil),
+		Slot:            interfaces.NewConnectedSlot(coreSnap.Slots["fromcore"], nil, nil),
+		BaseDeclaration: s.baseDecl,
+	}
+	c.Check(cand.Check(), IsNil)
+
+	cand = policy.ConnectCandidate{
+		Plug:            interfaces.NewConnectedPlug(s.plugSnap.Plugs["fromcore"], nil, nil),
+		Slot:            interfaces.NewConnectedSlot(gadgetSnap.Slots["fromcore"], nil, nil),
+		BaseDeclaration: s.baseDecl,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 }

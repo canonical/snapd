@@ -21,7 +21,7 @@ package desktopentry_test
 
 import (
 	"bytes"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -125,7 +125,7 @@ NoEqualsSign
 
 func (s *desktopentrySuite) TestRead(c *C) {
 	path := filepath.Join(c.MkDir(), "foo.desktop")
-	err := ioutil.WriteFile(path, []byte(browserDesktopEntry), 0o644)
+	err := os.WriteFile(path, []byte(browserDesktopEntry), 0o644)
 	c.Assert(err, IsNil)
 
 	de, err := desktopentry.Read(path)

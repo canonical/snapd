@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build withtestkeys || withstagingkeys
-// +build withtestkeys withstagingkeys
 
 /*
  * Copyright (C) 2017-2020 Canonical Ltd
