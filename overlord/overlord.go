@@ -2,7 +2,7 @@
 //go:build !nomanagers
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -35,6 +35,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -724,4 +725,42 @@ func (mb mockBackend) EnsureBefore(d time.Duration) {
 	}
 
 	mb.o.ensureBefore(d)
+}
+
+// TaskLabel produce a unique label string for the given task.
+// XXX move this to snapstate using a callback mechanism like conflicts
+func TaskLabel(t *state.Task) (string, error) {
+	snapsup, err := snapstate.TaskSnapSetup(t)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return "", err
+	}
+	var label string
+	switch t.Kind() {
+	case "run-hook":
+		var hooksup hookstate.HookSetup
+		if err := t.Get("hook-setup", &hooksup); err != nil {
+			return "", err
+		}
+		label = fmt.Sprintf("run-hook[%s]:%s", hooksup.Hook, hooksup.Snap)
+	default:
+		if snapsup != nil {
+			snapName := snapsup.InstanceName()
+			label = fmt.Sprintf("%s:%s", t.Kind(), snapName)
+		} else {
+			label = t.Kind()
+			var plugRef interfaces.PlugRef
+			var slotRef interfaces.SlotRef
+			if err := t.Get("plug", &plugRef); err != nil && !errors.Is(err, state.ErrNoState) {
+				return "", err
+			}
+			if err := t.Get("plug", &slotRef); err != nil && !errors.Is(err, state.ErrNoState) {
+				return "", err
+			}
+			// some kind of connect-like task
+			if plugRef.Snap != "" && slotRef.Snap != "" {
+				label = fmt.Sprintf("%s:[%s:%s %s:%s]", label, plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+			}
+		}
+	}
+	return label, nil
 }
