@@ -300,6 +300,14 @@ func validateSocketAddrNetPort(fieldName string, port string) error {
 	return nil
 }
 
+func ValidateSummary(summary string) error {
+	// 128 is the maximum allowed by review-tools
+	if count := utf8.RuneCountInString(summary); count > 128 {
+		return fmt.Errorf("summary can have up to 128 codepoints, got %d", count)
+	}
+	return nil
+}
+
 func ValidateDescription(descr string) error {
 	if count := utf8.RuneCountInString(descr); count > 4096 {
 		return fmt.Errorf("description can have up to 4096 codepoints, got %d", count)
@@ -344,8 +352,15 @@ func Validate(info *Info) error {
 	}
 
 	// validate component names, which follow the same rules as snap names
-	for cname := range info.Components {
+	for cname, comp := range info.Components {
+		// component Type is validated when unmarshaling
 		if err := ValidateName(cname); err != nil {
+			return err
+		}
+		if err := ValidateSummary(comp.Summary); err != nil {
+			return err
+		}
+		if err := ValidateDescription(comp.Description); err != nil {
 			return err
 		}
 	}
