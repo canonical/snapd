@@ -662,6 +662,7 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	// 2. Perform the mounts for the entries which need a mimic
 	// 3. Perform all the remaining desired mounts
 
+	var overnameEntries []osutil.MountEntry
 	var newDesiredEntries []osutil.MountEntry
 	var newIndependentDesiredEntries []osutil.MountEntry
 	// Indexed by mount point path.
@@ -681,6 +682,13 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 			addedDesiredEntries[entry.Dir] = true
 		}
 	}
+	addOvernameEntry := func(entry osutil.MountEntry) {
+		if !addedDesiredEntries[entry.Dir] {
+			logger.Debugf("adding overname entry: %s", entry)
+			overnameEntries = append(overnameEntries, entry)
+			addedDesiredEntries[entry.Dir] = true
+		}
+	}
 
 	logger.Debugf("processing mount entries")
 	// Create a map of the target directories (mimics) needed for the visited
@@ -688,7 +696,7 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 	affectedTargetCreationDirs := map[string][]osutil.MountEntry{}
 	for _, entry := range desiredNotReused {
 		if entry.XSnapdOrigin() == "overname" {
-			addIndependentDesiredEntry(entry)
+			addOvernameEntry(entry)
 		}
 
 		// collect all entries, so that we know what mimics are needed
@@ -760,9 +768,16 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		}
 	}
 
+	// XXX: putting independent entries after mimic-requiring ones reduces potential
+	// conflicts but it's not fully correct because a layout entry that requires a mimic
+	// and is dependent on a content entry can still be sorted before the entry.
+	// This is described in more detail in LP #2034056 and there's a unit test in
+	// change_test.go showcasing it.
 	sort.Sort(byOriginAndMountPoint(newIndependentDesiredEntries))
-	allEntries := append(newIndependentDesiredEntries, newDesiredEntries...)
+	allEntries := append(overnameEntries, newDesiredEntries...)
+	allEntries = append(allEntries, newIndependentDesiredEntries...)
 	dumpMountEntries(allEntries, "mount entries ordered as they will be applied")
+
 	for _, entry := range allEntries {
 		changes = append(changes, &Change{Action: Mount, Entry: entry})
 	}

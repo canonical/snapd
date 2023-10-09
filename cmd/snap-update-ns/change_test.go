@@ -183,11 +183,11 @@ func (s *changeSuite) TestNeededChangesMountOrder(c *C) {
 		},
 		{
 			existingDirs:  []string{"/c", "/c/stuff"},
-			expectedOrder: []string{"/c/stuff", "/c/stuff/dir", "/c/stuff/dir/file1", "/c/stuff/dir/file2", "/c/stuff/dir/symlink1"},
+			expectedOrder: []string{"/c/stuff/dir", "/c/stuff/dir/file1", "/c/stuff/dir/file2", "/c/stuff/dir/symlink1", "/c/stuff"},
 		},
 		{
 			existingDirs:  []string{"/c", "/c/stuff", "/c/stuff/dir"},
-			expectedOrder: []string{"/c/stuff", "/c/stuff/dir", "/c/stuff/dir/file1", "/c/stuff/dir/file2", "/c/stuff/dir/symlink1"},
+			expectedOrder: []string{"/c/stuff/dir/file1", "/c/stuff/dir/file2", "/c/stuff/dir/symlink1", "/c/stuff", "/c/stuff/dir"},
 		},
 	} {
 		existingDirectories = testData.existingDirs
@@ -2747,5 +2747,58 @@ func (s *changeSuite) TestUnmountFailsWithEINVALButStillMounted(c *C) {
 	c.Assert(err, Equals, syscall.EINVAL)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `unmount "/target" UMOUNT_NOFOLLOW`, E: syscall.EINVAL},
+	})
+}
+
+func (s *changeSuite) TestContentLayoutDependency(c *C) {
+	prof := &osutil.MountProfile{
+		Entries: []osutil.MountEntry{
+			{Name: "/snap/consumer/x1/shared-content/usr/share/foo", Dir: "/usr/share", Type: "None", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}},
+			{Name: "/snap/provider/x2", Dir: "/snap/consumer/x1/shared-content", Type: "None", Options: []string{"bind", "ro"}},
+		},
+	}
+
+	changes := update.NeededChanges(&osutil.MountProfile{}, prof)
+
+	c.Assert(changes, DeepEquals, []*update.Change{
+		{Action: update.Mount, Entry: osutil.MountEntry{Name: "/snap/provider/x2", Dir: "/snap/consumer/x1/shared-content", Type: "None", Options: []string{"bind", "ro"}}},
+		{Action: update.Mount, Entry: osutil.MountEntry{Name: "/snap/consumer/x1/shared-content/usr/share/foo", Dir: "/usr/share", Type: "None", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}}},
+	})
+}
+
+func (s *changeSuite) TestContentLayoutDependencyWithSharedMimic(c *C) {
+	prof := &osutil.MountProfile{
+		Entries: []osutil.MountEntry{
+			{Name: "/snap/consumer/x1/shared-content/usr/share/foo", Dir: "/usr/share", Type: "None", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}},
+			{Name: "/snap/provider/x2", Dir: "/snap/consumer/x1/shared-content", Type: "None", Options: []string{"bind", "ro"}},
+			{Name: "/snap/consumer/x1/shared-content/usr/share/foo", Dir: "/snap/consumer/x1/bar", Type: "None", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}},
+		},
+	}
+
+	changes := update.NeededChanges(&osutil.MountProfile{}, prof)
+	c.Assert(changes, DeepEquals, []*update.Change{
+		{Action: update.Mount, Entry: osutil.MountEntry{Name: "/snap/provider/x2", Dir: "/snap/consumer/x1/shared-content", Type: "None", Options: []string{"bind", "ro"}}},
+		{Action: update.Mount, Entry: osutil.MountEntry{Name: "/snap/consumer/x1/shared-content/usr/share/foo", Dir: "/snap/consumer/x1/bar", Type: "None", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}}},
+		{Action: update.Mount, Entry: osutil.MountEntry{Name: "/snap/consumer/x1/shared-content/usr/share/foo", Dir: "/usr/share", Type: "None", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}}},
+	})
+}
+
+func (s *changeSuite) TestContentLayoutDependencyWrongOutcome(c *C) {
+	// XXX: this test showcases that snap-update-ns doesn't do the right thing because
+	// both entries require a mimic but the layout is sorted before because the mimic-requiring
+	// entries are sorted lexicographically as a quick and dirty way to put parent mimics before
+	// children.
+	c.Skip("test fails currently because sorting logic is incorrect")
+	prof := &osutil.MountProfile{
+		Entries: []osutil.MountEntry{
+			{Name: "/snap/provider/x2", Dir: "/snap/consumer/x1/shared-content", Type: "None", Options: []string{"bind", "ro"}},
+			{Name: "/snap/consumer/x1/shared-content/usr/share/foo", Dir: "/abc", Type: "None", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}},
+		},
+	}
+
+	changes := update.NeededChanges(&osutil.MountProfile{}, prof)
+	c.Assert(changes, DeepEquals, []*update.Change{
+		{Action: update.Mount, Entry: osutil.MountEntry{Name: "/snap/provider/x2", Dir: "/snap/consumer/x1/shared-content", Type: "None", Options: []string{"bind", "ro"}}},
+		{Action: update.Mount, Entry: osutil.MountEntry{Name: "/snap/consumer/x1/shared-content/usr/share/foo", Dir: "/abc", Type: "None", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}}},
 	})
 }
