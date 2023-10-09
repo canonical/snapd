@@ -29,9 +29,6 @@ prepare: |
     fi
 
 restore: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
-
     # Unmount NFS mount over /home if one exists.
     if mountinfo.query /home; then
         umount /home
