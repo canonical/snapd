@@ -202,11 +202,7 @@ func layoutVolumeStructures(volume *Volume, gadgetToDiskStruct map[int]*OnDiskSt
 	if len(gadgetToDiskStruct) == 0 {
 		return nil, fmt.Errorf("cannot lay out: internal error: no disk structures provided")
 	}
-	structures, err = layoutVSFromDiskData(volume, gadgetToDiskStruct)
-	if err != nil {
-		return nil, err
-	}
-	return structures, nil
+	return layoutVSFromDiskData(volume, gadgetToDiskStruct)
 }
 
 // layoutVolumePartially attempts to lay out only the structures in the volume.
@@ -501,10 +497,8 @@ func checkGadgetContentImages(gadgetRootDir string, vs *VolumeStructure) error {
 			return fmt.Errorf("structure #%d (%q): content %q: %v", vs.YamlIndex, vs.Name, c.Image, err)
 		}
 
-		if c.Size != 0 {
-			if c.Size < fileSize {
-				return fmt.Errorf("structure #%d (%q): content %q size %v is larger than declared %v", vs.YamlIndex, vs.Name, c.Image, fileSize, c.Size)
-			}
+		if c.Size != 0 && c.Size < fileSize {
+			return fmt.Errorf("structure #%d (%q): content %q size %v is larger than declared %v", vs.YamlIndex, vs.Name, c.Image, fileSize, c.Size)
 		}
 	}
 

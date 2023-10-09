@@ -263,9 +263,10 @@ func MockSysfsPathForBlockDevice(f func(device string) (string, error)) (restore
 	}
 }
 
-// Build a map of gadget yaml index to OnDiskStructure by assuming that the
-// gadget will match exactly one of the disks of the installation device. This
-// is used only at disk image build time as we do not know yet the target disk.
+// OnDiskStructsFromGadget builds a map of gadget yaml index to OnDiskStructure
+// by assuming that the gadget will match exactly one of the disks of the
+// installation device. This is used only at disk image build time as we do not
+// know yet the target disk.
 func OnDiskStructsFromGadget(volume *Volume) (structures map[int]*OnDiskStructure) {
 	structures = map[int]*OnDiskStructure{}
 	offset := quantity.Offset(0)

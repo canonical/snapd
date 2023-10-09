@@ -1696,9 +1696,8 @@ func LaidOutVolumesFromGadget(vols map[string]*Volume, gadgetRoot, kernelRoot st
 	}
 
 	for name, vol := range vols {
-		var gadgetToDiskStruct map[int]*OnDiskStructure
-		var ok bool
-		if gadgetToDiskStruct, ok = volToGadgetToDiskStruct[name]; !ok {
+		gadgetToDiskStruct, ok := volToGadgetToDiskStruct[name]
+		if !ok {
 			return nil, fmt.Errorf("internal error: volume %q does not have a map of gadget to disk partitions", name)
 		}
 		lvol, err := LayoutVolume(vol, gadgetToDiskStruct, opts)
