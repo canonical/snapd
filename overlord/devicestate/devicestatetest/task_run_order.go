@@ -21,6 +21,9 @@ package devicestatetest
 
 import (
 	"fmt"
+	"errors"
+	"sort"
+	"strings"
 
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -37,6 +40,101 @@ func TaskPrintDeps(tsAll []*state.TaskSet) {
 			}
 		}
 	}
+}
+
+type TaskDependencyCycleError struct {
+        IDs []string
+        msg string
+}
+
+func (e *TaskDependencyCycleError) Error() string { return e.msg }
+
+func (e *TaskDependencyCycleError) Is(err error) bool {
+        _, ok := err.(*TaskDependencyCycleError)
+        return ok
+}
+
+func successorTaskIDs(t *state.Task) []string {
+    var taskIds []string
+    for _, task := range t.HaltTasks() {      // Looping through tasks of type Task
+        taskIds = append(taskIds, task.ID())  // Now task is of type Task, which has ID()
+    }
+    return taskIds
+}
+
+func TaskRunOrder2(c* state.Change) error {
+	tasks := c.Tasks()
+	taskLen := len(tasks)
+
+	if taskLen == 0 {
+		errors.New("Change is expected to have at least one task")
+	}
+
+	// group tasks by id and calculate predecessors for each task ID and 
+	// identify tasks that are ready to run because they have no predecessors
+	taskByID := map[string]*state.Task{}
+	predecessorCount := make(map[string]int, taskLen)
+	doingQueue := make([]string, 0, taskLen)
+       	for _, t := range tasks {
+		id := t.ID()
+                taskByID[id] = t
+                if l := len(t.WaitTasks()); l > 0 {
+                        // only add an entry if the task is not independent
+                        predecessorCount[id] = l
+                } else {
+			doingQueue = append(doingQueue, id)
+		}
+        }
+	
+	doQueue := make([]string, 0, taskLen - len(doingQueue))
+	for len(doingQueue) > 0 {
+		t := taskByID[doingQueue[0]]
+		doingQueue = doingQueue[1:]
+			
+		var name string
+		t.Get("instance-name", &name)
+		fmt.Printf("ID: %-4s | Snap: %-14s | Kind: %-24s | Summary: %s\n", t.ID(), name, t.Kind(), t.Summary())
+
+		// identify ready tasks
+		for _, successorTaskId := range successorTaskIDs(t) {
+			predecessorCount[successorTaskId]--
+			if predecessorCount[successorTaskId] == 0 {
+				delete(predecessorCount, successorTaskId)
+				doQueue = append(doQueue, successorTaskId)
+			}
+		}
+
+		// after servicing all parallel tasks load ready tasks
+		if len(doingQueue) == 0 {
+			doingQueue = append(doingQueue, doQueue...)
+			doQueue = doQueue[:0]
+		}
+	}
+
+	// report on dependency issues
+        if len(predecessorCount) != 0 {
+                // tasks that are left cannot have their dependencies satisfied
+                var unsatisfiedTasks []string
+                for id := range predecessorCount {
+                        unsatisfiedTasks = append(unsatisfiedTasks, id)
+                }
+                sort.Strings(unsatisfiedTasks)
+                msg := strings.Builder{}
+                msg.WriteString("dependency cycle involving tasks [")
+                for i, id := range unsatisfiedTasks {
+                        t := taskByID[id]
+                        msg.WriteString(fmt.Sprintf("%v:%v", t.ID(), t.Kind()))
+                        if i < len(unsatisfiedTasks)-1 {
+                                msg.WriteRune(' ')
+                        }
+                }
+                msg.WriteRune(']')
+                return &TaskDependencyCycleError{
+                        IDs: unsatisfiedTasks,
+                        msg: msg.String(),
+                }
+        }
+        return nil
 }
 
 // TaskRunOrder returns tasks in the order that it will run.

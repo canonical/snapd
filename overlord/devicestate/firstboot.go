@@ -277,7 +277,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	// chainSnapTasksPreseed chains install task sets together for the purpose of preseeding. It also
 	// modifies dependencies between specific tasks in order to achieve the required overall task order.
 	chainSnapTasksPreseed := func(all []*state.TaskSet, ts *state.TaskSet, isEssentialSnap bool) []*state.TaskSet {
-		beginTask, beforeHooksTask, hooksTask, beforeConfigureTask, configureTask, endEdgeTask, err := criticalTaskEdges(ts)
+		beginTask, beforeHooksTask, hooksTask, beforeConfigureTask, configureTask, endTask, err := criticalTaskEdges(ts)
 		if err != nil {
 			panic(err)
 		}
@@ -316,7 +316,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 			if isEssentialSnap {
 				lastBeforeConfigureTask = beforeConfigureTask
 			}
-			lastEndTask = endEdgeTask
+			lastEndTask = endTask
 			lastSnapTaskSet = ts
 		}
 		return append(all, ts)
