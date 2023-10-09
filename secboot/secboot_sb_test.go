@@ -1424,9 +1424,13 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(
 	})
 	defer restore()
 
-	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
+	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
+		WhichModel: func() (*asserts.Model, error) {
+			return fakeModel, nil
+		},
+	}
 	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
-	c.Assert(err, ErrorMatches, `cannot unlock encrypted partition: cannot recover keys because of an unexpected error: cannot run fde-reveal-key "reveal": helper error`)
+	c.Assert(err, ErrorMatches, `cannot unlock encrypted partition: cannot perform action because of an unexpected error: cannot run fde-reveal-key "reveal": helper error`)
 }
 
 // this test that v1 hooks and raw binary v1 created sealedKey files still work
@@ -1869,7 +1873,12 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Al
 	handle := json.RawMessage(`{"a": "handle"}`)
 	mockSealedKeyFile := makeMockSealedKeyFile(c, handle)
 
-	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{AllowRecoveryKey: true}
+	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
+		AllowRecoveryKey: true,
+		WhichModel: func() (*asserts.Model, error) {
+			return fakeModel, nil
+		},
+	}
 	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, secboot.UnlockResult{
@@ -2058,7 +2067,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJ
 	defaultDevice := "device-name"
 	mockSealedKeyFile := makeMockSealedKeyFile(c, nil)
 
-	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
+	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
+		WhichModel: func() (*asserts.Model, error) {
+			return fakeModel, nil
+		},
+	}
 	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
 
 	c.Check(err, ErrorMatches, `cannot unlock encrypted partition: invalid key data:.*`)
