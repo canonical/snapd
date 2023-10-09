@@ -462,7 +462,14 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 				"--base", filepath.Join(prefix, "/apparmor.d"),
 				"--policy-features", filepath.Join(prefix, "/apparmor.d/abi/3.0"),
 			}
-			return exec.Command(path, args...), true, nil
+			// CommandFromSystemSnap is needed to ensure that
+			// apparmor_parser is called with the internal
+			// library-path that points to the snapd snap libc6
+			cmd, err := snapdtool.CommandFromSystemSnap("/usr/lib/snapd/apparmor_parser", args...)
+			if err != nil {
+				return nil, false, err
+			}
+			return cmd, true, nil
 		}
 	}
 
