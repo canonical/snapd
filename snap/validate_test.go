@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	. "gopkg.in/check.v1"
 
@@ -2308,6 +2309,8 @@ version: 1.0
 components:
   comp-1:
     type: test
+    summary: short summary
+    description: some loooong description
   comp-long123-1-name:
     type: test
 `))
@@ -2328,4 +2331,26 @@ components:
 
 	err = Validate(info)
 	c.Check(err, ErrorMatches, `invalid snap name: "comp_1"`)
+}
+
+func (s *ValidateSuite) TestDetectInvalidComponentTextFields(c *C) {
+	yamlTmpl := `name: foo
+version: 1.0
+components:
+  comp1:
+    type: test
+    %s: %s
+`
+
+	for _, tc := range []struct {
+		field         string
+		maxCodePoints int
+	}{{"summary", 128}, {"description", 4096}} {
+		text := strings.Repeat("xx", 2049)
+		info, err := InfoFromSnapYaml([]byte(fmt.Sprintf(yamlTmpl, tc.field, text)))
+		c.Assert(err, IsNil)
+
+		err = Validate(info)
+		c.Check(err, ErrorMatches, fmt.Sprintf("%s can have up to %d codepoints, got %d", tc.field, tc.maxCodePoints, utf8.RuneCountInString(text)))
+	}
 }
