@@ -14,8 +14,6 @@ execute: |
     tests.pkgs -h | MATCH 'usage: tests.pkgs install \[--no-install-recommends\] \[PACKAGE...\]'
     tests.pkgs --help | MATCH 'usage: tests.pkgs install \[--no-install-recommends\] \[PACKAGE...\]'
 
-    # Update the packages db
-
     # Check the test pkg is not installed
     not tests.pkgs is-installed test-snapd-pkg-1
 

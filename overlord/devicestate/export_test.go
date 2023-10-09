@@ -48,6 +48,7 @@ import (
 var (
 	SystemForPreseeding         = systemForPreseeding
 	GetUserDetailsFromAssertion = getUserDetailsFromAssertion
+	ShouldRequestSerial         = shouldRequestSerial
 )
 
 func MockKeyLength(n int) (restore func()) {

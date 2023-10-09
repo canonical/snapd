@@ -17,11 +17,8 @@ details: |
 systems: [-ubuntu-core-*, -opensuse-*, -amazon-*, -arch-linux-*, -centos-*, -debian-sid-*, -ubuntu-14.04-64]
 
 prepare: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
-    
     echo "Given openvswitch is installed"
-    distro_install_package --no-install-recommends openvswitch-switch
+    tests.pkgs install openvswitch-switch
 
     # Ensure the openvswitch service is started which isn't the case by
     # default on all distributions
@@ -38,14 +35,8 @@ prepare: |
     ip tuntap add tap1 mode tap
 
 restore: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
-
     ovs-vsctl del-port br0 tap1 || true
     ovs-vsctl del-br br0 || true
-
-    distro_purge_package openvswitch-switch
-    distro_auto_remove_packages
 
     ip link delete tap1 || true
 

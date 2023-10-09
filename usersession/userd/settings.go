@@ -222,9 +222,9 @@ func setDialog(s *Settings, setspec *settingSpec, desktopFile string, sender dbu
 }
 
 func checkOutput(cmd *exec.Cmd, command string, setspec *settingSpec) (string, *dbus.Error) {
-	output, err := cmd.CombinedOutput()
+	output, stderr, err := osutil.RunCmd(cmd)
 	if err != nil {
-		return "", dbus.MakeFailedError(fmt.Errorf("cannot %s %s setting: %s", command, setspec, osutil.OutputErr(output, err)))
+		return "", dbus.MakeFailedError(fmt.Errorf("cannot %s %s setting: %s", command, setspec, osutil.OutputErrCombine(output, stderr, err)))
 	}
 	return string(output), nil
 }

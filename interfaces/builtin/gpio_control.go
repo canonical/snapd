@@ -46,7 +46,7 @@ const gpioControlConnectedPlugAppArmor = `
 /sys/class/gpio/gpio[0-9]*/{active_low,direction,value,edge} rw,
 # apparmor needs the symlink targets which on most platforms the path
 # below (see also PR#12816)
-/sys/devices/platform/*/gpio/gpio[0-9]*/{active_low,direction,value,edge} rw,
+/sys/devices/platform/**/gpio/gpio[0-9]*/{active_low,direction,value,edge} rw,
 `
 
 func init() {

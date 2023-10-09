@@ -152,6 +152,20 @@ wait_for_device_initialized() {
     echo "remote.wait-for: device initialized"
 }
 
+wait_for_refresh_reboot() {
+    wait_for_ssh "$DEFAULT_WAIT_FOR_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_SSH_WAIT"
+    for _ in $(seq 3); do
+        if remote.exec "sudo journalctl -u snapd -n 30" | grep -q "Waiting for system reboot"; then
+            echo "remote.wait-for: waiting for system reboot"
+            remote.exec --timeout 3 "sudo reboot" || true
+            wait_for_no_ssh "$DEFAULT_WAIT_FOR_NO_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_NO_SSH_WAIT"
+            break
+        fi
+        sleep 1
+    done
+    wait_for_ssh "$DEFAULT_WAIT_FOR_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_SSH_WAIT"
+}
+
 wait_for_refresh(){
     echo "remote.wait-for: waiting for either auto-refresh or refresh"
 
@@ -160,26 +174,24 @@ wait_for_refresh(){
         echo "remote.wait-for: Refresh in progress"
         change_id="$(echo "$change_line" | awk '{ print $1 }')"
 
+
         while remote.exec "snap changes" | grep -Eq "$change_id.*Doing.*(Auto-refresh|Refresh)"; do
             echo -n '.'
-            if remote.exec "true" &>/dev/null; then
-                sleep 1
-            fi
+            # As the system could reboot anytime, this command could fail
+            wait_for_refresh_reboot || true
         done
         echo ""
 
-        if ! remote.exec "true" &>/dev/null; then
-            wait_for_ssh "$DEFAULT_WAIT_FOR_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_SSH_WAIT"
-        fi
-
-        if remote.exec "snap changes" | grep -Eq "$change_id.*Doing.*(Auto-refresh|Refresh)"; then
+        changes="$(remote.exec 'snap changes')"
+        if echo "$changes" | grep -Eq "$change_id.*Doing.*(Auto-refresh|Refresh)"; then
             echo "remote.wait-for: still doing refresh, exiting"
-        elif remote.exec "snap changes" | grep -Eq "$change_id.*Error.*(Auto-refresh|Refresh)"; then
+        elif echo "$changes" | grep -Eq "$change_id.*Error.*(Auto-refresh|Refresh)"; then
             echo "remote.wait-for: refresh failed"
-        elif remote.exec "snap changes" | grep -Eq "$change_id.*Done.*(Auto-refresh|Refresh)"; then
+        elif echo "$changes" | grep -Eq "$change_id.*Done.*(Auto-refresh|Refresh)"; then
             echo "remote.wait-for: refresh completed"
         else
             echo "remote.wait-for: refresh results unknown"
+            echo "$changes"
             return 1
         fi
     else

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -68,8 +69,6 @@ func (s *luks2Suite) TestAddKeyHappy(c *C) {
 	c.Assert(err, IsNil)
 
 	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", fmt.Sprintf(`
-FIFO="$5"
-cat "$FIFO" > %[1]s/fifo
 cat - > %[1]s/stdout 2>%[1]s/stderr
 `, s.tmpdir))
 	defer mockCryptsetup.Restore()
@@ -77,13 +76,12 @@ cat - > %[1]s/stdout 2>%[1]s/stderr
 	err = luks2.AddKey("/my/device", []byte("old-key"), []byte("new-key"), nil)
 	c.Check(err, IsNil)
 	c.Check(mockCryptsetup.Calls(), HasLen, 1)
-	fifoPath := mockCryptsetup.Calls()[0][5]
+	lenExisting := strconv.Itoa(len("old-key"))
 	c.Check(mockCryptsetup.Calls(), DeepEquals, [][]string{
-		{"cryptsetup", "luksAddKey", "--type", "luks2", "--key-file", fifoPath, "--pbkdf", "argon2i", "/my/device", "-"},
+		{"cryptsetup", "luksAddKey", "--type", "luks2", "--key-file", "-", "--keyfile-size", lenExisting, "--batch-mode", "--pbkdf", "argon2i", "/my/device", "-"},
 	})
-	c.Check(filepath.Join(s.tmpdir, "stdout"), testutil.FileEquals, "new-key")
+	c.Check(filepath.Join(s.tmpdir, "stdout"), testutil.FileEquals, "old-keynew-key")
 	c.Check(filepath.Join(s.tmpdir, "stderr"), testutil.FileEquals, "")
-	c.Check(filepath.Join(s.tmpdir, "fifo"), testutil.FileEquals, "old-key")
 }
 
 func (s *luks2Suite) TestAddKeyBadCryptsetup(c *C) {
@@ -95,24 +93,4 @@ func (s *luks2Suite) TestAddKeyBadCryptsetup(c *C) {
 
 	err = luks2.AddKey("/my/device", []byte("old-key"), []byte("new-key"), nil)
 	c.Check(err, ErrorMatches, "cryptsetup failed with: some-error")
-}
-
-func (s *luks2Suite) TestAddKeyBadWriteExistingKeyToFifo(c *C) {
-	err := os.MkdirAll(filepath.Join(s.tmpdir, "run"), 0755)
-	c.Assert(err, IsNil)
-
-	mockCryptsetup := testutil.MockCommand(c, "cryptsetup", fmt.Sprintf(`
-FIFO="$5"
-cat "$FIFO" > %[1]s/fifo
-cat - > %[1]s/stdout 2>%[1]s/stderr
-`, s.tmpdir))
-	defer mockCryptsetup.Restore()
-
-	restore := luks2.MockWriteExistingKeyToFifo(func(string, []byte) error {
-		return fmt.Errorf("writeExistingKeyToFifo error")
-	})
-	defer restore()
-
-	err = luks2.AddKey("/my/device", []byte("old-key"), []byte("new-key"), nil)
-	c.Check(err, ErrorMatches, `cryptsetup failed with: .* \(fifo failed with: writeExistingKeyToFifo error\)`)
 }

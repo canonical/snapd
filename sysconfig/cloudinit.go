@@ -749,7 +749,7 @@ func CloudInitStatus() (CloudInitState, error) {
 		return CloudInitNotFound, nil
 	}
 
-	out, err := exec.Command(ciBinary, "status").CombinedOutput()
+	out, stderr, err := osutil.RunSplitOutput(ciBinary, "status")
 
 	// in the case where cloud-init is actually in an error condition, like
 	// where MAAS is the datasource but there is no MAAS server for example,
@@ -762,10 +762,10 @@ func CloudInitStatus() (CloudInitState, error) {
 	if len(match) != 2 {
 		// check if running the command had an error, if it did then return that
 		if err != nil {
-			return CloudInitErrored, osutil.OutputErr(out, err)
+			return CloudInitErrored, osutil.OutputErrCombine(out, stderr, err)
 		}
 		// otherwise we had some sort of malformed output
-		return CloudInitErrored, fmt.Errorf("invalid cloud-init output: %v", osutil.OutputErr(out, err))
+		return CloudInitErrored, fmt.Errorf("invalid cloud-init output: %v", osutil.OutputErrCombine(out, stderr, err))
 	}
 
 	// otherwise we had a successful match, but we need to check if the status
@@ -778,7 +778,7 @@ func CloudInitStatus() (CloudInitState, error) {
 		}
 		// otherwise just ignore the parsing of the output and just return the
 		// error normally
-		return CloudInitErrored, fmt.Errorf("cloud-init errored: %v", osutil.OutputErr(out, err))
+		return CloudInitErrored, fmt.Errorf("cloud-init errored: %v", osutil.OutputErrCombine(out, stderr, err))
 	}
 
 	// otherwise no error from cloud-init

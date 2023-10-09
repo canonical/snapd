@@ -385,6 +385,14 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// Expect the change to be in wait status at this point, as a restart
+	// will have been requested
+	c.Check(t.Status(), Equals, state.WaitStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+	// Restart and re-run to completion
+	s.mockRestartAndSettle(c, s.state, chg)
+
 	c.Check(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(t.Status(), Equals, state.DoneStatus)
@@ -1218,8 +1226,17 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Assert(chg.IsReady(), Equals, true)
 	if errMatch == "" {
+		if opts.updated && !argsAppended {
+			// Expect the change to be in wait status at this point, as a restart
+			// will have been requested
+			c.Check(tsk.Status(), Equals, state.WaitStatus)
+			c.Check(chg.Status(), Equals, state.WaitStatus)
+			// Restart and re-run to completion
+			s.mockRestartAndSettle(c, s.state, chg)
+		}
+
+		c.Assert(chg.IsReady(), Equals, true)
 		c.Check(chg.Err(), IsNil)
 		c.Check(tsk.Status(), Equals, state.DoneStatus)
 
@@ -1237,7 +1254,7 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 				}
 			} else {
 				c.Assert(log, HasLen, 2)
-				c.Check(log[1], Matches, ".* INFO Task has requested a system restart")
+				c.Check(log[1], Matches, ".* INFO Task set to wait until a system restart allows to continue")
 			}
 		} else {
 			c.Check(log, HasLen, 0)
@@ -1252,6 +1269,7 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 			c.Check(s.restartRequests, HasLen, 0)
 		}
 	} else {
+		c.Assert(chg.IsReady(), Equals, true)
 		c.Check(chg.Err(), ErrorMatches, errMatch)
 		c.Check(tsk.Status(), Equals, state.ErrorStatus)
 	}
@@ -1919,10 +1937,17 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineClassicWithModesUpdateUndo(c
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// Expect the change to be in wait status at this point, as a restart
+	// will have been requested
+	c.Check(tsk.Status(), Equals, state.WaitStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+	// Restart and re-run to completion
+	s.mockRestartAndSettle(c, s.state, chg)
+
 	log := tsk.Log()
 	c.Assert(log, HasLen, 4)
 	c.Check(log[0], Matches, ".* Updated kernel command line")
-	c.Check(log[1], Matches, ".* INFO Task has requested a system restart")
+	c.Check(log[1], Matches, ".* INFO Task set to wait until a system restart allows to continue")
 	c.Check(log[2], Matches, ".* Reverted kernel command line change")
 	c.Check(log[3], Matches, ".* Skipped automatic system restart on classic system when undoing changes back to previous state")
 

@@ -611,6 +611,19 @@ func (m *DeviceManager) ensureOperational() error {
 		return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
 	}
 
+	willRequestSerial, err := shouldRequestSerial(m.state, gadget)
+	if err != nil {
+		return err
+	}
+
+	// if we should not fetch the device serial (either store.access or
+	// device.service.access is set to offline), and we have already generated a
+	// device key, we can return early. otherwise, we need to run the
+	// generate-device-key task
+	if !willRequestSerial && device.KeyID != "" {
+		return nil
+	}
+
 	if gadget == "" && storeID == "" {
 		// classic: if we have no gadget and no non-default store
 		// wait to have snaps or snap installation
@@ -647,6 +660,7 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 		hasPrepareDeviceHook = (gadgetInfo.Hooks["prepare-device"] != nil)
 	}
+
 	if device.KeyID == "" && model.Grade() != "" {
 		// UC20+ devices support factory reset
 		serial, err := m.maybeRestoreAfterReset(device)
@@ -694,9 +708,12 @@ func (m *DeviceManager) ensureOperational() error {
 		genKey.WaitFor(prepareDevice)
 	}
 	tasks = append(tasks, genKey)
-	requestSerial := m.state.NewTask("request-serial", i18n.G("Request device serial"))
-	requestSerial.WaitFor(genKey)
-	tasks = append(tasks, requestSerial)
+
+	if willRequestSerial {
+		requestSerial := m.state.NewTask("request-serial", i18n.G("Request device serial"))
+		requestSerial.WaitFor(genKey)
+		tasks = append(tasks, requestSerial)
+	}
 
 	chg := m.state.NewChange("become-operational", i18n.G("Initialize device"))
 	chg.AddAll(state.NewTaskSet(tasks...))

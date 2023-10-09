@@ -216,17 +216,39 @@ func (s *rebootSuite) hasRestartBoundaries(c *C, ts *state.TaskSet) bool {
 	return true
 }
 
-func (s *rebootSuite) TestSetEssentialSnapsRestartBoundaries(c *C) {
+func (s *rebootSuite) TestSetEssentialSnapsRestartBoundariesUC16(c *C) {
 	defer snapstatetest.MockDeviceModel(DefaultModel())()
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	tss := []*state.TaskSet{
-		s.taskSetForSnapSetup("core", snap.TypeBase),
+		s.taskSetForSnapSetup("core20", snap.TypeBase),
 		s.taskSetForSnapSetup("my-gadget", snap.TypeGadget),
 		s.taskSetForSnapSetup("my-kernel", snap.TypeKernel),
-		s.taskSetForSnapSetup("my-os", snap.TypeOS),
+		s.taskSetForSnapSetup("core", snap.TypeOS),
+		s.taskSetForSnapSetup("my-app", snap.TypeApp),
+	}
+	err := snapstate.SetEssentialSnapsRestartBoundaries(s.state, nil, tss)
+	c.Assert(err, IsNil)
+	c.Check(s.hasRestartBoundaries(c, tss[0]), Equals, false)
+	c.Check(s.hasRestartBoundaries(c, tss[1]), Equals, true)
+	c.Check(s.hasRestartBoundaries(c, tss[2]), Equals, true)
+	c.Check(s.hasRestartBoundaries(c, tss[3]), Equals, true)
+	c.Check(s.hasRestartBoundaries(c, tss[4]), Equals, false)
+}
+
+func (s *rebootSuite) TestSetEssentialSnapsRestartBoundariesUC20(c *C) {
+	defer snapstatetest.MockDeviceModel(MakeModel20("brand-gadget", nil))()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tss := []*state.TaskSet{
+		s.taskSetForSnapSetup("core20", snap.TypeBase),
+		s.taskSetForSnapSetup("brand-gadget", snap.TypeGadget),
+		s.taskSetForSnapSetup("my-kernel", snap.TypeKernel),
+		s.taskSetForSnapSetup("core", snap.TypeOS),
 		s.taskSetForSnapSetup("my-app", snap.TypeApp),
 	}
 	err := snapstate.SetEssentialSnapsRestartBoundaries(s.state, nil, tss)
@@ -234,6 +256,6 @@ func (s *rebootSuite) TestSetEssentialSnapsRestartBoundaries(c *C) {
 	c.Check(s.hasRestartBoundaries(c, tss[0]), Equals, true)
 	c.Check(s.hasRestartBoundaries(c, tss[1]), Equals, true)
 	c.Check(s.hasRestartBoundaries(c, tss[2]), Equals, true)
-	c.Check(s.hasRestartBoundaries(c, tss[3]), Equals, true)
+	c.Check(s.hasRestartBoundaries(c, tss[3]), Equals, false)
 	c.Check(s.hasRestartBoundaries(c, tss[4]), Equals, false)
 }
