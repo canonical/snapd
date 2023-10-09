@@ -300,7 +300,7 @@ func validateSocketAddrNetPort(fieldName string, port string) error {
 	return nil
 }
 
-func validateDescription(descr string) error {
+func ValidateDescription(descr string) error {
 	if count := utf8.RuneCountInString(descr); count > 4096 {
 		return fmt.Errorf("description can have up to 4096 codepoints, got %d", count)
 	}
@@ -354,7 +354,10 @@ func Validate(info *Info) error {
 		return err
 	}
 
-	if err := validateDescription(info.Description()); err != nil {
+	// TODO for some reason we are not validating the summary for
+	// snap.yaml. What is the store checking?
+
+	if err := ValidateDescription(info.Description()); err != nil {
 		return err
 	}
 
