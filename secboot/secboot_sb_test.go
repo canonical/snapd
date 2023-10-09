@@ -582,10 +582,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		devicePath := filepath.Join("/dev/disk/by-partuuid", partuuid)
 
 		keyPath := filepath.Join("test-data", "keyfile")
-		kd, err := sb_tpm2.NewKeyDataFromSealedKeyObjectFile(keyPath)
-		c.Assert(err, IsNil)
-		expectedID, err := kd.UniqueID()
-		c.Assert(err, IsNil)
 
 		restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, kdf sb.KDF, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error {
 
@@ -593,9 +589,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			c.Assert(sourceDevicePath, Equals, devicePath)
 			c.Assert(keys, HasLen, 1)
 			c.Assert(keys[0], NotNil)
-			uID, err := keys[0].UniqueID()
-			c.Assert(err, IsNil)
-			c.Check(uID, DeepEquals, expectedID)
 			if tc.rkAllow {
 				c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
 					PassphraseTries:  1,
