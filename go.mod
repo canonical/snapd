@@ -45,3 +45,5 @@ require (
 	golang.org/x/term v0.12.0 // indirect
 	maze.io/x/crypto v0.0.0-20190131090603-9b94c9afe066 // indirect
 )
+
+replace github.com/mvo5/goconfigparser v0.0.0-20221018104758-434073381f37 => github.com/valentindavid/goconfigparser v0.0.0-20231010102715-677885da26fc
