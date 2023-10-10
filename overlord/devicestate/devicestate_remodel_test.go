@@ -3887,10 +3887,6 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialNoDownloadSimpleChannelS
 	})
 	defer restore()
 
-	now := time.Now()
-	restore = devicestate.MockTimeNow(func() time.Time { return now })
-	defer restore()
-
 	// set a model assertion
 	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
