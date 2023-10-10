@@ -220,7 +220,7 @@ endif
 
 	# Build C bits, sadly manually
 	cd cmd && ( autoreconf -i -f )
-	cd cmd && ( ./configure --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS))
+	cd cmd && ( ./configure --without-unit-tests --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS) )
 	$(MAKE) -C cmd all
 
 	# Generate the real systemd/dbus/env config files

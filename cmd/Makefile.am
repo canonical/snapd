@@ -279,7 +279,7 @@ snap_confine_snap_confine_SOURCES = \
 	snap-confine/user-support.h
 
 snap_confine_snap_confine_CFLAGS = $(AM_CFLAGS) -DLIBEXECDIR=\"$(libexecdir)\" -DNATIVE_LIBDIR=\"$(libdir)\"
-snap_confine_snap_confine_LDFLAGS = $(AM_LDFLAGS)
+snap_confine_snap_confine_LDFLAGS = $(AM_LDFLAGS) -lrt
 snap_confine_snap_confine_LDADD = libsnap-confine-private.a
 snap_confine_snap_confine_CFLAGS += $(LIBUDEV_CFLAGS)
 snap_confine_snap_confine_LDADD += $(snap_confine_snap_confine_extra_libs)
