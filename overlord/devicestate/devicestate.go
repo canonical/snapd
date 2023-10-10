@@ -843,19 +843,29 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 				return nil, err
 			}
 			tss = append(tss, ts)
+
+			// if this is true, then the snap's revision was changed, and we
+			// need to extract the prerequisites from the task set. otherwise,
+			// we treat the snap as if it were unchanged.
 			if ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge) != nil {
 				if err := updateNeededSnapsFromTs(ts); err != nil {
 					return nil, err
 				}
+
+				continue
 			}
-		} else {
-			if currentInfo.Base != "" {
-				neededSnaps[currentInfo.Base] = true
-			}
-			// deal with content providers
-			for defProvider := range snap.NeededDefaultProviders(currentInfo) {
-				neededSnaps[defProvider] = true
-			}
+		}
+
+		// if we're here, the snap that is installed is unchanged from the snap
+		// that the model requires. the snap may have had a channel change, but
+		// that channel change did not result in a revision change.
+
+		if currentInfo.Base != "" {
+			neededSnaps[currentInfo.Base] = true
+		}
+		// deal with content providers
+		for defProvider := range snap.NeededDefaultProviders(currentInfo) {
+			neededSnaps[defProvider] = true
 		}
 	}
 	// Now we know what snaps are in the model and whether they have any
