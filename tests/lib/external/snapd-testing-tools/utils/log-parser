@@ -278,15 +278,19 @@ class LogReader:
         return os.path.exists(self.filepath)
 
     def read_spread_log(self):
-        with open(self.filepath) as filepath:
-            self.lines = filepath.readlines()
+        try:
+            with open(self.filepath, 'r', encoding='utf-8') as filepath:
+                self.lines = filepath.readlines()
+        except UnicodeDecodeError:
+            with open(self.filepath, 'r', encoding='latin-1') as filepath:
+                self.lines = filepath.readlines()
 
         # Find the start of the log, the log file could include
         # initial lines which are not part of the spread log itself
         self.iter = 0
         if self.store_setup:
             while self.iter < len(self.lines):
-                line = self._next_line()
+                line = self._remove_raw_timestamp(self._next_line())
                 if self._match_start(line):
                     break
                 self.full_log.append(line)
@@ -297,7 +301,7 @@ class LogReader:
 
         # Then iterate line by line analyzing the log
         while self.iter < len(self.lines):
-            line = self._next_line()
+            line = self._remove_raw_timestamp(self._next_line())
 
             # The line is a task execution; preparing, executing, restoring
             if self._match_task(line):
@@ -327,6 +331,15 @@ class LogReader:
                 if result:
                     self.full_log.append(result)
                 continue
+
+    def _remove_raw_timestamp(self, line):
+        parts = line.strip().split(' ')
+        if self._match_raw_timestamp(parts[0]):
+            return ' '.join(parts[1:])
+        return line
+
+    def _match_raw_timestamp(self, date):
+        return re.findall(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{7}Z', date)
 
     def _match_date(self, date):
         return re.findall(r'\d{4}-\d{2}-\d{2}', date)
@@ -380,7 +393,7 @@ class LogReader:
 
         # If the first line matches with a regular line, this means the detail
         # has no output and has to be discarded
-        line = self.lines[self.iter]
+        line = self._remove_raw_timestamp(self.lines[self.iter])
         if self._match_task(line) or self._match_info(line) or \
             self._match_operation(line) or self._match_result(line):
             return None
@@ -388,7 +401,7 @@ class LogReader:
         detail=[]
         initial_iter = self.iter
         while self.iter < len(self.lines):
-            line = self._next_line()
+            line = self._remove_raw_timestamp(self._next_line())
             if self._match_task(line) or self._match_info(line) or \
             self._match_operation(line) or self._match_result(line):
                 # When the details is for results, then any match is ok to break

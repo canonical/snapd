@@ -446,7 +446,6 @@ jobs:
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread')"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
-          LANG: C.UTF-8
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
@@ -480,8 +479,6 @@ jobs:
 
     - name: report spread errors
       if: always()
-      env:
-        LANG: C.UTF-8
       run: |
         if [ -e spread.log ]; then
             echo "Running spread log analyzer"
@@ -600,7 +597,6 @@ jobs:
       if: "contains(github.event.pull_request.labels.*.name, 'Run nested') || contains(github.event.pull_request.labels.*.name, 'Run nested -auto-') || contains(github.ref, 'refs/heads/release/')"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
-          LANG: C.UTF-8
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
@@ -635,8 +631,6 @@ jobs:
 
     - name: report spread errors
       if: always()
-      env:
-        LANG: C.UTF-8
       run: |
         if [ -e spread.log ]; then
             echo "Running spread log analyzer"
