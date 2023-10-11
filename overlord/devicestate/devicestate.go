@@ -844,9 +844,14 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 			}
 			tss = append(tss, ts)
 
-			// if this is true, then the snap's revision was changed, and we
-			// need to extract the prerequisites from the task set. otherwise,
-			// we treat the snap as if it were unchanged.
+			// we can know that the snap's revision was changed by checking for
+			// the presence of an edge on the task set that separates tasks that
+			// do and do not modify the system. if the edge is present, then the
+			// revision was changed, and we need to extract the snap's
+			// prerequisites from the task set. the absence of this edge,
+			// indicates that only the snap's channel was changed and the
+			// revision was unchanged. in this case, we treat the snap as if it
+			// were unchanged.
 			if ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge) != nil {
 				if err := updateNeededSnapsFromTs(ts); err != nil {
 					return nil, err
