@@ -175,7 +175,15 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(sealedEncryptionKeyFile, sourceDev
 	options := activateVolOpts(opts.AllowRecoveryKey)
 	options.Model = model
 	// TODO: provide a AuthRequester, KDF here instead of "nil"
-	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, nil, nil, options, keyData)
+	authRequestor, err := sb.NewSystemdAuthRequestor(
+		"Please enter passphrase for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
+		"Please enter recovery key for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
+	)
+	if err != nil {
+		return res, fmt.Errorf("cannot build an auth requestor: %v", err)
+	}
+
+	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, authRequestor, sb.Argon2iKDF(), options, keyData)
 	if err == sb.ErrRecoveryKeyUsed {
 		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
 		res.FsDevice = targetDevice
