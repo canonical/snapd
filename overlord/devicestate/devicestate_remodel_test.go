@@ -3914,7 +3914,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialNoDownloadSimpleChannelS
 			map[string]interface{}{
 				"name":            "snap-1-base",
 				"id":              snaptest.AssertedSnapID("snap-1-base"),
-				"type":            "app",
+				"type":            "base",
 				"default-channel": "latest/stable",
 			},
 		},
@@ -4002,7 +4002,7 @@ base: snap-1-base
 		TrackingChannel: "latest/stable",
 	})
 
-	// base uses a new default channel
+	// snap-1 uses a new default channel
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"base":         "core20",
