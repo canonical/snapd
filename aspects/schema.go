@@ -197,6 +197,14 @@ func (v *mapSchema) Validate(raw []byte) error {
 		return err
 	}
 
+	if v.entrySchemas != nil {
+		for key := range mapValue {
+			if _, ok := v.entrySchemas[key]; !ok {
+				return fmt.Errorf(`map contains unexpected key %q`, key)
+			}
+		}
+	}
+
 	var missing bool
 	for _, required := range v.requiredCombs {
 		missing = false
