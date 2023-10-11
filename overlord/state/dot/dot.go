@@ -210,7 +210,7 @@ func (g *ChangeGraph) WriteDotTo(w io.Writer) error {
 func (g *ChangeGraph) Show(logfer interface {
 	Logf(format string, args ...interface{})
 }) *ChangeGraph {
-	f, err := os.CreateTemp("", fmt.Sprintf("%s-*.dot", strings.Join(g.tags, "-")))
+	f, err := os.CreateTemp("", fmt.Sprintf("%s-*.svg", strings.Join(g.tags, "-")))
 	fprintfln := func(w io.Writer, format string, args ...interface{}) {
 		if logfer != nil {
 			logfer.Logf(format, args...)
@@ -219,7 +219,7 @@ func (g *ChangeGraph) Show(logfer interface {
 		}
 	}
 	if err != nil {
-		fprintfln(os.Stderr, "cannot create .dot file: %v", err)
+		fprintfln(os.Stderr, "cannot create .svg file: %v", err)
 		return g
 	}
 	output := f.Name()
@@ -232,7 +232,7 @@ func (g *ChangeGraph) Show(logfer interface {
 		if _, ok := err.(*exec.Error); ok {
 			return g
 		}
-		fprintfln(os.Stderr, "cannot process .dot file: %v", osutil.OutputErr(o, err))
+		fprintfln(os.Stderr, "cannot process dot definition: %v", osutil.OutputErr(o, err))
 		return g
 	}
 	fprintfln(os.Stdout, "%s => %s", strings.Join(g.tags, " "), output)
