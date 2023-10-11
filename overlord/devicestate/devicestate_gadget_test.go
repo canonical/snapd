@@ -386,6 +386,11 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// Ensure that "gadget-restart-required" was set
+	var restartRequired bool
+	c.Check(chg.Get("gadget-restart-required", &restartRequired), IsNil)
+	c.Check(restartRequired, Equals, true)
+
 	// Expect the change to be in wait status at this point, as a restart
 	// will have been requested
 	c.Check(t.Status(), Equals, state.WaitStatus)
@@ -1228,6 +1233,11 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 
 	if errMatch == "" {
 		if opts.updated && !argsAppended {
+			// Ensure that "gadget-restart-required" was set
+			var restartRequired bool
+			c.Check(chg.Get("gadget-restart-required", &restartRequired), IsNil)
+			c.Check(restartRequired, Equals, true)
+
 			// Expect the change to be in wait status at this point, as a restart
 			// will have been requested
 			c.Check(tsk.Status(), Equals, state.WaitStatus)
@@ -1267,6 +1277,10 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 		} else {
 			// update was not applied or failed
 			c.Check(s.restartRequests, HasLen, 0)
+
+			// Ensure that "gadget-restart-required" was not set
+			var restartRequired bool
+			c.Check(chg.Get("gadget-restart-required", &restartRequired), FitsTypeOf, &state.NoStateError{})
 		}
 	} else {
 		c.Assert(chg.IsReady(), Equals, true)
@@ -1936,6 +1950,11 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineClassicWithModesUpdateUndo(c
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// Ensure that "gadget-restart-required" was set
+	var restartRequired bool
+	c.Check(chg.Get("gadget-restart-required", &restartRequired), IsNil)
+	c.Check(restartRequired, Equals, true)
 
 	// Expect the change to be in wait status at this point, as a restart
 	// will have been requested

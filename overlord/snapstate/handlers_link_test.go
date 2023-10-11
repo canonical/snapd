@@ -1001,6 +1001,73 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnClassic(c *C) {
 	c.Check(t.Log(), HasLen, 1)
 }
 
+func (s *linkSnapSuite) TestDoLinkSnapSuccessGadgetDoesNotRequestReboot(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	si := &snap.SideInfo{
+		RealName: "pc",
+		SnapID:   "pc-snap-id",
+		Revision: snap.R(1),
+	}
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	})
+	s.state.NewChange("sample", "...").AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// "gadget-restart-required" was not set, so we expect it to run
+	// to completion and no reboots
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(s.restartRequested, HasLen, 0)
+	c.Check(t.Log(), HasLen, 0)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapSuccessGadgetDoesRequestsRestart(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	si := &snap.SideInfo{
+		RealName: "pc",
+		SnapID:   "pc-snap-id",
+		Revision: snap.R(1),
+	}
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	// set "gadget-restart-required"
+	chg.Set("gadget-restart-required", true)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Change enters wait-status, and a reboot has been requested
+	c.Check(t.Status(), Equals, state.WaitStatus)
+	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystem})
+	c.Check(t.Log(), HasLen, 1)
+}
+
 func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreAndSnapdNoCoreRestart(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()

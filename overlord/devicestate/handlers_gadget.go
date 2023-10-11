@@ -84,6 +84,11 @@ var (
 	gadgetUpdate = gadget.Update
 )
 
+func setGadgetRestartRequired(t *state.Task) {
+	chg := t.Change()
+	chg.Set("gadget-restart-required", true)
+}
+
 func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -213,6 +218,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 
 	// TODO: consider having the option to do this early via recovery in
 	// core20, have fallback code as well there
+	setGadgetRestartRequired(t)
 	return snapstate.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystem, nil)
 }
 
@@ -334,6 +340,9 @@ func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, 
 	updated, err = boot.UpdateCommandLineForGadgetComponent(devCtx, gadgetData.RootDir, cmdlineAppend)
 	if err != nil {
 		return false, fmt.Errorf("cannot update kernel command line from gadget: %v", err)
+	}
+	if updated {
+		setGadgetRestartRequired(t)
 	}
 	return updated, nil
 }
