@@ -475,8 +475,6 @@ func ResealKeys(params *ResealKeysParams) error {
 func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRProtectionProfile, error) {
 	pcrProfile := sb_tpm2.NewPCRProtectionProfile()
 	for _, mp := range modelParams {
-		modelProfile := pcrProfile.RootBranch().AddBranchPoint().AddBranch()
-
 		loadSequences, err := buildLoadSequences(mp.EFILoadChains)
 		if err != nil {
 			return nil, fmt.Errorf("cannot build EFI image load sequences: %v", err)
@@ -495,6 +493,8 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 		if err := sbefiAddSecureBootPolicyProfile(pcrProfile, &policyParams); err != nil {
 			return nil, fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
 		}
+
+		modelProfile := pcrProfile.RootBranch().AddBranchPoint().AddBranch()
 
 		// Add EFI boot manager profile
 		bootManagerParams := sb_efi.BootManagerProfileParams{
@@ -516,7 +516,6 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 				return nil, fmt.Errorf("cannot add systemd EFI stub profile: %v", err)
 			}
 		}
-		modelProfile.EndBranch()
 
 		// Add snap model profile
 		if mp.Model != nil {
@@ -530,6 +529,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 			}
 		}
 
+		modelProfile.EndBranch()
 	}
 
 	logger.Debugf("PCR protection profile:\n%s", pcrProfile.String())
