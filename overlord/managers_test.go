@@ -8808,7 +8808,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20ToUC22(c *C) {
 	restarting, kind = restart.Pending(st)
 	c.Check(restarting, Equals, true)
 	c.Assert(kind, Equals, restart.RestartSystem)
-	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("remodel change failed: %v", chg.Err()))
+	c.Assert(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
 	m, err = boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
@@ -9996,15 +9996,17 @@ func (s *mgrsSuiteCore) testGadgetKernelCommandLine(c *C, gadgetPath string, gad
 	c.Assert(err, IsNil)
 
 	if update {
-		// when updated, a system restart will be requested
-		c.Check(chg.Status(), Equals, state.DoneStatus, Commentf("change failed: %v", chg.Err()))
+		// after link-snap, a system restart will be requested
+		c.Check(chg.Status(), Equals, state.WaitStatus, Commentf("change failed: %v", chg.Err()))
 		restarting, kind := restart.Pending(st)
 		c.Check(restarting, Equals, true)
 		c.Assert(kind, Equals, restart.RestartSystem)
 
 		// simulate successful system restart happened
-		restart.MockPending(st, restart.RestartUnset)
-		restart.MockAfterRestartForChange(chg)
+		s.mockRestartAndSettle(c, st, chg)
+
+		// after restart, the change should be done
+		c.Check(chg.Status(), Equals, state.DoneStatus, Commentf("change failed: %v", chg.Err()))
 
 		m, err := boot.ReadModeenv("")
 		c.Assert(err, IsNil)
@@ -11240,6 +11242,10 @@ volumes:
 	c.Assert(err, IsNil)
 
 	// pretend we restarted
+	c.Assert(chg.Status(), Equals, state.WaitStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+	ms.mockRestartAndSettle(c, st, chg)
+
+	// verify that change has completed
 	t := findKind(chg, "auto-connect")
 	c.Assert(t, NotNil)
 	c.Assert(t.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
@@ -11418,6 +11424,10 @@ volumes:
 	c.Assert(chg.Err(), IsNil)
 
 	// pretend we restarted
+	c.Assert(chg.Status(), Equals, state.WaitStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+	ms.mockRestartAndSettle(c, st, chg)
+
+	// verify that change is now done
 	t := findKind(chg, "auto-connect")
 	c.Assert(t, NotNil)
 	c.Assert(t.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
