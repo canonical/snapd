@@ -248,9 +248,14 @@ func unlockVolumeUsingSealedKeyTPM(name, sealedEncryptionKeyFile, sourceDevice, 
 		return res, nil
 	}
 
+	model, err := opts.WhichModel()
+	if err != nil {
+		return res, fmt.Errorf("cannot retrieve which model to unlock for: %v", err)
+	}
+
 	// otherwise we have a tpm and we should use the sealed key first, but
 	// this method will fallback to using the recovery key if enabled
-	method, err := unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, sealedEncryptionKeyFile, opts.AllowRecoveryKey)
+	method, err := unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, sealedEncryptionKeyFile, opts.AllowRecoveryKey, model)
 	res.UnlockMethod = method
 	if err == nil {
 		res.FsDevice = targetDevice
@@ -275,12 +280,13 @@ func activateVolOpts(allowRecoveryKey bool) *sb.ActivateVolumeOptions {
 // unlockEncryptedPartitionWithSealedKey unseals the keyfile and opens an encrypted
 // device. If activation with the sealed key fails, this function will attempt to
 // activate it with the fallback recovery key instead.
-func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile string, allowRecovery bool) (UnlockMethod, error) {
+func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile string, allowRecovery bool, model *asserts.Model) (UnlockMethod, error) {
 	keyData, err := sbNewKeyDataFromSealedKeyObjectFile(keyfile)
 	if err != nil {
 		return NotUnlocked, fmt.Errorf("cannot read key data: %v", err)
 	}
 	options := activateVolOpts(allowRecovery)
+	options.Model = model
 	// ignoring model checker as it doesn't work with tpm "legacy" platform key data
 	// TODO: provide AuthRequestor/KDF instead of nil
 	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, nil, nil, options, keyData)

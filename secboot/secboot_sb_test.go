@@ -594,6 +594,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 					PassphraseTries:  1,
 					RecoveryKeyTries: 3,
 					KeyringPrefix:    "ubuntu-fde",
+					Model:            fakeModel,
 				})
 			} else {
 				c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
@@ -601,6 +602,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 					// activation with recovery key was disabled
 					RecoveryKeyTries: 0,
 					KeyringPrefix:    "ubuntu-fde",
+					Model:            fakeModel,
 				})
 			}
 			if !tc.activated && tc.activateErr == nil {
@@ -622,6 +624,9 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 
 		opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
 			AllowRecoveryKey: tc.rkAllow,
+			WhichModel: func() (*asserts.Model, error) {
+				return fakeModel, nil
+			},
 		}
 		unlockRes, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(tc.disk, defaultDevice, keyPath, opts)
 		if tc.err == "" {
