@@ -211,6 +211,7 @@ wait_for_refresh(){
         for _ in $(seq 20); do
             if wait_for_refresh_reboot "$change_id" "$boot_id"; then
                 break
+            fi
         done
         echo ""
 
