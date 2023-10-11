@@ -29,34 +29,37 @@ remap_one() {
 }
 
 cmd_install() {
-    set -x
     apt-get update
-    # shellcheck disable=SC2068
-    apt-get install --yes $@
-    set +x
+
+    local APT_FLAGS="--yes"
+    while [ -n "$1" ]; do
+        case "$1" in
+            --no-install-recommends)
+                APT_FLAGS="$APT_FLAGS --no-install-recommends"
+                shift
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+    # shellcheck disable=SC2068,SC2086
+    apt-get install $APT_FLAGS $@
 }
 
 cmd_is_installed() {
-    set -x
     dpkg -S "$1" >/dev/null 2>&1
-    set +x
 }
 
 cmd_query() {
-    set -x
     apt-cache policy "$1"
-    set +x
 }
 
 cmd_list_installed() {
-    set -x
     apt list --installed | cut -d/ -f1 | sort
-    set +x
 }
 
 cmd_remove() {
-    set -x
     # shellcheck disable=SC2068
     apt-get remove --yes $@
-    set +x
 }
