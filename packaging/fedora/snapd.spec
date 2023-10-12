@@ -535,6 +535,11 @@ BUILDTAGS="withtestkeys nosecboot"
 BUILDTAGS="nosecboot"
 %endif
 
+%if ! 0%{?with_bundled}
+# We don't need the snapcore fork for bolt - it is just a fix on ppc
+sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go
+%endif
+
 # We have to build snapd first to prevent the build from
 # building various things from the tree without additional
 # set tags.
