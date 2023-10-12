@@ -1083,6 +1083,13 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   /usr/lib/snapd/info r,
   /lib/apparmor/functions r,
 
+  # Allow the owning user to open the home directory to confirm ownership
+  owner @{HOME}/ r,
+
+  # Allow looking up user home
+  owner /etc/nsswitch.conf r,
+  owner /etc/passwd r,
+
 ###SNIPPETS###
 }
 `

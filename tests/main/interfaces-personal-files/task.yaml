@@ -55,10 +55,11 @@ execute: |
     MATCH 'owner @{HOME}/ rw,' < /var/lib/snapd/apparmor/profiles/snap-update-ns.test-snapd-sh
     MATCH 'owner @{HOME}/.missing-parent/ rw,' < /var/lib/snapd/apparmor/profiles/snap-update-ns.test-snapd-sh
 
-    echo "Then the snap run as user test can create /home/test/testdir1, but cannot create /home/test/.missing-dir/testdir1"
+    echo "Then the snap run as user test can create /home/test/testdir and /home/test/.missing-dir/testdir1"
     tests.session -u test exec test-snapd-sh.with-personal-files-plug -c "mkdir -p /home/test/.testdir1"
     rm -rf /home/test/.testdir1
-    tests.session -u test exec test-snapd-sh.with-personal-files-plug -c "mkdir -p /home/test/.missing-parent/testdir1" 2>&1| MATCH "Permission denied"
+    tests.session -u test exec test-snapd-sh.with-personal-files-plug -c "mkdir -p /home/test/.missing-parent/testdir1"
+    rm -rf /home/test/.missing-parent/testdir1
 
     echo "Then the snap is able to access all the files and dirs in $HOME"
     test-snapd-sh.with-personal-files-plug -c "cat /root/.testfile1" | MATCH "mock file"

@@ -339,6 +339,148 @@ func MkSymlink(dirFd int, dirName string, name string, oldname string, rs *Restr
 	return nil
 }
 
+// FileInWayError indicates that a directory cannot be created because
+// a file with the same name exists. This error is intended to be used
+// with MkdirAllWithin.
+type FileInWayError struct {
+	File string
+}
+
+func (e *FileInWayError) Error() string {
+	return fmt.Sprintf("cannot create directory %q: existing file in the way", e.File)
+}
+
+func (e *FileInWayError) Is(err error) bool {
+	_, ok := err.(*FileInWayError)
+	return ok
+}
+
+// ParentMissingError indicates that a directory cannot be created because parent
+// directory within which it should be created does not exist. This error is intended
+// to be used with MkdirAllWithin.
+type ParentMissingError struct {
+	Dir string
+}
+
+func (e *ParentMissingError) Error() string {
+	return fmt.Sprintf("parent directory %q does not exist", e.Dir)
+}
+
+func (e *ParentMissingError) Is(err error) bool {
+	_, ok := err.(*ParentMissingError)
+	return ok
+}
+
+// MkdirAllWithin is the secure variant of os.MkdirAll that creates all the missing directories of the given path within the
+// given existing parent directory.
+//
+// Unlike the regular version this implementation does not follow any symbolic
+// links. At all times the new directory segment is created using mkdirat(2)
+// while holding an open file descriptor to the parent directory.
+//
+// The only handled error is mkdirat(2) that fails with EEXIST. All other
+// errors are fatal but there is no attempt to undo anything that was created.
+//
+// The uid and gid are used for the fchown(2) system call which is performed
+// after each segment is created and opened. The special value -1 may be used
+// to request that ownership is not changed.
+func MkdirAllWithin(path, parent string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs *Restrictions) error {
+	path = filepath.Clean(path)
+	parent = filepath.Clean(parent)
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("cannot use relative path %q", path)
+	}
+	if !filepath.IsAbs(parent) {
+		return fmt.Errorf("cannot use relative parent path %q", parent)
+	}
+	isParent := func(path, parent string) bool {
+		if path == parent {
+			return false
+		}
+		if parent == "/" {
+			return true
+		}
+		return strings.HasPrefix(path, parent+string(filepath.Separator))
+	}
+	if !isParent(path, parent) {
+		return fmt.Errorf("path %q is not a parent of %q", parent, path)
+	}
+
+	// Check if we need to do anything
+	fi, err := osLstat(path)
+	if err == nil {
+		if !fi.Mode().IsDir() {
+			return &FileInWayError{File: path}
+		}
+		return nil
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("cannot inspect path %q: %v", path, err)
+	}
+
+	// Check that the parent path exists
+	fi, err = osLstat(parent)
+	if err == nil {
+		if !fi.Mode().IsDir() {
+			return &FileInWayError{File: parent}
+		}
+	} else if os.IsNotExist(err) {
+		return &ParentMissingError{Dir: parent}
+	} else {
+		return fmt.Errorf("cannot inspect parent path %q: %v", parent, err)
+	}
+
+	// Advance the iterator to the first missing directory
+	iter, err := strutil.NewPathIterator(path)
+	if err != nil {
+		return fmt.Errorf("cannot iterate over path %q: %v", path, err)
+	}
+	for iter.Next() {
+		if iter.CurrentCleanPath() == parent {
+			break
+		}
+	}
+	for iter.Next() {
+		if iter.CurrentCleanPath() == path {
+			// Already confirmed path does not exist
+			break
+		}
+		fi, err = osLstat(iter.CurrentCleanPath())
+		if err == nil {
+			if !fi.Mode().IsDir() {
+				return &FileInWayError{File: iter.CurrentCleanPath()}
+			}
+			continue
+		}
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("cannot inspect path %q: %v", iter.CurrentPath(), err)
+		}
+		break
+	}
+
+	// Create the first missing directory
+	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
+	fd, err := sysOpen(iter.CurrentBase(), openFlags, 0)
+	if err != nil {
+		return fmt.Errorf("cannot open directory %q: %v", iter.CurrentBase(), err)
+	}
+	defer sysClose(fd)
+	fd, err = MkDir(fd, iter.CurrentBase(), iter.CurrentCleanName(), perm, uid, gid, rs)
+	if err != nil {
+		return err
+	}
+
+	// Create the remaining missing directories
+	for iter.Next() {
+		defer sysClose(fd)
+		fd, err = MkDir(fd, iter.CurrentBase(), iter.CurrentCleanName(), perm, uid, gid, rs)
+		if err != nil {
+			return err
+		}
+	}
+	defer sysClose(fd)
+	return nil
+}
+
 // MkdirAll is the secure variant of os.MkdirAll.
 //
 // Unlike the regular version this implementation does not follow any symbolic

@@ -21,46 +21,27 @@ package main
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap/snapenv"
 )
 
-// snapEnv returns the environment provided by the calling process. The environment
-// variables is considered trustworthy if "SNAP_UID" matches the given user id.
-func snapEnv(uid int) (osutil.Environment, error) {
-	env, err := osutil.OSEnvironmentUnescapeUnsafe(snapenv.PreservedUnsafePrefix)
-	if err != nil {
-		return nil, err
-	}
+var osutilOSEnvironmentUnescapeUnsafe = osutil.OSEnvironmentUnescapeUnsafe
 
-	value, ok := env["SNAP_UID"]
-	if !ok {
-		return nil, fmt.Errorf("cannot find environment variable %q", "SNAP_UID")
-	}
-	snapUid, err := strconv.Atoi(value)
-	if err != nil {
-		return nil, fmt.Errorf("cannot convert environment variable %q value %q to an integer", "SNAP_UID", value)
-	}
-	if snapUid != uid {
-		return nil, fmt.Errorf("environment variable %q value %d does not match current uid %d", "SNAP_UID", snapUid, uid)
-	}
-	return env, nil
-}
-
-func snapEnvRealHome(uid int) (string, error) {
-	env, err := snapEnv(uid)
+// snapEnv returns the environment variable SNAP_REAL_HOME provided by the calling process.
+func snapEnvRealHome() (string, error) {
+	env, err := osutilOSEnvironmentUnescapeUnsafe(snapenv.PreservedUnsafePrefix)
 	if err != nil {
 		return "", err
 	}
 
-	realHome, ok := env["SNAP_REAL_HOME"]
+	const snapRealHome = "SNAP_REAL_HOME"
+	realHome, ok := env[snapRealHome]
 	if !ok {
-		return "", fmt.Errorf("cannot find environment variable %q", "SNAP_REAL_HOME")
+		return "", fmt.Errorf("cannot find environment variable %q", snapRealHome)
 	}
 	if realHome == "" {
-		return "", fmt.Errorf("environment variable %q value is empty", "SNAP_REAL_HOME")
+		return "", fmt.Errorf("environment variable %q value is empty", snapRealHome)
 	}
 	return realHome, nil
 }

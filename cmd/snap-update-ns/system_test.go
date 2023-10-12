@@ -152,6 +152,18 @@ func (s *systemSuite) TestSaveCurrentProfile(c *C) {
 	c.Check(update.CurrentSystemProfilePath(upCtx.InstanceName()), testutil.FileEquals, text)
 }
 
+func (s *systemSuite) TestUID(c *C) {
+	upCtx := update.NewSystemProfileUpdateContext("foo", false)
+	uid := upCtx.UID()
+	c.Check(uid, Equals, 0)
+}
+
+func (s *systemSuite) TestGID(c *C) {
+	upCtx := update.NewSystemProfileUpdateContext("foo", false)
+	gid := upCtx.GID()
+	c.Check(gid, Equals, 0)
+}
+
 func (s *systemSuite) TestDesiredSystemProfilePath(c *C) {
 	c.Check(update.DesiredSystemProfilePath("foo"), Equals, "/var/lib/snapd/mount/snap.foo.fstab")
 }

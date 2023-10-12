@@ -20,69 +20,42 @@
 package main_test
 
 import (
+	"fmt"
 	"os"
 
 	. "gopkg.in/check.v1"
 
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
+	"github.com/snapcore/snapd/osutil"
 )
 
 type envSuite struct{}
 
 var _ = Suite(&envSuite{})
 
-func (s *envSuite) TestSnapEnvHappy(c *C) {
-	restore := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", "/home/user", "1000")
-	defer restore()
-	env, err := update.SnapEnv(1000)
-	c.Assert(err, IsNil)
-	c.Assert(env["XDG_RUNTIME_DIR"], Equals, "/run/user/1000/snap.snapname")
-	c.Assert(env["SNAP_REAL_HOME"], Equals, "/home/user")
-	c.Assert(env["SNAP_UID"], Equals, "1000")
-}
-
-// TODO: Find a way to test this
-func (s *envSuite) TestSnapEnvErrorOsEnv(c *C) {
-}
-
-func (s *envSuite) TestSnapEnvErrorNoSnapUID(c *C) {
-	restore := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", "/home/user", "1000")
-	defer restore()
-	os.Unsetenv("SNAP_UID")
-	env, err := update.SnapEnv(1000)
-	c.Assert(env, IsNil)
-	c.Assert(err, ErrorMatches, "cannot find environment variable \"SNAP_UID\"")
-}
-
-func (s *envSuite) TestSnapEnvErrorConv(c *C) {
-	restore := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", "/home/user", "100x")
-	defer restore()
-	env, err := update.SnapEnv(1000)
-	c.Assert(env, IsNil)
-	c.Assert(err, ErrorMatches, "cannot convert environment variable \"SNAP_UID\" value \"100x\" to an integer")
-}
-
-func (s *envSuite) TestSnapEnvErrorUIDMismatch(c *C) {
-	restore := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", "/home/user", "1000")
-	defer restore()
-	env, err := update.SnapEnv(1001)
-	c.Assert(env, IsNil)
-	c.Assert(err, ErrorMatches, "environment variable \"SNAP_UID\" value 1000 does not match current uid 1001")
-}
-
 func (s *envSuite) TestSnapEnvRealHomeHappy(c *C) {
 	restore := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", "/home/user", "1000")
 	defer restore()
-	realHome, err := update.SnapEnvRealHome(1000)
+	realHome, err := update.SnapEnvRealHome()
 	c.Assert(err, IsNil)
 	c.Assert(realHome, Equals, "/home/user")
+}
+
+func (s *envSuite) TestSnapEnvRealHomeErrorOSEnvironmentUnescapeUnsafe(c *C) {
+	restore := update.MockOSEnvironmentUnescapeUnsafe(func(unsafeEscapePrefix string) (osutil.Environment, error) {
+		return nil, fmt.Errorf("OSEnvironmentUnescapeUnsafe error")
+	})
+	defer restore()
+	realHome, err := update.SnapEnvRealHome()
+	c.Assert(realHome, Equals, "")
+	c.Assert(err, ErrorMatches, "OSEnvironmentUnescapeUnsafe error")
 }
 
 func (s *envSuite) TestSnapEnvRealHomeErrorNoRealHome(c *C) {
 	restore := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", "/home/user", "1000")
 	defer restore()
 	os.Unsetenv("SNAP_REAL_HOME")
-	realHome, err := update.SnapEnvRealHome(1000)
+	realHome, err := update.SnapEnvRealHome()
 	c.Assert(realHome, Equals, "")
 	c.Assert(err, ErrorMatches, "cannot find environment variable \"SNAP_REAL_HOME\"")
 }
@@ -90,7 +63,7 @@ func (s *envSuite) TestSnapEnvRealHomeErrorNoRealHome(c *C) {
 func (s *envSuite) TestSnapEnvRealHomeErrorRealHomeEmpty(c *C) {
 	restore := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", "", "1000")
 	defer restore()
-	realHome, err := update.SnapEnvRealHome(1000)
+	realHome, err := update.SnapEnvRealHome()
 	c.Assert(realHome, Equals, "")
 	c.Assert(err, ErrorMatches, "environment variable \"SNAP_REAL_HOME\" value is empty")
 }

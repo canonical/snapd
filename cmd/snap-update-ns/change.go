@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/mount"
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
 // Action represents a mount action (mount, remount, unmount, etc).
@@ -96,12 +97,10 @@ func (c *Change) createPath(path string, pokeHoles bool, upCtx MountProfileUpdat
 
 	var err error
 	var changes []*Change
+	// Root until proven otherwise
+	var uid sys.UserID = 0
+	var gid sys.GroupID = 0
 
-	// In case we need to create something, some constants.
-	const (
-		uid = 0
-		gid = 0
-	)
 	as := upCtx.Assumptions()
 	mode := as.ModeForPath(path)
 
@@ -122,6 +121,23 @@ func (c *Change) createPath(path string, pokeHoles bool, upCtx MountProfileUpdat
 		err = MkfileAll(path, mode, uid, gid, rs)
 	case "symlink":
 		err = MksymlinkAll(path, mode, uid, gid, c.Entry.XSnapdSymlink(), rs)
+	case "ensure-dir":
+		uid = sys.UserID(upCtx.UID())
+		gid = sys.GroupID(upCtx.GID())
+		if uid == 0 {
+			logger.Debugf("ensure-dir mounts are not currently supported for the root user")
+		} else {
+			// https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
+			mode = 0700
+			// Restrictions not used
+			err = MkdirAllWithin(path, c.Entry.XSnapdMustExistDir(), mode, uid, gid, nil)
+			if errors.Is(err, &FileInWayError{}) || errors.Is(err, &ParentMissingError{}) {
+				logger.Debugf("cannot perform ensure-dir mount %v", err)
+				// Failure to complete because of a file in the way or MustExistDir
+				// that does not exist should not be treated as an error.
+				err = nil
+			}
+		}
 	}
 	if needsMimic, mimicPath := mimicRequired(err); needsMimic && pokeHoles {
 		// If the error can be recovered by using a writable mimic
@@ -172,9 +188,15 @@ func (c *Change) ensureTarget(upCtx MountProfileUpdateContext) ([]*Change, error
 			} else {
 				err = fmt.Errorf("cannot create symlink in %q: existing file in the way", path)
 			}
+		case "ensure-dir":
+			if !fi.Mode().IsDir() {
+				// Failure to complete because of a file in the way should not be treated as an error.
+				logger.Debugf("cannot create ensure-dir directory %q: existing file in the way", path)
+			}
 		}
 	} else if os.IsNotExist(err) {
-		changes, err = c.createPath(path, true, upCtx)
+		pokeHoles := kind != "ensure-dir"
+		changes, err = c.createPath(path, pokeHoles, upCtx)
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)
@@ -193,6 +215,13 @@ func (c *Change) ensureSource(upCtx MountProfileUpdateContext) ([]*Change, error
 	}
 
 	kind := c.Entry.XSnapdKind()
+
+	// Source is not relevant to ensure-dir mounts that are intended for
+	// creating missing directories based on the mount target.
+	if kind == "ensure-dir" {
+		return nil, nil
+	}
+
 	path := c.Entry.Name
 	fi, err := osLstat(path)
 
@@ -293,6 +322,8 @@ func (c *Change) lowLevelPerform(as *Assumptions) error {
 	case Mount:
 		kind := c.Entry.XSnapdKind()
 		switch kind {
+		case "ensure-dir":
+			// ensure-dir does not require an actual mount, nothing to do here.
 		case "symlink":
 			// symlinks are handled in createInode directly, nothing to do here.
 		case "", "file":
@@ -730,6 +761,9 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 					entriesForMimicDir[neededMimicDir] = append(entriesForMimicDir[neededMimicDir], entry)
 					logger.Debugf("entry that requires %q: %v", neededMimicDir, entry)
 				} else {
+					if entry.XSnapdKind() == "ensure-dir" {
+						logger.Debugf("NeededChanges() detected \"ensure-dir\" entry and will add it as independent entry")
+					}
 					// entry is independent
 					addIndependentDesiredEntry(entry)
 				}
