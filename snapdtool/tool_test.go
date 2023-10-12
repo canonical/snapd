@@ -338,6 +338,25 @@ func (s *toolSuite) TestInternalToolPathSnapdSnap(c *C) {
 	c.Check(p, Equals, filepath.Join(dirs.SnapMountDir, "/snapd/22/usr/lib/snapd/snapd"))
 }
 
+func (s *toolSuite) TestInternalToolPathSnapdSnapNotExecutable(c *C) {
+	snapdMountDir := filepath.Join(dirs.SnapMountDir, "snapd/22")
+	snapdSnapInternalToolPath := filepath.Join(snapdMountDir, "/usr/lib/snapd/snapd")
+	s.fakeInternalTool(c, snapdMountDir, "snapd")
+	restore := snapdtool.MockOsReadlink(func(string) (string, error) {
+		return snapdSnapInternalToolPath, nil
+	})
+	defer restore()
+
+	// make snapd *not* executable
+	c.Assert(os.Chmod(snapdSnapInternalToolPath, 0644), IsNil)
+
+	// Now the internal tool path falls back to the global snapd because
+	// the internal one is not executable
+	p, err := snapdtool.InternalToolPath("snapd")
+	c.Assert(err, IsNil)
+	c.Check(p, Equals, filepath.Join(dirs.GlobalRootDir, "/usr/lib/snapd/snapd"))
+}
+
 func (s *toolSuite) TestInternalToolPathWithLibexecdirLocation(c *C) {
 	defer dirs.SetRootDir(s.fakeroot)
 	restore := release.MockReleaseInfo(&release.OS{ID: "fedora"})
