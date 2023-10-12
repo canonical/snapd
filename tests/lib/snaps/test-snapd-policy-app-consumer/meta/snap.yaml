@@ -68,6 +68,9 @@ apps:
   classic-support:
     command: bin/run
     plugs: [ classic-support ]
+  console-conf:
+    command: bin/run
+    plugs: [ console-conf ]
   contacts-service:
     command: bin/run
     plugs: [ contacts-service ]
