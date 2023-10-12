@@ -37,8 +37,8 @@ type Notice struct {
 	id string
 
 	// The notice type represents a group of notices originating from a common
-	// source. For example, notices originating from the CLI client have type
-	// "custom".
+	// source. For example, notices which provide human-readable warnings have
+	// the type "warning".
 	noticeType NoticeType
 
 	// The notice key is a string that differentiates notices of this type.
@@ -161,9 +161,9 @@ const (
 	// status was updated. The key for change-update notices is the change ID.
 	ChangeUpdateNotice NoticeType = "change-update"
 
-	// A custom notice reported via the Pebble client API or "pebble notify".
-	// The key and data fields are provided by the user. The key must be in
-	// the format "mydomain.io/mykey" to ensure well-namespaced notice keys.
+	// A custom notice with key and data fields provided by the user. The key
+	// must be in the format "mydomain.io/mykey" to ensure well-namespaced
+	// notice keys.
 	CustomNotice NoticeType = "custom"
 
 	// Warnings are a subset of notices where the key is a human-readable
@@ -318,8 +318,8 @@ func (s *State) Notice(id string) *Notice {
 	s.reading()
 
 	// Could use another map for lookup, but the number of notices will likely
-	// be small, and this function is probably only used rarely by the CLI, so
-	// performance is unlikely to matter.
+	// be small, and this function is probably only used rarely, so performance
+	// is unlikely to matter.
 	for _, notice := range s.notices {
 		if notice.id == id {
 			return notice
