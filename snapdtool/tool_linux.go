@@ -128,8 +128,7 @@ func InternalToolPath(tool string) (string, error) {
 			if osutil.IsExecutable(maybeTool) {
 				return maybeTool, nil
 			}
-		}
-		if idx == -1 {
+		} else {
 			// or perhaps some other random location, make sure the tool
 			// exists there and is an executable
 			maybeTool := filepath.Join(filepath.Dir(exe), tool)
