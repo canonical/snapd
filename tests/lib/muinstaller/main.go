@@ -392,17 +392,6 @@ func copySeedDir(src, dst string) error {
 	return nil
 }
 
-func copySeedToSeedPartition() error {
-	dst := runMntFor("ubuntu-seed")
-	for _, subDir := range []string{"snaps", "systems"} {
-		src := filepath.Join(dirs.SnapSeedDir, subDir)
-		if err := copySeedDir(src, dst); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func copySeedToDataPartition() error {
 	src := dirs.SnapSeedDir
 	dataMnt := runMntFor("ubuntu-data")
@@ -552,11 +541,7 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 	if err != nil {
 		return fmt.Errorf("cannot create filesystems: %v", err)
 	}
-	if isCore {
-		if err := copySeedToSeedPartition(); err != nil {
-			return fmt.Errorf("cannot create seed on seed partition: %v", err)
-		}
-	} else {
+	if !isCore {
 		if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
 			return fmt.Errorf("cannot create classic rootfs: %v", err)
 		}
