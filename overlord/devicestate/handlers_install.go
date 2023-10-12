@@ -892,8 +892,36 @@ func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string) (
 	return sys, snapInfos, snapSeeds, mntPtForType, unmount, nil
 }
 
+func copySeedDir(src, dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+	// Note that we do not use the -a option as cp returns an error if trying to
+	// preserve attributes in a fat filesystem. And this is fine for files from
+	// the seed, that do not need anything too special in that regard.
+	if output, stderr, err := osutil.RunSplitOutput("cp", "-rT", src, dst); err != nil {
+		return osutil.OutputErrCombine(output, stderr, err)
+	}
+	return nil
+}
+
+func copyLabelToSeedPartition(label, seedMntDir string) error {
+	// TODO we are copying all snaps from snaps/ folder, we should look at
+	// the assertions from the label to identify which are really needed,
+	// as more than one label might exist.
+	for _, subDir := range []string{"snaps", filepath.Join("systems", label)} {
+		src := filepath.Join(dirs.SnapSeedDir, subDir)
+		dst := filepath.Join(seedMntDir, subDir)
+		if err := copySeedDir(src, dst); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // doInstallFinish performs the finish step of the install. It will
 // - install missing volumes structure content
+// - copy seed (only for UC)
 // - install gadget assets
 // - install kernel.efi
 // - make system bootable (including writing modeenv)
@@ -1009,6 +1037,14 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot mount partitions for installation: %v", err)
 	}
 	defer unmountParts()
+
+	if !sys.Model.Classic() {
+		// Copy seed for UC
+		logger.Debugf("copying label %q to seed partition", sys.Label)
+		if err := copyLabelToSeedPartition(sys.Label, seedMntDir); err != nil {
+			return fmt.Errorf("cannot copy seed: %v", err)
+		}
+	}
 
 	if err := installSaveStorageTraits(sys.Model, mergedVols, encryptSetupData); err != nil {
 		return err

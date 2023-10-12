@@ -157,14 +157,17 @@ func (s *deviceMgrInstallAPISuite) setupSystemSeed(c *C, sysLabel, gadgetYaml st
 }
 
 type finishStepOpts struct {
-	encrypted  bool
-	isClassic  bool
-	hasPartial bool
+	encrypted      bool
+	installClassic bool
+	hasPartial     bool
 }
 
 func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, isClassic, hasPartial bool) (gadgetSnapPath, kernelSnapPath string, ginfo *gadget.Info, mountCmd *testutil.MockCmd) {
 	// Mock partitioned disk
-	gadgetYaml := gadgettest.SingleVolumeClassicWithModesGadgetYaml
+	gadgetYaml := gadgettest.SingleVolumeUC20GadgetYaml
+	if isClassic {
+		gadgetYaml = gadgettest.SingleVolumeClassicWithModesGadgetYaml
+	}
 	seedGadget := gadgetYaml
 	if hasPartial {
 		// This is the gadget provided by the installer, that must have
@@ -282,6 +285,66 @@ func mockDiskVolume(opts finishStepOpts) *gadget.OnDiskVolume {
 	return &diskVolume
 }
 
+func mockCoreDiskVolume(opts finishStepOpts) *gadget.OnDiskVolume {
+	labelPostfix := ""
+	dataPartsFs := "ext4"
+	if opts.encrypted {
+		labelPostfix = "-enc"
+		dataPartsFs = "crypto_LUKS"
+	}
+	var diskVolume = gadget.OnDiskVolume{
+		Structure: []gadget.OnDiskStructure{
+			// Note that mbr is not a partition so it is not returned
+			{
+				Node:        "/dev/vda1",
+				Name:        "BIOS Boot",
+				Size:        1 * quantity.SizeMiB,
+				StartOffset: 1 * quantity.OffsetMiB,
+			},
+			{
+				Node:            "/dev/vda2",
+				Name:            "ubuntu-seed",
+				Size:            1200 * quantity.SizeMiB,
+				StartOffset:     2 * quantity.OffsetMiB,
+				PartitionFSType: "vfat",
+			},
+			{
+				Node:            "/dev/vda3",
+				Name:            "ubuntu-boot",
+				Size:            750 * quantity.SizeMiB,
+				StartOffset:     1202 * quantity.OffsetMiB,
+				PartitionFSType: "ext4",
+			},
+			{
+				Node:             "/dev/vda4",
+				Name:             "ubuntu-save",
+				Size:             16 * quantity.SizeMiB,
+				StartOffset:      1952 * quantity.OffsetMiB,
+				PartitionFSType:  dataPartsFs,
+				PartitionFSLabel: "ubuntu-save" + labelPostfix,
+			},
+			{
+				Node:             "/dev/vda5",
+				Name:             "ubuntu-data",
+				Size:             1 * quantity.SizeGiB,
+				StartOffset:      1968 * quantity.OffsetMiB,
+				PartitionFSType:  dataPartsFs,
+				PartitionFSLabel: "ubuntu-data" + labelPostfix,
+			},
+		},
+		ID:         "anything",
+		Device:     "/dev/vda",
+		Schema:     "gpt",
+		Size:       6 * quantity.SizeGiB,
+		SectorSize: 512,
+
+		// ( 2 GB / 512 B sector size ) - 33 typical GPT header backup sectors +
+		// 1 sector to get the exclusive end
+		UsableSectorsEnd: uint64((6*quantity.SizeGiB/512)-33) + 1,
+	}
+	return &diskVolume
+}
+
 var mockFilledPartialDiskVolume = gadget.OnDiskVolume{
 	Structure: []gadget.OnDiskStructure{
 		// Note that mbr is not a partition so it is not returned
@@ -329,8 +392,8 @@ var mockFilledPartialDiskVolume = gadget.OnDiskVolume{
 
 // TODO encryption case for the finish step is not tested yet, it needs more mocking
 func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOpts) {
-	// TODO UC case when supported
-	restore := release.MockOnClassic(opts.isClassic)
+	// The installer API is used on classic images only for the moment
+	restore := release.MockOnClassic(true)
 	s.AddCleanup(restore)
 
 	// only amd64/arm64 have trusted boot assets
@@ -339,8 +402,11 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	arch.SetArchitecture("amd64")
 
 	// Mock label
-	label := "classic"
-	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockSystemSeedWithLabel(c, label, opts.isClassic, opts.hasPartial)
+	label := "core"
+	if opts.installClassic {
+		label = "classic"
+	}
+	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockSystemSeedWithLabel(c, label, opts.installClassic, opts.hasPartial)
 
 	// Unpack gadget snap from seed where it would have been mounted
 	gadgetDir := filepath.Join(dirs.SnapRunDir, "snap-content/gadget")
@@ -411,7 +477,12 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	restore = devicestate.MockMatchDisksToGadgetVolumes(func(gVols map[string]*gadget.Volume, volCompatOpts *gadget.VolumeCompatibilityOptions) (map[string]map[int]*gadget.OnDiskStructure, error) {
 		volToGadgetToDiskStruct := map[string]map[int]*gadget.OnDiskStructure{}
 		for name, vol := range gVols {
-			diskVolume := mockDiskVolume(opts)
+			var diskVolume *gadget.OnDiskVolume
+			if opts.installClassic {
+				diskVolume = mockDiskVolume(opts)
+			} else {
+				diskVolume = mockCoreDiskVolume(opts)
+			}
 			gadgetToDiskMap, err := gadget.EnsureVolumeCompatibility(
 				vol, diskVolume, volCompatOpts)
 			if err != nil {
@@ -433,7 +504,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		})
 		s.AddCleanup(restore)
 		restore = boot.MockSealKeyToModeenv(func(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *boot.Modeenv, flags boot.MockSealKeyToModeenvFlags) error {
-			c.Check(model.Classic(), Equals, opts.isClassic)
+			c.Check(model.Classic(), Equals, opts.installClassic)
 			// Note that we cannot compare the full structure and we check
 			// separately bits as the types for these are not exported.
 			c.Check(len(modeenv.CurrentTrustedBootAssets), Equals, 1)
@@ -509,6 +580,10 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	c.Check(mountVolsCalls, Equals, 1)
 	c.Check(saveStorageTraitsCalls, Equals, 1)
 
+	snapdVarDir := "mnt/ubuntu-data/system-data/var/lib/snapd"
+	if opts.installClassic {
+		snapdVarDir = "mnt/ubuntu-data/var/lib/snapd"
+	}
 	expectedFiles := []string{
 		filepath.Join(seedDir, "EFI/ubuntu/grub.cfg"),
 		filepath.Join(seedDir, "EFI/ubuntu/grubenv"),
@@ -517,15 +592,28 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/ubuntu/pc-kernel_1.snap/kernel.efi"),
 		filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/ubuntu/kernel.efi"),
 		filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/device/model"),
-		filepath.Join(dirs.RunDir, "mnt/ubuntu-data/var/lib/snapd/modeenv"),
-		filepath.Join(dirs.RunDir, "mnt/ubuntu-data/var/lib/snapd/snaps/core22_1.snap"),
-		filepath.Join(dirs.RunDir, "mnt/ubuntu-data/var/lib/snapd/snaps/pc_1.snap"),
-		filepath.Join(dirs.RunDir, "mnt/ubuntu-data/var/lib/snapd/snaps/pc-kernel_1.snap"),
+		filepath.Join(dirs.RunDir, snapdVarDir, "modeenv"),
+		filepath.Join(dirs.RunDir, snapdVarDir, "snaps/core22_1.snap"),
+		filepath.Join(dirs.RunDir, snapdVarDir, "snaps/pc_1.snap"),
+		filepath.Join(dirs.RunDir, snapdVarDir, "snaps/pc-kernel_1.snap"),
+	}
+	if !opts.installClassic {
+		seedDir := filepath.Join(dirs.RunDir, "mnt/ubuntu-seed")
+		labelDir := filepath.Join(seedDir, "systems", label)
+		expectedFiles = append(expectedFiles,
+			filepath.Join(labelDir, "model"),
+			filepath.Join(labelDir, "assertions/model-etc"),
+			filepath.Join(labelDir, "assertions/snaps"),
+			filepath.Join(seedDir, "snaps/snapd_1.snap"),
+			filepath.Join(seedDir, "snaps/core22_1.snap"),
+			filepath.Join(seedDir, "snaps/pc_1.snap"),
+			filepath.Join(seedDir, "snaps/pc-kernel_1.snap"),
+		)
 	}
 	if opts.encrypted {
 		expectedFiles = append(expectedFiles, dirs.RunDir,
-			filepath.Join(dirs.RunDir, "mnt/ubuntu-data/var/lib/snapd/device/fde/marker"),
-			filepath.Join(dirs.RunDir, "mnt/ubuntu-data/var/lib/snapd/device/fde/ubuntu-save.key"),
+			filepath.Join(dirs.RunDir, snapdVarDir, "device/fde/marker"),
+			filepath.Join(dirs.RunDir, snapdVarDir, "device/fde/ubuntu-save.key"),
 			filepath.Join(dirs.RunDir, "mnt/ubuntu-save/device/fde/marker"))
 	}
 	for _, f := range expectedFiles {
@@ -533,16 +621,24 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	}
 }
 
-func (s *deviceMgrInstallAPISuite) TestInstallFinishNoEncryptionHappy(c *C) {
-	s.testInstallFinishStep(c, finishStepOpts{encrypted: false, isClassic: true})
+func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishNoEncryptionHappy(c *C) {
+	s.testInstallFinishStep(c, finishStepOpts{encrypted: false, installClassic: true})
 }
 
-func (s *deviceMgrInstallAPISuite) TestInstallFinishEncryptionHappy(c *C) {
-	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, isClassic: true})
+func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionHappy(c *C) {
+	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: true})
 }
 
-func (s *deviceMgrInstallAPISuite) TestInstallFinishEncryptionPartialHappy(c *C) {
-	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, isClassic: true, hasPartial: true})
+func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionPartialHappy(c *C) {
+	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: true, hasPartial: true})
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishNoEncryptionHappy(c *C) {
+	s.testInstallFinishStep(c, finishStepOpts{encrypted: false, installClassic: false})
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishEncryptionHappy(c *C) {
+	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: false})
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallFinishNoLabel(c *C) {
