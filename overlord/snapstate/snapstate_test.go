@@ -3728,16 +3728,20 @@ func (s *snapmgrTestSuite) TestEsnureCleansOldSideloads(c *C) {
 	// set last cleanup to epoch
 	snapstate.MockLocalInstallLastCleanup(time.Time{})
 
+	now := t1
+	restore := snapstate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restore()
+
 	s.snapmgr.Ensure()
 	// oldest sideload gone
 	c.Assert(filenames(), DeepEquals, []string{s2, s0})
 
-	time.Sleep(200 * time.Millisecond)
-
+	now = t1.Add(200 * time.Millisecond)
 	s.snapmgr.Ensure()
 	// all sideloads gone
 	c.Assert(filenames(), DeepEquals, []string{s0})
-
 }
 
 func (s *snapmgrTestSuite) verifyRefreshLast(c *C) {
