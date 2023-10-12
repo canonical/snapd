@@ -288,8 +288,15 @@ func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile str
 	options := activateVolOpts(allowRecovery)
 	options.Model = model
 	// ignoring model checker as it doesn't work with tpm "legacy" platform key data
-	// TODO: provide AuthRequestor/KDF instead of nil
-	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, nil, nil, options, keyData)
+	authRequestor, err := sb.NewSystemdAuthRequestor(
+		"Please enter passphrase for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
+		"Please enter recovery key for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
+	)
+	if err != nil {
+		return NotUnlocked, fmt.Errorf("cannot build an auth requestor: %v", err)
+	}
+
+	err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, authRequestor, sb.Argon2iKDF(), options, keyData)
 	if err == sb.ErrRecoveryKeyUsed {
 		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
 		return UnlockedWithRecoveryKey, nil
