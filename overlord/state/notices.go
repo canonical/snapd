@@ -161,11 +161,6 @@ const (
 	// status was updated. The key for change-update notices is the change ID.
 	ChangeUpdateNotice NoticeType = "change-update"
 
-	// A custom notice with key and data fields provided by the user. The key
-	// must be in the format "mydomain.io/mykey" to ensure well-namespaced
-	// notice keys.
-	CustomNotice NoticeType = "custom"
-
 	// Warnings are a subset of notices where the key is a human-readable
 	// warning message.
 	WarningNotice NoticeType = "warning"
@@ -173,7 +168,7 @@ const (
 
 func (t NoticeType) Valid() bool {
 	switch t {
-	case ChangeUpdateNotice, CustomNotice, WarningNotice:
+	case ChangeUpdateNotice, WarningNotice:
 		return true
 	}
 	return false
