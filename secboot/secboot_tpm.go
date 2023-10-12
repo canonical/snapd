@@ -486,8 +486,12 @@ func ResealKeys(params *ResealKeysParams) error {
 }
 
 func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRProtectionProfile, error) {
-	pcrProfile := sb_tpm2.NewPCRProtectionProfile()
+	numModels := len(modelParams)
+	modelPCRProfiles := make([]*sb_tpm2.PCRProtectionProfile, 0, numModels)
+
 	for _, mp := range modelParams {
+		modelProfile := sb_tpm2.NewPCRProtectionProfile()
+
 		loadSequences, err := buildLoadSequences(mp.EFILoadChains)
 		if err != nil {
 			return nil, fmt.Errorf("cannot build EFI image load sequences: %v", err)
@@ -503,20 +507,19 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 			//            ensure that the PCR profile is updated before/after sbkeysync executes.
 		}
 
-		if err := sbefiAddSecureBootPolicyProfile(pcrProfile, &policyParams); err != nil {
+		if err := sbefiAddSecureBootPolicyProfile(modelProfile, &policyParams); err != nil {
 			return nil, fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
 		}
-
-		modelProfile := pcrProfile.RootBranch().AddBranchPoint().AddBranch()
 
 		// Add EFI boot manager profile
 		bootManagerParams := sb_efi.BootManagerProfileParams{
 			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
 			LoadSequences: loadSequences,
 		}
-		if err := sbefiAddBootManagerProfile(modelProfile, &bootManagerParams); err != nil {
+		if err := sbefiAddBootManagerProfile(modelProfile.RootBranch(), &bootManagerParams); err != nil {
 			return nil, fmt.Errorf("cannot add EFI boot manager profile: %v", err)
 		}
+
 
 		// Add systemd EFI stub profile
 		if len(mp.KernelCmdlines) != 0 {
@@ -525,7 +528,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 				PCRIndex:       initramfsPCR,
 				KernelCmdlines: mp.KernelCmdlines,
 			}
-			if err := sbefiAddSystemdStubProfile(modelProfile, &systemdStubParams); err != nil {
+			if err := sbefiAddSystemdStubProfile(modelProfile.RootBranch(), &systemdStubParams); err != nil {
 				return nil, fmt.Errorf("cannot add systemd EFI stub profile: %v", err)
 			}
 		}
@@ -537,12 +540,19 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 				PCRIndex:     initramfsPCR,
 				Models:       []sb.SnapModel{mp.Model},
 			}
-			if err := sbAddSnapModelProfile(modelProfile, &snapModelParams); err != nil {
+			if err := sbAddSnapModelProfile(modelProfile.RootBranch(), &snapModelParams); err != nil {
 				return nil, fmt.Errorf("cannot add snap model profile: %v", err)
 			}
 		}
 
-		modelProfile.EndBranch()
+		modelPCRProfiles = append(modelPCRProfiles, modelProfile)
+	}
+
+	var pcrProfile *sb_tpm2.PCRProtectionProfile
+	if numModels > 1 {
+		pcrProfile = sb_tpm2.NewPCRProtectionProfile().AddProfileOR(modelPCRProfiles...)
+	} else {
+		pcrProfile = modelPCRProfiles[0]
 	}
 
 	logger.Debugf("PCR protection profile:\n%s", pcrProfile.String())
