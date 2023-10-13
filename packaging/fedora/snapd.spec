@@ -353,7 +353,6 @@ Provides:      golang(%{import_path}/desktop/notification) = %{version}-%{releas
 Provides:      golang(%{import_path}/desktop/notification/notificationtest) = %{version}-%{release}
 Provides:      golang(%{import_path}/dirs) = %{version}-%{release}
 Provides:      golang(%{import_path}/docs) = %{version}-%{release}
-Provides:      golang(%{import_path}/errtracker) = %{version}-%{release}
 Provides:      golang(%{import_path}/features) = %{version}-%{release}
 Provides:      golang(%{import_path}/gadget) = %{version}-%{release}
 Provides:      golang(%{import_path}/gadget/edition) = %{version}-%{release}
@@ -538,7 +537,7 @@ BUILDTAGS="nosecboot"
 
 %if ! 0%{?with_bundled}
 # We don't need the snapcore fork for bolt - it is just a fix on ppc
-sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go errtracker/*.go
+sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go
 %endif
 
 # We have to build snapd first to prevent the build from

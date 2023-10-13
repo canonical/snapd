@@ -6270,6 +6270,10 @@ func (s *mgrsSuiteCore) TestRemodelSwitchGadgetTrack(c *C) {
 volumes:
     volume-id:
         bootloader: grub
+        structure:
+          - name: mbr
+            type: mbr
+            size: 440
 `
 	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si, [][]string{
 		{"meta/gadget.yaml", gadgetYaml},
@@ -6298,8 +6302,11 @@ volumes:
 		"revision": "1",
 	})
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
-		return map[string]map[int]gadget.StructureLocation{"foo": {}}, nil, nil
+	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		return map[string]map[int]gadget.StructureLocation{"volume-id": {0: {}}},
+			map[string]map[int]*gadget.OnDiskStructure{
+				"volume-id": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["volume-id"]),
+			}, nil
 	})
 	defer r()
 
@@ -6413,15 +6420,19 @@ volumes:
 	})
 	s.serveSnap(snapPath, "2")
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
-			"volume-id": {
-				0: {
-					Device: "/dev/foo",
-					Offset: quantity.OffsetMiB,
+				"volume-id": {
+					0: {
+						Device: "/dev/foo",
+						Offset: quantity.OffsetMiB,
+					},
 				},
 			},
-		}, nil, nil
+			map[string]map[int]*gadget.OnDiskStructure{
+				"volume-id": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["volume-id"]),
+			},
+			nil
 	})
 	defer r()
 
@@ -7645,8 +7656,11 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentKernelChannel(c *C) {
 	now := time.Now()
 	expectedLabel := now.Format("20060102")
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
-		return map[string]map[int]gadget.StructureLocation{"pc": {}}, nil, nil
+	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		return map[string]map[int]gadget.StructureLocation{"pc": {}},
+			map[string]map[int]*gadget.OnDiskStructure{
+				"pc": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+			}, nil
 	})
 	defer r()
 
@@ -7782,20 +7796,23 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentGadgetChannel(c *C) {
 	now := time.Now()
 	expectedLabel := now.Format("20060102")
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
-			"pc": {
-				0: {
-					RootMountPoint: "/foo-seed",
-				},
-				1: {
-					RootMountPoint: "/foo-boot",
-				},
-				2: {
-					RootMountPoint: "/foo-data",
+				"pc": {
+					0: {
+						RootMountPoint: "/foo-seed",
+					},
+					1: {
+						RootMountPoint: "/foo-boot",
+					},
+					2: {
+						RootMountPoint: "/foo-data",
+					},
 				},
 			},
-		}, nil, nil
+			map[string]map[int]*gadget.OnDiskStructure{
+				"pc": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+			}, nil
 	})
 	defer r()
 
@@ -8072,20 +8089,22 @@ func (s *mgrsSuiteCore) TestRemodelUC20BackToPreviousGadget(c *C) {
 	now := time.Now()
 	expectedLabel := now.Format("20060102")
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
-			"pc": {
-				0: {
-					RootMountPoint: "/foo-seed",
+				"pc": {
+					0: {
+						RootMountPoint: "/foo-seed",
+					},
+					1: {
+						RootMountPoint: "/foo-boot",
+					},
+					2: {
+						RootMountPoint: "/foo-data",
+					},
 				},
-				1: {
-					RootMountPoint: "/foo-boot",
-				},
-				2: {
-					RootMountPoint: "/foo-data",
-				},
-			},
-		}, nil, nil
+			}, map[string]map[int]*gadget.OnDiskStructure{
+				"pc": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+			}, nil
 	})
 	defer r()
 
@@ -8258,20 +8277,22 @@ func (s *mgrsSuiteCore) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) 
 	now := time.Now()
 	expectedLabel := now.Format("20060102")
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
-			"pc": {
-				0: {
-					RootMountPoint: "/foo-seed",
+				"pc": {
+					0: {
+						RootMountPoint: "/foo-seed",
+					},
+					1: {
+						RootMountPoint: "/foo-boot",
+					},
+					2: {
+						RootMountPoint: "/foo-data",
+					},
 				},
-				1: {
-					RootMountPoint: "/foo-boot",
-				},
-				2: {
-					RootMountPoint: "/foo-data",
-				},
-			},
-		}, nil, nil
+			}, map[string]map[int]*gadget.OnDiskStructure{
+				"pc": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+			}, nil
 	})
 	defer r()
 
@@ -8632,20 +8653,22 @@ func (s *mgrsSuiteCore) TestRemodelUC20ToUC22(c *C) {
 	bl, err := bootloader.Find(boot.InitramfsUbuntuSeedDir, &bootloader.Options{Role: bootloader.RoleRecovery})
 	c.Assert(err, IsNil)
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
-			"pc": {
-				0: {
-					RootMountPoint: "/foo-seed",
+				"pc": {
+					0: {
+						RootMountPoint: "/foo-seed",
+					},
+					1: {
+						RootMountPoint: "/foo-boot",
+					},
+					2: {
+						RootMountPoint: "/foo-data",
+					},
 				},
-				1: {
-					RootMountPoint: "/foo-boot",
-				},
-				2: {
-					RootMountPoint: "/foo-data",
-				},
-			},
-		}, nil, nil
+			}, map[string]map[int]*gadget.OnDiskStructure{
+				"pc": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+			}, nil
 	})
 	defer r()
 
@@ -9952,8 +9975,12 @@ func (s *mgrsSuiteCore) testGadgetKernelCommandLine(c *C, gadgetPath string, gad
 	err = assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
-		return map[string]map[int]gadget.StructureLocation{"pc": {}}, nil, nil
+	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		return map[string]map[int]gadget.StructureLocation{"pc": {}},
+			map[string]map[int]*gadget.OnDiskStructure{
+				"pc": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+			},
+			nil
 	})
 	defer r()
 
@@ -10534,20 +10561,22 @@ func (s *mgrsSuiteCore) testUpdateKernelBaseSingleRebootWithGadgetSetup(c *C, sn
 	})
 	s.serveSnap(p, "2")
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
-			"pc": {
-				0: {
-					RootMountPoint: "/run/mnt/ubuntu-seed",
+				"pc": {
+					0: {
+						RootMountPoint: "/run/mnt/ubuntu-seed",
+					},
+					1: {
+						RootMountPoint: "/run/mnt/ubuntu-boot",
+					},
+					2: {
+						RootMountPoint: "/run/mnt/ubuntu-data",
+					},
 				},
-				1: {
-					RootMountPoint: "/run/mnt/ubuntu-boot",
-				},
-				2: {
-					RootMountPoint: "/run/mnt/ubuntu-data",
-				},
-			},
-		}, nil, nil
+			}, map[string]map[int]*gadget.OnDiskStructure{
+				"pc": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+			}, nil
 	})
 	defer r()
 	s.makeMockedDisk(c, []string{"ubuntu-seed", "ubuntu-boot", "ubuntu-data"})
@@ -11987,17 +12016,19 @@ func (ms *gadgetUpdatesSuite) TestGadgetWithKernelRefUpgradeFromOldErrorKernel(c
 	structureName := "ubuntu-seed"
 	structureMountDir := filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName)
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
-			"volume-id": {
-				0: {
-					RootMountPoint: structureMountDir,
+				"volume-id": {
+					0: {
+						RootMountPoint: structureMountDir,
+					},
+					1: {
+						RootMountPoint: "/foo-data",
+					},
 				},
-				1: {
-					RootMountPoint: "/foo-data",
-				},
-			},
-		}, nil, nil
+			}, map[string]map[int]*gadget.OnDiskStructure{
+				"volume-id": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["volume-id"]),
+			}, nil
 	})
 	defer r()
 
@@ -12181,8 +12212,17 @@ func (ms *gadgetUpdatesSuite) TestGadgetKernelRefreshFromOldBrokenSnap(c *C) {
 
 	// we have an install kernel/gadget
 	gadgetSnapYaml := "name: pi\nversion: 1.0\ntype: gadget"
+	gadgetYaml := `
+volumes:
+    volume-id:
+        bootloader: grub
+        structure:
+          - name: mbr
+            type: mbr
+            size: 440
+`
 	ms.mockInstalledSnapWithFiles(c, gadgetSnapYaml, [][]string{
-		{"meta/gadget.yaml", "volumes:\n volume-id:\n  bootloader: grub"},
+		{"meta/gadget.yaml", gadgetYaml},
 	})
 	kernelSnapYaml := "name: pi-kernel\nversion: 1.0\ntype: kernel"
 	ms.mockInstalledSnapWithFiles(c, kernelSnapYaml, nil)
@@ -12191,11 +12231,13 @@ func (ms *gadgetUpdatesSuite) TestGadgetKernelRefreshFromOldBrokenSnap(c *C) {
 	newKernelSnapYaml := kernelSnapYaml
 	ms.mockSnapUpgradeWithFiles(c, newKernelSnapYaml, nil)
 	ms.mockSnapUpgradeWithFiles(c, gadgetSnapYaml, [][]string{
-		{"meta/gadget.yaml", "volumes:\n volume-id:\n  bootloader: grub"},
+		{"meta/gadget.yaml", gadgetYaml},
 	})
 
-	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
-		return map[string]map[int]gadget.StructureLocation{"pc": {}}, nil, nil
+	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		return map[string]map[int]gadget.StructureLocation{"volume-id": {0: {}}}, map[string]map[int]*gadget.OnDiskStructure{
+			"volume-id": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["volume-id"]),
+		}, nil
 	})
 	defer r()
 

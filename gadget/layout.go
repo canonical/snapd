@@ -179,40 +179,6 @@ type ResolvedContent struct {
 	KernelUpdate bool
 }
 
-func layoutVSFromGadget(volume *Volume) (structures []LaidOutStructure) {
-	structures = make([]LaidOutStructure, len(volume.Structure))
-	// Even although we do not have the final offset as that depends on the
-	// state of the installation disk and we do not know at this point, we
-	// need some value for StartOffset so we can perform some validations.
-	// We will overwrite the final offsets later.
-	offset := quantity.Offset(0)
-	for idx := range volume.Structure {
-		ps := LaidOutStructure{
-			VolumeStructure: &volume.Structure[idx],
-		}
-
-		if volume.Structure[idx].Offset != nil {
-			offset = *volume.Structure[idx].Offset
-		}
-		// Fill the parts of OnDiskStructure that do not depend on the disk
-		// or on whether we are encrypting or not.
-		// TODO Eventually fill everything here by passing all needed info
-		ps.OnDiskStructure = OnDiskStructure{
-			Name:        ps.VolumeStructure.Name,
-			Type:        ps.VolumeStructure.Type,
-			StartOffset: offset,
-			Size:        ps.VolumeStructure.Size,
-		}
-
-		offset += quantity.Offset(volume.Structure[idx].Size)
-		// Note that structures are ordered by offset as volume.Structure
-		// was ordered when reading the gadget information.
-		structures[idx] = ps
-	}
-
-	return structures
-}
-
 func layoutVSFromDiskData(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStructure) (sts []LaidOutStructure, err error) {
 	sts = make([]LaidOutStructure, len(volume.Structure))
 	for i := range volume.Structure {
@@ -233,37 +199,10 @@ func layoutVSFromDiskData(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStru
 
 func layoutVolumeStructures(volume *Volume, gadgetToDiskStruct map[int]*OnDiskStructure) (
 	structures []LaidOutStructure, err error) {
-	// XXX TEMPORARY - next changes will make sure we get always a valid
-	// gadgetToDiskStruct. Remaining cases are calls from ValidateContent
-	// and writeResolvedContentImpl (image build time, initramfs).
-	if len(gadgetToDiskStruct) > 0 {
-		structures, err = layoutVSFromDiskData(volume, gadgetToDiskStruct)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		structures = layoutVSFromGadget(volume)
+	if len(gadgetToDiskStruct) == 0 {
+		return nil, fmt.Errorf("cannot lay out: internal error: no disk structures provided")
 	}
-
-	// Check:
-	// - No structure overlaps
-	// - offset-write meets the restrictions defined in the gadget
-	// TODO Reuse fully validateCrossVolumeStructure
-	previousEnd := quantity.Offset(0)
-	for idx, ps := range structures {
-		// XXX this check is probably not needed if using matched structures
-		// and will be removed when we always have a gadgetToDiskStruct.
-		if ps.StartOffset < previousEnd {
-			return nil, fmt.Errorf("cannot lay out volume, structure %v overlaps with preceding structure %v", ps, structures[idx-1])
-		}
-		previousEnd = ps.StartOffset + quantity.Offset(ps.Size)
-
-		if err := validateOffsetWrite(ps.VolumeStructure, structures[0].VolumeStructure, volume.MinSize()); err != nil {
-			return nil, err
-		}
-	}
-
-	return structures, nil
+	return layoutVSFromDiskData(volume, gadgetToDiskStruct)
 }
 
 // layoutVolumePartially attempts to lay out only the structures in the volume.
@@ -353,7 +292,7 @@ func fillLaidoutStructure(los *LaidOutStructure, kernelInfo *kernel.Info, opts *
 	var resolvedContent []ResolvedContent
 	doResolveContent := !(opts.IgnoreContent || opts.SkipResolveContent)
 	if doResolveContent {
-		resolvedContent, err = resolveVolumeContent(opts.GadgetRootDir, opts.KernelRootDir, kernelInfo, los, nil)
+		resolvedContent, err = resolveVolumeContent(opts.GadgetRootDir, opts.KernelRootDir, kernelInfo, los.VolumeStructure, nil)
 		if err != nil {
 			return err
 		}
@@ -379,23 +318,23 @@ func LayoutVolumeStructure(dgpair *OnDiskAndGadgetStructurePair, kernelInfo *ker
 	return los, nil
 }
 
-func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, ps *LaidOutStructure, filter ResolvedContentFilterFunc) ([]ResolvedContent, error) {
-	if !ps.HasFilesystem() {
+func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, vs *VolumeStructure, filter ResolvedContentFilterFunc) ([]ResolvedContent, error) {
+	if !vs.HasFilesystem() {
 		// structures without a file system are not resolved here
 		return nil, nil
 	}
-	if len(ps.VolumeStructure.Content) == 0 {
+	if len(vs.Content) == 0 {
 		return nil, nil
 	}
 
-	content := make([]ResolvedContent, 0, len(ps.VolumeStructure.Content))
-	for idx := range ps.VolumeStructure.Content {
-		resolvedSource, kupdate, err := resolveContentPathOrRef(gadgetRootDir, kernelRootDir, kernelInfo, ps.VolumeStructure.Content[idx].UnresolvedSource)
+	content := make([]ResolvedContent, 0, len(vs.Content))
+	for idx := range vs.Content {
+		resolvedSource, kupdate, err := resolveContentPathOrRef(gadgetRootDir, kernelRootDir, kernelInfo, vs.Content[idx].UnresolvedSource)
 		if err != nil {
-			return nil, fmt.Errorf("cannot resolve content for structure %v at index %v: %v", ps, idx, err)
+			return nil, fmt.Errorf("cannot resolve content for structure #%d (%q) at index %v: %v", vs.YamlIndex, vs.Name, idx, err)
 		}
 		rc := ResolvedContent{
-			VolumeContent:  &ps.VolumeStructure.Content[idx],
+			VolumeContent:  &vs.Content[idx],
 			ResolvedSource: resolvedSource,
 			KernelUpdate:   kupdate,
 		}
@@ -414,7 +353,6 @@ func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kerne
 // an absolute path, a flag indicating whether the content is part of
 // a kernel update, or an error.
 func resolveContentPathOrRef(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, pathOrRef string) (resolved string, kupdate bool, err error) {
-
 	// TODO: add kernelRootDir == "" error too once all the higher
 	//       layers in devicestate call gadget.Update() with a
 	//       kernel dir set
@@ -541,6 +479,30 @@ func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure) ([]LaidO
 	}
 
 	return content, nil
+}
+
+// checkGadgetContentImages checks that images provided in the gadget fit the
+// declared gadget content sizes.
+func checkGadgetContentImages(gadgetRootDir string, vs *VolumeStructure) error {
+	if vs.HasFilesystem() {
+		return nil
+	}
+	if len(vs.Content) == 0 {
+		return nil
+	}
+
+	for _, c := range vs.Content {
+		fileSize, err := getImageSize(filepath.Join(gadgetRootDir, c.Image))
+		if err != nil {
+			return fmt.Errorf("structure #%d (%q): content %q: %v", vs.YamlIndex, vs.Name, c.Image, err)
+		}
+
+		if c.Size != 0 && c.Size < fileSize {
+			return fmt.Errorf("structure #%d (%q): content %q size %v is larger than declared %v", vs.YamlIndex, vs.Name, c.Image, fileSize, c.Size)
+		}
+	}
+
+	return nil
 }
 
 // ShiftStructureTo translates the starting offset of a laid out structure and

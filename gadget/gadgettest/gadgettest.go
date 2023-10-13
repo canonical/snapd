@@ -32,14 +32,25 @@ import (
 	"github.com/snapcore/snapd/secboot"
 )
 
-func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model gadget.Model, encType secboot.EncryptionType, volToGadgetToDiskStruct map[string]map[int]*gadget.OnDiskStructure) (system *gadget.LaidOutVolume, all map[string]*gadget.LaidOutVolume, err error) {
+func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model gadget.Model, encType secboot.EncryptionType, volToGadgetToDiskStruct map[string]map[int]*gadget.OnDiskStructure) (all map[string]*gadget.LaidOutVolume, err error) {
 	// rely on the basic validation from ReadInfo to ensure that the system-*
 	// roles are all on the same volume for example
 	info, err := gadget.ReadInfoAndValidate(gadgetRoot, model, nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return gadget.LaidOutVolumesFromGadget(info.Volumes, gadgetRoot, kernelRoot, model, encType, volToGadgetToDiskStruct)
+
+	// If not provided, create an imaginary disk from the gadget specification.
+	if volToGadgetToDiskStruct == nil {
+		volToGadgetToDiskStruct = map[string]map[int]*gadget.OnDiskStructure{}
+		for name, v := range info.Volumes {
+			odss := gadget.OnDiskStructsFromGadget(v)
+			volToGadgetToDiskStruct[name] = odss
+
+		}
+	}
+
+	return gadget.LaidOutVolumesFromGadget(info.Volumes, gadgetRoot, kernelRoot, encType, volToGadgetToDiskStruct)
 }
 
 // LayoutMultiVolumeFromYaml returns all LaidOutVolumes for the given
@@ -52,12 +63,24 @@ func LayoutMultiVolumeFromYaml(newDir, kernelDir, gadgetYaml string, model gadge
 		return nil, err
 	}
 
-	_, allVolumes, err := LaidOutVolumesFromGadget(gadgetRoot, kernelDir, model, secboot.EncryptionTypeNone, nil)
+	allVolumes, err := LaidOutVolumesFromGadget(gadgetRoot, kernelDir, model, secboot.EncryptionTypeNone, nil)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout volumes: %v", err)
 	}
 
 	return allVolumes, nil
+}
+
+func WriteGadgetYamlReadInfo(newDir, gadgetYaml string, model gadget.Model) (*gadget.Info, string, error) {
+	gadgetRoot, err := WriteGadgetYaml(newDir, gadgetYaml)
+	if err != nil {
+		return nil, "", err
+	}
+	info, err := gadget.ReadInfoAndValidate(gadgetRoot, model, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	return info, gadgetRoot, nil
 }
 
 func WriteGadgetYaml(newDir, gadgetYaml string) (string, error) {
@@ -126,7 +149,7 @@ func MustLayOutSingleVolumeFromGadget(gadgetRoot, kernelRoot string, model gadge
 	}
 	for _, vol := range info.Volumes {
 		// we know info.Volumes map has size 1 so we can return here
-		return gadget.LayoutVolume(vol, nil, opts)
+		return gadget.LayoutVolume(vol, gadget.OnDiskStructsFromGadget(vol), opts)
 	}
 
 	// this is impossible to reach, we already checked that info.Volumes has a
@@ -244,7 +267,7 @@ func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Inf
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	_, laidVols, err = LaidOutVolumesFromGadget(gadgetRoot, "", model, secboot.EncryptionTypeNone, nil)
+	laidVols, err = LaidOutVolumesFromGadget(gadgetRoot, "", model, secboot.EncryptionTypeNone, nil)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}

@@ -1684,18 +1684,10 @@ func checkCompatibleSchema(old, new *Volume) error {
 
 // LaidOutVolumesFromGadget takes gadget volumes, gadget and kernel rootdirs
 // and lays out the partitions on all volumes as specified. It returns the
-// specific volume on which system-* roles/partitions exist, as well as all
 // volumes mentioned in the gadget.yaml and their laid out representations.
-// Those volumes are assumed to already be flashed and managed separately at
-// image build/flash time, while the system volume with all the system-* roles
-// on it can be manipulated during install mode.
-func LaidOutVolumesFromGadget(vols map[string]*Volume, gadgetRoot, kernelRoot string, model Model, encType secboot.EncryptionType, volToGadgetToDiskStruct map[string]map[int]*OnDiskStructure) (system *LaidOutVolume, all map[string]*LaidOutVolume, err error) {
-	all = make(map[string]*LaidOutVolume)
-	// model should never be nil here
-	if model == nil {
-		return nil, nil, fmt.Errorf("internal error: must have model to lay out system volumes from a gadget")
-	}
+func LaidOutVolumesFromGadget(vols map[string]*Volume, gadgetRoot, kernelRoot string, encType secboot.EncryptionType, volToGadgetToDiskStruct map[string]map[int]*OnDiskStructure) (all map[string]*LaidOutVolume, err error) {
 
+	all = make(map[string]*LaidOutVolume)
 	// layout all volumes saving them
 	opts := &LayoutOptions{
 		GadgetRootDir: gadgetRoot,
@@ -1703,42 +1695,19 @@ func LaidOutVolumesFromGadget(vols map[string]*Volume, gadgetRoot, kernelRoot st
 		EncType:       encType,
 	}
 
-	// find the volume with the system-boot role on it, we already validated
-	// that the system-* roles are all on the same volume
 	for name, vol := range vols {
-		var gadgetToDiskStruct map[int]*OnDiskStructure
-		if volToGadgetToDiskStruct != nil {
-			var ok bool
-			if gadgetToDiskStruct, ok = volToGadgetToDiskStruct[name]; !ok {
-				return nil, nil, fmt.Errorf("internal error: volume %q does not have a map of gadget to disk partitions", name)
-			}
+		gadgetToDiskStruct, ok := volToGadgetToDiskStruct[name]
+		if !ok {
+			return nil, fmt.Errorf("internal error: volume %q does not have a map of gadget to disk partitions", name)
 		}
 		lvol, err := LayoutVolume(vol, gadgetToDiskStruct, opts)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		all[name] = lvol
-		// check if this volume is the boot volume using the system-boot volume
-		// to identify it
-		for _, structure := range vol.Structure {
-			if structure.Role == SystemBoot {
-				if system != nil {
-					// this should be impossible, the validation above should
-					// ensure there are not multiple volumes with the same role
-					// on them
-					return nil, nil, fmt.Errorf("internal error: gadget passed validation but duplicated system-* roles across multiple volumes")
-				}
-				system = lvol
-			}
-		}
 	}
 
-	if system == nil {
-		// this should be impossible, the validation above should ensure this
-		return nil, nil, fmt.Errorf("internal error: gadget passed validation but does not have system-* roles on any volume")
-	}
-
-	return system, all, nil
+	return all, nil
 }
 
 // FindBootVolume returns the volume that contains the system-boot partition.
