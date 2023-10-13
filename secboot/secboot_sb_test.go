@@ -594,7 +594,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 					PassphraseTries:  1,
 					RecoveryKeyTries: 3,
 					KeyringPrefix:    "ubuntu-fde",
-					Model:            fakeModel,
+					Model:            sb.SkipSnapModelCheck,
 				})
 			} else {
 				c.Assert(*options, DeepEquals, sb.ActivateVolumeOptions{
@@ -602,7 +602,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 					// activation with recovery key was disabled
 					RecoveryKeyTries: 0,
 					KeyringPrefix:    "ubuntu-fde",
-					Model:            fakeModel,
+					Model:            sb.SkipSnapModelCheck,
 				})
 			}
 			if !tc.activated && tc.activateErr == nil {
@@ -1748,7 +1748,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Mo
 
 	activated := 0
 	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, kdf sb.KDF, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error {
-		c.Check(options.Model, Equals, fakeModel)
+		c.Check(options.Model, Equals, sb.SkipSnapModelCheck)
 		activated++
 		// XXX: remove entire test as it now only tests mocks? The
 		// new secboot code checks for the model internally in
