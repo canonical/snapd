@@ -54,8 +54,7 @@ var (
 	sbMeasureSnapSystemEpochToTPM                   = sb_tpm2.MeasureSnapSystemEpochToTPM
 	sbMeasureSnapModelToTPM                         = sb_tpm2.MeasureSnapModelToTPM
 	sbBlockPCRProtectionPolicies                    = sb_tpm2.BlockPCRProtectionPolicies
-	sbefiAddSecureBootPolicyProfile                 = sb_efi.AddSecureBootPolicyProfile
-	sbefiAddBootManagerProfile                      = sb_efi.AddBootManagerProfile
+	sbefiAddPCRProfile                              = sb_efi.AddPCRProfile
 	sbefiAddSystemdStubProfile                      = sb_efi.AddSystemdStubProfile
 	sbAddSnapModelProfile                           = sb_tpm2.AddSnapModelProfile
 	sbSealKeyToTPMMultiple                          = sb_tpm2.SealKeyToTPMMultiple
@@ -486,35 +485,22 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 
 	for _, mp := range modelParams {
 		modelProfile := sb_tpm2.NewPCRProtectionProfile()
+		//disabledProfile := sb_tpm2.NewPCRProtectionProfile()
 
 		loadSequences, err := buildLoadSequences(mp.EFILoadChains)
 		if err != nil {
 			return nil, fmt.Errorf("cannot build EFI image load sequences: %v", err)
 		}
 
-		// Add EFI secure boot policy profile
-		policyParams := sb_efi.SecureBootPolicyProfileParams{
-			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
-			LoadSequences: loadSequences,
-			// TODO:UC20: set SignatureDbUpdateKeystore to support applying forbidden
-			//            signature updates to exclude signing keys (after rotating them).
-			//            This also requires integration of sbkeysync, and some work to
-			//            ensure that the PCR profile is updated before/after sbkeysync executes.
+		if err := sbefiAddPCRProfile(
+			tpm2.HashAlgorithmSHA256,
+			modelProfile.RootBranch(),
+			loadSequences,
+			sb_efi.WithSecureBootPolicyProfile(),
+			sb_efi.WithBootManagerCodeProfile(),
+		); err != nil {
+			return nil, fmt.Errorf("cannot add EFI secure boot and boot manager policy profiles: %v", err)
 		}
-
-		if err := sbefiAddSecureBootPolicyProfile(modelProfile, &policyParams); err != nil {
-			return nil, fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
-		}
-
-		// Add EFI boot manager profile
-		bootManagerParams := sb_efi.BootManagerProfileParams{
-			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
-			LoadSequences: loadSequences,
-		}
-		if err := sbefiAddBootManagerProfile(modelProfile.RootBranch(), &bootManagerParams); err != nil {
-			return nil, fmt.Errorf("cannot add EFI boot manager profile: %v", err)
-		}
-
 
 		// Add systemd EFI stub profile
 		if len(mp.KernelCmdlines) != 0 {
@@ -543,12 +529,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 		modelPCRProfiles = append(modelPCRProfiles, modelProfile)
 	}
 
-	var pcrProfile *sb_tpm2.PCRProtectionProfile
-	if numModels > 1 {
-		pcrProfile = sb_tpm2.NewPCRProtectionProfile().AddProfileOR(modelPCRProfiles...)
-	} else {
-		pcrProfile = modelPCRProfiles[0]
-	}
+	pcrProfile := sb_tpm2.NewPCRProtectionProfile().AddProfileOR(modelPCRProfiles...)
 
 	logger.Debugf("PCR protection profile:\n%s", pcrProfile.String())
 
@@ -592,7 +573,7 @@ func tpmProvision(tpm *sb_tpm2.Connection, mode TPMProvisionMode, lockoutAuthFil
 }
 
 // buildLoadSequences builds EFI load image event trees from this package LoadChains
-func buildLoadSequences(chains []*LoadChain) (loadseqs []sb_efi.ImageLoadActivity, err error) {
+func buildLoadSequences(chains []*LoadChain) (loadseqs *sb_efi.ImageLoadSequences, err error) {
 	// this will build load event trees for the current
 	// device configuration, e.g. something like:
 	//
@@ -602,13 +583,15 @@ func buildLoadSequences(chains []*LoadChain) (loadseqs []sb_efi.ImageLoadActivit
 	//                      |-> normal grub -> run kernel good
 	//                                     |-> run kernel try
 
+	loadseqs = sb_efi.NewImageLoadSequences()
+
 	for _, chain := range chains {
 		// root of load events has source Firmware
 		loadseq, err := chain.loadEvent(sb_efi.Firmware)
 		if err != nil {
 			return nil, err
 		}
-		loadseqs = append(loadseqs, loadseq)
+		loadseqs.Append(loadseq)
 	}
 	return loadseqs, nil
 }

@@ -60,19 +60,11 @@ func MockTPMReleaseResources(f func(tpm *sb_tpm2.Connection, handle tpm2.Handle)
 	return restore
 }
 
-func MockSbEfiAddSecureBootPolicyProfile(f func(profile *sb_tpm2.PCRProtectionProfile, params *sb_efi.SecureBootPolicyProfileParams) error) (restore func()) {
-	old := sbefiAddSecureBootPolicyProfile
-	sbefiAddSecureBootPolicyProfile = f
+func MockSbEfiAddPCRProfile(f func(pcrAlg tpm2.HashAlgorithmId, branch *sb_tpm2.PCRProtectionProfileBranch, loadSequences *sb_efi.ImageLoadSequences, options ...sb_efi.PCRProfileOption) error) (restore func()) {
+	old := sbefiAddPCRProfile
+	sbefiAddPCRProfile = f
 	return func() {
-		sbefiAddSecureBootPolicyProfile = old
-	}
-}
-
-func MockSbEfiAddBootManagerProfile(f func(profile *sb_tpm2.PCRProtectionProfileBranch, params *sb_efi.BootManagerProfileParams) error) (restore func()) {
-	old := sbefiAddBootManagerProfile
-	sbefiAddBootManagerProfile = f
-	return func() {
-		sbefiAddBootManagerProfile = old
+		sbefiAddPCRProfile = old
 	}
 }
 
