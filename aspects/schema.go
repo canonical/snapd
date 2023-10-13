@@ -155,6 +155,8 @@ func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
 		return &anySchema{}, nil
 	case "number":
 		return &numberSchema{}, nil
+	case "bool":
+		return &booleanSchema{}, nil
 	default:
 		if typ != "" && typ[0] == '$' {
 			return s.getUserType(typ[1:])
@@ -650,5 +652,25 @@ func (v *numberSchema) parseConstraints(constraints map[string]json.RawMessage) 
 		return fmt.Errorf(`cannot have "min" constraint with value greater than "max"`)
 	}
 
+	return nil
+}
+
+type booleanSchema struct{}
+
+func (v *booleanSchema) Validate(raw []byte) error {
+	var val *bool
+	if err := json.Unmarshal(raw, &val); err != nil {
+		return err
+	}
+
+	if val == nil {
+		return fmt.Errorf(`cannot accept null value for "bool" type`)
+	}
+
+	return nil
+}
+
+func (v *booleanSchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	// no error because we're not explicitly rejecting unsupported keywords (for now)
 	return nil
 }
