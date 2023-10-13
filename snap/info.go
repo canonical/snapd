@@ -649,17 +649,17 @@ func DataHomeGlobs(opts *dirs.SnapDirOptions) []string {
 		opts = &dirs.SnapDirOptions{}
 	}
 
-	list := make([]string, len(dirs.GetSnapHomeDirs()))
-	copy(list, dirs.GetSnapHomeDirs())
-	for i, dir := range list {
+	var homeDirsSlice []string
+	dirs.GetSnapHomeDirs(&homeDirsSlice)
+	for i, dir := range homeDirsSlice {
 		// Convert each directory to a globbing expression
 		if opts.HiddenSnapDataDir {
-			list[i] = dir + "/*/" + dirs.HiddenSnapDataHomeDir
+			homeDirsSlice[i] = dir + "/*/" + dirs.HiddenSnapDataHomeDir
 		} else {
-			list[i] = dir + "/*/" + dirs.UserHomeSnapDir
+			homeDirsSlice[i] = dir + "/*/" + dirs.UserHomeSnapDir
 		}
 	}
-	return list
+	return homeDirsSlice
 }
 
 // DataHomeDirs returns the per user data directory of the snap across multiple

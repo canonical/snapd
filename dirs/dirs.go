@@ -28,7 +28,6 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/release"
-	"golang.org/x/exp/slices"
 )
 
 // the various file paths
@@ -199,10 +198,13 @@ func init() {
 	SetRootDir(root)
 }
 
-func GetSnapHomeDirs() []string {
+// An array is passed by reference in order to avoid mutating snapHomeDirs
+// The array content is cleared first to avoid undesirable elements in the slice
+func GetSnapHomeDirs(arr *[]string) {
 	snapHomeDirsMu.Lock()
 	defer snapHomeDirsMu.Unlock()
-	return snapHomeDirs
+	*arr = nil
+	*arr = append(*arr, snapHomeDirs...)
 }
 
 // Sets SnapHomeDirs to the user defined values and appends /home if not defined
@@ -221,10 +223,12 @@ func SetSnapHomeDirs(homedirs string) {
 	}
 
 	// Make sure /home is part of the list
-	if !slices.Contains(snapHomeDirs, "/home") {
-		snapHomeDirs = append(snapHomeDirs, "/home")
+	for _, e := range snapHomeDirs {
+		if e == "/home" {
+			return
+		}
 	}
-
+	snapHomeDirs = append(snapHomeDirs, "/home")
 }
 
 // StripRootDir strips the custom global root directory from the specified argument.

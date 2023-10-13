@@ -1207,21 +1207,23 @@ func (s *infoSuite) testInstanceDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name_instance")
 }
 
-func (s *infoSuite) TestDirMultipleHomeDirs(c *C) {
+func (s *infoSuite) TestDataHomeDirsSlice(c *C) {
 	dirs.SetRootDir("")
 	dirs.SetSnapHomeDirs("/home,/home/group1,/home/group2,/home/group3")
 	info := &snap.Info{SuggestedName: "name"}
 	info.SideInfo = snap.SideInfo{Revision: snap.R(1)}
-	s.testDataHomeDirsSlice(c, info)
-}
 
-func (s *infoSuite) testDataHomeDirsSlice(c *C, info snap.PlaceInfo) {
-	homedirs := []string{"/home/*/snap/name/1", "/home/group1/*/snap/name/1", "/home/group2/*/snap/name/1", "/home/group3/*/snap/name/1"}
-	commonHomedirs := []string{"/home/*/snap/name/common", "/home/group1/*/snap/name/common", "/home/group2/*/snap/name/common", "/home/group3/*/snap/name/common"}
-	for i := range homedirs {
-		c.Check(info.DataHomeDirs(nil)[i], Equals, homedirs[i])
-		c.Check(info.CommonDataHomeDirs(nil)[i], Equals, commonHomedirs[i])
-	}
+	homeDirs := []string{"/home/*/snap/name/1", "/home/group1/*/snap/name/1", "/home/group2/*/snap/name/1", "/home/group3/*/snap/name/1"}
+	commonHomeDirs := []string{"/home/*/snap/name/common", "/home/group1/*/snap/name/common", "/home/group2/*/snap/name/common", "/home/group3/*/snap/name/common"}
+	c.Check(info.DataHomeDirs(nil), DeepEquals, homeDirs)
+	c.Check(info.CommonDataHomeDirs(nil), DeepEquals, commonHomeDirs)
+
+	// Same test but with a hidden snap directory
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	hiddenHomeDirs := []string{"/home/*/.snap/name/1", "/home/group1/*/.snap/name/1", "/home/group2/*/.snap/name/1", "/home/group3/*/.snap/name/1"}
+	hiddenCommonHomeDirs := []string{"/home/*/.snap/name/common", "/home/group1/*/.snap/name/common", "/home/group2/*/.snap/name/common", "/home/group3/*/.snap/name/common"}
+	c.Check(info.DataHomeDirs(opts), DeepEquals, hiddenHomeDirs)
+	c.Check(info.CommonDataHomeDirs(opts), DeepEquals, hiddenCommonHomeDirs)
 }
 
 func BenchmarkTestParsePlaceInfoFromSnapFileName(b *testing.B) {
