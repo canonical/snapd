@@ -1019,7 +1019,6 @@ fi
  - Support new system-user name  daemon
  - Several bug fixes and improvements around remodelling
  - Offline remodelling support
- - Offline device mode support
 
 * Fri Sep 15 2023 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.60.4

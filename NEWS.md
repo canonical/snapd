@@ -15,7 +15,6 @@
 * Support new system-user name  _daemon_
 * Several bug fixes and improvements around remodelling
 * Offline remodelling support
-* Offline device mode support
 
 # New in snapd 2.60.4:
 * Switch to plug/slot in the "qualcomm-ipc-router" interface

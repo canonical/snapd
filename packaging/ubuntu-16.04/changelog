@@ -21,7 +21,6 @@ snapd (2.61) xenial; urgency=medium
     - Support new system-user name  daemon
     - Several bug fixes and improvements around remodelling
     - Offline remodelling support
-    - Offline device mode support
 
  -- Philip Meulengracht <philip.meulengracht@canonical.com>  Fri, 13 Oct 2023 13:06:02 +0200
 
