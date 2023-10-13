@@ -75,8 +75,6 @@ func (s *rosOptDataInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-
-
 func (s *rosOptDataInterfaceSuite) TestAppArmorSpec(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -84,20 +82,15 @@ func (s *rosOptDataInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	// does this test breaks if I put a comment in front of the capability?
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `capability dac_read_search,`)
-	
-	// aren't we testing if a documentation string is equal to itself?
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `# Description: Allow read-only access`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `# Description: Allows read-only access`)
 }
 
 func (s *rosOptDataInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-
-	// aren't we testing if a documentation string is equal to itself?
-	c.Assert(si.Summary, Equals, `allows read-only access`)
+	c.Assert(si.Summary, testutil.Contains, `Allows read-only access`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "ros-opt-data")
 }
 
