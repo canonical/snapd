@@ -104,6 +104,30 @@ func (*schemaSuite) TestMapWithSchemaConstraint(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (*schemaSuite) TestMapWithUnexpectedKey(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"snaps": {
+			"schema": {
+				"foo": "string"
+			}
+		}
+	}
+}`)
+
+	input := []byte(`{
+	"snaps": {
+		"foo": "abc",
+		"bar": "cba"
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `map contains unexpected key "bar"`)
+}
 func (*schemaSuite) TestMapWithKeysStringConstraintHappy(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
@@ -241,12 +265,8 @@ func (*schemaSuite) TestMapSchemaMetConstraintsWithMissingEntry(c *C) {
 	}
 }`)
 
-	// bar is in the schema but not the input and baz is the opposite (both aren't errors)
 	input := []byte(`{
-	"foo": "oof",
-	"baz": {
-		"a": "b"
-	}
+	"foo": "oof"
 }`)
 
 	schema, err := aspects.ParseSchema(schemaStr)
@@ -268,8 +288,7 @@ func (*schemaSuite) TestMapSchemaUnmetConstraint(c *C) {
 	"foo": "oof",
 	"bar": {
 		"a": "b"
-	},
-	"baz": "zab"
+	}
 }`)
 
 	schema, err := aspects.ParseSchema(schemaStr)
@@ -769,7 +788,6 @@ func (*schemaSuite) TestMapBasedUserDefinedTypeHappy(c *C) {
 	"snaps": {
 		"core20": {
 			"name": "core20",
-			"version": "20230503",
 			"status": "active"
 		},
 		"snapd": {

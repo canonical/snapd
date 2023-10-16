@@ -97,6 +97,8 @@ var isValidDesktopFileLine = regexp.MustCompile(strings.Join([]string{
 	"^Keywords" + localizedSuffix,
 	"^StartupNotify=",
 	"^StartupWMClass=",
+	"^PrefersNonDefaultGPU=",
+	"^SingleMainWindow=",
 	// unity extension
 	"^X-Ayatana-Desktop-Shortcuts=",
 	"^TargetEnvironment=",

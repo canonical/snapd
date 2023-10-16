@@ -1001,6 +1001,73 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnClassic(c *C) {
 	c.Check(t.Log(), HasLen, 1)
 }
 
+func (s *linkSnapSuite) TestDoLinkSnapSuccessGadgetDoesNotRequestReboot(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	si := &snap.SideInfo{
+		RealName: "pc",
+		SnapID:   "pc-snap-id",
+		Revision: snap.R(1),
+	}
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	})
+	s.state.NewChange("sample", "...").AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// "gadget-restart-required" was not set, so we expect it to run
+	// to completion and no reboots
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(s.restartRequested, HasLen, 0)
+	c.Check(t.Log(), HasLen, 0)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapSuccessGadgetDoesRequestsRestart(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	si := &snap.SideInfo{
+		RealName: "pc",
+		SnapID:   "pc-snap-id",
+		Revision: snap.R(1),
+	}
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	// set "gadget-restart-required"
+	chg.Set("gadget-restart-required", true)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Change enters wait-status, and a reboot has been requested
+	c.Check(t.Status(), Equals, state.WaitStatus)
+	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystem})
+	c.Check(t.Log(), HasLen, 1)
+}
+
 func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreAndSnapdNoCoreRestart(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
@@ -1886,11 +1953,9 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresLastRefreshTime(c *C) {
 	lastRefresh, err := time.Parse(time.RFC3339, "2021-06-10T10:00:00Z")
 	c.Assert(err, IsNil)
 
-	var called int
 	restoreTimeNow := snapstate.MockTimeNow(func() time.Time {
 		now, err := time.Parse(time.RFC3339, "2021-07-20T10:00:00Z")
 		c.Assert(err, IsNil)
-		called++
 		return now
 	})
 	defer restoreTimeNow()
@@ -1926,7 +1991,6 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresLastRefreshTime(c *C) {
 	c.Assert(snapstate.Get(s.state, "snap", &snapst), IsNil)
 	// the original last-refresh-time has been restored.
 	c.Check(snapst.LastRefreshTime.Equal(lastRefresh), Equals, true)
-	c.Check(called, Equals, 1)
 }
 
 func (s *linkSnapSuite) TestUndoLinkSnapdFirstInstall(c *C) {

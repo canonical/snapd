@@ -769,7 +769,9 @@ version: 5.0
 	case standalone && fromInitrd:
 		err = boot.MakeRunnableStandaloneSystemFromInitrd(model, bootWith, obs)
 	case standalone && !fromInitrd:
-		err = boot.MakeRunnableStandaloneSystem(model, bootWith, obs)
+		u := mockUnlocker{}
+		err = boot.MakeRunnableStandaloneSystem(model, bootWith, obs, u.unlocker)
+		c.Check(u.unlocked, Equals, 1)
 	case factoryReset && !fromInitrd:
 		err = boot.MakeRunnableSystemAfterDataReset(model, bootWith, obs)
 	default:

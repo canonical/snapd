@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.60.4
+Version:        2.61
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -996,6 +996,29 @@ fi
 
 
 %changelog
+* Fri Oct 13 2023 Philip Meulengracht <philip.meulengracht@canonical.com>
+- New upstream release 2.61
+ - Fix control of activated services in 'snap start' and 'snap stop'
+ - Correctly reflect activated services in 'snap services'
+ - Disabled services are no longer enabled again when snap is
+   refreshed
+ - interfaces/builtin: added support for Token2 U2F keys
+ - interfaces/u2f-devices: add Swissbit iShield Key
+ - interfaces/builtin: update gpio apparmor to match pattern that
+   contains multiple subdirectories under /sys/devices/platform
+ - interfaces: add a polkit-agent interface
+ - interfaces: add pcscd interface
+ - Kernel command-line can now be edited in the gadget.yaml
+ - Only track validation-sets in run-mode, fixes validation-set
+   issues on first boot.
+ - Added support for using store.access to disable access to snap
+   store
+ - Support for fat16 partition in gadget
+ - Pre-seed authority delegation is now possible
+ - Support new system-user name  daemon
+ - Several bug fixes and improvements around remodelling
+ - Offline remodelling support
+
 * Fri Sep 15 2023 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.60.4
  - i/b/qualcomm_ipc_router.go: switch to plug/slot and add socket

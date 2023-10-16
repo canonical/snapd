@@ -1032,7 +1032,7 @@ func (m *SnapManager) localInstallCleanup() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	now := time.Now()
+	now := timeNow()
 	cutoff := now.Add(-localInstallCleanupWait)
 	if localInstallLastCleanup.After(cutoff) {
 		return nil
