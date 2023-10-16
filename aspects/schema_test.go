@@ -1120,6 +1120,26 @@ func (*schemaSuite) TestAnyTypeAcceptsAllTypes(c *C) {
 	}
 }
 
+func (*schemaSuite) TestAnyTypeWithMapDefinition(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "any"
+		}
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{
+			"foo": "string"
+		}`)
+
+	err = schema.Validate(input)
+	c.Assert(err, IsNil)
+}
+
 func (*schemaSuite) TestAnyTypeRejectsBadJSON(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
