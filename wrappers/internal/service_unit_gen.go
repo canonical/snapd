@@ -36,9 +36,6 @@ import (
 	"github.com/snapcore/snapd/timeout"
 )
 
-// snapdToolingMountUnit is the name of the mount unit that provides the snapd tooling
-const SnapdToolingMountUnit = "usr-lib-snapd.mount"
-
 // SnapServicesUnitOptions is a struct for controlling the generated service
 // definition for a snap service.
 type SnapServicesUnitOptions struct {
@@ -49,10 +46,9 @@ type SnapServicesUnitOptions struct {
 	// QuotaGroup is the quota group for the service.
 	QuotaGroup *quota.Group
 
-	// RequireMountedSnapdSnap is whether the generated units should depend on
-	// the snapd snap being mounted, this is specific to systems like UC18 and
-	// UC20 which have the snapd snap and need to have units generated
-	RequireMountedSnapdSnap bool
+	// CoreMountedSnapdSnapDep is whether the generated unit should depend on
+	// the provided snapd snapd being mounted
+	CoreMountedSnapdSnapDep string
 }
 
 func serviceStopTimeout(app *snap.AppInfo) time.Duration {
@@ -317,13 +313,8 @@ WantedBy={{.ServicesTarget}}
 	if wrapperData.MountUnit != "" {
 		wrapperData.After = append([]string{wrapperData.MountUnit}, wrapperData.After...)
 	}
-
-	if opts.RequireMountedSnapdSnap {
-		// on core 18+ systems, the snapd tooling is exported
-		// into the host system via a special mount unit, which
-		// also adds an implicit dependency on the snapd snap
-		// mount thus /usr/bin/snap points
-		wrapperData.CoreMountedSnapdSnapDep = []string{SnapdToolingMountUnit}
+	if opts.CoreMountedSnapdSnapDep != "" {
+		wrapperData.CoreMountedSnapdSnapDep = []string{opts.CoreMountedSnapdSnapDep}
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {

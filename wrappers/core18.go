@@ -34,13 +34,13 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
-	"github.com/snapcore/snapd/wrappers/internal"
 )
 
 // catches units that run /usr/bin/snap (with args), or things in /usr/lib/snapd/
 var execStartRe = regexp.MustCompile(`(?m)^ExecStart=(/usr/bin/snap\s+.*|/usr/lib/snapd/.*)$`)
 
-const SnapdToolingMountUnit = internal.SnapdToolingMountUnit
+// snapdToolingMountUnit is the name of the mount unit that provides the snapd tooling
+const SnapdToolingMountUnit = "usr-lib-snapd.mount"
 
 func snapdSkipStart(content []byte) bool {
 	return bytes.Contains(content, []byte("X-Snapd-Snap: do-not-start"))

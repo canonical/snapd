@@ -503,7 +503,7 @@ func (es *ensureSnapServicesContext) ensureSnapServiceSystemdUnits(snapInfo *sna
 		content, err := internal.GenerateSnapServiceUnitFile(svc, &internal.SnapServicesUnitOptions{
 			QuotaGroup:              quotaGrp,
 			VitalityRank:            opts.VitalityRank,
-			RequireMountedSnapdSnap: opts.RequireMountedSnapdSnap,
+			CoreMountedSnapdSnapDep: opts.CoreMountedSnapdSnapDep,
 		})
 		if err != nil {
 			return err
@@ -556,10 +556,17 @@ func (es *ensureSnapServicesContext) ensureSnapsSystemdServices() (*quota.QuotaG
 
 		// always use RequireMountedSnapdSnap options from the global options
 		genServiceOpts := &internal.SnapServicesUnitOptions{
-			RequireMountedSnapdSnap: es.opts.RequireMountedSnapdSnap,
-			VitalityRank:            snapSvcOpts.VitalityRank,
-			QuotaGroup:              snapSvcOpts.QuotaGroup,
+			VitalityRank: snapSvcOpts.VitalityRank,
+			QuotaGroup:   snapSvcOpts.QuotaGroup,
 		}
+		if es.opts.RequireMountedSnapdSnap {
+			// on core 18+ systems, the snapd tooling is exported
+			// into the host system via a special mount unit, which
+			// also adds an implicit dependency on the snapd snap
+			// mount thus /usr/bin/snap points
+			genServiceOpts.CoreMountedSnapdSnapDep = SnapdToolingMountUnit
+		}
+
 		if snapSvcOpts.QuotaGroup != nil {
 			// AddAllNecessaryGroups also adds all sub-groups to the quota group set. So this
 			// automatically covers any other quota group that might be set in snapSvcOpts.ServiceQuotaMap

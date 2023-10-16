@@ -206,7 +206,7 @@ apps:
 	dirs.SetRootDir("/")
 
 	opts := internal.SnapServicesUnitOptions{
-		RequireMountedSnapdSnap: false,
+		CoreMountedSnapdSnapDep: "",
 	}
 	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(app, &opts)
 	c.Assert(err, IsNil)
@@ -214,7 +214,7 @@ apps:
 
 	// now with additional dependency on tooling
 	opts = internal.SnapServicesUnitOptions{
-		RequireMountedSnapdSnap: true,
+		CoreMountedSnapdSnapDep: "usr-lib-snapd.mount",
 	}
 	generatedWrapper, err = internal.GenerateSnapServiceUnitFile(app, &opts)
 	c.Assert(err, IsNil)
