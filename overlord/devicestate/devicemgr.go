@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1020,6 +1020,13 @@ func (m *DeviceManager) ensureAutoImportAssertions() error {
 
 	if m.earlyDeviceSeed == nil {
 		// we have no seed cached yet, no point to check further
+		return nil
+	}
+
+	if m.SystemMode(SysAny) == "install" {
+		// we do not auto-import assertions during install mode
+		// snap auto-import also does not
+		// XXX same for factory-reset?
 		return nil
 	}
 

@@ -2543,6 +2543,31 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionClassic(c *C) {
 	c.Assert(autoImported, Equals, false)
 }
 
+func (s *deviceMgrSuite) TestHandleAutoImportAssertionInstallMode(c *C) {
+	a := devicestate.MockProcessAutoImportAssertion(func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error {
+		panic("trying to process auto-import-assertion in install mode")
+	})
+	defer a()
+
+	s.mockSystemMode(c, "install")
+	s.state.Lock()
+	s.cacheDeviceCore20Seed(c)
+	s.state.Set("seeded", nil)
+	s.state.Unlock()
+
+	err := devicestate.EnsureAutoImportAssertions(s.mgr)
+	c.Check(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// ensure state has not been changed
+	var autoImported bool
+	err = s.state.Get("asserts-early-auto-imported", &autoImported)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+	c.Assert(autoImported, Equals, false)
+}
+
 func (s *deviceMgrSuite) TestHandleAutoImportAssertionWhenDone(c *C) {
 	a := devicestate.MockProcessAutoImportAssertion(func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error {
 		panic("trying to process auto-import-assertion after it was already processed")
