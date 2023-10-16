@@ -392,6 +392,19 @@ dbus (bind)
     bus=session
     name=org.gnome.Shell{,.*},
 
+# Allow the shell to communicate with colord
+dbus (send, receive)
+    bus=system
+    path=/org/freedesktop/ColorManager{,/**}
+    interface=org.freedesktop.ColorManager*
+    peer=(label=unconfined),
+dbus (send, receive)
+    bus=system
+    path=/org/freedesktop/ColorManager{,/**}
+    interface=org.freedesktop.DBus.Properties
+    member={Get,GetAll,PropertiesChanged}
+    peer=(label=unconfined),
+
 # Allow access to GDM's private reauthentication channel socket
 unix (connect, receive, send)
     type=stream
