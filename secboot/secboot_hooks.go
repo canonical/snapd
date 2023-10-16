@@ -165,9 +165,16 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(sealedEncryptionKeyFile, sourceDev
 		return res, xerrors.Errorf(fmt, err)
 	}
 
+	// ensure that the model is authorized to open the volume
+	model, err := opts.WhichModel()
+	if err != nil {
+		return res, fmt.Errorf("cannot retrieve which model to unlock for: %v", err)
+	}
+
 	// the output of fde-reveal-key is the unsealed key
 	options := activateVolOpts(opts.AllowRecoveryKey)
-	options.Model = sb.SkipSnapModelCheck
+	options.Model = model
+
 	// TODO: provide a AuthRequester, KDF here instead of "nil"
 	authRequestor, err := sb.NewSystemdAuthRequestor(
 		"Please enter passphrase for volume {{.VolumeName}} for device {{.SourceDevicePath}}",

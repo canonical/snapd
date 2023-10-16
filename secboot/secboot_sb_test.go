@@ -1703,7 +1703,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Mo
 
 	activated := 0
 	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, authRequestor sb.AuthRequestor, kdf sb.KDF, options *sb.ActivateVolumeOptions, keys ...*sb.KeyData) error {
-		c.Check(options.Model, Equals, sb.SkipSnapModelCheck)
+		c.Check(options.Model, Equals, fakeModel)
 		activated++
 		// XXX: remove entire test as it now only tests mocks? The
 		// new secboot code checks for the model internally in
