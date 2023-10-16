@@ -384,6 +384,14 @@ dbus (send)
     member="Get{,All}"
     peer=(label=unconfined),
 
+# Allow gnome-shell to bind to its various D-Bus names
+dbus (bind)
+    bus=session
+    name=org.gnome.Mutter.*,
+dbus (bind)
+    bus=session
+    name=org.gnome.Shell{,.*},
+
 # Allow access to GDM's private reauthentication channel socket
 unix (connect, receive, send)
     type=stream
