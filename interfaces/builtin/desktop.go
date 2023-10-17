@@ -287,6 +287,14 @@ dbus (receive)
     member=ActiveChanged
     peer=(label=unconfined),
 
+# Allow to get the current idle time only from Mutter
+dbus (send)
+    bus=session
+    path="/org/gnome/Mutter/IdleMonitor/Core"
+    interface="org.gnome.Mutter.IdleMonitor"
+    member="GetIdletime"
+    peer=(label=unconfined),
+
 # Allow unconfined to introspect us
 dbus (receive)
     bus=session
