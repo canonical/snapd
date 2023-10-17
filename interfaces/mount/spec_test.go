@@ -296,12 +296,12 @@ func (s *specSuite) TestParallelInstanceMountEntriesReal(c *C) {
 	c.Assert(s.spec.UserMountEntries(), HasLen, 0)
 }
 
-func (s *specSuite) TestAddEnsureDirs(c *C) {
+func (s *specSuite) TestAddUserEnsureDirs(c *C) {
 	ensureDirSpecs := []*interfaces.EnsureDirSpec{
 		{MustExistDir: "$HOME", EnsureDir: "$HOME/.local/share"},
 		{MustExistDir: "$HOME", EnsureDir: "$HOME/other/other"},
 	}
-	s.spec.AddEnsureDirs(ensureDirSpecs)
+	s.spec.AddUserEnsureDirs(ensureDirSpecs)
 	c.Assert(s.spec.UserMountEntries(), DeepEquals, []osutil.MountEntry{
 		{Dir: "$HOME/.local/share", Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=$HOME"}},
 		{Dir: "$HOME/other/other", Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=$HOME"}},

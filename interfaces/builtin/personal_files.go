@@ -88,7 +88,7 @@ func init() {
 func potentiallyMissingDirs(rawPath interface{}) (*interfaces.EnsureDirSpec, error) {
 	path, ok := rawPath.(string)
 	if !ok {
-		// BeforePreparePlug should to prevent this
+		// BeforePreparePlug should prevent this
 		return nil, fmt.Errorf("%[1]v (%[1]T) is not a string", rawPath)
 	}
 
@@ -103,13 +103,12 @@ func potentiallyMissingDirs(rawPath interface{}) (*interfaces.EnsureDirSpec, err
 		return nil, nil
 	}
 
-	ensureDirSpec := &interfaces.EnsureDirSpec{
+	return &interfaces.EnsureDirSpec{
 		// EnsureDir prefix directory that must exist
 		MustExistDir: pathElements[0],
 		// Directory to ensure by creating the missing directories within MustExistDir
 		EnsureDir: filepath.Join(pathElements[:len(pathElements)-1]...),
-	}
-	return ensureDirSpec, nil
+	}, nil
 }
 
 func dirsToEnsure(rawPaths []interface{}) ([]*interfaces.EnsureDirSpec, error) {
@@ -136,7 +135,7 @@ func (iface *personalFilesInterface) MountConnectedPlug(spec *mount.Specificatio
 		return fmt.Errorf("cannot connect plug %s: %v", plug.Name(), err)
 	}
 	if len(ensureDirSpecs) > 0 {
-		spec.AddEnsureDirs(ensureDirSpecs)
+		spec.AddUserEnsureDirs(ensureDirSpecs)
 	}
 	return nil
 }

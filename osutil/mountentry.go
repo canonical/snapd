@@ -316,7 +316,7 @@ func XSnapdKindFile() string {
 	return "x-snapd.kind=file"
 }
 
-// XSnapdKindEnsureDir returns the string "x-snapd.kind="ensure-dir".
+// XSnapdKindEnsureDir returns the string "x-snapd.kind=ensure-dir".
 func XSnapdKindEnsureDir() string {
 	return "x-snapd.kind=ensure-dir"
 }

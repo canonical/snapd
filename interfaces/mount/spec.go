@@ -153,16 +153,15 @@ func (spec *Specification) AddExtraLayouts(layouts []snap.Layout) {
 // createEnsureDirMountEntry creates a mount entry from the given ensure directory spec
 // that instruct snap-update-ns to create missing directories if required.
 func createEnsureDirMountEntry(ensureDirSpec *interfaces.EnsureDirSpec) osutil.MountEntry {
-	var entry osutil.MountEntry
-	entry.Options = []string{osutil.XSnapdKindEnsureDir(), osutil.XSnapdMustExistDir(ensureDirSpec.MustExistDir)}
-	entry.Dir = ensureDirSpec.EnsureDir
-
-	return entry
+	return osutil.MountEntry{
+		Options: []string{osutil.XSnapdKindEnsureDir(), osutil.XSnapdMustExistDir(ensureDirSpec.MustExistDir)},
+		Dir:     ensureDirSpec.EnsureDir,
+	}
 }
 
-// AddEnsureDirs adds mount entries to ensure the existence
+// AddUserEnsureDirs adds user mount entries to ensure the existence
 // of directories according to the given ensure directory specs.
-func (spec *Specification) AddEnsureDirs(ensureDirSpecs []*interfaces.EnsureDirSpec) {
+func (spec *Specification) AddUserEnsureDirs(ensureDirSpecs []*interfaces.EnsureDirSpec) {
 	// Walk the path specs in deterministic order, by EnsureDir (the mount point).
 	sort.Slice(ensureDirSpecs, func(i, j int) bool {
 		return ensureDirSpecs[i].EnsureDir < ensureDirSpecs[j].EnsureDir
