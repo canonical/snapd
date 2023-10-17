@@ -553,7 +553,7 @@ type numberSchema struct {
 	choices []float64
 }
 
-// Validate that raw is a valid integer and meets the schema's constraints.
+// Validate that raw is a valid number and meets the schema's constraints.
 func (v *numberSchema) Validate(raw []byte) error {
 	var num float64
 	if err := json.Unmarshal(raw, &num); err != nil {
