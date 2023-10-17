@@ -49,7 +49,8 @@ environment:
     UBUNTU_IMAGE_ALLOW_API_BREAK: '$(HOST: echo "${SPREAD_UBUNTU_IMAGE_ALLOW_API_BREAK:-true}")'
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
-    KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-edge}")'
+    # Channel for kernel cannot be edge as that one is not signed with Canonical keys
+    KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-beta}")'
     GADGET_CHANNEL: '$(HOST: echo "${SPREAD_GADGET_CHANNEL:-edge}")'
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
