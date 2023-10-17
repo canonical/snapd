@@ -1023,10 +1023,10 @@ func (m *DeviceManager) ensureAutoImportAssertions() error {
 		return nil
 	}
 
-	if m.SystemMode(SysAny) == "install" {
-		// we do not auto-import assertions during install mode
+	mode := m.SystemMode(SysAny)
+	if mode == "install" || mode == "factory-reset" {
+		// we do not auto-import assertions during install modes
 		// snap auto-import also does not
-		// XXX same for factory-reset?
 		return nil
 	}
 
