@@ -326,6 +326,7 @@ type makeRunnableOptions struct {
 	Standalone     bool
 	AfterDataReset bool
 	SeedDir        string
+	StateUnlocker  Unlocker
 }
 
 func copyBootSnap(orig string, dstInfo *snap.Info, dstSnapBlobDir string) error {
@@ -529,6 +530,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 			HasFDESetupHook: hasHook,
 			FactoryReset:    makeOpts.AfterDataReset,
 			SeedDir:         makeOpts.SeedDir,
+			StateUnlocker:   makeOpts.StateUnlocker,
 		}
 		if makeOpts.Standalone {
 			flags.SnapsDir = snapBlobDir
@@ -607,12 +609,13 @@ func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 // MakeRunnableStandaloneSystem operates like MakeRunnableSystem but does
 // not assume that the run system being set up is related to the current
 // system. This is appropriate e.g when installing from a classic installer.
-func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
+func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver, unlocker Unlocker) error {
 	// TODO consider merging this back into MakeRunnableSystem but need
 	// to consider the properties of the different input used for sealing
 	return makeRunnableSystem(model, bootWith, sealer, makeRunnableOptions{
-		Standalone: true,
-		SeedDir:    dirs.SnapSeedDir,
+		Standalone:    true,
+		SeedDir:       dirs.SnapSeedDir,
+		StateUnlocker: unlocker,
 	})
 }
 

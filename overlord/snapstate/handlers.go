@@ -2230,6 +2230,19 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	finalStatus := state.DoneStatus
 
+	// Unfortunately this is needed to make sure we actually request a reboot as a part
+	// of link-snap for the gadget (which is the task that has a restart-boundary set).
+	// The gadget does not by default set `rebootInfo.RebootRequired` as its difficult for
+	// the bootstate to track changes done during update of gadget assets, instead
+	// the gadget asset tasks sets a boolean value if any restart is required on the change.
+	if snapsup.Type == snap.TypeGadget {
+		var needsReboot bool
+		if err := t.Change().Get("gadget-restart-required", &needsReboot); err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+		rebootInfo.RebootRequired = needsReboot
+	}
+
 	// if we just installed a core snap, request a restart
 	// so that we switch executing its snapd.
 	var canReboot bool
