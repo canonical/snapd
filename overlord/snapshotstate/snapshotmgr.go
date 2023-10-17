@@ -32,8 +32,9 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
+	snapshotstateBackend "github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	snapstateBackend "github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -43,15 +44,16 @@ var (
 	snapstateCurrentInfo = snapstate.CurrentInfo
 	configGetSnapConfig  = config.GetSnapConfig
 	configSetSnapConfig  = config.SetSnapConfig
-	backendOpen          = backend.Open
-	backendSave          = backend.Save
-	backendImport        = backend.Import
-	backendRestore       = (*backend.Reader).Restore // TODO: look into using an interface instead
-	backendCheck         = (*backend.Reader).Check
-	backendRevert        = (*backend.RestoreState).Revert // ditto
-	backendCleanup       = (*backend.RestoreState).Cleanup
+	backendOpen          = snapshotstateBackend.Open
+	backendSave          = snapshotstateBackend.Save
+	backendImport        = snapshotstateBackend.Import
+	backendRestore       = (*snapshotstateBackend.Reader).Restore // TODO: look into using an interface instead
+	backendCheck         = (*snapshotstateBackend.Reader).Check
+	backendRevert        = (*snapshotstateBackend.RestoreState).Revert // ditto
+	backendCleanup       = (*snapshotstateBackend.RestoreState).Cleanup
 
-	backendCleanupAbandondedImports = backend.CleanupAbandondedImports
+	backendDiscardSnapNamespace     = (*snapstateBackend.Backend).DiscardSnapNamespace
+	backendCleanupAbandondedImports = snapshotstateBackend.CleanupAbandondedImports
 
 	autoExpirationInterval = time.Hour * 24 // interval between forgetExpiredSnapshots runs as part of Ensure()
 
@@ -113,7 +115,7 @@ func (mgr *SnapshotManager) forgetExpiredSnapshots() error {
 		return nil
 	}
 
-	err = backendIter(context.TODO(), func(r *backend.Reader) error {
+	err = backendIter(context.TODO(), func(r *snapshotstateBackend.Reader) error {
 		// forget needs to conflict with check and restore
 		if err := checkSnapshotConflict(mgr.state, r.SetID, "export-snapshot",
 			"check-snapshot", "restore-snapshot"); err != nil {
@@ -179,7 +181,7 @@ func filename(setID uint64, si *snap.Info) string {
 		Revision: si.Revision,
 		Version:  si.Version,
 	}
-	return backend.Filename(skel)
+	return snapshotstateBackend.Filename(skel)
 }
 
 // prepareSave does all the steps of doSave that require the state lock;
@@ -244,7 +246,7 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 
 // prepareRestore does the steps of doRestore that require the state lock
 // before the backend Restore call.
-func prepareRestore(task *state.Task) (snapshot *snapshotSetup, oldCfg map[string]interface{}, reader *backend.Reader, err error) {
+func prepareRestore(task *state.Task) (snapshot *snapshotSetup, oldCfg map[string]interface{}, reader *snapshotstateBackend.Reader, err error) {
 	st := task.State()
 
 	st.Lock()
@@ -258,7 +260,7 @@ func prepareRestore(task *state.Task) (snapshot *snapshotSetup, oldCfg map[strin
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	reader, err = backendOpen(snapshot.Filename, backend.ExtractFnameSetID)
+	reader, err = backendOpen(snapshot.Filename, snapshotstateBackend.ExtractFnameSetID)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("cannot open snapshot: %v", err)
 	}
@@ -337,6 +339,10 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 		return fmt.Errorf("cannot set snap config: %v", err)
 	}
 
+	if err := backendDiscardSnapNamespace(&snapstateBackend.Backend{}, snapshot.Snap); err != nil {
+		logger.Noticef("cannot discard namespce of snap %q: %v", snapshot.Snap, err)
+	}
+
 	restoreState.Config = oldCfg
 	task.Set("restore-state", restoreState)
 
@@ -344,7 +350,7 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 }
 
 func undoRestore(task *state.Task, _ *tomb.Tomb) error {
-	var restoreState backend.RestoreState
+	var restoreState snapshotstateBackend.RestoreState
 	var snapshot snapshotSetup
 
 	st := task.State()
@@ -390,7 +396,7 @@ func doCleanupAfterRestore(task *state.Task, tomb *tomb.Tomb) error {
 }
 
 func cleanupRestore(task *state.Task, _ *tomb.Tomb) error {
-	var restoreState backend.RestoreState
+	var restoreState snapshotstateBackend.RestoreState
 
 	st := task.State()
 	st.Lock()
@@ -427,7 +433,7 @@ func doCheck(task *state.Task, tomb *tomb.Tomb) error {
 		return taskGetErrMsg(task, err, "snapshot")
 	}
 
-	reader, err := backendOpen(snapshot.Filename, backend.ExtractFnameSetID)
+	reader, err := backendOpen(snapshot.Filename, snapshotstateBackend.ExtractFnameSetID)
 	if err != nil {
 		return fmt.Errorf("cannot open snapshot: %v", err)
 	}
