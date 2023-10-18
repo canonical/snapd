@@ -1362,7 +1362,7 @@ func (*schemaSuite) TestTypesRejectNull(c *C) {
 		c.Assert(err, IsNil)
 
 		err = schema.Validate([]byte(`{"foo": null}`))
-		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept invalid null value for %q type`, typ))
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept null value for %q type`, typ))
 	}
 }
 
@@ -1382,5 +1382,5 @@ func (*schemaSuite) TestUserDefinedTypeRejectsNull(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate([]byte(`{"foo": null}`))
-	c.Assert(err, ErrorMatches, `cannot accept invalid null value for "string" type`)
+	c.Assert(err, ErrorMatches, `cannot accept null value for "string" type`)
 }

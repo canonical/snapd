@@ -200,7 +200,7 @@ func (v *mapSchema) Validate(raw []byte) error {
 	}
 
 	if mapValue == nil {
-		return fmt.Errorf(`cannot accept invalid null value for "map" type`)
+		return fmt.Errorf(`cannot accept null value for "map" type`)
 	}
 
 	if v.entrySchemas != nil {
@@ -427,7 +427,7 @@ func (v *stringSchema) Validate(raw []byte) error {
 	}
 
 	if value == nil {
-		return fmt.Errorf(`cannot accept invalid null value for "string" type`)
+		return fmt.Errorf(`cannot accept null value for "string" type`)
 	}
 
 	if len(v.choices) != 0 && !strutil.ListContains(v.choices, *value) {
@@ -488,7 +488,7 @@ func (v *intSchema) Validate(raw []byte) error {
 	}
 
 	if num == nil {
-		return fmt.Errorf(`cannot accept invalid null value for "int" type`)
+		return fmt.Errorf(`cannot accept null value for "int" type`)
 	}
 
 	return validateNumber(*num, v.choices, v.min, v.max)
@@ -549,7 +549,7 @@ func (v *anySchema) Validate(raw []byte) error {
 	}
 
 	if val == nil {
-		return fmt.Errorf(`cannot accept invalid null value for "any" type`)
+		return fmt.Errorf(`cannot accept null value for "any" type`)
 	}
 	return nil
 }
@@ -573,7 +573,7 @@ func (v *numberSchema) Validate(raw []byte) error {
 	}
 
 	if num == nil {
-		return fmt.Errorf(`cannot accept invalid null value for "number" type`)
+		return fmt.Errorf(`cannot accept null value for "number" type`)
 	}
 
 	return validateNumber(*num, v.choices, v.min, v.max)
