@@ -8471,8 +8471,9 @@ func (s *mgrsSuiteCore) TestRemodelUC20SnapWithPrereqsMissingDeps(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "snapd", SnapID: fakeSnapID("snapd"), Revision: snap.R(1)},
 		},
-		Current:  snap.R(1),
-		SnapType: "snapd",
+		Current:         snap.R(1),
+		SnapType:        "snapd",
+		TrackingChannel: "latest/stable",
 		Flags: snapstate.Flags{
 			Required: true,
 		},
