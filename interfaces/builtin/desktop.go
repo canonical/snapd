@@ -126,6 +126,13 @@ dbus (send)
     path=/org/freedesktop/portal/documents{,/**}
     peer=(name=org.freedesktop.portal.Documents),
 
+# Allow to get the current idle time only from Mutter
+dbus (send)
+    bus=session
+    path="/org/gnome/Mutter/IdleMonitor/Core"
+    interface="org.gnome.Mutter.IdleMonitor"
+    member="GetIdletime"
+    peer=(name=org.gnome.Mutter.IdleMonitor),
 `
 
 const desktopConnectedPlugAppArmorClassic = `
@@ -285,14 +292,6 @@ dbus (receive)
     path="/{,org/freedesktop/,org/gnome/}ScreenSaver"
     interface="org.{freedesktop,gnome}.ScreenSaver"
     member=ActiveChanged
-    peer=(label=unconfined),
-
-# Allow to get the current idle time only from Mutter
-dbus (send)
-    bus=session
-    path="/org/gnome/Mutter/IdleMonitor/Core"
-    interface="org.gnome.Mutter.IdleMonitor"
-    member="GetIdletime"
     peer=(label=unconfined),
 
 # Allow unconfined to introspect us
