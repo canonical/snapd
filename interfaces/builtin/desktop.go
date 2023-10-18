@@ -392,6 +392,14 @@ dbus (bind)
     bus=session
     name=org.gnome.Shell{,.*},
 
+# Allow gnome-settings-daemon to bind its various D-Bus names
+dbus (bind)
+    bus=session
+    name=org.gnome.SettingsDaemon{,.*},
+dbus (bind)
+    bus=session
+    name=org.gtk.Settings,
+
 # Allow the shell to communicate with colord
 dbus (send, receive)
     bus=system
