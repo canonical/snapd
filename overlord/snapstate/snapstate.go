@@ -1358,6 +1358,117 @@ func installWithDeviceContext(st *state.State, name string, opts *RevisionOption
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
 }
 
+type snapInfoForDownload func(DeviceContext, *RevisionOptions) (si *snap.Info, redirectChannel string, e error)
+
+func Download(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
+	snapDownloadInfo := func(dc DeviceContext, ro *RevisionOptions) (si *snap.Info, redirectChannel string, e error) {
+		sar, err := downloadInfo(ctx, st, name, ro, userID, dc)
+		if err != nil {
+			return nil, "", err
+		}
+		return sar.Info, sar.RedirectChannel, nil
+	}
+
+	return download(st, name, opts, userID, flags, deviceCtx, fromChange, snapDownloadInfo)
+}
+
+func download(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string, snapDownloadInfo snapInfoForDownload) (*state.TaskSet, error) {
+	if opts == nil {
+		opts = &RevisionOptions{}
+	}
+
+	if opts.CohortKey != "" && !opts.Revision.Unset() {
+		return nil, errors.New("cannot specify revision and cohort")
+	}
+
+	if opts.Channel == "" {
+		opts.Channel = "stable"
+	}
+
+	var snapst SnapState
+	err := Get(st, name, &snapst)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, err
+	}
+
+	// if the snap is already installed, then it should already be downloaded
+	// somewhere
+	if snapst.IsInstalled() {
+		return nil, &snap.AlreadyInstalledError{Snap: name}
+	}
+
+	if err := snap.ValidateInstanceName(name); err != nil {
+		return nil, fmt.Errorf("invalid instance name: %v", err)
+	}
+
+	info, redirectChannel, err := snapDownloadInfo(deviceCtx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	if flags.RequireTypeBase && info.Type() != snap.TypeBase && info.Type() != snap.TypeOS {
+		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
+	}
+
+	// TODO: should changeKind be "download"? i don't see that as one of the
+	// options that this function operates on
+	if err := checkDiskSpace(st, "install", []minimalInstallInfo{installSnapInfo{info}}, userID); err != nil {
+		return nil, err
+	}
+
+	providerContentAttrs := defaultProviderContentAttrs(st, info)
+	snapsup := &SnapSetup{
+		Channel:            opts.Channel,
+		Base:               info.Base,
+		Prereq:             getKeys(providerContentAttrs),
+		PrereqContentAttrs: providerContentAttrs,
+		UserID:             userID,
+		Flags:              flags.ForSnapSetup(),
+		DownloadInfo:       &info.DownloadInfo,
+		SideInfo:           &info.SideInfo,
+		Type:               info.Type(),
+		Version:            info.Version,
+		PlugsOnly:          len(info.Slots) == 0,
+		InstanceKey:        info.InstanceKey,
+		auxStoreInfo: auxStoreInfo{
+			Media: info.Media,
+			// TODO: still needed here?
+			// XXX we store this for the benefit of old snapd
+			Website: info.Website(),
+		},
+		CohortKey:          opts.CohortKey,
+		ExpectedProvenance: info.SnapProvenance,
+	}
+
+	if redirectChannel != "" {
+		snapsup.Channel = redirectChannel
+	}
+
+	return doDownload(st, snapsup)
+}
+
+func doDownload(st *state.State, snapsup *SnapSetup) (*state.TaskSet, error) {
+	revisionStr := fmt.Sprintf(" (%s)", snapsup.Revision())
+
+	prereq := st.NewTask("prerequisites", fmt.Sprintf(i18n.G("Ensure prerequisites for %q are available"), snapsup.InstanceName()))
+	prereq.Set("snap-setup", snapsup)
+
+	download := st.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.Channel))
+
+	download.Set("snap-setup", snapsup)
+	download.WaitFor(prereq)
+
+	checkAsserts := st.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), snapsup.InstanceName(), revisionStr))
+	checkAsserts.Set("snap-setup-task", download.ID())
+	checkAsserts.WaitFor(download)
+
+	installSet := state.NewTaskSet(prereq, download, checkAsserts)
+	installSet.MarkEdge(prereq, BeginEdge)
+	installSet.MarkEdge(checkAsserts, LastBeforeLocalModificationsEdge)
+
+	return installSet, nil
+}
+
 func validatedInfoFromPathAndSideInfo(snapName, path string, si *snap.SideInfo) (*snap.Info, error) {
 	var info *snap.Info
 	info, cont, err := backend.OpenSnapFile(path, si)

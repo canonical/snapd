@@ -1206,7 +1206,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 				}
 				name := s.serveIDtoName[a.SnapID]
 				epoch := id2epoch[a.SnapID]
-				if a.Action == "install" {
+				if a.Action == "install" || a.Action == "download" {
 					name = a.Name
 					epoch = a.Epoch
 				}
@@ -12281,4 +12281,37 @@ volumes:
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Mount snap \"pi-kernel\" \\(2\\) \\(cannot refresh kernel with change created by old snapd that is missing gadget update task\\)")
+}
+
+func (s *mgrsSuite) TestDownloadSimple(c *C) {
+	s.prereqSnapAssertions(c)
+
+	const snapName = "foo"
+	const snapRev = "1"
+
+	snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 0}", snapName), snapRev)
+	s.serveSnap(snapPath, snapRev)
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := snapstate.Download(context.TODO(), st, snapName, nil, 0, snapstate.Flags{}, nil, "")
+	c.Assert(err, IsNil)
+	chg := st.NewChange("download-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// confirm it worked
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("download-snap change failed with: %v", chg.Err()))
+
+	exists := osutil.FileExists(filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", snapName, snapRev)))
+	c.Check(exists, Equals, true)
 }

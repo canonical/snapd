@@ -230,6 +230,39 @@ func setActionValidationSetsAndRequiredRevision(action *store.SnapAction, valset
 	}
 }
 
+func downloadInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, deviceCtx DeviceContext) (store.SnapActionResult, error) {
+	curSnaps, err := currentSnaps(st)
+	if err != nil {
+		return store.SnapActionResult{}, err
+	}
+
+	user, err := userFromUserID(st, userID)
+	if err != nil {
+		return store.SnapActionResult{}, err
+	}
+
+	opts, err := refreshOptions(st, nil)
+	if err != nil {
+		return store.SnapActionResult{}, err
+	}
+
+	action := &store.SnapAction{
+		Action:       "download",
+		InstanceName: name,
+	}
+
+	if revOpts != nil {
+		action.Revision = revOpts.Revision
+	}
+
+	theStore := Store(st, deviceCtx)
+	st.Unlock() // calls to the store should be done without holding the state lock
+	res, _, err := theStore.SnapAction(ctx, curSnaps, []*store.SnapAction{action}, nil, user, opts)
+	st.Lock()
+
+	return singleActionResult(name, action.Action, res, err)
+}
+
 func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (store.SnapActionResult, error) {
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
@@ -448,6 +481,8 @@ func singleActionResult(name, action string, results []store.SnapActionResult, e
 		switch action {
 		case "refresh":
 			snapErr = saErr.Refresh[name]
+		case "download":
+			snapErr = saErr.Download[name]
 		case "install":
 			snapErr = saErr.Install[name]
 		}
