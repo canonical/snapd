@@ -57,8 +57,8 @@ github.com/snapcore/snapd v0.0.0-20201005140838-501d14ac146e/go.mod h1:3xrn7QDDK
 github.com/snapcore/squashfuse v0.0.0-20171220165323-319f6d41a041/go.mod h1:8loYitFPSdoeCXBs/XjO0fyGcpgLAybOHLUsGwgMq90=
 github.com/valentindavid/goconfigparser v0.0.0-20231010102715-677885da26fc h1:c+GFhX4lWiiyx+uwwF+3lisejqjp257d+vwsjDrJZFY=
 github.com/valentindavid/goconfigparser v0.0.0-20231010102715-677885da26fc/go.mod h1:inxjKzuGbpMDmdoI7kogueqBVRdf6fPAG5dAsU3gu60=
-github.com/valentindavid/secboot v0.0.0-20231017124841-9f73963b536f h1:AccsrW2nrW6iF6nVH5A63D797QRjF95d7kg66VZ5giY=
-github.com/valentindavid/secboot v0.0.0-20231017124841-9f73963b536f/go.mod h1:dbbyesofetwD7vFNOHLhpRHXWPbp94lJJlDaSSUcjsU=
+github.com/valentindavid/secboot v0.0.0-20231018130950-5e50ff7bf52d h1:+qgZYU5sNpUVuSdTdfRBDH9TU81qRChXPjL3HbmtcnE=
+github.com/valentindavid/secboot v0.0.0-20231018130950-5e50ff7bf52d/go.mod h1:dbbyesofetwD7vFNOHLhpRHXWPbp94lJJlDaSSUcjsU=
 go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1/go.mod h1:SNgMg+EgDFwmvSmLRTNKC5fegJjB7v23qTQ0XLGUNHk=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
 golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9/go.mod h1:LzIPMQfyMNhhGPhUkYOs5KpL4U8rLKemX1yGLhDgUto=

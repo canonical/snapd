@@ -49,5 +49,5 @@ require (
 replace (
 	github.com/mvo5/goconfigparser v0.0.0-20221018104758-434073381f37 => github.com/valentindavid/goconfigparser v0.0.0-20231010102715-677885da26fc
 
-	github.com/snapcore/secboot v0.0.0-20231005090938-80c94e45090e => github.com/valentindavid/secboot v0.0.0-20231017124841-9f73963b536f
+	github.com/snapcore/secboot v0.0.0-20231005090938-80c94e45090e => github.com/valentindavid/secboot v0.0.0-20231018130950-5e50ff7bf52d
 )
