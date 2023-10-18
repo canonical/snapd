@@ -153,6 +153,8 @@ func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
 		return &intSchema{}, nil
 	case "any":
 		return &anySchema{}, nil
+	case "number":
+		return &numberSchema{}, nil
 	default:
 		if typ != "" && typ[0] == '$' {
 			return s.getUserType(typ[1:])
@@ -477,29 +479,7 @@ func (v *intSchema) Validate(raw []byte) error {
 		return err
 	}
 
-	if len(v.choices) != 0 {
-		var found bool
-		for _, choice := range v.choices {
-			if num == choice {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			return fmt.Errorf(`integer %d is not one of the allowed choices`, num)
-		}
-	}
-
-	if v.min != nil && num < *v.min {
-		return fmt.Errorf(`integer %d is less than allowed minimum %d`, num, *v.min)
-	}
-
-	if v.max != nil && num > *v.max {
-		return fmt.Errorf(`integer %d is greater than allowed maximum %d`, num, *v.max)
-	}
-
-	return nil
+	return validateNumber(num, v.choices, v.min, v.max)
 }
 
 func (v *intSchema) parseConstraints(constraints map[string]json.RawMessage) error {
@@ -564,5 +544,95 @@ func (v *anySchema) Validate(raw []byte) error {
 
 func (v *anySchema) parseConstraints(constraints map[string]json.RawMessage) error {
 	// no error because we're not explicitly rejecting unsupported keywords (for now)
+	return nil
+}
+
+type numberSchema struct {
+	min     *float64
+	max     *float64
+	choices []float64
+}
+
+// Validate that raw is a valid number and meets the schema's constraints.
+func (v *numberSchema) Validate(raw []byte) error {
+	var num float64
+	if err := json.Unmarshal(raw, &num); err != nil {
+		return err
+	}
+
+	return validateNumber(num, v.choices, v.min, v.max)
+}
+
+func validateNumber[Num ~int64 | ~float64](num Num, choices []Num, min, max *Num) error {
+	if len(choices) != 0 {
+		var found bool
+		for _, choice := range choices {
+			if num == choice {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return fmt.Errorf(`%v is not one of the allowed choices`, num)
+		}
+	}
+
+	// these comparisons are susceptible to floating-point errors but given that
+	// this won't be used for general storage it should be precise enough
+	if min != nil && num < *min {
+		return fmt.Errorf(`%v is less than allowed minimum %v`, num, *min)
+	}
+
+	if max != nil && num > *max {
+		return fmt.Errorf(`%v is greater than allowed maximum %v`, num, *max)
+	}
+
+	return nil
+}
+
+func (v *numberSchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	if rawChoices, ok := constraints["choices"]; ok {
+		var choices []float64
+		err := json.Unmarshal(rawChoices, &choices)
+		if err != nil {
+			return fmt.Errorf(`cannot parse "choices" constraint: %v`, err)
+		}
+
+		if len(choices) == 0 {
+			return fmt.Errorf(`cannot have "choices" constraint with empty list`)
+		}
+
+		v.choices = choices
+	}
+
+	if rawMin, ok := constraints["min"]; ok {
+		if v.choices != nil {
+			return fmt.Errorf(`cannot have "choices" and "min" constraints`)
+		}
+
+		var min float64
+		if err := json.Unmarshal(rawMin, &min); err != nil {
+			return fmt.Errorf(`cannot parse "min" constraint: %v`, err)
+		}
+		v.min = &min
+	}
+
+	if rawMax, ok := constraints["max"]; ok {
+		if v.choices != nil {
+			return fmt.Errorf(`cannot have "choices" and "max" constraints`)
+		}
+
+		var max float64
+		if err := json.Unmarshal(rawMax, &max); err != nil {
+			return fmt.Errorf(`cannot parse "max" constraint: %v`, err)
+		}
+		v.max = &max
+	}
+
+	if v.min != nil && v.max != nil && *v.min > *v.max {
+		return fmt.Errorf(`cannot have "min" constraint with value greater than "max"`)
+	}
+
 	return nil
 }
