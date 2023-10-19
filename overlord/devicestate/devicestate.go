@@ -456,11 +456,11 @@ func (ro *remodelVariant) UpdateWithDeviceContext(st *state.State,
 		}
 		return snapstateUpdatePathWithDeviceContext(st, pathSI.localSi, pathSI.path, snapName,
 			&snapstate.RevisionOptions{Channel: channel},
-			userID, snapStateFlags, deviceCtx, fromChange)
+			userID, snapStateFlags, nil, deviceCtx, fromChange)
 	}
 	return snapstateUpdateWithDeviceContext(st, snapName,
 		&snapstate.RevisionOptions{Channel: channel},
-		userID, snapStateFlags, deviceCtx, fromChange)
+		userID, snapStateFlags, nil, deviceCtx, fromChange)
 }
 
 func (ro *remodelVariant) InstallWithDeviceContext(ctx context.Context, st *state.State,
@@ -474,11 +474,11 @@ func (ro *remodelVariant) InstallWithDeviceContext(ctx context.Context, st *stat
 		}
 		return snapstateInstallPathWithDeviceContext(st, pathSI.localSi, pathSI.path, snapName,
 			&snapstate.RevisionOptions{Channel: channel},
-			userID, snapStateFlags, deviceCtx, fromChange)
+			userID, snapStateFlags, nil, deviceCtx, fromChange)
 	}
 	return snapstateInstallWithDeviceContext(ctx, st, snapName,
 		&snapstate.RevisionOptions{Channel: channel},
-		userID, snapStateFlags, deviceCtx, fromChange)
+		userID, snapStateFlags, nil, deviceCtx, fromChange)
 }
 
 func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pathSideInfo, ms modelSnapsForRemodel, remodelVar remodelVariant, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {

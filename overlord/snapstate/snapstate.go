@@ -1100,6 +1100,12 @@ type PrereqTracker interface {
 	DefaultProviderContentAttrs(info *snap.Info, repo snap.InterfaceRepo) map[string][]string
 }
 
+func prereqTrack(prqt PrereqTracker, info *snap.Info) {
+	if prqt != nil {
+		prqt.Add(info)
+	}
+}
+
 // InstallPath returns a set of tasks for installing a snap from a file path
 // and the snap.Info for the given snap.
 //
@@ -1207,7 +1213,7 @@ func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, e
 // identifying the last task before the first task that introduces system
 // modifications.
 func Install(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags) (*state.TaskSet, error) {
-	return InstallWithDeviceContext(ctx, st, name, opts, userID, flags, nil, "")
+	return InstallWithDeviceContext(ctx, st, name, opts, userID, flags, nil, nil, "")
 }
 
 type snapInfoForInstall func(DeviceContext, *RevisionOptions) (si *snap.Info, snapPath, redirectChannel string, e error)
@@ -1219,17 +1225,17 @@ type snapInfoForInstall func(DeviceContext, *RevisionOptions) (si *snap.Info, sn
 // The returned TaskSet will contain a LastBeforeLocalModificationsEdge
 // identifying the last task before the first task that introduces system
 // modifications.
-func InstallWithDeviceContext(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
-	// XXX take PrereqTracker
+func InstallWithDeviceContext(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, prqt PrereqTracker, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
 	logger.Debugf("installing with device context %s", name)
 	snapInstallInfo := func(dc DeviceContext, ro *RevisionOptions) (si *snap.Info, snapPath, redirectChannel string, e error) {
 		sar, err := installInfo(ctx, st, name, ro, userID, flags, dc)
 		if err != nil {
 			return nil, "", "", err
 		}
+		prereqTrack(prqt, sar.Info)
 		return sar.Info, "", sar.RedirectChannel, nil
 	}
-	return installWithDeviceContext(st, name, opts, userID, flags, nil, deviceCtx, fromChange, snapInstallInfo)
+	return installWithDeviceContext(st, name, opts, userID, flags, prqt, deviceCtx, fromChange, snapInstallInfo)
 }
 
 // InstallPathWithDeviceContext returns a set of tasks for installing a local snap.
@@ -1239,18 +1245,18 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 // identifying the last task before the first task that introduces system
 // modifications.
 func InstallPathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name string,
-	opts *RevisionOptions, userID int, flags Flags,
+	opts *RevisionOptions, userID int, flags Flags, prqt PrereqTracker,
 	deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
-	// XXX take PrereqTracker
 	logger.Debugf("installing from local file with device context %s", name)
 	snapInstallInfo := func(DeviceContext, *RevisionOptions) (info *snap.Info, snapPath, redirectChannel string, e error) {
 		info, err := validatedInfoFromPathAndSideInfo(name, path, si)
 		if err != nil {
 			return nil, "", "", err
 		}
+		prereqTrack(prqt, info)
 		return info, path, "", nil
 	}
-	return installWithDeviceContext(st, name, opts, userID, flags, nil, deviceCtx, fromChange, snapInstallInfo)
+	return installWithDeviceContext(st, name, opts, userID, flags, prqt, deviceCtx, fromChange, snapInstallInfo)
 }
 
 func installWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, prqt PrereqTracker, deviceCtx DeviceContext, fromChange string, snapInstallInfo snapInfoForInstall) (*state.TaskSet, error) {
@@ -2380,7 +2386,7 @@ type RevisionOptions struct {
 // modifications. If no such edge is set, then none of the tasks introduce
 // system modifications.
 func Update(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags) (*state.TaskSet, error) {
-	return UpdateWithDeviceContext(st, name, opts, userID, flags, nil, "")
+	return UpdateWithDeviceContext(st, name, opts, userID, flags, nil, nil, "")
 }
 
 type snapInfoForUpdate func(dc DeviceContext, ro *RevisionOptions, fl Flags, snapst *SnapState) ([]minimalInstallInfo, error)
@@ -2393,13 +2399,13 @@ type snapInfoForUpdate func(dc DeviceContext, ro *RevisionOptions, fl Flags, sna
 // identifying the last task before the first task that introduces system
 // modifications. If no such edge is set, then none of the tasks introduce
 // system modifications.
-func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
-	// XXX take PrereqTracker
+func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, prqt PrereqTracker, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
 	snapUpdateInfo := func(dc DeviceContext, ro *RevisionOptions, fl Flags, snapst *SnapState) ([]minimalInstallInfo, error) {
 		toUpdate := []minimalInstallInfo{}
 		info, infoErr := infoForUpdate(st, snapst, name, ro, userID, fl, dc)
 		switch infoErr {
 		case nil:
+			prereqTrack(prqt, info)
 			toUpdate = append(toUpdate, installSnapInfo{info})
 		case store.ErrNoUpdateAvailable:
 			// there may be some new auto-aliases
@@ -2410,7 +2416,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		return toUpdate, infoErr
 	}
 
-	return updateWithDeviceContext(st, name, opts, userID, flags, nil, deviceCtx, fromChange, snapUpdateInfo)
+	return updateWithDeviceContext(st, name, opts, userID, flags, prqt, deviceCtx, fromChange, snapUpdateInfo)
 }
 
 // UpdatePathWithDeviceContext initiates a change updating a snap from a local file.
@@ -2420,8 +2426,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 // identifying the last task before the first task that introduces system
 // modifications. If no such edge is set, then none of the tasks introduce
 // system modifications.
-func UpdatePathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
-	// XXX take PrereqTracker
+func UpdatePathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name string, opts *RevisionOptions, userID int, flags Flags, prqt PrereqTracker, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
 	snapUpdateInfo := func(dc DeviceContext, ro *RevisionOptions, fl Flags, snapst *SnapState) ([]minimalInstallInfo, error) {
 		toUpdate := []minimalInstallInfo{}
 		info, err := validatedInfoFromPathAndSideInfo(name, path, si)
@@ -2434,12 +2439,13 @@ func UpdatePathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name 
 		if snapst.CurrentSideInfo().Revision == info.Revision {
 			return toUpdate, store.ErrNoUpdateAvailable
 		}
+		prereqTrack(prqt, info)
 		installInfo := pathInfo{Info: info, path: path, sideInfo: si}
 		toUpdate = append(toUpdate, installInfo)
 		return toUpdate, nil
 	}
 
-	return updateWithDeviceContext(st, name, opts, userID, flags, nil, deviceCtx, fromChange, snapUpdateInfo)
+	return updateWithDeviceContext(st, name, opts, userID, flags, prqt, deviceCtx, fromChange, snapUpdateInfo)
 }
 
 func updateWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, prqt PrereqTracker, deviceCtx DeviceContext, fromChange string, snapUpdateInfo snapInfoForUpdate) (*state.TaskSet, error) {
