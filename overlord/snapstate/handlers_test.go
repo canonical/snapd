@@ -483,3 +483,33 @@ func (s *handlersSuite) TestDoEnforceValidationSetsTaskLocal(c *C) {
 	s.state.Lock()
 	c.Check(enforcedCalls, Equals, 1)
 }
+
+func (s *linkSnapSuite) TestDoUninhibitSnap(c *C) {
+	s.state.Lock()
+
+	t := s.state.NewTask("uninhibit-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+			SnapID:   "foo-id",
+		},
+		Channel: "beta",
+		UserID:  2,
+	})
+	s.state.NewChange("sample", "...").AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	expected := fakeOps{
+		{
+			op:   "uninhibit-snap",
+			name: "foo",
+		},
+	}
+	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+}

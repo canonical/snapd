@@ -131,6 +131,10 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 			op: "update-aliases",
 		},
 		{
+			op:   "uninhibit-snap",
+			name: "some-snap",
+		},
+		{
 			op:   "remove-snap-data",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
 		},
@@ -259,6 +263,7 @@ func (s *snapmgrTestSuite) testUpdateScenario(c *C, desc string, t switchScenari
 		"setup-snap",
 		"remove-snap-aliases",
 		"run-inhibit-snap-for-unlink",
+		"inhibit-snap",
 		"unlink-snap",
 		"copy-data",
 		"setup-snap-save-data",
@@ -267,6 +272,7 @@ func (s *snapmgrTestSuite) testUpdateScenario(c *C, desc string, t switchScenari
 		"link-snap",
 		"auto-connect:Doing",
 		"update-aliases",
+		"uninhibit-snap",
 		"cleanup-trash",
 	}, comment)
 
@@ -372,6 +378,10 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "inhibit-snap",
+			name: "some-snap",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
@@ -409,6 +419,10 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 		},
 		{
 			op: "update-aliases",
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "some-snap",
 		},
 		{
 			op:    "cleanup-trash",
@@ -774,6 +788,7 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 		"setup-snap",
 		"remove-snap-aliases",
 		"run-inhibit-snap-for-unlink",
+		"inhibit-snap",
 		"unlink-snap",
 		"copy-data",
 		"setup-snap-save-data",
@@ -782,6 +797,7 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 		"link-snap",
 		"auto-connect:Doing",
 		"update-aliases",
+		"uninhibit-snap",
 		"cleanup-trash",
 	})
 	// just check the interesting op
@@ -829,7 +845,7 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 	verifyStopReason(c, ts, "refresh")
 
 	// check post-refresh hook
-	task = ts.Tasks()[14]
+	task = ts.Tasks()[15]
 	c.Assert(task.Kind(), Equals, "run-hook")
 	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "some-snap" snap if present`)
 
@@ -979,6 +995,10 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "inhibit-snap",
+			name: "services-snap",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "services-snap/7"),
 		},
@@ -1016,6 +1036,10 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		},
 		{
 			op: "update-aliases",
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "services-snap",
 		},
 		{
 			op:       "start-snap-services",
@@ -1075,7 +1099,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	verifyStopReason(c, ts, "refresh")
 
 	// check post-refresh hook
-	task = ts.Tasks()[14]
+	task = ts.Tasks()[15]
 	c.Assert(task.Kind(), Equals, "run-hook")
 	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "services-snap" snap if present`)
 
@@ -1335,6 +1359,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "inhibit-snap",
+			name: "services-snap_instance",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "services-snap_instance/7"),
 		},
@@ -1372,6 +1400,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 		},
 		{
 			op: "update-aliases",
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "services-snap_instance",
 		},
 		{
 			op:       "start-snap-services",
@@ -1431,7 +1463,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 	verifyStopReason(c, ts, "refresh")
 
 	// check post-refresh hook
-	task = ts.Tasks()[14]
+	task = ts.Tasks()[15]
 	c.Assert(task.Kind(), Equals, "run-hook")
 	c.Assert(task.Summary(), Matches, `Run post-refresh hook of "services-snap_instance" snap if present`)
 
@@ -2215,6 +2247,10 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "inhibit-snap",
+			name: "some-snap",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
@@ -2267,6 +2303,10 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "some-snap",
 		},
 		{
 			op: "update-aliases",
@@ -2536,6 +2576,10 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "inhibit-snap",
+			name: "some-snap",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
@@ -2574,6 +2618,10 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		{
 			op: "update-aliases",
 		},
+		{
+			op:   "uninhibit-snap",
+			name: "some-snap",
+		},
 		// undoing everything from here down...
 		{
 			op:   "remove-snap-aliases",
@@ -2606,6 +2654,10 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "some-snap",
 		},
 		{
 			op: "update-aliases",
@@ -4064,7 +4116,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		}
 		if scenario.update {
 			first := tasks[j]
-			j += 19
+			j += 20
 			c.Check(first.Kind(), Equals, "prerequisites")
 			wait := false
 			if expectedPruned["other-snap"]["aliasA"] {

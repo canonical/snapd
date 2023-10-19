@@ -484,10 +484,16 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithIgnoreRunning(c *C) {
 	c.Check(snapst.Sequence, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(42))
 	c.Check(task.Status(), Equals, state.DoneStatus)
-	expected := fakeOps{{
-		op:   "unlink-snap",
-		path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
-	}}
+	expected := fakeOps{
+		{
+			op:   "inhibit-snap",
+			name: "pkg",
+		},
+		{
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "pkg/42"),
+		},
+	}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 	c.Check(called, Equals, true)
 }
@@ -547,6 +553,10 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapWithVitalityScore(c *C) {
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "inhibit-snap",
+			name: "foo",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "foo/11"),
 		},
@@ -554,6 +564,10 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapWithVitalityScore(c *C) {
 			op:           "link-snap",
 			path:         filepath.Join(dirs.SnapMountDir, "foo/11"),
 			vitalityRank: 2,
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "foo",
 		},
 	}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
@@ -689,6 +703,10 @@ func (s *linkSnapSuite) TestDoLinkSnapWithVitalityScore(c *C) {
 			op:           "link-snap",
 			path:         filepath.Join(dirs.SnapMountDir, "foo/33"),
 			vitalityRank: 2,
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "foo",
 		},
 	}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
@@ -1302,6 +1320,10 @@ func (s *linkSnapSuite) TestDoLinkSnapdDiscardsNsOnDowngrade(c *C) {
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "snapd/41"),
 		},
+		{
+			op:   "uninhibit-snap",
+			name: "snapd",
+		},
 	}
 
 	// start with an easier-to-read error if this fails:
@@ -1387,6 +1409,10 @@ func (s *linkSnapSuite) TestDoLinkSnapdRemovesAppArmorProfilesOnSnapdDowngrade(c
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "snapd/41"),
 		},
+		{
+			op:   "uninhibit-snap",
+			name: "snapd",
+		},
 	}
 
 	// start with an easier-to-read error if this fails:
@@ -1395,6 +1421,213 @@ func (s *linkSnapSuite) TestDoLinkSnapdRemovesAppArmorProfilesOnSnapdDowngrade(c
 
 	// link snap participant was invoked
 	c.Check(lp.instanceNames, DeepEquals, []string{"snapd"})
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapMaybeUninhibitSnapOn(c *C) {
+	s.state.Lock()
+	t := s.state.NewTask("link-snap", "test")
+	sinfo := snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &sinfo,
+		Channel:  "beta",
+		UserID:   2,
+	})
+	s.state.NewChange("sample", "...").AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// link-snap task should detect that we don't have upcoming
+	// uninhibit-snap tasks in the current change and call
+	// backend.UninhibitSnap itself
+	expected := fakeOps{
+		{
+			op:    "candidate",
+			sinfo: sinfo,
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, "foo/33"),
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "foo",
+		},
+	}
+	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapMaybeUninhibitSnapOffNoraml(c *C) {
+	s.state.Lock()
+
+	sinfo := snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	snapsup := snapstate.SnapSetup{
+		SideInfo: &sinfo,
+		Channel:  "beta",
+		UserID:   2,
+	}
+
+	t1 := s.state.NewTask("link-snap", "test")
+	t1.Set("snap-setup", &snapsup)
+	t2 := s.state.NewTask("uninhibit-snap", "test")
+	t2.WaitFor(t1)
+	t2.Set("snap-setup", &snapsup)
+
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	// link-snap task should detect that we don't have upcoming
+	// uninhibit-snap tasks in the current change and call
+	// backend.UninhibitSnap itself
+	expected := fakeOps{
+		{
+			op:    "candidate",
+			sinfo: sinfo,
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, "foo/33"),
+		},
+	}
+	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+
+	// uninhibit-snap task should run now
+	s.se.Ensure()
+	s.se.Wait()
+
+	expected = fakeOps{
+		{
+			op:    "candidate",
+			sinfo: sinfo,
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, "foo/33"),
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "foo",
+		},
+	}
+	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapMaybeUninhibitSnapOffAnotherChange(c *C) {
+	s.state.Lock()
+
+	sinfo := snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	snapsup := snapstate.SnapSetup{
+		SideInfo: &sinfo,
+		Channel:  "beta",
+		UserID:   2,
+	}
+
+	t1 := s.state.NewTask("link-snap", "test")
+	t1.Set("snap-setup", &snapsup)
+	s.state.NewChange("sample-1", "...").AddTask(t1)
+
+	t2 := s.state.NewTask("uninhibit-snap", "test")
+	t2.Set("snap-setup", &snapsup)
+	s.state.NewChange("sample-2", "...").AddTask(t2)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	// link-snap task should detect that we don't have upcoming
+	// uninhibit-snap tasks in the current change and call
+	// backend.UninhibitSnap itself
+	uninhibitCalls := 0
+	for _, fakeOp := range s.fakeBackend.ops {
+		if fakeOp.op == "uninhibit-snap" {
+			uninhibitCalls++
+		}
+	}
+
+	// uninhibit calls from both changes
+	c.Check(uninhibitCalls, Equals, 2)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapMaybeUninhibitSnapOffAnotherSnap(c *C) {
+	s.state.Lock()
+
+	chg := s.state.NewChange("sample-1", "...")
+
+	snapsup1 := snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+			SnapID:   "foo-id",
+		},
+		Channel: "beta",
+		UserID:  2,
+	}
+	t1 := s.state.NewTask("link-snap", "test")
+	t1.Set("snap-setup", &snapsup1)
+	chg.AddTask(t1)
+
+	snapsup2 := snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo-2",
+			Revision: snap.R(33),
+			SnapID:   "foo-2-id",
+		},
+		Channel: "beta",
+		UserID:  2,
+	}
+	t2 := s.state.NewTask("uninhibit-snap", "test")
+	t2.Set("snap-setup", &snapsup2)
+	t2.WaitFor(t1)
+	chg.AddTask(t2)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	// link-snap task should detect that we don't have upcoming
+	// uninhibit-snap tasks in the current change for current snap
+	// and call backend.UninhibitSnap itself
+	uninhibitCalls := 0
+	for _, fakeOp := range s.fakeBackend.ops {
+		if fakeOp.op == "uninhibit-snap" {
+			uninhibitCalls++
+		}
+	}
+
+	// uninhibit calls from both tasks
+	c.Check(uninhibitCalls, Equals, 2)
 }
 
 func (s *linkSnapSuite) TestDoUndoLinkSnapSequenceDidNotHaveCandidate(c *C) {
@@ -2039,6 +2272,10 @@ func (s *linkSnapSuite) TestUndoLinkSnapdFirstInstall(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "snapd/22"),
 		},
 		{
+			op:   "uninhibit-snap",
+			name: "snapd",
+		},
+		{
 			op:   "discard-namespace",
 			name: "snapd",
 		},
@@ -2115,6 +2352,10 @@ func (s *linkSnapSuite) TestUndoLinkSnapdNthInstall(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "snapd/22"),
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "snapd",
 		},
 		{
 			op:   "link-snap",
@@ -2367,6 +2608,10 @@ func (s *linkSnapSuite) testDoLinkSnapWithToolingDependency(c *C, classicOrBase 
 			op:                  "link-snap",
 			path:                filepath.Join(dirs.SnapMountDir, "services-snap/11"),
 			requireSnapdTooling: needsTooling,
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "services-snap",
 		},
 	}
 

@@ -357,6 +357,7 @@ var (
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
+		"uninhibit-snap",
 		"run-hook[post-refresh]",
 		"start-snap-services",
 		"cleanup",
@@ -551,13 +552,13 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 	for i := 1; i <= 2; i++ {
 		laneTasks := chg.LaneTasks(i)
 		c.Assert(taskKinds(laneTasks), DeepEquals, expectedTaskKinds)
-		c.Check(laneTasks[17].Summary(), Matches, `Run configure hook of .* snap if present`)
-		c.Check(laneTasks[19].Summary(), Equals, "stop of [test-snap.test-service]")
-		c.Check(laneTasks[20].Summary(), Equals, `Run service command "stop" for services ["test-service"] of snap "test-snap"`)
-		c.Check(laneTasks[21].Summary(), Equals, "start of [test-snap.test-service]")
-		c.Check(laneTasks[22].Summary(), Equals, `Run service command "start" for services ["test-service"] of snap "test-snap"`)
-		c.Check(laneTasks[23].Summary(), Equals, "restart of [test-snap.test-service]")
-		c.Check(laneTasks[24].Summary(), Equals, `Run service command "restart" for services ["test-service"] of snap "test-snap"`)
+		c.Check(laneTasks[18].Summary(), Matches, `Run configure hook of .* snap if present`)
+		c.Check(laneTasks[20].Summary(), Equals, "stop of [test-snap.test-service]")
+		c.Check(laneTasks[21].Summary(), Equals, `Run service command "stop" for services ["test-service"] of snap "test-snap"`)
+		c.Check(laneTasks[22].Summary(), Equals, "start of [test-snap.test-service]")
+		c.Check(laneTasks[23].Summary(), Equals, `Run service command "start" for services ["test-service"] of snap "test-snap"`)
+		c.Check(laneTasks[24].Summary(), Equals, "restart of [test-snap.test-service]")
+		c.Check(laneTasks[25].Summary(), Equals, `Run service command "restart" for services ["test-service"] of snap "test-snap"`)
 	}
 }
 

@@ -110,6 +110,8 @@ type managerBackend interface {
 	Candidate(sideInfo *snap.SideInfo)
 
 	// refresh related
+	InhibitSnap(snapName string, rev snap.Revision, hint runinhibit.Hint) error
+	UninhibitSnap(snapName string) error
 	RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, decision func() error) (*osutil.FileLock, error)
 	// (not a backend method because doInstall cannot access the backend)
 	// WithSnapLock(info *snap.Info, action func() error) error

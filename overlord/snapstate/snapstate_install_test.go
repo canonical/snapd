@@ -114,6 +114,9 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 	if opts&preferInstalled != 0 {
 		expected = append(expected, "prefer-aliases")
 	}
+	if opts&unlinkBefore != 0 {
+		expected = append(expected, "uninhibit-snap")
+	}
 	if opts&updatesBootConfig != 0 {
 		expected = append(expected, "update-managed-boot-config")
 	}
@@ -1240,6 +1243,10 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
 		{
+			op:   "uninhibit-snap",
+			name: "some-snap",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
@@ -1419,6 +1426,10 @@ func (s *snapmgrTestSuite) testParallelInstanceInstallRunThrough(c *C, inputFlag
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/11"),
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "some-snap_instance",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -1634,6 +1645,10 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
 		{
+			op:   "uninhibit-snap",
+			name: "some-snap",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
@@ -1790,6 +1805,10 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/666"),
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "some-snap",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -1957,6 +1976,10 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/42"),
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "some-snap",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -2139,6 +2162,10 @@ version: 1.0`)
 			path: filepath.Join(dirs.SnapMountDir, "mock/x1"),
 		},
 		{
+			op:   "uninhibit-snap",
+			name: "mock",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "mock",
 			revno: snap.R("x1"),
@@ -2237,6 +2264,10 @@ epoch: 1*
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "inhibit-snap",
+			name: "mock",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "mock/x2"),
 		},
@@ -2272,6 +2303,10 @@ epoch: 1*
 		},
 		{
 			op: "update-aliases",
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "mock",
 		},
 		{
 			op:    "cleanup-trash",
@@ -2367,6 +2402,10 @@ epoch: 1*
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "inhibit-snap",
+			name: "mock",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "mock/100001"),
 		},
@@ -2402,6 +2441,10 @@ epoch: 1*
 		},
 		{
 			op: "update-aliases",
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "mock",
 		},
 		{
 			// and cleanup
@@ -2452,7 +2495,7 @@ version: 1.0`)
 	s.settle(c)
 
 	// ensure only local install was run, i.e. first actions are pseudo-action current
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 10)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 11)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
 	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
 	// and setup-snap
@@ -2640,6 +2683,10 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "core/11"),
 		},
 		{
+			op:   "uninhibit-snap",
+			name: "core",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "core",
 			revno: snap.R(11),
@@ -2701,6 +2748,10 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/42"),
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "some-snap",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -3107,6 +3158,9 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 	}, {
 		op: "update-aliases",
 	}, {
+		op:   "uninhibit-snap",
+		name: "snap-content-slot",
+	}, {
 		op:   "storesvc-download",
 		name: "snap-content-plug",
 	}, {
@@ -3156,6 +3210,9 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 		revno: snap.R(42),
 	}, {
 		op: "update-aliases",
+	}, {
+		op:   "uninhibit-snap",
+		name: "snap-content-plug",
 	}, {
 		op:    "cleanup-trash",
 		name:  "snap-content-plug",

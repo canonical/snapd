@@ -1338,6 +1338,22 @@ func (f *fakeSnappyBackend) RemoveSnapAliases(snapName string) error {
 	return f.maybeErrForLastOp()
 }
 
+func (f *fakeSnappyBackend) InhibitSnap(snapName string, rev snap.Revision, hint runinhibit.Hint) error {
+	f.appendOp(&fakeOp{
+		op:   "inhibit-snap",
+		name: snapName,
+	})
+	return f.maybeErrForLastOp()
+}
+
+func (f *fakeSnappyBackend) UninhibitSnap(snapName string) error {
+	f.appendOp(&fakeOp{
+		op:   "uninhibit-snap",
+		name: snapName,
+	})
+	return f.maybeErrForLastOp()
+}
+
 func (f *fakeSnappyBackend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, decision func() error) (lock *osutil.FileLock, err error) {
 	f.appendOp(&fakeOp{
 		op:          "run-inhibit-snap-for-unlink",

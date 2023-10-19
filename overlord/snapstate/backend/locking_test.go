@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
@@ -40,6 +41,24 @@ var _ = Suite(&lockingSuite{})
 
 func (s *lockingSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+}
+
+func (s *lockingSuite) TestInhibitSnap(c *C) {
+	err := s.be.InhibitSnap("snap-name", snap.R(11), "hint")
+	c.Assert(err, IsNil)
+	hint, err := runinhibit.IsLocked("snap-name")
+	c.Assert(err, IsNil)
+	c.Check(string(hint), Equals, "hint")
+}
+
+func (s *lockingSuite) TestUninhibitSnap(c *C) {
+	err := runinhibit.LockWithHint("snap-name", "hint")
+	c.Assert(err, IsNil)
+	err = s.be.UninhibitSnap("snap-name")
+	c.Check(err, IsNil)
+	hint, err := runinhibit.IsLocked("snap-name")
+	c.Assert(err, IsNil)
+	c.Check(hint, Equals, runinhibit.HintNotInhibited)
 }
 
 func (s *lockingSuite) TestRunInhibitSnapForUnlinkPositiveDescision(c *C) {

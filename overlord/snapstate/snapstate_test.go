@@ -642,6 +642,7 @@ func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
+		"uninhibit-snap",
 		"start-snap-services",
 		"run-hook[configure]",
 		"run-hook[check-health]",
@@ -756,6 +757,7 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		"auto-connect",
 		"set-auto-aliases",
 		"setup-aliases",
+		"uninhibit-snap",
 		"start-snap-services",
 		"run-hook[configure]",
 		"run-hook[check-health]",
@@ -1563,6 +1565,10 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "inhibit-snap",
+			name: "some-snap",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
@@ -1589,6 +1595,10 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 		},
 		{
 			op: "update-aliases",
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "some-snap",
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -1783,6 +1793,10 @@ func (s *snapmgrTestSuite) TestRevertWithBaseRunThrough(c *C) {
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "inhibit-snap",
+			name: "some-snap-with-base",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap-with-base/7"),
 		},
@@ -1809,6 +1823,10 @@ func (s *snapmgrTestSuite) TestRevertWithBaseRunThrough(c *C) {
 		},
 		{
 			op: "update-aliases",
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "some-snap-with-base",
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -1872,6 +1890,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "inhibit-snap",
+			name: "some-snap_instance",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
 		},
@@ -1898,6 +1920,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 		},
 		{
 			op: "update-aliases",
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "some-snap_instance",
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -1961,7 +1987,7 @@ func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 8)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 10)
 
 	// verify that LocalRevision is still -7
 	var snapst snapstate.SnapState
@@ -2014,6 +2040,10 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "inhibit-snap",
+			name: "some-snap",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
 		},
@@ -2037,6 +2067,10 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 		},
 		{
 			op: "update-aliases",
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "some-snap",
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -2103,6 +2137,10 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "inhibit-snap",
+			name: "some-snap",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
 		},
@@ -2130,6 +2168,10 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		{
 			op: "update-aliases",
 		},
+		{
+			op:   "uninhibit-snap",
+			name: "some-snap",
+		},
 		// undoing everything from here down...
 		{
 			op:   "remove-snap-aliases",
@@ -2152,6 +2194,10 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "some-snap",
 		},
 		{
 			op: "update-aliases",
@@ -2212,6 +2258,10 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 			inhibitHint: "refresh",
 		},
 		{
+			op:   "inhibit-snap",
+			name: "some-snap",
+		},
+		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
 		},
@@ -2244,6 +2294,10 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "some-snap",
 		},
 		{
 			op: "update-aliases",
@@ -2943,6 +2997,10 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
 		{
+			op:   "uninhibit-snap",
+			name: "some-snap",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "some-snap",
 			revno: snap.R(7),
@@ -3103,6 +3161,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceEnableRunThrough(c *C) {
 		{
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+		},
+		{
+			op:   "uninhibit-snap",
+			name: "some-snap_instance",
 		},
 		{
 			op:    "auto-connect:Doing",
@@ -5518,6 +5580,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "core/11"),
 		},
 		{
+			op:   "uninhibit-snap",
+			name: "core",
+		},
+		{
 			op:    "auto-connect:Doing",
 			name:  "core",
 			revno: snap.R(11),
@@ -7793,6 +7859,10 @@ func (s *snapmgrTestSuite) TestSnapdRefreshTasks(c *C) {
 			op: "update-aliases",
 		},
 		{
+			op:   "uninhibit-snap",
+			name: "snapd",
+		},
+		{
 			op:    "cleanup-trash",
 			name:  "snapd",
 			revno: snap.R(11),
@@ -7931,6 +8001,7 @@ var nonReLinkKinds = []string{
 	"auto-connect",
 	"set-auto-aliases",
 	"setup-aliases",
+	"uninhibit-snap",
 	"run-hook[install]",
 	"run-hook[default-configure]",
 	"start-snap-services",
