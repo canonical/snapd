@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -421,6 +422,26 @@ func (s *noticesSuite) TestWaitNoticesTimeout(c *C) {
 	defer cancel()
 	notices, err := st.WaitNotices(ctx, nil)
 	c.Assert(err, ErrorMatches, "context deadline exceeded")
+	c.Assert(notices, HasLen, 0)
+}
+
+func (s *noticesSuite) TestReadStateWaitNotices(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	marshalled, err := st.MarshalJSON()
+	c.Assert(err, IsNil)
+
+	st2, err := state.ReadState(nil, bytes.NewBuffer(marshalled))
+	c.Assert(err, IsNil)
+	st2.Lock()
+	defer st2.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	notices, err := st2.WaitNotices(ctx, nil)
+	c.Assert(errors.Is(err, context.DeadlineExceeded), Equals, true)
 	c.Assert(notices, HasLen, 0)
 }
 
