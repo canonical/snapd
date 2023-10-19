@@ -20,7 +20,7 @@ prepare: |
     # Second layer of dirs and files
     "$TESTSTOOLS"/fs-state mock-file "$TESTDIR"/testdir1/file.yaml
     "$TESTSTOOLS"/fs-state mock-file "$TESTDIR/testdir1/file_no_extension"
-    "$TESTSTOOLS"/fs-state mock-dir "$TESTDIR"/empty_dir/
+    "$TESTSTOOLS"/fs-state mock-dir "$TESTDIR"/empty_dir
 
     # Not accessible dirs and files
     "$TESTSTOOLS"/fs-state mock-file "$TESTDIR"/file.so
@@ -28,7 +28,6 @@ prepare: |
 
 restore: |
     "$TESTSTOOLS"/fs-state restore-dir "$TESTDIR"
-    "$TESTSTOOLS"/fs-state restore-dir "$TESTDIR"/testdir1
 
 execute: |
     echo "The interface is connected by default"
