@@ -938,6 +938,10 @@ func buildNewVolumeToDeviceMapping(mod Model, old GadgetData, vols map[string]*V
 
 	traits, err := DiskTraitsFromDeviceAndValidate(vol, dev, validateOpts)
 	if err != nil {
+		if isPreUC20 {
+			logger.Noticef("WARNING: not applying gadget asset updates on main system-boot volume due to error while finding disk traits: %v", err)
+			return nil, errSkipUpdateProceedRefresh
+		}
 		return nil, err
 	}
 

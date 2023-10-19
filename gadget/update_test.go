@@ -4753,6 +4753,62 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20NonFatalError(
 	c.Assert(err, Not(Equals), gadget.ErrSkipUpdateProceedRefresh)
 }
 
+func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20CannotMap(c *C) {
+	fmt.Println("TestBuildNewVolumeToDeviceMappingPreUC20CannotMap")
+	defer fmt.Println("TestBuildNewVolumeToDeviceMappingPreUC20CannotMap")
+	mockLogBuf, restore := logger.MockLogger()
+	defer restore()
+
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model)
+	c.Assert(err, IsNil)
+
+	old := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: make(map[string]*gadget.Volume),
+		},
+	}
+
+	for volName, laidOutVol := range allLaidOutVolumes {
+		old.Info.Volumes[volName] = laidOutVol.Volume
+	}
+
+	// setup symlink for the system-boot partition
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
+	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System")))
+	c.Assert(err, IsNil)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the partition device node to mock disk
+	restore = disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		filepath.Join(dirs.GlobalRootDir, "/dev/vda1"): gadgettest.VMSystemVolumeDiskMapping,
+	})
+	defer restore()
+
+	// and the device name to the disk itself
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": gadgettest.VMSystemVolumeDiskMapping,
+	})
+	defer restore()
+
+	vols := map[string]*gadget.Volume{}
+	for name, lov := range allLaidOutVolumes {
+		vols[name] = lov.Volume
+	}
+
+	// The call will fail as it won't find a match between /dev/vda2 and
+	// any partition defined in the gadget. But it is ok for UC16/18.
+	_, err = gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, vols)
+	c.Assert(err, Equals, gadget.ErrSkipUpdateProceedRefresh)
+	c.Assert(mockLogBuf.String(), testutil.Contains, "WARNING: not applying gadget asset updates on main system-boot volume due to error while finding disk traits")
+
+	// it's a fatal error on UC20 though
+	_, err = gadget.BuildNewVolumeToDeviceMapping(uc20Model, old, vols)
+	c.Assert(err, Not(Equals), gadget.ErrSkipUpdateProceedRefresh)
+}
+
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingUC20MultiVolume(c *C) {
 	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYaml, uc20Model)
 	c.Assert(err, IsNil)
