@@ -1120,7 +1120,7 @@ func (*schemaSuite) TestAnyTypeAcceptsAllTypes(c *C) {
 	}
 }
 
-func (*schemaSuite) TestAnyTypeRejectsNull(c *C) {
+func (*schemaSuite) TestAnyTypeWithMapDefinition(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
 		"foo": {
@@ -1133,10 +1133,11 @@ func (*schemaSuite) TestAnyTypeRejectsNull(c *C) {
 	c.Assert(err, IsNil)
 
 	input := []byte(`{
-	"foo": null
-}`)
+			"foo": "string"
+		}`)
+
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot accept null value: invalid value for "any" type`)
+	c.Assert(err, IsNil)
 }
 
 func (*schemaSuite) TestAnyTypeRejectsBadJSON(c *C) {
@@ -1347,4 +1348,39 @@ func (*schemaSuite) TestNumberMinGreaterThanMaxConstraintFail(c *C) {
 
 	_, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, ErrorMatches, `cannot have "min" constraint with value greater than "max"`)
+}
+
+func (*schemaSuite) TestTypesRejectNull(c *C) {
+	for _, typ := range []string{"map", "string", "int", "any", "number"} {
+		schemaStr := []byte(fmt.Sprintf(`{
+	"schema": {
+		"foo": %q
+	}
+}`, typ))
+
+		schema, err := aspects.ParseSchema(schemaStr)
+		c.Assert(err, IsNil)
+
+		err = schema.Validate([]byte(`{"foo": null}`))
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept null value for %q type`, typ))
+	}
+}
+
+func (*schemaSuite) TestUserDefinedTypeRejectsNull(c *C) {
+	schemaStr := []byte(`{
+	"types": {
+		"mytype": {
+			"type": "string"
+		}
+	},
+	"schema": {
+		"foo": "$mytype"
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	err = schema.Validate([]byte(`{"foo": null}`))
+	c.Assert(err, ErrorMatches, `cannot accept null value for "string" type`)
 }

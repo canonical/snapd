@@ -199,6 +199,10 @@ func (v *mapSchema) Validate(raw []byte) error {
 		return err
 	}
 
+	if mapValue == nil {
+		return fmt.Errorf(`cannot accept null value for "map" type`)
+	}
+
 	if v.entrySchemas != nil {
 		for key := range mapValue {
 			if _, ok := v.entrySchemas[key]; !ok {
@@ -417,17 +421,21 @@ type stringSchema struct {
 
 // Validate that raw is a valid aspect string and meets the schema's constraints.
 func (v *stringSchema) Validate(raw []byte) error {
-	var value string
+	var value *string
 	if err := json.Unmarshal(raw, &value); err != nil {
 		return fmt.Errorf("cannot validate string: %w", err)
 	}
 
-	if len(v.choices) != 0 && !strutil.ListContains(v.choices, value) {
-		return fmt.Errorf(`string %q is not one of the allowed choices`, value)
+	if value == nil {
+		return fmt.Errorf(`cannot accept null value for "string" type`)
 	}
 
-	if v.pattern != nil && !v.pattern.Match([]byte(value)) {
-		return fmt.Errorf(`string %q doesn't match schema pattern %s`, value, v.pattern.String())
+	if len(v.choices) != 0 && !strutil.ListContains(v.choices, *value) {
+		return fmt.Errorf(`string %q is not one of the allowed choices`, *value)
+	}
+
+	if v.pattern != nil && !v.pattern.Match([]byte(*value)) {
+		return fmt.Errorf(`string %q doesn't match schema pattern %s`, *value, v.pattern.String())
 	}
 
 	return nil
@@ -474,12 +482,16 @@ type intSchema struct {
 
 // Validate that raw is a valid integer and meets the schema's constraints.
 func (v *intSchema) Validate(raw []byte) error {
-	var num int64
+	var num *int64
 	if err := json.Unmarshal(raw, &num); err != nil {
 		return err
 	}
 
-	return validateNumber(num, v.choices, v.min, v.max)
+	if num == nil {
+		return fmt.Errorf(`cannot accept null value for "int" type`)
+	}
+
+	return validateNumber(*num, v.choices, v.min, v.max)
 }
 
 func (v *intSchema) parseConstraints(constraints map[string]json.RawMessage) error {
@@ -537,7 +549,7 @@ func (v *anySchema) Validate(raw []byte) error {
 	}
 
 	if val == nil {
-		return fmt.Errorf(`cannot accept null value: invalid value for "any" type`)
+		return fmt.Errorf(`cannot accept null value for "any" type`)
 	}
 	return nil
 }
@@ -555,12 +567,16 @@ type numberSchema struct {
 
 // Validate that raw is a valid number and meets the schema's constraints.
 func (v *numberSchema) Validate(raw []byte) error {
-	var num float64
+	var num *float64
 	if err := json.Unmarshal(raw, &num); err != nil {
 		return err
 	}
 
-	return validateNumber(num, v.choices, v.min, v.max)
+	if num == nil {
+		return fmt.Errorf(`cannot accept null value for "number" type`)
+	}
+
+	return validateNumber(*num, v.choices, v.min, v.max)
 }
 
 func validateNumber[Num ~int64 | ~float64](num Num, choices []Num, min, max *Num) error {
