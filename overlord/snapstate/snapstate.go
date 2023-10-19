@@ -1360,7 +1360,7 @@ func installWithDeviceContext(st *state.State, name string, opts *RevisionOption
 
 type snapInfoForDownload func(DeviceContext, *RevisionOptions) (si *snap.Info, redirectChannel string, e error)
 
-func Download(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
+func Download(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
 	snapDownloadInfo := func(dc DeviceContext, ro *RevisionOptions) (si *snap.Info, redirectChannel string, e error) {
 		sar, err := downloadInfo(ctx, st, name, ro, userID, dc)
 		if err != nil {
@@ -1369,10 +1369,10 @@ func Download(ctx context.Context, st *state.State, name string, opts *RevisionO
 		return sar.Info, sar.RedirectChannel, nil
 	}
 
-	return download(st, name, opts, userID, flags, deviceCtx, fromChange, snapDownloadInfo)
+	return download(st, name, opts, userID, flags, deviceCtx, snapDownloadInfo)
 }
 
-func download(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string, snapDownloadInfo snapInfoForDownload) (*state.TaskSet, error) {
+func download(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, snapDownloadInfo snapInfoForDownload) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
