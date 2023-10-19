@@ -35,9 +35,11 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -121,6 +123,9 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.store)
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,

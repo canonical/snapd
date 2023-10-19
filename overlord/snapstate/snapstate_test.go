@@ -236,7 +236,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	snapstate.EstimateSnapshotSize = func(st *state.State, instanceName string, users []string) (uint64, error) {
 		return 1, nil
 	}
-	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int, prqt snapstate.PrereqTracker) (uint64, error) {
 		return 0, nil
 	})
 	s.AddCleanup(restoreInstallSize)
@@ -4991,46 +4991,6 @@ func (s *snapStateSuite) TestCurrentSideInfoInconsistentWithCurrent(c *C) {
 	c.Check(func() { snapst.CurrentSideInfo() }, PanicMatches, `cannot find snapst.Current in the snapst.Sequence`)
 }
 
-func (snapStateSuite) TestDefaultProviderContentTags(c *C) {
-	info := &snap.Info{
-		Plugs: map[string]*snap.PlugInfo{},
-	}
-	info.Plugs["foo"] = &snap.PlugInfo{
-		Snap:      info,
-		Name:      "sound-themes",
-		Interface: "content",
-		Attrs:     map[string]interface{}{"default-provider": "common-themes", "content": "foo"},
-	}
-	info.Plugs["bar"] = &snap.PlugInfo{
-		Snap:      info,
-		Name:      "visual-themes",
-		Interface: "content",
-		Attrs:     map[string]interface{}{"default-provider": "common-themes", "content": "bar"},
-	}
-	info.Plugs["baz"] = &snap.PlugInfo{
-		Snap:      info,
-		Name:      "not-themes",
-		Interface: "content",
-		Attrs:     map[string]interface{}{"default-provider": "some-snap", "content": "baz"},
-	}
-	info.Plugs["qux"] = &snap.PlugInfo{Snap: info, Interface: "not-content"}
-
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
-
-	repo := interfaces.NewRepository()
-	ifacerepo.Replace(st, repo)
-
-	providerContentAttrs := snapstate.DefaultProviderContentAttrs(st, info)
-
-	c.Check(providerContentAttrs, HasLen, 2)
-	sort.Strings(providerContentAttrs["common-themes"])
-	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"bar", "foo"})
-	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"bar", "foo"})
-	c.Check(providerContentAttrs["some-snap"], DeepEquals, []string{"baz"})
-}
-
 func (s *snapmgrTestSuite) testRevertSequence(c *C, opts *opSeqOpts) *state.TaskSet {
 	opts.revert = true
 	opts.after = opts.before
@@ -7831,7 +7791,7 @@ func (t *installTestType) DownloadSize() int64 {
 	panic("not expected")
 }
 
-func (t *installTestType) Prereq(st *state.State) []string {
+func (t *installTestType) Prereq(st *state.State, prqt snapstate.PrereqTracker) []string {
 	panic("not expected")
 }
 
@@ -8993,7 +8953,7 @@ func (s *snapmgrTestSuite) TestRefreshCandidatesMergeFlags(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{Sequence: []*snap.SideInfo{si}})
 
 	globalFlags := &snapstate.Flags{IsAutoRefresh: true, IsContinuedAutoRefresh: true}
-	snapsup, _, err := cand.SnapSetupForUpdate(s.state, nil, 0, globalFlags)
+	snapsup, _, err := cand.SnapSetupForUpdate(s.state, nil, 0, globalFlags, nil)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, NotNil)
 	c.Assert(*snapsup, DeepEquals, snapstate.SnapSetup{

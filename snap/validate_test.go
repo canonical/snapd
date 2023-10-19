@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	. "github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -2225,6 +2226,9 @@ func (s *YamlSuite) TestValidateLinksValues(c *C) {
 }
 
 func (s *ValidateSuite) TestSimplePrereqTracker(c *C) {
+	// check that it implements the needed interface
+	var _ snapstate.PrereqTracker = SimplePrereqTracker{}
+
 	info := &Info{
 		Plugs: map[string]*PlugInfo{},
 	}

@@ -39,7 +39,6 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -98,7 +97,7 @@ type minimalInstallInfo interface {
 	Type() snap.Type
 	SnapBase() string
 	DownloadSize() int64
-	Prereq(st *state.State) []string
+	Prereq(st *state.State, prqt PrereqTracker) []string
 }
 
 type updateParamsFunc func(*snap.Info) (*RevisionOptions, Flags, *SnapState)
@@ -106,7 +105,7 @@ type updateParamsFunc func(*snap.Info) (*RevisionOptions, Flags, *SnapState)
 type readyUpdateInfo interface {
 	minimalInstallInfo
 
-	SnapSetupForUpdate(st *state.State, params updateParamsFunc, userID int, globalFlags *Flags) (*SnapSetup, *SnapState, error)
+	SnapSetupForUpdate(st *state.State, params updateParamsFunc, userID int, globalFlags *Flags, prqt PrereqTracker) (*SnapSetup, *SnapState, error)
 }
 
 // ByType supports sorting by snap type. The most important types come first.
@@ -131,11 +130,11 @@ func (ins installSnapInfo) SnapBase() string {
 	return ins.Base
 }
 
-func (ins installSnapInfo) Prereq(st *state.State) []string {
-	return getKeys(defaultProviderContentAttrs(st, ins.Info))
+func (ins installSnapInfo) Prereq(st *state.State, prqt PrereqTracker) []string {
+	return getKeys(defaultProviderContentAttrs(st, ins.Info, prqt))
 }
 
-func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, userID int, globalFlags *Flags) (*SnapSetup, *SnapState, error) {
+func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, userID int, globalFlags *Flags, prqt PrereqTracker) (*SnapSetup, *SnapState, error) {
 	update := ins.Info
 
 	revnoOpts, flags, snapst := params(update)
@@ -152,7 +151,7 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 		return nil, nil, err
 	}
 
-	providerContentAttrs := defaultProviderContentAttrs(st, update)
+	providerContentAttrs := defaultProviderContentAttrs(st, update, prqt)
 	snapsup := SnapSetup{
 		Base:               update.Base,
 		Prereq:             getKeys(providerContentAttrs),
@@ -194,16 +193,16 @@ func (i pathInfo) SnapBase() string {
 	return i.Base
 }
 
-func (i pathInfo) Prereq(st *state.State) []string {
-	return getKeys(defaultProviderContentAttrs(st, i.Info))
+func (i pathInfo) Prereq(st *state.State, prqt PrereqTracker) []string {
+	return getKeys(defaultProviderContentAttrs(st, i.Info, prqt))
 }
 
-func (i pathInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, _ int, _ *Flags) (*SnapSetup, *SnapState, error) {
+func (i pathInfo) SnapSetupForUpdate(st *state.State, params updateParamsFunc, _ int, _ *Flags, prqt PrereqTracker) (*SnapSetup, *SnapState, error) {
 	update := i.Info
 
 	_, flags, snapst := params(update)
 
-	providerContentAttrs := defaultProviderContentAttrs(st, update)
+	providerContentAttrs := defaultProviderContentAttrs(st, update, prqt)
 	snapsup := SnapSetup{
 		Base:               i.Base,
 		Prereq:             getKeys(providerContentAttrs),
@@ -963,49 +962,15 @@ func IsErrAndNotWait(err error) bool {
 	return true
 }
 
-func contentAttr(attrer interfaces.Attrer) string {
-	var s string
-	err := attrer.Attr("content", &s)
-	if err != nil {
-		return ""
-	}
-	return s
-}
-
-// returns a map populated with content tags for which there is a content snap in the system
-func contentIfaceAvailable(st *state.State) map[string]bool {
-	repo := ifacerepo.Get(st)
-	contentSlots := repo.AllSlots("content")
-	avail := make(map[string]bool, len(contentSlots))
-	for _, slot := range contentSlots {
-		contentTag := contentAttr(slot)
-		if contentTag == "" {
-			continue
-		}
-		avail[contentTag] = true
-	}
-	return avail
-}
-
 // defaultProviderContentAttrs takes a snap.Info and returns a map of
 // default providers to the value of content attributes they should
 // provide. Content attributes already provided by a snap in the system are omitted.
-func defaultProviderContentAttrs(st *state.State, info *snap.Info) map[string][]string {
-	needed := snap.NeededDefaultProviders(info)
-	if len(needed) == 0 {
-		return nil
+func defaultProviderContentAttrs(st *state.State, info *snap.Info, prqt PrereqTracker) map[string][]string {
+	if prqt == nil {
+		prqt = snap.SimplePrereqTracker{}
 	}
-	avail := contentIfaceAvailable(st)
-
-	out := make(map[string][]string)
-	for snapInstance, contentValues := range needed {
-		for _, content := range contentValues {
-			if !avail[content] {
-				out[snapInstance] = append(out[snapInstance], content)
-			}
-		}
-	}
-	return out
+	repo := ifacerepo.Get(st)
+	return prqt.DefaultProviderContentAttrs(info, repo)
 }
 
 func getKeys(kv map[string][]string) []string {
@@ -1118,6 +1083,23 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 	return flags, nil
 }
 
+// A PrereqTracker helps tracking snap prerequisites for one or across
+// multiple snap operations. Depending of usage context implementatiomns
+// can be stateful or stateless.
+// Functions taking a PrereqTracker accept nil and promise to call
+// Add once for any target snap.
+type PrereqTracker interface {
+	// Add adds a snap for tracking.
+	Add(*snap.Info)
+	// DefaultProviderContentAttrs returns a map keyed by the names of all
+	// default-providers for the content plugs that the given snap.Info
+	// needs. The map values are the corresponding content tags.
+	// If repo is not nil, any content tag provided by an existing slot in it
+	// is considered already available and filtered out from the result.
+	// info might or might have not been passed already to Add.
+	DefaultProviderContentAttrs(info *snap.Info, repo snap.InterfaceRepo) map[string][]string
+}
+
 // InstallPath returns a set of tasks for installing a snap from a file path
 // and the snap.Info for the given snap.
 //
@@ -1126,6 +1108,7 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 // local revision and sideloading, or full metadata in which case it
 // the snap will appear as installed from the store.
 func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel string, flags Flags) (*state.TaskSet, *snap.Info, error) {
+	// XXX take PrereqTracker
 	if si.RealName == "" {
 		return nil, nil, fmt.Errorf("internal error: snap name to install %q not provided", path)
 	}
@@ -1189,7 +1172,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		return nil, nil, err
 	}
 
-	providerContentAttrs := defaultProviderContentAttrs(st, info)
+	providerContentAttrs := defaultProviderContentAttrs(st, info, nil)
 	snapsup := &SnapSetup{
 		Base:               info.Base,
 		Prereq:             getKeys(providerContentAttrs),
@@ -1237,6 +1220,7 @@ type snapInfoForInstall func(DeviceContext, *RevisionOptions) (si *snap.Info, sn
 // identifying the last task before the first task that introduces system
 // modifications.
 func InstallWithDeviceContext(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
+	// XXX take PrereqTracker
 	logger.Debugf("installing with device context %s", name)
 	snapInstallInfo := func(dc DeviceContext, ro *RevisionOptions) (si *snap.Info, snapPath, redirectChannel string, e error) {
 		sar, err := installInfo(ctx, st, name, ro, userID, flags, dc)
@@ -1245,7 +1229,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		}
 		return sar.Info, "", sar.RedirectChannel, nil
 	}
-	return installWithDeviceContext(st, name, opts, userID, flags, deviceCtx, fromChange, snapInstallInfo)
+	return installWithDeviceContext(st, name, opts, userID, flags, nil, deviceCtx, fromChange, snapInstallInfo)
 }
 
 // InstallPathWithDeviceContext returns a set of tasks for installing a local snap.
@@ -1257,6 +1241,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 func InstallPathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name string,
 	opts *RevisionOptions, userID int, flags Flags,
 	deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
+	// XXX take PrereqTracker
 	logger.Debugf("installing from local file with device context %s", name)
 	snapInstallInfo := func(DeviceContext, *RevisionOptions) (info *snap.Info, snapPath, redirectChannel string, e error) {
 		info, err := validatedInfoFromPathAndSideInfo(name, path, si)
@@ -1265,10 +1250,10 @@ func InstallPathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name
 		}
 		return info, path, "", nil
 	}
-	return installWithDeviceContext(st, name, opts, userID, flags, deviceCtx, fromChange, snapInstallInfo)
+	return installWithDeviceContext(st, name, opts, userID, flags, nil, deviceCtx, fromChange, snapInstallInfo)
 }
 
-func installWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string, snapInstallInfo snapInfoForInstall) (*state.TaskSet, error) {
+func installWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, prqt PrereqTracker, deviceCtx DeviceContext, fromChange string, snapInstallInfo snapInfoForInstall) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
@@ -1317,11 +1302,11 @@ func installWithDeviceContext(st *state.State, name string, opts *RevisionOption
 		return nil, err
 	}
 
-	if err := checkDiskSpace(st, "install", []minimalInstallInfo{installSnapInfo{info}}, userID); err != nil {
+	if err := checkDiskSpace(st, "install", []minimalInstallInfo{installSnapInfo{info}}, userID, prqt); err != nil {
 		return nil, err
 	}
 
-	providerContentAttrs := defaultProviderContentAttrs(st, info)
+	providerContentAttrs := defaultProviderContentAttrs(st, info, prqt)
 	snapsup := &SnapSetup{
 		Channel:            opts.Channel,
 		Base:               info.Base,
@@ -1423,7 +1408,7 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 		flagsByInstanceName[name] = flags
 	}
 
-	if err := checkDiskSpace(st, "install", updates, userID); err != nil {
+	if err := checkDiskSpace(st, "install", updates, userID, nil); err != nil {
 		return nil, err
 	}
 
@@ -1432,7 +1417,7 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 		return nil, flagsByInstanceName[name], stateByInstanceName[name]
 	}
 
-	_, updateTss, err := doUpdate(ctx, st, names, updates, params, userID, flags, deviceCtx, "")
+	_, updateTss, err := doUpdate(ctx, st, names, updates, params, userID, flags, nil, deviceCtx, "")
 	if err != nil {
 		return nil, err
 	}
@@ -1489,7 +1474,7 @@ func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, us
 		snapInfos[i] = installSnapInfo{sar.Info}
 	}
 
-	if err = checkDiskSpace(st, "install", snapInfos, userID); err != nil {
+	if err = checkDiskSpace(st, "install", snapInfos, userID, nil); err != nil {
 		return nil, nil, err
 	}
 
@@ -1522,7 +1507,7 @@ func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, us
 			channel = sar.RedirectChannel
 		}
 
-		providerContentAttrs := defaultProviderContentAttrs(st, info)
+		providerContentAttrs := defaultProviderContentAttrs(st, info, nil)
 		snapsup := &SnapSetup{
 			Channel:            channel,
 			Base:               info.Base,
@@ -1827,11 +1812,11 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 		}
 	}
 
-	if err = checkDiskSpace(st, "refresh", toUpdate, userID); err != nil {
+	if err = checkDiskSpace(st, "refresh", toUpdate, userID, nil); err != nil {
 		return nil, nil, err
 	}
 
-	updated, updateTss, err := doUpdate(ctx, st, names, toUpdate, params, userID, flags, deviceCtx, fromChange)
+	updated, updateTss, err := doUpdate(ctx, st, names, toUpdate, params, userID, flags, nil, deviceCtx, fromChange)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1875,7 +1860,7 @@ type UpdateTaskSets struct {
 	Refresh []*state.TaskSet
 }
 
-func doUpdate(ctx context.Context, st *state.State, names []string, updates []minimalInstallInfo, params updateParamsFunc, userID int, globalFlags *Flags, deviceCtx DeviceContext, fromChange string) ([]string, *UpdateTaskSets, error) {
+func doUpdate(ctx context.Context, st *state.State, names []string, updates []minimalInstallInfo, params updateParamsFunc, userID int, globalFlags *Flags, prqt PrereqTracker, deviceCtx DeviceContext, fromChange string) ([]string, *UpdateTaskSets, error) {
 	if globalFlags == nil {
 		globalFlags = &Flags{}
 	}
@@ -1948,7 +1933,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 		}
 	}
 	for _, update := range updates {
-		snapsup, snapst, err := update.(readyUpdateInfo).SnapSetupForUpdate(st, params, userID, globalFlags)
+		snapsup, snapst, err := update.(readyUpdateInfo).SnapSetupForUpdate(st, params, userID, globalFlags, prqt)
 		if err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
@@ -2409,6 +2394,7 @@ type snapInfoForUpdate func(dc DeviceContext, ro *RevisionOptions, fl Flags, sna
 // modifications. If no such edge is set, then none of the tasks introduce
 // system modifications.
 func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
+	// XXX take PrereqTracker
 	snapUpdateInfo := func(dc DeviceContext, ro *RevisionOptions, fl Flags, snapst *SnapState) ([]minimalInstallInfo, error) {
 		toUpdate := []minimalInstallInfo{}
 		info, infoErr := infoForUpdate(st, snapst, name, ro, userID, fl, dc)
@@ -2424,7 +2410,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		return toUpdate, infoErr
 	}
 
-	return updateWithDeviceContext(st, name, opts, userID, flags, deviceCtx, fromChange, snapUpdateInfo)
+	return updateWithDeviceContext(st, name, opts, userID, flags, nil, deviceCtx, fromChange, snapUpdateInfo)
 }
 
 // UpdatePathWithDeviceContext initiates a change updating a snap from a local file.
@@ -2435,6 +2421,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 // modifications. If no such edge is set, then none of the tasks introduce
 // system modifications.
 func UpdatePathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
+	// XXX take PrereqTracker
 	snapUpdateInfo := func(dc DeviceContext, ro *RevisionOptions, fl Flags, snapst *SnapState) ([]minimalInstallInfo, error) {
 		toUpdate := []minimalInstallInfo{}
 		info, err := validatedInfoFromPathAndSideInfo(name, path, si)
@@ -2452,10 +2439,10 @@ func UpdatePathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name 
 		return toUpdate, nil
 	}
 
-	return updateWithDeviceContext(st, name, opts, userID, flags, deviceCtx, fromChange, snapUpdateInfo)
+	return updateWithDeviceContext(st, name, opts, userID, flags, nil, deviceCtx, fromChange, snapUpdateInfo)
 }
 
-func updateWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string, snapUpdateInfo snapInfoForUpdate) (*state.TaskSet, error) {
+func updateWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, prqt PrereqTracker, deviceCtx DeviceContext, fromChange string, snapUpdateInfo snapInfoForUpdate) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
@@ -2508,7 +2495,7 @@ func updateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		return nil, infoErr
 	}
 
-	if err = checkDiskSpace(st, "refresh", toUpdate, userID); err != nil {
+	if err = checkDiskSpace(st, "refresh", toUpdate, userID, prqt); err != nil {
 		return nil, err
 	}
 
@@ -2516,7 +2503,7 @@ func updateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		return opts, flags, &snapst
 	}
 
-	_, updateTss, err := doUpdate(context.TODO(), st, []string{name}, toUpdate, params, userID, &flags, deviceCtx, fromChange)
+	_, updateTss, err := doUpdate(context.TODO(), st, []string{name}, toUpdate, params, userID, &flags, prqt, deviceCtx, fromChange)
 	if err != nil {
 		return nil, err
 	}
@@ -2840,11 +2827,11 @@ func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshC
 		toUpdate[i] = up
 	}
 
-	if err := checkDiskSpace(st, "refresh", toUpdate, 0); err != nil {
+	if err := checkDiskSpace(st, "refresh", toUpdate, 0, nil); err != nil {
 		return nil, err
 	}
 
-	updated, updateTss, err := doUpdate(ctx, st, nil, toUpdate, nil, userID, flags, deviceCtx, fromChange)
+	updated, updateTss, err := doUpdate(ctx, st, nil, toUpdate, nil, userID, flags, nil, deviceCtx, fromChange)
 	if err != nil {
 		return nil, err
 	}
@@ -2858,7 +2845,7 @@ func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshC
 }
 
 // checkDiskSpace checks if there is enough space for the requested snaps and their prerequisites
-func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallInfo, userID int) error {
+func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallInfo, userID int, prqt PrereqTracker) error {
 	var featFlag features.SnapdFeature
 
 	switch changeKind {
@@ -2880,7 +2867,7 @@ func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallIn
 		return nil
 	}
 
-	totalSize, err := installSize(st, infos, userID)
+	totalSize, err := installSize(st, infos, userID, prqt)
 	if err != nil {
 		return err
 	}

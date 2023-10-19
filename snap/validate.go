@@ -1134,6 +1134,7 @@ func ValidateSystemUsernames(info *Info) error {
 
 // SimplePrereqTracker is a simple stateless helper to track
 // prerequisites of snaps (default-providers in particular).
+// SimplePrereqTracker implements snapstate.PrereqTracker.
 type SimplePrereqTracker struct{}
 
 // InterfaceRepo can return all the known slots for an interface.
@@ -1141,12 +1142,17 @@ type InterfaceRepo interface {
 	AllSlots(interfaceName string) []*SlotInfo
 }
 
+// Add implements snapstate.PrereqTracker.
+func (SimplePrereqTracker) Add(*Info) {
+	// SimplePrereqTracker is stateless, nothing to do.
+}
+
 // DefaultProviderContentAttrs returns a map keyed by the names of all
 // default-providers for the content plugs that the given snap.Info
 // needs. The map values are the corresponding content tags.
 // If repo is not nil, any content tag provided by an existing slot in it
 // is considered already available and filtered out from the result.
-func (prqt SimplePrereqTracker) DefaultProviderContentAttrs(info *Info, repo InterfaceRepo) map[string][]string {
+func (SimplePrereqTracker) DefaultProviderContentAttrs(info *Info, repo InterfaceRepo) map[string][]string {
 	availTags := contentIfaceAvailable(repo)
 	providerSnapsToContentTag := make(map[string][]string)
 	for _, plug := range info.Plugs {
