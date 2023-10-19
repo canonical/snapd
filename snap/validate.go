@@ -1132,15 +1132,54 @@ func ValidateSystemUsernames(info *Info) error {
 	return nil
 }
 
+// SimplePrereqTracker is a simple stateless helper to track
+// prerequisites of snaps (default-providers in particular).
+type SimplePrereqTracker struct{}
+
+// InterfaceRepo can return all the known slots for an interface.
+type InterfaceRepo interface {
+	AllSlots(interfaceName string) []*SlotInfo
+}
+
+// DefaultProviderContentAttrs returns a map keyed by the names of all
+// default-providers for the content plugs that the given snap.Info
+// needs. The map values are the corresponding content tags.
+// If repo is not nil, any content tag provided by an existing slot in it
+// is considered already available and filtered out from the result.
+func (prqt SimplePrereqTracker) DefaultProviderContentAttrs(info *Info, repo InterfaceRepo) map[string][]string {
+	availTags := contentIfaceAvailable(repo)
+	providerSnapsToContentTag := make(map[string][]string)
+	for _, plug := range info.Plugs {
+		gatherDefaultContentProvider(providerSnapsToContentTag, plug, availTags)
+	}
+	return providerSnapsToContentTag
+}
+
+// contentIfaceAvailable returns a map populated with content tags for which there is a content snap in the system.
+func contentIfaceAvailable(repo InterfaceRepo) map[string]bool {
+	if repo == nil {
+		return nil
+	}
+	contentSlots := repo.AllSlots("content")
+	avail := make(map[string]bool, len(contentSlots))
+	for _, slot := range contentSlots {
+		var contentTag string
+		slot.Attr("content", &contentTag)
+		if contentTag == "" {
+			continue
+		}
+		avail[contentTag] = true
+	}
+	return avail
+}
+
 // NeededDefaultProviders returns a map keyed by the names of all
 // default-providers for the content plugs that the given snap.Info
 // needs. The map values are the corresponding content tags.
+// XXX TODO: switch away from using/needing this in favor of the prereq
+// trackers.
 func NeededDefaultProviders(info *Info) (providerSnapsToContentTag map[string][]string) {
-	providerSnapsToContentTag = make(map[string][]string)
-	for _, plug := range info.Plugs {
-		gatherDefaultContentProvider(providerSnapsToContentTag, plug)
-	}
-	return providerSnapsToContentTag
+	return (SimplePrereqTracker{}).DefaultProviderContentAttrs(info, nil)
 }
 
 // ValidateBasesAndProviders checks that all bases/default-providers are part of the seed
