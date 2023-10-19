@@ -12294,10 +12294,9 @@ volumes:
 func (s *mgrsSuite) TestDownloadSimple(c *C) {
 	s.prereqSnapAssertions(c)
 
-	const snapName = "foo"
 	const snapRev = "1"
 
-	snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 0}", snapName), snapRev)
+	snapPath, _ := s.makeStoreTestSnap(c, "{name: foo, version: 0}", snapRev)
 	s.serveSnap(snapPath, snapRev)
 
 	mockServer := s.mockStore(c)
@@ -12307,7 +12306,7 @@ func (s *mgrsSuite) TestDownloadSimple(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Download(context.TODO(), st, snapName, nil, 0, snapstate.Flags{}, nil)
+	ts, err := snapstate.Download(context.TODO(), st, "foo", nil, 0, snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("download-snap", "...")
 	chg.AddAll(ts)
@@ -12320,21 +12319,20 @@ func (s *mgrsSuite) TestDownloadSimple(c *C) {
 	// confirm it worked
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("download-snap change failed with: %v", chg.Err()))
 
-	exists := osutil.FileExists(filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", snapName, snapRev)))
+	exists := osutil.FileExists(filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", "foo", snapRev)))
 	c.Check(exists, Equals, true)
 }
 
 func (s *mgrsSuite) TestDownloadSpecificRevision(c *C) {
 	s.prereqSnapAssertions(c)
 
-	const snapName = "foo"
 	const snapOldRev = "1"
 	const snapNewRev = "2"
 
-	snapOldPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 1}", snapName), snapOldRev)
+	snapOldPath, _ := s.makeStoreTestSnap(c, "{name: foo, version: 1}", snapOldRev)
 	s.serveSnap(snapOldPath, snapOldRev)
 
-	snapNewPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 2}", snapName), snapNewRev)
+	snapNewPath, _ := s.makeStoreTestSnap(c, "{name: foo, version: 2}", snapNewRev)
 	s.serveSnap(snapNewPath, snapNewRev)
 
 	mockServer := s.mockStore(c)
@@ -12344,7 +12342,7 @@ func (s *mgrsSuite) TestDownloadSpecificRevision(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Download(context.TODO(), st, snapName, &snapstate.RevisionOptions{
+	ts, err := snapstate.Download(context.TODO(), st, "foo", &snapstate.RevisionOptions{
 		Revision: snap.R(snapOldRev),
 	}, 0, snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
@@ -12359,7 +12357,7 @@ func (s *mgrsSuite) TestDownloadSpecificRevision(c *C) {
 	// confirm it worked
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("download-snap change failed with: %v", chg.Err()))
 
-	snapPath := filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", snapName, snapOldRev))
+	snapPath := filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", "foo", snapOldRev))
 	exists := osutil.FileExists(snapPath)
 	c.Check(exists, Equals, true)
 
