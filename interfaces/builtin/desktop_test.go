@@ -111,6 +111,10 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access basic graphical desktop resources")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/fonts>")
 
+	// check desktop interface uses correct label for Mutter when provided
+	// by a snap
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "  member=\"GetIdletime\"\n    peer=(label=\"snap.provider.app\"),\n")
+
 	// There are UpdateNS rules to allow mounting the font directories too
 	updateNS := spec.UpdateNS()
 	c.Check(updateNS, testutil.Contains, "  # Read-only access to /usr/share/fonts\n")
@@ -134,6 +138,10 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access basic graphical desktop resources")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/etc/gtk-3.0/settings.ini r,")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow access to xdg-desktop-portal and xdg-document-portal")
+
+	// check desktop interface uses correct label for Mutter when provided
+	// by the system
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "  member=\"GetIdletime\"\n    peer=(label=unconfined),\n")
 
 	// As well as the font directories, the document portal can be mounted
 	updateNS = spec.UpdateNS()

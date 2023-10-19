@@ -21,6 +21,7 @@ package builtin
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -132,7 +133,7 @@ dbus (send)
     path="/org/gnome/Mutter/IdleMonitor/Core"
     interface="org.gnome.Mutter.IdleMonitor"
     member="GetIdletime"
-    peer=(name=org.gnome.Mutter.IdleMonitor),
+    peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 const desktopConnectedPlugAppArmorClassic = `
@@ -437,7 +438,17 @@ func (iface *desktopInterface) fontconfigDirs(plug *interfaces.ConnectedPlug) ([
 }
 
 func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(desktopConnectedPlugAppArmor)
+	old := "###SLOT_SECURITY_TAGS###"
+	var new string
+	if implicitSystemConnectedSlot(slot) {
+		// we are running on a system that has the desktop slot
+		// provided by the OS snap and so will run unconfined
+		new = "unconfined"
+	} else {
+		new = slotAppLabelExpr(slot)
+	}
+	snippet := strings.Replace(desktopConnectedPlugAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
 	if implicitSystemConnectedSlot(slot) {
 		// Extra rules that have not been ported to work with
 		// a desktop slot provided by a snap.
