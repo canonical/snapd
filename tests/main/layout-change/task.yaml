@@ -9,8 +9,8 @@ details: |
 
 systems:
     # the snaps aren't available for ARM or 32bit systems.
-    - -ubuntu-18.04-32
-    - -ubuntu-*-arm-64
+    - -ubuntu-*-32
+    - -ubuntu-*-arm*
 
 prepare: |
     echo "Removing snaps"
