@@ -12367,3 +12367,45 @@ func (s *mgrsSuite) TestDownloadSpecificRevision(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(info.Version, Equals, "1")
 }
+
+func (s *mgrsSuite) TestDownloadWithPrereqs(c *C) {
+	s.prereqSnapAssertions(c, map[string]interface{}{}, map[string]interface{}{
+		"snap-name": "core22",
+		"snap-id":   fakeSnapID("core22"),
+	})
+
+	const snapRev = "1"
+	const coreRev = "2"
+
+	snapPath, _ := s.makeStoreTestSnap(c, "{name: foo, version: 0, base: core22}", snapRev)
+	s.serveSnap(snapPath, snapRev)
+
+	corePath, _ := s.makeStoreTestSnap(c, "{name: core22, version: 0, type: base}", coreRev)
+	s.serveSnap(corePath, coreRev)
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := snapstate.Download(context.TODO(), st, "foo", nil, 0, snapstate.Flags{}, nil)
+	c.Assert(err, IsNil)
+	chg := st.NewChange("download-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// confirm it worked
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("download-snap change failed with: %v", chg.Err()))
+
+	exists := osutil.FileExists(filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", "foo", snapRev)))
+	c.Check(exists, Equals, true)
+
+	exists = osutil.FileExists(filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", "core22", coreRev)))
+	c.Check(exists, Equals, true)
+}
