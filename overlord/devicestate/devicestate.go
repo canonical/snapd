@@ -711,6 +711,9 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	userID := 0
 	var tss []*state.TaskSet
 
+	// XXX TODO: switch to use instead a PrereqTracker
+	// that supports properly self-contained set of snaps
+	// instead of updateNeededSnapsFromTs and NeededDefaultProviders
 	snapsAccountedFor := make(map[string]bool)
 	neededSnaps := make(map[string]bool)
 
