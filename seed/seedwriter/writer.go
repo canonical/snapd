@@ -1232,6 +1232,10 @@ func (w *Writer) Downloaded(fetchAsserts AssertsFetchFunc) (complete bool, err e
 }
 
 func (w *Writer) checkPrereqs() error {
+	// as we error on the first problem we want to check snaps mode by mode
+	// in a fixed order; we start with run then
+	// ephemeral as snaps marked as such need to be self-contained
+	// then specific modes sorted
 	modes := make([]string, 0, len(w.availableByMode))
 	modes = append(modes, "run")
 	fixed := 1
@@ -1246,7 +1250,6 @@ func (w *Writer) checkPrereqs() error {
 		modes = append(modes, m)
 	}
 	sort.Strings(modes[fixed:])
-	w.checkPrereqsInMode("ephemeral")
 	for _, m := range modes {
 		if err := w.checkPrereqsInMode(m); err != nil {
 			return err
