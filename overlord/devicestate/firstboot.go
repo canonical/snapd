@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2022 Canonical Ltd
+ * Copyright (C) 2014-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -43,7 +43,7 @@ var errNothingToDo = errors.New("nothing to do")
 
 var runtimeNumCPU = runtime.NumCPU
 
-func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
+func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags, prqt snapstate.PrereqTracker) (*state.TaskSet, *snap.Info, error) {
 	if sn.Required {
 		flags.Required = true
 	}
@@ -54,7 +54,7 @@ func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags) (*st
 		flags.DevMode = true
 	}
 
-	return snapstate.InstallPath(st, sn.SideInfo, sn.Path, "", sn.Channel, flags, nil)
+	return snapstate.InstallPath(st, sn.SideInfo, sn.Path, "", sn.Channel, flags, prqt)
 }
 
 func criticalTaskEdges(ts *state.TaskSet) (beginEdge, beforeHooksEdge, hooksEdge *state.Task, err error) {
@@ -262,6 +262,11 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 
 	infoToTs := make(map[*snap.Info]*state.TaskSet, len(essentialSeedSnaps))
 
+	// XXX TODO: switch to a prereq tracker that supports properly
+	// a self-contained set of snaps, here we cannot nor want
+	// to go back to the store for prereqs anyway
+	prqt := snap.SimplePrereqTracker{}
+
 	if len(essentialSeedSnaps) != 0 {
 		// we *always* configure "core" here even if bases are used
 		// for booting. "core" is where the system config lives.
@@ -282,7 +287,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 			ApplySnapDevMode: modelIsDangerous,
 		}
 
-		ts, info, err := installSeedSnap(st, seedSnap, flags)
+		ts, info, err := installSeedSnap(st, seedSnap, flags, prqt)
 		if err != nil {
 			return nil, err
 		}
@@ -323,7 +328,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 			Classic: release.OnClassic && modelIsDangerous,
 		}
 
-		ts, info, err := installSeedSnap(st, seedSnap, flags)
+		ts, info, err := installSeedSnap(st, seedSnap, flags, prqt)
 		if err != nil {
 			return nil, err
 		}
@@ -332,6 +337,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	}
 
 	// validate that all snaps have bases
+	// XXX this will use the PrereqTracker
 	errs := snap.ValidateBasesAndProviders(infos)
 	if errs != nil {
 		// only report the first error encountered
