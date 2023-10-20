@@ -1031,12 +1031,20 @@ EOF
     if [ "$KERNEL_CHANNEL" = "$GADGET_CHANNEL" ]; then
         IMAGE_CHANNEL="$KERNEL_CHANNEL"
     else
-        # download pc-kernel snap for the specified channel and set
-        # ubuntu-image channel to that of the gadget, so that we don't
-        # need to download it
-        snap download --channel="$KERNEL_CHANNEL" pc-kernel
+        if os.query is-core16 || os.query is-core18; then
+            if os.query is-core16; then
+                BRANCH=latest
+            elif os.query is-core18; then
+                BRANCH=18
+            fi
+            # download pc-kernel snap for the specified channel and set
+            # ubuntu-image channel to that of the gadget, so that we don't
+            # need to download it. Do this only for UC16/18 as the UC20+
+            # case is considered a few lines below.
+            snap download --channel="$BRANCH/$KERNEL_CHANNEL" pc-kernel
+            EXTRA_FUNDAMENTAL="--snap $PWD/pc-kernel_*.snap"
+        fi
 
-        EXTRA_FUNDAMENTAL="--snap $PWD/pc-kernel_*.snap"
         IMAGE_CHANNEL="$GADGET_CHANNEL"
     fi
 
