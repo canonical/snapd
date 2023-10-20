@@ -1263,7 +1263,10 @@ func (w *Writer) checkPrereqsInMode(mode string) error {
 	nephemeral := len(w.byModeSnaps["ephemeral"])
 	var snaps []*snap.Info
 	if mode != "run" && mode != "ephemeral" {
-		// include snap marked for any ephemeral mode
+		// mode is a concrete ephemeral mode
+		// (not run, not ephemeral which is the set of snaps
+		//  shared by all ephemeral modes)
+		// so we include snap marked for any ephemeral mode
 		snaps = make([]*snap.Info, 0, nmode+nephemeral)
 		for _, sn := range w.byModeSnaps["ephemeral"] {
 			snaps = append(snaps, sn.Info)
