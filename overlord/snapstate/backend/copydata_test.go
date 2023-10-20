@@ -83,6 +83,7 @@ func (s *copydataSuite) TestCopyData(c *C) {
 }
 
 func (s *copydataSuite) testCopyData(c *C, snapDir string, opts *dirs.SnapDirOptions) {
+	dirs.SetSnapHomeDirs(filepath.Join(s.tempdir, "home"))
 	homedir := filepath.Join(s.tempdir, "home", "user1", snapDir)
 	homeData := filepath.Join(homedir, "hello/10")
 	err := os.MkdirAll(homeData, 0755)
@@ -199,6 +200,7 @@ func (s copydataSuite) populateHomeData(c *C, user string, revision snap.Revisio
 }
 
 func (s copydataSuite) populateHomeDataWithSnapDir(c *C, user string, snapDir string, revision snap.Revision) (homedir string) {
+	dirs.SetSnapHomeDirs(filepath.Join(s.tempdir, "home"))
 	homedir = filepath.Join(s.tempdir, "home", user, snapDir)
 	homeData := filepath.Join(homedir, "hello", revision.String())
 	err := os.MkdirAll(homeData, 0755)
@@ -953,6 +955,7 @@ func (s *copydataSuite) TestUndoHideDoesntRemoveIfDirHasFiles(c *C) {
 }
 
 func (s *copydataSuite) TestCleanupAfterCopyAndMigration(c *C) {
+	dirs.SetSnapHomeDirs(filepath.Join(s.tempdir, "home"))
 	homedir := filepath.Join(s.tempdir, "home", "user")
 	usr, err := user.Current()
 	c.Assert(err, IsNil)

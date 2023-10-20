@@ -49,6 +49,7 @@ func (s *snapdataSuite) TearDownTest(c *C) {
 }
 
 func (s *snapdataSuite) TestRemoveSnapData(c *C) {
+	dirs.SetSnapHomeDirs(filepath.Join(s.tempdir, "home"))
 	homedir := filepath.Join(s.tempdir, "home", "user1", "snap")
 	homeData := filepath.Join(homedir, "hello/10")
 	err := os.MkdirAll(homeData, 0755)
@@ -68,6 +69,7 @@ func (s *snapdataSuite) TestRemoveSnapData(c *C) {
 }
 
 func (s *snapdataSuite) TestRemoveSnapCommonData(c *C) {
+	dirs.SetSnapHomeDirs(filepath.Join(s.tempdir, "home"))
 	homedir := filepath.Join(s.tempdir, "home", "user1", "snap")
 	homeCommonData := filepath.Join(homedir, "hello/common")
 	err := os.MkdirAll(homeCommonData, 0755)
