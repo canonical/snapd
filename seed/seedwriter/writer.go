@@ -238,8 +238,6 @@ type policy interface {
 
 	checkBase(s *snap.Info, modes []string, availableByMode map[string]*naming.SnapSet) error
 
-	checkAvailable(snpRef naming.SnapRef, modes []string, availableByMode map[string]*naming.SnapSet) bool
-
 	checkClassicSnap(sn *SeedSnap) error
 
 	needsImplicitSnaps(availableByMode map[string]*naming.SnapSet) (bool, error)
