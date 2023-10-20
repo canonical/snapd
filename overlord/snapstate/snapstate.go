@@ -1113,8 +1113,7 @@ func prereqTrack(prqt PrereqTracker, info *snap.Info) {
 // The provided SideInfo can contain just a name which results in a
 // local revision and sideloading, or full metadata in which case it
 // the snap will appear as installed from the store.
-func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel string, flags Flags) (*state.TaskSet, *snap.Info, error) {
-	// XXX take PrereqTracker
+func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel string, flags Flags, prqt PrereqTracker) (*state.TaskSet, *snap.Info, error) {
 	if si.RealName == "" {
 		return nil, nil, fmt.Errorf("internal error: snap name to install %q not provided", path)
 	}
@@ -1178,7 +1177,8 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		return nil, nil, err
 	}
 
-	providerContentAttrs := defaultProviderContentAttrs(st, info, nil)
+	prereqTrack(prqt, info)
+	providerContentAttrs := defaultProviderContentAttrs(st, info, prqt)
 	snapsup := &SnapSetup{
 		Base:               info.Base,
 		Prereq:             getKeys(providerContentAttrs),
@@ -1202,7 +1202,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, error) {
 	flags.TryMode = true
 
-	ts, _, err := InstallPath(st, &snap.SideInfo{RealName: name}, path, "", "", flags)
+	ts, _, err := InstallPath(st, &snap.SideInfo{RealName: name}, path, "", "", flags, nil)
 	return ts, err
 }
 

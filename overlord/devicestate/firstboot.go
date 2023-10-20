@@ -54,7 +54,7 @@ func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags) (*st
 		flags.DevMode = true
 	}
 
-	return snapstate.InstallPath(st, sn.SideInfo, sn.Path, "", sn.Channel, flags)
+	return snapstate.InstallPath(st, sn.SideInfo, sn.Path, "", sn.Channel, flags, nil)
 }
 
 func criticalTaskEdges(ts *state.TaskSet) (beginEdge, beforeHooksEdge, hooksEdge *state.Task, err error) {
