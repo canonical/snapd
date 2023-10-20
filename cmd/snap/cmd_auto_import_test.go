@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -265,7 +265,7 @@ func (s *SnapSuite) TestAutoImportIntoSpoolUnhappyTooBig(c *C) {
 	c.Assert(err, ErrorMatches, "cannot queue .*, file size too big: 656384")
 }
 
-func (s *SnapSuite) TestAutoImportUnhappyInInstallMode(c *C) {
+func (s *SnapSuite) testAutoImportUnhappyInInstallMode(c *C, mode string) {
 	restoreRelease := release.MockOnClassic(false)
 	defer restoreRelease()
 
@@ -275,16 +275,24 @@ func (s *SnapSuite) TestAutoImportUnhappyInInstallMode(c *C) {
 	_, restoreLogger := logger.MockLogger()
 	defer restoreLogger()
 
-	modeenvContent := `mode=install
+	modeenvContent := fmt.Sprintf(`mode=%s
 recovery_system=20200202
-`
+`, mode)
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
 	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
 	c.Assert(err, IsNil)
 	c.Check(s.Stdout(), Equals, "")
-	c.Check(s.Stderr(), Equals, "auto-import is disabled in install-mode\n")
+	c.Check(s.Stderr(), Equals, "auto-import is disabled in install modes\n")
+}
+
+func (s *SnapSuite) TestAutoImportUnhappyInInstallMode(c *C) {
+	s.testAutoImportUnhappyInInstallMode(c, "install")
+}
+
+func (s *SnapSuite) TestAutoImportUnhappyInFactoryResetMode(c *C) {
+	s.testAutoImportUnhappyInInstallMode(c, "factory-reset")
 }
 
 func (s *SnapSuite) TestAutoImportUnhappyInInstallInInitrdMode(c *C) {
