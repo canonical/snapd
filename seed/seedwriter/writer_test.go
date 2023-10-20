@@ -724,7 +724,7 @@ func (s *writerSuite) TestDownloadedMissingDefaultProvider(c *C) {
 	s.makeSnap(c, "cont-consumer", "developerid")
 
 	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
-	c.Check(err, ErrorMatches, `cannot use snap "cont-consumer" without its default content provider "cont-producer" being added explicitly`)
+	c.Check(err, ErrorMatches, `prerequisites need to be added explicitly: cannot use snap "cont-consumer": default provider "cont-producer" is missing`)
 }
 
 func (s *writerSuite) TestDownloadedCheckType(c *C) {
@@ -2685,7 +2685,7 @@ func (s *writerSuite) TestDownloadedCore20MissingDefaultProviderModes(c *C) {
 
 	s.opts.Label = "20191003"
 	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
-	c.Check(err, ErrorMatches, `cannot use snap "cont-consumer" without its default content provider "cont-producer" being added explicitly for all relevant modes \(recover\)`)
+	c.Check(err, ErrorMatches, `prerequisites need to be added explicitly for relevant mode recover: cannot use snap "cont-consumer": default provider "cont-producer" is missing`)
 }
 
 func (s *writerSuite) TestCore20NonDangerousDisallowedDevmodeSnaps(c *C) {

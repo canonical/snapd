@@ -23,6 +23,7 @@ package seedwriter
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
@@ -201,6 +202,7 @@ type Writer struct {
 
 	availableSnaps  *naming.SnapSet
 	availableByMode map[string]*naming.SnapSet
+	byModeSnaps     map[string][]*SeedSnap
 
 	// toDownload tracks which set of snaps SnapsToDownload should compute
 	// next
@@ -1090,6 +1092,7 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap, fetchAsserts AssertsFetchFunc
 		w.availableSnaps = naming.NewSnapSet(nil)
 		w.availableByMode = make(map[string]*naming.SnapSet)
 		w.availableByMode["run"] = naming.NewSnapSet(nil)
+		w.byModeSnaps = make(map[string][]*SeedSnap)
 	}
 
 	for _, sn := range seedSnaps {
@@ -1103,7 +1106,11 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap, fetchAsserts AssertsFetchFunc
 				byMode = naming.NewSnapSet(nil)
 				w.availableByMode[mode] = byMode
 			}
+			if byMode.Contains(sn) {
+				continue
+			}
 			byMode.Add(sn)
+			w.byModeSnaps[mode] = append(w.byModeSnaps[mode], sn)
 		}
 	}
 
@@ -1142,13 +1149,6 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap, fetchAsserts AssertsFetchFunc
 
 		if err := w.checkBase(info, modes); err != nil {
 			return err
-		}
-		// error about missing default providers
-		for dp := range snap.NeededDefaultProviders(info) {
-			if !w.policy.checkAvailable(naming.Snap(dp), modes, w.availableByMode) {
-				// TODO: have a way to ignore this issue on a snap by snap basis?
-				return fmt.Errorf("cannot use snap %q without its default content provider %q being added explicitly%s", info.SnapName(), dp, errorMsgForModesSuffix(modes))
-			}
 		}
 	}
 
@@ -1225,7 +1225,65 @@ func (w *Writer) Downloaded(fetchAsserts AssertsFetchFunc) (complete bool, err e
 	if err := w.ensureARefs(nil, fetchAsserts); err != nil {
 		return false, err
 	}
+
+	if err := w.checkPrereqs(); err != nil {
+		return false, err
+	}
+
 	return true, nil
+}
+
+func (w *Writer) checkPrereqs() error {
+	modes := make([]string, 0, len(w.availableByMode))
+	modes = append(modes, "run")
+	fixed := 1
+	if _, ok := w.availableByMode["ephemeral"]; ok {
+		modes = append(modes, "ephemeral")
+		fixed = 2
+	}
+	for m := range w.availableByMode {
+		if m == "run" || m == "ephemeral" {
+			continue
+		}
+		modes = append(modes, m)
+	}
+	sort.Strings(modes[fixed:])
+	w.checkPrereqsInMode("ephemeral")
+	for _, m := range modes {
+		if err := w.checkPrereqsInMode(m); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *Writer) checkPrereqsInMode(mode string) error {
+	nmode := len(w.byModeSnaps[mode])
+	nephemeral := len(w.byModeSnaps["ephemeral"])
+	var snaps []*snap.Info
+	if mode != "run" && mode != "ephemeral" {
+		// include snap marked for any ephemeral mode
+		snaps = make([]*snap.Info, 0, nmode+nephemeral)
+		for _, sn := range w.byModeSnaps["ephemeral"] {
+			snaps = append(snaps, sn.Info)
+		}
+	} else {
+		snaps = make([]*snap.Info, 0, nmode)
+	}
+	for _, sn := range w.byModeSnaps[mode] {
+		snaps = append(snaps, sn.Info)
+	}
+	if errs := snap.ValidateBasesAndProviders(snaps); errs != nil {
+		var errPrefix string
+		// XXX do better in terms of error structuring
+		if mode == "run" {
+			errPrefix = "prerequisites need to be added explicitly"
+		} else {
+			errPrefix = fmt.Sprintf("prerequisites need to be added explicitly for relevant mode %s", mode)
+		}
+		return fmt.Errorf("%s: %v", errPrefix, errs[0])
+	}
+	return nil
 }
 
 func (w *Writer) checkPublisher(sn *SeedSnap) error {

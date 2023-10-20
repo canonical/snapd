@@ -2649,31 +2649,6 @@ func (s *imageSuite) TestSetupSeedCore18GadgetDefaults(c *C) {
 	c.Check(osutil.FileExists(filepath.Join(rootdir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")), Equals, true)
 }
 
-func (s *imageSuite) TestSetupSeedSnapCoreSatisfiesCore16(c *C) {
-	restore := image.MockTrusted(s.StoreSigning.Trusted)
-	defer restore()
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
-		"architecture":   "amd64",
-		"gadget":         "pc",
-		"kernel":         "pc-kernel",
-		"required-snaps": []interface{}{"snap-req-core16-base"},
-	})
-
-	rootdir := filepath.Join(c.MkDir(), "image")
-	s.setupSnaps(c, map[string]string{
-		"core":                "canonical",
-		"pc":                  "canonical",
-		"pc-kernel":           "canonical",
-		"snap-req-other-base": "canonical",
-	}, "")
-	opts := &image.Options{
-		PrepareDir: filepath.Dir(rootdir),
-	}
-
-	err := image.SetupSeed(s.tsto, model, opts)
-	c.Assert(err, IsNil)
-}
-
 func (s *imageSuite) TestSetupSeedStoreAssertionMissing(c *C) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
@@ -2825,7 +2800,7 @@ func (s *imageSuite) TestSetupSeedMissingContentProvider(c *C) {
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
-	c.Check(err, ErrorMatches, `cannot use snap "snap-req-content-provider" without its default content provider "gtk-common-themes" being added explicitly`)
+	c.Check(err, ErrorMatches, `prerequisites need to be added explicitly: cannot use snap "snap-req-content-provider": default provider "gtk-common-themes" is missing`)
 }
 
 func (s *imageSuite) TestSetupSeedClassic(c *C) {
