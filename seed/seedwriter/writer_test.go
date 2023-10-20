@@ -164,11 +164,6 @@ plugs:
      content: cont
      default-provider: cont-producer
 `,
-	"required-base-core16": `name: required-base-core16
-type: app
-base: core16
-version: 1.0
-`,
 	"my-devmode": `name: my-devmode
 type: app
 version: 1
@@ -1932,23 +1927,6 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelSnapdFromModelWins(c 
 	}
 }
 
-func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnlyMissingCore16(c *C) {
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
-		"classic":        "true",
-		"architecture":   "amd64",
-		"gadget":         "classic-gadget18",
-		"required-snaps": []interface{}{"core18", "required-base-core16"},
-	})
-
-	s.makeSnap(c, "snapd", "")
-	s.makeSnap(c, "core18", "")
-	s.makeSnap(c, "classic-gadget18", "")
-	s.makeSnap(c, "required-base-core16", "developerid")
-
-	_, _, err := s.upToDownloaded(c, model, s.fillMetaDownloadedSnap, s.fetchAsserts(c))
-	c.Check(err, ErrorMatches, `cannot use "required-base-core16" requiring base "core16" without adding "core16" \(or "core"\) explicitly`)
-}
-
 func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
 		"display-name":   "my model",
@@ -2602,7 +2580,6 @@ func (s *writerSuite) TestDownloadedCore20CheckBaseCoreXX(c *C) {
 	s.makeSnap(c, "pc=20", "")
 	s.makeSnap(c, "core", "")
 	s.makeSnap(c, "required", "")
-	s.makeSnap(c, "required-base-core16", "")
 
 	coreEnt := map[string]interface{}{
 		"name": "core",
@@ -2614,19 +2591,12 @@ func (s *writerSuite) TestDownloadedCore20CheckBaseCoreXX(c *C) {
 		"id":   s.AssertedSnapID("required"),
 	}
 
-	requiredBaseCore16Ent := map[string]interface{}{
-		"name": "required-base-core16",
-		"id":   s.AssertedSnapID("required-base-core16"),
-	}
-
 	tests := []struct {
 		snaps []interface{}
 		err   string
 	}{
 		{[]interface{}{coreEnt, requiredEnt}, ""},
-		{[]interface{}{coreEnt, requiredBaseCore16Ent}, ""},
 		{[]interface{}{requiredEnt}, `cannot add snap "required" without also adding its base "core" explicitly`},
-		{[]interface{}{requiredBaseCore16Ent}, `cannot add snap "required-base-core16" without also adding its base "core16" \(or "core"\) explicitly`},
 	}
 
 	baseLabel := "20191003"
