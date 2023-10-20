@@ -201,8 +201,7 @@ execute: |
     # Test auth.json access
     su -c 'snap list' test 2>&1 |MATCH EOF
     su -c 'sudo snap list' test 2>&1 |MATCH EOF
-    # XXX this fails
-    #su -c 'sg systemd-journal -c "snap list"' test 2>&1 |MATCH EOF
+    su -c 'sg systemd-journal -c "snap list"' test 2>&1 |MATCH EOF
 
     # Unmount /home and restart snapd so that we can check another thing.
     umount_with_retry /home
@@ -232,6 +231,7 @@ execute: |
         # Test auth.json access
         su -c 'snap list' test 2>&1 |MATCH EOF
         su -c 'sudo snap list' test 2>&1 |MATCH EOF
+        su -c 'sg systemd-journal -c "snap list"' test 2>&1 |MATCH EOF
 
         # Unmount /home and restart snapd so that we can check another thing.
         umount_with_retry /home
@@ -257,6 +257,7 @@ execute: |
     # Test auth.json access
     su -c 'snap list' test 2>&1 |MATCH EOF
     su -c 'sudo snap list' test 2>&1 |MATCH EOF
+    su -c 'sg systemd-journal -c "snap list"' test 2>&1 |MATCH EOF
 
     # Unmount /home and restart snapd so that we can check another thing.
     umount_with_retry /home
