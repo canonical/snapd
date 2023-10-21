@@ -1169,6 +1169,7 @@ EOF
     fi
     # shellcheck disable=SC2086
     "$UBUNTU_IMAGE" snap \
+                    --image-size 5G \
                     -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
                     --channel "$IMAGE_CHANNEL" \
                     $EXTRA_FUNDAMENTAL \
