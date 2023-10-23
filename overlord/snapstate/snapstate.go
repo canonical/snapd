@@ -1440,20 +1440,15 @@ func download(ctx context.Context, st *state.State, name string, opts *RevisionO
 
 	revisionStr := fmt.Sprintf(" (%s)", snapsup.Revision())
 
-	prereq := st.NewTask("prerequisites", fmt.Sprintf(i18n.G("Ensure prerequisites for %q are available"), snapsup.InstanceName()))
-	prereq.Set("snap-setup", snapsup)
-
 	download := st.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.Channel))
-
 	download.Set("snap-setup", snapsup)
-	download.WaitFor(prereq)
 
 	checkAsserts := st.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), snapsup.InstanceName(), revisionStr))
 	checkAsserts.Set("snap-setup-task", download.ID())
 	checkAsserts.WaitFor(download)
 
-	installSet := state.NewTaskSet(prereq, download, checkAsserts)
-	installSet.MarkEdge(prereq, BeginEdge)
+	installSet := state.NewTaskSet(download, checkAsserts)
+	installSet.MarkEdge(download, BeginEdge)
 	installSet.MarkEdge(checkAsserts, LastBeforeLocalModificationsEdge)
 
 	return installSet, nil
