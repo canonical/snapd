@@ -1361,18 +1361,10 @@ func installWithDeviceContext(st *state.State, name string, opts *RevisionOption
 type snapInfoForDownload func(DeviceContext, *RevisionOptions) (si *snap.Info, redirectChannel string, e error)
 
 func Download(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
-	snapDownloadInfo := func(dc DeviceContext, ro *RevisionOptions) (si *snap.Info, redirectChannel string, e error) {
-		sar, err := downloadInfo(ctx, st, name, ro, userID, dc)
-		if err != nil {
-			return nil, "", err
-		}
-		return sar.Info, sar.RedirectChannel, nil
-	}
-
-	return download(st, name, opts, userID, flags, deviceCtx, snapDownloadInfo)
+	return download(ctx, st, name, opts, userID, flags, deviceCtx)
 }
 
-func download(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, snapDownloadInfo snapInfoForDownload) (*state.TaskSet, error) {
+func download(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
@@ -1401,10 +1393,12 @@ func download(st *state.State, name string, opts *RevisionOptions, userID int, f
 		return nil, fmt.Errorf("invalid instance name: %v", err)
 	}
 
-	info, redirectChannel, err := snapDownloadInfo(deviceCtx, opts)
+	sar, err := downloadInfo(ctx, st, name, opts, userID, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
+
+	info := sar.Info
 
 	if flags.RequireTypeBase && info.Type() != snap.TypeBase && info.Type() != snap.TypeOS {
 		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
@@ -1440,14 +1434,10 @@ func download(st *state.State, name string, opts *RevisionOptions, userID int, f
 		ExpectedProvenance: info.SnapProvenance,
 	}
 
-	if redirectChannel != "" {
-		snapsup.Channel = redirectChannel
+	if sar.RedirectChannel != "" {
+		snapsup.Channel = sar.RedirectChannel
 	}
 
-	return doDownload(st, snapsup)
-}
-
-func doDownload(st *state.State, snapsup *SnapSetup) (*state.TaskSet, error) {
 	revisionStr := fmt.Sprintf(" (%s)", snapsup.Revision())
 
 	prereq := st.NewTask("prerequisites", fmt.Sprintf(i18n.G("Ensure prerequisites for %q are available"), snapsup.InstanceName()))
