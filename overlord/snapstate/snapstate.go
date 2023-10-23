@@ -1100,7 +1100,9 @@ type PrereqTracker interface {
 	DefaultProviderContentAttrs(info *snap.Info, repo snap.InterfaceRepo) map[string][]string
 }
 
-func prereqTrack(prqt PrereqTracker, info *snap.Info) {
+// addPrereq adds the given prerequisite snap to the tracker, if the tracker is
+// not nil
+func addPrereq(prqt PrereqTracker, info *snap.Info) {
 	if prqt != nil {
 		prqt.Add(info)
 	}
@@ -1177,7 +1179,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		return nil, nil, err
 	}
 
-	prereqTrack(prqt, info)
+	addPrereq(prqt, info)
 	providerContentAttrs := defaultProviderContentAttrs(st, info, prqt)
 	snapsup := &SnapSetup{
 		Base:               info.Base,
@@ -1232,7 +1234,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		if err != nil {
 			return nil, "", "", err
 		}
-		prereqTrack(prqt, sar.Info)
+		addPrereq(prqt, sar.Info)
 		return sar.Info, "", sar.RedirectChannel, nil
 	}
 	return installWithDeviceContext(st, name, opts, userID, flags, prqt, deviceCtx, fromChange, snapInstallInfo)
@@ -1253,7 +1255,7 @@ func InstallPathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name
 		if err != nil {
 			return nil, "", "", err
 		}
-		prereqTrack(prqt, info)
+		addPrereq(prqt, info)
 		return info, path, "", nil
 	}
 	return installWithDeviceContext(st, name, opts, userID, flags, prqt, deviceCtx, fromChange, snapInstallInfo)
@@ -2405,7 +2407,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		info, infoErr := infoForUpdate(st, snapst, name, ro, userID, fl, dc)
 		switch infoErr {
 		case nil:
-			prereqTrack(prqt, info)
+			addPrereq(prqt, info)
 			toUpdate = append(toUpdate, installSnapInfo{info})
 		case store.ErrNoUpdateAvailable:
 			// there may be some new auto-aliases
@@ -2439,7 +2441,7 @@ func UpdatePathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name 
 		if snapst.CurrentSideInfo().Revision == info.Revision {
 			return toUpdate, store.ErrNoUpdateAvailable
 		}
-		prereqTrack(prqt, info)
+		addPrereq(prqt, info)
 		installInfo := pathInfo{Info: info, path: path, sideInfo: si}
 		toUpdate = append(toUpdate, installInfo)
 		return toUpdate, nil
