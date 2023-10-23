@@ -1358,8 +1358,6 @@ func installWithDeviceContext(st *state.State, name string, opts *RevisionOption
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
 }
 
-type snapInfoForDownload func(DeviceContext, *RevisionOptions) (si *snap.Info, redirectChannel string, e error)
-
 func Download(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
 	return download(ctx, st, name, opts, userID, flags, deviceCtx)
 }
