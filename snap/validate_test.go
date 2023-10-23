@@ -2277,6 +2277,9 @@ func (s *ValidateSuite) TestSimplePrereqTracker(c *C) {
 	providerContentAttrs = prqt.DefaultProviderContentAttrs(info, repo)
 	c.Check(providerContentAttrs, HasLen, 2)
 	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"foo"})
+	// stays the same
+	c.Check(providerContentAttrs["some-snap"], DeepEquals, []string{"baz"})
+
 	fooSlot := &SlotInfo{
 		Snap:      slotSnap,
 		Name:      "sound-themes",
@@ -2288,10 +2291,13 @@ func (s *ValidateSuite) TestSimplePrereqTracker(c *C) {
 	providerContentAttrs = prqt.DefaultProviderContentAttrs(info, repo)
 	c.Check(providerContentAttrs, HasLen, 1)
 	c.Check(providerContentAttrs["common-themes"], IsNil)
+	// stays the same
+	c.Check(providerContentAttrs["some-snap"], DeepEquals, []string{"baz"})
 
 	// no repo => no filtering
 	providerContentAttrs = prqt.DefaultProviderContentAttrs(info, nil)
 	c.Check(providerContentAttrs, HasLen, 2)
 	sort.Strings(providerContentAttrs["common-themes"])
 	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"bar", "foo"})
+	c.Check(providerContentAttrs["some-snap"], DeepEquals, []string{"baz"})
 }
