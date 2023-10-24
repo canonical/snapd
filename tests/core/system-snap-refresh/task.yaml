@@ -18,7 +18,7 @@ prepare: |
     systemctl restart snapd
 
     TARGET_SNAP_NAME="$(snaps.name core)"
-    # Save initial revition
+    # Save initial revision
     "$TESTSTOOLS"/snaps-state show-revision "$TARGET_SNAP_NAME" > initi_rev.log
 
 restore: |
