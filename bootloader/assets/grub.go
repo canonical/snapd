@@ -37,10 +37,22 @@ var cmdlineForArch = map[string][]ForEditions{
 	},
 }
 
+var recoveryCmdlineForArch = map[string][]ForEditions{
+	"amd64": {
+		{FirstEdition: 1, Snippet: []byte("console=ttyS0 console=tty1 panic=-1")},
+	},
+	"arm64": {
+		{FirstEdition: 1, Snippet: []byte("panic=-1")},
+	},
+	"i386": {
+		{FirstEdition: 1, Snippet: []byte("console=ttyS0 console=tty1 panic=-1")},
+	},
+}
+
 func registerGrubSnippets() {
-	snippets := cmdlineForArch[arch.DpkgArchitecture()]
-	registerSnippetForEditions("grub.cfg:static-cmdline", snippets)
-	registerSnippetForEditions("grub-recovery.cfg:static-cmdline", snippets)
+	devArch := arch.DpkgArchitecture()
+	registerSnippetForEditions("grub.cfg:static-cmdline", cmdlineForArch[devArch])
+	registerSnippetForEditions("grub-recovery.cfg:static-cmdline", recoveryCmdlineForArch[devArch])
 }
 
 func init() {
