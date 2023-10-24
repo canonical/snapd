@@ -608,11 +608,6 @@ var (
 	coreRuntimePattern = regexp.MustCompile("^core([0-9][0-9])?$")
 )
 
-const (
-	attachPattern  = "(attach_disconnected,mediate_deleted)"
-	attachComplain = "(attach_disconnected,mediate_deleted,complain)"
-)
-
 func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts interfaces.ConfinementOptions) (content map[string]osutil.FileState) {
 	content = make(map[string]osutil.FileState, len(snapInfo.Apps)+len(snapInfo.Hooks)+1)
 
@@ -683,13 +678,6 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 	if opts.Classic && !opts.JailMode {
 		policy = classicTemplate
 		ignoreSnippets = true
-	}
-	// If a snap is in devmode (or is using classic confinement) then make the
-	// profile non-enforcing where violations are logged but not denied.
-	// This is also done for classic so that no confinement applies. Just in
-	// case the profile we start with is not permissive enough.
-	if (opts.DevMode || opts.Classic) && !opts.JailMode {
-		policy = strings.Replace(policy, attachPattern, attachComplain, -1)
 	}
 	policy = templatePattern.ReplaceAllStringFunc(policy, func(placeholder string) string {
 		switch placeholder {
@@ -855,6 +843,30 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 			return templateVariables(snapInfo, securityTag, cmdName)
 		case "###PROFILEATTACH###":
 			return fmt.Sprintf("profile \"%s\"", securityTag)
+		case "###FLAGS###":
+			// default flags
+			flags := []string{"attach_disconnected", "mediate_deleted"}
+			if spec.Unconfined() {
+				// need both parser and kernel support for unconfined
+				pfeatures, _ := parserFeatures()
+				kfeatures, _ := kernelFeatures()
+				if strutil.ListContains(pfeatures, "unconfined") &&
+					strutil.ListContains(kfeatures, "policy:unconfined_restrictions") {
+					flags = append(flags, "unconfined")
+				}
+			}
+			// If a snap is in devmode (or is using classic confinement) then make the
+			// profile non-enforcing where violations are logged but not denied.
+			// This is also done for classic so that no confinement applies. Just in
+			// case the profile we start with is not permissive enough.
+			if (opts.DevMode || opts.Classic) && !opts.JailMode {
+				flags = append(flags, "complain")
+			}
+			if len(flags) > 0 {
+				return "flags=(" + strings.Join(flags, ",") + ")"
+			} else {
+				return ""
+			}
 		case "###PYCACHEDENY###":
 			if spec.SuppressPycacheDeny() {
 				return ""
