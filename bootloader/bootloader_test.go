@@ -83,6 +83,25 @@ func (s *bootenvTestSuite) TestForceBootloader(c *C) {
 	c.Check(got, Equals, s.b)
 }
 
+func (s *bootenvTestSuite) testForceModeBootloader(c *C, role bootloader.Role) {
+	bootloader.ForceModeBootloader(s.b, role)
+	defer bootloader.ForceModeBootloader(nil, role)
+
+	got, err := bootloader.Find("", nil)
+	c.Assert(err.Error(), Equals, "cannot determine bootloader")
+	c.Check(got, IsNil)
+
+	opts := &bootloader.Options{Role: role}
+	got, err = bootloader.Find("", opts)
+	c.Assert(err, IsNil)
+	c.Check(got, Equals, s.b)
+}
+
+func (s *bootenvTestSuite) TestForceModeBootloader(c *C) {
+	s.testForceModeBootloader(c, bootloader.RoleRunMode)
+	s.testForceModeBootloader(c, bootloader.RoleRecovery)
+}
+
 func (s *bootenvTestSuite) TestForceBootloaderError(c *C) {
 	myErr := errors.New("zap")
 	bootloader.ForceError(myErr)

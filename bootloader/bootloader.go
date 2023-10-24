@@ -328,9 +328,27 @@ var (
 )
 
 var (
-	forcedBootloader Bootloader
-	forcedError      error
+	forcedBootloader         Bootloader
+	forcedError              error
+	forcedRunBootloader      Bootloader
+	forcedRecoveryBootloader Bootloader
 )
+
+func findForcedBootloader(opts *Options) Bootloader {
+	if opts != nil {
+		switch opts.Role {
+		case RoleRunMode:
+			if forcedRunBootloader != nil {
+				return forcedRunBootloader
+			}
+		case RoleRecovery:
+			if forcedRecoveryBootloader != nil {
+				return forcedRecoveryBootloader
+			}
+		}
+	}
+	return forcedBootloader
+}
 
 // Find returns the bootloader for the system
 // or an error if no bootloader is found.
@@ -343,8 +361,8 @@ func Find(rootdir string, opts *Options) (Bootloader, error) {
 	if err := opts.validate(); err != nil {
 		return nil, err
 	}
-	if forcedBootloader != nil || forcedError != nil {
-		return forcedBootloader, forcedError
+	if findForcedBootloader(opts) != nil || forcedError != nil {
+		return findForcedBootloader(opts), forcedError
 	}
 
 	if rootdir == "" {
@@ -373,6 +391,29 @@ func Find(rootdir string, opts *Options) (Bootloader, error) {
 // nil to reset to normal lookup.
 func Force(booloader Bootloader) {
 	forcedBootloader = booloader
+	forcedError = nil
+}
+
+// ForceModeBootloader can be used to force Find to always find the
+// specified bootloader for a given role; use nil to reset to normal
+// lookup.
+func ForceModeBootloader(bootloader Bootloader, role Role) {
+	switch role {
+	case RoleRunMode:
+		forcedRunBootloader = bootloader
+	case RoleRecovery:
+		forcedRecoveryBootloader = bootloader
+	default:
+		panic("internal error: unexpected role")
+	}
+	forcedError = nil
+}
+
+// ForceRecoveryBootloader can be used to force Find to always find
+// the specified bootloader for RoleRecovery; use nil to reset to
+// normal lookup.
+func ForceRecoveryBootloader(booloader Bootloader) {
+	forcedRecoveryBootloader = booloader
 	forcedError = nil
 }
 
@@ -422,8 +463,8 @@ func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
 	if err := opts.validate(); err != nil {
 		return nil, err
 	}
-	if forcedBootloader != nil || forcedError != nil {
-		return forcedBootloader, forcedError
+	if findForcedBootloader(opts) != nil || forcedError != nil {
+		return findForcedBootloader(opts), forcedError
 	}
 	for _, blNew := range bootloaders {
 		bl := blNew(rootDir, opts)
