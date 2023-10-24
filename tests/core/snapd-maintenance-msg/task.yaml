@@ -37,7 +37,7 @@ execute: |
         snap revert snapd
 
         echo "Testing maintenance message for system reboots"
-        snap refresh core20 --channel=stable &
+        snap refresh core20 --channel=stable --amend &
         retry -n 20 --wait 0.5 sh -c 'test-snapd-curl.curl -sS --unix-socket /run/snapd.socket http://localhost/v2/changes?select=all | jq ".maintenance" | MATCH "system is restarting"'
         wait
 
