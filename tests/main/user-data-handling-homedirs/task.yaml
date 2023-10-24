@@ -1,0 +1,72 @@
+summary: Test support for snap refresh in non-standard home directory paths
+
+systems:
+    - -ubuntu-core-*  # Home dirs cannot be changed
+    - -centos-*       # No AppArmor support
+    - -fedora-*       # No AppArmor support
+    - -amazon-linux-* # No AppArmor support
+
+environment:
+    USERNAME: home-sweet-home
+
+prepare: |
+    # Create a new user in a non-standard location
+    mkdir -p /remote/users
+    useradd -b /remote/users -m -U "$USERNAME"
+
+restore: |
+    userdel -f --remove "$USERNAME"
+    rm -rf /remote/users
+
+debug: | 
+    # output custom snap-confine snippets
+    ls -l /var/lib/snapd/apparmor/snap-confine/
+    for f in /var/lib/snapd/apparmor/snap-confine/*; do
+        echo "$f"
+        cat "$f"
+    done
+    
+execute: |
+    echo "Enable the home directories under /remote/users"
+    snap set system homedirs=/remote/users
+    
+    echo "Verify that the system-params file has been created"
+    MATCH "^homedirs=/remote/users$" < /var/lib/snapd/system-params
+
+    echo "And that the AppArmor tunable file is proper"
+    MATCH "^@{HOMEDIRS}\\+=\"/remote/users\"$" < /etc/apparmor.d/tunables/home.d/snapd
+
+    echo "Install the test-snapd-sh snap"
+    snap install test-snapd-sh
+
+    # Get the revison of the snap
+    rev=$(snap list test-snapd-sh|tail -n1|tr -s ' '|cut -f3 -d' ')
+
+        homes=(/root/ /home/test/ /remote/users/$USERNAME/)
+    echo "That has some user data"
+    for h in "${homes[@]}"; do
+        test -d "$h"
+        d="${h}snap/test-snapd-sh/$rev"
+        mkdir -p "$d"
+        touch "$d/mock-data"
+        chown --recursive --reference="$h" "${h}snap/"
+    done
+
+    echo "When the snap is refreshed"
+    snap refresh --channel=edge test-snapd-sh
+    new_rev=$(snap list test-snapd-sh|tail -n1|tr -s ' '|cut -f3 -d' ')
+
+    echo "Then the user data gets copied"
+    for h in "${homes[@]}"; do
+        test -e "${h}snap/test-snapd-sh/$new_rev/mock-data"
+        test -e "${h}snap/test-snapd-sh/$rev/mock-data"
+    done
+
+    echo "When the snap is removed"
+    snap remove --purge test-snapd-sh
+
+    echo "Then all user data and root data is gone"
+    for h in "${homes[@]}"; do
+        test ! -e "${h}snap/test-snapd-sh/$new_rev/mock-data"
+        test ! -e "${h}snap/test-snapd-sh/$rev/mock-data"
+    done
