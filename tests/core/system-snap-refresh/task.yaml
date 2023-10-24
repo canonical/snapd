@@ -17,18 +17,14 @@ prepare: |
     echo "SNAPD_SHUTDOWN_DELAY=1" >> /etc/environment
     systemctl restart snapd
 
-restore: |
-    TARGET_SNAP_NAME=core
-    if os.query is-core18; then
-        TARGET_SNAP_NAME=core18
-    elif os.query is-core20; then
-        TARGET_SNAP_NAME=core20
-    fi
+    TARGET_SNAP_NAME="$(snaps.name core)"
+    # Save initial revition
+    "$TESTSTOOLS"/snaps-state show-revision "$TARGET_SNAP_NAME" > initi_rev.log
 
-    if not snap remove "$TARGET_SNAP_NAME" --revision=x2; then
-        snap changes
-        exit 1
-    fi
+restore: |
+    TARGET_SNAP_NAME="$(snaps.name core)"
+    # We need to make sure the base snap has the initial rev
+    test "$("$TESTSTOOLS"/snaps-state show-revision "$TARGET_SNAP_NAME")" == "$(cat initi_rev.log)"
     
     # remove SNAPD_SHUTDOWN_DELAY from /etc/environment again
     #shellcheck disable=SC2005
@@ -36,14 +32,7 @@ restore: |
     systemctl restart snapd
 
 execute: |
-    TARGET_SNAP_NAME=core
-    if os.query is-core18; then
-        TARGET_SNAP_NAME=core18
-    elif os.query is-core20; then
-        TARGET_SNAP_NAME=core20
-    elif os.query is-core22; then
-        TARGET_SNAP_NAME=core22
-    fi
+    TARGET_SNAP_NAME="$(snaps.name core)"
 
     # After installing a new version of the core/core18 snap the system is rebooted
     if [ "$SPREAD_REBOOT" = 0 ]; then
