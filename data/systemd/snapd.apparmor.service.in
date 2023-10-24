@@ -12,6 +12,9 @@ Before=sysinit.target
 After=apparmor.service
 ConditionSecurity=apparmor
 RequiresMountsFor=/var/cache/apparmor /var/lib/snapd/apparmor/profiles
+# Rexecution of snapd-apparmor in needs snapd to be mounted
+After=snapd.mounts.target
+Wants=snapd.mounts.target
 
 [Service]
 Type=oneshot
