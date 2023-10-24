@@ -345,6 +345,16 @@ func probeKernelFeatures() ([]string, error) {
 	for _, fi := range dentries {
 		if fi.IsDir() {
 			features = append(features, fi.Name())
+			// also read any sub-features
+			subdenties, err := ioutil.ReadDir(filepath.Join(rootPath, featuresSysPath, fi.Name()))
+			if err != nil {
+				return []string{}, err
+			}
+			for _, subfi := range subdenties {
+				if subfi.IsDir() {
+					features = append(features, fi.Name()+":"+subfi.Name())
+				}
+			}
 		}
 	}
 	return features, nil
