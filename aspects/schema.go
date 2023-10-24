@@ -31,6 +31,10 @@ import (
 type parser interface {
 	Schema
 
+	// mustConstrain returns true if the parser must have a map definition
+	// with constraints or false, if it may have a simple name definition.
+	mustConstrain() bool
+
 	// parseConstraints parses constraints for a type defined as a JSON object.
 	// Shouldn't be used with non-object/map type definitions.
 	parseConstraints(map[string]json.RawMessage) error
@@ -138,6 +142,8 @@ func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
 		if err := schema.parseConstraints(schemaDef); err != nil {
 			return nil, err
 		}
+	} else if schema.mustConstrain() {
+		return nil, fmt.Errorf(`cannot parse %q: must be map definition with constraints`, typ)
 	}
 
 	return schema, nil
@@ -157,6 +163,8 @@ func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
 		return &numberSchema{}, nil
 	case "bool":
 		return &booleanSchema{}, nil
+	case "array":
+		return &arraySchema{topSchema: s}, nil
 	default:
 		if typ != "" && typ[0] == '$' {
 			return s.getUserType(typ[1:])
@@ -414,6 +422,8 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 	return nil, fmt.Errorf(`keys must be based on string but got %q`, typ)
 }
 
+func (v *mapSchema) mustConstrain() bool { return false }
+
 type stringSchema struct {
 	// pattern is a regex pattern that the string must match.
 	pattern *regexp.Regexp
@@ -475,6 +485,8 @@ func (v *stringSchema) parseConstraints(constraints map[string]json.RawMessage) 
 
 	return nil
 }
+
+func (v *stringSchema) mustConstrain() bool { return false }
 
 type intSchema struct {
 	min     *int64
@@ -542,6 +554,8 @@ func (v *intSchema) parseConstraints(constraints map[string]json.RawMessage) err
 	return nil
 }
 
+func (v *intSchema) mustConstrain() bool { return false }
+
 type anySchema struct{}
 
 func (v *anySchema) Validate(raw []byte) error {
@@ -560,6 +574,8 @@ func (v *anySchema) parseConstraints(constraints map[string]json.RawMessage) err
 	// no error because we're not explicitly rejecting unsupported keywords (for now)
 	return nil
 }
+
+func (v *anySchema) mustConstrain() bool { return false }
 
 type numberSchema struct {
 	min     *float64
@@ -654,6 +670,7 @@ func (v *numberSchema) parseConstraints(constraints map[string]json.RawMessage) 
 
 	return nil
 }
+func (v *numberSchema) mustConstrain() bool { return false }
 
 type booleanSchema struct{}
 
@@ -674,3 +691,75 @@ func (v *booleanSchema) parseConstraints(constraints map[string]json.RawMessage)
 	// no error because we're not explicitly rejecting unsupported keywords (for now)
 	return nil
 }
+
+func (v *booleanSchema) mustConstrain() bool { return false }
+
+type arraySchema struct {
+	// topSchema is the schema for the top-level schema which contains the user types.
+	topSchema *StorageSchema
+
+	// elementType represents the type of the array's elements and can be used to
+	// validate them.
+	elementType Schema
+
+	// unique is true if the array should not contain duplicates.
+	unique bool
+}
+
+func (v *arraySchema) Validate(raw []byte) error {
+	var array *[]json.RawMessage
+	if err := json.Unmarshal(raw, &array); err != nil {
+		return err
+	}
+
+	if array == nil {
+		return fmt.Errorf(`cannot accept null value for "array" type`)
+	}
+
+	for _, val := range *array {
+		if err := v.elementType.Validate([]byte(val)); err != nil {
+			return err
+		}
+	}
+
+	if v.unique {
+		valSet := make(map[string]struct{}, len(*array))
+
+		for _, val := range *array {
+			encodedVal := string(val)
+			if _, ok := valSet[encodedVal]; ok {
+				return fmt.Errorf(`cannot accept array with duplicate values`)
+			}
+			valSet[encodedVal] = struct{}{}
+		}
+	}
+
+	return nil
+}
+
+func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	rawValues, ok := constraints["values"]
+	if !ok {
+		return fmt.Errorf(`cannot parse "array": must have "values" constraint`)
+	}
+
+	typ, err := v.topSchema.parse(rawValues)
+	if err != nil {
+		return fmt.Errorf(`cannot parse "array" values type: %v`, err)
+	}
+
+	v.elementType = typ
+
+	if rawUnique, ok := constraints["unique"]; ok {
+		var unique bool
+		if err := json.Unmarshal(rawUnique, &unique); err != nil {
+			return fmt.Errorf(`cannot parse "array": %v`, err)
+		}
+
+		v.unique = unique
+	}
+
+	return nil
+}
+
+func (v *arraySchema) mustConstrain() bool { return true }

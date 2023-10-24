@@ -1385,6 +1385,23 @@ func (*schemaSuite) TestUserDefinedTypeRejectsNull(c *C) {
 	c.Assert(err, ErrorMatches, `cannot accept null value for "string" type`)
 }
 
+func (*schemaSuite) TestArrayRejectsNull(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": "int"
+		}
+	}
+}`)
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{"foo": null}`)
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `cannot accept null value for "array" type`)
+}
+
 func (*schemaSuite) TestBooleanHappy(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
@@ -1423,4 +1440,167 @@ func (*schemaSuite) TestBooleanWrongType(c *C) {
 
 	err = schema.Validate(input)
 	c.Assert(err, ErrorMatches, `json: cannot unmarshal number into Go value of type bool`)
+}
+
+func (*schemaSuite) TestArrayHappy(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": "string"
+		}
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{
+	"foo": ["a", "b"]
+}`)
+
+	err = schema.Validate(input)
+	c.Assert(err, IsNil)
+}
+
+func (*schemaSuite) TestArrayHappyWithUserDefinedType(c *C) {
+	schemaStr := []byte(`{
+	"types": {
+		"my-type": "string"
+	},
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": "$my-type"
+		}
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{
+	"foo": ["a", "b"]
+}`)
+
+	err = schema.Validate(input)
+	c.Assert(err, IsNil)
+}
+
+func (*schemaSuite) TestArrayRequireConstraints(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": "array"
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse "array": must be map definition with constraints`)
+}
+
+func (*schemaSuite) TestArrayRequireValueConstraint(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array"
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse "array": must have "values" constraint`)
+}
+
+func (*schemaSuite) TestArrayFailsWithBadElementType(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": "foo"
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse "array" values type: cannot parse unknown type "foo"`)
+}
+
+func (*schemaSuite) TestArrayEnforcesOnlyOneType(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": "string"
+		}
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{
+	"foo": ["a", 1]
+}`)
+
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `cannot validate string: json:.*`)
+}
+
+func (*schemaSuite) TestArrayWithUniqueRejectsDuplicates(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": "string",
+			"unique": true
+		}
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{
+	"foo": ["a", "a"]
+}`)
+
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `cannot accept array with duplicate values`)
+}
+
+func (*schemaSuite) TestArrayWithoutUniqueAccepstDuplicates(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": "string",
+			"unique": false
+		}
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{
+	"foo": ["a", "b"]
+}`)
+
+	err = schema.Validate(input)
+	c.Assert(err, IsNil)
+}
+
+func (*schemaSuite) TestArrayFailsWithBadUniqueType(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": "string",
+			"unique": "true"
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse "array": json: cannot unmarshal string into Go value of type bool`)
 }
