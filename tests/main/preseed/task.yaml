@@ -133,6 +133,7 @@ execute: |
   test -L "$SYSTEMD_UNITS"/system/snapd.mounts.target.wants/snap-"${LXD_BASE_SNAP}"-*.mount
   test -L "$SYSTEMD_UNITS"/system/multi-user.target.wants/snap-"${LXD_BASE_SNAP}"-*.mount
   test -L "$SYSTEMD_UNITS"/system/snapd.mounts.target.wants/snap-snapd-*.mount
+  test -L "$SYSTEMD_UNITS"/system/snapd.mounts.snapd.target.wants/snap-snapd-*.mount
   test -L "$SYSTEMD_UNITS"/system/multi-user.target.wants/snap-snapd-*.mount
 
   for unit in snap.lxd.daemon.service snap.lxd.daemon.unix.socket snap.lxd.activate.service; do

@@ -36,7 +36,7 @@ func addMountUnit(c snap.ContainerPlaceInfo, preseed bool, meter progress.Meter)
 	} else {
 		sysd = systemd.New(systemd.SystemMode, meter)
 	}
-	_, err := sysd.EnsureMountUnitFile(c.MountDescription(), squashfsPath, whereDir, "squashfs")
+	_, err := sysd.EnsureMountUnitFile(c.MountDescription(), squashfsPath, whereDir, "squashfs", c.Confined(), c.IsSnapd())
 	return err
 }
 

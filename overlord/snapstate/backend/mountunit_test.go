@@ -35,6 +35,7 @@ import (
 
 type ParamsForEnsureMountUnitFile struct {
 	description, what, where, fstype string
+	confined, isSnapd                bool
 }
 
 type ResultForEnsureMountUnitFile struct {
@@ -55,9 +56,9 @@ type FakeSystemd struct {
 	ListMountUnitsResult ResultForListMountUnits
 }
 
-func (s *FakeSystemd) EnsureMountUnitFile(description, what, where, fstype string) (string, error) {
+func (s *FakeSystemd) EnsureMountUnitFile(description, what, where, fstype string, confined, isSnapd bool) (string, error) {
 	s.EnsureMountUnitFileCalls = append(s.EnsureMountUnitFileCalls,
-		ParamsForEnsureMountUnitFile{description, what, where, fstype})
+		ParamsForEnsureMountUnitFile{description, what, where, fstype, confined, isSnapd})
 	return s.EnsureMountUnitFileResult.path, s.EnsureMountUnitFileResult.err
 }
 
@@ -123,6 +124,8 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 		what:        "/var/lib/snapd/snaps/foo_13.snap",
 		where:       fmt.Sprintf("%s/foo/13", dirs.StripRootDir(dirs.SnapMountDir)),
 		fstype:      "squashfs",
+		confined:    true,
+		isSnapd:     false,
 	}
 	c.Check(sysd.EnsureMountUnitFileCalls, DeepEquals, []ParamsForEnsureMountUnitFile{
 		expectedParameters,

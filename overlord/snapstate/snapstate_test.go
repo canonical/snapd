@@ -8762,7 +8762,10 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorWithInvalidS
 }
 
 func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMounts(c *C) {
-	restore := snapstate.MockEnsuredMountsUpdated(s.snapmgr, false)
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	restore = snapstate.MockEnsuredMountsUpdated(s.snapmgr, false)
 	defer restore()
 
 	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
@@ -8791,8 +8794,12 @@ apps:
 [Unit]
 Description=Mount unit for test-snap, revision 42
 After=snapd.mounts-pre.target
+After=snapd.mounts-pre.confined.target
+DefaultDependencies=no
+Before=umount.target
+Conflicts=umount.target
+After=local-fs-pre.target
 Before=snapd.mounts.target
-Before=local-fs.target
 
 [Mount]
 What=%s
@@ -8820,8 +8827,12 @@ WantedBy=multi-user.target
 [Unit]
 Description=Mount unit for test-snap, revision 42
 After=snapd.mounts-pre.target
+After=snapd.mounts-pre.confined.target
+DefaultDependencies=no
+Before=umount.target
+Conflicts=umount.target
+After=local-fs-pre.target
 Before=snapd.mounts.target
-Before=local-fs.target
 
 [Mount]
 What=%s
@@ -8839,7 +8850,10 @@ WantedBy=multi-user.target
 }
 
 func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsNoChange(c *C) {
-	restore := snapstate.MockEnsuredMountsUpdated(s.snapmgr, false)
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	restore = snapstate.MockEnsuredMountsUpdated(s.snapmgr, false)
 	defer restore()
 
 	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
@@ -8868,8 +8882,12 @@ apps:
 [Unit]
 Description=Mount unit for test-snap, revision 42
 After=snapd.mounts-pre.target
+After=snapd.mounts-pre.confined.target
+DefaultDependencies=no
+Before=umount.target
+Conflicts=umount.target
+After=local-fs-pre.target
 Before=snapd.mounts.target
-Before=local-fs.target
 
 [Mount]
 What=%s
@@ -8897,6 +8915,9 @@ WantedBy=multi-user.target
 }
 
 func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsCreated(c *C) {
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
 	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
 	testSnapState := &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{testSnapSideInfo}),
@@ -8923,7 +8944,7 @@ apps:
 		c.Assert(os.Remove(mountFile), IsNil)
 	}
 
-	restore := snapstate.MockEnsuredMountsUpdated(s.snapmgr, false)
+	restore = snapstate.MockEnsuredMountsUpdated(s.snapmgr, false)
 	defer restore()
 
 	s.reloadOrRestarts[unitName] = 0
@@ -8937,8 +8958,12 @@ apps:
 [Unit]
 Description=Mount unit for test-snap, revision 42
 After=snapd.mounts-pre.target
+After=snapd.mounts-pre.confined.target
+DefaultDependencies=no
+Before=umount.target
+Conflicts=umount.target
+After=local-fs-pre.target
 Before=snapd.mounts.target
-Before=local-fs.target
 
 [Mount]
 What=%s

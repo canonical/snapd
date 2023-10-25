@@ -1,5 +1,9 @@
 summary: Check that snapd failure handling works
 
+details: |
+    This test verifies that installing a broken snapd snap multiple
+    times reverts potential changes done during installation.
+
 prepare: |
     # on UC16, we should transition to using the snapd snap before running the 
     # test because it by default uses the core snap
@@ -137,6 +141,7 @@ execute: |
             rm -f /etc/systemd/system/snapd.*.{service,timer,socket}
             rm -f /etc/systemd/system/*.wants/snapd.*.{service,timer,socket}
             rm -f /etc/systemd/system/snapd.mounts.target.wants/snap-snapd-*.mount
+            rm -f /etc/systemd/system/snapd.mounts.snapd.target.wants/snap-snapd-*.mount
             rm -f /etc/systemd/system/multi-user.target.wants/snap-snapd-*.mount
             systemctl daemon-reload
             # this will have the "snapd" snap /usr/lib/snapd bind mounted

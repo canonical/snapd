@@ -1,5 +1,10 @@
 summary: Test the failover scenario of the snapd snap installation on a UC16 system
 
+details: |
+    This test verifies that installing a broken snapd snap on top of
+    core on UC16 multiple times reverts potential changes done during
+    installation.
+
 # snapd snap is already installed by default on uc18+
 systems: [ubuntu-core-16-*]
 
@@ -56,6 +61,8 @@ execute: |
     test ! -e /etc/systemd/system/usr-lib-snapd.mount
     test ! -e /etc/systemd/system/snapd.mounts.target
     test ! -e /etc/systemd/system/snapd.mounts-pre.target
+    test ! -e /etc/systemd/system/snapd.mounts.snapd.target
+    test ! -e /etc/systemd/system/snapd.mounts-pre.confined.target
     test ! -e /etc/systemd/system/snap-snapd-x1.mount
     test ! -e /snap/snapd/x1
   done

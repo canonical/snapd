@@ -1,5 +1,8 @@
 summary: Check that snap-mgmt.sh works
 
+details: |
+    This test verifies smap-mgmt.sh can purge snapd from a system.
+
 # slow in autopkgtest (>1m)
 backends: [-autopkgtest]
 
@@ -133,6 +136,8 @@ execute: |
     test -z "$(find /etc/systemd/system/multi-user.target.wants/ -name 'snap.test-snapd-service.*')"
     # shellcheck disable=SC2251
     ! test -d /etc/systemd/system/snapd.mounts.target.wants
+    # shellcheck disable=SC2251
+    ! test -d /etc/systemd/system/snapd.mounts.snapd.target.wants
     # shellcheck disable=SC2251
     ! test -d /etc/systemd/system/multi-user.target.wants
     test -z "$(find /etc/systemd/system/sockets.target.wants/ -name 'snap.*')"

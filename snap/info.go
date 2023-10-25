@@ -62,6 +62,14 @@ type ContainerPlaceInfo interface {
 
 	// MountDescription is the value for the mount unit Description field.
 	MountDescription() string
+
+	// Confined tells if the snap is expected to be run confined
+	// only and expects apparmor to be initialized before being
+	// mounted.
+	Confined() bool
+
+	// IsSnapd tells if the snap is snapd itself
+	IsSnapd() bool
 }
 
 // PlaceInfo offers all the information about where a snap and its data are
@@ -656,6 +664,14 @@ func (s *Info) MountFile() string {
 // MountDescription returns the mount unit Description field.
 func (s *Info) MountDescription() string {
 	return fmt.Sprintf("Mount unit for %s, revision %s", s.InstanceName(), s.Revision)
+}
+
+func (s *Info) Confined() bool {
+	return s.Confinement != ClassicConfinement
+}
+
+func (s *Info) IsSnapd() bool {
+	return s.Type() == TypeSnapd
 }
 
 // HooksDir returns the directory containing the snap's hooks.

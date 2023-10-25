@@ -310,6 +310,8 @@ type MountUnitOptions struct {
 	Fstype      string
 	Options     []string
 	Origin      string
+	Confined    bool
+	IsSnapd     bool
 }
 
 // Backend identifies the implementation backend in use by a Systemd instance.
@@ -386,7 +388,7 @@ type Systemd interface {
 	// logs, and is required to get logs for services which are in journal namespaces.
 	LogReader(services []string, n int, follow, namespaces bool) (io.ReadCloser, error)
 	// EnsureMountUnitFile adds/enables/starts a mount unit.
-	EnsureMountUnitFile(description, what, where, fstype string) (string, error)
+	EnsureMountUnitFile(description, what, where, fstype string, confined, isSnapd bool) (string, error)
 	// EnsureMountUnitFileWithOptions adds/enables/starts a mount unit with options.
 	EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
@@ -1366,13 +1368,22 @@ func ExistingMountUnitPath(mountPointDir string) string {
 
 var squashfsFsType = squashfs.FsType
 
-// Note that WantedBy=multi-user.target and Before=local-fs.target are
+// Note that WantedBy=multi-user.target are
 // only used to allow downgrading to an older version of snapd.
 const mountUnitTemplate = `[Unit]
 Description={{.Description}}
 After=snapd.mounts-pre.target
+{{- if and .Confined (not .IsSnapd) }}
+After=snapd.mounts-pre.confined.target
+DefaultDependencies=no
+Before=umount.target
+Conflicts=umount.target
+After=local-fs-pre.target
+{{- end}}
 Before=snapd.mounts.target
-Before=local-fs.target
+{{- if .IsSnapd }}
+Before=snapd.mounts.snapd.target
+{{- end}}
 
 [Mount]
 What={{.What}}
@@ -1384,6 +1395,9 @@ LazyUnmount=yes
 [Install]
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
+{{- if .IsSnapd }}
+WantedBy=snapd.mounts.snapd.target
+{{- end }}
 {{- with .Origin}}
 X-SnapdOrigin={{.}}
 {{- end}}
@@ -1458,7 +1472,7 @@ func hostFsTypeAndMountOptions(fstype string) (hostFsType string, options []stri
 	return hostFsType, options
 }
 
-func (s *systemd) EnsureMountUnitFile(description, what, where, fstype string) (string, error) {
+func (s *systemd) EnsureMountUnitFile(description, what, where, fstype string, confined bool, isSnapd bool) (string, error) {
 	hostFsType, options := hostFsTypeAndMountOptions(fstype)
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
@@ -1471,6 +1485,8 @@ func (s *systemd) EnsureMountUnitFile(description, what, where, fstype string) (
 		Where:       where,
 		Fstype:      hostFsType,
 		Options:     options,
+		Confined:    confined,
+		IsSnapd:     isSnapd,
 	})
 }
 

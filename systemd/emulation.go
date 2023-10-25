@@ -124,7 +124,7 @@ func (s *emulation) LogReader(services []string, n int, follow, namespaces bool)
 	return nil, fmt.Errorf("LogReader")
 }
 
-func (s *emulation) EnsureMountUnitFile(description, what, where, fstype string) (string, error) {
+func (s *emulation) EnsureMountUnitFile(description, what, where, fstype string, confined, isSnapd bool) (string, error) {
 	if osutil.IsDirectory(what) {
 		return "", fmt.Errorf("bind-mounted directory is not supported in emulation mode")
 	}
@@ -141,6 +141,8 @@ func (s *emulation) EnsureMountUnitFile(description, what, where, fstype string)
 		Where:       where,
 		Fstype:      fstype,
 		Options:     mountUnitOptions,
+		Confined:    confined,
+		IsSnapd:     isSnapd,
 	})
 	if err != nil {
 		return "", err

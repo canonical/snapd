@@ -1,5 +1,8 @@
 summary: Test snapd install on a UC16 system
 
+details: |
+    This test veries that snapd snap can install properly on UC16.
+
 # snapd snap is already installed by default on uc18+
 systems: [ubuntu-core-16-*]
 
@@ -61,6 +64,7 @@ execute: |
         rm -f /etc/systemd/system/snapd.*.{service,timer,socket}
         rm -f /etc/systemd/system/*.wants/snapd.*.{service,timer,socket}
         rm -f /etc/systemd/system/snapd.mounts.target.wants/snap-snapd-*.mount
+        rm -f /etc/systemd/system/snapd.mounts.snapd.target.wants/snap-snapd-*.mount
         rm -f /etc/systemd/system/multi-user.target.wants/snap-snapd-*.mount
         systemctl daemon-reload
         # this will have the "snapd" snap /usr/lib/snapd bind mounted

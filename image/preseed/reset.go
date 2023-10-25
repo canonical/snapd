@@ -109,6 +109,7 @@ var ResetPreseededChroot = func(preseedChroot string) error {
 		filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", "snap-*.mount"),
 		filepath.Join(dirs.SnapServicesDir, "default.target.wants", "snap-*.mount"),
 		filepath.Join(dirs.SnapServicesDir, "snapd.mounts.target.wants", "snap-*.mount"),
+		filepath.Join(dirs.SnapServicesDir, "snapd.mounts.snapd.target.wants", "snap-snapd-*.mount"),
 		filepath.Join(dirs.SnapUserServicesDir, "snap.*.service"),
 		filepath.Join(dirs.SnapUserServicesDir, "snap.*.socket"),
 		filepath.Join(dirs.SnapUserServicesDir, "snap.*.timer"),

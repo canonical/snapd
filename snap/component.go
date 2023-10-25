@@ -123,6 +123,15 @@ func (c *componentPlaceInfo) MountDescription() string {
 	return fmt.Sprintf("Mount unit for %s, revision %s", c.ContainerName(), c.compRevision)
 }
 
+func (c *componentPlaceInfo) Confined() bool {
+	// does not matter
+	return false
+}
+
+func (c *componentPlaceInfo) IsSnapd() bool {
+	return false
+}
+
 // ReadComponentInfoFromContainer reads ComponentInfo from a snap component container.
 func ReadComponentInfoFromContainer(compf Container) (*ComponentInfo, error) {
 	yamlData, err := compf.ReadFile("meta/component.yaml")

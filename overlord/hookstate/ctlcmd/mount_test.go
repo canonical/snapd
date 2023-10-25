@@ -287,6 +287,8 @@ func (s *mountSuite) TestUnitCreationFailure(c *C) {
 			Where:       "/dest",
 			Fstype:      "ext4",
 			Origin:      "mount-control",
+			Confined:    true,
+			IsSnapd:     false,
 		},
 	})
 }
@@ -307,6 +309,8 @@ func (s *mountSuite) TestHappy(c *C) {
 			Fstype:      "ext4",
 			Options:     []string{"sync", "rw"},
 			Origin:      "mount-control",
+			Confined:    true,
+			IsSnapd:     false,
 		},
 	})
 }
@@ -329,6 +333,8 @@ func (s *mountSuite) TestHappyWithVariableExpansion(c *C) {
 			Where:       where,
 			Options:     []string{"bind", "ro"},
 			Origin:      "mount-control",
+			Confined:    true,
+			IsSnapd:     false,
 		},
 	})
 }
@@ -349,6 +355,8 @@ func (s *mountSuite) TestHappyWithCommasInPath(c *C) {
 			Where:       "/dest,with,commas",
 			Options:     []string{"ro"},
 			Origin:      "mount-control",
+			Confined:    true,
+			IsSnapd:     false,
 		},
 	})
 }
@@ -369,6 +377,8 @@ func (s *mountSuite) TestEnsureMountUnitFailed(c *C) {
 			Fstype:      "ext4",
 			Options:     []string{"sync", "rw"},
 			Origin:      "mount-control",
+			Confined:    true,
+			IsSnapd:     false,
 		},
 	})
 
@@ -392,6 +402,8 @@ func (s *mountSuite) TestEnsureMountUnitFailedRemoveFailed(c *C) {
 			Fstype:      "ext4",
 			Options:     []string{"sync", "rw"},
 			Origin:      "mount-control",
+			Confined:    true,
+			IsSnapd:     false,
 		},
 	})
 

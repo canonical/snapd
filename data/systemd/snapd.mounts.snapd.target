@@ -1,0 +1,5 @@
+[Unit]
+Description=Mounted snapd snaps
+Wants=snapd.mounts-pre.target
+# Started from snapd-apparmor.service
+# X-Snapd-Snap: do-not-start

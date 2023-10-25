@@ -133,6 +133,7 @@ execute: |
   MATCH "^etc/systemd/system/snapd.mounts.target.wants/snap-core20-.*.mount" < files.log
   MATCH "^etc/systemd/system/multi-user.target.wants/snap-core20-.*.mount" < files.log
   MATCH "^etc/systemd/system/snapd.mounts.target.wants/snap-snapd-.*.mount" < files.log
+  MATCH "^etc/systemd/system/snapd.mounts.snapd.target.wants/snap-snapd-.*.mount" < files.log
   MATCH "^etc/systemd/system/multi-user.target.wants/snap-snapd-.*.mount" < files.log
   MATCH "^etc/systemd/system/multi-user.target.wants/snapd.seeded.service" < files.log
   MATCH "^etc/systemd/system/multi-user.target.wants/snapd.recovery-chooser-trigger.service" < files.log

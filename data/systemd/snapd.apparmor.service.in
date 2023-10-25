@@ -12,6 +12,10 @@ Before=sysinit.target
 After=apparmor.service
 ConditionSecurity=apparmor
 RequiresMountsFor=/var/cache/apparmor /var/lib/snapd/apparmor/profiles
+Wants=snapd.mounts.snapd.target
+After=snapd.mounts.snapd.target
+Wants=snapd.mounts-pre.confined.target
+Before=snapd.mounts-pre.confined.target
 
 [Service]
 Type=oneshot

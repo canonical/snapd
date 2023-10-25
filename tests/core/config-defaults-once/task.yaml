@@ -1,6 +1,10 @@
 summary: |
     Test that configuration defaults are only applied once.
 
+details: |
+    This test verifies that installing snapd or core base does not
+    reset configuration to defaults.
+
 # it is not yet possible to install snapd on UC16
 # TODO:UC20: enable for UC20, currently fails because there is no seed.yaml in
 #            the same place as UC18
@@ -79,6 +83,7 @@ restore: |
        rm -f "/etc/systemd/system/$sysp"
        rm -f "/etc/systemd/system/multi-user.target.wants/$sysp"
        rm -f "/etc/systemd/system/snapd.mounts.target.wants/$sysp"
+       rm -f "/etc/systemd/system/snapd.mounts.snapd.target.wants/$sysp"
        rm -f "/var/lib/snapd/snaps/${SNAP}"_*.snap
        rm -rf "/snap/$SNAP"
        systemctl daemon-reload

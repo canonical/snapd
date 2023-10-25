@@ -65,7 +65,7 @@
 %global provider_prefix %{provider}.%{provider_tld}/%{project}/%{repo}
 %global import_path     %{provider_prefix}
 
-%global snappy_svcs      snapd.service snapd.socket snapd.autoimport.service snapd.seeded.service snapd.mounts.target snapd.mounts-pre.target
+%global snappy_svcs      snapd.service snapd.socket snapd.autoimport.service snapd.seeded.service snapd.mounts.target snapd.mounts-pre.target snapd.mounts-pre.confined.target snapd.mounts.snapd.target
 %global snappy_user_svcs snapd.session-agent.service snapd.session-agent.socket
 
 # Until we have a way to add more extldflags to gobuild macro...
@@ -838,6 +838,8 @@ popd
 %{_unitdir}/snapd.seeded.service
 %{_unitdir}/snapd.mounts.target
 %{_unitdir}/snapd.mounts-pre.target
+%{_unitdir}/snapd.mounts-pre.confined.target
+%{_unitdir}/snapd.mounts.snapd.target
 %{_userunitdir}/snapd.session-agent.service
 %{_userunitdir}/snapd.session-agent.socket
 %{_tmpfilesdir}/snapd.conf

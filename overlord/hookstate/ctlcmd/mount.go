@@ -195,6 +195,8 @@ func (m *mountCommand) ensureMount(sysd systemd.Systemd) (string, error) {
 		Fstype:      m.Type,
 		Options:     m.optionsList,
 		Origin:      "mount-control",
+		Confined:    true, // this should be only useful for confined snaps
+		IsSnapd:     false,
 	})
 	if err != nil {
 		_ = sysd.RemoveMountUnitFile(m.Positional.Where)

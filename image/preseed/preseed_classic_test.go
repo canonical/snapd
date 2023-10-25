@@ -360,6 +360,7 @@ func (s *preseedSuite) TestReset(c *C) {
 			// add the mount in multi-user.target
 			{filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", "snap-foo.mount"), ""},
 			{filepath.Join(dirs.SnapServicesDir, "snapd.mounts.target.wants", "snap-foo.mount"), ""},
+			{filepath.Join(dirs.SnapServicesDir, "snapd.mounts.snapd.target.wants", "snap-snapd-foo.mount"), ""},
 			{filepath.Join(dirs.SnapDataDir, "foo", "bar"), ""},
 			{filepath.Join(dirs.SnapCacheDir, "foocache", "bar"), ""},
 			{filepath.Join(apparmor_sandbox.CacheDir, "foo", "bar"), ""},
