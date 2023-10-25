@@ -1,0 +1,86 @@
+summary: Check that the recovery boot config is correctly updated when snapd is refreshed
+
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+
+environment:
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
+
+prepare: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs a build of snapd with testing features enabled"
+      exit
+  fi
+
+  "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap snapd
+  echo "Repack the snapd snap with a marker file"
+  unsquashfs -d snapd-snap snapd-from-deb.snap
+
+  echo "Leave a marker file that triggers boot config assets to be injected"
+  echo 'recoverybootassetstesting' > snapd-snap/usr/lib/snapd/recoverybootassetstesting
+
+  snap pack snapd-snap --filename=snapd-boot-config-update.snap
+  rm -rf snapd-snap
+
+  tests.nested build-image core
+  tests.nested create-vm core
+
+  remote.push snapd-boot-config-update.snap
+
+debug: |
+  cat boot-chains-before.json || true
+  cat boot-chains-after.json || true
+
+execute: |
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+      echo "This test needs a build of snapd with testing features enabled"
+      exit
+  fi
+
+  remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-before.json
+  SEALED_KEY_MTIME_1="$(remote.exec sudo stat --format="%Y" \
+      /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+  RESEAL_COUNT_1="$(jq -r '.["reseal-count"]' < boot-chains-before.json )"
+  jq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-before.json |
+      NOMATCH ' recoverybootassetstesting'
+
+  echo "Install new (unasserted) snapd and wait for reboot/change finishing"
+  boot_id="$(tests.nested boot-id)"
+  REMOTE_CHG_ID=$(remote.exec sudo snap install --dangerous \
+                              snapd-boot-config-update.snap --no-wait)
+  # reboot is automatically requested by snapd in case recovery grub.cfg changes
+  remote.wait-for reboot "${boot_id}"
+
+  remote.exec sudo snap watch "${REMOTE_CHG_ID}"
+
+  echo "check boot assets have been updated for the seed partition"
+  SEED_GRUB_P=/run/mnt/ubuntu-seed/EFI/ubuntu/grub.cfg
+  remote.exec "sudo cat $SEED_GRUB_P" | MATCH "Snapd-Boot-Config-Edition: 3"
+  remote.exec "sudo cat $SEED_GRUB_P" |
+      MATCH "set snapd_static_cmdline_args='.*recoverybootassetstesting'"
+
+  echo "check that new static command line element is not present in run mode"
+  remote.exec "cat /proc/cmdline" > system.cmdline
+  NOMATCH recoverybootassetstesting < system.cmdline
+
+  echo "Check ubuntu-data.sealed-key mtime is newer"
+  SEALED_KEY_MTIME_2="$(remote.exec sudo stat --format="%Y" \
+    /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+  test "$SEALED_KEY_MTIME_2" -gt "$SEALED_KEY_MTIME_1"
+
+  remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-after.json
+  RESEAL_COUNT_2="$(jq -r '.["reseal-count"]' < boot-chains-after.json )"
+  test "$RESEAL_COUNT_2" -gt "$RESEAL_COUNT_1"
+  jq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-after.json |
+      MATCH ' recoverybootassetstesting'
+
+  echo "Check that recover mode can start"
+  boot_id="$(tests.nested boot-id)"
+  remote.exec 'sudo snap reboot --recover'
+  remote.wait-for reboot "$boot_id"
+
+  echo "check that new static command line element is present in recovery mode"
+  remote.exec "cat /proc/cmdline" > system.cmdline
+  MATCH recoverybootassetstesting < system.cmdline
+  MATCH "snapd_recovery_mode=recover" < system.cmdline
