@@ -763,13 +763,13 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 			prefix := strings.TrimSuffix(path, "apparmor_parser")
 			// when using the internal apparmor_parser also use
 			// its own configuration and includes etc plus
-			// also ensure we use the 3.0 feature ABI to get
+			// also ensure we use the 4.0 feature ABI to get
 			// the widest array of policy features across the
 			// widest array of kernel versions
 			args := []string{
 				"--config-file", filepath.Join(prefix, "/apparmor/parser.conf"),
 				"--base", filepath.Join(prefix, "/apparmor.d"),
-				"--policy-features", filepath.Join(prefix, "/apparmor.d/abi/3.0"),
+				"--policy-features", filepath.Join(prefix, "/apparmor.d/abi/4.0"),
 			}
 			return exec.Command(path, args...), true, nil
 		}
