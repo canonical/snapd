@@ -1467,7 +1467,7 @@ func (s *linkSnapSuite) TestDoLinkSnapMaybeUninhibitSnapOn(c *C) {
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 }
 
-func (s *linkSnapSuite) TestDoLinkSnapMaybeUninhibitSnapOffNoraml(c *C) {
+func (s *linkSnapSuite) TestDoLinkSnapMaybeUninhibitSnapOffNormal(c *C) {
 	s.state.Lock()
 
 	sinfo := snap.SideInfo{
