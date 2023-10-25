@@ -1496,9 +1496,9 @@ func (s *linkSnapSuite) TestDoLinkSnapMaybeUninhibitSnapOffNoraml(c *C) {
 	s.se.Ensure()
 	s.se.Wait()
 
-	// link-snap task should detect that we don't have upcoming
-	// uninhibit-snap tasks in the current change and call
-	// backend.UninhibitSnap itself
+	// link-snap task should detect that we have an upcoming
+	// uninhibit-snap tasks in the current change and should
+	// not call backend.UninhibitSnap itself
 	expected := fakeOps{
 		{
 			op:    "candidate",
@@ -1558,10 +1558,8 @@ func (s *linkSnapSuite) TestDoLinkSnapMaybeUninhibitSnapOffAnotherChange(c *C) {
 
 	s.state.Unlock()
 
-	for i := 0; i < 3; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-	}
+	s.se.Ensure()
+	s.se.Wait()
 
 	// link-snap task should detect that we don't have upcoming
 	// uninhibit-snap tasks in the current change and call
@@ -1611,7 +1609,7 @@ func (s *linkSnapSuite) TestDoLinkSnapMaybeUninhibitSnapOffAnotherSnap(c *C) {
 
 	s.state.Unlock()
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 2; i++ {
 		s.se.Ensure()
 		s.se.Wait()
 	}

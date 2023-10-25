@@ -1364,16 +1364,20 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 	// unlink if we're not working on the snapd snap
 	if oldInfo.Type() != snap.TypeSnapd {
 		// establish a persistent run inhibition lock
-		if err := m.backend.InhibitSnap(oldInfo.InstanceName(), oldInfo.Revision, runinhibit.HintInhibitedForRefresh); err != nil {
-			return err
-		}
+		inhibitErr := m.backend.InhibitSnap(oldInfo.InstanceName(), oldInfo.Revision, runinhibit.HintInhibitedForRefresh)
+
 		// do the final unlink
 		linkCtx := backend.LinkContext{
 			FirstInstall: false,
 		}
-		err = m.backend.UnlinkSnap(oldInfo, linkCtx, NewTaskProgressAdapterLocked(t))
-		if err != nil {
-			return err
+		unlinkErr := m.backend.UnlinkSnap(oldInfo, linkCtx, NewTaskProgressAdapterLocked(t))
+
+		// check errors after inihibiting and unlinking the snap
+		if inhibitErr != nil {
+			return inhibitErr
+		}
+		if unlinkErr != nil {
+			return unlinkErr
 		}
 	}
 
@@ -1941,15 +1945,15 @@ func notifyLinkParticipants(t *state.Task, snapsup *SnapSetup) {
 	}
 }
 
-// maybeUninhibitSnap uninhibits given snap if no "uninhibit-snap" task is schedueled to run in current change.
+// maybeUninhibitSnap uninhibits the given snap if no "uninhibit-snap" task is scheduled
+// to run in the current change.
 //
 // This is intended to be only used by "link-snap" to address the case where we
 // have pending changes without "uninhibit-snap" to avoid having snaps that are
 // never uninhibited.
-func (m *SnapManager) maybeUninhibitSnap(t *state.Task, info *snap.Info) (err error) {
+func (m *SnapManager) maybeUninhibitSnap(chg *state.Change, snapName string) (err error) {
 	// XXX: would this be good place to use findTasksMatchingKindAndSnap?
 	// check if we have an uninhibit-snap task later
-	chg := t.Change()
 	for _, t := range chg.Tasks() {
 		if t.Kind() != "uninhibit-snap" || t.Status().Ready() {
 			continue
@@ -1961,13 +1965,13 @@ func (m *SnapManager) maybeUninhibitSnap(t *state.Task, info *snap.Info) (err er
 		}
 
 		// skip unlocking, uninhibit-snap will unlock later
-		if snapsup.InstanceName() == info.InstanceName() {
+		if snapsup.InstanceName() == snapName {
 			return nil
 		}
 	}
 
 	// no upcoming uninhibit-snap tasks, let's unlock now
-	return m.backend.UninhibitSnap(info.InstanceName())
+	return m.backend.UninhibitSnap(snapName)
 }
 
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
@@ -2150,7 +2154,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 
-	if err := m.maybeUninhibitSnap(t, newInfo); err != nil {
+	if err := m.maybeUninhibitSnap(t.Change(), newInfo.InstanceName()); err != nil {
 		return err
 	}
 
