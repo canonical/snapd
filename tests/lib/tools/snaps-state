@@ -102,7 +102,7 @@ show_name() {
 
 show_revision() {
     local snap="$1"
-    if not snap list "$snap"; then
+    if not snap list "$snap" &>/dev/null; then
         echo "snaps-state: the snap $snap is not installed" >&2
         exit 1
     fi
