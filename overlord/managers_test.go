@@ -9667,7 +9667,7 @@ type: snapd`
 	const updated = true
 	s.testUC20RunUpdateManagedBootConfig(c, snapPath, si, mabloader, updated)
 
-	c.Check(mabloader.UpdateCalls, Equals, 1)
+	c.Check(mabloader.UpdateCalls, Equals, 2)
 }
 
 func (s *mgrsSuite) TestUC20SnapdUpdateManagedBootNotNeededConfig(c *C) {
@@ -9688,7 +9688,7 @@ type: snapd`
 	const updated = false
 	s.testUC20RunUpdateManagedBootConfig(c, snapPath, si, mabloader, updated)
 
-	c.Check(mabloader.UpdateCalls, Equals, 1)
+	c.Check(mabloader.UpdateCalls, Equals, 2)
 }
 
 func (s *mgrsSuite) TestUC20CoreDoesNotUpdateManagedBootConfig(c *C) {
@@ -10717,12 +10717,27 @@ base: core20
 `
 	bloader, chg := s.testUpdateKernelBaseSingleRebootWithGadgetSetup(c, pcGadget)
 
+	// mock the modeenv file
+	m := &boot.Modeenv{
+		Mode:                      "run",
+		Base:                      "core20_1.snap",
+		CurrentKernelCommandLines: []string{"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1"},
+	}
+	err := m.WriteTo("")
+	c.Assert(err, IsNil)
+	c.Assert(s.o.DeviceManager().ReloadModeenv(), IsNil)
+	// and a matching kernel command line
+	c.Assert(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "cmdline"),
+		[]byte(m.CurrentKernelCommandLines[0]), 0444), IsNil)
+	restore := kcmdline.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "cmdline"))
+	defer restore()
+
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
 
 	st.Unlock()
-	err := s.o.Settle(settleTimeout)
+	err = s.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
 	c.Logf(s.logbuf.String())
@@ -10775,7 +10790,7 @@ base: core20
 	restart.MockAfterRestartForChange(chg)
 	_, err = bloader.TryKernel()
 	c.Assert(err, Equals, bootloader.ErrNoTryKernelRef)
-	m, err := boot.ReadModeenv("")
+	m, err = boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	c.Check(m.BaseStatus, Equals, boot.TryStatus)
 	c.Check(m.TryBase, Equals, "core20_2.snap")
@@ -10845,6 +10860,16 @@ base: core20
 `
 	_, chg := s.testUpdateKernelBaseSingleRebootWithGadgetSetup(c, pcGadget)
 
+	// mock the modeenv file
+	m := boot.Modeenv{
+		Mode:                      "run",
+		Base:                      "core20_1.snap",
+		CurrentKernelCommandLines: []string{"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1"},
+	}
+	err := m.WriteTo("")
+	c.Assert(err, IsNil)
+	c.Assert(s.o.DeviceManager().ReloadModeenv(), IsNil)
+
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
@@ -10853,7 +10878,7 @@ base: core20
 	c.Assert(chg.CheckTaskDependencies(), ErrorMatches, `dependency cycle involving tasks \[.*\]`)
 
 	var snapst snapstate.SnapState
-	err := snapstate.Get(st, "snapd", &snapst)
+	err = snapstate.Get(st, "snapd", &snapst)
 	c.Assert(err, IsNil)
 	c.Assert(snapst.Current, Equals, snap.R(1))
 
@@ -10943,6 +10968,16 @@ base: core20
 `
 	_, chg := s.testUpdateKernelBaseSingleRebootWithGadgetSetup(c, pcGadget)
 
+	// mock the modeenv file
+	m := boot.Modeenv{
+		Mode:                      "run",
+		Base:                      "core20_1.snap",
+		CurrentKernelCommandLines: []string{"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1"},
+	}
+	err := m.WriteTo("")
+	c.Assert(err, IsNil)
+	c.Assert(s.o.DeviceManager().ReloadModeenv(), IsNil)
+
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
@@ -10951,7 +10986,7 @@ base: core20
 	c.Assert(chg.CheckTaskDependencies(), ErrorMatches, `dependency cycle involving tasks \[.*\]`)
 
 	var snapst snapstate.SnapState
-	err := snapstate.Get(st, "snapd", &snapst)
+	err = snapstate.Get(st, "snapd", &snapst)
 	c.Assert(err, IsNil)
 	c.Assert(snapst.Current, Equals, snap.R(1))
 

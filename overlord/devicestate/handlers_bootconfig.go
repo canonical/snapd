@@ -78,7 +78,6 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 		return fmt.Errorf("cannot build appended kernel command line: %v", err)
 	}
 
-	// TODO:UC20 update recovery boot config
 	updated, err := boot.UpdateManagedBootConfigs(devCtx, currentData.RootDir, cmdlineAppend)
 	if err != nil {
 		return fmt.Errorf("cannot update boot config assets: %v", err)

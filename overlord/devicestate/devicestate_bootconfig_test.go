@@ -216,7 +216,11 @@ kernel-cmdline:
 		c.Check(tsk.Status(), Equals, state.ErrorStatus)
 	}
 	if opts.updateAttempted {
-		c.Assert(s.managedbl.UpdateCalls, Equals, 1)
+		if errMatch == "" {
+			c.Assert(s.managedbl.UpdateCalls, Equals, 2)
+		} else {
+			c.Assert(s.managedbl.UpdateCalls, Equals, 1)
+		}
 		if errMatch == "" && opts.updateApplied {
 			// we log on success
 			log := tsk.Log()
@@ -295,7 +299,7 @@ kernel-cmdline:
 		c.Check(tsk.Status(), Equals, state.ErrorStatus)
 	}
 	if opts.updateAttempted {
-		c.Assert(s.managedbl.UpdateCalls, Equals, 1)
+		c.Assert(s.managedbl.UpdateCalls, Equals, 2)
 		if errMatch == "" && opts.updateApplied {
 			// we log on success
 			log := tsk.Log()
