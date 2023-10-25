@@ -1568,7 +1568,7 @@ func (*schemaSuite) TestArrayWithUniqueRejectsDuplicates(c *C) {
 	c.Assert(err, ErrorMatches, `cannot accept array with duplicate values`)
 }
 
-func (*schemaSuite) TestArrayWithoutUniqueAccepstDuplicates(c *C) {
+func (*schemaSuite) TestArrayWithoutUniqueAcceptsDuplicates(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
 		"foo": {
