@@ -412,7 +412,10 @@ func probeParserFeatures() ([]string, error) {
 	for _, fp := range featureProbes {
 		// recreate the Cmd each time so we can exec it each time
 		cmd, _, _ := AppArmorParser()
-		if tryAppArmorParserFeature(cmd, fp.flags, fp.probe) {
+		err := tryAppArmorParserFeature(cmd, fp.flags, fp.probe)
+		if err != nil {
+			logger.Debugf("cannot probe apparmor feature %q: %v", fp.feature, err)
+		} else {
 			features = append(features, fp.feature)
 		}
 	}
@@ -494,7 +497,7 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 }
 
 // tryAppArmorParserFeature attempts to pre-process a bit of apparmor syntax with a given parser.
-func tryAppArmorParserFeature(cmd *exec.Cmd, flags []string, rule string) bool {
+func tryAppArmorParserFeature(cmd *exec.Cmd, flags []string, rule string) error {
 	cmd.Args = append(cmd.Args, "--preprocess")
 	flagSnippet := ""
 	if len(flags) > 0 {
@@ -506,9 +509,9 @@ func tryAppArmorParserFeature(cmd *exec.Cmd, flags []string, rule string) bool {
 	// older versions of apparmor_parser can exit with success even
 	// though they fail to parse
 	if err != nil || strings.Contains(string(output), "parser error") {
-		return false
+		return fmt.Errorf("apparmor_parser failed: %v: %s", err, output)
 	}
-	return true
+	return nil
 }
 
 // UpdateHomedirsTunable sets the AppArmor HOMEDIRS tunable to the list of the
