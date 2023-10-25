@@ -110,26 +110,6 @@ func (s *personalFilesInterfaceSuite) TestConnectedPlugMountHappy(c *C) {
 	c.Assert(mountSpec.UserMountEntries(), DeepEquals, expectedUserMountEntries)
 }
 
-func (s *personalFilesInterfaceSuite) TestConnectedPlugMountErrorNotString(c *C) {
-	const mockPlugSnapInfo = `name: other
-version: 1.0
-plugs:
- personal-files:
-  read: [$HOME/.read-dir, $HOME/.read-file, $HOME/.local/share/target]
-  write: [123]
-apps:
- app:
-  command: foo
-  plugs: [personal-files]
-`
-	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
-	plugInfo := plugSnap.Plugs["personal-files"]
-	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
-	mountSpec := &mount.Specification{}
-	err := mountSpec.AddConnectedPlug(s.iface, plug, s.slot)
-	c.Assert(err, ErrorMatches, `cannot connect plug personal-files: 123 \(int64\) is not a string`)
-}
-
 func (s *personalFilesInterfaceSuite) TestConnectedPlugMountErrorNotStartWithHome(c *C) {
 	const mockPlugSnapInfo = `name: other
 version: 1.0
