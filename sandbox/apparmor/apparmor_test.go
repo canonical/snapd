@@ -101,7 +101,7 @@ func (*apparmorSuite) TestAppArmorInternalAppArmorParser(c *C) {
 		p,
 		"--config-file", filepath.Join(d, "/apparmor/parser.conf"),
 		"--base", filepath.Join(d, "/apparmor.d"),
-		"--policy-features", filepath.Join(d, "/apparmor.d/abi/3.0"),
+		"--policy-features", filepath.Join(d, "/apparmor.d/abi/4.0"),
 	})
 	c.Check(internal, Equals, true)
 }
