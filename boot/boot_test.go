@@ -411,6 +411,47 @@ func (s *bootenvSuite) TestInUse(c *C) {
 	}
 }
 
+func (s *bootenv20Suite) TestInUseCore20(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+	c.Assert(coreDev.IsCoreBoot(), Equals, true)
+
+	r := setupUC20Bootenv(
+		c,
+		s.bootloader,
+		&bootenv20Setup{
+			modeenv: &boot.Modeenv{
+				// base is base1
+				Base: s.base1.Filename(),
+				// no try base
+				TryBase: "",
+				// gadget is gadget1
+				Gadget: s.gadget1.Filename(),
+				// current kernels is just kern1
+				CurrentKernels: []string{s.kern1.Filename()},
+				// operating mode is run
+				Mode: "run",
+				// RecoverySystem is unset, as it should be during run mode
+				RecoverySystem: "",
+			},
+			// enabled kernel is kern1
+			kern: s.kern1,
+			// no try kernel enabled
+			tryKern: nil,
+			// kernel status is default
+			kernStatus: boot.DefaultStatus,
+		})
+	defer r()
+
+	inUse, err := boot.InUse(snap.TypeKernel, coreDev)
+	c.Check(err, IsNil)
+	c.Check(inUse(s.kern1.SnapName(), s.kern1.SnapRevision()), Equals, true)
+	c.Check(inUse(s.kern2.SnapName(), s.kern2.SnapRevision()), Equals, false)
+
+	_, err = boot.InUse(snap.TypeBase, coreDev)
+	c.Check(err, IsNil)
+}
+
 func (s *bootenvSuite) TestInUseEphemeral(c *C) {
 	coreDev := boottest.MockDevice("some-snap@install")
 
