@@ -134,7 +134,7 @@ parts:
       - g++
       - pkg-config
       - wget
-    source: https://launchpad.net/apparmor/3.0/3.0.8/+download/apparmor-3.0.8.tar.gz
+    source: https://gitlab.com/apparmor/apparmor/-/archive/v4.0.1/apparmor-v4.0.1.tar.gz
     override-pull: |
       craftctl default
       # add support for mediating posix mqueue's and userns - these come from
