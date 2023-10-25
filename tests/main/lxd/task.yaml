@@ -80,6 +80,9 @@ execute: |
 
     # There isn't an official image for mantic yet, let's use the community one
     if os.query is-ubuntu 23.10; then
+        # ensure the apparmor profile allows the use of unconfined and userns
+        MATCH "flags=.*unconfined" < /var/lib/snapd/apparmor/profiles/snap.lxd.lxc
+        MATCH "userns," < /var/lib/snapd/apparmor/profiles/snap.lxd.lxc
         CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
         lxc launch --quiet "images:ubuntu/$CODENAME" my-ubuntu
         lxc launch --quiet "images:ubuntu/$CODENAME" my-nesting-ubuntu -c security.nesting=true
