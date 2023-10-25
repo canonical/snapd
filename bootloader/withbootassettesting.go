@@ -43,7 +43,7 @@ func MockMaybeInjectOsReadlink(m func(string) (string, error)) (restore func()) 
 	}
 }
 
-func MaybeInjectTestingBootloaderAssets() {
+func MaybeInjectTestingBootloaderAssets(role Role) {
 	// this code is ran only when snapd is built with specific testing tag
 
 	if !snapdenv.Testing() {
@@ -53,13 +53,20 @@ func MaybeInjectTestingBootloaderAssets() {
 	// log an info level message, it is a testing build of snapd anyway
 	logger.Noticef("maybe inject boot assets?")
 
+	markerFile := "bootassetstesting"
+	grubCfgAsset := "grub.cfg"
+	if role == RoleRecovery {
+		markerFile = "recoverybootassetstesting"
+		grubCfgAsset = "grub-recovery.cfg"
+	}
+
 	// is there a marker file at /usr/lib/snapd/ in the snap?
 	selfExe, err := maybeInjectOsReadlink("/proc/self/exe")
 	if err != nil {
 		panic(fmt.Sprintf("cannot readlink: %v", err))
 	}
 
-	injectPieceRaw, err := ioutil.ReadFile(filepath.Join(filepath.Dir(selfExe), "bootassetstesting"))
+	injectPieceRaw, err := ioutil.ReadFile(filepath.Join(filepath.Dir(selfExe), markerFile))
 	if os.IsNotExist(err) {
 		logger.Noticef("no boot asset testing marker")
 		return
@@ -72,13 +79,14 @@ func MaybeInjectTestingBootloaderAssets() {
 	// with boot assets testing enabled and the marker file present, inject
 	// a mock boot config update
 
-	grubBootconfig := assets.Internal("grub.cfg")
+	grubBootconfig := assets.Internal(grubCfgAsset)
 	if grubBootconfig == nil {
 		panic("no bootconfig")
 	}
-	snippets := assets.SnippetsForEditions("grub.cfg:static-cmdline")
+	snippetName := grubCfgAsset + ":static-cmdline"
+	snippets := assets.SnippetsForEditions(snippetName)
 	if len(snippets) == 0 {
-		panic(fmt.Sprintf("cannot obtain internal grub.cfg:static-cmdline snippets"))
+		panic(fmt.Sprintf("cannot obtain internal %s snippets", snippetName))
 	}
 
 	internalEdition, err := editionFromConfigAsset(bytes.NewReader(grubBootconfig))
@@ -88,29 +96,31 @@ func MaybeInjectTestingBootloaderAssets() {
 	// bump the injected edition number
 	injectedEdition := internalEdition + 1
 
-	logger.Noticef("injecting grub boot assets for testing, edition: %v snippet: %q", injectedEdition, injectPiece)
+	logger.Noticef("injecting grub boot assets for testing, edition: %v snippet: %q",
+		injectedEdition, injectPiece)
 
 	lastSnippet := string(snippets[len(snippets)-1].Snippet)
 	injectedSnippet := lastSnippet + " " + injectPiece
 	injectedSnippets := append(snippets,
 		assets.ForEditions{FirstEdition: injectedEdition, Snippet: []byte(injectedSnippet)})
 
-	assets.InjectSnippetsForEditions("grub.cfg:static-cmdline", injectedSnippets)
+	assets.InjectSnippetsForEditions(snippetName, injectedSnippets)
 
 	origGrubBoot := string(grubBootconfig)
 	bumpedEdition := strings.Replace(origGrubBoot,
 		fmt.Sprintf("%s%d", editionHeader, internalEdition),
 		fmt.Sprintf("%s%d", editionHeader, injectedEdition),
 		1)
-	// see data/grub.cfg for reference
+	// see data/grub{-recovery}.cfg for reference
 	bumpedCmdlineAndEdition := strings.Replace(bumpedEdition,
 		fmt.Sprintf(`set snapd_static_cmdline_args='%s'`, lastSnippet),
 		fmt.Sprintf(`set snapd_static_cmdline_args='%s'`, injectedSnippet),
 		1)
 
-	assets.InjectInternal("grub.cfg", []byte(bumpedCmdlineAndEdition))
+	assets.InjectInternal(grubCfgAsset, []byte(bumpedCmdlineAndEdition))
 }
 
 func init() {
-	MaybeInjectTestingBootloaderAssets()
+	MaybeInjectTestingBootloaderAssets(RoleRunMode)
+	MaybeInjectTestingBootloaderAssets(RoleRecovery)
 }
