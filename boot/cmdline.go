@@ -228,6 +228,38 @@ func ComposeCandidateCommandLine(model *asserts.Model, gadgetDirOrSnapPath strin
 	return composeCommandLine(candidateEdition, ModeRun, "", gadgetDirOrSnapPath, model)
 }
 
+// staticRecoveryCommandLineChanged will tell if the static part of
+// the kernel command line for recovery systems has changed or not.
+func staticRecoveryCommandLineChanged() (bool, error) {
+	// get the recovery mode bootloader under the native run partition layout
+	opts := &bootloader.Options{
+		Role:        bootloader.RoleRecovery,
+		NoSlashBoot: true,
+	}
+	bl, err := getBootloaderManagingItsAssets(InitramfsUbuntuSeedDir, opts)
+	if err != nil {
+		if err == errBootConfigNotManaged {
+			return false, nil
+		}
+		return false, err
+	}
+	currentCmdline, err := bl.DefaultCommandLine(false)
+	if err != nil {
+		return false, err
+	}
+	nextCmdline, err := bl.DefaultCommandLine(true)
+	if err != nil {
+		return false, err
+	}
+
+	if currentCmdline == nextCmdline {
+		return false, nil
+	}
+	logger.Noticef("recovery static command line changed from %q to %q",
+		currentCmdline, nextCmdline)
+	return true, nil
+}
+
 // ComposeCandidateRecoveryCommandLine composes the kernel command line used
 // when booting the given system in recover mode with the current built-in
 // edition of managed boot assets.
@@ -332,8 +364,6 @@ const (
 // updated with a candidate command line and the encryption keys are resealed.
 // This helper should be called right before updating the managed boot config.
 func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReason, gadgetSnapOrDir, cmdlineOpt string) (updated bool, err error) {
-	// TODO:UC20: consider updating a recovery system command line
-
 	m, err := loadModeenv()
 	if err != nil {
 		return false, err
@@ -347,8 +377,13 @@ func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReas
 	cmdline := m.CurrentKernelCommandLines[0]
 	// this is the new expected command line
 	var candidateCmdline string
+	recoveryChanged := false
 	switch reason {
 	case commandLineUpdateReasonSnapd:
+		// check if there is a change in recovery grub static cmdline bits
+		if recoveryChanged, err = staticRecoveryCommandLineChanged(); err != nil {
+			return false, err
+		}
 		// pending boot config update
 		candidateCmdline, err = ComposeCandidateCommandLine(model, gadgetSnapOrDir)
 	case commandLineUpdateReasonGadget:
@@ -361,16 +396,16 @@ func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReas
 	// Add part coming from options
 	candidateCmdline = strutil.JoinNonEmpty(
 		[]string{candidateCmdline, cmdlineOpt}, " ")
-	if cmdline == candidateCmdline {
-		// command line is the same or no actual change in modeenv
+	if cmdline != candidateCmdline {
+		logger.Debugf("kernel commandline changes from %q to %q", cmdline, candidateCmdline)
+		// actual change of the command line content
+		m.CurrentKernelCommandLines = bootCommandLines{cmdline, candidateCmdline}
+		if err := m.Write(); err != nil {
+			return false, err
+		}
+	} else if !recoveryChanged {
+		// command line is the same for both run and recovery bootloaders
 		return false, nil
-	}
-	logger.Debugf("kernel commandline changes from %q to %q", cmdline, candidateCmdline)
-	// actual change of the command line content
-	m.CurrentKernelCommandLines = bootCommandLines{cmdline, candidateCmdline}
-
-	if err := m.Write(); err != nil {
-		return false, err
 	}
 
 	expectReseal := true

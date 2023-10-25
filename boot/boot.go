@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -458,7 +459,24 @@ func UpdateManagedBootConfigs(dev snap.Device, gadgetSnapOrDir, cmdlineAppend st
 	modeenvLock()
 	defer modeenvUnlock()
 
-	return updateManagedBootConfigForBootloader(dev, ModeRun, gadgetSnapOrDir, cmdlineAppend)
+	// boot config update can lead to a change of kernel command line
+	cmdlineChange, err := observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonSnapd, gadgetSnapOrDir, cmdlineAppend)
+	if err != nil {
+		return false, err
+	}
+
+	for _, role := range []bootloader.Role{bootloader.RoleRecovery, bootloader.RoleRunMode} {
+		updateForRole, err := updateManagedBootConfigForBootloader(dev, role, cmdlineChange, gadgetSnapOrDir, cmdlineAppend)
+		if err != nil {
+			return false, err
+		}
+		if updateForRole {
+			logger.Debugf("boot configuration for %s role updated", role)
+			updated = true
+		}
+	}
+
+	return updated, nil
 }
 
 func updateCmdlineVars(tbl bootloader.TrustedAssetsBootloader, gadgetSnapOrDir, cmdlineAppend string, candidate bool, dev snap.Device) error {
@@ -479,16 +497,16 @@ func updateCmdlineVars(tbl bootloader.TrustedAssetsBootloader, gadgetSnapOrDir, 
 	return nil
 }
 
-func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir, cmdlineAppend string) (updated bool, err error) {
-	if mode != ModeRun {
-		return false, fmt.Errorf("internal error: updating boot config of recovery bootloader is not supported yet")
-	}
-
+func updateManagedBootConfigForBootloader(dev snap.Device, role bootloader.Role, updateVars bool, gadgetSnapOrDir, cmdlineAppend string) (updated bool, err error) {
 	opts := &bootloader.Options{
-		Role:        bootloader.RoleRunMode,
+		Role:        role,
 		NoSlashBoot: true,
 	}
-	tbl, err := getBootloaderManagingItsAssets(InitramfsUbuntuBootDir, opts)
+	bootloaderLocation := InitramfsUbuntuBootDir
+	if role == bootloader.RoleRecovery {
+		bootloaderLocation = InitramfsUbuntuSeedDir
+	}
+	tbl, err := getBootloaderManagingItsAssets(bootloaderLocation, opts)
 	if err != nil {
 		if err == errBootConfigNotManaged {
 			// we're not managing this bootloader's boot config
@@ -497,25 +515,22 @@ func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir
 		return false, err
 	}
 
-	// boot config update can lead to a change of kernel command line
-	cmdlineChange, err := observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonSnapd, gadgetSnapOrDir, cmdlineAppend)
-	if err != nil {
-		return false, err
-	}
-
-	if cmdlineChange {
+	// Boot variables are changed only for the boot partition
+	varsUpdated := false
+	if updateVars && role != bootloader.RoleRecovery {
 		candidate := true
+		varsUpdated = true
 		if err := updateCmdlineVars(tbl, gadgetSnapOrDir, cmdlineAppend, candidate, dev); err != nil {
 			return false, err
 		}
 	}
 
-	assetChange, err := tbl.UpdateBootConfig()
+	updated, err = tbl.UpdateBootConfig()
 	if err != nil {
 		return false, err
 	}
 
-	return assetChange || cmdlineChange, nil
+	return varsUpdated || updated, nil
 }
 
 // UpdateCommandLineForGadgetComponent handles the update of a gadget

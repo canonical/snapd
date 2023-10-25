@@ -69,6 +69,7 @@ func (s *systemsSuite) mockTrustedBootloaderWithAssetAndChains(c *C, runKernelBf
 	mtbl := bootloadertest.Mock("trusted", s.bootdir).WithTrustedAssets()
 	mtbl.TrustedAssetsList = []string{"asset-1"}
 	mtbl.StaticCommandLine = "static cmdline"
+	mtbl.CandidateStaticCommandLine = "static cmdline"
 	mtbl.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
 		runKernelBf,

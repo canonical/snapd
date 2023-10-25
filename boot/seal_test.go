@@ -1122,6 +1122,7 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 	mtbl := bootloadertest.Mock("trusted", bootdir).WithTrustedAssets()
 	mtbl.TrustedAssetsList = []string{"asset-1"}
 	mtbl.StaticCommandLine = "static cmdline"
+	mtbl.CandidateStaticCommandLine = "static cmdline"
 	mtbl.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
 		runKernelBf,

@@ -704,8 +704,8 @@ func recoveryBootChainsForSystems(systems []string, modesForSystems map[string][
 				return fmt.Errorf("internal error: no modes for system %q", system)
 			}
 			for _, mode := range modes {
-				// get the command line for this mode
-				cmdline, err := composeCommandLine(currentEdition, mode, system, seedGadget.Path, model)
+				// get the (next) command line for this mode
+				cmdline, err := composeCommandLine(candidateEdition, mode, system, seedGadget.Path, model)
 				if err != nil {
 					return fmt.Errorf("cannot obtain kernel command line for mode %q: %v", mode, err)
 				}

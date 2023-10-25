@@ -80,6 +80,11 @@ func (s *baseBootenvSuite) forceBootloader(bloader bootloader.Bootloader) {
 	s.AddCleanup(func() { bootloader.Force(nil) })
 }
 
+func (s *baseBootenvSuite) forceModeBootloader(bloader bootloader.Bootloader, role bootloader.Role) {
+	bootloader.ForceModeBootloader(bloader, role)
+	s.AddCleanup(func() { bootloader.ForceModeBootloader(nil, role) })
+}
+
 func (s *baseBootenvSuite) stampSealedKeys(c *C, rootdir string) {
 	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
 	c.Assert(os.MkdirAll(filepath.Dir(stamp), 0755), IsNil)
@@ -3320,8 +3325,9 @@ func (s *recoveryBootenv20Suite) TestSetRecoveryBootSystemAndModeRealHappy(c *C)
 type bootConfigSuite struct {
 	baseBootenvSuite
 
-	bootloader *bootloadertest.MockTrustedAssetsBootloader
-	gadgetSnap string
+	runModeBootloader  *bootloadertest.MockTrustedAssetsBootloader
+	recoveryBootloader *bootloadertest.MockTrustedAssetsBootloader
+	gadgetSnap         string
 }
 
 var _ = Suite(&bootConfigSuite{})
@@ -3329,10 +3335,15 @@ var _ = Suite(&bootConfigSuite{})
 func (s *bootConfigSuite) SetUpTest(c *C) {
 	s.baseBootenvSuite.SetUpTest(c)
 
-	s.bootloader = bootloadertest.Mock("trusted", c.MkDir()).WithTrustedAssets()
-	s.bootloader.StaticCommandLine = "this is mocked panic=-1"
-	s.bootloader.CandidateStaticCommandLine = "mocked candidate panic=-1"
-	s.forceBootloader(s.bootloader)
+	s.runModeBootloader = bootloadertest.Mock("trusted", c.MkDir()).WithTrustedAssets()
+	s.runModeBootloader.StaticCommandLine = "this is mocked panic=-1"
+	s.runModeBootloader.CandidateStaticCommandLine = "mocked candidate panic=-1"
+	s.forceModeBootloader(s.runModeBootloader, bootloader.RoleRunMode)
+
+	s.recoveryBootloader = bootloadertest.Mock("trusted", c.MkDir()).WithTrustedAssets()
+	s.recoveryBootloader.StaticCommandLine = "this is mocked panic=-1"
+	s.recoveryBootloader.CandidateStaticCommandLine = "this is mocked panic=-1"
+	s.forceModeBootloader(s.recoveryBootloader, bootloader.RoleRecovery)
 
 	mockGadgetYaml := `
 volumes:
@@ -3370,7 +3381,8 @@ func (s *bootConfigSuite) TestBootConfigUpdateHappyNoKeysNoReseal(c *C) {
 	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap, "")
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, true)
-	c.Check(s.bootloader.UpdateCalls, Equals, 1)
+	c.Check(s.runModeBootloader.UpdateCalls, Equals, 1)
+	c.Check(s.recoveryBootloader.UpdateCalls, Equals, 1)
 	c.Check(resealCalls, Equals, 0)
 }
 
@@ -3386,12 +3398,20 @@ func (s *bootConfigSuite) testBootConfigUpdateHappyWithReseal(c *C, cmdlineAppen
 		"asset-hash-1",
 	})
 
-	s.bootloader.TrustedAssetsList = []string{"asset"}
-	s.bootloader.BootChainList = []bootloader.BootFile{
+	// We need to set BootChain for run mode bootloader, and both recovery
+	// boot and boot chains for the recovery bootloader (as we use it for
+	// both modes - it is chainloaded for run mode).
+	s.runModeBootloader.TrustedAssetsList = []string{"asset"}
+	s.runModeBootloader.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
 		runKernelBf,
 	}
-	s.bootloader.RecoveryBootChainList = []bootloader.BootFile{
+	s.recoveryBootloader.TrustedAssetsList = []string{"asset"}
+	s.recoveryBootloader.BootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
+		runKernelBf,
+	}
+	s.recoveryBootloader.RecoveryBootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "asset", bootloader.RoleRecovery),
 		recoveryKernelBf,
 	}
@@ -3428,7 +3448,8 @@ func (s *bootConfigSuite) testBootConfigUpdateHappyWithReseal(c *C, cmdlineAppen
 	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap, cmdlineAppend)
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, true)
-	c.Check(s.bootloader.UpdateCalls, Equals, 1)
+	c.Check(s.runModeBootloader.UpdateCalls, Equals, 1)
+	c.Check(s.recoveryBootloader.UpdateCalls, Equals, 1)
 	c.Check(resealCalls, Equals, 1)
 
 	m2, err := boot.ReadModeenv("")
@@ -3447,14 +3468,97 @@ func (s *bootConfigSuite) TestBootConfigUpdateHappyCmdlineAppendWithReseal(c *C)
 	s.testBootConfigUpdateHappyWithReseal(c, "foo bar")
 }
 
+func (s *bootConfigSuite) TestBootConfigUpdateRecoveryCmdlineHappy(c *C) {
+	s.stampSealedKeys(c, dirs.GlobalRootDir)
+
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	// Only the recovery command line changes
+	s.runModeBootloader.StaticCommandLine = "this is mocked panic=-1"
+	s.runModeBootloader.CandidateStaticCommandLine = "this is mocked panic=-1"
+	s.recoveryBootloader.StaticCommandLine = "this is mocked panic=-1"
+	s.recoveryBootloader.CandidateStaticCommandLine = "this changed panic=-1"
+
+	runKernelBf := bootloader.NewBootFile("/var/lib/snapd/snap/pc-kernel_600.snap", "kernel.efi", bootloader.RoleRunMode)
+	recoveryKernelBf := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
+	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+		"asset-hash-1",
+	})
+
+	// We need to set BootChain for run mode bootloader, and both recovery
+	// boot and boot chains for the recovery bootloader (as we use it for
+	// both modes - it is chainloaded for run mode).
+	s.runModeBootloader.TrustedAssetsList = []string{"asset"}
+	s.runModeBootloader.BootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
+		runKernelBf,
+	}
+	s.recoveryBootloader.TrustedAssetsList = []string{"asset"}
+	s.recoveryBootloader.BootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
+		runKernelBf,
+	}
+	s.recoveryBootloader.RecoveryBootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "asset", bootloader.RoleRecovery),
+		recoveryKernelBf,
+	}
+
+	uc20Model := boottest.MakeMockUC20Model()
+	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
+		return uc20Model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
+	})
+	defer restore()
+
+	m := &boot.Modeenv{
+		Mode: "run",
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"snapd_recovery_mode=run this is mocked panic=-1",
+		},
+		CurrentRecoverySystems: []string{"system"},
+		Model:                  uc20Model.Model(),
+		BrandID:                uc20Model.BrandID(),
+		Grade:                  string(uc20Model.Grade()),
+		ModelSignKeyID:         uc20Model.SignKeyID(),
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": []string{"hash-1"},
+		},
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": []string{"hash-1"},
+		},
+	}
+	c.Assert(m.WriteTo(""), IsNil)
+
+	resealCalls := 0
+	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		resealCalls++
+		return nil
+	})
+	defer restore()
+
+	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap, "")
+	c.Assert(err, IsNil)
+	c.Check(updated, Equals, true)
+	c.Check(s.runModeBootloader.UpdateCalls, Equals, 1)
+	c.Check(s.recoveryBootloader.UpdateCalls, Equals, 1)
+	// resealRunObjectKeys and resealFallbackObjectKeys are called, as
+	// recoveryBootChainsForRunKey do change.
+	c.Check(resealCalls, Equals, 2)
+
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	// Run mode kernel command line is not changing
+	c.Assert(m2.CurrentKernelCommandLines, HasLen, 1)
+}
+
 func (s *bootConfigSuite) testBootConfigUpdateHappyNoChange(c *C, cmdlineAppend string) {
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
 	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
-	s.bootloader.StaticCommandLine = "mocked unchanged panic=-1"
-	s.bootloader.CandidateStaticCommandLine = "mocked unchanged panic=-1"
+	s.runModeBootloader.StaticCommandLine = "mocked unchanged panic=-1"
+	s.runModeBootloader.CandidateStaticCommandLine = "mocked unchanged panic=-1"
 
 	m := &boot.Modeenv{
 		Mode: "run",
@@ -3475,7 +3579,8 @@ func (s *bootConfigSuite) testBootConfigUpdateHappyNoChange(c *C, cmdlineAppend 
 	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap, cmdlineAppend)
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, false)
-	c.Check(s.bootloader.UpdateCalls, Equals, 1)
+	c.Check(s.runModeBootloader.UpdateCalls, Equals, 1)
+	c.Check(s.recoveryBootloader.UpdateCalls, Equals, 1)
 	c.Check(resealCalls, Equals, 0)
 
 	m2, err := boot.ReadModeenv("")
@@ -3497,7 +3602,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateNonUC20DoesNothing(c *C) {
 	updated, err := boot.UpdateManagedBootConfigs(nonUC20coreDev, s.gadgetSnap, "")
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, false)
-	c.Check(s.bootloader.UpdateCalls, Equals, 0)
+	c.Check(s.runModeBootloader.UpdateCalls, Equals, 0)
 }
 
 func (s *bootConfigSuite) TestBootConfigUpdateBadModeErr(c *C) {
@@ -3506,7 +3611,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateBadModeErr(c *C) {
 	updated, err := boot.UpdateManagedBootConfigs(uc20Dev, s.gadgetSnap, "")
 	c.Assert(err, ErrorMatches, "internal error: boot config can only be updated in run mode")
 	c.Check(updated, Equals, false)
-	c.Check(s.bootloader.UpdateCalls, Equals, 0)
+	c.Check(s.runModeBootloader.UpdateCalls, Equals, 0)
 }
 
 func (s *bootConfigSuite) TestBootConfigUpdateFailErr(c *C) {
@@ -3521,12 +3626,12 @@ func (s *bootConfigSuite) TestBootConfigUpdateFailErr(c *C) {
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
-	s.bootloader.UpdateErr = errors.New("update fail")
+	s.runModeBootloader.UpdateErr = errors.New("update fail")
 
 	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap, "")
 	c.Assert(err, ErrorMatches, "update fail")
 	c.Check(updated, Equals, false)
-	c.Check(s.bootloader.UpdateCalls, Equals, 1)
+	c.Check(s.runModeBootloader.UpdateCalls, Equals, 1)
 }
 
 func (s *bootConfigSuite) TestBootConfigUpdateCmdlineMismatchErr(c *C) {
@@ -3543,7 +3648,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateCmdlineMismatchErr(c *C) {
 	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap, "")
 	c.Assert(err, ErrorMatches, `internal error: current kernel command lines is unset`)
 	c.Check(updated, Equals, false)
-	c.Check(s.bootloader.UpdateCalls, Equals, 0)
+	c.Check(s.runModeBootloader.UpdateCalls, Equals, 0)
 }
 
 func (s *bootConfigSuite) TestBootConfigUpdateNotManagedErr(c *C) {
@@ -3551,18 +3656,21 @@ func (s *bootConfigSuite) TestBootConfigUpdateNotManagedErr(c *C) {
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	bl := bootloadertest.Mock("not-managed", c.MkDir())
-	bootloader.Force(bl)
-	defer bootloader.Force(nil)
+	s.forceModeBootloader(bl, bootloader.RoleRunMode)
+	s.forceModeBootloader(bl, bootloader.RoleRunMode)
 
 	m := &boot.Modeenv{
 		Mode: "run",
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"snapd_recovery_mode=run this is mocked panic=-1 foo bar baz",
+		},
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
 	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap, "")
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, false)
-	c.Check(s.bootloader.UpdateCalls, Equals, 0)
+	c.Check(s.runModeBootloader.UpdateCalls, Equals, 0)
 }
 
 func (s *bootConfigSuite) TestBootConfigUpdateBootloaderFindErr(c *C) {
@@ -3573,14 +3681,18 @@ func (s *bootConfigSuite) TestBootConfigUpdateBootloaderFindErr(c *C) {
 	defer bootloader.ForceError(nil)
 
 	m := &boot.Modeenv{
-		Mode: "run",
+		Mode:           "run",
+		CurrentKernels: []string{"pc-kernel_500.snap"},
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"snapd_recovery_mode=run this is mocked panic=-1 foo bar baz",
+		},
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
 	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap, "")
 	c.Assert(err, ErrorMatches, "internal error: cannot find trusted assets bootloader under .*: mocked find error")
 	c.Check(updated, Equals, false)
-	c.Check(s.bootloader.UpdateCalls, Equals, 0)
+	c.Check(s.runModeBootloader.UpdateCalls, Equals, 0)
 }
 
 func (s *bootConfigSuite) TestBootConfigUpdateWithGadgetAndReseal(c *C) {
@@ -3604,15 +3716,24 @@ volumes:
 		"asset-hash-1",
 	})
 
-	s.bootloader.TrustedAssetsList = []string{"asset"}
-	s.bootloader.BootChainList = []bootloader.BootFile{
+	// We need to set BootChain for run mode bootloader, and both recovery
+	// boot and boot chains for the recovery bootloader (as we use it for
+	// both modes - it is chainloaded for run mode).
+	s.runModeBootloader.TrustedAssetsList = []string{"asset"}
+	s.runModeBootloader.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
 		runKernelBf,
 	}
-	s.bootloader.RecoveryBootChainList = []bootloader.BootFile{
+	s.recoveryBootloader.TrustedAssetsList = []string{"asset"}
+	s.recoveryBootloader.BootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
+		runKernelBf,
+	}
+	s.recoveryBootloader.RecoveryBootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "asset", bootloader.RoleRecovery),
 		recoveryKernelBf,
 	}
+
 	m := &boot.Modeenv{
 		Mode:           "run",
 		CurrentKernels: []string{"pc-kernel_500.snap"},
@@ -3646,7 +3767,8 @@ volumes:
 	updated, err := boot.UpdateManagedBootConfigs(coreDev, gadgetSnap, "")
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, true)
-	c.Check(s.bootloader.UpdateCalls, Equals, 1)
+	c.Check(s.runModeBootloader.UpdateCalls, Equals, 1)
+	c.Check(s.recoveryBootloader.UpdateCalls, Equals, 1)
 	c.Check(resealCalls, Equals, 1)
 
 	m2, err := boot.ReadModeenv("")
@@ -3674,7 +3796,7 @@ volumes:
 
 	// a minimal bootloader and modeenv setup that works because reseal is
 	// not executed
-	s.bootloader.TrustedAssetsList = []string{"asset"}
+	s.runModeBootloader.TrustedAssetsList = []string{"asset"}
 	m := &boot.Modeenv{
 		Mode: "run",
 		CurrentKernelCommandLines: boot.BootCommandLines{
@@ -3685,7 +3807,7 @@ volumes:
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
-	s.bootloader.Updated = true
+	s.runModeBootloader.Updated = true
 
 	resealCalls := 0
 	// reseal does not happen, because the gadget overrides the static
@@ -3700,7 +3822,8 @@ volumes:
 	updated, err := boot.UpdateManagedBootConfigs(coreDev, gadgetSnap, "")
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, true)
-	c.Check(s.bootloader.UpdateCalls, Equals, 1)
+	c.Check(s.runModeBootloader.UpdateCalls, Equals, 1)
+	c.Check(s.recoveryBootloader.UpdateCalls, Equals, 1)
 	c.Check(resealCalls, Equals, 0)
 
 	m2, err := boot.ReadModeenv("")

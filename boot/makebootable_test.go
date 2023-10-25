@@ -215,7 +215,7 @@ func (s *makeBootable20Suite) TestMakeBootableImage20(c *C) {
 
 	unpackedGadgetDir := c.MkDir()
 	grubRecoveryCfg := "#grub-recovery cfg"
-	grubRecoveryCfgAsset := "#grub-recovery cfg from assets"
+	grubRecoveryCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub-recovery cfg from assets")
 	grubCfg := "#grub cfg"
 	snaptest.PopulateDir(unpackedGadgetDir, [][]string{
 		{"grub-recovery.conf", grubRecoveryCfg},
@@ -292,7 +292,7 @@ func (s *makeBootable20Suite) TestMakeBootableImage20BootFlags(c *C) {
 
 	unpackedGadgetDir := c.MkDir()
 	grubRecoveryCfg := "#grub-recovery cfg"
-	grubRecoveryCfgAsset := "#grub-recovery cfg from assets"
+	grubRecoveryCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub-recovery cfg from assets")
 	grubCfg := "#grub cfg"
 	snaptest.PopulateDir(unpackedGadgetDir, [][]string{
 		{"grub-recovery.conf", grubRecoveryCfg},
@@ -549,7 +549,7 @@ func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, standalone, factory
 
 	unpackedGadgetDir := c.MkDir()
 	grubRecoveryCfg := []byte("#grub-recovery cfg")
-	grubRecoveryCfgAsset := []byte("#grub-recovery cfg from assets")
+	grubRecoveryCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub-recovery cfg from assets")
 	grubCfg := []byte("#grub cfg")
 	grubCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub cfg from assets")
 	snaptest.PopulateDir(unpackedGadgetDir, [][]string{
@@ -1072,7 +1072,7 @@ func (s *makeBootable20Suite) TestMakeRunnableSystem20RunModeSealKeyErr(c *C) {
 
 	unpackedGadgetDir := c.MkDir()
 	grubRecoveryCfg := []byte("#grub-recovery cfg")
-	grubRecoveryCfgAsset := []byte("#grub-recovery cfg from assets")
+	grubRecoveryCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub-recovery cfg from assets")
 	grubCfg := []byte("#grub cfg")
 	grubCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub cfg from assets")
 	snaptest.PopulateDir(unpackedGadgetDir, [][]string{
@@ -1261,7 +1261,7 @@ func (s *makeBootable20Suite) testMakeSystemRunnable20WithCustomKernelArgs(c *C,
 
 	unpackedGadgetDir := c.MkDir()
 	grubRecoveryCfg := []byte("#grub-recovery cfg")
-	grubRecoveryCfgAsset := []byte("#grub-recovery cfg from assets")
+	grubRecoveryCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub-recovery cfg from assets")
 	grubCfg := []byte("#grub cfg")
 	grubCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub cfg from assets")
 	gadgetFiles := [][]string{
@@ -1516,7 +1516,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20UnhappyMarkRecoveryCapable
 
 	unpackedGadgetDir := c.MkDir()
 	grubRecoveryCfg := []byte("#grub-recovery cfg")
-	grubRecoveryCfgAsset := []byte("#grub-recovery cfg from assets")
+	grubRecoveryCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub-recovery cfg from assets")
 	grubCfg := []byte("#grub cfg")
 	grubCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub cfg from assets")
 	snaptest.PopulateDir(unpackedGadgetDir, [][]string{
@@ -1975,7 +1975,7 @@ func (s *makeBootable20Suite) TestMakeBootablePartition(c *C) {
 
 	unpackedGadgetDir := c.MkDir()
 	grubRecoveryCfg := "#grub-recovery cfg"
-	grubRecoveryCfgAsset := "#grub-recovery cfg from assets"
+	grubRecoveryCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub-recovery cfg from assets")
 	grubCfg := "#grub cfg"
 	snaptest.PopulateDir(unpackedGadgetDir, [][]string{
 		{"grub-recovery.conf", grubRecoveryCfg},
@@ -2081,7 +2081,7 @@ func (s *makeBootable20Suite) TestMakeRunnableSystemNoGoodRecoverySystems(c *C) 
 	// mock grub so it is detected as the current bootloader
 	unpackedGadgetDir := c.MkDir()
 	grubRecoveryCfg := []byte("#grub-recovery cfg")
-	grubRecoveryCfgAsset := []byte("#grub-recovery cfg from assets")
+	grubRecoveryCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub-recovery cfg from assets")
 	grubCfg := []byte("#grub cfg")
 	grubCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub cfg from assets")
 	snaptest.PopulateDir(unpackedGadgetDir, [][]string{
@@ -2167,7 +2167,7 @@ func (s *makeBootable20Suite) TestMakeRunnableSystemStandaloneSnapsCopy(c *C) {
 	// mock grub so it is detected as the current bootloader
 	unpackedGadgetDir := c.MkDir()
 	grubRecoveryCfg := []byte("#grub-recovery cfg")
-	grubRecoveryCfgAsset := []byte("#grub-recovery cfg from assets")
+	grubRecoveryCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub-recovery cfg from assets")
 	grubCfg := []byte("#grub cfg")
 	grubCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub cfg from assets")
 	snaptest.PopulateDir(unpackedGadgetDir, [][]string{
