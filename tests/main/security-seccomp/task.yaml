@@ -42,7 +42,7 @@ prepare: |
         # ensure the right apparmor_parser is used
         APPARMOR_PARSER="apparmor_parser"
         if snap debug sandbox-features --required apparmor:parser:snapd-internal; then
-          APPARMOR_PARSER="/snap/snapd/current/usr/lib/snapd/apparmor_parser --config-file /snap/snapd/current/usr/lib/snapd/apparmor/parser.conf -b /snap/snapd/current/usr/lib/snapd/apparmor.d --policy-features /snap/snapd/current/usr/lib/snapd/apparmor.d/abi/3.0"
+          APPARMOR_PARSER="/snap/snapd/current/usr/lib/snapd/apparmor_parser --config-file /snap/snapd/current/usr/lib/snapd/apparmor/parser.conf -b /snap/snapd/current/usr/lib/snapd/apparmor.d --policy-features /snap/snapd/current/usr/lib/snapd/apparmor.d/abi/4.0"
         fi
         $APPARMOR_PARSER -K -r "$AAP"
     fi
@@ -57,7 +57,7 @@ restore: |
         # ensure the right apparmor_parser is used
         APPARMOR_PARSER="apparmor_parser"
         if snap debug sandbox-features --required apparmor:parser:snapd-internal; then
-          APPARMOR_PARSER="/snap/snapd/current/usr/lib/snapd/apparmor_parser --config-file /snap/snapd/current/usr/lib/snapd/apparmor/parser.conf -b /snap/snapd/current/usr/lib/snapd/apparmor.d --policy-features /snap/snapd/current/usr/lib/snapd/apparmor.d/abi/3.0"
+          APPARMOR_PARSER="/snap/snapd/current/usr/lib/snapd/apparmor_parser --config-file /snap/snapd/current/usr/lib/snapd/apparmor/parser.conf -b /snap/snapd/current/usr/lib/snapd/apparmor.d --policy-features /snap/snapd/current/usr/lib/snapd/apparmor.d/abi/4.0"
         fi
         $APPARMOR_PARSER -K -r "$AAP"
     fi

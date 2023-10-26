@@ -259,7 +259,7 @@ execute: |
     /snap/snapd/current/usr/lib/snapd/apparmor_parser \
       --config-file /snap/snapd/current/usr/lib/snapd/apparmor/parser.conf \
       -b /snap/snapd/current/usr/lib/snapd/apparmor.d \
-      --policy-features /snap/snapd/current/usr/lib/snapd/apparmor.d/abi/3.0 \
+      --policy-features /snap/snapd/current/usr/lib/snapd/apparmor.d/abi/4.0 \
       -r /var/lib/snapd/apparmor/profiles/snap.snapcraft.snapcraft
 
     echo "Then we should be able to successfully install a snap"
