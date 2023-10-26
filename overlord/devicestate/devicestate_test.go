@@ -2633,7 +2633,7 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionFailed(c *C) {
 
 	s.state.Lock()
 	s.cacheDeviceCore20Seed(c)
-	s.state.Set("seeded", nil)
+	s.seeding()
 	s.state.Unlock()
 
 	logbuf, restore := logger.MockLogger()
@@ -2683,7 +2683,7 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionHappy(c *C) {
 
 	s.state.Lock()
 	s.cacheDeviceCore20Seed(c)
-	s.state.Set("seeded", nil)
+	s.seeding()
 	s.state.Unlock()
 
 	err := s.mgr.Ensure()
