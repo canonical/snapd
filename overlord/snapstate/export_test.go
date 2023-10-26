@@ -128,6 +128,8 @@ var (
 	TaskSetsByTypeForEssentialSnaps = taskSetsByTypeForEssentialSnaps
 	SetDefaultRestartBoundaries     = setDefaultRestartBoundaries
 	DeviceModelBootBase             = deviceModelBootBase
+
+	ReRefreshSummary = reRefreshSummary
 )
 
 const (
