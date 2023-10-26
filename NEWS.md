@@ -1,5 +1,6 @@
 # In progress:
 * Installation of local snap components
+* Started improving support for user daemons by introducing new control switches --user/--users/--system for service operations
 
 # Next:
 * state: add support for notices (from pebble)

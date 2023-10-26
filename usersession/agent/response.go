@@ -95,6 +95,7 @@ type errorKind string
 const (
 	errorKindLoginRequired  = errorKind("login-required")
 	errorKindServiceControl = errorKind("service-control")
+	errorKindServiceStatus  = errorKind("service-status")
 )
 
 type errorValue interface{}
