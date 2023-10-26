@@ -307,3 +307,44 @@ func MockHotplugSlot(c *C, yaml string, si *snap.SideInfo, hotplugKey snap.Hotpl
 		HotplugKey: hotplugKey,
 	}
 }
+
+func (s *utilsSuite) TestStringListAttributeHappy(c *C) {
+	const snapYaml = `name: consumer
+version: 0
+plugs:
+ personal-files:
+  write: ["$HOME/dir1", "/etc/.hidden2"]
+slots:
+ shared-memory:
+  write: ["foo", "bar"]
+`
+	snap := snaptest.MockInfo(c, snapYaml, nil)
+	plugInfo := snap.Plugs["personal-files"]
+	slotInfo := snap.Slots["shared-memory"]
+	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
+	slot := interfaces.NewConnectedSlot(slotInfo, nil, nil)
+	list, err := builtin.StringListAttribute(plug, "write")
+	c.Assert(err, IsNil)
+	c.Check(list, DeepEquals, []string{"$HOME/dir1", "/etc/.hidden2"})
+	list, err = builtin.StringListAttribute(plug, "read")
+	c.Assert(err, IsNil)
+	c.Check(list, IsNil)
+	list, err = builtin.StringListAttribute(slot, "write")
+	c.Assert(err, IsNil)
+	c.Check(list, DeepEquals, []string{"foo", "bar"})
+}
+
+func (s *utilsSuite) TestStringListAttributeErrorNotListStrings(c *C) {
+	const snapYaml = `name: consumer
+version: 0
+plugs:
+ personal-files:
+  write: [1, "two"]
+`
+	snap := snaptest.MockInfo(c, snapYaml, nil)
+	plugInfo := snap.Plugs["personal-files"]
+	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
+	list, err := builtin.StringListAttribute(plug, "write")
+	c.Assert(list, IsNil)
+	c.Assert(err, ErrorMatches, `"write" attribute must be a list of strings, not "\[1 two\]"`)
+}
