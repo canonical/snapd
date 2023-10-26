@@ -57,30 +57,30 @@ func (s *utilsSuite) SetUpTest(c *C) {
 	s.as = &update.Assumptions{}
 
 	lock := func() (unlock func(), err error) {
-		c.Errorf("Unexpected call to \"Lock\"")
+		c.Errorf(`Unexpected call to "Lock"`)
 		return nil, nil
 	}
 	assumptions := func() *update.Assumptions {
 		return s.as
 	}
 	loadDesiredProfile := func() (*osutil.MountProfile, error) {
-		c.Errorf("Unexpected call to \"LoadDesiredProfile\"")
+		c.Errorf(`Unexpected call to "LoadDesiredProfile"`)
 		return &osutil.MountProfile{}, nil
 	}
 	loadCurrentProfile := func() (*osutil.MountProfile, error) {
-		c.Errorf("Unexpected call to \"LoadCurrentProfile\"")
+		c.Errorf(`Unexpected call to "LoadCurrentProfile"`)
 		return &osutil.MountProfile{}, nil
 	}
 	saveCurrentProfile := func(*osutil.MountProfile) error {
-		c.Errorf("Unexpected call to \"SaveCurrentProfile\"")
+		c.Errorf(`Unexpected call to "SaveCurrentProfile"`)
 		return nil
 	}
 	uid := func() int {
-		c.Errorf("Unexpected call to \"UID\"")
+		c.Errorf(`Unexpected call to "UID"`)
 		return 0
 	}
 	gid := func() int {
-		c.Errorf("Unexpected call to \"GID\"")
+		c.Errorf(`Unexpected call to "GID"`)
 		return 0
 	}
 	s.upCtx = update.NewTestUpdateContext(lock, assumptions, loadDesiredProfile, loadCurrentProfile, saveCurrentProfile, uid, gid)
