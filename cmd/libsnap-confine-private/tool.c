@@ -125,14 +125,6 @@ void sc_call_snap_update_ns_as_user(int snap_update_ns_fd,
 				 "SNAP_REAL_HOME=%s", snap_real_home);
         }
 
-	const char *snap_uid = getenv("SNAP_UID");
-	char snap_uid_env[PATH_MAX + sizeof("SNAP_UID=")] = { 0 };
-	if (snap_uid != NULL) {
-		sc_must_snprintf(snap_uid_env,
-				 sizeof(snap_uid_env),
-				 "SNAP_UID=%s", snap_uid);
-        }
-
 	char *argv[] = {
 		"snap-update-ns",
 		/* This tells snap-update-ns we are calling from snap-confine and locking is in place */
@@ -146,8 +138,7 @@ void sc_call_snap_update_ns_as_user(int snap_update_ns_fd,
 		 * for details. */
 		"SNAPD_DEBUG=x",
 		xdg_runtime_dir_env,
-		snap_real_home_env,
-		snap_uid_env, NULL
+		snap_real_home_env, NULL
 	};
 	sc_call_snapd_tool_with_apparmor(snap_update_ns_fd,
 					 "snap-update-ns", apparmor,

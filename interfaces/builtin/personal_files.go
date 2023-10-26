@@ -83,16 +83,10 @@ func init() {
 }
 
 // potentiallyMissingDirs returns an ensure directory specification that contains the information
-// required to create potentially missing directories for the given raw path. Potentially missing
+// required to create potentially missing directories for the given path. Potentially missing
 // directories are those that are implicitly required in order to enable the user to create
 // the target directory specified in a write attribute path.
-func potentiallyMissingDirs(rawPath interface{}) (*interfaces.EnsureDirSpec, error) {
-	path, ok := rawPath.(string)
-	if !ok {
-		// BeforePreparePlug should prevent this
-		return nil, fmt.Errorf("%[1]v (%[1]T) is not a string", rawPath)
-	}
-
+func potentiallyMissingDirs(path string) (*interfaces.EnsureDirSpec, error) {
 	// All directories between $HOME and the leaf directory are potentially missing
 	path = filepath.Clean(path)
 	pathElements := strings.Split(path, string(filepath.Separator))
@@ -106,16 +100,16 @@ func potentiallyMissingDirs(rawPath interface{}) (*interfaces.EnsureDirSpec, err
 
 	return &interfaces.EnsureDirSpec{
 		// EnsureDir prefix directory that must exist
-		MustExistDir: pathElements[0],
+		MustExistDir: "$HOME",
 		// Directory to ensure by creating the missing directories within MustExistDir
 		EnsureDir: filepath.Join(pathElements[:len(pathElements)-1]...),
 	}, nil
 }
 
-func dirsToEnsure(rawPaths []interface{}) ([]*interfaces.EnsureDirSpec, error) {
+func dirsToEnsure(paths []string) ([]*interfaces.EnsureDirSpec, error) {
 	var ensureDirSpecs []*interfaces.EnsureDirSpec
-	for _, rawPath := range rawPaths {
-		ensureDirSpec, err := potentiallyMissingDirs(rawPath)
+	for _, path := range paths {
+		ensureDirSpec, err := potentiallyMissingDirs(path)
 		if err != nil {
 			return nil, err
 		}
@@ -127,10 +121,9 @@ func dirsToEnsure(rawPaths []interface{}) ([]*interfaces.EnsureDirSpec, error) {
 }
 
 func (iface *personalFilesInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	// Create missing directories for write paths only
-	var writes []interface{}
-	_ = plug.Attr("write", &writes)
-
+	// Create missing directories for write paths only.
+	// BeforePreparePlug should prevent error.
+	writes, _ := StringListAttribute(plug, "write")
 	ensureDirSpecs, err := dirsToEnsure(writes)
 	if err != nil {
 		return fmt.Errorf("cannot connect plug %s: %v", plug.Name(), err)
@@ -146,8 +139,9 @@ func (iface *personalFilesInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 		return err
 	}
 
-	var writes []interface{}
-	_ = plug.Attr("write", &writes)
+	// Create missing directories for write paths only.
+	// BeforePreparePlug should prevent error.
+	writes, _ := StringListAttribute(plug, "write")
 
 	// Add snippet for snap-update-ns
 	ensureDirSpecs, err := dirsToEnsure(writes)
@@ -155,7 +149,7 @@ func (iface *personalFilesInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 		return fmt.Errorf("cannot connect plug %s: %v", plug.Name(), err)
 	}
 	if len(ensureDirSpecs) > 0 {
-		spec.AllowUserEnsureDirMounts(iface.commonFilesInterface.commonInterface.name, ensureDirSpecs)
+		spec.AllowEnsureDirMounts(iface.commonFilesInterface.commonInterface.name, ensureDirSpecs)
 	}
 
 	return nil

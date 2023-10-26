@@ -58,10 +58,15 @@ func (s *entrySuite) TestString(c *C) {
 	}
 	c.Assert(ent3.String(), Equals, `/dev/sda5 /media/My\040Files ext4 rw,noatime 0 0`)
 	ent4 := osutil.MountEntry{
+		Dir:     "/usr/lib/lib4d.so.1.1.0",
+		Options: []string{"x-snapd.kind=symlink", "x-snapd.symlink=/snap/snapname/165/graphics/usr/lib/lib4d.so.1.1.0", "x-snapd.origin=layout"},
+	}
+	c.Assert(ent4.String(), Equals, "none /usr/lib/lib4d.so.1.1.0 none x-snapd.kind=symlink,x-snapd.symlink=/snap/snapname/165/graphics/usr/lib/lib4d.so.1.1.0,x-snapd.origin=layout 0 0")
+	ent5 := osutil.MountEntry{
 		Dir:     "$HOME/.local/share",
 		Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=$HOME"},
 	}
-	c.Assert(ent4.String(), Equals, "none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOME 0 0")
+	c.Assert(ent5.String(), Equals, "none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOME 0 0")
 }
 
 func (s *entrySuite) TestEqual(c *C) {
