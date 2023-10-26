@@ -2113,13 +2113,13 @@ func reRefreshSummary(updated []string, flags *Flags) string {
 	case 0:
 		return ""
 	case 1:
-		msg = fmt.Sprintf(i18n.G("Monitoring snap %q for need of extra refresh steps"), updated[0])
+		msg = fmt.Sprintf(i18n.G("Monitoring snap %q to determine whether extra refresh steps are required"), updated[0])
 	case 2, 3:
 		quoted := strutil.Quoted(updated)
 		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		msg = fmt.Sprintf(i18n.G("Monitoring snaps %s for need of extra refresh steps"), quoted)
+		msg = fmt.Sprintf(i18n.G("Monitoring snaps %s to determine whether extra refresh steps are required"), quoted)
 	default:
-		msg = fmt.Sprintf(i18n.G("Monitoring the %d snaps for need of extra refresh steps"), len(updated))
+		msg = fmt.Sprintf(i18n.G("Monitoring %d snaps to determine whether extra refresh steps are required"), len(updated))
 	}
 	return msg
 }
