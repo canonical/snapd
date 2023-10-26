@@ -544,7 +544,7 @@ func (s *specSuite) TestAllowEnsureDirMounts(c *C) {
 		{MustExistDir: "/", EnsureDir: "/dir1/dir2"},
 		{MustExistDir: "/dir1", EnsureDir: "/dir1"},
 	}
-	s.spec.AllowUserEnsureDirMounts("personal-files", ensureDirSpecs)
+	s.spec.AllowEnsureDirMounts("personal-files", ensureDirSpecs)
 	c.Check("\n"+strings.Join(s.spec.UpdateNS(), "\n"), Equals, `
   # Allow the personal-files interface to create potentially missing directories
   owner @{HOME}/ rw,

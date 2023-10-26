@@ -567,15 +567,18 @@ func snippetFromLayout(layout *snap.Layout) string {
 	return fmt.Sprintf("# Layout path: %s\n# (no extra permissions required for symlink)", mountPoint)
 }
 
-// emitUserEnsureDir creates an apparmor snippet that permits snap-update-ns to create
+// emitEnsureDir creates an apparmor snippet that permits snap-update-ns to create
 // missing directories for the calling user according to the provided ensure directory spec.
-func emitUserEnsureDir(spec *Specification, ifaceName string, ensureDirSpec *interfaces.EnsureDirSpec) {
-	ensureDir := filepath.Clean(ensureDirSpec.EnsureDir)
-	mustExistDir := filepath.Clean(ensureDirSpec.MustExistDir)
+// This function is currently used as counterpart for AddUserEnsureDirs, but can also be used
+// for permitting non-user ensure directory specs.
+func emitEnsureDir(spec *Specification, ifaceName string, ensureDirSpec *interfaces.EnsureDirSpec) {
+	ensureDir := ensureDirSpec.EnsureDir
+	mustExistDir := ensureDirSpec.MustExistDir
 	if ensureDir == mustExistDir {
 		return
 	}
 
+	// Add additional expansion here as required
 	replacePrefixHome := func(path string) string {
 		if strings.HasPrefix(path, "$HOME") {
 			return strings.Replace(path, "$HOME", "@{HOME}", -1)
@@ -609,16 +612,16 @@ func emitUserEnsureDir(spec *Specification, ifaceName string, ensureDirSpec *int
 	}
 }
 
-// AllowUserEnsureDirMounts adds snap-update-ns snippets that permit snap-update-ns to create
+// AllowEnsureDirMounts adds snap-update-ns snippets that permit snap-update-ns to create
 // missing directories according to the provided ensure directory mount specs.
-func (spec *Specification) AllowUserEnsureDirMounts(ifaceName string, ensureDirSpecs []*interfaces.EnsureDirSpec) {
+func (spec *Specification) AllowEnsureDirMounts(ifaceName string, ensureDirSpecs []*interfaces.EnsureDirSpec) {
 	// Walk the path specs in deterministic order, by EnsureDir (the mount point).
 	sort.Slice(ensureDirSpecs, func(i, j int) bool {
 		return ensureDirSpecs[i].EnsureDir < ensureDirSpecs[j].EnsureDir
 	})
 
 	for _, ensureDirSpec := range ensureDirSpecs {
-		emitUserEnsureDir(spec, ifaceName, ensureDirSpec)
+		emitEnsureDir(spec, ifaceName, ensureDirSpec)
 	}
 }
 
