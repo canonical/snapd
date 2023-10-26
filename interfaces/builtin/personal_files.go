@@ -122,7 +122,7 @@ func dirsToEnsure(paths []string) ([]*interfaces.EnsureDirSpec, error) {
 func (iface *personalFilesInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// Create missing directories for write paths only.
 	// BeforePreparePlug should prevent error.
-	writes, _ := interfaces.StringListAttribute(plug, "write")
+	writes, _ := StringListAttribute(plug, "write")
 	ensureDirSpecs, err := dirsToEnsure(writes)
 	if err != nil {
 		return fmt.Errorf("cannot connect plug %s: %v", plug.Name(), err)

@@ -20,7 +20,6 @@
 package interfaces
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/snapcore/snapd/snap"
@@ -52,16 +51,4 @@ func SetupMany(repo *Repository, backend SecurityBackend, snaps []*snap.Info, co
 		}
 	}
 	return errors
-}
-
-// StringListAttribute returns a list of strings for the given attribute key if the attribute exists.
-func StringListAttribute(attrer Attrer, key string) ([]string, error) {
-	var stringList []string
-	err := attrer.Attr(key, &stringList)
-	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
-		value, _ := attrer.Lookup(key)
-		return nil, fmt.Errorf(`%q attribute must be a list of strings, not "%v"`, key, value)
-	}
-
-	return stringList, nil
 }
