@@ -10482,3 +10482,59 @@ func (s *snapmgrTestSuite) TestUpdateManyRevOptsOrder(c *C) {
 	testOrder([]string{"snap-c", "some-snap", "some-other-snap"})
 	testOrder([]string{"snap-c", "some-other-snap", "some-snap"})
 }
+
+func (s *snapmgrTestSuite) TestSnapdRefreshForRemodel(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Set snapd state in the system: currently rev 44 installed, but also
+	// 22 is in the system (simply to avoid trying to reach the store for
+	// that rev when we want to refresh to it).
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/edge",
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(44)},
+			{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(22)}},
+		Current:  snap.R(44),
+		SnapType: "app",
+	})
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		var version string
+		switch name {
+		case "snapd":
+			switch si.Revision.N {
+			case 22:
+				version = "1.0"
+			default:
+				version = "2.0"
+			}
+		default:
+			version = "1.0"
+		}
+		return &snap.Info{
+			SuggestedName: name,
+			Version:       version,
+			Architectures: []string{"all"},
+			SideInfo:      *si,
+		}, nil
+	})
+	defer restore()
+
+	// This is part of a remodeling change
+	chg := s.state.NewChange("remodel", "...")
+	chg.SetStatus(state.DoStatus)
+
+	// Update to snapd rev 22, which is an older revision. This checks that
+	// things are fine in that case and that there is no conflict detected
+	// as we are doing this from the remodel change.
+	opts := &snapstate.RevisionOptions{Channel: "stable", Revision: snap.R(22)}
+	_, err := snapstate.UpdateWithDeviceContext(s.state, "snapd", opts, s.user.ID, snapstate.Flags{}, nil, nil, chg.ID())
+	c.Check(err, IsNil)
+
+	// But there is a conflict if this update is not part of the remodel change.
+	_, err = snapstate.UpdateWithDeviceContext(s.state, "snapd", opts, s.user.ID, snapstate.Flags{}, nil, nil, "")
+	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	c.Check(err, ErrorMatches, "remodeling in progress, no other changes allowed until this is done")
+}

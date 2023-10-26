@@ -408,7 +408,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			}
 			// If snapsup.Version was smaller, 1 is returned.
 			if res == 1 {
-				if err := CheckChangeConflictRunExclusively(st, "snapd downgrade"); err != nil {
+				if err := checkChangeConflictExclusiveKinds(st, "snapd downgrade", fromChange); err != nil {
 					return nil, err
 				}
 			}
