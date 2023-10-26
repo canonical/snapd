@@ -21,6 +21,7 @@ package main_test
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -36,7 +37,29 @@ type userSuite struct{}
 
 var _ = Suite(&userSuite{})
 
-func (s *userSuite) TestNewUserProfileUpdateContextErrorRealHome(c *C) {
+func (s *userSuite) TestIsPlausibleHomeHappy(c *C) {
+	tmpHomeDir := c.MkDir()
+	err := update.IsPlausibleHome(tmpHomeDir)
+	c.Assert(err, IsNil)
+}
+
+func (s *userSuite) TestIsPlausibleHomeErrorPathNotClean(c *C) {
+	err := update.IsPlausibleHome("/PathNotClean/")
+	c.Assert(err, ErrorMatches, "cannot allow unclean path")
+}
+
+func (s *userSuite) TestIsPlausibleHomeErrorPathRelative(c *C) {
+	err := update.IsPlausibleHome("PathRelative")
+	c.Assert(err, ErrorMatches, "cannot allow relative path")
+}
+
+func (s *userSuite) TestIsPlausibleHomeErrorPathNotExist(c *C) {
+	tmpHomeDir := c.MkDir() + "/user-does-not-exist"
+	err := update.IsPlausibleHome(tmpHomeDir)
+	c.Assert(err, ErrorMatches, "no such file or directory")
+}
+
+func (s *userSuite) TestNewUserProfileUpdateContextErrorNoRealHome(c *C) {
 	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", "/home/user", "1234")
 	defer restore()
 	os.Unsetenv("SNAP_REAL_HOME")
@@ -45,8 +68,18 @@ func (s *userSuite) TestNewUserProfileUpdateContextErrorRealHome(c *C) {
 	c.Assert(err, ErrorMatches, "cannot retrieve home directory: cannot find environment variable \"SNAP_REAL_HOME\"")
 }
 
+func (s *userSuite) TestNewUserProfileUpdateContextErrorInvalidHome(c *C) {
+	tmpHomeDir := c.MkDir() + "/user-does-not-exist"
+	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", tmpHomeDir, "1234")
+	defer restore()
+	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234, 1234)
+	c.Assert(upCtx, IsNil)
+	c.Assert(err, ErrorMatches, `cannot use invalid home directory "`+tmpHomeDir+`": no such file or directory`)
+}
+
 func (s *userSuite) TestUID(c *C) {
-	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", "/home/user", "1234")
+	tmpHomeDir := c.MkDir()
+	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", tmpHomeDir, "1234")
 	defer restore()
 	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234, 1234)
 	c.Assert(err, IsNil)
@@ -55,7 +88,8 @@ func (s *userSuite) TestUID(c *C) {
 }
 
 func (s *userSuite) TestGID(c *C) {
-	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", "/home/user", "1234")
+	tmpHomeDir := c.MkDir()
+	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", tmpHomeDir, "1234")
 	defer restore()
 	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234, 1234)
 	c.Assert(err, IsNil)
@@ -67,7 +101,8 @@ func (s *userSuite) TestLock(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
-	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", "/home/user", "1234")
+	tmpHomeDir := c.MkDir()
+	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", tmpHomeDir, "1234")
 	defer restore()
 	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234, 1234)
 	c.Assert(err, IsNil)
@@ -80,7 +115,8 @@ func (s *userSuite) TestLock(c *C) {
 }
 
 func (s *userSuite) TestAssumptions(c *C) {
-	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", "/home/user", "1234")
+	tmpHomeDir := c.MkDir()
+	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", tmpHomeDir, "1234")
 	defer restore()
 	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234, 1234)
 	c.Assert(err, IsNil)
@@ -93,7 +129,8 @@ func (s *userSuite) TestLoadDesiredProfile(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 	dirs.XdgRuntimeDirBase = "/run/user"
-	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", "/home/user", "1234")
+	tmpHomeDir := c.MkDir()
+	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", tmpHomeDir, "1234")
 	defer restore()
 	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234, 1234)
 	c.Assert(err, IsNil)
@@ -101,7 +138,7 @@ func (s *userSuite) TestLoadDesiredProfile(c *C) {
 	input := "$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0\n" +
 		"none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOME 0 0\n"
 	output := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n" +
-		"none /home/user/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=/home/user 0 0\n"
+		fmt.Sprintf("none %s/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=%s 0 0\n", tmpHomeDir, tmpHomeDir)
 
 	// Write a desired user mount profile for snap "foo".
 	path := update.DesiredUserProfilePath("foo")
@@ -121,8 +158,8 @@ func (s *userSuite) TestLoadDesiredProfile(c *C) {
 func (s *userSuite) TestLoadCurrentProfile(c *C) {
 	// Mock directories.
 	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("/")
-	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", "/home/user", "1234")
+	tmpHomeDir := c.MkDir()
+	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", tmpHomeDir, "1234")
 	defer restore()
 	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234, 1234)
 	c.Assert(err, IsNil)
@@ -149,7 +186,8 @@ func (s *userSuite) TestSaveCurrentProfile(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 	c.Assert(os.MkdirAll(dirs.SnapRunNsDir, 0755), IsNil)
-	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", "/home/user", "1234")
+	tmpHomeDir := c.MkDir()
+	restore := update.MockSnapConfineUserEnv("/run/user/1234/snap.snapname", tmpHomeDir, "1234")
 	defer restore()
 	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234, 1234)
 	c.Assert(err, IsNil)

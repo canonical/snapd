@@ -49,6 +49,7 @@ var (
 	CurrentSystemProfilePath = currentSystemProfilePath
 
 	// user
+	IsPlausibleHome        = isPlausibleHome
 	DesiredUserProfilePath = desiredUserProfilePath
 	CurrentUserProfilePath = currentUserProfilePath
 
@@ -62,7 +63,6 @@ var (
 	ExecuteMountProfileUpdate = executeMountProfileUpdate
 
 	// snapenv
-	SnapEnv         = snapEnv
 	SnapEnvRealHome = snapEnvRealHome
 )
 
@@ -176,6 +176,14 @@ func MockReadDir(fn func(string) ([]os.FileInfo, error)) (restore func()) {
 	ioutilReadDir = fn
 	return func() {
 		ioutilReadDir = old
+	}
+}
+
+func MockOSEnvironmentUnescapeUnsafe(fn func(string) (osutil.Environment, error)) (restore func()) {
+	old := osutilOSEnvironmentUnescapeUnsafe
+	osutilOSEnvironmentUnescapeUnsafe = fn
+	return func() {
+		osutilOSEnvironmentUnescapeUnsafe = old
 	}
 }
 

@@ -392,7 +392,8 @@ none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOM
 	err = os.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644)
 	c.Assert(err, IsNil)
 
-	restoreEnv := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", "/home/user", "1000")
+	tmpHomeDir := c.MkDir()
+	restoreEnv := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", tmpHomeDir, "1000")
 	defer restoreEnv()
 	upCtx, err := update.NewUserProfileUpdateContext(snapName, true, 1000, 1000)
 	c.Assert(err, IsNil)
@@ -404,8 +405,8 @@ none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOM
 
 	c.Assert(changes[0].Action, Equals, update.Mount)
 	c.Assert(changes[0].Entry.Name, Equals, "none")
-	c.Assert(changes[0].Entry.Dir, Equals, "/home/user/.local/share")
-	c.Assert(changes[0].Entry.XSnapdMustExistDir(), Equals, "/home/user")
+	c.Assert(changes[0].Entry.Dir, Equals, tmpHomeDir+"/.local/share")
+	c.Assert(changes[0].Entry.XSnapdMustExistDir(), Equals, tmpHomeDir)
 
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, upCtx.UID())
 	c.Assert(changes[1].Action, Equals, update.Mount)
@@ -415,9 +416,9 @@ none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOM
 
 func (s *mainSuite) TestApplyUserFstabHappyErrorCannotRetrieveHome(c *C) {
 	snapName := "foo"
-	restoreEnv := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", "/home/user", "1000")
+	restoreEnv := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", "/home/user-does-not-exist", "1000")
 	defer restoreEnv()
 	os.Unsetenv("SNAP_UID")
 	_, err := update.NewUserProfileUpdateContext(snapName, true, 1000, 1000)
-	c.Assert(err, ErrorMatches, "cannot retrieve home directory: cannot find environment variable \"SNAP_UID\"")
+	c.Assert(err, ErrorMatches, `cannot use invalid home directory "/home/user-does-not-exist": no such file or directory`)
 }
