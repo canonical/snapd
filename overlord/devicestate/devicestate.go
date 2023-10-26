@@ -456,11 +456,11 @@ func (ro *remodelVariant) UpdateWithDeviceContext(st *state.State,
 		}
 		return snapstateUpdatePathWithDeviceContext(st, pathSI.localSi, pathSI.path, snapName,
 			&snapstate.RevisionOptions{Channel: channel},
-			userID, snapStateFlags, deviceCtx, fromChange)
+			userID, snapStateFlags, nil, deviceCtx, fromChange)
 	}
 	return snapstateUpdateWithDeviceContext(st, snapName,
 		&snapstate.RevisionOptions{Channel: channel},
-		userID, snapStateFlags, deviceCtx, fromChange)
+		userID, snapStateFlags, nil, deviceCtx, fromChange)
 }
 
 func (ro *remodelVariant) InstallWithDeviceContext(ctx context.Context, st *state.State,
@@ -474,11 +474,11 @@ func (ro *remodelVariant) InstallWithDeviceContext(ctx context.Context, st *stat
 		}
 		return snapstateInstallPathWithDeviceContext(st, pathSI.localSi, pathSI.path, snapName,
 			&snapstate.RevisionOptions{Channel: channel},
-			userID, snapStateFlags, deviceCtx, fromChange)
+			userID, snapStateFlags, nil, deviceCtx, fromChange)
 	}
 	return snapstateInstallWithDeviceContext(ctx, st, snapName,
 		&snapstate.RevisionOptions{Channel: channel},
-		userID, snapStateFlags, deviceCtx, fromChange)
+		userID, snapStateFlags, nil, deviceCtx, fromChange)
 }
 
 func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pathSideInfo, ms modelSnapsForRemodel, remodelVar remodelVariant, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
@@ -711,6 +711,9 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	userID := 0
 	var tss []*state.TaskSet
 
+	// XXX TODO: switch to use instead a PrereqTracker
+	// that supports properly self-contained set of snaps
+	// instead of updateNeededSnapsFromTs and NeededDefaultProviders
 	snapsAccountedFor := make(map[string]bool)
 	neededSnaps := make(map[string]bool)
 

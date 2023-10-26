@@ -1110,7 +1110,7 @@ func (*schemaSuite) TestAnyTypeAcceptsAllTypes(c *C) {
 	schema, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	for _, val := range []string{`"bar"`, `123`, `{ "a": 1, "b": 2 }`} {
+	for _, val := range []string{`"bar"`, `123`, `{ "a": 1, "b": 2 }`, `0.1`, `false`} {
 		input := []byte(fmt.Sprintf(`{
 			"foo": %s
 		}`, val))
@@ -1351,7 +1351,7 @@ func (*schemaSuite) TestNumberMinGreaterThanMaxConstraintFail(c *C) {
 }
 
 func (*schemaSuite) TestTypesRejectNull(c *C) {
-	for _, typ := range []string{"map", "string", "int", "any", "number"} {
+	for _, typ := range []string{"map", "string", "int", "any", "number", "bool"} {
 		schemaStr := []byte(fmt.Sprintf(`{
 	"schema": {
 		"foo": %q
@@ -1383,4 +1383,44 @@ func (*schemaSuite) TestUserDefinedTypeRejectsNull(c *C) {
 
 	err = schema.Validate([]byte(`{"foo": null}`))
 	c.Assert(err, ErrorMatches, `cannot accept null value for "string" type`)
+}
+
+func (*schemaSuite) TestBooleanHappy(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": "bool",
+		"bar": "bool"
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{
+	"foo": true,
+	"bar": false
+}`)
+
+	err = schema.Validate(input)
+	c.Assert(err, IsNil)
+}
+
+func (*schemaSuite) TestBooleanWrongType(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "bool"
+		}
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{
+	"foo": 1
+}`)
+
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `json: cannot unmarshal number into Go value of type bool`)
 }

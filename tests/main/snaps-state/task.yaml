@@ -82,6 +82,12 @@ execute: |
     kernel_name=$("$TESTSTOOLS"/snaps-state show-name kernel)
     gadget_name=$("$TESTSTOOLS"/snaps-state show-name gadget)
 
+    # Check the core revision
+    core_rev=$("$TESTSTOOLS"/snaps-state show-revision "$core_name")
+    snap info "$core_name" | grep "installed:" | MATCH "\($core_rev\)"
+    # Check the snap revision when it is not installed
+    "$TESTSTOOLS"/snaps-state show-revision not_installed 2>&1 | MATCH "snaps-state: the snap not_installed is not installed"
+
     # Check the core, kernel and gadget snaps
     snap list "$core_name"
     if os.query is-core; then

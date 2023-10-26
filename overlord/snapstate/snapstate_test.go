@@ -236,7 +236,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	snapstate.EstimateSnapshotSize = func(st *state.State, instanceName string, users []string) (uint64, error) {
 		return 1, nil
 	}
-	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int, prqt snapstate.PrereqTracker) (uint64, error) {
 		return 0, nil
 	})
 	s.AddCleanup(restoreInstallSize)
@@ -4991,46 +4991,6 @@ func (s *snapStateSuite) TestCurrentSideInfoInconsistentWithCurrent(c *C) {
 	c.Check(func() { snapst.CurrentSideInfo() }, PanicMatches, `cannot find snapst.Current in the snapst.Sequence`)
 }
 
-func (snapStateSuite) TestDefaultProviderContentTags(c *C) {
-	info := &snap.Info{
-		Plugs: map[string]*snap.PlugInfo{},
-	}
-	info.Plugs["foo"] = &snap.PlugInfo{
-		Snap:      info,
-		Name:      "sound-themes",
-		Interface: "content",
-		Attrs:     map[string]interface{}{"default-provider": "common-themes", "content": "foo"},
-	}
-	info.Plugs["bar"] = &snap.PlugInfo{
-		Snap:      info,
-		Name:      "visual-themes",
-		Interface: "content",
-		Attrs:     map[string]interface{}{"default-provider": "common-themes", "content": "bar"},
-	}
-	info.Plugs["baz"] = &snap.PlugInfo{
-		Snap:      info,
-		Name:      "not-themes",
-		Interface: "content",
-		Attrs:     map[string]interface{}{"default-provider": "some-snap", "content": "baz"},
-	}
-	info.Plugs["qux"] = &snap.PlugInfo{Snap: info, Interface: "not-content"}
-
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
-
-	repo := interfaces.NewRepository()
-	ifacerepo.Replace(st, repo)
-
-	providerContentAttrs := snapstate.DefaultProviderContentAttrs(st, info)
-
-	c.Check(providerContentAttrs, HasLen, 2)
-	sort.Strings(providerContentAttrs["common-themes"])
-	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"bar", "foo"})
-	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"bar", "foo"})
-	c.Check(providerContentAttrs["some-snap"], DeepEquals, []string{"baz"})
-}
-
 func (s *snapmgrTestSuite) testRevertSequence(c *C, opts *opSeqOpts) *state.TaskSet {
 	opts.revert = true
 	opts.after = opts.before
@@ -7831,7 +7791,7 @@ func (t *installTestType) DownloadSize() int64 {
 	panic("not expected")
 }
 
-func (t *installTestType) Prereq(st *state.State) []string {
+func (t *installTestType) Prereq(st *state.State, prqt snapstate.PrereqTracker) []string {
 	panic("not expected")
 }
 
@@ -8934,6 +8894,58 @@ WantedBy=multi-user.target
 	c.Assert(mountFile, testutil.FileEquals, expectedContent)
 }
 
+func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteDesktopFiles(c *C) {
+	restore := snapstate.MockEnsuredDesktopFilesUpdated(s.snapmgr, false)
+	defer restore()
+
+	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
+	testSnapState := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{testSnapSideInfo},
+		Current:  snap.R(42),
+		Active:   true,
+		SnapType: "app",
+	}
+	testYaml := `name: test-snap
+version: v1
+apps:
+  test-snap:
+    command: bin.sh
+`
+
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", testSnapState)
+	info := snaptest.MockSnapCurrent(c, testYaml, testSnapSideInfo)
+	s.fakeBackend.addSnapApp("test-snap", "test-snap")
+	s.state.Unlock()
+
+	guiDir := filepath.Join(info.MountDir(), "meta", "gui")
+	c.Assert(os.MkdirAll(guiDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(guiDir, "test-snap.desktop"), []byte(`
+[Desktop Entry]
+Name=test
+Exec=test-snap
+`[1:]), 0o644), IsNil)
+
+	desktopFile := filepath.Join(dirs.SnapDesktopFilesDir, "test-snap_test-snap.desktop")
+	otherDesktopFile := filepath.Join(dirs.SnapDesktopFilesDir, "test-snap_other.desktop")
+	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(desktopFile, []byte("old content"), 0o644), IsNil)
+	c.Assert(os.WriteFile(otherDesktopFile, []byte("other old content"), 0o644), IsNil)
+
+	err := s.snapmgr.Ensure()
+	c.Assert(err, IsNil)
+
+	expectedContent := fmt.Sprintf(`
+[Desktop Entry]
+X-SnapInstanceName=test-snap
+Name=test
+Exec=env BAMF_DESKTOP_FILE_HINT=%s/test-snap_test-snap.desktop %s/test-snap
+`[1:], dirs.SnapDesktopFilesDir, dirs.SnapBinariesDir)
+
+	c.Assert(desktopFile, testutil.FileEquals, expectedContent)
+	c.Assert(otherDesktopFile, testutil.FileAbsent)
+}
+
 func (s *snapmgrTestSuite) TestSaveRefreshCandidatesOnAutoRefresh(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -8993,7 +9005,7 @@ func (s *snapmgrTestSuite) TestRefreshCandidatesMergeFlags(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{Sequence: []*snap.SideInfo{si}})
 
 	globalFlags := &snapstate.Flags{IsAutoRefresh: true, IsContinuedAutoRefresh: true}
-	snapsup, _, err := cand.SnapSetupForUpdate(s.state, nil, 0, globalFlags)
+	snapsup, _, err := cand.SnapSetupForUpdate(s.state, nil, 0, globalFlags, nil)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, NotNil)
 	c.Assert(*snapsup, DeepEquals, snapstate.SnapSetup{
