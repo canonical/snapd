@@ -17,18 +17,14 @@ prepare: |
     echo "SNAPD_SHUTDOWN_DELAY=1" >> /etc/environment
     systemctl restart snapd
 
-restore: |
-    TARGET_SNAP_NAME=core
-    if os.query is-core18; then
-        TARGET_SNAP_NAME=core18
-    elif os.query is-core20; then
-        TARGET_SNAP_NAME=core20
-    fi
+    TARGET_SNAP_NAME="$(snaps.name core)"
+    # Save initial revision
+    "$TESTSTOOLS"/snaps-state show-revision "$TARGET_SNAP_NAME" > initi_rev.log
 
-    if not snap remove "$TARGET_SNAP_NAME" --revision=x2; then
-        snap changes
-        exit 1
-    fi
+restore: |
+    TARGET_SNAP_NAME="$(snaps.name core)"
+    # We need to make sure the base snap has the initial rev
+    test "$("$TESTSTOOLS"/snaps-state show-revision "$TARGET_SNAP_NAME")" == "$(cat initi_rev.log)"
     
     # remove SNAPD_SHUTDOWN_DELAY from /etc/environment again
     #shellcheck disable=SC2005
@@ -36,18 +32,11 @@ restore: |
     systemctl restart snapd
 
 execute: |
-    TARGET_SNAP_NAME=core
-    if os.query is-core18; then
-        TARGET_SNAP_NAME=core18
-    elif os.query is-core20; then
-        TARGET_SNAP_NAME=core20
-    elif os.query is-core22; then
-        TARGET_SNAP_NAME=core22
-    fi
+    TARGET_SNAP_NAME="$(snaps.name core)"
 
     # After installing a new version of the core/core18 snap the system is rebooted
     if [ "$SPREAD_REBOOT" = 0 ]; then
-        currRev="$(readlink /snap/${TARGET_SNAP_NAME}/current)"
+        currRev="$(readlink /snap/"${TARGET_SNAP_NAME}"/current)"
         echo "$currRev" > initialRev
 
         # use journalctl wrapper to grep only the logs collected while the test is running
@@ -57,7 +46,7 @@ execute: |
         fi
 
         # install new target snap
-        snap install --dangerous --no-wait "/var/lib/snapd/snaps/${TARGET_SNAP_NAME}_${currRev}.snap"
+        snap install --dangerous --no-wait /var/lib/snapd/snaps/"${TARGET_SNAP_NAME}"_"${currRev}".snap
 
         # Detect in the logs when the reboot can been triggered
         "$TESTSTOOLS"/journal-state match-log -n 50 --wait 2 "Waiting for system reboot"
@@ -68,7 +57,7 @@ execute: |
         snap watch --last=install
 
         # Check the current revision has changed
-        currRev="$(readlink /snap/${TARGET_SNAP_NAME}/current)"
+        currRev="$(readlink /snap/"${TARGET_SNAP_NAME}"/current)"
         [ "$(cat initialRev)" !=  "$currRev" ]
 
         # revert the target snap
@@ -82,6 +71,6 @@ execute: |
         # Wait for the revert to complete.
         snap watch --last=revert-snap
         # Check the current revision is the same than the original
-        currRev="$(readlink /snap/${TARGET_SNAP_NAME}/current)"
+        currRev="$(readlink /snap/"${TARGET_SNAP_NAME}"/current)"
         [ "$(cat initialRev)" ==  "$currRev" ]
     fi
