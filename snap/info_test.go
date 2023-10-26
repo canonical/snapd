@@ -59,6 +59,8 @@ func (s *infoSimpleSuite) TearDownTest(c *C) {
 }
 
 func (s *infoSimpleSuite) TestReadInfoPanicsIfSanitizeUnset(c *C) {
+	defer snap.MockSanitizePlugsSlots(nil)()
+
 	si := &snap.SideInfo{Revision: snap.R(1)}
 	snaptest.MockSnap(c, sampleYaml, si)
 	c.Assert(func() { snap.ReadInfo("sample", si) }, Panics, `SanitizePlugsSlots function not set`)
