@@ -1094,9 +1094,11 @@ type PrereqTracker interface {
 	// DefaultProviderContentAttrs returns a map keyed by the names of all
 	// default-providers for the content plugs that the given snap.Info
 	// needs. The map values are the corresponding content tags.
-	// If repo is not nil, any content tag provided by an existing slot in it
-	// is considered already available and filtered out from the result.
+	// If repo is not nil, any content tag provided by an existing slot in
+	// it is considered already available and filtered out from the result.
 	// info might or might have not been passed already to Add.
+	// snapstate uses the result to decide to install providers
+	// automatically.
 	DefaultProviderContentAttrs(info *snap.Info, repo snap.InterfaceRepo) map[string][]string
 }
 

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) 2022-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1186,6 +1186,170 @@ func contentIfaceAvailable(repo InterfaceRepo) map[string]bool {
 // trackers.
 func NeededDefaultProviders(info *Info) (providerSnapsToContentTag map[string][]string) {
 	return (SimplePrereqTracker{}).DefaultProviderContentAttrs(info, nil)
+}
+
+// SelfContainedPrereqTracker is a stateful helper to track
+// prerequisites of snaps (default-providers in particular).
+// It is meant to be used when dealing with a self-contained set
+// of snaps, with no desire to fetch further snaps, so all
+// prerequisites must be present in the set itself.
+// This applies to first boot seeding and remodeling for example.
+// SelfContainedPrereqTracker implements snapstate.PrereqTracker.
+type SelfContainedSetPrereqTracker struct {
+	snaps []*Info
+	all   *naming.SnapSet
+}
+
+// NewSelfContainedSetPrereqTracker returns a new SelfContainedSetPrereqTracker.
+func NewSelfContainedSetPrereqTracker() *SelfContainedSetPrereqTracker {
+	return &SelfContainedSetPrereqTracker{
+		all: naming.NewSnapSet(nil),
+	}
+}
+
+// Add adds a snap to track. Add implements snapstate.PrereqTracker.
+func (prqt *SelfContainedSetPrereqTracker) Add(info *Info) {
+	if !prqt.all.Contains(info) {
+		prqt.all.Add(info)
+		prqt.snaps = append(prqt.snaps, info)
+	}
+}
+
+// DefaultProviderContentAttrs implements snapstate.PrereqTracker.
+// Given how snapstate uses this and as SelfContainedSetPrereqTracker is for
+// when no automatic fetching of prerequisites is desired, this always returns
+// nil.
+func (prqt *SelfContainedSetPrereqTracker) DefaultProviderContentAttrs(info *Info, repo InterfaceRepo) map[string][]string {
+	return nil
+}
+
+func analyzeContentSlot(slot *SlotInfo) (contentTag string) {
+	if slot.Interface != "content" {
+		return ""
+	}
+	slot.Attr("content", &contentTag)
+	return contentTag
+}
+
+func analyzeContentPlug(plug *PlugInfo) (contentTag, defaultProviderSnap string) {
+	if plug.Interface != "content" {
+		return "", ""
+	}
+	plug.Attr("content", &contentTag)
+	plug.Attr("default-provider", &defaultProviderSnap)
+	return contentTag, defaultProviderSnap
+}
+
+// ProviderWarning represents a situation where a snap requires a content
+// provider but the default-provider is missing and/or many slots
+// are available.
+type ProviderWarning struct {
+	Snap            string
+	Plug            string
+	ContentTag      string
+	DefaultProvider string
+	Slots           []string
+}
+
+func (w *ProviderWarning) defaultProviderAvailable() (defaultProviderSlot string, otherSlots []string) {
+	prefix := w.DefaultProvider + ":"
+	for i, slot := range w.Slots {
+		if strings.HasPrefix(slot, prefix) {
+			return slot, append(append([]string{}, w.Slots[:i]...), w.Slots[i+1:]...)
+		}
+	}
+	return "", w.Slots
+}
+
+func (w *ProviderWarning) Error() string {
+	defaultSlot, otherSlots := w.defaultProviderAvailable()
+	slotsStr := strings.Join(otherSlots, ", ")
+
+	if defaultSlot != "" {
+		return fmt.Sprintf("snap %q requires a provider for content %q, many candidates slots are available (%s) including from default-provider %s, ensure a single auto-connection (or possibly a connection) is in-place", w.Snap, w.ContentTag, slotsStr, defaultSlot)
+	}
+
+	var cands string
+	if len(otherSlots) == 1 {
+		cands = fmt.Sprintf("a candidate slot is available (%s)", otherSlots[0])
+	} else {
+		cands = fmt.Sprintf("many candidate slots are available (%s)", slotsStr)
+	}
+	return fmt.Sprintf("snap %q requires a provider for content %q, %s but not the default-provider, ensure a single auto-connection (or possibly a connection) is in-place", w.Snap, w.ContentTag, cands)
+}
+
+// Check checks that all the prerequisites for the tracked snaps in the set are
+// present in the set itself. It returns errors for the cases when this is
+// clearly not the case. It returns warnings for ambiguous situations and/or
+// when fulfilling the prerequisite might require setting up auto-connections
+// in the store or explicit connections.
+func (prqt *SelfContainedSetPrereqTracker) Check() (warnings, errs []error) {
+	all := prqt.all
+	contentSlots := make(map[string][]*SlotInfo)
+	for _, info := range prqt.snaps {
+		for _, slot := range info.Slots {
+			contentTag := analyzeContentSlot(slot)
+			if contentTag == "" {
+				continue
+			}
+			contentSlots[contentTag] = append(contentSlots[contentTag], slot)
+		}
+	}
+	for _, info := range prqt.snaps {
+		// ensure base is available
+		if info.Base != "" && info.Base != "none" {
+			if !all.Contains(naming.Snap(info.Base)) {
+				errs = append(errs, fmt.Errorf("cannot use snap %q: base %q is missing", info.InstanceName(), info.Base))
+			}
+		}
+		// ensure core is available
+		if info.Base == "" && info.SnapType == TypeApp && info.InstanceName() != "snapd" {
+			if !all.Contains(naming.Snap("core")) {
+				errs = append(errs, fmt.Errorf(`cannot use snap %q: required snap "core" missing`, info.InstanceName()))
+			}
+		}
+		// ensure that content plugs are fulfilled by default-providers
+		// or otherwise
+		plugNames := make([]string, 0, len(info.Plugs))
+		for plugName, plug := range info.Plugs {
+			_, defaultProvider := analyzeContentPlug(plug)
+			if defaultProvider == "" {
+				continue
+			}
+			plugNames = append(plugNames, plugName)
+		}
+		sort.Strings(plugNames)
+		for _, plugName := range plugNames {
+			plug := info.Plugs[plugName]
+			wantedTag, defaultProvider := analyzeContentPlug(plug)
+			candSlots := contentSlots[wantedTag]
+			switch len(candSlots) {
+			case 0:
+				errs = append(errs, fmt.Errorf("cannot use snap %q: default provider %q or any alternative provider for content %q is missing", info.InstanceName(), defaultProvider, wantedTag))
+			case 1:
+				if candSlots[0].Snap.InstanceName() == defaultProvider {
+					continue
+				}
+				// XXX TODO: consider also publisher
+				fallthrough
+			default:
+				slots := make([]string, len(candSlots))
+				for i, slot := range candSlots {
+					slots[i] = slot.String()
+				}
+				sort.Strings(slots)
+				w := &ProviderWarning{
+					Snap:            info.InstanceName(),
+					Plug:            plugName,
+					ContentTag:      wantedTag,
+					DefaultProvider: defaultProvider,
+					Slots:           slots,
+				}
+				warnings = append(warnings, w)
+			}
+		}
+	}
+	return warnings, errs
 }
 
 // ValidateBasesAndProviders checks that all bases/default-providers are part of the seed
