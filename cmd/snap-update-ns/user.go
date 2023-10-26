@@ -21,12 +21,10 @@ package main
 
 import (
 	"fmt"
-	"os/user"
 	"path/filepath"
 	"syscall"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -76,16 +74,6 @@ func NewUserProfileUpdateContext(instanceName string, fromSnapConfine bool, uid 
 	if err = isPlausibleHome(realHome); err != nil {
 		return nil, fmt.Errorf("cannot use invalid home directory %q: %v", realHome, err)
 	}
-	logger.Debugf("$REAL_USER_HOME: %s", realHome)
-
-	// Alternative
-	currentUser, err := user.Current()
-	if err != nil {
-		return nil, fmt.Errorf("cannot retrieve home directory: %v", err)
-	}
-	realHome = currentUser.HomeDir
-	logger.Debugf("Current User Home: %s", realHome)
-
 	return &UserProfileUpdateContext{
 		CommonProfileUpdateContext: CommonProfileUpdateContext{
 			instanceName:       instanceName,
