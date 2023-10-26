@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -293,7 +293,7 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 
 	var testDeviceCtx snapstate.DeviceContext
 
-	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags.Required, Equals, true)
 		c.Check(deviceCtx, Equals, testDeviceCtx)
 		c.Check(fromChange, Equals, "99")
@@ -314,7 +314,7 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore = devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags.Required, Equals, false)
 		c.Check(flags.NoReRefresh, Equals, true)
 		c.Check(deviceCtx, Equals, testDeviceCtx)
@@ -464,7 +464,7 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatNewTrack map[st
 	var testDeviceCtx snapstate.DeviceContext
 
 	var snapstateInstallWithDeviceContextCalled int
-	restore := devicestate.MockSnapstateInstallPathWithDeviceContext(func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallPathWithDeviceContext(func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		snapstateInstallWithDeviceContextCalled++
 		newTrack, ok := whatNewTrack[name]
 		c.Check(ok, Equals, true)
@@ -496,7 +496,7 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatNewTrack map[st
 		return ts, nil
 	})
 	defer restore()
-	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		snapstateInstallWithDeviceContextCalled++
 		newTrack, ok := whatNewTrack[name]
 		c.Check(ok, Equals, true)
@@ -568,7 +568,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelRequiredSnaps(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags.Required, Equals, true)
 		c.Check(deviceCtx, NotNil)
 		c.Check(deviceCtx.ForRemodeling(), Equals, true)
@@ -685,7 +685,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelSwitchKernelTrack(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags.Required, Equals, true)
 		c.Check(deviceCtx, NotNil)
 		c.Check(deviceCtx.ForRemodeling(), Equals, true)
@@ -706,7 +706,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelSwitchKernelTrack(c *C) {
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore = devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags.Required, Equals, false)
 		c.Check(flags.NoReRefresh, Equals, true)
 		c.Check(deviceCtx, NotNil)
@@ -853,7 +853,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelStoreSwitch(c *C) {
 
 	var testStore snapstate.StoreService
 
-	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags.Required, Equals, true)
 		c.Check(deviceCtx, NotNil)
 		c.Check(deviceCtx.ForRemodeling(), Equals, true)
@@ -1045,7 +1045,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClash(c *C) {
 
 	var clashing *asserts.Model
 
-	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		// simulate things changing under our feet
 		assertstatetest.AddMany(st, clashing)
 		devicestatetest.SetDevice(s.state, &auth.DeviceState{
@@ -1125,7 +1125,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashInProgress(c *C) {
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
 	var chg *state.Change
-	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		// simulate another started remodeling
 		chg = st.NewChange("remodel", "other remodel")
 
@@ -1633,7 +1633,7 @@ volumes:
 		{"meta/gadget.yaml", remodelGadgetYaml},
 	})
 
-	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.WaitFor(tDownload)
@@ -1805,7 +1805,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
 		RealName: "new-gadget-unexpected",
 		Revision: snap.R(34),
 	}
-	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.WaitFor(tDownload)
@@ -1852,7 +1852,7 @@ func (s *deviceMgrSuite) TestRemodelSwitchBase(c *C) {
 	var testDeviceCtx snapstate.DeviceContext
 
 	var snapstateInstallWithDeviceContextCalled int
-	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		snapstateInstallWithDeviceContextCalled++
 		c.Check(name, Equals, "core20")
 
@@ -1905,7 +1905,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags.Required, Equals, true)
 		c.Check(deviceCtx, NotNil)
 		c.Check(deviceCtx.ForRemodeling(), Equals, true)
@@ -1926,7 +1926,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore = devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags.Required, Equals, false)
 		c.Check(flags.NoReRefresh, Equals, true)
 		c.Check(deviceCtx, NotNil)
@@ -2228,7 +2228,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelGadgetBaseSnaps(c *C,
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags.Required, Equals, false)
 		c.Check(flags.NoReRefresh, Equals, true)
 		c.Check(deviceCtx, NotNil)
@@ -2252,7 +2252,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelGadgetBaseSnaps(c *C,
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateUpdatePathWithDeviceContext(func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore = devicestate.MockSnapstateUpdatePathWithDeviceContext(func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags.Required, Equals, false)
 		c.Check(flags.NoReRefresh, Equals, true)
 		c.Check(deviceCtx, NotNil)
@@ -2277,7 +2277,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelGadgetBaseSnaps(c *C,
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		// snaps will be refreshed so calls go through update
 		c.Errorf("unexpected call, test broken")
 		return nil, fmt.Errorf("unexpected call")
@@ -2517,14 +2517,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		// no snaps are getting updated
 		c.Errorf("unexpected call, test broken")
 		return nil, fmt.Errorf("unexpected call")
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		// no snaps are getting installed
 		c.Errorf("unexpected call, test broken")
 		return nil, fmt.Errorf("unexpected call")
@@ -2779,7 +2779,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
 	callsToMockedUpdate := 0
-	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		c.Assert(strutil.ListContains([]string{"core20-new", "pc-kernel-new", "pc-new"}, name), Equals, true,
 			Commentf("unexpected snap %q", name))
 		callsToMockedUpdate++
@@ -2815,7 +2815,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	defer restore()
 
 	callsToMockedUpdatePath := 0
-	restore = devicestate.MockSnapstateUpdatePathWithDeviceContext(func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore = devicestate.MockSnapstateUpdatePathWithDeviceContext(func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		callsToMockedUpdatePath++
 		c.Assert(strutil.ListContains([]string{"core20-new", "pc-kernel-new", "pc-new"}, name), Equals, true,
 			Commentf("unexpected snap %q", name))
@@ -2844,7 +2844,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		// no snaps are getting installed
 		c.Errorf("unexpected call, test broken")
 		return nil, fmt.Errorf("unexpected call")
@@ -3094,7 +3094,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags.Required, Equals, false)
 		c.Check(flags.NoReRefresh, Equals, true)
 		c.Check(deviceCtx, NotNil)
@@ -3110,7 +3110,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		// no snaps are getting installed
 		c.Errorf("unexpected call, test broken")
 		return nil, fmt.Errorf("unexpected call")
@@ -3330,13 +3330,13 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsTrackingDifferentCh
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		// no snaps are getting updated
 		return nil, fmt.Errorf("unexpected update call")
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		// no snaps are getting installed
 		return nil, fmt.Errorf("unexpected install call")
 	})
@@ -3506,13 +3506,13 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsAlreadyInstalledAnd
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		// no snaps are getting updated
 		return nil, fmt.Errorf("unexpected update call")
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		// no snaps are getting installed
 		return nil, fmt.Errorf("unexpected install call")
 	})
@@ -3680,7 +3680,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20BaseNoDownloadSimpleChannelSwitch
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		// expecting an update call for the base snap
 		c.Assert(name, Equals, "core20")
 		c.Check(flags.Required, Equals, false)
@@ -3694,7 +3694,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20BaseNoDownloadSimpleChannelSwitch
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		// no snaps are getting installed
 		return nil, fmt.Errorf("unexpected install call")
 	})
@@ -3870,7 +3870,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20LabelConflicts(c *C, tc remodelUC
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		c.Errorf("unexpected call, test broken")
 		return nil, fmt.Errorf("unexpected call")
 	})
@@ -4155,7 +4155,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 		},
 	})
 
-	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.WaitFor(tDownload)
@@ -4438,7 +4438,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 	})
 
 	installWithDeviceContextCalled := 0
-	restore := devicestate.MockSnapstateInstallPathWithDeviceContext(func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallPathWithDeviceContext(func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		installWithDeviceContextCalled++
 		c.Check(si, NotNil)
 		c.Check(si.RealName, Equals, name)
@@ -4456,7 +4456,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 	defer restore()
 
 	updateWithDeviceContextCalled := 0
-	restore = devicestate.MockSnapstateUpdatePathWithDeviceContext(func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore = devicestate.MockSnapstateUpdatePathWithDeviceContext(func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		updateWithDeviceContextCalled++
 		c.Check(flags.Required, Equals, false)
 		c.Check(flags.NoReRefresh, Equals, true)
@@ -4730,7 +4730,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 		},
 	})
 
-	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.WaitFor(tDownload)
@@ -4997,7 +4997,7 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSelfContainedModelMissingDep(c *
 		snapsupTemplate.Prereq = []string{"foo-content"}
 	}
 
-	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		if missingWhen != "install" {
 			c.Errorf("unexpected call to install for snap %q", name)
 			return nil, fmt.Errorf("unexpected call")
@@ -5018,7 +5018,7 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSelfContainedModelMissingDep(c *
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore = devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		if missingWhen == "install" {
 			c.Errorf("unexpected call to update for snap %q", name)
 			return nil, fmt.Errorf("unexpected call")
@@ -5231,7 +5231,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSelfContainedModelMissingDepsOfM
 		},
 	})
 
-	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		if name != "foo-missing-deps" {
 			c.Errorf("unexpected call to install for snap %q", name)
 			return nil, fmt.Errorf("unexpected call")
@@ -5262,7 +5262,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSelfContainedModelMissingDepsOfM
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore = devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		if name != "bar-missing-deps" {
 			c.Errorf("unexpected call to update for snap %q", name)
 			return nil, fmt.Errorf("unexpected call")

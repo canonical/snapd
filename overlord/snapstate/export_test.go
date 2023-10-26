@@ -114,8 +114,6 @@ var (
 
 	CurrentSnaps = currentSnaps
 
-	DefaultProviderContentAttrs = defaultProviderContentAttrs
-
 	HasOtherInstances = hasOtherInstances
 
 	SafetyMarginDiskSpace = safetyMarginDiskSpace
@@ -308,7 +306,7 @@ func MockCurrentSnaps(f func(st *state.State) ([]*store.CurrentSnap, error)) fun
 	}
 }
 
-func MockInstallSize(f func(st *state.State, snaps []minimalInstallInfo, userID int) (uint64, error)) func() {
+func MockInstallSize(f func(st *state.State, snaps []minimalInstallInfo, userID int, preqt PrereqTracker) (uint64, error)) func() {
 	old := installSize
 	installSize = f
 	return func() {
