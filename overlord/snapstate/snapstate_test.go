@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	userclient "github.com/snapcore/snapd/usersession/client"
@@ -170,6 +171,9 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 		state:               s.state,
 		downloadError:       make(map[string]error),
 	}
+
+	// make tests work consistently also in containers
+	s.AddCleanup(squashfs.MockNeedsFuse(false))
 
 	// setup a bootloader for policy and boot
 	s.bl = bootloadertest.Mock("mock", c.MkDir())
