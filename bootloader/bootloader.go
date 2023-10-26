@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -179,6 +180,8 @@ type CommandLineComponents struct {
 	// set and ExtraArgs. Note that, it is an error if extra and full
 	// arguments are non-empty.
 	FullArgs string
+	// A list of patterns to remove arguments from the default command line
+	RemoveArgs []kcmdline.ArgumentPattern
 }
 
 func (c *CommandLineComponents) Validate() error {
@@ -210,6 +213,11 @@ type TrustedAssetsBootloader interface {
 	// CandidateCommandLine is similar to CommandLine, but uses the current
 	// edition of managed built-in boot assets as reference.
 	CandidateCommandLine(pieces CommandLineComponents) (string, error)
+
+	// DefaultCommandLine returns the default kernel command-line
+	// used by the bootloader excluding the recovery mode and
+	// system parameters.
+	DefaultCommandLine(candidate bool) (string, error)
 
 	// TrustedAssets returns the list of relative paths to assets inside the
 	// bootloader's rootdir that are measured in the boot process in the

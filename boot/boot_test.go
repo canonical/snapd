@@ -3334,8 +3334,14 @@ func (s *bootConfigSuite) SetUpTest(c *C) {
 	s.bootloader.CandidateStaticCommandLine = "mocked candidate panic=-1"
 	s.forceBootloader(s.bootloader)
 
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
+
 	s.mockCmdline(c, "snapd_recovery_mode=run this is mocked panic=-1")
-	s.gadgetSnap = snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, nil)
+	s.gadgetSnap = snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{{"meta/gadget.yaml", mockGadgetYaml}})
 }
 
 func (s *bootConfigSuite) mockCmdline(c *C, cmdline string) {
@@ -3363,7 +3369,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateHappyNoKeysNoReseal(c *C) {
 
 	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap, "")
 	c.Assert(err, IsNil)
-	c.Check(updated, Equals, false)
+	c.Check(updated, Equals, true)
 	c.Check(s.bootloader.UpdateCalls, Equals, 1)
 	c.Check(resealCalls, Equals, 0)
 }
@@ -3421,7 +3427,7 @@ func (s *bootConfigSuite) testBootConfigUpdateHappyWithReseal(c *C, cmdlineAppen
 
 	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap, cmdlineAppend)
 	c.Assert(err, IsNil)
-	c.Check(updated, Equals, false)
+	c.Check(updated, Equals, true)
 	c.Check(s.bootloader.UpdateCalls, Equals, 1)
 	c.Check(resealCalls, Equals, 1)
 
@@ -3580,8 +3586,14 @@ func (s *bootConfigSuite) TestBootConfigUpdateBootloaderFindErr(c *C) {
 func (s *bootConfigSuite) TestBootConfigUpdateWithGadgetAndReseal(c *C) {
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
 	gadgetSnap := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.extra", "foo bar baz"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
@@ -3633,7 +3645,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateWithGadgetAndReseal(c *C) {
 
 	updated, err := boot.UpdateManagedBootConfigs(coreDev, gadgetSnap, "")
 	c.Assert(err, IsNil)
-	c.Check(updated, Equals, false)
+	c.Check(updated, Equals, true)
 	c.Check(s.bootloader.UpdateCalls, Equals, 1)
 	c.Check(resealCalls, Equals, 1)
 
@@ -3648,8 +3660,14 @@ func (s *bootConfigSuite) TestBootConfigUpdateWithGadgetAndReseal(c *C) {
 func (s *bootConfigSuite) TestBootConfigUpdateWithGadgetFullAndReseal(c *C) {
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
 	gadgetSnap := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.full", "foo bar baz"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
@@ -3808,8 +3826,14 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20NotManagedBootload
 func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20ArgsAdded(c *C) {
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
 	sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.extra", "args from gadget"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 
 	s.modeenvWithEncryption.CurrentKernelCommandLines = []string{"snapd_recovery_mode=run static mocked panic=-1"}
@@ -3839,16 +3863,22 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20ArgsAdded(c *C) {
 	args, err := s.bootloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": "args from gadget",
-		"snapd_full_cmdline_args":  "",
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "static mocked panic=-1 args from gadget",
 	})
 }
 
 func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20ArgsSwitch(c *C) {
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
 	sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.extra", "no change"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 
 	s.modeenvWithEncryption.CurrentKernelCommandLines = []string{"snapd_recovery_mode=run static mocked panic=-1 no change"}
@@ -3885,6 +3915,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20ArgsSwitch(c *C) {
 	// let's change them now
 	sfChanged := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.extra", "changed"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 
 	reboot, err = boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sfChanged, "")
@@ -3911,18 +3942,24 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20ArgsSwitch(c *C) {
 	args, err = s.bootloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": "changed",
-		// canary has been cleared as bootenv was modified
-		"snapd_full_cmdline_args": "",
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "static mocked panic=-1 changed",
 	})
 }
 
 func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20UnencryptedArgsRemoved(c *C) {
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
 	// pretend we used to have additional arguments from the gadget, but
 	// those will be gone with new update
-	sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, nil)
+	sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
+		{"meta/gadget.yaml", mockGadgetYaml},
+	})
 
 	s.modeenvWithEncryption.CurrentKernelCommandLines = []string{"snapd_recovery_mode=run static mocked panic=-1 from-gadget"}
 	c.Assert(s.modeenvWithEncryption.WriteTo(""), IsNil)
@@ -3956,17 +3993,23 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20UnencryptedArgsRem
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, map[string]string{
 		"snapd_extra_cmdline_args": "",
-		"snapd_full_cmdline_args":  "",
+		"snapd_full_cmdline_args":  "static mocked panic=-1",
 	})
 }
 
 func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20SetError(c *C) {
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
 	// pretend we used to have additional arguments from the gadget, but
 	// those will be gone with new update
 	sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.extra", "this-is-not-applied"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 
 	s.modeenvWithEncryption.CurrentKernelCommandLines = []string{"snapd_recovery_mode=run static mocked panic=-1"}
@@ -3998,8 +4041,14 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20SetError(c *C) {
 }
 
 func (s *bootKernelCommandLineSuite) TestCommandLineUpdateWithResealError(c *C) {
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
 	gadgetSnap := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.extra", "args from gadget"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
@@ -4040,9 +4089,15 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20TransitionFullExtr
 	c.Assert(err, IsNil)
 	s.bootloader.SetBootVarsCalls = 0
 
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
 	// transition to gadget with cmdline.extra
 	sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.extra", "extra args"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf, "")
 	c.Assert(err, IsNil)
@@ -4065,9 +4120,8 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20TransitionFullExtr
 	args, err := s.bootloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": "extra args",
-		// canary has been cleared
-		"snapd_full_cmdline_args": "",
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "static mocked panic=-1 extra args",
 	})
 	// this normally happens after booting
 	s.modeenvWithEncryption.CurrentKernelCommandLines = []string{"snapd_recovery_mode=run static mocked panic=-1 extra args"}
@@ -4076,6 +4130,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20TransitionFullExtr
 	// transition to full override from gadget
 	sfFull := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.full", "full args"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 	reboot, err = boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sfFull, "")
 	c.Assert(err, IsNil)
@@ -4109,8 +4164,11 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20TransitionFullExtr
 	c.Assert(s.modeenvWithEncryption.WriteTo(""), IsNil)
 
 	// transition back to no arguments from the gadget
-	sfNone := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, nil)
+	sfNone := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
+		{"meta/gadget.yaml", mockGadgetYaml},
+	})
 	reboot, err = boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sfNone, "")
+
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, true)
 	c.Check(s.resealCalls, Equals, 3)
@@ -4131,9 +4189,8 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20TransitionFullExtr
 	args, err = s.bootloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, map[string]string{
-		// both env variables have been cleared
 		"snapd_extra_cmdline_args": "",
-		"snapd_full_cmdline_args":  "",
+		"snapd_full_cmdline_args":  "static mocked panic=-1",
 	})
 }
 
@@ -4176,9 +4233,15 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 	restoreBootloaderNoPanic := s.bootloader.SetMockToPanic("SetBootVars")
 	defer restoreBootloaderNoPanic()
 
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
 	// transition to gadget with cmdline.extra
 	sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.extra", "extra args"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 
 	// let's panic on reseal first
@@ -4268,9 +4331,8 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 	args, err := s.bootloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": "extra args",
-		// canary has been cleared
-		"snapd_full_cmdline_args": "",
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "static mocked panic=-1 extra args",
 	})
 }
 
@@ -4294,9 +4356,15 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 	c.Assert(err, IsNil)
 	s.bootloader.SetBootVarsCalls = 0
 
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
 	// transition to gadget with cmdline.extra
 	sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.extra", "extra args"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 
 	// let's panic after setting bootenv, but before returning, such that if
@@ -4324,9 +4392,8 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 	args, err := s.bootloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": "extra args",
-		// canary has been cleared
-		"snapd_full_cmdline_args": "",
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "static mocked panic=-1 extra args",
 	})
 
 	// REBOOT; since we rebooted after updating the bootenv, the kernel
@@ -4366,8 +4433,8 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 	args, err = s.bootloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Check(args, DeepEquals, map[string]string{
-		"snapd_extra_cmdline_args": "extra args",
-		"snapd_full_cmdline_args":  "",
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "static mocked panic=-1 extra args",
 	})
 }
 

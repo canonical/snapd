@@ -49,8 +49,9 @@ environment:
     UBUNTU_IMAGE_ALLOW_API_BREAK: '$(HOST: echo "${SPREAD_UBUNTU_IMAGE_ALLOW_API_BREAK:-true}")'
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
-    KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-edge}")'
-    GADGET_CHANNEL: '$(HOST: echo "${SPREAD_GADGET_CHANNEL:-edge}")'
+    # Channel for kernel cannot be edge as that one is not signed with Canonical keys
+    KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-beta}")'
+    GADGET_CHANNEL: '$(HOST: echo "${SPREAD_GADGET_CHANNEL:-beta}")'
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
@@ -84,7 +85,7 @@ environment:
     # Directory where the nested images and test assets are stored
     NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
     # Channel used to create the nested vm
-    NESTED_CORE_CHANNEL: '$(HOST: echo "${NESTED_CORE_CHANNEL:-edge}")'
+    NESTED_CORE_CHANNEL: '$(HOST: echo "${NESTED_CORE_CHANNEL:-beta}")'
     # Use cloud init to make initial system configuration instead of user assertion
     NESTED_CORE_REFRESH_CHANNEL: '$(HOST: echo "${NESTED_CORE_REFRESH_CHANNEL:-edge}")'
     # Use cloud init to make initial system configuration instead of user assertion

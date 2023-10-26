@@ -514,6 +514,7 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunButNotUpdated(c *C) {
 	s.setupUC20Model(c)
 	s.state.Unlock()
 
+	s.managedbl.CandidateStaticCommandLine = s.managedbl.StaticCommandLine
 	s.managedbl.Updated = false
 
 	opts := testBootConfigUpdateOpts{

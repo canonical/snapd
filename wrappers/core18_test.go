@@ -69,6 +69,9 @@ func makeMockSnapdSnap(c *C) *snap.Info {
 		{"usr/share/dbus-1/services/io.snapcraft.Prompt.service", "[D-BUS Service]\nName=io.snapcraft.Prompt"},
 		{"usr/share/dbus-1/services/io.snapcraft.Settings.service", "[D-BUS Service]\nName=io.snapcraft.Settings"},
 		{"usr/share/dbus-1/services/io.snapcraft.SessionAgent.service", "[D-BUS Service]\nName=io.snapcraft.SessionAgent"},
+		// desktop files
+		{"usr/share/applications/io.snapcraft.SessionAgent.desktop", "[Desktop Entry]\nName=Snapd User Session Agent"},
+		{"usr/share/applications/snap-handle-link.desktop", "[Desktop Entry]\nName=Handler for snap:// URIs"},
 	})
 
 	return info
@@ -179,6 +182,12 @@ WantedBy=snapd.service
 	}, {
 		filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.SessionAgent.service"),
 		"[D-BUS Service]\nName=io.snapcraft.SessionAgent",
+	}, {
+		filepath.Join(dirs.SnapDesktopFilesDir, "io.snapcraft.SessionAgent.desktop"),
+		"[Desktop Entry]\nName=Snapd User Session Agent",
+	}, {
+		filepath.Join(dirs.SnapDesktopFilesDir, "snap-handle-link.desktop"),
+		"[Desktop Entry]\nName=Handler for snap:// URIs",
 	}} {
 		c.Check(entry[0], testutil.FileEquals, entry[1])
 	}

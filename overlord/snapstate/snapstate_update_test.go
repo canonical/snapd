@@ -4246,12 +4246,32 @@ func (s *snapmgrTestSuite) TestUpdateWithDeviceContext(c *C) {
 	// hook it up
 	snapstate.ValidateRefreshes = happyValidateRefreshes
 
-	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, deviceCtx, "")
+	prqt := new(testPrereqTracker)
+
+	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, prqt, deviceCtx, "")
 	c.Assert(err, IsNil)
 	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 
 	c.Check(validateCalled, Equals, true)
+
+	c.Assert(prqt.infos, HasLen, 1)
+	c.Check(prqt.infos[0].SnapName(), Equals, "some-snap")
+	c.Check(prqt.defaultProviderContentAttrsCalls, Equals, 1)
+}
+
+type testPrereqTracker struct {
+	infos                            []*snap.Info
+	defaultProviderContentAttrsCalls int
+}
+
+func (prqt *testPrereqTracker) Add(info *snap.Info) {
+	prqt.infos = append(prqt.infos, info)
+}
+
+func (prqt *testPrereqTracker) DefaultProviderContentAttrs(*snap.Info, snap.InterfaceRepo) map[string][]string {
+	prqt.defaultProviderContentAttrsCalls++
+	return nil
 }
 
 func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContext(c *C) {
@@ -4278,11 +4298,15 @@ func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContext(c *C) {
 	mockSnap := makeTestSnap(c, `name: some-snap
 version: 1.0
 `)
+	prqt := new(testPrereqTracker)
 
-	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, si, mockSnap, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, deviceCtx, "")
+	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, si, mockSnap, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, prqt, deviceCtx, "")
 	c.Assert(err, IsNil)
 	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh|localSnap, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	c.Assert(prqt.infos, HasLen, 1)
+	c.Check(prqt.infos[0].SnapName(), Equals, "some-snap")
+	c.Check(prqt.defaultProviderContentAttrsCalls, Equals, 1)
 }
 
 func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextSwitchChannel(c *C) {
@@ -4310,7 +4334,7 @@ func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextSwitchChannel(c *C) {
 version: 1.0
 `)
 
-	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, si, mockSnap, "some-snap", &snapstate.RevisionOptions{Channel: "22/edge"}, s.user.ID, snapstate.Flags{}, deviceCtx, "")
+	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, si, mockSnap, "some-snap", &snapstate.RevisionOptions{Channel: "22/edge"}, s.user.ID, snapstate.Flags{}, nil, deviceCtx, "")
 	c.Assert(err, IsNil)
 	c.Check(ts.Tasks(), HasLen, 1)
 	c.Check(ts.Tasks()[0].Kind(), Equals, "switch-snap-channel")
@@ -4342,7 +4366,7 @@ func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextBadFile(c *C) {
 	c.Assert(err, IsNil)
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
-	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, si, path, "some-snap", opts, s.user.ID, snapstate.Flags{}, deviceCtx, "")
+	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, si, path, "some-snap", opts, s.user.ID, snapstate.Flags{}, nil, deviceCtx, "")
 
 	c.Assert(err, ErrorMatches, `cannot open snap file: cannot process snap or snapdir: cannot read ".*/some-snap_7.snap": EOF`)
 	c.Assert(ts, IsNil)
@@ -4371,7 +4395,7 @@ func (s *snapmgrTestSuite) TestUpdateWithDeviceContextToRevision(c *C) {
 	})
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel", Revision: snap.R(11)}
-	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx, "")
+	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", opts, 0, snapstate.Flags{}, nil, deviceCtx, "")
 	c.Assert(err, IsNil)
 	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -5536,7 +5560,7 @@ func (s *snapmgrTestSuite) testUpdateManyDiskSpaceCheck(c *C, featureFlag, failD
 	})
 	defer restore()
 
-	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int, prqt snapstate.PrereqTracker) (uint64, error) {
 		installSizeCalled = true
 		if failInstallSize {
 			return 0, fmt.Errorf("boom")
@@ -6108,7 +6132,7 @@ func (s *snapmgrTestSuite) testUpdateDiskSpaceCheck(c *C, featureFlag, failInsta
 
 	var installSizeCalled bool
 
-	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int, prqt snapstate.PrereqTracker) (uint64, error) {
 		installSizeCalled = true
 		if failInstallSize {
 			return 0, fmt.Errorf("boom")
@@ -7228,7 +7252,7 @@ func (s *snapmgrTestSuite) TestUpdatePrerequisiteWithSameDeviceContext(c *C) {
 	}
 	snapstatetest.MockDeviceContext(deviceCtx)
 
-	ts, err := snapstate.UpdateWithDeviceContext(s.state, "outdated-consumer", nil, s.user.ID, snapstate.Flags{NoReRefresh: true}, deviceCtx, "")
+	ts, err := snapstate.UpdateWithDeviceContext(s.state, "outdated-consumer", nil, s.user.ID, snapstate.Flags{NoReRefresh: true}, nil, deviceCtx, "")
 	c.Assert(err, IsNil)
 	c.Assert(ts.Tasks(), Not(HasLen), 0)
 
