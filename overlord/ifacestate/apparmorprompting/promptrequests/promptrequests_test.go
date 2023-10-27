@@ -40,7 +40,7 @@ func (s *promptrequestsSuite) TestAddOrMergeRequests(c *C) {
 	defer restore()
 
 	rdb := promptrequests.New()
-	var user int = 1000
+	var user uint32 = 1000
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -93,7 +93,7 @@ func (s *promptrequestsSuite) TestRequestWithIDErrors(c *C) {
 	defer restore()
 
 	rdb := promptrequests.New()
-	var user int = 1000
+	var user uint32 = 1000
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -128,7 +128,7 @@ func (s *promptrequestsSuite) TestReply(c *C) {
 	defer restore()
 
 	rdb := promptrequests.New()
-	var user int = 1000
+	var user uint32 = 1000
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -189,7 +189,7 @@ func (s *promptrequestsSuite) TestReplyErrors(c *C) {
 	defer restore()
 
 	rdb := promptrequests.New()
-	var user int = 1000
+	var user uint32 = 1000
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -227,7 +227,7 @@ func (s *promptrequestsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 
 	rdb := promptrequests.New()
 
-	var user int = 1000
+	var user uint32 = 1000
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -295,7 +295,7 @@ func (s *promptrequestsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 
 	rdb := promptrequests.New()
 
-	var user int = 1000
+	var user uint32 = 1000
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -371,7 +371,7 @@ func (s *promptrequestsSuite) TestHandleNewRuleNonMatches(c *C) {
 
 	rdb := promptrequests.New()
 
-	var user int = 1000
+	var user uint32 = 1000
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"

@@ -83,13 +83,13 @@ func getRequests(c *Command, r *http.Request, user *auth.UserState) Response {
 		// close it.
 		jsonSeqResp, requestsCh := newFollowRequestsSeqResponse()
 		// TODO: implement the following:
-		// respWriter := c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRequestsChan(int(ucred.Uid), requestsCh)
+		// respWriter := c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRequestsChan(ucred.Uid, requestsCh)
 		// When daemon stops, call respWriter.Stop()
-		_ = c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRequestsChan(int(ucred.Uid), requestsCh)
+		_ = c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRequestsChan(ucred.Uid, requestsCh)
 		return jsonSeqResp
 	}
 
-	result, err := c.d.overlord.InterfaceManager().Prompting().GetRequests(int(ucred.Uid))
+	result, err := c.d.overlord.InterfaceManager().Prompting().GetRequests(ucred.Uid)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -110,7 +110,7 @@ func getRequest(c *Command, r *http.Request, user *auth.UserState) Response {
 		return Forbidden("cannot get remote user: %v", err)
 	}
 
-	result, err := c.d.overlord.InterfaceManager().Prompting().GetRequest(int(ucred.Uid), id)
+	result, err := c.d.overlord.InterfaceManager().Prompting().GetRequest(ucred.Uid, id)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -137,7 +137,7 @@ func postRequest(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into prompt reply: %v", err)
 	}
 
-	result, err := c.d.overlord.InterfaceManager().Prompting().PostRequest(int(ucred.Uid), id, &reply)
+	result, err := c.d.overlord.InterfaceManager().Prompting().PostRequest(ucred.Uid, id, &reply)
 	if err != nil {
 		return InternalError("%v", err)
 	}

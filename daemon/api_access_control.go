@@ -89,16 +89,16 @@ func getRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		// close it.
 		jsonSeqResp, rulesCh := newFollowRulesSeqResponse()
 		// TODO: implement the following:
-		// respWriter := c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRulesChan(int(ucred.Uid), snap, app, rulesCh)
+		// respWriter := c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRulesChan(ucred.Uid, snap, app, rulesCh)
 		// When daemon stops, call respWriter.Stop()
-		_ = c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRulesChan(int(ucred.Uid), snap, app, rulesCh)
+		_ = c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRulesChan(ucred.Uid, snap, app, rulesCh)
 		return jsonSeqResp
 	}
 
 	if app != "" && snap == "" {
 		return BadRequest("app parameter provided, must also provide snap parameter")
 	}
-	result, err := c.d.overlord.InterfaceManager().Prompting().GetRules(int(ucred.Uid), snap, app)
+	result, err := c.d.overlord.InterfaceManager().Prompting().GetRules(ucred.Uid, snap, app)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -124,7 +124,7 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	switch postBody.Action {
 	case "create":
-		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesCreate(int(ucred.Uid), postBody.CreateRules)
+		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesCreate(ucred.Uid, postBody.CreateRules)
 		if err != nil {
 			return InternalError("%v", err)
 		}
@@ -136,7 +136,7 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 				return BadRequest(`must include "snap" parameter in "selectors"`)
 			}
 		}
-		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesDelete(int(ucred.Uid), postBody.DeleteSelectors)
+		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesDelete(ucred.Uid, postBody.DeleteSelectors)
 		if err != nil {
 			return InternalError("%v", err)
 		}
@@ -159,7 +159,7 @@ func getRule(c *Command, r *http.Request, user *auth.UserState) Response {
 		return Forbidden("cannot get remote user: %v", err)
 	}
 
-	result, err := c.d.overlord.InterfaceManager().Prompting().GetRule(int(ucred.Uid), id)
+	result, err := c.d.overlord.InterfaceManager().Prompting().GetRule(ucred.Uid, id)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -188,13 +188,13 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	switch postBody.Action {
 	case "modify":
-		result, err := c.d.overlord.InterfaceManager().Prompting().PostRuleModify(int(ucred.Uid), id, postBody.Rule)
+		result, err := c.d.overlord.InterfaceManager().Prompting().PostRuleModify(ucred.Uid, id, postBody.Rule)
 		if err != nil {
 			return InternalError("%v", err)
 		}
 		return SyncResponse(result)
 	case "delete":
-		result, err := c.d.overlord.InterfaceManager().Prompting().PostRuleDelete(int(ucred.Uid), id)
+		result, err := c.d.overlord.InterfaceManager().Prompting().PostRuleDelete(ucred.Uid, id)
 		if err != nil {
 			return InternalError("%v", err)
 		}

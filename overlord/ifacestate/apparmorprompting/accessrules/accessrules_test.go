@@ -29,7 +29,7 @@ func (s *accessruleSuite) SetUpTest(c *C) {
 func (s *accessruleSuite) TestPopulateNewAccessRule(c *C) {
 	ardb, _ := accessrules.New()
 
-	var user int = 1000
+	var user uint32 = 1000
 	snap := "lxd"
 	app := "lxc"
 	outcome := common.OutcomeAllow
@@ -72,7 +72,7 @@ func (s *accessruleSuite) TestPopulateNewAccessRule(c *C) {
 func (s *accessruleSuite) TestCreateDeleteAccessRuleSimple(c *C) {
 	ardb, _ := accessrules.New()
 
-	var user int = 1000
+	var user uint32 = 1000
 	snap := "lxd"
 	app := "lxc"
 	pathPattern := "/home/test/Documents/**"
@@ -146,7 +146,7 @@ func (s *accessruleSuite) TestCreateDeleteAccessRuleSimple(c *C) {
 func (s *accessruleSuite) TestCreateAccessRuleUnhappy(c *C) {
 	ardb, _ := accessrules.New()
 
-	var user int = 1000
+	var user uint32 = 1000
 	snap := "lxd"
 	app := "lxc"
 	pathPattern := "/home/test/Documents/**"
@@ -178,7 +178,7 @@ func (s *accessruleSuite) TestCreateAccessRuleUnhappy(c *C) {
 func (s *accessruleSuite) TestModifyAccessRule(c *C) {
 	ardb, _ := accessrules.New()
 
-	var user int = 1000
+	var user uint32 = 1000
 	snap := "lxd"
 	app := "lxc"
 	pathPattern := "/home/test/Documents/**"
@@ -252,7 +252,7 @@ func (s *accessruleSuite) TestModifyAccessRule(c *C) {
 func (s *accessruleSuite) TestRuleWithID(c *C) {
 	ardb, _ := accessrules.New()
 
-	var user int = 1000
+	var user uint32 = 1000
 	snap := "lxd"
 	app := "lxc"
 	pathPattern := "/home/test/Documents/**"
@@ -285,7 +285,7 @@ func (s *accessruleSuite) TestRuleWithID(c *C) {
 func (s *accessruleSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
 	ardb, _ := accessrules.New()
 
-	var user int = 1000
+	var user uint32 = 1000
 	snap := "lxd"
 	app := "lxc"
 	pathPattern := "/home/test/Documents/**"
@@ -331,7 +331,7 @@ func (s *accessruleSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
 func (s *accessruleSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	ardb, _ := accessrules.New()
 
-	var user int = 1000
+	var user uint32 = 1000
 	snap := "lxd"
 	app := "lxc"
 	pathPattern := "/home/test/Documents/**"
@@ -432,7 +432,7 @@ func (s *accessruleSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 func (s *accessruleSuite) TestNewSaveLoad(c *C) {
 	ardb, _ := accessrules.New()
 
-	var user int = 1000
+	var user uint32 = 1000
 	snap := "lxd"
 	app := "lxc"
 	pathPattern := "/home/test/Documents/**"
@@ -460,7 +460,7 @@ func (s *accessruleSuite) TestNewSaveLoad(c *C) {
 func (s *accessruleSuite) TestIsPathAllowed(c *C) {
 	ardb, _ := accessrules.New()
 
-	var user int = 1000
+	var user uint32 = 1000
 	snap := "lxd"
 	app := "lxc"
 	lifespan := common.LifespanForever
@@ -530,7 +530,7 @@ func (s *accessruleSuite) TestIsPathAllowed(c *C) {
 func (s *accessruleSuite) TestRuleExpiration(c *C) {
 	ardb, _ := accessrules.New()
 
-	var user int = 1000
+	var user uint32 = 1000
 	snap := "lxd"
 	app := "lxc"
 	permissions := []common.PermissionType{
@@ -600,7 +600,7 @@ func (s *accessruleSuite) TestRuleExpiration(c *C) {
 func (s *accessruleSuite) TestRulesLookup(c *C) {
 	ardb, _ := accessrules.New()
 
-	var origUser int = 1000
+	var origUser uint32 = 1000
 	snap := "lxd"
 	app := "lxc"
 	pathPattern := "/home/test/Documents/**"
