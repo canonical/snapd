@@ -11,6 +11,12 @@
     "timestamp": "2023-06-12T12:18:12+00:00",
     "grade": "dangerous",
     "base": "core22",
+    "validation-sets": [
+        {
+            "name": "test-snapd-core22-required-vset",
+            "mode": "enforce"
+        }
+    ],
     "snaps": [
         {
             "default-channel": "22/edge",

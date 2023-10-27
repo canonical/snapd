@@ -48,6 +48,9 @@ execute: |
   remote.exec "snap download --basename=core22 core22"
   remodel_options="$remodel_options --snap core22.snap --assertion core22.assert"
 
+  remote.push "$TESTSLIB/assertions/test-snapd-core22-required-vset.assert"
+  remodel_options="$remodel_options --assertion test-snapd-core22-required-vset.assert"
+
   # Make sure we cannot access the store
   netplan_cfg=50-bad-gw.yaml
   cat << 'EOF' > "$netplan_cfg"
