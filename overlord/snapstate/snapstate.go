@@ -1259,6 +1259,11 @@ func InstallPathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name
 	opts *RevisionOptions, userID int, flags Flags, prqt PrereqTracker,
 	deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
 	logger.Debugf("installing from local file with device context %s", name)
+
+	if !opts.Revision.Unset() && si.Revision != opts.Revision {
+		return nil, fmt.Errorf("cannot install local snap of different revision: %v != %v", opts.Revision, si.Revision)
+	}
+
 	snapInstallInfo := func(DeviceContext, *RevisionOptions) (info *snap.Info, snapPath, redirectChannel string, e error) {
 		info, err := validatedInfoFromPathAndSideInfo(name, path, si)
 		if err != nil {
@@ -2309,6 +2314,9 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 // modifications. If no such edge is set, then none of the tasks introduce
 // system modifications.
 func UpdatePathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name string, opts *RevisionOptions, userID int, flags Flags, prqt PrereqTracker, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
+	if !opts.Revision.Unset() && si.Revision != opts.Revision {
+		return nil, fmt.Errorf("cannot install local snap of different revision: %v != %v", opts.Revision, si.Revision)
+	}
 	snapUpdateInfo := func(dc DeviceContext, ro *RevisionOptions, fl Flags, snapst *SnapState) ([]minimalInstallInfo, error) {
 		toUpdate := []minimalInstallInfo{}
 		info, err := validatedInfoFromPathAndSideInfo(name, path, si)

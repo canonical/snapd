@@ -11514,3 +11514,15 @@ func (s *snapmgrTestSuite) TestSnapdRefreshForRemodel(c *C) {
 	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
 	c.Check(err, ErrorMatches, "remodeling in progress, no other changes allowed until this is done")
 }
+
+func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextLocalRevisionMismatch(c *C) {
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(8)}
+	_, err := snapstate.UpdatePathWithDeviceContext(s.state, si, "path", "some-snap", &snapstate.RevisionOptions{Revision: snap.R(7)}, s.user.ID, snapstate.Flags{}, nil, nil, "")
+	c.Check(err, ErrorMatches, "cannot install local snap of different revision: 7 != 8")
+}
+
+func (s *snapmgrTestSuite) TestInstallPathWithDeviceContextLocalRevisionMismatch(c *C) {
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(8)}
+	_, err := snapstate.InstallPathWithDeviceContext(s.state, si, "path", "some-snap", &snapstate.RevisionOptions{Revision: snap.R(7)}, s.user.ID, snapstate.Flags{}, nil, nil, "")
+	c.Check(err, ErrorMatches, "cannot install local snap of different revision: 7 != 8")
+}
