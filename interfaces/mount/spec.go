@@ -159,18 +159,25 @@ func createEnsureDirMountEntry(ensureDirSpec *interfaces.EnsureDirSpec) osutil.M
 	}
 }
 
-// AddUserEnsureDirs adds user mount entries to ensure the existence
-// of directories according to the given ensure directory specs.
-func (spec *Specification) AddUserEnsureDirs(ensureDirSpecs []*interfaces.EnsureDirSpec) {
+// AddUserEnsureDirs adds user mount entries to ensure the existence of directories according to the
+// given ensure directory specs.
+func (spec *Specification) AddUserEnsureDirs(ensureDirSpecs []*interfaces.EnsureDirSpec) error {
 	// Walk the path specs in deterministic order, by EnsureDir (the mount point).
 	sort.Slice(ensureDirSpecs, func(i, j int) bool {
 		return ensureDirSpecs[i].EnsureDir < ensureDirSpecs[j].EnsureDir
 	})
 
 	for _, ensureDirSpec := range ensureDirSpecs {
+		if err := ensureDirSpec.Validate(); err != nil {
+			return fmt.Errorf("internal error: cannot use ensure-dir mount specification: %v", err)
+		}
+	}
+
+	for _, ensureDirSpec := range ensureDirSpecs {
 		entry := createEnsureDirMountEntry(ensureDirSpec)
 		spec.user = append(spec.user, entry)
 	}
+	return nil
 }
 
 // MountEntries returns a copy of the added mount entries.

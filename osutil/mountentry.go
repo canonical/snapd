@@ -132,6 +132,28 @@ func (e *MountEntry) OptStr(name string) (string, bool) {
 	return "", false
 }
 
+// ReplaceMountEntryOption replaces the first mount entry option that has
+// the same prefix as the given option with the given option
+func ReplaceMountEntryOption(entry *MountEntry, option string) {
+	if entry == nil {
+		return
+	}
+	kv := strings.SplitN(option, "=", 2)
+	if len(kv) < 2 {
+		return
+	}
+	if kv[1] == "" {
+		return
+	}
+	prefix := kv[0] + "="
+	for i, opt := range entry.Options {
+		if strings.HasPrefix(opt, prefix) {
+			entry.Options[i] = option
+			return
+		}
+	}
+}
+
 // OptBool returns true if a given mount option is present.
 func (e *MountEntry) OptBool(name string) bool {
 	for _, opt := range e.Options {
@@ -282,13 +304,6 @@ func (e *MountEntry) XSnapdSymlink() string {
 // entry when the source or target are missing.
 func (e *MountEntry) XSnapdIgnoreMissing() bool {
 	return e.OptBool("x-snapd.ignore-missing")
-}
-
-// XSnapdMustExistDir returns the path that must exist as prequisite
-// to a mount operation.
-func (e *MountEntry) XSnapdMustExistDir() string {
-	val, _ := e.OptStr("x-snapd.must-exist-dir")
-	return val
 }
 
 // XSnapdNeededBy returns the string "x-snapd.needed-by=..." with the given path appended.

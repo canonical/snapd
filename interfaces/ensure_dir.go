@@ -19,10 +19,74 @@
 
 package interfaces
 
+import (
+	"fmt"
+	"path/filepath"
+	"strings"
+)
+
 // EnsureDirSpec contains the information required to ensure the existence of a directory.
 // MustExistDir is the prefix of EnsureDir and must exist as prerequisite for creation for
 // the remainder of missing directories of EnsureDir.
 type EnsureDirSpec struct {
 	MustExistDir string
 	EnsureDir    string
+}
+
+// IsValid return an error if the ensure directory specification is not valid.
+func (spec *EnsureDirSpec) Validate() error {
+	if spec.MustExistDir != filepath.Clean(spec.MustExistDir) {
+		return fmt.Errorf("Directory that must exist %q is not a clean path", spec.MustExistDir)
+	}
+	if spec.EnsureDir != filepath.Clean(spec.EnsureDir) {
+		return fmt.Errorf("Directory to ensure %q is not a clean path", spec.EnsureDir)
+	}
+
+	hasEnvPrefix := func(path string) (hasPrefix bool, envPrefix string) {
+		pathElements := strings.Split(path, string(filepath.Separator))
+		if strings.HasPrefix(pathElements[0], "$") {
+			return true, pathElements[0]
+		}
+		return false, ""
+	}
+
+	// Extend this allowed list as required
+	allowedEnvPrefixes := []string{"$HOME"}
+	isAllowedEnvPrefix := func(envPrefix string) (isAllowed bool) {
+		for _, allowedEnvPrefix := range allowedEnvPrefixes {
+			if envPrefix == allowedEnvPrefix {
+				return true
+			}
+		}
+		return false
+	}
+
+	if doCheck, envPrefix := hasEnvPrefix(spec.MustExistDir); doCheck {
+		if !isAllowedEnvPrefix(envPrefix) {
+			return fmt.Errorf("Directory that must exist %q prefix %q is not allowed", spec.MustExistDir, envPrefix)
+		}
+	} else if !filepath.IsAbs(spec.MustExistDir) {
+		return fmt.Errorf("Directory that must exist %q is not an absolute path", spec.MustExistDir)
+	}
+	if doCheck, envPrefix := hasEnvPrefix(spec.EnsureDir); doCheck {
+		if !isAllowedEnvPrefix(envPrefix) {
+			return fmt.Errorf("Directory to ensure %q prefix %q is not allowed", spec.EnsureDir, envPrefix)
+		}
+	} else if !filepath.IsAbs(spec.EnsureDir) {
+		return fmt.Errorf("Directory to ensure %q is not an absolute path", spec.EnsureDir)
+	}
+
+	isParent := func(path, parent string) bool {
+		if path == parent {
+			return false
+		}
+		if parent == "/" {
+			return true
+		}
+		return strings.HasPrefix(path, parent+string(filepath.Separator))
+	}
+	if !isParent(spec.EnsureDir, spec.MustExistDir) {
+		return fmt.Errorf("Directory that must exist %q is not a parent of directory to ensure %q", spec.MustExistDir, spec.EnsureDir)
+	}
+	return nil
 }

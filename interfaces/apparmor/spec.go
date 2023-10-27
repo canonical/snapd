@@ -407,7 +407,7 @@ func GenWritableMimicProfile(emit func(f string, args ...interface{}), path stri
 		// full mimic path. This is called a mimic "variant". Both of the paths
 		// must end with a slash as this is important for apparmor file vs
 		// directory path semantics.
-		mimicPath := filepath.Join(iter.CurrentBase(), iter.CurrentCleanName()) + "/"
+		mimicPath := filepath.Join(iter.CurrentBaseNoSlash(), iter.CurrentNameNoSlash()) + "/"
 		mimicAuxPath := filepath.Join("/tmp/.snap", iter.CurrentPath()) + "/"
 		emit("  # .. variant with mimic at %s\n", mimicPath)
 		emit("  # Allow reading the mimic directory, it must exist in the first place.\n")
@@ -599,7 +599,7 @@ func emitEnsureDir(spec *Specification, ifaceName string, ensureDirSpec *interfa
 		panic(err)
 	}
 	for iter.Next() {
-		if iter.CurrentCleanPath() == mustExistDir {
+		if iter.CurrentPathNoSlash() == mustExistDir {
 			emit("  # Allow the %s interface to create potentially missing directories", ifaceName)
 			emit("  owner %s rw,", appArmorDir(replacePrefixHome(mustExistDir)))
 			break
@@ -608,7 +608,7 @@ func emitEnsureDir(spec *Specification, ifaceName string, ensureDirSpec *interfa
 
 	// Create entries for the remaining directories after MustExistDir up to and including EnsureDir
 	for iter.Next() {
-		emit("  owner %s/ rw,", replacePrefixHome(iter.CurrentCleanPath()))
+		emit("  owner %s/ rw,", replacePrefixHome(iter.CurrentPathNoSlash()))
 	}
 }
 

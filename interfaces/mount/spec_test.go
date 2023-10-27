@@ -296,14 +296,28 @@ func (s *specSuite) TestParallelInstanceMountEntriesReal(c *C) {
 	c.Assert(s.spec.UserMountEntries(), HasLen, 0)
 }
 
-func (s *specSuite) TestAddUserEnsureDirs(c *C) {
+func (s *specSuite) TestAddUserEnsureDirHappy(c *C) {
 	ensureDirSpecs := []*interfaces.EnsureDirSpec{
 		{MustExistDir: "$HOME", EnsureDir: "$HOME/.local/share"},
 		{MustExistDir: "$HOME", EnsureDir: "$HOME/other/other"},
+		{MustExistDir: "/dir1", EnsureDir: "/dir1/dir2"},
 	}
-	s.spec.AddUserEnsureDirs(ensureDirSpecs)
+	err := s.spec.AddUserEnsureDirs(ensureDirSpecs)
+	c.Assert(err, IsNil)
 	c.Assert(s.spec.UserMountEntries(), DeepEquals, []osutil.MountEntry{
 		{Dir: "$HOME/.local/share", Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=$HOME"}},
 		{Dir: "$HOME/other/other", Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=$HOME"}},
+		{Dir: "/dir1/dir2", Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=/dir1"}},
 	})
+}
+
+func (s *specSuite) TestAddUserEnsureErrorValidate(c *C) {
+	ensureDirSpecs := []*interfaces.EnsureDirSpec{
+		{MustExistDir: "$HOME", EnsureDir: "$HOME/.local/share"},
+		{MustExistDir: "$HOME", EnsureDir: "$HOME/other/other"},
+		{MustExistDir: "$SNAP_HOME", EnsureDir: "$SNAP_HOME/dir"},
+		{MustExistDir: "/dir1", EnsureDir: "/dir1/dir2"},
+	}
+	err := s.spec.AddUserEnsureDirs(ensureDirSpecs)
+	c.Assert(err, ErrorMatches, `internal error: cannot use ensure-dir mount specification: Directory that must exist "\$SNAP_HOME" prefix "\$SNAP_HOME" is not allowed`)
 }
