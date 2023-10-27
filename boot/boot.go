@@ -515,7 +515,8 @@ func updateManagedBootConfigForBootloader(dev snap.Device, role bootloader.Role,
 		return false, err
 	}
 
-	// Boot variables are changed only for the boot partition
+	// XXX we need to set snapd_full_cmdline_args in <seed_part>/systems/<label>/grubenv
+	// we would need to calculate the new kernel command line for all labels.
 	varsUpdated := false
 	if updateVars && role != bootloader.RoleRecovery {
 		candidate := true
