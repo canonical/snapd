@@ -70,9 +70,9 @@ func getRequests(c *Command, r *http.Request, user *auth.UserState) Response {
 		follow = f
 	}
 
-	var userID int
-	if user != nil {
-		userID = user.ID
+	ucred, err := ucrednetGet(r.RemoteAddr)
+	if err != nil {
+		return Forbidden("cannot get remote user: %v", err)
 	}
 
 	if follow {
@@ -83,13 +83,13 @@ func getRequests(c *Command, r *http.Request, user *auth.UserState) Response {
 		// close it.
 		jsonSeqResp, requestsCh := newFollowRequestsSeqResponse()
 		// TODO: implement the following:
-		// respWriter := c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRequestsChan(userID, requestsCh)
+		// respWriter := c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRequestsChan(int(ucred.Uid), requestsCh)
 		// When daemon stops, call respWriter.Stop()
-		_ = c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRequestsChan(userID, requestsCh)
+		_ = c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRequestsChan(int(ucred.Uid), requestsCh)
 		return jsonSeqResp
 	}
 
-	result, err := c.d.overlord.InterfaceManager().Prompting().GetRequests(userID)
+	result, err := c.d.overlord.InterfaceManager().Prompting().GetRequests(int(ucred.Uid))
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -105,12 +105,12 @@ func getRequest(c *Command, r *http.Request, user *auth.UserState) Response {
 		return userNotAllowedPromptClientResponse(user)
 	}
 
-	var userID int
-	if user != nil {
-		userID = user.ID
+	ucred, err := ucrednetGet(r.RemoteAddr)
+	if err != nil {
+		return Forbidden("cannot get remote user: %v", err)
 	}
 
-	result, err := c.d.overlord.InterfaceManager().Prompting().GetRequest(userID, id)
+	result, err := c.d.overlord.InterfaceManager().Prompting().GetRequest(int(ucred.Uid), id)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -126,9 +126,9 @@ func postRequest(c *Command, r *http.Request, user *auth.UserState) Response {
 		return userNotAllowedPromptClientResponse(user)
 	}
 
-	var userID int
-	if user != nil {
-		userID = user.ID
+	ucred, err := ucrednetGet(r.RemoteAddr)
+	if err != nil {
+		return Forbidden("cannot get remote user: %v", err)
 	}
 
 	var reply apparmorprompting.PromptReply
@@ -137,7 +137,7 @@ func postRequest(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into prompt reply: %v", err)
 	}
 
-	result, err := c.d.overlord.InterfaceManager().Prompting().PostRequest(userID, id, &reply)
+	result, err := c.d.overlord.InterfaceManager().Prompting().PostRequest(int(ucred.Uid), id, &reply)
 	if err != nil {
 		return InternalError("%v", err)
 	}

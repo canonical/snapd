@@ -76,9 +76,9 @@ func getRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		follow = f
 	}
 
-	var userID int
-	if user != nil {
-		userID = user.ID
+	ucred, err := ucrednetGet(r.RemoteAddr)
+	if err != nil {
+		return Forbidden("cannot get remote user: %v", err)
 	}
 
 	if follow {
@@ -89,16 +89,16 @@ func getRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		// close it.
 		jsonSeqResp, rulesCh := newFollowRulesSeqResponse()
 		// TODO: implement the following:
-		// respWriter := c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRulesChan(userID, snap, app, rulesCh)
+		// respWriter := c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRulesChan(int(ucred.Uid), snap, app, rulesCh)
 		// When daemon stops, call respWriter.Stop()
-		_ = c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRulesChan(userID, snap, app, rulesCh)
+		_ = c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRulesChan(int(ucred.Uid), snap, app, rulesCh)
 		return jsonSeqResp
 	}
 
 	if app != "" && snap == "" {
 		return BadRequest("app parameter provided, must also provide snap parameter")
 	}
-	result, err := c.d.overlord.InterfaceManager().Prompting().GetRules(userID, snap, app)
+	result, err := c.d.overlord.InterfaceManager().Prompting().GetRules(int(ucred.Uid), snap, app)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -111,20 +111,20 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		return userNotAllowedAccessControlClientResponse(user)
 	}
 
+	ucred, err := ucrednetGet(r.RemoteAddr)
+	if err != nil {
+		return Forbidden("cannot get remote user: %v", err)
+	}
+
 	var postBody apparmorprompting.PostRulesRequestBody
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&postBody); err != nil {
 		return BadRequest("cannot decode request body into access rule contents: %v", err)
 	}
 
-	var userID int
-	if user != nil {
-		userID = user.ID
-	}
-
 	switch postBody.Action {
 	case "create":
-		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesCreate(userID, postBody.CreateRules)
+		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesCreate(int(ucred.Uid), postBody.CreateRules)
 		if err != nil {
 			return InternalError("%v", err)
 		}
@@ -136,7 +136,7 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 				return BadRequest(`must include "snap" parameter in "selectors"`)
 			}
 		}
-		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesDelete(userID, postBody.DeleteSelectors)
+		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesDelete(int(ucred.Uid), postBody.DeleteSelectors)
 		if err != nil {
 			return InternalError("%v", err)
 		}
@@ -154,12 +154,12 @@ func getRule(c *Command, r *http.Request, user *auth.UserState) Response {
 		return userNotAllowedAccessControlClientResponse(user)
 	}
 
-	var userID int
-	if user != nil {
-		userID = user.ID
+	ucred, err := ucrednetGet(r.RemoteAddr)
+	if err != nil {
+		return Forbidden("cannot get remote user: %v", err)
 	}
 
-	result, err := c.d.overlord.InterfaceManager().Prompting().GetRule(userID, id)
+	result, err := c.d.overlord.InterfaceManager().Prompting().GetRule(int(ucred.Uid), id)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -181,20 +181,20 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into access rule modification or deletion: %v", err)
 	}
 
-	var userID int
-	if user != nil {
-		userID = user.ID
+	ucred, err := ucrednetGet(r.RemoteAddr)
+	if err != nil {
+		return Forbidden("cannot get remote user: %v", err)
 	}
 
 	switch postBody.Action {
 	case "modify":
-		result, err := c.d.overlord.InterfaceManager().Prompting().PostRuleModify(userID, id, postBody.Rule)
+		result, err := c.d.overlord.InterfaceManager().Prompting().PostRuleModify(int(ucred.Uid), id, postBody.Rule)
 		if err != nil {
 			return InternalError("%v", err)
 		}
 		return SyncResponse(result)
 	case "delete":
-		result, err := c.d.overlord.InterfaceManager().Prompting().PostRuleDelete(userID, id)
+		result, err := c.d.overlord.InterfaceManager().Prompting().PostRuleDelete(int(ucred.Uid), id)
 		if err != nil {
 			return InternalError("%v", err)
 		}
