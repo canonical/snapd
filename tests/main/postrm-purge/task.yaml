@@ -108,7 +108,7 @@ execute: |
     fi
 
     # Check no snapd services are listed
-    systemctl -l | NOMATCH "snapd\."
+    systemctl list-units --legend=no "snapd.*" | NOMATCH "loaded"
 
     echo "No dangling service symlinks are left behind"
     test -z "$(find /etc/systemd/system/multi-user.target.wants/ -name 'snap.test-snapd-service.*')"
