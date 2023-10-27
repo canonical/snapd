@@ -22,7 +22,9 @@ package daemon
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"os/user"
 	"sort"
 	"strconv"
 	"strings"
@@ -223,10 +225,40 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 
 var servicestateControl = servicestate.Control
 
-func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
+func decodeServiceInstruction(body io.ReadCloser, u *user.User) (*servicestate.Instruction, error) {
 	var inst servicestate.Instruction
-	decoder := json.NewDecoder(r.Body)
+	decoder := json.NewDecoder(body)
 	if err := decoder.Decode(&inst); err != nil {
+		return nil, err
+	}
+	return &inst, nil
+}
+
+var systemUserFromRequest = func(r *http.Request) (*user.User, error) {
+	uid, err := uidFromRequest(r)
+	if err != nil {
+		return nil, err
+	}
+
+	u, err := user.LookupId(strconv.Itoa(int(uid)))
+	if err != nil {
+		return nil, err
+	}
+
+	// ensure that we only get the root user on a uid == 0 input
+	if u.Uid == "0" && uid != 0 {
+		return nil, fmt.Errorf("unknown uid: %d", uid)
+	}
+	return u, nil
+}
+
+func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
+	u, err := systemUserFromRequest(r)
+	if err != nil {
+		return BadRequest("cannot perform operation on services: %v", err)
+	}
+	inst, err := decodeServiceInstruction(r.Body, u)
+	if err != nil {
 		return BadRequest("cannot decode request body into service operation: %v", err)
 	}
 	// XXX: decoder.More()
@@ -246,12 +278,18 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("no services found")
 	}
 
+	// Now that we know the services we are affecting, do some additional checks/fixups
+	if err := inst.Validate(u, appInfos); err != nil {
+		return BadRequest("cannot perform operation on services: %v", err)
+	}
+	inst.EnsureDefaultScopeForUser(u)
+
 	// do not pass flags - only create service-control tasks, do not create
 	// exec-command tasks for old snapd. These are not needed since we are
 	// handling momentary snap service commands.
 	st.Lock()
 	defer st.Unlock()
-	tss, err := servicestateControl(st, appInfos, &inst, nil, nil)
+	tss, err := servicestateControl(st, appInfos, inst, u, nil, nil)
 	if err != nil {
 		// TODO: use errToResponse here too and introduce a proper error kind ?
 		if _, ok := err.(servicestate.ServiceActionConflictError); ok {
@@ -261,7 +299,7 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	// names received in the request can be snap or snap.app, we need to
 	// extract the actual snap names before associating them with a change
-	chg := newChange(st, "service-control", "Running service command", tss, namesToSnapNames(&inst))
+	chg := newChange(st, "service-control", "Running service command", tss, namesToSnapNames(inst))
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, chg.ID())
 }
