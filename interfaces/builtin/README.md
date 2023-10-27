@@ -6,14 +6,16 @@ Declarative rules are used to control what plugs or slots a snap is
 allowed to use, and if a snap is allowed to use a plug/slot, what other
 slots/plugs can connect to that plug/slot on this snap.
 
-These rules are declared as a map which has 6 possible keys:
+The overall structure has two top-level keys: plugs and slots. These affect the
+plugs and slots of the snap respectively. Beneath these are the names of
+interfaces. Each interface key introduces a map with 6 possible keys:
 
-- allow-installation
-- deny-installation
-- allow-connection
-- deny-connection
-- allow-auto-connection
-- deny-auto-connection
+- `allow-installation`
+- `deny-installation`
+- `allow-connection`
+- `deny-connection`
+- `allow-auto-connection`
+- `deny-auto-connection`
 
 Each of these keys can either have a static value of true/false or can be a
 more complex object/list which is “evaluated” by snapd on a device to
@@ -34,10 +36,10 @@ interface in a web-streaming application).
 
 ### Basic evaluation and precedence
 
-The default value of the `allow-*` keys when not otherwise specified is `true`
-and the default value of `deny-*` keys when not otherwise specified is `false`.
-Matching `deny-*` constraints override/take precedence over `allow-*`
-constraints specified in the same declaration. The order of evaluation of rules
+When not otherwise specified, the default values for `allow-*` keys are `true`,
+while the default values for `deny-*` keys are `false`. A matched `deny-*`
+constraint overrides and takes precedence over a matching `allow-*`
+constraint from within the same stanza. The order of evaluation of rules
 is the following (execution stops as soon as a matching rule is found, meaning
 that the topmost elements in this list have higher priority):
 
@@ -52,8 +54,7 @@ that the topmost elements in this list have higher priority):
 
 In other words, snap-declaration (store) rules have priority over
 base-declaration rules; then, plug rules have priority over slot rules, and
-finally, deny rules have priority over allow rules.
-
+finally, deny rules have priority over allow rules within the same stanza.
 
 ### allow-installation
 
@@ -73,9 +74,13 @@ store for this snap about allowing `snapd-control`, then snap installation will
 fail.
 
 Snap interfaces that have `allow-installation` set to `false` for their plugs
-in the base-declaration are said to be “**super-privileged**”, meaning they
+in the base-declaration are said to be **super-privileged**, meaning they
 cannot be used at all without a snap-declaration assertion.
 
+A snap's interface slot provided by a non-system snap is considered
+**super-privileged** if it has `allow-installation` that evaluates to `false`
+in the base-declaration. An application snap or gadget defining such slots
+cannot be used without an accompanying snap-declaration assertion.
 
 ### allow-connection
 
@@ -142,8 +147,12 @@ are defined.
 
 In `allow-connection` or `allow-auto-connection` constraints about snap type,
 snap ID and publisher can only be specified for the other side snap (e.g. a
-slot-side `allow-connection` constraint can only specify plug-snap-type,
-plug-snap-id, plug-snap-publisher).
+slot-side `allow-connection` constraint can only specify `plug-snap-type`,
+`plug-snap-id`, `plug-snap-publisher`).
+As an exception, constraints on snap type for the slot providing snap
+(`slot-snap-type`) can be specified on the slot side as well. This is only
+meaningful/useful in the base declaration as it allows for a constraint on
+whether the slot side is provided by the system snap or not.
 
 For the `plug-snap-type` and `slot-snap-type` rules there are 4
 possible values: `core`, `gadget`, `kernel`, and `app`. The `core` snap
@@ -152,15 +161,16 @@ therefore the system interface slots, either the `core` snap or `snapd`
 snap (typically `core` snap on UC16 devices, `snapd` snap on UC18+
 systems, and either on classic systems depending on re-exec logic).
 
-The `on-store`, `on-brand`, and `on-model` rules are not generally hardcoded in
-the snapd interfaces, but are specified in store assertions; they are known as
-“device context constraints” and are primarily used to ensure that a given
-rule only applies to a device with a serial assertion (and thus model
-assertion) from a given brand. This is because if the assertion and snap from a
-brand store were copied to a non-branded device, the assertion could still be
-acknowledged by the device and the snap installed, but the assertion would not
-operate, and snap connections would not take place as they do on the branded
-device.
+The `on-store`, `on-brand`, and `on-model` rules are generally not hard-coded
+within snapd interfaces. They are instead specified in store assertions where
+they are known as "device context constraints". These device context
+constraints are primarily used to ensure a given rule only applies to a device
+with a serial assertion (and thus model assertion) from a given brand or using
+a given store (as specified by the model). This is because if the assertion and
+snap from a brand store were copied to a non-branded device, the assertion
+could still be acknowledged by the device and the snap installed, but the
+assertion would not operate, and snap connections would not take place as they
+do on the branded device.
 
 The `plug-names` and `slot-names` rules are also only used in store assertions.
 They refer to the naming of a plug or slot when that slot is scoped globally
@@ -186,11 +196,11 @@ a slot has to do with “arity” or how many slots a given plug is being
 considered to connect to and vice versa. This is expressed with the
 `slots-per-plug` and `plugs-per-slot` rules, with the default value of
 `plugs-per-slot` being “`*`” meaning any number of plugs can be connected to a
-specific slot. The default value of `slots-per-plug` is “`1`”, however, meaning that a
-plug can in general without a special snap-declaration only automatically
-connect to one slot. All that is to say, if there are multiple candidate slots,
-in the default case a plug will auto-connect to neither of them and
-snapd will issue a warning.
+specific slot. The default value of `slots-per-plug` is "`1`", however, meaning
+that a plug can in general without a special snap-declaration only
+automatically connect to one slot. All that is to say, if there are multiple
+candidate slots, in the default case a plug will auto-connect to neither of
+them and snapd will issue a warning.
 
 See also [this forum
 post](https://forum.snapcraft.io/t/plug-slot-declaration-rules-greedy-plugs/12438)
@@ -333,3 +343,250 @@ a store assertion):
         plug-attributes:
           content: $SLOT(content)
 
+## Unasserted local installation
+
+When a snap is installed without matching assertions using `--dangerous`, many
+checks are not performed. This helps with local snap development.
+
+For installation only, any slot-snap-type constraint in a base-declaration
+`allow-installation` rule for slots is checked. Any `deny-installation`
+rule here is ignored. Nothing is checked for the snap plugs.
+
+For connections involving the snap, no rules are checked and it is always
+allowed.
+
+For auto-connection, the base-declaration and any rule for the other side (if
+available) is considered. This usually means no auto-connection will happen
+unless allowed by the base-declaration or by a slot-side snap-declaration.
+
+## Base declaration policy patterns
+
+This section discusses the patterns to follow when writing base declaration
+rules for an interface (via setting
+`commonInterface.baseDeclarationSlots/Plugs`), depending on the security
+characteristics of the interface.
+
+Slots for a specific interface can be provided by the system snap (so called
+implicit slots), or by an application snap, or sometimes by both.
+
+For almost all interfaces, and whenever possible, the base declaration rules are
+written as slot-side-only rules.
+
+
+Importantly, items are not merged between the slots and plugs, or between the base declaration and snap declaration for a particular type of rule.
+
+This means that if a connection rule for both the slot-side and plug-side is specified in the base declaration, only the plug side is used (plug-side overrides the slot side).
+
+
+Installation rules target their side only; a slot-side installation rule is for
+allowing snaps with a slot of the given interface. A plug-side installation
+rule is for snaps with a plug of the given interface.
+
+Interfaces can be broadly categorized as:
+
+- auto-connected implicit slots (eg, network)
+- manually connected implicit slots (eg, bluetooth-control)
+- auto-connected app-provided slots  (eg, mir)
+- manually connected app-provided slots (eg, bluez)
+
+As such, that they will follow this pattern:
+
+    slots:
+      auto-connected-implicit-slot:
+        allow-installation:
+          slot-snap-type:
+            - core                     # implicit slot
+        #allow-auto-connection: true   # allow auto-connect, default
+  
+      manual-connected-implicit-slot:
+        allow-installation:
+          slot-snap-type:
+            - core                     # implicit slot
+        deny-auto-connection: true     # force manual connect
+  
+      auto-connected-provided-slot:
+        allow-installation:
+          slot-snap-type:
+            - app                      # app provided slot
+        deny-connection: true          # require allow-connection in snap decl
+  
+      manual-connected-provided-slot:
+        allow-installation:
+          slot-snap-type:
+            - app                      # app provided slot
+        deny-connection: true          # require allow-connection in snap decl
+        deny-auto-connection: true     # force manual connect
+
+As some slots can be provided by both the system or an application snap, some interfaces will be in more than one category.
+
+Auto-connection should be allowed in the base-declaration if the access to the
+resources provided by the interface does not have security implications.
+
+App-provided slots use 'deny-connection: true' since slot implementations
+require privileged access to the system and the snap must be trusted. In this
+manner, a snap declaration for the slot-providing snap is required to override
+the base declaration to allow connections with the app-provided slot.
+
+Slots dealing with hardware will typically specify 'gadget' and 'core' as
+the slot-snap-type (eg, serial-port). Eg:
+
+    slots:
+      manual-connected-hw-slot:
+        allow-installation:
+          slot-snap-type:
+            - core
+            - gadget
+        deny-auto-connection: true
+
+Denying auto-connection not only stops access but also covers the fact that
+there might be multiple slots for an hardware interface for which there is no
+way to choose one.
+
+So called super-privileged plugs should also disallow installation on a
+system. A snap declaration is required to override the base declaration to
+allow installation (eg, kernel-module-control). Eg:
+
+    plugs:
+      manual-connected-super-privileged-plug:
+        allow-installation: false
+        deny-auto-connection: true
+    (remember this overrides slot side rules)
+
+This pattern makes sense for interfaces that carry great security risks and
+allow the snap to take control outside of the sandbox, e.g. installing a kernel
+module.
+
+So called super-privileged slot implementations should also disallow
+installation on a system and a snap declaration is required to override the
+base declaration to allow installation (eg, docker). Eg:
+
+    slots:
+      manual-connected-super-privileged-slot:
+        allow-installation: false
+        deny-connection: true
+        deny-auto-connection: true
+
+This pattern makes sense for interfaces where implementing them requires
+extensive system access, or where there is the need for a review to check for
+policy or to avoid resource use/naming clashes.
+
+Some interfaces have policy that is meant to cover application snap slot
+implementations but also classic systems. Since the slot implementation is
+privileged, we require a snap declaration to be used for app-provided slot
+implementations on non-classic systems (eg, `network-manager`). Eg:
+
+    slots:
+      classic-or-not-slot:
+        allow-installation:
+          slot-snap-type:
+            - app
+            - core
+        deny-auto-connection: true
+        deny-connection:
+          on-classic: false
+
+The idea of this pattern is that on classic we expect the slot to be system
+provided and for it to be app-provide on Core. However, the work on Core
+Desktop means this idea is not always valid. A different approach is to
+deny-connection based on the type of slot carrying snap, e.g for
+`upower-observe` nowadays, we have:
+
+    upower-observe:
+      allow-installation:
+        slot-snap-type:
+          - app
+          - core
+      deny-auto-connection:
+        slot-snap-type:
+          - app
+      deny-connection:
+        slot-snap-type:
+          - app
+
+Some interfaces only have implicit slots and should be auto-connected only on classic systems (eg, home). Eg:
+
+    slots:
+      implicit-auto-classic-slot:
+        allow-installation:
+          slot-snap-type:
+            - core
+        deny-auto-connection:
+          on-classic: false
+
+Some interfaces with app-provided slots allow connections if some expectation
+is met.  This in turn is expressed by some kind of tag attribute on both plug
+and slot (usually named after the interface) that must match, for example
+`content`:
+
+    slots:
+      content:
+        allow-installation:
+          slot-snap-type:
+            - app
+            - gadget
+        allow-connection:
+          plug-attributes:
+            content: $SLOT(content)
+        allow-auto-connection:
+          plug-publisher-id:
+            - $SLOT_PUBLISHER_ID
+          plug-attributes:
+            content: $SLOT(content)
+
+In these situations auto-connection is often granted by default if the
+publisher also matches.
+
+Some interfaces might need complex policies that mix many of these patterns, for example, shared-memory:
+
+- allows auto-connection to the implicit slot if the plug set a `private`
+  attribute to `true` (default is false)
+- supports app-provided slots but that are super-privileged to avoid naming
+  clashes
+- uses a tag attribute to match plug and slots, and if the slot could be defined
+  lets same publisher plugs auto-connect
+
+```
+ slots:
+   shared-memory:
+     allow-installation:
+       slot-snap-type:
+         - app
+         - gadget
+         - core
+     deny-installation:
+       slot-snap-type:
+         - app
+         - gadget
+     deny-auto-connection: true
+ 
+ plugs:
+  shared-memory:
+     allow-connection:
+       -
+         plug-attributes:
+           private: false
+         slot-attributes:
+           shared-memory: $PLUG(shared-memory)
+       -
+         plug-attributes:
+           private: true
+         slot-snap-type:
+           - core
+     allow-auto-connection:
+       -
+         plug-attributes:
+           private: false
+         slot-publisher-id:
+           - $PLUG_PUBLISHER_ID
+         slot-attributes:
+           shared-memory: $PLUG(shared-memory)
+       -
+         plug-attributes:
+           private: true
+         slot-snap-type:
+           - core
+```
+
+Note the combining of `allow-installation` and `deny-installation`
+`slot-snap-type` constraints to make the slot super-privileged while accounting
+for the slot snap type check done for `--dangerous` installations.

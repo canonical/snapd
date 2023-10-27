@@ -21,7 +21,6 @@ package install_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -587,7 +586,7 @@ func (s *partitionTestSuite) TestRemovePartitionsWithDeviceRescan(c *C) {
 	err := os.MkdirAll(filepath.Join(devPath, "device"), 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(filepath.Join(devPath, "device", "rescan"), nil, 0755)
+	err = os.WriteFile(filepath.Join(devPath, "device", "rescan"), nil, 0755)
 	c.Assert(err, IsNil)
 
 	fmt.Println("wrote", devPath)
@@ -608,7 +607,7 @@ func (s *partitionTestSuite) TestRemovePartitionsWithDeviceRescan(c *C) {
 	c.Assert(err, IsNil)
 
 	// add the file to indicate we should do the device/rescan trick
-	err = ioutil.WriteFile(filepath.Join(s.gadgetRoot, "meta", "force-partition-table-reload-via-device-rescan"), nil, 0755)
+	err = os.WriteFile(filepath.Join(s.gadgetRoot, "meta", "force-partition-table-reload-via-device-rescan"), nil, 0755)
 	c.Assert(err, IsNil)
 
 	gInfo, err := gadget.ReadInfoAndValidate(s.gadgetRoot, uc20Mod, nil)
@@ -797,7 +796,7 @@ func (s *partitionTestSuite) TestEnsureNodesExist(c *C) {
 		c.Logf("utErr:%q err:%q", tc.utErr, tc.err)
 
 		node := filepath.Join(c.MkDir(), "node")
-		err := ioutil.WriteFile(node, nil, 0644)
+		err := os.WriteFile(node, nil, 0644)
 		c.Assert(err, IsNil)
 
 		cmdUdevadm := testutil.MockCommand(c, "udevadm", fmt.Sprintf(mockUdevadmScript, tc.utErr))

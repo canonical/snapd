@@ -24,7 +24,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -213,7 +213,7 @@ func (cmdCounterSuite) TestCommandDeclCounter(c *check.C) {
 	for i, t := range commandDeclCounterTable {
 		fn := filepath.Join(d, fmt.Sprintf("a_%02d.go", i))
 		comm := check.Commentf(t.desc)
-		c.Assert(ioutil.WriteFile(fn, []byte("package huh"+t.content), 0644), check.IsNil, comm)
+		c.Assert(os.WriteFile(fn, []byte("package huh"+t.content), 0644), check.IsNil, comm)
 		n := countCommandDeclsIn(c, fn, comm)
 		c.Check(n, check.Equals, t.count, comm)
 	}

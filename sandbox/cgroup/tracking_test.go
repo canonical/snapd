@@ -22,7 +22,6 @@ package cgroup_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -42,7 +41,7 @@ import (
 func enableFeatures(c *C, ff ...features.SnapdFeature) {
 	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
 	for _, f := range ff {
-		c.Assert(ioutil.WriteFile(f.ControlFile(), nil, 0755), IsNil)
+		c.Assert(os.WriteFile(f.ControlFile(), nil, 0755), IsNil)
 	}
 }
 

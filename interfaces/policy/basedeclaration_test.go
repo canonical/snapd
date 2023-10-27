@@ -171,7 +171,6 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"ubuntu-download-manager": true,
 		"unity7":                  true,
 		"unity8":                  true,
-		"upower-observe":          true,
 		"wayland":                 true,
 		"x11":                     true,
 	}
@@ -192,6 +191,33 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		} else {
 			c.Check(err, NotNil, comm)
 		}
+	}
+}
+
+func (s *baseDeclSuite) TestAutoConnectionImplicitSlotOnly(c *C) {
+	all := builtin.Interfaces()
+
+	// these auto-connect only with an implicit slot
+	autoconnect := map[string]bool{
+		"upower-observe": true,
+	}
+
+	for _, iface := range all {
+		if !autoconnect[iface.Name()] {
+			continue
+		}
+		comm := Commentf(iface.Name())
+
+		// check base declaration
+		cand := s.connectCand(c, iface.Name(), fmt.Sprintf(`name: snapd
+type: snapd
+version: 0
+slots:
+  %s:
+`, iface.Name()), "")
+		arity, err := cand.CheckAutoConnect()
+		c.Check(err, IsNil, comm)
+		c.Check(arity.SlotsPerPlugAny(), Equals, false)
 	}
 }
 
@@ -809,9 +835,10 @@ var (
 		"online-accounts-service":   {"app"},
 		"power-control":             {"core"},
 		"ppp":                       {"core"},
+		"polkit-agent":              {"core"},
 		"pulseaudio":                {"app", "core"},
 		"pwm":                       {"core", "gadget"},
-		"qualcomm-ipc-router":       {"core"},
+		"qualcomm-ipc-router":       {"core", "app"},
 		"raw-volume":                {"core", "gadget"},
 		"scsi-generic":              {"core"},
 		"sd-control":                {"core"},
@@ -881,9 +908,22 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 		}
 	}
 
-	// test docker specially
-	ic := s.installSlotCand(c, "docker", snap.TypeApp, ``)
+	// test desktop specifically
+	ic := s.installSlotCand(c, "desktop", snap.TypeApp, ``)
 	err := ic.Check()
+	c.Check(err, Not(IsNil))
+	c.Check(err, ErrorMatches, "installation denied by \"desktop\" slot rule of interface \"desktop\"")
+	// ... but the minimal check (used by --dangerous) allows installation
+	icMin := &policy.InstallCandidateMinimalCheck{
+		Snap:            ic.Snap,
+		BaseDeclaration: s.baseDecl,
+	}
+	err = icMin.Check()
+	c.Check(err, IsNil)
+
+	// test docker specially
+	ic = s.installSlotCand(c, "docker", snap.TypeApp, ``)
+	err = ic.Check()
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "installation not allowed by \"docker\" slot rule of interface \"docker\"")
 
@@ -974,6 +1014,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"packagekit-control":     true,
 		"personal-files":         true,
 		"polkit":                 true,
+		"polkit-agent":           true,
 		"sd-control":             true,
 		"snap-refresh-control":   true,
 		"snap-themes-control":    true,
@@ -1037,6 +1078,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"mir":                       true,
 		"online-accounts-service":   true,
 		"posix-mq":                  true,
+		"qualcomm-ipc-router":       true,
 		"raw-volume":                true,
 		"shared-memory":             true,
 		"storage-framework-service": true,
@@ -1044,6 +1086,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"ubuntu-download-manager":   true,
 		"unity8-calendar":           true,
 		"unity8-contacts":           true,
+		"upower-observe":            true,
 	}
 
 	for _, iface := range all {
@@ -1062,6 +1105,33 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	}
 }
 
+func (s *baseDeclSuite) TestConnectionImplicitSlotOnly(c *C) {
+	all := builtin.Interfaces()
+
+	// these allow connect only with an implicit slot
+	autoconnect := map[string]bool{
+		"qualcomm-ipc-router": true,
+		"upower-observe":      true,
+	}
+
+	for _, iface := range all {
+		if !autoconnect[iface.Name()] {
+			continue
+		}
+		comm := Commentf(iface.Name())
+
+		// check base declaration
+		cand := s.connectCand(c, iface.Name(), fmt.Sprintf(`name: snapd
+type: snapd
+version: 0
+slots:
+  %s:
+`, iface.Name()), "")
+		err := cand.Check()
+		c.Check(err, IsNil, comm)
+	}
+}
+
 func (s *baseDeclSuite) TestConnectionOnClassic(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -1076,7 +1146,6 @@ func (s *baseDeclSuite) TestConnectionOnClassic(c *C) {
 		"network-manager": true,
 		"ofono":           true,
 		"pulseaudio":      true,
-		"upower-observe":  true,
 	}
 
 	for _, onClassic := range []bool{true, false} {
@@ -1228,6 +1297,8 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"pkcs11":                 true,
 		"posix-mq":               true,
 		"polkit":                 true,
+		"polkit-agent":           true,
+		"qualcomm-ipc-router":    true,
 		"sd-control":             true,
 		"shared-memory":          true,
 		"snap-refresh-control":   true,
@@ -1318,6 +1389,72 @@ plugs:
 	cand.PlugSnapDeclaration = plugDecl1
 	err = cand.Check()
 	c.Check(err, NotNil)
+}
+
+func (s *baseDeclSuite) TestConnectionQualcommIpcRouter(c *C) {
+	// we let connect explicitly as long as qcipc matches
+
+	slotDecl1 := s.mockSnapDecl(c, "slot-snap", "slot-snap-id", "pub1", "")
+	plugDecl1 := s.mockSnapDecl(c, "plug-snap", "plug-snap-id", "pub1", "")
+
+	// Same qcipc label
+	cand := s.connectCand(c, "qc-router", `name: slot-snap
+version: 0
+slots:
+  qc-router:
+    interface: qualcomm-ipc-router
+    qcipc: monitor
+    address: abcd
+`, `
+name: plug-snap
+version: 0
+plugs:
+  qc-router:
+    interface: qualcomm-ipc-router
+    qcipc: monitor
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err := cand.Check()
+	c.Check(err, IsNil)
+
+	// Different qcipc label
+	cand = s.connectCand(c, "qc-router", `name: slot-snap
+version: 0
+slots:
+  qc-router:
+    interface: qualcomm-ipc-router
+    qcipc: monitor
+    address: abcd
+`, `
+name: plug-snap
+version: 0
+plugs:
+  qc-router:
+    interface: qualcomm-ipc-router
+    qcipc: other
+`)
+	cand.SlotSnapDeclaration = slotDecl1
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.Check()
+	c.Check(err.Error(), Equals, `connection not allowed by slot rule of interface "qualcomm-ipc-router"`)
+
+	// Legacy case with slot provided by system
+	cand = s.connectCand(c, "qualcomm-ipc-router", `name: snapd
+version: 0
+type: snapd
+slots:
+  qualcomm-ipc-router:
+`, `
+name: plug-snap
+version: 0
+plugs:
+  qualcomm-ipc-router:
+`)
+	cand.SlotSnapDeclaration = s.mockSnapDecl(c, "snapd", "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4", "canonical", "")
+	cand.PlugSnapDeclaration = plugDecl1
+	err = cand.Check()
+	c.Check(err, IsNil)
 }
 
 func (s *baseDeclSuite) TestConnectionSharedMemory(c *C) {
@@ -1630,6 +1767,24 @@ plugs:
 `
 
 	snapDecl := s.mockSnapDecl(c, "some-snap", "some-snap-with-desktop-launch-id", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	_, err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionPolkitAgentOverride(c *C) {
+	cand := s.connectCand(c, "polkit-agent", "", "")
+	_, err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"polkit-agent\"")
+
+	plugsSlots := `
+plugs:
+  polkit-agent:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "some-snap-with-polkit-agent-id", "canonical", plugsSlots)
 	cand.PlugSnapDeclaration = snapDecl
 	_, err = cand.CheckAutoConnect()
 	c.Check(err, IsNil)

@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -184,7 +183,7 @@ func mockSnapConfine(libExecDir string) func() {
 	if err := os.MkdirAll(libExecDir, 0755); err != nil {
 		panic(err)
 	}
-	if err := ioutil.WriteFile(snapConfine, nil, 0644); err != nil {
+	if err := os.WriteFile(snapConfine, nil, 0644); err != nil {
 		panic(err)
 	}
 	return func() {

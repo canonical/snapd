@@ -82,6 +82,13 @@ func verifyUpdateTasks(c *C, typ snap.Type, opts, discards int, ts *state.TaskSe
 	}
 }
 
+// mockRestartAndSettle expects the state to be locked
+func (s *snapmgrTestSuite) mockRestartAndSettle(c *C, chg *state.Change) {
+	restart.MockPending(s.state, restart.RestartUnset)
+	restart.MockAfterRestartForChange(chg)
+	s.settle(c)
+}
+
 func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -4239,12 +4246,32 @@ func (s *snapmgrTestSuite) TestUpdateWithDeviceContext(c *C) {
 	// hook it up
 	snapstate.ValidateRefreshes = happyValidateRefreshes
 
-	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, deviceCtx, "")
+	prqt := new(testPrereqTracker)
+
+	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, prqt, deviceCtx, "")
 	c.Assert(err, IsNil)
 	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 
 	c.Check(validateCalled, Equals, true)
+
+	c.Assert(prqt.infos, HasLen, 1)
+	c.Check(prqt.infos[0].SnapName(), Equals, "some-snap")
+	c.Check(prqt.defaultProviderContentAttrsCalls, Equals, 1)
+}
+
+type testPrereqTracker struct {
+	infos                            []*snap.Info
+	defaultProviderContentAttrsCalls int
+}
+
+func (prqt *testPrereqTracker) Add(info *snap.Info) {
+	prqt.infos = append(prqt.infos, info)
+}
+
+func (prqt *testPrereqTracker) DefaultProviderContentAttrs(*snap.Info, snap.InterfaceRepo) map[string][]string {
+	prqt.defaultProviderContentAttrsCalls++
+	return nil
 }
 
 func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContext(c *C) {
@@ -4271,11 +4298,15 @@ func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContext(c *C) {
 	mockSnap := makeTestSnap(c, `name: some-snap
 version: 1.0
 `)
+	prqt := new(testPrereqTracker)
 
-	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, si, mockSnap, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, deviceCtx, "")
+	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, si, mockSnap, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, prqt, deviceCtx, "")
 	c.Assert(err, IsNil)
 	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh|localSnap, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	c.Assert(prqt.infos, HasLen, 1)
+	c.Check(prqt.infos[0].SnapName(), Equals, "some-snap")
+	c.Check(prqt.defaultProviderContentAttrsCalls, Equals, 1)
 }
 
 func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextSwitchChannel(c *C) {
@@ -4303,7 +4334,7 @@ func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextSwitchChannel(c *C) {
 version: 1.0
 `)
 
-	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, si, mockSnap, "some-snap", &snapstate.RevisionOptions{Channel: "22/edge"}, s.user.ID, snapstate.Flags{}, deviceCtx, "")
+	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, si, mockSnap, "some-snap", &snapstate.RevisionOptions{Channel: "22/edge"}, s.user.ID, snapstate.Flags{}, nil, deviceCtx, "")
 	c.Assert(err, IsNil)
 	c.Check(ts.Tasks(), HasLen, 1)
 	c.Check(ts.Tasks()[0].Kind(), Equals, "switch-snap-channel")
@@ -4335,7 +4366,7 @@ func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextBadFile(c *C) {
 	c.Assert(err, IsNil)
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
-	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, si, path, "some-snap", opts, s.user.ID, snapstate.Flags{}, deviceCtx, "")
+	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, si, path, "some-snap", opts, s.user.ID, snapstate.Flags{}, nil, deviceCtx, "")
 
 	c.Assert(err, ErrorMatches, `cannot open snap file: cannot process snap or snapdir: cannot read ".*/some-snap_7.snap": EOF`)
 	c.Assert(ts, IsNil)
@@ -4364,7 +4395,7 @@ func (s *snapmgrTestSuite) TestUpdateWithDeviceContextToRevision(c *C) {
 	})
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel", Revision: snap.R(11)}
-	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx, "")
+	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", opts, 0, snapstate.Flags{}, nil, deviceCtx, "")
 	c.Assert(err, IsNil)
 	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -5529,7 +5560,7 @@ func (s *snapmgrTestSuite) testUpdateManyDiskSpaceCheck(c *C, featureFlag, failD
 	})
 	defer restore()
 
-	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int, prqt snapstate.PrereqTracker) (uint64, error) {
 		installSizeCalled = true
 		if failInstallSize {
 			return 0, fmt.Errorf("boom")
@@ -6006,106 +6037,6 @@ func (s *snapmgrTestSuite) TestUpdateContentProviderDownloadFailure(c *C) {
 	c.Check(snapSt.Current, Equals, snap.R(11))
 }
 
-func (s *snapmgrTestSuite) TestRefreshFailureCausesErrorReport(c *C) {
-	var errSnap, errMsg, errSig string
-	var errExtra map[string]string
-	var n int
-	restore := snapstate.MockErrtrackerReport(func(aSnap, aErrMsg, aDupSig string, extra map[string]string) (string, error) {
-		errSnap = aSnap
-		errMsg = aErrMsg
-		errSig = aDupSig
-		errExtra = extra
-		n++
-		return "oopsid", nil
-	})
-	defer restore()
-
-	si := snap.SideInfo{
-		RealName: "some-snap",
-		SnapID:   "some-snap-id",
-		Revision: snap.R(7),
-	}
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	s.state.Set("ubuntu-core-transition-retry", 7)
-	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{&si},
-		Current:  si.Revision,
-		SnapType: "app",
-	})
-
-	chg := s.state.NewChange("install", "install a snap")
-	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-	chg.AddAll(ts)
-
-	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "some-snap/11")
-
-	defer s.se.Stop()
-	s.settle(c)
-
-	// verify we generated a failure report
-	c.Check(n, Equals, 1)
-	c.Check(errSnap, Equals, "some-snap")
-	c.Check(errExtra, DeepEquals, map[string]string{
-		"UbuntuCoreTransitionCount": "7",
-		"Channel":                   "some-channel",
-		"Revision":                  "11",
-	})
-	c.Check(errMsg, Matches, `(?sm)change "install": "install a snap"
-prerequisites: Undo
- snap-setup: "some-snap" \(11\) "some-channel"
-download-snap: Undoing
-validate-snap: Done
-.*
-link-snap: Error
- INFO unlink
- ERROR fail
-auto-connect: Hold
-set-auto-aliases: Hold
-setup-aliases: Hold
-run-hook: Hold
-start-snap-services: Hold
-cleanup: Hold
-run-hook: Hold`)
-	c.Check(errSig, Matches, `(?sm)snap-install:
-prerequisites: Undo
- snap-setup: "some-snap"
-download-snap: Undoing
-validate-snap: Done
-.*
-link-snap: Error
- INFO unlink
- ERROR fail
-auto-connect: Hold
-set-auto-aliases: Hold
-setup-aliases: Hold
-run-hook: Hold
-start-snap-services: Hold
-cleanup: Hold
-run-hook: Hold`)
-
-	// run again with empty "ubuntu-core-transition-retry"
-	s.state.Set("ubuntu-core-transition-retry", 0)
-	chg = s.state.NewChange("install", "install a snap")
-	ts, err = snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-	chg.AddAll(ts)
-
-	defer s.se.Stop()
-	s.settle(c)
-
-	// verify that we excluded this field from the bugreport
-	c.Check(n, Equals, 2)
-	c.Check(errExtra, DeepEquals, map[string]string{
-		"Channel":  "some-channel",
-		"Revision": "11",
-	})
-}
-
 func (s *snapmgrTestSuite) TestNoReRefreshInUpdate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -6201,7 +6132,7 @@ func (s *snapmgrTestSuite) testUpdateDiskSpaceCheck(c *C, featureFlag, failInsta
 
 	var installSizeCalled bool
 
-	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int, prqt snapstate.PrereqTracker) (uint64, error) {
 		installSizeCalled = true
 		if failInstallSize {
 			return 0, fmt.Errorf("boom")
@@ -7321,7 +7252,7 @@ func (s *snapmgrTestSuite) TestUpdatePrerequisiteWithSameDeviceContext(c *C) {
 	}
 	snapstatetest.MockDeviceContext(deviceCtx)
 
-	ts, err := snapstate.UpdateWithDeviceContext(s.state, "outdated-consumer", nil, s.user.ID, snapstate.Flags{NoReRefresh: true}, deviceCtx, "")
+	ts, err := snapstate.UpdateWithDeviceContext(s.state, "outdated-consumer", nil, s.user.ID, snapstate.Flags{NoReRefresh: true}, nil, deviceCtx, "")
 	c.Assert(err, IsNil)
 	c.Assert(ts.Tasks(), Not(HasLen), 0)
 
@@ -8401,6 +8332,10 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 
+	// mock restart for the 'link-snap' step and run change to
+	// completion.
+	s.mockRestartAndSettle(c, chg)
+
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	// a single system restart was requested
 	c.Check(restartRequested, DeepEquals, []restart.RestartType{
@@ -8572,6 +8507,12 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUnsupportedWithCoreHa
 
 	defer s.se.Stop()
 	s.settle(c)
+
+	// first 'auto-connect' restart here
+	s.mockRestartAndSettle(c, chg)
+
+	// second 'auto-connect' restart here
+	s.mockRestartAndSettle(c, chg)
 
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	// when updating both kernel that uses core as base, and "core" we have two reboots
@@ -8785,13 +8726,20 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUndone(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 
+	// both snaps have requested a restart at 'auto-connect', handle this here
+	s.mockRestartAndSettle(c, chg)
+
+	// both snaps have requested another restart along the undo path at 'unlink-current-snap'
+	// because reboots are post-poned until the change have no more tasks to run, and how the
+	// change is manipulated in this specific case, we only do one reboot along the undo-path as well now.
+	s.mockRestartAndSettle(c, chg)
+
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*\(auto-connect-kernel mock error\)`)
 	c.Check(restartRequested, DeepEquals, []restart.RestartType{
 		// do path
 		restart.RestartSystem,
 		// undo
-		restart.RestartSystem,
 		restart.RestartSystem,
 	})
 	c.Check(errInjected, Equals, 1)
@@ -8914,6 +8862,10 @@ func (s *snapmgrTestSuite) TestUpdateBaseAndSnapdOrder(c *C) {
 
 	defer s.se.Stop()
 	s.settle(c)
+
+	// mock restart for the 'link-snap' step and run change to
+	// completion.
+	s.mockRestartAndSettle(c, chg)
 
 	c.Check(chg.IsReady(), Equals, true)
 	c.Check(chg.Status(), Equals, state.DoneStatus)
@@ -10376,4 +10328,213 @@ func (s *snapmgrTestSuite) TestUpdateNotAllowedWhileRevertDowngrading(c *C) {
 func (s *snapmgrTestSuite) TestUpdateAllowedWhileRevertUpgrading(c *C) {
 	err := s.testUpdateNotAllowedWhileDowngrading(c, "2.58", "2.57.1", true)
 	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestUpdateSetsRestartBoundaries(c *C) {
+	siGadget := snap.SideInfo{
+		RealName: "brand-gadget",
+		SnapID:   "brand-gadget-id",
+		Revision: snap.R(7),
+	}
+	siSomeSnap := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	r := snapstatetest.MockDeviceModel(DefaultModel())
+	defer r()
+	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&siGadget},
+		Current:  siGadget.Revision,
+	})
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&siSomeSnap},
+		Current:  siSomeSnap.Revision,
+	})
+
+	ts1, err := snapstate.Update(s.state, "brand-gadget", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	// only ensure that SetEssentialSnapsRestartBoundaries was actually called, we don't
+	// test that all restart boundaries were set, one is enough
+	linkSnap1 := ts1.MaybeEdge(snapstate.MaybeRebootEdge)
+	c.Assert(linkSnap1, NotNil)
+
+	var boundary restart.RestartBoundaryDirection
+	c.Check(linkSnap1.Get("restart-boundary", &boundary), IsNil)
+
+	// also ensure that it's not set for normal snaps
+	ts2, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	linkSnap2 := ts2.MaybeEdge(snapstate.MaybeRebootEdge)
+	c.Assert(linkSnap2, NotNil)
+	c.Check(linkSnap2.Get("restart-boundary", &boundary), ErrorMatches, `no state entry for key "restart-boundary"`)
+}
+
+type customStore struct {
+	*fakeStore
+
+	customSnapAction func(context.Context, []*store.CurrentSnap, []*store.SnapAction, store.AssertionQuery, *auth.UserState, *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error)
+}
+
+func (s customStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	return s.customSnapAction(ctx, currentSnaps, actions, assertQuery, user, opts)
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyRevOptsOrder(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-other-snap", SnapID: "some-other-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "snap-c", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "snap-c", SnapID: "snap-c-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	var requestSnapToAction map[string]*store.SnapAction
+	sto := customStore{fakeStore: s.fakeStore}
+	sto.customSnapAction = func(ctx context.Context, cs []*store.CurrentSnap, sa []*store.SnapAction, aq store.AssertionQuery, us *auth.UserState, ro *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+		if len(sa) == 0 {
+			requestSnapToAction = nil
+			return nil, nil, nil
+		}
+
+		var actionResult []store.SnapActionResult
+		requestSnapToAction = make(map[string]*store.SnapAction, len(sa))
+		for _, action := range sa {
+			requestSnapToAction[action.InstanceName] = action
+
+			info, err := s.fakeStore.lookupRefresh(refreshCand{snapID: action.SnapID})
+			c.Assert(err, IsNil)
+			actionResult = append(actionResult, store.SnapActionResult{Info: info})
+		}
+
+		return actionResult, nil, nil
+	}
+	snapstate.ReplaceStore(s.state, &sto)
+
+	nameToRevOpts := map[string]*snapstate.RevisionOptions{
+		"some-snap": {
+			Revision:       snap.R(111),
+			ValidationSets: []snapasserts.ValidationSetKey{"1", "1.1"},
+		},
+		"some-other-snap": {
+			Revision:       snap.R(222),
+			ValidationSets: []snapasserts.ValidationSetKey{"2", "2.2"},
+		},
+		"snap-c": {
+			Revision:       snap.R(333),
+			ValidationSets: []snapasserts.ValidationSetKey{"3", "3.3"},
+		},
+	}
+	getRevOpts := func(names []string) (revOpts []*snapstate.RevisionOptions) {
+		for _, name := range names {
+			revOpts = append(revOpts, nameToRevOpts[name])
+		}
+		return revOpts
+	}
+
+	testOrder := func(names []string) {
+		requestSnapToAction = nil
+		revOpts := getRevOpts(names)
+		_, _, err := snapstate.UpdateMany(context.Background(), s.state, names, revOpts, 0, nil)
+		c.Assert(err, IsNil)
+		c.Check(requestSnapToAction, NotNil)
+		for _, name := range names {
+			c.Check(requestSnapToAction[name].Revision, Equals, nameToRevOpts[name].Revision, Commentf("snap %q sent revision is incorrect", name))
+			c.Check(requestSnapToAction[name].ValidationSets, DeepEquals, nameToRevOpts[name].ValidationSets, Commentf("snap %q sent validation sets are incorrect", name))
+		}
+	}
+
+	// let's check all permutations for good measure
+	testOrder([]string{"some-snap", "some-other-snap", "snap-c"})
+	testOrder([]string{"some-snap", "snap-c", "some-other-snap"})
+
+	testOrder([]string{"some-other-snap", "some-snap", "snap-c"})
+	testOrder([]string{"some-other-snap", "snap-c", "some-snap"})
+
+	testOrder([]string{"snap-c", "some-snap", "some-other-snap"})
+	testOrder([]string{"snap-c", "some-other-snap", "some-snap"})
+}
+
+func (s *snapmgrTestSuite) TestSnapdRefreshForRemodel(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Set snapd state in the system: currently rev 44 installed, but also
+	// 22 is in the system (simply to avoid trying to reach the store for
+	// that rev when we want to refresh to it).
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/edge",
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(44)},
+			{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(22)}},
+		Current:  snap.R(44),
+		SnapType: "app",
+	})
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		var version string
+		switch name {
+		case "snapd":
+			switch si.Revision.N {
+			case 22:
+				version = "1.0"
+			default:
+				version = "2.0"
+			}
+		default:
+			version = "1.0"
+		}
+		return &snap.Info{
+			SuggestedName: name,
+			Version:       version,
+			Architectures: []string{"all"},
+			SideInfo:      *si,
+		}, nil
+	})
+	defer restore()
+
+	// This is part of a remodeling change
+	chg := s.state.NewChange("remodel", "...")
+	chg.SetStatus(state.DoStatus)
+
+	// Update to snapd rev 22, which is an older revision. This checks that
+	// things are fine in that case and that there is no conflict detected
+	// as we are doing this from the remodel change.
+	opts := &snapstate.RevisionOptions{Channel: "stable", Revision: snap.R(22)}
+	_, err := snapstate.UpdateWithDeviceContext(s.state, "snapd", opts, s.user.ID, snapstate.Flags{}, nil, nil, chg.ID())
+	c.Check(err, IsNil)
+
+	// But there is a conflict if this update is not part of the remodel change.
+	_, err = snapstate.UpdateWithDeviceContext(s.state, "snapd", opts, s.user.ID, snapstate.Flags{}, nil, nil, "")
+	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	c.Check(err, ErrorMatches, "remodeling in progress, no other changes allowed until this is done")
 }

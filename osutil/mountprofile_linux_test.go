@@ -21,7 +21,6 @@ package osutil_test
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -48,7 +47,7 @@ func (s *profileSuite) TestLoadMountProfile1(c *C) {
 func (s *profileSuite) TestLoadMountProfile2(c *C) {
 	dir := c.MkDir()
 	fname := filepath.Join(dir, "existing")
-	err := ioutil.WriteFile(fname, []byte("name-1 dir-1 type-1 options-1 1 1 # 1st entry"), 0644)
+	err := os.WriteFile(fname, []byte("name-1 dir-1 type-1 options-1 1 1 # 1st entry"), 0644)
 	c.Assert(err, IsNil)
 	p, err := osutil.LoadMountProfile(fname)
 	c.Assert(err, IsNil)
@@ -62,7 +61,7 @@ func (s *profileSuite) TestLoadMountProfile2(c *C) {
 func (s *profileSuite) TestLoadMountProfile3(c *C) {
 	dir := c.MkDir()
 	fname := filepath.Join(dir, "existing")
-	err := ioutil.WriteFile(fname, []byte(`
+	err := os.WriteFile(fname, []byte(`
    # comment with leading spaces
 name#-1 dir#-1 type#-1 options#-1 1 1 # inline comment
 # comment without leading spaces

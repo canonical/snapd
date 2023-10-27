@@ -35,9 +35,11 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -121,6 +123,9 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.store)
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
@@ -1170,4 +1175,37 @@ func (s *autoRefreshTestSuite) TestTooSoonError(c *C) {
 	c.Check(snapstate.TooSoonError{}, testutil.ErrorIs, snapstate.TooSoonError{})
 	c.Check(snapstate.TooSoonError{}, Not(testutil.ErrorIs), errors.New(""))
 	c.Check(snapstate.TooSoonError{}.Error(), Equals, "cannot auto-refresh so soon")
+}
+
+func setStoreAccess(s *state.State, access interface{}) {
+	s.Lock()
+	defer s.Unlock()
+
+	tr := config.NewTransaction(s)
+	tr.Set("core", "store.access", access)
+	tr.Commit()
+}
+
+func (s *autoRefreshTestSuite) TestSnapStoreOffline(c *C) {
+	s.addRefreshableSnap("foo")
+
+	setStoreAccess(s.state, "offline")
+
+	af := snapstate.NewAutoRefresh(s.state)
+	err := af.Ensure()
+	c.Check(err, IsNil)
+
+	s.state.Lock()
+	c.Check(s.state.Changes(), HasLen, 0)
+	s.state.Unlock()
+
+	setStoreAccess(s.state, nil)
+
+	err = af.Ensure()
+	c.Check(err, IsNil)
+
+	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
+	s.state.Lock()
+	c.Check(s.state.Changes(), HasLen, 1)
+	s.state.Unlock()
 }

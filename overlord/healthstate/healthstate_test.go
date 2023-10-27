@@ -20,7 +20,6 @@
 package healthstate_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -125,7 +124,7 @@ func (s *healthSuite) testHealth(c *check.C, cond healthHookTestCondition) {
 		hookFn := filepath.Join(s.info.MountDir(), "meta", "hooks", "check-health")
 		c.Assert(os.MkdirAll(filepath.Dir(hookFn), 0755), check.IsNil)
 		// the hook won't actually be called, but needs to exist
-		c.Assert(ioutil.WriteFile(hookFn, nil, 0755), check.IsNil)
+		c.Assert(os.WriteFile(hookFn, nil, 0755), check.IsNil)
 	}
 
 	s.state.Lock()
@@ -149,7 +148,6 @@ func (s *healthSuite) testHealth(c *check.C, cond healthHookTestCondition) {
 		Optional:    true,
 		Timeout:     time.Second,
 		IgnoreError: false,
-		TrackError:  false,
 	})
 
 	t0 := time.Now()

@@ -21,7 +21,6 @@ package configcore_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -144,7 +143,7 @@ func (s *tmpfsSuite) TestConfigureTmpfsNoFileUpdate(c *C) {
 	c.Assert(err, IsNil)
 	size := "100M"
 	content := "[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev,size=" + size + "\n"
-	err = ioutil.WriteFile(s.servOverridePath, []byte(content), 0644)
+	err = os.WriteFile(s.servOverridePath, []byte(content), 0644)
 	c.Assert(err, IsNil)
 
 	info, err := os.Stat(s.servOverridePath)
@@ -181,11 +180,11 @@ func (s *tmpfsSuite) TestConfigureTmpfsRemovesIfUnset(c *C) {
 
 	// add canary to ensure we don't touch other files
 	canary := filepath.Join(s.servOverrideDir, "05-canary.conf")
-	err = ioutil.WriteFile(canary, nil, 0644)
+	err = os.WriteFile(canary, nil, 0644)
 	c.Assert(err, IsNil)
 
 	content := "[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev,size=1G\n"
-	err = ioutil.WriteFile(s.servOverridePath, []byte(content), 0644)
+	err = os.WriteFile(s.servOverridePath, []byte(content), 0644)
 	c.Assert(err, IsNil)
 
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{

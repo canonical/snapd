@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -6351,7 +6350,7 @@ volumes:
         bootloader: grub
 `)
 
-	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta", "gadget.yaml"), gadgetYaml, 0644)
+	err := os.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta", "gadget.yaml"), gadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
 	s.MockModel(c, nil)
@@ -6637,7 +6636,7 @@ volumes:
         bootloader: grub
 `)
 
-	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta", "gadget.yaml"), gadgetYaml, 0644)
+	err := os.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta", "gadget.yaml"), gadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
@@ -6699,7 +6698,7 @@ volumes:
         bootloader: grub
 `)
 
-	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta", "gadget.yaml"), gadgetYaml, 0644)
+	err := os.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta", "gadget.yaml"), gadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
 	s.state.Lock()

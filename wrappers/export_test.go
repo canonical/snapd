@@ -27,11 +27,6 @@ import (
 
 // some internal helper exposed for testing
 var (
-	// services
-	GenerateSnapServiceFile = generateSnapServiceFile
-	GenerateSnapSocketFiles = generateSnapSocketFiles
-	GenerateSnapTimerFile   = generateSnapTimerFile
-
 	// dbus
 	GenerateDBusActivationFile = generateDBusActivationFile
 
@@ -41,14 +36,9 @@ var (
 	RewriteIconLine        = rewriteIconLine
 	IsValidDesktopFileLine = isValidDesktopFileLine
 
-	// timers
-	GenerateOnCalendarSchedules = generateOnCalendarSchedules
-
 	// icons
 	FindIconFiles = findIconFiles
 )
-
-type GenerateSnapServicesOptions = generateSnapServicesOptions
 
 func MockKillWait(wait time.Duration) (restore func()) {
 	oldKillWait := killWait

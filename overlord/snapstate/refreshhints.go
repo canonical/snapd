@@ -124,6 +124,11 @@ func (r *refreshHints) Ensure() error {
 	r.state.Lock()
 	defer r.state.Unlock()
 
+	online, err := isStoreOnline(r.state)
+	if err != nil || !online {
+		return err
+	}
+
 	// CanAutoRefresh is a hook that is set by the devicestate
 	// code to ensure that we only AutoRefresh if the device has
 	// bootstraped itself enough. This is only nil when snapstate
@@ -171,7 +176,7 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 		}
 
 		monitoring := isSnapMonitored(st, update.InstanceName())
-		providerContentAttrs := defaultProviderContentAttrs(st, update)
+		providerContentAttrs := defaultProviderContentAttrs(st, update, nil)
 		snapsup := &refreshCandidate{
 			SnapSetup: SnapSetup{
 				Base:               update.Base,

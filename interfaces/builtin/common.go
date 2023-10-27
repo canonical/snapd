@@ -51,7 +51,15 @@ type commonInterface struct {
 
 	affectsPlugOnRefresh bool
 
+	// baseDeclarationPlugs defines optional plug-side rules in the
+	// base-declaration assertion relevant for this interface. See
+	// interfaces/builtin/README.md, especially "Base declaration policy
+	// patterns".
 	baseDeclarationPlugs string
+	// baseDeclarationSlots defines optional slot-side rules in the
+	// base-declaration assertion relevant for this interface. See
+	// interfaces/builtin/README.md, especially "Base declaration policy
+	// patterns".
 	baseDeclarationSlots string
 
 	connectedPlugAppArmor  string

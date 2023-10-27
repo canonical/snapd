@@ -22,7 +22,6 @@ package main_test
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -1147,7 +1146,7 @@ func (s *realSystemSuite) TestSecureOpenPathUncleanPath(c *C) {
 
 func (s *realSystemSuite) TestSecureOpenPathFile(c *C) {
 	path := filepath.Join(c.MkDir(), "file.txt")
-	c.Assert(ioutil.WriteFile(path, []byte("hello"), 0644), IsNil)
+	c.Assert(os.WriteFile(path, []byte("hello"), 0644), IsNil)
 
 	fd, err := update.OpenPath(path)
 	c.Assert(err, IsNil)

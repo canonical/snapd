@@ -21,6 +21,7 @@ package seedwriter_test
 
 import (
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -50,7 +51,7 @@ func (s *manifestSuite) SetUpTest(c *C) {
 
 func (s *manifestSuite) writeManifest(c *C, contents string) string {
 	manifestFile := filepath.Join(s.root, "seed.manifest")
-	err := ioutil.WriteFile(manifestFile, []byte(contents), 0644)
+	err := os.WriteFile(manifestFile, []byte(contents), 0644)
 	c.Assert(err, IsNil)
 	return manifestFile
 }

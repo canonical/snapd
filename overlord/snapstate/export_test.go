@@ -88,12 +88,6 @@ func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, sna
 	return func() { openSnapFile = prevOpenSnapFile }
 }
 
-func MockErrtrackerReport(mock func(string, string, string, map[string]string) (string, error)) (restore func()) {
-	prev := errtrackerReport
-	errtrackerReport = mock
-	return func() { errtrackerReport = prev }
-}
-
 func MockPrerequisitesRetryTimeout(d time.Duration) (restore func()) {
 	old := prerequisitesRetryTimeout
 	prerequisitesRetryTimeout = d
@@ -120,17 +114,22 @@ var (
 
 	CurrentSnaps = currentSnaps
 
-	DefaultProviderContentAttrs = defaultProviderContentAttrs
-
 	HasOtherInstances = hasOtherInstances
 
 	SafetyMarginDiskSpace = safetyMarginDiskSpace
 
 	AffectedByRefresh = affectedByRefresh
 
-	GetDirMigrationOpts = getDirMigrationOpts
-	WriteSeqFile        = writeSeqFile
-	TriggeredMigration  = triggeredMigration
+	GetDirMigrationOpts             = getDirMigrationOpts
+	WriteSeqFile                    = writeSeqFile
+	TriggeredMigration              = triggeredMigration
+	TaskSetsByTypeForEssentialSnaps = taskSetsByTypeForEssentialSnaps
+	SetDefaultRestartBoundaries     = setDefaultRestartBoundaries
+	DeviceModelBootBase             = deviceModelBootBase
+)
+
+const (
+	NoRestartBoundaries = noRestartBoundaries
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
@@ -283,6 +282,14 @@ func (m *SnapManager) MaybeUndoRemodelBootChanges(t *state.Task) (restartRequest
 	return false, false, err
 }
 
+func MockEnsuredDesktopFilesUpdated(m *SnapManager, ensured bool) (restore func()) {
+	old := m.ensuredDesktopFilesUpdated
+	m.ensuredDesktopFilesUpdated = ensured
+	return func() {
+		m.ensuredDesktopFilesUpdated = old
+	}
+}
+
 func MockPidsOfSnap(f func(instanceName string) (map[string][]int, error)) func() {
 	old := pidsOfSnap
 	pidsOfSnap = f
@@ -299,7 +306,7 @@ func MockCurrentSnaps(f func(st *state.State) ([]*store.CurrentSnap, error)) fun
 	}
 }
 
-func MockInstallSize(f func(st *state.State, snaps []minimalInstallInfo, userID int) (uint64, error)) func() {
+func MockInstallSize(f func(st *state.State, snaps []minimalInstallInfo, userID int, preqt PrereqTracker) (uint64, error)) func() {
 	old := installSize
 	installSize = f
 	return func() {

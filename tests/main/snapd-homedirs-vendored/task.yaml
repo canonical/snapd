@@ -25,6 +25,12 @@ restore: |
     userdel -f --remove "$USERNAME"
     rm -rf /remote/users
 
+    # Reinstall the original snap
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    distro_purge_package snapd
+    distro_install_build_snapd
+
 debug: |
     # output custom snap-confine snippets
     ls -l /var/lib/snapd/apparmor/snap-confine/
@@ -35,7 +41,12 @@ debug: |
 
 execute: |
     echo "Downgrading the snapd deb to pre-vendored apparmor times"
-    TARGET_VER="$(apt list -a snapd|grep -- -updates|cut -f2 -d' ')"
+    TARGET_VER="$(apt list -a snapd | grep -- -updates | cut -f2 -d' ')"
+    # Ubuntu release on development doesn't have updates
+    if [ -z "$TARGET_VER" ]; then
+        CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
+        TARGET_VER="$(apt list -a snapd | grep -E "/$CODENAME( |,)" | cut -f2 -d' ')"
+    fi
     apt install -yqq --allow-downgrades snapd="$TARGET_VER"
     
     echo "But installing the vendored apparmor snapd with our changes"

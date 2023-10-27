@@ -21,9 +21,7 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -177,7 +175,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 			// unit so that when we isolate to the initrd unit, it does not get
 			// unmounted
 			fname := fmt.Sprintf("snap_bootstrap_%s.conf", whereEscaped)
-			err = ioutil.WriteFile(filepath.Join(targetDir, fname), overrideContent, 0644)
+			err = os.WriteFile(filepath.Join(targetDir, fname), overrideContent, 0644)
 			if err != nil {
 				return err
 			}
@@ -186,14 +184,9 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		args = append(args, "--property=Before=initrd-fs.target")
 	}
 
-	// note that we do not currently parse any output from systemd-mount, but if
-	// we ever do, take special care surrounding the debug output that systemd
-	// outputs with the "debug" kernel command line present (or equivalently the
-	// SYSTEMD_LOG_LEVEL=debug env var) which will add lots of additional output
-	// to stderr from systemd commands
-	out, err := exec.Command("systemd-mount", args...).CombinedOutput()
+	stdout, stderr, err := osutil.RunSplitOutput("systemd-mount", args...)
 	if err != nil {
-		return osutil.OutputErr(out, err)
+		return osutil.OutputErrCombine(stdout, stderr, err)
 	}
 
 	if !opts.NoWait {

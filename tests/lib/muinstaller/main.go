@@ -95,9 +95,9 @@ devicesLoop:
 		}
 		// check that there was no previous filesystem
 		devNode := fmt.Sprintf("/dev/%s", dev)
-		output, err := exec.Command("lsblk", "--output", "fstype", "--noheadings", devNode).CombinedOutput()
+		output, stderr, err := osutil.RunSplitOutput("lsblk", "--output", "fstype", "--noheadings", devNode)
 		if err != nil {
-			return nil, osutil.OutputErr(output, err)
+			return nil, osutil.OutputErrCombine(output, stderr, err)
 		}
 		if strings.TrimSpace(string(output)) != "" {
 			// found a filesystem, ignore
@@ -128,7 +128,7 @@ func maybeCreatePartitionTable(bootDevice, schema string) error {
 	}
 
 	// check if there is a GPT partition table already
-	output, err := exec.Command("blkid", "--probe", "--match-types", "gpt", bootDevice).CombinedOutput()
+	output, stderr, err := osutil.RunSplitOutput("blkid", "--probe", "--match-types", "gpt", bootDevice)
 	exitCode, err := osutil.ExitCode(err)
 	if err != nil {
 		return err
@@ -140,16 +140,16 @@ func maybeCreatePartitionTable(bootDevice, schema string) error {
 		// no match found, create partition table
 		cmd := exec.Command("sfdisk", bootDevice)
 		cmd.Stdin = bytes.NewBufferString("label: gpt\n")
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return osutil.OutputErr(output, err)
+		if output, stderr, err := osutil.RunCmd(cmd); err != nil {
+			return osutil.OutputErrCombine(output, stderr, err)
 		}
 		// ensure udev is aware of the new attributes
-		if output, err := exec.Command("udevadm", "settle").CombinedOutput(); err != nil {
-			return osutil.OutputErr(output, err)
+		if output, stderr, err := osutil.RunSplitOutput("udevadm", "settle"); err != nil {
+			return osutil.OutputErrCombine(output, stderr, err)
 		}
 	default:
 		// unknown error
-		return fmt.Errorf("unexpected exit code from blkid: %v", osutil.OutputErr(output, err))
+		return fmt.Errorf("unexpected exit code from blkid: %v", osutil.OutputErrCombine(output, stderr, err))
 	}
 
 	return nil
@@ -346,8 +346,8 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 			return nil, err
 		}
 		// XXX: is there a better way?
-		if output, err := exec.Command("mount", partNode, mountPoint).CombinedOutput(); err != nil {
-			return nil, osutil.OutputErr(output, err)
+		if output, stderr, err := osutil.RunSplitOutput("mount", partNode, mountPoint); err != nil {
+			return nil, osutil.OutputErrCombine(output, stderr, err)
 		}
 		mountPoints = append(mountPoints, mountPoint)
 	}
@@ -359,8 +359,8 @@ func unmountFilesystems(mntPts []string) (err error) {
 	for _, mntPt := range mntPts {
 		// We try to unmount all mount points, and return the
 		// last error if any.
-		if output, errUmnt := exec.Command("umount", mntPt).CombinedOutput(); err != nil {
-			errUmnt = osutil.OutputErr(output, errUmnt)
+		if output, stderr, errUmnt := osutil.RunSplitOutput("umount", mntPt); err != nil {
+			errUmnt = osutil.OutputErrCombine(output, stderr, errUmnt)
 			logger.Noticef("error: cannot unmount %q: %v", mntPt, errUmnt)
 			err = errUmnt
 		}
@@ -371,8 +371,8 @@ func unmountFilesystems(mntPts []string) (err error) {
 func createClassicRootfsIfNeeded(rootfsCreator string) error {
 	dst := runMntFor("ubuntu-data")
 
-	if output, err := exec.Command(rootfsCreator, dst).CombinedOutput(); err != nil {
-		return osutil.OutputErr(output, err)
+	if output, stderr, err := osutil.RunSplitOutput(rootfsCreator, dst); err != nil {
+		return osutil.OutputErrCombine(output, stderr, err)
 	}
 
 	return nil
@@ -385,8 +385,8 @@ func copySeedDir(src, dst string) error {
 	// Note that we do not use the -a option as cp returns an error if trying to
 	// preserve attributes in a fat filesystem. And this is fine for files from
 	// the seed, that do not need anything too special in that regard.
-	if output, err := exec.Command("cp", "-r", src, dst).CombinedOutput(); err != nil {
-		return osutil.OutputErr(output, err)
+	if output, stderr, err := osutil.RunSplitOutput("cp", "-r", src, dst); err != nil {
+		return osutil.OutputErrCombine(output, stderr, err)
 	}
 
 	return nil
@@ -463,21 +463,21 @@ func fillPartiallyDefinedVolume(vol *gadget.Volume, bootDevice string) error {
 
 	// Fill sizes: for the moment, to avoid complicating unnecessarily the
 	// code, we do size=min-size except for the last partition.
-	output, err := exec.Command("lsblk", "--bytes", "--noheadings", "--output", "SIZE", bootDevice).CombinedOutput()
+	output, stderr, err := osutil.RunSplitOutput("lsblk", "--bytes", "--noheadings", "--output", "SIZE", bootDevice)
 	exitCode, err := osutil.ExitCode(err)
 	if err != nil {
 		return err
 	}
 	if exitCode != 0 {
-		return fmt.Errorf("cannot find size of %q: %q", bootDevice, string(output))
+		return fmt.Errorf("cannot find size of %q: %q (stderr: %s)", bootDevice, string(output), string(stderr))
 	}
 	lines := strings.Split(string(output), "\n")
 	if len(lines) == 0 {
-		return fmt.Errorf("error splitting %q", string(output))
+		return fmt.Errorf("error splitting %q (stderr: %s)", string(output), string(stderr))
 	}
 	diskSize, err := strconv.Atoi(lines[0])
 	if err != nil {
-		return fmt.Errorf("while converting %s to a size: %v", string(output), err)
+		return fmt.Errorf("while converting %s to a size: %v (stderr: %s)", string(output), err, string(stderr))
 	}
 	partStart := quantity.Offset(0)
 	if vol.HasPartial(gadget.PartialSize) {

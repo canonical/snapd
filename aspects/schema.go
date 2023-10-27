@@ -23,6 +23,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
 type parser interface {
@@ -39,7 +42,7 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 	var schemaDef map[string]json.RawMessage
 	err := json.Unmarshal(raw, &schemaDef)
 	if err != nil {
-		return nil, fmt.Errorf("cannot parse top level schema: must be a map")
+		return nil, fmt.Errorf("cannot parse top level schema as map: %w", err)
 	}
 
 	if rawType, ok := schemaDef["type"]; ok {
@@ -49,7 +52,7 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 		}
 
 		if typ != "map" {
-			return nil, fmt.Errorf(`cannot parse top level schema: expected map but got %s`, typ)
+			return nil, fmt.Errorf(`cannot parse top level schema: unexpected declared type %q, should be "map" or omitted`, typ)
 		}
 	}
 
@@ -57,8 +60,28 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 		return nil, fmt.Errorf(`cannot parse top level schema: must have a "schema" constraint`)
 	}
 
-	// TODO: check "types" here and parse the user-defined types
-	schema := &StorageSchema{}
+	schema := new(StorageSchema)
+	if val, ok := schemaDef["types"]; ok {
+		var userTypes map[string]json.RawMessage
+		if err := json.Unmarshal(val, &userTypes); err != nil {
+			return nil, fmt.Errorf(`cannot parse user-defined types map: %w`, err)
+		}
+
+		schema.userTypes = make(map[string]parser, len(userTypes))
+		for userTypeName, typeDef := range userTypes {
+			if !validUserType.Match([]byte(userTypeName)) {
+				return nil, fmt.Errorf(`cannot parse user-defined type name %q: must match %s`, userTypeName, validUserType)
+			}
+
+			userTypeSchema, err := schema.parse(typeDef)
+			if err != nil {
+				return nil, fmt.Errorf(`cannot parse user-defined type %q: %w`, userTypeName, err)
+			}
+
+			schema.userTypes[userTypeName] = userTypeSchema
+		}
+	}
+
 	schema.topLevel, err = schema.parse(raw)
 	if err != nil {
 		return nil, err
@@ -72,6 +95,9 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 type StorageSchema struct {
 	// topLevel is the schema for the top level map.
 	topLevel Schema
+
+	// userTypes contains schemas that can validate types defined by the user.
+	userTypes map[string]parser
 }
 
 // Validate validates the provided JSON object.
@@ -118,15 +144,34 @@ func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
 }
 
 func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
-	// TODO: add any, int, number, bool, array and user-defined types
 	switch typ {
 	case "map":
 		return &mapSchema{topSchema: s}, nil
 	case "string":
 		return &stringSchema{}, nil
+	case "int":
+		return &intSchema{}, nil
+	case "any":
+		return &anySchema{}, nil
+	case "number":
+		return &numberSchema{}, nil
+	case "bool":
+		return &booleanSchema{}, nil
 	default:
+		if typ != "" && typ[0] == '$' {
+			return s.getUserType(typ[1:])
+		}
+
 		return nil, fmt.Errorf("cannot parse unknown type %q", typ)
 	}
+}
+
+func (s *StorageSchema) getUserType(ref string) (parser, error) {
+	if userType, ok := s.userTypes[ref]; ok {
+		return userType, nil
+	}
+
+	return nil, fmt.Errorf("cannot find user-defined type %q", ref)
 }
 
 type mapSchema struct {
@@ -154,6 +199,18 @@ func (v *mapSchema) Validate(raw []byte) error {
 	var mapValue map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &mapValue); err != nil {
 		return err
+	}
+
+	if mapValue == nil {
+		return fmt.Errorf(`cannot accept null value for "map" type`)
+	}
+
+	if v.entrySchemas != nil {
+		for key := range mapValue {
+			if _, ok := v.entrySchemas[key]; !ok {
+				return fmt.Errorf(`map contains unexpected key %q`, key)
+			}
+		}
 	}
 
 	var missing bool
@@ -219,7 +276,7 @@ func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) err
 		return fmt.Errorf(`cannot parse map: %w`, err)
 	}
 
-	// maps can "schemas" with types for specific entries and optional "required" constraints
+	// maps can be "schemas" with types for specific entries and optional "required" constraints
 	if rawEntries, ok := constraints["schema"]; ok {
 		var entries map[string]json.RawMessage
 		if err := json.Unmarshal(rawEntries, &entries); err != nil {
@@ -253,6 +310,14 @@ func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) err
 				v.requiredCombs = [][]string{required}
 			} else {
 				v.requiredCombs = requiredCombs
+			}
+
+			for _, requiredComb := range v.requiredCombs {
+				for _, required := range requiredComb {
+					if _, ok := v.entrySchemas[required]; !ok {
+						return fmt.Errorf(`cannot parse map's "required" constraint: required key %q must have schema entry`, required)
+					}
+				}
 			}
 		}
 
@@ -332,28 +397,280 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 	if typ == "string" {
 		return &stringSchema{}, nil
 	}
-	// TODO: if type starts with $, check against user-defined types
 
-	return nil, fmt.Errorf(`must be based on string but got %q`, typ)
-}
-
-type stringSchema struct{}
-
-// Validate that raw is a valid aspect string.
-func (v *stringSchema) Validate(raw []byte) error {
-	var value string
-	if err := json.Unmarshal(raw, &value); err != nil {
-		var typeErr *json.UnmarshalTypeError
-		if !errors.As(err, &typeErr) {
-			return err
+	if typ != "" && typ[0] == '$' {
+		userType, err := v.topSchema.getUserType(typ[1:])
+		if err != nil {
+			return nil, err
 		}
 
-		return fmt.Errorf("cannot validate string: unexpected %s type", typeErr.Value)
+		if _, ok := userType.(*stringSchema); !ok {
+			return nil, fmt.Errorf(`key type %q must be based on string`, typ[1:])
+		}
+		return userType, nil
+
+	}
+
+	return nil, fmt.Errorf(`keys must be based on string but got %q`, typ)
+}
+
+type stringSchema struct {
+	// pattern is a regex pattern that the string must match.
+	pattern *regexp.Regexp
+	// choices holds the possible values the string can take, if non-empty.
+	choices []string
+}
+
+// Validate that raw is a valid aspect string and meets the schema's constraints.
+func (v *stringSchema) Validate(raw []byte) error {
+	var value *string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return fmt.Errorf("cannot validate string: %w", err)
+	}
+
+	if value == nil {
+		return fmt.Errorf(`cannot accept null value for "string" type`)
+	}
+
+	if len(v.choices) != 0 && !strutil.ListContains(v.choices, *value) {
+		return fmt.Errorf(`string %q is not one of the allowed choices`, *value)
+	}
+
+	if v.pattern != nil && !v.pattern.Match([]byte(*value)) {
+		return fmt.Errorf(`string %q doesn't match schema pattern %s`, *value, v.pattern.String())
 	}
 
 	return nil
 }
 
 func (v *stringSchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	if rawChoices, ok := constraints["choices"]; ok {
+		var choices []string
+		if err := json.Unmarshal(rawChoices, &choices); err != nil {
+			return fmt.Errorf(`cannot parse "choices" constraint: %w`, err)
+		}
+
+		if len(choices) == 0 {
+			return fmt.Errorf(`cannot have a "choices" constraint with an empty list`)
+		}
+
+		v.choices = choices
+	}
+
+	if rawPattern, ok := constraints["pattern"]; ok {
+		if v.choices != nil {
+			return fmt.Errorf(`cannot use "choices" and "pattern" constraints in same schema`)
+		}
+
+		var patt string
+		err := json.Unmarshal(rawPattern, &patt)
+		if err != nil {
+			return fmt.Errorf(`cannot parse "pattern" constraint: %w`, err)
+		}
+
+		if v.pattern, err = regexp.Compile(patt); err != nil {
+			return fmt.Errorf(`cannot parse "pattern" constraint: %w`, err)
+		}
+	}
+
+	return nil
+}
+
+type intSchema struct {
+	min     *int64
+	max     *int64
+	choices []int64
+}
+
+// Validate that raw is a valid integer and meets the schema's constraints.
+func (v *intSchema) Validate(raw []byte) error {
+	var num *int64
+	if err := json.Unmarshal(raw, &num); err != nil {
+		return err
+	}
+
+	if num == nil {
+		return fmt.Errorf(`cannot accept null value for "int" type`)
+	}
+
+	return validateNumber(*num, v.choices, v.min, v.max)
+}
+
+func (v *intSchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	if rawChoices, ok := constraints["choices"]; ok {
+		var choices []int64
+		err := json.Unmarshal(rawChoices, &choices)
+		if err != nil {
+			return fmt.Errorf(`cannot parse "choices" constraint: %v`, err)
+		}
+
+		if len(choices) == 0 {
+			return fmt.Errorf(`cannot have "choices" constraint with empty list`)
+		}
+
+		v.choices = choices
+	}
+
+	if rawMin, ok := constraints["min"]; ok {
+		if v.choices != nil {
+			return fmt.Errorf(`cannot have "choices" and "min" constraints`)
+		}
+
+		var min int64
+		if err := json.Unmarshal(rawMin, &min); err != nil {
+			return fmt.Errorf(`cannot parse "min" constraint: %v`, err)
+		}
+		v.min = &min
+	}
+
+	if rawMax, ok := constraints["max"]; ok {
+		if v.choices != nil {
+			return fmt.Errorf(`cannot have "choices" and "max" constraints`)
+		}
+
+		var max int64
+		if err := json.Unmarshal(rawMax, &max); err != nil {
+			return fmt.Errorf(`cannot parse "max" constraint: %v`, err)
+		}
+		v.max = &max
+	}
+
+	if v.min != nil && v.max != nil && *v.min > *v.max {
+		return fmt.Errorf(`cannot have "min" constraint with value greater than "max"`)
+	}
+
+	return nil
+}
+
+type anySchema struct{}
+
+func (v *anySchema) Validate(raw []byte) error {
+	var val interface{}
+	if err := json.Unmarshal(raw, &val); err != nil {
+		return err
+	}
+
+	if val == nil {
+		return fmt.Errorf(`cannot accept null value for "any" type`)
+	}
+	return nil
+}
+
+func (v *anySchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	// no error because we're not explicitly rejecting unsupported keywords (for now)
+	return nil
+}
+
+type numberSchema struct {
+	min     *float64
+	max     *float64
+	choices []float64
+}
+
+// Validate that raw is a valid number and meets the schema's constraints.
+func (v *numberSchema) Validate(raw []byte) error {
+	var num *float64
+	if err := json.Unmarshal(raw, &num); err != nil {
+		return err
+	}
+
+	if num == nil {
+		return fmt.Errorf(`cannot accept null value for "number" type`)
+	}
+
+	return validateNumber(*num, v.choices, v.min, v.max)
+}
+
+func validateNumber[Num ~int64 | ~float64](num Num, choices []Num, min, max *Num) error {
+	if len(choices) != 0 {
+		var found bool
+		for _, choice := range choices {
+			if num == choice {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return fmt.Errorf(`%v is not one of the allowed choices`, num)
+		}
+	}
+
+	// these comparisons are susceptible to floating-point errors but given that
+	// this won't be used for general storage it should be precise enough
+	if min != nil && num < *min {
+		return fmt.Errorf(`%v is less than allowed minimum %v`, num, *min)
+	}
+
+	if max != nil && num > *max {
+		return fmt.Errorf(`%v is greater than allowed maximum %v`, num, *max)
+	}
+
+	return nil
+}
+
+func (v *numberSchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	if rawChoices, ok := constraints["choices"]; ok {
+		var choices []float64
+		err := json.Unmarshal(rawChoices, &choices)
+		if err != nil {
+			return fmt.Errorf(`cannot parse "choices" constraint: %v`, err)
+		}
+
+		if len(choices) == 0 {
+			return fmt.Errorf(`cannot have "choices" constraint with empty list`)
+		}
+
+		v.choices = choices
+	}
+
+	if rawMin, ok := constraints["min"]; ok {
+		if v.choices != nil {
+			return fmt.Errorf(`cannot have "choices" and "min" constraints`)
+		}
+
+		var min float64
+		if err := json.Unmarshal(rawMin, &min); err != nil {
+			return fmt.Errorf(`cannot parse "min" constraint: %v`, err)
+		}
+		v.min = &min
+	}
+
+	if rawMax, ok := constraints["max"]; ok {
+		if v.choices != nil {
+			return fmt.Errorf(`cannot have "choices" and "max" constraints`)
+		}
+
+		var max float64
+		if err := json.Unmarshal(rawMax, &max); err != nil {
+			return fmt.Errorf(`cannot parse "max" constraint: %v`, err)
+		}
+		v.max = &max
+	}
+
+	if v.min != nil && v.max != nil && *v.min > *v.max {
+		return fmt.Errorf(`cannot have "min" constraint with value greater than "max"`)
+	}
+
+	return nil
+}
+
+type booleanSchema struct{}
+
+func (v *booleanSchema) Validate(raw []byte) error {
+	var val *bool
+	if err := json.Unmarshal(raw, &val); err != nil {
+		return err
+	}
+
+	if val == nil {
+		return fmt.Errorf(`cannot accept null value for "bool" type`)
+	}
+
+	return nil
+}
+
+func (v *booleanSchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	// no error because we're not explicitly rejecting unsupported keywords (for now)
 	return nil
 }

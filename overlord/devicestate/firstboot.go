@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2022 Canonical Ltd
+ * Copyright (C) 2014-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -42,7 +43,7 @@ var errNothingToDo = errors.New("nothing to do")
 
 var runtimeNumCPU = runtime.NumCPU
 
-func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags) (*state.TaskSet, *snap.Info, error) {
+func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags, prqt snapstate.PrereqTracker) (*state.TaskSet, *snap.Info, error) {
 	if sn.Required {
 		flags.Required = true
 	}
@@ -53,7 +54,7 @@ func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags) (*st
 		flags.DevMode = true
 	}
 
-	return snapstate.InstallPath(st, sn.SideInfo, sn.Path, "", sn.Channel, flags)
+	return snapstate.InstallPath(st, sn.SideInfo, sn.Path, "", sn.Channel, flags, prqt)
 }
 
 func criticalTaskEdges(ts *state.TaskSet) (beginEdge, beforeHooksEdge, hooksEdge *state.Task, err error) {
@@ -76,9 +77,15 @@ func criticalTaskEdges(ts *state.TaskSet) (beginEdge, beforeHooksEdge, hooksEdge
 
 // maybeEnforceValidationSetsTask returns a task for tracking validation-sets. This may
 // return nil if no validation-sets are present.
-func maybeEnforceValidationSetsTask(st *state.State, model *asserts.Model) (*state.Task, error) {
+func maybeEnforceValidationSetsTask(st *state.State, model *asserts.Model, mode string) (*state.Task, error) {
 	vsKey := func(accountID, name string) string {
 		return fmt.Sprintf("%s/%s", accountID, name)
+	}
+
+	// Only enforce validation-sets in run-mode after installing all required snaps
+	if mode != "run" {
+		logger.Debugf("Postponing enforcement of validation-sets in mode %s", mode)
+		return nil, nil
 	}
 
 	// Encode validation-sets included in the seed
@@ -255,6 +262,11 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 
 	infoToTs := make(map[*snap.Info]*state.TaskSet, len(essentialSeedSnaps))
 
+	// XXX TODO: switch to a prereq tracker that supports properly
+	// a self-contained set of snaps, here we cannot nor want
+	// to go back to the store for prereqs anyway
+	prqt := snap.SimplePrereqTracker{}
+
 	if len(essentialSeedSnaps) != 0 {
 		// we *always* configure "core" here even if bases are used
 		// for booting. "core" is where the system config lives.
@@ -275,7 +287,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 			ApplySnapDevMode: modelIsDangerous,
 		}
 
-		ts, info, err := installSeedSnap(st, seedSnap, flags)
+		ts, info, err := installSeedSnap(st, seedSnap, flags, prqt)
 		if err != nil {
 			return nil, err
 		}
@@ -316,7 +328,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 			Classic: release.OnClassic && modelIsDangerous,
 		}
 
-		ts, info, err := installSeedSnap(st, seedSnap, flags)
+		ts, info, err := installSeedSnap(st, seedSnap, flags, prqt)
 		if err != nil {
 			return nil, err
 		}
@@ -325,6 +337,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 	}
 
 	// validate that all snaps have bases
+	// XXX this will use the PrereqTracker
 	errs := snap.ValidateBasesAndProviders(infos)
 	if errs != nil {
 		// only report the first error encountered
@@ -345,7 +358,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 
 	// Start tracking any validation sets included in the seed after
 	// installing the included snaps.
-	if trackVss, err := maybeEnforceValidationSetsTask(st, model); err != nil {
+	if trackVss, err := maybeEnforceValidationSetsTask(st, model, mode); err != nil {
 		return nil, err
 	} else if trackVss != nil {
 		trackVss.WaitAll(ts)

@@ -426,7 +426,7 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 			// not touch it, unless a gadget asset update says to update that
 			// image file with a new binary image file. This also covers the
 			// partial filesystem case.
-			if gs.Filesystem != "" && gs.Filesystem != ds.PartitionFSType {
+			if gs.Filesystem != "" && gs.LinuxFilesystem() != ds.PartitionFSType {
 				// use more specific error message for structures that are
 				// not creatable at install when we are not being strict
 				if !IsCreatableAtInstall(gs) && !opts.AssumeCreatablePartitionsCreated {
@@ -938,6 +938,10 @@ func buildNewVolumeToDeviceMapping(mod Model, old GadgetData, vols map[string]*V
 
 	traits, err := DiskTraitsFromDeviceAndValidate(vol, dev, validateOpts)
 	if err != nil {
+		if isPreUC20 {
+			logger.Noticef("WARNING: not applying gadget asset updates on main system-boot volume due to error while finding disk traits: %v", err)
+			return nil, errSkipUpdateProceedRefresh
+		}
 		return nil, err
 	}
 
@@ -1616,12 +1620,12 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy
 		if update, filter := policy(&oldStruct, &newStruct); update {
 			// Ensure content is resolved and filtered. Filtering
 			// is required for e.g. KernelUpdatePolicy, see above.
-			resolvedContent, err := resolveVolumeContent(newGadgetRootDir, newKernelRootDir, kernelInfo, &newStruct, filter)
+			resolvedContent, err := resolveVolumeContent(newGadgetRootDir, newKernelRootDir, kernelInfo, newStruct.VolumeStructure, filter)
 			if err != nil {
 				return nil, err
 			}
-			// Nothing to do after filtering
-			if filter != nil && len(resolvedContent) == 0 && len(newStruct.LaidOutContent) == 0 {
+			// No resolved or raw content that would need updating
+			if len(resolvedContent) == 0 && len(newStruct.LaidOutContent) == 0 {
 				continue
 			}
 			newVol.LaidOutStructure[j].ResolvedContent = resolvedContent

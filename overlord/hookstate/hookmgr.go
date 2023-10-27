@@ -34,10 +34,8 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/configstate/settings"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -89,7 +87,6 @@ type HookSetup struct {
 	Optional    bool          `json:"optional,omitempty"`     // do not error if script is missing
 	Always      bool          `json:"always,omitempty"`       // run handler even if script is missing
 	IgnoreError bool          `json:"ignore-error,omitempty"` // do not run handler's Error() on error
-	TrackError  bool          `json:"track-error,omitempty"`  // report hook error to oopsie
 }
 
 // Manager returns a new HookManager.
@@ -404,9 +401,7 @@ func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hoo
 		output, err = runHook(context, tomb)
 	}
 	if err != nil {
-		if hooksup.TrackError {
-			trackHookError(context, output, err)
-		}
+		// TODO: telemetry about errors here
 		err = osutil.OutputErr(output, err)
 		if hooksup.IgnoreError {
 			context.Lock()
@@ -495,29 +490,4 @@ func runHookAndWait(snapName string, revision snap.Revision, hookName, hookConte
 	}
 
 	return osutil.RunAndWait(argv, env, timeout, tomb)
-}
-
-var errtrackerReport = errtracker.Report
-
-func trackHookError(context *Context, output []byte, err error) {
-	errmsg := fmt.Sprintf("hook %s in snap %q failed: %v", context.HookName(), context.InstanceName(), osutil.OutputErr(output, err))
-	dupSig := fmt.Sprintf("hook:%s:%s:%s\n%s", context.InstanceName(), context.HookName(), err, output)
-	extra := map[string]string{
-		"HookName": context.HookName(),
-	}
-	if context.setup.IgnoreError {
-		extra["IgnoreError"] = "1"
-	}
-
-	context.state.Lock()
-	problemReportsDisabled := settings.ProblemReportsDisabled(context.state)
-	context.state.Unlock()
-	if !problemReportsDisabled {
-		oopsid, err := errtrackerReport(context.InstanceName(), errmsg, dupSig, extra)
-		if err == nil {
-			logger.Noticef("Reported hook failure from %q for snap %q as %s", context.HookName(), context.InstanceName(), oopsid)
-		} else {
-			logger.Debugf("Cannot report hook failure: %s", err)
-		}
-	}
 }

@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build !nomanagers
-// +build !nomanagers
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -260,7 +259,6 @@ func (s *tasksetsSuite) TestDefaultConfigure(c *C) {
 		Optional:    true,
 		Always:      false,
 		IgnoreError: false,
-		TrackError:  false,
 	}
 	c.Assert(hooksup, DeepEquals, expectedHookSetup)
 

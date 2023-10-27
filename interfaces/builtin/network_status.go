@@ -50,6 +50,7 @@ func init() {
 		commonInterface: commonInterface{
 			name:                  "network-status",
 			summary:               networkStatusSummary,
+			implicitOnCore:        true,
 			implicitOnClassic:     true,
 			baseDeclarationSlots:  networkStatusBaseDeclarationSlots,
 			connectedPlugAppArmor: networkStatusConnectedPlugAppArmor,

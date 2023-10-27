@@ -47,7 +47,7 @@ execute: |
   boot_id=$(tests.nested boot-id)
 
   # Install new gadget
-  remote.exec "sudo snap install --dangerous pc.snap"
+  remote.exec "sudo snap install --dangerous pc.snap" || [ "$?" -eq 255 ]
   # It should reboot now
   remote.wait-for reboot "$boot_id"
 

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) 2022-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,11 +22,15 @@ package snap_test
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	. "github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -791,6 +795,18 @@ hooks:
 
 	err = Validate(info)
 	c.Check(err, ErrorMatches, `invalid hook name: "123abc"`)
+}
+
+func (s *ValidateSuite) TestIllegalHookDefaultConfigureWithoutConfigure(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+hooks:
+  default-configure:
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, "cannot specify \"default-configure\" hook without \"configure\" hook")
 }
 
 func (s *ValidateSuite) TestPlugSlotNamesUnique(c *C) {
@@ -2207,4 +2223,81 @@ func (s *YamlSuite) TestValidateLinksValues(c *C) {
 		err := ValidateLinks(links)
 		c.Check(err, ErrorMatches, l.err)
 	}
+}
+
+func (s *ValidateSuite) TestSimplePrereqTracker(c *C) {
+	// check that it implements the needed interface
+	var _ snapstate.PrereqTracker = SimplePrereqTracker{}
+
+	info := &Info{
+		Plugs: map[string]*PlugInfo{},
+	}
+	info.Plugs["foo"] = &PlugInfo{
+		Snap:      info,
+		Name:      "sound-themes",
+		Interface: "content",
+		Attrs:     map[string]interface{}{"default-provider": "common-themes", "content": "foo"},
+	}
+	info.Plugs["bar"] = &PlugInfo{
+		Snap:      info,
+		Name:      "visual-themes",
+		Interface: "content",
+		Attrs:     map[string]interface{}{"default-provider": "common-themes", "content": "bar"},
+	}
+	info.Plugs["baz"] = &PlugInfo{
+		Snap:      info,
+		Name:      "not-themes",
+		Interface: "content",
+		Attrs:     map[string]interface{}{"default-provider": "some-snap", "content": "baz"},
+	}
+	info.Plugs["qux"] = &PlugInfo{Snap: info, Interface: "not-content"}
+
+	repo := interfaces.NewRepository()
+
+	prqt := SimplePrereqTracker{}
+	providerContentAttrs := prqt.DefaultProviderContentAttrs(info, repo)
+	c.Check(providerContentAttrs, HasLen, 2)
+	sort.Strings(providerContentAttrs["common-themes"])
+	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"bar", "foo"})
+	c.Check(providerContentAttrs["some-snap"], DeepEquals, []string{"baz"})
+
+	for _, i := range builtin.Interfaces() {
+		c.Assert(repo.AddInterface(i), IsNil)
+	}
+
+	slotSnap := &Info{SuggestedName: "slot-snap"}
+	barSlot := &SlotInfo{
+		Snap:      slotSnap,
+		Name:      "visual-themes",
+		Interface: "content",
+		Attrs:     map[string]interface{}{"content": "bar"},
+	}
+	err := repo.AddSlot(barSlot)
+	c.Assert(err, IsNil)
+	providerContentAttrs = prqt.DefaultProviderContentAttrs(info, repo)
+	c.Check(providerContentAttrs, HasLen, 2)
+	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"foo"})
+	// stays the same
+	c.Check(providerContentAttrs["some-snap"], DeepEquals, []string{"baz"})
+
+	fooSlot := &SlotInfo{
+		Snap:      slotSnap,
+		Name:      "sound-themes",
+		Interface: "content",
+		Attrs:     map[string]interface{}{"content": "foo"},
+	}
+	err = repo.AddSlot(fooSlot)
+	c.Assert(err, IsNil)
+	providerContentAttrs = prqt.DefaultProviderContentAttrs(info, repo)
+	c.Check(providerContentAttrs, HasLen, 1)
+	c.Check(providerContentAttrs["common-themes"], IsNil)
+	// stays the same
+	c.Check(providerContentAttrs["some-snap"], DeepEquals, []string{"baz"})
+
+	// no repo => no filtering
+	providerContentAttrs = prqt.DefaultProviderContentAttrs(info, nil)
+	c.Check(providerContentAttrs, HasLen, 2)
+	sort.Strings(providerContentAttrs["common-themes"])
+	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"bar", "foo"})
+	c.Check(providerContentAttrs["some-snap"], DeepEquals, []string{"baz"})
 }

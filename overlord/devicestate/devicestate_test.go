@@ -22,7 +22,6 @@ package devicestate_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -108,6 +107,17 @@ type deviceMgrBaseSuite struct {
 	restoreCloudInitStatusRestore func()
 
 	restoreProcessAutoImportAssertion func()
+}
+
+// mockRestartAndSettle expects the state to be locked
+func (s *deviceMgrBaseSuite) mockRestartAndSettle(c *C, st *state.State, chg *state.Change) {
+	restart.MockPending(st, restart.RestartUnset)
+	restart.MockAfterRestartForChange(chg)
+
+	st.Unlock()
+	defer st.Lock()
+	err := s.o.Settle(settleTimeout)
+	c.Check(err, IsNil)
 }
 
 type deviceMgrSuite struct {
@@ -1554,7 +1564,7 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveSystemCtlFails(c 
 
 	err = mgr.StartUp()
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot set up ubuntu-save: systemctl command [start var-lib-snapd-save.mount] failed with exit status 1: failed\n")
+	c.Check(err.Error(), Equals, "cannot set up ubuntu-save: systemctl command [start var-lib-snapd-save.mount] failed with exit status 1: failed")
 	c.Check(sysctlCmd.Calls(), DeepEquals, [][]string{
 		{"systemctl", "start", "var-lib-snapd-save.mount"},
 	})
@@ -2128,20 +2138,20 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 
 	// encrypted system
 	mockSnapFDEFile(c, "marker", nil)
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "ubuntu-save.key"),
+	err := os.WriteFile(filepath.Join(dirs.SnapFDEDir, "ubuntu-save.key"),
 		[]byte("save-key"), 0644)
 	c.Assert(err, IsNil)
 	c.Assert(os.MkdirAll(boot.InitramfsSeedEncryptionKeyDir, 0755), IsNil)
-	err = ioutil.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+	err = os.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 		[]byte("old"), 0644)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
+	err = os.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
 		[]byte("save"), 0644)
 	c.Assert(err, IsNil)
 	// matches the .factory key
 	factoryResetMarkercontent := []byte(`{"fallback-save-key-sha3-384":"d192153f0a50e826c6eb400c8711750ed0466571df1d151aaecc8c73095da7ec104318e7bf74d5e5ae2940827bf8402b"}
 `)
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
 
 	completeCalls := 0
 	restore := devicestate.MockMarkFactoryResetComplete(func(encrypted bool) error {
@@ -2183,7 +2193,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	c.Check(os.Rename(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
 		filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key")),
 		IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
 
 	devicestate.SetPostFactoryResetRan(s.mgr, false)
 	err = s.mgr.Ensure()
@@ -2206,16 +2216,16 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncryptedError(c
 	// encrypted system
 	mockSnapFDEFile(c, "marker", nil)
 	c.Assert(os.MkdirAll(boot.InitramfsSeedEncryptionKeyDir, 0755), IsNil)
-	err := ioutil.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+	err := os.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 		[]byte("old"), 0644)
 	c.Check(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
+	err = os.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
 		[]byte("save"), 0644)
 	c.Check(err, IsNil)
 	// does not match the save key
 	factoryResetMarkercontent := []byte(`{"fallback-save-key-sha3-384":"uh-oh"}
 `)
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
 
 	completeCalls := 0
 	restore := devicestate.MockMarkFactoryResetComplete(func(encrypted bool) error {
@@ -2256,7 +2266,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetUnencrypted(c *C
 
 	// mock the factory reset marker of a system that isn't encrypted
 	c.Assert(os.MkdirAll(dirs.SnapDeviceDir, 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), []byte("{}"), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), []byte("{}"), 0644), IsNil)
 
 	completeCalls := 0
 	restore := devicestate.MockMarkFactoryResetComplete(func(encrypted bool) error {
@@ -2533,6 +2543,39 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionClassic(c *C) {
 	c.Assert(autoImported, Equals, false)
 }
 
+func (s *deviceMgrSuite) testHandleAutoImportAssertionInstallModes(c *C, mode string) {
+	a := devicestate.MockProcessAutoImportAssertion(func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error {
+		panic("trying to process auto-import-assertion in install modes")
+	})
+	defer a()
+
+	s.mockSystemMode(c, mode)
+	s.state.Lock()
+	s.cacheDeviceCore20Seed(c)
+	s.state.Set("seeded", nil)
+	s.state.Unlock()
+
+	err := devicestate.EnsureAutoImportAssertions(s.mgr)
+	c.Check(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// ensure state has not been changed
+	var autoImported bool
+	err = s.state.Get("asserts-early-auto-imported", &autoImported)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+	c.Assert(autoImported, Equals, false)
+}
+
+func (s *deviceMgrSuite) TestHandleAutoImportAssertionInstallMode(c *C) {
+	s.testHandleAutoImportAssertionInstallModes(c, "install")
+}
+
+func (s *deviceMgrSuite) TestHandleAutoImportAssertionFactoryResetMode(c *C) {
+	s.testHandleAutoImportAssertionInstallModes(c, "factory-reset")
+}
+
 func (s *deviceMgrSuite) TestHandleAutoImportAssertionWhenDone(c *C) {
 	a := devicestate.MockProcessAutoImportAssertion(func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error {
 		panic("trying to process auto-import-assertion after it was already processed")
@@ -2590,7 +2633,7 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionFailed(c *C) {
 
 	s.state.Lock()
 	s.cacheDeviceCore20Seed(c)
-	s.state.Set("seeded", nil)
+	s.seeding()
 	s.state.Unlock()
 
 	logbuf, restore := logger.MockLogger()
@@ -2640,7 +2683,7 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionHappy(c *C) {
 
 	s.state.Lock()
 	s.cacheDeviceCore20Seed(c)
-	s.state.Set("seeded", nil)
+	s.seeding()
 	s.state.Unlock()
 
 	err := s.mgr.Ensure()

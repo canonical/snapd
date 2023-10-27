@@ -23,6 +23,9 @@ prepare: |
 
     tests.systemd stop-unit snapd.service
     rm -f /var/lib/snapd/state.json
+    # clear cache to prevent it from being used in the download, because that core
+    # was modified by the prepare suite and will fail to be validated
+    rm -f /var/lib/snapd/snaps/core_*
     systemctl start snapd
     snap wait system seed.loaded
 

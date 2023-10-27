@@ -47,7 +47,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/configstate/settings"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -329,7 +328,7 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 		return nil, err
 	}
 
-	ts, err := InstallWithDeviceContext(context.TODO(), st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireTypeBase: requireTypeBase}, deviceCtx, "")
+	ts, err := InstallWithDeviceContext(context.TODO(), st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireTypeBase: requireTypeBase}, nil, deviceCtx, "")
 
 	// something might have triggered an explicit install while
 	// the state was unlocked -> deal with that here by simply
@@ -374,7 +373,7 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 	}
 
 	// default provider is missing some content tags (likely outdated) so update it
-	ts, err := UpdateWithDeviceContext(st, snapName, nil, userID, flags, deviceCtx, "")
+	ts, err := UpdateWithDeviceContext(st, snapName, nil, userID, flags, nil, deviceCtx, "")
 	if err != nil {
 		if conflErr, ok := err.(*ChangeConflictError); ok {
 			// If we aren't seeded, then it's to early to do any updates and we cannot
@@ -660,25 +659,7 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		extra["UbuntuCoreTransitionCount"] = strconv.Itoa(ubuntuCoreTransitionCount)
 	}
 
-	// Only report and error if there is an actual error in the change,
-	// we could undo things because the user canceled the change.
-	var isErr bool
-	for _, tt := range t.Change().Tasks() {
-		if tt.Status() == state.ErrorStatus {
-			isErr = true
-			break
-		}
-	}
-	if isErr && !settings.ProblemReportsDisabled(st) {
-		st.Unlock()
-		oopsid, err := errtrackerReport(snapsup.SideInfo.RealName, strings.Join(logMsg, "\n"), strings.Join(dupSig, "\n"), extra)
-		st.Lock()
-		if err == nil {
-			logger.Noticef("Reported install problem for %q as %s", snapsup.SideInfo.RealName, oopsid)
-		} else {
-			logger.Debugf("Cannot report problem: %s", err)
-		}
-	}
+	// TODO: telemetry about errors here
 
 	return nil
 }
@@ -877,6 +858,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
+	snapName := snapsup.InstanceName()
 	// TODO: in the future, do a hard check before starting an auto-refresh so there's
 	// no chance of the snap starting between changes and preventing it from going through
 	err = backend.WithSnapLock(info, func() error {
@@ -892,16 +874,15 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 			return err
 		}
 
-		return asyncRefreshOnSnapClose(m.state, snapsup, refreshInfo)
+		return asyncRefreshOnSnapClose(m.state, snapName, refreshInfo)
 	}
 
-	return continueInhibitedAutoRefresh(st, snapsup.InstanceName())
+	return continueInhibitedAutoRefresh(st, snapName)
 }
 
 // asyncRefreshOnSnapClose asynchronously waits for the snap the close, notifies
 // the user and then triggers an auto-refresh.
-func asyncRefreshOnSnapClose(st *state.State, snapsup *SnapSetup, refreshInfo *userclient.PendingSnapRefreshInfo) error {
-	snapName := snapsup.InstanceName()
+func asyncRefreshOnSnapClose(st *state.State, snapName string, refreshInfo *userclient.PendingSnapRefreshInfo) error {
 	// there's already a goroutine waiting for this snap to close so just notify
 	if isSnapMonitored(st, snapName) {
 		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
@@ -926,7 +907,7 @@ func asyncRefreshOnSnapClose(st *state.State, snapsup *SnapSetup, refreshInfo *u
 	// notify the user about the blocked refresh
 	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 
-	go continueRefreshOnSnapClose(st, snapsup, done, refreshCtx)
+	go continueRefreshOnSnapClose(st, snapName, done, refreshCtx)
 	return nil
 }
 
@@ -998,9 +979,7 @@ func removeMonitoring(st *state.State, snapName string) error {
 	return nil
 }
 
-func continueRefreshOnSnapClose(st *state.State, snapsup *SnapSetup, done <-chan string, refreshCtx context.Context) {
-	snapName := snapsup.InstanceName()
-
+func continueRefreshOnSnapClose(st *state.State, snapName string, done <-chan string, refreshCtx context.Context) {
 	var aborted bool
 	select {
 	case <-done:
@@ -1367,7 +1346,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 			if errors.As(err, &busyErr) {
 				// notify user to close the snap and trigger the auto-refresh once it's closed
 				refreshInfo := busyErr.PendingSnapRefreshInfo()
-				if err := asyncRefreshOnSnapClose(m.state, snapsup, refreshInfo); err != nil {
+				if err := asyncRefreshOnSnapClose(m.state, snapsup.InstanceName(), refreshInfo); err != nil {
 					return err
 				}
 			}
@@ -2250,6 +2229,19 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	finalStatus := state.DoneStatus
+
+	// Unfortunately this is needed to make sure we actually request a reboot as a part
+	// of link-snap for the gadget (which is the task that has a restart-boundary set).
+	// The gadget does not by default set `rebootInfo.RebootRequired` as its difficult for
+	// the bootstate to track changes done during update of gadget assets, instead
+	// the gadget asset tasks sets a boolean value if any restart is required on the change.
+	if snapsup.Type == snap.TypeGadget {
+		var needsReboot bool
+		if err := t.Change().Get("gadget-restart-required", &needsReboot); err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+		rebootInfo.RebootRequired = needsReboot
+	}
 
 	// if we just installed a core snap, request a restart
 	// so that we switch executing its snapd.
@@ -4046,6 +4038,14 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 
 	if numHaltTasks := t.NumHaltTasks(); numHaltTasks > 0 {
 		logger.Panicf("Re-refresh task has %d tasks waiting for it.", numHaltTasks)
+	}
+
+	// Is there a restart pending for the current change? Then wait for
+	// restart to happen before proceeding, otherwise we will be blocking
+	// any restart that is waiting to occur. We handle this here as this
+	// task is dynamically added.
+	if restart.PendingForChange(st, t.Change()) {
+		return restart.TaskWaitForRestart(t)
 	}
 
 	if !changeReadyUpToTask(t) {

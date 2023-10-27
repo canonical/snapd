@@ -1,4 +1,29 @@
-# New in snapd 2.60.3:
+# New in snapd 2.61:
+* Fix control of activated services in 'snap start' and 'snap stop'
+* Correctly reflect activated services in 'snap services'
+* Disabled services are no longer enabled again when snap is refreshed
+* interfaces/builtin: added support for Token2 U2F keys
+* interfaces/u2f-devices: add Swissbit iShield Key
+* interfaces/builtin: update gpio apparmor to match pattern that contains multiple subdirectories under /sys/devices/platform
+* interfaces: add a polkit-agent interface
+* interfaces: add pcscd interface
+* Kernel command-line can now be edited in the gadget.yaml
+* Only track validation-sets in run-mode, fixes validation-set issues on first boot.
+* Added support for using store.access to disable access to snap store
+* Support for fat16 partition in gadget
+* Pre-seed authority delegation is now possible
+* Support new system-user name  _daemon_
+* Several bug fixes and improvements around remodelling
+* Offline remodelling support
+
+# New in snapd 2.60.4:
+* Switch to plug/slot in the "qualcomm-ipc-router" interface
+  but keeping backward compatibility
+* Fix "custom-device" udev KERNEL values
+* Allow firmware-updater snap to install user-daemons
+* Allow loopback as a block device
+
+# NEW in snapd 2.60.3:
 * Fix bug in the "private" plug attribute of the shared-memory
   interface that can result in a crash when upgrading from an
   old version of snapd.

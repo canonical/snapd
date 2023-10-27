@@ -22,7 +22,6 @@ package snaptest
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,14 +62,14 @@ func mockSnap(c *check.C, instanceName, yamlText string, sideInfo *snap.SideInfo
 	metaDir := filepath.Join(snapInfo.MountDir(), "meta")
 	err = os.MkdirAll(metaDir, 0755)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(yamlText), 0644)
+	err = os.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte(yamlText), 0644)
 	c.Assert(err, check.IsNil)
 
 	// Write the .snap to disk
 	err = os.MkdirAll(filepath.Dir(snapInfo.MountFile()), 0755)
 	c.Assert(err, check.IsNil)
 	snapContents := fmt.Sprintf("%s-%s-%s", sideInfo.RealName, sideInfo.SnapID, sideInfo.Revision)
-	err = ioutil.WriteFile(snapInfo.MountFile(), []byte(snapContents), 0644)
+	err = os.WriteFile(snapInfo.MountFile(), []byte(snapContents), 0644)
 	c.Assert(err, check.IsNil)
 	snapInfo.Size = int64(len(snapContents))
 
@@ -186,7 +185,7 @@ func PopulateDir(dir string, files [][]string) {
 		if err != nil {
 			panic(err)
 		}
-		err = ioutil.WriteFile(fpath, []byte(content), 0755)
+		err = os.WriteFile(fpath, []byte(content), 0755)
 		if err != nil {
 			panic(err)
 		}
@@ -216,7 +215,7 @@ func MakeTestSnapInfoWithFiles(c *check.C, snapYamlContent string, files [][]str
 	err := os.MkdirAll(filepath.Join(snapSource, "meta"), 0755)
 	c.Assert(err, check.IsNil)
 	snapYamlFn := filepath.Join(snapSource, "meta", "snap.yaml")
-	err = ioutil.WriteFile(snapYamlFn, []byte(snapYamlContent), 0644)
+	err = os.WriteFile(snapYamlFn, []byte(snapYamlContent), 0644)
 	c.Assert(err, check.IsNil)
 	PopulateDir(snapSource, files)
 	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})

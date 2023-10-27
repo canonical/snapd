@@ -22,6 +22,7 @@ package release_test
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -59,7 +60,7 @@ HOME_URL="http://www.ubuntu.com/"
 SUPPORT_URL="http://help.ubuntu.com/"
 BUG_REPORT_URL="http://bugs.launchpad.net/ubuntu/"
 `
-	err := ioutil.WriteFile(mockOSRelease, []byte(s), 0644)
+	err := os.WriteFile(mockOSRelease, []byte(s), 0644)
 	c.Assert(err, IsNil)
 
 	return mockOSRelease
@@ -128,7 +129,7 @@ VERSION_ID="0.4"
 HOME_URL="http://elementary.io/"
 SUPPORT_URL="http://elementary.io/support/"
 BUG_REPORT_URL="https://bugs.launchpad.net/elementary/+filebug"`
-	err := ioutil.WriteFile(mockOSRelease, []byte(dump), 0644)
+	err := os.WriteFile(mockOSRelease, []byte(dump), 0644)
 	c.Assert(err, IsNil)
 
 	reset := release.MockOSReleasePath(mockOSRelease)
@@ -156,7 +157,7 @@ CENTOS_MANTISBT_PROJECT="CentOS-7"
 CENTOS_MANTISBT_PROJECT_VERSION="7"
 REDHAT_SUPPORT_PRODUCT="centos"
 REDHAT_SUPPORT_PRODUCT_VERSION="7"`
-	err := ioutil.WriteFile(mockOSRelease, []byte(dump), 0644)
+	err := os.WriteFile(mockOSRelease, []byte(dump), 0644)
 	c.Assert(err, IsNil)
 
 	reset := release.MockOSReleasePath(mockOSRelease)
@@ -176,7 +177,7 @@ ID="ubuntu-core"
 VARIANT_ID="desktop"
 VERSION_ID="22"
 "`
-	err := ioutil.WriteFile(mockOSRelease, []byte(dump), 0644)
+	err := os.WriteFile(mockOSRelease, []byte(dump), 0644)
 	c.Assert(err, IsNil)
 
 	reset := release.MockOSReleasePath(mockOSRelease)

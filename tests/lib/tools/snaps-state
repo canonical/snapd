@@ -5,6 +5,7 @@ show_help() {
     echo "       install-local <snap-name> [OPTIONS]"
     echo "       install-local-as <snap-name> <dest-name> [OPTIONS]"
     echo "       show-name <snap>"
+    echo "       show-revision <snap>"
     echo "       is-confinement-supported <classic|devmode|strict>"
     echo "       repack-snapd-deb-into-snap <snapd|core>"
     echo "       repack-core-snap-into-snapd-snap"
@@ -97,6 +98,15 @@ show_name() {
             exit 1
             ;;
     esac
+}
+
+show_revision() {
+    local snap="$1"
+    if not snap list "$snap" &>/dev/null; then
+        echo "snaps-state: the snap $snap is not installed" >&2
+        exit 1
+    fi
+    snap info "$snap" | awk "/installed: / {print(\$3)}" | sed -e 's/(\(.*\))/\1/'
 }
 
 is_confinement_supported() {

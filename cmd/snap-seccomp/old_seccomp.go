@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build oldseccomp
-// +build oldseccomp
 
 /*
  * Copyright (C) 2021 Canonical Ltd

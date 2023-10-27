@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -237,7 +236,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	snapstate.EstimateSnapshotSize = func(st *state.State, instanceName string, users []string) (uint64, error) {
 		return 1, nil
 	}
-	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int, prqt snapstate.PrereqTracker) (uint64, error) {
 		return 0, nil
 	})
 	s.AddCleanup(restoreInstallSize)
@@ -308,7 +307,7 @@ SNAPD_APPARMOR_REEXEC=1
 			infoFile := filepath.Join(dirs.SnapMountDir, snapName, rev, dirs.CoreLibExecDir, "info")
 			err = os.MkdirAll(filepath.Dir(infoFile), 0755)
 			c.Assert(err, IsNil)
-			err = ioutil.WriteFile(infoFile, []byte(defaultInfoFile), 0644)
+			err = os.WriteFile(infoFile, []byte(defaultInfoFile), 0644)
 			c.Assert(err, IsNil)
 		}
 	}
@@ -3445,66 +3444,6 @@ func (s *snapmgrTestSuite) TestDisableDoesNotEnableAgain(c *C) {
 	c.Assert(ts, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestAbortCausesNoErrReport(c *C) {
-	errReported := 0
-	restore := snapstate.MockErrtrackerReport(func(aSnap, aErrMsg, aDupSig string, extra map[string]string) (string, error) {
-		errReported++
-		return "oops-id", nil
-	})
-	defer restore()
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	chg := s.state.NewChange("install", "install a snap")
-	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
-	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-
-	s.fakeBackend.linkSnapWaitCh = make(chan int)
-	s.fakeBackend.linkSnapWaitTrigger = filepath.Join(dirs.SnapMountDir, "some-snap/11")
-	go func() {
-		<-s.fakeBackend.linkSnapWaitCh
-		chg.Abort()
-		s.fakeBackend.linkSnapWaitCh <- 1
-	}()
-
-	chg.AddAll(ts)
-
-	defer s.se.Stop()
-	s.settle(c)
-
-	c.Check(chg.Status(), Equals, state.UndoneStatus)
-	c.Assert(errReported, Equals, 0)
-}
-
-func (s *snapmgrTestSuite) TestErrreportDisable(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "problem-reports.disabled", true)
-	tr.Commit()
-
-	restore := snapstate.MockErrtrackerReport(func(aSnap, aErrMsg, aDupSig string, extra map[string]string) (string, error) {
-		c.Fatalf("this should not be reached")
-		return "", nil
-	})
-	defer restore()
-
-	chg := s.state.NewChange("install", "install a snap")
-	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
-	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-	chg.AddAll(ts)
-	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "some-snap/11")
-
-	defer s.se.Stop()
-	s.settle(c)
-
-	// no failure report was generated
-}
-
 func (s *snapmgrTestSuite) TestEnsureRemovesVulnerableCoreSnap(c *C) {
 	s.testEnsureRemovesVulnerableSnap(c, "core")
 }
@@ -3529,21 +3468,21 @@ SNAPD_APPARMOR_REEXEC=1
 	infoFile := filepath.Join(dirs.SnapMountDir, snapName, "1", dirs.CoreLibExecDir, "info")
 	err := os.MkdirAll(filepath.Dir(infoFile), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(infoFile, []byte(vulnInfoFile), 0644)
+	err = os.WriteFile(infoFile, []byte(vulnInfoFile), 0644)
 	c.Assert(err, IsNil)
 
 	// revision 2 fixed
 	infoFile2 := filepath.Join(dirs.SnapMountDir, snapName, "2", dirs.CoreLibExecDir, "info")
 	err = os.MkdirAll(filepath.Dir(infoFile2), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(infoFile2, []byte(fixedInfoFile), 0644)
+	err = os.WriteFile(infoFile2, []byte(fixedInfoFile), 0644)
 	c.Assert(err, IsNil)
 
 	// revision 11 fixed
 	infoFile11 := filepath.Join(dirs.SnapMountDir, snapName, "11", dirs.CoreLibExecDir, "info")
 	err = os.MkdirAll(filepath.Dir(infoFile11), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(infoFile11, []byte(fixedInfoFile), 0644)
+	err = os.WriteFile(infoFile11, []byte(fixedInfoFile), 0644)
 	c.Assert(err, IsNil)
 
 	// use generic classic model
@@ -3766,9 +3705,9 @@ func (s *snapmgrTestSuite) TestEsnureCleansOldSideloads(c *C) {
 	s1 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-12345")
 	s2 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-67890")
 
-	c.Assert(ioutil.WriteFile(s0, nil, 0600), IsNil)
-	c.Assert(ioutil.WriteFile(s1, nil, 0600), IsNil)
-	c.Assert(ioutil.WriteFile(s2, nil, 0600), IsNil)
+	c.Assert(os.WriteFile(s0, nil, 0600), IsNil)
+	c.Assert(os.WriteFile(s1, nil, 0600), IsNil)
+	c.Assert(os.WriteFile(s2, nil, 0600), IsNil)
 
 	t1 := time.Now()
 	t0 := t1.Add(-time.Hour)
@@ -3789,16 +3728,20 @@ func (s *snapmgrTestSuite) TestEsnureCleansOldSideloads(c *C) {
 	// set last cleanup to epoch
 	snapstate.MockLocalInstallLastCleanup(time.Time{})
 
+	now := t1
+	restore := snapstate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restore()
+
 	s.snapmgr.Ensure()
 	// oldest sideload gone
 	c.Assert(filenames(), DeepEquals, []string{s2, s0})
 
-	time.Sleep(200 * time.Millisecond)
-
+	now = t1.Add(200 * time.Millisecond)
 	s.snapmgr.Ensure()
 	// all sideloads gone
 	c.Assert(filenames(), DeepEquals, []string{s0})
-
 }
 
 func (s *snapmgrTestSuite) verifyRefreshLast(c *C) {
@@ -5048,46 +4991,6 @@ func (s *snapStateSuite) TestCurrentSideInfoInconsistentWithCurrent(c *C) {
 	c.Check(func() { snapst.CurrentSideInfo() }, PanicMatches, `cannot find snapst.Current in the snapst.Sequence`)
 }
 
-func (snapStateSuite) TestDefaultProviderContentTags(c *C) {
-	info := &snap.Info{
-		Plugs: map[string]*snap.PlugInfo{},
-	}
-	info.Plugs["foo"] = &snap.PlugInfo{
-		Snap:      info,
-		Name:      "sound-themes",
-		Interface: "content",
-		Attrs:     map[string]interface{}{"default-provider": "common-themes", "content": "foo"},
-	}
-	info.Plugs["bar"] = &snap.PlugInfo{
-		Snap:      info,
-		Name:      "visual-themes",
-		Interface: "content",
-		Attrs:     map[string]interface{}{"default-provider": "common-themes", "content": "bar"},
-	}
-	info.Plugs["baz"] = &snap.PlugInfo{
-		Snap:      info,
-		Name:      "not-themes",
-		Interface: "content",
-		Attrs:     map[string]interface{}{"default-provider": "some-snap", "content": "baz"},
-	}
-	info.Plugs["qux"] = &snap.PlugInfo{Snap: info, Interface: "not-content"}
-
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
-
-	repo := interfaces.NewRepository()
-	ifacerepo.Replace(st, repo)
-
-	providerContentAttrs := snapstate.DefaultProviderContentAttrs(st, info)
-
-	c.Check(providerContentAttrs, HasLen, 2)
-	sort.Strings(providerContentAttrs["common-themes"])
-	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"bar", "foo"})
-	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"bar", "foo"})
-	c.Check(providerContentAttrs["some-snap"], DeepEquals, []string{"baz"})
-}
-
 func (s *snapmgrTestSuite) testRevertSequence(c *C, opts *opSeqOpts) *state.TaskSet {
 	opts.revert = true
 	opts.after = opts.before
@@ -5365,7 +5268,7 @@ version: 1.0
 `, gadgetSideInfo)
 
 	gadgetYamlWhole := strings.Join(append([]string{gadgetYaml}, extraGadgetYaml...), "")
-	err := ioutil.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta/gadget.yaml"), []byte(gadgetYamlWhole), 0600)
+	err := os.WriteFile(filepath.Join(gadgetInfo.MountDir(), "meta/gadget.yaml"), []byte(gadgetYamlWhole), 0600)
 	c.Assert(err, IsNil)
 
 	snapstate.Set(s.state, "the-gadget", &snapstate.SnapState{
@@ -7888,7 +7791,7 @@ func (t *installTestType) DownloadSize() int64 {
 	panic("not expected")
 }
 
-func (t *installTestType) Prereq(st *state.State) []string {
+func (t *installTestType) Prereq(st *state.State, prqt snapstate.PrereqTracker) []string {
 	panic("not expected")
 }
 
@@ -8068,6 +7971,23 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelBadType(c *C) {
 	ts, err = snapstate.LinkNewBaseOrKernel(s.state, "some-gadget", "")
 	c.Assert(err, ErrorMatches, `internal error: cannot link type gadget`)
 	c.Assert(ts, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelNoRemodelConflict(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.addSnapsForRemodel(c)
+
+	tugc := s.state.NewTask("update-managed-boot-config", "update managed boot config")
+	chg := s.state.NewChange("remodel", "remodel")
+	chg.AddTask(tugc)
+
+	_, err := snapstate.LinkNewBaseOrKernel(s.state, "some-base", chg.ID())
+	c.Assert(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrKernel(c *C) {
@@ -8825,7 +8745,7 @@ WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 `[1:], what, dirs.SnapMountDir)
 	os.MkdirAll(dirs.SnapServicesDir, 0755)
-	err := ioutil.WriteFile(mountFile, []byte(mountContent), 0644)
+	err := os.WriteFile(mountFile, []byte(mountContent), 0644)
 	c.Assert(err, IsNil)
 
 	s.reloadOrRestarts[unitName] = 0
@@ -8902,7 +8822,7 @@ WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
 `[1:], what, dirs.StripRootDir(dirs.SnapMountDir))
 	os.MkdirAll(dirs.SnapServicesDir, 0755)
-	err := ioutil.WriteFile(mountFile, []byte(mountContent), 0644)
+	err := os.WriteFile(mountFile, []byte(mountContent), 0644)
 	c.Assert(err, IsNil)
 
 	s.reloadOrRestarts[unitName] = 0
@@ -8974,6 +8894,58 @@ WantedBy=multi-user.target
 	c.Assert(mountFile, testutil.FileEquals, expectedContent)
 }
 
+func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteDesktopFiles(c *C) {
+	restore := snapstate.MockEnsuredDesktopFilesUpdated(s.snapmgr, false)
+	defer restore()
+
+	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
+	testSnapState := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{testSnapSideInfo},
+		Current:  snap.R(42),
+		Active:   true,
+		SnapType: "app",
+	}
+	testYaml := `name: test-snap
+version: v1
+apps:
+  test-snap:
+    command: bin.sh
+`
+
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", testSnapState)
+	info := snaptest.MockSnapCurrent(c, testYaml, testSnapSideInfo)
+	s.fakeBackend.addSnapApp("test-snap", "test-snap")
+	s.state.Unlock()
+
+	guiDir := filepath.Join(info.MountDir(), "meta", "gui")
+	c.Assert(os.MkdirAll(guiDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(guiDir, "test-snap.desktop"), []byte(`
+[Desktop Entry]
+Name=test
+Exec=test-snap
+`[1:]), 0o644), IsNil)
+
+	desktopFile := filepath.Join(dirs.SnapDesktopFilesDir, "test-snap_test-snap.desktop")
+	otherDesktopFile := filepath.Join(dirs.SnapDesktopFilesDir, "test-snap_other.desktop")
+	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(desktopFile, []byte("old content"), 0o644), IsNil)
+	c.Assert(os.WriteFile(otherDesktopFile, []byte("other old content"), 0o644), IsNil)
+
+	err := s.snapmgr.Ensure()
+	c.Assert(err, IsNil)
+
+	expectedContent := fmt.Sprintf(`
+[Desktop Entry]
+X-SnapInstanceName=test-snap
+Name=test
+Exec=env BAMF_DESKTOP_FILE_HINT=%s/test-snap_test-snap.desktop %s/test-snap
+`[1:], dirs.SnapDesktopFilesDir, dirs.SnapBinariesDir)
+
+	c.Assert(desktopFile, testutil.FileEquals, expectedContent)
+	c.Assert(otherDesktopFile, testutil.FileAbsent)
+}
+
 func (s *snapmgrTestSuite) TestSaveRefreshCandidatesOnAutoRefresh(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -9033,7 +9005,7 @@ func (s *snapmgrTestSuite) TestRefreshCandidatesMergeFlags(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{Sequence: []*snap.SideInfo{si}})
 
 	globalFlags := &snapstate.Flags{IsAutoRefresh: true, IsContinuedAutoRefresh: true}
-	snapsup, _, err := cand.SnapSetupForUpdate(s.state, nil, 0, globalFlags)
+	snapsup, _, err := cand.SnapSetupForUpdate(s.state, nil, 0, globalFlags, nil)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, NotNil)
 	c.Assert(*snapsup, DeepEquals, snapstate.SnapSetup{

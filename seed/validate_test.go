@@ -22,7 +22,6 @@ package seed_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -98,7 +97,7 @@ func (s *validateSuite) makeSnapInSeed(c *C, snapYaml string) {
 
 func (s *validateSuite) makeSeedYaml(c *C, seedYaml string) string {
 	tmpf := filepath.Join(s.SeedDir, "seed.yaml")
-	err := ioutil.WriteFile(tmpf, []byte(seedYaml), 0644)
+	err := os.WriteFile(tmpf, []byte(seedYaml), 0644)
 	c.Assert(err, IsNil)
 	return tmpf
 }
@@ -246,7 +245,7 @@ func (s *validateSuite) makeBrokenSnap(c *C, snapYaml string) (snapPath string) 
 	metaSnapYaml := filepath.Join(snapBuildDir, "meta", "snap.yaml")
 	err := os.MkdirAll(filepath.Dir(metaSnapYaml), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(metaSnapYaml, []byte(snapYaml), 0644)
+	err = os.WriteFile(metaSnapYaml, []byte(snapYaml), 0644)
 	c.Assert(err, IsNil)
 
 	// need to build the snap "manually" pack.Snap() will do validation
