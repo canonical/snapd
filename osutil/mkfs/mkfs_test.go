@@ -69,6 +69,7 @@ func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {
 		{
 			"fakeroot",
 			"mkfs.ext4",
+			"-O", "^orphan_file",
 			"-d", "contents",
 			"-L", "my-label",
 			"foo.img",
@@ -84,6 +85,7 @@ func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {
 		{
 			"fakeroot",
 			"mkfs.ext4",
+			"-O", "^orphan_file",
 			"-d", "contents",
 			"foo.img",
 		},
@@ -98,6 +100,7 @@ func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {
 		{
 			"fakeroot",
 			"mkfs.ext4",
+			"-O", "^orphan_file",
 			"-L", "my-label",
 			"foo.img",
 		},
@@ -115,6 +118,7 @@ func (m *mkfsSuite) TestMkfsExt4WithSize(c *C) {
 		{
 			"fakeroot",
 			"mkfs.ext4",
+			"-O", "^orphan_file",
 			"-d", "contents",
 			"-L", "my-label",
 			"foo.img",
@@ -130,6 +134,7 @@ func (m *mkfsSuite) TestMkfsExt4WithSize(c *C) {
 		{
 			"fakeroot",
 			"mkfs.ext4",
+			"-O", "^orphan_file",
 			"-b", "1024",
 			"-d", "contents",
 			"foo.img",
@@ -145,6 +150,7 @@ func (m *mkfsSuite) TestMkfsExt4WithSize(c *C) {
 		{
 			"fakeroot",
 			"mkfs.ext4",
+			"-O", "^orphan_file",
 			"-b", "1024",
 			"-d", "contents",
 			"foo.img",
@@ -160,6 +166,7 @@ func (m *mkfsSuite) TestMkfsExt4WithSize(c *C) {
 		{
 			"fakeroot",
 			"mkfs.ext4",
+			"-O", "^orphan_file",
 			"-b", "4096",
 			"-d", "contents",
 			"foo.img",

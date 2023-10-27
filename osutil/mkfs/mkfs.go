@@ -72,7 +72,7 @@ func mkfsExt4(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 	// Switched to use mkfs defaults for https://bugs.launchpad.net/snappy/+bug/1878374
 	// For caveats/requirements in case we need support for older systems:
 	// https://github.com/snapcore/snapd/pull/6997#discussion_r293967140
-	mkfsArgs := []string{"mkfs.ext4"}
+	mkfsArgs := []string{"mkfs.ext4", "-O", "^orphan_file"}
 
 	const size32MiB = 32 * quantity.SizeMiB
 	if deviceSize != 0 && deviceSize <= size32MiB {
