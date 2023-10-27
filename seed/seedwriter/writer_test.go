@@ -169,6 +169,15 @@ type: app
 version: 1
 confinement: devmode
 `,
+	"alt-cont-producer": `name: alt-cont-producer
+type: app
+base: core18
+version: 1.1
+slots:
+   serve-cont:
+     interface: content
+     content: cont
+`,
 })
 
 const pcGadgetYaml = `
@@ -724,7 +733,7 @@ func (s *writerSuite) TestDownloadedMissingDefaultProvider(c *C) {
 	s.makeSnap(c, "cont-consumer", "developerid")
 
 	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
-	c.Check(err, ErrorMatches, `prerequisites need to be added explicitly: cannot use snap "cont-consumer": default provider "cont-producer" is missing`)
+	c.Check(err, ErrorMatches, `prerequisites need to be added explicitly: cannot use snap "cont-consumer": default provider "cont-producer" or any alternative provider for content "cont" is missing`)
 }
 
 func (s *writerSuite) TestDownloadedCheckType(c *C) {
@@ -2685,7 +2694,70 @@ func (s *writerSuite) TestDownloadedCore20MissingDefaultProviderModes(c *C) {
 
 	s.opts.Label = "20191003"
 	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
-	c.Check(err, ErrorMatches, `prerequisites need to be added explicitly for relevant mode recover: cannot use snap "cont-consumer": default provider "cont-producer" is missing`)
+	c.Check(err, ErrorMatches, `prerequisites need to be added explicitly for relevant mode recover: cannot use snap "cont-consumer": default provider "cont-producer" or any alternative provider for content "cont" is missing`)
+}
+
+func (s *writerSuite) TestDownloadedCore20AlternativeProviderModes(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"store":        "my-store",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":  "core18",
+				"id":    s.AssertedSnapID("core18"),
+				"type":  "base",
+				"modes": []interface{}{"run", "ephemeral"},
+			},
+			map[string]interface{}{
+				"name": "cont-producer",
+				"id":   s.AssertedSnapID("cont-producer"),
+			},
+			map[string]interface{}{
+				"name":  "cont-consumer",
+				"id":    s.AssertedSnapID("cont-consumer"),
+				"modes": []interface{}{"recover"},
+			},
+			map[string]interface{}{
+				"name":  "alt-cont-producer",
+				"id":    s.AssertedSnapID("alt-cont-producer"),
+				"modes": []interface{}{"recover"},
+			},
+		},
+	})
+
+	// validity
+	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "cont-producer", "developerid")
+	s.makeSnap(c, "cont-consumer", "developerid")
+	s.makeSnap(c, "alt-cont-producer", "developerid")
+
+	s.opts.Label = "20191003"
+	complete, w, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+	warns := w.Warnings()
+	c.Assert(warns, HasLen, 1)
+	c.Check(warns[0], Matches, `prerequisites for mode recover: snap "cont-consumer" requires a provider for content "cont", a candidate slot is available \(alt-cont-producer:serve-cont\) but not the default-provider, ensure a single auto-connection \(or possibly a connection\) is in-place`)
 }
 
 func (s *writerSuite) TestCore20NonDangerousDisallowedDevmodeSnaps(c *C) {

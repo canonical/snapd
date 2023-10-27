@@ -1352,35 +1352,13 @@ func (prqt *SelfContainedSetPrereqTracker) Check() (warnings, errs []error) {
 	return warnings, errs
 }
 
-// ValidateBasesAndProviders checks that all bases/default-providers are part of the seed
-func ValidateBasesAndProviders(snapInfos []*Info) []error {
-	all := naming.NewSnapSet(nil)
+// ValidateBasesAndProviders checks that all bases/content providers are fulfilled for the given self-contained set of snaps.
+func ValidateBasesAndProviders(snapInfos []*Info) (warns, errors []error) {
+	prqt := NewSelfContainedSetPrereqTracker()
 	for _, info := range snapInfos {
-		all.Add(info)
+		prqt.Add(info)
 	}
-
-	var errs []error
-	for _, info := range snapInfos {
-		// ensure base is available
-		if info.Base != "" && info.Base != "none" {
-			if !all.Contains(naming.Snap(info.Base)) {
-				errs = append(errs, fmt.Errorf("cannot use snap %q: base %q is missing", info.InstanceName(), info.Base))
-			}
-		}
-		// ensure core is available
-		if info.Base == "" && info.SnapType == TypeApp && info.InstanceName() != "snapd" {
-			if !all.Contains(naming.Snap("core")) {
-				errs = append(errs, fmt.Errorf(`cannot use snap %q: required snap "core" missing`, info.InstanceName()))
-			}
-		}
-		// ensure default-providers are available
-		for dp := range NeededDefaultProviders(info) {
-			if !all.Contains(naming.Snap(dp)) {
-				errs = append(errs, fmt.Errorf("cannot use snap %q: default provider %q is missing", info.InstanceName(), dp))
-			}
-		}
-	}
-	return errs
+	return prqt.Check()
 }
 
 var isValidLinksKey = regexp.MustCompile("^[a-zA-Z](?:-?[a-zA-Z0-9])*$").MatchString

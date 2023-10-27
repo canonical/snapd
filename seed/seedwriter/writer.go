@@ -1277,7 +1277,8 @@ func (w *Writer) checkPrereqsInMode(mode string) error {
 	for _, sn := range w.byModeSnaps[mode] {
 		snaps = append(snaps, sn.Info)
 	}
-	if errs := snap.ValidateBasesAndProviders(snaps); errs != nil {
+	warns, errs := snap.ValidateBasesAndProviders(snaps)
+	if errs != nil {
 		var errPrefix string
 		// XXX do better in terms of error structuring
 		if mode == "run" {
@@ -1286,6 +1287,13 @@ func (w *Writer) checkPrereqsInMode(mode string) error {
 			errPrefix = fmt.Sprintf("prerequisites need to be added explicitly for relevant mode %s", mode)
 		}
 		return fmt.Errorf("%s: %v", errPrefix, errs[0])
+	}
+	wfmt := "%v"
+	if mode != "run" {
+		wfmt = fmt.Sprintf("prerequisites for mode %s: %%v", mode)
+	}
+	for _, warn := range warns {
+		w.warningf(wfmt, warn)
 	}
 	return nil
 }

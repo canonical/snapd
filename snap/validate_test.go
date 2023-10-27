@@ -2016,7 +2016,8 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	infos := []*Info{info}
-	errors := ValidateBasesAndProviders(infos)
+	warns, errors := ValidateBasesAndProviders(infos)
+	c.Assert(warns, HasLen, 0)
 	c.Assert(errors, HasLen, 1)
 	c.Assert(errors[0], ErrorMatches, `cannot use snap "some-snap": required snap "core" missing`)
 }
@@ -2031,7 +2032,8 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	infos := []*Info{info}
-	errors := ValidateBasesAndProviders(infos)
+	warns, errors := ValidateBasesAndProviders(infos)
+	c.Assert(warns, HasLen, 0)
 	c.Assert(errors, HasLen, 1)
 	c.Assert(errors[0], ErrorMatches, `cannot use snap "some-snap": base "some-base" is missing`)
 }
@@ -2049,9 +2051,11 @@ type: os`
 	c.Assert(err, IsNil)
 
 	infos := []*Info{snapInfo, coreInfo}
-	errors := ValidateBasesAndProviders(infos)
-	c.Assert(errors, HasLen, 1)
-	c.Assert(errors[0], ErrorMatches, `cannot use snap "need-df": default provider "gtk-common-themes" is missing`)
+	warns, errors := ValidateBasesAndProviders(infos)
+	c.Check(warns, HasLen, 0)
+	c.Assert(errors, HasLen, 2)
+	c.Check(errors[0], ErrorMatches, `cannot use snap "need-df": default provider "gtk-common-themes" or any alternative provider for content "gtk-3-themes" is missing`)
+	c.Check(errors[1], ErrorMatches, `cannot use snap "need-df": default provider "gtk-common-themes" or any alternative provider for content "icon-themes" is missing`)
 }
 
 func (s *validateSuite) TestValidateSnapBaseNoneOK(c *C) {
@@ -2064,7 +2068,8 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	infos := []*Info{info}
-	errors := ValidateBasesAndProviders(infos)
+	warns, errors := ValidateBasesAndProviders(infos)
+	c.Assert(warns, HasLen, 0)
 	c.Assert(errors, IsNil)
 }
 
@@ -2078,7 +2083,8 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	infos := []*Info{info}
-	errors := ValidateBasesAndProviders(infos)
+	warns, errors := ValidateBasesAndProviders(infos)
+	c.Assert(warns, HasLen, 0)
 	c.Assert(errors, IsNil)
 }
 
@@ -2451,7 +2457,7 @@ slots:
 	c.Check(warns[1], ErrorMatches, `snap "need-df" requires a provider for content "icon-themes", a candidate slot is available \(icons-provider:serve-icon-themes\) but not the default-provider, ensure a single auto-connection \(or possibly a connection\) is in-place`)
 }
 
-func (s *validateSuite) TestSelfContainedSetPrereqTrackerDefaultProviderAlternativeProvider(c *C) {
+func (s *validateSuite) TestSelfContainedSetPrereqTrackerDefaultProviderAlternativeProviderThroughValidateBasesAndProviders(c *C) {
 	strk := NewScopedTracker()
 	snapInfo, err := InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk)
 	c.Assert(err, IsNil)
@@ -2488,13 +2494,7 @@ slots:
 	themesProvider2Info, err := InfoFromSnapYamlWithSideInfo([]byte(themesProvider2Yaml), nil, strk)
 	c.Assert(err, IsNil)
 
-	prqt := NewSelfContainedSetPrereqTracker()
-	prqt.Add(snapInfo)
-	prqt.Add(coreInfo)
-	prqt.Add(gtkCommonThemesInfo)
-	prqt.Add(themesProvider2Info)
-
-	warns, errors := prqt.Check()
+	warns, errors := ValidateBasesAndProviders([]*Info{snapInfo, coreInfo, gtkCommonThemesInfo, themesProvider2Info})
 	c.Assert(errors, HasLen, 0)
 	c.Assert(warns, HasLen, 1)
 	c.Check(warns[0], ErrorMatches, `snap "need-df" requires a provider for content "gtk-3-themes", many candidates slots are available \(themes-provider:serve-gtk-3-themes\) including from default-provider gtk-common-themes:gtk-3-themes, ensure a single auto-connection \(or possibly a connection\) is in-place`)
