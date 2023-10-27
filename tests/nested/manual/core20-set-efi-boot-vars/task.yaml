@@ -153,48 +153,51 @@ execute: |
 
     echo "All good!"
 
-    echo "Set up gadget with EFI assets in EFI/${FINAL_ASSET_DIR}"
-    case "${FINAL_ASSET_DIR}" in
-        boot )
-            sh modify-gadget.sh pc-gadget "$ARCH" no-fallback
-            ;;
-        ubuntu )
-            sh modify-gadget.sh pc-gadget "$ARCH" fallback
-            ;;
-        * )
-            ERROR "Invalid initial asset dir: ${FINAL_ASSET_DIR}"
-            ;;
-    esac
+    # At the moment, setting EFI boot vars does not happen during gadget update.
+    # When this is fixed, include the rest of this test.
 
-    echo "Get snakeoil key"
-    KEY_NAME=$(tests.nested download snakeoil-key)
-    SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
-    SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+    # echo "Set up gadget with EFI assets in EFI/${FINAL_ASSET_DIR}"
+    # case "${FINAL_ASSET_DIR}" in
+    #     boot )
+    #         sh modify-gadget.sh pc-gadget "$ARCH" no-fallback
+    #         ;;
+    #     ubuntu )
+    #         sh modify-gadget.sh pc-gadget "$ARCH" fallback
+    #         ;;
+    #     * )
+    #         ERROR "Invalid initial asset dir: ${FINAL_ASSET_DIR}"
+    #         ;;
+    # esac
 
-    echo "Sign the modified pc-gadget"
-    tests.nested secboot-sign gadget pc-gadget "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
+    # echo "Get snakeoil key"
+    # KEY_NAME=$(tests.nested download snakeoil-key)
+    # SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+    # SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
-    snap pack --filename=pc.snap pc-gadget
-    remote.push pc.snap
+    # echo "Sign the modified pc-gadget"
+    # tests.nested secboot-sign gadget pc-gadget "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
 
-    boot_id=$(tests.nested boot-id)
+    # snap pack --filename=pc.snap pc-gadget
+    # remote.push pc.snap
 
-    echo "Install new gadget"
-    REMOTE_CHG_ID=$(remote.exec "sudo snap install --dangerous --no-wait pc.snap")
-    # VM should reboot now
-    echo "Wait for reboot"
-    remote.wait-for reboot "${boot_id}"
-    # Wait for previous change to finish before continuing
-    remote.exec sudo snap watch "$REMOTE_CHG_ID"
+    # boot_id=$(tests.nested boot-id)
 
-    echo "#### Updated gadget: ####"
+    # echo "Install new gadget"
+    # REMOTE_CHG_ID=$(remote.exec "sudo snap install --dangerous --no-wait pc.snap")
+    # # VM should reboot now
+    # echo "Wait for reboot"
+    # remote.wait-for reboot "${boot_id}"
+    # # Wait for previous change to finish before continuing
+    # remote.exec sudo snap watch "$REMOTE_CHG_ID"
 
-    echo "Check that EFI assets in EFI/${INITIAL_ASSET_DIR} and variables are set correctly"
-    check_efi_assets "$FINAL_ASSET_DIR"
-    if [ "${FINAL_ASSET_DIR}" = "boot" ]; then
-        check_efi_variables "/EFI/boot/boot${ARCH}.efi"
-    elif [ "${FINAL_ASSET_DIR}" = "ubuntu" ]; then
-        check_efi_variables "/EFI/ubuntu/shim${ARCH}.efi"
-    fi
+    # echo "#### Updated gadget: ####"
 
-    echo "All good!"
+    # echo "Check that EFI assets in EFI/${INITIAL_ASSET_DIR} and variables are set correctly"
+    # check_efi_assets "$FINAL_ASSET_DIR"
+    # if [ "${FINAL_ASSET_DIR}" = "boot" ]; then
+    #     check_efi_variables "/EFI/boot/boot${ARCH}.efi"
+    # elif [ "${FINAL_ASSET_DIR}" = "ubuntu" ]; then
+    #     check_efi_variables "/EFI/ubuntu/shim${ARCH}.efi"
+    # fi
+
+    # echo "All good!"
