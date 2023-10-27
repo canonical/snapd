@@ -154,7 +154,7 @@ func LockWithHint(snapName string, hint Hint, info InhibitInfo) error {
 	if err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(InhibitInfoFile(snapName, hint), buf, 0644); err != nil {
+	if err := os.WriteFile(InhibitInfoFile(snapName, hint), buf, 0644); err != nil {
 		return err
 	}
 	// Write hint

@@ -805,7 +805,7 @@ func (s *snapdOnCoreUnlinkSuite) TestUnlinkNonFirstSnapdOnCoreDoesNothing(c *C) 
 	// check inhibit info file content
 	inhibitInfoPath := filepath.Join(runinhibit.InhibitDir, "snapd.refresh")
 	var inhibitInfo runinhibit.InhibitInfo
-	buf, err := ioutil.ReadFile(inhibitInfoPath)
+	buf, err := os.ReadFile(inhibitInfoPath)
 	c.Assert(err, IsNil)
 	c.Assert(json.Unmarshal(buf, &inhibitInfo), IsNil)
 	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{Previous: snap.R(11)})
