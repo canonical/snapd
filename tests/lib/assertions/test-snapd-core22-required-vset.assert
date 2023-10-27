@@ -1,0 +1,24 @@
+type: validation-set
+authority-id: test-snapd
+series: 16
+account-id: test-snapd
+name: test-snapd-core22-required-vset
+sequence: 1
+snaps:
+  -
+    id: amcUKQILKXHHTlmSa7NMdnXSx02dNeeT
+    name: core22
+    presence: required
+timestamp: 2023-10-24T19:55:00+00:00
+sign-key-sha3-384: 7qWG-Uwck6Dji43a3Z8ZZrm7rAziZAch3xf76iFvqe4GaD0LI7U9lYPWMSJAsEgu
+
+AcLBcwQAAQoAHRYhBGESvKlz1RXG1IBOC0MdJKf2hr9ABQJlOCFFAAoJEEMdJKf2hr9AaTQP+we1
+ePexEUjEhmG7IPjowYesaxc0dKcS86eRwEYL9C44+4EUMXrfPfpMHOPL3cQXtn53TASqRSOya7X9
+oxSq/uuEHtu2+cfrGyu+MS0Znae/Vkgl52vgrAJn/X5eC3iFE/hhZKhusrNFurqVLm/KH6jvmVhO
+QUlO9GVix/ldc5qHtcAdVZ/kYj1jhkkK7V6Ruja594F9buyxg81tLOspef9ypYo0w/HtqaKrpan9
+6Ia0yDNe3zHnspJ6jvsqAJ18WN/667koiusGvhrdrzZMCvP2/Xu4UtUIbQRap6FJfCU0GNGro1I3
+J+cR9NIdnvA2/uMRPQz8pvJfqgQQY1aRhwpbLy5WpkaVKKG3YdcCwvw/88mUG1Qx4jGpLk+ct2zw
+k/xFTlBfkyoGG8B89uTUSH04FVZ384iqUBrDh+2sw4gkJpjRmycsnB5zD8qgqfPP7AuhHjeSHHi4
+m1HvBgdw6YdXozSKv6bgBEsdE9w4Vq/P0UNId3P+1mIn+CryeDvC23fz1B3q5G43btMcGl0uvgn9
+4zhAZudLawaZ/PbSoO4TKV/Mscp6tw96dYlUfls2FEcgdXHUYlaPeT5SlngzixXkLv8NrTs/BYfs
+2iTuxsilxEgItb4L2ua+4/gTQqvr34tVlmOKNkOTJAl+lC3cFhGJ2OqAukQzvCPAi3e0Xaz9
