@@ -98,11 +98,11 @@ execute: |
         snap changes | MATCH "$change_id\s+(Done|Error)"
         # we expect re-refresh to fail since the tests uses a fake store
         snap change "$change_id" > tasks.done
-        MATCH '^Error .* Handling re-refresh' < tasks.done
+        MATCH '^Error .* Monitoring .* to determine whether extra refresh steps are required' < tasks.done
         # no other errors
-        grep -v 'Handling re-refresh' < tasks.done | NOMATCH '^Error'
+        grep -v 'Monitoring .* to determine whether extra refresh steps are required' < tasks.done | NOMATCH '^Error'
         # nothing was undone
-        grep -v 'Handling re-refresh' < tasks.done | NOMATCH '^Undone'
+        grep -v 'Monitoring .* to determine whether extra refresh steps are required' < tasks.done | NOMATCH '^Undone'
         # we did not even try to hijack shutdown (/bin/systemctl) because that
         # could race with snapd (if that wanted to call it), so just check that
         # the system is in a stable state once we have already determined that
