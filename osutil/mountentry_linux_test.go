@@ -499,3 +499,13 @@ func (s *entrySuite) TestXSnapdIgnoreMissing(c *C) {
 	// There's a helper function that returns this option string.
 	c.Assert(osutil.XSnapdIgnoreMissing(), Equals, "x-snapd.ignore-missing")
 }
+
+func (s *entrySuite) TestXSnapdMustExistDir(c *C) {
+	// Entries without the x-snapd.must-exist-dir key return an empty string
+	e := &osutil.MountEntry{}
+	c.Assert(e.XSnapdMustExistDir(), Equals, "")
+
+	// A mount entry can list a symlink target
+	e = &osutil.MountEntry{Options: []string{osutil.XSnapdMustExistDir("$HOME")}}
+	c.Assert(e.XSnapdMustExistDir(), Equals, "$HOME")
+}

@@ -306,6 +306,13 @@ func (e *MountEntry) XSnapdIgnoreMissing() bool {
 	return e.OptBool("x-snapd.ignore-missing")
 }
 
+// XSnapdMustExistDir returns the path that must exist as prequisite
+// to a mount operation.
+func (e *MountEntry) XSnapdMustExistDir() string {
+	val, _ := e.OptStr("x-snapd.must-exist-dir")
+	return val
+}
+
 // XSnapdNeededBy returns the string "x-snapd.needed-by=..." with the given path appended.
 func XSnapdNeededBy(path string) string {
 	return fmt.Sprintf("x-snapd.needed-by=%s", path)

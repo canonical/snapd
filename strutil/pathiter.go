@@ -38,7 +38,7 @@ import (
 //
 //	for iter.Next() {
 //	   // Use iter.CurrentName() with openat(2) family of functions.
-//	   // Use iter.CurrentPath() or iter.CurrentBase() for context.
+//	   // Use iter.CurrentPath() or iter.CurrentBaseNoSlash() for context.
 //	}
 //
 // ```
@@ -90,7 +90,7 @@ func (iter *PathIterator) CurrentPathNoSlash() string {
 	return iter.path[:iter.right]
 }
 
-// CurrentBase returns the prefix of the path that was traversed,
+// CurrentBaseNoSlash returns the prefix of the path that was traversed,
 // excluding the current name.  The result never ends in '/' except if
 // current base is root.
 func (iter *PathIterator) CurrentBaseNoSlash() string {
