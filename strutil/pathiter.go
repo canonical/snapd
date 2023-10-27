@@ -84,7 +84,10 @@ func (iter *PathIterator) CurrentPath() string {
 
 // CurrentPathNoSlash returns the same value as CurrentPath with the right slash trimmed.
 func (iter *PathIterator) CurrentPathNoSlash() string {
-	return filepath.Clean(iter.path[:iter.right])
+	if iter.right > 0 && iter.path[iter.right-1:iter.right] == "/" && iter.path[:iter.right] != "/" {
+		return iter.path[:iter.right-1]
+	}
+	return iter.path[:iter.right]
 }
 
 // CurrentBase returns the prefix of the path that was traversed,
