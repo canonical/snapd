@@ -1129,3 +1129,77 @@ func TemporaryDB(st *state.State) *asserts.Database {
 	db := cachedDB(st)
 	return db.WithStackedBackstore(asserts.NewMemoryBackstore())
 }
+
+// ValidationSetsFromModel takes in a model and creates a
+// snapasserts.ValidationSets from any validation sets that the model includes.
+func ValidationSetsFromModel(st *state.State, model *asserts.Model, store snapstate.StoreService, offline bool) (*snapasserts.ValidationSets, error) {
+	var sets []*asserts.ValidationSet
+	save := func(a asserts.Assertion) error {
+		if vs, ok := a.(*asserts.ValidationSet); ok {
+			sets = append(sets, vs)
+		}
+
+		if err := Add(st, a); err != nil {
+			if _, ok := err.(*asserts.RevisionError); ok {
+				return nil
+			}
+			return err
+		}
+
+		return nil
+	}
+
+	db := DB(st)
+
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		if offline {
+			return ref.Resolve(db.Find)
+		}
+
+		st.Unlock()
+		defer st.Lock()
+
+		return store.Assertion(ref.Type, ref.PrimaryKey, nil)
+	}
+
+	retrieveSeq := func(ref *asserts.AtSequence) (asserts.Assertion, error) {
+		if offline {
+			return resolveValidationSetAssertion(ref, db)
+		}
+
+		st.Unlock()
+		defer st.Lock()
+
+		return store.SeqFormingAssertion(ref.Type, ref.SequenceKey, ref.Sequence, nil)
+	}
+
+	fetcher := asserts.NewSequenceFormingFetcher(db, retrieve, retrieveSeq, save)
+
+	for _, vs := range model.ValidationSets() {
+		if err := fetcher.FetchSequence(vs.AtSequence()); err != nil {
+			return nil, err
+		}
+	}
+
+	vSets := snapasserts.NewValidationSets()
+	for _, vs := range sets {
+		vSets.Add(vs)
+	}
+
+	if err := vSets.Conflict(); err != nil {
+		return nil, err
+	}
+
+	return vSets, nil
+}
+
+func resolveValidationSetAssertion(seq *asserts.AtSequence, db asserts.RODatabase) (asserts.Assertion, error) {
+	if seq.Sequence <= 0 {
+		hdrs, err := asserts.HeadersFromSequenceKey(seq.Type, seq.SequenceKey)
+		if err != nil {
+			return nil, err
+		}
+		return db.FindSequence(seq.Type, hdrs, -1, seq.Type.MaxSupportedFormat())
+	}
+	return seq.Resolve(db.Find)
+}
