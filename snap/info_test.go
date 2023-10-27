@@ -1207,7 +1207,7 @@ func (s *infoSuite) testInstanceDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name_instance")
 }
 
-func (s *infoSuite) TestDataHomeDirsSlice(c *C) {
+func (s *infoSuite) TestDataHomeDirs(c *C) {
 	dirs.SetRootDir("")
 	dirs.SetSnapHomeDirs("/home,/home/group1,/home/group2,/home/group3")
 	info := &snap.Info{SuggestedName: "name"}
@@ -1220,8 +1220,8 @@ func (s *infoSuite) TestDataHomeDirsSlice(c *C) {
 
 	// Same test but with a hidden snap directory
 	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
-	hiddenHomeDirs := []string{"/home/*/.snap/name/1", "/home/group1/*/.snap/name/1", "/home/group2/*/.snap/name/1", "/home/group3/*/.snap/name/1"}
-	hiddenCommonHomeDirs := []string{"/home/*/.snap/name/common", "/home/group1/*/.snap/name/common", "/home/group2/*/.snap/name/common", "/home/group3/*/.snap/name/common"}
+	hiddenHomeDirs := []string{"/home/*/.snap/data/name/1", "/home/group1/*/.snap/data/name/1", "/home/group2/*/.snap/data/name/1", "/home/group3/*/.snap/data/name/1"}
+	hiddenCommonHomeDirs := []string{"/home/*/.snap/data/name/common", "/home/group1/*/.snap/data/name/common", "/home/group2/*/.snap/data/name/common", "/home/group3/*/.snap/data/name/common"}
 	c.Check(info.DataHomeDirs(opts), DeepEquals, hiddenHomeDirs)
 	c.Check(info.CommonDataHomeDirs(opts), DeepEquals, hiddenCommonHomeDirs)
 }

@@ -198,13 +198,13 @@ func init() {
 	SetRootDir(root)
 }
 
-// An array is passed by reference in order to avoid mutating snapHomeDirs
-// The array content is cleared first to avoid undesirable elements in the slice
-func GetSnapHomeDirs(arr *[]string) {
+// Returns a slice of the home directories currently in use.
+func GetSnapHomeDirs() []string {
 	snapHomeDirsMu.Lock()
 	defer snapHomeDirsMu.Unlock()
-	*arr = nil
-	*arr = append(*arr, snapHomeDirs...)
+	dirs := make([]string, len(snapHomeDirs))
+	copy(dirs, snapHomeDirs)
+	return dirs
 }
 
 // Sets SnapHomeDirs to the user defined values and appends /home if not defined

@@ -39,18 +39,17 @@ var _ = Suite(&DirsTestSuite{})
 type DirsTestSuite struct{}
 
 func (s *DirsTestSuite) TestSnapHomeDirs(c *C) {
-	var retGetSnapHomeDirs []string
 	// Expected output should remove all trailing '/' and add /home if it is not present
 	dirs.SetSnapHomeDirs("/home/homeDir1,/home/homeDirs/homeDir1///,/home/homeDir2/,/home/homeTest/users/")
 	snapHomeDirs := []string{"/home/homeDir1", "/home/homeDirs/homeDir1", "/home/homeDir2", "/home/homeTest/users", "/home"}
-	dirs.GetSnapHomeDirs(&retGetSnapHomeDirs)
-	c.Check(retGetSnapHomeDirs, DeepEquals, snapHomeDirs)
+	getSnapHomeDirs := dirs.GetSnapHomeDirs()
+	c.Check(getSnapHomeDirs, DeepEquals, snapHomeDirs)
 
 	// expected output, should remove all trailing '/' and not add /home since it is already present
 	dirs.SetSnapHomeDirs("/home/homeDir1,/home/homeDirs/homeDir1///,/home/,/home/homeDir2/,/home/homeTest/users/")
 	snapHomeDirs = []string{"/home/homeDir1", "/home/homeDirs/homeDir1", "/home", "/home/homeDir2", "/home/homeTest/users"}
-	dirs.GetSnapHomeDirs(&retGetSnapHomeDirs)
-	c.Check(retGetSnapHomeDirs, DeepEquals, snapHomeDirs)
+	getSnapHomeDirs = dirs.GetSnapHomeDirs()
+	c.Check(getSnapHomeDirs, DeepEquals, snapHomeDirs)
 }
 
 func (s *DirsTestSuite) TestStripRootDir(c *C) {
