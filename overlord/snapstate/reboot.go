@@ -291,6 +291,37 @@ func arrangeSnapToWaitForBaseIfPresent(snapTs *state.TaskSet, bases map[string]*
 	return nil
 }
 
+func taskSetLanesByRebootEdge(ts *state.TaskSet) ([]int, error) {
+	linkSnap := ts.MaybeEdge(MaybeRebootEdge)
+	if linkSnap == nil {
+		return nil, fmt.Errorf("internal error: no %q edge set in task-set", MaybeRebootEdge)
+	}
+	return linkSnap.Lanes(), nil
+}
+
+func listContains(items []int, item int) bool {
+	for _, i := range items {
+		if i == item {
+			return true
+		}
+	}
+	return false
+}
+
+func mergeTaskSetLanes(lanesByTs map[*state.TaskSet][]int) {
+	var allLanes []int
+	for _, lanes := range lanesByTs {
+		allLanes = append(allLanes, lanes...)
+	}
+	for ts, tsLanes := range lanesByTs {
+		for _, l := range allLanes {
+			if !listContains(tsLanes, l) {
+				ts.JoinLane(l)
+			}
+		}
+	}
+}
+
 // arrangeSnapTaskSetsLinkageAndRestart arranges the correct link-order between all
 // the provided snap task-sets, and sets up restart boundaries for essential snaps (base, gadget, kernel).
 // Under normal circumstances link-order that will be configured is:
@@ -316,21 +347,24 @@ func arrangeSnapTaskSetsLinkageAndRestart(st *state.State, providedDeviceCtx Dev
 	// for single-reboot, as we don't support this behavior on UC16.
 	isUC16 := bootBase == "core"
 	var lastEssentialTs *state.TaskSet
-	essTransactionLane := st.NewLane()
+	lanesByTsToMerge := make(map[*state.TaskSet][]int)
 	beforeTss := make(map[snap.Type]*state.TaskSet)
 	afterTss := make(map[snap.Type]*state.TaskSet)
 	// chainEssentialTs takes a task-set that needs to be 'chained' unto the previous (unless its the first),
 	// a snap type to specify which type of snap is being chained, and two operational flags.
-	// <transactional>: If set, means that it should be part of the transactional lane. Task-sets marked
-	// transactional, will share an additional lane, and in this case should just one of the updates fail, all
-	// those marked transactional will be rolled back.
+	// <transactional>: If set, means that the task-set should be part of the essential snap transaction. Lanes
+	// from the task-set will be merged. This behaviour is disabled for UC16 to not introduce any new changes.
 	// <split>: If set, the task-set will be split up into two parts. One pre-reboot part, and one post-reboot part.
 	// All chained task-sets that have <split> set will have their pre-reboot part run before the reboot, and then all
 	// post-reboot parts run after the reboot. They will run in the order they are chained.
 	// ts1-pre-reboot => ts2-pre-reboot => [reboot] => ts1-post-reboot => ts2-post-reboot
 	chainEssentialTs := func(ts *state.TaskSet, snapType snap.Type, transactional, split bool) error {
 		if transactional && !isUC16 {
-			ts.JoinLane(essTransactionLane)
+			lanes, err := taskSetLanesByRebootEdge(ts)
+			if err != nil {
+				return err
+			}
+			lanesByTsToMerge[ts] = lanes
 		}
 
 		nextTs := ts
@@ -423,6 +457,9 @@ func arrangeSnapTaskSetsLinkageAndRestart(st *state.State, providedDeviceCtx Dev
 			return err
 		}
 	}
+
+	// Ensure essential snaps that are transactional have their lanes merged
+	mergeTaskSetLanes(lanesByTsToMerge)
 
 	// For the task-sets that have not been split, they must have boundaries set for
 	// each of them. Reuse the restart order list here, so we go through the correct

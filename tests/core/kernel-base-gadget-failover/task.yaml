@@ -21,15 +21,6 @@ restore: |
         exit
     fi
     
-    if [ "$SPREAD_REBOOT" = 0 ]; then
-        "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
-
-        # restore the previous revisions
-        snap revert core18 --revision="$(cat core.rev)"
-        
-        REBOOT
-    fi
-
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -71,6 +62,16 @@ execute: |
 
         REBOOT
     elif [ "$SPREAD_REBOOT" = 2 ]; then
+        # wait for reboot to occur as gadget reverts
+        retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
+
+        REBOOT
+    elif [ "$SPREAD_REBOOT" = 3 ]; then
+        # wait for reboot to occur as base reverts
+        retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
+
+        REBOOT
+    elif [ "$SPREAD_REBOOT" = 4 ]; then
         change_id="$(cat refresh-change-id)"
         # we expect the change to have failed due to the kernel not booting
         # properly
@@ -78,14 +79,11 @@ execute: |
         snap changes | MATCH "$change_id\s+Error"
         snap change "$change_id" > tasks.done
         
-        # Since updates are run serialized, and not setup for single-reboot when gadget is involved
-        # for now, then the updates that complete (base, gadget) before kernel which fails, are not
-        # undone as they are essentially complete because of their individual lanes. If they should
-        # be completely transactional (i.e all be undone, they must be invoked with a shared lane).
-        # This means we only expect them to be forced transactional, is when we set up for single-reboot.
+        # and since kernel, gadget and base all are considered to be forced as a transaction
+        # we expect all to be undone
         MATCH 'Undone\s+.*Make snap "pc-kernel" .* available' < tasks.done
-        MATCH 'Done\s+.*Make snap "core18" .* available' < tasks.done
-        MATCH 'Done\s+.*Make snap "pc" .* available' < tasks.done
+        MATCH 'Undone\s+.*Make snap "core18" .* available' < tasks.done
+        MATCH 'Undone\s+.*Make snap "pc" .* available' < tasks.done
 
         # boot variables should have been cleared
         snap debug boot-vars > boot-vars.dump
@@ -98,15 +96,15 @@ execute: |
         # Note: on bionic, is-system-running does not support --wait
         retry -n 30 sh -c '(systemctl is-system-running || true) | MATCH "(running|degraded)"'
 
-        # we're expecting the old revisions to be back for kernel
+        # we're expecting the old revisions to be back
         original_kernel="$(cat pc-kernel.rev)"
         original_core="$(cat core.rev)"
         original_pc="$(cat pc.rev)"
 
-        # verify that current points to old revisions for kernel only
+        # verify that current points to old revisions
         test "$(readlink /snap/pc-kernel/current)" = "$original_kernel"
-        test "$(readlink /snap/core18/current)" != "$original_core"
-        test "$(readlink /snap/pc/current)" != "$original_pc"
+        test "$(readlink /snap/core18/current)" = "$original_core"
+        test "$(readlink /snap/pc/current)" = "$original_pc"
     else
         echo "unexpected reboot"
         exit 1

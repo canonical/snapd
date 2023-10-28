@@ -68,6 +68,8 @@ func (s *rebootSuite) taskSetForSnapSetup(snapName, base string, snapType snap.T
 	ts.MarkEdge(t3, snapstate.MaybeRebootEdge)
 	ts.MarkEdge(t4, snapstate.MaybeRebootWaitEdge)
 	ts.MarkEdge(t4, snapstate.EndEdge)
+	// Assign each TS a lane
+	ts.JoinLane(s.state.NewLane())
 	return ts
 }
 
@@ -422,15 +424,6 @@ func (s *rebootSuite) TestArrangeSnapToWaitForBaseIfPresentNotPresent(c *C) {
 	c.Check(s.setDependsOn(c, tss[1], tss[0]), Equals, false)
 }
 
-func (s *rebootSuite) taskSetIsTransactional(ts *state.TaskSet) bool {
-	for _, t := range ts.Tasks() {
-		if t.Lanes()[0] == 0 {
-			return false
-		}
-	}
-	return true
-}
-
 func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartUC16NoSplits(c *C) {
 	defer snapstatetest.MockDeviceModel(DefaultModel())()
 
@@ -454,10 +447,7 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartUC16NoSplits(c *C)
 	c.Check(s.hasRestartBoundaries(c, tss[3]), Equals, false)
 
 	// core and kernel are not transactional on UC16
-	c.Check(s.taskSetIsTransactional(tss[0]), Equals, false)
-	c.Check(s.taskSetIsTransactional(tss[1]), Equals, false)
-	c.Check(s.taskSetIsTransactional(tss[2]), Equals, false)
-	c.Check(s.taskSetIsTransactional(tss[3]), Equals, false)
+	c.Check(taskSetsShareLane(tss[0], tss[1]), Equals, false)
 }
 
 func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartSnapdAndEssential(c *C) {
@@ -484,11 +474,7 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartSnapdAndEssential(
 	c.Check(s.hasRestartBoundaries(c, tss[4]), Equals, false)
 
 	// base, gadget and kernel are transactional
-	c.Check(s.taskSetIsTransactional(tss[0]), Equals, false)
-	c.Check(s.taskSetIsTransactional(tss[1]), Equals, true)
-	c.Check(s.taskSetIsTransactional(tss[2]), Equals, true)
-	c.Check(s.taskSetIsTransactional(tss[3]), Equals, true)
-	c.Check(s.taskSetIsTransactional(tss[4]), Equals, false)
+	c.Check(taskSetsShareLane(tss[1], tss[2], tss[3]), Equals, true)
 }
 
 func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartBaseKernel(c *C) {
@@ -551,8 +537,7 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartBaseKernel(c *C) {
 	c.Check(acTaskOfKernel.WaitTasks(), testutil.Contains, lastTaskOfBase)
 
 	// both should be transactional
-	c.Check(s.taskSetIsTransactional(tss[0]), Equals, true)
-	c.Check(s.taskSetIsTransactional(tss[1]), Equals, true)
+	c.Check(taskSetsShareLane(tss[0], tss[1]), Equals, true)
 
 	// Since they are set up for single-reboot, the base should have restart
 	// boundaries for the undo path, and kernel should have for do path.
@@ -570,6 +555,7 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartSnapd(c *C) {
 
 	tss := []*state.TaskSet{
 		s.taskSetForSnapSetup("snapd", "", snap.TypeSnapd),
+		s.taskSetForSnapSetup("core20", "", snap.TypeBase),
 	}
 	err := snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss)
 	c.Assert(err, IsNil)
@@ -579,7 +565,7 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartSnapd(c *C) {
 
 	// Snapd should never be a part of the single-reboot transaction, we don't
 	// need snapd to rollback if an issue should arise in any of the other essential snaps.
-	c.Check(s.taskSetIsTransactional(tss[0]), Equals, false)
+	c.Check(taskSetsShareLane(tss[0], tss[1]), Equals, false)
 }
 
 func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartBaseGadgetKernel(c *C) {
@@ -602,9 +588,7 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartBaseGadgetKernel(c
 	c.Check(s.hasRestartBoundaries(c, tss[2]), Equals, true)
 
 	// base, gadget and kernel are transactional
-	c.Check(s.taskSetIsTransactional(tss[0]), Equals, true)
-	c.Check(s.taskSetIsTransactional(tss[1]), Equals, true)
-	c.Check(s.taskSetIsTransactional(tss[2]), Equals, true)
+	c.Check(taskSetsShareLane(tss[0], tss[1], tss[2]), Equals, true)
 }
 
 func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartBootBaseAndOtherBases(c *C) {
@@ -626,10 +610,9 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartBootBaseAndOtherBa
 	c.Check(s.hasRestartBoundaries(c, tss[1]), Equals, false)
 	c.Check(s.hasRestartBoundaries(c, tss[2]), Equals, false)
 
-	// boot-base is transactional
-	c.Check(s.taskSetIsTransactional(tss[0]), Equals, true)
-	c.Check(s.taskSetIsTransactional(tss[1]), Equals, false)
-	c.Check(s.taskSetIsTransactional(tss[2]), Equals, false)
+	// boot-base is transactional, but not with the other base and my-app
+	c.Check(taskSetsShareLane(tss[0], tss[1]), Equals, false)
+	c.Check(taskSetsShareLane(tss[0], tss[2]), Equals, false)
 }
 
 func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageForSnapWithBaseAndWithout(c *C) {
@@ -652,9 +635,8 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageForSnapWithBaseAndWithout(c 
 	c.Check(s.hasRestartBoundaries(c, tss[2]), Equals, false)
 
 	// no transactional lane set
-	c.Check(s.taskSetIsTransactional(tss[0]), Equals, false)
-	c.Check(s.taskSetIsTransactional(tss[1]), Equals, false)
-	c.Check(s.taskSetIsTransactional(tss[2]), Equals, false)
+	c.Check(taskSetsShareLane(tss[0], tss[1]), Equals, false)
+	c.Check(taskSetsShareLane(tss[0], tss[2]), Equals, false)
 
 	// snap-base-app depends on snap-base, but snap-other-app's base
 	// is not updated
@@ -682,10 +664,9 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageForSnapWithBootBaseAndWithou
 	c.Check(s.hasRestartBoundaries(c, tss[1]), Equals, false)
 	c.Check(s.hasRestartBoundaries(c, tss[2]), Equals, false)
 
-	// Transactional lane set for core20
-	c.Check(s.taskSetIsTransactional(tss[0]), Equals, true)
-	c.Check(s.taskSetIsTransactional(tss[1]), Equals, false)
-	c.Check(s.taskSetIsTransactional(tss[2]), Equals, false)
+	// Core20 is transactional, but not with the other base and app
+	c.Check(taskSetsShareLane(tss[0], tss[1]), Equals, false)
+	c.Check(taskSetsShareLane(tss[0], tss[2]), Equals, false)
 
 	// snap-core20-app depends on core20, but snap-other-app' base is
 	// not updated. Yet snap-other-base still depends on core20. But there
@@ -720,12 +701,7 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartAll(c *C) {
 	c.Check(s.hasRestartBoundaries(c, tss[5]), Equals, false)
 
 	// boot-base, gadget and kernel are transactional
-	c.Check(s.taskSetIsTransactional(tss[0]), Equals, false)
-	c.Check(s.taskSetIsTransactional(tss[1]), Equals, true)
-	c.Check(s.taskSetIsTransactional(tss[2]), Equals, true)
-	c.Check(s.taskSetIsTransactional(tss[3]), Equals, true)
-	c.Check(s.taskSetIsTransactional(tss[4]), Equals, false)
-	c.Check(s.taskSetIsTransactional(tss[5]), Equals, false)
+	c.Check(taskSetsShareLane(tss[1], tss[2], tss[3]), Equals, true)
 }
 
 func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartFailsSplit(c *C) {
@@ -738,5 +714,5 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartFailsSplit(c *C) {
 		s.taskSetForSnapSetupButNoTasks("my-kernel", snap.TypeKernel),
 	}
 	err := snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss)
-	c.Assert(err, ErrorMatches, `internal error: task-set is missing required edges \("begin\"/"end"\)`)
+	c.Assert(err, ErrorMatches, `internal error: no \"maybe-reboot\" edge set in task-set`)
 }

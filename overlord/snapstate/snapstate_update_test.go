@@ -5159,15 +5159,15 @@ func taskSetsShareLane(tss ...*state.TaskSet) bool {
 			}
 		}
 	}
-	// Now one of the lanes in the map should have the
+	// Now all of the lanes in the map should have the
 	// value of the len(tss), as that would indicate that
 	// link-snap tasks of each task-set have increased that lane.
 	for _, c := range lanes {
-		if c == len(tss) {
-			return true
+		if c != len(tss) {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC16(c *C) {
@@ -5313,10 +5313,10 @@ func (s *snapmgrTestSuite) TestUpdateManyWaitForBasesUC18(c *C) {
 	c.Check(taskSetsShareLane(tts[0], tts[1]), Equals, false)
 
 	// Manually verify the lanes of the initial task for the 4 task-sets
-	c.Check(tts[0].Tasks()[0].Lanes(), DeepEquals, []int{1})    // snapd
-	c.Check(tts[1].Tasks()[0].Lanes(), DeepEquals, []int{2, 5}) // core18
-	c.Check(tts[2].Tasks()[0].Lanes(), DeepEquals, []int{3})    // base
-	c.Check(tts[3].Tasks()[0].Lanes(), DeepEquals, []int{4})    // snap
+	c.Check(tts[0].Tasks()[0].Lanes(), DeepEquals, []int{1}) // snapd
+	c.Check(tts[1].Tasks()[0].Lanes(), DeepEquals, []int{2}) // core18
+	c.Check(tts[2].Tasks()[0].Lanes(), DeepEquals, []int{3}) // base
+	c.Check(tts[3].Tasks()[0].Lanes(), DeepEquals, []int{4}) // snap
 }
 
 func (s *validationSetsSuite) TestUpdateManyWithRevisionOpts(c *C) {
@@ -8327,8 +8327,8 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	c.Check(taskSetsShareLane(baseTs, kernelTs), Equals, true)
 
 	// Manually verify the lanes of the initial task for the 4 task-sets
-	c.Check(kernelTs.Tasks()[0].Lanes(), DeepEquals, []int{1, 3})
-	c.Check(baseTs.Tasks()[0].Lanes(), DeepEquals, []int{2, 3})
+	c.Check(kernelTs.Tasks()[0].Lanes(), DeepEquals, []int{1, 2})
+	c.Check(baseTs.Tasks()[0].Lanes(), DeepEquals, []int{2, 1})
 
 	// have fake backend indicate a need to reboot for both snaps
 	s.fakeBackend.linkSnapMaybeReboot = true
@@ -8743,9 +8743,9 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUnsupportedWithGadget
 	c.Check(firstTaskOfKernel.WaitTasks(), testutil.Contains, lastTaskOfGadget)
 
 	// Manually verify their lanes
-	c.Check(firstTaskOfBase.Lanes(), DeepEquals, []int{2, 4})
-	c.Check(firstTaskOfGadget.Lanes(), DeepEquals, []int{3, 4})
-	c.Check(firstTaskOfKernel.Lanes(), DeepEquals, []int{1, 4})
+	c.Check(firstTaskOfBase.Lanes(), testutil.DeepUnsortedMatches, []int{1, 2, 3})
+	c.Check(firstTaskOfGadget.Lanes(), testutil.DeepUnsortedMatches, []int{1, 2, 3})
+	c.Check(firstTaskOfKernel.Lanes(), testutil.DeepUnsortedMatches, []int{1, 2, 3})
 }
 
 func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUndone(c *C) {
@@ -8905,7 +8905,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUndone(c *C) {
 	c.Assert(ops[5:], testutil.DeepUnsortedMatches, []string{"core18/7", "kernel/7"})
 }
 
-func (s *snapmgrTestSuite) TestUpdateBaseGadgetKernelWithKernelUndone(c *C) {
+func (s *snapmgrTestSuite) TestUpdateBaseGadgetKernelUndone(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 	restore = snapstate.MockRevisionDate(nil)
@@ -9033,33 +9033,36 @@ func (s *snapmgrTestSuite) TestUpdateBaseGadgetKernelWithKernelUndone(c *C) {
 	// kernel snap requests another restart along the undo path at 'unlink-current-snap'
 	s.mockRestartAndSettle(c, chg)
 
-	// Since updates are run serialized, and not setup for single-reboot when gadget is involved
-	// for now, then the updates that complete (base, gadget) before kernel which fails, are not
-	// undone as they are essentially complete because of their individual lanes. If they should
-	// be completely transactional (i.e all be undone, they must be invoked with a shared lane).
-	// This means we only expect them to be forced transactional, is when we set up for single-reboot.
-	for _, t := range baseTs.Tasks() {
-		c.Check(t.Status(), Equals, state.DoneStatus)
-	}
-	for _, t := range gadgetTs.Tasks() {
-		c.Check(t.Status(), Equals, state.DoneStatus)
-	}
-	for _, t := range kernelTs.Tasks() {
-		switch t.Status() {
-		case state.UndoneStatus, state.ErrorStatus, state.HoldStatus:
-			continue
-		case state.DoneStatus:
-			// following tasks don't have undo logic
-			switch t.Kind() {
-			case "prerequisites", "validate-snap", "run-hook":
-				break
+	// gadget snap requests another restart along the undo path at 'unlink-current-snap'
+	s.mockRestartAndSettle(c, chg)
+
+	// base snap requests another restart along the undo path at 'unlink-current-snap'
+	s.mockRestartAndSettle(c, chg)
+
+	checkUndone := func(ts *state.TaskSet, name string) {
+		for _, t := range ts.Tasks() {
+			switch t.Status() {
+			case state.UndoneStatus, state.ErrorStatus, state.HoldStatus:
+				continue
+			case state.DoneStatus:
+				// following tasks don't have undo logic
+				switch t.Kind() {
+				case "prerequisites", "validate-snap", "run-hook", "cleanup":
+					break
+				default:
+					c.Errorf("unexpected done-status for %s task %s", name, t.Kind())
+				}
 			default:
-				c.Errorf("unexpected done-status for kernel task %s", t.Kind())
+				c.Errorf("unexpected status for %s task %s: %s", name, t.Kind(), t.Status())
 			}
-		default:
-			c.Errorf("unexpected status for kernel task %s: %s", t.Kind(), t.Status())
 		}
 	}
+
+	// Expect all task-sets to have been undone, as essential snaps are considered transactional
+	// when updated together. (I.e all are done or all are undone)
+	checkUndone(baseTs, "base")
+	checkUndone(gadgetTs, "gadget")
+	checkUndone(kernelTs, "kernel")
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*\(auto-connect-kernel mock error\)`)
@@ -9069,6 +9072,8 @@ func (s *snapmgrTestSuite) TestUpdateBaseGadgetKernelWithKernelUndone(c *C) {
 		restart.RestartSystem,
 		restart.RestartSystem,
 		// undo
+		restart.RestartSystem,
+		restart.RestartSystem,
 		restart.RestartSystem,
 	})
 	c.Check(errInjected, Equals, 1)
