@@ -111,6 +111,11 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 		return injectedSetModelError
 	}
 
+	// TODO: maybe we enforce the validation sets here?
+	if err := enforceValidationSetsForRemodel(st, new); err != nil {
+		return err
+	}
+
 	// add the assertion only after everything else was successful
 	err = assertstate.Add(st, new)
 	if err != nil && !isSameAssertsRevision(err) {
@@ -148,6 +153,27 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	t.SetStatus(state.DoneStatus)
 
+	return nil
+}
+
+func enforceValidationSetsForRemodel(st *state.State, new *asserts.Model) error {
+	validationSetKeys := make(map[string][]string)
+	pinnedValidationSets := make(map[string]int)
+	for _, vs := range new.ValidationSets() {
+		validationSetKeys[vs.Key()] = vs.AtSequence().SequenceKey // is sequence key the same as the primary key of an assertion?
+		if vs.Sequence > 0 {
+			pinnedValidationSets[vs.Key()] = vs.Sequence
+		}
+	}
+
+	snaps, ignoreValidation, err := snapstate.InstalledSnaps(st)
+	if err != nil {
+		return fmt.Errorf("cannot list installed snaps for validation: %w", err)
+	}
+
+	if err := snapstate.EnforceLocalValidationSets(st, validationSetKeys, pinnedValidationSets, snaps, ignoreValidation); err != nil {
+		return fmt.Errorf("cannot enforce validation sets: %v", err)
+	}
 	return nil
 }
 
