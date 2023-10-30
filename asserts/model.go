@@ -433,6 +433,10 @@ type ModelValidationSet struct {
 	Mode ModelValidationSetMode
 }
 
+func (mvs *ModelValidationSet) Key() string {
+	return vsKey(mvs.AccountID, mvs.Name)
+}
+
 func (mvs *ModelValidationSet) AtSequence() *AtSequence {
 	return &AtSequence{
 		Type:        ValidationSetType,

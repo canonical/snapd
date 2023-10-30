@@ -176,6 +176,14 @@ type ValidationSet struct {
 	timestamp time.Time
 }
 
+func (vs *ValidationSet) Key() string {
+	return vsKey(vs.AccountID(), vs.Name())
+}
+
+func vsKey(accountID, name string) string {
+	return fmt.Sprintf("%s/%s", accountID, name)
+}
+
 // Series returns the series for which the snap in the set are declared.
 func (vs *ValidationSet) Series() string {
 	return vs.HeaderString("series")
