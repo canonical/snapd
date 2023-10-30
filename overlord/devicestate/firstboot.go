@@ -78,10 +78,6 @@ func criticalTaskEdges(ts *state.TaskSet) (beginEdge, beforeHooksEdge, hooksEdge
 // maybeEnforceValidationSetsTask returns a task for tracking validation-sets. This may
 // return nil if no validation-sets are present.
 func maybeEnforceValidationSetsTask(st *state.State, model *asserts.Model, mode string) (*state.Task, error) {
-	vsKey := func(accountID, name string) string {
-		return fmt.Sprintf("%s/%s", accountID, name)
-	}
-
 	// Only enforce validation-sets in run-mode after installing all required snaps
 	if mode != "run" {
 		logger.Debugf("Postponing enforcement of validation-sets in mode %s", mode)
@@ -102,15 +98,14 @@ func maybeEnforceValidationSetsTask(st *state.State, model *asserts.Model, mode 
 	vsKeys := make(map[string][]string)
 	for _, a := range as {
 		vsa := a.(*asserts.ValidationSet)
-		vsKeys[vsKey(vsa.AccountID(), vsa.Name())] = a.Ref().PrimaryKey
+		vsKeys[vsa.Key()] = a.Ref().PrimaryKey
 	}
 
 	// Set up pins from the model
 	pins := make(map[string]int)
 	for _, vs := range model.ValidationSets() {
-		key := vsKey(vs.AccountID, vs.Name)
 		if vs.Sequence > 0 {
-			pins[key] = vs.Sequence
+			pins[vs.Key()] = vs.Sequence
 		}
 	}
 
