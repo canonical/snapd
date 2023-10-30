@@ -129,6 +129,7 @@ var (
 	SplitTaskSetByRebootEdges            = splitTaskSetByRebootEdges
 	ArrangeSnapToWaitForBaseIfPresent    = arrangeSnapToWaitForBaseIfPresent
 	ArrangeSnapTaskSetsLinkageAndRestart = arrangeSnapTaskSetsLinkageAndRestart
+	ReRefreshSummary                     = reRefreshSummary
 )
 
 const (

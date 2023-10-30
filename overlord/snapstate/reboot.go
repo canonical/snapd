@@ -299,15 +299,6 @@ func taskSetLanesByRebootEdge(ts *state.TaskSet) ([]int, error) {
 	return linkSnap.Lanes(), nil
 }
 
-func listContains(items []int, item int) bool {
-	for _, i := range items {
-		if i == item {
-			return true
-		}
-	}
-	return false
-}
-
 func mergeTaskSetLanes(lanesByTs map[*state.TaskSet][]int) {
 	var allLanes []int
 	for _, lanes := range lanesByTs {
@@ -320,6 +311,15 @@ func mergeTaskSetLanes(lanesByTs map[*state.TaskSet][]int) {
 			}
 		}
 	}
+}
+
+func listContains(items []int, item int) bool {
+	for _, i := range items {
+		if i == item {
+			return true
+		}
+	}
+	return false
 }
 
 // arrangeSnapTaskSetsLinkageAndRestart arranges the correct link-order between all
@@ -458,7 +458,9 @@ func arrangeSnapTaskSetsLinkageAndRestart(st *state.State, providedDeviceCtx Dev
 		}
 	}
 
-	// Ensure essential snaps that are transactional have their lanes merged
+	// Ensure essential snaps that are transactional have their lanes merged. This will effectively
+	// ensure that essential snaps will be undone together should one of the updates fail. So if we
+	// are updating both gadget and kernel, and kernel fails, the gadget will also be undone.
 	mergeTaskSetLanes(lanesByTsToMerge)
 
 	// For the task-sets that have not been split, they must have boundaries set for

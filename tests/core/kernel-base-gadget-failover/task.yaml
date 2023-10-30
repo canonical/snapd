@@ -1,5 +1,21 @@
 summary: Verify behavior of undoing essential snap updates, when updating base, gadget and kernel
 
+details: |
+    Test ensures that if one of the essential snaps fail to update, together with
+    other essential snaps (boot-base, gadget, kernel specifically), then all of
+    them are rolled back.
+
+    The order we expect things to happen in is:
+    1. Boot-base updates and requests restart
+    2. Gadget updates and requests restart
+    3. Kernel updates, requests restart
+    4. Kernel update fails, reverts to previous
+    5. Gadget reverts, no restart request
+       - The reason for this is that there are no command-line changes, i.e no request done
+       - The second reason is that "update-gadget-assets" have no undo logic, i.e no request done 
+    6. Boot-base reverts, requests restart
+    7. Change is undone, with 4 reboots.
+
 # TODO make the test work with ubuntu-core-20
 systems: [ubuntu-core-18-*]
 
@@ -62,7 +78,8 @@ execute: |
 
         REBOOT
     elif [ "$SPREAD_REBOOT" = 2 ]; then
-        # wait for reboot to occur as change reverts
+        # wait for reboot to occur as change reverts, at this point kernel will have reverted, and
+        # now we are waiting for the base to request a restart as the gadget is not requesting one
         retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
 
         REBOOT

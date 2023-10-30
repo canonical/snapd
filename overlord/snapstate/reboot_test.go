@@ -560,8 +560,11 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartSnapd(c *C) {
 	err := snapstate.ArrangeSnapTaskSetsLinkageAndRestart(s.state, nil, tss)
 	c.Assert(err, IsNil)
 
-	// Do not expect any restart boundaries to be set
+	// Do not expect any restart boundaries to be set on snapd
 	c.Check(s.hasRestartBoundaries(c, tss[0]), Equals, false)
+
+	// Expect them to be set on core20 as it's the boot-base
+	c.Check(s.hasRestartBoundaries(c, tss[1]), Equals, true)
 
 	// Snapd should never be a part of the single-reboot transaction, we don't
 	// need snapd to rollback if an issue should arise in any of the other essential snaps.
@@ -671,9 +674,9 @@ func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageForSnapWithBootBaseAndWithou
 	// snap-core20-app depends on core20, but snap-other-app' base is
 	// not updated. Yet snap-other-base still depends on core20. But there
 	// is no dependency between snap-core20-app and snap-other-app
-	c.Check(s.setDependsOn(c, tss[1], tss[0]), Equals, true)
-	c.Check(s.setDependsOn(c, tss[2], tss[0]), Equals, true)
-	c.Check(s.setDependsOn(c, tss[2], tss[1]), Equals, false)
+	c.Check(s.setDependsOn(c, tss[1], tss[0]), Equals, true)  // snap-core20-app depend on core20
+	c.Check(s.setDependsOn(c, tss[2], tss[0]), Equals, true)  // snap-other-app depend on core20
+	c.Check(s.setDependsOn(c, tss[2], tss[1]), Equals, false) // snap-other-app does not depend on snap-core20-app
 }
 
 func (s *rebootSuite) TestArrangeSnapTaskSetsLinkageAndRestartAll(c *C) {
