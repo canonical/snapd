@@ -104,6 +104,34 @@ func (*schemaSuite) TestMapWithSchemaConstraint(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (*schemaSuite) TestMapSchemasRequireConstraints(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"snaps": {
+			"schema": {
+				"foo": "map"
+			}
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse "map": must be schema definition with constraints`)
+}
+
+func (*schemaSuite) TestMapSchemasRequireSchemaOrKeyValues(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"snaps": {
+			"type": "map"
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse map: must have "schema" or "keys"/"values" constraint`)
+}
+
 func (*schemaSuite) TestMapWithUnexpectedKey(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
@@ -304,16 +332,14 @@ func (*schemaSuite) TestMapSchemaWithMetRequiredConstraint(c *C) {
 	"schema": {
 		"foo": "string",
 		"bar": "string",
-		"baz": "map"
+		"baz": "int"
 	},
 	"required": ["foo", "baz"]
 }`)
 
 	input := []byte(`{
 	"foo": "oof",
-	"baz": {
-		"a": "b"
-	}
+	"baz": 3
 }`)
 
 	schema, err := aspects.ParseSchema(schemaStr)
@@ -329,7 +355,7 @@ func (*schemaSuite) TestMapSchemaWithUnmetRequiredConstraint(c *C) {
 	"schema": {
 		"foo": "string",
 		"bar": "string",
-		"baz": "map"
+		"baz": "int"
 	},
 	"required": ["foo", "baz"]
 }`)
@@ -352,7 +378,7 @@ func (*schemaSuite) TestMapSchemaWithAlternativeOfRequiredEntries(c *C) {
 	"schema": {
 		"foo": "string",
 		"bar": "string",
-		"baz": "map"
+		"baz": "int"
 	},
 	"required": [["foo"], ["bar"]]
 }`)
@@ -386,16 +412,13 @@ func (*schemaSuite) TestMapSchemaWithUnmetAlternativeOfRequiredEntries(c *C) {
 	"schema": {
 		"foo": "string",
 		"bar": "string",
-		"baz": "map"
+		"baz": "int"
 	},
 	"required": [["foo"], ["bar"]]
 }`)
 
-	// accepts the 1st allowed combination "foo"
 	input := []byte(`{
-	"baz": {
-		"a": "b"
-	}
+	"baz": 1
 }`)
 
 	schema, err := aspects.ParseSchema(schemaStr)
@@ -802,6 +825,41 @@ func (*schemaSuite) TestMapBasedUserDefinedTypeHappy(c *C) {
 
 	err = schema.Validate(input)
 	c.Assert(err, IsNil)
+}
+
+func (*schemaSuite) TestUserTypeReferenceDoesntRequireConstraints(c *C) {
+	// references to user-defined types don't require need constraints
+	schemaStr := []byte(`{
+	"types": {
+		"my-type": {
+			"schema": {
+				"foo": "string"
+			}
+		}
+	},
+	"schema": {
+		"a": "$my-type"
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+}
+
+func (*schemaSuite) TestUserTypeDefinitionDoesntRequireConstraints(c *C) {
+	// maps still require constraints even within user-defined types
+	schemaStr := []byte(`{
+	"types": {
+		"my-type": "map"
+	},
+	"schema": {
+		"a": "$my-type"
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse user-defined type "my-type": cannot parse "map": must be schema definition with constraints`)
 }
 
 func (*schemaSuite) TestMapBasedUserDefinedTypeFail(c *C) {
@@ -1350,8 +1408,8 @@ func (*schemaSuite) TestNumberMinGreaterThanMaxConstraintFail(c *C) {
 	c.Assert(err, ErrorMatches, `cannot have "min" constraint with value greater than "max"`)
 }
 
-func (*schemaSuite) TestTypesRejectNull(c *C) {
-	for _, typ := range []string{"map", "string", "int", "any", "number", "bool"} {
+func (*schemaSuite) TestSimpleTypesRejectNull(c *C) {
+	for _, typ := range []string{"string", "int", "any", "number", "bool"} {
 		schemaStr := []byte(fmt.Sprintf(`{
 	"schema": {
 		"foo": %q
@@ -1364,6 +1422,24 @@ func (*schemaSuite) TestTypesRejectNull(c *C) {
 		err = schema.Validate([]byte(`{"foo": null}`))
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept null value for %q type`, typ))
 	}
+}
+
+func (*schemaSuite) TestMapTypeRejectsNull(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"a": "int"
+			}
+		}
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	err = schema.Validate([]byte(`{"foo": null}`))
+	c.Assert(err, ErrorMatches, `cannot accept null value for "map" type`)
 }
 
 func (*schemaSuite) TestUserDefinedTypeRejectsNull(c *C) {
