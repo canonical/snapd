@@ -9018,3 +9018,51 @@ func (s *snapmgrTestSuite) TestRefreshCandidatesMergeFlags(c *C) {
 		},
 	})
 }
+
+func (s *snapmgrTestSuite) TestReRefreshSummary(c *C) {
+	type testcase struct {
+		snaps         []string
+		isAutoRefresh bool
+		summary       string
+	}
+
+	cases := []testcase{
+		{},
+		{
+			snaps:         []string{"one"},
+			isAutoRefresh: true,
+			summary:       `Monitoring snap "one" to determine whether extra refresh steps are required`,
+		},
+		{
+			snaps:         []string{"one", "two"},
+			isAutoRefresh: true,
+			summary:       `Monitoring snaps "one", "two" to determine whether extra refresh steps are required`,
+		},
+		{
+			snaps:         []string{"one", "two", "three"},
+			isAutoRefresh: true,
+			summary:       `Monitoring snaps "one", "two", "three" to determine whether extra refresh steps are required`,
+		},
+		{
+			snaps:         []string{"one", "two", "three", "four"},
+			isAutoRefresh: true,
+			summary:       `Monitoring 4 snaps to determine whether extra refresh steps are required`,
+		},
+		{
+			snaps:         []string{"one", "two", "three"},
+			isAutoRefresh: false,
+			summary:       `Monitoring snaps "one", "two", "three" to determine whether extra refresh steps are required`,
+		},
+		{
+			snaps:         []string{"one", "two", "three", "four"},
+			isAutoRefresh: false,
+			summary:       `Monitoring snaps "one", "two", "three", "four" to determine whether extra refresh steps are required`,
+		},
+	}
+
+	for _, tc := range cases {
+		summary := snapstate.ReRefreshSummary(tc.snaps, &snapstate.Flags{IsAutoRefresh: tc.isAutoRefresh})
+		cmt := Commentf("unexpected re-refresh summary for %d snaps (auto-refresh: %t)", len(tc.snaps), tc.isAutoRefresh)
+		c.Check(summary, Equals, tc.summary, cmt)
+	}
+}
