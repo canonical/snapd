@@ -62,16 +62,11 @@ execute: |
 
         REBOOT
     elif [ "$SPREAD_REBOOT" = 2 ]; then
-        # wait for reboot to occur as gadget reverts
+        # wait for reboot to occur as change reverts
         retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
 
         REBOOT
     elif [ "$SPREAD_REBOOT" = 3 ]; then
-        # wait for reboot to occur as base reverts
-        retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
-
-        REBOOT
-    elif [ "$SPREAD_REBOOT" = 4 ]; then
         change_id="$(cat refresh-change-id)"
         # we expect the change to have failed due to the kernel not booting
         # properly
