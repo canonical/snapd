@@ -31,6 +31,10 @@ import (
 type parser interface {
 	Schema
 
+	// expectsConstraints returns true if the parser must have a map definition
+	// with constraints or false, if it may have a simple name definition.
+	expectsConstraints() bool
+
 	// parseConstraints parses constraints for a type defined as a JSON object.
 	// Shouldn't be used with non-object/map type definitions.
 	parseConstraints(map[string]json.RawMessage) error
@@ -67,7 +71,7 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 			return nil, fmt.Errorf(`cannot parse user-defined types map: %w`, err)
 		}
 
-		schema.userTypes = make(map[string]parser, len(userTypes))
+		schema.userTypes = make(map[string]*userTypeRefParser, len(userTypes))
 		for userTypeName, typeDef := range userTypes {
 			if !validUserType.Match([]byte(userTypeName)) {
 				return nil, fmt.Errorf(`cannot parse user-defined type name %q: must match %s`, userTypeName, validUserType)
@@ -78,7 +82,7 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 				return nil, fmt.Errorf(`cannot parse user-defined type %q: %w`, userTypeName, err)
 			}
 
-			schema.userTypes[userTypeName] = userTypeSchema
+			schema.userTypes[userTypeName] = newUserTypeRefParser(userTypeSchema)
 		}
 	}
 
@@ -90,6 +94,32 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 	return schema, nil
 }
 
+// userTypeRefParser parses references to user-defined types (e.g., $my-type).
+type userTypeRefParser struct {
+	parser
+
+	stringBased bool
+}
+
+func newUserTypeRefParser(p parser) *userTypeRefParser {
+	_, ok := p.(*stringSchema)
+	return &userTypeRefParser{
+		parser:      p,
+		stringBased: ok,
+	}
+}
+
+// expectsConstraints return false because a reference to user type doesn't
+// define constraints (these are defined under "types" at the top level).
+func (*userTypeRefParser) expectsConstraints() bool {
+	return false
+}
+
+// isStringBased returns true if this reference's base type is a string.
+func (u *userTypeRefParser) isStringBased() bool {
+	return u.stringBased
+}
+
 // StorageSchema represents an aspect schema and can be used to validate JSON
 // aspects against it.
 type StorageSchema struct {
@@ -97,7 +127,7 @@ type StorageSchema struct {
 	topLevel Schema
 
 	// userTypes contains schemas that can validate types defined by the user.
-	userTypes map[string]parser
+	userTypes map[string]*userTypeRefParser
 }
 
 // Validate validates the provided JSON object.
@@ -133,11 +163,13 @@ func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
 		return nil, err
 	}
 
-	// only parse the schema if it's a map definition w/ constraints
+	// only parse the schema if it's a schema definition w/ constraints
 	if schemaDef != nil {
 		if err := schema.parseConstraints(schemaDef); err != nil {
 			return nil, err
 		}
+	} else if schema.expectsConstraints() {
+		return nil, fmt.Errorf(`cannot parse %q: must be schema definition with constraints`, typ)
 	}
 
 	return schema, nil
@@ -166,7 +198,7 @@ func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
 	}
 }
 
-func (s *StorageSchema) getUserType(ref string) (parser, error) {
+func (s *StorageSchema) getUserType(ref string) (*userTypeRefParser, error) {
 	if userType, ok := s.userTypes[ref]; ok {
 		return userType, nil
 	}
@@ -340,6 +372,10 @@ func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) err
 		}
 	}
 
+	if v.entrySchemas == nil && v.keySchema == nil && v.valueSchema == nil {
+		return fmt.Errorf(`cannot parse map: must have "schema" or "keys"/"values" constraint`)
+	}
+
 	return nil
 }
 
@@ -404,7 +440,7 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 			return nil, err
 		}
 
-		if _, ok := userType.(*stringSchema); !ok {
+		if !userType.isStringBased() {
 			return nil, fmt.Errorf(`key type %q must be based on string`, typ[1:])
 		}
 		return userType, nil
@@ -413,6 +449,8 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 
 	return nil, fmt.Errorf(`keys must be based on string but got %q`, typ)
 }
+
+func (v *mapSchema) expectsConstraints() bool { return true }
 
 type stringSchema struct {
 	// pattern is a regex pattern that the string must match.
@@ -475,6 +513,8 @@ func (v *stringSchema) parseConstraints(constraints map[string]json.RawMessage) 
 
 	return nil
 }
+
+func (v *stringSchema) expectsConstraints() bool { return false }
 
 type intSchema struct {
 	min     *int64
@@ -542,6 +582,8 @@ func (v *intSchema) parseConstraints(constraints map[string]json.RawMessage) err
 	return nil
 }
 
+func (v *intSchema) expectsConstraints() bool { return false }
+
 type anySchema struct{}
 
 func (v *anySchema) Validate(raw []byte) error {
@@ -560,6 +602,8 @@ func (v *anySchema) parseConstraints(constraints map[string]json.RawMessage) err
 	// no error because we're not explicitly rejecting unsupported keywords (for now)
 	return nil
 }
+
+func (v *anySchema) expectsConstraints() bool { return false }
 
 type numberSchema struct {
 	min     *float64
@@ -655,6 +699,8 @@ func (v *numberSchema) parseConstraints(constraints map[string]json.RawMessage) 
 	return nil
 }
 
+func (v *numberSchema) expectsConstraints() bool { return false }
+
 type booleanSchema struct{}
 
 func (v *booleanSchema) Validate(raw []byte) error {
@@ -674,3 +720,5 @@ func (v *booleanSchema) parseConstraints(constraints map[string]json.RawMessage)
 	// no error because we're not explicitly rejecting unsupported keywords (for now)
 	return nil
 }
+
+func (v *booleanSchema) expectsConstraints() bool { return false }
