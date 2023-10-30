@@ -268,6 +268,14 @@ version: 1.0
 		c.Assert(te.Get("hook-setup", &hsup), IsNil)
 		c.Check(hsup.Hook, Equals, "install")
 		c.Check(hsup.Snap, Equals, "some-snap")
+
+		te, err = ts.Edge(snapstate.EndEdge)
+		c.Assert(err, IsNil)
+		if skipConfig {
+			c.Check(te.Kind(), Equals, "start-snap-services")
+		} else {
+			c.Check(te.Kind(), Equals, "run-hook")
+		}
 	}
 }
 

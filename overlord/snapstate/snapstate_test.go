@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -9065,4 +9066,97 @@ func (s *snapmgrTestSuite) TestReRefreshSummary(c *C) {
 		cmt := Commentf("unexpected re-refresh summary for %d snaps (auto-refresh: %t)", len(tc.snaps), tc.isAutoRefresh)
 		c.Check(summary, Equals, tc.summary, cmt)
 	}
+}
+
+func (s *snapmgrTestSuite) TestEndEdgeSetCorrectlyHealthCheck(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Under normal circumstances the end-edge is set on the run-hook task
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	// find the correct task, and ensure it has the correct edge set
+	var t *state.Task
+	for _, task := range ts.Tasks() {
+		if task.Kind() == "run-hook" {
+			var hooksup hookstate.HookSetup
+			if err := task.Get("hook-setup", &hooksup); err != nil {
+				panic(err)
+			}
+			if hooksup.Hook == "check-health" {
+				t = task
+				break
+			}
+		}
+	}
+	c.Assert(t, NotNil)
+	c.Check(ts.MaybeEdge(snapstate.EndEdge).ID(), Equals, t.ID())
+}
+
+func (s *snapmgrTestSuite) TestEndEdgeSetCorrectlyNoConfigure(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0
+`)
+
+	// For snaps that skip configure, we expect the end-edge to be set to either of
+	// cleanup task, or start snap services
+	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(8),
+	}, mockSnap, "", "", snapstate.Flags{SkipConfigure: true}, nil)
+	c.Assert(err, IsNil)
+
+	var t *state.Task
+	for _, task := range ts.Tasks() {
+		if task.Kind() == "start-snap-services" {
+			t = task
+			break
+		}
+	}
+	log.Printf("%s", ts.MaybeEdge(snapstate.EndEdge).Kind())
+	c.Assert(t, NotNil)
+	c.Check(ts.MaybeEdge(snapstate.EndEdge).ID(), Equals, t.ID())
+}
+
+func (s *snapmgrTestSuite) TestEndEdgeSetCorrectlyNoConfigureRefresh(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Flags:  snapstate.Flags{DevMode: true},
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:         snap.R(1),
+		SnapType:        "app",
+		TrackingChannel: "wibbly/stable",
+	})
+
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0
+epoch: 1
+`)
+
+	// For snaps that skip configure, we expect the end-edge to be set to either of
+	// cleanup task, or start snap services
+	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "edge", snapstate.Flags{SkipConfigure: true}, nil)
+	c.Assert(err, IsNil)
+
+	var t *state.Task
+	for _, task := range ts.Tasks() {
+		if task.Kind() == "cleanup" {
+			t = task
+			break
+		}
+	}
+	log.Printf("%s", ts.MaybeEdge(snapstate.EndEdge).Kind())
+	c.Assert(t, NotNil)
+	c.Check(ts.MaybeEdge(snapstate.EndEdge).ID(), Equals, t.ID())
 }
