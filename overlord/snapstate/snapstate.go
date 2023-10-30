@@ -2086,7 +2086,7 @@ func finalizeUpdate(st *state.State, tasksets []*state.TaskSet, hasUpdates bool,
 		// _actually_ re-refresh, but it'll be a subset of updated
 		// (and equal to updated if nothing goes wrong)
 		sort.Strings(updated)
-		rerefresh := st.NewTask("check-rerefresh", fmt.Sprintf("Handling re-refresh of %s as needed", strutil.Quoted(updated)))
+		rerefresh := st.NewTask("check-rerefresh", reRefreshSummary(updated, globalFlags))
 		rerefresh.Set("rerefresh-setup", reRefreshSetup{
 			UserID: userID,
 			Flags:  globalFlags,
@@ -2094,6 +2094,27 @@ func finalizeUpdate(st *state.State, tasksets []*state.TaskSet, hasUpdates bool,
 		tasksets = append(tasksets, state.NewTaskSet(rerefresh))
 	}
 	return tasksets
+}
+
+func reRefreshSummary(updated []string, flags *Flags) string {
+	var msg string
+	n := len(updated)
+	if n > 1 && !flags.IsAutoRefresh {
+		n = 2
+	}
+	switch n {
+	case 0:
+		return ""
+	case 1:
+		msg = fmt.Sprintf(i18n.G("Monitoring snap %q to determine whether extra refresh steps are required"), updated[0])
+	case 2, 3:
+		quoted := strutil.Quoted(updated)
+		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+		msg = fmt.Sprintf(i18n.G("Monitoring snaps %s to determine whether extra refresh steps are required"), quoted)
+	default:
+		msg = fmt.Sprintf(i18n.G("Monitoring %d snaps to determine whether extra refresh steps are required"), len(updated))
+	}
+	return msg
 }
 
 func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, fromChange string, linkTs func(instanceName string, ts *state.TaskSet)) (*state.TaskSet, error) {
