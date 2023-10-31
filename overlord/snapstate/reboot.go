@@ -328,10 +328,8 @@ func listContains(items []int, item int) bool {
 // snapd => boot-base (reboot) => gadget (reboot) => kernel (reboot) => bases => apps.
 //
 // However this may be configured into the following if conditions are right for single-reboot
-// snapd => boot-base (up to auto-connect) => kernel (up to auto-connect, then reboot) =>
-// -  boot-base => kernel => bases => apps.
-//
-// XXX: Going forward, gadget will be included in the last example, but this is still TODO.
+// snapd => boot-base (up to auto-connect) => gadget(up to auto-connect) =>
+// -  kernel (up to auto-connect, then reboot) => boot-base => gadget => kernel => bases => apps.
 func arrangeSnapTaskSetsLinkageAndRestart(st *state.State, providedDeviceCtx DeviceContext, tss []*state.TaskSet) error {
 	bootBase, err := deviceModelBootBase(st, providedDeviceCtx)
 	if err != nil {
@@ -398,9 +396,6 @@ func arrangeSnapTaskSetsLinkageAndRestart(st *state.State, providedDeviceCtx Dev
 		}
 	}
 
-	// Is gadget present? Then we cannot do single-reboot for now
-	// TODO: enable this
-	gadgetTs := byTypeTss[snap.TypeGadget]
 	bootSnapType := bootBaseSnapType(byTypeTss)
 
 	// Then we link in the boot-base, to run after snapd, it could run in it's
@@ -408,8 +403,7 @@ func arrangeSnapTaskSetsLinkageAndRestart(st *state.State, providedDeviceCtx Dev
 	// have any hooks.
 	if ts := byTypeTss[bootSnapType]; ts != nil {
 		const transactional = true
-		// We can only do split on this if there is no gadget.
-		split := (gadgetTs == nil || enforcedSingleRebootForGadgetKernelBase)
+		const split = true
 		if err := chainEssentialTs(ts, bootSnapType, transactional, split); err != nil {
 			return err
 		}
@@ -417,10 +411,10 @@ func arrangeSnapTaskSetsLinkageAndRestart(st *state.State, providedDeviceCtx Dev
 
 	// Next we link in the gadget, and it needs to be part of the transaction
 	// so it will be undone in the event of failures.
-	if gadgetTs != nil {
+	if ts := byTypeTss[snap.TypeGadget]; ts != nil {
 		const transactional = true
-		const split = false
-		if err := chainEssentialTs(gadgetTs, snap.TypeGadget, transactional, split); err != nil {
+		split := !enforcedSingleRebootForGadgetKernelBase // keep this to be able to induce a buggy change
+		if err := chainEssentialTs(ts, snap.TypeGadget, transactional, split); err != nil {
 			return err
 		}
 	}
@@ -428,8 +422,7 @@ func arrangeSnapTaskSetsLinkageAndRestart(st *state.State, providedDeviceCtx Dev
 	// Then we link in the kernel, it needs to run latest, but before other bases and apps.
 	if ts := byTypeTss[snap.TypeKernel]; ts != nil {
 		const transactional = true
-		// We can only do split on this if there is no gadget.
-		split := (gadgetTs == nil || enforcedSingleRebootForGadgetKernelBase)
+		const split = true
 		if err := chainEssentialTs(ts, snap.TypeKernel, transactional, split); err != nil {
 			return err
 		}
@@ -437,7 +430,6 @@ func arrangeSnapTaskSetsLinkageAndRestart(st *state.State, providedDeviceCtx Dev
 
 	// Now link in all the after task-sets that have been split, which should run
 	// post-reboot.
-	// XXX: Review and validate that this order is correct once we put in gadget
 	for _, o := range essentialSnapsRestartOrder {
 		if afterTss[o] == nil {
 			continue

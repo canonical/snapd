@@ -10769,42 +10769,19 @@ base: core20
 	c.Assert(rst, Equals, restart.RestartSystem)
 
 	autoConnectStatus("", "core20", []string{"snapd"})
+	autoConnectStatus("", "pc", []string{"snapd"})
+	autoConnectStatus("", "pc-kernel", []string{"snapd"})
 
 	// we are trying out a new base
-	restart.MockPending(st, restart.RestartUnset)
-	restart.MockAfterRestartForChange(chg)
-	_, err = bloader.TryKernel()
-	c.Assert(err, Equals, bootloader.ErrNoTryKernelRef)
 	m, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	c.Check(m.BaseStatus, Equals, boot.TryStatus)
 	c.Check(m.TryBase, Equals, "core20_2.snap")
 
-	// pretend it boots
-	m.BaseStatus = boot.TryingStatus
-	c.Assert(m.Write(), IsNil)
-	s.o.DeviceManager().ResetToPostBootState()
-	st.Unlock()
-	err = s.o.DeviceManager().Ensure()
-	st.Lock()
-	c.Assert(err, IsNil)
-
-	st.Unlock()
-	err = s.o.Settle(settleTimeout)
-	st.Lock()
-	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
-	c.Logf(s.logbuf.String())
-	dumpTasks(c, "after run", chg.Tasks())
-
-	autoConnectStatus("", "pc-kernel", []string{"core20", "pc", "snapd"})
-
-	// try snaps are set
+	// we are trying out a new kernel
 	currentTryKernel, err := bloader.TryKernel()
 	c.Assert(err, IsNil)
 	c.Assert(currentTryKernel.Filename(), Equals, "pc-kernel_2.snap")
-	m, err = boot.ReadModeenv("")
-	c.Assert(err, IsNil)
-	c.Check(m.BaseStatus, Equals, "")
 
 	// simulate successful restart happened
 	restart.MockPending(st, restart.RestartUnset)
@@ -11178,50 +11155,22 @@ base: core20
 	c.Logf(s.logbuf.String())
 	dumpTasks(c, "after run", chg.Tasks())
 
-	// Snapd is done updating, and core20 is now pending a system reboot to
-	// continue
+	// Snapd is done updating, and a restart has been requested after
+	// running all pre-boot tasks for base, gadget and kernel.
 	ok, rst = restart.Pending(st)
 	c.Assert(ok, Equals, true)
 	c.Assert(rst, Equals, restart.RestartSystem)
 
 	// we are trying out a new base
-	restart.MockPending(st, restart.RestartUnset)
-	restart.MockAfterRestartForChange(chg)
-	_, err = bloader.TryKernel()
-	c.Assert(err, Equals, bootloader.ErrNoTryKernelRef)
 	m, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	c.Check(m.BaseStatus, Equals, boot.TryStatus)
 	c.Check(m.TryBase, Equals, "core20_2.snap")
 
-	// pretend it boots
-	m.BaseStatus = boot.TryingStatus
-	c.Assert(m.Write(), IsNil)
-	s.o.DeviceManager().ResetToPostBootState()
-	st.Unlock()
-	err = s.o.DeviceManager().Ensure()
-	st.Lock()
-	c.Assert(err, IsNil)
-
-	st.Unlock()
-	err = s.o.Settle(settleTimeout)
-	st.Lock()
-	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
-	c.Logf(s.logbuf.String())
-	dumpTasks(c, "after core20 settle", chg.Tasks())
-
-	// Core20 has now updated, and gadget/kernel will be updating next
-	ok, rst = restart.Pending(st)
-	c.Assert(ok, Equals, true)
-	c.Assert(rst, Equals, restart.RestartSystem)
-
-	// try snaps are set
+	// we are trying out a new kernel
 	currentTryKernel, err := bloader.TryKernel()
 	c.Assert(err, IsNil)
 	c.Assert(currentTryKernel.Filename(), Equals, "pc-kernel_2.snap")
-	m, err = boot.ReadModeenv("")
-	c.Assert(err, IsNil)
-	c.Check(m.BaseStatus, Equals, "")
 
 	// simulate successful restart happened
 	restart.MockPending(st, restart.RestartUnset)
