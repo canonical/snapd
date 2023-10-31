@@ -180,6 +180,32 @@ apps:
 	c.Assert(err, ErrorMatches, `cannot connect plug personal-files: "\$NOTHOME/.local/share/target" must start with "\$HOME/"`)
 }
 
+func (s *personalFilesInterfaceSuite) TestConnectedPlugMountErrorAddUserEnsureDirsUnhappy(c *C) {
+	const mockPlugSnapInfo = `name: other
+version: 1.0
+plugs:
+ personal-files:
+  read: [$HOME/.read-dir, $HOME/.read-file, $HOME/.local/share/target]
+  write: [$HOME/.local/share/target]
+apps:
+ app:
+  command: foo
+  plugs: [personal-files]
+`
+	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
+	plugInfo := plugSnap.Plugs["personal-files"]
+	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
+	mountSpec := &mount.Specification{}
+	restore := builtin.MockDirsToEnsure(func(paths []string) ([]*interfaces.EnsureDirSpec, error) {
+		return []*interfaces.EnsureDirSpec{
+			{MustExistDir: "dir", EnsureDir: "dir/dir2"},
+		}, nil
+	})
+	defer restore()
+	err := mountSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	c.Assert(err, ErrorMatches, `cannot connect plug personal-files, internal error: cannot use ensure-dir mount specification: Directory that must exist "dir" is not an absolute path`)
+}
+
 func (s *personalFilesInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }

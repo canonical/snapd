@@ -98,6 +98,9 @@ func (s *entrySuite) TestReplaceOption(c *C) {
 	}
 	osutil.ReplaceMountEntryOption(&ent4, "x-snapd.kind")
 	c.Assert(ent4.String(), Equals, "none /usr/lib/lib4d.so.1.1.0 none x-snapd.kind=symlink,x-snapd.symlink=/snap/snapname/165/graphics/usr/lib/lib4d.so.1.1.0,x-snapd.origin=layout 0 0")
+
+	var ent5 *osutil.MountEntry
+	osutil.ReplaceMountEntryOption(ent5, osutil.XSnapdMustExistDir("doNotPanic"))
 }
 
 func (s *entrySuite) TestEqual(c *C) {

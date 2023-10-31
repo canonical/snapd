@@ -596,7 +596,7 @@ func emitEnsureDir(spec *Specification, ifaceName string, ensureDirSpec *interfa
 	// Create entry for MustExistDir
 	iter, err := strutil.NewPathIterator(ensureDir)
 	if err != nil {
-		panic(err)
+		return
 	}
 	for iter.Next() {
 		if iter.CurrentPathNoSlash() == mustExistDir {

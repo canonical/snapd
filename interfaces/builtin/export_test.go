@@ -116,3 +116,13 @@ func MockProcCpuinfo(filename string) (restore func()) {
 
 	return restore
 }
+
+func MockDirsToEnsure(fn func(paths []string) ([]*interfaces.EnsureDirSpec, error)) (restore func()) {
+	old := dirsToEnsure
+	restore = func() {
+		dirsToEnsure = old
+	}
+	dirsToEnsure = fn
+
+	return restore
+}

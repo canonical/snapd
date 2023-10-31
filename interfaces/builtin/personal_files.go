@@ -106,7 +106,7 @@ func potentiallyMissingDirs(path string) (*interfaces.EnsureDirSpec, error) {
 	}, nil
 }
 
-func dirsToEnsure(paths []string) ([]*interfaces.EnsureDirSpec, error) {
+var dirsToEnsure = func(paths []string) ([]*interfaces.EnsureDirSpec, error) {
 	var ensureDirSpecs []*interfaces.EnsureDirSpec
 	for _, path := range paths {
 		ensureDirSpec, err := potentiallyMissingDirs(path)

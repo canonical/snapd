@@ -33,7 +33,7 @@ type EnsureDirSpec struct {
 	EnsureDir    string
 }
 
-// IsValid return an error if the ensure directory specification is not valid.
+// IsValid returns an error if the ensure directory specification is not valid.
 func (spec *EnsureDirSpec) Validate() error {
 	if spec.MustExistDir != filepath.Clean(spec.MustExistDir) {
 		return fmt.Errorf("Directory that must exist %q is not a clean path", spec.MustExistDir)

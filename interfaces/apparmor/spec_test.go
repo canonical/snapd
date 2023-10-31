@@ -557,6 +557,22 @@ func (s *specSuite) TestAllowEnsureDirMounts(c *C) {
   owner /dir1/dir2/ rw,`)
 }
 
+func (s *specSuite) TestAllowEnsureDirMountsReturnsOnDirsMatch(c *C) {
+	ensureDirSpecs := []*interfaces.EnsureDirSpec{
+		{MustExistDir: "/dir", EnsureDir: "/dir"},
+	}
+	s.spec.AllowEnsureDirMounts("personal-files", ensureDirSpecs)
+	c.Check(s.spec.UpdateNS(), HasLen, 0)
+}
+
+func (s *specSuite) TestAllowEnsureDirMountsReturnsOnPathIteratorError(c *C) {
+	ensureDirSpecs := []*interfaces.EnsureDirSpec{
+		{MustExistDir: "/dir1", EnsureDir: "/../"},
+	}
+	s.spec.AllowEnsureDirMounts("personal-files", ensureDirSpecs)
+	c.Check(s.spec.UpdateNS(), HasLen, 0)
+}
+
 func (s *specSuite) TestUsesPtraceTrace(c *C) {
 	c.Assert(s.spec.UsesPtraceTrace(), Equals, false)
 	s.spec.SetUsesPtraceTrace()
