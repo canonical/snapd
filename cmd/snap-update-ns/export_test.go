@@ -61,9 +61,6 @@ var (
 
 	// update
 	ExecuteMountProfileUpdate = executeMountProfileUpdate
-
-	// snapenv
-	SnapEnvRealHome = snapEnvRealHome
 )
 
 // SystemCalls encapsulates various system interactions performed by this module.
@@ -176,14 +173,6 @@ func MockReadDir(fn func(string) ([]os.FileInfo, error)) (restore func()) {
 	ioutilReadDir = fn
 	return func() {
 		ioutilReadDir = old
-	}
-}
-
-func MockOSEnvironmentUnescapeUnsafe(fn func(string) (osutil.Environment, error)) (restore func()) {
-	old := osutilOSEnvironmentUnescapeUnsafe
-	osutilOSEnvironmentUnescapeUnsafe = fn
-	return func() {
-		osutilOSEnvironmentUnescapeUnsafe = old
 	}
 }
 

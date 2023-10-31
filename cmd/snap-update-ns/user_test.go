@@ -65,7 +65,7 @@ func (s *userSuite) TestNewUserProfileUpdateContextErrorNoRealHome(c *C) {
 	os.Unsetenv("SNAP_REAL_HOME")
 	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234)
 	c.Assert(upCtx, IsNil)
-	c.Assert(err, ErrorMatches, "cannot retrieve home directory: cannot find environment variable \"SNAP_REAL_HOME\"")
+	c.Assert(err, ErrorMatches, "cannot retrieve home directory")
 }
 
 func (s *userSuite) TestNewUserProfileUpdateContextErrorInvalidHome(c *C) {

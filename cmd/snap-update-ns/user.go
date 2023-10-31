@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"syscall"
 
@@ -59,15 +60,15 @@ func isPlausibleHome(path string) error {
 
 // NewUserProfileUpdateContext returns encapsulated information for performing a per-user mount namespace update.
 func NewUserProfileUpdateContext(instanceName string, fromSnapConfine bool, uid int) (*UserProfileUpdateContext, error) {
-	realHome, err := snapEnvRealHome()
-	if err != nil {
-		return nil, fmt.Errorf("cannot retrieve home directory: %v", err)
+	realHome := os.Getenv("SNAP_REAL_HOME")
+	if realHome == "" {
+		return nil, fmt.Errorf("cannot retrieve home directory")
 	}
 	// See bootstrap.c function switch_to_privileged_user(). When snap-update-ns is invoked for
 	// user mounts, the effective uid and gid is changed to the calling user and supplementary
 	// groups dropped, while retaining capability SYS_ADMIN. Having the effective uid and gid
 	// changed to the calling user is a prerequisite for isPlausibleHome to function as intended.
-	if err = isPlausibleHome(realHome); err != nil {
+	if err := isPlausibleHome(realHome); err != nil {
 		return nil, fmt.Errorf("cannot use invalid home directory %q: %v", realHome, err)
 	}
 	return &UserProfileUpdateContext{

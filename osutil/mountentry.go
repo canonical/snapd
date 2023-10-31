@@ -94,6 +94,28 @@ func Unescape(path string) string {
 	return unescape(path)
 }
 
+// ReplaceMountEntryOption replaces the first mount entry option that has
+// the same prefix as the given option with the given option
+func ReplaceMountEntryOption(entry *MountEntry, option string) {
+	if entry == nil {
+		return
+	}
+	kv := strings.SplitN(option, "=", 2)
+	if len(kv) < 2 {
+		return
+	}
+	if kv[1] == "" {
+		return
+	}
+	prefix := kv[0] + "="
+	for i, opt := range entry.Options {
+		if strings.HasPrefix(opt, prefix) {
+			entry.Options[i] = option
+			return
+		}
+	}
+}
+
 func (e MountEntry) String() string {
 	// Name represents name of the device in a mount entry.
 	name := "none"
@@ -130,28 +152,6 @@ func (e *MountEntry) OptStr(name string) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-// ReplaceMountEntryOption replaces the first mount entry option that has
-// the same prefix as the given option with the given option
-func ReplaceMountEntryOption(entry *MountEntry, option string) {
-	if entry == nil {
-		return
-	}
-	kv := strings.SplitN(option, "=", 2)
-	if len(kv) < 2 {
-		return
-	}
-	if kv[1] == "" {
-		return
-	}
-	prefix := kv[0] + "="
-	for i, opt := range entry.Options {
-		if strings.HasPrefix(opt, prefix) {
-			entry.Options[i] = option
-			return
-		}
-	}
 }
 
 // OptBool returns true if a given mount option is present.

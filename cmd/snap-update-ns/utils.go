@@ -343,11 +343,11 @@ func MkSymlink(dirFd int, dirName string, name string, oldname string, rs *Restr
 // a file with the same name exists. This error is intended to be used
 // with MkdirAllWithin.
 type FileInWayError struct {
-	File string
+	FilePath string
 }
 
 func (e *FileInWayError) Error() string {
-	return fmt.Sprintf("cannot create directory %q: existing file in the way", e.File)
+	return fmt.Sprintf("cannot create directory %q: existing file in the way", e.FilePath)
 }
 
 func (e *FileInWayError) Is(err error) bool {
@@ -410,7 +410,7 @@ func MkdirAllWithin(path, parent string, perm os.FileMode, uid sys.UserID, gid s
 	fi, err := osLstat(path)
 	if err == nil {
 		if !fi.Mode().IsDir() {
-			return &FileInWayError{File: path}
+			return &FileInWayError{FilePath: path}
 		}
 		return nil
 	} else if !os.IsNotExist(err) {
@@ -421,7 +421,7 @@ func MkdirAllWithin(path, parent string, perm os.FileMode, uid sys.UserID, gid s
 	fi, err = osLstat(parent)
 	if err == nil {
 		if !fi.Mode().IsDir() {
-			return &FileInWayError{File: parent}
+			return &FileInWayError{FilePath: parent}
 		}
 	} else if os.IsNotExist(err) {
 		return &ParentMissingError{Dir: parent}
@@ -447,7 +447,7 @@ func MkdirAllWithin(path, parent string, perm os.FileMode, uid sys.UserID, gid s
 		fi, err = osLstat(iter.CurrentPathNoSlash())
 		if err == nil {
 			if !fi.Mode().IsDir() {
-				return &FileInWayError{File: iter.CurrentPathNoSlash()}
+				return &FileInWayError{FilePath: iter.CurrentPathNoSlash()}
 			}
 			continue
 		}
