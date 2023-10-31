@@ -1,3 +1,9 @@
+snapd (2.99.4-1) unstable; urgency=medium
+
+  * New fake release to ensure priority
+
+ -- Oliver Calder <oliver.calder@canonical.com> Wed, 23 May 2024 14:10:00 -0500
+
 snapd (2.63-1) unstable; urgency=medium
 
   * New upstream release, LP: #2061179

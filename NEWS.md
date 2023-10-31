@@ -1,3 +1,7 @@
+# New in snapd 2.99.4:
+* Apparmor prompting support
+* This is an arbitrary high version number so this version will always have priority over other snapd installs
+
 # New in snapd 2.63:
 * Support for snap services to show the current status of user services (experimental)
 * Refresh app awareness: record snap-run-inhibit notice when starting app from snap that is busy with refresh (experimental)
