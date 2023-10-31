@@ -1936,6 +1936,33 @@ func notifyLinkParticipants(t *state.Task, snapsup *SnapSetup) {
 	}
 }
 
+func determineUnlinkTask(t *state.Task) *state.Task {
+	for _, wt := range t.WaitTasks() {
+		switch wt.Kind() {
+		case "unlink-current-snap", "unlink-snap":
+			return wt
+		}
+		if ut := determineUnlinkTask(wt); ut != nil {
+			return ut
+		}
+	}
+	return nil
+}
+
+// isSingleRebootBoundary returns true if the link-snap is determined to be the
+// do-boundary for a single-reboot set up.
+func isSingleRebootBoundary(linkSnap *state.Task) bool {
+	// link-snap must have do restart bound
+	if !restart.TaskIsRestartBoundary(linkSnap, restart.RestartBoundaryDirectionDo) {
+		return false
+	}
+	// unlink-current-snap must not have undo
+	if ut := determineUnlinkTask(linkSnap); ut != nil {
+		return !restart.TaskIsRestartBoundary(ut, restart.RestartBoundaryDirectionUndo)
+	}
+	return false
+}
+
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	st := t.State()
 	st.Lock()
@@ -2236,7 +2263,12 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// the bootstate to track changes done during update of gadget assets, instead
 	// the gadget asset tasks sets a boolean value if any restart is required on the change.
 	if snapsup.Type == snap.TypeGadget {
-		var needsReboot bool
+		// Default to true if the gadget link-snap task is a restart-boundary for do-path only.
+		// In a single-reboot setup, we may rely on the gadget to perform the reboot. In that specific
+		// scenario, the reboot link-snap task will have been marked with a Do restart boundary (and not undo!).
+		// If we were to do this in all scenarios (i.e just when it has the do), we would impact things like
+		// remodel.
+		needsReboot := isSingleRebootBoundary(t)
 		if err := t.Change().Get("gadget-restart-required", &needsReboot); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
