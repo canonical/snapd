@@ -243,6 +243,8 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 		confinement = "classic"
 	case "some-epoch-snap":
 		epoch = snap.E("42")
+	case "firmware-updater":
+		snapID = "EI0D1KHjP8XiwMZKqSjuh6W8zvcowUVP"
 	case "snapd-desktop-integration":
 		snapID = "IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu"
 	}
@@ -423,6 +425,9 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	// for validation-sets testing
 	case "bgtKhntON3vR7kwEbVPsILm7bUViPDzx":
 		name = "some-other-snap"
+	case "some-base-snap-id":
+		name = "some-base-snap"
+		base = "some-base"
 	case "provenance-snap-id":
 		name = "provenance-snap"
 	default:

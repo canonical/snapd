@@ -112,7 +112,7 @@ execute: |
   truncate --size=4G fake-disk.img
   loop_device=$(losetup --show -f ./fake-disk.img)
   # and "install" the current seed to the fake disk
-  ./muinstaller "$LABEL" "$TESTSLIB"/muinstaller/mk-classic-rootfs.sh "$loop_device"
+  ./muinstaller "$LABEL" "$loop_device" "$TESTSLIB"/muinstaller/mk-classic-rootfs.sh
   # validate that the fake installer created the expected partitions
   sfdisk -d "$loop_device" > fdisk_output
   MATCH "${loop_device}p1 .* name=\"BIOS Boot\""   < fdisk_output

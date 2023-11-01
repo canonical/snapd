@@ -128,7 +128,7 @@ func stampedAction(stamp string, action func() error) error {
 	if err := action(); err != nil {
 		return err
 	}
-	return ioutil.WriteFile(stampFile, nil, 0644)
+	return os.WriteFile(stampFile, nil, 0644)
 }
 
 func generateInitramfsMounts() (err error) {
@@ -525,7 +525,7 @@ func disableConsoleConf(dst string) error {
 	if err := os.MkdirAll(filepath.Dir(consoleConfCompleteFile), 0755); err != nil {
 		return err
 	}
-	return ioutil.WriteFile(consoleConfCompleteFile, nil, 0644)
+	return os.WriteFile(consoleConfCompleteFile, nil, 0644)
 }
 
 // copySafeDefaultData will copy to the destination a "safe" set of data for
@@ -670,7 +670,7 @@ func (r *recoverDegradedState) serializeTo(name string) error {
 	}
 
 	// leave the information about degraded state at an ephemeral location
-	return ioutil.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, name), b, 0644)
+	return os.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, name), b, 0644)
 }
 
 // stateFunc is a function which executes a state action, returns the next

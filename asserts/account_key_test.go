@@ -85,7 +85,7 @@ func (aks *accountKeySuite) TestDecodeOK(c *C) {
 	c.Check(accKey.Since(), Equals, aks.since)
 
 	// no constraints, anything goes
-	c.Check(accKey.CanSign(nil), Equals, true)
+	c.Check(accKey.ConstraintsPrecheck(asserts.AccountKeyType, nil), IsNil)
 }
 
 func (aks *accountKeySuite) TestDecodeNoName(c *C) {
@@ -1071,7 +1071,7 @@ func (s *accountKeySuite) TestSuggestedFormat(c *C) {
 	c.Check(fmtnum, Equals, 1)
 }
 
-func (aks *accountKeySuite) TestCanSign(c *C) {
+func (aks *accountKeySuite) TestCanSignAndConstraintsPrecheck(c *C) {
 	encoded := "type: account-key\n" +
 		"format: 1\n" +
 		"authority-id: canonical\n" +
@@ -1095,25 +1095,29 @@ func (aks *accountKeySuite) TestCanSign(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.AccountKeyType)
 	accKey := a.(*asserts.AccountKey)
-	mfoo := assertstest.FakeAssertion(map[string]interface{}{
+	headers := map[string]interface{}{
 		"type":         "model",
 		"authority-id": "my-brand",
 		"brand-id":     "my-brand",
 		"series":       "16",
 		"model":        "foo-200",
 		"classic":      "true",
-	})
+	}
+	c.Check(accKey.ConstraintsPrecheck(asserts.ModelType, headers), IsNil)
+	mfoo := assertstest.FakeAssertion(headers)
 	c.Check(accKey.CanSign(mfoo), Equals, true)
-	mnotfoo := assertstest.FakeAssertion(map[string]interface{}{
+	headers = map[string]interface{}{
 		"type":         "model",
 		"authority-id": "my-brand",
 		"brand-id":     "my-brand",
 		"series":       "16",
 		"model":        "goo-200",
 		"classic":      "true",
-	})
+	}
+	c.Check(accKey.ConstraintsPrecheck(asserts.ModelType, headers), ErrorMatches, `headers do not match the account-key constraints`)
+	mnotfoo := assertstest.FakeAssertion(headers)
 	c.Check(accKey.CanSign(mnotfoo), Equals, false)
-	pr := assertstest.FakeAssertion(map[string]interface{}{
+	headers = map[string]interface{}{
 		"type":              "preseed",
 		"authority-id":      "my-brand",
 		"series":            "16",
@@ -1122,15 +1126,19 @@ func (aks *accountKeySuite) TestCanSign(c *C) {
 		"system-label":      "2023-07-17",
 		"snaps":             []interface{}{},
 		"artifact-sha3-384": "KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABs1No7BtXj",
-	})
+	}
+	c.Check(accKey.ConstraintsPrecheck(asserts.PreseedType, headers), IsNil)
+	pr := assertstest.FakeAssertion(headers)
 	c.Check(accKey.CanSign(pr), Equals, true)
-	snapDecl := assertstest.FakeAssertion(map[string]interface{}{
+	headers = map[string]interface{}{
 		"type":         "snap-declaration",
 		"authority-id": "my-brand",
 		"series":       "16",
 		"snap-id":      "snapid",
 		"snap-name":    "foo",
 		"publisher-id": "my-brand",
-	})
+	}
+	c.Check(accKey.ConstraintsPrecheck(asserts.ModelType, headers), ErrorMatches, `headers do not match the account-key constraints`)
+	snapDecl := assertstest.FakeAssertion(headers)
 	c.Check(accKey.CanSign(snapDecl), Equals, false)
 }

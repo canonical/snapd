@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build !nosecboot
-// +build !nosecboot
 
 /*
  * Copyright (C) 2019-2022 Canonical Ltd
@@ -474,7 +473,7 @@ fi
 		jsonBytes = []byte(gadgettest.ExpectedLUKSEncryptedRaspiDiskVolumeDeviceTraitsJSON)
 	}
 
-	err = ioutil.WriteFile(dataFile, jsonBytes, 0644)
+	err = os.WriteFile(dataFile, jsonBytes, 0644)
 	c.Assert(err, IsNil)
 
 	mapping2, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")))
@@ -531,7 +530,7 @@ func (s *installSuite) setupMockUdevSymlinks(c *C, devName string) {
 	err := os.MkdirAll(filepath.Join(s.dir, "/dev/disk/by-partlabel"), 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(filepath.Join(s.dir, "/dev/"+devName), nil, 0644)
+	err = os.WriteFile(filepath.Join(s.dir, "/dev/"+devName), nil, 0644)
 	c.Assert(err, IsNil)
 	err = os.Symlink("../../"+devName, filepath.Join(s.dir, "/dev/disk/by-partlabel/ubuntu-seed"))
 	c.Assert(err, IsNil)
@@ -845,7 +844,7 @@ fi
 	// the static JSON to make sure they compare the same, this ensures that
 	// the JSON that is written always stays compatible
 	jsonBytes := []byte(opts.traitsJSON)
-	err = ioutil.WriteFile(dataFile, jsonBytes, 0644)
+	err = os.WriteFile(dataFile, jsonBytes, 0644)
 	c.Assert(err, IsNil)
 
 	mapping2, err := gadget.LoadDiskVolumesDeviceTraits(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")))
@@ -1434,20 +1433,29 @@ func (s *installSuite) TestMountVolumesLazyUnmountError(c *C) {
 	c.Check(log.String(), testutil.Contains, fmt.Sprintf("cannot lazy unmount %q: lazy unmount failed", seedMntPt))
 }
 
-func (s *installSuite) TestMatchDisksToGadgetVolumes(c *C) {
+func (s *installSuite) makeMockGadgetPartitionDiskAsInstallerSetsThem(c *C, deviceFmt string) *gadget.Info {
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
 	ginfo, _, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot)
 	c.Assert(err, IsNil)
-	defer restore()
+	s.AddCleanup(restore)
+
 	// Set devices as an installer would
 	for _, vol := range ginfo.Volumes {
 		for sIdx := range vol.Structure {
 			if vol.Structure[sIdx].Type == "mbr" {
 				continue
 			}
-			vol.Structure[sIdx].Device = fmt.Sprintf("/dev/vda%d", sIdx+1)
+			vol.Structure[sIdx].Device = fmt.Sprintf(deviceFmt, sIdx+1)
 		}
 	}
+	return ginfo
+}
+
+func (s *installSuite) TestMatchDisksToGadgetVolumesNotFound(c *C) {
+	// SysfsPathForBlockDevice() is not mocked here and by using
+	// the obsolete /dev/xda%d path we can be sure no system that
+	// runs this test has it and can match this disk.
+	ginfo := s.makeMockGadgetPartitionDiskAsInstallerSetsThem(c, "/dev/xda%d")
 
 	volCompatOpts := &gadget.VolumeCompatibilityOptions{
 		// at this point all partitions should be created
@@ -1457,10 +1465,20 @@ func (s *installSuite) TestMatchDisksToGadgetVolumes(c *C) {
 	// No disk found
 	mapStructToDisk, err := install.MatchDisksToGadgetVolumes(ginfo.Volumes, volCompatOpts)
 	c.Assert(mapStructToDisk, IsNil)
-	c.Assert(err.Error(), Equals, `cannot read link "/sys/class/block/vda2": readlink /sys/class/block/vda2: no such file or directory`)
+	c.Assert(err.Error(), Equals, `cannot read link "/sys/class/block/xda2": readlink /sys/class/block/xda2: no such file or directory`)
+
+}
+
+func (s *installSuite) TestMatchDisksToGadgetVolumesHappy(c *C) {
+	ginfo := s.makeMockGadgetPartitionDiskAsInstallerSetsThem(c, "/dev/vda%d")
+
+	volCompatOpts := &gadget.VolumeCompatibilityOptions{
+		// at this point all partitions should be created
+		AssumeCreatablePartitionsCreated: true,
+	}
 
 	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
-	restore = gadget.MockSysfsPathForBlockDevice(func(device string) (string, error) {
+	restore := gadget.MockSysfsPathForBlockDevice(func(device string) (string, error) {
 		if strings.HasPrefix(device, "/dev/vda") == true {
 			return filepath.Join(vdaSysPath, filepath.Base(device)), nil
 		}
@@ -1469,7 +1487,7 @@ func (s *installSuite) TestMatchDisksToGadgetVolumes(c *C) {
 	defer restore()
 
 	// Happy case
-	mapStructToDisk, err = install.MatchDisksToGadgetVolumes(ginfo.Volumes, volCompatOpts)
+	mapStructToDisk, err := install.MatchDisksToGadgetVolumes(ginfo.Volumes, volCompatOpts)
 	c.Assert(err, IsNil)
 	expectedMap := map[string]map[int]*gadget.OnDiskStructure{
 		"pc": {
@@ -1491,10 +1509,28 @@ func (s *installSuite) TestMatchDisksToGadgetVolumes(c *C) {
 		},
 	}
 	c.Check(mapStructToDisk, DeepEquals, expectedMap)
+}
 
-	// Now use an incompatible gadget
+func (s *installSuite) TestMatchDisksToGadgetVolumesIncompatibleGadget(c *C) {
+	ginfo := s.makeMockGadgetPartitionDiskAsInstallerSetsThem(c, "/dev/vda%d")
+
+	volCompatOpts := &gadget.VolumeCompatibilityOptions{
+		// at this point all partitions should be created
+		AssumeCreatablePartitionsCreated: true,
+	}
+
+	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
+	restore := gadget.MockSysfsPathForBlockDevice(func(device string) (string, error) {
+		if strings.HasPrefix(device, "/dev/vda") == true {
+			return filepath.Join(vdaSysPath, filepath.Base(device)), nil
+		}
+		return "", fmt.Errorf("bad disk")
+	})
+	defer restore()
+
+	// Use an incompatible gadget
 	ginfo.Volumes["pc"].Structure[1].Size = quantity.SizeKiB
-	mapStructToDisk, err = install.MatchDisksToGadgetVolumes(ginfo.Volumes, volCompatOpts)
+	mapStructToDisk, err := install.MatchDisksToGadgetVolumes(ginfo.Volumes, volCompatOpts)
 	c.Assert(mapStructToDisk, IsNil)
 	c.Assert(err.Error(), Equals, `cannot find disk partition /dev/vda1 (starting at 1048576) in gadget: on disk size 1048576 (1 MiB) is larger than gadget size 1024 (1 KiB) (and the role should not be expanded)`)
 }

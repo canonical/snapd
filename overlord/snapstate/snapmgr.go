@@ -32,7 +32,6 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -48,14 +47,12 @@ import (
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 var (
 	snapdTransitionDelayWithRandomess = 3*time.Hour + randutil.RandomDuration(4*time.Hour)
 )
-
-// overridden in the tests
-var errtrackerReport = errtracker.Report
 
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
@@ -68,7 +65,8 @@ type SnapManager struct {
 
 	preseed bool
 
-	ensuredMountsUpdated bool
+	ensuredMountsUpdated       bool
+	ensuredDesktopFilesUpdated bool
 }
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
@@ -1036,7 +1034,7 @@ func (m *SnapManager) localInstallCleanup() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	now := time.Now()
+	now := timeNow()
 	cutoff := now.Add(-localInstallCleanupWait)
 	if localInstallLastCleanup.After(cutoff) {
 		return nil
@@ -1136,6 +1134,46 @@ func (m *SnapManager) ensureMountsUpdated() error {
 	return nil
 }
 
+func (m *SnapManager) ensureDesktopFilesUpdated() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.ensuredDesktopFilesUpdated {
+		return nil
+	}
+
+	// only run after we are seeded
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	allStates, err := All(m.state)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	var snaps []*snap.Info
+	for _, snapSt := range allStates {
+		info, err := snapSt.CurrentInfo()
+		if err != nil {
+			return err
+		}
+		snaps = append(snaps, info)
+	}
+	if err := wrappers.EnsureSnapDesktopFiles(snaps); err != nil {
+		return err
+	}
+
+	m.ensuredDesktopFilesUpdated = true
+
+	return nil
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
 	if m.preseed {
@@ -1157,6 +1195,7 @@ func (m *SnapManager) Ensure() error {
 		m.localInstallCleanup(),
 		m.ensureVulnerableSnapConfineVersionsRemovedOnClassic(),
 		m.ensureMountsUpdated(),
+		m.ensureDesktopFilesUpdated(),
 	}
 
 	//FIXME: use firstErr helper

@@ -2,10 +2,7 @@ module github.com/snapcore/snapd/tests/lib/muinstaller
 
 go 1.18
 
-// TODO get this back to snapcore repo after changes are merged
-replace github.com/snapcore/snapd => github.com/alfonsosanchezbeato/snapd v0.0.0-20230808084524-9a40cc044dcd
-
-require github.com/snapcore/snapd v0.0.0-20230705065623-befebe0d505e
+require github.com/snapcore/snapd v0.0.0-20231005121729-5238d0581c9e
 
 require (
 	github.com/canonical/go-efilib v0.3.1-0.20220815143333-7e5151412e93 // indirect

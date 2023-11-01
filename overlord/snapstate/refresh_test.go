@@ -20,7 +20,6 @@
 package snapstate_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -130,7 +129,7 @@ func (s *refreshSuite) TestPendingSnapRefreshInfo(c *C) {
 	err = snapstate.NewBusySnapError(s.info, nil, []string{"app"}, nil)
 	desktopFile := s.info.Apps["app"].DesktopFile()
 	c.Assert(os.MkdirAll(filepath.Dir(desktopFile), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(desktopFile, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(desktopFile, nil, 0644), IsNil)
 	refreshInfo = err.PendingSnapRefreshInfo()
 	c.Check(refreshInfo.InstanceName, Equals, s.info.InstanceName())
 	c.Check(refreshInfo.BusyAppName, Equals, "app")
@@ -174,9 +173,10 @@ func (s *refreshSuite) TestDoSoftRefreshCheckAllowed(c *C) {
 	c.Assert(err, IsNil)
 
 	// In addition, the inhibition lock is not set.
-	hint, err := runinhibit.IsLocked(info.InstanceName())
+	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName())
 	c.Assert(err, IsNil)
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{})
 }
 
 func (s *refreshSuite) TestDoSoftRefreshCheckDisallowed(c *C) {
@@ -197,9 +197,10 @@ func (s *refreshSuite) TestDoSoftRefreshCheckDisallowed(c *C) {
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
 
 	// Validity check: the inhibition lock was not set.
-	hint, err := runinhibit.IsLocked(info.InstanceName())
+	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName())
 	c.Assert(err, IsNil)
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{})
 }
 
 func (s *refreshSuite) TestDoHardRefreshFlowRefreshAllowed(c *C) {

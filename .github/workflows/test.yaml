@@ -519,6 +519,9 @@ jobs:
 
               echo "Running spread log analyzer"
               ./tests/lib/external/snapd-testing-tools/utils/log-analyzer list-reexecute-tasks "$RUN_TESTS" spread-results.json > "$FAILED_TESTS_FILE"
+
+              echo "List of failed tests saved"
+              cat "$FAILED_TESTS_FILE"
           else
               echo "No spread log found, saving empty list of failed tests"
               touch "$FAILED_TESTS_FILE"
@@ -560,13 +563,17 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
+    - name: Get previous attempt
+      id: get-previous-attempt
+      run: |
+        echo "previous_attempt=$(( ${{ github.run_attempt }} - 1 ))" >> $GITHUB_OUTPUT
+      shell: bash
+
     - name: Get previous cache
-      uses: actions/cache/restore@v3
+      uses: actions/cache@v3
       with:
         path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ github.run_attempt }}"
-        restore-keys: |
-          "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-"
+        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
 
     - name: Prepare test results env and vars
       id: prepare-test-results-env
@@ -666,6 +673,9 @@ jobs:
 
               echo "Running spread log analyzer"
               ./tests/lib/external/snapd-testing-tools/utils/log-analyzer list-reexecute-tasks "$RUN_TESTS" spread-results.json > "$FAILED_TESTS_FILE"
+
+              echo "List of failed tests saved"
+              cat "$FAILED_TESTS_FILE"
           else
               echo "No spread log found, saving empty list of failed tests"
               touch "$FAILED_TESTS_FILE"

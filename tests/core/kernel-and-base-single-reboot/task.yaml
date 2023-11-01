@@ -65,10 +65,10 @@ execute: |
         # retrying auto-connect)
         snap debug state --change "$change_id" /var/lib/snapd/state.json > tasks.state
         # both link snaps are done
-        MATCH ' Done\s+.*Make snap "pc-kernel" .* available' < tasks.state
+        MATCH ' Wait\s+.*Make snap "pc-kernel" .* available' < tasks.state
         MATCH " Done\s+.*Make snap \"$core_snap\" .* available" < tasks.state
         # auto-connect of the base is in doing and waiting for reboot
-        MATCH " Doing\s+.*Automatically connect eligible plugs and slots of snap \"$core_snap\"" < tasks.state
+        MATCH " Do\s+.*Automatically connect eligible plugs and slots of snap \"$core_snap\"" < tasks.state
         # auto-connect of the kernel is still queued
         MATCH ' Do\s+.*Automatically connect eligible plugs and slots of snap "pc-kernel"' < tasks.state
 
@@ -98,11 +98,11 @@ execute: |
         snap changes | MATCH "$change_id\s+(Done|Error)"
         # we expect re-refresh to fail since the tests uses a fake store
         snap change "$change_id" > tasks.done
-        MATCH '^Error .* Handling re-refresh' < tasks.done
+        MATCH '^Error .* Monitoring .* to determine whether extra refresh steps are required' < tasks.done
         # no other errors
-        grep -v 'Handling re-refresh' < tasks.done | NOMATCH '^Error'
+        grep -v 'Monitoring .* to determine whether extra refresh steps are required' < tasks.done | NOMATCH '^Error'
         # nothing was undone
-        grep -v 'Handling re-refresh' < tasks.done | NOMATCH '^Undone'
+        grep -v 'Monitoring .* to determine whether extra refresh steps are required' < tasks.done | NOMATCH '^Undone'
         # we did not even try to hijack shutdown (/bin/systemctl) because that
         # could race with snapd (if that wanted to call it), so just check that
         # the system is in a stable state once we have already determined that

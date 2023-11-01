@@ -21,7 +21,6 @@ package preseed_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -40,7 +39,7 @@ func mockVersionFiles(c *C, rootDir1, version1, rootDir2, version2 string) {
 	for i, root := range []string{rootDir1, rootDir2} {
 		c.Assert(os.MkdirAll(filepath.Join(root, dirs.CoreLibExecDir), 0755), IsNil)
 		infoFile := filepath.Join(root, dirs.CoreLibExecDir, "info")
-		c.Assert(ioutil.WriteFile(infoFile, []byte(fmt.Sprintf("VERSION=%s", versions[i])), 0644), IsNil)
+		c.Assert(os.WriteFile(infoFile, []byte(fmt.Sprintf("VERSION=%s", versions[i])), 0644), IsNil)
 	}
 }
 
@@ -92,7 +91,7 @@ func (s *preseedSuite) TestChrootValidationAlreadyPreseeded(c *C) {
 	tmpDir := c.MkDir()
 	snapdDir := filepath.Dir(dirs.SnapStateFile)
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, snapdDir), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, dirs.SnapStateFile), nil, os.ModePerm), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(tmpDir, dirs.SnapStateFile), nil, os.ModePerm), IsNil)
 
 	c.Check(preseed.Classic(tmpDir), ErrorMatches, fmt.Sprintf("the system at %q appears to be preseeded, pass --reset flag to clean it up", tmpDir))
 }
@@ -182,11 +181,11 @@ func (s *preseedSuite) TestRunPreseedHappyPremounted(c *C) {
 
 	// Faking that /proc is mounted
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/proc/self"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "/proc/self/cmdline"), []byte{}, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(tmpDir, "/proc/self/cmdline"), []byte{}, 0644), IsNil)
 
 	// Faking that /dev is mounted
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/dev"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "/dev/loop-control"), []byte{}, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(tmpDir, "/dev/loop-control"), []byte{}, 0644), IsNil)
 
 	restoreSyscallChroot := preseed.MockSyscallChroot(func(path string) error { return nil })
 	defer restoreSyscallChroot()
@@ -310,11 +309,11 @@ func (s *preseedSuite) TestRunPreseedUnsupportedVersion(c *C) {
 	defer mockTargetSnapd.Restore()
 
 	infoFile := filepath.Join(targetSnapdRoot, dirs.CoreLibExecDir, "info")
-	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=2.43.0"), 0644), IsNil)
+	c.Assert(os.WriteFile(infoFile, []byte("VERSION=2.43.0"), 0644), IsNil)
 
 	// simulate snapd version from the deb
 	infoFile = filepath.Join(filepath.Join(tmpDir, dirs.CoreLibExecDir, "info"))
-	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=2.41.0"), 0644), IsNil)
+	c.Assert(os.WriteFile(infoFile, []byte("VERSION=2.41.0"), 0644), IsNil)
 
 	c.Check(preseed.Classic(tmpDir), ErrorMatches,
 		`snapd 2.43.0 from the target system does not support preseeding, the minimum required version is 2.43.3\+`)
@@ -388,7 +387,7 @@ func (s *preseedSuite) TestReset(c *C) {
 				// note, symlinkTarget is not relative to tmpDir
 				c.Assert(os.Symlink(art.symlinkTarget, fullPath), IsNil)
 			} else {
-				c.Assert(ioutil.WriteFile(fullPath, nil, os.ModePerm), IsNil)
+				c.Assert(os.WriteFile(fullPath, nil, os.ModePerm), IsNil)
 			}
 		}
 
@@ -408,7 +407,7 @@ func (s *preseedSuite) TestReset(c *C) {
 
 		snapdDir := filepath.Dir(dirs.SnapStateFile)
 		c.Assert(os.MkdirAll(filepath.Join(tmpDir, snapdDir), 0755), IsNil)
-		c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, dirs.SnapStateFile), nil, os.ModePerm), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(tmpDir, dirs.SnapStateFile), nil, os.ModePerm), IsNil)
 
 		c.Assert(preseed.ResetPreseededChroot(resetDirArg), IsNil)
 
@@ -422,7 +421,7 @@ func (s *preseedSuite) TestReset(c *C) {
 
 		// reset complains if target is not a directory
 		fooFile := filepath.Join(resetDirArg, "foo")
-		c.Assert(ioutil.WriteFile(fooFile, nil, os.ModePerm), IsNil)
+		c.Assert(os.WriteFile(fooFile, nil, os.ModePerm), IsNil)
 		err = preseed.ResetPreseededChroot(fooFile)
 		// the error message is always with an absolute file, so make the path
 		// absolute if we are running the relative test to properly match
@@ -467,15 +466,15 @@ func (s *preseedSuite) TestResetRexec(c *C) {
 	// Before chroot
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, targetSnapdRoot, dirs.CoreLibExecDir), 0755), IsNil)
 	infoFile := filepath.Join(tmpDir, targetSnapdRoot, dirs.CoreLibExecDir, "info")
-	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=2.59"), 0644), IsNil)
+	c.Assert(os.WriteFile(infoFile, []byte("VERSION=2.59"), 0644), IsNil)
 
 	// After chroot
 	c.Assert(os.MkdirAll(filepath.Join(targetSnapdRoot, dirs.CoreLibExecDir), 0755), IsNil)
 	infoFile = filepath.Join(targetSnapdRoot, dirs.CoreLibExecDir, "info")
-	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=2.59"), 0644), IsNil)
+	c.Assert(os.WriteFile(infoFile, []byte("VERSION=2.59"), 0644), IsNil)
 
 	infoFile = filepath.Join(filepath.Join(tmpDir, dirs.CoreLibExecDir, "info"))
-	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=2.58"), 0644), IsNil)
+	c.Assert(os.WriteFile(infoFile, []byte("VERSION=2.58"), 0644), IsNil)
 
 	c.Assert(preseed.ClassicReset(tmpDir), IsNil)
 
@@ -514,10 +513,10 @@ func (s *preseedSuite) TestResetRexecTooOld(c *C) {
 
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, targetSnapdRoot, dirs.CoreLibExecDir), 0755), IsNil)
 	infoFile := filepath.Join(tmpDir, targetSnapdRoot, dirs.CoreLibExecDir, "info")
-	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=2.58"), 0644), IsNil)
+	c.Assert(os.WriteFile(infoFile, []byte("VERSION=2.58"), 0644), IsNil)
 
 	infoFile = filepath.Join(filepath.Join(tmpDir, dirs.CoreLibExecDir, "info"))
-	c.Assert(ioutil.WriteFile(infoFile, []byte("VERSION=2.58"), 0644), IsNil)
+	c.Assert(os.WriteFile(infoFile, []byte("VERSION=2.58"), 0644), IsNil)
 
 	c.Assert(preseed.ClassicReset(tmpDir), IsNil)
 

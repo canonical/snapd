@@ -1,3 +1,68 @@
+snapd (2.61) xenial; urgency=medium
+
+  * New upstream release, LP: #2039017
+    - Fix control of activated services in 'snap start' and 'snap stop'
+    - Correctly reflect activated services in 'snap services'
+    - Disabled services are no longer enabled again when snap is
+      refreshed
+    - interfaces/builtin: added support for Token2 U2F keys
+    - interfaces/u2f-devices: add Swissbit iShield Key
+    - interfaces/builtin: update gpio apparmor to match pattern that
+      contains multiple subdirectories under /sys/devices/platform
+    - interfaces: add a polkit-agent interface
+    - interfaces: add pcscd interface
+    - Kernel command-line can now be edited in the gadget.yaml
+    - Only track validation-sets in run-mode, fixes validation-set
+      issues on first boot.
+    - Added support for using store.access to disable access to snap
+      store
+    - Support for fat16 partition in gadget
+    - Pre-seed authority delegation is now possible
+    - Support new system-user name  daemon
+    - Several bug fixes and improvements around remodelling
+    - Offline remodelling support
+
+ -- Philip Meulengracht <philip.meulengracht@canonical.com>  Fri, 13 Oct 2023 13:06:02 +0200
+
+snapd (2.60.4) xenial; urgency=medium
+
+  * New upstream release, LP: #2024007
+    - i/b/qualcomm_ipc_router.go: switch to plug/slot and add socket
+      permission
+    - interfaces/builtin: fix custom-device udev KERNEL values
+    - overlord: allow the firmware-updater snap to install user daemons
+    - interfaces: allow loopback as a block-device
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 15 Sep 2023 20:46:59 +0200
+
+snapd (2.60.3) xenial; urgency=medium
+
+  * New upstream release, LP: #2024007
+    - i/b/shared-memory: handle "private" plug attribute in shared-
+      memory interface correctly
+    - i/apparmor: support for home.d tunables from /etc/
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 25 Aug 2023 18:36:50 +0200
+
+snapd (2.60.2) xenial; urgency=medium
+
+  * New upstream release, LP: #2024007
+    - i/builtin: allow directories in private /dev/shm
+    - i/builtin: add read access to /proc/task/schedstat in system-
+      observe
+    - snap-bootstrap: print version information at startup
+    - go.mod: update gopkg.in/yaml.v3 to v3.0.1 to fix CVE-2022-28948
+    - snap, store: filter out invalid snap edited links from store info
+      and persisted state
+    - o/configcore: write netplan defaults to 00-snapd-config on seeding
+    - snapcraft.yaml: pull in apparmor_parser optimization patches from
+      https://gitlab.com/apparmor/apparmor/-/merge_requests/711
+    - snap-confine: fix missing \0 after readlink
+    - cmd/snap: hide append-integrity-data
+    - interfaces/opengl: add support for ARM Mali
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 04 Aug 2023 12:14:04 +0200
+
 snapd (2.60.1) xenial; urgency=medium
 
   * New upstream release, LP: #2024007

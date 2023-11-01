@@ -428,7 +428,7 @@ func MockWaitInhibitUnlock(f func(snapName string, waitFor runinhibit.Hint) (boo
 	}
 }
 
-func MockIsLocked(f func(snapName string) (runinhibit.Hint, error)) (restore func()) {
+func MockIsLocked(f func(snapName string) (runinhibit.Hint, runinhibit.InhibitInfo, error)) (restore func()) {
 	old := isLocked
 	isLocked = f
 	return func() {

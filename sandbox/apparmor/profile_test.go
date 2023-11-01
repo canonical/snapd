@@ -156,7 +156,7 @@ func (s *appArmorSuite) TestRemoveCachedProfiles(c *C) {
 	c.Assert(err, IsNil)
 
 	fname := filepath.Join(apparmor.CacheDir, "profile")
-	ioutil.WriteFile(fname, []byte("blob"), 0600)
+	os.WriteFile(fname, []byte("blob"), 0600)
 	err = apparmor.RemoveCachedProfiles([]string{"profile"}, apparmor.CacheDir)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(fname)
@@ -178,10 +178,10 @@ func (s *appArmorSuite) TestRemoveCachedProfilesInForest(c *C) {
 	err = os.MkdirAll(subdir, 0700)
 	c.Assert(err, IsNil)
 	features := filepath.Join(subdir, ".features")
-	ioutil.WriteFile(features, []byte("blob"), 0644)
+	os.WriteFile(features, []byte("blob"), 0644)
 
 	fname := filepath.Join(subdir, "profile")
-	ioutil.WriteFile(fname, []byte("blob"), 0600)
+	os.WriteFile(fname, []byte("blob"), 0600)
 	err = apparmor.RemoveCachedProfiles([]string{"profile"}, apparmor.CacheDir)
 	c.Assert(err, IsNil)
 	_, err = os.Stat(fname)
@@ -272,14 +272,14 @@ func (s *appArmorSuite) TestLoadedApparmorProfilesReturnsErrorOnMissingFile(c *C
 }
 
 func (s *appArmorSuite) TestLoadedApparmorProfilesCanParseEmptyFile(c *C) {
-	ioutil.WriteFile(s.profilesFilename, []byte(""), 0600)
+	os.WriteFile(s.profilesFilename, []byte(""), 0600)
 	profiles, err := apparmor.LoadedProfiles()
 	c.Assert(err, IsNil)
 	c.Check(profiles, HasLen, 0)
 }
 
 func (s *appArmorSuite) TestLoadedApparmorProfilesParsesAndFiltersData(c *C) {
-	ioutil.WriteFile(s.profilesFilename, []byte(
+	os.WriteFile(s.profilesFilename, []byte(
 		// The output contains some of the snappy-specific elements
 		// and some non-snappy elements pulled from Ubuntu 16.04 desktop
 		//
@@ -310,11 +310,11 @@ webbrowser-app//oxide_helper (enforce)
 }
 
 func (s *appArmorSuite) TestLoadedApparmorProfilesHandlesParsingErrors(c *C) {
-	ioutil.WriteFile(s.profilesFilename, []byte("broken stuff here\n"), 0600)
+	os.WriteFile(s.profilesFilename, []byte("broken stuff here\n"), 0600)
 	profiles, err := apparmor.LoadedProfiles()
 	c.Assert(err, ErrorMatches, "newline in format does not match input")
 	c.Check(profiles, IsNil)
-	ioutil.WriteFile(s.profilesFilename, []byte("truncated"), 0600)
+	os.WriteFile(s.profilesFilename, []byte("truncated"), 0600)
 	profiles, err = apparmor.LoadedProfiles()
 	c.Assert(err, ErrorMatches, `syntax error, expected: name \(mode\)`)
 	c.Check(profiles, IsNil)
@@ -365,7 +365,7 @@ func (s *appArmorSuite) TestSnapConfineDistroProfilePath(c *C) {
 			fullPath := filepath.Join(baseDir, path)
 			err := os.MkdirAll(filepath.Dir(fullPath), 0755)
 			c.Assert(err, IsNil)
-			err = ioutil.WriteFile(fullPath, []byte("I'm an ELF binary"), 0755)
+			err = os.WriteFile(fullPath, []byte("I'm an ELF binary"), 0755)
 			c.Assert(err, IsNil)
 		}
 		var expectedPath string
@@ -405,7 +405,7 @@ func (s *appArmorSuite) writeSystemParams(c *C, homedirs []string) {
 	conents := fmt.Sprintf("homedirs=%s\n", strings.Join(homedirs, ","))
 
 	c.Assert(os.MkdirAll(path.Dir(sspPath), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(sspPath, []byte(conents), 0644), IsNil)
+	c.Assert(os.WriteFile(sspPath, []byte(conents), 0644), IsNil)
 }
 
 func (s *appArmorSuite) TestSetupSnapConfineSnippetsHomedirs(c *C) {
@@ -637,7 +637,7 @@ func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 	c.Assert(err, IsNil)
 	err = os.MkdirAll(filepath.Dir(apparmor.SnapConfineAppArmorDir), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(apparmor.SnapConfineAppArmorDir, []byte(""), 0644)
+	err = os.WriteFile(apparmor.SnapConfineAppArmorDir, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
 	wasChanged, err := apparmor.SetupSnapConfineSnippets()
@@ -669,7 +669,7 @@ func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
 	err := os.MkdirAll(apparmor.SnapConfineAppArmorDir, 0755)
 	c.Assert(err, IsNil)
 	f := filepath.Join(apparmor.SnapConfineAppArmorDir, "generated-test")
-	err = ioutil.WriteFile(f, []byte("spurious content"), 0644)
+	err = os.WriteFile(f, []byte("spurious content"), 0644)
 	c.Assert(err, IsNil)
 	err = os.Chmod(apparmor.SnapConfineAppArmorDir, 0555)
 	c.Assert(err, IsNil)
@@ -694,8 +694,8 @@ func (s *appArmorSuite) TestRemoveSnapConfineSnippets(c *C) {
 	// Create the snap-confine directory and put a few files.
 	err := os.MkdirAll(apparmor.SnapConfineAppArmorDir, 0755)
 	c.Assert(err, IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(apparmor.SnapConfineAppArmorDir, "cap-test"), []byte("foo"), 0644), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(apparmor.SnapConfineAppArmorDir, "my-file"), []byte("foo"), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(apparmor.SnapConfineAppArmorDir, "cap-test"), []byte("foo"), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(apparmor.SnapConfineAppArmorDir, "my-file"), []byte("foo"), 0644), IsNil)
 
 	err = apparmor.RemoveSnapConfineSnippets()
 	c.Check(err, IsNil)

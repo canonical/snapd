@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -851,17 +852,23 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBase(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
 	})
-	s.state.NewChange("sample", "...").AddTask(t)
+
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
 
 	s.state.Unlock()
 	s.se.Ensure()
 	s.se.Wait()
 	s.state.Lock()
 
-	c.Check(t.Status(), Equals, state.DoneStatus)
+	// Ensure that a restart has been requested
+	restarting, rt := restart.Pending(s.state)
+	c.Check(restarting, Equals, true)
+	c.Check(rt, Equals, restart.RestartSystem)
+	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystem})
 	c.Assert(t.Log(), HasLen, 1)
-	c.Check(t.Log()[0], Matches, `.*INFO Requested system restart.*`)
+	c.Check(t.Log()[0], Matches, `.* INFO Task set to wait until a system restart allows to continue`)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForKernelClassicWithModes(c *C) {
@@ -903,10 +910,13 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForKernelClassicWithModes(c *
 	s.se.Wait()
 	s.state.Lock()
 
+	// Restart must not have been requested, as we're on classic
+	restarting, _ := restart.Pending(s.state)
+	c.Check(restarting, Equals, false)
 	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(s.restartRequested, HasLen, 0)
 	c.Assert(t.Log(), HasLen, 1)
-	c.Check(t.Log()[0], Matches, `.*INFO Task set to wait until a manual system restart allows to continue`)
+	c.Check(t.Log()[0], Matches, `.* INFO Task set to wait until a system restart allows to continue`)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBaseSystemRestartImmediate(c *C) {
@@ -943,10 +953,14 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForCoreBaseSystemRestartImmed
 	s.se.Wait()
 	s.state.Lock()
 
-	c.Check(t.Status(), Equals, state.DoneStatus)
+	// Ensure the restart is requested as RestartSystemNow
+	restarting, rt := restart.Pending(s.state)
+	c.Check(restarting, Equals, true)
+	c.Check(rt, Equals, restart.RestartSystemNow)
+	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	c.Assert(t.Log(), HasLen, 1)
-	c.Check(t.Log()[0], Matches, `.*INFO Requested system restart.*`)
+	c.Check(t.Log()[0], Matches, `.* INFO Task set to wait until a system restart allows to continue`)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnClassic(c *C) {
@@ -984,6 +998,73 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnClassic(c *C) {
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartDaemon})
+	c.Check(t.Log(), HasLen, 1)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapSuccessGadgetDoesNotRequestReboot(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	si := &snap.SideInfo{
+		RealName: "pc",
+		SnapID:   "pc-snap-id",
+		Revision: snap.R(1),
+	}
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	})
+	s.state.NewChange("sample", "...").AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// "gadget-restart-required" was not set, so we expect it to run
+	// to completion and no reboots
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(s.restartRequested, HasLen, 0)
+	c.Check(t.Log(), HasLen, 0)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapSuccessGadgetDoesRequestsRestart(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	si := &snap.SideInfo{
+		RealName: "pc",
+		SnapID:   "pc-snap-id",
+		Revision: snap.R(1),
+	}
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeGadget,
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	// set "gadget-restart-required"
+	chg.Set("gadget-restart-required", true)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Change enters wait-status, and a reboot has been requested
+	c.Check(t.Status(), Equals, state.WaitStatus)
+	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystem})
 	c.Check(t.Log(), HasLen, 1)
 }
 
@@ -1523,6 +1604,15 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCoreBase(c *C) {
 	}
 	s.state.Lock()
 
+	// simulate a restart
+	restart.MockPending(s.state, restart.RestartUnset)
+	restart.MockAfterRestartForChange(chg)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "core18", &snapst)
 	c.Assert(err, IsNil)
@@ -1644,7 +1734,7 @@ func (s *linkSnapSuite) TestLinkSnapInjectsAutoConnectIfMissing(c *C) {
 
 func (s *linkSnapSuite) TestDoLinkSnapFailureCleansUpAux(c *C) {
 	// this is very chummy with the order of LinkSnap
-	c.Assert(ioutil.WriteFile(dirs.SnapSeqDir, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapSeqDir, nil, 0644), IsNil)
 
 	// we start without the auxiliary store info
 	c.Check(snapstate.AuxStoreInfoFilename("foo-id"), testutil.FileAbsent)
@@ -1863,11 +1953,9 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresLastRefreshTime(c *C) {
 	lastRefresh, err := time.Parse(time.RFC3339, "2021-06-10T10:00:00Z")
 	c.Assert(err, IsNil)
 
-	var called int
 	restoreTimeNow := snapstate.MockTimeNow(func() time.Time {
 		now, err := time.Parse(time.RFC3339, "2021-07-20T10:00:00Z")
 		c.Assert(err, IsNil)
-		called++
 		return now
 	})
 	defer restoreTimeNow()
@@ -1903,7 +1991,6 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresLastRefreshTime(c *C) {
 	c.Assert(snapstate.Get(s.state, "snap", &snapst), IsNil)
 	// the original last-refresh-time has been restored.
 	c.Check(snapst.LastRefreshTime.Equal(lastRefresh), Equals, true)
-	c.Check(called, Equals, 1)
 }
 
 func (s *linkSnapSuite) TestUndoLinkSnapdFirstInstall(c *C) {

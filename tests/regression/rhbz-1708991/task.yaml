@@ -3,11 +3,8 @@ summary: Check that snapd SELinux policy does not break systemd services with pr
 systems: [fedora-*, centos-*]
 
 prepare: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB"/pkgdb.sh
-
     if [[ "$SPREAD_SYSTEM" == centos-7-* ]]; then
-        distro_install_package systemd-resolved
+        tests.pkgs install systemd-resolved
     fi
 
     getenforce > enforcing.mode

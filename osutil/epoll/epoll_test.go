@@ -1,7 +1,9 @@
 package epoll_test
 
 import (
+	"errors"
 	"os"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -31,15 +33,12 @@ func (*epollSuite) TestString(c *C) {
 func (*epollSuite) TestOpenClose(c *C) {
 	e, err := epoll.Open()
 	c.Assert(err, IsNil)
-	c.Assert(e.Fd() == -1, Equals, false)
-	c.Assert(e.Fd() == 0, Equals, false)
-	c.Assert(e.Fd() == 1, Equals, false)
-	c.Assert(e.Fd() == 2, Equals, false)
 	c.Assert(e.RegisteredFdCount(), Equals, 0)
+	c.Assert(e.IsClosed(), Equals, false)
 
 	err = e.Close()
 	c.Assert(err, IsNil)
-	c.Assert(e.Fd(), Equals, -1)
+	c.Assert(e.IsClosed(), Equals, true)
 }
 
 func concurrentlyRegister(e *epoll.Epoll, fd int, errCh chan error) {
@@ -56,6 +55,25 @@ func waitThenWriteToFd(duration time.Duration, fd int, msg []byte) error {
 	time.Sleep(duration)
 	_, err := unix.Write(fd, msg)
 	return err
+}
+
+func waitSomewhereElse(e *epoll.Epoll, eventCh chan []epoll.Event, errCh chan error) {
+	events, err := e.Wait()
+	eventCh <- events
+	errCh <- err
+}
+
+func waitTimeoutSomewhereElse(e *epoll.Epoll, timeout time.Duration, eventCh chan []epoll.Event, errCh chan error) {
+	events, err := e.WaitTimeout(timeout)
+	eventCh <- events
+	errCh <- err
+}
+
+func closeAfter(c *C, e *epoll.Epoll, duration time.Duration) {
+	_ = time.AfterFunc(duration, func() {
+		err := e.Close()
+		c.Assert(err, Equals, nil)
+	})
 }
 
 func (*epollSuite) TestRegisterWaitModifyDeregister(c *C) {
@@ -204,12 +222,26 @@ func (*epollSuite) TestEpollWaitEintrHandling(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(e.RegisteredFdCount(), Equals, 1)
 
-	mockReturnedN := 0
-	mockReturnedErr := unix.EINTR
+	var mu sync.Mutex
+	eintr := true
+	shouldReturnEintr := func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return eintr
+	}
+	stopEintr := func() {
+		mu.Lock()
+		defer mu.Unlock()
+		eintr = false
+	}
 	restore := epoll.MockUnixEpollWait(func(epfd int, events []unix.EpollEvent, msec int) (n int, err error) {
-		time.Sleep(time.Millisecond * 10) // rate limit a bit
-		return mockReturnedN, mockReturnedErr
+		if shouldReturnEintr() {
+			time.Sleep(time.Millisecond * 10) // rate limit a bit
+			return 0, unix.EINTR
+		}
+		return unix.EpollWait(epfd, events, msec)
 	})
+	defer restore()
 
 	eventCh := make(chan []epoll.Event)
 	errCh := make(chan error)
@@ -226,7 +258,7 @@ func (*epollSuite) TestEpollWaitEintrHandling(c *C) {
 
 	startTime := time.Now()
 
-	time.AfterFunc(defaultDuration, restore)
+	time.AfterFunc(defaultDuration, stopEintr)
 
 	events = <-eventCh
 	err = <-errCh
@@ -432,18 +464,6 @@ func (epollSuite) TestRegisterDeregisterConcurrency(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func waitSomewhereElse(e *epoll.Epoll, eventCh chan []epoll.Event, errCh chan error) {
-	events, err := e.Wait()
-	eventCh <- events
-	errCh <- err
-}
-
-func waitTimeoutSomewhereElse(e *epoll.Epoll, timeout time.Duration, eventCh chan []epoll.Event, errCh chan error) {
-	events, err := e.WaitTimeout(timeout)
-	eventCh <- events
-	errCh <- err
-}
-
 func (*epollSuite) TestWaitWithoutRegistering(c *C) {
 	e, err := epoll.Open()
 	c.Assert(err, IsNil)
@@ -542,4 +562,119 @@ func (*epollSuite) TestWaitThenRegister(c *C) {
 
 	err = e.Close()
 	c.Assert(err, IsNil)
+}
+
+func (*epollSuite) TestErrorsOnClosedEpoll(c *C) {
+	e, err := epoll.Open()
+	c.Assert(err, IsNil)
+
+	err = e.Close()
+	c.Assert(err, IsNil)
+
+	err = e.Close()
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+
+	err = e.Register(0, epoll.Readable)
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+
+	err = e.Deregister(0)
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+
+	err = e.Modify(0, epoll.Readable)
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+
+	err = e.Modify(0, epoll.Readable)
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+
+	events, err := e.WaitTimeout(defaultDuration)
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+	c.Assert(events, HasLen, 0)
+
+	events, err = e.Wait()
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+	c.Assert(events, HasLen, 0)
+}
+
+func (*epollSuite) TestWaitErrors(c *C) {
+	fakeError := errors.New("injected fake error")
+
+	restore := epoll.MockUnixEpollWait(func(epfd int, events []unix.EpollEvent, msec int) (n int, err error) {
+		return 0, fakeError
+	})
+	defer restore()
+
+	e, err := epoll.Open()
+	c.Assert(err, IsNil)
+
+	events, err := e.Wait()
+	c.Assert(err, Equals, fakeError)
+	c.Assert(events, HasLen, 0)
+
+	err = e.Close()
+	c.Assert(err, IsNil)
+
+	restore = epoll.MockUnixEpollWait(func(epfd int, events []unix.EpollEvent, msec int) (n int, err error) {
+		return unix.EpollWait(-1, events, msec)
+	})
+	defer restore()
+
+	e, err = epoll.Open()
+	c.Assert(err, IsNil)
+
+	events, err = e.Wait()
+	c.Assert(err, Equals, unix.EBADF)
+	c.Assert(events, HasLen, 0)
+
+	err = e.Close()
+	c.Assert(err, IsNil)
+
+	restore = epoll.MockUnixEpollWait(func(epfd int, events []unix.EpollEvent, msec int) (n int, err error) {
+		// Make syscall on bad fd, as if it had been closed.
+		n, err = unix.EpollWait(-1, events, msec)
+		// Close the epoll, as if it had been the reason the fd in the syscall
+		// had been closed.
+		e.Close()
+		return n, err
+	})
+	defer restore()
+
+	e, err = epoll.Open()
+	c.Assert(err, IsNil)
+
+	events, err = e.Wait()
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+	c.Assert(events, HasLen, 0)
+
+	err = e.Close()
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+}
+
+func (*epollSuite) TestWaitThenClose(c *C) {
+	e, err := epoll.Open()
+	c.Assert(err, IsNil)
+
+	closeAfter(c, e, defaultDuration)
+
+	startTime := time.Now()
+
+	events, err := e.Wait()
+
+	// Check that Wait() returned "immediately"
+	c.Assert(time.Now().Before(startTime.Add(2*defaultDuration)), Equals, true)
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+	c.Assert(events, HasLen, 0)
+
+	e, err = epoll.Open()
+	c.Assert(err, IsNil)
+
+	closeAfter(c, e, defaultDuration)
+
+	startTime = time.Now()
+
+	events, err = e.WaitTimeout(defaultDuration * 2)
+
+	// Check that WaitTimeout() returned "immediately"
+	c.Assert(time.Now().Before(startTime.Add(2*defaultDuration)), Equals, true)
+	c.Assert(err, Equals, epoll.ErrEpollClosed)
+	c.Assert(events, HasLen, 0)
 }

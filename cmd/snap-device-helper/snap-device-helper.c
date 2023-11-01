@@ -160,10 +160,17 @@ int snap_device_helper_run(const struct sdh_invocation *inv) {
     if (strlen(devpath) <= strlen("/devices/")) {
         die("no or malformed devpath \"%s\"", devpath);
     }
-    if (sc_streq(action, "add") || sc_streq(action, "change")) {
+    if (sc_streq(action, "bind") || sc_streq(action, "add") || sc_streq(action, "change")) {
         allow = true;
     } else if (sc_streq(action, "remove")) {
         allow = false;
+    } else if (sc_streq(action, "unbind")) {
+        /* "unbind" does not mean removal of the device, the device node can still exist.
+         * Usually "unbind" will happen before a "remove" if a removed device is bound to a driver.
+         * We will disable access to the device once we get "remove". For "unbind", we
+         * simply ignore it.
+         */
+        return 0;
     } else {
         die("ERROR: unknown action \"%s\"", action);
     }

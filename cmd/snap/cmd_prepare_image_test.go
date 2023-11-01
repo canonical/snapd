@@ -20,7 +20,6 @@
 package main_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -156,7 +155,7 @@ func (s *SnapPrepareImageSuite) TestPrepareImageCustomize(c *C) {
 
 	tmpdir := c.MkDir()
 	customizeFile := filepath.Join(tmpdir, "custo.json")
-	err := ioutil.WriteFile(customizeFile, []byte(`{
+	err := os.WriteFile(customizeFile, []byte(`{
   "console-conf": "disabled",
   "cloud-init-user-data": "cloud-init-user-data"
 }`), 0644)

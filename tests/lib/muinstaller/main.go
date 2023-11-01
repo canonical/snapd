@@ -95,9 +95,9 @@ devicesLoop:
 		}
 		// check that there was no previous filesystem
 		devNode := fmt.Sprintf("/dev/%s", dev)
-		output, err := exec.Command("lsblk", "--output", "fstype", "--noheadings", devNode).CombinedOutput()
+		output, stderr, err := osutil.RunSplitOutput("lsblk", "--output", "fstype", "--noheadings", devNode)
 		if err != nil {
-			return nil, osutil.OutputErr(output, err)
+			return nil, osutil.OutputErrCombine(output, stderr, err)
 		}
 		if strings.TrimSpace(string(output)) != "" {
 			// found a filesystem, ignore
@@ -128,7 +128,7 @@ func maybeCreatePartitionTable(bootDevice, schema string) error {
 	}
 
 	// check if there is a GPT partition table already
-	output, err := exec.Command("blkid", "--probe", "--match-types", "gpt", bootDevice).CombinedOutput()
+	output, stderr, err := osutil.RunSplitOutput("blkid", "--probe", "--match-types", "gpt", bootDevice)
 	exitCode, err := osutil.ExitCode(err)
 	if err != nil {
 		return err
@@ -140,16 +140,16 @@ func maybeCreatePartitionTable(bootDevice, schema string) error {
 		// no match found, create partition table
 		cmd := exec.Command("sfdisk", bootDevice)
 		cmd.Stdin = bytes.NewBufferString("label: gpt\n")
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return osutil.OutputErr(output, err)
+		if output, stderr, err := osutil.RunCmd(cmd); err != nil {
+			return osutil.OutputErrCombine(output, stderr, err)
 		}
 		// ensure udev is aware of the new attributes
-		if output, err := exec.Command("udevadm", "settle").CombinedOutput(); err != nil {
-			return osutil.OutputErr(output, err)
+		if output, stderr, err := osutil.RunSplitOutput("udevadm", "settle"); err != nil {
+			return osutil.OutputErrCombine(output, stderr, err)
 		}
 	default:
 		// unknown error
-		return fmt.Errorf("unexpected exit code from blkid: %v", osutil.OutputErr(output, err))
+		return fmt.Errorf("unexpected exit code from blkid: %v", osutil.OutputErrCombine(output, stderr, err))
 	}
 
 	return nil
@@ -346,8 +346,8 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 			return nil, err
 		}
 		// XXX: is there a better way?
-		if output, err := exec.Command("mount", partNode, mountPoint).CombinedOutput(); err != nil {
-			return nil, osutil.OutputErr(output, err)
+		if output, stderr, err := osutil.RunSplitOutput("mount", partNode, mountPoint); err != nil {
+			return nil, osutil.OutputErrCombine(output, stderr, err)
 		}
 		mountPoints = append(mountPoints, mountPoint)
 	}
@@ -359,8 +359,8 @@ func unmountFilesystems(mntPts []string) (err error) {
 	for _, mntPt := range mntPts {
 		// We try to unmount all mount points, and return the
 		// last error if any.
-		if output, errUmnt := exec.Command("umount", mntPt).CombinedOutput(); err != nil {
-			errUmnt = osutil.OutputErr(output, errUmnt)
+		if output, stderr, errUmnt := osutil.RunSplitOutput("umount", mntPt); err != nil {
+			errUmnt = osutil.OutputErrCombine(output, stderr, errUmnt)
 			logger.Noticef("error: cannot unmount %q: %v", mntPt, errUmnt)
 			err = errUmnt
 		}
@@ -371,31 +371,48 @@ func unmountFilesystems(mntPts []string) (err error) {
 func createClassicRootfsIfNeeded(rootfsCreator string) error {
 	dst := runMntFor("ubuntu-data")
 
-	if output, err := exec.Command(rootfsCreator, dst).CombinedOutput(); err != nil {
-		return osutil.OutputErr(output, err)
+	if output, stderr, err := osutil.RunSplitOutput(rootfsCreator, dst); err != nil {
+		return osutil.OutputErrCombine(output, stderr, err)
 	}
 
 	return nil
 }
 
-func createSeedOnTarget(bootDevice, seedLabel string) error {
-	// XXX: too naive?
-	dataMnt := runMntFor("ubuntu-data")
+func copySeedDir(src, dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+	// Note that we do not use the -a option as cp returns an error if trying to
+	// preserve attributes in a fat filesystem. And this is fine for files from
+	// the seed, that do not need anything too special in that regard.
+	if output, stderr, err := osutil.RunSplitOutput("cp", "-r", src, dst); err != nil {
+		return osutil.OutputErrCombine(output, stderr, err)
+	}
+
+	return nil
+}
+
+func copySeedToSeedPartition() error {
+	dst := runMntFor("ubuntu-seed")
+	for _, subDir := range []string{"snaps", "systems"} {
+		src := filepath.Join(dirs.SnapSeedDir, subDir)
+		if err := copySeedDir(src, dst); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func copySeedToDataPartition() error {
 	src := dirs.SnapSeedDir
+	dataMnt := runMntFor("ubuntu-data")
 	dst := dirs.SnapSeedDirUnder(dataMnt)
 	// Remove any existing seed on the target fs and then put the
 	// selected seed in place on the target
 	if err := os.RemoveAll(dst); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-		return err
-	}
-	if output, err := exec.Command("cp", "-a", src, dst).CombinedOutput(); err != nil {
-		return osutil.OutputErr(output, err)
-	}
-
-	return nil
+	return copySeedDir(src, dst)
 }
 
 func detectStorageEncryption(seedLabel string) (bool, error) {
@@ -446,21 +463,21 @@ func fillPartiallyDefinedVolume(vol *gadget.Volume, bootDevice string) error {
 
 	// Fill sizes: for the moment, to avoid complicating unnecessarily the
 	// code, we do size=min-size except for the last partition.
-	output, err := exec.Command("lsblk", "--bytes", "--noheadings", "--output", "SIZE", bootDevice).CombinedOutput()
+	output, stderr, err := osutil.RunSplitOutput("lsblk", "--bytes", "--noheadings", "--output", "SIZE", bootDevice)
 	exitCode, err := osutil.ExitCode(err)
 	if err != nil {
 		return err
 	}
 	if exitCode != 0 {
-		return fmt.Errorf("cannot find size of %q: %q", bootDevice, string(output))
+		return fmt.Errorf("cannot find size of %q: %q (stderr: %s)", bootDevice, string(output), string(stderr))
 	}
 	lines := strings.Split(string(output), "\n")
 	if len(lines) == 0 {
-		return fmt.Errorf("error splitting %q", string(output))
+		return fmt.Errorf("error splitting %q (stderr: %s)", string(output), string(stderr))
 	}
 	diskSize, err := strconv.Atoi(lines[0])
 	if err != nil {
-		return fmt.Errorf("while converting %s to a size: %v", string(output), err)
+		return fmt.Errorf("while converting %s to a size: %v (stderr: %s)", string(output), err, string(stderr))
 	}
 	partStart := quantity.Offset(0)
 	if vol.HasPartial(gadget.PartialSize) {
@@ -492,7 +509,8 @@ func fillPartiallyDefinedVolume(vol *gadget.Volume, bootDevice string) error {
 	return nil
 }
 
-func run(seedLabel, rootfsCreator, bootDevice string) error {
+func run(seedLabel, bootDevice, rootfsCreator string) error {
+	isCore := rootfsCreator == ""
 	logger.Noticef("installing on %q", bootDevice)
 
 	cli := client.New(nil)
@@ -534,11 +552,17 @@ func run(seedLabel, rootfsCreator, bootDevice string) error {
 	if err != nil {
 		return fmt.Errorf("cannot create filesystems: %v", err)
 	}
-	if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
-		return fmt.Errorf("cannot create classic rootfs: %v", err)
+	if isCore {
+		if err := copySeedToSeedPartition(); err != nil {
+			return fmt.Errorf("cannot create seed on seed partition: %v", err)
+		}
+	} else {
+		if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
+			return fmt.Errorf("cannot create classic rootfs: %v", err)
+		}
 	}
-	if err := createSeedOnTarget(bootDevice, seedLabel); err != nil {
-		return fmt.Errorf("cannot create seed on target: %v", err)
+	if err := copySeedToDataPartition(); err != nil {
+		return fmt.Errorf("cannot create seed on data partition: %v", err)
 	}
 	if err := unmountFilesystems(mntPts); err != nil {
 		return fmt.Errorf("cannot unmount filesystems: %v", err)
@@ -552,21 +576,25 @@ func run(seedLabel, rootfsCreator, bootDevice string) error {
 }
 
 func main() {
-	if len(os.Args) != 4 {
-		// XXX: allow installing real UC without a classic-rootfs later
-		fmt.Fprintf(os.Stderr, "Usage: %s <seed-label> <rootfs-creator> <target-device>\n", os.Args[0])
+	if len(os.Args) < 3 || len(os.Args) > 4 {
+		fmt.Fprintf(os.Stderr, "Usage: %s <seed-label> <target-device> [rootfs-creator]\n"+
+			"If [rootfs-creator] is specified, classic Ubuntu with core boot will be installed.\n"+
+			"Otherwise, Ubuntu Core will be installed\n", os.Args[0])
 		os.Exit(1)
 	}
 	logger.SimpleSetup()
 
 	seedLabel := os.Args[1]
-	rootfsCreator := os.Args[2]
-	bootDevice := os.Args[3]
+	bootDevice := os.Args[2]
+	rootfsCreator := ""
+	if len(os.Args) > 3 {
+		rootfsCreator = os.Args[3]
+	}
 	if bootDevice == "auto" {
 		bootDevice = waitForDevice()
 	}
 
-	if err := run(seedLabel, rootfsCreator, bootDevice); err != nil {
+	if err := run(seedLabel, bootDevice, rootfsCreator); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}

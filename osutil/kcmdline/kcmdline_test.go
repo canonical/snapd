@@ -20,8 +20,9 @@
 package kcmdline_test
 
 import (
+	"encoding"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -183,7 +184,7 @@ func (s *kcmdlineTestSuite) TestGetKernelCommandLineKeyValue(c *C) {
 		},
 	} {
 		cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
-		err := ioutil.WriteFile(cmdlineFile, []byte(t.cmdline), 0644)
+		err := os.WriteFile(cmdlineFile, []byte(t.cmdline), 0644)
 		c.Assert(err, IsNil)
 		r := kcmdline.MockProcCmdline(cmdlineFile)
 		defer r()
@@ -211,7 +212,7 @@ func (s *kcmdlineTestSuite) TestKernelCommandLine(c *C) {
 	c.Assert(err, ErrorMatches, `.*/cmdline: no such file or directory`)
 	c.Check(cmd, Equals, "")
 
-	err = ioutil.WriteFile(newProcCmdline, []byte("foo bar baz panic=-1\n"), 0644)
+	err = os.WriteFile(newProcCmdline, []byte("foo bar baz panic=-1\n"), 0644)
 	c.Assert(err, IsNil)
 	cmd, err = kcmdline.KernelCommandLine()
 	c.Assert(err, IsNil)
@@ -458,6 +459,157 @@ func (s *kcmdlineTestSuite) TestUnmarshalKernelArgumentPattern(c *C) {
 			c.Check(args, DeepEquals, tc.exp)
 		} else {
 			c.Check(err, ErrorMatches, tc.errStr)
+		}
+	}
+}
+
+func (s *kcmdlineTestSuite) TestUnmarshalKernelArgumentPatternBinary(c *C) {
+	for idx, tc := range []struct {
+		encoded []byte
+		pattern kcmdline.ArgumentPattern
+		err     string
+	}{
+		{
+			[]byte(`par1=val1`),
+			kcmdline.NewConstantPattern("par1", "val1"),
+			"",
+		},
+		{
+			[]byte(`"par1=val1"`),
+			kcmdline.NewConstantPattern("par1", "val1"),
+			"",
+		},
+		{
+			[]byte(`"par1=val1"`),
+			kcmdline.NewConstantPattern("par1", "val1"),
+			"",
+		},
+		{
+			[]byte(`"par1"`),
+			kcmdline.NewConstantPattern("par1", ""),
+			"",
+		},
+		{
+			[]byte(`par1="val1"`),
+			kcmdline.NewConstantPattern("par1", "val1"),
+			"",
+		},
+		{
+			[]byte(`par1="*"`),
+			kcmdline.NewConstantPattern("par1", "*"),
+			"",
+		},
+		{
+			[]byte(`par1=*`),
+			kcmdline.NewAnyPattern("par1"),
+			"",
+		},
+		{
+			[]byte(`par2=3[a-b]`),
+			kcmdline.NewConstantPattern("ignore", "ignore"),
+			`\"3\[a-b\]\" contains globbing characters and is not quoted`,
+		},
+		{
+			[]byte(`par="ab?g*[s-d]\q"`),
+			kcmdline.NewConstantPattern("par", `ab?g*[s-d]\q`),
+			"",
+		},
+	} {
+		c.Logf("%v, encoded: %v", idx, string(tc.encoded))
+
+		arg := kcmdline.ArgumentPattern{}
+		// useless but need to verify interface
+		unmarshaler := encoding.BinaryUnmarshaler(&arg)
+		err := unmarshaler.UnmarshalBinary(tc.encoded)
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
+			c.Check(arg, DeepEquals, tc.pattern)
+
+			marshaler := encoding.BinaryMarshaler(&arg)
+			reencoded, err := marshaler.MarshalBinary()
+			c.Check(err, IsNil)
+			secondArg := kcmdline.ArgumentPattern{}
+			err = secondArg.UnmarshalBinary(reencoded)
+			c.Check(err, IsNil)
+			c.Check(secondArg, DeepEquals, tc.pattern)
+		}
+	}
+}
+
+func (s *kcmdlineTestSuite) TestUnmarshalKernelArgumentPatternText(c *C) {
+	for idx, tc := range []struct {
+		encoded []byte
+		pattern kcmdline.ArgumentPattern
+		err     string
+	}{
+		{
+			[]byte(`par1=val1`),
+			kcmdline.NewConstantPattern("par1", "val1"),
+			"",
+		},
+		{
+			[]byte(`"par1=val1"`),
+			kcmdline.NewConstantPattern("par1", "val1"),
+			"",
+		},
+		{
+			[]byte(`"par1=val1"`),
+			kcmdline.NewConstantPattern("par1", "val1"),
+			"",
+		},
+		{
+			[]byte(`"par1"`),
+			kcmdline.NewConstantPattern("par1", ""),
+			"",
+		},
+		{
+			[]byte(`par1="val1"`),
+			kcmdline.NewConstantPattern("par1", "val1"),
+			"",
+		},
+		{
+			[]byte(`par1="*"`),
+			kcmdline.NewConstantPattern("par1", "*"),
+			"",
+		},
+		{
+			[]byte(`par1=*`),
+			kcmdline.NewAnyPattern("par1"),
+			"",
+		},
+		{
+			[]byte(`par2=3[a-b]`),
+			kcmdline.NewConstantPattern("ignore", "ignore"),
+			`\"3\[a-b\]\" contains globbing characters and is not quoted`,
+		},
+		{
+			[]byte(`par="ab?g*[s-d]\q"`),
+			kcmdline.NewConstantPattern("par", `ab?g*[s-d]\q`),
+			"",
+		},
+	} {
+		c.Logf("%v, encoded: %v", idx, string(tc.encoded))
+
+		arg := kcmdline.ArgumentPattern{}
+		// useless but need to verify interface
+		unmarshaler := encoding.TextUnmarshaler(&arg)
+		err := unmarshaler.UnmarshalText(tc.encoded)
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err)
+		} else {
+			c.Check(err, IsNil)
+			c.Check(arg, DeepEquals, tc.pattern)
+
+			// useless but need to verify interface
+			marshaler := encoding.TextMarshaler(&arg)
+			reencoded, err := marshaler.MarshalText()
+			c.Check(err, IsNil)
+			secondArg := kcmdline.ArgumentPattern{}
+			err = secondArg.UnmarshalText(reencoded)
+			c.Check(err, IsNil)
+			c.Check(secondArg, DeepEquals, tc.pattern)
 		}
 	}
 }

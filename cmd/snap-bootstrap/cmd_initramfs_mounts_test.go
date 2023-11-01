@@ -343,17 +343,17 @@ func (s *baseInitramfsMountsSuite) SetUpTest(c *C) {
 	s.byLabelDir = filepath.Join(s.tmpDir, "dev/disk/by-label")
 	err = os.MkdirAll(s.byLabelDir, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.tmpDir, "dev/sda1"), nil, 0644)
+	err = os.WriteFile(filepath.Join(s.tmpDir, "dev/sda1"), nil, 0644)
 	c.Assert(err, IsNil)
 	err = os.Symlink("../../sda1", filepath.Join(s.byLabelDir, "ubuntu-seed"))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.tmpDir, "dev/sda2"), nil, 0644)
+	err = os.WriteFile(filepath.Join(s.tmpDir, "dev/sda2"), nil, 0644)
 	c.Assert(err, IsNil)
 	err = os.Symlink("../../sda2", filepath.Join(s.byLabelDir, "ubuntu-boot"))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.byLabelDir, "ubuntu-boot"), nil, 0644)
+	err = os.WriteFile(filepath.Join(s.byLabelDir, "ubuntu-boot"), nil, 0644)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.tmpDir, "dev/sda"), nil, 0644)
+	err = os.WriteFile(filepath.Join(s.tmpDir, "dev/sda"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	// make test snap PlaceInfo's for various boot functionality
@@ -513,14 +513,14 @@ func (s *baseInitramfsMountsSuite) makeSnapFilesOnEarlyBootUbuntuData(c *C, snap
 	c.Assert(err, IsNil)
 	for _, sn := range snaps {
 		snFilename := sn.Filename()
-		err = ioutil.WriteFile(filepath.Join(snapDir, snFilename), nil, 0644)
+		err = os.WriteFile(filepath.Join(snapDir, snFilename), nil, 0644)
 		c.Assert(err, IsNil)
 	}
 }
 
 func (s *baseInitramfsMountsSuite) mockProcCmdlineContent(c *C, newContent string) {
 	mockProcCmdline := filepath.Join(c.MkDir(), "proc-cmdline")
-	err := ioutil.WriteFile(mockProcCmdline, []byte(newContent), 0644)
+	err := os.WriteFile(mockProcCmdline, []byte(newContent), 0644)
 	c.Assert(err, IsNil)
 	restore := kcmdline.MockProcCmdline(mockProcCmdline)
 	s.AddCleanup(restore)
@@ -529,18 +529,18 @@ func (s *baseInitramfsMountsSuite) mockProcCmdlineContent(c *C, newContent strin
 func (s *baseInitramfsMountsSuite) mockUbuntuSaveKeyAndMarker(c *C, rootDir, key, marker string) {
 	keyPath := filepath.Join(dirs.SnapFDEDirUnder(rootDir), "ubuntu-save.key")
 	c.Assert(os.MkdirAll(filepath.Dir(keyPath), 0700), IsNil)
-	c.Assert(ioutil.WriteFile(keyPath, []byte(key), 0600), IsNil)
+	c.Assert(os.WriteFile(keyPath, []byte(key), 0600), IsNil)
 
 	if marker != "" {
 		markerPath := filepath.Join(dirs.SnapFDEDirUnder(rootDir), "marker")
-		c.Assert(ioutil.WriteFile(markerPath, []byte(marker), 0600), IsNil)
+		c.Assert(os.WriteFile(markerPath, []byte(marker), 0600), IsNil)
 	}
 }
 
 func (s *baseInitramfsMountsSuite) mockUbuntuSaveMarker(c *C, rootDir, marker string) {
 	markerPath := filepath.Join(rootDir, "device/fde", "marker")
 	c.Assert(os.MkdirAll(filepath.Dir(markerPath), 0700), IsNil)
-	c.Assert(ioutil.WriteFile(markerPath, []byte(marker), 0600), IsNil)
+	c.Assert(os.WriteFile(markerPath, []byte(marker), 0600), IsNil)
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsNoModeError(c *C) {
@@ -3061,9 +3061,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		var err error
 		err = os.MkdirAll(s.byLabelDir, 0755)
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(s.byLabelDir, "ubuntu-seed"), nil, 0644)
+		err = os.WriteFile(filepath.Join(s.byLabelDir, "ubuntu-seed"), nil, 0644)
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(s.byLabelDir, "ubuntu-boot"), nil, 0644)
+		err = os.WriteFile(filepath.Join(s.byLabelDir, "ubuntu-boot"), nil, 0644)
 		c.Assert(err, IsNil)
 
 		restore := disks.MockMountPointDisksToPartitionMapping(
@@ -3272,14 +3272,14 @@ func (s *initramfsMountsSuite) testRecoverModeHappy(c *C) {
 		err = os.MkdirAll(filepath.Dir(p), 0750)
 		c.Assert(err, IsNil)
 		mockContent := fmt.Sprintf("content of %s", filepath.Base(mockFile))
-		err = ioutil.WriteFile(p, []byte(mockContent), 0640)
+		err = os.WriteFile(p, []byte(mockContent), 0640)
 		c.Assert(err, IsNil)
 	}
 	// create a mock state
 	mockedState := filepath.Join(hostUbuntuData, "system-data/var/lib/snapd/state.json")
 	err = os.MkdirAll(filepath.Dir(mockedState), 0750)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(mockedState, []byte(mockStateContent), 0640)
+	err = os.WriteFile(mockedState, []byte(mockStateContent), 0640)
 	c.Assert(err, IsNil)
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
@@ -3311,7 +3311,7 @@ grade=signed
 		c.Check(fiParent.Mode(), Equals, os.FileMode(os.ModeDir|0750))
 	}
 
-	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"last-id":1,"macaroon-key":"not-a-cookie","users":[{"id":1,"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`)
+	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"last-id":1,"macaroon-key":"not-a-cookie","users":[{"id":1,"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0,"last-notice-id":0}`)
 
 	// finally check that the recovery system bootenv was updated to be in run
 	// mode
@@ -6198,7 +6198,7 @@ func (s *baseInitramfsMountsSuite) testInitramfsMountsTryRecoveryHappy(c *C, hap
 		mockedState = filepath.Join(hostUbuntuData, "system-data/var/lib/snapd/state.json")
 	}
 	c.Assert(os.MkdirAll(filepath.Dir(mockedState), 0750), IsNil)
-	c.Assert(ioutil.WriteFile(mockedState, []byte(mockStateContent), 0640), IsNil)
+	c.Assert(os.WriteFile(mockedState, []byte(mockStateContent), 0640), IsNil)
 
 	const triedSystem = true
 	err := s.runInitramfsMountsUnencryptedTryRecovery(c, triedSystem)
@@ -6348,7 +6348,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryDifferentSystem(c *
 	hostUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data/")
 	mockedState := filepath.Join(hostUbuntuData, "system-data/var/lib/snapd/state.json")
 	c.Assert(os.MkdirAll(filepath.Dir(mockedState), 0750), IsNil)
-	c.Assert(ioutil.WriteFile(mockedState, []byte(mockStateContent), 0640), IsNil)
+	c.Assert(os.WriteFile(mockedState, []byte(mockStateContent), 0640), IsNil)
 
 	const triedSystem = false
 	err := s.runInitramfsMountsUnencryptedTryRecovery(c, triedSystem)
@@ -6607,7 +6607,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryHealthCheckFails(c 
 	hostUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data/")
 	mockedState := filepath.Join(hostUbuntuData, "system-data/var/lib/snapd/state.json")
 	c.Assert(os.MkdirAll(filepath.Dir(mockedState), 0750), IsNil)
-	c.Assert(ioutil.WriteFile(mockedState, []byte(mockStateContent), 0640), IsNil)
+	c.Assert(os.WriteFile(mockedState, []byte(mockStateContent), 0640), IsNil)
 
 	restore = main.MockTryRecoverySystemHealthCheck(func(gadget.Model) error {
 		return fmt.Errorf("mock failure")
@@ -6683,7 +6683,7 @@ func (s *initramfsMountsSuite) TestMountNonDataPartitionNoPollNoLogMsg(c *C) {
 	fakedPartSrc := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partuuid/some-uuid")
 	err := os.MkdirAll(filepath.Dir(fakedPartSrc), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fakedPartSrc, nil, 0644)
+	err = os.WriteFile(fakedPartSrc, nil, 0644)
 	c.Assert(err, IsNil)
 
 	err = main.MountNonDataPartitionMatchingKernelDisk("some-target", "")
@@ -6699,7 +6699,7 @@ func (s *initramfsMountsSuite) TestWaitFileErr(c *C) {
 
 func (s *initramfsMountsSuite) TestWaitFile(c *C) {
 	existingPartSrc := filepath.Join(c.MkDir(), "does-exist")
-	err := ioutil.WriteFile(existingPartSrc, nil, 0644)
+	err := os.WriteFile(existingPartSrc, nil, 0644)
 	c.Assert(err, IsNil)
 
 	err = main.WaitFile(existingPartSrc, 5000*time.Second, 1)
@@ -6713,7 +6713,7 @@ func (s *initramfsMountsSuite) TestWaitFileWorksWithFilesAppearingLate(c *C) {
 	eventuallyExists := filepath.Join(c.MkDir(), "eventually-exists")
 	go func() {
 		time.Sleep(40 * time.Millisecond)
-		err := ioutil.WriteFile(eventuallyExists, nil, 0644)
+		err := os.WriteFile(eventuallyExists, nil, 0644)
 		c.Assert(err, IsNil)
 	}()
 
@@ -7906,9 +7906,9 @@ func (s *initramfsMountsSuite) TestGetDiskNotUEFINotKernelCmdlineFail(c *C) {
 	c.Assert(err.Error(), Equals, `no candidate found for label "ubuntu-seed"`)
 	c.Assert(path, Equals, "")
 
-	err = ioutil.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-SEED"), nil, 0644)
+	err = os.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-SEED"), nil, 0644)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-FOO"), nil, 0644)
+	err = os.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-FOO"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	// Mock udevadm calls
@@ -7933,7 +7933,7 @@ exit 0
 	c.Assert(path, Equals, "")
 
 	// More than one candidate
-	err = ioutil.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-seed"), nil, 0644)
+	err = os.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-seed"), nil, 0644)
 	path, err = main.GetNonUEFISystemDisk("ubuntu-seed")
 	c.Assert(err.Error(), Equals, `more than one candidate for label "ubuntu-seed"`)
 	c.Assert(path, Equals, "")
@@ -7954,7 +7954,7 @@ func (s *initramfsMountsSuite) TestGetDiskNotUEFINotKernelCmdlineOk(c *C) {
 
 	err := os.Remove(filepath.Join(s.byLabelDir, "ubuntu-seed"))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-SEED"), nil, 0644)
+	err = os.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-SEED"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	path, err := main.GetNonUEFISystemDisk("ubuntu-seed")
@@ -7988,7 +7988,7 @@ func (s *initramfsMountsSuite) TestGetDiskNotUEFINotKernelCmdlineSomeItersOk(c *
 	// Wait a bit so we get at least an iteration
 	time.Sleep(50 * time.Millisecond)
 	// Now create a file that matches the label
-	err = ioutil.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-SEED"), nil, 0644)
+	err = os.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-SEED"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	<-ch
@@ -8006,7 +8006,7 @@ func (s *initramfsMountsSuite) TestGetDiskNotUEFINotKernelCmdlineFailNoFs(c *C) 
 
 	err := os.Remove(filepath.Join(s.byLabelDir, "ubuntu-seed"))
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-SEED"), nil, 0644)
+	err = os.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-SEED"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	path, err := main.GetNonUEFISystemDisk("ubuntu-seed")
@@ -8052,11 +8052,11 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunMissingFdeSetup(c
 
 	systemDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel)
 	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(systemDir, "preseed.tgz"), []byte{}, 0640), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(systemDir, "preseed.tgz"), []byte{}, 0640), IsNil)
 
 	fdeSetupHook := filepath.Join(boot.InitramfsRunMntDir, "kernel", "meta", "hooks", "fde-setup")
 	c.Assert(os.MkdirAll(filepath.Dir(fdeSetupHook), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(fdeSetupHook, []byte{}, 0555), IsNil)
+	c.Assert(os.WriteFile(fdeSetupHook, []byte{}, 0555), IsNil)
 
 	// ensure that we check that access to sealed keys were locked
 	sealedKeysLocked := false
@@ -8100,14 +8100,14 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupPresent(c
 
 	systemDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel)
 	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(systemDir, "preseed.tgz"), []byte{}, 0640), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(systemDir, "preseed.tgz"), []byte{}, 0640), IsNil)
 
 	fdeSetupHook := filepath.Join(boot.InitramfsRunMntDir, "kernel", "meta", "hooks", "fde-setup")
 	c.Assert(os.MkdirAll(filepath.Dir(fdeSetupHook), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(fdeSetupHook, []byte{}, 0555), IsNil)
+	c.Assert(os.WriteFile(fdeSetupHook, []byte{}, 0555), IsNil)
 	fdeRevealKeyHook := filepath.Join(boot.InitramfsRunMntDir, "kernel", "meta", "hooks", "fde-reveal-key")
 	c.Assert(os.MkdirAll(filepath.Dir(fdeRevealKeyHook), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(fdeRevealKeyHook, []byte{}, 0555), IsNil)
+	c.Assert(os.WriteFile(fdeRevealKeyHook, []byte{}, 0555), IsNil)
 
 	fdeSetupMock := testutil.MockCommand(c, "fde-setup", fmt.Sprintf(`
 tmpdir='%s'
@@ -8122,28 +8122,28 @@ echo '{"features":[]}'
 	kernelSnapYaml := filepath.Join(boot.InitramfsRunMntDir, "kernel", "meta", "snap.yaml")
 	c.Assert(os.MkdirAll(filepath.Dir(kernelSnapYaml), 0755), IsNil)
 	kernelSnapYamlContent := `{}`
-	c.Assert(ioutil.WriteFile(kernelSnapYaml, []byte(kernelSnapYamlContent), 0555), IsNil)
+	c.Assert(os.WriteFile(kernelSnapYaml, []byte(kernelSnapYamlContent), 0555), IsNil)
 
 	baseSnapYaml := filepath.Join(boot.InitramfsRunMntDir, "base", "meta", "snap.yaml")
 	c.Assert(os.MkdirAll(filepath.Dir(baseSnapYaml), 0755), IsNil)
 	baseSnapYamlContent := `{}`
-	c.Assert(ioutil.WriteFile(baseSnapYaml, []byte(baseSnapYamlContent), 0555), IsNil)
+	c.Assert(os.WriteFile(baseSnapYaml, []byte(baseSnapYamlContent), 0555), IsNil)
 
 	gadgetSnapYaml := filepath.Join(boot.InitramfsRunMntDir, "gadget", "meta", "snap.yaml")
 	c.Assert(os.MkdirAll(filepath.Dir(gadgetSnapYaml), 0755), IsNil)
 	gadgetSnapYamlContent := `{}`
-	c.Assert(ioutil.WriteFile(gadgetSnapYaml, []byte(gadgetSnapYamlContent), 0555), IsNil)
+	c.Assert(os.WriteFile(gadgetSnapYaml, []byte(gadgetSnapYamlContent), 0555), IsNil)
 
 	grubConf := filepath.Join(boot.InitramfsRunMntDir, "gadget", "grub.conf")
 	c.Assert(os.MkdirAll(filepath.Dir(grubConf), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(grubConf, nil, 0555), IsNil)
+	c.Assert(os.WriteFile(grubConf, nil, 0555), IsNil)
 
 	bootloader := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed", "EFI", "boot", fmt.Sprintf("boot%s.efi", efiArch))
 	c.Assert(os.MkdirAll(filepath.Dir(bootloader), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(bootloader, nil, 0555), IsNil)
+	c.Assert(os.WriteFile(bootloader, nil, 0555), IsNil)
 	grub := filepath.Join(boot.InitramfsRunMntDir, "ubuntu-seed", "EFI", "boot", fmt.Sprintf("grub%s.efi", efiArch))
 	c.Assert(os.MkdirAll(filepath.Dir(grub), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(grub, nil, 0555), IsNil)
+	c.Assert(os.WriteFile(grub, nil, 0555), IsNil)
 
 	writeGadget(c, "ubuntu-seed", "system-seed", "")
 
@@ -8244,15 +8244,15 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunInstallDeviceHook
 
 	systemDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel)
 	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", s.sysLabel), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(systemDir, "preseed.tgz"), []byte{}, 0640), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(systemDir, "preseed.tgz"), []byte{}, 0640), IsNil)
 
 	installDeviceHook := filepath.Join(boot.InitramfsRunMntDir, "gadget", "meta", "hooks", "install-device")
 	c.Assert(os.MkdirAll(filepath.Dir(installDeviceHook), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(installDeviceHook, []byte{}, 0555), IsNil)
+	c.Assert(os.WriteFile(installDeviceHook, []byte{}, 0555), IsNil)
 
 	fdeSetupHook := filepath.Join(boot.InitramfsRunMntDir, "kernel", "meta", "hooks", "fde-setup")
 	c.Assert(os.MkdirAll(filepath.Dir(fdeSetupHook), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(fdeSetupHook, []byte{}, 0555), IsNil)
+	c.Assert(os.WriteFile(fdeSetupHook, []byte{}, 0555), IsNil)
 
 	cmd := testutil.MockCommand(c, "fde-setup", ``)
 	defer cmd.Restore()

@@ -106,7 +106,7 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 // potentially more than once. It assumes the initial list of snaps already has
 // download infos set.
 // The state must be locked by the caller.
-var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int) (uint64, error) {
+var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int, prqt PrereqTracker) (uint64, error) {
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
 		return 0, err
@@ -144,7 +144,7 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int) 
 				accountedSnaps[base] = true
 			}
 		}
-		for _, snapName := range inst.Prereq(st) {
+		for _, snapName := range inst.Prereq(st, prqt) {
 			if !accountedSnaps[snapName] {
 				prereqs = append(prereqs, snapName)
 				accountedSnaps[snapName] = true
@@ -631,8 +631,6 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, rev
 		}
 	}
 
-	sort.Strings(names)
-
 	var fallbackID int
 	// normalize fallback user
 	if !user.HasStoreAuth() {
@@ -662,6 +660,9 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, rev
 			revOptsByName[names[i]] = opts
 		}
 	}
+
+	// sorting MUST be done after revOptsByName is built to avoid misalignment
+	sort.Strings(names)
 
 	addCand := func(installed *store.CurrentSnap, snapst *SnapState) error {
 		// FIXME: snaps that are not active are skipped for now

@@ -389,11 +389,11 @@ func (s *pibootTestSuite) TestCreateConfigCurrentNotEmpty(c *C) {
 	defer r()
 
 	// Get some extra kernel command line parameters
-	err := ioutil.WriteFile(filepath.Join(s.rootdir, "cmdline.txt"),
+	err := os.WriteFile(filepath.Join(s.rootdir, "cmdline.txt"),
 		[]byte("opt1=foo bar\n"), 0644)
 	c.Assert(err, IsNil)
 	// Add some options to already existing config.txt
-	err = ioutil.WriteFile(filepath.Join(s.rootdir, "config.txt"),
+	err = os.WriteFile(filepath.Join(s.rootdir, "config.txt"),
 		[]byte("rpi.option1=val\nos_prefix=1\nrpi.option2=val\n"), 0644)
 	c.Assert(err, IsNil)
 	p := bootloader.NewPiboot(s.rootdir, &opts)
@@ -462,7 +462,7 @@ func (s *pibootTestSuite) TestOnlyOneOsPrefix(c *C) {
 	defer r()
 
 	// Introuce two os_prefix lines
-	err := ioutil.WriteFile(filepath.Join(s.rootdir, "config.txt"),
+	err := os.WriteFile(filepath.Join(s.rootdir, "config.txt"),
 		[]byte("os_prefix=1\nos_prefix=2\n"), 0644)
 	c.Assert(err, IsNil)
 	p := bootloader.NewPiboot(s.rootdir, &opts)

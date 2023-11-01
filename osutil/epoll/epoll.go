@@ -1,21 +1,43 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2023 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 // Package epoll contains a thin wrapper around the epoll(7) facility.
 //
 // Using epoll from Go is unusual as the language provides facilities that
 // normally make using it directly pointless. Epoll is strictly required for
 // unusual kernel interfaces that use event notification but don't implement
 // file descriptors that provide usual read/write semantics.
-
 package epoll
 
 import (
+	"errors"
 	"fmt"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"golang.org/x/sys/unix"
 )
+
+var ErrEpollClosed = errors.New("the epoll instance has been closed")
 
 // Readiness is the bit mask of aspects of readiness to monitor with epoll.
 type Readiness int
@@ -43,6 +65,8 @@ func (r Readiness) String() string {
 type Epoll struct {
 	fd                int
 	registeredFdCount int32 // read/modify using helper functions
+	closed            chan struct{}
+	closingLock       sync.Mutex
 }
 
 // Open opens an event monitoring descriptor.
@@ -54,27 +78,36 @@ func Open() (*Epoll, error) {
 	e := &Epoll{
 		fd:                fd,
 		registeredFdCount: 0,
+		closed:            make(chan struct{}),
 	}
 	runtime.SetFinalizer(e, func(e *Epoll) {
-		if e.fd != -1 {
+		if !e.IsClosed() {
 			e.Close()
 		}
 	})
 	return e, nil
 }
 
-// Close closes the event monitoring descriptor.
-func (e *Epoll) Close() error {
-	runtime.SetFinalizer(e, nil)
-	fd := e.fd
-	e.fd = -1
-	e.zeroRegisteredFdCount()
-	return unix.Close(fd)
+// IsClosed returns whether Close has been called on the epoll instance.
+func (e *Epoll) IsClosed() bool {
+	select {
+	case <-e.closed:
+		return true
+	default:
+		return false
+	}
 }
 
-// Fd returns the integer unix file descriptor referencing the open file.
-func (e *Epoll) Fd() int {
-	return e.fd
+// Close closes the event monitoring descriptor.
+func (e *Epoll) Close() error {
+	e.closingLock.Lock()
+	defer e.closingLock.Unlock()
+	if e.IsClosed() {
+		return ErrEpollClosed
+	}
+	runtime.SetFinalizer(e, nil)
+	close(e.closed)
+	return unix.Close(e.fd)
 }
 
 // RegisteredFdCount returns the number of file descriptors which are currently
@@ -91,14 +124,13 @@ func (e *Epoll) decrementRegisteredFdCount() {
 	atomic.AddInt32(&e.registeredFdCount, -1)
 }
 
-func (e *Epoll) zeroRegisteredFdCount() {
-	atomic.StoreInt32(&e.registeredFdCount, 0)
-}
-
 // Register registers a file descriptor and allows observing speicifc I/O readiness events.
 //
 // Please refer to epoll_ctl(2) and EPOLL_CTL_ADD for details.
 func (e *Epoll) Register(fd int, mask Readiness) error {
+	if e.IsClosed() {
+		return ErrEpollClosed
+	}
 	e.incrementRegisteredFdCount()
 	err := unix.EpollCtl(e.fd, unix.EPOLL_CTL_ADD, fd, &unix.EpollEvent{
 		Events: uint32(mask),
@@ -106,6 +138,9 @@ func (e *Epoll) Register(fd int, mask Readiness) error {
 	})
 	if err != nil {
 		e.decrementRegisteredFdCount()
+		if e.IsClosed() {
+			return ErrEpollClosed
+		}
 		return err
 	}
 	runtime.KeepAlive(e)
@@ -116,8 +151,14 @@ func (e *Epoll) Register(fd int, mask Readiness) error {
 //
 // Please refer to epoll_ctl(2) and EPOLL_CTL_DEL for details.
 func (e *Epoll) Deregister(fd int) error {
+	if e.IsClosed() {
+		return ErrEpollClosed
+	}
 	err := unix.EpollCtl(e.fd, unix.EPOLL_CTL_DEL, fd, &unix.EpollEvent{})
 	if err != nil {
+		if e.IsClosed() {
+			return ErrEpollClosed
+		}
 		return err
 	}
 	e.decrementRegisteredFdCount()
@@ -128,11 +169,16 @@ func (e *Epoll) Deregister(fd int) error {
 //
 // Please refer to epoll_ctl(2) and EPOLL_CTL_MOD for details.
 func (e *Epoll) Modify(fd int, mask Readiness) error {
+	if e.IsClosed() {
+		return ErrEpollClosed
+	}
 	err := unix.EpollCtl(e.fd, unix.EPOLL_CTL_MOD, fd, &unix.EpollEvent{
 		Events: uint32(mask),
 		Fd:     int32(fd),
 	})
-	runtime.KeepAlive(e)
+	if err != nil && e.IsClosed() {
+		return ErrEpollClosed
+	}
 	return err
 }
 
@@ -144,17 +190,17 @@ type Event struct {
 
 var unixEpollWait = unix.EpollWait
 
-// WaitTimeout blocks and waits with the given timeout for arrival of events on any of the added file descriptors.
-//
-// A msec value of -1 disables timeout.
-//
-// Please refer to epoll_wait(2) and EPOLL_WAIT for details.
-//
-// Warning, using epoll from Golang explicitly is tricky.
-func (e *Epoll) WaitTimeout(duration time.Duration) ([]Event, error) {
+func (e *Epoll) waitTimeoutInternal(duration time.Duration, eventCh chan []Event, errCh chan error) {
+	if e.IsClosed() {
+		errCh <- ErrEpollClosed
+		return
+	}
+	startTs := time.Now()
+	noTimeout := false
 	msec := int(duration.Milliseconds())
 	if duration < 0 {
-		msec = -1
+		msec = 10000 // interrupt every 10 seconds to check if epoll closed
+		noTimeout = true
 	}
 	n := 0
 	var err error
@@ -172,28 +218,34 @@ func (e *Epoll) WaitTimeout(duration time.Duration) ([]Event, error) {
 			bufLen = 1
 		}
 		sysEvents = make([]unix.EpollEvent, bufLen)
-		startTs := time.Now()
 		n, err = unixEpollWait(e.fd, sysEvents, msec)
-		runtime.KeepAlive(e)
-		// unix.EpollWait can return unix.EINTR, which we want to handle by
-		// adjusting the timeout (if necessary) and restarting the syscall
-		if err == nil {
-			break
-		} else if err != unix.EINTR {
-			return nil, err
+		// If the epoll fd was closed during epoll_wait and an error
+		// occurred, then return ErrEpollClosed immediately.
+		if err != nil && e.IsClosed() {
+			errCh <- ErrEpollClosed
+			return
 		}
-		if msec == -1 {
+		if err != nil && err != unix.EINTR {
+			errCh <- err
+			return
+		}
+		if err == nil {
+			if n == 0 && noTimeout {
+				continue
+			}
+			break
+		}
+		// err == unix.EINTR
+		if noTimeout {
 			continue
 		}
+		// adjust the timeout and restart the syscall
 		elapsed := time.Since(startTs)
-		msec -= int(elapsed.Milliseconds())
+		msec = int((duration - elapsed).Milliseconds())
 		if msec <= 0 {
 			n = 0
 			break
 		}
-	}
-	if n == 0 {
-		return nil, nil
 	}
 	events := make([]Event, 0, n)
 	for i := 0; i < n; i++ {
@@ -203,7 +255,32 @@ func (e *Epoll) WaitTimeout(duration time.Duration) ([]Event, error) {
 		}
 		events = append(events, event)
 	}
-	return events, nil
+	eventCh <- events
+	return
+}
+
+// WaitTimeout blocks and waits with the given timeout for arrival of events on any of the added file descriptors.
+//
+// A duration value of -1 milliseconds disables timeout.
+//
+// Please refer to epoll_wait(2) and EPOLL_WAIT for details.
+//
+// Warning, using epoll from Golang explicitly is tricky.
+func (e *Epoll) WaitTimeout(duration time.Duration) ([]Event, error) {
+	if e.IsClosed() {
+		return nil, ErrEpollClosed
+	}
+	eventCh := make(chan []Event, 1)
+	errCh := make(chan error, 1)
+	go e.waitTimeoutInternal(duration, eventCh, errCh)
+	select {
+	case events := <-eventCh:
+		return events, nil
+	case err := <-errCh:
+		return nil, err
+	case <-e.closed:
+		return nil, ErrEpollClosed
+	}
 }
 
 // Wait blocks and waits for arrival of events on any of the added file descriptors.

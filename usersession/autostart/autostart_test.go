@@ -20,7 +20,6 @@
 package autostart_test
 
 import (
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path"
@@ -71,136 +70,6 @@ func (s *autostartSuite) TearDownTest(c *C) {
 	}
 }
 
-func (s *autostartSuite) TestLoadAutostartDesktopFile(c *C) {
-	allGood := `[Desktop Entry]
-Exec=foo --bar
-`
-	allGoodWithFlags := `[Desktop Entry]
-Exec=foo --bar "%%p" %U %D +%s %%
-`
-	noExec := `[Desktop Entry]
-Type=Application
-`
-	emptyExec := `[Desktop Entry]
-Exec=
-`
-	onlySpacesExec := `[Desktop Entry]
-Exec=
-`
-	hidden := `[Desktop Entry]
-Exec=foo --bar
-Hidden=true
-`
-	hiddenFalse := `[Desktop Entry]
-Exec=foo --bar
-Hidden=false
-`
-	justGNOME := `[Desktop Entry]
-Exec=foo --bar
-OnlyShowIn=GNOME;
-`
-	notInGNOME := `[Desktop Entry]
-Exec=foo --bar
-NotShownIn=GNOME;
-`
-	notInGNOMEAndKDE := `[Desktop Entry]
-Exec=foo --bar
-NotShownIn=GNOME;KDE;
-`
-	hiddenGNOMEextension := `[Desktop Entry]
-Exec=foo --bar
-X-GNOME-Autostart-enabled=false
-`
-	GNOMEextension := `[Desktop Entry]
-Exec=foo --bar
-X-GNOME-Autostart-enabled=true
-`
-
-	for i, tc := range []struct {
-		in      string
-		out     string
-		err     string
-		current string
-	}{{
-		in:  allGood,
-		out: "foo --bar",
-	}, {
-		in:  noExec,
-		err: "Exec not found or invalid",
-	}, {
-		in:  emptyExec,
-		err: "Exec not found or invalid",
-	}, {
-		in:  onlySpacesExec,
-		err: "Exec not found or invalid",
-	}, {
-		in:  allGoodWithFlags,
-		out: `foo --bar "%p"   + %`,
-	}, {
-		in:  hidden,
-		err: `desktop file is hidden`,
-	}, {
-		in:  hiddenFalse,
-		out: `foo --bar`,
-	}, {
-		in:      justGNOME,
-		out:     "foo --bar",
-		current: "GNOME",
-	}, {
-		in:      justGNOME,
-		current: "KDE",
-		err:     `current desktop \["KDE"\] not included in \["GNOME"\]`,
-	}, {
-		in:      notInGNOME,
-		current: "GNOME",
-		err:     `current desktop \["GNOME"\] excluded by \["GNOME"\]`,
-	}, {
-		in:      notInGNOME,
-		current: "KDE",
-		out:     "foo --bar",
-	}, {
-		in:      notInGNOMEAndKDE,
-		current: "XFCE",
-		out:     "foo --bar",
-	}, {
-		in:      hiddenGNOMEextension,
-		current: "KDE",
-		out:     "foo --bar",
-	}, {
-		in:      hiddenGNOMEextension,
-		current: "GNOME",
-		err:     `desktop file is hidden by X-GNOME-Autostart-enabled extension`,
-	}, {
-		in:      GNOMEextension,
-		current: "GNOME",
-		out:     "foo --bar",
-	}, {
-		in:      GNOMEextension,
-		current: "KDE",
-		out:     "foo --bar",
-	}} {
-		c.Logf("tc %d", i)
-
-		path := filepath.Join(c.MkDir(), "foo.desktop")
-		err := ioutil.WriteFile(path, []byte(tc.in), 0644)
-		c.Assert(err, IsNil)
-
-		run := func() {
-			defer autostart.MockCurrentDesktop(tc.current)()
-
-			cmd, err := autostart.LoadAutostartDesktopFile(path)
-			if tc.err != "" {
-				c.Check(cmd, Equals, "")
-				c.Check(err, ErrorMatches, tc.err)
-			} else {
-				c.Check(err, IsNil)
-				c.Check(cmd, Equals, tc.out)
-			}
-		}
-		run()
-	}
-}
-
 var mockYaml = `name: snapname
 version: 1.0
 apps:
@@ -244,6 +113,22 @@ Exec=this-is-ignored -a -b --foo="a b c" -z "dev"
 		})
 }
 
+func (s *autostartSuite) TestTryAutostartAppSkipped(c *C) {
+	snaptest.MockSnapCurrent(c, mockYaml, &snap.SideInfo{Revision: snap.R("x2")})
+
+	fooDesktopFile := filepath.Join(s.autostartDir, "foo-stable.desktop")
+	writeFile(c, fooDesktopFile,
+		[]byte(`[Desktop Entry]
+Exec=this-is-ignored -a -b --foo="a b c" -z "dev"
+OnlyShowIn=KDE
+`))
+
+	defer autostart.MockCurrentDesktop("GNOME")()
+	cmd, err := autostart.AutostartCmd("snapname", fooDesktopFile)
+	c.Assert(cmd, IsNil)
+	c.Assert(err, ErrorMatches, `skipped`)
+}
+
 func (s *autostartSuite) TestTryAutostartAppNoMatchingApp(c *C) {
 	snaptest.MockSnapCurrent(c, mockYaml, &snap.SideInfo{Revision: snap.R("x2")})
 
@@ -281,13 +166,24 @@ Foo=bar
 
 	cmd, err := autostart.AutostartCmd("snapname", fooDesktopFile)
 	c.Assert(cmd, IsNil)
-	c.Assert(err, ErrorMatches, `cannot determine startup command for application foo in snap snapname: Exec not found or invalid`)
+	c.Assert(err, ErrorMatches, `invalid application startup command: desktop file ".*" has no Exec line`)
+}
+
+func (s *autostartSuite) TestTryAutostartInvalid(c *C) {
+	snaptest.MockSnapCurrent(c, mockYaml, &snap.SideInfo{Revision: snap.R("x2")})
+
+	// If we don't write anything, the desktopentry.Read() call will fail
+	fooDesktopFile := filepath.Join(s.autostartDir, "foo-stable.desktop")
+
+	cmd, err := autostart.AutostartCmd("snapname", fooDesktopFile)
+	c.Check(cmd, IsNil)
+	c.Check(err, ErrorMatches, `cannot parse desktop file for application foo in snap snapname: .*`)
 }
 
 func writeFile(c *C, path string, content []byte) {
 	err := os.MkdirAll(filepath.Dir(path), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(path, content, 0644)
+	err = os.WriteFile(path, content, 0644)
 	c.Assert(err, IsNil)
 }
 
@@ -320,7 +216,7 @@ Exec=no-snap
 	usrSnapDir := filepath.Join(s.userDir, "snap")
 	err := autostart.AutostartSessionApps(usrSnapDir)
 	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, `- "foo-stable.desktop": cannot determine startup command for application foo in snap a-foo: Exec not found or invalid
+	c.Check(err, ErrorMatches, `- "foo-stable.desktop": invalid application startup command: desktop file ".*" has no Exec line
 - "no-match.desktop": cannot match desktop file with snap b-foo applications
 - "no-snap.desktop": cannot find current revision for snap c-foo: readlink.*no such file or directory
 `)

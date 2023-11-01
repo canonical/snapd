@@ -103,6 +103,9 @@ type PlaceInfo interface {
 
 	// UserExposedHomeDir returns the snap's new home directory under ~/Snap.
 	UserExposedHomeDir(home string) string
+
+	// BinaryNameGlobs returns base name globs that matches all snap binaries.
+	BinaryNameGlobs() []string
 }
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a
@@ -679,6 +682,10 @@ func (s *Info) XdgRuntimeDirs() string {
 	return filepath.Join(dirs.XdgRuntimeDirGlob, fmt.Sprintf("snap.%s", s.InstanceName()))
 }
 
+func (s *Info) BinaryNameGlobs() []string {
+	return []string{s.InstanceName(), fmt.Sprintf("%s.*", s.InstanceName())}
+}
+
 // NeedsDevMode returns whether the snap needs devmode.
 func (s *Info) NeedsDevMode() bool {
 	return s.Confinement == DevModeConfinement
@@ -924,7 +931,7 @@ func (slot *SlotInfo) String() string {
 	return fmt.Sprintf("%s:%s", slot.Snap.InstanceName(), slot.Name)
 }
 
-func gatherDefaultContentProvider(providerSnapsToContentTag map[string][]string, plug *PlugInfo) {
+func gatherDefaultContentProvider(providerSnapsToContentTag map[string][]string, plug *PlugInfo, filterTags map[string]bool) {
 	if plug.Interface == "content" {
 		var dprovider string
 		if err := plug.Attr("default-provider", &dprovider); err == nil && dprovider != "" {
@@ -933,6 +940,9 @@ func gatherDefaultContentProvider(providerSnapsToContentTag map[string][]string,
 			name := strings.Split(dprovider, ":")[0]
 			var contentTag string
 			plug.Attr("content", &contentTag)
+			if filterTags[contentTag] {
+				return
+			}
 			tags := providerSnapsToContentTag[name]
 			if tags == nil {
 				tags = []string{contentTag}
@@ -952,7 +962,7 @@ func gatherDefaultContentProvider(providerSnapsToContentTag map[string][]string,
 func DefaultContentProviders(plugs []*PlugInfo) (providerSnapsToContentTag map[string][]string) {
 	providerSnapsToContentTag = make(map[string][]string)
 	for _, plug := range plugs {
-		gatherDefaultContentProvider(providerSnapsToContentTag, plug)
+		gatherDefaultContentProvider(providerSnapsToContentTag, plug, nil)
 	}
 	return providerSnapsToContentTag
 }
@@ -1313,13 +1323,18 @@ func (e invalidMetaError) Broken() string {
 
 func MockSanitizePlugsSlots(f func(snapInfo *Info)) (restore func()) {
 	old := SanitizePlugsSlots
+	if f == nil {
+		f = sanitizePlugsSlotsUnimpl
+	}
 	SanitizePlugsSlots = f
 	return func() { SanitizePlugsSlots = old }
 }
 
-var SanitizePlugsSlots = func(snapInfo *Info) {
+func sanitizePlugsSlotsUnimpl(snapInfo *Info) {
 	panic("SanitizePlugsSlots function not set")
 }
+
+var SanitizePlugsSlots = sanitizePlugsSlotsUnimpl
 
 // ReadInfo reads the snap information for the installed snap with the given
 // name and given side-info.
@@ -1413,7 +1428,7 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	addImplicitHooksFromContainer(info, snapf)
+	AddImplicitHooksFromContainer(info, snapf)
 
 	bindImplicitHooks(info, strk)
 

@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"mime"
@@ -36,6 +37,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/progress/progresstest"
 	"github.com/snapcore/snapd/release"
@@ -190,6 +192,37 @@ func (s *SnapOpSuite) TestWaitRebooting(c *check.C) {
 	c.Check(meter.Notices, testutil.Contains, "INFO: info")
 }
 
+func (s *SnapOpSuite) TestWaitDaemonUnavailableWithMaintenance(c *check.C) {
+	meter := &progresstest.Meter{}
+	defer progress.MockMeter(meter)()
+	restore := snap.MockMaxGoneTime(time.Millisecond)
+	defer restore()
+
+	dirs.SetRootDir(c.MkDir())
+	err := os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755)
+	c.Assert(err, check.IsNil)
+
+	maintErr := client.Error{
+		Kind:    client.ErrorKindSystemRestart,
+		Message: "system is restarting",
+	}
+	b, err := json.Marshal(&maintErr)
+	c.Assert(err, check.IsNil)
+
+	// write the maintenance json
+	os.WriteFile(dirs.SnapdMaintenanceFile, b, 0666)
+
+	// lazy way of getting a URL that won't work nor break stuff
+	server := httptest.NewServer(nil)
+	snap.ClientConfig.BaseURL = server.URL
+	server.Close()
+
+	cli := snap.Client()
+	chg, err := snap.Wait(cli, "x")
+	c.Assert(chg, check.IsNil)
+	c.Assert(err, check.ErrorMatches, `system is restarting`)
+}
+
 func (s *SnapOpSuite) TestWaitStateShowsLog(c *check.C) {
 	meter := &progresstest.Meter{}
 	defer progress.MockMeter(meter)()
@@ -253,6 +286,35 @@ func (s *SnapOpSuite) TestInstallWithWaitStatus(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestListReportsRestartError(c *check.C) {
+	var n int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			w.WriteHeader(202)
+			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
+		case 1:
+			fmt.Fprintf(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"snap-name": "foo"}}}\n`)
+		case 2:
+			fmt.Fprintf(w, `{"type": "sync", "maintenance": {"kind": "system-restart", "message": "system is restarting", "value": {"op": "system-restart"}}}}, "result": [{"name": "foo", "status": "active", "version": "1.0", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "revision":42, "channel":"stable", "tracking-channel": "stable", "confinement": "classic"}]}\n`)
+		default:
+			errMsg := fmt.Sprintf("expected to get 3 requests, now on %d", n+1)
+			c.Error(errMsg)
+			w.WriteHeader(500)
+			w.Write([]byte(errMsg))
+		}
+		n++
+	})
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "foo"})
+	c.Assert(err, check.DeepEquals, &client.Error{Kind: client.ErrorKindSystemRestart, Value: map[string]interface{}{"op": "system-restart"}, Message: "system is restarting"})
+	c.Assert(rest, check.DeepEquals, []string{"foo"})
+	c.Check(s.Stdout(), check.Matches, "")
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, 3)
 }
 
 func (s *SnapOpSuite) TestInstallIgnoreRunning(c *check.C) {
@@ -916,7 +978,7 @@ func (s *SnapOpSuite) TestInstallPath(c *check.C) {
 	snapBody := []byte("snap-data")
 	s.RedirectClientToTestServer(s.srv.handle)
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
-	err := ioutil.WriteFile(snapPath, snapBody, 0644)
+	err := os.WriteFile(snapPath, snapBody, 0644)
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", snapPath})
@@ -948,7 +1010,7 @@ func (s *SnapOpSuite) TestInstallPathDevMode(c *check.C) {
 	snapBody := []byte("snap-data")
 	s.RedirectClientToTestServer(s.srv.handle)
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
-	err := ioutil.WriteFile(snapPath, snapBody, 0644)
+	err := os.WriteFile(snapPath, snapBody, 0644)
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--devmode", snapPath})
@@ -982,7 +1044,7 @@ func (s *SnapOpSuite) TestInstallPathClassic(c *check.C) {
 	snapBody := []byte("snap-data")
 	s.RedirectClientToTestServer(s.srv.handle)
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
-	err := ioutil.WriteFile(snapPath, snapBody, 0644)
+	err := os.WriteFile(snapPath, snapBody, 0644)
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--classic", snapPath})
@@ -1014,7 +1076,7 @@ func (s *SnapOpSuite) TestInstallPathDangerous(c *check.C) {
 	snapBody := []byte("snap-data")
 	s.RedirectClientToTestServer(s.srv.handle)
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
-	err := ioutil.WriteFile(snapPath, snapBody, 0644)
+	err := os.WriteFile(snapPath, snapBody, 0644)
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--dangerous", snapPath})
@@ -1046,7 +1108,7 @@ func (s *SnapOpSuite) TestInstallPathQuotaGroup(c *check.C) {
 	snapBody := []byte("snap-data")
 	s.RedirectClientToTestServer(s.srv.handle)
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
-	err := ioutil.WriteFile(snapPath, snapBody, 0644)
+	err := os.WriteFile(snapPath, snapBody, 0644)
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--quota-group", "foo", snapPath})
@@ -1105,7 +1167,7 @@ func (s *SnapOpSuite) TestInstallPathManyTransactional(c *check.C) {
 	for _, snap := range snaps {
 		path := filepath.Join(c.MkDir(), snap)
 		args = append(args, path)
-		err := ioutil.WriteFile(path, []byte("snap-data"), 0644)
+		err := os.WriteFile(path, []byte("snap-data"), 0644)
 		c.Assert(err, check.IsNil)
 	}
 
@@ -1144,7 +1206,7 @@ func (s *SnapOpSuite) TestInstallPathInstance(c *check.C) {
 	// instance is named foo_bar
 	s.srv.snap = "foo_bar"
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
-	err := ioutil.WriteFile(snapPath, snapBody, 0644)
+	err := os.WriteFile(snapPath, snapBody, 0644)
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", snapPath, "--name", "foo_bar"})
@@ -1203,7 +1265,7 @@ func (s *SnapOpSuite) TestInstallPathMany(c *check.C) {
 	for _, snap := range snaps {
 		path := filepath.Join(c.MkDir(), snap)
 		args = append(args, path)
-		err := ioutil.WriteFile(path, []byte("snap-data"), 0644)
+		err := os.WriteFile(path, []byte("snap-data"), 0644)
 		c.Assert(err, check.IsNil)
 	}
 

@@ -220,6 +220,8 @@ var (
 	subkeyRegex      = "(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*"
 	validSubkey      = regexp.MustCompile(fmt.Sprintf("^%s$", subkeyRegex))
 	validPlaceholder = regexp.MustCompile(fmt.Sprintf("^{%s}$", subkeyRegex))
+	// TODO: decide on what the format should be for user-defined types in schemas
+	validUserType = validSubkey
 )
 
 // validateAspectDottedPath validates that names/paths in an aspect definition are:

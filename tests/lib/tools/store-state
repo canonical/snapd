@@ -45,6 +45,7 @@ init_fake_refreshes(){
 make_snap_installable(){
     local ack=true
     local extra_decl_json_file=""
+    local revision="1"
     while [ $# -gt 0 ]; do
         case "$1" in
             (--noack) 
@@ -53,6 +54,10 @@ make_snap_installable(){
                 ;;
             (--extra-decl-json)
                 extra_decl_json_file="$2"
+                shift 2
+                ;;
+            (--revision)
+                revision="$2"
                 shift 2
                 ;;
             (*)
@@ -98,7 +103,8 @@ EOF
         cat >> /tmp/snap-rev.json << EOF
 {
     "type": "snap-revision",
-    "snap-id": "${snap_id}"
+    "snap-id": "${snap_id}",
+    "snap-revision": "$revision"
 }
 EOF
     fi
@@ -164,7 +170,6 @@ teardown_fake_store(){
     local top_dir=$1
     if [ ! -d "$top_dir" ]; then
         echo "store-state: the provided top dir does not exist \"$top_dir\""
-        return 1
     fi
 
     systemctl stop fakestore || true
