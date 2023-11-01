@@ -143,7 +143,7 @@ func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
 			return nil, err
 		}
 	} else if schema.mustConstrain() {
-		return nil, fmt.Errorf(`cannot parse %q: must be map definition with constraints`, typ)
+		return nil, fmt.Errorf(`cannot parse %q: must be schema definition with constraints`, typ)
 	}
 
 	return schema, nil
@@ -728,7 +728,7 @@ func (v *arraySchema) Validate(raw []byte) error {
 		for _, val := range *array {
 			encodedVal := string(val)
 			if _, ok := valSet[encodedVal]; ok {
-				return fmt.Errorf(`cannot accept array with duplicate values`)
+				return fmt.Errorf(`cannot accept duplicate values for array with "unique" constraint`)
 			}
 			valSet[encodedVal] = struct{}{}
 		}
@@ -753,7 +753,7 @@ func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) e
 	if rawUnique, ok := constraints["unique"]; ok {
 		var unique bool
 		if err := json.Unmarshal(rawUnique, &unique); err != nil {
-			return fmt.Errorf(`cannot parse "array": %v`, err)
+			return fmt.Errorf(`cannot parse array's "unique" constraint: %v`, err)
 		}
 
 		v.unique = unique

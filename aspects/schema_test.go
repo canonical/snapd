@@ -1495,7 +1495,7 @@ func (*schemaSuite) TestArrayRequireConstraints(c *C) {
 }`)
 
 	_, err := aspects.ParseSchema(schemaStr)
-	c.Assert(err, ErrorMatches, `cannot parse "array": must be map definition with constraints`)
+	c.Assert(err, ErrorMatches, `cannot parse "array": must be schema definition with constraints`)
 }
 
 func (*schemaSuite) TestArrayRequireValueConstraint(c *C) {
@@ -1565,7 +1565,7 @@ func (*schemaSuite) TestArrayWithUniqueRejectsDuplicates(c *C) {
 }`)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot accept array with duplicate values`)
+	c.Assert(err, ErrorMatches, `cannot accept duplicate values for array with "unique" constraint`)
 }
 
 func (*schemaSuite) TestArrayWithoutUniqueAcceptsDuplicates(c *C) {
@@ -1602,5 +1602,5 @@ func (*schemaSuite) TestArrayFailsWithBadUniqueType(c *C) {
 }`)
 
 	_, err := aspects.ParseSchema(schemaStr)
-	c.Assert(err, ErrorMatches, `cannot parse "array": json: cannot unmarshal string into Go value of type bool`)
+	c.Assert(err, ErrorMatches, `cannot parse array's "unique" constraint: json: cannot unmarshal string into Go value of type bool`)
 }
