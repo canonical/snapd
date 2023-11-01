@@ -3,8 +3,8 @@
 package sha3
 
 import (
-	_ "unsafe"
 	"hash"
+	_ "unsafe"
 )
 
 //go:linkname New384 crypto/internal/backend.NewSHA3_384
