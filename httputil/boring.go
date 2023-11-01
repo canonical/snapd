@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-//go:build boringcrypto || goexperiment.opensslcrypto
-// +build boringcrypto goexperiment.opensslcrypto
+//go:build goexperiment.opensslcrypto
 
 /*
  * Copyright (C) 2023 Canonical Ltd
