@@ -23,7 +23,7 @@ jobs:
 
     - name: Somehow snapcraft is failing to install this
       run: |
-          sudo snap install --classic --channel=1.18-fips/edge/sha3 go
+          sudo snap install --classic --channel=1.21-fips/stable go
 
     - name: Build snapd snap
       uses: snapcore/action-build@v1
@@ -105,8 +105,7 @@ jobs:
         gochannel:
           - 1.18
           - latest/stable
-          - 1.18-fips/edge/sha3
-          - 1.20-fips/stable
+          - 1.21-fips/stable
 
     steps:
     - name: Checkout code
