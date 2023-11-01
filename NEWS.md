@@ -1,3 +1,11 @@
+# New in snapd 2.60.5:
+* Read mountinfo for PID 1
+  This fixes snapd-generator reading incorrect mounts due to Systemd mount
+  generators now running in a sandbox. The bug causes problems when upgrading
+  Ubuntu Desktop from 23.04 to 23.10 resulting in missing snap mounts that in
+  turn cause errors with automatically connecting plugs and slots for newly
+  installed snaps.
+
 # New in snapd 2.60.4:
 * Switch to plug/slot in the "qualcomm-ipc-router" interface
   but keeping backward compatibility
