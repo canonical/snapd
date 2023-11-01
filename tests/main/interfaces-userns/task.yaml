@@ -38,7 +38,9 @@ execute: |
     fi
 
     echo "Enable the use of unprivileged user namespaces by default"
+    orig_userns_clone=$(sysctl -n kernel.unprivileged_userns_clone)
     sysctl -w kernel.unprivileged_userns_clone=1
+    tests.cleanup defer sysctl -w kernel.unprivileged_userns_clone="$orig_userns_clone"
 
     echo "The userns interface is disconnected by default"
     snap connections test-snapd-userns | MATCH 'userns +test-snapd-userns:userns +- +-'
@@ -89,11 +91,12 @@ execute: |
 
     # enable AppArmor enforcement
     echo "Enable AppArmor enforcement of unprivileged user namespace restrictions"
+    orig_apparmor_userns=$(sysctl -n kernel.apparmor_restrict_unprivileged_userns)
     sysctl -w kernel.apparmor_restrict_unprivileged_userns=1
+    tests.cleanup defer sysctl -w kernel.apparmor_restrict_unprivileged_userns="$orig_apparmor_userns"
 
     # and remove the AppArmor permission from the snap's AppArmor profile
     sed -i 's/userns,/##spread##userns,/' /var/lib/snapd/apparmor/profiles/snap.test-snapd-userns.with-userns-plug
-    tests.cleanup defer sed -i 's/^##spread##//' /var/lib/snapd/apparmor/profiles/snap.test-snapd-userns.with-userns-plug
 
     # then reload the profile, ensuring the right apparmor_parser is used -
     # always use the policy features of the kernel to ensure that the parser
@@ -113,8 +116,4 @@ execute: |
     # https://gitlab.com/apparmor/apparmor/-/wikis/unprivileged_userns_restriction#allowing-user-namespaces-creation-in-policy
     echo "When the userns AppArmor permission is removed creating a new user namespace as root is denied"
     snap run test-snapd-userns.with-userns-plug -c "\$SNAP_COMMON/unshare -U id" 2>&1 | MATCH 'unshare: unshare: Permission denied'
-
-
-
-
 
