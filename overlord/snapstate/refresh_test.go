@@ -173,9 +173,10 @@ func (s *refreshSuite) TestDoSoftRefreshCheckAllowed(c *C) {
 	c.Assert(err, IsNil)
 
 	// In addition, the inhibition lock is not set.
-	hint, err := runinhibit.IsLocked(info.InstanceName())
+	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName())
 	c.Assert(err, IsNil)
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{})
 }
 
 func (s *refreshSuite) TestDoSoftRefreshCheckDisallowed(c *C) {
@@ -196,9 +197,10 @@ func (s *refreshSuite) TestDoSoftRefreshCheckDisallowed(c *C) {
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
 
 	// Validity check: the inhibition lock was not set.
-	hint, err := runinhibit.IsLocked(info.InstanceName())
+	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName())
 	c.Assert(err, IsNil)
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{})
 }
 
 func (s *refreshSuite) TestDoHardRefreshFlowRefreshAllowed(c *C) {

@@ -328,7 +328,7 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 		return nil, err
 	}
 
-	ts, err := InstallWithDeviceContext(context.TODO(), st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireTypeBase: requireTypeBase}, deviceCtx, "")
+	ts, err := InstallWithDeviceContext(context.TODO(), st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireTypeBase: requireTypeBase}, nil, deviceCtx, "")
 
 	// something might have triggered an explicit install while
 	// the state was unlocked -> deal with that here by simply
@@ -373,7 +373,7 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 	}
 
 	// default provider is missing some content tags (likely outdated) so update it
-	ts, err := UpdateWithDeviceContext(st, snapName, nil, userID, flags, deviceCtx, "")
+	ts, err := UpdateWithDeviceContext(st, snapName, nil, userID, flags, nil, deviceCtx, "")
 	if err != nil {
 		if conflErr, ok := err.(*ChangeConflictError); ok {
 			// If we aren't seeded, then it's to early to do any updates and we cannot
@@ -2302,6 +2302,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 			t.Logf("reboot postponed to later tasks")
 		}
 	}
+	// XXX: This logic looks a bit confusing, and can be replaced once we decide
+	// to get rid of the "cannot-reboot" handling. It's still here for backwards
+	// compatibility, with previous snapd versions that were using "cannot-reboot"
+	// in state for tasks to support single-reboot with base/kernel.
 	if !rebootInfo.RebootRequired || canReboot {
 		return m.finishTaskWithMaybeRestart(t, finalStatus, restartPossibility{info: newInfo, RebootInfo: rebootInfo})
 	} else {
@@ -4015,10 +4019,11 @@ func refreshedSnaps(reTask *state.Task) (snapNames []string, failed bool) {
 			laneSnaps = map[int]string{}
 		}
 		lanes := task.Lanes()
-		if len(lanes) != 1 {
-			// can't happen, really
-			continue
-		}
+		// Tasks can have multiple lanes, but can also share a single lane, right now we rely on
+		// the first lane, which may not be sufficient to detect whether or not a specific
+		// snap has been refreshed.
+		// XXX: If snaps have been refreshed with Flags.Transaction == "all-snap", then this may
+		// be an issue and not accurately detect which snaps have been refreshed.
 		lane := lanes[0]
 		if lane == 0 {
 			// not really a lane

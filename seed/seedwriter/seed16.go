@@ -116,11 +116,6 @@ func (pol *policy16) checkBase(info *snap.Info, modes []string, availableByMode 
 	return fmt.Errorf("cannot add snap %q without also adding its base %q explicitly", info.SnapName(), info.Base)
 }
 
-func (pol *policy16) checkAvailable(snapRef naming.SnapRef, modes []string, availableByMode map[string]*naming.SnapSet) bool {
-	availableSnaps := availableByMode["run"]
-	return availableSnaps.Contains(snapRef)
-}
-
 func (pol *policy16) needsImplicitSnaps(availableByMode map[string]*naming.SnapSet) (bool, error) {
 	availableSnaps := availableByMode["run"]
 	// do we need to add implicitly either snapd (or core)

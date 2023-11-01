@@ -108,11 +108,13 @@ var (
 )
 
 type KernelCmdline struct {
-	// TODO: add append and remove slices that will replace the cmdline*.txt
-	// files that can be included nowadays in the gadget.
 	// Allow is the list of allowed parameters for the system.kernel.cmdline-append
 	// system option
 	Allow []kcmdline.ArgumentPattern `yaml:"allow"`
+	// Append are kernel parameters added by the gadget
+	Append []kcmdline.Argument `yaml:"append"`
+	// Remove are patterns to be removed from default command line
+	Remove []kcmdline.ArgumentPattern `yaml:"remove"`
 }
 
 type Info struct {
@@ -1779,27 +1781,49 @@ func isKernelArgumentAllowed(arg string) bool {
 // KernelCommandLineFromGadget returns the desired kernel command line provided by the
 // gadget. The full flag indicates whether the gadget provides a full command
 // line or just the extra parameters that will be appended to the static ones.
-func KernelCommandLineFromGadget(gadgetDirOrSnapPath string) (cmdline string, full bool, err error) {
+// A model is neededed to know how to interpret the gadget yaml from the gadget.
+func KernelCommandLineFromGadget(gadgetDirOrSnapPath string, model Model) (cmdline string, full bool, removeArgs []kcmdline.ArgumentPattern, err error) {
 	sf, err := snapfile.Open(gadgetDirOrSnapPath)
 	if err != nil {
-		return "", false, fmt.Errorf("cannot open gadget snap: %v", err)
+		return "", false, []kcmdline.ArgumentPattern{}, fmt.Errorf("cannot open gadget snap: %v", err)
 	}
+
+	info, err := ReadInfoFromSnapFileNoValidate(sf, model)
+	if err != nil {
+		return "", false, []kcmdline.ArgumentPattern{}, fmt.Errorf("Cannot read snap info: %v", err)
+	}
+
+	if len(info.KernelCmdline.Append) > 0 || len(info.KernelCmdline.Remove) > 0 {
+		var asStr []string
+		for _, cmd := range info.KernelCmdline.Append {
+			value := cmd.String()
+			split := strings.SplitN(value, "=", 2)
+			if !isKernelArgumentAllowed(split[0]) {
+				return "", false, []kcmdline.ArgumentPattern{}, fmt.Errorf("kernel parameter '%s' is not allowed", value)
+			}
+			asStr = append(asStr, value)
+		}
+
+		return strutil.JoinNonEmpty(asStr, " "), false, info.KernelCmdline.Remove, nil
+	}
+
+	// Backward compatibility
 	contentExtra, err := sf.ReadFile("cmdline.extra")
 	if err != nil && !os.IsNotExist(err) {
-		return "", false, err
+		return "", false, []kcmdline.ArgumentPattern{}, err
 	}
 	// TODO: should we enforce the maximum kernel command line for cmdline.full?
 	contentFull, err := sf.ReadFile("cmdline.full")
 	if err != nil && !os.IsNotExist(err) {
-		return "", false, err
+		return "", false, []kcmdline.ArgumentPattern{}, err
 	}
 	content := contentExtra
 	whichFile := "cmdline.extra"
 	switch {
 	case contentExtra != nil && contentFull != nil:
-		return "", false, fmt.Errorf("cannot support both extra and full kernel command lines")
+		return "", false, []kcmdline.ArgumentPattern{}, fmt.Errorf("cannot support both extra and full kernel command lines")
 	case contentExtra == nil && contentFull == nil:
-		return "", false, nil
+		return "", false, []kcmdline.ArgumentPattern{}, nil
 	case contentFull != nil:
 		content = contentFull
 		whichFile = "cmdline.full"
@@ -1807,9 +1831,9 @@ func KernelCommandLineFromGadget(gadgetDirOrSnapPath string) (cmdline string, fu
 	}
 	parsed, err := parseCommandLineFromGadget(content)
 	if err != nil {
-		return "", full, fmt.Errorf("invalid kernel command line in %v: %v", whichFile, err)
+		return "", full, []kcmdline.ArgumentPattern{}, fmt.Errorf("invalid kernel command line in %v: %v", whichFile, err)
 	}
-	return parsed, full, nil
+	return parsed, full, []kcmdline.ArgumentPattern{}, nil
 }
 
 // parseCommandLineFromGadget parses the command line file and returns a

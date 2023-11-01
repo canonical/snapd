@@ -26,7 +26,7 @@ import (
 )
 
 func (b Backend) InhibitSnap(snapName string, rev snap.Revision, hint runinhibit.Hint) error {
-	return runinhibit.LockWithHint(snapName, hint)
+	return runinhibit.LockWithHint(snapName, hint, runinhibit.InhibitInfo{Previous: rev})
 }
 
 func (b Backend) UninhibitSnap(snapName string) error {

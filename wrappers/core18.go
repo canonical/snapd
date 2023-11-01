@@ -39,7 +39,7 @@ import (
 // catches units that run /usr/bin/snap (with args), or things in /usr/lib/snapd/
 var execStartRe = regexp.MustCompile(`(?m)^ExecStart=(/usr/bin/snap\s+.*|/usr/lib/snapd/.*)$`)
 
-// snapdToolingMountUnit is the name of the mount unit that makes the
+// snapdToolingMountUnit is the name of the mount unit that provides the snapd tooling
 const SnapdToolingMountUnit = "usr-lib-snapd.mount"
 
 func snapdSkipStart(content []byte) bool {

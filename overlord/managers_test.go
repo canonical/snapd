@@ -597,7 +597,7 @@ apps:
 	st.Lock()
 	defer st.Unlock()
 
-	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "foo"}, snapPath, "", "", snapstate.Flags{DevMode: true})
+	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "foo"}, snapPath, "", "", snapstate.Flags{DevMode: true}, nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -661,7 +661,7 @@ hooks:
 	st.Lock()
 	defer st.Unlock()
 
-	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "foo"}, snapPath, "", "", snapstate.Flags{DevMode: true})
+	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "foo"}, snapPath, "", "", snapstate.Flags{DevMode: true}, nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -1975,7 +1975,7 @@ apps:
 	err = assertstate.Add(st, snapDecl)
 	c.Assert(err, IsNil)
 
-	ts, _, err := snapstate.InstallPath(st, si, snapPath, "", "", snapstate.Flags{DevMode: true})
+	ts, _, err := snapstate.InstallPath(st, si, snapPath, "", "", snapstate.Flags{DevMode: true}, nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -2039,7 +2039,7 @@ apps:
 	err = assertstate.Add(st, snapDecl)
 	c.Assert(err, IsNil)
 
-	_, _, err = snapstate.InstallPath(st, si, snapPath, "bar_instance", "", snapstate.Flags{DevMode: true})
+	_, _, err = snapstate.InstallPath(st, si, snapPath, "bar_instance", "", snapstate.Flags{DevMode: true}, nil)
 	c.Assert(err, ErrorMatches, `cannot install snap "bar_instance", the name does not match the metadata "foo"`)
 }
 
@@ -2069,7 +2069,7 @@ apps:
 	err = assertstate.Add(st, snapDecl)
 	c.Assert(err, IsNil)
 
-	_, _, err = snapstate.InstallPath(st, si, snapPath, "bar_invalid_instance_name", "", snapstate.Flags{DevMode: true})
+	_, _, err = snapstate.InstallPath(st, si, snapPath, "bar_invalid_instance_name", "", snapstate.Flags{DevMode: true}, nil)
 	c.Assert(err, ErrorMatches, `invalid instance name: invalid instance key: "invalid_instance_name"`)
 }
 
@@ -2105,7 +2105,7 @@ slots:
 	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	defer restoreSanitize()
 
-	ts, _, err := snapstate.InstallPath(st, si, snapPath, "", "", snapstate.Flags{DevMode: true})
+	ts, _, err := snapstate.InstallPath(st, si, snapPath, "", "", snapstate.Flags{DevMode: true}, nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -2292,7 +2292,7 @@ type: os
 
 	// InstallPath does not set any restart boundaries by itself, this is something
 	// that must be handled where we use it, and actually schedule the change.
-	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "core"}, snapPath, "", "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "core"}, snapPath, "", "", snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -2372,7 +2372,7 @@ type: os
 
 	// InstallPath does not set any restart boundaries by itself, this is something
 	// that must be handled where we use it, and actually schedule the change.
-	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "core"}, snapPath, "", "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "core"}, snapPath, "", "", snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -2521,7 +2521,7 @@ type: kernel`
 
 	// InstallPath does not set any restart boundaries by itself, this is something
 	// that must be handled where we use it, and actually schedule the change.
-	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "pc-kernel"}, snapPath, "", "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "pc-kernel"}, snapPath, "", "", snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -2624,7 +2624,7 @@ type: kernel`
 
 	// InstallPath does not set any restart boundaries by itself, this is something
 	// that must be handled where we use it, and actually schedule the change.
-	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "pc-kernel"}, snapPath, "", "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "pc-kernel"}, snapPath, "", "", snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 
 	terr := st.NewTask("error-trigger", "provoking total undo")
@@ -2783,7 +2783,7 @@ type: kernel`
 
 	// InstallPath does not set any restart boundaries by itself, this is something
 	// that must be handled where we use it, and actually schedule the change.
-	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "pc-kernel"}, kernelSnapPath, "", "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "pc-kernel"}, kernelSnapPath, "", "", snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -2953,7 +2953,7 @@ type: kernel`
 
 	// InstallPath does not set any restart boundaries by itself, this is something
 	// that must be handled where we use it, and actually schedule the change.
-	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "pc-kernel"}, kernelSnapPath, "", "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "pc-kernel"}, kernelSnapPath, "", "", snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 
 	terr := st.NewTask("error-trigger", "provoking total undo")
@@ -3061,7 +3061,7 @@ func (s *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.Inf
 	var snapst snapstate.SnapState
 	snapstate.Get(st, snapName, &snapst)
 
-	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: snapName}, snapPath, "", "", snapstate.Flags{DevMode: true})
+	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: snapName}, snapPath, "", "", snapstate.Flags{DevMode: true}, nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -4204,12 +4204,12 @@ func (s *mgrsSuite) testTwoInstalls(c *C, snapName1, snapYaml1, snapName2, snapY
 	st.Lock()
 	defer st.Unlock()
 
-	ts1, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: snapName1, SnapID: fakeSnapID(snapName1), Revision: snap.R(3)}, snapPath1, "", "", snapstate.Flags{DevMode: true})
+	ts1, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: snapName1, SnapID: fakeSnapID(snapName1), Revision: snap.R(3)}, snapPath1, "", "", snapstate.Flags{DevMode: true}, nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts1)
 
-	ts2, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: snapName2, SnapID: fakeSnapID(snapName2), Revision: snap.R(3)}, snapPath2, "", "", snapstate.Flags{DevMode: true})
+	ts2, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: snapName2, SnapID: fakeSnapID(snapName2), Revision: snap.R(3)}, snapPath2, "", "", snapstate.Flags{DevMode: true}, nil)
 	c.Assert(err, IsNil)
 
 	ts2.WaitAll(ts1)
@@ -4276,7 +4276,7 @@ func (s *mgrsSuite) TestRemoveAndInstallWithAutoconnectHappy(c *C) {
 
 	snapPath := makeTestSnap(c, snapYamlContent2+"version: 1.0")
 	chg2 := st.NewChange("install-snap", "...")
-	ts2, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "snap2", SnapID: fakeSnapID("snap2"), Revision: snap.R(3)}, snapPath, "", "", snapstate.Flags{DevMode: true})
+	ts2, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "snap2", SnapID: fakeSnapID("snap2"), Revision: snap.R(3)}, snapPath, "", "", snapstate.Flags{DevMode: true}, nil)
 	chg2.AddAll(ts2)
 	c.Assert(err, IsNil)
 
@@ -5699,7 +5699,7 @@ func (ms *mgrsSuite) TestRefreshSimpleSameRevFromLocalFile(c *C) {
 
 	// now refresh from rev1 to rev1
 	flags := snapstate.Flags{RemoveSnapPath: true}
-	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "some-snap", Revision: snap.R(revStr)}, tmpSnapFile, "", "", flags)
+	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "some-snap", Revision: snap.R(revStr)}, tmpSnapFile, "", "", flags, nil)
 	c.Assert(err, IsNil)
 
 	chg := st.NewChange("refresh", "...")
@@ -5762,7 +5762,7 @@ func (ms *mgrsSuite) TestRefreshSimpleRevertToLocalFromLocalFile(c *C) {
 
 	// now refresh from rev2 to rev1
 	flags := snapstate.Flags{RemoveSnapPath: true}
-	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "some-snap", Revision: snap.R(revStr)}, tmpSnapFile, "", "", flags)
+	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "some-snap", Revision: snap.R(revStr)}, tmpSnapFile, "", "", flags, nil)
 	c.Assert(err, IsNil)
 
 	chg := st.NewChange("refresh", "...")
@@ -8475,8 +8475,9 @@ func (s *mgrsSuiteCore) TestRemodelUC20SnapWithPrereqsMissingDeps(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "snapd", SnapID: fakeSnapID("snapd"), Revision: snap.R(1)},
 		},
-		Current:  snap.R(1),
-		SnapType: "snapd",
+		Current:         snap.R(1),
+		SnapType:        "snapd",
+		TrackingChannel: "latest/stable",
 		Flags: snapstate.Flags{
 			Required: true,
 		},
@@ -8941,7 +8942,7 @@ type: kernel`
 
 	// InstallPath does not set any restart boundaries by itself, this is something
 	// that must be handled where we use it, and actually schedule the change.
-	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "pc-kernel"}, snapPath, "", "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "pc-kernel"}, snapPath, "", "", snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 
 	chg := st.NewChange("install-snap", "...")
@@ -9176,7 +9177,7 @@ NeedDaemonReload=no
 	err = assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
-	ts, _, err := snapstate.InstallPath(st, si, snapPath, "", "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(st, si, snapPath, "", "", snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 
 	chg := st.NewChange("install-snap", "...")
@@ -9424,7 +9425,7 @@ NeedDaemonReload=no
 	err = assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
-	ts, _, err := snapstate.InstallPath(st, si, snapPath, "", "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(st, si, snapPath, "", "", snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 
 	chg := st.NewChange("install-snap", "...")
@@ -9604,7 +9605,7 @@ volumes:
 
 	// InstallPath does not set any restart boundaries by itself, this is something
 	// that must be handled where we use it, and actually schedule the change.
-	ts, _, err := snapstate.InstallPath(st, si, snapPath, "", "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(st, si, snapPath, "", "", snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 
 	chg := st.NewChange("install-snap", "...")
@@ -9764,7 +9765,7 @@ func (s *mgrsSuite) testNonUC20RunUpdateManagedBootConfig(c *C, snapPath string,
 
 	// InstallPath does not set any restart boundaries by itself, this is something
 	// that must be handled where we use it, and actually schedule the change.
-	ts, _, err := snapstate.InstallPath(st, si, snapPath, "", "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(st, si, snapPath, "", "", snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 
 	chg := st.NewChange("install-snap", "...")
@@ -9989,7 +9990,7 @@ func (s *mgrsSuiteCore) testGadgetKernelCommandLine(c *C, gadgetPath string, gad
 	})
 	defer r()
 
-	ts, _, err := snapstate.InstallPath(st, gadgetSideInfo, gadgetPath, "", "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(st, gadgetSideInfo, gadgetPath, "", "", snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 
 	chg := st.NewChange("install-snap", "...")
@@ -10469,7 +10470,7 @@ func (s *mgrsSuiteCore) TestUpdateKernelBaseSingleRebootKernelUndo(c *C) {
 	}
 }
 
-func (s *mgrsSuiteCore) testUpdateKernelBaseSingleRebootWithGadgetSetup(c *C, snapYamlGadget string) (*boottest.RunBootenv20, *state.Change) {
+func (s *mgrsSuiteCore) testUpdateKernelBaseSingleRebootWithGadgetSetup(c *C, snapYamlGadget string) (*boottest.RunBootenv20, []*state.TaskSet, *state.Change) {
 	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
@@ -10605,7 +10606,7 @@ func (s *mgrsSuiteCore) testUpdateKernelBaseSingleRebootWithGadgetSetup(c *C, sn
 		}
 		chg.AddAll(ts)
 	}
-	return bloader, chg
+	return bloader, tss, chg
 }
 
 // makeMockDisk mocks a disk compatible with pcGadgetYaml constant.
@@ -10718,7 +10719,7 @@ version: 1.0
 type: gadget
 base: core20
 `
-	bloader, chg := s.testUpdateKernelBaseSingleRebootWithGadgetSetup(c, pcGadget)
+	bloader, _, chg := s.testUpdateKernelBaseSingleRebootWithGadgetSetup(c, pcGadget)
 
 	st := s.o.State()
 	st.Lock()
@@ -10831,6 +10832,95 @@ base: core20
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("change failed with: %v", chg.Err()))
 }
 
+func rearrangeBaseKernelForCyclicDependency(st *state.State, tss []*state.TaskSet) error {
+	st.Lock()
+	defer st.Unlock()
+	var baseTs, kernelTs *state.TaskSet
+	for _, ts := range tss {
+		for _, t := range ts.Tasks() {
+			snapsup, err := snapstate.TaskSnapSetup(t)
+			if err != nil {
+				continue
+			}
+			if snapsup.Type == snap.TypeKernel {
+				kernelTs = ts
+				break
+			} else if snapsup.Type == snap.TypeBase {
+				baseTs = ts
+				break
+			}
+		}
+	}
+
+	haveBase, haveKernel := baseTs != nil, kernelTs != nil
+	if !haveBase && !haveKernel {
+		// neither base nor kernel update
+		return nil
+	}
+	if haveBase != haveKernel {
+		// have one but not the other
+		return nil
+	}
+
+	// both kernel and boot base are being updated, reorder link-snap and
+	// auto-connect tasks from both snaps such that we end up with the
+	// following ordering:
+	//
+	// tasks of base and kernel ->
+	//     link-snap(base) ->
+	//        link-snap(kernel)(r) ->
+	//            auto-connect(base) ->
+	//                auto-connect(kernel) ->
+	//                    remaining tasks of base and kernel
+	//
+	// where (r) denotes the task that can effectively request a reboot
+
+	beforeLinkSnapKernel := kernelTs.MaybeEdge(snapstate.BeforeMaybeRebootEdge)
+	linkSnapKernel := kernelTs.MaybeEdge(snapstate.MaybeRebootEdge)
+	autoConnectKernel := kernelTs.MaybeEdge(snapstate.MaybeRebootWaitEdge)
+
+	if linkSnapKernel == nil || autoConnectKernel == nil || beforeLinkSnapKernel == nil {
+		return fmt.Errorf("internal error: cannot identify link-snap or auto-connect or the preceding task for the kernel snap")
+	}
+	kernelLanes := linkSnapKernel.Lanes()
+
+	linkSnapBase := baseTs.MaybeEdge(snapstate.MaybeRebootEdge)
+	autoConnectBase := baseTs.MaybeEdge(snapstate.MaybeRebootWaitEdge)
+	afterAutoConnectBase := baseTs.MaybeEdge(snapstate.AfterMaybeRebootWaitEdge)
+	if linkSnapBase == nil || autoConnectBase == nil || afterAutoConnectBase == nil {
+		return fmt.Errorf("internal error: cannot identify link-snap or auto-connect or the following task for the base snap")
+	}
+	baseLanes := linkSnapBase.Lanes()
+
+	for _, lane := range kernelLanes {
+		linkSnapBase.JoinLane(lane)
+		autoConnectBase.JoinLane(lane)
+	}
+	for _, lane := range baseLanes {
+		linkSnapKernel.JoinLane(lane)
+		autoConnectKernel.JoinLane(lane)
+	}
+	// make link-snap base wait for the last task directly preceding
+	// link-snap of the kernel
+	linkSnapBase.WaitFor(beforeLinkSnapKernel)
+	// order: link-snap-base -> link-snap-kernel
+	linkSnapKernel.WaitFor(linkSnapBase)
+	// order: link-snap-kernel -> auto-connect-base
+	autoConnectBase.WaitFor(linkSnapKernel)
+	// order: auto-connect-base -> auto-connect-kernel
+	autoConnectKernel.WaitFor(autoConnectBase)
+	// make the first task after auto-connect base wait for auto-connect
+	// kernel, this task already waits for auto-connect of base
+	afterAutoConnectBase.WaitFor(autoConnectKernel)
+
+	// cannot-reboot indicates that a task cannot invoke a reboot
+	linkSnapBase.Set("cannot-reboot", true)
+
+	// first auto connect will wait for reboot, but the restart pending flag
+	// will be cleared for the second one that runs
+	return nil
+}
+
 func (s *mgrsSuiteCore) TestUpdateKernelBaseSingleRebootWithGadgetWithExplicitBaseBuggy(c *C) {
 	// verify a buggy scenario when the update contains snapd, kernel, base
 	// and the gadget, in which case the buggy behavior will cause a cyclic
@@ -10846,7 +10936,8 @@ version: 1.0
 type: gadget
 base: core20
 `
-	_, chg := s.testUpdateKernelBaseSingleRebootWithGadgetSetup(c, pcGadget)
+	_, tss, chg := s.testUpdateKernelBaseSingleRebootWithGadgetSetup(c, pcGadget)
+	c.Assert(rearrangeBaseKernelForCyclicDependency(s.o.State(), tss), IsNil)
 
 	st := s.o.State()
 	st.Lock()
@@ -10935,7 +11026,6 @@ func (s *mgrsSuiteCore) TestUpdateKernelBaseSingleRebootWithGadgetWithBuggySelfH
 	// restart to the new snapd which uses a new prune interval that
 	// effectively aborts unready lanes and thus the buggy change completes,
 	// while the new version of snaps remains
-
 	restore := snapstate.MockEnforceSingleRebootForBaseKernelGadget(true)
 	defer restore()
 	const pcGadget = `
@@ -10944,7 +11034,8 @@ version: 1.0
 type: gadget
 base: core20
 `
-	_, chg := s.testUpdateKernelBaseSingleRebootWithGadgetSetup(c, pcGadget)
+	_, tss, chg := s.testUpdateKernelBaseSingleRebootWithGadgetSetup(c, pcGadget)
+	c.Assert(rearrangeBaseKernelForCyclicDependency(s.o.State(), tss), IsNil)
 
 	st := s.o.State()
 	st.Lock()
@@ -11048,6 +11139,126 @@ waitLoop:
 		c.Assert(err, IsNil)
 		// the current is the old revision
 		c.Assert(snapst.Current, Equals, snap.R(1))
+	}
+}
+
+func (s *mgrsSuiteCore) TestUpdateKernelBaseSingleRebootWithGadgetWithExplicitBaseHappy(c *C) {
+	// verify a scenario when the update contains snapd, kernel, base
+	// and the gadget, in which case the single-reboot code will not take effect.
+	const pcGadget = `
+name: pc
+version: 1.0
+type: gadget
+base: core20
+`
+	bloader, _, chg := s.testUpdateKernelBaseSingleRebootWithGadgetSetup(c, pcGadget)
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, "snapd", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.Current, Equals, snap.R(1))
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+	c.Logf(s.logbuf.String())
+	dumpTasks(c, "after run", chg.Tasks())
+
+	// first comes the snapd restart
+	ok, rst := restart.Pending(st)
+	c.Assert(ok, Equals, true)
+	c.Assert(rst, Equals, restart.RestartDaemon)
+	restart.MockPending(st, restart.RestartUnset)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+	c.Logf(s.logbuf.String())
+	dumpTasks(c, "after run", chg.Tasks())
+
+	// Snapd is done updating, and core20 is now pending a system reboot to
+	// continue
+	ok, rst = restart.Pending(st)
+	c.Assert(ok, Equals, true)
+	c.Assert(rst, Equals, restart.RestartSystem)
+
+	// we are trying out a new base
+	restart.MockPending(st, restart.RestartUnset)
+	restart.MockAfterRestartForChange(chg)
+	_, err = bloader.TryKernel()
+	c.Assert(err, Equals, bootloader.ErrNoTryKernelRef)
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(m.BaseStatus, Equals, boot.TryStatus)
+	c.Check(m.TryBase, Equals, "core20_2.snap")
+
+	// pretend it boots
+	m.BaseStatus = boot.TryingStatus
+	c.Assert(m.Write(), IsNil)
+	s.o.DeviceManager().ResetToPostBootState()
+	st.Unlock()
+	err = s.o.DeviceManager().Ensure()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+	c.Logf(s.logbuf.String())
+	dumpTasks(c, "after core20 settle", chg.Tasks())
+
+	// Core20 has now updated, and gadget/kernel will be updating next
+	ok, rst = restart.Pending(st)
+	c.Assert(ok, Equals, true)
+	c.Assert(rst, Equals, restart.RestartSystem)
+
+	// try snaps are set
+	currentTryKernel, err := bloader.TryKernel()
+	c.Assert(err, IsNil)
+	c.Assert(currentTryKernel.Filename(), Equals, "pc-kernel_2.snap")
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(m.BaseStatus, Equals, "")
+
+	// simulate successful restart happened
+	restart.MockPending(st, restart.RestartUnset)
+	restart.MockAfterRestartForChange(chg)
+	err = bloader.SetTryingDuringReboot([]snap.Type{snap.TypeKernel})
+	c.Assert(err, IsNil)
+	m.BaseStatus = boot.TryingStatus
+	c.Assert(m.Write(), IsNil)
+	s.o.DeviceManager().ResetToPostBootState()
+	st.Unlock()
+	err = s.o.DeviceManager().Ensure()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// go on
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	// updates has been applied correctly
+	err = snapstate.Get(st, "snapd", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.Current, Equals, snap.R(2))
+
+	for _, name := range []string{"pc-kernel", "pc", "core20"} {
+		err = snapstate.Get(st, name, &snapst)
+		c.Assert(err, IsNil)
+		// the current is the old revision
+		c.Assert(snapst.Current, Equals, snap.R(2))
 	}
 }
 
@@ -11998,10 +12209,11 @@ volumes:
 			// XXX: or just use "snap-setup" here?
 			tError.Set("snap-setup-task", tasks[0].ID())
 			ts.AddTask(tError)
-			// must be in the same lane as the gadget update
 			lanes := last.Lanes()
 			c.Assert(lanes, HasLen, 1)
-			tError.JoinLane(lanes[0])
+			for _, l := range lanes {
+				tError.JoinLane(l)
+			}
 		}
 
 		chg.AddAll(ts)
@@ -12011,6 +12223,7 @@ volumes:
 	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
+
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n- gadget failed.*`)
 
 	// check that files/dirs from the kernel did  *not* get updated or installed
@@ -12151,10 +12364,11 @@ volumes:
 			// XXX: or just use "snap-setup" here?
 			tError.Set("snap-setup-task", tasks[0].ID())
 			ts.AddTask(tError)
-			// must be in the same lane as the kernel update
 			lanes := last.Lanes()
 			c.Assert(lanes, HasLen, 1)
-			tError.JoinLane(lanes[0])
+			for _, l := range lanes {
+				tError.JoinLane(l)
+			}
 		}
 
 		chg.AddAll(ts)
