@@ -1372,7 +1372,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 		}
 		unlinkErr := m.backend.UnlinkSnap(oldInfo, linkCtx, NewTaskProgressAdapterLocked(t))
 
-		// check errors after inihibiting and unlinking the snap
+		// check errors after inhibiting and unlinking the snap
 		if inhibitErr != nil {
 			return inhibitErr
 		}
