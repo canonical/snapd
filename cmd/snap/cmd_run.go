@@ -40,6 +40,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/desktop/portal"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
@@ -482,24 +483,51 @@ func (x *cmdRun) straceOpts() (opts []string, raw bool, err error) {
 	return opts, raw, nil
 }
 
+func getInfoAndApp(snapName, appName string, rev snap.Revision) (*snap.Info, *snap.AppInfo, error) {
+	info, err := getSnapInfo(snapName, rev)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	app := info.Apps[appName]
+	if app == nil {
+		return nil, nil, fmt.Errorf(i18n.G("cannot find app %q in %q"), appName, snapName)
+	}
+
+	return info, app, nil
+}
+
 func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 	if x.DebugLog {
 		os.Setenv("SNAPD_DEBUG", "1")
 		logger.Debugf("enabled debug logging of early snap startup")
 	}
 	snapName, appName := snap.SplitSnapApp(snapApp)
-	info, err := getSnapInfo(snapName, snap.R(0))
+
+	snapRev := snap.R(0)
+	hint, inhibitInfo, err := isLocked(snapName)
+	if err != nil {
+		return err
+	}
+	if hint != runinhibit.HintNotInhibited {
+		snapRev = inhibitInfo.Previous
+	}
+
+	info, app, err := getInfoAndApp(snapName, appName, snapRev)
 	if err != nil {
 		return err
 	}
 
-	app := info.Apps[appName]
-	if app == nil {
-		return fmt.Errorf(i18n.G("cannot find app %q in %q"), appName, snapName)
-	}
-
 	if !app.IsService() {
 		if err := maybeWaitWhileInhibited(snapName); err != nil {
+			return err
+		}
+	}
+
+	if hint != runinhibit.HintNotInhibited {
+		// Get "current" snap info assuming snap run inhibition is removed
+		info, app, err = getInfoAndApp(snapName, appName, snap.R(0))
+		if err != nil {
 			return err
 		}
 	}
