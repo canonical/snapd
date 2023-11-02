@@ -101,11 +101,11 @@ func (rc *refreshCandidate) InstanceName() string {
 	return rc.SnapSetup.InstanceName()
 }
 
-func (rc *refreshCandidate) Prereq(*state.State) []string {
+func (rc *refreshCandidate) Prereq(*state.State, PrereqTracker) []string {
 	return rc.SnapSetup.Prereq
 }
 
-func (rc *refreshCandidate) SnapSetupForUpdate(st *state.State, _ updateParamsFunc, _ int, globalFlags *Flags) (*SnapSetup, *SnapState, error) {
+func (rc *refreshCandidate) SnapSetupForUpdate(st *state.State, _ updateParamsFunc, _ int, globalFlags *Flags, _ PrereqTracker) (*SnapSetup, *SnapState, error) {
 	var snapst SnapState
 	if err := Get(st, rc.InstanceName(), &snapst); err != nil {
 		return nil, nil, err

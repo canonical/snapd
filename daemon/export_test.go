@@ -135,7 +135,7 @@ func MockSnapstateInstall(mock func(context.Context, *state.State, string, *snap
 	}
 }
 
-func MockSnapstateInstallPath(mock func(*state.State, *snap.SideInfo, string, string, string, snapstate.Flags) (*state.TaskSet, *snap.Info, error)) (restore func()) {
+func MockSnapstateInstallPath(mock func(*state.State, *snap.SideInfo, string, string, string, snapstate.Flags, snapstate.PrereqTracker) (*state.TaskSet, *snap.Info, error)) (restore func()) {
 	oldSnapstateInstallPath := snapstateInstallPath
 	snapstateInstallPath = mock
 	return func() {

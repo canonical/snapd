@@ -20,6 +20,7 @@
 package boot_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -233,6 +235,12 @@ type: gadget
 func (s *kernelCommandLineSuite) TestComposeCommandLineWithGadget(c *C) {
 	model := boottest.MakeMockUC20Model()
 
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
+
 	tbl := bootloadertest.Mock("btloader", c.MkDir()).WithTrustedAssets()
 	bootloader.Force(tbl)
 	defer bootloader.Force(nil)
@@ -278,6 +286,7 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineWithGadget(c *C) {
 	}} {
 		sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, append([][]string{
 			{"meta/snap.yaml", gadgetSnapYaml},
+			{"meta/gadget.yaml", mockGadgetYaml},
 		}, tc.files...))
 		var cmdline string
 		var err error
@@ -300,6 +309,12 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineWithGadget(c *C) {
 
 func (s *kernelCommandLineSuite) TestComposeRecoveryCommandLineWithGadget(c *C) {
 	model := boottest.MakeMockUC20Model()
+
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
 
 	tbl := bootloadertest.Mock("btloader", c.MkDir()).WithTrustedAssets()
 	bootloader.Force(tbl)
@@ -347,6 +362,7 @@ func (s *kernelCommandLineSuite) TestComposeRecoveryCommandLineWithGadget(c *C) 
 	}} {
 		sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, append([][]string{
 			{"meta/snap.yaml", gadgetSnapYaml},
+			{"meta/gadget.yaml", mockGadgetYaml},
 		}, tc.files...))
 		var cmdline string
 		var err error
@@ -368,11 +384,21 @@ func (s *kernelCommandLineSuite) TestComposeRecoveryCommandLineWithGadget(c *C) 
 }
 
 func (s *kernelCommandLineSuite) TestBootVarsForGadgetCommandLine(c *C) {
+	model := &gadgettest.ModelCharacteristics{}
+
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
+
 	for _, tc := range []struct {
 		errMsg        string
 		files         [][]string
 		cmdlineAppend string
 		expectedVars  map[string]string
+		append        []string
+		remove        []string
 	}{{
 		files: [][]string{
 			{"cmdline.extra", "foo bar baz"},
@@ -433,11 +459,47 @@ func (s *kernelCommandLineSuite) TestBootVarsForGadgetCommandLine(c *C) {
 			"snapd_extra_cmdline_args": "",
 			"snapd_full_cmdline_args":  "default",
 		},
+	}, {
+		expectedVars: map[string]string{
+			"snapd_extra_cmdline_args": "",
+			"snapd_full_cmdline_args":  `default bar baz=* "with spaces"`,
+		},
+		append: []string{"bar", "baz=*", `'"with spaces"'`},
+	}, {
+		expectedVars: map[string]string{
+			"snapd_extra_cmdline_args": "",
+			"snapd_full_cmdline_args":  "nodefault",
+		},
+		append: []string{"nodefault"},
+		remove: []string{"default"},
+	}, {
+		expectedVars: map[string]string{
+			"snapd_extra_cmdline_args": "",
+			"snapd_full_cmdline_args":  " ",
+		},
+		remove: []string{"default"},
 	}} {
+		gadgetYaml := mockGadgetYaml
+		if len(tc.append) > 0 || len(tc.remove) > 0 {
+			gadgetYaml = fmt.Sprintf("%skernel-cmdline:\n", gadgetYaml)
+		}
+		if len(tc.append) > 0 {
+			gadgetYaml = fmt.Sprintf("%s  append:\n", gadgetYaml)
+		}
+		for _, append := range tc.append {
+			gadgetYaml = fmt.Sprintf("%s   - %s\n", gadgetYaml, append)
+		}
+		if len(tc.remove) > 0 {
+			gadgetYaml = fmt.Sprintf("%s  remove:\n", gadgetYaml)
+		}
+		for _, remove := range tc.remove {
+			gadgetYaml = fmt.Sprintf("%s   - %s\n", gadgetYaml, remove)
+		}
 		sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, append([][]string{
 			{"meta/snap.yaml", gadgetSnapYaml},
+			{"meta/gadget.yaml", gadgetYaml},
 		}, tc.files...))
-		vars, err := boot.BootVarsForTrustedCommandLineFromGadget(sf, tc.cmdlineAppend, "default")
+		vars, err := boot.BootVarsForTrustedCommandLineFromGadget(sf, tc.cmdlineAppend, "default", model)
 		if tc.errMsg == "" {
 			c.Assert(err, IsNil)
 			c.Assert(vars, DeepEquals, tc.expectedVars)
