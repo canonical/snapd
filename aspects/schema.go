@@ -189,6 +189,8 @@ func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
 		return &numberSchema{}, nil
 	case "bool":
 		return &booleanSchema{}, nil
+	case "array":
+		return &arraySchema{topSchema: s}, nil
 	default:
 		if typ != "" && typ[0] == '$' {
 			return s.getUserType(typ[1:])
@@ -722,3 +724,73 @@ func (v *booleanSchema) parseConstraints(constraints map[string]json.RawMessage)
 }
 
 func (v *booleanSchema) expectsConstraints() bool { return false }
+
+type arraySchema struct {
+	// topSchema is the schema for the top-level schema which contains the user types.
+	topSchema *StorageSchema
+
+	// elementType represents the type of the array's elements and can be used to
+	// validate them.
+	elementType Schema
+
+	// unique is true if the array should not contain duplicates.
+	unique bool
+}
+
+func (v *arraySchema) Validate(raw []byte) error {
+	var array *[]json.RawMessage
+	if err := json.Unmarshal(raw, &array); err != nil {
+		return err
+	}
+
+	if array == nil {
+		return fmt.Errorf(`cannot accept null value for "array" type`)
+	}
+
+	for _, val := range *array {
+		if err := v.elementType.Validate([]byte(val)); err != nil {
+			return err
+		}
+	}
+
+	if v.unique {
+		valSet := make(map[string]struct{}, len(*array))
+
+		for _, val := range *array {
+			encodedVal := string(val)
+			if _, ok := valSet[encodedVal]; ok {
+				return fmt.Errorf(`cannot accept duplicate values for array with "unique" constraint`)
+			}
+			valSet[encodedVal] = struct{}{}
+		}
+	}
+
+	return nil
+}
+
+func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	rawValues, ok := constraints["values"]
+	if !ok {
+		return fmt.Errorf(`cannot parse "array": must have "values" constraint`)
+	}
+
+	typ, err := v.topSchema.parse(rawValues)
+	if err != nil {
+		return fmt.Errorf(`cannot parse "array" values type: %v`, err)
+	}
+
+	v.elementType = typ
+
+	if rawUnique, ok := constraints["unique"]; ok {
+		var unique bool
+		if err := json.Unmarshal(rawUnique, &unique); err != nil {
+			return fmt.Errorf(`cannot parse array's "unique" constraint: %v`, err)
+		}
+
+		v.unique = unique
+	}
+
+	return nil
+}
+
+func (v *arraySchema) expectsConstraints() bool { return true }
