@@ -191,14 +191,17 @@ func (*listenerSuite) TestRun(c *C) {
 	ids := []uint64{0xdead, 0xbeef}
 	requests := make([]*listener.Request, 0, len(ids))
 
+	aBits := uint32(0b1010)
+	dBits := uint32(0b0101)
+
 	for _, id := range ids {
 		msg := notify.MsgNotificationFile{}
 		msg.Version = 3
 		msg.NotificationType = notify.APPARMOR_NOTIF_OP
 		msg.NoCache = 1
 		msg.ID = id
-		msg.Allow = 0b1010
-		msg.Deny = 0b0101
+		msg.Allow = aBits
+		msg.Deny = dBits
 		msg.Pid = 1234
 		msg.Label = label
 		msg.Class = notify.AA_CLASS_FILE
@@ -241,8 +244,8 @@ func (*listenerSuite) TestRun(c *C) {
 		resp := notify.MsgNotificationResponse{
 			MsgNotification: msgNotification,
 			Error:           0,
-			Allow:           uint32(0b1111 * i),
-			Deny:            uint32(0b0101 * (1 - i)),
+			Allow:           uint32(aBits | (dBits * uint32(i))),
+			Deny:            uint32(dBits * uint32((1 - i))),
 		}
 		respBuf, err := resp.MarshalBinary()
 		c.Assert(err, IsNil)

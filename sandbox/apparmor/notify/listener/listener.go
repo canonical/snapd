@@ -186,7 +186,7 @@ func (l *Listener) waitAndRespondAaClassFile(req *Request, msg *notify.MsgNotifi
 		resp.Deny = 0
 		resp.Error = 0
 	} else {
-		resp.Allow = 0
+		resp.Allow = msg.Allow
 		resp.Deny = msg.Deny
 		resp.Error = msg.Error
 		// msg.Error is field from MsgNotificationResponse, and is unused.
