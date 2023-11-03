@@ -10223,7 +10223,7 @@ func (s *snapmgrTestSuite) TestReRefreshCreatesPreDownloadChange(c *C) {
 
 	chg := s.state.NewChange("auto-refresh", "test change")
 	// rerefresh looks for snaps by iterating through the other tasks in the change
-	otherTask := s.state.NewTask("other-task", "other test task")
+	otherTask := s.state.NewTask("download-snap", "other test task")
 	otherTask.Set("snap-setup", snapsup)
 	otherTask.JoinLane(s.state.NewLane())
 	otherTask.SetStatus(state.DoneStatus)

@@ -3996,15 +3996,16 @@ func changeReadyUpToTask(task *state.Task) bool {
 // in the last batch of refreshes before the given (re-refresh) task; failed is
 // true if any of the snaps failed to refresh.
 //
-// It does this by advancing through the given task's change's tasks, keeping
-// track of the instance names from the first SnapSetup in every lane, stopping
-// when finding the given task, and resetting things when finding a different
+// It does this by advancing through the given task's change's tasks, and keeping
+// track of the instance names from every SnapSetup in "download-snap" tasks it finds.
+// It stops when finding the given task, and resetting things when finding a different
 // re-refresh task (that indicates the end of a batch that isn't the given one).
-func refreshedSnaps(reTask *state.Task) (snapNames []string, failed bool) {
+func refreshedSnaps(reTask *state.Task) (snapNames []string, failed bool, err error) {
 	// NOTE nothing requires reTask to be a check-rerefresh task, nor even to be in
 	// a refresh-ish change, but it doesn't make much sense to call this otherwise.
 	tid := reTask.ID()
-	laneSnaps := map[int]string{}
+	laneSnaps := make(map[int]map[string]bool)
+	failedLanes := make(map[int]bool)
 	// change.Tasks() preserves the order tasks were added, otherwise it all falls apart
 	for _, task := range reTask.Change().Tasks() {
 		if task.ID() == tid {
@@ -4014,45 +4015,56 @@ func refreshedSnaps(reTask *state.Task) (snapNames []string, failed bool) {
 		if task.Kind() == "check-rerefresh" {
 			// we've reached a previous check-rerefresh (but not ourselves).
 			// Only snaps in tasks after this point are of interest.
-			laneSnaps = map[int]string{}
+			laneSnaps = make(map[int]map[string]bool)
 		}
-		lanes := task.Lanes()
-		// Tasks can have multiple lanes, but can also share a single lane, right now we rely on
-		// the first lane, which may not be sufficient to detect whether or not a specific
-		// snap has been refreshed.
-		// XXX: If snaps have been refreshed with Flags.Transaction == "all-snap", then this may
-		// be an issue and not accurately detect which snaps have been refreshed.
-		lane := lanes[0]
-		if lane == 0 {
-			// not really a lane
+
+		// Ignore tasks on '0' lane, they are not refreshes anyway.
+		taskLanes := task.Lanes()
+		if len(taskLanes) == 1 && taskLanes[0] == 0 {
 			continue
 		}
+
+		// Track lanes that failed.
 		if task.Status() != state.DoneStatus {
-			// ignore non-successful lane (1)
-			laneSnaps[lane] = ""
-			continue
+			for _, l := range taskLanes {
+				failedLanes[l] = true
+			}
 		}
-		if _, ok := laneSnaps[lane]; ok {
-			// ignore lanes we've already seen (including ones explicitly ignored in (1))
-			continue
-		}
+
+		// Only check "download-snap" as that is the only task we expect to have
+		// "snap-setup" attached to it in a refresh context. No point in checking
+		// every task in the task-sets.
 		var snapsup SnapSetup
-		if err := task.Get("snap-setup", &snapsup); err != nil {
+		switch task.Kind() {
+		case "download-snap":
+			if err := task.Get("snap-setup", &snapsup); err != nil {
+				return nil, false, fmt.Errorf("internal error: expected SnapSetup for %s: %v", task.Kind(), err)
+			}
+		default:
 			continue
 		}
-		laneSnaps[lane] = snapsup.InstanceName()
+
+		for _, l := range taskLanes {
+			// Add the snap to list of snaps for this lane.
+			if snaps := laneSnaps[l]; snaps == nil {
+				laneSnaps[l] = make(map[string]bool)
+			}
+			laneSnaps[l][snapsup.InstanceName()] = true
+		}
 	}
 
 	snapNames = make([]string, 0, len(laneSnaps))
-	for _, name := range laneSnaps {
-		if name == "" {
-			// the lane was unsuccessful
+	for lane, snaps := range laneSnaps {
+		// Is it one of the failed lanes?
+		if failedLanes[lane] {
 			failed = true
 			continue
 		}
-		snapNames = append(snapNames, name)
+		for name := range snaps {
+			snapNames = append(snapNames, name)
+		}
 	}
-	return snapNames, failed
+	return snapNames, failed, nil
 }
 
 // reRefreshSetup holds the necessary details to re-refresh snaps that need it
@@ -4097,7 +4109,10 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		return &state.Retry{After: reRefreshRetryTimeout, Reason: "pending refreshes"}
 	}
 
-	snaps, failed := refreshedSnaps(t)
+	snaps, failed, err := refreshedSnaps(t)
+	if err != nil {
+		return err
+	}
 	if len(snaps) > 0 {
 		if err := pruneRefreshCandidates(st, snaps...); err != nil {
 			return err
