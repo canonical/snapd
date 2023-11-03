@@ -186,6 +186,8 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 				switch wt.Kind() {
 				case "setup-aliases":
 					continue
+				case "uninhibit-snap":
+					continue
 				case "run-hook":
 					var wtsup hookstate.HookSetup
 					c.Assert(wt.Get("hook-setup", &wtsup), IsNil)

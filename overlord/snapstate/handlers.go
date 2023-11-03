@@ -1363,16 +1363,21 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 	// symlink to a new revision of the snapd snap, so only do the actual
 	// unlink if we're not working on the snapd snap
 	if oldInfo.Type() != snap.TypeSnapd {
+		// establish a persistent run inhibition lock
+		inhibitErr := m.backend.InhibitSnap(oldInfo.InstanceName(), oldInfo.Revision, runinhibit.HintInhibitedForRefresh)
+
 		// do the final unlink
 		linkCtx := backend.LinkContext{
 			FirstInstall: false,
-			// This task is only used for unlinking a snap during refreshes so we
-			// can safely hard-code this condition here.
-			RunInhibitHint: runinhibit.HintInhibitedForRefresh,
 		}
-		err = m.backend.UnlinkSnap(oldInfo, linkCtx, NewTaskProgressAdapterLocked(t))
-		if err != nil {
-			return err
+		unlinkErr := m.backend.UnlinkSnap(oldInfo, linkCtx, NewTaskProgressAdapterLocked(t))
+
+		// check errors after inhibiting and unlinking the snap
+		if inhibitErr != nil {
+			return inhibitErr
+		}
+		if unlinkErr != nil {
+			return unlinkErr
 		}
 	}
 
@@ -1507,6 +1512,10 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 	reboot, err := m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
 	if err != nil {
+		return err
+	}
+
+	if err := m.backend.UninhibitSnap(oldInfo.InstanceName()); err != nil {
 		return err
 	}
 
@@ -1963,6 +1972,35 @@ func isSingleRebootBoundary(linkSnap *state.Task) bool {
 	return false
 }
 
+// maybeUninhibitSnap uninhibits the given snap if no "uninhibit-snap" task is scheduled
+// to run in the current change.
+//
+// This is intended to be only used by "link-snap" to address the case where we
+// have pending changes without "uninhibit-snap" to avoid having snaps that are
+// never uninhibited.
+func (m *SnapManager) maybeUninhibitSnap(chg *state.Change, snapName string) (err error) {
+	// XXX: would this be good place to use findTasksMatchingKindAndSnap?
+	// check if we have an uninhibit-snap task later
+	for _, t := range chg.Tasks() {
+		if t.Kind() != "uninhibit-snap" || t.Status().Ready() {
+			continue
+		}
+
+		snapsup, err := TaskSnapSetup(t)
+		if err != nil {
+			return err
+		}
+
+		// skip unlocking, uninhibit-snap will unlock later
+		if snapsup.InstanceName() == snapName {
+			return nil
+		}
+	}
+
+	// no upcoming uninhibit-snap tasks, let's unlock now
+	return m.backend.UninhibitSnap(snapName)
+}
+
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	st := t.State()
 	st.Lock()
@@ -2140,6 +2178,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		notifyLinkParticipants(t, snapsup)
 	}()
 	if err != nil {
+		return err
+	}
+
+	if err := m.maybeUninhibitSnap(t.Change(), newInfo.InstanceName()); err != nil {
 		return err
 	}
 
@@ -4571,4 +4613,17 @@ var getDirMigrationOpts = func(st *state.State, snapst *SnapState, snapsup *Snap
 	}
 
 	return opts, nil
+}
+
+func (m *SnapManager) doUninhibitSnap(t *state.Task, _ *tomb.Tomb) (err error) {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, err := TaskSnapSetup(t)
+	if err != nil {
+		return err
+	}
+
+	return m.backend.UninhibitSnap(snapsup.InstanceName())
 }

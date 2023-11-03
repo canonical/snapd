@@ -599,6 +599,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = prefer
 	}
 
+	if snapst.IsInstalled() {
+		uninhibit := st.NewTask("uninhibit-snap", fmt.Sprintf(i18n.G("Allow snap %q to run"), snapsup.InstanceName()))
+		addTask(uninhibit)
+		prev = uninhibit
+	}
+
 	if isCoreBoot && snapsup.Type == snap.TypeSnapd {
 		// make sure no other active changes are changing the kernel command line
 		if err := CheckUpdateKernelCommandLineConflict(st, fromChange); err != nil {

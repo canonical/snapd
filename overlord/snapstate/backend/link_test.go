@@ -20,7 +20,6 @@
 package backend_test
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -743,12 +742,9 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	for _, entry := range generatedSnapdUnits {
 		c.Check(toEtcUnitPath(entry[0]), testutil.FilePresent)
 	}
-	// linked snaps do not have a run inhibition lock
-	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FileAbsent)
 
 	linkCtx := backend.LinkContext{
-		FirstInstall:   true,
-		RunInhibitHint: runinhibit.HintInhibitedForRefresh,
+		FirstInstall: true,
 	}
 	err = s.be.UnlinkSnap(info, linkCtx, nil)
 	c.Assert(err, IsNil)
@@ -757,15 +753,10 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	for _, entry := range generatedSnapdUnits {
 		c.Check(toEtcUnitPath(entry[0]), testutil.FileAbsent)
 	}
-	// unlinked snaps have a run inhibition lock
-	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FilePresent)
-	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.refresh"), testutil.FilePresent)
 
 	// unlink is idempotent
 	err = s.be.UnlinkSnap(info, linkCtx, nil)
 	c.Assert(err, IsNil)
-	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FilePresent)
-	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.refresh"), testutil.FilePresent)
 }
 
 func (s *snapdOnCoreUnlinkSuite) TestUnlinkNonFirstSnapdOnCoreDoesNothing(c *C) {
@@ -790,25 +781,13 @@ func (s *snapdOnCoreUnlinkSuite) TestUnlinkNonFirstSnapdOnCoreDoesNothing(c *C) 
 	// content list uses absolute paths already
 	snaptest.PopulateDir("/", units)
 	linkCtx := backend.LinkContext{
-		FirstInstall:   false,
-		RunInhibitHint: runinhibit.HintInhibitedForRefresh,
+		FirstInstall: false,
 	}
 	err = s.be.UnlinkSnap(info, linkCtx, nil)
 	c.Assert(err, IsNil)
 	for _, unit := range units {
 		c.Check(unit[0], testutil.FileEquals, "precious")
 	}
-
-	// unlinked snaps have a run inhibition lock. XXX: the specific inhibition hint can change.
-	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FilePresent)
-	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FileEquals, "refresh")
-	// check inhibit info file content
-	inhibitInfoPath := filepath.Join(runinhibit.InhibitDir, "snapd.refresh")
-	var inhibitInfo runinhibit.InhibitInfo
-	buf, err := os.ReadFile(inhibitInfoPath)
-	c.Assert(err, IsNil)
-	c.Assert(json.Unmarshal(buf, &inhibitInfo), IsNil)
-	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{Previous: snap.R(11)})
 }
 
 func (s *linkSuite) TestLinkOptRequiresTooling(c *C) {

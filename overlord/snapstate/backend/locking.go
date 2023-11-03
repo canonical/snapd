@@ -25,6 +25,14 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+func (b Backend) InhibitSnap(snapName string, rev snap.Revision, hint runinhibit.Hint) error {
+	return runinhibit.LockWithHint(snapName, hint, runinhibit.InhibitInfo{Previous: rev})
+}
+
+func (b Backend) UninhibitSnap(snapName string) error {
+	return runinhibit.Unlock(snapName)
+}
+
 func (b Backend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, decision func() error) (lock *osutil.FileLock, err error) {
 	// A process may be created after the soft refresh done upon
 	// the request to refresh a snap. If such process is alive by
@@ -64,8 +72,7 @@ func (b Backend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, 
 	// check instead? Doing so would somewhat change the semantic of soft
 	// and hard checks, as it would effectively make hard check a no-op,
 	// but it might provide a nicer user experience.
-	inhibitInfo := runinhibit.InhibitInfo{Previous: info.SnapRevision()}
-	if err := runinhibit.LockWithHint(info.InstanceName(), hint, inhibitInfo); err != nil {
+	if err := b.InhibitSnap(info.InstanceName(), info.Revision, hint); err != nil {
 		return nil, err
 	}
 	return lock, nil

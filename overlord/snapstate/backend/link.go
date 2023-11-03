@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
@@ -49,10 +48,6 @@ type LinkContext struct {
 
 	// ServiceOptions is used to configure services.
 	ServiceOptions *wrappers.SnapServiceOptions
-
-	// RunInhibitHint is used only in Unlink snap, and can be used to
-	// establish run inhibition lock for refresh operations.
-	RunInhibitHint runinhibit.Hint
 
 	// RequireMountedSnapdSnap indicates that the apps and services
 	// generated when linking need to use tooling from the snapd snap mount.
@@ -164,11 +159,6 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 				logger.Noticef("cannot update fontconfig cache: %v", err)
 			}
 		})
-	}
-
-	// Stop inhibiting application startup by removing the inhibitor file.
-	if err := runinhibit.Unlock(info.InstanceName()); err != nil {
-		return boot.RebootInfo{}, err
 	}
 
 	return rebootInfo, nil
@@ -301,13 +291,6 @@ func removeGeneratedSnapdWrappers(s *snap.Info, firstInstall bool, meter progres
 // symlinks. The firstInstallUndo is true when undoing the first installation of
 // the snap.
 func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress.Meter) error {
-	var err0 error
-	if hint := linkCtx.RunInhibitHint; hint != runinhibit.HintNotInhibited {
-		// inhibit startup of new programs
-		inhibitInfo := runinhibit.InhibitInfo{Previous: info.SnapRevision()}
-		err0 = runinhibit.LockWithHint(info.InstanceName(), hint, inhibitInfo)
-	}
-
 	// remove generated services, binaries etc
 	err1 := removeGeneratedWrappers(info, linkCtx.FirstInstall, meter)
 
@@ -315,7 +298,7 @@ func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress
 	err2 := removeCurrentSymlinks(info)
 
 	// FIXME: aggregate errors instead
-	return firstErr(err0, err1, err2)
+	return firstErr(err1, err2)
 }
 
 // ServicesEnableState returns the current enabled/disabled states of a snap's

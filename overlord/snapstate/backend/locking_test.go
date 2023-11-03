@@ -43,6 +43,25 @@ func (s *lockingSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 }
 
+func (s *lockingSuite) TestInhibitSnap(c *C) {
+	err := s.be.InhibitSnap("snap-name", snap.R(11), "hint")
+	c.Assert(err, IsNil)
+	hint, info, err := runinhibit.IsLocked("snap-name")
+	c.Assert(err, IsNil)
+	c.Check(string(hint), Equals, "hint")
+	c.Check(info, Equals, runinhibit.InhibitInfo{Previous: snap.R(11)})
+}
+
+func (s *lockingSuite) TestUninhibitSnap(c *C) {
+	err := runinhibit.LockWithHint("snap-name", "hint", runinhibit.InhibitInfo{Previous: snap.R(11)})
+	c.Assert(err, IsNil)
+	err = s.be.UninhibitSnap("snap-name")
+	c.Check(err, IsNil)
+	hint, _, err := runinhibit.IsLocked("snap-name")
+	c.Assert(err, IsNil)
+	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+}
+
 func (s *lockingSuite) TestRunInhibitSnapForUnlinkPositiveDescision(c *C) {
 	const yaml = `name: snap-name
 version: 1
