@@ -33,8 +33,6 @@ type Listener struct {
 //
 // Each request must be replied to by writing a boolean to the YesNo channel.
 type Request struct {
-	l *Listener
-
 	// Pid is the identifier of the process triggering the request.
 	Pid uint32
 	// Label is the apparmor label on the process triggering the request.
@@ -60,8 +58,6 @@ func newRequest(l *Listener, msg *notify.MsgNotificationFile) (*Request, error) 
 		perm = missingPerms
 	}
 	return &Request{
-		l: l, // why is this needed?
-
 		Pid:        msg.Pid,
 		Label:      msg.Label,
 		Path:       msg.Name,
