@@ -1,3 +1,22 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2023 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 // Package listener implements a high-level interface to the apparmor
 // notification mechanism. It can be used to build userspace applications
 // which respond to apparmor prompting profiles.
@@ -7,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync/atomic"
 
 	"gopkg.in/tomb.v2"
 
@@ -15,72 +35,169 @@ import (
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 )
 
-// Listener contains low-level components for receiving notification requests
-// and responding with notification responses.
-type Listener struct {
-	// R is a channel with incoming requests. Each request is asynchronous
-	// and needs to be replied to.
-	R chan *Request
-	// E is a channel for receiving asynchronous error messages from
-	// concurrently running parts of the listener system.
-	E chan error
-
-	notifyFile *os.File
-	poll       *epoll.Epoll
-}
-
-// Request is a high-level representation of an apparmor prompting message.
-//
-// Each request must be replied to by writing a boolean to the YesNo channel.
-type Request struct {
-	// Pid is the identifier of the process triggering the request.
-	Pid uint32
-	// Label is the apparmor label on the process triggering the request.
-	Label string
-	// SubjectUID is the UID of the subject that triggered the prompt
-	SubjectUid uint32
-
-	// Path is the path of the file, as seen by the process triggering the request.
-	Path string
-	// Permission is the opaque permission that is being requested.
-	Permission interface{}
-	// YesNo is a channel for writing the response.
-	YesNo chan bool
-}
-
-func newRequest(l *Listener, msg *notify.MsgNotificationFile) (*Request, error) {
-	var perm interface{}
-	if msg.Class == notify.AA_CLASS_FILE {
-		_, missingPerms, err := msg.DecodeFilePermissions()
-		if err != nil {
-			return nil, err
-		}
-		perm = missingPerms
-	}
-	return &Request{
-		Pid:        msg.Pid,
-		Label:      msg.Label,
-		Path:       msg.Name,
-		SubjectUid: msg.SUID,
-
-		Permission: perm,
-
-		YesNo: make(chan bool, 1),
-	}, nil
-}
-
 var (
-	// ErrListenerNotSupported indicates that the kernel does not support apparmor prompting
-	ErrListenerNotSupported = errors.New("kernel does not support apparmor notifications")
+	// ErrClosed indicates that the listener has been closed.
+	ErrClosed = errors.New("listener has been closed")
+
+	// ErrAlreadyRun indicates that the Run() method has already been run.
+	// Each listener must only be run once, so that spawned goroutines can
+	// be safely tracked and terminated.
+	ErrAlreadyRun = errors.New("listener has already been run")
+
+	// ErrAlreadyClosed indicates that the listener has previously been closed.
+	ErrAlreadyClosed = errors.New("listener has already been closed")
+
+	// ErrAlreadyReplied indicates that the request has already received a reply.
+	ErrAlreadyReplied = errors.New("request has already received a reply")
+
+	// ErrNotSupported indicates that the kernel does not support apparmor prompting.
+	ErrNotSupported = errors.New("kernel does not support apparmor notifications")
 
 	osOpen      = os.Open
 	notifyIoctl = notify.Ioctl
 )
 
+// Request is a high-level representation of an apparmor prompting message.
+//
+// Each request must be replied to by writing a boolean to the YesNo channel.
+type Request struct {
+	// pid is the identifier of the process which triggered the request.
+	pid uint32
+	// label is the apparmor label on the process which triggered the request.
+	label string
+	// subjectUID is the UID of the subject which triggered the request.
+	subjectUID uint32
+
+	// path is the path of the file, as seen by the process triggering the request.
+	path string
+	// class is the mediation class corresponding to this request.
+	class notify.MediationClass
+	// permission is the opaque permission that is being requested.
+	permission interface{}
+	// replyChan is a channel for writing the response.
+	replyChan chan interface{}
+	// replied indicates whether a reply has already been sent for this request.
+	replied uint32
+}
+
+func newRequest(msg *notify.MsgNotificationFile) (*Request, error) {
+	var perm interface{}
+	switch msg.Class {
+	case notify.AA_CLASS_FILE:
+		_, missingPerms, err := msg.DecodeFilePermissions()
+		if err != nil {
+			return nil, err
+		}
+		perm = missingPerms
+	default:
+		return nil, fmt.Errorf("unsupported mediation class: %v", msg.Class)
+	}
+	return &Request{
+		pid:        msg.Pid,
+		label:      msg.Label,
+		subjectUID: msg.SUID,
+
+		path:       msg.Name,
+		class:      msg.Class,
+		permission: perm,
+
+		replyChan: make(chan interface{}, 1),
+	}, nil
+}
+
+// PID returns the PID of the process which triggered the request.
+func (r *Request) PID() uint32 {
+	return r.pid
+}
+
+// Label returns the apparmor label on the process which triggered the request.
+func (r *Request) Label() string {
+	return r.label
+}
+
+// SubjectUID returns the UID of the subject which triggered the request.
+func (r *Request) SubjectUID() uint32 {
+	return r.subjectUID
+}
+
+// Path is the path of the file, as seen by the process which triggered the request.
+func (r *Request) Path() string {
+	return r.path
+}
+
+// Class is the mediation class corresponding to this request.
+func (r *Request) Class() notify.MediationClass {
+	return r.class
+}
+
+// Permission returns the opaque permission that is being requested.
+func (r *Request) Permission() interface{} {
+	return r.permission
+}
+
+// Reply sends the given response back to the kernel.
+func (r *Request) Reply(response interface{}) error {
+	if !atomic.CompareAndSwapUint32(&r.replied, 0, 1) {
+		return ErrAlreadyReplied
+	}
+	var ok bool
+	switch r.Class() {
+	case notify.AA_CLASS_FILE:
+		_, ok = response.(bool)
+	default:
+		// should not occur, since the request was created in this package
+		return fmt.Errorf("internal error: unsupported mediation class: %v", r.Class())
+	}
+	if !ok {
+		expectedType := expectedResponseTypeForClass(r.Class())
+		return fmt.Errorf("invalid reply: response must be of type %s", expectedType)
+	}
+	r.replyChan <- response
+	return nil
+}
+
+func expectedResponseTypeForClass(class notify.MediationClass) string {
+	switch class {
+	case notify.AA_CLASS_FILE:
+		return "bool"
+	default:
+		return "unsupported"
+	}
+}
+
+// Listener encapsulates a loop for receiving apparmor notification requests
+// and responding with notification responses, hiding the low-level details.
+type Listener struct {
+	// reqs is a channel with incoming requests. Each request is asynchronous
+	// and needs to be replied to.
+	reqs chan *Request
+
+	notifyFile *os.File
+	poll       *epoll.Epoll
+
+	tomb tomb.Tomb
+
+	// status keeps track of whether the listener has been run and/or closed,
+	// both to ensure that Run() and Close() are executed at most once each,
+	// and to ensure that the listener cannot be run after it has been closed.
+	// Must be read/modified atomically, and can only be changed in one of the
+	// following ways:
+	// - statusReady -> statusRunning
+	// - statusReady -> statusClosed
+	// - statusRunning -> statusClosed
+	status uint32
+}
+
+const (
+	statusReady uint32 = iota
+	statusRunning
+	statusClosed
+)
+
 // Register opens and configures the apparmor notification interface.
 //
 // If the kernel does not support the notification mechanism the error is ErrNotSupported.
-func Register() (*Listener, error) {
+func Register() (listener *Listener, err error) {
 	path := notify.SysPath
 	if override := os.Getenv("PROMPT_NOTIFY_PATH"); override != "" {
 		path = override
@@ -89,7 +206,7 @@ func Register() (*Listener, error) {
 	notifyFile, err := osOpen(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, ErrListenerNotSupported
+			return nil, ErrNotSupported
 		}
 		return nil, fmt.Errorf("cannot open %q: %v", path, err)
 	}
@@ -119,14 +236,12 @@ func Register() (*Listener, error) {
 			poll.Close()
 		}
 	}()
-	// XXX: Do we need a notification for Writable, to send responses back?
 	if err = poll.Register(int(notifyFile.Fd()), epoll.Readable); err != nil {
 		return nil, fmt.Errorf("cannot register epoll on %q: %v", path, err)
 	}
 
-	listener := &Listener{
-		R: make(chan *Request),
-		E: make(chan error),
+	listener = &Listener{
+		reqs: make(chan *Request, 1),
 
 		notifyFile: notifyFile,
 		poll:       poll,
@@ -134,79 +249,96 @@ func Register() (*Listener, error) {
 	return listener, nil
 }
 
-func (l *Listener) decodeAndDispatchRequest(buf []byte, tomb *tomb.Tomb) error {
-	var nmsg notify.MsgNotification
-	if err := nmsg.UnmarshalBinary(buf); err != nil {
-		return err
+// Close stops the listener and closes the kernel communication file.
+// Returns once all waiting goroutines terminate and the communication file
+// is closed.
+func (l *Listener) Close() error {
+	origStatus := atomic.SwapUint32(&l.status, statusClosed)
+	switch origStatus {
+	case statusReady:
+		// A goroutine was never spawned with the listener tomb.
+		// Spawn one, so the tomb can die.
+		l.tomb.Go(func() error {
+			<-l.tomb.Dying()
+			return nil
+		})
+	case statusRunning:
+	case statusClosed:
+		return ErrAlreadyClosed
 	}
-	// What kind of notification message did we get?
-	if nmsg.NotificationType != notify.APPARMOR_NOTIF_OP {
-		return fmt.Errorf("unsupported notification type: %v", nmsg.NotificationType)
+	l.tomb.Kill(ErrClosed)
+	// Stop the run loop from waiting on epoll events
+	err1 := l.poll.Close()
+	// Wait for all waiters to send back deny responses to the kernel
+	l.tomb.Wait()
+	err2 := l.notifyFile.Close()
+	if err1 != nil {
+		return err1
 	}
-	var omsg notify.MsgNotificationOp
-	if err := omsg.UnmarshalBinary(buf); err != nil {
-		return err
-	}
-	// What kind of operation notification did we get?
-	switch omsg.Class {
-	case notify.AA_CLASS_FILE:
-		return l.handleRequestAaClassFile(buf, tomb)
-	}
-	return fmt.Errorf("unsupported mediation class: %v", omsg.Class)
+	return err2
 }
 
-func (l *Listener) handleRequestAaClassFile(buf []byte, tomb *tomb.Tomb) error {
-	var fmsg notify.MsgNotificationFile
-	if err := fmsg.UnmarshalBinary(buf); err != nil {
-		return err
+// Reqs returns a read-only channel through which requests may be received.
+// The channel is closed when the Close() method is called or an error occurs.
+func (l *Listener) Reqs() <-chan *Request {
+	return l.reqs
+}
+
+// Run reads and dispatches kernel requests until the listener is closed.
+//
+// Run should only be called once per listener object. If called more than once,
+// Run returns an error. Otherwise, waits until the listener stops, and returns
+// the cause as an error. If the listener was intentionally stopped via the
+// Close() method, returns nil.
+func (l *Listener) Run() error {
+	if !atomic.CompareAndSwapUint32(&l.status, statusReady, statusRunning) {
+		currStatus := atomic.LoadUint32(&l.status)
+		switch currStatus {
+		case statusRunning:
+			return ErrAlreadyRun
+		case statusClosed:
+			return ErrAlreadyClosed
+		default:
+			return fmt.Errorf("listener has unexpected status: %d", currStatus)
+		}
 	}
-	logger.Debugf("notification request: %#v", fmsg)
-	req, err := newRequest(l, &fmsg)
-	if err != nil {
+	// This is the first and only time calling Run().
+	// Even if Close() kills the tomb before l.tomb.Go() occurs, a panic will
+	// not occur, since this new goroutine will (immediately after l.tomb.Err()
+	// is called) return and close the tomb's dead channel, as it is the last
+	// and only tracked goroutine to terminate.
+	l.tomb.Go(func() error {
+		var err error
+		for {
+			err = l.tomb.Err()
+			if err != tomb.ErrStillAlive {
+				break
+			}
+			err = l.runOnce()
+			if err != nil {
+				break
+			}
+		}
 		return err
-	}
-	l.R <- req
-	tomb.Go(func() error {
-		l.waitAndRespondAaClassFile(req, &fmsg)
-		return nil
 	})
-	return nil
-}
-
-func (l *Listener) waitAndRespondAaClassFile(req *Request, msg *notify.MsgNotificationFile) {
-	resp := notify.ResponseForRequest(&msg.MsgNotification)
-	resp.MsgNotification.Error = 0 // ignored in responses
-	resp.MsgNotification.NoCache = 1
-	if allow := <-req.YesNo; allow {
-		resp.Allow = msg.Allow | msg.Deny
-		resp.Deny = 0
-		resp.Error = 0
-	} else {
-		resp.Allow = msg.Allow
-		resp.Deny = msg.Deny
-		resp.Error = msg.Error
-		// msg.Error is field from MsgNotificationResponse, and is unused.
-		// msg.MsgNotification.Error is also ignored in responses.
-	}
-	logger.Debugf("notification response: %#v\n", resp)
-	if err := l.encodeAndSendResponse(&resp); err != nil {
-		l.fail(err)
-	}
-}
-
-func (l *Listener) encodeAndSendResponse(resp *notify.MsgNotificationResponse) error {
-	buf, err := resp.MarshalBinary()
-	if err != nil {
-		return err
-	}
-	ioctlBuf := notify.IoctlRequestBuffer(buf)
-	_, err = notifyIoctl(l.notifyFile.Fd(), notify.APPARMOR_NOTIF_SEND, ioctlBuf)
+	err := l.tomb.Wait()
+	l.Close()
+	close(l.reqs)
 	return err
 }
 
-func (l *Listener) runOnce(tomb *tomb.Tomb) error {
-	events, err := l.poll.Wait()
+var listenerEpollWait = func(l *Listener) ([]epoll.Event, error) {
+	return l.poll.Wait()
+}
+
+func (l *Listener) runOnce() error {
+	events, err := listenerEpollWait(l)
 	if err != nil {
+		if l.poll.IsClosed() {
+			// Epoll instance was explicitly closed.
+			// Must have been by the Close() function.
+			return ErrClosed
+		}
 		return err
 	}
 	for _, event := range events {
@@ -224,38 +356,96 @@ func (l *Listener) runOnce(tomb *tomb.Tomb) error {
 		ioctlBuf := notify.NewIoctlRequestBuffer()
 		buf, err := notifyIoctl(l.notifyFile.Fd(), notify.APPARMOR_NOTIF_RECV, ioctlBuf)
 		if err != nil {
+			if l.poll.IsClosed() {
+				return ErrClosed
+			}
 			return err
 		}
-		if err := l.decodeAndDispatchRequest(buf, tomb); err != nil {
+		if err := l.decodeAndDispatchRequest(buf); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// Run reads and dispatches kernel requests until stopped.
-func (l *Listener) Run(tomb *tomb.Tomb) {
-	// TODO: allow the run to stop
-	for {
-		if err := l.runOnce(tomb); err != nil {
-			l.fail(err)
-			break
+func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
+	var nmsg notify.MsgNotification
+	if err := nmsg.UnmarshalBinary(buf); err != nil {
+		return err
+	}
+	// What kind of notification message did we get?
+	if nmsg.NotificationType != notify.APPARMOR_NOTIF_OP {
+		return fmt.Errorf("unsupported notification type: %v", nmsg.NotificationType)
+	}
+	var omsg notify.MsgNotificationOp
+	if err := omsg.UnmarshalBinary(buf); err != nil {
+		return err
+	}
+	// What kind of operation notification did we get?
+	switch omsg.Class {
+	case notify.AA_CLASS_FILE:
+		return l.handleRequestAaClassFile(buf)
+	}
+	return fmt.Errorf("unsupported mediation class: %v", omsg.Class)
+}
+
+func (l *Listener) handleRequestAaClassFile(buf []byte) error {
+	var fmsg notify.MsgNotificationFile
+	if err := fmsg.UnmarshalBinary(buf); err != nil {
+		return err
+	}
+	logger.Debugf("Received access request from the kernel: %+v", fmsg)
+	req, err := newRequest(&fmsg)
+	if err != nil {
+		return err
+	}
+	l.reqs <- req
+	l.tomb.Go(func() error {
+		return l.waitAndRespondAaClassFile(req, &fmsg)
+	})
+	return nil
+}
+
+func (l *Listener) waitAndRespondAaClassFile(req *Request, msg *notify.MsgNotificationFile) error {
+	resp := notify.ResponseForRequest(&msg.MsgNotification)
+	resp.MsgNotification.Error = 0 // ignored in responses
+	resp.MsgNotification.NoCache = 1
+	var allow bool
+	select {
+	case reply := <-req.replyChan:
+		var ok bool
+		allow, ok = reply.(bool)
+		if !ok {
+			// should not occur, Reply() checks that type is correct
+			logger.Debugf("invalid reply from client: %v; denying request", reply)
+			allow = false
 		}
+	case <-l.tomb.Dying():
+		logger.Debugf("tomb dying while waiting for reply to req: %+v; sending deny response", req)
+		allow = false
 	}
+	if allow {
+		// allow permissions which kernel initially denied, along with those which were already allowed
+		resp.Allow = msg.Allow | msg.Deny
+		resp.Deny = 0
+		resp.Error = 0
+	} else {
+		resp.Allow = msg.Allow
+		resp.Deny = msg.Deny
+		resp.Error = msg.Error
+		// msg.Error is field from MsgNotificationResponse, and is unused.
+		// msg.MsgNotification.Error is also ignored in responses.
+	}
+	logger.Debugf("Sending access response back to the kernel: %+v", resp)
+	return l.encodeAndSendResponse(&resp)
 }
 
-func (l *Listener) fail(err error) {
-	l.E <- err
-	close(l.E)
-	close(l.R)
-}
-
-// Close closes the kernel communication file.
-func (l *Listener) Close() error {
-	err1 := l.notifyFile.Close()
-	err2 := l.poll.Close()
-	if err1 != nil {
-		return err1
+func (l *Listener) encodeAndSendResponse(resp *notify.MsgNotificationResponse) error {
+	buf, err := resp.MarshalBinary()
+	if err != nil {
+		return err
 	}
-	return err2
+	ioctlBuf := notify.IoctlRequestBuffer(buf)
+	_, err = notifyIoctl(l.notifyFile.Fd(), notify.APPARMOR_NOTIF_SEND, ioctlBuf)
+	return err
 }
