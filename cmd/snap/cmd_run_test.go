@@ -256,6 +256,96 @@ func (s *RunSuite) TestSnapRunAppRunsChecksInhibitionLock(c *check.C) {
 		"snapname.app", "--arg1"})
 }
 
+func (s *RunSuite) TestSnapRunAppNewRevisionAfterInhibition(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	si := snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x2")})
+
+	var execArg0 string
+	var execArgs []string
+	var execEnv []string
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restorer()
+
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R("x2")}
+	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, inhibitInfo), check.IsNil)
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
+	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
+
+	var called int
+	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint) (bool, error) {
+		called++
+		if called == 2 {
+			// mock installed snap's new revision
+			c.Assert(os.Remove(filepath.Join(si.MountDir(), "../current")), check.IsNil)
+			snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x3")})
+		}
+		return false, nil
+	})
+	defer restore()
+
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
+	c.Assert(err, check.IsNil)
+	c.Check(called, check.Equals, 2)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1"})
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+		"snap.snapname.app",
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"snapname.app", "--arg1"})
+	// Check snap-confine points to latest revision
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x3")
+}
+
+func (s *RunSuite) TestSnapRunAppMissingAppAfterInhibition(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	const mockYaml1 = `name: snapname
+version: 1.0
+apps:
+ app-1:
+  command: run-app
+`
+	const mockYaml2 = `name: snapname
+version: 1.1
+apps:
+ app-2:
+  command: run-app
+`
+
+	// mock installed snap
+	si := snaptest.MockSnapCurrent(c, string(mockYaml1), &snap.SideInfo{Revision: snap.R("x2")})
+
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R("x2")}
+	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, inhibitInfo), check.IsNil)
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
+	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
+
+	var called int
+	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint) (bool, error) {
+		called++
+		if called == 2 {
+			// mock installed snap's new revision
+			c.Assert(os.Remove(filepath.Join(si.MountDir(), "../current")), check.IsNil)
+			snaptest.MockSnapCurrent(c, string(mockYaml2), &snap.SideInfo{Revision: snap.R("x3")})
+		}
+		return false, nil
+	})
+	defer restore()
+
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app-1", "--arg1"})
+	c.Assert(err, check.ErrorMatches, `cannot find app "app-1" in "snapname"`)
+	c.Check(called, check.Equals, 2)
+	c.Assert(rest, check.DeepEquals, []string{"--", "snapname.app-1", "--arg1"})
+}
+
 func (s *RunSuite) TestSnapRunHookNoRuninhibit(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
