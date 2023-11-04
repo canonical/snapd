@@ -112,7 +112,7 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 	}
 
 	// TODO: maybe we enforce the validation sets here?
-	if err := enforceValidationSetsForRemodel(st, new); err != nil {
+	if err := enforceValidationSetsForRemodel(st, new.ValidationSets()); err != nil {
 		return err
 	}
 
@@ -156,13 +156,32 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 	return nil
 }
 
-func enforceValidationSetsForRemodel(st *state.State, new *asserts.Model) error {
-	validationSetKeys := make(map[string][]string)
-	pinnedValidationSets := make(map[string]int)
-	for _, vs := range new.ValidationSets() {
-		validationSetKeys[vs.Key()] = vs.AtSequence().SequenceKey // is sequence key the same as the primary key of an assertion?
+func resolveValidationSetAssertion(seq *asserts.AtSequence, db asserts.RODatabase) (asserts.Assertion, error) {
+	if seq.Sequence <= 0 {
+		hdrs, err := asserts.HeadersFromSequenceKey(seq.Type, seq.SequenceKey)
+		if err != nil {
+			return nil, err
+		}
+		return db.FindSequence(seq.Type, hdrs, -1, seq.Type.MaxSupportedFormat())
+	}
+	return seq.Resolve(db.Find)
+}
+
+func enforceValidationSetsForRemodel(st *state.State, sets []*asserts.ModelValidationSet) error {
+	validationSetKeys := make(map[string][]string, len(sets))
+	db := assertstate.DB(st)
+	for _, vs := range sets {
+		a, err := resolveValidationSetAssertion(vs.AtSequence(), db)
+		if err != nil {
+			return err
+		}
+		validationSetKeys[vs.Key()] = a.At().PrimaryKey
+	}
+
+	pinnedValidationSeqs := make(map[string]int, len(sets))
+	for _, vs := range sets {
 		if vs.Sequence > 0 {
-			pinnedValidationSets[vs.Key()] = vs.Sequence
+			pinnedValidationSeqs[vs.Key()] = vs.Sequence
 		}
 	}
 
@@ -171,7 +190,9 @@ func enforceValidationSetsForRemodel(st *state.State, new *asserts.Model) error 
 		return fmt.Errorf("cannot list installed snaps for validation: %w", err)
 	}
 
-	if err := snapstate.EnforceLocalValidationSets(st, validationSetKeys, pinnedValidationSets, snaps, ignoreValidation); err != nil {
+	// validation sets should already be downloaded, so we can use the local
+	// version of this function
+	if err := assertstate.ApplyLocalEnforcedValidationSets(st, validationSetKeys, pinnedValidationSeqs, snaps, ignoreValidation); err != nil {
 		return fmt.Errorf("cannot enforce validation sets: %v", err)
 	}
 	return nil

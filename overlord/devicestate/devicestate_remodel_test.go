@@ -66,6 +66,7 @@ var _ = Suite(&deviceMgrRemodelSuite{})
 func (s *deviceMgrRemodelSuite) SetUpTest(c *C) {
 	classic := false
 	s.setupBaseTest(c, classic)
+	snapstate.EnforceLocalValidationSets = assertstate.ApplyLocalEnforcedValidationSets
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelUnhappyNotSeeded(c *C) {
