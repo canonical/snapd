@@ -134,6 +134,30 @@ dbus (send)
     interface="org.gnome.Mutter.IdleMonitor"
     member="GetIdletime"
     peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow for color managed applications to communicate with colord
+dbus (receive, send)
+  bus=system
+  interface=org.freedesktop.ColorManager
+  path=/org/freedesktop/ColorManager
+  member=FindDeviceByProperty
+  peer=(label=unconfined),
+dbus (send)
+  bus=system
+  interface=org.freedesktop.DBus.Properties
+  path=/org/freedesktop/ColorManager
+  member="Get{,All}"
+  peer=(label=unconfined),
+dbus (send)
+  bus=system
+  interface=org.freedesktop.DBus.Properties
+  path="/org/freedesktop/ColorManager/{devices,profiles}/*"
+  member="Get{,All}"
+  peer=(label=unconfined),
+
+# Allow access to the ICC profiles in the home directory to
+# be refered to from colord
+owner @{HOME}/.local/share/icc r,
 `
 
 const desktopConnectedPlugAppArmorClassic = `
