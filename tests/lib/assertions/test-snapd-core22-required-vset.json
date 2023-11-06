@@ -8,8 +8,9 @@
   "timestamp": "2023-10-24T19:55:00+00:00",
   "snaps": [
     {
-      "id": "amcUKQILKXHHTlmSa7NMdnXSx02dNeeT",
-      "name": "core22",
+      "id": "JmzJi9kQvHUWddZ32PDJpBRXUpGRxvNS",
+      "name": "bluez",
+      "revisoin": "355",
       "presence": "required"
     }
   ]

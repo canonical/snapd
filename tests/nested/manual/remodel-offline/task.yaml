@@ -45,6 +45,8 @@ execute: |
       remote.exec "snap download --channel=22/stable --basename=$sn_name $sn_name"
       remodel_options="$remodel_options --snap $sn_name.snap --assertion $sn_name.assert"
   done
+  remote.exec "snap download --revision=355 --basename=bluez bluez"
+  remodel_options="$remodel_options --snap bluez.snap --assertion bluez.assert"
   remote.exec "snap download --basename=core22 core22"
   remodel_options="$remodel_options --snap core22.snap --assertion core22.assert"
 

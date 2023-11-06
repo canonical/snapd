@@ -26,6 +26,11 @@ snaps:
     name: core22
     type: base
   -
+    default-channel: 22/stable
+    id: JmzJi9kQvHUWddZ32PDJpBRXUpGRxvNS
+    name: bluez
+    type: app
+  -
     default-channel: latest/edge
     id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
     name: snapd
@@ -38,13 +43,13 @@ validation-sets:
     name: test-snapd-core22-required-vset
 sign-key-sha3-384: 7qWG-Uwck6Dji43a3Z8ZZrm7rAziZAch3xf76iFvqe4GaD0LI7U9lYPWMSJAsEgu
 
-AcLBcwQAAQoAHRYhBGESvKlz1RXG1IBOC0MdJKf2hr9ABQJlP41PAAoJEEMdJKf2hr9A5qoQAMb4
-SGsW34sJmMceX++1/symIv9Eq/F00NjFW5n2xmPpRdWwn0fZyOsfkh/pJouaIaRtW6mjRrUGIcEE
-n1k1kT5bfxDwTnFGoUOhXE9HnQjq4ck9PUyEYPS/8+S7P2s5F0jl36l/nyRJCgldHQ9IldJ0ke28
-+L7/za3zOqJea9vePF2FrO5aj6irfwQItnjS5RDjxt2PxZTgoi0QavHb+3tQ5X/txU0vf/L5S4Vg
-vcJwYOSdpAx3SWT+2JhfrBAp0gaA3w7ccdoKSs42y0N3KFXZNcOC8W69Xt3sLCRbZ8RvQPLZfOE6
-JxyTjA95eda9NwO9FPbGW7aiNL8AxZMfHe+qgWnUCYEBqC8N7iAPEumyxLkx7TUZthS55Rs31AdK
-gj2sjiL5Ahx78dcXNCsx8293dKAvLKz/tin82uoOGHFCEuvsk9RRVT63AbVn1oAL+ZxgtcWmh9pR
-wwb8/jV0iVT3J01cXzgwy3jkm+7dSo4g7jMpg6GGslusvWe2Nka8MJET0orbD66gYJgsO3ekUB+0
-aVcZzp1spp9es9/UF3e352q4+fsJlCNcPvj5AYvgOYJ50wZoj3m4MSVUyGKhQkCv5bzdVsAZl9QT
-DlN4PrKcx1skf5Us4RHNL5Ccxp0FZq9KHtHvJuIOiA7Nuzoc8sQvTB+uWukKah8Kp+YoNKim
+AcLBcwQAAQoAHRYhBGESvKlz1RXG1IBOC0MdJKf2hr9ABQJlSO3jAAoJEEMdJKf2hr9AbE8P/ic9
+wHgPaKDoyTPk1Brpv7gi/T8nTmaH8vz8Qa81ku3zfdPRxTZio6Sf8Q7tHiDL+FozE0j1PLcDDbDx
+3afd+VYlazfYO1IvCAg24XayY81tThZ823UOFDlSrPE2+GTP444Tkae9w2gegOK43J+9kxlky70z
+Dcd1jOst3LKSgSUCP82FWbopR3Y0dEOio4yRsmVoxPsEd5w84GfEYk9UhmEPSSpnaYiVPNINVuls
+89rWwnGf34dkfysZH8YlQURt2MMV3zlawxNLLIBUQoRYWRNBZXCpmpxsUEQNA1w2S9TTU9k3NCuk
+GygN1JwZ4piwKsddj6VrSyqwz0CLJt5bYD0geynmw4TXom7rcmpjIf7uVvib9krerR/CuCgR7AfB
+D8BFhmF5DRNaPbBd2nbf3NsDvSLkDaYvuUUr/DcNhzJ3yr+qJGh/5YfcHAIoz0Zic1SRhJCPiu8c
+QmFwHP8ey3uKyIlphaQ+LvAV1CoA1nedfA0IOJaBTtidkZ88d9jO/bAzSND3iSMHa8yhHY8caQ5h
+Pf1MWcrc2Hsds0Bvnd2iwTb8sneBKhOC7W+TTjg3CVL5FS/TKsrhE3tMbhcFjQT74of3n5VHOU54
+I59C+Wbk8bWB6LJetFA/GldS78kScPs5TeNADEuvXvsMtIv7Q1Rl4+0mfuVzfJ2vdCTDf3/X

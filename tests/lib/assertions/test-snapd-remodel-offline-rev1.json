@@ -37,6 +37,12 @@
             "type": "base"
         },
         {
+            "default-channel": "22/stable",
+            "id": "JmzJi9kQvHUWddZ32PDJpBRXUpGRxvNS",
+            "name": "bluez",
+            "type": "app"
+        },
+        {
             "default-channel": "latest/edge",
             "id": "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
             "name": "snapd",
