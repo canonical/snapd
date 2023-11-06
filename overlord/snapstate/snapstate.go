@@ -1359,10 +1359,6 @@ func installWithDeviceContext(st *state.State, name string, opts *RevisionOption
 }
 
 func Download(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
-	return download(ctx, st, name, opts, userID, flags, deviceCtx)
-}
-
-func download(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
