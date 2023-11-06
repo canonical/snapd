@@ -1404,9 +1404,7 @@ func download(ctx context.Context, st *state.State, name string, opts *RevisionO
 		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
 	}
 
-	// TODO: should changeKind be "download"? i don't see that as one of the
-	// options that this function operates on
-	if err := checkDiskSpace(st, "install", []minimalInstallInfo{installSnapInfo{info}}, userID); err != nil {
+	if err := checkDiskSpaceDownload([]minimalInstallInfo{installSnapInfo{info}}); err != nil {
 		return nil, err
 	}
 
@@ -2943,6 +2941,15 @@ func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshC
 	return updateTss, nil
 }
 
+func checkDiskSpaceDownload(infos []minimalInstallInfo) error {
+	var totalSize uint64
+	for _, info := range infos {
+		totalSize += uint64(info.DownloadSize())
+	}
+
+	return checkForAvailableSpace(totalSize, infos, "download")
+}
+
 // checkDiskSpace checks if there is enough space for the requested snaps and their prerequisites
 func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallInfo, userID int) error {
 	var featFlag features.SnapdFeature
@@ -2971,6 +2978,14 @@ func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallIn
 		return err
 	}
 
+	if err := checkForAvailableSpace(totalSize, infos, changeKind); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func checkForAvailableSpace(totalSize uint64, infos []minimalInstallInfo, changeKind string) error {
 	requiredSpace := safetyMarginDiskSpace(totalSize)
 	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
 	if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
@@ -2987,7 +3002,6 @@ func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallIn
 		}
 		return err
 	}
-
 	return nil
 }
 
