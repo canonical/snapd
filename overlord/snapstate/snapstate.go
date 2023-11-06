@@ -1410,26 +1410,16 @@ func download(ctx context.Context, st *state.State, name string, opts *RevisionO
 		return nil, err
 	}
 
-	providerContentAttrs := defaultProviderContentAttrs(st, info)
 	snapsup := &SnapSetup{
 		Channel:            opts.Channel,
 		Base:               info.Base,
-		Prereq:             getKeys(providerContentAttrs),
-		PrereqContentAttrs: providerContentAttrs,
 		UserID:             userID,
 		Flags:              flags.ForSnapSetup(),
 		DownloadInfo:       &info.DownloadInfo,
 		SideInfo:           &info.SideInfo,
 		Type:               info.Type(),
 		Version:            info.Version,
-		PlugsOnly:          len(info.Slots) == 0,
 		InstanceKey:        info.InstanceKey,
-		auxStoreInfo: auxStoreInfo{
-			Media: info.Media,
-			// TODO: still needed here?
-			// XXX we store this for the benefit of old snapd
-			Website: info.Website(),
-		},
 		CohortKey:          opts.CohortKey,
 		ExpectedProvenance: info.SnapProvenance,
 	}
