@@ -1377,10 +1377,9 @@ func Download(ctx context.Context, st *state.State, name string, opts *RevisionO
 		return nil, err
 	}
 
-	// if the caller does not specify a revision and the snap is already
-	// installed, then there is nothing to do. also, if the caller does specify
-	// a revision and the revision is already installed, then there is nothing
-	// to do.
+	// if either the desired snap revision is not specified or the desired
+	// revision is the same as the current one, and the snap is already
+	// installed, then there is nothing to do
 	if (opts.Revision.Unset() || opts.Revision == snapst.Current) && snapst.IsInstalled() {
 		return nil, &snap.AlreadyInstalledError{Snap: name}
 	}
