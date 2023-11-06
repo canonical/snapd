@@ -1216,6 +1216,7 @@ func (s *validationSetsSuite) TestRevisions(c *C) {
 }
 
 func (s *validationSetsSuite) TestCanBePresent(c *C) {
+	var snaps []*asserts.ValidationSetSnap
 	valset1 := assertstest.FakeAssertion(map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "account-id",
@@ -1236,6 +1237,8 @@ func (s *validationSetsSuite) TestCanBePresent(c *C) {
 			},
 		},
 	}).(*asserts.ValidationSet)
+
+	snaps = append(snaps, valset1.Snaps()...)
 
 	valset2 := assertstest.FakeAssertion(map[string]interface{}{
 		"type":         "validation-set",
@@ -1258,6 +1261,8 @@ func (s *validationSetsSuite) TestCanBePresent(c *C) {
 		},
 	}).(*asserts.ValidationSet)
 
+	snaps = append(snaps, valset2.Snaps()...)
+
 	valsets := snapasserts.NewValidationSets()
 
 	c.Assert(valsets.Add(valset1), IsNil)
@@ -1266,25 +1271,9 @@ func (s *validationSetsSuite) TestCanBePresent(c *C) {
 	// validity
 	c.Assert(valsets.Conflict(), IsNil)
 
-	c.Check(valsets.CanBePresent(naming.NewSnapRef(
-		"my-snap",
-		snaptest.AssertedSnapID("my-snap"),
-	)), Equals, false)
-
-	c.Check(valsets.CanBePresent(naming.NewSnapRef(
-		"other-snap",
-		snaptest.AssertedSnapID("other-snap"),
-	)), Equals, true)
-
-	c.Check(valsets.CanBePresent(naming.NewSnapRef(
-		"another-snap",
-		snaptest.AssertedSnapID("another-snap"),
-	)), Equals, false)
-
-	c.Check(valsets.CanBePresent(naming.NewSnapRef(
-		"random-snap",
-		snaptest.AssertedSnapID("random-snap"),
-	)), Equals, true)
+	for _, sn := range snaps {
+		c.Check(valsets.CanBePresent(sn), Equals, sn.Presence != asserts.PresenceInvalid)
+	}
 }
 
 func (s *validationSetsSuite) TestKeys(c *C) {
