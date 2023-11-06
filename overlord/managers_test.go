@@ -12296,8 +12296,8 @@ func (s *mgrsSuite) TestDownloadSimple(c *C) {
 
 	const snapRev = "1"
 
-	snapPath, _ := s.makeStoreTestSnap(c, "{name: foo, version: 0}", snapRev)
-	s.serveSnap(snapPath, snapRev)
+	testSnapPath, _ := s.makeStoreTestSnap(c, "{name: foo, version: 0}", snapRev)
+	s.serveSnap(testSnapPath, snapRev)
 
 	mockServer := s.mockStore(c)
 	defer mockServer.Close()
@@ -12316,11 +12316,22 @@ func (s *mgrsSuite) TestDownloadSimple(c *C) {
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	// confirm it worked
+	// confirm that download-snap task ran
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("download-snap change failed with: %v", chg.Err()))
 
-	exists := osutil.FileExists(filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", "foo", snapRev)))
+	snapPath := filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", "foo", snapRev))
+
+	exists := osutil.FileExists(snapPath)
 	c.Check(exists, Equals, true)
+
+	digest, _, err := asserts.SnapFileSHA3_384(snapPath)
+	c.Assert(err, IsNil)
+
+	// test that snap revision assertion was added by validation-snap task
+	_, err = assertstate.DB(st).Find(asserts.SnapRevisionType, map[string]string{
+		"snap-sha3-384": digest,
+	})
+	c.Check(err, IsNil)
 }
 
 func (s *mgrsSuite) TestDownloadSpecificRevision(c *C) {
@@ -12364,4 +12375,13 @@ func (s *mgrsSuite) TestDownloadSpecificRevision(c *C) {
 	info, err := snap.ReadInfoFromSnapFile(squashfs.New(snapPath), nil)
 	c.Assert(err, IsNil)
 	c.Check(info.Version, Equals, "1")
+
+	digest, _, err := asserts.SnapFileSHA3_384(snapPath)
+	c.Assert(err, IsNil)
+
+	// test that snap revision assertion was added by validation-snap task
+	_, err = assertstate.DB(st).Find(asserts.SnapRevisionType, map[string]string{
+		"snap-sha3-384": digest,
+	})
+	c.Check(err, IsNil)
 }
