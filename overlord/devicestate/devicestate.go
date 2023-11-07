@@ -791,6 +791,10 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 			needsInstall = true
 		}
 
+		// at this point, the snap will either be accounted for, or we will
+		// return an error from this loop
+		snapsAccountedFor[modelSnap.SnapName()] = true
+
 		// default channel can be set only in UC20 models
 		newModelSnapChannel, err := modelSnapChannelFromDefaultOrPinnedTrack(new, modelSnap)
 		if err != nil {
@@ -799,9 +803,8 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 
 		snapPathSi := sideInfoAndPathFromID(localSnaps, paths, modelSnap.ID())
 
-		var ts *state.TaskSet
 		if needsInstall {
-			ts, err = remodelVar.InstallWithDeviceContext(ctx, st,
+			ts, err := remodelVar.InstallWithDeviceContext(ctx, st,
 				snapPathSi, modelSnap.SnapName(), newModelSnapChannel,
 				userID, snapstate.Flags{Required: true}, deviceCtx,
 				fromChange)
@@ -809,56 +812,66 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 				return nil, err
 			}
 			tss = append(tss, ts)
-		} else if currentInfo != nil && newModelSnapChannel != "" {
-			// the snap is already installed and has its default
-			// channel declared in the model, but the local install
-			// may be tracking a different channel
-			changed, err := installedSnapChannelChanged(st, modelSnap.SnapName(), newModelSnapChannel)
-			if err != nil {
-				return nil, err
-			}
-			if changed {
-				ts, err = remodelVar.UpdateWithDeviceContext(st,
-					snapPathSi, modelSnap.SnapName(),
-					newModelSnapChannel, userID,
-					snapstate.Flags{NoReRefresh: true},
-					deviceCtx, fromChange)
-				if err != nil {
-					return nil, err
-				}
-				tss = append(tss, ts)
-			}
-		}
-		if currentInfo == nil {
-			// snap is not installed, we have a task set then
+
 			if err := updateNeededSnapsFromTs(ts); err != nil {
 				return nil, err
 			}
-		} else {
-			// snap is installed already, so we have 2 possible
-			// scenarios, one the snap will be updated, in which
-			// case we have a task set and should make sure that the
-			// prerequisites of the new revision are accounted for,
-			// or two, the snap revision is not being modified so
-			// grab whatever is required for the current revision
-			if ts != nil && ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge) != nil {
-				// not a simple task snap-switch-channel, so
-				// take the prerequisites needed by the new
-				// revision we're updating to
+
+			continue
+		}
+
+		// the snap is already installed and has its default channel declared in
+		// the model, but the local install may be tracking a different channel
+		changed, err := installedSnapChannelChanged(st, modelSnap.SnapName(), newModelSnapChannel)
+		if err != nil {
+			return nil, err
+		}
+
+		// snap is installed already, so we have 2 possible scenarios:
+		// 1. the snap will be updated (new channel or revision), in which case
+		// we should make sure that the prerequisites of the new revision are
+		// accounted for
+		// 2. the snap channel or revision is not being modified so grab
+		// whatever is required for the current revision
+		if changed {
+			ts, err := remodelVar.UpdateWithDeviceContext(st,
+				snapPathSi, modelSnap.SnapName(),
+				newModelSnapChannel, userID,
+				snapstate.Flags{NoReRefresh: true},
+				deviceCtx, fromChange)
+			if err != nil {
+				return nil, err
+			}
+			tss = append(tss, ts)
+
+			// we can know that the snap's revision was changed by checking for
+			// the presence of an edge on the task set that separates tasks that
+			// do and do not modify the system. if the edge is present, then the
+			// revision was changed, and we need to extract the snap's
+			// prerequisites from the task set. the absence of this edge,
+			// indicates that only the snap's channel was changed and the
+			// revision was unchanged. in this case, we treat the snap as if it
+			// were unchanged.
+			if ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge) != nil {
 				if err := updateNeededSnapsFromTs(ts); err != nil {
 					return nil, err
 				}
-			} else {
-				if currentInfo.Base != "" {
-					neededSnaps[currentInfo.Base] = true
-				}
-				// deal with content providers
-				for defProvider := range snap.NeededDefaultProviders(currentInfo) {
-					neededSnaps[defProvider] = true
-				}
+
+				continue
 			}
 		}
-		snapsAccountedFor[modelSnap.SnapName()] = true
+
+		// if we're here, the snap that is installed is unchanged from the snap
+		// that the model requires. the snap may have had a channel change, but
+		// that channel change did not result in a revision change.
+
+		if currentInfo.Base != "" {
+			neededSnaps[currentInfo.Base] = true
+		}
+		// deal with content providers
+		for defProvider := range snap.NeededDefaultProviders(currentInfo) {
+			neededSnaps[defProvider] = true
+		}
 	}
 	// Now we know what snaps are in the model and whether they have any
 	// dependencies. Verify that the model is self contained, in the sense
