@@ -80,9 +80,7 @@ func inhibitMessage(snapName string, hint runinhibit.Hint) string {
 }
 
 var isGraphicalSession = func() bool {
-	// TODO: uncomment once there is a proper UX review
-	//return os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
-	return false
+	return os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
 }
 
 var pendingRefreshNotification = func(refreshInfo *client.PendingSnapRefreshInfo) error {
