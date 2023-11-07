@@ -425,6 +425,9 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	// for validation-sets testing
 	case "bgtKhntON3vR7kwEbVPsILm7bUViPDzx":
 		name = "some-other-snap"
+	case "some-base-snap-id":
+		name = "some-base-snap"
+		base = "some-base"
 	case "provenance-snap-id":
 		name = "provenance-snap"
 	default:
