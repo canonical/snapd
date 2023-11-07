@@ -1358,7 +1358,7 @@ func installWithDeviceContext(st *state.State, name string, opts *RevisionOption
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
 }
 
-func Download(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
+func Download(ctx context.Context, st *state.State, name string, blobDirectory string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
@@ -1377,13 +1377,6 @@ func Download(ctx context.Context, st *state.State, name string, opts *RevisionO
 		return nil, err
 	}
 
-	// if either the desired snap revision is not specified or the desired
-	// revision is the same as the current one, and the snap is already
-	// installed, then there is nothing to do
-	if (opts.Revision.Unset() || opts.Revision == snapst.Current) && snapst.IsInstalled() {
-		return nil, &snap.AlreadyInstalledError{Snap: name}
-	}
-
 	if err := snap.ValidateInstanceName(name); err != nil {
 		return nil, fmt.Errorf("invalid instance name: %v", err)
 	}
@@ -1395,26 +1388,38 @@ func Download(ctx context.Context, st *state.State, name string, opts *RevisionO
 
 	info := sar.Info
 
+	if blobDirectory == "" {
+		blobDirectory = dirs.SnapBlobDir
+	}
+
+	// if we are going to use the default download dir, and the same snap
+	// revision is already installed, then we should not overwrite the snap that
+	// is already in the dir.
+	if blobDirectory == dirs.SnapBlobDir && info.Revision == snapst.Current {
+		return nil, &snap.AlreadyInstalledError{Snap: name}
+	}
+
 	if flags.RequireTypeBase && info.Type() != snap.TypeBase && info.Type() != snap.TypeOS {
 		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
 	}
 
-	if err := checkDiskSpaceDownload([]minimalInstallInfo{installSnapInfo{info}}); err != nil {
+	if err := checkDiskSpaceDownload([]minimalInstallInfo{installSnapInfo{info}}, blobDirectory); err != nil {
 		return nil, err
 	}
 
 	snapsup := &SnapSetup{
-		Channel:            opts.Channel,
-		Base:               info.Base,
-		UserID:             userID,
-		Flags:              flags.ForSnapSetup(),
-		DownloadInfo:       &info.DownloadInfo,
-		SideInfo:           &info.SideInfo,
-		Type:               info.Type(),
-		Version:            info.Version,
-		InstanceKey:        info.InstanceKey,
-		CohortKey:          opts.CohortKey,
-		ExpectedProvenance: info.SnapProvenance,
+		Channel:               opts.Channel,
+		Base:                  info.Base,
+		UserID:                userID,
+		Flags:                 flags.ForSnapSetup(),
+		DownloadInfo:          &info.DownloadInfo,
+		SideInfo:              &info.SideInfo,
+		Type:                  info.Type(),
+		Version:               info.Version,
+		InstanceKey:           info.InstanceKey,
+		CohortKey:             opts.CohortKey,
+		ExpectedProvenance:    info.SnapProvenance,
+		DownloadBlobDirectory: blobDirectory,
 	}
 
 	if sar.RedirectChannel != "" {
@@ -2936,13 +2941,13 @@ func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshC
 	return updateTss, nil
 }
 
-func checkDiskSpaceDownload(infos []minimalInstallInfo) error {
+func checkDiskSpaceDownload(infos []minimalInstallInfo, rootDir string) error {
 	var totalSize uint64
 	for _, info := range infos {
 		totalSize += uint64(info.DownloadSize())
 	}
 
-	return checkForAvailableSpace(totalSize, infos, "download")
+	return checkForAvailableSpace(totalSize, infos, "download", rootDir)
 }
 
 // checkDiskSpace checks if there is enough space for the requested snaps and their prerequisites
@@ -2973,24 +2978,23 @@ func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallIn
 		return err
 	}
 
-	if err := checkForAvailableSpace(totalSize, infos, changeKind); err != nil {
+	if err := checkForAvailableSpace(totalSize, infos, changeKind, dirs.GlobalRootDir); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func checkForAvailableSpace(totalSize uint64, infos []minimalInstallInfo, changeKind string) error {
+func checkForAvailableSpace(totalSize uint64, infos []minimalInstallInfo, changeKind string, rootDir string) error {
 	requiredSpace := safetyMarginDiskSpace(totalSize)
-	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
-	if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+	if err := osutilCheckFreeSpace(rootDir, requiredSpace); err != nil {
 		snaps := make([]string, len(infos))
 		for i, up := range infos {
 			snaps[i] = up.InstanceName()
 		}
 		if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
 			return &InsufficientSpaceError{
-				Path:       path,
+				Path:       rootDir,
 				Snaps:      snaps,
 				ChangeKind: changeKind,
 			}

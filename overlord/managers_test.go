@@ -12306,7 +12306,7 @@ func (s *mgrsSuite) TestDownloadSimple(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Download(context.TODO(), st, "foo", nil, 0, snapstate.Flags{}, nil)
+	ts, err := snapstate.Download(context.TODO(), st, "foo", "", nil, 0, snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("download-snap", "...")
 	chg.AddAll(ts)
@@ -12353,7 +12353,7 @@ func (s *mgrsSuite) TestDownloadSpecificRevision(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Download(context.TODO(), st, "foo", &snapstate.RevisionOptions{
+	ts, err := snapstate.Download(context.TODO(), st, "foo", "", &snapstate.RevisionOptions{
 		Revision: snap.R(snapOldRev),
 	}, 0, snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)

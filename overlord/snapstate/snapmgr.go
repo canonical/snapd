@@ -137,6 +137,10 @@ type SnapSetup struct {
 
 	// DisabledExposedHome is set if ~/Snap should not be used as $HOME.
 	DisableExposedHome bool `json:"disable-exposed-home,omitempty"`
+
+	// DownloadBlobDirectory is the directory where the snap blob is downloaded to. If
+	// empty, dir.SnapBlobDir is used.
+	DownloadBlobDirectory string `json:"download-blob-dir,omitempty"`
 }
 
 func (snapsup *SnapSetup) InstanceName() string {
@@ -163,7 +167,11 @@ func (snapsup *SnapSetup) MountDir() string {
 }
 
 func (snapsup *SnapSetup) MountFile() string {
-	return snap.MountFile(snapsup.InstanceName(), snapsup.Revision())
+	blobDir := snapsup.DownloadBlobDirectory
+	if blobDir == "" {
+		blobDir = dirs.SnapBlobDir
+	}
+	return snap.MountFileInDir(blobDir, snapsup.InstanceName(), snapsup.Revision())
 }
 
 // RevertStatus is a status of a snap revert; anything other than DefaultStatus
