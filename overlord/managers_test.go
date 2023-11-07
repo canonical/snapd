@@ -12453,7 +12453,18 @@ volumes:
 	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Mount snap \"pi-kernel\" \\(2\\) \\(cannot refresh kernel with change created by old snapd that is missing gadget update task\\)")
 }
 
-func (s *mgrsSuite) TestDownloadSimple(c *C) {
+func (s *mgrsSuite) TestDownloadToDefault(c *C) {
+	// should default to dirs.SnapBlobDir
+	const downloadDir = ""
+	s.testDownload(c, downloadDir)
+}
+
+func (s *mgrsSuite) TestDownloadToLocation(c *C) {
+	downloadDir := c.MkDir()
+	s.testDownload(c, downloadDir)
+}
+
+func (s *mgrsSuite) testDownload(c *C, downloadDir string) {
 	s.prereqSnapAssertions(c)
 
 	const snapRev = "1"
@@ -12468,7 +12479,7 @@ func (s *mgrsSuite) TestDownloadSimple(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Download(context.TODO(), st, "foo", "", nil, 0, snapstate.Flags{}, nil)
+	ts, err := snapstate.Download(context.TODO(), st, "foo", downloadDir, nil, 0, snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("download-snap", "...")
 	chg.AddAll(ts)
@@ -12481,7 +12492,12 @@ func (s *mgrsSuite) TestDownloadSimple(c *C) {
 	// confirm that download-snap task ran
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("download-snap change failed with: %v", chg.Err()))
 
-	snapPath := filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", "foo", snapRev))
+	expectedDownloadDir := downloadDir
+	if expectedDownloadDir == "" {
+		expectedDownloadDir = dirs.SnapBlobDir
+	}
+
+	snapPath := filepath.Join(expectedDownloadDir, fmt.Sprintf("%s_%s.snap", "foo", snapRev))
 
 	exists := osutil.FileExists(snapPath)
 	c.Check(exists, Equals, true)
