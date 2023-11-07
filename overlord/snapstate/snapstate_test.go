@@ -9270,3 +9270,25 @@ func (s *snapmgrTestSuite) TestDownloadOutOfSpace(c *C) {
 	c.Check(diskSpaceErr.Path, Equals, dirs.SnapBlobDir)
 	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"foo"})
 }
+
+func (s *snapmgrTestSuite) TestDownloadAlreadyInstalled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Current: snap.R(11),
+		Sequence: []*snap.SideInfo{
+			{RealName: "foo", SnapID: snaptest.AssertedSnapID("foo"), Revision: snap.R(11)},
+		},
+		Active:   true,
+		SnapType: "app",
+	})
+
+	const downloadDir = ""
+	_, err := snapstate.Download(context.Background(), s.state, "foo", downloadDir, nil, 0, snapstate.Flags{}, nil)
+	c.Assert(err, NotNil)
+
+	alreadyInstalledErr, ok := err.(*snap.AlreadyInstalledError)
+	c.Assert(ok, Equals, true)
+	c.Check(alreadyInstalledErr.Snap, Equals, "foo")
+}
