@@ -1220,7 +1220,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 					continue
 				}
 
-				if !a.Unset() {
+				if a.Revision != 0 {
 					revno = strconv.Itoa(a.Revision)
 				}
 
