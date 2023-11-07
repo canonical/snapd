@@ -111,7 +111,6 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 		return injectedSetModelError
 	}
 
-	// TODO: maybe we enforce the validation sets here?
 	if err := enforceValidationSetsForRemodel(st, new.ValidationSets()); err != nil {
 		return err
 	}
