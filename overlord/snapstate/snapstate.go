@@ -2853,7 +2853,7 @@ func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallIn
 		return err
 	}
 
-	if err := checkForAvailableSpace(totalSize, infos, changeKind, dirs.GlobalRootDir); err != nil {
+	if err := checkForAvailableSpace(totalSize, infos, changeKind, dirs.SnapdStateDir(dirs.GlobalRootDir)); err != nil {
 		return err
 	}
 
