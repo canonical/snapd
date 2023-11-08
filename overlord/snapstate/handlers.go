@@ -315,17 +315,21 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 		return updatePrereqIfOutdated(t, snapName, contentAttrs, userID, flags)
 	}
 
-	// in progress?
-	if linkTask, err := findLinkSnapTaskForSnap(st, snapName); err != nil {
-		return nil, err
-	} else if linkTask != nil {
-		return nil, onInFlight
-	}
-
 	// not installed, nor queued for install -> install it
 	deviceCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
 		return nil, err
+	}
+
+	// in progress?
+	if linkTask, err := findLinkSnapTaskForSnap(st, snapName); err != nil {
+		return nil, err
+	} else if linkTask != nil {
+		// TODO: figure out of this is right
+		if deviceCtx.ForRemodeling() {
+			return nil, nil
+		}
+		return nil, onInFlight
 	}
 
 	ts, err := InstallWithDeviceContext(context.TODO(), st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireTypeBase: requireTypeBase}, nil, deviceCtx, "")
