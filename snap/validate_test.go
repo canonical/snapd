@@ -2266,7 +2266,7 @@ func (s *ValidateSuite) TestSimplePrereqTracker(c *C) {
 	repo := interfaces.NewRepository()
 
 	prqt := SimplePrereqTracker{}
-	providerContentAttrs := prqt.DefaultProviderContentAttrs(info, repo)
+	providerContentAttrs := prqt.MissingProviderContentTags(info, repo)
 	c.Check(providerContentAttrs, HasLen, 2)
 	sort.Strings(providerContentAttrs["common-themes"])
 	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"bar", "foo"})
@@ -2285,7 +2285,7 @@ func (s *ValidateSuite) TestSimplePrereqTracker(c *C) {
 	}
 	err := repo.AddSlot(barSlot)
 	c.Assert(err, IsNil)
-	providerContentAttrs = prqt.DefaultProviderContentAttrs(info, repo)
+	providerContentAttrs = prqt.MissingProviderContentTags(info, repo)
 	c.Check(providerContentAttrs, HasLen, 2)
 	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"foo"})
 	// stays the same
@@ -2299,14 +2299,14 @@ func (s *ValidateSuite) TestSimplePrereqTracker(c *C) {
 	}
 	err = repo.AddSlot(fooSlot)
 	c.Assert(err, IsNil)
-	providerContentAttrs = prqt.DefaultProviderContentAttrs(info, repo)
+	providerContentAttrs = prqt.MissingProviderContentTags(info, repo)
 	c.Check(providerContentAttrs, HasLen, 1)
 	c.Check(providerContentAttrs["common-themes"], IsNil)
 	// stays the same
 	c.Check(providerContentAttrs["some-snap"], DeepEquals, []string{"baz"})
 
 	// no repo => no filtering
-	providerContentAttrs = prqt.DefaultProviderContentAttrs(info, nil)
+	providerContentAttrs = prqt.MissingProviderContentTags(info, nil)
 	c.Check(providerContentAttrs, HasLen, 2)
 	sort.Strings(providerContentAttrs["common-themes"])
 	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"bar", "foo"})
@@ -2318,7 +2318,7 @@ func (s *ValidateSuite) TestSelfContainedSetPrereqTrackerBasics(c *C) {
 	var prqt snapstate.PrereqTracker = NewSelfContainedSetPrereqTracker()
 
 	// this ignores arguments and always returns nil
-	c.Check(prqt.DefaultProviderContentAttrs(nil, nil), IsNil)
+	c.Check(prqt.MissingProviderContentTags(nil, nil), IsNil)
 }
 
 func (s *validateSuite) TestSelfContainedSetPrereqTrackerMissingBase(c *C) {

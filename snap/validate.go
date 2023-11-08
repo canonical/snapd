@@ -1147,12 +1147,12 @@ func (SimplePrereqTracker) Add(*Info) {
 	// SimplePrereqTracker is stateless, nothing to do.
 }
 
-// DefaultProviderContentAttrs returns a map keyed by the names of all
+// MissingProviderContentTags returns a map keyed by the names of all
 // default-providers for the content plugs that the given snap.Info
 // needs. The map values are the corresponding content tags.
 // If repo is not nil, any content tag provided by an existing slot in it
 // is considered already available and filtered out from the result.
-func (SimplePrereqTracker) DefaultProviderContentAttrs(info *Info, repo InterfaceRepo) map[string][]string {
+func (SimplePrereqTracker) MissingProviderContentTags(info *Info, repo InterfaceRepo) map[string][]string {
 	availTags := contentIfaceAvailable(repo)
 	providerSnapsToContentTag := make(map[string][]string)
 	for _, plug := range info.Plugs {
@@ -1185,7 +1185,7 @@ func contentIfaceAvailable(repo InterfaceRepo) map[string]bool {
 // XXX TODO: switch away from using/needing this in favor of the prereq
 // trackers.
 func NeededDefaultProviders(info *Info) (providerSnapsToContentTag map[string][]string) {
-	return (SimplePrereqTracker{}).DefaultProviderContentAttrs(info, nil)
+	return (SimplePrereqTracker{}).MissingProviderContentTags(info, nil)
 }
 
 // SelfContainedPrereqTracker is a stateful helper to track
@@ -1215,11 +1215,11 @@ func (prqt *SelfContainedSetPrereqTracker) Add(info *Info) {
 	}
 }
 
-// DefaultProviderContentAttrs implements snapstate.PrereqTracker.
+// MissingProviderContentTags implements snapstate.PrereqTracker.
 // Given how snapstate uses this and as SelfContainedSetPrereqTracker is for
 // when no automatic fetching of prerequisites is desired, this always returns
 // nil.
-func (prqt *SelfContainedSetPrereqTracker) DefaultProviderContentAttrs(info *Info, repo InterfaceRepo) map[string][]string {
+func (prqt *SelfContainedSetPrereqTracker) MissingProviderContentTags(info *Info, repo InterfaceRepo) map[string][]string {
 	return nil
 }
 
