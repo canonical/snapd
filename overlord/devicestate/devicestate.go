@@ -521,7 +521,7 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pat
 		// which needs to be installed
 		return remodelVar.InstallWithDeviceContext(ctx, st,
 			pathSI, ms.newSnap, newModelSnapChannel, userID,
-			snapstate.Flags{}, deviceCtx, fromChange)
+			snapstate.Flags{Required: true}, deviceCtx, fromChange)
 	}
 
 	// in UC20+ models, the model can specify a channel for each
@@ -703,6 +703,19 @@ func remodelSnapdSnapTasks(st *state.State, newModel *asserts.Model, localSnaps 
 	return nil, nil
 }
 
+func sortNonEssentialRemodelTaskSets(snaps []*asserts.ModelSnap) {
+	orderOfType := func(snapType string) int {
+		if snap.TypeBase == snap.Type(snapType) {
+			return -1
+		}
+		return 1
+	}
+
+	sort.Slice(snaps, func(i, j int) bool {
+		return orderOfType(snaps[i].SnapType) < orderOfType(snaps[j].SnapType)
+	})
+}
+
 func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model,
 	localSnaps []*snap.SideInfo, paths []string,
 	deviceCtx snapstate.DeviceContext, fromChange string) ([]*state.TaskSet, error) {
@@ -767,9 +780,16 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		snapsAccountedFor[newSnap] = true
 	}
 
+	// copy slice so that we don't re-order the slice from the model
+	snapsWithoutEssential := append([]*asserts.ModelSnap(nil), new.SnapsWithoutEssential()...)
+	// sort the snaps so that we collect the task sets for base snaps first, and
+	// then the rest. this prevents a later issue where we attempt to install a
+	// snap, but the base is not yet installed.
+	sortNonEssentialRemodelTaskSets(snapsWithoutEssential)
+
 	// go through all the model snaps, see if there are new required snaps
 	// or a track for existing ones needs to be updated
-	for _, modelSnap := range new.SnapsWithoutEssential() {
+	for _, modelSnap := range snapsWithoutEssential {
 		logger.Debugf("adding remodel tasks for non-essential snap %s", modelSnap.Name)
 
 		// TODO|XXX: have methods that take refs directly
