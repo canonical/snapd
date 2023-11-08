@@ -324,8 +324,19 @@ if [ "$STATIC" = 1 ]; then
     # FIXME: re-add staticcheck with a matching version for the used go-version
 
     if [ -z "${SKIP_TESTS_FORMAT_CHECK-}" ] || [ "$SKIP_TESTS_FORMAT_CHECK" = 0 ]; then
-        echo "Checking tests formatting"
-        ./tests/lib/external/snapd-testing-tools/utils/check-test-format ./tests
+        CHANGED_TESTS=""
+        if [ -n "$CHANGED_FILES" ]; then
+            # shellcheck disable=SC2086
+            for changed_file in $CHANGED_FILES; do
+                if [[ $changed_file == */task.yaml ]]; then
+                    CHANGED_TESTS="$CHANGED_TESTS $changed_file"
+                fi
+            done
+        fi
+        if [ -n "$CHANGED_TESTS" ]; then
+            echo "Checking tests formatting"
+            ./tests/lib/external/snapd-testing-tools/utils/check-test-format --tests "$CHANGED_TESTS"
+        fi
     fi
 
     echo "Checking for usages of !=, == or Equals with ErrNoState"
