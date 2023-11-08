@@ -1223,7 +1223,7 @@ func (prqt *SelfContainedSetPrereqTracker) DefaultProviderContentAttrs(info *Inf
 	return nil
 }
 
-func analyzeContentSlot(slot *SlotInfo) (contentTag string) {
+func maybeContentSlot(slot *SlotInfo) (contentTag string) {
 	if slot.Interface != "content" {
 		return ""
 	}
@@ -1231,7 +1231,7 @@ func analyzeContentSlot(slot *SlotInfo) (contentTag string) {
 	return contentTag
 }
 
-func analyzeContentPlug(plug *PlugInfo) (contentTag, defaultProviderSnap string) {
+func maybeContentPlug(plug *PlugInfo) (contentTag, defaultProviderSnap string) {
 	if plug.Interface != "content" {
 		return "", ""
 	}
@@ -1288,7 +1288,7 @@ func (prqt *SelfContainedSetPrereqTracker) Check() (warnings, errs []error) {
 	contentSlots := make(map[string][]*SlotInfo)
 	for _, info := range prqt.snaps {
 		for _, slot := range info.Slots {
-			contentTag := analyzeContentSlot(slot)
+			contentTag := maybeContentSlot(slot)
 			if contentTag == "" {
 				continue
 			}
@@ -1312,7 +1312,7 @@ func (prqt *SelfContainedSetPrereqTracker) Check() (warnings, errs []error) {
 		// or otherwise
 		plugNames := make([]string, 0, len(info.Plugs))
 		for plugName, plug := range info.Plugs {
-			_, defaultProvider := analyzeContentPlug(plug)
+			_, defaultProvider := maybeContentPlug(plug)
 			if defaultProvider == "" {
 				continue
 			}
@@ -1321,7 +1321,7 @@ func (prqt *SelfContainedSetPrereqTracker) Check() (warnings, errs []error) {
 		sort.Strings(plugNames)
 		for _, plugName := range plugNames {
 			plug := info.Plugs[plugName]
-			wantedTag, defaultProvider := analyzeContentPlug(plug)
+			wantedTag, defaultProvider := maybeContentPlug(plug)
 			candSlots := contentSlots[wantedTag]
 			switch len(candSlots) {
 			case 0:
