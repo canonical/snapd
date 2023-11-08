@@ -37,9 +37,15 @@
             "type": "base"
         },
         {
-            "default-channel": "22/stable",
-            "id": "JmzJi9kQvHUWddZ32PDJpBRXUpGRxvNS",
-            "name": "bluez",
+            "default-channel": "latest/stable",
+            "id": "99T7MUlRhtI3U0QFgl5mXXESAiSwt776",
+            "name": "core",
+            "type": "core"
+        },
+        {
+            "default-channel": "latest/stable",
+            "id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+            "name": "hello-world",
             "type": "app"
         },
         {

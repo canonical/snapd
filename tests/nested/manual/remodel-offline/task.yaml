@@ -45,10 +45,13 @@ execute: |
       remote.exec "snap download --channel=22/stable --basename=$sn_name $sn_name"
       remodel_options="$remodel_options --snap $sn_name.snap --assertion $sn_name.assert"
   done
-  remote.exec "snap download --revision=355 --basename=bluez bluez"
-  remodel_options="$remodel_options --snap bluez.snap --assertion bluez.assert"
+  remote.exec "snap download --revision=28 --basename=hello-world hello-world"
+  remodel_options="$remodel_options --snap hello-world.snap --assertion hello-world.assert"
   remote.exec "snap download --basename=core22 core22"
   remodel_options="$remodel_options --snap core22.snap --assertion core22.assert"
+
+  remote.exec "snap download --basename=core core"
+  remodel_options="$remodel_options --snap core.snap --assertion core.assert"
 
   remote.push "$TESTSLIB/assertions/test-snapd-core22-required-vset.assert"
   remodel_options="$remodel_options --assertion test-snapd-core22-required-vset.assert"
@@ -93,3 +96,4 @@ execute: |
   remote.exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
   # new model revision
   remote.exec "snap model --assertion" | MATCH '^revision: 1$'
+  remote.exec "snap validate" | MATCH '^test-snapd/test-snapd-core22-required-vset +enforce +1 +valid'

@@ -26,9 +26,14 @@ snaps:
     name: core22
     type: base
   -
-    default-channel: 22/stable
-    id: JmzJi9kQvHUWddZ32PDJpBRXUpGRxvNS
-    name: bluez
+    default-channel: latest/stable
+    id: 99T7MUlRhtI3U0QFgl5mXXESAiSwt776
+    name: core
+    type: core
+  -
+    default-channel: latest/stable
+    id: buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ
+    name: hello-world
     type: app
   -
     default-channel: latest/edge
@@ -43,13 +48,13 @@ validation-sets:
     name: test-snapd-core22-required-vset
 sign-key-sha3-384: 7qWG-Uwck6Dji43a3Z8ZZrm7rAziZAch3xf76iFvqe4GaD0LI7U9lYPWMSJAsEgu
 
-AcLBcwQAAQoAHRYhBGESvKlz1RXG1IBOC0MdJKf2hr9ABQJlSO3jAAoJEEMdJKf2hr9AbE8P/ic9
-wHgPaKDoyTPk1Brpv7gi/T8nTmaH8vz8Qa81ku3zfdPRxTZio6Sf8Q7tHiDL+FozE0j1PLcDDbDx
-3afd+VYlazfYO1IvCAg24XayY81tThZ823UOFDlSrPE2+GTP444Tkae9w2gegOK43J+9kxlky70z
-Dcd1jOst3LKSgSUCP82FWbopR3Y0dEOio4yRsmVoxPsEd5w84GfEYk9UhmEPSSpnaYiVPNINVuls
-89rWwnGf34dkfysZH8YlQURt2MMV3zlawxNLLIBUQoRYWRNBZXCpmpxsUEQNA1w2S9TTU9k3NCuk
-GygN1JwZ4piwKsddj6VrSyqwz0CLJt5bYD0geynmw4TXom7rcmpjIf7uVvib9krerR/CuCgR7AfB
-D8BFhmF5DRNaPbBd2nbf3NsDvSLkDaYvuUUr/DcNhzJ3yr+qJGh/5YfcHAIoz0Zic1SRhJCPiu8c
-QmFwHP8ey3uKyIlphaQ+LvAV1CoA1nedfA0IOJaBTtidkZ88d9jO/bAzSND3iSMHa8yhHY8caQ5h
-Pf1MWcrc2Hsds0Bvnd2iwTb8sneBKhOC7W+TTjg3CVL5FS/TKsrhE3tMbhcFjQT74of3n5VHOU54
-I59C+Wbk8bWB6LJetFA/GldS78kScPs5TeNADEuvXvsMtIv7Q1Rl4+0mfuVzfJ2vdCTDf3/X
+AcLBcwQAAQoAHRYhBGESvKlz1RXG1IBOC0MdJKf2hr9ABQJlSk8qAAoJEEMdJKf2hr9AUbMP/27L
+Ik2ShnV92XzzByd8x2jho1wV/YLPUbdQCfbaMhLvqSGz0gYXG+acbWfdpnMKQAb7YfBH+GPPZuc7
+I8GkH6sKbqkBsCIMoHhrNoSNLRC2IPPuHShRW5zJs7qwLTfGpdEIvbQaHqtp7cTHhKQ7iU8XqC38
+JiR/QIDhbGmLViCQzy5XhP4Cs4+C5H6PTiIQN2LKZmtA2CmQb/NPkB86kokVlHc1rmOZIS1fejkt
+7prtxTOnRtw4R19Qu/ndFw3Set8yeKWGEoOouStGsIN9SD/3dpUXOtC60X5SdnZkrfYf361PvSYM
+Ql3N5z/uQU6uY6VQqVzG9Z5R92BOcshTNC73hejlOnwBP+LUHKN6Ij5O3Sg/i0+K7OwlgWNzlfVf
+nb2CeL7dHqO5BeoYqHYEo7ZkhTrBLftFBJEXiGeJne34OULTSmwO+geZwd4EMeAOZIG0IPG3x2Lk
+hGgmOEc0cOWMCCV0fiW1aoiK3qSZpMiyyMdxFrgCcDje77Kw2/b3uqRtnWiFjyEcZi7LvvvugQuY
+0ZilT59fw5UenguNAhWfIxtYyWd1jWXQxTgnQF1k0lZ9ljPtmaegPhfn30ZxUQeJXRrE0+fY4vXm
+5HTUwLAv3LyK1x9n1XJPBOBg56G0Vbn7+cLqlhcSiGNVZhiAUv7ErB0gfSIT5iJcg8E0g5Gp

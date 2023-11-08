@@ -8,9 +8,9 @@
   "timestamp": "2023-10-24T19:55:00+00:00",
   "snaps": [
     {
-      "id": "JmzJi9kQvHUWddZ32PDJpBRXUpGRxvNS",
-      "name": "bluez",
-      "revisoin": "355",
+      "id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+      "name": "hello-world",
+      "revisoin": "28",
       "presence": "required"
     }
   ]
