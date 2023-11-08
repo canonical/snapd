@@ -1280,7 +1280,7 @@ func (w *Writer) checkPrereqsInMode(mode string) error {
 	warns, errs := snap.ValidateBasesAndProviders(snaps)
 	if errs != nil {
 		var errPrefix string
-		// XXX do better in terms of error structuring
+		// XXX TODO: return an error that subsumes all the errors
 		if mode == "run" {
 			errPrefix = "prerequisites need to be added explicitly"
 		} else {
