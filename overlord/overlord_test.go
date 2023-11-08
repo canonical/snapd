@@ -169,7 +169,15 @@ func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
 	timings.DurationThreshold = time.Second * 30
 	defer func() { timings.DurationThreshold = oldDurationThreshold }()
 
-	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"patch-sublevel-last-version":%q,"some":"data","refresh-privacy-key":"0123456789ABCDEF"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, snapdtool.Version))
+	fakeState := []byte(fmt.Sprintf(`{
+		"data": {"patch-level": %d, "patch-sublevel": %d, "patch-sublevel-last-version": %q, "some": "data", "refresh-privacy-key": "0123456789ABCDEF"},
+		"changes": null,
+		"tasks": null,
+		"last-change-id": 0,
+		"last-task-id": 0,
+		"last-lane-id": 0,
+		"last-notice-id": 0
+	}`, patch.Level, patch.Sublevel, snapdtool.Version))
 	err := os.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 

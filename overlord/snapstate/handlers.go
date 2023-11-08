@@ -1936,6 +1936,33 @@ func notifyLinkParticipants(t *state.Task, snapsup *SnapSetup) {
 	}
 }
 
+func determineUnlinkTask(t *state.Task) *state.Task {
+	for _, wt := range t.WaitTasks() {
+		switch wt.Kind() {
+		case "unlink-current-snap", "unlink-snap":
+			return wt
+		}
+		if ut := determineUnlinkTask(wt); ut != nil {
+			return ut
+		}
+	}
+	return nil
+}
+
+// isSingleRebootBoundary returns true if the link-snap is determined to be the
+// do-boundary for a single-reboot set up.
+func isSingleRebootBoundary(linkSnap *state.Task) bool {
+	// link-snap must have do restart bound
+	if !restart.TaskIsRestartBoundary(linkSnap, restart.RestartBoundaryDirectionDo) {
+		return false
+	}
+	// unlink-current-snap must not have undo
+	if ut := determineUnlinkTask(linkSnap); ut != nil {
+		return !restart.TaskIsRestartBoundary(ut, restart.RestartBoundaryDirectionUndo)
+	}
+	return false
+}
+
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	st := t.State()
 	st.Lock()
@@ -2236,7 +2263,12 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// the bootstate to track changes done during update of gadget assets, instead
 	// the gadget asset tasks sets a boolean value if any restart is required on the change.
 	if snapsup.Type == snap.TypeGadget {
-		var needsReboot bool
+		// Default to true if the gadget link-snap task is a restart-boundary for do-path only.
+		// In a single-reboot setup, we may rely on the gadget to perform the reboot. In that specific
+		// scenario, the reboot link-snap task will have been marked with a Do restart boundary (and not undo!).
+		// If we were to do this in all scenarios (i.e just when it has the do), we would impact things like
+		// remodel.
+		needsReboot := isSingleRebootBoundary(t)
 		if err := t.Change().Get("gadget-restart-required", &needsReboot); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
@@ -2260,6 +2292,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 			t.Logf("reboot postponed to later tasks")
 		}
 	}
+	// XXX: This logic looks a bit confusing, and can be replaced once we decide
+	// to get rid of the "cannot-reboot" handling. It's still here for backwards
+	// compatibility, with previous snapd versions that were using "cannot-reboot"
+	// in state for tasks to support single-reboot with base/kernel.
 	if !rebootInfo.RebootRequired || canReboot {
 		return m.finishTaskWithMaybeRestart(t, finalStatus, restartPossibility{info: newInfo, RebootInfo: rebootInfo})
 	} else {
@@ -3973,10 +4009,11 @@ func refreshedSnaps(reTask *state.Task) (snapNames []string, failed bool) {
 			laneSnaps = map[int]string{}
 		}
 		lanes := task.Lanes()
-		if len(lanes) != 1 {
-			// can't happen, really
-			continue
-		}
+		// Tasks can have multiple lanes, but can also share a single lane, right now we rely on
+		// the first lane, which may not be sufficient to detect whether or not a specific
+		// snap has been refreshed.
+		// XXX: If snaps have been refreshed with Flags.Transaction == "all-snap", then this may
+		// be an issue and not accurately detect which snaps have been refreshed.
 		lane := lanes[0]
 		if lane == 0 {
 			// not really a lane

@@ -80,7 +80,7 @@ var srcStateContent = []byte(`
 }
 `)
 
-const stateSuffix = `,"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0}`
+const stateSuffix = `,"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0,"last-notice-id":0}`
 
 func (ss *stateSuite) TestCopyStateIntegration(c *C) {
 	// create a mock srcState
