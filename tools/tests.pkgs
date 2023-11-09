@@ -1,8 +1,11 @@
 #!/bin/bash -e
 
 show_help() {
-    echo "usage: tests.pkgs {install,remove} [PACKAGE...]"
-    echo "       tests.pkgs {is-installed,query} [PACKAGE]"
+    echo "usage: tests.pkgs install [--no-install-recommends] [PACKAGE...]"
+    echo "       tests.pkgs remove [PACKAGE...]"
+    echo "       tests.pkgs is-installed [PACKAGE]"
+    echo "       tests.pkgs query [PACKAGE]"
+    echo "       tests.pkgs list-installed"
     echo
     echo "Package names are standardized based on Debian package names"
     echo "internally, package names are re-mapped to fit the convention"
@@ -15,6 +18,11 @@ unsupported() {
 }
 
 cmd_install() {
+    # This is re-defined by the backend file.
+    unsupported
+}
+
+cmd_install_local() {
     # This is re-defined by the backend file.
     unsupported
 }
@@ -130,7 +138,8 @@ main() {
 
     case "$action" in
         install)
-            cmd_install "$(remap_many "$@")"
+            # shellcheck disable=SC2046
+            cmd_install $(remap_many "$@")
             ;;
         is-installed)
             cmd_is_installed "$(remap_one "$@")"
