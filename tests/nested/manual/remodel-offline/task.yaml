@@ -48,6 +48,12 @@ execute: |
   remote.exec "snap download --basename=core22 core22"
   remodel_options="$remodel_options --snap core22.snap --assertion core22.assert"
 
+  remote.exec "snap download --basename=hello-world hello-world"
+  remodel_options="$remodel_options --snap hello-world.snap --assertion hello-world.assert"
+
+  remote.exec "snap download --basename=core core"
+  remodel_options="$remodel_options --snap core.snap --assertion core.assert"
+
   # Make sure we cannot access the store
   netplan_cfg=50-bad-gw.yaml
   cat << 'EOF' > "$netplan_cfg"
@@ -83,6 +89,10 @@ execute: |
 
   # the new base is installed
   remote.exec snap list core22
+
+  # the new app and its base are installed
+  remote.exec snap list core
+  remote.exec snap list hello-world
 
   # we are remodeling within the same brand
   remote.exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
