@@ -338,7 +338,11 @@ if [ "$STATIC" = 1 ]; then
         # shellcheck disable=SC2086
         for test in $CHANGED_TESTS; do
             if ! echo "$test" | grep -q "$EXCLUDE_PATH"; then
-                FILTERED_TESTS="$FILTERED_TESTS $(pwd)/$test"
+                if [ -z "$FILTERED_TESTS" ]; then
+                    FILTERED_TESTS="$test"
+                else
+                    FILTERED_TESTS="$FILTERED_TESTS $test"
+                fi
             fi
         done
 
