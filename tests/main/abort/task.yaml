@@ -1,5 +1,8 @@
 summary: Check change abort
 
+details: |
+    Check a change cannot be aborted when the change is not in progress
+
 environment:
     SNAP_NAME: test-snapd-tools
 
