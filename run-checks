@@ -250,7 +250,7 @@ if [ "$STATIC" = 1 ]; then
             # shellcheck disable=SC2086
             for changed_file in $CHANGED_FILES; do
                 if [[ $changed_file == */task.yaml ]]; then
-                    FILTERED_FILES="$FILTERED_FILES $changed_file"
+                    FILTERED_FILES="$FILTERED_FILES $(pwd)/$changed_file"
                 fi
             done
         else
@@ -338,11 +338,14 @@ if [ "$STATIC" = 1 ]; then
         # shellcheck disable=SC2086
         for test in $CHANGED_TESTS; do
             if ! echo "$test" | grep -q "$EXCLUDE_PATH"; then
-                FILTERED_TESTS="$FILTERED_TESTS $test"
+                FILTERED_TESTS="$FILTERED_TESTS $(pwd)/$test"
             fi
         done
+
+        echo "Checking tests formatting"
         if [ -n "$FILTERED_TESTS" ]; then
-            echo "Checking tests formatting"
+            echo pwd
+            pwd
             ./tests/lib/external/snapd-testing-tools/utils/check-test-format --tests "$FILTERED_TESTS"
         fi
     fi
