@@ -642,7 +642,7 @@ EOF
                 echo "$GADGET_EXTRA_CMDLINE" > pc-gadget/cmdline.extra
             fi
 
-            # pack it
+            # pack the gadget
             snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
 
             gadget_snap=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
