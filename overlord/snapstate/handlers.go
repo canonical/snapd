@@ -325,7 +325,11 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 	if linkTask, err := findLinkSnapTaskForSnap(st, snapName); err != nil {
 		return nil, err
 	} else if linkTask != nil {
-		// TODO: figure out of this is right
+		// if we are remodeling, then we should return early due to the way that
+		// tasks are ordered by the remodeling code. specifically, all snap
+		// downloads during a remodel happen prior to snap installation. thus,
+		// we cannot wait for snaps to be installed here. see remodelTasks for
+		// more information on how the tasks are ordered.
 		if deviceCtx.ForRemodeling() {
 			return nil, nil
 		}
