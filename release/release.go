@@ -181,6 +181,11 @@ func SystemctlSupportsUserUnits() bool {
 // classic Ubuntu system or a native Ubuntu Core image.
 var OnClassic bool
 
+// OnTouch states whether the process is running inside a Touch image
+// with a classic (but mostly read-only) filesystem layout.
+// It is a narrowed down variant of OnClassic
+var OnTouch bool
+
 // OnWSL states whether the process is running inside the Windows
 // Subsystem for Linux
 var OnWSL bool
@@ -196,6 +201,8 @@ func init() {
 	ReleaseInfo = readOSRelease()
 
 	OnClassic = (ReleaseInfo.ID != "ubuntu-core")
+
+	OnTouch = (OnClassic && ReleaseInfo.VariantID == "touch")
 
 	WSLVersion = getWSLVersion()
 	OnWSL = WSLVersion != 0
