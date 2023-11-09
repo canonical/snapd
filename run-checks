@@ -344,8 +344,6 @@ if [ "$STATIC" = 1 ]; then
 
         echo "Checking tests formatting"
         if [ -n "$FILTERED_TESTS" ]; then
-            echo pwd
-            pwd
             ./tests/lib/external/snapd-testing-tools/utils/check-test-format --tests "$FILTERED_TESTS"
         fi
     fi
