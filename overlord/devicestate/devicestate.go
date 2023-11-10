@@ -757,6 +757,10 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	}
 	snapsAccountedFor["snapd"] = true
 
+	// TODO: this order is not correct, and needs to be changed to match the
+	// order that is described in the comment on essentialSnapsRestartOrder in
+	// overlord/snapstate/reboot.go
+	//
 	// In the order: kernel, boot base, gadget
 	for _, modelSnap := range new.EssentialSnaps() {
 		if modelSnap.SnapType == "snapd" {
