@@ -707,7 +707,8 @@ func sortNonEssentialRemodelTaskSets(snaps []*asserts.ModelSnap) []*asserts.Mode
 	copyOfSnaps := append([]*asserts.ModelSnap(nil), snaps...)
 
 	orderOfType := func(snapType string) int {
-		if snap.TypeBase == snap.Type(snapType) {
+		switch snap.Type(snapType) {
+		case snap.TypeBase, snap.TypeOS:
 			return -1
 		}
 		return 1
