@@ -521,7 +521,7 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pat
 		// which needs to be installed
 		return remodelVar.InstallWithDeviceContext(ctx, st,
 			pathSI, ms.newSnap, newModelSnapChannel, userID,
-			snapstate.Flags{Required: true}, deviceCtx, fromChange)
+			snapstate.Flags{}, deviceCtx, fromChange)
 	}
 
 	// in UC20+ models, the model can specify a channel for each

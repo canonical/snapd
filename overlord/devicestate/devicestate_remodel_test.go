@@ -5671,7 +5671,11 @@ func (s *deviceMgrRemodelSuite) TestRemodelVerifyOrderOfTasks(c *C) {
 	}
 
 	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
-		c.Check(flags.Required, Equals, true)
+		// currently we do not set essential snaps as required as they are
+		// prevented from being removed by other means
+		if name != "kernel-new" {
+			c.Check(flags.Required, Equals, true)
+		}
 		c.Check(deviceCtx, Equals, testDeviceCtx)
 		c.Check(fromChange, Equals, "99")
 
