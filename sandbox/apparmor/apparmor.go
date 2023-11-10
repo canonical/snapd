@@ -404,7 +404,7 @@ func probeParserFeatures() ([]string, error) {
 			probe:   "# test unconfined",
 		},
 	}
-	_, internal, err := AppArmorParser()
+	cmd, internal, err := AppArmorParser()
 	if err != nil {
 		return []string{}, err
 	}
@@ -423,6 +423,7 @@ func probeParserFeatures() ([]string, error) {
 		features = append(features, "snapd-internal")
 	}
 	sort.Strings(features)
+	logger.Debugf("probed apparmor parser features for version %s (internal=%v): %v", appArmorParserVersion(cmd), internal, features)
 	return features, nil
 }
 
@@ -494,6 +495,20 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	}
 
 	return nil, false, os.ErrNotExist
+}
+
+func appArmorParserVersion(cmd *exec.Cmd) string {
+	cmd.Args = append(cmd.Args, "--version")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return ""
+	}
+	logger.Debugf("apparmor_parser --version\n%s", output)
+	// output is like "AppArmor parser version 2.13.4\n"
+	// "Copyright ..."
+	// get the version number from the first line
+	parts := strings.Split(strings.Split(string(output), "\n")[0], " ")
+	return parts[len(parts)-1]
 }
 
 // tryAppArmorParserFeature attempts to pre-process a bit of apparmor syntax with a given parser.
