@@ -5797,7 +5797,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelVerifyOrderOfTasks(c *C) {
 func verifyOrderOfSnapSetups(c *C, tss []*state.TaskSet, expectedTypes []snap.Type) {
 	foundTypes := make([]snap.Type, 0, len(expectedTypes))
 	for _, ts := range tss {
-		snapsup := snapSetupFromTaskSet(c, ts)
+		snapsup := snapSetupFromTaskSet(ts)
 		if snapsup == nil {
 			continue
 		}
@@ -5806,7 +5806,7 @@ func verifyOrderOfSnapSetups(c *C, tss []*state.TaskSet, expectedTypes []snap.Ty
 	c.Check(foundTypes, DeepEquals, expectedTypes)
 }
 
-func snapSetupFromTaskSet(c *C, ts *state.TaskSet) *snapstate.SnapSetup {
+func snapSetupFromTaskSet(ts *state.TaskSet) *snapstate.SnapSetup {
 	for _, t := range ts.Tasks() {
 		snapsup, err := snapstate.TaskSnapSetup(t)
 		if err != nil {
