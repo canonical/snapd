@@ -35,6 +35,14 @@ type parser interface {
 	// with constraints or false, if it may have a simple name definition.
 	expectsConstraints() bool
 
+	// setPath takes a path leading to the parser and stores it, potentially
+	// updating nested types if any have been defined.
+	setPath(path string)
+
+	// getPath returns a dotted path to the element or an empty string if
+	// it's the top level map.
+	getPath() string
+
 	// parseConstraints parses constraints for a type defined as a JSON object.
 	// Shouldn't be used with non-object/map type definitions.
 	parseConstraints(map[string]json.RawMessage) error
@@ -71,22 +79,24 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 			return nil, fmt.Errorf(`cannot parse user-defined types map: %w`, err)
 		}
 
-		schema.userTypes = make(map[string]*userTypeRefParser, len(userTypes))
+		schema.userTypes = make(map[string]parser, len(userTypes))
 		for userTypeName, typeDef := range userTypes {
 			if !validUserType.Match([]byte(userTypeName)) {
 				return nil, fmt.Errorf(`cannot parse user-defined type name %q: must match %s`, userTypeName, validUserType)
 			}
 
-			userTypeSchema, err := schema.parse(typeDef)
+			// path prefix can be empty because validations will be against a reference
+			// type that wraps this and overwrites the path prefix
+			userTypeSchema, err := schema.parse(typeDef, "")
 			if err != nil {
 				return nil, fmt.Errorf(`cannot parse user-defined type %q: %w`, userTypeName, err)
 			}
 
-			schema.userTypes[userTypeName] = newUserTypeRefParser(userTypeSchema)
+			schema.userTypes[userTypeName] = userTypeSchema
 		}
 	}
 
-	schema.topLevel, err = schema.parse(raw)
+	schema.topLevel, err = schema.parse(raw, "")
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +109,8 @@ type userTypeRefParser struct {
 	parser
 
 	stringBased bool
+
+	path string
 }
 
 func newUserTypeRefParser(p parser) *userTypeRefParser {
@@ -120,6 +132,14 @@ func (u *userTypeRefParser) isStringBased() bool {
 	return u.stringBased
 }
 
+func (u *userTypeRefParser) setPath(path string) {
+	u.parser.setPath(path)
+}
+
+func (u *userTypeRefParser) getPath() string {
+	return u.path
+}
+
 // StorageSchema represents an aspect schema and can be used to validate JSON
 // aspects against it.
 type StorageSchema struct {
@@ -127,7 +147,7 @@ type StorageSchema struct {
 	topLevel Schema
 
 	// userTypes contains schemas that can validate types defined by the user.
-	userTypes map[string]*userTypeRefParser
+	userTypes map[string]parser
 }
 
 // Validate validates the provided JSON object.
@@ -135,7 +155,7 @@ func (s *StorageSchema) Validate(raw []byte) error {
 	return s.topLevel.Validate(raw)
 }
 
-func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
+func (s *StorageSchema) parse(raw json.RawMessage, pathPrefix string) (parser, error) {
 	var typ string
 	var schemaDef map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &schemaDef); err != nil {
@@ -162,6 +182,8 @@ func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	schema.setPath(pathPrefix)
 
 	// only parse the schema if it's a schema definition w/ constraints
 	if schemaDef != nil {
@@ -202,7 +224,7 @@ func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
 
 func (s *StorageSchema) getUserType(ref string) (*userTypeRefParser, error) {
 	if userType, ok := s.userTypes[ref]; ok {
-		return userType, nil
+		return newUserTypeRefParser(userType), nil
 	}
 
 	return nil, fmt.Errorf("cannot find user-defined type %q", ref)
@@ -214,17 +236,20 @@ type mapSchema struct {
 
 	// entrySchemas maps keys to their expected types. Alternatively, the schema
 	// can constrain key and/or value types.
-	entrySchemas map[string]Schema
+	entrySchemas map[string]parser
 
 	// valueSchema validates that the map's values match a certain type.
-	valueSchema Schema
+	valueSchema parser
 
 	// keySchema validates that the map's key match a certain type.
-	keySchema Schema
+	keySchema parser
 
 	// requiredCombs holds combinations of keys that an instance of the map is
 	// allowed to have.
 	requiredCombs [][]string
+
+	// path is the path leading to the map in the schema.
+	path string
 }
 
 // Validate that raw is a valid aspect map and meets the constraints set by the
@@ -232,17 +257,17 @@ type mapSchema struct {
 func (v *mapSchema) Validate(raw []byte) error {
 	var mapValue map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &mapValue); err != nil {
-		return err
+		return annotateWithPath(v, err)
 	}
 
 	if mapValue == nil {
-		return fmt.Errorf(`cannot accept null value for "map" type`)
+		return annotateWithPath(v, fmt.Errorf(`cannot accept null value for "map" type`))
 	}
 
 	if v.entrySchemas != nil {
 		for key := range mapValue {
 			if _, ok := v.entrySchemas[key]; !ok {
-				return fmt.Errorf(`map contains unexpected key %q`, key)
+				return annotateWithPath(v, fmt.Errorf(`map contains unexpected key %q`, key))
 			}
 		}
 	}
@@ -264,7 +289,7 @@ func (v *mapSchema) Validate(raw []byte) error {
 	}
 
 	if missing {
-		return fmt.Errorf(`cannot find required combinations of keys`)
+		return annotateWithPath(v, fmt.Errorf(`cannot find required combinations of keys`))
 	}
 
 	if v.entrySchemas != nil {
@@ -284,7 +309,7 @@ func (v *mapSchema) Validate(raw []byte) error {
 		for k := range mapValue {
 			rawKey, err := json.Marshal(k)
 			if err != nil {
-				return err
+				return annotateWithPath(v, err)
 			}
 
 			if err := v.keySchema.Validate(rawKey); err != nil {
@@ -317,9 +342,15 @@ func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) err
 			return fmt.Errorf(`cannot parse map's "schema" constraint: %v`, err)
 		}
 
-		v.entrySchemas = make(map[string]Schema, len(entries))
+		v.entrySchemas = make(map[string]parser, len(entries))
 		for key, value := range entries {
-			entrySchema, err := v.topSchema.parse(value)
+			var prefix string
+			if v.path != "" {
+				prefix = v.path + "."
+			}
+			prefix += key
+
+			entrySchema, err := v.topSchema.parse(value, prefix)
 			if err != nil {
 				return err
 			}
@@ -364,11 +395,13 @@ func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) err
 		if v.keySchema, err = v.parseMapKeyType(rawKeyDef); err != nil {
 			return fmt.Errorf(`cannot parse "keys" constraint: %w`, err)
 		}
+
+		v.keySchema.setPath(v.getPath())
 	}
 
 	rawValuesDef, ok := constraints["values"]
 	if ok {
-		v.valueSchema, err = v.topSchema.parse(rawValuesDef)
+		v.valueSchema, err = v.topSchema.parse(rawValuesDef, v.path)
 		if err != nil {
 			return err
 		}
@@ -401,7 +434,7 @@ func checkExclusiveMapConstraints(obj map[string]json.RawMessage) error {
 	return nil
 }
 
-func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
+func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (parser, error) {
 	var typ string
 	if err := json.Unmarshal(raw, &typ); err != nil {
 		var typeErr *json.UnmarshalTypeError
@@ -445,8 +478,8 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 		if !userType.isStringBased() {
 			return nil, fmt.Errorf(`key type %q must be based on string`, typ[1:])
 		}
-		return userType, nil
 
+		return userType, nil
 	}
 
 	return nil, fmt.Errorf(`keys must be based on string but got %q`, typ)
@@ -454,15 +487,53 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 
 func (v *mapSchema) expectsConstraints() bool { return true }
 
+// setPath sets the path to the map and updates the paths to any schemas it may
+// contain. Although the underlying schemas will usually not have been created
+// yet, they might have been if this was parsed as a user-defined typed. In that
+// case, we must update the paths to the initially created parsers.
+func (v *mapSchema) setPath(path string) {
+	prefixPath := func(v parser) {
+		// no need to handle empty string because the schema would at least have
+		// the key as a prefix
+		v.setPath(fmt.Sprintf("%s.%s", path, v.getPath()))
+	}
+
+	for _, valParser := range v.entrySchemas {
+		prefixPath(valParser)
+	}
+
+	if v.keySchema != nil {
+		prefixPath(v.keySchema)
+	}
+
+	if v.valueSchema != nil {
+		prefixPath(v.valueSchema)
+	}
+
+	v.path = path
+}
+
+func (v *mapSchema) getPath() string { return v.path }
+
 type stringSchema struct {
 	// pattern is a regex pattern that the string must match.
 	pattern *regexp.Regexp
+
 	// choices holds the possible values the string can take, if non-empty.
 	choices []string
+
+	// path is the path leading to the string in the schema.
+	path string
 }
 
 // Validate that raw is a valid aspect string and meets the schema's constraints.
-func (v *stringSchema) Validate(raw []byte) error {
+func (v *stringSchema) Validate(raw []byte) (err error) {
+	defer func() {
+		if err != nil {
+			err = annotateWithPath(v, err)
+		}
+	}()
+
 	var value *string
 	if err := json.Unmarshal(raw, &value); err != nil {
 		return fmt.Errorf("cannot validate string: %w", err)
@@ -518,14 +589,25 @@ func (v *stringSchema) parseConstraints(constraints map[string]json.RawMessage) 
 
 func (v *stringSchema) expectsConstraints() bool { return false }
 
+func (v *stringSchema) setPath(path string) { v.path = path }
+
+func (v *stringSchema) getPath() string { return v.path }
+
 type intSchema struct {
 	min     *int64
 	max     *int64
 	choices []int64
+	path    string
 }
 
 // Validate that raw is a valid integer and meets the schema's constraints.
-func (v *intSchema) Validate(raw []byte) error {
+func (v *intSchema) Validate(raw []byte) (err error) {
+	defer func() {
+		if err != nil {
+			err = annotateWithPath(v, err)
+		}
+	}()
+
 	var num *int64
 	if err := json.Unmarshal(raw, &num); err != nil {
 		return err
@@ -586,9 +668,23 @@ func (v *intSchema) parseConstraints(constraints map[string]json.RawMessage) err
 
 func (v *intSchema) expectsConstraints() bool { return false }
 
-type anySchema struct{}
+func (v *intSchema) setPath(path string) {
+	v.path = path
+}
 
-func (v *anySchema) Validate(raw []byte) error {
+func (v *intSchema) getPath() string { return v.path }
+
+type anySchema struct {
+	path string
+}
+
+func (v *anySchema) Validate(raw []byte) (err error) {
+	defer func() {
+		if err != nil {
+			err = annotateWithPath(v, err)
+		}
+	}()
+
 	var val interface{}
 	if err := json.Unmarshal(raw, &val); err != nil {
 		return err
@@ -607,14 +703,25 @@ func (v *anySchema) parseConstraints(constraints map[string]json.RawMessage) err
 
 func (v *anySchema) expectsConstraints() bool { return false }
 
+func (v *anySchema) setPath(path string) { v.path = path }
+
+func (v *anySchema) getPath() string { return v.path }
+
 type numberSchema struct {
 	min     *float64
 	max     *float64
 	choices []float64
+	path    string
 }
 
 // Validate that raw is a valid number and meets the schema's constraints.
-func (v *numberSchema) Validate(raw []byte) error {
+func (v *numberSchema) Validate(raw []byte) (err error) {
+	defer func() {
+		if err != nil {
+			err = annotateWithPath(v, err)
+		}
+	}()
+
 	var num *float64
 	if err := json.Unmarshal(raw, &num); err != nil {
 		return err
@@ -645,11 +752,11 @@ func validateNumber[Num ~int64 | ~float64](num Num, choices []Num, min, max *Num
 	// these comparisons are susceptible to floating-point errors but given that
 	// this won't be used for general storage it should be precise enough
 	if min != nil && num < *min {
-		return fmt.Errorf(`%v is less than allowed minimum %v`, num, *min)
+		return fmt.Errorf(`%v is less than the allowed minimum %v`, num, *min)
 	}
 
 	if max != nil && num > *max {
-		return fmt.Errorf(`%v is greater than allowed maximum %v`, num, *max)
+		return fmt.Errorf(`%v is greater than the allowed maximum %v`, num, *max)
 	}
 
 	return nil
@@ -703,9 +810,22 @@ func (v *numberSchema) parseConstraints(constraints map[string]json.RawMessage) 
 
 func (v *numberSchema) expectsConstraints() bool { return false }
 
-type booleanSchema struct{}
+func (v *numberSchema) setPath(path string) { v.path = path }
 
-func (v *booleanSchema) Validate(raw []byte) error {
+func (v *numberSchema) getPath() string { return v.path }
+
+type booleanSchema struct {
+	// path is the path leading to the boolean in the schema.
+	path string
+}
+
+func (v *booleanSchema) Validate(raw []byte) (err error) {
+	defer func() {
+		if err != nil {
+			err = annotateWithPath(v, err)
+		}
+	}()
+
 	var val *bool
 	if err := json.Unmarshal(raw, &val); err != nil {
 		return err
@@ -725,26 +845,33 @@ func (v *booleanSchema) parseConstraints(constraints map[string]json.RawMessage)
 
 func (v *booleanSchema) expectsConstraints() bool { return false }
 
+func (v *booleanSchema) setPath(path string) { v.path = path }
+
+func (v *booleanSchema) getPath() string { return v.path }
+
 type arraySchema struct {
 	// topSchema is the schema for the top-level schema which contains the user types.
 	topSchema *StorageSchema
 
 	// elementType represents the type of the array's elements and can be used to
 	// validate them.
-	elementType Schema
+	elementType parser
 
 	// unique is true if the array should not contain duplicates.
 	unique bool
+
+	// path is the path leading to the array in the schema.
+	path string
 }
 
 func (v *arraySchema) Validate(raw []byte) error {
 	var array *[]json.RawMessage
 	if err := json.Unmarshal(raw, &array); err != nil {
-		return err
+		return annotateWithPath(v, err)
 	}
 
 	if array == nil {
-		return fmt.Errorf(`cannot accept null value for "array" type`)
+		return annotateWithPath(v, fmt.Errorf(`cannot accept null value for "array" type`))
 	}
 
 	for _, val := range *array {
@@ -759,7 +886,7 @@ func (v *arraySchema) Validate(raw []byte) error {
 		for _, val := range *array {
 			encodedVal := string(val)
 			if _, ok := valSet[encodedVal]; ok {
-				return fmt.Errorf(`cannot accept duplicate values for array with "unique" constraint`)
+				return annotateWithPath(v, fmt.Errorf(`cannot accept duplicate values for array with "unique" constraint`))
 			}
 			valSet[encodedVal] = struct{}{}
 		}
@@ -774,7 +901,7 @@ func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) e
 		return fmt.Errorf(`cannot parse "array": must have "values" constraint`)
 	}
 
-	typ, err := v.topSchema.parse(rawValues)
+	typ, err := v.topSchema.parse(rawValues, v.path)
 	if err != nil {
 		return fmt.Errorf(`cannot parse "array" values type: %v`, err)
 	}
@@ -794,3 +921,24 @@ func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) e
 }
 
 func (v *arraySchema) expectsConstraints() bool { return true }
+
+func (v *arraySchema) setPath(path string) {
+	if v.elementType != nil {
+		v.elementType.setPath(path)
+	}
+
+	v.path = path
+}
+
+func (v *arraySchema) getPath() string { return v.path }
+
+func annotateWithPath(p parser, err error) error {
+	pref := p.getPath()
+	if pref == "" {
+		pref = "cannot validate top level element"
+	} else {
+		pref = fmt.Sprintf("cannot validate element under %q", pref)
+	}
+
+	return fmt.Errorf("%s: %w", pref, err)
+}
