@@ -135,20 +135,20 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 		var aboutThis []aboutSnap
 		var info *snap.Info
 		if all {
-			for _, seq := range snapst.Sequence {
-				info, err = snap.ReadInfo(name, seq)
+			for _, si := range snapst.Sequence.SideInfos() {
+				info, err = snap.ReadInfo(name, si)
 				if err != nil {
 					// single revision may be broken
 					_, instanceKey := snap.SplitInstanceName(name)
 					info = &snap.Info{
-						SideInfo:    *seq,
+						SideInfo:    *si,
 						InstanceKey: instanceKey,
 						Broken:      err.Error(),
 					}
 					// clear the error
 					err = nil
 				}
-				info.Publisher, err = assertstate.PublisherStoreAccount(st, seq.SnapID)
+				info.Publisher, err = assertstate.PublisherStoreAccount(st, si.SnapID)
 				if err != nil {
 					return nil, err
 				}

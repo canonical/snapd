@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
@@ -403,7 +404,7 @@ func (s *snapServiceOptionsSuite) TestServiceControlTaskSummaries(c *C) {
 	snp := &snap.Info{SideInfo: si}
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -475,7 +476,7 @@ func (s *snapServiceOptionsSuite) TestLogReader(c *C) {
 	snp := &snap.Info{SideInfo: si}
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -522,7 +523,7 @@ func (s *snapServiceOptionsSuite) TestLogReaderFailsWithNonServices(c *C) {
 	snp := &snap.Info{SideInfo: si}
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -553,7 +554,7 @@ func (s *snapServiceOptionsSuite) TestLogReaderNamespaces(c *C) {
 	snp := &snap.Info{SideInfo: si}
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})

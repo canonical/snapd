@@ -66,7 +66,7 @@ func (s *snapFileSuite) TestGetFile(c *check.C) {
 				sideInfo := &snap.SideInfo{Revision: snap.R(-1), RealName: "foo"}
 				snapst.Active = scen.active
 				snapst.Current = sideInfo.Revision
-				snapst.Sequence = append(snapst.Sequence, sideInfo)
+				snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, snapstate.NewRevisionSideInfo(sideInfo, nil))
 				if scen.try {
 					snapst.TryMode = true
 				}

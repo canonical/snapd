@@ -282,19 +282,19 @@ func SnapDir(home string, opts *dirs.SnapDirOptions) string {
 // from the store but is not required for working offline should not
 // end up in SideInfo.
 type SideInfo struct {
-	RealName    string              `yaml:"name,omitempty" json:"name,omitempty"`
-	SnapID      string              `yaml:"snap-id" json:"snap-id"`
-	Revision    Revision            `yaml:"revision" json:"revision"`
-	Channel     string              `yaml:"channel,omitempty" json:"channel,omitempty"`
-	EditedLinks map[string][]string `yaml:"links,omitempty" json:"links,omitempty"`
+	RealName    string              `json:"name,omitempty"`
+	SnapID      string              `json:"snap-id"`
+	Revision    Revision            `json:"revision"`
+	Channel     string              `json:"channel,omitempty"`
+	EditedLinks map[string][]string `json:"links,omitempty"`
 	// subsumed by EditedLinks, by need to set for if we revert
 	// to old snapd
-	LegacyEditedContact string `yaml:"contact,omitempty" json:"contact,omitempty"`
-	EditedTitle         string `yaml:"title,omitempty" json:"title,omitempty"`
-	EditedSummary       string `yaml:"summary,omitempty" json:"summary,omitempty"`
-	EditedDescription   string `yaml:"description,omitempty" json:"description,omitempty"`
-	Private             bool   `yaml:"private,omitempty" json:"private,omitempty"`
-	Paid                bool   `yaml:"paid,omitempty" json:"paid,omitempty"`
+	LegacyEditedContact string `json:"contact,omitempty"`
+	EditedTitle         string `json:"title,omitempty"`
+	EditedSummary       string `json:"summary,omitempty"`
+	EditedDescription   string `json:"description,omitempty"`
+	Private             bool   `json:"private,omitempty"`
+	Paid                bool   `json:"paid,omitempty"`
 }
 
 // Info provides information about snaps.

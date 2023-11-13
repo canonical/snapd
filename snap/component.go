@@ -33,6 +33,14 @@ type ComponentInfo struct {
 	Description string              `yaml:"description"`
 }
 
+// ComponentSideInfo is the equivalent of SideInfo for components, and
+// includes relevant information for which the canonical source is a
+// snap store.
+type ComponentSideInfo struct {
+	Component naming.ComponentRef `json:"component"`
+	Revision  Revision            `json:"revision"`
+}
+
 // ReadComponentInfoFromContainer reads ComponentInfo from a snap component container.
 func ReadComponentInfoFromContainer(compf Container) (*ComponentInfo, error) {
 	yamlData, err := compf.ReadFile("meta/component.yaml")

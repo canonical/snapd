@@ -291,9 +291,9 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	s.state.Set("refresh-privacy-key", "privacy-key")
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "core", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -395,9 +395,9 @@ var _ = Suite(&snapmgrTestSuite{})
 
 func (s *snapmgrTestSuite) TestCleanSnapStateGet(c *C) {
 	snapst := snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "foo", Revision: snap.R(1)},
-		},
+		}),
 		Current:         snap.R(1),
 		SnapType:        "os",
 		TrackingChannel: "foo/stable",
@@ -408,9 +408,9 @@ func (s *snapmgrTestSuite) TestCleanSnapStateGet(c *C) {
 
 	defer s.state.Unlock()
 	snapstate.Set(s.state, "no-instance-key", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "core", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -421,9 +421,9 @@ func (s *snapmgrTestSuite) TestCleanSnapStateGet(c *C) {
 	err = snapstate.Get(s.state, "no-instance-key", &snapst)
 	c.Assert(err, IsNil)
 	c.Assert(snapst, DeepEquals, snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "core", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -587,12 +587,42 @@ func checkIsContinuedAutoRefresh(c *C, tasks []*state.Task, expected bool) {
 }
 
 func (s *snapmgrTestSuite) TestLastIndexFindsLast(c *C) {
-	snapst := &snapstate.SnapState{Sequence: []*snap.SideInfo{
+	snapst := &snapstate.SnapState{Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 		{Revision: snap.R(7)},
 		{Revision: snap.R(11)},
 		{Revision: snap.R(11)},
-	}}
+	})}
 	c.Check(snapst.LastIndex(snap.R(11)), Equals, 2)
+}
+
+func (s *snapmgrTestSuite) TestSequenceSerialize(c *C) {
+	si1 := &snap.SideInfo{RealName: "mysnap", SnapID: "snapid", Revision: snap.R(7)}
+	si2 := &snap.SideInfo{RealName: "othersnap", SnapID: "otherid", Revision: snap.R(11)}
+
+	// Without components
+	snapst := &snapstate.SnapState{Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+		si1, si2,
+	})}
+	marshaled, err := json.Marshal(snapst)
+	c.Assert(err, IsNil)
+	c.Check(string(marshaled), Equals, `{"type":"","sequence":[{"name":"mysnap","snap-id":"snapid","revision":"7"},{"name":"othersnap","snap-id":"otherid","revision":"11"}],"current":"unset"}`)
+
+	// With components
+	snapst = &snapstate.SnapState{Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*snapstate.RevisionSideState{
+		snapstate.NewRevisionSideInfo(si1, []*snap.ComponentSideInfo{
+			{Component: naming.NewComponentRef("mysnap", "mycomp"),
+				Revision: snap.R(7)},
+		}),
+		snapstate.NewRevisionSideInfo(si2, []*snap.ComponentSideInfo{
+			{Component: naming.NewComponentRef("othersnap", "othercomp1"),
+				Revision: snap.R(11)},
+			{Component: naming.NewComponentRef("othersnap", "othercomp2"),
+				Revision: snap.R(14)},
+		}),
+	})}
+	marshaled, err = json.Marshal(snapst)
+	c.Assert(err, IsNil)
+	c.Check(string(marshaled), Equals, `{"type":"","sequence":[{"name":"mysnap","snap-id":"snapid","revision":"7","components":[{"component":{"snap-name":"mysnap","component-name":"mycomp"},"revision":"7"}]},{"name":"othersnap","snap-id":"otherid","revision":"11","components":[{"component":{"snap-name":"othersnap","component-name":"othercomp1"},"revision":"11"},{"component":{"snap-name":"othersnap","component-name":"othercomp2"},"revision":"14"}]}],"current":"unset"}`)
 }
 
 func maybeMockClassicSupport(c *C) (restore func()) {
@@ -618,10 +648,10 @@ func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(7)},
 			{RealName: "some-snap", Revision: snap.R(11)},
-		},
+		}),
 		Flags:    flags.before,
 		Current:  snap.R(11),
 		SnapType: "app",
@@ -732,12 +762,12 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		SnapType: "app",
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(1)},
 			{RealName: "some-snap", Revision: snap.R(2)},
 			{RealName: "some-snap", Revision: snap.R(3)},
 			{RealName: "some-snap", Revision: snap.R(4)},
-		},
+		}),
 		Current: snap.R(2),
 	})
 
@@ -768,9 +798,9 @@ func (s *snapmgrTestSuite) TestEnableTasks(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  false,
 	})
@@ -793,9 +823,9 @@ func (s *snapmgrTestSuite) TestSwitchTasks(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  false,
 	})
@@ -812,9 +842,9 @@ func (s *snapmgrTestSuite) TestSwitchConflict(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  false,
 	})
@@ -841,9 +871,9 @@ func (s *snapmgrTestSuite) TestSwitchRevision(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 	})
 
@@ -858,9 +888,9 @@ func (s *snapmgrTestSuite) TestSwitchKernelTrackForbidden(c *C) {
 	r := snapstatetest.MockDeviceModel(ModelWithKernelTrack("18"))
 	defer r()
 	snapstate.Set(s.state, "kernel", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "kernel", Revision: snap.R(11)},
-		},
+		}),
 		TrackingChannel: "18/stable",
 		Current:         snap.R(11),
 		Active:          true,
@@ -877,9 +907,9 @@ func (s *snapmgrTestSuite) TestSwitchKernelTrackRiskOnlyIsOK(c *C) {
 	r := snapstatetest.MockDeviceModel(ModelWithKernelTrack("18"))
 	defer r()
 	snapstate.Set(s.state, "kernel", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "kernel", Revision: snap.R(11)},
-		},
+		}),
 		TrackingChannel: "18/stable",
 		Current:         snap.R(11),
 		Active:          true,
@@ -896,9 +926,9 @@ func (s *snapmgrTestSuite) TestSwitchKernelTrackRiskOnlyDefaultTrackIsOK(c *C) {
 	r := snapstatetest.MockDeviceModel(ModelWithKernelTrack("18"))
 	defer r()
 	snapstate.Set(s.state, "kernel", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "kernel", Revision: snap.R(11)},
-		},
+		}),
 		TrackingChannel: "18/stable",
 		Current:         snap.R(11),
 		Active:          true,
@@ -915,9 +945,9 @@ func (s *snapmgrTestSuite) TestSwitchGadgetTrackForbidden(c *C) {
 	r := snapstatetest.MockDeviceModel(ModelWithGadgetTrack("18"))
 	defer r()
 	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "brand-gadget", Revision: snap.R(11)},
-		},
+		}),
 		TrackingChannel: "18/stable",
 		Current:         snap.R(11),
 		Active:          true,
@@ -934,9 +964,9 @@ func (s *snapmgrTestSuite) TestSwitchGadgetTrackRiskOnlyIsOK(c *C) {
 	r := snapstatetest.MockDeviceModel(ModelWithGadgetTrack("18"))
 	defer r()
 	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "brand-gadget", Revision: snap.R(11)},
-		},
+		}),
 		TrackingChannel: "18/stable",
 		Current:         snap.R(11),
 		Active:          true,
@@ -953,9 +983,9 @@ func (s *snapmgrTestSuite) TestSwitchGadgetTrackRiskOnlyDefaultTrackIsOK(c *C) {
 	r := snapstatetest.MockDeviceModel(ModelWithGadgetTrack("18"))
 	defer r()
 	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "brand-gadget", Revision: snap.R(11)},
-		},
+		}),
 		TrackingChannel: "18/stable",
 		Current:         snap.R(11),
 		Active:          true,
@@ -970,9 +1000,9 @@ func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 	})
@@ -995,9 +1025,9 @@ func (s *snapmgrTestSuite) TestEnableConflict(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  false,
 	})
@@ -1016,9 +1046,9 @@ func (s *snapmgrTestSuite) TestDisableConflict(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 	})
@@ -1054,9 +1084,9 @@ func (s *snapmgrTestSuite) TestDoUpdateHadSlots(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(4)},
-		},
+		}),
 		Current:  snap.R(4),
 		SnapType: "app",
 	})
@@ -1106,9 +1136,9 @@ func (s *snapmgrTestSuite) TestDisableSnapDisabledServicesSaved(c *C) {
 	}()
 
 	snapstate.Set(s.state, "services-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "services-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 	})
@@ -1147,9 +1177,9 @@ func (s *snapmgrTestSuite) TestEnableSnapDisabledServicesPassedAroundHappy(c *C)
 	}()
 
 	snapstate.Set(s.state, "services-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "services-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 	})
@@ -1209,9 +1239,9 @@ func (s *snapmgrTestSuite) TestEnableSnapDisabledServicesNotSaved(c *C) {
 	}()
 
 	snapstate.Set(s.state, "services-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "services-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 	})
@@ -1271,9 +1301,9 @@ func (s *snapmgrTestSuite) TestEnableSnapMissingDisabledServicesMergedAndSaved(c
 	}()
 
 	snapstate.Set(s.state, "services-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "services-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 		// keep this to make gofmt 1.10 happy
@@ -1327,9 +1357,9 @@ func (s *snapmgrTestSuite) TestEnableSnapMissingDisabledServicesSaved(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "services-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "services-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 		// keep this to make gofmt 1.10 happy
@@ -1388,10 +1418,10 @@ func (s *snapmgrTestSuite) TestRevertRestoresConfigSnapshot(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
 			{RealName: "some-snap", Revision: snap.R(2)},
-		},
+		}),
 		Current:  snap.R(2),
 		SnapType: "app",
 	})
@@ -1448,7 +1478,7 @@ func (s *snapmgrTestSuite) TestRevertNoRevertAgain(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&si, &siNew},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si, &siNew}),
 		Current:  snap.R(7),
 	})
 
@@ -1468,7 +1498,7 @@ func (s *snapmgrTestSuite) TestRevertNothingToRevertTo(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:  si.Revision,
 	})
 
@@ -1492,7 +1522,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNoValidVersion(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&si, &si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si, &si2}),
 		Current:  snap.R(77),
 	})
 
@@ -1516,7 +1546,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionAlreadyCurrent(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&si, &si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si, &si2}),
 		Current:  snap.R(77),
 	})
 
@@ -1541,7 +1571,7 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		SnapType: "app",
-		Sequence: []*snap.SideInfo{&siOld, &si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&siOld, &si}),
 		Current:  si.Revision,
 	})
 
@@ -1605,17 +1635,17 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	c.Check(snapst.LastRefreshTime, IsNil)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Current, Equals, snap.R(2))
-	c.Assert(snapst.Sequence, HasLen, 2)
-	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions, HasLen, 2)
+	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "",
 		Revision: snap.R(2),
-	})
-	c.Assert(snapst.Sequence[1], DeepEquals, &snap.SideInfo{
+	}, nil))
+	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "",
 		Revision: snap.R(7),
-	})
+	}, nil))
 	c.Check(snapst.RevertStatus, HasLen, 0)
 	c.Assert(snapst.Block(), DeepEquals, []snap.Revision{snap.R(7)})
 }
@@ -1636,7 +1666,7 @@ func (s *snapmgrTestSuite) TestRevertRevisionNotBlocked(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		SnapType: "app",
-		Sequence: []*snap.SideInfo{&siOld, &si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&siOld, &si}),
 		Current:  si.Revision,
 	})
 
@@ -1657,17 +1687,17 @@ func (s *snapmgrTestSuite) TestRevertRevisionNotBlocked(c *C) {
 	c.Check(snapst.LastRefreshTime, IsNil)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Current, Equals, snap.R(2))
-	c.Assert(snapst.Sequence, HasLen, 2)
-	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions, HasLen, 2)
+	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "",
 		Revision: snap.R(2),
-	})
-	c.Assert(snapst.Sequence[1], DeepEquals, &snap.SideInfo{
+	}, nil))
+	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "",
 		Revision: snap.R(7),
-	})
+	}, nil))
 	// we have reverted from rev 7 to rev 2, but rev 7 is marked as not blocked
 	// due to revert.
 	c.Check(snapst.RevertStatus, DeepEquals, map[int]snapstate.RevertStatus{
@@ -1692,7 +1722,7 @@ func (s *snapmgrTestSuite) TestRevertRevisionNotBlockedUndo(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		SnapType: "app",
-		Sequence: []*snap.SideInfo{&si, &si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si, &si2}),
 		Current:  si2.Revision,
 		RevertStatus: map[int]snapstate.RevertStatus{
 			3: snapstate.NotBlocked,
@@ -1718,7 +1748,7 @@ func (s *snapmgrTestSuite) TestRevertRevisionNotBlockedUndo(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
-	c.Assert(snapst.Sequence, HasLen, 2)
+	c.Assert(snapst.Sequence.Revisions, HasLen, 2)
 	c.Assert(snapst.Current, Equals, snap.R(2))
 	c.Check(snapst.RevertStatus, DeepEquals, map[int]snapstate.RevertStatus{
 		3: snapstate.NotBlocked,
@@ -1742,17 +1772,17 @@ func (s *snapmgrTestSuite) TestRevertWithBaseRunThrough(c *C) {
 	snapstate.Set(s.state, "core", nil)
 	snapstate.Set(s.state, "core18", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "core18", SnapID: "core18-snap-id", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "base",
 	})
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -1761,7 +1791,7 @@ func (s *snapmgrTestSuite) TestRevertWithBaseRunThrough(c *C) {
 	snapstate.Set(s.state, "some-snap-with-base", &snapstate.SnapState{
 		Active:   true,
 		SnapType: "app",
-		Sequence: []*snap.SideInfo{&siOld, &si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&siOld, &si}),
 		Current:  si.Revision,
 	})
 
@@ -1841,7 +1871,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 	snapstate.Set(s.state, "some-snap_instance", &snapstate.SnapState{
 		Active:      true,
 		SnapType:    "app",
-		Sequence:    []*snap.SideInfo{&siOld, &si},
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&siOld, &si}),
 		Current:     si.Revision,
 		InstanceKey: "instance",
 	})
@@ -1850,7 +1880,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		SnapType: "app",
-		Sequence: []*snap.SideInfo{&siOld, &si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&siOld, &si}),
 		Current:  si.Revision,
 	})
 
@@ -1913,17 +1943,17 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Current, Equals, snap.R(2))
 	c.Assert(snapst.InstanceKey, Equals, "instance")
-	c.Assert(snapst.Sequence, HasLen, 2)
-	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions, HasLen, 2)
+	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "",
 		Revision: snap.R(2),
-	})
-	c.Assert(snapst.Sequence[1], DeepEquals, &snap.SideInfo{
+	}, nil))
+	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "",
 		Revision: snap.R(7),
-	})
+	}, nil))
 	c.Assert(snapst.Block(), DeepEquals, []snap.Revision{snap.R(7)})
 
 	// non instance snap is not affected
@@ -1950,7 +1980,7 @@ func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		SnapType: "app",
-		Sequence: []*snap.SideInfo{&siOld, &si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&siOld, &si}),
 		Current:  si.Revision,
 	})
 
@@ -1991,7 +2021,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,
 		SnapType:        "app",
-		Sequence:        []*snap.SideInfo{&si, &siNew},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si, &siNew}),
 		Current:         snap.R(2),
 		TrackingChannel: "latest/edge",
 	})
@@ -2051,7 +2081,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Current, Equals, snap.R(7))
-	c.Check(snapst.Sequence, HasLen, 2)
+	c.Check(snapst.Sequence.Revisions, HasLen, 2)
 	c.Check(snapst.TrackingChannel, Equals, "latest/edge")
 	c.Check(snapst.CurrentSideInfo(), DeepEquals, &siNew)
 
@@ -2074,7 +2104,7 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		SnapType: "app",
-		Sequence: []*snap.SideInfo{&si, &si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si, &si2}),
 		Current:  si2.Revision,
 	})
 
@@ -2168,7 +2198,7 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
-	c.Assert(snapst.Sequence, HasLen, 2)
+	c.Assert(snapst.Sequence.Revisions, HasLen, 2)
 	c.Assert(snapst.Current, Equals, si2.Revision)
 }
 
@@ -2188,7 +2218,7 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		SnapType: "app",
-		Sequence: []*snap.SideInfo{&si, &si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si, &si2}),
 		Current:  si2.Revision,
 	})
 
@@ -2262,7 +2292,7 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
-	c.Assert(snapst.Sequence, HasLen, 2)
+	c.Assert(snapst.Sequence.Revisions, HasLen, 2)
 	c.Assert(snapst.Current, Equals, snap.R(2))
 }
 
@@ -2282,7 +2312,7 @@ func (s *snapmgrTestSuite) TestRevertUndoMigrationAfterUnsetFlag(c *C) {
 	snapst := &snapstate.SnapState{
 		Active:         true,
 		SnapType:       "app",
-		Sequence:       []*snap.SideInfo{&si, &si2},
+		Sequence:       snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si, &si2}),
 		Current:        si2.Revision,
 		MigratedHidden: true,
 	}
@@ -2317,7 +2347,7 @@ func (s *snapmgrTestSuite) TestRevertKeepMigrationWithSetFlag(c *C) {
 	snapst := &snapstate.SnapState{
 		Active:         true,
 		SnapType:       "app",
-		Sequence:       []*snap.SideInfo{&si, &si2},
+		Sequence:       snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si, &si2}),
 		Current:        si2.Revision,
 		MigratedHidden: true,
 	}
@@ -2356,7 +2386,7 @@ func (s *snapmgrTestSuite) TestRevertDoHiddenMigration(c *C) {
 	snapst := &snapstate.SnapState{
 		Active:   true,
 		SnapType: "app",
-		Sequence: []*snap.SideInfo{&si, &si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si, &si2}),
 		Current:  si.Revision,
 	}
 	snapstate.Set(s.state, "some-snap", snapst)
@@ -2399,7 +2429,7 @@ func (s *snapmgrTestSuite) TestUndoRevertDoHiddenMigration(c *C) {
 	snapst := &snapstate.SnapState{
 		Active:   true,
 		SnapType: "app",
-		Sequence: []*snap.SideInfo{&si, &si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si, &si2}),
 		Current:  si.Revision,
 	}
 	snapstate.Set(s.state, "some-snap", snapst)
@@ -2464,7 +2494,7 @@ func (s *snapmgrTestSuite) TestRevertFromCore22WithSetFlagKeepMigration(c *C) {
 	snapst := &snapstate.SnapState{
 		Active:                true,
 		SnapType:              "app",
-		Sequence:              []*snap.SideInfo{&si, &si2},
+		Sequence:              snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si, &si2}),
 		Current:               si2.Revision,
 		MigratedHidden:        true,
 		MigratedToExposedHome: true,
@@ -2479,7 +2509,7 @@ func (s *snapmgrTestSuite) TestRevertFromCore22WithSetFlagKeepMigration(c *C) {
 	snapstate.Set(s.state, "core20", &snapstate.SnapState{
 		Active:   true,
 		SnapType: "base",
-		Sequence: []*snap.SideInfo{{Revision: snap.R(1)}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1)}}),
 		Current:  snap.R(1),
 	})
 
@@ -2522,7 +2552,7 @@ func (s *snapmgrTestSuite) TestRevertToCore22WithoutFlagSet(c *C) {
 	snapst := &snapstate.SnapState{
 		Active:                true,
 		SnapType:              "app",
-		Sequence:              []*snap.SideInfo{&si, &si2},
+		Sequence:              snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si, &si2}),
 		Current:               si2.Revision,
 		MigratedHidden:        true,
 		MigratedToExposedHome: true,
@@ -2533,7 +2563,7 @@ func (s *snapmgrTestSuite) TestRevertToCore22WithoutFlagSet(c *C) {
 	snapstate.Set(s.state, "core22", &snapstate.SnapState{
 		Active:   true,
 		SnapType: "base",
-		Sequence: []*snap.SideInfo{{Revision: snap.R(1)}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1)}}),
 		Current:  snap.R(1),
 	})
 
@@ -2598,7 +2628,7 @@ func (s *snapmgrTestSuite) testRevertToCore22AfterRevertedMigration(c *C, migrat
 	snapst := &snapstate.SnapState{
 		Active:                true,
 		SnapType:              "app",
-		Sequence:              []*snap.SideInfo{&si1, &si2},
+		Sequence:              snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si1, &si2}),
 		Current:               si1.Revision,
 		MigratedHidden:        migrationState.HiddenSnapDataDir,
 		MigratedToExposedHome: migrationState.MigratedToExposedHome,
@@ -2609,7 +2639,7 @@ func (s *snapmgrTestSuite) testRevertToCore22AfterRevertedMigration(c *C, migrat
 	snapstate.Set(s.state, "core22", &snapstate.SnapState{
 		Active:   true,
 		SnapType: "base",
-		Sequence: []*snap.SideInfo{{Revision: snap.R(1)}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1)}}),
 		Current:  snap.R(1),
 	})
 
@@ -2677,7 +2707,7 @@ func (s *snapmgrTestSuite) testUndoRevertToCore22AfterRevertedMigration(c *C, mi
 	snapst := &snapstate.SnapState{
 		Active:                true,
 		SnapType:              "app",
-		Sequence:              []*snap.SideInfo{&si1, &si2},
+		Sequence:              snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si1, &si2}),
 		Current:               si1.Revision,
 		MigratedHidden:        migrationState.HiddenSnapDataDir,
 		MigratedToExposedHome: migrationState.MigratedToExposedHome,
@@ -2688,7 +2718,7 @@ func (s *snapmgrTestSuite) testUndoRevertToCore22AfterRevertedMigration(c *C, mi
 	snapstate.Set(s.state, "core22", &snapstate.SnapState{
 		Active:   true,
 		SnapType: "base",
-		Sequence: []*snap.SideInfo{{Revision: snap.R(1)}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1)}}),
 		Current:  snap.R(1),
 	})
 
@@ -2746,7 +2776,7 @@ func (s *snapmgrTestSuite) testRevertUndoHiddenMigrationFails(c *C, prepFail pre
 	snapst := &snapstate.SnapState{
 		Active:         true,
 		SnapType:       "app",
-		Sequence:       []*snap.SideInfo{&si, &si2},
+		Sequence:       snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si, &si2}),
 		Current:        si2.Revision,
 		MigratedHidden: true,
 	}
@@ -2785,7 +2815,7 @@ func (s *snapmgrTestSuite) TestRevertUndoExposedMigrationFailsAfterWritingState(
 	snapst := &snapstate.SnapState{
 		Active:                true,
 		SnapType:              "app",
-		Sequence:              []*snap.SideInfo{&si, &si2},
+		Sequence:              snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si, &si2}),
 		Current:               si2.Revision,
 		MigratedHidden:        true,
 		MigratedToExposedHome: true,
@@ -2849,7 +2879,7 @@ func (s *snapmgrTestSuite) testRevertUndoFullMigrationFails(c *C, prepFail prepF
 	snapst := &snapstate.SnapState{
 		Active:                true,
 		SnapType:              "app",
-		Sequence:              []*snap.SideInfo{&si, &si2},
+		Sequence:              snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si, &si2}),
 		Current:               si2.Revision,
 		MigratedHidden:        true,
 		MigratedToExposedHome: true,
@@ -2883,7 +2913,7 @@ func (s *snapmgrTestSuite) TestEnableDoesNotEnableAgain(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{&si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:  snap.R(7),
 		Active:   true,
 	})
@@ -2912,7 +2942,7 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 		Required: true,
 	}
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence:            []*snap.SideInfo{&si},
+		Sequence:            snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:             si.Revision,
 		Active:              false,
 		TrackingChannel:     "latest/edge",
@@ -2992,7 +3022,7 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{&si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:  si.Revision,
 		Active:   true,
 		SnapType: "app",
@@ -3065,7 +3095,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceEnableRunThrough(c *C) {
 		Required: true,
 	}
 	snapstate.Set(s.state, "some-snap_instance", &snapstate.SnapState{
-		Sequence:            []*snap.SideInfo{&si},
+		Sequence:            snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:             si.Revision,
 		Active:              false,
 		TrackingChannel:     "latest/edge",
@@ -3075,7 +3105,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceEnableRunThrough(c *C) {
 		InstanceKey:         "instance",
 	})
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence:            []*snap.SideInfo{&si},
+		Sequence:            snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:             si.Revision,
 		Active:              false,
 		TrackingChannel:     "latest/edge",
@@ -3151,12 +3181,12 @@ func (s *snapmgrTestSuite) TestParallelInstanceDisableRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{&si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:  si.Revision,
 		Active:   true,
 	})
 	snapstate.Set(s.state, "some-snap_instance", &snapstate.SnapState{
-		Sequence:    []*snap.SideInfo{&si},
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:     si.Revision,
 		Active:      true,
 		InstanceKey: "instance",
@@ -3331,7 +3361,7 @@ func (s *snapmgrTestSuite) testSwitchScenario(c *C, desc string, t switchScenari
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence:        []*snap.SideInfo{&si},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:         si.Revision,
 		TrackingChannel: t.chanFrom,
 		CohortKey:       t.cohFrom,
@@ -3384,13 +3414,13 @@ func (s *snapmgrTestSuite) TestParallelInstallSwitchRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence:        []*snap.SideInfo{&si},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:         si.Revision,
 		TrackingChannel: "latest/edge",
 	})
 
 	snapstate.Set(s.state, "some-snap_instance", &snapstate.SnapState{
-		Sequence:        []*snap.SideInfo{&si},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:         si.Revision,
 		TrackingChannel: "latest/edge",
 		InstanceKey:     "instance",
@@ -3435,7 +3465,7 @@ func (s *snapmgrTestSuite) TestDisableDoesNotEnableAgain(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{&si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:  snap.R(7),
 		Active:   false,
 	})
@@ -3498,11 +3528,11 @@ SNAPD_APPARMOR_REEXEC=1
 
 	snapSt := &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: snapName, Revision: snap.R(1)},
 			{RealName: snapName, Revision: snap.R(2)},
 			{RealName: snapName, Revision: snap.R(11)},
-		},
+		}),
 		Current:  snap.R(11),
 		SnapType: "os",
 	}
@@ -3576,9 +3606,9 @@ func (s *snapmgrTestSuite) TestEnsureSkipsCheckingSnapdSnapInfoFileWhenStateSet(
 	snapstate.Set(s.state, "core", nil)
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "snapd", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "snapd",
 	})
@@ -3601,9 +3631,9 @@ func (s *snapmgrTestSuite) TestEnsureSkipsCheckingBothCoreAndSnapdSnapsInfoFileW
 	st.Lock()
 	snapstate.Set(st, "snapd", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "snapd", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "snapd",
 	})
@@ -3978,9 +4008,9 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdate(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -4014,9 +4044,9 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesImmediateWithUpdate(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -4044,9 +4074,9 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateError(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -4081,9 +4111,9 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesInFlight(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -4151,9 +4181,9 @@ func (s *snapmgrTestSuite) testEnsureRefreshesDisabledViaSnapdControl(c *C, conf
 
 	snapstate.Set(st, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -4385,13 +4415,13 @@ description: |
     Lots of text`, instanceSideInfo13)
 	snapstate.Set(st, "name1", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo11, sideInfo12},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo11, sideInfo12}),
 		Current:  sideInfo12.Revision,
 		SnapType: "app",
 	})
 	snapstate.Set(st, "name1_instance", &snapstate.SnapState{
 		Active:      true,
-		Sequence:    []*snap.SideInfo{instanceSideInfo13},
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{instanceSideInfo13}),
 		Current:     instanceSideInfo13.Revision,
 		SnapType:    "app",
 		InstanceKey: "instance",
@@ -4582,7 +4612,7 @@ version: v1
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
 		SnapType: "gadget",
 		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:  sideInfo.Revision,
 	})
 
@@ -4627,7 +4657,7 @@ version: v2
 	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:  sideInfo.Revision,
 	})
 
@@ -4664,7 +4694,7 @@ version: v18
 	snapstate.Set(st, "core18", &snapstate.SnapState{
 		SnapType: "base",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 	})
 
@@ -4684,7 +4714,7 @@ version: v20
 	snapstate.Set(st, "core20", &snapstate.SnapState{
 		SnapType: "base",
 		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:  sideInfo.Revision,
 	})
 
@@ -4740,7 +4770,7 @@ func (s *snapmgrQuerySuite) TestCoreInfoInternal(c *C) {
 			snapstate.Set(st, snapName, &snapstate.SnapState{
 				SnapType: string(snap.TypeOS),
 				Active:   true,
-				Sequence: []*snap.SideInfo{sideInfo},
+				Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 				Current:  sideInfo.Revision,
 			})
 		}
@@ -4798,7 +4828,7 @@ func (s *snapmgrQuerySuite) TestHasSnapOfType(c *C) {
 		snapstate.Set(st, x.snapName, &snapstate.SnapState{
 			SnapType: string(x.snapType),
 			Active:   true,
-			Sequence: []*snap.SideInfo{sideInfo},
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 			Current:  sideInfo.Revision,
 		})
 
@@ -4859,7 +4889,7 @@ func (s *snapmgrQuerySuite) TestAll(c *C) {
 	c.Check(info12.Version, Equals, "1.2")
 	c.Check(info12.Description(), Equals, "Lots of text")
 
-	info11, err := snap.ReadInfo("name1", snapst.Sequence[0])
+	info11, err := snap.ReadInfo("name1", snapst.Sequence.Revisions[0].Snap)
 	c.Assert(err, IsNil)
 
 	c.Check(info11.InstanceName(), Equals, "name1")
@@ -4882,7 +4912,7 @@ func (s *snapmgrQuerySuite) TestAll(c *C) {
 	c.Check(info13.Version, Equals, "1.3")
 	c.Check(info13.Description(), Equals, "Lots of text")
 
-	info13other, err := snap.ReadInfo("name1_instance", instance.Sequence[0])
+	info13other, err := snap.ReadInfo("name1_instance", instance.Sequence.Revisions[0].Snap)
 	c.Assert(err, IsNil)
 	c.Check(info13, DeepEquals, info13other)
 }
@@ -4952,7 +4982,7 @@ func (s *snapStateSuite) TestCurrentSideInfoEmpty(c *C) {
 func (s *snapStateSuite) TestCurrentSideInfoSimple(c *C) {
 	si1 := &snap.SideInfo{Revision: snap.R(1)}
 	snapst := snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  snap.R(1),
 	}
 	c.Check(snapst.CurrentSideInfo(), DeepEquals, si1)
@@ -4962,7 +4992,7 @@ func (s *snapStateSuite) TestCurrentSideInfoInOrder(c *C) {
 	si1 := &snap.SideInfo{Revision: snap.R(1)}
 	si2 := &snap.SideInfo{Revision: snap.R(2)}
 	snapst := snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si1, si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1, si2}),
 		Current:  snap.R(2),
 	}
 	c.Check(snapst.CurrentSideInfo(), DeepEquals, si2)
@@ -4972,7 +5002,7 @@ func (s *snapStateSuite) TestCurrentSideInfoOutOfOrder(c *C) {
 	si1 := &snap.SideInfo{Revision: snap.R(1)}
 	si2 := &snap.SideInfo{Revision: snap.R(2)}
 	snapst := snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si1, si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1, si2}),
 		Current:  snap.R(1),
 	}
 	c.Check(snapst.CurrentSideInfo(), DeepEquals, si1)
@@ -4980,16 +5010,16 @@ func (s *snapStateSuite) TestCurrentSideInfoOutOfOrder(c *C) {
 
 func (s *snapStateSuite) TestCurrentSideInfoInconsistent(c *C) {
 	snapst := snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{Revision: snap.R(1)},
-		},
+		}),
 	}
-	c.Check(func() { snapst.CurrentSideInfo() }, PanicMatches, `snapst.Current and snapst.Sequence out of sync:.*`)
+	c.Check(func() { snapst.CurrentSideInfo() }, PanicMatches, `snapst.Current and snapst.Sequence.Revisions out of sync:.*`)
 }
 
 func (s *snapStateSuite) TestCurrentSideInfoInconsistentWithCurrent(c *C) {
 	snapst := snapstate.SnapState{Current: snap.R(17)}
-	c.Check(func() { snapst.CurrentSideInfo() }, PanicMatches, `cannot find snapst.Current in the snapst.Sequence`)
+	c.Check(func() { snapst.CurrentSideInfo() }, PanicMatches, `cannot find snapst.Current in the snapst.Sequence.Revisions`)
 }
 
 func (s *snapmgrTestSuite) testRevertSequence(c *C, opts *opSeqOpts) *state.TaskSet {
@@ -5222,7 +5252,7 @@ func (s *snapmgrTestSuite) TestSnapStateNoLocalRevision(c *C) {
 		Revision: snap.R(-11),
 	}
 	snapst := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{&si7, &si11},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si7, &si11}),
 		Current:  si7.Revision,
 	}
 	c.Assert(snapst.LocalRevision(), Equals, snap.R(-11))
@@ -5234,7 +5264,7 @@ func (s *snapmgrTestSuite) TestSnapStateLocalRevision(c *C) {
 		Revision: snap.R(7),
 	}
 	snapst := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{&si7},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si7}),
 		Current:  si7.Revision,
 	}
 	c.Assert(snapst.LocalRevision().Unset(), Equals, true)
@@ -5274,7 +5304,7 @@ version: 1.0
 
 	snapstate.Set(s.state, "the-gadget", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&gadgetInfo.SideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&gadgetInfo.SideInfo}),
 		Current:  snap.R(1),
 		SnapType: "gadget",
 	})
@@ -5323,7 +5353,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasks(c *C) {
 	snapstate.Set(s.state, "core", nil)
 	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -5346,13 +5376,13 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasksWithUbuntuCoreAndCore(c *C) {
 
 	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -5374,7 +5404,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 	snapstate.Set(s.state, "core", nil)
 	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
 		Active:          true,
-		Sequence:        []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}}),
 		Current:         snap.R(1),
 		SnapType:        "os",
 		TrackingChannel: "latest/beta",
@@ -5564,14 +5594,14 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 
 	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
 		Active:          true,
-		Sequence:        []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}}),
 		Current:         snap.R(1),
 		SnapType:        "os",
 		TrackingChannel: "latest/stable",
 	})
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active:          true,
-		Sequence:        []*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1)}}),
 		Current:         snap.R(1),
 		SnapType:        "os",
 		TrackingChannel: "latest/stable",
@@ -5665,7 +5695,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreStartsAutomatically(c *C) {
 
 	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "core-snap-id", Revision: snap.R(1)}}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -5686,7 +5716,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTooEarly(c *C) {
 
 	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "core-snap-id", Revision: snap.R(1)}}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -5707,7 +5737,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTimeLimitWorks(c *C) {
 
 	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "core-snap-id", Revision: snap.R(1)}}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -5739,7 +5769,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreNoOtherChanges(c *C) {
 
 	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "core-snap-id", Revision: snap.R(1)}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "core-snap-id", Revision: snap.R(1)}}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -5803,7 +5833,7 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapDoesRunWithAnySnap(c *C) {
 	snapstate.Set(s.state, "core", nil)
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "foo", SnapID: "foo-id", Revision: snap.R(1), Channel: "beta"}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "foo", SnapID: "foo-id", Revision: snap.R(1), Channel: "beta"}}),
 		Current:  snap.R(1),
 	})
 
@@ -5819,7 +5849,7 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapDoesNotRunWhenNotEnabled(c *C)
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "beta"}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "beta"}}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -5836,7 +5866,7 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapStartsAutomaticallyWhenEnabled
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "beta"}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "beta"}}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -5868,7 +5898,7 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapWithCoreRunthrough(c *C) {
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "edge"}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "core", SnapID: "core-snap-id", Revision: snap.R(1), Channel: "edge"}}),
 		Current:  snap.R(1),
 		SnapType: "os",
 		// TrackingChannel
@@ -6018,10 +6048,10 @@ func (s *snapmgrTestSuite) checkForceDevModeCleanupRuns(c *C, name string, shoul
 
 	snapstate.Set(s.state, name, &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
 			RealName: name,
 			SnapID:   "id-id-id",
-			Revision: snap.R(1)}},
+			Revision: snap.R(1)}}),
 		Current:  snap.R(1),
 		SnapType: "os",
 		Flags:    snapstate.Flags{DevMode: true},
@@ -6071,10 +6101,10 @@ func (s *snapmgrTestSuite) TestForceDevModeCleanupSkipsNonForcedOS(c *C) {
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
 			RealName: "core",
 			SnapID:   "id-id-id",
-			Revision: snap.R(1)}},
+			Revision: snap.R(1)}}),
 		Current:  snap.R(1),
 		SnapType: "os",
 		Flags:    snapstate.Flags{DevMode: true},
@@ -6117,9 +6147,9 @@ func (s *snapmgrTestSuite) TestEnsureAliasesV2(c *C) {
 
 	snapstate.Set(s.state, "core", nil)
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 	})
@@ -6185,9 +6215,9 @@ func (s *snapmgrTestSuite) TestEnsureAliasesV2SnapDisabled(c *C) {
 
 	snapstate.Set(s.state, "core", nil)
 	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  false,
 	})
@@ -6261,9 +6291,9 @@ func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 
 	for _, instanceName := range []string{"a-snap", "b-snap"} {
 		snapstate.Set(s.state, instanceName, &snapstate.SnapState{
-			Sequence: []*snap.SideInfo{
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 				{RealName: instanceName, Revision: snap.R(11)},
-			},
+			}),
 			Current: snap.R(11),
 			Active:  false,
 		})
@@ -6305,9 +6335,9 @@ func (s *snapmgrTestSuite) TestConflictChangeId(c *C) {
 
 	for i, name := range snaps {
 		snapstate.Set(s.state, name, &snapstate.SnapState{
-			Sequence: []*snap.SideInfo{
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 				{RealName: name, Revision: snap.R(11)},
-			},
+			}),
 			Current: snap.R(11),
 		})
 
@@ -6696,7 +6726,7 @@ func (s *snapmgrTestSuite) TestNoConfigureForBasesTask(c *C) {
 	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
 		Active:          true,
 		TrackingChannel: "latest/edge",
-		Sequence:        []*snap.SideInfo{{RealName: "some-base", SnapID: "some-base-id", Revision: snap.R(1)}},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "some-base", SnapID: "some-base-id", Revision: snap.R(1)}}),
 		Current:         snap.R(1),
 		SnapType:        "base",
 	})
@@ -6761,7 +6791,7 @@ func (s *snapmgrTestSuite) TestNoConfigureForSnapdSnap(c *C) {
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
 		Active:          true,
 		TrackingChannel: "latest/edge",
-		Sequence:        []*snap.SideInfo{{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(1)}},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(1)}}),
 		Current:         snap.R(1),
 		SnapType:        "app",
 	})
@@ -6802,26 +6832,26 @@ func (s *snapmgrTestSuite) TestHasOtherInstances(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
 	snapstate.Set(s.state, "some-snap_instance", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(3)},
-		},
+		}),
 		Current:     snap.R(3),
 		SnapType:    "app",
 		InstanceKey: "instance",
 	})
 	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-other-snap", SnapID: "some-other-snap-id", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -6853,9 +6883,9 @@ func (s *snapmgrTestSuite) TestHasOtherInstances(c *C) {
 	// add another snap with instance key
 	snapstate.Set(s.state, "some-snap_other", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(3)},
-		},
+		}),
 		Current:     snap.R(3),
 		SnapType:    "app",
 		InstanceKey: "other",
@@ -6879,13 +6909,13 @@ func (s *snapmgrTestSuite) TestRequestSalt(c *C) {
 
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:  si.Revision,
 		SnapType: "app",
 	})
 	snapstate.Set(s.state, "other-snap_instance", &snapstate.SnapState{
 		Active:      true,
-		Sequence:    []*snap.SideInfo{&si},
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:     si.Revision,
 		SnapType:    "app",
 		InstanceKey: "instance",
@@ -7019,9 +7049,9 @@ func (s *snapmgrTestSuite) TestSnapManagerCanStandby(c *C) {
 	// snaps installed -> can *not* standby
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "core", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -7130,9 +7160,9 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnRefresh(c *C) {
 
 	snapstate.Set(s.state, "brand-gadget", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "brand-gadget", SnapID: "brand-gadget-id", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "gadget",
 	})
@@ -7155,9 +7185,9 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnKernelRefresh(c *C) {
 
 	snapstate.Set(s.state, "brand-kernel", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "brand-kernel", SnapID: "brand-kernel-id", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "kernel",
 	})
@@ -7233,7 +7263,7 @@ func (s *snapmgrTestSuite) runStartSnapServicesWithDisabledServices(c *C, disabl
 
 	snapstate.Set(s.state, "hello-snap", &snapstate.SnapState{
 		Active:                     true,
-		Sequence:                   []*snap.SideInfo{si},
+		Sequence:                   snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:                    si.Revision,
 		SnapType:                   "app",
 		LastActiveDisabledServices: disabled,
@@ -7294,7 +7324,7 @@ func (s *snapmgrTestSuite) TestStartSnapServicesUndo(c *C) {
 
 	snapstate.Set(s.state, "hello-snap", &snapstate.SnapState{
 		Active:                     true,
-		Sequence:                   []*snap.SideInfo{si},
+		Sequence:                   snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:                    si.Revision,
 		SnapType:                   "app",
 		LastActiveDisabledServices: []string{"old-svc"},
@@ -7354,7 +7384,7 @@ func (s *snapmgrTestSuite) TestStopSnapServicesUndo(c *C) {
 
 	snapstate.Set(s.state, "hello-snap", &snapstate.SnapState{
 		Active:                     true,
-		Sequence:                   []*snap.SideInfo{si},
+		Sequence:                   snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:                    si.Revision,
 		SnapType:                   "app",
 		LastActiveDisabledServices: []string{"old-svc"},
@@ -7415,7 +7445,7 @@ func (s *snapmgrTestSuite) TestStopSnapServicesErrInUndo(c *C) {
 
 	snapstate.Set(s.state, "hello-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		SnapType: "app",
 	})
@@ -7571,7 +7601,7 @@ func (s *snapmgrTestSuite) TestInstallModeDisableUpdateServiceNotDisabled(c *C) 
 		RealName: "services-snap", SnapID: "services-snap-id", Revision: snap.R(7),
 	}
 	snapstate.Set(s.state, "services-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		Active:   true,
 	})
@@ -7644,9 +7674,9 @@ func (s *snapmgrTestSuite) TestSnapdRefreshTasks(c *C) {
 
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "snapd",
 	})
@@ -7828,7 +7858,7 @@ func (s *snapmgrTestSuite) TestInstalledSnaps(c *C) {
 
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "foo", Revision: snap.R(23), SnapID: "foo-id"}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "foo", Revision: snap.R(23), SnapID: "foo-id"}}),
 		Current:  snap.R(23),
 	})
 	snaptest.MockSnap(c, string(`name: foo
@@ -7836,7 +7866,7 @@ version: 1`), &snap.SideInfo{Revision: snap.R("13")})
 
 	snapstate.Set(st, "bar", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "bar", Revision: snap.R(5), SnapID: "bar-id"}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "bar", Revision: snap.R(5), SnapID: "bar-id"}}),
 		Current:  snap.R(5),
 		Flags:    snapstate.Flags{IgnoreValidation: true},
 	})
@@ -7859,7 +7889,7 @@ func (s *snapmgrTestSuite) addSnapsForRemodel(c *C) {
 	snaptest.MockSnapCurrent(c, "name: some-base\nversion: 1.0\ntype: base\n", si)
 	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		SnapType: "base",
 	})
@@ -7870,7 +7900,7 @@ func (s *snapmgrTestSuite) addSnapsForRemodel(c *C) {
 	snaptest.MockSnapCurrent(c, "name: some-kernel\nversion: 1.0\ntype: kernel\n", si)
 	snapstate.Set(s.state, "some-kernel", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		SnapType: "kernel",
 	})
@@ -7880,7 +7910,7 @@ func (s *snapmgrTestSuite) addSnapsForRemodel(c *C) {
 	snaptest.MockSnapCurrent(c, "name: some-gadget\nversion: 1.0\ntype: gadget\n", si)
 	snapstate.Set(s.state, "some-gadget", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		SnapType: "gadget",
 	})
@@ -7961,7 +7991,7 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelBadType(c *C) {
 	snaptest.MockSnapCurrent(c, "name: snap-gadget\nversion: 1.0\n", si)
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		SnapType: "app",
 	})
@@ -8123,7 +8153,7 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetBadType(c *C) {
 	snaptest.MockSnapCurrent(c, "name: snap-gadget\nversion: 1.0\n", si)
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		SnapType: "app",
 	})
@@ -8155,7 +8185,7 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetConflict(c *C) {
 	snaptest.MockSnapCurrent(c, "name: snap-gadget\nversion: 1.0\n", si)
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		SnapType: "app",
 	})
@@ -8181,7 +8211,7 @@ func (s *snapmgrTestSuite) TestRemodelSwitchNewGadgetConflictExclusiveKind(c *C)
 	snaptest.MockSnapCurrent(c, "name: snap-gadget\nversion: 1.0\n", si)
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		SnapType: "app",
 	})
@@ -8278,7 +8308,7 @@ func (s *snapmgrTestSuite) TestMigrateHome(c *C) {
 	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(3)}
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		SnapType: "app",
 	})
@@ -8328,7 +8358,7 @@ func (s *snapmgrTestSuite) TestMigrateHomeUndo(c *C) {
 	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(3)}
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 	})
 
@@ -8396,7 +8426,7 @@ func (s *snapmgrTestSuite) TestMigrateHomeFailIfSnapNotInstalled(c *C) {
 	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(3)}
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		SnapType: "app",
 	})
@@ -8417,7 +8447,7 @@ func (s *snapmgrTestSuite) TestMigrateHomeFailIfAlreadyMigrated(c *C) {
 	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(3)}
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:                true,
-		Sequence:              []*snap.SideInfo{si},
+		Sequence:              snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:               si.Revision,
 		SnapType:              "app",
 		MigratedToExposedHome: true,
@@ -8529,7 +8559,7 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementError(c *C) {
 		RealName: "some-other-snap",
 	}
 	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{info},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{info}),
 		Current:  info.Revision,
 		Active:   true,
 	})
@@ -8624,7 +8654,7 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorReverse(c *C
 		RealName: "some-other-snap",
 	}
 	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{info},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{info}),
 		Current:  info.Revision,
 		Active:   true,
 	})
@@ -8707,7 +8737,7 @@ func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMounts(c *C) {
 
 	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
 	testSnapState := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{testSnapSideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{testSnapSideInfo}),
 		Current:  snap.R(42),
 		Active:   true,
 		SnapType: "app",
@@ -8784,7 +8814,7 @@ func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsNoChange(c *C) {
 
 	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
 	testSnapState := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{testSnapSideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{testSnapSideInfo}),
 		Current:  snap.R(42),
 		Active:   true,
 		SnapType: "app",
@@ -8839,7 +8869,7 @@ WantedBy=multi-user.target
 func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsCreated(c *C) {
 	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
 	testSnapState := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{testSnapSideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{testSnapSideInfo}),
 		Current:  snap.R(42),
 		Active:   true,
 		SnapType: "app",
@@ -8901,7 +8931,7 @@ func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteDesktopFiles(c *C) {
 
 	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
 	testSnapState := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{testSnapSideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{testSnapSideInfo}),
 		Current:  snap.R(42),
 		Active:   true,
 		SnapType: "app",
@@ -8953,17 +8983,17 @@ func (s *snapmgrTestSuite) TestSaveRefreshCandidatesOnAutoRefresh(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
 	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-other-snap", SnapID: "some-other-snap-id", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -9003,25 +9033,25 @@ func (s *snapmgrTestSuite) TestSaveMonitoredRefreshCandidatesOnAutoRefreshThrott
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
 	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-other-snap", SnapID: "some-other-snap-id", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
 	snapstate.Set(s.state, "snap-c", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "snap-c", SnapID: "snap-c-id", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -9118,7 +9148,7 @@ func (s *snapmgrTestSuite) TestRefreshCandidatesMergeFlags(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{Sequence: []*snap.SideInfo{si}})
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si})})
 
 	globalFlags := &snapstate.Flags{IsAutoRefresh: true, IsContinuedAutoRefresh: true}
 	snapsup, _, err := cand.SnapSetupForUpdate(s.state, nil, 0, globalFlags, nil)
@@ -9246,9 +9276,9 @@ func (s *snapmgrTestSuite) TestEndEdgeSetCorrectlyNoConfigureRefresh(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Flags:  snapstate.Flags{DevMode: true},
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
-		},
+		}),
 		Current:         snap.R(1),
 		SnapType:        "app",
 		TrackingChannel: "wibbly/stable",
@@ -9392,9 +9422,9 @@ func (s *snapmgrTestSuite) TestDownloadAlreadyInstalled(c *C) {
 
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Current: snap.R(11),
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "foo", SnapID: snaptest.AssertedSnapID("foo"), Revision: snap.R(11)},
-		},
+		}),
 		Active:   true,
 		SnapType: "app",
 	})

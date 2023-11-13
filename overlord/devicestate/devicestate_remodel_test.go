@@ -1433,7 +1433,7 @@ volumes:
 
 	snapstate.Set(s.state, "gadget", &snapstate.SnapState{
 		SnapType: "gadget",
-		Sequence: []*snap.SideInfo{siCurrent},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siCurrent}),
 		Current:  siCurrent.Revision,
 		Active:   true,
 	})
@@ -1619,7 +1619,7 @@ volumes:
 	})
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType: "gadget",
-		Sequence: []*snap.SideInfo{siModelGadget},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelGadget}),
 		Current:  siModelGadget.Revision,
 		Active:   true,
 	})
@@ -1795,7 +1795,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType: "gadget",
-		Sequence: []*snap.SideInfo{siModelGadget},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelGadget}),
 		Current:  siModelGadget.Revision,
 		Active:   true,
 	})
@@ -1991,7 +1991,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType:        "gadget",
-		Sequence:        []*snap.SideInfo{siModelGadget},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelGadget}),
 		Current:         siModelGadget.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -2004,7 +2004,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 	}
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
 		SnapType:        "kernel",
-		Sequence:        []*snap.SideInfo{siModelKernel},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelKernel}),
 		Current:         siModelKernel.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -2017,7 +2017,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 	}
 	snapstate.Set(s.state, "core20", &snapstate.SnapState{
 		SnapType:        "base",
-		Sequence:        []*snap.SideInfo{siModelBase},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelBase}),
 		Current:         siModelBase.Revision,
 		Active:          true,
 		TrackingChannel: "latest/stable",
@@ -2030,7 +2030,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 	}
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
 		SnapType:        "snapd",
-		Sequence:        []*snap.SideInfo{siModelSnapd},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelSnapd}),
 		Current:         siModelSnapd.Revision,
 		Active:          true,
 		TrackingChannel: "latest/stable",
@@ -2323,7 +2323,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelGadgetBaseSnaps(c *C,
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType: "gadget",
-		Sequence: []*snap.SideInfo{siModelGadget},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelGadget}),
 		Current:  siModelGadget.Revision,
 		Active:   true,
 	})
@@ -2335,7 +2335,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelGadgetBaseSnaps(c *C,
 	}
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
 		SnapType: "kernel",
-		Sequence: []*snap.SideInfo{siModelKernel},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelKernel}),
 		Current:  siModelKernel.Revision,
 		Active:   true,
 	})
@@ -2347,7 +2347,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelGadgetBaseSnaps(c *C,
 	}
 	snapstate.Set(s.state, "core20", &snapstate.SnapState{
 		SnapType:        "base",
-		Sequence:        []*snap.SideInfo{siModelBase},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelBase}),
 		Current:         siModelBase.Revision,
 		Active:          true,
 		TrackingChannel: "latest/stable",
@@ -2570,7 +2570,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType:        "gadget",
-		Sequence:        []*snap.SideInfo{siModelGadget},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelGadget}),
 		Current:         siModelGadget.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -2583,7 +2583,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	}
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
 		SnapType:        "kernel",
-		Sequence:        []*snap.SideInfo{siModelKernel},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelKernel}),
 		Current:         siModelKernel.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -2607,7 +2607,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 		info := snaptest.MakeSnapFileAndDir(c, snapYaml, nil, si)
 		snapstate.Set(s.state, alreadyInstalledName, &snapstate.SnapState{
 			SnapType:        string(info.Type()),
-			Sequence:        []*snap.SideInfo{si},
+			Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 			Current:         si.Revision,
 			Active:          true,
 			TrackingChannel: channel,
@@ -2890,7 +2890,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType:        "gadget",
-		Sequence:        []*snap.SideInfo{siModelGadget},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelGadget}),
 		Current:         siModelGadget.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -2903,7 +2903,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	}
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
 		SnapType:        "kernel",
-		Sequence:        []*snap.SideInfo{siModelKernel},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelKernel}),
 		Current:         siModelKernel.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -2925,7 +2925,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 		info := snaptest.MakeSnapFileAndDir(c, snapYaml, nil, si)
 		snapstate.Set(s.state, alreadyInstalledName, &snapstate.SnapState{
 			SnapType:        string(info.Type()),
-			Sequence:        []*snap.SideInfo{si},
+			Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 			Current:         si.Revision,
 			Active:          true,
 			TrackingChannel: channel,
@@ -3156,7 +3156,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType:        "gadget",
-		Sequence:        []*snap.SideInfo{siModelGadget},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelGadget}),
 		Current:         siModelGadget.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -3169,7 +3169,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	}
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
 		SnapType:        "kernel",
-		Sequence:        []*snap.SideInfo{siModelKernel},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelKernel}),
 		Current:         siModelKernel.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -3190,7 +3190,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 		info := snaptest.MakeSnapFileAndDir(c, snapYaml, nil, si)
 		snapstate.Set(s.state, alreadyInstalledName, &snapstate.SnapState{
 			SnapType:        string(info.Type()),
-			Sequence:        []*snap.SideInfo{si},
+			Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 			Current:         si.Revision,
 			Active:          true,
 			TrackingChannel: channel,
@@ -3384,7 +3384,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsTrackingDifferentCh
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType:        "gadget",
-		Sequence:        []*snap.SideInfo{siModelGadget},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelGadget}),
 		Current:         siModelGadget.Revision,
 		Active:          true,
 		TrackingChannel: "20/edge",
@@ -3397,7 +3397,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsTrackingDifferentCh
 	}
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
 		SnapType:        "kernel",
-		Sequence:        []*snap.SideInfo{siModelKernel},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelKernel}),
 		Current:         siModelKernel.Revision,
 		Active:          true,
 		TrackingChannel: "20/edge",
@@ -3410,7 +3410,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsTrackingDifferentCh
 	}
 	snapstate.Set(s.state, "core20", &snapstate.SnapState{
 		SnapType:        "base",
-		Sequence:        []*snap.SideInfo{siModelBase},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelBase}),
 		Current:         siModelBase.Revision,
 		Active:          true,
 		TrackingChannel: "20/edge",
@@ -3559,7 +3559,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsAlreadyInstalledAnd
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType:        "gadget",
-		Sequence:        []*snap.SideInfo{siModelGadget},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelGadget}),
 		Current:         siModelGadget.Revision,
 		Active:          true,
 		TrackingChannel: "",
@@ -3571,7 +3571,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsAlreadyInstalledAnd
 	}
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
 		SnapType:        "kernel",
-		Sequence:        []*snap.SideInfo{siModelKernel},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelKernel}),
 		Current:         siModelKernel.Revision,
 		Active:          true,
 		TrackingChannel: "",
@@ -3583,7 +3583,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsAlreadyInstalledAnd
 	}
 	snapstate.Set(s.state, "core20", &snapstate.SnapState{
 		SnapType:        "base",
-		Sequence:        []*snap.SideInfo{siModelBase},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelBase}),
 		Current:         siModelBase.Revision,
 		Active:          true,
 		TrackingChannel: "",
@@ -3739,7 +3739,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20BaseNoDownloadSimpleChannelSwitch
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType:        "gadget",
-		Sequence:        []*snap.SideInfo{siModelGadget},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelGadget}),
 		Current:         siModelGadget.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -3752,7 +3752,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20BaseNoDownloadSimpleChannelSwitch
 	}
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
 		SnapType:        "kernel",
-		Sequence:        []*snap.SideInfo{siModelKernel},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelKernel}),
 		Current:         siModelKernel.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -3765,7 +3765,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20BaseNoDownloadSimpleChannelSwitch
 	}
 	snapstate.Set(s.state, "core20", &snapstate.SnapState{
 		SnapType: "base",
-		Sequence: []*snap.SideInfo{siModelBase},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelBase}),
 		Current:  siModelBase.Revision,
 		Active:   true,
 		// the same channel as in the current model
@@ -3934,7 +3934,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialNoDownloadSimpleChannelS
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType:        "gadget",
-		Sequence:        []*snap.SideInfo{siModelGadget},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelGadget}),
 		Current:         siModelGadget.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -3947,7 +3947,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialNoDownloadSimpleChannelS
 	}
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
 		SnapType:        "kernel",
-		Sequence:        []*snap.SideInfo{siModelKernel},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelKernel}),
 		Current:         siModelKernel.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -3960,7 +3960,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialNoDownloadSimpleChannelS
 	}
 	snapstate.Set(s.state, "core20", &snapstate.SnapState{
 		SnapType:        "base",
-		Sequence:        []*snap.SideInfo{siModelBase},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelBase}),
 		Current:         siModelBase.Revision,
 		Active:          true,
 		TrackingChannel: "latest/stable",
@@ -3973,7 +3973,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialNoDownloadSimpleChannelS
 	}
 	snapstate.Set(s.state, "snap-1-base", &snapstate.SnapState{
 		SnapType:        "base",
-		Sequence:        []*snap.SideInfo{appBase},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{appBase}),
 		Current:         appBase.Revision,
 		Active:          true,
 		TrackingChannel: "latest/stable",
@@ -3995,7 +3995,7 @@ base: snap-1-base
 
 	snapstate.Set(s.state, "snap-1", &snapstate.SnapState{
 		SnapType: "app",
-		Sequence: []*snap.SideInfo{&info.SideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&info.SideInfo}),
 		Current:  info.Revision,
 		Active:   true,
 		// the same channel as in the current model
@@ -4127,7 +4127,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20LabelConflicts(c *C, tc remodelUC
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType:        "gadget",
-		Sequence:        []*snap.SideInfo{siModelGadget},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelGadget}),
 		Current:         siModelGadget.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -4140,7 +4140,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20LabelConflicts(c *C, tc remodelUC
 	}
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
 		SnapType:        "kernel",
-		Sequence:        []*snap.SideInfo{siModelKernel},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelKernel}),
 		Current:         siModelKernel.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -4153,7 +4153,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20LabelConflicts(c *C, tc remodelUC
 	}
 	snapstate.Set(s.state, "core20", &snapstate.SnapState{
 		SnapType:        "base",
-		Sequence:        []*snap.SideInfo{siModelBase},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelBase}),
 		Current:         siModelBase.Revision,
 		Active:          true,
 		TrackingChannel: "latest/stable",
@@ -4315,7 +4315,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType:        "gadget",
-		Sequence:        []*snap.SideInfo{siModelGadget},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelGadget}),
 		Current:         siModelGadget.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -4328,7 +4328,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 	}
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
 		SnapType:        "kernel",
-		Sequence:        []*snap.SideInfo{siModelKernel},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelKernel}),
 		Current:         siModelKernel.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -4341,7 +4341,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 	}
 	snapstate.Set(s.state, "core20", &snapstate.SnapState{
 		SnapType:        "base",
-		Sequence:        []*snap.SideInfo{siModelBase},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelBase}),
 		Current:         siModelBase.Revision,
 		Active:          true,
 		TrackingChannel: "latest/stable",
@@ -4588,7 +4588,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType:        "gadget",
-		Sequence:        []*snap.SideInfo{siModelGadget},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelGadget}),
 		Current:         siModelGadget.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -4601,7 +4601,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 	}
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
 		SnapType:        "kernel",
-		Sequence:        []*snap.SideInfo{siModelKernel},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelKernel}),
 		Current:         siModelKernel.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -4614,7 +4614,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 	}
 	snapstate.Set(s.state, "core20", &snapstate.SnapState{
 		SnapType:        "base",
-		Sequence:        []*snap.SideInfo{siModelBase},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelBase}),
 		Current:         siModelBase.Revision,
 		Active:          true,
 		TrackingChannel: "latest/stable",
@@ -4628,7 +4628,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 		}
 		snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 			SnapType:        "app",
-			Sequence:        []*snap.SideInfo{siSomeSnap},
+			Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siSomeSnap}),
 			Current:         siSomeSnap.Revision,
 			Active:          true,
 			TrackingChannel: "latest/stable",
@@ -4861,7 +4861,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 	snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
 		SnapType: string(info.Type()),
 		Active:   true,
-		Sequence: []*snap.SideInfo{&info.SideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&info.SideInfo}),
 		Current:  info.Revision,
 	})
 
@@ -4889,7 +4889,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType:        "gadget",
-		Sequence:        []*snap.SideInfo{siModelGadget},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelGadget}),
 		Current:         siModelGadget.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -4902,7 +4902,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 	}
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
 		SnapType:        "kernel",
-		Sequence:        []*snap.SideInfo{siModelKernel},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelKernel}),
 		Current:         siModelKernel.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -4915,7 +4915,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 	}
 	snapstate.Set(s.state, "core20", &snapstate.SnapState{
 		SnapType:        "base",
-		Sequence:        []*snap.SideInfo{siModelBase},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelBase}),
 		Current:         siModelBase.Revision,
 		Active:          true,
 		TrackingChannel: "latest/stable",
@@ -5294,7 +5294,7 @@ plugs:
 		snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
 			SnapType:        string(info.Type()),
 			Active:          true,
-			Sequence:        []*snap.SideInfo{&info.SideInfo},
+			Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&info.SideInfo}),
 			Current:         info.Revision,
 			TrackingChannel: "latest/stable",
 		})
@@ -5333,7 +5333,7 @@ plugs:
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType:        "gadget",
-		Sequence:        []*snap.SideInfo{siModelGadget},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelGadget}),
 		Current:         siModelGadget.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -5346,7 +5346,7 @@ plugs:
 	}
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
 		SnapType:        "kernel",
-		Sequence:        []*snap.SideInfo{siModelKernel},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelKernel}),
 		Current:         siModelKernel.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -5359,7 +5359,7 @@ plugs:
 	}
 	snapstate.Set(s.state, "core20", &snapstate.SnapState{
 		SnapType:        "base",
-		Sequence:        []*snap.SideInfo{siModelBase},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelBase}),
 		Current:         siModelBase.Revision,
 		Active:          true,
 		TrackingChannel: "latest/stable",
@@ -5512,7 +5512,7 @@ plugs:
 	snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
 		SnapType:        string(info.Type()),
 		Active:          true,
-		Sequence:        []*snap.SideInfo{&info.SideInfo},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&info.SideInfo}),
 		Current:         info.Revision,
 		TrackingChannel: "latest/stable",
 	})
@@ -5554,7 +5554,7 @@ plugs:
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType:        "gadget",
-		Sequence:        []*snap.SideInfo{siModelGadget},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelGadget}),
 		Current:         siModelGadget.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -5567,7 +5567,7 @@ plugs:
 	}
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
 		SnapType:        "kernel",
-		Sequence:        []*snap.SideInfo{siModelKernel},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelKernel}),
 		Current:         siModelKernel.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -5580,7 +5580,7 @@ plugs:
 	}
 	snapstate.Set(s.state, "core20", &snapstate.SnapState{
 		SnapType:        "base",
-		Sequence:        []*snap.SideInfo{siModelBase},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelBase}),
 		Current:         siModelBase.Revision,
 		Active:          true,
 		TrackingChannel: "latest/stable",
@@ -5751,7 +5751,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelVerifyOrderOfTasks(c *C) {
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType:        "gadget",
-		Sequence:        []*snap.SideInfo{siModelGadget},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelGadget}),
 		Current:         siModelGadget.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -5765,7 +5765,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelVerifyOrderOfTasks(c *C) {
 	}
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
 		SnapType:        "kernel",
-		Sequence:        []*snap.SideInfo{siModelKernel},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelKernel}),
 		Current:         siModelKernel.Revision,
 		Active:          true,
 		TrackingChannel: "20/stable",
@@ -5779,7 +5779,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelVerifyOrderOfTasks(c *C) {
 	}
 	snapstate.Set(s.state, "core20", &snapstate.SnapState{
 		SnapType:        "base",
-		Sequence:        []*snap.SideInfo{siModelBase},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siModelBase}),
 		Current:         siModelBase.Revision,
 		Active:          true,
 		TrackingChannel: "latest/stable",

@@ -657,18 +657,18 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			retain-- //  we're adding one
 		}
 
-		seq := snapst.Sequence
+		seq := snapst.Sequence.Revisions
 		currentIndex := snapst.LastIndex(snapst.Current)
 
 		// discard everything after "current" (we may have reverted to
 		// a previous versions earlier)
 		for i := currentIndex + 1; i < len(seq); i++ {
 			si := seq[i]
-			if si.Revision == targetRevision {
+			if si.Snap.Revision == targetRevision {
 				// but don't discard this one; its' the thing we're switching to!
 				continue
 			}
-			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision, snapsup.Type)
+			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.Snap.SnapID, si.Snap.Revision, snapsup.Type)
 			addTasksFromTaskSet(ts)
 		}
 
@@ -677,7 +677,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		// the sequence.
 		for i := 0; i < currentIndex; i++ {
 			si := seq[i]
-			if si.Revision == targetRevision {
+			if si.Snap.Revision == targetRevision {
 				// we do *not* want to removeInactiveRevision of this one
 				copy(seq[i:], seq[i+1:])
 				seq = seq[:len(seq)-1]
@@ -697,10 +697,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			}
 
 			si := seq[i]
-			if inUse(snapsup.InstanceName(), si.Revision) {
+			if inUse(snapsup.InstanceName(), si.Snap.Revision) {
 				continue
 			}
-			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision, snapsup.Type)
+			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.Snap.SnapID, si.Snap.Revision, snapsup.Type)
 			addTasksFromTaskSet(ts)
 		}
 
@@ -2576,7 +2576,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name string, opts *Revisi
 		return info, nil
 	}
 	var sideInfo *snap.SideInfo
-	for _, si := range snapst.Sequence {
+	for _, si := range snapst.Sequence.SideInfos() {
 		if si.Revision == opts.Revision {
 			sideInfo = si
 			break
@@ -3395,7 +3395,7 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 		if active {
 			if revision == snapst.Current {
 				msg := "cannot remove active revision %s of snap %q"
-				if len(snapst.Sequence) > 1 {
+				if len(snapst.Sequence.Revisions) > 1 {
 					msg += " (revert first?)"
 				}
 				return nil, 0, fmt.Errorf(msg, revision, name)
@@ -3407,7 +3407,7 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 			return nil, 0, &snap.NotInstalledError{Snap: name, Rev: revision}
 		}
 
-		removeAll = len(snapst.Sequence) == 1
+		removeAll = len(snapst.Sequence.Revisions) == 1
 	}
 
 	info, err := Info(st, name, revision)
@@ -3517,18 +3517,18 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 	}
 
 	if removeAll {
-		seq := snapst.Sequence
+		si := snapst.Sequence.SideInfos()
 		currentIndex := snapst.LastIndex(snapst.Current)
-		for i := len(seq) - 1; i >= 0; i-- {
+		for i := len(si) - 1; i >= 0; i-- {
 			if i != currentIndex {
-				si := seq[i]
+				si := si[i]
 				addNext(removeInactiveRevision(st, name, info.SnapID, si.Revision, snapsup.Type))
 			}
 		}
 		// add tasks for removing the current revision last,
 		// this is then also when common data will be removed
 		if currentIndex >= 0 {
-			addNext(removeInactiveRevision(st, name, info.SnapID, seq[currentIndex].Revision, snapsup.Type))
+			addNext(removeInactiveRevision(st, name, info.SnapID, si[currentIndex].Revision, snapsup.Type))
 		}
 	} else {
 		addNext(removeInactiveRevision(st, name, info.SnapID, revision, snapsup.Type))
@@ -3683,7 +3683,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 
 	snapsup := &SnapSetup{
 		Base:        info.Base,
-		SideInfo:    snapst.Sequence[i],
+		SideInfo:    snapst.Sequence.SideInfos()[i],
 		Flags:       flags.ForSnapSetup(),
 		Type:        info.Type(),
 		Version:     info.Version,
@@ -3793,8 +3793,9 @@ func Info(st *state.State, name string, revision snap.Revision) (*snap.Info, err
 		return nil, err
 	}
 
-	for i := len(snapst.Sequence) - 1; i >= 0; i-- {
-		if si := snapst.Sequence[i]; si.Revision == revision {
+	sis := snapst.Sequence.SideInfos()
+	for i := len(sis) - 1; i >= 0; i-- {
+		if si := sis[i]; si.Revision == revision {
 			return readInfo(name, si, 0)
 		}
 	}
@@ -3906,7 +3907,7 @@ func Set(st *state.State, name string, snapst *SnapState) {
 	if snaps == nil {
 		snaps = make(map[string]*json.RawMessage)
 	}
-	if snapst == nil || (len(snapst.Sequence) == 0) {
+	if snapst == nil || (len(snapst.Sequence.Revisions) == 0) {
 		delete(snaps, name)
 	} else {
 		data, err := json.Marshal(snapst)
