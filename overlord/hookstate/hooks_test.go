@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -77,7 +78,7 @@ func (s *gateAutoRefreshHookSuite) SetUpTest(c *C) {
 	snaptest.MockSnap(c, snapaYaml, si)
 	snapstate.Set(s.state, "snap-a", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 	})
 
@@ -85,7 +86,7 @@ func (s *gateAutoRefreshHookSuite) SetUpTest(c *C) {
 	snaptest.MockSnap(c, snapbYaml, si2)
 	snapstate.Set(s.state, "snap-b", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  snap.R(1),
 	})
 
@@ -93,7 +94,7 @@ func (s *gateAutoRefreshHookSuite) SetUpTest(c *C) {
 	snaptest.MockSnap(c, snapaBaseYaml, si3)
 	snapstate.Set(s.state, "base-snap-a", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si3},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si3}),
 		Current:  snap.R(1),
 	})
 

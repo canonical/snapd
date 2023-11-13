@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
@@ -79,21 +80,21 @@ func (s *deviceMgrSuite) TestSetModelHandlerNewRevision(c *C) {
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		SnapType: "app",
 		Active:   true,
-		Sequence: []*snap.SideInfo{fooSI},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{fooSI}),
 		Current:  fooSI.Revision,
 		Flags:    snapstate.Flags{Required: true},
 	})
 	snapstate.Set(s.state, "bar", &snapstate.SnapState{
 		SnapType: "app",
 		Active:   true,
-		Sequence: []*snap.SideInfo{barSI},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{barSI}),
 		Current:  barSI.Revision,
 		Flags:    snapstate.Flags{Required: true},
 	})
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,
-		Sequence: []*snap.SideInfo{pcKernelSI},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{pcKernelSI}),
 		Current:  pcKernelSI.Revision,
 		Flags:    snapstate.Flags{Required: true},
 	})
@@ -485,7 +486,7 @@ apps:
 
 	snapstate.Set(st, "test-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		SnapType: "app",
 	})

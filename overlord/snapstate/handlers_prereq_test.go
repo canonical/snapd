@@ -94,7 +94,7 @@ func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
 		Revision: snap.R(1),
 	}
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 	})
 
@@ -237,9 +237,9 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "core", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -342,7 +342,7 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 			var snapst snapstate.SnapState
 			snapstate.Get(st, snapsup.InstanceName(), &snapst)
 			snapst.Current = snapsup.Revision()
-			snapst.Sequence = append(snapst.Sequence, snapsup.SideInfo)
+			snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, snapstate.NewRevisionSideInfo(snapsup.SideInfo, nil))
 			snapstate.Set(st, snapsup.InstanceName(), &snapst)
 
 			// check that prerequisites task is not done yet, it must wait for core.
@@ -410,9 +410,9 @@ func (s *prereqSuite) TestDoPrereqChannelEnvvars(c *C) {
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "core", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -538,7 +538,7 @@ func (s *prereqSuite) TestDoPrereqCore16wCoreNothingToDo(c *C) {
 		Revision: snap.R(1),
 	}
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 	})
 
@@ -838,12 +838,12 @@ func (s *prereqSuite) TestDoPrereqSkipDuringRemodel(c *C) {
 
 	// install snapd so that prerequisites handler won't try to install it
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
 				RealName: "snapd",
 				Revision: snap.R(1),
 			},
-		},
+		}),
 		Current: snap.R(1),
 	})
 

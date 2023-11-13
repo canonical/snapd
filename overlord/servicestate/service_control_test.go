@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -112,7 +113,7 @@ func (s *serviceControlSuite) mockTestSnap(c *C) *snap.Info {
 	info := snaptest.MockSnap(c, servicesSnapYaml1, &si)
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:  snap.R(7),
 		SnapType: "app",
 	})
@@ -504,7 +505,7 @@ func (s *serviceControlSuite) TestNoopWhenNoServices(c *C) {
 	snaptest.MockSnap(c, `name: test-snap`, &si)
 	snapstate.Set(st, "test-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:  snap.R(7),
 		SnapType: "app",
 	})

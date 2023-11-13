@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -137,7 +138,7 @@ func (s *refreshSuite) TestPendingSnapRefreshInfo(c *C) {
 }
 
 func (s *refreshSuite) addInstalledSnap(snapst *snapstate.SnapState) (*snapstate.SnapState, *snap.Info) {
-	snapName := snapst.Sequence[0].RealName
+	snapName := snapst.Sequence.Revisions[0].Snap.RealName
 	snapstate.Set(s.state, snapName, snapst)
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: snapName, Revision: snapst.Current}}
 	return snapst, info
@@ -146,9 +147,9 @@ func (s *refreshSuite) addInstalledSnap(snapst *snapstate.SnapState) (*snapstate
 func (s *refreshSuite) addFakeInstalledSnap() (*snapstate.SnapState, *snap.Info) {
 	return s.addInstalledSnap(&snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "pkg", Revision: snap.R(5), SnapID: "pkg-snap-id"},
-		},
+		}),
 		Current:  snap.R(5),
 		SnapType: "app",
 		UserID:   1,

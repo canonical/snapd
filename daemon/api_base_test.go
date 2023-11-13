@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
@@ -414,13 +415,13 @@ func (s *apiBaseSuite) mockSnap(c *check.C, yamlText string) *snap.Info {
 	// Put a side info into the state
 	snapstate.Set(st, snapInfo.InstanceName(), &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
 				RealName: snapInfo.SnapName(),
 				Revision: snapInfo.Revision,
 				SnapID:   "ididid",
 			},
-		},
+		}),
 		Current:  snapInfo.Revision,
 		SnapType: string(snapInfo.Type()),
 	})
@@ -481,7 +482,7 @@ version: %s
 	var snapst snapstate.SnapState
 	snapstate.Get(st, instanceName, &snapst)
 	snapst.Active = active
-	snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
+	snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, snapstate.NewRevisionSideInfo(&snapInfo.SideInfo, nil))
 	snapst.Current = snapInfo.SideInfo.Revision
 	snapst.TrackingChannel = "stable"
 	snapst.InstanceKey = instanceKey

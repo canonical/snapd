@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdenv"
@@ -1299,17 +1300,17 @@ func (ovs *overlordSuite) TestStartupTimeout(c *C) {
 	// have two snaps
 	snapstate.Set(st, "core18", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "core18", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "base",
 	})
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "foo", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
