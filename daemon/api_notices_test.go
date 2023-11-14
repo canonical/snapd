@@ -12,41 +12,45 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package daemon
+package daemon_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/canonical/pebble/internals/overlord/state"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
-func (s *apiSuite) TestNoticesFilterType(c *C) {
+var _ = Suite(&noticesSuite{})
+
+type noticesSuite struct {
+	apiBaseSuite
+}
+
+func (s *noticesSuite) TestNoticesFilterType(c *C) {
 	s.testNoticesFilter(c, func(after time.Time) url.Values {
 		return url.Values{"types": {"custom"}}
 	})
 }
 
-func (s *apiSuite) TestNoticesFilterKey(c *C) {
+func (s *noticesSuite) TestNoticesFilterKey(c *C) {
 	s.testNoticesFilter(c, func(after time.Time) url.Values {
 		return url.Values{"keys": {"a.b/2"}}
 	})
 }
 
-func (s *apiSuite) TestNoticesFilterAfter(c *C) {
+func (s *noticesSuite) TestNoticesFilterAfter(c *C) {
 	s.testNoticesFilter(c, func(after time.Time) url.Values {
 		return url.Values{"after": {after.UTC().Format(time.RFC3339Nano)}}
 	})
 }
 
-func (s *apiSuite) TestNoticesFilterAll(c *C) {
+func (s *noticesSuite) TestNoticesFilterAll(c *C) {
 	s.testNoticesFilter(c, func(after time.Time) url.Values {
 		return url.Values{
 			"types": {"custom"},
@@ -56,10 +60,10 @@ func (s *apiSuite) TestNoticesFilterAll(c *C) {
 	})
 }
 
-func (s *apiSuite) testNoticesFilter(c *C, makeQuery func(after time.Time) url.Values) {
+func (s *noticesSuite) testNoticesFilter(c *C, makeQuery func(after time.Time) url.Values) {
 	s.daemon(c)
 
-	st := s.d.overlord.State()
+	st := s.d.Overlord().State()
 	st.Lock()
 	addNotice(c, st, state.WarningNotice, "warning", nil)
 	after := time.Now()
@@ -71,14 +75,11 @@ func (s *apiSuite) testNoticesFilter(c *C, makeQuery func(after time.Time) url.V
 	st.Unlock()
 
 	query := makeQuery(after)
-	req, err := http.NewRequest("GET", "/v1/notices?"+query.Encode(), nil)
+	req, err := http.NewRequest("GET", "/v2/notices?"+query.Encode(), nil)
 	c.Assert(err, IsNil)
-	noticesCmd := apiCmd("/v1/notices")
-	rsp, ok := noticesCmd.GET(noticesCmd, req, nil).(*resp)
-	c.Assert(ok, Equals, true)
+	rsp := s.syncReq(c, req, nil)
+	c.Check(rsp.Status, Equals, 200)
 
-	c.Check(rsp.Type, Equals, ResponseTypeSync)
-	c.Check(rsp.Status, Equals, http.StatusOK)
 	notices, ok := rsp.Result.([]*state.Notice)
 	c.Assert(ok, Equals, true)
 	c.Assert(notices, HasLen, 1)
@@ -107,10 +108,10 @@ func (s *apiSuite) testNoticesFilter(c *C, makeQuery func(after time.Time) url.V
 	})
 }
 
-func (s *apiSuite) TestNoticesFilterMultipleTypes(c *C) {
+func (s *noticesSuite) TestNoticesFilterMultipleTypes(c *C) {
 	s.daemon(c)
 
-	st := s.d.overlord.State()
+	st := s.d.Overlord().State()
 	st.Lock()
 	addNotice(c, st, state.ChangeUpdateNotice, "123", nil)
 	time.Sleep(time.Microsecond)
@@ -119,14 +120,11 @@ func (s *apiSuite) TestNoticesFilterMultipleTypes(c *C) {
 	addNotice(c, st, state.WarningNotice, "danger", nil)
 	st.Unlock()
 
-	req, err := http.NewRequest("GET", "/v1/notices?types=change-update&types=warning", nil)
+	req, err := http.NewRequest("GET", "/v2/notices?types=change-update&types=warning", nil)
 	c.Assert(err, IsNil)
-	noticesCmd := apiCmd("/v1/notices")
-	rsp, ok := noticesCmd.GET(noticesCmd, req, nil).(*resp)
-	c.Assert(ok, Equals, true)
+	rsp := s.syncReq(c, req, nil)
+	c.Check(rsp.Status, Equals, 200)
 
-	c.Check(rsp.Type, Equals, ResponseTypeSync)
-	c.Check(rsp.Status, Equals, http.StatusOK)
 	notices, ok := rsp.Result.([]*state.Notice)
 	c.Assert(ok, Equals, true)
 	c.Assert(notices, HasLen, 2)
@@ -136,10 +134,10 @@ func (s *apiSuite) TestNoticesFilterMultipleTypes(c *C) {
 	c.Assert(n["type"], Equals, "warning")
 }
 
-func (s *apiSuite) TestNoticesFilterMultipleKeys(c *C) {
+func (s *noticesSuite) TestNoticesFilterMultipleKeys(c *C) {
 	s.daemon(c)
 
-	st := s.d.overlord.State()
+	st := s.d.Overlord().State()
 	st.Lock()
 	addNotice(c, st, state.ChangeUpdateNotice, "123", nil)
 	time.Sleep(time.Microsecond)
@@ -148,14 +146,11 @@ func (s *apiSuite) TestNoticesFilterMultipleKeys(c *C) {
 	addNotice(c, st, state.WarningNotice, "danger", nil)
 	st.Unlock()
 
-	req, err := http.NewRequest("GET", "/v1/notices?keys=a.b/x&keys=danger", nil)
+	req, err := http.NewRequest("GET", "/v2/notices?keys=a.b/x&keys=danger", nil)
 	c.Assert(err, IsNil)
-	noticesCmd := apiCmd("/v1/notices")
-	rsp, ok := noticesCmd.GET(noticesCmd, req, nil).(*resp)
-	c.Assert(ok, Equals, true)
+	rsp := s.syncReq(c, req, nil)
+	c.Check(rsp.Status, Equals, 200)
 
-	c.Check(rsp.Type, Equals, ResponseTypeSync)
-	c.Check(rsp.Status, Equals, http.StatusOK)
 	notices, ok := rsp.Result.([]*state.Notice)
 	c.Assert(ok, Equals, true)
 	c.Assert(notices, HasLen, 2)
@@ -165,10 +160,10 @@ func (s *apiSuite) TestNoticesFilterMultipleKeys(c *C) {
 	c.Assert(n["key"], Equals, "danger")
 }
 
-func (s *apiSuite) TestNoticesWait(c *C) {
+func (s *noticesSuite) TestNoticesWait(c *C) {
 	s.daemon(c)
 
-	st := s.d.overlord.State()
+	st := s.d.Overlord().State()
 	go func() {
 		time.Sleep(10 * time.Millisecond)
 		st.Lock()
@@ -176,14 +171,11 @@ func (s *apiSuite) TestNoticesWait(c *C) {
 		st.Unlock()
 	}()
 
-	req, err := http.NewRequest("GET", "/v1/notices?timeout=1s", nil)
+	req, err := http.NewRequest("GET", "/v2/notices?timeout=1s", nil)
 	c.Assert(err, IsNil)
-	noticesCmd := apiCmd("/v1/notices")
-	rsp, ok := noticesCmd.GET(noticesCmd, req, nil).(*resp)
-	c.Assert(ok, Equals, true)
+	rsp := s.syncReq(c, req, nil)
+	c.Check(rsp.Status, Equals, 200)
 
-	c.Check(rsp.Type, Equals, ResponseTypeSync)
-	c.Check(rsp.Status, Equals, http.StatusOK)
 	notices, ok := rsp.Result.([]*state.Notice)
 	c.Assert(ok, Equals, true)
 	c.Assert(notices, HasLen, 1)
@@ -192,23 +184,20 @@ func (s *apiSuite) TestNoticesWait(c *C) {
 	c.Check(n["key"], Equals, "a.b/1")
 }
 
-func (s *apiSuite) TestNoticesTimeout(c *C) {
+func (s *noticesSuite) TestNoticesTimeout(c *C) {
 	s.daemon(c)
 
-	req, err := http.NewRequest("GET", "/v1/notices?timeout=1ms", nil)
+	req, err := http.NewRequest("GET", "/v2/notices?timeout=1ms", nil)
 	c.Assert(err, IsNil)
-	noticesCmd := apiCmd("/v1/notices")
-	rsp, ok := noticesCmd.GET(noticesCmd, req, nil).(*resp)
-	c.Assert(ok, Equals, true)
+	rsp := s.syncReq(c, req, nil)
+	c.Check(rsp.Status, Equals, 200)
 
-	c.Check(rsp.Type, Equals, ResponseTypeSync)
-	c.Check(rsp.Status, Equals, http.StatusOK)
 	notices, ok := rsp.Result.([]*state.Notice)
 	c.Assert(ok, Equals, true)
 	c.Assert(notices, HasLen, 0)
 }
 
-func (s *apiSuite) TestNoticesRequestCancelled(c *C) {
+func (s *noticesSuite) TestNoticesRequestCancelled(c *C) {
 	s.daemon(c)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -219,49 +208,36 @@ func (s *apiSuite) TestNoticesRequestCancelled(c *C) {
 	}()
 
 	start := time.Now()
-	req, err := http.NewRequestWithContext(ctx, "GET", "/v1/notices?timeout=1s", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", "/v2/notices?timeout=1s", nil)
 	c.Assert(err, IsNil)
-	noticesCmd := apiCmd("/v1/notices")
-	rsp, ok := noticesCmd.GET(noticesCmd, req, nil).(*resp)
-	c.Assert(ok, Equals, true)
-
-	c.Check(rsp.Type, Equals, ResponseTypeError)
-	c.Check(rsp.Status, Equals, http.StatusBadRequest)
-	result, ok := rsp.Result.(*errorResult)
-	c.Assert(ok, Equals, true)
-	c.Check(result.Message, Matches, "request canceled")
+	rsp := s.errorReq(c, req, nil)
+	c.Check(rsp.Status, Equals, 400)
+	c.Check(rsp.Message, Matches, "request canceled")
 
 	elapsed := time.Since(start)
 	c.Check(elapsed > 10*time.Millisecond, Equals, true)
 	c.Check(elapsed < time.Second, Equals, true)
 }
 
-func (s *apiSuite) TestNoticesInvalidAfter(c *C) {
+func (s *noticesSuite) TestNoticesInvalidAfter(c *C) {
 	s.testNoticesBadRequest(c, "after=foo", `invalid "after" timestamp.*`)
 }
 
-func (s *apiSuite) TestNoticesInvalidTimeout(c *C) {
+func (s *noticesSuite) TestNoticesInvalidTimeout(c *C) {
 	s.testNoticesBadRequest(c, "timeout=foo", "invalid timeout.*")
 }
 
-func (s *apiSuite) testNoticesBadRequest(c *C, query, errorMatch string) {
+func (s *noticesSuite) testNoticesBadRequest(c *C, query, errorMatch string) {
 	s.daemon(c)
 
-	req, err := http.NewRequest("GET", "/v1/notices?"+query, nil)
+	req, err := http.NewRequest("GET", "/v2/notices?"+query, nil)
 	c.Assert(err, IsNil)
-	noticesCmd := apiCmd("/v1/notices")
-	rsp, ok := noticesCmd.GET(noticesCmd, req, nil).(*resp)
-	c.Assert(ok, Equals, true)
-
-	c.Check(rsp.Type, Equals, ResponseTypeError)
-	c.Check(rsp.Status, Equals, http.StatusBadRequest)
-
-	result, ok := rsp.Result.(*errorResult)
-	c.Assert(ok, Equals, true)
-	c.Assert(result.Message, Matches, errorMatch)
+	rsp := s.errorReq(c, req, nil)
+	c.Check(rsp.Status, Equals, 400)
+	c.Assert(rsp.Message, Matches, errorMatch)
 }
 
-func (s *apiSuite) TestAddNotice(c *C) {
+func (s *noticesSuite) TestAddNotice(c *C) {
 	s.daemon(c)
 
 	start := time.Now()
@@ -272,9 +248,9 @@ func (s *apiSuite) TestAddNotice(c *C) {
 		"repeat-after": "1h",
 		"data": {"k": "v"}
 	}`)
-	req, err := http.NewRequest("POST", "/v1/notices", bytes.NewReader(body))
+	req, err := http.NewRequest("POST", "/v2/notices", bytes.NewReader(body))
 	c.Assert(err, IsNil)
-	noticesCmd := apiCmd("/v1/notices")
+	noticesCmd := apiCmd("/v2/notices")
 	rsp, ok := noticesCmd.POST(noticesCmd, req, nil).(*resp)
 	c.Assert(ok, Equals, true)
 
@@ -283,7 +259,7 @@ func (s *apiSuite) TestAddNotice(c *C) {
 	resultBytes, err := json.Marshal(rsp.Result)
 	c.Assert(err, IsNil)
 
-	st := s.d.overlord.State()
+	st := s.d.Overlord().State()
 	st.Lock()
 	notices := st.Notices(nil)
 	st.Unlock()
@@ -317,7 +293,7 @@ func (s *apiSuite) TestAddNotice(c *C) {
 	})
 }
 
-func (s *apiSuite) TestAddNoticeMinimal(c *C) {
+func (s *noticesSuite) TestAddNoticeMinimal(c *C) {
 	s.daemon(c)
 
 	body := []byte(`{
@@ -325,9 +301,9 @@ func (s *apiSuite) TestAddNoticeMinimal(c *C) {
 		"type": "custom",
 		"key": "a.b/1"
 	}`)
-	req, err := http.NewRequest("POST", "/v1/notices", bytes.NewReader(body))
+	req, err := http.NewRequest("POST", "/v2/notices", bytes.NewReader(body))
 	c.Assert(err, IsNil)
-	noticesCmd := apiCmd("/v1/notices")
+	noticesCmd := apiCmd("/v2/notices")
 	rsp, ok := noticesCmd.POST(noticesCmd, req, nil).(*resp)
 	c.Assert(ok, Equals, true)
 
@@ -336,7 +312,7 @@ func (s *apiSuite) TestAddNoticeMinimal(c *C) {
 	resultBytes, err := json.Marshal(rsp.Result)
 	c.Assert(err, IsNil)
 
-	st := s.d.overlord.State()
+	st := s.d.Overlord().State()
 	st.Lock()
 	notices := st.Notices(nil)
 	st.Unlock()
@@ -358,20 +334,20 @@ func (s *apiSuite) TestAddNoticeMinimal(c *C) {
 	})
 }
 
-func (s *apiSuite) TestAddNoticeInvalidAction(c *C) {
+func (s *noticesSuite) TestAddNoticeInvalidAction(c *C) {
 	s.testAddNoticeBadRequest(c, `{"action": "bad"}`, "invalid action.*")
 }
 
-func (s *apiSuite) TestAddNoticeInvalidType(c *C) {
+func (s *noticesSuite) TestAddNoticeInvalidType(c *C) {
 	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "foo"}`, "invalid type.*")
 }
 
-func (s *apiSuite) TestAddNoticeInvalidKey(c *C) {
+func (s *noticesSuite) TestAddNoticeInvalidKey(c *C) {
 	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "custom", "key": "bad"}`,
 		"invalid key.*")
 }
 
-func (s *apiSuite) TestAddNoticeKeyTooLong(c *C) {
+func (s *noticesSuite) TestAddNoticeKeyTooLong(c *C) {
 	request, err := json.Marshal(map[string]any{
 		"action": "add",
 		"type":   "custom",
@@ -381,7 +357,7 @@ func (s *apiSuite) TestAddNoticeKeyTooLong(c *C) {
 	s.testAddNoticeBadRequest(c, string(request), "key must be 256 bytes or less")
 }
 
-func (s *apiSuite) TestAddNoticeDataTooLarge(c *C) {
+func (s *noticesSuite) TestAddNoticeDataTooLarge(c *C) {
 	request, err := json.Marshal(map[string]any{
 		"action": "add",
 		"type":   "custom",
@@ -395,17 +371,17 @@ func (s *apiSuite) TestAddNoticeDataTooLarge(c *C) {
 	s.testAddNoticeBadRequest(c, string(request), "total size of data must be 4096 bytes or less")
 }
 
-func (s *apiSuite) TestInvalidRepeatAfter(c *C) {
+func (s *noticesSuite) TestInvalidRepeatAfter(c *C) {
 	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "custom", "key": "a.b/1", "repeat-after": "bad"}`,
 		"invalid repeat-after.*")
 }
 
-func (s *apiSuite) testAddNoticeBadRequest(c *C, body, errorMatch string) {
+func (s *noticesSuite) testAddNoticeBadRequest(c *C, body, errorMatch string) {
 	s.daemon(c)
 
-	req, err := http.NewRequest("POST", "/v1/notices", strings.NewReader(body))
+	req, err := http.NewRequest("POST", "/v2/notices", strings.NewReader(body))
 	c.Assert(err, IsNil)
-	noticesCmd := apiCmd("/v1/notices")
+	noticesCmd := apiCmd("/v2/notices")
 	rsp, ok := noticesCmd.POST(noticesCmd, req, nil).(*resp)
 	c.Assert(ok, Equals, true)
 
@@ -417,10 +393,10 @@ func (s *apiSuite) testAddNoticeBadRequest(c *C, body, errorMatch string) {
 	c.Assert(result.Message, Matches, errorMatch)
 }
 
-func (s *apiSuite) TestNotice(c *C) {
+func (s *noticesSuite) TestNotice(c *C) {
 	s.daemon(c)
 
-	st := s.d.overlord.State()
+	st := s.d.Overlord().State()
 	st.Lock()
 	addNotice(c, st, state.CustomNotice, "a.b/1", nil)
 	noticeId, err := st.AddNotice(state.CustomNotice, "a.b/2", nil)
@@ -428,15 +404,12 @@ func (s *apiSuite) TestNotice(c *C) {
 	addNotice(c, st, state.CustomNotice, "a.b/3", nil)
 	st.Unlock()
 
-	req, err := http.NewRequest("GET", "/v1/notices/"+noticeId, nil)
+	req, err := http.NewRequest("GET", "/v2/notices/"+noticeId, nil)
 	c.Assert(err, IsNil)
-	noticesCmd := apiCmd("/v1/notices/{id}")
 	s.vars = map[string]string{"id": noticeId}
-	rsp, ok := noticesCmd.GET(noticesCmd, req, nil).(*resp)
-	c.Assert(ok, Equals, true)
+	rsp := s.syncReq(c, req, nil)
+	c.Check(rsp.Status, Equals, 200)
 
-	c.Check(rsp.Type, Equals, ResponseTypeSync)
-	c.Check(rsp.Status, Equals, http.StatusOK)
 	notice, ok := rsp.Result.(*state.Notice)
 	c.Assert(ok, Equals, true)
 	n := noticeToMap(c, notice)
@@ -444,18 +417,15 @@ func (s *apiSuite) TestNotice(c *C) {
 	c.Check(n["key"], Equals, "a.b/2")
 }
 
-func (s *apiSuite) TestNoticeNotFound(c *C) {
+func (s *noticesSuite) TestNoticeNotFound(c *C) {
 	s.daemon(c)
 
-	req, err := http.NewRequest("GET", "/v1/notices/1234", nil)
+	req, err := http.NewRequest("GET", "/v2/notices/1234", nil)
 	c.Assert(err, IsNil)
-	noticesCmd := apiCmd("/v1/notices/{id}")
 	s.vars = map[string]string{"id": "1234"}
-	rsp, ok := noticesCmd.GET(noticesCmd, req, nil).(*resp)
-	c.Assert(ok, Equals, true)
-
-	c.Check(rsp.Type, Equals, ResponseTypeError)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 404)
+	c.Check(rsp.Message, Matches, `cannot find notice with id "1234"`)
 }
 
 func noticeToMap(c *C, notice *state.Notice) map[string]any {
