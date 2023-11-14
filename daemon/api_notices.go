@@ -21,9 +21,25 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/canonical/x-go/strutil"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/strutil"
+)
 
-	"github.com/canonical/pebble/internals/overlord/state"
+var (
+	noticesCmd = &Command{
+		Path:        "/v2/notices",
+		GET:         getNotices,
+		POST:        postNotices,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{},
+	}
+
+	noticeCmd = &Command{
+		Path:       "/v2/notices/{id}",
+		GET:        getNotice,
+		ReadAccess: openAccess{},
+	}
 )
 
 // Ensure custom keys are in the form "domain.com/key" (but somewhat more restrictive).
@@ -39,7 +55,7 @@ type addedNotice struct {
 	ID string `json:"id"`
 }
 
-func v1GetNotices(c *Command, r *http.Request, _ *UserState) Response {
+func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 
 	typeStrs := strutil.MultiCommaSeparatedList(query["types"])
@@ -58,7 +74,7 @@ func v1GetNotices(c *Command, r *http.Request, _ *UserState) Response {
 
 	after, err := parseOptionalTime(query.Get("after"))
 	if err != nil {
-		return statusBadRequest(`invalid "after" timestamp: %v`, err)
+		return BadRequest(`invalid "after" timestamp: %v`, err)
 	}
 
 	filter := &state.NoticeFilter{
@@ -74,7 +90,7 @@ func v1GetNotices(c *Command, r *http.Request, _ *UserState) Response {
 
 	timeout, err := parseOptionalDuration(query.Get("timeout"))
 	if err != nil {
-		return statusBadRequest("invalid timeout: %v", err)
+		return BadRequest("invalid timeout: %v", err)
 	}
 	if timeout != 0 {
 		// Wait up to timeout for notices matching given filter to occur
@@ -83,12 +99,12 @@ func v1GetNotices(c *Command, r *http.Request, _ *UserState) Response {
 
 		notices, err = st.WaitNotices(ctx, filter)
 		if errors.Is(err, context.Canceled) {
-			return statusBadRequest("request canceled")
+			return BadRequest("request canceled")
 		}
 		// DeadlineExceeded will occur if timeout elapses; in that case return
 		// an empty list of notices, not an error.
 		if err != nil && !errors.Is(err, context.DeadlineExceeded) {
-			return statusInternalError("cannot wait for notices: %s", err)
+			return InternalError("cannot wait for notices: %s", err)
 		}
 	} else {
 		// No timeout given, fetch currently-available notices
@@ -101,7 +117,7 @@ func v1GetNotices(c *Command, r *http.Request, _ *UserState) Response {
 	return SyncResponse(notices)
 }
 
-func v1PostNotices(c *Command, r *http.Request, _ *UserState) Response {
+func postNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 	var payload struct {
 		Action      string          `json:"action"`
 		Type        string          `json:"type"`
@@ -111,35 +127,35 @@ func v1PostNotices(c *Command, r *http.Request, _ *UserState) Response {
 	}
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&payload); err != nil {
-		return statusBadRequest("cannot decode request body: %v", err)
+		return BadRequest("cannot decode request body: %v", err)
 	}
 
 	if payload.Action != "add" {
-		return statusBadRequest("invalid action %q", payload.Action)
+		return BadRequest("invalid action %q", payload.Action)
 	}
 	if payload.Type != "custom" {
-		return statusBadRequest(`invalid type %q (can only add "custom" notices)`, payload.Type)
+		return BadRequest(`invalid type %q (can only add "custom" notices)`, payload.Type)
 	}
 	if !customKeyRegexp.MatchString(payload.Key) {
-		return statusBadRequest(`invalid key %q (must be in "domain.com/key" format)`, payload.Key)
+		return BadRequest(`invalid key %q (must be in "domain.com/key" format)`, payload.Key)
 	}
 	if len(payload.Key) > maxNoticeKeyLength {
-		return statusBadRequest("key must be %d bytes or less", maxNoticeKeyLength)
+		return BadRequest("key must be %d bytes or less", maxNoticeKeyLength)
 	}
 
 	repeatAfter, err := parseOptionalDuration(payload.RepeatAfter)
 	if err != nil {
-		return statusBadRequest("invalid repeat-after: %v", err)
+		return BadRequest("invalid repeat-after: %v", err)
 	}
 
 	if len(payload.DataJSON) > maxNoticeDataSize {
-		return statusBadRequest("total size of data must be %d bytes or less", maxNoticeDataSize)
+		return BadRequest("total size of data must be %d bytes or less", maxNoticeDataSize)
 	}
 	var data map[string]string
 	if len(payload.DataJSON) > 0 {
 		err = json.Unmarshal(payload.DataJSON, &data)
 		if err != nil {
-			return statusBadRequest("cannot decode notice data: %v", err)
+			return BadRequest("cannot decode notice data: %v", err)
 		}
 	}
 
@@ -152,20 +168,20 @@ func v1PostNotices(c *Command, r *http.Request, _ *UserState) Response {
 		RepeatAfter: repeatAfter,
 	})
 	if err != nil {
-		return statusInternalError("%v", err)
+		return InternalError("%v", err)
 	}
 
 	return SyncResponse(addedNotice{ID: noticeId})
 }
 
-func v1GetNotice(c *Command, r *http.Request, _ *UserState) Response {
+func getNotice(c *Command, r *http.Request, user *auth.UserState) Response {
 	noticeID := muxVars(r)["id"]
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 	notice := st.Notice(noticeID)
 	if notice == nil {
-		return statusNotFound("cannot find notice with id %q", noticeID)
+		return NotFound("cannot find notice with id %q", noticeID)
 	}
 	return SyncResponse(notice)
 }
