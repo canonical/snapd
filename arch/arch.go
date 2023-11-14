@@ -61,6 +61,7 @@ func dpkgArchFromGoArch(goarch string) string {
 		"amd64":   "amd64",
 		"arm":     "armhf",
 		"arm64":   "arm64",
+		"loong64": "loong64",
 		"ppc":     "powerpc",
 		"ppc64":   "ppc64", // available in debian and other distros
 		"ppc64le": "ppc64el",
@@ -100,16 +101,17 @@ func DpkgKernelArchitecture() string {
 func dpkgArchFromKernelArch(utsMachine string) string {
 	kernelArchMapping := map[string]string{
 		// kernel  dpkg
-		"aarch64": "arm64",
-		"armv7l":  "armhf",
-		"armv8l":  "arm64",
-		"i686":    "i386",
-		"ppc":     "powerpc",
-		"ppc64":   "ppc64", // available in debian and other distros
-		"ppc64le": "ppc64el",
-		"riscv64": "riscv64",
-		"s390x":   "s390x",
-		"x86_64":  "amd64",
+		"aarch64":     "arm64",
+		"armv7l":      "armhf",
+		"armv8l":      "arm64",
+		"i686":        "i386",
+		"loongarch64": "loong64",
+		"ppc":         "powerpc",
+		"ppc64":       "ppc64", // available in debian and other distros
+		"ppc64le":     "ppc64el",
+		"riscv64":     "riscv64",
+		"s390x":       "s390x",
+		"x86_64":      "amd64",
 	}
 
 	dpkgArch := kernelArchMapping[utsMachine]
