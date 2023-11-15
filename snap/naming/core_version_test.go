@@ -38,6 +38,7 @@ func (s *CoreVersionTestSuite) TestCoreVersion(c *C) {
 		{"core20", 20},
 		{"core22", 22},
 		{"core24", 24},
+		{"core24-desktop", 24},
 	} {
 		v, err := naming.CoreVersion(tst.name)
 		c.Check(err, IsNil)
