@@ -16,10 +16,8 @@ package daemon
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
-	"regexp"
 
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
@@ -28,11 +26,9 @@ import (
 
 var (
 	noticesCmd = &Command{
-		Path:        "/v2/notices",
-		GET:         getNotices,
-		POST:        postNotices,
-		ReadAccess:  openAccess{},
-		WriteAccess: authenticatedAccess{},
+		Path:       "/v2/notices",
+		GET:        getNotices,
+		ReadAccess: openAccess{},
 	}
 
 	noticeCmd = &Command{
@@ -41,19 +37,6 @@ var (
 		ReadAccess: openAccess{},
 	}
 )
-
-// Ensure custom keys are in the form "domain.com/key" (but somewhat more restrictive).
-var customKeyRegexp = regexp.MustCompile(
-	`^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)+(/[a-z0-9]+(-[a-z0-9]+)*)+$`)
-
-const (
-	maxNoticeKeyLength = 256
-	maxNoticeDataSize  = 4 * 1024
-)
-
-type addedNotice struct {
-	ID string `json:"id"`
-}
 
 func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
@@ -115,63 +98,6 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 		notices = []*state.Notice{} // avoid null result
 	}
 	return SyncResponse(notices)
-}
-
-func postNotices(c *Command, r *http.Request, user *auth.UserState) Response {
-	var payload struct {
-		Action      string          `json:"action"`
-		Type        string          `json:"type"`
-		Key         string          `json:"key"`
-		RepeatAfter string          `json:"repeat-after"`
-		DataJSON    json.RawMessage `json:"data"`
-	}
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&payload); err != nil {
-		return BadRequest("cannot decode request body: %v", err)
-	}
-
-	if payload.Action != "add" {
-		return BadRequest("invalid action %q", payload.Action)
-	}
-	if payload.Type != "custom" {
-		return BadRequest(`invalid type %q (can only add "custom" notices)`, payload.Type)
-	}
-	if !customKeyRegexp.MatchString(payload.Key) {
-		return BadRequest(`invalid key %q (must be in "domain.com/key" format)`, payload.Key)
-	}
-	if len(payload.Key) > maxNoticeKeyLength {
-		return BadRequest("key must be %d bytes or less", maxNoticeKeyLength)
-	}
-
-	repeatAfter, err := parseOptionalDuration(payload.RepeatAfter)
-	if err != nil {
-		return BadRequest("invalid repeat-after: %v", err)
-	}
-
-	if len(payload.DataJSON) > maxNoticeDataSize {
-		return BadRequest("total size of data must be %d bytes or less", maxNoticeDataSize)
-	}
-	var data map[string]string
-	if len(payload.DataJSON) > 0 {
-		err = json.Unmarshal(payload.DataJSON, &data)
-		if err != nil {
-			return BadRequest("cannot decode notice data: %v", err)
-		}
-	}
-
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
-	noticeId, err := st.AddNotice(state.CustomNotice, payload.Key, &state.AddNoticeOptions{
-		Data:        data,
-		RepeatAfter: repeatAfter,
-	})
-	if err != nil {
-		return InternalError("%v", err)
-	}
-
-	return SyncResponse(addedNotice{ID: noticeId})
 }
 
 func getNotice(c *Command, r *http.Request, user *auth.UserState) Response {
