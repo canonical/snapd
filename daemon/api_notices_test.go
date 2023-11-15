@@ -34,13 +34,13 @@ type noticesSuite struct {
 
 func (s *noticesSuite) TestNoticesFilterType(c *C) {
 	s.testNoticesFilter(c, func(after time.Time) url.Values {
-		return url.Values{"types": {"custom"}}
+		return url.Values{"types": {"change-update"}}
 	})
 }
 
 func (s *noticesSuite) TestNoticesFilterKey(c *C) {
 	s.testNoticesFilter(c, func(after time.Time) url.Values {
-		return url.Values{"keys": {"a.b/2"}}
+		return url.Values{"keys": {"123"}}
 	})
 }
 
@@ -53,8 +53,8 @@ func (s *noticesSuite) TestNoticesFilterAfter(c *C) {
 func (s *noticesSuite) TestNoticesFilterAll(c *C) {
 	s.testNoticesFilter(c, func(after time.Time) url.Values {
 		return url.Values{
-			"types": {"custom"},
-			"keys":  {"a.b/2"},
+			"types": {"change-update"},
+			"keys":  {"123"},
 			"after": {after.UTC().Format(time.RFC3339Nano)},
 		}
 	})
@@ -68,7 +68,7 @@ func (s *noticesSuite) testNoticesFilter(c *C, makeQuery func(after time.Time) u
 	addNotice(c, st, state.WarningNotice, "warning", nil)
 	after := time.Now()
 	time.Sleep(time.Microsecond)
-	noticeId, err := st.AddNotice(state.CustomNotice, "a.b/2", &state.AddNoticeOptions{
+	noticeId, err := st.AddNotice(state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{
 		Data: map[string]string{"k": "v"},
 	})
 	c.Assert(err, IsNil)
@@ -100,8 +100,8 @@ func (s *noticesSuite) testNoticesFilter(c *C, makeQuery func(after time.Time) u
 	delete(n, "last-repeated")
 	c.Assert(n, DeepEquals, map[string]any{
 		"id":           noticeId,
-		"type":         "custom",
-		"key":          "a.b/2",
+		"type":         "change-update",
+		"key":          "123",
 		"occurrences":  1.0,
 		"last-data":    map[string]any{"k": "v"},
 		"expire-after": "168h0m0s",
@@ -114,8 +114,6 @@ func (s *noticesSuite) TestNoticesFilterMultipleTypes(c *C) {
 	st := s.d.Overlord().State()
 	st.Lock()
 	addNotice(c, st, state.ChangeUpdateNotice, "123", nil)
-	time.Sleep(time.Microsecond)
-	addNotice(c, st, state.CustomNotice, "a.b/x", nil)
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, state.WarningNotice, "danger", nil)
 	st.Unlock()
@@ -141,12 +139,12 @@ func (s *noticesSuite) TestNoticesFilterMultipleKeys(c *C) {
 	st.Lock()
 	addNotice(c, st, state.ChangeUpdateNotice, "123", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, state.CustomNotice, "a.b/x", nil)
+	addNotice(c, st, state.ChangeUpdateNotice, "456", nil)
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, state.WarningNotice, "danger", nil)
 	st.Unlock()
 
-	req, err := http.NewRequest("GET", "/v2/notices?keys=a.b/x&keys=danger", nil)
+	req, err := http.NewRequest("GET", "/v2/notices?keys=456&keys=danger", nil)
 	c.Assert(err, IsNil)
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
@@ -155,7 +153,7 @@ func (s *noticesSuite) TestNoticesFilterMultipleKeys(c *C) {
 	c.Assert(ok, Equals, true)
 	c.Assert(notices, HasLen, 2)
 	n := noticeToMap(c, notices[0])
-	c.Assert(n["key"], Equals, "a.b/x")
+	c.Assert(n["key"], Equals, "456")
 	n = noticeToMap(c, notices[1])
 	c.Assert(n["key"], Equals, "danger")
 }
@@ -167,7 +165,7 @@ func (s *noticesSuite) TestNoticesWait(c *C) {
 	go func() {
 		time.Sleep(10 * time.Millisecond)
 		st.Lock()
-		addNotice(c, st, state.CustomNotice, "a.b/1", nil)
+		addNotice(c, st, state.WarningNotice, "foo", nil)
 		st.Unlock()
 	}()
 
@@ -180,8 +178,8 @@ func (s *noticesSuite) TestNoticesWait(c *C) {
 	c.Assert(ok, Equals, true)
 	c.Assert(notices, HasLen, 1)
 	n := noticeToMap(c, notices[0])
-	c.Check(n["type"], Equals, "custom")
-	c.Check(n["key"], Equals, "a.b/1")
+	c.Check(n["type"], Equals, "warning")
+	c.Check(n["key"], Equals, "foo")
 }
 
 func (s *noticesSuite) TestNoticesTimeout(c *C) {
@@ -242,10 +240,10 @@ func (s *noticesSuite) TestNotice(c *C) {
 
 	st := s.d.Overlord().State()
 	st.Lock()
-	addNotice(c, st, state.CustomNotice, "a.b/1", nil)
-	noticeId, err := st.AddNotice(state.CustomNotice, "a.b/2", nil)
+	addNotice(c, st, state.WarningNotice, "foo", nil)
+	noticeId, err := st.AddNotice(state.WarningNotice, "bar", nil)
 	c.Assert(err, IsNil)
-	addNotice(c, st, state.CustomNotice, "a.b/3", nil)
+	addNotice(c, st, state.WarningNotice, "baz", nil)
 	st.Unlock()
 
 	req, err := http.NewRequest("GET", "/v2/notices/"+noticeId, nil)
@@ -257,8 +255,8 @@ func (s *noticesSuite) TestNotice(c *C) {
 	notice, ok := rsp.Result.(*state.Notice)
 	c.Assert(ok, Equals, true)
 	n := noticeToMap(c, notice)
-	c.Check(n["type"], Equals, "custom")
-	c.Check(n["key"], Equals, "a.b/2")
+	c.Check(n["type"], Equals, "warning")
+	c.Check(n["key"], Equals, "bar")
 }
 
 func (s *noticesSuite) TestNoticeNotFound(c *C) {
