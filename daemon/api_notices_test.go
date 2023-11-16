@@ -24,6 +24,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var _ = Suite(&noticesSuite{})
@@ -198,13 +199,14 @@ func (s *noticesSuite) TestNoticesWait(c *C) {
 
 	st := s.d.Overlord().State()
 	go func() {
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(testutil.HostScaledTimeout(50 * time.Millisecond))
 		st.Lock()
 		addNotice(c, st, state.WarningNotice, "foo", nil)
 		st.Unlock()
 	}()
 
-	req, err := http.NewRequest("GET", "/v2/notices?timeout=1s", nil)
+	timeout := testutil.HostScaledTimeout(5 * time.Second).String()
+	req, err := http.NewRequest("GET", "/v2/notices?timeout="+timeout, nil)
 	c.Assert(err, IsNil)
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
@@ -235,21 +237,26 @@ func (s *noticesSuite) TestNoticesRequestCancelled(c *C) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	cancelTimeout := testutil.HostScaledTimeout(50 * time.Millisecond)
+	reqTimeout := testutil.HostScaledTimeout(5 * time.Second)
+
+	start := time.Now()
+
 	go func() {
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(cancelTimeout)
 		cancel()
 	}()
 
-	start := time.Now()
-	req, err := http.NewRequestWithContext(ctx, "GET", "/v2/notices?timeout=1s", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", "/v2/notices?timeout="+reqTimeout.String(), nil)
 	c.Assert(err, IsNil)
 	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 400)
 	c.Check(rsp.Message, Matches, "request canceled")
 
 	elapsed := time.Since(start)
-	c.Check(elapsed > 10*time.Millisecond, Equals, true)
-	c.Check(elapsed < time.Second, Equals, true)
+	c.Check(elapsed > cancelTimeout, Equals, true)
+	c.Check(elapsed < reqTimeout, Equals, true)
 }
 
 func (s *noticesSuite) TestNoticesInvalidAfter(c *C) {
