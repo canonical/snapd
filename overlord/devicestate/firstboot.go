@@ -262,10 +262,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 
 	infoToTs := make(map[*snap.Info]*state.TaskSet, len(essentialSeedSnaps))
 
-	// XXX TODO: switch to a prereq tracker that supports properly
-	// a self-contained set of snaps, here we cannot nor want
-	// to go back to the store for prereqs anyway
-	prqt := snap.SimplePrereqTracker{}
+	prqt := snap.NewSelfContainedSetPrereqTracker()
 
 	if len(essentialSeedSnaps) != 0 {
 		// we *always* configure "core" here even if bases are used
@@ -336,12 +333,17 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 		infoToTs[info] = ts
 	}
 
-	// validate that all snaps have bases
-	// XXX this will use the PrereqTracker
-	errs := snap.ValidateBasesAndProviders(infos)
+	// validate that all snaps have bases and providers are fulfilled
+	// using the PrereqTracker
+	warns, errs := prqt.Check()
 	if errs != nil {
 		// only report the first error encountered
 		return nil, errs[0]
+	}
+	// XXX do better, use the warnings to setup checks at end of the seeding
+	// and log onlys plug not connected or explicitly disconnected there
+	for _, w := range warns {
+		logger.Noticef("seed prerequisites: %v", w)
 	}
 
 	// now add/chain the tasksets in the right order, note that we

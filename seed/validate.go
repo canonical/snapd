@@ -124,7 +124,8 @@ func ValidateFromYaml(seedYamlFile string) error {
 		return nil
 	})
 
-	if errs2 := snap.ValidateBasesAndProviders(snapInfos); errs2 != nil {
+	// TODO: surface the warnings too, like we do for snap container checks
+	if _, errs2 := snap.ValidateBasesAndProviders(snapInfos); errs2 != nil {
 		ve.addErr("", errs2...)
 	}
 	if ve.hasErrors() {
