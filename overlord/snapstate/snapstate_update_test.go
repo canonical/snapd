@@ -4257,20 +4257,20 @@ func (s *snapmgrTestSuite) TestUpdateWithDeviceContext(c *C) {
 
 	c.Assert(prqt.infos, HasLen, 1)
 	c.Check(prqt.infos[0].SnapName(), Equals, "some-snap")
-	c.Check(prqt.defaultProviderContentAttrsCalls, Equals, 1)
+	c.Check(prqt.missingProviderContentTagsCalls, Equals, 1)
 }
 
 type testPrereqTracker struct {
-	infos                            []*snap.Info
-	defaultProviderContentAttrsCalls int
+	infos                           []*snap.Info
+	missingProviderContentTagsCalls int
 }
 
 func (prqt *testPrereqTracker) Add(info *snap.Info) {
 	prqt.infos = append(prqt.infos, info)
 }
 
-func (prqt *testPrereqTracker) DefaultProviderContentAttrs(*snap.Info, snap.InterfaceRepo) map[string][]string {
-	prqt.defaultProviderContentAttrsCalls++
+func (prqt *testPrereqTracker) MissingProviderContentTags(*snap.Info, snap.InterfaceRepo) map[string][]string {
+	prqt.missingProviderContentTagsCalls++
 	return nil
 }
 
@@ -4306,7 +4306,7 @@ version: 1.0
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	c.Assert(prqt.infos, HasLen, 1)
 	c.Check(prqt.infos[0].SnapName(), Equals, "some-snap")
-	c.Check(prqt.defaultProviderContentAttrsCalls, Equals, 1)
+	c.Check(prqt.missingProviderContentTagsCalls, Equals, 1)
 }
 
 func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextSwitchChannel(c *C) {

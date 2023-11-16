@@ -355,7 +355,7 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContext(c *C) {
 
 	c.Assert(prqt.infos, HasLen, 1)
 	c.Check(prqt.infos[0].SnapName(), Equals, "some-snap")
-	c.Check(prqt.defaultProviderContentAttrsCalls, Equals, 1)
+	c.Check(prqt.missingProviderContentTagsCalls, Equals, 1)
 }
 
 func (s *snapmgrTestSuite) TestInstallPathWithDeviceContext(c *C) {
@@ -383,7 +383,7 @@ version: 1.0
 
 	c.Assert(prqt.infos, HasLen, 1)
 	c.Check(prqt.infos[0].SnapName(), Equals, "some-snap")
-	c.Check(prqt.defaultProviderContentAttrsCalls, Equals, 1)
+	c.Check(prqt.missingProviderContentTagsCalls, Equals, 1)
 }
 
 func (s *snapmgrTestSuite) TestInstallPathWithDeviceContextBadFile(c *C) {
@@ -2108,7 +2108,7 @@ version: 1.0`)
 
 	c.Assert(prqt.infos, HasLen, 1)
 	c.Check(prqt.infos[0], DeepEquals, info)
-	c.Check(prqt.defaultProviderContentAttrsCalls, Equals, 1)
+	c.Check(prqt.missingProviderContentTagsCalls, Equals, 1)
 
 	chg.AddAll(ts)
 

@@ -2800,7 +2800,8 @@ func (s *imageSuite) TestSetupSeedMissingContentProvider(c *C) {
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
-	c.Check(err, ErrorMatches, `prerequisites need to be added explicitly: cannot use snap "snap-req-content-provider": default provider "gtk-common-themes" is missing`)
+	// XXX content is empty because we disable SanitizePlugsSlots
+	c.Check(err, ErrorMatches, `prerequisites need to be added explicitly: cannot use snap "snap-req-content-provider": default provider "gtk-common-themes" or any alternative provider for content "" is missing`)
 }
 
 func (s *imageSuite) TestSetupSeedClassic(c *C) {
