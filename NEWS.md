@@ -1,3 +1,14 @@
+# New in snapd 2.61.1:
+* Stop requiring default provider snaps on image building and first boot if alternative providers are included and available
+* Fix auth.json access for login as non-root group ID
+* Fix incorrect remodelling conflict when changing track to older snapd version
+* Improved check-rerefresh message
+* Fix UC16/18 kernel/gadget update failure due volume mismatch with installed disk
+* Stop auto-import of assertions during install modes
+* Desktop interface exposes GetIdletime
+* Polkit interface support for new polkit versions
+* Fix not applying snapd snap changes in tracked channel when remodelling
+
 # New in snapd 2.61:
 * Fix control of activated services in 'snap start' and 'snap stop'
 * Correctly reflect activated services in 'snap services'
