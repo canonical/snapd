@@ -300,7 +300,15 @@ func validateSocketAddrNetPort(fieldName string, port string) error {
 	return nil
 }
 
-func validateDescription(descr string) error {
+func ValidateSummary(summary string) error {
+	// 128 is the maximum allowed by review-tools
+	if count := utf8.RuneCountInString(summary); count > 128 {
+		return fmt.Errorf("summary can have up to 128 codepoints, got %d", count)
+	}
+	return nil
+}
+
+func ValidateDescription(descr string) error {
 	if count := utf8.RuneCountInString(descr); count > 4096 {
 		return fmt.Errorf("description can have up to 4096 codepoints, got %d", count)
 	}
@@ -343,11 +351,28 @@ func Validate(info *Info) error {
 		return err
 	}
 
+	// validate component names, which follow the same rules as snap names
+	for cname, comp := range info.Components {
+		// component Type is validated when unmarshaling
+		if err := ValidateName(cname); err != nil {
+			return err
+		}
+		if err := ValidateSummary(comp.Summary); err != nil {
+			return err
+		}
+		if err := ValidateDescription(comp.Description); err != nil {
+			return err
+		}
+	}
+
 	if err := validateTitle(info.Title()); err != nil {
 		return err
 	}
 
-	if err := validateDescription(info.Description()); err != nil {
+	// TODO for some reason we are not validating the summary for
+	// snap.yaml. What is the store checking?
+
+	if err := ValidateDescription(info.Description()); err != nil {
 		return err
 	}
 

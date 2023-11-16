@@ -115,7 +115,7 @@ func (x *packCmd) Execute([]string) error {
 		return err
 	}
 
-	snapPath, err := pack.Snap(x.Positional.SnapDir, &pack.Options{
+	snapPath, err := pack.Pack(x.Positional.SnapDir, &pack.Options{
 		TargetDir:   x.Positional.TargetDir,
 		SnapName:    x.Filename,
 		Compression: x.Compression,

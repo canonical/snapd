@@ -83,5 +83,5 @@ execute: |
     echo "And back to run mode"
     remote.exec "sudo snap wait system seed.loaded"
     remote.exec sudo snap reboot --run | MATCH 'Reboot into "run" mode.'
-    rmeote.wait-for reboot "${boot_id}"
+    remote.wait-for reboot "${boot_id}"
     remote.exec 'sudo cat /proc/cmdline' | MATCH "snapd_recovery_mode=run "
