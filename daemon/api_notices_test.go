@@ -158,6 +158,41 @@ func (s *noticesSuite) TestNoticesFilterMultipleKeys(c *C) {
 	c.Assert(n["key"], Equals, "danger")
 }
 
+func (s *noticesSuite) TestNoticesFilterInvalidTypes(c *C) {
+	s.daemon(c)
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	addNotice(c, st, state.ChangeUpdateNotice, "123", nil)
+	time.Sleep(time.Microsecond)
+	addNotice(c, st, state.WarningNotice, "danger", nil)
+	st.Unlock()
+
+	// Check that invalid types are discarded, and notices with remaining
+	// types are requested as expected, without error.
+	req, err := http.NewRequest("GET", "/v2/notices?types=foo&types=warning&types=bar,baz", nil)
+	c.Assert(err, IsNil)
+	rsp := s.syncReq(c, req, nil)
+	c.Check(rsp.Status, Equals, 200)
+
+	notices, ok := rsp.Result.([]*state.Notice)
+	c.Assert(ok, Equals, true)
+	c.Assert(notices, HasLen, 1)
+	n := noticeToMap(c, notices[0])
+	c.Assert(n["type"], Equals, "warning")
+
+	// Check that if all types are invalid, no notices are returned, and there
+	// is no error.
+	req, err = http.NewRequest("GET", "/v2/notices?types=foo&types=bar,baz", nil)
+	c.Assert(err, IsNil)
+	rsp = s.syncReq(c, req, nil)
+	c.Check(rsp.Status, Equals, 200)
+
+	notices, ok = rsp.Result.([]*state.Notice)
+	c.Assert(ok, Equals, true)
+	c.Assert(notices, HasLen, 0)
+}
+
 func (s *noticesSuite) TestNoticesWait(c *C) {
 	s.daemon(c)
 
