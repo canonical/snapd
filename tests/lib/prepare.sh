@@ -984,6 +984,9 @@ setup_reflash_magic() {
             cp "$TESTSLIB/assertions/ubuntu-core-22-amd64.model" "$IMAGE_HOME/pc.model"
         fi
     else
+        # Assert we are building UC 16.
+        os.query is-core16
+
         # FIXME: install would be better but we don't have dpkg on
         #        the image
         # unpack our freshly build snapd into the new snapd snap

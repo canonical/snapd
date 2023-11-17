@@ -952,11 +952,11 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # Allow reading the dynamic linker cache.
   /etc/ld.so.cache r,
   # Allow reading, mapping and executing the dynamic linker.
-  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld-*.so mrix,
+  /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}ld-*.so* mrix,
   # Allow reading and mapping various parts of the standard library and
   # dynamically loaded nss modules and what not.
-  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libc{,-[0-9]*}.so* mr,
-  /{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libpthread{,-[0-9]*}.so* mr,
+  /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libc{,-[0-9]*}.so* mr,
+  /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/{,atomics/}}libpthread{,-[0-9]*}.so* mr,
 
   # Common devices accesses
   /dev/null rw,
