@@ -217,64 +217,112 @@ func (cs *clientSuite) TestClientLogsNotFound(c *check.C) {
 	c.Check(actual, check.HasLen, 0)
 }
 
+func (cs *clientSuite) checkCommonFields(c *check.C, reqOp map[string]interface{}, names, scope, users []string, comment check.CommentInterface) {
+	inames := make([]interface{}, len(names))
+	for i, name := range names {
+		inames[i] = interface{}(name)
+	}
+
+	c.Check(reqOp["names"], check.DeepEquals, inames, comment)
+	if len(scope) > 0 {
+		snames := make([]interface{}, len(scope))
+		for i, scope := range scope {
+			snames[i] = interface{}(scope)
+		}
+		c.Check(reqOp["scope"], check.DeepEquals, snames, comment)
+	} else {
+		c.Check(reqOp["scope"], check.IsNil, comment)
+	}
+	if len(users) > 0 {
+		unames := make([]interface{}, len(users))
+		for i, u := range users {
+			unames[i] = interface{}(u)
+		}
+		c.Check(reqOp["user-services-of"], check.DeepEquals, unames, comment)
+	} else {
+		c.Check(reqOp["user-services-of"], check.IsNil, comment)
+	}
+}
+
 func (cs *clientSuite) TestClientServiceStart(c *check.C) {
 	cs.status = 202
 	cs.rsp = `{"type": "async", "status-code": 202, "change": "24"}`
 
-	type scenario struct {
-		names   []string
-		opts    client.StartOptions
-		comment check.CommentInterface
+	tests := []struct {
+		names []string
+		scope []string
+		users []string
+		opts  client.StartOptions
+	}{
+		{},
+		{
+			opts: client.StartOptions{
+				Enable: true,
+			},
+		},
+		{
+			names: []string{"foo"},
+		},
+		{
+			names: []string{"foo"},
+			opts: client.StartOptions{
+				Enable: true,
+			},
+		},
+		{
+			names: []string{"foo", "bar", "baz"},
+		},
+		{
+			names: []string{"foo", "bar", "baz"},
+			opts: client.StartOptions{
+				Enable: true,
+			},
+		},
+		{
+			names: []string{"foo"},
+			scope: []string{"user"},
+		},
+		{
+			names: []string{"foo"},
+			scope: []string{"system"},
+		},
+		{
+			names: []string{"foo"},
+			scope: []string{"system", "user"},
+		},
+		{
+			names: []string{"foo"},
+			users: []string{"user"},
+		},
+		{
+			names: []string{"foo"},
+			users: []string{"users"},
+		},
 	}
 
-	var scenarios []scenario
-
-	for _, names := range [][]string{
-		nil, {},
-		{"foo"},
-		{"foo", "bar", "baz"},
-	} {
-		for _, opts := range []client.StartOptions{
-			{Enable: true},
-			{Enable: false},
-		} {
-			scenarios = append(scenarios, scenario{
-				names:   names,
-				opts:    opts,
-				comment: check.Commentf("{%q; %#v}", names, opts),
-			})
-		}
-	}
-
-	for _, sc := range scenarios {
-		id, err := cs.cli.Start(sc.names, sc.opts)
+	for _, sc := range tests {
+		comment := check.Commentf("{%q; %q; %q; %#v}", sc.names, sc.scope, sc.users, sc.opts)
+		id, err := cs.cli.Start(sc.names, sc.scope, sc.users, sc.opts)
 		if len(sc.names) == 0 {
-			c.Check(id, check.Equals, "", sc.comment)
-			c.Check(err, check.Equals, client.ErrNoNames, sc.comment)
-			c.Check(cs.req, check.IsNil, sc.comment) // i.e. the request was never done
+			c.Check(id, check.Equals, "", comment)
+			c.Check(err, check.Equals, client.ErrNoNames, comment)
+			c.Check(cs.req, check.IsNil, comment) // i.e. the request was never done
 		} else {
-			c.Assert(err, check.IsNil, sc.comment)
-			c.Check(id, check.Equals, "24", sc.comment)
-			c.Check(cs.req.URL.Path, check.Equals, "/v2/apps", sc.comment)
-			c.Check(cs.req.Method, check.Equals, "POST", sc.comment)
-			c.Check(cs.req.URL.Query(), check.HasLen, 0, sc.comment)
-
-			inames := make([]interface{}, len(sc.names))
-			for i, name := range sc.names {
-				inames[i] = interface{}(name)
-			}
+			c.Assert(err, check.IsNil, comment)
+			c.Check(id, check.Equals, "24", comment)
+			c.Check(cs.req.URL.Path, check.Equals, "/v2/apps", comment)
+			c.Check(cs.req.Method, check.Equals, "POST", comment)
+			c.Check(cs.req.URL.Query(), check.HasLen, 0, comment)
 
 			var reqOp map[string]interface{}
-			c.Assert(json.NewDecoder(cs.req.Body).Decode(&reqOp), check.IsNil, sc.comment)
+			c.Assert(json.NewDecoder(cs.req.Body).Decode(&reqOp), check.IsNil, comment)
+			c.Check(reqOp["action"], check.Equals, "start", comment)
+			cs.checkCommonFields(c, reqOp, sc.names, sc.scope, sc.users, comment)
 			if sc.opts.Enable {
-				c.Check(len(reqOp), check.Equals, 3, sc.comment)
-				c.Check(reqOp["enable"], check.Equals, true, sc.comment)
+				c.Check(reqOp["enable"], check.Equals, true, comment)
 			} else {
-				c.Check(len(reqOp), check.Equals, 2, sc.comment)
-				c.Check(reqOp["enable"], check.IsNil, sc.comment)
+				c.Check(reqOp["enable"], check.IsNil, comment)
 			}
-			c.Check(reqOp["action"], check.Equals, "start", sc.comment)
-			c.Check(reqOp["names"], check.DeepEquals, inames, sc.comment)
 		}
 	}
 }
@@ -283,60 +331,81 @@ func (cs *clientSuite) TestClientServiceStop(c *check.C) {
 	cs.status = 202
 	cs.rsp = `{"type": "async", "status-code": 202, "change": "24"}`
 
-	type tT struct {
-		names   []string
-		opts    client.StopOptions
-		comment check.CommentInterface
+	tests := []struct {
+		names []string
+		scope []string
+		users []string
+		opts  client.StopOptions
+	}{
+		{},
+		{
+			opts: client.StopOptions{
+				Disable: true,
+			},
+		},
+		{
+			names: []string{"foo"},
+		},
+		{
+			names: []string{"foo"},
+			opts: client.StopOptions{
+				Disable: true,
+			},
+		},
+		{
+			names: []string{"foo", "bar", "baz"},
+		},
+		{
+			names: []string{"foo", "bar", "baz"},
+			opts: client.StopOptions{
+				Disable: true,
+			},
+		},
+		{
+			names: []string{"foo"},
+			scope: []string{"user"},
+		},
+		{
+			names: []string{"foo"},
+			scope: []string{"system"},
+		},
+		{
+			names: []string{"foo"},
+			scope: []string{"system", "user"},
+		},
+		{
+			names: []string{"foo"},
+			users: []string{"user"},
+		},
+		{
+			names: []string{"foo"},
+			users: []string{"users"},
+		},
 	}
 
-	var scs []tT
-
-	for _, names := range [][]string{
-		nil, {},
-		{"foo"},
-		{"foo", "bar", "baz"},
-	} {
-		for _, opts := range []client.StopOptions{
-			{Disable: true},
-			{Disable: false},
-		} {
-			scs = append(scs, tT{
-				names:   names,
-				opts:    opts,
-				comment: check.Commentf("{%q; %#v}", names, opts),
-			})
-		}
-	}
-
-	for _, sc := range scs {
-		id, err := cs.cli.Stop(sc.names, sc.opts)
+	for _, sc := range tests {
+		comment := check.Commentf("{%q; %q; %q; %#v}", sc.names, sc.scope, sc.users, sc.opts)
+		id, err := cs.cli.Stop(sc.names, sc.scope, sc.users, sc.opts)
 		if len(sc.names) == 0 {
-			c.Check(id, check.Equals, "", sc.comment)
-			c.Check(err, check.Equals, client.ErrNoNames, sc.comment)
-			c.Check(cs.req, check.IsNil, sc.comment) // i.e. the request was never done
+			c.Check(id, check.Equals, "", comment)
+			c.Check(err, check.Equals, client.ErrNoNames, comment)
+			c.Check(cs.req, check.IsNil, comment) // i.e. the request was never done
 		} else {
-			c.Assert(err, check.IsNil, sc.comment)
-			c.Check(id, check.Equals, "24", sc.comment)
-			c.Check(cs.req.URL.Path, check.Equals, "/v2/apps", sc.comment)
-			c.Check(cs.req.Method, check.Equals, "POST", sc.comment)
-			c.Check(cs.req.URL.Query(), check.HasLen, 0, sc.comment)
-
-			inames := make([]interface{}, len(sc.names))
-			for i, name := range sc.names {
-				inames[i] = interface{}(name)
-			}
+			c.Assert(err, check.IsNil, comment)
+			c.Check(id, check.Equals, "24", comment)
+			c.Check(cs.req.URL.Path, check.Equals, "/v2/apps", comment)
+			c.Check(cs.req.Method, check.Equals, "POST", comment)
+			c.Check(cs.req.URL.Query(), check.HasLen, 0, comment)
 
 			var reqOp map[string]interface{}
-			c.Assert(json.NewDecoder(cs.req.Body).Decode(&reqOp), check.IsNil, sc.comment)
+			c.Assert(json.NewDecoder(cs.req.Body).Decode(&reqOp), check.IsNil, comment)
+			c.Check(reqOp["action"], check.Equals, "stop", comment)
+			cs.checkCommonFields(c, reqOp, sc.names, sc.scope, sc.users, comment)
 			if sc.opts.Disable {
-				c.Check(len(reqOp), check.Equals, 3, sc.comment)
-				c.Check(reqOp["disable"], check.Equals, true, sc.comment)
+				c.Check(reqOp["disable"], check.Equals, true, comment)
 			} else {
-				c.Check(len(reqOp), check.Equals, 2, sc.comment)
-				c.Check(reqOp["disable"], check.IsNil, sc.comment)
+				c.Check(reqOp["disable"], check.IsNil, comment)
 			}
-			c.Check(reqOp["action"], check.Equals, "stop", sc.comment)
-			c.Check(reqOp["names"], check.DeepEquals, inames, sc.comment)
 		}
 	}
 }
@@ -345,60 +414,81 @@ func (cs *clientSuite) TestClientServiceRestart(c *check.C) {
 	cs.status = 202
 	cs.rsp = `{"type": "async", "status-code": 202, "change": "24"}`
 
-	type tT struct {
-		names   []string
-		opts    client.RestartOptions
-		comment check.CommentInterface
+	tests := []struct {
+		names []string
+		scope []string
+		users []string
+		opts  client.RestartOptions
+	}{
+		{},
+		{
+			opts: client.RestartOptions{
+				Reload: true,
+			},
+		},
+		{
+			names: []string{"foo"},
+		},
+		{
+			names: []string{"foo"},
+			opts: client.RestartOptions{
+				Reload: true,
+			},
+		},
+		{
+			names: []string{"foo", "bar", "baz"},
+		},
+		{
+			names: []string{"foo", "bar", "baz"},
+			opts: client.RestartOptions{
+				Reload: true,
+			},
+		},
+		{
+			names: []string{"foo"},
+			scope: []string{"user"},
+		},
+		{
+			names: []string{"foo"},
+			scope: []string{"system"},
+		},
+		{
+			names: []string{"foo"},
+			scope: []string{"system", "user"},
+		},
+		{
+			names: []string{"foo"},
+			users: []string{"user"},
+		},
+		{
+			names: []string{"foo"},
+			users: []string{"users"},
+		},
 	}
 
-	var scs []tT
-
-	for _, names := range [][]string{
-		nil, {},
-		{"foo"},
-		{"foo", "bar", "baz"},
-	} {
-		for _, opts := range []client.RestartOptions{
-			{Reload: true},
-			{Reload: false},
-		} {
-			scs = append(scs, tT{
-				names:   names,
-				opts:    opts,
-				comment: check.Commentf("{%q; %#v}", names, opts),
-			})
-		}
-	}
-
-	for _, sc := range scs {
-		id, err := cs.cli.Restart(sc.names, sc.opts)
+	for _, sc := range tests {
+		comment := check.Commentf("{%q; %q; %q; %#v}", sc.names, sc.scope, sc.users, sc.opts)
+		id, err := cs.cli.Restart(sc.names, sc.scope, sc.users, sc.opts)
 		if len(sc.names) == 0 {
-			c.Check(id, check.Equals, "", sc.comment)
-			c.Check(err, check.Equals, client.ErrNoNames, sc.comment)
-			c.Check(cs.req, check.IsNil, sc.comment) // i.e. the request was never done
+			c.Check(id, check.Equals, "", comment)
+			c.Check(err, check.Equals, client.ErrNoNames, comment)
+			c.Check(cs.req, check.IsNil, comment) // i.e. the request was never done
 		} else {
-			c.Assert(err, check.IsNil, sc.comment)
-			c.Check(id, check.Equals, "24", sc.comment)
-			c.Check(cs.req.URL.Path, check.Equals, "/v2/apps", sc.comment)
-			c.Check(cs.req.Method, check.Equals, "POST", sc.comment)
-			c.Check(cs.req.URL.Query(), check.HasLen, 0, sc.comment)
-
-			inames := make([]interface{}, len(sc.names))
-			for i, name := range sc.names {
-				inames[i] = interface{}(name)
-			}
+			c.Assert(err, check.IsNil, comment)
+			c.Check(id, check.Equals, "24", comment)
+			c.Check(cs.req.URL.Path, check.Equals, "/v2/apps", comment)
+			c.Check(cs.req.Method, check.Equals, "POST", comment)
+			c.Check(cs.req.URL.Query(), check.HasLen, 0, comment)
 
 			var reqOp map[string]interface{}
-			c.Assert(json.NewDecoder(cs.req.Body).Decode(&reqOp), check.IsNil, sc.comment)
+			c.Assert(json.NewDecoder(cs.req.Body).Decode(&reqOp), check.IsNil, comment)
+			cs.checkCommonFields(c, reqOp, sc.names, sc.scope, sc.users, comment)
+			c.Check(reqOp["action"], check.Equals, "restart", comment)
 			if sc.opts.Reload {
-				c.Check(len(reqOp), check.Equals, 3, sc.comment)
-				c.Check(reqOp["reload"], check.Equals, true, sc.comment)
+				c.Check(reqOp["reload"], check.Equals, true, comment)
 			} else {
-				c.Check(len(reqOp), check.Equals, 2, sc.comment)
-				c.Check(reqOp["reload"], check.IsNil, sc.comment)
+				c.Check(reqOp["reload"], check.IsNil, comment)
 			}
-			c.Check(reqOp["action"], check.Equals, "restart", sc.comment)
-			c.Check(reqOp["names"], check.DeepEquals, inames, sc.comment)
 		}
 	}
 }

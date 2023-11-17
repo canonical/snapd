@@ -188,8 +188,10 @@ func (client *Client) Logs(names []string, opts LogOptions) (<-chan Log, error) 
 var ErrNoNames = errors.New(`"names" must not be empty`)
 
 type appInstruction struct {
-	Action string   `json:"action"`
-	Names  []string `json:"names"`
+	Action          string   `json:"action"`
+	Names           []string `json:"names"`
+	Scope           []string `json:"scope,omitempty"`
+	ServicesOfUsers []string `json:"user-services-of,omitempty"`
 	StartOptions
 	StopOptions
 	RestartOptions
@@ -207,15 +209,17 @@ type StartOptions struct {
 // It takes a list of names that can be snaps, of which all their
 // services are started, or snap.service which are individual
 // services to start; it shouldn't be empty.
-func (client *Client) Start(names []string, opts StartOptions) (changeID string, err error) {
+func (client *Client) Start(names []string, scope []string, users []string, opts StartOptions) (changeID string, err error) {
 	if len(names) == 0 {
 		return "", ErrNoNames
 	}
 
 	buf, err := json.Marshal(appInstruction{
-		Action:       "start",
-		Names:        names,
-		StartOptions: opts,
+		Action:          "start",
+		Names:           names,
+		Scope:           scope,
+		ServicesOfUsers: users,
+		StartOptions:    opts,
 	})
 	if err != nil {
 		return "", err
@@ -235,15 +239,17 @@ type StopOptions struct {
 // It takes a list of names that can be snaps, of which all their
 // services are stopped, or snap.service which are individual
 // services to stop; it shouldn't be empty.
-func (client *Client) Stop(names []string, opts StopOptions) (changeID string, err error) {
+func (client *Client) Stop(names []string, scope []string, users []string, opts StopOptions) (changeID string, err error) {
 	if len(names) == 0 {
 		return "", ErrNoNames
 	}
 
 	buf, err := json.Marshal(appInstruction{
-		Action:      "stop",
-		Names:       names,
-		StopOptions: opts,
+		Action:          "stop",
+		Names:           names,
+		Scope:           scope,
+		ServicesOfUsers: users,
+		StopOptions:     opts,
 	})
 	if err != nil {
 		return "", err
@@ -264,15 +270,17 @@ type RestartOptions struct {
 // services are restarted, or snap.service which are individual
 // services to restart; it shouldn't be empty. If the service is not
 // running, starts it.
-func (client *Client) Restart(names []string, opts RestartOptions) (changeID string, err error) {
+func (client *Client) Restart(names []string, scope []string, users []string, opts RestartOptions) (changeID string, err error) {
 	if len(names) == 0 {
 		return "", ErrNoNames
 	}
 
 	buf, err := json.Marshal(appInstruction{
-		Action:         "restart",
-		Names:          names,
-		RestartOptions: opts,
+		Action:          "restart",
+		Names:           names,
+		Scope:           scope,
+		ServicesOfUsers: users,
+		RestartOptions:  opts,
 	})
 	if err != nil {
 		return "", err

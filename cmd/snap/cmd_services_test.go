@@ -52,7 +52,7 @@ func (s *appOpSuite) TearDownTest(c *check.C) {
 	s.BaseSnapSuite.TearDownTest(c)
 }
 
-func (s *appOpSuite) expectedBody(op string, names []string, extra []string) map[string]interface{} {
+func (s *appOpSuite) expectedBody(op string, names, extra []string) map[string]interface{} {
 	inames := make([]interface{}, len(names))
 	for i, name := range names {
 		inames[i] = name
@@ -67,7 +67,7 @@ func (s *appOpSuite) expectedBody(op string, names []string, extra []string) map
 	return expectedBody
 }
 
-func (s *appOpSuite) args(op string, names []string, extra []string, noWait bool) []string {
+func (s *appOpSuite) args(op string, names, extra []string, noWait bool) []string {
 	args := []string{op}
 	if noWait {
 		args = append(args, "--no-wait")
@@ -108,7 +108,7 @@ func (s *appOpSuite) testOpErrorResponse(c *check.C, op string, names []string, 
 	c.Check(n, check.Equals, 1)
 }
 
-func (s *appOpSuite) testOp(c *check.C, op, summary string, names []string, extra []string, noWait bool) {
+func (s *appOpSuite) testOp(c *check.C, op, summary string, names, extra []string, noWait bool) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
@@ -165,6 +165,88 @@ func (s *appOpSuite) TestAppOps(c *check.C) {
 				}
 			}
 		}
+	}
+}
+
+func (s *appOpSuite) TestAppOpsScopeSwitches(c *check.C) {
+	var n int
+	var body map[string]interface{}
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/apps")
+			c.Check(r.URL.Query(), check.HasLen, 0)
+			c.Check(r.Method, check.Equals, "POST")
+			w.WriteHeader(202)
+			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
+			body = DecodedRequestBody(c, r)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
+		case 2:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}`)
+		default:
+			c.Fatalf("expected to get 2 requests, now on %d", n+1)
+		}
+		n++
+	})
+
+	checkInvocation := func(op, summary string, names, args []string) map[string]interface{} {
+		n = 0
+		body = nil
+		s.stdout.Reset()
+
+		rest, err := snap.Parser(snap.Client()).ParseArgs(s.args(op, names, args, false))
+		c.Assert(err, check.IsNil)
+		c.Assert(rest, check.HasLen, 0)
+		c.Check(s.Stderr(), check.Equals, "")
+		expectedN := 3
+		c.Check(s.Stdout(), check.Equals, summary+"\n")
+		// ensure that the fake server api was actually hit
+		c.Check(n, check.Equals, expectedN)
+		return body
+	}
+
+	summaries := []string{"Started.", "Stopped.", "Restarted."}
+	for i, op := range []string{"start", "stop", "restart"} {
+		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, nil), check.DeepEquals, map[string]interface{}{
+			"action": op,
+			"names":  []interface{}{"foo", "bar"},
+		})
+		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"user"}), check.DeepEquals, map[string]interface{}{
+			"action":           op,
+			"names":            []interface{}{"foo", "bar"},
+			"scope":            []interface{}{"user"},
+			"user-services-of": []interface{}{"user"},
+		})
+		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"users"}), check.DeepEquals, map[string]interface{}{
+			"action":           op,
+			"names":            []interface{}{"foo", "bar"},
+			"scope":            []interface{}{"user"},
+			"user-services-of": []interface{}{"users"},
+		})
+		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"system"}), check.DeepEquals, map[string]interface{}{
+			"action": op,
+			"names":  []interface{}{"foo", "bar"},
+			"scope":  []interface{}{"system"},
+		})
+	}
+}
+
+func (s *appOpSuite) TestAppOpsScopeInvalid(c *check.C) {
+	checkInvocation := func(op string, names, args []string) error {
+		rest, err := snap.Parser(snap.Client()).ParseArgs(s.args(op, names, args, false))
+		c.Assert(rest, check.HasLen, len(names))
+		return err
+	}
+
+	for _, op := range []string{"start", "stop", "restart"} {
+		c.Check(checkInvocation(op, []string{"foo"}, []string{"user", "system"}), check.ErrorMatches, `--user and --system cannot be used in conjunction with each other`)
+		c.Check(checkInvocation(op, []string{"foo"}, []string{"user", "users"}), check.ErrorMatches, `--user and --users cannot be used in conjunction with each other`)
+		c.Check(checkInvocation(op, []string{"foo"}, []string{"users", "system"}), check.ErrorMatches, `--users and --system cannot be used in conjunction with each other`)
 	}
 }
 
