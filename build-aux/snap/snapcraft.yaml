@@ -166,7 +166,7 @@ parts:
         wget https://git.launchpad.net/ubuntu/+source/apparmor/plain/debian/patches/ubuntu/add-${feature}-support.patch?h=ubuntu/lunar -O - | patch -p1
       done
       # apply local apparmor patches
-      for patch in $SNAPCRAFT_PROJECT_DIR/build-aux/snap/patches/apparmor/*; do
+      for patch in $SNAPCRAFT_PROJECT_DIR/build-aux/snap/local/patches/apparmor/*; do
           patch -p1 < $patch
       done
     override-build: |
