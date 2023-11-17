@@ -44,7 +44,7 @@ var (
 		GET:         getAppsInfo,
 		POST:        postApps,
 		ReadAccess:  openAccess{},
-		WriteAccess: authenticatedAccess{},
+		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 
 	logsCmd = &Command{
