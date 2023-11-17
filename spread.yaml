@@ -45,6 +45,7 @@ environment:
     # TODO: Consider reverting to latest/candidate after Snapcraft compatibility with LXD 5.21 extended version string "5.21 LTS" is fixed
     LXD_SNAP_CHANNEL: "latest/candidate"
     UBUNTU_IMAGE_SNAP_CHANNEL: "2/stable"
+    SNAPCRAFT_SNAP_CHANNEL: "latest/candidate"
     # controls whether ubuntu-image is built using the current snapd tree as a
     # dependency or the one listed in its go.mod
     UBUNTU_IMAGE_ALLOW_API_BREAK: '$(HOST: echo "${SPREAD_UBUNTU_IMAGE_ALLOW_API_BREAK:-true}")'
