@@ -39,7 +39,7 @@ execute: |
 
         # Just connect CONNECTIONS_PERCENTAGE of the interfaces on
         # the current system
-        if [ -n "$CONNECTIONS_PERCENTAGE" ] && [ "$((RANDOM % ((100/$CONNECTIONS_PERCENTAGE)) ))" != 0 ]; then
+        if [ -n "$CONNECTIONS_PERCENTAGE" ] && [ "$((RANDOM % (100 / CONNECTIONS_PERCENTAGE) ))" != 0 ]; then
             echo "skipping plug: $plugcmd"
             continue
         fi
