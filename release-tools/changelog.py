@@ -2,9 +2,14 @@
 
 import argparse
 import datetime
+import io
+import markdown
 import os
 import re
+import textwrap
 from typing import NamedTuple
+
+from bs4 import BeautifulSoup
 
 import debian.changelog
 
@@ -125,7 +130,7 @@ def update_fedora_changelog(opts, snapd_packaging_dir, new_changelog_entry, main
             fh.write(ch_line)
         fh.write("\n")
         # write the rest of the original spec file
-        fh.write(spec_file_content[idx + len(changelog_section) :])
+        fh.write(spec_file_content[idx + len(changelog_section):])
 
 
 def update_opensuse_changelog(
@@ -182,13 +187,8 @@ See https://forum.snapcraft.io/t/the-snapd-roadmap/1973 for high-level overview.
             fh.write("\n")
 
 
-def main(opts):
-    this_script = os.path.realpath(__file__)
-    snapd_root_git_dir = os.path.dirname(os.path.dirname(this_script))
-    snapd_packaging_dir = os.path.join(snapd_root_git_dir, "packaging")
-
-    # read all the changelog entries, expected to be formatted by snappy-dch
-    new_changelog_entry = opts.changelog.read()
+def read_changelogs_snappy_dch(new_changelog: io.TextIOWrapper):
+    new_changelog_entry = new_changelog.read()
 
     # verify that the changelog entry lines are all in the right format
     for line_number, line in enumerate(new_changelog_entry.splitlines(), start=1):
@@ -202,6 +202,40 @@ def main(opts):
             raise RuntimeError(
                 f"line {line_number} too long, should wrap properly to next line"
             )
+    return new_changelog_entry
+
+
+def read_changelogs_news_md(changelog: io.TextIOWrapper, new_version: str):
+    html = markdown.markdown(changelog.read())
+    soup = BeautifulSoup(html, 'html.parser')
+    # precondition check, assume new_version is on top
+    if new_version not in soup.h1.text:
+        raise RuntimeError(f'cannot find expected version "{new_version}" in first header, found "{soup.h1.text}"')
+    # changelog format as expected by debian/changelog
+    new_changelog = []
+    wrapper = textwrap.TextWrapper(initial_indent="    - ", subsequent_indent="      ", width=72)
+    for elm in soup.ul.children:
+        if not elm.text.strip():
+            continue
+        # li can be multiline, concat them
+        ch_entry = " ".join([line.strip() for line in elm.text.split("\n")])
+        # and wrap again but this time the Debian/Ubuntu way
+        new_changelog.append("\n".join(wrapper.wrap(ch_entry)))
+    new_changelog_str = "\n".join(new_changelog)
+    # tooling expects a final newline
+    return new_changelog_str + "\n"
+
+
+def main(opts):
+    this_script = os.path.realpath(__file__)
+    snapd_root_git_dir = os.path.dirname(os.path.dirname(this_script))
+    snapd_packaging_dir = os.path.join(snapd_root_git_dir, "packaging")
+
+    # read all the changelog entries, expected to be formatted by snappy-dch
+    if os.path.basename(opts.changelog.name) == "NEWS.md":
+        new_changelog_entry = read_changelogs_news_md(opts.changelog, opts.version)
+    else:
+        new_changelog_entry = read_changelogs_snappy_dch(opts.changelog)
 
     # read the name and email of the person running the script using i.e. dch
     # conventions
