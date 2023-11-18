@@ -241,7 +241,7 @@ func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, model *assert
 		// tested, hence allow both recover and factory reset modes
 		modeenv.RecoverySystem: {ModeRecover, ModeFactoryReset},
 	}
-	recoveryBootChains, err := recoveryBootChainsForSystems(systems, modes, tbl, modeenv, includeTryModel, flags.SeedDir)
+	recoveryBootChains, err := recoveryBootChainsForSystems(systems, modes, tbl, modeenv, includeTryModel, SeedDir)
 	if err != nil {
 		return fmt.Errorf("cannot compose recovery boot chains: %v", err)
 	}
@@ -471,6 +471,8 @@ func resealKeyToModeenvUsingFDESetupHookImpl(rootdir string, modeenv *Modeenv, e
 	return nil
 }
 
+var SeedDir = dirs.SnapSeedDir
+
 // TODO:UC20: allow more than one model to accommodate the remodel scenario
 func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, expectReseal bool) error {
 	// build the recovery mode boot chain
@@ -494,7 +496,7 @@ func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, expectReseal bo
 	// accommodate the dynamics of a remodel
 	includeTryModel := true
 	recoveryBootChainsForRunKey, err := recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, modes, tbl,
-		modeenv, includeTryModel, dirs.SnapSeedDir)
+		modeenv, includeTryModel, SeedDir)
 	if err != nil {
 		return fmt.Errorf("cannot compose recovery boot chains for run key: %v", err)
 	}
@@ -512,7 +514,7 @@ func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, expectReseal bo
 	// use the current model as the recovery keys are not expected to be
 	// used during a remodel
 	includeTryModel = false
-	recoveryBootChains, err := recoveryBootChainsForSystems(testedRecoverySystems, modes, tbl, modeenv, includeTryModel, dirs.SnapSeedDir)
+	recoveryBootChains, err := recoveryBootChainsForSystems(testedRecoverySystems, modes, tbl, modeenv, includeTryModel, SeedDir)
 	if err != nil {
 		return fmt.Errorf("cannot compose recovery boot chains: %v", err)
 	}
