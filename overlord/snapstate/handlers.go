@@ -1326,6 +1326,13 @@ func (m *SnapManager) queryDisabledServices(info *snap.Info, pb progress.Meter) 
 	return m.backend.QueryDisabledServices(info, pb)
 }
 
+type unlinkReason string
+
+const (
+	unlinkReasonRefresh       unlinkReason = "refresh"
+	unlinkReasonHomeMigration unlinkReason = "home-migration"
+)
+
 func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// called only during refresh when a new revision of a snap is being
 	// installed
@@ -1349,7 +1356,8 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 		return err
 	}
 
-	if experimentalRefreshAppAwareness && !excludeFromRefreshAppAwareness(snapsup.Type) && !snapsup.Flags.IgnoreRunning {
+	refreshAppAwarenessEnabled := experimentalRefreshAppAwareness && !excludeFromRefreshAppAwareness(snapsup.Type)
+	if refreshAppAwarenessEnabled && !snapsup.Flags.IgnoreRunning {
 		// Invoke the hard refresh flow. Upon success the returned lock will be
 		// held to prevent snap-run from advancing until UnlinkSnap, executed
 		// below, completes.
@@ -1377,12 +1385,22 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 	// symlink to a new revision of the snapd snap, so only do the actual
 	// unlink if we're not working on the snapd snap
 	if oldInfo.Type() != snap.TypeSnapd {
+		var reason unlinkReason
+		if err := t.Get("unlink-reason", &reason); err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+		experimentalRefreshAppAwarenessUX, err := features.Flag(tr, features.RefreshAppAwarenessUX)
+		if err != nil && !config.IsNoOption(err) {
+			return err
+		}
+		skipBinaries := reason == unlinkReasonRefresh && refreshAppAwarenessEnabled && experimentalRefreshAppAwarenessUX
 		// do the final unlink
 		linkCtx := backend.LinkContext{
 			FirstInstall: false,
 			// This task is only used for unlinking a snap during refreshes so we
 			// can safely hard-code this condition here.
 			RunInhibitHint: runinhibit.HintInhibitedForRefresh,
+			SkipBinaries:   skipBinaries,
 		}
 		err = m.backend.UnlinkSnap(oldInfo, linkCtx, NewTaskProgressAdapterLocked(t))
 		if err != nil {

@@ -1556,7 +1556,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionAlreadyCurrent(c *C) {
 	c.Assert(ts, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
+func (s *snapmgrTestSuite) testRevertRunThrough(c *C, refreshAppAwarenessUX bool) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(7),
@@ -1595,8 +1595,9 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 			inhibitHint: "refresh",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+			op:                 "unlink-snap",
+			path:               filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+			unlinkSkipBinaries: refreshAppAwarenessUX,
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -1649,6 +1650,15 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	}, nil))
 	c.Check(snapst.RevertStatus, HasLen, 0)
 	c.Assert(snapst.Block(), DeepEquals, []snap.Revision{snap.R(7)})
+}
+
+func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
+	s.testRevertRunThrough(c, false)
+}
+
+func (s *snapmgrTestSuite) TestRevertRunThroughSkipBinaries(c *C) {
+	s.enableRefreshAppAwarenessUX()
+	s.testRevertRunThrough(c, true)
 }
 
 func (s *snapmgrTestSuite) TestRevertRevisionNotBlocked(c *C) {
@@ -8328,6 +8338,7 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetNoRemodelConflict(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestMigrateHome(c *C) {
+	s.enableRefreshAppAwarenessUX()
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -8372,6 +8383,17 @@ func (s *snapmgrTestSuite) TestMigrateHome(c *C) {
 	c.Assert(undo.Created, HasLen, 1)
 
 	s.fakeBackend.ops.MustFindOp(c, "init-exposed-snap-home")
+
+	// check unlink-reason
+	unlinkTask := findLastTask(chg, "unlink-current-snap")
+	c.Assert(unlinkTask, NotNil)
+	var unlinkReason string
+	unlinkTask.Get("unlink-reason", &unlinkReason)
+	c.Check(unlinkReason, Equals, "home-migration")
+
+	// binaries removal should not be skipped when unlink-reason is home-migration
+	unlinkSnapOp := s.fakeBackend.ops.MustFindOp(c, "unlink-snap")
+	c.Check(unlinkSnapOp.unlinkSkipBinaries, Equals, false)
 
 	// check migration is off in state and seq file
 	assertMigrationState(c, s.state, "some-snap", &dirs.SnapDirOptions{MigratedToExposedHome: true})

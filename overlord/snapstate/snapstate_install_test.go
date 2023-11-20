@@ -2216,7 +2216,7 @@ version: 1.0`)
 	c.Assert(snapst.LocalRevision(), Equals, snap.R(-1))
 }
 
-func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThrough(c *C) {
+func (s *snapmgrTestSuite) testInstallSubsequentLocalRunThrough(c *C, refreshAppAwarenessUX bool) {
 	// use the real thing for this one
 	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
 
@@ -2265,8 +2265,9 @@ epoch: 1*
 			inhibitHint: "refresh",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "mock/x2"),
+			op:                 "unlink-snap",
+			path:               filepath.Join(dirs.SnapMountDir, "mock/x2"),
+			unlinkSkipBinaries: refreshAppAwarenessUX,
 		},
 		{
 			op:   "copy-data",
@@ -2342,6 +2343,15 @@ epoch: 1*
 		Revision: snap.R(-3),
 	})
 	c.Assert(snapst.LocalRevision(), Equals, snap.R(-3))
+}
+
+func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThrough(c *C) {
+	s.testInstallSubsequentLocalRunThrough(c, false)
+}
+
+func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThroughSkipBinaries(c *C) {
+	s.enableRefreshAppAwarenessUX()
+	s.testInstallSubsequentLocalRunThrough(c, true)
 }
 
 func (s *snapmgrTestSuite) TestInstallOldSubsequentLocalRunThrough(c *C) {

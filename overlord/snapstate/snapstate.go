@@ -537,6 +537,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = removeAliases
 
 		unlink := st.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), snapsup.InstanceName()))
+		unlink.Set("unlink-reason", unlinkReasonRefresh)
 		addTask(unlink)
 		prev = unlink
 	}
@@ -2957,6 +2958,7 @@ func MigrateHome(st *state.State, snaps []string) ([]*state.TaskSet, error) {
 		prev = stop
 
 		unlink := st.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), name))
+		unlink.Set("unlink-reason", unlinkReasonHomeMigration)
 		addTask(unlink)
 		prev = unlink
 

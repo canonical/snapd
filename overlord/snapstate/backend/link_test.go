@@ -149,6 +149,119 @@ apps:
 	c.Assert(l, HasLen, 0)
 }
 
+func (s *linkSuite) TestLinkDoUndoGenerateWrappersNoSkipBinaries(c *C) {
+	const yaml = `name: hello
+version: 1.0
+
+apps:
+ foo:
+   command: foo
+ bar:
+   command: bar
+`
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+	// create gui/icons dir
+	guiDir := filepath.Join(info.MountDir(), "meta", "gui")
+	iconsDir := filepath.Join(info.MountDir(), "meta", "gui", "icons")
+	c.Assert(os.MkdirAll(guiDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(iconsDir, 0755), IsNil)
+	// add desktop files
+	c.Assert(os.WriteFile(filepath.Join(guiDir, "foo.desktop"), []byte(`
+[Desktop Entry]
+Name=foo
+Icon=${SNAP}/icon.png
+Exec=foo
+`), 0644), IsNil)
+	// add icons
+	c.Assert(os.WriteFile(filepath.Join(iconsDir, "snap.hello.png"), []byte(""), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(iconsDir, "snap.hello.svg"), []byte(""), 0644), IsNil)
+
+	_, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 2)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, "*.desktop"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 1)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopIconsDir, "snap.hello.*"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 2)
+
+	// undo will remove
+	err = s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null)
+	c.Assert(err, IsNil)
+
+	l, err = filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 0)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, "*.desktop"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 0)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopIconsDir, "snap.hello.*"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 0)
+}
+
+func (s *linkSuite) TestLinkDoUndoGenerateWrappersSkipBinaries(c *C) {
+	const yaml = `name: hello
+version: 1.0
+
+apps:
+ foo:
+   command: foo
+ bar:
+   command: bar
+`
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+	// create gui/icons dir
+	guiDir := filepath.Join(info.MountDir(), "meta", "gui")
+	iconsDir := filepath.Join(info.MountDir(), "meta", "gui", "icons")
+	c.Assert(os.MkdirAll(guiDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(iconsDir, 0755), IsNil)
+	// add desktop files
+	c.Assert(os.WriteFile(filepath.Join(guiDir, "foo.desktop"), []byte(`
+[Desktop Entry]
+Name=foo
+Icon=${SNAP}/icon.png
+Exec=foo
+`), 0644), IsNil)
+	// add icons
+	c.Assert(os.WriteFile(filepath.Join(iconsDir, "snap.hello.png"), []byte(""), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(iconsDir, "snap.hello.svg"), []byte(""), 0644), IsNil)
+
+	_, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 2)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, "*.desktop"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 1)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopIconsDir, "snap.hello.*"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 2)
+
+	// unlink should skip binaries, icons and desktop files
+	linkCtx := backend.LinkContext{
+		SkipBinaries: true,
+	}
+	err = s.be.UnlinkSnap(info, linkCtx, progress.Null)
+	c.Assert(err, IsNil)
+
+	l, err = filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 2)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, "*.desktop"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 1)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopIconsDir, "snap.hello.*"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 2)
+}
+
 func (s *linkSuite) TestLinkDoUndoCurrentSymlink(c *C) {
 	const yaml = `name: hello
 version: 1.0
