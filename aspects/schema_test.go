@@ -1620,7 +1620,7 @@ func (*schemaSuite) TestArrayEnforcesOnlyOneType(c *C) {
 }`)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot accept element in "foo": cannot parse string: json:.*`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo.\[1\]": cannot parse string: json:.*`)
 }
 
 func (*schemaSuite) TestArrayWithUniqueRejectsDuplicates(c *C) {
@@ -1775,7 +1775,7 @@ func (*schemaSuite) TestPathPrefixWithArrayUnderUserType(c *C) {
 
 	input := []byte(`{"foo": [-1]}`)
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot accept element in "foo": -1 is less than the allowed minimum 0`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo.\[0\]": -1 is less than the allowed minimum 0`)
 }
 
 func (*schemaSuite) TestPathPrefixWithArrayUnderUserWithAContainerElementType(c *C) {
@@ -1800,9 +1800,9 @@ func (*schemaSuite) TestPathPrefixWithArrayUnderUserWithAContainerElementType(c 
 	schema, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	input := []byte(`{"foo": [{"bar": -1}]}`)
+	input := []byte(`{"foo": [{"bar": 1}, {"bar": -1}]}`)
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot accept element in "foo.bar": -1 is less than the allowed minimum 0`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo.\[1\].bar": -1 is less than the allowed minimum 0`)
 }
 
 func (*schemaSuite) TestPathPrefixWithKeyOrValueConstraints(c *C) {
