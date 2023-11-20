@@ -509,6 +509,8 @@ type BuildOpts struct {
 // partition table from the snap when a loopback device is created from it. If the snap
 // is smaller than this size, some versions of the kernel will print error logs while
 // scanning the loopback device for partitions.
+// TODO: this isn't reliable, on some distros mkfsquashfs pads up to 64k by
+// default
 const MinimumSnapSize int64 = 16384
 
 // Build builds the snap.
