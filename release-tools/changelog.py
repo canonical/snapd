@@ -9,7 +9,7 @@ import re
 import textwrap
 from typing import NamedTuple
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString, Tag
 
 import debian.changelog
 
@@ -218,10 +218,18 @@ def read_changelogs_news_md(changelog: io.TextIOWrapper, new_version: str):
     new_changelog = []
     wrapper = textwrap.TextWrapper(initial_indent="    - ", subsequent_indent="      ", width=72)
     for elm in soup.ul.children:
-        if not elm.text.strip():
+        if type(elm) is Tag:
+            text = elm.text
+        elif type(elm) is NavigableString:
+            text = elm
+        else:
+            raise RuntimeError(f'expected list item as Tag or NavigableString but got "{type(elm)}"')
+
+        if not text.strip():
             continue
+
         # li can be multiline, concat them
-        ch_entry = " ".join([line.strip() for line in elm.text.split("\n")])
+        ch_entry = " ".join([line.strip() for line in text.split("\n")])
         # and wrap again but this time the Debian/Ubuntu way
         new_changelog.append("\n".join(wrapper.wrap(ch_entry)))
     new_changelog_str = "\n".join(new_changelog)
