@@ -588,15 +588,25 @@ esac
 	c.Assert(err, IsNil)
 	defer snapFile.Close()
 
+	fi, err := snapFile.Stat()
+	c.Assert(err, IsNil)
+
+	integrityStartOffset := squashfs.MinimumSnapSize
+	if fi.Size() > int64(65536) {
+		// on openSUSE, the squashfs image is padded up to 64k,
+		// including the integrator data, the overall size is > 64k
+		integrityStartOffset = 65536
+	}
+
 	// example snap has a size of 16384 (4 blocks)
-	_, err = snapFile.Seek(squashfs.MinimumSnapSize, io.SeekStart)
+	_, err = snapFile.Seek(integrityStartOffset, io.SeekStart)
 	c.Assert(err, IsNil)
 
 	integrityHdr := make([]byte, integrity.HeaderSize)
 	_, err = snapFile.Read(integrityHdr)
 	c.Assert(err, IsNil)
 
-	c.Check(bytes.HasPrefix(integrityHdr, magic), Equals, true)
+	c.Assert(bytes.HasPrefix(integrityHdr, magic), Equals, true)
 
 	var hdr interface{}
 	integrityHdr = bytes.Trim(integrityHdr, "\x00")
@@ -611,7 +621,7 @@ esac
 	c.Assert(err, IsNil)
 	c.Check(hdrSize, Equals, uint64(integrity.HeaderSize+verityHashSize))
 
-	fi, err := snapFile.Stat()
+	fi, err = snapFile.Stat()
 	c.Assert(err, IsNil)
-	c.Check(fi.Size(), Equals, int64(squashfs.MinimumSnapSize+(integrity.HeaderSize+verityHashSize)))
+	c.Check(fi.Size(), Equals, int64(integrityStartOffset+(integrity.HeaderSize+verityHashSize)))
 }
