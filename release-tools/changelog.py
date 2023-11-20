@@ -14,7 +14,8 @@ from bs4 import BeautifulSoup
 import debian.changelog
 
 # Pattern to validate environment variable "DEBEMAIL"
-env_deb_email_pattern = re.compile(r'^[a-zA-Z]+\s[a-zA-Z]+ <[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}>$')
+env_deb_email_pattern = re.compile(r"^[a-zA-Z]+\s[a-zA-Z]+ <[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}>$")
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="automatic changelog writer for snapd")
@@ -227,12 +228,14 @@ def read_changelogs_news_md(changelog: io.TextIOWrapper, new_version: str):
     # tooling expects a final newline
     return new_changelog_str + "\n"
 
+
 def validate_env_deb_email():
     env_deb_email = os.environ.get('DEBEMAIL')
     if not env_deb_email:
-        raise RuntimeError(f'cannot find environment variable "DEBEMAIL", please provide DEBEMAIL="FirstName LastName <valid-email-address>"')
+        raise RuntimeError('cannot find environment variable "DEBEMAIL", please provide DEBEMAIL="FirstName LastName <valid-email-address>"')
     elif not env_deb_email_pattern.match(env_deb_email):
-        raise RuntimeError(f'environment variable "DEBEMAIL" uses incorrect format, expecting DEBEMAIL="FirstName LastName <valid-email-address>"')
+        raise RuntimeError('environment variable "DEBEMAIL" uses incorrect format, expecting DEBEMAIL="FirstName LastName <valid-email-address>"')
+
 
 def main(opts):
     try:
