@@ -71,6 +71,7 @@ type fakeOp struct {
 
 	otherInstances         bool
 	unlinkFirstInstallUndo bool
+	unlinkSkipBinaries     bool
 	skipKernelExtraction   bool
 
 	services         []string
@@ -1219,6 +1220,7 @@ func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, linkCtx backend.LinkCont
 		path: info.MountDir(),
 
 		unlinkFirstInstallUndo: linkCtx.FirstInstall,
+		unlinkSkipBinaries:     linkCtx.SkipBinaries,
 	})
 	return f.maybeErrForLastOp()
 }
