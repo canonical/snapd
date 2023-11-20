@@ -154,7 +154,7 @@ func (*schemaSuite) TestMapWithUnexpectedKey(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate element under "snaps": map contains unexpected key "bar"`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "snaps": map contains unexpected key "bar"`)
 }
 func (*schemaSuite) TestMapWithKeysStringConstraintHappy(c *C) {
 	schemaStr := []byte(`{
@@ -282,7 +282,7 @@ func (*schemaSuite) TestMapWithUnmetValuesConstraint(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate element under "snaps": cannot validate string: json: cannot unmarshal object into Go value of type string`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "snaps": cannot parse string: json: cannot unmarshal object into Go value of type string`)
 }
 
 func (*schemaSuite) TestMapSchemaMetConstraintsWithMissingEntry(c *C) {
@@ -323,7 +323,7 @@ func (*schemaSuite) TestMapSchemaUnmetConstraint(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate element under "bar": cannot validate string: json: cannot unmarshal object into Go value of type string`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "bar": cannot parse string: json: cannot unmarshal object into Go value of type string`)
 }
 
 func (*schemaSuite) TestMapSchemaWithMetRequiredConstraint(c *C) {
@@ -369,7 +369,7 @@ func (*schemaSuite) TestMapSchemaWithUnmetRequiredConstraint(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate top level element: cannot find required combinations of keys`)
+	c.Assert(err, ErrorMatches, `cannot accept top level element: cannot find required combinations of keys`)
 }
 
 func (*schemaSuite) TestMapSchemaWithAlternativeOfRequiredEntries(c *C) {
@@ -425,7 +425,7 @@ func (*schemaSuite) TestMapSchemaWithUnmetAlternativeOfRequiredEntries(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate top level element: cannot find required combinations of keys`)
+	c.Assert(err, ErrorMatches, `cannot accept top level element: cannot find required combinations of keys`)
 }
 
 func (*schemaSuite) TestMapSchemaRequiredNotInSchema(c *C) {
@@ -566,7 +566,7 @@ func (*schemaSuite) TestStringsWithChoicesFail(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate element under "snaps": string "baz" is not one of the allowed choices`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "snaps": string "baz" is not one of the allowed choices`)
 }
 
 func (*schemaSuite) TestStringChoicesAndPatternsFail(c *C) {
@@ -630,7 +630,7 @@ func (*schemaSuite) TestStringPatternNoMatch(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate element under "foo": string "F00" doesn't match schema pattern \[fb\]00`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": string "F00" doesn't match schema pattern \[fb\]00`)
 }
 
 func (*schemaSuite) TestStringPatternWrongFormat(c *C) {
@@ -892,7 +892,7 @@ func (*schemaSuite) TestMapBasedUserDefinedTypeFail(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate element under "snaps.version": cannot validate string: json: .*`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "snaps.version": cannot parse string: json: .*`)
 }
 
 func (*schemaSuite) TestBadUserDefinedTypeName(c *C) {
@@ -956,7 +956,7 @@ func (*schemaSuite) TestIntegerMustMatchChoices(c *C) {
 		if num == 1 || num == 3 {
 			c.Assert(err, IsNil)
 		} else {
-			c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot validate element under "foo": %d is not one of the allowed choices`, num))
+			c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept element in "foo": %d is not one of the allowed choices`, num))
 		}
 	}
 }
@@ -983,10 +983,9 @@ func (*schemaSuite) TestIntegerMustMatchMinMax(c *C) {
 
 		err := schema.Validate(input)
 		if num < min {
-			c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot validate element under "foo": %d is less than the allowed minimum %d`, num, min))
+			c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept element in "foo": %d is less than the allowed minimum %d`, num, min))
 		} else if num > max {
-			c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot validate element under "foo": %d is greater than the allowed maximum %d`, num, max))
-
+			c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept element in "foo": %d is greater than the allowed maximum %d`, num, max))
 		} else {
 			c.Assert(err, IsNil)
 		}
@@ -1008,14 +1007,14 @@ func (*schemaSuite) TestIntegerWithWrongTypes(c *C) {
 }`)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate element under "foo": json: cannot unmarshal string into Go value of type int64`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": json: cannot unmarshal string into Go value of type int64`)
 
 	input = []byte(`{
 	"foo": 3.14
 }`)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate element under "foo": json: cannot unmarshal number 3.14 into Go value of type int64`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": json: cannot unmarshal number 3.14 into Go value of type int64`)
 }
 
 func (*schemaSuite) TestIntegerChoicesAndMinMaxFail(c *C) {
@@ -1214,7 +1213,7 @@ func (*schemaSuite) TestAnyTypeRejectsBadJSON(c *C) {
 	"foo": .
 }`)
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate top level element: invalid character .*`)
+	c.Assert(err, ErrorMatches, `cannot accept top level element: invalid character .*`)
 }
 
 func (*schemaSuite) TestNumberValidFloatAndInt(c *C) {
@@ -1259,7 +1258,7 @@ func (*schemaSuite) TestNumberMustMatchChoices(c *C) {
 		if num == 1 || num == 3 {
 			c.Assert(err, IsNil)
 		} else {
-			c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot validate element under "foo": %v is not one of the allowed choices`, num))
+			c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept element in "foo": %v is not one of the allowed choices`, num))
 		}
 	}
 }
@@ -1286,9 +1285,9 @@ func (*schemaSuite) TestNumberMustMatchMinMax(c *C) {
 
 		err := schema.Validate(input)
 		if num < min {
-			c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot validate element under "foo": %v is less than the allowed minimum %v`, num, min))
+			c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept element in "foo": %v is less than the allowed minimum %v`, num, min))
 		} else if num > max {
-			c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot validate element under "foo": %v is greater than the allowed maximum %v`, num, max))
+			c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept element in "foo": %v is greater than the allowed maximum %v`, num, max))
 		} else {
 			c.Assert(err, IsNil)
 		}
@@ -1310,7 +1309,7 @@ func (*schemaSuite) TestNumberWithWrongTypes(c *C) {
 }`)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate element under "foo": json: cannot unmarshal string into Go value of type float64`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": json: cannot unmarshal string into Go value of type float64`)
 }
 
 func (*schemaSuite) TestNumberChoicesAndMinMaxFail(c *C) {
@@ -1422,7 +1421,7 @@ func (*schemaSuite) TestSimpleTypesRejectNull(c *C) {
 		c.Assert(err, IsNil)
 
 		err = schema.Validate([]byte(`{"foo": null}`))
-		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot validate element under "foo": cannot accept null value for %q type`, typ))
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept element in "foo": cannot accept null value for %q type`, typ))
 	}
 }
 
@@ -1441,7 +1440,7 @@ func (*schemaSuite) TestMapTypeRejectsNull(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate([]byte(`{"foo": null}`))
-	c.Assert(err, ErrorMatches, `cannot validate element under "foo": cannot accept null value for "map" type`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": cannot accept null value for "map" type`)
 }
 
 func (*schemaSuite) TestUserDefinedTypeRejectsNull(c *C) {
@@ -1460,7 +1459,7 @@ func (*schemaSuite) TestUserDefinedTypeRejectsNull(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate([]byte(`{"foo": null}`))
-	c.Assert(err, ErrorMatches, `cannot validate element under "foo": cannot accept null value for "string" type`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": cannot accept null value for "string" type`)
 }
 
 func (*schemaSuite) TestArrayRejectsNull(c *C) {
@@ -1477,7 +1476,7 @@ func (*schemaSuite) TestArrayRejectsNull(c *C) {
 
 	input := []byte(`{"foo": null}`)
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate element under "foo": cannot accept null value for "array" type`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": cannot accept null value for "array" type`)
 }
 
 func (*schemaSuite) TestBooleanHappy(c *C) {
@@ -1517,7 +1516,7 @@ func (*schemaSuite) TestBooleanWrongType(c *C) {
 }`)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate element under "foo": json: cannot unmarshal number into Go value of type bool`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": json: cannot unmarshal number into Go value of type bool`)
 }
 
 func (*schemaSuite) TestArrayHappy(c *C) {
@@ -1621,7 +1620,7 @@ func (*schemaSuite) TestArrayEnforcesOnlyOneType(c *C) {
 }`)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate element under "foo": cannot validate string: json:.*`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": cannot parse string: json:.*`)
 }
 
 func (*schemaSuite) TestArrayWithUniqueRejectsDuplicates(c *C) {
@@ -1643,7 +1642,7 @@ func (*schemaSuite) TestArrayWithUniqueRejectsDuplicates(c *C) {
 }`)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate element under "foo": cannot accept duplicate values for array with "unique" constraint`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": cannot accept duplicate values for array with "unique" constraint`)
 }
 
 func (*schemaSuite) TestArrayWithoutUniqueAcceptsDuplicates(c *C) {
@@ -1711,17 +1710,17 @@ func (*schemaSuite) TestErrorContainsPathPrefixes(c *C) {
 		{
 			name:  "top level",
 			input: []byte(`{"bar": 1}`),
-			err:   `cannot validate top level element: map contains unexpected key "bar"`,
+			err:   `cannot accept top level element: map contains unexpected key "bar"`,
 		},
 		{
 			name:  "1 level of nesting",
 			input: []byte(`{"foo": {"baz": 1}}`),
-			err:   `cannot validate element under "foo": map contains unexpected key "baz"`,
+			err:   `cannot accept element in "foo": map contains unexpected key "baz"`,
 		},
 		{
 			name:  "2 levels of nesting",
 			input: []byte(`{"foo": {"bar": {"boo": 1}}}`),
-			err:   `cannot validate element under "foo.bar": map contains unexpected key "boo"`,
+			err:   `cannot accept element in "foo.bar": map contains unexpected key "boo"`,
 		},
 	}
 
@@ -1753,7 +1752,7 @@ func (*schemaSuite) TestPathPrefixWithMapUnderUserType(c *C) {
 
 	input := []byte(`{"foo": {"bar": -1}}`)
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate element under "foo.bar": -1 is less than the allowed minimum 0`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo.bar": -1 is less than the allowed minimum 0`)
 }
 
 func (*schemaSuite) TestPathPrefixWithArrayUnderUserType(c *C) {
@@ -1776,7 +1775,7 @@ func (*schemaSuite) TestPathPrefixWithArrayUnderUserType(c *C) {
 
 	input := []byte(`{"foo": [-1]}`)
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate element under "foo": -1 is less than the allowed minimum 0`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": -1 is less than the allowed minimum 0`)
 }
 
 func (*schemaSuite) TestPathPrefixWithArrayUnderUserWithAContainerElementType(c *C) {
@@ -1803,7 +1802,7 @@ func (*schemaSuite) TestPathPrefixWithArrayUnderUserWithAContainerElementType(c 
 
 	input := []byte(`{"foo": [{"bar": -1}]}`)
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate element under "foo.bar": -1 is less than the allowed minimum 0`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo.bar": -1 is less than the allowed minimum 0`)
 }
 
 func (*schemaSuite) TestPathPrefixWithKeyOrValueConstraints(c *C) {
@@ -1827,9 +1826,9 @@ func (*schemaSuite) TestPathPrefixWithKeyOrValueConstraints(c *C) {
 
 	input := []byte(`{"foo": {"other-key": 1}}`)
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate element under "foo": string "other-key" is not one of the allowed choices`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": string "other-key" is not one of the allowed choices`)
 
 	input = []byte(`{"foo": {"my-key": -1}}`)
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate element under "foo": -1 is less than the allowed minimum 0`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": -1 is less than the allowed minimum 0`)
 }

@@ -109,8 +109,7 @@ type userTypeRefParser struct {
 	parser
 
 	stringBased bool
-
-	path string
+	path        string
 }
 
 func newUserTypeRefParser(p parser) *userTypeRefParser {
@@ -536,7 +535,7 @@ func (v *stringSchema) Validate(raw []byte) (err error) {
 
 	var value *string
 	if err := json.Unmarshal(raw, &value); err != nil {
-		return fmt.Errorf("cannot validate string: %w", err)
+		return fmt.Errorf("cannot parse string: %w", err)
 	}
 
 	if value == nil {
@@ -935,9 +934,9 @@ func (v *arraySchema) getPath() string { return v.path }
 func annotateWithPath(p parser, err error) error {
 	pref := p.getPath()
 	if pref == "" {
-		pref = "cannot validate top level element"
+		pref = "cannot accept top level element"
 	} else {
-		pref = fmt.Sprintf("cannot validate element under %q", pref)
+		pref = fmt.Sprintf("cannot accept element in %q", pref)
 	}
 
 	return fmt.Errorf("%s: %w", pref, err)
