@@ -981,7 +981,14 @@ func (s *SquashfsTestSuite) TestBuildBelowMinimumSize(c *C) {
 	size, err := sn.Size()
 	c.Assert(err, IsNil)
 
-	c.Assert(size, Equals, squashfs.MinimumSnapSize)
+	switch size {
+	case squashfs.MinimumSnapSize:
+		// all good on Debian based distros
+	case 65536:
+		// this is expected on non-Debian based distros
+	default:
+		c.Fatalf("unexpected squashfs size %v", size)
+	}
 }
 
 func (s *SquashfsTestSuite) TestBuildAboveMinimumSize(c *C) {
