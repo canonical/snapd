@@ -146,6 +146,14 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	}
 }
 
+func MockGetuid(fn func() sys.UserID) (restore func()) {
+	oldSysGetuid := sysGetuid
+	sysGetuid = fn
+	return func() {
+		sysGetuid = oldSysGetuid
+	}
+}
+
 func MockChangePerform(f func(chg *Change, as *Assumptions) ([]*Change, error)) func() {
 	origChangePerform := changePerform
 	changePerform = f

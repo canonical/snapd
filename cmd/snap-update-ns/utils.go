@@ -66,6 +66,9 @@ var (
 	sysFchdir     = syscall.Fchdir
 	sysLstat      = syscall.Lstat
 
+	sysGetuid = sys.Getuid
+	sysGetgid = sys.Getgid
+
 	ioutilReadDir = ioutil.ReadDir
 )
 

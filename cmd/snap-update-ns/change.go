@@ -121,8 +121,8 @@ func (c *Change) createPath(path string, pokeHoles bool, as *Assumptions) ([]*Ch
 	case "symlink":
 		err = MksymlinkAll(path, mode, uid, gid, c.Entry.XSnapdSymlink(), rs)
 	case "ensure-dir":
-		uid = sys.UserID(os.Getuid())
-		gid = sys.GroupID(os.Getgid())
+		uid = sysGetuid()
+		gid = sysGetgid()
 		if uid == 0 {
 			logger.Debugf("ensure-dir mounts are not currently supported for the root user")
 		} else {

@@ -30,6 +30,7 @@ import (
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -2546,6 +2547,237 @@ func (s *changeSuite) TestPerformCreateSymlinkWithAvoidedTrespassing(c *C) {
 		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{Mode: 0x4000}},
 		{C: `symlinkat "/oldname" 4 "demo.conf"`},
 		{C: `close 4`},
+	})
+}
+
+// ########################
+// Topic: ensuring dirs
+// ########################
+
+// Change.Perform wants to ensure a directory but name cannot be stat'ed
+func (s *changeSuite) TestPerformEnsureDirNameLstatError(c *C) {
+	s.sys.InsertFault(`lstat "/home/user/.local/share/missing"`, errTesting)
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{
+		Name:    "unused",
+		Dir:     "/home/user/.local/share/missing",
+		Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=/home/user"},
+	}}
+	synth, err := chg.Perform(s.as)
+	c.Assert(err, ErrorMatches, `cannot inspect "/home/user/.local/share/missing": testing`)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		// Change.ensureTarget osLstat fails
+		{C: `lstat "/home/user/.local/share/missing"`, E: errTesting},
+	})
+}
+
+// Change.Perform wants to ensure a directory but there's a file in the way of the target
+func (s *changeSuite) TestPerformEnsureDirFileInTheWayOfTarget(c *C) {
+	s.sys.InsertOsLstatResult(`lstat "/home/user/.local/share/missing"`, testutil.FileInfoFile)
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{
+		Name:    "unused",
+		Dir:     "/home/user/.local/share/missing",
+		Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=/home/user"},
+	}}
+	synth, err := chg.Perform(s.as)
+	// Having a file in the way should not produce an error
+	c.Assert(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		// Change.ensureTarget osLstat succeeds and file is not a directory
+		{C: `lstat "/home/user/.local/share/missing"`, R: testutil.FileInfoFile},
+	})
+}
+
+// Change.Perform wants to ensure a directory with uid = 0
+func (s *changeSuite) TestPerformEnsureDirAsRoot(c *C) {
+	s.sys.InsertFault(`lstat "/home/user/missing"`, syscall.ENOENT)
+
+	restore := update.MockGetuid(func() sys.UserID {
+		return 0
+	})
+	defer restore()
+
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{
+		Name:    "unused",
+		Dir:     "/home/user/missing",
+		Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=/home/user"},
+	}}
+
+	synth, err := chg.Perform(s.as)
+	c.Assert(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		// Change.ensureTarget osLstat succeeds and file does not exist, resulting in call to Change.createPath
+		{C: `lstat "/home/user/missing"`, E: syscall.ENOENT},
+	})
+}
+
+// Change.Perform wants to ensure a directory with must-exist-dir missing
+func (s *changeSuite) TestPerformEnsureDirMustExistDirMissing(c *C) {
+	s.sys.InsertFault(`lstat "/home/user/missing"`, syscall.ENOENT)
+	s.sys.InsertFault(`lstat "/home/user"`, syscall.ENOENT)
+
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{
+		Name:    "unused",
+		Dir:     "/home/user/missing",
+		Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=/home/user"},
+	}}
+
+	synth, err := chg.Perform(s.as)
+	// Having a missing parent should not produce an error, utils.MkdirAllWithin error ParentMissingError should be swallowed.
+	c.Assert(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		// Change.ensureTarget osLstat succeeds and file does not exist, resulting in call to Change.createPath
+		{C: `lstat "/home/user/missing"`, E: syscall.ENOENT},
+		// Change.createPath case "ensure-dir" with uid != 0 resulting in call to utils.MkdirAllWithin
+		// utils.MkdirAllWithin checks if "/home/user/missing" is missing
+		{C: `lstat "/home/user/missing"`, E: syscall.ENOENT},
+		// utils.MkdirAllWithin checks if must-exist-dir "/home/user" exists
+		{C: `lstat "/home/user"`, E: syscall.ENOENT},
+	})
+}
+
+// Change.Perform wants to ensure a directory but there's a file in the way of a parent
+func (s *changeSuite) TestPerformEnsureDirFileInTheWayOfParent(c *C) {
+	s.sys.InsertFault(`lstat "/home/user/missing"`, syscall.ENOENT)
+	s.sys.InsertOsLstatResult(`lstat "/home/user"`, testutil.FileInfoFile)
+
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{
+		Name:    "unused",
+		Dir:     "/home/user/missing",
+		Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=/home/user"},
+	}}
+	synth, err := chg.Perform(s.as)
+	// Having a file in the way should not produce an error, ParentMissingError should be swallowed.
+	c.Assert(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		// Change.ensureTarget osLstat succeeds and file does not exist, resulting in call to Change.createPath
+		{C: `lstat "/home/user/missing"`, E: syscall.ENOENT},
+		// Change.createPath case "ensure-dir" with uid != 0 resulting in call to utils.MkdirAllWithin
+		// utils.MkdirAllWithin checks if "/home/user/missing" is missing
+		{C: `lstat "/home/user/missing"`, E: syscall.ENOENT},
+		// utils.MkdirAllWithin checks if must-exist-dir "/home/user" exists
+		{C: `lstat "/home/user"`, R: testutil.FileInfoFile},
+	})
+}
+
+// Change.Perform wants to ensure a directory but fails with an error
+func (s *changeSuite) TestPerformEnsureDirError(c *C) {
+	s.sys.InsertFault(`lstat "/home/user/missing"`, syscall.ENOENT)
+	s.sys.InsertFault(`lstat "/home/user"`, errTesting)
+
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{
+		Name:    "unused",
+		Dir:     "/home/user/missing",
+		Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=/home/user"},
+	}}
+	synth, err := chg.Perform(s.as)
+	// Having a file in the way should not produce an error, FileInWayError should be swallowed.
+	c.Assert(err, ErrorMatches, `cannot inspect parent path "/home/user": testing`)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		// Change.ensureTarget osLstat succeeds and file does not exist, resulting in call to Change.createPath
+		{C: `lstat "/home/user/missing"`, E: syscall.ENOENT},
+		// Change.createPath case "ensure-dir" with uid != 0 resulting in call to utils.MkdirAllWithin
+		// utils.MkdirAllWithin checks if "/home/user/missing" is missing
+		{C: `lstat "/home/user/missing"`, E: syscall.ENOENT},
+		// utils.MkdirAllWithin checks if must-exist-dir "/home/user" exists
+		{C: `lstat "/home/user"`, E: errTesting},
+	})
+}
+
+// Change.Perform wants to ensure a directory (scenario 1)
+// Scenario: MustExistDir /home/user exists, but child directories .local, .local/share and .local/share/missing does not
+func (s *changeSuite) TestPerformEnsureDirScenario1(c *C) {
+	s.sys.InsertFault(`lstat "/home/user/.local/share/missing"`, syscall.ENOENT)
+	s.sys.InsertFault(`lstat "/home/user/.local/share"`, syscall.ENOENT)
+	s.sys.InsertFault(`lstat "/home/user/.local"`, syscall.ENOENT)
+	s.sys.InsertOsLstatResult(`lstat "/home/user"`, testutil.FileInfoDir)
+	s.sys.InsertOsLstatResult(`lstat "/home"`, testutil.FileInfoDir)
+	s.sys.InsertOsLstatResult(`lstat "/"`, testutil.FileInfoDir)
+
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{
+		Name:    "unused",
+		Dir:     "/home/user/.local/share/missing",
+		Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=/home/user"},
+	}}
+	synth, err := chg.Perform(s.as)
+	c.Assert(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		// Change.ensureTarget osLstat succeeds and file does not exist, resulting in call to Change.createPath
+		{C: `lstat "/home/user/.local/share/missing"`, E: syscall.ENOENT},
+		// Change.createPath case "ensure-dir" with uid != 0 resulting in call to utils.MkdirAllWithin
+		// utils.MkdirAllWithin checks if "/home/user/.local/share/missing" is missing
+		{C: `lstat "/home/user/.local/share/missing"`, E: syscall.ENOENT},
+		// utils.MkdirAllWithin checks if must-exist-dir "/home/user" exists
+		{C: `lstat "/home/user"`, R: testutil.FileInfoDir, E: nil},
+		// utils.MkdirAllWithin interates to find the first missing directory, in this case "/home/user/.local"
+		{C: `lstat "/home/user/.local"`, E: syscall.ENOENT},
+		// utils.MkdirAllWithin opens must-exist-dir "/home/user" and calls utils.Mkdir
+		{C: `open "/home/user" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		// utils.Mkdir creates missing directory ".local"
+		{C: `mkdirat 3 ".local" 0700`},
+		{C: `openat 3 ".local" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `fchown 4 1000 1000`},
+		// utils.MkdirAllWithin iterates through the remaining missing dirs "share/missing"
+		// and calls utils.Mkdir to create them
+		{C: `mkdirat 4 "share" 0700`},
+		{C: `openat 4 "share" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 5},
+		{C: `fchown 5 1000 1000`},
+		{C: `mkdirat 5 "missing" 0700`},
+		{C: `openat 5 "missing" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 6},
+		{C: `fchown 6 1000 1000`},
+		// Closing of file descriptors in reverse order
+		{C: `close 6`},
+		{C: `close 5`},
+		{C: `close 4`},
+		{C: `close 3`},
+	})
+}
+
+// Change.Perform wants to ensure a directory (scenario 2)
+// Scenario: MustExistDir /home/user and child directories .local and .local/share exists, but .local/share/missing does not
+func (s *changeSuite) TestPerformEnsureDirScenario2(c *C) {
+	s.sys.InsertFault(`lstat "/home/user/.local/share/missing"`, syscall.ENOENT)
+	s.sys.InsertOsLstatResult(`lstat "/home/user/.local/share"`, testutil.FileInfoDir)
+	s.sys.InsertOsLstatResult(`lstat "/home/user/.local"`, testutil.FileInfoDir)
+	s.sys.InsertOsLstatResult(`lstat "/home/user"`, testutil.FileInfoDir)
+	s.sys.InsertOsLstatResult(`lstat "/home"`, testutil.FileInfoDir)
+	s.sys.InsertOsLstatResult(`lstat "/"`, testutil.FileInfoDir)
+
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{
+		Name:    "unused",
+		Dir:     "/home/user/.local/share/missing",
+		Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=/home/user"},
+	}}
+	synth, err := chg.Perform(s.as)
+	c.Assert(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		// Change.ensureTarget osLstat succeeds and file does not exist, resulting in call to Change.createPath
+		{C: `lstat "/home/user/.local/share/missing"`, E: syscall.ENOENT},
+		// Change.createPath case "ensure-dir" with uid != 0 resulting in call to utils.MkdirAllWithin
+		// utils.MkdirAllWithin checks if "/home/user/.local/share/missing" is missing
+		{C: `lstat "/home/user/.local/share/missing"`, E: syscall.ENOENT},
+		// utils.MkdirAllWithin checks if must-exist-dir "/home/user" exists
+		{C: `lstat "/home/user"`, R: testutil.FileInfoDir, E: nil},
+		// utils.MkdirAllWithin interates to find the first missing directory, but does not check target
+		// dir "/home/user/.local/share/missing", because at this point it is already confirmed missing
+		{C: `lstat "/home/user/.local"`, R: testutil.FileInfoDir},
+		{C: `lstat "/home/user/.local/share"`, R: testutil.FileInfoDir},
+		// utils.MkdirAllWithin opens "/home/user/.local/share" and calls utils.Mkdir
+		{C: `open "/home/user/.local/share" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		// utils.Mkdir creates missing directory "missing"
+		{C: `mkdirat 3 "missing" 0700`},
+		{C: `openat 3 "missing" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `fchown 4 1000 1000`},
+		// Closing of file descriptors in reverse order
+		{C: `close 4`},
+		{C: `close 3`},
 	})
 }
 
