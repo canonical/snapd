@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/strutil/shlex"
 )
 
@@ -72,7 +73,16 @@ func mkfsExt4(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 	// Switched to use mkfs defaults for https://bugs.launchpad.net/snappy/+bug/1878374
 	// For caveats/requirements in case we need support for older systems:
 	// https://github.com/snapcore/snapd/pull/6997#discussion_r293967140
-	mkfsArgs := []string{"mkfs.ext4", "-O", "^orphan_file"}
+	mkfsArgs := []string{"mkfs.ext4"}
+
+	// By default mkfs.ext4 on Lunar will use the orphan_file feature.
+	// This feature is not supported on older series and is disabled on newer ones.
+	// So we need to explicitly disable it when building on Lunar so the filesystem
+	// can be correctly handled (ex. resized) on older series.
+	// See https://bugs.launchpad.net/ubuntu-image/+bug/2028564
+	if runningOnLunar() {
+		mkfsArgs = append(mkfsArgs, "-O", "^orphan_file")
+	}
 
 	const size32MiB = 32 * quantity.SizeMiB
 	if deviceSize != 0 && deviceSize <= size32MiB {
@@ -217,4 +227,9 @@ func mkfsVfat(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 		return fmt.Errorf("cannot populate vfat filesystem with contents: %v", osutil.OutputErr(out, err))
 	}
 	return nil
+}
+
+// Check if we are running on Lunar
+func runningOnLunar() bool {
+	return release.ReleaseInfo.VersionID == "23.04"
 }

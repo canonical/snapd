@@ -29,6 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil/mkfs"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -69,7 +70,6 @@ func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {
 		{
 			"fakeroot",
 			"mkfs.ext4",
-			"-O", "^orphan_file",
 			"-d", "contents",
 			"-L", "my-label",
 			"foo.img",
@@ -85,7 +85,6 @@ func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {
 		{
 			"fakeroot",
 			"mkfs.ext4",
-			"-O", "^orphan_file",
 			"-d", "contents",
 			"foo.img",
 		},
@@ -100,12 +99,28 @@ func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {
 		{
 			"fakeroot",
 			"mkfs.ext4",
-			"-O", "^orphan_file",
 			"-L", "my-label",
 			"foo.img",
 		},
 	})
 
+	cmd.ForgetCalls()
+
+	// when running on Lunar, remove orphan_file feature
+	restore := release.MockReleaseInfo(&release.OS{VersionID: "23.04"})
+	defer restore()
+
+	err = mkfs.Make("ext4", "foo.img", "my-label", 0, 0)
+	c.Assert(err, IsNil)
+	c.Check(cmd.Calls(), DeepEquals, [][]string{
+		{
+			"fakeroot",
+			"mkfs.ext4",
+			"-O", "^orphan_file",
+			"-L", "my-label",
+			"foo.img",
+		},
+	})
 }
 
 func (m *mkfsSuite) TestMkfsExt4WithSize(c *C) {
@@ -118,7 +133,6 @@ func (m *mkfsSuite) TestMkfsExt4WithSize(c *C) {
 		{
 			"fakeroot",
 			"mkfs.ext4",
-			"-O", "^orphan_file",
 			"-d", "contents",
 			"-L", "my-label",
 			"foo.img",
@@ -134,7 +148,6 @@ func (m *mkfsSuite) TestMkfsExt4WithSize(c *C) {
 		{
 			"fakeroot",
 			"mkfs.ext4",
-			"-O", "^orphan_file",
 			"-b", "1024",
 			"-d", "contents",
 			"foo.img",
@@ -150,7 +163,6 @@ func (m *mkfsSuite) TestMkfsExt4WithSize(c *C) {
 		{
 			"fakeroot",
 			"mkfs.ext4",
-			"-O", "^orphan_file",
 			"-b", "1024",
 			"-d", "contents",
 			"foo.img",
@@ -166,7 +178,6 @@ func (m *mkfsSuite) TestMkfsExt4WithSize(c *C) {
 		{
 			"fakeroot",
 			"mkfs.ext4",
-			"-O", "^orphan_file",
 			"-b", "4096",
 			"-d", "contents",
 			"foo.img",
