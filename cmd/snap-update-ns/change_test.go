@@ -2693,11 +2693,18 @@ func (s *changeSuite) TestPerformEnsureDirError(c *C) {
 // Scenario: MustExistDir /home/user exists, but child directories .local, .local/share and .local/share/missing does not
 func (s *changeSuite) TestPerformEnsureDirScenario1(c *C) {
 	s.sys.InsertFault(`lstat "/home/user/.local/share/missing"`, syscall.ENOENT)
-	s.sys.InsertFault(`lstat "/home/user/.local/share"`, syscall.ENOENT)
 	s.sys.InsertFault(`lstat "/home/user/.local"`, syscall.ENOENT)
 	s.sys.InsertOsLstatResult(`lstat "/home/user"`, testutil.FileInfoDir)
-	s.sys.InsertOsLstatResult(`lstat "/home"`, testutil.FileInfoDir)
-	s.sys.InsertOsLstatResult(`lstat "/"`, testutil.FileInfoDir)
+
+	restoreGetuid := update.MockGetuid(func() sys.UserID {
+		return 1000
+	})
+	defer restoreGetuid()
+
+	restoreGetgid := update.MockGetgid(func() sys.GroupID {
+		return 1000
+	})
+	defer restoreGetgid()
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{
 		Name:    "unused",
@@ -2746,8 +2753,16 @@ func (s *changeSuite) TestPerformEnsureDirScenario2(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/home/user/.local/share"`, testutil.FileInfoDir)
 	s.sys.InsertOsLstatResult(`lstat "/home/user/.local"`, testutil.FileInfoDir)
 	s.sys.InsertOsLstatResult(`lstat "/home/user"`, testutil.FileInfoDir)
-	s.sys.InsertOsLstatResult(`lstat "/home"`, testutil.FileInfoDir)
-	s.sys.InsertOsLstatResult(`lstat "/"`, testutil.FileInfoDir)
+
+	restoreGetuid := update.MockGetuid(func() sys.UserID {
+		return 1000
+	})
+	defer restoreGetuid()
+
+	restoreGetgid := update.MockGetgid(func() sys.GroupID {
+		return 1000
+	})
+	defer restoreGetgid()
 
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{
 		Name:    "unused",

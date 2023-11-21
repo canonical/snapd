@@ -154,6 +154,14 @@ func MockGetuid(fn func() sys.UserID) (restore func()) {
 	}
 }
 
+func MockGetgid(fn func() sys.GroupID) (restore func()) {
+	oldSysGetgid := sysGetgid
+	sysGetgid = fn
+	return func() {
+		sysGetgid = oldSysGetgid
+	}
+}
+
 func MockChangePerform(f func(chg *Change, as *Assumptions) ([]*Change, error)) func() {
 	origChangePerform := changePerform
 	changePerform = f
