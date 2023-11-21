@@ -217,7 +217,7 @@ func (s *aspectSuite) TestAspectBadRead(c *C) {
 
 	var listVal []string
 	err = aspect.Get(databag, "one", &listVal)
-	c.Assert(err, ErrorMatches, `cannot read value of "one" into \*\[\]string: maps to string`)
+	c.Assert(err, ErrorMatches, `cannot read value of "one" into \*interface {}: maps to string`)
 }
 
 func (s *aspectSuite) TestAspectsAccessControl(c *C) {
@@ -617,4 +617,84 @@ func (s *aspectSuite) TestJSONDataBagCopy(c *C) {
 	data, err = bagCopy.Data()
 	c.Assert(err, IsNil)
 	c.Assert(string(data), Equals, `{"foo":"baz"}`)
+}
+
+func (s *aspectSuite) TestAspectGetResultNamespaceMatchesRequest(c *C) {
+	databag := aspects.NewJSONDataBag()
+	aspectBundle, err := aspects.NewAspectBundle("acc", "bundle", map[string]interface{}{
+		"bar": []map[string]string{
+			{"name": "one", "path": "one"},
+			{"name": "one.two", "path": "one.two"},
+			{"name": "onetwo", "path": "one.two"},
+		},
+	}, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	aspect := aspectBundle.Aspect("bar")
+	err = aspect.Set(databag, "one", map[string]interface{}{"two": "value"})
+	c.Assert(err, IsNil)
+
+	var value interface{}
+	err = aspect.Get(databag, "one.two", &value)
+	c.Assert(err, IsNil)
+	c.Assert(value, Equals, "value")
+
+	value = nil
+	err = aspect.Get(databag, "onetwo", &value)
+	c.Assert(err, IsNil)
+	// the key matches the request, not the storage path
+	c.Assert(value, DeepEquals, "value")
+
+	value = nil
+	err = aspect.Get(databag, "one", &value)
+	c.Assert(err, IsNil)
+	c.Assert(value, DeepEquals, map[string]interface{}{"two": "value"})
+}
+
+func (s *aspectSuite) TestAspectGetMatchesOnPrefix(c *C) {
+	databag := aspects.NewJSONDataBag()
+	aspectBundle, err := aspects.NewAspectBundle("acc", "bundle", map[string]interface{}{
+		"statuses": []map[string]string{
+			{"name": "snapd.status", "path": "snaps.snapd.status"},
+			{"name": "snaps", "path": "snaps"},
+		},
+	}, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	aspect := aspectBundle.Aspect("statuses")
+	err = aspect.Set(databag, "snaps", map[string]map[string]interface{}{
+		"snapd":   {"status": "active", "version": "1.0"},
+		"firefox": {"status": "inactive", "version": "9.0"},
+	})
+	c.Assert(err, IsNil)
+
+	var value interface{}
+	err = aspect.Get(databag, "snapd.status", &value)
+	c.Assert(err, IsNil)
+	c.Assert(value, Equals, "active")
+
+	value = nil
+	err = aspect.Get(databag, "snapd", &value)
+	c.Assert(err, IsNil)
+	c.Assert(value, Equals, "active")
+}
+
+func (s *aspectSuite) TestAspectGetNoMatchRequestLongerThanPattern(c *C) {
+	databag := aspects.NewJSONDataBag()
+	aspectBundle, err := aspects.NewAspectBundle("acc", "bundle", map[string]interface{}{
+		"statuses": []map[string]string{
+			{"name": "snapd", "path": "snaps.snapd"},
+		},
+	}, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	aspect := aspectBundle.Aspect("statuses")
+	err = aspect.Set(databag, "snapd", map[string]interface{}{
+		"status": "active", "version": "1.0",
+	})
+	c.Assert(err, IsNil)
+
+	var value interface{}
+	err = aspect.Get(databag, "snapd.status", &value)
+	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
 }

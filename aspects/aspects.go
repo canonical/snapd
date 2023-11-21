@@ -280,7 +280,8 @@ type Aspect struct {
 func (a *Aspect) Set(databag DataBag, name string, value interface{}) error {
 	nameSubkeys := strings.Split(name, ".")
 	for _, accessPatt := range a.accessPatterns {
-		placeholders, ok := accessPatt.match(nameSubkeys)
+		exactMatch := true
+		placeholders, ok := accessPatt.match(nameSubkeys, exactMatch)
 		if !ok {
 			continue
 		}
@@ -318,39 +319,65 @@ func (a *Aspect) Set(databag DataBag, name string, value interface{}) error {
 // Get returns the aspect value identified by the name. If either the named aspect
 // or the corresponding value can't be found, a NotFoundError is returned.
 func (a *Aspect) Get(databag DataBag, name string, value interface{}) error {
+	// try to find a access pattern that matches the request exactly
+	exactMatch := true
+	path, err := a.getMatchingPath(name, exactMatch)
+	if err != nil && !errors.Is(err, &NotFoundError{}) {
+		return err
+	}
+
+	// no exact match, try to match a prefix of a pattern
+	if errors.Is(err, &NotFoundError{}) {
+		exactMatch = false
+		path, err = a.getMatchingPath(name, exactMatch)
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := databag.Get(path, &value); err != nil {
+		var pathErr PathNotFoundError
+		if errors.As(err, &pathErr) {
+			return &NotFoundError{
+				Account:    a.bundle.Account,
+				BundleName: a.bundle.Name,
+				Aspect:     a.Name,
+				Field:      name,
+				Cause:      string(pathErr),
+			}
+		}
+		return err
+	}
+
+	return nil
+}
+
+// getMatchingPath takes in a request name and whether the match should be exact
+// or matching a prefix of the request name is ok. It returns the storage path
+// of the matching pattern. If the name was matched with a prefix of a rule, the
+// unmatched name parts are returned as well.
+func (a *Aspect) getMatchingPath(name string, exactMatch bool) (string, error) {
 	subkeys := strings.Split(name, ".")
+
 	for _, accessPatt := range a.accessPatterns {
-		placeholders, ok := accessPatt.match(subkeys)
+		placeholders, ok := accessPatt.match(subkeys, exactMatch)
 		if !ok {
 			continue
 		}
 
 		path, err := accessPatt.getPath(placeholders)
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		if !accessPatt.isReadable() {
-			return &InvalidAccessError{RequestedAccess: read, FieldAccess: accessPatt.access, Field: name}
+			return "", &InvalidAccessError{RequestedAccess: read, FieldAccess: accessPatt.access, Field: name}
 		}
 
-		if err := databag.Get(path, value); err != nil {
-			var pathErr PathNotFoundError
-			if errors.As(err, &pathErr) {
-				return &NotFoundError{
-					Account:    a.bundle.Account,
-					BundleName: a.bundle.Name,
-					Aspect:     a.Name,
-					Field:      name,
-					Cause:      string(pathErr),
-				}
-			}
-			return err
-		}
-		return nil
+		return path, nil
 	}
 
-	return &NotFoundError{
+	return "", &NotFoundError{
 		Account:    a.bundle.Account,
 		BundleName: a.bundle.Name,
 		Aspect:     a.Name,
@@ -415,9 +442,11 @@ type accessPattern struct {
 // name. If the name contains placeholders, those will be mapped to their values in
 // the supplied subkeys and set in the map. Example: if pattern.name=["{foo}", "b", "{bar}"],
 // and nameSubkeys=["a", "b", "c"], then it returns true and the map will contain
-// {"foo": "a", "bar": "c"}.
-func (p *accessPattern) match(nameSubkeys []string) (map[string]string, bool) {
-	if len(p.name) != len(nameSubkeys) {
+func (p *accessPattern) match(nameSubkeys []string, exact bool) (map[string]string, bool) {
+	if exact && len(p.name) != len(nameSubkeys) {
+		return nil, false
+	} else if !exact && len(p.name) < len(nameSubkeys) {
+		// the request can be a prefix of the rule, not the other way around
 		return nil, false
 	}
 
