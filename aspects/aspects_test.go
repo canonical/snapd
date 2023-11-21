@@ -130,37 +130,37 @@ func (*aspectSuite) TestGetAndSetAspects(c *C) {
 	err = wsAspect.Set(databag, "ssid", "my-ssid")
 	c.Assert(err, IsNil)
 
-	var ssid string
+	var ssid interface{}
 	err = wsAspect.Get(databag, "ssid", &ssid)
 	c.Assert(err, IsNil)
-	c.Check(ssid, Equals, "my-ssid")
+	c.Check(ssid, DeepEquals, map[string]interface{}{"ssid": "my-ssid"})
 
 	// nested list value
 	err = wsAspect.Set(databag, "ssids", []string{"one", "two"})
 	c.Assert(err, IsNil)
 
-	var ssids []string
+	var ssids interface{}
 	err = wsAspect.Get(databag, "ssids", &ssids)
 	c.Assert(err, IsNil)
-	c.Check(ssids, DeepEquals, []string{"one", "two"})
+	c.Check(ssids, DeepEquals, map[string]interface{}{"ssids": []interface{}{"one", "two"}})
 
 	// top-level string
-	var topLevel string
+	var topLevel interface{}
 	err = wsAspect.Set(databag, "top-level", "randomValue")
 	c.Assert(err, IsNil)
 
 	err = wsAspect.Get(databag, "top-level", &topLevel)
 	c.Assert(err, IsNil)
-	c.Check(topLevel, Equals, "randomValue")
+	c.Check(topLevel, DeepEquals, map[string]interface{}{"top-level": "randomValue"})
 
 	// dotted names are permitted
 	err = wsAspect.Set(databag, "dotted.name", 3)
 	c.Assert(err, IsNil)
 
-	var num int
+	var num interface{}
 	err = wsAspect.Get(databag, "dotted.name", &num)
 	c.Assert(err, IsNil)
-	c.Check(num, Equals, 3)
+	c.Check(num, DeepEquals, map[string]interface{}{"dotted.name": float64(3)})
 }
 
 func (s *aspectSuite) TestAspectNotFound(c *C) {
@@ -211,13 +211,9 @@ func (s *aspectSuite) TestAspectBadRead(c *C) {
 	err = aspect.Set(databag, "one", "foo")
 	c.Assert(err, IsNil)
 
-	var value string
+	var value interface{}
 	err = aspect.Get(databag, "onetwo", &value)
 	c.Assert(err, ErrorMatches, `cannot read path prefix "one": prefix maps to string`)
-
-	var listVal []string
-	err = aspect.Get(databag, "one", &listVal)
-	c.Assert(err, ErrorMatches, `cannot read value of "one" into \*interface {}: maps to string`)
 }
 
 func (s *aspectSuite) TestAspectsAccessControl(c *C) {
@@ -266,7 +262,7 @@ func (s *aspectSuite) TestAspectsAccessControl(c *C) {
 			c.Assert(err, IsNil, cmt)
 		}
 
-		var value string
+		var value interface{}
 		err = aspect.Get(databag, t.name, &value)
 		if t.getErr != "" {
 			c.Assert(err.Error(), Equals, t.getErr, cmt)
@@ -363,11 +359,11 @@ func (s *aspectSuite) TestAspectAssertionWithPlaceholder(c *C) {
 		err := aspect.Set(databag, t.name, "expectedValue")
 		c.Assert(err, IsNil, cmt)
 
-		var obtainedValue string
+		var obtainedValue interface{}
 		err = aspect.Get(databag, t.name, &obtainedValue)
 		c.Assert(err, IsNil, cmt)
 
-		c.Assert(obtainedValue, Equals, "expectedValue", cmt)
+		c.Assert(obtainedValue, DeepEquals, map[string]interface{}{t.name: "expectedValue"}, cmt)
 
 		getPath, setPath := databag.getLastPaths()
 		c.Assert(getPath, Equals, t.path, cmt)
@@ -469,13 +465,13 @@ func (s *aspectSuite) TestAspectUnsetTopLevelEntry(c *C) {
 	err = aspect.Set(databag, "foo", nil)
 	c.Assert(err, IsNil)
 
-	var value string
+	var value interface{}
 	err = aspect.Get(databag, "foo", &value)
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
 
 	err = aspect.Get(databag, "bar", &value)
 	c.Assert(err, IsNil)
-	c.Assert(value, Equals, "bval")
+	c.Assert(value, DeepEquals, map[string]interface{}{"bar": "bval"})
 }
 
 func (s *aspectSuite) TestAspectUnsetLeafWithSiblings(c *C) {
@@ -498,14 +494,14 @@ func (s *aspectSuite) TestAspectUnsetLeafWithSiblings(c *C) {
 	err = aspect.Set(databag, "bar", nil)
 	c.Assert(err, IsNil)
 
-	var value string
+	var value interface{}
 	err = aspect.Get(databag, "bar", &value)
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
 
 	// doesn't affect the other leaf entry under "foo"
 	err = aspect.Get(databag, "baz", &value)
 	c.Assert(err, IsNil)
-	c.Assert(value, Equals, "bazVal")
+	c.Assert(value, DeepEquals, map[string]interface{}{"baz": "bazVal"})
 }
 
 func (s *aspectSuite) TestAspectUnsetWithNestedEntry(c *C) {
@@ -637,18 +633,18 @@ func (s *aspectSuite) TestAspectGetResultNamespaceMatchesRequest(c *C) {
 	var value interface{}
 	err = aspect.Get(databag, "one.two", &value)
 	c.Assert(err, IsNil)
-	c.Assert(value, Equals, "value")
+	c.Assert(value, DeepEquals, map[string]interface{}{"one.two": "value"})
 
 	value = nil
 	err = aspect.Get(databag, "onetwo", &value)
 	c.Assert(err, IsNil)
 	// the key matches the request, not the storage path
-	c.Assert(value, DeepEquals, "value")
+	c.Assert(value, DeepEquals, map[string]interface{}{"onetwo": "value"})
 
 	value = nil
 	err = aspect.Get(databag, "one", &value)
 	c.Assert(err, IsNil)
-	c.Assert(value, DeepEquals, map[string]interface{}{"two": "value"})
+	c.Assert(value, DeepEquals, map[string]interface{}{"one": map[string]interface{}{"two": "value"}})
 }
 
 func (s *aspectSuite) TestAspectGetMatchesOnPrefix(c *C) {
@@ -671,12 +667,12 @@ func (s *aspectSuite) TestAspectGetMatchesOnPrefix(c *C) {
 	var value interface{}
 	err = aspect.Get(databag, "snapd.status", &value)
 	c.Assert(err, IsNil)
-	c.Assert(value, Equals, "active")
+	c.Assert(value, DeepEquals, map[string]interface{}{"snapd.status": "active"})
 
 	value = nil
 	err = aspect.Get(databag, "snapd", &value)
 	c.Assert(err, IsNil)
-	c.Assert(value, Equals, "active")
+	c.Assert(value, DeepEquals, map[string]interface{}{"snapd": map[string]interface{}{"status": "active"}})
 }
 
 func (s *aspectSuite) TestAspectGetNoMatchRequestLongerThanPattern(c *C) {

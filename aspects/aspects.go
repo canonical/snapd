@@ -281,7 +281,7 @@ func (a *Aspect) Set(databag DataBag, name string, value interface{}) error {
 	nameSubkeys := strings.Split(name, ".")
 	for _, accessPatt := range a.accessPatterns {
 		exactMatch := true
-		placeholders, ok := accessPatt.match(nameSubkeys, exactMatch)
+		placeholders, _, ok := accessPatt.match(nameSubkeys, exactMatch)
 		if !ok {
 			continue
 		}
@@ -321,7 +321,7 @@ func (a *Aspect) Set(databag DataBag, name string, value interface{}) error {
 func (a *Aspect) Get(databag DataBag, name string, value interface{}) error {
 	// try to find a access pattern that matches the request exactly
 	exactMatch := true
-	path, err := a.getMatchingPath(name, exactMatch)
+	path, unmatched, err := a.getMatchingPath(name, exactMatch)
 	if err != nil && !errors.Is(err, &NotFoundError{}) {
 		return err
 	}
@@ -329,13 +329,14 @@ func (a *Aspect) Get(databag DataBag, name string, value interface{}) error {
 	// no exact match, try to match a prefix of a pattern
 	if errors.Is(err, &NotFoundError{}) {
 		exactMatch = false
-		path, err = a.getMatchingPath(name, exactMatch)
+		path, unmatched, err = a.getMatchingPath(name, exactMatch)
 		if err != nil {
 			return err
 		}
 	}
 
-	if err := databag.Get(path, &value); err != nil {
+	var val interface{}
+	if err := databag.Get(path, &val); err != nil {
 		var pathErr PathNotFoundError
 		if errors.As(err, &pathErr) {
 			return &NotFoundError{
@@ -349,6 +350,13 @@ func (a *Aspect) Get(databag DataBag, name string, value interface{}) error {
 		return err
 	}
 
+	// build the response as namespaced map with the unmatched parts as nested levels
+	for i := len(unmatched) - 1; i >= 0; i-- {
+		val = map[string]interface{}{unmatched[i]: val}
+	}
+
+	// use the request to cut through the response namespace
+	*value.(*interface{}) = map[string]interface{}{name: val}
 	return nil
 }
 
@@ -356,28 +364,28 @@ func (a *Aspect) Get(databag DataBag, name string, value interface{}) error {
 // or matching a prefix of the request name is ok. It returns the storage path
 // of the matching pattern. If the name was matched with a prefix of a rule, the
 // unmatched name parts are returned as well.
-func (a *Aspect) getMatchingPath(name string, exactMatch bool) (string, error) {
+func (a *Aspect) getMatchingPath(name string, exactMatch bool) (path string, unmatchedParts []string, err error) {
 	subkeys := strings.Split(name, ".")
 
 	for _, accessPatt := range a.accessPatterns {
-		placeholders, ok := accessPatt.match(subkeys, exactMatch)
+		placeholders, unmatched, ok := accessPatt.match(subkeys, exactMatch)
 		if !ok {
 			continue
 		}
 
 		path, err := accessPatt.getPath(placeholders)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 
 		if !accessPatt.isReadable() {
-			return "", &InvalidAccessError{RequestedAccess: read, FieldAccess: accessPatt.access, Field: name}
+			return "", nil, &InvalidAccessError{RequestedAccess: read, FieldAccess: accessPatt.access, Field: name}
 		}
 
-		return path, nil
+		return path, unmatched, nil
 	}
 
-	return "", &NotFoundError{
+	return "", nil, &NotFoundError{
 		Account:    a.bundle.Account,
 		BundleName: a.bundle.Name,
 		Aspect:     a.Name,
@@ -438,26 +446,29 @@ type accessPattern struct {
 	access accessType
 }
 
-// match takes a list of subkeys and returns true if those subkeys match the pattern's
-// name. If the name contains placeholders, those will be mapped to their values in
-// the supplied subkeys and set in the map. Example: if pattern.name=["{foo}", "b", "{bar}"],
-// and nameSubkeys=["a", "b", "c"], then it returns true and the map will contain
-func (p *accessPattern) match(nameSubkeys []string, exact bool) (map[string]string, bool) {
+// match returns true if the subkeys match the pattern. If placeholders are "filled
+// in" when matching, those are returned in a map. If a non-exact (prefix) match
+// is specified, a list of unmatched name parts is returned.
+func (p *accessPattern) match(nameSubkeys []string, exact bool) (placeholders map[string]string, unmatched []string, match bool) {
 	if exact && len(p.name) != len(nameSubkeys) {
-		return nil, false
+		return nil, nil, false
 	} else if !exact && len(p.name) < len(nameSubkeys) {
 		// the request can be a prefix of the rule, not the other way around
-		return nil, false
+		return nil, nil, false
 	}
 
-	placeholders := make(map[string]string)
+	placeholders = make(map[string]string)
 	for i, subkey := range nameSubkeys {
 		if !p.name[i].match(subkey, placeholders) {
-			return nil, false
+			return nil, nil, false
 		}
 	}
 
-	return placeholders, true
+	for _, key := range p.name[len(nameSubkeys):] {
+		unmatched = append(unmatched, key.String())
+	}
+
+	return placeholders, unmatched, true
 }
 
 // getPath takes a map of placeholders to their values in the aspect name and
@@ -493,6 +504,7 @@ func (p accessPattern) isWriteable() bool {
 // can be a literal value of a placeholder delineated by curly brackets.
 type nameMatcher interface {
 	match(subkey string, placeholders map[string]string) bool
+	String() string
 }
 
 type pathWriter interface {
@@ -524,6 +536,11 @@ func (p placeholder) write(sb *strings.Builder, placeholders map[string]string) 
 	return err
 }
 
+// String returns the placholder as a string.
+func (p placeholder) String() string {
+	return string(p)
+}
+
 // literal is a non-placeholder name/path subkey.
 type literal string
 
@@ -536,6 +553,11 @@ func (p literal) match(subkey string, _ map[string]string) bool {
 func (p literal) write(sb *strings.Builder, _ map[string]string) error {
 	_, err := sb.WriteString(string(p))
 	return err
+}
+
+// String returns the literal as a string.
+func (p literal) String() string {
+	return string(p)
 }
 
 type PathNotFoundError string

@@ -49,7 +49,7 @@ func (s *aspectTestSuite) TestGetAspect(c *C) {
 	var res interface{}
 	err = aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "ssid", &res)
 	c.Assert(err, IsNil)
-	c.Assert(res, Equals, "foo")
+	c.Assert(res, DeepEquals, map[string]interface{}{"ssid": "foo"})
 }
 
 func (s *aspectTestSuite) TestGetNotFound(c *C) {
@@ -78,10 +78,10 @@ func (s *aspectTestSuite) TestSetAspect(c *C) {
 	err := aspectstate.SetAspect(databag, "system", "network", "wifi-setup", "ssid", "foo")
 	c.Assert(err, IsNil)
 
-	var val string
+	var val interface{}
 	err = databag.Get("wifi.ssid", &val)
 	c.Assert(err, IsNil)
-	c.Assert(val, Equals, "foo")
+	c.Assert(val, DeepEquals, "foo")
 }
 
 func (s *aspectTestSuite) TestSetNotFound(c *C) {
