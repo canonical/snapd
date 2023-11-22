@@ -2550,6 +2550,39 @@ func (s *changeSuite) TestPerformCreateSymlinkWithAvoidedTrespassing(c *C) {
 	})
 }
 
+// Change.Perform wants to remove a directory which is a bind mount of ext4 from onto squashfs.
+func (s *changeSuite) TestPerformRmdirOnExt4OnSquashfs(c *C) {
+	defer s.as.MockUnrestrictedPaths("/tmp/")() // Allow writing to /tmp
+
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	// Pretend that /root is an ext4 bind mount from somewhere.
+	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
+	// Pretend that removing /root returns EROFS (it really can!).
+	s.sys.InsertFault(`remove "/root"`, syscall.EROFS)
+
+	// This is the change we want to perform:
+	// - unmount a layout from /root
+	chg := &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "unused", Dir: "/root", Options: []string{"x-snapd.origin=layout"}}}
+	synth, err := chg.Perform(s.as)
+	// The change succeeded even though we were unable to remove the /root
+	// directory because it is backed by a squashfs, which is not modelled by
+	// this test but is modelled by the integration test.
+	c.Check(err, IsNil)
+	c.Check(synth, HasLen, 0)
+
+	// And this is exactly how we made that happen:
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `unmount "/root" UMOUNT_NOFOLLOW`},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "root" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 4},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 3`},
+		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.Ext4Magic}},
+		{C: `remove "/root"`, E: syscall.EROFS},
+		{C: `close 4`},
+	})
+}
+
 // ########################
 // Topic: ensuring dirs
 // ########################
@@ -2793,39 +2826,6 @@ func (s *changeSuite) TestPerformEnsureDirScenario2(c *C) {
 		// Closing of file descriptors in reverse order
 		{C: `close 4`},
 		{C: `close 3`},
-	})
-}
-
-// Change.Perform wants to remove a directory which is a bind mount of ext4 from onto squashfs.
-func (s *changeSuite) TestPerformRmdirOnExt4OnSquashfs(c *C) {
-	defer s.as.MockUnrestrictedPaths("/tmp/")() // Allow writing to /tmp
-
-	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
-	// Pretend that /root is an ext4 bind mount from somewhere.
-	s.sys.InsertFstatfsResult(`fstatfs 4 <ptr>`, syscall.Statfs_t{Type: update.Ext4Magic})
-	// Pretend that removing /root returns EROFS (it really can!).
-	s.sys.InsertFault(`remove "/root"`, syscall.EROFS)
-
-	// This is the change we want to perform:
-	// - unmount a layout from /root
-	chg := &update.Change{Action: update.Unmount, Entry: osutil.MountEntry{Name: "unused", Dir: "/root", Options: []string{"x-snapd.origin=layout"}}}
-	synth, err := chg.Perform(s.as)
-	// The change succeeded even though we were unable to remove the /root
-	// directory because it is backed by a squashfs, which is not modelled by
-	// this test but is modelled by the integration test.
-	c.Check(err, IsNil)
-	c.Check(synth, HasLen, 0)
-
-	// And this is exactly how we made that happen:
-	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
-		{C: `unmount "/root" UMOUNT_NOFOLLOW`},
-		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
-		{C: `openat 3 "root" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 4},
-		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{}},
-		{C: `close 3`},
-		{C: `fstatfs 4 <ptr>`, R: syscall.Statfs_t{Type: update.Ext4Magic}},
-		{C: `remove "/root"`, E: syscall.EROFS},
-		{C: `close 4`},
 	})
 }
 

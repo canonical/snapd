@@ -207,18 +207,18 @@ func (c *Change) ensureTarget(as *Assumptions) ([]*Change, error) {
 func (c *Change) ensureSource(as *Assumptions) ([]*Change, error) {
 	var changes []*Change
 
-	// We only have to do ensure bind mount source exists.
-	// This also rules out symlinks.
-	flags, _ := osutil.MountOptsToCommonFlags(c.Entry.Options)
-	if flags&syscall.MS_BIND == 0 {
-		return nil, nil
-	}
-
 	kind := c.Entry.XSnapdKind()
 
 	// Source is not relevant to ensure-dir mounts that are intended for
 	// creating missing directories based on the mount target.
 	if kind == "ensure-dir" {
+		return nil, nil
+	}
+
+	// We only have to do ensure bind mount source exists.
+	// This also rules out symlinks.
+	flags, _ := osutil.MountOptsToCommonFlags(c.Entry.Options)
+	if flags&syscall.MS_BIND == 0 {
 		return nil, nil
 	}
 
@@ -318,12 +318,18 @@ func (c *Change) Perform(as *Assumptions) ([]*Change, error) {
 // lowLevelPerform is simple bridge from Change to mount / unmount syscall.
 func (c *Change) lowLevelPerform(as *Assumptions) error {
 	var err error
+
+	kind := c.Entry.XSnapdKind()
+	// ensure-dir mounts attempts to create a potentially missing target directory during the ensureTarget step
+	// and does not require any low-level actions. Directories created with ensure-dir mounts should never be removed.
+	if kind == "ensure-dir" {
+		return nil
+	}
+
 	switch c.Action {
 	case Mount:
 		kind := c.Entry.XSnapdKind()
 		switch kind {
-		case "ensure-dir":
-			// ensure-dir does not require an actual mount, nothing to do here.
 		case "symlink":
 			// symlinks are handled in createInode directly, nothing to do here.
 		case "", "file":
