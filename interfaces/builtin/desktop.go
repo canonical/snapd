@@ -384,6 +384,9 @@ dbus (send)
     member="Get{,All}"
     peer=(label=unconfined),
 
+# Allow access to GDM's private reauthentication channel socket
+/run/gdm3/dbus/dbus-* rw,
+
 # Allow gnome-shell to bind to its various D-Bus names
 dbus (bind)
     bus=session
@@ -413,12 +416,6 @@ dbus (send, receive)
     member={Get,GetAll,PropertiesChanged}
     peer=(label=unconfined),
 
-# Allow access to GDM's private reauthentication channel socket
-unix (connect, receive, send)
-    type=stream
-    peer=(addr="@/tmp/dbus-*"),
-/run/gdm3/dbus/dbus-* rw,
-
 # Allow unconfined xdg-desktop-portal to communicate with impl
 # services provided by the snap.
 dbus (receive, send)
@@ -432,6 +429,7 @@ dbus (receive, send)
     interface=org.freedesktop.DBus.Properties
     peer=(label=unconfined),
 
+# Allow access to the regular xdg-desktop-portal APIs
 dbus (send)
     bus=session
     interface=org.freedesktop.portal.*
