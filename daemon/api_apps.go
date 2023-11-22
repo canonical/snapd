@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os/user"
 	"sort"
 	"strconv"
@@ -54,9 +55,19 @@ var (
 	}
 )
 
+func readMaybeBoolValue(query url.Values, name string) (bool, error) {
+	if sel := query.Get(name); sel != "" {
+		if v, err := strconv.ParseBool(sel); err != nil {
+			return false, fmt.Errorf("invalid %s parameter: %q", name, sel)
+		} else {
+			return v, nil
+		}
+	}
+	return false, nil
+}
+
 func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
-
 	opts := appInfoOptions{}
 	switch sel := query.Get("select"); sel {
 	case "":
@@ -67,13 +78,27 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("invalid select parameter: %q", sel)
 	}
 
+	global, err := readMaybeBoolValue(query, "global")
+	if err != nil {
+		return BadRequest(err.Error())
+	}
+
 	appInfos, rspe := appInfosFor(c.d.overlord.State(), strutil.CommaSeparatedList(query.Get("names")), opts)
 	if rspe != nil {
 		return rspe
 	}
 
-	sd := servicestate.NewStatusDecorator(progress.Null)
+	u, err := systemUserFromRequest(r)
+	if err != nil {
+		return BadRequest("cannot retrieve services: %v", err)
+	}
 
+	var sd *servicestate.StatusDecorator
+	if u.Uid == "0" || global {
+		sd = servicestate.NewStatusDecorator(progress.Null)
+	} else {
+		sd = servicestate.NewStatusDecoratorForUid(progress.Null, r.Context(), u.Uid)
+	}
 	clientAppInfos, err := clientutil.ClientAppInfosFromSnapAppInfos(appInfos, sd)
 	if err != nil {
 		return InternalError("%v", err)

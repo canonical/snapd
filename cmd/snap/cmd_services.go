@@ -36,6 +36,7 @@ type svcStatus struct {
 	Positional struct {
 		ServiceNames []serviceName
 	} `positional-args:"yes"`
+	Global bool `long:"global" short:"g"`
 }
 
 type svcLogs struct {
@@ -83,7 +84,10 @@ func init() {
 		// TRANSLATORS: This should not start with a lowercase letter.
 		desc: i18n.G("A service specification, which can be just a snap name (for all services in the snap), or <snap>.<app> for a single service."),
 	}}
-	addCommand("services", shortServicesHelp, longServicesHelp, func() flags.Commander { return &svcStatus{} }, nil, argdescs)
+	addCommand("services", shortServicesHelp, longServicesHelp, func() flags.Commander { return &svcStatus{} }, map[string]string{
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"global": i18n.G("Show the global enable status for user-services instead of the status for the current user."),
+	}, argdescs)
 	addCommand("logs", shortLogsHelp, longLogsHelp, func() flags.Commander { return &svcLogs{} },
 		timeDescs.also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
@@ -117,12 +121,39 @@ func svcNames(s []serviceName) []string {
 	return svcNames
 }
 
+func fmtServiceStatus(svc *client.AppInfo, isGlobal bool) string {
+	startup := i18n.G("disabled")
+	if svc.Enabled {
+		startup = i18n.G("enabled")
+	}
+
+	// When requesting global service status, we don't have any active
+	// information available for user daemons.
+	current := i18n.G("inactive")
+	if svc.DaemonScope == snap.UserDaemon && isGlobal {
+		current = "-"
+	} else if svc.Active {
+		current = i18n.G("active")
+	}
+
+	return fmt.Sprintf("%s.%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current, clientutil.ClientAppInfoNotes(svc))
+}
+
 func (s *svcStatus) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
 
-	services, err := s.client.Apps(svcNames(s.Positional.ServiceNames), client.AppOptions{Service: true})
+	// retrieve the user early to detect any issues
+	u, err := userCurrent()
+	if err != nil {
+		return fmt.Errorf(i18n.G("cannot get the current user: %s"), err)
+	}
+
+	services, err := s.client.Apps(svcNames(s.Positional.ServiceNames), client.AppOptions{
+		Service: true,
+		Global:  s.Global,
+	})
 	if err != nil {
 		return err
 	}
@@ -136,21 +167,9 @@ func (s *svcStatus) Execute(args []string) error {
 	defer w.Flush()
 
 	fmt.Fprintln(w, i18n.G("Service\tStartup\tCurrent\tNotes"))
-
 	for _, svc := range services {
-		startup := i18n.G("disabled")
-		if svc.Enabled {
-			startup = i18n.G("enabled")
-		}
-		current := i18n.G("inactive")
-		if svc.DaemonScope == snap.UserDaemon {
-			current = "-"
-		} else if svc.Active {
-			current = i18n.G("active")
-		}
-		fmt.Fprintf(w, "%s.%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current, clientutil.ClientAppInfoNotes(svc))
+		fmt.Fprintf(w, fmtServiceStatus(svc, u.Uid == "0" || s.Global))
 	}
-
 	return nil
 }
 

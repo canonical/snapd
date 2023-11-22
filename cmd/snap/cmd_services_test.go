@@ -326,6 +326,78 @@ func (s *appOpSuite) TestAppStatus(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `Service  Startup  Current   Notes
 foo.bar  enabled  inactive  timer-activated
 foo.baz  enabled  inactive  socket-activated
+foo.qux  enabled  inactive  user
+foo.zed  enabled  active    -
+`)
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, 1)
+}
+
+func (s *appOpSuite) TestAppStatusGlobal(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/apps")
+			c.Check(r.URL.Query(), check.HasLen, 2)
+			c.Check(r.URL.Query().Get("select"), check.Equals, "service")
+			c.Check(r.Method, check.Equals, "GET")
+			w.WriteHeader(200)
+			enc := json.NewEncoder(w)
+			enc.Encode(map[string]interface{}{
+				"type": "sync",
+				"result": []map[string]interface{}{
+					{
+						"snap":         "foo",
+						"name":         "bar",
+						"daemon":       "oneshot",
+						"daemon-scope": "system",
+						"active":       false,
+						"enabled":      true,
+						"activators": []map[string]interface{}{
+							{"name": "bar", "type": "timer", "active": true, "enabled": true},
+						},
+					}, {
+						"snap":         "foo",
+						"name":         "baz",
+						"daemon":       "oneshot",
+						"daemon-scope": "system",
+						"active":       false,
+						"enabled":      true,
+						"activators": []map[string]interface{}{
+							{"name": "baz-sock1", "type": "socket", "active": true, "enabled": true},
+							{"name": "baz-sock2", "type": "socket", "active": false, "enabled": true},
+						},
+					}, {
+						"snap":         "foo",
+						"name":         "qux",
+						"daemon":       "simple",
+						"daemon-scope": "user",
+						"active":       false,
+						"enabled":      true,
+					}, {
+						"snap":    "foo",
+						"name":    "zed",
+						"active":  true,
+						"enabled": true,
+					},
+				},
+				"status":      "OK",
+				"status-code": 200,
+			})
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"services", "--global"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.HasLen, 0)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, `Service  Startup  Current   Notes
+foo.bar  enabled  inactive  timer-activated
+foo.baz  enabled  inactive  socket-activated
 foo.qux  enabled  -         user
 foo.zed  enabled  active    -
 `)
