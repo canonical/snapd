@@ -26,7 +26,6 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
-	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -63,37 +62,6 @@ func (s *utilsSuite) TearDownTest(c *C) {
 
 // secure-mkdir-all-within
 
-type CustomFileInfo struct {
-	name    string
-	size    int64
-	mode    os.FileMode
-	modTime time.Time
-}
-
-func (fi CustomFileInfo) Name() string {
-	return fi.name
-}
-
-func (fi CustomFileInfo) Size() int64 {
-	return fi.size
-}
-
-func (fi CustomFileInfo) Mode() os.FileMode {
-	return fi.mode
-}
-
-func (fi CustomFileInfo) ModTime() time.Time {
-	return fi.modTime
-}
-
-func (fi CustomFileInfo) IsDir() bool {
-	return fi.Mode().IsDir()
-}
-
-func (fi CustomFileInfo) Sys() interface{} {
-	return nil
-}
-
 // Ensure that we refuse to create a directory with an relative path.
 func (s *utilsSuite) TestSecureMkdirAllWithinRelative(c *C) {
 	err := update.MkdirAllWithin("rel/path", "/", 0755, 123, 456, nil)
@@ -126,23 +94,19 @@ func (s *utilsSuite) TestSecureMkdirAllWithinBadParent(c *C) {
 
 // Path already exists.
 func (s *utilsSuite) TestSecureMkdirAllWithinPathExists(c *C) {
-	fi := CustomFileInfo{mode: os.ModeDir}
-	s.sys.InsertOsLstatResult(`lstat "/parent/dir"`, fi)
+	s.sys.InsertOsLstatResult(`lstat "/parent/dir"`, testutil.FileInfoDir)
 	c.Assert(update.MkdirAllWithin("/parent/dir", "/parent", 0755, 123, 456, nil), IsNil)
-	c.Assert(s.sys.RCalls(), HasLen, 1)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
-		{C: `lstat "/parent/dir"`, R: CustomFileInfo{mode: os.ModeDir}, E: nil},
+		{C: `lstat "/parent/dir"`, R: testutil.FileInfoDir},
 	})
 }
 
 // Path exists but not a directory.
 func (s *utilsSuite) TestSecureMkdirAllWithinPathExistsNotDir(c *C) {
-	fi := CustomFileInfo{mode: os.ModeSymlink}
-	s.sys.InsertOsLstatResult(`lstat "/parent/dir"`, fi)
+	s.sys.InsertOsLstatResult(`lstat "/parent/dir"`, testutil.FileInfoSymlink)
 	c.Assert(update.MkdirAllWithin("/parent/dir", "/parent", 0755, 123, 456, nil), ErrorMatches, `cannot create directory "/parent/dir": existing file in the way`)
-	c.Assert(s.sys.RCalls(), HasLen, 1)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
-		{C: `lstat "/parent/dir"`, R: CustomFileInfo{mode: os.ModeSymlink}, E: nil},
+		{C: `lstat "/parent/dir"`, R: testutil.FileInfoSymlink},
 	})
 }
 
@@ -150,7 +114,6 @@ func (s *utilsSuite) TestSecureMkdirAllWithinPathExistsNotDir(c *C) {
 func (s *utilsSuite) TestSecureMkdirAllWithinPathStatError(c *C) {
 	s.sys.InsertFault(`lstat "/parent/dir"`, errors.New("error other than os.ErrNotExist"))
 	c.Assert(update.MkdirAllWithin("/parent/dir", "/parent", 0755, 123, 456, nil), ErrorMatches, `cannot inspect path "/parent/dir": error other than os.ErrNotExist`)
-	c.Assert(s.sys.RCalls(), HasLen, 1)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `lstat "/parent/dir"`, E: errors.New("error other than os.ErrNotExist")},
 	})
@@ -161,7 +124,6 @@ func (s *utilsSuite) TestSecureMkdirAllWithinParentNotExist(c *C) {
 	s.sys.InsertFault(`lstat "/parent/dir"`, os.ErrNotExist)
 	s.sys.InsertFault(`lstat "/parent"`, os.ErrNotExist)
 	c.Assert(update.MkdirAllWithin("/parent/dir", "/parent", 0755, 123, 456, nil), ErrorMatches, `parent directory "/parent" does not exist`)
-	c.Assert(s.sys.RCalls(), HasLen, 2)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `lstat "/parent/dir"`, E: os.ErrNotExist},
 		{C: `lstat "/parent"`, E: os.ErrNotExist},
@@ -171,44 +133,115 @@ func (s *utilsSuite) TestSecureMkdirAllWithinParentNotExist(c *C) {
 // Parent exists but not a directory.
 func (s *utilsSuite) TestSecureMkdirAllWithinParentExitsNotDir(c *C) {
 	s.sys.InsertFault(`lstat "/parent/dir"`, os.ErrNotExist)
-	fi := CustomFileInfo{mode: os.ModeSymlink}
-	s.sys.InsertOsLstatResult(`lstat "/parent"`, fi)
+	s.sys.InsertOsLstatResult(`lstat "/parent"`, testutil.FileInfoSymlink)
 	c.Assert(update.MkdirAllWithin("/parent/dir", "/parent", 0755, 123, 456, nil), ErrorMatches, `cannot create directory "/parent": existing file in the way`)
-	c.Assert(s.sys.RCalls(), HasLen, 2)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `lstat "/parent/dir"`, E: os.ErrNotExist},
-		{C: `lstat "/parent"`, R: CustomFileInfo{mode: os.ModeSymlink}, E: nil},
+		{C: `lstat "/parent"`, R: testutil.FileInfoSymlink},
 	})
 }
 
-// Cannot inpect parent existence.
+// Cannot inspect parent existence.
 func (s *utilsSuite) TestSecureMkdirAllWithinParentStatError(c *C) {
 	s.sys.InsertFault(`lstat "/parent/dir"`, os.ErrNotExist)
 	s.sys.InsertFault(`lstat "/parent"`, errors.New("error other than os.ErrNotExist"))
 	c.Assert(update.MkdirAllWithin("/parent/dir", "/parent", 0755, 123, 456, nil), ErrorMatches, `cannot inspect parent path "/parent": error other than os.ErrNotExist`)
-	c.Assert(s.sys.RCalls(), HasLen, 2)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `lstat "/parent/dir"`, E: os.ErrNotExist},
 		{C: `lstat "/parent"`, E: errors.New("error other than os.ErrNotExist")},
 	})
 }
 
+// First missing dir exists but not a directory
+func (s *utilsSuite) TestSecureMkdirAllFirstMissingDirExistsNotDir(c *C) {
+	s.sys.InsertFault(`lstat "/parent/missing/dir"`, os.ErrNotExist)
+	s.sys.InsertOsLstatResult(`lstat "/parent"`, testutil.FileInfoDir)
+	s.sys.InsertOsLstatResult(`lstat "/parent/missing"`, testutil.FileInfoFile)
+	c.Assert(update.MkdirAllWithin("/parent/missing/dir", "/parent", 0755, 123, 456, nil), ErrorMatches, `cannot create directory "/parent/missing": existing file in the way`)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `lstat "/parent/missing/dir"`, E: os.ErrNotExist},
+		{C: `lstat "/parent"`, R: testutil.FileInfoDir},
+		{C: `lstat "/parent/missing"`, R: testutil.FileInfoFile},
+	})
+}
+
+// Cannot inspect first missing dir
+func (s *utilsSuite) TestSecureMkdsrAllFirstMissingDirStatError(c *C) {
+	s.sys.InsertFault(`lstat "/parent/missing/dir"`, os.ErrNotExist)
+	s.sys.InsertOsLstatResult(`lstat "/parent"`, testutil.FileInfoDir)
+	s.sys.InsertFault(`lstat "/parent/missing"`, errors.New("error other than os.ErrNotExist"))
+	c.Assert(update.MkdirAllWithin("/parent/missing/dir", "/parent", 0755, 123, 456, nil), ErrorMatches, `cannot inspect path "/parent/missing": error other than os.ErrNotExist`)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `lstat "/parent/missing/dir"`, E: os.ErrNotExist},
+		{C: `lstat "/parent"`, R: testutil.FileInfoDir},
+		{C: `lstat "/parent/missing"`, E: errors.New("error other than os.ErrNotExist")},
+	})
+}
+
+// Cannot open parent of first missing directory
+func (s *utilsSuite) TestSecureMkdirAllOpenParentOfFirstMissingDirError(c *C) {
+	s.sys.InsertFault(`lstat "/dir"`, os.ErrNotExist)
+	s.sys.InsertOsLstatResult(`lstat "/"`, testutil.FileInfoDir)
+	s.sys.InsertFault(`open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, errTesting)
+	c.Assert(update.MkdirAllWithin("/dir", "/", 0755, 123, 456, nil), ErrorMatches, `cannot open directory "/": testing`)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `lstat "/dir"`, E: os.ErrNotExist},
+		{C: `lstat "/"`, R: testutil.FileInfoDir},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, E: errTesting},
+	})
+}
+
+// Cannot create first missing dir
+func (s *utilsSuite) TestSecureMkdirAllCreateFirstMissingDirError(c *C) {
+	s.sys.InsertFault(`lstat "/dir"`, os.ErrNotExist)
+	s.sys.InsertOsLstatResult(`lstat "/"`, testutil.FileInfoDir)
+	s.sys.InsertFault(`mkdirat 3 "dir" 0755`, errTesting)
+	c.Assert(update.MkdirAllWithin("/dir", "/", 0755, 123, 456, nil), ErrorMatches, `cannot create directory "/dir": testing`)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `lstat "/dir"`, E: os.ErrNotExist},
+		{C: `lstat "/"`, R: testutil.FileInfoDir},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "dir" 0755`, E: errTesting},
+		{C: `close 3`},
+	})
+}
+
+// Cannot create second missing dir
+func (s *utilsSuite) TestSecureMkdirAllCreateSecondMissingDirError(c *C) {
+	s.sys.InsertFault(`lstat "/parent1/parent2/dir"`, os.ErrNotExist)
+	s.sys.InsertOsLstatResult(`lstat "/"`, testutil.FileInfoDir)
+	s.sys.InsertFault(`lstat "/parent1"`, os.ErrNotExist)
+	s.sys.InsertFault(`lstat "/parent1/parent2"`, os.ErrNotExist)
+	s.sys.InsertFault(`mkdirat 4 "parent2" 0755`, errTesting)
+	c.Assert(update.MkdirAllWithin("/parent1/parent2/dir", "/", 0755, 123, 456, nil), ErrorMatches, `cannot create directory \"/parent1/parent2\": testing`)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `lstat "/parent1/parent2/dir"`, E: os.ErrNotExist},
+		{C: `lstat "/"`, R: testutil.FileInfoDir},
+		{C: `lstat "/parent1"`, E: os.ErrNotExist},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "parent1" 0755`},
+		{C: `openat 3 "parent1" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `fchown 4 123 456`},
+		{C: `mkdirat 4 "parent2" 0755`, E: errTesting},
+		{C: `close 4`},
+		{C: `close 3`},
+	})
+}
+
 // Ensure that we can create a directory in the top-level directory.
 func (s *utilsSuite) TestSecureMkdirAllWithinLevel1(c *C) {
 	s.sys.InsertFault(`lstat "/dir"`, os.ErrNotExist)
-	fi := CustomFileInfo{mode: os.ModeDir}
-	s.sys.InsertOsLstatResult(`lstat "/"`, fi)
+	s.sys.InsertOsLstatResult(`lstat "/"`, testutil.FileInfoDir)
 	c.Assert(update.MkdirAllWithin("/dir", "/", 0755, 123, 456, nil), IsNil)
-	c.Assert(s.sys.RCalls(), HasLen, 8)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `lstat "/dir"`, E: os.ErrNotExist},
-		{C: `lstat "/"`, R: CustomFileInfo{mode: os.ModeDir}, E: nil},
-		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3, E: nil},
-		{C: `mkdirat 3 "dir" 0755`, E: nil},
-		{C: `openat 3 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4, E: nil},
-		{C: `fchown 4 123 456`, E: nil},
-		{C: `close 4`, E: nil},
-		{C: `close 3`, E: nil},
+		{C: `lstat "/"`, R: testutil.FileInfoDir},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "dir" 0755`},
+		{C: `openat 3 "dir" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `fchown 4 123 456`},
+		{C: `close 4`},
+		{C: `close 3`},
 	})
 }
 
@@ -216,43 +249,39 @@ func (s *utilsSuite) TestSecureMkdirAllWithinLevel1(c *C) {
 func (s *utilsSuite) TestSecureMkdirAllWithinLevel2(c *C) {
 	s.sys.InsertFault(`lstat "/dir1/dir2"`, os.ErrNotExist)
 	s.sys.InsertFault(`lstat "/dir1"`, os.ErrNotExist)
-	fi := CustomFileInfo{mode: os.ModeDir}
-	s.sys.InsertOsLstatResult(`lstat "/"`, fi)
+	s.sys.InsertOsLstatResult(`lstat "/"`, testutil.FileInfoDir)
 	c.Assert(update.MkdirAllWithin("/dir1/dir2", "/", 0755, 123, 456, nil), IsNil)
-	c.Assert(s.sys.RCalls(), HasLen, 13)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `lstat "/dir1/dir2"`, E: os.ErrNotExist},
-		{C: `lstat "/"`, R: CustomFileInfo{mode: os.ModeDir}, E: nil},
+		{C: `lstat "/"`, R: testutil.FileInfoDir},
 		{C: `lstat "/dir1"`, E: os.ErrNotExist},
-		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3, E: nil},
-		{C: `mkdirat 3 "dir1" 0755`, E: nil},
-		{C: `openat 3 "dir1" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4, E: nil},
-		{C: `fchown 4 123 456`, E: nil},
-		{C: `mkdirat 4 "dir2" 0755`, E: nil},
-		{C: `openat 4 "dir2" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 5, E: nil},
-		{C: `fchown 5 123 456`, E: nil},
-		{C: `close 5`, E: nil},
-		{C: `close 4`, E: nil},
-		{C: `close 3`, E: nil},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "dir1" 0755`},
+		{C: `openat 3 "dir1" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `fchown 4 123 456`},
+		{C: `mkdirat 4 "dir2" 0755`},
+		{C: `openat 4 "dir2" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 5},
+		{C: `fchown 5 123 456`},
+		{C: `close 5`},
+		{C: `close 4`},
+		{C: `close 3`},
 	})
 }
 
 // Ensure that we can create a directory one level from the one level parent directory.
 func (s *utilsSuite) TestSecureMkdirAllWithinLevel1Parent1(c *C) {
 	s.sys.InsertFault(`lstat "/dir1/dir2"`, os.ErrNotExist)
-	fi := CustomFileInfo{mode: os.ModeDir}
-	s.sys.InsertOsLstatResult(`lstat "/dir1"`, fi)
+	s.sys.InsertOsLstatResult(`lstat "/dir1"`, testutil.FileInfoDir)
 	c.Assert(update.MkdirAllWithin("/dir1/dir2", "/dir1", 0755, 123, 456, nil), IsNil)
-	c.Assert(s.sys.RCalls(), HasLen, 8)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `lstat "/dir1/dir2"`, E: os.ErrNotExist},
-		{C: `lstat "/dir1"`, R: CustomFileInfo{mode: os.ModeDir}, E: nil},
-		{C: `open "/dir1" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3, E: nil},
-		{C: `mkdirat 3 "dir2" 0755`, E: nil},
-		{C: `openat 3 "dir2" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4, E: nil},
-		{C: `fchown 4 123 456`, E: nil},
-		{C: `close 4`, E: nil},
-		{C: `close 3`, E: nil},
+		{C: `lstat "/dir1"`, R: testutil.FileInfoDir},
+		{C: `open "/dir1" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "dir2" 0755`},
+		{C: `openat 3 "dir2" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `fchown 4 123 456`},
+		{C: `close 4`},
+		{C: `close 3`},
 	})
 }
 
@@ -261,47 +290,43 @@ func (s *utilsSuite) TestSecureMkdirAllWithinLevel3(c *C) {
 	s.sys.InsertFault(`lstat "/dir1/dir2/dir3"`, os.ErrNotExist)
 	s.sys.InsertFault(`lstat "/dir1/dir2"`, os.ErrNotExist)
 	s.sys.InsertFault(`lstat "/dir1"`, os.ErrNotExist)
-	fi := CustomFileInfo{mode: os.ModeDir}
-	s.sys.InsertOsLstatResult(`lstat "/"`, fi)
+	s.sys.InsertOsLstatResult(`lstat "/"`, testutil.FileInfoDir)
 	c.Assert(update.MkdirAllWithin("/dir1/dir2/dir3", "/", 0755, 123, 456, nil), IsNil)
-	c.Assert(s.sys.RCalls(), HasLen, 17)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `lstat "/dir1/dir2/dir3"`, E: os.ErrNotExist},
-		{C: `lstat "/"`, R: CustomFileInfo{mode: os.ModeDir}, E: nil},
+		{C: `lstat "/"`, R: testutil.FileInfoDir},
 		{C: `lstat "/dir1"`, E: os.ErrNotExist},
-		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3, E: nil},
-		{C: `mkdirat 3 "dir1" 0755`, E: nil},
-		{C: `openat 3 "dir1" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4, E: nil},
-		{C: `fchown 4 123 456`, E: nil},
-		{C: `mkdirat 4 "dir2" 0755`, E: nil},
-		{C: `openat 4 "dir2" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 5, E: nil},
-		{C: `fchown 5 123 456`, E: nil},
-		{C: `mkdirat 5 "dir3" 0755`, E: nil},
-		{C: `openat 5 "dir3" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 6, E: nil},
-		{C: `fchown 6 123 456`, E: nil},
-		{C: `close 6`, E: nil},
-		{C: `close 5`, E: nil},
-		{C: `close 4`, E: nil},
-		{C: `close 3`, E: nil},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "dir1" 0755`},
+		{C: `openat 3 "dir1" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `fchown 4 123 456`},
+		{C: `mkdirat 4 "dir2" 0755`},
+		{C: `openat 4 "dir2" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 5},
+		{C: `fchown 5 123 456`},
+		{C: `mkdirat 5 "dir3" 0755`},
+		{C: `openat 5 "dir3" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 6},
+		{C: `fchown 6 123 456`},
+		{C: `close 6`},
+		{C: `close 5`},
+		{C: `close 4`},
+		{C: `close 3`},
 	})
 }
 
 // Ensure that we can create a directory one level from the two level parent directory.
 func (s *utilsSuite) TestSecureMkdirAllWithinLevel3Parent2(c *C) {
 	s.sys.InsertFault(`lstat "/dir1/dir2/dir3"`, os.ErrNotExist)
-	fi := CustomFileInfo{mode: os.ModeDir}
-	s.sys.InsertOsLstatResult(`lstat "/dir1/dir2"`, fi)
+	s.sys.InsertOsLstatResult(`lstat "/dir1/dir2"`, testutil.FileInfoDir)
 	c.Assert(update.MkdirAllWithin("/dir1/dir2/dir3", "/dir1/dir2", 0755, 123, 456, nil), IsNil)
-	c.Assert(s.sys.RCalls(), HasLen, 8)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `lstat "/dir1/dir2/dir3"`, E: os.ErrNotExist},
-		{C: `lstat "/dir1/dir2"`, R: CustomFileInfo{mode: os.ModeDir}, E: nil},
-		{C: `open "/dir1/dir2" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3, E: nil},
-		{C: `mkdirat 3 "dir3" 0755`, E: nil},
-		{C: `openat 3 "dir3" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4, E: nil},
-		{C: `fchown 4 123 456`, E: nil},
-		{C: `close 4`, E: nil},
-		{C: `close 3`, E: nil},
+		{C: `lstat "/dir1/dir2"`, R: testutil.FileInfoDir},
+		{C: `open "/dir1/dir2" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "dir3" 0755`},
+		{C: `openat 3 "dir3" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `fchown 4 123 456`},
+		{C: `close 4`},
+		{C: `close 3`},
 	})
 }
 
@@ -309,45 +334,41 @@ func (s *utilsSuite) TestSecureMkdirAllWithinLevel3Parent2(c *C) {
 func (s *utilsSuite) TestSecureMkdirAllWithinLevel4Parent2(c *C) {
 	s.sys.InsertFault(`lstat "/dir1/dir2/dir3/dir4"`, os.ErrNotExist)
 	s.sys.InsertFault(`lstat "/dir1/dir2/dir3"`, os.ErrNotExist)
-	fi := CustomFileInfo{mode: os.ModeDir}
-	s.sys.InsertOsLstatResult(`lstat "/dir1/dir2"`, fi)
+	s.sys.InsertOsLstatResult(`lstat "/dir1/dir2"`, testutil.FileInfoDir)
 	c.Assert(update.MkdirAllWithin("/dir1/dir2/dir3/dir4", "/dir1/dir2", 0755, 123, 456, nil), IsNil)
-	c.Assert(s.sys.RCalls(), HasLen, 13)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `lstat "/dir1/dir2/dir3/dir4"`, E: os.ErrNotExist},
-		{C: `lstat "/dir1/dir2"`, R: CustomFileInfo{mode: os.ModeDir}, E: nil},
+		{C: `lstat "/dir1/dir2"`, R: testutil.FileInfoDir},
 		{C: `lstat "/dir1/dir2/dir3"`, E: os.ErrNotExist},
-		{C: `open "/dir1/dir2" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3, E: nil},
-		{C: `mkdirat 3 "dir3" 0755`, E: nil},
-		{C: `openat 3 "dir3" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4, E: nil},
-		{C: `fchown 4 123 456`, E: nil},
-		{C: `mkdirat 4 "dir4" 0755`, E: nil},
-		{C: `openat 4 "dir4" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 5, E: nil},
-		{C: `fchown 5 123 456`, E: nil},
-		{C: `close 5`, E: nil},
-		{C: `close 4`, E: nil},
-		{C: `close 3`, E: nil},
+		{C: `open "/dir1/dir2" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "dir3" 0755`},
+		{C: `openat 3 "dir3" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `fchown 4 123 456`},
+		{C: `mkdirat 4 "dir4" 0755`},
+		{C: `openat 4 "dir4" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 5},
+		{C: `fchown 5 123 456`},
+		{C: `close 5`},
+		{C: `close 4`},
+		{C: `close 3`},
 	})
 }
 
 // Ensure that we can create a directory two levels from the two level parent directory with level three existing
 func (s *utilsSuite) TestSecureMkdirAllWithinLevel4Parent2Level3Exists(c *C) {
 	s.sys.InsertFault(`lstat "/dir1/dir2/dir3/dir4"`, os.ErrNotExist)
-	fi := CustomFileInfo{mode: os.ModeDir}
-	s.sys.InsertOsLstatResult(`lstat "/dir1/dir2/dir3"`, fi)
-	s.sys.InsertOsLstatResult(`lstat "/dir1/dir2"`, fi)
+	s.sys.InsertOsLstatResult(`lstat "/dir1/dir2/dir3"`, testutil.FileInfoDir)
+	s.sys.InsertOsLstatResult(`lstat "/dir1/dir2"`, testutil.FileInfoDir)
 	c.Assert(update.MkdirAllWithin("/dir1/dir2/dir3/dir4", "/dir1/dir2", 0755, 123, 456, nil), IsNil)
-	c.Assert(s.sys.RCalls(), HasLen, 9)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `lstat "/dir1/dir2/dir3/dir4"`, E: os.ErrNotExist},
-		{C: `lstat "/dir1/dir2"`, R: CustomFileInfo{mode: os.ModeDir}, E: nil},
-		{C: `lstat "/dir1/dir2/dir3"`, R: CustomFileInfo{mode: os.ModeDir}, E: nil},
-		{C: `open "/dir1/dir2/dir3" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3, E: nil},
-		{C: `mkdirat 3 "dir4" 0755`, E: nil},
-		{C: `openat 3 "dir4" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4, E: nil},
-		{C: `fchown 4 123 456`, E: nil},
-		{C: `close 4`, E: nil},
-		{C: `close 3`, E: nil},
+		{C: `lstat "/dir1/dir2"`, R: testutil.FileInfoDir},
+		{C: `lstat "/dir1/dir2/dir3"`, R: testutil.FileInfoDir},
+		{C: `open "/dir1/dir2/dir3" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
+		{C: `mkdirat 3 "dir4" 0755`},
+		{C: `openat 3 "dir4" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
+		{C: `fchown 4 123 456`},
+		{C: `close 4`},
+		{C: `close 3`},
 	})
 }
 
@@ -357,24 +378,22 @@ func (s *utilsSuite) TestSecureMkdirAllWithinRestrictedEtc(c *C) {
 	s.sys.InsertFstatResult(`fstat 3 <ptr>`, syscall.Stat_t{})
 	rs := s.as.RestrictionsFor("/etc/demo")
 	s.sys.InsertFault(`lstat "/etc/demo"`, os.ErrNotExist)
-	fi := CustomFileInfo{mode: os.ModeDir}
-	s.sys.InsertOsLstatResult(`lstat "/"`, fi)
-	s.sys.InsertOsLstatResult(`lstat "/etc"`, fi)
+	s.sys.InsertOsLstatResult(`lstat "/"`, testutil.FileInfoDir)
+	s.sys.InsertOsLstatResult(`lstat "/etc"`, testutil.FileInfoDir)
 	err := update.MkdirAllWithin("/etc/demo", "/", 0755, 123, 456, rs)
 	c.Assert(err, ErrorMatches, `cannot write to "/etc/demo" because it would affect the host in "/etc"`)
 	c.Assert(err.(*update.TrespassingError).ViolatedPath, Equals, "/etc")
 	c.Assert(err.(*update.TrespassingError).DesiredPath, Equals, "/etc/demo")
-	c.Assert(s.sys.RCalls(), HasLen, 7)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `lstat "/etc/demo"`, E: os.ErrNotExist},
-		{C: `lstat "/"`, R: CustomFileInfo{mode: os.ModeDir}, E: nil},
+		{C: `lstat "/"`, R: testutil.FileInfoDir},
 		// Skip over inspecting /etc because it exists.
-		{C: `lstat "/etc"`, R: CustomFileInfo{mode: os.ModeDir}, E: nil},
-		{C: `open "/etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3, E: nil},
+		{C: `lstat "/etc"`, R: testutil.FileInfoDir},
+		{C: `open "/etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		// /etc/demo is ext4 which is writable, refuse further operations.
 		{C: `fstatfs 3 <ptr>`, R: syscall.Statfs_t{Type: update.Ext4Magic}},
 		{C: `fstat 3 <ptr>`, R: syscall.Stat_t{}},
-		{C: `close 3`, E: nil},
+		{C: `close 3`},
 	})
 }
 
@@ -383,23 +402,21 @@ func (s *utilsSuite) TestSecureMkdirAllWithinUnrestrictedEtc(c *C) {
 	defer s.as.MockUnrestrictedPaths("/etc")()
 	rs := s.as.RestrictionsFor("/etc/demo")
 	s.sys.InsertFault(`lstat "/etc/demo"`, os.ErrNotExist)
-	fi := CustomFileInfo{mode: os.ModeDir}
-	s.sys.InsertOsLstatResult(`lstat "/"`, fi)
-	s.sys.InsertOsLstatResult(`lstat "/etc"`, fi)
+	s.sys.InsertOsLstatResult(`lstat "/"`, testutil.FileInfoDir)
+	s.sys.InsertOsLstatResult(`lstat "/etc"`, testutil.FileInfoDir)
 	c.Assert(update.MkdirAllWithin("/etc/demo", "/", 0755, 123, 456, rs), IsNil)
-	c.Assert(s.sys.RCalls(), HasLen, 9)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `lstat "/etc/demo"`, E: os.ErrNotExist},
-		{C: `lstat "/"`, R: CustomFileInfo{mode: os.ModeDir}, E: nil},
+		{C: `lstat "/"`, R: testutil.FileInfoDir},
 		// Skip over inspecting /etc because it exists.
-		{C: `lstat "/etc"`, R: CustomFileInfo{mode: os.ModeDir}, E: nil},
-		{C: `open "/etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3, E: nil},
+		{C: `lstat "/etc"`, R: testutil.FileInfoDir},
+		{C: `open "/etc" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		// No inspection required parent /etc is unrestricted.
 		{C: `mkdirat 3 "demo" 0755`},
 		{C: `openat 3 "demo" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 4},
 		{C: `fchown 4 123 456`},
-		{C: `close 4`, E: nil},
-		{C: `close 3`, E: nil},
+		{C: `close 4`},
+		{C: `close 3`},
 	})
 }
 

@@ -455,7 +455,7 @@ func MkdirAllWithin(path, parent string, perm os.FileMode, uid sys.UserID, gid s
 			continue
 		}
 		if !os.IsNotExist(err) {
-			return fmt.Errorf("cannot inspect path %q: %v", iter.CurrentPath(), err)
+			return fmt.Errorf("cannot inspect path %q: %v", iter.CurrentPathNoSlash(), err)
 		}
 		break
 	}
