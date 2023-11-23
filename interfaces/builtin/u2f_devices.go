@@ -115,7 +115,7 @@ var u2fDevices = []u2fDevice{
 	{
 		Name:             "Google Titan U2F",
 		VendorIDPattern:  "18d1",
-		ProductIDPattern: "5026",
+		ProductIDPattern: "5026|9470",
 	},
 	{
 		Name:             "Tomu board + chopstx U2F + SoloKeys + Flipper zero",
