@@ -348,7 +348,8 @@ if [ "$STATIC" = 1 ]; then
 
         echo "Checking tests formatting"
         if [ -n "$FILTERED_TESTS" ]; then
-            ./tests/lib/external/snapd-testing-tools/utils/check-test-format --tests "$FILTERED_TESTS"
+            # shellcheck disable=SC2086
+            ./tests/lib/external/snapd-testing-tools/utils/check-test-format --tests $FILTERED_TESTS
         fi
     fi
 
