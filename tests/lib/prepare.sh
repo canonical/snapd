@@ -1443,6 +1443,16 @@ prepare_ubuntu_core() {
         # Create the file with the initial environment before saving the state
         tests.env start initial
 
+        # save preinstalled snaps when tests are executed in external systems
+        # the preinstalled snaps shouldn't be removed during tests clean up
+        # this is needed just for external devices because those could be using
+        # custom images with pre-installed snaps which cannot be removed, such
+        # as the network-manager.
+        if [ "$SPREAD_BACKEND" == "external" ]; then
+            PREINSTALLED_SNAPS="$(snap list | tail -n +2 | awk '{print $1}' | tr '\n' ' ')"
+            tests.env set initial PREINSTALLED_SNAPS "$PREINSTALLED_SNAPS"
+        fi
+
         # important to remove disabled snaps before calling save_snapd_state
         # or restore will break
         remove_disabled_snaps
