@@ -9040,7 +9040,7 @@ func (s *snapmgrTestSuite) TestSaveMonitoredRefreshCandidatesOnAutoRefreshThrott
 		"snap-c-id":          true,
 	}
 	type requestRecord struct {
-		opts    *store.RefreshOptions
+		opts    store.RefreshOptions
 		snapIDs map[string]bool
 	}
 	var requests []requestRecord
@@ -9061,7 +9061,7 @@ func (s *snapmgrTestSuite) TestSaveMonitoredRefreshCandidatesOnAutoRefreshThrott
 		}
 
 		requests = append(requests, requestRecord{
-			opts:    ro,
+			opts:    *ro,
 			snapIDs: snapIDs,
 		})
 
