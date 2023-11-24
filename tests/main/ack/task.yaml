@@ -1,5 +1,8 @@
 summary: Check snap ack
 
+details: |
+    Verify the basic scenarios for the snap ack command
+
 systems: [-ubuntu-core-*-arm-*]
 
 execute: |
