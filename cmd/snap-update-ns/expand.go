@@ -47,26 +47,26 @@ func xdgRuntimeDir(uid int) string {
 
 // expandXdgRuntimeDir expands the $XDG_RUNTIME_DIR variable in the given mount profile.
 func expandXdgRuntimeDir(profile *osutil.MountProfile, uid int) {
-	variable := "$XDG_RUNTIME_DIR"
+	const envVar = "$XDG_RUNTIME_DIR"
 	value := xdgRuntimeDir(uid)
 	for i := range profile.Entries {
-		profile.Entries[i].Name = expandPrefixVariable(profile.Entries[i].Name, variable, value)
-		profile.Entries[i].Dir = expandPrefixVariable(profile.Entries[i].Dir, variable, value)
+		profile.Entries[i].Name = expandPrefixVariable(profile.Entries[i].Name, envVar, value)
+		profile.Entries[i].Dir = expandPrefixVariable(profile.Entries[i].Dir, envVar, value)
 	}
 }
 
 // expandHomeDir expands the $HOME variable in the given mount profile for entries
 // of mount kind "ensure-dir".
 func expandHomeDir(profile *osutil.MountProfile, home string) {
-	variable := "$HOME"
+	const envVar = "$HOME"
 	for i := range profile.Entries {
 		if profile.Entries[i].XSnapdKind() != "ensure-dir" {
 			continue
 		}
-		profile.Entries[i].Name = expandPrefixVariable(profile.Entries[i].Name, variable, home)
-		profile.Entries[i].Dir = expandPrefixVariable(profile.Entries[i].Dir, variable, home)
+		profile.Entries[i].Name = expandPrefixVariable(profile.Entries[i].Name, envVar, home)
+		profile.Entries[i].Dir = expandPrefixVariable(profile.Entries[i].Dir, envVar, home)
 		if profile.Entries[i].XSnapdMustExistDir() != "" {
-			mustExistDir := expandPrefixVariable(profile.Entries[i].XSnapdMustExistDir(), variable, home)
+			mustExistDir := expandPrefixVariable(profile.Entries[i].XSnapdMustExistDir(), envVar, home)
 			osutil.ReplaceMountEntryOption(&profile.Entries[i], osutil.XSnapdMustExistDir(mustExistDir))
 		}
 	}

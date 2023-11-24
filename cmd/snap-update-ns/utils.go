@@ -432,16 +432,18 @@ func MkdirAllWithin(path, parent string, perm os.FileMode, uid sys.UserID, gid s
 		return fmt.Errorf("cannot inspect parent path %q: %v", parent, err)
 	}
 
-	// Advance the iterator to the first missing directory
 	iter, err := strutil.NewPathIterator(path)
 	if err != nil {
 		return fmt.Errorf("cannot iterate over path %q: %v", path, err)
 	}
+	// Advance the iterator to the parent. Finding the parent is
+	// guaranteed by the earlier check isParent.
 	for iter.Next() {
 		if iter.CurrentPathNoSlash() == parent {
 			break
 		}
 	}
+	// Advance the iterator to the first missing directory
 	for iter.Next() {
 		if iter.CurrentPathNoSlash() == path {
 			// Already confirmed path does not exist
@@ -460,7 +462,8 @@ func MkdirAllWithin(path, parent string, perm os.FileMode, uid sys.UserID, gid s
 		break
 	}
 
-	// Create the first missing directory
+	// Create the first missing directory. From this point onward all file descriptors are kept open
+	// until all missing directories have been created or failure, and then closed in reverse order.
 	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
 	fd, err := sysOpen(iter.CurrentBaseNoSlash(), openFlags, 0)
 	if err != nil {

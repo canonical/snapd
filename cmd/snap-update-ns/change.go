@@ -124,14 +124,14 @@ func (c *Change) createPath(path string, pokeHoles bool, as *Assumptions) ([]*Ch
 		uid = sysGetuid()
 		gid = sysGetgid()
 		if uid == 0 {
-			logger.Debugf("ensure-dir mounts are not currently supported for the root user")
+			logger.Noticef("WARNING: cannot perform ensure-dir mount for target %q, not supported for the root user", path)
 		} else {
 			// https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
 			mode = 0700
 			// Restrictions not used
 			err = MkdirAllWithin(path, c.Entry.XSnapdMustExistDir(), mode, uid, gid, nil)
 			if errors.Is(err, &FileInWayError{}) || errors.Is(err, &ParentMissingError{}) {
-				logger.Debugf("cannot perform ensure-dir mount %v", err)
+				logger.Noticef("WARNING: cannot perform ensure-dir mount for target %q: %v", path, err)
 				// Failure to complete because of a file in the way or MustExistDir
 				// that does not exist should not be treated as an error.
 				err = nil
@@ -190,7 +190,7 @@ func (c *Change) ensureTarget(as *Assumptions) ([]*Change, error) {
 		case "ensure-dir":
 			if !fi.Mode().IsDir() {
 				// Failure to complete because of a file in the way should not be treated as an error.
-				logger.Debugf("cannot create ensure-dir directory %q: existing file in the way", path)
+				logger.Noticef("WARNING: cannot perform ensure-dir mount for target %q: existing file in the way", path)
 			}
 		}
 

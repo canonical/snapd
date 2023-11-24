@@ -392,7 +392,7 @@ none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOM
 	c.Assert(err, IsNil)
 
 	tmpHomeDir := c.MkDir()
-	restoreEnv := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", tmpHomeDir, "1000")
+	restoreEnv := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", tmpHomeDir)
 	defer restoreEnv()
 	upCtx, err := update.NewUserProfileUpdateContext(snapName, true, 1000)
 	c.Assert(err, IsNil)
@@ -410,10 +410,10 @@ none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOM
 	c.Assert(changes[1].Entry.Dir, Matches, xdgRuntimeDir+"/doc")
 }
 
-func (s *mainSuite) TestApplyUserFstabHappyErrorCannotRetrieveHome(c *C) {
+func (s *mainSuite) TestApplyUserFstabErrorCannotRetrieveHome(c *C) {
 	tmpHomeDir := c.MkDir() + "/does-not-exist"
 	snapName := "foo"
-	restoreEnv := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", tmpHomeDir, "1000")
+	restoreEnv := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", tmpHomeDir)
 	defer restoreEnv()
 	_, err := update.NewUserProfileUpdateContext(snapName, true, 1000)
 	c.Assert(err, ErrorMatches, `cannot use invalid home directory "`+tmpHomeDir+`": no such file or directory`)
