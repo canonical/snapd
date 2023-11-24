@@ -54,9 +54,12 @@ prepare: |
   cp shim.efi.out pc/shim.efi.signed
   tests.nested secboot-sign file pc/shim.efi.signed "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
 
+  tests.nested secboot-remove-signature pc/grubx64.efi
   if [ "${UPDATE_SEED}" = true ]; then
     # Resign grub with new vendor key
     tests.nested secboot-sign file pc/grubx64.efi "new-cert.key" "new-cert.crt"
+    # We need to keep the old vendor key signature to allow hard reset before new shim is installed
+    tests.nested secboot-sign file pc/grubx64.efi "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
   else
     # If shim is not installed in seed, then we need to keep the snakeoil signature
     tests.nested secboot-sign file pc/grubx64.efi "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
