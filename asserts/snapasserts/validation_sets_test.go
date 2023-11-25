@@ -20,6 +20,7 @@
 package snapasserts_test
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"sort"
@@ -1366,4 +1367,14 @@ func (s *validationSetsSuite) TestRequiredSnapNames(c *C) {
 		"other-snap",
 		"another-snap",
 	})
+}
+
+func (s *validationSetsSuite) TestValidationSetsConflictErrorIs(c *C) {
+	err := &snapasserts.ValidationSetsConflictError{}
+
+	c.Check(err.Is(&snapasserts.ValidationSetsConflictError{}), Equals, true)
+	c.Check(err.Is(errors.New("other error")), Equals, false)
+
+	wrapped := fmt.Errorf("wrapped error: %w", err)
+	c.Check(wrapped, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})
 }
