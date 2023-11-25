@@ -5026,7 +5026,7 @@ func (s *assertMgrSuite) testValidationSetsFromModel(c *C, offline bool) {
 		CtxStore: store,
 	}
 
-	sets, err := assertstate.ValidationSetsFromModel(s.state, model, deviceCtx, assertstate.ValidationSetsModelFlags{
+	sets, err := assertstate.ValidationSetsFromModel(s.state, model, deviceCtx, assertstate.ValidationSetsModelOptions{
 		Offline: offline,
 	})
 	c.Assert(err, IsNil)
@@ -5094,7 +5094,7 @@ func (s *assertMgrSuite) TestValidationSetsFromModelConflict(c *C) {
 	c.Assert(assertstate.Add(s.state, barVset), IsNil)
 	c.Assert(assertstate.Add(s.state, fooVset), IsNil)
 
-	_, err := assertstate.ValidationSetsFromModel(s.state, model, s.trivialDeviceCtx, assertstate.ValidationSetsModelFlags{
+	_, err := assertstate.ValidationSetsFromModel(s.state, model, s.trivialDeviceCtx, assertstate.ValidationSetsModelOptions{
 		Offline: true,
 	})
 	c.Check(err, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})

@@ -1130,8 +1130,8 @@ func TemporaryDB(st *state.State) *asserts.Database {
 	return db.WithStackedBackstore(asserts.NewMemoryBackstore())
 }
 
-// ValidationSetsModelFlags contains flags for ValidationSetsFromModel.
-type ValidationSetsModelFlags struct {
+// ValidationSetsModelOptions contains options for ValidationSetsFromModel.
+type ValidationSetsModelOptions struct {
 	// Offline should be set to true if the store should not be accessed. Any
 	// assertions will be retrieved from the existing assertions database. If
 	// the assertions are not present in the database, an error will be
@@ -1141,7 +1141,7 @@ type ValidationSetsModelFlags struct {
 
 // ValidationSetsFromModel takes in a model and creates a
 // snapasserts.ValidationSets from any validation sets that the model includes.
-func ValidationSetsFromModel(st *state.State, model *asserts.Model, deviceCtx snapstate.DeviceContext, flags ValidationSetsModelFlags) (*snapasserts.ValidationSets, error) {
+func ValidationSetsFromModel(st *state.State, model *asserts.Model, deviceCtx snapstate.DeviceContext, options ValidationSetsModelOptions) (*snapasserts.ValidationSets, error) {
 	var sets []*asserts.ValidationSet
 	save := func(a asserts.Assertion) error {
 		if vs, ok := a.(*asserts.ValidationSet); ok {
@@ -1164,7 +1164,7 @@ func ValidationSetsFromModel(st *state.State, model *asserts.Model, deviceCtx sn
 	store := snapstate.Store(st, deviceCtx)
 
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		if flags.Offline {
+		if options.Offline {
 			return ref.Resolve(db.Find)
 		}
 
@@ -1175,7 +1175,7 @@ func ValidationSetsFromModel(st *state.State, model *asserts.Model, deviceCtx sn
 	}
 
 	retrieveSeq := func(ref *asserts.AtSequence) (asserts.Assertion, error) {
-		if flags.Offline {
+		if options.Offline {
 			return resolveValidationSetAssertion(ref, db)
 		}
 
