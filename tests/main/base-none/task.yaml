@@ -1,5 +1,10 @@
 summary: Check that a snap with base "none" can be installed
 
+details: |
+    Verify it is not possible to pack a snap with base "none",
+    also it is not possible install a snap with base "none" which
+    was manually generated 
+
 execute: |
     echo "Install a snap with 'base: none'"
 

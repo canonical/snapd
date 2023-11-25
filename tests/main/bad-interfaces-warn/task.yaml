@@ -1,5 +1,10 @@
 summary: Check that invalid interfaces are reported by warnings on snap install
 
+details: |
+  Verify the installation of a snap with invalid interfaces shows a Warning.
+  Also check that valid interfaces were auto-connected and that snap warnings
+  command list the invalid interfaces.
+
 prepare: |
   snap pack test-snap
 
