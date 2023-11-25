@@ -1369,6 +1369,49 @@ func (s *validationSetsSuite) TestRequiredSnapNames(c *C) {
 	})
 }
 
+func (s *validationSetsSuite) TestRevisionsConflict(c *C) {
+	valset1 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "my-snap",
+				"id":       snaptest.AssertedSnapID("my-snap"),
+				"presence": "required",
+				"revision": "10",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	valset2 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl2",
+		"sequence":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "my-snap",
+				"id":       snaptest.AssertedSnapID("my-snap"),
+				"presence": "required",
+				"revision": "11",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	valsets := snapasserts.NewValidationSets()
+	c.Assert(valsets.Add(valset1), IsNil)
+	c.Assert(valsets.Add(valset2), IsNil)
+
+	_, err := valsets.Revisions()
+	c.Assert(err, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})
+}
+
 func (s *validationSetsSuite) TestValidationSetsConflictErrorIs(c *C) {
 	err := &snapasserts.ValidationSetsConflictError{}
 
