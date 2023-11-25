@@ -1141,7 +1141,7 @@ type ValidationSetsModelFlags struct {
 
 // ValidationSetsFromModel takes in a model and creates a
 // snapasserts.ValidationSets from any validation sets that the model includes.
-func ValidationSetsFromModel(st *state.State, model *asserts.Model, store snapstate.StoreService, flags ValidationSetsModelFlags) (*snapasserts.ValidationSets, error) {
+func ValidationSetsFromModel(st *state.State, model *asserts.Model, deviceCtx snapstate.DeviceContext, flags ValidationSetsModelFlags) (*snapasserts.ValidationSets, error) {
 	var sets []*asserts.ValidationSet
 	save := func(a asserts.Assertion) error {
 		if vs, ok := a.(*asserts.ValidationSet); ok {
@@ -1160,6 +1160,8 @@ func ValidationSetsFromModel(st *state.State, model *asserts.Model, store snapst
 	}
 
 	db := DB(st)
+
+	store := snapstate.Store(st, deviceCtx)
 
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		if flags.Offline {
