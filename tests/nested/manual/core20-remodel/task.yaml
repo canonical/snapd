@@ -1,5 +1,13 @@
 summary: verify a simple UC2* remodel
 
+details: |
+  This test verifies that we can remodel a UC2* system to a new model. The test
+  performs a few remodels to exercise various scenarios.
+
+  Notably, we validate that we can remodel to a model that requires a snap that
+  requires a base that was not previously installed on the system. A remodel of
+  this kind requires snaps to be installed in a specific order.
+
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
