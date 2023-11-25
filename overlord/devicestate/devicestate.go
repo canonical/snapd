@@ -703,7 +703,7 @@ func remodelSnapdSnapTasks(st *state.State, newModel *asserts.Model, localSnaps 
 	return nil, nil
 }
 
-func sortNonEssentialRemodelTaskSets(snaps []*asserts.ModelSnap) []*asserts.ModelSnap {
+func sortNonEssentialRemodelTaskSetsBasesFirst(snaps []*asserts.ModelSnap) []*asserts.ModelSnap {
 	copyOfSnaps := append([]*asserts.ModelSnap(nil), snaps...)
 
 	orderOfType := func(snapType string) int {
@@ -792,7 +792,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	// sort the snaps so that we collect the task sets for base snaps first, and
 	// then the rest. this prevents a later issue where we attempt to install a
 	// snap, but the base is not yet installed.
-	snapsWithoutEssential := sortNonEssentialRemodelTaskSets(new.SnapsWithoutEssential())
+	snapsWithoutEssential := sortNonEssentialRemodelTaskSetsBasesFirst(new.SnapsWithoutEssential())
 
 	// go through all the model snaps, see if there are new required snaps
 	// or a track for existing ones needs to be updated
