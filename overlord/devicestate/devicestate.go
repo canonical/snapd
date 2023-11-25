@@ -704,7 +704,7 @@ func remodelSnapdSnapTasks(st *state.State, newModel *asserts.Model, localSnaps 
 }
 
 func sortNonEssentialRemodelTaskSetsBasesFirst(snaps []*asserts.ModelSnap) []*asserts.ModelSnap {
-	copyOfSnaps := append([]*asserts.ModelSnap(nil), snaps...)
+	sorted := append([]*asserts.ModelSnap(nil), snaps...)
 
 	orderOfType := func(snapType string) int {
 		switch snap.Type(snapType) {
@@ -714,11 +714,11 @@ func sortNonEssentialRemodelTaskSetsBasesFirst(snaps []*asserts.ModelSnap) []*as
 		return 1
 	}
 
-	sort.Slice(copyOfSnaps, func(i, j int) bool {
-		return orderOfType(copyOfSnaps[i].SnapType) < orderOfType(copyOfSnaps[j].SnapType)
+	sort.Slice(sorted, func(i, j int) bool {
+		return orderOfType(sorted[i].SnapType) < orderOfType(sorted[j].SnapType)
 	})
 
-	return copyOfSnaps
+	return sorted
 }
 
 func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model,
