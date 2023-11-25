@@ -315,7 +315,6 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 		return updatePrereqIfOutdated(t, snapName, contentAttrs, userID, flags)
 	}
 
-	// not installed, nor queued for install -> install it
 	deviceCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
 		return nil, err
@@ -336,6 +335,7 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 		return nil, onInFlight
 	}
 
+	// not installed, nor queued for install -> install it
 	ts, err := InstallWithDeviceContext(context.TODO(), st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireTypeBase: requireTypeBase}, nil, deviceCtx, "")
 
 	// something might have triggered an explicit install while
