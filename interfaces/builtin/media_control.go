@@ -36,7 +36,7 @@ const mediaControlBaseDeclarationSlots = `
 
 const mediaControlConnectedPlugAppArmor = `
 # Control of media devices
-/dev/media[0-9]* rw,
+/dev/media[0-9]* rwk,
 
 # Access to V4L subnodes configuration
 # See https://www.kernel.org/doc/html/v4.12/media/uapi/v4l/dev-subdev.html
