@@ -1390,14 +1390,10 @@ func Download(ctx context.Context, st *state.State, name string, blobDirectory s
 
 	info := sar.Info
 
-	if blobDirectory == "" {
-		blobDirectory = dirs.SnapBlobDir
-	}
-
 	// if we are going to use the default download dir, and the same snap
 	// revision is already installed, then we should not overwrite the snap that
 	// is already in the dir.
-	if blobDirectory == dirs.SnapBlobDir && info.Revision == snapst.Current {
+	if (blobDirectory == "" || blobDirectory == dirs.SnapBlobDir) && info.Revision == snapst.Current {
 		return nil, &snap.AlreadyInstalledError{Snap: name}
 	}
 
