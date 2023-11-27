@@ -359,6 +359,37 @@ func valSetKey(valset *asserts.ValidationSet) string {
 	return fmt.Sprintf("%s/%s", valset.AccountID(), valset.Name())
 }
 
+// Revisions returns the set of snap revisions that is enforced by the
+// validation sets that ValidationSets manages.
+func (v *ValidationSets) Revisions() (map[string]snap.Revision, error) {
+	if err := v.Conflict(); err != nil {
+		return nil, fmt.Errorf("cannot get revisions when validation sets are in conflict: %w", err)
+	}
+
+	snapNameToRevision := make(map[string]snap.Revision, len(v.snaps))
+	for _, sn := range v.snaps {
+		for revision := range sn.revisions {
+			switch revision {
+			case invalidPresRevision, unspecifiedRevision:
+				continue
+			default:
+				snapNameToRevision[sn.name] = revision
+			}
+		}
+	}
+	return snapNameToRevision, nil
+}
+
+// Keys returns a slice of ValidationSetKey structs that represent each
+// validation set that this type knowns about.
+func (v *ValidationSets) Keys() []ValidationSetKey {
+	keys := make([]ValidationSetKey, 0, len(v.sets))
+	for _, vs := range v.sets {
+		keys = append(keys, NewValidationSetKey(vs))
+	}
+	return keys
+}
+
 // Add adds the given asserts.ValidationSet to the combination.
 // It errors if a validation-set with the same sequence key has been
 // added already.
@@ -642,7 +673,7 @@ func (v *ValidationSets) CanBePresent(snapRef naming.SnapRef) bool {
 // RequiredSnaps returns a list of the names of all of the snaps that are
 // required by any validation set known to this type.
 func (v *ValidationSets) RequiredSnaps() []string {
-	names := make([]string, 0)
+	var names []string
 	for _, sn := range v.snaps {
 		if sn.presence == asserts.PresenceRequired {
 			names = append(names, sn.name)

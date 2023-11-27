@@ -1130,9 +1130,18 @@ func TemporaryDB(st *state.State) *asserts.Database {
 	return db.WithStackedBackstore(asserts.NewMemoryBackstore())
 }
 
+// ValidationSetsModelOptions contains options for ValidationSetsFromModel.
+type ValidationSetsModelOptions struct {
+	// Offline should be set to true if the store should not be accessed. Any
+	// assertions will be retrieved from the existing assertions database. If
+	// the assertions are not present in the database, an error will be
+	// returned.
+	Offline bool
+}
+
 // ValidationSetsFromModel takes in a model and creates a
 // snapasserts.ValidationSets from any validation sets that the model includes.
-func ValidationSetsFromModel(st *state.State, model *asserts.Model, store snapstate.StoreService, offline bool) (*snapasserts.ValidationSets, error) {
+func ValidationSetsFromModel(st *state.State, model *asserts.Model, deviceCtx snapstate.DeviceContext, options ValidationSetsModelOptions) (*snapasserts.ValidationSets, error) {
 	var sets []*asserts.ValidationSet
 	save := func(a asserts.Assertion) error {
 		if vs, ok := a.(*asserts.ValidationSet); ok {
@@ -1140,7 +1149,8 @@ func ValidationSetsFromModel(st *state.State, model *asserts.Model, store snapst
 		}
 
 		if err := Add(st, a); err != nil {
-			if _, ok := err.(*asserts.RevisionError); ok {
+			if err, ok := err.(*asserts.RevisionError); ok {
+				logger.Noticef("assertion not added due to same or newer revision already present: %d", err.Current)
 				return nil
 			}
 			return err
@@ -1151,8 +1161,10 @@ func ValidationSetsFromModel(st *state.State, model *asserts.Model, store snapst
 
 	db := DB(st)
 
+	store := snapstate.Store(st, deviceCtx)
+
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		if offline {
+		if options.Offline {
 			return ref.Resolve(db.Find)
 		}
 
@@ -1163,7 +1175,7 @@ func ValidationSetsFromModel(st *state.State, model *asserts.Model, store snapst
 	}
 
 	retrieveSeq := func(ref *asserts.AtSequence) (asserts.Assertion, error) {
-		if offline {
+		if options.Offline {
 			return resolveValidationSetAssertion(ref, db)
 		}
 

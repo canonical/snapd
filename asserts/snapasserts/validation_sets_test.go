@@ -20,6 +20,7 @@
 package snapasserts_test
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"sort"
@@ -1165,6 +1166,12 @@ func (s *validationSetsSuite) TestRevisions(c *C) {
 				"id":       snaptest.AssertedSnapID("other-snap"),
 				"presence": "required",
 			},
+			// invalid snap should not be present in the result of (*ValidationSets).Revisions()
+			map[string]interface{}{
+				"name":     "invalid-snap",
+				"id":       snaptest.AssertedSnapID("invalid-snap"),
+				"presence": "invalid",
+			},
 		},
 	}).(*asserts.ValidationSet)
 
@@ -1360,4 +1367,57 @@ func (s *validationSetsSuite) TestRequiredSnapNames(c *C) {
 		"other-snap",
 		"another-snap",
 	})
+}
+
+func (s *validationSetsSuite) TestRevisionsConflict(c *C) {
+	valset1 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "my-snap",
+				"id":       snaptest.AssertedSnapID("my-snap"),
+				"presence": "required",
+				"revision": "10",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	valset2 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl2",
+		"sequence":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "my-snap",
+				"id":       snaptest.AssertedSnapID("my-snap"),
+				"presence": "required",
+				"revision": "11",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	valsets := snapasserts.NewValidationSets()
+	c.Assert(valsets.Add(valset1), IsNil)
+	c.Assert(valsets.Add(valset2), IsNil)
+
+	_, err := valsets.Revisions()
+	c.Assert(err, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})
+}
+
+func (s *validationSetsSuite) TestValidationSetsConflictErrorIs(c *C) {
+	err := &snapasserts.ValidationSetsConflictError{}
+
+	c.Check(err.Is(&snapasserts.ValidationSetsConflictError{}), Equals, true)
+	c.Check(err.Is(errors.New("other error")), Equals, false)
+
+	wrapped := fmt.Errorf("wrapped error: %w", err)
+	c.Check(wrapped, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})
 }
