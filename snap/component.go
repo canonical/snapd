@@ -69,9 +69,13 @@ func ReadComponentInfoFromContainer(compf Container) (*ComponentInfo, error) {
 		return nil, err
 	}
 
+	return InfoFromComponentYaml(yamlData)
+}
+
+func InfoFromComponentYaml(compYaml []byte) (*ComponentInfo, error) {
 	var ci ComponentInfo
 
-	if err := yaml.UnmarshalStrict(yamlData, &ci); err != nil {
+	if err := yaml.UnmarshalStrict(compYaml, &ci); err != nil {
 		return nil, fmt.Errorf("cannot parse component.yaml: %s", err)
 	}
 
