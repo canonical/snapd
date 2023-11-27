@@ -162,9 +162,9 @@ func MountFile(name string, revision Revision) string {
 }
 
 // MountFileInDir returns the path where the snap file that is mounted is
-// installed in a given root directory.
-func MountFileInDir(root, name string, revision Revision) string {
-	return filepath.Join(root, fmt.Sprintf("%s_%s.snap", name, revision))
+// installed in a given directory.
+func MountFileInDir(dir, name string, revision Revision) string {
+	return filepath.Join(dir, fmt.Sprintf("%s_%s.snap", name, revision))
 }
 
 // ScopedSecurityTag returns the snap-specific, scope specific, security tag.
