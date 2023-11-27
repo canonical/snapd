@@ -51,35 +51,35 @@ func (s *ensureDirSuite) TestValidateErrors(c *C) {
 	}{
 		"Unclean1": {
 			interfaces.EnsureDirSpec{MustExistDir: "", EnsureDir: "/dir"},
-			`Directory that must exist "" is not a clean path`,
+			`directory that must exist "" is not a clean path`,
 		},
 		"Unclean2": {
 			interfaces.EnsureDirSpec{MustExistDir: "/dir", EnsureDir: "/../"},
-			`Directory to ensure "/../" is not a clean path`,
+			`directory to ensure "/../" is not a clean path`,
 		},
 		"BadEnv1": {
 			interfaces.EnsureDirSpec{MustExistDir: "$SNAP_COMMON", EnsureDir: "$SNAP_COMMON/dir"},
-			`Directory that must exist "\$SNAP_COMMON" prefix "\$SNAP_COMMON" is not allowed`,
+			`directory that must exist "\$SNAP_COMMON" prefix "\$SNAP_COMMON" is not allowed`,
 		},
 		"BadEnv2": {
 			interfaces.EnsureDirSpec{MustExistDir: "$HOME", EnsureDir: "$SNAP_COMMON/dir"},
-			`Directory to ensure "\$SNAP_COMMON/dir" prefix "\$SNAP_COMMON" is not allowed`,
+			`directory to ensure "\$SNAP_COMMON/dir" prefix "\$SNAP_COMMON" is not allowed`,
 		},
 		"Relative1": {
 			interfaces.EnsureDirSpec{MustExistDir: "dir1", EnsureDir: "$HOME/dir2"},
-			`Directory that must exist "dir1" is not an absolute path`,
+			`directory that must exist "dir1" is not an absolute path`,
 		},
 		"Relative2": {
 			interfaces.EnsureDirSpec{MustExistDir: "$HOME", EnsureDir: "dir1/dir2"},
-			`Directory to ensure "dir1/dir2" is not an absolute path`,
+			`directory to ensure "dir1/dir2" is not an absolute path`,
 		},
 		"BadParent1": {
 			interfaces.EnsureDirSpec{MustExistDir: "$HOME", EnsureDir: "$HOME"},
-			`Directory that must exist "\$HOME" is not a parent of directory to ensure "\$HOME"`,
+			`directory that must exist "\$HOME" is not a parent of directory to ensure "\$HOME"`,
 		},
 		"BadParent2": {
 			interfaces.EnsureDirSpec{MustExistDir: "/dir1", EnsureDir: "/dir2/dir1"},
-			`Directory that must exist "/dir1" is not a parent of directory to ensure "/dir2/dir1"`,
+			`directory that must exist "/dir1" is not a parent of directory to ensure "/dir2/dir1"`,
 		},
 	}
 

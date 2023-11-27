@@ -537,14 +537,14 @@ func (s *specSuite) TestApparmorExtraLayouts(c *C) {
 	// lines 3..9 is the traversal of the prefix for /usr/home/test
 }
 
-func (s *specSuite) TestAllowEnsureDirMounts(c *C) {
+func (s *specSuite) TestAddEnsureDirMounts(c *C) {
 	ensureDirSpecs := []*interfaces.EnsureDirSpec{
 		{MustExistDir: "$HOME", EnsureDir: "$HOME/.local/share"},
 		{MustExistDir: "$HOME", EnsureDir: "$HOME/dir1/dir2"},
 		{MustExistDir: "/", EnsureDir: "/dir1/dir2"},
 		{MustExistDir: "/dir1", EnsureDir: "/dir1"},
 	}
-	s.spec.AllowEnsureDirMounts("personal-files", ensureDirSpecs)
+	s.spec.AddEnsureDirMounts("personal-files", ensureDirSpecs)
 	c.Check("\n"+strings.Join(s.spec.UpdateNS(), "\n"), Equals, `
   # Allow the personal-files interface to create potentially missing directories
   owner @{HOME}/ rw,
@@ -557,19 +557,19 @@ func (s *specSuite) TestAllowEnsureDirMounts(c *C) {
   owner /dir1/dir2/ rw,`)
 }
 
-func (s *specSuite) TestAllowEnsureDirMountsReturnsOnDirsMatch(c *C) {
+func (s *specSuite) TestAddEnsureDirMountsReturnsOnDirsMatch(c *C) {
 	ensureDirSpecs := []*interfaces.EnsureDirSpec{
 		{MustExistDir: "/dir", EnsureDir: "/dir"},
 	}
-	s.spec.AllowEnsureDirMounts("personal-files", ensureDirSpecs)
+	s.spec.AddEnsureDirMounts("personal-files", ensureDirSpecs)
 	c.Check(s.spec.UpdateNS(), HasLen, 0)
 }
 
-func (s *specSuite) TestAllowEnsureDirMountsReturnsOnPathIteratorError(c *C) {
+func (s *specSuite) TestAddEnsureDirMountsReturnsOnPathIteratorError(c *C) {
 	ensureDirSpecs := []*interfaces.EnsureDirSpec{
 		{MustExistDir: "/dir1", EnsureDir: "/../"},
 	}
-	s.spec.AllowEnsureDirMounts("personal-files", ensureDirSpecs)
+	s.spec.AddEnsureDirMounts("personal-files", ensureDirSpecs)
 	c.Check(s.spec.UpdateNS(), HasLen, 0)
 }
 

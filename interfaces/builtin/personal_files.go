@@ -123,7 +123,7 @@ var dirsToEnsure = func(paths []string) ([]*interfaces.EnsureDirSpec, error) {
 func (iface *personalFilesInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// Create missing directories for write paths only.
 	// BeforePreparePlug should prevent error.
-	writes, _ := StringListAttribute(plug, "write")
+	writes, _ := stringListAttribute(plug, "write")
 	ensureDirSpecs, err := dirsToEnsure(writes)
 	if err != nil {
 		return fmt.Errorf("cannot connect plug %s: %v", plug.Name(), err)
@@ -143,7 +143,7 @@ func (iface *personalFilesInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 
 	// Create missing directories for write paths only.
 	// BeforePreparePlug should prevent error.
-	writes, _ := StringListAttribute(plug, "write")
+	writes, _ := stringListAttribute(plug, "write")
 
 	// Add snippet for snap-update-ns
 	ensureDirSpecs, err := dirsToEnsure(writes)
@@ -151,7 +151,7 @@ func (iface *personalFilesInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 		return fmt.Errorf("cannot connect plug %s: %v", plug.Name(), err)
 	}
 	if len(ensureDirSpecs) > 0 {
-		spec.AllowEnsureDirMounts(iface.commonFilesInterface.commonInterface.name, ensureDirSpecs)
+		spec.AddEnsureDirMounts(iface.commonFilesInterface.commonInterface.name, ensureDirSpecs)
 	}
 
 	return nil

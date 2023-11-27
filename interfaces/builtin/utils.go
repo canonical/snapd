@@ -182,8 +182,8 @@ func getDesktopFileRules(snapInstanceName string) []string {
 	return rules
 }
 
-// StringListAttribute returns a list of strings for the given attribute key if the attribute exists.
-func StringListAttribute(attrer interfaces.Attrer, key string) ([]string, error) {
+// stringListAttribute returns a list of strings for the given attribute key if the attribute exists.
+func stringListAttribute(attrer interfaces.Attrer, key string) ([]string, error) {
 	var stringList []string
 	err := attrer.Attr(key, &stringList)
 	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {

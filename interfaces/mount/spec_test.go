@@ -319,5 +319,5 @@ func (s *specSuite) TestAddUserEnsureErrorValidate(c *C) {
 		{MustExistDir: "/dir1", EnsureDir: "/dir1/dir2"},
 	}
 	err := s.spec.AddUserEnsureDirs(ensureDirSpecs)
-	c.Assert(err, ErrorMatches, `internal error: cannot use ensure-dir mount specification: Directory that must exist "\$SNAP_HOME" prefix "\$SNAP_HOME" is not allowed`)
+	c.Assert(err, ErrorMatches, `internal error: cannot use ensure-dir mount specification: directory that must exist "\$SNAP_HOME" prefix "\$SNAP_HOME" is not allowed`)
 }

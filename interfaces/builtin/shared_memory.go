@@ -173,12 +173,12 @@ func (iface *sharedMemoryInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 		slot.Attrs["shared-memory"] = slot.Name
 	}
 
-	readPaths, err := StringListAttribute(slot, "read")
+	readPaths, err := stringListAttribute(slot, "read")
 	if err != nil {
 		return fmt.Errorf("shared-memory %v", err)
 	}
 
-	writePaths, err := StringListAttribute(slot, "write")
+	writePaths, err := stringListAttribute(slot, "write")
 	if err != nil {
 		return fmt.Errorf("shared-memory %v", err)
 	}
@@ -214,11 +214,11 @@ func writeSharedMemoryPaths(w io.Writer, slot *interfaces.ConnectedSlot,
 	}
 
 	// All checks were already done in BeforePrepare{Plug,Slot}
-	writePaths, _ := StringListAttribute(slot, "write")
+	writePaths, _ := stringListAttribute(slot, "write")
 	for _, path := range writePaths {
 		emitWritableRule(path)
 	}
-	readPaths, _ := StringListAttribute(slot, "read")
+	readPaths, _ := stringListAttribute(slot, "read")
 	for _, path := range readPaths {
 		if snippetType == snippetForPlug {
 			// grant read-only access

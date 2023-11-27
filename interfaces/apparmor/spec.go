@@ -612,9 +612,9 @@ func emitEnsureDir(spec *Specification, ifaceName string, ensureDirSpec *interfa
 	}
 }
 
-// AllowEnsureDirMounts adds snap-update-ns snippets that permit snap-update-ns to create
+// AddEnsureDirMounts adds snap-update-ns snippets that permit snap-update-ns to create
 // missing directories according to the provided ensure directory mount specs.
-func (spec *Specification) AllowEnsureDirMounts(ifaceName string, ensureDirSpecs []*interfaces.EnsureDirSpec) {
+func (spec *Specification) AddEnsureDirMounts(ifaceName string, ensureDirSpecs []*interfaces.EnsureDirSpec) {
 	// Walk the path specs in deterministic order, by EnsureDir (the mount point).
 	sort.Slice(ensureDirSpecs, func(i, j int) bool {
 		return ensureDirSpecs[i].EnsureDir < ensureDirSpecs[j].EnsureDir

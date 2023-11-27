@@ -203,7 +203,7 @@ apps:
 	})
 	defer restore()
 	err := mountSpec.AddConnectedPlug(s.iface, plug, s.slot)
-	c.Assert(err, ErrorMatches, `cannot connect plug personal-files, internal error: cannot use ensure-dir mount specification: Directory that must exist "dir" is not an absolute path`)
+	c.Assert(err, ErrorMatches, `cannot connect plug personal-files, internal error: cannot use ensure-dir mount specification: directory that must exist "dir" is not an absolute path`)
 }
 
 func (s *personalFilesInterfaceSuite) TestSanitizeSlot(c *C) {
