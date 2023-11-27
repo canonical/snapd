@@ -91,7 +91,7 @@ func (iter *PathIterator) CurrentPathNoSlash() string {
 }
 
 // CurrentBaseNoSlash returns the prefix of the path that was traversed,
-// excluding the current name.  The result never ends in '/' except if
+// excluding the current name. The result never ends in '/' except if
 // current base is root.
 func (iter *PathIterator) CurrentBaseNoSlash() string {
 	if iter.left > 0 && iter.path[iter.left-1] == '/' && iter.path[:iter.left] != "/" {
