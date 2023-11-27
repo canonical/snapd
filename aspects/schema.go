@@ -72,20 +72,18 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 			return nil, fmt.Errorf(`cannot parse user-defined types map: %w`, err)
 		}
 
-		schema.userTypes = make(map[string]parser, len(userTypes))
+		schema.userTypes = make(map[string]*userTypeRefParser, len(userTypes))
 		for userTypeName, typeDef := range userTypes {
 			if !validUserType.Match([]byte(userTypeName)) {
 				return nil, fmt.Errorf(`cannot parse user-defined type name %q: must match %s`, userTypeName, validUserType)
 			}
 
-			// path prefix can be empty because validations will be against a reference
-			// type that wraps this and overwrites the path prefix
 			userTypeSchema, err := schema.parse(typeDef)
 			if err != nil {
 				return nil, fmt.Errorf(`cannot parse user-defined type %q: %w`, userTypeName, err)
 			}
 
-			schema.userTypes[userTypeName] = userTypeSchema
+			schema.userTypes[userTypeName] = newUserTypeRefParser(userTypeSchema)
 		}
 	}
 
@@ -130,7 +128,7 @@ type StorageSchema struct {
 	topLevel Schema
 
 	// userTypes contains schemas that can validate types defined by the user.
-	userTypes map[string]parser
+	userTypes map[string]*userTypeRefParser
 }
 
 // Validate validates the provided JSON object.
@@ -205,7 +203,7 @@ func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
 
 func (s *StorageSchema) getUserType(ref string) (*userTypeRefParser, error) {
 	if userType, ok := s.userTypes[ref]; ok {
-		return newUserTypeRefParser(userType), nil
+		return userType, nil
 	}
 
 	return nil, fmt.Errorf("cannot find user-defined type %q", ref)
@@ -217,13 +215,13 @@ type mapSchema struct {
 
 	// entrySchemas maps keys to their expected types. Alternatively, the schema
 	// can constrain key and/or value types.
-	entrySchemas map[string]parser
+	entrySchemas map[string]Schema
 
 	// valueSchema validates that the map's values match a certain type.
-	valueSchema parser
+	valueSchema Schema
 
 	// keySchema validates that the map's key match a certain type.
-	keySchema parser
+	keySchema Schema
 
 	// requiredCombs holds combinations of keys that an instance of the map is
 	// allowed to have.
@@ -333,7 +331,7 @@ func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) err
 			return fmt.Errorf(`cannot parse map's "schema" constraint: %v`, err)
 		}
 
-		v.entrySchemas = make(map[string]parser, len(entries))
+		v.entrySchemas = make(map[string]Schema, len(entries))
 		for key, value := range entries {
 			entrySchema, err := v.topSchema.parse(value)
 			if err != nil {
@@ -417,7 +415,7 @@ func checkExclusiveMapConstraints(obj map[string]json.RawMessage) error {
 	return nil
 }
 
-func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (parser, error) {
+func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 	var typ string
 	if err := json.Unmarshal(raw, &typ); err != nil {
 		var typeErr *json.UnmarshalTypeError
