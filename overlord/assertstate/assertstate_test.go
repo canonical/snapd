@@ -5026,9 +5026,9 @@ func (s *assertMgrSuite) testValidationSetsFromModel(c *C, offline bool) {
 		CtxStore: store,
 	}
 
-	sets, err := assertstate.ValidationSetsFromModel(s.state, model, deviceCtx, assertstate.ValidationSetsModelOptions{
+	sets, err := assertstate.ValidationSetsFromModel(s.state, model, assertstate.ValidationSetsModelOptions{
 		Offline: offline,
-	})
+	}, deviceCtx)
 	c.Assert(err, IsNil)
 
 	c.Check(sets.RequiredSnaps(), testutil.DeepUnsortedMatches, []string{"some-snap", "some-other-snap"})
@@ -5094,8 +5094,8 @@ func (s *assertMgrSuite) TestValidationSetsFromModelConflict(c *C) {
 	c.Assert(assertstate.Add(s.state, barVset), IsNil)
 	c.Assert(assertstate.Add(s.state, fooVset), IsNil)
 
-	_, err := assertstate.ValidationSetsFromModel(s.state, model, s.trivialDeviceCtx, assertstate.ValidationSetsModelOptions{
+	_, err := assertstate.ValidationSetsFromModel(s.state, model, assertstate.ValidationSetsModelOptions{
 		Offline: true,
-	})
+	}, s.trivialDeviceCtx)
 	c.Check(err, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})
 }
