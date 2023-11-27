@@ -462,7 +462,7 @@ jobs:
 
           BACKEND=google
           SPREAD=spread
-          if [[ "${{ matrix.group }}" =~ -arm- ]]; then
+          if [[ "${{ matrix.systems }}" =~ -arm- ]]; then
               BACKEND=google-arm
               SPREAD=spread-arm
           fi
@@ -515,7 +515,7 @@ jobs:
               ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
 
               BACKEND=google
-              if [[ "${{ matrix.group }}" =~ -arm- ]]; then
+              if [[ "${{ matrix.systems }}" =~ -arm- ]]; then
                   BACKEND=google-arm
               fi
 
