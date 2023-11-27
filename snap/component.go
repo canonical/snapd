@@ -35,12 +35,31 @@ type ComponentInfo struct {
 	Description string              `yaml:"description"`
 }
 
+// NewComponentInfo creates a new ComponentInfo.
+func NewComponentInfo(cref naming.ComponentRef, ctype ComponentType, version, summary, description string) *ComponentInfo {
+	return &ComponentInfo{
+		Component:   cref,
+		Type:        ctype,
+		Version:     version,
+		Summary:     summary,
+		Description: description,
+	}
+}
+
 // ComponentSideInfo is the equivalent of SideInfo for components, and
 // includes relevant information for which the canonical source is a
 // snap store.
 type ComponentSideInfo struct {
 	Component naming.ComponentRef `json:"component"`
 	Revision  Revision            `json:"revision"`
+}
+
+// NewComponentSideInfo creates a new ComponentSideInfo.
+func NewComponentSideInfo(cref naming.ComponentRef, rev Revision) *ComponentSideInfo {
+	return &ComponentSideInfo{
+		Component: cref,
+		Revision:  rev,
+	}
 }
 
 // ReadComponentInfoFromContainer reads ComponentInfo from a snap component container.

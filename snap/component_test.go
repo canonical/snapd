@@ -63,13 +63,13 @@ description: long description
 
 	ci, err := snap.ReadComponentInfoFromContainer(compf)
 	c.Assert(err, IsNil)
-	c.Assert(ci, DeepEquals, &snap.ComponentInfo{
-		Component:   naming.NewComponentRef("mysnap", "test-info"),
-		Type:        "test",
-		Version:     "1.0",
-		Summary:     "short description",
-		Description: "long description",
-	})
+	c.Assert(ci, DeepEquals, snap.NewComponentInfo(
+		naming.NewComponentRef("mysnap", "test-info"),
+		"test",
+		"1.0",
+		"short description",
+		"long description",
+	))
 	c.Assert(ci.FullName(), Equals, compName)
 }
 
@@ -86,11 +86,10 @@ version: 1.0.2
 
 	ci, err := snap.ReadComponentInfoFromContainer(compf)
 	c.Assert(err, IsNil)
-	c.Assert(ci, DeepEquals, &snap.ComponentInfo{
-		Component: naming.NewComponentRef("mysnap", "test-info"),
-		Type:      "test",
-		Version:   "1.0.2",
-	})
+	c.Assert(ci, DeepEquals, snap.NewComponentInfo(
+		naming.NewComponentRef("mysnap", "test-info"),
+		"test", "1.0.2", "", "",
+	))
 	c.Assert(ci.FullName(), Equals, compName)
 }
 
@@ -280,14 +279,13 @@ description: %s
 func (s *componentSuite) TestDirAndFileMethods(c *C) {
 	c.Check(snap.ComponentMountDir("test-info", "mysnap_instance", snap.R(11)),
 		Equals, filepath.Join(dirs.GlobalRootDir, "snap/mysnap_instance/components/11/test-info"))
-	ci := &snap.ComponentInfo{
-		Component: naming.NewComponentRef("mysnap", "test-info"),
-		Type:      "test",
-		Version:   "1.0.2",
-	}
+	ci := snap.NewComponentInfo(
+		naming.NewComponentRef("mysnap", "test-info"),
+		"test", "1.0.2", "", "",
+	)
 	c.Check(ci.MountDir("mysnap_instance", snap.R(33)), Equals,
 		filepath.Join(dirs.GlobalRootDir, "snap/mysnap_instance/components/33/test-info"))
-	csi := &snap.ComponentSideInfo{Component: ci.Component, Revision: snap.R(25)}
+	csi := snap.NewComponentSideInfo(ci.Component, snap.R(25))
 	c.Check(ci.MountFile(csi), Equals,
 		filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap+test-info_25.comp"))
 }
