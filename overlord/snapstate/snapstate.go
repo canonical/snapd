@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -1401,10 +1402,6 @@ func Download(ctx context.Context, st *state.State, name string, blobDirectory s
 		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
 	}
 
-	if err := checkDiskSpaceDownload([]minimalInstallInfo{installSnapInfo{info}}, blobDirectory); err != nil {
-		return nil, err
-	}
-
 	snapsup := &SnapSetup{
 		Channel:            opts.Channel,
 		Base:               info.Base,
@@ -1422,6 +1419,11 @@ func Download(ctx context.Context, st *state.State, name string, blobDirectory s
 
 	if sar.RedirectChannel != "" {
 		snapsup.Channel = sar.RedirectChannel
+	}
+
+	toDownloadTo := filepath.Dir(snapsup.MountFile())
+	if err := checkDiskSpaceDownload([]minimalInstallInfo{installSnapInfo{info}}, toDownloadTo); err != nil {
+		return nil, err
 	}
 
 	revisionStr := fmt.Sprintf(" (%s)", snapsup.Revision())
