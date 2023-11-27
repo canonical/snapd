@@ -103,14 +103,17 @@ func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {
 			"foo.img",
 		},
 	})
+}
 
-	cmd.ForgetCalls()
+func (m *mkfsSuite) TestMkfsExt4OnLunar(c *C) {
+	cmd := testutil.MockCommand(c, "fakeroot", "")
+	defer cmd.Restore()
 
 	// when running on Lunar, remove orphan_file feature
 	restore := release.MockReleaseInfo(&release.OS{VersionID: "23.04"})
 	defer restore()
 
-	err = mkfs.Make("ext4", "foo.img", "my-label", 0, 0)
+	err := mkfs.Make("ext4", "foo.img", "my-label", 0, 0)
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{
