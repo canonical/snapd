@@ -282,7 +282,7 @@ func (*schemaSuite) TestMapWithUnmetValuesConstraint(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot accept element in "snaps": cannot parse string: json: cannot unmarshal object into Go value of type string`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "snaps.foo": cannot parse string: json: cannot unmarshal object into Go value of type string`)
 }
 
 func (*schemaSuite) TestMapSchemaMetConstraintsWithMissingEntry(c *C) {
@@ -566,7 +566,7 @@ func (*schemaSuite) TestStringsWithChoicesFail(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot accept element in "snaps": string "baz" is not one of the allowed choices`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "snaps.baz": string "baz" is not one of the allowed choices`)
 }
 
 func (*schemaSuite) TestStringChoicesAndPatternsFail(c *C) {
@@ -892,7 +892,7 @@ func (*schemaSuite) TestMapBasedUserDefinedTypeFail(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot accept element in "snaps.version": cannot parse string: json: .*`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "snaps.core20.version": cannot parse string: json: .*`)
 }
 
 func (*schemaSuite) TestBadUserDefinedTypeName(c *C) {
@@ -1826,9 +1826,35 @@ func (*schemaSuite) TestPathPrefixWithKeyOrValueConstraints(c *C) {
 
 	input := []byte(`{"foo": {"other-key": 1}}`)
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot accept element in "foo": string "other-key" is not one of the allowed choices`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo.other-key": string "other-key" is not one of the allowed choices`)
 
 	input = []byte(`{"foo": {"my-key": -1}}`)
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot accept element in "foo": -1 is less than the allowed minimum 0`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo.my-key": -1 is less than the allowed minimum 0`)
+}
+
+func (*schemaSuite) TestPathManyUserDefinedTypeReferences(c *C) {
+	schemaStr := []byte(`{
+	"types": {
+		"num": {
+			"type": "int",
+			"min": 0
+		},
+		"my-type": {
+			"type": "map",
+			"values": "$num"
+		}
+	},
+	"schema": {
+		"foo": "$my-type",
+		"bar": "$my-type"
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{"foo": { "one": 1 }, "bar": { "two": -1 } }`)
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `cannot accept element in "bar.two": -1 is less than the allowed minimum 0`)
 }
