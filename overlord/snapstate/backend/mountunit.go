@@ -26,9 +26,9 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
-func addMountUnit(s *snap.Info, preseed bool, meter progress.Meter) error {
-	squashfsPath := dirs.StripRootDir(s.MountFile())
-	whereDir := dirs.StripRootDir(s.MountDir())
+func addMountUnit(name, revision, what, where string, preseed bool, meter progress.Meter) error {
+	squashfsPath := dirs.StripRootDir(what)
+	whereDir := dirs.StripRootDir(where)
 
 	var sysd systemd.Systemd
 	if preseed {
@@ -36,7 +36,7 @@ func addMountUnit(s *snap.Info, preseed bool, meter progress.Meter) error {
 	} else {
 		sysd = systemd.New(systemd.SystemMode, meter)
 	}
-	_, err := sysd.EnsureMountUnitFile(s.InstanceName(), s.Revision.String(), squashfsPath, whereDir, "squashfs")
+	_, err := sysd.EnsureMountUnitFile(name, revision, squashfsPath, whereDir, "squashfs")
 	return err
 }
 
