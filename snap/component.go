@@ -19,7 +19,9 @@ package snap
 
 import (
 	"fmt"
+	"path/filepath"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap/naming"
 	"gopkg.in/yaml.v2"
 )
@@ -59,6 +61,32 @@ func ReadComponentInfoFromContainer(compf Container) (*ComponentInfo, error) {
 	}
 
 	return &ci, nil
+}
+
+// ComponentMountDir returns the directory where a component gets mounted, which
+// will be of the form:
+// /snaps/<snap_instance>/components/<snap_revision>/<component_name>
+func ComponentMountDir(compName, snapInstance string, snapRevision Revision) string {
+	return filepath.Join(BaseDir(snapInstance), "components",
+		snapRevision.String(), compName)
+}
+
+// MountDir returns the directory where the component gets mounted. It requires
+// the instance name and revision of the owner to find the snap mount root dir.
+func (ci *ComponentInfo) MountDir(snapInstance string, snapRevision Revision) string {
+	return ComponentMountDir(ci.Component.ComponentName, snapInstance, snapRevision)
+}
+
+// ComponentMountFile returns the path of the file to be mounted for a component,
+// which will be of the form /var/lib/snaps/snaps/<snap>+<comp>_<rev>.comp
+func ComponentMountFile(cref naming.ComponentRef, compRev Revision) string {
+	return filepath.Join(dirs.SnapBlobDir,
+		fmt.Sprintf("%s_%s.comp", cref, compRev))
+}
+
+// MountFile returns the path of the file to be mounted for a component.
+func (ci *ComponentInfo) MountFile(csi *ComponentSideInfo) string {
+	return ComponentMountFile(ci.Component, csi.Revision)
 }
 
 // FullName returns the full name of the component, which is composed

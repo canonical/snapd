@@ -19,6 +19,7 @@ package snap_test
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -274,4 +275,19 @@ description: %s
 	ci, err := snap.ReadComponentInfoFromContainer(compf)
 	c.Assert(err, ErrorMatches, "description can have up to 4096 codepoints, got 4098")
 	c.Assert(ci, IsNil)
+}
+
+func (s *componentSuite) TestDirAndFileMethods(c *C) {
+	c.Check(snap.ComponentMountDir("test-info", "mysnap_instance", snap.R(11)),
+		Equals, filepath.Join(dirs.GlobalRootDir, "snap/mysnap_instance/components/11/test-info"))
+	ci := &snap.ComponentInfo{
+		Component: naming.NewComponentRef("mysnap", "test-info"),
+		Type:      "test",
+		Version:   "1.0.2",
+	}
+	c.Check(ci.MountDir("mysnap_instance", snap.R(33)), Equals,
+		filepath.Join(dirs.GlobalRootDir, "snap/mysnap_instance/components/33/test-info"))
+	csi := &snap.ComponentSideInfo{Component: ci.Component, Revision: snap.R(25)}
+	c.Check(ci.MountFile(csi), Equals,
+		filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap+test-info_25.comp"))
 }
