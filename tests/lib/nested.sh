@@ -548,7 +548,7 @@ nested_prepare_kernel() {
                 repack_kernel_snap "$kernel_snap"
 
             elif nested_is_core_20_system || nested_is_core_22_system; then
-                snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
+                snap download --basename=pc-kernel --channel="$version/${NESTED_KERNEL_CHANNEL}" pc-kernel
 
                 # set the unix bump time if the NESTED_* var is set,
                 # otherwise leave it empty
