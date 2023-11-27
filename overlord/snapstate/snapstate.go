@@ -1410,18 +1410,18 @@ func Download(ctx context.Context, st *state.State, name string, blobDirectory s
 	}
 
 	snapsup := &SnapSetup{
-		Channel:               opts.Channel,
-		Base:                  info.Base,
-		UserID:                userID,
-		Flags:                 flags.ForSnapSetup(),
-		DownloadInfo:          &info.DownloadInfo,
-		SideInfo:              &info.SideInfo,
-		Type:                  info.Type(),
-		Version:               info.Version,
-		InstanceKey:           info.InstanceKey,
-		CohortKey:             opts.CohortKey,
-		ExpectedProvenance:    info.SnapProvenance,
-		DownloadBlobDirectory: blobDirectory,
+		Channel:            opts.Channel,
+		Base:               info.Base,
+		UserID:             userID,
+		Flags:              flags.ForSnapSetup(),
+		DownloadInfo:       &info.DownloadInfo,
+		SideInfo:           &info.SideInfo,
+		Type:               info.Type(),
+		Version:            info.Version,
+		InstanceKey:        info.InstanceKey,
+		CohortKey:          opts.CohortKey,
+		ExpectedProvenance: info.SnapProvenance,
+		DownloadBlobDir:    blobDirectory,
 	}
 
 	if sar.RedirectChannel != "" {
