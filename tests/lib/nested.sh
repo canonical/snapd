@@ -601,7 +601,7 @@ nested_prepare_gadget() {
             snakeoil_key="$PWD/$key_name.key"
             snakeoil_cert="$PWD/$key_name.pem"
 
-            snap download --basename=pc --channel="$version/edge" pc
+            snap download --basename=pc --channel="$version/${NESTED_GADGET_CHANNEL}" pc
             unsquashfs -d pc-gadget pc.snap
             nested_secboot_sign_gadget pc-gadget "$snakeoil_key" "$snakeoil_cert"
             case "${NESTED_UBUNTU_SAVE:-}" in

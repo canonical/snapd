@@ -88,6 +88,8 @@ environment:
     NESTED_CORE_CHANNEL: '$(HOST: echo "${NESTED_CORE_CHANNEL:-beta}")'
     # Kernel channel used to create the nested vm
     NESTED_KERNEL_CHANNEL: '$(HOST: echo "${NESTED_KERNEL_CHANNEL:-beta}")'
+    # Gadget channel used to create the nested vm
+    NESTED_GADGET_CHANNEL: '$(HOST: echo "${NESTED_GADGET_CHANNEL:-edge}")'
     # Use cloud init to make initial system configuration instead of user assertion
     NESTED_CORE_REFRESH_CHANNEL: '$(HOST: echo "${NESTED_CORE_REFRESH_CHANNEL:-edge}")'
     # Use cloud init to make initial system configuration instead of user assertion
