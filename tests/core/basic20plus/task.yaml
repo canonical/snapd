@@ -1,5 +1,12 @@
 summary: Check basic core20 and later system functionality
 
+details: |
+    Verify some basic functionalities in ubuntu core (>=20): system
+    snaps are present, the system is fully seeded, install a simple
+    snap, check boot configuration, symlinks in /var/lib/snapd/snaps,
+    snap recovery, loop devices and apparmor after a reboot works
+    properly
+
 systems:
   - ubuntu-core-20-*
   - ubuntu-core-22-*
