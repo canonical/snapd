@@ -240,6 +240,8 @@ func (s *RunSuite) TestSnapRunAppRunsChecksInhibitionLock(c *check.C) {
 	var called int
 	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint) (bool, error) {
 		called++
+		// uninhibit snap run
+		runinhibit.Unlock(snapName)
 		return false, nil
 	})
 	defer restore()
@@ -254,6 +256,44 @@ func (s *RunSuite) TestSnapRunAppRunsChecksInhibitionLock(c *check.C) {
 		"snap.snapname.app",
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"snapname.app", "--arg1"})
+}
+
+func (s *RunSuite) TestSnapRunAppInhibitedSnapReinhibitedAfterChecks(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x2")})
+
+	var execArg0 string
+	var execArgs []string
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		return nil
+	})
+	defer restorer()
+
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R("x2")}
+	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, inhibitInfo), check.IsNil)
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
+	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
+
+	var called int
+	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint) (bool, error) {
+		called++
+		// not removing inhibition lock while mocking waitInhibitUnlock return
+		// as not-inhibited simulates race condition where the snap is
+		// reinhibited just after inhibition checks are done
+		return true, nil
+	})
+	defer restore()
+
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
+	c.Assert(err, check.ErrorMatches, "internal error: snap run was inhibited again after waiting for first inhibition")
+	c.Check(called, check.Equals, 1)
+	c.Assert(rest, check.DeepEquals, []string{"--", "snapname.app", "--arg1"})
+	c.Check(execArg0, check.Equals, "")
+	c.Check(execArgs, check.IsNil)
 }
 
 func (s *RunSuite) TestSnapRunAppNewRevisionAfterInhibition(c *check.C) {
@@ -285,6 +325,8 @@ func (s *RunSuite) TestSnapRunAppNewRevisionAfterInhibition(c *check.C) {
 			// mock installed snap's new revision
 			c.Assert(os.Remove(filepath.Join(si.MountDir(), "../current")), check.IsNil)
 			snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x3")})
+			// uninhibit snap run
+			runinhibit.Unlock(snapName)
 		}
 		return false, nil
 	})
@@ -335,6 +377,8 @@ apps:
 			// mock installed snap's new revision
 			c.Assert(os.Remove(filepath.Join(si.MountDir(), "../current")), check.IsNil)
 			snaptest.MockSnapCurrent(c, string(mockYaml2), &snap.SideInfo{Revision: snap.R("x3")})
+			// uninhibit snap run
+			runinhibit.Unlock(snapName)
 		}
 		return false, nil
 	})
