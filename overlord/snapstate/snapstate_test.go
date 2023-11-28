@@ -9292,3 +9292,35 @@ func (s *snapmgrTestSuite) TestDownloadAlreadyInstalled(c *C) {
 	c.Assert(ok, Equals, true)
 	c.Check(alreadyInstalledErr.Snap, Equals, "foo")
 }
+
+func (s *snapmgrTestSuite) TestDownloadSpecifyCohort(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel", CohortKey: "cohort-key"}
+	ts, err := snapstate.Download(context.Background(), s.state, "foo", "", opts, 0, snapstate.Flags{}, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(ts.Tasks(), HasLen, 2)
+
+	downloadSnap := ts.MaybeEdge(snapstate.BeginEdge)
+	c.Assert(downloadSnap, NotNil)
+	c.Check(downloadSnap.Kind(), Equals, "download-snap")
+
+	var snapsup snapstate.SnapSetup
+	err = downloadSnap.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Revision(), Equals, snap.R(666))
+
+	c.Check(snapsup.CohortKey, Equals, "cohort-key")
+	c.Check(snapsup.Channel, Equals, "some-channel")
+
+	validateSnap := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(validateSnap, NotNil)
+	c.Check(validateSnap.Kind(), Equals, "validate-snap")
+
+	var snapsupTaskID string
+	err = validateSnap.Get("snap-setup-task", &snapsupTaskID)
+	c.Assert(err, IsNil)
+	c.Check(snapsupTaskID, Equals, downloadSnap.ID())
+}

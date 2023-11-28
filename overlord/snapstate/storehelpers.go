@@ -252,7 +252,13 @@ func downloadInfo(ctx context.Context, st *state.State, name string, revOpts *Re
 	}
 
 	if revOpts != nil {
-		action.Revision = revOpts.Revision
+		// cannot specify both with the API
+		if revOpts.Revision.Unset() {
+			action.Channel = revOpts.Channel
+			action.CohortKey = revOpts.CohortKey
+		} else {
+			action.Revision = revOpts.Revision
+		}
 	}
 
 	theStore := Store(st, deviceCtx)
