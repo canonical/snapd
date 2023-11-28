@@ -126,7 +126,7 @@ func (c *Change) createPath(path string, pokeHoles bool, as *Assumptions) ([]*Ch
 		// If the error can be recovered by using a writable mimic
 		// then construct one and try again.
 		logger.Debugf("need to create writable mimic needed to create path %q (original error: %v)", path, err)
-		changes, err = createWritableMimic(mimicPath, path, as)
+		changes, err = createWritableMimic(mimicPath, c.Entry.XSnapdEntryID(), as)
 		if err != nil {
 			err = fmt.Errorf("cannot create writable mimic over %q: %s", mimicPath, err)
 		} else {

@@ -1418,7 +1418,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSourceAndReadOnly
 	c.Check(synth, DeepEquals, []*update.Change{
 		{Action: update.Mount, Entry: osutil.MountEntry{
 			Name: "tmpfs", Dir: "/rofs", Type: "tmpfs",
-			Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/rofs/source", "mode=0755", "uid=0", "gid=0"}},
+			Options: []string{"x-snapd.synthetic", "x-snapd.needed-by=/target", "mode=0755", "uid=0", "gid=0"}},
 		},
 	})
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
@@ -2748,4 +2748,77 @@ func (s *changeSuite) TestUnmountFailsWithEINVALButStillMounted(c *C) {
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `unmount "/target" UMOUNT_NOFOLLOW`, E: syscall.EINVAL},
 	})
+}
+
+// Change.Perform sets x-snapd.needed-by to mount entry ID.
+func (s *changeSuite) TestSyntheticNeededByUsesMountEntryID(c *C) {
+	defer s.as.MockUnrestrictedPaths("/")() // Treat test path as unrestricted.
+	s.sys.InsertOsLstatResult(`lstat "/usr/share/target"`, testutil.FileInfoFile)
+	s.sys.InsertFault(`lstat "/snap/some-snap/x1/rofs/dir/target"`, syscall.ENOENT)
+	s.sys.InsertFault(`mkdirat 3 "snap" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 4 "some-snap" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 5 "x1" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 6 "rofs" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 7 "dir" 0755`, syscall.EROFS, nil)
+	s.sys.InsertSysLstatResult(`lstat "/snap/some-snap/x1/rofs" <ptr>`, syscall.Stat_t{})
+	s.sys.InsertReadDirResult(`readdir "/snap/some-snap/x1/rofs"`, []os.FileInfo{})
+	s.sys.InsertOsLstatResult(`lstat "/tmp/.snap/snap/some-snap/x1/rofs"`, testutil.FileInfoDir)
+	s.sys.InsertOsLstatResult(`lstat "/snap/some-snap/x1/rofs"`, testutil.FileInfoDir)
+	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 10 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 9 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatfsResult(`fstatfs 9 <ptr>`, syscall.Statfs_t{})
+	s.sys.InsertFstatResult(`fstat 6 <ptr>`, syscall.Stat_t{})
+
+	// layout mount
+	chg := &update.Change{
+		Action: update.Mount,
+		Entry: osutil.MountEntry{
+			Name:    "/snap/some-snap/x1/rofs/dir/target",
+			Dir:     "/usr/share/target",
+			Options: []string{"rbind", "rw", "x-snapd.id=test-id", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()},
+		},
+	}
+
+	synth, err := chg.Perform(s.as)
+	c.Check(err, IsNil)
+	c.Check(synth, HasLen, 1)
+	c.Check(synth[0].Entry.XSnapdNeededBy(), Equals, "test-id")
+}
+
+// Change.Perform sets x-snapd.needed-by to default mount entry ID (i.e. target directory).
+func (s *changeSuite) TestSyntheticNeededByUsesDefaultMountEntryID(c *C) {
+	defer s.as.MockUnrestrictedPaths("/")() // Treat test path as unrestricted.
+	s.sys.InsertOsLstatResult(`lstat "/usr/share/target"`, testutil.FileInfoFile)
+	s.sys.InsertFault(`lstat "/snap/some-snap/x1/rofs/dir/target"`, syscall.ENOENT)
+	s.sys.InsertFault(`mkdirat 3 "snap" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 4 "some-snap" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 5 "x1" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 6 "rofs" 0755`, syscall.EEXIST)
+	s.sys.InsertFault(`mkdirat 7 "dir" 0755`, syscall.EROFS, nil)
+	s.sys.InsertSysLstatResult(`lstat "/snap/some-snap/x1/rofs" <ptr>`, syscall.Stat_t{})
+	s.sys.InsertReadDirResult(`readdir "/snap/some-snap/x1/rofs"`, []os.FileInfo{})
+	s.sys.InsertOsLstatResult(`lstat "/tmp/.snap/snap/some-snap/x1/rofs"`, testutil.FileInfoDir)
+	s.sys.InsertOsLstatResult(`lstat "/snap/some-snap/x1/rofs"`, testutil.FileInfoDir)
+	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 10 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 9 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatfsResult(`fstatfs 9 <ptr>`, syscall.Statfs_t{})
+	s.sys.InsertFstatResult(`fstat 6 <ptr>`, syscall.Stat_t{})
+
+	// layout mount
+	chg := &update.Change{
+		Action: update.Mount,
+		Entry: osutil.MountEntry{
+			Name:    "/snap/some-snap/x1/rofs/dir/target",
+			Dir:     "/usr/share/target",
+			Options: []string{"rbind", "rw", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()},
+		},
+	}
+
+	synth, err := chg.Perform(s.as)
+	c.Check(err, IsNil)
+	c.Check(synth, HasLen, 1)
+	// XSnapdEntryID defaults to entry target directory if x-snapd.id is unset
+	c.Check(synth[0].Entry.XSnapdNeededBy(), Equals, "/usr/share/target")
 }
