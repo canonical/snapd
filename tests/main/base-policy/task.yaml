@@ -1,5 +1,19 @@
 summary: Ensure the default policy is correct for base and core bases
 
+details: |
+    Ideally we would check that:
+    
+    1. 'base: core' can access a core-only rule that 'base: other' cannot
+    2. 'base: other' can access a base-only rule that 'base: core' cannot
+    3. both can access something allowed by common rules
+    
+    While there are no core-only rules at this time for '1', we can at least
+    test that 'grep --version' (differently allowed by core-only and
+    base-only rules) does not get blocked. Combined with '2', this proves
+    that that the 'base: core' snap has core-only policy but not base-only
+    policy. Until we have a core-only rule that can be tested here, we'll
+    rely on unit tests to ensure that base snaps don't have core-only rules).
+
 prepare: |
     echo "Given basic snaps are installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core
@@ -16,19 +30,6 @@ execute: |
     if [ "$(snap debug confinement)" != strict ]; then
         exit 0
     fi
-
-    # Ideally we would check that:
-    #
-    # 1. 'base: core' can access a core-only rule that 'base: other' cannot
-    # 2. 'base: other' can access a base-only rule that 'base: core' cannot
-    # 3. both can access something allowed by common rules
-    #
-    # While there are no core-only rules at this time for '1', we can at least
-    # test that 'grep --version' (differently allowed by core-only and
-    # base-only rules) does not get blocked. Combined with '2', this proves
-    # that that the 'base: core' snap has core-only policy but not base-only
-    # policy. Until we have a core-only rule that can be tested here, we'll
-    # rely on unit tests to ensure that base snaps don't have core-only rules).
 
     # 'grep' is allowed explicitly in core rules and via glob rule in base
     # rules

@@ -1,5 +1,11 @@
 summary: Check that broken seeding generates an error
 
+details: |
+    Verify that when the seed process fails, then an error is
+    generated (details in snap warnings output). Also check in
+    ubuntu that the seed file is renamed after the 
+    snapd.postinst is executed.
+
 # not running on 14.04 as we have no real systemd here
 systems: [-ubuntu-core-*, -ubuntu-14.04-*]
 
