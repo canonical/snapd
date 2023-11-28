@@ -207,6 +207,21 @@ func Unlock(snapName string) error {
 	return nil
 }
 
+func WithReadLock(snapName string, action func() error) error {
+	lock, err := osutil.OpenExistingLockForReading(HintFile(snapName))
+	if os.IsNotExist(err) {
+		return action()
+	}
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	if err := lock.ReadLock(); err != nil {
+		return err
+	}
+	return action()
+}
+
 // IsLocked returns the state of the run inhibition lock for the given snap.
 //
 // It returns the current, non-empty hint if inhibition is in place. Otherwise

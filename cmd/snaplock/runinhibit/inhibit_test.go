@@ -21,6 +21,7 @@ package runinhibit_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -385,4 +386,30 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedHintFileNotExist(c *C) {
 
 	c.Check(notInhibitedCalled, Equals, 1)
 	c.Check(inhibitedCalled, Equals, 0)
+}
+
+func (s *runInhibitSuite) TestWithReadLock(c *C) {
+	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh, s.inhibitInfo), IsNil)
+
+	lock, err := osutil.OpenExistingLockForReading(runinhibit.HintFile("some-snap"))
+	c.Assert(err, IsNil)
+	defer lock.Close()
+	c.Assert(lock.TryLock(), IsNil) // Lock is not held
+	lock.Unlock()
+
+	err = runinhibit.WithReadLock("some-snap", func() error {
+		c.Assert(lock.TryLock(), Equals, osutil.ErrAlreadyLocked) // Lock is held
+		return errors.New("error-is-propagated")
+	})
+	c.Check(err, ErrorMatches, "error-is-propagated")
+
+	c.Assert(lock.TryLock(), IsNil) // Lock is not held
+}
+
+func (s *runInhibitSuite) TestWithReadLockHintFileNotExist(c *C) {
+	err := runinhibit.WithReadLock("some-snap", func() error {
+		c.Assert(runinhibit.HintFile("some-snap"), testutil.FileAbsent)
+		return errors.New("error-is-propagated")
+	})
+	c.Check(err, ErrorMatches, "error-is-propagated")
 }
