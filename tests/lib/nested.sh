@@ -548,7 +548,7 @@ nested_prepare_kernel() {
                 repack_kernel_snap "$kernel_snap"
 
             elif nested_is_core_20_system || nested_is_core_22_system; then
-                snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
+                snap download --basename=pc-kernel --channel="$version/${NESTED_KERNEL_CHANNEL}" pc-kernel
 
                 # set the unix bump time if the NESTED_* var is set,
                 # otherwise leave it empty
@@ -601,7 +601,7 @@ nested_prepare_gadget() {
             snakeoil_key="$PWD/$key_name.key"
             snakeoil_cert="$PWD/$key_name.pem"
 
-            snap download --basename=pc --channel="$version/edge" pc
+            snap download --basename=pc --channel="$version/${NESTED_GADGET_CHANNEL}" pc
             unsquashfs -d pc-gadget pc.snap
             nested_secboot_sign_gadget pc-gadget "$snakeoil_key" "$snakeoil_cert"
             case "${NESTED_UBUNTU_SAVE:-}" in

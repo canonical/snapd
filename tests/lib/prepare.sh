@@ -485,7 +485,7 @@ repack_kernel_snap() {
 
     echo "Repacking kernel snap"
     UNPACK_DIR=/tmp/kernel-unpack
-    snap download --basename=pc-kernel --channel="$CHANNEL/edge" pc-kernel
+    snap download --basename=pc-kernel --channel="$CHANNEL/${KERNEL_CHANNEL}" pc-kernel
     unsquashfs -no-progress -d "$UNPACK_DIR" pc-kernel.snap
     snap pack --filename="$TARGET" "$UNPACK_DIR"
 
