@@ -207,15 +207,15 @@ func Unlock(snapName string) error {
 }
 
 func WithReadLock(snapName string, action func() error) error {
-	lock, err := osutil.OpenExistingLockForReading(HintFile(snapName))
+	flock, err := osutil.OpenExistingLockForReading(HintFile(snapName))
 	if os.IsNotExist(err) {
 		return action()
 	}
 	if err != nil {
 		return err
 	}
-	defer lock.Close()
-	if err := lock.ReadLock(); err != nil {
+	defer flock.Close()
+	if err := flock.ReadLock(); err != nil {
 		return err
 	}
 	return action()

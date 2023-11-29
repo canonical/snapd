@@ -523,30 +523,30 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 		if err := maybeWaitWhileInhibited(snapName); err != nil {
 			return err
 		}
+	}
 
-		if inhibited {
-			// We were inhibited earlier, let's get updated "current" snap info
-			err = runinhibit.WithReadLock(snapName, func() error {
-				// Check run inhibition is actually removed while holding lock to
-				// avoid race condition with snap being inhibited again
-				hint, _, err := isLocked(snapName)
-				if err != nil {
-					return err
-				}
-				if hint != runinhibit.HintNotInhibited {
-					// TODO: better handling/retry logic needed
-					return fmt.Errorf("internal error: snap run was inhibited again after waiting for first inhibition")
-				}
-				info, app, err = getInfoAndApp(snapName, appName, snap.R(0))
-				if err != nil {
-					return err
-				}
-				return nil
-			})
+	// Get the updated "current" snap info
+	err = runinhibit.WithReadLock(snapName, func() error {
+		if !app.IsService() {
+			// Check run inhibition is actually removed while holding lock to
+			// avoid race condition with snap being inhibited again
+			hint, _, err := isLocked(snapName)
 			if err != nil {
 				return err
 			}
+			if hint != runinhibit.HintNotInhibited {
+				// TODO: better handling/retry logic needed
+				return fmt.Errorf("internal error: snap run was inhibited again after waiting for first inhibition")
+			}
 		}
+		info, app, err = getInfoAndApp(snapName, appName, snap.R(0))
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	return x.runSnapConfine(info, app.SecurityTag(), snapApp, "", args)
