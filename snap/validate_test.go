@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	. "gopkg.in/check.v1"
 
@@ -1973,7 +1974,12 @@ plugs:
     interface: content
     content: icon-themes
     default-provider: gtk-common-themes
-
+  other-content:
+    interface: content
+    content: other
+    # no default provider
+  # unrelated plug
+  network:
 `
 
 func (s *ValidateSuite) TestNeededDefaultProviders(c *C) {
@@ -2011,7 +2017,8 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	infos := []*Info{info}
-	errors := ValidateBasesAndProviders(infos)
+	warns, errors := ValidateBasesAndProviders(infos)
+	c.Assert(warns, HasLen, 0)
 	c.Assert(errors, HasLen, 1)
 	c.Assert(errors[0], ErrorMatches, `cannot use snap "some-snap": required snap "core" missing`)
 }
@@ -2026,7 +2033,8 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	infos := []*Info{info}
-	errors := ValidateBasesAndProviders(infos)
+	warns, errors := ValidateBasesAndProviders(infos)
+	c.Assert(warns, HasLen, 0)
 	c.Assert(errors, HasLen, 1)
 	c.Assert(errors[0], ErrorMatches, `cannot use snap "some-snap": base "some-base" is missing`)
 }
@@ -2044,9 +2052,11 @@ type: os`
 	c.Assert(err, IsNil)
 
 	infos := []*Info{snapInfo, coreInfo}
-	errors := ValidateBasesAndProviders(infos)
-	c.Assert(errors, HasLen, 1)
-	c.Assert(errors[0], ErrorMatches, `cannot use snap "need-df": default provider "gtk-common-themes" is missing`)
+	warns, errors := ValidateBasesAndProviders(infos)
+	c.Check(warns, HasLen, 0)
+	c.Assert(errors, HasLen, 2)
+	c.Check(errors[0], ErrorMatches, `cannot use snap "need-df": default provider "gtk-common-themes" or any alternative provider for content "gtk-3-themes" is missing`)
+	c.Check(errors[1], ErrorMatches, `cannot use snap "need-df": default provider "gtk-common-themes" or any alternative provider for content "icon-themes" is missing`)
 }
 
 func (s *validateSuite) TestValidateSnapBaseNoneOK(c *C) {
@@ -2059,7 +2069,8 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	infos := []*Info{info}
-	errors := ValidateBasesAndProviders(infos)
+	warns, errors := ValidateBasesAndProviders(infos)
+	c.Assert(warns, HasLen, 0)
 	c.Assert(errors, IsNil)
 }
 
@@ -2073,7 +2084,8 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	infos := []*Info{info}
-	errors := ValidateBasesAndProviders(infos)
+	warns, errors := ValidateBasesAndProviders(infos)
+	c.Assert(warns, HasLen, 0)
 	c.Assert(errors, IsNil)
 }
 
@@ -2255,7 +2267,7 @@ func (s *ValidateSuite) TestSimplePrereqTracker(c *C) {
 	repo := interfaces.NewRepository()
 
 	prqt := SimplePrereqTracker{}
-	providerContentAttrs := prqt.DefaultProviderContentAttrs(info, repo)
+	providerContentAttrs := prqt.MissingProviderContentTags(info, repo)
 	c.Check(providerContentAttrs, HasLen, 2)
 	sort.Strings(providerContentAttrs["common-themes"])
 	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"bar", "foo"})
@@ -2274,7 +2286,7 @@ func (s *ValidateSuite) TestSimplePrereqTracker(c *C) {
 	}
 	err := repo.AddSlot(barSlot)
 	c.Assert(err, IsNil)
-	providerContentAttrs = prqt.DefaultProviderContentAttrs(info, repo)
+	providerContentAttrs = prqt.MissingProviderContentTags(info, repo)
 	c.Check(providerContentAttrs, HasLen, 2)
 	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"foo"})
 	// stays the same
@@ -2288,16 +2300,317 @@ func (s *ValidateSuite) TestSimplePrereqTracker(c *C) {
 	}
 	err = repo.AddSlot(fooSlot)
 	c.Assert(err, IsNil)
-	providerContentAttrs = prqt.DefaultProviderContentAttrs(info, repo)
+	providerContentAttrs = prqt.MissingProviderContentTags(info, repo)
 	c.Check(providerContentAttrs, HasLen, 1)
 	c.Check(providerContentAttrs["common-themes"], IsNil)
 	// stays the same
 	c.Check(providerContentAttrs["some-snap"], DeepEquals, []string{"baz"})
 
 	// no repo => no filtering
-	providerContentAttrs = prqt.DefaultProviderContentAttrs(info, nil)
+	providerContentAttrs = prqt.MissingProviderContentTags(info, nil)
 	c.Check(providerContentAttrs, HasLen, 2)
 	sort.Strings(providerContentAttrs["common-themes"])
 	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"bar", "foo"})
 	c.Check(providerContentAttrs["some-snap"], DeepEquals, []string{"baz"})
+}
+
+func (s *ValidateSuite) TestSelfContainedSetPrereqTrackerBasics(c *C) {
+	// check that it implements the needed interface
+	var prqt snapstate.PrereqTracker = NewSelfContainedSetPrereqTracker()
+
+	// this ignores arguments and always returns nil
+	c.Check(prqt.MissingProviderContentTags(nil, nil), IsNil)
+}
+
+func (s *validateSuite) TestSelfContainedSetPrereqTrackerMissingBase(c *C) {
+	const yaml = `name: some-snap
+base: some-base
+version: 1.0`
+
+	strk := NewScopedTracker()
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
+	c.Assert(err, IsNil)
+
+	prqt := NewSelfContainedSetPrereqTracker()
+	prqt.Add(info)
+
+	_, errors := prqt.Check()
+	c.Assert(errors, HasLen, 1)
+	c.Check(errors[0], ErrorMatches, `cannot use snap "some-snap": base "some-base" is missing`)
+}
+
+func (s *validateSuite) TestSelfContainedSetPrereqTrackerMissingMCore(c *C) {
+	const yaml = `name: some-snap
+version: 1.0`
+
+	strk := NewScopedTracker()
+	info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, strk)
+	c.Assert(err, IsNil)
+
+	prqt := NewSelfContainedSetPrereqTracker()
+	prqt.Add(info)
+
+	_, errors := prqt.Check()
+	c.Assert(errors, HasLen, 1)
+	c.Check(errors[0], ErrorMatches, `cannot use snap "some-snap": required snap "core" missing`)
+}
+
+func (s *validateSuite) TestSelfContainedSetPrereqTrackerMissingDefaultProvider(c *C) {
+	strk := NewScopedTracker()
+	snapInfo, err := InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk)
+	c.Assert(err, IsNil)
+
+	const coreYaml = `name: core
+version: 1.0
+type: os`
+
+	coreInfo, err := InfoFromSnapYamlWithSideInfo([]byte(coreYaml), nil, strk)
+	c.Assert(err, IsNil)
+
+	prqt := NewSelfContainedSetPrereqTracker()
+	prqt.Add(snapInfo)
+	prqt.Add(coreInfo)
+
+	_, errors := prqt.Check()
+	c.Assert(errors, HasLen, 2)
+	c.Check(errors[0], ErrorMatches, `cannot use snap "need-df": default provider "gtk-common-themes" or any alternative provider for content "gtk-3-themes" is missing`)
+	c.Check(errors[1], ErrorMatches, `cannot use snap "need-df": default provider "gtk-common-themes" or any alternative provider for content "icon-themes" is missing`)
+}
+
+func (s *validateSuite) TestSelfContainedSetPrereqTrackerDefaultProviderHappy(c *C) {
+	strk := NewScopedTracker()
+	snapInfo, err := InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk)
+	c.Assert(err, IsNil)
+
+	const coreYaml = `name: core
+version: 1.0
+type: os`
+
+	coreInfo, err := InfoFromSnapYamlWithSideInfo([]byte(coreYaml), nil, strk)
+	c.Assert(err, IsNil)
+
+	const gtkCommonThemesYaml = `name: gtk-common-themes
+version: 1.0
+slots:
+  gtk-3-themes:
+    interface: content
+    read: [$SNAP/themes]
+  icon-themes:
+    interface: content
+    read: [$SNAP/themes]
+`
+	defer MockSanitizePlugsSlots(builtin.SanitizePlugsSlots)()
+
+	gtkCommonThemesInfo, err := InfoFromSnapYamlWithSideInfo([]byte(gtkCommonThemesYaml), nil, strk)
+	c.Assert(err, IsNil)
+
+	prqt := NewSelfContainedSetPrereqTracker()
+	prqt.Add(snapInfo)
+	prqt.Add(coreInfo)
+	prqt.Add(gtkCommonThemesInfo)
+
+	warns, errors := prqt.Check()
+	c.Assert(errors, HasLen, 0)
+	c.Assert(warns, HasLen, 0)
+}
+
+func (s *validateSuite) TestSelfContainedSetPrereqTrackerAlternativeProviders(c *C) {
+	strk := NewScopedTracker()
+	snapInfo, err := InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk)
+	c.Assert(err, IsNil)
+
+	const coreYaml = `name: core
+version: 1.0
+type: os`
+
+	coreInfo, err := InfoFromSnapYamlWithSideInfo([]byte(coreYaml), nil, strk)
+	c.Assert(err, IsNil)
+
+	const iconsProviderYaml = `name: icons-provider
+version: 1.0
+slots:
+  serve-icon-themes:
+    interface: content
+    content: icon-themes
+`
+	const themesProviderYaml = `name: themes-provider
+version: 1.0
+slots:
+  serve-gtk-3-themes:
+    interface: content
+    content: gtk-3-themes
+`
+	iconsProviderInfo, err := InfoFromSnapYamlWithSideInfo([]byte(iconsProviderYaml), nil, strk)
+	c.Assert(err, IsNil)
+	themesProviderInfo, err := InfoFromSnapYamlWithSideInfo([]byte(themesProviderYaml), nil, strk)
+	c.Assert(err, IsNil)
+
+	prqt := NewSelfContainedSetPrereqTracker()
+	prqt.Add(snapInfo)
+	prqt.Add(coreInfo)
+	prqt.Add(iconsProviderInfo)
+	prqt.Add(themesProviderInfo)
+
+	warns, errors := prqt.Check()
+	c.Assert(errors, HasLen, 0)
+	c.Assert(warns, HasLen, 2)
+	c.Check(warns[0], ErrorMatches, `snap "need-df" requires a provider for content "gtk-3-themes", a candidate slot is available \(themes-provider:serve-gtk-3-themes\) but not the default-provider, ensure a single auto-connection \(or possibly a connection\) is in-place`)
+	c.Check(warns[1], ErrorMatches, `snap "need-df" requires a provider for content "icon-themes", a candidate slot is available \(icons-provider:serve-icon-themes\) but not the default-provider, ensure a single auto-connection \(or possibly a connection\) is in-place`)
+}
+
+func (s *validateSuite) TestSelfContainedSetPrereqTrackerDefaultProviderAlternativeProviderThroughValidateBasesAndProviders(c *C) {
+	strk := NewScopedTracker()
+	snapInfo, err := InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk)
+	c.Assert(err, IsNil)
+
+	const coreYaml = `name: core
+version: 1.0
+type: os`
+
+	coreInfo, err := InfoFromSnapYamlWithSideInfo([]byte(coreYaml), nil, strk)
+	c.Assert(err, IsNil)
+
+	const gtkCommonThemesYaml = `name: gtk-common-themes
+version: 1.0
+slots:
+  gtk-3-themes:
+    interface: content
+    read: [$SNAP/themes]
+  icon-themes:
+    interface: content
+    read: [$SNAP/themes]
+`
+	const themesProvider2Yaml = `name: themes-provider
+version: 1.0
+slots:
+  serve-gtk-3-themes:
+    interface: content
+    content: gtk-3-themes
+    read: [$SNAP/stuff]
+`
+	defer MockSanitizePlugsSlots(builtin.SanitizePlugsSlots)()
+
+	gtkCommonThemesInfo, err := InfoFromSnapYamlWithSideInfo([]byte(gtkCommonThemesYaml), nil, strk)
+	c.Assert(err, IsNil)
+	themesProvider2Info, err := InfoFromSnapYamlWithSideInfo([]byte(themesProvider2Yaml), nil, strk)
+	c.Assert(err, IsNil)
+
+	warns, errors := ValidateBasesAndProviders([]*Info{snapInfo, coreInfo, gtkCommonThemesInfo, themesProvider2Info})
+	c.Assert(errors, HasLen, 0)
+	c.Assert(warns, HasLen, 1)
+	c.Check(warns[0], ErrorMatches, `snap "need-df" requires a provider for content "gtk-3-themes", many candidates slots are available \(themes-provider:serve-gtk-3-themes\) including from default-provider gtk-common-themes:gtk-3-themes, ensure a single auto-connection \(or possibly a connection\) is in-place`)
+}
+
+func (s *validateSuite) TestSelfContainedSetPrereqTrackerDoubleAlternativeProviders(c *C) {
+	strk := NewScopedTracker()
+	snapInfo, err := InfoFromSnapYamlWithSideInfo([]byte(yamlNeedDf), nil, strk)
+	c.Assert(err, IsNil)
+
+	const coreYaml = `name: core
+version: 1.0
+type: os`
+
+	coreInfo, err := InfoFromSnapYamlWithSideInfo([]byte(coreYaml), nil, strk)
+	c.Assert(err, IsNil)
+
+	const iconsProviderYaml = `name: icons-provider
+version: 1.0
+slots:
+  serve-icon-themes:
+    interface: content
+    content: icon-themes
+    read: [$SNAP/stuff]
+`
+	const themesProviderYaml = `name: themes-provider
+version: 1.0
+slots:
+  serve-gtk-3-themes:
+    interface: content
+    content: gtk-3-themes
+    read: [$SNAP/stuff]
+`
+	const themesProvider2Yaml = `name: themes-provider2
+version: 1.1
+slots:
+  gtk-3-themes:
+    interface: content
+    read: [$SNAP/stuff]
+  unrelated-slot:
+    interface: dbus
+    bus: system
+    name: foo.Foo
+`
+	defer MockSanitizePlugsSlots(builtin.SanitizePlugsSlots)()
+
+	iconsProviderInfo, err := InfoFromSnapYamlWithSideInfo([]byte(iconsProviderYaml), nil, strk)
+	c.Assert(err, IsNil)
+	themesProviderInfo, err := InfoFromSnapYamlWithSideInfo([]byte(themesProviderYaml), nil, strk)
+	c.Assert(err, IsNil)
+	themesProvider2Info, err := InfoFromSnapYamlWithSideInfo([]byte(themesProvider2Yaml), nil, strk)
+	c.Assert(err, IsNil)
+
+	prqt := NewSelfContainedSetPrereqTracker()
+	prqt.Add(snapInfo)
+	prqt.Add(coreInfo)
+	prqt.Add(iconsProviderInfo)
+	prqt.Add(themesProviderInfo)
+	prqt.Add(themesProvider2Info)
+
+	warns, errors := prqt.Check()
+	c.Assert(errors, HasLen, 0)
+	c.Assert(warns, HasLen, 2)
+	c.Check(warns[0], ErrorMatches, `snap "need-df" requires a provider for content "gtk-3-themes", many candidate slots are available \(themes-provider2:gtk-3-themes, themes-provider:serve-gtk-3-themes\) but not the default-provider, ensure a single auto-connection \(or possibly a connection\) is in-place`)
+	c.Check(warns[1], ErrorMatches, `snap "need-df" requires a provider for content "icon-themes", a candidate slot is available \(icons-provider:serve-icon-themes\) but not the default-provider, ensure a single auto-connection \(or possibly a connection\) is in-place`)
+}
+
+func (s *ValidateSuite) TestValidateComponentNames(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+components:
+  comp-1:
+    type: test
+    summary: short summary
+    description: some loooong description
+  comp-long123-1-name:
+    type: test
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, IsNil)
+}
+
+func (s *ValidateSuite) TestDetectInvalidComponentName(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+components:
+  comp_1:
+    type: test
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `invalid snap name: "comp_1"`)
+}
+
+func (s *ValidateSuite) TestDetectInvalidComponentTextFields(c *C) {
+	yamlTmpl := `name: foo
+version: 1.0
+components:
+  comp1:
+    type: test
+    %s: %s
+`
+
+	for _, tc := range []struct {
+		field         string
+		maxCodePoints int
+	}{{"summary", 128}, {"description", 4096}} {
+		text := strings.Repeat("xx", 2049)
+		info, err := InfoFromSnapYaml([]byte(fmt.Sprintf(yamlTmpl, tc.field, text)))
+		c.Assert(err, IsNil)
+
+		err = Validate(info)
+		c.Check(err, ErrorMatches, fmt.Sprintf("%s can have up to %d codepoints, got %d", tc.field, tc.maxCodePoints, utf8.RuneCountInString(text)))
+	}
 }

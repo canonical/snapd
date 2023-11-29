@@ -8987,6 +8987,121 @@ func (s *snapmgrTestSuite) TestSaveRefreshCandidatesOnAutoRefresh(c *C) {
 	c.Check(cands["some-other-snap"], NotNil)
 }
 
+type customStore struct {
+	*fakeStore
+
+	customSnapAction func(context.Context, []*store.CurrentSnap, []*store.SnapAction, store.AssertionQuery, *auth.UserState, *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error)
+}
+
+func (s customStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	return s.customSnapAction(ctx, currentSnaps, actions, assertQuery, user, opts)
+}
+
+func (s *snapmgrTestSuite) TestSaveMonitoredRefreshCandidatesOnAutoRefreshThrottled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-other-snap", SnapID: "some-other-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "snap-c", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "snap-c", SnapID: "snap-c-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	// simulate existing refresh hint from older refresh with
+	// some-other-snap being monitored
+	cands := map[string]*snapstate.RefreshCandidate{
+		"some-other-snap": {Monitored: true},
+		"snap-c":          {},
+	}
+	s.state.Set("refresh-candidates", &cands)
+
+	// simulate store throttling some snaps' during auto-refresh
+	isThrottled := map[string]bool{
+		"some-other-snap-id": true,
+		"snap-c-id":          true,
+	}
+	type requestRecord struct {
+		opts    store.RefreshOptions
+		snapIDs map[string]bool
+	}
+	var requests []requestRecord
+	sto := customStore{fakeStore: s.fakeStore}
+	sto.customSnapAction = func(ctx context.Context, cs []*store.CurrentSnap, sa []*store.SnapAction, aq store.AssertionQuery, us *auth.UserState, ro *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+		var actionResult []store.SnapActionResult
+
+		snapIDs := map[string]bool{}
+		for _, action := range sa {
+			snapIDs[action.SnapID] = true
+			// throttle refresh requests if this is an auto-refresh
+			if isThrottled[action.SnapID] && ro.Scheduled {
+				continue
+			}
+			info, err := s.fakeStore.lookupRefresh(refreshCand{snapID: action.SnapID})
+			c.Assert(err, IsNil)
+			actionResult = append(actionResult, store.SnapActionResult{Info: info})
+		}
+
+		requests = append(requests, requestRecord{
+			opts:    *ro,
+			snapIDs: snapIDs,
+		})
+
+		return actionResult, nil, nil
+	}
+	snapstate.ReplaceStore(s.state, &sto)
+
+	names, tss, err := snapstate.AutoRefresh(context.Background(), s.state)
+	c.Assert(err, IsNil)
+	c.Assert(tss, NotNil)
+	c.Check(names, DeepEquals, []string{"some-other-snap", "some-snap"})
+
+	// check store request was retried
+	c.Check(requests, HasLen, 2)
+
+	// first time, all snaps were requested
+	c.Check(requests[0].snapIDs["some-snap-id"], Equals, true)
+	c.Check(requests[0].snapIDs["some-other-snap-id"], Equals, true)
+	c.Check(requests[0].snapIDs["snap-c-id"], Equals, true)
+	// auto-refresh -> scheduled
+	c.Check(requests[0].opts.Scheduled, Equals, true)
+
+	// second time, only some-other-snap was retried because it
+	// was in old refresh-candidates and was monitored as well
+	c.Check(requests[1].snapIDs["some-snap-id"], Equals, false)
+	c.Check(requests[1].snapIDs["some-other-snap-id"], Equals, true)
+	c.Check(requests[1].snapIDs["snap-c-id"], Equals, false)
+	// retry mimicking manual refresh
+	c.Check(requests[1].opts.Scheduled, Equals, false)
+
+	// check that refresh-candidates in the state were updated
+	var newCands map[string]*snapstate.RefreshCandidate
+	err = s.state.Get("refresh-candidates", &newCands)
+	c.Assert(err, IsNil)
+
+	c.Assert(newCands, HasLen, 2)
+	c.Check(newCands["some-snap"], NotNil)
+	c.Check(newCands["some-other-snap"], NotNil)
+}
+
 func (s *snapmgrTestSuite) TestRefreshCandidatesMergeFlags(c *C) {
 	si := &snap.SideInfo{
 		RealName: "some-snap",

@@ -974,13 +974,13 @@ func IsErrAndNotWait(err error) bool {
 
 // defaultProviderContentAttrs takes a snap.Info and returns a map of
 // default providers to the value of content attributes they should
-// provide. Content attributes already provided by a snap in the system are omitted.
+// provide. Content attributes already provided by a snap in the system are omitted. What is returned depends on the behavior of the passed PrereqTracker.
 func defaultProviderContentAttrs(st *state.State, info *snap.Info, prqt PrereqTracker) map[string][]string {
 	if prqt == nil {
 		prqt = snap.SimplePrereqTracker{}
 	}
 	repo := ifacerepo.Get(st)
-	return prqt.DefaultProviderContentAttrs(info, repo)
+	return prqt.MissingProviderContentTags(info, repo)
 }
 
 func getKeys(kv map[string][]string) []string {
@@ -1101,13 +1101,19 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 type PrereqTracker interface {
 	// Add adds a snap for tracking.
 	Add(*snap.Info)
-	// DefaultProviderContentAttrs returns a map keyed by the names of all
-	// default-providers for the content plugs that the given snap.Info
-	// needs. The map values are the corresponding content tags.
-	// If repo is not nil, any content tag provided by an existing slot in it
-	// is considered already available and filtered out from the result.
-	// info might or might have not been passed already to Add.
-	DefaultProviderContentAttrs(info *snap.Info, repo snap.InterfaceRepo) map[string][]string
+	// MissingProviderContetTags returns a map keyed by the names of all
+	// missing default-providers for the content plugs that the given
+	// snap.Info needs. The map values are the corresponding content tags.
+	// Different prerequisites trackers might decide in different
+	// ways which providers are missing. Either making assumptions about
+	// the snap operations that are being set up or considering
+	// just the snap info and repo.
+	// In the latter case if repo is not nil, any content tag provided by
+	// an existing slot in it should be considered already available and
+	// filtered out from the result. info might or might have not been
+	// passed already to Add. snapstate uses the result to decide to
+	// install providers automatically.
+	MissingProviderContentTags(info *snap.Info, repo snap.InterfaceRepo) map[string][]string
 }
 
 // addPrereq adds the given prerequisite snap to the tracker, if the tracker is

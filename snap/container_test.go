@@ -20,6 +20,7 @@
 package snap_test
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -62,7 +63,10 @@ version: 1
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(snapdir.New(d), info, discard)
+	err = snap.ValidateSnapContainer(snapdir.New(d), info, discard)
+	c.Check(err, Equals, snap.ErrMissingPaths)
+
+	err = snap.ValidateComponentContainer(snapdir.New(d), "empty-snap+comp.comp", discard)
 	c.Check(err, Equals, snap.ErrMissingPaths)
 }
 
@@ -84,7 +88,23 @@ version: 1
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(snapdir.New(d), info, discard)
+	err = snap.ValidateSnapContainer(snapdir.New(d), info, discard)
+	c.Check(err, Equals, snap.ErrBadModes)
+}
+
+func (s *validateSuite) TestValidateComponentContainerEmptyButBadPermFails(c *C) {
+	d := c.MkDir()
+
+	stat, err := os.Stat(d)
+	c.Assert(err, IsNil)
+	c.Check(stat.Mode().Perm(), Equals, os.FileMode(0700)) // just to be sure
+
+	c.Assert(os.Mkdir(filepath.Join(d, "meta"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "meta", "component.yaml"), nil, 0444), IsNil)
+
+	// snapdir has /meta/component.yaml, but / is 0700
+
+	err = snap.ValidateComponentContainer(snapdir.New(d), "empty-snap+comp.comp", discard)
 	c.Check(err, Equals, snap.ErrBadModes)
 }
 
@@ -101,7 +121,12 @@ version: 1
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(snapdir.New(d), info, discard)
+	err = snap.ValidateSnapContainer(snapdir.New(d), info, discard)
+	c.Check(err, Equals, snap.ErrMissingPaths)
+
+	// component's / and /meta are 0755 (i.e. OK), but no /meta/component.yaml
+
+	err = snap.ValidateComponentContainer(snapdir.New(d), "empty-snap+comp.comp", discard)
 	c.Check(err, Equals, snap.ErrMissingPaths)
 }
 
@@ -120,7 +145,20 @@ version: 1
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(snapdir.New(d), info, discard)
+	err = snap.ValidateSnapContainer(snapdir.New(d), info, discard)
+	c.Check(err, Equals, snap.ErrBadModes)
+}
+
+func (s *validateSuite) TestValidateComponentContainerSnapYamlBadPermsFails(c *C) {
+	d := c.MkDir()
+	c.Assert(os.Chmod(d, 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, "meta"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "meta", "component.yaml"), nil, 0), IsNil)
+
+	// components's / and /meta are 0755 (i.e. OK),
+	// /meta/component.yaml exists, but isn't readable
+
+	err := snap.ValidateComponentContainer(snapdir.New(d), "empty-snap+comp.comp", discard)
 	c.Check(err, Equals, snap.ErrBadModes)
 }
 
@@ -139,7 +177,7 @@ version: 1
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(snapdir.New(d), info, discard)
+	err = snap.ValidateSnapContainer(snapdir.New(d), info, discard)
 	c.Check(err, Equals, snap.ErrBadModes)
 }
 
@@ -166,7 +204,7 @@ version: 1
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(d, info, discard)
+	err = snap.ValidateSnapContainer(d, info, discard)
 	c.Check(err, IsNil)
 }
 
@@ -183,7 +221,7 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(d, info, discard)
+	err = snap.ValidateSnapContainer(d, info, discard)
 	c.Check(err, Equals, snap.ErrMissingPaths)
 }
 
@@ -202,7 +240,7 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(d, info, discard)
+	err = snap.ValidateSnapContainer(d, info, discard)
 	c.Check(err, Equals, snap.ErrBadModes)
 }
 
@@ -222,7 +260,7 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(d, info, discard)
+	err = snap.ValidateSnapContainer(d, info, discard)
 	c.Check(err, Equals, snap.ErrBadModes)
 }
 
@@ -243,7 +281,7 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(d, info, discard)
+	err = snap.ValidateSnapContainer(d, info, discard)
 	c.Check(err, Equals, snap.ErrBadModes)
 }
 
@@ -266,7 +304,7 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(d, info, discard)
+	err = snap.ValidateSnapContainer(d, info, discard)
 	c.Check(err, Equals, snap.ErrMissingPaths)
 }
 
@@ -286,7 +324,7 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(d, info, discard)
+	err = snap.ValidateSnapContainer(d, info, discard)
 	c.Check(err, IsNil)
 }
 
@@ -308,7 +346,7 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(d, info, discard)
+	err = snap.ValidateSnapContainer(d, info, discard)
 	c.Check(err, Equals, snap.ErrBadModes)
 }
 
@@ -329,7 +367,7 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(d, info, discard)
+	err = snap.ValidateSnapContainer(d, info, discard)
 	c.Check(err, IsNil)
 }
 
@@ -383,6 +421,19 @@ apps:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	err = snap.ValidateContainer(d, info, discard)
+	err = snap.ValidateSnapContainer(d, info, discard)
+	c.Check(err, IsNil)
+}
+
+func (s *validateSuite) TestValidateComponentContainer(c *C) {
+	const yaml = `component: empty-snap+test-comp
+version: 1
+`
+	d := c.MkDir()
+	c.Assert(os.Chmod(d, 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, "meta"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(d, "meta", "component.yaml"), []byte(yaml), 0444), IsNil)
+
+	err := snap.ValidateComponentContainer(snapdir.New(d), "empty-snap+comp.comp", discard)
 	c.Check(err, IsNil)
 }

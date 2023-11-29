@@ -239,8 +239,9 @@ func MockAsyncPendingRefreshNotification(fn func(context.Context, *userclient.Cl
 
 // re-refresh related
 var (
-	RefreshedSnaps  = refreshedSnaps
-	ReRefreshFilter = reRefreshFilter
+	RefreshedSnaps     = refreshedSnaps
+	ReRefreshFilter    = reRefreshFilter
+	UpdateManyFiltered = updateManyFiltered
 
 	MaybeRestoreValidationSetsAndRevertSnaps = maybeRestoreValidationSetsAndRevertSnaps
 )
