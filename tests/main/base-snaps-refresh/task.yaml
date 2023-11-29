@@ -1,5 +1,11 @@
 summary: Check that refreshes that require new base snaps work
 
+details: |
+    Verify that when a snap which doesn't have a base snap declared is
+    refreshed and the new snap has a base snap declared, then the
+    base snap is downloaded/installed in the system as part of the
+    refresh process.
+
 systems: [-opensuse-*]
 
 execute: |

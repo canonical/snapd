@@ -39,5 +39,4 @@ usr/lib/snapd/snap-gdbserver-shim
 
 # use "usr/lib" here because apparently systemd looks only there
 usr/lib/systemd/system-environment-generators
-# but system generators end up in lib
-lib/systemd/system-generators
+usr/lib/systemd/system-generators
