@@ -1842,7 +1842,10 @@ func (*schemaSuite) TestPathManyUserDefinedTypeReferences(c *C) {
 		},
 		"my-type": {
 			"type": "map",
-			"values": "$num"
+			"values": {
+				"type": "int",
+				"min": 0
+			}
 		}
 	},
 	"schema": {

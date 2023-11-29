@@ -72,6 +72,8 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 			return nil, fmt.Errorf(`cannot parse user-defined types map: %w`, err)
 		}
 
+		// TODO: if we want to allow user types to refer to others, this must be handled
+		// explicitly since userTypes will not preserve any order in the serialized JSON
 		schema.userTypes = make(map[string]*userTypeRefParser, len(userTypes))
 		for userTypeName, typeDef := range userTypes {
 			if !validUserType.Match([]byte(userTypeName)) {
@@ -276,7 +278,6 @@ func (v *mapSchema) Validate(raw []byte) error {
 					if errors.As(err, &valErr) {
 						valErr.path = append([]string{key}, valErr.path...)
 					}
-
 					return err
 				}
 			}
@@ -290,7 +291,7 @@ func (v *mapSchema) Validate(raw []byte) error {
 		for k := range mapValue {
 			rawKey, err := json.Marshal(k)
 			if err != nil {
-				return &validationError{baseErr: err}
+				return &validationError{baseErr: fmt.Errorf("internal error: %w", err)}
 			}
 
 			if err := v.keySchema.Validate(rawKey); err != nil {
@@ -776,7 +777,7 @@ type arraySchema struct {
 
 	// elementType represents the type of the array's elements and can be used to
 	// validate them.
-	elementType parser
+	elementType Schema
 
 	// unique is true if the array should not contain duplicates.
 	unique bool
@@ -798,7 +799,6 @@ func (v *arraySchema) Validate(raw []byte) error {
 			if errors.As(err, &vErr) {
 				vErr.path = append([]string{fmt.Sprintf("[%d]", e)}, vErr.path...)
 			}
-
 			return err
 		}
 	}
@@ -824,7 +824,6 @@ func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) e
 		return fmt.Errorf(`cannot parse "array": must have "values" constraint`)
 	}
 
-	// if a nested element fails to validate, the brackets will be filled with an index
 	typ, err := v.topSchema.parse(rawValues)
 	if err != nil {
 		return fmt.Errorf(`cannot parse "array" values type: %v`, err)
