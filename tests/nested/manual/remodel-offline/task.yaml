@@ -45,8 +45,12 @@ execute: |
       remote.exec "snap download --channel=22/stable --basename=$sn_name $sn_name"
       remodel_options="$remodel_options --snap $sn_name.snap --assertion $sn_name.assert"
   done
-  remote.exec "snap download --basename=core22 core22"
-  remodel_options="$remodel_options --snap core22.snap --assertion core22.assert"
+
+  for sn_name in core22 hello-world core; do
+      remote.exec "snap download --basename=${sn_name} ${sn_name}"
+      remodel_options="$remodel_options --snap ${sn_name}.snap --assertion ${sn_name}.assert"
+  done
+
 
   # Make sure we cannot access the store
   netplan_cfg=50-bad-gw.yaml
@@ -81,8 +85,10 @@ execute: |
   # system and the base), so boot-id should be different
   test "$boot_id" != "$current_boot_id"
 
-  # the new base is installed
-  remote.exec snap list core22
+  # check that the new base, apps, and app bases are installed
+  for sn_name in core22 hello-world core; do
+      remote.exec snap list "${sn_name}"
+  done
 
   # we are remodeling within the same brand
   remote.exec "snap model --assertion" | MATCH "brand-id: $SNAPD_TEST_BRAND\$"
