@@ -5378,3 +5378,230 @@ plugs:
 	c.Assert(err, ErrorMatches, errMsg)
 	c.Assert(tss, IsNil)
 }
+
+func (s *deviceMgrRemodelSuite) TestRemodelVerifyOrderOfTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	var testDeviceCtx snapstate.DeviceContext
+
+	// set a model assertion we remodel from
+	current := s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+
+	kernelSnapsupTemplate := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "kernel-new",
+			SnapID:   snaptest.AssertedSnapID("kernel-new"),
+			Revision: snap.R("123"),
+		},
+		Type: "kernel",
+	}
+
+	fooSnapsupTemplate := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo-with-base",
+			SnapID:   snaptest.AssertedSnapID("foo-with-base"),
+			Revision: snap.R("123"),
+		},
+		Type: "app",
+		Base: "foo-base",
+	}
+
+	fooBaseSnapsupTemplate := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo-base",
+			SnapID:   snaptest.AssertedSnapID("foo-base"),
+			Revision: snap.R("123"),
+		},
+		Type: "base",
+	}
+
+	barSnapsupTemplate := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "bar-with-base",
+			SnapID:   snaptest.AssertedSnapID("bar-with-base"),
+			Revision: snap.R("123"),
+		},
+		Type: "app",
+		Base: "bar-base",
+	}
+
+	barBaseSnapsupTemplate := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "bar-base",
+			SnapID:   snaptest.AssertedSnapID("bar-base"),
+			Revision: snap.R("123"),
+		},
+		Type: "base",
+	}
+
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		// currently we do not set essential snaps as required as they are
+		// prevented from being removed by other means
+		if name != "kernel-new" {
+			c.Check(flags.Required, Equals, true)
+		}
+		c.Check(deviceCtx, Equals, testDeviceCtx)
+		c.Check(fromChange, Equals, "99")
+
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		switch name {
+		case "kernel-new":
+			tDownload.Set("snap-setup", kernelSnapsupTemplate)
+		case "foo-with-base":
+			tDownload.Set("snap-setup", fooSnapsupTemplate)
+		case "bar-with-base":
+			tDownload.Set("snap-setup", barSnapsupTemplate)
+		case "foo-base":
+			tDownload.Set("snap-setup", fooBaseSnapsupTemplate)
+		case "bar-base":
+			tDownload.Set("snap-setup", barBaseSnapsupTemplate)
+		default:
+			c.Fatalf("unexpected call to install for snap %q", name)
+		}
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		tInstall.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	new := s.brands.Model("canonical", "pc-new-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"revision":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "kernel-new",
+				"id":              snaptest.AssertedSnapID("kernel-new"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "foo-with-base",
+				"id":   snaptest.AssertedSnapID("foo-with-base"),
+			},
+			map[string]interface{}{
+				"name": "bar-with-base",
+				"id":   snaptest.AssertedSnapID("bar-with-base"),
+			},
+			map[string]interface{}{
+				"name": "foo-base",
+				"type": "base",
+				"id":   snaptest.AssertedSnapID("foo-base"),
+			},
+			map[string]interface{}{
+				"name": "bar-base",
+				"type": "base",
+				"id":   snaptest.AssertedSnapID("bar-base"),
+			},
+		},
+	})
+
+	// current gadget
+	siModelGadget := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(33),
+		SnapID:   snaptest.AssertedSnapID("pc"),
+	}
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
+		SnapType:        "gadget",
+		Sequence:        []*snap.SideInfo{siModelGadget},
+		Current:         siModelGadget.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
+	})
+
+	// current kernel
+	siModelKernel := &snap.SideInfo{
+		RealName: "pc-kernel",
+		Revision: snap.R(32),
+		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
+	}
+	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
+		SnapType:        "kernel",
+		Sequence:        []*snap.SideInfo{siModelKernel},
+		Current:         siModelKernel.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
+	})
+
+	// and base
+	siModelBase := &snap.SideInfo{
+		RealName: "core20",
+		Revision: snap.R(31),
+		SnapID:   snaptest.AssertedSnapID("core20"),
+	}
+	snapstate.Set(s.state, "core20", &snapstate.SnapState{
+		SnapType:        "base",
+		Sequence:        []*snap.SideInfo{siModelBase},
+		Current:         siModelBase.Revision,
+		Active:          true,
+		TrackingChannel: "latest/stable",
+	})
+
+	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true, DeviceModel: new, OldDeviceModel: current}
+
+	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, nil, nil, testDeviceCtx, "99")
+	c.Assert(err, IsNil)
+
+	// 5 snaps + create recovery system + set model
+	c.Assert(tss, HasLen, 7)
+
+	verifyOrderOfSnapSetups(c, tss, []snap.Type{
+		snap.TypeKernel, snap.TypeBase, snap.TypeBase, snap.TypeApp, snap.TypeApp,
+	})
+}
+
+func verifyOrderOfSnapSetups(c *C, tss []*state.TaskSet, expectedTypes []snap.Type) {
+	foundTypes := make([]snap.Type, 0, len(expectedTypes))
+	for _, ts := range tss {
+		snapsup := snapSetupFromTaskSet(ts)
+		if snapsup == nil {
+			continue
+		}
+		foundTypes = append(foundTypes, snapsup.Type)
+	}
+	c.Check(foundTypes, DeepEquals, expectedTypes)
+}
+
+func snapSetupFromTaskSet(ts *state.TaskSet) *snapstate.SnapSetup {
+	for _, t := range ts.Tasks() {
+		snapsup, err := snapstate.TaskSnapSetup(t)
+		if err != nil {
+			continue
+		}
+		return snapsup
+	}
+	return nil
+}
