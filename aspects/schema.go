@@ -235,17 +235,17 @@ type mapSchema struct {
 func (v *mapSchema) Validate(raw []byte) error {
 	var mapValue map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &mapValue); err != nil {
-		return &validationError{baseErr: err}
+		return validationErrorFrom(err)
 	}
 
 	if mapValue == nil {
-		return &validationError{baseErr: fmt.Errorf(`cannot accept null value for "map" type`)}
+		return validationErrorf(`cannot accept null value for "map" type`)
 	}
 
 	if v.entrySchemas != nil {
 		for key := range mapValue {
 			if _, ok := v.entrySchemas[key]; !ok {
-				return &validationError{baseErr: fmt.Errorf(`map contains unexpected key %q`, key)}
+				return validationErrorf(`map contains unexpected key %q`, key)
 			}
 		}
 	}
@@ -267,16 +267,16 @@ func (v *mapSchema) Validate(raw []byte) error {
 	}
 
 	if missing {
-		return &validationError{baseErr: fmt.Errorf(`cannot find required combinations of keys`)}
+		return validationErrorf(`cannot find required combinations of keys`)
 	}
 
 	if v.entrySchemas != nil {
 		for key, val := range mapValue {
 			if validator, ok := v.entrySchemas[key]; ok {
 				if err := validator.Validate(val); err != nil {
-					var valErr *validationError
+					var valErr *ValidationError
 					if errors.As(err, &valErr) {
-						valErr.path = append([]string{key}, valErr.path...)
+						valErr.Path = append([]string{key}, valErr.Path...)
 					}
 					return err
 				}
@@ -291,13 +291,13 @@ func (v *mapSchema) Validate(raw []byte) error {
 		for k := range mapValue {
 			rawKey, err := json.Marshal(k)
 			if err != nil {
-				return &validationError{baseErr: fmt.Errorf("internal error: %w", err)}
+				return validationErrorf("internal error: %w", err)
 			}
 
 			if err := v.keySchema.Validate(rawKey); err != nil {
-				var valErr *validationError
+				var valErr *ValidationError
 				if errors.As(err, &valErr) {
-					valErr.path = append([]string{k}, valErr.path...)
+					valErr.Path = append([]string{k}, valErr.Path...)
 				}
 				return err
 			}
@@ -307,9 +307,9 @@ func (v *mapSchema) Validate(raw []byte) error {
 	if v.valueSchema != nil {
 		for k, val := range mapValue {
 			if err := v.valueSchema.Validate(val); err != nil {
-				var valErr *validationError
+				var valErr *ValidationError
 				if errors.As(err, &valErr) {
-					valErr.path = append([]string{k}, valErr.path...)
+					valErr.Path = append([]string{k}, valErr.Path...)
 				}
 				return err
 			}
@@ -481,7 +481,7 @@ type stringSchema struct {
 func (v *stringSchema) Validate(raw []byte) (err error) {
 	defer func() {
 		if err != nil {
-			err = &validationError{baseErr: err}
+			err = validationErrorFrom(err)
 		}
 	}()
 
@@ -550,7 +550,7 @@ type intSchema struct {
 func (v *intSchema) Validate(raw []byte) (err error) {
 	defer func() {
 		if err != nil {
-			err = &validationError{baseErr: err}
+			err = validationErrorFrom(err)
 		}
 	}()
 
@@ -619,7 +619,7 @@ type anySchema struct{}
 func (v *anySchema) Validate(raw []byte) (err error) {
 	defer func() {
 		if err != nil {
-			err = &validationError{baseErr: err}
+			err = validationErrorFrom(err)
 		}
 	}()
 
@@ -651,7 +651,7 @@ type numberSchema struct {
 func (v *numberSchema) Validate(raw []byte) (err error) {
 	defer func() {
 		if err != nil {
-			err = &validationError{baseErr: err}
+			err = validationErrorFrom(err)
 		}
 	}()
 
@@ -748,7 +748,7 @@ type booleanSchema struct{}
 func (v *booleanSchema) Validate(raw []byte) (err error) {
 	defer func() {
 		if err != nil {
-			err = &validationError{baseErr: err}
+			err = validationErrorFrom(err)
 		}
 	}()
 
@@ -786,18 +786,18 @@ type arraySchema struct {
 func (v *arraySchema) Validate(raw []byte) error {
 	var array *[]json.RawMessage
 	if err := json.Unmarshal(raw, &array); err != nil {
-		return &validationError{baseErr: err}
+		return validationErrorFrom(err)
 	}
 
 	if array == nil {
-		return &validationError{baseErr: fmt.Errorf(`cannot accept null value for "array" type`)}
+		return validationErrorf(`cannot accept null value for "array" type`)
 	}
 
 	for e, val := range *array {
 		if err := v.elementType.Validate([]byte(val)); err != nil {
-			var vErr *validationError
+			var vErr *ValidationError
 			if errors.As(err, &vErr) {
-				vErr.path = append([]string{fmt.Sprintf("[%d]", e)}, vErr.path...)
+				vErr.Path = append([]string{fmt.Sprintf("[%d]", e)}, vErr.Path...)
 			}
 			return err
 		}
@@ -809,7 +809,7 @@ func (v *arraySchema) Validate(raw []byte) error {
 		for _, val := range *array {
 			encodedVal := string(val)
 			if _, ok := valSet[encodedVal]; ok {
-				return &validationError{baseErr: fmt.Errorf(`cannot accept duplicate values for array with "unique" constraint`)}
+				return validationErrorf(`cannot accept duplicate values for array with "unique" constraint`)
 			}
 			valSet[encodedVal] = struct{}{}
 		}
@@ -845,18 +845,26 @@ func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) e
 
 func (v *arraySchema) expectsConstraints() bool { return true }
 
-type validationError struct {
-	path    []string
+type ValidationError struct {
+	Path    []string
 	baseErr error
 }
 
-func (v *validationError) Error() string {
+func (v *ValidationError) Error() string {
 	var msg string
-	if len(v.path) == 0 {
+	if len(v.Path) == 0 {
 		msg = "cannot accept top level element"
 	} else {
-		msg = fmt.Sprintf("cannot accept element in %q", strings.Join(v.path, "."))
+		msg = fmt.Sprintf("cannot accept element in %q", strings.Join(v.Path, "."))
 	}
 
 	return fmt.Sprintf("%s: %v", msg, v.baseErr)
+}
+
+func validationErrorFrom(err error) error {
+	return &ValidationError{baseErr: err}
+}
+
+func validationErrorf(format string, v ...interface{}) error {
+	return &ValidationError{baseErr: fmt.Errorf(format, v...)}
 }
