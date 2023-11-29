@@ -1361,6 +1361,10 @@ func installWithDeviceContext(st *state.State, name string, opts *RevisionOption
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
 }
 
+// Download returns a set of tasks for downloading a snap into the given
+// blobDirectory. If blobDirectory is empty, then dirs.SnapBlobDir is used. The
+// tasks that are returned will also download and validate the snap's assertion.
+// Prerequisites for the snap are not downloaded.
 func Download(ctx context.Context, st *state.State, name string, blobDirectory string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
@@ -2851,7 +2855,7 @@ func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallIn
 		return err
 	}
 
-	return checkForAvailableSpace(totalSize, infos, changeKind, dirs.SnapdStateDir(dirs.GlobalRootDir));
+	return checkForAvailableSpace(totalSize, infos, changeKind, dirs.SnapdStateDir(dirs.GlobalRootDir))
 }
 
 func checkForAvailableSpace(totalSize uint64, infos []minimalInstallInfo, changeKind string, rootDir string) error {
