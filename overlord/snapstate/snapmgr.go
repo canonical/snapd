@@ -164,10 +164,12 @@ func (snapsup *SnapSetup) placeInfo() snap.PlaceInfo {
 	return snap.MinimalPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
 }
 
+// MountDir returns the path to the directory where this snap would be mounted.
 func (snapsup *SnapSetup) MountDir() string {
 	return snap.MountDir(snapsup.InstanceName(), snapsup.Revision())
 }
 
+// MountFile returns the path to the snap/squashfs file that is used to mount the snap.
 func (snapsup *SnapSetup) MountFile() string {
 	blobDir := snapsup.DownloadBlobDir
 	if blobDir == "" {
