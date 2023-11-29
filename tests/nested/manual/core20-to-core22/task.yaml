@@ -1,5 +1,10 @@
 summary: verify a UC20 to UC22 remodel
 
+details: |
+    This test verifies remodeling from UC20 to UC22 works. Once the remodeling
+    is done and the machine boots into UC22 the test verifies that recover system
+    is usable and there should be no core20 since the new UC22 is seeded.
+
 # the test may be unstable as UC22 is effectively a work-in-progress thing, and
 # the model in question uses latest/edge of core22 and 22/edge of pc and
 # pc-kernel snaps
