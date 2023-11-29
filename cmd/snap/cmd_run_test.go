@@ -390,6 +390,23 @@ apps:
 	c.Assert(rest, check.DeepEquals, []string{"--", "snapname.app-1", "--arg1"})
 }
 
+func (s *RunSuite) TestSnapRunServiceMissingCurrentSymlinkFailsDuringInhibition(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap with missing current symlink to mimic
+	// an unlinked snap during refresh
+	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x2")})
+
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R("x2")}
+	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, inhibitInfo), check.IsNil)
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
+	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
+
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.svc", "--arg1"})
+	c.Assert(err, check.ErrorMatches, `cannot find current revision for snap snapname: readlink .*/snap/snapname/current: no such file or directory`)
+	c.Assert(rest, check.DeepEquals, []string{"--", "snapname.svc", "--arg1"})
+}
+
 func (s *RunSuite) TestSnapRunHookNoRuninhibit(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
