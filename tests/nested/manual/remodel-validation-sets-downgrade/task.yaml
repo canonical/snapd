@@ -1,6 +1,9 @@
-summary: |
-  Verify remodel will fail if model contains snap that is invalid in a
-  validation set that is referenced in the model.
+summary: Downgrade a snap from validation sets during a remodel
+
+details: |
+  Remodel to a model that contains a validation set that has a snap pinned at a
+  version that is lower than the version currently installed on the system.
+  Make sure that the remodel downgrades the snap to the lower pinned revision.
 
 systems: [ubuntu-22.04-64]
 

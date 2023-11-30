@@ -2,6 +2,11 @@ summary: |
   Verify remodel will fail if model contains snap that is invalid in a
   validation set that is referenced in the model.
 
+details: |
+  Remodel to a model that contains validation sets. The remodel should fail in
+  the case that the model declares a snap that is marked as invalid in any of
+  the validation sets that the model declares.
+
 systems: [ubuntu-22.04-64]
 
 environment:
