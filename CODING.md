@@ -180,6 +180,25 @@ We do not have strong policies against repetition in test code, as usual the imp
 
 We write them using [spread](https://github.com/snapcore/spread). Generally all externally visible features and behaviour should have spread tests. It's also important to have them for robustness and fallback behaviour as related to system properties.
 
+In order to keep the integration testing harness easy to read and consistent, there are some rules about the order and the existence of the different spread tests sections.
+
+This is the ordered sections list to follow:
+  . summary (required)
+  . details (required)
+  . backends
+  . systems
+  . manual
+  . priority
+  . warn-timeout
+  . kill-timeout
+  . environment
+  . prepare
+  . restore
+  . debug
+  . execute (required)
+
+It is important to mention that the CI tooling is enforcing the order and required sections to be completed when a spread test has been created/updated.
+
 ## PRs and refactorings
 
 * PR should ideally have diffs of around 500 lines or less. There might be exceptions when size is due to large repetitive tests, but not for the production code. Experience indicates that smaller PRs are easier to review, while it is hard to do careful and punctual reviews for very large diffs.
