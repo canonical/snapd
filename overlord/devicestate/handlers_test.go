@@ -265,27 +265,15 @@ func (s *deviceMgrSuite) TestSetModelHandlerValidationSets(c *C) {
 
 	t := s.state.NewTask("set-model", "set-model test")
 
-	// TODO: figure out if this is the best solution
-	//
-	// copied from overlord/devicestate/devicestate.go. this test is focused on
-	// verifying that the validation sets get enforced, so we don't care about
-	// the content of this that much.
-	type recoverySystemSetup struct {
-		Label          string   `json:"label"`
-		Directory      string   `json:"directory"`
-		SnapSetupTasks []string `json:"snap-setup-tasks"`
-	}
-
 	systemDirectory := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", newSystemLabel)
 
-	t.Set("recovery-system-setup", &recoverySystemSetup{
+	t.Set("recovery-system-setup", &devicestate.RecoverySystemSetup{
 		Label:     newSystemLabel,
 		Directory: systemDirectory,
 	})
 
 	modeenv := &boot.Modeenv{
-		Mode: "run",
-		// keep this comment to make old gofmt happy
+		Mode:                   "run",
 		CurrentRecoverySystems: []string{newSystemLabel},
 		GoodRecoverySystems:    []string{newSystemLabel},
 		CurrentKernels:         []string{},

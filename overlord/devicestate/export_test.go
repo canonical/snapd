@@ -264,6 +264,7 @@ type (
 	RegistrationContext = registrationContext
 	RemodelContext      = remodelContext
 	SeededSystem        = seededSystem
+	RecoverySystemSetup = recoverySystemSetup
 )
 
 func RegistrationCtx(m *DeviceManager, t *state.Task) (registrationContext, error) {
