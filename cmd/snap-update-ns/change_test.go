@@ -2781,7 +2781,7 @@ func (s *changeSuite) TestSyntheticNeededByUsesMountEntryID(c *C) {
 	}
 
 	synth, err := chg.Perform(s.as)
-	c.Check(err, IsNil)
+	c.Assert(err, IsNil)
 	c.Check(synth, HasLen, 1)
 	c.Check(synth[0].Entry.XSnapdNeededBy(), Equals, "test-id")
 }
@@ -2817,7 +2817,7 @@ func (s *changeSuite) TestSyntheticNeededByUsesDefaultMountEntryID(c *C) {
 	}
 
 	synth, err := chg.Perform(s.as)
-	c.Check(err, IsNil)
+	c.Assert(err, IsNil)
 	c.Check(synth, HasLen, 1)
 	// XSnapdEntryID defaults to entry target directory if x-snapd.id is unset
 	c.Check(synth[0].Entry.XSnapdNeededBy(), Equals, "/usr/share/target")
