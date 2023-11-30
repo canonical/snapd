@@ -41,20 +41,10 @@ var (
 func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 
-	typeStrs := strutil.MultiCommaSeparatedList(query["types"])
-	types := make([]state.NoticeType, 0, len(typeStrs))
-	for _, typeStr := range typeStrs {
-		noticeType := state.NoticeType(typeStr)
-		if !noticeType.Valid() {
-			// Ignore invalid notice types (so requests from newer clients
-			// with unknown types succeed).
-			continue
-		}
-		types = append(types, noticeType)
-	}
-	if len(types) == 0 && len(typeStrs) > 0 {
-		// Only requested invalid notice types. Return no notices, rather than
-		// all, the latter of which would occur if the types filter was empty.
+	types, err := sanitizeTypesFilter(query["types"])
+	if err != nil {
+		// Caller did provide a types filter, but they're all invalid notice types.
+		// Return no notices, rather than the default of all notices.
 		return SyncResponse([]*state.Notice{})
 	}
 
@@ -70,16 +60,18 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 		Keys:  keys,
 		After: after,
 	}
-	var notices []*state.Notice
-
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
 
 	timeout, err := parseOptionalDuration(query.Get("timeout"))
 	if err != nil {
 		return BadRequest("invalid timeout: %v", err)
 	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var notices []*state.Notice
+
 	if timeout != 0 {
 		// Wait up to timeout for notices matching given filter to occur
 		ctx, cancel := context.WithTimeout(r.Context(), timeout)
@@ -103,6 +95,24 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 		notices = []*state.Notice{} // avoid null result
 	}
 	return SyncResponse(notices)
+}
+
+func sanitizeTypesFilter(queryTypes []string) ([]state.NoticeType, error) {
+	typeStrs := strutil.MultiCommaSeparatedList(queryTypes)
+	types := make([]state.NoticeType, 0, len(typeStrs))
+	for _, typeStr := range typeStrs {
+		noticeType := state.NoticeType(typeStr)
+		if !noticeType.Valid() {
+			// Ignore invalid notice types (so requests from newer clients
+			// with unknown types succeed).
+			continue
+		}
+		types = append(types, noticeType)
+	}
+	if len(types) == 0 && len(typeStrs) > 0 {
+		return nil, errors.New("all requested notice types invalid")
+	}
+	return types, nil
 }
 
 func getNotice(c *Command, r *http.Request, user *auth.UserState) Response {
