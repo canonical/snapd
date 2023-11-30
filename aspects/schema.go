@@ -291,7 +291,7 @@ func (v *mapSchema) Validate(raw []byte) error {
 		for k := range mapValue {
 			rawKey, err := json.Marshal(k)
 			if err != nil {
-				return validationErrorf("internal error: %w", err)
+				return fmt.Errorf("internal error: %w", err)
 			}
 
 			if err := v.keySchema.Validate(rawKey); err != nil {
@@ -846,8 +846,8 @@ func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) e
 func (v *arraySchema) expectsConstraints() bool { return true }
 
 type ValidationError struct {
-	Path    []string
-	baseErr error
+	Path []string
+	Err  error
 }
 
 func (v *ValidationError) Error() string {
@@ -858,13 +858,13 @@ func (v *ValidationError) Error() string {
 		msg = fmt.Sprintf("cannot accept element in %q", strings.Join(v.Path, "."))
 	}
 
-	return fmt.Sprintf("%s: %v", msg, v.baseErr)
+	return fmt.Sprintf("%s: %v", msg, v.Err)
 }
 
 func validationErrorFrom(err error) error {
-	return &ValidationError{baseErr: err}
+	return &ValidationError{Err: err}
 }
 
 func validationErrorf(format string, v ...interface{}) error {
-	return &ValidationError{baseErr: fmt.Errorf(format, v...)}
+	return &ValidationError{Err: fmt.Errorf(format, v...)}
 }
