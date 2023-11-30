@@ -9275,3 +9275,167 @@ epoch: 1
 	c.Assert(t, NotNil)
 	c.Check(ts.MaybeEdge(snapstate.EndEdge).ID(), Equals, t.ID())
 }
+
+func (s *snapmgrTestSuite) TestDownload(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, err := snapstate.Download(context.Background(), s.state, "foo", "", nil, 0, snapstate.Flags{}, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(ts.Tasks(), HasLen, 2)
+
+	downloadSnap := ts.MaybeEdge(snapstate.BeginEdge)
+	c.Assert(downloadSnap, NotNil)
+	c.Check(downloadSnap.Kind(), Equals, "download-snap")
+
+	var snapsup snapstate.SnapSetup
+	err = downloadSnap.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+
+	validateSnap := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(validateSnap, NotNil)
+	c.Check(validateSnap.Kind(), Equals, "validate-snap")
+
+	var snapsupTaskID string
+	err = validateSnap.Get("snap-setup-task", &snapsupTaskID)
+	c.Assert(err, IsNil)
+	c.Check(snapsupTaskID, Equals, downloadSnap.ID())
+}
+
+func (s *snapmgrTestSuite) TestDownloadSpecifyRevision(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, err := snapstate.Download(context.Background(), s.state, "foo", "", &snapstate.RevisionOptions{
+		Revision: snap.R(2),
+	}, 0, snapstate.Flags{}, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(ts.Tasks(), HasLen, 2)
+
+	downloadSnap := ts.MaybeEdge(snapstate.BeginEdge)
+	c.Assert(downloadSnap, NotNil)
+	c.Check(downloadSnap.Kind(), Equals, "download-snap")
+
+	var snapsup snapstate.SnapSetup
+	err = downloadSnap.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Revision(), Equals, snap.R(2))
+
+	validateSnap := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(validateSnap, NotNil)
+	c.Check(validateSnap.Kind(), Equals, "validate-snap")
+
+	var snapsupTaskID string
+	err = validateSnap.Get("snap-setup-task", &snapsupTaskID)
+	c.Assert(err, IsNil)
+	c.Check(snapsupTaskID, Equals, downloadSnap.ID())
+}
+
+func (s *snapmgrTestSuite) TestDownloadSpecifyDownloadDir(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	downloadDir := c.MkDir()
+
+	ts, err := snapstate.Download(context.Background(), s.state, "foo", downloadDir, &snapstate.RevisionOptions{
+		Revision: snap.R(1),
+	}, 0, snapstate.Flags{}, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(ts.Tasks(), HasLen, 2)
+
+	downloadSnap := ts.MaybeEdge(snapstate.BeginEdge)
+	c.Assert(downloadSnap, NotNil)
+	c.Check(downloadSnap.Kind(), Equals, "download-snap")
+
+	var snapsup snapstate.SnapSetup
+	err = downloadSnap.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.MountFile(), Equals, filepath.Join(downloadDir, "foo_1.snap"))
+
+	validateSnap := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(validateSnap, NotNil)
+	c.Check(validateSnap.Kind(), Equals, "validate-snap")
+
+	var snapsupTaskID string
+	err = validateSnap.Get("snap-setup-task", &snapsupTaskID)
+	c.Assert(err, IsNil)
+	c.Check(snapsupTaskID, Equals, downloadSnap.ID())
+}
+
+func (s *snapmgrTestSuite) TestDownloadOutOfSpace(c *C) {
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error {
+		return &osutil.NotEnoughDiskSpaceError{}
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := snapstate.Download(context.Background(), s.state, "foo", "", &snapstate.RevisionOptions{
+		Revision: snap.R(2),
+	}, 0, snapstate.Flags{}, nil)
+	c.Assert(err, NotNil)
+
+	diskSpaceErr, ok := err.(*snapstate.InsufficientSpaceError)
+	c.Assert(ok, Equals, true)
+	c.Check(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "download" change for the following snaps: foo`)
+	c.Check(diskSpaceErr.Path, Equals, dirs.SnapBlobDir)
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"foo"})
+}
+
+func (s *snapmgrTestSuite) TestDownloadAlreadyInstalled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Current: snap.R(11),
+		Sequence: []*snap.SideInfo{
+			{RealName: "foo", SnapID: snaptest.AssertedSnapID("foo"), Revision: snap.R(11)},
+		},
+		Active:   true,
+		SnapType: "app",
+	})
+
+	const downloadDir = ""
+	_, err := snapstate.Download(context.Background(), s.state, "foo", downloadDir, nil, 0, snapstate.Flags{}, nil)
+	c.Assert(err, NotNil)
+
+	alreadyInstalledErr, ok := err.(*snap.AlreadyInstalledError)
+	c.Assert(ok, Equals, true)
+	c.Check(alreadyInstalledErr.Snap, Equals, "foo")
+}
+
+func (s *snapmgrTestSuite) TestDownloadSpecifyCohort(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel", CohortKey: "cohort-key"}
+	ts, err := snapstate.Download(context.Background(), s.state, "foo", "", opts, 0, snapstate.Flags{}, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(ts.Tasks(), HasLen, 2)
+
+	downloadSnap := ts.MaybeEdge(snapstate.BeginEdge)
+	c.Assert(downloadSnap, NotNil)
+	c.Check(downloadSnap.Kind(), Equals, "download-snap")
+
+	var snapsup snapstate.SnapSetup
+	err = downloadSnap.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Revision(), Equals, snap.R(666))
+
+	c.Check(snapsup.CohortKey, Equals, "cohort-key")
+	c.Check(snapsup.Channel, Equals, "some-channel")
+
+	validateSnap := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(validateSnap, NotNil)
+	c.Check(validateSnap.Kind(), Equals, "validate-snap")
+
+	var snapsupTaskID string
+	err = validateSnap.Get("snap-setup-task", &snapsupTaskID)
+	c.Assert(err, IsNil)
+	c.Check(snapsupTaskID, Equals, downloadSnap.ID())
+}

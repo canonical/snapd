@@ -155,9 +155,16 @@ func MountDir(name string, revision Revision) string {
 	return filepath.Join(BaseDir(name), revision.String())
 }
 
-// MountFile returns the path where the snap file that is mounted is installed.
+// MountFile returns the path where the snap file that is mounted is installed,
+// using the default blob directory (dirs.SnapBlobDir).
 func MountFile(name string, revision Revision) string {
-	return filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", name, revision))
+	return MountFileInDir(dirs.SnapBlobDir, name, revision)
+}
+
+// MountFileInDir returns the path where the snap file that is mounted is
+// installed in a given directory.
+func MountFileInDir(dir, name string, revision Revision) string {
+	return filepath.Join(dir, fmt.Sprintf("%s_%s.snap", name, revision))
 }
 
 // ScopedSecurityTag returns the snap-specific, scope specific, security tag.

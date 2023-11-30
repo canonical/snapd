@@ -37,6 +37,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -91,6 +92,7 @@ import (
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
@@ -1158,6 +1160,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 						PrimaryKey  []string `json:"primary-key"`
 						IfNewerThan *int     `json:"if-newer-than"`
 					}
+					Revision int `json:"revision"`
 				} `json:"actions"`
 				Context []struct {
 					SnapID string     `json:"snap-id"`
@@ -1206,7 +1209,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 				}
 				name := s.serveIDtoName[a.SnapID]
 				epoch := id2epoch[a.SnapID]
-				if a.Action == "install" {
+				if a.Action == "install" || a.Action == "download" {
 					name = a.Name
 					epoch = a.Epoch
 				}
@@ -1216,6 +1219,11 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 					// no match
 					continue
 				}
+
+				if a.Revision != 0 {
+					revno = strconv.Itoa(a.Revision)
+				}
+
 				results = append(results, resultJSON{
 					Result:      a.Action,
 					SnapID:      a.SnapID,
@@ -12443,4 +12451,115 @@ volumes:
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Mount snap \"pi-kernel\" \\(2\\) \\(cannot refresh kernel with change created by old snapd that is missing gadget update task\\)")
+}
+
+func (s *mgrsSuite) TestDownloadToDefault(c *C) {
+	// should default to dirs.SnapBlobDir
+	const downloadDir = ""
+	s.testDownload(c, downloadDir)
+}
+
+func (s *mgrsSuite) TestDownloadToLocation(c *C) {
+	downloadDir := c.MkDir()
+	s.testDownload(c, downloadDir)
+}
+
+func (s *mgrsSuite) testDownload(c *C, downloadDir string) {
+	s.prereqSnapAssertions(c)
+
+	const snapRev = "1"
+
+	testSnapPath, _ := s.makeStoreTestSnap(c, "{name: foo, version: 0}", snapRev)
+	s.serveSnap(testSnapPath, snapRev)
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := snapstate.Download(context.TODO(), st, "foo", downloadDir, nil, 0, snapstate.Flags{}, nil)
+	c.Assert(err, IsNil)
+	chg := st.NewChange("download-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// confirm that download-snap task ran
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("download-snap change failed with: %v", chg.Err()))
+
+	expectedDownloadDir := downloadDir
+	if expectedDownloadDir == "" {
+		expectedDownloadDir = dirs.SnapBlobDir
+	}
+
+	snapPath := filepath.Join(expectedDownloadDir, fmt.Sprintf("%s_%s.snap", "foo", snapRev))
+
+	exists := osutil.FileExists(snapPath)
+	c.Check(exists, Equals, true)
+
+	digest, _, err := asserts.SnapFileSHA3_384(snapPath)
+	c.Assert(err, IsNil)
+
+	// test that snap revision assertion was added by validation-snap task
+	_, err = assertstate.DB(st).Find(asserts.SnapRevisionType, map[string]string{
+		"snap-sha3-384": digest,
+	})
+	c.Check(err, IsNil)
+}
+
+func (s *mgrsSuite) TestDownloadSpecificRevision(c *C) {
+	s.prereqSnapAssertions(c)
+
+	const snapOldRev = "1"
+	const snapNewRev = "2"
+
+	snapOldPath, _ := s.makeStoreTestSnap(c, "{name: foo, version: 1}", snapOldRev)
+	s.serveSnap(snapOldPath, snapOldRev)
+
+	snapNewPath, _ := s.makeStoreTestSnap(c, "{name: foo, version: 2}", snapNewRev)
+	s.serveSnap(snapNewPath, snapNewRev)
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := snapstate.Download(context.TODO(), st, "foo", "", &snapstate.RevisionOptions{
+		Revision: snap.R(snapOldRev),
+	}, 0, snapstate.Flags{}, nil)
+	c.Assert(err, IsNil)
+	chg := st.NewChange("download-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// confirm it worked
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("download-snap change failed with: %v", chg.Err()))
+
+	snapPath := filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", "foo", snapOldRev))
+	exists := osutil.FileExists(snapPath)
+	c.Check(exists, Equals, true)
+
+	info, err := snap.ReadInfoFromSnapFile(squashfs.New(snapPath), nil)
+	c.Assert(err, IsNil)
+	c.Check(info.Version, Equals, "1")
+
+	digest, _, err := asserts.SnapFileSHA3_384(snapPath)
+	c.Assert(err, IsNil)
+
+	// test that snap revision assertion was added by validation-snap task
+	_, err = assertstate.DB(st).Find(asserts.SnapRevisionType, map[string]string{
+		"snap-sha3-384": digest,
+	})
+	c.Check(err, IsNil)
 }
