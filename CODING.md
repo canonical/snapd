@@ -183,21 +183,21 @@ We write them using [spread](https://github.com/snapcore/spread). Generally all 
 In order to keep the integration testing harness easy to read and consistent, there are some rules about the order and the existence of the different spread tests sections.
 
 This is the ordered sections list to follow:
-  . summary (required)
-  . details (required)
-  . backends
-  . systems
-  . manual
-  . priority
-  . warn-timeout
-  . kill-timeout
-  . environment
-  . prepare
-  . restore
-  . debug
-  . execute (required)
+ 1. summary (required)
+ 1. details (required)
+ 1. backends
+ 1. systems
+ 1. manual
+ 1. priority
+ 1. warn-timeout
+ 1. kill-timeout
+ 1. environment
+ 1. prepare
+ 1. restore
+ 1. debug
+ 1. execute (required)
 
-It is important to mention that the CI tooling is enforcing the order and required sections to be completed when a spread test has been created/updated.
+The CI tooling will check and enforce the order and required sections when a spread test is created or updated.
 
 ## PRs and refactorings
 
