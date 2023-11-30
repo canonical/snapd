@@ -2,7 +2,7 @@ summary: Check that the browser-support interface works
 
 details: |
     Verify that a snap using the browser-support interface is able to
-    access to various APIs needed by modern web browsers.
+    access the various APIs needed by modern web browsers.
 
 environment:
     ALLOW_SANDBOX/allow: true
