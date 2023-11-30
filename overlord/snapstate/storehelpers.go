@@ -613,13 +613,104 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]st
 	return curSnaps, nil
 }
 
+// refreshCandidates is a wrapper for refreshCandidatesCore.
+//
+// It addresses the case where the store doesn't return refresh candidates for
+// snaps with already existing monitored refresh-candidates due to inconsistent
+// store return being caused by the throttling.
+// A second request is sent for eligible snaps that might have been throttled
+// with the RevisionOptions.Scheduled option turned off.
+//
+// Note: This wrapper is a short term solution and should be removed once a better
+// solution is reached.
 func refreshCandidates(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
-	snapStates, err := All(st)
+	// initialize options before using
+	opts, err := refreshOptions(st, opts)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	opts, err = refreshOptions(st, opts)
+	var revOptsByName map[string]*RevisionOptions
+	if revOpts != nil {
+		revOptsByName = make(map[string]*RevisionOptions, len(revOpts))
+		for i, opts := range revOpts {
+			revOptsByName[names[i]] = opts
+		}
+	}
+
+	updates, stateByInstanceName, ignoreValidation, err := refreshCandidatesCore(ctx, st, names, revOpts, user, opts)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	if !opts.Scheduled {
+		// not an auto-refresh, just return what we got
+		return updates, stateByInstanceName, ignoreValidation, nil
+	}
+
+	var oldHints map[string]*refreshCandidate
+	if err := st.Get("refresh-candidates", &oldHints); err != nil {
+		if errors.Is(err, &state.NoStateError{}) {
+			// do nothing
+			return updates, stateByInstanceName, ignoreValidation, nil
+		}
+
+		return nil, nil, nil, fmt.Errorf("cannot get refresh-candidates: %v", err)
+	}
+
+	var missingNames []string
+
+	for name, hint := range oldHints {
+		if stateByInstanceName[name] == nil {
+			continue
+		}
+		if !hint.Monitored {
+			continue
+		}
+		hasUpdate := false
+		for _, update := range updates {
+			if update.InstanceName() == name {
+				hasUpdate = true
+				break
+			}
+		}
+		if hasUpdate {
+			continue
+		}
+
+		missingNames = append(missingNames, name)
+	}
+
+	if len(missingNames) > 0 {
+		var missingRevOpts []*RevisionOptions
+		if revOpts != nil {
+			for _, name := range missingNames {
+				missingRevOpts = append(missingRevOpts, revOptsByName[name])
+			}
+		}
+		// mimic manual refresh to avoid throttling.
+		// context: snaps may be throttled by the store to balance load
+		// and therefore may not always receive an update (even if one was
+		// returned before). forcing a manual refresh should be fine since
+		// we already started a pre-download for this snap, so no extra
+		// load is being exerted on the store.
+		opts.Scheduled = false
+		moreUpdates, _, _, err := refreshCandidatesCore(ctx, st, missingNames, missingRevOpts, user, opts)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		updates = append(updates, moreUpdates...)
+	}
+
+	return updates, stateByInstanceName, ignoreValidation, nil
+}
+
+func refreshCandidatesCore(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
+	if opts == nil {
+		return nil, nil, nil, fmt.Errorf("internal error: opts cannot be nil")
+	}
+
+	snapStates, err := All(st)
 	if err != nil {
 		return nil, nil, nil, err
 	}

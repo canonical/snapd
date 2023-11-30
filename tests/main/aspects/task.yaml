@@ -1,5 +1,8 @@
 summary: Check the aspects API
 
+details: |
+  Verify the basic scenarios of the aspects API
+
 # ubuntu-14.04-64's curl doesn't support --unix-socket
 systems: [-ubuntu-14.04-*]
 

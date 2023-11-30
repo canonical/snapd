@@ -764,6 +764,24 @@ func remodelSnapdSnapTasks(st *state.State, newModel *asserts.Model, localSnaps 
 	return nil, nil
 }
 
+func sortNonEssentialRemodelTaskSetsBasesFirst(snaps []*asserts.ModelSnap) []*asserts.ModelSnap {
+	sorted := append([]*asserts.ModelSnap(nil), snaps...)
+
+	orderOfType := func(snapType string) int {
+		switch snap.Type(snapType) {
+		case snap.TypeBase, snap.TypeOS:
+			return -1
+		}
+		return 1
+	}
+
+	sort.Slice(sorted, func(i, j int) bool {
+		return orderOfType(sorted[i].SnapType) < orderOfType(sorted[j].SnapType)
+	})
+
+	return sorted
+}
+
 func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model,
 	localSnaps []*snap.SideInfo, paths []string,
 	deviceCtx snapstate.DeviceContext, fromChange string) ([]*state.TaskSet, error) {
@@ -820,6 +838,10 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	}
 	snapsAccountedFor["snapd"] = true
 
+	// TODO: this order is not correct, and needs to be changed to match the
+	// order that is described in the comment on essentialSnapsRestartOrder in
+	// overlord/snapstate/reboot.go
+	//
 	// In the order: kernel, boot base, gadget
 	for _, modelSnap := range new.EssentialSnaps() {
 		if modelSnap.SnapType == "snapd" {
@@ -843,9 +865,14 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		snapsAccountedFor[newSnap] = true
 	}
 
+	// sort the snaps so that we collect the task sets for base snaps first, and
+	// then the rest. this prevents a later issue where we attempt to install a
+	// snap, but the base is not yet installed.
+	snapsWithoutEssential := sortNonEssentialRemodelTaskSetsBasesFirst(new.SnapsWithoutEssential())
+
 	// go through all the model snaps, see if there are new required snaps
 	// or a track for existing ones needs to be updated
-	for _, modelSnap := range new.SnapsWithoutEssential() {
+	for _, modelSnap := range snapsWithoutEssential {
 		logger.Debugf("adding remodel tasks for non-essential snap %s", modelSnap.Name)
 
 		// TODO|XXX: have methods that take refs directly
@@ -1116,7 +1143,9 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 }
 
 func verifyModelValidationSets(st *state.State, newModel *asserts.Model, offline bool, deviceCtx snapstate.DeviceContext) (*snapasserts.ValidationSets, error) {
-	vSets, err := assertstate.ValidationSetsFromModel(st, newModel, snapstate.Store(st, deviceCtx), offline)
+	vSets, err := assertstate.ValidationSetsFromModel(st, newModel, assertstate.ValidationSetsModelOptions{
+		Offline: offline,
+	}, deviceCtx)
 	if err != nil {
 		return nil, err
 	}

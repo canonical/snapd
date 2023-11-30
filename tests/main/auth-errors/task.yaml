@@ -1,5 +1,10 @@
 summary: Check that the authentication errors are properly reported.
 
+details: |
+    Verify that in ubuntu core just authenticated users are allowed to
+    install snaps ans to connect interfaces. Also validate the error
+    messages are the expected.
+
 systems: [-ubuntu-core-*]
 
 prepare: |

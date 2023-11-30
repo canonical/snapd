@@ -27,14 +27,14 @@ snaps:
     type: base
   -
     default-channel: latest/stable
-    id: 99T7MUlRhtI3U0QFgl5mXXESAiSwt776
-    name: core
-    type: core
-  -
-    default-channel: latest/stable
     id: buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ
     name: hello-world
     type: app
+  -
+    default-channel: latest/stable
+    id: 99T7MUlRhtI3U0QFgl5mXXESAiSwt776
+    name: core
+    type: core
   -
     default-channel: latest/edge
     id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
@@ -42,19 +42,15 @@ snaps:
     type: snapd
 system-user-authority: *
 timestamp: 2023-10-30T11:01:45+00:00
-validation-sets:
-  -
-    mode: enforce
-    name: test-snapd-core22-required-vset
 sign-key-sha3-384: 7qWG-Uwck6Dji43a3Z8ZZrm7rAziZAch3xf76iFvqe4GaD0LI7U9lYPWMSJAsEgu
 
-AcLBcwQAAQoAHRYhBGESvKlz1RXG1IBOC0MdJKf2hr9ABQJlSk8qAAoJEEMdJKf2hr9AUbMP/27L
-Ik2ShnV92XzzByd8x2jho1wV/YLPUbdQCfbaMhLvqSGz0gYXG+acbWfdpnMKQAb7YfBH+GPPZuc7
-I8GkH6sKbqkBsCIMoHhrNoSNLRC2IPPuHShRW5zJs7qwLTfGpdEIvbQaHqtp7cTHhKQ7iU8XqC38
-JiR/QIDhbGmLViCQzy5XhP4Cs4+C5H6PTiIQN2LKZmtA2CmQb/NPkB86kokVlHc1rmOZIS1fejkt
-7prtxTOnRtw4R19Qu/ndFw3Set8yeKWGEoOouStGsIN9SD/3dpUXOtC60X5SdnZkrfYf361PvSYM
-Ql3N5z/uQU6uY6VQqVzG9Z5R92BOcshTNC73hejlOnwBP+LUHKN6Ij5O3Sg/i0+K7OwlgWNzlfVf
-nb2CeL7dHqO5BeoYqHYEo7ZkhTrBLftFBJEXiGeJne34OULTSmwO+geZwd4EMeAOZIG0IPG3x2Lk
-hGgmOEc0cOWMCCV0fiW1aoiK3qSZpMiyyMdxFrgCcDje77Kw2/b3uqRtnWiFjyEcZi7LvvvugQuY
-0ZilT59fw5UenguNAhWfIxtYyWd1jWXQxTgnQF1k0lZ9ljPtmaegPhfn30ZxUQeJXRrE0+fY4vXm
-5HTUwLAv3LyK1x9n1XJPBOBg56G0Vbn7+cLqlhcSiGNVZhiAUv7ErB0gfSIT5iJcg8E0g5Gp
+AcLBcwQAAQoAHRYhBGESvKlz1RXG1IBOC0MdJKf2hr9ABQJlS5ZcAAoJEEMdJKf2hr9A56kP+wZp
+OKMzC3JaYhJfuI1v8d1yUGf9X4jtYsM0ulhsFaShngrcE+EJCK8H19W7vIOGNgq1zSCEBlAea3gF
+VYn8ps26XIETgKMrWRa1a2crUkVPZmVo/wxxV7TIb6jV/UBQvMvA/lrhHS3Wfpy45tR2iXIfnRY/
+lpj2Kg5tdAVfMqPlzxKCFxT5n31DXAT8MfWF55DUoqjM8nE/kFY/Sp8WE8XRvkJozSd1JDCM6Pbi
+KOmek1oTI4BaEGtxidZNgTXITKSBOdC1TDvvLvOmv2MhIo10d2RoBUBz+ZSleMI+cW/VcjosBV12
+/ev9IYNZtu1TjFOzjilxRhAjIxl6EubV+5FcNfrPcJHXd6l6/6YaJKSUNwgEpgQd2If8kFuuOQdz
++OOUWRb+XG0obT8CXyrJBfoDleURilNFg8LuW6Aqd6bdtaT7AatusYg36KTKvGmXFWCNY/GA84BA
+7OUwUNNDcozc4FG0TVvUXFjpu640pjo7rvnom465amCE7C/Q4YRUnmBlAZBh1M4E6Vw3FWLYtefc
+MAL+2fMzQngvnDmd3YddNeWcAfwgYMIRlpFsd8WvlEC7rogQOUY7SJAFx0oTx0nomDrHhtZnYRou
+spA8gE9XkqWY4jdGb081tC5gm1pJHhq9EHNTA2qvqylccEl/vsj99d2eQVVis+mqq36skcXl

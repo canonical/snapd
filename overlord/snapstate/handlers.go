@@ -315,19 +315,27 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 		return updatePrereqIfOutdated(t, snapName, contentAttrs, userID, flags)
 	}
 
-	// in progress?
-	if linkTask, err := findLinkSnapTaskForSnap(st, snapName); err != nil {
-		return nil, err
-	} else if linkTask != nil {
-		return nil, onInFlight
-	}
-
-	// not installed, nor queued for install -> install it
 	deviceCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
 		return nil, err
 	}
 
+	// in progress?
+	if linkTask, err := findLinkSnapTaskForSnap(st, snapName); err != nil {
+		return nil, err
+	} else if linkTask != nil {
+		// if we are remodeling, then we should return early due to the way that
+		// tasks are ordered by the remodeling code. specifically, all snap
+		// downloads during a remodel happen prior to snap installation. thus,
+		// we cannot wait for snaps to be installed here. see remodelTasks for
+		// more information on how the tasks are ordered.
+		if deviceCtx.ForRemodeling() {
+			return nil, nil
+		}
+		return nil, onInFlight
+	}
+
+	// not installed, nor queued for install -> install it
 	ts, err := InstallWithDeviceContext(context.TODO(), st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireTypeBase: requireTypeBase}, nil, deviceCtx, "")
 
 	// something might have triggered an explicit install while
