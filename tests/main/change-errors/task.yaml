@@ -1,7 +1,7 @@
 summary: Checks for cli errors of the tasks / change command.
 
 details: |
-    Verify the commands snap tasks and snap change return an error
+    Verify that `snap tasks` and `snap change` return an error
     when the provided ID is invalid.
 
 execute: |
