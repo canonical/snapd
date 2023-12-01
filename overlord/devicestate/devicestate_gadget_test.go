@@ -297,7 +297,7 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 	if grade != "" {
 		bootDir := c.MkDir()
 		tbl := bootloadertest.Mock("trusted", bootDir).WithTrustedAssets()
-		tbl.TrustedAssetsList = []string{"trusted-asset"}
+		tbl.TrustedAssetsMap = map[string]string{"trusted-asset": "trusted-asset"}
 		tbl.ManagedAssetsList = []string{"managed-asset"}
 		bootloader.Force(tbl)
 		defer func() { bootloader.Force(nil) }()

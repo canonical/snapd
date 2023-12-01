@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 
 	. "gopkg.in/check.v1"
@@ -1116,7 +1117,7 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 
 	bootdir := c.MkDir()
 	mtbl := bootloadertest.Mock("trusted", bootdir).WithTrustedAssets()
-	mtbl.TrustedAssetsList = []string{"asset-1"}
+	mtbl.TrustedAssetsMap = map[string]string{"asset": "asset"}
 	mtbl.StaticCommandLine = "static cmdline"
 	mtbl.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
@@ -1219,7 +1220,7 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 		modesForSystems         map[string][]string
 		undefinedKernel         bool
 		gadgetFilesForSystem    map[string][][]string
-		expectedAssets          []boot.BootAsset
+		expectedAssets          [][]boot.BootAsset
 		expectedKernelRevs      []int
 		expectedBootChainsCount int
 		// in the order of boot chains
@@ -1234,10 +1235,10 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 				"grubx64.efi": []string{"grub-hash-1", "grub-hash-2"},
 				"bootx64.efi": []string{"shim-hash-1"},
 			},
-			expectedAssets: []boot.BootAsset{
+			expectedAssets: [][]boot.BootAsset{{
 				{Role: bootloader.RoleRecovery, Name: "bootx64.efi", Hashes: []string{"shim-hash-1"}},
 				{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1", "grub-hash-2"}},
-			},
+			}},
 			expectedKernelRevs: []int{1},
 			expectedCmdlines: [][]string{{
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
@@ -1255,10 +1256,10 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 				"grubx64.efi": []string{"grub-hash-1", "grub-hash-2"},
 				"bootx64.efi": []string{"shim-hash-1"},
 			},
-			expectedAssets: []boot.BootAsset{
+			expectedAssets: [][]boot.BootAsset{{
 				{Role: bootloader.RoleRecovery, Name: "bootx64.efi", Hashes: []string{"shim-hash-1"}},
 				{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1", "grub-hash-2"}},
-			},
+			}},
 			expectedKernelRevs: []int{1, 3},
 			expectedCmdlines: [][]string{{
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
@@ -1276,10 +1277,10 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 				"grubx64.efi": []string{"grub-hash-1"},
 				"bootx64.efi": []string{"shim-hash-1"},
 			},
-			expectedAssets: []boot.BootAsset{
+			expectedAssets: [][]boot.BootAsset{{
 				{Role: bootloader.RoleRecovery, Name: "bootx64.efi", Hashes: []string{"shim-hash-1"}},
 				{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1"}},
-			},
+			}},
 			expectedKernelRevs: []int{1},
 			expectedCmdlines: [][]string{{
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
@@ -1297,10 +1298,10 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 				"grubx64.efi": []string{"grub-hash-1", "grub-hash-2"},
 				"bootx64.efi": []string{"shim-hash-1"},
 			},
-			expectedAssets: []boot.BootAsset{
+			expectedAssets: [][]boot.BootAsset{{
 				{Role: bootloader.RoleRecovery, Name: "bootx64.efi", Hashes: []string{"shim-hash-1"}},
 				{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1", "grub-hash-2"}},
-			},
+			}},
 			gadgetFilesForSystem: map[string][][]string{
 				"20200825": {
 					{"cmdline.extra", "extra for 20200825"},
@@ -1331,10 +1332,10 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 				"grubx64.efi": []string{"grub-hash-1", "grub-hash-2"},
 				"bootx64.efi": []string{"shim-hash-1"},
 			},
-			expectedAssets: []boot.BootAsset{
+			expectedAssets: [][]boot.BootAsset{{
 				{Role: bootloader.RoleRecovery, Name: "bootx64.efi", Hashes: []string{"shim-hash-1"}},
 				{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1", "grub-hash-2"}},
-			},
+			}},
 			expectedKernelRevs: []int{1, 3},
 			expectedCmdlines: [][]string{{
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
@@ -1356,10 +1357,10 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 				"grubx64.efi": []string{"grub-hash-1", "grub-hash-2"},
 				"bootx64.efi": []string{"shim-hash-1"},
 			},
-			expectedAssets: []boot.BootAsset{
+			expectedAssets: [][]boot.BootAsset{{
 				{Role: bootloader.RoleRecovery, Name: "bootx64.efi", Hashes: []string{"shim-hash-1"}},
 				{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1", "grub-hash-2"}},
-			},
+			}},
 			expectedKernelRevs: []int{1, 3},
 			expectedCmdlines: [][]string{{
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
@@ -1380,6 +1381,43 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 			recoverySystems: []string{"20200825"},
 			modesForSystems: map[string][]string{"other": {boot.ModeRecover}},
 			err:             `internal error: no modes for system "20200825"`,
+		},
+		{
+			desc:            "no matching boot chains",
+			recoverySystems: []string{"20200825"},
+			modesForSystems: map[string][]string{"20200825": {boot.ModeRecover, boot.ModeFactoryReset}},
+			assetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-1", "grub-hash-2"},
+				"shimx64.efi": []string{"shim-hash-1"}, // it should be bootx64.efi
+			},
+			err: `could not find any valid chain for this model`,
+		},
+		{
+			desc:            "udpate to new layout",
+			recoverySystems: []string{"20200825"},
+			modesForSystems: map[string][]string{"20200825": {boot.ModeRecover, boot.ModeFactoryReset}},
+			assetsMap: boot.BootAssetsMap{
+				"grubx64.efi":        []string{"grub-hash-1"},
+				"bootx64.efi":        []string{"shim-hash-1"},
+				"ubuntu:grubx64.efi": []string{"grub-hash-2"},
+				"ubuntu:shimx64.efi": []string{"shim-hash-2"},
+			},
+			expectedAssets: [][]boot.BootAsset{{
+				{Role: bootloader.RoleRecovery, Name: "bootx64.efi", Hashes: []string{"shim-hash-1"}},
+				{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1"}},
+			}, {
+				{Role: bootloader.RoleRecovery, Name: "ubuntu:shimx64.efi", Hashes: []string{"shim-hash-2"}},
+				{Role: bootloader.RoleRecovery, Name: "ubuntu:grubx64.efi", Hashes: []string{"grub-hash-2"}},
+			}},
+			expectedKernelRevs: []int{1, 1},
+			expectedCmdlines: [][]string{{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+			}, {
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+				"snapd_recovery_mode=factory-reset snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+			}},
+			expectedBootChainsCount: 2,
 		},
 	} {
 		c.Logf("tc: %q", tc.desc)
@@ -1438,8 +1476,17 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 				c.Assert(bc, HasLen, tc.expectedBootChainsCount)
 			}
 			c.Assert(tc.expectedCmdlines, HasLen, len(bc), Commentf("broken test, expected command lines must be of the same length as recovery systems and recovery boot chains"))
+			foundChains := make(map[int]bool)
 			for i, chain := range bc {
-				c.Assert(chain.AssetChain, DeepEquals, tc.expectedAssets)
+				foundChain := false
+				for j, expectedAssets := range tc.expectedAssets {
+					if reflect.DeepEqual(chain.AssetChain, expectedAssets) {
+						foundChains[j] = true
+						foundChain = true
+						continue
+					}
+				}
+				c.Assert(foundChain, Equals, true)
 				c.Assert(chain.Kernel, Equals, "pc-kernel")
 				expectedKernelRev := tc.expectedKernelRevs[i]
 				c.Assert(chain.KernelRevision, Equals, fmt.Sprintf("%d", expectedKernelRev))
@@ -1449,6 +1496,9 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 					Role: bootloader.RoleRecovery,
 				})
 				c.Assert(chain.KernelCmdlines, DeepEquals, tc.expectedCmdlines[i])
+			}
+			for j := range tc.expectedAssets {
+				c.Assert(foundChains[j], Equals, true)
 			}
 		} else {
 			c.Assert(err, ErrorMatches, tc.err)
