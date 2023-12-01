@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -5789,7 +5790,18 @@ func (s *deviceMgrSuite) testRemodelUpdateFromValidationSet(c *C, sequence strin
 		DeviceModel:    newModel,
 		OldDeviceModel: currentModel,
 		CtxStore: &fakeSequenceStore{
-			fn: func(*asserts.AssertionType, []string, int, *auth.UserState) (asserts.Assertion, error) {
+			fn: func(aType *asserts.AssertionType, key []string, seq int, _ *auth.UserState) (asserts.Assertion, error) {
+				c.Check(aType, Equals, asserts.ValidationSetType)
+				c.Check(key, DeepEquals, []string{"16", "canonical", "vset-1"})
+
+				if sequence == "" {
+					c.Check(seq, Equals, 0)
+				} else {
+					n, err := strconv.Atoi(sequence)
+					c.Assert(err, IsNil)
+					c.Check(seq, Equals, n)
+				}
+
 				return vset, nil
 			},
 		},
@@ -5901,7 +5913,10 @@ func (s *deviceMgrSuite) testRemodelInvalidFromValidationSet(c *C, invalidSnap s
 		DeviceModel:    newModel,
 		OldDeviceModel: currentModel,
 		CtxStore: &fakeSequenceStore{
-			fn: func(*asserts.AssertionType, []string, int, *auth.UserState) (asserts.Assertion, error) {
+			fn: func(aType *asserts.AssertionType, key []string, sequence int, _ *auth.UserState) (asserts.Assertion, error) {
+				c.Check(aType, Equals, asserts.ValidationSetType)
+				c.Check(key, DeepEquals, []string{"16", "canonical", "vset-1"})
+				c.Check(sequence, Equals, 0)
 				return vset, nil
 			},
 		},
@@ -6121,7 +6136,10 @@ func (s *deviceMgrSuite) TestRemodelRequiredSnapMissingFromModel(c *C) {
 		DeviceModel:    newModel,
 		OldDeviceModel: currentModel,
 		CtxStore: &fakeSequenceStore{
-			fn: func(*asserts.AssertionType, []string, int, *auth.UserState) (asserts.Assertion, error) {
+			fn: func(aType *asserts.AssertionType, key []string, sequence int, _ *auth.UserState) (asserts.Assertion, error) {
+				c.Check(aType, Equals, asserts.ValidationSetType)
+				c.Check(key, DeepEquals, []string{"16", "canonical", "vset-1"})
+				c.Check(sequence, Equals, 0)
 				return vset, nil
 			},
 		},
