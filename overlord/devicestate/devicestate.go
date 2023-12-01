@@ -506,6 +506,12 @@ func (ro *remodelVariant) InstallWithDeviceContext(ctx context.Context, st *stat
 		opts, userID, snapStateFlags, nil, deviceCtx, fromChange)
 }
 
+func setValidationSetsIfRevisionSet(opts *snapstate.RevisionOptions, valsets []snapasserts.ValidationSetKey) {
+	if !opts.Revision.Unset() {
+		opts.ValidationSets = valsets
+	}
+}
+
 func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pathSideInfo, ms modelSnapsForRemodel, remodelVar remodelVariant, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 	userID := 0
 	newModelSnapChannel, err := modelSnapChannelFromDefaultOrPinnedTrack(ms.new, ms.newModelSnap)
@@ -518,9 +524,7 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pat
 		Revision: ms.newSnapRevision,
 	}
 
-	if !revOpts.Revision.Unset() {
-		revOpts.ValidationSets = ms.newModelValidationSets
-	}
+	setValidationSetsIfRevisionSet(revOpts, ms.newModelValidationSets)
 
 	if ms.currentSnap == ms.newSnap {
 		// new model uses the same base, kernel or gadget snap
@@ -752,9 +756,7 @@ func remodelSnapdSnapTasks(st *state.State, newModel *asserts.Model, localSnaps 
 			Revision: rev,
 		}
 
-		if !revOpts.Revision.Unset() {
-			revOpts.ValidationSets = vSetKeys
-		}
+		setValidationSetsIfRevisionSet(revOpts, vSetKeys)
 
 		userID := 0
 		return remodelVar.UpdateWithDeviceContext(st,
@@ -909,9 +911,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 			Revision: snapRevisions[modelSnap.SnapName()],
 		}
 
-		if !revOpts.Revision.Unset() {
-			revOpts.ValidationSets = vSetKeys
-		}
+		setValidationSetsIfRevisionSet(revOpts, vSetKeys)
 
 		snapPathSi := sideInfoAndPathFromID(localSnaps, paths, modelSnap.ID())
 
