@@ -5622,7 +5622,16 @@ func (s *deviceMgrSuite) testRemodelUpdateFromValidationSet(c *C, sequence strin
 
 	var testDeviceCtx snapstate.DeviceContext
 
-	snapsupTemplate := &snapstate.SnapSetup{
+	essentialSnapsupTemplate := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "pc",
+			SnapID:   snaptest.AssertedSnapID("pc"),
+			Revision: snap.R(2),
+		},
+		Type: "gadget",
+	}
+
+	nonEssentialSnapsupTemplate := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "snap-1",
 			SnapID:   snaptest.AssertedSnapID("snap-1"),
@@ -5632,14 +5641,25 @@ func (s *deviceMgrSuite) testRemodelUpdateFromValidationSet(c *C, sequence strin
 	}
 
 	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
-		c.Check(name, Equals, "snap-1")
+		switch name {
+		case "snap-1", "pc":
+		default:
+			c.Fatalf("unexpected snap update: %s", name)
+		}
+
 		c.Check(opts.Revision, Equals, snap.R(2))
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s to track %s", name, opts.Channel))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.WaitFor(tDownload)
-		// set snap-setup on a different task now
-		tValidate.Set("snap-setup", snapsupTemplate)
+
+		switch name {
+		case "snap-1":
+			tValidate.Set("snap-setup", nonEssentialSnapsupTemplate)
+		case "pc":
+			tValidate.Set("snap-setup", essentialSnapsupTemplate)
+		}
+
 		tUpdate := s.state.NewTask("fake-update", fmt.Sprintf("Update %s to track %s", name, opts.Channel))
 		tUpdate.WaitFor(tValidate)
 		ts := state.NewTaskSet(tDownload, tValidate, tUpdate)
@@ -5780,6 +5800,12 @@ func (s *deviceMgrSuite) testRemodelUpdateFromValidationSet(c *C, sequence strin
 				"revision": "2",
 				"presence": "required",
 			},
+			map[string]interface{}{
+				"name":     "pc",
+				"id":       snaptest.AssertedSnapID("pc"),
+				"revision": "2",
+				"presence": "required",
+			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
@@ -5810,8 +5836,8 @@ func (s *deviceMgrSuite) testRemodelUpdateFromValidationSet(c *C, sequence strin
 	tss, err := devicestate.RemodelTasks(context.Background(), s.state, currentModel, newModel, nil, nil, testDeviceCtx, "99")
 	c.Assert(err, IsNil)
 
-	// snap update, create recovery system, set model
-	c.Assert(tss, HasLen, 3)
+	// 2*snap update, create recovery system, set model
+	c.Assert(tss, HasLen, 4)
 }
 
 func (s *deviceMgrSuite) TestRemodelInvalidEssentialFromValidationSet(c *C) {

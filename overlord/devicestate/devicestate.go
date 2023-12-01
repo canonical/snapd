@@ -675,6 +675,7 @@ func tasksForEssentialSnap(ctx context.Context, st *state.State,
 	snapType string,
 	current, new *asserts.Model,
 	localSnaps []*snap.SideInfo, paths []string,
+	revision snap.Revision, vSetKeys []snapasserts.ValidationSetKey,
 	deviceCtx snapstate.DeviceContext, fromChange string,
 ) (string, *state.TaskSet, error) {
 	var currentSnap, newSnap string
@@ -702,11 +703,13 @@ func tasksForEssentialSnap(ctx context.Context, st *state.State,
 	remodelVar := remodelVariant{localSnapsRequired: localSnapsRequired}
 
 	ms := modelSnapsForRemodel{
-		currentSnap:      currentSnap,
-		currentModelSnap: currentModelSnap,
-		new:              new,
-		newSnap:          newSnap,
-		newModelSnap:     newModelSnap,
+		currentSnap:            currentSnap,
+		currentModelSnap:       currentModelSnap,
+		new:                    new,
+		newSnap:                newSnap,
+		newModelSnap:           newModelSnap,
+		newSnapRevision:        revision,
+		newModelValidationSets: vSetKeys,
 	}
 	var pathSi *pathSideInfo
 	// A nil model snap will happen for bases on UC16 models.
@@ -852,6 +855,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		}
 		newSnap, ts, err := tasksForEssentialSnap(ctx, st,
 			modelSnap.SnapType, current, new, localSnaps, paths,
+			snapRevisions[modelSnap.SnapName()], vSetKeys,
 			deviceCtx, fromChange)
 		if err != nil {
 			return nil, err
