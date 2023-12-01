@@ -35,7 +35,7 @@ execute: |
         exit 1
     fi
 
-    tests.nested create-vm core --param-mem "-m $MINIMAL_MEM"
+    tests.nested create-vm core --param-mem "$MINIMAL_MEM"
 
     echo "Run spread smoke tests using mem: $MINIMAL_MEM"
     set +x
