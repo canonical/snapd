@@ -174,13 +174,13 @@ func enforceValidationSetsForRemodel(st *state.State, sets []*asserts.ModelValid
 		if err != nil {
 			return err
 		}
-		validationSetKeys[vs.Key()] = a.At().PrimaryKey
+		validationSetKeys[vs.SequenceName()] = a.At().PrimaryKey
 	}
 
 	pinnedValidationSeqs := make(map[string]int, len(sets))
 	for _, vs := range sets {
 		if vs.Sequence > 0 {
-			pinnedValidationSeqs[vs.Key()] = vs.Sequence
+			pinnedValidationSeqs[vs.SequenceName()] = vs.Sequence
 		}
 	}
 

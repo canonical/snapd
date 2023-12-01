@@ -98,14 +98,14 @@ func maybeEnforceValidationSetsTask(st *state.State, model *asserts.Model, mode 
 	vsKeys := make(map[string][]string)
 	for _, a := range as {
 		vsa := a.(*asserts.ValidationSet)
-		vsKeys[vsa.Key()] = a.Ref().PrimaryKey
+		vsKeys[vsa.SequenceName()] = a.Ref().PrimaryKey
 	}
 
 	// Set up pins from the model
 	pins := make(map[string]int)
 	for _, vs := range model.ValidationSets() {
 		if vs.Sequence > 0 {
-			pins[vs.Key()] = vs.Sequence
+			pins[vs.SequenceName()] = vs.Sequence
 		}
 	}
 

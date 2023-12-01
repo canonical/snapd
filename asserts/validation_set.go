@@ -176,11 +176,13 @@ type ValidationSet struct {
 	timestamp time.Time
 }
 
-func (vs *ValidationSet) Key() string {
-	return vsKey(vs.AccountID(), vs.Name())
+// SequenceName returns the sequence name for this validation set. Note that the
+// series is not included in the returned string.
+func (vs *ValidationSet) SequenceName() string {
+	return vsSequenceName(vs.AccountID(), vs.Name())
 }
 
-func vsKey(accountID, name string) string {
+func vsSequenceName(accountID, name string) string {
 	return fmt.Sprintf("%s/%s", accountID, name)
 }
 

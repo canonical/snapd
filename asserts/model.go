@@ -433,8 +433,10 @@ type ModelValidationSet struct {
 	Mode ModelValidationSetMode
 }
 
-func (mvs *ModelValidationSet) Key() string {
-	return vsKey(mvs.AccountID, mvs.Name)
+// SequenceName returns the sequence name for this validation set. Note that the
+// series is not included in the returned string.
+func (mvs *ModelValidationSet) SequenceName() string {
+	return vsSequenceName(mvs.AccountID, mvs.Name)
 }
 
 func (mvs *ModelValidationSet) AtSequence() *AtSequence {
