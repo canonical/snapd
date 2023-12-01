@@ -501,20 +501,24 @@ func (b *MockTrustedAssetsMixin) DefaultCommandLine(candidate bool) (string, err
 	return b.StaticCommandLine, nil
 }
 
-func (b *MockTrustedAssetsMixin) TrustedAssets() ([]string, error) {
+func (b *MockTrustedAssetsMixin) TrustedAssets() (map[string]bool, error) {
 	b.TrustedAssetsCalls++
-	return b.TrustedAssetsList, b.TrustedAssetsErr
+	ret := make(map[string]bool)
+	for _, asset := range b.TrustedAssetsList {
+		ret[asset] = true
+	}
+	return ret, b.TrustedAssetsErr
 }
 
-func (b *MockTrustedAssetsMixin) RecoveryBootChain(kernelPath string) ([]bootloader.BootFile, error) {
+func (b *MockTrustedAssetsMixin) RecoveryBootChains(kernelPath string) ([][]bootloader.BootFile, error) {
 	b.RecoveryBootChainCalls = append(b.RecoveryBootChainCalls, kernelPath)
-	return b.RecoveryBootChainList, b.RecoveryBootChainErr
+	return [][]bootloader.BootFile{b.RecoveryBootChainList}, b.RecoveryBootChainErr
 }
 
-func (b *MockTrustedAssetsMixin) BootChain(runBl bootloader.Bootloader, kernelPath string) ([]bootloader.BootFile, error) {
+func (b *MockTrustedAssetsMixin) BootChains(runBl bootloader.Bootloader, kernelPath string) ([][]bootloader.BootFile, error) {
 	b.BootChainRunBl = append(b.BootChainRunBl, runBl)
 	b.BootChainKernelPath = append(b.BootChainKernelPath, kernelPath)
-	return b.BootChainList, b.BootChainErr
+	return [][]bootloader.BootFile{b.BootChainList}, b.BootChainErr
 }
 
 // MockRecoveryAwareTrustedAssetsBootloader implements the

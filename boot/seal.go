@@ -717,30 +717,43 @@ func recoveryBootChainsForSystems(systems []string, modesForSystems map[string][
 				kernelRev = seedKernel.SideInfo.Revision.String()
 			}
 
-			recoveryBootChain, err := trbl.RecoveryBootChain(seedKernel.Path)
+			recoveryBootChains, err := trbl.RecoveryBootChains(seedKernel.Path)
 			if err != nil {
 				return err
 			}
+
+			foundChain := false
 
 			// get asset chains
-			assetChain, kbf, err := buildBootAssets(recoveryBootChain, modeenv)
-			if err != nil {
-				return err
+			for _, recoveryBootChain := range recoveryBootChains {
+				assetChain, kbf, err := buildBootAssets(recoveryBootChain, modeenv)
+				if err != nil {
+					return err
+				}
+				if assetChain == nil {
+					continue
+				}
+
+				chains = append(chains, bootChain{
+					BrandID: model.BrandID(),
+					Model:   model.Model(),
+					// TODO: test this
+					Classic:        model.Classic(),
+					Grade:          model.Grade(),
+					ModelSignKeyID: model.SignKeyID(),
+					AssetChain:     assetChain,
+					Kernel:         seedKernel.SnapName(),
+					KernelRevision: kernelRev,
+					KernelCmdlines: cmdlines,
+					kernelBootFile: kbf,
+				})
+
+				foundChain = true
 			}
 
-			chains = append(chains, bootChain{
-				BrandID: model.BrandID(),
-				Model:   model.Model(),
-				// TODO: test this
-				Classic:        model.Classic(),
-				Grade:          model.Grade(),
-				ModelSignKeyID: model.SignKeyID(),
-				AssetChain:     assetChain,
-				Kernel:         seedKernel.SnapName(),
-				KernelRevision: kernelRev,
-				KernelCmdlines: cmdlines,
-				kernelBootFile: kbf,
-			})
+			if !foundChain {
+				return fmt.Errorf("could not find any valid chain for this model")
+			}
 		}
 		return nil
 	}
@@ -777,33 +790,45 @@ func runModeBootChains(rbl, bl bootloader.Bootloader, modeenv *Modeenv, cmdlines
 			} else {
 				kernelPath = filepath.Join(runSnapsDir, info.Filename())
 			}
-			runModeBootChain, err := tbl.BootChain(bl, kernelPath)
+			runModeBootChains, err := tbl.BootChains(bl, kernelPath)
 			if err != nil {
 				return err
 			}
 
-			// get asset chains
-			assetChain, kbf, err := buildBootAssets(runModeBootChain, modeenv)
-			if err != nil {
-				return err
+			foundChain := false
+
+			for _, runModeBootChain := range runModeBootChains {
+				// get asset chains
+				assetChain, kbf, err := buildBootAssets(runModeBootChain, modeenv)
+				if err != nil {
+					return err
+				}
+				if assetChain == nil {
+					continue
+				}
+				var kernelRev string
+				if info.SnapRevision().Store() {
+					kernelRev = info.SnapRevision().String()
+				}
+				chains = append(chains, bootChain{
+					BrandID: model.BrandID(),
+					Model:   model.Model(),
+					// TODO: test this
+					Classic:        model.Classic(),
+					Grade:          model.Grade(),
+					ModelSignKeyID: model.SignKeyID(),
+					AssetChain:     assetChain,
+					Kernel:         info.SnapName(),
+					KernelRevision: kernelRev,
+					KernelCmdlines: cmdlines,
+					kernelBootFile: kbf,
+				})
+				foundChain = true
 			}
-			var kernelRev string
-			if info.SnapRevision().Store() {
-				kernelRev = info.SnapRevision().String()
+
+			if !foundChain {
+				return fmt.Errorf("could not find any valid chain for this model")
 			}
-			chains = append(chains, bootChain{
-				BrandID: model.BrandID(),
-				Model:   model.Model(),
-				// TODO: test this
-				Classic:        model.Classic(),
-				Grade:          model.Grade(),
-				ModelSignKeyID: model.SignKeyID(),
-				AssetChain:     assetChain,
-				Kernel:         info.SnapName(),
-				KernelRevision: kernelRev,
-				KernelCmdlines: cmdlines,
-				kernelBootFile: kbf,
-			})
 		}
 		return nil
 	}
@@ -841,7 +866,7 @@ func buildBootAssets(bootFiles []bootloader.BootFile, modeenv *Modeenv) (assets 
 			hashes, ok = modeenv.CurrentTrustedBootAssets[name]
 		}
 		if !ok {
-			return nil, kernel, fmt.Errorf("cannot find expected boot asset %s in modeenv", name)
+			return nil, kernel, nil
 		}
 		assets[i] = bootAsset{
 			Role:   bf.Role,

@@ -220,18 +220,18 @@ type TrustedAssetsBootloader interface {
 	DefaultCommandLine(candidate bool) (string, error)
 
 	// TrustedAssets returns the list of relative paths to assets inside the
-	// bootloader's rootdir that are measured in the boot process in the
-	// order of loading during the boot. Does not require rootdir to be set.
-	TrustedAssets() ([]string, error)
+	// bootloader's rootdir that are measured in the boot process.
+	// Does not require rootdir to be set.
+	TrustedAssets() (map[string]bool, error)
 
 	// RecoveryBootChain returns the load chain for recovery modes.
 	// It should be called on a RoleRecovery bootloader.
-	RecoveryBootChain(kernelPath string) ([]BootFile, error)
+	RecoveryBootChains(kernelPath string) ([][]BootFile, error)
 
 	// BootChain returns the load chain for run mode.
 	// It should be called on a RoleRecovery bootloader passing the
 	// RoleRunMode bootloader.
-	BootChain(runBl Bootloader, kernelPath string) ([]BootFile, error)
+	BootChains(runBl Bootloader, kernelPath string) ([][]BootFile, error)
 }
 
 // NotScriptableBootloader cannot change the bootloader environment

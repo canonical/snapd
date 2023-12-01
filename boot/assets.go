@@ -257,11 +257,11 @@ type TrustedAssetsInstallObserver struct {
 
 	blName        string
 	managedAssets []string
-	trustedAssets []string
+	trustedAssets map[string]bool
 	trackedAssets bootAssetsMap
 
 	recoveryBlName        string
-	trustedRecoveryAssets []string
+	trustedRecoveryAssets map[string]bool
 	trackedRecoveryAssets bootAssetsMap
 
 	dataEncryptionKey keys.EncryptionKey
@@ -284,7 +284,7 @@ func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, partR
 		// this asset is managed by bootloader installation
 		return gadget.ChangeIgnore, nil
 	}
-	if len(o.trustedAssets) == 0 || !strutil.ListContains(o.trustedAssets, relativeTarget) {
+	if !o.trustedAssets[relativeTarget] {
 		// not one of the trusted assets
 		return gadget.ChangeApply, nil
 	}
@@ -314,8 +314,12 @@ func (o *TrustedAssetsInstallObserver) ObserveExistingTrustedRecoveryAssets(reco
 		// not a trusted assets bootloader or has no trusted assets
 		return nil
 	}
-	for _, trustedAsset := range o.trustedRecoveryAssets {
-		ta, err := o.cache.Add(filepath.Join(recoveryRootDir, trustedAsset), o.recoveryBlName, filepath.Base(trustedAsset))
+	for trustedAsset := range o.trustedRecoveryAssets {
+		path := filepath.Join(recoveryRootDir, trustedAsset)
+		if !osutil.FileExists(path) {
+			continue
+		}
+		ta, err := o.cache.Add(path, o.recoveryBlName, filepath.Base(trustedAsset))
 		if err != nil {
 			return err
 		}
@@ -421,12 +425,12 @@ type TrustedAssetsUpdateObserver struct {
 	model *asserts.Model
 
 	bootBootloader    bootloader.Bootloader
-	bootTrustedAssets []string
+	bootTrustedAssets map[string]bool
 	bootManagedAssets []string
 	changedAssets     []*trackedAsset
 
 	seedBootloader    bootloader.Bootloader
-	seedTrustedAssets []string
+	seedTrustedAssets map[string]bool
 	seedManagedAssets []string
 	seedChangedAssets []*trackedAsset
 
@@ -447,7 +451,7 @@ func (o *TrustedAssetsUpdateObserver) modeenvUnlock() {
 	o.modeenvLocked = false
 }
 
-func trustedAndManagedAssetsOfBootloader(bl bootloader.Bootloader) (trustedAssets, managedAssets []string, err error) {
+func trustedAndManagedAssetsOfBootloader(bl bootloader.Bootloader) (trustedAssets map[string]bool, managedAssets []string, err error) {
 	tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
 	if ok {
 		trustedAssets, err = tbl.TrustedAssets()
@@ -459,7 +463,7 @@ func trustedAndManagedAssetsOfBootloader(bl bootloader.Bootloader) (trustedAsset
 	return trustedAssets, managedAssets, nil
 }
 
-func findMaybeTrustedBootloaderAndAssets(rootDir string, opts *bootloader.Options) (foundBl bootloader.Bootloader, trustedAssets []string, err error) {
+func findMaybeTrustedBootloaderAndAssets(rootDir string, opts *bootloader.Options) (foundBl bootloader.Bootloader, trustedAssets map[string]bool, err error) {
 	foundBl, err = bootloader.Find(rootDir, opts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot find bootloader: %v", err)
@@ -468,7 +472,7 @@ func findMaybeTrustedBootloaderAndAssets(rootDir string, opts *bootloader.Option
 	return foundBl, trustedAssets, err
 }
 
-func gadgetMaybeTrustedBootloaderAndAssets(gadgetDir, rootDir string, opts *bootloader.Options) (foundBl bootloader.Bootloader, trustedAssets, managedAssets []string, err error) {
+func gadgetMaybeTrustedBootloaderAndAssets(gadgetDir, rootDir string, opts *bootloader.Options) (foundBl bootloader.Bootloader, trustedAssets map[string]bool, managedAssets []string, err error) {
 	foundBl, err = bootloader.ForGadget(gadgetDir, rootDir, opts)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("cannot find bootloader: %v", err)
@@ -485,7 +489,7 @@ func gadgetMaybeTrustedBootloaderAndAssets(gadgetDir, rootDir string, opts *boot
 // Implements gadget.ContentUpdateObserver.
 func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	var whichBootloader bootloader.Bootloader
-	var whichTrustedAssets []string
+	var whichTrustedAssets map[string]bool
 	var whichManagedAssets []string
 	var err error
 	var isRecovery bool
@@ -521,7 +525,7 @@ func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, partRo
 	}
 
 	// maybe an asset that is trusted in the boot process?
-	if !strutil.ListContains(whichTrustedAssets, relativeTarget) {
+	if !whichTrustedAssets[relativeTarget] {
 		// not one of the trusted assets
 		return gadget.ChangeApply, nil
 	}
@@ -790,16 +794,40 @@ func observeSuccessfulBootAssetsForBootloader(m *Modeenv, root string, opts *boo
 		return nil, nil
 	}
 
-	cache := newTrustedAssetsCache(dirs.SnapBootAssetsDir)
-	for _, trustedAsset := range trustedAssets {
+	byAssetName := make(map[string][]string)
+	for trustedAsset := range trustedAssets {
 		assetName := filepath.Base(trustedAsset)
-
-		// find the hash of the file on disk
-		assetHash, err := cache.fileHash(filepath.Join(root, trustedAsset))
-		if err != nil && !os.IsNotExist(err) {
-			return nil, fmt.Errorf("cannot calculate the digest of existing trusted asset: %v", err)
+		l, ok := byAssetName[assetName]
+		if !ok {
+			byAssetName[assetName] = []string{trustedAsset}
+		} else {
+			byAssetName[assetName] = append(l, trustedAsset)
 		}
-		if assetHash == "" {
+	}
+
+	cache := newTrustedAssetsCache(dirs.SnapBootAssetsDir)
+
+	for assetName, trustedAssetsForName := range byAssetName {
+		var trustedAsset string
+		var assetHash string
+		foundTrustedAsset := false
+		for _, trustedAssetCandidate := range trustedAssetsForName {
+			assetHashFound, err := cache.fileHash(filepath.Join(root, trustedAssetCandidate))
+			if err != nil && !os.IsNotExist(err) {
+				return nil, fmt.Errorf("cannot calculate the digest of existing trusted asset: %v", err)
+			}
+			if assetHashFound == "" {
+				continue
+			}
+			if foundTrustedAsset {
+				logger.Noticef("bootloader %s has several asset of the same name %s", whichBootloader, assetName)
+			}
+			foundTrustedAsset = true
+			trustedAsset = trustedAssetCandidate
+			assetHash = assetHashFound
+		}
+
+		if !foundTrustedAsset {
 			// no trusted asset on disk, but we booted nonetheless,
 			// at least log something
 			logger.Noticef("system booted without %v bootloader trusted asset %q", whichBootloader, trustedAsset)

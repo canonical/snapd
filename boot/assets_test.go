@@ -601,25 +601,6 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryReuseNameErr(c *
 	c.Check(tab.TrustedAssetsCalls, Equals, 2)
 }
 
-func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryButMissingErr(c *C) {
-	d := c.MkDir()
-
-	tab := s.bootloaderWithTrustedAssets([]string{
-		"asset",
-	})
-
-	uc20Model := boottest.MakeMockUC20Model()
-	useEncryption := true
-	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
-	c.Assert(err, IsNil)
-	c.Assert(obs, NotNil)
-	c.Check(tab.TrustedAssetsCalls, Equals, 2)
-
-	// trusted asset is missing
-	err = obs.ObserveExistingTrustedRecoveryAssets(d)
-	c.Assert(err, ErrorMatches, "cannot open asset file: .*/asset: no such file or directory")
-}
-
 func (s *assetsSuite) TestUpdateObserverNew(c *C) {
 	tab := s.bootloaderWithTrustedAssets(nil)
 
@@ -2093,14 +2074,18 @@ func (s *assetsSuite) TestObserveSuccessfulBootAfterUpdate(c *C) {
 		"shim":  {shimHash},
 	})
 	c.Check(drop, HasLen, 3)
-	for i, en := range []struct {
+	byHash := make(map[string]*boot.TrackedAsset)
+	for _, dropElement := range drop {
+		byHash[dropElement.GetHash()] = dropElement
+	}
+	for _, en := range []struct {
 		assetName, hash string
 	}{
 		{"asset", "assethash"},
 		{"asset", "recoveryassethash"},
 		{"shim", "recoveryshimhash"},
 	} {
-		c.Check(drop[i].Equals("trusted", en.assetName, en.hash), IsNil)
+		c.Check(byHash[en.hash].Equals("trusted", en.assetName, en.hash), IsNil)
 	}
 }
 
