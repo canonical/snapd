@@ -3591,18 +3591,48 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsAlreadyInstalledAnd
 		TrackingChannel: "",
 	})
 
-	// new kernel and base are already installed, but using a different channel
+	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "vset-1",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc-kernel",
+				"id":       snaptest.AssertedSnapID("pc-kernel"),
+				"revision": "10",
+				"presence": "required",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	err = s.storeSigning.Add(vset)
+	c.Assert(err, IsNil)
+
+	// new kernel and base are already installed, but kernel needs a new
+	// revision and base is a new channel
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		"base":         "core20",
 		"grade":        "dangerous",
 		"revision":     "1",
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "vset-1",
+				"mode":       "enforce",
+			},
+		},
 		"snaps": []interface{}{
 			map[string]interface{}{
 				"name":            "pc-kernel",
 				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
-				"default-channel": "20/edge",
+				"default-channel": "20",
 			},
 			map[string]interface{}{
 				"name":            "pc",
@@ -3618,6 +3648,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsAlreadyInstalledAnd
 			},
 		},
 	})
+
 	chg, err := devicestate.Remodel(s.state, new, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
