@@ -670,6 +670,11 @@ func modesForSystems(modeenv *Modeenv) map[string][]string {
 // TODO:UC20: this needs to take more than one model to accommodate the remodel
 // scenario
 func recoveryBootChainsForSystems(systems []string, modesForSystems map[string][]string, trbl bootloader.TrustedAssetsBootloader, modeenv *Modeenv, includeTryModel bool, seedDir string) (chains []bootChain, err error) {
+	trustedAssets, err := trbl.TrustedAssets()
+	if err != nil {
+		return nil, err
+	}
+
 	chainsForModel := func(model secboot.ModelForSealing) error {
 		modelID := modelUniqueID(model)
 		for _, system := range systems {
@@ -717,30 +722,43 @@ func recoveryBootChainsForSystems(systems []string, modesForSystems map[string][
 				kernelRev = seedKernel.SideInfo.Revision.String()
 			}
 
-			recoveryBootChain, err := trbl.RecoveryBootChain(seedKernel.Path)
+			recoveryBootChains, err := trbl.RecoveryBootChains(seedKernel.Path)
 			if err != nil {
 				return err
 			}
+
+			foundChain := false
 
 			// get asset chains
-			assetChain, kbf, err := buildBootAssets(recoveryBootChain, modeenv)
-			if err != nil {
-				return err
+			for _, recoveryBootChain := range recoveryBootChains {
+				assetChain, kbf, err := buildBootAssets(recoveryBootChain, modeenv, trustedAssets)
+				if err != nil {
+					return err
+				}
+				if assetChain == nil {
+					continue
+				}
+
+				chains = append(chains, bootChain{
+					BrandID: model.BrandID(),
+					Model:   model.Model(),
+					// TODO: test this
+					Classic:        model.Classic(),
+					Grade:          model.Grade(),
+					ModelSignKeyID: model.SignKeyID(),
+					AssetChain:     assetChain,
+					Kernel:         seedKernel.SnapName(),
+					KernelRevision: kernelRev,
+					KernelCmdlines: cmdlines,
+					kernelBootFile: kbf,
+				})
+
+				foundChain = true
 			}
 
-			chains = append(chains, bootChain{
-				BrandID: model.BrandID(),
-				Model:   model.Model(),
-				// TODO: test this
-				Classic:        model.Classic(),
-				Grade:          model.Grade(),
-				ModelSignKeyID: model.SignKeyID(),
-				AssetChain:     assetChain,
-				Kernel:         seedKernel.SnapName(),
-				KernelRevision: kernelRev,
-				KernelCmdlines: cmdlines,
-				kernelBootFile: kbf,
-			})
+			if !foundChain {
+				return fmt.Errorf("could not find any valid chain for this model")
+			}
 		}
 		return nil
 	}
@@ -765,6 +783,11 @@ func runModeBootChains(rbl, bl bootloader.Bootloader, modeenv *Modeenv, cmdlines
 	}
 	chains := make([]bootChain, 0, len(modeenv.CurrentKernels))
 
+	trustedAssets, err := tbl.TrustedAssets()
+	if err != nil {
+		return nil, err
+	}
+
 	chainsForModel := func(model secboot.ModelForSealing) error {
 		for _, k := range modeenv.CurrentKernels {
 			info, err := snap.ParsePlaceInfoFromSnapFileName(k)
@@ -777,33 +800,45 @@ func runModeBootChains(rbl, bl bootloader.Bootloader, modeenv *Modeenv, cmdlines
 			} else {
 				kernelPath = filepath.Join(runSnapsDir, info.Filename())
 			}
-			runModeBootChain, err := tbl.BootChain(bl, kernelPath)
+			runModeBootChains, err := tbl.BootChains(bl, kernelPath)
 			if err != nil {
 				return err
 			}
 
-			// get asset chains
-			assetChain, kbf, err := buildBootAssets(runModeBootChain, modeenv)
-			if err != nil {
-				return err
+			foundChain := false
+
+			for _, runModeBootChain := range runModeBootChains {
+				// get asset chains
+				assetChain, kbf, err := buildBootAssets(runModeBootChain, modeenv, trustedAssets)
+				if err != nil {
+					return err
+				}
+				if assetChain == nil {
+					continue
+				}
+				var kernelRev string
+				if info.SnapRevision().Store() {
+					kernelRev = info.SnapRevision().String()
+				}
+				chains = append(chains, bootChain{
+					BrandID: model.BrandID(),
+					Model:   model.Model(),
+					// TODO: test this
+					Classic:        model.Classic(),
+					Grade:          model.Grade(),
+					ModelSignKeyID: model.SignKeyID(),
+					AssetChain:     assetChain,
+					Kernel:         info.SnapName(),
+					KernelRevision: kernelRev,
+					KernelCmdlines: cmdlines,
+					kernelBootFile: kbf,
+				})
+				foundChain = true
 			}
-			var kernelRev string
-			if info.SnapRevision().Store() {
-				kernelRev = info.SnapRevision().String()
+
+			if !foundChain {
+				return fmt.Errorf("could not find any valid chain for this model")
 			}
-			chains = append(chains, bootChain{
-				BrandID: model.BrandID(),
-				Model:   model.Model(),
-				// TODO: test this
-				Classic:        model.Classic(),
-				Grade:          model.Grade(),
-				ModelSignKeyID: model.SignKeyID(),
-				AssetChain:     assetChain,
-				Kernel:         info.SnapName(),
-				KernelRevision: kernelRev,
-				KernelCmdlines: cmdlines,
-				kernelBootFile: kbf,
-			})
 		}
 		return nil
 	}
@@ -823,7 +858,7 @@ func runModeBootChains(rbl, bl bootloader.Bootloader, modeenv *Modeenv, cmdlines
 // produces corresponding bootAssets with the matching current asset
 // hashes from modeenv plus it returns separately the last BootFile
 // which is for the kernel.
-func buildBootAssets(bootFiles []bootloader.BootFile, modeenv *Modeenv) (assets []bootAsset, kernel bootloader.BootFile, err error) {
+func buildBootAssets(bootFiles []bootloader.BootFile, modeenv *Modeenv, trustedAssets map[string]string) (assets []bootAsset, kernel bootloader.BootFile, err error) {
 	if len(bootFiles) == 0 {
 		// useful in testing, when mocking is insufficient
 		return nil, bootloader.BootFile{}, fmt.Errorf("internal error: cannot build boot assets without boot files")
@@ -832,16 +867,19 @@ func buildBootAssets(bootFiles []bootloader.BootFile, modeenv *Modeenv) (assets 
 
 	// the last element is the kernel which is not a boot asset
 	for i, bf := range bootFiles[:len(bootFiles)-1] {
-		name := filepath.Base(bf.Path)
+		path := bf.Path
+		name, ok := trustedAssets[path]
+		if !ok {
+			return nil, kernel, nil
+		}
 		var hashes []string
-		var ok bool
 		if bf.Role == bootloader.RoleRecovery {
 			hashes, ok = modeenv.CurrentTrustedRecoveryBootAssets[name]
 		} else {
 			hashes, ok = modeenv.CurrentTrustedBootAssets[name]
 		}
 		if !ok {
-			return nil, kernel, fmt.Errorf("cannot find expected boot asset %s in modeenv", name)
+			return nil, kernel, nil
 		}
 		assets[i] = bootAsset{
 			Role:   bf.Role,

@@ -277,7 +277,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 
 	if tc.trustedBootloader {
 		tab := bootloadertest.Mock("trusted", bootloaderRootdir).WithTrustedAssets()
-		tab.TrustedAssetsList = []string{"trusted-asset"}
+		tab.TrustedAssetsMap = map[string]string{"trusted-asset": "trusted-asset"}
 		bootloader.Force(tab)
 		s.AddCleanup(func() { bootloader.Force(nil) })
 
@@ -1597,7 +1597,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 
 	if tc.trustedBootloader {
 		tab := bootloadertest.Mock("trusted", bootloaderRootdir).WithTrustedAssets()
-		tab.TrustedAssetsList = []string{"trusted-asset"}
+		tab.TrustedAssetsMap = map[string]string{"trusted-asset": "trusted-asset"}
 		bootloader.Force(tab)
 		s.AddCleanup(func() { bootloader.Force(nil) })
 

@@ -142,7 +142,7 @@ func validateCore20Seed(c *C, name string, expectedModel *asserts.Model, trusted
 func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
 	bl := bootloadertest.Mock("trusted", c.MkDir()).WithRecoveryAwareTrustedAssets()
 	// make it simple for now, no assets
-	bl.TrustedAssetsList = nil
+	bl.TrustedAssetsMap = nil
 	bl.StaticCommandLine = "mock static"
 	bl.CandidateStaticCommandLine = "unused"
 	bootloader.Force(bl)
@@ -261,7 +261,7 @@ func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
 func (s *createSystemSuite) TestCreateSystemFromUnassertedSnaps(c *C) {
 	bl := bootloadertest.Mock("trusted", c.MkDir()).WithRecoveryAwareTrustedAssets()
 	// make it simple for now, no assets
-	bl.TrustedAssetsList = nil
+	bl.TrustedAssetsMap = nil
 	bl.StaticCommandLine = "mock static"
 	bl.CandidateStaticCommandLine = "unused"
 	bootloader.Force(bl)

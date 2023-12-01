@@ -1061,7 +1061,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 	// checked by resealKeyToModeenv
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
+		"asset": "asset",
+	})
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -1179,7 +1181,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewUnassertedKernelSnapWith
 	// checked by resealKeyToModeenv
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
+		"asset": "asset",
+	})
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -1296,7 +1300,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 	// checked by resealKeyToModeenv
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
+		"asset": "asset",
+	})
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -1414,7 +1420,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 	// checked by resealKeyToModeenv
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
+		"asset": "asset",
+	})
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -1794,7 +1802,9 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnapNoReseal(c *C) {
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
 	// set up all the bits required for an encrypted system
-	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
+		"asset": "asset",
+	})
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
@@ -2133,7 +2143,9 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdateWithReseal(c *C) {
 	// checked by resealKeyToModeenv
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
+		"asset": "asset",
+	})
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -2347,13 +2359,13 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BaseUpdate(c *C) {
 	c.Assert(m3.BaseStatus, Equals, "")
 }
 
-func (s *bootenv20Suite) bootloaderWithTrustedAssets(c *C, trustedAssets []string) *bootloadertest.MockTrustedAssetsBootloader {
+func (s *bootenv20Suite) bootloaderWithTrustedAssets(c *C, trustedAssets map[string]string) *bootloadertest.MockTrustedAssetsBootloader {
 	// TODO:UC20: this should be an ExtractedRecoveryKernelImageBootloader
 	// because that would reflect our main currently supported
 	// trusted assets bootloader (grub)
 	tab := bootloadertest.Mock("trusted", "").WithTrustedAssets()
 	bootloader.Force(tab)
-	tab.TrustedAssetsList = trustedAssets
+	tab.TrustedAssetsMap = trustedAssets
 	s.AddCleanup(func() { bootloader.Force(nil) })
 	return tab
 }
@@ -2362,7 +2374,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 	// checked by resealKeyToModeenv
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
+	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
+		"asset": "asset",
+		"shim":  "shim",
+	})
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -2503,7 +2518,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 	// checked by resealKeyToModeenv
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{"nested/asset", "shim"})
+	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
+		"nested/asset": "asset",
+		"shim":         "shim",
+	})
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -2530,12 +2548,12 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 
 	tab.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "shim", bootloader.RoleRecovery),
-		bootloader.NewBootFile("", "asset", bootloader.RoleRecovery),
+		bootloader.NewBootFile("", "nested/asset", bootloader.RoleRecovery),
 		runKernelBf,
 	}
 	tab.RecoveryBootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "shim", bootloader.RoleRecovery),
-		bootloader.NewBootFile("", "asset", bootloader.RoleRecovery),
+		bootloader.NewBootFile("", "nested/asset", bootloader.RoleRecovery),
 		recoveryKernelBf,
 	}
 
@@ -2664,7 +2682,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 	// checked by resealKeyToModeenv
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{"nested/asset", "shim"})
+	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
+		"nested/asset": "asset",
+		"shim":         "shim",
+	})
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -2691,12 +2712,12 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 
 	tab.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "shim", bootloader.RoleRecovery),
-		bootloader.NewBootFile("", "asset", bootloader.RoleRecovery),
+		bootloader.NewBootFile("", "nested/asset", bootloader.RoleRecovery),
 		runKernelBf,
 	}
 	tab.RecoveryBootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "shim", bootloader.RoleRecovery),
-		bootloader.NewBootFile("", "asset", bootloader.RoleRecovery),
+		bootloader.NewBootFile("", "nested/asset", bootloader.RoleRecovery),
 		recoveryKernelBf,
 	}
 
@@ -2824,7 +2845,9 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 }
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateUnexpectedAsset(c *C) {
-	tab := s.bootloaderWithTrustedAssets(c, []string{"EFI/asset"})
+	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
+		"EFI/asset": "efi:asset",
+	})
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -2917,7 +2940,9 @@ func (s *bootenv20Suite) setupMarkBootSuccessful20CommandLine(c *C, model *asser
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedHappy(c *C) {
 	s.mockCmdline(c, "snapd_recovery_mode=run candidate panic=-1")
-	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
+		"asset": "asset",
+	})
 	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 	m := s.setupMarkBootSuccessful20CommandLine(c, coreDev.Model(), "run", boot.BootCommandLines{
@@ -2950,7 +2975,9 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedHappy(c *C) {
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedOld(c *C) {
 	s.mockCmdline(c, "snapd_recovery_mode=run panic=-1")
-	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
+		"asset": "asset",
+	})
 	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 	m := s.setupMarkBootSuccessful20CommandLine(c, coreDev.Model(), "run", boot.BootCommandLines{
@@ -2983,7 +3010,9 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedOld(c *C) {
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedMismatch(c *C) {
 	s.mockCmdline(c, "snapd_recovery_mode=run different")
-	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
+		"asset": "asset",
+	})
 	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 	m := s.setupMarkBootSuccessful20CommandLine(c, coreDev.Model(), "run", boot.BootCommandLines{
@@ -3008,7 +3037,9 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedMismatch(c *C
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedFallbackOnBootSuccessful(c *C) {
 	s.mockCmdline(c, "snapd_recovery_mode=run panic=-1")
-	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
+		"asset": "asset",
+	})
 	tab.StaticCommandLine = "panic=-1"
 	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
@@ -3039,7 +3070,9 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedFallbackOnBoo
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedFallbackOnBootMismatch(c *C) {
 	s.mockCmdline(c, "snapd_recovery_mode=run panic=-1 unexpected")
-	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
+		"asset": "asset",
+	})
 	tab.StaticCommandLine = "panic=-1"
 	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
@@ -3063,7 +3096,9 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedFallbackOnBoo
 func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineNonRunMode(c *C) {
 	// recover mode
 	s.mockCmdline(c, "snapd_recovery_mode=recover snapd_recovery_system=1234 panic=-1")
-	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
+		"asset": "asset",
+	})
 	tab.StaticCommandLine = "panic=-1"
 	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
@@ -3427,7 +3462,7 @@ func (s *bootConfigSuite) testBootConfigUpdateHappyWithReseal(c *C, cmdlineAppen
 		"asset-hash-1",
 	})
 
-	s.bootloader.TrustedAssetsList = []string{"asset"}
+	s.bootloader.TrustedAssetsMap = map[string]string{"asset": "asset"}
 	s.bootloader.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
 		runKernelBf,
@@ -3645,7 +3680,7 @@ volumes:
 		"asset-hash-1",
 	})
 
-	s.bootloader.TrustedAssetsList = []string{"asset"}
+	s.bootloader.TrustedAssetsMap = map[string]string{"asset": "asset"}
 	s.bootloader.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
 		runKernelBf,
@@ -3715,7 +3750,7 @@ volumes:
 
 	// a minimal bootloader and modeenv setup that works because reseal is
 	// not executed
-	s.bootloader.TrustedAssetsList = []string{"asset"}
+	s.bootloader.TrustedAssetsMap = map[string]string{"asset": "asset"}
 	m := &boot.Modeenv{
 		Mode: "run",
 		CurrentKernelCommandLines: boot.BootCommandLines{
@@ -3778,7 +3813,7 @@ func (s *bootKernelCommandLineSuite) SetUpTest(c *C) {
 	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), data, 0644), IsNil)
 
 	s.bootloader = bootloadertest.Mock("trusted", c.MkDir()).WithTrustedAssets()
-	s.bootloader.TrustedAssetsList = []string{"asset"}
+	s.bootloader.TrustedAssetsMap = map[string]string{"asset": "asset"}
 	s.bootloader.StaticCommandLine = "static mocked panic=-1"
 	s.bootloader.CandidateStaticCommandLine = "mocked candidate panic=-1"
 	s.forceBootloader(s.bootloader)
@@ -4762,7 +4797,9 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallNewWithReseal
 	// checked by resealKeyToModeenv
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
+		"asset": "asset",
+	})
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -4876,7 +4913,9 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallNew
 	// checked by resealKeyToModeenv
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
+		"asset": "asset",
+	})
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -4987,7 +5026,9 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallSameNoReseal(
 	// checked by resealKeyToModeenv
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
+		"asset": "asset",
+	})
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -5105,7 +5146,9 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallSam
 	// checked by resealKeyToModeenv
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
+		"asset": "asset",
+	})
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -5299,7 +5342,9 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoBaseSnapInstallNewNoReseal(c *
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
 	// set up all the bits required for an encrypted system
-	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
+		"asset": "asset",
+	})
 	data := []byte("foobar")
 	// SHA3-384
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"

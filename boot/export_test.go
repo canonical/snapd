@@ -89,6 +89,10 @@ func (t *TrackedAsset) Equals(blName, name, hash string) error {
 	return nil
 }
 
+func (t *TrackedAsset) GetHash() string {
+	return t.hash
+}
+
 func (o *TrustedAssetsInstallObserver) CurrentTrustedBootAssetsMap() BootAssetsMap {
 	return o.currentTrustedBootAssetsMap()
 }

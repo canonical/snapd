@@ -814,7 +814,7 @@ func (s *installSuite) mockBootloader(c *C, trustedAssets bool, managedAssets bo
 	if trustedAssets || managedAssets {
 		tab := bootloadertest.Mock("trusted", bootloaderRootdir).WithTrustedAssets()
 		if trustedAssets {
-			tab.TrustedAssetsList = []string{"trusted-asset"}
+			tab.TrustedAssetsMap = map[string]string{"trusted-asset": "trusted-asset"}
 		}
 		if managedAssets {
 			tab.ManagedAssetsList = []string{"managed-asset"}
