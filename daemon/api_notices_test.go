@@ -23,6 +23,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -33,25 +34,33 @@ type noticesSuite struct {
 	apiBaseSuite
 }
 
+func (s *noticesSuite) expectNoticesAccess() {
+	s.expectReadAccess(daemon.AuthenticatedAccess{})
+}
+
 func (s *noticesSuite) TestNoticesFilterType(c *C) {
+	s.expectNoticesAccess()
 	s.testNoticesFilter(c, func(after time.Time) url.Values {
 		return url.Values{"types": {"change-update"}}
 	})
 }
 
 func (s *noticesSuite) TestNoticesFilterKey(c *C) {
+	s.expectNoticesAccess()
 	s.testNoticesFilter(c, func(after time.Time) url.Values {
 		return url.Values{"keys": {"123"}}
 	})
 }
 
 func (s *noticesSuite) TestNoticesFilterAfter(c *C) {
+	s.expectNoticesAccess()
 	s.testNoticesFilter(c, func(after time.Time) url.Values {
 		return url.Values{"after": {after.UTC().Format(time.RFC3339Nano)}}
 	})
 }
 
 func (s *noticesSuite) TestNoticesFilterAll(c *C) {
+	s.expectNoticesAccess()
 	s.testNoticesFilter(c, func(after time.Time) url.Values {
 		return url.Values{
 			"types": {"change-update"},
@@ -110,6 +119,7 @@ func (s *noticesSuite) testNoticesFilter(c *C, makeQuery func(after time.Time) u
 }
 
 func (s *noticesSuite) TestNoticesFilterMultipleTypes(c *C) {
+	s.expectNoticesAccess()
 	s.daemon(c)
 
 	st := s.d.Overlord().State()
@@ -134,6 +144,7 @@ func (s *noticesSuite) TestNoticesFilterMultipleTypes(c *C) {
 }
 
 func (s *noticesSuite) TestNoticesFilterMultipleKeys(c *C) {
+	s.expectNoticesAccess()
 	s.daemon(c)
 
 	st := s.d.Overlord().State()
@@ -160,6 +171,7 @@ func (s *noticesSuite) TestNoticesFilterMultipleKeys(c *C) {
 }
 
 func (s *noticesSuite) TestNoticesFilterInvalidTypes(c *C) {
+	s.expectNoticesAccess()
 	s.daemon(c)
 
 	st := s.d.Overlord().State()
@@ -195,6 +207,7 @@ func (s *noticesSuite) TestNoticesFilterInvalidTypes(c *C) {
 }
 
 func (s *noticesSuite) TestNoticesWait(c *C) {
+	s.expectNoticesAccess()
 	s.daemon(c)
 
 	st := s.d.Overlord().State()
@@ -220,6 +233,7 @@ func (s *noticesSuite) TestNoticesWait(c *C) {
 }
 
 func (s *noticesSuite) TestNoticesTimeout(c *C) {
+	s.expectNoticesAccess()
 	s.daemon(c)
 
 	req, err := http.NewRequest("GET", "/v2/notices?timeout=1ms", nil)
@@ -233,6 +247,7 @@ func (s *noticesSuite) TestNoticesTimeout(c *C) {
 }
 
 func (s *noticesSuite) TestNoticesRequestCancelled(c *C) {
+	s.expectNoticesAccess()
 	s.daemon(c)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -260,10 +275,12 @@ func (s *noticesSuite) TestNoticesRequestCancelled(c *C) {
 }
 
 func (s *noticesSuite) TestNoticesInvalidAfter(c *C) {
+	s.expectNoticesAccess()
 	s.testNoticesBadRequest(c, "after=foo", `invalid "after" timestamp.*`)
 }
 
 func (s *noticesSuite) TestNoticesInvalidTimeout(c *C) {
+	s.expectNoticesAccess()
 	s.testNoticesBadRequest(c, "timeout=foo", "invalid timeout.*")
 }
 
@@ -278,6 +295,7 @@ func (s *noticesSuite) testNoticesBadRequest(c *C, query, errorMatch string) {
 }
 
 func (s *noticesSuite) TestNotice(c *C) {
+	s.expectNoticesAccess()
 	s.daemon(c)
 
 	st := s.d.Overlord().State()
@@ -302,6 +320,7 @@ func (s *noticesSuite) TestNotice(c *C) {
 }
 
 func (s *noticesSuite) TestNoticeNotFound(c *C) {
+	s.expectNoticesAccess()
 	s.daemon(c)
 
 	req, err := http.NewRequest("GET", "/v2/notices/1234", nil)

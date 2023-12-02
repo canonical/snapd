@@ -28,13 +28,13 @@ var (
 	noticesCmd = &Command{
 		Path:       "/v2/notices",
 		GET:        getNotices,
-		ReadAccess: openAccess{},
+		ReadAccess: authenticatedAccess{},
 	}
 
 	noticeCmd = &Command{
 		Path:       "/v2/notices/{id}",
 		GET:        getNotice,
-		ReadAccess: openAccess{},
+		ReadAccess: authenticatedAccess{},
 	}
 )
 
