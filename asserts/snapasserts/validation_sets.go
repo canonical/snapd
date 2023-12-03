@@ -358,6 +358,15 @@ func (v *ValidationSets) Keys() []ValidationSetKey {
 	return keys
 }
 
+// Sets returns a slice of all of the validation sets that this type knows about.
+func (v *ValidationSets) Sets() []*asserts.ValidationSet {
+	sets := make([]*asserts.ValidationSet, 0, len(v.sets))
+	for _, vs := range v.sets {
+		sets = append(sets, vs)
+	}
+	return sets
+}
+
 // Add adds the given asserts.ValidationSet to the combination.
 // It errors if a validation-set with the same sequence key has been
 // added already.
