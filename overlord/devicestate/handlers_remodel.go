@@ -24,6 +24,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
@@ -106,13 +107,35 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 	}()
 
-	// only useful for testing
-	if injectedSetModelError != nil {
-		return injectedSetModelError
+	currentSets, err := assertstate.TrackedEnforcedValidationSets(st)
+	if err != nil {
+		return err
 	}
+
+	for _, old := range currentSets.Sets() {
+		if err := assertstate.ForgetValidationSet(st, old.AccountID(), old.Name(), remodCtx); err != nil {
+			return err
+		}
+	}
+
+	defer func() {
+		if err == nil {
+			return
+		}
+
+		// restore the old validation sets if something went wrong
+		if err := rollBackValidationSets(st, currentSets); err != nil {
+			logger.Debugf("cannot rollback validation sets: %v", err)
+		}
+	}()
 
 	if err := enforceValidationSetsForRemodel(st, new.ValidationSets()); err != nil {
 		return err
+	}
+
+	// only useful for testing
+	if injectedSetModelError != nil {
+		return injectedSetModelError
 	}
 
 	// add the assertion only after everything else was successful
@@ -151,6 +174,35 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 	}
 
 	t.SetStatus(state.DoneStatus)
+
+	return nil
+}
+
+func rollBackValidationSets(st *state.State, oldValidationSets *snapasserts.ValidationSets) error {
+	sets := oldValidationSets.Sets()
+
+	vSetKeys := make(map[string][]string, len(sets))
+
+	for _, vs := range sets {
+		sequenceName := vs.SequenceName()
+		vSetKeys[sequenceName] = vs.At().PrimaryKey
+	}
+
+	snaps, ignore, err := snapstate.InstalledSnaps(st)
+	if err != nil {
+		return err
+	}
+
+	// TODO: is this right? i think we have to ignore everything that is
+	// installed, since we won't have run the undos for the newly installed
+	// snaps yet
+	for _, sn := range snaps {
+		ignore[sn.SnapName()] = true
+	}
+
+	if err := assertstate.ApplyLocalEnforcedValidationSets(st, vSetKeys, nil, snaps, ignore); err != nil {
+		return err
+	}
 
 	return nil
 }
