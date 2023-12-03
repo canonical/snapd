@@ -165,7 +165,7 @@ func (s *validationSetTrackingSuite) TestForget(c *C) {
 	s.mockModel()
 
 	// delete non-existing one is fine
-	assertstate.ForgetValidationSet(s.st, "foo", "bar")
+	assertstate.ForgetValidationSet(s.st, "foo", "bar", assertstate.ForgetValidationSetOpts{}, nil)
 	all, err := assertstate.ValidationSets(s.st)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 0)
@@ -182,7 +182,7 @@ func (s *validationSetTrackingSuite) TestForget(c *C) {
 	c.Assert(all, HasLen, 1)
 
 	// forget existing one
-	assertstate.ForgetValidationSet(s.st, "foo", "bar")
+	assertstate.ForgetValidationSet(s.st, "foo", "bar", assertstate.ForgetValidationSetOpts{}, nil)
 	all, err = assertstate.ValidationSets(s.st)
 	c.Assert(err, IsNil)
 	c.Assert(all, HasLen, 0)
