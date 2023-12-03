@@ -106,12 +106,9 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 	}()
 
-	currentSets, err := assertstate.TrackedEnforcedValidationSets(st)
-	if err != nil {
-		return err
-	}
+	currentSets, err := trackedValidationSetsFromModel(st, remodCtx.GroundContext().Model())
 
-	for _, old := range currentSets.Sets() {
+	for _, old := range currentSets {
 		if err := assertstate.ForgetValidationSet(st, old.AccountID(), old.Name(), assertstate.ForgetValidationSetOpts{}, remodCtx); err != nil {
 			return err
 		}
@@ -125,7 +122,7 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 
 		// restore the old validation sets if something went wrong
-		if err := rollBackValidationSets(st, currentSets.Sets(), newSets, remodCtx); err != nil {
+		if err := rollBackValidationSets(st, currentSets, newSets, remodCtx); err != nil {
 			logger.Debugf("cannot rollback validation sets: %v", err)
 		}
 	}()
@@ -177,6 +174,23 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 	t.SetStatus(state.DoneStatus)
 
 	return nil
+}
+
+func trackedValidationSetsFromModel(st *state.State, model *asserts.Model) ([]*asserts.ValidationSet, error) {
+	currentSets, err := assertstate.TrackedEnforcedValidationSets(st)
+	if err != nil {
+		return nil, err
+	}
+
+	var fromModel []*asserts.ValidationSet
+	for _, mvs := range model.ValidationSets() {
+		for _, cvs := range currentSets.Sets() {
+			if mvs.AccountID == cvs.AccountID() && mvs.Name == cvs.Name() {
+				fromModel = append(fromModel, cvs)
+			}
+		}
+	}
+	return fromModel, nil
 }
 
 func rollBackValidationSets(st *state.State, oldSets []*asserts.ValidationSet, newSets []*asserts.ModelValidationSet, deviceCtx snapstate.DeviceContext) error {

@@ -8621,7 +8621,7 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 	st := s.o.State()
 
 	st.Lock()
-	vset1, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert1, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "can0nical",
 		"series":       "16",
@@ -8639,10 +8639,10 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	c.Assert(assertstate.Add(st, vset1), IsNil)
-	c.Assert(s.storeSigning.Add(vset1), IsNil)
+	c.Assert(assertstate.Add(st, vsetAssert1), IsNil)
+	c.Assert(s.storeSigning.Add(vsetAssert1), IsNil)
 
-	vset2, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert2, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "can0nical",
 		"series":       "16",
@@ -8660,8 +8660,29 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	c.Assert(assertstate.Add(st, vset2), IsNil)
-	c.Assert(s.storeSigning.Add(vset2), IsNil)
+	c.Assert(assertstate.Add(st, vsetAssert2), IsNil)
+	c.Assert(s.storeSigning.Add(vsetAssert2), IsNil)
+
+	vsetAssert3, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "can0nical",
+		"series":       "16",
+		"account-id":   "can0nical",
+		"name":         "vset-3",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "snapd",
+				"id":       fakeSnapID("snapd"),
+				"revision": "4",
+				"presence": "required",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(st, vsetAssert3), IsNil)
+	c.Assert(s.storeSigning.Add(vsetAssert3), IsNil)
 	st.Unlock()
 
 	modelValSets := map[string]interface{}{
@@ -8697,9 +8718,11 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 
 	installed, ignore, err := snapstate.InstalledSnaps(st)
 	c.Assert(err, IsNil)
-	vs := vset1.(*asserts.ValidationSet)
+	vs1 := vsetAssert1.(*asserts.ValidationSet)
+	vs3 := vsetAssert3.(*asserts.ValidationSet)
 	err = assertstate.ApplyLocalEnforcedValidationSets(st, map[string][]string{
-		vs.SequenceName(): vs.At().PrimaryKey,
+		vs1.SequenceName(): vs1.At().PrimaryKey,
+		vs3.SequenceName(): vs3.At().PrimaryKey,
 	}, nil, installed, ignore)
 	c.Assert(err, IsNil)
 
@@ -8945,6 +8968,7 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(currentSets.Keys(), testutil.DeepUnsortedMatches, []snapasserts.ValidationSetKey{
 		"16/can0nical/vset-1/1",
+		"16/can0nical/vset-3/1",
 	})
 
 	history, err := assertstate.ValidationSetsHistory(st)
@@ -8963,8 +8987,21 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 				Mode:      assertstate.Enforce,
 				Current:   1,
 			},
+			"can0nical/vset-3": {
+				AccountID: "can0nical",
+				Name:      "vset-3",
+				Mode:      assertstate.Enforce,
+				Current:   1,
+			},
 		},
-		{},
+		{
+			"can0nical/vset-3": {
+				AccountID: "can0nical",
+				Name:      "vset-3",
+				Mode:      assertstate.Enforce,
+				Current:   1,
+			},
+		},
 		{
 			"can0nical/vset-2": {
 				AccountID: "can0nical",
@@ -8972,12 +9009,31 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 				Mode:      assertstate.Enforce,
 				Current:   1,
 			},
+			"can0nical/vset-3": {
+				AccountID: "can0nical",
+				Name:      "vset-3",
+				Mode:      assertstate.Enforce,
+				Current:   1,
+			},
 		},
-		{},
+		{
+			"can0nical/vset-3": {
+				AccountID: "can0nical",
+				Name:      "vset-3",
+				Mode:      assertstate.Enforce,
+				Current:   1,
+			},
+		},
 		{
 			"can0nical/vset-1": {
 				AccountID: "can0nical",
 				Name:      "vset-1",
+				Mode:      assertstate.Enforce,
+				Current:   1,
+			},
+			"can0nical/vset-3": {
+				AccountID: "can0nical",
+				Name:      "vset-3",
 				Mode:      assertstate.Enforce,
 				Current:   1,
 			},
@@ -8989,7 +9045,7 @@ func (s *mgrsSuiteCore) TestRemodelReplaceConflictingValidationSets(c *C) {
 	st := s.o.State()
 
 	st.Lock()
-	vset1, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert1, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "can0nical",
 		"series":       "16",
@@ -9007,10 +9063,10 @@ func (s *mgrsSuiteCore) TestRemodelReplaceConflictingValidationSets(c *C) {
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	c.Assert(assertstate.Add(st, vset1), IsNil)
-	c.Assert(s.storeSigning.Add(vset1), IsNil)
+	c.Assert(assertstate.Add(st, vsetAssert1), IsNil)
+	c.Assert(s.storeSigning.Add(vsetAssert1), IsNil)
 
-	vset2, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
+	vsetAssert2, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "can0nical",
 		"series":       "16",
@@ -9028,8 +9084,30 @@ func (s *mgrsSuiteCore) TestRemodelReplaceConflictingValidationSets(c *C) {
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
-	c.Assert(assertstate.Add(st, vset2), IsNil)
-	c.Assert(s.storeSigning.Add(vset2), IsNil)
+	c.Assert(assertstate.Add(st, vsetAssert2), IsNil)
+	c.Assert(s.storeSigning.Add(vsetAssert2), IsNil)
+
+	vsetAssert3, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "can0nical",
+		"series":       "16",
+		"account-id":   "can0nical",
+		"name":         "vset-3",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "snapd",
+				"id":       fakeSnapID("snapd"),
+				"revision": "4",
+				"presence": "required",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(st, vsetAssert3), IsNil)
+	c.Assert(s.storeSigning.Add(vsetAssert3), IsNil)
+
 	st.Unlock()
 
 	modelValSets := map[string]interface{}{
@@ -9065,9 +9143,11 @@ func (s *mgrsSuiteCore) TestRemodelReplaceConflictingValidationSets(c *C) {
 
 	installed, ignore, err := snapstate.InstalledSnaps(st)
 	c.Assert(err, IsNil)
-	vs := vset1.(*asserts.ValidationSet)
+	vs1 := vsetAssert1.(*asserts.ValidationSet)
+	vs3 := vsetAssert3.(*asserts.ValidationSet)
 	err = assertstate.ApplyLocalEnforcedValidationSets(st, map[string][]string{
-		vs.SequenceName(): vs.At().PrimaryKey,
+		vs1.SequenceName(): vs1.At().PrimaryKey,
+		vs3.SequenceName(): vs3.At().PrimaryKey,
 	}, nil, installed, ignore)
 	c.Assert(err, IsNil)
 
@@ -9344,6 +9424,14 @@ func (s *mgrsSuiteCore) TestRemodelReplaceConflictingValidationSets(c *C) {
 		"1234", expectedLabel,
 	})
 	c.Check(m.Base, Equals, "core22_1.snap")
+
+	// list validation sets that are currently tracked
+	currentSets, err := assertstate.TrackedEnforcedValidationSets(st)
+	c.Assert(err, IsNil)
+	c.Check(currentSets.Keys(), testutil.DeepUnsortedMatches, []snapasserts.ValidationSetKey{
+		"16/can0nical/vset-2/1",
+		"16/can0nical/vset-3/1",
+	})
 }
 
 func (s *mgrsSuiteCore) TestRemodelUC20ToUC22(c *C) {
