@@ -1012,8 +1012,8 @@ func ApplyEnforcedValidationSets(st *state.State, valsets map[string]*asserts.Va
 	return addCurrentTrackingToValidationSetsHistory(st)
 }
 
-func validationSetFromModel(st *state.State, accountID, name string) (*asserts.ModelValidationSet, error) {
-	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
+func validationSetFromModel(st *state.State, accountID, name string, deviceCtx snapstate.DeviceContext) (*asserts.ModelValidationSet, error) {
+	deviceCtx, err := snapstate.DevicePastSeeding(st, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -1028,7 +1028,7 @@ func validationSetFromModel(st *state.State, accountID, name string) (*asserts.M
 }
 
 func sequenceSetByModelAssertion(st *state.State, accountID, name string) (int, error) {
-	vs, err := validationSetFromModel(st, accountID, name)
+	vs, err := validationSetFromModel(st, accountID, name, nil)
 	if err != nil {
 		return 0, err
 	}
