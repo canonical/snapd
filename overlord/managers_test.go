@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/arch/archtest"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
@@ -8614,6 +8615,374 @@ func dumpTasks(c *C, when string, tasks []*state.Task) {
 			}
 		}
 	}
+}
+
+func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
+	st := s.o.State()
+
+	st.Lock()
+	vset1, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "can0nical",
+		"series":       "16",
+		"account-id":   "can0nical",
+		"name":         "vset-1",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc-kernel",
+				"id":       fakeSnapID("pc-kernel"),
+				"revision": "2",
+				"presence": "required",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(st, vset1), IsNil)
+	c.Assert(s.storeSigning.Add(vset1), IsNil)
+
+	vset2, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "can0nical",
+		"series":       "16",
+		"account-id":   "can0nical",
+		"name":         "vset-2",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc-kernel",
+				"id":       fakeSnapID("pc-kernel"),
+				"revision": "33",
+				"presence": "required",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(st, vset2), IsNil)
+	c.Assert(s.storeSigning.Add(vset2), IsNil)
+	st.Unlock()
+
+	modelValSets := map[string]interface{}{
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "can0nical",
+				"name":       "vset-1",
+				"mode":       "enforce",
+			},
+		},
+	}
+
+	_ = modelValSets
+
+	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c, modelValSets)
+
+	restore := kcmdline.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
+	defer restore()
+
+	restore = backend.MockAllUsers(func(*dirs.SnapDirOptions) ([]*user.User, error) {
+		usr, err := user.Current()
+		if err != nil {
+			return nil, err
+		}
+
+		usr.HomeDir = filepath.Join(dirs.GlobalRootDir, usr.HomeDir)
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	st.Lock()
+	defer st.Unlock()
+
+	installed, ignore, err := snapstate.InstalledSnaps(st)
+	c.Assert(err, IsNil)
+	vs := vset1.(*asserts.ValidationSet)
+	err = assertstate.ApplyLocalEnforcedValidationSets(st, map[string][]string{
+		vs.SequenceName(): vs.At().PrimaryKey,
+	}, nil, installed, ignore)
+	c.Assert(err, IsNil)
+
+	// make core22 a thing
+	a11, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "core22",
+		"snap-id":      fakeSnapID("core22"),
+		"publisher-id": "can0nical",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(st, a11), IsNil)
+	c.Assert(s.storeSigning.Add(a11), IsNil)
+
+	snapPath, _ := s.makeStoreTestSnapWithFiles(c, snapYamlsForRemodel["core22"], "1", nil)
+	s.serveSnap(snapPath, "1")
+	snapPath, _ = s.makeStoreTestSnapWithFiles(c, pcKernel22SnapYaml, "33", snapFilesForRemodel["pc-kernel-track-22"])
+	s.serveSnap(snapPath, "33")
+	snapPath, _ = s.makeStoreTestSnapWithFiles(c, pcGadget22SnapYaml, "34", snapFilesForRemodel["pc-track-22"])
+	s.serveSnap(snapPath, "34")
+
+	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
+		// replace the base
+		"base": "core22",
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "can0nical",
+				"name":       "vset-2",
+				"mode":       "enforce",
+			},
+		},
+		"snaps": []interface{}{
+			// kernel and gadget snaps with new tracks
+			map[string]interface{}{
+				"name": "pc-kernel",
+				"id":   fakeSnapID("pc-kernel"),
+				"type": "kernel",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              fakeSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "22",
+			},
+		},
+		"revision": "1",
+	})
+	bl, err := bootloader.Find(boot.InitramfsUbuntuSeedDir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	c.Assert(err, IsNil)
+
+	r := gadget.MockVolumeStructureToLocationMap(func(gd gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		return map[string]map[int]gadget.StructureLocation{
+				"pc": {
+					0: {
+						RootMountPoint: "/foo-seed",
+					},
+					1: {
+						RootMountPoint: "/foo-boot",
+					},
+					2: {
+						RootMountPoint: "/foo-data",
+					},
+				},
+			}, map[string]map[int]*gadget.OnDiskStructure{
+				"pc": gadget.OnDiskStructsFromGadget(gd.Info.Volumes["pc"]),
+			}, nil
+	})
+	defer r()
+
+	// remodel updates a gadget, setup a mock updater that pretends an
+	// update was applied
+	updater := &mockUpdater{}
+	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		// use a mock updater pretends an update was applied
+		return updater, nil
+	})
+	defer restore()
+
+	now := time.Now()
+	expectedLabel := now.Format("20060102")
+
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
+	c.Assert(err, IsNil)
+	dumpTasks(c, "at the beginning", chg.Tasks())
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+	// gadget update has been not been applied yet
+	c.Check(updater.updateCalls, Equals, 0)
+
+	dumpTasks(c, "after recovery system", chg.Tasks())
+
+	// first comes a reboot to the new recovery system
+	c.Check(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
+	c.Check(devicestate.RemodelingChange(st), NotNil)
+	restarting, kind := restart.Pending(st)
+	c.Check(restarting, Equals, true)
+	c.Assert(kind, Equals, restart.RestartSystemNow)
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(m.CurrentRecoverySystems, DeepEquals, []string{"1234", expectedLabel})
+	c.Check(m.GoodRecoverySystems, DeepEquals, []string{"1234"})
+	vars, err := bl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Assert(vars, DeepEquals, map[string]string{
+		"try_recovery_system":    expectedLabel,
+		"recovery_system_status": "try",
+	})
+
+	// simulate successful reboot to recovery and back
+	restart.MockPending(st, restart.RestartUnset)
+	restart.MockAfterRestartForChange(chg)
+
+	// this would be done by snap-bootstrap in initramfs
+	err = bl.SetBootVars(map[string]string{
+		"try_recovery_system":    expectedLabel,
+		"recovery_system_status": "tried",
+	})
+	c.Assert(err, IsNil)
+	// reset, so that after-reboot handling of tried system is executed
+	s.o.DeviceManager().ResetToPostBootState()
+	st.Unlock()
+	err = s.o.DeviceManager().Ensure()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// next we'll observe kernel getting installed
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	dumpTasks(c, "after kernel install", chg.Tasks())
+	// gadget update has been not been applied yet
+	c.Check(updater.updateCalls, Equals, 0)
+
+	restarting, kind = restart.Pending(st)
+	c.Check(restarting, Equals, true)
+	c.Assert(kind, Equals, restart.RestartSystem)
+	c.Assert(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
+	// and we've rebooted
+	restart.MockPending(st, restart.RestartUnset)
+	restart.MockAfterRestartForChange(chg)
+	// pretend the kernel has booted
+	rbl, err := bootloader.Find(dirs.GlobalRootDir, &bootloader.Options{Role: bootloader.RoleRunMode})
+	c.Assert(err, IsNil)
+	vars, err = rbl.GetBootVars("kernel_status")
+	c.Assert(err, IsNil)
+	c.Assert(vars, DeepEquals, map[string]string{
+		"kernel_status": "try",
+	})
+	err = rbl.SetBootVars(map[string]string{
+		"kernel_status": "trying",
+	})
+	c.Assert(err, IsNil)
+
+	s.o.DeviceManager().ResetToPostBootState()
+	st.Unlock()
+	err = s.o.DeviceManager().Ensure()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// next the base
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	dumpTasks(c, "after base install", chg.Tasks())
+	// gadget update has been not been applied yet
+	c.Check(updater.updateCalls, Equals, 0)
+
+	// restarting to a new base
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m.TryBase, Equals, "core22_1.snap")
+	c.Assert(m.BaseStatus, Equals, "try")
+	// we've rebooted
+	restart.MockPending(st, restart.RestartUnset)
+	restart.MockAfterRestartForChange(chg)
+	// and pretend we boot the base
+	m.BaseStatus = "trying"
+	c.Assert(m.Write(), IsNil)
+
+	s.o.DeviceManager().ResetToPostBootState()
+	st.Unlock()
+	err = s.o.DeviceManager().Ensure()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// next the gadget which updates the command line
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// gadget update for the seed partition has been applied
+	c.Check(updater.updateCalls, Equals, 1)
+
+	dumpTasks(c, "after gadget install", chg.Tasks())
+
+	// the gadget has updated the kernel command line
+	restarting, kind = restart.Pending(st)
+	c.Check(restarting, Equals, true)
+	c.Assert(kind, Equals, restart.RestartSystem)
+	c.Assert(chg.Status(), Equals, state.WaitStatus, Commentf("remodel change failed: %v", chg.Err()))
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 uc22",
+	})
+	// we've rebooted
+	restart.MockPending(st, restart.RestartUnset)
+	restart.MockAfterRestartForChange(chg)
+	// pretend we have the right command line
+	c.Assert(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"),
+		[]byte("snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 uc22"), 0444),
+		IsNil)
+
+	s.o.DeviceManager().ResetToPostBootState()
+	st.Unlock()
+	err = s.o.DeviceManager().Ensure()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	devicestate.InjectSetModelError(fmt.Errorf("boom"))
+	defer devicestate.InjectSetModelError(nil)
+
+	// we need to reboot twice here to fully report the failure
+	s.mockRestartAndSettle(c, st, chg)
+	s.mockRestartAndSettle(c, st, chg)
+
+	dumpTasks(c, "after failing to set the new model", chg.Tasks())
+
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+
+	// list validation sets that are currently tracked
+	currentSets, err := assertstate.TrackedEnforcedValidationSets(st)
+	c.Assert(err, IsNil)
+	c.Check(currentSets.Keys(), testutil.DeepUnsortedMatches, []snapasserts.ValidationSetKey{
+		"16/can0nical/vset-1/1",
+	})
+
+	history, err := assertstate.ValidationSetsHistory(st)
+
+	c.Assert(err, IsNil)
+
+	// TODO: note the two empty maps here. this is from us having to remove the
+	// validation set from the previous model and then tracking the new model in
+	// a separate action. do we need a new function in asserstate for replacing
+	// the validation sets atomically?
+	c.Check(history, DeepEquals, []map[string]*assertstate.ValidationSetTracking{
+		{
+			"can0nical/vset-1": {
+				AccountID: "can0nical",
+				Name:      "vset-1",
+				Mode:      assertstate.Enforce,
+				Current:   1,
+			},
+		},
+		{},
+		{
+			"can0nical/vset-2": {
+				AccountID: "can0nical",
+				Name:      "vset-2",
+				Mode:      assertstate.Enforce,
+				Current:   1,
+			},
+		},
+		{},
+		{
+			"can0nical/vset-1": {
+				AccountID: "can0nical",
+				Name:      "vset-1",
+				Mode:      assertstate.Enforce,
+				Current:   1,
+			},
+		},
+	})
 }
 
 func (s *mgrsSuiteCore) TestRemodelReplaceConflictingValidationSets(c *C) {

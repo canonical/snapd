@@ -24,7 +24,6 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
@@ -113,10 +112,12 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 	}
 
 	for _, old := range currentSets.Sets() {
-		if err := assertstate.ForgetValidationSet(st, old.AccountID(), old.Name(), remodCtx); err != nil {
+		if err := assertstate.ForgetValidationSet(st, old.AccountID(), old.Name(), assertstate.ForgetValidationSetOpts{}, remodCtx); err != nil {
 			return err
 		}
 	}
+
+	newSets := new.ValidationSets()
 
 	defer func() {
 		if err == nil {
@@ -124,12 +125,12 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 
 		// restore the old validation sets if something went wrong
-		if err := rollBackValidationSets(st, currentSets); err != nil {
+		if err := rollBackValidationSets(st, currentSets.Sets(), newSets, remodCtx); err != nil {
 			logger.Debugf("cannot rollback validation sets: %v", err)
 		}
 	}()
 
-	if err := enforceValidationSetsForRemodel(st, new.ValidationSets()); err != nil {
+	if err := enforceValidationSetsForRemodel(st, newSets); err != nil {
 		return err
 	}
 
@@ -178,12 +179,18 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 	return nil
 }
 
-func rollBackValidationSets(st *state.State, oldValidationSets *snapasserts.ValidationSets) error {
-	sets := oldValidationSets.Sets()
+func rollBackValidationSets(st *state.State, oldSets []*asserts.ValidationSet, newSets []*asserts.ModelValidationSet, deviceCtx snapstate.DeviceContext) error {
+	for _, set := range newSets {
+		if err := assertstate.ForgetValidationSet(st, set.AccountID, set.Name, assertstate.ForgetValidationSetOpts{
+			ForceForget: true,
+		}, deviceCtx); err != nil {
+			fmt.Println("we did not roll them back!", err)
+			return err
+		}
+	}
 
-	vSetKeys := make(map[string][]string, len(sets))
-
-	for _, vs := range sets {
+	vSetKeys := make(map[string][]string, len(oldSets))
+	for _, vs := range oldSets {
 		sequenceName := vs.SequenceName()
 		vSetKeys[sequenceName] = vs.At().PrimaryKey
 	}
