@@ -400,9 +400,7 @@ func installedSnapRevisionChanged(st *state.State, modelSnapName string, require
 	}
 
 	if ss.Current.Local() {
-		// currently installed snap has a local revision, since it's
-		// unasserted we cannot say whether it needs a change or not
-		return false, nil
+		return false, errors.New("cannot determine if unasserted snap revision matches required revision")
 	}
 
 	return ss.Current != requiredRevision, nil

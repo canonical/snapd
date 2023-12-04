@@ -3500,7 +3500,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsTrackingDifferentCh
 	})
 }
 
-func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsAlreadyInstalledAndLocal(c *C) {
+func (s *deviceMgrRemodelSuite) TestRemodelFailWhenUsingUnassertedSnapForSpecificRevision(c *C) {
 	// remodel when the essential snaps declared in new model are already
 	// installed, but have a local revision
 	s.state.Lock()
@@ -3649,59 +3649,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsAlreadyInstalledAnd
 		},
 	})
 
-	chg, err := devicestate.Remodel(s.state, new, nil, nil)
-	c.Assert(err, IsNil)
-	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
-
-	tl := chg.Tasks()
-	// recovery system (2 tasks) + set-model
-	c.Assert(tl, HasLen, 3)
-
-	deviceCtx, err := devicestate.DeviceCtx(s.state, tl[0], nil)
-	c.Assert(err, IsNil)
-	// deviceCtx is actually a remodelContext here
-	remodCtx, ok := deviceCtx.(devicestate.RemodelContext)
-	c.Assert(ok, Equals, true)
-	c.Check(remodCtx.ForRemodeling(), Equals, true)
-	c.Check(remodCtx.Kind(), Equals, devicestate.UpdateRemodel)
-	c.Check(remodCtx.Model(), DeepEquals, new)
-	c.Check(remodCtx.Store(), IsNil)
-
-	// check the tasks
-	tCreateRecovery := tl[0]
-	tFinalizeRecovery := tl[1]
-	tSetModel := tl[2]
-
-	// check the tasks
-	expectedLabel := now.Format("20060102")
-	c.Assert(tCreateRecovery.Kind(), Equals, "create-recovery-system")
-	c.Assert(tCreateRecovery.Summary(), Equals, fmt.Sprintf("Create recovery system with label %q", expectedLabel))
-	c.Assert(tFinalizeRecovery.Kind(), Equals, "finalize-recovery-system")
-	c.Assert(tFinalizeRecovery.Summary(), Equals, fmt.Sprintf("Finalize recovery system with label %q", expectedLabel))
-	c.Assert(tSetModel.Kind(), Equals, "set-model")
-	c.Assert(tSetModel.Summary(), Equals, "Set new model assertion")
-	c.Assert(tCreateRecovery.WaitTasks(), HasLen, 0)
-	c.Assert(tFinalizeRecovery.WaitTasks(), DeepEquals, []*state.Task{
-		// recovery system being created
-		tCreateRecovery,
-	})
-
-	c.Assert(tSetModel.Kind(), Equals, "set-model")
-	c.Assert(tSetModel.Summary(), Equals, "Set new model assertion")
-	// setModel waits for everything in the change
-	c.Assert(tSetModel.WaitTasks(), DeepEquals, []*state.Task{
-		tCreateRecovery, tFinalizeRecovery,
-	})
-
-	// verify recovery system setup data on appropriate tasks
-	var systemSetupData map[string]interface{}
-	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
-	c.Assert(err, IsNil)
-	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
-		"label":            expectedLabel,
-		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
-		"snap-setup-tasks": nil,
-	})
+	_, err = devicestate.Remodel(s.state, new, nil, nil)
+	c.Assert(err, ErrorMatches, "cannot determine if unasserted snap revision matches required revision")
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelUC20BaseNoDownloadSimpleChannelSwitch(c *C) {
