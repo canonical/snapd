@@ -388,8 +388,8 @@ func notInstalled(st *state.State, name string) (bool, error) {
 	return false, err
 }
 
-func installedSnapRevisionChanged(st *state.State, modelSnapName string, newRevision snap.Revision) (bool, error) {
-	if newRevision.Unset() {
+func installedSnapRevisionChanged(st *state.State, modelSnapName string, requiredRevision snap.Revision) (bool, error) {
+	if requiredRevision.Unset() {
 		return false, nil
 	}
 
@@ -405,7 +405,7 @@ func installedSnapRevisionChanged(st *state.State, modelSnapName string, newRevi
 		return false, nil
 	}
 
-	return ss.Current != newRevision, nil
+	return ss.Current != requiredRevision, nil
 }
 
 func installedSnapChannelChanged(st *state.State, modelSnapName, declaredChannel string) (changed bool, err error) {
