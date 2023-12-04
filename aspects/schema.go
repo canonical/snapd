@@ -276,7 +276,7 @@ func (v *mapSchema) Validate(raw []byte) error {
 				if err := validator.Validate(val); err != nil {
 					var valErr *ValidationError
 					if errors.As(err, &valErr) {
-						valErr.Path = append([]string{key}, valErr.Path...)
+						valErr.Path = append([]interface{}{key}, valErr.Path...)
 					}
 					return err
 				}
@@ -297,7 +297,7 @@ func (v *mapSchema) Validate(raw []byte) error {
 			if err := v.keySchema.Validate(rawKey); err != nil {
 				var valErr *ValidationError
 				if errors.As(err, &valErr) {
-					valErr.Path = append([]string{k}, valErr.Path...)
+					valErr.Path = append([]interface{}{k}, valErr.Path...)
 				}
 				return err
 			}
@@ -309,7 +309,7 @@ func (v *mapSchema) Validate(raw []byte) error {
 			if err := v.valueSchema.Validate(val); err != nil {
 				var valErr *ValidationError
 				if errors.As(err, &valErr) {
-					valErr.Path = append([]string{k}, valErr.Path...)
+					valErr.Path = append([]interface{}{k}, valErr.Path...)
 				}
 				return err
 			}
@@ -797,7 +797,7 @@ func (v *arraySchema) Validate(raw []byte) error {
 		if err := v.elementType.Validate([]byte(val)); err != nil {
 			var vErr *ValidationError
 			if errors.As(err, &vErr) {
-				vErr.Path = append([]string{fmt.Sprintf("[%d]", e)}, vErr.Path...)
+				vErr.Path = append([]interface{}{e}, vErr.Path...)
 			}
 			return err
 		}
@@ -846,7 +846,7 @@ func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) e
 func (v *arraySchema) expectsConstraints() bool { return true }
 
 type ValidationError struct {
-	Path []string
+	Path []interface{}
 	Err  error
 }
 
@@ -855,7 +855,24 @@ func (v *ValidationError) Error() string {
 	if len(v.Path) == 0 {
 		msg = "cannot accept top level element"
 	} else {
-		msg = fmt.Sprintf("cannot accept element in %q", strings.Join(v.Path, "."))
+		var sb strings.Builder
+		for i, part := range v.Path {
+			switch v := part.(type) {
+			case string:
+				if i > 0 {
+					sb.WriteRune('.')
+				}
+
+				sb.WriteString(v)
+			case int:
+				sb.WriteString(fmt.Sprintf("[%d]", v))
+			default:
+				// can only happen due to bug
+				sb.WriteString(".<n/a>")
+			}
+		}
+
+		msg = fmt.Sprintf("cannot accept element in %q", sb.String())
 	}
 
 	return fmt.Sprintf("%s: %v", msg, v.Err)

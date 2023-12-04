@@ -1620,7 +1620,7 @@ func (*schemaSuite) TestArrayEnforcesOnlyOneType(c *C) {
 }`)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot accept element in "foo.\[1\]": cannot parse string: json:.*`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo\[1\]": cannot parse string: json:.*`)
 }
 
 func (*schemaSuite) TestArrayWithUniqueRejectsDuplicates(c *C) {
@@ -1775,7 +1775,7 @@ func (*schemaSuite) TestPathPrefixWithArrayUnderUserType(c *C) {
 
 	input := []byte(`{"foo": [-1]}`)
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot accept element in "foo.\[0\]": -1 is less than the allowed minimum 0`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo\[0\]": -1 is less than the allowed minimum 0`)
 }
 
 func (*schemaSuite) TestPathPrefixWithArrayUnderUserWithAContainerElementType(c *C) {
@@ -1802,7 +1802,7 @@ func (*schemaSuite) TestPathPrefixWithArrayUnderUserWithAContainerElementType(c 
 
 	input := []byte(`{"foo": [{"bar": 1}, {"bar": -1}]}`)
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot accept element in "foo.\[1\].bar": -1 is less than the allowed minimum 0`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo\[1\].bar": -1 is less than the allowed minimum 0`)
 }
 
 func (*schemaSuite) TestPathPrefixWithKeyOrValueConstraints(c *C) {
@@ -1836,10 +1836,6 @@ func (*schemaSuite) TestPathPrefixWithKeyOrValueConstraints(c *C) {
 func (*schemaSuite) TestPathManyUserDefinedTypeReferences(c *C) {
 	schemaStr := []byte(`{
 	"types": {
-		"num": {
-			"type": "int",
-			"min": 0
-		},
 		"my-type": {
 			"type": "map",
 			"values": {
@@ -1860,4 +1856,39 @@ func (*schemaSuite) TestPathManyUserDefinedTypeReferences(c *C) {
 	input := []byte(`{"foo": { "one": 1 }, "bar": { "two": -1 } }`)
 	err = schema.Validate(input)
 	c.Assert(err, ErrorMatches, `cannot accept element in "bar.two": -1 is less than the allowed minimum 0`)
+}
+
+func (*schemaSuite) TestValidationError(c *C) {
+	type testcase struct {
+		path     []interface{}
+		expected string
+	}
+
+	cases := []testcase{
+		{
+			path:     []interface{}{"foo", "bar"},
+			expected: "foo.bar",
+		},
+		{
+			path:     []interface{}{"foo", 1, "bar"},
+			expected: "foo[1].bar",
+		},
+		{
+			path:     []interface{}{"foo", 1, 2, "bar"},
+			expected: "foo[1][2].bar",
+		},
+		{
+			path:     []interface{}{"foo", 2.9, 1},
+			expected: "foo.<n/a>[1]",
+		},
+	}
+
+	for _, tc := range cases {
+		err := &aspects.ValidationError{
+			Path: tc.path,
+			Err:  fmt.Errorf("base error"),
+		}
+
+		c.Assert(err.Error(), Equals, fmt.Sprintf(`cannot accept element in %q: base error`, tc.expected))
+	}
 }
