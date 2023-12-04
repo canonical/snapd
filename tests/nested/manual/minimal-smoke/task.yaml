@@ -1,5 +1,10 @@
 summary: execute smoke tests in a nested Ubuntu Core VM that meets the minimal requirements
 
+details: |
+    Verify that it is possible to run the smoke test suite in ubuntu core system using the
+    minimal memory requirements. The memory requirement varies depending on the
+    ubuntu core version.
+
 systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
