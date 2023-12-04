@@ -185,7 +185,7 @@ func trackedValidationSetsFromModel(st *state.State, model *asserts.Model) ([]*a
 	var fromModel []*asserts.ValidationSet
 	for _, mvs := range model.ValidationSets() {
 		for _, cvs := range currentSets.Sets() {
-			if mvs.AccountID == cvs.AccountID() && mvs.Name == cvs.Name() {
+			if mvs.SequenceName() == cvs.SequenceName() {
 				fromModel = append(fromModel, cvs)
 			}
 		}
