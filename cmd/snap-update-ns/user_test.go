@@ -101,7 +101,8 @@ func (s *userSuite) TestAssumptions(c *C) {
 	upCtx, err := update.NewUserProfileUpdateContext("foo", false, 1234)
 	c.Assert(err, IsNil)
 	as := upCtx.Assumptions()
-	c.Check(as.UnrestrictedPaths(), IsNil)
+	c.Check(as.UnrestrictedPaths(), DeepEquals, []string{tmpHomeDir})
+	c.Check(as.ModeForPath(tmpHomeDir+"/dir"), Equals, os.FileMode(0755))
 }
 
 func (s *userSuite) TestLoadDesiredProfile(c *C) {

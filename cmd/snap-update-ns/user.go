@@ -95,6 +95,7 @@ func (upCtx *UserProfileUpdateContext) Assumptions() *Assumptions {
 	// TODO: configure the secure helper and inform it about directories that
 	// can be created without trespassing.
 	as := &Assumptions{}
+	as.AddUnrestrictedPaths(upCtx.home)
 	// TODO: Handle /home/*/snap/* when we do per-user mount namespaces and
 	// allow defining layout items that refer to SNAP_USER_DATA and
 	// SNAP_USER_COMMON.

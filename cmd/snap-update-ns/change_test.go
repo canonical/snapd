@@ -2742,6 +2742,9 @@ func (s *changeSuite) TestPerformEnsureDirError(c *C) {
 // Change.Perform wants to ensure a directory (scenario 1)
 // Scenario: MustExistDir /home/user exists, but child directories .local, .local/share and .local/share/missing does not
 func (s *changeSuite) TestPerformEnsureDirScenario1(c *C) {
+	// Allow writing to /home/user
+	defer s.as.MockUnrestrictedPaths("/home/user")()
+
 	s.sys.InsertFault(`lstat "/home/user/.local/share/missing"`, syscall.ENOENT)
 	s.sys.InsertFault(`lstat "/home/user/.local"`, syscall.ENOENT)
 	s.sys.InsertOsLstatResult(`lstat "/home/user"`, testutil.FileInfoDir)
@@ -2799,6 +2802,9 @@ func (s *changeSuite) TestPerformEnsureDirScenario1(c *C) {
 // Change.Perform wants to ensure a directory (scenario 2)
 // Scenario: MustExistDir /home/user and child directories .local and .local/share exists, but .local/share/missing does not
 func (s *changeSuite) TestPerformEnsureDirScenario2(c *C) {
+	// Allow writing to /home/user
+	defer s.as.MockUnrestrictedPaths("/home/user")()
+
 	s.sys.InsertFault(`lstat "/home/user/.local/share/missing"`, syscall.ENOENT)
 	s.sys.InsertOsLstatResult(`lstat "/home/user/.local/share"`, testutil.FileInfoDir)
 	s.sys.InsertOsLstatResult(`lstat "/home/user/.local"`, testutil.FileInfoDir)

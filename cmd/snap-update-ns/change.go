@@ -127,9 +127,12 @@ func (c *Change) createPath(path string, pokeHoles bool, as *Assumptions) ([]*Ch
 			logger.Noticef("WARNING: cannot perform ensure-dir mount for target %q, not supported for the root user", path)
 		} else {
 			// https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
+			// Mode hints cannot be used here because it does not support specifying all
+			// directory paths within a given directory.
 			mode = 0700
+
 			// Restrictions not used
-			err = MkdirAllWithin(path, c.Entry.XSnapdMustExistDir(), mode, uid, gid, nil)
+			err = MkdirAllWithin(path, c.Entry.XSnapdMustExistDir(), mode, uid, gid, rs)
 			if errors.Is(err, &FileInWayError{}) || errors.Is(err, &ParentMissingError{}) {
 				logger.Noticef("WARNING: cannot perform ensure-dir mount for target %q: %v", path, err)
 				// Failure to complete because of a file in the way or MustExistDir
