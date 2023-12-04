@@ -20,8 +20,10 @@
 package builtin
 
 import (
+	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/osutil"
@@ -166,7 +168,8 @@ func (iface *cupsControlInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 }
 
 func (iface *cupsControlInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
-	_, hostSystemHasCupsd, _ := osutil.RegularFileExists("/etc/cups/cupsd.conf")
+	cupsdConf := filepath.Join(dirs.GlobalRootDir, "/etc/cups/cupsd.conf")
+	_, hostSystemHasCupsd, _ := osutil.RegularFileExists(cupsdConf)
 	if hostSystemHasCupsd {
 		// If the host system has cupsd installed, we want to
 		// direct connections to the implicit
