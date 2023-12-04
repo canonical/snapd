@@ -600,6 +600,11 @@ func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, re
 			// during an update; more entries indicates that the
 			// same asset name is used multiple times with different
 			// content
+
+			// The order is important. Changing it would
+			// change assumptions in
+			// bootAssetsToLoadChains
+
 			return gadget.ChangeAbort, fmt.Errorf("cannot reuse asset name %q", ta.name)
 		}
 		(*trustedAssets)[ta.name] = append((*trustedAssets)[ta.name], ta.hash)

@@ -257,7 +257,7 @@ func predictableBootChainsEqualForReseal(pb1, pb2 predictableBootChains) bootCha
 // bootAssetsToLoadChains generates a list of load chains covering given boot
 // assets sequence. At the end of each chain, adds an entry for the kernel boot
 // file.
-func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFile, roleToBlName map[bootloader.Role]string) ([]*secboot.LoadChain, error) {
+func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFile, roleToBlName map[bootloader.Role]string, expectNext bool) ([]*secboot.LoadChain, error) {
 	// kernel is added after all the assets
 	addKernelBootFile := len(assets) == 0
 	if addKernelBootFile {
@@ -270,7 +270,20 @@ func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFi
 		return nil, fmt.Errorf("internal error: no bootloader name for boot asset role %q", thisAsset.Role)
 	}
 	var chains []*secboot.LoadChain
-	for _, hash := range thisAsset.Hashes {
+
+	for i, hash := range thisAsset.Hashes {
+		// There should be 1 or 2 assets, and their position has a meaning.
+		// See TrustedAssetsUpdateObserver.observeUpdate
+		if i == 0 {
+			// First asset is currently installed asset
+			if len(thisAsset.Hashes) == 2 && expectNext {
+				continue
+			}
+		} else if i != 1 {
+			// If there is a second asset, it is the next asset to be installed
+			return nil, fmt.Errorf("did not expect more than 2 hashes for %s", thisAsset.Name)
+		}
+
 		var bf bootloader.BootFile
 		var next []*secboot.LoadChain
 		var err error
@@ -286,7 +299,7 @@ func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFi
 			p,
 			thisAsset.Role,
 		)
-		next, err = bootAssetsToLoadChains(assets[1:], kernelBootFile, roleToBlName)
+		next, err = bootAssetsToLoadChains(assets[1:], kernelBootFile, roleToBlName, expectNext || i == 1)
 		if err != nil {
 			return nil, err
 		}
