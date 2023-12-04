@@ -450,7 +450,7 @@ type modelSnapsForRemodel struct {
 	new                    *asserts.Model
 	newSnap                string
 	newModelSnap           *asserts.ModelSnap
-	newSnapRevision        snap.Revision
+	newRequiredRevision    snap.Revision
 	newModelValidationSets []snapasserts.ValidationSetKey
 }
 
@@ -521,7 +521,7 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pat
 
 	revOpts := &snapstate.RevisionOptions{
 		Channel:  newModelSnapChannel,
-		Revision: ms.newSnapRevision,
+		Revision: ms.newRequiredRevision,
 	}
 
 	setValidationSetsIfRevisionSet(revOpts, ms.newModelValidationSets)
@@ -542,7 +542,7 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pat
 			channelChanged = ms.currentModelSnap.PinnedTrack != ms.newModelSnap.PinnedTrack
 		}
 
-		newRevision, err := installedSnapRevisionChanged(st, ms.newSnap, ms.newSnapRevision)
+		newRevision, err := installedSnapRevisionChanged(st, ms.newSnap, ms.newRequiredRevision)
 		if err != nil {
 			return nil, err
 		}
@@ -581,7 +581,7 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pat
 		}
 	}
 
-	revisionChanged, err := installedSnapRevisionChanged(st, ms.newSnap, ms.newSnapRevision)
+	revisionChanged, err := installedSnapRevisionChanged(st, ms.newSnap, ms.newRequiredRevision)
 	if err != nil {
 		return nil, err
 	}
@@ -708,7 +708,7 @@ func tasksForEssentialSnap(ctx context.Context, st *state.State,
 		new:                    new,
 		newSnap:                newSnap,
 		newModelSnap:           newModelSnap,
-		newSnapRevision:        revision,
+		newRequiredRevision:    revision,
 		newModelValidationSets: vSetKeys,
 	}
 	var pathSi *pathSideInfo
