@@ -1,7 +1,0 @@
-summary: this is the summary
-
-execute: |
-    echo "execute"
-
-prepare: |
-    echo "prepare"

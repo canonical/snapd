@@ -3,8 +3,9 @@
 show_help() {
     echo "usage: os.query is-core, is-classic"
     echo "       os.query is-core16, is-core18, is-core20, is-core22, is-core24"
+    echo "       os.query is-core-gt, is-core-ge, is-core-lt, is-core-le"
     echo "       os.query is-trusty, is-xenial, is-bionic, is-focal, is-jammy"
-    echo "       os.query is-ubuntu [ID], is-debian [ID], is-fedora [ID], is-amazon-linux, is-arch-linux, is-centos [ID], is-opensuse [ID]"
+    echo "       os.query is-ubuntu [ID], is-debian [ID], is-fedora [ID], is-amazon-linux [ID], is-arch-linux, is-centos [ID], is-opensuse [ID]"
     echo "       os.query is-ubuntu-gt [ID], is-ubuntu-ge [ID], is-ubuntu-lt [ID], is-ubuntu-le [ID]"
     echo "       os.query is-pc-amd64, is-pc-i386, is-arm, is-armhf, is-arm64, is-s390x"
     echo ""
@@ -71,6 +72,22 @@ is_core24() {
     fi
 }
 
+is_core_gt() {
+    compare_ubuntu "${1:-}" "-gt"
+}
+
+is_core_ge() {
+    compare_ubuntu "${1:-}" "-ge"
+}
+
+is_core_lt() {
+    compare_ubuntu "${1:-}" "-lt"
+}
+
+is_core_le() {
+    compare_ubuntu "${1:-}" "-le"
+}
+
 is_classic() {
     ! is_core
 }
@@ -129,7 +146,7 @@ compare_ubuntu() {
         exit 1
     fi
 
-    if ! grep -qFx 'ID=ubuntu' /etc/os-release; then
+    if ! grep -q 'ID=ubuntu' /etc/os-release; then
         echo "os.query: comparing non ubuntu system"
         return 1
     fi
@@ -183,7 +200,12 @@ is_fedora() {
 }
 
 is_amazon_linux() {
-    grep -qFx 'ID="amzn"' /etc/os-release
+    VERSION=$1
+    if [ -z "$VERSION" ]; then
+        grep -qFx 'ID="amzn"' /etc/os-release
+    else
+        grep -qFx 'ID="amzn"' /etc/os-release && grep -qFx "VERSION_ID=\"$VERSION\"" /etc/os-release
+    fi
 }
 
 is_centos() {
