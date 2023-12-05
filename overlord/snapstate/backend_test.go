@@ -1248,10 +1248,10 @@ func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bo
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) RemoveSnapMountUnits(s snap.PlaceInfo, meter progress.Meter) error {
+func (f *fakeSnappyBackend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter progress.Meter) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "remove-snap-mount-units",
-		name: s.InstanceName(),
+		name: s.ContainerName(),
 	})
 	return f.maybeErrForLastOp()
 }

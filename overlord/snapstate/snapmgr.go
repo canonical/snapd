@@ -161,6 +161,10 @@ func (snapsup *SnapSetup) Revision() snap.Revision {
 	return snapsup.SideInfo.Revision
 }
 
+func (snapsup *SnapSetup) containerInfo() snap.ContainerPlaceInfo {
+	return snap.MinimalContainerInfo(snapsup.InstanceName(), snapsup.Revision())
+}
+
 func (snapsup *SnapSetup) placeInfo() snap.PlaceInfo {
 	return snap.MinimalPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
 }

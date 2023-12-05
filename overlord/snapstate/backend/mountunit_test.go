@@ -168,7 +168,7 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsFailOnList(c *C) {
 	defer restore()
 
 	b := backend.Backend{}
-	err := b.RemoveSnapMountUnits(info, progress.Null)
+	err := b.RemoveContainerMountUnits(info, progress.Null)
 	c.Check(err, Equals, expectedErr)
 	c.Check(sysd.ListMountUnitsCalls, HasLen, 1)
 	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{
@@ -200,7 +200,7 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsFailOnRemoval(c *C) {
 	defer restore()
 
 	b := backend.Backend{}
-	err := b.RemoveSnapMountUnits(info, progress.Null)
+	err := b.RemoveContainerMountUnits(info, progress.Null)
 	c.Check(err, Equals, expectedErr)
 	c.Check(sysd.ListMountUnitsCalls, HasLen, 1)
 	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{
@@ -233,7 +233,7 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsHappy(c *C) {
 	defer restore()
 
 	b := backend.Backend{}
-	err := b.RemoveSnapMountUnits(info, progress.Null)
+	err := b.RemoveContainerMountUnits(info, progress.Null)
 	c.Check(err, IsNil)
 	c.Check(sysd.ListMountUnitsCalls, HasLen, 1)
 	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{
