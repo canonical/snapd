@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2023 Canonical Ltd
  *
@@ -16,19 +17,21 @@
  *
  */
 
-package aspecttest
+package snapstatetest
 
-// MockWifiSetupAspect returns some mocked aspect access patterns for the
-// system/network/wifi-setup. This will eventually be replaced by proper
-// aspect assertions.
-func MockWifiSetupAspect() map[string]interface{} {
-	return map[string]interface{}{
-		"wifi-setup": []map[string]string{
-			{"request": "ssids", "storage": "wifi.ssids"},
-			{"request": "ssid", "storage": "wifi.ssid", "access": "read-write"},
-			{"request": "password", "storage": "wifi.psk", "access": "write"},
-			{"request": "status", "storage": "wifi.status", "access": "read"},
-			{"request": "private.{placeholder}", "storage": "wifi.{placeholder}"},
-		},
+import (
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/snap"
+)
+
+func NewSequenceFromSnapSideInfos(snapSideInfo []*snap.SideInfo) snapstate.SnapSequence {
+	revSis := make([]*snapstate.RevisionSideState, len(snapSideInfo))
+	for i, si := range snapSideInfo {
+		revSis[i] = snapstate.NewRevisionSideInfo(si, nil)
 	}
+	return snapstate.SnapSequence{Revisions: revSis}
+}
+
+func NewSequenceFromRevisionSideInfos(revsSideInfo []*snapstate.RevisionSideState) snapstate.SnapSequence {
+	return snapstate.SnapSequence{Revisions: revsSideInfo}
 }

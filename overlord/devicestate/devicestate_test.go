@@ -634,7 +634,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		SnapType: "os",
 		Active:   true,
-		Sequence: []*snap.SideInfo{siCore1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siCore1}),
 		Current:  siCore1.Revision,
 	})
 
@@ -666,7 +666,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateBootRevisionsHappy(c
 	snapstate.Set(s.state, "kernel", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,
-		Sequence: []*snap.SideInfo{siKernel1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siKernel1}),
 		Current:  siKernel1.Revision,
 	})
 
@@ -675,7 +675,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateBootRevisionsHappy(c
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		SnapType: "os",
 		Active:   true,
-		Sequence: []*snap.SideInfo{siCore1, siCore2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siCore1, siCore2}),
 		Current:  siCore2.Revision,
 	})
 
@@ -1116,7 +1116,7 @@ func makeInstalledMockCoreSnapWithSnapdControl(c *C, st *state.State) *snap.Info
 	sideInfoCore11 := &snap.SideInfo{RealName: "core", Revision: snap.R(11), SnapID: "core-id"}
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfoCore11},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfoCore11}),
 		Current:  sideInfoCore11.Revision,
 		SnapType: "os",
 	})
@@ -1150,7 +1150,7 @@ func makeInstalledMockSnap(c *C, st *state.State, yml string) *snap.Info {
 	sideInfo11 := &snap.SideInfo{RealName: "snap-with-snapd-control", Revision: snap.R(11), SnapID: "snap-with-snapd-control-id"}
 	snapstate.Set(st, "snap-with-snapd-control", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo11},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo11}),
 		Current:  sideInfo11.Revision,
 		SnapType: "app",
 	})
@@ -1164,7 +1164,7 @@ func makeInstalledMockKernelSnap(c *C, st *state.State, yml string) *snap.Info {
 	sideInfo11 := &snap.SideInfo{RealName: "pc-kernel", Revision: snap.R(11), SnapID: "pc-kernel-id"}
 	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo11},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo11}),
 		Current:  sideInfo11.Revision,
 		SnapType: "kernel",
 	})

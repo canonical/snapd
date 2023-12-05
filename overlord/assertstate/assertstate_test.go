@@ -1164,9 +1164,9 @@ func (s *assertMgrSuite) stateFromDecl(c *C, decl *asserts.SnapDeclaration, inst
 	snapID := decl.SnapID()
 	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: snapName, SnapID: snapID, Revision: revno},
-		},
+		}),
 		Current:     revno,
 		InstanceKey: instanceKey,
 	})
@@ -1291,9 +1291,9 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStore(c *C) {
 	s.stateFromDecl(c, snapDeclBar, "", snap.R(3))
 	snapstate.Set(s.state, "local", &snapstate.SnapState{
 		Active: false,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "local", Revision: snap.R(-1)},
-		},
+		}),
 		Current: snap.R(-1),
 	})
 
@@ -2107,9 +2107,9 @@ func (s *assertMgrSuite) TestValidateRefreshesValidationOK(c *C) {
 	s.stateFromDecl(c, snapDeclBaz, "", snap.R(1))
 	snapstate.Set(s.state, "local", &snapstate.SnapState{
 		Active: false,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "local", Revision: snap.R(-1)},
-		},
+		}),
 		Current: snap.R(-1),
 	})
 
@@ -2179,9 +2179,9 @@ func (s *assertMgrSuite) TestValidateRefreshesRevokedValidation(c *C) {
 	s.stateFromDecl(c, snapDeclBaz, "", snap.R(1))
 	snapstate.Set(s.state, "local", &snapstate.SnapState{
 		Active: false,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "local", Revision: snap.R(-1)},
-		},
+		}),
 		Current: snap.R(-1),
 	})
 
@@ -2827,7 +2827,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeHappyNot
 
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "foo", Revision: snap.R(1), SnapID: "qOqKhntON3vR7kwEbVPsILm7bUViPDzz"}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "foo", Revision: snap.R(1), SnapID: "qOqKhntON3vR7kwEbVPsILm7bUViPDzz"}}),
 		Current:  snap.R(1),
 	})
 	snaptest.MockSnap(c, string(`name: foo
@@ -2911,7 +2911,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeHappyPin
 
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "foo", Revision: snap.R(1), SnapID: "qOqKhntON3vR7kwEbVPsILm7bUViPDzz"}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "foo", Revision: snap.R(1), SnapID: "qOqKhntON3vR7kwEbVPsILm7bUViPDzz"}}),
 		Current:  snap.R(1),
 	})
 	snaptest.MockSnap(c, string(`name: foo
@@ -3120,9 +3120,9 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeWrongSna
 
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Active: false,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "foo", Revision: snap.R(1)},
-		},
+		}),
 		Current: snap.R(1),
 	})
 

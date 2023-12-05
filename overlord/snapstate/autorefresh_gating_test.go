@@ -121,7 +121,7 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml string, hasHook bool) *sn
 	si := &snap.SideInfo{RealName: snapName, SnapID: snapName + "-id", Revision: snap.R(1)}
 	snapstate.Set(st, snapName, &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		SnapType: string(snapInfo.Type()),
 	})
@@ -1793,7 +1793,7 @@ func (s *autorefreshGatingSuite) TestHoldRefreshesBySystemIndefinitely(c *C) {
 		RealName: "some-snap",
 	}
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		Active:   true,
 	})
@@ -1828,7 +1828,7 @@ func (s *autorefreshGatingSuite) TestUnholdSnaps(c *C) {
 		RealName: "some-snap",
 	}
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		Active:   true,
 	})

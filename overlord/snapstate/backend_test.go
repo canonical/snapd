@@ -580,18 +580,22 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 
 	refreshErrors := make(map[string]error)
 	installErrors := make(map[string]error)
+	downloadErrors := make(map[string]error)
 	var res []store.SnapActionResult
 	for _, a := range sorted {
-		if a.Action != "install" && a.Action != "refresh" {
+		switch a.Action {
+		case "install", "refresh", "download":
+		default:
 			panic("not supported")
 		}
+
 		if a.InstanceName == "" {
 			return nil, nil, fmt.Errorf("internal error: action without instance name")
 		}
 
 		snapName, instanceKey := snap.SplitInstanceName(a.InstanceName)
 
-		if a.Action == "install" {
+		if a.Action == "install" || a.Action == "download" {
 			spec := snapSpec{
 				Name:     snapName,
 				Channel:  a.Channel,
@@ -600,7 +604,11 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			}
 			info, err := f.snap(spec)
 			if err != nil {
-				installErrors[a.InstanceName] = err
+				if a.Action == "install" {
+					installErrors[a.InstanceName] = err
+				} else {
+					downloadErrors[a.InstanceName] = err
+				}
 				continue
 			}
 			f.fakeBackend.appendOp(&fakeOp{
@@ -673,17 +681,21 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 		res = append(res, store.SnapActionResult{Info: info})
 	}
 
-	if len(refreshErrors)+len(installErrors) > 0 || len(res) == 0 {
+	if len(refreshErrors)+len(installErrors)+len(downloadErrors) > 0 || len(res) == 0 {
 		if len(refreshErrors) == 0 {
 			refreshErrors = nil
 		}
 		if len(installErrors) == 0 {
 			installErrors = nil
 		}
+		if len(downloadErrors) == 0 {
+			downloadErrors = nil
+		}
 		return res, nil, &store.SnapActionError{
-			NoResults: len(refreshErrors)+len(installErrors)+len(res) == 0,
+			NoResults: len(refreshErrors)+len(installErrors)+len(downloadErrors)+len(res) == 0,
 			Refresh:   refreshErrors,
 			Install:   installErrors,
+			Download:  downloadErrors,
 		}
 	}
 

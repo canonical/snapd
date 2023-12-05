@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
@@ -1387,7 +1388,7 @@ func (s *deviceMgrSystemsCreateSuite) makeSnapInState(c *C, name string, rev sna
 	snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
 		SnapType: string(info.Type()),
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 	})
 

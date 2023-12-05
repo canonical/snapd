@@ -96,9 +96,9 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(5), SnapID: "some-snap-id"},
-		},
+		}),
 		Current:         snap.R(5),
 		SnapType:        "app",
 		UserID:          1,
@@ -203,9 +203,9 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "other-snap", Revision: snap.R(1), SnapID: "other-snap-id"},
-		},
+		}),
 		Current:         snap.R(1),
 		SnapType:        "app",
 		TrackingChannel: "devel",
@@ -425,9 +425,9 @@ func (s *refreshHintsTestSuite) TestRefreshHintsNotApplicableWrongArch(c *C) {
 
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "other-snap", Revision: snap.R(1), SnapID: "other-snap-id"},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -471,9 +471,9 @@ func (s *refreshHintsTestSuite) TestRefreshHintsAbortsMonitoringForRemovedCandid
 	s.state.Lock()
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "other-snap", Revision: snap.R(1), SnapID: "other-snap-id"},
-		},
+		}),
 		Current: snap.R(1),
 	})
 	s.state.Unlock()
@@ -527,7 +527,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsNotApplicableWrongEpoch(c *C) {
 	snaptest.MockSnap(c, otherSnapYaml, si)
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})

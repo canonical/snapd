@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -656,18 +657,18 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			retain-- //  we're adding one
 		}
 
-		seq := snapst.Sequence
+		seq := snapst.Sequence.Revisions
 		currentIndex := snapst.LastIndex(snapst.Current)
 
 		// discard everything after "current" (we may have reverted to
 		// a previous versions earlier)
 		for i := currentIndex + 1; i < len(seq); i++ {
 			si := seq[i]
-			if si.Revision == targetRevision {
+			if si.Snap.Revision == targetRevision {
 				// but don't discard this one; its' the thing we're switching to!
 				continue
 			}
-			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision, snapsup.Type)
+			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.Snap.SnapID, si.Snap.Revision, snapsup.Type)
 			addTasksFromTaskSet(ts)
 		}
 
@@ -676,7 +677,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		// the sequence.
 		for i := 0; i < currentIndex; i++ {
 			si := seq[i]
-			if si.Revision == targetRevision {
+			if si.Snap.Revision == targetRevision {
 				// we do *not* want to removeInactiveRevision of this one
 				copy(seq[i:], seq[i+1:])
 				seq = seq[:len(seq)-1]
@@ -696,10 +697,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			}
 
 			si := seq[i]
-			if inUse(snapsup.InstanceName(), si.Revision) {
+			if inUse(snapsup.InstanceName(), si.Snap.Revision) {
 				continue
 			}
-			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision, snapsup.Type)
+			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.Snap.SnapID, si.Snap.Revision, snapsup.Type)
 			addTasksFromTaskSet(ts)
 		}
 
@@ -1369,6 +1370,91 @@ func installWithDeviceContext(st *state.State, name string, opts *RevisionOption
 	}
 
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
+}
+
+// Download returns a set of tasks for downloading a snap into the given
+// blobDirectory. If blobDirectory is empty, then dirs.SnapBlobDir is used. The
+// tasks that are returned will also download and validate the snap's assertion.
+// Prerequisites for the snap are not downloaded.
+func Download(ctx context.Context, st *state.State, name string, blobDirectory string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
+	if opts == nil {
+		opts = &RevisionOptions{}
+	}
+
+	if opts.CohortKey != "" && !opts.Revision.Unset() {
+		return nil, errors.New("cannot specify revision and cohort")
+	}
+
+	if opts.Channel == "" {
+		opts.Channel = "stable"
+	}
+
+	var snapst SnapState
+	err := Get(st, name, &snapst)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, err
+	}
+
+	if err := snap.ValidateInstanceName(name); err != nil {
+		return nil, fmt.Errorf("invalid instance name: %v", err)
+	}
+
+	sar, err := downloadInfo(ctx, st, name, opts, userID, deviceCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	info := sar.Info
+
+	// if we are going to use the default download dir, and the same snap
+	// revision is already installed, then we should not overwrite the snap that
+	// is already in the dir.
+	if (blobDirectory == "" || blobDirectory == dirs.SnapBlobDir) && info.Revision == snapst.Current {
+		return nil, &snap.AlreadyInstalledError{Snap: name}
+	}
+
+	if flags.RequireTypeBase && info.Type() != snap.TypeBase && info.Type() != snap.TypeOS {
+		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
+	}
+
+	snapsup := &SnapSetup{
+		Channel:            opts.Channel,
+		Base:               info.Base,
+		UserID:             userID,
+		Flags:              flags.ForSnapSetup(),
+		DownloadInfo:       &info.DownloadInfo,
+		SideInfo:           &info.SideInfo,
+		Type:               info.Type(),
+		Version:            info.Version,
+		InstanceKey:        info.InstanceKey,
+		CohortKey:          opts.CohortKey,
+		ExpectedProvenance: info.SnapProvenance,
+		DownloadBlobDir:    blobDirectory,
+	}
+
+	if sar.RedirectChannel != "" {
+		snapsup.Channel = sar.RedirectChannel
+	}
+
+	toDownloadTo := filepath.Dir(snapsup.MountFile())
+	if err := checkDiskSpaceDownload([]minimalInstallInfo{installSnapInfo{info}}, toDownloadTo); err != nil {
+		return nil, err
+	}
+
+	revisionStr := fmt.Sprintf(" (%s)", snapsup.Revision())
+
+	download := st.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.Channel))
+	download.Set("snap-setup", snapsup)
+
+	checkAsserts := st.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), snapsup.InstanceName(), revisionStr))
+	checkAsserts.Set("snap-setup-task", download.ID())
+	checkAsserts.WaitFor(download)
+
+	installSet := state.NewTaskSet(download, checkAsserts)
+	installSet.MarkEdge(download, BeginEdge)
+	installSet.MarkEdge(checkAsserts, LastBeforeLocalModificationsEdge)
+
+	return installSet, nil
 }
 
 func validatedInfoFromPathAndSideInfo(snapName, path string, si *snap.SideInfo) (*snap.Info, error) {
@@ -2498,7 +2584,7 @@ func infoForUpdate(st *state.State, snapst *SnapState, name string, opts *Revisi
 		return info, nil
 	}
 	var sideInfo *snap.SideInfo
-	for _, si := range snapst.Sequence {
+	for _, si := range snapst.Sequence.SideInfos() {
 		if si.Revision == opts.Revision {
 			sideInfo = si
 			break
@@ -2746,6 +2832,15 @@ func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshC
 	return updateTss, nil
 }
 
+func checkDiskSpaceDownload(infos []minimalInstallInfo, rootDir string) error {
+	var totalSize uint64
+	for _, info := range infos {
+		totalSize += uint64(info.DownloadSize())
+	}
+
+	return checkForAvailableSpace(totalSize, infos, "download", rootDir)
+}
+
 // checkDiskSpace checks if there is enough space for the requested snaps and their prerequisites
 func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallInfo, userID int, prqt PrereqTracker) error {
 	var featFlag features.SnapdFeature
@@ -2774,23 +2869,25 @@ func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallIn
 		return err
 	}
 
+	return checkForAvailableSpace(totalSize, infos, changeKind, dirs.SnapdStateDir(dirs.GlobalRootDir))
+}
+
+func checkForAvailableSpace(totalSize uint64, infos []minimalInstallInfo, changeKind string, rootDir string) error {
 	requiredSpace := safetyMarginDiskSpace(totalSize)
-	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
-	if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+	if err := osutilCheckFreeSpace(rootDir, requiredSpace); err != nil {
 		snaps := make([]string, len(infos))
 		for i, up := range infos {
 			snaps[i] = up.InstanceName()
 		}
 		if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
 			return &InsufficientSpaceError{
-				Path:       path,
+				Path:       rootDir,
 				Snaps:      snaps,
 				ChangeKind: changeKind,
 			}
 		}
 		return err
 	}
-
 	return nil
 }
 
@@ -3306,7 +3403,7 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 		if active {
 			if revision == snapst.Current {
 				msg := "cannot remove active revision %s of snap %q"
-				if len(snapst.Sequence) > 1 {
+				if len(snapst.Sequence.Revisions) > 1 {
 					msg += " (revert first?)"
 				}
 				return nil, 0, fmt.Errorf(msg, revision, name)
@@ -3318,7 +3415,7 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 			return nil, 0, &snap.NotInstalledError{Snap: name, Rev: revision}
 		}
 
-		removeAll = len(snapst.Sequence) == 1
+		removeAll = len(snapst.Sequence.Revisions) == 1
 	}
 
 	info, err := Info(st, name, revision)
@@ -3428,18 +3525,18 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 	}
 
 	if removeAll {
-		seq := snapst.Sequence
+		si := snapst.Sequence.SideInfos()
 		currentIndex := snapst.LastIndex(snapst.Current)
-		for i := len(seq) - 1; i >= 0; i-- {
+		for i := len(si) - 1; i >= 0; i-- {
 			if i != currentIndex {
-				si := seq[i]
+				si := si[i]
 				addNext(removeInactiveRevision(st, name, info.SnapID, si.Revision, snapsup.Type))
 			}
 		}
 		// add tasks for removing the current revision last,
 		// this is then also when common data will be removed
 		if currentIndex >= 0 {
-			addNext(removeInactiveRevision(st, name, info.SnapID, seq[currentIndex].Revision, snapsup.Type))
+			addNext(removeInactiveRevision(st, name, info.SnapID, si[currentIndex].Revision, snapsup.Type))
 		}
 	} else {
 		addNext(removeInactiveRevision(st, name, info.SnapID, revision, snapsup.Type))
@@ -3594,7 +3691,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 
 	snapsup := &SnapSetup{
 		Base:        info.Base,
-		SideInfo:    snapst.Sequence[i],
+		SideInfo:    snapst.Sequence.SideInfos()[i],
 		Flags:       flags.ForSnapSetup(),
 		Type:        info.Type(),
 		Version:     info.Version,
@@ -3704,8 +3801,9 @@ func Info(st *state.State, name string, revision snap.Revision) (*snap.Info, err
 		return nil, err
 	}
 
-	for i := len(snapst.Sequence) - 1; i >= 0; i-- {
-		if si := snapst.Sequence[i]; si.Revision == revision {
+	sis := snapst.Sequence.SideInfos()
+	for i := len(sis) - 1; i >= 0; i-- {
+		if si := sis[i]; si.Revision == revision {
 			return readInfo(name, si, 0)
 		}
 	}
@@ -3817,7 +3915,7 @@ func Set(st *state.State, name string, snapst *SnapState) {
 	if snaps == nil {
 		snaps = make(map[string]*json.RawMessage)
 	}
-	if snapst == nil || (len(snapst.Sequence) == 0) {
+	if snapst == nil || (len(snapst.Sequence.Revisions) == 0) {
 		delete(snaps, name)
 	} else {
 		data, err := json.Marshal(snapst)

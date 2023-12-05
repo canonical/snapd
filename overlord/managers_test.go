@@ -82,6 +82,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
@@ -93,6 +94,7 @@ import (
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
@@ -448,9 +450,9 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	// add core itself
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "core", SnapID: fakeSnapID("core"), Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "os",
 		Flags: snapstate.Flags{
@@ -545,7 +547,7 @@ func (ms *baseMgrsSuite) mockInstalledSnapWithRevAndFiles(c *C, snapYaml string,
 	}
 	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  info.Revision,
 		SnapType: string(info.Type()),
 	})
@@ -1164,7 +1166,6 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 					Action      string     `json:"action"`
 					SnapID      string     `json:"snap-id"`
 					Name        string     `json:"name"`
-					Revision    int        `json:"revision"`
 					InstanceKey string     `json:"instance-key"`
 					Epoch       snap.Epoch `json:"epoch"`
 					// assertions
@@ -1174,6 +1175,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 						PrimaryKey  []string `json:"primary-key"`
 						IfNewerThan *int     `json:"if-newer-than"`
 					}
+					Revision int `json:"revision"`
 				} `json:"actions"`
 				Context []struct {
 					SnapID string     `json:"snap-id"`
@@ -1223,7 +1225,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 				}
 				name := s.serveIDtoName[a.SnapID]
 				epoch := id2epoch[a.SnapID]
-				if a.Action == "install" {
+				if a.Action == "install" || a.Action == "download" {
 					name = a.Name
 					epoch = a.Epoch
 				}
@@ -1234,8 +1236,8 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 					continue
 				}
 
-				if a.Revision != 0 && revno != strconv.Itoa(a.Revision) {
-					continue
+				if a.Revision != 0 {
+					revno = strconv.Itoa(a.Revision)
 				}
 
 				results = append(results, resultJSON{
@@ -2200,9 +2202,9 @@ version: @VERSION@
 
 	snapstate.Set(st, "bar", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "bar", SnapID: "bar-id", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -2515,7 +2517,7 @@ type: kernel`
 	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 	})
 	snaptest.MockSnapWithFiles(c, packageKernel, si1, [][]string{
@@ -2525,7 +2527,7 @@ type: kernel`
 	snapstate.Set(st, "core18", &snapstate.SnapState{
 		SnapType: "base",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 	})
 
@@ -2618,7 +2620,7 @@ type: kernel`
 	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 	})
 	snaptest.MockSnapWithFiles(c, packageKernel, si1, [][]string{
@@ -2628,7 +2630,7 @@ type: kernel`
 	snapstate.Set(st, "core18", &snapstate.SnapState{
 		SnapType: "base",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 	})
 
@@ -2777,7 +2779,7 @@ type: kernel`
 	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 	})
 	snaptest.MockSnapWithFiles(c, packageKernel, si1, [][]string{
@@ -2787,7 +2789,7 @@ type: kernel`
 	snapstate.Set(st, "core20", &snapstate.SnapState{
 		SnapType: "base",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 	})
 
@@ -2859,8 +2861,8 @@ type: kernel`
 	var snapst snapstate.SnapState
 	err = snapstate.Get(st, "pc-kernel", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(snapst.Sequence, HasLen, 2)
-	c.Check(snapst.Sequence, DeepEquals, []*snap.SideInfo{si1, &kernelSnapInfo.SideInfo})
+	c.Check(snapst.Sequence.Revisions, HasLen, 2)
+	c.Check(snapst.Sequence, DeepEquals, snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1, &kernelSnapInfo.SideInfo}))
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Current, DeepEquals, snap.R(-1))
 
@@ -2947,7 +2949,7 @@ type: kernel`
 	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 	})
 	snaptest.MockSnapWithFiles(c, packageKernel, si1, [][]string{
@@ -2957,7 +2959,7 @@ type: kernel`
 	snapstate.Set(st, "core20", &snapstate.SnapState{
 		SnapType: "base",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 	})
 
@@ -3048,8 +3050,8 @@ type: kernel`
 	var snapst snapstate.SnapState
 	err = snapstate.Get(st, "pc-kernel", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(snapst.Sequence, HasLen, 1)
-	c.Check(snapst.Sequence, DeepEquals, []*snap.SideInfo{si1})
+	c.Check(snapst.Sequence.Revisions, HasLen, 1)
+	c.Check(snapst.Sequence, DeepEquals, snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}))
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Current, DeepEquals, snap.R(1))
 
@@ -3969,7 +3971,7 @@ assumes: [something-that-is-not-provided]
 	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
 	snapstate.Set(st, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -3999,7 +4001,7 @@ assumes: [something-that-is-not-provided]
 	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
 	snapstate.Set(st, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -4374,13 +4376,13 @@ version: @VERSION@`
 
 	snapstate.Set(st, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
 	snapstate.Set(st, "other-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{oi},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{oi}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -4483,7 +4485,7 @@ version: 1`
 	si2 := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(2)}
 	snapstate.Set(st, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si0, si1, si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si0, si1, si2}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -4557,13 +4559,13 @@ func (s *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, removeS
 
 	snapstate.Set(st, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
 	snapstate.Set(st, "other-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{oi},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{oi}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -4680,13 +4682,13 @@ hooks:
 
 	snapstate.Set(st, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
 	snapstate.Set(st, "other-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{oi},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{oi}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -4769,13 +4771,13 @@ func (s *mgrsSuite) TestDisconnectOnUninstallRemovesAutoconnection(c *C) {
 
 	snapstate.Set(st, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
 	snapstate.Set(st, "other-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{oi},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{oi}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -4972,7 +4974,7 @@ func (s *mgrsSuiteCore) TestRemodelRequiredSnapsAdded(c *C) {
 	snapstate.Set(st, "old-required-snap-1", &snapstate.SnapState{
 		SnapType: "app",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 		Flags:    snapstate.Flags{Required: true},
 	})
@@ -5077,7 +5079,7 @@ func (s *mgrsSuiteCore) TestRemodelRequiredSnapsAddedUndo(c *C) {
 	snapstate.Set(st, "old-required-snap-1", &snapstate.SnapState{
 		SnapType: "app",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 		Flags:    snapstate.Flags{Required: true},
 	})
@@ -5200,7 +5202,7 @@ func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBase(c *C) {
 	si := &snap.SideInfo{RealName: "core18", SnapID: fakeSnapID("core18"), Revision: snap.R(1)}
 	snapstate.Set(st, "core18", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "base",
 	})
@@ -5208,7 +5210,7 @@ func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBase(c *C) {
 	gadgetSnapYaml := "name: pc\nversion: 1.0\ntype: gadget"
 	snapstate.Set(st, "pc", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  snap.R(1),
 		SnapType: "gadget",
 	})
@@ -5341,7 +5343,7 @@ func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBaseUndo(c *C) {
 	si := &snap.SideInfo{RealName: "core18", SnapID: fakeSnapID("core18"), Revision: snap.R(1)}
 	snapstate.Set(st, "core18", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "base",
 	})
@@ -5351,7 +5353,7 @@ func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBaseUndo(c *C) {
 	gadgetSnapYaml := "name: pc\nversion: 1.0\ntype: gadget"
 	snapstate.Set(st, "pc", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  snap.R(1),
 		SnapType: "gadget",
 	})
@@ -5484,7 +5486,7 @@ func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBaseUndoOnRollback(c *C) {
 	si := &snap.SideInfo{RealName: "core18", SnapID: fakeSnapID("core18"), Revision: snap.R(1)}
 	snapstate.Set(st, "core18", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "base",
 	})
@@ -5494,7 +5496,7 @@ func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBaseUndoOnRollback(c *C) {
 	gadgetSnapYaml := "name: pc\nversion: 1.0\ntype: gadget"
 	snapstate.Set(st, "pc", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  snap.R(1),
 		SnapType: "gadget",
 	})
@@ -5670,7 +5672,7 @@ func (ms *mgrsSuite) TestRefreshSimplePrevRev(c *C) {
 	}
 	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si1, si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1, si2}),
 		Current:  snap.R(2),
 		SnapType: string(info.Type()),
 	})
@@ -5773,7 +5775,7 @@ func (ms *mgrsSuite) TestRefreshSimpleRevertToLocalFromLocalFile(c *C) {
 	}
 	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si1, si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1, si2}),
 		Current:  snap.R(2),
 		SnapType: string(info.Type()),
 	})
@@ -5853,7 +5855,7 @@ func (s *kernelSuite) SetUpTest(c *C) {
 	si := &snap.SideInfo{RealName: "pc-kernel", SnapID: fakeSnapID("pc-kernel"), Revision: snap.R(1)}
 	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "kernel",
 	})
@@ -5864,7 +5866,7 @@ func (s *kernelSuite) SetUpTest(c *C) {
 	gadgetSnapYaml := "name: pc\nversion: 1.0\ntype: gadget"
 	snapstate.Set(st, "pc", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  snap.R(1),
 		SnapType: "gadget",
 	})
@@ -6283,7 +6285,7 @@ func (s *mgrsSuiteCore) TestRemodelSwitchGadgetTrack(c *C) {
 	si := &snap.SideInfo{RealName: "pc", SnapID: fakeSnapID("pc"), Revision: snap.R(1)}
 	snapstate.Set(st, "pc", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "gadget",
 	})
@@ -6388,7 +6390,7 @@ func (s *mgrsSuiteCore) TestRemodelSwitchToDifferentGadget(c *C) {
 	si := &snap.SideInfo{RealName: "core18", SnapID: fakeSnapID("core18"), Revision: snap.R(1)}
 	snapstate.Set(st, "core18", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "base",
 	})
@@ -6396,7 +6398,7 @@ func (s *mgrsSuiteCore) TestRemodelSwitchToDifferentGadget(c *C) {
 	gadgetSnapYaml := "name: pc\nversion: 1.0\ntype: gadget"
 	snapstate.Set(st, "pc", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  snap.R(1),
 		SnapType: "gadget",
 	})
@@ -6539,7 +6541,7 @@ func (s *mgrsSuiteCore) TestRemodelSwitchToIncompatibleGadget(c *C) {
 	si := &snap.SideInfo{RealName: "core18", SnapID: fakeSnapID("core18"), Revision: snap.R(1)}
 	snapstate.Set(st, "core18", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "base",
 	})
@@ -6547,7 +6549,7 @@ func (s *mgrsSuiteCore) TestRemodelSwitchToIncompatibleGadget(c *C) {
 	gadgetSnapYaml := "name: pc\nversion: 1.0\ntype: gadget"
 	snapstate.Set(st, "pc", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  snap.R(1),
 		SnapType: "gadget",
 	})
@@ -7064,7 +7066,7 @@ func (s *mgrsSuiteCore) makeInstalledSnapInStateForRemodel(c *C, name string, re
 	snapstate.Set(s.o.State(), name, &snapstate.SnapState{
 		SnapType:        string(snapInfo.Type()),
 		Active:          true,
-		Sequence:        []*snap.SideInfo{si},
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:         si.Revision,
 		TrackingChannel: channel,
 	})
@@ -8493,9 +8495,9 @@ func (s *mgrsSuiteCore) TestRemodelUC20SnapWithPrereqsMissingDeps(c *C) {
 	snapstate.Set(st, "core", nil)
 	snapstate.Set(st, "snapd", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "snapd", SnapID: fakeSnapID("snapd"), Revision: snap.R(1)},
-		},
+		}),
 		Current:         snap.R(1),
 		SnapType:        "snapd",
 		TrackingChannel: "latest/stable",
@@ -8542,13 +8544,13 @@ func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c
 
 	snapstate.Set(st, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
 	snapstate.Set(st, "other-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{oi},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{oi}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -9754,7 +9756,7 @@ type: kernel`
 	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 	})
 	snaptest.MockSnapWithFiles(c, packageKernel, si1, [][]string{
@@ -9764,7 +9766,7 @@ type: kernel`
 	snapstate.Set(st, "core18", &snapstate.SnapState{
 		SnapType: "base",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 	})
 
@@ -9857,7 +9859,7 @@ type: snapd`
 	// add the test snap service
 	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
 	snapstate.Set(st, "test-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{testSnapSideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{testSnapSideInfo}),
 		Current:  snap.R(42),
 		Active:   true,
 		SnapType: "app",
@@ -9988,7 +9990,7 @@ NeedDaemonReload=no
 	snapstate.Set(st, "snapd", &snapstate.SnapState{
 		SnapType: "snapd",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 	})
 	snaptest.MockSnapWithFiles(c, "name: snapd\ntype: snapd\nversion: 123", si1, nil)
@@ -10094,7 +10096,7 @@ type: snapd`
 	// add the test snap service
 	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
 	snapstate.Set(st, "test-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{testSnapSideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{testSnapSideInfo}),
 		Current:  snap.R(42),
 		Active:   true,
 		SnapType: "app",
@@ -10236,7 +10238,7 @@ NeedDaemonReload=no
 	snapstate.Set(st, "snapd", &snapstate.SnapState{
 		SnapType: "snapd",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 	})
 	snaptest.MockSnapWithFiles(c, "name: snapd\ntype: snapd\nversion: 123", si1, nil)
@@ -10391,7 +10393,7 @@ func (s *mgrsSuite) testUC20RunUpdateManagedBootConfig(c *C, snapPath string, si
 	snapstate.Set(st, "snapd", &snapstate.SnapState{
 		SnapType: "snapd",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 	})
 	snaptest.MockSnapWithFiles(c, "name: snapd\ntype: snapd\nversion: 123", si1, nil)
@@ -10401,21 +10403,21 @@ func (s *mgrsSuite) testUC20RunUpdateManagedBootConfig(c *C, snapPath string, si
 		SnapType: "base",
 
 		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 	})
 	si3 := &snap.SideInfo{RealName: "pc-kernel", Revision: snap.R(1)}
 	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si3},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si3}),
 		Current:  si3.Revision,
 	})
 	si4 := &snap.SideInfo{RealName: "pc", Revision: snap.R(1)}
 	snapstate.Set(st, "pc", &snapstate.SnapState{
 		SnapType: "gadget",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si4},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si4}),
 		Current:  si4.Revision,
 	})
 	const pcGadget = `
@@ -10573,21 +10575,21 @@ func (s *mgrsSuite) testNonUC20RunUpdateManagedBootConfig(c *C, snapPath string,
 	snapstate.Set(st, "snapd", &snapstate.SnapState{
 		SnapType: "snapd",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 	})
 	si2 := &snap.SideInfo{RealName: "core", Revision: snap.R(1)}
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		SnapType: "base",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 	})
 	si3 := &snap.SideInfo{RealName: "pc-kernel", Revision: snap.R(1)}
 	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si3},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si3}),
 		Current:  si3.Revision,
 	})
 
@@ -10781,7 +10783,7 @@ func (s *mgrsSuiteCore) testGadgetKernelCommandLine(c *C, gadgetPath string, gad
 	snapstate.Set(st, "snapd", &snapstate.SnapState{
 		SnapType: "snapd",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  si1.Revision,
 	})
 	snaptest.MockSnapWithFiles(c, "name: snapd\ntype: snapd\nversion: 123", si1, nil)
@@ -10790,21 +10792,21 @@ func (s *mgrsSuiteCore) testGadgetKernelCommandLine(c *C, gadgetPath string, gad
 	snapstate.Set(st, "core20", &snapstate.SnapState{
 		SnapType: "base",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 	})
 	si3 := &snap.SideInfo{RealName: "pc-kernel", Revision: snap.R(1)}
 	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si3},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si3}),
 		Current:  si3.Revision,
 	})
 	si4 := &snap.SideInfo{RealName: "pc", Revision: snap.R(1)}
 	snapstate.Set(st, "pc", &snapstate.SnapState{
 		SnapType: "gadget",
 		Active:   true,
-		Sequence: []*snap.SideInfo{si4},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si4}),
 		Current:  si4.Revision,
 	})
 	snaptest.MockSnapWithFiles(c, pcGadget, si4, currentFiles)
@@ -11104,25 +11106,25 @@ func (s *mgrsSuiteCore) testUpdateKernelBaseSingleRebootSetup(c *C) (*boottest.R
 	snapstate.Set(st, "core", nil)
 	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{siKernel},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siKernel}),
 		Current:  snap.R(1),
 		SnapType: "kernel",
 	})
 	snapstate.Set(st, "core20", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{siBase},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siBase}),
 		Current:  snap.R(1),
 		SnapType: "base",
 	})
 	snapstate.Set(st, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{siSnap},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siSnap}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
 	snapstate.Set(st, "snapd", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{siSnapd},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siSnapd}),
 		Current:  snap.R(1),
 		SnapType: "snapd",
 	})
@@ -11373,25 +11375,25 @@ func (s *mgrsSuiteCore) testUpdateKernelBaseSingleRebootWithGadgetSetup(c *C, sn
 	snapstate.Set(st, "core", nil)
 	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{siKernel},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siKernel}),
 		Current:  snap.R(1),
 		SnapType: "kernel",
 	})
 	snapstate.Set(st, "core20", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{siBase},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siBase}),
 		Current:  snap.R(1),
 		SnapType: "base",
 	})
 	snapstate.Set(st, "snapd", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{siSnapd},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siSnapd}),
 		Current:  snap.R(1),
 		SnapType: "snapd",
 	})
 	snapstate.Set(st, "pc", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{siGadget},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siGadget}),
 		Current:  snap.R(1),
 		SnapType: "gadget",
 	})
@@ -13285,4 +13287,115 @@ volumes:
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Mount snap \"pi-kernel\" \\(2\\) \\(cannot refresh kernel with change created by old snapd that is missing gadget update task\\)")
+}
+
+func (s *mgrsSuite) TestDownloadToDefault(c *C) {
+	// should default to dirs.SnapBlobDir
+	const downloadDir = ""
+	s.testDownload(c, downloadDir)
+}
+
+func (s *mgrsSuite) TestDownloadToLocation(c *C) {
+	downloadDir := c.MkDir()
+	s.testDownload(c, downloadDir)
+}
+
+func (s *mgrsSuite) testDownload(c *C, downloadDir string) {
+	s.prereqSnapAssertions(c)
+
+	const snapRev = "1"
+
+	testSnapPath, _ := s.makeStoreTestSnap(c, "{name: foo, version: 0}", snapRev)
+	s.serveSnap(testSnapPath, snapRev)
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := snapstate.Download(context.TODO(), st, "foo", downloadDir, nil, 0, snapstate.Flags{}, nil)
+	c.Assert(err, IsNil)
+	chg := st.NewChange("download-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// confirm that download-snap task ran
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("download-snap change failed with: %v", chg.Err()))
+
+	expectedDownloadDir := downloadDir
+	if expectedDownloadDir == "" {
+		expectedDownloadDir = dirs.SnapBlobDir
+	}
+
+	snapPath := filepath.Join(expectedDownloadDir, fmt.Sprintf("%s_%s.snap", "foo", snapRev))
+
+	exists := osutil.FileExists(snapPath)
+	c.Check(exists, Equals, true)
+
+	digest, _, err := asserts.SnapFileSHA3_384(snapPath)
+	c.Assert(err, IsNil)
+
+	// test that snap revision assertion was added by validation-snap task
+	_, err = assertstate.DB(st).Find(asserts.SnapRevisionType, map[string]string{
+		"snap-sha3-384": digest,
+	})
+	c.Check(err, IsNil)
+}
+
+func (s *mgrsSuite) TestDownloadSpecificRevision(c *C) {
+	s.prereqSnapAssertions(c)
+
+	const snapOldRev = "1"
+	const snapNewRev = "2"
+
+	snapOldPath, _ := s.makeStoreTestSnap(c, "{name: foo, version: 1}", snapOldRev)
+	s.serveSnap(snapOldPath, snapOldRev)
+
+	snapNewPath, _ := s.makeStoreTestSnap(c, "{name: foo, version: 2}", snapNewRev)
+	s.serveSnap(snapNewPath, snapNewRev)
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := snapstate.Download(context.TODO(), st, "foo", "", &snapstate.RevisionOptions{
+		Revision: snap.R(snapOldRev),
+	}, 0, snapstate.Flags{}, nil)
+	c.Assert(err, IsNil)
+	chg := st.NewChange("download-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// confirm it worked
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("download-snap change failed with: %v", chg.Err()))
+
+	snapPath := filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", "foo", snapOldRev))
+	exists := osutil.FileExists(snapPath)
+	c.Check(exists, Equals, true)
+
+	info, err := snap.ReadInfoFromSnapFile(squashfs.New(snapPath), nil)
+	c.Assert(err, IsNil)
+	c.Check(info.Version, Equals, "1")
+
+	digest, _, err := asserts.SnapFileSHA3_384(snapPath)
+	c.Assert(err, IsNil)
+
+	// test that snap revision assertion was added by validation-snap task
+	_, err = assertstate.DB(st).Find(asserts.SnapRevisionType, map[string]string{
+		"snap-sha3-384": digest,
+	})
+	c.Check(err, IsNil)
 }

@@ -153,9 +153,9 @@ func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string) 
 	}
 
 	for _, aspectPattern := range aspectPatterns {
-		name, ok := aspectPattern["name"]
-		if !ok || name == "" {
-			return nil, errors.New(`access patterns must have a "name" field`)
+		request, ok := aspectPattern["request"]
+		if !ok || request == "" {
+			return nil, errors.New(`access patterns must have a "request" field`)
 		}
 
 		// TODO: either
@@ -169,16 +169,16 @@ func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string) 
 		//   between data in the data bags or written E.g
 		//   possibly return null or empty object if at a path
 		//   were the schema expects an object there is scalar?
-		path, ok := aspectPattern["path"]
-		if !ok || path == "" {
-			return nil, errors.New(`access patterns must have a "path" field`)
+		storage, ok := aspectPattern["storage"]
+		if !ok || storage == "" {
+			return nil, errors.New(`access patterns must have a "storage" field`)
 		}
 
-		if err := validateNamePathPair(name, path); err != nil {
+		if err := validateRequestStoragePair(request, storage); err != nil {
 			return nil, err
 		}
 
-		accPattern, err := newAccessPattern(name, path, aspectPattern["access"])
+		accPattern, err := newAccessPattern(request, storage, aspectPattern["access"])
 		if err != nil {
 			return nil, err
 		}
@@ -189,27 +189,27 @@ func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string) 
 	return aspect, nil
 }
 
-// validateNamePathPair checks that:
-//   - names and paths are composed of valid subkeys (see: validateAspectString)
-//   - all placeholders in a name are in the path and vice-versa
-func validateNamePathPair(name, path string) error {
-	if err := validateAspectDottedPath(name); err != nil {
-		return fmt.Errorf("invalid access name %q: %w", name, err)
+// validateRequestStoragePair checks that:
+//   - request and storage are composed of valid subkeys (see: validateAspectString)
+//   - all placeholders in a request are in the storage and vice-versa
+func validateRequestStoragePair(request, storage string) error {
+	if err := validateAspectDottedPath(request); err != nil {
+		return fmt.Errorf("invalid request %q: %w", request, err)
 	}
 
-	if err := validateAspectDottedPath(path); err != nil {
-		return fmt.Errorf("invalid path %q: %w", path, err)
+	if err := validateAspectDottedPath(storage); err != nil {
+		return fmt.Errorf("invalid storage %q: %w", storage, err)
 	}
 
-	namePlaceholders, pathPlaceholders := getPlaceholders(name), getPlaceholders(path)
-	if len(namePlaceholders) != len(pathPlaceholders) {
-		return fmt.Errorf("access name %q and path %q have mismatched placeholders", name, path)
+	reqPlaceholders, storagePlaceholders := getPlaceholders(request), getPlaceholders(storage)
+	if len(reqPlaceholders) != len(storagePlaceholders) {
+		return fmt.Errorf("request %q and storage %q have mismatched placeholders", request, storage)
 	}
 
-	for placeholder := range namePlaceholders {
-		if !pathPlaceholders[placeholder] {
-			return fmt.Errorf("placeholder %q from access name %q is absent from path %q",
-				placeholder, name, path)
+	for placeholder := range reqPlaceholders {
+		if !storagePlaceholders[placeholder] {
+			return fmt.Errorf("placeholder %q from request %q is absent from storage %q",
+				placeholder, request, storage)
 		}
 	}
 
@@ -224,7 +224,7 @@ var (
 	validUserType = validSubkey
 )
 
-// validateAspectDottedPath validates that names/paths in an aspect definition are:
+// validateAspectDottedPath validates that request/storage strings in an aspect definition are:
 //   - composed of non-empty, dot-separated subkeys with optional placeholders ("foo.{bar}")
 //   - non-placeholder subkeys are made up of lowercase alphanumeric ASCII characters,
 //     optionally with dashes between alphanumeric characters (e.g., "a-b-c")
@@ -277,24 +277,24 @@ type Aspect struct {
 }
 
 // Set sets the named aspect to a specified value.
-func (a *Aspect) Set(databag DataBag, name string, value interface{}) error {
-	nameSubkeys := strings.Split(name, ".")
+func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
+	requestSubkeys := strings.Split(request, ".")
 	for _, accessPatt := range a.accessPatterns {
-		placeholders, ok := accessPatt.match(nameSubkeys)
+		placeholders, ok := accessPatt.match(requestSubkeys)
 		if !ok {
 			continue
 		}
 
-		path, err := accessPatt.getPath(placeholders)
+		storagePath, err := accessPatt.getStorage(placeholders)
 		if err != nil {
 			return err
 		}
 
 		if !accessPatt.isWriteable() {
-			return &InvalidAccessError{RequestedAccess: write, FieldAccess: accessPatt.access, Field: name}
+			return &InvalidAccessError{RequestedAccess: write, FieldAccess: accessPatt.access, Field: request}
 		}
 
-		if err := databag.Set(path, value); err != nil {
+		if err := databag.Set(storagePath, value); err != nil {
 			return err
 		}
 
@@ -310,38 +310,38 @@ func (a *Aspect) Set(databag DataBag, name string, value interface{}) error {
 		Account:    a.bundle.Account,
 		BundleName: a.bundle.Name,
 		Aspect:     a.Name,
-		Field:      name,
+		Field:      request,
 		Cause:      "field not found",
 	}
 }
 
 // Get returns the aspect value identified by the name. If either the named aspect
 // or the corresponding value can't be found, a NotFoundError is returned.
-func (a *Aspect) Get(databag DataBag, name string, value interface{}) error {
-	subkeys := strings.Split(name, ".")
+func (a *Aspect) Get(databag DataBag, request string, value interface{}) error {
+	subkeys := strings.Split(request, ".")
 	for _, accessPatt := range a.accessPatterns {
 		placeholders, ok := accessPatt.match(subkeys)
 		if !ok {
 			continue
 		}
 
-		path, err := accessPatt.getPath(placeholders)
+		storagePath, err := accessPatt.getStorage(placeholders)
 		if err != nil {
 			return err
 		}
 
 		if !accessPatt.isReadable() {
-			return &InvalidAccessError{RequestedAccess: read, FieldAccess: accessPatt.access, Field: name}
+			return &InvalidAccessError{RequestedAccess: read, FieldAccess: accessPatt.access, Field: request}
 		}
 
-		if err := databag.Get(path, value); err != nil {
+		if err := databag.Get(storagePath, value); err != nil {
 			var pathErr PathNotFoundError
 			if errors.As(err, &pathErr) {
 				return &NotFoundError{
 					Account:    a.bundle.Account,
 					BundleName: a.bundle.Name,
 					Aspect:     a.Name,
-					Field:      name,
+					Field:      request,
 					Cause:      string(pathErr),
 				}
 			}
@@ -354,34 +354,34 @@ func (a *Aspect) Get(databag DataBag, name string, value interface{}) error {
 		Account:    a.bundle.Account,
 		BundleName: a.bundle.Name,
 		Aspect:     a.Name,
-		Field:      name,
+		Field:      request,
 		Cause:      "field not found",
 	}
 }
 
-func newAccessPattern(name, path, accesstype string) (*accessPattern, error) {
+func newAccessPattern(request, storage, accesstype string) (*accessPattern, error) {
 	accType, err := newAccessType(accesstype)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create aspect pattern: %w", err)
 	}
 
-	nameSubkeys := strings.Split(name, ".")
-	nameMatchers := make([]nameMatcher, 0, len(nameSubkeys))
-	for _, subkey := range nameSubkeys {
-		var patt nameMatcher
+	requestSubkeys := strings.Split(request, ".")
+	requestMatchers := make([]requestMatcher, 0, len(requestSubkeys))
+	for _, subkey := range requestSubkeys {
+		var patt requestMatcher
 		if isPlaceholder(subkey) {
 			patt = placeholder(subkey[1 : len(subkey)-1])
 		} else {
 			patt = literal(subkey)
 		}
 
-		nameMatchers = append(nameMatchers, patt)
+		requestMatchers = append(requestMatchers, patt)
 	}
 
-	pathSubkeys := strings.Split(path, ".")
-	pathWriters := make([]pathWriter, 0, len(pathSubkeys))
+	pathSubkeys := strings.Split(storage, ".")
+	pathWriters := make([]storageWriter, 0, len(pathSubkeys))
 	for _, subkey := range pathSubkeys {
-		var patt pathWriter
+		var patt storageWriter
 		if isPlaceholder(subkey) {
 			patt = placeholder(subkey[1 : len(subkey)-1])
 		} else {
@@ -392,9 +392,9 @@ func newAccessPattern(name, path, accesstype string) (*accessPattern, error) {
 	}
 
 	return &accessPattern{
-		name:   nameMatchers,
-		path:   pathWriters,
-		access: accType,
+		request: requestMatchers,
+		storage: pathWriters,
+		access:  accType,
 	}, nil
 }
 
@@ -403,12 +403,12 @@ func isPlaceholder(part string) bool {
 }
 
 // accessPattern represents an individual aspect access pattern. It can be used
-// to match an input name and map it into a corresponding path, potentially with
+// to match a request and map it into a corresponding storage, potentially with
 // placeholders filled in.
 type accessPattern struct {
-	name   []nameMatcher
-	path   []pathWriter
-	access accessType
+	request []requestMatcher
+	storage []storageWriter
+	access  accessType
 }
 
 // match takes a list of subkeys and returns true if those subkeys match the pattern's
@@ -416,14 +416,14 @@ type accessPattern struct {
 // the supplied subkeys and set in the map. Example: if pattern.name=["{foo}", "b", "{bar}"],
 // and nameSubkeys=["a", "b", "c"], then it returns true and the map will contain
 // {"foo": "a", "bar": "c"}.
-func (p *accessPattern) match(nameSubkeys []string) (map[string]string, bool) {
-	if len(p.name) != len(nameSubkeys) {
+func (p *accessPattern) match(reqSubkeys []string) (map[string]string, bool) {
+	if len(p.request) != len(reqSubkeys) {
 		return nil, false
 	}
 
 	placeholders := make(map[string]string)
-	for i, subkey := range nameSubkeys {
-		if !p.name[i].match(subkey, placeholders) {
+	for i, subkey := range reqSubkeys {
+		if !p.request[i].match(subkey, placeholders) {
 			return nil, false
 		}
 	}
@@ -431,12 +431,12 @@ func (p *accessPattern) match(nameSubkeys []string) (map[string]string, bool) {
 	return placeholders, true
 }
 
-// getPath takes a map of placeholders to their values in the aspect name and
+// getStorage takes a map of placeholders to their values in the aspect name and
 // returns the path with its placeholder values filled in with the map's values.
-func (p *accessPattern) getPath(placeholders map[string]string) (string, error) {
+func (p *accessPattern) getStorage(placeholders map[string]string) (string, error) {
 	sb := &strings.Builder{}
 
-	for _, subkey := range p.path {
+	for _, subkey := range p.storage {
 		if sb.Len() > 0 {
 			if _, err := sb.WriteRune('.'); err != nil {
 				return "", err
@@ -462,11 +462,11 @@ func (p accessPattern) isWriteable() bool {
 
 // pattern is an individual subkey of a dot-separated name or path pattern. It
 // can be a literal value of a placeholder delineated by curly brackets.
-type nameMatcher interface {
+type requestMatcher interface {
 	match(subkey string, placeholders map[string]string) bool
 }
 
-type pathWriter interface {
+type storageWriter interface {
 	write(sb *strings.Builder, placeholders map[string]string) error
 }
 
