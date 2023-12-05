@@ -6054,7 +6054,7 @@ func (s *deviceMgrSuite) testOfflineRemodelValidationSet(c *C, withValSet bool) 
 	sis[0], paths[0] = createLocalSnap(c, "pc", snaptest.AssertedSnapID("pc"), 1)
 
 	_, err = devicestate.RemodelTasks(context.Background(), s.state, currentModel, newModel, sis, paths, testDeviceCtx, "99")
-	if withValSet {
+	if !withValSet {
 		c.Assert(err, ErrorMatches, "validation-set assertion not found")
 	} else {
 		c.Assert(err, ErrorMatches, "snap presence is invalid: snap-1")
