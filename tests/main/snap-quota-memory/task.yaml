@@ -152,8 +152,11 @@ execute: |
   TIMESTAMP_AFTER=$(service_start_time snap.go-example-webserver.webserver.service)
   test "$TIMESTAMP_AFTER" -eq "$TIMESTAMP_BEFORE"
 
+  # There is a limit to how many times (5) a service can be started within a 10-second timeframe, and we can, depending
+  # on timing, hit this limit because systemd tries to restart the service 3 times when it's being oomkilled by
+  # the memory quota. If it fails once, wait 10 seconds and try again
   echo "But they can still be started manually"
-  snap start go-example-webserver.webserver
+  retry --wait 10 -n 2 sh -c 'snap start go-example-webserver.webserver'
   retry --wait 1 -n 10 sh -c 'snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+active"'
 
   echo "Removing a snap ensures that the snap is not in the quota group anymore"
