@@ -4855,7 +4855,7 @@ func (s *assertMgrSuite) TestMonitorValidationSetEnforceModeSequenceFromModel(c 
 	})
 }
 
-func (s *assertMgrSuite) TestForgetValidationSetEnforcedByModelFails(c *C) {
+func (s *assertMgrSuite) TestForgetValidationSetEnforcedByModel(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.mockDeviceWithValidationSets(c, []interface{}{
@@ -4877,6 +4877,15 @@ func (s *assertMgrSuite) TestForgetValidationSetEnforcedByModelFails(c *C) {
 
 	err := assertstate.ForgetValidationSet(s.state, s.dev1Acct.AccountID(), "foo", assertstate.ForgetValidationSetOpts{}, nil)
 	c.Check(err, ErrorMatches, `validation-set is enforced by the model`)
+
+	err = assertstate.ForgetValidationSet(s.state, s.dev1Acct.AccountID(), "foo", assertstate.ForgetValidationSetOpts{
+		ForceForget: true,
+	}, nil)
+	c.Check(err, IsNil)
+
+	vsets, err := assertstate.TrackedEnforcedValidationSets(s.state)
+	c.Check(err, IsNil)
+	c.Check(vsets.Keys(), HasLen, 0)
 }
 
 func (s *assertMgrSuite) TestForgetValidationSetPreferEnforcedByModelHappy(c *C) {
