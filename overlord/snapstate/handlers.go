@@ -3363,7 +3363,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		return &state.Retry{After: 3 * time.Minute}
 	}
 	if len(snapst.Sequence.Revisions) == 0 {
-		if err = m.backend.RemoveSnapMountUnits(snapsup.placeInfo(), nil); err != nil {
+		if err = m.backend.RemoveContainerMountUnits(snapsup.containerInfo(), nil); err != nil {
 			return err
 		}
 
