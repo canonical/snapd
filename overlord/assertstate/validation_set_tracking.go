@@ -125,9 +125,8 @@ func verifyForgetAllowedByModelAssertion(st *state.State, accountID, name string
 // ForgetValidationSetOpts holds options for ForgetValidationSet.
 type ForgetValidationSetOpts struct {
 	// ForceForget is used to forget a validation set even if it's enforced by
-	// the model. This is currently used in the case that we are rolling back a
-	// remodel and we need to replace a validation set that is enforced by the
-	// new model.
+	// the model. This is currently used during remodeling when we need to
+	// forget validation sets from the old/new model.
 	ForceForget bool
 }
 
