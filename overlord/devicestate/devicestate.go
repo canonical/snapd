@@ -504,10 +504,17 @@ func (ro *remodelVariant) InstallWithDeviceContext(ctx context.Context, st *stat
 		opts, userID, snapStateFlags, nil, deviceCtx, fromChange)
 }
 
-func setValidationSetsIfRevisionSet(opts *snapstate.RevisionOptions, valsets []snapasserts.ValidationSetKey) {
+func newRevisionOptionsForRemodel(channel string, revision snap.Revision, valsets []snapasserts.ValidationSetKey) *snapstate.RevisionOptions {
+	opts := &snapstate.RevisionOptions{
+		Channel:  channel,
+		Revision: revision,
+	}
+
 	if !opts.Revision.Unset() {
 		opts.ValidationSets = valsets
 	}
+
+	return opts
 }
 
 func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pathSideInfo, ms modelSnapsForRemodel, remodelVar remodelVariant, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
@@ -517,12 +524,7 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pat
 		return nil, err
 	}
 
-	revOpts := &snapstate.RevisionOptions{
-		Channel:  newModelSnapChannel,
-		Revision: ms.newRequiredRevision,
-	}
-
-	setValidationSetsIfRevisionSet(revOpts, ms.newModelValidationSets)
+	revOpts := newRevisionOptionsForRemodel(newModelSnapChannel, ms.newRequiredRevision, ms.newModelValidationSets)
 
 	if ms.currentSnap == ms.newSnap {
 		// new model uses the same base, kernel or gadget snap
@@ -752,12 +754,7 @@ func remodelSnapdSnapTasks(st *state.State, newModel *asserts.Model, localSnaps 
 	}
 
 	if channelChanged || revisionChanged {
-		revOpts := &snapstate.RevisionOptions{
-			Channel:  newSnapdChannel,
-			Revision: rev,
-		}
-
-		setValidationSetsIfRevisionSet(revOpts, vSetKeys)
+		revOpts := newRevisionOptionsForRemodel(newSnapdChannel, rev, vSetKeys)
 
 		userID := 0
 		return remodelVar.UpdateWithDeviceContext(st,
@@ -908,12 +905,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 			return nil, err
 		}
 
-		revOpts := &snapstate.RevisionOptions{
-			Channel:  newModelSnapChannel,
-			Revision: snapRevisions[modelSnap.SnapName()],
-		}
-
-		setValidationSetsIfRevisionSet(revOpts, vSetKeys)
+		revOpts := newRevisionOptionsForRemodel(newModelSnapChannel, snapRevisions[modelSnap.SnapName()], vSetKeys)
 
 		snapPathSi := sideInfoAndPathFromID(localSnaps, paths, modelSnap.ID())
 
