@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -9268,7 +9267,6 @@ version: 1.0
 			break
 		}
 	}
-	log.Printf("%s", ts.MaybeEdge(snapstate.EndEdge).Kind())
 	c.Assert(t, NotNil)
 	c.Check(ts.MaybeEdge(snapstate.EndEdge).ID(), Equals, t.ID())
 }
@@ -9305,7 +9303,6 @@ epoch: 1
 			break
 		}
 	}
-	log.Printf("%s", ts.MaybeEdge(snapstate.EndEdge).Kind())
 	c.Assert(t, NotNil)
 	c.Check(ts.MaybeEdge(snapstate.EndEdge).ID(), Equals, t.ID())
 }
