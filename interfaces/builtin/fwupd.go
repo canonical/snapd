@@ -115,6 +115,8 @@ const fwupdPermanentSlotAppArmor = `
   /dev/video[0-9]* r,
   # Realtek MST plugin
   /dev/i2c-[0-9]* rw,
+  # Redfish plugin
+  /dev/ipmi* rw,
 
   # MMC boot partitions
   /dev/mmcblk[0-9]{,[0-9],[0-9][0-9]}boot[0-9]* rwk,
