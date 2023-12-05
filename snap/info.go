@@ -41,6 +41,26 @@ import (
 	"github.com/snapcore/snapd/timeout"
 )
 
+// ContainerPlaceInfo offers all the information about where a container (which
+// can be a snap or a component) and its data are located and exposed in the
+// filesystem.
+type ContainerPlaceInfo interface {
+	// ContainerName returns the name of the container, which is part of the
+	// name of the backing file (for snaps this is the instance name).
+	ContainerName() string
+
+	// Filename returns the name of the container with the revision
+	// number, as used on the filesystem.
+	Filename() string
+
+	// MountDir returns the base directory of the container.
+	MountDir() string
+
+	// MountFile returns the path where the container file that is mounted is
+	// installed.
+	MountFile() string
+}
+
 // PlaceInfo offers all the information about where a snap and its data are
 // located and exposed in the filesystem.
 type PlaceInfo interface {
@@ -109,9 +129,16 @@ type PlaceInfo interface {
 }
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a
-// snap of the given name and revision.
-func MinimalPlaceInfo(name string, revision Revision) PlaceInfo {
-	storeName, instanceKey := SplitInstanceName(name)
+// snap of the given instance name and revision.
+func MinimalPlaceInfo(instanceName string, revision Revision) PlaceInfo {
+	storeName, instanceKey := SplitInstanceName(instanceName)
+	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
+}
+
+// MinimalContainerInfo returns a ContainerPlaceInfo with just the location
+// information for a snap of the given instance name and revision.
+func MinimalContainerInfo(instanceName string, revision Revision) ContainerPlaceInfo {
+	storeName, instanceKey := SplitInstanceName(instanceName)
 	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
 }
 
@@ -457,6 +484,12 @@ func (s *Info) Provenance() string {
 // key, if any.
 func (s *Info) InstanceName() string {
 	return InstanceName(s.SnapName(), s.InstanceKey)
+}
+
+// ContainerName returns the name of the container, which is the instance name
+// for snaps.
+func (s *Info) ContainerName() string {
+	return s.InstanceName()
 }
 
 // SnapName returns the global blessed name of the snap.
@@ -830,8 +863,11 @@ type DeltaInfo struct {
 	Sha3_384     string `json:"sha3-384,omitempty"`
 }
 
-// check that Info is a PlaceInfo
-var _ PlaceInfo = (*Info)(nil)
+// check that Info is a PlaceInfo and a ContainerPlaceInfo
+var (
+	_ PlaceInfo          = (*Info)(nil)
+	_ ContainerPlaceInfo = (*Info)(nil)
+)
 
 type AttributeNotFoundError struct{ Err error }
 
