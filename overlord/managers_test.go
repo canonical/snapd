@@ -8697,8 +8697,6 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 		},
 	}
 
-	_ = modelValSets
-
 	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c, modelValSets)
 
 	restore := kcmdline.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
@@ -9043,10 +9041,11 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 	})
 }
 
-func (s *mgrsSuiteCore) TestRemodelReplaceConflictingValidationSets(c *C) {
+func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 	st := s.o.State()
 
 	st.Lock()
+	// this validation set only appears in the first model
 	vsetAssert1, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "can0nical",
@@ -9068,6 +9067,7 @@ func (s *mgrsSuiteCore) TestRemodelReplaceConflictingValidationSets(c *C) {
 	c.Assert(assertstate.Add(st, vsetAssert1), IsNil)
 	c.Assert(s.storeSigning.Add(vsetAssert1), IsNil)
 
+	// this validation set only appears in the second model
 	vsetAssert2, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "can0nical",
@@ -9089,6 +9089,8 @@ func (s *mgrsSuiteCore) TestRemodelReplaceConflictingValidationSets(c *C) {
 	c.Assert(assertstate.Add(st, vsetAssert2), IsNil)
 	c.Assert(s.storeSigning.Add(vsetAssert2), IsNil)
 
+	// this validation set appears in neither model, bus is still tracked by the
+	// system
 	vsetAssert3, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
 		"authority-id": "can0nical",
@@ -9110,6 +9112,27 @@ func (s *mgrsSuiteCore) TestRemodelReplaceConflictingValidationSets(c *C) {
 	c.Assert(assertstate.Add(st, vsetAssert3), IsNil)
 	c.Assert(s.storeSigning.Add(vsetAssert3), IsNil)
 
+	// this validation set appears in both models
+	vsetAssert4, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "can0nical",
+		"series":       "16",
+		"account-id":   "can0nical",
+		"name":         "vset-4",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc",
+				"id":       fakeSnapID("pc"),
+				"presence": "required",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(st, vsetAssert4), IsNil)
+	c.Assert(s.storeSigning.Add(vsetAssert4), IsNil)
+
 	st.Unlock()
 
 	modelValSets := map[string]interface{}{
@@ -9119,10 +9142,13 @@ func (s *mgrsSuiteCore) TestRemodelReplaceConflictingValidationSets(c *C) {
 				"name":       "vset-1",
 				"mode":       "enforce",
 			},
+			map[string]interface{}{
+				"account-id": "can0nical",
+				"name":       "vset-4",
+				"mode":       "enforce",
+			},
 		},
 	}
-
-	_ = modelValSets
 
 	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c, modelValSets)
 
@@ -9147,9 +9173,11 @@ func (s *mgrsSuiteCore) TestRemodelReplaceConflictingValidationSets(c *C) {
 	c.Assert(err, IsNil)
 	vs1 := vsetAssert1.(*asserts.ValidationSet)
 	vs3 := vsetAssert3.(*asserts.ValidationSet)
+	vs4 := vsetAssert4.(*asserts.ValidationSet)
 	err = assertstate.ApplyLocalEnforcedValidationSets(st, map[string][]string{
 		vs1.SequenceName(): vs1.At().PrimaryKey,
 		vs3.SequenceName(): vs3.At().PrimaryKey,
+		vs4.SequenceName(): vs4.At().PrimaryKey,
 	}, nil, installed, ignore)
 	c.Assert(err, IsNil)
 
@@ -9179,6 +9207,11 @@ func (s *mgrsSuiteCore) TestRemodelReplaceConflictingValidationSets(c *C) {
 			map[string]interface{}{
 				"account-id": "can0nical",
 				"name":       "vset-2",
+				"mode":       "enforce",
+			},
+			map[string]interface{}{
+				"account-id": "can0nical",
+				"name":       "vset-4",
 				"mode":       "enforce",
 			},
 		},
@@ -9433,6 +9466,7 @@ func (s *mgrsSuiteCore) TestRemodelReplaceConflictingValidationSets(c *C) {
 	c.Check(currentSets.Keys(), testutil.DeepUnsortedMatches, []snapasserts.ValidationSetKey{
 		"16/can0nical/vset-2/1",
 		"16/can0nical/vset-3/1",
+		"16/can0nical/vset-4/1",
 	})
 }
 

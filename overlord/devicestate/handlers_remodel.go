@@ -109,7 +109,9 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 	currentSets, err := trackedValidationSetsFromModel(st, remodCtx.GroundContext().Model())
 
 	for _, old := range currentSets {
-		if err := assertstate.ForgetValidationSet(st, old.AccountID(), old.Name(), assertstate.ForgetValidationSetOpts{}, remodCtx); err != nil {
+		if err := assertstate.ForgetValidationSet(st, old.AccountID(), old.Name(), assertstate.ForgetValidationSetOpts{
+			ForceForget: true,
+		}, remodCtx); err != nil {
 			return err
 		}
 	}
