@@ -5935,14 +5935,16 @@ func (s *deviceMgrSuite) testRemodelInvalidFromValidationSet(c *C, invalidSnap s
 }
 
 func (s *deviceMgrSuite) TestOfflineRemodelPresentValidationSet(c *C) {
-	s.testOfflineRemodelValidationSet(c, false)
+	const withValSet = true
+	s.testOfflineRemodelValidationSet(c, withValSet)
 }
 
 func (s *deviceMgrSuite) TestOfflineRemodelMissingValidationSet(c *C) {
-	s.testOfflineRemodelValidationSet(c, true)
+	const withValSet = false
+	s.testOfflineRemodelValidationSet(c, withValSet)
 }
 
-func (s *deviceMgrSuite) testOfflineRemodelValidationSet(c *C, missing bool) {
+func (s *deviceMgrSuite) testOfflineRemodelValidationSet(c *C, withValSet bool) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -6010,7 +6012,7 @@ func (s *deviceMgrSuite) testOfflineRemodelValidationSet(c *C, missing bool) {
 		},
 	})
 
-	if !missing {
+	if withValSet {
 		vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
 			"type":         "validation-set",
 			"authority-id": "canonical",
@@ -6052,7 +6054,7 @@ func (s *deviceMgrSuite) testOfflineRemodelValidationSet(c *C, missing bool) {
 	sis[0], paths[0] = createLocalSnap(c, "pc", snaptest.AssertedSnapID("pc"), 1)
 
 	_, err = devicestate.RemodelTasks(context.Background(), s.state, currentModel, newModel, sis, paths, testDeviceCtx, "99")
-	if missing {
+	if withValSet {
 		c.Assert(err, ErrorMatches, "validation-set assertion not found")
 	} else {
 		c.Assert(err, ErrorMatches, "snap presence is invalid: snap-1")
