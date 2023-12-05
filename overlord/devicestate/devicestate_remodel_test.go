@@ -5587,11 +5587,13 @@ func (f *fakeSequenceStore) SeqFormingAssertion(assertType *asserts.AssertionTyp
 }
 
 func (s *deviceMgrSuite) TestRemodelUpdateFromValidationSetLatest(c *C) {
-	s.testRemodelUpdateFromValidationSet(c, "")
+	const sequence = ""
+	s.testRemodelUpdateFromValidationSet(c, sequence)
 }
 
 func (s *deviceMgrSuite) TestRemodelUpdateFromValidationSetSpecific(c *C) {
-	s.testRemodelUpdateFromValidationSet(c, "1")
+	const sequence = "1"
+	s.testRemodelUpdateFromValidationSet(c, sequence)
 }
 
 func (s *deviceMgrSuite) testRemodelUpdateFromValidationSet(c *C, sequence string) {
