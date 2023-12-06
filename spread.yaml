@@ -1271,7 +1271,14 @@ suites:
             . "$TESTSLIB"/image.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
-            get_ubuntu_image
+            if os.query is-xenial || os.query is-arm; then
+                # the new ubuntu-image expects mkfs to support -d option, which was not
+                # supported yet by the version of mkfs that shipped with Ubuntu 16.04
+                # also ubuntu-image binary is not prebuilt for arm instances
+                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            else
+                get_ubuntu_image
+            fi
   
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
