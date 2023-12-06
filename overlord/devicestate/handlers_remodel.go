@@ -111,7 +111,7 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 	for _, old := range currentSets {
 		if err := assertstate.ForgetValidationSet(st, old.AccountID(), old.Name(), assertstate.ForgetValidationSetOpts{
 			ForceForget: true,
-		}, remodCtx); err != nil {
+		}); err != nil {
 			return err
 		}
 	}
@@ -199,7 +199,7 @@ func rollBackValidationSets(st *state.State, oldSets []*asserts.ValidationSet, n
 	for _, set := range newSets {
 		if err := assertstate.ForgetValidationSet(st, set.AccountID, set.Name, assertstate.ForgetValidationSetOpts{
 			ForceForget: true,
-		}, deviceCtx); err != nil {
+		}); err != nil {
 			fmt.Println("we did not roll them back!", err)
 			return err
 		}

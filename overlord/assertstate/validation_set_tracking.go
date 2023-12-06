@@ -26,7 +26,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 )
@@ -108,8 +107,8 @@ func UpdateValidationSet(st *state.State, tr *ValidationSetTracking) {
 // verifyForgetAllowedByModelAssertion checks whether a validation-set is controlled by
 // the model assertion. If the validation-set is set to 'enforce', then it's not possible
 // to forget it.
-func verifyForgetAllowedByModelAssertion(st *state.State, accountID, name string, deviceCtx snapstate.DeviceContext) error {
-	vs, err := validationSetFromModel(st, accountID, name, deviceCtx)
+func verifyForgetAllowedByModelAssertion(st *state.State, accountID, name string) error {
+	vs, err := validationSetFromModel(st, accountID, name)
 	if err != nil {
 		return err
 	}
@@ -133,7 +132,7 @@ type ForgetValidationSetOpts struct {
 // ForgetValidationSet deletes a validation set for the given accountID and name.
 // It is not an error to delete a non-existing one. If the validation-set
 // is controlled by the model assertion it may not be allowed to forget it.
-func ForgetValidationSet(st *state.State, accountID, name string, opts ForgetValidationSetOpts, deviceCtx snapstate.DeviceContext) error {
+func ForgetValidationSet(st *state.State, accountID, name string, opts ForgetValidationSetOpts) error {
 	var vsmap map[string]*json.RawMessage
 	err := st.Get("validation-sets", &vsmap)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -144,7 +143,7 @@ func ForgetValidationSet(st *state.State, accountID, name string, opts ForgetVal
 	}
 
 	if !opts.ForceForget {
-		if err := verifyForgetAllowedByModelAssertion(st, accountID, name, deviceCtx); err != nil {
+		if err := verifyForgetAllowedByModelAssertion(st, accountID, name); err != nil {
 			return err
 		}
 	}

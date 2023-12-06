@@ -4358,7 +4358,7 @@ func (s *assertMgrSuite) TestForgetValidationSet(c *C) {
 		Current:   2,
 	})
 
-	c.Assert(assertstate.ForgetValidationSet(st, s.dev1Acct.AccountID(), "bar", assertstate.ForgetValidationSetOpts{}, nil), IsNil)
+	c.Assert(assertstate.ForgetValidationSet(st, s.dev1Acct.AccountID(), "bar", assertstate.ForgetValidationSetOpts{}), IsNil)
 
 	// and it was added to the history
 	vshist, err := assertstate.ValidationSetsHistory(st)
@@ -4875,12 +4875,12 @@ func (s *assertMgrSuite) TestForgetValidationSetEnforcedByModel(c *C) {
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
-	err := assertstate.ForgetValidationSet(s.state, s.dev1Acct.AccountID(), "foo", assertstate.ForgetValidationSetOpts{}, nil)
+	err := assertstate.ForgetValidationSet(s.state, s.dev1Acct.AccountID(), "foo", assertstate.ForgetValidationSetOpts{})
 	c.Check(err, ErrorMatches, `validation-set is enforced by the model`)
 
 	err = assertstate.ForgetValidationSet(s.state, s.dev1Acct.AccountID(), "foo", assertstate.ForgetValidationSetOpts{
 		ForceForget: true,
-	}, nil)
+	})
 	c.Check(err, IsNil)
 
 	vsets, err := assertstate.TrackedEnforcedValidationSets(s.state)
@@ -4908,7 +4908,7 @@ func (s *assertMgrSuite) TestForgetValidationSetPreferEnforcedByModelHappy(c *C)
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
-	err := assertstate.ForgetValidationSet(s.state, s.dev1Acct.AccountID(), "foo", assertstate.ForgetValidationSetOpts{}, nil)
+	err := assertstate.ForgetValidationSet(s.state, s.dev1Acct.AccountID(), "foo", assertstate.ForgetValidationSetOpts{})
 	c.Check(err, IsNil)
 }
 
