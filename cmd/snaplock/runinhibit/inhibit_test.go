@@ -21,7 +21,6 @@ package runinhibit_test
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -32,7 +31,6 @@ import (
 
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -207,30 +205,4 @@ func (s *runInhibitSuite) TestLockWithHintFilePostfix(c *C) {
 	// This would confuse inhibit info to overwrite the hint file
 	err := runinhibit.LockWithHint("pkg", "lock", s.inhibitInfo)
 	c.Assert(err, ErrorMatches, `hint cannot have value "lock"`)
-}
-
-func (s *runInhibitSuite) TestWithReadLock(c *C) {
-	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh, s.inhibitInfo), IsNil)
-
-	lock, err := osutil.OpenExistingLockForReading(runinhibit.HintFile("some-snap"))
-	c.Assert(err, IsNil)
-	defer lock.Close()
-	c.Assert(lock.TryLock(), IsNil) // Lock is not held
-	lock.Unlock()
-
-	err = runinhibit.WithReadLock("some-snap", func() error {
-		c.Assert(lock.TryLock(), Equals, osutil.ErrAlreadyLocked) // Lock is held
-		return errors.New("error-is-propagated")
-	})
-	c.Check(err, ErrorMatches, "error-is-propagated")
-
-	c.Assert(lock.TryLock(), IsNil) // Lock is not held
-}
-
-func (s *runInhibitSuite) TestWithReadLockHintFileNotExist(c *C) {
-	err := runinhibit.WithReadLock("some-snap", func() error {
-		c.Assert(runinhibit.HintFile("some-snap"), testutil.FileAbsent)
-		return errors.New("error-is-propagated")
-	})
-	c.Check(err, ErrorMatches, "error-is-propagated")
 }

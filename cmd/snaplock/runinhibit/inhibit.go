@@ -206,19 +206,15 @@ func Unlock(snapName string) error {
 	return nil
 }
 
-func WithReadLock(snapName string, action func() error) error {
-	flock, err := osutil.OpenExistingLockForReading(HintFile(snapName))
-	if os.IsNotExist(err) {
-		return action()
+func OpenLock(snapName string) (*osutil.FileLock, error) {
+	if err := os.MkdirAll(InhibitDir, 0755); err != nil {
+		return nil, err
 	}
+	flock, err := openHintFileLock(snapName)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer flock.Close()
-	if err := flock.ReadLock(); err != nil {
-		return err
-	}
-	return action()
+	return flock, nil
 }
 
 // IsLocked returns the state of the run inhibition lock for the given snap.
