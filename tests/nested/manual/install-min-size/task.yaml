@@ -1,5 +1,7 @@
 summary: install a gadget that uses min-size
 
+details: install a gadget that uses min-size
+
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
@@ -34,7 +36,7 @@ execute: |
       "$gadget_p"
   yq -i '(.volumes.pc.structure[] | select(.role == "system-save") | .size) |= "64M"' \
       "$gadget_p"
-  yq -i '(.volumes.pc.structure | with_entries(select(.value.name == "ubuntu-boot")) | .[].update.edition) |= . + 1' "$gadget_p"
+  yq -i '(.volumes.pc.structure[] | select(.name == "ubuntu-boot") | .update.edition) |= . + 1' "$gadget_p"
 
   snap pack --filename=pc.snap pc-gadget
   remote.push pc.snap
