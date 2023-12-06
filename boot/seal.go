@@ -736,6 +736,10 @@ func recoveryBootChainsForSystems(systems []string, modesForSystems map[string][
 					return err
 				}
 				if assetChain == nil {
+					// This chain is not used as
+					// it is not in the modeenv,
+					// we expect another chain to
+					// work.
 					continue
 				}
 
@@ -814,6 +818,10 @@ func runModeBootChains(rbl, bl bootloader.Bootloader, modeenv *Modeenv, cmdlines
 					return err
 				}
 				if assetChain == nil {
+					// This chain is not used as
+					// it is not in the modeenv,
+					// we expect another chain to
+					// work.
 					continue
 				}
 				var kernelRev string
@@ -870,7 +878,7 @@ func buildBootAssets(bootFiles []bootloader.BootFile, modeenv *Modeenv, trustedA
 		path := bf.Path
 		name, ok := trustedAssets[path]
 		if !ok {
-			return nil, kernel, nil
+			return nil, kernel, fmt.Errorf("internal error: asset '%s' is not considered a trusted asset for the bootloader", path)
 		}
 		var hashes []string
 		if bf.Role == bootloader.RoleRecovery {
@@ -879,6 +887,12 @@ func buildBootAssets(bootFiles []bootloader.BootFile, modeenv *Modeenv, trustedA
 			hashes, ok = modeenv.CurrentTrustedBootAssets[name]
 		}
 		if !ok {
+			// We have not found an asset for this
+			// chain. There are chains expected to not
+			// exist. So we return without error.
+			// recoveryBootChainsForSystems and
+			// runModeBootChains will fail if no chain is
+			// found
 			return nil, kernel, nil
 		}
 		assets[i] = bootAsset{
