@@ -174,7 +174,6 @@ backends:
             - amazon-linux-2023-64:
                   workers: 6
                   storage: preserve-size
-                  image: amazon-linux-2023-64-base-v20231205
 
             - centos-7-64:
                   workers: 6
@@ -706,12 +705,6 @@ prepare: |
         restorecon -v /etc/gai.conf
     fi
 
-    if [[ "$SPREAD_SYSTEM" == amazon-linux-2023-* ]]; then
-        # The default dns server is not working properly in google
-        # so we force using also 8.8.8.8
-        echo "nameserver 8.8.8.8" | tee -a /etc/resolv.conf
-    fi
-
     if [[ "$SPREAD_SYSTEM" == centos-8-* ]]; then
         # the default image of CentOS 8 Stream is set up in enforcing mode,
         # which may break some tests. Note that there are tests targeting
@@ -811,7 +804,7 @@ prepare: |
             amazon-linux-2023-*)
                 # Amazon linux 2023 has already pre-installed the xdelta package
                 # which is not in the repo yet
-                yum install -y --allowerasing curl &> "$tf" || (cat "$tf"; exit 1)   
+                yum install -y --allowerasing curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
             amazon-*|centos-7-*)
                 yum install -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
