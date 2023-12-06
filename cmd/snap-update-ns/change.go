@@ -131,7 +131,6 @@ func (c *Change) createPath(path string, pokeHoles bool, as *Assumptions) ([]*Ch
 			// directory paths within a given directory.
 			mode = 0700
 
-			// Restrictions not used
 			err = MkdirAllWithin(path, c.Entry.XSnapdMustExistDir(), mode, uid, gid, rs)
 			if errors.Is(err, &FileInWayError{}) || errors.Is(err, &ParentMissingError{}) {
 				logger.Noticef("WARNING: cannot perform ensure-dir mount for target %q: %v", path, err)
