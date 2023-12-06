@@ -132,7 +132,7 @@ func rewriteExecLine(s *snap.Info, desktopFile, action, line string) (string, er
 
 	for _, app := range s.Apps {
 		wrapper := filepath.Base(app.WrapperPath())
-		validCmd := filepath.Base(wrapper)
+		validCmd := wrapper
 		if s.InstanceKey != "" {
 			// wrapper uses s.InstanceName(), with the instance key
 			// set the command will be 'snap_foo.app' instead of
