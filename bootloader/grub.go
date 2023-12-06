@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -496,21 +496,73 @@ func staticCommandLineForGrubAssetEdition(asset string, edition uint) string {
 	return string(cmdline)
 }
 
+type taggedPath struct {
+	tag  string
+	path string
+}
+
+func (t taggedPath) Id() string {
+	basename := filepath.Base(t.path)
+	if t.tag == "" {
+		return basename
+	}
+	return fmt.Sprintf("%s:%s", t.tag, basename)
+}
+
 // grubBootAssetPath contains the paths for assets in the boot chain.
 type grubBootAssetPath struct {
-	shimBinary string
-	grubBinary string
+	defaultShimBinary taggedPath
+	defaultGrubBinary taggedPath
+	fallbackBinary    taggedPath
+	shimBinary        taggedPath
+	grubBinary        taggedPath
 }
 
 // grubBootAssetsForArch contains the paths for assets for different
-// architectures in a map
+// architectures in a map.
+// For backward compliance, we do not have tags
+// for asset paths that used to exist before usage of tags.
 var grubBootAssetsForArch = map[string]grubBootAssetPath{
 	"amd64": {
-		shimBinary: filepath.Join("EFI/boot/", "bootx64.efi"),
-		grubBinary: filepath.Join("EFI/boot/", "grubx64.efi")},
+		defaultShimBinary: taggedPath{
+			path: filepath.Join("EFI/boot/", "bootx64.efi"),
+		},
+		defaultGrubBinary: taggedPath{
+			path: filepath.Join("EFI/boot/", "grubx64.efi"),
+		},
+		fallbackBinary: taggedPath{
+			tag:  "boot",
+			path: filepath.Join("EFI/boot/", "fbx64.efi"),
+		},
+		shimBinary: taggedPath{
+			tag:  "ubuntu",
+			path: filepath.Join("EFI/ubuntu/", "shimx64.efi"),
+		},
+		grubBinary: taggedPath{
+			tag:  "ubuntu",
+			path: filepath.Join("EFI/ubuntu/", "grubx64.efi"),
+		},
+	},
 	"arm64": {
-		shimBinary: filepath.Join("EFI/boot/", "bootaa64.efi"),
-		grubBinary: filepath.Join("EFI/boot/", "grubaa64.efi")},
+		defaultShimBinary: taggedPath{
+			path: filepath.Join("EFI/boot/", "bootaa64.efi"),
+		},
+		defaultGrubBinary: taggedPath{
+			path: filepath.Join("EFI/boot/", "grubaa64.efi"),
+		},
+		fallbackBinary: taggedPath{
+			tag:  "boot",
+			path: filepath.Join("EFI/boot/", "fbaa64.efi"),
+		},
+		shimBinary: taggedPath{
+			tag:  "ubuntu",
+			path: filepath.Join("EFI/ubuntu/", "shimaa64.efi"),
+		},
+		grubBinary: taggedPath{
+			tag:  "ubuntu",
+			path: filepath.Join("EFI/ubuntu/", "grubaa64.efi"),
+		},
+	},
 }
 
 func (g *grub) getGrubBootAssetsForArch() (*grubBootAssetPath, error) {
@@ -528,35 +580,35 @@ func (g *grub) getGrubBootAssetsForArch() (*grubBootAssetPath, error) {
 // getGrubRecoveryModeTrustedAssets returns the list of ordered asset
 // chain for recovery mode, which are shim and grub from the seed
 // partition.
-func (g *grub) getGrubRecoveryModeTrustedAssets() ([][]string, error) {
+func (g *grub) getGrubRecoveryModeTrustedAssets() ([][]taggedPath, error) {
 	assets, err := g.getGrubBootAssetsForArch()
 	if err != nil {
 		return nil, err
 	}
-	return [][]string{{assets.shimBinary, assets.grubBinary}}, nil
+	return [][]taggedPath{{assets.shimBinary, assets.grubBinary}, {assets.defaultShimBinary, assets.defaultGrubBinary}}, nil
 }
 
 // getGrubRunModeTrustedAssets returns the list of ordered asset
 // chains for run mode, which is grub from the boot partition.
-func (g *grub) getGrubRunModeTrustedAssets() ([][]string, error) {
+func (g *grub) getGrubRunModeTrustedAssets() ([][]taggedPath, error) {
 	assets, err := g.getGrubBootAssetsForArch()
 	if err != nil {
 		return nil, err
 	}
-	return [][]string{{assets.grubBinary}}, nil
+	return [][]taggedPath{{assets.defaultGrubBinary}}, nil
 }
 
 // TrustedAssets returns the map of relative paths to asset
 // identifers. The relative paths are relative to the bootloader's
 // rootdir. The asset identifiers correspond to the backward
-// compatible names in the modeenv (CurrentTrustedBootAssets and
-// CurrentTrustedRecoveryBootAssets).
+// compatible names recorded in the modeenv (CurrentTrustedBootAssets
+// and CurrentTrustedRecoveryBootAssets).
 func (g *grub) TrustedAssets() (map[string]string, error) {
 	if !g.nativePartitionLayout {
 		return nil, fmt.Errorf("internal error: trusted assets called without native host-partition layout")
 	}
 	ret := make(map[string]string)
-	var chains [][]string
+	var chains [][]taggedPath
 	var err error
 	if g.recovery {
 		chains, err = g.getGrubRecoveryModeTrustedAssets()
@@ -568,7 +620,7 @@ func (g *grub) TrustedAssets() (map[string]string, error) {
 	}
 	for _, chain := range chains {
 		for _, asset := range chain {
-			ret[asset] = filepath.Base(asset)
+			ret[asset.path] = asset.Id()
 		}
 	}
 	return ret, nil
@@ -590,7 +642,7 @@ func (g *grub) RecoveryBootChains(kernelPath string) ([][]BootFile, error) {
 	for _, assets := range assetsSet {
 		chain := make([]BootFile, 0, len(assets)+1)
 		for _, ta := range assets {
-			chain = append(chain, NewBootFile("", filepath.Base(ta), RoleRecovery))
+			chain = append(chain, NewBootFile("", ta.path, RoleRecovery))
 		}
 		// add recovery kernel to the recovery chain
 		chain = append(chain, NewBootFile(kernelPath, "kernel.efi", RoleRecovery))
@@ -625,10 +677,10 @@ func (g *grub) BootChains(runBl Bootloader, kernelPath string) ([][]BootFile, er
 		for _, runModeAssets := range runModeAssetsSet {
 			chain := make([]BootFile, 0, len(recoveryModeAssets)+len(runModeAssets)+1)
 			for _, ta := range recoveryModeAssets {
-				chain = append(chain, NewBootFile("", filepath.Base(ta), RoleRecovery))
+				chain = append(chain, NewBootFile("", ta.path, RoleRecovery))
 			}
 			for _, ta := range runModeAssets {
-				chain = append(chain, NewBootFile("", filepath.Base(ta), RoleRunMode))
+				chain = append(chain, NewBootFile("", ta.path, RoleRunMode))
 			}
 			// add kernel to the boot chain
 			chain = append(chain, NewBootFile(kernelPath, "kernel.efi", RoleRunMode))

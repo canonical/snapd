@@ -222,8 +222,8 @@ type TrustedAssetsBootloader interface {
 	// TrustedAssets returns a map of relative paths to asset
 	// identifers. The paths are inside the bootloader's rootdir
 	// that are measured in the boot process. The asset
-	// identifiers correspond to the backward compatible names in
-	// the modeenv (CurrentTrustedBootAssets and
+	// identifiers correspond to the backward compatible names
+	// recorded in the modeenv (CurrentTrustedBootAssets and
 	// CurrentTrustedRecoveryBootAssets).
 	TrustedAssets() (map[string]string, error)
 
