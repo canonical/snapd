@@ -260,12 +260,12 @@ func (x *cmdRun) Execute(args []string) error {
 	return x.snapRunApp(snapApp, args)
 }
 
-func maybeWaitWhileInhibited(snapName string) error {
+func maybeWaitWhileInhibited(snapName string, action func() error) error {
 	// If the snap is inhibited from being used then postpone running it until
 	// that condition passes. Inhibition UI can be dismissed by the user, in
 	// which case we don't run the application at all.
 	if features.RefreshAppAwareness.IsEnabled() {
-		return waitWhileInhibited(snapName)
+		return waitWhileInhibited(snapName, action)
 	}
 	return nil
 }
@@ -505,12 +505,11 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 	snapName, appName := snap.SplitSnapApp(snapApp)
 
 	snapRev := snap.R(0)
-	hint, inhibitInfo, err := isLocked(snapName)
+	hint, inhibitInfo, err := runinhibit.IsLocked(snapName)
 	if err != nil {
 		return err
 	}
-	inhibited := hint != runinhibit.HintNotInhibited
-	if inhibited {
+	if hint != runinhibit.HintNotInhibited {
 		snapRev = inhibitInfo.Previous
 	}
 
@@ -519,34 +518,20 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 		return err
 	}
 
+	// XXX: services might be starting from an old snap revision
 	if !app.IsService() {
-		if err := maybeWaitWhileInhibited(snapName); err != nil {
-			return err
-		}
-	}
-
-	// Get the updated "current" snap info
-	err = runinhibit.WithReadLock(snapName, func() error {
-		if !app.IsService() {
-			// Check run inhibition is actually removed while holding lock to
-			// avoid race condition with snap being inhibited again
-			hint, _, err := isLocked(snapName)
+		updateSnapInfo := func() error {
+			info, app, err = getInfoAndApp(snapName, appName, snap.R(0))
 			if err != nil {
 				return err
 			}
-			if hint != runinhibit.HintNotInhibited {
-				// TODO: better handling/retry logic needed
-				return fmt.Errorf("internal error: snap run was inhibited again after waiting for first inhibition")
-			}
+			return nil
 		}
-		info, app, err = getInfoAndApp(snapName, appName, snap.R(0))
+
+		err = maybeWaitWhileInhibited(snapName, updateSnapInfo)
 		if err != nil {
 			return err
 		}
-		return nil
-	})
-	if err != nil {
-		return err
 	}
 
 	return x.runSnapConfine(info, app.SecurityTag(), snapApp, "", args)

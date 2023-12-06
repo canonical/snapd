@@ -149,9 +149,7 @@ var (
 	MaybePrintCohortKey                           = (*infoWriter).maybePrintCohortKey
 	MaybePrintHealth                              = (*infoWriter).maybePrintHealth
 	MaybePrintRefreshInfo                         = (*infoWriter).maybePrintRefreshInfo
-	WaitInhibitUnlock                             = waitInhibitUnlock
 	WaitWhileInhibited                            = waitWhileInhibited
-	IsLocked                                      = isLocked
 	TryNotifyRefreshViaSnapDesktopIntegrationFlow = tryNotifyRefreshViaSnapDesktopIntegrationFlow
 )
 
@@ -420,22 +418,6 @@ func MockOsChmod(f func(string, os.FileMode) error) (restore func()) {
 	}
 }
 
-func MockWaitInhibitUnlock(f func(snapName string, waitFor runinhibit.Hint) (bool, error)) (restore func()) {
-	old := waitInhibitUnlock
-	waitInhibitUnlock = f
-	return func() {
-		waitInhibitUnlock = old
-	}
-}
-
-func MockIsLocked(f func(snapName string) (runinhibit.Hint, runinhibit.InhibitInfo, error)) (restore func()) {
-	old := isLocked
-	isLocked = f
-	return func() {
-		isLocked = old
-	}
-}
-
 func MockIsGraphicalSession(graphical bool) (restore func()) {
 	old := isGraphicalSession
 	isGraphicalSession = func() bool {
@@ -462,11 +444,19 @@ func MockFinishRefreshNotification(f func(refreshInfo *usersessionclient.Finishe
 	}
 }
 
-func MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(f func(snapName string) (bool, error)) (restore func()) {
+func MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(f func(snapName string) bool) (restore func()) {
 	old := tryNotifyRefreshViaSnapDesktopIntegrationFlow
 	tryNotifyRefreshViaSnapDesktopIntegrationFlow = f
 	return func() {
 		tryNotifyRefreshViaSnapDesktopIntegrationFlow = old
+	}
+}
+
+func MockHintFromFile(f func(*os.File) (runinhibit.Hint, error)) (restore func()) {
+	old := hintFromFile
+	hintFromFile = f
+	return func() {
+		hintFromFile = old
 	}
 }
 

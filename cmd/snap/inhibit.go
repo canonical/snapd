@@ -22,6 +22,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"time"
 
@@ -34,49 +35,82 @@ import (
 	"github.com/snapcore/snapd/usersession/client"
 )
 
-func waitWhileInhibited(snapName string) error {
-	hint, _, err := runinhibit.IsLocked(snapName)
-	if err != nil {
-		return err
-	}
-	if hint == runinhibit.HintNotInhibited {
-		return nil
-	}
-
-	// wait for HintInhibitedForRefresh set by gate-auto-refresh hook handler
-	// when it has finished; the hook starts with HintInhibitedGateRefresh lock
-	// and then either unlocks it or changes to HintInhibitedForRefresh (see
-	// gateAutoRefreshHookHandler in hooks.go).
-	// waitInhibitUnlock will return also on HintNotInhibited.
-	notInhibited, err := waitInhibitUnlock(snapName, runinhibit.HintInhibitedForRefresh)
-	if err != nil {
-		return err
-	}
-	if notInhibited {
-		return nil
-	}
-
-	if isGraphicalSession() {
-		notifiedDesktopIntegration, err := tryNotifyRefreshViaSnapDesktopIntegrationFlow(snapName)
-		if err != nil {
-			return err
-		}
-		if notifiedDesktopIntegration {
-			return nil
-		}
-		return graphicalSessionFlow(snapName, hint)
-	}
-	// terminal and headless
-	return textFlow(snapName, hint)
+type inhibitionFlow interface {
+	Notify() error
+	Stop() error
 }
 
-func inhibitMessage(snapName string, hint runinhibit.Hint) string {
-	switch hint {
-	case runinhibit.HintInhibitedForRefresh:
-		return fmt.Sprintf(i18n.G("snap package %q is being refreshed, please wait"), snapName)
-	default:
-		return fmt.Sprintf(i18n.G("snap package cannot be used now: %s"), string(hint))
+type textFlow struct {
+	snapName string
+
+	pb progress.Meter
+}
+
+func (tf *textFlow) Notify() error {
+	_, err := fmt.Fprintf(Stdout, i18n.G("snap package %q is being refreshed, please wait"), tf.snapName)
+	if err != nil {
+		return err
 	}
+	tf.pb = progress.MakeProgressBar(Stdout)
+	tf.pb.Spin(i18n.G("please wait..."))
+	return nil
+}
+
+func (tf *textFlow) Stop() error {
+	if tf.pb != nil {
+		tf.pb.Finished()
+	}
+	return nil
+}
+
+type graphicalFlow struct {
+	snapName string
+
+	notifiedDesktopIntegration bool
+}
+
+func (gf *graphicalFlow) Notify() error {
+	gf.notifiedDesktopIntegration = tryNotifyRefreshViaSnapDesktopIntegrationFlow(gf.snapName)
+	if gf.notifiedDesktopIntegration {
+		return nil
+	}
+
+	// unable to use snapd-desktop-integration, let's fallback graphical session flow
+	refreshInfo := client.PendingSnapRefreshInfo{
+		InstanceName: gf.snapName,
+		// remaining time = 0 results in "Snap .. is refreshing now" message from
+		// usersession agent.
+		TimeRemaining: 0,
+	}
+	return pendingRefreshNotification(&refreshInfo)
+}
+
+func (gf *graphicalFlow) Stop() error {
+	if gf.notifiedDesktopIntegration {
+		// snapd-desktop-integration detects inhibit unlock itself, do nothing
+		return nil
+	}
+
+	// finish graphical session flow
+	finishRefreshInfo := client.FinishedSnapRefreshInfo{InstanceName: gf.snapName}
+	return finishRefreshNotification(&finishRefreshInfo)
+}
+
+var tryNotifyRefreshViaSnapDesktopIntegrationFlow = func(snapName string) (notified bool) {
+	// Check if Snapd-Desktop-Integration is available
+	conn, err := dbusutil.SessionBus()
+	if err != nil {
+		logger.Noticef("unable to connect dbus session: %v", err)
+		return false
+	}
+	obj := conn.Object("io.snapcraft.SnapDesktopIntegration", "/io/snapcraft/SnapDesktopIntegration")
+	extraParams := make(map[string]dbus.Variant)
+	err = obj.Call("io.snapcraft.SnapDesktopIntegration.ApplicationIsBeingRefreshed", 0, snapName, runinhibit.HintFile(snapName), extraParams).Store()
+	if err != nil {
+		logger.Noticef("unable to successfully call io.snapcraft.SnapDesktopIntegration.ApplicationIsBeingRefreshed: %v", err)
+		return false
+	}
+	return true
 }
 
 var isGraphicalSession = func() bool {
@@ -101,76 +135,73 @@ var finishRefreshNotification = func(refreshInfo *client.FinishedSnapRefreshInfo
 	return nil
 }
 
-var tryNotifyRefreshViaSnapDesktopIntegrationFlow = func(snapName string) (bool, error) {
-	// Check if Snapd-Desktop-Integration is available
-	conn, err := dbusutil.SessionBus()
-	if err != nil {
-		logger.Noticef("unable to connect dbus session: %v", err)
-		return false, nil
+func newInhibitionFlow(snapName string) inhibitionFlow {
+	if isGraphicalSession() {
+		return &graphicalFlow{snapName: snapName}
 	}
-	obj := conn.Object("io.snapcraft.SnapDesktopIntegration", "/io/snapcraft/SnapDesktopIntegration")
-	extraParams := make(map[string]dbus.Variant)
-	err = obj.Call("io.snapcraft.SnapDesktopIntegration.ApplicationIsBeingRefreshed", 0, snapName, runinhibit.HintFile(snapName), extraParams).Store()
-	if err != nil {
-		logger.Noticef("unable to successfully call io.snapcraft.SnapDesktopIntegration.ApplicationIsBeingRefreshed: %v", err)
-		return false, nil
-	}
-	if _, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited); err != nil {
-		return false, err
-	}
-	return true, nil
+	return &textFlow{snapName: snapName}
 }
 
-func graphicalSessionFlow(snapName string, hint runinhibit.Hint) error {
-	refreshInfo := client.PendingSnapRefreshInfo{
-		InstanceName: snapName,
-		// Remaining time = 0 results in "Snap .. is refreshing now" message from
-		// usersession agent.
-		TimeRemaining: 0,
-	}
+// waitWhileInhibited blocks until the snap is not inhibited anymore.
+//
+// Depending on the environment, the proper refresh notification is triggered.
+// Also, "action" function is run race-free as soon as the snap is not
+// inhibited anymore.
+func waitWhileInhibited(snapName string, action func() error) error {
+	flow := newInhibitionFlow(snapName)
 
-	if err := pendingRefreshNotification(&refreshInfo); err != nil {
-		return err
-	}
-	if _, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited); err != nil {
-		return err
-	}
-
-	finishRefreshInfo := client.FinishedSnapRefreshInfo{InstanceName: snapName}
-	return finishRefreshNotification(&finishRefreshInfo)
-}
-
-func textFlow(snapName string, hint runinhibit.Hint) error {
-	fmt.Fprintf(Stdout, "%s\n", inhibitMessage(snapName, hint))
-	pb := progress.MakeProgressBar(Stdout)
-	pb.Spin(i18n.G("please wait..."))
-	_, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited)
-	pb.Finished()
-	return err
-}
-
-var isLocked = runinhibit.IsLocked
-
-// waitInhibitUnlock waits until the runinhibit lock hint has a specific waitFor value
-// or isn't inhibited anymore.
-var waitInhibitUnlock = func(snapName string, waitFor runinhibit.Hint) (notInhibited bool, err error) {
 	// Every 0.5s check if the inhibition file is still present.
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
+
+	notified := false
 	for {
-		select {
-		case <-ticker.C:
-			// Half a second has elapsed, let's check again.
-			hint, _, err := isLocked(snapName)
-			if err != nil {
-				return false, err
-			}
-			if hint == runinhibit.HintNotInhibited {
-				return true, nil
-			}
-			if hint == waitFor {
-				return false, nil
-			}
+		hintFlock, err := runinhibit.OpenLock(snapName)
+		if err != nil {
+			return err
 		}
+		// release lock if we return early
+		defer hintFlock.Close()
+
+		// hold read lock
+		if err := hintFlock.ReadLock(); err != nil {
+			return err
+		}
+		// read inhibition hint
+		hint, err := hintFromFile(hintFlock.File())
+		if err != nil {
+			return err
+		}
+
+		switch hint {
+		case runinhibit.HintInhibitedForRefresh:
+			if !notified {
+				// only notify once
+				if err := flow.Notify(); err != nil {
+					return err
+				} else {
+					notified = true
+				}
+			}
+		case runinhibit.HintNotInhibited:
+			if notified {
+				if err := flow.Stop(); err != nil {
+					return err
+				}
+			}
+			return action()
+		}
+
+		// release lock to allow changes during waiting interval
+		hintFlock.Close()
+		<-ticker.C
 	}
+}
+
+var hintFromFile = func(hintFile *os.File) (runinhibit.Hint, error) {
+	buf, err := ioutil.ReadAll(hintFile)
+	if err != nil {
+		return "", err
+	}
+	return runinhibit.Hint(string(buf)), nil
 }
