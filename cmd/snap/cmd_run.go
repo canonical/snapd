@@ -260,14 +260,22 @@ func (x *cmdRun) Execute(args []string) error {
 	return x.snapRunApp(snapApp, args)
 }
 
-func maybeWaitWhileInhibited(snapName string) error {
+// maybeWaitWhileInhibited blocks until the snap is not inhibited anymore if
+// refresh-app-awareness is enabled.
+//
+// Calling clean() releases the lock and finishes notification flow. clean() is
+// a no-op when refresh-app-awareness is not enabled.
+//
+// IMPORTANT: It is the callers responsibility to call clean().
+func maybeWaitWhileInhibited(snapName string) (clean func() error, err error) {
 	// If the snap is inhibited from being used then postpone running it until
 	// that condition passes. Inhibition UI can be dismissed by the user, in
 	// which case we don't run the application at all.
 	if features.RefreshAppAwareness.IsEnabled() {
 		return waitWhileInhibited(snapName)
 	}
-	return nil
+	// no-op
+	return func() error { return nil }, nil
 }
 
 // antialias changes snapApp and args if snapApp is actually an alias
@@ -505,46 +513,15 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 	snapName, appName := snap.SplitSnapApp(snapApp)
 
 	snapRev := snap.R(0)
-	hint, inhibitInfo, err := isLocked(snapName)
+	hint, inhibitInfo, err := runinhibit.IsLocked(snapName)
 	if err != nil {
 		return err
 	}
-	inhibited := hint != runinhibit.HintNotInhibited
-	if inhibited {
+	if hint != runinhibit.HintNotInhibited {
 		snapRev = inhibitInfo.Previous
 	}
 
 	info, app, err := getInfoAndApp(snapName, appName, snapRev)
-	if err != nil {
-		return err
-	}
-
-	if !app.IsService() {
-		if err := maybeWaitWhileInhibited(snapName); err != nil {
-			return err
-		}
-	}
-
-	// Get the updated "current" snap info
-	err = runinhibit.WithReadLock(snapName, func() error {
-		if !app.IsService() {
-			// Check run inhibition is actually removed while holding lock to
-			// avoid race condition with snap being inhibited again
-			hint, _, err := isLocked(snapName)
-			if err != nil {
-				return err
-			}
-			if hint != runinhibit.HintNotInhibited {
-				// TODO: better handling/retry logic needed
-				return fmt.Errorf("internal error: snap run was inhibited again after waiting for first inhibition")
-			}
-		}
-		info, app, err = getInfoAndApp(snapName, appName, snap.R(0))
-		if err != nil {
-			return err
-		}
-		return nil
-	})
 	if err != nil {
 		return err
 	}
@@ -1081,7 +1058,23 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 
 	logger.Debugf("executing snap-confine from %s", snapConfine)
 
-	snapName, _ := snap.SplitSnapApp(snapApp)
+	snapName, appName := snap.SplitSnapApp(snapApp)
+	if hook == "" {
+		clean, err := maybeWaitWhileInhibited(snapName)
+		if err != nil {
+			return err
+		}
+		// make sure to release inhibition file lock and finish RAA notification
+		// flow before returning.
+		defer clean()
+
+		// get updated "current" snap info, and check that app still exists
+		info, _, err = getInfoAndApp(snapName, appName, snap.R(0))
+		if err != nil {
+			return err
+		}
+	}
+
 	opts, err := getSnapDirOptions(snapName)
 	if err != nil {
 		return fmt.Errorf("cannot get snap dir options: %w", err)
@@ -1229,7 +1222,6 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	//
 	// For more information about systemd cgroups, including unit types, see:
 	// https://www.freedesktop.org/wiki/Software/systemd/ControlGroupInterface/
-	_, appName := snap.SplitSnapApp(snapApp)
 	needsTracking := true
 	if app := info.Apps[appName]; hook == "" && app != nil && app.IsService() {
 		// If we are running a service app then we do not need to use
