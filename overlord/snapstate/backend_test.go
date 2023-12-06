@@ -43,7 +43,6 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
@@ -902,11 +901,11 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 	return snapType, &backend.InstallRecord{}, nil
 }
 
-func (f *fakeSnappyBackend) SetupComponent(compFilePath string, compSi *snap.ComponentSideInfo, snapInstance string, snapRev snap.Revision, dev snap.Device, meter progress.Meter) (installRecord *backend.InstallRecord, err error) {
-	return nil, nil
+func (f *fakeSnappyBackend) SetupComponent(compFilePath string, compPi *snap.ComponentPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *backend.InstallRecord, err error) {
+	return &backend.InstallRecord{}, nil
 }
 
-func (f *fakeSnappyBackend) UndoSetupComponent(cref naming.ComponentRef, compRev snap.Revision, mountDir string, installRecord *backend.InstallRecord, dev snap.Device, meter progress.Meter) error {
+func (f *fakeSnappyBackend) UndoSetupComponent(cpi snap.ContainerPlaceInfo, installRecord *backend.InstallRecord, dev snap.Device, meter progress.Meter) error {
 	return nil
 }
 

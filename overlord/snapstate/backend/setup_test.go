@@ -466,9 +466,9 @@ version: 1.0
 
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
+	cpi := snap.NewComponentPlaceInfo(csi, instanceName, snapRev)
 
-	installRecord, err := s.be.SetupComponent(compPath, csi, instanceName, snapRev,
-		mockDev, progress.Null)
+	installRecord, err := s.be.SetupComponent(compPath, cpi, mockDev, progress.Null)
 	c.Assert(err, IsNil)
 	c.Assert(installRecord, NotNil)
 
@@ -486,8 +486,7 @@ version: 1.0
 	c.Assert(mup, testutil.FileMatches, "(?ms).*^What="+regexp.QuoteMeta(compBlobPath))
 
 	// mount dir was created
-	mntDir := snap.ComponentMountDir(compName, instanceName, snapRev)
-	c.Assert(osutil.FileExists(mntDir), Equals, true)
+	c.Assert(osutil.FileExists(cpi.MountDir()), Equals, true)
 
 	return installRecord
 }
@@ -495,14 +494,15 @@ version: 1.0
 func (s *setupSuite) testSetupComponentUndo(c *C, compName, snapName, instanceName string, compRev, snapRev snap.Revision, installRecord *backend.InstallRecord) {
 	// undo undoes the mount unit and the instdir creation
 	cref := naming.NewComponentRef(snapName, compName)
-	mntDir := snap.ComponentMountDir(compName, instanceName, snapRev)
-	err := s.be.UndoSetupComponent(cref, compRev, mntDir, installRecord,
-		mockDev, progress.Null)
+	cpi := snap.NewComponentPlaceInfo(snap.NewComponentSideInfo(cref, compRev),
+		instanceName, snapRev)
+
+	err := s.be.UndoSetupComponent(cpi, installRecord, mockDev, progress.Null)
 	c.Assert(err, IsNil)
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
 	c.Assert(l, HasLen, 0)
-	c.Assert(osutil.FileExists(mntDir), Equals, false)
-	c.Assert(osutil.FileExists(snap.ComponentMountFile(cref, compRev)), Equals, false)
+	c.Assert(osutil.FileExists(cpi.MountDir()), Equals, false)
+	c.Assert(osutil.FileExists(cpi.MountFile()), Equals, false)
 }
 
 func (s *setupSuite) testSetupComponentDoUndo(c *C, compName, snapName, instanceName string) {
@@ -531,6 +531,7 @@ version: 1.0
 
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
+	cpi := snap.NewComponentPlaceInfo(csi, snapName, snapRev)
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		// mount unit start fails
@@ -542,15 +543,13 @@ version: 1.0
 	})
 	defer r()
 
-	installRecord, err := s.be.SetupComponent(compPath, csi, compName, snapRev,
-		mockDev, progress.Null)
+	installRecord, err := s.be.SetupComponent(compPath, cpi, mockDev, progress.Null)
 	c.Assert(err, ErrorMatches, "failed")
 	c.Check(installRecord, IsNil)
 
 	// everything is gone
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
 	c.Check(l, HasLen, 0)
-	mntDir := snap.ComponentMountDir(compName, snapName, snapRev)
-	c.Assert(osutil.FileExists(mntDir), Equals, false)
-	c.Assert(osutil.FileExists(snap.ComponentMountFile(cref, compRev)), Equals, false)
+	c.Assert(osutil.FileExists(cpi.MountDir()), Equals, false)
+	c.Assert(osutil.FileExists(cpi.MountFile()), Equals, false)
 }

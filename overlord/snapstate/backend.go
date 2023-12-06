@@ -73,7 +73,7 @@ type StoreService interface {
 type managerBackend interface {
 	// install related
 	SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, dev snap.Device, opts *backend.SetupSnapOptions, meter progress.Meter) (snap.Type, *backend.InstallRecord, error)
-	SetupComponent(compFilePath string, compSi *snap.ComponentSideInfo, snapInstance string, snapRev snap.Revision, dev snap.Device, meter progress.Meter) (installRecord *backend.InstallRecord, err error)
+	SetupComponent(compFilePath string, compPi *snap.ComponentPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *backend.InstallRecord, err error)
 	CopySnapData(newSnap, oldSnap *snap.Info, opts *dirs.SnapDirOptions, meter progress.Meter) error
 	SetupSnapSaveData(info *snap.Info, dev snap.Device, meter progress.Meter) error
 	LinkSnap(info *snap.Info, dev snap.Device, linkCtx backend.LinkContext, tm timings.Measurer) (rebootInfo boot.RebootInfo, err error)
@@ -84,7 +84,7 @@ type managerBackend interface {
 
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *backend.InstallRecord, dev snap.Device, meter progress.Meter) error
-	UndoSetupComponent(cref naming.ComponentRef, compRev snap.Revision, mountDir string, installRecord *backend.InstallRecord, dev snap.Device, meter progress.Meter) error
+	UndoSetupComponent(cpi snap.ContainerPlaceInfo, installRecord *backend.InstallRecord, dev snap.Device, meter progress.Meter) error
 	UndoCopySnapData(newSnap, oldSnap *snap.Info, opts *dirs.SnapDirOptions, meter progress.Meter) error
 	UndoSetupSnapSaveData(newInfo, oldInfo *snap.Info, dev snap.Device, meter progress.Meter) error
 	// cleanup

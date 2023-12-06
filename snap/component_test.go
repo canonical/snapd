@@ -276,16 +276,16 @@ description: %s
 	c.Assert(ci, IsNil)
 }
 
-func (s *componentSuite) TestDirAndFileMethods(c *C) {
-	c.Check(snap.ComponentMountDir("test-info", "mysnap_instance", snap.R(11)),
-		Equals, filepath.Join(dirs.GlobalRootDir, "snap/mysnap_instance/components/11/test-info"))
-	ci := snap.NewComponentInfo(
-		naming.NewComponentRef("mysnap", "test-info"),
-		"test", "1.0.2", "", "",
-	)
-	c.Check(ci.MountDir("mysnap_instance", snap.R(33)), Equals,
-		filepath.Join(dirs.GlobalRootDir, "snap/mysnap_instance/components/33/test-info"))
-	csi := snap.NewComponentSideInfo(ci.Component, snap.R(25))
-	c.Check(ci.MountFile(csi), Equals,
+func (s *componentSuite) TestComponentContainerPlaceInfoImpl(c *C) {
+	cref := naming.NewComponentRef("mysnap", "test-info")
+	csi := snap.NewComponentSideInfo(cref, snap.R(25))
+	cpi := snap.NewComponentPlaceInfo(csi, "mysnap_instance", snap.R(11))
+	var contPi snap.ContainerPlaceInfo = cpi
+
+	c.Check(contPi.ContainerName(), Equals, "mysnap+test-info")
+	c.Check(contPi.Filename(), Equals, "mysnap+test-info_25.comp")
+	c.Check(contPi.MountDir(), Equals,
+		filepath.Join(dirs.GlobalRootDir, "snap/mysnap_instance/components/11/test-info"))
+	c.Check(contPi.MountFile(), Equals,
 		filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap+test-info_25.comp"))
 }
