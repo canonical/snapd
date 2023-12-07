@@ -288,4 +288,5 @@ func (s *componentSuite) TestComponentContainerPlaceInfoImpl(c *C) {
 		filepath.Join(dirs.GlobalRootDir, "snap/mysnap_instance/components/11/test-info"))
 	c.Check(contPi.MountFile(), Equals,
 		filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap_instance+test-info_25.comp"))
+	c.Check(contPi.MountDescription(), Equals, "Mount unit for mysnap_instance+test-info, revision 25")
 }

@@ -1243,6 +1243,7 @@ func (s *infoSuite) TestComponentPlaceInfoMethods(c *C) {
 	c.Check(cpi.Filename(), Equals, "name_1.snap")
 	c.Check(cpi.MountDir(), Equals, fmt.Sprintf("%s/name/1", dirs.SnapMountDir))
 	c.Check(cpi.MountFile(), Equals, "/var/lib/snapd/snaps/name_1.snap")
+	c.Check(cpi.MountDescription(), Equals, "Mount unit for name, revision 1")
 }
 
 func (s *infoSuite) TestComponentPlaceInfoMethodsParallelInstall(c *C) {
@@ -1254,6 +1255,7 @@ func (s *infoSuite) TestComponentPlaceInfoMethodsParallelInstall(c *C) {
 	c.Check(cpi.Filename(), Equals, "name_instance_1.snap")
 	c.Check(cpi.MountDir(), Equals, fmt.Sprintf("%s/name_instance/1", dirs.SnapMountDir))
 	c.Check(cpi.MountFile(), Equals, "/var/lib/snapd/snaps/name_instance_1.snap")
+	c.Check(cpi.MountDescription(), Equals, "Mount unit for name_instance, revision 1")
 }
 
 func BenchmarkTestParsePlaceInfoFromSnapFileName(b *testing.B) {

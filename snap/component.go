@@ -107,6 +107,11 @@ func (c *ComponentPlaceInfo) MountFile() string {
 		fmt.Sprintf("%s_%s.comp", c.ContainerName(), c.Revision))
 }
 
+// MountDescription returns the mount unit Description field.
+func (s *ComponentPlaceInfo) MountDescription() string {
+	return fmt.Sprintf("Mount unit for %s, revision %s", s.ContainerName(), s.Revision)
+}
+
 // ReadComponentInfoFromContainer reads ComponentInfo from a snap component container.
 func ReadComponentInfoFromContainer(compf Container) (*ComponentInfo, error) {
 	yamlData, err := compf.ReadFile("meta/component.yaml")
