@@ -112,7 +112,7 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 }
 
 // SetupComponent prepares and mounts a component for further processing.
-func (b Backend) SetupComponent(compFilePath string, compPi *snap.ComponentPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *InstallRecord, err error) {
+func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *InstallRecord, err error) {
 	// This assumes that the component was already verified or --dangerous was used.
 
 	_, snapf, oErr := OpenComponentFile(compFilePath)

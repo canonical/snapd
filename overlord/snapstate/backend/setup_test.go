@@ -36,7 +36,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
@@ -463,10 +462,7 @@ version: 1.0
 `, snapName, compName)
 
 	compPath := makeTestComponent(c, componentYaml)
-
-	cref := naming.NewComponentRef(snapName, compName)
-	csi := snap.NewComponentSideInfo(cref, compRev)
-	cpi := snap.NewComponentPlaceInfo(csi, instanceName, snapRev)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, instanceName, snapRev)
 
 	installRecord, err := s.be.SetupComponent(compPath, cpi, mockDev, progress.Null)
 	c.Assert(err, IsNil)
@@ -493,9 +489,7 @@ version: 1.0
 
 func (s *setupSuite) testSetupComponentUndo(c *C, compName, snapName, instanceName string, compRev, snapRev snap.Revision, installRecord *backend.InstallRecord) {
 	// undo undoes the mount unit and the instdir creation
-	cref := naming.NewComponentRef(snapName, compName)
-	cpi := snap.NewComponentPlaceInfo(snap.NewComponentSideInfo(cref, compRev),
-		instanceName, snapRev)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, instanceName, snapRev)
 
 	err := s.be.UndoSetupComponent(cpi, installRecord, mockDev, progress.Null)
 	c.Assert(err, IsNil)
@@ -529,9 +523,7 @@ version: 1.0
 
 	compPath := makeTestComponent(c, componentYaml)
 
-	cref := naming.NewComponentRef(snapName, compName)
-	csi := snap.NewComponentSideInfo(cref, compRev)
-	cpi := snap.NewComponentPlaceInfo(csi, snapName, snapRev)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapName, snapRev)
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		// mount unit start fails

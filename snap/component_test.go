@@ -277,9 +277,8 @@ description: %s
 }
 
 func (s *componentSuite) TestComponentContainerPlaceInfoImpl(c *C) {
-	cref := naming.NewComponentRef("mysnap", "test-info")
-	csi := snap.NewComponentSideInfo(cref, snap.R(25))
-	cpi := snap.NewComponentPlaceInfo(csi, "mysnap_instance", snap.R(11))
+	cpi := snap.MinimalComponentContainerPlaceInfo("test-info", snap.R(25), "mysnap_instance", snap.R(11))
+
 	var contPi snap.ContainerPlaceInfo = cpi
 
 	c.Check(contPi.ContainerName(), Equals, "mysnap_instance+test-info")

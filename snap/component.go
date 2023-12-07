@@ -62,54 +62,60 @@ func NewComponentSideInfo(cref naming.ComponentRef, rev Revision) *ComponentSide
 	}
 }
 
-// ComponentPlaceInfo holds information about where to put a component
-// in the system. It implements ContainerPlaceInfo.
-type ComponentPlaceInfo struct {
-	ComponentSideInfo
-	// SnapInstance and SnapRevision identify the snap that uses this component.
-	SnapInstance string
-	SnapRevision Revision
+// componentPlaceInfo holds information about where to put a component in the
+// system. It implements ContainerPlaceInfo and should be used only via this
+// interface.
+type componentPlaceInfo struct {
+	// Name and revision for the component
+	compName     string
+	compRevision Revision
+	// snapInstance and SnapRevision identify the snap that uses this component.
+	snapInstance string
+	snapRevision Revision
 }
 
-var _ ContainerPlaceInfo = (*ComponentPlaceInfo)(nil)
+var _ ContainerPlaceInfo = (*componentPlaceInfo)(nil)
 
-// NewComponentPlaceInfo creates a new ComponentPlaceInfo.
-func NewComponentPlaceInfo(csi *ComponentSideInfo, instanceName string, snapRev Revision) *ComponentPlaceInfo {
-	return &ComponentPlaceInfo{
-		ComponentSideInfo: *csi,
-		SnapInstance:      instanceName,
-		SnapRevision:      snapRev,
+// MinimalComponentContainerPlaceInfo returns a ContainerPlaceInfo with just
+// the location information for a component of the given name and revision that
+// is used by a snapInstance with revision snapRev.
+func MinimalComponentContainerPlaceInfo(compName string, compRev Revision, snapInstance string, snapRev Revision) ContainerPlaceInfo {
+	return &componentPlaceInfo{
+		compName:     compName,
+		compRevision: compRev,
+		snapInstance: snapInstance,
+		snapRevision: snapRev,
 	}
 }
 
 // ContainerName returns the component name.
-func (c *ComponentPlaceInfo) ContainerName() string {
-	return fmt.Sprintf("%s+%s", c.SnapInstance, c.Component.ComponentName)
+func (c *componentPlaceInfo) ContainerName() string {
+	return fmt.Sprintf("%s+%s", c.snapInstance, c.compName)
 }
 
 // Filename returns the container file name.
-func (c *ComponentPlaceInfo) Filename() string {
+func (c *componentPlaceInfo) Filename() string {
 	return filepath.Base(c.MountFile())
 }
 
 // MountDir returns the directory where a component gets mounted, which
 // will be of the form:
 // /snaps/<snap_instance>/components/<snap_revision>/<component_name>
-func (c *ComponentPlaceInfo) MountDir() string {
-	return filepath.Join(BaseDir(c.SnapInstance), "components",
-		c.SnapRevision.String(), c.Component.ComponentName)
+func (c *componentPlaceInfo) MountDir() string {
+	return filepath.Join(BaseDir(c.snapInstance), "components",
+		c.snapRevision.String(), c.compName)
 }
 
 // MountFile returns the path of the file to be mounted for a component,
 // which will be of the form /var/lib/snaps/snaps/<snap>+<comp>_<rev>.comp
-func (c *ComponentPlaceInfo) MountFile() string {
+func (c *componentPlaceInfo) MountFile() string {
 	return filepath.Join(dirs.SnapBlobDir,
-		fmt.Sprintf("%s_%s.comp", c.ContainerName(), c.Revision))
+		fmt.Sprintf("%s_%s.comp", c.ContainerName(), c.compRevision))
 }
 
 // MountDescription returns the mount unit Description field.
-func (s *ComponentPlaceInfo) MountDescription() string {
-	return fmt.Sprintf("Mount unit for %s, revision %s", s.ContainerName(), s.Revision)
+func (c *componentPlaceInfo) MountDescription() string {
+	return fmt.Sprintf("Mount unit for %s, revision %s", c.ContainerName(), c.compRevision)
 }
 
 // ReadComponentInfoFromContainer reads ComponentInfo from a snap component container.
