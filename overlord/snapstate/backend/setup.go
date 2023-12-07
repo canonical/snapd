@@ -96,7 +96,7 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 	}
 
 	// generate the mount unit for the squashfs
-	if err := addMountUnit(s, s.MountDescription(), b.preseed, meter); err != nil {
+	if err := addMountUnit(s, b.preseed, meter); err != nil {
 		return snapType, nil, err
 	}
 
@@ -154,7 +154,7 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 	}
 
 	// generate the mount unit for the squashfs
-	if err := addMountUnit(compPi, compPi.MountDescription(), b.preseed, meter); err != nil {
+	if err := addMountUnit(compPi, b.preseed, meter); err != nil {
 		return nil, err
 	}
 

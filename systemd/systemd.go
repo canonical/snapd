@@ -1459,7 +1459,7 @@ func hostFsTypeAndMountOptions(fstype string) (hostFsType string, options []stri
 	return hostFsType, options
 }
 
-func (s *systemd) EnsureMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
+func (s *systemd) EnsureMountUnitFile(snapName, description, what, where, fstype string) (string, error) {
 	hostFsType, options := hostFsTypeAndMountOptions(fstype)
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
@@ -1468,7 +1468,7 @@ func (s *systemd) EnsureMountUnitFile(snapName, revision, what, where, fstype st
 	return s.EnsureMountUnitFileWithOptions(&MountUnitOptions{
 		Lifetime:    Persistent,
 		SnapName:    snapName,
-		Description: revision,
+		Description: description,
 		What:        what,
 		Where:       where,
 		Fstype:      hostFsType,

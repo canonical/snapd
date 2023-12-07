@@ -114,7 +114,7 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 		Version:       "1.1",
 		Architectures: []string{"all"},
 	}
-	err := backend.AddMountUnit(info, info.MountDescription(), false, progress.Null)
+	err := backend.AddMountUnit(info, false, progress.Null)
 	c.Check(err, Equals, expectedErr)
 
 	// ensure correct parameters
