@@ -335,7 +335,7 @@ var (
 	MaxReadBuflen = maxReadBuflen
 )
 
-func MockAspectstateGet(f func(databag aspects.DataBag, account, bundleName, aspect, field string, value interface{}) error) (restore func()) {
+func MockAspectstateGet(f func(databag aspects.DataBag, account, bundleName, aspect, field string, value *interface{}) error) (restore func()) {
 	old := aspectstateGetAspect
 	aspectstateGetAspect = f
 	return func() {

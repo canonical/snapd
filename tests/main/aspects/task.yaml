@@ -38,7 +38,7 @@ execute: |
   # check it was deleted
   curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects/system/network/wifi-setup?fields=ssid -X GET > response.txt
   jq -r '."status-code"' < response.txt | MATCH 404
-  jq -r '.result.message' < response.txt | MATCH 'cannot find field "ssid" of aspect system/network/wifi-setup: no value was found under path "wifi"'
+  jq -r '.result.message' < response.txt | MATCH 'cannot find value for "ssid" in aspect system/network/wifi-setup: no stored value for matching rules'
 
   # write values using a placeholder access
   curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects/system/network/wifi-setup -X PUT -d '{"private.my-company": "my-config"}' > response.txt
@@ -58,7 +58,7 @@ execute: |
   # check it was deleted
   curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects/system/network/wifi-setup?fields=private.my-company -X GET > response.txt
   jq -r '."status-code"' < response.txt | MATCH 404
-  jq -r '.result.message' < response.txt | MATCH 'cannot find field "private.my-company" of aspect system/network/wifi-setup: no value was found under path "wifi.my-company"'
+  jq -r '.result.message' < response.txt | MATCH 'cannot find value for "private.my-company" in aspect system/network/wifi-setup: no stored value for matching rules'
 
   # check second value remains
   curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects/system/network/wifi-setup?fields=private.your-company -X GET > response.txt

@@ -43,7 +43,7 @@ func SetAspect(databag aspects.DataBag, account, bundleName, aspect, field strin
 			Account:    account,
 			BundleName: bundleName,
 			Aspect:     aspect,
-			Field:      field,
+			Request:    field,
 			Cause:      "aspect not found",
 		}
 	}
@@ -58,7 +58,7 @@ func SetAspect(databag aspects.DataBag, account, bundleName, aspect, field strin
 // GetAspect finds the aspect identified by the account, bundleName and aspect
 // and returns the specified field value from the provided matching databag
 // through the value output parameter.
-func GetAspect(databag aspects.DataBag, account, bundleName, aspect, field string, value interface{}) error {
+func GetAspect(databag aspects.DataBag, account, bundleName, aspect, field string, value *interface{}) error {
 	accPatterns := aspecttest.MockWifiSetupAspect()
 	schema := aspects.NewJSONSchema()
 
@@ -73,7 +73,7 @@ func GetAspect(databag aspects.DataBag, account, bundleName, aspect, field strin
 			Account:    account,
 			BundleName: bundleName,
 			Aspect:     aspect,
-			Field:      field,
+			Request:    field,
 			Cause:      "aspect not found",
 		}
 	}
