@@ -157,7 +157,7 @@ func (s *userSuite) TestLoadDesiredProfileHomeNotRequiredAndMissing(c *C) {
 	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)
 
-	// Note that the profile read back contains expanded $XDG_RUNTIME_DIR and $HOME.
+	// Note that the profile read back contains expanded $XDG_RUNTIME_DIR
 	c.Check(builder.String(), Equals, output)
 }
 
@@ -174,8 +174,6 @@ func (s *userSuite) TestLoadDesiredProfileErrorHomeRequiredAndMissing(c *C) {
 
 	input := "$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0\n" +
 		"none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOME 0 0\n"
-	/*output := "/run/user/1234/doc/by-app/snap.foo /run/user/1234/doc none bind,rw 0 0\n" +
-	  fmt.Sprintf("none %s/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=%s 0 0\n", tmpHomeDir, tmpHomeDir)*/
 
 	// Write a desired user mount profile for snap "foo".
 	path := update.DesiredUserProfilePath("foo")
