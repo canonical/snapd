@@ -27,17 +27,17 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-// expandPrefixVariable expands variable at the beginning of a path-like string.
-func expandPrefixVariable(path, variable, value string) string {
+// expandPrefixVariable expands the given variable at the beginning of a path-like string if it exists.
+func expandPrefixVariable(path, variable, value string) (string, bool) {
 	if strings.HasPrefix(path, variable) {
 		if len(path) == len(variable) {
-			return value
+			return value, true
 		}
 		if len(path) > len(variable) && path[len(variable)] == '/' {
-			return value + path[len(variable):]
+			return value + path[len(variable):], true
 		}
 	}
-	return path
+	return path, false
 }
 
 // xdgRuntimeDir returns the path to XDG_RUNTIME_DIR for a given user ID.
@@ -50,24 +50,38 @@ func expandXdgRuntimeDir(profile *osutil.MountProfile, uid int) {
 	const envVar = "$XDG_RUNTIME_DIR"
 	value := xdgRuntimeDir(uid)
 	for i := range profile.Entries {
-		profile.Entries[i].Name = expandPrefixVariable(profile.Entries[i].Name, envVar, value)
-		profile.Entries[i].Dir = expandPrefixVariable(profile.Entries[i].Dir, envVar, value)
+		profile.Entries[i].Name, _ = expandPrefixVariable(profile.Entries[i].Name, envVar, value)
+		profile.Entries[i].Dir, _ = expandPrefixVariable(profile.Entries[i].Dir, envVar, value)
 	}
 }
 
 // expandHomeDir expands the $HOME variable in the given mount profile for entries
-// of mount kind "ensure-dir".
-func expandHomeDir(profile *osutil.MountProfile, home string) {
+// of mount kind "ensure-dir". It returns and error if expansion is required but the
+// given homeError indicates that given home cannot be used for expansion.
+func expandHomeDir(profile *osutil.MountProfile, home string, homeError error) error {
 	const envVar = "$HOME"
 	for i := range profile.Entries {
 		if profile.Entries[i].XSnapdKind() != "ensure-dir" {
 			continue
 		}
-		profile.Entries[i].Name = expandPrefixVariable(profile.Entries[i].Name, envVar, home)
-		profile.Entries[i].Dir = expandPrefixVariable(profile.Entries[i].Dir, envVar, home)
-		if profile.Entries[i].XSnapdMustExistDir() != "" {
-			mustExistDir := expandPrefixVariable(profile.Entries[i].XSnapdMustExistDir(), envVar, home)
-			osutil.ReplaceMountEntryOption(&profile.Entries[i], osutil.XSnapdMustExistDir(mustExistDir))
+
+		name, nameExpanded := expandPrefixVariable(profile.Entries[i].Name, envVar, home)
+		dir, dirExpanded := expandPrefixVariable(profile.Entries[i].Dir, envVar, home)
+		mustExistDir, mustExistDirExpanded := expandPrefixVariable(profile.Entries[i].XSnapdMustExistDir(), envVar, home)
+
+		if homeError == nil {
+			if nameExpanded {
+				profile.Entries[i].Name = name
+			}
+			if dirExpanded {
+				profile.Entries[i].Dir = dir
+			}
+			if mustExistDirExpanded {
+				osutil.ReplaceMountEntryOption(&profile.Entries[i], osutil.XSnapdMustExistDir(mustExistDir))
+			}
+		} else if nameExpanded || dirExpanded || mustExistDirExpanded {
+			return fmt.Errorf("cannot expand mount entry (%s): %v", profile.Entries[i], homeError)
 		}
 	}
+	return nil
 }

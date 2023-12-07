@@ -371,7 +371,7 @@ func (s *mainSuite) TestApplyIgnoredMissingMount(c *C) {
 	c.Check(currentProfilePath, testutil.FileEquals, "")
 }
 
-func (s *mainSuite) TestApplyUserFstabHappy(c *C) {
+func (s *mainSuite) TestApplyUserFstabHomeRequiredAndValid(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 
@@ -410,11 +410,31 @@ none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOM
 	c.Assert(changes[1].Entry.Dir, Matches, xdgRuntimeDir+"/doc")
 }
 
-func (s *mainSuite) TestApplyUserFstabErrorCannotRetrieveHome(c *C) {
-	tmpHomeDir := c.MkDir() + "/does-not-exist"
+func (s *mainSuite) TestApplyUserFstabErrorHomeRequiredAndMissing(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("/")
+	var changes []update.Change
+	restore := update.MockChangePerform(func(chg *update.Change, as *update.Assumptions) ([]*update.Change, error) {
+		changes = append(changes, *chg)
+		return nil, nil
+	})
+	defer restore()
+
 	snapName := "foo"
+	desiredProfileContent := `$XDG_RUNTIME_DIR/doc/by-app/snap.foo $XDG_RUNTIME_DIR/doc none bind,rw 0 0
+none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOME 0 0`
+	desiredProfilePath := fmt.Sprintf("%s/snap.%s.user-fstab", dirs.SnapMountPolicyDir, snapName)
+	err := os.MkdirAll(filepath.Dir(desiredProfilePath), 0755)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(desiredProfilePath, []byte(desiredProfileContent), 0644)
+	c.Assert(err, IsNil)
+
+	tmpHomeDir := c.MkDir() + "/does-not-exist"
 	restoreEnv := update.MockSnapConfineUserEnv("/run/user/1000/snap.snapname", tmpHomeDir)
 	defer restoreEnv()
-	_, err := update.NewUserProfileUpdateContext(snapName, true, 1000)
-	c.Assert(err, ErrorMatches, `cannot use invalid home directory "`+tmpHomeDir+`": no such file or directory`)
+	upCtx, err := update.NewUserProfileUpdateContext(snapName, true, 1000)
+	c.Assert(err, IsNil)
+	err = update.ExecuteMountProfileUpdate(upCtx)
+	c.Assert(err, ErrorMatches, `cannot expand mount entry \(none \$HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=\$HOME 0 0\): cannot use invalid home directory `+fmt.Sprintf("\"%s\"", tmpHomeDir)+": no such file or directory")
+	c.Assert(changes, HasLen, 0)
 }

@@ -21,6 +21,7 @@ package main_test
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -38,10 +39,25 @@ func (s *expandSuite) TestXdgRuntimeDir(c *C) {
 }
 
 func (s *expandSuite) TestExpandPrefixVariable(c *C) {
-	c.Check(update.ExpandPrefixVariable("$FOO", "$FOO", "/foo"), Equals, "/foo")
-	c.Check(update.ExpandPrefixVariable("$FOO/", "$FOO", "/foo"), Equals, "/foo/")
-	c.Check(update.ExpandPrefixVariable("$FOO/bar", "$FOO", "/foo"), Equals, "/foo/bar")
-	c.Check(update.ExpandPrefixVariable("$FOObar", "$FOO", "/foo"), Equals, "$FOObar")
+	value, isExpanded := update.ExpandPrefixVariable("$FOO", "$FOO", "/foo")
+	c.Assert(isExpanded, Equals, true)
+	c.Check(value, Equals, "/foo")
+
+	value, isExpanded = update.ExpandPrefixVariable("$FOO/", "$FOO", "/foo")
+	c.Assert(isExpanded, Equals, true)
+	c.Check(value, Equals, "/foo/")
+
+	value, isExpanded = update.ExpandPrefixVariable("$FOO/bar", "$FOO", "/foo")
+	c.Assert(isExpanded, Equals, true)
+	c.Check(value, Equals, "/foo/bar")
+
+	value, isExpanded = update.ExpandPrefixVariable("$FOObar", "$FOO", "/foo")
+	c.Assert(isExpanded, Equals, false)
+	c.Check(value, Equals, "$FOObar")
+
+	value, isExpanded = update.ExpandPrefixVariable("$FOO/bar", "$FOO", "")
+	c.Assert(isExpanded, Equals, true)
+	c.Check(value, Equals, "/bar")
 }
 
 func (s *expandSuite) TestExpandXdgRuntimeDir(c *C) {
@@ -55,15 +71,27 @@ func (s *expandSuite) TestExpandXdgRuntimeDir(c *C) {
 	c.Check(builder.String(), Equals, output)
 }
 
-func (s *expandSuite) TestExpandHomeDir(c *C) {
+func (s *expandSuite) TestExpandHomeDirHappy(c *C) {
 	input := "none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOME 0 0\n" +
 		"none $HOME/.local/share none x-snapd.kind=not-ensure-dir,x-snapd.must-exist-dir=$HOME 0 0\n"
 	output := "none /home/user/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=/home/user 0 0\n" +
 		"none $HOME/.local/share none x-snapd.kind=not-ensure-dir,x-snapd.must-exist-dir=$HOME 0 0\n"
 	profile, err := osutil.ReadMountProfile(strings.NewReader(input))
 	c.Assert(err, IsNil)
-	update.ExpandHomeDir(profile, "/home/user")
+	c.Assert(update.ExpandHomeDir(profile, "/home/user", nil), IsNil)
 	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)
 	c.Check(builder.String(), Equals, output)
+}
+
+func (s *expandSuite) TestExpandHomeDirHomeError(c *C) {
+	input := "none $HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$HOME 0 0\n" +
+		"none $HOME/.local/share none x-snapd.kind=not-ensure-dir,x-snapd.must-exist-dir=$HOME 0 0\n"
+	profile, err := osutil.ReadMountProfile(strings.NewReader(input))
+	c.Assert(err, IsNil)
+	err = update.ExpandHomeDir(profile, "/home/user", fmt.Errorf("invalid home directory"))
+	c.Assert(err, ErrorMatches, `cannot expand mount entry \(none \$HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=\$HOME 0 0\): invalid home directory`)
+	builder := &bytes.Buffer{}
+	profile.WriteTo(builder)
+	c.Check(builder.String(), Equals, input)
 }
