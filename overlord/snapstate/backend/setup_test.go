@@ -473,7 +473,7 @@ version: 1.0
 	c.Assert(installRecord, NotNil)
 
 	// after setup the component file is in the right dir
-	compFileName := snapName + "+" + compName + "_" + compRev.String() + ".comp"
+	compFileName := instanceName + "+" + compName + "_" + compRev.String() + ".comp"
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, compFileName)),
 		Equals, true)
 

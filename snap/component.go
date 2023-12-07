@@ -82,9 +82,9 @@ func NewComponentPlaceInfo(csi *ComponentSideInfo, instanceName string, snapRev 
 	}
 }
 
-// ContainerName returns the full name of the component.
+// ContainerName returns the component name.
 func (c *ComponentPlaceInfo) ContainerName() string {
-	return c.Component.String()
+	return fmt.Sprintf("%s+%s", c.SnapInstance, c.Component.ComponentName)
 }
 
 // Filename returns the container file name.
