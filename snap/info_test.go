@@ -1236,7 +1236,7 @@ func (s *infoSuite) testInstanceDirAndFileMethods(c *C, info snap.PlaceInfo) {
 
 func (s *infoSuite) TestComponentPlaceInfoMethods(c *C) {
 	dirs.SetRootDir("")
-	info := snap.MinimalContainerInfo("name", snap.R("1"))
+	info := snap.MinimalSnapContainerPlaceInfo("name", snap.R("1"))
 
 	var cpi snap.ContainerPlaceInfo = info
 	c.Check(cpi.ContainerName(), Equals, "name")
@@ -1247,7 +1247,7 @@ func (s *infoSuite) TestComponentPlaceInfoMethods(c *C) {
 
 func (s *infoSuite) TestComponentPlaceInfoMethodsParallelInstall(c *C) {
 	dirs.SetRootDir("")
-	info := snap.MinimalContainerInfo("name_instance", snap.R("1"))
+	info := snap.MinimalSnapContainerPlaceInfo("name_instance", snap.R("1"))
 
 	var cpi snap.ContainerPlaceInfo = info
 	c.Check(cpi.ContainerName(), Equals, "name_instance")

@@ -135,9 +135,9 @@ func MinimalPlaceInfo(instanceName string, revision Revision) PlaceInfo {
 	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
 }
 
-// MinimalContainerInfo returns a ContainerPlaceInfo with just the location
+// MinimalSnapContainerPlaceInfo returns a ContainerPlaceInfo with just the location
 // information for a snap of the given instance name and revision.
-func MinimalContainerInfo(instanceName string, revision Revision) ContainerPlaceInfo {
+func MinimalSnapContainerPlaceInfo(instanceName string, revision Revision) ContainerPlaceInfo {
 	storeName, instanceKey := SplitInstanceName(instanceName)
 	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
 }
