@@ -406,6 +406,9 @@ nested_secboot_sign_gadget() {
     local GADGET_DIR="$1"
     local KEY="$2"
     local CERT="$3"
+    if [ -f "$GADGET_DIR/fb.efi" ]; then
+        nested_secboot_sign_file "$GADGET_DIR/fb.efi" "$KEY" "$CERT"
+    fi
     nested_secboot_sign_file "$GADGET_DIR/shim.efi.signed" "$KEY" "$CERT"
 }
 

@@ -1,0 +1,101 @@
+summary: Grub boot chain can be provided with different boot chains
+
+details: |
+  Older pc gadget use a layout for removable media. The new pc
+  gadget will use a proper layout with fallback and boot entries. This
+  tests that we support both layouts and that we can update.
+
+systems:
+  - ubuntu-24.04-64
+  - ubuntu-22.04-64
+  - ubuntu-20.04-64
+
+prepare: |
+  # snappy-dev:image ppa contains some weird version of shim-signed.
+  # snappy-dev:image ppa is possibly enabled by some other tests.
+  cat >/etc/apt/preferences.d/ppa-disable-shim-signed <<EOF
+  Package: shim-signed
+  Pin: release o=LP-PPA-snappy-dev-image
+  Pin-Priority: -1
+  EOF
+  apt update
+
+  VERSION=$(tests.nested show version)
+  snap download --basename=pc --channel="${VERSION}/${NESTED_GADGET_CHANNEL}" pc
+  unsquashfs -d pc pc.snap
+  apt download shim-signed
+  dpkg-deb -x shim-signed_*.deb ./shim-signed
+  shim="${PWD}/shim-signed/usr/lib/shim/shimx64.efi.dualsigned"
+  fb="${PWD}/shim-signed/usr/lib/shim/fbx64.efi"
+  csv="${PWD}/shim-signed/usr/lib/shim/BOOTX64.CSV"
+
+  KEY_NAME=$(tests.nested download snakeoil-key)
+  SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+  SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+
+  python3 modify-gadget.py 0 removable pc/meta/gadget.yaml gadget.yaml.old
+  python3 modify-gadget.py 1 boot_entry pc/meta/gadget.yaml gadget.yaml.new
+  python3 modify-gadget.py 2 removable pc/meta/gadget.yaml gadget.yaml.old-again
+
+  cp "${shim}" pc/shim.efi.signed
+  rm -f pc/boot.csv
+  rm -f pc/fb.efi
+  cp gadget.yaml.old pc/meta/gadget.yaml
+
+  tests.nested secboot-sign gadget pc "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
+  snap pack pc "$(tests.nested get extra-snaps-path)"
+
+  cp "${fb}" pc/fb.efi
+  cp "${csv}" pc/boot.csv
+  cp gadget.yaml.new pc/meta/gadget.yaml
+  tests.nested secboot-sign gadget pc "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
+  snap pack pc --filename=pc_x2.snap
+
+  rm -f pc/fb.efi
+  rm -f pc/boot.csv
+  cp gadget.yaml.old-again pc/meta/gadget.yaml
+  tests.nested secboot-sign gadget pc "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
+  snap pack pc --filename=pc_x3.snap
+
+  tests.nested build-image core
+  tests.nested create-vm core
+
+restore: |
+  rm -f /etc/apt/preferences.d/ppa-disable-shim-signed
+  apt update
+
+execute: |
+  remote.exec "! [ -f /boot/efi/EFI/ubuntu/grubx64.efi ]"
+  remote.exec "[ -f /boot/efi/EFI/boot/grubx64.efi ]"
+  remote.push pc_x2.snap
+  boot_id=$(tests.nested boot-id)
+  install_change=$(remote.exec sudo snap install --dangerous pc_x2.snap --no-wait)
+  remote.wait-for reboot "$boot_id"
+  remote.exec sudo snap watch "${install_change}"
+
+  remote.exec "[ -f /boot/efi/EFI/ubuntu/grubx64.efi ]"
+  remote.exec "[ -f /boot/efi/EFI/ubuntu/shimx64.efi ]"
+  remote.exec "[ -f /boot/efi/EFI/ubuntu/bootx64.csv ]"
+
+  #FIXME: We do not remove old assets yet
+  #remote.exec "! [ -f /boot/efi/EFI/boot/grubx64.efi ]"
+  remote.exec "sudo rm -f /boot/efi/EFI/boot/grubx64.efi"
+
+  # Make sure we can still boot
+  boot_id=$(tests.nested boot-id)
+  remote.exec sudo reboot || true
+  remote.wait-for reboot "$boot_id"
+
+  remote.exec "! [ -f /boot/efi/EFI/boot/grubx64.efi ]"
+
+  # Let's "downgrade"!
+  remote.push pc_x3.snap
+  boot_id=$(tests.nested boot-id)
+  # FIXME: this does not work yet since we do not delete yet content
+  # that are not on newly installed gadget snap while defined in
+  # previous gadget snap. As a work-around we remove the files
+  # manually.
+  remote.exec sudo systemd-inhibit --what=shutdown bash -c "'snap install --dangerous pc_x3.snap; rm -f /boot/efi/EFI/ubuntu/grubx64.efi /boot/efi/EFI/boot/fbx64.efi /boot/efi/EFI/ubuntu/shimx64.efi'"
+  remote.wait-for reboot "$boot_id"
+  remote.exec "[ -f /boot/efi/EFI/boot/grubx64.efi ]"
+  retry --wait 4 -n 100 sh -c 'remote.exec "! [ -f /boot/efi/EFI/ubuntu/grubx64.efi ]"'
