@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -40,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -4048,4 +4050,294 @@ plugs:
   - cannot use snap "pc": default provider "snap-1" or any alternative provider for content "prereq-content" is missing`
 
 	c.Assert(err, ErrorMatches, msg)
+}
+
+func (s *deviceMgrSystemsCreateSuite) createSystemForRemoval(c *C, label string, expectedDownloads int, vSets []*asserts.ValidationSet, markCurrent bool) {
+	s.restartRequests = nil
+
+	chg, err := devicestate.CreateRecoverySystem(s.state, label, devicestate.CreateRecoverySystemOptions{
+		ValidationSets: vSets,
+		TestSystem:     true,
+		MarkCurrent:    markCurrent,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(chg, NotNil)
+	tsks := chg.Tasks()
+
+	c.Check(tsks, HasLen, (2*expectedDownloads)+2)
+
+	tskCreate := tsks[0]
+	tskFinalize := tsks[1]
+	c.Assert(tskCreate.Summary(), Matches, fmt.Sprintf(`Create recovery system with label "%s"`, label))
+	c.Check(tskFinalize.Summary(), Matches, fmt.Sprintf(`Finalize recovery system with label "%s"`, label))
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(tskCreate.Status(), Equals, state.WaitStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoStatus)
+
+	// a reboot is expected
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+
+	validateCore20Seed(c, label, s.model, s.storeSigning.Trusted)
+	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"try_recovery_system":    label,
+		"recovery_system_status": "try",
+	})
+	modeenvAfterCreate, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvAfterCreate.CurrentRecoverySystems, testutil.Contains, label)
+	c.Check(modeenvAfterCreate.GoodRecoverySystems, Not(testutil.Contains), label)
+
+	restart.MockPending(s.state, restart.RestartUnset)
+	s.state.Set("tried-systems", []string{label})
+	s.bootloader.SetBootVars(map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+	s.bootloader.SetBootVarsCalls = 0
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	// simulate a restart and run change to completion
+	s.mockRestartAndSettle(c, s.state, chg)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.IsReady(), Equals, true)
+	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoneStatus)
+
+	var triedSystemsAfterFinalize []string
+	err = s.state.Get("tried-systems", &triedSystemsAfterFinalize)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+
+	modeenvAfterFinalize, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvAfterFinalize.CurrentRecoverySystems, testutil.Contains, label)
+	c.Check(modeenvAfterFinalize.GoodRecoverySystems, testutil.Contains, label)
+
+	c.Check(s.bootloader.SetBootVarsCalls, Equals, 1)
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label, "snapd-new-file-log"), testutil.FileAbsent)
+
+	// boot.InitramfsUbuntuSeedDir and dirs.SnapSeedDir are usually different
+	// mount points of the same device. to emulate this, we can copy the files
+	// from boot.InitramfsUbuntuSeedDir (where they are written during creation)
+	// to dirs.SnapSeedDir
+	makeDirIdentical(c, boot.InitramfsUbuntuSeedDir, dirs.SnapSeedDir)
+}
+
+func makeDirIdentical(c *C, src, dest string) {
+	srcCommonPaths := make(map[string]bool)
+	// copy all files and make all dirs from src in dest
+	err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		commonPath := strings.TrimPrefix(path, src)
+
+		srcCommonPaths[commonPath] = true
+
+		destName := filepath.Join(dest, commonPath)
+
+		if destName == dest {
+			return nil
+		}
+
+		if info.IsDir() {
+			return os.MkdirAll(destName, info.Mode().Perm())
+		}
+
+		return osutil.CopyFile(path, destName, osutil.CopyFlagOverwrite)
+	})
+	c.Assert(err, IsNil)
+
+	// remove all files and dirs from dest that are not in src
+	err = filepath.WalkDir(dest, func(path string, _ os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+
+		commonPath := strings.TrimPrefix(path, dest)
+
+		if !srcCommonPaths[commonPath] {
+			return os.RemoveAll(path)
+		}
+
+		return nil
+	})
+	c.Assert(err, IsNil)
+}
+
+func verifySystemRemoved(c *C, label string, expectedSnaps ...string) {
+	systemDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label)
+	exists, _, err := osutil.DirExists(systemDir)
+	c.Assert(err, IsNil)
+	if exists {
+		c.Errorf("system %q still exists", label)
+		return
+	}
+
+	snapsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps")
+	entries, err := os.ReadDir(snapsDir)
+	c.Assert(err, IsNil)
+
+	foundSnaps := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		foundSnaps = append(foundSnaps, entry.Name())
+	}
+
+	c.Check(foundSnaps, testutil.DeepUnsortedMatches, expectedSnaps)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystem(c *C) {
+	restore := seed.MockTrusted(s.storeSigning.Trusted)
+	s.AddCleanup(restore)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	devicestate.SetBootOkRan(s.mgr, true)
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	// create a system that will use already installed snaps
+	const markCurrent = false
+	const keepLabel = "keep"
+	s.createSystemForRemoval(c, keepLabel, 0, nil, markCurrent)
+
+	snapRevisions := map[string]snap.Revision{
+		"pc":        snap.R(1),  // this snap will be shared between validation sets
+		"pc-kernel": snap.R(11), // remaining snaps are unique to the second recovery system
+		"core20":    snap.R(12),
+		"snapd":     snap.R(13),
+	}
+
+	for name, rev := range snapRevisions {
+		// don't recreate this one
+		if name == "pc" {
+			continue
+		}
+
+		// add an extra file in there so that the snap has a new hash
+		s.makeSnapInState(c, name, rev, [][]string{{"random-file", "random-content"}})
+	}
+
+	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "vset-1",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc",
+				"id":       fakeSnapID("pc"),
+				"revision": snapRevisions["pc"].String(),
+				"presence": "required",
+			},
+			map[string]interface{}{
+				"name":     "pc-kernel",
+				"id":       fakeSnapID("pc-kernel"),
+				"revision": snapRevisions["pc-kernel"].String(),
+				"presence": "required",
+			},
+			map[string]interface{}{
+				"name":     "core20",
+				"id":       fakeSnapID("core20"),
+				"revision": snapRevisions["core20"].String(),
+				"presence": "required",
+			},
+			map[string]interface{}{
+				"name":     "snapd",
+				"id":       fakeSnapID("snapd"),
+				"revision": snapRevisions["snapd"].String(),
+				"presence": "required",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	const removeLabel = "remove"
+	s.createSystemForRemoval(c, removeLabel, 0, []*asserts.ValidationSet{vsetAssert.(*asserts.ValidationSet)}, markCurrent)
+
+	chg, err := devicestate.RemoveRecoverySystem(s.state, removeLabel)
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(chg.Err(), IsNil)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+
+	// these snaps are left over from the first recovery system
+	remainingSnaps := []string{"pc_1.snap", "pc-kernel_2.snap", "core20_3.snap", "snapd_4.snap"}
+	verifySystemRemoved(c, removeLabel, remainingSnaps...)
+
+	makeDirIdentical(c, boot.InitramfsUbuntuSeedDir, dirs.SnapSeedDir)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemCurrentFailure(c *C) {
+	restore := seed.MockTrusted(s.storeSigning.Trusted)
+	s.AddCleanup(restore)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	devicestate.SetBootOkRan(s.mgr, true)
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	const keep = "keep"
+	const markCurrent = true
+	s.createSystemForRemoval(c, keep, 0, nil, markCurrent)
+
+	const label = "current"
+	s.createSystemForRemoval(c, label, 0, nil, markCurrent)
+
+	chg, err := devicestate.RemoveRecoverySystem(s.state, label)
+	c.Check(err, IsNil)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), ErrorMatches, `(?s)cannot perform the following tasks.* \(cannot remove current recovery system: "current"\)`)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemLastSystemFailure(c *C) {
+	restore := seed.MockTrusted(s.storeSigning.Trusted)
+	s.AddCleanup(restore)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	devicestate.SetBootOkRan(s.mgr, true)
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	const label = "last"
+	const markCurrent = false
+	s.createSystemForRemoval(c, label, 0, nil, markCurrent)
+
+	chg, err := devicestate.RemoveRecoverySystem(s.state, label)
+	c.Check(err, IsNil)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), ErrorMatches, `(?s)cannot perform the following tasks.* \(cannot remove last recovery system: "last"\)`)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
 }

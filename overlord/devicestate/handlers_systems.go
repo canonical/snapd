@@ -212,7 +212,7 @@ func (m *DeviceManager) doRemoveRecoverySystem(t *state.Task, _ *tomb.Tomb) erro
 
 	for _, sys := range systems {
 		if sys.Label == setup.Label && sys.Current {
-			return fmt.Errorf("cannot remove current recovery system %q", setup.Label)
+			return fmt.Errorf("cannot remove current recovery system: %q", setup.Label)
 		}
 	}
 
