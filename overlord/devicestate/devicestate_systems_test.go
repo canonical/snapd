@@ -1318,10 +1318,10 @@ func (s *deviceMgrSystemsCreateSuite) SetUpTest(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.makeSnapInState(c, "pc", snap.R(1))
-	s.makeSnapInState(c, "pc-kernel", snap.R(2))
-	s.makeSnapInState(c, "core20", snap.R(3))
-	s.makeSnapInState(c, "snapd", snap.R(4))
+	s.makeSnapInState(c, "pc", snap.R(1), nil)
+	s.makeSnapInState(c, "pc-kernel", snap.R(2), nil)
+	s.makeSnapInState(c, "core20", snap.R(3), nil)
+	s.makeSnapInState(c, "snapd", snap.R(4), nil)
 
 	s.bootloader = s.deviceMgrSystemsBaseSuite.bootloader.WithRecoveryAwareTrustedAssets()
 	bootloader.Force(s.bootloader)
@@ -1384,7 +1384,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemNotSe
 	c.Check(chg, IsNil)
 }
 
-func (s *deviceMgrSystemsCreateSuite) makeSnapInState(c *C, name string, rev snap.Revision) *snap.Info {
+func (s *deviceMgrSystemsCreateSuite) makeSnapInState(c *C, name string, rev snap.Revision, extraFiles [][]string) *snap.Info {
 	snapID := s.ss.AssertedSnapID(name)
 	if rev.Unset() || rev.Local() {
 		snapID = ""
@@ -1394,7 +1394,10 @@ func (s *deviceMgrSystemsCreateSuite) makeSnapInState(c *C, name string, rev sna
 		SnapID:   snapID,
 		Revision: rev,
 	}
-	info := snaptest.MakeSnapFileAndDir(c, snapYamls[name], snapFiles[name], si)
+
+	files := append(extraFiles, snapFiles[name]...)
+
+	info := snaptest.MakeSnapFileAndDir(c, snapYamls[name], files, si)
 	// asserted?
 	if !rev.Unset() && !rev.Local() {
 		s.setupSnapDecl(c, info, "canonical")
@@ -1411,10 +1414,10 @@ func (s *deviceMgrSystemsCreateSuite) makeSnapInState(c *C, name string, rev sna
 }
 
 func (s *deviceMgrSystemsCreateSuite) mockStandardSnapsModeenvAndBootloaderState(c *C) {
-	s.makeSnapInState(c, "pc", snap.R(1))
-	s.makeSnapInState(c, "pc-kernel", snap.R(2))
-	s.makeSnapInState(c, "core20", snap.R(3))
-	s.makeSnapInState(c, "snapd", snap.R(4))
+	s.makeSnapInState(c, "pc", snap.R(1), nil)
+	s.makeSnapInState(c, "pc-kernel", snap.R(2), nil)
+	s.makeSnapInState(c, "core20", snap.R(3), nil)
+	s.makeSnapInState(c, "snapd", snap.R(4), nil)
 
 	err := s.bootloader.SetBootVars(map[string]string{
 		"snap_kernel": "pc-kernel_2.snap",
