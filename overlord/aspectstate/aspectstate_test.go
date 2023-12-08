@@ -63,12 +63,12 @@ func (s *aspectTestSuite) TestGetNotFound(c *C) {
 
 	err = aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "ssid", &res)
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find value for "ssid" in aspect system/network/wifi-setup: no stored value for matching rules`)
+	c.Assert(err, ErrorMatches, `cannot find value for "ssid" in aspect system/network/wifi-setup: no value for matching rules`)
 	c.Check(res, IsNil)
 
 	err = aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "other-field", &res)
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find value for "other-field" in aspect system/network/wifi-setup: no matching rule`)
+	c.Assert(err, ErrorMatches, `cannot find value for "other-field" in aspect system/network/wifi-setup: no matching read rule`)
 	c.Check(res, IsNil)
 }
 
@@ -87,7 +87,7 @@ func (s *aspectTestSuite) TestSetNotFound(c *C) {
 	databag := aspects.NewJSONDataBag()
 	err := aspectstate.SetAspect(databag, "system", "network", "wifi-setup", "foo", "bar")
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find value for "foo" in aspect system/network/wifi-setup: no matching rule`)
+	c.Assert(err, ErrorMatches, `cannot find value for "foo" in aspect system/network/wifi-setup: no matching write rule`)
 
 	err = aspectstate.SetAspect(databag, "system", "network", "other-aspect", "foo", "bar")
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})

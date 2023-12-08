@@ -198,22 +198,22 @@ func (s *aspectSuite) TestAspectNotFound(c *C) {
 	var value interface{}
 	err = aspect.Get(databag, "missing", &value)
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find value for "missing" in aspect acc/foo/bar: no matching rule`)
+	c.Assert(err, ErrorMatches, `cannot find value for "missing" in aspect acc/foo/bar: no matching read rule`)
 
 	err = aspect.Set(databag, "missing", "thing")
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find value for "missing" in aspect acc/foo/bar: no matching rule`)
+	c.Assert(err, ErrorMatches, `cannot find value for "missing" in aspect acc/foo/bar: no matching write rule`)
 
 	err = aspect.Get(databag, "top-level", &value)
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find value for "top-level" in aspect acc/foo/bar: no stored value for matching rules`)
+	c.Assert(err, ErrorMatches, `cannot find value for "top-level" in aspect acc/foo/bar: no value for matching rules`)
 
 	err = aspect.Set(databag, "nested", "thing")
 	c.Assert(err, IsNil)
 
 	err = aspect.Get(databag, "other-nested", &value)
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find value for "other-nested" in aspect acc/foo/bar: no stored value for matching rules`)
+	c.Assert(err, ErrorMatches, `cannot find value for "other-nested" in aspect acc/foo/bar: no value for matching rules`)
 }
 
 func (s *aspectSuite) TestAspectBadRead(c *C) {
@@ -263,7 +263,7 @@ func (s *aspectSuite) TestAspectsAccessControl(c *C) {
 		{
 			request: "read-only",
 			// unrelated error
-			getErr: `cannot find value for "read-only" in aspect acc/bundle/foo: no stored value for matching rules`,
+			getErr: `cannot find value for "read-only" in aspect acc/bundle/foo: no value for matching rules`,
 			setErr: `cannot write field "read-only": only supports read access`,
 		},
 		{

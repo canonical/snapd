@@ -328,7 +328,7 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 		return a.bundle.schema.Validate(data)
 	}
 
-	return notFoundErrorFrom(a, request, "no matching rule")
+	return notFoundErrorFrom(a, request, "no matching write rule")
 }
 
 // Get returns the aspect value identified by the request. If either the named
@@ -363,7 +363,7 @@ func (a *Aspect) Get(databag DataBag, request string, value *interface{}) error 
 	}
 
 	if merged == nil {
-		return notFoundErrorFrom(a, request, "no stored value for matching rules")
+		return notFoundErrorFrom(a, request, "no value for matching rules")
 	}
 
 	// the top level maps the request to the remaining namespace
@@ -374,8 +374,6 @@ func (a *Aspect) Get(databag DataBag, request string, value *interface{}) error 
 func merge(old, new interface{}) (interface{}, error) {
 	if old == nil {
 		return new, nil
-	} else if new == nil {
-		return old, nil
 	}
 
 	oldType, newType := reflect.TypeOf(old).Kind(), reflect.TypeOf(new).Kind()
@@ -410,7 +408,7 @@ type match struct {
 	// any placeholders provided by the request filled in.
 	storagePath string
 
-	// namespace contains the unmatched parts of the entry's request.
+	// namespace contains the remaining nested suffix of the entry's request.
 	namespace []string
 }
 
@@ -421,7 +419,7 @@ func (a *Aspect) matchGetRequest(request string) (matches []match, err error) {
 	subkeys := strings.Split(request, ".")
 
 	for _, accessPatt := range a.accessPatterns {
-		placeholders, unmatched, ok := accessPatt.match(subkeys)
+		placeholders, restSuffix, ok := accessPatt.match(subkeys)
 		if !ok {
 			continue
 		}
@@ -435,7 +433,7 @@ func (a *Aspect) matchGetRequest(request string) (matches []match, err error) {
 			return nil, &InvalidAccessError{RequestedAccess: read, FieldAccess: accessPatt.access, Field: request}
 		}
 
-		m := match{storagePath: path, namespace: unmatched}
+		m := match{storagePath: path, namespace: restSuffix}
 		matches = append(matches, m)
 	}
 
@@ -443,7 +441,7 @@ func (a *Aspect) matchGetRequest(request string) (matches []match, err error) {
 	sort.Sort(byNamespace(matches))
 
 	if len(matches) == 0 {
-		return nil, notFoundErrorFrom(a, request, "no matching rule")
+		return nil, notFoundErrorFrom(a, request, "no matching read rule")
 	}
 
 	return matches, nil
@@ -524,8 +522,8 @@ type accessPattern struct {
 
 // match returns true if the subkeys match the pattern exactly or as a prefix.
 // If placeholders are "filled in" when matching, those are returned in a map.
-// If the subkeys match as a prefix, the unmatched subkeys are returned.
-func (p *accessPattern) match(reqSubkeys []string) (placeholders map[string]string, unmatched []string, match bool) {
+// If the subkeys match as a prefix, the remaining suffix is returned.
+func (p *accessPattern) match(reqSubkeys []string) (placeholders map[string]string, restSuffix []string, match bool) {
 	if len(p.request) < len(reqSubkeys) {
 		return nil, nil, false
 	}
@@ -538,10 +536,10 @@ func (p *accessPattern) match(reqSubkeys []string) (placeholders map[string]stri
 	}
 
 	for _, key := range p.request[len(reqSubkeys):] {
-		unmatched = append(unmatched, key.String())
+		restSuffix = append(restSuffix, key.String())
 	}
 
-	return placeholders, unmatched, true
+	return placeholders, restSuffix, true
 }
 
 // storagePath takes a map of placeholders to their values in the aspect name and
