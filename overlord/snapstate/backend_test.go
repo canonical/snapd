@@ -909,6 +909,10 @@ func (f *fakeSnappyBackend) UndoSetupComponent(cpi snap.ContainerPlaceInfo, inst
 	panic("not used yet in tests")
 }
 
+func (f *fakeSnappyBackend) RemoveComponentDir(cpi snap.ContainerPlaceInfo) error {
+	panic("not used yet in tests")
+}
+
 func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
 	if name == "borken" && si.Revision == snap.R(2) {
 		return nil, errors.New(`cannot read info for "borken" snap`)

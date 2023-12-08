@@ -545,3 +545,25 @@ version: 1.0
 	c.Assert(osutil.FileExists(cpi.MountDir()), Equals, false)
 	c.Assert(osutil.FileExists(cpi.MountFile()), Equals, false)
 }
+
+func (s *setupSuite) TestSetupComponentFilesDir(c *C) {
+	snapRev := snap.R(11)
+	compRev := snap.R(33)
+	compName := "mycomp"
+	snapInstance := "mysnap_inst"
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapInstance, snapRev)
+
+	installRecord := s.testSetupComponentDo(c, compName, "mysnap", snapInstance, compRev, snapRev)
+
+	err := s.be.RemoveComponentFiles(cpi, installRecord, mockDev, progress.Null)
+	c.Assert(err, IsNil)
+	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
+	c.Assert(l, HasLen, 0)
+	c.Assert(osutil.FileExists(cpi.MountDir()), Equals, false)
+	c.Assert(osutil.FileExists(cpi.MountFile()), Equals, false)
+
+	err = s.be.RemoveComponentDir(cpi)
+	c.Assert(err, IsNil)
+	// Directory for the snap revision should be gone
+	c.Assert(osutil.FileExists(filepath.Dir(cpi.MountDir())), Equals, false)
+}
