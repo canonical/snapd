@@ -246,14 +246,14 @@ func resolveValidationSetAssertion(seq *asserts.AtSequence, db asserts.RODatabas
 }
 
 func enforceValidationSetsForRemodel(st *state.State, sets []*asserts.ModelValidationSet) error {
-	validationSetKeys := make(map[string][]string, len(sets))
+	vsPrimaryKeys := make(map[string][]string, len(sets))
 	db := assertstate.DB(st)
 	for _, vs := range sets {
 		a, err := resolveValidationSetAssertion(vs.AtSequence(), db)
 		if err != nil {
 			return err
 		}
-		validationSetKeys[vs.SequenceName()] = a.At().PrimaryKey
+		vsPrimaryKeys[vs.SequenceName()] = a.At().PrimaryKey
 	}
 
 	pinnedValidationSeqs := make(map[string]int, len(sets))
@@ -270,7 +270,7 @@ func enforceValidationSetsForRemodel(st *state.State, sets []*asserts.ModelValid
 
 	// validation sets should already be downloaded, so we can use the local
 	// version of this function
-	if err := assertstate.ApplyLocalEnforcedValidationSets(st, validationSetKeys, pinnedValidationSeqs, snaps, ignoreValidation); err != nil {
+	if err := assertstate.ApplyLocalEnforcedValidationSets(st, vsPrimaryKeys, pinnedValidationSeqs, snaps, ignoreValidation); err != nil {
 		return fmt.Errorf("cannot enforce validation sets: %v", err)
 	}
 	return nil
