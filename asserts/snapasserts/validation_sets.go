@@ -349,7 +349,7 @@ func (v *ValidationSets) Revisions() (map[string]snap.Revision, error) {
 }
 
 // Keys returns a slice of ValidationSetKey structs that represent each
-// validation set that this type knowns about.
+// validation set that this ValidationSets knows about.
 func (v *ValidationSets) Keys() []ValidationSetKey {
 	keys := make([]ValidationSetKey, 0, len(v.sets))
 	for _, vs := range v.sets {
@@ -358,7 +358,8 @@ func (v *ValidationSets) Keys() []ValidationSetKey {
 	return keys
 }
 
-// Sets returns a slice of all of the validation sets that this type knows about.
+// Sets returns a slice of all of the validation sets that this ValidationSets
+// knows about.
 func (v *ValidationSets) Sets() []*asserts.ValidationSet {
 	sets := make([]*asserts.ValidationSet, 0, len(v.sets))
 	for _, vs := range v.sets {
@@ -648,7 +649,7 @@ func (v *ValidationSets) CanBePresent(snapRef naming.SnapRef) bool {
 }
 
 // RequiredSnaps returns a list of the names of all of the snaps that are
-// required by any validation set known to this type.
+// required by any validation set known to this ValidationSets.
 func (v *ValidationSets) RequiredSnaps() []string {
 	var names []string
 	for _, sn := range v.snaps {
@@ -657,6 +658,12 @@ func (v *ValidationSets) RequiredSnaps() []string {
 		}
 	}
 	return names
+}
+
+// SnapConstrained returns true if the given snap is constrained by any of the
+// validation sets known to this ValidationSets.
+func (v *ValidationSets) SnapConstrained(snapRef naming.SnapRef) bool {
+	return v.constraintsForSnap(snapRef) != nil
 }
 
 // CheckPresenceInvalid returns the list of all validation sets that declare
