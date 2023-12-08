@@ -69,7 +69,7 @@ type componentPlaceInfo struct {
 	// Name and revision for the component
 	compName     string
 	compRevision Revision
-	// snapInstance and SnapRevision identify the snap that uses this component.
+	// snapInstance and snapRevision identify the snap that uses this component.
 	snapInstance string
 	snapRevision Revision
 }

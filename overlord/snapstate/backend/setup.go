@@ -120,8 +120,6 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 		return nil, oErr
 	}
 
-	mntDir := compPi.MountDir()
-
 	defer func() {
 		if err == nil {
 			return
@@ -136,6 +134,7 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 	}()
 
 	// Create mount dir for the component
+	mntDir := compPi.MountDir()
 	if err := os.MkdirAll(mntDir, 0755); err != nil {
 		return nil, err
 	}
