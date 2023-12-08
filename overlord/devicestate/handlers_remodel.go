@@ -215,9 +215,14 @@ func rollBackValidationSets(st *state.State, oldSets []*asserts.ValidationSet, n
 		return err
 	}
 
-	// TODO: is this right? i think we have to ignore everything that is
-	// installed, since we won't have run the undos for the newly installed
-	// snaps yet
+	// we must ignore all snaps that are currently installed, since those snaps
+	// were installed in accordance to the new model and validation sets.
+	//
+	// alternatively, a more complex (but potentially more robust) approach
+	// would be to split logic for undoing the validation sets and applying the
+	// validation sets into different tasks. then, we can put the undo task
+	// early in the change. this would allow us to undo the validation sets
+	// after the snap installations/refreshes have been undone.
 	for _, sn := range snaps {
 		ignore[sn.SnapName()] = true
 	}
