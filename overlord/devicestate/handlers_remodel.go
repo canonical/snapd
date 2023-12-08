@@ -200,7 +200,6 @@ func rollBackValidationSets(st *state.State, oldSets []*asserts.ValidationSet, n
 		if err := assertstate.ForgetValidationSet(st, set.AccountID, set.Name, assertstate.ForgetValidationSetOpts{
 			ForceForget: true,
 		}); err != nil {
-			fmt.Println("we did not roll them back!", err)
 			return err
 		}
 	}
