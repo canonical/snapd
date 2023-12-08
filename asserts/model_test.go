@@ -1407,3 +1407,19 @@ func (mods *modelSuite) TestModelValidationSetSequenceKey(c *C) {
 
 	c.Check(mvs.SequenceKey(), Equals, "16/test/set")
 }
+
+func (mods *modelSuite) TestAllSnaps(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", "", 1)
+
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.ModelType)
+
+	model := a.(*asserts.Model)
+
+	allSnaps := append([]*asserts.ModelSnap(nil), model.EssentialSnaps()...)
+	allSnaps = append(allSnaps, model.SnapsWithoutEssential()...)
+
+	c.Check(model.AllSnaps(), DeepEquals, allSnaps)
+}
