@@ -65,21 +65,17 @@ func expandHomeDir(profile *osutil.MountProfile, home string, homeError error) e
 			continue
 		}
 
-		name, nameExpanded := expandPrefixVariable(profile.Entries[i].Name, envVar, home)
 		dir, dirExpanded := expandPrefixVariable(profile.Entries[i].Dir, envVar, home)
 		mustExistDir, mustExistDirExpanded := expandPrefixVariable(profile.Entries[i].XSnapdMustExistDir(), envVar, home)
 
 		if homeError == nil {
-			if nameExpanded {
-				profile.Entries[i].Name = name
-			}
 			if dirExpanded {
 				profile.Entries[i].Dir = dir
 			}
 			if mustExistDirExpanded {
 				osutil.ReplaceMountEntryOption(&profile.Entries[i], osutil.XSnapdMustExistDir(mustExistDir))
 			}
-		} else if nameExpanded || dirExpanded || mustExistDirExpanded {
+		} else if dirExpanded || mustExistDirExpanded {
 			return fmt.Errorf("cannot expand mount entry (%s): %v", profile.Entries[i], homeError)
 		}
 	}
