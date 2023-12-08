@@ -1417,9 +1417,14 @@ func Download(ctx context.Context, st *state.State, name string, blobDirectory s
 		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
 	}
 
+	// we put the prereqs in the SnapSetup so that callers of Download can see
+	// what prereqs the snap has.
+	providerContentAttrs := defaultProviderContentAttrs(st, info, nil)
 	snapsup := &SnapSetup{
 		Channel:            opts.Channel,
 		Base:               info.Base,
+		Prereq:             getKeys(providerContentAttrs),
+		PrereqContentAttrs: providerContentAttrs,
 		UserID:             userID,
 		Flags:              flags.ForSnapSetup(),
 		DownloadInfo:       &info.DownloadInfo,
