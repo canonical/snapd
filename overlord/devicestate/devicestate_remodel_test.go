@@ -376,17 +376,26 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 	c.Assert(tss, HasLen, 4)
 }
 
-func createLocalSnap(c *C, name, id string, revision int) (*snap.SideInfo, string) {
+func createLocalSnap(c *C, name, id string, revision int, snapType string, base string, files [][]string) (*snap.SideInfo, string) {
 	yaml := fmt.Sprintf(`name: %s
 version: 1.0
 epoch: 1
 `, name)
+
+	if snapType != "" {
+		yaml += fmt.Sprintf("\ntype: %s\n", snapType)
+	}
+
+	if base != "" {
+		yaml += fmt.Sprintf("\nbase: %s\n", base)
+	}
+
 	si := &snap.SideInfo{
 		RealName: name,
 		Revision: snap.R(revision),
 		SnapID:   id,
 	}
-	tmpPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
+	tmpPath := snaptest.MakeTestSnapWithFiles(c, yaml, files)
 	return si, tmpPath
 }
 
@@ -400,7 +409,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchLocalGadget(c *C) {
 	newTrack := map[string]string{"other-gadget": "18"}
 	sis := make([]*snap.SideInfo, 1)
 	paths := make([]string, 1)
-	sis[0], paths[0] = createLocalSnap(c, "pc", "pcididididididididididididididid", 3)
+	sis[0], paths[0] = createLocalSnap(c, "pc", "pcididididididididididididididid", 3, "gadget", "", nil)
 	s.testRemodelSwitchTasks(c, newTrack,
 		map[string]interface{}{"gadget": "other-gadget=18"},
 		sis, paths, "")
@@ -416,7 +425,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchLocalKernel(c *C) {
 	newTrack := map[string]string{"other-kernel": "18"}
 	sis := make([]*snap.SideInfo, 1)
 	paths := make([]string, 1)
-	sis[0], paths[0] = createLocalSnap(c, "pc-kernel", "pckernelidididididididididididid", 3)
+	sis[0], paths[0] = createLocalSnap(c, "pc-kernel", "pckernelidididididididididididid", 3, "kernel", "", nil)
 	s.testRemodelSwitchTasks(c, newTrack,
 		map[string]interface{}{"kernel": "other-kernel=18"},
 		sis, paths, "")
@@ -434,8 +443,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchLocalKernelAndGadget(c *C)
 	newTrack := map[string]string{"other-kernel": "18", "other-gadget": "18"}
 	sis := make([]*snap.SideInfo, 2)
 	paths := make([]string, 2)
-	sis[0], paths[0] = createLocalSnap(c, "pc-kernel", "pckernelidididididididididididid", 3)
-	sis[1], paths[1] = createLocalSnap(c, "pc", "pcididididididididididididididid", 3)
+	sis[0], paths[0] = createLocalSnap(c, "pc-kernel", "pckernelidididididididididididid", 3, "kernel", "", nil)
+	sis[1], paths[1] = createLocalSnap(c, "pc", "pcididididididididididididididid", 3, "gadget", "", nil)
 	s.testRemodelSwitchTasks(c, newTrack,
 		map[string]interface{}{
 			"kernel": "other-kernel=18",
@@ -448,7 +457,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchLocalKernelAndGadgetFails(
 	newTrack := map[string]string{"other-kernel": "18", "other-gadget": "18"}
 	sis := make([]*snap.SideInfo, 1)
 	paths := make([]string, 1)
-	sis[0], paths[0] = createLocalSnap(c, "pc-kernel", "pckernelidididididididididididid", 3)
+	sis[0], paths[0] = createLocalSnap(c, "pc-kernel", "pckernelidididididididididididid", 3, "kernel", "", nil)
 	s.testRemodelSwitchTasks(c, newTrack,
 		map[string]interface{}{
 			"kernel": "other-kernel=18",
@@ -2973,7 +2982,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	var paths []string
 	if opts.localSnaps {
 		for i, name := range []string{"pc-kernel-new", "core20-new", "pc-new"} {
-			si, path := createLocalSnap(c, name, snaptest.AssertedSnapID(name), 222+i)
+			si, path := createLocalSnap(c, name, snaptest.AssertedSnapID(name), 222+i, "", "", nil)
 			localSnaps = append(localSnaps, si)
 			paths = append(paths, path)
 		}
@@ -4710,11 +4719,11 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 	})
 	defer restore()
 
-	siSomeSnapNew, path := createLocalSnap(c, "some-snap", snaptest.AssertedSnapID("some-snap"), 3)
+	siSomeSnapNew, path := createLocalSnap(c, "some-snap", snaptest.AssertedSnapID("some-snap"), 3, "app", "", nil)
 	localSnaps := []*snap.SideInfo{siSomeSnapNew}
 	paths := []string{path}
 	if tc.notUsedSnap {
-		siNotUsed, pathNotUsed := createLocalSnap(c, "not-used-snap", snaptest.AssertedSnapID("not-used-snap"), 3)
+		siNotUsed, pathNotUsed := createLocalSnap(c, "not-used-snap", snaptest.AssertedSnapID("not-used-snap"), 3, "app", "", nil)
 		localSnaps = append(localSnaps, siNotUsed)
 		paths = append(paths, pathNotUsed)
 	}
@@ -6058,7 +6067,7 @@ func (s *deviceMgrSuite) testOfflineRemodelValidationSet(c *C, withValSet bool) 
 	// presence of local snaps to determine if this is an offline remodel
 	sis := make([]*snap.SideInfo, 1)
 	paths := make([]string, 1)
-	sis[0], paths[0] = createLocalSnap(c, "pc", snaptest.AssertedSnapID("pc"), 1)
+	sis[0], paths[0] = createLocalSnap(c, "pc", snaptest.AssertedSnapID("pc"), 1, "gadget", "", nil)
 
 	_, err = devicestate.RemodelTasks(context.Background(), s.state, currentModel, newModel, sis, paths, testDeviceCtx, "99")
 	if !withValSet {
