@@ -433,6 +433,11 @@ type ModelValidationSet struct {
 	Mode ModelValidationSetMode
 }
 
+// SequenceKey returns the sequence key for this validation set.
+func (mvs *ModelValidationSet) SequenceKey() string {
+	return vsSequenceKey(release.Series, mvs.AccountID, mvs.Name)
+}
+
 func (mvs *ModelValidationSet) AtSequence() *AtSequence {
 	return &AtSequence{
 		Type:        ValidationSetType,

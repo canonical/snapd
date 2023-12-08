@@ -1396,3 +1396,14 @@ func (mods *modelSuite) TestValidationSetsDecodeOK(c *C) {
 		c.Check(model.ValidationSets(), DeepEquals, t.expected)
 	}
 }
+
+func (mods *modelSuite) TestModelValidationSetSequenceKey(c *C) {
+	mvs := &asserts.ModelValidationSet{
+		AccountID: "test",
+		Name:      "set",
+		Sequence:  1,
+		Mode:      asserts.ModelValidationSetModeEnforced,
+	}
+
+	c.Check(mvs.SequenceKey(), Equals, "16/test/set")
+}

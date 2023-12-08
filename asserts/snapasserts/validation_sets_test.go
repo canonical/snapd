@@ -1421,3 +1421,33 @@ func (s *validationSetsSuite) TestValidationSetsConflictErrorIs(c *C) {
 	wrapped := fmt.Errorf("wrapped error: %w", err)
 	c.Check(wrapped, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})
 }
+
+func (s *validationSetsSuite) TestSets(c *C) {
+	valset1 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl",
+		"sequence":     "1",
+		"snaps":        []interface{}{},
+	}).(*asserts.ValidationSet)
+
+	valset2 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl2",
+		"sequence":     "2",
+		"snaps":        []interface{}{},
+	}).(*asserts.ValidationSet)
+
+	valsets := snapasserts.NewValidationSets()
+
+	c.Assert(valsets.Add(valset1), IsNil)
+	c.Assert(valsets.Add(valset2), IsNil)
+
+	sets := valsets.Sets()
+	c.Assert(sets, testutil.DeepUnsortedMatches, []*asserts.ValidationSet{valset1, valset2})
+}
