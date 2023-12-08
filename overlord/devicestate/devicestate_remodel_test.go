@@ -6156,7 +6156,7 @@ func (s *deviceMgrSuite) TestRemodelRequiredSnapMissingFromModel(c *C) {
 	}
 
 	_, err = devicestate.RemodelTasks(context.Background(), s.state, currentModel, newModel, nil, nil, testDeviceCtx, "99")
-	c.Assert(err, ErrorMatches, "cannot have required snap in validation set that is not present in the model: snap-1")
+	c.Assert(err, ErrorMatches, "missing required snap in model: snap-1")
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelVerifyOrderOfTasks(c *C) {

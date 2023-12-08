@@ -1163,7 +1163,7 @@ func checkForRequiredSnapsNotInModel(model *asserts.Model, vSets *snapasserts.Va
 
 	for _, sn := range vSets.RequiredSnaps() {
 		if !snapsInModel[sn] {
-			return fmt.Errorf("cannot have required snap in validation set that is not present in the model: %s", sn)
+			return fmt.Errorf("missing required snap in model: %s", sn)
 		}
 	}
 
