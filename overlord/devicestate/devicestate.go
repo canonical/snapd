@@ -542,12 +542,12 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pat
 			channelChanged = ms.currentModelSnap.PinnedTrack != ms.newModelSnap.PinnedTrack
 		}
 
-		newRevision, err := installedSnapRevisionChanged(st, ms.newSnap, ms.newRequiredRevision)
+		revisionChanged, err := installedSnapRevisionChanged(st, ms.newSnap, ms.newRequiredRevision)
 		if err != nil {
 			return nil, err
 		}
 
-		if channelChanged || newRevision {
+		if channelChanged || revisionChanged {
 
 			// new model specifies the same snap, but with a new channel or
 			// different revision than the existing one
