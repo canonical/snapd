@@ -659,6 +659,12 @@ func (v *ValidationSets) RequiredSnaps() []string {
 	return names
 }
 
+// SnapConstrained returns true if the given snap is constrained by any of the
+// validation sets known to this type.
+func (v *ValidationSets) SnapConstrained(snapRef naming.SnapRef) bool {
+	return v.constraintsForSnap(snapRef) != nil
+}
+
 // CheckPresenceInvalid returns the list of all validation sets that declare
 // presence of the given snap as invalid. PresenceConstraintError is returned if
 // presence of the snap is "optional" or "required".
