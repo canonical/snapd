@@ -1397,7 +1397,7 @@ func (mods *modelSuite) TestValidationSetsDecodeOK(c *C) {
 	}
 }
 
-func (mods *modelSuite) TestModelValidationSetSequenceName(c *C) {
+func (mods *modelSuite) TestModelValidationSetSequenceKey(c *C) {
 	mvs := &asserts.ModelValidationSet{
 		AccountID: "test",
 		Name:      "set",
@@ -1405,5 +1405,5 @@ func (mods *modelSuite) TestModelValidationSetSequenceName(c *C) {
 		Mode:      asserts.ModelValidationSetModeEnforced,
 	}
 
-	c.Check(mvs.SequenceName(), Equals, "test/set")
+	c.Check(mvs.SequenceKey(), Equals, "16/test/set")
 }

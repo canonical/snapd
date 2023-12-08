@@ -8721,8 +8721,8 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 	vs1 := vsetAssert1.(*asserts.ValidationSet)
 	vs3 := vsetAssert3.(*asserts.ValidationSet)
 	err = assertstate.ApplyLocalEnforcedValidationSets(st, map[string][]string{
-		vs1.SequenceName(): vs1.At().PrimaryKey,
-		vs3.SequenceName(): vs3.At().PrimaryKey,
+		vs1.SequenceKey(): vs1.At().PrimaryKey,
+		vs3.SequenceKey(): vs3.At().PrimaryKey,
 	}, nil, installed, ignore)
 	c.Assert(err, IsNil)
 
@@ -9175,9 +9175,9 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 	vs3 := vsetAssert3.(*asserts.ValidationSet)
 	vs4 := vsetAssert4.(*asserts.ValidationSet)
 	err = assertstate.ApplyLocalEnforcedValidationSets(st, map[string][]string{
-		vs1.SequenceName(): vs1.At().PrimaryKey,
-		vs3.SequenceName(): vs3.At().PrimaryKey,
-		vs4.SequenceName(): vs4.At().PrimaryKey,
+		vs1.SequenceKey(): vs1.At().PrimaryKey,
+		vs3.SequenceKey(): vs3.At().PrimaryKey,
+		vs4.SequenceKey(): vs4.At().PrimaryKey,
 	}, nil, installed, ignore)
 	c.Assert(err, IsNil)
 

@@ -187,7 +187,7 @@ func trackedValidationSetsFromModel(st *state.State, model *asserts.Model) ([]*a
 	var fromModel []*asserts.ValidationSet
 	for _, mvs := range model.ValidationSets() {
 		for _, cvs := range currentSets.Sets() {
-			if mvs.SequenceName() == cvs.SequenceName() {
+			if mvs.SequenceKey() == cvs.SequenceKey() {
 				fromModel = append(fromModel, cvs)
 			}
 		}
@@ -206,7 +206,7 @@ func rollBackValidationSets(st *state.State, oldSets []*asserts.ValidationSet, n
 
 	vSetKeys := make(map[string][]string, len(oldSets))
 	for _, vs := range oldSets {
-		sequenceName := vs.SequenceName()
+		sequenceName := vs.SequenceKey()
 		vSetKeys[sequenceName] = vs.At().PrimaryKey
 	}
 
@@ -253,13 +253,13 @@ func enforceValidationSetsForRemodel(st *state.State, sets []*asserts.ModelValid
 		if err != nil {
 			return err
 		}
-		vsPrimaryKeys[vs.SequenceName()] = a.At().PrimaryKey
+		vsPrimaryKeys[vs.SequenceKey()] = a.At().PrimaryKey
 	}
 
 	pinnedValidationSeqs := make(map[string]int, len(sets))
 	for _, vs := range sets {
 		if vs.Sequence > 0 {
-			pinnedValidationSeqs[vs.SequenceName()] = vs.Sequence
+			pinnedValidationSeqs[vs.SequenceKey()] = vs.Sequence
 		}
 	}
 

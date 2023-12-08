@@ -186,7 +186,7 @@ func (vss *validationSetSuite) TestIsValidValidationSetName(c *C) {
 	}
 }
 
-func (vss *validationSetSuite) TestValidationSetSequenceName(c *C) {
+func (vss *validationSetSuite) TestValidationSetSequenceKey(c *C) {
 	encoded := strings.Replace(validationSetExample, "TSLINE", vss.tsLine, 1)
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
 
@@ -198,5 +198,5 @@ func (vss *validationSetSuite) TestValidationSetSequenceName(c *C) {
 
 	valset := a.(*asserts.ValidationSet)
 
-	c.Check(valset.SequenceName(), Equals, "brand-id1/baz-3000-good")
+	c.Check(valset.SequenceKey(), Equals, "16/brand-id1/baz-3000-good")
 }
