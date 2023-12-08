@@ -203,6 +203,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	// kernel command line updates from a gadget supplied file
 	runner.AddHandler("update-gadget-cmdline", m.doUpdateGadgetCommandLine, m.undoUpdateGadgetCommandLine)
 	// recovery systems
+	runner.AddHandler("remove-recovery-system", m.doRemoveRecoverySystem, nil)
 	runner.AddHandler("create-recovery-system", m.doCreateRecoverySystem, m.undoCreateRecoverySystem)
 	runner.AddCleanup("create-recovery-system", m.cleanupRecoverySystem)
 	runner.AddHandler("finalize-recovery-system", m.doFinalizeTriedRecoverySystem, m.undoFinalizeTriedRecoverySystem)

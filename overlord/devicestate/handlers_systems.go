@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -40,10 +41,20 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/timings"
 )
+
+func taskRemoveRecoverySystemSetup(t *state.Task) (removeRecoverySystemSetup, error) {
+	var setup removeRecoverySystemSetup
+	if err := t.Get("remove-recovery-system-setup", &setup); err != nil {
+		return removeRecoverySystemSetup{}, err
+	}
+	return setup, nil
+}
 
 func taskRecoverySystemSetup(t *state.Task) (*recoverySystemSetup, error) {
 	var setup recoverySystemSetup
@@ -119,6 +130,124 @@ func purgeNewSystemSnapFiles(logfile string) error {
 		}
 	}
 	return s.Err()
+}
+
+func snapsUniqueToRecoverySystem(target string, systems []*System) ([]*seed.Snap, error) {
+	requiredByOtherSystems := make(map[string]bool)
+	for _, sys := range systems {
+		if sys.Label == target {
+			continue
+		}
+
+		sd, err := seed.Open(dirs.SnapSeedDir, sys.Label)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := sd.LoadAssertions(nil, func(*asserts.Batch) error {
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+
+		if err := sd.LoadMeta(seed.AllModes, nil, timings.New(nil)); err != nil {
+			return nil, err
+		}
+
+		err = sd.Iter(func(sn *seed.Snap) error {
+			requiredByOtherSystems[sn.Path] = true
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	targetSeed, err := seed.Open(dirs.SnapSeedDir, target)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := targetSeed.LoadAssertions(nil, func(*asserts.Batch) error {
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	if err := targetSeed.LoadMeta(seed.AllModes, nil, timings.New(nil)); err != nil {
+		return nil, err
+	}
+
+	var uniqueToTarget []*seed.Snap
+	err = targetSeed.Iter(func(sn *seed.Snap) error {
+		if !requiredByOtherSystems[sn.Path] {
+			uniqueToTarget = append(uniqueToTarget, sn)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return uniqueToTarget, nil
+}
+
+func (m *DeviceManager) doRemoveRecoverySystem(t *state.Task, _ *tomb.Tomb) error {
+	// TODO: figure out how to use task conflicts to prevent this task from
+	// running at the same time as other recovery system tasks
+
+	systems, err := m.Systems()
+	if err != nil {
+		return fmt.Errorf("cannot get recovery systems: %w", err)
+	}
+
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	setup, err := taskRemoveRecoverySystemSetup(t)
+	if err != nil {
+		return err
+	}
+
+	for _, sys := range systems {
+		if sys.Label == setup.Label && sys.Current {
+			return fmt.Errorf("cannot remove current recovery system %q", setup.Label)
+		}
+	}
+
+	if len(systems) == 1 {
+		return fmt.Errorf("cannot remove last recovery system: %q", setup.Label)
+	}
+
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return fmt.Errorf("cannot get device context: %w", err)
+	}
+
+	snapsToRemove, err := snapsUniqueToRecoverySystem(setup.Label, systems)
+	if err != nil {
+		return fmt.Errorf("cannot get snaps unique to recovery system %q: %w", setup.Label, err)
+	}
+
+	recoverySystemsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems")
+
+	if err := boot.DropRecoverySystem(deviceCtx, setup.Label); err != nil {
+		return fmt.Errorf("cannot drop recovery system %q: %v", setup.Label, err)
+	}
+
+	if err := os.RemoveAll(filepath.Join(recoverySystemsDir, setup.Label)); err != nil {
+		return fmt.Errorf("cannot remove recovery system %q: %w", setup.Label, err)
+	}
+
+	for _, sn := range snapsToRemove {
+		path := filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps", filepath.Base(sn.Path))
+		if err := os.RemoveAll(path); err != nil {
+			return fmt.Errorf("cannot remove snap %q: %w", path, err)
+		}
+	}
+
+	return nil
 }
 
 func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err error) {

@@ -1493,6 +1493,19 @@ func pickRecoverySystemLabel(labelBase string) (string, error) {
 	return fmt.Sprintf("%s-%d", labelBase, maxExistingNumber+1), nil
 }
 
+type removeRecoverySystemSetup struct {
+	Label string `json:"label"`
+}
+
+func removeRecoverySystemTasks(st *state.State, label string) (*state.TaskSet, error) {
+	remove := st.NewTask("remove-recovery-system", fmt.Sprintf("Remove recovery system with label %q", label))
+	remove.Set("remove-recovery-system-setup", &removeRecoverySystemSetup{
+		Label: label,
+	})
+
+	return state.NewTaskSet(remove), nil
+}
+
 func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []string, opts CreateRecoverySystemOptions) (*state.TaskSet, error) {
 	// precondition check, the directory should not exist yet
 	systemDirectory := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label)
@@ -1573,6 +1586,31 @@ type CreateRecoverySystemOptions struct {
 }
 
 var ErrNoRecoverySystem = errors.New("recovery system does not exist")
+
+// RemoveRecoverySystem removes the recovery system with the given label. The
+// current recovery system cannot be removed.
+func RemoveRecoverySystem(st *state.State, label string) (*state.Change, error) {
+	recoverySystemsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems")
+	exists, _, err := osutil.DirExists(filepath.Join(recoverySystemsDir, label))
+	if err != nil {
+		return nil, err
+	}
+
+	if !exists {
+		return nil, fmt.Errorf("%q not found: %w", label, ErrNoRecoverySystem)
+	}
+
+	chg := st.NewChange("remove-recovery-system", fmt.Sprintf("Remove recovery system with label %q", label))
+
+	removeTS, err := removeRecoverySystemTasks(st, label)
+	if err != nil {
+		return nil, err
+	}
+
+	chg.AddAll(removeTS)
+
+	return chg, nil
+}
 
 // CreateRecoverySystem creates a new recovery system with the given label. See
 // CreateRecoverySystemOptions for details on the options that can be provided.
