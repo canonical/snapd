@@ -162,7 +162,7 @@ func (snapsup *SnapSetup) Revision() snap.Revision {
 }
 
 func (snapsup *SnapSetup) containerInfo() snap.ContainerPlaceInfo {
-	return snap.MinimalContainerInfo(snapsup.InstanceName(), snapsup.Revision())
+	return snap.MinimalSnapContainerPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
 }
 
 func (snapsup *SnapSetup) placeInfo() snap.PlaceInfo {
@@ -1215,7 +1215,7 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			}
 			squashfsPath := dirs.StripRootDir(info.MountFile())
 			whereDir := dirs.StripRootDir(info.MountDir())
-			if _, err = sysd.EnsureMountUnitFile(info.InstanceName(), info.Revision.String(), squashfsPath, whereDir, "squashfs"); err != nil {
+			if _, err = sysd.EnsureMountUnitFile(info.InstanceName(), info.MountDescription(), squashfsPath, whereDir, "squashfs"); err != nil {
 				return err
 			}
 		}

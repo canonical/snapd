@@ -59,6 +59,9 @@ type ContainerPlaceInfo interface {
 	// MountFile returns the path where the container file that is mounted is
 	// installed.
 	MountFile() string
+
+	// MountDescription is the value for the mount unit Description field.
+	MountDescription() string
 }
 
 // PlaceInfo offers all the information about where a snap and its data are
@@ -135,9 +138,9 @@ func MinimalPlaceInfo(instanceName string, revision Revision) PlaceInfo {
 	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
 }
 
-// MinimalContainerInfo returns a ContainerPlaceInfo with just the location
+// MinimalSnapContainerPlaceInfo returns a ContainerPlaceInfo with just the location
 // information for a snap of the given instance name and revision.
-func MinimalContainerInfo(instanceName string, revision Revision) ContainerPlaceInfo {
+func MinimalSnapContainerPlaceInfo(instanceName string, revision Revision) ContainerPlaceInfo {
 	storeName, instanceKey := SplitInstanceName(instanceName)
 	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
 }
@@ -648,6 +651,11 @@ func (s *Info) MountDir() string {
 // MountFile returns the path where the snap file that is mounted is installed.
 func (s *Info) MountFile() string {
 	return MountFile(s.InstanceName(), s.Revision)
+}
+
+// MountDescription returns the mount unit Description field.
+func (s *Info) MountDescription() string {
+	return fmt.Sprintf("Mount unit for %s, revision %s", s.InstanceName(), s.Revision)
 }
 
 // HooksDir returns the directory containing the snap's hooks.

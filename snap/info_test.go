@@ -1236,24 +1236,26 @@ func (s *infoSuite) testInstanceDirAndFileMethods(c *C, info snap.PlaceInfo) {
 
 func (s *infoSuite) TestComponentPlaceInfoMethods(c *C) {
 	dirs.SetRootDir("")
-	info := snap.MinimalContainerInfo("name", snap.R("1"))
+	info := snap.MinimalSnapContainerPlaceInfo("name", snap.R("1"))
 
 	var cpi snap.ContainerPlaceInfo = info
 	c.Check(cpi.ContainerName(), Equals, "name")
 	c.Check(cpi.Filename(), Equals, "name_1.snap")
 	c.Check(cpi.MountDir(), Equals, fmt.Sprintf("%s/name/1", dirs.SnapMountDir))
 	c.Check(cpi.MountFile(), Equals, "/var/lib/snapd/snaps/name_1.snap")
+	c.Check(cpi.MountDescription(), Equals, "Mount unit for name, revision 1")
 }
 
 func (s *infoSuite) TestComponentPlaceInfoMethodsParallelInstall(c *C) {
 	dirs.SetRootDir("")
-	info := snap.MinimalContainerInfo("name_instance", snap.R("1"))
+	info := snap.MinimalSnapContainerPlaceInfo("name_instance", snap.R("1"))
 
 	var cpi snap.ContainerPlaceInfo = info
 	c.Check(cpi.ContainerName(), Equals, "name_instance")
 	c.Check(cpi.Filename(), Equals, "name_instance_1.snap")
 	c.Check(cpi.MountDir(), Equals, fmt.Sprintf("%s/name_instance/1", dirs.SnapMountDir))
 	c.Check(cpi.MountFile(), Equals, "/var/lib/snapd/snaps/name_instance_1.snap")
+	c.Check(cpi.MountDescription(), Equals, "Mount unit for name_instance, revision 1")
 }
 
 func BenchmarkTestParsePlaceInfoFromSnapFileName(b *testing.B) {

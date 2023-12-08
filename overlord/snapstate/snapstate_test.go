@@ -613,14 +613,13 @@ func (s *snapmgrTestSuite) TestSequenceSerialize(c *C) {
 	// With components
 	snapst = &snapstate.SnapState{Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*snapstate.RevisionSideState{
 		snapstate.NewRevisionSideInfo(si1, []*snap.ComponentSideInfo{
-			{Component: naming.NewComponentRef("mysnap", "mycomp"),
-				Revision: snap.R(7)},
+			snap.NewComponentSideInfo(naming.NewComponentRef("mysnap", "mycomp"),
+				snap.R(7)),
 		}),
 		snapstate.NewRevisionSideInfo(si2, []*snap.ComponentSideInfo{
-			{Component: naming.NewComponentRef("othersnap", "othercomp1"),
-				Revision: snap.R(11)},
-			{Component: naming.NewComponentRef("othersnap", "othercomp2"),
-				Revision: snap.R(14)},
+			snap.NewComponentSideInfo(naming.NewComponentRef("othersnap", "othercomp1"),
+				snap.R(11)),
+			snap.NewComponentSideInfo(naming.NewComponentRef("othersnap", "othercomp2"), snap.R(14)),
 		}),
 	})}
 	marshaled, err = json.Marshal(snapst)
