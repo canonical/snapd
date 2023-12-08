@@ -1311,6 +1311,13 @@ type deviceMgrSystemsCreateSuite struct {
 func (s *deviceMgrSystemsCreateSuite) SetUpTest(c *C) {
 	s.deviceMgrSystemsBaseSuite.SetUpTest(c)
 
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.makeSnapInState(c, "pc", snap.R(1))
+	s.makeSnapInState(c, "pc-kernel", snap.R(2))
+	s.makeSnapInState(c, "core20", snap.R(3))
+	s.makeSnapInState(c, "snapd", snap.R(4))
+
 	s.bootloader = s.deviceMgrSystemsBaseSuite.bootloader.WithRecoveryAwareTrustedAssets()
 	bootloader.Force(s.bootloader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
@@ -1321,7 +1328,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasks
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	chg, err := devicestate.CreateRecoverySystem(s.state, "1234")
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+		TestSystem: true,
+	})
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
 	tsks := chg.Tasks()
@@ -1337,6 +1346,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasks
 		"label":            "1234",
 		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"),
 		"snap-setup-tasks": nil,
+		"test-system":      true,
 	})
 
 	var otherTaskID string
@@ -1352,7 +1362,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasks
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	chg, err := devicestate.CreateRecoverySystem(s.state, "1234")
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{})
 	c.Assert(err, ErrorMatches, `recovery system "1234" already exists`)
 	c.Check(chg, IsNil)
 }
@@ -1364,7 +1374,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemNotSe
 	defer s.state.Unlock()
 	s.state.Set("seeded", nil)
 
-	chg, err := devicestate.CreateRecoverySystem(s.state, "1234")
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{})
 	c.Assert(err, ErrorMatches, `cannot create new recovery systems until fully seeded`)
 	c.Check(chg, IsNil)
 }
@@ -1426,7 +1436,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 	devicestate.SetBootOkRan(s.mgr, true)
 
 	s.state.Lock()
-	chg, err := devicestate.CreateRecoverySystem(s.state, "1234")
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+		TestSystem: true,
+	})
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
 	tsks := chg.Tasks()
@@ -1435,8 +1449,6 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 	tskFinalize := tsks[1]
 	c.Assert(tskCreate.Summary(), Matches, `Create recovery system with label "1234"`)
 	c.Check(tskFinalize.Summary(), Matches, `Finalize recovery system with label "1234"`)
-
-	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
 	s.state.Unlock()
 	s.settle(c)
@@ -1520,8 +1532,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
 	})
-	// no more calls to the bootloader past creating the system
-	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
+	// expect 1 more call to bootloader.SetBootVars, since we're marking this
+	// system as seeded
+	c.Check(s.bootloader.SetBootVarsCalls, Equals, 1)
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"), testutil.FileAbsent)
 }
 
@@ -1555,7 +1568,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	tSnapsup1.Set("snap-setup", snapsupFoo)
 	tSnapsup2.Set("snap-setup", snapsupBar)
 
-	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", []string{tSnapsup1.ID(), tSnapsup2.ID()})
+	const testSystem = true
+	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", []string{tSnapsup1.ID(), tSnapsup2.ID()}, nil, nil, testSystem)
 	c.Assert(err, IsNil)
 	tsks := tss.Tasks()
 	c.Check(tsks, HasLen, 2)
@@ -1570,6 +1584,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 		"label":            "1234",
 		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"),
 		"snap-setup-tasks": []interface{}{tSnapsup1.ID(), tSnapsup2.ID()},
+		"test-system":      true,
 	})
 	tss.WaitFor(tSnapsup1)
 	tss.WaitFor(tSnapsup2)
@@ -1703,7 +1718,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
 	})
-	// no more calls to the bootloader past creating the system
+	// since this is part of a remodel, we don't expect any more calls to
+	// SetBootVars
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"), testutil.FileAbsent)
 }
@@ -1716,7 +1732,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 
 	s.state.Lock()
 
-	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", nil)
+	const testSystem = true
+	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", nil, nil, nil, testSystem)
 	c.Assert(err, IsNil)
 	tsks := tss.Tasks()
 	c.Check(tsks, HasLen, 2)
@@ -1732,6 +1749,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 		"label":            "1234",
 		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"),
 		"snap-setup-tasks": nil,
+		"test-system":      true,
 	})
 	// add the test tasks to the change
 	chg := s.state.NewChange("create-recovery-system", "create recovery system")
@@ -1907,7 +1925,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
 	})
-	// no more calls to the bootloader past creating the system
+	// since this is part of a remodel, we don't expect any more calls to
+	// SetBootVars
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"), testutil.FileAbsent)
 }
@@ -1927,7 +1946,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	}
 	tSnapsup1.Set("snap-setup", snapsupFoo)
 
-	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234missingdownload", []string{tSnapsup1.ID()})
+	const testSystem = true
+	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234missingdownload", []string{tSnapsup1.ID()}, nil, nil, testSystem)
 	c.Assert(err, IsNil)
 	tsks := tss.Tasks()
 	c.Check(tsks, HasLen, 2)
@@ -1942,6 +1962,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 		"label":            "1234missingdownload",
 		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234missingdownload"),
 		"snap-setup-tasks": []interface{}{tSnapsup1.ID()},
+		"test-system":      true,
 	})
 	tss.WaitFor(tSnapsup1)
 	// add the test task to the change
@@ -2006,7 +2027,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 	devicestate.SetBootOkRan(s.mgr, true)
 
 	s.state.Lock()
-	chg, err := devicestate.CreateRecoverySystem(s.state, "1234undo")
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234undo", devicestate.CreateRecoverySystemOptions{
+		TestSystem: true,
+	})
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
 	tsks := chg.Tasks()
@@ -2108,8 +2131,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
 	})
-	// no more calls to the bootloader
-	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
+	// expect 1 more call to bootloader.SetBootVars, since we're marking this
+	// system as seeded
+	c.Check(s.bootloader.SetBootVarsCalls, Equals, 1)
 	// system directory was removed
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234undo"), testutil.FileAbsent)
 	// only the canary files are left now
@@ -2125,7 +2149,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 	devicestate.SetBootOkRan(s.mgr, true)
 
 	s.state.Lock()
-	chg, err := devicestate.CreateRecoverySystem(s.state, "1234")
+
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+		TestSystem: true,
+	})
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
 	tsks := chg.Tasks()
@@ -2227,7 +2254,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemErrCl
 	devicestate.SetBootOkRan(s.mgr, true)
 
 	s.state.Lock()
-	chg, err := devicestate.CreateRecoverySystem(s.state, "1234error")
+
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234error", devicestate.CreateRecoverySystemOptions{
+		TestSystem: true,
+	})
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
 	tsks := chg.Tasks()
@@ -2298,7 +2328,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemReboo
 	devicestate.SetBootOkRan(s.mgr, true)
 
 	s.state.Lock()
-	chg, err := devicestate.CreateRecoverySystem(s.state, "1234reboot")
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234reboot", devicestate.CreateRecoverySystemOptions{
+		TestSystem: true,
+	})
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
 	tsks := chg.Tasks()

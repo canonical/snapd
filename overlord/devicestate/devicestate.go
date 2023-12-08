@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -52,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snapfile"
 )
 
 var (
@@ -60,6 +62,7 @@ var (
 	snapstateUpdateWithDeviceContext      = snapstate.UpdateWithDeviceContext
 	snapstateSwitch                       = snapstate.Switch
 	snapstateUpdatePathWithDeviceContext  = snapstate.UpdatePathWithDeviceContext
+	snapstateDownload                     = snapstate.Download
 )
 
 // findModel returns the device model assertion.
@@ -1127,7 +1130,10 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		if err != nil {
 			return nil, fmt.Errorf("cannot select non-conflicting label for recovery system %q: %v", labelBase, err)
 		}
-		createRecoveryTasks, err := createRecoverySystemTasks(st, label, snapSetupTasks)
+		const testSystem = true
+		// we don't pass in the list of local snaps here because they are
+		// already represented by snapSetupTasks
+		createRecoveryTasks, err := createRecoverySystemTasks(st, label, snapSetupTasks, nil, nil, testSystem)
 		if err != nil {
 			return nil, err
 		}
@@ -1199,14 +1205,14 @@ func verifyModelValidationSets(st *state.State, newModel *asserts.Model, offline
 		return nil, err
 	}
 
-	if err := checkForRequiredSnapsNotInModel(newModel, vSets); err != nil {
+	if err := checkForRequiredSnapsNotRequiredInModel(newModel, vSets); err != nil {
 		return nil, err
 	}
 
 	return vSets, nil
 }
 
-func checkForRequiredSnapsNotInModel(model *asserts.Model, vSets *snapasserts.ValidationSets) error {
+func checkForRequiredSnapsNotRequiredInModel(model *asserts.Model, vSets *snapasserts.ValidationSets) error {
 	snapsInModel := make(map[string]bool, len(model.RequiredWithEssentialSnaps()))
 	for _, sn := range model.RequiredWithEssentialSnaps() {
 		snapsInModel[sn.SnapName()] = true
@@ -1221,13 +1227,29 @@ func checkForRequiredSnapsNotInModel(model *asserts.Model, vSets *snapasserts.Va
 	return nil
 }
 
+func checkAllSnapsFromModelInValidationSets(model *asserts.Model, vSets *snapasserts.ValidationSets) error {
+	if len(vSets.Keys()) == 0 {
+		return nil
+	}
+
+	for _, sn := range model.AllSnaps() {
+		if !vSets.SnapConstrained(sn) {
+			return fmt.Errorf("snap presence is not constained by a validation set: %s", sn.SnapName())
+		}
+
+		if !vSets.CanBePresent(sn) {
+			return fmt.Errorf("snap presence is marked invalid by validation set: %s", sn.SnapName())
+		}
+	}
+	return nil
+}
+
 func checkForInvalidSnapsInModel(model *asserts.Model, vSets *snapasserts.ValidationSets) error {
 	for _, sn := range model.AllSnaps() {
 		if !vSets.CanBePresent(sn) {
 			return fmt.Errorf("snap presence is invalid: %s", sn.SnapName())
 		}
 	}
-
 	return nil
 }
 
@@ -1438,9 +1460,20 @@ type recoverySystemSetup struct {
 	// are kept, typically /run/mnt/ubuntu-seed/systems/<label>, set when
 	// tasks are created
 	Directory string `json:"directory"`
-	// SnapSetupTasks is a list of task IDs that carry snap setup
-	// information, relevant only during remodel, set when tasks are created
+	// SnapSetupTasks is a list of task IDs that carry snap setup information.
+	// Tasks could come from a remodel, or from downloading snaps that were
+	// required by a validation set.
 	SnapSetupTasks []string `json:"snap-setup-tasks"`
+	// LocalSnaps is a list of snap.SideInfo structs that represent snaps thtat
+	// should be used to create the recovery system.
+	LocalSnaps []*snap.SideInfo `json:"local-snaps,omitempty"`
+	// LocalSnapPaths is a list of paths to snaps that corresponds to the list
+	// of snap.SideInfo structs in SideInfos.
+	LocalSnapPaths []string `json:"local-snap-paths,omitempty"`
+	// TestSystem is set to true if the new recovery system should
+	// not be verified by rebooting into the new system. Once the system is
+	// created, it will immediately be considered a valid recovery system.
+	TestSystem bool `json:"test-system,omitempty"`
 }
 
 func pickRecoverySystemLabel(labelBase string) (string, error) {
@@ -1472,7 +1505,15 @@ func pickRecoverySystemLabel(labelBase string) (string, error) {
 	return fmt.Sprintf("%s-%d", labelBase, maxExistingNumber+1), nil
 }
 
-func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []string) (*state.TaskSet, error) {
+func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []string, localSideInfos []*snap.SideInfo, localPaths []string, testSystem bool) (*state.TaskSet, error) {
+	if len(localSideInfos) != len(localPaths) {
+		return nil, fmt.Errorf("internal error: list of side infos must be same length as list of paths")
+	}
+
+	if len(localSideInfos) > 0 && len(snapSetupTasks) > 0 {
+		return nil, fmt.Errorf("internal error: cannot create recovery system with both local snaps and snap setup tasks")
+	}
+
 	// precondition check, the directory should not exist yet
 	systemDirectory := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label)
 	exists, _, err := osutil.DirExists(systemDirectory)
@@ -1490,33 +1531,322 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []s
 		Directory: systemDirectory,
 		// IDs of the tasks carrying snap-setup
 		SnapSetupTasks: snapSetupTasks,
+		LocalSnaps:     localSideInfos,
+		LocalSnapPaths: localPaths,
+		TestSystem:     testSystem,
 	})
-	// Create recovery system requires us to boot into it before finalize
-	restart.MarkTaskAsRestartBoundary(create, restart.RestartBoundaryDirectionDo)
 
-	finalize := st.NewTask("finalize-recovery-system", fmt.Sprintf("Finalize recovery system with label %q", label))
-	finalize.WaitFor(create)
-	// finalize needs to know the label too
-	finalize.Set("recovery-system-setup-task", create.ID())
-	return state.NewTaskSet(create, finalize), nil
+	ts := state.NewTaskSet(create)
+
+	if testSystem {
+		// Create recovery system requires us to boot into it before finalize
+		restart.MarkTaskAsRestartBoundary(create, restart.RestartBoundaryDirectionDo)
+
+		finalize := st.NewTask("finalize-recovery-system", fmt.Sprintf("Finalize recovery system with label %q", label))
+		finalize.WaitFor(create)
+		// finalize needs to know the label too
+		finalize.Set("recovery-system-setup-task", create.ID())
+
+		ts.AddTask(finalize)
+	}
+
+	return ts, nil
 }
 
-func CreateRecoverySystem(st *state.State, label string) (*state.Change, error) {
+// CreateRecoverySystemOptions is the set of options that can be used with
+// CreateRecoverySystem.
+type CreateRecoverySystemOptions struct {
+	// ValidationSets is a list of validation sets to use when creating the new
+	// recovery system. If provided, all snaps used to create recovery system
+	// will follow the constraints imposed by the validation sets. If required
+	// snaps are not present on the system, and LocalSnapSideInfos is not
+	// provided, then the snaps will be downloaded. Note that if validation sets
+	// are provided, all snaps in the model must be constrained by a validation
+	// set.
+	ValidationSets []*asserts.ValidationSet
+
+	// LocalSnapSideInfos is an optional list of snaps that will be used to
+	// create the new recovery system. If provided, this list must contain any
+	// snap that is not already installed that will be needed by the new recovery
+	// system.
+	LocalSnapSideInfos []*snap.SideInfo
+
+	// LocalSnapPaths is a list of paths to snaps that corresponds to the list
+	// of snap.SideInfo structs in SideInfos. It must be the same length as
+	// LocalSnapSideInfos.
+	LocalSnapPaths []string
+
+	// TestSystem is set to true if the new recovery system should be verified
+	// by rebooting into the new system, prior to marking it as a valid recovery
+	// system. If false, the system will immediately be considered a valid
+	// recovery system.
+	TestSystem bool
+}
+
+var ErrNoRecoverySystem = errors.New("recovery system does not exist")
+
+// CreateRecoverySystem creates a new recovery system with the given label. See
+// CreateRecoverySystemOptions for details on the options that can be provided.
+func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySystemOptions) (chg *state.Change, err error) {
 	var seeded bool
-	err := st.Get("seeded", &seeded)
+	err = st.Get("seeded", &seeded)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if !seeded {
 		return nil, fmt.Errorf("cannot create new recovery systems until fully seeded")
 	}
-	chg := st.NewChange("create-recovery-system", fmt.Sprintf("Create new recovery system with label %q", label))
-	ts, err := createRecoverySystemTasks(st, label, nil)
+
+	valsets := snapasserts.NewValidationSets()
+	for _, vs := range opts.ValidationSets {
+		if err := valsets.Add(vs); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := valsets.Conflict(); err != nil {
+		return nil, err
+	}
+
+	revisions, err := valsets.Revisions()
 	if err != nil {
 		return nil, err
 	}
-	chg.AddAll(ts)
+
+	model, err := findModel(st)
+	if err != nil {
+		return nil, err
+	}
+
+	// check that all snaps from the model are constained by a validation set
+	// and check that all snaps from the model are valid in the validation sets.
+	if err := checkAllSnapsFromModelInValidationSets(model, valsets); err != nil {
+		return nil, err
+	}
+
+	// snaps required by validation sets must also be required by the model
+	if err := checkForRequiredSnapsNotRequiredInModel(model, valsets); err != nil {
+		return nil, err
+	}
+
+	modelSnaps := model.AllSnaps()
+	modelSnapNames := make(map[string]bool, len(modelSnaps))
+
+	allRequiredSnapNames := make(map[string]bool)
+
+	var downloadTSS []*state.TaskSet
+	for _, sn := range modelSnaps {
+		modelSnapNames[sn.Name] = true
+		allRequiredSnapNames[sn.Name] = true
+
+		requiredRev := revisions[sn.Name]
+
+		needsInstall, err := snapNeedsInstall(st, sn.Name, requiredRev)
+		if err != nil {
+			return nil, err
+		}
+
+		if !needsInstall {
+			continue
+		}
+
+		ts, prereqs, err := tasksAndPrereqsForSnap(st, sn, requiredRev, valsets, opts)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, p := range prereqs {
+			allRequiredSnapNames[p] = true
+		}
+
+		if ts != nil {
+			downloadTSS = append(downloadTSS, ts)
+		}
+	}
+
+	if missing := stringsNotInSet(allRequiredSnapNames, modelSnapNames); len(missing) > 0 {
+		return nil, fmt.Errorf(
+			"cannot create recovery system from a model that does not contain all required snaps: missing snaps: %v", missing,
+		)
+	}
+
+	var snapsupTaskIDs []string
+	if len(downloadTSS) > 0 {
+		snapsupTaskIDs, err = extractSnapSetupTaskIDs(downloadTSS)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	chg = st.NewChange("create-recovery-system", fmt.Sprintf("Create new recovery system with label %q", label))
+	createTS, err := createRecoverySystemTasks(st, label, snapsupTaskIDs, opts.LocalSnapSideInfos, opts.LocalSnapPaths, opts.TestSystem)
+	if err != nil {
+		return nil, err
+	}
+
+	chg.AddAll(createTS)
+
+	for _, ts := range downloadTSS {
+		createTS.WaitAll(ts)
+		chg.AddAll(ts)
+	}
+
 	return chg, nil
+}
+
+// tasksAndPrereqsForSnap returns the *state.TaskSet that will download a snap
+// to be used in the creation of a recovery system. If any snaps are provided
+// locally via opts.LocalSnapSideInfos, then the returned *state.TaskSet will be
+// nil. A slice of prerequisite snaps that the snap requires is also returned.
+func tasksAndPrereqsForSnap(st *state.State, modelSnap *asserts.ModelSnap, rev snap.Revision, vsets *snapasserts.ValidationSets, opts CreateRecoverySystemOptions) (*state.TaskSet, []string, error) {
+	// we're in an online context if this is true
+	if len(opts.LocalSnapSideInfos) == 0 {
+		// TODO: this probably shouldn't be dirs.SnapBlobDir, also should this context come from the http request?
+		const userID = 0
+		ts, _, err := snapstateDownload(context.TODO(), st, modelSnap.Name, dirs.SnapBlobDir, &snapstate.RevisionOptions{
+			Channel:        modelSnap.DefaultChannel,
+			Revision:       rev,
+			ValidationSets: vsets.Keys(),
+		}, userID, snapstate.Flags{}, nil)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		prereqs, err := extractPrereqsFromTaskSet(ts)
+		if err != nil {
+			return nil, nil, err
+		}
+		return ts, prereqs, nil
+	}
+
+	index := -1
+	for i, si := range opts.LocalSnapSideInfos {
+		if modelSnap.ID() == si.SnapID {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return nil, nil, fmt.Errorf(
+			"missing snap from local snaps provided for offline creation of recovery system: %q, rev %v", modelSnap.Name, rev,
+		)
+	}
+
+	si := opts.LocalSnapSideInfos[index]
+	path := opts.LocalSnapPaths[index]
+
+	if !rev.Unset() && rev != si.Revision {
+		return nil, nil, fmt.Errorf(
+			"snap %q does not match revision required by validation sets: %v != %v", si.RealName, si.Revision, rev,
+		)
+	}
+
+	prereqs, err := extractPrereqsFromSideInfoAndPath(si, path)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, prereqs, nil
+}
+
+func snapNeedsInstall(st *state.State, name string, rev snap.Revision) (bool, error) {
+	info, err := snapstate.CurrentInfo(st, name)
+	if err != nil {
+		if isNotInstalled(err) {
+			return true, nil
+		}
+		return false, err
+	}
+
+	if rev.Unset() {
+		return false, nil
+	}
+
+	return rev != info.Revision, nil
+}
+
+func stringsNotInSet(reference map[string]bool, target map[string]bool) []string {
+	var missing []string
+	for k := range reference {
+		if !target[k] {
+			missing = append(missing, k)
+		}
+	}
+
+	// sort this for test consistency
+	sort.Strings(missing)
+
+	return missing
+}
+
+func extractPrereqsFromSideInfoAndPath(si *snap.SideInfo, path string) ([]string, error) {
+	sn, err := snapfile.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := snap.ReadInfoFromSnapFile(sn, si)
+	if err != nil {
+		return nil, err
+	}
+
+	providers := snap.NeededDefaultProviders(info)
+
+	// prereqs + base
+	prereqs := make([]string, 0, len(providers)+1)
+
+	if info.Base != "" {
+		prereqs = append(prereqs, info.Base)
+	}
+
+	for p := range providers {
+		prereqs = append(prereqs, p)
+	}
+
+	return prereqs, nil
+}
+
+func extractPrereqsFromTaskSet(ts *state.TaskSet) ([]string, error) {
+	if len(ts.Tasks()) == 0 {
+		return nil, errors.New("internal error: task set has no tasks")
+	}
+
+	// any task in the set will either have the snap-setup or will reference it
+	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+	if err != nil {
+		return nil, err
+	}
+
+	// prereqs + base
+	prereqs := make([]string, 0, len(snapsup.PrereqContentAttrs)+1)
+
+	if snapsup.Base != "" {
+		prereqs = append(prereqs, snapsup.Base)
+	}
+
+	for p := range snapsup.PrereqContentAttrs {
+		prereqs = append(prereqs, p)
+	}
+
+	return prereqs, nil
+}
+
+func extractSnapSetupTaskIDs(tss []*state.TaskSet) ([]string, error) {
+	var taskIDs []string
+	for _, ts := range tss {
+		found := false
+		for _, t := range ts.Tasks() {
+			if t.Has("snap-setup") {
+				taskIDs = append(taskIDs, t.ID())
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return nil, errors.New("internal error: snap setup task missing from task set")
+		}
+	}
+	return taskIDs, nil
 }
 
 // InstallFinish creates a change that will finish the install for the given

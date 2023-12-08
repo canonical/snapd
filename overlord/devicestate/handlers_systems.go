@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -37,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -141,42 +143,64 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 	if err != nil {
 		return fmt.Errorf("internal error: cannot obtain recovery system setup information")
 	}
+
+	if len(setup.LocalSnaps) != len(setup.LocalSnapPaths) {
+		return fmt.Errorf("internal error: number of side infos and paths must match")
+	}
+
 	label := setup.Label
 	systemDirectory := setup.Directory
 
 	// get all infos
-	infoGetter := func(name string) (info *snap.Info, present bool, err error) {
-		// snaps are either being fetched or present in the system
+	infoGetter := func(name string) (info *snap.Info, path string, present bool, err error) {
+		// snaps will come from one of these places:
+		//   * passed into the task via a list of side infos (these would have
+		//     come from a user posting snaps via the API)
+		//   * have just been downloaded by a task in setup.SnapSetupTasks
+		//   * already installed on the system
 
-		if isRemodel {
-			// in a remodel scenario, the snaps may need to be
-			// fetched and thus their content can be different from
-			// what we have in already installed snaps, so we should
-			// first check the download tasks before consulting
-			// snapstate
-			logger.Debugf("requested info for snap %q being installed during remodel", name)
-			for _, tskID := range setup.SnapSetupTasks {
-				taskWithSnapSetup := st.Task(tskID)
-				snapsup, err := snapstate.TaskSnapSetup(taskWithSnapSetup)
-				if err != nil {
-					return nil, false, err
-				}
-				if snapsup.SnapName() != name {
-					continue
-				}
-				// by the time this task runs, the file has already been
-				// downloaded and validated
-				snapFile, err := snapfile.Open(snapsup.MountFile())
-				if err != nil {
-					return nil, false, err
-				}
-				info, err = snap.ReadInfoFromSnapFile(snapFile, snapsup.SideInfo)
-				if err != nil {
-					return nil, false, err
-				}
-
-				return info, true, nil
+		for i, si := range setup.LocalSnaps {
+			if si.RealName != name {
+				continue
 			}
+
+			path := setup.LocalSnapPaths[i]
+
+			// TODO: need to verify the snaps at some point?
+			info, _, err := backend.OpenSnapFile(path, si)
+			if err != nil {
+				return nil, "", false, err
+			}
+
+			return info, path, true, nil
+		}
+
+		// in a remodel scenario, the snaps may need to be fetched and thus
+		// their content can be different from what we have in already installed
+		// snaps, so we should first check the download tasks before consulting
+		// snapstate
+		logger.Debugf("requested info for snap %q being installed during remodel", name)
+		for _, tskID := range setup.SnapSetupTasks {
+			taskWithSnapSetup := st.Task(tskID)
+			snapsup, err := snapstate.TaskSnapSetup(taskWithSnapSetup)
+			if err != nil {
+				return nil, "", false, err
+			}
+			if snapsup.SnapName() != name {
+				continue
+			}
+			// by the time this task runs, the file has already been
+			// downloaded and validated
+			snapFile, err := snapfile.Open(snapsup.MountFile())
+			if err != nil {
+				return nil, "", false, err
+			}
+			info, err = snap.ReadInfoFromSnapFile(snapFile, snapsup.SideInfo)
+			if err != nil {
+				return nil, "", false, err
+			}
+
+			return info, info.MountFile(), true, nil
 		}
 
 		// either a remodel scenario, in which case the snap is not
@@ -188,15 +212,15 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 		if err == nil {
 			hash, _, err := asserts.SnapFileSHA3_384(info.MountFile())
 			if err != nil {
-				return nil, true, fmt.Errorf("cannot compute SHA3 of snap file: %v", err)
+				return nil, "", true, fmt.Errorf("cannot compute SHA3 of snap file: %v", err)
 			}
 			info.Sha3_384 = hash
-			return info, true, nil
+			return info, info.MountFile(), true, nil
 		}
 		if _, ok := err.(*snap.NotInstalledError); !ok {
-			return nil, false, err
+			return nil, "", false, err
 		}
-		return nil, false, nil
+		return nil, "", false, nil
 	}
 
 	observeSnapFileWrite := func(recoverySystemDir, where string) error {
@@ -262,6 +286,21 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 	if err := setTaskRecoverySystemSetup(t, setup); err != nil {
 		return fmt.Errorf("cannot record recovery system setup state: %v", err)
 	}
+
+	// if the caller did not request to test the system, then we immediately
+	// promote the system and mark it as ready to use
+	if !setup.TestSystem {
+		if err := boot.PromoteTriedRecoverySystem(remodelCtx, label, []string{label}); err != nil {
+			return fmt.Errorf("cannot promote recovery system %q: %v", label, err)
+		}
+
+		if err := boot.MarkRecoveryCapableSystem(label); err != nil {
+			return fmt.Errorf("cannot mark system %q as recovery capable", label)
+		}
+
+		return nil
+	}
+
 	// 3. set up boot variables for tracking the tried system state
 	if err := boot.SetTryRecoverySystem(remodelCtx, label); err != nil {
 		// rollback?
@@ -366,8 +405,31 @@ func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tom
 		// complete the whole remodel change
 		logger.Debugf("recovery system created during remodel will be promoted later")
 	} else {
+		logger.Debugf("promoting recovery system %q", label)
+
 		if err := boot.PromoteTriedRecoverySystem(remodelCtx, label, triedSystems); err != nil {
 			return fmt.Errorf("cannot promote recovery system %q: %v", label, err)
+		}
+
+		model := remodelCtx.Model()
+
+		// TODO: do we always want to do this? this'll essentially make this the
+		// "current" recovery system. maybe we want to expose doing this as an
+		// option.
+		//
+		// TODO: if we do this, i think we'll need to undo this in the undo handler
+		if err := m.recordSeededSystem(st, &seededSystem{
+			System:    label,
+			Model:     model.Model(),
+			BrandID:   model.BrandID(),
+			Revision:  model.Revision(),
+			Timestamp: model.Timestamp(),
+			SeedTime:  time.Now(),
+		}); err != nil {
+			return fmt.Errorf("cannot record a new seeded system: %v", err)
+		}
+		if err := boot.MarkRecoveryCapableSystem(label); err != nil {
+			return fmt.Errorf("cannot mark system %q as recovery capable", label)
 		}
 
 		// tried systems should be a one item list, we can clear it now
@@ -412,6 +474,13 @@ func (m *DeviceManager) cleanupRecoverySystem(t *state.Task, _ *tomb.Tomb) error
 	if err != nil {
 		return err
 	}
+
+	// if we're testing the system and this is run after create-recovery-system,
+	// then we can defer running cleanup until after finalize-recovery-system
+	if setup.TestSystem && t.Kind() == "create-recovery-system" {
+		return nil
+	}
+
 	if err := os.Remove(filepath.Join(setup.Directory, "snapd-new-file-log")); err != nil && !os.IsNotExist(err) {
 		return err
 	}
