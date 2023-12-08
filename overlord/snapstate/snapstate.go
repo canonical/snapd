@@ -1268,7 +1268,7 @@ func InstallPathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name
 	logger.Debugf("installing from local file with device context %s", name)
 
 	if !opts.Revision.Unset() && si.Revision != opts.Revision {
-		return nil, fmt.Errorf("cannot install local snap with mismatch required revision: %v != %v", opts.Revision, si.Revision)
+		return nil, fmt.Errorf("cannot install local snap %q: %v != %v (revision mismatch)", name, opts.Revision, si.Revision)
 	}
 
 	snapInstallInfo := func(DeviceContext, *RevisionOptions) (info *snap.Info, snapPath, redirectChannel string, e error) {
@@ -2407,7 +2407,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 // system modifications.
 func UpdatePathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name string, opts *RevisionOptions, userID int, flags Flags, prqt PrereqTracker, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
 	if !opts.Revision.Unset() && si.Revision != opts.Revision {
-		return nil, fmt.Errorf("cannot install local snap with mismatch required revision: %v != %v", opts.Revision, si.Revision)
+		return nil, fmt.Errorf("cannot install local snap %q: %v != %v (revision mismatch)", name, opts.Revision, si.Revision)
 	}
 	snapUpdateInfo := func(dc DeviceContext, ro *RevisionOptions, fl Flags, snapst *SnapState) ([]minimalInstallInfo, error) {
 		toUpdate := []minimalInstallInfo{}
