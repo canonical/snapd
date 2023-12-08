@@ -328,7 +328,7 @@ func createRecovery(st *state.State, label string) Response {
 	if label == "" {
 		return BadRequest("cannot create a recovery system with no label")
 	}
-	chg, err := devicestate.CreateRecoverySystem(st, label)
+	chg, err := devicestate.CreateRecoverySystem(st, label, devicestate.CreateRecoverySystemOptions{})
 	if err != nil {
 		return InternalError("cannot create recovery system %q: %v", label, err)
 	}
