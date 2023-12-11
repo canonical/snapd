@@ -1102,10 +1102,11 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		if err != nil {
 			return nil, fmt.Errorf("cannot select non-conflicting label for recovery system %q: %v", labelBase, err)
 		}
-		const testSystem = true
 		// we don't pass in the list of local snaps here because they are
 		// already represented by snapSetupTasks
-		createRecoveryTasks, err := createRecoverySystemTasks(st, label, snapSetupTasks, nil, nil, testSystem)
+		createRecoveryTasks, err := createRecoverySystemTasks(st, label, snapSetupTasks, CreateRecoverySystemOptions{
+			TestSystem: true,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -1391,6 +1392,9 @@ type recoverySystemSetup struct {
 	// not be verified by rebooting into the new system. Once the system is
 	// created, it will immediately be considered a valid recovery system.
 	TestSystem bool `json:"test-system,omitempty"`
+	// MarkCurrent is set to true if the new recovery system should be
+	// marked as the current recovery system.
+	MarkCurrent bool `json:"mark-current,omitempty"`
 }
 
 func pickRecoverySystemLabel(labelBase string) (string, error) {
@@ -1422,12 +1426,12 @@ func pickRecoverySystemLabel(labelBase string) (string, error) {
 	return fmt.Sprintf("%s-%d", labelBase, maxExistingNumber+1), nil
 }
 
-func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []string, localSideInfos []*snap.SideInfo, localPaths []string, testSystem bool) (*state.TaskSet, error) {
-	if len(localSideInfos) != len(localPaths) {
+func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []string, opts CreateRecoverySystemOptions) (*state.TaskSet, error) {
+	if len(opts.LocalSnapSideInfos) != len(opts.LocalSnapPaths) {
 		return nil, fmt.Errorf("internal error: list of side infos must be same length as list of paths")
 	}
 
-	if len(localSideInfos) > 0 && len(snapSetupTasks) > 0 {
+	if len(opts.LocalSnapSideInfos) > 0 && len(snapSetupTasks) > 0 {
 		return nil, fmt.Errorf("internal error: cannot create recovery system with both local snaps and snap setup tasks")
 	}
 
@@ -1448,14 +1452,15 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []s
 		Directory: systemDirectory,
 		// IDs of the tasks carrying snap-setup
 		SnapSetupTasks: snapSetupTasks,
-		LocalSnaps:     localSideInfos,
-		LocalSnapPaths: localPaths,
-		TestSystem:     testSystem,
+		LocalSnaps:     opts.LocalSnapSideInfos,
+		LocalSnapPaths: opts.LocalSnapPaths,
+		TestSystem:     opts.TestSystem,
+		MarkCurrent:    opts.MarkCurrent,
 	})
 
 	ts := state.NewTaskSet(create)
 
-	if testSystem {
+	if opts.TestSystem {
 		// Create recovery system requires us to boot into it before finalize
 		restart.MarkTaskAsRestartBoundary(create, restart.RestartBoundaryDirectionDo)
 
@@ -1498,6 +1503,10 @@ type CreateRecoverySystemOptions struct {
 	// system. If false, the system will immediately be considered a valid
 	// recovery system.
 	TestSystem bool
+
+	// MarkCurrent is set to true if the new recovery system should be
+	// marked as the current system.
+	MarkCurrent bool
 }
 
 var ErrNoRecoverySystem = errors.New("recovery system does not exist")
@@ -1596,7 +1605,7 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 	}
 
 	chg = st.NewChange("create-recovery-system", fmt.Sprintf("Create new recovery system with label %q", label))
-	createTS, err := createRecoverySystemTasks(st, label, snapsupTaskIDs, opts.LocalSnapSideInfos, opts.LocalSnapPaths, opts.TestSystem)
+	createTS, err := createRecoverySystemTasks(st, label, snapsupTaskIDs, opts)
 	if err != nil {
 		return nil, err
 	}
