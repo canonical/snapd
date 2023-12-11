@@ -1,13 +1,12 @@
-summary: Ensure that commands run when their core provided interfaces are connected
+summary: Ensure the system handles properly a big number of core provided connections
 
 details: |
     Install a test snap that plugs as many core provided interfaces as is 
-    possible and verify the command can run (ie, don't test the interface 
-    functionality itself). This will help catch things like AppArmor 
-    policy syntax errors, seccomp policy parsing, udev querying bugs, etc.
+    possible and verify the command can run. This will help catch performance
+    issues in snapd, AppArmor,seccomp policy parsing, etc.
 
 environment:
-    CONSUMER_SNAP: test-snapd-policy-app-consumer    
+    CONSUMER_SNAP: test-snapd-policy-app-consumer
 
 prepare: |
     echo "Given a snap is installed"
@@ -26,11 +25,6 @@ restore: |
     if tests.session has-session-systemd-and-dbus; then
         tests.session -u test restore
     fi
-
-debug: |
-    # get the full journal to see any out-of-memory errors
-    # shellcheck disable=SC2119
-    "$TESTSTOOLS"/journal-state get-log
 
 execute: |
     echo "For each core-provided slot"
