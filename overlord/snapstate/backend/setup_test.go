@@ -461,7 +461,7 @@ type: test
 version: 1.0
 `, snapName, compName)
 
-	compPath := makeTestComponent(c, componentYaml)
+	compPath := snaptest.MakeTestComponent(c, componentYaml)
 	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, instanceName, snapRev)
 
 	installRecord, err := s.be.SetupComponent(compPath, cpi, mockDev, progress.Null)
@@ -521,7 +521,7 @@ type: test
 version: 1.0
 `, snapName, compName)
 
-	compPath := makeTestComponent(c, componentYaml)
+	compPath := snaptest.MakeTestComponent(c, componentYaml)
 
 	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapName, snapRev)
 

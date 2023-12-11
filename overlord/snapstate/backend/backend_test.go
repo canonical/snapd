@@ -43,12 +43,6 @@ func makeTestSnap(c *C, snapYamlContent string) string {
 	return snaptest.MakeTestSnapWithFiles(c, snapYamlContent, files)
 }
 
-func makeTestComponent(c *C, compYaml string) string {
-	compInfo, err := snap.InfoFromComponentYaml([]byte(compYaml))
-	c.Assert(err, IsNil)
-	return snaptest.MakeTestComponentWithFiles(c, compInfo.FullName()+".comp", compYaml, nil)
-}
-
 type backendSuite struct {
 	testutil.BaseTest
 }
@@ -118,7 +112,7 @@ type: test
 version: 33
 `
 
-	compPath := makeTestComponent(c, componentYaml)
+	compPath := snaptest.MakeTestComponent(c, componentYaml)
 	compInfo, cont, err := backend.OpenComponentFile(compPath)
 	c.Assert(err, IsNil)
 
