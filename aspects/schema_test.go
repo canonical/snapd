@@ -1834,32 +1834,39 @@ func (*schemaSuite) TestUnexpectedTypes(c *C) {
 	type testcase struct {
 		schemaType   string
 		expectedType string
+		testValue    interface{}
 	}
 
 	tcs := []testcase{
 		{
 			schemaType:   `{"type": "array", "values": "any"}`,
 			expectedType: "array",
+			testValue:    true,
 		},
 		{
 			schemaType:   `{"type": "map", "values": "any"}`,
 			expectedType: "map",
+			testValue:    true,
 		},
 		{
 			schemaType:   `"int"`,
 			expectedType: "int",
+			testValue:    true,
 		},
 		{
 			schemaType:   `"number"`,
 			expectedType: "number",
+			testValue:    true,
 		},
 		{
 			schemaType:   `"string"`,
 			expectedType: "string",
+			testValue:    true,
 		},
 		{
 			schemaType:   `"bool"`,
 			expectedType: "bool",
+			testValue:    `"bar"`,
 		},
 	}
 
@@ -1872,17 +1879,8 @@ func (*schemaSuite) TestUnexpectedTypes(c *C) {
 		schema, err := aspects.ParseSchema(schemaStr)
 		c.Assert(err, IsNil)
 
-		var testValue, testType string
-		if tc.expectedType != "bool" {
-			testValue = "true"
-			testType = "bool"
-		} else {
-			testValue = `"bar"`
-			testType = "string"
-		}
-
-		input := []byte(fmt.Sprintf(`{"foo": %s}`, testValue))
+		input := []byte(fmt.Sprintf(`{"foo": %v}`, tc.testValue))
 		err = schema.Validate(input)
-		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept element in "foo": expected %s type but got %s`, tc.expectedType, testType))
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept element in "foo": expected %s type but got %T`, tc.expectedType, tc.testValue))
 	}
 }
