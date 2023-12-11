@@ -62,6 +62,11 @@ func NewComponentSideInfo(cref naming.ComponentRef, rev Revision) *ComponentSide
 	}
 }
 
+// Equals compares two ComponentSideInfo
+func (csi *ComponentSideInfo) Equals(other *ComponentSideInfo) bool {
+	return *csi == *other
+}
+
 // componentPlaceInfo holds information about where to put a component in the
 // system. It implements ContainerPlaceInfo and should be used only via this
 // interface.
