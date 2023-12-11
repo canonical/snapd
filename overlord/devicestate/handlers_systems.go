@@ -294,6 +294,19 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 			return fmt.Errorf("cannot promote recovery system %q: %v", label, err)
 		}
 
+		if setup.MarkCurrent {
+			if err := m.recordSeededSystem(st, &seededSystem{
+				System:    label,
+				Model:     model.Model(),
+				BrandID:   model.BrandID(),
+				Revision:  model.Revision(),
+				Timestamp: model.Timestamp(),
+				SeedTime:  time.Now(),
+			}); err != nil {
+				return fmt.Errorf("cannot record a new seeded system: %v", err)
+			}
+		}
+
 		if err := boot.MarkRecoveryCapableSystem(label); err != nil {
 			return fmt.Errorf("cannot mark system %q as recovery capable", label)
 		}
@@ -413,21 +426,20 @@ func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tom
 
 		model := remodelCtx.Model()
 
-		// TODO: do we always want to do this? this'll essentially make this the
-		// "current" recovery system. maybe we want to expose doing this as an
-		// option.
-		//
 		// TODO: if we do this, i think we'll need to undo this in the undo handler
-		if err := m.recordSeededSystem(st, &seededSystem{
-			System:    label,
-			Model:     model.Model(),
-			BrandID:   model.BrandID(),
-			Revision:  model.Revision(),
-			Timestamp: model.Timestamp(),
-			SeedTime:  time.Now(),
-		}); err != nil {
-			return fmt.Errorf("cannot record a new seeded system: %v", err)
+		if setup.MarkCurrent {
+			if err := m.recordSeededSystem(st, &seededSystem{
+				System:    label,
+				Model:     model.Model(),
+				BrandID:   model.BrandID(),
+				Revision:  model.Revision(),
+				Timestamp: model.Timestamp(),
+				SeedTime:  time.Now(),
+			}); err != nil {
+				return fmt.Errorf("cannot record a new seeded system: %v", err)
+			}
 		}
+
 		if err := boot.MarkRecoveryCapableSystem(label); err != nil {
 			return fmt.Errorf("cannot mark system %q as recovery capable", label)
 		}
