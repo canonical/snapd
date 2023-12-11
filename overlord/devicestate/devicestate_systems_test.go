@@ -1573,8 +1573,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	tSnapsup1.Set("snap-setup", snapsupFoo)
 	tSnapsup2.Set("snap-setup", snapsupBar)
 
-	const testSystem = true
-	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", []string{tSnapsup1.ID(), tSnapsup2.ID()}, nil, nil, testSystem)
+	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", []string{tSnapsup1.ID(), tSnapsup2.ID()}, devicestate.CreateRecoverySystemOptions{
+		TestSystem: true,
+	})
 	c.Assert(err, IsNil)
 	tsks := tss.Tasks()
 	c.Check(tsks, HasLen, 2)
@@ -1737,8 +1738,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 
 	s.state.Lock()
 
-	const testSystem = true
-	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", nil, nil, nil, testSystem)
+	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", nil, devicestate.CreateRecoverySystemOptions{
+		TestSystem: true,
+	})
 	c.Assert(err, IsNil)
 	tsks := tss.Tasks()
 	c.Check(tsks, HasLen, 2)
@@ -1951,8 +1953,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	}
 	tSnapsup1.Set("snap-setup", snapsupFoo)
 
-	const testSystem = true
-	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234missingdownload", []string{tSnapsup1.ID()}, nil, nil, testSystem)
+	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234missingdownload", []string{tSnapsup1.ID()}, devicestate.CreateRecoverySystemOptions{
+		TestSystem: true,
+	})
 	c.Assert(err, IsNil)
 	tsks := tss.Tasks()
 	c.Check(tsks, HasLen, 2)
@@ -2912,7 +2915,17 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	c.Check(vSetErr.Snaps[fakeSnapID("pc")].Error(), Equals, `cannot constrain snap "pc" at different revisions 12 (canonical/vset-1), 13 (canonical/vset-2)`)
 }
 
-func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemNoTestSystem(c *C) {
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemNoTestSystemMarkCurrent(c *C) {
+	const markCurrent = true
+	s.testDeviceManagerCreateRecoverySystemNoTestSystem(c, markCurrent)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemNoTestSystemNoMarkCurrent(c *C) {
+	const markCurrent = false
+	s.testDeviceManagerCreateRecoverySystemNoTestSystem(c, markCurrent)
+}
+
+func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemNoTestSystem(c *C, markCurrent bool) {
 	devicestate.SetBootOkRan(s.mgr, true)
 
 	s.state.Lock()
@@ -2922,7 +2935,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemNoTes
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
 	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
-		TestSystem: false,
+		TestSystem:  false,
+		MarkCurrent: markCurrent,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
@@ -2977,6 +2991,18 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemNoTes
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"), testutil.FileAbsent)
 
 	checkForSnapsInSeed(c, "snapd_4.snap", "pc-kernel_2.snap", "core20_3.snap", "pc_1.snap")
+
+	if markCurrent {
+		var systems []devicestate.SeededSystem
+		err := s.state.Get("seeded-systems", &systems)
+		c.Assert(err, IsNil)
+		c.Assert(systems, HasLen, 1)
+		c.Check(systems[0].System, Equals, "1234")
+	} else {
+		var systems []devicestate.SeededSystem
+		err := s.state.Get("seeded-systems", &systems)
+		c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+	}
 }
 
 func checkForSnapsInSeed(c *C, snaps ...string) {
@@ -2986,7 +3012,17 @@ func checkForSnapsInSeed(c *C, snaps ...string) {
 	}
 }
 
-func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsHappy(c *C) {
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsMarkCurrent(c *C) {
+	const markCurrent = true
+	s.testDeviceManagerCreateRecoverySystemValidationSetsHappy(c, markCurrent)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsNoMarkCurrent(c *C) {
+	const markCurrent = false
+	s.testDeviceManagerCreateRecoverySystemValidationSetsHappy(c, markCurrent)
+}
+
+func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValidationSetsHappy(c *C, markCurrent bool) {
 	devicestate.SetBootOkRan(s.mgr, true)
 
 	snapRevisions := map[string]snap.Revision{
@@ -3137,6 +3173,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		ValidationSets: []*asserts.ValidationSet{vset},
 		TestSystem:     true,
+		MarkCurrent:    markCurrent,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
@@ -3235,6 +3272,18 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	// system as seeded
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 1)
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"), testutil.FileAbsent)
+
+	if markCurrent {
+		var systems []devicestate.SeededSystem
+		err := s.state.Get("seeded-systems", &systems)
+		c.Assert(err, IsNil)
+		c.Assert(systems, HasLen, 1)
+		c.Check(systems[0].System, Equals, "1234")
+	} else {
+		var systems []devicestate.SeededSystem
+		err := s.state.Get("seeded-systems", &systems)
+		c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+	}
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsOffline(c *C) {
