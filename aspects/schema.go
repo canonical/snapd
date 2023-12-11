@@ -235,6 +235,10 @@ type mapSchema struct {
 func (v *mapSchema) Validate(raw []byte) error {
 	var mapValue map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &mapValue); err != nil {
+		typeErr := &json.UnmarshalTypeError{}
+		if errors.As(err, &typeErr) {
+			return validationErrorf("expected map type but got %s", typeErr.Value)
+		}
 		return validationErrorFrom(err)
 	}
 
@@ -487,7 +491,11 @@ func (v *stringSchema) Validate(raw []byte) (err error) {
 
 	var value *string
 	if err := json.Unmarshal(raw, &value); err != nil {
-		return fmt.Errorf("cannot parse string: %w", err)
+		typeErr := &json.UnmarshalTypeError{}
+		if errors.As(err, &typeErr) {
+			return fmt.Errorf("expected string type but got %s", typeErr.Value)
+		}
+		return err
 	}
 
 	if value == nil {
@@ -556,6 +564,10 @@ func (v *intSchema) Validate(raw []byte) (err error) {
 
 	var num *int64
 	if err := json.Unmarshal(raw, &num); err != nil {
+		typeErr := &json.UnmarshalTypeError{}
+		if errors.As(err, &typeErr) {
+			return fmt.Errorf("expected int type but got %s", typeErr.Value)
+		}
 		return err
 	}
 
@@ -657,6 +669,10 @@ func (v *numberSchema) Validate(raw []byte) (err error) {
 
 	var num *float64
 	if err := json.Unmarshal(raw, &num); err != nil {
+		typeErr := &json.UnmarshalTypeError{}
+		if errors.As(err, &typeErr) {
+			return fmt.Errorf("expected number type but got %s", typeErr.Value)
+		}
 		return err
 	}
 
@@ -754,6 +770,10 @@ func (v *booleanSchema) Validate(raw []byte) (err error) {
 
 	var val *bool
 	if err := json.Unmarshal(raw, &val); err != nil {
+		typeErr := &json.UnmarshalTypeError{}
+		if errors.As(err, &typeErr) {
+			return fmt.Errorf("expected bool type but got %s", typeErr.Value)
+		}
 		return err
 	}
 
@@ -786,6 +806,10 @@ type arraySchema struct {
 func (v *arraySchema) Validate(raw []byte) error {
 	var array *[]json.RawMessage
 	if err := json.Unmarshal(raw, &array); err != nil {
+		typeErr := &json.UnmarshalTypeError{}
+		if errors.As(err, &typeErr) {
+			return validationErrorf("expected array type but got %s", typeErr.Value)
+		}
 		return validationErrorFrom(err)
 	}
 
