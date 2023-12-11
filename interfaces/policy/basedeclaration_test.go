@@ -229,6 +229,7 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 	snowflakes := map[string]bool{
 		"classic-support": true,
 		"content":         true,
+		"cups-control":    true,
 		"home":            true,
 		"lxd-support":     true,
 		// netlink-driver needs the family-name attributes to match

@@ -4,7 +4,7 @@ show_help() {
     echo "usage: prepare"
     echo "       restore"
     echo "       build-image IMAGE-TYPE"
-    echo "       create-vm IMAGE-TYPE [--param-cdrom PARAM] [--param-mem PARAM]"
+    echo "       create-vm IMAGE-TYPE [--param-cdrom PARAM] [--param-cpus PARAM] [--param-mem PARAM]"
     echo "       is-nested [core|classic|uc16|uc18|uc20|uc22]"
     echo "       show [ATTRIBUTE]"
     echo "       vm <ACTION>"
@@ -131,7 +131,7 @@ create_vm() {
             ;;
     esac
 
-    local NESTED_PARAM_CD NESTED_PARAM_MEM NESTED_PARAM_EXTRA NESTED_TPM_NO_RESTART
+    local NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_TPM_NO_RESTART
     while [ $# -gt 0 ]; do
         case "$1" in
             --param-cdrom)
@@ -139,7 +139,11 @@ create_vm() {
                 shift 2
                 ;;
             --param-mem)
-                NESTED_PARAM_MEM="$2"
+                NESTED_MEM="$2"
+                shift 2
+                ;;
+            --param-cpus)
+                NESTED_CPUS="$2"
                 shift 2
                 ;;
             --extra-param)
@@ -157,9 +161,9 @@ create_vm() {
         esac
     done
 
-    export NESTED_PARAM_CD NESTED_PARAM_MEM NESTED_PARAM_EXTRA NESTED_TPM_NO_RESTART
+    export NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_TPM_NO_RESTART
     "$action"
-    unset NESTED_PARAM_CD NESTED_PARAM_MEM NESTED_PARAM_EXTRA NESTED_TPM_NO_RESTART
+    unset NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_TPM_NO_RESTART
 }
 
 is_nested() {

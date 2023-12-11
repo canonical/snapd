@@ -129,9 +129,9 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(5), SnapID: "some-snap-id"},
-		},
+		}),
 		Current:  snap.R(5),
 		SnapType: "app",
 		UserID:   1,
@@ -949,7 +949,7 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
 	info := &snap.Info{SideInfo: *si}
 	snapst := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 	}
 	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
@@ -986,7 +986,7 @@ func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
 	info := &snap.Info{SideInfo: *si}
 	snapst := &snapstate.SnapState{
-		Sequence:             []*snap.SideInfo{si},
+		Sequence:             snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:              si.Revision,
 		RefreshInhibitedTime: &pastInstant,
 	}
@@ -1029,7 +1029,7 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
 	info := &snap.Info{SideInfo: *si}
 	snapst := &snapstate.SnapState{
-		Sequence:             []*snap.SideInfo{si},
+		Sequence:             snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:              si.Revision,
 		RefreshInhibitedTime: &pastInstant,
 	}
@@ -1059,7 +1059,7 @@ func (s *autoRefreshTestSuite) TestInhibitNoNotificationOnManualRefresh(c *C) {
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
 	info := &snap.Info{SideInfo: *si}
 	snapst := &snapstate.SnapState{
-		Sequence:             []*snap.SideInfo{si},
+		Sequence:             snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:              si.Revision,
 		RefreshInhibitedTime: &pastInstant,
 	}
@@ -1156,7 +1156,7 @@ func (s *autoRefreshTestSuite) addRefreshableSnap(names ...string) {
 		si := &snap.SideInfo{RealName: name, SnapID: fmt.Sprintf("%s-id", name), Revision: snap.R(1)}
 		snapstate.Set(s.state, name, &snapstate.SnapState{
 			Active:   true,
-			Sequence: []*snap.SideInfo{si},
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 			Current:  si.Revision,
 			SnapType: string(snap.TypeApp),
 		})

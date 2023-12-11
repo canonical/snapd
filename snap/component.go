@@ -19,7 +19,9 @@ package snap
 
 import (
 	"fmt"
+	"path/filepath"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap/naming"
 	"gopkg.in/yaml.v2"
 )
@@ -33,6 +35,89 @@ type ComponentInfo struct {
 	Description string              `yaml:"description"`
 }
 
+// NewComponentInfo creates a new ComponentInfo.
+func NewComponentInfo(cref naming.ComponentRef, ctype ComponentType, version, summary, description string) *ComponentInfo {
+	return &ComponentInfo{
+		Component:   cref,
+		Type:        ctype,
+		Version:     version,
+		Summary:     summary,
+		Description: description,
+	}
+}
+
+// ComponentSideInfo is the equivalent of SideInfo for components, and
+// includes relevant information for which the canonical source is a
+// snap store.
+type ComponentSideInfo struct {
+	Component naming.ComponentRef `json:"component"`
+	Revision  Revision            `json:"revision"`
+}
+
+// NewComponentSideInfo creates a new ComponentSideInfo.
+func NewComponentSideInfo(cref naming.ComponentRef, rev Revision) *ComponentSideInfo {
+	return &ComponentSideInfo{
+		Component: cref,
+		Revision:  rev,
+	}
+}
+
+// componentPlaceInfo holds information about where to put a component in the
+// system. It implements ContainerPlaceInfo and should be used only via this
+// interface.
+type componentPlaceInfo struct {
+	// Name and revision for the component
+	compName     string
+	compRevision Revision
+	// snapInstance and snapRevision identify the snap that uses this component.
+	snapInstance string
+	snapRevision Revision
+}
+
+var _ ContainerPlaceInfo = (*componentPlaceInfo)(nil)
+
+// MinimalComponentContainerPlaceInfo returns a ContainerPlaceInfo with just
+// the location information for a component of the given name and revision that
+// is used by a snapInstance with revision snapRev.
+func MinimalComponentContainerPlaceInfo(compName string, compRev Revision, snapInstance string, snapRev Revision) ContainerPlaceInfo {
+	return &componentPlaceInfo{
+		compName:     compName,
+		compRevision: compRev,
+		snapInstance: snapInstance,
+		snapRevision: snapRev,
+	}
+}
+
+// ContainerName returns the component name.
+func (c *componentPlaceInfo) ContainerName() string {
+	return fmt.Sprintf("%s+%s", c.snapInstance, c.compName)
+}
+
+// Filename returns the container file name.
+func (c *componentPlaceInfo) Filename() string {
+	return filepath.Base(c.MountFile())
+}
+
+// MountDir returns the directory where a component gets mounted, which
+// will be of the form:
+// /snaps/<snap_instance>/components/<snap_revision>/<component_name>
+func (c *componentPlaceInfo) MountDir() string {
+	return filepath.Join(BaseDir(c.snapInstance), "components",
+		c.snapRevision.String(), c.compName)
+}
+
+// MountFile returns the path of the file to be mounted for a component,
+// which will be of the form /var/lib/snaps/snaps/<snap>+<comp>_<rev>.comp
+func (c *componentPlaceInfo) MountFile() string {
+	return filepath.Join(dirs.SnapBlobDir,
+		fmt.Sprintf("%s_%s.comp", c.ContainerName(), c.compRevision))
+}
+
+// MountDescription returns the mount unit Description field.
+func (c *componentPlaceInfo) MountDescription() string {
+	return fmt.Sprintf("Mount unit for %s, revision %s", c.ContainerName(), c.compRevision)
+}
+
 // ReadComponentInfoFromContainer reads ComponentInfo from a snap component container.
 func ReadComponentInfoFromContainer(compf Container) (*ComponentInfo, error) {
 	yamlData, err := compf.ReadFile("meta/component.yaml")
@@ -40,9 +125,14 @@ func ReadComponentInfoFromContainer(compf Container) (*ComponentInfo, error) {
 		return nil, err
 	}
 
+	return InfoFromComponentYaml(yamlData)
+}
+
+// InfoFromComponentYaml parses a ComponentInfo from the raw yaml data.
+func InfoFromComponentYaml(compYaml []byte) (*ComponentInfo, error) {
 	var ci ComponentInfo
 
-	if err := yaml.UnmarshalStrict(yamlData, &ci); err != nil {
+	if err := yaml.UnmarshalStrict(compYaml, &ci); err != nil {
 		return nil, fmt.Errorf("cannot parse component.yaml: %s", err)
 	}
 

@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -470,9 +471,9 @@ func (*reRefreshSuite) TestFilterReturnsFalseIfEpochEqual(c *C) {
 	// these work because we're mocking ReadInfo
 	snapst := &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(7)},
-		},
+		}),
 		Current:  snap.R(7),
 		SnapType: "app",
 	}
@@ -486,9 +487,9 @@ func (s *reRefreshSuite) TestFilterReturnsFalseIfEpochEqualZero(c *C) {
 	// these work because we're mocking ReadInfo
 	snapst := &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "snap-with-empty-epoch", Revision: snap.R(7)},
-		},
+		}),
 		Current:  snap.R(7),
 		SnapType: "app",
 	}
@@ -584,7 +585,7 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertSnapsOneRev
 	si11 := &snap.SideInfo{RealName: "some-snap1", SnapID: "aaqKhntON3vR7kwEbVPsILm7bUViPDzx", Revision: snap.R(1)}
 	snapstate.Set(s.state, "some-snap1", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si11, si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si11, si1}),
 		Current:  snap.R(3),
 		SnapType: "app",
 	})
@@ -594,7 +595,7 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertSnapsOneRev
 	si2 := &snap.SideInfo{RealName: "some-snap2", SnapID: "bgtKhntON3vR7kwEbVPsILm7bUViPDzx", Revision: snap.R(2)}
 	snapstate.Set(s.state, "some-snap2", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  snap.R(2),
 		SnapType: "app",
 	})
@@ -603,7 +604,7 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertSnapsOneRev
 	si3 := &snap.SideInfo{RealName: "some-snap3", SnapID: "abcKhntON3vR7kwEbVPsILm7bUViPDzx", Revision: snap.R(3)}
 	snapstate.Set(s.state, "some-snap3", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si3},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si3}),
 		Current:  snap.R(3),
 		SnapType: "app",
 	})
@@ -687,7 +688,7 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertNoSnapsRefr
 	si1 := &snap.SideInfo{RealName: "some-snap1", SnapID: "aaqKhntON3vR7kwEbVPsILm7bUViPDzx", Revision: snap.R(1)}
 	snapstate.Set(s.state, "some-snap1", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -758,7 +759,7 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertJustValidat
 	si1 := &snap.SideInfo{RealName: "some-snap1", SnapID: "aaqKhntON3vR7kwEbVPsILm7bUViPDzx", Revision: snap.R(1)}
 	snapstate.Set(s.state, "some-snap1", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -767,7 +768,7 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertJustValidat
 	si3 := &snap.SideInfo{RealName: "some-snap2", SnapID: "abcKhntON3vR7kwEbVPsILm7bUViPDzx", Revision: snap.R(3)}
 	snapstate.Set(s.state, "some-snap2", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si3},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si3}),
 		Current:  snap.R(3),
 		SnapType: "app",
 	})
@@ -825,7 +826,7 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertStillValid(
 	si1 := &snap.SideInfo{RealName: "some-snap1", SnapID: "aaqKhntON3vR7kwEbVPsILm7bUViPDzx", Revision: snap.R(3)}
 	snapstate.Set(s.state, "some-snap1", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  snap.R(3),
 		SnapType: "app",
 	})
@@ -834,7 +835,7 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertStillValid(
 	si3 := &snap.SideInfo{RealName: "some-snap2", SnapID: "abcKhntON3vR7kwEbVPsILm7bUViPDzx", Revision: snap.R(1)}
 	snapstate.Set(s.state, "some-snap2", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si3},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si3}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})

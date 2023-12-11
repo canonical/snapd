@@ -1,3 +1,7 @@
+# Next:
+* state: add support for notices (from pebble)
+* daemon: add notices to the snapd API under `/v2/notices` and `/v2/notice`
+
 # New in snapd 2.61.1:
 * Stop requiring default provider snaps on image building and first boot if alternative providers are included and available
 * Fix auth.json access for login as non-root group ID
@@ -53,7 +57,7 @@
 * Use "aes-cbc-essiv:sha256" in cryptsetup on arm 32bit devices
   to increase speed on devices with CAAM support
 * Stop using `-O no-expr-simplify` in apparmor_parser to avoid
-  potential exponential memory use. This can lead to slower 
+  potential exponential memory use. This can lead to slower
   policy complication in some cases but it is much safer on
   low memory devices.
 

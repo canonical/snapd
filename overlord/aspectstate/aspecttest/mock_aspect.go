@@ -24,11 +24,11 @@ package aspecttest
 func MockWifiSetupAspect() map[string]interface{} {
 	return map[string]interface{}{
 		"wifi-setup": []map[string]string{
-			{"name": "ssids", "path": "wifi.ssids"},
-			{"name": "ssid", "path": "wifi.ssid", "access": "read-write"},
-			{"name": "password", "path": "wifi.psk", "access": "write"},
-			{"name": "status", "path": "wifi.status", "access": "read"},
-			{"name": "private.{placeholder}", "path": "wifi.{placeholder}"},
+			{"request": "ssids", "storage": "wifi.ssids"},
+			{"request": "ssid", "storage": "wifi.ssid", "access": "read-write"},
+			{"request": "password", "storage": "wifi.psk", "access": "write"},
+			{"request": "status", "storage": "wifi.status", "access": "read"},
+			{"request": "private.{placeholder}", "storage": "wifi.{placeholder}"},
 		},
 	}
 }

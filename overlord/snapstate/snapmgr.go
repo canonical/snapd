@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -160,6 +161,10 @@ func (snapsup *SnapSetup) Revision() snap.Revision {
 	return snapsup.SideInfo.Revision
 }
 
+func (snapsup *SnapSetup) containerInfo() snap.ContainerPlaceInfo {
+	return snap.MinimalSnapContainerPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
+}
+
 func (snapsup *SnapSetup) placeInfo() snap.PlaceInfo {
 	return snap.MinimalPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
 }
@@ -188,10 +193,87 @@ const (
 	NotBlocked
 )
 
+// RevisionSideState contains the side information for a snap and related components
+// installed in the system.
+type RevisionSideState struct {
+	Snap       *snap.SideInfo
+	Components []*snap.ComponentSideInfo
+}
+
+// revisionSideInfoMarshal is an ancillary structure used exclusively to
+// help marshaling of RevisionSideInfo.
+type revisionSideInfoMarshal struct {
+	// SideInfo is included for compatibility with older snapd state files
+	*snap.SideInfo
+	CompSideInfo []*snap.ComponentSideInfo `yaml:"components,omitempty" json:"components,omitempty"`
+}
+
+// MarshalJSON implements the json.Marshaler interface
+func (bsi RevisionSideState) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&revisionSideInfoMarshal{bsi.Snap, bsi.Components})
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface
+func (bsi *RevisionSideState) UnmarshalJSON(in []byte) error {
+	var aux revisionSideInfoMarshal
+	if err := json.Unmarshal(in, &aux); err != nil {
+		return err
+	}
+	bsi.Snap = aux.SideInfo
+	bsi.Components = aux.CompSideInfo
+	return nil
+}
+
+// NewRevisionSideInfo creates a RevisionSideInfo from snap and
+// related components side information.
+func NewRevisionSideInfo(snapSideInfo *snap.SideInfo, compSideInfo []*snap.ComponentSideInfo) *RevisionSideState {
+	return &RevisionSideState{Snap: snapSideInfo, Components: compSideInfo}
+}
+
+// SnapSequence is a container for a slice containing revisions of
+// snaps plus related components.
+// TODO add methods to access Revisions (length, copy, append) and
+// use them in handlers.go and snapstate.go.
+type SnapSequence struct {
+	// Revisions contains information for a snap revision and
+	// components SideInfo.
+	Revisions []*RevisionSideState
+}
+
+// MarshalJSON implements the json.Marshaler interface. We override the default
+// so serialization of the SnapState.Sequence field is compatible to what was
+// produced when it was defined as a []*snap.SideInfo. This is also the reason
+// to have SnapSequence.UnmarshalJSON and MarshalJSON/UnmarshalJSON for
+// RevisionSideState.
+func (snapSeq SnapSequence) MarshalJSON() ([]byte, error) {
+	return json.Marshal(snapSeq.Revisions)
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface
+func (snapSeq *SnapSequence) UnmarshalJSON(in []byte) error {
+	aux := []*RevisionSideState{}
+	if err := json.Unmarshal(in, &aux); err != nil {
+		return err
+	}
+	snapSeq.Revisions = aux
+	return nil
+}
+
+// SideInfos returns a slice with all the SideInfos for the snap sequence.
+func (snapSeq SnapSequence) SideInfos() []*snap.SideInfo {
+	sis := make([]*snap.SideInfo, len(snapSeq.Revisions))
+	for i, rev := range snapSeq.Revisions {
+		sis[i] = rev.Snap
+	}
+	return sis
+}
+
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
-	SnapType string           `json:"type"` // Use Type and SetType
-	Sequence []*snap.SideInfo `json:"sequence"`
+	SnapType string `json:"type"` // Use Type and SetType
+	// Sequence contains installation side state for a snap revision and
+	// related components.
+	Sequence SnapSequence `json:"sequence"`
 
 	// RevertStatus maps revisions to RevertStatus for revisions that
 	// need special handling in Block().
@@ -289,8 +371,8 @@ func (snapst *SnapState) SetType(typ snap.Type) {
 // IsInstalled returns whether the snap is installed, i.e. snapst represents an installed snap with Current revision set.
 func (snapst *SnapState) IsInstalled() bool {
 	if snapst.Current.Unset() {
-		if len(snapst.Sequence) > 0 {
-			panic(fmt.Sprintf("snapst.Current and snapst.Sequence out of sync: %#v %#v", snapst.Current, snapst.Sequence))
+		if len(snapst.Sequence.Revisions) > 0 {
+			panic(fmt.Sprintf("snapst.Current and snapst.Sequence.Revisions out of sync: %#v %#v", snapst.Current, snapst.Sequence.Revisions))
 		}
 
 		return false
@@ -302,7 +384,7 @@ func (snapst *SnapState) IsInstalled() bool {
 // start at -1 and are counted down.
 func (snapst *SnapState) LocalRevision() snap.Revision {
 	var local snap.Revision
-	for _, si := range snapst.Sequence {
+	for _, si := range snapst.Sequence.SideInfos() {
 		if si.Revision.Local() && si.Revision.N < local.N {
 			local = si.Revision
 		}
@@ -316,13 +398,13 @@ func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
 		return nil
 	}
 	if idx := snapst.LastIndex(snapst.Current); idx >= 0 {
-		return snapst.Sequence[idx]
+		return snapst.Sequence.Revisions[idx].Snap
 	}
-	panic("cannot find snapst.Current in the snapst.Sequence")
+	panic("cannot find snapst.Current in the snapst.Sequence.Revisions")
 }
 
 func (snapst *SnapState) previousSideInfo() *snap.SideInfo {
-	n := len(snapst.Sequence)
+	n := len(snapst.Sequence.Revisions)
 	if n < 2 {
 		return nil
 	}
@@ -331,14 +413,14 @@ func (snapst *SnapState) previousSideInfo() *snap.SideInfo {
 	if currentIndex <= 0 {
 		return nil
 	}
-	return snapst.Sequence[currentIndex-1]
+	return snapst.Sequence.Revisions[currentIndex-1].Snap
 }
 
 // LastIndex returns the last index of the given revision in the
-// snapst.Sequence
+// snapst.Sequence.Revisions
 func (snapst *SnapState) LastIndex(revision snap.Revision) int {
-	for i := len(snapst.Sequence) - 1; i >= 0; i-- {
-		if snapst.Sequence[i].Revision == revision {
+	for i := len(snapst.Sequence.Revisions) - 1; i >= 0; i-- {
+		if snapst.Sequence.Revisions[i].Snap.Revision == revision {
 			return i
 		}
 	}
@@ -352,17 +434,17 @@ func (snapst *SnapState) Block() []snap.Revision {
 	// return revisions from Sequence[currentIndex:], potentially excluding
 	// some of them based on RevertStatus.
 	currentIndex := snapst.LastIndex(snapst.Current)
-	if currentIndex < 0 || currentIndex+1 == len(snapst.Sequence) {
+	if currentIndex < 0 || currentIndex+1 == len(snapst.Sequence.Revisions) {
 		return nil
 	}
 	out := []snap.Revision{}
-	for _, si := range snapst.Sequence[currentIndex+1:] {
-		if status, ok := snapst.RevertStatus[si.Revision.N]; ok {
+	for _, si := range snapst.Sequence.Revisions[currentIndex+1:] {
+		if status, ok := snapst.RevertStatus[si.Snap.Revision.N]; ok {
 			if status == NotBlocked {
 				continue
 			}
 		}
-		out = append(out, si.Revision)
+		out = append(out, si.Snap.Revision)
 	}
 	return out
 }
@@ -443,7 +525,7 @@ func (snapst *SnapState) InstanceName() string {
 }
 
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
-	for _, si := range snapst.Sequence {
+	for _, si := range snapst.Sequence.SideInfos() {
 		if si.Revision == needle {
 			return true
 		}
@@ -706,7 +788,7 @@ func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
 	// check if the installed, active version is fixed
 	fixedVersionInstalled := false
 	inactiveVulnRevisions := []snap.Revision{}
-	for _, si := range snapSt.Sequence {
+	for _, si := range snapSt.Sequence.SideInfos() {
 		// check this version
 		s := snap.Info{SideInfo: *si}
 		ver, _, err := snapdtool.SnapdVersionFromInfoFile(filepath.Join(s.MountDir(), dirs.CoreLibExecDir))
@@ -1133,7 +1215,7 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			}
 			squashfsPath := dirs.StripRootDir(info.MountFile())
 			whereDir := dirs.StripRootDir(info.MountDir())
-			if _, err = sysd.EnsureMountUnitFile(info.InstanceName(), info.Revision.String(), squashfsPath, whereDir, "squashfs"); err != nil {
+			if _, err = sysd.EnsureMountUnitFile(info.InstanceName(), info.MountDescription(), squashfsPath, whereDir, "squashfs"); err != nil {
 				return err
 			}
 		}

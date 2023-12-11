@@ -1848,17 +1848,17 @@ func writeSeqFile(name string, snapst *SnapState) error {
 	}
 
 	b, err := json.Marshal(&struct {
-		Sequence              []*snap.SideInfo `json:"sequence"`
-		Current               string           `json:"current"`
-		MigratedHidden        bool             `json:"migrated-hidden"`
-		MigratedToExposedHome bool             `json:"migrated-exposed-home"`
+		Sequence              SnapSequence `json:"sequence"`
+		Current               string       `json:"current"`
+		MigratedHidden        bool         `json:"migrated-hidden"`
+		MigratedToExposedHome bool         `json:"migrated-exposed-home"`
 	}{
 		Sequence: snapst.Sequence,
 		Current:  snapst.Current.String(),
 		// if the snap state if empty, we're probably undoing a failed install.
 		// Reset the flags to false
-		MigratedHidden:        len(snapst.Sequence) > 0 && snapst.MigratedHidden,
-		MigratedToExposedHome: len(snapst.Sequence) > 0 && snapst.MigratedToExposedHome,
+		MigratedHidden:        len(snapst.Sequence.Revisions) > 0 && snapst.MigratedHidden,
+		MigratedToExposedHome: len(snapst.Sequence.Revisions) > 0 && snapst.MigratedToExposedHome,
 	})
 	if err != nil {
 		return err
@@ -1997,26 +1997,26 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// find if the snap is already installed before we modify snapst below
 	isInstalled := snapst.IsInstalled()
 
-	cand := snapsup.SideInfo
-	m.backend.Candidate(cand)
+	cand := NewRevisionSideInfo(snapsup.SideInfo, nil)
+	m.backend.Candidate(cand.Snap)
 
-	oldCandidateIndex := snapst.LastIndex(cand.Revision)
+	oldCandidateIndex := snapst.LastIndex(cand.Snap.Revision)
 
 	var oldRevsBeforeCand []snap.Revision
 	if oldCandidateIndex < 0 {
-		snapst.Sequence = append(snapst.Sequence, cand)
+		snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, cand)
 	} else if !snapsup.Revert {
 		// save the revs before the candidate, so undoLink can account for discarded revs when putting it back
-		for _, si := range snapst.Sequence[:oldCandidateIndex] {
-			oldRevsBeforeCand = append(oldRevsBeforeCand, si.Revision)
+		for _, si := range snapst.Sequence.Revisions[:oldCandidateIndex] {
+			oldRevsBeforeCand = append(oldRevsBeforeCand, si.Snap.Revision)
 		}
 		// remove the old candidate from the sequence, add it at the end
-		copy(snapst.Sequence[oldCandidateIndex:len(snapst.Sequence)-1], snapst.Sequence[oldCandidateIndex+1:])
-		snapst.Sequence[len(snapst.Sequence)-1] = cand
+		copy(snapst.Sequence.Revisions[oldCandidateIndex:len(snapst.Sequence.Revisions)-1], snapst.Sequence.Revisions[oldCandidateIndex+1:])
+		snapst.Sequence.Revisions[len(snapst.Sequence.Revisions)-1] = cand
 	}
 
 	oldCurrent := snapst.Current
-	snapst.Current = cand.Revision
+	snapst.Current = cand.Snap.Revision
 	snapst.Active = true
 	oldChannel := snapst.TrackingChannel
 	if snapsup.Channel != "" {
@@ -2067,7 +2067,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// migration related ops
 	setMigrationFlagsinState(snapst, snapsup)
 
-	newInfo, err := readInfo(snapsup.InstanceName(), cand, 0)
+	newInfo, err := readInfo(snapsup.InstanceName(), cand.Snap, 0)
 	if err != nil {
 		return err
 	}
@@ -2167,7 +2167,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 	}
 
-	if len(snapst.Sequence) == 1 {
+	if len(snapst.Sequence.Revisions) == 1 {
 		if err := m.createSnapCookie(st, snapsup.InstanceName()); err != nil {
 			return fmt.Errorf("cannot create snap cookie: %v", err)
 		}
@@ -2198,7 +2198,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 			delete(snapst.RevertStatus, oldCurrent.N)
 		}
 	} else {
-		delete(snapst.RevertStatus, cand.Revision.N)
+		delete(snapst.RevertStatus, cand.Snap.Revision.N)
 	}
 
 	// Record the fact that the snap was refreshed successfully.
@@ -2208,21 +2208,21 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		snapst.LastRefreshTime = &now
 	}
 
-	if cand.SnapID != "" {
+	if cand.Snap.SnapID != "" {
 		// write the auxiliary store info
 		aux := &auxStoreInfo{
 			Media:   snapsup.Media,
 			Website: snapsup.Website,
 		}
-		if err := keepAuxStoreInfo(cand.SnapID, aux); err != nil {
+		if err := keepAuxStoreInfo(cand.Snap.SnapID, aux); err != nil {
 			return err
 		}
-		if len(snapst.Sequence) == 1 {
+		if len(snapst.Sequence.Revisions) == 1 {
 			defer func() {
 				if IsErrAndNotWait(err) {
 					// the install is getting undone, and there are no more of this snap
 					// try to remove the aux info we just created
-					discardAuxStoreInfo(cand.SnapID)
+					discardAuxStoreInfo(cand.Snap.SnapID)
 				}
 			}()
 		}
@@ -2623,7 +2623,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if len(snapst.Sequence) == 1 {
+	if len(snapst.Sequence.Revisions) == 1 {
 		// XXX: shouldn't these two just log and carry on? this is an undo handler...
 		timings.Run(perfTimings, "discard-snap-namespace", fmt.Sprintf("discard the namespace of snap %q", snapsup.InstanceName()), func(tm timings.Measurer) {
 			err = m.backend.DiscardSnapNamespace(snapsup.InstanceName())
@@ -2650,15 +2650,15 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if oldCandidateIndex < 0 {
-		snapst.Sequence = append(snapst.Sequence[:currentIndex], snapst.Sequence[currentIndex+1:]...)
+		snapst.Sequence.Revisions = append(snapst.Sequence.Revisions[:currentIndex], snapst.Sequence.Revisions[currentIndex+1:]...)
 	} else if !isRevert {
 		// account for revisions discarded before the install failed
-		discarded := countMissingRevs(oldRevsBeforeCand, snapst.Sequence)
+		discarded := countMissingRevs(oldRevsBeforeCand, snapst.Sequence.Revisions)
 		oldCandidateIndex -= discarded
 
-		oldCand := snapst.Sequence[currentIndex]
-		copy(snapst.Sequence[oldCandidateIndex+1:], snapst.Sequence[oldCandidateIndex:])
-		snapst.Sequence[oldCandidateIndex] = oldCand
+		oldCand := snapst.Sequence.Revisions[currentIndex]
+		copy(snapst.Sequence.Revisions[oldCandidateIndex+1:], snapst.Sequence.Revisions[oldCandidateIndex:])
+		snapst.Sequence.Revisions[oldCandidateIndex] = oldCand
 	}
 	snapst.Current = oldCurrent
 	snapst.Active = false
@@ -2692,7 +2692,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// refresh/install) by restoring the configuration of "old current".
 	// similarly, we need to re-save the disabled services if there is a
 	// revision for us to go back to, see comment below for full explanation
-	if len(snapst.Sequence) > 0 {
+	if len(snapst.Sequence.Revisions) > 0 {
 		if err = config.RestoreRevisionConfig(st, snapsup.InstanceName(), oldCurrent); err != nil {
 			return err
 		}
@@ -2780,12 +2780,12 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-// countMissingRevs counts how many of the revisions aren't present in the sequence of sideInfos
-func countMissingRevs(revisions []snap.Revision, sideInfos []*snap.SideInfo) int {
+// countMissingRevs counts how many of the revisions aren't present in the sequence
+func countMissingRevs(revisions []snap.Revision, revSideInfos []*RevisionSideState) int {
 	var found int
 	for _, rev := range revisions {
-		for _, si := range sideInfos {
-			if si.Revision == rev {
+		for _, si := range revSideInfos {
+			if si.Snap.Revision == rev {
 				found++
 			}
 		}
@@ -3278,7 +3278,7 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if len(snapst.Sequence) == 1 {
+	if len(snapst.Sequence.Revisions) == 1 {
 		// Only remove data common between versions if this is the last version
 		if err = m.backend.RemoveSnapCommonData(info, dirOpts); err != nil {
 			return err
@@ -3334,21 +3334,21 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	// drop any potential revert status for this revision
 	delete(snapst.RevertStatus, snapsup.Revision().N)
 
-	if len(snapst.Sequence) == 1 {
-		snapst.Sequence = nil
+	if len(snapst.Sequence.Revisions) == 1 {
+		snapst.Sequence.Revisions = nil
 		snapst.Current = snap.Revision{}
 	} else {
-		newSeq := make([]*snap.SideInfo, 0, len(snapst.Sequence))
-		for _, si := range snapst.Sequence {
-			if si.Revision == snapsup.Revision() {
+		newSeq := make([]*RevisionSideState, 0, len(snapst.Sequence.Revisions))
+		for _, si := range snapst.Sequence.Revisions {
+			if si.Snap.Revision == snapsup.Revision() {
 				// leave out
 				continue
 			}
 			newSeq = append(newSeq, si)
 		}
-		snapst.Sequence = newSeq
+		snapst.Sequence.Revisions = newSeq
 		if snapst.Current == snapsup.Revision() {
-			snapst.Current = newSeq[len(newSeq)-1].Revision
+			snapst.Current = newSeq[len(newSeq)-1].Snap.Revision
 		}
 	}
 
@@ -3362,8 +3362,8 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		t.Errorf("cannot remove snap file %q, will retry in 3 mins: %s", snapsup.InstanceName(), err)
 		return &state.Retry{After: 3 * time.Minute}
 	}
-	if len(snapst.Sequence) == 0 {
-		if err = m.backend.RemoveSnapMountUnits(snapsup.placeInfo(), nil); err != nil {
+	if len(snapst.Sequence.Revisions) == 0 {
+		if err = m.backend.RemoveContainerMountUnits(snapsup.containerInfo(), nil); err != nil {
 			return err
 		}
 

@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
@@ -1460,7 +1461,7 @@ func (s *quotaHandlersSuite) TestQuotaSnapAddSnapNestedFails(c *C) {
 	// and test-snap2
 	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
 	snapst2 := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 		Active:   true,
 		SnapType: "app",
@@ -1637,7 +1638,7 @@ func (s *quotaHandlersSuite) TestQuotaSnapAddSnapServicesFailOnInvalidSnapServic
 	// and test-snap2
 	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
 	snapst2 := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 		Active:   true,
 		SnapType: "app",
@@ -1815,7 +1816,7 @@ func (s *quotaHandlersSuite) TestQuotaSnapCorrectlyDetectErrorsIfCreatingSubgrou
 	// and test-snap2
 	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
 	snapst2 := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 		Active:   true,
 		SnapType: "app",
@@ -1955,7 +1956,7 @@ func (s *quotaHandlersSuite) TestQuotaUpdateSubGroupTooBig(c *C) {
 	// and test-snap2
 	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
 	snapst2 := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 		Active:   true,
 		SnapType: "app",
@@ -2454,7 +2455,7 @@ func (s *quotaHandlersSuite) TestQuotaUpdateAddSnap(c *C) {
 	// and test-snap2
 	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
 	snapst2 := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 		Active:   true,
 		SnapType: "app",
@@ -2520,7 +2521,7 @@ func (s *quotaHandlersSuite) TestQuotaUpdateAddSnapAlreadyInOtherGroup(c *C) {
 	// and test-snap2
 	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
 	snapst2 := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 		Active:   true,
 		SnapType: "app",
@@ -2969,7 +2970,7 @@ func (s *quotaHandlersSuite) TestAffectedSnapServices(c *C) {
 	// and test-snap2
 	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
 	snapst2 := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 		Active:   true,
 		SnapType: "app",
@@ -3018,7 +3019,7 @@ func (s *quotaHandlersSuite) TestAffectedSnapServicesExtraSnaps(c *C) {
 	// and test-snap2
 	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
 	snapst2 := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 		Active:   true,
 		SnapType: "app",
@@ -3100,7 +3101,7 @@ func (s *quotaHandlersSuite) TestQuotaSnapServicesRestartOnlyRelevantServices(c 
 	// and test-snap3
 	si3 := &snap.SideInfo{RealName: "test-snap3", Revision: snap.R(42)}
 	snapst3 := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si3},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si3}),
 		Current:  si3.Revision,
 		Active:   true,
 		SnapType: "app",

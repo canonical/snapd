@@ -26,8 +26,8 @@ import (
 
 // ComponentRef contains the component name and the owner snap name.
 type ComponentRef struct {
-	SnapName      string
-	ComponentName string
+	SnapName      string `yaml:"snap-name" json:"snap-name"`
+	ComponentName string `yaml:"component-name" json:"component-name"`
 }
 
 // NewComponentRef returns a reference to a snap component.

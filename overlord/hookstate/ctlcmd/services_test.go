@@ -176,24 +176,24 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	})
 	snapstate.Set(s.st, info1.InstanceName(), &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
 				RealName: info1.SnapName(),
 				Revision: info1.Revision,
 				SnapID:   "test-snap-id",
 			},
-		},
+		}),
 		Current: info1.Revision,
 	})
 	snapstate.Set(s.st, info2.InstanceName(), &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
 				RealName: info2.SnapName(),
 				Revision: info2.Revision,
 				SnapID:   "other-snap-id",
 			},
-		},
+		}),
 		Current: info2.Revision,
 	})
 

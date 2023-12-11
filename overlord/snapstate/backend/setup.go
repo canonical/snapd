@@ -111,6 +111,56 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 	return t, installRecord, nil
 }
 
+// SetupComponent prepares and mounts a component for further processing.
+func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *InstallRecord, err error) {
+	// This assumes that the component was already verified or --dangerous was used.
+
+	_, snapf, oErr := OpenComponentFile(compFilePath)
+	if oErr != nil {
+		return nil, oErr
+	}
+
+	defer func() {
+		if err == nil {
+			return
+		}
+
+		// this may remove the component from /var/lib/snapd/snaps
+		// depending on installRecord
+		if e := b.RemoveComponentFiles(compPi, installRecord, dev, meter); e != nil {
+			meter.Notify(fmt.Sprintf(
+				"while trying to clean up due to previous failure: %v", e))
+		}
+	}()
+
+	// Create mount dir for the component
+	mntDir := compPi.MountDir()
+	if err := os.MkdirAll(mntDir, 0755); err != nil {
+		return nil, err
+	}
+
+	// in uc20+ and classic with modes run mode, all snaps must be on the
+	// same device
+	opts := &snap.InstallOptions{}
+	if dev.HasModeenv() && dev.RunMode() {
+		opts.MustNotCrossDevices = true
+	}
+
+	// Copy file to snaps folder
+	var didNothing bool
+	if didNothing, err = snapf.Install(compPi.MountFile(), mntDir, opts); err != nil {
+		return nil, err
+	}
+
+	// generate the mount unit for the squashfs
+	if err := addMountUnit(compPi, b.preseed, meter); err != nil {
+		return nil, err
+	}
+
+	installRecord = &InstallRecord{TargetSnapExisted: didNothing}
+	return installRecord, nil
+}
+
 // RemoveSnapFiles removes the snap files from the disk after unmounting the snap.
 func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord *InstallRecord, dev snap.Device, meter progress.Meter) error {
 	mountDir := s.MountDir()
@@ -146,6 +196,33 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord 
 	return nil
 }
 
+// RemoveComponentFiles unmounts and removes component files from the disk.
+func (b Backend) RemoveComponentFiles(cpi snap.ContainerPlaceInfo, installRecord *InstallRecord, dev snap.Device, meter progress.Meter) error {
+	// this also ensures that the mount unit stops
+	if err := removeMountUnit(cpi.MountDir(), meter); err != nil {
+		return err
+	}
+
+	// Remove /snap/<snap_instance>/components/<snap_rev>/<comp_name>
+	if err := os.RemoveAll(cpi.MountDir()); err != nil {
+		return err
+	}
+
+	compFilePath := cpi.MountFile()
+	if _, err := os.Lstat(compFilePath); err == nil {
+		// remove the component
+		if err := os.RemoveAll(compFilePath); err != nil {
+			return err
+		}
+	}
+
+	// TODO should we check here if there are other components installed
+	// for this snap revision or for other revisions and if not delete
+	// <snap_rev>/ and maybe also components/<snap_rev>/?
+
+	return nil
+}
+
 func (b Backend) RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error {
 	mountDir := s.MountDir()
 
@@ -166,6 +243,11 @@ func (b Backend) RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error {
 // UndoSetupSnap undoes the work of SetupSnap using RemoveSnapFiles.
 func (b Backend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *InstallRecord, dev snap.Device, meter progress.Meter) error {
 	return b.RemoveSnapFiles(s, typ, installRecord, dev, meter)
+}
+
+// UndoSetupComponent undoes the work of SetupComponent using RemoveComponentFiles.
+func (b Backend) UndoSetupComponent(cpi snap.ContainerPlaceInfo, installRecord *InstallRecord, dev snap.Device, meter progress.Meter) error {
+	return b.RemoveComponentFiles(cpi, installRecord, dev, meter)
 }
 
 // RemoveSnapInhibitLock removes the file controlling inhibition of "snap run".

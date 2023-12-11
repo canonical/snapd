@@ -901,6 +901,14 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 	return snapType, &backend.InstallRecord{}, nil
 }
 
+func (f *fakeSnappyBackend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *backend.InstallRecord, err error) {
+	panic("not used yet in tests")
+}
+
+func (f *fakeSnappyBackend) UndoSetupComponent(cpi snap.ContainerPlaceInfo, installRecord *backend.InstallRecord, dev snap.Device, meter progress.Meter) error {
+	panic("not used yet in tests")
+}
+
 func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
 	if name == "borken" && si.Revision == snap.R(2) {
 		return nil, errors.New(`cannot read info for "borken" snap`)
@@ -1248,10 +1256,10 @@ func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bo
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) RemoveSnapMountUnits(s snap.PlaceInfo, meter progress.Meter) error {
+func (f *fakeSnappyBackend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter progress.Meter) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "remove-snap-mount-units",
-		name: s.InstanceName(),
+		name: s.ContainerName(),
 	})
 	return f.maybeErrForLastOp()
 }

@@ -52,7 +52,7 @@ execute: |
   done
   # Bump edition of ubuntu-boot content
   gadget_p=pc-gadget/meta/gadget.yaml
-  yq -i '(.volumes.pc.structure | with_entries(select(.value.name == "ubuntu-boot")) | .[].update.edition) |= . + 1' "$gadget_p"
+  yq -i '(.volumes.pc.structure[] | select(.name == "ubuntu-boot") | .update.edition) |= . + 1' "$gadget_p"
   # Re-pack snaps we want to update
   snap pack --filename=pc-new.snap pc-gadget
   snap pack --filename=pc-kernel-new.snap "$CACHE_D"/snap-pc-kernel
