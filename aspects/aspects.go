@@ -349,8 +349,8 @@ func (a *Aspect) Get(databag DataBag, request string, value *interface{}) error 
 			return err
 		}
 
-		// build namespace around result
-		namespace := match.namespace
+		// build a namespace based on the unmatched suffix parts
+		namespace := match.suffixParts
 		for i := len(namespace) - 1; i >= 0; i-- {
 			val = map[string]interface{}{namespace[i]: val}
 		}
@@ -403,19 +403,20 @@ func merge(old, new interface{}) (interface{}, error) {
 	return oldMap, nil
 }
 
-type match struct {
+type requestMatch struct {
 	// storagePath contains the storage path specified in the matching entry with
 	// any placeholders provided by the request filled in.
 	storagePath string
 
-	// namespace contains the remaining nested suffix of the entry's request.
-	namespace []string
+	// suffixParts contains the nested suffix of the entry's request that wasn't
+	// matched by the request.
+	suffixParts []string
 }
 
 // matchGetRequest either returns the first exact match for the request or, if
 // no entry is an exact match, one or more entries that the request matches a
 // prefix of. If no match is found, a NotFoundError is returned.
-func (a *Aspect) matchGetRequest(request string) (matches []match, err error) {
+func (a *Aspect) matchGetRequest(request string) (matches []requestMatch, err error) {
 	subkeys := strings.Split(request, ".")
 
 	for _, accessPatt := range a.accessPatterns {
@@ -433,11 +434,12 @@ func (a *Aspect) matchGetRequest(request string) (matches []match, err error) {
 			return nil, &InvalidAccessError{RequestedAccess: read, FieldAccess: accessPatt.access, Field: request}
 		}
 
-		m := match{storagePath: path, namespace: restSuffix}
+		m := requestMatch{storagePath: path, suffixParts: restSuffix}
 		matches = append(matches, m)
 	}
 
-	// sort matches by namespace to ensure that nested matches are read after
+	// sort matches by namespace (unmatched suffix) to ensure that nested matches
+	// are read after
 	sort.Sort(byNamespace(matches))
 
 	if len(matches) == 0 {
@@ -447,12 +449,12 @@ func (a *Aspect) matchGetRequest(request string) (matches []match, err error) {
 	return matches, nil
 }
 
-type byNamespace []match
+type byNamespace []requestMatch
 
 func (b byNamespace) Len() int      { return len(b) }
 func (b byNamespace) Swap(x, y int) { b[x], b[y] = b[y], b[x] }
 func (b byNamespace) Less(x, y int) bool {
-	xNamespace, yNamespace := b[x].namespace, b[y].namespace
+	xNamespace, yNamespace := b[x].suffixParts, b[y].suffixParts
 
 	minLen := int(math.Min(float64(len(xNamespace)), float64(len(yNamespace))))
 	for i := 0; i < minLen; i++ {
