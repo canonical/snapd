@@ -21,7 +21,7 @@ package main_test
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -78,7 +78,10 @@ func (s *expandSuite) TestExpandHomeDirHappy(c *C) {
 		"none $HOME/.local/share none x-snapd.kind=not-ensure-dir,x-snapd.must-exist-dir=$HOME 0 0\n"
 	profile, err := osutil.ReadMountProfile(strings.NewReader(input))
 	c.Assert(err, IsNil)
-	c.Assert(update.ExpandHomeDir(profile, "/home/user", nil), IsNil)
+	home := func() (path string, err error) {
+		return "/home/user", nil
+	}
+	c.Assert(update.ExpandHomeDir(profile, home), IsNil)
 	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)
 	c.Check(builder.String(), Equals, output)
@@ -89,7 +92,10 @@ func (s *expandSuite) TestExpandHomeDirHomeError(c *C) {
 		"none $HOME/.local/share none x-snapd.kind=not-ensure-dir,x-snapd.must-exist-dir=$HOME 0 0\n"
 	profile, err := osutil.ReadMountProfile(strings.NewReader(input))
 	c.Assert(err, IsNil)
-	err = update.ExpandHomeDir(profile, "/home/user", fmt.Errorf("invalid home directory"))
+	home := func() (path string, err error) {
+		return "/home/user", errors.New("invalid home directory")
+	}
+	err = update.ExpandHomeDir(profile, home)
 	c.Assert(err, ErrorMatches, `cannot expand mount entry \(none \$HOME/.local/share none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=\$HOME 0 0\): invalid home directory`)
 	builder := &bytes.Buffer{}
 	profile.WriteTo(builder)

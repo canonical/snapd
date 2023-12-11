@@ -118,7 +118,10 @@ func (upCtx *UserProfileUpdateContext) LoadDesiredProfile() (*osutil.MountProfil
 	if err != nil {
 		return nil, err
 	}
-	if err := expandHomeDir(profile, upCtx.home, upCtx.homeError); err != nil {
+	home := func() (path string, err error) {
+		return upCtx.home, upCtx.homeError
+	}
+	if err := expandHomeDir(profile, home); err != nil {
 		return nil, err
 	}
 	// TODO: when SNAP_USER_DATA, SNAP_USER_COMMON or other variables relating

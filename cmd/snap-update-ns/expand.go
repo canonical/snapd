@@ -56,19 +56,21 @@ func expandXdgRuntimeDir(profile *osutil.MountProfile, uid int) {
 }
 
 // expandHomeDir expands the $HOME variable in the given mount profile for entries
-// of mount kind "ensure-dir". It returns and error if expansion is required but the
-// given homeError indicates that given home cannot be used for expansion.
-func expandHomeDir(profile *osutil.MountProfile, home string, homeError error) error {
+// of mount kind "ensure-dir". It returns and error if expansion is required but home
+// err indicates that path should not be used for expansion.
+func expandHomeDir(profile *osutil.MountProfile, home func() (path string, err error)) error {
 	const envVar = "$HOME"
+	path, err := home()
+
 	for i := range profile.Entries {
 		if profile.Entries[i].XSnapdKind() != "ensure-dir" {
 			continue
 		}
 
-		dir, dirExpanded := expandPrefixVariable(profile.Entries[i].Dir, envVar, home)
-		mustExistDir, mustExistDirExpanded := expandPrefixVariable(profile.Entries[i].XSnapdMustExistDir(), envVar, home)
+		dir, dirExpanded := expandPrefixVariable(profile.Entries[i].Dir, envVar, path)
+		mustExistDir, mustExistDirExpanded := expandPrefixVariable(profile.Entries[i].XSnapdMustExistDir(), envVar, path)
 
-		if homeError == nil {
+		if err == nil {
 			if dirExpanded {
 				profile.Entries[i].Dir = dir
 			}
@@ -76,7 +78,7 @@ func expandHomeDir(profile *osutil.MountProfile, home string, homeError error) e
 				osutil.ReplaceMountEntryOption(&profile.Entries[i], osutil.XSnapdMustExistDir(mustExistDir))
 			}
 		} else if dirExpanded || mustExistDirExpanded {
-			return fmt.Errorf("cannot expand mount entry (%s): %v", profile.Entries[i], homeError)
+			return fmt.Errorf("cannot expand mount entry (%s): %v", profile.Entries[i], err)
 		}
 	}
 	return nil
