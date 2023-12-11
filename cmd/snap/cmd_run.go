@@ -526,7 +526,7 @@ func maybeWaitWhileInhibited(snapName string, appName string) (info *snap.Info, 
 		hintFlock, err = waitWhileInhibited(snapName, notInhibited, inhibited, 500*time.Millisecond)
 		if err != nil {
 			// it is fine to return an error here without finishing the notification
-			// flow becuase we either failed because of it or before it, so it
+			// flow because we either failed because of it or before it, so it
 			// should not have started in the first place.
 			return nil, nil, nil, err
 		}
