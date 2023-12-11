@@ -22,9 +22,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"time"
 
 	"github.com/godbus/dbus"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
@@ -135,81 +133,11 @@ var finishRefreshNotification = func(refreshInfo *client.FinishedSnapRefreshInfo
 	return nil
 }
 
-func newInhibitionFlow(snapName string) inhibitionFlow {
+var newInhibitionFlow = func(snapName string) inhibitionFlow {
 	if isGraphicalSession() {
 		return &graphicalFlow{snapName: snapName}
 	}
 	return &textFlow{snapName: snapName}
 }
 
-// waitWhileInhibited blocks until the snap is not inhibited anymore.
-//
-// Calling clean() releases the lock and finishes notification flow.
-//
-// IMPORTANT: It is the callers responsibility to call clean().
-func waitWhileInhibited(snapName string) (clean func() error, retErr error) {
-	flow := newInhibitionFlow(snapName)
-
-	// every 0.5s check if the inhibition file is still present.
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
-
-	notified := false
-	for {
-		hintFlock, err := runinhibit.OpenLock(snapName)
-		if err != nil {
-			return nil, err
-		}
-		// release lock if we return early with an error
-		defer func() {
-			// keep lock if no errors occur
-			if retErr != nil {
-				hintFlock.Close()
-			}
-		}()
-
-		// hold read lock
-		if err := hintFlock.ReadLock(); err != nil {
-			return nil, err
-		}
-		// read inhibition hint
-		hint, err := hintFromFile(hintFlock.File())
-		if err != nil {
-			return nil, err
-		}
-
-		switch hint {
-		case runinhibit.HintInhibitedForRefresh:
-			if !notified {
-				// only notify once
-				if err := flow.Notify(); err != nil {
-					return nil, err
-				} else {
-					notified = true
-				}
-			}
-		case runinhibit.HintNotInhibited:
-			clean := func() error {
-				defer hintFlock.Close()
-				if err := flow.Finish(); err != nil {
-					return err
-				}
-				return nil
-			}
-
-			return clean, nil
-		}
-
-		// release lock to allow changes during waiting interval
-		hintFlock.Close()
-		<-ticker.C
-	}
-}
-
-var hintFromFile = func(hintFile *os.File) (runinhibit.Hint, error) {
-	buf, err := ioutil.ReadAll(hintFile)
-	if err != nil {
-		return "", err
-	}
-	return runinhibit.Hint(string(buf)), nil
-}
+var waitWhileInhibited = runinhibit.WaitWhileInhibited

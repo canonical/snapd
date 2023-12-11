@@ -260,24 +260,6 @@ func (x *cmdRun) Execute(args []string) error {
 	return x.snapRunApp(snapApp, args)
 }
 
-// maybeWaitWhileInhibited blocks until the snap is not inhibited anymore if
-// refresh-app-awareness is enabled.
-//
-// Calling clean() releases the lock and finishes notification flow. clean() is
-// a no-op when refresh-app-awareness is not enabled.
-//
-// IMPORTANT: It is the callers responsibility to call clean().
-func maybeWaitWhileInhibited(snapName string) (clean func() error, err error) {
-	// If the snap is inhibited from being used then postpone running it until
-	// that condition passes. Inhibition UI can be dismissed by the user, in
-	// which case we don't run the application at all.
-	if features.RefreshAppAwareness.IsEnabled() {
-		return waitWhileInhibited(snapName)
-	}
-	// no-op
-	return func() error { return nil }, nil
-}
-
 // antialias changes snapApp and args if snapApp is actually an alias
 // for something else. If not, or if the args aren't what's expected
 // for completion, it returns them unchanged.
@@ -505,6 +487,67 @@ func getInfoAndApp(snapName, appName string, rev snap.Revision) (*snap.Info, *sn
 	return info, app, nil
 }
 
+func maybeWaitWhileInhibited(snapName string, appName string) (info *snap.Info, app *snap.AppInfo, hintFlock *osutil.FileLock, err error) {
+	if features.RefreshAppAwareness.IsEnabled() {
+		flow := newInhibitionFlow(snapName)
+		notified := false
+		notInhibited := func() (err error) {
+			// get updated "current" snap info
+			info, app, err = getInfoAndApp(snapName, appName, snap.R(0))
+			return err
+		}
+		inhibited := func(hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error) {
+			if !notified {
+				info, app, err = getInfoAndApp(snapName, appName, inhibitInfo.Previous)
+				if err != nil {
+					return false, err
+				}
+				// don't wait, continue with old revision
+				if app.IsService() {
+					return true, nil
+				}
+				// don't start flow if we are not inhibited for refresh
+				if hint != runinhibit.HintInhibitedForRefresh {
+					return false, nil
+				}
+				// start notification flow
+				if err := flow.Notify(); err != nil {
+					return true, err
+				}
+				// make sure we call notification flow only once
+				notified = true
+			}
+			return false, nil
+		}
+
+		// If the snap is inhibited from being used then postpone running it until
+		// that condition passes. Inhibition UI can be dismissed by the user, in
+		// which case we don't run the application at all.
+		hintFlock, err = waitWhileInhibited(snapName, notInhibited, inhibited, 500*time.Millisecond)
+		if err != nil {
+			// it is fine to return an error here without finishing the notification
+			// flow becuase we either failed because of it or before it, so it
+			// should not have started in the first place.
+			return nil, nil, nil, err
+		}
+
+		if !app.IsService() && notified {
+			if err := flow.Finish(); err != nil {
+				hintFlock.Close()
+				return nil, nil, nil, err
+			}
+		}
+
+		return info, app, hintFlock, nil
+	} else {
+		info, app, err = getInfoAndApp(snapName, appName, snap.R(0))
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		return info, app, nil, nil
+	}
+}
+
 func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 	if x.DebugLog {
 		os.Setenv("SNAPD_DEBUG", "1")
@@ -512,21 +555,21 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 	}
 	snapName, appName := snap.SplitSnapApp(snapApp)
 
-	snapRev := snap.R(0)
-	hint, inhibitInfo, err := runinhibit.IsLocked(snapName)
-	if err != nil {
-		return err
-	}
-	if hint != runinhibit.HintNotInhibited {
-		snapRev = inhibitInfo.Previous
-	}
-
-	info, app, err := getInfoAndApp(snapName, appName, snapRev)
+	info, app, hintFlock, err := maybeWaitWhileInhibited(snapName, appName)
 	if err != nil {
 		return err
 	}
 
-	return x.runSnapConfine(info, app.SecurityTag(), snapApp, "", args)
+	closeFlock := func() {
+		if hintFlock != nil {
+			hintFlock.Close()
+		}
+	}
+	// make sure we release the lock in case runSnapConfine fails before
+	// calling beforeExec(), it is fine if we double close.
+	defer closeFlock()
+
+	return x.runSnapConfine(info, app.SecurityTag(), snapApp, "", closeFlock, args)
 }
 
 func (x *cmdRun) snapRunHook(snapName string) error {
@@ -545,7 +588,7 @@ func (x *cmdRun) snapRunHook(snapName string) error {
 		return fmt.Errorf(i18n.G("cannot find hook %q in %q"), x.HookName, snapName)
 	}
 
-	return x.runSnapConfine(info, hook.SecurityTag(), snapName, hook.Name, nil)
+	return x.runSnapConfine(info, hook.SecurityTag(), snapName, hook.Name, nil, nil)
 }
 
 func (x *cmdRun) snapRunTimer(snapApp, timer string, args []string) error {
@@ -1043,7 +1086,7 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 	return err
 }
 
-func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook string, args []string) error {
+func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook string, beforeExec func(), args []string) error {
 	snapConfine, err := snapdHelperPath("snap-confine")
 	if err != nil {
 		return err
@@ -1059,22 +1102,6 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	logger.Debugf("executing snap-confine from %s", snapConfine)
 
 	snapName, appName := snap.SplitSnapApp(snapApp)
-	if hook == "" {
-		clean, err := maybeWaitWhileInhibited(snapName)
-		if err != nil {
-			return err
-		}
-		// make sure to release inhibition file lock and finish RAA notification
-		// flow before returning.
-		defer clean()
-
-		// get updated "current" snap info, and check that app still exists
-		info, _, err = getInfoAndApp(snapName, appName, snap.R(0))
-		if err != nil {
-			return err
-		}
-	}
-
 	opts, err := getSnapDirOptions(snapName)
 	if err != nil {
 		return fmt.Errorf("cannot get snap dir options: %w", err)
@@ -1262,6 +1289,11 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 			logger.Debugf("snap refreshes will not be postponed by this process")
 		}
 	}
+
+	if beforeExec != nil {
+		beforeExec()
+	}
+
 	logger.StartupStageTimestamp("snap to snap-confine")
 	if x.TraceExec {
 		return x.runCmdWithTraceExec(cmd, envForExec)

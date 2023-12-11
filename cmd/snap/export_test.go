@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/image"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/seed/seedwriter"
@@ -149,7 +150,6 @@ var (
 	MaybePrintCohortKey                           = (*infoWriter).maybePrintCohortKey
 	MaybePrintHealth                              = (*infoWriter).maybePrintHealth
 	MaybePrintRefreshInfo                         = (*infoWriter).maybePrintRefreshInfo
-	WaitWhileInhibited                            = waitWhileInhibited
 	TryNotifyRefreshViaSnapDesktopIntegrationFlow = tryNotifyRefreshViaSnapDesktopIntegrationFlow
 )
 
@@ -452,14 +452,6 @@ func MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(f func(snapName string) b
 	}
 }
 
-func MockHintFromFile(f func(*os.File) (runinhibit.Hint, error)) (restore func()) {
-	old := hintFromFile
-	hintFromFile = f
-	return func() {
-		hintFromFile = old
-	}
-}
-
 func MockAutostartSessionApps(f func(string) error) func() {
 	old := autostartSessionApps
 	autostartSessionApps = f
@@ -485,4 +477,28 @@ func MockSeedWriterReadManifest(f func(manifestFile string) (*seedwriter.Manifes
 	restore = testutil.Backup(&seedwriterReadManifest)
 	seedwriterReadManifest = f
 	return restore
+}
+
+var MaybeWaitWhileInhibited = maybeWaitWhileInhibited
+
+func MockWaitWhileInhibited(f func(snapName string, notInhibited func() error, inhibited func(hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error)) (restore func()) {
+	old := waitWhileInhibited
+	waitWhileInhibited = f
+	return func() {
+		waitWhileInhibited = old
+	}
+}
+
+var NewInhibitionFlow = newInhibitionFlow
+
+type InhibitionFlow inhibitionFlow
+
+func MockInhibitionFlow(flow InhibitionFlow) func() {
+	old := newInhibitionFlow
+	newInhibitionFlow = func(snapName string) inhibitionFlow {
+		return flow
+	}
+	return func() {
+		newInhibitionFlow = old
+	}
 }

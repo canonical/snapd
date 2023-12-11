@@ -207,17 +207,6 @@ func Unlock(snapName string) error {
 	return nil
 }
 
-func OpenLock(snapName string) (*osutil.FileLock, error) {
-	if err := os.MkdirAll(InhibitDir, 0755); err != nil {
-		return nil, err
-	}
-	flock, err := openHintFileLock(snapName)
-	if err != nil {
-		return nil, err
-	}
-	return flock, nil
-}
-
 // IsLocked returns the state of the run inhibition lock for the given snap.
 //
 // It returns the current, non-empty hint if inhibition is in place. Otherwise
