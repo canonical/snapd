@@ -474,16 +474,16 @@ func MkdirAllWithin(path, parent string, perm os.FileMode, uid sys.UserID, gid s
 	if err != nil {
 		return err
 	}
+	defer sysClose(fd)
 
 	// Create the remaining missing directories
 	for iter.Next() {
-		defer sysClose(fd)
 		fd, err = MkDir(fd, iter.CurrentBaseNoSlash(), iter.CurrentNameNoSlash(), perm, uid, gid, rs)
 		if err != nil {
 			return err
 		}
+		defer sysClose(fd)
 	}
-	defer sysClose(fd)
 	return nil
 }
 
