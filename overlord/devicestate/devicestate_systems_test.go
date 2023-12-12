@@ -2031,12 +2031,93 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234missingdownload"), testutil.FileAbsent)
 }
 
-func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(c *C) {
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoNoTestSystem(c *C) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234undo", devicestate.CreateRecoverySystemOptions{
+		MarkCurrent: true,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(chg, NotNil)
+	tsks := chg.Tasks()
+	c.Check(tsks, HasLen, 1)
+	tskCreate := tsks[0]
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(tskCreate)
+	chg.AddTask(terr)
+
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+	s.bootloader.SetBootVarsCalls = 0
+
+	snaptest.PopulateDir(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps"), [][]string{
+		{"core20_10.snap", "canary"},
+		{"some-snap_1.snap", "canary"},
+	})
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), ErrorMatches, "(?s)cannot perform the following tasks.* provoking total undo.*")
+	c.Assert(tskCreate.Status(), Equals, state.UndoneStatus)
+	// a reboot is not expected
+	c.Check(s.restartRequests, HasLen, 0)
+
+	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+
+	modeenvAfterCreate, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem"},
+		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
+	})
+
+	var triedSystemsAfter []string
+	err = s.state.Get("tried-systems", &triedSystemsAfter)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+
+	// expect 2 calls to bootloader.SetBootVars: one for do, one for undo
+	c.Check(s.bootloader.SetBootVarsCalls, Equals, 2)
+
+	// system directory was removed
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234undo"), testutil.FileAbsent)
+	// only the canary files are left now
+	p, err := filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*"))
+	c.Assert(err, IsNil)
+	c.Check(p, DeepEquals, []string{
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/core20_10.snap"),
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/some-snap_1.snap"),
+	})
+
+	var systems []devicestate.SeededSystem
+	err = s.state.Get("seeded-systems", &systems)
+	c.Assert(err, IsNil)
+	c.Check(systems, HasLen, 0)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoTestSystem(c *C) {
 	devicestate.SetBootOkRan(s.mgr, true)
 
 	s.state.Lock()
 	chg, err := devicestate.CreateRecoverySystem(s.state, "1234undo", devicestate.CreateRecoverySystemOptions{
-		TestSystem: true,
+		TestSystem:  true,
+		MarkCurrent: true,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
@@ -2139,9 +2220,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 		Grade:          string(s.model.Grade()),
 		ModelSignKeyID: s.model.SignKeyID(),
 	})
-	// expect 1 more call to bootloader.SetBootVars, since we're marking this
-	// system as seeded
-	c.Check(s.bootloader.SetBootVarsCalls, Equals, 1)
+	// expect 2 calls to bootloader.SetBootVars: one for do, one for undo
+	c.Check(s.bootloader.SetBootVarsCalls, Equals, 2)
 	// system directory was removed
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234undo"), testutil.FileAbsent)
 	// only the canary files are left now
@@ -2151,6 +2231,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/core20_10.snap"),
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/some-snap_1.snap"),
 	})
+
+	var systems []devicestate.SeededSystem
+	err = s.state.Get("seeded-systems", &systems)
+	c.Assert(err, IsNil)
+	c.Check(systems, HasLen, 0)
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinalizeErrsWhenSystemFailed(c *C) {

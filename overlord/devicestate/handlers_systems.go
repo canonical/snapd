@@ -352,6 +352,26 @@ func (m *DeviceManager) undoCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) er
 
 	var undoErr error
 
+	// if we were not planning on testing the system, then we need to undo
+	// marking the system as seeded and recovery capable
+	if !setup.TestSystem {
+		// TODO: should either of these errors go in undoErr?
+		model := remodelCtx.Model()
+		if err := m.deleteSeededSystem(st, &seededSystem{
+			System:    label,
+			Model:     model.Model(),
+			BrandID:   model.BrandID(),
+			Revision:  model.Revision(),
+			Timestamp: model.Timestamp(),
+		}); err != nil {
+			t.Logf("when deleting seeded system: %v", err)
+		}
+
+		if err := boot.UnmarkRecoveryCapableSystem(label); err != nil {
+			t.Logf("when unmarking system recovery capable: %v", err)
+		}
+	}
+
 	if err := purgeNewSystemSnapFiles(filepath.Join(setup.Directory, "snapd-new-file-log")); err != nil {
 		t.Logf("when removing seed files: %v", err)
 	}
@@ -426,7 +446,6 @@ func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tom
 
 		model := remodelCtx.Model()
 
-		// TODO: if we do this, i think we'll need to undo this in the undo handler
 		if setup.MarkCurrent {
 			if err := m.recordSeededSystem(st, &seededSystem{
 				System:    label,
@@ -469,6 +488,26 @@ func (m *DeviceManager) undoFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.T
 		return err
 	}
 	label := setup.Label
+
+	// during a remodel, setting the system as seeded and recovery capable will
+	// happen in the set-model task
+	if !remodelCtx.ForRemodeling() {
+		model := remodelCtx.Model()
+
+		if err := m.deleteSeededSystem(st, &seededSystem{
+			System:    label,
+			Model:     model.Model(),
+			BrandID:   model.BrandID(),
+			Revision:  model.Revision(),
+			Timestamp: model.Timestamp(),
+		}); err != nil {
+			return fmt.Errorf("cannot delete seeded system: %v", err)
+		}
+
+		if err := boot.UnmarkRecoveryCapableSystem(label); err != nil {
+			t.Logf("when unmarking system recovery capable: %v", err)
+		}
+	}
 
 	if err := boot.DropRecoverySystem(remodelCtx, label); err != nil {
 		return fmt.Errorf("cannot drop a good recovery system %q: %v", label, err)
