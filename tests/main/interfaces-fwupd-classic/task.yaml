@@ -7,6 +7,7 @@ systems:
     - -ubuntu-14.04-*
     # Amazon Linux does not appear to have a functional fwupd
     - -amazon-linux-2-*
+    - -amazon-linux-2023-*
 
 execute: |
     echo "Install the test-snapd-fwupd" interface

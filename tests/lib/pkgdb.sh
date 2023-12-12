@@ -735,11 +735,11 @@ pkg_dependencies_amazon(){
     fi
     if os.query is-amazon-linux 2023; then
         echo "
+            bpftool
             python-docutils
             "
     fi
     echo "
-        python3
         curl
         dbus-x11
         expect
@@ -755,6 +755,7 @@ pkg_dependencies_amazon(){
         net-tools
         nfs-utils
         PackageKit
+        python3
         rpm-build
         xdg-user-dirs
         xdg-utils
