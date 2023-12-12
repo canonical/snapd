@@ -716,6 +716,9 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("enforce-validation-sets", m.doEnforceValidationSets, nil)
 	runner.AddHandler("pre-download-snap", m.doPreDownloadSnap, nil)
 
+	// component tasks
+	runner.AddHandler("prepare-component", m.doPrepareComponent, nil)
+	runner.AddHandler("mount-component", m.doMountComponent, m.undoMountComponent)
 	// control serialisation
 	runner.AddBlocked(m.blockedTask)
 
