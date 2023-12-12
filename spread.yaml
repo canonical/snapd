@@ -1080,6 +1080,7 @@ suites:
             if [ -n "$CPU_LOAD" ]; then
                 # Now we make sure all the load generator processes are killed before
                 # the load-generator service is removed
+                #shellcheck disable=SC2009
                 PIDs="$(ps -ef | grep -e '^root.*python3.*load-generator' | awk '{print $2}')"
                 # shellcheck disable=SC2086
                 for pid in $PIDs; do

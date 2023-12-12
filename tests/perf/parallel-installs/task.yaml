@@ -26,7 +26,7 @@ execute: |
     done
 
     NUM_SNAPS="$(echo "$SNAPS" | wc -w )"
-    test $(snap list | wc -l) -gt $(( NUM_PARALLEL * NUM_SNAPS))
+    test "$(snap list | wc -l)" -gt $(( NUM_PARALLEL * NUM_SNAPS))
 
     echo "Removing all the snaps"
     # shellcheck disable=SC2086
