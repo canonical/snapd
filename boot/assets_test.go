@@ -695,11 +695,11 @@ func (s *assetsSuite) testUpdateObserverUpdateMockedWithReseal(c *C, seedRole st
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {beforeHash},
-			"shim":  {"shim-hash"},
+			"asset": []string{beforeHash},
+			"shim":  []string{"shim-hash"},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {beforeHash},
+			"asset": []string{beforeHash},
 		},
 	}
 	err = m.WriteTo("")
@@ -759,13 +759,13 @@ func (s *assetsSuite) testUpdateObserverUpdateMockedWithReseal(c *C, seedRole st
 	newM, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {beforeHash, dataHash},
-		"shim":  {"shim-hash", shimHash},
+		"asset": []string{beforeHash, dataHash},
+		"shim":  []string{"shim-hash", shimHash},
 	})
 	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset":       {beforeHash, dataHash},
-		"shim":        {shimHash},
-		"other-asset": {dataHash},
+		"asset":       []string{beforeHash, dataHash},
+		"shim":        []string{shimHash},
+		"other-asset": []string{dataHash},
 	})
 
 	// verify that managed assets are to be preserved
@@ -823,12 +823,12 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {"asset-hash"},
+			"asset": []string{"asset-hash"},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			// shim with same hash is listed as trusted, but missing
 			// from cache
-			"shim": {shimHash},
+			"shim": []string{shimHash},
 		},
 	}
 	err = m.WriteTo("")
