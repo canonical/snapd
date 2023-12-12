@@ -146,6 +146,28 @@ func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string,
 	return ref.Resolve(sto.db.Find)
 }
 
+func (sto *fakeStore) SeqFormingAssertion(assertType *asserts.AssertionType, key []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
+	sto.pokeStateLock()
+
+	ref := &asserts.AtSequence{
+		Type:        assertType,
+		SequenceKey: key,
+		Sequence:    sequence,
+		Revision:    asserts.RevisionNotKnown,
+		Pinned:      sequence > 0,
+	}
+
+	if sequence <= 0 {
+		hdrs, err := asserts.HeadersFromSequenceKey(ref.Type, ref.SequenceKey)
+		if err != nil {
+			return nil, err
+		}
+		return sto.db.FindSequence(ref.Type, hdrs, -1, ref.Type.MaxSupportedFormat())
+	}
+
+	return ref.Resolve(sto.db.Find)
+}
+
 var (
 	brandPrivKey, _  = assertstest.GenerateKey(752)
 	brandPrivKey2, _ = assertstest.GenerateKey(752)
