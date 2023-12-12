@@ -902,15 +902,32 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 }
 
 func (f *fakeSnappyBackend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *backend.InstallRecord, err error) {
-	panic("not used yet in tests")
+	meter.Notify("setup-component")
+	f.appendOp(&fakeOp{
+		op: "setup-component",
+	})
+	if strings.HasSuffix(compPi.ContainerName(), "+broken") {
+		return nil, fmt.Errorf("cannot set-up component %q", compPi.ContainerName())
+	}
+	return &backend.InstallRecord{}, nil
 }
 
 func (f *fakeSnappyBackend) UndoSetupComponent(cpi snap.ContainerPlaceInfo, installRecord *backend.InstallRecord, dev snap.Device, meter progress.Meter) error {
-	panic("not used yet in tests")
+	meter.Notify("undo-setup-component")
+	f.appendOp(&fakeOp{
+		op: "undo-setup-component",
+	})
+	if strings.HasSuffix(cpi.ContainerName(), "+brokenundo") {
+		return fmt.Errorf("cannot undo set-up of component %q", cpi.ContainerName())
+	}
+	return nil
 }
 
 func (f *fakeSnappyBackend) RemoveComponentDir(cpi snap.ContainerPlaceInfo) error {
-	panic("not used yet in tests")
+	f.appendOp(&fakeOp{
+		op: "remove-component-dir",
+	})
+	return nil
 }
 
 func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
