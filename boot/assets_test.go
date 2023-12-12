@@ -862,11 +862,11 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 	newM, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {"asset-hash", dataHash},
+		"asset": []string{"asset-hash", dataHash},
 	})
 	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {dataHash},
-		"shim":  {shimHash},
+		"asset": []string{dataHash},
+		"shim":  []string{shimHash},
 	})
 
 	// verify that managed assets are to be preserved
@@ -936,10 +936,10 @@ func (s *assetsSuite) TestUpdateObserverUpdateNothingTrackedMocked(c *C) {
 	newM, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {dataHash},
+		"asset": []string{dataHash},
 	})
 	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {dataHash},
+		"asset": []string{dataHash},
 	})
 
 	// reseal does nothing
@@ -1058,10 +1058,10 @@ func (s *assetsSuite) TestUpdateObserverUpdateRepeatedAssetErr(c *C) {
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {"one", "two"},
+			"asset": []string{"one", "two"},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {"one", "two"},
+			"asset": []string{"one", "two"},
 		},
 	}
 	err := m.WriteTo("")
@@ -1115,10 +1115,10 @@ func (s *assetsSuite) TestUpdateObserverUpdateAfterSuccessfulBootMocked(c *C) {
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 	}
 	err = m.WriteTo("")
@@ -1158,11 +1158,11 @@ func (s *assetsSuite) TestUpdateObserverUpdateAfterSuccessfulBootMocked(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
 		// original asset is restored, listed first
-		"asset": {beforeHash, dataHash},
+		"asset": []string{beforeHash, dataHash},
 	})
 	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
 		// same here
-		"asset": {beforeHash, dataHash},
+		"asset": []string{beforeHash, dataHash},
 	})
 }
 
@@ -1220,15 +1220,15 @@ func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) 
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			// new version added during update
-			"asset": {dataHash, "newhash"},
+			"asset": []string{dataHash, "newhash"},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			// no new version added during update
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 			// new version added during update
-			"shim": {shimHash, "newshimhash"},
+			"shim": []string{shimHash, "newshimhash"},
 			// completely new file
-			"other-asset": {"newotherhash"},
+			"other-asset": []string{"newotherhash"},
 		},
 	}
 	err := m.WriteTo("")
@@ -1278,11 +1278,11 @@ func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) 
 	newM, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {dataHash},
+		"asset": []string{dataHash},
 	})
 	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {dataHash},
-		"shim":  {shimHash},
+		"asset": []string{dataHash},
+		"shim":  []string{shimHash},
 	})
 }
 
@@ -1301,11 +1301,11 @@ func (s *assetsSuite) TestUpdateObserverRollbackFileValidity(c *C) {
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			// only one hash is listed, indicating it's a new file
-			"asset": {"newhash"},
+			"asset": []string{"newhash"},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			// same thing
-			"asset": {"newhash"},
+			"asset": []string{"newhash"},
 		},
 	}
 	err := m.WriteTo("")
@@ -1333,11 +1333,11 @@ func (s *assetsSuite) TestUpdateObserverRollbackFileValidity(c *C) {
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			// only one hash is listed, indicating it's a new file
-			"asset": {"newhash", "bogushash"},
+			"asset": []string{"newhash", "bogushash"},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			// same thing
-			"asset": {"newhash", "bogushash"},
+			"asset": []string{"newhash", "bogushash"},
 		},
 	}
 	err = m.WriteTo("")
@@ -1454,11 +1454,11 @@ func (s *assetsSuite) TestUpdateObserverUpdateRollbackGrub(c *C) {
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"grubx64.efi": {"0d0c6522fcc813770f2bb9ca68ad3b4f0ccc6b4bfbd2e8497030079e6146f92177ad8f6f83d96ab61d7d42f5228a4389"},
+			"grubx64.efi": []string{"0d0c6522fcc813770f2bb9ca68ad3b4f0ccc6b4bfbd2e8497030079e6146f92177ad8f6f83d96ab61d7d42f5228a4389"},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"grubx64.efi": {"6c3e6fc78ade5aadc5f9f0603a127346cc174436eb5e0188e108a376c3ba4d8951c460a8f51674e797c06951f74cb10d"},
-			"bootx64.efi": {"c0437507ac094a7e9c699725cc0a4726cd10799af9eb79bbeaa136c2773163c80432295c2a04d3aa2ddd535ce8f1a12b"},
+			"grubx64.efi": []string{"6c3e6fc78ade5aadc5f9f0603a127346cc174436eb5e0188e108a376c3ba4d8951c460a8f51674e797c06951f74cb10d"},
+			"bootx64.efi": []string{"c0437507ac094a7e9c699725cc0a4726cd10799af9eb79bbeaa136c2773163c80432295c2a04d3aa2ddd535ce8f1a12b"},
 		},
 	}
 	err := m.WriteTo("")
@@ -1505,7 +1505,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateRollbackGrub(c *C) {
 	newM, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
-		"grubx64.efi": {
+		"grubx64.efi": []string{
 			// old hash
 			"0d0c6522fcc813770f2bb9ca68ad3b4f0ccc6b4bfbd2e8497030079e6146f92177ad8f6f83d96ab61d7d42f5228a4389",
 			// update
@@ -1513,13 +1513,13 @@ func (s *assetsSuite) TestUpdateObserverUpdateRollbackGrub(c *C) {
 		},
 	})
 	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
-		"grubx64.efi": {
+		"grubx64.efi": []string{
 			// old hash
 			"6c3e6fc78ade5aadc5f9f0603a127346cc174436eb5e0188e108a376c3ba4d8951c460a8f51674e797c06951f74cb10d",
 			// update
 			"f9554844308e89b565c1cdbcbdb9b09b8210dd2f1a11cb3b361de0a59f780ae3d4bd6941729a60e0f8ce15b2edef605d",
 		},
-		"bootx64.efi": {
+		"bootx64.efi": []string{
 			// old hash
 			"c0437507ac094a7e9c699725cc0a4726cd10799af9eb79bbeaa136c2773163c80432295c2a04d3aa2ddd535ce8f1a12b",
 			// update
@@ -1559,11 +1559,11 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {"assethash"},
-			"shim":  {"shimhash"},
+			"asset": []string{"assethash"},
+			"shim":  []string{"shimhash"},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {"recoveryhash"},
+			"asset": []string{"recoveryhash"},
 		},
 	}
 	err := m.WriteTo("")
@@ -1624,12 +1624,12 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 	newM, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {"assethash", dataHash},
-		"shim":  {"shimhash", shimHash},
+		"asset": []string{"assethash", dataHash},
+		"shim":  []string{"shimhash", shimHash},
 	})
 	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {"recoveryhash", dataHash},
-		"shim":  {shimHash},
+		"asset": []string{"recoveryhash", dataHash},
+		"shim":  []string{shimHash},
 	})
 	resealCalls := 0
 	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
@@ -1691,11 +1691,11 @@ func (s *assetsSuite) TestUpdateObserverCanceledPartiallyUsedMocked(c *C) {
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {"assethash"},
-			"shim":  {"shimhash"},
+			"asset": []string{"assethash"},
+			"shim":  []string{"shimhash"},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"shim": {shimHash},
+			"shim": []string{shimHash},
 		},
 	}
 	err = m.WriteTo("")
@@ -1726,12 +1726,12 @@ func (s *assetsSuite) TestUpdateObserverCanceledPartiallyUsedMocked(c *C) {
 	newM, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {"assethash", dataHash},
-		"shim":  {"shimhash", shimHash},
+		"asset": []string{"assethash", dataHash},
+		"shim":  []string{"shimhash", shimHash},
 	})
 	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {dataHash},
-		"shim":  {shimHash},
+		"asset": []string{dataHash},
+		"shim":  []string{shimHash},
 	})
 	// update is canceled
 	err = obs.Canceled()
@@ -1760,11 +1760,11 @@ func (s *assetsSuite) TestUpdateObserverCanceledNoActionsMocked(c *C) {
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {"assethash"},
-			"shim":  {"shimhash"},
+			"asset": []string{"assethash"},
+			"shim":  []string{"shimhash"},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {"recoveryhash"},
+			"asset": []string{"recoveryhash"},
 		},
 	}
 	err := m.WriteTo("")
@@ -1886,10 +1886,10 @@ func (s *assetsSuite) TestUpdateObserverCanceledAfterRollback(c *C) {
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {"assethash"},
+			"asset": []string{"assethash"},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {"assethash"},
+			"asset": []string{"assethash"},
 		},
 	}
 	err := m.WriteTo("")
@@ -1946,10 +1946,10 @@ func (s *assetsSuite) TestUpdateObserverCanceledUnhappyCacheStillProceeds(c *C) 
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {"assethash"},
+			"asset": []string{"assethash"},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {"recoveryhash"},
+			"asset": []string{"recoveryhash"},
 		},
 	}
 	err := m.WriteTo("")
@@ -1991,12 +1991,12 @@ func (s *assetsSuite) TestUpdateObserverCanceledUnhappyCacheStillProceeds(c *C) 
 	newM, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {"assethash"},
-		"shim":  {shimHash},
+		"asset": []string{"assethash"},
+		"shim":  []string{shimHash},
 	})
 	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {"recoveryhash"},
-		"shim":  {shimHash},
+		"asset": []string{"recoveryhash"},
+		"shim":  []string{shimHash},
 	})
 
 	// make cache directory read only and thus cache.Remove() fail
@@ -2039,10 +2039,10 @@ func (s *assetsSuite) TestObserveSuccessfulBootNoAssetsOnDisk(c *C) {
 	m := &boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {"assethash"},
+			"asset": []string{"assethash"},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {"assethash"},
+			"asset": []string{"assethash"},
 		},
 	}
 
@@ -2074,11 +2074,11 @@ func (s *assetsSuite) TestObserveSuccessfulBootAfterUpdate(c *C) {
 	m := &boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {"assethash", dataHash},
+			"asset": []string{"assethash", dataHash},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {"recoveryassethash", dataHash},
-			"shim":  {"recoveryshimhash", shimHash},
+			"asset": []string{"recoveryassethash", dataHash},
+			"shim":  []string{"recoveryshimhash", shimHash},
 		},
 	}
 
@@ -2086,11 +2086,11 @@ func (s *assetsSuite) TestObserveSuccessfulBootAfterUpdate(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(newM, NotNil)
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {dataHash},
+		"asset": []string{dataHash},
 	})
 	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {dataHash},
-		"shim":  {shimHash},
+		"asset": []string{dataHash},
+		"shim":  []string{shimHash},
 	})
 	c.Check(drop, HasLen, 3)
 	for i, en := range []struct {
@@ -2122,10 +2122,10 @@ func (s *assetsSuite) TestObserveSuccessfulBootWithUnexpected(c *C) {
 	m := &boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {"assethash", dataHash},
+			"asset": []string{"assethash", dataHash},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {"recoveryassethash", dataHash},
+			"asset": []string{"recoveryassethash", dataHash},
 		},
 	}
 
@@ -2164,11 +2164,11 @@ func (s *assetsSuite) TestObserveSuccessfulBootSingleEntries(c *C) {
 	m := &boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
-			"shim":  {shimHash},
+			"asset": []string{dataHash},
+			"shim":  []string{shimHash},
 		},
 	}
 
@@ -2200,10 +2200,10 @@ func (s *assetsSuite) TestObserveSuccessfulBootDropCandidateUsedByOtherBootloade
 	m := &boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {maybeDropHash},
+			"asset": []string{maybeDropHash},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {maybeDropHash, dataHash},
+			"asset": []string{maybeDropHash, dataHash},
 		},
 	}
 
@@ -2212,10 +2212,10 @@ func (s *assetsSuite) TestObserveSuccessfulBootDropCandidateUsedByOtherBootloade
 	c.Assert(err, IsNil)
 	c.Assert(newM, NotNil)
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {maybeDropHash},
+		"asset": []string{maybeDropHash},
 	})
 	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {dataHash},
+		"asset": []string{dataHash},
 	})
 	// nothing get dropped, maybe-drop asset is still used by the
 	// ubuntu-boot bootloader
@@ -2242,11 +2242,11 @@ func (s *assetsSuite) TestObserveSuccessfulBootParallelUpdate(c *C) {
 	m := &boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {"oldhash", dataHash},
+			"asset": []string{"oldhash", dataHash},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {"oldhash", dataHash},
-			"shim":  {shimHash},
+			"asset": []string{"oldhash", dataHash},
+			"shim":  []string{shimHash},
 		},
 	}
 
@@ -2254,11 +2254,11 @@ func (s *assetsSuite) TestObserveSuccessfulBootParallelUpdate(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(newM, NotNil)
 	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {dataHash},
+		"asset": []string{dataHash},
 	})
 	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {dataHash},
-		"shim":  {shimHash},
+		"asset": []string{dataHash},
+		"shim":  []string{shimHash},
 	})
 	// asset was updated in parallel on both partition from the same
 	// oldhash that should be dropped now
@@ -2284,10 +2284,10 @@ func (s *assetsSuite) TestObserveSuccessfulBootHashErr(c *C) {
 	m := &boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 	}
 
@@ -2302,10 +2302,10 @@ func (s *assetsSuite) TestObserveSuccessfulBootDifferentMode(c *C) {
 	m := &boot.Modeenv{
 		Mode: "recover",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {"hash-1", "hash-2"},
+			"asset": []string{"hash-1", "hash-2"},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {"hash-3", "hash-4"},
+			"asset": []string{"hash-3", "hash-4"},
 		},
 	}
 
@@ -2441,10 +2441,10 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {beforeHash},
+			"asset": []string{beforeHash},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {beforeHash},
+			"asset": []string{beforeHash},
 		},
 		CurrentRecoverySystems: []string{"recovery-system-label"},
 		CurrentKernels:         []string{"pc-kernel_500.snap"},
@@ -2581,12 +2581,12 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {"assethash"},
-			"shim":  {"shimhash"},
+			"asset": []string{"assethash"},
+			"shim":  []string{"shimhash"},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {"assethash"},
-			"shim":  {"shimhash"},
+			"asset": []string{"assethash"},
+			"shim":  []string{"shimhash"},
 		},
 		CurrentRecoverySystems:    []string{"system"},
 		CurrentKernels:            []string{"pc-kernel_1.snap"},

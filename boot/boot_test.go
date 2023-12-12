@@ -1096,7 +1096,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		Model:          model.Model(),
 		BrandID:        model.BrandID(),
@@ -1214,7 +1214,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewUnassertedKernelSnapWith
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.ukern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		Model:          uc20Model.Model(),
 		BrandID:        uc20Model.BrandID(),
@@ -1328,7 +1328,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
 
@@ -1446,7 +1446,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.ukern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
 
@@ -1847,7 +1847,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnapNoReseal(c *C) {
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 
 		Model:          model.Model(),
@@ -2165,7 +2165,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdateWithReseal(c *C) {
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename(), s.kern2.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		Model:          model.Model(),
 		BrandID:        model.BrandID(),
@@ -2416,11 +2416,11 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {"assethash", dataHash},
+			"asset": []string{"assethash", dataHash},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {"recoveryassethash", dataHash},
-			"shim":  {"recoveryshimhash", shimHash},
+			"asset": []string{"recoveryassethash", dataHash},
+			"shim":  []string{"recoveryshimhash", shimHash},
 		},
 		CurrentRecoverySystems: []string{"system"},
 
@@ -2485,11 +2485,11 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 	c.Assert(err, IsNil)
 	// update assets are in the list
 	c.Check(m2.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {dataHash},
+		"asset": []string{dataHash},
 	})
 	c.Check(m2.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {dataHash},
-		"shim":  {shimHash},
+		"asset": []string{dataHash},
+		"shim":  []string{shimHash},
 	})
 	// unused files were dropped from cache
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
@@ -2552,11 +2552,11 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
-			"shim":  {shimHash},
+			"asset": []string{dataHash},
+			"shim":  []string{shimHash},
 		},
 		CurrentRecoverySystems:    []string{"system"},
 		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
@@ -2713,11 +2713,11 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.ukern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
-			"shim":  {shimHash},
+			"asset": []string{dataHash},
+			"shim":  []string{shimHash},
 		},
 		CurrentRecoverySystems:    []string{"system"},
 		GoodRecoverySystems:       []string{"system"},
@@ -2851,10 +2851,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateUnexpectedAsset
 		CurrentKernels: []string{s.kern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			// hash will not match
-			"asset": {"one", "two"},
+			"asset": []string{"one", "two"},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {"one", "two"},
+			"asset": []string{"one", "two"},
 		},
 		Model:          model.Model(),
 		BrandID:        model.BrandID(),
@@ -2900,10 +2900,10 @@ func (s *bootenv20Suite) setupMarkBootSuccessful20CommandLine(c *C, model *asser
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {"one"},
+			"asset": []string{"one"},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {"one"},
+			"asset": []string{"one"},
 		},
 		CurrentKernelCommandLines: cmdlines,
 
@@ -4799,7 +4799,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallNewWithReseal
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		Model:          model.Model(),
 		BrandID:        model.BrandID(),
@@ -4911,7 +4911,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallNew
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.ukern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		Model:          uc20Model.Model(),
 		BrandID:        uc20Model.BrandID(),
@@ -5019,7 +5019,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallSameNoReseal(
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
 
@@ -5137,7 +5137,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallSam
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.ukern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
 
@@ -5352,7 +5352,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoBaseSnapInstallNewNoReseal(c *
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 
 		Model:          model.Model(),
