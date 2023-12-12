@@ -152,6 +152,10 @@ jobs:
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd/c-vendor && ./vendor.sh
 
+    - uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+          cache: false
     - name: golangci-lint
       if: ${{ matrix.gochannel == 'latest/stable' }}
       uses: golangci/golangci-lint-action@v3
