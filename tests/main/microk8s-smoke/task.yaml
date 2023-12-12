@@ -1,5 +1,11 @@
 summary: Smoke test for microk8s
 
+details: |
+    Verify the basic functionalities for the microk8s snap. Check that
+    when the snap is installed, the  nodes and services can be retrieved,
+    and nginx service can be deployed and configured. Also check there
+    is not any apparmor denials during this process.
+
 backends:
   - -external
 
