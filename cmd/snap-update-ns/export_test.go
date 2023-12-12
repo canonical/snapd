@@ -182,6 +182,38 @@ func MockReadlink(fn func(string) (string, error)) (restore func()) {
 	}
 }
 
+func MockSysMkdirat(fn func(dirfd int, path string, mode uint32) (err error)) (restore func()) {
+	old := sysMkdirat
+	sysMkdirat = fn
+	return func() {
+		sysMkdirat = old
+	}
+}
+
+func MockSysMount(fn func(source string, target string, fstype string, flags uintptr, data string) (err error)) (restore func()) {
+	old := sysMount
+	sysMount = fn
+	return func() {
+		sysMount = old
+	}
+}
+
+func MockSysUnmount(fn func(target string, flags int) (err error)) (restore func()) {
+	old := sysUnmount
+	sysUnmount = fn
+	return func() {
+		sysUnmount = old
+	}
+}
+
+func MockSysFchown(fn func(fd int, uid sys.UserID, gid sys.GroupID) error) (restore func()) {
+	old := sysFchown
+	sysFchown = fn
+	return func() {
+		sysFchown = old
+	}
+}
+
 func (as *Assumptions) IsRestricted(path string) bool {
 	return as.isRestricted(path)
 }
