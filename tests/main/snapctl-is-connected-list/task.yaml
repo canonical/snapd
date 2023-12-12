@@ -1,5 +1,9 @@
 summary: Ensure that snapctl is-connected --list command works.
 
+details: |
+  Verifies that `snapctl is-connected --list` command when executed
+  from a snap hows properly the list of connections stablished. 
+
 prepare: |
   "$TESTSTOOLS"/snaps-state install-local test-snap
 

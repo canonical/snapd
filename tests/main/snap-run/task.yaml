@@ -1,5 +1,10 @@
 summary: Check that `snap run` runs
 
+details: |
+    Verifies the snap run command and its parameters. Check
+    the parameter --strace can be used and the traced information
+    is correct. Also checks the --trace-exec and --debug-log parameters.
+
 systems:
   # strace does not support _newselect on s390x
   # (https://github.com/strace/strace/issues/57)
