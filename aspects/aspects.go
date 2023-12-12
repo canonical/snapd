@@ -363,7 +363,7 @@ func (a *Aspect) Get(databag DataBag, request string, value *interface{}) error 
 	}
 
 	if merged == nil {
-		return notFoundErrorFrom(a, request, "no value for matching rules")
+		return notFoundErrorFrom(a, request, "matching rules don't map to any values")
 	}
 
 	// the top level maps the request to the remaining namespace
@@ -440,32 +440,25 @@ func (a *Aspect) matchGetRequest(request string) (matches []requestMatch, err er
 
 	// sort matches by namespace (unmatched suffix) to ensure that nested matches
 	// are read after
-	sort.Sort(byNamespace(matches))
+	sort.Slice(matches, func(x, y int) bool {
+		xNamespace, yNamespace := matches[x].suffixParts, matches[y].suffixParts
+
+		minLen := int(math.Min(float64(len(xNamespace)), float64(len(yNamespace))))
+		for i := 0; i < minLen; i++ {
+			if xNamespace[i] == yNamespace[i] {
+				continue
+			}
+			return xNamespace[i] < yNamespace[i]
+		}
+
+		return len(xNamespace) < len(yNamespace)
+	})
 
 	if len(matches) == 0 {
 		return nil, notFoundErrorFrom(a, request, "no matching read rule")
 	}
 
 	return matches, nil
-}
-
-type byNamespace []requestMatch
-
-func (b byNamespace) Len() int      { return len(b) }
-func (b byNamespace) Swap(x, y int) { b[x], b[y] = b[y], b[x] }
-func (b byNamespace) Less(x, y int) bool {
-	xNamespace, yNamespace := b[x].suffixParts, b[y].suffixParts
-
-	minLen := int(math.Min(float64(len(xNamespace)), float64(len(yNamespace))))
-	for i := 0; i < minLen; i++ {
-		if xNamespace[i] < yNamespace[i] {
-			return true
-		} else if xNamespace[i] > yNamespace[i] {
-			return false
-		}
-	}
-
-	return len(xNamespace) < len(yNamespace)
 }
 
 func newAccessPattern(request, storage, accesstype string) (*accessPattern, error) {

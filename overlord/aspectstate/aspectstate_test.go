@@ -63,7 +63,7 @@ func (s *aspectTestSuite) TestGetNotFound(c *C) {
 
 	err = aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "ssid", &res)
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find value for "ssid" in aspect system/network/wifi-setup: no value for matching rules`)
+	c.Assert(err, ErrorMatches, `cannot find value for "ssid" in aspect system/network/wifi-setup: matching rules don't map to any values`)
 	c.Check(res, IsNil)
 
 	err = aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "other-field", &res)

@@ -206,14 +206,14 @@ func (s *aspectSuite) TestAspectNotFound(c *C) {
 
 	err = aspect.Get(databag, "top-level", &value)
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find value for "top-level" in aspect acc/foo/bar: no value for matching rules`)
+	c.Assert(err, ErrorMatches, `cannot find value for "top-level" in aspect acc/foo/bar: matching rules don't map to any values`)
 
 	err = aspect.Set(databag, "nested", "thing")
 	c.Assert(err, IsNil)
 
 	err = aspect.Get(databag, "other-nested", &value)
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find value for "other-nested" in aspect acc/foo/bar: no value for matching rules`)
+	c.Assert(err, ErrorMatches, `cannot find value for "other-nested" in aspect acc/foo/bar: matching rules don't map to any values`)
 }
 
 func (s *aspectSuite) TestAspectBadRead(c *C) {
@@ -263,7 +263,7 @@ func (s *aspectSuite) TestAspectsAccessControl(c *C) {
 		{
 			request: "read-only",
 			// unrelated error
-			getErr: `cannot find value for "read-only" in aspect acc/bundle/foo: no value for matching rules`,
+			getErr: `cannot find value for "read-only" in aspect acc/bundle/foo: matching rules don't map to any values`,
 			setErr: `cannot write field "read-only": only supports read access`,
 		},
 		{
