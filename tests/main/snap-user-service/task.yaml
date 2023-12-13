@@ -1,7 +1,7 @@
 summary: Check that snap user services are installed and started.
 
 details: |
-    Verify that when a new user session is started, if user-daemons feature
+    Verify that when a new user session is started, if the user-daemons feature
     is enabled, then the snap user services are installed and started.
 
 systems:
