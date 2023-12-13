@@ -47,7 +47,8 @@ func (s *prepareSnapSuite) TestDoPrepareComponentSimple(c *C) {
 	t := s.state.NewTask("prepare-component", "task desc")
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	t.Set("component-setup", snapstate.NewComponentSetup(csi, "path-to-component", ssu))
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, "path-to-component"))
+	t.Set("snap-setup", ssu)
 
 	s.state.NewChange("test change", "change desc").AddTask(t)
 

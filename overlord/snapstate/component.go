@@ -77,21 +77,20 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 	compSetup := &ComponentSetup{
 		CompSideInfo: csi,
 		CompPath:     path,
-		SnapSup:      snapsup,
 	}
 	// The file passed around is temporary, make sure it gets removed.
 	// TODO probably this should be part of a flags type in the future.
 	removeComponentPath := true
-	return doInstallComponent(st, &snapst, compSetup, path, removeComponentPath, "")
+	return doInstallComponent(st, &snapst, compSetup, snapsup, path, removeComponentPath, "")
 }
 
 // doInstallComponent assumes that the owner snap is already installed.
 func doInstallComponent(st *state.State, snapst *SnapState, compSetup *ComponentSetup,
-	path string, removeComponentPath bool, fromChange string) (*state.TaskSet, error) {
+	snapsu *SnapSetup, path string, removeComponentPath bool, fromChange string) (*state.TaskSet, error) {
 
 	// TODO check for experimental flag that will hide temporarily components
 
-	snapSi := compSetup.SnapSup.SideInfo
+	snapSi := snapsu.SideInfo
 	compSi := compSetup.CompSideInfo
 
 	if snapst.IsInstalled() && !snapst.Active {
@@ -103,7 +102,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 	// snaps conflicts (installation of a component as a snap gets the same
 	// conflicts as if we were installing the snap - which might be
 	// overkill and needs to be revisited).
-	if err := checkChangeConflictIgnoringOneChange(st, compSetup.SnapSup.InstanceName(),
+	if err := checkChangeConflictIgnoringOneChange(st, snapsu.InstanceName(),
 		snapst, fromChange); err != nil {
 		return nil, err
 	}
@@ -123,12 +122,14 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 		return nil, fmt.Errorf("download-component not implemented yet")
 	}
 	prepare.Set("component-setup", compSetup)
+	prepare.Set("snap-setup", snapsu)
 
 	tasks := []*state.Task{prepare}
 	prev = prepare
 
 	addTask := func(t *state.Task) {
 		t.Set("component-setup-task", prepare.ID())
+		t.Set("snap-setup-task", snapsu)
 		t.WaitFor(prev)
 		tasks = append(tasks, t)
 	}

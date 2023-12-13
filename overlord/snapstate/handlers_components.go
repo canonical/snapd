@@ -33,33 +33,37 @@ import (
 	"gopkg.in/tomb.v2"
 )
 
-// TaskComponentSetup returns the ComponentSetup with task params hold
+// TaskComponentSetup returns the ComponentSetup and SnapSetup with task params hold
 // by or referred to by the task.
-func TaskComponentSetup(t *state.Task) (*ComponentSetup, error) {
-	var compSetup ComponentSetup
+func TaskComponentSetup(t *state.Task) (*ComponentSetup, *SnapSetup, error) {
+	snapsu, err := TaskSnapSetup(t)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	err := t.Get("component-setup", &compSetup)
+	var compSetup ComponentSetup
+	err = t.Get("component-setup", &compSetup)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return nil, err
+		return nil, nil, err
 	}
 	if err == nil {
-		return &compSetup, nil
+		return &compSetup, snapsu, nil
 	}
 
 	var id string
 	err = t.Get("component-setup-task", &id)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	ts := t.State().Task(id)
 	if ts == nil {
-		return nil, fmt.Errorf("internal error: tasks are being pruned")
+		return nil, nil, fmt.Errorf("internal error: tasks are being pruned")
 	}
 	if err := ts.Get("component-setup", &compSetup); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return &compSetup, nil
+	return &compSetup, snapsu, nil
 }
 
 func (m *SnapManager) doPrepareComponent(t *state.Task, _ *tomb.Tomb) error {
@@ -67,7 +71,7 @@ func (m *SnapManager) doPrepareComponent(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	compSetup, err := TaskComponentSetup(t)
+	compSetup, _, err := TaskComponentSetup(t)
 	if err != nil {
 		return err
 	}
@@ -86,7 +90,7 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	perfTimings := state.TimingsForTask(t)
-	compSetup, err := TaskComponentSetup(t)
+	compSetup, snapsu, err := TaskComponentSetup(t)
 	st.Unlock()
 	if err != nil {
 		return err
@@ -104,7 +108,7 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) error {
 
 	csi := compSetup.CompSideInfo
 	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
-		csi.Revision, compSetup.SnapSup.InstanceName(), compSetup.SnapSup.Revision())
+		csi.Revision, snapsu.InstanceName(), snapsu.Revision())
 
 	cleanup := func() {
 		st.Lock()
@@ -189,7 +193,7 @@ var readComponentInfo = func(compMntDir string) (*snap.ComponentInfo, error) {
 func (m *SnapManager) undoMountComponent(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
-	compSetup, err := TaskComponentSetup(t)
+	compSetup, snapsup, err := TaskComponentSetup(t)
 	st.Unlock()
 	if err != nil {
 		return err
@@ -211,10 +215,9 @@ func (m *SnapManager) undoMountComponent(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	compSetup.SnapSup.InstanceName()
 	csi := compSetup.CompSideInfo
 	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
-		csi.Revision, compSetup.SnapSup.InstanceName(), compSetup.SnapSup.Revision())
+		csi.Revision, snapsup.InstanceName(), snapsup.Revision())
 
 	pm := NewTaskProgressAdapterUnlocked(t)
 	if err := m.backend.UndoSetupComponent(cpi, &installRecord, deviceCtx, pm); err != nil {

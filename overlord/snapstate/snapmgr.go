@@ -191,16 +191,12 @@ type ComponentSetup struct {
 	CompSideInfo *snap.ComponentSideInfo `json:"comp-side-info,omitempty"`
 	// CompPath is the path to the file
 	CompPath string `json:"comp-path,omitempty"`
-
-	// SnapSup contains information about the owner snap
-	SnapSup *SnapSetup `json:"snap-setup,omitempty"`
 }
 
-func NewComponentSetup(csi *snap.ComponentSideInfo, compPath string, snapsu *SnapSetup) *ComponentSetup {
+func NewComponentSetup(csi *snap.ComponentSideInfo, compPath string) *ComponentSetup {
 	return &ComponentSetup{
 		CompSideInfo: csi,
 		CompPath:     compPath,
-		SnapSup:      snapsu,
 	}
 }
 
