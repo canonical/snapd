@@ -27,6 +27,14 @@ const microcephSupportBaseDeclarationPlugs = `
     deny-auto-connection: true
 `
 
+const microcephSupportBaseDeclarationSlots = `
+  microceph-support:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
+
 const microcephSupportConnectedPlugAppArmor = `
 
 # Allow bcache devices to be accessed since DM devices may be set up on top of those.
@@ -54,6 +62,7 @@ func init() {
 		summary:               microcephSupportSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationSlots:  microcephSupportBaseDeclarationSlots,
 		baseDeclarationPlugs:  microcephSupportBaseDeclarationPlugs,
 		connectedPlugAppArmor: microcephSupportConnectedPlugAppArmor,
 	})

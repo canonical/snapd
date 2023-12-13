@@ -1314,6 +1314,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"kernel-module-load":      true,
 		"kubernetes-support":      true,
 		"lxd-support":             true,
+		"microceph-support":       true,
 		"microstack-support":      true,
 		"mount-control":           true,
 		"multipass-support":       true,
