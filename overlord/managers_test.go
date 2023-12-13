@@ -4969,6 +4969,8 @@ func (s *mgrsSuiteCore) TestRemodelRequiredSnapsAdded(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	installEssentialSnaps(c, st, "core", bloader)
+
 	// pretend we have an old required snap installed
 	si1 := &snap.SideInfo{RealName: "old-required-snap-1", Revision: snap.R(1)}
 	snapstate.Set(st, "old-required-snap-1", &snapstate.SnapState{
@@ -5073,6 +5075,8 @@ func (s *mgrsSuiteCore) TestRemodelRequiredSnapsAddedUndo(c *C) {
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
+
+	installEssentialSnaps(c, st, "core", bloader)
 
 	// pretend we have an old required snap installed
 	si1 := &snap.SideInfo{RealName: "old-required-snap-1", Revision: snap.R(1)}
@@ -5199,6 +5203,13 @@ func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBase(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	const required = true
+	installSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", required, &snap.SideInfo{
+		SnapID:   fakeSnapID("pc-kernel"),
+		Revision: snap.R(1),
+		RealName: "pc-kernel",
+	})
+
 	si := &snap.SideInfo{RealName: "core18", SnapID: fakeSnapID("core18"), Revision: snap.R(1)}
 	snapstate.Set(st, "core18", &snapstate.SnapState{
 		Active:   true,
@@ -5320,6 +5331,55 @@ version: 20.04`
 	c.Assert(tasks, HasLen, i+1)
 }
 
+func installEssentialSnaps(c *C, st *state.State, base string, bloader bootloader.Bootloader) {
+	const required = true
+
+	installSnap(c, st, "name: pc\nversion: 1\ntype: gadget\n", required, &snap.SideInfo{
+		SnapID:   fakeSnapID("pc"),
+		Revision: snap.R(1),
+		RealName: "pc",
+	})
+
+	installSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", required, &snap.SideInfo{
+		SnapID:   fakeSnapID("pc-kernel"),
+		Revision: snap.R(1),
+		RealName: "pc-kernel",
+	})
+
+	installSnap(c, st, fmt.Sprintf("name: %s\nversion: 1\ntype: base\n", base), required, &snap.SideInfo{
+		SnapID:   fakeSnapID(base),
+		Revision: snap.R(1),
+		RealName: base,
+	})
+
+	if bloader != nil {
+		err := bloader.SetBootVars(map[string]string{
+			"snap_mode":   boot.DefaultStatus,
+			"snap_core":   fmt.Sprintf("%s_1.snap", base),
+			"snap_kernel": "pc-kernel_1.snap",
+		})
+		c.Assert(err, IsNil)
+	}
+}
+
+func installSnap(c *C, st *state.State, yaml string, required bool, si *snap.SideInfo) *snap.Info {
+	info := snaptest.MakeSnapFileAndDir(c, yaml, nil, si)
+
+	t := info.Type()
+	if si.RealName == "core" {
+		t = snap.TypeOS
+	}
+
+	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
+		SnapType: string(t),
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&info.SideInfo}),
+		Current:  info.Revision,
+		Flags:    snapstate.Flags{Required: required},
+	})
+	return info
+}
+
 func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBaseUndo(c *C) {
 	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(bloader)
@@ -5339,6 +5399,13 @@ func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBaseUndo(c *C) {
 	st := ms.o.State()
 	st.Lock()
 	defer st.Unlock()
+
+	const required = true
+	installSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", required, &snap.SideInfo{
+		SnapID:   fakeSnapID("pc-kernel"),
+		Revision: snap.R(1),
+		RealName: "pc-kernel",
+	})
 
 	si := &snap.SideInfo{RealName: "core18", SnapID: fakeSnapID("core18"), Revision: snap.R(1)}
 	snapstate.Set(st, "core18", &snapstate.SnapState{
@@ -5483,14 +5550,18 @@ func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBaseUndoOnRollback(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	si := &snap.SideInfo{RealName: "core18", SnapID: fakeSnapID("core18"), Revision: snap.R(1)}
-	snapstate.Set(st, "core18", &snapstate.SnapState{
-		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
-		Current:  snap.R(1),
-		SnapType: "base",
+	const required = true
+	installSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", required, &snap.SideInfo{
+		SnapID:   fakeSnapID("pc-kernel"),
+		Revision: snap.R(1),
+		RealName: "pc-kernel",
 	})
-	snaptest.MockSnapWithFiles(c, "name: core18\ntype: base\nversion: 1.0", si, nil)
+
+	installSnap(c, st, "name: core18\nversion: 1\ntype: base\n", required, &snap.SideInfo{
+		SnapID:   fakeSnapID("core18"),
+		Revision: snap.R(1),
+		RealName: "core18",
+	})
 
 	si2 := &snap.SideInfo{RealName: "pc", SnapID: fakeSnapID("pc"), Revision: snap.R(1)}
 	gadgetSnapYaml := "name: pc\nversion: 1.0\ntype: gadget"
@@ -6180,6 +6251,8 @@ func (s *mgrsSuiteCore) TestRemodelStoreSwitch(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	installEssentialSnaps(c, st, "core", bloader)
+
 	s.checkDeviceAndAuthContext = func(dac store.DeviceAndAuthContext) {
 		// the DeviceAndAuthContext assumes state is unlocked
 		st.Unlock()
@@ -6282,6 +6355,26 @@ func (s *mgrsSuiteCore) TestRemodelSwitchGadgetTrack(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	const required = true
+	installSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", required, &snap.SideInfo{
+		SnapID:   fakeSnapID("pc-kernel"),
+		Revision: snap.R(1),
+		RealName: "pc-kernel",
+	})
+
+	installSnap(c, st, "name: core\nversion: 1\ntype: base\n", required, &snap.SideInfo{
+		SnapID:   fakeSnapID("core"),
+		Revision: snap.R(1),
+		RealName: "core",
+	})
+
+	err := bloader.SetBootVars(map[string]string{
+		"snap_mode":   boot.DefaultStatus,
+		"snap_core":   "core_1.snap",
+		"snap_kernel": "pc-kernel_1.snap",
+	})
+	c.Assert(err, IsNil)
+
 	si := &snap.SideInfo{RealName: "pc", SnapID: fakeSnapID("pc"), Revision: snap.R(1)}
 	snapstate.Set(st, "pc", &snapstate.SnapState{
 		Active:   true,
@@ -6316,7 +6409,7 @@ volumes:
 		Model:  "my-model",
 		Serial: "serialserialserial",
 	})
-	err := assertstate.Add(st, model)
+	err = assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 	s.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
@@ -6377,6 +6470,13 @@ func (s *mgrsSuiteCore) TestRemodelSwitchToDifferentGadget(c *C) {
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
+	err := bloader.SetBootVars(map[string]string{
+		"snap_mode":   boot.DefaultStatus,
+		"snap_core":   "core18_1.snap",
+		"snap_kernel": "pc-kernel_1.snap",
+	})
+	c.Check(err, IsNil)
+
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -6386,6 +6486,13 @@ func (s *mgrsSuiteCore) TestRemodelSwitchToDifferentGadget(c *C) {
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
+
+	const required = true
+	installSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", required, &snap.SideInfo{
+		SnapID:   fakeSnapID("pc-kernel"),
+		Revision: snap.R(1),
+		RealName: "pc-kernel",
+	})
 
 	si := &snap.SideInfo{RealName: "core18", SnapID: fakeSnapID("core18"), Revision: snap.R(1)}
 	snapstate.Set(st, "core18", &snapstate.SnapState{
@@ -6479,7 +6586,7 @@ volumes:
 		Model:  "my-model",
 		Serial: "serialserialserial",
 	})
-	err := assertstate.Add(st, model)
+	err = assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 	s.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
@@ -6528,6 +6635,13 @@ func (s *mgrsSuiteCore) TestRemodelSwitchToIncompatibleGadget(c *C) {
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
+	err := bloader.SetBootVars(map[string]string{
+		"snap_mode":   boot.DefaultStatus,
+		"snap_core":   "core_1.snap",
+		"snap_kernel": "pc-kernel_1.snap",
+	})
+	c.Check(err, IsNil)
+
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -6537,6 +6651,13 @@ func (s *mgrsSuiteCore) TestRemodelSwitchToIncompatibleGadget(c *C) {
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
+
+	const required = true
+	installSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", required, &snap.SideInfo{
+		SnapID:   fakeSnapID("pc-kernel"),
+		Revision: snap.R(1),
+		RealName: "pc-kernel",
+	})
 
 	si := &snap.SideInfo{RealName: "core18", SnapID: fakeSnapID("core18"), Revision: snap.R(1)}
 	snapstate.Set(st, "core18", &snapstate.SnapState{
@@ -6601,7 +6722,7 @@ volumes:
 		Model:  "my-model",
 		Serial: "serialserialserial",
 	})
-	err := assertstate.Add(st, model)
+	err = assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 	s.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
@@ -6756,6 +6877,8 @@ func (s *mgrsSuiteCore) TestRemodelReregistration(c *C) {
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
+
+	installEssentialSnaps(c, st, "core", bloader)
 
 	s.checkDeviceAndAuthContext = func(dac store.DeviceAndAuthContext) {
 		// the DeviceAndAuthContext assumes state is unlocked
