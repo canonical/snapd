@@ -123,22 +123,11 @@ func (c *Change) createPath(path string, pokeHoles bool, as *Assumptions) ([]*Ch
 	case "ensure-dir":
 		uid = sysGetuid()
 		gid = sysGetgid()
-		if uid == 0 {
-			logger.Noticef("WARNING: cannot perform ensure-dir mount for target %q, not supported for the root user", path)
-		} else {
-			// https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-			// Mode hints cannot be used here because it does not support specifying all
-			// directory paths within a given directory.
-			mode = 0700
-
-			err = MkdirAllWithin(path, c.Entry.XSnapdMustExistDir(), mode, uid, gid, rs)
-			if errors.Is(err, &FileInWayError{}) || errors.Is(err, &ParentMissingError{}) {
-				logger.Noticef("WARNING: cannot perform ensure-dir mount for target %q: %v", path, err)
-				// Failure to complete because of a file in the way or MustExistDir
-				// that does not exist should not be treated as an error.
-				err = nil
-			}
-		}
+		// https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
+		// Mode hints cannot be used here because it does not support specifying all
+		// directory paths within a given directory.
+		mode = 0700
+		err = MkdirAllWithin(path, c.Entry.XSnapdMustExistDir(), mode, uid, gid, rs)
 	}
 	if needsMimic, mimicPath := mimicRequired(err); needsMimic && pokeHoles {
 		// If the error can be recovered by using a writable mimic
@@ -191,11 +180,9 @@ func (c *Change) ensureTarget(as *Assumptions) ([]*Change, error) {
 			}
 		case "ensure-dir":
 			if !fi.Mode().IsDir() {
-				// Failure to complete because of a file in the way should not be treated as an error.
-				logger.Noticef("WARNING: cannot perform ensure-dir mount for target %q: existing file in the way", path)
+				err = fmt.Errorf("cannot create ensure-dir target %q: existing file in the way", path)
 			}
 		}
-
 	} else if os.IsNotExist(err) {
 		pokeHoles := kind != "ensure-dir"
 		changes, err = c.createPath(path, pokeHoles, as)

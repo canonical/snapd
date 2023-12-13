@@ -342,42 +342,10 @@ func MkSymlink(dirFd int, dirName string, name string, oldname string, rs *Restr
 	return nil
 }
 
-// FileInWayError indicates that a directory cannot be created because
-// a file with the same name exists. This error is intended to be used
-// with MkdirAllWithin.
-type FileInWayError struct {
-	FilePath string
-}
-
-func (e *FileInWayError) Error() string {
-	return fmt.Sprintf("cannot create directory %q: existing file in the way", e.FilePath)
-}
-
-func (e *FileInWayError) Is(err error) bool {
-	_, ok := err.(*FileInWayError)
-	return ok
-}
-
-// ParentMissingError indicates that a directory cannot be created because parent
-// directory within which it should be created does not exist. This error is intended
-// to be used with MkdirAllWithin.
-type ParentMissingError struct {
-	Dir string
-}
-
-func (e *ParentMissingError) Error() string {
-	return fmt.Sprintf("parent directory %q does not exist", e.Dir)
-}
-
-func (e *ParentMissingError) Is(err error) bool {
-	_, ok := err.(*ParentMissingError)
-	return ok
-}
-
 // MkdirAllWithin is the secure variant of os.MkdirAll that creates all the missing directories of the given path within the
 // given existing parent directory.
 //
-// Unlike the regular version this implementation does not follow any symbolic
+// Unlike os.MkdirAll this implementation does not follow any symbolic
 // links. At all times the new directory segment is created using mkdirat(2)
 // while holding an open file descriptor to the parent directory.
 //
@@ -413,7 +381,7 @@ func MkdirAllWithin(path, parent string, perm os.FileMode, uid sys.UserID, gid s
 	fi, err := osLstat(path)
 	if err == nil {
 		if !fi.Mode().IsDir() {
-			return &FileInWayError{FilePath: path}
+			return fmt.Errorf("cannot create directory %q: existing file in the way", path)
 		}
 		return nil
 	} else if !os.IsNotExist(err) {
@@ -424,10 +392,10 @@ func MkdirAllWithin(path, parent string, perm os.FileMode, uid sys.UserID, gid s
 	fi, err = osLstat(parent)
 	if err == nil {
 		if !fi.Mode().IsDir() {
-			return &FileInWayError{FilePath: parent}
+			return fmt.Errorf("cannot use parent path %q: not a directory", parent)
 		}
 	} else if os.IsNotExist(err) {
-		return &ParentMissingError{Dir: parent}
+		return fmt.Errorf("parent directory %q does not exist", parent)
 	} else {
 		return fmt.Errorf("cannot inspect parent path %q: %v", parent, err)
 	}
@@ -452,7 +420,7 @@ func MkdirAllWithin(path, parent string, perm os.FileMode, uid sys.UserID, gid s
 		fi, err = osLstat(iter.CurrentPathNoSlash())
 		if err == nil {
 			if !fi.Mode().IsDir() {
-				return &FileInWayError{FilePath: iter.CurrentPathNoSlash()}
+				return fmt.Errorf("cannot create directory %q: existing file in the way", iter.CurrentPathNoSlash())
 			}
 			continue
 		}

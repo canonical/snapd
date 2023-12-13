@@ -56,7 +56,7 @@ func expandXdgRuntimeDir(profile *osutil.MountProfile, uid int) {
 }
 
 // expandHomeDir expands the $HOME variable in the given mount profile for entries
-// of mount kind "ensure-dir". It returns and error if expansion is required but home
+// of mount kind "ensure-dir". It returns an error if expansion is required but home
 // err indicates that path should not be used for expansion.
 func expandHomeDir(profile *osutil.MountProfile, home func() (path string, err error)) error {
 	const envVar = "$HOME"

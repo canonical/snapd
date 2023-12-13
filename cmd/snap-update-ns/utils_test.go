@@ -134,7 +134,7 @@ func (s *utilsSuite) TestSecureMkdirAllWithinParentNotExist(c *C) {
 func (s *utilsSuite) TestSecureMkdirAllWithinParentExitsNotDir(c *C) {
 	s.sys.InsertFault(`lstat "/parent/dir"`, os.ErrNotExist)
 	s.sys.InsertOsLstatResult(`lstat "/parent"`, testutil.FileInfoSymlink)
-	c.Assert(update.MkdirAllWithin("/parent/dir", "/parent", 0755, 123, 456, nil), ErrorMatches, `cannot create directory "/parent": existing file in the way`)
+	c.Assert(update.MkdirAllWithin("/parent/dir", "/parent", 0755, 123, 456, nil), ErrorMatches, `cannot use parent path "/parent": not a directory`)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		{C: `lstat "/parent/dir"`, E: os.ErrNotExist},
 		{C: `lstat "/parent"`, R: testutil.FileInfoSymlink},

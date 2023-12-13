@@ -41,7 +41,7 @@ type UserProfileUpdateContext struct {
 	homeError error
 }
 
-// isPlausibleHome returns and error if the path is empty, not clean, not absolute or cannot
+// isPlausibleHome returns an error if the path is empty, not clean, not absolute or cannot
 // be opened for reading.
 //
 // See bootstrap.c function switch_to_privileged_user(). When snap-update-ns is invoked for

@@ -29,7 +29,6 @@ import (
 
 	update "github.com/snapcore/snapd/cmd/snap-update-ns"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/strutil"
@@ -2609,50 +2608,17 @@ func (s *changeSuite) TestPerformEnsureDirNameLstatError(c *C) {
 func (s *changeSuite) TestPerformEnsureDirFileInTheWayOfTarget(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/home/user/.local/share/missing"`, testutil.FileInfoFile)
 
-	log, restoreLogger := logger.MockLogger()
-	defer restoreLogger()
-
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{
 		Name:    "unused",
 		Dir:     "/home/user/.local/share/missing",
 		Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=/home/user"},
 	}}
 	synth, err := chg.Perform(s.as)
-	// Having a file in the way should not produce an error
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `cannot create ensure-dir target "/home/user/.local/share/missing": existing file in the way`)
 	c.Assert(synth, HasLen, 0)
-	c.Assert(log.String(), testutil.Contains, `WARNING: cannot perform ensure-dir mount for target "/home/user/.local/share/missing": existing file in the way`)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		// Change.ensureTarget osLstat succeeds and file is not a directory
 		{C: `lstat "/home/user/.local/share/missing"`, R: testutil.FileInfoFile},
-	})
-}
-
-// Change.Perform wants to ensure a directory with uid = 0
-func (s *changeSuite) TestPerformEnsureDirAsRoot(c *C) {
-	s.sys.InsertFault(`lstat "/home/user/missing"`, syscall.ENOENT)
-
-	restoreGetuid := update.MockGetuid(func() sys.UserID {
-		return 0
-	})
-	defer restoreGetuid()
-
-	log, restoreLogger := logger.MockLogger()
-	defer restoreLogger()
-
-	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{
-		Name:    "unused",
-		Dir:     "/home/user/missing",
-		Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=/home/user"},
-	}}
-
-	synth, err := chg.Perform(s.as)
-	c.Assert(err, IsNil)
-	c.Assert(synth, HasLen, 0)
-	c.Assert(log.String(), testutil.Contains, `WARNING: cannot perform ensure-dir mount for target "/home/user/missing", not supported for the root user`)
-	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
-		// Change.ensureTarget osLstat succeeds and file does not exist, resulting in call to Change.createPath
-		{C: `lstat "/home/user/missing"`, E: syscall.ENOENT},
 	})
 }
 
@@ -2661,9 +2627,6 @@ func (s *changeSuite) TestPerformEnsureDirMustExistDirMissing(c *C) {
 	s.sys.InsertFault(`lstat "/home/user/missing"`, syscall.ENOENT)
 	s.sys.InsertFault(`lstat "/home/user"`, syscall.ENOENT)
 
-	log, restoreLogger := logger.MockLogger()
-	defer restoreLogger()
-
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{
 		Name:    "unused",
 		Dir:     "/home/user/missing",
@@ -2671,10 +2634,8 @@ func (s *changeSuite) TestPerformEnsureDirMustExistDirMissing(c *C) {
 	}}
 
 	synth, err := chg.Perform(s.as)
-	// Having a missing parent should not produce an error, utils.MkdirAllWithin error ParentMissingError should be swallowed.
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `parent directory "/home/user" does not exist`)
 	c.Assert(synth, HasLen, 0)
-	c.Assert(log.String(), testutil.Contains, `WARNING: cannot perform ensure-dir mount for target "/home/user/missing": parent directory "/home/user" does not exist`)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		// Change.ensureTarget osLstat succeeds and file does not exist, resulting in call to Change.createPath
 		{C: `lstat "/home/user/missing"`, E: syscall.ENOENT},
@@ -2691,19 +2652,14 @@ func (s *changeSuite) TestPerformEnsureDirFileInTheWayOfParent(c *C) {
 	s.sys.InsertFault(`lstat "/home/user/missing"`, syscall.ENOENT)
 	s.sys.InsertOsLstatResult(`lstat "/home/user"`, testutil.FileInfoFile)
 
-	log, restoreLogger := logger.MockLogger()
-	defer restoreLogger()
-
 	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{
 		Name:    "unused",
 		Dir:     "/home/user/missing",
 		Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=/home/user"},
 	}}
 	synth, err := chg.Perform(s.as)
-	// Having a file in the way should not produce an error, utils.MkdirAllWithin FileInWayError should be swallowed.
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `cannot use parent path "/home/user": not a directory`)
 	c.Assert(synth, HasLen, 0)
-	c.Assert(log.String(), testutil.Contains, `WARNING: cannot perform ensure-dir mount for target "/home/user/missing": cannot create directory "/home/user": existing file in the way`)
 	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
 		// Change.ensureTarget osLstat succeeds and file does not exist, resulting in call to Change.createPath
 		{C: `lstat "/home/user/missing"`, E: syscall.ENOENT},
