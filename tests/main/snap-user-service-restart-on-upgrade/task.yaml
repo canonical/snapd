@@ -1,7 +1,7 @@
 summary: Snap user services are restarted when snaps are upgraded
 
 details: |
-    Verify that if user-daemons feature is enabled, then when the
+    Verify that if the user-daemons feature is enabled, then when the
     services snap is upgraded/reinstalled, the user services are restarted.
 
 systems:
