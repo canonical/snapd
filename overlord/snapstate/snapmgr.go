@@ -490,7 +490,7 @@ func (snapst *SnapState) IsComponentRevInstalled(snapSi *snap.SideInfo,
 	}
 
 	for _, csi := range snapst.Sequence.Revisions[snIdx].Components {
-		if csi.Equals(compSi) {
+		if csi.Equal(compSi) {
 			return true
 		}
 	}

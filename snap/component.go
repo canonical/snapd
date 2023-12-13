@@ -62,8 +62,8 @@ func NewComponentSideInfo(cref naming.ComponentRef, rev Revision) *ComponentSide
 	}
 }
 
-// Equals compares two ComponentSideInfo
-func (csi *ComponentSideInfo) Equals(other *ComponentSideInfo) bool {
+// Equal compares two ComponentSideInfo
+func (csi *ComponentSideInfo) Equal(other *ComponentSideInfo) bool {
 	return *csi == *other
 }
 
