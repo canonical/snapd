@@ -84,6 +84,37 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappyNotSeeded(c *C) {
 	c.Assert(err, ErrorMatches, "cannot remodel until fully seeded")
 }
 
+func (s *deviceMgrRemodelSuite) TestRemodelSnapdBasedToCoreBased(c *C) {
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+	s.state.Set("seeded", true)
+
+	model := s.brands.Model("canonical", "my-model", modelDefaults, map[string]interface{}{
+		"base": "core18",
+	})
+
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "my-model",
+		Serial: "serialserialserial",
+	})
+
+	err := assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+
+	s.makeSerialAssertionInState(c, "canonical", "my-model", "serialserialserial")
+
+	// create a new model
+	newModel := s.brands.Model("canonical", "my-model", modelDefaults, map[string]interface{}{
+		"revision": "1",
+	})
+
+	chg, err := devicestate.Remodel(st, newModel, nil, nil)
+	c.Assert(err, ErrorMatches, "cannot remodel from snapd based system to core based system")
+	c.Assert(chg, IsNil)
+}
+
 var mockCore20ModelHeaders = map[string]interface{}{
 	"brand":        "canonical",
 	"model":        "pc-model-20",
