@@ -5245,7 +5245,7 @@ version: 20.04`
 	ms.prereqSnapAssertions(c, map[string]interface{}{
 		"snap-name": "foo",
 	})
-	snapPath, _ = ms.makeStoreTestSnap(c, `{name: "foo", version: 1.0}`, "1")
+	snapPath, _ = ms.makeStoreTestSnap(c, `{name: "foo", version: 1.0, base: "core20"}`, "1")
 	ms.serveSnap(snapPath, "1")
 
 	// create/set custom model assertion
@@ -5444,7 +5444,7 @@ version: 20.04`
 	ms.prereqSnapAssertions(c, map[string]interface{}{
 		"snap-name": "foo",
 	})
-	snapPath, _ = ms.makeStoreTestSnap(c, `{name: "foo", version: 1.0}`, "1")
+	snapPath, _ = ms.makeStoreTestSnap(c, `{name: "foo", version: 1.0, base: "core20"}`, "1")
 	ms.serveSnap(snapPath, "1")
 
 	// create/set custom model assertion
@@ -5591,7 +5591,7 @@ version: 20.04`
 	ms.prereqSnapAssertions(c, map[string]interface{}{
 		"snap-name": "foo",
 	})
-	snapPath, _ = ms.makeStoreTestSnap(c, `{name: "foo", version: 1.0}`, "1")
+	snapPath, _ = ms.makeStoreTestSnap(c, `{name: "foo", version: 1.0, base: "core20"}`, "1")
 	ms.serveSnap(snapPath, "1")
 
 	// create/set custom model assertion
@@ -8630,7 +8630,12 @@ func (s *mgrsSuiteCore) TestRemodelUC20SnapWithPrereqsMissingDeps(c *C) {
 	})
 
 	chg, err := devicestate.Remodel(st, newModel, nil, nil)
-	c.Assert(err, ErrorMatches, `cannot remodel with incomplete model, the following snaps are required but not listed: "prereq-base", "prereq-content"`)
+
+	msg := `cannot remodel to model that is not self contained:
+  - cannot use snap "prereq": base "prereq-base" is missing
+  - cannot use snap "prereq": default provider "prereq-content" or any alternative provider for content "prereq-content" is missing`
+
+	c.Assert(err, ErrorMatches, msg)
 	c.Assert(chg, IsNil)
 }
 
