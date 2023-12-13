@@ -737,6 +737,7 @@ pkg_dependencies_amazon(){
         echo "
             bpftool
             python-docutils
+            python3-gobject
             "
     fi
     echo "
