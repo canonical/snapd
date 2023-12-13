@@ -75,7 +75,7 @@ func (s *aspectsSuite) TestGetAspect(c *C) {
 		{name: "map", value: map[string]int{"foo": 123}},
 	} {
 		cmt := Commentf("%s test", t.name)
-		restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, acc, bundleName, aspect, field string, value interface{}) error {
+		restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, acc, bundleName, aspect, field string, value *interface{}) error {
 			c.Check(acc, Equals, "system", cmt)
 			c.Check(bundleName, Equals, "network", cmt)
 			c.Check(aspect, Equals, "wifi-setup", cmt)
@@ -98,13 +98,13 @@ func (s *aspectsSuite) TestGetAspect(c *C) {
 
 func (s *aspectsSuite) TestAspectGetMany(c *C) {
 	var calls int
-	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, _, _, _, _ string, value interface{}) error {
+	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, _, _, _, _ string, value *interface{}) error {
 		calls++
 		switch calls {
 		case 1:
-			*value.(*interface{}) = "foo"
+			*value = "foo"
 		case 2:
-			*value.(*interface{}) = "bar"
+			*value = "bar"
 		default:
 			err := fmt.Errorf("expected 2 calls, now on %d", calls)
 			c.Error(err)
@@ -125,11 +125,11 @@ func (s *aspectsSuite) TestAspectGetMany(c *C) {
 
 func (s *aspectsSuite) TestAspectGetSomeFieldNotFound(c *C) {
 	var calls int
-	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, acc, bundle, aspect, _ string, value interface{}) error {
+	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, acc, bundle, aspect, _ string, value *interface{}) error {
 		calls++
 		switch calls {
 		case 1:
-			*value.(*interface{}) = "foo"
+			*value = "foo"
 		case 2:
 			return &aspects.NotFoundError{}
 		default:
@@ -152,7 +152,7 @@ func (s *aspectsSuite) TestAspectGetSomeFieldNotFound(c *C) {
 
 func (s *aspectsSuite) TestGetAspectNoFieldsFound(c *C) {
 	var calls int
-	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, _, _, _, _ string, _ interface{}) error {
+	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, _, _, _, _ string, _ *interface{}) error {
 		calls++
 		err := &aspects.NotFoundError{
 			Account:    "foo",
@@ -163,9 +163,9 @@ func (s *aspectsSuite) TestGetAspectNoFieldsFound(c *C) {
 
 		switch calls {
 		case 1:
-			err.Field = "ssid"
+			err.Request = "ssid"
 		case 2:
-			err.Field = "password"
+			err.Request = "password"
 		default:
 			err := fmt.Errorf("expected 2 calls to Get, now on %d", calls)
 			c.Error(err)
@@ -185,8 +185,8 @@ func (s *aspectsSuite) TestGetAspectNoFieldsFound(c *C) {
 }
 
 func (s *aspectsSuite) TestAspectGetDatabagNotFound(c *C) {
-	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, _, _, _, _ string, _ interface{}) error {
-		return &aspects.NotFoundError{Account: "foo", BundleName: "network", Aspect: "wifi-setup", Field: "ssid", Cause: "mocked"}
+	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, _, _, _, _ string, _ *interface{}) error {
+		return &aspects.NotFoundError{Account: "foo", BundleName: "network", Aspect: "wifi-setup", Request: "ssid", Cause: "mocked"}
 	})
 	defer restore()
 
@@ -195,7 +195,7 @@ func (s *aspectsSuite) TestAspectGetDatabagNotFound(c *C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 404)
-	c.Check(rspe.Message, Equals, `cannot find field "ssid" of aspect foo/network/wifi-setup: mocked`)
+	c.Check(rspe.Message, Equals, `cannot find value for "ssid" in aspect foo/network/wifi-setup: mocked`)
 }
 
 func (s *aspectsSuite) TestAspectSetManyWithExistingState(c *C) {
@@ -298,7 +298,7 @@ func (s *aspectsSuite) TestGetAspectError(c *C) {
 		{name: "internal", err: errors.New("internal"), code: 500},
 		{name: "invalid access", err: &aspects.InvalidAccessError{RequestedAccess: 1, FieldAccess: 2, Field: "foo"}, code: 403},
 	} {
-		restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, _, _, _, _ string, _ interface{}) error {
+		restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, _, _, _, _ string, _ *interface{}) error {
 			return t.err
 		})
 
@@ -322,7 +322,7 @@ func (s *aspectsSuite) TestGetAspectMissingField(c *C) {
 
 func (s *aspectsSuite) TestGetAspectMisshapenQuery(c *C) {
 	var calls int
-	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, _, _, _, field string, value interface{}) error {
+	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, _, _, _, field string, value *interface{}) error {
 		calls++
 		switch calls {
 		case 1:
@@ -335,7 +335,7 @@ func (s *aspectsSuite) TestGetAspectMisshapenQuery(c *C) {
 			c.Errorf("only expected 3 requests, now on %d", calls)
 		}
 
-		*value.(*interface{}) = calls
+		*value = calls
 		return nil
 	})
 	defer restore()
@@ -504,7 +504,7 @@ func (s *aspectsSuite) TestSetAspectNotAllowed(c *C) {
 }
 
 func (s *aspectsSuite) TestGetAspectNotAllowed(c *C) {
-	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, acc, bundleName, aspect, field string, val interface{}) error {
+	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, acc, bundleName, aspect, field string, val *interface{}) error {
 		return &aspects.InvalidAccessError{RequestedAccess: 1, FieldAccess: 2, Field: "foo"}
 	})
 	defer restore()
