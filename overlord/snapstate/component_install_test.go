@@ -85,6 +85,21 @@ version: 1.0
 	return ci, compPath
 }
 
+func createTestSnapInfoForComponent(c *C, snapName string, snapRev snap.Revision, compName string) *snap.Info {
+	snapYaml := fmt.Sprintf(`name: %s
+type: app
+version: 1.1
+components:
+  %s:
+    type: test
+`, snapName, compName)
+	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+	c.Assert(err, IsNil)
+	info.SideInfo = snap.SideInfo{RealName: snapName, Revision: snapRev}
+
+	return info
+}
+
 func (s *snapmgrTestSuite) setStateWithOneComponent(c *C, snapName string,
 	snapRev snap.Revision, compName string, compRev snap.Revision) {
 	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
@@ -104,14 +119,14 @@ func (s *snapmgrTestSuite) TestInstallComponentPath(c *C) {
 	const snapName = "mysnap"
 	const compName = "mycomp"
 	_, compPath := createTestComponent(c, snapName, compName)
+	info := createTestSnapInfoForComponent(c, snapName, snap.R(1), compName)
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
 		SnapName: snapName, ComponentName: compName}, snap.R(33))
-	ts, err := snapstate.InstallComponentPath(s.state, csi,
-		&snap.SideInfo{RealName: snapName}, compPath, snapName, "latest/stable",
+	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
 		snapstate.Flags{})
 	c.Assert(err, IsNil)
 
@@ -127,6 +142,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresent(c *C) {
 	snapRev := snap.R(1)
 	compRev := snap.R(7)
 	_, compPath := createTestComponent(c, snapName, compName)
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -136,9 +152,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresent(c *C) {
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
 		SnapName: snapName, ComponentName: compName}, compRev)
-	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev, SnapID: "yOqKhntON3vR7kwEbVPsILm7bUViPDzz"}
-	ts, err := snapstate.InstallComponentPath(s.state, csi,
-		ssi, compPath, snapName, "latest/stable",
+	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
 		snapstate.Flags{})
 	c.Assert(err, IsNil)
 
@@ -154,6 +168,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompAlreadyInstalled(c *C) {
 	snapRev := snap.R(1)
 	compRev := snap.R(33)
 	_, compPath := createTestComponent(c, snapName, compName)
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -163,8 +178,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompAlreadyInstalled(c *C) {
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
 		SnapName: snapName, ComponentName: compName}, compRev)
-	ts, err := snapstate.InstallComponentPath(s.state, csi,
-		&snap.SideInfo{RealName: snapName}, compPath, snapName, "latest/stable",
+	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
 		snapstate.Flags{})
 	c.Assert(err, IsNil)
 
@@ -178,6 +192,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathSnapNotActive(c *C) {
 	snapRev := snap.R(1)
 	compRev := snap.R(7)
 	_, compPath := createTestComponent(c, snapName, compName)
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -193,8 +208,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathSnapNotActive(c *C) {
 		Current: snapRev,
 	})
 
-	ts, err := snapstate.InstallComponentPath(s.state, csi,
-		&snap.SideInfo{RealName: snapName}, compPath, snapName, "latest/stable",
+	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
 		snapstate.Flags{})
 	c.Assert(err.Error(), Equals, `cannot install component "mysnap+mycomp" for disabled snap "mysnap"`)
 	c.Assert(ts, IsNil)

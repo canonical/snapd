@@ -37,32 +37,17 @@ import (
 // contain just a name which results in local sideloading of the component, or
 // full metadata in which case the component will appear as installed from the
 // store.
-func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, si *snap.SideInfo,
-	path, snapInstance, channel string, flags Flags) (*state.TaskSet, error) {
-	if si.RealName == "" {
+func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info,
+	path string, flags Flags) (*state.TaskSet, error) {
+	if info.RealName == "" {
 		return nil, fmt.Errorf(
 			"internal error: snap name to install component %q not provided",
 			path)
 	}
 
-	if snapInstance == "" {
-		snapInstance = si.RealName
-	}
-
-	deviceCtx, err := DeviceCtxFromState(st, nil)
-	if err != nil {
-		return nil, err
-	}
-
 	var snapst SnapState
-	err = Get(st, snapInstance, &snapst)
+	err := Get(st, info.InstanceName(), &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return nil, err
-	}
-
-	channel, err = resolveChannel(snapInstance, snapst.TrackingChannel, channel,
-		deviceCtx)
-	if err != nil {
 		return nil, err
 	}
 
@@ -73,31 +58,21 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, si *snap
 	}
 
 	// Check snap name matches
-	if compInfo.Component.SnapName != si.RealName {
+	if compInfo.Component.SnapName != info.RealName {
 		return nil, fmt.Errorf(
 			"component snap name %q does not match real snap name %q",
-			compInfo.Component.SnapName, si.RealName)
+			compInfo.Component.SnapName, info.RealName)
 	}
 
-	// Read snap.Info from the installed snap
-	info, err := readInfo(snapInstance, si, withAuxStoreInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	providerContentAttrs := defaultProviderContentAttrs(st, info, nil)
 	snapsup := &SnapSetup{
-		Base:               info.Base,
-		Prereq:             getKeys(providerContentAttrs),
-		PrereqContentAttrs: providerContentAttrs,
-		SideInfo:           si,
-		SnapPath:           path,
-		Channel:            channel,
-		Flags:              flags.ForSnapSetup(),
-		Type:               info.Type(),
-		Version:            info.Version,
-		PlugsOnly:          len(info.Slots) == 0,
-		InstanceKey:        info.InstanceKey,
+		Base:        info.Base,
+		SideInfo:    &info.SideInfo,
+		Channel:     info.Channel,
+		Flags:       flags.ForSnapSetup(),
+		Type:        info.Type(),
+		Version:     info.Version,
+		PlugsOnly:   len(info.Slots) == 0,
+		InstanceKey: info.InstanceKey,
 	}
 
 	compSetup := &ComponentSetup{
@@ -107,6 +82,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, si *snap
 		SnapType:        info.Type(),
 		SnapRevision:    info.Revision,
 	}
+	// The file passed around is temporary, make sure it gets removed
 	removeComponentPath := true
 	return doInstallComponent(st, &snapst, compSetup, snapsup, path, removeComponentPath, "")
 }
