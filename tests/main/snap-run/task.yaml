@@ -1,7 +1,7 @@
 summary: Check that `snap run` runs
 
 details: |
-    Verifies the snap run command and its parameters. Check
+    Verifies the `snap run` command and its parameters. Check
     the parameter --strace can be used and the traced information
     is correct. Also checks the --trace-exec and --debug-log parameters.
 
