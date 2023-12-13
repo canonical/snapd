@@ -8,6 +8,10 @@ details: |
 # particular PR from github actions, in which case we can just download that and
 # install it here to test the things that we need to test about the snapd snap
 
+details: |
+    The snapd snap is able to be built via lxd and various tests are made
+    against the snap including checks for vendored AppArmor and others.
+
 # effectively we can only build the snap using LXD + snapcraft on ubuntu systems
 # due to various bugs with other distros and snapcraft and/or LXD
 systems:
