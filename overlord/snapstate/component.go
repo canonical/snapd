@@ -79,7 +79,8 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		CompPath:     path,
 		SnapSup:      snapsup,
 	}
-	// The file passed around is temporary, make sure it gets removed
+	// The file passed around is temporary, make sure it gets removed.
+	// TODO probably this should be part of a flags type in the future.
 	removeComponentPath := true
 	return doInstallComponent(st, &snapst, compSetup, path, removeComponentPath, "")
 }
@@ -185,10 +186,8 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 	// validate-component is implemented.
 	installSet.MarkEdge(prepare, LastBeforeLocalModificationsEdge)
 
-	if err := SetEssentialSnapsRestartBoundaries(st, nil,
-		[]*state.TaskSet{installSet}); err != nil {
-		return nil, err
-	}
+	// TODO do we need to set restart boundaries here? (probably
+	// for kernel-modules components if installed along the kernel)
 
 	return installSet, nil
 }
