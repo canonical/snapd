@@ -39,12 +39,6 @@ import (
 // store.
 func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info,
 	path string, flags Flags) (*state.TaskSet, error) {
-	if info.RealName == "" {
-		return nil, fmt.Errorf(
-			"internal error: snap name to install component %q not provided",
-			path)
-	}
-
 	var snapst SnapState
 	err := Get(st, info.InstanceName(), &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -58,9 +52,9 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 	}
 
 	// Check snap name matches
-	if compInfo.Component.SnapName != info.RealName {
+	if compInfo.Component.SnapName != info.SnapName() {
 		return nil, fmt.Errorf(
-			"component snap name %q does not match real snap name %q",
+			"component snap name %q does not match snap name %q",
 			compInfo.Component.SnapName, info.RealName)
 	}
 
@@ -86,11 +80,11 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 
 // doInstallComponent assumes that the owner snap is already installed.
 func doInstallComponent(st *state.State, snapst *SnapState, compSetup *ComponentSetup,
-	snapsu *SnapSetup, path string, removeComponentPath bool, fromChange string) (*state.TaskSet, error) {
+	snapsup *SnapSetup, path string, removeComponentPath bool, fromChange string) (*state.TaskSet, error) {
 
 	// TODO check for experimental flag that will hide temporarily components
 
-	snapSi := snapsu.SideInfo
+	snapSi := snapsup.SideInfo
 	compSi := compSetup.CompSideInfo
 
 	if snapst.IsInstalled() && !snapst.Active {
@@ -98,17 +92,16 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 			compSi.Component, snapSi.RealName)
 	}
 
-	// TODO extend conflict checks to components, this will check only for
-	// snaps conflicts (installation of a component as a snap gets the same
-	// conflicts as if we were installing the snap - which might be
-	// overkill and needs to be revisited).
-	if err := checkChangeConflictIgnoringOneChange(st, snapsu.InstanceName(),
+	// For the moment we consider the same conflicts as if the component
+	// was actually the snap.
+	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(),
 		snapst, fromChange); err != nil {
 		return nil, err
 	}
 
-	// check if we already have the revision in the snaps folder (alters tasks)
-	revisionIsPresent := snapst.IsComponentRevInstalled(snapSi, compSi) == true
+	// Check if we already have the revision in the snaps folder (alters tasks).
+	// Note that this will search for all snap revisions in the system.
+	revisionIsPresent := snapst.IsComponentRevPresent(compSi) == true
 	revisionStr := fmt.Sprintf(" (%s)", compSi.Revision)
 
 	var prepare, prev *state.Task
@@ -122,14 +115,14 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 		return nil, fmt.Errorf("download-component not implemented yet")
 	}
 	prepare.Set("component-setup", compSetup)
-	prepare.Set("snap-setup", snapsu)
+	prepare.Set("snap-setup", snapsup)
 
 	tasks := []*state.Task{prepare}
 	prev = prepare
 
 	addTask := func(t *state.Task) {
 		t.Set("component-setup-task", prepare.ID())
-		t.Set("snap-setup-task", snapsu)
+		t.Set("snap-setup-task", prepare.ID())
 		t.WaitFor(prev)
 		tasks = append(tasks, t)
 	}
@@ -180,12 +173,6 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 	installSet := state.NewTaskSet(tasks...)
 	installSet.MarkEdge(prepare, BeginEdge)
 	installSet.MarkEdge(linkSnap, MaybeRebootEdge)
-
-	// TODO if snap is being installed from the store, then the last task
-	// before any system modifications are done will be validate-component,
-	// otherwise it will be prepare-component. Change when
-	// validate-component is implemented.
-	installSet.MarkEdge(prepare, LastBeforeLocalModificationsEdge)
 
 	// TODO do we need to set restart boundaries here? (probably
 	// for kernel-modules components if installed along the kernel)

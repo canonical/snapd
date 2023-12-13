@@ -465,22 +465,16 @@ func (snapst *SnapState) LastIndex(revision snap.Revision) int {
 	return -1
 }
 
-// IsComponentRevInstalled tells us if a given component revision is
-// installed in the system.
-func (snapst *SnapState) IsComponentRevInstalled(snapSi *snap.SideInfo,
-	compSi *snap.ComponentSideInfo) bool {
-
-	snIdx := snapst.LastIndex(snapSi.Revision)
-	if snIdx < 0 {
-		return false
-	}
-
-	for _, csi := range snapst.Sequence.Revisions[snIdx].Components {
-		if csi.Equal(compSi) {
-			return true
+// IsComponentRevPresent tells us if a given component revision is
+// present in the system for this snap.
+func (snapst *SnapState) IsComponentRevPresent(compSi *snap.ComponentSideInfo) bool {
+	for _, rev := range snapst.Sequence.Revisions {
+		for _, csi := range rev.Components {
+			if csi.Equal(compSi) {
+				return true
+			}
 		}
 	}
-
 	return false
 }
 

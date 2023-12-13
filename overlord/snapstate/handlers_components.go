@@ -36,7 +36,7 @@ import (
 // TaskComponentSetup returns the ComponentSetup and SnapSetup with task params hold
 // by or referred to by the task.
 func TaskComponentSetup(t *state.Task) (*ComponentSetup, *SnapSetup, error) {
-	snapsu, err := TaskSnapSetup(t)
+	snapsup, err := TaskSnapSetup(t)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -47,7 +47,7 @@ func TaskComponentSetup(t *state.Task) (*ComponentSetup, *SnapSetup, error) {
 		return nil, nil, err
 	}
 	if err == nil {
-		return &compSetup, snapsu, nil
+		return &compSetup, snapsup, nil
 	}
 
 	var id string
@@ -63,7 +63,7 @@ func TaskComponentSetup(t *state.Task) (*ComponentSetup, *SnapSetup, error) {
 	if err := ts.Get("component-setup", &compSetup); err != nil {
 		return nil, nil, err
 	}
-	return &compSetup, snapsu, nil
+	return &compSetup, snapsup, nil
 }
 
 func (m *SnapManager) doPrepareComponent(t *state.Task, _ *tomb.Tomb) error {
@@ -90,7 +90,7 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	perfTimings := state.TimingsForTask(t)
-	compSetup, snapsu, err := TaskComponentSetup(t)
+	compSetup, snapsup, err := TaskComponentSetup(t)
 	st.Unlock()
 	if err != nil {
 		return err
@@ -108,7 +108,7 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) error {
 
 	csi := compSetup.CompSideInfo
 	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
-		csi.Revision, snapsu.InstanceName(), snapsu.Revision())
+		csi.Revision, snapsup.InstanceName(), snapsup.Revision())
 
 	cleanup := func() {
 		st.Lock()
@@ -185,6 +185,7 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+// Maybe we will need flags as in readInfo
 var readComponentInfo = func(compMntDir string) (*snap.ComponentInfo, error) {
 	cont := snapdir.New(compMntDir)
 	return snap.ReadComponentInfoFromContainer(cont)

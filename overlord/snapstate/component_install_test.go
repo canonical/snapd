@@ -34,9 +34,12 @@ import (
 )
 
 const (
+	// Install from local file
 	compOptIsLocal = 1 << iota
+	// Component revision is already in snaps folder and mounted
 	compOptRevisionPresent
-	compOptComponentInstalled
+	// Component revision is used by the currently active snap revision
+	compOptIsActive
 )
 
 // opts is a bitset with compOpt* as possible values.
@@ -53,7 +56,7 @@ func expectedComponentInstallTasks(opts int) []string {
 		startTasks = append(startTasks, "mount-component")
 	}
 	// Component is installed (implicit if compOptRevisionPresent is set)
-	if opts&compOptComponentInstalled != 0 || opts&compOptRevisionPresent != 0 {
+	if opts&compOptIsActive != 0 {
 		startTasks = append(startTasks, "unlink-current-component")
 	}
 	// link-component is always present
@@ -68,6 +71,25 @@ func verifyComponentInstallTasks(c *C, opts int, ts *state.TaskSet) {
 	expected := expectedComponentInstallTasks(opts)
 
 	c.Assert(kinds, DeepEquals, expected)
+
+	// Check presence of attributes
+	var firstTaskID string
+	for i, t := range ts.Tasks() {
+		switch i {
+		case 0:
+			var compSetup snapstate.ComponentSetup
+			var snapsup snapstate.SnapSetup
+			c.Assert(t.Get("component-setup", &compSetup), IsNil)
+			c.Assert(t.Get("snap-setup", &snapsup), IsNil)
+			firstTaskID = t.ID()
+		default:
+			var storedTaskID string
+			c.Assert(t.Get("component-setup-task", &storedTaskID), IsNil)
+			c.Assert(storedTaskID, Equals, firstTaskID)
+			c.Assert(t.Get("snap-setup-task", &storedTaskID), IsNil)
+			c.Assert(storedTaskID, Equals, firstTaskID)
+		}
+	}
 }
 
 func createTestComponent(c *C, snapName, compName string) (*snap.ComponentInfo, string) {
@@ -169,9 +191,51 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresent(c *C) {
 		snapstate.Flags{})
 	c.Assert(err, IsNil)
 
+	verifyComponentInstallTasks(c, compOptIsLocal|compOptRevisionPresent|compOptIsActive, ts)
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	// Temporary file is deleted as component file is already in the system
+	c.Assert(osutil.FileExists(compPath), Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresentDiffSnapRev(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	snapRev1 := snap.R(1)
+	snapRev2 := snap.R(2)
+	compRev := snap.R(7)
+	_, compPath := createTestComponent(c, snapName, compName)
+	info := createTestSnapInfoForComponent(c, snapName, snapRev1, compName)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// There is a component with the same revision to the one we install
+	// (but it is not for the currently active snap revision).
+	ssi1 := &snap.SideInfo{RealName: snapName, Revision: snapRev1,
+		SnapID: "snapidididididididididididididid"}
+	ssi2 := &snap.SideInfo{RealName: snapName, Revision: snapRev2,
+		SnapID: "snapidididididididididididididid"}
+	csi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), compRev)
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*snapstate.RevisionSideState{
+				snapstate.NewRevisionSideInfo(ssi1, nil),
+				snapstate.NewRevisionSideInfo(ssi2,
+					[]*snap.ComponentSideInfo{csi}),
+			}),
+		Current: snapRev1,
+	})
+
+	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	// In this case there is no unlink-current-component, as the component
+	// is not installed for the active snap revision.
 	verifyComponentInstallTasks(c, compOptIsLocal|compOptRevisionPresent, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	// Temporary file is deleted
+	// Temporary file is deleted as component file is already in the system
 	c.Assert(osutil.FileExists(compPath), Equals, false)
 }
 
@@ -195,8 +259,9 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompAlreadyInstalled(c *C) {
 		snapstate.Flags{})
 	c.Assert(err, IsNil)
 
-	verifyComponentInstallTasks(c, compOptIsLocal|compOptComponentInstalled, ts)
+	verifyComponentInstallTasks(c, compOptIsLocal|compOptIsActive, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	c.Assert(osutil.FileExists(compPath), Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentPathSnapNotActive(c *C) {
