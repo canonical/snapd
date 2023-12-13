@@ -102,11 +102,9 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) error {
 	// TODO we might want a checkComponents doing checks for some
 	// component types (see checkSnap and checkSnapCallbacks slice)
 
-	snapInstance := snap.InstanceName(compSetup.CompSideInfo.Component.SnapName,
-		compSetup.SnapInstanceKey)
 	csi := compSetup.CompSideInfo
 	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
-		csi.Revision, snapInstance, compSetup.SnapRevision)
+		csi.Revision, compSetup.SnapSup.InstanceName(), compSetup.SnapSup.Revision())
 
 	cleanup := func() {
 		st.Lock()
@@ -213,11 +211,10 @@ func (m *SnapManager) undoMountComponent(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	snapInstance := snap.InstanceName(compSetup.CompSideInfo.Component.SnapName,
-		compSetup.SnapInstanceKey)
+	compSetup.SnapSup.InstanceName()
 	csi := compSetup.CompSideInfo
 	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
-		csi.Revision, snapInstance, compSetup.SnapRevision)
+		csi.Revision, compSetup.SnapSup.InstanceName(), compSetup.SnapSup.Revision())
 
 	pm := NewTaskProgressAdapterUnlocked(t)
 	if err := m.backend.UndoSetupComponent(cpi, &installRecord, deviceCtx, pm); err != nil {

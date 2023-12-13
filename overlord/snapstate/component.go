@@ -74,27 +74,23 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		PlugsOnly:   len(info.Slots) == 0,
 		InstanceKey: info.InstanceKey,
 	}
-
 	compSetup := &ComponentSetup{
-		CompSideInfo:    csi,
-		CompPath:        path,
-		SnapInstanceKey: info.InstanceKey,
-		SnapType:        info.Type(),
-		SnapRevision:    info.Revision,
+		CompSideInfo: csi,
+		CompPath:     path,
+		SnapSup:      snapsup,
 	}
 	// The file passed around is temporary, make sure it gets removed
 	removeComponentPath := true
-	return doInstallComponent(st, &snapst, compSetup, snapsup, path, removeComponentPath, "")
+	return doInstallComponent(st, &snapst, compSetup, path, removeComponentPath, "")
 }
 
 // doInstallComponent assumes that the owner snap is already installed.
 func doInstallComponent(st *state.State, snapst *SnapState, compSetup *ComponentSetup,
-	snapsup *SnapSetup, path string, removeComponentPath bool,
-	fromChange string) (*state.TaskSet, error) {
+	path string, removeComponentPath bool, fromChange string) (*state.TaskSet, error) {
 
 	// TODO check for experimental flag that will hide temporarily components
 
-	snapSi := snapsup.SideInfo
+	snapSi := compSetup.SnapSup.SideInfo
 	compSi := compSetup.CompSideInfo
 
 	if snapst.IsInstalled() && !snapst.Active {
@@ -102,16 +98,11 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 			compSi.Component, snapSi.RealName)
 	}
 
-	// Check parallel constraints, if applicable
-	if err := isParallelInstallable(snapsup); err != nil {
-		return nil, err
-	}
-
 	// TODO extend conflict checks to components, this will check only for
 	// snaps conflicts (installation of a component as a snap gets the same
 	// conflicts as if we were installing the snap - which might be
 	// overkill and needs to be revisited).
-	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(),
+	if err := checkChangeConflictIgnoringOneChange(st, compSetup.SnapSup.InstanceName(),
 		snapst, fromChange); err != nil {
 		return nil, err
 	}

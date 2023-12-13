@@ -39,14 +39,15 @@ func (s *prepareSnapSuite) TestDoPrepareComponentSimple(c *C) {
 	snapRev := snap.R(1)
 	// Unset component revision
 	compRev := snap.R(0)
+	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	ssu := createTestSnapSetup(si, snapstate.Flags{})
 
 	s.state.Lock()
 
 	t := s.state.NewTask("prepare-component", "task desc")
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	t.Set("component-setup", snapstate.NewComponentSetup(csi,
-		"path-to-component", "", snap.TypeApp, snapRev))
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, "path-to-component", ssu))
 
 	s.state.NewChange("test change", "change desc").AddTask(t)
 

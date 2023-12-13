@@ -100,6 +100,19 @@ components:
 	return info
 }
 
+func createTestSnapSetup(info *snap.Info, flags snapstate.Flags) *snapstate.SnapSetup {
+	return &snapstate.SnapSetup{
+		Base:        info.Base,
+		SideInfo:    &info.SideInfo,
+		Channel:     info.Channel,
+		Flags:       flags.ForSnapSetup(),
+		Type:        info.Type(),
+		Version:     info.Version,
+		PlugsOnly:   len(info.Slots) == 0,
+		InstanceKey: info.InstanceKey,
+	}
+}
+
 func (s *snapmgrTestSuite) setStateWithOneComponent(c *C, snapName string,
 	snapRev snap.Revision, compName string, compRev snap.Revision) {
 	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,

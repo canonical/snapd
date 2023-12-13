@@ -192,25 +192,15 @@ type ComponentSetup struct {
 	// CompPath is the path to the file
 	CompPath string `json:"comp-path,omitempty"`
 
-	// Following fields are information related to the owner snap
-	// that we need in the tasks.
-
-	// SnapInstanceKey is set by the user during installation and
-	// differs for each instance of component owner snap.
-	SnapInstanceKey string `json:"instance-key,omitempty"`
-	// SnapType is the type of the owner snap
-	SnapType snap.Type `json:"snap-type,omitempty"`
-	// SnapRevision is the revision of the owner snap
-	SnapRevision snap.Revision `json:"snap-revision,omitempty"`
+	// SnapSup contains information about the owner snap
+	SnapSup *SnapSetup `json:"snap-setup,omitempty"`
 }
 
-func NewComponentSetup(csi *snap.ComponentSideInfo, compPath, snapInstanceKey string, snapType snap.Type, snapRev snap.Revision) *ComponentSetup {
+func NewComponentSetup(csi *snap.ComponentSideInfo, compPath string, snapsu *SnapSetup) *ComponentSetup {
 	return &ComponentSetup{
-		CompSideInfo:    csi,
-		CompPath:        compPath,
-		SnapInstanceKey: snapInstanceKey,
-		SnapType:        snapType,
-		SnapRevision:    snapRev,
+		CompSideInfo: csi,
+		CompPath:     compPath,
+		SnapSup:      snapsu,
 	}
 }
 
