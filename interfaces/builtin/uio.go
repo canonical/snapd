@@ -22,7 +22,6 @@ package builtin
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -103,19 +102,19 @@ func (iface *uioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	// device node in /dev. Use AddDeduplicatedSnippet() for clarity
 	// in the resulting rules.
 	spec.AddDeduplicatedSnippet("/sys/devices/platform/**/uio/uio[0-9]** r,  # common rule for all uio connections")
+
+	// Allow uio configuration
 	uioConfigPath := "/sys/class/uio/" + strings.TrimPrefix(path, "/dev/") + "/device/config"
-	_, err = os.Stat(uioConfigPath)
-	if err != nil {
-		// This should not block the interface connection operation.
-		logger.Noticef("uio device config file does not exist %s", uioConfigPath)
-	} else {
-		var resolvedPath string
-		resolvedPath, err = filepath.EvalSymlinks(uioConfigPath)
-		if err != nil {
-			return fmt.Errorf("cannot resolve symlink for UIO config path: %v", err)
-		}
-		spec.AddSnippet(fmt.Sprintf("%s rwk,", resolvedPath))
+	dereferencedPath, err := evalSymlinks(uioConfigPath)
+	if err != nil && os.IsNotExist(err) {
+		// This should not block the interface connection operation
+		logger.Noticef("cannot configure not existing uio device config file %s", uioConfigPath)
+		return nil
 	}
+	if err != nil {
+		return err
+	}
+	spec.AddSnippet(fmt.Sprintf("%s rwk,", dereferencedPath))
 	return nil
 }
 
