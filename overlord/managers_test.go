@@ -13349,10 +13349,18 @@ func (s *mgrsSuite) testDownload(c *C, downloadDir string) {
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Download(context.TODO(), st, "foo", downloadDir, nil, 0, snapstate.Flags{}, nil)
+	ts, info, err := snapstate.Download(context.TODO(), st, "foo", downloadDir, nil, 0, snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("download-snap", "...")
 	chg.AddAll(ts)
+
+	c.Check(info.SideInfo, DeepEquals, snap.SideInfo{
+		RealName:          "foo",
+		SnapID:            fakeSnapID("foo"),
+		Revision:          snap.R(snapRev),
+		EditedSummary:     "Foo",
+		EditedDescription: "this is a description",
+	})
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -13401,12 +13409,20 @@ func (s *mgrsSuite) TestDownloadSpecificRevision(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.Download(context.TODO(), st, "foo", "", &snapstate.RevisionOptions{
+	ts, info, err := snapstate.Download(context.TODO(), st, "foo", "", &snapstate.RevisionOptions{
 		Revision: snap.R(snapOldRev),
 	}, 0, snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("download-snap", "...")
 	chg.AddAll(ts)
+
+	c.Check(info.SideInfo, DeepEquals, snap.SideInfo{
+		RealName:          "foo",
+		SnapID:            fakeSnapID("foo"),
+		Revision:          snap.R(snapOldRev),
+		EditedSummary:     "Foo",
+		EditedDescription: "this is a description",
+	})
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -13420,7 +13436,7 @@ func (s *mgrsSuite) TestDownloadSpecificRevision(c *C) {
 	exists := osutil.FileExists(snapPath)
 	c.Check(exists, Equals, true)
 
-	info, err := snap.ReadInfoFromSnapFile(squashfs.New(snapPath), nil)
+	info, err = snap.ReadInfoFromSnapFile(squashfs.New(snapPath), nil)
 	c.Assert(err, IsNil)
 	c.Check(info.Version, Equals, "1")
 

@@ -1375,15 +1375,16 @@ func installWithDeviceContext(st *state.State, name string, opts *RevisionOption
 
 // Download returns a set of tasks for downloading a snap into the given
 // blobDirectory. If blobDirectory is empty, then dirs.SnapBlobDir is used. The
-// tasks that are returned will also download and validate the snap's assertion.
+// snap.Info for the snap that is downloaded is also returned. The tasks that
+// are returned will also download and validate the snap's assertion.
 // Prerequisites for the snap are not downloaded.
-func Download(ctx context.Context, st *state.State, name string, blobDirectory string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, error) {
+func Download(ctx context.Context, st *state.State, name string, blobDirectory string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (*state.TaskSet, *snap.Info, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
 
 	if opts.CohortKey != "" && !opts.Revision.Unset() {
-		return nil, errors.New("cannot specify revision and cohort")
+		return nil, nil, errors.New("cannot specify revision and cohort")
 	}
 
 	if opts.Channel == "" {
@@ -1393,16 +1394,16 @@ func Download(ctx context.Context, st *state.State, name string, blobDirectory s
 	var snapst SnapState
 	err := Get(st, name, &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if err := snap.ValidateInstanceName(name); err != nil {
-		return nil, fmt.Errorf("invalid instance name: %v", err)
+		return nil, nil, fmt.Errorf("invalid instance name: %v", err)
 	}
 
 	sar, err := downloadInfo(ctx, st, name, opts, userID, deviceCtx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	info := sar.Info
@@ -1411,11 +1412,11 @@ func Download(ctx context.Context, st *state.State, name string, blobDirectory s
 	// revision is already installed, then we should not overwrite the snap that
 	// is already in the dir.
 	if (blobDirectory == "" || blobDirectory == dirs.SnapBlobDir) && info.Revision == snapst.Current {
-		return nil, &snap.AlreadyInstalledError{Snap: name}
+		return nil, nil, &snap.AlreadyInstalledError{Snap: name}
 	}
 
 	if flags.RequireTypeBase && info.Type() != snap.TypeBase && info.Type() != snap.TypeOS {
-		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
+		return nil, nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
 	}
 
 	snapsup := &SnapSetup{
@@ -1439,7 +1440,7 @@ func Download(ctx context.Context, st *state.State, name string, blobDirectory s
 
 	toDownloadTo := filepath.Dir(snapsup.MountFile())
 	if err := checkDiskSpaceDownload([]minimalInstallInfo{installSnapInfo{info}}, toDownloadTo); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	revisionStr := fmt.Sprintf(" (%s)", snapsup.Revision())
@@ -1455,7 +1456,7 @@ func Download(ctx context.Context, st *state.State, name string, blobDirectory s
 	installSet.MarkEdge(download, BeginEdge)
 	installSet.MarkEdge(checkAsserts, LastBeforeLocalModificationsEdge)
 
-	return installSet, nil
+	return installSet, info, nil
 }
 
 func validatedInfoFromPathAndSideInfo(snapName, path string, si *snap.SideInfo) (*snap.Info, error) {
@@ -4148,9 +4149,9 @@ func GadgetConnections(st *state.State, deviceCtx DeviceContext) ([]gadget.Conne
 // for all current snaps in the system state.
 //
 // A downloaded file is only kept if any of the following are true:
-//    1. The revision is in SnapState.Sequence
-//    2. The revision is in saved in refresh-candidates
-//    3. The revision is pointed to by a download task in an ongoing change
+//  1. The revision is in SnapState.Sequence
+//  2. The revision is in saved in refresh-candidates
+//  3. The revision is pointed to by a download task in an ongoing change
 //
 // It is the caller's responsibility to lock state before calling this function.
 func downloadsToKeep(st *state.State) (map[string]bool, error) {
