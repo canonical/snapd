@@ -487,6 +487,8 @@ func getInfoAndApp(snapName, appName string, rev snap.Revision) (*snap.Info, *sn
 	return info, app, nil
 }
 
+var runinhibitWaitWhileInhibited = runinhibit.WaitWhileInhibited
+
 func maybeWaitWhileInhibited(snapName string, appName string) (info *snap.Info, app *snap.AppInfo, hintFlock *osutil.FileLock, err error) {
 	if features.RefreshAppAwareness.IsEnabled() {
 		flow := newInhibitionFlow(snapName)
@@ -522,7 +524,7 @@ func maybeWaitWhileInhibited(snapName string, appName string) (info *snap.Info, 
 
 		// If the snap is inhibited from being used then postpone running it until
 		// that condition passes.
-		hintFlock, err = waitWhileInhibited(snapName, notInhibited, inhibited, 500*time.Millisecond)
+		hintFlock, err = runinhibitWaitWhileInhibited(snapName, notInhibited, inhibited, 500*time.Millisecond)
 		if err != nil {
 			// It is fine to return an error here without finishing the notification
 			// flow because we either failed because of it or before it, so it

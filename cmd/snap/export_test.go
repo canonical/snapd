@@ -482,10 +482,10 @@ func MockSeedWriterReadManifest(f func(manifestFile string) (*seedwriter.Manifes
 var MaybeWaitWhileInhibited = maybeWaitWhileInhibited
 
 func MockWaitWhileInhibited(f func(snapName string, notInhibited func() error, inhibited func(hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error)) (restore func()) {
-	old := waitWhileInhibited
-	waitWhileInhibited = f
+	old := runinhibitWaitWhileInhibited
+	runinhibitWaitWhileInhibited = f
 	return func() {
-		waitWhileInhibited = old
+		runinhibitWaitWhileInhibited = old
 	}
 }
 

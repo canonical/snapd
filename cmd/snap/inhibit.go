@@ -139,5 +139,3 @@ var newInhibitionFlow = func(snapName string) inhibitionFlow {
 	}
 	return &textFlow{snapName: snapName}
 }
-
-var waitWhileInhibited = runinhibit.WaitWhileInhibited
