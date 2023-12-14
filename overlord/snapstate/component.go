@@ -125,6 +125,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 		t.Set("snap-setup-task", prepare.ID())
 		t.WaitFor(prev)
 		tasks = append(tasks, t)
+		prev = t
 	}
 
 	// TODO task to fetch and check assertions for component if from store
@@ -136,7 +137,6 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 			fmt.Sprintf(i18n.G("Mount component %q%s"),
 				compSi.Component, revisionStr))
 		addTask(mount)
-		prev = mount
 	} else {
 		if removeComponentPath {
 			// If the revision is local, we will not need the
@@ -160,7 +160,6 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 			"Make current revision for component %q unavailable"),
 			compSi.Component))
 		addTask(unlink)
-		prev = unlink
 	}
 
 	// finalize (sets SnapState)
@@ -168,7 +167,6 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 		fmt.Sprintf(i18n.G("Make component %q%s available to the system"),
 			compSi.Component, revisionStr))
 	addTask(linkSnap)
-	prev = linkSnap
 
 	installSet := state.NewTaskSet(tasks...)
 	installSet.MarkEdge(prepare, BeginEdge)

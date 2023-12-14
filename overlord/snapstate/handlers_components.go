@@ -176,9 +176,6 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) error {
 	if installRecord != nil {
 		t.Set("install-record", installRecord)
 	}
-	st.Unlock()
-
-	st.Lock()
 	perfTimings.Save(st)
 	st.Unlock()
 
