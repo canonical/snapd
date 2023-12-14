@@ -1,3 +1,18 @@
+# Next:
+* state: add support for notices (from pebble)
+* daemon: add notices to the snapd API under `/v2/notices` and `/v2/notice`
+
+# New in snapd 2.61.1:
+* Stop requiring default provider snaps on image building and first boot if alternative providers are included and available
+* Fix auth.json access for login as non-root group ID
+* Fix incorrect remodelling conflict when changing track to older snapd version
+* Improved check-rerefresh message
+* Fix UC16/18 kernel/gadget update failure due volume mismatch with installed disk
+* Stop auto-import of assertions during install modes
+* Desktop interface exposes GetIdletime
+* Polkit interface support for new polkit versions
+* Fix not applying snapd snap changes in tracked channel when remodelling
+
 # New in snapd 2.61:
 * Fix control of activated services in 'snap start' and 'snap stop'
 * Correctly reflect activated services in 'snap services'
@@ -42,7 +57,7 @@
 * Use "aes-cbc-essiv:sha256" in cryptsetup on arm 32bit devices
   to increase speed on devices with CAAM support
 * Stop using `-O no-expr-simplify` in apparmor_parser to avoid
-  potential exponential memory use. This can lead to slower 
+  potential exponential memory use. This can lead to slower
   policy complication in some cases but it is much safer on
   low memory devices.
 

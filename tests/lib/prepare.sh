@@ -485,7 +485,7 @@ repack_kernel_snap() {
 
     echo "Repacking kernel snap"
     UNPACK_DIR=/tmp/kernel-unpack
-    snap download --basename=pc-kernel --channel="$CHANNEL/edge" pc-kernel
+    snap download --basename=pc-kernel --channel="$CHANNEL/${KERNEL_CHANNEL}" pc-kernel
     unsquashfs -no-progress -d "$UNPACK_DIR" pc-kernel.snap
     snap pack --filename="$TARGET" "$UNPACK_DIR"
 
@@ -1027,17 +1027,31 @@ EOF
     fi
 
     EXTRA_FUNDAMENTAL=
-    IMAGE_CHANNEL=edge
+    IMAGE_CHANNEL=
     if [ "$KERNEL_CHANNEL" = "$GADGET_CHANNEL" ]; then
         IMAGE_CHANNEL="$KERNEL_CHANNEL"
     else
-        # download pc-kernel snap for the specified channel and set
-        # ubuntu-image channel to that of the gadget, so that we don't
-        # need to download it
-        snap download --channel="$KERNEL_CHANNEL" pc-kernel
-
-        EXTRA_FUNDAMENTAL="--snap $PWD/pc-kernel_*.snap"
         IMAGE_CHANNEL="$GADGET_CHANNEL"
+        if os.query is-core16 || os.query is-core18; then
+            if os.query is-core16; then
+                BRANCH=latest
+            elif os.query is-core18; then
+                BRANCH=18
+            fi
+            # download pc-kernel snap for the specified channel and set
+            # ubuntu-image channel to that of the gadget, so that we don't
+            # need to download it. Do this only for UC16/18 as the UC20+
+            # case is considered a few lines below.
+            snap download --basename=pc-kernel --channel="$BRANCH/$KERNEL_CHANNEL" pc-kernel
+            # Repack to prevent reboots as the image channel (which will become
+            # the tracked channel) is different to the kernel channel.
+            unsquashfs -d pc-kernel pc-kernel.snap
+            touch pc-kernel/repacked
+            snap pack --filename=pc-kernel-repacked.snap pc-kernel
+            rm -rf pc-kernel
+            mv pc-kernel-repacked.snap pc-kernel.snap
+            EXTRA_FUNDAMENTAL="--snap $PWD/pc-kernel.snap"
+        fi
     fi
 
     if os.query is-core20 || os.query is-core22; then
@@ -1161,6 +1175,7 @@ EOF
     fi
     # shellcheck disable=SC2086
     "$UBUNTU_IMAGE" snap \
+                    --image-size 5G \
                     -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
                     --channel "$IMAGE_CHANNEL" \
                     $EXTRA_FUNDAMENTAL \
@@ -1427,6 +1442,16 @@ prepare_ubuntu_core() {
     if ! is_snapd_state_saved; then
         # Create the file with the initial environment before saving the state
         tests.env start initial
+
+        # save preinstalled snaps when tests are executed in external systems
+        # the preinstalled snaps shouldn't be removed during tests clean up
+        # this is needed just for external devices because those could be using
+        # custom images with pre-installed snaps which cannot be removed, such
+        # as the network-manager.
+        if [ "$SPREAD_BACKEND" == "external" ]; then
+            PREINSTALLED_SNAPS="$(snap list | tail -n +2 | awk '{print $1}' | tr '\n' ' ')"
+            tests.env set initial PREINSTALLED_SNAPS "$PREINSTALLED_SNAPS"
+        fi
 
         # important to remove disabled snaps before calling save_snapd_state
         # or restore will break

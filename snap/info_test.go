@@ -59,6 +59,8 @@ func (s *infoSimpleSuite) TearDownTest(c *C) {
 }
 
 func (s *infoSimpleSuite) TestReadInfoPanicsIfSanitizeUnset(c *C) {
+	defer snap.MockSanitizePlugsSlots(nil)()
+
 	si := &snap.SideInfo{Revision: snap.R(1)}
 	snaptest.MockSnap(c, sampleYaml, si)
 	c.Assert(func() { snap.ReadInfo("sample", si) }, Panics, `SanitizePlugsSlots function not set`)
@@ -1230,6 +1232,30 @@ func (s *infoSuite) testInstanceDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.CommonDataHomeDir(nil), Equals, "/home/*/snap/name_instance/common")
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name_instance")
 	c.Check(info.BinaryNameGlobs(), DeepEquals, []string{"name_instance", "name_instance.*"})
+}
+
+func (s *infoSuite) TestComponentPlaceInfoMethods(c *C) {
+	dirs.SetRootDir("")
+	info := snap.MinimalSnapContainerPlaceInfo("name", snap.R("1"))
+
+	var cpi snap.ContainerPlaceInfo = info
+	c.Check(cpi.ContainerName(), Equals, "name")
+	c.Check(cpi.Filename(), Equals, "name_1.snap")
+	c.Check(cpi.MountDir(), Equals, fmt.Sprintf("%s/name/1", dirs.SnapMountDir))
+	c.Check(cpi.MountFile(), Equals, "/var/lib/snapd/snaps/name_1.snap")
+	c.Check(cpi.MountDescription(), Equals, "Mount unit for name, revision 1")
+}
+
+func (s *infoSuite) TestComponentPlaceInfoMethodsParallelInstall(c *C) {
+	dirs.SetRootDir("")
+	info := snap.MinimalSnapContainerPlaceInfo("name_instance", snap.R("1"))
+
+	var cpi snap.ContainerPlaceInfo = info
+	c.Check(cpi.ContainerName(), Equals, "name_instance")
+	c.Check(cpi.Filename(), Equals, "name_instance_1.snap")
+	c.Check(cpi.MountDir(), Equals, fmt.Sprintf("%s/name_instance/1", dirs.SnapMountDir))
+	c.Check(cpi.MountFile(), Equals, "/var/lib/snapd/snaps/name_instance_1.snap")
+	c.Check(cpi.MountDescription(), Equals, "Mount unit for name_instance, revision 1")
 }
 
 func BenchmarkTestParsePlaceInfoFromSnapFileName(b *testing.B) {

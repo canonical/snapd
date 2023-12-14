@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdenv"
@@ -169,7 +170,15 @@ func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
 	timings.DurationThreshold = time.Second * 30
 	defer func() { timings.DurationThreshold = oldDurationThreshold }()
 
-	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"patch-sublevel-last-version":%q,"some":"data","refresh-privacy-key":"0123456789ABCDEF"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, snapdtool.Version))
+	fakeState := []byte(fmt.Sprintf(`{
+		"data": {"patch-level": %d, "patch-sublevel": %d, "patch-sublevel-last-version": %q, "some": "data", "refresh-privacy-key": "0123456789ABCDEF"},
+		"changes": null,
+		"tasks": null,
+		"last-change-id": 0,
+		"last-task-id": 0,
+		"last-lane-id": 0,
+		"last-notice-id": 0
+	}`, patch.Level, patch.Sublevel, snapdtool.Version))
 	err := os.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
@@ -1291,17 +1300,17 @@ func (ovs *overlordSuite) TestStartupTimeout(c *C) {
 	// have two snaps
 	snapstate.Set(st, "core18", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "core18", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "base",
 	})
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "foo", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})

@@ -106,7 +106,7 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 // potentially more than once. It assumes the initial list of snaps already has
 // download infos set.
 // The state must be locked by the caller.
-var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int) (uint64, error) {
+var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int, prqt PrereqTracker) (uint64, error) {
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
 		return 0, err
@@ -144,7 +144,7 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int) 
 				accountedSnaps[base] = true
 			}
 		}
-		for _, snapName := range inst.Prereq(st) {
+		for _, snapName := range inst.Prereq(st, prqt) {
 			if !accountedSnaps[snapName] {
 				prereqs = append(prereqs, snapName)
 				accountedSnaps[snapName] = true
@@ -228,6 +228,45 @@ func setActionValidationSetsAndRequiredRevision(action *store.SnapAction, valset
 		// respond with revision-conflict error).
 		action.Channel = ""
 	}
+}
+
+func downloadInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, deviceCtx DeviceContext) (store.SnapActionResult, error) {
+	curSnaps, err := currentSnaps(st)
+	if err != nil {
+		return store.SnapActionResult{}, err
+	}
+
+	user, err := userFromUserID(st, userID)
+	if err != nil {
+		return store.SnapActionResult{}, err
+	}
+
+	opts, err := refreshOptions(st, nil)
+	if err != nil {
+		return store.SnapActionResult{}, err
+	}
+
+	action := &store.SnapAction{
+		Action:       "download",
+		InstanceName: name,
+	}
+
+	if revOpts != nil {
+		// cannot specify both with the API
+		if revOpts.Revision.Unset() {
+			action.Channel = revOpts.Channel
+			action.CohortKey = revOpts.CohortKey
+		} else {
+			action.Revision = revOpts.Revision
+		}
+	}
+
+	theStore := Store(st, deviceCtx)
+	st.Unlock() // calls to the store should be done without holding the state lock
+	res, _, err := theStore.SnapAction(ctx, curSnaps, []*store.SnapAction{action}, nil, user, opts)
+	st.Lock()
+
+	return singleActionResult(name, action.Action, res, err)
 }
 
 func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (store.SnapActionResult, error) {
@@ -448,6 +487,8 @@ func singleActionResult(name, action string, results []store.SnapActionResult, e
 		switch action {
 		case "refresh":
 			snapErr = saErr.Refresh[name]
+		case "download":
+			snapErr = saErr.Download[name]
 		case "install":
 			snapErr = saErr.Install[name]
 		}
@@ -613,13 +654,104 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]st
 	return curSnaps, nil
 }
 
+// refreshCandidates is a wrapper for refreshCandidatesCore.
+//
+// It addresses the case where the store doesn't return refresh candidates for
+// snaps with already existing monitored refresh-candidates due to inconsistent
+// store return being caused by the throttling.
+// A second request is sent for eligible snaps that might have been throttled
+// with the RevisionOptions.Scheduled option turned off.
+//
+// Note: This wrapper is a short term solution and should be removed once a better
+// solution is reached.
 func refreshCandidates(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
-	snapStates, err := All(st)
+	// initialize options before using
+	opts, err := refreshOptions(st, opts)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	opts, err = refreshOptions(st, opts)
+	var revOptsByName map[string]*RevisionOptions
+	if revOpts != nil {
+		revOptsByName = make(map[string]*RevisionOptions, len(revOpts))
+		for i, opts := range revOpts {
+			revOptsByName[names[i]] = opts
+		}
+	}
+
+	updates, stateByInstanceName, ignoreValidation, err := refreshCandidatesCore(ctx, st, names, revOpts, user, opts)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	if !opts.Scheduled {
+		// not an auto-refresh, just return what we got
+		return updates, stateByInstanceName, ignoreValidation, nil
+	}
+
+	var oldHints map[string]*refreshCandidate
+	if err := st.Get("refresh-candidates", &oldHints); err != nil {
+		if errors.Is(err, &state.NoStateError{}) {
+			// do nothing
+			return updates, stateByInstanceName, ignoreValidation, nil
+		}
+
+		return nil, nil, nil, fmt.Errorf("cannot get refresh-candidates: %v", err)
+	}
+
+	var missingNames []string
+
+	for name, hint := range oldHints {
+		if stateByInstanceName[name] == nil {
+			continue
+		}
+		if !hint.Monitored {
+			continue
+		}
+		hasUpdate := false
+		for _, update := range updates {
+			if update.InstanceName() == name {
+				hasUpdate = true
+				break
+			}
+		}
+		if hasUpdate {
+			continue
+		}
+
+		missingNames = append(missingNames, name)
+	}
+
+	if len(missingNames) > 0 {
+		var missingRevOpts []*RevisionOptions
+		if revOpts != nil {
+			for _, name := range missingNames {
+				missingRevOpts = append(missingRevOpts, revOptsByName[name])
+			}
+		}
+		// mimic manual refresh to avoid throttling.
+		// context: snaps may be throttled by the store to balance load
+		// and therefore may not always receive an update (even if one was
+		// returned before). forcing a manual refresh should be fine since
+		// we already started a pre-download for this snap, so no extra
+		// load is being exerted on the store.
+		opts.Scheduled = false
+		moreUpdates, _, _, err := refreshCandidatesCore(ctx, st, missingNames, missingRevOpts, user, opts)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		updates = append(updates, moreUpdates...)
+	}
+
+	return updates, stateByInstanceName, ignoreValidation, nil
+}
+
+func refreshCandidatesCore(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
+	if opts == nil {
+		return nil, nil, nil, fmt.Errorf("internal error: opts cannot be nil")
+	}
+
+	snapStates, err := All(st)
 	if err != nil {
 		return nil, nil, nil, err
 	}

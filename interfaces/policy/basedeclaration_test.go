@@ -229,6 +229,7 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 	snowflakes := map[string]bool{
 		"classic-support": true,
 		"content":         true,
+		"cups-control":    true,
 		"home":            true,
 		"lxd-support":     true,
 		// netlink-driver needs the family-name attributes to match
@@ -1020,6 +1021,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"polkit":                 true,
 		"polkit-agent":           true,
 		"sd-control":             true,
+		"shutdown":               true,
 		"snap-refresh-control":   true,
 		"snap-themes-control":    true,
 		"snapd-control":          true,
@@ -1312,6 +1314,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"polkit-agent":           true,
 		"qualcomm-ipc-router":    true,
 		"sd-control":             true,
+		"shutdown":               true,
 		"shared-memory":          true,
 		"snap-refresh-control":   true,
 		"snap-themes-control":    true,

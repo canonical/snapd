@@ -1,5 +1,8 @@
 summary: Check that installing a snap requiring a base fails if base has invalid type
 
+details: |
+    Verify the error shown when installing a snap with an invalid base.
+
 prepare: |
     snap pack test-snapd-invalid-base
 

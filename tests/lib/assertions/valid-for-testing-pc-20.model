@@ -1,7 +1,7 @@
 type: model
-authority-id: FpA2tgNE8bUrUKSOhE6SOpsMdlcEJkDL
+authority-id: test-snapd
 series: 16
-brand-id: FpA2tgNE8bUrUKSOhE6SOpsMdlcEJkDL
+brand-id: test-snapd
 model: my-model
 architecture: amd64
 base: core20
@@ -29,16 +29,16 @@ snaps:
     id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
     name: snapd
     type: snapd
-timestamp: 2021-06-01T12:18:12+00:00
-sign-key-sha3-384: u2EnPKDpHm8Or1VWwjs3duNosoBpFS4Da-c6vRQHPKwdllDOlQ02_JFGrxZDe03C
+timestamp: 2023-11-09T08:40:55+00:00
+sign-key-sha3-384: 7qWG-Uwck6Dji43a3Z8ZZrm7rAziZAch3xf76iFvqe4GaD0LI7U9lYPWMSJAsEgu
 
-AcLBcwQAAQoAHRYhBKg05U8V+aOkBzV5W4jJZcdh7V/PBQJg2vsJAAoJEIjJZcdh7V/PmH8P/3r2
-7v4vJmKFyuc5sMMiKHlS6WwP0mWnW+Zu2xrOzNOAJzSfK9eT3RqyNAhIrd8y8u65Mlr+TqDqm/n1
-FodvQCnAW5MsW/75I/o05YxSKpTLdenEa6uMMuDmR9EkOO7wPjue1J0Rg/qwUW48929nK3uGJwvw
-jveMN4Q81ftKMX794eGdMhzOFK+UgXvDbDNcjAyM5yoXyC1Ywa1ZzEeLtZlbl6OaQOFeLZ6OgUdg
-xMPfk6foU0gkuBZs144rprC+W4lCXuVkTONCFGlxOx0sSP8IKqr+IJu0RmV+czTCEJclfzWqmiXg
-YkmPbDK4UBW2Q7O22u9hbmSHFt8imBHUlNSS0AuJiM7no0F5tnf8Wc5uvvgbH+o0WZuDdV1H0crl
-CSrJ6wZC3H0I/xqtfO/N6WAkmaqfbJt1rhVKXeUbgwtGVkYORTGFguJZGXcMd5BBFp7jSzIk+2W+
-b33Za5rPLgcmQO22dLpyhRbPJL88+L0rRnzJdPOPLQXTKL5GpppH6BSuE/8vbhLbVVcjobpMFwZT
-sH/m5Wxg6BxyAe7xPFvY9clq9P6YU8fna66gkvA25zn+gsBc1OGSj2BgKth1KvZiyo8PX69DBFi6
-nUPbCrbqpIj3B8LPajdEwces1vCjRi0l3pvl4Mf+mKHxC6ppFfbTz9RxeCoTvUC1lCPpUugZ
+AcLBcwQAAQoAHRYhBGESvKlz1RXG1IBOC0MdJKf2hr9ABQJlTJtHAAoJEEMdJKf2hr9A4EQP/2uE
+O9XVgYAh/nljo+d6ZT/IVlocLPMSHbO3qxvO8HzREvwtPC1d3F+GXg6nNjbEDb9AYpkFhkcZJyUs
+RMhbybgizcNw5wazqI2LiGZZGmScqs7lj/WV7zVa1UtVYJLsR+17aEmS7IIjRvSJy8MS+f8udX9E
+XI3/siu5e1k9IfGzOuoVrVApdsyVNe4ZSSkjrw21R0OWyGzado1IxAMlkfVX4nyX/6T5+Ju6uyDc
+dr88yS6Bxjwq3NbeGUAMny3fdeCf7xh+VN6GEwv80omd4hVJH4NAnPdo5gANDG3AN+D42NJVXjk3
+uewVLof3aMqxiM+FjulOnEswFx4yRns1+mAKCIWef6pRg1wU/3tc6EKVWku5OOE4ePrXxPk03QJP
+am5Sb8QXwdBWiWEfDFPlwXKA89vWBHcxquml2EhPYejVbUfXsvCbG9ePQmMHAaorMrRFpFAdN6Qd
+c8TVmZieKPJ8yMLIpvorH+0xmhJgkzO3FdRKynj345nOAPGhb8gilJsBZycxOG60wlXySkxSDG8p
++kPVF1iIHdcPy99koO6jmUXS7wLjAwG8qsp2c6s00wO+SUyees3rSE1gGGglTVTz8WC/Ofg4LSyI
++pszr5TirG/fqu61wQAXPrGHi4KueSA5xntt97RaJkGyOt1E8ljD98PCbkrbMPayatBgQSYe

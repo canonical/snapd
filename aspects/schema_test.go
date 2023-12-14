@@ -104,6 +104,34 @@ func (*schemaSuite) TestMapWithSchemaConstraint(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (*schemaSuite) TestMapSchemasRequireConstraints(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"snaps": {
+			"schema": {
+				"foo": "map"
+			}
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse "map": must be schema definition with constraints`)
+}
+
+func (*schemaSuite) TestMapSchemasRequireSchemaOrKeyValues(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"snaps": {
+			"type": "map"
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse map: must have "schema" or "keys"/"values" constraint`)
+}
+
 func (*schemaSuite) TestMapWithUnexpectedKey(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
@@ -126,7 +154,7 @@ func (*schemaSuite) TestMapWithUnexpectedKey(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `map contains unexpected key "bar"`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "snaps": map contains unexpected key "bar"`)
 }
 func (*schemaSuite) TestMapWithKeysStringConstraintHappy(c *C) {
 	schemaStr := []byte(`{
@@ -254,7 +282,7 @@ func (*schemaSuite) TestMapWithUnmetValuesConstraint(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, "cannot validate string: json: cannot unmarshal object into Go value of type string")
+	c.Assert(err, ErrorMatches, `cannot accept element in "snaps.foo": expected string type but got object`)
 }
 
 func (*schemaSuite) TestMapSchemaMetConstraintsWithMissingEntry(c *C) {
@@ -295,7 +323,7 @@ func (*schemaSuite) TestMapSchemaUnmetConstraint(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate string: json: cannot unmarshal object into Go value of type string`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "bar": expected string type but got object`)
 }
 
 func (*schemaSuite) TestMapSchemaWithMetRequiredConstraint(c *C) {
@@ -304,16 +332,14 @@ func (*schemaSuite) TestMapSchemaWithMetRequiredConstraint(c *C) {
 	"schema": {
 		"foo": "string",
 		"bar": "string",
-		"baz": "map"
+		"baz": "int"
 	},
 	"required": ["foo", "baz"]
 }`)
 
 	input := []byte(`{
 	"foo": "oof",
-	"baz": {
-		"a": "b"
-	}
+	"baz": 3
 }`)
 
 	schema, err := aspects.ParseSchema(schemaStr)
@@ -329,7 +355,7 @@ func (*schemaSuite) TestMapSchemaWithUnmetRequiredConstraint(c *C) {
 	"schema": {
 		"foo": "string",
 		"bar": "string",
-		"baz": "map"
+		"baz": "int"
 	},
 	"required": ["foo", "baz"]
 }`)
@@ -343,7 +369,7 @@ func (*schemaSuite) TestMapSchemaWithUnmetRequiredConstraint(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, "cannot find required combinations of keys")
+	c.Assert(err, ErrorMatches, `cannot accept top level element: cannot find required combinations of keys`)
 }
 
 func (*schemaSuite) TestMapSchemaWithAlternativeOfRequiredEntries(c *C) {
@@ -352,7 +378,7 @@ func (*schemaSuite) TestMapSchemaWithAlternativeOfRequiredEntries(c *C) {
 	"schema": {
 		"foo": "string",
 		"bar": "string",
-		"baz": "map"
+		"baz": "int"
 	},
 	"required": [["foo"], ["bar"]]
 }`)
@@ -386,23 +412,20 @@ func (*schemaSuite) TestMapSchemaWithUnmetAlternativeOfRequiredEntries(c *C) {
 	"schema": {
 		"foo": "string",
 		"bar": "string",
-		"baz": "map"
+		"baz": "int"
 	},
 	"required": [["foo"], ["bar"]]
 }`)
 
-	// accepts the 1st allowed combination "foo"
 	input := []byte(`{
-	"baz": {
-		"a": "b"
-	}
+	"baz": 1
 }`)
 
 	schema, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, "cannot find required combinations of keys")
+	c.Assert(err, ErrorMatches, `cannot accept top level element: cannot find required combinations of keys`)
 }
 
 func (*schemaSuite) TestMapSchemaRequiredNotInSchema(c *C) {
@@ -543,7 +566,7 @@ func (*schemaSuite) TestStringsWithChoicesFail(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `string "baz" is not one of the allowed choices`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "snaps.baz": string "baz" is not one of the allowed choices`)
 }
 
 func (*schemaSuite) TestStringChoicesAndPatternsFail(c *C) {
@@ -607,7 +630,7 @@ func (*schemaSuite) TestStringPatternNoMatch(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `string "F00" doesn't match schema pattern \[fb\]00`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": string "F00" doesn't match schema pattern \[fb\]00`)
 }
 
 func (*schemaSuite) TestStringPatternWrongFormat(c *C) {
@@ -804,6 +827,41 @@ func (*schemaSuite) TestMapBasedUserDefinedTypeHappy(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (*schemaSuite) TestUserTypeReferenceDoesntRequireConstraints(c *C) {
+	// references to user-defined types don't require need constraints
+	schemaStr := []byte(`{
+	"types": {
+		"my-type": {
+			"schema": {
+				"foo": "string"
+			}
+		}
+	},
+	"schema": {
+		"a": "$my-type"
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+}
+
+func (*schemaSuite) TestMapInUserTypeRequiresConstraints(c *C) {
+	// maps still require constraints even within user-defined types
+	schemaStr := []byte(`{
+	"types": {
+		"my-type": "map"
+	},
+	"schema": {
+		"a": "$my-type"
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse user-defined type "my-type": cannot parse "map": must be schema definition with constraints`)
+}
+
 func (*schemaSuite) TestMapBasedUserDefinedTypeFail(c *C) {
 	schemaStr := []byte(`{
 	"types": {
@@ -834,7 +892,7 @@ func (*schemaSuite) TestMapBasedUserDefinedTypeFail(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot validate string: json: .*`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "snaps.core20.version": expected string type but got number`)
 }
 
 func (*schemaSuite) TestBadUserDefinedTypeName(c *C) {
@@ -875,6 +933,7 @@ func (*schemaSuite) TestIntegerHappy(c *C) {
 	err = schema.Validate(input)
 	c.Assert(err, IsNil)
 }
+
 func (*schemaSuite) TestIntegerMustMatchChoices(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
@@ -897,7 +956,7 @@ func (*schemaSuite) TestIntegerMustMatchChoices(c *C) {
 		if num == 1 || num == 3 {
 			c.Assert(err, IsNil)
 		} else {
-			c.Assert(err, ErrorMatches, fmt.Sprintf(`%d is not one of the allowed choices`, num))
+			c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept element in "foo": %d is not one of the allowed choices`, num))
 		}
 	}
 }
@@ -924,38 +983,13 @@ func (*schemaSuite) TestIntegerMustMatchMinMax(c *C) {
 
 		err := schema.Validate(input)
 		if num < min {
-			c.Assert(err, ErrorMatches, fmt.Sprintf(`%d is less than allowed minimum %d`, num, min))
+			c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept element in "foo": %d is less than the allowed minimum %d`, num, min))
 		} else if num > max {
-			c.Assert(err, ErrorMatches, fmt.Sprintf(`%d is greater than allowed maximum %d`, num, max))
+			c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept element in "foo": %d is greater than the allowed maximum %d`, num, max))
 		} else {
 			c.Assert(err, IsNil)
 		}
 	}
-}
-
-func (*schemaSuite) TestIntegerWithWrongTypes(c *C) {
-	schemaStr := []byte(`{
-	"schema": {
-		"foo": "int"
-	}
-}`)
-
-	schema, err := aspects.ParseSchema(schemaStr)
-	c.Assert(err, IsNil)
-
-	input := []byte(`{
-	"foo": "bar"
-}`)
-
-	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `json: cannot unmarshal string into Go value of type int64`)
-
-	input = []byte(`{
-	"foo": 3.14
-}`)
-
-	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `json: cannot unmarshal number 3.14 into Go value of type int64`)
 }
 
 func (*schemaSuite) TestIntegerChoicesAndMinMaxFail(c *C) {
@@ -1110,7 +1144,7 @@ func (*schemaSuite) TestAnyTypeAcceptsAllTypes(c *C) {
 	schema, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	for _, val := range []string{`"bar"`, `123`, `{ "a": 1, "b": 2 }`} {
+	for _, val := range []string{`"bar"`, `123`, `{ "a": 1, "b": 2 }`, `0.1`, `false`} {
 		input := []byte(fmt.Sprintf(`{
 			"foo": %s
 		}`, val))
@@ -1154,7 +1188,7 @@ func (*schemaSuite) TestAnyTypeRejectsBadJSON(c *C) {
 	"foo": .
 }`)
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `invalid character .*`)
+	c.Assert(err, ErrorMatches, `cannot accept top level element: invalid character .*`)
 }
 
 func (*schemaSuite) TestNumberValidFloatAndInt(c *C) {
@@ -1199,7 +1233,7 @@ func (*schemaSuite) TestNumberMustMatchChoices(c *C) {
 		if num == 1 || num == 3 {
 			c.Assert(err, IsNil)
 		} else {
-			c.Assert(err, ErrorMatches, fmt.Sprintf(`%v is not one of the allowed choices`, num))
+			c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept element in "foo": %v is not one of the allowed choices`, num))
 		}
 	}
 }
@@ -1226,31 +1260,13 @@ func (*schemaSuite) TestNumberMustMatchMinMax(c *C) {
 
 		err := schema.Validate(input)
 		if num < min {
-			c.Assert(err, ErrorMatches, fmt.Sprintf(`%v is less than allowed minimum %v`, num, min))
+			c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept element in "foo": %v is less than the allowed minimum %v`, num, min))
 		} else if num > max {
-			c.Assert(err, ErrorMatches, fmt.Sprintf(`%v is greater than allowed maximum %v`, num, max))
+			c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept element in "foo": %v is greater than the allowed maximum %v`, num, max))
 		} else {
 			c.Assert(err, IsNil)
 		}
 	}
-}
-
-func (*schemaSuite) TestNumberWithWrongTypes(c *C) {
-	schemaStr := []byte(`{
-	"schema": {
-		"foo": "number"
-	}
-}`)
-
-	schema, err := aspects.ParseSchema(schemaStr)
-	c.Assert(err, IsNil)
-
-	input := []byte(`{
-	"foo": "bar"
-}`)
-
-	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `json: cannot unmarshal string into Go value of type float64`)
 }
 
 func (*schemaSuite) TestNumberChoicesAndMinMaxFail(c *C) {
@@ -1350,8 +1366,8 @@ func (*schemaSuite) TestNumberMinGreaterThanMaxConstraintFail(c *C) {
 	c.Assert(err, ErrorMatches, `cannot have "min" constraint with value greater than "max"`)
 }
 
-func (*schemaSuite) TestTypesRejectNull(c *C) {
-	for _, typ := range []string{"map", "string", "int", "any", "number"} {
+func (*schemaSuite) TestSimpleTypesRejectNull(c *C) {
+	for _, typ := range []string{"string", "int", "any", "number", "bool"} {
 		schemaStr := []byte(fmt.Sprintf(`{
 	"schema": {
 		"foo": %q
@@ -1362,8 +1378,26 @@ func (*schemaSuite) TestTypesRejectNull(c *C) {
 		c.Assert(err, IsNil)
 
 		err = schema.Validate([]byte(`{"foo": null}`))
-		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept null value for %q type`, typ))
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept element in "foo": cannot accept null value for %q type`, typ))
 	}
+}
+
+func (*schemaSuite) TestMapTypeRejectsNull(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"a": "int"
+			}
+		}
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	err = schema.Validate([]byte(`{"foo": null}`))
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": cannot accept null value for "map" type`)
 }
 
 func (*schemaSuite) TestUserDefinedTypeRejectsNull(c *C) {
@@ -1382,5 +1416,471 @@ func (*schemaSuite) TestUserDefinedTypeRejectsNull(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate([]byte(`{"foo": null}`))
-	c.Assert(err, ErrorMatches, `cannot accept null value for "string" type`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": cannot accept null value for "string" type`)
+}
+
+func (*schemaSuite) TestArrayRejectsNull(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": "int"
+		}
+	}
+}`)
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{"foo": null}`)
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": cannot accept null value for "array" type`)
+}
+
+func (*schemaSuite) TestBooleanHappy(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": "bool",
+		"bar": "bool"
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{
+	"foo": true,
+	"bar": false
+}`)
+
+	err = schema.Validate(input)
+	c.Assert(err, IsNil)
+}
+
+func (*schemaSuite) TestArrayHappy(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": "string"
+		}
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{
+	"foo": ["a", "b"]
+}`)
+
+	err = schema.Validate(input)
+	c.Assert(err, IsNil)
+}
+
+func (*schemaSuite) TestArrayHappyWithUserDefinedType(c *C) {
+	schemaStr := []byte(`{
+	"types": {
+		"my-type": "string"
+	},
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": "$my-type"
+		}
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{
+	"foo": ["a", "b"]
+}`)
+
+	err = schema.Validate(input)
+	c.Assert(err, IsNil)
+}
+
+func (*schemaSuite) TestArrayRequireConstraints(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": "array"
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse "array": must be schema definition with constraints`)
+}
+
+func (*schemaSuite) TestArrayRequireValueConstraint(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array"
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse "array": must have "values" constraint`)
+}
+
+func (*schemaSuite) TestArrayFailsWithBadElementType(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": "foo"
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse "array" values type: cannot parse unknown type "foo"`)
+}
+
+func (*schemaSuite) TestArrayEnforcesOnlyOneType(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": "string"
+		}
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{
+	"foo": ["a", 1]
+}`)
+
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo\[1\]": expected string type but got number`)
+}
+
+func (*schemaSuite) TestArrayWithUniqueRejectsDuplicates(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": "string",
+			"unique": true
+		}
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{
+	"foo": ["a", "a"]
+}`)
+
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": cannot accept duplicate values for array with "unique" constraint`)
+}
+
+func (*schemaSuite) TestArrayWithoutUniqueAcceptsDuplicates(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": "string",
+			"unique": false
+		}
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{
+	"foo": ["a", "b"]
+}`)
+
+	err = schema.Validate(input)
+	c.Assert(err, IsNil)
+}
+
+func (*schemaSuite) TestArrayFailsWithBadUniqueType(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": "string",
+			"unique": "true"
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse array's "unique" constraint: json: cannot unmarshal string into Go value of type bool`)
+}
+
+func (*schemaSuite) TestErrorContainsPathPrefixes(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": {
+					"schema": {
+						"baz": "string"
+					}
+				}
+			}
+		}
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	type testcase struct {
+		name  string
+		input []byte
+		err   string
+	}
+
+	testcases := []testcase{
+		{
+			name:  "top level",
+			input: []byte(`{"bar": 1}`),
+			err:   `cannot accept top level element: map contains unexpected key "bar"`,
+		},
+		{
+			name:  "1 level of nesting",
+			input: []byte(`{"foo": {"baz": 1}}`),
+			err:   `cannot accept element in "foo": map contains unexpected key "baz"`,
+		},
+		{
+			name:  "2 levels of nesting",
+			input: []byte(`{"foo": {"bar": {"boo": 1}}}`),
+			err:   `cannot accept element in "foo.bar": map contains unexpected key "boo"`,
+		},
+	}
+
+	for _, tc := range testcases {
+		err = schema.Validate(tc.input)
+		c.Assert(err, ErrorMatches, tc.err, Commentf("test case %q failed", tc.name))
+	}
+}
+
+func (*schemaSuite) TestPathPrefixWithMapUnderUserType(c *C) {
+	schemaStr := []byte(`{
+	"types": {
+		"my-type": {
+			"schema": {
+				"bar": {
+					"type": "int",
+					"min": 0
+				}
+			}
+		}
+	},
+	"schema": {
+		"foo": "$my-type"
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{"foo": {"bar": -1}}`)
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo.bar": -1 is less than the allowed minimum 0`)
+}
+
+func (*schemaSuite) TestPathPrefixWithArrayUnderUserType(c *C) {
+	schemaStr := []byte(`{
+	"types": {
+		"my-type": {
+			"type": "int",
+			"min": 0
+		}
+	},
+	"schema": {
+		"foo": {
+			"type": "array",
+			"values": "$my-type"
+		}
+	}
+}`)
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{"foo": [-1]}`)
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo\[0\]": -1 is less than the allowed minimum 0`)
+}
+
+func (*schemaSuite) TestPathPrefixWithArrayUnderUserWithAContainerElementType(c *C) {
+	schemaStr := []byte(`{
+	"types": {
+		"my-type": {
+			"type": "array",
+			"values": {
+				"schema": {
+					"bar": {
+						"type": "int",
+						"min": 0
+					}
+				}
+			}
+		}
+	},
+	"schema": {
+		"foo": "$my-type"
+	}
+}`)
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{"foo": [{"bar": 1}, {"bar": -1}]}`)
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo\[1\].bar": -1 is less than the allowed minimum 0`)
+}
+
+func (*schemaSuite) TestPathPrefixWithKeyOrValueConstraints(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"type": "map",
+			"keys": {
+				"type": "string",
+				"choices": ["my-key"]
+			},
+			"values": {
+				"type": "int",
+				"min": 0
+			}
+		}
+	}
+}`)
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{"foo": {"other-key": 1}}`)
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo.other-key": string "other-key" is not one of the allowed choices`)
+
+	input = []byte(`{"foo": {"my-key": -1}}`)
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo.my-key": -1 is less than the allowed minimum 0`)
+}
+
+func (*schemaSuite) TestPathManyUserDefinedTypeReferences(c *C) {
+	schemaStr := []byte(`{
+	"types": {
+		"my-type": {
+			"type": "map",
+			"values": {
+				"type": "int",
+				"min": 0
+			}
+		}
+	},
+	"schema": {
+		"foo": "$my-type",
+		"bar": "$my-type"
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{"foo": { "one": 1 }, "bar": { "two": -1 } }`)
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `cannot accept element in "bar.two": -1 is less than the allowed minimum 0`)
+}
+
+func (*schemaSuite) TestValidationError(c *C) {
+	type testcase struct {
+		path     []interface{}
+		expected string
+	}
+
+	cases := []testcase{
+		{
+			path:     []interface{}{"foo", "bar"},
+			expected: "foo.bar",
+		},
+		{
+			path:     []interface{}{"foo", 1, "bar"},
+			expected: "foo[1].bar",
+		},
+		{
+			path:     []interface{}{"foo", 1, 2, "bar"},
+			expected: "foo[1][2].bar",
+		},
+		{
+			path:     []interface{}{"foo", 2.9, 1},
+			expected: "foo.<n/a>[1]",
+		},
+	}
+
+	for _, tc := range cases {
+		err := &aspects.ValidationError{
+			Path: tc.path,
+			Err:  fmt.Errorf("base error"),
+		}
+
+		c.Assert(err.Error(), Equals, fmt.Sprintf(`cannot accept element in %q: base error`, tc.expected))
+	}
+}
+
+func (*schemaSuite) TestUnexpectedTypes(c *C) {
+	type testcase struct {
+		schemaType   string
+		expectedType string
+		testValue    interface{}
+	}
+
+	tcs := []testcase{
+		{
+			schemaType:   `{"type": "array", "values": "any"}`,
+			expectedType: "array",
+			testValue:    true,
+		},
+		{
+			schemaType:   `{"type": "map", "values": "any"}`,
+			expectedType: "map",
+			testValue:    true,
+		},
+		{
+			schemaType:   `"int"`,
+			expectedType: "int",
+			testValue:    true,
+		},
+		{
+			schemaType:   `"number"`,
+			expectedType: "number",
+			testValue:    true,
+		},
+		{
+			schemaType:   `"string"`,
+			expectedType: "string",
+			testValue:    true,
+		},
+		{
+			schemaType:   `"bool"`,
+			expectedType: "bool",
+			testValue:    `"bar"`,
+		},
+	}
+
+	for _, tc := range tcs {
+		schemaStr := []byte(fmt.Sprintf(`{
+	"schema": {
+		"foo": %s
+	}
+}`, tc.schemaType))
+		schema, err := aspects.ParseSchema(schemaStr)
+		c.Assert(err, IsNil)
+
+		input := []byte(fmt.Sprintf(`{"foo": %v}`, tc.testValue))
+		err = schema.Validate(input)
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept element in "foo": expected %s type but got %T`, tc.expectedType, tc.testValue))
+	}
 }

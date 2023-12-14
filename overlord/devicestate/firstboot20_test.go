@@ -1202,7 +1202,7 @@ base: core20
 			c.Check(tokens, HasLen, 3)
 			seq, err := strconv.Atoi(tokens[2])
 			c.Assert(err, IsNil)
-			key := fmt.Sprintf("%s/%s", tokens[0], tokens[1])
+			key := fmt.Sprintf("%s/%s/%s", release.Series, tokens[0], tokens[1])
 			expectedSeqs[key] = seq
 			expectedVss[key] = append([]string{release.Series}, tokens...)
 		}

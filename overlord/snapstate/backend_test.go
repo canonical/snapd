@@ -425,6 +425,9 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 	// for validation-sets testing
 	case "bgtKhntON3vR7kwEbVPsILm7bUViPDzx":
 		name = "some-other-snap"
+	case "some-base-snap-id":
+		name = "some-base-snap"
+		base = "some-base"
 	case "provenance-snap-id":
 		name = "provenance-snap"
 	default:
@@ -577,18 +580,22 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 
 	refreshErrors := make(map[string]error)
 	installErrors := make(map[string]error)
+	downloadErrors := make(map[string]error)
 	var res []store.SnapActionResult
 	for _, a := range sorted {
-		if a.Action != "install" && a.Action != "refresh" {
+		switch a.Action {
+		case "install", "refresh", "download":
+		default:
 			panic("not supported")
 		}
+
 		if a.InstanceName == "" {
 			return nil, nil, fmt.Errorf("internal error: action without instance name")
 		}
 
 		snapName, instanceKey := snap.SplitInstanceName(a.InstanceName)
 
-		if a.Action == "install" {
+		if a.Action == "install" || a.Action == "download" {
 			spec := snapSpec{
 				Name:     snapName,
 				Channel:  a.Channel,
@@ -597,7 +604,11 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			}
 			info, err := f.snap(spec)
 			if err != nil {
-				installErrors[a.InstanceName] = err
+				if a.Action == "install" {
+					installErrors[a.InstanceName] = err
+				} else {
+					downloadErrors[a.InstanceName] = err
+				}
 				continue
 			}
 			f.fakeBackend.appendOp(&fakeOp{
@@ -670,17 +681,21 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 		res = append(res, store.SnapActionResult{Info: info})
 	}
 
-	if len(refreshErrors)+len(installErrors) > 0 || len(res) == 0 {
+	if len(refreshErrors)+len(installErrors)+len(downloadErrors) > 0 || len(res) == 0 {
 		if len(refreshErrors) == 0 {
 			refreshErrors = nil
 		}
 		if len(installErrors) == 0 {
 			installErrors = nil
 		}
+		if len(downloadErrors) == 0 {
+			downloadErrors = nil
+		}
 		return res, nil, &store.SnapActionError{
-			NoResults: len(refreshErrors)+len(installErrors)+len(res) == 0,
+			NoResults: len(refreshErrors)+len(installErrors)+len(downloadErrors)+len(res) == 0,
 			Refresh:   refreshErrors,
 			Install:   installErrors,
+			Download:  downloadErrors,
 		}
 	}
 
@@ -884,6 +899,14 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 		return snapType, nil, nil
 	}
 	return snapType, &backend.InstallRecord{}, nil
+}
+
+func (f *fakeSnappyBackend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *backend.InstallRecord, err error) {
+	panic("not used yet in tests")
+}
+
+func (f *fakeSnappyBackend) UndoSetupComponent(cpi snap.ContainerPlaceInfo, installRecord *backend.InstallRecord, dev snap.Device, meter progress.Meter) error {
+	panic("not used yet in tests")
 }
 
 func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
@@ -1233,10 +1256,10 @@ func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bo
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) RemoveSnapMountUnits(s snap.PlaceInfo, meter progress.Meter) error {
+func (f *fakeSnappyBackend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter progress.Meter) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "remove-snap-mount-units",
-		name: s.InstanceName(),
+		name: s.ContainerName(),
 	})
 	return f.maybeErrForLastOp()
 }

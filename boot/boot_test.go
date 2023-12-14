@@ -411,6 +411,47 @@ func (s *bootenvSuite) TestInUse(c *C) {
 	}
 }
 
+func (s *bootenv20Suite) TestInUseCore20(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+	c.Assert(coreDev.IsCoreBoot(), Equals, true)
+
+	r := setupUC20Bootenv(
+		c,
+		s.bootloader,
+		&bootenv20Setup{
+			modeenv: &boot.Modeenv{
+				// base is base1
+				Base: s.base1.Filename(),
+				// no try base
+				TryBase: "",
+				// gadget is gadget1
+				Gadget: s.gadget1.Filename(),
+				// current kernels is just kern1
+				CurrentKernels: []string{s.kern1.Filename()},
+				// operating mode is run
+				Mode: "run",
+				// RecoverySystem is unset, as it should be during run mode
+				RecoverySystem: "",
+			},
+			// enabled kernel is kern1
+			kern: s.kern1,
+			// no try kernel enabled
+			tryKern: nil,
+			// kernel status is default
+			kernStatus: boot.DefaultStatus,
+		})
+	defer r()
+
+	inUse, err := boot.InUse(snap.TypeKernel, coreDev)
+	c.Check(err, IsNil)
+	c.Check(inUse(s.kern1.SnapName(), s.kern1.SnapRevision()), Equals, true)
+	c.Check(inUse(s.kern2.SnapName(), s.kern2.SnapRevision()), Equals, false)
+
+	_, err = boot.InUse(snap.TypeBase, coreDev)
+	c.Check(err, IsNil)
+}
+
 func (s *bootenvSuite) TestInUseEphemeral(c *C) {
 	coreDev := boottest.MockDevice("some-snap@install")
 
@@ -1055,7 +1096,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewKernelSnapWithReseal(c *
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		Model:          model.Model(),
 		BrandID:        model.BrandID(),
@@ -1173,7 +1214,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewUnassertedKernelSnapWith
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.ukern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		Model:          uc20Model.Model(),
 		BrandID:        uc20Model.BrandID(),
@@ -1287,7 +1328,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameKernelSnapNoReseal(c *C
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
 
@@ -1405,7 +1446,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameUnassertedKernelSnapNoR
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.ukern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
 
@@ -1806,7 +1847,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewBaseSnapNoReseal(c *C) {
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 
 		Model:          model.Model(),
@@ -2124,7 +2165,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20KernelUpdateWithReseal(c *C) {
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename(), s.kern2.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		Model:          model.Model(),
 		BrandID:        model.BrandID(),
@@ -2375,11 +2416,11 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {"assethash", dataHash},
+			"asset": []string{"assethash", dataHash},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {"recoveryassethash", dataHash},
-			"shim":  {"recoveryshimhash", shimHash},
+			"asset": []string{"recoveryassethash", dataHash},
+			"shim":  []string{"recoveryshimhash", shimHash},
 		},
 		CurrentRecoverySystems: []string{"system"},
 
@@ -2444,11 +2485,11 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 	c.Assert(err, IsNil)
 	// update assets are in the list
 	c.Check(m2.CurrentTrustedBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {dataHash},
+		"asset": []string{dataHash},
 	})
 	c.Check(m2.CurrentTrustedRecoveryBootAssets, DeepEquals, boot.BootAssetsMap{
-		"asset": {dataHash},
-		"shim":  {shimHash},
+		"asset": []string{dataHash},
+		"shim":  []string{shimHash},
 	})
 	// unused files were dropped from cache
 	checkContentGlob(c, filepath.Join(dirs.SnapBootAssetsDir, "trusted", "*"), []string{
@@ -2511,11 +2552,11 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
-			"shim":  {shimHash},
+			"asset": []string{dataHash},
+			"shim":  []string{shimHash},
 		},
 		CurrentRecoverySystems:    []string{"system"},
 		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
@@ -2672,11 +2713,11 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.ukern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
-			"shim":  {shimHash},
+			"asset": []string{dataHash},
+			"shim":  []string{shimHash},
 		},
 		CurrentRecoverySystems:    []string{"system"},
 		GoodRecoverySystems:       []string{"system"},
@@ -2810,10 +2851,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateUnexpectedAsset
 		CurrentKernels: []string{s.kern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			// hash will not match
-			"asset": {"one", "two"},
+			"asset": []string{"one", "two"},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {"one", "two"},
+			"asset": []string{"one", "two"},
 		},
 		Model:          model.Model(),
 		BrandID:        model.BrandID(),
@@ -2859,10 +2900,10 @@ func (s *bootenv20Suite) setupMarkBootSuccessful20CommandLine(c *C, model *asser
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {"one"},
+			"asset": []string{"one"},
 		},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"asset": {"one"},
+			"asset": []string{"one"},
 		},
 		CurrentKernelCommandLines: cmdlines,
 
@@ -3334,8 +3375,14 @@ func (s *bootConfigSuite) SetUpTest(c *C) {
 	s.bootloader.CandidateStaticCommandLine = "mocked candidate panic=-1"
 	s.forceBootloader(s.bootloader)
 
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
+
 	s.mockCmdline(c, "snapd_recovery_mode=run this is mocked panic=-1")
-	s.gadgetSnap = snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, nil)
+	s.gadgetSnap = snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{{"meta/gadget.yaml", mockGadgetYaml}})
 }
 
 func (s *bootConfigSuite) mockCmdline(c *C, cmdline string) {
@@ -3580,8 +3627,14 @@ func (s *bootConfigSuite) TestBootConfigUpdateBootloaderFindErr(c *C) {
 func (s *bootConfigSuite) TestBootConfigUpdateWithGadgetAndReseal(c *C) {
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
 	gadgetSnap := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.extra", "foo bar baz"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
@@ -3648,8 +3701,14 @@ func (s *bootConfigSuite) TestBootConfigUpdateWithGadgetAndReseal(c *C) {
 func (s *bootConfigSuite) TestBootConfigUpdateWithGadgetFullAndReseal(c *C) {
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
 	gadgetSnap := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.full", "foo bar baz"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
@@ -3808,8 +3867,14 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20NotManagedBootload
 func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20ArgsAdded(c *C) {
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
 	sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.extra", "args from gadget"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 
 	s.modeenvWithEncryption.CurrentKernelCommandLines = []string{"snapd_recovery_mode=run static mocked panic=-1"}
@@ -3847,8 +3912,14 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20ArgsAdded(c *C) {
 func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20ArgsSwitch(c *C) {
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
 	sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.extra", "no change"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 
 	s.modeenvWithEncryption.CurrentKernelCommandLines = []string{"snapd_recovery_mode=run static mocked panic=-1 no change"}
@@ -3885,6 +3956,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20ArgsSwitch(c *C) {
 	// let's change them now
 	sfChanged := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.extra", "changed"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 
 	reboot, err = boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sfChanged, "")
@@ -3919,9 +3991,16 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20ArgsSwitch(c *C) {
 func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20UnencryptedArgsRemoved(c *C) {
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
 	// pretend we used to have additional arguments from the gadget, but
 	// those will be gone with new update
-	sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, nil)
+	sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
+		{"meta/gadget.yaml", mockGadgetYaml},
+	})
 
 	s.modeenvWithEncryption.CurrentKernelCommandLines = []string{"snapd_recovery_mode=run static mocked panic=-1 from-gadget"}
 	c.Assert(s.modeenvWithEncryption.WriteTo(""), IsNil)
@@ -3962,10 +4041,16 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20UnencryptedArgsRem
 func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20SetError(c *C) {
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
 	// pretend we used to have additional arguments from the gadget, but
 	// those will be gone with new update
 	sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.extra", "this-is-not-applied"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 
 	s.modeenvWithEncryption.CurrentKernelCommandLines = []string{"snapd_recovery_mode=run static mocked panic=-1"}
@@ -3997,8 +4082,14 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20SetError(c *C) {
 }
 
 func (s *bootKernelCommandLineSuite) TestCommandLineUpdateWithResealError(c *C) {
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
 	gadgetSnap := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.extra", "args from gadget"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
@@ -4039,9 +4130,15 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20TransitionFullExtr
 	c.Assert(err, IsNil)
 	s.bootloader.SetBootVarsCalls = 0
 
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
 	// transition to gadget with cmdline.extra
 	sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.extra", "extra args"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf, "")
 	c.Assert(err, IsNil)
@@ -4074,6 +4171,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20TransitionFullExtr
 	// transition to full override from gadget
 	sfFull := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.full", "full args"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 	reboot, err = boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sfFull, "")
 	c.Assert(err, IsNil)
@@ -4107,8 +4205,11 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20TransitionFullExtr
 	c.Assert(s.modeenvWithEncryption.WriteTo(""), IsNil)
 
 	// transition back to no arguments from the gadget
-	sfNone := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, nil)
+	sfNone := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
+		{"meta/gadget.yaml", mockGadgetYaml},
+	})
 	reboot, err = boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sfNone, "")
+
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, true)
 	c.Check(s.resealCalls, Equals, 3)
@@ -4173,9 +4274,15 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 	restoreBootloaderNoPanic := s.bootloader.SetMockToPanic("SetBootVars")
 	defer restoreBootloaderNoPanic()
 
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
 	// transition to gadget with cmdline.extra
 	sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.extra", "extra args"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 
 	// let's panic on reseal first
@@ -4290,9 +4397,15 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 	c.Assert(err, IsNil)
 	s.bootloader.SetBootVarsCalls = 0
 
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
 	// transition to gadget with cmdline.extra
 	sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"cmdline.extra", "extra args"},
+		{"meta/gadget.yaml", mockGadgetYaml},
 	})
 
 	// let's panic after setting bootenv, but before returning, such that if
@@ -4686,7 +4799,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallNewWithReseal
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		Model:          model.Model(),
 		BrandID:        model.BrandID(),
@@ -4798,7 +4911,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallNew
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.ukern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		Model:          uc20Model.Model(),
 		BrandID:        uc20Model.BrandID(),
@@ -4906,7 +5019,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallSameNoReseal(
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
 
@@ -5024,7 +5137,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoUnassertedKernelSnapInstallSam
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.ukern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
 
@@ -5239,7 +5352,7 @@ func (s *bootenv20Suite) TestCoreParticipant20UndoBaseSnapInstallNewNoReseal(c *
 		Base:           s.base1.Filename(),
 		CurrentKernels: []string{s.kern1.Filename()},
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"asset": {dataHash},
+			"asset": []string{dataHash},
 		},
 
 		Model:          model.Model(),

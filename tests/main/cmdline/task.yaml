@@ -1,5 +1,9 @@
 summary: Check that cmdline for channel shortcuts work
 
+details: |
+    Verify that when using the commandline, a snap cannot be installed
+    with two channels and an error is displayed
+
 execute: |
     echo "Conflicting channel commandline errors correctly"
     if snap install --beta --edge test-snapd-tools 2>err.msg; then

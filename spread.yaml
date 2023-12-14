@@ -51,7 +51,7 @@ environment:
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
     # Channel for kernel cannot be edge as that one is not signed with Canonical keys
     KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-beta}")'
-    GADGET_CHANNEL: '$(HOST: echo "${SPREAD_GADGET_CHANNEL:-edge}")'
+    GADGET_CHANNEL: '$(HOST: echo "${SPREAD_GADGET_CHANNEL:-beta}")'
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
@@ -86,6 +86,10 @@ environment:
     NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
     # Channel used to create the nested vm
     NESTED_CORE_CHANNEL: '$(HOST: echo "${NESTED_CORE_CHANNEL:-beta}")'
+    # Kernel channel used to create the nested vm
+    NESTED_KERNEL_CHANNEL: '$(HOST: echo "${NESTED_KERNEL_CHANNEL:-beta}")'
+    # Gadget channel used to create the nested vm
+    NESTED_GADGET_CHANNEL: '$(HOST: echo "${NESTED_GADGET_CHANNEL:-edge}")'
     # Use cloud init to make initial system configuration instead of user assertion
     NESTED_CORE_REFRESH_CHANNEL: '$(HOST: echo "${NESTED_CORE_REFRESH_CHANNEL:-edge}")'
     # Use cloud init to make initial system configuration instead of user assertion
@@ -1042,6 +1046,22 @@ suites:
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
 
+    tests/perf/:
+        summary: Performance and Load tests
+        backends: [external]
+        environment:
+            CONNECTIONS_PERCENTAGE: '$(HOST: echo "${PERF_CONNECTIONS_PERCENTAGE:-100}")'
+            DISCONNECT_INTERFACES: '$(HOST: echo "${PERF_DISCONNECT_INTERFACES:-true}")'
+        manual: true
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
+
     tests/nested/manual/:
         summary: Tests for nested images controlled manually from the tests
         backends: [google-nested, google-nested-dev, qemu-nested, google-nested-arm]
@@ -1212,6 +1232,70 @@ suites:
         restore-each: |
             tests.nested vm remove
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+        restore: |
+            tests.nested restore
+
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
+
+    tests/nested/perf/:
+        summary: Performance and Load tests preparation suite
+        backends: [google-nested, google-nested-dev, qemu-nested]
+        kill-timeout: 40m
+        environment:
+            NESTED_TYPE: "core"
+            # Enable kvm in the qemu command line
+            NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-true}")'
+            # Enable tpm in the nested vm in case it is supported
+            NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-true}")'
+            # Enable secure boot in the nested vm in case it is supported
+            NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-true}")'
+            # Add snapd debug and log to serial console
+            NESTED_SNAPD_DEBUG_TO_SERIAL: '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
+            # Add any extra cmd line parameter to the nested vm
+            NESTED_EXTRA_CMDLINE: '$(HOST: echo "${NESTED_EXTRA_CMDLINE:-}")'
+            # Configuration file used for remote tools
+            REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
+            # Indicates the number of cpus to use in the nested vm
+            NESTED_CPUS: '$(HOST: echo "${NESTED_CPUS:-2}")'
+            # Indicates the amount of memory in MB to use in the nested vm
+            NESTED_MEM: '$(HOST: echo "${NESTED_MEM:-4096}")'
+            SPREAD_URL: https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz
+
+        manual: true
+        prepare: |
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+            #shellcheck source=tests/lib/image.sh
+            . "$TESTSLIB"/image.sh
+            distro_update_package_db
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            if os.query is-xenial || os.query is-arm; then
+                # the new ubuntu-image expects mkfs to support -d option, which was not
+                # supported yet by the version of mkfs that shipped with Ubuntu 16.04
+                # also ubuntu-image binary is not prebuilt for arm instances
+                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            else
+                get_ubuntu_image
+            fi
+  
+            # Install the snapd built
+            dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+
+            # Configure the ssh connection to the test vm
+            remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
+
+            tests.nested prepare
+            tests.nested build-image core
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+            tests.nested create-vm core --param-cpus "$NESTED_CPUS" --param-mem "$NESTED_MEM"
+
+        restore-each: |
+            tests.nested vm remove
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+
         restore: |
             tests.nested restore
 

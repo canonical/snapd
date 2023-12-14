@@ -49,7 +49,7 @@ func (s *aspectTestSuite) TestGetAspect(c *C) {
 	var res interface{}
 	err = aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "ssid", &res)
 	c.Assert(err, IsNil)
-	c.Assert(res, Equals, "foo")
+	c.Assert(res, DeepEquals, map[string]interface{}{"ssid": "foo"})
 }
 
 func (s *aspectTestSuite) TestGetNotFound(c *C) {
@@ -58,19 +58,18 @@ func (s *aspectTestSuite) TestGetNotFound(c *C) {
 	var res interface{}
 	err := aspectstate.GetAspect(databag, "system", "network", "other-aspect", "ssid", &res)
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find field "ssid" of aspect system/network/other-aspect: aspect not found`)
+	c.Assert(err, ErrorMatches, `cannot find value for "ssid" in aspect system/network/other-aspect: aspect not found`)
 	c.Check(res, IsNil)
 
 	err = aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "ssid", &res)
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find field "ssid" of aspect system/network/wifi-setup: no value was found under path "wifi"`)
+	c.Assert(err, ErrorMatches, `cannot find value for "ssid" in aspect system/network/wifi-setup: matching rules don't map to any values`)
 	c.Check(res, IsNil)
 
 	err = aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "other-field", &res)
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find field "other-field" of aspect system/network/wifi-setup: field not found`)
+	c.Assert(err, ErrorMatches, `cannot find value for "other-field" in aspect system/network/wifi-setup: no matching read rule`)
 	c.Check(res, IsNil)
-
 }
 
 func (s *aspectTestSuite) TestSetAspect(c *C) {
@@ -78,21 +77,21 @@ func (s *aspectTestSuite) TestSetAspect(c *C) {
 	err := aspectstate.SetAspect(databag, "system", "network", "wifi-setup", "ssid", "foo")
 	c.Assert(err, IsNil)
 
-	var val string
+	var val interface{}
 	err = databag.Get("wifi.ssid", &val)
 	c.Assert(err, IsNil)
-	c.Assert(val, Equals, "foo")
+	c.Assert(val, DeepEquals, "foo")
 }
 
 func (s *aspectTestSuite) TestSetNotFound(c *C) {
 	databag := aspects.NewJSONDataBag()
 	err := aspectstate.SetAspect(databag, "system", "network", "wifi-setup", "foo", "bar")
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find field "foo" of aspect system/network/wifi-setup: field not found`)
+	c.Assert(err, ErrorMatches, `cannot find value for "foo" in aspect system/network/wifi-setup: no matching write rule`)
 
 	err = aspectstate.SetAspect(databag, "system", "network", "other-aspect", "foo", "bar")
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find field "foo" of aspect system/network/other-aspect: aspect not found`)
+	c.Assert(err, ErrorMatches, `cannot find value for "foo" in aspect system/network/other-aspect: aspect not found`)
 }
 
 func (s *aspectTestSuite) TestSetAccessError(c *C) {
