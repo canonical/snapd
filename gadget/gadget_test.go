@@ -5217,3 +5217,25 @@ func (s *gadgetYamlTestSuite) TestGadgetToLinuxFilesystem(c *C) {
 		c.Check(tc.vs.LinuxFilesystem(), Equals, tc.linFs)
 	}
 }
+
+func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithICEEncryptedPartitions(c *C) {
+	gadgetVolume, err := gadgettest.VolumeFromYaml(c.MkDir(), mockSimpleGadgetYaml+mockExtraStructure, nil)
+	c.Assert(err, IsNil)
+	deviceLayout := mockEncDeviceLayout
+
+	// if we set the EncryptedPartitions and assume partitions are already
+	// created then they match
+
+	encParams := gadget.StructureEncryptionParameters{Method: gadget.EncryptionICE}
+	encParams.SetUnknownKeys(map[string]string{"foo": "secret-foo"})
+
+	encOpts := &gadget.VolumeCompatibilityOptions{
+		AssumeCreatablePartitionsCreated: true,
+		ExpectedStructureEncryption: map[string]gadget.StructureEncryptionParameters{
+			"Writable": encParams,
+		},
+	}
+
+	_, err = gadget.EnsureVolumeCompatibility(gadgetVolume, &deviceLayout, encOpts)
+	c.Assert(err, IsNil)
+}

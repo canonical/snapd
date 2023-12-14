@@ -387,6 +387,11 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 				}
 
 				switch encTypeParams.Method {
+				case EncryptionICE:
+					// Old ICE method, we don't check anything else as
+					// there is no "-enc" label and the filesystem
+					// type is not identified by the kernel.
+					return true, ""
 				case EncryptionLUKS:
 					// then this partition is expected to have been encrypted, the
 					// filesystem label on disk will need "-enc" appended
@@ -630,6 +635,9 @@ const (
 	// standard LUKS as it is used for automatic FDE using SecureBoot and TPM
 	// 2.0 in UC20+
 	EncryptionLUKS DiskEncryptionMethod = "LUKS"
+	// This is for compatibility with disk-mapping.json generated in old
+	// images that might use "ICE" on some device.
+	EncryptionICE DiskEncryptionMethod = "ICE"
 )
 
 // DiskVolumeValidationOptions is a set of options on how to validate a disk to
