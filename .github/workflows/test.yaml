@@ -366,6 +366,7 @@ jobs:
       matrix:
         system:
         - amazon-linux-2-64
+        - amazon-linux-2023-64
         - arch-linux-64
         - centos-7-64
         - centos-8-64
