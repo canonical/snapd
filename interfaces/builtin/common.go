@@ -51,6 +51,9 @@ type commonInterface struct {
 
 	affectsPlugOnRefresh bool
 
+	appArmorUnconfinedPlugs bool
+	appArmorUnconfinedSlots bool
+
 	// baseDeclarationPlugs defines optional plug-side rules in the
 	// base-declaration assertion relevant for this interface. See
 	// interfaces/builtin/README.md, especially "Base declaration policy
@@ -102,7 +105,9 @@ func (iface *commonInterface) StaticInfo() interfaces.StaticInfo {
 		BaseDeclarationPlugs: iface.baseDeclarationPlugs,
 		BaseDeclarationSlots: iface.baseDeclarationSlots,
 		// affects the plug snap because of mount backend
-		AffectsPlugOnRefresh: iface.affectsPlugOnRefresh,
+		AffectsPlugOnRefresh:    iface.affectsPlugOnRefresh,
+		AppArmorUnconfinedPlugs: iface.appArmorUnconfinedPlugs,
+		AppArmorUnconfinedSlots: iface.appArmorUnconfinedSlots,
 	}
 }
 

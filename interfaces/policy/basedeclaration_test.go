@@ -902,6 +902,10 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 			comm := Commentf("%s by %s snap", iface.Name(), name)
 			if ok {
 				c.Check(err, IsNil, comm)
+				// only restricted slots can use the AppArmor
+				// unconfined profile mode so check that this
+				// slot is not using it
+				c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedSlots, Equals, false)
 			} else {
 				c.Check(err, NotNil, comm)
 			}
@@ -1041,6 +1045,10 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 				comm := Commentf("%s by %s snap", iface.Name(), name)
 				if ok {
 					c.Check(err, IsNil, comm)
+					// only restricted plugs can use the AppArmor
+					// unconfined profile mode so check that this
+					// plug is not using it
+					c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedPlugs, Equals, false)
 				} else {
 					c.Check(err, NotNil, comm)
 				}
@@ -1053,6 +1061,10 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 				c.Check(err, NotNil, comm)
 			} else {
 				c.Check(err, IsNil, comm)
+				// only restricted plugs can use the AppArmor
+				// unconfined profile mode so check that this
+				// plug is not using it
+				c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedPlugs, Equals, false)
 			}
 		}
 	}

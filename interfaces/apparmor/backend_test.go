@@ -1096,10 +1096,7 @@ func (s *backendSuite) TestUnconfinedFlag(c *C) {
 		"###SNIPPETS###\n" +
 		"}\n")
 	defer restoreClassicTemplate()
-	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-		spec.SetUnconfined()
-		return nil
-	}
+	s.Iface.InterfaceStaticInfo.AppArmorUnconfinedSlots = true
 	// test both classic and non-classic confinement
 	options := []interfaces.ConfinementOptions{
 		{},

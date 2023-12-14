@@ -602,6 +602,10 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 
 // AddPermanentPlug records apparmor-specific side-effects of having a plug.
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *snap.PlugInfo) error {
+	si := interfaces.StaticInfoOf(iface)
+	if si.AppArmorUnconfinedPlugs {
+		spec.setUnconfined()
+	}
 	type definer interface {
 		AppArmorPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}
@@ -615,6 +619,10 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 
 // AddPermanentSlot records apparmor-specific side-effects of having a slot.
 func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *snap.SlotInfo) error {
+	si := interfaces.StaticInfoOf(iface)
+	if si.AppArmorUnconfinedSlots {
+		spec.setUnconfined()
+	}
 	type definer interface {
 		AppArmorPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
 	}
@@ -696,9 +704,9 @@ func (spec *Specification) SuppressPycacheDeny() bool {
 	return spec.suppressPycacheDeny
 }
 
-// SetUnconfined records whether a profile should be applied without any real
+// setUnconfined records whether a profile should be applied without any real
 // confinement
-func (spec *Specification) SetUnconfined() {
+func (spec *Specification) setUnconfined() {
 	spec.unconfined = true
 }
 

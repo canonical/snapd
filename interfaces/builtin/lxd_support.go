@@ -76,8 +76,6 @@ func (iface *lxdSupportInterface) Name() string {
 }
 
 func (iface *lxdSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	// lxd-support should be unconfined
-	spec.SetUnconfined()
 	spec.AddSnippet(lxdSupportConnectedPlugAppArmor)
 	// if apparmor supports userns mediation then add this too
 	if apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
@@ -99,12 +97,13 @@ func (iface *lxdSupportInterface) SecCompConnectedPlug(spec *seccomp.Specificati
 
 func init() {
 	registerIface(&lxdSupportInterface{commonInterface{
-		name:                 "lxd-support",
-		summary:              lxdSupportSummary,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
-		baseDeclarationSlots: lxdSupportBaseDeclarationSlots,
-		baseDeclarationPlugs: lxdSupportBaseDeclarationPlugs,
-		serviceSnippets:      []string{lxdSupportServiceSnippet}},
+		name:                    "lxd-support",
+		summary:                 lxdSupportSummary,
+		implicitOnCore:          true,
+		implicitOnClassic:       true,
+		appArmorUnconfinedPlugs: true,
+		baseDeclarationSlots:    lxdSupportBaseDeclarationSlots,
+		baseDeclarationPlugs:    lxdSupportBaseDeclarationPlugs,
+		serviceSnippets:         []string{lxdSupportServiceSnippet}},
 	})
 }

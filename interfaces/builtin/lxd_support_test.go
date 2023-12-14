@@ -94,9 +94,7 @@ func (s *LxdSupportInterfaceSuite) TestAppArmorSpecUserNS(c *C) {
 
 func (s *LxdSupportInterfaceSuite) TestAppArmorSpecUnconfined(c *C) {
 	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,usr/}{,s}bin/aa-exec ux,\n")
+	c.Assert(spec.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
 	c.Assert(spec.Unconfined(), Equals, true)
 }
 
