@@ -3873,7 +3873,7 @@ plugs:
 		ValidationSets: []*asserts.ValidationSet{vset},
 	})
 
-	msg := `cannot remodel to model that is not self contained:
+	msg := `cannot create recovery system from model that is not self-contained:
   - cannot use snap "pc": base "core22" is missing
   - cannot use snap "pc": default provider "snap-1" or any alternative provider for content "prereq-content" is missing`
 
@@ -3975,7 +3975,7 @@ plugs:
 		LocalSnapPaths:     localPaths,
 	})
 
-	msg := `cannot remodel to model that is not self contained:
+	msg := `cannot create recovery system from model that is not self-contained:
   - cannot use snap "pc": base "core22" is missing
   - cannot use snap "pc": default provider "snap-1" or any alternative provider for content "prereq-content" is missing`
 
