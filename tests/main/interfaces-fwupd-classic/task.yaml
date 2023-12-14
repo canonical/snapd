@@ -1,5 +1,9 @@
 summary: Ensure that the fwupd interface grants access to the host fwupd
 
+details: |
+    Verify the fwupd interface grants access to the host fwupd. Check the
+    plug is not connected by deault.
+
 systems:
     # The fwupd interface is only implicit on classic distros
     - -ubuntu-core-*
@@ -7,6 +11,7 @@ systems:
     - -ubuntu-14.04-*
     # Amazon Linux does not appear to have a functional fwupd
     - -amazon-linux-2-*
+    - -amazon-linux-2023-*
 
 execute: |
     echo "Install the test-snapd-fwupd" interface

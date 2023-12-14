@@ -1,6 +1,7 @@
 # With Fedora, nothing is bundled. For everything else, bundling is used.
+# Amazon-linux 2023 is based on fedora but it is bundled
 # To use bundled stuff, use "--with vendorized" on rpmbuild
-%if 0%{?fedora}
+%if 0%{?fedora} && ! 0%{?amzn2023}
 %bcond_with vendorized
 %else
 %bcond_without vendorized
@@ -69,7 +70,7 @@
 
 # Until we have a way to add more extldflags to gobuild macro...
 # Always use external linking when building static binaries.
-%if 0%{?fedora} || 0%{?rhel} >= 8
+%if 0%{?fedora} || 0%{?rhel} >= 8 || 0%{?amzn2023}
 %define gobuild_static(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
 %endif
 %if 0%{?rhel} == 7
@@ -78,7 +79,7 @@
 %endif
 
 # These macros are missing BUILDTAGS in RHEL 8/9, see RHBZ#1825138
-%if 0%{?rhel} >= 8
+%if 0%{?rhel} >= 8 || 0%{?amzn2023}
 %define gobuild(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags'" -a -v -x %{?**};
 %endif
 
@@ -551,7 +552,7 @@ BUILDTAGS="${BUILDTAGS} nomanagers"
 # To ensure things work correctly with base snaps,
 # snap-exec, snap-update-ns, and snapctl need to be built statically
 (
-%if 0%{?rhel} >= 7
+%if 0%{?rhel} >= 7 || 0%{?amzn2023}
     # since RH Developer tools 2018.4 (and later releases),
     # the go-toolset module is built with FIPS compliance that
     # defaults to using libcrypto.so which gets loaded at runtime via dlopen(),
@@ -563,7 +564,7 @@ BUILDTAGS="${BUILDTAGS} nomanagers"
     %gobuild_static -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
 )
 
-%if 0%{?rhel}
+%if 0%{?rhel} || 0%{?amzn2023}
 # There's no static link library for libseccomp in RHEL/CentOS...
 sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
 %endif
