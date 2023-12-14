@@ -185,7 +185,7 @@ func MockSnapstateUpdatePathWithDeviceContext(f func(st *state.State, si *snap.S
 	return r
 }
 
-func MockSnapstateDownload(f func(ctx context.Context, st *state.State, name string, blobDirectory string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, error)) (restore func()) {
+func MockSnapstateDownload(f func(ctx context.Context, st *state.State, name string, blobDirectory string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, *snap.Info, error)) (restore func()) {
 	r := testutil.Backup(&snapstateDownload)
 	snapstateDownload = f
 	return r

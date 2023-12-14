@@ -3221,25 +3221,29 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	}, nil)
 
 	devicestate.MockSnapstateDownload(func(
-		_ context.Context, _ *state.State, name string, _ string, opts *snapstate.RevisionOptions, _ int, _ snapstate.Flags, _ snapstate.DeviceContext) (*state.TaskSet, error,
+		_ context.Context, _ *state.State, name string, _ string, opts *snapstate.RevisionOptions, _ int, _ snapstate.Flags, _ snapstate.DeviceContext) (*state.TaskSet, *snap.Info, error,
 	) {
 		expectedRev, ok := snapRevisions[name]
 		if !ok {
-			return nil, fmt.Errorf("unexpected snap name %q", name)
+			return nil, nil, fmt.Errorf("unexpected snap name %q", name)
 		}
 
 		c.Check(expectedRev, Equals, opts.Revision)
 
 		tDownload := s.state.NewTask("mock-download", fmt.Sprintf("Download %s to track %s", name, opts.Channel))
+
+		si := &snap.SideInfo{
+			RealName: name,
+			Revision: opts.Revision,
+			SnapID:   fakeSnapID(name),
+		}
 		tDownload.Set("snap-setup", &snapstate.SnapSetup{
-			SideInfo: &snap.SideInfo{
-				RealName: name,
-				Revision: opts.Revision,
-				SnapID:   fakeSnapID(name),
-			},
-			Base: "core20",
-			Type: snapTypes[name],
+			SideInfo: si,
+			Base:     "core20",
+			Type:     snapTypes[name],
 		})
+
+		_, info := snaptest.MakeTestSnapInfoWithFiles(c, snapYamls[name], snapFiles[name], si)
 
 		tValidate := s.state.NewTask("mock-validate", fmt.Sprintf("Validate %s", name))
 		tValidate.Set("snap-setup-task", tDownload.ID())
@@ -3247,10 +3251,11 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		tValidate.WaitFor(tDownload)
 		ts := state.NewTaskSet(tDownload, tValidate)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return ts, nil
+		return ts, info, nil
 	})
 
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
@@ -3324,7 +3329,6 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	// simulate a restart and run change to completion
 	s.mockRestartAndSettle(c, s.state, chg)
@@ -3430,10 +3434,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	s.state.Unlock()
 
 	devicestate.MockSnapstateDownload(func(
-		_ context.Context, _ *state.State, name string, _ string, opts *snapstate.RevisionOptions, _ int, _ snapstate.Flags, _ snapstate.DeviceContext) (*state.TaskSet, error,
+		_ context.Context, _ *state.State, name string, _ string, opts *snapstate.RevisionOptions, _ int, _ snapstate.Flags, _ snapstate.DeviceContext) (*state.TaskSet, *snap.Info, error,
 	) {
 		c.Errorf("snapstate.Download called unexpectedly")
-		return nil, nil
+		return nil, nil, nil
 	})
 
 	s.state.Lock()
@@ -3803,29 +3807,52 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	vset := vsetAssert.(*asserts.ValidationSet)
 
 	devicestate.MockSnapstateDownload(func(
-		_ context.Context, _ *state.State, name string, _ string, opts *snapstate.RevisionOptions, _ int, _ snapstate.Flags, _ snapstate.DeviceContext) (*state.TaskSet, error,
+		_ context.Context, _ *state.State, name string, _ string, opts *snapstate.RevisionOptions, _ int, _ snapstate.Flags, _ snapstate.DeviceContext) (*state.TaskSet, *snap.Info, error,
 	) {
 		expectedRev, ok := snapRevisions[name]
 		if !ok {
-			return nil, fmt.Errorf("unexpected snap name %q", name)
+			return nil, nil, fmt.Errorf("unexpected snap name %q", name)
 		}
 
 		c.Check(expectedRev, Equals, opts.Revision)
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s to track %s", name, opts.Channel))
-		tDownload.Set("snap-setup", &snapstate.SnapSetup{
-			SideInfo: &snap.SideInfo{
-				RealName: name,
-				Revision: opts.Revision,
-				SnapID:   fakeSnapID(name),
-			},
-			Base: "core22",
-			PrereqContentAttrs: map[string][]string{
-				"snap-1": {"some-content"},
-			},
-			Prereq: []string{"snap-1"},
-			Type:   snapTypes[name],
-		})
+		si := &snap.SideInfo{
+			RealName: name,
+			Revision: opts.Revision,
+			SnapID:   fakeSnapID(name),
+		}
+
+		snapsup := &snapstate.SnapSetup{
+			SideInfo: si,
+			Base:     "core20",
+			Type:     snapTypes[name],
+		}
+
+		yaml := fmt.Sprintf(`name: %s
+version: 1.0
+epoch: 1
+base: core20
+`, name)
+
+		if name == "pc" {
+			snapsup.Base = "core22"
+			yaml = fmt.Sprintf(`name: %s
+version: 1.0
+epoch: 1
+base: core22
+plugs:
+  prereq-content:
+    content: prereq-content
+    interface: content
+    default-provider: snap-1
+    target: $SNAP/data-dir/target
+`, name)
+		}
+
+		tDownload.Set("snap-setup", snapsup)
+
+		_, info := snaptest.MakeTestSnapInfoWithFiles(c, yaml, nil, si)
 
 		tValidate := s.state.NewTask("fake-validate", fmt.Sprintf("Validate %s", name))
 		tValidate.Set("snap-setup-task", tDownload.ID())
@@ -3833,7 +3860,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		tValidate.WaitFor(tDownload)
 		ts := state.NewTaskSet(tDownload, tValidate)
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return ts, nil
+		return ts, info, nil
 	})
 
 	s.state.Lock()
@@ -3845,7 +3872,12 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	_, err = devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		ValidationSets: []*asserts.ValidationSet{vset},
 	})
-	c.Assert(err, ErrorMatches, `cannot create recovery system from a model that does not contain all required snaps: missing snaps: \[core22 snap-1\]`)
+
+	msg := `cannot remodel to model that is not self contained:
+  - cannot use snap "pc": base "core22" is missing
+  - cannot use snap "pc": default provider "snap-1" or any alternative provider for content "prereq-content" is missing`
+
+	c.Assert(err, ErrorMatches, msg)
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsMissingPrereqsOffline(c *C) {
@@ -3908,13 +3940,22 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		yaml := fmt.Sprintf(`name: %s
 version: 1.0
 epoch: 1
+base: core20
+`, name)
+
+		if name == "pc" {
+			yaml = fmt.Sprintf(`name: %s
+version: 1.0
+epoch: 1
 base: core22
 plugs:
-  some-content:
+  prereq-content:
+    content: prereq-content
     interface: content
     default-provider: snap-1
     target: $SNAP/data-dir/target
 `, name)
+		}
 
 		path := snaptest.MakeTestSnapWithFiles(c, yaml, [][]string(nil))
 
@@ -3933,5 +3974,10 @@ plugs:
 		LocalSnapSideInfos: localSideInfos,
 		LocalSnapPaths:     localPaths,
 	})
-	c.Assert(err, ErrorMatches, `cannot create recovery system from a model that does not contain all required snaps: missing snaps: \[core22 snap-1\]`)
+
+	msg := `cannot remodel to model that is not self contained:
+  - cannot use snap "pc": base "core22" is missing
+  - cannot use snap "pc": default provider "snap-1" or any alternative provider for content "prereq-content" is missing`
+
+	c.Assert(err, ErrorMatches, msg)
 }
