@@ -1,5 +1,10 @@
 summary: Ensure that lxd works
 
+details: |
+    Check that the lxd snap works including testing snapd within a LXD container
+    and testing nested lxd containers as well. Also check that snaps inside
+    containers don't prevent snap refreshes on the host
+
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
 backends: [-autopkgtest]
