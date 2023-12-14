@@ -1685,7 +1685,7 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 	// TODO: use function from other branch
 	if len(errs) > 0 {
 		var builder strings.Builder
-		builder.WriteString("cannot remodel to model that is not self contained:")
+		builder.WriteString("cannot create recovery system from model that is not self-contained:")
 
 		for _, err := range errs {
 			builder.WriteString("\n  - ")
