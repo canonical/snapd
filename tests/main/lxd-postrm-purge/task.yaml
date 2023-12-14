@@ -1,5 +1,9 @@
 summary: Check that package remove and purge works inside LXD containers
 
+details: |
+    Verifies that the snapd package can be removed from inside a LXD container.
+    Also check that potentially problematic directories are gone.
+
 # Since it's only apt remove --purge and lxd tests are rather long, limit to a
 # couple of systems only. The postrm purge is more thoroughly checked in
 # tests/main/postrm-purge.

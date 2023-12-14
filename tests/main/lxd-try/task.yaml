@@ -1,5 +1,8 @@
 summary: Check that try command works inside lxd container
 
+details: |
+  Verifies that the `snap try` command works inside a LXD container.
+
 systems: [ubuntu-2*]
 
 prepare: |
