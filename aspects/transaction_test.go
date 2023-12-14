@@ -62,7 +62,7 @@ func (s *transactionTestSuite) TestSet(c *C) {
 
 	var value interface{}
 	err = witness.writtenDatabag.Get("foo", &value)
-	c.Assert(err, FitsTypeOf, aspects.PathNotFoundError(""))
+	c.Assert(err, FitsTypeOf, aspects.PathError(""))
 }
 
 func (s *transactionTestSuite) TestCommit(c *C) {
@@ -105,7 +105,7 @@ func (s *transactionTestSuite) TestGetReadsUncommitted(c *C) {
 	c.Assert(witness.writeCalled, Equals, 0)
 	c.Assert(txData(c, tx), Equals, "{}")
 
-	var val string
+	var val interface{}
 	err = tx.Get("foo", &val)
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "baz")
@@ -137,7 +137,7 @@ func (s *transactionTestSuite) TestRollBackOnCommitError(c *C) {
 	c.Assert(txData(c, tx), Equals, "{}")
 
 	// but subsequent Gets still read the uncommitted values
-	var val string
+	var val interface{}
 	err = tx.Get("foo", &val)
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "bar")
@@ -236,7 +236,7 @@ func (s *transactionTestSuite) TestCommittedIncludesPreviousCommit(c *C) {
 	c.Assert(value, Equals, "bar")
 
 	err = databag.Get("bar", &value)
-	c.Assert(err, FitsTypeOf, aspects.PathNotFoundError(""))
+	c.Assert(err, FitsTypeOf, aspects.PathError(""))
 
 	err = txTwo.Commit()
 	c.Assert(err, IsNil)
@@ -311,7 +311,7 @@ func (s *transactionTestSuite) TestTransactionReadsIsolated(c *C) {
 
 	var value interface{}
 	err = tx.Get("foo", &value)
-	c.Assert(err, FitsTypeOf, aspects.PathNotFoundError(""))
+	c.Assert(err, FitsTypeOf, aspects.PathError(""))
 }
 
 func (s *transactionTestSuite) TestReadDatabagsAreCopiedForIsolation(c *C) {

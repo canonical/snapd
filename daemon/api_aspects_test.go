@@ -283,7 +283,7 @@ func (s *aspectsSuite) testAspectSetMany(c *C) {
 	c.Assert(value, Equals, "foo")
 
 	err = databags["system"]["network"].Get("wifi.psk", &value)
-	c.Assert(err, FitsTypeOf, aspects.PathNotFoundError(""))
+	c.Assert(err, FitsTypeOf, aspects.PathError(""))
 }
 
 func (s *aspectsSuite) TestGetAspectError(c *C) {

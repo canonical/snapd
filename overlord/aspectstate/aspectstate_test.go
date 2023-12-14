@@ -108,10 +108,10 @@ func (s *aspectTestSuite) TestUnsetAspect(c *C) {
 	err = aspectstate.SetAspect(databag, "system", "network", "wifi-setup", "ssid", nil)
 	c.Assert(err, IsNil)
 
-	var val string
+	var val interface{}
 	err = databag.Get("wifi.ssid", &val)
-	c.Assert(err, FitsTypeOf, aspects.PathNotFoundError(""))
-	c.Assert(val, Equals, "")
+	c.Assert(err, FitsTypeOf, aspects.PathError(""))
+	c.Assert(val, Equals, nil)
 }
 
 func (s *aspectTestSuite) TestNewTransactionExistingState(c *C) {

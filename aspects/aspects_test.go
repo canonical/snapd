@@ -20,6 +20,7 @@
 package aspects_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -300,7 +301,7 @@ func newWitnessDataBag(bag aspects.DataBag) *witnessDataBag {
 	return &witnessDataBag{bag: bag}
 }
 
-func (s *witnessDataBag) Get(path string, value interface{}) error {
+func (s *witnessDataBag) Get(path string, value *interface{}) error {
 	s.getPath = path
 	return s.bag.Get(path, value)
 }
@@ -888,4 +889,106 @@ func (s *aspectSuite) TestGetRulesAreSortedByParentage(c *C) {
 	c.Assert(err, IsNil)
 	// lastly, it reads the value from "foo.bar.baz" the most nested entry
 	c.Assert(value, DeepEquals, map[string]interface{}{"foo": map[string]interface{}{"bar": map[string]interface{}{"baz": "third"}}})
+}
+
+func (s *aspectSuite) TestGetUnmatchedPlaceholderReturnsAll(c *C) {
+	databag := aspects.NewJSONDataBag()
+	aspectBundle, err := aspects.NewAspectBundle("acc", "bundle", map[string]interface{}{
+		"snaps": []map[string]string{
+			{"request": "snaps.{snap}", "storage": "snaps.{snap}"},
+		},
+	}, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+	aspect := aspectBundle.Aspect("snaps")
+	c.Assert(aspect, NotNil)
+
+	err = databag.Set("snaps", map[string]interface{}{
+		"snapd": 1,
+		"foo": map[string]interface{}{
+			"bar": 2,
+		},
+	})
+	c.Assert(err, IsNil)
+
+	var value interface{}
+	err = aspect.Get(databag, "snaps", &value)
+	c.Assert(err, IsNil)
+	c.Assert(value, DeepEquals, map[string]interface{}{"snaps": map[string]interface{}{"snapd": json.RawMessage(`1`), "foo": json.RawMessage(`{"bar":2}`)}})
+}
+
+func (s *aspectSuite) TestGetUnmatchedPlaceholdersWithNestedValues(c *C) {
+	databag := aspects.NewJSONDataBag()
+	aspectBundle, err := aspects.NewAspectBundle("acc", "bundle", map[string]interface{}{
+		"statuses": []map[string]string{
+			{"request": "snaps.{snap}.status", "storage": "snaps.{snap}.status"},
+		},
+	}, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+	asp := aspectBundle.Aspect("statuses")
+	c.Assert(asp, NotNil)
+
+	err = databag.Set("snaps", map[string]interface{}{
+		"snapd": map[string]interface{}{
+			"status": "active",
+		},
+		"foo": map[string]interface{}{
+			"version": 2,
+		},
+	})
+	c.Assert(err, IsNil)
+
+	var value interface{}
+	err = asp.Get(databag, "snaps", &value)
+	c.Assert(err, IsNil)
+	c.Assert(value, DeepEquals, map[string]interface{}{"snaps": map[string]interface{}{"snapd": map[string]interface{}{"status": "active"}}})
+}
+
+func (s *aspectSuite) TestGetSeveralUnmatchedPlaceholders(c *C) {
+	databag := aspects.NewJSONDataBag()
+	aspectBundle, err := aspects.NewAspectBundle("acc", "bundle", map[string]interface{}{
+		"foo": []map[string]string{
+			{"request": "a.{b}.c.{d}.e", "storage": "a.{b}.c.{d}.e"},
+		},
+	}, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+	asp := aspectBundle.Aspect("foo")
+	c.Assert(asp, NotNil)
+
+	err = databag.Set("a", map[string]interface{}{
+		"b1": map[string]interface{}{
+			"c": map[string]interface{}{
+				// the request can be fulfilled here
+				"d1": map[string]interface{}{
+					"e": "end",
+				},
+				"d2": "f",
+			},
+			"x": 1,
+		},
+		"b2": map[string]interface{}{
+			"c": map[string]interface{}{
+				// but not here
+				"d1": "e",
+				"d2": "f",
+			},
+			"x": 1,
+		},
+	})
+	c.Assert(err, IsNil)
+
+	var value interface{}
+	err = asp.Get(databag, "a", &value)
+	c.Assert(err, IsNil)
+	expected := map[string]interface{}{
+		"a": map[string]interface{}{
+			"b1": map[string]interface{}{
+				"c": map[string]interface{}{
+					"d1": map[string]interface{}{
+						"e": "end",
+					},
+				},
+			},
+		},
+	}
+	c.Assert(value, DeepEquals, expected)
 }

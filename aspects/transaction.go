@@ -64,7 +64,7 @@ func (t *Transaction) Set(path string, value interface{}) error {
 }
 
 // Get reads a value from the transaction's databag including uncommitted changes.
-func (t *Transaction) Get(path string, value interface{}) error {
+func (t *Transaction) Get(path string, value *interface{}) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
