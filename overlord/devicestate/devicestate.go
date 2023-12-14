@@ -1240,7 +1240,7 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 	}
 
 	if new.Base() == "" && current.Base() != "" {
-		return nil, errors.New("cannot remodel from snapd based system to core based system")
+		return nil, errors.New("cannot remodel from UC18+ (using snapd snap) system back to UC16 system (using core snap)")
 	}
 
 	// TODO: we need dedicated assertion language to permit for

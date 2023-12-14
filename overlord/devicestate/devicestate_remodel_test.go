@@ -111,7 +111,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelSnapdBasedToCoreBased(c *C) {
 	})
 
 	chg, err := devicestate.Remodel(st, newModel, nil, nil)
-	c.Assert(err, ErrorMatches, "cannot remodel from snapd based system to core based system")
+	c.Assert(err, ErrorMatches, `cannot remodel from UC18\+ \(using snapd snap\) system back to UC16 system \(using core snap\)`)
 	c.Assert(chg, IsNil)
 }
 
