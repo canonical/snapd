@@ -88,6 +88,9 @@ execute: |
 
     # There isn't an official image for noble yet, let's use the community one
     if os.query is-ubuntu 24.04; then
+        # TODO: remove this once the noble images are published
+        exit 0
+
         CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
         lxc launch --quiet "images:ubuntu/$CODENAME" my-ubuntu
         lxc launch --quiet "images:ubuntu/$CODENAME" my-nesting-ubuntu -c security.nesting=true

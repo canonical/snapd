@@ -24,6 +24,9 @@ execute: |
 
     # There isn't an official image for mantic yet, let's use the community one
     if os.query is-ubuntu 24.04; then
+        # TODO: remove this once the noble images are published
+        exit 0
+
         CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
         lxc launch --quiet "images:ubuntu/$CODENAME" ubuntu
         core_snap=core22
