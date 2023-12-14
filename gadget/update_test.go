@@ -5216,8 +5216,6 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20NonFatalError(
 }
 
 func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20CannotMap(c *C) {
-	fmt.Println("TestBuildNewVolumeToDeviceMappingPreUC20CannotMap")
-	defer fmt.Println("TestBuildNewVolumeToDeviceMappingPreUC20CannotMap")
 	mockLogBuf, restore := logger.MockLogger()
 	defer restore()
 
