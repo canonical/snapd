@@ -6,17 +6,13 @@ prepare: |
   echo "Install lxd"
   "$TESTSTOOLS"/lxd-state prepare-snap
 
-  # There isn't an official image for noble yet, let's use the community one
+  REMOTE=ubuntu
+  # There isn't an official image for noble yet, let's use the daily one
   if os.query is-ubuntu 24.04; then
-      # TODO: remove this once the noble images are published
-      exit 0
-
-      CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
-      lxc launch --quiet "images:ubuntu/$CODENAME" ubuntu
-  else
-      VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
-      lxd.lxc launch --quiet "ubuntu:$VERSION_ID" ubuntu
+      REMOTE=ubuntu-daily
   fi
+  VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
+  lxd.lxc launch --quiet "$REMOTE:$VERSION_ID" ubuntu
 
   echo "Setting up proxy *inside* the container"
   if [ -n "${http_proxy:-}" ]; then
