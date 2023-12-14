@@ -1638,19 +1638,14 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		return nil, err
 	}
 
-	modelSnaps := model.AllSnaps()
-	modelSnapNames := make(map[string]bool, len(modelSnaps))
-
-	allRequiredSnapNames := make(map[string]bool)
+	tracker := snap.NewSelfContainedSetPrereqTracker()
+	offline := len(opts.LocalSnapPaths) > 0
 
 	var downloadTSS []*state.TaskSet
-	for _, sn := range modelSnaps {
-		modelSnapNames[sn.Name] = true
-		allRequiredSnapNames[sn.Name] = true
+	for _, sn := range model.AllSnaps() {
+		rev := revisions[sn.Name]
 
-		requiredRev := revisions[sn.Name]
-
-		needsInstall, err := snapNeedsInstall(st, sn.Name, requiredRev)
+		needsInstall, err := snapNeedsInstall(st, sn.Name, rev)
 		if err != nil {
 			return nil, err
 		}
@@ -1659,24 +1654,45 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 			continue
 		}
 
-		ts, prereqs, err := tasksAndPrereqsForSnap(st, sn, requiredRev, valsets, opts)
+		if offline {
+			info, err := offlineSnapInfo(sn, rev, opts)
+			if err != nil {
+				return nil, err
+			}
+			tracker.Add(info)
+			continue
+		}
+
+		const userID = 0
+		ts, info, err := snapstateDownload(context.TODO(), st, sn.Name, dirs.SnapBlobDir, &snapstate.RevisionOptions{
+			Channel:        sn.DefaultChannel,
+			Revision:       rev,
+			ValidationSets: valsets.Keys(),
+		}, userID, snapstate.Flags{}, nil)
 		if err != nil {
 			return nil, err
 		}
 
-		for _, p := range prereqs {
-			allRequiredSnapNames[p] = true
-		}
-
-		if ts != nil {
-			downloadTSS = append(downloadTSS, ts)
-		}
+		tracker.Add(info)
+		downloadTSS = append(downloadTSS, ts)
 	}
 
-	if missing := stringsNotInSet(allRequiredSnapNames, modelSnapNames); len(missing) > 0 {
-		return nil, fmt.Errorf(
-			"cannot create recovery system from a model that does not contain all required snaps: missing snaps: %v", missing,
-		)
+	warnings, errs := tracker.Check()
+	for _, w := range warnings {
+		logger.Noticef("create recovery sytem prerequisites warning: %v", w)
+	}
+
+	// TODO: use function from other branch
+	if len(errs) > 0 {
+		var builder strings.Builder
+		builder.WriteString("cannot remodel to model that is not self contained:")
+
+		for _, err := range errs {
+			builder.WriteString("\n  - ")
+			builder.WriteString(err.Error())
+		}
+
+		return nil, errors.New(builder.String())
 	}
 
 	var snapsupTaskIDs []string
@@ -1703,41 +1719,17 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 	return chg, nil
 }
 
-// tasksAndPrereqsForSnap returns the *state.TaskSet that will download a snap
-// to be used in the creation of a recovery system. If any snaps are provided
-// locally via opts.LocalSnapSideInfos, then the returned *state.TaskSet will be
-// nil. A slice of prerequisite snaps that the snap requires is also returned.
-func tasksAndPrereqsForSnap(st *state.State, modelSnap *asserts.ModelSnap, rev snap.Revision, vsets *snapasserts.ValidationSets, opts CreateRecoverySystemOptions) (*state.TaskSet, []string, error) {
-	// we're in an online context if this is true
-	if len(opts.LocalSnapSideInfos) == 0 {
-		// TODO: this probably shouldn't be dirs.SnapBlobDir, also should this context come from the http request?
-		const userID = 0
-		ts, _, err := snapstateDownload(context.TODO(), st, modelSnap.Name, dirs.SnapBlobDir, &snapstate.RevisionOptions{
-			Channel:        modelSnap.DefaultChannel,
-			Revision:       rev,
-			ValidationSets: vsets.Keys(),
-		}, userID, snapstate.Flags{}, nil)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		prereqs, err := extractPrereqsFromTaskSet(ts)
-		if err != nil {
-			return nil, nil, err
-		}
-		return ts, prereqs, nil
-	}
-
+func offlineSnapInfo(sn *asserts.ModelSnap, rev snap.Revision, opts CreateRecoverySystemOptions) (*snap.Info, error) {
 	index := -1
 	for i, si := range opts.LocalSnapSideInfos {
-		if modelSnap.ID() == si.SnapID {
+		if sn.ID() == si.SnapID {
 			index = i
 			break
 		}
 	}
 	if index == -1 {
-		return nil, nil, fmt.Errorf(
-			"missing snap from local snaps provided for offline creation of recovery system: %q, rev %v", modelSnap.Name, rev,
+		return nil, fmt.Errorf(
+			"missing snap from local snaps provided for offline creation of recovery system: %q, rev %v", sn.Name, rev,
 		)
 	}
 
@@ -1745,16 +1737,17 @@ func tasksAndPrereqsForSnap(st *state.State, modelSnap *asserts.ModelSnap, rev s
 	path := opts.LocalSnapPaths[index]
 
 	if !rev.Unset() && rev != si.Revision {
-		return nil, nil, fmt.Errorf(
+		return nil, fmt.Errorf(
 			"snap %q does not match revision required by validation sets: %v != %v", si.RealName, si.Revision, rev,
 		)
 	}
 
-	prereqs, err := extractPrereqsFromSideInfoAndPath(si, path)
+	s, err := snapfile.Open(path)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return nil, prereqs, nil
+
+	return snap.ReadInfoFromSnapFile(s, si)
 }
 
 func snapNeedsInstall(st *state.State, name string, rev snap.Revision) (bool, error) {
@@ -1785,58 +1778,6 @@ func stringsNotInSet(reference map[string]bool, target map[string]bool) []string
 	sort.Strings(missing)
 
 	return missing
-}
-
-func extractPrereqsFromSideInfoAndPath(si *snap.SideInfo, path string) ([]string, error) {
-	sn, err := snapfile.Open(path)
-	if err != nil {
-		return nil, err
-	}
-
-	info, err := snap.ReadInfoFromSnapFile(sn, si)
-	if err != nil {
-		return nil, err
-	}
-
-	providers := snap.NeededDefaultProviders(info)
-
-	// prereqs + base
-	prereqs := make([]string, 0, len(providers)+1)
-
-	if info.Base != "" {
-		prereqs = append(prereqs, info.Base)
-	}
-
-	for p := range providers {
-		prereqs = append(prereqs, p)
-	}
-
-	return prereqs, nil
-}
-
-func extractPrereqsFromTaskSet(ts *state.TaskSet) ([]string, error) {
-	if len(ts.Tasks()) == 0 {
-		return nil, errors.New("internal error: task set has no tasks")
-	}
-
-	// any task in the set will either have the snap-setup or will reference it
-	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
-	if err != nil {
-		return nil, err
-	}
-
-	// prereqs + base
-	prereqs := make([]string, 0, len(snapsup.PrereqContentAttrs)+1)
-
-	if snapsup.Base != "" {
-		prereqs = append(prereqs, snapsup.Base)
-	}
-
-	for p := range snapsup.PrereqContentAttrs {
-		prereqs = append(prereqs, p)
-	}
-
-	return prereqs, nil
 }
 
 func extractSnapSetupTaskIDs(tss []*state.TaskSet) ([]string, error) {
