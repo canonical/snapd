@@ -807,6 +807,255 @@ func (s *RunSuite) TestSnapRunAppGateRefreshSkipsInhibitionFlow(c *check.C) {
 	checkHintFileNotLocked(c, "snapname")
 }
 
+func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenSnapRemoved(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	si := snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x2")})
+
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
+	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
+	// no inhibition hint file
+	c.Assert(os.RemoveAll(runinhibit.HintFile("snapname")), check.IsNil)
+
+	var inhibitionFlow fakeInhibitionFlow
+	restore := snaprun.MockInhibitionFlow(&inhibitionFlow)
+	defer restore()
+
+	var called int
+	restore = snaprun.MockWaitWhileInhibited(func(snapName string, notInhibited func() error, inhibited func(hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
+		called++
+
+		c.Check(snapName, check.Equals, "snapname")
+		// passthrough to original WaitWhileInhibited
+		flock, err := runinhibit.WaitWhileInhibited(snapName, notInhibited, inhibited, 1*time.Microsecond)
+		if called == 1 {
+			c.Assert(err, check.IsNil)
+			// Remove snap
+			c.Assert(os.RemoveAll(filepath.Dir(si.MountDir())), check.IsNil)
+		} else {
+			c.Assert(err, check.ErrorMatches, "cannot find current revision for snap snapname: readlink .*/snap/snapname/current: no such file or directory")
+		}
+		// nil FileLock means no inhibit file exists
+		c.Assert(flock, check.IsNil)
+
+		return flock, err
+	})
+	defer restore()
+
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
+	c.Assert(err, check.ErrorMatches, "cannot find current revision for snap snapname: readlink .*/snap/snapname/current: no such file or directory")
+	c.Check(called, check.Equals, 2)
+	c.Assert(rest, check.DeepEquals, []string{"--", "snapname.app", "--arg1"})
+
+	c.Check(inhibitionFlow.notified, check.Equals, 0)
+	c.Check(inhibitionFlow.finished, check.Equals, 0)
+
+	// inhibition hint file still does not exist
+	c.Assert(runinhibit.HintFile("snapname"), testutil.FileAbsent)
+}
+
+func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingRefresh(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	var execArg0 string
+	var execArgs []string
+	var execEnv []string
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restorer()
+
+	// mock installed snap
+	si := snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x2")})
+
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
+	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
+
+	var inhibitionFlow fakeInhibitionFlow
+	restore := snaprun.MockInhibitionFlow(&inhibitionFlow)
+	defer restore()
+
+	var called int
+	restore = snaprun.MockWaitWhileInhibited(func(snapName string, notInhibited func() error, inhibited func(hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
+		called++
+
+		c.Check(snapName, check.Equals, "snapname")
+		if called == 1 {
+			err := notInhibited()
+			c.Assert(err, check.IsNil)
+			// remove current symlink to simulate ongoing refresh
+			c.Assert(os.RemoveAll(filepath.Join(si.MountDir(), "../current")), check.IsNil)
+			// nil FileLock means no inhibit file exists
+			return nil, nil
+		} else {
+			var err error
+
+			c.Assert(os.MkdirAll(runinhibit.InhibitDir, 0755), check.IsNil)
+			flock, err = openHintFileLock(snapName)
+			c.Assert(err, check.IsNil)
+			c.Assert(flock.ReadLock(), check.IsNil)
+
+			// snap is inhibited
+			cont, err := inhibited(runinhibit.HintInhibitedForRefresh, &runinhibit.InhibitInfo{Previous: snap.R("x2")})
+			c.Check(err, check.IsNil)
+			c.Check(cont, check.Equals, false)
+
+			// update current snap revision
+			snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x3")})
+
+			// snap is not inhibited anymore
+			err = notInhibited()
+			c.Assert(err, check.IsNil)
+
+			return flock, nil
+		}
+	})
+	defer restore()
+
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
+	c.Assert(err, check.IsNil)
+	c.Check(called, check.Equals, 2)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1"})
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+		"snap.snapname.app",
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"snapname.app", "--arg1"})
+	// Check snap-confine points to latest revision
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x3")
+
+	c.Check(inhibitionFlow.notified, check.Equals, 1)
+	c.Check(inhibitionFlow.finished, check.Equals, 1)
+
+	// lock should be released now
+	checkHintFileNotLocked(c, "snapname")
+}
+
+func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenSnapRefreshCompleted(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	var execArg0 string
+	var execArgs []string
+	var execEnv []string
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restorer()
+
+	// mock installed snap
+	si := snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x2")})
+
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
+	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
+
+	var inhibitionFlow fakeInhibitionFlow
+	restore := snaprun.MockInhibitionFlow(&inhibitionFlow)
+	defer restore()
+
+	var called int
+	restore = snaprun.MockWaitWhileInhibited(func(snapName string, notInhibited func() error, inhibited func(hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
+		called++
+
+		c.Check(snapName, check.Equals, "snapname")
+		// passthrough to original WaitWhileInhibited
+		flock, err := runinhibit.WaitWhileInhibited(snapName, notInhibited, inhibited, 1*time.Microsecond)
+		if called == 1 {
+			c.Assert(err, check.IsNil)
+			// nil FileLock means no inhibit file exists
+			c.Assert(flock, check.IsNil)
+			// Remove current symlink snap
+			c.Assert(os.RemoveAll(filepath.Join(si.MountDir(), "../current")), check.IsNil)
+			// update current snap revision
+			snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x3")})
+			// mock not-inhibited empty hint
+			c.Assert(os.MkdirAll(runinhibit.InhibitDir, 0755), check.IsNil)
+			c.Assert(os.WriteFile(runinhibit.HintFile("snapname"), []byte(""), 0644), check.IsNil)
+		} else {
+			c.Assert(flock, check.NotNil)
+			// lock is held
+			checkFileLocked(c, "snapname")
+		}
+
+		return flock, err
+	})
+	defer restore()
+
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
+	c.Assert(err, check.IsNil)
+	c.Check(called, check.Equals, 2)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1"})
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+		"snap.snapname.app",
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"snapname.app", "--arg1"})
+	// Check snap-confine points to latest revision
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x3")
+
+	// refresh was completed before retry so no notification flow was triggered
+	c.Check(inhibitionFlow.notified, check.Equals, 0)
+	c.Check(inhibitionFlow.finished, check.Equals, 0)
+
+	// lock should be released now
+	checkHintFileNotLocked(c, "snapname")
+}
+
+func (s *RunSuite) TestSnapRunAppMaxRetry(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	si := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{Revision: snap.R("x2")})
+
+	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
+	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
+	// no inhibition hint file
+	c.Assert(os.RemoveAll(runinhibit.HintFile("snapname")), check.IsNil)
+
+	var inhibitionFlow fakeInhibitionFlow
+	restore := snaprun.MockInhibitionFlow(&inhibitionFlow)
+	defer restore()
+
+	var called int
+	restore = snaprun.MockWaitWhileInhibited(func(snapName string, notInhibited func() error, inhibited func(hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
+		called++
+
+		c.Check(snapName, check.Equals, "snapname")
+
+		// mock current symlink for notInhibited callback
+		c.Assert(os.Symlink(filepath.Base(si.MountDir()), filepath.Join(si.MountDir(), "../current")), check.IsNil)
+
+		err := notInhibited()
+		c.Assert(err, check.IsNil)
+
+		// remove current symlink to trigger race condition check
+		c.Assert(os.RemoveAll(filepath.Join(si.MountDir(), "../current")), check.IsNil)
+
+		// always return nil flock
+		return nil, nil
+	})
+	defer restore()
+
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
+	c.Assert(err, check.ErrorMatches, "internal error: we can only retry once")
+	c.Check(called, check.Equals, 2)
+	c.Assert(rest, check.DeepEquals, []string{"--", "snapname.app", "--arg1"})
+
+	c.Check(inhibitionFlow.notified, check.Equals, 0)
+	c.Check(inhibitionFlow.finished, check.Equals, 0)
+
+	// inhibition hint file still does not exist
+	c.Assert(runinhibit.HintFile("snapname"), testutil.FileAbsent)
+}
+
 func (s *RunSuite) TestSnapRunClassicAppIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 

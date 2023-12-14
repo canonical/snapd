@@ -492,7 +492,7 @@ func maybeWaitWhileInhibited(snapName string, appName string) (info *snap.Info, 
 		flow := newInhibitionFlow(snapName)
 		notified := false
 		notInhibited := func() (err error) {
-			// get updated "current" snap info
+			// Get updated "current" snap info.
 			info, app, err = getInfoAndApp(snapName, appName, snap.R(0))
 			return err
 		}
@@ -502,36 +502,35 @@ func maybeWaitWhileInhibited(snapName string, appName string) (info *snap.Info, 
 				if err != nil {
 					return false, err
 				}
-				// don't wait, continue with old revision
+				// Don't wait, continue with old revision.
 				if app.IsService() {
 					return true, nil
 				}
-				// don't start flow if we are not inhibited for refresh
+				// Don't start flow if we are not inhibited for refresh.
 				if hint != runinhibit.HintInhibitedForRefresh {
 					return false, nil
 				}
-				// start notification flow
+				// Start notification flow.
 				if err := flow.Notify(); err != nil {
 					return true, err
 				}
-				// make sure we call notification flow only once
+				// Make sure we call notification flow only once.
 				notified = true
 			}
 			return false, nil
 		}
 
 		// If the snap is inhibited from being used then postpone running it until
-		// that condition passes. Inhibition UI can be dismissed by the user, in
-		// which case we don't run the application at all.
+		// that condition passes.
 		hintFlock, err = waitWhileInhibited(snapName, notInhibited, inhibited, 500*time.Millisecond)
 		if err != nil {
-			// it is fine to return an error here without finishing the notification
+			// It is fine to return an error here without finishing the notification
 			// flow because we either failed because of it or before it, so it
 			// should not have started in the first place.
 			return nil, nil, nil, err
 		}
 
-		if !app.IsService() && notified {
+		if notified {
 			if err := flow.Finish(); err != nil {
 				hintFlock.Close()
 				return nil, nil, nil, err
@@ -548,6 +547,25 @@ func maybeWaitWhileInhibited(snapName string, appName string) (info *snap.Info, 
 	}
 }
 
+func isPossibleRaceCondition(oldInfo *snap.Info, app *snap.AppInfo, hintFlock *osutil.FileLock) bool {
+	if !features.RefreshAppAwareness.IsEnabled() || app.IsService() || hintFlock != nil {
+		// Skip check
+		return false
+	}
+
+	currentInfo, err := snap.ReadCurrentInfo(oldInfo.InstanceName())
+	if err != nil {
+		// Current symlink does not exist, snap is either removed or being refreshed.
+		return true
+	}
+	if currentInfo.SnapRevision() != oldInfo.SnapRevision() {
+		// Snap was refreshed while we did not hold the hint lock.
+		return true
+	}
+
+	return false
+}
+
 func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 	if x.DebugLog {
 		os.Setenv("SNAPD_DEBUG", "1")
@@ -555,21 +573,61 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 	}
 	snapName, appName := snap.SplitSnapApp(snapApp)
 
-	info, app, hintFlock, err := maybeWaitWhileInhibited(snapName, appName)
-	if err != nil {
-		return err
-	}
+	var retryCnt int
+	for {
+		if retryCnt > 1 {
+			// This should never happen, but it is better to fail instead
+			// of retrying forever.
+			return fmt.Errorf("internal error: we can only retry once")
+		}
 
-	closeFlock := func() {
+		info, app, hintFlock, err := maybeWaitWhileInhibited(snapName, appName)
+		if err != nil {
+			return err
+		}
+
+		var errRaceConditionDetected = fmt.Errorf("race condition detected")
+		closeFlockOrRetry := func() error {
+			if hintFlock != nil {
+				hintFlock.Close()
+				return nil
+			}
+			// hintFlock might be nil if the hint file did not exist
+			if isPossibleRaceCondition(info, app, hintFlock) {
+				return errRaceConditionDetected
+			}
+			return nil
+		}
+
+		err = x.runSnapConfine(info, app.SecurityTag(), snapApp, "", closeFlockOrRetry, args)
+		if err == errRaceConditionDetected {
+			// Let's retry.
+			//
+			// This will not retry infinitely because this can only be caused by
+			// the following cases:
+			// 1.	No hint file existed when we started due to freshly installed snap,
+			//		then a refresh took place and the current symlink was removed in
+			//		the process.
+			//		In the next retry, the hint lock will have been created.
+			// 2.	No hint file exists because snap was removed in the middle of
+			//		"snap run".
+			//		In the next retry, we will fail right away."
+			// 3.	Snap revision is not the same as the "current" revision.
+			//		In the next retry, we should use the "current" revision.
+			retryCnt++
+			continue
+		}
+		if err != nil {
+			return err
+		}
+
+		// Make sure we release the lock in case runSnapConfine fails before
+		// closing hint lock file, it is fine if we double close.
 		if hintFlock != nil {
 			hintFlock.Close()
 		}
+		return nil
 	}
-	// make sure we release the lock in case runSnapConfine fails before
-	// calling beforeExec(), it is fine if we double close.
-	defer closeFlock()
-
-	return x.runSnapConfine(info, app.SecurityTag(), snapApp, "", closeFlock, args)
 }
 
 func (x *cmdRun) snapRunHook(snapName string) error {
@@ -1086,7 +1144,7 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 	return err
 }
 
-func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook string, beforeExec func(), args []string) error {
+func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook string, beforeExec func() error, args []string) error {
 	snapConfine, err := snapdHelperPath("snap-confine")
 	if err != nil {
 		return err
@@ -1291,7 +1349,9 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 
 	if beforeExec != nil {
-		beforeExec()
+		if err := beforeExec(); err != nil {
+			return err
+		}
 	}
 
 	logger.StartupStageTimestamp("snap to snap-confine")
