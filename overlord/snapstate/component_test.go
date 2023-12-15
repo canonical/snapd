@@ -39,9 +39,9 @@ func (s *snapmgrTestSuite) TestIsComponentHelpers(c *C) {
 	defer s.state.Unlock()
 
 	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
-		SnapID: "snapidididididididididididididid"}
+		SnapID: "some-snap-id"}
 	ssi2 := &snap.SideInfo{RealName: snapName, Revision: snapRev2,
-		SnapID: "snapidididididididididididididid"}
+		SnapID: "some-snap-id"}
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
 	cref2 := naming.NewComponentRef(snapName, compName2)

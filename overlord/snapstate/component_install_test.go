@@ -147,7 +147,7 @@ func createTestSnapSetup(info *snap.Info, flags snapstate.Flags) *snapstate.Snap
 
 func (s *snapmgrTestSuite) setStateWithOneSnap(c *C, snapName string, snapRev snap.Revision) {
 	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
-		SnapID: "snapidididididididididididididid"}
+		SnapID: "some-snap-id"}
 	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
@@ -160,7 +160,7 @@ func (s *snapmgrTestSuite) setStateWithOneSnap(c *C, snapName string, snapRev sn
 func (s *snapmgrTestSuite) setStateWithOneComponent(c *C, snapName string,
 	snapRev snap.Revision, compName string, compRev snap.Revision) {
 	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
-		SnapID: "snapidididididididididididididid"}
+		SnapID: "some-snap-id"}
 	csi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), compRev)
 	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active: true,
@@ -298,9 +298,9 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresentDiffSnapRe
 	// There is a component with the same revision to the one we install
 	// (but it is not for the currently active snap revision).
 	ssi1 := &snap.SideInfo{RealName: snapName, Revision: snapRev1,
-		SnapID: "snapidididididididididididididid"}
+		SnapID: "some-snap-id"}
 	ssi2 := &snap.SideInfo{RealName: snapName, Revision: snapRev2,
-		SnapID: "snapidididididididididididididid"}
+		SnapID: "some-snap-id"}
 	csi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), compRev)
 	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active: true,
@@ -379,7 +379,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathSnapNotActive(c *C) {
 	c.Assert(osutil.FileExists(compPath), Equals, true)
 }
 
-func (s *snapmgrTestSuite) TestInstallRemodelConflict(c *C) {
+func (s *snapmgrTestSuite) TestInstallComponentRemodelConflict(c *C) {
 	const snapName = "mysnap"
 	const compName = "mycomp"
 	snapRev := snap.R(1)
@@ -402,4 +402,32 @@ func (s *snapmgrTestSuite) TestInstallRemodelConflict(c *C) {
 	c.Assert(ts, IsNil)
 	c.Assert(err.Error(), Equals,
 		`remodeling in progress, no other changes allowed until this is done`)
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentUpdateConflict(c *C) {
+	const snapName = "some-snap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	_, compPath := createTestComponent(c, snapName, compName)
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setStateWithOneSnap(c, snapName, snapRev)
+
+	tupd, err := snapstate.Update(s.state, snapName,
+		&snapstate.RevisionOptions{Channel: ""}, s.user.ID,
+		snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := s.state.NewChange("update", "update a snap")
+	chg.AddAll(tupd)
+
+	csi := snap.NewComponentSideInfo(naming.ComponentRef{
+		SnapName: snapName, ComponentName: compName}, snap.R(33))
+	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{})
+	c.Assert(ts, IsNil)
+	c.Assert(err.Error(), Equals,
+		`snap "some-snap" has "update" change in progress`)
 }

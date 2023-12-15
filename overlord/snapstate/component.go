@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -42,6 +43,9 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 	// owner snap must be already installed
 	err := Get(st, info.InstanceName(), &snapst)
 	if err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return nil, &snap.NotInstalledError{Snap: info.InstanceName()}
+		}
 		return nil, err
 	}
 
