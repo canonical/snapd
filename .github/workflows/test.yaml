@@ -355,8 +355,8 @@ jobs:
     # have spread jobs run on master on PRs only, but on both PRs and pushes to
     # release branches
     if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
-    runs-on: self-hosted
     name: ${{ matrix.group }}
+    runs-on: self-hosted
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
       # Disable fail-fast mode as it doesn't function with spread. It seems
@@ -365,40 +365,40 @@ jobs:
       # fail-fast while we tackle that problem upstream.
       fail-fast: false
       matrix:
-          - group: amazon-linux
-            system: amazon-linux-2-64 amazon-linux-2023-64
-          - group: arch-linux
-            systems: arch-linux-64
-          - group: centos
-            systems: centos-7-64 centos-8-64 centos-9-64
-          - group: debian-req
-            systems: debian-11-64
-          - group: debian-no-req
-            system: debian-12-64 debian-sid-64
-          - group: fedora
-            system: fedora-38-64 fedora-39-64
-          - group: opensuse
-            systems: opensuse-15.4-64 opensuse-15.5-64 opensuse-tumbleweed-64
-          - group: ubuntu-trusty-xenial
-            system: ubuntu-14.04-64 ubuntu-16.04-64
-          - group: ubuntu-bionic
-            systems: ubuntu-18.04-32 ubuntu-18.04-64
-          - group: ubuntu-focal-jammy
-            system: ubuntu-20.04-64 ubuntu-22.04-64
-          - group: ubuntu-no-lts
-            system: ubuntu-23.04-64 ubuntu-23.10-64
-          - group: ubuntu-core-16
-            systems: ubuntu-core-16-64
-          - group: ubuntu-core-18
-            systems: ubuntu-core-18-64
-          - group: ubuntu-core-20
-            systems: ubuntu-core-20-64
-          - group: ubuntu-core-22
-            systems: ubuntu-core-22-64
-          - group: ubuntu-arm
-            systems: ubuntu-20.04-arm-64 ubuntu-core-22-arm-64
-          - group: ubuntu-secboot
-            systems: ubuntu-secboot-20.04-64
+        - group: amazon-linux
+          system: amazon-linux-2-64 amazon-linux-2023-64
+        - group: arch-linux
+          systems: arch-linux-64
+        - group: centos
+          systems: centos-7-64 centos-8-64 centos-9-64
+        - group: debian-req
+          systems: debian-11-64
+        - group: debian-no-req
+          system: debian-12-64 debian-sid-64
+        - group: fedora
+          system: fedora-38-64 fedora-39-64
+        - group: opensuse
+          systems: opensuse-15.4-64 opensuse-15.5-64 opensuse-tumbleweed-64
+        - group: ubuntu-trusty-xenial
+          system: ubuntu-14.04-64 ubuntu-16.04-64
+        - group: ubuntu-bionic
+          systems: ubuntu-18.04-32 ubuntu-18.04-64
+        - group: ubuntu-focal-jammy
+          system: ubuntu-20.04-64 ubuntu-22.04-64
+        - group: ubuntu-no-lts
+          system: ubuntu-23.04-64 ubuntu-23.10-64
+        - group: ubuntu-core-16
+          systems: ubuntu-core-16-64
+        - group: ubuntu-core-18
+          systems: ubuntu-core-18-64
+        - group: ubuntu-core-20
+          systems: ubuntu-core-20-64
+        - group: ubuntu-core-22
+          systems: ubuntu-core-22-64
+        - group: ubuntu-arm
+          systems: ubuntu-20.04-arm-64 ubuntu-core-22-arm-64
+        - group: ubuntu-secboot
+          systems: ubuntu-secboot-20.04-64
     steps:
     - name: Cleanup job workspace
       id: cleanup-job-workspace
