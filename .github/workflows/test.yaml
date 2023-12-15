@@ -365,41 +365,40 @@ jobs:
       # fail-fast while we tackle that problem upstream.
       fail-fast: false
       matrix:
-        include:
           - group: amazon-linux
             system: amazon-linux-2-64 amazon-linux-2023-64
-          - group: arch-linux
-            systems: arch-linux-64
-          - group: centos
+        - group: arch-linux
+          systems: arch-linux-64
+        - group: centos
             systems: centos-7-64 centos-8-64 centos-9-64
           - group: debian-req
-            systems: debian-11-64
+          systems: debian-11-64
           - group: debian-no-req
             system: debian-12-64 debian-sid-64
-          - group: fedora
+        - group: fedora
             system: fedora-38-64 fedora-39-64
-          - group: opensuse
+        - group: opensuse
             systems: opensuse-15.4-64 opensuse-15.5-64 opensuse-tumbleweed-64
           - group: ubuntu-trusty-xenial
             system: ubuntu-14.04-64 ubuntu-16.04-64
           - group: ubuntu-bionic
-            systems: 'ubuntu-18.04-32 ubuntu-18.04-64'
+          systems: ubuntu-18.04-32 ubuntu-18.04-64
           - group: ubuntu-focal-jammy
             system: ubuntu-20.04-64 ubuntu-22.04-64
           - group: ubuntu-no-lts
             system: ubuntu-23.04-64 ubuntu-23.10-64
-          - group: ubuntu-core-16
-            systems: ubuntu-core-16-64
-          - group: ubuntu-core-18
-            systems: ubuntu-core-18-64
-          - group: ubuntu-core-20
-            systems: ubuntu-core-20-64
-          - group: ubuntu-core-22
-            systems: ubuntu-core-22-64
-          - group: ubuntu-arm
+        - group: ubuntu-core-16
+          systems: ubuntu-core-16-64
+        - group: ubuntu-core-18
+          systems: ubuntu-core-18-64
+        - group: ubuntu-core-20
+          systems: ubuntu-core-20-64
+        - group: ubuntu-core-22
+          systems: ubuntu-core-22-64
+        - group: ubuntu-arm
             systems: ubuntu-20.04-arm-64 ubuntu-core-22-arm-64
-          - group: ubuntu-secboot
-            systems: ubuntu-secboot-20.04-64
+        - group: ubuntu-secboot
+          systems: ubuntu-secboot-20.04-64
     steps:
     - name: Cleanup job workspace
       id: cleanup-job-workspace
