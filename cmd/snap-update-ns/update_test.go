@@ -363,7 +363,7 @@ func (s *updateSuite) TestKeepSyntheticMountsLP2043993(c *C) {
 
 	c.Assert(update.ExecuteMountProfileUpdate(upCtx), IsNil)
 	c.Assert(saved.Entries, HasLen, 2)
-	// TODO: investigate why mount order changed
+	// TODO: the change of order is a bit unexpected, but that is a larger issue
 	// synth mount kept because it is needed by a desired mount
 	c.Check(saved.Entries[1].Type, Equals, "tmpfs")
 	c.Check(saved.Entries[1].Name, Equals, "tmpfs")
