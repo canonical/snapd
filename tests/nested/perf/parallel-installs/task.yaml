@@ -14,10 +14,10 @@ environment:
     NESTED_MEM/20_installs: 768
     CPU_LOAD/20_installs: .6
 
-    NUM_PARALLEL/40_installs: 40
-    NESTED_CPUS/40_installs: 1
-    NESTED_MEM/40_installs: 1024
-    CPU_LOAD/40_installs: .5
+    NUM_PARALLEL/30_installs: 30
+    NESTED_CPUS/30_installs: 1
+    NESTED_MEM/30_installs: 1024
+    CPU_LOAD/30_installs: .5
 
 execute: |
     # Get the nested system to use
