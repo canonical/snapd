@@ -76,7 +76,7 @@ func (s *specSuite) SetUpTest(c *C) {
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 }
 
-// AddMountEntry and AddUserMountEntry are not not broken
+// AddMountEntry and AddUserMountEntry are not broken
 func (s *specSuite) TestSmoke(c *C) {
 	ent0 := osutil.MountEntry{Dir: "dir-a", Name: "fs1"}
 	ent1 := osutil.MountEntry{Dir: "dir-b", Name: "fs2"}
@@ -110,9 +110,18 @@ func (s *specSuite) TestMountEntriesDeclash(c *C) {
 
 	c.Assert(s.spec.AddUserMountEntry(osutil.MountEntry{Dir: "bar", Name: "fs1"}), IsNil)
 	c.Assert(s.spec.AddUserMountEntry(osutil.MountEntry{Dir: "bar", Name: "fs2"}), IsNil)
+	c.Assert(s.spec.AddUserMountEntry(osutil.MountEntry{Dir: "bar", Name: "", Options: []string{"x-snapd.kind=ensure-dir"}}), IsNil)
+	c.Assert(s.spec.AddUserMountEntry(osutil.MountEntry{Dir: "bar", Name: "", Options: []string{"x-snapd.kind=ensure-dir"}}), IsNil)
+
 	c.Assert(s.spec.UserMountEntries(), DeepEquals, []osutil.MountEntry{
+		// First entry: leave intact
 		{Dir: "bar", Name: "fs1"},
+		// Different name: rename
 		{Dir: "bar-2", Name: "fs2"},
+		// Different name, Kind ensure-dir: leave intact, append to end
+		{Dir: "bar", Options: []string{"x-snapd.kind=ensure-dir"}},
+		// Same name , Kind ensure-dir: leave intact, append to end
+		{Dir: "bar", Options: []string{"x-snapd.kind=ensure-dir"}},
 	})
 
 	// extract the relevant part of the log
@@ -285,4 +294,30 @@ func (s *specSuite) TestParallelInstanceMountEntriesReal(c *C) {
 		{Name: "/var/snap/foo_instance", Dir: "/var/snap/foo", Options: []string{"rbind", "x-snapd.origin=overname"}},
 	})
 	c.Assert(s.spec.UserMountEntries(), HasLen, 0)
+}
+
+func (s *specSuite) TestAddUserEnsureDirHappy(c *C) {
+	ensureDirSpecs := []*interfaces.EnsureDirSpec{
+		{MustExistDir: "$HOME", EnsureDir: "$HOME/.local/share"},
+		{MustExistDir: "$HOME", EnsureDir: "$HOME/other/other"},
+		{MustExistDir: "/dir1", EnsureDir: "/dir1/dir2"},
+	}
+	err := s.spec.AddUserEnsureDirs(ensureDirSpecs)
+	c.Assert(err, IsNil)
+	c.Assert(s.spec.UserMountEntries(), DeepEquals, []osutil.MountEntry{
+		{Dir: "$HOME/.local/share", Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=$HOME"}},
+		{Dir: "$HOME/other/other", Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=$HOME"}},
+		{Dir: "/dir1/dir2", Options: []string{"x-snapd.kind=ensure-dir", "x-snapd.must-exist-dir=/dir1"}},
+	})
+}
+
+func (s *specSuite) TestAddUserEnsureErrorValidate(c *C) {
+	ensureDirSpecs := []*interfaces.EnsureDirSpec{
+		{MustExistDir: "$HOME", EnsureDir: "$HOME/.local/share"},
+		{MustExistDir: "$HOME", EnsureDir: "$HOME/other/other"},
+		{MustExistDir: "$SNAP_HOME", EnsureDir: "$SNAP_HOME/dir"},
+		{MustExistDir: "/dir1", EnsureDir: "/dir1/dir2"},
+	}
+	err := s.spec.AddUserEnsureDirs(ensureDirSpecs)
+	c.Assert(err, ErrorMatches, `internal error: cannot use ensure-dir mount specification: directory that must exist "\$SNAP_HOME" prefix "\$SNAP_HOME" is not allowed`)
 }
