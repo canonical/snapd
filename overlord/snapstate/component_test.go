@@ -20,6 +20,9 @@
 package snapstate_test
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
@@ -27,7 +30,30 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func (s *snapmgrTestSuite) TestIsComponentHelpers(c *C) {
+func (s *snapmgrTestSuite) mockComponentInfos(c *C, snapName string, compNames []string) {
+	cis := make([]*snap.ComponentInfo, len(compNames))
+	for i, comp := range compNames {
+		componentYaml := fmt.Sprintf(`component: %s+%s
+type: test
+version: 1.0
+`, snapName, comp)
+		ci, err := snap.InfoFromComponentYaml([]byte(componentYaml))
+		c.Assert(err, IsNil)
+		cis[i] = ci
+	}
+
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(
+		compMntDir string) (*snap.ComponentInfo, error) {
+		for _, ci := range cis {
+			if strings.HasSuffix(compMntDir, "/"+ci.Component.ComponentName) {
+				return ci, nil
+			}
+		}
+		panic("component info not found")
+	}))
+}
+
+func (s *snapmgrTestSuite) TestComponentHelpers(c *C) {
 	const snapName = "mysnap"
 	const compName = "mycomp"
 	const compName2 = "mycomp2"
@@ -46,6 +72,7 @@ func (s *snapmgrTestSuite) TestIsComponentHelpers(c *C) {
 	csi := snap.NewComponentSideInfo(cref, compRev)
 	cref2 := naming.NewComponentRef(snapName, compName2)
 	csi2 := snap.NewComponentSideInfo(cref2, compRev)
+	s.mockComponentInfos(c, snapName, []string{compName, compName2})
 
 	snapSt := &snapstate.SnapState{
 		Active: true,
@@ -59,6 +86,16 @@ func (s *snapmgrTestSuite) TestIsComponentHelpers(c *C) {
 
 	c.Check(snapSt.IsComponentInCurrentSeq(cref), Equals, true)
 	c.Check(snapSt.IsComponentRevPresent(csi), Equals, true)
+	foundCsi := snapSt.CurrentComponentSideInfo(cref)
+	c.Check(foundCsi, DeepEquals, csi)
+	foundCsi2 := snapSt.CurrentComponentSideInfo(cref2)
+	c.Check(foundCsi2, DeepEquals, csi2)
+	foundCi, err := snapSt.CurrentComponentInfo(cref)
+	c.Check(err, IsNil)
+	c.Check(foundCi, NotNil)
+	foundCi2, err := snapSt.CurrentComponentInfo(cref2)
+	c.Check(err, IsNil)
+	c.Check(foundCi2, NotNil)
 
 	snapSt = &snapstate.SnapState{
 		Active: true,
@@ -73,6 +110,11 @@ func (s *snapmgrTestSuite) TestIsComponentHelpers(c *C) {
 
 	c.Check(snapSt.IsComponentInCurrentSeq(cref), Equals, false)
 	c.Check(snapSt.IsComponentRevPresent(csi), Equals, true)
+	c.Check(snapSt.CurrentComponentSideInfo(cref), IsNil)
+	c.Check(snapSt.CurrentComponentSideInfo(cref2), IsNil)
+	foundCi, err = snapSt.CurrentComponentInfo(cref)
+	c.Check(err, ErrorMatches, "snap has no current revision")
+	c.Check(foundCi, IsNil)
 
 	snapSt = &snapstate.SnapState{
 		Active: true,
@@ -87,4 +129,6 @@ func (s *snapmgrTestSuite) TestIsComponentHelpers(c *C) {
 
 	c.Check(snapSt.IsComponentInCurrentSeq(cref), Equals, false)
 	c.Check(snapSt.IsComponentRevPresent(csi), Equals, false)
+	c.Check(snapSt.CurrentComponentSideInfo(cref), IsNil)
+	c.Check(snapSt.CurrentComponentSideInfo(cref2), IsNil)
 }

@@ -442,6 +442,27 @@ func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
 	panic("cannot find snapst.Current in the snapst.Sequence.Revisions")
 }
 
+// CurrentComponentSideInfo returns the component side info for the revision indicated by
+// snapst.Current in the snap revision sequence if there is one.
+func (snapst *SnapState) CurrentComponentSideInfo(cref naming.ComponentRef) *snap.ComponentSideInfo {
+	if !snapst.IsInstalled() {
+		return nil
+	}
+
+	if idx := snapst.LastIndex(snapst.Current); idx >= 0 {
+		for _, comp := range snapst.Sequence.Revisions[idx].Components {
+			if comp.Component == cref {
+				return comp
+			}
+		}
+		// component not found
+		return nil
+	}
+
+	// should not really happen as the method checks if the snap is installed
+	panic("cannot find snapst.Current in snapst.Sequence.Revisions")
+}
+
 func (snapst *SnapState) previousSideInfo() *snap.SideInfo {
 	n := len(snapst.Sequence.Revisions)
 	if n < 2 {
@@ -566,6 +587,25 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 
 	name := snap.InstanceName(cur.RealName, snapst.InstanceKey)
 	return readInfo(name, cur, withAuxStoreInfo)
+}
+
+// CurrentComponentInfo returns the information about the current active
+// revision or the last active revision (if the component is inactive). It
+// returns the ErrNoCurrent error if the component is not found.
+func (snapst *SnapState) CurrentComponentInfo(cref naming.ComponentRef) (*snap.ComponentInfo, error) {
+	csi := snapst.CurrentComponentSideInfo(cref)
+	if csi == nil {
+		return nil, ErrNoCurrent
+	}
+
+	si, err := snapst.CurrentInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
+		csi.Revision, si.InstanceName(), si.SnapRevision())
+	return readComponentInfo(cpi.MountDir())
 }
 
 func (snapst *SnapState) InstanceName() string {
