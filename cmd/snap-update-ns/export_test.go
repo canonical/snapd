@@ -49,13 +49,15 @@ var (
 	CurrentSystemProfilePath = currentSystemProfilePath
 
 	// user
+	IsPlausibleHome        = isPlausibleHome
 	DesiredUserProfilePath = desiredUserProfilePath
 	CurrentUserProfilePath = currentUserProfilePath
 
-	// xdg
+	// expand
 	XdgRuntimeDir        = xdgRuntimeDir
 	ExpandPrefixVariable = expandPrefixVariable
 	ExpandXdgRuntimeDir  = expandXdgRuntimeDir
+	ExpandHomeDir        = expandHomeDir
 
 	// update
 	ExecuteMountProfileUpdate = executeMountProfileUpdate
@@ -144,6 +146,22 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	}
 }
 
+func MockGetuid(fn func() sys.UserID) (restore func()) {
+	oldSysGetuid := sysGetuid
+	sysGetuid = fn
+	return func() {
+		sysGetuid = oldSysGetuid
+	}
+}
+
+func MockGetgid(fn func() sys.GroupID) (restore func()) {
+	oldSysGetgid := sysGetgid
+	sysGetgid = fn
+	return func() {
+		sysGetgid = oldSysGetgid
+	}
+}
+
 func MockChangePerform(f func(chg *Change, as *Assumptions) ([]*Change, error)) func() {
 	origChangePerform := changePerform
 	changePerform = f
@@ -171,6 +189,30 @@ func MockReadDir(fn func(string) ([]os.FileInfo, error)) (restore func()) {
 	ioutilReadDir = fn
 	return func() {
 		ioutilReadDir = old
+	}
+}
+
+// MockSnapConfineUserEnv provide the environment variables provided by snap-confine
+// when it calls snap-update-ns for a specific user
+func MockSnapConfineUserEnv(xdgNew, realHomeNew string) (restore func()) {
+	xdgCur, xdgExists := os.LookupEnv("XDG_RUNTIME_DIR")
+	realHomeCur, realHomeExists := os.LookupEnv("SNAP_REAL_HOME")
+
+	os.Setenv("XDG_RUNTIME_DIR", xdgNew)
+	os.Setenv("SNAP_REAL_HOME", realHomeNew)
+
+	return func() {
+		if xdgExists {
+			os.Setenv("XDG_RUNTIME_DIR", xdgCur)
+		} else {
+			os.Unsetenv("XDG_RUNTIME_DIR")
+		}
+
+		if realHomeExists {
+			os.Setenv("SNAP_REAL_HOME", realHomeCur)
+		} else {
+			os.Unsetenv("SNAP_REAL_HOME")
+		}
 	}
 }
 
