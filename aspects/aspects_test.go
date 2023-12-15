@@ -361,8 +361,8 @@ func (s *aspectSuite) TestAspectAssertionWithPlaceholder(c *C) {
 		{
 			testName: "one placeholder mapping to several",
 			rule:     map[string]string{"request": "multi.{foo}", "storage": "{foo}.multi.{foo}"},
-			request:  "multi.firstLast",
-			storage:  "firstLast.multi.firstLast",
+			request:  "multi.firstlast",
+			storage:  "firstlast.multi.firstlast",
 		},
 	} {
 		cmt := Commentf("sub-test %q failed", t.testName)
@@ -1032,4 +1032,76 @@ func (s *aspectSuite) TestGetMergeAtDifferentLevels(c *C) {
 		},
 	}
 	c.Assert(value, DeepEquals, expected)
+}
+
+func (s *aspectSuite) TestBadRequestPaths(c *C) {
+	databag := aspects.NewJSONDataBag()
+	aspectBundle, err := aspects.NewAspectBundle("acc", "bundle", map[string]interface{}{
+		"foo": []map[string]string{
+			{"request": "a.{b}.c", "storage": "a.{b}.c"},
+		},
+	}, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	asp := aspectBundle.Aspect("foo")
+	c.Assert(asp, NotNil)
+
+	err = databag.Set("a", map[string]interface{}{
+		"b": map[string]interface{}{
+			"c": "value",
+		},
+	})
+	c.Assert(err, IsNil)
+
+	type testcase struct {
+		request string
+		errMsg  string
+	}
+
+	tcs := []testcase{
+		{
+			request: "a.",
+			errMsg:  "cannot have empty subkeys",
+		},
+		{
+			request: "a.b.",
+			errMsg:  "cannot have empty subkeys",
+		},
+		{
+			request: ".a",
+			errMsg:  "cannot have empty subkeys",
+		},
+		{
+			request: ".",
+			errMsg:  "cannot have empty subkeys",
+		},
+		{
+			request: "a..b",
+			errMsg:  "cannot have empty subkeys",
+		},
+		{
+			request: "a.{b}",
+			errMsg:  `invalid subkey "{b}"`,
+		},
+		{
+			request: "a.-b",
+			errMsg:  `invalid subkey "-b"`,
+		},
+		{
+			request: "a.b-",
+			errMsg:  `invalid subkey "b-"`,
+		},
+	}
+
+	for _, tc := range tcs {
+		cmt := Commentf("test %q failed", tc.request)
+		err = asp.Set(databag, tc.request, "value")
+		c.Assert(err, NotNil, cmt)
+		c.Assert(err.Error(), Equals, fmt.Sprintf(`cannot parse Set request: %s`, tc.errMsg), cmt)
+
+		var value interface{}
+		err = asp.Get(databag, tc.request, &value)
+		c.Assert(err, NotNil, cmt)
+		c.Assert(err.Error(), Equals, fmt.Sprintf(`cannot parse Get request: %s`, tc.errMsg), cmt)
+	}
 }

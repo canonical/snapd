@@ -215,11 +215,12 @@ func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string) 
 //   - request and storage are composed of valid subkeys (see: validateAspectString)
 //   - all placeholders in a request are in the storage and vice-versa
 func validateRequestStoragePair(request, storage string) error {
-	if err := validateAspectDottedPath(request); err != nil {
+	opts := &validationOptions{allowPlaceholder: true}
+	if err := validateAspectDottedPath(request, opts); err != nil {
 		return fmt.Errorf("invalid request %q: %w", request, err)
 	}
 
-	if err := validateAspectDottedPath(storage); err != nil {
+	if err := validateAspectDottedPath(storage, opts); err != nil {
 		return fmt.Errorf("invalid storage %q: %w", storage, err)
 	}
 
@@ -246,20 +247,29 @@ var (
 	validUserType = validSubkey
 )
 
+type validationOptions struct {
+	// allowPlaceholder means that placeholders are accepted when validating.
+	allowPlaceholder bool
+}
+
 // validateAspectDottedPath validates that request/storage strings in an aspect definition are:
-//   - composed of non-empty, dot-separated subkeys with optional placeholders ("foo.{bar}")
+//   - composed of non-empty, dot-separated subkeys with optional placeholders ("foo.{bar}"),
+//     if allowed by the validationOptions
 //   - non-placeholder subkeys are made up of lowercase alphanumeric ASCII characters,
 //     optionally with dashes between alphanumeric characters (e.g., "a-b-c")
 //   - placeholder subkeys are composed of non-placeholder subkeys wrapped in curly brackets
-func validateAspectDottedPath(path string) (err error) {
-	subkeys := strings.Split(path, ".")
+func validateAspectDottedPath(path string, opts *validationOptions) (err error) {
+	if opts == nil {
+		opts = &validationOptions{}
+	}
 
+	subkeys := strings.Split(path, ".")
 	for _, subkey := range subkeys {
 		if subkey == "" {
 			return errors.New("cannot have empty subkeys")
 		}
 
-		if !(validSubkey.MatchString(subkey) || validPlaceholder.MatchString(subkey)) {
+		if !validSubkey.MatchString(subkey) && (!opts.allowPlaceholder || !validPlaceholder.MatchString(subkey)) {
 			return fmt.Errorf("invalid subkey %q", subkey)
 		}
 	}
@@ -300,6 +310,10 @@ type Aspect struct {
 
 // Set sets the named aspect to a specified value.
 func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
+	if err := validateAspectDottedPath(request, nil); err != nil {
+		return fmt.Errorf(`cannot parse Set request: %w`, err)
+	}
+
 	requestSubkeys := strings.Split(request, ".")
 	for _, accessPatt := range a.accessPatterns {
 		placeholders, _, ok := accessPatt.match(requestSubkeys)
@@ -346,7 +360,7 @@ func namespaceResult(res interface{}, suffixParts []string) (interface{}, error)
 			return nil, fmt.Errorf("internal error: expected databag to return map for unmatched placeholder")
 		}
 
-		level := make(map[string]interface{})
+		level := make(map[string]interface{}, len(values))
 		for k, v := range values {
 			nested, err := namespaceResult(v, suffixParts[1:])
 			if err != nil {
@@ -370,6 +384,10 @@ func namespaceResult(res interface{}, suffixParts []string) (interface{}, error)
 // Get returns the aspect value identified by the request. If either the named
 // aspect or the corresponding value can't be found, a NotFoundError is returned.
 func (a *Aspect) Get(databag DataBag, request string, value *interface{}) error {
+	if err := validateAspectDottedPath(request, nil); err != nil {
+		return fmt.Errorf(`cannot parse Get request: %w`, err)
+	}
+
 	matches, err := a.matchGetRequest(request)
 	if err != nil {
 		return err
@@ -454,7 +472,6 @@ type requestMatch struct {
 // prefix of. If no match is found, a NotFoundError is returned.
 func (a *Aspect) matchGetRequest(request string) (matches []requestMatch, err error) {
 	subkeys := strings.Split(request, ".")
-
 	for _, accessPatt := range a.accessPatterns {
 		placeholders, restSuffix, ok := accessPatt.match(subkeys)
 		if !ok {
