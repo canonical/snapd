@@ -1,5 +1,13 @@
 summary: Ensure that lxd works
 
+details: |
+    Verifies lxd snap works properly. Ensure we can run things inside lxd
+    container, we can use snapd inside lxd snd we can run snaps as regular
+    users. Check that we can run lxd as a snap inside a container to create
+    a nested container and we can use lxd as a snap inside lxd. Finally 
+    exercise the lxd interface and check that snaps in containers don't
+    prevent refreshes in the host.
+
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
 backends: [-autopkgtest]
@@ -78,8 +86,8 @@ execute: |
     # prep two containers, the my-ubuntu normal container and the
     # my-nesting-ubuntu nesting container
 
-    # There isn't an official image for mantic yet, let's use the community one
-    if os.query is-ubuntu 23.10; then
+    # There isn't an official image for noble yet, let's use the community one
+    if os.query is-ubuntu 24.04; then
         CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
         lxc launch --quiet "images:ubuntu/$CODENAME" my-ubuntu
         lxc launch --quiet "images:ubuntu/$CODENAME" my-nesting-ubuntu -c security.nesting=true
@@ -161,8 +169,8 @@ execute: |
     lxd.lxc exec my-nesting-ubuntu -- lxd waitready
     lxd.lxc exec my-nesting-ubuntu -- lxd init --auto
 
-    # There isn't an official image for mantic yet, let's use the community one
-    if os.query is-ubuntu 23.10; then
+    # There isn't an official image for noble yet, let's use the community one
+    if os.query is-ubuntu 24.04; then
       CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
       lxd.lxc exec my-nesting-ubuntu -- lxc launch --quiet "images:ubuntu/$CODENAME" my-inner-ubuntu
     else
