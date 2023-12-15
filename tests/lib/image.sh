@@ -72,6 +72,9 @@ get_google_image_url_for_vm() {
         ubuntu-23.10-64*)
             echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/mantic-server-cloudimg-amd64.img"
             ;;
+        ubuntu-24.04-64*)
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/noble-server-cloudimg-amd64.img"
+            ;;
         *)
             echo "unsupported system"
             exit 1
@@ -105,6 +108,9 @@ get_ubuntu_image_url_for_vm() {
             ;;
         ubuntu-23.10-64*)
             echo "https://cloud-images.ubuntu.com/mantic/current/mantic-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-24.04-64*)
+            echo "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"

@@ -1,5 +1,9 @@
 summary: Check that package remove and purge works inside LXD containers
 
+details: |
+    Verifies that the snapd package can be removed from inside a LXD container.
+    Also check that potentially problematic directories are gone.
+
 # Since it's only apt remove --purge and lxd tests are rather long, limit to a
 # couple of systems only. The postrm purge is more thoroughly checked in
 # tests/main/postrm-purge.
@@ -22,14 +26,13 @@ prepare: |
     echo "Install lxd"
     "$TESTSTOOLS"/lxd-state prepare-snap
 
-    # There isn't an official image for mantic yet, let's use the community one
-    if os.query is-ubuntu 23.10; then
-        CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
-        lxc launch --quiet "images:ubuntu/$CODENAME" my-ubuntu
-    else
-        VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
-        lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-ubuntu
+    REMOTE=ubuntu
+    # There isn't an official image for noble yet, let's use the daily one
+    if os.query is-ubuntu 24.04; then
+      REMOTE=ubuntu-daily
     fi
+    VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
+    lxd.lxc launch --quiet "$REMOTE:$VERSION_ID" my-ubuntu
 
     # precondition check
     if os.query is-pc-amd64 && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
