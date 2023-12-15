@@ -20,7 +20,6 @@
 package aspects_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -913,7 +912,7 @@ func (s *aspectSuite) TestGetUnmatchedPlaceholderReturnsAll(c *C) {
 	var value interface{}
 	err = aspect.Get(databag, "snaps", &value)
 	c.Assert(err, IsNil)
-	c.Assert(value, DeepEquals, map[string]interface{}{"snaps": map[string]interface{}{"snapd": json.RawMessage(`1`), "foo": json.RawMessage(`{"bar":2}`)}})
+	c.Assert(value, DeepEquals, map[string]interface{}{"snaps": map[string]interface{}{"snapd": float64(1), "foo": map[string]interface{}{"bar": float64(2)}}})
 }
 
 func (s *aspectSuite) TestGetUnmatchedPlaceholdersWithNestedValues(c *C) {
@@ -984,6 +983,48 @@ func (s *aspectSuite) TestGetSeveralUnmatchedPlaceholders(c *C) {
 			"b1": map[string]interface{}{
 				"c": map[string]interface{}{
 					"d1": map[string]interface{}{
+						"e": "end",
+					},
+				},
+			},
+		},
+	}
+	c.Assert(value, DeepEquals, expected)
+}
+
+func (s *aspectSuite) TestGetMergeAtDifferentLevels(c *C) {
+	databag := aspects.NewJSONDataBag()
+	aspectBundle, err := aspects.NewAspectBundle("acc", "bundle", map[string]interface{}{
+		"foo": []map[string]string{
+			{"request": "a.{b}.c.{d}.e", "storage": "a.{b}.c.{d}.e"},
+			{"request": "a.{b}.c.{d}", "storage": "a.{b}.c.{d}"},
+			{"request": "a.{b}", "storage": "a.{b}"},
+			{"request": "a", "storage": "a"},
+		},
+	}, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+	asp := aspectBundle.Aspect("foo")
+	c.Assert(asp, NotNil)
+
+	err = databag.Set("a", map[string]interface{}{
+		"b": map[string]interface{}{
+			"c": map[string]interface{}{
+				"d": map[string]interface{}{
+					"e": "end",
+				},
+			},
+		},
+	})
+	c.Assert(err, IsNil)
+
+	var value interface{}
+	err = asp.Get(databag, "a", &value)
+	c.Assert(err, IsNil)
+	expected := map[string]interface{}{
+		"a": map[string]interface{}{
+			"b": map[string]interface{}{
+				"c": map[string]interface{}{
+					"d": map[string]interface{}{
 						"e": "end",
 					},
 				},

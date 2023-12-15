@@ -706,11 +706,14 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *i
 	// read the final value
 	if index == len(subKeys)-1 {
 		if matchAll {
-			// request ends in placeholder so return the entire object (convert to
-			// interface{} so caller always gets map[string]interface{} for placeholders)
+			// request ends in placeholder so return map to all values (but unmarshal first)
 			level := make(map[string]interface{}, len(node))
 			for k, v := range node {
-				level[k] = interface{}(v)
+				var deser interface{}
+				if err := json.Unmarshal(v, &deser); err != nil {
+					return err
+				}
+				level[k] = deser
 			}
 
 			*result = level
