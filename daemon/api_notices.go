@@ -48,13 +48,12 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return Forbidden("cannot determine UID of request, so cannot retrieve notices")
 	}
-	daemonUID := uint32(sysGetuid())
 
 	// By default, return notices with the request UID and public notices.
 	userID := &requestUID
 
 	if len(query["user-id"]) > 0 {
-		if !isAdmin(requestUID, daemonUID) {
+		if requestUID != 0 {
 			return Forbidden(`only admins may use the "user-id" filter`)
 		}
 		userID, err = sanitizeUserIDFilter(query["user-id"])
@@ -64,7 +63,7 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	if len(query["select"]) > 0 {
-		if !isAdmin(requestUID, daemonUID) {
+		if requestUID != 0 {
 			return Forbidden(`only admins may use the "select" filter`)
 		}
 		if len(query["user-id"]) > 0 {
@@ -180,16 +179,11 @@ func sanitizeTypesFilter(queryTypes []string) ([]state.NoticeType, error) {
 	return types, nil
 }
 
-func isAdmin(requestUID, daemonUID uint32) bool {
-	return requestUID == 0 || requestUID == daemonUID
-}
-
 func getNotice(c *Command, r *http.Request, user *auth.UserState) Response {
 	requestUID, err := uidFromRequest(r)
 	if err != nil {
 		return Forbidden("cannot determine UID of request, so cannot retrieve notice")
 	}
-	daemonUID := uint32(sysGetuid())
 	noticeID := muxVars(r)["id"]
 	st := c.d.overlord.State()
 	st.Lock()
@@ -198,23 +192,24 @@ func getNotice(c *Command, r *http.Request, user *auth.UserState) Response {
 	if notice == nil {
 		return NotFound("cannot find notice with id %q", noticeID)
 	}
-	if !noticeViewableByUser(notice, requestUID, daemonUID) {
+	if !noticeViewableByUser(notice, requestUID) {
 		return Forbidden("not allowed to access notice with id %q", noticeID)
 	}
 	return SyncResponse(notice)
 }
 
-func noticeViewableByUser(notice *state.Notice, requestUID, daemonUID uint32) bool {
+// Only the user associated with the given notice, as well as the root user,
+// may view the notice. Snapd does also have authenticated admins which are not
+// root, but at the moment we do not have a level of notice visibility which
+// grants access to those admins, as well as root and the notice's user.
+func noticeViewableByUser(notice *state.Notice, requestUID uint32) bool {
 	userID, isSet := notice.UserID()
 	if !isSet {
 		return true
 	}
-	if isAdmin(requestUID, daemonUID) {
+	// Root is allowed to view any notice.
+	if requestUID == 0 {
 		return true
 	}
 	return requestUID == userID
-}
-
-func sysGetuid() uint32 {
-	return 0
 }

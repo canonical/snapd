@@ -40,24 +40,7 @@ func (s *noticesSuite) expectNoticesAccess() {
 	s.expectReadAccess(daemon.AuthenticatedAccess{})
 }
 
-func fakeSysGetuid(fakeUID uint32) (restore func()) {
-	/*
-		old := sysGetuid
-		sysGetuid = func() sys.UserID {
-			return sys.UserID(fakeUid)
-		}
-		restore = func() {
-			sysGetuid = old
-		}
-	*/
-	_ = fakeUID
-	restore = func() {}
-	return restore
-}
-
 func (s *noticesSuite) TestNoticesFilterUserID(c *C) {
-	restore := fakeSysGetuid(0)
-	defer restore()
 	// A bit hacky... filter by user ID which doesn't have any notices to just
 	// get public notices (those with nil user ID)
 	s.expectNoticesAccess()
@@ -67,8 +50,6 @@ func (s *noticesSuite) TestNoticesFilterUserID(c *C) {
 }
 
 func (s *noticesSuite) TestNoticesFilterType(c *C) {
-	restore := fakeSysGetuid(0)
-	defer restore()
 	s.expectNoticesAccess()
 	s.testNoticesFilter(c, func(after time.Time) url.Values {
 		return url.Values{"types": {"change-update"}}
@@ -76,8 +57,6 @@ func (s *noticesSuite) TestNoticesFilterType(c *C) {
 }
 
 func (s *noticesSuite) TestNoticesFilterKey(c *C) {
-	restore := fakeSysGetuid(0)
-	defer restore()
 	s.expectNoticesAccess()
 	s.testNoticesFilter(c, func(after time.Time) url.Values {
 		return url.Values{"keys": {"123"}}
@@ -85,8 +64,6 @@ func (s *noticesSuite) TestNoticesFilterKey(c *C) {
 }
 
 func (s *noticesSuite) TestNoticesFilterAfter(c *C) {
-	restore := fakeSysGetuid(0)
-	defer restore()
 	s.expectNoticesAccess()
 	s.testNoticesFilter(c, func(after time.Time) url.Values {
 		return url.Values{"after": {after.UTC().Format(time.RFC3339Nano)}}
@@ -94,8 +71,6 @@ func (s *noticesSuite) TestNoticesFilterAfter(c *C) {
 }
 
 func (s *noticesSuite) TestNoticesFilterAll(c *C) {
-	restore := fakeSysGetuid(0)
-	defer restore()
 	s.expectNoticesAccess()
 	s.testNoticesFilter(c, func(after time.Time) url.Values {
 		return url.Values{
@@ -161,8 +136,6 @@ func (s *noticesSuite) testNoticesFilter(c *C, makeQuery func(after time.Time) u
 func (s *noticesSuite) TestNoticesFilterMultipleTypes(c *C) {
 	s.expectNoticesAccess()
 	s.daemon(c)
-	restore := fakeSysGetuid(0)
-	defer restore()
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -189,8 +162,6 @@ func (s *noticesSuite) TestNoticesFilterMultipleTypes(c *C) {
 func (s *noticesSuite) TestNoticesFilterMultipleKeys(c *C) {
 	s.expectNoticesAccess()
 	s.daemon(c)
-	restore := fakeSysGetuid(0)
-	defer restore()
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -219,8 +190,6 @@ func (s *noticesSuite) TestNoticesFilterMultipleKeys(c *C) {
 func (s *noticesSuite) TestNoticesFilterInvalidTypes(c *C) {
 	s.expectNoticesAccess()
 	s.daemon(c)
-	restore := fakeSysGetuid(0)
-	defer restore()
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -259,8 +228,6 @@ func (s *noticesSuite) TestNoticesFilterInvalidTypes(c *C) {
 func (s *noticesSuite) TestNoticesUserIDAdminDefault(c *C) {
 	s.expectNoticesAccess()
 	s.daemon(c)
-	restore := fakeSysGetuid(0)
-	defer restore()
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -297,8 +264,6 @@ func (s *noticesSuite) TestNoticesUserIDAdminDefault(c *C) {
 func (s *noticesSuite) TestNoticesUserIDAdminFilter(c *C) {
 	s.expectNoticesAccess()
 	s.daemon(c)
-	restore := fakeSysGetuid(0)
-	defer restore()
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -338,8 +303,6 @@ func (s *noticesSuite) TestNoticesUserIDAdminFilter(c *C) {
 func (s *noticesSuite) TestNoticesUserIDNonAdminDefault(c *C) {
 	s.expectNoticesAccess()
 	s.daemon(c)
-	restore := fakeSysGetuid(0)
-	defer restore()
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -376,8 +339,6 @@ func (s *noticesSuite) TestNoticesUserIDNonAdminDefault(c *C) {
 func (s *noticesSuite) TestNoticesUserIDNonAdminFilter(c *C) {
 	s.expectNoticesAccess()
 	s.daemon(c)
-	restore := fakeSysGetuid(0)
-	defer restore()
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -397,8 +358,6 @@ func (s *noticesSuite) TestNoticesUserIDNonAdminFilter(c *C) {
 func (s *noticesSuite) TestNoticesUnknownRequestUID(c *C) {
 	s.expectNoticesAccess()
 	s.daemon(c)
-	restore := fakeSysGetuid(0)
-	defer restore()
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -416,8 +375,6 @@ func (s *noticesSuite) TestNoticesUnknownRequestUID(c *C) {
 func (s *noticesSuite) TestNoticesWait(c *C) {
 	s.expectNoticesAccess()
 	s.daemon(c)
-	restore := fakeSysGetuid(0)
-	defer restore()
 
 	st := s.d.Overlord().State()
 	go func() {
@@ -446,8 +403,6 @@ func (s *noticesSuite) TestNoticesWait(c *C) {
 func (s *noticesSuite) TestNoticesTimeout(c *C) {
 	s.expectNoticesAccess()
 	s.daemon(c)
-	restore := fakeSysGetuid(0)
-	defer restore()
 
 	req, err := http.NewRequest("GET", "/v2/notices?timeout=1ms", nil)
 	c.Assert(err, IsNil)
@@ -463,8 +418,6 @@ func (s *noticesSuite) TestNoticesTimeout(c *C) {
 func (s *noticesSuite) TestNoticesRequestCancelled(c *C) {
 	s.expectNoticesAccess()
 	s.daemon(c)
-	restore := fakeSysGetuid(0)
-	defer restore()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -493,29 +446,21 @@ func (s *noticesSuite) TestNoticesRequestCancelled(c *C) {
 
 func (s *noticesSuite) TestNoticesInvalidUserID(c *C) {
 	s.expectNoticesAccess()
-	restore := fakeSysGetuid(0)
-	defer restore()
 	s.testNoticesBadRequest(c, "user-id=foo", `invalid "user-id" filter:.*`)
 }
 
 func (s *noticesSuite) TestNoticesInvalidSelect(c *C) {
 	s.expectNoticesAccess()
-	restore := fakeSysGetuid(0)
-	defer restore()
 	s.testNoticesBadRequest(c, "select=foo", `invalid "select" filter:.*`)
 }
 
 func (s *noticesSuite) TestNoticesInvalidAfter(c *C) {
 	s.expectNoticesAccess()
-	restore := fakeSysGetuid(0)
-	defer restore()
 	s.testNoticesBadRequest(c, "after=foo", `invalid "after" timestamp.*`)
 }
 
 func (s *noticesSuite) TestNoticesInvalidTimeout(c *C) {
 	s.expectNoticesAccess()
-	restore := fakeSysGetuid(0)
-	defer restore()
 	s.testNoticesBadRequest(c, "timeout=foo", "invalid timeout.*")
 }
 
@@ -533,8 +478,6 @@ func (s *noticesSuite) testNoticesBadRequest(c *C, query, errorMatch string) {
 func (s *noticesSuite) TestNotice(c *C) {
 	s.expectNoticesAccess()
 	s.daemon(c)
-	restore := fakeSysGetuid(0)
-	defer restore()
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -577,8 +520,6 @@ func (s *noticesSuite) TestNotice(c *C) {
 func (s *noticesSuite) TestNoticeNotFound(c *C) {
 	s.expectNoticesAccess()
 	s.daemon(c)
-	restore := fakeSysGetuid(0)
-	defer restore()
 
 	req, err := http.NewRequest("GET", "/v2/notices/1234", nil)
 	c.Assert(err, IsNil)
@@ -590,8 +531,6 @@ func (s *noticesSuite) TestNoticeNotFound(c *C) {
 func (s *noticesSuite) TestNoticeUnknownRequestUID(c *C) {
 	s.expectNoticesAccess()
 	s.daemon(c)
-	restore := fakeSysGetuid(0)
-	defer restore()
 
 	req, err := http.NewRequest("GET", "/v2/notices/1234", nil)
 	c.Assert(err, IsNil)
@@ -603,8 +542,6 @@ func (s *noticesSuite) TestNoticeUnknownRequestUID(c *C) {
 func (s *noticesSuite) TestNoticeNotAllowed(c *C) {
 	s.expectNoticesAccess()
 	s.daemon(c)
-	restore := fakeSysGetuid(0)
-	defer restore()
 
 	st := s.d.Overlord().State()
 	st.Lock()
