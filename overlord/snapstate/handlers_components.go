@@ -86,7 +86,7 @@ func (m *SnapManager) doPrepareComponent(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) (err error) {
 	st := t.State()
 	st.Lock()
 	perfTimings := state.TimingsForTask(t)
@@ -110,22 +110,26 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) error {
 	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
 		csi.Revision, snapsup.InstanceName(), snapsup.Revision())
 
-	cleanup := func() {
+	defer func() {
 		st.Lock()
 		defer st.Unlock()
+
+		if err == nil {
+			return
+		}
 
 		// RemoveComponentDir is idempotent so it's ok to always
 		// call it in the cleanup path.
 		if err := m.backend.RemoveComponentDir(cpi); err != nil {
 			t.Errorf("cannot cleanup partial setup component %q: %v",
-				compSetup.CompSideInfo, err)
+				csi.Component, err)
 		}
-	}
+	}()
 
 	pm := NewTaskProgressAdapterUnlocked(t)
 	var installRecord *backend.InstallRecord
 	timings.Run(perfTimings, "setup-component",
-		fmt.Sprintf("setup component %q", compSetup.CompSideInfo.Component),
+		fmt.Sprintf("setup component %q", csi.Component),
 		func(timings.Measurer) {
 			installRecord, err = m.backend.SetupComponent(
 				compSetup.CompPath,
@@ -134,7 +138,6 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) error {
 				pm)
 		})
 	if err != nil {
-		cleanup()
 		return err
 	}
 
@@ -145,8 +148,7 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) error {
 		_, readInfoErr = readComponentInfo(compMntDir)
 		if readInfoErr == nil {
 			logger.Debugf("component %q (%v) available at %q",
-				compSetup.CompSideInfo.Component,
-				compSetup.Revision(), compMntDir)
+				csi.Component, compSetup.Revision(), compMntDir)
 			break
 		}
 		// snap not found, seems is not mounted yet
@@ -154,8 +156,7 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) error {
 	}
 	if readInfoErr != nil {
 		timings.Run(perfTimings, "undo-setup-component",
-			fmt.Sprintf("Undo setup of component %q",
-				compSetup.CompSideInfo.Component),
+			fmt.Sprintf("Undo setup of component %q", csi.Component),
 			func(timings.Measurer) {
 				err = m.backend.UndoSetupComponent(cpi,
 					installRecord, deviceCtx, pm)
@@ -163,13 +164,12 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) error {
 		if err != nil {
 			st.Lock()
 			t.Errorf("cannot undo partial setup of component %q: %v",
-				compSetup.CompSideInfo.Component, err)
+				csi.Component, err)
 			st.Unlock()
 		}
 
-		cleanup()
-		return fmt.Errorf("expected component %q rev %v to be mounted but is not: %w",
-			compSetup.CompSideInfo.Component, compSetup.Revision(), readInfoErr)
+		return fmt.Errorf("expected component %q revision %v to be mounted but is not: %w",
+			csi.Component, compSetup.Revision(), readInfoErr)
 	}
 
 	st.Lock()
@@ -198,7 +198,7 @@ func (m *SnapManager) undoMountComponent(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Lock()
-	deviceCtx, err := DeviceCtx(t.State(), t, nil)
+	deviceCtx, err := DeviceCtx(st, t, nil)
 	st.Unlock()
 	if err != nil {
 		return err

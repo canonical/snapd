@@ -74,11 +74,16 @@ func verifyComponentInstallTasks(c *C, opts int, ts *state.TaskSet) {
 
 	// Check presence of attributes
 	var firstTaskID string
+	var compSetup snapstate.ComponentSetup
+	var snapsup snapstate.SnapSetup
 	for i, t := range ts.Tasks() {
 		switch i {
 		case 0:
-			var compSetup snapstate.ComponentSetup
-			var snapsup snapstate.SnapSetup
+			if t.Change() == nil {
+				// Add to a change so we can call snapstate.TaskComponentSetup
+				chg := t.State().NewChange("install", "install...")
+				chg.AddAll(ts)
+			}
 			c.Assert(t.Get("component-setup", &compSetup), IsNil)
 			c.Assert(t.Get("snap-setup", &snapsup), IsNil)
 			firstTaskID = t.ID()
@@ -89,6 +94,11 @@ func verifyComponentInstallTasks(c *C, opts int, ts *state.TaskSet) {
 			c.Assert(t.Get("snap-setup-task", &storedTaskID), IsNil)
 			c.Assert(storedTaskID, Equals, firstTaskID)
 		}
+		// ComponentSetup/SnapSetup found must match the ones from the first task
+		csup, ssup, err := snapstate.TaskComponentSetup(t)
+		c.Assert(err, IsNil)
+		c.Assert(csup, DeepEquals, &compSetup)
+		c.Assert(ssup, DeepEquals, &snapsup)
 	}
 }
 
@@ -135,6 +145,18 @@ func createTestSnapSetup(info *snap.Info, flags snapstate.Flags) *snapstate.Snap
 	}
 }
 
+func (s *snapmgrTestSuite) setStateWithOneSnap(c *C, snapName string, snapRev snap.Revision) {
+	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
+		SnapID: "snapidididididididididididididid"}
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*snapstate.RevisionSideState{
+				snapstate.NewRevisionSideInfo(ssi, nil)}),
+		Current: snapRev,
+	})
+}
+
 func (s *snapmgrTestSuite) setStateWithOneComponent(c *C, snapName string,
 	snapRev snap.Revision, compName string, compRev snap.Revision) {
 	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
@@ -153,11 +175,14 @@ func (s *snapmgrTestSuite) setStateWithOneComponent(c *C, snapName string,
 func (s *snapmgrTestSuite) TestInstallComponentPath(c *C) {
 	const snapName = "mysnap"
 	const compName = "mycomp"
+	snapRev := snap.R(1)
 	_, compPath := createTestComponent(c, snapName, compName)
-	info := createTestSnapInfoForComponent(c, snapName, snap.R(1), compName)
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	s.setStateWithOneSnap(c, snapName, snapRev)
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
 		SnapName: snapName, ComponentName: compName}, snap.R(33))
@@ -169,6 +194,67 @@ func (s *snapmgrTestSuite) TestInstallComponentPath(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	// File is not deleted
 	c.Assert(osutil.FileExists(compPath), Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentPathForParallelInstall(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	const snapKey = "key"
+	snapRev := snap.R(1)
+	_, compPath := createTestComponent(c, snapName, compName)
+	info := createTestSnapInfoForComponent(c, snapName, snap.R(1), compName)
+	info.InstanceKey = snapKey
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// The instance is already installed to make sure it is checked
+	instanceName := snap.InstanceName(snapName, snapKey)
+	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev}
+	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*snapstate.RevisionSideState{
+				snapstate.NewRevisionSideInfo(ssi, nil)}),
+		Current:     snapRev,
+		InstanceKey: snapKey,
+	})
+
+	csi := snap.NewComponentSideInfo(naming.ComponentRef{
+		SnapName: snapName, ComponentName: compName}, snap.R(33))
+	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	verifyComponentInstallTasks(c, compOptIsLocal, ts)
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	// File is not deleted
+	c.Assert(osutil.FileExists(compPath), Equals, true)
+
+	var snapsup snapstate.SnapSetup
+	c.Assert(ts.Tasks()[0].Get("snap-setup", &snapsup), IsNil)
+	c.Assert(snapsup.InstanceKey, Equals, snapKey)
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentPathWrongSnap(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	_, compPath := createTestComponent(c, snapName, compName)
+	info := createTestSnapInfoForComponent(c, "other-snap", snapRev, compName)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setStateWithOneSnap(c, "other-snap", snapRev)
+
+	csi := snap.NewComponentSideInfo(naming.ComponentRef{
+		SnapName: snapName, ComponentName: compName}, snap.R(33))
+	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{})
+	c.Assert(ts, IsNil)
+	c.Assert(err.Error(), Equals,
+		`component snap name "mysnap" does not match snap name "other-snap"`)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresent(c *C) {
@@ -291,4 +377,29 @@ func (s *snapmgrTestSuite) TestInstallComponentPathSnapNotActive(c *C) {
 	c.Assert(err.Error(), Equals, `cannot install component "mysnap+mycomp" for disabled snap "mysnap"`)
 	c.Assert(ts, IsNil)
 	c.Assert(osutil.FileExists(compPath), Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestInstallRemodelConflict(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	_, compPath := createTestComponent(c, snapName, compName)
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setStateWithOneSnap(c, snapName, snapRev)
+
+	tugc := s.state.NewTask("update-managed-boot-config", "update managed boot config")
+	chg := s.state.NewChange("remodel", "remodel")
+	chg.AddTask(tugc)
+
+	csi := snap.NewComponentSideInfo(naming.ComponentRef{
+		SnapName: snapName, ComponentName: compName}, snap.R(33))
+	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{})
+	c.Assert(ts, IsNil)
+	c.Assert(err.Error(), Equals,
+		`remodeling in progress, no other changes allowed until this is done`)
 }

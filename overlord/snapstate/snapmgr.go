@@ -401,9 +401,9 @@ func (snapst *SnapState) IsInstalled() bool {
 	return true
 }
 
-// IsComponentInstalled returns whether a give component is installed, i.e.
-// snapst represents an installed snap with Current revision set.
-func (snapst *SnapState) IsComponentInstalled(cref naming.ComponentRef) bool {
+// IsComponentInCurrentSeq returns whether a given component is present for the
+// snap represented by snapst in the active or last active revision.
+func (snapst *SnapState) IsComponentInCurrentSeq(cref naming.ComponentRef) bool {
 	if !snapst.IsInstalled() {
 		return false
 	}

@@ -166,10 +166,8 @@ func (s *mountCompSnapSuite) TestDoMountComponentSetupFails(c *C) {
 
 	s.state.Unlock()
 
-	for i := 0; i < 3; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-	}
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 
@@ -268,15 +266,13 @@ func (s *mountCompSnapSuite) TestDoMountComponentMountFails(c *C) {
 
 	s.state.Unlock()
 
-	for i := 0; i < 3; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-	}
+	s.se.Ensure()
+	s.se.Wait()
 
 	s.state.Lock()
 
 	c.Check(chg.Err().Error(), Equals, "cannot perform the following tasks:\n"+
-		"- task desc (expected component \"mysnap+mycomp\" rev 7 "+
+		"- task desc (expected component \"mysnap+mycomp\" revision 7 "+
 		"to be mounted but is not: cannot read component)")
 
 	// ensure undo was called the right way

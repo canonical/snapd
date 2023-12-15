@@ -20,7 +20,6 @@
 package snapstate
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
@@ -40,8 +39,9 @@ import (
 func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info,
 	path string, flags Flags) (*state.TaskSet, error) {
 	var snapst SnapState
+	// owner snap must be already installed
 	err := Get(st, info.InstanceName(), &snapst)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
+	if err != nil {
 		return nil, err
 	}
 
@@ -78,7 +78,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 	return doInstallComponent(st, &snapst, compSetup, snapsup, path, removeComponentPath, "")
 }
 
-// doInstallComponent assumes that the owner snap is already installed.
+// doInstallComponent might be called with the owner snap installed or not.
 func doInstallComponent(st *state.State, snapst *SnapState, compSetup *ComponentSetup,
 	snapsup *SnapSetup, path string, removeComponentPath bool, fromChange string) (*state.TaskSet, error) {
 
@@ -154,7 +154,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 
 	// We might be replacing a component if a local install, otherwise
 	// this is not really possible.
-	compInstalled := snapst.IsComponentInstalled(compSi.Component)
+	compInstalled := snapst.IsComponentInCurrentSeq(compSi.Component)
 	if compInstalled {
 		unlink := st.NewTask("unlink-current-component", fmt.Sprintf(i18n.G(
 			"Make current revision for component %q unavailable"),
