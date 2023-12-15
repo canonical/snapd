@@ -369,37 +369,37 @@ jobs:
           - group: amazon-linux
             system: amazon-linux-2-64 amazon-linux-2023-64
           - group: arch-linux
-            system: arch-linux-64
+            systems: arch-linux-64
           - group: centos
-            system: centos-7-64 centos-8-64 centos-9-64
-          - group: debian-required
-            system: debian-11-64
-          - group: debian-no-required
+            systems: centos-7-64 centos-8-64 centos-9-64
+          - group: debian-req
+            systems: debian-11-64
+          - group: debian-no-req
             system: debian-12-64 debian-sid-64
           - group: fedora
             system: fedora-38-64 fedora-39-64
           - group: opensuse
-            system: opensuse-15.4-64 opensuse-15.5-64 opensuse-tumbleweed-64
+            systems: opensuse-15.4-64 opensuse-15.5-64 opensuse-tumbleweed-64
           - group: ubuntu-trusty-xenial
             system: ubuntu-14.04-64 ubuntu-16.04-64
           - group: ubuntu-bionic
-            system: ubuntu-18.04-32 ubuntu-18.04-64
+            systems: ubuntu-18.04-32 ubuntu-18.04-64
           - group: ubuntu-focal-jammy
             system: ubuntu-20.04-64 ubuntu-22.04-64
           - group: ubuntu-no-lts
             system: ubuntu-23.04-64 ubuntu-23.10-64
           - group: ubuntu-core-16
-            system: ubuntu-core-16-64
+            systems: ubuntu-core-16-64
           - group: ubuntu-core-18
-            system: ubuntu-core-18-64
+            systems: ubuntu-core-18-64
           - group: ubuntu-core-20
-            system: ubuntu-core-20-64
+            systems: ubuntu-core-20-64
           - group: ubuntu-core-22
-            system: ubuntu-core-22-64
+            systems: ubuntu-core-22-64
           - group: ubuntu-arm
-            system: ubuntu-20.04-arm-64 ubuntu-core-22-arm-64
+            systems: ubuntu-20.04-arm-64 ubuntu-core-22-arm-64
           - group: ubuntu-secboot
-            system: ubuntu-secboot-20.04-64
+            systems: ubuntu-secboot-20.04-64
     steps:
     - name: Cleanup job workspace
       id: cleanup-job-workspace
@@ -469,8 +469,8 @@ jobs:
           fi
 
           # Save previous failed test results in FAILED_TESTS env var
-          RUN_TESTS=
-          for SYSTEM in ${{ matrix.system }}; do
+          RUN_TESTS=""
+          for SYSTEM in ${{ matrix.systems }}; do
               RUN_TESTS="$RUN_TESTS $BACKEND:$SYSTEM:tests/..."
           done
           if [ -n "$FAILED_TESTS" ]; then
@@ -521,8 +521,8 @@ jobs:
               fi
 
               echo "Determining which tests were executed"
-              RUN_TESTS=
-              for SYSTEM in ${{ matrix.system }}; do
+              RUN_TESTS=""
+              for SYSTEM in ${{ matrix.systems }}; do
                   RUN_TESTS="$RUN_TESTS $BACKEND:$SYSTEM:tests/..."
               done
               if [ -n "$FAILED_TESTS" ]; then
