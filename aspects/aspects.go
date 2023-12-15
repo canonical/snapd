@@ -353,6 +353,8 @@ func namespaceResult(res interface{}, suffixParts []string) (interface{}, error)
 		return res, nil
 	}
 
+	// check if the part is an unmatched placeholder which should have been filled
+	// by the databag with all possible values
 	part := suffixParts[0]
 	if part[0] == '{' && part[len(part)-1] == '}' {
 		values, ok := res.(map[string]interface{})
