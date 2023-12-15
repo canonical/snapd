@@ -139,7 +139,23 @@ func (resrev *SnapResourceRevision) Prerequisites() []*Ref {
 	}
 }
 
+func checkResourceName(headers map[string]interface{}) error {
+	resName, err := checkNotEmptyString(headers, "resource-name")
+	if err != nil {
+		return err
+	}
+	// same format as snap names
+	if err := naming.ValidateSnap(resName); err != nil {
+		return fmt.Errorf("invalid resource name %q", resName)
+	}
+	return nil
+}
+
 func assembleSnapResourceRevision(assert assertionBase) (Assertion, error) {
+	if err := checkResourceName(assert.headers); err != nil {
+		return nil, err
+	}
+
 	_, err := checkDigest(assert.headers, "resource-sha3-384", crypto.SHA3_384)
 	if err != nil {
 		return nil, err
@@ -285,6 +301,10 @@ func (respair *SnapResourcePair) Prerequisites() []*Ref {
 }
 
 func assembleSnapResourcePair(assert assertionBase) (Assertion, error) {
+	if err := checkResourceName(assert.headers); err != nil {
+		return nil, err
+	}
+
 	_, err := checkStringMatches(assert.headers, "provenance", naming.ValidProvenance)
 	if err != nil {
 		return nil, err
