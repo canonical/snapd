@@ -356,6 +356,7 @@ jobs:
     # release branches
     if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
     runs-on: self-hosted
+    name: ${{ matrix.group }}
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
       # Disable fail-fast mode as it doesn't function with spread. It seems
@@ -371,30 +372,22 @@ jobs:
             system: arch-linux-64
           - group: centos
             system: centos-7-64 centos-8-64 centos-9-64
-          - group: debian-11
+          - group: debian-required
             system: debian-11-64
-          - group: debian-12
-            system: debian-12-64
-          - group: debian-sid
-            system: debian-sid-64
+          - group: debian-no-required
+            system: debian-12-64 debian-sid-64
           - group: fedora
             system: fedora-38-64 fedora-39-64
           - group: opensuse
             system: opensuse-15.4-64 opensuse-15.5-64 opensuse-tumbleweed-64
-          - group: ubuntu-14.04
-            system: ubuntu-14.04
-          - group: ubuntu-16.04
-            system: ubuntu-16.04
-          - group: ubuntu-18.04
+          - group: ubuntu-trusty-xenial
+            system: ubuntu-14.04-64 ubuntu-16.04-64
+          - group: ubuntu-bionic
             system: ubuntu-18.04-32 ubuntu-18.04-64
-          - group: ubuntu-20.04
-            system: ubuntu-20.04-64
-          - group: ubuntu-22.04
-            system: ubuntu-22.04-64
-          - group: ubuntu-23.04
-            system: ubuntu-23.04-64
-          - group: ubuntu-23.10
-            system: ubuntu-23.10-64
+          - group: ubuntu-focal-jammy
+            system: ubuntu-20.04-64 ubuntu-22.04-64
+          - group: ubuntu-no-lts
+            system: ubuntu-23.04-64 ubuntu-23.10-64
           - group: ubuntu-core-16
             system: ubuntu-core-16-64
           - group: ubuntu-core-18
