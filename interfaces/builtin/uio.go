@@ -22,6 +22,7 @@ package builtin
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -104,7 +105,7 @@ func (iface *uioInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	spec.AddDeduplicatedSnippet("/sys/devices/platform/**/uio/uio[0-9]** r,  # common rule for all uio connections")
 
 	// Allow uio configuration
-	uioConfigPath := "/sys/class/uio/" + strings.TrimPrefix(path, "/dev/") + "/device/config"
+	uioConfigPath := filepath.Join("/sys/class/uio/", strings.TrimPrefix(path, "/dev/"), "/device/config")
 	dereferencedPath, err := evalSymlinks(uioConfigPath)
 	if err != nil && os.IsNotExist(err) {
 		// This should not block the interface connection operation
