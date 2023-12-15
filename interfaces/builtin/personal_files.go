@@ -130,7 +130,7 @@ func (iface *personalFilesInterface) MountConnectedPlug(spec *mount.Specificatio
 	}
 	if len(ensureDirSpecs) > 0 {
 		if err = spec.AddUserEnsureDirs(ensureDirSpecs); err != nil {
-			return fmt.Errorf("cannot connect plug %s, %v", plug.Name(), err)
+			return fmt.Errorf("cannot connect plug %s: %v", plug.Name(), err)
 		}
 	}
 	return nil
