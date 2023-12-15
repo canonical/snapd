@@ -151,6 +151,9 @@ backends:
             - ubuntu-23.10-64:
                   storage: 12G
                   workers: 8
+            - ubuntu-24.04-64:
+                  storage: 12G
+                  workers: 8
 
             - debian-11-64:
                   workers: 6

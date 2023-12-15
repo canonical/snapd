@@ -382,6 +382,7 @@ jobs:
         - ubuntu-22.04-64
         - ubuntu-23.04-64
         - ubuntu-23.10-64
+        - ubuntu-24.04-64
         - ubuntu-core-16-64
         - ubuntu-core-18-64
         - ubuntu-core-20-64
