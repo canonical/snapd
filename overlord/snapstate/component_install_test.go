@@ -145,10 +145,10 @@ func createTestSnapSetup(info *snap.Info, flags snapstate.Flags) *snapstate.Snap
 	}
 }
 
-func (s *snapmgrTestSuite) setStateWithOneSnap(c *C, snapName string, snapRev snap.Revision) {
+func setStateWithOneSnap(st *state.State, snapName string, snapRev snap.Revision) {
 	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
 		SnapID: "some-snap-id"}
-	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+	snapstate.Set(st, snapName, &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*snapstate.RevisionSideState{
@@ -157,17 +157,21 @@ func (s *snapmgrTestSuite) setStateWithOneSnap(c *C, snapName string, snapRev sn
 	})
 }
 
-func (s *snapmgrTestSuite) setStateWithOneComponent(c *C, snapName string,
+func setStateWithOneComponent(st *state.State, snapName string,
 	snapRev snap.Revision, compName string, compRev snap.Revision) {
+	csi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), compRev)
+	setStateWithComponents(st, snapName, snapRev, []*snap.ComponentSideInfo{csi})
+}
+
+func setStateWithComponents(st *state.State, snapName string,
+	snapRev snap.Revision, comps []*snap.ComponentSideInfo) {
 	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
 		SnapID: "some-snap-id"}
-	csi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), compRev)
-	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+	snapstate.Set(st, snapName, &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*snapstate.RevisionSideState{
-				snapstate.NewRevisionSideInfo(ssi,
-					[]*snap.ComponentSideInfo{csi})}),
+				snapstate.NewRevisionSideInfo(ssi, comps)}),
 		Current: snapRev,
 	})
 }
@@ -182,7 +186,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPath(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.setStateWithOneSnap(c, snapName, snapRev)
+	setStateWithOneSnap(s.state, snapName, snapRev)
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
 		SnapName: snapName, ComponentName: compName}, snap.R(33))
@@ -246,7 +250,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathWrongSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.setStateWithOneSnap(c, "other-snap", snapRev)
+	setStateWithOneSnap(s.state, "other-snap", snapRev)
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
 		SnapName: snapName, ComponentName: compName}, snap.R(33))
@@ -269,7 +273,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresent(c *C) {
 	defer s.state.Unlock()
 
 	// Current component same revision to the one we install
-	s.setStateWithOneComponent(c, snapName, snapRev, compName, compRev)
+	setStateWithOneComponent(s.state, snapName, snapRev, compName, compRev)
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
 		SnapName: snapName, ComponentName: compName}, compRev)
@@ -337,7 +341,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompAlreadyInstalled(c *C) {
 	defer s.state.Unlock()
 
 	// Current component revision different to the one we install
-	s.setStateWithOneComponent(c, snapName, snapRev, compName, snap.R(7))
+	setStateWithOneComponent(s.state, snapName, snapRev, compName, snap.R(7))
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
 		SnapName: snapName, ComponentName: compName}, compRev)
@@ -389,7 +393,7 @@ func (s *snapmgrTestSuite) TestInstallComponentRemodelConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.setStateWithOneSnap(c, snapName, snapRev)
+	setStateWithOneSnap(s.state, snapName, snapRev)
 
 	tugc := s.state.NewTask("update-managed-boot-config", "update managed boot config")
 	chg := s.state.NewChange("remodel", "remodel")
@@ -414,7 +418,7 @@ func (s *snapmgrTestSuite) TestInstallComponentUpdateConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.setStateWithOneSnap(c, snapName, snapRev)
+	setStateWithOneSnap(s.state, snapName, snapRev)
 
 	tupd, err := snapstate.Update(s.state, snapName,
 		&snapstate.RevisionOptions{Channel: ""}, s.user.ID,
