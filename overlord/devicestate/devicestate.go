@@ -1092,6 +1092,10 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 		return nil, fmt.Errorf("cannot remodel from grade %v to grade %v", current.Grade(), new.Grade())
 	}
 
+	if new.Base() == "" && current.Base() != "" {
+		return nil, errors.New("cannot remodel from UC18+ (using snapd snap) system back to UC16 system (using core snap)")
+	}
+
 	// TODO: we need dedicated assertion language to permit for
 	// model transitions before we allow cross vault
 	// transitions.
