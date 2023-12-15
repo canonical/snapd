@@ -27,6 +27,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -226,21 +227,15 @@ func IsLocked(snapName string) (Hint, InhibitInfo, error) {
 		return "", InhibitInfo{}, err
 	}
 	// Read hint
-	buf, err := ioutil.ReadAll(hintFlock.File())
+	hint, err := hintFromFile(hintFlock.File())
 	if err != nil {
 		return "", InhibitInfo{}, err
 	}
-	hint := Hint(string(buf))
 	if hint == HintNotInhibited {
 		return hint, InhibitInfo{}, nil
 	}
 	// Read inhibit info
-	buf, err = ioutil.ReadFile(InhibitInfoFile(snapName, hint))
-	if err != nil {
-		return "", InhibitInfo{}, err
-	}
-	var info InhibitInfo
-	err = json.Unmarshal(buf, &info)
+	info, err := readInhibitInfo(snapName, hint)
 	if err != nil {
 		return "", InhibitInfo{}, err
 	}
@@ -282,4 +277,114 @@ func RemoveLockFile(snapName string) error {
 	}
 
 	return nil
+}
+
+// needed for better mocking
+type ticker interface {
+	Wait()
+}
+
+type timeTicker struct {
+	interval time.Duration
+}
+
+func (t *timeTicker) Wait() {
+	time.Sleep(t.interval)
+}
+
+var newTicker = func(interval time.Duration) ticker {
+	return &timeTicker{interval}
+}
+
+// WaitWhileInhibited blocks until snap is not inhibited anymore returning
+// a locked hint file lock.
+//
+// "notInhibted" and "inhibited" callbacks are called with the hint file lock held.
+// If inhibited callback returns true, WaitWhileInhibited returns instantly without
+// waiting for the snap not being inhibited.
+//
+// NOTE: A snap without a hint file is considered not inhibited and a nil FileLock is returned.
+//
+// NOTE: It is the caller's responsibility to release the returned file lock.
+var WaitWhileInhibited = func(snapName string, notInhibited func() error, inhibited func(hint Hint, inhibitInfo *InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
+	ticker := newTicker(interval)
+
+	for {
+		flock, err := osutil.OpenExistingLockForReading(HintFile(snapName))
+		if os.IsNotExist(err) {
+			if err := notInhibited(); err != nil {
+				return nil, err
+			}
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		// Release lock if we return early with an error
+		defer func() {
+			// Keep lock if no errors occur
+			if retErr != nil {
+				flock.Close()
+			}
+		}()
+
+		// Hold read lock
+		if err := flock.ReadLock(); err != nil {
+			return nil, err
+		}
+
+		// Read inhibition hint
+		hint, err := hintFromFile(flock.File())
+		if err != nil {
+			return nil, err
+		}
+
+		if hint == HintNotInhibited {
+			if notInhibited != nil {
+				if err := notInhibited(); err != nil {
+					return nil, err
+				}
+			}
+			return flock, nil
+		} else {
+			if inhibited != nil {
+				inhibitInfo, err := readInhibitInfo(snapName, hint)
+				if err != nil {
+					return nil, err
+				}
+				cont, err := inhibited(hint, &inhibitInfo)
+				if err != nil {
+					return nil, err
+				}
+				if cont {
+					return flock, nil
+				}
+			}
+		}
+
+		// Close the lock file explicitly so we can try to lock again after waiting for the interval.
+		flock.Close()
+		ticker.Wait()
+	}
+}
+
+func hintFromFile(hintFile *os.File) (Hint, error) {
+	buf, err := ioutil.ReadAll(hintFile)
+	if err != nil {
+		return "", err
+	}
+	return Hint(string(buf)), nil
+}
+
+func readInhibitInfo(snapName string, hint Hint) (InhibitInfo, error) {
+	buf, err := ioutil.ReadFile(InhibitInfoFile(snapName, hint))
+	if err != nil {
+		return InhibitInfo{}, err
+	}
+	var info InhibitInfo
+	err = json.Unmarshal(buf, &info)
+	if err != nil {
+		return InhibitInfo{}, err
+	}
+	return info, nil
 }
