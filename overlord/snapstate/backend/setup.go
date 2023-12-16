@@ -240,6 +240,16 @@ func (b Backend) RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error {
 	return nil
 }
 
+func (b Backend) RemoveComponentDir(cpi snap.ContainerPlaceInfo) error {
+	compMountDir := cpi.MountDir()
+	// Remove /snap/<snap_instance>/components/<snap_rev>/<comp_name>
+	os.Remove(compMountDir)
+	// and /snap/<snap_instance>/components/<snap_rev> (might fail
+	// if there are other components installed for this revision)
+	os.Remove(filepath.Dir(compMountDir))
+	return nil
+}
+
 // UndoSetupSnap undoes the work of SetupSnap using RemoveSnapFiles.
 func (b Backend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *InstallRecord, dev snap.Device, meter progress.Meter) error {
 	return b.RemoveSnapFiles(s, typ, installRecord, dev, meter)
