@@ -177,6 +177,11 @@ var u2fDevices = []u2fDevice{
 		VendorIDPattern:  "1370",
 		ProductIDPattern: "0911",
 	},
+	{
+		Name:             "RSA DS100",
+		VendorIDPattern:  "15e1",
+		ProductIDPattern: "2019",
+	},
 }
 
 const u2fDevicesConnectedPlugAppArmor = `
