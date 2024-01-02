@@ -861,7 +861,15 @@ static void enter_non_classic_execution_environment(sc_invocation *inv,
 	// starting the snap application has already ensure that the process has
 	// been put in a dedicated group.
 	if (!sc_cgroup_is_v2()) {
-		sc_cgroup_freezer_join(inv->snap_instance, getpid());
+		// Temporarily raise egid so we can chown the freezer cgroup
+		// under LXD, if we are executed as non-root
+		if (real_uid != 0) {
+			sc_identity old = sc_set_effective_identity(sc_root_group_identity());
+			sc_cgroup_freezer_join(inv->snap_instance, getpid());
+			(void)sc_set_effective_identity(old);
+		} else {
+			sc_cgroup_freezer_join(inv->snap_instance, getpid());
+		}
 	}
 
 	sc_unlock(snap_lock_fd);

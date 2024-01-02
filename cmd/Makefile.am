@@ -95,7 +95,7 @@ fmt:: $(filter-out $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildc
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
 .PHONY: hack
 hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp snap-discard-ns/snap-discard-ns snap-device-helper/snap-device-helper snapd-apparmor/snapd-apparmor
-	sudo install -D -m 4755 snap-confine/snap-confine-debug $(DESTDIR)$(libexecdir)/snap-confine
+	sudo install -D -m 6755 snap-confine/snap-confine-debug $(DESTDIR)$(libexecdir)/snap-confine
 	if [ -d /etc/apparmor.d ]; then sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine.real; fi
 	sudo install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine/
 	if [ "$$(command -v apparmor_parser)" != "" ]; then sudo apparmor_parser -r snap-confine/snap-confine.apparmor; fi
@@ -396,8 +396,8 @@ install-data-local::
 	install -d -m 111 $(DESTDIR)/var/lib/snapd/void
 
 install-exec-hook::
-# Ensure that snap-confine is u+s (setuid)
-	chmod 4755 $(DESTDIR)$(libexecdir)/snap-confine
+# Ensure that snap-confine is u+s,g+s (setuid and setgid)
+	chmod 6755 $(DESTDIR)$(libexecdir)/snap-confine
 
 ##
 ## snap-mgmt

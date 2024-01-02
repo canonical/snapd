@@ -900,7 +900,7 @@ popd
 %dir %{_libexecdir}/snapd
 # For now, we can't use caps
 # FIXME: Switch to "%%attr(0755,root,root) %%caps(cap_sys_admin=pe)" asap!
-%attr(4755,root,root) %{_libexecdir}/snapd/snap-confine
+%attr(6755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_libexecdir}/snapd/snap-device-helper
 %{_libexecdir}/snapd/snap-discard-ns
 %{_libexecdir}/snapd/snap-gdb-shim
