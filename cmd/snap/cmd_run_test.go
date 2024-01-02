@@ -99,6 +99,10 @@ func (s *RunSuite) SetUpTest(c *check.C) {
 	s.AddCleanup(snaprun.MockCreateTransientScopeForTracking(func(string, *cgroup.TrackingOptions) error {
 		return nil
 	}))
+	s.AddCleanup(snaprun.MockConfirmSystemdAppTracking(func(securityTag string) error {
+		// default to shwoing no existing tracking
+		return cgroup.ErrCannotTrackProcess
+	}))
 	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(false)
 	s.AddCleanup(restoreIsGraphicalSession)
 }
@@ -879,12 +883,12 @@ func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingRefresh(c *che
 	restore := snaprun.MockInhibitionFlow(&inhibitionFlow)
 	defer restore()
 
-	var called int
+	var waitWhileInhibitedCalled int
 	restore = snaprun.MockWaitWhileInhibited(func(snapName string, notInhibited func() error, inhibited func(hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
-		called++
+		waitWhileInhibitedCalled++
 
 		c.Check(snapName, check.Equals, "snapname")
-		if called == 1 {
+		if waitWhileInhibitedCalled == 1 {
 			err := notInhibited()
 			c.Assert(err, check.IsNil)
 			// remove current symlink to simulate ongoing refresh
@@ -916,9 +920,32 @@ func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingRefresh(c *che
 	})
 	defer restore()
 
+	var createCgroupCalled int
+	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string, opts *cgroup.TrackingOptions) error {
+		createCgroupCalled++
+		return nil
+	})
+	defer restore()
+
+	var confirmCgroupCalled int
+	restore = snaprun.MockConfirmSystemdAppTracking(func(securityTag string) error {
+		confirmCgroupCalled++
+		if createCgroupCalled >= 1 {
+			// tracking cgroup was already created
+			return nil
+		}
+		// no tracking cgroup exists for current process
+		return cgroup.ErrCannotTrackProcess
+	})
+	defer restore()
+
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
 	c.Assert(err, check.IsNil)
-	c.Check(called, check.Equals, 2)
+	c.Check(waitWhileInhibitedCalled, check.Equals, 2)
+	c.Check(confirmCgroupCalled, check.Equals, 2)
+	// cgroup must only be created once and reused for further retries
+	// to avoid leaking cgroups
+	c.Check(createCgroupCalled, check.Equals, 1)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{

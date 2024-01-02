@@ -1000,3 +1000,70 @@ func (s *trackingSuite) TestConfirmSystemdServiceTrackingSad(c *C) {
 	err := cgroup.ConfirmSystemdServiceTracking("snap.pkg.app")
 	c.Assert(err, Equals, cgroup.ErrCannotTrackProcess)
 }
+
+func (s *trackingSuite) TestConfirmSystemdAppTrackingHappy(c *C) {
+	// Pretend our PID is this value.
+	restore := cgroup.MockOsGetpid(312123)
+	defer restore()
+	// Replace the cgroup analyzer function
+	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		c.Assert(pid, Equals, 312123)
+		return "user.slice/user-12345.slice/user@12345.service/apps.slice/snap.pkg.app-ae6d0825-dacd-454c-baec-67289f067c28.scope", nil
+	})
+	defer restore()
+
+	// With the cgroup path faked as above, we are being tracked so no error is reported.
+	err := cgroup.ConfirmSystemdAppTracking("snap.pkg.app")
+	c.Assert(err, IsNil)
+}
+
+func (s *trackingSuite) TestConfirmSystemdAppTrackingSad1(c *C) {
+	// Pretend our PID is this value.
+	restore := cgroup.MockOsGetpid(312123)
+	defer restore()
+	// Replace the cgroup analyzer function
+	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		c.Assert(pid, Equals, 312123)
+		// mark as being tracked as a service
+		return "/user.slice/user-12345.slice/user@12345.service/snap.pkg.app.service", nil
+	})
+	defer restore()
+
+	// With the cgroup path faked as above, tracking is not effective.
+	err := cgroup.ConfirmSystemdAppTracking("snap.pkg.app")
+	c.Assert(err, Equals, cgroup.ErrCannotTrackProcess)
+}
+
+func (s *trackingSuite) TestConfirmSystemdAppTrackingSad2(c *C) {
+	// Pretend our PID is this value.
+	restore := cgroup.MockOsGetpid(312123)
+	defer restore()
+	// Replace the cgroup analyzer function
+	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		c.Assert(pid, Equals, 312123)
+		// Tracking path of a gnome terminal helper process. Meant to illustrate a tracking but not related to a snap application.
+		return "user.slice/user-12345.slice/user@12345.service/apps.slice/apps-org.gnome.Terminal.slice/vte-spawn-e640104a-cddf-4bd8-ba4b-2c1baf0270c3.scope", nil
+	})
+	defer restore()
+
+	// With the cgroup path faked as above, tracking is not effective.
+	err := cgroup.ConfirmSystemdAppTracking("snap.pkg.app")
+	c.Assert(err, Equals, cgroup.ErrCannotTrackProcess)
+}
+
+func (s *trackingSuite) TestConfirmSystemdAppTrackingSad3(c *C) {
+	// Pretend our PID is this value.
+	restore := cgroup.MockOsGetpid(312123)
+	defer restore()
+	// Replace the cgroup analyzer function
+	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		c.Assert(pid, Equals, 312123)
+		// bad security tag
+		return "user.slice/user-12345.slice/user@12345.service/apps.slice/snap.pkg-ae6d0825-dacd-454c-baec-67289f067c28.scope", nil
+	})
+	defer restore()
+
+	// With the cgroup path faked as above, tracking is not effective.
+	err := cgroup.ConfirmSystemdAppTracking("snap.pkg.app")
+	c.Assert(err, Equals, cgroup.ErrCannotTrackProcess)
+}

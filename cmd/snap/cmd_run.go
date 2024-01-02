@@ -1336,6 +1336,17 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	// Allow using the session bus for all apps but not for hooks.
 	allowSessionBus := hook == ""
 	// Track, or confirm existing tracking from systemd.
+	if err := cgroupConfirmSystemdAppTracking(securityTag); err != nil {
+		if err != cgroup.ErrCannotTrackProcess {
+			return err
+		}
+	} else {
+		// A transient scope was already created in a previous attempt. Skip creating
+		// another transient scope to avoid leaking cgroups.
+		//
+		// Note: This could happen if beforeExec fails and triggers a retry.
+		needsTracking = false
+	}
 	if needsTracking {
 		opts := &cgroup.TrackingOptions{AllowSessionBus: allowSessionBus}
 		if err = cgroupCreateTransientScopeForTracking(securityTag, opts); err != nil {
@@ -1406,3 +1417,4 @@ func getSnapDirOptions(snap string) (*dirs.SnapDirOptions, error) {
 
 var cgroupCreateTransientScopeForTracking = cgroup.CreateTransientScopeForTracking
 var cgroupConfirmSystemdServiceTracking = cgroup.ConfirmSystemdServiceTracking
+var cgroupConfirmSystemdAppTracking = cgroup.ConfirmSystemdAppTracking

@@ -354,6 +354,14 @@ func MockConfirmSystemdServiceTracking(fn func(securityTag string) error) (resto
 	}
 }
 
+func MockConfirmSystemdAppTracking(fn func(securityTag string) error) (restore func()) {
+	old := cgroupConfirmSystemdAppTracking
+	cgroupConfirmSystemdAppTracking = fn
+	return func() {
+		cgroupConfirmSystemdAppTracking = old
+	}
+}
+
 func MockApparmorSnapAppFromPid(f func(pid int) (string, string, string, error)) (restore func()) {
 	old := apparmorSnapAppFromPid
 	apparmorSnapAppFromPid = f

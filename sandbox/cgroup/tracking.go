@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -148,6 +149,21 @@ tryAgain:
 		logger.Debugf("systemd could not associate process %d with transient scope %s", pid, unitName)
 		return ErrCannotTrackProcess
 	}
+	return nil
+}
+
+func ConfirmSystemdAppTracking(securityTag string) error {
+	pid := osGetpid()
+	path, err := cgroupProcessPathInTrackingCgroup(pid)
+	if err != nil {
+		return err
+	}
+
+	regex := regexp.MustCompile(fmt.Sprintf("%s-.+\\.scope$", securityTag))
+	if !regex.MatchString(path) {
+		return ErrCannotTrackProcess
+	}
+
 	return nil
 }
 
