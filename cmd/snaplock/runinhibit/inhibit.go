@@ -296,10 +296,12 @@ var newTicker = func(interval time.Duration) ticker {
 	return &timeTicker{interval}
 }
 
-// WaitWhileInhibited blocks until snap is not inhibited anymore returning
+// WaitWhileInhibited blocks until snap is not inhibited anymore and then returns
 // a locked hint file lock.
 //
-// "notInhibted" and "inhibited" callbacks are called with the hint file lock held.
+// The `inhibited` callback is run if the snap is initially inhibited, otherwise the `notInhibited`
+// callback is run. In either case, this callback runs with the hint file lock held`.
+//
 // If inhibited callback returns true, WaitWhileInhibited returns instantly without
 // waiting for the snap not being inhibited.
 //
