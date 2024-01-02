@@ -892,6 +892,10 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 			types = []string{"core"}
 		}
 
+		// only restricted slots can use the AppArmor
+		// unconfined profile mode so check that this
+		// slot is not using it
+		c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedSlots, Equals, false)
 		if types == nil {
 			// snowflake needs to be tested specially
 			continue
@@ -903,10 +907,6 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 			comm := Commentf("%s by %s snap", iface.Name(), name)
 			if ok {
 				c.Check(err, IsNil, comm)
-				// only restricted slots can use the AppArmor
-				// unconfined profile mode so check that this
-				// slot is not using it
-				c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedSlots, Equals, false)
 			} else {
 				c.Check(err, NotNil, comm)
 			}
@@ -1040,6 +1040,10 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		// need to make sure this is really the case here. If that is not
 		// the case we continue as normal.
 		if ok {
+			// only restricted plugs can use the AppArmor
+			// unconfined profile mode so check that this
+			// plug is not using it
+			c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedPlugs, Equals, false)
 			for name, snapType := range snapTypeMap {
 				ok := strutil.ListContains(types, name)
 				ic := s.installPlugCand(c, iface.Name(), snapType, ``)
@@ -1047,10 +1051,6 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 				comm := Commentf("%s by %s snap", iface.Name(), name)
 				if ok {
 					c.Check(err, IsNil, comm)
-					// only restricted plugs can use the AppArmor
-					// unconfined profile mode so check that this
-					// plug is not using it
-					c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedPlugs, Equals, false)
 				} else {
 					c.Check(err, NotNil, comm)
 				}
