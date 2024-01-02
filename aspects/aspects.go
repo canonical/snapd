@@ -735,12 +735,12 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *i
 	// read the final value
 	if index == len(subKeys)-1 {
 		if matchAll {
-			// request ends in placeholder so return map to all values (but unmarshal first)
+			// request ends in placeholder so return map to all values (but unmarshal the rest first)
 			level := make(map[string]interface{}, len(node))
 			for k, v := range node {
 				var deser interface{}
 				if err := json.Unmarshal(v, &deser); err != nil {
-					return err
+					return fmt.Errorf(`internal error: %w`, err)
 				}
 				level[k] = deser
 			}
@@ -749,13 +749,11 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *i
 			return nil
 		}
 
-		err := json.Unmarshal(rawLevel, result)
-		if uErr, ok := err.(*json.UnmarshalTypeError); ok {
-			path := strings.Join(subKeys, ".")
-			return pathErrorf("cannot read value of %q into %T: maps to %s", path, result, uErr.Value)
+		if err := json.Unmarshal(rawLevel, result); err != nil {
+			return fmt.Errorf(`internal error: %w`, err)
 		}
 
-		return err
+		return nil
 	}
 
 	if matchAll {
