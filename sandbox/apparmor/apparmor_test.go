@@ -255,6 +255,13 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 	features, err = apparmor.ProbeKernelFeatures()
 	c.Assert(err, IsNil)
 	c.Check(features, DeepEquals, []string{"bar", "foo"})
+
+	// Also test sub-features features
+	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "foo", "baz"), 0755), IsNil)
+	c.Assert(os.Mkdir(filepath.Join(d, featuresSysPath, "foo", "qux"), 0755), IsNil)
+	features, err = apparmor.ProbeKernelFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, []string{"bar", "foo", "foo:baz", "foo:qux"})
 }
 
 func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
