@@ -717,6 +717,11 @@ func (s JSONDataBag) Get(path string) (interface{}, error) {
 	return value, nil
 }
 
+// get takes a dotted path split into sub-keys and uses it to traverse a JSON object.
+// The path's sub-keys can be literals, in which case that value is used to
+// traverse the tree, or a bracketed placeholder (e.g., "{foo}"). For placeholders,
+// we take all sub-paths and try to match the remaining path. The results for
+// any sub-path that matched the request path are then merged in a map and returned.
 func get(subKeys []string, index int, node map[string]json.RawMessage, result *interface{}) error {
 	key := subKeys[index]
 	matchAll := key[0] == '{' && key[len(key)-1] == '}'
@@ -760,13 +765,14 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *i
 			var level map[string]json.RawMessage
 			if err := jsonutil.DecodeWithNumber(bytes.NewReader(v), &level); err != nil {
 				if _, ok := err.(*json.UnmarshalTypeError); ok {
-					// check if other values under this placeholder fulfill the request
+					// we consider only the values for which the rest of the nested sub-keys
+					// can be fulfilled
 					continue
 				}
 				return err
 			}
 
-			// walk the path under all possible values, only return an error no value
+			// walk the path under all possible values, only return an error if no value
 			// is found under any path
 			var res interface{}
 			if err := get(subKeys, index+1, level, &res); err != nil {
