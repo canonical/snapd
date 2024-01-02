@@ -464,8 +464,8 @@ fi
 %ghost %{_sharedstatedir}/snapd/state.json
 %ghost %{_sharedstatedir}/snapd/system-key
 %ghost %{snap_mount_dir}/README
-# setuid permissions are set through permctl and set_permissions snippet in post
-%verify(not user group mode) %attr(0755,root,root) %{_libexecdir}/snapd/snap-confine
+# capabilities and permissions are set through permctl and set_permissions snippet in post
+%verify(not caps) %attr(0755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_bindir}/snap
 %{_bindir}/snapctl
 %{_datadir}/applications/io.snapcraft.SessionAgent.desktop
