@@ -46,8 +46,7 @@ func (s *aspectTestSuite) TestGetAspect(c *C) {
 	err := databag.Set("wifi.ssid", "foo")
 	c.Assert(err, IsNil)
 
-	var res interface{}
-	err = aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "ssid", &res)
+	res, err := aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "ssid")
 	c.Assert(err, IsNil)
 	c.Assert(res, DeepEquals, map[string]interface{}{"ssid": "foo"})
 }
@@ -55,18 +54,17 @@ func (s *aspectTestSuite) TestGetAspect(c *C) {
 func (s *aspectTestSuite) TestGetNotFound(c *C) {
 	databag := aspects.NewJSONDataBag()
 
-	var res interface{}
-	err := aspectstate.GetAspect(databag, "system", "network", "other-aspect", "ssid", &res)
+	res, err := aspectstate.GetAspect(databag, "system", "network", "other-aspect", "ssid")
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
 	c.Assert(err, ErrorMatches, `cannot find value for "ssid" in aspect system/network/other-aspect: aspect not found`)
 	c.Check(res, IsNil)
 
-	err = aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "ssid", &res)
+	res, err = aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "ssid")
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
 	c.Assert(err, ErrorMatches, `cannot find value for "ssid" in aspect system/network/wifi-setup: matching rules don't map to any values`)
 	c.Check(res, IsNil)
 
-	err = aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "other-field", &res)
+	res, err = aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "other-field")
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
 	c.Assert(err, ErrorMatches, `cannot find value for "other-field" in aspect system/network/wifi-setup: no matching read rule`)
 	c.Check(res, IsNil)
@@ -77,8 +75,7 @@ func (s *aspectTestSuite) TestSetAspect(c *C) {
 	err := aspectstate.SetAspect(databag, "system", "network", "wifi-setup", "ssid", "foo")
 	c.Assert(err, IsNil)
 
-	var val interface{}
-	err = databag.Get("wifi.ssid", &val)
+	val, err := databag.Get("wifi.ssid")
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, "foo")
 }
@@ -108,8 +105,7 @@ func (s *aspectTestSuite) TestUnsetAspect(c *C) {
 	err = aspectstate.SetAspect(databag, "system", "network", "wifi-setup", "ssid", nil)
 	c.Assert(err, IsNil)
 
-	var val interface{}
-	err = databag.Get("wifi.ssid", &val)
+	val, err := databag.Get("wifi.ssid")
 	c.Assert(err, FitsTypeOf, aspects.PathError(""))
 	c.Assert(val, Equals, nil)
 }
@@ -129,8 +125,7 @@ func (s *aspectTestSuite) TestNewTransactionExistingState(c *C) {
 	tx, err := aspectstate.NewTransaction(s.state, "system", "network")
 	c.Assert(err, IsNil)
 
-	var value interface{}
-	err = tx.Get("foo", &value)
+	value, err := tx.Get("foo")
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "bar")
 
@@ -142,7 +137,7 @@ func (s *aspectTestSuite) TestNewTransactionExistingState(c *C) {
 
 	err = s.state.Get("aspect-databags", &databags)
 	c.Assert(err, IsNil)
-	err = databags["system"]["network"].Get("foo", &value)
+	value, err = databags["system"]["network"].Get("foo")
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "baz")
 }
@@ -189,8 +184,7 @@ func (s *aspectTestSuite) TestNewTransactionNoState(c *C) {
 		err = s.state.Get("aspect-databags", &databags)
 		c.Assert(err, IsNil)
 
-		var value interface{}
-		err = databags["system"]["network"].Get("foo", &value)
+		value, err := databags["system"]["network"].Get("foo")
 		c.Assert(err, IsNil)
 		c.Assert(value, Equals, "bar")
 	}

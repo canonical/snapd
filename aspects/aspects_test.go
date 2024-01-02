@@ -149,8 +149,7 @@ func (*aspectSuite) TestGetAndSetAspects(c *C) {
 	err = wsAspect.Set(databag, "ssid", "my-ssid")
 	c.Assert(err, IsNil)
 
-	var ssid interface{}
-	err = wsAspect.Get(databag, "ssid", &ssid)
+	ssid, err := wsAspect.Get(databag, "ssid")
 	c.Assert(err, IsNil)
 	c.Check(ssid, DeepEquals, map[string]interface{}{"ssid": "my-ssid"})
 
@@ -158,17 +157,15 @@ func (*aspectSuite) TestGetAndSetAspects(c *C) {
 	err = wsAspect.Set(databag, "ssids", []string{"one", "two"})
 	c.Assert(err, IsNil)
 
-	var ssids interface{}
-	err = wsAspect.Get(databag, "ssids", &ssids)
+	ssids, err := wsAspect.Get(databag, "ssids")
 	c.Assert(err, IsNil)
 	c.Check(ssids, DeepEquals, map[string]interface{}{"ssids": []interface{}{"one", "two"}})
 
 	// top-level string
-	var topLevel interface{}
 	err = wsAspect.Set(databag, "top-level", "randomValue")
 	c.Assert(err, IsNil)
 
-	err = wsAspect.Get(databag, "top-level", &topLevel)
+	topLevel, err := wsAspect.Get(databag, "top-level")
 	c.Assert(err, IsNil)
 	c.Check(topLevel, DeepEquals, map[string]interface{}{"top-level": "randomValue"})
 
@@ -176,8 +173,7 @@ func (*aspectSuite) TestGetAndSetAspects(c *C) {
 	err = wsAspect.Set(databag, "dotted.path", 3)
 	c.Assert(err, IsNil)
 
-	var num interface{}
-	err = wsAspect.Get(databag, "dotted.path", &num)
+	num, err := wsAspect.Get(databag, "dotted.path")
 	c.Assert(err, IsNil)
 	c.Check(num, DeepEquals, map[string]interface{}{"dotted.path": float64(3)})
 }
@@ -195,8 +191,7 @@ func (s *aspectSuite) TestAspectNotFound(c *C) {
 
 	aspect := aspectBundle.Aspect("bar")
 
-	var value interface{}
-	err = aspect.Get(databag, "missing", &value)
+	_, err = aspect.Get(databag, "missing")
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
 	c.Assert(err, ErrorMatches, `cannot find value for "missing" in aspect acc/foo/bar: no matching read rule`)
 
@@ -204,14 +199,14 @@ func (s *aspectSuite) TestAspectNotFound(c *C) {
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
 	c.Assert(err, ErrorMatches, `cannot find value for "missing" in aspect acc/foo/bar: no matching write rule`)
 
-	err = aspect.Get(databag, "top-level", &value)
+	_, err = aspect.Get(databag, "top-level")
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
 	c.Assert(err, ErrorMatches, `cannot find value for "top-level" in aspect acc/foo/bar: matching rules don't map to any values`)
 
 	err = aspect.Set(databag, "nested", "thing")
 	c.Assert(err, IsNil)
 
-	err = aspect.Get(databag, "other-nested", &value)
+	_, err = aspect.Get(databag, "other-nested")
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
 	c.Assert(err, ErrorMatches, `cannot find value for "other-nested" in aspect acc/foo/bar: matching rules don't map to any values`)
 }
@@ -230,8 +225,7 @@ func (s *aspectSuite) TestAspectBadRead(c *C) {
 	err = aspect.Set(databag, "one", "foo")
 	c.Assert(err, IsNil)
 
-	var value interface{}
-	err = aspect.Get(databag, "onetwo", &value)
+	_, err = aspect.Get(databag, "onetwo")
 	c.Assert(err, ErrorMatches, `cannot read path prefix "one": prefix maps to string`)
 }
 
@@ -281,8 +275,7 @@ func (s *aspectSuite) TestAspectsAccessControl(c *C) {
 			c.Assert(err, IsNil, cmt)
 		}
 
-		var value interface{}
-		err = aspect.Get(databag, t.request, &value)
+		_, err = aspect.Get(databag, t.request)
 		if t.getErr != "" {
 			c.Assert(err.Error(), Equals, t.getErr, cmt)
 		} else {
@@ -300,9 +293,9 @@ func newWitnessDataBag(bag aspects.DataBag) *witnessDataBag {
 	return &witnessDataBag{bag: bag}
 }
 
-func (s *witnessDataBag) Get(path string, value *interface{}) error {
+func (s *witnessDataBag) Get(path string) (interface{}, error) {
 	s.getPath = path
-	return s.bag.Get(path, value)
+	return s.bag.Get(path)
 }
 
 func (s *witnessDataBag) Set(path string, value interface{}) error {
@@ -377,10 +370,9 @@ func (s *aspectSuite) TestAspectAssertionWithPlaceholder(c *C) {
 		err = aspect.Set(databag, t.request, "expectedValue")
 		c.Assert(err, IsNil, cmt)
 
-		var obtainedValue interface{}
-		err = aspect.Get(databag, t.request, &obtainedValue)
+		value, err := aspect.Get(databag, t.request)
 		c.Assert(err, IsNil, cmt)
-		c.Assert(obtainedValue, DeepEquals, map[string]interface{}{t.request: "expectedValue"}, cmt)
+		c.Assert(value, DeepEquals, map[string]interface{}{t.request: "expectedValue"}, cmt)
 
 		getPath, setPath := databag.getLastPaths()
 		c.Assert(getPath, Equals, t.storage, cmt)
@@ -482,11 +474,10 @@ func (s *aspectSuite) TestAspectUnsetTopLevelEntry(c *C) {
 	err = aspect.Set(databag, "foo", nil)
 	c.Assert(err, IsNil)
 
-	var value interface{}
-	err = aspect.Get(databag, "foo", &value)
+	_, err = aspect.Get(databag, "foo")
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
 
-	err = aspect.Get(databag, "bar", &value)
+	value, err := aspect.Get(databag, "bar")
 	c.Assert(err, IsNil)
 	c.Assert(value, DeepEquals, map[string]interface{}{"bar": "bval"})
 }
@@ -511,12 +502,11 @@ func (s *aspectSuite) TestAspectUnsetLeafWithSiblings(c *C) {
 	err = aspect.Set(databag, "bar", nil)
 	c.Assert(err, IsNil)
 
-	var value interface{}
-	err = aspect.Get(databag, "bar", &value)
+	_, err = aspect.Get(databag, "bar")
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
 
 	// doesn't affect the other leaf entry under "foo"
-	err = aspect.Get(databag, "baz", &value)
+	value, err := aspect.Get(databag, "baz")
 	c.Assert(err, IsNil)
 	c.Assert(value, DeepEquals, map[string]interface{}{"baz": "bazVal"})
 }
@@ -538,11 +528,10 @@ func (s *aspectSuite) TestAspectUnsetWithNestedEntry(c *C) {
 	err = aspect.Set(databag, "foo", nil)
 	c.Assert(err, IsNil)
 
-	var value interface{}
-	err = aspect.Get(databag, "foo", &value)
+	_, err = aspect.Get(databag, "foo")
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
 
-	err = aspect.Get(databag, "bar", &value)
+	_, err = aspect.Get(databag, "bar")
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
 }
 
@@ -560,15 +549,14 @@ func (s *aspectSuite) TestAspectUnsetLeafUnsetsParent(c *C) {
 	err = aspect.Set(databag, "bar", "val")
 	c.Assert(err, IsNil)
 
-	var value interface{}
-	err = aspect.Get(databag, "foo", &value)
+	value, err := aspect.Get(databag, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(value, Not(HasLen), 0)
 
 	err = aspect.Set(databag, "bar", nil)
 	c.Assert(err, IsNil)
 
-	err = aspect.Get(databag, "foo", &value)
+	_, err = aspect.Get(databag, "foo")
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
 }
 
@@ -647,19 +635,16 @@ func (s *aspectSuite) TestAspectGetResultNamespaceMatchesRequest(c *C) {
 	err = aspect.Set(databag, "one", map[string]interface{}{"two": "value"})
 	c.Assert(err, IsNil)
 
-	var value interface{}
-	err = aspect.Get(databag, "one.two", &value)
+	value, err := aspect.Get(databag, "one.two")
 	c.Assert(err, IsNil)
 	c.Assert(value, DeepEquals, map[string]interface{}{"one.two": "value"})
 
-	value = nil
-	err = aspect.Get(databag, "onetwo", &value)
+	value, err = aspect.Get(databag, "onetwo")
 	c.Assert(err, IsNil)
 	// the key matches the request, not the storage storage
 	c.Assert(value, DeepEquals, map[string]interface{}{"onetwo": "value"})
 
-	value = nil
-	err = aspect.Get(databag, "one", &value)
+	value, err = aspect.Get(databag, "one")
 	c.Assert(err, IsNil)
 	c.Assert(value, DeepEquals, map[string]interface{}{"one": map[string]interface{}{"two": "value"}})
 }
@@ -681,13 +666,11 @@ func (s *aspectSuite) TestAspectGetMatchesOnPrefix(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	var value interface{}
-	err = aspect.Get(databag, "snapd.status", &value)
+	value, err := aspect.Get(databag, "snapd.status")
 	c.Assert(err, IsNil)
 	c.Assert(value, DeepEquals, map[string]interface{}{"snapd.status": "active"})
 
-	value = nil
-	err = aspect.Get(databag, "snapd", &value)
+	value, err = aspect.Get(databag, "snapd")
 	c.Assert(err, IsNil)
 	c.Assert(value, DeepEquals, map[string]interface{}{"snapd": map[string]interface{}{"status": "active"}})
 }
@@ -707,8 +690,7 @@ func (s *aspectSuite) TestAspectGetNoMatchRequestLongerThanPattern(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	var value interface{}
-	err = aspect.Get(databag, "snapd.status", &value)
+	_, err = aspect.Get(databag, "snapd.status")
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
 }
 
@@ -729,8 +711,7 @@ func (s *aspectSuite) TestAspectManyPrefixMatches(c *C) {
 	err = aspect.Set(databag, "status.snapd", "disabled")
 	c.Assert(err, IsNil)
 
-	var value interface{}
-	err = aspect.Get(databag, "status", &value)
+	value, err := aspect.Get(databag, "status")
 	c.Assert(err, IsNil)
 	c.Assert(value, DeepEquals, map[string]interface{}{
 		"status": map[string]interface{}{
@@ -762,8 +743,7 @@ func (s *aspectSuite) TestAspectCombineNamespacesInPrefixMatches(c *C) {
 
 	aspect := aspectBundle.Aspect("statuses")
 
-	var value interface{}
-	err = aspect.Get(databag, "status", &value)
+	value, err := aspect.Get(databag, "status")
 	c.Assert(err, IsNil)
 	c.Assert(value, DeepEquals, map[string]interface{}{
 		"status": map[string]interface{}{
@@ -801,8 +781,7 @@ func (s *aspectSuite) TestGetScalarOverwritesLeafOfMapValue(c *C) {
 
 	aspect := aspectBundle.Aspect("motors")
 
-	var value interface{}
-	err = aspect.Get(databag, "motors", &value)
+	value, err := aspect.Get(databag, "motors")
 	c.Assert(err, IsNil)
 	c.Assert(value, DeepEquals, map[string]interface{}{"motors": map[string]interface{}{"a": map[string]interface{}{"speed": 101.5}}})
 }
@@ -821,9 +800,7 @@ func (s *aspectSuite) TestGetSingleScalarOk(c *C) {
 
 	aspect := aspectBundle.Aspect("foo")
 
-	var value interface{}
-	err = aspect.Get(databag, "foo", &value)
-
+	value, err := aspect.Get(databag, "foo")
 	c.Assert(err, IsNil)
 	c.Assert(value, DeepEquals, map[string]interface{}{"foo": "bar"})
 }
@@ -845,8 +822,7 @@ func (s *aspectSuite) TestGetMatchScalarAndMapError(c *C) {
 
 	aspect := aspectBundle.Aspect("foo")
 
-	var value interface{}
-	err = aspect.Get(databag, "foo", &value)
+	_, err = aspect.Get(databag, "foo")
 	c.Assert(err, ErrorMatches, `cannot merge results of different types float64, map\[string\]interface {}`)
 }
 
@@ -865,8 +841,7 @@ func (s *aspectSuite) TestGetRulesAreSortedByParentage(c *C) {
 	err = databag.Set("first", map[string]interface{}{"bar": map[string]interface{}{"baz": "first"}})
 	c.Assert(err, IsNil)
 
-	var value interface{}
-	err = aspect.Get(databag, "foo", &value)
+	value, err := aspect.Get(databag, "foo")
 	c.Assert(err, IsNil)
 	// returned the value read by entry "foo"
 	c.Assert(value, DeepEquals, map[string]interface{}{"foo": map[string]interface{}{"bar": map[string]interface{}{"baz": "first"}}})
@@ -874,8 +849,7 @@ func (s *aspectSuite) TestGetRulesAreSortedByParentage(c *C) {
 	err = databag.Set("second", map[string]interface{}{"baz": "second"})
 	c.Assert(err, IsNil)
 
-	value = nil
-	err = aspect.Get(databag, "foo", &value)
+	value, err = aspect.Get(databag, "foo")
 	c.Assert(err, IsNil)
 	// the leaf is replaced by a value read from a rule that is nested
 	c.Assert(value, DeepEquals, map[string]interface{}{"foo": map[string]interface{}{"bar": map[string]interface{}{"baz": "second"}}})
@@ -883,8 +857,7 @@ func (s *aspectSuite) TestGetRulesAreSortedByParentage(c *C) {
 	err = databag.Set("third", "third")
 	c.Assert(err, IsNil)
 
-	value = nil
-	err = aspect.Get(databag, "foo", &value)
+	value, err = aspect.Get(databag, "foo")
 	c.Assert(err, IsNil)
 	// lastly, it reads the value from "foo.bar.baz" the most nested entry
 	c.Assert(value, DeepEquals, map[string]interface{}{"foo": map[string]interface{}{"bar": map[string]interface{}{"baz": "third"}}})
@@ -909,8 +882,7 @@ func (s *aspectSuite) TestGetUnmatchedPlaceholderReturnsAll(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	var value interface{}
-	err = aspect.Get(databag, "snaps", &value)
+	value, err := aspect.Get(databag, "snaps")
 	c.Assert(err, IsNil)
 	c.Assert(value, DeepEquals, map[string]interface{}{"snaps": map[string]interface{}{"snapd": float64(1), "foo": map[string]interface{}{"bar": float64(2)}}})
 }
@@ -936,8 +908,7 @@ func (s *aspectSuite) TestGetUnmatchedPlaceholdersWithNestedValues(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	var value interface{}
-	err = asp.Get(databag, "snaps", &value)
+	value, err := asp.Get(databag, "snaps")
 	c.Assert(err, IsNil)
 	c.Assert(value, DeepEquals, map[string]interface{}{"snaps": map[string]interface{}{"snapd": map[string]interface{}{"status": "active"}}})
 }
@@ -975,8 +946,7 @@ func (s *aspectSuite) TestGetSeveralUnmatchedPlaceholders(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	var value interface{}
-	err = asp.Get(databag, "a", &value)
+	value, err := asp.Get(databag, "a")
 	c.Assert(err, IsNil)
 	expected := map[string]interface{}{
 		"a": map[string]interface{}{
@@ -1017,8 +987,7 @@ func (s *aspectSuite) TestGetMergeAtDifferentLevels(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	var value interface{}
-	err = asp.Get(databag, "a", &value)
+	value, err := asp.Get(databag, "a")
 	c.Assert(err, IsNil)
 	expected := map[string]interface{}{
 		"a": map[string]interface{}{
@@ -1099,8 +1068,7 @@ func (s *aspectSuite) TestBadRequestPaths(c *C) {
 		c.Assert(err, NotNil, cmt)
 		c.Assert(err.Error(), Equals, fmt.Sprintf(`cannot parse Set request: %s`, tc.errMsg), cmt)
 
-		var value interface{}
-		err = asp.Get(databag, tc.request, &value)
+		_, err = asp.Get(databag, tc.request)
 		c.Assert(err, NotNil, cmt)
 		c.Assert(err.Error(), Equals, fmt.Sprintf(`cannot parse Get request: %s`, tc.errMsg), cmt)
 	}

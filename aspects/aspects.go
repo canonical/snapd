@@ -106,7 +106,7 @@ func (e *InvalidAccessError) Is(err error) bool {
 
 // DataBag controls access to the aspect data storage.
 type DataBag interface {
-	Get(path string, value *interface{}) error
+	Get(path string) (interface{}, error)
 	Set(path string, value interface{}) error
 	Data() ([]byte, error)
 }
@@ -385,46 +385,45 @@ func namespaceResult(res interface{}, suffixParts []string) (interface{}, error)
 
 // Get returns the aspect value identified by the request. If either the named
 // aspect or the corresponding value can't be found, a NotFoundError is returned.
-func (a *Aspect) Get(databag DataBag, request string, value *interface{}) error {
+func (a *Aspect) Get(databag DataBag, request string) (map[string]interface{}, error) {
 	if err := validateAspectDottedPath(request, nil); err != nil {
-		return fmt.Errorf(`cannot parse Get request: %w`, err)
+		return nil, fmt.Errorf(`cannot parse Get request: %w`, err)
 	}
 
 	matches, err := a.matchGetRequest(request)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var merged interface{}
 	for _, match := range matches {
-		var val interface{}
-		if err := databag.Get(match.storagePath, &val); err != nil {
+		val, err := databag.Get(match.storagePath)
+		if err != nil {
 			if errors.Is(err, PathError("")) {
 				continue
 			}
-			return err
+			return nil, err
 		}
 
 		// build a namespace around the result based on the unmatched suffix parts
 		val, err = namespaceResult(val, match.suffixParts)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		// merge result with results from other matching rules
 		merged, err = mergeNamespaces(merged, val)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	if merged == nil {
-		return notFoundErrorFrom(a, request, "matching rules don't map to any values")
+		return nil, notFoundErrorFrom(a, request, "matching rules don't map to any values")
 	}
 
 	// the top level maps the request to the remaining namespace
-	*value = map[string]interface{}{request: merged}
-	return nil
+	return map[string]interface{}{request: merged}, nil
 }
 
 func mergeNamespaces(old, new interface{}) (interface{}, error) {
@@ -707,9 +706,15 @@ func NewJSONDataBag() JSONDataBag {
 // Get takes a path and a pointer to a variable into which the value referenced
 // by the path is written. The path can be dotted. For each dot a JSON object
 // is expected to exist (e.g., "a.b" is mapped to {"a": {"b": <value>}}).
-func (s JSONDataBag) Get(path string, value *interface{}) error {
+func (s JSONDataBag) Get(path string) (interface{}, error) {
+	// TODO: create this in the return below as well?
+	var value interface{}
 	subKeys := strings.Split(path, ".")
-	return get(subKeys, 0, s, value)
+	if err := get(subKeys, 0, s, &value); err != nil {
+		return nil, err
+	}
+
+	return value, nil
 }
 
 func get(subKeys []string, index int, node map[string]json.RawMessage, result *interface{}) error {
