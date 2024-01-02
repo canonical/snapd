@@ -642,30 +642,6 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pat
 	return ts, nil
 }
 
-// collect all prerequisites of a given snap from its task set
-func prereqsFromSnapTaskSet(ts *state.TaskSet) ([]string, error) {
-	for _, t := range ts.Tasks() {
-		// find the first task that carries snap setup
-		sup, err := snapstate.TaskSnapSetup(t)
-		if err != nil {
-			if !errors.Is(err, state.ErrNoState) {
-				return nil, err
-			}
-			// try the next one
-			continue
-		}
-		var prereqs []string
-		if sup.Base != "" {
-			prereqs = append(prereqs, sup.Base)
-		}
-		if len(sup.Prereq) > 0 {
-			prereqs = append(prereqs, sup.Prereq...)
-		}
-		return prereqs, nil
-	}
-	return nil, fmt.Errorf("internal error: cannot identify task-snap-setup in taskset")
-}
-
 // sideInfoAndPathFromID returns the SideInfo/path for a given snap ID. Note
 // that this will work only for asserted snaps, that is the only case we
 // support for remodeling at the moment.
