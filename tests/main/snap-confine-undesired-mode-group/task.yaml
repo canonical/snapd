@@ -1,5 +1,8 @@
 summary: the snap-{run,confine,exec} chain does not create files with undesired properties.
 
+details: |
+    Verify that snap-{run,confine,exec} chain does not create any files that has unexpected properties.
+
 # ubuntu-14.04: the test sets up a user session, which requires more recent systemd
 systems: [-ubuntu-14.04-*]
 

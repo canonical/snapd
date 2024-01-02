@@ -66,7 +66,7 @@ void sc_enable_sanity_timeout(void)
 		die("cannot install signal handler for SIGALRM");
 	}
 	alarm(SANITY_TIMEOUT);
-	debug("sanity timeout initialized and set for %i seconds\n",
+	debug("sanity timeout initialized and set for %i seconds",
 	      SANITY_TIMEOUT);
 }
 
