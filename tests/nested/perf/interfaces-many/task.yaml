@@ -6,6 +6,8 @@ details: |
     functionality itself). This will help catch things like AppArmor 
     policy syntax errors, seccomp policy parsing, udev querying bugs, etc.
 
+systems: [ubuntu-18*, ubuntu-2*]
+
 environment:
     TEST/100_core_connected: interfaces-core-provided
     CONNECTIONS_PERCENTAGE/100_core_connected: 100

@@ -6,6 +6,8 @@ details: |
     functionality itself). This will help catch things like AppArmor 
     policy syntax errors, seccomp policy parsing, udev querying bugs, etc.
 
+systems: [ubuntu-18*, ubuntu-2*]
+
 environment:
     TEST: parallel-installs
 
