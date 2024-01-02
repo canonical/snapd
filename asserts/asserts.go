@@ -139,8 +139,9 @@ var (
 	StoreType                = &AssertionType{"store", []string{"store"}, nil, assembleStore, 0}
 	PreseedType              = &AssertionType{"preseed", []string{"series", "brand-id", "model", "system-label"}, nil, assemblePreseed, 0}
 	SnapResourceRevisionType = &AssertionType{"snap-resource-revision", []string{"snap-id", "resource-name", "resource-sha3-384", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapResourceRevision, 0}
+	SnapResourcePairType     = &AssertionType{"snap-resource-pair", []string{"snap-id", "resource-name", "resource-revision", "snap-revision", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapResourcePair, 0}
 
-// ...
+	// ...
 )
 
 // Assertion types without a definite authority set (on the wire and/or self-signed).
@@ -167,6 +168,7 @@ var typeRegistry = map[string]*AssertionType{
 	StoreType.Name:                StoreType,
 	PreseedType.Name:              PreseedType,
 	SnapResourceRevisionType.Name: SnapResourceRevisionType,
+	SnapResourcePairType.Name:     SnapResourcePairType,
 	// no authority
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialRequestType.Name:        SerialRequestType,

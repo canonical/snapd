@@ -38,7 +38,7 @@ import (
 //
 //	for iter.Next() {
 //	   // Use iter.CurrentName() with openat(2) family of functions.
-//	   // Use iter.CurrentPath() or iter.CurrentBase() for context.
+//	   // Use iter.CurrentPath() or iter.CurrentBaseNoSlash() for context.
 //	}
 //
 // ```
@@ -64,13 +64,13 @@ func (iter *PathIterator) Path() string {
 }
 
 // CurrentName returns the name of the current path element.
-// The return value may end with '/'. Use CleanName to avoid that.
+// The return value may end with '/'. Use CurrentNameNoSlash to avoid that.
 func (iter *PathIterator) CurrentName() string {
 	return iter.path[iter.left:iter.right]
 }
 
-// CurrentCleanName returns the same value as Name with right slash trimmed.
-func (iter *PathIterator) CurrentCleanName() string {
+// CurrentNameNoSlash returns the same value as Name with right slash trimmed.
+func (iter *PathIterator) CurrentNameNoSlash() string {
 	if iter.right > 0 && iter.path[iter.right-1:iter.right] == "/" {
 		return iter.path[iter.left : iter.right-1]
 	}
@@ -82,10 +82,18 @@ func (iter *PathIterator) CurrentPath() string {
 	return iter.path[:iter.right]
 }
 
-// CurrentBase returns the prefix of the path that was traversed,
-// excluding the current name.  The result never ends in '/' except if
+// CurrentPathNoSlash returns the same value as CurrentPath with the right slash trimmed.
+func (iter *PathIterator) CurrentPathNoSlash() string {
+	if iter.right > 0 && iter.path[iter.right-1:iter.right] == "/" && iter.path[:iter.right] != "/" {
+		return iter.path[:iter.right-1]
+	}
+	return iter.path[:iter.right]
+}
+
+// CurrentBaseNoSlash returns the prefix of the path that was traversed,
+// excluding the current name. The result never ends in '/' except if
 // current base is root.
-func (iter *PathIterator) CurrentBase() string {
+func (iter *PathIterator) CurrentBaseNoSlash() string {
 	if iter.left > 0 && iter.path[iter.left-1] == '/' && iter.path[:iter.left] != "/" {
 		return iter.path[:iter.left-1]
 	}

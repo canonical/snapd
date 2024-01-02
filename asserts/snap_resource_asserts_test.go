@@ -30,6 +30,7 @@ import (
 
 var (
 	_ = Suite(&snapResourceRevSuite{})
+	_ = Suite(&snapResourcePairSuite{})
 )
 
 type snapResourceRevSuite struct {
@@ -131,6 +132,7 @@ func (s *snapResourceRevSuite) TestDecodeInvalid(c *C) {
 		{"snap-id: snap-id-1\n", "snap-id: \n", `"snap-id" header should not be empty`},
 		{"resource-name: comp-name\n", "", `"resource-name" header is mandatory`},
 		{"resource-name: comp-name\n", "resource-name: \n", `"resource-name" header should not be empty`},
+		{"resource-name: comp-name\n", "resource-name: --comp-name\n", `invalid resource name "--comp-name"`},
 		{digestHdr, "", `"resource-sha3-384" header is mandatory`},
 		{digestHdr, "resource-sha3-384: \n", `"resource-sha3-384" header should not be empty`},
 		{digestHdr, "resource-sha3-384: #\n", `"resource-sha3-384" header cannot be decoded:.*`},
@@ -398,4 +400,294 @@ func (s *snapResourceRevSuite) TestSnapResourceRevisionDelegationRevisionOutOfRa
 
 	err = db.Check(snapResRev)
 	c.Check(err, ErrorMatches, `snap-resource-revision assertion with provenance "prov1" for snap id "snap-id-1" is not signed by an authorized authority: delegated-id`)
+}
+
+type snapResourcePairSuite struct {
+	ts     time.Time
+	tsLine string
+}
+
+func (s *snapResourcePairSuite) SetUpSuite(c *C) {
+	s.ts = time.Now().Truncate(time.Second).UTC()
+	s.tsLine = "timestamp: " + s.ts.Format(time.RFC3339) + "\n"
+}
+
+func (s *snapResourcePairSuite) makeValidEncoded() string {
+	return "type: snap-resource-pair\n" +
+		"authority-id: store-id1\n" +
+		"snap-id: snap-id-1\n" +
+		"resource-name: comp-name\n" +
+		"resource-revision: 4\n" +
+		"snap-revision: 20\n" +
+		"developer-id: dev-id1\n" +
+		"revision: 1\n" +
+		s.tsLine +
+		"body-length: 0\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+}
+
+func (s *snapResourcePairSuite) makeHeaders(overrides map[string]interface{}) map[string]interface{} {
+	headers := map[string]interface{}{
+		"authority-id":      "canonical",
+		"snap-id":           "snap-id-1",
+		"resource-name":     "comp-name",
+		"resource-revision": "4",
+		"snap-revision":     "20",
+		"developer-id":      "dev-id1",
+		"revision":          "1",
+		"timestamp":         time.Now().Format(time.RFC3339),
+	}
+	for k, v := range overrides {
+		headers[k] = v
+	}
+	return headers
+}
+
+func (s *snapResourcePairSuite) TestDecodeOK(c *C) {
+	encoded := s.makeValidEncoded()
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.SnapResourcePairType)
+	snapResourcePair := a.(*asserts.SnapResourcePair)
+	c.Check(snapResourcePair.AuthorityID(), Equals, "store-id1")
+	c.Check(snapResourcePair.Timestamp(), Equals, s.ts)
+	c.Check(snapResourcePair.SnapID(), Equals, "snap-id-1")
+	c.Check(snapResourcePair.ResourceName(), Equals, "comp-name")
+	c.Check(snapResourcePair.ResourceRevision(), Equals, 4)
+	c.Check(snapResourcePair.SnapRevision(), Equals, 20)
+	c.Check(snapResourcePair.DeveloperID(), Equals, "dev-id1")
+	c.Check(snapResourcePair.Revision(), Equals, 1)
+	c.Check(snapResourcePair.Provenance(), Equals, "global-upload")
+}
+
+func (s *snapResourcePairSuite) TestDecodeOKWithProvenance(c *C) {
+	encoded := s.makeValidEncoded()
+	encoded = strings.Replace(encoded, "snap-id: snap-id-1", "provenance: foo\nsnap-id: snap-id-1", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.SnapResourcePairType)
+	snapResourcePair := a.(*asserts.SnapResourcePair)
+	c.Check(snapResourcePair.AuthorityID(), Equals, "store-id1")
+	c.Check(snapResourcePair.Timestamp(), Equals, s.ts)
+	c.Check(snapResourcePair.SnapID(), Equals, "snap-id-1")
+	c.Check(snapResourcePair.ResourceName(), Equals, "comp-name")
+	c.Check(snapResourcePair.ResourceRevision(), Equals, 4)
+	c.Check(snapResourcePair.SnapRevision(), Equals, 20)
+	c.Check(snapResourcePair.DeveloperID(), Equals, "dev-id1")
+	c.Check(snapResourcePair.Revision(), Equals, 1)
+	c.Check(snapResourcePair.Provenance(), Equals, "foo")
+}
+
+const (
+	snapResourcePairErrPrefix = "assertion snap-resource-pair: "
+)
+
+func (s *snapResourcePairSuite) TestDecodeInvalid(c *C) {
+	encoded := s.makeValidEncoded()
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
+		{"snap-id: snap-id-1\n", "snap-id: \n", `"snap-id" header should not be empty`},
+		{"resource-name: comp-name\n", "", `"resource-name" header is mandatory`},
+		{"resource-name: comp-name\n", "resource-name: \n", `"resource-name" header should not be empty`},
+		{"resource-name: comp-name\n", "resource-name: --comp-name\n", `invalid resource name "--comp-name"`},
+		{"snap-id: snap-id-1\n", "provenance: \nsnap-id: snap-id-1\n", `"provenance" header should not be empty`},
+		{"snap-id: snap-id-1\n", "provenance: *\nsnap-id: snap-id-1\n", `"provenance" header contains invalid characters: "\*"`},
+		{"resource-revision: 4\n", "", `"resource-revision" header is mandatory`},
+		{"resource-revision: 4\n", "resource-revision: \n", `"resource-revision" header should not be empty`},
+		{"resource-revision: 4\n", "resource-revision: -1\n", `"resource-revision" header must be >=1: -1`},
+		{"resource-revision: 4\n", "resource-revision: 0\n", `"resource-revision" header must be >=1: 0`},
+		{"resource-revision: 4\n", "resource-revision: zzz\n", `"resource-revision" header is not an integer: zzz`},
+		{"snap-revision: 20\n", "", `"snap-revision" header is mandatory`},
+		{"snap-revision: 20\n", "snap-revision: \n", `"snap-revision" header should not be empty`},
+		{"snap-revision: 20\n", "snap-revision: -1\n", `"snap-revision" header must be >=1: -1`},
+		{"snap-revision: 20\n", "snap-revision: 0\n", `"snap-revision" header must be >=1: 0`},
+		{"snap-revision: 20\n", "snap-revision: zzz\n", `"snap-revision" header is not an integer: zzz`},
+		{"developer-id: dev-id1\n", "", `"developer-id" header is mandatory`},
+		{"developer-id: dev-id1\n", "developer-id: \n", `"developer-id" header should not be empty`},
+		{s.tsLine, "", `"timestamp" header is mandatory`},
+		{s.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
+		{s.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+	}
+
+	for _, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, snapResourcePairErrPrefix+test.expectedErr)
+	}
+}
+
+func (s *snapResourcePairSuite) TestPrerequisites(c *C) {
+	encoded := s.makeValidEncoded()
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	prereqs := a.Prerequisites()
+	c.Assert(prereqs, HasLen, 1)
+	c.Check(prereqs[0], DeepEquals, &asserts.Ref{
+		Type:       asserts.SnapDeclarationType,
+		PrimaryKey: []string{"16", "snap-id-1"},
+	})
+}
+
+func (s *snapResourcePairSuite) TestPrimaryKey(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	prereqDevAccount(c, storeDB, db)
+	prereqSnapDecl(c, storeDB, db)
+
+	headers := s.makeHeaders(nil)
+	snapResPair, err := storeDB.Sign(asserts.SnapResourcePairType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapResPair)
+	c.Assert(err, IsNil)
+
+	_, err = db.Find(asserts.SnapResourcePairType, map[string]string{
+		"snap-id":           "snap-id-1",
+		"resource-name":     "comp-name",
+		"resource-revision": "4",
+		"snap-revision":     "20",
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *snapResourcePairSuite) TestCheckMissingDeveloperAccount(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	headers := s.makeHeaders(nil)
+	snapResPair, err := storeDB.Sign(asserts.SnapResourcePairType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapResPair)
+	c.Assert(err, ErrorMatches, `snap-resource-pair assertion for snap id "snap-id-1" does not have a matching account assertion for the developer "dev-id1"`)
+}
+
+func (s *snapResourcePairSuite) TestCheckMissingDeclaration(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	prereqDevAccount(c, storeDB, db)
+
+	headers := s.makeHeaders(nil)
+	snapResPair, err := storeDB.Sign(asserts.SnapResourcePairType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapResPair)
+	c.Assert(err, ErrorMatches, `snap-resource-pair assertion for snap id "snap-id-1" does not have a matching snap-declaration assertion`)
+}
+
+func (s *snapResourcePairSuite) TestCheckUntrustedAuthority(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
+
+	headers := s.makeHeaders(map[string]interface{}{
+		"authority-id": "other",
+	})
+	snapResPair, err := otherDB.Sign(asserts.SnapResourcePairType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapResPair)
+	c.Assert(err, ErrorMatches, `snap-resource-pair assertion for snap id "snap-id-1" is not signed by a store:.*`)
+}
+
+func (s *snapResourcePairSuite) TestDelegation(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	delegatedDB := setup3rdPartySigning(c, "delegated-id", storeDB, db)
+
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "foo",
+		"publisher-id": "delegated-id",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapDecl)
+	c.Assert(err, IsNil)
+
+	headers := s.makeHeaders(map[string]interface{}{
+		"authority-id": "delegated-id",
+		"developer-id": "delegated-id",
+		"provenance":   "prov1",
+	})
+	snapResPair, err := delegatedDB.Sign(asserts.SnapResourcePairType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapResPair)
+	c.Check(err, ErrorMatches, `snap-resource-pair assertion with provenance "prov1" for snap id "snap-id-1" is not signed by an authorized authority: delegated-id`)
+
+	// establish delegation
+	snapDecl, err = storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "foo",
+		"publisher-id": "delegated-id",
+		"revision":     "1",
+		"revision-authority": []interface{}{
+			map[string]interface{}{
+				"account-id": "delegated-id",
+				"provenance": []interface{}{
+					"prov1",
+				},
+				// present but not checked at this level
+				"on-store": []interface{}{
+					"store1",
+				},
+			},
+		},
+		"timestamp": time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapDecl)
+	c.Assert(err, IsNil)
+
+	// now revision should be accepted
+	err = db.Check(snapResPair)
+	c.Check(err, IsNil)
+}
+
+func (s *snapResourcePairSuite) TestDelegationRevisionOutOfRange(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	delegatedDB := setup3rdPartySigning(c, "delegated-id", storeDB, db)
+
+	// establish delegation
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "foo",
+		"publisher-id": "delegated-id",
+		"revision-authority": []interface{}{
+			map[string]interface{}{
+				"account-id": "delegated-id",
+				"provenance": []interface{}{
+					"prov1",
+				},
+				// present but not checked at this level
+				"on-store": []interface{}{
+					"store1",
+				},
+				"max-revision": "200",
+			},
+		},
+		"timestamp": time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapDecl)
+	c.Assert(err, IsNil)
+
+	headers := s.makeHeaders(map[string]interface{}{
+		"authority-id":  "delegated-id",
+		"developer-id":  "delegated-id",
+		"provenance":    "prov1",
+		"snap-revision": "1000",
+	})
+	snapResPair, err := delegatedDB.Sign(asserts.SnapResourcePairType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapResPair)
+	c.Check(err, ErrorMatches, `snap-resource-pair assertion with provenance "prov1" for snap id "snap-id-1" is not signed by an authorized authority: delegated-id`)
 }

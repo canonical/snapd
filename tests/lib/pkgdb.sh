@@ -616,7 +616,7 @@ pkg_dependencies_ubuntu_classic(){
                 shellcheck
                 "
             ;;
-        ubuntu-22.*|ubuntu-23.*)
+        ubuntu-22.*|ubuntu-23.*|ubuntu-24.*)
             # bpftool is part of linux-tools package
             echo "
                 dbus-user-session

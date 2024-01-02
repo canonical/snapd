@@ -1,3 +1,6 @@
+# In progress:
+* Installation of local snap components
+
 # Next:
 * state: add support for notices (from pebble)
 * daemon: add notices to the snapd API under `/v2/notices` and `/v2/notice`

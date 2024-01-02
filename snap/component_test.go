@@ -289,3 +289,21 @@ func (s *componentSuite) TestComponentContainerPlaceInfoImpl(c *C) {
 		filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap_instance+test-info_25.comp"))
 	c.Check(contPi.MountDescription(), Equals, "Mount unit for mysnap_instance+test-info, revision 25")
 }
+
+func (s *componentSuite) TestComponentSideInfoEqual(c *C) {
+	cref := naming.NewComponentRef("snap", "comp")
+	csi := snap.NewComponentSideInfo(cref, snap.R(1))
+
+	for _, tc := range []struct {
+		csi   *snap.ComponentSideInfo
+		equal bool
+	}{
+		{snap.NewComponentSideInfo(naming.NewComponentRef("snap", "comp"), snap.R(1)), true},
+		{snap.NewComponentSideInfo(naming.NewComponentRef("other", "comp"), snap.R(1)), false},
+		{snap.NewComponentSideInfo(naming.NewComponentRef("snap", "other"), snap.R(1)), false},
+		{snap.NewComponentSideInfo(naming.NewComponentRef("snap", "comp"), snap.R(5)), false},
+		{snap.NewComponentSideInfo(naming.NewComponentRef("", ""), snap.R(0)), false},
+	} {
+		c.Check(csi.Equal(tc.csi), Equals, tc.equal)
+	}
+}

@@ -1083,6 +1083,9 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   /usr/lib/snapd/info r,
   /lib/apparmor/functions r,
 
+  # Allow snap-update-ns to open home directory
+  owner @{HOME}/ r,
+
 ###SNIPPETS###
 }
 `

@@ -407,7 +407,7 @@ func GenWritableMimicProfile(emit func(f string, args ...interface{}), path stri
 		// full mimic path. This is called a mimic "variant". Both of the paths
 		// must end with a slash as this is important for apparmor file vs
 		// directory path semantics.
-		mimicPath := filepath.Join(iter.CurrentBase(), iter.CurrentCleanName()) + "/"
+		mimicPath := filepath.Join(iter.CurrentBaseNoSlash(), iter.CurrentNameNoSlash()) + "/"
 		mimicAuxPath := filepath.Join("/tmp/.snap", iter.CurrentPath()) + "/"
 		emit("  # .. variant with mimic at %s\n", mimicPath)
 		emit("  # Allow reading the mimic directory, it must exist in the first place.\n")
@@ -565,6 +565,64 @@ func snippetFromLayout(layout *snap.Layout) string {
 		return fmt.Sprintf("# Layout path: %s\n\"%s\" mrwklix,", mountPoint, mountPoint)
 	}
 	return fmt.Sprintf("# Layout path: %s\n# (no extra permissions required for symlink)", mountPoint)
+}
+
+// emitEnsureDir creates an apparmor snippet that permits snap-update-ns to create
+// missing directories for the calling user according to the provided ensure directory spec.
+// This function is currently used as counterpart for AddUserEnsureDirs, but can also be used
+// for permitting non-user ensure directory specs.
+func emitEnsureDir(spec *Specification, ifaceName string, ensureDirSpec *interfaces.EnsureDirSpec) {
+	ensureDir := ensureDirSpec.EnsureDir
+	mustExistDir := ensureDirSpec.MustExistDir
+	if ensureDir == mustExistDir {
+		return
+	}
+
+	// Add additional expansion here as required
+	replacePrefixHome := func(path string) string {
+		if strings.HasPrefix(path, "$HOME") {
+			return strings.Replace(path, "$HOME", "@{HOME}", -1)
+		}
+		return path
+	}
+	appArmorDir := func(path string) string {
+		if path != "/" {
+			path = path + "/"
+		}
+		return path
+	}
+	emit := spec.AddUpdateNSf
+
+	// Create entry for MustExistDir
+	iter, err := strutil.NewPathIterator(ensureDir)
+	if err != nil {
+		return
+	}
+	for iter.Next() {
+		if iter.CurrentPathNoSlash() == mustExistDir {
+			emit("  # Allow the %s interface to create potentially missing directories", ifaceName)
+			emit("  owner %s rw,", appArmorDir(replacePrefixHome(mustExistDir)))
+			break
+		}
+	}
+
+	// Create entries for the remaining directories after MustExistDir up to and including EnsureDir
+	for iter.Next() {
+		emit("  owner %s/ rw,", replacePrefixHome(iter.CurrentPathNoSlash()))
+	}
+}
+
+// AddEnsureDirMounts adds snap-update-ns snippets that permit snap-update-ns to create
+// missing directories according to the provided ensure directory mount specs.
+func (spec *Specification) AddEnsureDirMounts(ifaceName string, ensureDirSpecs []*interfaces.EnsureDirSpec) {
+	// Walk the path specs in deterministic order, by EnsureDir (the mount point).
+	sort.Slice(ensureDirSpecs, func(i, j int) bool {
+		return ensureDirSpecs[i].EnsureDir < ensureDirSpecs[j].EnsureDir
+	})
+
+	for _, ensureDirSpec := range ensureDirSpecs {
+		emitEnsureDir(spec, ifaceName, ensureDirSpec)
+	}
 }
 
 // Implementation of methods required by interfaces.Specification
