@@ -148,8 +148,11 @@
     # deny change_profile unsafe /** -> {unconfined,/**},
     # change_profile unsafe /** -> **,
 
-    # reading seccomp filters
-    /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/bpf/*.bin2 r,
+    # reading seccomp filters.
+    # Note 1: We still need to consider .bin extension because of global.bin file.
+    # Note 2: This rule is not needed because of rule '/var/lib/** rw', however we keep it because at
+    # some point we want to investigate if we can narrow the scope of the aforementioned rule.
+    /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/bpf/*.bin{,2} r,
 
     # adding a missing bpf mount
     mount fstype=bpf options=(rw) bpf -> /sys/fs/bpf/,

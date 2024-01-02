@@ -407,7 +407,7 @@ func (s *snapSeccompSuite) TestUnrestricted(c *C) {
 	c.Assert(err, IsNil)
 
 	expected := [128]byte{'S', 'C', 0x1, 0x1}
-	fileContent, err := ioutil.ReadFile(outPath)
+	fileContent, err := os.ReadFile(outPath)
 	c.Assert(err, IsNil)
 	c.Check(fileContent, DeepEquals, expected[:])
 }
