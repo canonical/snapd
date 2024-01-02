@@ -284,7 +284,7 @@ func getPlaceholders(aspectStr string) map[string]bool {
 
 	subkeys := strings.Split(aspectStr, ".")
 	for _, subkey := range subkeys {
-		if subkey[0] == '{' && subkey[len(subkey)-1] == '}' {
+		if isPlaceholder(subkey) {
 			if placeholders == nil {
 				placeholders = make(map[string]bool)
 			}
@@ -356,7 +356,7 @@ func namespaceResult(res interface{}, suffixParts []string) (interface{}, error)
 	// check if the part is an unmatched placeholder which should have been filled
 	// by the databag with all possible values
 	part := suffixParts[0]
-	if part[0] == '{' && part[len(part)-1] == '}' {
+	if isPlaceholder(part) {
 		values, ok := res.(map[string]interface{})
 		if !ok {
 			return nil, fmt.Errorf("internal error: expected databag to return map for unmatched placeholder")
@@ -724,7 +724,7 @@ func (s JSONDataBag) Get(path string) (interface{}, error) {
 // any sub-path that matched the request path are then merged in a map and returned.
 func get(subKeys []string, index int, node map[string]json.RawMessage, result *interface{}) error {
 	key := subKeys[index]
-	matchAll := key[0] == '{' && key[len(key)-1] == '}'
+	matchAll := isPlaceholder(key)
 
 	rawLevel, ok := node[key]
 	if !matchAll && !ok {
