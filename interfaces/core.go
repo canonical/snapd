@@ -238,11 +238,11 @@ type StaticInfo struct {
 	// patterns".
 	BaseDeclarationSlots string
 
-	// AppArmorUnconfinedPlugs results in the snap being granted the AppArmor
-	// unconfined profile mode.
+	// AppArmorUnconfinedPlugs results in the snap that plugs this interface
+	// being granted the AppArmor unconfined profile mode
 	AppArmorUnconfinedPlugs bool `json:"apparmor-unconfined-plugs,omitempty"`
-	// AppArmorUnconfinedSlots results in the snap being granted the AppArmor
-	// unconfined profile mode.
+	// Similarly, AppArmorUnconfinedSlots results in the snap that slots this interface
+	// being granted the AppArmor unconfined profile mode
 	AppArmorUnconfinedSlots bool `json:"apparmor-unconfined-slots,omitempty"`
 }
 
