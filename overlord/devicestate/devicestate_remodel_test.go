@@ -1076,9 +1076,9 @@ func installEssentialSnaps(c *C, st *state.State, base string) {
 	})
 
 	installSnap(c, st, fmt.Sprintf("name: %s\nversion: 1\ntype: base\n", base), &snap.SideInfo{
-		SnapID:   snaptest.AssertedSnapID("core18"),
+		SnapID:   snaptest.AssertedSnapID(base),
 		Revision: snap.R(1),
-		RealName: "core18",
+		RealName: base,
 	})
 }
 
