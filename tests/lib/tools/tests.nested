@@ -18,6 +18,7 @@ show_help() {
     echo "       transition <recovery-system> <system-mode>"
     echo "       snap-rev <snap-name> [channel]"
     echo "       build-seed <seed-dir> <seed-name> <label>"
+    echo "       nested-system"
     echo ""
     echo "Available options:"
     echo "  -h --help   show this help message."
@@ -43,6 +44,7 @@ show_help() {
     echo "  build-seed                  build a seed that can be used to boot a vm"
     echo "  prepare-essential-snaps     download and repack essential snaps (gadget, kernel, snapd) to include current snapd, and debug command lines"
     echo "  configure-default-user      add either cloudinit user or a system-user assertion that will be auto-imported"
+    echo "  nested-system               retrieves the nested system used for spread nested tests"
     echo ""
     echo "IMAGE-TYPES:"
     echo "  core:    work with a core image"
@@ -410,6 +412,21 @@ prepare_essential_snaps() {
 
 configure_default_user() {
     nested_configure_default_user
+}
+
+nested_system() {
+    if os.query is-ubuntu 16.04; then
+        echo ubuntu-core-16-64
+    elif os.query is-ubuntu 18.04; then
+        echo ubuntu-core-18-64
+    elif os.query is-ubuntu 20.04; then
+        echo ubuntu-core-20-64
+    elif os.query is-ubuntu 22.04; then
+        echo ubuntu-core-22-64
+    else
+        echo "unsupported nested system"
+        exit 1
+    fi
 }
 
 main() {
