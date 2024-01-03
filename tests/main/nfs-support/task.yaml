@@ -13,7 +13,8 @@ backends: [-autopkgtest]
 # fedora, centos: disable until we figure out how to handle NFS and SELinux
 #                 labels, labels can only be exported for NFSv4.2+ with security_label option
 # ubuntu-14.04-64: group 'systemd-journal' does not exist
-systems: [-ubuntu-core-*, -opensuse-*, -fedora-*, -centos-*, -ubuntu-14.04-64]
+# amazon-linux-2023: nfs service unit does not exist
+systems: [-ubuntu-core-*, -opensuse-*, -fedora-*, -centos-*, -ubuntu-14.04-64, -amazon-linux-2023-*]
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh

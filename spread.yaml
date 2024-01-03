@@ -151,6 +151,9 @@ backends:
             - ubuntu-23.10-64:
                   storage: 12G
                   workers: 8
+            - ubuntu-24.04-64:
+                  storage: 12G
+                  workers: 8
 
             - debian-11-64:
                   workers: 6
@@ -160,15 +163,18 @@ backends:
                   storage: 12G
                   workers: 6
 
-            - fedora-37-64:
-                  workers: 6
             - fedora-38-64:
+                  workers: 6
+            - fedora-39-64:
                   workers: 6
 
             - arch-linux-64:
                   workers: 6
                   storage: 12G
             - amazon-linux-2-64:
+                  workers: 6
+                  storage: preserve-size
+            - amazon-linux-2023-64:
                   workers: 6
                   storage: preserve-size
 
@@ -797,6 +803,11 @@ prepare: |
             ubuntu-*|debian-*)
                 apt-get update >& "$tf" || ( cat "$tf"; exit 1 )
                 apt-get install -y xdelta3 curl eatmydata >& "$tf" || ( cat "$tf"; exit 1 )
+                ;;
+            amazon-linux-2023-*)
+                # Amazon linux 2023 has already pre-installed the xdelta package
+                # which is not in the repo yet
+                yum install -y --allowerasing curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
             amazon-*|centos-7-*)
                 yum install -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)

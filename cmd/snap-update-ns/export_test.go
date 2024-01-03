@@ -49,13 +49,15 @@ var (
 	CurrentSystemProfilePath = currentSystemProfilePath
 
 	// user
+	IsPlausibleHome        = isPlausibleHome
 	DesiredUserProfilePath = desiredUserProfilePath
 	CurrentUserProfilePath = currentUserProfilePath
 
-	// xdg
+	// expand
 	XdgRuntimeDir        = xdgRuntimeDir
 	ExpandPrefixVariable = expandPrefixVariable
 	ExpandXdgRuntimeDir  = expandXdgRuntimeDir
+	ExpandHomeDir        = expandHomeDir
 
 	// update
 	ExecuteMountProfileUpdate = executeMountProfileUpdate
@@ -144,6 +146,22 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	}
 }
 
+func MockGetuid(fn func() sys.UserID) (restore func()) {
+	oldSysGetuid := sysGetuid
+	sysGetuid = fn
+	return func() {
+		sysGetuid = oldSysGetuid
+	}
+}
+
+func MockGetgid(fn func() sys.GroupID) (restore func()) {
+	oldSysGetgid := sysGetgid
+	sysGetgid = fn
+	return func() {
+		sysGetgid = oldSysGetgid
+	}
+}
+
 func MockChangePerform(f func(chg *Change, as *Assumptions) ([]*Change, error)) func() {
 	origChangePerform := changePerform
 	changePerform = f
@@ -174,11 +192,67 @@ func MockReadDir(fn func(string) ([]os.FileInfo, error)) (restore func()) {
 	}
 }
 
+// MockSnapConfineUserEnv provide the environment variables provided by snap-confine
+// when it calls snap-update-ns for a specific user
+func MockSnapConfineUserEnv(xdgNew, realHomeNew string) (restore func()) {
+	xdgCur, xdgExists := os.LookupEnv("XDG_RUNTIME_DIR")
+	realHomeCur, realHomeExists := os.LookupEnv("SNAP_REAL_HOME")
+
+	os.Setenv("XDG_RUNTIME_DIR", xdgNew)
+	os.Setenv("SNAP_REAL_HOME", realHomeNew)
+
+	return func() {
+		if xdgExists {
+			os.Setenv("XDG_RUNTIME_DIR", xdgCur)
+		} else {
+			os.Unsetenv("XDG_RUNTIME_DIR")
+		}
+
+		if realHomeExists {
+			os.Setenv("SNAP_REAL_HOME", realHomeCur)
+		} else {
+			os.Unsetenv("SNAP_REAL_HOME")
+		}
+	}
+}
+
 func MockReadlink(fn func(string) (string, error)) (restore func()) {
 	old := osReadlink
 	osReadlink = fn
 	return func() {
 		osReadlink = old
+	}
+}
+
+func MockSysMkdirat(fn func(dirfd int, path string, mode uint32) (err error)) (restore func()) {
+	old := sysMkdirat
+	sysMkdirat = fn
+	return func() {
+		sysMkdirat = old
+	}
+}
+
+func MockSysMount(fn func(source string, target string, fstype string, flags uintptr, data string) (err error)) (restore func()) {
+	old := sysMount
+	sysMount = fn
+	return func() {
+		sysMount = old
+	}
+}
+
+func MockSysUnmount(fn func(target string, flags int) (err error)) (restore func()) {
+	old := sysUnmount
+	sysUnmount = fn
+	return func() {
+		sysUnmount = old
+	}
+}
+
+func MockSysFchown(fn func(fd int, uid sys.UserID, gid sys.GroupID) error) (restore func()) {
+	old := sysFchown
+	sysFchown = fn
+	return func() {
+		sysFchown = old
 	}
 }
 

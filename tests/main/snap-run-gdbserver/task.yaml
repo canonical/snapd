@@ -1,5 +1,9 @@
 summary: Check that `snap run --gdbserver` works
 
+details: |
+    Verifies the command `snap run --gdbserver` works properly. Also
+    check the --experimental-gdbserver deprecated parameter works properly.
+
 # testing only here to avoid having to install gdb/gdbserver everywhere
 systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-2*]
 
