@@ -1,5 +1,13 @@
 summary: Ensure that the snap-seccomp bpf handling works
 
+details: |
+    This test installs the test-snapd-sh snap and runs different checks 
+    to validate that snap-seccomp bpf handling works as expected. Those 
+    checks include the use of @complain and @unrestricted keywords, 
+    missing, empty and invalid profiles, checks the filter size limit 
+    and ensures that that snap-confine waits for security profiles to 
+    appear. It also verifies that amd64 arch works with i386 binaries.
+
 systems: [ubuntu-*]
 
 # Start early as it takes a long time.
@@ -89,7 +97,7 @@ execute: |
         exit 1
     fi
 
-    echo "Break snapd.test-snapd-sh.bin to ensure (kernel) validation works"
+    echo "Break snapd.test-snapd-sh.bin2 to ensure (kernel) validation works"
     dd if=/dev/urandom of="${PROFILE}.bin2" count=1 bs=1024
     if output=$(test-snapd-sh.sh -c 'echo hello' 2>&1 ); then
         echo "test-snapd-sh.sh should fail with invalid seccomp profile"
