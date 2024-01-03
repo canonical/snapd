@@ -367,7 +367,7 @@ jobs:
       matrix:
         include:
           - group: amazon-linux
-            system: 'amazon-linux-2-64 amazon-linux-2023-64'
+            systems: 'amazon-linux-2-64 amazon-linux-2023-64'
           - group: arch-linux
             systems: 'arch-linux-64'
           - group: centos
@@ -375,21 +375,21 @@ jobs:
           - group: debian-req
             systems: 'debian-11-64'
           - group: debian-no-req
-            system: 'debian-12-64 debian-sid-64'
+            systems: 'debian-12-64 debian-sid-64'
           - group: fedora
-            system: 'fedora-38-64 fedora-39-64'
+            systems: 'fedora-38-64 fedora-39-64'
           - group: opensuse
             systems: 'opensuse-15.4-64 opensuse-15.5-64 opensuse-tumbleweed-64'
           - group: ubuntu-trusty-xenial
-            system: 'ubuntu-14.04-64 ubuntu-16.04-64'
+            systems: 'ubuntu-14.04-64 ubuntu-16.04-64'
           - group: ubuntu-bionic
             systems: 'ubuntu-18.04-32 ubuntu-18.04-64'
           - group: ubuntu-focal-jammy
-            system: 'ubuntu-20.04-64 ubuntu-22.04-64'
+            systems: 'ubuntu-20.04-64 ubuntu-22.04-64'
           - group: ubuntu-no-lts
-            system: 'ubuntu-23.04-64 ubuntu-23.10-64'
+            systems: 'ubuntu-23.04-64 ubuntu-23.10-64'
           - group: ubuntu-daily
-            system: 'ubuntu-24.04'
+            systems: 'ubuntu-24.04'
           - group: ubuntu-core-16
             systems: 'ubuntu-core-16-64'
           - group: ubuntu-core-18
@@ -470,13 +470,14 @@ jobs:
               SPREAD=spread-arm
           fi
 
-          # Save previous failed test results in FAILED_TESTS env var
           RUN_TESTS=""
-          for SYSTEM in ${{ matrix.systems }}; do
-              RUN_TESTS="$RUN_TESTS $BACKEND:$SYSTEM:tests/..."
-          done
+          # Save previous failed test results in FAILED_TESTS env var
           if [ -n "$FAILED_TESTS" ]; then
               RUN_TESTS="$FAILED_TESTS"
+          else
+              for SYSTEM in ${{ matrix.systems }}; do
+                  RUN_TESTS="$RUN_TESTS $BACKEND:$SYSTEM:tests/..."
+              done
           fi
           # Run spread tests
           # "pipefail" ensures that a non-zero status from the spread is
