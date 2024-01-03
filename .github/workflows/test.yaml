@@ -389,7 +389,7 @@ jobs:
           - group: ubuntu-no-lts
             systems: 'ubuntu-23.04-64 ubuntu-23.10-64'
           - group: ubuntu-daily
-            systems: 'ubuntu-24.04'
+            systems: 'ubuntu-24.04-64'
           - group: ubuntu-core-16
             systems: 'ubuntu-core-16-64'
           - group: ubuntu-core-18
