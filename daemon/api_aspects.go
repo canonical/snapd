@@ -125,6 +125,9 @@ func toAPIError(err error) *apiError {
 	case errors.Is(err, &aspects.NotFoundError{}):
 		return NotFound(err.Error())
 
+	case errors.Is(err, &aspects.BadRequestError{}):
+		return BadRequest(err.Error())
+
 	case errors.Is(err, &aspects.InvalidAccessError{}):
 		return &apiError{
 			Status:  403,

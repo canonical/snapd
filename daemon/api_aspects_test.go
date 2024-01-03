@@ -509,3 +509,50 @@ func (s *aspectsSuite) TestGetAspectNotAllowed(c *C) {
 	c.Check(rspe.Message, Equals, `cannot read field "foo": only supports write access`)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
 }
+
+func (s *aspectsSuite) TestGetBadRequest(c *C) {
+	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, acc, bundleName, aspect, field string) (interface{}, error) {
+		return nil, &aspects.BadRequestError{
+			Account:    "acc",
+			BundleName: "bundle",
+			Aspect:     "foo",
+			Operation:  "get",
+			Request:    "foo",
+			Cause:      "bad request",
+		}
+	})
+	defer restore()
+
+	req, err := http.NewRequest("GET", "/v2/aspects/acc/bundle/foo?fields=foo", &bytes.Buffer{})
+	req.Header.Set("Content-Type", "application/json")
+	c.Assert(err, IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Message, Equals, `cannot get "foo" in aspect acc/bundle/foo: bad request`)
+	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
+}
+
+func (s *aspectsSuite) TestSetBadRequest(c *C) {
+	restore := daemon.MockAspectstateSet(func(aspects.DataBag, string, string, string, string, interface{}) error {
+		return &aspects.BadRequestError{
+			Account:    "acc",
+			BundleName: "bundle",
+			Aspect:     "foo",
+			Operation:  "set",
+			Request:    "foo",
+			Cause:      "bad request",
+		}
+	})
+	defer restore()
+
+	buf := bytes.NewBufferString(`{"a.b.c": "foo"}`)
+	req, err := http.NewRequest("PUT", "/v2/aspects/acc/bundle/foo", buf)
+	req.Header.Set("Content-Type", "application/json")
+	c.Assert(err, IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Message, Equals, `cannot set "foo" in aspect acc/bundle/foo: bad request`)
+	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
+}
