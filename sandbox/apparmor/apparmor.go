@@ -498,9 +498,9 @@ func tryAppArmorParserFeature(cmd *exec.Cmd, flags []string, rule string) bool {
 	cmd.Args = append(cmd.Args, "--preprocess")
 	flagSnippet := ""
 	if len(flags) > 0 {
-		flagSnippet = fmt.Sprintf("flags=(%s)", strings.Join(flags, ","))
+		flagSnippet = fmt.Sprintf("flags=(%s) ", strings.Join(flags, ","))
 	}
-	cmd.Stdin = bytes.NewBufferString(fmt.Sprintf("profile snap-test %s {\n %s\n}",
+	cmd.Stdin = bytes.NewBufferString(fmt.Sprintf("profile snap-test %s{\n %s\n}",
 		flagSnippet, rule))
 	output, err := cmd.CombinedOutput()
 	// older versions of apparmor_parser can exit with success even

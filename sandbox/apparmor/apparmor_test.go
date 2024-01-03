@@ -310,28 +310,28 @@ exit "$EXIT_CODE"
 		c.Check(mockParserCmd.Calls(), DeepEquals, expectedCalls)
 		data, err := ioutil.ReadFile(filepath.Join(d, "stdin"))
 		c.Assert(err, IsNil)
-		c.Check(string(data), Equals, `profile snap-test  {
+		c.Check(string(data), Equals, `profile snap-test {
  change_profile unsafe /**,
 }
-profile snap-test  {
+profile snap-test {
  #include if exists "/foo"
 }
-profile snap-test  {
+profile snap-test {
  network qipcrtr dgram,
 }
-profile snap-test  {
+profile snap-test {
  mqueue,
 }
-profile snap-test  {
+profile snap-test {
  capability bpf,
 }
-profile snap-test  {
+profile snap-test {
  capability audit_read,
 }
-profile snap-test  {
+profile snap-test {
  network xdp,
 }
-profile snap-test  {
+profile snap-test {
  userns,
 }
 profile snap-test flags=(unconfined) {
