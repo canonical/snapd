@@ -68,6 +68,7 @@ var (
 	SealKeyToModeenv                = sealKeyToModeenvImpl
 	ResealKeyToModeenv              = resealKeyToModeenv
 	RecoveryBootChainsForSystems    = recoveryBootChainsForSystems
+	RunModeBootChains               = runModeBootChains
 	SealKeyModelParams              = sealKeyModelParams
 
 	BootVarsForTrustedCommandLineFromGadget = bootVarsForTrustedCommandLineFromGadget

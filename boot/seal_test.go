@@ -124,6 +124,9 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		factoryReset             bool
 		pcrHandleOfKey           uint32
 		pcrHandleOfKeyErr        error
+		shimId                   string
+		grubId                   string
+		runGrubId                string
 		expErr                   string
 		expProvisionCalls        int
 		expSealCalls             int
@@ -132,6 +135,12 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 	}{
 		{
 			sealErr: nil, expErr: "",
+			expProvisionCalls: 1, expSealCalls: 2,
+		}, {
+			sealErr: nil,
+			// old boot assets
+			shimId: "bootx64.efi", grubId: "grubx64.efi",
+			expErr:            "",
 			expProvisionCalls: 1, expSealCalls: 2,
 		}, {
 			sealErr: nil, factoryReset: true, pcrHandleOfKey: secboot.FallbackObjectPCRPolicyCounterHandle,
@@ -157,6 +166,19 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		dirs.SetRootDir(rootdir)
 		defer dirs.SetRootDir("")
 
+		shimId := tc.shimId
+		if shimId == "" {
+			shimId = "ubuntu:shimx64.efi"
+		}
+		grubId := tc.grubId
+		if grubId == "" {
+			grubId = "ubuntu:grubx64.efi"
+		}
+		runGrubId := tc.runGrubId
+		if runGrubId == "" {
+			runGrubId = "grubx64.efi"
+		}
+
 		err := createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-seed"))
 		c.Assert(err, IsNil)
 
@@ -168,12 +190,12 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		modeenv := &boot.Modeenv{
 			RecoverySystem: "20200825",
 			CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-				"grubx64.efi": []string{"grub-hash-1"},
-				"bootx64.efi": []string{"shim-hash-1"},
+				grubId: []string{"grub-hash-1"},
+				shimId: []string{"shim-hash-1"},
 			},
 
 			CurrentTrustedBootAssets: boot.BootAssetsMap{
-				"grubx64.efi": []string{"run-grub-hash-1"},
+				runGrubId: []string{"run-grub-hash-1"},
 			},
 
 			CurrentKernels: []string{"pc-kernel_500.snap"},
@@ -189,9 +211,9 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 
 		// mock asset cache
 		mockAssetsCache(c, rootdir, "grub", []string{
-			"bootx64.efi-shim-hash-1",
-			"grubx64.efi-grub-hash-1",
-			"grubx64.efi-run-grub-hash-1",
+			fmt.Sprintf("%s-shim-hash-1", shimId),
+			fmt.Sprintf("%s-grub-hash-1", grubId),
+			fmt.Sprintf("%s-run-grub-hash-1", runGrubId),
 		})
 
 		// set encryption key
@@ -293,9 +315,9 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 				c.Check(ex && isdir, Equals, true, Commentf("location %q does not exist or is not a directory", d))
 			}
 
-			shim := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1"), bootloader.RoleRecovery)
-			grub := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), bootloader.RoleRecovery)
-			runGrub := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), bootloader.RoleRunMode)
+			shim := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-shim-hash-1", shimId)), bootloader.RoleRecovery)
+			grub := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-grub-hash-1", grubId)), bootloader.RoleRecovery)
+			runGrub := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-run-grub-hash-1", runGrubId)), bootloader.RoleRunMode)
 			kernel := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
 			runKernel := bootloader.NewBootFile(filepath.Join(rootdir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode)
 
@@ -364,12 +386,12 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 				AssetChain: []boot.BootAsset{
 					{
 						Role:   "recovery",
-						Name:   "bootx64.efi",
+						Name:   shimId,
 						Hashes: []string{"shim-hash-1"},
 					},
 					{
 						Role:   "recovery",
-						Name:   "grubx64.efi",
+						Name:   grubId,
 						Hashes: []string{"grub-hash-1"},
 					},
 				},
@@ -388,17 +410,17 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 				AssetChain: []boot.BootAsset{
 					{
 						Role:   "recovery",
-						Name:   "bootx64.efi",
+						Name:   shimId,
 						Hashes: []string{"shim-hash-1"},
 					},
 					{
 						Role:   "recovery",
-						Name:   "grubx64.efi",
+						Name:   grubId,
 						Hashes: []string{"grub-hash-1"},
 					},
 					{
 						Role:   "run-mode",
-						Name:   "grubx64.efi",
+						Name:   runGrubId,
 						Hashes: []string{"run-grub-hash-1"},
 					},
 				},
@@ -423,12 +445,12 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 				AssetChain: []boot.BootAsset{
 					{
 						Role:   "recovery",
-						Name:   "bootx64.efi",
+						Name:   shimId,
 						Hashes: []string{"shim-hash-1"},
 					},
 					{
 						Role:   "recovery",
-						Name:   "grubx64.efi",
+						Name:   grubId,
 						Hashes: []string{"grub-hash-1"},
 					},
 				},
@@ -469,8 +491,13 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 		reuseRunPbc      bool
 		reuseRecoveryPbc bool
 		resealErr        error
+		shimId           string
+		grubId           string
+		runGrubId        string
 		err              string
 	}{
+		{sealedKeys: false, shimId: "bootx64.efi", grubId: "grubx64.efi", resealErr: nil, err: ""},
+		{sealedKeys: true, shimId: "bootx64.efi", grubId: "grubx64.efi", resealErr: nil, err: ""},
 		{sealedKeys: false, resealErr: nil, err: ""},
 		{sealedKeys: true, resealErr: nil, err: ""},
 		{sealedKeys: true, resealErr: errors.New("reseal error"), err: "cannot reseal the encryption key: reseal error"},
@@ -484,6 +511,19 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 		rootdir := c.MkDir()
 		dirs.SetRootDir(rootdir)
 		defer dirs.SetRootDir("")
+
+		shimId := tc.shimId
+		if shimId == "" {
+			shimId = "ubuntu:shimx64.efi"
+		}
+		grubId := tc.grubId
+		if grubId == "" {
+			grubId = "ubuntu:grubx64.efi"
+		}
+		runGrubId := tc.runGrubId
+		if runGrubId == "" {
+			runGrubId = "grubx64.efi"
+		}
 
 		if tc.sealedKeys {
 			c.Assert(os.MkdirAll(dirs.SnapFDEDir, 0755), IsNil)
@@ -503,12 +543,12 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 		modeenv := &boot.Modeenv{
 			CurrentRecoverySystems: []string{"20200825"},
 			CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-				"grubx64.efi": []string{"grub-hash-1"},
-				"bootx64.efi": []string{"shim-hash-1", "shim-hash-2"},
+				grubId: []string{"grub-hash-1"},
+				shimId: []string{"shim-hash-1", "shim-hash-2"},
 			},
 
 			CurrentTrustedBootAssets: boot.BootAssetsMap{
-				"grubx64.efi": []string{"run-grub-hash-1", "run-grub-hash-2"},
+				runGrubId: []string{"run-grub-hash-1", "run-grub-hash-2"},
 			},
 
 			CurrentKernels: []string{"pc-kernel_500.snap", "pc-kernel_600.snap"},
@@ -533,11 +573,11 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 
 		// mock asset cache
 		mockAssetsCache(c, rootdir, "grub", []string{
-			"bootx64.efi-shim-hash-1",
-			"bootx64.efi-shim-hash-2",
-			"grubx64.efi-grub-hash-1",
-			"grubx64.efi-run-grub-hash-1",
-			"grubx64.efi-run-grub-hash-2",
+			fmt.Sprintf("%s-shim-hash-1", shimId),
+			fmt.Sprintf("%s-shim-hash-2", shimId),
+			fmt.Sprintf("%s-grub-hash-1", grubId),
+			fmt.Sprintf("%s-run-grub-hash-1", runGrubId),
+			fmt.Sprintf("%s-run-grub-hash-2", runGrubId),
 		})
 
 		// set a mock recovery kernel
@@ -560,13 +600,13 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 			c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
 
 			// recovery parameters
-			shim := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1"), bootloader.RoleRecovery)
-			shim2 := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-2"), bootloader.RoleRecovery)
-			grub := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash-1"), bootloader.RoleRecovery)
+			shim := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-shim-hash-1", shimId)), bootloader.RoleRecovery)
+			shim2 := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-shim-hash-2", shimId)), bootloader.RoleRecovery)
+			grub := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-grub-hash-1", grubId)), bootloader.RoleRecovery)
 			kernel := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
 			// run mode parameters
-			runGrub := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-1"), bootloader.RoleRunMode)
-			runGrub2 := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-run-grub-hash-2"), bootloader.RoleRunMode)
+			runGrub := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-run-grub-hash-1", runGrubId)), bootloader.RoleRunMode)
+			runGrub2 := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-run-grub-hash-2", runGrubId)), bootloader.RoleRunMode)
 			runKernel := bootloader.NewBootFile(filepath.Join(rootdir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode)
 			runKernel2 := bootloader.NewBootFile(filepath.Join(rootdir, "var/lib/snapd/snaps/pc-kernel_600.snap"), "kernel.efi", bootloader.RoleRunMode)
 
@@ -717,12 +757,12 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 				AssetChain: []boot.BootAsset{
 					{
 						Role:   "recovery",
-						Name:   "bootx64.efi",
+						Name:   shimId,
 						Hashes: []string{"shim-hash-1", "shim-hash-2"},
 					},
 					{
 						Role:   "recovery",
-						Name:   "grubx64.efi",
+						Name:   grubId,
 						Hashes: []string{"grub-hash-1"},
 					},
 				},
@@ -740,17 +780,17 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 				AssetChain: []boot.BootAsset{
 					{
 						Role:   "recovery",
-						Name:   "bootx64.efi",
+						Name:   shimId,
 						Hashes: []string{"shim-hash-1", "shim-hash-2"},
 					},
 					{
 						Role:   "recovery",
-						Name:   "grubx64.efi",
+						Name:   grubId,
 						Hashes: []string{"grub-hash-1"},
 					},
 					{
 						Role:   "run-mode",
-						Name:   "grubx64.efi",
+						Name:   runGrubId,
 						Hashes: []string{"run-grub-hash-1", "run-grub-hash-2"},
 					},
 				},
@@ -768,17 +808,17 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 				AssetChain: []boot.BootAsset{
 					{
 						Role:   "recovery",
-						Name:   "bootx64.efi",
+						Name:   shimId,
 						Hashes: []string{"shim-hash-1", "shim-hash-2"},
 					},
 					{
 						Role:   "recovery",
-						Name:   "grubx64.efi",
+						Name:   grubId,
 						Hashes: []string{"grub-hash-1"},
 					},
 					{
 						Role:   "run-mode",
-						Name:   "grubx64.efi",
+						Name:   runGrubId,
 						Hashes: []string{"run-grub-hash-1", "run-grub-hash-2"},
 					},
 				},
@@ -1210,6 +1250,171 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 			},
 		},
 	})
+}
+
+func (s *sealSuite) TestRunModeBootChains(c *C) {
+	for _, tc := range []struct {
+		desc               string
+		cmdlines           []string
+		recoveryAssetsMap  boot.BootAssetsMap
+		runAssetsMap       boot.BootAssetsMap
+		currentKernels     []string
+		expectedCmdlines   [][]string
+		expectedAssets     [][]boot.BootAsset
+		expectedKernelRevs []int
+		expectedErr        string
+	}{
+		{
+			desc:     "Old chain",
+			cmdlines: []string{"testline"},
+			recoveryAssetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-1"},
+				"bootx64.efi": []string{"shim-hash-1"},
+			},
+			runAssetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-2", "grub-hash-3"},
+			},
+			currentKernels:     []string{"pc-kernel_500.snap"},
+			expectedKernelRevs: []int{500, 500},
+			expectedCmdlines: [][]string{
+				{"testline"},
+				{"testline"},
+			},
+			expectedAssets: [][]boot.BootAsset{
+				{
+					{Role: bootloader.RoleRecovery, Name: "bootx64.efi", Hashes: []string{"shim-hash-1"}},
+					{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1"}},
+					{Role: bootloader.RoleRunMode, Name: "grubx64.efi", Hashes: []string{"grub-hash-2", "grub-hash-3"}},
+				},
+			},
+		},
+		{
+			desc:     "New chain",
+			cmdlines: []string{"testline"},
+			recoveryAssetsMap: boot.BootAssetsMap{
+				"ubuntu:grubx64.efi": []string{"grub-hash-1"},
+				"ubuntu:shimx64.efi": []string{"shim-hash-1"},
+			},
+			runAssetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-2", "grub-hash-3"},
+			},
+			currentKernels:     []string{"pc-kernel_500.snap"},
+			expectedKernelRevs: []int{500, 500},
+			expectedCmdlines: [][]string{
+				{"testline"},
+				{"testline"},
+			},
+			expectedAssets: [][]boot.BootAsset{
+				{
+					{Role: bootloader.RoleRecovery, Name: "ubuntu:shimx64.efi", Hashes: []string{"shim-hash-1"}},
+					{Role: bootloader.RoleRecovery, Name: "ubuntu:grubx64.efi", Hashes: []string{"grub-hash-1"}},
+					{Role: bootloader.RoleRunMode, Name: "grubx64.efi", Hashes: []string{"grub-hash-2", "grub-hash-3"}},
+				},
+			},
+		},
+		{
+			desc:     "Both old and new chains",
+			cmdlines: []string{"testline"},
+			recoveryAssetsMap: boot.BootAssetsMap{
+				"grubx64.efi":        []string{"grub-hash-1"},
+				"bootx64.efi":        []string{"shim-hash-1"},
+				"ubuntu:grubx64.efi": []string{"grub-hash-3"},
+				"ubuntu:shimx64.efi": []string{"shim-hash-3"},
+			},
+			runAssetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-2", "grub-hash-3"},
+			},
+			currentKernels:     []string{"pc-kernel_500.snap"},
+			expectedKernelRevs: []int{500, 500},
+			expectedCmdlines: [][]string{
+				{"testline"},
+				{"testline"},
+			},
+			expectedAssets: [][]boot.BootAsset{
+				{
+					{Role: bootloader.RoleRecovery, Name: "bootx64.efi", Hashes: []string{"shim-hash-1"}},
+					{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1"}},
+					{Role: bootloader.RoleRunMode, Name: "grubx64.efi", Hashes: []string{"grub-hash-2", "grub-hash-3"}},
+				},
+				{
+					{Role: bootloader.RoleRecovery, Name: "ubuntu:shimx64.efi", Hashes: []string{"shim-hash-3"}},
+					{Role: bootloader.RoleRecovery, Name: "ubuntu:grubx64.efi", Hashes: []string{"grub-hash-3"}},
+					{Role: bootloader.RoleRunMode, Name: "grubx64.efi", Hashes: []string{"grub-hash-2", "grub-hash-3"}},
+				},
+			},
+		},
+	} {
+		c.Logf("tc: %q", tc.desc)
+		rootdir := c.MkDir()
+		dirs.SetRootDir(rootdir)
+		defer dirs.SetRootDir("")
+
+		model := boottest.MakeMockUC20Model()
+
+		modeenv := &boot.Modeenv{
+			CurrentTrustedRecoveryBootAssets: tc.recoveryAssetsMap,
+			CurrentTrustedBootAssets:         tc.runAssetsMap,
+			CurrentKernels:                   tc.currentKernels,
+
+			BrandID:        model.BrandID(),
+			Model:          model.Model(),
+			ModelSignKeyID: model.SignKeyID(),
+			Grade:          string(model.Grade()),
+		}
+
+		grubDir := filepath.Join(rootdir, "run/mnt/ubuntu-seed")
+		err := createMockGrubCfg(grubDir)
+		c.Assert(err, IsNil)
+
+		runGrubDir := filepath.Join(rootdir, "run/mnt/ubuntu-boot")
+		err = createMockGrubCfg(runGrubDir)
+		c.Assert(err, IsNil)
+
+		rbl, err := bootloader.Find(grubDir, &bootloader.Options{
+			Role:        bootloader.RoleRecovery,
+			NoSlashBoot: true,
+		})
+		c.Assert(err, IsNil)
+		bl, err := bootloader.Find(runGrubDir, &bootloader.Options{
+			Role:        bootloader.RoleRunMode,
+			NoSlashBoot: true,
+		})
+		c.Assert(err, IsNil)
+
+		bootChains, err := boot.RunModeBootChains(rbl, bl, modeenv, tc.cmdlines, "/snaps")
+		if tc.expectedErr == "" {
+			c.Assert(err, IsNil)
+
+			foundChains := make(map[int]bool)
+			for i, chain := range bootChains {
+				foundChain := false
+				c.Logf("For chain: %v", chain.AssetChain)
+				for j, expectedAssets := range tc.expectedAssets {
+					c.Logf("Comparing with: %v", expectedAssets)
+					if reflect.DeepEqual(chain.AssetChain, expectedAssets) {
+						foundChains[j] = true
+						foundChain = true
+						continue
+					}
+				}
+				c.Assert(foundChain, Equals, true)
+				c.Assert(chain.Kernel, Equals, "pc-kernel")
+				expectedKernelRev := tc.expectedKernelRevs[i]
+				c.Assert(chain.KernelRevision, Equals, fmt.Sprintf("%d", expectedKernelRev))
+				c.Assert(chain.KernelBootFile(), DeepEquals, bootloader.BootFile{
+					Snap: fmt.Sprintf("/snaps/pc-kernel_%d.snap", expectedKernelRev),
+					Path: "kernel.efi",
+					Role: bootloader.RoleRunMode,
+				})
+				c.Assert(chain.KernelCmdlines, DeepEquals, tc.expectedCmdlines[i])
+			}
+			for j := range tc.expectedAssets {
+				c.Assert(foundChains[j], Equals, true)
+			}
+		} else {
+			c.Assert(err, ErrorMatches, tc.expectedErr)
+		}
+	}
 }
 
 func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
@@ -1876,7 +2081,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
 	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
 }
 
-func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
+func (s *sealSuite) testResealKeyToModeenvWithTryModel(c *C, shimId, grubId string) {
 	rootdir := c.MkDir()
 	dirs.SetRootDir(rootdir)
 	defer dirs.SetRootDir("")
@@ -1906,8 +2111,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 		GoodRecoverySystems:    []string{"20200825", "1234"},
 
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-			"grubx64.efi": []string{"grub-hash"},
-			"bootx64.efi": []string{"shim-hash"},
+			grubId: []string{"grub-hash"},
+			shimId: []string{"shim-hash"},
 		},
 
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
@@ -1933,8 +2138,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 
 	// mock asset cache
 	mockAssetsCache(c, rootdir, "grub", []string{
-		"bootx64.efi-shim-hash",
-		"grubx64.efi-grub-hash",
+		fmt.Sprintf("%s-shim-hash", shimId),
+		fmt.Sprintf("%s-grub-hash", grubId),
 		"grubx64.efi-run-grub-hash",
 	})
 
@@ -2023,8 +2228,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 		}
 
 		// recovery parameters
-		shim := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash"), bootloader.RoleRecovery)
-		grub := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/grubx64.efi-grub-hash"), bootloader.RoleRecovery)
+		shim := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-shim-hash", shimId)), bootloader.RoleRecovery)
+		grub := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-grub-hash", grubId)), bootloader.RoleRecovery)
 		kernelOldRecovery := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
 		// kernel from a tried recovery system
 		kernelNewRecovery := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_999.snap", "kernel.efi", bootloader.RoleRecovery)
@@ -2090,20 +2295,20 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 
 	recoveryAssetChain := []boot.BootAsset{{
 		Role:   "recovery",
-		Name:   "bootx64.efi",
+		Name:   shimId,
 		Hashes: []string{"shim-hash"},
 	}, {
 		Role:   "recovery",
-		Name:   "grubx64.efi",
+		Name:   grubId,
 		Hashes: []string{"grub-hash"},
 	}}
 	runAssetChain := []boot.BootAsset{{
 		Role:   "recovery",
-		Name:   "bootx64.efi",
+		Name:   shimId,
 		Hashes: []string{"shim-hash"},
 	}, {
 		Role:   "recovery",
-		Name:   "grubx64.efi",
+		Name:   grubId,
 		Hashes: []string{"grub-hash"},
 	}, {
 		Role:   "run-mode",
@@ -2187,6 +2392,14 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 			},
 		},
 	})
+}
+
+func (s *sealSuite) TestResealKeyToModeenvWithTryModelOldBootChain(c *C) {
+	s.testResealKeyToModeenvWithTryModel(c, "bootx64.efi", "grubx64.efi")
+}
+
+func (s *sealSuite) TestResealKeyToModeenvWithTryModelNewBootChain(c *C) {
+	s.testResealKeyToModeenvWithTryModel(c, "ubuntu:shimx64.efi", "ubuntu:grubx64.efi")
 }
 
 func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
