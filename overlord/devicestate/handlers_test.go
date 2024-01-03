@@ -493,7 +493,7 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	installEssentialSnaps(c, s.state, "core18")
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
 
 	var testStore snapstate.StoreService
 
