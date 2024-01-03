@@ -839,7 +839,8 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	// if base is not set, then core will not be returned in the list of snaps
 	// returned by new.EssentialSnaps(). since we know that we are remodeling
 	// from a core-based system to a core-based system, then the core snap must
-	// be installed. thus, we can safely add it to the prereq tracker.
+	// be installed. thus, we can safely add it to the prereq tracker. note that
+	// moving from a UC16 model to a newer model is not supported.
 	if new.Base() == "" {
 		currentBase, err := snapstate.CurrentInfo(st, "core")
 		if err != nil {
