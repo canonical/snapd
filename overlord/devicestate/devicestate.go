@@ -969,11 +969,6 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		return nil, errors.New(builder.String())
 	}
 
-	// TODO: fix the prerequisite task getting stuck during a remodel by
-	// making it a NOP, but ensure that the dependencies of new snaps are
-	// getting installed or updated if needed and are properly ordered wrt
-	// to the tasks that require them (eg. run-hooks)
-
 	// Keep track of downloads tasks carrying snap-setup which is needed for
 	// recovery system tasks
 	var snapSetupTasks []string
