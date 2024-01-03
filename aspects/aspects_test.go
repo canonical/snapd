@@ -930,6 +930,7 @@ func (s *aspectSuite) TestGetSeveralUnmatchedPlaceholders(c *C) {
 				// the request can be fulfilled here
 				"d1": map[string]interface{}{
 					"e": "end",
+					"f": "not-included",
 				},
 				"d2": "f",
 			},
