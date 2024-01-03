@@ -81,7 +81,7 @@ var templateCommon = `
 
 ###VAR###
 
-###PROFILEATTACH### (attach_disconnected,mediate_deleted) {
+###PROFILEATTACH### ###FLAGS### {
   #include <abstractions/base>
   #include <abstractions/consoles>
   #include <abstractions/openssl>
@@ -847,7 +847,7 @@ var classicTemplate = `
 
 ###VAR###
 
-###PROFILEATTACH### (attach_disconnected,mediate_deleted) {
+###PROFILEATTACH### ###FLAGS### {
   # set file rules so that exec() inherits our profile unless there is
   # already a profile for it (eg, snap-confine)
   / rwkl,

@@ -92,6 +92,11 @@ type Specification struct {
 
 	// Same as the above, but for the pycache deny rule which breaks docker
 	suppressPycacheDeny bool
+
+	// Unconfined profile mode allows a profile to be applied without any
+	// real confinement TODO: instead of a boolean, should this instead be a
+	// set of flags which get applied to the profile?
+	unconfined bool
 }
 
 // setScope sets the scope of subsequent AddSnippet family functions.
@@ -655,6 +660,10 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 
 // AddPermanentPlug records apparmor-specific side-effects of having a plug.
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *snap.PlugInfo) error {
+	si := interfaces.StaticInfoOf(iface)
+	if si.AppArmorUnconfinedPlugs {
+		spec.setUnconfined()
+	}
 	type definer interface {
 		AppArmorPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}
@@ -668,6 +677,10 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 
 // AddPermanentSlot records apparmor-specific side-effects of having a slot.
 func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *snap.SlotInfo) error {
+	si := interfaces.StaticInfoOf(iface)
+	if si.AppArmorUnconfinedSlots {
+		spec.setUnconfined()
+	}
 	type definer interface {
 		AppArmorPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
 	}
@@ -747,4 +760,16 @@ func (spec *Specification) SetSuppressPycacheDeny() {
 // suppressed.
 func (spec *Specification) SuppressPycacheDeny() bool {
 	return spec.suppressPycacheDeny
+}
+
+// setUnconfined records whether a profile should be applied without any real
+// confinement
+func (spec *Specification) setUnconfined() {
+	spec.unconfined = true
+}
+
+// Unconfined returns whether a profile should be applied without any real
+// confinement
+func (spec *Specification) Unconfined() bool {
+	return spec.unconfined
 }
