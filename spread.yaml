@@ -533,6 +533,9 @@ backends:
             - ubuntu-core-24-64:
                   username: external
                   password: ubuntu
+            - ubuntu-core-24-arm-64:
+                  username: external
+                  password: ubuntu
 
 path: /home/gopath/src/github.com/snapcore/snapd
 
