@@ -325,7 +325,8 @@ var WaitWhileInhibited = func(snapName string, notInhibited func() error, inhibi
 		// We must return flock alongside errors so that cleanup defer can close it.
 		if os.IsNotExist(err) {
 			if err := notInhibited(); err != nil {
-				return flock, err
+				// No flock opened, it is okay to return nil here
+				return nil, err
 			}
 			return nil, nil
 		}
