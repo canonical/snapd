@@ -308,43 +308,47 @@ var newTicker = func(interval time.Duration) ticker {
 // NOTE: A snap without a hint file is considered not inhibited and a nil FileLock is returned.
 //
 // NOTE: It is the caller's responsibility to release the returned file lock.
-var WaitWhileInhibited = func(snapName string, notInhibited func() error, inhibited func(hint Hint, inhibitInfo *InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
+var WaitWhileInhibited = func(snapName string, notInhibited func() error, inhibited func(hint Hint, inhibitInfo *InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, err error) {
 	ticker := newTicker(interval)
 
+	// Release lock if we return early with an error
+	defer func() {
+		// Keep lock if no errors occur
+		if err != nil && flock != nil {
+			flock.Close()
+			flock = nil
+		}
+	}()
+
 	for {
-		flock, err := osutil.OpenExistingLockForReading(HintFile(snapName))
+		flock, err = osutil.OpenExistingLockForReading(HintFile(snapName))
+		// We must return flock alongside errors so that cleanup defer can close it.
 		if os.IsNotExist(err) {
 			if err := notInhibited(); err != nil {
-				return nil, err
+				return flock, err
 			}
 			return nil, nil
 		}
 		if err != nil {
+			// No flock opened, it is okay to return nil here
 			return nil, err
 		}
-		// Release lock if we return early with an error
-		defer func() {
-			// Keep lock if no errors occur
-			if retErr != nil {
-				flock.Close()
-			}
-		}()
 
 		// Hold read lock
 		if err := flock.ReadLock(); err != nil {
-			return nil, err
+			return flock, err
 		}
 
 		// Read inhibition hint
 		hint, err := hintFromFile(flock.File())
 		if err != nil {
-			return nil, err
+			return flock, err
 		}
 
 		if hint == HintNotInhibited {
 			if notInhibited != nil {
 				if err := notInhibited(); err != nil {
-					return nil, err
+					return flock, err
 				}
 			}
 			return flock, nil
@@ -352,11 +356,11 @@ var WaitWhileInhibited = func(snapName string, notInhibited func() error, inhibi
 			if inhibited != nil {
 				inhibitInfo, err := readInhibitInfo(snapName, hint)
 				if err != nil {
-					return nil, err
+					return flock, err
 				}
 				cont, err := inhibited(hint, &inhibitInfo)
 				if err != nil {
-					return nil, err
+					return flock, err
 				}
 				if cont {
 					return flock, nil
