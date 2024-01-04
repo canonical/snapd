@@ -379,6 +379,75 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 	}()
 }
 
+// Check that if multiple requests are included in a single request buffer from
+// the kernel, each will still be handled correctly.
+func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
+	sockFdChan, restoreOpen := listener.MockOsOpenWithSockets()
+	defer restoreOpen()
+
+	recvChan, sendChan, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl()
+	defer restoreEpollIoctl()
+
+	var t tomb.Tomb
+	l, err := listener.Register()
+	c.Assert(err, IsNil)
+	defer func() {
+		c.Assert(t.Wait(), Equals, listener.ErrClosed)
+	}()
+	notifySocket := <-sockFdChan
+	defer unix.Close(notifySocket)
+
+	t.Go(l.Run)
+
+	label := "snap.foo.bar"
+	paths := []string{"/home/Documents/foo", "/path/to/bar", "/baz"}
+
+	aBits := uint32(0b1010)
+	dBits := uint32(0b0101)
+
+	var megaBuf []byte
+	for i, path := range paths {
+		msg := newMsgNotificationFile(uint64(i), label, path, aBits, dBits)
+		buf, err := msg.MarshalBinary()
+		c.Assert(err, IsNil)
+		megaBuf = append(megaBuf, buf...)
+	}
+
+	recvChan <- megaBuf
+
+	timeout := 100 * time.Millisecond
+	timer := time.NewTimer(timeout)
+
+	for i, path := range paths {
+		timer.Reset(timeout)
+		select {
+		case req := <-l.Reqs():
+			c.Assert(req.Path(), Equals, path)
+		case <-l.Dying():
+			c.Fatalf("listener encountered unexpected error during request %d: %v", i, l.Err())
+		case <-timer.C:
+			c.Fatalf("failed to receive request %d before timer expired", i)
+		}
+	}
+
+	go func() {
+		c.Check(l.Close(), IsNil)
+	}()
+
+	for i := range paths {
+		if !timer.Stop() {
+			<-timer.C
+		}
+		timer.Reset(timeout)
+		select {
+		case resp := <-sendChan:
+			c.Assert(resp, Not(HasLen), 0)
+		case <-timer.C:
+			c.Fatalf("failed to receive response %d before timer expired", i)
+		}
+	}
+}
+
 func newMsgNotificationFile(id uint64, label, name string, allow, deny uint32) *notify.MsgNotificationFile {
 	msg := notify.MsgNotificationFile{}
 	msg.Version = 3
@@ -424,13 +493,26 @@ func (*listenerSuite) TestRunErrors(c *C) {
 	}{
 		{
 			msgNotificationFile{},
+			`cannot extract first message: cannot parse message header: invalid length \(must be >= 4\): 0`,
+		},
+		{
+			msgNotificationFile{
+				Length: 1234,
+			},
+			`cannot extract first message: length in header exceeds data length: 1234 > 56`,
+		},
+		{
+			msgNotificationFile{
+				Length: 13,
+			},
 			`cannot unmarshal apparmor message header: unsupported version: 0`,
 		},
 		{
 			msgNotificationFile{
 				Version: 3,
+				Length:  13,
 			},
-			`cannot unmarshal apparmor message header: length mismatch 0 != 56`,
+			`cannot unmarshal apparmor notification message: cannot unpack: unexpected EOF`,
 		},
 		{
 			msgNotificationFile{
@@ -593,7 +675,7 @@ func (*listenerSuite) TestRunTombDying(c *C) {
 	c.Assert(received, DeepEquals, desiredBuf)
 
 	err = t.Wait()
-	c.Assert(err, ErrorMatches, "cannot unmarshal apparmor message header: unexpected EOF")
+	c.Assert(err, ErrorMatches, "cannot extract first message: cannot parse message header: unexpected EOF")
 }
 
 func (*listenerSuite) TestRunListenerClosed(c *C) {

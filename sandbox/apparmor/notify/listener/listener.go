@@ -350,9 +350,8 @@ func (l *Listener) runOnce() error {
 			continue
 		}
 		// Prepare a receive buffer for incoming request. The buffer is of the
-		// maximum allowed size and will contain one kernel request upon return.
-		// Note that the actually occupied buffer is indicated by the Length field
-		// in the header.
+		// maximum allowed size and will contain one or more kernel requests
+		// upon return.
 		ioctlBuf := notify.NewIoctlRequestBuffer()
 		buf, err := notifyIoctl(l.notifyFile.Fd(), notify.APPARMOR_NOTIF_RECV, ioctlBuf)
 		if err != nil {
@@ -369,24 +368,37 @@ func (l *Listener) runOnce() error {
 }
 
 func (l *Listener) decodeAndDispatchRequest(buf []byte) error {
-	var nmsg notify.MsgNotification
-	if err := nmsg.UnmarshalBinary(buf); err != nil {
-		return err
+	for {
+		first, rest, err := notify.ExtractFirstMsg(buf)
+		if err != nil {
+			return err
+		}
+		var nmsg notify.MsgNotification
+		if err := nmsg.UnmarshalBinary(first); err != nil {
+			return err
+		}
+		// What kind of notification message did we get?
+		if nmsg.NotificationType != notify.APPARMOR_NOTIF_OP {
+			return fmt.Errorf("unsupported notification type: %v", nmsg.NotificationType)
+		}
+		var omsg notify.MsgNotificationOp
+		if err := omsg.UnmarshalBinary(first); err != nil {
+			return err
+		}
+		// What kind of operation notification did we get?
+		switch omsg.Class {
+		case notify.AA_CLASS_FILE:
+			if err := l.handleRequestAaClassFile(first); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("unsupported mediation class: %v", omsg.Class)
+		}
+		if len(rest) == 0 {
+			return nil
+		}
+		buf = rest
 	}
-	// What kind of notification message did we get?
-	if nmsg.NotificationType != notify.APPARMOR_NOTIF_OP {
-		return fmt.Errorf("unsupported notification type: %v", nmsg.NotificationType)
-	}
-	var omsg notify.MsgNotificationOp
-	if err := omsg.UnmarshalBinary(buf); err != nil {
-		return err
-	}
-	// What kind of operation notification did we get?
-	switch omsg.Class {
-	case notify.AA_CLASS_FILE:
-		return l.handleRequestAaClassFile(buf)
-	}
-	return fmt.Errorf("unsupported mediation class: %v", omsg.Class)
 }
 
 func (l *Listener) handleRequestAaClassFile(buf []byte) error {
