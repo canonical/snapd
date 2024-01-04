@@ -969,6 +969,10 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		tracker.Add(currentInfo)
 	}
 
+	if err := checkRequiredGadgetMatchesModelBase(new, tracker); err != nil {
+		return nil, err
+	}
+
 	warnings, errs := tracker.Check()
 	for _, w := range warnings {
 		logger.Noticef("remodel prerequisites warning: %v", w)
@@ -1113,6 +1117,29 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		return nil, err
 	}
 	return tss, nil
+}
+
+func checkRequiredGadgetMatchesModelBase(model *asserts.Model, tracker *snap.SelfContainedSetPrereqTracker) error {
+	modelBase := model.Base()
+	if modelBase == "" {
+		modelBase = "core"
+	}
+
+	for _, sn := range tracker.Snaps() {
+		if sn.Type() != snap.TypeGadget {
+			continue
+		}
+
+		gadgetBase := sn.Base
+		if gadgetBase == "" {
+			gadgetBase = "core"
+		}
+
+		if gadgetBase != modelBase {
+			return fmt.Errorf("cannot remodel with gadget snap that has a different base than the model: %q != %q", gadgetBase, modelBase)
+		}
+	}
+	return nil
 }
 
 func verifyModelValidationSets(st *state.State, newModel *asserts.Model, offline bool, deviceCtx snapstate.DeviceContext) (*snapasserts.ValidationSets, error) {

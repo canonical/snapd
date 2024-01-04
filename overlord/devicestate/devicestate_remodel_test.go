@@ -1959,7 +1959,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
 	c.Check(s.restartRequests, HasLen, 0)
 }
 
-func (s *deviceMgrSuite) TestRemodelSwitchBase(c *C) {
+func (s *deviceMgrSuite) TestRemodelSwitchBaseIncompatibleGadget(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -1969,9 +1969,7 @@ func (s *deviceMgrSuite) TestRemodelSwitchBase(c *C) {
 
 	var testDeviceCtx snapstate.DeviceContext
 
-	var snapstateInstallWithDeviceContextCalled int
 	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
-		snapstateInstallWithDeviceContextCalled++
 		c.Check(name, Equals, "core20")
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
@@ -2009,12 +2007,70 @@ func (s *deviceMgrSuite) TestRemodelSwitchBase(c *C) {
 
 	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true, DeviceModel: new, OldDeviceModel: current}
 
+	_, err = devicestate.RemodelTasks(context.Background(), s.state, current, new, nil, nil, testDeviceCtx, "99")
+	c.Assert(err, ErrorMatches, `cannot remodel with gadget snap that has a different base than the model: "core18" \!= "core20"`)
+}
+
+func (s *deviceMgrSuite) TestRemodelSwitchBase(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
+
+	var testDeviceCtx snapstate.DeviceContext
+
+	var snapstateInstallWithDeviceContextCalled int
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		snapstateInstallWithDeviceContextCalled++
+		switch name {
+		case "core20", "pc-20":
+		default:
+			c.Errorf("unexpected snap name %q", name)
+		}
+
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		tInstall.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	// set a model assertion
+	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	err := assertstate.Add(s.state, current)
+	c.Assert(err, IsNil)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc-20",
+		"base":         "core20",
+		"revision":     "1",
+	})
+
+	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true, DeviceModel: new, OldDeviceModel: current}
+
 	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, nil, nil, testDeviceCtx, "99")
 	c.Assert(err, IsNil)
-	// 1 switch to a new base plus the remodel task
-	c.Assert(tss, HasLen, 2)
+	// 1 switch to a new base, 1 switch to new gadget, plus the remodel task
+	c.Assert(tss, HasLen, 3)
 	// API was hit
-	c.Assert(snapstateInstallWithDeviceContextCalled, Equals, 1)
+	c.Assert(snapstateInstallWithDeviceContextCalled, Equals, 2)
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c *C) {
@@ -2715,7 +2771,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 			snapYaml = "name: core20-new\nversion: 1\ntype: base\n"
 			channel = "latest/stable"
 		case "pc-new":
-			snapYaml = "name: pc-new\nversion: 1\ntype: gadget\n"
+			snapYaml = "name: pc-new\nversion: 1\ntype: gadget\nbase: core20-new\n"
 		}
 		si := &snap.SideInfo{
 			RealName: alreadyInstalledName,
