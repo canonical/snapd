@@ -3518,12 +3518,65 @@ func (m *SnapManager) doSetAutoAliases(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	if !snapst.AliasesPending {
+		// set-auto-aliases can be invoked in both install and update, and
+		// at least in the update case, remove-aliases may not run based
+		// on a check, and as such old aliases need to be pruned later
+		// in setup-aliases.
+		//
+		// set this flag to let setup-aliases know that it should
+		// prune old aliases.
+		//
+		// NOTE: this will also trigger for first installs since
+		// AliasesPending will also be false for a new install but
+		// it is fine since prunning without without existing aliases
+		// is basically a no-op.
+		t.Set("prune-old-aliases", true)
+	}
+
 	t.Set("old-aliases-v2", curAliases)
-	// noop, except on first install where we need to set this here
 	snapst.AliasesPending = true
 	snapst.Aliases = newAliases
 	Set(st, snapName, snapst)
 	return nil
+}
+
+type removeAliasesReason string
+
+const (
+	removeAliasesReasonRefresh removeAliasesReason = "refresh"
+	removeAliasesReasonDisable removeAliasesReason = "disable"
+	removeAliasesReasonRemove  removeAliasesReason = "remove"
+)
+
+// shouldSkipRemoveAliases checks if we should skip removal of aliases for
+// experimental RAA UX features, where the app is perceived to be present
+// during a refresh.
+func shouldSkipRemoveAliases(st *state.State, removeReason removeAliasesReason, snapType snap.Type) (skip bool, err error) {
+	tr := config.NewTransaction(st)
+	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
+	if err != nil && !config.IsNoOption(err) {
+		return false, err
+	}
+	experimentalRefreshAppAwarenessUX, err := features.Flag(tr, features.RefreshAppAwarenessUX)
+	if err != nil && !config.IsNoOption(err) {
+		return false, err
+	}
+
+	if removeReason != removeAliasesReasonRefresh {
+		return false, nil
+	}
+	if !experimentalRefreshAppAwarenessUX {
+		return false, nil
+	}
+	if !experimentalRefreshAppAwareness {
+		return false, nil
+	}
+	if excludeFromRefreshAppAwareness(snapType) {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 func (m *SnapManager) doRemoveAliases(t *state.Task, _ *tomb.Tomb) error {
@@ -3536,6 +3589,20 @@ func (m *SnapManager) doRemoveAliases(t *state.Task, _ *tomb.Tomb) error {
 	}
 	snapName := snapsup.InstanceName()
 
+	var removeReason removeAliasesReason
+	if err := t.Get("remove-reason", &removeReason); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	skip, err := shouldSkipRemoveAliases(st, removeReason, snapsup.Type)
+	if err != nil {
+		return err
+	}
+	if skip {
+		// skip removing aliases, setup-aliases will prune old aliases later.
+		return nil
+	}
+
 	err = m.backend.RemoveSnapAliases(snapName)
 	if err != nil {
 		return err
@@ -3544,6 +3611,73 @@ func (m *SnapManager) doRemoveAliases(t *state.Task, _ *tomb.Tomb) error {
 	snapst.AliasesPending = true
 	Set(st, snapName, snapst)
 	return nil
+}
+
+func (m *SnapManager) undoRemoveAliases(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	if !snapst.AliasesPending {
+		// do nothing
+		return nil
+	}
+
+	snapName := snapsup.InstanceName()
+	curAliases := snapst.Aliases
+	_, _, err = applyAliasesChange(snapName, autoDis, nil, snapst.AutoAliasesDisabled, curAliases, m.backend, doApply)
+	if err != nil {
+		return err
+	}
+
+	snapst.AliasesPending = false
+	Set(st, snapName, snapst)
+	return nil
+}
+
+func shouldPruneOldAliases(t *state.Task, snapst *SnapState) (prune bool, oldAliases map[string]*AliasTarget, oldAutoDisabled bool, err error) {
+	for _, t := range t.WaitTasks() {
+		if t.Kind() != "set-auto-aliases" || !t.Status().Ready() {
+			continue
+		}
+
+		taskSetup, err := TaskSnapSetup(t)
+		if err != nil {
+			return false, nil, false, err
+		}
+
+		if taskSetup.InstanceName() != snapst.InstanceName() {
+			continue
+		}
+
+		var pruneOldAliases bool
+		if err := t.Get("prune-old-aliases", &pruneOldAliases); err != nil && !errors.Is(err, state.ErrNoState) {
+			return false, nil, false, err
+		}
+
+		if !pruneOldAliases {
+			// don't prune
+			return false, nil, autoDis, nil
+		}
+
+		var oldAliases map[string]*AliasTarget
+		if err := t.Get("old-aliases-v2", &oldAliases); err != nil && !errors.Is(err, state.ErrNoState) {
+			return false, nil, false, err
+		}
+
+		oldAutoDisabled := snapst.AutoAliasesDisabled
+		if err := t.Get("old-auto-aliases-disabled", &oldAutoDisabled); err != nil && !errors.Is(err, state.ErrNoState) {
+			return false, nil, false, err
+		}
+
+		return true, oldAliases, oldAutoDisabled, nil
+	}
+
+	return false, nil, autoDis, nil
 }
 
 func (m *SnapManager) doSetupAliases(t *state.Task, _ *tomb.Tomb) error {
@@ -3556,13 +3690,55 @@ func (m *SnapManager) doSetupAliases(t *state.Task, _ *tomb.Tomb) error {
 	}
 	snapName := snapsup.InstanceName()
 	curAliases := snapst.Aliases
+	autoDisabled := snapst.AutoAliasesDisabled
 
-	_, _, err = applyAliasesChange(snapName, autoDis, nil, snapst.AutoAliasesDisabled, curAliases, m.backend, doApply)
+	prune, oldAliases, oldAutoDisabled, err := shouldPruneOldAliases(t, snapst)
 	if err != nil {
 		return err
 	}
 
+	// no need to check for conflicts as it was already checked in `set-auto-aliases`
+	_, _, err = applyAliasesChange(snapName, oldAutoDisabled, oldAliases, autoDisabled, curAliases, m.backend, doApply)
+	if err != nil {
+		// the undo for set-auto-aliases must revert aliases on disk since
+		// applyAliasesChange could have failed mid-way leaving disk in an
+		// inconsistent state.
+		return err
+	}
+
+	t.Set("old-aliases-pruned", prune)
+
 	snapst.AliasesPending = false
+	Set(st, snapName, snapst)
+	return nil
+}
+
+func (m *SnapManager) undoSetupAliases(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	snapsup, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	snapName := snapsup.InstanceName()
+
+	var oldAliasesPruned bool
+	if err := t.Get("old-aliases-pruned", &oldAliasesPruned); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if oldAliasesPruned {
+		// keep AliasesPending set to false so that the undo for set-auto-aliases
+		// can revert aliases on disk.
+		return nil
+	}
+
+	// remove added aliases
+	err = m.backend.RemoveSnapAliases(snapName)
+	if err != nil {
+		return err
+	}
+	snapst.AliasesPending = true
 	Set(st, snapName, snapst)
 	return nil
 }
@@ -3642,6 +3818,25 @@ func (m *SnapManager) undoRefreshAliases(t *state.Task, _ *tomb.Tomb) error {
 		autoDisabled = true
 	} else if err != nil {
 		return err
+	}
+
+	var setAutoAliasesInPruneMode bool
+	if t.Kind() == "set-auto-aliases" {
+		if err := t.Get("prune-old-aliases", &setAutoAliasesInPruneMode); err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+	}
+
+	// AliasesPending needs to be fixed if `setup-aliases` failed in prune mode.
+	//
+	// the following sequence triggers the edge-case:
+	//	1. `remove-aliases` skips removing aliases for refresh-app-awareness
+	//	    keeping AliasesPending as false
+	//	2. `set-auto-aliases` sets AliasesPending to true
+	//	3. `setup-aliases` fails mid-way before setting AliasesPending to false
+	if snapst.AliasesPending && setAutoAliasesInPruneMode {
+		// aliases on disk and state should now be fixed with applyAliasesChange below.
+		snapst.AliasesPending = false
 	}
 
 	if !snapst.AliasesPending {

@@ -260,7 +260,9 @@ type SnapState struct {
 	// aliases, see aliasesv2.go
 	Aliases             map[string]*AliasTarget `json:"aliases,omitempty"`
 	AutoAliasesDisabled bool                    `json:"auto-aliases-disabled,omitempty"`
-	AliasesPending      bool                    `json:"aliases-pending,omitempty"`
+	// AliasesPending when true indicates that aliases in internal state
+	// and on disk might not match.
+	AliasesPending bool `json:"aliases-pending,omitempty"`
 
 	// UserID of the user requesting the install
 	UserID int `json:"user-id,omitempty"`
@@ -636,10 +638,10 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	// FIXME: drop the task entirely after a while
 	runner.AddHandler("clear-aliases", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
 	runner.AddHandler("set-auto-aliases", m.doSetAutoAliases, m.undoRefreshAliases)
-	runner.AddHandler("setup-aliases", m.doSetupAliases, m.doRemoveAliases)
+	runner.AddHandler("setup-aliases", m.doSetupAliases, m.undoSetupAliases)
 	runner.AddHandler("refresh-aliases", m.doRefreshAliases, m.undoRefreshAliases)
 	runner.AddHandler("prune-auto-aliases", m.doPruneAutoAliases, m.undoRefreshAliases)
-	runner.AddHandler("remove-aliases", m.doRemoveAliases, m.doSetupAliases)
+	runner.AddHandler("remove-aliases", m.doRemoveAliases, m.undoRemoveAliases)
 	runner.AddHandler("alias", m.doAlias, m.undoRefreshAliases)
 	runner.AddHandler("unalias", m.doUnalias, m.undoRefreshAliases)
 	runner.AddHandler("disable-aliases", m.doDisableAliases, m.undoRefreshAliases)
