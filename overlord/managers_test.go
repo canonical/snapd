@@ -5234,11 +5234,26 @@ volumes:
 		{"meta/gadget.yaml", gadgetYaml},
 	})
 
+	// add "pc-20" snap to fake store
+	ms.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name":    "pc-20",
+		"publisher-id": "can0nical",
+	})
+	const pc20Yaml = `name: pc-20
+type: gadget
+version: 20.04
+base: core20
+`
+	snapPath, _ := ms.makeStoreTestSnapWithFiles(c, pc20Yaml, "2", [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+	ms.serveSnap(snapPath, "2")
+
 	// add "core20" snap to fake store
 	const core20Yaml = `name: core20
 type: base
 version: 20.04`
-	snapPath, _ := ms.makeStoreTestSnap(c, core20Yaml, "2")
+	snapPath, _ = ms.makeStoreTestSnap(c, core20Yaml, "2")
 	ms.serveSnap(snapPath, "2")
 
 	// add "foo" snap to fake store
@@ -5266,6 +5281,7 @@ version: 20.04`
 	// create a new model
 	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
 		"base":           "core20",
+		"gadget":         "pc-20",
 		"revision":       "1",
 		"required-snaps": []interface{}{"foo"},
 	})
@@ -5311,6 +5327,8 @@ version: 20.04`
 	st.Lock()
 	c.Assert(err, IsNil)
 
+	ms.mockRestartAndSettle(c, st, chg)
+
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
 
 	// ensure tasks were run in the right order
@@ -5320,10 +5338,12 @@ version: 20.04`
 	// first all downloads/checks in sequential order
 	var i int
 	i += validateDownloadCheckTasks(c, tasks[i:], "core20", "2", "stable")
+	i += validateDownloadCheckTasks(c, tasks[i:], "pc-20", "2", "stable")
 	i += validateDownloadCheckTasks(c, tasks[i:], "foo", "1", "stable")
 
 	// then all installs in sequential order
 	i += validateInstallTasks(c, tasks[i:], "core20", "2", noConfigure)
+	i += validateInstallTasks(c, tasks[i:], "pc-20", "2", isGadget)
 	i += validateInstallTasks(c, tasks[i:], "foo", "1", 0)
 
 	// ensure that we only have the tasks we checked (plus the one
@@ -5384,11 +5404,26 @@ volumes:
 		{"meta/gadget.yaml", gadgetYaml},
 	})
 
+	// add "pc-20" snap to fake store
+	ms.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name":    "pc-20",
+		"publisher-id": "can0nical",
+	})
+	const pc20Yaml = `name: pc-20
+type: gadget
+version: 20.04
+base: core20
+`
+	snapPath, _ := ms.makeStoreTestSnapWithFiles(c, pc20Yaml, "2", [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+	ms.serveSnap(snapPath, "2")
+
 	// add "core20" snap to fake store
 	const core20Yaml = `name: core20
 type: base
 version: 20.04`
-	snapPath, _ := ms.makeStoreTestSnap(c, core20Yaml, "2")
+	snapPath, _ = ms.makeStoreTestSnap(c, core20Yaml, "2")
 	ms.serveSnap(snapPath, "2")
 
 	// add "foo" snap to fake store
@@ -5416,6 +5451,7 @@ version: 20.04`
 	// create a new model
 	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
 		"base":           "core20",
+		"gadget":         "pc-20",
 		"revision":       "1",
 		"required-snaps": []interface{}{"foo"},
 	})
@@ -5461,6 +5497,8 @@ version: 20.04`
 	st.Lock()
 	c.Assert(err, IsNil)
 
+	ms.mockRestartAndSettle(c, st, chg)
+
 	// we are in restarting state
 	restarting, restartType := restart.Pending(st)
 	c.Check(restarting, Equals, true)
@@ -5471,7 +5509,7 @@ version: 20.04`
 	ms.mockRestartAndSettle(c, st, chg)
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 
-	// and the undo gave us our old kernel back
+	// and the undo gave us our old base back
 	c.Assert(bloader.BootVars, DeepEquals, map[string]string{
 		"snap_core":       "core18_1.snap",
 		"snap_try_core":   "",
@@ -5531,11 +5569,26 @@ volumes:
 		{"meta/gadget.yaml", gadgetYaml},
 	})
 
+	// add "pc-20" snap to fake store
+	ms.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name":    "pc-20",
+		"publisher-id": "can0nical",
+	})
+	const pc20Yaml = `name: pc-20
+type: gadget
+version: 20.04
+base: core20
+`
+	snapPath, _ := ms.makeStoreTestSnapWithFiles(c, pc20Yaml, "2", [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+	ms.serveSnap(snapPath, "2")
+
 	// add "core20" snap to fake store
 	const core20Yaml = `name: core20
 type: base
 version: 20.04`
-	snapPath, _ := ms.makeStoreTestSnap(c, core20Yaml, "2")
+	snapPath, _ = ms.makeStoreTestSnap(c, core20Yaml, "2")
 	ms.serveSnap(snapPath, "2")
 
 	// add "foo" snap to fake store
@@ -5563,6 +5616,7 @@ version: 20.04`
 	// create a new model
 	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
 		"base":           "core20",
+		"gadget":         "pc-20",
 		"revision":       "1",
 		"required-snaps": []interface{}{"foo"},
 	})
@@ -5604,6 +5658,8 @@ version: 20.04`
 	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
+
+	ms.mockRestartAndSettle(c, st, chg)
 
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 

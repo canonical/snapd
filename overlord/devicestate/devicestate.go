@@ -952,6 +952,22 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		tracker.Add(currentInfo)
 	}
 
+	for _, sn := range tracker.Snaps() {
+		gadgetBase := sn.Base
+		if gadgetBase == "" {
+			gadgetBase = "core"
+		}
+
+		modelBase := new.Base()
+		if modelBase == "" {
+			modelBase = "core"
+		}
+
+		if sn.Type() == snap.TypeGadget && gadgetBase != modelBase {
+			return nil, fmt.Errorf("cannot remodel with gadget snap that has a different base than the model base: %q != %q", gadgetBase, modelBase)
+		}
+	}
+
 	warnings, errs := tracker.Check()
 	for _, w := range warnings {
 		logger.Noticef("remodel prerequisites warning: %v", w)
