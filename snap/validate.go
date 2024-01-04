@@ -1240,6 +1240,11 @@ func (prqt *SelfContainedSetPrereqTracker) Add(info *Info) {
 	}
 }
 
+// Snaps returns all snaps that have been added to the tracker.
+func (prqt *SelfContainedSetPrereqTracker) Snaps() []*Info {
+	return append([]*Info{}, prqt.snaps...)
+}
+
 // MissingProviderContentTags implements snapstate.PrereqTracker.
 // Given how snapstate uses this and as SelfContainedSetPrereqTracker is for
 // when no automatic fetching of prerequisites is desired, this always returns
