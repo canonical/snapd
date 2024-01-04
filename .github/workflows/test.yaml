@@ -379,7 +379,7 @@ jobs:
           - group: fedora
             systems: 'fedora-38-64 fedora-39-64'
           - group: opensuse
-            systems: 'opensuse-15.4-64 opensuse-15.5-64 opensuse-tumbleweed-64'
+            systems: 'opensuse-15.5-64 opensuse-tumbleweed-64'
           - group: ubuntu-trusty-xenial
             systems: 'ubuntu-14.04-64 ubuntu-16.04-64'
           - group: ubuntu-bionic
