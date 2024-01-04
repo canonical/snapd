@@ -9847,3 +9847,57 @@ func (s *snapmgrTestSuite) TestCleanDownloadsKeepsNewDownloads(c *C) {
 	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_2.snap"), testutil.FilePresent)
 	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_3.snap"), testutil.FilePresent)
 }
+
+func (s *snapmgrTestSuite) TestAddComponentForRevision(c *C) {
+	const snapName = "foo"
+	snapRev := snap.R(1)
+	const compName1 = "comp1"
+	csi1 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName1), snap.R(2))
+	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName1), snap.R(3))
+
+	ssi := &snap.SideInfo{RealName: snapName,
+		Revision: snap.R(1), SnapID: "some-snap-id"}
+	comps := []*snap.ComponentSideInfo{csi1, csi2}
+	seq := snapstatetest.NewSequenceFromRevisionSideInfos(
+		[]*snapstate.RevisionSideState{snapstate.NewRevisionSideInfo(ssi, comps)})
+	c.Assert(seq.AddComponentForRevision(snapRev, csi1), IsNil)
+	// Not re-appended
+	c.Assert(seq.Revisions[0].Components, DeepEquals, comps)
+
+	csi3 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, "other-comp"), snap.R(1))
+	c.Assert(seq.AddComponentForRevision(snapRev, csi3), IsNil)
+	comps = []*snap.ComponentSideInfo{csi1, csi2, csi3}
+	c.Assert(seq.Revisions[0].Components, DeepEquals, comps)
+
+	c.Assert(seq.AddComponentForRevision(snap.R(2), csi3), Equals, snapstate.ErrSnapRevNotInSequence)
+}
+
+func (s *snapmgrTestSuite) TestRemoveComponentForRevision(c *C) {
+	const snapName = "foo"
+	snapRev := snap.R(1)
+	const compName1 = "comp1"
+	const compName2 = "comp2"
+	csi1 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName1), snap.R(2))
+	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName2), snap.R(3))
+
+	ssi := &snap.SideInfo{RealName: snapName,
+		Revision: snap.R(1), SnapID: "some-snap-id"}
+	comps := []*snap.ComponentSideInfo{csi1, csi2}
+	seq := snapstatetest.NewSequenceFromRevisionSideInfos(
+		[]*snapstate.RevisionSideState{snapstate.NewRevisionSideInfo(ssi, comps)})
+
+	// component not in sequence point
+	removed := seq.RemoveComponentForRevision(snapRev, naming.NewComponentRef(snapName, "other-comp"))
+	c.Assert(removed, IsNil)
+	c.Assert(seq.Revisions[0].Components, DeepEquals, comps)
+
+	// snap revision not in sequence
+	removed = seq.RemoveComponentForRevision(snap.R(2), naming.NewComponentRef(snapName, compName1))
+	c.Assert(removed, IsNil)
+	c.Assert(seq.Revisions[0].Components, DeepEquals, comps)
+
+	// component is removed
+	removed = seq.RemoveComponentForRevision(snapRev, naming.NewComponentRef(snapName, compName1))
+	c.Assert(removed, DeepEquals, csi1)
+	c.Assert(seq.Revisions[0].Components, DeepEquals, []*snap.ComponentSideInfo{csi2})
+}

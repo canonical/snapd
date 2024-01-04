@@ -246,6 +246,16 @@ func (bsi *RevisionSideState) UnmarshalJSON(in []byte) error {
 	return nil
 }
 
+// FindComponent returns the snap.ComponentSideInfo if cref is found in the sequence point.
+func (rss *RevisionSideState) FindComponent(cref naming.ComponentRef) *snap.ComponentSideInfo {
+	for _, csi := range rss.Components {
+		if csi.Component == cref {
+			return csi
+		}
+	}
+	return nil
+}
+
 // NewRevisionSideInfo creates a RevisionSideInfo from snap and
 // related components side information.
 func NewRevisionSideInfo(snapSideInfo *snap.SideInfo, compSideInfo []*snap.ComponentSideInfo) *RevisionSideState {
@@ -288,6 +298,61 @@ func (snapSeq SnapSequence) SideInfos() []*snap.SideInfo {
 		sis[i] = rev.Snap
 	}
 	return sis
+}
+
+// LastIndex returns the last index of the given revision in snapSeq,
+// or -1 if the revision was not found.
+func (snapSeq *SnapSequence) LastIndex(revision snap.Revision) int {
+	for i := len(snapSeq.Revisions) - 1; i >= 0; i-- {
+		if snapSeq.Revisions[i].Snap.Revision == revision {
+			return i
+		}
+	}
+	return -1
+}
+
+var ErrSnapRevNotInSequence = errors.New("snap is not in the sequence")
+
+// AddComponentForRevision adds a component to the last instance of snapRev in
+// the sequence.
+func (snapSeq *SnapSequence) AddComponentForRevision(snapRev snap.Revision, csi *snap.ComponentSideInfo) error {
+	snapIdx := snapSeq.LastIndex(snapRev)
+	if snapIdx == -1 {
+		return ErrSnapRevNotInSequence
+	}
+	revSt := snapSeq.Revisions[snapIdx]
+
+	if revSt.FindComponent(csi.Component) != nil {
+		// Component already present
+		return nil
+	}
+
+	// Append new component to components of the current snap
+	revSt.Components = append(revSt.Components, csi)
+	return nil
+}
+
+// RemoveComponentForRevision removes the cref component for the last instance
+// of snapRev in the sequence and returns a pointer to it, which might be nil
+// if not found.
+func (snapSeq *SnapSequence) RemoveComponentForRevision(snapRev snap.Revision, cref naming.ComponentRef) (unlinkedComp *snap.ComponentSideInfo) {
+	snapIdx := snapSeq.LastIndex(snapRev)
+	if snapIdx == -1 {
+		return nil
+	}
+
+	revSt := snapSeq.Revisions[snapIdx]
+	leftComp := []*snap.ComponentSideInfo{}
+	for _, csi := range revSt.Components {
+		if csi.Component == cref {
+			unlinkedComp = csi
+			continue
+		}
+		leftComp = append(leftComp, csi)
+	}
+	revSt.Components = leftComp
+	// might be nil
+	return unlinkedComp
 }
 
 // SnapState holds the state for a snap installed in the system.
@@ -483,12 +548,7 @@ func (snapst *SnapState) previousSideInfo() *snap.SideInfo {
 // LastIndex returns the last index of the given revision in the
 // snapst.Sequence.Revisions
 func (snapst *SnapState) LastIndex(revision snap.Revision) int {
-	for i := len(snapst.Sequence.Revisions) - 1; i >= 0; i-- {
-		if snapst.Sequence.Revisions[i].Snap.Revision == revision {
-			return i
-		}
-	}
-	return -1
+	return snapst.Sequence.LastIndex(revision)
 }
 
 // IsComponentRevPresent tells us if a given component revision is
