@@ -106,7 +106,7 @@ func (e *InvalidAccessError) Is(err error) bool {
 
 // DataBag controls access to the aspect data storage.
 type DataBag interface {
-	Get(path string, value interface{}) error
+	Get(path string) (interface{}, error)
 	Set(path string, value interface{}) error
 	Data() ([]byte, error)
 }
@@ -215,11 +215,12 @@ func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string) 
 //   - request and storage are composed of valid subkeys (see: validateAspectString)
 //   - all placeholders in a request are in the storage and vice-versa
 func validateRequestStoragePair(request, storage string) error {
-	if err := validateAspectDottedPath(request); err != nil {
+	opts := &validationOptions{allowPlaceholder: true}
+	if err := validateAspectDottedPath(request, opts); err != nil {
 		return fmt.Errorf("invalid request %q: %w", request, err)
 	}
 
-	if err := validateAspectDottedPath(storage); err != nil {
+	if err := validateAspectDottedPath(storage, opts); err != nil {
 		return fmt.Errorf("invalid storage %q: %w", storage, err)
 	}
 
@@ -246,20 +247,29 @@ var (
 	validUserType = validSubkey
 )
 
+type validationOptions struct {
+	// allowPlaceholder means that placeholders are accepted when validating.
+	allowPlaceholder bool
+}
+
 // validateAspectDottedPath validates that request/storage strings in an aspect definition are:
-//   - composed of non-empty, dot-separated subkeys with optional placeholders ("foo.{bar}")
+//   - composed of non-empty, dot-separated subkeys with optional placeholders ("foo.{bar}"),
+//     if allowed by the validationOptions
 //   - non-placeholder subkeys are made up of lowercase alphanumeric ASCII characters,
 //     optionally with dashes between alphanumeric characters (e.g., "a-b-c")
 //   - placeholder subkeys are composed of non-placeholder subkeys wrapped in curly brackets
-func validateAspectDottedPath(path string) (err error) {
-	subkeys := strings.Split(path, ".")
+func validateAspectDottedPath(path string, opts *validationOptions) (err error) {
+	if opts == nil {
+		opts = &validationOptions{}
+	}
 
+	subkeys := strings.Split(path, ".")
 	for _, subkey := range subkeys {
 		if subkey == "" {
 			return errors.New("cannot have empty subkeys")
 		}
 
-		if !(validSubkey.MatchString(subkey) || validPlaceholder.MatchString(subkey)) {
+		if !validSubkey.MatchString(subkey) && (!opts.allowPlaceholder || !validPlaceholder.MatchString(subkey)) {
 			return fmt.Errorf("invalid subkey %q", subkey)
 		}
 	}
@@ -274,7 +284,7 @@ func getPlaceholders(aspectStr string) map[string]bool {
 
 	subkeys := strings.Split(aspectStr, ".")
 	for _, subkey := range subkeys {
-		if subkey[0] == '{' && subkey[len(subkey)-1] == '}' {
+		if isPlaceholder(subkey) {
 			if placeholders == nil {
 				placeholders = make(map[string]bool)
 			}
@@ -300,6 +310,10 @@ type Aspect struct {
 
 // Set sets the named aspect to a specified value.
 func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
+	if err := validateAspectDottedPath(request, nil); err != nil {
+		return fmt.Errorf(`cannot parse Set request: %w`, err)
+	}
+
 	requestSubkeys := strings.Split(request, ".")
 	for _, accessPatt := range a.accessPatterns {
 		placeholders, _, ok := accessPatt.match(requestSubkeys)
@@ -331,47 +345,88 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	return notFoundErrorFrom(a, request, "no matching write rule")
 }
 
+// namespaceResult creates a nested namespace around the result that corresponds
+// to the unmatched entry parts. Unmatched placeholders are filled in using maps
+// of all the matching values in the databag.
+func namespaceResult(res interface{}, suffixParts []string) (interface{}, error) {
+	if len(suffixParts) == 0 {
+		return res, nil
+	}
+
+	// check if the part is an unmatched placeholder which should have been filled
+	// by the databag with all possible values
+	part := suffixParts[0]
+	if isPlaceholder(part) {
+		values, ok := res.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("internal error: expected databag to return map for unmatched placeholder")
+		}
+
+		level := make(map[string]interface{}, len(values))
+		for k, v := range values {
+			nested, err := namespaceResult(v, suffixParts[1:])
+			if err != nil {
+				return nil, err
+			}
+
+			level[k] = nested
+		}
+
+		return level, nil
+	}
+
+	nested, err := namespaceResult(res, suffixParts[1:])
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{part: nested}, nil
+}
+
 // Get returns the aspect value identified by the request. If either the named
 // aspect or the corresponding value can't be found, a NotFoundError is returned.
-func (a *Aspect) Get(databag DataBag, request string, value *interface{}) error {
+func (a *Aspect) Get(databag DataBag, request string) (map[string]interface{}, error) {
+	if err := validateAspectDottedPath(request, nil); err != nil {
+		return nil, fmt.Errorf(`cannot parse Get request: %w`, err)
+	}
+
 	matches, err := a.matchGetRequest(request)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var merged interface{}
 	for _, match := range matches {
-		var val interface{}
-		if err := databag.Get(match.storagePath, &val); err != nil {
-			if errors.Is(err, PathNotFoundError("")) {
+		val, err := databag.Get(match.storagePath)
+		if err != nil {
+			if errors.Is(err, PathError("")) {
 				continue
 			}
-			return err
+			return nil, err
 		}
 
-		// build a namespace based on the unmatched suffix parts
-		namespace := match.suffixParts
-		for i := len(namespace) - 1; i >= 0; i-- {
-			val = map[string]interface{}{namespace[i]: val}
+		// build a namespace around the result based on the unmatched suffix parts
+		val, err = namespaceResult(val, match.suffixParts)
+		if err != nil {
+			return nil, err
 		}
 
 		// merge result with results from other matching rules
-		merged, err = merge(merged, val)
+		merged, err = mergeNamespaces(merged, val)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	if merged == nil {
-		return notFoundErrorFrom(a, request, "matching rules don't map to any values")
+		return nil, notFoundErrorFrom(a, request, "matching rules don't map to any values")
 	}
 
 	// the top level maps the request to the remaining namespace
-	*value = map[string]interface{}{request: merged}
-	return nil
+	return map[string]interface{}{request: merged}, nil
 }
 
-func merge(old, new interface{}) (interface{}, error) {
+func mergeNamespaces(old, new interface{}) (interface{}, error) {
 	if old == nil {
 		return new, nil
 	}
@@ -390,7 +445,7 @@ func merge(old, new interface{}) (interface{}, error) {
 	oldMap, newMap := old.(map[string]interface{}), new.(map[string]interface{})
 	for k, v := range newMap {
 		if storeVal, ok := oldMap[k]; ok {
-			merged, err := merge(storeVal, v)
+			merged, err := mergeNamespaces(storeVal, v)
 			if err != nil {
 				return nil, err
 			}
@@ -418,7 +473,6 @@ type requestMatch struct {
 // prefix of. If no match is found, a NotFoundError is returned.
 func (a *Aspect) matchGetRequest(request string) (matches []requestMatch, err error) {
 	subkeys := strings.Split(request, ".")
-
 	for _, accessPatt := range a.accessPatterns {
 		placeholders, restSuffix, ok := accessPatt.match(subkeys)
 		if !ok {
@@ -549,7 +603,6 @@ func (p *accessPattern) storagePath(placeholders map[string]string) (string, err
 			}
 		}
 
-		// TODO: this doesn't support unmatched placeholders yet
 		if err := subkey.write(sb, placeholders); err != nil {
 			return "", err
 		}
@@ -594,9 +647,8 @@ func (p placeholder) match(subkey string, placeholders map[string]string) bool {
 func (p placeholder) write(sb *strings.Builder, placeholders map[string]string) error {
 	subkey, ok := placeholders[string(p)]
 	if !ok {
-		// the validation at create-time checks for mismatched placeholders so this
-		// shouldn't be possible save for programmer error
-		return fmt.Errorf("cannot find path placeholder %q in the aspect name", p)
+		// placeholder wasn't matched, return the original key in brackets
+		subkey = fmt.Sprintf("{%s}", string(p))
 	}
 
 	_, err := sb.WriteString(subkey)
@@ -627,15 +679,19 @@ func (p literal) String() string {
 	return string(p)
 }
 
-type PathNotFoundError string
+type PathError string
 
-func (e PathNotFoundError) Error() string {
+func (e PathError) Error() string {
 	return string(e)
 }
 
-func (e PathNotFoundError) Is(err error) bool {
-	_, ok := err.(PathNotFoundError)
+func (e PathError) Is(err error) bool {
+	_, ok := err.(PathError)
 	return ok
+}
+
+func pathErrorf(str string, v ...interface{}) PathError {
+	return PathError(fmt.Sprintf(str, v...))
 }
 
 // JSONDataBag is a simple DataBag implementation that keeps JSON in-memory.
@@ -650,28 +706,91 @@ func NewJSONDataBag() JSONDataBag {
 // Get takes a path and a pointer to a variable into which the value referenced
 // by the path is written. The path can be dotted. For each dot a JSON object
 // is expected to exist (e.g., "a.b" is mapped to {"a": {"b": <value>}}).
-func (s JSONDataBag) Get(path string, value interface{}) error {
+func (s JSONDataBag) Get(path string) (interface{}, error) {
+	// TODO: create this in the return below as well?
+	var value interface{}
 	subKeys := strings.Split(path, ".")
-	return get(subKeys, 0, s, value)
+	if err := get(subKeys, 0, s, &value); err != nil {
+		return nil, err
+	}
+
+	return value, nil
 }
 
-func get(subKeys []string, index int, node map[string]json.RawMessage, result interface{}) error {
+// get takes a dotted path split into sub-keys and uses it to traverse a JSON object.
+// The path's sub-keys can be literals, in which case that value is used to
+// traverse the tree, or a bracketed placeholder (e.g., "{foo}"). For placeholders,
+// we take all sub-paths and try to match the remaining path. The results for
+// any sub-path that matched the request path are then merged in a map and returned.
+func get(subKeys []string, index int, node map[string]json.RawMessage, result *interface{}) error {
 	key := subKeys[index]
+	matchAll := isPlaceholder(key)
+
 	rawLevel, ok := node[key]
-	if !ok {
+	if !matchAll && !ok {
 		pathPrefix := strings.Join(subKeys[:index+1], ".")
-		return PathNotFoundError(fmt.Sprintf("no value was found under path %q", pathPrefix))
+		return pathErrorf("no value was found under path %q", pathPrefix)
 	}
 
 	// read the final value
 	if index == len(subKeys)-1 {
-		err := json.Unmarshal(rawLevel, result)
-		if uErr, ok := err.(*json.UnmarshalTypeError); ok {
-			path := strings.Join(subKeys, ".")
-			return fmt.Errorf("cannot read value of %q into %T: maps to %s", path, result, uErr.Value)
+		if matchAll {
+			// request ends in placeholder so return map to all values (but unmarshal the rest first)
+			level := make(map[string]interface{}, len(node))
+			for k, v := range node {
+				var deser interface{}
+				if err := json.Unmarshal(v, &deser); err != nil {
+					return fmt.Errorf(`internal error: %w`, err)
+				}
+				level[k] = deser
+			}
+
+			*result = level
+			return nil
 		}
 
-		return err
+		if err := json.Unmarshal(rawLevel, result); err != nil {
+			return fmt.Errorf(`internal error: %w`, err)
+		}
+
+		return nil
+	}
+
+	if matchAll {
+		results := make(map[string]interface{})
+
+		for k, v := range node {
+			var level map[string]json.RawMessage
+			if err := jsonutil.DecodeWithNumber(bytes.NewReader(v), &level); err != nil {
+				if _, ok := err.(*json.UnmarshalTypeError); ok {
+					// we consider only the values for which the rest of the nested sub-keys
+					// can be fulfilled
+					continue
+				}
+				return err
+			}
+
+			// walk the path under all possible values, only return an error if no value
+			// is found under any path
+			var res interface{}
+			if err := get(subKeys, index+1, level, &res); err != nil {
+				if errors.Is(err, PathError("")) {
+					continue
+				}
+			}
+
+			if res != nil {
+				results[k] = res
+			}
+		}
+
+		if len(results) == 0 {
+			pathPrefix := strings.Join(subKeys[:index+1], ".")
+			return pathErrorf("no value was found under path %q", pathPrefix)
+		}
+
+		*result = results
+		return nil
 	}
 
 	// decode the next map level

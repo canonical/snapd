@@ -60,8 +60,7 @@ func getAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	for _, field := range fields {
-		var value interface{}
-		err := aspectstateGetAspect(tx, account, bundleName, aspect, field, &value)
+		result, err := aspectstateGetAspect(tx, account, bundleName, aspect, field)
 		if err != nil {
 			if errors.Is(err, &aspects.NotFoundError{}) && len(fields) > 1 {
 				// keep looking; return partial result if only some fields are found
@@ -71,7 +70,7 @@ func getAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 			}
 		}
 
-		results[field] = value
+		results[field] = result
 	}
 
 	// no results were found, return 404
