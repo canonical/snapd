@@ -56,17 +56,17 @@ func (s *aspectTestSuite) TestGetNotFound(c *C) {
 
 	res, err := aspectstate.GetAspect(databag, "system", "network", "other-aspect", "ssid")
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find value for "ssid" in aspect system/network/other-aspect: aspect not found`)
+	c.Assert(err, ErrorMatches, `cannot get "ssid" in aspect system/network/other-aspect: aspect not found`)
 	c.Check(res, IsNil)
 
 	res, err = aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "ssid")
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find value for "ssid" in aspect system/network/wifi-setup: matching rules don't map to any values`)
+	c.Assert(err, ErrorMatches, `cannot get "ssid" in aspect system/network/wifi-setup: matching rules don't map to any values`)
 	c.Check(res, IsNil)
 
 	res, err = aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "other-field")
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find value for "other-field" in aspect system/network/wifi-setup: no matching read rule`)
+	c.Assert(err, ErrorMatches, `cannot get "other-field" in aspect system/network/wifi-setup: no matching read rule`)
 	c.Check(res, IsNil)
 }
 
@@ -84,17 +84,11 @@ func (s *aspectTestSuite) TestSetNotFound(c *C) {
 	databag := aspects.NewJSONDataBag()
 	err := aspectstate.SetAspect(databag, "system", "network", "wifi-setup", "foo", "bar")
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find value for "foo" in aspect system/network/wifi-setup: no matching write rule`)
+	c.Assert(err, ErrorMatches, `cannot set "foo" in aspect system/network/wifi-setup: no matching write rule`)
 
 	err = aspectstate.SetAspect(databag, "system", "network", "other-aspect", "foo", "bar")
 	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find value for "foo" in aspect system/network/other-aspect: aspect not found`)
-}
-
-func (s *aspectTestSuite) TestSetAccessError(c *C) {
-	databag := aspects.NewJSONDataBag()
-	err := aspectstate.SetAspect(databag, "system", "network", "wifi-setup", "status", "foo")
-	c.Assert(err, ErrorMatches, `cannot write field "status": only supports read access`)
+	c.Assert(err, ErrorMatches, `cannot set "foo" in aspect system/network/other-aspect: aspect not found`)
 }
 
 func (s *aspectTestSuite) TestUnsetAspect(c *C) {

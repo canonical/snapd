@@ -179,7 +179,7 @@ func (s *aspectsSuite) TestGetAspectNoFieldsFound(c *C) {
 
 func (s *aspectsSuite) TestAspectGetDatabagNotFound(c *C) {
 	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, _, _, _, _ string) (interface{}, error) {
-		return nil, &aspects.NotFoundError{Account: "foo", BundleName: "network", Aspect: "wifi-setup", Request: "ssid", Cause: "mocked"}
+		return nil, &aspects.NotFoundError{Account: "foo", BundleName: "network", Aspect: "wifi-setup", Operation: "get", Request: "ssid", Cause: "mocked"}
 	})
 	defer restore()
 
@@ -188,7 +188,7 @@ func (s *aspectsSuite) TestAspectGetDatabagNotFound(c *C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 404)
-	c.Check(rspe.Message, Equals, `cannot find value for "ssid" in aspect foo/network/wifi-setup: mocked`)
+	c.Check(rspe.Message, Equals, `cannot get "ssid" in aspect foo/network/wifi-setup: mocked`)
 }
 
 func (s *aspectsSuite) TestAspectSetManyWithExistingState(c *C) {
@@ -289,7 +289,6 @@ func (s *aspectsSuite) TestGetAspectError(c *C) {
 	for _, t := range []test{
 		{name: "aspect not found", err: &aspects.NotFoundError{}, code: 404},
 		{name: "internal", err: errors.New("internal"), code: 500},
-		{name: "invalid access", err: &aspects.InvalidAccessError{RequestedAccess: 1, FieldAccess: 2, Field: "foo"}, code: 403},
 	} {
 		restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, _, _, _, _ string) (interface{}, error) {
 			return nil, t.err
@@ -433,7 +432,6 @@ func (s *aspectsSuite) TestSetAspectError(c *C) {
 	for _, t := range []test{
 		{name: "not found", err: &aspects.NotFoundError{}, code: 404},
 		{name: "internal", err: errors.New("internal"), code: 500},
-		{name: "invalid access", err: &aspects.InvalidAccessError{}, code: 403},
 	} {
 		restore := daemon.MockAspectstateSet(func(aspects.DataBag, string, string, string, string, interface{}) error {
 			return t.err
@@ -475,39 +473,6 @@ func (s *aspectsSuite) TestSetAspectBadRequest(c *C) {
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Message, Equals, "cannot decode aspect request body: unexpected EOF")
-}
-
-func (s *aspectsSuite) TestSetAspectNotAllowed(c *C) {
-	restore := daemon.MockAspectstateSet(func(_ aspects.DataBag, acc, bundleName, aspect, field string, val interface{}) error {
-		return &aspects.InvalidAccessError{RequestedAccess: 2, FieldAccess: 1, Field: "foo"}
-	})
-	defer restore()
-
-	buf := bytes.NewBufferString(`{"foo": "bar"}`)
-	req, err := http.NewRequest("PUT", "/v2/aspects/system/network/wifi-setup", buf)
-	c.Assert(err, IsNil)
-	req.Header.Set("Content-Type", "application/json")
-
-	rspe := s.errorReq(c, req, nil)
-	c.Check(rspe.Status, Equals, 403)
-	c.Check(rspe.Message, Equals, `cannot write field "foo": only supports read access`)
-	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
-}
-
-func (s *aspectsSuite) TestGetAspectNotAllowed(c *C) {
-	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, acc, bundleName, aspect, field string) (interface{}, error) {
-		return nil, &aspects.InvalidAccessError{RequestedAccess: 1, FieldAccess: 2, Field: "foo"}
-	})
-	defer restore()
-
-	req, err := http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup?fields=foo", &bytes.Buffer{})
-	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
-
-	rspe := s.errorReq(c, req, nil)
-	c.Check(rspe.Status, Equals, 403)
-	c.Check(rspe.Message, Equals, `cannot read field "foo": only supports write access`)
-	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
 }
 
 func (s *aspectsSuite) TestGetBadRequest(c *C) {
