@@ -142,7 +142,7 @@ var (
 )
 
 // User defined home directory variables
-// Not exported, use GetSnapHomeDirs() and SetSnapHomeDirs() instead
+// Not exported, use SnapHomeDirs() and SetSnapHomeDirs() instead
 var (
 	snapHomeDirsMu sync.Mutex
 	snapHomeDirs   []string
@@ -198,8 +198,8 @@ func init() {
 	SetRootDir(root)
 }
 
-// Returns a slice of the home directories currently in use.
-func GetSnapHomeDirs() []string {
+// SnapHomeDirs returns a slice of the home directories currently in use.
+func SnapHomeDirs() []string {
 	snapHomeDirsMu.Lock()
 	defer snapHomeDirsMu.Unlock()
 	dirs := make([]string, len(snapHomeDirs))
@@ -207,7 +207,7 @@ func GetSnapHomeDirs() []string {
 	return dirs
 }
 
-// Sets SnapHomeDirs to the user defined values and appends /home if not defined
+// SetSnapHomeDirs sets SnapHomeDirs to the user defined values and appends /home if needed
 // Homedir must be a comma separated list of the user defined home directories
 // If homedirs is empty, SnapHomeDirs will be a slice of length 1 containing "/home"
 func SetSnapHomeDirs(homedirs string) {
@@ -215,11 +215,8 @@ func SetSnapHomeDirs(homedirs string) {
 	defer snapHomeDirsMu.Unlock()
 	snapHomeDirs = strings.Split(homedirs, ",")
 	for i := range snapHomeDirs {
-		// Necessary for tests. Removes any '/' present at the end of the path
-		// regardless of how many there are
-		for strings.HasSuffix(snapHomeDirs[i], "/") {
-			snapHomeDirs[i] = strings.TrimSuffix(snapHomeDirs[i], "/")
-		}
+		// make sure the paths are clean, necessary for unit tests
+		snapHomeDirs[i] = filepath.Clean(snapHomeDirs[i])
 	}
 
 	// Make sure /home is part of the list

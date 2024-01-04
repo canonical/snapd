@@ -42,7 +42,6 @@ require (
 	github.com/kr/pretty v0.2.2-0.20200810074440-814ac30b4b18 // indirect
 	github.com/kr/text v0.1.0 // indirect
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1 // indirect
-	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
 	golang.org/x/term v0.7.0 // indirect
 	maze.io/x/crypto v0.0.0-20190131090603-9b94c9afe066 // indirect
 )

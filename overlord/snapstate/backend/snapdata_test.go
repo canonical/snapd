@@ -74,14 +74,15 @@ func (s *snapdataSuite) TestSnapDataDirs(c *C) {
 	homeDirs := homeDir1 + "," + homeDir2
 	dirs.SetSnapHomeDirs(homeDirs)
 	dataHomeDirs := []string{filepath.Join(homeDir1, "user1", "snap", "hello", "10"), filepath.Join(homeDir1, "user2", "snap", "hello", "10"),
-		filepath.Join(homeDir2, "user3", "snap", "hello", "10"), filepath.Join(homeDir2, "user4", "snap", "hello", "10")}
+		filepath.Join(homeDir2, "user3", "snap", "hello", "10"), filepath.Join(homeDir2, "user4", "snap", "hello", "10"),
+		filepath.Join(s.tempdir, "root", "snap", "hello", "10"), filepath.Join(s.tempdir, "var", "snap", "hello", "10")}
 	for _, path := range dataHomeDirs {
 		err := os.MkdirAll(path, 0755)
 		c.Assert(err, IsNil)
 	}
 
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
-	snapDataDirs, err := backend.MockSnapDataDirs(info, nil)
+	snapDataDirs, err := backend.SnapDataDirs(info, nil)
 	c.Assert(err, IsNil)
 	c.Check(snapDataDirs, DeepEquals, dataHomeDirs)
 }
@@ -92,14 +93,15 @@ func (s *snapdataSuite) TestSnapCommonDataDirs(c *C) {
 	homeDirs := homeDir1 + "," + homeDir2
 	dirs.SetSnapHomeDirs(homeDirs)
 	dataHomeDirs := []string{filepath.Join(homeDir1, "user1", "snap", "hello", "common"), filepath.Join(homeDir1, "user2", "snap", "hello", "common"),
-		filepath.Join(homeDir2, "user3", "snap", "hello", "common"), filepath.Join(homeDir2, "user4", "snap", "hello", "common")}
+		filepath.Join(homeDir2, "user3", "snap", "hello", "common"), filepath.Join(homeDir2, "user4", "snap", "hello", "common"),
+		filepath.Join(s.tempdir, "root", "snap", "hello", "common"), filepath.Join(s.tempdir, "var", "snap", "hello", "common")}
 	for _, path := range dataHomeDirs {
 		err := os.MkdirAll(path, 0755)
 		c.Assert(err, IsNil)
 	}
 
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
-	snapCommonDataDirs, err := backend.MockSnapCommonDataDirs(info, nil)
+	snapCommonDataDirs, err := backend.SnapCommonDataDirs(info, nil)
 	c.Assert(err, IsNil)
 	c.Check(snapCommonDataDirs, DeepEquals, dataHomeDirs)
 }

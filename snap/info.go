@@ -649,7 +649,7 @@ func DataHomeGlobs(opts *dirs.SnapDirOptions) []string {
 		opts = &dirs.SnapDirOptions{}
 	}
 
-	homeDirs := dirs.GetSnapHomeDirs()
+	homeDirs := dirs.SnapHomeDirs()
 	for i, dir := range homeDirs {
 		// Convert each directory to a globbing expression
 		if opts.HiddenSnapDataDir {

@@ -22,18 +22,18 @@ package backend
 import (
 	"os"
 	"os/exec"
-	"path/filepath"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/wrappers"
 )
 
 var (
-	AddMountUnit    = addMountUnit
-	RemoveMountUnit = removeMountUnit
-	RemoveIfEmpty   = removeIfEmpty
+	AddMountUnit       = addMountUnit
+	RemoveMountUnit    = removeMountUnit
+	RemoveIfEmpty      = removeIfEmpty
+	SnapDataDirs       = snapDataDirs
+	SnapCommonDataDirs = snapCommonDataDirs
 )
 
 func MockWrappersAddSnapdSnapServices(f func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) error) (restore func()) {
@@ -74,28 +74,4 @@ func MockMkdirAllChown(f func(string, os.FileMode, sys.UserID, sys.GroupID) erro
 	return func() {
 		mkdirAllChown = old
 	}
-}
-
-func MockSnapDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
-	var found []string
-	for _, entry := range snap.DataHomeDirs(opts) {
-		entryPaths, err := filepath.Glob(entry)
-		if err != nil {
-			return nil, err
-		}
-		found = append(found, entryPaths...)
-	}
-	return found, nil
-}
-
-func MockSnapCommonDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
-	var found []string
-	for _, entry := range snap.CommonDataHomeDirs(opts) {
-		entryPaths, err := filepath.Glob(entry)
-		if err != nil {
-			return nil, err
-		}
-		found = append(found, entryPaths...)
-	}
-	return found, nil
 }

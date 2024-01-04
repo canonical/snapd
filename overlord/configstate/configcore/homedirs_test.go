@@ -309,3 +309,10 @@ func (s *homedirsSuite) TestConfigureHomedirsNotOnCore(c *C) {
 	c.Check(reloadProfilesCallCount, Equals, 0)
 	c.Check(setupSnapConfineSnippetsCalls, Equals, 0)
 }
+
+func (s *homedirsSuite) TestupdateHomedirsConfig(c *C) {
+	config := "/home/homeDir1,/home/homeDirs/homeDir1///,/home/homeDir2/,/home/homeTest/users/"
+	expectedHomeDirs := []string{"/home/homeDir1", "/home/homeDirs/homeDir1", "/home/homeDir2", "/home/homeTest/users", "/home"}
+	configcore.UpdateHomedirsConfig(config, nil)
+	c.Check(dirs.SnapHomeDirs(), DeepEquals, expectedHomeDirs)
+}

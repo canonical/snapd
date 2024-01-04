@@ -33,6 +33,7 @@ var (
 	UpdateKeyValueStream = updateKeyValueStream
 	AddFSOnlyHandler     = addFSOnlyHandler
 	FilesystemOnlyApply  = filesystemOnlyApply
+	UpdateHomedirsConfig = updateHomedirsConfig
 )
 
 type PlainCoreConfig = plainCoreConfig
