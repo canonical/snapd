@@ -141,6 +141,9 @@ static void sc_cleanup_sock_fprog(struct sock_fprog *prog)
 
 static void sc_must_read_filter_from_file(FILE *file, uint32_t len_bytes, char *what, struct sock_fprog *prog)
 {
+    if (len_bytes == 0) {
+        die("%s filter may only be empty in unrestricted profiles", what);
+    }
 	prog->len = len_bytes / sizeof(struct sock_filter);
 	prog->filter = (struct sock_filter *)malloc(len_bytes);
 	if (prog->filter == NULL) {
@@ -174,18 +177,12 @@ static FILE* sc_must_read_and_validate_header_from_file(const char *profile_path
 	if (hdr->version != 1) {
 		die("unexpected seccomp file version: %x", hdr->version);
 	}
-    if (hdr->len_allow_filter == 0) {
-        die("allow filter is empty. It must contains at least rules from the default template");
-    }
 	if (hdr->len_allow_filter > MAX_BPF_SIZE) {
 		die("allow filter size too big %u", hdr->len_allow_filter);
 	}
 	if (hdr->len_allow_filter % sizeof(struct sock_filter) != 0) {
 		die("allow filter size not multiple of sock_filter");
 	}
-    if (hdr->len_deny_filter == 0) {
-        die("deny filter is empty. It must contains at least rules from the default template");
-    }
 	if (hdr->len_deny_filter > MAX_BPF_SIZE) {
 		die("deny filter size too big %u", hdr->len_deny_filter);
 	}
