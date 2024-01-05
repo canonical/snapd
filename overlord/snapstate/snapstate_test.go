@@ -3723,6 +3723,32 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesAtSeedPolicy(c *C) {
 	c.Check(err, IsNil)
 }
 
+func (s *snapmgrTestSuite) TestEnsureRefreshesAtSeedPolicyNopAtPreesed(c *C) {
+	// special policy only on classic
+	r := release.MockOnClassic(true)
+	defer r()
+	// set at not seeded yet
+	st := s.state
+	st.Lock()
+	st.Set("seeded", nil)
+	st.Unlock()
+	// preseed time
+	snapstate.SetPreseed(s.snapmgr, true)
+
+	s.snapmgr.Ensure()
+
+	st.Lock()
+	defer st.Unlock()
+
+	// check that refresh policies have *NOT* run in this case
+	var t1 time.Time
+	err := st.Get("last-refresh-hints", &t1)
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
+	tr := config.NewTransaction(st)
+	err = tr.Get("core", "refresh.hold", &t1)
+	c.Check(config.IsNoOption(err), Equals, true)
+}
+
 func (s *snapmgrTestSuite) TestEsnureCleansOldSideloads(c *C) {
 	filenames := func() []string {
 		filenames, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*"))
