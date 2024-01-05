@@ -161,7 +161,9 @@ func expectedResponseTypeForClass(class notify.MediationClass) string {
 	case notify.AA_CLASS_FILE:
 		return "bool"
 	default:
-		return "unsupported"
+		// This should never occur, as caller should return an error before
+		// calling this if the class is unsupported.
+		return "???"
 	}
 }
 
@@ -264,10 +266,11 @@ func (l *Listener) Close() error {
 		})
 	case statusRunning:
 	case statusClosed:
+		l.tomb.Wait()
 		return ErrAlreadyClosed
 	}
 	l.tomb.Kill(ErrClosed)
-	// Stop the run loop from waiting on epoll events
+	// Close epoll instance to stop the run loop waiting on epoll events
 	err1 := l.poll.Close()
 	// Wait for all waiters to send back deny responses to the kernel
 	l.tomb.Wait()
@@ -321,10 +324,16 @@ func (l *Listener) Run() error {
 		}
 		return err
 	})
-	err := l.tomb.Wait()
+	// Wait for an error to occur or the listener to be explicitly closed.
+	<-l.tomb.Dying()
+	// Close the listener, in case an internal error occurred.
+	// Close() waits until all waiters have sent back deny responses to the
+	// kernel, so it is safe to call without first calling l.tomb.Wait().
 	l.Close()
+	// Close() also waits until the run loop goroutine returns, and that is
+	// the only writer to l.reqs, so it is now safe to close it.
 	close(l.reqs)
-	return err
+	return l.tomb.Err()
 }
 
 var listenerEpollWait = func(l *Listener) ([]epoll.Event, error) {
@@ -334,11 +343,8 @@ var listenerEpollWait = func(l *Listener) ([]epoll.Event, error) {
 func (l *Listener) runOnce() error {
 	events, err := listenerEpollWait(l)
 	if err != nil {
-		if l.poll.IsClosed() {
-			// Epoll instance was explicitly closed.
-			// Must have been by the Close() function.
-			return ErrClosed
-		}
+		// If epoll instance is closed, then tomb error status has already
+		// been set. Otherwise, this is a true error. Either way, return it.
 		return err
 	}
 	for _, event := range events {
@@ -355,9 +361,8 @@ func (l *Listener) runOnce() error {
 		ioctlBuf := notify.NewIoctlRequestBuffer()
 		buf, err := notifyIoctl(l.notifyFile.Fd(), notify.APPARMOR_NOTIF_RECV, ioctlBuf)
 		if err != nil {
-			if l.poll.IsClosed() {
-				return ErrClosed
-			}
+			// If epoll instance is closed, then tomb error status has already
+			// been set. Otherwise, this is a true error. Either way, return it.
 			return err
 		}
 		if err := l.decodeAndDispatchRequest(buf); err != nil {
@@ -411,16 +416,21 @@ func (l *Listener) handleRequestAaClassFile(buf []byte) error {
 	if err != nil {
 		return err
 	}
+	// Try to send the request over l.reqs. Do this in a separate goroutine
+	// so that it doesn't block if there is no reader.
 	l.tomb.Go(func() error {
 		select {
 		case l.reqs <- req:
 			// request received
 		case <-l.tomb.Dying():
-			// request not received, an automatic denial will be sent
+			// request not received, an automatic denial will be sent by waitAndRespond...
 			return l.tomb.Err()
 		}
 		return nil
 	})
+	// Since sending the req occurs in its own goroutine, we can run
+	// waitAndRespond... even if there is nothing reading requests, and if
+	// the listener starts dying, a denial is always sent to the kernel.
 	l.tomb.Go(func() error {
 		return l.waitAndRespondAaClassFile(req, &fmsg)
 	})

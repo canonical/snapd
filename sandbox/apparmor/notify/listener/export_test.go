@@ -42,24 +42,19 @@ func MockOsOpen(f func(name string) (*os.File, error)) (restore func()) {
 	return restore
 }
 
-// Mocks os.Open to instead create a socket pair, return one wrapped in a
-// os.File (in place of the opened file), and send the other along the
-// sockFdChan which is returned by this function.
-func MockOsOpenWithSockets() (sockFdChan chan int, restore func()) {
-	sockFdChan = make(chan int, 1)
+// Mocks os.Open to instead create a socket, wrap it in a os.File, and return
+// it to the caller.
+func MockOsOpenWithSocket() (restore func()) {
 	f := func(name string) (*os.File, error) {
-		sockets, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM, 0)
+		socket, err := unix.Socket(unix.AF_UNIX, unix.SOCK_STREAM, 0)
 		if err != nil {
 			return nil, err
 		}
-		senderSocket := sockets[0]
-		receiverSocket := sockets[1]
-		notifyFile := os.NewFile(uintptr(receiverSocket), notify.SysPath)
-		sockFdChan <- senderSocket
+		notifyFile := os.NewFile(uintptr(socket), notify.SysPath)
 		return notifyFile, nil
 	}
 	restore = MockOsOpen(f)
-	return sockFdChan, restore
+	return restore
 }
 
 func MockEpollWait(f func(l *Listener) ([]epoll.Event, error)) (restore func()) {
@@ -84,19 +79,23 @@ func MockEpollWaitNotifyIoctl() (recvChan chan<- []byte, sendChan <-chan []byte,
 	sendChanRW := make(chan []byte)
 	internalRecvChan := make(chan []byte, 1)
 	ef := func(l *Listener) ([]epoll.Event, error) {
-		select {
-		case request := <-recvChanRW:
-			internalRecvChan <- request
-		case <-l.tomb.Dying():
-			return nil, l.tomb.Err()
+		for {
+			select {
+			case request := <-recvChanRW:
+				internalRecvChan <- request
+				events := []epoll.Event{
+					{
+						Fd:        int(l.notifyFile.Fd()),
+						Readiness: epoll.Readable,
+					},
+				}
+				return events, nil
+			default:
+				if l.poll.IsClosed() {
+					return nil, epoll.ErrEpollClosed
+				}
+			}
 		}
-		events := []epoll.Event{
-			{
-				Fd:        int(l.notifyFile.Fd()),
-				Readiness: epoll.Readable,
-			},
-		}
-		return events, nil
 	}
 	nf := func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
 		switch req {
@@ -129,4 +128,12 @@ func (l *Listener) Dying() <-chan struct{} {
 
 func (l *Listener) Err() error {
 	return l.tomb.Err()
+}
+
+func (l *Listener) Kill(err error) {
+	l.tomb.Kill(err)
+}
+
+func (l *Listener) EpollIsClosed() bool {
+	return l.poll.IsClosed()
 }
