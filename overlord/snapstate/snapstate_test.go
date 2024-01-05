@@ -3723,7 +3723,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesAtSeedPolicy(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestEnsureRefreshesAtSeedPolicyNopAtPreesed(c *C) {
+func (s *snapmgrTestSuite) TestEnsureRefreshesAtSeedPolicyNopAtPreseed(c *C) {
 	// special policy only on classic
 	r := release.MockOnClassic(true)
 	defer r()
