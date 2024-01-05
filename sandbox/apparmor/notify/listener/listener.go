@@ -411,7 +411,16 @@ func (l *Listener) handleRequestAaClassFile(buf []byte) error {
 	if err != nil {
 		return err
 	}
-	l.reqs <- req
+	l.tomb.Go(func() error {
+		select {
+		case l.reqs <- req:
+			// request received
+		case <-l.tomb.Dying():
+			// request not received, an automatic denial will be sent
+			return l.tomb.Err()
+		}
+		return nil
+	})
 	l.tomb.Go(func() error {
 		return l.waitAndRespondAaClassFile(req, &fmsg)
 	})
