@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -4141,6 +4142,140 @@ func GadgetConnections(st *state.State, deviceCtx DeviceContext) ([]gadget.Conne
 	}
 
 	return gadgetInfo.Connections, nil
+}
+
+// downloadsToKeep returns a map of download file names that need to be kept
+// for all current snaps in the system state.
+//
+// A downloaded file is only kept if any of the following are true:
+//    1. The revision is in SnapState.Sequence
+//    2. The revision is in saved in refresh-candidates
+//    3. The revision is pointed to by a download task in an ongoing change
+//
+// It is the caller's responsibility to lock state before calling this function.
+func downloadsToKeep(st *state.State) (map[string]bool, error) {
+	snapStates, err := All(st)
+	if err != nil {
+		return nil, err
+	}
+
+	var refreshHints map[string]*refreshCandidate
+	if err := st.Get("refresh-candidates", &refreshHints); err != nil && !errors.Is(err, &state.NoStateError{}) {
+		return nil, fmt.Errorf("cannot get refresh-candidates: %v", err)
+	}
+
+	var downloadsToKeep map[string]bool
+	keep := func(name string, rev snap.Revision) {
+		if downloadsToKeep == nil {
+			downloadsToKeep = make(map[string]bool)
+		}
+		downloadsToKeep[fmt.Sprintf("%s_%s.snap", name, rev)] = true
+	}
+
+	// keep revisions in snap's sequence
+	for snapName, snapst := range snapStates {
+		for _, si := range snapst.Sequence.SideInfos() {
+			keep(snapName, si.Revision)
+		}
+	}
+
+	// keep revisions in refresh hints
+	for snapName, hint := range refreshHints {
+		keep(snapName, hint.Revision())
+	}
+
+	// keep revisions pointed to by a download task in an ongoing change
+	for _, chg := range st.Changes() {
+		if chg.IsReady() {
+			continue
+		}
+		for _, t := range chg.Tasks() {
+			if t.Kind() != "download-snap" {
+				continue
+			}
+			snapsup, err := TaskSnapSetup(t)
+			if err != nil {
+				return nil, err
+			}
+			keep(snapsup.InstanceName(), snapsup.Revision())
+		}
+	}
+
+	return downloadsToKeep, nil
+}
+
+var maxUnusedDownloadRetention = 24 * time.Hour
+
+func maybeRemoveSnapDownload(file string) error {
+	now := time.Now()
+
+	fi, err := os.Stat(file)
+	if err != nil {
+		return err
+	}
+	// skip deleting new downloads
+	if fi.ModTime().Add(maxUnusedDownloadRetention).After(now) {
+		return nil
+	}
+
+	return os.Remove(file)
+}
+
+// cleanDownloads removes downloads that are no longer needed for all snaps.
+//
+// It is the caller's responsibility to lock state before calling this function.
+var cleanDownloads = func(st *state.State) error {
+	keep, err := downloadsToKeep(st)
+	if err != nil {
+		return err
+	}
+
+	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap"))
+	if err != nil {
+		return err
+	}
+	for _, file := range matches {
+		if keep[filepath.Base(file)] {
+			continue
+		}
+		if rmErr := maybeRemoveSnapDownload(file); rmErr != nil {
+			// continue deletion, report error in the end
+			err = rmErr
+		}
+	}
+
+	return err
+}
+
+// cleanSnapDownloads removes downloads that are no longer needed for the given snap.
+//
+// It is the caller's responsibility to lock state before calling this function.
+var cleanSnapDownloads = func(st *state.State, snapName string) error {
+	keep, err := downloadsToKeep(st)
+	if err != nil {
+		return err
+	}
+
+	regex := regexp.MustCompile(fmt.Sprintf("^%s_x?[0-9]+\\.snap$", snapName))
+
+	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_*.snap", snapName)))
+	if err != nil {
+		return err
+	}
+	for _, file := range matches {
+		if !regex.MatchString(filepath.Base(file)) {
+			continue
+		}
+		if keep[filepath.Base(file)] {
+			continue
+		}
+		if rmErr := maybeRemoveSnapDownload(file); rmErr != nil {
+			// continue deletion, report error in the end
+			err = rmErr
+		}
+	}
+
+	return err
 }
 
 func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (restore func()) {

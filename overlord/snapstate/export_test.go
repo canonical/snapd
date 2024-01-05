@@ -184,6 +184,36 @@ var (
 	HardEnsureNothingRunningDuringRefresh = hardEnsureNothingRunningDuringRefresh
 )
 
+// cleanup
+var (
+	CleanSnapDownloads = cleanSnapDownloads
+	CleanDownloads     = cleanDownloads
+)
+
+func MockMaxUnusedDownloadRetention(t time.Duration) func() {
+	old := maxUnusedDownloadRetention
+	maxUnusedDownloadRetention = t
+	return func() {
+		maxUnusedDownloadRetention = old
+	}
+}
+
+func MockCleanDownloads(mock func(st *state.State) error) func() {
+	old := cleanDownloads
+	cleanDownloads = mock
+	return func() {
+		cleanDownloads = old
+	}
+}
+
+func MockCleanSnapDownloads(mock func(st *state.State, snapName string) error) func() {
+	old := cleanSnapDownloads
+	cleanSnapDownloads = mock
+	return func() {
+		cleanSnapDownloads = old
+	}
+}
+
 // install
 var HasAllContentAttrs = hasAllContentAttrs
 
@@ -298,6 +328,14 @@ func MockEnsuredDesktopFilesUpdated(m *SnapManager, ensured bool) (restore func(
 	m.ensuredDesktopFilesUpdated = ensured
 	return func() {
 		m.ensuredDesktopFilesUpdated = old
+	}
+}
+
+func MockEnsuredDownloadsCleaned(m *SnapManager, ensured bool) (restore func()) {
+	old := m.ensuredDownloadsCleaned
+	m.ensuredDownloadsCleaned = ensured
+	return func() {
+		m.ensuredDownloadsCleaned = old
 	}
 }
 

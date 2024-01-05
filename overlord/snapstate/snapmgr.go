@@ -69,6 +69,7 @@ type SnapManager struct {
 
 	ensuredMountsUpdated       bool
 	ensuredDesktopFilesUpdated bool
+	ensuredDownloadsCleaned    bool
 }
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
@@ -622,12 +623,14 @@ func Store(st *state.State, deviceCtx DeviceContext) StoreService {
 func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	preseed := snapdenv.Preseeding()
 	m := &SnapManager{
-		state:                st,
-		autoRefresh:          newAutoRefresh(st),
-		refreshHints:         newRefreshHints(st),
-		catalogRefresh:       newCatalogRefresh(st),
-		preseed:              preseed,
-		ensuredMountsUpdated: false,
+		state:                      st,
+		autoRefresh:                newAutoRefresh(st),
+		refreshHints:               newRefreshHints(st),
+		catalogRefresh:             newCatalogRefresh(st),
+		preseed:                    preseed,
+		ensuredMountsUpdated:       false,
+		ensuredDesktopFilesUpdated: false,
+		ensuredDownloadsCleaned:    false,
 	}
 	if preseed {
 		m.backend = backend.NewForPreseedMode()
@@ -716,6 +719,7 @@ func (m *SnapManager) StartUp() error {
 	if err := m.SyncCookies(m.state); err != nil {
 		return fmt.Errorf("failed to generate cookies: %q", err)
 	}
+
 	return nil
 }
 
@@ -1320,6 +1324,33 @@ func (m *SnapManager) ensureDesktopFilesUpdated() error {
 	return nil
 }
 
+func (m *SnapManager) ensureDownloadsCleaned() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.ensuredDownloadsCleaned {
+		return nil
+	}
+
+	// only run after we are seeded
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	if err := cleanDownloads(m.state); err != nil {
+		return err
+	}
+
+	m.ensuredDownloadsCleaned = true
+
+	return nil
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
 	if m.preseed {
@@ -1342,6 +1373,7 @@ func (m *SnapManager) Ensure() error {
 		m.ensureVulnerableSnapConfineVersionsRemovedOnClassic(),
 		m.ensureMountsUpdated(),
 		m.ensureDesktopFilesUpdated(),
+		m.ensureDownloadsCleaned(),
 	}
 
 	//FIXME: use firstErr helper
