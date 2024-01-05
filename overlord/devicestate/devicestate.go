@@ -1651,6 +1651,11 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		}
 
 		if !needsInstall {
+			info, err := snapstate.CurrentInfo(st, sn.Name)
+			if err != nil {
+				return nil, err
+			}
+			tracker.Add(info)
 			continue
 		}
 
