@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -39,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/osutil/epoll"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -418,11 +420,18 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 	timeout := 100 * time.Millisecond
 	timer := time.NewTimer(timeout)
 
-	for i, path := range paths {
+	pathsReceived := make([]string, 0, 3)
+	for i := range paths {
 		timer.Reset(timeout)
 		select {
 		case req := <-l.Reqs():
-			c.Assert(req.Path(), Equals, path)
+			if !strutil.ListContains(paths, req.Path()) {
+				c.Fatalf("received request with unexpected path: %s", req.Path())
+			}
+			if strutil.ListContains(pathsReceived, req.Path()) {
+				c.Fatalf("received request with duplicate path: %s", req.Path())
+			}
+			pathsReceived = append(pathsReceived, req.Path())
 		case <-l.Dying():
 			c.Fatalf("listener encountered unexpected error during request %d: %v", i, l.Err())
 		case <-timer.C:
@@ -445,6 +454,83 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 		case <-timer.C:
 			c.Fatalf("failed to receive response %d before timer expired", i)
 		}
+	}
+}
+
+// Test that if there is no read from Reqs(), requests are still processed and
+// a denial is sent if the listener is closed.
+func (*listenerSuite) TestRunNoReceiver(c *C) {
+	sockFdChan, restoreOpen := listener.MockOsOpenWithSockets()
+	defer restoreOpen()
+
+	recvChan, sendChan, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl()
+	defer restoreEpollIoctl()
+
+	var t tomb.Tomb
+	l, err := listener.Register()
+	c.Assert(err, IsNil)
+
+	notifySocket := <-sockFdChan
+	defer unix.Close(notifySocket)
+
+	t.Go(l.Run)
+
+	label := "snap.foo.bar"
+	paths := []string{"/home/Documents/foo", "/path/to/bar", "/baz"}
+
+	aBits := uint32(0b1010)
+	dBits := uint32(0b0101)
+
+	for i, path := range paths {
+		msg := newMsgNotificationFile(uint64(i), label, path, aBits, dBits)
+		buf, err := msg.MarshalBinary()
+		c.Assert(err, IsNil)
+		recvChan <- buf
+	}
+
+	c.Assert(l.Err(), Equals, tomb.ErrStillAlive)
+	timer := time.NewTimer(10 * time.Millisecond)
+	select {
+	case response := <-sendChan:
+		c.Fatalf("listener sent unexpected message: %v", response)
+	case <-timer.C:
+	}
+
+	received := make(chan []byte, 3)
+	go func() {
+		for range paths {
+			timeout := time.NewTimer(100 * time.Millisecond)
+			select {
+			case resp := <-sendChan:
+				received <- resp
+			case <-timeout.C:
+				c.Fatalf("timed out waiting for listener to send responses")
+			}
+		}
+		close(received)
+		unexpected, ok := <-sendChan
+		c.Assert(ok, Equals, false, Commentf("listener sent unexpected message: %v", unexpected))
+	}()
+
+	c.Check(l.Close(), IsNil)
+	c.Check(t.Wait(), Equals, listener.ErrClosed)
+
+	expected := make([][]byte, 0, 3)
+	for i := range paths {
+		newResp := newMsgNotificationResponse(uint64(i), aBits, dBits)
+		respBuf, err := newResp.MarshalBinary()
+		c.Assert(err, IsNil)
+		expected = append(expected, respBuf)
+	}
+
+OUTER:
+	for resp := range received {
+		for _, exp := range expected {
+			if reflect.DeepEqual(resp, exp) {
+				continue OUTER
+			}
+		}
+		c.Fatalf("listener sent response which does not match any expected: %v not in %v", resp, expected)
 	}
 }
 
