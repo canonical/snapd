@@ -388,9 +388,16 @@ func (iface *fwupdInterface) UDevPermanentSlot(spec *udev.Specification, slot *s
 	if !implicitSystemPermanentSlot(slot) {
 		spec.TagDevice(`KERNEL=="drm_dp_aux[0-9]*"`)
 		spec.TagDevice(`KERNEL=="gpiochip[0-9]*"`)
-		spec.TagDevice(`KERNEL=="tpm[0-9]*"`)
-		spec.TagDevice(`KERNEL=="nvme[0-9]*"`)
+		spec.TagDevice(`KERNEL=="i2c-[0-9]*"`)
+		spec.TagDevice(`KERNEL=="ipmi[0-9]*"`)
 		spec.TagDevice(`KERNEL=="mei[0-9]*"`)
+		spec.TagDevice(`KERNEL=="mtd[0-9]*"`)
+		spec.TagDevice(`KERNEL=="nvme[0-9]*"`)
+		spec.TagDevice(`KERNEL=="tpm[0-9]*"`)
+		spec.TagDevice(`KERNEL=="tpmrm[0-9]*"`)
+		spec.TagDevice(`KERNEL=="video[0-9]*"`)
+		spec.TagDevice(`KERNEL=="wmi/dell-smbios"`)
+		spec.TagDevice(`SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device"`)
 	}
 
 	return nil
