@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"reflect"
 	"testing"
 	"time"
 
@@ -40,7 +39,6 @@ import (
 	"github.com/snapcore/snapd/osutil/epoll"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -317,7 +315,7 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
-	recvChan, sendChan, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl()
+	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl()
 	defer restoreEpollIoctl()
 
 	var t tomb.Tomb
@@ -328,7 +326,7 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 		c.Check(t.Wait(), Equals, listener.ErrClosed)
 	}()
 
-	id := uint64(1234)
+	id := uint64(0x1234)
 	label := "snap.foo.bar"
 	path := "/home/Documents/foo"
 	aBits := uint32(0b1010)
@@ -369,10 +367,6 @@ func (*listenerSuite) TestRegisterWriteRun(c *C) {
 	case <-timer.C:
 		c.Fatalf("failed to receive request before timer expired")
 	}
-
-	go func() {
-		<-sendChan
-	}()
 }
 
 // Check that if multiple requests are included in a single request buffer from
@@ -381,14 +375,15 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
-	recvChan, sendChan, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl()
+	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl()
 	defer restoreEpollIoctl()
 
 	var t tomb.Tomb
 	l, err := listener.Register()
 	c.Assert(err, IsNil)
 	defer func() {
-		c.Assert(t.Wait(), Equals, listener.ErrClosed)
+		c.Check(l.Close(), IsNil)
+		c.Check(t.Wait(), Equals, listener.ErrClosed)
 	}()
 
 	t.Go(l.Run)
@@ -409,42 +404,15 @@ func (*listenerSuite) TestRunMultipleRequestsInBuffer(c *C) {
 
 	recvChan <- megaBuf
 
-	timeout := 100 * time.Millisecond
-	timer := time.NewTimer(timeout)
-
-	pathsReceived := make([]string, 0, 3)
-	for i := range paths {
-		timer.Reset(timeout)
+	for i, path := range paths {
+		timer := time.NewTimer(100 * time.Millisecond)
 		select {
 		case req := <-l.Reqs():
-			if !strutil.ListContains(paths, req.Path()) {
-				c.Fatalf("received request with unexpected path: %s", req.Path())
-			}
-			if strutil.ListContains(pathsReceived, req.Path()) {
-				c.Fatalf("received request with duplicate path: %s", req.Path())
-			}
-			pathsReceived = append(pathsReceived, req.Path())
+			c.Assert(req.Path(), DeepEquals, path)
 		case <-l.Dying():
 			c.Fatalf("listener encountered unexpected error during request %d: %v", i, l.Err())
 		case <-timer.C:
 			c.Fatalf("failed to receive request %d before timer expired", i)
-		}
-	}
-
-	go func() {
-		c.Check(l.Close(), IsNil)
-	}()
-
-	for i := range paths {
-		if !timer.Stop() {
-			<-timer.C
-		}
-		timer.Reset(timeout)
-		select {
-		case resp := <-sendChan:
-			c.Assert(resp, Not(HasLen), 0)
-		case <-timer.C:
-			c.Fatalf("failed to receive response %d before timer expired", i)
 		}
 	}
 }
@@ -462,22 +430,6 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 	})
 	defer restoreOpen()
 
-	id := uint64(1234)
-	label := "snap.foo.bar"
-	path := "/home/Documents/foo/bar"
-	aBits := uint32(0b1010)
-	dBits := uint32(0b0101)
-
-	msg := newMsgNotificationFile(id, label, path, aBits, dBits)
-	recvBuf, err := msg.MarshalBinary()
-	c.Assert(err, IsNil)
-
-	expectedSend := newMsgNotificationResponse(id, aBits, dBits)
-	expectedSendBuf, err := expectedSend.MarshalBinary()
-	c.Assert(err, IsNil)
-
-	sendChan := make(chan []byte)
-
 	restoreIoctl := listener.MockNotifyIoctl(func(fd uintptr, req notify.IoctlRequest, buf notify.IoctlRequestBuffer) ([]byte, error) {
 		c.Assert(fd, Equals, uintptr(notifyFile.Fd()))
 		switch req {
@@ -489,13 +441,21 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 			c.Assert(err, IsNil)
 			return buf[:n], nil
 		case notify.APPARMOR_NOTIF_SEND:
-			sendChan <- buf
-			close(sendChan)
-			return buf, nil
+			c.Fatalf("listener should not have tried to SEND")
 		}
 		return nil, fmt.Errorf("unexpected ioctl request: %v", req)
 	})
 	defer restoreIoctl()
+
+	id := uint64(0x1234)
+	label := "snap.foo.bar"
+	path := "/home/Documents/foo/bar"
+	aBits := uint32(0b1010)
+	dBits := uint32(0b0101)
+
+	msg := newMsgNotificationFile(id, label, path, aBits, dBits)
+	recvBuf, err := msg.MarshalBinary()
+	c.Assert(err, IsNil)
 
 	var t tomb.Tomb
 	l, err := listener.Register()
@@ -520,14 +480,6 @@ func (*listenerSuite) TestRunEpoll(c *C) {
 
 	l.Kill(fakeError)
 
-	sendTimer := time.NewTimer(time.Second)
-	select {
-	case sendBuf := <-sendChan:
-		c.Assert(sendBuf, DeepEquals, expectedSendBuf)
-	case <-sendTimer.C:
-		c.Fatalf("timed out waiting for listener to send response")
-	}
-
 	// There is a race between the tomb dying and Close() being called in
 	// Run(), so wait for Run() to return before checking closed status.
 	c.Assert(t.Wait(), Equals, fakeError)
@@ -543,6 +495,7 @@ func (*listenerSuite) TestRunNoEpoll(c *C) {
 
 	restoreEpoll := listener.MockEpollWait(func(l *listener.Listener) ([]epoll.Event, error) {
 		for !l.EpollIsClosed() {
+			// do nothing until epoll is closed
 		}
 		return nil, fmt.Errorf("fake epoll error")
 	})
@@ -558,9 +511,14 @@ func (*listenerSuite) TestRunNoEpoll(c *C) {
 	l, err := listener.Register()
 	c.Assert(err, IsNil)
 
-	t.Go(l.Run)
+	runAboutToStart := make(chan struct{})
+	t.Go(func() error {
+		close(runAboutToStart)
+		return l.Run()
+	})
 
-	// Make sure Run() starts before Close()
+	// Make sure Run() starts before error triggers Close()
+	<-runAboutToStart
 	time.Sleep(10 * time.Millisecond)
 
 	fakeError := fmt.Errorf("fake error occurred")
@@ -569,13 +527,12 @@ func (*listenerSuite) TestRunNoEpoll(c *C) {
 	c.Assert(t.Wait(), Equals, fakeError)
 }
 
-// Test that if there is no read from Reqs(), requests are still processed and
-// a denial is sent if the listener is closed.
+// Test that if there is no read from Reqs(), listener can still close.
 func (*listenerSuite) TestRunNoReceiver(c *C) {
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
-	recvChan, sendChan, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl()
+	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl()
 	defer restoreEpollIoctl()
 
 	var t tomb.Tomb
@@ -584,63 +541,54 @@ func (*listenerSuite) TestRunNoReceiver(c *C) {
 
 	t.Go(l.Run)
 
+	id := uint64(0x1234)
 	label := "snap.foo.bar"
-	paths := []string{"/home/Documents/foo", "/path/to/bar", "/baz"}
-
+	path := "/home/Documents/foo"
 	aBits := uint32(0b1010)
 	dBits := uint32(0b0101)
 
-	for i, path := range paths {
-		msg := newMsgNotificationFile(uint64(i), label, path, aBits, dBits)
-		buf, err := msg.MarshalBinary()
-		c.Assert(err, IsNil)
-		recvChan <- buf
-	}
-
-	c.Assert(l.Err(), Equals, tomb.ErrStillAlive)
-	timer := time.NewTimer(10 * time.Millisecond)
-	select {
-	case response := <-sendChan:
-		c.Fatalf("listener sent unexpected message: %v", response)
-	case <-timer.C:
-	}
-
-	received := make(chan []byte, 3)
-	go func() {
-		for range paths {
-			timeout := time.NewTimer(100 * time.Millisecond)
-			select {
-			case resp := <-sendChan:
-				received <- resp
-			case <-timeout.C:
-				c.Fatalf("timed out waiting for listener to send responses")
-			}
-		}
-		close(received)
-		unexpected, ok := <-sendChan
-		c.Assert(ok, Equals, false, Commentf("listener sent unexpected message: %v", unexpected))
-	}()
+	msg := newMsgNotificationFile(id, label, path, aBits, dBits)
+	buf, err := msg.MarshalBinary()
+	c.Assert(err, IsNil)
+	recvChan <- buf
 
 	c.Check(l.Close(), IsNil)
 	c.Check(t.Wait(), Equals, listener.ErrClosed)
+}
 
-	expected := make([][]byte, 0, 3)
-	for i := range paths {
-		newResp := newMsgNotificationResponse(uint64(i), aBits, dBits)
-		respBuf, err := newResp.MarshalBinary()
-		c.Assert(err, IsNil)
-		expected = append(expected, respBuf)
-	}
+// Test that if there is no reply to a request, listener can still close, and
+// subsequent reply does not block.
+func (*listenerSuite) TestRunNoReply(c *C) {
+	restoreOpen := listener.MockOsOpenWithSocket()
+	defer restoreOpen()
 
-OUTER:
-	for resp := range received {
-		for _, exp := range expected {
-			if reflect.DeepEqual(resp, exp) {
-				continue OUTER
-			}
-		}
-		c.Fatalf("listener sent response which does not match any expected: %v not in %v", resp, expected)
-	}
+	recvChan, _, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl()
+	defer restoreEpollIoctl()
+
+	var t tomb.Tomb
+	l, err := listener.Register()
+	c.Assert(err, IsNil)
+
+	t.Go(l.Run)
+
+	id := uint64(0x1234)
+	label := "snap.foo.bar"
+	path := "/home/Documents/foo"
+	aBits := uint32(0b1010)
+	dBits := uint32(0b0101)
+
+	msg := newMsgNotificationFile(id, label, path, aBits, dBits)
+	buf, err := msg.MarshalBinary()
+	c.Assert(err, IsNil)
+	recvChan <- buf
+
+	req := <-l.Reqs()
+
+	c.Check(l.Close(), IsNil)
+
+	req.Reply(true)
+
+	c.Check(t.Wait(), Equals, listener.ErrClosed)
 }
 
 func newMsgNotificationFile(id uint64, label, name string, allow, deny uint32) *notify.MsgNotificationFile {
@@ -755,6 +703,7 @@ func (*listenerSuite) TestRunMultipleTimes(c *C) {
 
 	restoreEpoll := listener.MockEpollWait(func(l *listener.Listener) ([]epoll.Event, error) {
 		for !l.EpollIsClosed() {
+			// do nothing until epoll is closed
 		}
 		return nil, fmt.Errorf("fake epoll error")
 	})
@@ -774,9 +723,14 @@ func (*listenerSuite) TestRunMultipleTimes(c *C) {
 		c.Check(t.Wait(), Equals, listener.ErrClosed)
 	}()
 
-	t.Go(l.Run)
+	runAboutToStart := make(chan struct{})
+	t.Go(func() error {
+		close(runAboutToStart)
+		return l.Run()
+	})
 
 	// Make sure the spawned goroutine starts Run() first
+	<-runAboutToStart
 	time.Sleep(10 * time.Millisecond)
 
 	err = l.Run()
@@ -808,126 +762,17 @@ func (*listenerSuite) TestCloseThenRun(c *C) {
 	c.Assert(err, Equals, listener.ErrAlreadyClosed)
 }
 
-// Test that waiters send back a deny message if the tomb dies as a result of
-// an error, and that that message makes it through the notify socket before it
-// is closed.
-func (*listenerSuite) TestRunTombDying(c *C) {
-	restoreOpen := listener.MockOsOpenWithSocket()
-	defer restoreOpen()
-
-	recvChan, sendChan, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl()
-	defer restoreEpollIoctl()
-
-	var t tomb.Tomb
-	l, err := listener.Register()
-	c.Assert(err, IsNil)
-
-	t.Go(l.Run)
-
-	id := uint64(0x1234)
-	label := "snap.foo.bar"
-	path := "/home/Documents/foo"
-	aBits := uint32(0b1010)
-	dBits := uint32(0b0101)
-
-	msg := newMsgNotificationFile(id, label, path, aBits, dBits)
-	buf, err := msg.MarshalBinary()
-	c.Assert(err, IsNil)
-	recvChan <- buf
-
-	select {
-	case <-l.Reqs():
-	case <-l.Dying():
-		c.Fatalf("listener encountered unexpected error: %v", l.Err())
-	}
-
-	// Build desired message (denial)
-	resp := newMsgNotificationResponse(id, aBits, dBits)
-	desiredBuf, err := resp.MarshalBinary()
-	c.Assert(err, IsNil)
-
-	// Cause an internal error
-	fakeError := fmt.Errorf("fake error occurred")
-	l.Kill(fakeError)
-
-	received := <-sendChan
-	c.Assert(received, DeepEquals, desiredBuf)
-
-	err = t.Wait()
-	c.Assert(err, Equals, fakeError)
-}
-
-func (*listenerSuite) TestRunListenerClosed(c *C) {
-	restoreOpen := listener.MockOsOpenWithSocket()
-	defer restoreOpen()
-
-	recvChan, sendChan, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl()
-	defer restoreEpollIoctl()
-
-	l, err := listener.Register()
-	c.Assert(err, IsNil)
-	defer func() {
-		err = l.Close()
-		c.Assert(err, Equals, listener.ErrAlreadyClosed)
-	}()
-
-	var t tomb.Tomb
-	t.Go(l.Run)
-
-	id := uint64(1234)
-	label := "snap.foo.bar"
-	path := "/home/Documents/foo"
-
-	aBits := uint32(0b1010)
-	dBits := uint32(0b0101)
-
-	msg := newMsgNotificationFile(id, label, path, aBits, dBits)
-	buf, err := msg.MarshalBinary()
-	c.Assert(err, IsNil)
-	recvChan <- buf
-
-	var req *listener.Request
-	select {
-	case req = <-l.Reqs():
-		c.Assert(req.PID(), Equals, msg.Pid)
-		c.Assert(req.Label(), Equals, label)
-		c.Assert(req.SubjectUID(), Equals, msg.SUID)
-		c.Assert(req.Path(), Equals, path)
-		c.Assert(req.Class(), Equals, notify.AA_CLASS_FILE)
-		perm, ok := req.Permission().(notify.FilePermission)
-		c.Assert(ok, Equals, true)
-		c.Assert(perm, Equals, notify.FilePermission(dBits))
-	case <-l.Dying():
-		c.Fatalf("listener encountered unexpected error: %v", l.Err())
-	}
-
-	go func() {
-		// Check that listener sends deny response as a result of being closed
-		resp := newMsgNotificationResponse(id, aBits, dBits)
-		desiredBuf, err := resp.MarshalBinary()
-		c.Assert(err, IsNil)
-
-		received := <-sendChan
-		c.Assert(received, DeepEquals, desiredBuf)
-	}()
-
-	// Close listener before sending back allow response
-	err = l.Close()
-	c.Assert(err, IsNil)
-
-	err = req.Reply(true)
-	c.Assert(err, IsNil)
-
-	err = t.Wait()
-	c.Assert(err, Equals, listener.ErrClosed)
-}
-
 func (*listenerSuite) TestRunConcurrency(c *C) {
 	restoreOpen := listener.MockOsOpenWithSocket()
 	defer restoreOpen()
 
 	recvChan, sendChan, restoreEpollIoctl := listener.MockEpollWaitNotifyIoctl()
-	defer restoreEpollIoctl()
+	epollIoctlRestored := false
+	defer func() {
+		if !epollIoctlRestored {
+			restoreEpollIoctl()
+		}
+	}()
 
 	l, err := listener.Register()
 	c.Assert(err, IsNil)
@@ -958,7 +803,8 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 	closeTimer := time.NewTimer(closeTimeout)
 	createTimer := time.NewTimer(2 * closeTimeout)
 
-	safeToReturn := make(chan struct{})
+	doneCreating := make(chan struct{})
+	requestsSent := 0
 	go func() {
 		// create requests until createTimer expires
 		id := uint64(0)
@@ -970,35 +816,40 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 			select {
 			case <-createTimer.C:
 			case recvChan <- buf:
+				requestsSent += 1
 				continue
 			}
 			break
 		}
-		close(safeToReturn)
+		close(doneCreating)
 		c.Logf("total requests sent: %d", id)
 	}()
 
+	doneReplying := make(chan struct{})
+	replyCount := 0
 	go func() {
 		// reply to all requests as they are received, until l.Reqs() closes
-		replyCount := 0
 		for req := range l.Reqs() {
 			err := req.Reply(true)
 			c.Check(err, IsNil)
 			replyCount += 1
 		}
+		close(doneReplying)
 		c.Logf("total replies sent: %d", replyCount)
 	}()
 
+	doneReceivingResponses := make(chan struct{})
+	responseCount := 0
 	go func() {
 		// Consume responses from the sendChan (in place of reading from the
 		// actual FD). No guarantee of order, so just check that the length is
 		// correct, rather than picking apart the buffer to throw out the ID and
 		// compare the rest.
-		responseCount := 0
 		for response := range sendChan {
 			c.Check(response, HasLen, expectedLen)
 			responseCount += 1
 		}
+		close(doneReceivingResponses)
 		c.Logf("total responses received: %d", responseCount)
 	}()
 
@@ -1012,7 +863,16 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 	c.Check(l.Close(), IsNil)
 	c.Check(t.Wait(), Equals, listener.ErrClosed)
 
-	// Restoring functions closes channels, so make sure to wait until done
-	// creating requests before closing the channels.
-	<-safeToReturn
+	<-doneCreating
+	<-doneReplying
+
+	// restoreEpollIoctl() closes sendChan
+	epollIoctlRestored = true
+	restoreEpollIoctl()
+	// Now the goroutine reading from sendChan can close doneReceivingResponses
+	<-doneReceivingResponses
+
+	c.Check(requestsSent > 1, Equals, true, Commentf("should have sent more than one request"))
+	c.Check(replyCount > 1, Equals, true, Commentf("should have replied to more than one request"))
+	c.Check(responseCount > 1, Equals, true, Commentf("should have received more than one response"))
 }

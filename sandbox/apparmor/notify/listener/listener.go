@@ -272,8 +272,13 @@ func (l *Listener) Close() error {
 	l.tomb.Kill(ErrClosed)
 	// Close epoll instance to stop the run loop waiting on epoll events
 	err1 := l.poll.Close()
-	// Wait for all waiters to send back deny responses to the kernel
+	// Wait for main run loop and waiters to terminate
 	l.tomb.Wait()
+	// l.reqs is only written to by run loop, so it's now safe to close
+	close(l.reqs)
+	// Closing the notify file signals to the kernel that the listener is
+	// disconnecting, so the kernel will send back denials or pass requests
+	// on to other listeners which connect.
 	err2 := l.notifyFile.Close()
 	if err1 != nil {
 		return err1
@@ -309,7 +314,7 @@ func (l *Listener) Run() error {
 	// Even if Close() kills the tomb before l.tomb.Go() occurs, a panic will
 	// not occur, since this new goroutine will (immediately after l.tomb.Err()
 	// is called) return and close the tomb's dead channel, as it is the last
-	// and only tracked goroutine to terminate.
+	// and only tracked goroutine.
 	l.tomb.Go(func() error {
 		var err error
 		for {
@@ -326,13 +331,9 @@ func (l *Listener) Run() error {
 	})
 	// Wait for an error to occur or the listener to be explicitly closed.
 	<-l.tomb.Dying()
-	// Close the listener, in case an internal error occurred.
-	// Close() waits until all waiters have sent back deny responses to the
-	// kernel, so it is safe to call without first calling l.tomb.Wait().
+	// Close the listener, in case an internal error occurred and Close()
+	// was not explicitly called.
 	l.Close()
-	// Close() also waits until the run loop goroutine returns, and that is
-	// the only writer to l.reqs, so it is now safe to close it.
-	close(l.reqs)
 	return l.tomb.Err()
 }
 
@@ -416,21 +417,12 @@ func (l *Listener) handleRequestAaClassFile(buf []byte) error {
 	if err != nil {
 		return err
 	}
-	// Try to send the request over l.reqs. Do this in a separate goroutine
-	// so that it doesn't block if there is no reader.
-	l.tomb.Go(func() error {
-		select {
-		case l.reqs <- req:
-			// request received
-		case <-l.tomb.Dying():
-			// request not received, an automatic denial will be sent by waitAndRespond...
-			return l.tomb.Err()
-		}
-		return nil
-	})
-	// Since sending the req occurs in its own goroutine, we can run
-	// waitAndRespond... even if there is nothing reading requests, and if
-	// the listener starts dying, a denial is always sent to the kernel.
+	select {
+	case l.reqs <- req:
+		// request received
+	case <-l.tomb.Dying():
+		return l.tomb.Err()
+	}
 	l.tomb.Go(func() error {
 		return l.waitAndRespondAaClassFile(req, &fmsg)
 	})
@@ -452,8 +444,8 @@ func (l *Listener) waitAndRespondAaClassFile(req *Request, msg *notify.MsgNotifi
 			allow = false
 		}
 	case <-l.tomb.Dying():
-		logger.Debugf("tomb dying while waiting for reply to req: %+v; sending deny response", req)
-		allow = false
+		// don't bother sending deny response, kernel will handle this
+		return nil
 	}
 	if allow {
 		// allow permissions which kernel initially denied, along with those which were already allowed
