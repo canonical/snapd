@@ -318,13 +318,6 @@ func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress
 	return firstErr(err0, err1, err2)
 }
 
-// ServicesEnableState returns the current enabled/disabled states of a snap's
-// services, primarily for committing before snap removal/disable/revert.
-// XXX: Not able to find where this is actually used?
-func (b Backend) ServicesEnableState(info *snap.Info, meter progress.Meter) (map[string]bool, error) {
-	return wrappers.ServicesEnableState(info, meter)
-}
-
 func (b Backend) QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
 	return wrappers.QueryDisabledServices(info, pb)
 }
