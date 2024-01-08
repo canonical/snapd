@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type modelSuite struct {
@@ -1419,7 +1420,16 @@ func (mods *modelSuite) TestAllSnaps(c *C) {
 	model := a.(*asserts.Model)
 
 	allSnaps := append([]*asserts.ModelSnap(nil), model.EssentialSnaps()...)
+
+	// make sure that we have essential snaps to compare to
+	c.Assert(len(allSnaps), testutil.IntGreaterThan, 0)
+
+	essentialLen := len(allSnaps)
+
 	allSnaps = append(allSnaps, model.SnapsWithoutEssential()...)
+
+	// same here, make sure that we have non-essential snaps to compare to
+	c.Assert(len(allSnaps), testutil.IntGreaterThan, essentialLen)
 
 	c.Check(model.AllSnaps(), DeepEquals, allSnaps)
 }
