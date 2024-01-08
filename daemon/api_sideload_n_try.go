@@ -270,6 +270,57 @@ func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloa
 	return chg, nil
 }
 
+var readComponentInfoFromCont = readComponentInfoFromContImpl
+
+func readComponentInfoFromContImpl(tempPath string) (*snap.ComponentInfo, error) {
+	compf, err := snapfile.Open(tempPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open container: %w", err)
+	}
+	return snap.ReadComponentInfoFromContainer(compf)
+}
+
+// readComponentInfo reads ComponentInfo from a snap component file and the
+// snap.Info of the matching installed snap. If instanceName is not empty, it
+// is used to find the right instance, otherwise the SnapName from the
+// component is used.
+func readComponentInfo(st *state.State, tempPath, instanceName string, flags sideloadFlags) (*snap.ComponentInfo, *snap.Info, *apiError) {
+	if !flags.dangerousOK {
+		// TODO read assertions for components
+		return nil, nil, BadRequest("only local components can be installed at the moment")
+	}
+
+	ci, err := readComponentInfoFromCont(tempPath)
+	if err != nil {
+		return nil, nil, BadRequest("cannot read component metadata: %v", err)
+	}
+
+	// If no instance was provided in the request we use the snap name from the component
+	if instanceName == "" {
+		instanceName = ci.Component.SnapName
+	}
+	si, err := installedSnapInfo(st, instanceName)
+	if err != nil {
+		return nil, nil, BadRequest("snap for component not installed: %v", err)
+	}
+
+	return ci, si, nil
+}
+
+func installedSnapInfo(st *state.State, instanceName string) (*snap.Info, error) {
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, instanceName, &snapst); err != nil {
+		return nil, err
+	}
+
+	snapInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	return snapInfo, nil
+}
+
 func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) (*state.Change, *apiError) {
 	var instanceName string
 	if snapFile.instanceName != "" {
@@ -285,9 +336,21 @@ func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) 
 		return nil, InternalError(err.Error())
 	}
 
+	// These two are filled only for components
+	var compInfo *snap.ComponentInfo
+	var snapInfo *snap.Info
+
 	sideInfo, apiErr := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags, deviceCtx.Model())
 	if apiErr != nil {
-		return nil, apiErr
+		// try to load as a component
+		var compErr *apiError
+		compInfo, snapInfo, compErr = readComponentInfo(st, snapFile.tmpPath, instanceName, flags)
+		if compErr != nil {
+			logger.Noticef("cannot sideload as a snap: %v", apiErr)
+			logger.Noticef("cannot sideload as a component: %v", compErr)
+			return nil, apiErr
+		}
+		sideInfo = &snapInfo.SideInfo
 	}
 
 	if instanceName != "" {
@@ -299,13 +362,21 @@ func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) 
 		instanceName = sideInfo.RealName
 	}
 
-	tset, _, err := snapstateInstallPath(st, sideInfo, snapFile.tmpPath, instanceName, "", flags.Flags, nil)
+	var tset *state.TaskSet
+	container := "snap"
+	if compInfo == nil {
+		tset, _, err = snapstateInstallPath(st, sideInfo, snapFile.tmpPath, instanceName, "", flags.Flags, nil)
+	} else {
+		// It is a component
+		container = "component"
+		tset, err = snapstateInstallComponentPath(st, snap.NewComponentSideInfo(compInfo.Component, snap.Revision{}), snapInfo, snapFile.tmpPath, flags.Flags)
+	}
 	if err != nil {
 		return nil, errToResponse(err, []string{sideInfo.RealName}, InternalError, "cannot install snap file: %v")
 	}
 
-	msg := fmt.Sprintf(i18n.G("Install %q snap from file %q"), instanceName, snapFile.filename)
-	chg := newChange(st, "install-snap", msg, []*state.TaskSet{tset}, []string{instanceName})
+	msg := fmt.Sprintf(i18n.G("Install %q %s from file %q"), instanceName, container, snapFile.filename)
+	chg := newChange(st, "install-"+container, msg, []*state.TaskSet{tset}, []string{instanceName})
 	chg.Set("api-data", map[string]string{"snap-name": instanceName})
 
 	return chg, nil

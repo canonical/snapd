@@ -361,6 +361,9 @@ func newFakeSnapManager(st *state.State, runner *state.TaskRunner) *fakeSnapMana
 	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}, nil)
+	runner.AddHandler("fake-install-component", func(t *state.Task, _ *tomb.Tomb) error {
+		return nil
+	}, nil)
 	runner.AddHandler("fake-install-snap-error", func(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("fake-install-snap-error errored")
 	}, nil)
