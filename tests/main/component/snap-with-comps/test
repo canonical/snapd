@@ -1,0 +1,4 @@
+#!/bin/sh -ex
+
+printf "Check that component is seen from snap\n"
+grep "Component 1" "/snap/$SNAP_NAME/components/$SNAP_REVISION/comp1/meta/component.yaml"
