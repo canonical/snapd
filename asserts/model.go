@@ -613,10 +613,11 @@ func (mod *Model) SnapsWithoutEssential() []*ModelSnap {
 	return mod.allSnaps[mod.numEssentialSnaps:]
 }
 
-// AllSnaps returns all the snaps listed by the model. Essential snaps are at
-// the front of the slice, followed by the non-essential snaps. The essential
-// snaps follow the same order as returned by EssentialSnaps. The non-essential
-// snaps are returned in the order they are mentioned in the model.
+// AllSnaps returns all the snaps listed by the model, across all modes.
+// Essential snaps are at the front of the slice, followed by the non-essential
+// snaps. The essential snaps follow the same order as returned by
+// EssentialSnaps. The non-essential snaps are returned in the order they are
+// mentioned in the model.
 func (mod *Model) AllSnaps() []*ModelSnap {
 	return mod.allSnaps
 }
