@@ -1035,23 +1035,6 @@ func RestartServices(apps []*snap.AppInfo, explicitServices []string,
 	return nil
 }
 
-// ServicesEnableState returns a map of service names from the given snap,
-// together with their enable/disable status.
-func ServicesEnableState(s *snap.Info, inter Interacter) (map[string]bool, error) {
-	sysd := systemd.New(systemd.SystemMode, inter)
-	sts, err := internal.QueryServiceStatusMany(sysd, s.Services())
-	if err != nil {
-		return nil, err
-	}
-
-	// loop over all services in the snap, storing the current enable status
-	snapSvcsState := make(map[string]bool, len(sts))
-	for _, st := range sts {
-		snapSvcsState[st.Name()] = st.IsEnabled()
-	}
-	return snapSvcsState, nil
-}
-
 // QueryDisabledServices returns a list of all currently disabled snap services
 // in the snap.
 func QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {

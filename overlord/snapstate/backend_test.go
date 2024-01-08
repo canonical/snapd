@@ -1148,11 +1148,19 @@ func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.Servi
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) ServicesEnableState(info *snap.Info, meter progress.Meter) (map[string]bool, error) {
+func (f *fakeSnappyBackend) QueryDisabledServices(info *snap.Info, meter progress.Meter) ([]string, error) {
+	var l []string
+
 	// return the disabled services as disabled and nothing else
 	m := make(map[string]bool)
 	for _, svc := range f.servicesCurrentlyDisabled {
 		m[svc] = false
+	}
+
+	for name, enabled := range m {
+		if !enabled {
+			l = append(l, name)
+		}
 	}
 
 	f.appendOp(&fakeOp{
@@ -1160,25 +1168,7 @@ func (f *fakeSnappyBackend) ServicesEnableState(info *snap.Info, meter progress.
 		disabledServices: f.servicesCurrentlyDisabled,
 	})
 
-	return m, f.maybeErrForLastOp()
-}
-
-func (f *fakeSnappyBackend) QueryDisabledServices(info *snap.Info, meter progress.Meter) ([]string, error) {
-	var l []string
-
-	m, err := f.ServicesEnableState(info, meter)
-	if err != nil {
-		return nil, err
-	}
-	for name, enabled := range m {
-		if !enabled {
-			l = append(l, name)
-		}
-	}
-
-	// XXX: add a fakeOp here?
-
-	return l, nil
+	return l, f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *backend.InstallRecord, dev snap.Device, p progress.Meter) error {
