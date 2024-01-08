@@ -1,0 +1,46 @@
+summary: create and remove a recovery system using the offline API
+details: |
+  This test creates a recovery system using the offline version of the recovery
+  system creation API.
+
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+
+environment:
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/test-snapd-recovery-system-pc-{VERSION}.model
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+
+prepare: |
+    tests.nested build-image core
+    tests.nested create-vm core
+
+execute: |
+  #shellcheck source=tests/lib/core-config.sh
+  . "$TESTSLIB"/core-config.sh
+
+  wait_for_first_boot_change
+
+  remote.exec sudo snap install --edge --devmode test-snapd-curl
+
+  boot_id="$(tests.nested boot-id)"
+
+  remote.push "${TESTSLIB}/assertions/test-snapd-recovery-system-pinned.assert"
+  remote.exec snap download hello-world --revision=28 --basename=hello-world
+
+  response=$(remote.exec "sudo test-snapd-curl.curl -X POST --unix-socket /run/snapd.socket -F 'action=create' -F 'label=new-system' -F 'validation-sets=test-snapd/recovery-system-pinned=1' -F 'assertion=<test-snapd-recovery-system-pinned.assert' -F 'assertion=<hello-world.assert' -F 'snap=@hello-world.snap' http://localhost/v2/systems")
+
+  change_id=$(jq -r .change <<< "${response}")
+
+  remote.exec snap watch "${change_id}"
+
+  # check that the new label was appended to the current and good recovery
+  # system lists
+  remote.exec 'test -d /run/mnt/ubuntu-seed/systems/new-system'
+  remote.exec 'sudo cat /var/lib/snapd/modeenv' > modeenv
+  MATCH 'current_recovery_systems=.*,new-system$' < modeenv
+  MATCH 'good_recovery_systems=.*,new-system$' < modeenv
+
+  remote.exec sudo snap recovery | MATCH 'new-system'
+
+  remote.exec "test -f /var/lib/snapd/seed/snaps/hello-world_28.snap"
