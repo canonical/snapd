@@ -1171,10 +1171,7 @@ func checkForRequiredSnapsNotInModel(model *asserts.Model, vSets *snapasserts.Va
 }
 
 func checkForInvalidSnapsInModel(model *asserts.Model, vSets *snapasserts.ValidationSets) error {
-	snaps := append([]*asserts.ModelSnap(nil), model.EssentialSnaps()...)
-	snaps = append(snaps, model.SnapsWithoutEssential()...)
-
-	for _, sn := range snaps {
+	for _, sn := range model.AllSnaps() {
 		if !vSets.CanBePresent(sn) {
 			return fmt.Errorf("snap presence is invalid: %s", sn.SnapName())
 		}
