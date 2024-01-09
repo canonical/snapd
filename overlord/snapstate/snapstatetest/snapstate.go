@@ -40,8 +40,8 @@ func fakeSnapID(name string) string {
 	return snaptest.AssertedSnapID(name)
 }
 
-func InstallSnap(c *check.C, st *state.State, yaml string, required bool, si *snap.SideInfo) *snap.Info {
-	info := snaptest.MakeSnapFileAndDir(c, yaml, nil, si)
+func InstallSnap(c *check.C, st *state.State, yaml string, files [][]string, required bool, si *snap.SideInfo) *snap.Info {
+	info := snaptest.MakeSnapFileAndDir(c, yaml, files, si)
 
 	t := info.Type()
 	if si.RealName == "core" {
@@ -58,7 +58,7 @@ func InstallSnap(c *check.C, st *state.State, yaml string, required bool, si *sn
 	return info
 }
 
-func InstallEssentialSnaps(c *check.C, st *state.State, base string, bloader bootloader.Bootloader) {
+func InstallEssentialSnaps(c *check.C, st *state.State, base string, gadgetFiles [][]string, bloader bootloader.Bootloader) {
 	const required = true
 
 	InstallSnap(c, st, fmt.Sprintf("name: pc\nversion: 1\ntype: gadget\nbase: %s", base), required, &snap.SideInfo{
@@ -67,13 +67,13 @@ func InstallEssentialSnaps(c *check.C, st *state.State, base string, bloader boo
 		RealName: "pc",
 	})
 
-	InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", required, &snap.SideInfo{
+	InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, required, &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
 	})
 
-	InstallSnap(c, st, fmt.Sprintf("name: %s\nversion: 1\ntype: base\n", base), required, &snap.SideInfo{
+	InstallSnap(c, st, fmt.Sprintf("name: %s\nversion: 1\ntype: base\n", base), nil, required, &snap.SideInfo{
 		SnapID:   fakeSnapID(base),
 		Revision: snap.R(1),
 		RealName: base,

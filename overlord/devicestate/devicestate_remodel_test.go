@@ -359,7 +359,7 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil, nil)
 
 	var testDeviceCtx snapstate.DeviceContext
 
@@ -531,7 +531,7 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatNewTrack map[st
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil, nil)
 
 	var testDeviceCtx snapstate.DeviceContext
 
@@ -640,7 +640,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelRequiredSnaps(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil, nil)
 
 	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags.Required, Equals, true)
@@ -759,7 +759,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelSwitchKernelTrack(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil, nil)
 
 	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags.Required, Equals, true)
@@ -877,7 +877,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelLessRequiredSnaps(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil, nil)
 
 	// set a model assertion
 	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
@@ -929,7 +929,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelStoreSwitch(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil, nil)
 
 	var testStore snapstate.StoreService
 
@@ -1163,7 +1163,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClash(c *C) {
 		Serial: "1234",
 	})
 
-	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil, nil)
 
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture":   "amd64",
@@ -1241,7 +1241,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashInProgress(c *C) {
 		Serial: "1234",
 	})
 
-	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil, nil)
 
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture":   "amd64",
@@ -1683,13 +1683,13 @@ volumes:
 	})
 
 	const required = true
-	kernelInfo := snapstatetest.InstallSnap(c, s.state, "name: pc-kernel\nversion: 1\ntype: kernel\n", required, &snap.SideInfo{
+	kernelInfo := snapstatetest.InstallSnap(c, s.state, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, required, &snap.SideInfo{
 		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
 	})
 
-	snapstatetest.InstallSnap(c, s.state, "name: core18\nversion: 1\ntype: base\n", required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, s.state, "name: core18\nversion: 1\ntype: base\n", nil, required, &snap.SideInfo{
 		SnapID:   snaptest.AssertedSnapID("core18"),
 		Revision: snap.R(1),
 		RealName: "core18",
@@ -1879,13 +1879,13 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
 	})
 
 	const required = true
-	snapstatetest.InstallSnap(c, s.state, "name: pc-kernel\nversion: 1\ntype: kernel\n", required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, s.state, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, required, &snap.SideInfo{
 		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
 	})
 
-	snapstatetest.InstallSnap(c, s.state, "name: core18\nversion: 1\ntype: base\n", required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, s.state, "name: core18\nversion: 1\ntype: base\n", nil, required, &snap.SideInfo{
 		SnapID:   snaptest.AssertedSnapID("core18"),
 		Revision: snap.R(1),
 		RealName: "core18",
@@ -1965,7 +1965,7 @@ func (s *deviceMgrSuite) TestRemodelSwitchBaseIncompatibleGadget(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil, nil)
 
 	var testDeviceCtx snapstate.DeviceContext
 
