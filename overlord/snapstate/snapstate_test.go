@@ -9382,8 +9382,15 @@ func (s *snapmgrTestSuite) TestDownload(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts, err := snapstate.Download(context.Background(), s.state, "foo", "", nil, 0, snapstate.Flags{}, nil)
+	ts, info, err := snapstate.Download(context.Background(), s.state, "foo", "", nil, 0, snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
+
+	c.Check(info.SideInfo, DeepEquals, snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(11),
+		SnapID:   "foo-id",
+		Channel:  "stable",
+	})
 
 	c.Check(ts.Tasks(), HasLen, 2)
 
@@ -9409,12 +9416,18 @@ func (s *snapmgrTestSuite) TestDownloadSpecifyRevision(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts, err := snapstate.Download(context.Background(), s.state, "foo", "", &snapstate.RevisionOptions{
+	ts, info, err := snapstate.Download(context.Background(), s.state, "foo", "", &snapstate.RevisionOptions{
 		Revision: snap.R(2),
 	}, 0, snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(ts.Tasks(), HasLen, 2)
+
+	c.Check(info.SideInfo, DeepEquals, snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(2),
+		SnapID:   "foo-id",
+	})
 
 	downloadSnap := ts.MaybeEdge(snapstate.BeginEdge)
 	c.Assert(downloadSnap, NotNil)
@@ -9441,10 +9454,16 @@ func (s *snapmgrTestSuite) TestDownloadSpecifyDownloadDir(c *C) {
 
 	downloadDir := c.MkDir()
 
-	ts, err := snapstate.Download(context.Background(), s.state, "foo", downloadDir, &snapstate.RevisionOptions{
+	ts, info, err := snapstate.Download(context.Background(), s.state, "foo", downloadDir, &snapstate.RevisionOptions{
 		Revision: snap.R(1),
 	}, 0, snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
+
+	c.Check(info.SideInfo, DeepEquals, snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(1),
+		SnapID:   "foo-id",
+	})
 
 	c.Check(ts.Tasks(), HasLen, 2)
 
@@ -9476,7 +9495,7 @@ func (s *snapmgrTestSuite) TestDownloadOutOfSpace(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	_, err := snapstate.Download(context.Background(), s.state, "foo", "", &snapstate.RevisionOptions{
+	_, _, err := snapstate.Download(context.Background(), s.state, "foo", "", &snapstate.RevisionOptions{
 		Revision: snap.R(2),
 	}, 0, snapstate.Flags{}, nil)
 	c.Assert(err, NotNil)
@@ -9502,7 +9521,7 @@ func (s *snapmgrTestSuite) TestDownloadAlreadyInstalled(c *C) {
 	})
 
 	const downloadDir = ""
-	_, err := snapstate.Download(context.Background(), s.state, "foo", downloadDir, nil, 0, snapstate.Flags{}, nil)
+	_, _, err := snapstate.Download(context.Background(), s.state, "foo", downloadDir, nil, 0, snapstate.Flags{}, nil)
 	c.Assert(err, NotNil)
 
 	alreadyInstalledErr, ok := err.(*snap.AlreadyInstalledError)
@@ -9515,10 +9534,17 @@ func (s *snapmgrTestSuite) TestDownloadSpecifyCohort(c *C) {
 	defer s.state.Unlock()
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel", CohortKey: "cohort-key"}
-	ts, err := snapstate.Download(context.Background(), s.state, "foo", "", opts, 0, snapstate.Flags{}, nil)
+	ts, info, err := snapstate.Download(context.Background(), s.state, "foo", "", opts, 0, snapstate.Flags{}, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(ts.Tasks(), HasLen, 2)
+
+	c.Check(info.SideInfo, DeepEquals, snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(666),
+		SnapID:   "foo-id",
+		Channel:  "some-channel",
+	})
 
 	downloadSnap := ts.MaybeEdge(snapstate.BeginEdge)
 	c.Assert(downloadSnap, NotNil)
