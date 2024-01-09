@@ -482,7 +482,8 @@ func (s *sideloadSuite) sideloadComponentCheck(c *check.C, content string,
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, check.IsNil)
 	c.Check(apiData, check.DeepEquals, map[string]interface{}{
-		"snap-name": expectedInstanceName,
+		"snap-name":      expectedInstanceName,
+		"component-name": expectedCompSideInfo.Component.ComponentName,
 	})
 
 	summary = chg.Summary()
