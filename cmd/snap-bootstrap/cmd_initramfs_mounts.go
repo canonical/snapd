@@ -2074,6 +2074,20 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 			if err := doSystemdMount(snapPath, filepath.Join(boot.InitramfsRunMntDir, dir), mountReadOnlyOptions); err != nil {
 				return err
 			}
+			if typ == snap.TypeKernel {
+				// Mount kernel components
+				cpis, err := kernelComponentsToMount(sn.InstanceName(), rootfsDir)
+				if err != nil {
+					return fmt.Errorf("while reading kernel components: %w", err)
+				}
+				for _, cpi := range cpis {
+					compPath := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), cpi.Filename())
+					if err := doSystemdMount(compPath, filepath.Join(boot.InitramfsRunMntDir,
+						"kernel-modules", cpi.ContainerName()), mountReadOnlyOptions); err != nil {
+						return err
+					}
+				}
+			}
 		}
 	}
 

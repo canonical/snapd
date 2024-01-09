@@ -401,6 +401,11 @@ func (s *baseInitramfsMountsSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(main.MockPollWaitForLabel(0))
 	s.AddCleanup(main.MockPollWaitForLabelIters(1))
+
+	s.AddCleanup(main.MockKernelComponentsToMount(
+		func(kernelName, rootfsDir string) ([]snap.ContainerPlaceInfo, error) {
+			return nil, nil
+		}))
 }
 
 // static test cases for time test variants shared across the different modes
@@ -665,6 +670,19 @@ func (s *baseInitramfsMountsSuite) makeRunSnapSystemdMount(typ snap.Type, sn sna
 	}
 	mnt.what = filepath.Join(dirs.SnapBlobDirUnder(snapDir), sn.Filename())
 	mnt.where = filepath.Join(boot.InitramfsRunMntDir, dir)
+	mnt.opts = snapMountOpts
+
+	return mnt
+}
+
+func (s *baseInitramfsMountsSuite) makeRunComponentSystemdMount(sn snap.ContainerPlaceInfo) systemdMount {
+	mnt := systemdMount{}
+	snapDir := filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data")
+	if s.isClassic {
+		snapDir = filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/")
+	}
+	mnt.what = filepath.Join(dirs.SnapBlobDirUnder(snapDir), sn.Filename())
+	mnt.where = filepath.Join(boot.InitramfsRunMntDir, "kernel-modules", sn.ContainerName())
 	mnt.opts = snapMountOpts
 
 	return mnt
@@ -8282,4 +8300,61 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunInstallDeviceHook
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
 	c.Check(sealedKeysLocked, Equals, true)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithKernelComponents(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+	comp1 := snap.MinimalComponentContainerPlaceInfo("kcomp1", snap.R(1), "pc-kernel", snap.R(33))
+	comp2 := snap.MinimalComponentContainerPlaceInfo("kcomp2", snap.R(2), "pc-kernel", snap.R(33))
+	r := main.MockKernelComponentsToMount(
+		func(kernelName, rootfsDir string) ([]snap.ContainerPlaceInfo, error) {
+			return []snap.ContainerPlaceInfo{comp1, comp2}, nil
+		})
+	defer r()
+
+	restore := disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsDataDir}:       defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: defaultBootWithSaveDisk,
+		},
+	)
+	defer restore()
+
+	restore = s.mockSystemdMountSequence(c, []systemdMount{
+		s.ubuntuLabelMount("ubuntu-boot", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
+		s.ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
+		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+		s.makeRunComponentSystemdMount(comp1),
+		s.makeRunComponentSystemdMount(comp2),
+	}, nil)
+	defer restore()
+
+	// mock a bootloader
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	restore = bloader.SetEnabledKernel(s.kernel)
+	defer restore()
+
+	s.makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20, s.gadget)
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Mode:           "run",
+		Base:           s.core20.Filename(),
+		Gadget:         s.gadget.Filename(),
+		CurrentKernels: []string{s.kernel.Filename()},
+	}
+	err := modeEnv.WriteTo(filepath.Join(dirs.GlobalRootDir, "/run/mnt/data/system-data"))
+	c.Assert(err, IsNil)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
 }

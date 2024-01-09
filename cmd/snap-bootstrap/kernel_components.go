@@ -43,7 +43,10 @@ func (b *readOnlyBackend) EnsureBefore(d time.Duration) {
 
 var _ state.Backend = &readOnlyBackend{}
 
-func kernelComponentsToMount(kernelName, rootfsDir string) ([]snap.ContainerPlaceInfo, error) {
+// To allow mocking in tests
+var kernelComponentsToMount = kernelComponentsToMountImpl
+
+func kernelComponentsToMountImpl(kernelName, rootfsDir string) ([]snap.ContainerPlaceInfo, error) {
 	statePath := dirs.SnapStateFileUnder(rootfsDir)
 	f, err := os.Open(statePath)
 	if err != nil {

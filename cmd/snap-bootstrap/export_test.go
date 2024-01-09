@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -233,5 +234,13 @@ func MockEnsureNextBootToRunMode(f func(systemLabel string) error) (restore func
 	bootEnsureNextBootToRunMode = f
 	return func() {
 		bootEnsureNextBootToRunMode = old
+	}
+}
+
+func MockKernelComponentsToMount(f func(kernelName, rootfsDir string) ([]snap.ContainerPlaceInfo, error)) (restore func()) {
+	old := kernelComponentsToMount
+	kernelComponentsToMount = f
+	return func() {
+		kernelComponentsToMount = old
 	}
 }
