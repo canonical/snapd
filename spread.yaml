@@ -219,7 +219,7 @@ backends:
     google-sru:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-east1-b
+        location: snapd-spread/us-central1-b
         halt-timeout: 2h
         systems:
             - ubuntu-18.04-64:
@@ -234,7 +234,7 @@ backends:
     google-nested:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-east1-b
+        location: snapd-spread/us-central1-b
         plan: n2-standard-2
         halt-timeout: 2h
         cpu-family: "Intel Cascade Lake"
@@ -271,7 +271,7 @@ backends:
     google-nested-dev:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-east1-b
+        location: snapd-spread/us-central1-b
         plan: n2-standard-4
         halt-timeout: 2h
         cpu-family: "Intel Cascade Lake"
