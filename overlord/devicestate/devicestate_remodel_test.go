@@ -229,7 +229,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelFromClassicUnhappy(c *C) {
 	})
 
 	_, err := devicestate.Remodel(s.state, new, nil, nil)
-	c.Check(err, ErrorMatches, `cannot remodel from classic model`)
+	c.Check(err, ErrorMatches, `cannot remodel from classic \(non-hybrid\) model`)
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelCheckGrade(c *C) {
@@ -6617,4 +6617,261 @@ func snapSetupFromTaskSet(ts *state.TaskSet) *snapstate.SnapSetup {
 		return snapsup
 	}
 	return nil
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelHybridSystemSkipSeed(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(_ *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, _ snapstate.PrereqTracker, _ snapstate.DeviceContext, _ string) (*state.TaskSet, error) {
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s from track %s", name, opts.Channel))
+		tDownload.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: name,
+			},
+		})
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tUpdate := s.state.NewTask("fake-update", fmt.Sprintf("Update %s to track %s", name, opts.Channel))
+		tUpdate.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tUpdate)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "serial")
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "serial",
+	})
+
+	var gadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: ubuntu-seed
+        role: system-seed-null
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1G
+      - name: ubuntu-boot
+        role: system-boot
+        type: 83,F9E14625-EF3E-4200-AFEF-AEBD407460C4
+        size: 1G
+      - name: ubuntu-data
+        role: system-data
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 2G
+`
+
+	gadgetFiles := [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	}
+
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core20", gadgetFiles, nil)
+
+	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"revision":     "1",
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "21/edge",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "21/stable",
+			},
+			map[string]interface{}{
+				"name":            "core20",
+				"id":              snaptest.AssertedSnapID("core20"),
+				"type":            "base",
+				"default-channel": "latest/edge",
+			},
+		},
+	})
+
+	chg, err := devicestate.Remodel(s.state, newModel, nil, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
+
+	tasks := chg.Tasks()
+
+	// 3 snaps (3 tasks for each) + set-model
+	c.Check(tasks, HasLen, 3*3+1)
+
+	taskKinds := make([]string, 0, len(tasks))
+	for _, t := range tasks {
+		taskKinds = append(taskKinds, t.Kind())
+	}
+
+	// note the lack of tasks for creating a recovery system, since this model
+	// has a system-seed-null partition
+	c.Check(taskKinds, DeepEquals, []string{
+		"fake-download", "validate-snap", "fake-update",
+		"fake-download", "validate-snap", "fake-update",
+		"fake-download", "validate-snap", "fake-update",
+		"set-model",
+	})
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelHybridSystem(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(_ *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, _ snapstate.PrereqTracker, _ snapstate.DeviceContext, _ string) (*state.TaskSet, error) {
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s from track %s", name, opts.Channel))
+		tDownload.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: name,
+			},
+		})
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tUpdate := s.state.NewTask("fake-update", fmt.Sprintf("Update %s to track %s", name, opts.Channel))
+		tUpdate.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tUpdate)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "serial")
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "serial",
+	})
+
+	var gadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: ubuntu-seed
+        role: system-seed
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1G
+      - name: ubuntu-data
+        role: system-data
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 2G
+`
+
+	gadgetFiles := [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	}
+
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core20", gadgetFiles, nil)
+
+	newModel := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"revision":     "1",
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "21/edge",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "21/stable",
+			},
+			map[string]interface{}{
+				"name":            "core20",
+				"id":              snaptest.AssertedSnapID("core20"),
+				"type":            "base",
+				"default-channel": "latest/edge",
+			},
+		},
+	})
+
+	chg, err := devicestate.Remodel(s.state, newModel, nil, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
+
+	tasks := chg.Tasks()
+
+	// 3 snaps (3 tasks for each) + recovery system (2 taskss) + set-model
+	c.Check(tasks, HasLen, 3*3+2+1)
+
+	taskKinds := make([]string, 0, len(tasks))
+	for _, t := range tasks {
+		taskKinds = append(taskKinds, t.Kind())
+	}
+
+	c.Check(taskKinds, DeepEquals, []string{
+		"fake-download", "validate-snap", "fake-update",
+		"fake-download", "validate-snap", "fake-update",
+		"fake-download", "validate-snap", "fake-update",
+		"create-recovery-system", "finalize-recovery-system",
+		"set-model",
+	})
 }
