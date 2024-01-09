@@ -136,7 +136,6 @@ type AAREExclusionPatternsOptions struct {
 // /{usr/lib/sn[^a],var/lib/sn[^a]}** r,
 // /{usr/lib/sna[^p],var/lib/sna[^p]}** r,
 // /{usr/lib/snap[^d],var/lib/snap[^d]}** r,
-//
 func GenerateAAREExclusionPatterns(excludePatterns []string, opts *AAREExclusionPatternsOptions) (string, error) {
 	seen := map[string]bool{}
 	runeSlices := make([][]rune, 0, len(excludePatterns))
