@@ -3,16 +3,17 @@ package runinhibit
 import "time"
 
 type fakeTicker struct {
-	wait func()
+	wait func() <-chan time.Time
 }
 
-func (t *fakeTicker) Wait() {
+func (t *fakeTicker) Wait() <-chan time.Time {
 	if t.wait != nil {
-		t.wait()
+		return t.wait()
 	}
+	return nil
 }
 
-func MockNewTicker(wait func()) (restore func()) {
+func MockNewTicker(wait func() <-chan time.Time) (restore func()) {
 	old := newTicker
 	newTicker = func(interval time.Duration) ticker {
 		return &fakeTicker{wait}
