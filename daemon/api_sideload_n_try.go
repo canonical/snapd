@@ -291,10 +291,10 @@ func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) 
 
 	sideInfo, apiErr := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags, deviceCtx.Model())
 	if apiErr != nil {
-		// TODO we need to address the installation of local but
-		// asserted components yet. This will also help with deciding
-		// whether we are dealing with a snap or a component.
-		// try to load as a component
+		// TODO installation of local but asserted components
+		// needs to addressed yet. This will also help with
+		// deciding whether we are dealing with a snap or a
+		// component. try to load as a component
 		var compErr *apiError
 		compInfo, snapInfo, compErr = readComponentInfo(st, snapFile.tmpPath, instanceName, flags)
 		if compErr != nil {
@@ -304,7 +304,7 @@ func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) 
 			// the component information, so this is a valid component and we
 			// report the snap not found error. Otherwise, we don't know and
 			// we report the error while trying to read the file as a snap.
-			if compErr.Kind == client.ErrorKindSnapNotFound {
+			if compErr.Kind == client.ErrorKindSnapNotInstalled {
 				return nil, compErr
 			}
 			return nil, apiErr
@@ -412,7 +412,7 @@ func readComponentInfo(st *state.State, tempPath, instanceName string, flags sid
 	si, err := installedSnapInfo(st, instanceName)
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
-			return nil, nil, SnapNotFound(instanceName, fmt.Errorf("snap owning %q not installed", ci.Component))
+			return nil, nil, SnapNotInstalled(instanceName, fmt.Errorf("snap owning %q not installed", ci.Component))
 		}
 		return nil, nil, BadRequest("cannot retrieve information for %q: %v", instanceName, err)
 	}

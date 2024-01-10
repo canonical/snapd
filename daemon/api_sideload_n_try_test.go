@@ -394,6 +394,7 @@ func (s *sideloadSuite) TestSideloadComponentForNotInstalledSnap(c *check.C) {
 	c.Check(logbuf.String(), testutil.Contains,
 		`cannot sideload as a component: snap owning "local+comp" not installed`)
 	c.Check(rspe.Message, check.Equals, `snap owning "local+comp" not installed`)
+	c.Check(rspe.Kind, check.Equals, client.ErrorKindSnapNotInstalled)
 }
 
 func (s *sideloadSuite) sideloadComponentCheck(c *check.C, content string,
