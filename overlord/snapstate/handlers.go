@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
@@ -1853,10 +1854,10 @@ func writeSeqFile(name string, snapst *SnapState) error {
 	}
 
 	b, err := json.Marshal(&struct {
-		Sequence              SnapSequence `json:"sequence"`
-		Current               string       `json:"current"`
-		MigratedHidden        bool         `json:"migrated-hidden"`
-		MigratedToExposedHome bool         `json:"migrated-exposed-home"`
+		Sequence              sequence.SnapSequence `json:"sequence"`
+		Current               string                `json:"current"`
+		MigratedHidden        bool                  `json:"migrated-hidden"`
+		MigratedToExposedHome bool                  `json:"migrated-exposed-home"`
 	}{
 		Sequence: snapst.Sequence,
 		Current:  snapst.Current.String(),
@@ -2002,7 +2003,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// find if the snap is already installed before we modify snapst below
 	isInstalled := snapst.IsInstalled()
 
-	cand := NewRevisionSideInfo(snapsup.SideInfo, nil)
+	cand := sequence.NewRevisionSideInfo(snapsup.SideInfo, nil)
 	m.backend.Candidate(cand.Snap)
 
 	oldCandidateIndex := snapst.LastIndex(cand.Snap.Revision)
@@ -2786,7 +2787,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 }
 
 // countMissingRevs counts how many of the revisions aren't present in the sequence
-func countMissingRevs(revisions []snap.Revision, revSideInfos []*RevisionSideState) int {
+func countMissingRevs(revisions []snap.Revision, revSideInfos []*sequence.RevisionSideState) int {
 	var found int
 	for _, rev := range revisions {
 		for _, si := range revSideInfos {
@@ -3343,7 +3344,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		snapst.Sequence.Revisions = nil
 		snapst.Current = snap.Revision{}
 	} else {
-		newSeq := make([]*RevisionSideState, 0, len(snapst.Sequence.Revisions))
+		newSeq := make([]*sequence.RevisionSideState, 0, len(snapst.Sequence.Revisions))
 		for _, si := range snapst.Sequence.Revisions {
 			if si.Snap.Revision == snapsup.Revision() {
 				// leave out

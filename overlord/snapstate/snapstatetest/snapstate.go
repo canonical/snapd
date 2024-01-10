@@ -20,18 +20,18 @@
 package snapstatetest
 
 import (
-	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/snap"
 )
 
-func NewSequenceFromSnapSideInfos(snapSideInfo []*snap.SideInfo) snapstate.SnapSequence {
-	revSis := make([]*snapstate.RevisionSideState, len(snapSideInfo))
+func NewSequenceFromSnapSideInfos(snapSideInfo []*snap.SideInfo) sequence.SnapSequence {
+	revSis := make([]*sequence.RevisionSideState, len(snapSideInfo))
 	for i, si := range snapSideInfo {
-		revSis[i] = snapstate.NewRevisionSideInfo(si, nil)
+		revSis[i] = sequence.NewRevisionSideInfo(si, nil)
 	}
-	return snapstate.SnapSequence{Revisions: revSis}
+	return sequence.SnapSequence{Revisions: revSis}
 }
 
-func NewSequenceFromRevisionSideInfos(revsSideInfo []*snapstate.RevisionSideState) snapstate.SnapSequence {
-	return snapstate.SnapSequence{Revisions: revsSideInfo}
+func NewSequenceFromRevisionSideInfos(revsSideInfo []*sequence.RevisionSideState) sequence.SnapSequence {
+	return sequence.SnapSequence{Revisions: revsSideInfo}
 }

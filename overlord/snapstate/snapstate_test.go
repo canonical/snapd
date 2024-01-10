@@ -58,6 +58,7 @@ import (
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -611,12 +612,12 @@ func (s *snapmgrTestSuite) TestSequenceSerialize(c *C) {
 	c.Check(string(marshaled), Equals, `{"type":"","sequence":[{"name":"mysnap","snap-id":"snapid","revision":"7"},{"name":"othersnap","snap-id":"otherid","revision":"11"}],"current":"unset"}`)
 
 	// With components
-	snapst = &snapstate.SnapState{Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*snapstate.RevisionSideState{
-		snapstate.NewRevisionSideInfo(si1, []*snap.ComponentSideInfo{
+	snapst = &snapstate.SnapState{Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
+		sequence.NewRevisionSideInfo(si1, []*snap.ComponentSideInfo{
 			snap.NewComponentSideInfo(naming.NewComponentRef("mysnap", "mycomp"),
 				snap.R(7)),
 		}),
-		snapstate.NewRevisionSideInfo(si2, []*snap.ComponentSideInfo{
+		sequence.NewRevisionSideInfo(si2, []*snap.ComponentSideInfo{
 			snap.NewComponentSideInfo(naming.NewComponentRef("othersnap", "othercomp1"),
 				snap.R(11)),
 			snap.NewComponentSideInfo(naming.NewComponentRef("othersnap", "othercomp2"), snap.R(14)),
@@ -1638,12 +1639,12 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Current, Equals, snap.R(2))
 	c.Assert(snapst.Sequence.Revisions, HasLen, 2)
-	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "",
 		Revision: snap.R(2),
 	}, nil))
-	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "",
 		Revision: snap.R(7),
@@ -1690,12 +1691,12 @@ func (s *snapmgrTestSuite) TestRevertRevisionNotBlocked(c *C) {
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Current, Equals, snap.R(2))
 	c.Assert(snapst.Sequence.Revisions, HasLen, 2)
-	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "",
 		Revision: snap.R(2),
 	}, nil))
-	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "",
 		Revision: snap.R(7),
@@ -1946,12 +1947,12 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 	c.Assert(snapst.Current, Equals, snap.R(2))
 	c.Assert(snapst.InstanceKey, Equals, "instance")
 	c.Assert(snapst.Sequence.Revisions, HasLen, 2)
-	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "",
 		Revision: snap.R(2),
 	}, nil))
-	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "",
 		Revision: snap.R(7),
@@ -9587,8 +9588,8 @@ func (s *snapmgrTestSuite) TestCleanSnapDownloadsSequences(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: snapstate.SnapSequence{
-			Revisions: []*snapstate.RevisionSideState{
+		Sequence: sequence.SnapSequence{
+			Revisions: []*sequence.RevisionSideState{
 				{Snap: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)}},
 				{Snap: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(3)}},
 			},
@@ -9618,8 +9619,8 @@ func (s *snapmgrTestSuite) TestCleanSnapDownloadsRefreshHint(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: snapstate.SnapSequence{
-			Revisions: []*snapstate.RevisionSideState{
+		Sequence: sequence.SnapSequence{
+			Revisions: []*sequence.RevisionSideState{
 				{Snap: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(3)}},
 			},
 		},
@@ -9662,8 +9663,8 @@ func (s *snapmgrTestSuite) TestCleanSnapDownloadsOngoingChange(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: snapstate.SnapSequence{
-			Revisions: []*snapstate.RevisionSideState{
+		Sequence: sequence.SnapSequence{
+			Revisions: []*sequence.RevisionSideState{
 				{Snap: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}},
 			},
 		},
@@ -9715,8 +9716,8 @@ func (s *snapmgrTestSuite) TestCleanSnapDownloadsLocalRevisions(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: snapstate.SnapSequence{
-			Revisions: []*snapstate.RevisionSideState{
+		Sequence: sequence.SnapSequence{
+			Revisions: []*sequence.RevisionSideState{
 				{Snap: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R("x2")}},
 				{Snap: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R("x3")}},
 			},
@@ -9749,8 +9750,8 @@ func (s *snapmgrTestSuite) TestCleanSnapDownloadsParallelInstalls(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: snapstate.SnapSequence{
-			Revisions: []*snapstate.RevisionSideState{
+		Sequence: sequence.SnapSequence{
+			Revisions: []*sequence.RevisionSideState{
 				{Snap: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(4)}},
 			},
 		},
@@ -9774,8 +9775,8 @@ func (s *snapmgrTestSuite) TestCleanSnapDownloadsKeepsNewDownloads(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: snapstate.SnapSequence{
-			Revisions: []*snapstate.RevisionSideState{
+		Sequence: sequence.SnapSequence{
+			Revisions: []*sequence.RevisionSideState{
 				{Snap: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)}},
 				{Snap: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(3)}},
 			},
@@ -9826,8 +9827,8 @@ func (s *snapmgrTestSuite) TestCleanDownloads(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: snapstate.SnapSequence{
-			Revisions: []*snapstate.RevisionSideState{
+		Sequence: sequence.SnapSequence{
+			Revisions: []*sequence.RevisionSideState{
 				{Snap: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)}},
 				{Snap: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(3)}},
 			},
@@ -9862,8 +9863,8 @@ func (s *snapmgrTestSuite) TestCleanDownloadsKeepsNewDownloads(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: snapstate.SnapSequence{
-			Revisions: []*snapstate.RevisionSideState{
+		Sequence: sequence.SnapSequence{
+			Revisions: []*sequence.RevisionSideState{
 				{Snap: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)}},
 				{Snap: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(3)}},
 			},
@@ -9898,58 +9899,4 @@ func (s *snapmgrTestSuite) TestCleanDownloadsKeepsNewDownloads(c *C) {
 	// revisions in sequence should be kept
 	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_2.snap"), testutil.FilePresent)
 	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_3.snap"), testutil.FilePresent)
-}
-
-func (s *snapmgrTestSuite) TestAddComponentForRevision(c *C) {
-	const snapName = "foo"
-	snapRev := snap.R(1)
-	const compName1 = "comp1"
-	csi1 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName1), snap.R(2))
-	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName1), snap.R(3))
-
-	ssi := &snap.SideInfo{RealName: snapName,
-		Revision: snap.R(1), SnapID: "some-snap-id"}
-	comps := []*snap.ComponentSideInfo{csi1, csi2}
-	seq := snapstatetest.NewSequenceFromRevisionSideInfos(
-		[]*snapstate.RevisionSideState{snapstate.NewRevisionSideInfo(ssi, comps)})
-	c.Assert(seq.AddComponentForRevision(snapRev, csi1), IsNil)
-	// Not re-appended
-	c.Assert(seq.Revisions[0].Components, DeepEquals, comps)
-
-	csi3 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, "other-comp"), snap.R(1))
-	c.Assert(seq.AddComponentForRevision(snapRev, csi3), IsNil)
-	comps = []*snap.ComponentSideInfo{csi1, csi2, csi3}
-	c.Assert(seq.Revisions[0].Components, DeepEquals, comps)
-
-	c.Assert(seq.AddComponentForRevision(snap.R(2), csi3), Equals, snapstate.ErrSnapRevNotInSequence)
-}
-
-func (s *snapmgrTestSuite) TestRemoveComponentForRevision(c *C) {
-	const snapName = "foo"
-	snapRev := snap.R(1)
-	const compName1 = "comp1"
-	const compName2 = "comp2"
-	csi1 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName1), snap.R(2))
-	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName2), snap.R(3))
-
-	ssi := &snap.SideInfo{RealName: snapName,
-		Revision: snap.R(1), SnapID: "some-snap-id"}
-	comps := []*snap.ComponentSideInfo{csi1, csi2}
-	seq := snapstatetest.NewSequenceFromRevisionSideInfos(
-		[]*snapstate.RevisionSideState{snapstate.NewRevisionSideInfo(ssi, comps)})
-
-	// component not in sequence point
-	removed := seq.RemoveComponentForRevision(snapRev, naming.NewComponentRef(snapName, "other-comp"))
-	c.Assert(removed, IsNil)
-	c.Assert(seq.Revisions[0].Components, DeepEquals, comps)
-
-	// snap revision not in sequence
-	removed = seq.RemoveComponentForRevision(snap.R(2), naming.NewComponentRef(snapName, compName1))
-	c.Assert(removed, IsNil)
-	c.Assert(seq.Revisions[0].Components, DeepEquals, comps)
-
-	// component is removed
-	removed = seq.RemoveComponentForRevision(snapRev, naming.NewComponentRef(snapName, compName1))
-	c.Assert(removed, DeepEquals, csi1)
-	c.Assert(seq.Revisions[0].Components, DeepEquals, []*snap.ComponentSideInfo{csi2})
 }
