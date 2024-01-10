@@ -270,57 +270,6 @@ func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloa
 	return chg, nil
 }
 
-var readComponentInfoFromCont = readComponentInfoFromContImpl
-
-func readComponentInfoFromContImpl(tempPath string) (*snap.ComponentInfo, error) {
-	compf, err := snapfile.Open(tempPath)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open container: %w", err)
-	}
-	return snap.ReadComponentInfoFromContainer(compf)
-}
-
-// readComponentInfo reads ComponentInfo from a snap component file and the
-// snap.Info of the matching installed snap. If instanceName is not empty, it
-// is used to find the right instance, otherwise the SnapName from the
-// component is used.
-func readComponentInfo(st *state.State, tempPath, instanceName string, flags sideloadFlags) (*snap.ComponentInfo, *snap.Info, *apiError) {
-	if !flags.dangerousOK {
-		// TODO read assertions for components
-		return nil, nil, BadRequest("only local components can be installed at the moment")
-	}
-
-	ci, err := readComponentInfoFromCont(tempPath)
-	if err != nil {
-		return nil, nil, BadRequest("cannot read component metadata: %v", err)
-	}
-
-	// If no instance was provided in the request we use the snap name from the component
-	if instanceName == "" {
-		instanceName = ci.Component.SnapName
-	}
-	si, err := installedSnapInfo(st, instanceName)
-	if err != nil {
-		return nil, nil, BadRequest("snap for component not installed: %v", err)
-	}
-
-	return ci, si, nil
-}
-
-func installedSnapInfo(st *state.State, instanceName string) (*snap.Info, error) {
-	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, instanceName, &snapst); err != nil {
-		return nil, err
-	}
-
-	snapInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return nil, err
-	}
-
-	return snapInfo, nil
-}
-
 func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) (*state.Change, *apiError) {
 	var instanceName string
 	if snapFile.instanceName != "" {
@@ -342,12 +291,22 @@ func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) 
 
 	sideInfo, apiErr := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags, deviceCtx.Model())
 	if apiErr != nil {
+		// TODO we need to address the installation of local but
+		// asserted components yet. This will also help with deciding
+		// whether we are dealing with a snap or a component.
 		// try to load as a component
 		var compErr *apiError
 		compInfo, snapInfo, compErr = readComponentInfo(st, snapFile.tmpPath, instanceName, flags)
 		if compErr != nil {
 			logger.Noticef("cannot sideload as a snap: %v", apiErr)
 			logger.Noticef("cannot sideload as a component: %v", compErr)
+			// If the snap owning the component was not found, we already read
+			// the component information, so this is a valid component and we
+			// report the snap not found error. Otherwise, we don't know and
+			// we report the error while trying to read the file as a snap.
+			if compErr.Kind == client.ErrorKindSnapNotFound {
+				return nil, compErr
+			}
 			return nil, apiErr
 		}
 		sideInfo = &snapInfo.SideInfo
@@ -372,7 +331,7 @@ func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) 
 		tset, err = snapstateInstallComponentPath(st, snap.NewComponentSideInfo(compInfo.Component, snap.Revision{}), snapInfo, snapFile.tmpPath, flags.Flags)
 	}
 	if err != nil {
-		return nil, errToResponse(err, []string{sideInfo.RealName}, InternalError, "cannot install snap file: %v")
+		return nil, errToResponse(err, []string{sideInfo.RealName}, InternalError, "cannot install %s file: %v", container)
 	}
 
 	msg := fmt.Sprintf(i18n.G("Install %q %s from file %q"), instanceName, container, snapFile.filename)
@@ -419,6 +378,60 @@ func readSideInfo(st *state.State, tempPath string, origPath string, flags sidel
 		sideInfo = &snap.SideInfo{RealName: info.SnapName()}
 	}
 	return sideInfo, nil
+}
+
+var readComponentInfoFromCont = readComponentInfoFromContImpl
+
+func readComponentInfoFromContImpl(tempPath string) (*snap.ComponentInfo, error) {
+	compf, err := snapfile.Open(tempPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open container: %w", err)
+	}
+	return snap.ReadComponentInfoFromContainer(compf)
+}
+
+// readComponentInfo reads ComponentInfo from a snap component file and the
+// snap.Info of the matching installed snap. If instanceName is not empty, it
+// is used to find the right instance, otherwise the SnapName from the
+// component is used.
+func readComponentInfo(st *state.State, tempPath, instanceName string, flags sideloadFlags) (*snap.ComponentInfo, *snap.Info, *apiError) {
+	if !flags.dangerousOK {
+		// TODO read assertions for components
+		return nil, nil, BadRequest("only unasserted installation of local component with --dangerous is supported at the moment")
+	}
+
+	ci, err := readComponentInfoFromCont(tempPath)
+	if err != nil {
+		return nil, nil, BadRequest("cannot read component metadata: %v", err)
+	}
+
+	// If no instance was provided in the request we use the snap name from the component
+	if instanceName == "" {
+		instanceName = ci.Component.SnapName
+	}
+	si, err := installedSnapInfo(st, instanceName)
+	if err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return nil, nil, SnapNotFound(instanceName, fmt.Errorf("snap owning %q not installed", ci.Component))
+		}
+		return nil, nil, BadRequest("cannot retrieve information for %q: %v", instanceName, err)
+	}
+
+	return ci, si, nil
+}
+
+func installedSnapInfo(st *state.State, instanceName string) (*snap.Info, error) {
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, instanceName, &snapst); err != nil {
+		return nil, err
+	}
+
+	snapInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	return snapInfo, nil
 }
 
 // maxReadBuflen is the maximum buffer size for reading the non-file parts in the snap upload form
@@ -557,6 +570,7 @@ func trySnap(st *state.State, trydir string, flags snapstate.Flags) Response {
 		return BadRequest("cannot read snap info for %s: %s", trydir, err)
 	}
 
+	// TODO consider support for trying snaps plus components
 	tset, err := snapstateTryPath(st, info.InstanceName(), trydir, flags)
 	if err != nil {
 		return errToResponse(err, []string{info.InstanceName()}, BadRequest, "cannot try %s: %s", trydir)

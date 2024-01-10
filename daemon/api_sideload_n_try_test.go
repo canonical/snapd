@@ -339,7 +339,7 @@ func (s *sideloadSuite) TestSideloadComponentNoDangerousFlag(c *check.C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(logbuf.String(), testutil.Contains,
-		"cannot sideload as a component: only local components can be installed at the moment")
+		"cannot sideload as a component: only unasserted installation of local component with --dangerous is supported at the moment")
 	c.Check(rspe.Message, check.Equals,
 		`cannot find signatures with metadata for snap "a/b/local+localcomp.comp"`)
 }
@@ -390,9 +390,10 @@ func (s *sideloadSuite) TestSideloadComponentForNotInstalledSnap(c *check.C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(logbuf.String(), testutil.Contains,
-		"cannot sideload as a component: snap for component not installed")
-	c.Check(rspe.Message, check.Equals,
-		"cannot read snap file: mocking error to force reading as component (api)")
+		`cannot sideload as a snap: cannot read snap file: mocking error to force reading as component`)
+	c.Check(logbuf.String(), testutil.Contains,
+		`cannot sideload as a component: snap owning "local+comp" not installed`)
+	c.Check(rspe.Message, check.Equals, `snap owning "local+comp" not installed`)
 }
 
 func (s *sideloadSuite) sideloadComponentCheck(c *check.C, content string,
