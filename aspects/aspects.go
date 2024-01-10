@@ -86,6 +86,35 @@ func notFoundErrorFrom(a *Aspect, request, errMsg string) *NotFoundError {
 	}
 }
 
+type BadRequestError struct {
+	Account    string
+	BundleName string
+	Aspect     string
+	Operation  string
+	Request    string
+	Cause      string
+}
+
+func (e *BadRequestError) Error() string {
+	return fmt.Sprintf("cannot %s %q in aspect %s/%s/%s: %s", e.Operation, e.Request, e.Account, e.BundleName, e.Aspect, e.Cause)
+}
+
+func (e *BadRequestError) Is(err error) bool {
+	_, ok := err.(*BadRequestError)
+	return ok
+}
+
+func badRequestErrorFrom(a *Aspect, operation, request, errMsg string, v ...interface{}) *BadRequestError {
+	return &BadRequestError{
+		Account:    a.bundle.Account,
+		BundleName: a.bundle.Name,
+		Aspect:     a.Name,
+		Operation:  operation,
+		Request:    request,
+		Cause:      fmt.Sprintf(errMsg, v...),
+	}
+}
+
 // InvalidAccessError represents a failure to perform a read or write due to the
 // aspect's access control.
 type InvalidAccessError struct {
@@ -172,17 +201,6 @@ func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string) 
 			return nil, errors.New(`access patterns must have a "request" field`)
 		}
 
-		// TODO: either
-		// * Validate that a path isn't a subset of another
-		//   (possibly somewhere else).  Otherwise, we can
-		//   write a user value in a subkey of a path (that
-		//   should be map).
-		// * Our schema should be able to provide
-		//   allowed/expected types given a path; these should
-		//   guide and take precedence resolving conflicts
-		//   between data in the data bags or written E.g
-		//   possibly return null or empty object if at a path
-		//   were the schema expects an object there is scalar?
 		storage, ok := aspectPattern["storage"]
 		if !ok || storage == "" {
 			return nil, errors.New(`access patterns must have a "storage" field`)
@@ -311,26 +329,61 @@ type Aspect struct {
 // Set sets the named aspect to a specified value.
 func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	if err := validateAspectDottedPath(request, nil); err != nil {
-		return fmt.Errorf(`cannot parse Set request: %w`, err)
+		return badRequestErrorFrom(a, "set", request, err.Error())
 	}
 
-	requestSubkeys := strings.Split(request, ".")
+	var matches []requestMatch
+	subkeys := strings.Split(request, ".")
 	for _, accessPatt := range a.accessPatterns {
-		placeholders, _, ok := accessPatt.match(requestSubkeys)
+		placeholders, suffixParts, ok := accessPatt.match(subkeys)
 		if !ok {
 			continue
 		}
 
-		storagePath, err := accessPatt.storagePath(placeholders)
-		if err != nil {
-			return err
+		for _, part := range suffixParts {
+			// TODO: add support for setting with unmatched placeholders
+			if isPlaceholder(part) {
+				return badRequestErrorFrom(a, "set", request, "cannot set with unmatched placeholders")
+			}
 		}
 
 		if !accessPatt.isWriteable() {
 			return &InvalidAccessError{RequestedAccess: write, FieldAccess: accessPatt.access, Field: request}
 		}
 
-		if err := databag.Set(storagePath, value); err != nil {
+		path, err := accessPatt.storagePath(placeholders)
+		if err != nil {
+			return err
+		}
+
+		matches = append(matches, requestMatch{storagePath: path, suffixParts: suffixParts})
+	}
+
+	if len(matches) == 0 {
+		return notFoundErrorFrom(a, request, "no matching write rule")
+	}
+
+	// sort less nested paths before more nested ones so that writes aren't overwritten
+	sort.Slice(matches, func(x, y int) bool {
+		return matches[x].storagePath < matches[y].storagePath
+	})
+
+	for _, match := range matches {
+		nestedValue := value
+
+		for _, part := range match.suffixParts {
+			mapVal, ok := nestedValue.(map[string]interface{})
+			if !ok {
+				return badRequestErrorFrom(a, "set", request, `expected map for unmatched request parts but got %T`, nestedValue)
+			}
+
+			nestedValue, ok = mapVal[part]
+			if !ok {
+				return badRequestErrorFrom(a, "set", request, `cannot find nested value with unmatched key %q`, part)
+			}
+		}
+
+		if err := databag.Set(match.storagePath, nestedValue); err != nil {
 			return err
 		}
 
@@ -339,10 +392,12 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 			return err
 		}
 
-		return a.bundle.schema.Validate(data)
+		if err := a.bundle.schema.Validate(data); err != nil {
+			return fmt.Errorf(`cannot write data: %w`, err)
+		}
 	}
 
-	return notFoundErrorFrom(a, request, "no matching write rule")
+	return nil
 }
 
 // namespaceResult creates a nested namespace around the result that corresponds
@@ -387,7 +442,7 @@ func namespaceResult(res interface{}, suffixParts []string) (interface{}, error)
 // aspect or the corresponding value can't be found, a NotFoundError is returned.
 func (a *Aspect) Get(databag DataBag, request string) (map[string]interface{}, error) {
 	if err := validateAspectDottedPath(request, nil); err != nil {
-		return nil, fmt.Errorf(`cannot parse Get request: %w`, err)
+		return nil, badRequestErrorFrom(a, "get", request, err.Error())
 	}
 
 	matches, err := a.matchGetRequest(request)
@@ -845,14 +900,21 @@ func set(subKeys []string, index int, node map[string]json.RawMessage, value int
 		rawLevel = []byte("{}")
 	}
 
-	// TODO: this will error ungraciously if there isn't an object
-	// at this level (see the TODO in NewAspectBundle)
 	var level map[string]json.RawMessage
-	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
-		return nil, err
+	err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level)
+	if err != nil {
+		var uerr *json.UnmarshalTypeError
+		if !errors.As(err, &uerr) {
+			return nil, err
+		}
 	}
 
-	rawLevel, err := set(subKeys, index+1, level, value)
+	// stored valued wasn't map but new write expects one so overwrite value
+	if level == nil {
+		level = make(map[string]json.RawMessage)
+	}
+
+	rawLevel, err = set(subKeys, index+1, level, value)
 	if err != nil {
 		return nil, err
 	}
