@@ -29,8 +29,8 @@ execute: |
   comp_inst_path=/var/lib/snapd/snaps/snap-with-comps+comp1_x1.comp
   stat "$comp_inst_path"
 
-  # Component is mounted
-  mount | MATCH "^$comp_inst_path on /snap/snap-with-comps/components/x1/comp1.*"
+  # Component is mounted (note that we need to escape the "+" in the path)
+  mount | MATCH "^${comp_inst_path/+/\\+} on /snap/snap-with-comps/components/x1/comp1.*"
   # and is seen from snap app
   snap-with-comps.test
 
