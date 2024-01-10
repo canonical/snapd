@@ -733,7 +733,7 @@ pre /a[^b]** suf
 		},
 		{
 			comment:         "more diff length overlap with wildcard",
-			excludePatterns: []string{"/abc/*/c", "/ad/*/c", "/ab/*/e"},
+			excludePatterns: []string{"/abc/*/c", "/ab/*/e", "/ad/*/c"},
 			expRule: `
 /[^a]**
 /a[^bd]**
@@ -788,8 +788,8 @@ pre /a[^b]** suf
 		{
 			comment: "any file inherit exec rules except snap-confine for devmode snap executing other snaps",
 			excludePatterns: []string{
-				"/snap/snapd/*/usr/lib/snapd/snap-confine",
 				"/snap/core/*/usr/lib/snapd/snap-confine",
+				"/snap/snapd/*/usr/lib/snapd/snap-confine",
 			},
 			prefix: "",
 			suffix: " rwlix,",
@@ -836,7 +836,7 @@ pre /a[^b]** suf
 		},
 		{
 			comment:         "anything except /lib/{firmware,modules} for non-core base template",
-			excludePatterns: []string{"/lib/modules", "/lib/firmware"},
+			excludePatterns: []string{"/lib/firmware", "/lib/modules"},
 			suffix:          " mrklix,",
 			expRule: `
 /[^l]** mrklix,
@@ -855,7 +855,7 @@ pre /a[^b]** suf
 		},
 		{
 			comment:         "anything except /usr/src, /usr/lib/{firmware,snapd,modules} for non-core base template",
-			excludePatterns: []string{"/usr/lib/firmware", "/usr/lib/snapd", "/usr/lib/modules"},
+			excludePatterns: []string{"/usr/lib/firmware", "/usr/lib/modules", "/usr/lib/snapd"},
 			suffix:          " mrklix,",
 			expRule: `
 /[^u]** mrklix,
@@ -956,6 +956,7 @@ pre /a[^b]** suf
 			Prefix: t.prefix,
 			Suffix: t.suffix,
 		}
+		fmt.Println(t.excludePatterns)
 		res, err := apparmor.GenerateAAREExclusionPatterns(t.excludePatterns, opts)
 		if t.err != "" {
 			c.Assert(err, ErrorMatches, t.err, comment)
