@@ -5,7 +5,7 @@ details: |
     interfaces. This will help catch performance issues in snapd, AppArmor, etc.
 
 environment:
-    SNAPS: jq snap-store gh
+    SNAPS: jq snap-store test-snapd-tools
 
 prepare: |
     snap set system experimental.parallel-instances=true
