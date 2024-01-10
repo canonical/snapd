@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
@@ -77,8 +78,8 @@ func (s *snapmgrTestSuite) TestComponentHelpers(c *C) {
 	snapSt := &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
-			[]*snapstate.RevisionSideState{
-				snapstate.NewRevisionSideInfo(ssi,
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideInfo(ssi,
 					[]*snap.ComponentSideInfo{csi2, csi})}),
 		Current: snapRev,
 	}
@@ -100,9 +101,9 @@ func (s *snapmgrTestSuite) TestComponentHelpers(c *C) {
 	snapSt = &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
-			[]*snapstate.RevisionSideState{
-				snapstate.NewRevisionSideInfo(ssi2, nil),
-				snapstate.NewRevisionSideInfo(ssi, []*snap.ComponentSideInfo{csi}),
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideInfo(ssi2, nil),
+				sequence.NewRevisionSideInfo(ssi, []*snap.ComponentSideInfo{csi}),
 			}),
 		Current: snapRev2,
 	}
@@ -119,9 +120,9 @@ func (s *snapmgrTestSuite) TestComponentHelpers(c *C) {
 	snapSt = &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
-			[]*snapstate.RevisionSideState{
-				snapstate.NewRevisionSideInfo(ssi2, nil),
-				snapstate.NewRevisionSideInfo(ssi, nil),
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideInfo(ssi2, nil),
+				sequence.NewRevisionSideInfo(ssi, nil),
 			}),
 		Current: snapRev2,
 	}

@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -421,7 +422,7 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 }
 
-func revs(seq []*snapstate.RevisionSideState) []int {
+func revs(seq []*sequence.RevisionSideState) []int {
 	revs := make([]int, len(seq))
 	for i, si := range seq {
 		revs[i] = si.Snap.Revision.N
@@ -840,12 +841,12 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Sequence.Revisions, HasLen, 2)
-	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "",
 		Revision: snap.R(-42),
 	}, nil))
-	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "some-channel",
 		SnapID:   "some-snap-id",
@@ -1088,13 +1089,13 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	c.Check(snapst.LastRefreshTime.Equal(now), Equals, true)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Sequence.Revisions, HasLen, 2)
-	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "services-snap",
 		SnapID:   "services-snap-id",
 		Channel:  "",
 		Revision: snap.R(7),
 	}, nil))
-	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "services-snap",
 		Channel:  "some-channel",
 		SnapID:   "services-snap-id",
@@ -1151,13 +1152,13 @@ func (s *snapmgrTestSuite) TestUpdateDropsRevertStatus(c *C) {
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Current, Equals, snap.R(11))
 	c.Assert(snapst.Sequence.Revisions, HasLen, 2)
-	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "services-snap",
 		SnapID:   "services-snap-id",
 		Channel:  "",
 		Revision: snap.R(7),
 	}, nil))
-	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "services-snap",
 		Channel:  "some-channel",
 		SnapID:   "services-snap-id",
@@ -1443,13 +1444,13 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 	c.Assert(snapst.InstanceKey, Equals, "instance")
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Sequence.Revisions, HasLen, 2)
-	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "services-snap",
 		SnapID:   "services-snap-id",
 		Channel:  "",
 		Revision: snap.R(7),
 	}, nil))
-	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "services-snap",
 		Channel:  "some-channel",
 		SnapID:   "services-snap-id",
@@ -1772,13 +1773,13 @@ func (s *snapmgrTestSuite) TestUpdateModelKernelSwitchTrackRunThrough(c *C) {
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.TrackingChannel, Equals, "18/edge")
 	c.Assert(snapst.Sequence.Revisions, HasLen, 2)
-	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "kernel",
 		SnapID:   "kernel-id",
 		Channel:  "",
 		Revision: snap.R(7),
 	}, nil))
-	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "kernel",
 		Channel:  "18/edge",
 		SnapID:   "kernel-id",
@@ -2301,7 +2302,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Sequence.Revisions, HasLen, 1)
-	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
 		Channel:  "",
@@ -2641,7 +2642,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.TrackingChannel, Equals, "latest/stable")
 	c.Assert(snapst.Sequence.Revisions, HasLen, 1)
-	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
 		Channel:  "",
@@ -2910,7 +2911,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Sequence.Revisions, HasLen, 1)
-	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
 		Channel:  "channel-for-7/stable",
@@ -3020,7 +3021,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionToggleIgnoreValidationRunThroug
 
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Sequence.Revisions, HasLen, 1)
-	c.Check(snapst.Sequence.Revisions[0], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+	c.Check(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
 		Channel:  "channel-for-7",
@@ -8361,13 +8362,13 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 
 		c.Assert(snapst.Active, Equals, true)
 		c.Assert(snapst.Sequence.Revisions, HasLen, 2)
-		c.Assert(snapst.Sequence.Revisions[0], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+		c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 			RealName: name,
 			SnapID:   snapID,
 			Channel:  "",
 			Revision: snap.R(7),
 		}, nil))
-		c.Assert(snapst.Sequence.Revisions[1], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+		c.Assert(snapst.Sequence.Revisions[1], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 			RealName: name,
 			Channel:  "latest/stable",
 			SnapID:   snapID,
@@ -8551,13 +8552,13 @@ func (s *snapmgrTestSuite) TestUpdateGadgetKernelSingleRebootHappy(c *C) {
 
 		c.Assert(snapst.Active, Equals, true)
 		c.Assert(snapst.Sequence.Revisions, HasLen, 2)
-		c.Assert(snapst.Sequence.Revisions[0], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+		c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 			RealName: name,
 			SnapID:   snapID,
 			Channel:  "",
 			Revision: snap.R(7),
 		}, nil))
-		c.Assert(snapst.Sequence.Revisions[1], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+		c.Assert(snapst.Sequence.Revisions[1], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 			RealName: name,
 			Channel:  "latest/stable",
 			SnapID:   snapID,
@@ -8740,13 +8741,13 @@ func (s *snapmgrTestSuite) TestUpdateBaseGadgetSingleRebootHappy(c *C) {
 
 		c.Assert(snapst.Active, Equals, true)
 		c.Assert(snapst.Sequence.Revisions, HasLen, 2)
-		c.Assert(snapst.Sequence.Revisions[0], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+		c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 			RealName: name,
 			SnapID:   snapID,
 			Channel:  "",
 			Revision: snap.R(7),
 		}, nil))
-		c.Assert(snapst.Sequence.Revisions[1], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+		c.Assert(snapst.Sequence.Revisions[1], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 			RealName: name,
 			Channel:  "latest/stable",
 			SnapID:   snapID,
@@ -9004,7 +9005,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUnsupportedWithCoreHa
 
 		c.Assert(snapst.Active, Equals, true)
 		c.Assert(snapst.Sequence.Revisions, HasLen, 2)
-		c.Assert(snapst.Sequence.Revisions[1], DeepEquals, snapstate.NewRevisionSideInfo(&snap.SideInfo{
+		c.Assert(snapst.Sequence.Revisions[1], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
 			RealName: name,
 			Channel:  "latest/stable",
 			SnapID:   snapID,
@@ -10941,8 +10942,8 @@ func (s *snapmgrTestSuite) TestPreDownloadCleansSnapDownloads(c *C) {
 	snaptest.MockSnap(c, `name: some-snap`, si)
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: snapstate.SnapSequence{
-			Revisions: []*snapstate.RevisionSideState{{Snap: si}},
+		Sequence: sequence.SnapSequence{
+			Revisions: []*sequence.RevisionSideState{{Snap: si}},
 		},
 		Current: si.Revision,
 	})

@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox"
@@ -378,8 +379,8 @@ func (s *sideloadSuite) TestSideloadComponentForNotInstalledSnap(c *check.C) {
 	snapstate.Set(st, "other", &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
-			[]*snapstate.RevisionSideState{
-				snapstate.NewRevisionSideInfo(ssi, nil)}),
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideInfo(ssi, nil)}),
 		Current: snap.R(1),
 	})
 	st.Unlock()
@@ -414,8 +415,8 @@ func (s *sideloadSuite) sideloadComponentCheck(c *check.C, content string,
 	snapstate.Set(st, expectedInstanceName, &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
-			[]*snapstate.RevisionSideState{
-				snapstate.NewRevisionSideInfo(ssi, nil)}),
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideInfo(ssi, nil)}),
 		Current: snap.R(1),
 	})
 	st.Unlock()

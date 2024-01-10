@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox"
@@ -485,7 +486,7 @@ version: %s
 	var snapst snapstate.SnapState
 	snapstate.Get(st, instanceName, &snapst)
 	snapst.Active = active
-	snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, snapstate.NewRevisionSideInfo(&snapInfo.SideInfo, nil))
+	snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, sequence.NewRevisionSideInfo(&snapInfo.SideInfo, nil))
 	snapst.Current = snapInfo.SideInfo.Revision
 	snapst.TrackingChannel = "stable"
 	snapst.InstanceKey = instanceKey
