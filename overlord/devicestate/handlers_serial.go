@@ -496,7 +496,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 
 var httputilNewHTTPClient = httputil.NewHTTPClient
 
-var errStoreOffline = errors.New("store is offline")
+var errStoreOffline = errors.New("snap store is marked offline")
 
 func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, tm timings.Measurer) (serial *asserts.Serial, ancillaryBatch *asserts.Batch, err error) {
 	var serialSup serialSetup
