@@ -71,7 +71,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 	// and that types in snap and component match
 	if comp.Type != compInfo.Type {
 		return nil,
-			fmt.Errorf("incoherent component type (%q in snap, %q in component)",
+			fmt.Errorf("inconsistent component type (%q in snap, %q in component)",
 				comp.Type, compInfo.Type)
 	}
 
