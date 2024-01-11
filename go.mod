@@ -21,6 +21,7 @@ require (
 	github.com/mvo5/libseccomp-golang v0.9.1-0.20180308152521-f4de83b52afb // old trusty builds only
 	github.com/seccomp/libseccomp-golang v0.9.2-0.20220502024300-f57e1d55ea18
 	github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785
+	github.com/snapcore/secboot v0.0.0-20240105133534-42c7ea9715b3
 	golang.org/x/crypto v0.13.0
 	golang.org/x/net v0.15.0 // indirect
 	golang.org/x/sys v0.12.0
@@ -33,10 +34,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require go.etcd.io/bbolt v1.3.9
-
 require (
-	github.com/snapcore/secboot v0.0.0-20240105133534-42c7ea9715b3
+	go.etcd.io/bbolt v1.3.9
 	golang.org/x/text v0.13.0
 )
 
