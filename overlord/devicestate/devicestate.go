@@ -1771,20 +1771,6 @@ func snapNeedsInstall(st *state.State, name string, rev snap.Revision) (bool, er
 	return rev != info.Revision, nil
 }
 
-func stringsNotInSet(reference map[string]bool, target map[string]bool) []string {
-	var missing []string
-	for k := range reference {
-		if !target[k] {
-			missing = append(missing, k)
-		}
-	}
-
-	// sort this for test consistency
-	sort.Strings(missing)
-
-	return missing
-}
-
 func extractSnapSetupTaskIDs(tss []*state.TaskSet) ([]string, error) {
 	var taskIDs []string
 	for _, ts := range tss {
