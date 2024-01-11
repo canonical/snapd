@@ -799,14 +799,10 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 	c.Assert(err, IsNil)
 	expectedLen := len(templateBuf)
 
-	closeTimeout := 50 * time.Millisecond
-	closeTimer := time.NewTimer(closeTimeout)
-	createTimer := time.NewTimer(2 * closeTimeout)
-
 	doneCreating := make(chan struct{})
 	requestsSent := 0
 	go func() {
-		// create requests until createTimer expires
+		// create requests until the listener is dead
 		id := uint64(0)
 		for {
 			id += 1
@@ -814,7 +810,7 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 			buf, err := msg.MarshalBinary()
 			c.Assert(err, IsNil)
 			select {
-			case <-createTimer.C:
+			case <-l.Dead():
 			case recvChan <- buf:
 				requestsSent += 1
 				continue
@@ -838,13 +834,23 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 		c.Logf("total replies sent: %d", replyCount)
 	}()
 
+	slowTimer := time.NewTimer(10 * time.Second)
+	minResponsesReceived := 10
+	hitMinimum := make(chan struct{})
 	doneReceivingResponses := make(chan struct{})
 	responseCount := 0
 	go func() {
-		// Consume responses from the sendChan (in place of reading from the
-		// actual FD). No guarantee of order, so just check that the length is
-		// correct, rather than picking apart the buffer to throw out the ID and
+		// Consume a minimum (>1) number of responses from the sendChan.
+		// No guarantee of order, so just check that the length is correct,
+		// rather than picking apart the buffer to throw out the ID and
 		// compare the rest.
+		for i := 0; i < minResponsesReceived; i++ {
+			response := <-sendChan
+			c.Check(response, HasLen, expectedLen)
+			responseCount += 1
+		}
+		close(hitMinimum)
+		// Consume any remaining responses
 		for response := range sendChan {
 			c.Check(response, HasLen, expectedLen)
 			responseCount += 1
@@ -853,7 +859,11 @@ func (*listenerSuite) TestRunConcurrency(c *C) {
 		c.Logf("total responses received: %d", responseCount)
 	}()
 
-	<-closeTimer.C
+	// Wait until we can tell that the system is (or is not) working
+	select {
+	case <-hitMinimum:
+	case <-slowTimer.C:
+	}
 
 	// Check that no error has yet occurred
 	c.Check(l.Err(), Equals, tomb.ErrStillAlive)
