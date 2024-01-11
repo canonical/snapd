@@ -30,39 +30,49 @@ prepare: |
   SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
   SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
-  # Save the shim before resigning
-  cp pc/shim.efi.signed shim.efi.signed
+  # Remove signatures
+  cp pc/shim.efi.signed shim.efi
+  tests.nested secboot-remove-signature shim.efi
 
-  # Repack pc gadget for the initial image
-  tests.nested secboot-sign file pc/shim.efi.signed "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-  tests.nested secboot-sign file pc/grubx64.efi "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+  # Use a key to sign grub instead of snakeoil key
+  openssl req -new -x509 -newkey rsa:2048 -subj "/CN=old vendor certificate/" -keyout old-cert.key -out old-cert.crt -days 3650 -nodes -sha256
+  openssl x509 -outform der -in old-cert.crt -out old-cert
+  python3 generate_vendor_cert_section.py old-section old-cert
+  objcopy --update-section .vendor_cert=old-section shim.efi shim.efi.old
+
+  cp shim.efi.old pc/shim.efi.signed
+
+  tests.nested secboot-sign file pc/shim.efi.signed "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
+  tests.nested secboot-sign file pc/grubx64.efi "old-cert.key" "old-cert.crt"
+
+  # FIXME: this should not be needed. We will tell secboot that the
+  # new shim might try to boot the old grub. But this is not true.
+  # This will be fixed by https://github.com/snapcore/snapd/pull/13402
+  tests.nested secboot-sign file --keep-signatures pc/grubx64.efi "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
+
   old_shim_sha="$(sha256sum pc/shim.efi.signed | sed "s/ .*//")"
   old_grub_sha="$(sha256sum pc/grubx64.efi | sed "s/ .*//")"
-  snap pack pc "$(tests.nested get extra-snaps-path)"
 
-  # Remove signatures
-  cp shim.efi.signed shim.efi
-  tests.nested secboot-remove-signature shim.efi
+  # This is the the gadget for the initial image
+  snap pack pc "$(tests.nested get extra-snaps-path)"
 
   # Add a different vendor certificate
   openssl req -new -x509 -newkey rsa:2048 -subj "/CN=new vendor certificate/" -keyout new-cert.key -out new-cert.crt -days 3650 -nodes -sha256
   openssl x509 -outform der -in new-cert.crt -out new-cert
   python3 generate_vendor_cert_section.py new-section new-cert
-  objcopy --update-section .vendor_cert=new-section shim.efi shim.efi.out
+  objcopy --update-section .vendor_cert=new-section shim.efi shim.efi.new
 
-  # Sign modified shim
-  cp shim.efi.out pc/shim.efi.signed
+  cp shim.efi.new pc/shim.efi.signed
+
   tests.nested secboot-sign file pc/shim.efi.signed "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
+  # Even if we install a new seed, the grub has to be signed with the
+  # key so that we do not break on a reset in the middle of the upate.
+  # (old shim must always be able to boot the new grub).
+  tests.nested secboot-sign file pc/grubx64.efi "old-cert.key" "old-cert.crt"
 
-  tests.nested secboot-remove-signature pc/grubx64.efi
   if [ "${UPDATE_SEED}" = true ]; then
-    # Resign grub with new vendor key
-    tests.nested secboot-sign file pc/grubx64.efi "new-cert.key" "new-cert.crt"
-    # We need to keep the old vendor key signature to allow hard reset before new shim is installed
-    tests.nested secboot-sign file pc/grubx64.efi "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
-  else
-    # If shim is not installed in seed, then we need to keep the snakeoil signature
-    tests.nested secboot-sign file pc/grubx64.efi "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
+    # Resign grub with new vendor key. But we keep the signature with the old one.
+    tests.nested secboot-sign file --keep-signatures pc/grubx64.efi "new-cert.key" "new-cert.crt"
   fi
 
   new_shim_sha="$(sha256sum pc/shim.efi.signed | sed "s/ .*//")"
