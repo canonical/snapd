@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
@@ -252,7 +253,6 @@ func (m *SnapManager) doLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	csi := compSetup.CompSideInfo
 
 	// Grab information for current snap revision
 	// TODO will this still be correct when jointly installing snap +
@@ -266,10 +266,11 @@ func (m *SnapManager) doLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	cs := sequence.NewComponentState(compSetup.CompSideInfo, compSetup.CompType)
 	// set information for undoLinkComponent in the task
-	t.Set("linked-component", csi)
+	t.Set("linked-component", cs)
 	// Append new component to components of the current snap
-	if err := snapSt.Sequence.AddComponentForRevision(snapInfo.Revision, csi); err != nil {
+	if err := snapSt.Sequence.AddComponentForRevision(snapInfo.Revision, cs); err != nil {
 		return fmt.Errorf("internal error while linking component: %w", err)
 	}
 
@@ -277,7 +278,7 @@ func (m *SnapManager) doLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 	if snapSt.LastCompRefreshTime == nil {
 		snapSt.LastCompRefreshTime = make(map[string]time.Time)
 	}
-	snapSt.LastCompRefreshTime[csi.Component.ComponentName] = timeNow()
+	snapSt.LastCompRefreshTime[compSetup.CompSideInfo.Component.ComponentName] = timeNow()
 
 	// Finally, write the state
 	Set(st, snapsup.InstanceName(), snapSt)
@@ -305,7 +306,7 @@ func (m *SnapManager) undoLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var linkedComp *snap.ComponentSideInfo
+	var linkedComp *sequence.ComponentState
 	err = t.Get("linked-component", &linkedComp)
 	if err != nil {
 		return err
@@ -313,7 +314,8 @@ func (m *SnapManager) undoLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 
 	// Restore old state
 	// relinking of the old component is done in the undo of unlink-current-snap
-	snapSt.Sequence.RemoveComponentForRevision(snapInfo.Revision, linkedComp.Component)
+	snapSt.Sequence.RemoveComponentForRevision(snapInfo.Revision,
+		linkedComp.SideInfo.Component)
 
 	// Finally, write the state
 	Set(st, snapsup.InstanceName(), snapSt)
@@ -377,7 +379,7 @@ func (m *SnapManager) undoUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (e
 		return err
 	}
 
-	var unlinkedComp snap.ComponentSideInfo
+	var unlinkedComp sequence.ComponentState
 	err = t.Get("unlinked-component", &unlinkedComp)
 	if err != nil {
 		return err

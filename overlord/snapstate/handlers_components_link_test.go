@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -61,7 +62,7 @@ func (s *linkCompSnapSuite) testDoLinkComponent(c *C, snapName string, snapRev s
 	t := s.state.NewTask("link-component", "task desc")
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	t.Set("component-setup", snapstate.NewComponentSetup(csi, ""))
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.TestComponent, ""))
 	t.Set("snap-setup", ssu)
 	chg := s.state.NewChange("test change", "change desc")
 	chg.AddTask(t)
@@ -75,9 +76,10 @@ func (s *linkCompSnapSuite) testDoLinkComponent(c *C, snapName string, snapRev s
 
 	c.Check(chg.Err(), IsNil)
 	// undo information has been stored
-	var storedCsi snap.ComponentSideInfo
-	t.Get("linked-component", &storedCsi)
-	c.Assert(&storedCsi, DeepEquals, csi)
+	var storedCs sequence.ComponentState
+	cs := sequence.NewComponentState(csi, snap.TestComponent)
+	t.Get("linked-component", &storedCs)
+	c.Assert(&storedCs, DeepEquals, cs)
 	// state is modified as expected
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
@@ -127,7 +129,7 @@ func (s *linkCompSnapSuite) testDoLinkThenUndoLinkComponent(c *C, snapName strin
 	t := s.state.NewTask("link-component", "task desc")
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	t.Set("component-setup", snapstate.NewComponentSetup(csi, ""))
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.TestComponent, ""))
 	t.Set("snap-setup", ssu)
 	chg := s.state.NewChange("test change", "change desc")
 	chg.AddTask(t)
@@ -148,9 +150,10 @@ func (s *linkCompSnapSuite) testDoLinkThenUndoLinkComponent(c *C, snapName strin
 	c.Check(chg.Err().Error(), Equals, "cannot perform the following tasks:\n"+
 		"- provoking undo link (error out)")
 	// undo information was stored
-	var storedCsi snap.ComponentSideInfo
-	t.Get("linked-component", &storedCsi)
-	c.Assert(&storedCsi, DeepEquals, csi)
+	var storedCs sequence.ComponentState
+	cs := sequence.NewComponentState(csi, snap.TestComponent)
+	t.Get("linked-component", &storedCs)
+	c.Assert(&storedCs, DeepEquals, cs)
 	// the component is not in the state
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
@@ -194,7 +197,7 @@ func (s *linkCompSnapSuite) testDoUnlinkCurrentComponent(c *C, snapName string, 
 	t := s.state.NewTask("unlink-current-component", "task desc")
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	t.Set("component-setup", snapstate.NewComponentSetup(csi, ""))
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.TestComponent, ""))
 	t.Set("snap-setup", ssu)
 	chg := s.state.NewChange("test change", "change desc")
 	chg.AddTask(t)
@@ -208,9 +211,10 @@ func (s *linkCompSnapSuite) testDoUnlinkCurrentComponent(c *C, snapName string, 
 
 	c.Check(chg.Err(), IsNil)
 	// undo information has been stored
-	var storedCsi snap.ComponentSideInfo
-	t.Get("unlinked-component", &storedCsi)
-	c.Assert(&storedCsi, DeepEquals, csi)
+	var storedCs sequence.ComponentState
+	cs := sequence.NewComponentState(csi, snap.TestComponent)
+	t.Get("unlinked-component", &storedCs)
+	c.Assert(&storedCs, DeepEquals, cs)
 	// state is modified as expected
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
@@ -244,7 +248,9 @@ func (s *linkCompSnapSuite) TestDoUnlinkCurrentComponentOtherCompPresent(c *C) {
 	// state must contain the component, we add some additional components as well
 	csi1 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), compRev)
 	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, "other-comp"), snap.R(33))
-	setStateWithComponents(s.state, snapName, snapRev, []*snap.ComponentSideInfo{csi1, csi2})
+	cs1 := sequence.NewComponentState(csi1, snap.TestComponent)
+	cs2 := sequence.NewComponentState(csi2, snap.TestComponent)
+	setStateWithComponents(s.state, snapName, snapRev, []*sequence.ComponentState{cs1, cs2})
 	s.state.Unlock()
 
 	s.testDoUnlinkCurrentComponent(c, snapName, snapRev, compName, compRev)
@@ -259,7 +265,7 @@ func (s *linkCompSnapSuite) testDoUnlinkThenUndoUnlinkCurrentComponent(c *C, sna
 	t := s.state.NewTask("unlink-current-component", "task desc")
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	t.Set("component-setup", snapstate.NewComponentSetup(csi, ""))
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.TestComponent, ""))
 	t.Set("snap-setup", ssu)
 	chg := s.state.NewChange("test change", "change desc")
 	chg.AddTask(t)
@@ -280,9 +286,10 @@ func (s *linkCompSnapSuite) testDoUnlinkThenUndoUnlinkCurrentComponent(c *C, sna
 	c.Check(chg.Err().Error(), Equals, "cannot perform the following tasks:\n"+
 		"- provoking undo link (error out)")
 	// undo information was stored
-	var storedCsi snap.ComponentSideInfo
-	t.Get("unlinked-component", &storedCsi)
-	c.Assert(&storedCsi, DeepEquals, csi)
+	var storedCs sequence.ComponentState
+	cs := sequence.NewComponentState(csi, snap.TestComponent)
+	t.Get("unlinked-component", &storedCs)
+	c.Assert(&storedCs, DeepEquals, cs)
 	// the component is still in the state
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
@@ -317,7 +324,8 @@ func (s *linkCompSnapSuite) TestDoUnlinkThenUndoUnlinkCurrentComponentOtherCompP
 	// state must contain the component, we add some additional components as well
 	csi1 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), compRev)
 	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, "other-comp"), snap.R(33))
-	setStateWithComponents(s.state, snapName, snapRev, []*snap.ComponentSideInfo{csi1, csi2})
+	setStateWithComponents(s.state, snapName, snapRev,
+		[]*sequence.ComponentState{sequence.NewComponentState(csi1, snap.TestComponent), sequence.NewComponentState(csi2, snap.TestComponent)})
 	s.state.Unlock()
 
 	s.testDoUnlinkThenUndoUnlinkCurrentComponent(c, snapName, snapRev, compName, compRev)
