@@ -122,6 +122,10 @@ func MockEpollWaitNotifyIoctl() (recvChan chan<- []byte, sendChan <-chan []byte,
 	return recvChanRW, sendChanRW, restore
 }
 
+func (l *Listener) Dead() <-chan struct{} {
+	return l.tomb.Dead()
+}
+
 func (l *Listener) Dying() <-chan struct{} {
 	return l.tomb.Dying()
 }
