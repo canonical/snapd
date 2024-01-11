@@ -80,7 +80,7 @@ func (s *snapmgrTestSuite) TestComponentHelpers(c *C) {
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
 				sequence.NewRevisionSideInfo(ssi,
-					[]*snap.ComponentSideInfo{csi2, csi})}),
+					[]*sequence.ComponentState{sequence.NewComponentState(csi2, snap.TestComponent), sequence.NewComponentState(csi, snap.TestComponent)})}),
 		Current: snapRev,
 	}
 	snapstate.Set(s.state, snapName, snapSt)
@@ -103,7 +103,7 @@ func (s *snapmgrTestSuite) TestComponentHelpers(c *C) {
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
 				sequence.NewRevisionSideInfo(ssi2, nil),
-				sequence.NewRevisionSideInfo(ssi, []*snap.ComponentSideInfo{csi}),
+				sequence.NewRevisionSideInfo(ssi, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)}),
 			}),
 		Current: snapRev2,
 	}

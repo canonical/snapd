@@ -87,6 +87,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 	}
 	compSetup := &ComponentSetup{
 		CompSideInfo: csi,
+		CompType:     compInfo.Type,
 		CompPath:     path,
 	}
 	// The file passed around is temporary, make sure it gets removed.

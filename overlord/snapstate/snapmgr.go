@@ -190,13 +190,16 @@ func (snapsup *SnapSetup) MountFile() string {
 type ComponentSetup struct {
 	// CompSideInfo for metadata not coming from the component
 	CompSideInfo *snap.ComponentSideInfo `json:"comp-side-info,omitempty"`
+	// CompType is needed as some types need special handling
+	CompType snap.ComponentType
 	// CompPath is the path to the file
 	CompPath string `json:"comp-path,omitempty"`
 }
 
-func NewComponentSetup(csi *snap.ComponentSideInfo, compPath string) *ComponentSetup {
+func NewComponentSetup(csi *snap.ComponentSideInfo, compType snap.ComponentType, compPath string) *ComponentSetup {
 	return &ComponentSetup{
 		CompSideInfo: csi,
+		CompType:     compType,
 		CompPath:     compPath,
 	}
 }
@@ -340,7 +343,7 @@ func (snapst *SnapState) IsComponentInCurrentSeq(cref naming.ComponentRef) bool 
 
 	idx := snapst.LastIndex(snapst.Current)
 	for _, seqComp := range snapst.Sequence.Revisions[idx].Components {
-		if seqComp.Component == cref {
+		if seqComp.SideInfo.Component == cref {
 			return true
 		}
 	}
@@ -380,8 +383,8 @@ func (snapst *SnapState) CurrentComponentSideInfo(cref naming.ComponentRef) *sna
 
 	if idx := snapst.LastIndex(snapst.Current); idx >= 0 {
 		for _, comp := range snapst.Sequence.Revisions[idx].Components {
-			if comp.Component == cref {
-				return comp
+			if comp.SideInfo.Component == cref {
+				return comp.SideInfo
 			}
 		}
 		// component not found
@@ -415,8 +418,8 @@ func (snapst *SnapState) LastIndex(revision snap.Revision) int {
 // present in the system for this snap.
 func (snapst *SnapState) IsComponentRevPresent(compSi *snap.ComponentSideInfo) bool {
 	for _, rev := range snapst.Sequence.Revisions {
-		for _, csi := range rev.Components {
-			if csi.Equal(compSi) {
+		for _, cs := range rev.Components {
+			if cs.SideInfo.Equal(compSi) {
 				return true
 			}
 		}

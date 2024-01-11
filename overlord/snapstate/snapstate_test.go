@@ -613,19 +613,17 @@ func (s *snapmgrTestSuite) TestSequenceSerialize(c *C) {
 
 	// With components
 	snapst = &snapstate.SnapState{Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
-		sequence.NewRevisionSideInfo(si1, []*snap.ComponentSideInfo{
-			snap.NewComponentSideInfo(naming.NewComponentRef("mysnap", "mycomp"),
-				snap.R(7)),
+		sequence.NewRevisionSideInfo(si1, []*sequence.ComponentState{
+			sequence.NewComponentState(snap.NewComponentSideInfo(naming.NewComponentRef("mysnap", "mycomp"), snap.R(7)), snap.TestComponent),
 		}),
-		sequence.NewRevisionSideInfo(si2, []*snap.ComponentSideInfo{
-			snap.NewComponentSideInfo(naming.NewComponentRef("othersnap", "othercomp1"),
-				snap.R(11)),
-			snap.NewComponentSideInfo(naming.NewComponentRef("othersnap", "othercomp2"), snap.R(14)),
+		sequence.NewRevisionSideInfo(si2, []*sequence.ComponentState{
+			sequence.NewComponentState(snap.NewComponentSideInfo(naming.NewComponentRef("othersnap", "othercomp1"), snap.R(11)), snap.TestComponent),
+			sequence.NewComponentState(snap.NewComponentSideInfo(naming.NewComponentRef("othersnap", "othercomp2"), snap.R(14)), snap.TestComponent),
 		}),
 	})}
 	marshaled, err = json.Marshal(snapst)
 	c.Assert(err, IsNil)
-	c.Check(string(marshaled), Equals, `{"type":"","sequence":[{"name":"mysnap","snap-id":"snapid","revision":"7","components":[{"component":{"snap-name":"mysnap","component-name":"mycomp"},"revision":"7"}]},{"name":"othersnap","snap-id":"otherid","revision":"11","components":[{"component":{"snap-name":"othersnap","component-name":"othercomp1"},"revision":"11"},{"component":{"snap-name":"othersnap","component-name":"othercomp2"},"revision":"14"}]}],"current":"unset"}`)
+	c.Check(string(marshaled), Equals, `{"type":"","sequence":[{"name":"mysnap","snap-id":"snapid","revision":"7","components":[{"side-info":{"component":{"snap-name":"mysnap","component-name":"mycomp"},"revision":"7"},"type":"test"}]},{"name":"othersnap","snap-id":"otherid","revision":"11","components":[{"side-info":{"component":{"snap-name":"othersnap","component-name":"othercomp1"},"revision":"11"},"type":"test"},{"side-info":{"component":{"snap-name":"othersnap","component-name":"othercomp2"},"revision":"14"},"type":"test"}]}],"current":"unset"}`)
 }
 
 func maybeMockClassicSupport(c *C) (restore func()) {

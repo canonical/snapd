@@ -30,11 +30,22 @@ import (
 	"github.com/snapcore/snapd/snap/naming"
 )
 
+// ComponentState contains information about an installed component.
+type ComponentState struct {
+	SideInfo *snap.ComponentSideInfo `json:"side-info"`
+	CompType snap.ComponentType      `json:"type"`
+}
+
+// NewComponentState creates a ComponentState from components side information and type.
+func NewComponentState(si *snap.ComponentSideInfo, tp snap.ComponentType) *ComponentState {
+	return &ComponentState{SideInfo: si, CompType: tp}
+}
+
 // RevisionSideState contains the side information for a snap and related components
 // installed in the system.
 type RevisionSideState struct {
 	Snap       *snap.SideInfo
-	Components []*snap.ComponentSideInfo
+	Components []*ComponentState
 }
 
 // revisionSideInfoMarshal is an ancillary structure used exclusively to
@@ -42,7 +53,7 @@ type RevisionSideState struct {
 type revisionSideInfoMarshal struct {
 	// SideInfo is included for compatibility with older snapd state files
 	*snap.SideInfo
-	CompSideInfo []*snap.ComponentSideInfo `yaml:"components,omitempty" json:"components,omitempty"`
+	CompSideInfo []*ComponentState `json:"components,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface
@@ -61,10 +72,10 @@ func (bsi *RevisionSideState) UnmarshalJSON(in []byte) error {
 	return nil
 }
 
-// FindComponent returns the snap.ComponentSideInfo if cref is found in the sequence point.
-func (rss *RevisionSideState) FindComponent(cref naming.ComponentRef) *snap.ComponentSideInfo {
+// FindComponent returns the ComponentState if cref is found in the sequence point.
+func (rss *RevisionSideState) FindComponent(cref naming.ComponentRef) *ComponentState {
 	for _, csi := range rss.Components {
-		if csi.Component == cref {
+		if csi.SideInfo.Component == cref {
 			return csi
 		}
 	}
@@ -73,7 +84,7 @@ func (rss *RevisionSideState) FindComponent(cref naming.ComponentRef) *snap.Comp
 
 // NewRevisionSideInfo creates a RevisionSideInfo from snap and
 // related components side information.
-func NewRevisionSideInfo(snapSideInfo *snap.SideInfo, compSideInfo []*snap.ComponentSideInfo) *RevisionSideState {
+func NewRevisionSideInfo(snapSideInfo *snap.SideInfo, compSideInfo []*ComponentState) *RevisionSideState {
 	return &RevisionSideState{Snap: snapSideInfo, Components: compSideInfo}
 }
 
@@ -130,36 +141,36 @@ var ErrSnapRevNotInSequence = errors.New("snap is not in the sequence")
 
 // AddComponentForRevision adds a component to the last instance of snapRev in
 // the sequence.
-func (snapSeq *SnapSequence) AddComponentForRevision(snapRev snap.Revision, csi *snap.ComponentSideInfo) error {
+func (snapSeq *SnapSequence) AddComponentForRevision(snapRev snap.Revision, cs *ComponentState) error {
 	snapIdx := snapSeq.LastIndex(snapRev)
 	if snapIdx == -1 {
 		return ErrSnapRevNotInSequence
 	}
 	revSt := snapSeq.Revisions[snapIdx]
 
-	if revSt.FindComponent(csi.Component) != nil {
+	if revSt.FindComponent(cs.SideInfo.Component) != nil {
 		// Component already present
 		return nil
 	}
 
 	// Append new component to components of the current snap
-	revSt.Components = append(revSt.Components, csi)
+	revSt.Components = append(revSt.Components, cs)
 	return nil
 }
 
 // RemoveComponentForRevision removes the cref component for the last instance
 // of snapRev in the sequence and returns a pointer to it, which might be nil
 // if not found.
-func (snapSeq *SnapSequence) RemoveComponentForRevision(snapRev snap.Revision, cref naming.ComponentRef) (unlinkedComp *snap.ComponentSideInfo) {
+func (snapSeq *SnapSequence) RemoveComponentForRevision(snapRev snap.Revision, cref naming.ComponentRef) (unlinkedComp *ComponentState) {
 	snapIdx := snapSeq.LastIndex(snapRev)
 	if snapIdx == -1 {
 		return nil
 	}
 
 	revSt := snapSeq.Revisions[snapIdx]
-	var leftComp []*snap.ComponentSideInfo
+	var leftComp []*ComponentState
 	for _, csi := range revSt.Components {
-		if csi.Component == cref {
+		if csi.SideInfo.Component == cref {
 			unlinkedComp = csi
 			continue
 		}
