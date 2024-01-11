@@ -249,7 +249,7 @@ func canInstallAndRunAtOnce(mst *initramfsMountsState) (bool, error) {
 	// TODO: when install in initrd is finished and it is tested
 	// without fde hook, turn the return into...
 	// return true, nil
-	return kernelHasFdeSetup, nil
+	return true, nil
 }
 
 func readSnapInfo(sysSnaps map[snap.Type]*seed.Snap, snapType snap.Type) (*snap.Info, error) {
