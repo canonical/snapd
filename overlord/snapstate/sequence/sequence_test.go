@@ -64,10 +64,10 @@ func (s *sequenceTestSuite) TestSequenceSerialize(c *C) {
 
 	// With components
 	seq = snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
-		sequence.NewRevisionSideInfo(si1, []*sequence.ComponentState{
+		sequence.NewRevisionSideState(si1, []*sequence.ComponentState{
 			sequence.NewComponentState(snap.NewComponentSideInfo(naming.NewComponentRef("mysnap", "mycomp"), snap.R(7)), snap.TestComponent),
 		}),
-		sequence.NewRevisionSideInfo(si2, []*sequence.ComponentState{
+		sequence.NewRevisionSideState(si2, []*sequence.ComponentState{
 			sequence.NewComponentState(snap.NewComponentSideInfo(naming.NewComponentRef("othersnap", "othercomp1"), snap.R(11)), snap.TestComponent),
 			sequence.NewComponentState(snap.NewComponentSideInfo(naming.NewComponentRef("othersnap", "othercomp2"), snap.R(14)), snap.TestComponent),
 		}),
@@ -90,8 +90,8 @@ func (s *sequenceTestSuite) TestSideInfos(c *C) {
 	cs := sequence.NewComponentState(csi, snap.TestComponent)
 	seq := snapstatetest.NewSequenceFromRevisionSideInfos(
 		[]*sequence.RevisionSideState{
-			sequence.NewRevisionSideInfo(ssi, []*sequence.ComponentState{cs}),
-			sequence.NewRevisionSideInfo(ssi2, nil)})
+			sequence.NewRevisionSideState(ssi, []*sequence.ComponentState{cs}),
+			sequence.NewRevisionSideState(ssi2, nil)})
 
 	c.Check(seq.SideInfos(), DeepEquals, []*snap.SideInfo{ssi, ssi2})
 }
@@ -109,7 +109,7 @@ func (s *sequenceTestSuite) TestAddComponentForRevision(c *C) {
 		Revision: snap.R(1), SnapID: "some-snap-id"}
 	comps := []*sequence.ComponentState{cs1, cs2}
 	seq := snapstatetest.NewSequenceFromRevisionSideInfos(
-		[]*sequence.RevisionSideState{sequence.NewRevisionSideInfo(ssi, comps)})
+		[]*sequence.RevisionSideState{sequence.NewRevisionSideState(ssi, comps)})
 	c.Assert(seq.AddComponentForRevision(snapRev, cs1), IsNil)
 	// Not re-appended
 	c.Assert(seq.Revisions[0].Components, DeepEquals, comps)
@@ -137,7 +137,7 @@ func (s *sequenceTestSuite) TestRemoveComponentForRevision(c *C) {
 		Revision: snap.R(1), SnapID: "some-snap-id"}
 	comps := []*sequence.ComponentState{cs1, cs2}
 	seq := snapstatetest.NewSequenceFromRevisionSideInfos(
-		[]*sequence.RevisionSideState{sequence.NewRevisionSideInfo(ssi, comps)})
+		[]*sequence.RevisionSideState{sequence.NewRevisionSideState(ssi, comps)})
 
 	// component not in sequence point
 	removed := seq.RemoveComponentForRevision(snapRev, naming.NewComponentRef(snapName, "other-comp"))

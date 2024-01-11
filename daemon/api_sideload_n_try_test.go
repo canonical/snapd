@@ -380,7 +380,7 @@ func (s *sideloadSuite) TestSideloadComponentForNotInstalledSnap(c *check.C) {
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
-				sequence.NewRevisionSideInfo(ssi, nil)}),
+				sequence.NewRevisionSideState(ssi, nil)}),
 		Current: snap.R(1),
 	})
 	st.Unlock()
@@ -416,7 +416,7 @@ func (s *sideloadSuite) sideloadComponentCheck(c *check.C, content string,
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
-				sequence.NewRevisionSideInfo(ssi, nil)}),
+				sequence.NewRevisionSideState(ssi, nil)}),
 		Current: snap.R(1),
 	})
 	st.Unlock()

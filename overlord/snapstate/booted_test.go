@@ -141,8 +141,8 @@ func (bs *bootedSuite) makeInstalledKernelOS(c *C, st *state.State) {
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		SnapType: "os",
 		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{sequence.NewRevisionSideInfo(osSI1, nil),
-			sequence.NewRevisionSideInfo(osSI2, nil)}),
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{sequence.NewRevisionSideState(osSI1, nil),
+			sequence.NewRevisionSideState(osSI2, nil)}),
 		Current: snap.R(2),
 	})
 
@@ -151,8 +151,8 @@ func (bs *bootedSuite) makeInstalledKernelOS(c *C, st *state.State) {
 	snapstate.Set(st, "canonical-pc-linux", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{sequence.NewRevisionSideInfo(kernelSI1, nil),
-			sequence.NewRevisionSideInfo(kernelSI2, nil)}),
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{sequence.NewRevisionSideState(kernelSI1, nil),
+			sequence.NewRevisionSideState(kernelSI2, nil)}),
 		Current: snap.R(2),
 	})
 
@@ -278,7 +278,7 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSErrorsLate(c *C) {
 	snapstate.Set(st, "canonical-pc-linux", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{sequence.NewRevisionSideInfo(kernelSI2, nil)}),
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{sequence.NewRevisionSideState(kernelSI2, nil)}),
 		Current:  snap.R(2),
 	})
 
@@ -287,8 +287,8 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSErrorsLate(c *C) {
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		SnapType: "os",
 		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{sequence.NewRevisionSideInfo(osSI1, nil),
-			sequence.NewRevisionSideInfo(osSI2, nil)}),
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{sequence.NewRevisionSideState(osSI1, nil),
+			sequence.NewRevisionSideState(osSI2, nil)}),
 		Current: snap.R(2),
 	})
 	bs.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/core/1")
@@ -560,8 +560,8 @@ func (bs *bootedSuite) TestFinishRestartClassicWithModesCoreIgnored(c *C) {
 	snapstate.Set(st, "canonical-pc-linux", &snapstate.SnapState{
 		SnapType: "kernel",
 		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{sequence.NewRevisionSideInfo(kernelSI1, nil),
-			sequence.NewRevisionSideInfo(kernelSI2, nil)}),
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{sequence.NewRevisionSideState(kernelSI1, nil),
+			sequence.NewRevisionSideState(kernelSI2, nil)}),
 		Current: snap.R(2),
 	})
 	// we have core22 and current is r2
@@ -572,8 +572,8 @@ func (bs *bootedSuite) TestFinishRestartClassicWithModesCoreIgnored(c *C) {
 	snapstate.Set(st, "core22", &snapstate.SnapState{
 		SnapType: "base",
 		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{sequence.NewRevisionSideInfo(osSI1, nil),
-			sequence.NewRevisionSideInfo(osSI2, nil)}),
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{sequence.NewRevisionSideState(osSI1, nil),
+			sequence.NewRevisionSideState(osSI2, nil)}),
 		Current: snap.R(2),
 	})
 	// now pretend that for whatever reason the modeenv reports that
