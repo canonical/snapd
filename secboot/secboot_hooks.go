@@ -164,7 +164,6 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(sealedEncryptionKeyFile, sourceDev
 		return res, xerrors.Errorf(fmt, err)
 	}
 
-	// ensure that the model is authorized to open the volume
 	model, err := opts.WhichModel()
 	if err != nil {
 		return res, fmt.Errorf("cannot retrieve which model to unlock for: %v", err)
@@ -174,11 +173,7 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(sealedEncryptionKeyFile, sourceDev
 	options := activateVolOpts(opts.AllowRecoveryKey)
 	options.Model = model
 
-	// TODO: provide a AuthRequester, KDF here instead of "nil"
-	authRequestor, err := sb.NewSystemdAuthRequestor(
-		"Please enter passphrase for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
-		"Please enter recovery key for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
-	)
+	authRequestor, err := newAuthRequestor()
 	if err != nil {
 		return res, fmt.Errorf("cannot build an auth requestor: %v", err)
 	}

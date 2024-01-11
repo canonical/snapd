@@ -270,6 +270,13 @@ func activateVolOpts(allowRecoveryKey bool) *sb.ActivateVolumeOptions {
 	return &options
 }
 
+func newAuthRequestor() (sb.AuthRequestor, error) {
+	return sb.NewSystemdAuthRequestor(
+		"Please enter passphrase for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
+		"Please enter recovery key for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
+	)
+}
+
 // unlockEncryptedPartitionWithSealedKey unseals the keyfile and opens an encrypted
 // device. If activation with the sealed key fails, this function will attempt to
 // activate it with the fallback recovery key instead.
@@ -281,10 +288,7 @@ func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile str
 	options := activateVolOpts(allowRecovery)
 	options.Model = sb.SkipSnapModelCheck
 	// ignoring model checker as it doesn't work with tpm "legacy" platform key data
-	authRequestor, err := sb.NewSystemdAuthRequestor(
-		"Please enter passphrase for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
-		"Please enter recovery key for volume {{.VolumeName}} for device {{.SourceDevicePath}}",
-	)
+	authRequestor, err := newAuthRequestor()
 	if err != nil {
 		return NotUnlocked, fmt.Errorf("cannot build an auth requestor: %v", err)
 	}
