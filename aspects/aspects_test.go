@@ -194,22 +194,22 @@ func (s *aspectSuite) TestAspectNotFound(c *C) {
 
 	_, err = aspect.Get(databag, "missing")
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find value for "missing" in aspect acc/foo/bar: no matching read rule`)
+	c.Assert(err, ErrorMatches, `cannot get "missing" in aspect acc/foo/bar: no matching read rule`)
 
 	err = aspect.Set(databag, "missing", "thing")
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find value for "missing" in aspect acc/foo/bar: no matching write rule`)
+	c.Assert(err, ErrorMatches, `cannot set "missing" in aspect acc/foo/bar: no matching write rule`)
 
 	_, err = aspect.Get(databag, "top-level")
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find value for "top-level" in aspect acc/foo/bar: matching rules don't map to any values`)
+	c.Assert(err, ErrorMatches, `cannot get "top-level" in aspect acc/foo/bar: matching rules don't map to any values`)
 
 	err = aspect.Set(databag, "nested", "thing")
 	c.Assert(err, IsNil)
 
 	_, err = aspect.Get(databag, "other-nested")
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
-	c.Assert(err, ErrorMatches, `cannot find value for "other-nested" in aspect acc/foo/bar: matching rules don't map to any values`)
+	c.Assert(err, ErrorMatches, `cannot get "other-nested" in aspect acc/foo/bar: matching rules don't map to any values`)
 }
 
 func (s *aspectSuite) TestAspectBadRead(c *C) {
@@ -231,52 +231,48 @@ func (s *aspectSuite) TestAspectBadRead(c *C) {
 }
 
 func (s *aspectSuite) TestAspectsAccessControl(c *C) {
-	aspectBundle, err := aspects.NewAspectBundle("acc", "bundle", map[string]interface{}{
-		"foo": []map[string]string{
-			{"request": "default", "storage": "path.default"},
-			{"request": "read-write", "storage": "path.read-write", "access": "read-write"},
-			{"request": "read-only", "storage": "path.read-only", "access": "read"},
-			{"request": "write-only", "storage": "path.write-only", "access": "write"},
-		},
-	}, aspects.NewJSONSchema())
-	c.Assert(err, IsNil)
-
-	aspect := aspectBundle.Aspect("foo")
-
 	for _, t := range []struct {
-		request string
-		getErr  string
-		setErr  string
+		access string
+		getErr string
+		setErr string
 	}{
 		{
-			request: "read-write",
+			access: "read-write",
 		},
 		{
 			// defaults to "read-write"
-			request: "default",
+			access: "",
 		},
 		{
-			request: "read-only",
-			// unrelated error
-			getErr: `cannot find value for "read-only" in aspect acc/bundle/foo: matching rules don't map to any values`,
-			setErr: `cannot write field "read-only": only supports read access`,
+			access: "read",
+			// non-access control error, access ok
+			getErr: `cannot get "foo" in aspect acc/bundle/foo: matching rules don't map to any values`,
+			setErr: `cannot set "foo" in aspect acc/bundle/foo: no matching write rule`,
 		},
 		{
-			request: "write-only",
-			getErr:  `cannot read field "write-only": only supports write access`,
+			access: "write",
+			getErr: `cannot get "foo" in aspect acc/bundle/foo: no matching read rule`,
 		},
 	} {
-		cmt := Commentf("sub-test %q failed", t.request)
+		cmt := Commentf("sub-test with %q access failed", t.access)
 		databag := aspects.NewJSONDataBag()
+		aspectBundle, err := aspects.NewAspectBundle("acc", "bundle", map[string]interface{}{
+			"foo": []map[string]string{
+				{"request": "foo", "storage": "foo", "access": t.access},
+			},
+		}, aspects.NewJSONSchema())
+		c.Assert(err, IsNil)
 
-		err := aspect.Set(databag, t.request, "thing")
+		aspect := aspectBundle.Aspect("foo")
+
+		err = aspect.Set(databag, "foo", "thing")
 		if t.setErr != "" {
 			c.Assert(err.Error(), Equals, t.setErr, cmt)
 		} else {
 			c.Assert(err, IsNil, cmt)
 		}
 
-		_, err = aspect.Get(databag, t.request)
+		_, err = aspect.Get(databag, "foo")
 		if t.getErr != "" {
 			c.Assert(err.Error(), Equals, t.getErr, cmt)
 		} else {
@@ -577,16 +573,6 @@ func (s *aspectSuite) TestAspectUnsetAlreadyUnsetEntry(c *C) {
 
 	err = aspect.Set(databag, "bar", nil)
 	c.Assert(err, IsNil)
-}
-
-func (s *aspectSuite) TestInvalidAccessError(c *C) {
-	err := &aspects.InvalidAccessError{RequestedAccess: 1, FieldAccess: 2, Field: "foo"}
-	c.Assert(err, testutil.ErrorIs, &aspects.InvalidAccessError{})
-	c.Assert(err, ErrorMatches, `cannot read field "foo": only supports write access`)
-
-	err = &aspects.InvalidAccessError{RequestedAccess: 2, FieldAccess: 1, Field: "foo"}
-	c.Assert(err, testutil.ErrorIs, &aspects.InvalidAccessError{})
-	c.Assert(err, ErrorMatches, `cannot write field "foo": only supports read access`)
 }
 
 func (s *aspectSuite) TestJSONDataBagCopy(c *C) {

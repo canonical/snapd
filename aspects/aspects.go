@@ -63,12 +63,13 @@ type NotFoundError struct {
 	Account    string
 	BundleName string
 	Aspect     string
+	Operation  string
 	Request    string
 	Cause      string
 }
 
 func (e *NotFoundError) Error() string {
-	return fmt.Sprintf("cannot find value for %q in aspect %s/%s/%s: %s", e.Request, e.Account, e.BundleName, e.Aspect, e.Cause)
+	return fmt.Sprintf("cannot %s %q in aspect %s/%s/%s: %s", e.Operation, e.Request, e.Account, e.BundleName, e.Aspect, e.Cause)
 }
 
 func (e *NotFoundError) Is(err error) bool {
@@ -76,11 +77,12 @@ func (e *NotFoundError) Is(err error) bool {
 	return ok
 }
 
-func notFoundErrorFrom(a *Aspect, request, errMsg string) *NotFoundError {
+func notFoundErrorFrom(a *Aspect, op, request, errMsg string) *NotFoundError {
 	return &NotFoundError{
 		Account:    a.bundle.Account,
 		BundleName: a.bundle.Name,
 		Aspect:     a.Name,
+		Operation:  op,
 		Request:    request,
 		Cause:      errMsg,
 	}
@@ -113,24 +115,6 @@ func badRequestErrorFrom(a *Aspect, operation, request, errMsg string, v ...inte
 		Request:    request,
 		Cause:      fmt.Sprintf(errMsg, v...),
 	}
-}
-
-// InvalidAccessError represents a failure to perform a read or write due to the
-// aspect's access control.
-type InvalidAccessError struct {
-	RequestedAccess accessType
-	FieldAccess     accessType
-	Field           string
-}
-
-func (e *InvalidAccessError) Error() string {
-	return fmt.Sprintf("cannot %s field %q: only supports %s access",
-		accessTypeStrings[e.RequestedAccess], e.Field, accessTypeStrings[e.FieldAccess])
-}
-
-func (e *InvalidAccessError) Is(err error) bool {
-	_, ok := err.(*InvalidAccessError)
-	return ok
 }
 
 // DataBag controls access to the aspect data storage.
@@ -348,7 +332,7 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 		}
 
 		if !accessPatt.isWriteable() {
-			return &InvalidAccessError{RequestedAccess: write, FieldAccess: accessPatt.access, Field: request}
+			continue
 		}
 
 		path, err := accessPatt.storagePath(placeholders)
@@ -360,7 +344,7 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	}
 
 	if len(matches) == 0 {
-		return notFoundErrorFrom(a, request, "no matching write rule")
+		return notFoundErrorFrom(a, "set", request, "no matching write rule")
 	}
 
 	// sort less nested paths before more nested ones so that writes aren't overwritten
@@ -474,7 +458,7 @@ func (a *Aspect) Get(databag DataBag, request string) (map[string]interface{}, e
 	}
 
 	if merged == nil {
-		return nil, notFoundErrorFrom(a, request, "matching rules don't map to any values")
+		return nil, notFoundErrorFrom(a, "get", request, "matching rules don't map to any values")
 	}
 
 	// the top level maps the request to the remaining namespace
@@ -540,11 +524,15 @@ func (a *Aspect) matchGetRequest(request string) (matches []requestMatch, err er
 		}
 
 		if !accessPatt.isReadable() {
-			return nil, &InvalidAccessError{RequestedAccess: read, FieldAccess: accessPatt.access, Field: request}
+			continue
 		}
 
 		m := requestMatch{storagePath: path, suffixParts: restSuffix}
 		matches = append(matches, m)
+	}
+
+	if len(matches) == 0 {
+		return nil, notFoundErrorFrom(a, "get", request, "no matching read rule")
 	}
 
 	// sort matches by namespace (unmatched suffix) to ensure that nested matches
@@ -562,10 +550,6 @@ func (a *Aspect) matchGetRequest(request string) (matches []requestMatch, err er
 
 		return len(xNamespace) < len(yNamespace)
 	})
-
-	if len(matches) == 0 {
-		return nil, notFoundErrorFrom(a, request, "no matching read rule")
-	}
 
 	return matches, nil
 }

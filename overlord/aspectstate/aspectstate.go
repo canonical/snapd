@@ -43,6 +43,7 @@ func SetAspect(databag aspects.DataBag, account, bundleName, aspect, field strin
 			Account:    account,
 			BundleName: bundleName,
 			Aspect:     aspect,
+			Operation:  "set",
 			Request:    field,
 			Cause:      "aspect not found",
 		}
@@ -73,6 +74,7 @@ func GetAspect(databag aspects.DataBag, account, bundleName, aspect, field strin
 			Account:    account,
 			BundleName: bundleName,
 			Aspect:     aspect,
+			Operation:  "get",
 			Request:    field,
 			Cause:      "aspect not found",
 		}
