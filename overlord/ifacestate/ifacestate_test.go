@@ -2131,7 +2131,7 @@ func (s *interfaceManagerSuite) mockUpdatedSnap(c *C, yamlText string, revision 
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, snapInfo.InstanceName(), &snapst)
 	c.Assert(err, IsNil)
-	snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, sequence.NewRevisionSideInfo(sideInfo, nil))
+	snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, sequence.NewRevisionSideState(sideInfo, nil))
 	snapstate.Set(s.state, snapInfo.InstanceName(), &snapst)
 
 	return snapInfo

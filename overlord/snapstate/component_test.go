@@ -79,7 +79,7 @@ func (s *snapmgrTestSuite) TestComponentHelpers(c *C) {
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
-				sequence.NewRevisionSideInfo(ssi,
+				sequence.NewRevisionSideState(ssi,
 					[]*sequence.ComponentState{sequence.NewComponentState(csi2, snap.TestComponent), sequence.NewComponentState(csi, snap.TestComponent)})}),
 		Current: snapRev,
 	}
@@ -102,8 +102,8 @@ func (s *snapmgrTestSuite) TestComponentHelpers(c *C) {
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
-				sequence.NewRevisionSideInfo(ssi2, nil),
-				sequence.NewRevisionSideInfo(ssi, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)}),
+				sequence.NewRevisionSideState(ssi2, nil),
+				sequence.NewRevisionSideState(ssi, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)}),
 			}),
 		Current: snapRev2,
 	}
@@ -121,8 +121,8 @@ func (s *snapmgrTestSuite) TestComponentHelpers(c *C) {
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
-				sequence.NewRevisionSideInfo(ssi2, nil),
-				sequence.NewRevisionSideInfo(ssi, nil),
+				sequence.NewRevisionSideState(ssi2, nil),
+				sequence.NewRevisionSideState(ssi, nil),
 			}),
 		Current: snapRev2,
 	}

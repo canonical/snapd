@@ -343,7 +343,7 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 			var snapst snapstate.SnapState
 			snapstate.Get(st, snapsup.InstanceName(), &snapst)
 			snapst.Current = snapsup.Revision()
-			snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, sequence.NewRevisionSideInfo(snapsup.SideInfo, nil))
+			snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, sequence.NewRevisionSideState(snapsup.SideInfo, nil))
 			snapstate.Set(st, snapsup.InstanceName(), &snapst)
 
 			// check that prerequisites task is not done yet, it must wait for core.

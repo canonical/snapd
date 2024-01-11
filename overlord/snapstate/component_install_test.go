@@ -153,7 +153,7 @@ func setStateWithOneSnap(st *state.State, snapName string, snapRev snap.Revision
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
-				sequence.NewRevisionSideInfo(ssi, nil)}),
+				sequence.NewRevisionSideState(ssi, nil)}),
 		Current: snapRev,
 	})
 }
@@ -173,7 +173,7 @@ func setStateWithComponents(st *state.State, snapName string,
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
-				sequence.NewRevisionSideInfo(ssi, comps)}),
+				sequence.NewRevisionSideState(ssi, comps)}),
 		Current: snapRev,
 	})
 }
@@ -268,7 +268,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathForParallelInstall(c *C) {
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
-				sequence.NewRevisionSideInfo(ssi, nil)}),
+				sequence.NewRevisionSideState(ssi, nil)}),
 		Current:     snapRev,
 		InstanceKey: snapKey,
 	})
@@ -359,8 +359,8 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresentDiffSnapRe
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
-				sequence.NewRevisionSideInfo(ssi1, nil),
-				sequence.NewRevisionSideInfo(ssi2,
+				sequence.NewRevisionSideState(ssi1, nil),
+				sequence.NewRevisionSideState(ssi2,
 					[]*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)}),
 			}),
 		Current: snapRev1,
@@ -420,7 +420,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathSnapNotActive(c *C) {
 		Active: false,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
-				sequence.NewRevisionSideInfo(ssi,
+				sequence.NewRevisionSideState(ssi,
 					[]*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)})}),
 		Current: snapRev,
 	})

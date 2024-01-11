@@ -2003,7 +2003,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// find if the snap is already installed before we modify snapst below
 	isInstalled := snapst.IsInstalled()
 
-	cand := sequence.NewRevisionSideInfo(snapsup.SideInfo, nil)
+	cand := sequence.NewRevisionSideState(snapsup.SideInfo, nil)
 	m.backend.Candidate(cand.Snap)
 
 	oldCandidateIndex := snapst.LastIndex(cand.Snap.Revision)

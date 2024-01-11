@@ -613,10 +613,10 @@ func (s *snapmgrTestSuite) TestSequenceSerialize(c *C) {
 
 	// With components
 	snapst = &snapstate.SnapState{Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
-		sequence.NewRevisionSideInfo(si1, []*sequence.ComponentState{
+		sequence.NewRevisionSideState(si1, []*sequence.ComponentState{
 			sequence.NewComponentState(snap.NewComponentSideInfo(naming.NewComponentRef("mysnap", "mycomp"), snap.R(7)), snap.TestComponent),
 		}),
-		sequence.NewRevisionSideInfo(si2, []*sequence.ComponentState{
+		sequence.NewRevisionSideState(si2, []*sequence.ComponentState{
 			sequence.NewComponentState(snap.NewComponentSideInfo(naming.NewComponentRef("othersnap", "othercomp1"), snap.R(11)), snap.TestComponent),
 			sequence.NewComponentState(snap.NewComponentSideInfo(naming.NewComponentRef("othersnap", "othercomp2"), snap.R(14)), snap.TestComponent),
 		}),
@@ -1637,12 +1637,12 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Current, Equals, snap.R(2))
 	c.Assert(snapst.Sequence.Revisions, HasLen, 2)
-	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideState(&snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "",
 		Revision: snap.R(2),
 	}, nil))
-	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, sequence.NewRevisionSideState(&snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "",
 		Revision: snap.R(7),
@@ -1689,12 +1689,12 @@ func (s *snapmgrTestSuite) TestRevertRevisionNotBlocked(c *C) {
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Current, Equals, snap.R(2))
 	c.Assert(snapst.Sequence.Revisions, HasLen, 2)
-	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideState(&snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "",
 		Revision: snap.R(2),
 	}, nil))
-	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, sequence.NewRevisionSideState(&snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "",
 		Revision: snap.R(7),
@@ -1945,12 +1945,12 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 	c.Assert(snapst.Current, Equals, snap.R(2))
 	c.Assert(snapst.InstanceKey, Equals, "instance")
 	c.Assert(snapst.Sequence.Revisions, HasLen, 2)
-	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, sequence.NewRevisionSideState(&snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "",
 		Revision: snap.R(2),
 	}, nil))
-	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, sequence.NewRevisionSideInfo(&snap.SideInfo{
+	c.Assert(snapst.Sequence.Revisions[1], DeepEquals, sequence.NewRevisionSideState(&snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "",
 		Revision: snap.R(7),

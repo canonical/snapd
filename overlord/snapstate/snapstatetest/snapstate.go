@@ -27,7 +27,7 @@ import (
 func NewSequenceFromSnapSideInfos(snapSideInfo []*snap.SideInfo) sequence.SnapSequence {
 	revSis := make([]*sequence.RevisionSideState, len(snapSideInfo))
 	for i, si := range snapSideInfo {
-		revSis[i] = sequence.NewRevisionSideInfo(si, nil)
+		revSis[i] = sequence.NewRevisionSideState(si, nil)
 	}
 	return sequence.SnapSequence{Revisions: revSis}
 }

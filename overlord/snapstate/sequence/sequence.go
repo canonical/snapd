@@ -82,9 +82,9 @@ func (rss *RevisionSideState) FindComponent(cref naming.ComponentRef) *Component
 	return nil
 }
 
-// NewRevisionSideInfo creates a RevisionSideInfo from snap and
+// NewRevisionSideState creates a RevisionSideInfo from snap and
 // related components side information.
-func NewRevisionSideInfo(snapSideInfo *snap.SideInfo, compSideInfo []*ComponentState) *RevisionSideState {
+func NewRevisionSideState(snapSideInfo *snap.SideInfo, compSideInfo []*ComponentState) *RevisionSideState {
 	return &RevisionSideState{Snap: snapSideInfo, Components: compSideInfo}
 }
 
