@@ -386,3 +386,20 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedHintFileNotExist(c *C) {
 	c.Check(notInhibitedCalled, Equals, 1)
 	c.Check(inhibitedCalled, Equals, 0)
 }
+
+func (s *runInhibitSuite) TestWaitWhileInhibitedHintFileNotExistNilCallback(c *C) {
+	c.Assert(os.RemoveAll(runinhibit.HintFile("pkg")), IsNil)
+
+	inhibited := func(hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error) {
+		c.Error("this should never be called")
+		return false, nil
+	}
+
+	// check that we don't panic when notInhibited is nil
+	flock, err := runinhibit.WaitWhileInhibited("pkg", nil, inhibited, 1*time.Millisecond)
+	c.Assert(err, IsNil)
+	// hint file still does not exist
+	c.Check(runinhibit.HintFile("pkg"), testutil.FileAbsent)
+	// flock is nil because lock file does not exist
+	c.Check(flock, IsNil)
+}
