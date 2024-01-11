@@ -1684,7 +1684,7 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 
 	warnings, errs := tracker.Check()
 	for _, w := range warnings {
-		logger.Noticef("create recovery sytem prerequisites warning: %v", w)
+		logger.Noticef("create recovery system prerequisites warning: %v", w)
 	}
 
 	// TODO: use function from other branch
