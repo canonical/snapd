@@ -200,6 +200,53 @@ func (s *snapmgrTestSuite) TestInstallComponentPath(c *C) {
 	c.Assert(osutil.FileExists(compPath), Equals, true)
 }
 
+func (s *snapmgrTestSuite) TestInstallComponentPathWrongComponent(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	_, compPath := createTestComponent(c, snapName, compName)
+	// The snap does not declare "mycomp"
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, "other-comp")
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	setStateWithOneSnap(s.state, snapName, snapRev)
+
+	csi := snap.NewComponentSideInfo(naming.ComponentRef{
+		SnapName: snapName, ComponentName: compName}, snap.R(33))
+	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{})
+	c.Assert(ts, IsNil)
+	c.Assert(err.Error(), Equals, `"mycomp" is not a component for snap "mysnap"`)
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentPathWrongType(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	_, compPath := createTestComponent(c, snapName, compName)
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, "other-comp")
+	// The component in snap.yaml has type different to the one in component.yaml
+	// (we have to set it in this way as parsers check for allowed types).
+	info.Components[compName] = snap.Component{
+		Type: "random-comp-type",
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	setStateWithOneSnap(s.state, snapName, snapRev)
+
+	csi := snap.NewComponentSideInfo(naming.ComponentRef{
+		SnapName: snapName, ComponentName: compName}, snap.R(33))
+	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{})
+	c.Assert(ts, IsNil)
+	c.Assert(err.Error(), Equals,
+		`inconsistent component type ("random-comp-type" in snap, "test" in component)`)
+}
+
 func (s *snapmgrTestSuite) TestInstallComponentPathForParallelInstall(c *C) {
 	const snapName = "mysnap"
 	const compName = "mycomp"
