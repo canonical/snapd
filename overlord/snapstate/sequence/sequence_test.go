@@ -154,3 +154,52 @@ func (s *sequenceTestSuite) TestRemoveComponentForRevision(c *C) {
 	c.Assert(removed, DeepEquals, cs1)
 	c.Assert(seq.Revisions[0].Components, DeepEquals, []*sequence.ComponentState{cs2})
 }
+
+func (s *sequenceTestSuite) TestSequenceHelpers(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	const compName2 = "mycomp2"
+	snapRev := snap.R(1)
+	snapRev2 := snap.R(2)
+	compRev := snap.R(33)
+
+	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev, SnapID: "some-snap-id"}
+	ssi2 := &snap.SideInfo{RealName: snapName, Revision: snapRev2, SnapID: "some-snap-id"}
+	cref := naming.NewComponentRef(snapName, compName)
+	csi := snap.NewComponentSideInfo(cref, compRev)
+	cref2 := naming.NewComponentRef(snapName, compName2)
+	csi2 := snap.NewComponentSideInfo(cref2, compRev)
+
+	seq := snapstatetest.NewSequenceFromRevisionSideInfos(
+		[]*sequence.RevisionSideState{
+			sequence.NewRevisionSideState(ssi,
+				[]*sequence.ComponentState{sequence.NewComponentState(csi2, snap.TestComponent), sequence.NewComponentState(csi, snap.TestComponent)})})
+
+	c.Check(seq.IsComponentRevPresent(csi), Equals, true)
+	foundCsi := seq.ComponentSideInfoForRev(0, cref)
+	c.Check(foundCsi, DeepEquals, csi)
+	foundCsi2 := seq.ComponentSideInfoForRev(0, cref2)
+	c.Check(foundCsi2, DeepEquals, csi2)
+
+	seq = snapstatetest.NewSequenceFromRevisionSideInfos(
+		[]*sequence.RevisionSideState{
+			sequence.NewRevisionSideState(ssi2, nil),
+			sequence.NewRevisionSideState(ssi, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)}),
+		})
+
+	c.Check(seq.IsComponentRevPresent(csi), Equals, true)
+	c.Check(seq.ComponentSideInfoForRev(0, cref), IsNil)
+	c.Check(seq.ComponentSideInfoForRev(0, cref2), IsNil)
+	foundCsi = seq.ComponentSideInfoForRev(0, cref)
+	c.Check(foundCsi, IsNil)
+
+	seq = snapstatetest.NewSequenceFromRevisionSideInfos(
+		[]*sequence.RevisionSideState{
+			sequence.NewRevisionSideState(ssi2, nil),
+			sequence.NewRevisionSideState(ssi, nil),
+		})
+
+	c.Check(seq.IsComponentRevPresent(csi), Equals, false)
+	c.Check(seq.ComponentSideInfoForRev(0, cref), IsNil)
+	c.Check(seq.ComponentSideInfoForRev(1, cref2), IsNil)
+}

@@ -53,7 +53,7 @@ type RevisionSideState struct {
 type revisionSideInfoMarshal struct {
 	// SideInfo is included for compatibility with older snapd state files
 	*snap.SideInfo
-	CompSideInfo []*ComponentState `json:"components,omitempty"`
+	Components []*ComponentState `json:"components,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface
@@ -68,7 +68,7 @@ func (bsi *RevisionSideState) UnmarshalJSON(in []byte) error {
 		return err
 	}
 	bsi.Snap = aux.SideInfo
-	bsi.Components = aux.CompSideInfo
+	bsi.Components = aux.Components
 	return nil
 }
 
@@ -179,4 +179,29 @@ func (snapSeq *SnapSequence) RemoveComponentForRevision(snapRev snap.Revision, c
 	revSt.Components = leftComp
 	// might be nil
 	return unlinkedComp
+}
+
+// ComponentSideInfoForRev returns cref's component side info for the revision
+// (sequence point) indicated by revIdx if there is one.
+func (snapSeq *SnapSequence) ComponentSideInfoForRev(revIdx int, cref naming.ComponentRef) *snap.ComponentSideInfo {
+	for _, comp := range snapSeq.Revisions[revIdx].Components {
+		if comp.SideInfo.Component == cref {
+			return comp.SideInfo
+		}
+	}
+	// component not found
+	return nil
+}
+
+// IsComponentRevPresent tells us if a given component revision is
+// present in the system for this snap.
+func (snapSeq *SnapSequence) IsComponentRevPresent(compSi *snap.ComponentSideInfo) bool {
+	for _, rev := range snapSeq.Revisions {
+		for _, cs := range rev.Components {
+			if cs.SideInfo.Equal(compSi) {
+				return true
+			}
+		}
+	}
+	return false
 }
