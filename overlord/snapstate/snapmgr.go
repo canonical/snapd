@@ -347,13 +347,7 @@ func (snapst *SnapState) IsComponentInCurrentSeq(cref naming.ComponentRef) bool 
 	}
 
 	idx := snapst.LastIndex(snapst.Current)
-	for _, seqComp := range snapst.Sequence.Revisions[idx].Components {
-		if seqComp.SideInfo.Component == cref {
-			return true
-		}
-	}
-
-	return false
+	return snapst.Sequence.ComponentSideInfoForRev(idx, cref) != nil
 }
 
 // LocalRevision returns the "latest" local revision. Local revisions
@@ -387,13 +381,7 @@ func (snapst *SnapState) CurrentComponentSideInfo(cref naming.ComponentRef) *sna
 	}
 
 	if idx := snapst.LastIndex(snapst.Current); idx >= 0 {
-		for _, comp := range snapst.Sequence.Revisions[idx].Components {
-			if comp.SideInfo.Component == cref {
-				return comp.SideInfo
-			}
-		}
-		// component not found
-		return nil
+		return snapst.Sequence.ComponentSideInfoForRev(idx, cref)
 	}
 
 	// should not really happen as the method checks if the snap is installed
@@ -422,14 +410,7 @@ func (snapst *SnapState) LastIndex(revision snap.Revision) int {
 // IsComponentRevPresent tells us if a given component revision is
 // present in the system for this snap.
 func (snapst *SnapState) IsComponentRevPresent(compSi *snap.ComponentSideInfo) bool {
-	for _, rev := range snapst.Sequence.Revisions {
-		for _, cs := range rev.Components {
-			if cs.SideInfo.Equal(compSi) {
-				return true
-			}
-		}
-	}
-	return false
+	return snapst.Sequence.IsComponentRevPresent(compSi)
 }
 
 // Block returns revisions that should be blocked on refreshes,
