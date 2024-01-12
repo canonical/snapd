@@ -38,7 +38,6 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -167,7 +166,12 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 			path := setup.LocalSnapPaths[i]
 
 			// TODO: need to verify the snaps at some point?
-			info, _, err := backend.OpenSnapFile(path, si)
+			snapf, err := snapfile.Open(path)
+			if err != nil {
+				return nil, "", false, err
+			}
+
+			info, err := snap.ReadInfoFromSnapFile(snapf, si)
 			if err != nil {
 				return nil, "", false, err
 			}
