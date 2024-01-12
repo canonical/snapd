@@ -298,21 +298,8 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 			return fmt.Errorf("cannot promote recovery system %q: %v", label, err)
 		}
 
-		if setup.MarkCurrent {
-			if err := m.recordSeededSystem(st, &seededSystem{
-				System:    label,
-				Model:     model.Model(),
-				BrandID:   model.BrandID(),
-				Revision:  model.Revision(),
-				Timestamp: model.Timestamp(),
-				SeedTime:  time.Now(),
-			}); err != nil {
-				return fmt.Errorf("cannot record a new seeded system: %v", err)
-			}
-		}
-
-		if err := boot.MarkRecoveryCapableSystem(label); err != nil {
-			return fmt.Errorf("cannot mark system %q as recovery capable", label)
+		if err := recordSeededAndMarkRecoveryCapable(st, setup.MarkCurrent, m, model, label); err != nil {
+			return err
 		}
 
 		return nil
@@ -359,20 +346,9 @@ func (m *DeviceManager) undoCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) er
 	// if we were not planning on testing the system, then we need to undo
 	// marking the system as seeded and recovery capable
 	if !setup.TestSystem {
-		// TODO: should either of these errors go in undoErr?
-		model := remodelCtx.Model()
-		if err := m.deleteSeededSystem(st, &seededSystem{
-			System:    label,
-			Model:     model.Model(),
-			BrandID:   model.BrandID(),
-			Revision:  model.Revision(),
-			Timestamp: model.Timestamp(),
-		}); err != nil {
-			t.Logf("when deleting seeded system: %v", err)
-		}
-
-		if err := boot.UnmarkRecoveryCapableSystem(label); err != nil {
-			t.Logf("when unmarking system recovery capable: %v", err)
+		// TODO: should this error go in undoErr, rather than just being logged?
+		if err := deletedSeededSystemAndUnmarkRecoveryCapable(st, m, remodelCtx.Model(), label); err != nil {
+			t.Logf("when deleting and unmarking seeded system: %v", err)
 		}
 	}
 
@@ -450,21 +426,8 @@ func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tom
 
 		model := remodelCtx.Model()
 
-		if setup.MarkCurrent {
-			if err := m.recordSeededSystem(st, &seededSystem{
-				System:    label,
-				Model:     model.Model(),
-				BrandID:   model.BrandID(),
-				Revision:  model.Revision(),
-				Timestamp: model.Timestamp(),
-				SeedTime:  time.Now(),
-			}); err != nil {
-				return fmt.Errorf("cannot record a new seeded system: %v", err)
-			}
-		}
-
-		if err := boot.MarkRecoveryCapableSystem(label); err != nil {
-			return fmt.Errorf("cannot mark system %q as recovery capable", label)
+		if err := recordSeededAndMarkRecoveryCapable(st, setup.MarkCurrent, m, model, label); err != nil {
+			return err
 		}
 
 		// tried systems should be a one item list, we can clear it now
@@ -474,6 +437,26 @@ func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tom
 	// we are done
 	t.SetStatus(state.DoneStatus)
 
+	return nil
+}
+
+func recordSeededAndMarkRecoveryCapable(st *state.State, markCurrent bool, m *DeviceManager, model *asserts.Model, label string) error {
+	if markCurrent {
+		if err := m.recordSeededSystem(st, &seededSystem{
+			System:    label,
+			Model:     model.Model(),
+			BrandID:   model.BrandID(),
+			Revision:  model.Revision(),
+			Timestamp: model.Timestamp(),
+			SeedTime:  time.Now(),
+		}); err != nil {
+			return fmt.Errorf("cannot record a new seeded system: %v", err)
+		}
+	}
+
+	if err := boot.MarkRecoveryCapableSystem(label); err != nil {
+		return fmt.Errorf("cannot mark system %q as recovery capable", label)
+	}
 	return nil
 }
 
@@ -498,23 +481,31 @@ func (m *DeviceManager) undoFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.T
 	if !remodelCtx.ForRemodeling() {
 		model := remodelCtx.Model()
 
-		if err := m.deleteSeededSystem(st, &seededSystem{
-			System:    label,
-			Model:     model.Model(),
-			BrandID:   model.BrandID(),
-			Revision:  model.Revision(),
-			Timestamp: model.Timestamp(),
-		}); err != nil {
-			return fmt.Errorf("cannot delete seeded system: %v", err)
-		}
-
-		if err := boot.UnmarkRecoveryCapableSystem(label); err != nil {
-			t.Logf("when unmarking system recovery capable: %v", err)
+		if err := deletedSeededSystemAndUnmarkRecoveryCapable(st, m, model, label); err != nil {
+			return err
 		}
 	}
 
 	if err := boot.DropRecoverySystem(remodelCtx, label); err != nil {
 		return fmt.Errorf("cannot drop a good recovery system %q: %v", label, err)
+	}
+
+	return nil
+}
+
+func deletedSeededSystemAndUnmarkRecoveryCapable(st *state.State, m *DeviceManager, model *asserts.Model, label string) error {
+	if err := m.deleteSeededSystem(st, &seededSystem{
+		System:    label,
+		Model:     model.Model(),
+		BrandID:   model.BrandID(),
+		Revision:  model.Revision(),
+		Timestamp: model.Timestamp(),
+	}); err != nil {
+		return fmt.Errorf("cannot delete seeded system: %v", err)
+	}
+
+	if err := boot.UnmarkRecoveryCapableSystem(label); err != nil {
+		return fmt.Errorf("cannot unark system as recovery capable: %w", err)
 	}
 
 	return nil
