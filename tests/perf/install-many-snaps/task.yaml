@@ -1,0 +1,70 @@
+summary: Ensure the system handles properly a big number of different installed snaps
+
+details: |
+    Install different snaps many times based on arch availability.
+    This will help catch performance issues in snapd, AppArmor, etc.
+
+warn-timeout: 5m
+kill-timeout: 90m
+
+execute: |
+    if [ -z "$NUM_SNAPS" ]; then
+        NUM_SNAPS=100
+    fi
+
+    LETTERS="a b c d e f g h i j k l m n o p q r s t u v w x y z"
+    INSTALLED=0
+    CHANNEL='stable'
+
+    # shellcheck disable=SC2086
+    for letter in $LETTERS; do
+        if [ "$INSTALLED" = "$NUM_SNAPS" ]; then
+            echo "already $NUM_SNAPS installed, now check other features"
+            break
+        fi
+
+        snaps="$(snap find --narrow "$letter")"
+        SNAP_NAMES="$(echo "$snaps" | awk '{if($4~/-/){print $1}}' | tail -n+2)"
+        for SNAP in $SNAP_NAMES; do
+            # Get the info from latest/$CHANNEL
+            # shellcheck disable=SC2153
+            if ! CHANNEL_INFO="$(snap info --unicode=never "$SNAP" | grep " latest/$CHANNEL: ")"; then
+                echo "Snap $SNAP not found"
+                continue
+            fi
+            PARAMS=""
+            if echo "$CHANNEL_INFO" | MATCH "$CHANNEL:.*-$"; then
+                snap install "$SNAP" "--$CHANNEL"
+            elif echo "$CHANNEL_INFO" | MATCH "$CHANNEL:.*classic$"; then
+                if "$TESTSTOOLS"/snaps-state is-confinement-supported classic; then
+                    PARAMS="--classic"
+                else
+                    echo "The snap $SNAP requires classic confinement which is not supported yet"
+                    continue
+                fi
+            elif echo "$CHANNEL_INFO" | MATCH "$CHANNEL:.*jailmode$"; then
+                PARAMS="--jailmode"
+            elif echo "$CHANNEL_INFO" | MATCH "$CHANNEL:.*devmode$"; then
+                PARAMS="--devmode"
+            else
+                echo "Channel info not proccessed correctly: $CHANNEL_INFO"
+                continue
+            fi
+            
+            if snap install "$SNAP" --$CHANNEL $PARAMS 2> stderr.out; then
+                INSTALLED=$(( INSTALLED + 1 ))
+            else 
+                # this could cause the failure https://bugs.launchpad.net/snapstore-server/+bug/2049071
+                MATCH "error: snap \"$SNAP\" not found' < stderr.out
+            fi
+
+            if [ "$INSTALLED" = "$NUM_SNAPS" ]; then
+                echo "already $NUM_SNAPS installed, now check other features"
+                break
+            fi
+        done        
+    done
+
+    snap refresh
+    snap services
+    snap list
