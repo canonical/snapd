@@ -121,7 +121,7 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) (err error) 
 	// component types (see checkSnap and checkSnapCallbacks slice)
 
 	csi := compSetup.CompSideInfo
-	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
+	cpi := snap.MinimalComponentContainerPlaceInfo(compSetup.ComponentName(),
 		csi.Revision, snapsup.InstanceName(), snapsup.Revision())
 
 	defer func() {
@@ -228,7 +228,7 @@ func (m *SnapManager) undoMountComponent(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	csi := compSetup.CompSideInfo
-	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
+	cpi := snap.MinimalComponentContainerPlaceInfo(compSetup.ComponentName(),
 		csi.Revision, snapsup.InstanceName(), snapsup.Revision())
 
 	pm := NewTaskProgressAdapterUnlocked(t)
@@ -278,7 +278,7 @@ func (m *SnapManager) doLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 	if snapSt.LastCompRefreshTime == nil {
 		snapSt.LastCompRefreshTime = make(map[string]time.Time)
 	}
-	snapSt.LastCompRefreshTime[compSetup.CompSideInfo.Component.ComponentName] = timeNow()
+	snapSt.LastCompRefreshTime[compSetup.ComponentName()] = timeNow()
 
 	// Finally, write the state
 	Set(st, snapsup.InstanceName(), snapSt)
