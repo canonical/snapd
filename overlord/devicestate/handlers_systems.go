@@ -291,9 +291,15 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 		return fmt.Errorf("cannot record recovery system setup state: %v", err)
 	}
 
-	// if the caller did not request to test the system, then we immediately
-	// promote the system and mark it as ready to use
-	if !setup.TestSystem {
+	// during a remodel, we will always test the system. this handles the case
+	// that the task was created prior to a snapd update, so setup.TestSystem
+	// may have defaulted to false
+	skipSystemTest := !setup.TestSystem && !remodelCtx.ForRemodeling()
+
+	// if we do not need to test the system (testing not requested and task is
+	// not part of a remodel), then we immediately promote the system and mark
+	// it as ready to use
+	if skipSystemTest {
 		if err := boot.PromoteTriedRecoverySystem(remodelCtx, label, []string{label}); err != nil {
 			return fmt.Errorf("cannot promote recovery system %q: %v", label, err)
 		}
@@ -343,9 +349,11 @@ func (m *DeviceManager) undoCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) er
 
 	var undoErr error
 
-	// if we were not planning on testing the system, then we need to undo
+	skipSystemTest := !setup.TestSystem && !remodelCtx.ForRemodeling()
+
+	// if we were not planning on testing the system , then we need to undo
 	// marking the system as seeded and recovery capable
-	if !setup.TestSystem {
+	if skipSystemTest {
 		// TODO: should this error go in undoErr, rather than just being logged?
 		if err := deletedSeededSystemAndUnmarkRecoveryCapable(st, m, remodelCtx.Model(), label); err != nil {
 			t.Logf("when deleting and unmarking seeded system: %v", err)
@@ -519,12 +527,6 @@ func (m *DeviceManager) cleanupRecoverySystem(t *state.Task, _ *tomb.Tomb) error
 	setup, err := taskRecoverySystemSetup(t)
 	if err != nil {
 		return err
-	}
-
-	// if we're testing the system and this is run after create-recovery-system,
-	// then we can defer running cleanup until after finalize-recovery-system
-	if setup.TestSystem && t.Kind() == "create-recovery-system" {
-		return nil
 	}
 
 	if err := os.Remove(filepath.Join(setup.Directory, "snapd-new-file-log")); err != nil && !os.IsNotExist(err) {
