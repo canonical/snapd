@@ -1159,7 +1159,7 @@ func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
 
-	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFile("foo", "Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -1222,7 +1222,7 @@ WantedBy=multi-user.target
 	err = os.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFile("foo", "Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 
 	// Should still be the same file
@@ -1282,7 +1282,7 @@ WantedBy=multi-user.target
 	err = os.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFile("foo", "Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 
 	// Should still be the same file
@@ -1319,7 +1319,7 @@ func (s *SystemdTestSuite) TestAddMountUnitForDirs(c *C) {
 
 	// a directory instead of a file produces a different output
 	snapDir := c.MkDir()
-	mountUnitName, err := New(SystemMode, nil).EnsureMountUnitFile("foodir", "Mount unit for foodir, revision x1", snapDir, "/snap/snapname/x1", "squashfs")
+	mountUnitName, err := New(SystemMode, nil).EnsureMountUnitFile("Mount unit for foodir, revision x1", snapDir, "/snap/snapname/x1", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -1360,7 +1360,6 @@ func (s *SystemdTestSuite) TestAddMountUnitTransient(c *C) {
 
 	addMountUnitOptions := &MountUnitOptions{
 		Lifetime:    Transient,
-		SnapName:    "foo",
 		Description: "Mount unit for foo via bar",
 		What:        mockSnapPath,
 		Where:       "/snap/snapname/345",
@@ -1413,7 +1412,7 @@ func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 	err = os.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := New(SystemMode, nil).EnsureMountUnitFile("foo", "Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	mountUnitName, err := New(SystemMode, nil).EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -1459,7 +1458,7 @@ exit 0
 	err = os.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := New(SystemMode, nil).EnsureMountUnitFile("foo", "Mount unit for foo, revision x1", mockSnapPath, "/snap/snapname/123", "squashfs")
+	mountUnitName, err := New(SystemMode, nil).EnsureMountUnitFile("Mount unit for foo, revision x1", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -1501,7 +1500,7 @@ exit 0
 	err = os.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := New(SystemMode, nil).EnsureMountUnitFile("foo", "Mount unit for foo, revision x1", mockSnapPath, "/snap/snapname/123", "squashfs")
+	mountUnitName, err := New(SystemMode, nil).EnsureMountUnitFile("Mount unit for foo, revision x1", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -1682,7 +1681,7 @@ func (s *SystemdTestSuite) testDaemonOpWithMutex(c *C, testFunc func(Systemd) er
 	// daemon-reload. This will be serialized, if not this would
 	// panic because systemd.daemonReloadNoLock ensures the lock is
 	// taken when this happens.
-	_, err := sysd.EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/foo/42", "squashfs")
+	_, err := sysd.EnsureMountUnitFile("42", mockSnapPath, "/snap/foo/42", "squashfs")
 	c.Assert(err, IsNil)
 	close(stopCh)
 	<-stoppedCh
@@ -1802,7 +1801,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
 
-	mountUnitName, err := sysd.EnsureMountUnitFile("foo", "Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	mountUnitName, err := sysd.EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -1847,7 +1846,7 @@ WantedBy=multi-user.target
 	err = os.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
 	c.Assert(err, IsNil)
 
-	_, err = sysd.EnsureMountUnitFile("foo", "Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	_, err = sysd.EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 
 	// systemd was not called
@@ -1892,7 +1891,7 @@ WantedBy=multi-user.target
 	err = os.WriteFile(filepath.Join(dirs.SnapServicesDir, "snap-snapname-123.mount"), []byte(content), 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := sysd.EnsureMountUnitFile("foo", "Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	mountUnitName, err := sysd.EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", dirs.GlobalRootDir, "enable", "snap-snapname-123.mount"}})
@@ -1913,7 +1912,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
 
-	mountUnitName, err := sysd.EnsureMountUnitFile("foo", "Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	mountUnitName, err := sysd.EnsureMountUnitFile("Mount unit for foo, revision 42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -1933,7 +1932,7 @@ func (s *SystemdTestSuite) TestPreseedModeMountError(c *C) {
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
 
-	_, err := sysd.EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	_, err := sysd.EnsureMountUnitFile("42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, ErrorMatches, `cannot mount .*/var/lib/snappy/snaps/foo_1.0.snap \(squashfs\) at /snap/snapname/123 in preseed mode: exit status 1; some failure\n`)
 }
 
@@ -1999,7 +1998,7 @@ func (s *SystemdTestSuite) TestPreseedModeBindmountNotSupported(c *C) {
 
 	mockSnapPath := c.MkDir()
 
-	_, err := sysd.EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "")
+	_, err := sysd.EnsureMountUnitFile("42", mockSnapPath, "/snap/snapname/123", "")
 	c.Assert(err, ErrorMatches, `bind-mounted directory is not supported in emulation mode`)
 }
 
@@ -2428,6 +2427,6 @@ func (s *systemdErrorSuite) TestEnsureMountUnitFileEnsureFileStateErr(c *C) {
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap-snapname-123.mount"), 0755)
 	c.Assert(err, IsNil)
 
-	_, err = New(SystemMode, nil).EnsureMountUnitFile("foo", "42", mockSnapPath, "/snap/snapname/123", "squashfs")
+	_, err = New(SystemMode, nil).EnsureMountUnitFile("42", mockSnapPath, "/snap/snapname/123", "squashfs")
 	c.Assert(err, ErrorMatches, fmt.Sprintf("internal error: only regular files are supported, got %q instead", os.ModeDir))
 }

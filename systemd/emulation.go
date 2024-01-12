@@ -124,7 +124,7 @@ func (s *emulation) LogReader(services []string, n int, follow, namespaces bool)
 	return nil, fmt.Errorf("LogReader")
 }
 
-func (s *emulation) EnsureMountUnitFile(snapName, description, what, where, fstype string) (string, error) {
+func (s *emulation) EnsureMountUnitFile(description, what, where, fstype string) (string, error) {
 	if osutil.IsDirectory(what) {
 		return "", fmt.Errorf("bind-mounted directory is not supported in emulation mode")
 	}
@@ -136,7 +136,6 @@ func (s *emulation) EnsureMountUnitFile(snapName, description, what, where, fsty
 	mountUnitOptions := append(fsMountOptions(fstype), squashfs.StandardOptions()...)
 	mountUnitName, modified, err := ensureMountUnitFile(&MountUnitOptions{
 		Lifetime:    Persistent,
-		SnapName:    snapName,
 		Description: description,
 		What:        what,
 		Where:       where,

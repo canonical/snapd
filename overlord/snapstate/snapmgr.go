@@ -1240,7 +1240,7 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			}
 			squashfsPath := dirs.StripRootDir(info.MountFile())
 			whereDir := dirs.StripRootDir(info.MountDir())
-			if _, err = sysd.EnsureMountUnitFile(info.InstanceName(), info.MountDescription(), squashfsPath, whereDir, "squashfs"); err != nil {
+			if _, err = sysd.EnsureMountUnitFile(info.MountDescription(), squashfsPath, whereDir, "squashfs"); err != nil {
 				return err
 			}
 		}

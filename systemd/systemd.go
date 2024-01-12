@@ -304,7 +304,6 @@ func MockJournalctl(f func(svcs []string, n int, follow, namespaces bool) (io.Re
 type MountUnitOptions struct {
 	// Whether the unit is transient or persistent across reboots
 	Lifetime    UnitLifetime
-	SnapName    string
 	Description string
 	What        string
 	Where       string
@@ -387,7 +386,7 @@ type Systemd interface {
 	// logs, and is required to get logs for services which are in journal namespaces.
 	LogReader(services []string, n int, follow, namespaces bool) (io.ReadCloser, error)
 	// EnsureMountUnitFile adds/enables/starts a mount unit.
-	EnsureMountUnitFile(name, description, what, where, fstype string) (string, error)
+	EnsureMountUnitFile(description, what, where, fstype string) (string, error)
 	// EnsureMountUnitFileWithOptions adds/enables/starts a mount unit with options.
 	EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
@@ -1459,7 +1458,7 @@ func hostFsTypeAndMountOptions(fstype string) (hostFsType string, options []stri
 	return hostFsType, options
 }
 
-func (s *systemd) EnsureMountUnitFile(snapName, description, what, where, fstype string) (string, error) {
+func (s *systemd) EnsureMountUnitFile(description, what, where, fstype string) (string, error) {
 	hostFsType, options := hostFsTypeAndMountOptions(fstype)
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
@@ -1467,7 +1466,6 @@ func (s *systemd) EnsureMountUnitFile(snapName, description, what, where, fstype
 	}
 	return s.EnsureMountUnitFileWithOptions(&MountUnitOptions{
 		Lifetime:    Persistent,
-		SnapName:    snapName,
 		Description: description,
 		What:        what,
 		Where:       where,
