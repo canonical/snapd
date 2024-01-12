@@ -34,7 +34,7 @@ import (
 )
 
 type ParamsForEnsureMountUnitFile struct {
-	name, description, what, where, fstype string
+	description, what, where, fstype string
 }
 
 type ResultForEnsureMountUnitFile struct {
@@ -55,9 +55,9 @@ type FakeSystemd struct {
 	ListMountUnitsResult ResultForListMountUnits
 }
 
-func (s *FakeSystemd) EnsureMountUnitFile(name, description, what, where, fstype string) (string, error) {
+func (s *FakeSystemd) EnsureMountUnitFile(description, what, where, fstype string) (string, error) {
 	s.EnsureMountUnitFileCalls = append(s.EnsureMountUnitFileCalls,
-		ParamsForEnsureMountUnitFile{name, description, what, where, fstype})
+		ParamsForEnsureMountUnitFile{description, what, where, fstype})
 	return s.EnsureMountUnitFileResult.path, s.EnsureMountUnitFileResult.err
 }
 
@@ -119,7 +119,6 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 
 	// ensure correct parameters
 	expectedParameters := ParamsForEnsureMountUnitFile{
-		name:        "foo",
 		description: "Mount unit for foo, revision 13",
 		what:        "/var/lib/snapd/snaps/foo_13.snap",
 		where:       fmt.Sprintf("%s/foo/13", dirs.StripRootDir(dirs.SnapMountDir)),

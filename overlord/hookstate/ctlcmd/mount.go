@@ -189,7 +189,6 @@ func (m *mountCommand) ensureMount(sysd systemd.Systemd) (string, error) {
 	}
 	unitName, err := sysd.EnsureMountUnitFileWithOptions(&systemd.MountUnitOptions{
 		Lifetime:    lifetime,
-		SnapName:    snapName,
 		Description: fmt.Sprintf("Mount unit for %s, revision %s via mount-control", snapName, revision),
 		What:        m.Positional.What,
 		Where:       m.Positional.Where,

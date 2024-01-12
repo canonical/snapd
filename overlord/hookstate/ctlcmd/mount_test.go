@@ -282,7 +282,6 @@ func (s *mountSuite) TestUnitCreationFailure(c *C) {
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
 			Lifetime:    systemd.Transient,
-			SnapName:    "snap1",
 			Description: "Mount unit for snap1, revision 1 via mount-control",
 			What:        "/src",
 			Where:       "/dest",
@@ -302,7 +301,6 @@ func (s *mountSuite) TestHappy(c *C) {
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
 			Lifetime:    systemd.Persistent,
-			SnapName:    "snap1",
 			Description: "Mount unit for snap1, revision 1 via mount-control",
 			What:        "/src",
 			Where:       "/dest",
@@ -326,7 +324,6 @@ func (s *mountSuite) TestHappyWithVariableExpansion(c *C) {
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
 			Lifetime:    systemd.Transient,
-			SnapName:    "snap1",
 			Description: "Mount unit for snap1, revision 1 via mount-control",
 			What:        "/media/me/data",
 			Where:       where,
@@ -347,7 +344,6 @@ func (s *mountSuite) TestHappyWithCommasInPath(c *C) {
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
 			Lifetime:    systemd.Transient,
-			SnapName:    "snap1",
 			Description: "Mount unit for snap1, revision 1 via mount-control",
 			What:        "/dev/dma_heap/qcom,qseecom",
 			Where:       "/dest,with,commas",
@@ -367,7 +363,6 @@ func (s *mountSuite) TestEnsureMountUnitFailed(c *C) {
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
 			Lifetime:    systemd.Persistent,
-			SnapName:    "snap1",
 			Description: "Mount unit for snap1, revision 1 via mount-control",
 			What:        "/src",
 			Where:       "/dest",
@@ -391,7 +386,6 @@ func (s *mountSuite) TestEnsureMountUnitFailedRemoveFailed(c *C) {
 	c.Check(s.sysd.EnsureMountUnitFileWithOptionsCalls, DeepEquals, []*systemd.MountUnitOptions{
 		{
 			Lifetime:    systemd.Persistent,
-			SnapName:    "snap1",
 			Description: "Mount unit for snap1, revision 1 via mount-control",
 			What:        "/src",
 			Where:       "/dest",
