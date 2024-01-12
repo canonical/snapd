@@ -9606,6 +9606,16 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 }
 
 func (s *mgrsSuiteCore) TestRemodelUC20ToUC22(c *C) {
+	const mockSnapdRefresh = false
+	s.testRemodelUC20ToUC22(c, mockSnapdRefresh)
+}
+
+func (s *mgrsSuiteCore) TestRemodelUC20ToUC22MockSnapdRefresh(c *C) {
+	const mockSnapdRefresh = true
+	s.testRemodelUC20ToUC22(c, mockSnapdRefresh)
+}
+
+func (s *mgrsSuiteCore) testRemodelUC20ToUC22(c *C, mockSnapdRefresh bool) {
 	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
 	restore := kcmdline.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
 	defer restore()
@@ -9701,6 +9711,15 @@ func (s *mgrsSuiteCore) TestRemodelUC20ToUC22(c *C) {
 	chg, err := devicestate.Remodel(st, newModel, nil, nil, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 	dumpTasks(c, "at the beginning", chg.Tasks())
+
+	if mockSnapdRefresh {
+		// on a snapd refresh, we might upgrade from a snapd that didn't set
+		// "test-system" on "recovery-system-setup". in that case, we should
+		// test to make sure that we still test the recovery system due to this
+		// being a remodel.
+		err := mockTestSystemDefaultToFalse(chg)
+		c.Assert(err, IsNil)
+	}
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -9887,6 +9906,26 @@ func (s *mgrsSuiteCore) TestRemodelUC20ToUC22(c *C) {
 		"1234", expectedLabel,
 	})
 	c.Check(m.Base, Equals, "core22_1.snap")
+}
+
+func mockTestSystemDefaultToFalse(chg *state.Change) error {
+	for _, t := range chg.Tasks() {
+		if t.Kind() != "create-recovery-system" {
+			continue
+		}
+
+		var setup map[string]interface{}
+		if err := t.Get("recovery-system-setup", &setup); err != nil {
+			return err
+		}
+
+		setup["test-system"] = false
+		t.Set("recovery-system-setup", setup)
+
+		return nil
+	}
+
+	return errors.New("no create-recovery-system task found")
 }
 
 func (s *mgrsSuiteCore) TestInstallKernelSnapRollbackUpdatesBootloaderEnv(c *C) {
