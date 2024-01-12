@@ -204,6 +204,11 @@ func NewComponentSetup(csi *snap.ComponentSideInfo, compType snap.ComponentType,
 	}
 }
 
+// ComponentName returns the component name for compsu.
+func (compsu *ComponentSetup) ComponentName() string {
+	return compsu.CompSideInfo.Component.ComponentName
+}
+
 func (compsu *ComponentSetup) Revision() snap.Revision {
 	return compsu.CompSideInfo.Revision
 }
