@@ -1669,6 +1669,9 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		}
 
 		const userID = 0
+		// TODO: this respects the passed in validation sets, but does not
+		// currently respect refresh-control style of constraining snap
+		// revisions.
 		ts, info, err := snapstateDownload(context.TODO(), st, sn.Name, dirs.SnapBlobDir, &snapstate.RevisionOptions{
 			Channel:        sn.DefaultChannel,
 			Revision:       rev,
