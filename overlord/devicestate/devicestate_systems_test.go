@@ -3618,6 +3618,116 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	c.Assert(err, ErrorMatches, `snap "pc" does not match revision required by validation sets: 100 != 10`)
 }
 
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissingSnapIDFromModel(c *C) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core20",
+		"revision":     "10",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.ss.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "core20",
+				"id":   s.ss.AssertedSnapID("core20"),
+				"type": "base",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   s.ss.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+		},
+	})
+
+	snapRevisions := map[string]snap.Revision{
+		"pc":        snap.R(100),
+		"pc-kernel": snap.R(11),
+		"core20":    snap.R(12),
+		"snapd":     snap.R(13),
+	}
+
+	snapTypes := map[string]snap.Type{
+		"pc":        snap.TypeGadget,
+		"pc-kernel": snap.TypeKernel,
+		"core20":    snap.TypeBase,
+		"snapd":     snap.TypeSnapd,
+	}
+
+	localSideInfos := make([]*snap.SideInfo, 0, len(snapRevisions))
+	localPaths := make([]string, 0, len(snapRevisions))
+	for name, rev := range snapRevisions {
+		si, path := createLocalSnap(c, name, fakeSnapID(name), rev.N, string(snapTypes[name]), "", nil)
+
+		localSideInfos = append(localSideInfos, si)
+		localPaths = append(localPaths, path)
+	}
+
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	_, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+		LocalSnapPaths:     localPaths,
+		LocalSnapSideInfos: localSideInfos,
+	})
+	c.Assert(err, ErrorMatches, `cannot create recovery system from model with snap that has no id: "pc"`)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissingSnapID(c *C) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapRevisions := map[string]snap.Revision{
+		"pc":        snap.R(100),
+		"pc-kernel": snap.R(11),
+		"core20":    snap.R(12),
+		"snapd":     snap.R(13),
+	}
+
+	snapTypes := map[string]snap.Type{
+		"pc":        snap.TypeGadget,
+		"pc-kernel": snap.TypeKernel,
+		"core20":    snap.TypeBase,
+		"snapd":     snap.TypeSnapd,
+	}
+
+	localSideInfos := make([]*snap.SideInfo, 0, len(snapRevisions))
+	localPaths := make([]string, 0, len(snapRevisions))
+	for name, rev := range snapRevisions {
+		si, path := createLocalSnap(c, name, fakeSnapID(name), rev.N, string(snapTypes[name]), "", nil)
+
+		if name == "pc" {
+			si.SnapID = ""
+		}
+
+		localSideInfos = append(localSideInfos, si)
+		localPaths = append(localPaths, path)
+	}
+
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	_, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+		LocalSnapPaths:     localPaths,
+		LocalSnapSideInfos: localSideInfos,
+	})
+	c.Assert(err, ErrorMatches, `cannot create recovery system from provided snap that has no id: "pc"`)
+}
+
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsOfflineMissingSnap(c *C) {
 	devicestate.SetBootOkRan(s.mgr, true)
 

@@ -1623,6 +1623,13 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		return nil, err
 	}
 
+	// TODO: this restriction should be lifted eventually (in the case that we
+	// have a dangerous model), and we should fall back to using snap names in
+	// places that IDs are used
+	if err := checkForSnapIDs(model, opts.LocalSnapSideInfos); err != nil {
+		return nil, err
+	}
+
 	// check that all snaps from the model are valid in the validation sets
 	if err := checkModelSnapsCanBePresentInValidationSets(model, valsets); err != nil {
 		return nil, err
@@ -1720,6 +1727,22 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 	}
 
 	return chg, nil
+}
+
+func checkForSnapIDs(model *asserts.Model, localSideInfos []*snap.SideInfo) error {
+	for _, sn := range model.AllSnaps() {
+		if sn.ID() == "" {
+			return fmt.Errorf("cannot create recovery system from model with snap that has no id: %q", sn.Name)
+		}
+	}
+
+	for _, sn := range localSideInfos {
+		if sn.SnapID == "" {
+			return fmt.Errorf("cannot create recovery system from provided snap that has no id: %q", sn.RealName)
+		}
+	}
+
+	return nil
 }
 
 func offlineSnapInfo(sn *asserts.ModelSnap, rev snap.Revision, opts CreateRecoverySystemOptions) (*snap.Info, error) {
