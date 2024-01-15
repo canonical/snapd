@@ -36,6 +36,10 @@ type Notice struct {
 	// change in future. If your code relies on it being a number, it will break.
 	id string
 
+	// The UID of the user who may view this notice (often its creator).
+	// A nil userID means that the notice is public (viewable by all users).
+	userID *uint32
+
 	// The notice type represents a group of notices originating from a common
 	// source. For example, notices which provide human-readable warnings have
 	// the type "warning".
@@ -81,7 +85,26 @@ type Notice struct {
 }
 
 func (n *Notice) String() string {
-	return fmt.Sprintf("Notice %s (%s:%s)", n.id, n.noticeType, n.key)
+	userIDStr := "public"
+	if n.userID != nil {
+		userIDStr = strconv.FormatUint(uint64(*n.userID), 10)
+	}
+	return fmt.Sprintf("Notice %s (%s:%s:%s)", n.id, userIDStr, n.noticeType, n.key)
+}
+
+// UserID returns the value of the notice's user ID and whether it is set.
+// If it is nil, then the returned userID is 0, and isSet is false.
+func (n *Notice) UserID() (userID uint32, isSet bool) {
+	// Importantly, doesn't expose the address of the notice's user ID, so the
+	// caller cannot mutate the value.
+	return flattenUserID(n.userID)
+}
+
+func flattenUserID(userID *uint32) (uid uint32, isSet bool) {
+	if userID == nil {
+		return 0, false
+	}
+	return *userID, true
 }
 
 // expired reports whether this notice has expired (relative to the given "now").
@@ -94,6 +117,7 @@ func (n *Notice) expired(now time.Time) bool {
 // to disk as JSON.
 type jsonNotice struct {
 	ID            string            `json:"id"`
+	UserID        *uint32           `json:"user-id"`
 	Type          string            `json:"type"`
 	Key           string            `json:"key"`
 	FirstOccurred time.Time         `json:"first-occurred"`
@@ -108,6 +132,7 @@ type jsonNotice struct {
 func (n *Notice) MarshalJSON() ([]byte, error) {
 	jn := jsonNotice{
 		ID:            n.id,
+		UserID:        n.userID,
 		Type:          string(n.noticeType),
 		Key:           n.key,
 		FirstOccurred: n.firstOccurred,
@@ -132,6 +157,7 @@ func (n *Notice) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	n.id = jn.ID
+	n.userID = jn.UserID
 	n.noticeType = NoticeType(jn.Type)
 	n.key = jn.Key
 	n.firstOccurred = jn.FirstOccurred
@@ -189,7 +215,7 @@ type AddNoticeOptions struct {
 
 // AddNotice records an occurrence of a notice with the specified type and key
 // and options.
-func (s *State) AddNotice(noticeType NoticeType, key string, options *AddNoticeOptions) (string, error) {
+func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, options *AddNoticeOptions) (string, error) {
 	if options == nil {
 		options = &AddNoticeOptions{}
 	}
@@ -206,13 +232,15 @@ func (s *State) AddNotice(noticeType NoticeType, key string, options *AddNoticeO
 	}
 	now = now.UTC()
 	newOrRepeated := false
-	uniqueKey := noticeKey{noticeType, key}
+	uid, hasUserID := flattenUserID(userID)
+	uniqueKey := noticeKey{hasUserID, uid, noticeType, key}
 	notice, ok := s.notices[uniqueKey]
 	if !ok {
-		// First occurrence of this notice type+key
+		// First occurrence of this notice userID+type+key
 		s.lastNoticeId++
 		notice = &Notice{
 			id:            strconv.Itoa(s.lastNoticeId),
+			userID:        userID,
 			noticeType:    noticeType,
 			key:           key,
 			firstOccurred: now,
@@ -253,12 +281,17 @@ func validateNotice(noticeType NoticeType, key string, options *AddNoticeOptions
 }
 
 type noticeKey struct {
+	hasUserID  bool
+	userID     uint32
 	noticeType NoticeType
 	key        string
 }
 
 // NoticeFilter allows filtering notices by various fields.
 type NoticeFilter struct {
+	// UserID, if set, includes only notices that have this user ID or are public.
+	UserID *uint32
+
 	// Types, if not empty, includes only notices whose type is one of these.
 	Types []NoticeType
 
@@ -273,6 +306,9 @@ type NoticeFilter struct {
 func (f *NoticeFilter) matches(n *Notice) bool {
 	if f == nil {
 		return true
+	}
+	if f.UserID != nil && !(n.userID == nil || *f.UserID == *n.userID) {
+		return false
 	}
 	// Can't use strutil.ListContains as Types is []NoticeType, not []string
 	if len(f.Types) > 0 && !sliceContains(f.Types, n.noticeType) {
@@ -342,7 +378,8 @@ func (s *State) unflattenNotices(flat []*Notice) {
 		if n.expired(now) {
 			continue
 		}
-		uniqueKey := noticeKey{n.noticeType, n.key}
+		userID, hasUserID := n.UserID()
+		uniqueKey := noticeKey{hasUserID, userID, n.noticeType, n.key}
 		s.notices[uniqueKey] = n
 	}
 }

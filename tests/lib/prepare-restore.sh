@@ -86,9 +86,13 @@ build_deb(){
 build_rpm() {
     distro=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[1]}')
     release=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[2]}')
-    if os.query is-amazon-linux; then
+    if os.query is-amazon-linux 2; then
         distro=amzn
         release=2
+    fi
+    if os.query is-amazon-linux 2023; then
+        distro=amzn
+        release=2023
     fi
     arch=x86_64
     base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
@@ -97,11 +101,11 @@ build_rpm() {
     rpm_dir=$(rpm --eval "%_topdir")
     pack_args=
     case "$SPREAD_SYSTEM" in
-        fedora-*|amazon-*|centos-*)
-            ;;
         opensuse-*)
             # use bundled snapd*.vendor.tar.xz archive
             pack_args=-s
+            ;;
+        fedora-*|amazon-*|centos-*)
             ;;
         *)
             echo "ERROR: RPM build for system $SPREAD_SYSTEM is not yet supported"
@@ -535,7 +539,7 @@ prepare_project() {
 
     # Retry go mod vendor to minimize the number of connection errors during the sync
     for _ in $(seq 10); do
-        if quiet go mod vendor; then
+        if go mod vendor; then
             break
         fi
         sleep 1

@@ -152,6 +152,10 @@ slots:
 		serverYaml := strings.ReplaceAll(serverYamlTmpl, "##QCIPC##", tc.tag)
 		s.slot, s.slotInfo = MockConnectedSlot(c, serverYaml, nil, "qc-router")
 
+		r := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+		defer r()
+		r = apparmor_sandbox.MockFeatures(nil, nil, []string{"qipcrtr-socket"}, nil)
+		defer r()
 		err := interfaces.BeforePrepareSlot(s.iface, s.slotInfo)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
@@ -188,6 +192,10 @@ slots:
 		serverYaml := strings.ReplaceAll(serverYamlTmpl, "##ADDRESS##", tc.addr)
 		s.slot, s.slotInfo = MockConnectedSlot(c, serverYaml, nil, "qc-router")
 
+		r := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+		defer r()
+		r = apparmor_sandbox.MockFeatures(nil, nil, []string{"qipcrtr-socket"}, nil)
+		defer r()
 		err := interfaces.BeforePrepareSlot(s.iface, s.slotInfo)
 		if tc.err == "" {
 			c.Assert(err, IsNil)

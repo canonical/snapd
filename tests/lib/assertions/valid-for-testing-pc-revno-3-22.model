@@ -1,8 +1,8 @@
 type: model
-authority-id: BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz
+authority-id: test-snapd
 revision: 3
 series: 16
-brand-id: BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz
+brand-id: test-snapd
 model: my-model
 architecture: amd64
 base: core22
@@ -30,16 +30,16 @@ snaps:
     id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
     name: snapd
     type: snapd
-timestamp: 2022-04-25T01:00:00+00:00
-sign-key-sha3-384: V414fsCB9X2YOxd9aESpCOq4u9yZufjjIA2pCqPVeX_w-f_g_Dc0KF9GwxfwgpMK
+timestamp: 2023-11-09T08:40:55+00:00
+sign-key-sha3-384: 7qWG-Uwck6Dji43a3Z8ZZrm7rAziZAch3xf76iFvqe4GaD0LI7U9lYPWMSJAsEgu
 
-AcLBcwQAAQoAHRYhBDiVJpd70BfvApKUHyjFylG0jRnSBQJiZqqQAAoJECjFylG0jRnSPS0P/0yc
-6OcLe54PBLKfIdKcgG4/hWNyyxWbrF2VmBImYdErZtP9dxW9PlzNNQzIj8+Fxny7kEuer2rFSwwW
-38ox0tdBCoB9hHMLVMETd3sycJFVPcyg5X37HXFftVNlBE8VIVJjv2JjpwA6k4iuRbwYOv8kvM71
-aFeBsatpmThvPv7eiV9Lp/65CUqnJEgEcYRbZulYMhxYciwny3DLBUvEaysykoWhq34WjKu9nKaS
-M43+Td8/vBy9QsFrWU5J2TqN3wWUtn8Fefu1aZquah6Ecr0ljxHIlJHRyhuco3RWbXNqnA2qPabY
-dfsKHPMLrlcPDXLuuQWXAkMHBEtCevIJb8Dm67xfnxTHIYRnhxU+EecdlPTSIUmxCrEY5i7Aho9n
-KE4gwf76S+RJR4OZEiinFb3qtJhHQtWF5VoW+vWqtno/lrlIS/dOFGgO6GtphnUa7CjRKJ/F1E9d
-x6ANl0KDkkRVaW3LfAAJn/EQjLXDB0P3Ac2ThaT/uYW2YV+n2L0qAwfEoPvW7Iuv/+Yel04wnGa0
-kh+LWqf3NCMEN69Pu+bKHtHcUgd2IiBjNxWjfU57qXskBb9q4w5muHgbQCz1Nj0sik9bIeExa+Wv
-li4NEZKwvUe/u/cRC4Jf4QXfb6VAf9yJQ7S0KNRhBBgaC5BSA0fPaP+E63jeL5iOaVbItoyq
+AcLBcwQAAQoAHRYhBGESvKlz1RXG1IBOC0MdJKf2hr9ABQJlTJtmAAoJEEMdJKf2hr9Af58P/Rgp
+yWyI+SxAgFmwerp5XniIgRYxUbqTdQvODHc+UzealEX4cqeHQwbnqYE9UWFFa1TEzIPuZhkRQZmF
+KcPRQvJMHj3p2b0vrznDaC4nNmeGYPm21c8KIr77PNP1hY3B5CjBnwgtMnOGXB9Ekx2s1Qz2Bay/
+pFMEz18zdIXsaS/CrYMa4g6T+EhMfJMzkfduIMaCWdxdfUo56g6LikmR+vBhcfvRJAobKLaEse7Z
+eLLWtTbTX0Cv3F2puPOPEVMBOaD+siZ/woEWP5jUFjzJGlUt8ihkVmMFJnI5U2lu6dOnvJXmuKHC
+RI/7ulLuUipJgMWPkfaNIgrDy90WgR4qT/zNPf3JBXegZxIdpuBEl+jUwqg0f8SWfLvgLOTKS3Az
+4sWVVwwCaCPLRt3NGLHnR0/PY41MX5DdXjq/C5MSBQoGU21ZOqUmd53lorLrPDjVOosRVioNv/2s
+yXEMQ3+lfMEU+7CKFWHkXknZ3Db6rVXO+TwVvNVXUCrgWnQc5+a+TbqACOV9CuGSYTsPlXSdFNYo
+tW3H5XX6m1P+if+p6tlpJHmbDF/kb+g7kp97eVCTI6jWvBmSsmFR4jab/Bh0RIsLE0EIGnL3elUW
+0cuKe254WR0/5doIn2IDUh+GSNDjsyH3ezvqLbkTaZcEAjIQPWRouHncZKgYW9M0bjV8m3nR

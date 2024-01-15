@@ -378,6 +378,52 @@ dbus (receive)
     member="{AddNotification,RemoveNotification}"
     peer=(label=unconfined),
 
+# Allow registering session with GDM, necessary for screen locking
+dbus (send)
+    bus=system
+    path=/org/gnome/DisplayManager/Manager
+    interface=org.gnome.DisplayManager.Manager
+    member={RegisterSession,OpenReauthenticationChannel}
+    peer=(label=unconfined),
+dbus (send)
+    bus=system
+    path=/org/gnome/DisplayManager/Manager
+    interface=org.freedesktop.DBus.Properties
+    member="Get{,All}"
+    peer=(label=unconfined),
+
+# Allow access to GDM's private reauthentication channel socket
+/run/gdm3/dbus/dbus-* rw,
+
+# Allow gnome-shell to bind to its various D-Bus names
+dbus (bind)
+    bus=session
+    name=org.gnome.Mutter.*,
+dbus (bind)
+    bus=session
+    name=org.gnome.Shell{,.*},
+
+# Allow gnome-settings-daemon to bind its various D-Bus names
+dbus (bind)
+    bus=session
+    name=org.gnome.SettingsDaemon{,.*},
+dbus (bind)
+    bus=session
+    name=org.gtk.Settings,
+
+# Allow the shell to communicate with colord
+dbus (send, receive)
+    bus=system
+    path=/org/freedesktop/ColorManager{,/**}
+    interface=org.freedesktop.ColorManager*
+    peer=(label=unconfined),
+dbus (send, receive)
+    bus=system
+    path=/org/freedesktop/ColorManager{,/**}
+    interface=org.freedesktop.DBus.Properties
+    member={Get,GetAll,PropertiesChanged}
+    peer=(label=unconfined),
+
 # Allow unconfined xdg-desktop-portal to communicate with impl
 # services provided by the snap.
 dbus (receive, send)
@@ -389,6 +435,13 @@ dbus (receive, send)
     bus=session
     path=/org/freedesktop/portal/desktop{,/**}
     interface=org.freedesktop.DBus.Properties
+    peer=(label=unconfined),
+
+# Allow access to the regular xdg-desktop-portal APIs
+dbus (send)
+    bus=session
+    interface=org.freedesktop.portal.*
+    path=/org/freedesktop/portal/desktop{,/**}
     peer=(label=unconfined),
 
 # Allow access to various paths gnome-session and gnome-shell need.

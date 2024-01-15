@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 from io import StringIO
+import os
 import unittest
 
 import changelog
@@ -35,5 +36,26 @@ class TestChangelogReadNewsMd(unittest.TestCase):
     def test_version_not_found(self):
         with self.assertRaises(RuntimeError) as cm:
             changelog.read_changelogs_news_md(self.news_md, "1.1")
-        print(dir(cm.exception))
         self.assertEqual(str(cm.exception), 'cannot find expected version "1.1" in first header, found "New in snapd 2.60.3:"')
+
+    def test_deb_email_happy(self):
+        original = os.environ.get('DEBEMAIL')
+        os.environ['DEBEMAIL'] = "FirstName LastName <firstname.lastname@canonical.com>"
+        try:
+            changelog.validate_env_deb_email()
+        finally:
+            if original:
+                os.environ['DEBEMAIL'] = original
+
+    def test_deb_email_errors(self):
+        original = os.environ.get('DEBEMAIL')
+        os.environ['DEBEMAIL'] = ""
+        with self.assertRaises(RuntimeError) as e:
+            changelog.validate_env_deb_email()
+        self.assertEqual(str(e.exception), 'cannot find environment variable "DEBEMAIL", please provide DEBEMAIL="FirstName LastName <valid-email-address>"')
+        os.environ['DEBEMAIL'] = "FirstName LastName <firstname.lastname.com>"
+        with self.assertRaises(RuntimeError) as e:
+            changelog.validate_env_deb_email()
+        self.assertEqual(str(e.exception), 'environment variable "DEBEMAIL" uses incorrect format, expecting DEBEMAIL="FirstName LastName <valid-email-address>"')
+        if original:
+            os.environ['DEBEMAIL'] = original

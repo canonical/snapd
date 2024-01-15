@@ -1,8 +1,8 @@
 type: model
-authority-id: BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz
+authority-id: test-snapd
 revision: 2
 series: 16
-brand-id: BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz
+brand-id: test-snapd
 model: my-model
 architecture: amd64
 base: core22
@@ -10,6 +10,15 @@ grade: dangerous
 serial-authority:
   - generic
 snaps:
+  -
+    default-channel: latest/stable
+    id: buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ
+    name: hello-world
+    type: app
+  -
+    default-channel: latest/stable
+    name: test-snapd-tools-core22
+    type: app
   -
     default-channel: 22/edge
     id: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
@@ -32,17 +41,19 @@ snaps:
     type: snapd
   -
     default-channel: latest/stable
-    name: test-snapd-tools-core22
-timestamp: 2022-04-25T01:00:00+00:00
-sign-key-sha3-384: V414fsCB9X2YOxd9aESpCOq4u9yZufjjIA2pCqPVeX_w-f_g_Dc0KF9GwxfwgpMK
+    id: 99T7MUlRhtI3U0QFgl5mXXESAiSwt776
+    name: core
+    type: core
+timestamp: 2023-11-09T08:40:55+00:00
+sign-key-sha3-384: 7qWG-Uwck6Dji43a3Z8ZZrm7rAziZAch3xf76iFvqe4GaD0LI7U9lYPWMSJAsEgu
 
-AcLBcwQAAQoAHRYhBDiVJpd70BfvApKUHyjFylG0jRnSBQJiZqqZAAoJECjFylG0jRnSkpMP/3BG
-4tKa7dLxBJcPKqKWI9aBoR3HH+5CeusRFVunUKN7dpCoVyv3LY+HFgoEdbuJ0WPDSTMkXz3gVXfA
-UpfuSu05qNGjA7PjxAA12gXZ0xNPXhic5bR2RuhNYlRxaJb8TndmUAUKSpw7VC0cFs1ej8Max6wd
-9L8x0KFXkV8Z7ZS8KR3OYamdQ6FQjuhNxbU9xVwfFXBrTep/TuafUzc2QNC8MM9JBqCa5vQQ8EMy
-2W579kNKmzff20YXpFIHdM+sq6+/mMRDTqRAQPmrUI7ABKspRTfynEGPA9nHUOXHB8y7MnDoIH78
-k/SW6aJlFlCED9JbJxs8i3XeOvsKsefevisG6/ox3Ou9ObkbagoH+vB8d7/0yeRdhM5kTNtcDSQW
-qhAVqOwbYRWIya8bLUQeW1K+psVSHdANx3SwI9FMLnMRfRZ+A7EIkN2hLBOULx7NcGKJx5EsBlun
-RRAde0Oaopr9P5KoONDEHZgW2LaPVtYIKMQeIqg7KMzOEsIy/PTG9b8cmq5fG4f2IBTNktY119qP
-jgCI8xqX+VQyd5E7nZJVZ05BXsbC8gm3FjY3e5D1mTwPJVo86lG3HvFwI7lS0hf8JB1/au6lMtSg
-P0nds9/jUss66K2Vu2Au2FWKWMHvmWv7Qpx03YbjBZcMOK3IB/5Hu2SXi3oSkZPEqotDj9WI
+AcLBcwQAAQoAHRYhBGESvKlz1RXG1IBOC0MdJKf2hr9ABQJlTJtfAAoJEEMdJKf2hr9AS7sP+wVU
+9FONh98h3RhXg8BCNa5y5F+M+5qaQhpqJqAKJtJXb09wvZDYPxnqu13HIgX7DGRA6pAxDii4Rydm
+UzSmefwBu5DFdHV2MwrhY/qrSKpg4tR5MTV2Uobraau+IymvObglE7fXir5kVlksMp/g/VKRV5j7
+bTi5lKtONi2yoar5GqGoWRcD25O7qUfhv2RawEQ0v8KLszdrcp7r1oNpKzS5VU/WbLyc30KheUuw
+EbuOTpzu9U6nXcSK8iXs5eZ9S2xdBGSdBioZ2RfcrLPIz0WuqtpoMR0ulpnzabiczoHvHnaKTs9i
+Utsma0zsZRLDvZ8xnd34Hg98Rrx7NmgVOWFOiSHCcBMfs+AohzqJ6AVT8Jx15hJYkSRcFQeGP7ez
+uRxhpfDbCt8p9pdiMGM0oWTLJAoImrprta9B0JpOVsrKb6QfWlsDDVKbUTptTT2PXHM22CvwSkdc
+0VqDW6nlU/kPi1AfLDOjqh4VYVqRMlrG4pbMKwswpvG0CERBa22UXcxgzLfcFhEbxUnXxszhBkRQ
+Gd+qIMz0rRqHLj/2Wh2u/uMQVWPUIIRgmFQrYwb2jAmtXJj/6ALfTD3GCQMT1YiCROEsPmFrERs5
+m2kNijGx+4gSpyhFm0cmh/xtL5Etfrf7MJ/bMKOWJz3liOR3hwSnBRB7g770y+yMEwIAgxhO

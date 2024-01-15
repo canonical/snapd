@@ -1,5 +1,9 @@
 summary: Check that the docker snap works basically
 
+details: |
+  Verify the docker snap can be installed and run a hello-world.
+  Also check it can be installed with --devmode.
+
 systems: [ubuntu-*]
 
 environment:

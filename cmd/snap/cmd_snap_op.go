@@ -528,7 +528,7 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 	var snapName string
 	var path string
 
-	if isLocalSnap(nameOrPath) {
+	if isLocalContainer(nameOrPath) {
 		// don't log the request's body because the encoded snap is large.
 		x.client.SetMayLogBody(false)
 		path = nameOrPath
@@ -568,14 +568,16 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 	return showDone(x.client, chg, []string{snapName}, "install", opts, x.getEscapes())
 }
 
-func isLocalSnap(name string) bool {
-	return strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.")
+func isLocalContainer(name string) bool {
+	return strings.Contains(name, "/") ||
+		strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") ||
+		strings.HasSuffix(name, ".comp") || strings.Contains(name, ".comp.")
 }
 
 func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error {
-	isLocal := isLocalSnap(names[0])
+	isLocal := isLocalContainer(names[0])
 	for _, name := range names {
-		if isLocalSnap(name) != isLocal {
+		if isLocalContainer(name) != isLocal {
 			return fmt.Errorf(i18n.G("cannot install local and store snaps at the same time"))
 		}
 	}

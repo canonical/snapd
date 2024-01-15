@@ -35,17 +35,14 @@ type MsgHeader struct {
 	Version uint16
 }
 
+const sizeofMsgHeader = 4
+
 // UnmarshalBinary unmarshals the header from binary form.
 func (msg *MsgHeader) UnmarshalBinary(data []byte) error {
 	const prefix = "cannot unmarshal apparmor message header"
-
-	// Unpack fixed-size elements.
-	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
-	buf := bytes.NewBuffer(data)
-	if err := binary.Read(buf, order, msg); err != nil {
+	if err := msg.unmarshalBinaryImpl(data); err != nil {
 		return fmt.Errorf("%s: %s", prefix, err)
 	}
-
 	if msg.Version != 3 {
 		return fmt.Errorf("%s: unsupported version: %d", prefix, msg.Version)
 	}
@@ -53,8 +50,49 @@ func (msg *MsgHeader) UnmarshalBinary(data []byte) error {
 		return fmt.Errorf("%s: length mismatch %d != %d",
 			prefix, msg.Length, len(data))
 	}
-
 	return nil
+}
+
+func (msg *MsgHeader) unmarshalBinaryImpl(data []byte) error {
+	// Unpack fixed-size elements.
+	order := arch.Endian() // ioctl messages are native byte order, verify endianness if using for other messages
+	buf := bytes.NewBuffer(data)
+	if err := binary.Read(buf, order, msg); err != nil {
+		return err
+	}
+	if msg.Length < sizeofMsgHeader {
+		return fmt.Errorf("invalid length (must be >= %d): %d",
+			sizeofMsgHeader, msg.Length)
+	}
+	return nil
+}
+
+// MsgLength returns the length of the first message in the given data buffer,
+// assuming that it begins with a MsgHeader. If it does not, returns an error.
+func MsgLength(data []byte) (int, error) {
+	const prefix = "cannot parse message header"
+	var msg MsgHeader
+	if err := msg.unmarshalBinaryImpl(data); err != nil {
+		return -1, fmt.Errorf("%s: %v", prefix, err)
+	}
+	return int(msg.Length), nil
+}
+
+// ExtractFirstMsg splits the given data buffer after the first message,
+// assuming that it begins with a MsgHeader. If it is too short to be a
+// MsgHeader, or if the encoded length exceeds the remaining data length,
+// returns an error.
+func ExtractFirstMsg(data []byte) (first []byte, rest []byte, err error) {
+	const prefix = "cannot extract first message"
+	length, err := MsgLength(data)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%s: %v", prefix, err)
+	}
+	if len(data) < length {
+		return nil, nil, fmt.Errorf("%s: length in header exceeds data length: %d > %d",
+			prefix, length, len(data))
+	}
+	return data[:length], data[length:], nil
 }
 
 // msgNotificationFilterKernel describes the configuration of kernel-side message filtering.

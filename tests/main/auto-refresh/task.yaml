@@ -1,5 +1,10 @@
 summary: Check that auto-refresh works
 
+details: |
+    Verify the basic functionality for auto-refreshes. Check that a refresh
+    can be scheduled, it can be put on hold and the snap auto-refresh is
+    triggered and executed properly.
+
 environment:
     SNAP_NAME/regular: test-snapd-tools
     SNAP_NAME/parallel: test-snapd-tools_instance

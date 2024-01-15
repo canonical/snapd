@@ -412,7 +412,7 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 		return err
 	}
 
-	if err == nil && len(snapst.Sequence) != 0 {
+	if err == nil && len(snapst.Sequence.Revisions) != 0 {
 		return fmt.Errorf("cannot discard connections for snap %q while it is present", instanceName)
 	}
 	conns, err := getConns(st)

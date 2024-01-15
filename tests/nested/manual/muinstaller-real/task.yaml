@@ -1,5 +1,7 @@
 summary: End-to-end test for install via muinstaller
 
+details: End-to-end test for install via muinstaller
+
 systems: [ubuntu-22.04-64]
 
 environment:
@@ -327,8 +329,8 @@ execute: |
   # Make sure there is a change in assets to update
   sed -i 's/This program cannot be run in DOS mode/This program cannot be run in XXX mode/' pc-gadget/grubx64.efi
   # Bump edition of ubuntu-{seed,boot} content to get grub updated in both partitions
-  yq -i '(.volumes.pc.structure | with_entries(select(.value.role == "system-seed-null")) | .[].update.edition) |= . + 1' pc-gadget/meta/gadget.yaml
-  yq -i '(.volumes.pc.structure | with_entries(select(.value.role == "system-boot")) | .[].update.edition) |= . + 1' pc-gadget/meta/gadget.yaml
+  yq -i '(.volumes.pc.structure[] | select(.role == "system-seed-null") | .update.edition) |= . + 1' pc-gadget/meta/gadget.yaml
+  yq -i '(.volumes.pc.structure[] | select(.role == "system-boot") | .update.edition) |= . + 1' pc-gadget/meta/gadget.yaml
   nested_secboot_sign_file pc-gadget/grubx64.efi "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
   refresh_rebooting_snap pc pc.snap.orig ./pc-gadget
 

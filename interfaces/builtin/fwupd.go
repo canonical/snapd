@@ -115,6 +115,8 @@ const fwupdPermanentSlotAppArmor = `
   /dev/video[0-9]* r,
   # Realtek MST plugin
   /dev/i2c-[0-9]* rw,
+  # Redfish plugin
+  /dev/ipmi* rw,
 
   # MMC boot partitions
   /dev/mmcblk[0-9]{,[0-9],[0-9][0-9]}boot[0-9]* rwk,
@@ -129,6 +131,8 @@ const fwupdPermanentSlotAppArmor = `
   /boot/efi/EFI/*/fw/** rw,
   /boot/efi/EFI/fwupd/ rw,
   /boot/efi/EFI/fwupd/** rw,
+  /boot/efi/EFI/UpdateCapsule/ rw,
+  /boot/efi/EFI/UpdateCapsule/** rw,
 
   # Allow access from efivar library
   /sys/devices/{pci*,platform}/**/block/**/partition r,
@@ -145,6 +149,10 @@ const fwupdPermanentSlotAppArmor = `
   # Allow access to drm devices for linux-display plugin
   /sys/devices/**/drm r,
   /sys/devices/**/drm/** r,
+
+  # Required by plugin amdgpu
+  /sys/devices/**/psp_vbflash rw,
+  /sys/devices/**/psp_vbflash_status r,
 
   # DBus accesses
   #include <abstractions/dbus-strict>

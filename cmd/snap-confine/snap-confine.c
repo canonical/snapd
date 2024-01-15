@@ -714,7 +714,7 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	sc_maybe_fixup_permissions();
 	sc_maybe_fixup_udev();
 
-	/* User mount profiles do not apply to non-root users. */
+	/* User mount profiles only apply to non-root users. */
 	if (real_uid != 0) {
 		debug("joining preserved per-user mount namespace");
 		retval =

@@ -1,8 +1,8 @@
 type: model
-authority-id: FpA2tgNE8bUrUKSOhE6SOpsMdlcEJkDL
+authority-id: test-snapd
 revision: 3
 series: 16
-brand-id: FpA2tgNE8bUrUKSOhE6SOpsMdlcEJkDL
+brand-id: test-snapd
 model: my-model
 architecture: amd64
 base: core20
@@ -30,16 +30,16 @@ snaps:
     id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
     name: snapd
     type: snapd
-timestamp: 2021-06-01T12:18:12+00:00
-sign-key-sha3-384: u2EnPKDpHm8Or1VWwjs3duNosoBpFS4Da-c6vRQHPKwdllDOlQ02_JFGrxZDe03C
+timestamp: 2023-11-09T08:40:55+00:00
+sign-key-sha3-384: 7qWG-Uwck6Dji43a3Z8ZZrm7rAziZAch3xf76iFvqe4GaD0LI7U9lYPWMSJAsEgu
 
-AcLBcwQAAQoAHRYhBKg05U8V+aOkBzV5W4jJZcdh7V/PBQJhJPWuAAoJEIjJZcdh7V/Pk+cP+wcT
-vd0kld0L/xSWYQT1BHfCcP329OAyvZcgpUwM15lq3Qz+2dJH+PE6Ro/r0EI3auRuLOQePppwhGDm
-k6r1ojDC1pYMel+fyelFHreA3Cnpps5SeXPugV55NIvS5v7Py+jeYTb8swJ68jO7T9Hcv7uNvNF+
-XxPxTWcdbrnFMNTxAGdY7yWsxIN/pVd0Nn6IiC9U6e50RW3kOCkw4UWf2Q3NaI36XU//66KggjLZ
-uNbe3pDhrsIXHbWNwrXxqW29fQXBpK4brJLgviB0Um4QutHKtA83lvj7K4iQbMxXsuHnoHyVaHlj
-yrMtsRKlHZ3ctuVaEVs/VPbQ1Qi0MSwwJoCym2pnmh18uPDFzNn6Qb6dqPLpo4Q/PsQUewo5yUws
-1DD3l6GYqUHCjlzbT8ofNxG/ADUqXuPNEzMhk6/XXuiyUN+viiFNjvvAZ9MO8J7hrNlrBq+nptTt
-WN1zLfkYBOiFHGeDqol22eHQow6z2Ono9WQfYHS7ojRN/kbxmhgxImtMRG7UG4+XO5gIE+fiBe4/
-iKdRX0t4K5lg8U3FSrrju2JgAuvb6k+fGpCmkoxEstiXxwiBNc2IuV5LdfKaqVVDXA51m4h6OFfq
-E25BdKKQdmm+TdYyYtgju+FkRenGHhjA57dCtFuSTyIN21jESdcJ38Cd1C2KAIO5MwP04B7s
+AcLBcwQAAQoAHRYhBGESvKlz1RXG1IBOC0MdJKf2hr9ABQJlTJtjAAoJEEMdJKf2hr9A/UAQAJWH
+/Zjv7ETsLF2lwUtH5bbGhQPfewJoOp789j9ucvov3neKDe3UPhlrdQhsTVtijAf42gz84NZP2GgM
+4frlqwYTFtNbxk3BL2kKPqtqP0+Or0dAt84Kvc+XYVOreGRSTA1Q/0HA4HadQ2jpGLxcokC5j/bj
+7WtybIM+NOXjhHO1+25nGIiPt2UiBmKva+TIGb98BC9S4vH3IBIf3RnFQpCGsTwHe0+j4ggOUOZm
+RwU/VoF0VW6rDAAqtPY91dRknl2S7i7PhlLzDYd9GH5DQ5LTk7/d5LypEetIWo1+bpz0xmEl0eus
+D6AFvYfehofwxIrqjdUu0S8+4MyJWYBhqBAJhWBXNqkHqfc7M303XdLqzq+ZX/IBDPwnQfQliXHh
+En2IlUlI2mMxaEvFF1de78YrSjipUK6D0xWuGdveZmBt+MKBj/2vVpvy+5U0BdbJZ2vtiOEUiUYK
+vO3zSxZ7KIo/ftMGLovqc5I03/7dutw3rCUZXKYNdGgRU7BJjRW6UWVt869onXnWxKFCxUYPybRW
+5DFUDf78mWv94VflGgA0u6avOapAcfKB2IsxywsAjA408DRQCCnKAC9/C9DnLU/jW4RUZpLxLOQD
+C5SXqg/aQjwOdDZFME2ggFHtOyyBWo5mer4XfYO/t9tubvLy28IxuSBGcGqzjJBc1vWDkJIq

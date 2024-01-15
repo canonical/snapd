@@ -1,5 +1,10 @@
 summary: Check that alias symlinks work correctly
 
+details: |
+    Verify that an alias symlink can be created manually
+    and works properly
+
+
 systems: [-ubuntu-core-*]
 
 environment:

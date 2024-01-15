@@ -231,6 +231,16 @@ func CommaSeparatedList(str string) []string {
 	return filtered
 }
 
+// MultiCommaSeparatedList parses each string in strs with CommaSeparatedList
+// and returns the concatenation of all parsed values.
+func MultiCommaSeparatedList(strs []string) []string {
+	var values []string
+	for _, s := range strs {
+		values = append(values, CommaSeparatedList(s)...)
+	}
+	return values
+}
+
 // ElliptRight returns a string that is at most n runes long,
 // replacing the last rune with an ellipsis if necessary. If N is less
 // than 1 it's treated as a 1.

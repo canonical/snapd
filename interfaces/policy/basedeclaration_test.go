@@ -229,6 +229,7 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 	snowflakes := map[string]bool{
 		"classic-support": true,
 		"content":         true,
+		"cups-control":    true,
 		"home":            true,
 		"lxd-support":     true,
 		// netlink-driver needs the family-name attributes to match
@@ -891,6 +892,10 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 			types = []string{"core"}
 		}
 
+		// only restricted slots can use the AppArmor
+		// unconfined profile mode so check that this
+		// slot is not using it
+		c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedSlots, Equals, false)
 		if types == nil {
 			// snowflake needs to be tested specially
 			continue
@@ -1035,6 +1040,10 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		// need to make sure this is really the case here. If that is not
 		// the case we continue as normal.
 		if ok {
+			// only restricted plugs can use the AppArmor
+			// unconfined profile mode so check that this
+			// plug is not using it
+			c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedPlugs, Equals, false)
 			for name, snapType := range snapTypeMap {
 				ok := strutil.ListContains(types, name)
 				ic := s.installPlugCand(c, iface.Name(), snapType, ``)
@@ -1054,6 +1063,10 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 				c.Check(err, NotNil, comm)
 			} else {
 				c.Check(err, IsNil, comm)
+				// only restricted plugs can use the AppArmor
+				// unconfined profile mode so check that this
+				// plug is not using it
+				c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedPlugs, Equals, false)
 			}
 		}
 	}

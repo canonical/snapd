@@ -485,7 +485,7 @@ repack_kernel_snap() {
 
     echo "Repacking kernel snap"
     UNPACK_DIR=/tmp/kernel-unpack
-    snap download --basename=pc-kernel --channel="$CHANNEL/edge" pc-kernel
+    snap download --basename=pc-kernel --channel="$CHANNEL/${KERNEL_CHANNEL}" pc-kernel
     unsquashfs -no-progress -d "$UNPACK_DIR" pc-kernel.snap
     snap pack --filename="$TARGET" "$UNPACK_DIR"
 
@@ -1442,6 +1442,16 @@ prepare_ubuntu_core() {
     if ! is_snapd_state_saved; then
         # Create the file with the initial environment before saving the state
         tests.env start initial
+
+        # save preinstalled snaps when tests are executed in external systems
+        # the preinstalled snaps shouldn't be removed during tests clean up
+        # this is needed just for external devices because those could be using
+        # custom images with pre-installed snaps which cannot be removed, such
+        # as the network-manager.
+        if [ "$SPREAD_BACKEND" == "external" ]; then
+            PREINSTALLED_SNAPS="$(snap list | tail -n +2 | awk '{print $1}' | tr '\n' ' ')"
+            tests.env set initial PREINSTALLED_SNAPS "$PREINSTALLED_SNAPS"
+        fi
 
         # important to remove disabled snaps before calling save_snapd_state
         # or restore will break

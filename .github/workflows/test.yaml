@@ -158,7 +158,7 @@ jobs:
       with:
         # version of golangci-lint to use in form of v1.2 or v1.2.3 or `latest`
         # to use the latest version
-        version: v1.51.2
+        version: v1.55.2
         working-directory: ./src/github.com/snapcore/snapd
         # show only new issues
         # use empty path prefix to make annotations work
@@ -355,6 +355,7 @@ jobs:
     # have spread jobs run on master on PRs only, but on both PRs and pushes to
     # release branches
     if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
+    name: ${{ matrix.group }}
     runs-on: self-hosted
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
@@ -364,35 +365,43 @@ jobs:
       # fail-fast while we tackle that problem upstream.
       fail-fast: false
       matrix:
-        system:
-        - amazon-linux-2-64
-        - arch-linux-64
-        - centos-7-64
-        - centos-8-64
-        - centos-9-64
-        - debian-11-64
-        - debian-12-64
-        - debian-sid-64
-        - fedora-37-64
-        - fedora-38-64
-        - opensuse-15.4-64
-        - opensuse-15.5-64
-        - opensuse-tumbleweed-64
-        - ubuntu-14.04-64
-        - ubuntu-16.04-64
-        - ubuntu-18.04-32
-        - ubuntu-18.04-64
-        - ubuntu-20.04-64
-        - ubuntu-20.04-arm-64
-        - ubuntu-22.04-64
-        - ubuntu-23.04-64
-        - ubuntu-23.10-64
-        - ubuntu-core-16-64
-        - ubuntu-core-18-64
-        - ubuntu-core-20-64
-        - ubuntu-core-22-64
-        - ubuntu-core-22-arm-64
-        - ubuntu-secboot-20.04-64
+        include:
+          - group: amazon-linux
+            systems: 'amazon-linux-2-64 amazon-linux-2023-64'
+          - group: arch-linux
+            systems: 'arch-linux-64'
+          - group: centos
+            systems: 'centos-7-64 centos-8-64 centos-9-64'
+          - group: debian-req
+            systems: 'debian-11-64'
+          - group: debian-no-req
+            systems: 'debian-12-64 debian-sid-64'
+          - group: fedora
+            systems: 'fedora-38-64 fedora-39-64'
+          - group: opensuse
+            systems: 'opensuse-15.5-64 opensuse-tumbleweed-64'
+          - group: ubuntu-trusty-xenial
+            systems: 'ubuntu-14.04-64 ubuntu-16.04-64'
+          - group: ubuntu-bionic
+            systems: 'ubuntu-18.04-32 ubuntu-18.04-64'
+          - group: ubuntu-focal-jammy
+            systems: 'ubuntu-20.04-64 ubuntu-22.04-64'
+          - group: ubuntu-no-lts
+            systems: 'ubuntu-23.04-64 ubuntu-23.10-64'
+          - group: ubuntu-daily
+            systems: 'ubuntu-24.04-64'
+          - group: ubuntu-core-16
+            systems: 'ubuntu-core-16-64'
+          - group: ubuntu-core-18
+            systems: 'ubuntu-core-18-64'
+          - group: ubuntu-core-20
+            systems: 'ubuntu-core-20-64'
+          - group: ubuntu-core-22
+            systems: 'ubuntu-core-22-64'
+          - group: ubuntu-arm
+            systems: 'ubuntu-20.04-arm-64 ubuntu-core-22-arm-64'
+          - group: ubuntu-secboot
+            systems: 'ubuntu-secboot-20.04-64'
     steps:
     - name: Cleanup job workspace
       id: cleanup-job-workspace
@@ -416,7 +425,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
+        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.group }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
 
     - name: Prepare test results env and vars
       id: prepare-test-results-env
@@ -456,15 +465,19 @@ jobs:
 
           BACKEND=google
           SPREAD=spread
-          if [[ "${{ matrix.system }}" =~ -arm- ]]; then
+          if [[ "${{ matrix.systems }}" =~ -arm- ]]; then
               BACKEND=google-arm
               SPREAD=spread-arm
           fi
 
+          RUN_TESTS=""
           # Save previous failed test results in FAILED_TESTS env var
-          RUN_TESTS="$BACKEND:${{ matrix.system }}:tests/..."
           if [ -n "$FAILED_TESTS" ]; then
               RUN_TESTS="$FAILED_TESTS"
+          else
+              for SYSTEM in ${{ matrix.systems }}; do
+                  RUN_TESTS="$RUN_TESTS $BACKEND:$SYSTEM:tests/..."
+              done
           fi
           # Run spread tests
           # "pipefail" ensures that a non-zero status from the spread is
@@ -506,12 +519,15 @@ jobs:
               ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
 
               BACKEND=google
-              if [[ "${{ matrix.system }}" =~ -arm- ]]; then
+              if [[ "${{ matrix.systems }}" =~ -arm- ]]; then
                   BACKEND=google-arm
               fi
 
               echo "Determining which tests were executed"
-              RUN_TESTS="$BACKEND:${{ matrix.system }}:tests/..."
+              RUN_TESTS=""
+              for SYSTEM in ${{ matrix.systems }}; do
+                  RUN_TESTS="$RUN_TESTS $BACKEND:$SYSTEM:tests/..."
+              done
               if [ -n "$FAILED_TESTS" ]; then
                   RUN_TESTS="$FAILED_TESTS"
               fi
@@ -531,7 +547,7 @@ jobs:
       uses: actions/cache/save@v3
       with:
         path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ github.run_attempt }}"
+        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.group }}-${{ github.run_attempt }}"
 
   spread-nested:
     needs: [unit-tests]

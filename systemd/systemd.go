@@ -303,14 +303,13 @@ func MockJournalctl(f func(svcs []string, n int, follow, namespaces bool) (io.Re
 
 type MountUnitOptions struct {
 	// Whether the unit is transient or persistent across reboots
-	Lifetime UnitLifetime
-	SnapName string
-	Revision string
-	What     string
-	Where    string
-	Fstype   string
-	Options  []string
-	Origin   string
+	Lifetime    UnitLifetime
+	Description string
+	What        string
+	Where       string
+	Fstype      string
+	Options     []string
+	Origin      string
 }
 
 // Backend identifies the implementation backend in use by a Systemd instance.
@@ -387,7 +386,7 @@ type Systemd interface {
 	// logs, and is required to get logs for services which are in journal namespaces.
 	LogReader(services []string, n int, follow, namespaces bool) (io.ReadCloser, error)
 	// EnsureMountUnitFile adds/enables/starts a mount unit.
-	EnsureMountUnitFile(name, revision, what, where, fstype string) (string, error)
+	EnsureMountUnitFile(description, what, where, fstype string) (string, error)
 	// EnsureMountUnitFileWithOptions adds/enables/starts a mount unit with options.
 	EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
@@ -1370,9 +1369,7 @@ var squashfsFsType = squashfs.FsType
 // Note that WantedBy=multi-user.target and Before=local-fs.target are
 // only used to allow downgrading to an older version of snapd.
 const mountUnitTemplate = `[Unit]
-Description=Mount unit for {{.SnapName}}
-{{- with .Revision}}, revision {{.}}{{end}}
-{{- with .Origin}} via {{.}}{{end}}
+Description={{.Description}}
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
 Before=local-fs.target
@@ -1461,20 +1458,19 @@ func hostFsTypeAndMountOptions(fstype string) (hostFsType string, options []stri
 	return hostFsType, options
 }
 
-func (s *systemd) EnsureMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
+func (s *systemd) EnsureMountUnitFile(description, what, where, fstype string) (string, error) {
 	hostFsType, options := hostFsTypeAndMountOptions(fstype)
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
 		hostFsType = "none"
 	}
 	return s.EnsureMountUnitFileWithOptions(&MountUnitOptions{
-		Lifetime: Persistent,
-		SnapName: snapName,
-		Revision: revision,
-		What:     what,
-		Where:    where,
-		Fstype:   hostFsType,
-		Options:  options,
+		Lifetime:    Persistent,
+		Description: description,
+		What:        what,
+		Where:       where,
+		Fstype:      hostFsType,
+		Options:     options,
 	})
 }
 

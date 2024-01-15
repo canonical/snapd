@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -78,6 +79,23 @@ func (s *LxdSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,usr/}{,s}bin/aa-exec ux,\n")
+}
+
+func (s *LxdSupportInterfaceSuite) TestAppArmorSpecUserNS(c *C) {
+	r := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer r()
+	r = apparmor_sandbox.MockFeatures(nil, nil, []string{"userns"}, nil)
+	defer r()
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "userns,\n")
+}
+
+func (s *LxdSupportInterfaceSuite) TestAppArmorSpecUnconfined(c *C) {
+	spec := &apparmor.Specification{}
+	c.Assert(spec.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(spec.Unconfined(), Equals, true)
 }
 
 func (s *LxdSupportInterfaceSuite) TestSecCompSpec(c *C) {

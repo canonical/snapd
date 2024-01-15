@@ -1,5 +1,9 @@
 summary: Ensure the snapd gets auto installed when needed
 
+details: |
+    Verifies that snapd snap is autoinstalled in case it is not
+    installed. Check also the core base snap is also autoinstalled.
+
 # not testing on ubuntu-core because we have core/snapd installed there
 systems: [-ubuntu-core-*]
 

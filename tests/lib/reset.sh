@@ -127,7 +127,9 @@ reset_all_snap() {
     fi
 
     skip_snaps=""
-    for skip_remove_snap in $SKIP_REMOVE_SNAPS; do
+
+    PREINSTALLED_SNAPS="$(tests.env get initial PREINSTALLED_SNAPS)"
+    for skip_remove_snap in $SKIP_REMOVE_SNAPS $PREINSTALLED_SNAPS; do
         skip_snaps="$skip_snaps --skip $skip_remove_snap"
     done
     # shellcheck disable=SC2086

@@ -1,6 +1,11 @@
 summary: |
     Test gadget customized device initialisation and registration also on classic
 
+details: |
+    Verify that the initialisation and registration are executed properly 
+    on classic systems using a customised gadget device.
+    Also check that the system has a serial running snap model command.
+
 # ubuntu-14.04: systemd-run not supported
 systems: [-ubuntu-core-*, -ubuntu-14.04*]
 

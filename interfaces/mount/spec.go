@@ -150,6 +150,36 @@ func (spec *Specification) AddExtraLayouts(layouts []snap.Layout) {
 	}
 }
 
+// createEnsureDirMountEntry creates a mount entry from the given ensure directory spec
+// that instruct snap-update-ns to create missing directories if required.
+func createEnsureDirMountEntry(ensureDirSpec *interfaces.EnsureDirSpec) osutil.MountEntry {
+	return osutil.MountEntry{
+		Options: []string{osutil.XSnapdKindEnsureDir(), osutil.XSnapdMustExistDir(ensureDirSpec.MustExistDir)},
+		Dir:     ensureDirSpec.EnsureDir,
+	}
+}
+
+// AddUserEnsureDirs adds user mount entries to ensure the existence of directories according to the
+// given ensure directory specs.
+func (spec *Specification) AddUserEnsureDirs(ensureDirSpecs []*interfaces.EnsureDirSpec) error {
+	// Walk the path specs in deterministic order, by EnsureDir (the mount point).
+	sort.Slice(ensureDirSpecs, func(i, j int) bool {
+		return ensureDirSpecs[i].EnsureDir < ensureDirSpecs[j].EnsureDir
+	})
+
+	for _, ensureDirSpec := range ensureDirSpecs {
+		if err := ensureDirSpec.Validate(); err != nil {
+			return fmt.Errorf("internal error: cannot use ensure-dir mount specification: %v", err)
+		}
+	}
+
+	for _, ensureDirSpec := range ensureDirSpecs {
+		entry := createEnsureDirMountEntry(ensureDirSpec)
+		spec.user = append(spec.user, entry)
+	}
+	return nil
+}
+
 // MountEntries returns a copy of the added mount entries.
 func (spec *Specification) MountEntries() []osutil.MountEntry {
 	result := make([]osutil.MountEntry, 0, len(spec.overname)+len(spec.layout)+len(spec.general))
@@ -245,11 +275,16 @@ func unclashMountEntries(entries []osutil.MountEntry) []osutil.MountEntry {
 		FirstIndex int
 		// Number of entries having this same mount point
 		Count int
-		// Merged options for the entries on this mount point
-		Options []string
 	}
 	entriesByMountPoint := make(map[string]*clashingEntry, len(entries))
+	var ensureDirEntries []osutil.MountEntry
 	for i := range entries {
+		// Gather ensure-dir mounts, do not unclash
+		if entries[i].XSnapdKind() == "ensure-dir" {
+			ensureDirEntries = append(ensureDirEntries, entries[i])
+			continue
+		}
+
 		mountPoint := entries[i].Dir
 		entryInMap, found := entriesByMountPoint[mountPoint]
 		if !found {
@@ -279,6 +314,10 @@ func unclashMountEntries(entries []osutil.MountEntry) []osutil.MountEntry {
 			result = append(result, entries[i])
 		}
 	}
+
+	// Add all ensure-dir mounts
+	result = append(result, ensureDirEntries...)
+
 	return result
 }
 
