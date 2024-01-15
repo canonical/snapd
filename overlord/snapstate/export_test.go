@@ -403,7 +403,6 @@ var (
 // autorefresh
 var (
 	InhibitRefresh                       = inhibitRefresh
-	MaxInhibition                        = maxInhibition
 	MaxDuration                          = maxDuration
 	MaybeAddRefreshInhibitNotice         = maybeAddRefreshInhibitNotice
 	MaybeAsyncPendingRefreshNotification = maybeAsyncPendingRefreshNotification

@@ -52,12 +52,6 @@ const maxPostponement = 95 * 24 * time.Hour
 // buffer for maxPostponement when holding snaps with auto-refresh gating
 const maxPostponementBuffer = 5 * 24 * time.Hour
 
-// cannot inhibit refreshes for more than maxInhibition;
-// deduct 1s so it doesn't look confusing initially when two notifications
-// get displayed in short period of time and it immediately goes from "14 days"
-// to "13 days" left.
-const maxInhibition = 14*24*time.Hour - time.Second
-
 // maxDuration is used to represent "forever" internally (it's 290 years).
 const maxDuration = time.Duration(1<<63 - 1)
 
@@ -800,6 +794,7 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 	// Decide on what to do depending on the state of the snap and the remaining
 	// inhibition time.
 	now := time.Now()
+	// cannot inhibit refreshes for more than maxInhibition;
 	switch {
 	case snapst.RefreshInhibitedTime == nil:
 		// If the snap did not have inhibited refresh yet then commence a new
@@ -807,14 +802,14 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 		// time in the snap state's RefreshInhibitedTime field. This field is
 		// reset to nil on successful refresh.
 		snapst.RefreshInhibitedTime = &now
-		busyErr.timeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
+		busyErr.timeRemaining = (MaxInhibitionTime(st) - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
 		Set(st, info.InstanceName(), snapst)
-	case now.Sub(*snapst.RefreshInhibitedTime) < maxInhibition:
+	case now.Sub(*snapst.RefreshInhibitedTime) < MaxInhibitionTime(st):
 		// If we are still in the allowed window then just return the error but
 		// don't change the snap state again.
 		// TODO: as time left shrinks, send additional notifications with
 		// increasing frequency, allowing the user to understand the urgency.
-		busyErr.timeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
+		busyErr.timeRemaining = (MaxInhibitionTime(st) - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
 	default:
 		// XXX: should we drop this notification?
 		// if the refresh inhibition window has ended, notify the user that the

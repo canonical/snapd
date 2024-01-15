@@ -342,6 +342,50 @@ func refreshRetain(st *state.State) int {
 	return retain
 }
 
+func MaxInhibitionTime(st *state.State) time.Duration {
+	// deduct 1s so it doesn't look confusing initially when two notifications
+	// get displayed in short period of time and it immediately goes from "14 days"
+	// to "13 days" left.
+	return time.Duration(maxInhibitionDays(st))*24*time.Hour - time.Second
+}
+
+// maxInhibitionDays returns refresh.max-inhibition-days value if set, or the default value (14 days).
+// It deals with potentially wrong type due to lax validation.
+func maxInhibitionDays(st *state.State) int {
+	var val interface{}
+	// due to lax validation of refresh.max-inhibition-days on set we might end up having a string representing a number here; handle it gracefully
+	// for backwards compatibility.
+	err := config.NewTransaction(st).Get("core", "refresh.max-inhibition-days", &val)
+	var maxInhibitionDays int
+	if err == nil {
+		switch v := val.(type) {
+		// this is the expected value; confusingly, since we pass interface{} to Get(), we get json.Number type; if int reference was passed,
+		// we would get an int instead of json.Number.
+		case json.Number:
+			maxInhibitionDays, err = strconv.Atoi(string(v))
+		// not really expected when requesting interface{}.
+		case int:
+			maxInhibitionDays = v
+		// we can get string here due to lax validation of refresh.max-inhibition-days on Set in older releases.
+		case string:
+			maxInhibitionDays, err = strconv.Atoi(v)
+		default:
+			logger.Noticef("internal error: refresh.max-inhibition-days system option has unexpected type: %T", v)
+		}
+	}
+
+	// this covers error from Get() and strconv above.
+	if err != nil && !config.IsNoOption(err) {
+		logger.Noticef("internal error: refresh.max-inhibition-days system option is not valid: %v", err)
+	}
+
+	// not set, use default value
+	if maxInhibitionDays == 0 {
+		maxInhibitionDays = 14
+	}
+	return maxInhibitionDays
+}
+
 var excludeFromRefreshAppAwareness = func(t snap.Type) bool {
 	return t == snap.TypeSnapd || t == snap.TypeOS
 }

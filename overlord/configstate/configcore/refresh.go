@@ -37,6 +37,7 @@ func init() {
 	supportedConfigurations["core.refresh.metered"] = true
 	supportedConfigurations["core.refresh.retain"] = true
 	supportedConfigurations["core.refresh.rate-limit"] = true
+	supportedConfigurations["core.refresh.max-inhibition-days"] = true
 }
 
 func reportOrIgnoreInvalidManageRefreshes(tr RunTransaction, optName string) error {
@@ -53,6 +54,15 @@ func reportOrIgnoreInvalidManageRefreshes(tr RunTransaction, optName string) err
 }
 
 func validateRefreshSchedule(tr RunTransaction) error {
+	maxInhibitionDaysStr, err := coreCfg(tr, "refresh.max-inhibition-days")
+	if err != nil {
+		return err
+	}
+	if maxInhibitionDaysStr != "" {
+		if n, err := strconv.ParseUint(maxInhibitionDaysStr, 10, 8); err != nil || (n < 1 || n > 14) {
+			return fmt.Errorf("max-inhibition-days must be a number between 1 and 14, not %q", maxInhibitionDaysStr)
+		}
+	}
 	refreshRetainStr, err := coreCfg(tr, "refresh.retain")
 	if err != nil {
 		return err
