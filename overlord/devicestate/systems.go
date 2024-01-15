@@ -195,9 +195,10 @@ func seededSystemFromModeenv() (*seededSystem, error) {
 }
 
 // getInfoFunc is expected to return for a given snap name a snap.Info for that
-// snap and whether the snap is present is present. The second bit is relevant
-// for non-essential snaps mentioned in the model, which if present and having
-// an 'optional' presence in the model, will be added to the recovery system.
+// snap, a path on disk where the snap file can be found, and whether the snap
+// is present. The last bit is relevant for non-essential snaps mentioned in the
+// model, which if present and having an 'optional' presence in the model, will
+// be added to the recovery system.
 type getSnapInfoFunc func(name string) (info *snap.Info, path string, snapIsPresent bool, err error)
 
 // snapWriteObserveFunc is called with the recovery system directory and the
