@@ -22,6 +22,7 @@ package backend_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -68,14 +69,52 @@ func (s *snapdataSuite) TestRemoveSnapData(c *C) {
 	c.Assert(osutil.FileExists(filepath.Dir(varData)), Equals, true)
 }
 
+// same as TestRemoveSnapData but with multiple homedirs
+func (s *snapdataSuite) TestRemoveSnapDataMulti(c *C) {
+	homeDirs := []string{filepath.Join(s.tempdir, "home"),
+		filepath.Join(s.tempdir, "home", "company"),
+		filepath.Join(s.tempdir, "home", "department"),
+		filepath.Join(s.tempdir, "office")}
+
+	dirs.SetSnapHomeDirs(strings.Join(homeDirs, ","))
+	snapHomeDataDirs := []string{}
+
+	for _, v := range homeDirs {
+		snapHomeDir := filepath.Join(v, "user1", "snap")
+		snapHomeData := filepath.Join(snapHomeDir, "hello/10")
+		err := os.MkdirAll(snapHomeData, 0755)
+		c.Assert(err, IsNil)
+		snapHomeDataDirs = append(snapHomeDataDirs, snapHomeData)
+	}
+
+	varData := filepath.Join(dirs.SnapDataDir, "hello/10")
+	err := os.MkdirAll(varData, 0755)
+	c.Assert(err, IsNil)
+	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	err = s.be.RemoveSnapData(info, nil)
+
+	for _, v := range snapHomeDataDirs {
+		c.Assert(err, IsNil)
+		c.Assert(osutil.FileExists(v), Equals, false)
+		c.Assert(osutil.FileExists(filepath.Dir(v)), Equals, true)
+
+	}
+
+	c.Assert(osutil.FileExists(varData), Equals, false)
+	c.Assert(osutil.FileExists(filepath.Dir(varData)), Equals, true)
+}
+
 func (s *snapdataSuite) TestSnapDataDirs(c *C) {
 	homeDir1 := filepath.Join(s.tempdir, "home", "users")
 	homeDir2 := filepath.Join(s.tempdir, "remote", "users")
 	homeDirs := homeDir1 + "," + homeDir2
 	dirs.SetSnapHomeDirs(homeDirs)
-	dataHomeDirs := []string{filepath.Join(homeDir1, "user1", "snap", "hello", "10"), filepath.Join(homeDir1, "user2", "snap", "hello", "10"),
-		filepath.Join(homeDir2, "user3", "snap", "hello", "10"), filepath.Join(homeDir2, "user4", "snap", "hello", "10"),
-		filepath.Join(s.tempdir, "root", "snap", "hello", "10"), filepath.Join(s.tempdir, "var", "snap", "hello", "10")}
+	dataHomeDirs := []string{filepath.Join(homeDir1, "user1", "snap", "hello", "10"),
+		filepath.Join(homeDir1, "user2", "snap", "hello", "10"),
+		filepath.Join(homeDir2, "user3", "snap", "hello", "10"),
+		filepath.Join(homeDir2, "user4", "snap", "hello", "10"),
+		filepath.Join(s.tempdir, "root", "snap", "hello", "10"),
+		filepath.Join(s.tempdir, "var", "snap", "hello", "10")}
 	for _, path := range dataHomeDirs {
 		err := os.MkdirAll(path, 0755)
 		c.Assert(err, IsNil)

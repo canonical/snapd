@@ -1208,7 +1208,6 @@ func (s *infoSuite) testInstanceDirAndFileMethods(c *C, info snap.PlaceInfo) {
 }
 
 func (s *infoSuite) TestDataHomeDirs(c *C) {
-	dirs.SetRootDir("")
 	dirs.SetSnapHomeDirs("/home,/home/group1,/home/group2,/home/group3")
 	info := &snap.Info{SuggestedName: "name"}
 	info.SideInfo = snap.SideInfo{Revision: snap.R(1)}

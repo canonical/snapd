@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -127,6 +128,89 @@ func (s *copydataSuite) testCopyData(c *C, snapDir string, opts *dirs.SnapDirOpt
 	// ensure home common data file is still there (even though it didn't get copied)
 	newCanaryDataFile = filepath.Join(homedir, "hello", "common", "canary.common_home")
 	c.Assert(newCanaryDataFile, testutil.FileEquals, canaryData)
+}
+
+// same as TestCopyData but with multiple home directories
+func (s *copydataSuite) TestCopyDataMulti(c *C) {
+	for _, t := range []struct {
+		snapDir string
+		opts    *dirs.SnapDirOptions
+	}{
+		{snapDir: dirs.UserHomeSnapDir, opts: nil},
+		{snapDir: dirs.UserHomeSnapDir, opts: &dirs.SnapDirOptions{}},
+		{snapDir: dirs.HiddenSnapDataHomeDir, opts: &dirs.SnapDirOptions{HiddenSnapDataDir: true}}} {
+		s.testCopyDataMulti(c, t.snapDir, t.opts)
+		c.Assert(os.RemoveAll(s.tempdir), IsNil)
+		s.tempdir = c.MkDir()
+		dirs.SetRootDir(s.tempdir)
+	}
+}
+
+func (s *copydataSuite) testCopyDataMulti(c *C, snapDir string, opts *dirs.SnapDirOptions) {
+	homeDirs := []string{filepath.Join(s.tempdir, "home"),
+		filepath.Join(s.tempdir, "home", "company"),
+		filepath.Join(s.tempdir, "home", "department"),
+		filepath.Join(s.tempdir, "office")}
+	dirs.SetSnapHomeDirs(strings.Join(homeDirs, ","))
+
+	snapHomeDirs := []string{}
+	snapHomeDataDirs := []string{}
+	snapHomeCommonDirs := []string{}
+
+	for _, v := range homeDirs {
+		snapHomeDir := filepath.Join(v, "user1", snapDir)
+		snapHomeData := filepath.Join(snapHomeDir, "hello/10")
+		err := os.MkdirAll(snapHomeData, 0755)
+		c.Assert(err, IsNil)
+		homeCommonData := filepath.Join(snapHomeDir, "hello/common")
+		err = os.MkdirAll(homeCommonData, 0755)
+		c.Assert(err, IsNil)
+		snapHomeDirs = append(snapHomeDirs, snapHomeDir)
+		snapHomeDataDirs = append(snapHomeDataDirs, snapHomeData)
+		snapHomeCommonDirs = append(snapHomeCommonDirs, homeCommonData)
+	}
+
+	canaryData := []byte("ni ni ni")
+
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	// just creates data dirs in this case
+	err := s.be.CopySnapData(v1, nil, opts, progress.Null)
+	c.Assert(err, IsNil)
+
+	canaryDataFile := filepath.Join(v1.DataDir(), "canary.txt")
+	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
+	c.Assert(err, IsNil)
+	canaryDataFile = filepath.Join(v1.CommonDataDir(), "canary.common")
+	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
+	c.Assert(err, IsNil)
+
+	for i := range snapHomeDataDirs {
+		err = ioutil.WriteFile(filepath.Join(snapHomeDataDirs[i], "canary.home"), canaryData, 0644)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(filepath.Join(snapHomeCommonDirs[i], "canary.common_home"), canaryData, 0644)
+		c.Assert(err, IsNil)
+	}
+
+	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
+	err = s.be.CopySnapData(v2, v1, opts, progress.Null)
+	c.Assert(err, IsNil)
+
+	newCanaryDataFile := filepath.Join(dirs.SnapDataDir, "hello/20", "canary.txt")
+	c.Assert(newCanaryDataFile, testutil.FileEquals, canaryData)
+
+	// ensure common data file is still there (even though it didn't get copied)
+	newCanaryDataFile = filepath.Join(dirs.SnapDataDir, "hello", "common", "canary.common")
+	c.Assert(newCanaryDataFile, testutil.FileEquals, canaryData)
+
+	for _, v := range snapHomeDirs {
+		newCanaryDataFile = filepath.Join(v, "hello/20", "canary.home")
+		c.Assert(newCanaryDataFile, testutil.FileEquals, canaryData)
+
+		// ensure home common data file is still there (even though it didn't get copied)
+		newCanaryDataFile = filepath.Join(v, "hello", "common", "canary.common_home")
+		c.Assert(newCanaryDataFile, testutil.FileEquals, canaryData)
+	}
+
 }
 
 func (s *copydataSuite) TestCopyDataBails(c *C) {
