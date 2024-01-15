@@ -1465,7 +1465,7 @@ type recoverySystemSetup struct {
 	// should be used to create the recovery system.
 	LocalSnaps []*snap.SideInfo `json:"local-snaps,omitempty"`
 	// LocalSnapPaths is a list of paths to snaps that corresponds to the list
-	// of snap.SideInfo structs in SideInfos.
+	// of snap.SideInfo structs in LocalSnaps.
 	LocalSnapPaths []string `json:"local-snap-paths,omitempty"`
 	// TestSystem is set to true if the new recovery system should
 	// not be verified by rebooting into the new system. Once the system is
