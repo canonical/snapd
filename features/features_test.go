@@ -55,6 +55,7 @@ func (*featureSuite) TestName(c *C) {
 	c.Check(features.CheckDiskSpaceRemove.String(), Equals, "check-disk-space-remove")
 	c.Check(features.GateAutoRefreshHook.String(), Equals, "gate-auto-refresh-hook")
 	c.Check(features.QuotaGroups.String(), Equals, "quota-groups")
+	c.Check(features.RefreshAppAwarenessUX.String(), Equals, "refresh-app-awareness-ux")
 	c.Check(func() { _ = features.SnapdFeature(1000).String() }, PanicMatches, "unknown feature flag code 1000")
 }
 
@@ -84,6 +85,7 @@ func (*featureSuite) TestIsExported(c *C) {
 	c.Check(features.CheckDiskSpaceRefresh.IsExported(), Equals, false)
 	c.Check(features.CheckDiskSpaceRemove.IsExported(), Equals, false)
 	c.Check(features.GateAutoRefreshHook.IsExported(), Equals, false)
+	c.Check(features.RefreshAppAwarenessUX.IsExported(), Equals, true)
 }
 
 func (*featureSuite) TestIsEnabled(c *C) {
@@ -122,6 +124,7 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	c.Check(features.CheckDiskSpaceRefresh.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.CheckDiskSpaceRemove.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.GateAutoRefreshHook.IsEnabledWhenUnset(), Equals, false)
+	c.Check(features.RefreshAppAwarenessUX.IsEnabledWhenUnset(), Equals, false)
 }
 
 func (*featureSuite) TestControlFile(c *C) {
@@ -131,6 +134,7 @@ func (*featureSuite) TestControlFile(c *C) {
 	c.Check(features.RobustMountNamespaceUpdates.ControlFile(), Equals, "/var/lib/snapd/features/robust-mount-namespace-updates")
 	c.Check(features.HiddenSnapDataHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/hidden-snap-folder")
 	c.Check(features.MoveSnapHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/move-snap-home-dir")
+	c.Check(features.RefreshAppAwarenessUX.ControlFile(), Equals, "/var/lib/snapd/features/refresh-app-awareness-ux")
 	// Features that are not exported don't have a control file.
 	c.Check(features.Layouts.ControlFile, PanicMatches, `cannot compute the control file of feature "layouts" because that feature is not exported`)
 }
@@ -145,6 +149,12 @@ func (*featureSuite) TestConfigOptionRefreshAppAwareness(c *C) {
 	snapName, configName := features.RefreshAppAwareness.ConfigOption()
 	c.Check(snapName, Equals, "core")
 	c.Check(configName, Equals, "experimental.refresh-app-awareness")
+}
+
+func (*featureSuite) TestConfigOptionRefreshAppAwarenessUX(c *C) {
+	snapName, configName := features.RefreshAppAwarenessUX.ConfigOption()
+	c.Check(snapName, Equals, "core")
+	c.Check(configName, Equals, "experimental.refresh-app-awareness-ux")
 }
 
 func (s *featureSuite) TestFlag(c *C) {
