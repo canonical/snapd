@@ -240,7 +240,7 @@ var helpCategories = []helpCategory{
 	}, {
 		Label:       i18n.G("Device"),
 		Description: i18n.G("manage device"),
-		Commands:    []string{"model", "remodel", "reboot", "recovery"},
+		Commands:    []string{"model", "remodel", "reboot", "recovery", "reseal"},
 	}, {
 		Label:       i18n.G("Warnings"),
 		Other:       true,
