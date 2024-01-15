@@ -85,6 +85,7 @@ var api = []*Command{
 	aspectsCmd,
 	noticesCmd,
 	noticeCmd,
+	sealCmd,
 }
 
 const (
