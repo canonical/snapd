@@ -19,6 +19,7 @@ package snap_test
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -62,13 +63,13 @@ description: long description
 
 	ci, err := snap.ReadComponentInfoFromContainer(compf)
 	c.Assert(err, IsNil)
-	c.Assert(ci, DeepEquals, &snap.ComponentInfo{
-		Component:   naming.NewComponentRef("mysnap", "test-info"),
-		Type:        "test",
-		Version:     "1.0",
-		Summary:     "short description",
-		Description: "long description",
-	})
+	c.Assert(ci, DeepEquals, snap.NewComponentInfo(
+		naming.NewComponentRef("mysnap", "test-info"),
+		"test",
+		"1.0",
+		"short description",
+		"long description",
+	))
 	c.Assert(ci.FullName(), Equals, compName)
 }
 
@@ -85,11 +86,10 @@ version: 1.0.2
 
 	ci, err := snap.ReadComponentInfoFromContainer(compf)
 	c.Assert(err, IsNil)
-	c.Assert(ci, DeepEquals, &snap.ComponentInfo{
-		Component: naming.NewComponentRef("mysnap", "test-info"),
-		Type:      "test",
-		Version:   "1.0.2",
-	})
+	c.Assert(ci, DeepEquals, snap.NewComponentInfo(
+		naming.NewComponentRef("mysnap", "test-info"),
+		"test", "1.0.2", "", "",
+	))
 	c.Assert(ci.FullName(), Equals, compName)
 }
 
@@ -274,4 +274,36 @@ description: %s
 	ci, err := snap.ReadComponentInfoFromContainer(compf)
 	c.Assert(err, ErrorMatches, "description can have up to 4096 codepoints, got 4098")
 	c.Assert(ci, IsNil)
+}
+
+func (s *componentSuite) TestComponentContainerPlaceInfoImpl(c *C) {
+	cpi := snap.MinimalComponentContainerPlaceInfo("test-info", snap.R(25), "mysnap_instance", snap.R(11))
+
+	var contPi snap.ContainerPlaceInfo = cpi
+
+	c.Check(contPi.ContainerName(), Equals, "mysnap_instance+test-info")
+	c.Check(contPi.Filename(), Equals, "mysnap_instance+test-info_25.comp")
+	c.Check(contPi.MountDir(), Equals,
+		filepath.Join(dirs.SnapMountDir, "mysnap_instance/components/11/test-info"))
+	c.Check(contPi.MountFile(), Equals,
+		filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap_instance+test-info_25.comp"))
+	c.Check(contPi.MountDescription(), Equals, "Mount unit for mysnap_instance+test-info, revision 25")
+}
+
+func (s *componentSuite) TestComponentSideInfoEqual(c *C) {
+	cref := naming.NewComponentRef("snap", "comp")
+	csi := snap.NewComponentSideInfo(cref, snap.R(1))
+
+	for _, tc := range []struct {
+		csi   *snap.ComponentSideInfo
+		equal bool
+	}{
+		{snap.NewComponentSideInfo(naming.NewComponentRef("snap", "comp"), snap.R(1)), true},
+		{snap.NewComponentSideInfo(naming.NewComponentRef("other", "comp"), snap.R(1)), false},
+		{snap.NewComponentSideInfo(naming.NewComponentRef("snap", "other"), snap.R(1)), false},
+		{snap.NewComponentSideInfo(naming.NewComponentRef("snap", "comp"), snap.R(5)), false},
+		{snap.NewComponentSideInfo(naming.NewComponentRef("", ""), snap.R(0)), false},
+	} {
+		c.Check(csi.Equal(tc.csi), Equals, tc.equal)
+	}
 }

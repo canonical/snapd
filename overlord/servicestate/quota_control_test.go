@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
@@ -684,7 +685,7 @@ func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
 	// and test-snap2
 	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
 	snapst2 := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 		Active:   true,
 		SnapType: "app",
@@ -898,7 +899,7 @@ func (s *quotaControlSuite) TestSnapOpUpdateQuotaConflict(c *C) {
 	// and test-snap2
 	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
 	snapst2 := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 		Active:   true,
 		SnapType: "app",
@@ -1010,7 +1011,7 @@ func (s *quotaControlSuite) TestUpdateQuotaSnapOpConflict(c *C) {
 	// and test-snap2
 	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
 	snapst2 := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 		Active:   true,
 		SnapType: "app",
@@ -1118,7 +1119,7 @@ func (s *quotaControlSuite) TestUpdateQuotaUpdateQuotaConflict(c *C) {
 	// and test-snap2
 	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
 	snapst2 := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 		Active:   true,
 		SnapType: "app",
@@ -1158,7 +1159,7 @@ func (s *quotaControlSuite) TestUpdateQuotaRemoveQuotaConflict(c *C) {
 	// and test-snap2
 	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
 	snapst2 := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 		Active:   true,
 		SnapType: "app",
@@ -1197,7 +1198,7 @@ func (s *quotaControlSuite) TestRemoveQuotaUpdateQuotaConflict(c *C) {
 	// and test-snap2
 	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
 	snapst2 := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 		Active:   true,
 		SnapType: "app",
@@ -1230,7 +1231,7 @@ func (s *quotaControlSuite) TestCreateQuotaCreateQuotaConflict(c *C) {
 	// and test-snap2
 	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
 	snapst2 := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 		Active:   true,
 		SnapType: "app",
@@ -1276,7 +1277,7 @@ func (s *quotaControlSuite) TestAddSnapToQuotaGroupQuotaConflict(c *C) {
 	// and test-snap2
 	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
 	snapst2 := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
 		Active:   true,
 		SnapType: "app",

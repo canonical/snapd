@@ -64,13 +64,13 @@ func (t *Transaction) Set(path string, value interface{}) error {
 }
 
 // Get reads a value from the transaction's databag including uncommitted changes.
-func (t *Transaction) Get(path string, value interface{}) error {
+func (t *Transaction) Get(path string) (interface{}, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
 	// if there aren't any changes, just use the pristine bag
 	if len(t.deltas) == 0 {
-		return t.pristine.Get(path, value)
+		return t.pristine.Get(path)
 	}
 
 	// if there are changes, use a cached bag with modifications to do the Get
@@ -83,11 +83,11 @@ func (t *Transaction) Get(path string, value interface{}) error {
 	if err := applyDeltas(t.modified, t.deltas[t.appliedDeltas:]); err != nil {
 		t.modified = nil
 		t.appliedDeltas = 0
-		return err
+		return nil, err
 	}
 	t.appliedDeltas = len(t.deltas)
 
-	return t.modified.Get(path, value)
+	return t.modified.Get(path)
 }
 
 // Commit applies the previous writes and validates the final databag. If any

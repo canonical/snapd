@@ -121,10 +121,18 @@ func verifyForgetAllowedByModelAssertion(st *state.State, accountID, name string
 	return nil
 }
 
+// ForgetValidationSetOpts holds options for ForgetValidationSet.
+type ForgetValidationSetOpts struct {
+	// ForceForget is used to forget a validation set even if it's enforced by
+	// the model. This is currently used during remodeling when we need to
+	// forget validation sets from the old/new model.
+	ForceForget bool
+}
+
 // ForgetValidationSet deletes a validation set for the given accountID and name.
 // It is not an error to delete a non-existing one. If the validation-set
 // is controlled by the model assertion it may not be allowed to forget it.
-func ForgetValidationSet(st *state.State, accountID, name string) error {
+func ForgetValidationSet(st *state.State, accountID, name string, opts ForgetValidationSetOpts) error {
 	var vsmap map[string]*json.RawMessage
 	err := st.Get("validation-sets", &vsmap)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -133,8 +141,11 @@ func ForgetValidationSet(st *state.State, accountID, name string) error {
 	if len(vsmap) == 0 {
 		return nil
 	}
-	if err := verifyForgetAllowedByModelAssertion(st, accountID, name); err != nil {
-		return err
+
+	if !opts.ForceForget {
+		if err := verifyForgetAllowedByModelAssertion(st, accountID, name); err != nil {
+			return err
+		}
 	}
 
 	delete(vsmap, ValidationSetKey(accountID, name))

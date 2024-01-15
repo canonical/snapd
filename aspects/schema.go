@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/snapcore/snapd/strutil"
 )
@@ -71,6 +72,8 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 			return nil, fmt.Errorf(`cannot parse user-defined types map: %w`, err)
 		}
 
+		// TODO: if we want to allow user types to refer to others, this must be handled
+		// explicitly since userTypes will not preserve any order in the serialized JSON
 		schema.userTypes = make(map[string]*userTypeRefParser, len(userTypes))
 		for userTypeName, typeDef := range userTypes {
 			if !validUserType.Match([]byte(userTypeName)) {
@@ -232,17 +235,21 @@ type mapSchema struct {
 func (v *mapSchema) Validate(raw []byte) error {
 	var mapValue map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &mapValue); err != nil {
-		return err
+		typeErr := &json.UnmarshalTypeError{}
+		if errors.As(err, &typeErr) {
+			return validationErrorf("expected map type but got %s", typeErr.Value)
+		}
+		return validationErrorFrom(err)
 	}
 
 	if mapValue == nil {
-		return fmt.Errorf(`cannot accept null value for "map" type`)
+		return validationErrorf(`cannot accept null value for "map" type`)
 	}
 
 	if v.entrySchemas != nil {
 		for key := range mapValue {
 			if _, ok := v.entrySchemas[key]; !ok {
-				return fmt.Errorf(`map contains unexpected key %q`, key)
+				return validationErrorf(`map contains unexpected key %q`, key)
 			}
 		}
 	}
@@ -264,13 +271,17 @@ func (v *mapSchema) Validate(raw []byte) error {
 	}
 
 	if missing {
-		return fmt.Errorf(`cannot find required combinations of keys`)
+		return validationErrorf(`cannot find required combinations of keys`)
 	}
 
 	if v.entrySchemas != nil {
 		for key, val := range mapValue {
 			if validator, ok := v.entrySchemas[key]; ok {
 				if err := validator.Validate(val); err != nil {
+					var valErr *ValidationError
+					if errors.As(err, &valErr) {
+						valErr.Path = append([]interface{}{key}, valErr.Path...)
+					}
 					return err
 				}
 			}
@@ -284,18 +295,26 @@ func (v *mapSchema) Validate(raw []byte) error {
 		for k := range mapValue {
 			rawKey, err := json.Marshal(k)
 			if err != nil {
-				return err
+				return fmt.Errorf("internal error: %w", err)
 			}
 
 			if err := v.keySchema.Validate(rawKey); err != nil {
+				var valErr *ValidationError
+				if errors.As(err, &valErr) {
+					valErr.Path = append([]interface{}{k}, valErr.Path...)
+				}
 				return err
 			}
 		}
 	}
 
 	if v.valueSchema != nil {
-		for _, val := range mapValue {
+		for k, val := range mapValue {
 			if err := v.valueSchema.Validate(val); err != nil {
+				var valErr *ValidationError
+				if errors.As(err, &valErr) {
+					valErr.Path = append([]interface{}{k}, valErr.Path...)
+				}
 				return err
 			}
 		}
@@ -445,8 +464,8 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 		if !userType.isStringBased() {
 			return nil, fmt.Errorf(`key type %q must be based on string`, typ[1:])
 		}
-		return userType, nil
 
+		return userType, nil
 	}
 
 	return nil, fmt.Errorf(`keys must be based on string but got %q`, typ)
@@ -457,15 +476,26 @@ func (v *mapSchema) expectsConstraints() bool { return true }
 type stringSchema struct {
 	// pattern is a regex pattern that the string must match.
 	pattern *regexp.Regexp
+
 	// choices holds the possible values the string can take, if non-empty.
 	choices []string
 }
 
 // Validate that raw is a valid aspect string and meets the schema's constraints.
-func (v *stringSchema) Validate(raw []byte) error {
+func (v *stringSchema) Validate(raw []byte) (err error) {
+	defer func() {
+		if err != nil {
+			err = validationErrorFrom(err)
+		}
+	}()
+
 	var value *string
 	if err := json.Unmarshal(raw, &value); err != nil {
-		return fmt.Errorf("cannot validate string: %w", err)
+		typeErr := &json.UnmarshalTypeError{}
+		if errors.As(err, &typeErr) {
+			return fmt.Errorf("expected string type but got %s", typeErr.Value)
+		}
+		return err
 	}
 
 	if value == nil {
@@ -525,9 +555,19 @@ type intSchema struct {
 }
 
 // Validate that raw is a valid integer and meets the schema's constraints.
-func (v *intSchema) Validate(raw []byte) error {
+func (v *intSchema) Validate(raw []byte) (err error) {
+	defer func() {
+		if err != nil {
+			err = validationErrorFrom(err)
+		}
+	}()
+
 	var num *int64
 	if err := json.Unmarshal(raw, &num); err != nil {
+		typeErr := &json.UnmarshalTypeError{}
+		if errors.As(err, &typeErr) {
+			return fmt.Errorf("expected int type but got %s", typeErr.Value)
+		}
 		return err
 	}
 
@@ -588,7 +628,13 @@ func (v *intSchema) expectsConstraints() bool { return false }
 
 type anySchema struct{}
 
-func (v *anySchema) Validate(raw []byte) error {
+func (v *anySchema) Validate(raw []byte) (err error) {
+	defer func() {
+		if err != nil {
+			err = validationErrorFrom(err)
+		}
+	}()
+
 	var val interface{}
 	if err := json.Unmarshal(raw, &val); err != nil {
 		return err
@@ -614,9 +660,19 @@ type numberSchema struct {
 }
 
 // Validate that raw is a valid number and meets the schema's constraints.
-func (v *numberSchema) Validate(raw []byte) error {
+func (v *numberSchema) Validate(raw []byte) (err error) {
+	defer func() {
+		if err != nil {
+			err = validationErrorFrom(err)
+		}
+	}()
+
 	var num *float64
 	if err := json.Unmarshal(raw, &num); err != nil {
+		typeErr := &json.UnmarshalTypeError{}
+		if errors.As(err, &typeErr) {
+			return fmt.Errorf("expected number type but got %s", typeErr.Value)
+		}
 		return err
 	}
 
@@ -645,11 +701,11 @@ func validateNumber[Num ~int64 | ~float64](num Num, choices []Num, min, max *Num
 	// these comparisons are susceptible to floating-point errors but given that
 	// this won't be used for general storage it should be precise enough
 	if min != nil && num < *min {
-		return fmt.Errorf(`%v is less than allowed minimum %v`, num, *min)
+		return fmt.Errorf(`%v is less than the allowed minimum %v`, num, *min)
 	}
 
 	if max != nil && num > *max {
-		return fmt.Errorf(`%v is greater than allowed maximum %v`, num, *max)
+		return fmt.Errorf(`%v is greater than the allowed maximum %v`, num, *max)
 	}
 
 	return nil
@@ -705,9 +761,19 @@ func (v *numberSchema) expectsConstraints() bool { return false }
 
 type booleanSchema struct{}
 
-func (v *booleanSchema) Validate(raw []byte) error {
+func (v *booleanSchema) Validate(raw []byte) (err error) {
+	defer func() {
+		if err != nil {
+			err = validationErrorFrom(err)
+		}
+	}()
+
 	var val *bool
 	if err := json.Unmarshal(raw, &val); err != nil {
+		typeErr := &json.UnmarshalTypeError{}
+		if errors.As(err, &typeErr) {
+			return fmt.Errorf("expected bool type but got %s", typeErr.Value)
+		}
 		return err
 	}
 
@@ -718,7 +784,7 @@ func (v *booleanSchema) Validate(raw []byte) error {
 	return nil
 }
 
-func (v *booleanSchema) parseConstraints(constraints map[string]json.RawMessage) error {
+func (v *booleanSchema) parseConstraints(map[string]json.RawMessage) error {
 	// no error because we're not explicitly rejecting unsupported keywords (for now)
 	return nil
 }
@@ -740,15 +806,23 @@ type arraySchema struct {
 func (v *arraySchema) Validate(raw []byte) error {
 	var array *[]json.RawMessage
 	if err := json.Unmarshal(raw, &array); err != nil {
-		return err
+		typeErr := &json.UnmarshalTypeError{}
+		if errors.As(err, &typeErr) {
+			return validationErrorf("expected array type but got %s", typeErr.Value)
+		}
+		return validationErrorFrom(err)
 	}
 
 	if array == nil {
-		return fmt.Errorf(`cannot accept null value for "array" type`)
+		return validationErrorf(`cannot accept null value for "array" type`)
 	}
 
-	for _, val := range *array {
+	for e, val := range *array {
 		if err := v.elementType.Validate([]byte(val)); err != nil {
+			var vErr *ValidationError
+			if errors.As(err, &vErr) {
+				vErr.Path = append([]interface{}{e}, vErr.Path...)
+			}
 			return err
 		}
 	}
@@ -759,7 +833,7 @@ func (v *arraySchema) Validate(raw []byte) error {
 		for _, val := range *array {
 			encodedVal := string(val)
 			if _, ok := valSet[encodedVal]; ok {
-				return fmt.Errorf(`cannot accept duplicate values for array with "unique" constraint`)
+				return validationErrorf(`cannot accept duplicate values for array with "unique" constraint`)
 			}
 			valSet[encodedVal] = struct{}{}
 		}
@@ -794,3 +868,44 @@ func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) e
 }
 
 func (v *arraySchema) expectsConstraints() bool { return true }
+
+type ValidationError struct {
+	Path []interface{}
+	Err  error
+}
+
+func (v *ValidationError) Error() string {
+	var msg string
+	if len(v.Path) == 0 {
+		msg = "cannot accept top level element"
+	} else {
+		var sb strings.Builder
+		for i, part := range v.Path {
+			switch v := part.(type) {
+			case string:
+				if i > 0 {
+					sb.WriteRune('.')
+				}
+
+				sb.WriteString(v)
+			case int:
+				sb.WriteString(fmt.Sprintf("[%d]", v))
+			default:
+				// can only happen due to bug
+				sb.WriteString(".<n/a>")
+			}
+		}
+
+		msg = fmt.Sprintf("cannot accept element in %q", sb.String())
+	}
+
+	return fmt.Sprintf("%s: %v", msg, v.Err)
+}
+
+func validationErrorFrom(err error) error {
+	return &ValidationError{Err: err}
+}
+
+func validationErrorf(format string, v ...interface{}) error {
+	return &ValidationError{Err: fmt.Errorf(format, v...)}
+}

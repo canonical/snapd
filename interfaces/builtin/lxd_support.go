@@ -19,6 +19,14 @@
 
 package builtin
 
+import (
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/strutil"
+)
+
 const lxdSupportSummary = `allows operating as the LXD service`
 
 const lxdSupportBaseDeclarationPlugs = `
@@ -46,6 +54,11 @@ const lxdSupportConnectedPlugAppArmor = `
 /var/lib/snapd/hostfs/{etc,usr/lib}/os-release r,
 `
 
+const lxdSupportConnectedPlugAppArmorWithUserNS = `
+# allow use of user namespaces
+userns,
+`
+
 const lxdSupportConnectedPlugSecComp = `
 # Description: Can access all syscalls of the system so LXD may manage what to
 # give to its containers, giving device ownership to connected snaps.
@@ -54,16 +67,43 @@ const lxdSupportConnectedPlugSecComp = `
 
 const lxdSupportServiceSnippet = `Delegate=true`
 
+type lxdSupportInterface struct {
+	commonInterface
+}
+
+func (iface *lxdSupportInterface) Name() string {
+	return "lxd-support"
+}
+
+func (iface *lxdSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(lxdSupportConnectedPlugAppArmor)
+	// if apparmor supports userns mediation then add this too
+	if apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
+		features, err := apparmor_sandbox.ParserFeatures()
+		if err != nil {
+			return err
+		}
+		if strutil.ListContains(features, "userns") {
+			spec.AddSnippet(lxdSupportConnectedPlugAppArmorWithUserNS)
+		}
+	}
+	return nil
+}
+
+func (iface *lxdSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(lxdSupportConnectedPlugSecComp)
+	return nil
+}
+
 func init() {
-	registerIface(&commonInterface{
-		name:                  "lxd-support",
-		summary:               lxdSupportSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  lxdSupportBaseDeclarationSlots,
-		baseDeclarationPlugs:  lxdSupportBaseDeclarationPlugs,
-		connectedPlugAppArmor: lxdSupportConnectedPlugAppArmor,
-		connectedPlugSecComp:  lxdSupportConnectedPlugSecComp,
-		serviceSnippets:       []string{lxdSupportServiceSnippet},
+	registerIface(&lxdSupportInterface{commonInterface{
+		name:                    "lxd-support",
+		summary:                 lxdSupportSummary,
+		implicitOnCore:          true,
+		implicitOnClassic:       true,
+		appArmorUnconfinedPlugs: true,
+		baseDeclarationSlots:    lxdSupportBaseDeclarationSlots,
+		baseDeclarationPlugs:    lxdSupportBaseDeclarationPlugs,
+		serviceSnippets:         []string{lxdSupportServiceSnippet}},
 	})
 }

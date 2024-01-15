@@ -1,0 +1,25 @@
+type: validation-set
+authority-id: test-snapd
+series: 16
+account-id: test-snapd
+name: test-snapd-core22-required-vset
+sequence: 1
+snaps:
+  -
+    id: buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ
+    name: hello-world
+    presence: required
+    revision: 28
+timestamp: 2023-10-24T19:55:00+00:00
+sign-key-sha3-384: 7qWG-Uwck6Dji43a3Z8ZZrm7rAziZAch3xf76iFvqe4GaD0LI7U9lYPWMSJAsEgu
+
+AcLBcwQAAQoAHRYhBGESvKlz1RXG1IBOC0MdJKf2hr9ABQJlbflaAAoJEEMdJKf2hr9AdhAP/iwV
+F/4HYe2RPN3+RXlEDiUruiz3Li7R+hOxyglEHTHePB5nLUo7v6KkAmClAzEZMY7pVw/SQe0aa7Us
+C/O+pdaFoMxrTSYfHCBmQHAhZ/Jy2LYWG6GMF1F1VDd/Z50p+Yfv6JRGqT0BgyStjSmY8ETJNdZf
+wjsQSLNq3K65lovn2A+9lqrnmWxapHuLOGtAM3R93WjKdU6sv90spU+a8N4bNMG5iF/ep9BxAOgL
+kvsAq34fmnmce+6r5qjJ5Tj97nVsAbe2gwdukgXSEPodE29qAEKjH1RYpzYuT23RbQnhGmR8kDNt
+QfY1h7CfWFLOzvjpRCj0FBCFViARZWh4Wba7MVsTBLJ83lJAPlOoQMI+P1Cdju+zN8zdSQLd5qQJ
+9p7nEfnklDtjhCS/c5ypnFXHwToZJc5nDcBS/VHierq40K8aoJzouKgSd9KBPeZge6LAQbAvsQVJ
+GmEILxr3QDxOtBGX5CHWWmkvBD1UuSNvXheiBdQBrwMBI8OrWCy8GYFbNgjPiYMCi6Hohp0gHUix
+lQLYdv+JwJnIH4qv57aUQJMpEmROiI4LTjYE+XqzAuhO7TQ8WulUpYOOS6Iqoco63o5b7KW4I1MJ
+tx1aDQqGACob3zy0itnU1g6TaavEHZwbgT2YFlYZOX3J66ZMAEEk5NnOpcX3vinF7IpVuld3

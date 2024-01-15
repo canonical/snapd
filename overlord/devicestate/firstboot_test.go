@@ -2357,7 +2357,7 @@ snaps:
 		hdrs := vs.(map[string]interface{})
 		seq, err := strconv.Atoi(hdrs["sequence"].(string))
 		c.Assert(err, IsNil)
-		key := fmt.Sprintf("%s/%s", hdrs["account-id"].(string), hdrs["name"].(string))
+		key := fmt.Sprintf("%s/%s/%s", release.Series, hdrs["account-id"].(string), hdrs["name"].(string))
 		expectedSeqs[key] = seq
 		expectedVss[key] = []string{release.Series, hdrs["account-id"].(string), hdrs["name"].(string), hdrs["sequence"].(string)}
 	}

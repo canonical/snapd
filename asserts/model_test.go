@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type modelSuite struct {
@@ -1395,4 +1396,40 @@ func (mods *modelSuite) TestValidationSetsDecodeOK(c *C) {
 		c.Check(model.Base(), Equals, "core20")
 		c.Check(model.ValidationSets(), DeepEquals, t.expected)
 	}
+}
+
+func (mods *modelSuite) TestModelValidationSetSequenceKey(c *C) {
+	mvs := &asserts.ModelValidationSet{
+		AccountID: "test",
+		Name:      "set",
+		Sequence:  1,
+		Mode:      asserts.ModelValidationSetModeEnforced,
+	}
+
+	c.Check(mvs.SequenceKey(), Equals, "16/test/set")
+}
+
+func (mods *modelSuite) TestAllSnaps(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", "", 1)
+
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.ModelType)
+
+	model := a.(*asserts.Model)
+
+	allSnaps := append([]*asserts.ModelSnap(nil), model.EssentialSnaps()...)
+
+	// make sure that we have essential snaps to compare to
+	c.Assert(len(allSnaps), testutil.IntGreaterThan, 0)
+
+	essentialLen := len(allSnaps)
+
+	allSnaps = append(allSnaps, model.SnapsWithoutEssential()...)
+
+	// same here, make sure that we have non-essential snaps to compare to
+	c.Assert(len(allSnaps), testutil.IntGreaterThan, essentialLen)
+
+	c.Check(model.AllSnaps(), DeepEquals, allSnaps)
 }

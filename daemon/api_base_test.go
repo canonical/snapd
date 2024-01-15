@@ -48,6 +48,8 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
@@ -360,6 +362,9 @@ func newFakeSnapManager(st *state.State, runner *state.TaskRunner) *fakeSnapMana
 	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}, nil)
+	runner.AddHandler("fake-install-component", func(t *state.Task, _ *tomb.Tomb) error {
+		return nil
+	}, nil)
 	runner.AddHandler("fake-install-snap-error", func(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("fake-install-snap-error errored")
 	}, nil)
@@ -414,13 +419,13 @@ func (s *apiBaseSuite) mockSnap(c *check.C, yamlText string) *snap.Info {
 	// Put a side info into the state
 	snapstate.Set(st, snapInfo.InstanceName(), &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
 				RealName: snapInfo.SnapName(),
 				Revision: snapInfo.Revision,
 				SnapID:   "ididid",
 			},
-		},
+		}),
 		Current:  snapInfo.Revision,
 		SnapType: string(snapInfo.Type()),
 	})
@@ -481,7 +486,7 @@ version: %s
 	var snapst snapstate.SnapState
 	snapstate.Get(st, instanceName, &snapst)
 	snapst.Active = active
-	snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
+	snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, sequence.NewRevisionSideState(&snapInfo.SideInfo, nil))
 	snapst.Current = snapInfo.SideInfo.Revision
 	snapst.TrackingChannel = "stable"
 	snapst.InstanceKey = instanceKey

@@ -616,7 +616,7 @@ pkg_dependencies_ubuntu_classic(){
                 shellcheck
                 "
             ;;
-        ubuntu-22.*|ubuntu-23.*)
+        ubuntu-22.*|ubuntu-23.*|ubuntu-24.*)
             # bpftool is part of linux-tools package
             echo "
                 dbus-user-session
@@ -725,14 +725,27 @@ pkg_dependencies_fedora(){
 }
 
 pkg_dependencies_amazon(){
+    if os.query is-amazon-linux 2 || os.query is-centos 7; then
+        echo "
+            fish
+            fwupd
+            system-lsb-core
+            upower
+            "
+    fi
+    if os.query is-amazon-linux 2023; then
+        echo "
+            bpftool
+            gnupg2-full
+            python-docutils
+            python3-gobject
+            "
+    fi
     echo "
-        python3
         curl
         dbus-x11
         expect
-        fish
         fontconfig
-        fwupd
         git
         golang
         grub2-tools
@@ -744,12 +757,11 @@ pkg_dependencies_amazon(){
         net-tools
         nfs-utils
         PackageKit
-        system-lsb-core
+        python3
         rpm-build
         xdg-user-dirs
         xdg-utils
         udisks2
-        upower
         zsh
         "
 }

@@ -164,10 +164,13 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/local/share/fonts"), 0777), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0777), IsNil)
 
+	// mock an Ubuntu Core like system
 	restore := release.MockOnClassic(false)
 	defer restore()
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
 
-	// On all-snaps systems, the mounts are present
+	// On all-snaps systems like Ubuntu Core, the mounts are present
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.appSlot), IsNil)
 	c.Check(spec.MountEntries(), HasLen, 3)
@@ -177,8 +180,8 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	// are bind mounted from the host system if they exist.
 	restore = release.MockOnClassic(true)
 	defer restore()
-	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
-	defer restore()
+	// distro is already mocked to be Ubuntu
+
 	spec = &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 

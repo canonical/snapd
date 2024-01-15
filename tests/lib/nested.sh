@@ -548,7 +548,7 @@ nested_prepare_kernel() {
                 repack_kernel_snap "$kernel_snap"
 
             elif nested_is_core_20_system || nested_is_core_22_system; then
-                snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
+                snap download --basename=pc-kernel --channel="$version/${NESTED_KERNEL_CHANNEL}" pc-kernel
 
                 # set the unix bump time if the NESTED_* var is set,
                 # otherwise leave it empty
@@ -601,7 +601,7 @@ nested_prepare_gadget() {
             snakeoil_key="$PWD/$key_name.key"
             snakeoil_cert="$PWD/$key_name.pem"
 
-            snap download --basename=pc --channel="$version/edge" pc
+            snap download --basename=pc --channel="$version/${NESTED_GADGET_CHANNEL}" pc
             unsquashfs -d pc-gadget pc.snap
             nested_secboot_sign_gadget pc-gadget "$snakeoil_key" "$snakeoil_cert"
             case "${NESTED_UBUNTU_SAVE:-}" in
@@ -1006,14 +1006,14 @@ nested_start_core_vm_unit() {
     # the caller can override PARAM_MEM
     local PARAM_MEM PARAM_SMP
     if [ "$SPREAD_BACKEND" = "google-nested" ] || [ "$SPREAD_BACKEND" = "google-nested-arm" ]; then
-        PARAM_MEM="${NESTED_PARAM_MEM:--m 4096}"
-        PARAM_SMP="-smp 2"
+        PARAM_MEM="-m ${NESTED_MEM:-4096}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-2}"
     elif [ "$SPREAD_BACKEND" = "google-nested-dev" ]; then
-        PARAM_MEM="${NESTED_PARAM_MEM:--m 8192}"
-        PARAM_SMP="-smp 4"
+        PARAM_MEM="-m ${NESTED_MEM:-8192}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-4}"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
-        PARAM_MEM="${NESTED_PARAM_MEM:--m 2048}"
-        PARAM_SMP="-smp 1"
+        PARAM_MEM="-m ${NESTED_MEM:-2048}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-1}"
     else
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
@@ -1352,13 +1352,14 @@ nested_start_classic_vm() {
     PARAM_SMP="-smp 1"
     # use only 2G of RAM for qemu-nested
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
-        PARAM_MEM="${NESTED_PARAM_MEM:--m 4096}"
-        PARAM_SMP="-smp 2"
+        PARAM_MEM="-m ${NESTED_MEM:-4096}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-2}"
     elif [ "$SPREAD_BACKEND" = "google-nested-dev" ]; then
-        PARAM_MEM="${NESTED_PARAM_MEM:--m 8192}"
-        PARAM_SMP="-smp 4"
+        PARAM_MEM="-m ${NESTED_MEM:-8192}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-4}"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
-        PARAM_MEM="${NESTED_PARAM_MEM:--m 2048}"
+        PARAM_MEM="-m ${NESTED_MEM:-2048}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-1}"
     else
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1

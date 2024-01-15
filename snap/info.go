@@ -41,6 +41,29 @@ import (
 	"github.com/snapcore/snapd/timeout"
 )
 
+// ContainerPlaceInfo offers all the information about where a container (which
+// can be a snap or a component) and its data are located and exposed in the
+// filesystem.
+type ContainerPlaceInfo interface {
+	// ContainerName returns the name of the container, which is part of the
+	// name of the backing file (for snaps this is the instance name).
+	ContainerName() string
+
+	// Filename returns the name of the container with the revision
+	// number, as used on the filesystem.
+	Filename() string
+
+	// MountDir returns the base directory of the container.
+	MountDir() string
+
+	// MountFile returns the path where the container file that is mounted is
+	// installed.
+	MountFile() string
+
+	// MountDescription is the value for the mount unit Description field.
+	MountDescription() string
+}
+
 // PlaceInfo offers all the information about where a snap and its data are
 // located and exposed in the filesystem.
 type PlaceInfo interface {
@@ -109,9 +132,16 @@ type PlaceInfo interface {
 }
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a
-// snap of the given name and revision.
-func MinimalPlaceInfo(name string, revision Revision) PlaceInfo {
-	storeName, instanceKey := SplitInstanceName(name)
+// snap of the given instance name and revision.
+func MinimalPlaceInfo(instanceName string, revision Revision) PlaceInfo {
+	storeName, instanceKey := SplitInstanceName(instanceName)
+	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
+}
+
+// MinimalSnapContainerPlaceInfo returns a ContainerPlaceInfo with just the location
+// information for a snap of the given instance name and revision.
+func MinimalSnapContainerPlaceInfo(instanceName string, revision Revision) ContainerPlaceInfo {
+	storeName, instanceKey := SplitInstanceName(instanceName)
 	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
 }
 
@@ -155,9 +185,16 @@ func MountDir(name string, revision Revision) string {
 	return filepath.Join(BaseDir(name), revision.String())
 }
 
-// MountFile returns the path where the snap file that is mounted is installed.
+// MountFile returns the path where the snap file that is mounted is installed,
+// using the default blob directory (dirs.SnapBlobDir).
 func MountFile(name string, revision Revision) string {
-	return filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", name, revision))
+	return MountFileInDir(dirs.SnapBlobDir, name, revision)
+}
+
+// MountFileInDir returns the path where the snap file that is mounted is
+// installed in a given directory.
+func MountFileInDir(dir, name string, revision Revision) string {
+	return filepath.Join(dir, fmt.Sprintf("%s_%s.snap", name, revision))
 }
 
 // ScopedSecurityTag returns the snap-specific, scope specific, security tag.
@@ -275,19 +312,19 @@ func SnapDir(home string, opts *dirs.SnapDirOptions) string {
 // from the store but is not required for working offline should not
 // end up in SideInfo.
 type SideInfo struct {
-	RealName    string              `yaml:"name,omitempty" json:"name,omitempty"`
-	SnapID      string              `yaml:"snap-id" json:"snap-id"`
-	Revision    Revision            `yaml:"revision" json:"revision"`
-	Channel     string              `yaml:"channel,omitempty" json:"channel,omitempty"`
-	EditedLinks map[string][]string `yaml:"links,omitempty" json:"links,omitempty"`
+	RealName    string              `json:"name,omitempty"`
+	SnapID      string              `json:"snap-id"`
+	Revision    Revision            `json:"revision"`
+	Channel     string              `json:"channel,omitempty"`
+	EditedLinks map[string][]string `json:"links,omitempty"`
 	// subsumed by EditedLinks, by need to set for if we revert
 	// to old snapd
-	LegacyEditedContact string `yaml:"contact,omitempty" json:"contact,omitempty"`
-	EditedTitle         string `yaml:"title,omitempty" json:"title,omitempty"`
-	EditedSummary       string `yaml:"summary,omitempty" json:"summary,omitempty"`
-	EditedDescription   string `yaml:"description,omitempty" json:"description,omitempty"`
-	Private             bool   `yaml:"private,omitempty" json:"private,omitempty"`
-	Paid                bool   `yaml:"paid,omitempty" json:"paid,omitempty"`
+	LegacyEditedContact string `json:"contact,omitempty"`
+	EditedTitle         string `json:"title,omitempty"`
+	EditedSummary       string `json:"summary,omitempty"`
+	EditedDescription   string `json:"description,omitempty"`
+	Private             bool   `json:"private,omitempty"`
+	Paid                bool   `json:"paid,omitempty"`
 }
 
 // Info provides information about snaps.
@@ -452,6 +489,12 @@ func (s *Info) InstanceName() string {
 	return InstanceName(s.SnapName(), s.InstanceKey)
 }
 
+// ContainerName returns the name of the container, which is the instance name
+// for snaps.
+func (s *Info) ContainerName() string {
+	return s.InstanceName()
+}
+
 // SnapName returns the global blessed name of the snap.
 func (s *Info) SnapName() string {
 	if s.RealName != "" {
@@ -608,6 +651,11 @@ func (s *Info) MountDir() string {
 // MountFile returns the path where the snap file that is mounted is installed.
 func (s *Info) MountFile() string {
 	return MountFile(s.InstanceName(), s.Revision)
+}
+
+// MountDescription returns the mount unit Description field.
+func (s *Info) MountDescription() string {
+	return fmt.Sprintf("Mount unit for %s, revision %s", s.InstanceName(), s.Revision)
 }
 
 // HooksDir returns the directory containing the snap's hooks.
@@ -823,8 +871,11 @@ type DeltaInfo struct {
 	Sha3_384     string `json:"sha3-384,omitempty"`
 }
 
-// check that Info is a PlaceInfo
-var _ PlaceInfo = (*Info)(nil)
+// check that Info is a PlaceInfo and a ContainerPlaceInfo
+var (
+	_ PlaceInfo          = (*Info)(nil)
+	_ ContainerPlaceInfo = (*Info)(nil)
+)
 
 type AttributeNotFoundError struct{ Err error }
 

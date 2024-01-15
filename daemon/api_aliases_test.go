@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -520,9 +521,9 @@ func (s *aliasesSuite) TestAliases(c *check.C) {
 	st := d.Overlord().State()
 	st.Lock()
 	snapstate.Set(st, "alias-snap1", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap1", Revision: snap.R(11)},
-		},
+		}),
 		Current: snap.R(11),
 		Active:  true,
 		Aliases: map[string]*snapstate.AliasTarget{
@@ -531,9 +532,9 @@ func (s *aliasesSuite) TestAliases(c *check.C) {
 		},
 	})
 	snapstate.Set(st, "alias-snap2", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "alias-snap2", Revision: snap.R(12)},
-		},
+		}),
 		Current:             snap.R(12),
 		Active:              true,
 		AutoAliasesDisabled: true,

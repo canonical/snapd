@@ -13,6 +13,227 @@ type messageSuite struct{}
 
 var _ = Suite(&messageSuite{})
 
+func (*messageSuite) TestMsgLength(c *C) {
+	if arch.Endian() == binary.BigEndian {
+		c.Skip("test only written for little-endian architectures")
+	}
+	for _, t := range []struct {
+		bytes  []byte
+		length int
+	}{
+		{
+			bytes: []byte{
+				0x4, 0x0, // Length
+				0x3, 0x0, // Protocol
+			},
+			length: 4,
+		},
+		{
+			bytes: []byte{
+				0xff, 0x0, // Incorrect length, but no validation done here
+				0x3, 0x0, // Protocol
+			},
+			length: 255,
+		},
+		{
+			bytes: []byte{
+				0x10, 0x0, // Length
+				0xff, 0xff, // Protocol (invalid, should still work)
+				0x80, 0x0, 0x0, 0x0, // Mode Set
+				0x0, 0x0, 0x0, 0x0, // Namespace
+				0x0, 0x0, 0x0, 0x0, // Filter
+			},
+			length: 16,
+		},
+		{
+			bytes: []byte{
+				0x4, 0x0, // Length
+				0x3, 0x0, // Protocol
+				// Next 4 bytes should be next header, but no validation done here
+				0x80, 0x0, 0x0, 0x0, // Mode Set
+				0x0, 0x0, 0x0, 0x0, // Namespace
+				0x0, 0x0, 0x0, 0x0, // Filter
+			},
+			length: 4,
+		},
+	} {
+		length, err := notify.MsgLength(t.bytes)
+		c.Check(err, IsNil)
+		c.Check(length, Equals, t.length)
+	}
+}
+
+func (*messageSuite) TestMsgLengthErrors(c *C) {
+	if arch.Endian() == binary.BigEndian {
+		c.Skip("test only written for little-endian architectures")
+	}
+	for _, t := range []struct {
+		bytes []byte
+		err   string
+	}{
+		{
+			bytes: []byte{},
+			err:   "cannot parse message header: EOF",
+		},
+		{
+			bytes: []byte{
+				0x4, 0x0, // Length
+				0x3, // Incomplete Protocol
+			},
+			err: "cannot parse message header: unexpected EOF",
+		},
+		{
+			bytes: []byte{
+				0x3, 0x0, // Incorrect length
+				0x3, 0x0, // Protocol
+			},
+			err: `cannot parse message header: invalid length \(must be >= 4\): 3`,
+		},
+	} {
+		length, err := notify.MsgLength(t.bytes)
+		c.Check(err, ErrorMatches, t.err, Commentf("bytes: %v", t.bytes))
+		c.Check(length, Equals, -1)
+	}
+}
+
+func (*messageSuite) TestExtractFirstMsg(c *C) {
+	if arch.Endian() == binary.BigEndian {
+		c.Skip("test only written for little-endian architectures")
+	}
+
+	simple := []byte{
+		0x4, 0x0, // Length
+		0x3, 0x0, // Protocol
+	}
+	first, rest, err := notify.ExtractFirstMsg(simple)
+	c.Assert(err, IsNil)
+	c.Assert(first, DeepEquals, simple)
+	c.Assert(rest, HasLen, 0)
+
+	origBytes := []byte{
+		// first
+		0x4, 0x0, // Length
+		0x3, 0x0, // Protocol
+		// second
+		0x10, 0x0, // Length
+		0xff, 0xff, // Protocol (invalid, should still work)
+		0x80, 0x0, 0x0, 0x0, // Mode Set
+		0x0, 0x0, 0x0, 0x0, // Namespace
+		0x0, 0x0, 0x0, 0x0, // Filter
+		// third
+		0x4, 0x0, // Length
+		0x3, 0x0, // Protocol
+		// Next 4 bytes should be next header, but no validation done here
+		0x80, 0x0, 0x0, 0x0, // Mode Set
+		0x0, 0x0, 0x0, 0x0, // Namespace
+		0x0, 0x0, 0x0, 0x0, // Filter
+	}
+	for _, t := range []struct {
+		first []byte
+		rest  []byte
+	}{
+		{
+			first: []byte{
+				0x4, 0x0, // Length
+				0x3, 0x0, // Protocol
+			},
+			rest: []byte{
+				// second
+				0x10, 0x0, // Length
+				0xff, 0xff, // Protocol (invalid, should still work)
+				0x80, 0x0, 0x0, 0x0, // Mode Set
+				0x0, 0x0, 0x0, 0x0, // Namespace
+				0x0, 0x0, 0x0, 0x0, // Filter
+				// third
+				0x4, 0x0, // Length
+				0x3, 0x0, // Protocol
+				// Next 4 bytes should be next header, but no validation done here
+				0x80, 0x0, 0x0, 0x0, // Mode Set
+				0x0, 0x0, 0x0, 0x0, // Namespace
+				0x0, 0x0, 0x0, 0x0, // Filter
+			},
+		},
+		{
+			first: []byte{
+				0x10, 0x0, // Length
+				0xff, 0xff, // Protocol (invalid, should still work)
+				0x80, 0x0, 0x0, 0x0, // Mode Set
+				0x0, 0x0, 0x0, 0x0, // Namespace
+				0x0, 0x0, 0x0, 0x0, // Filter
+			},
+			rest: []byte{
+				// third
+				0x4, 0x0, // Length
+				0x3, 0x0, // Protocol
+				// Next 4 bytes should be next header, but no validation done here
+				0x80, 0x0, 0x0, 0x0, // Mode Set
+				0x0, 0x0, 0x0, 0x0, // Namespace
+				0x0, 0x0, 0x0, 0x0, // Filter
+			},
+		},
+		{
+			first: []byte{
+				0x4, 0x0, // Length
+				0x3, 0x0, // Protocol
+			},
+			rest: []byte{
+				// Next 4 bytes should be next header, but no validation done here
+				0x80, 0x0, 0x0, 0x0, // Mode Set
+				0x0, 0x0, 0x0, 0x0, // Namespace
+				0x0, 0x0, 0x0, 0x0, // Filter
+			},
+		},
+	} {
+		first, rest, err := notify.ExtractFirstMsg(origBytes)
+		c.Check(err, IsNil)
+		c.Check(first, DeepEquals, t.first)
+		c.Check(rest, DeepEquals, t.rest)
+		origBytes = rest
+	}
+}
+
+func (*messageSuite) TestExtractFirstMsgErrors(c *C) {
+	if arch.Endian() == binary.BigEndian {
+		c.Skip("test only written for little-endian architectures")
+	}
+
+	for _, t := range []struct {
+		bytes []byte
+		err   string
+	}{
+		{
+			bytes: []byte{},
+			err:   "cannot extract first message: cannot parse message header: EOF",
+		},
+		{
+			bytes: []byte{
+				0x4, 0x0, // Length
+				0x3, // Incomplete Protocol
+			},
+			err: "cannot extract first message: cannot parse message header: unexpected EOF",
+		},
+		{
+			bytes: []byte{
+				0x3, 0x0, // Incorrect length less than header
+				0x3, 0x0, // Protocol
+			},
+			err: `cannot extract first message: cannot parse message header: invalid length \(must be >= 4\): 3`,
+		},
+		{
+			bytes: []byte{
+				0x5, 0x0, // Incorrect length greater than data
+				0x3, 0x0, // Protocol
+			},
+			err: `cannot extract first message: length in header exceeds data length: 5 > 4`,
+		},
+	} {
+		first, rest, err := notify.ExtractFirstMsg(t.bytes)
+		c.Check(err, ErrorMatches, t.err, Commentf("bytes: %v", t.bytes))
+		c.Check(first, IsNil)
+		c.Check(rest, IsNil)
+	}
+}
+
 func (*messageSuite) TestMsgNotificationFilterMarshalUnmarshal(c *C) {
 	if arch.Endian() == binary.BigEndian {
 		c.Skip("test only written for little-endian architectures")

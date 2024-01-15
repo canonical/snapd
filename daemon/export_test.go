@@ -113,6 +113,14 @@ func MockUnsafeReadSnapInfo(mock func(string) (*snap.Info, error)) (restore func
 	}
 }
 
+func MockReadComponentInfoFromCont(mock func(tempPath string) (*snap.ComponentInfo, error)) (restore func()) {
+	oldUnsafeReadSnapInfo := readComponentInfoFromCont
+	readComponentInfoFromCont = mock
+	return func() {
+		readComponentInfoFromCont = oldUnsafeReadSnapInfo
+	}
+}
+
 func MockAssertstateRefreshSnapAssertions(mock func(*state.State, int, *assertstate.RefreshAssertionsOptions) error) (restore func()) {
 	oldAssertstateRefreshSnapAssertions := assertstateRefreshSnapAssertions
 	assertstateRefreshSnapAssertions = mock
@@ -212,6 +220,14 @@ func MockSnapstateInstallPathMany(f func(context.Context, *state.State, []*snap.
 	snapstateInstallPathMany = f
 	return func() {
 		snapstateInstallPathMany = old
+	}
+}
+
+func MockSnapstateInstallComponentPath(f func(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info, path string, flags snapstate.Flags) (*state.TaskSet, error)) func() {
+	old := snapstateInstallComponentPath
+	snapstateInstallComponentPath = f
+	return func() {
+		snapstateInstallComponentPath = old
 	}
 }
 
@@ -335,7 +351,7 @@ var (
 	MaxReadBuflen = maxReadBuflen
 )
 
-func MockAspectstateGet(f func(databag aspects.DataBag, account, bundleName, aspect, field string, value interface{}) error) (restore func()) {
+func MockAspectstateGet(f func(databag aspects.DataBag, account, bundleName, aspect, field string) (interface{}, error)) (restore func()) {
 	old := aspectstateGetAspect
 	aspectstateGetAspect = f
 	return func() {

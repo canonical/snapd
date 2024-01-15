@@ -301,7 +301,19 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		fromDB := func(ref *asserts.Ref) (asserts.Assertion, error) {
 			return ref.Resolve(db.Find)
 		}
-		return asserts.NewFetcher(db, fromDB, save)
+
+		seqFromDB := func(ref *asserts.AtSequence) (asserts.Assertion, error) {
+			if ref.Sequence <= 0 {
+				hdrs, err := asserts.HeadersFromSequenceKey(ref.Type, ref.SequenceKey)
+				if err != nil {
+					return nil, err
+				}
+				return db.FindSequence(ref.Type, hdrs, -1, -1)
+			}
+			return ref.Resolve(db.Find)
+		}
+
+		return asserts.NewSequenceFormingFetcher(db, fromDB, seqFromDB, save)
 	}
 
 	sf := seedwriter.MakeSeedAssertionFetcher(newFetcher)

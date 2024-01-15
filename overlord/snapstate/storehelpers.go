@@ -230,6 +230,45 @@ func setActionValidationSetsAndRequiredRevision(action *store.SnapAction, valset
 	}
 }
 
+func downloadInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, deviceCtx DeviceContext) (store.SnapActionResult, error) {
+	curSnaps, err := currentSnaps(st)
+	if err != nil {
+		return store.SnapActionResult{}, err
+	}
+
+	user, err := userFromUserID(st, userID)
+	if err != nil {
+		return store.SnapActionResult{}, err
+	}
+
+	opts, err := refreshOptions(st, nil)
+	if err != nil {
+		return store.SnapActionResult{}, err
+	}
+
+	action := &store.SnapAction{
+		Action:       "download",
+		InstanceName: name,
+	}
+
+	if revOpts != nil {
+		// cannot specify both with the API
+		if revOpts.Revision.Unset() {
+			action.Channel = revOpts.Channel
+			action.CohortKey = revOpts.CohortKey
+		} else {
+			action.Revision = revOpts.Revision
+		}
+	}
+
+	theStore := Store(st, deviceCtx)
+	st.Unlock() // calls to the store should be done without holding the state lock
+	res, _, err := theStore.SnapAction(ctx, curSnaps, []*store.SnapAction{action}, nil, user, opts)
+	st.Lock()
+
+	return singleActionResult(name, action.Action, res, err)
+}
+
 func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (store.SnapActionResult, error) {
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
@@ -448,6 +487,8 @@ func singleActionResult(name, action string, results []store.SnapActionResult, e
 		switch action {
 		case "refresh":
 			snapErr = saErr.Refresh[name]
+		case "download":
+			snapErr = saErr.Download[name]
 		case "install":
 			snapErr = saErr.Install[name]
 		}
@@ -624,6 +665,12 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]st
 // Note: This wrapper is a short term solution and should be removed once a better
 // solution is reached.
 func refreshCandidates(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
+	// initialize options before using
+	opts, err := refreshOptions(st, opts)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
 	var revOptsByName map[string]*RevisionOptions
 	if revOpts != nil {
 		revOptsByName = make(map[string]*RevisionOptions, len(revOpts))
@@ -637,6 +684,11 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, rev
 		return nil, nil, nil, err
 	}
 
+	if !opts.Scheduled {
+		// not an auto-refresh, just return what we got
+		return updates, stateByInstanceName, ignoreValidation, nil
+	}
+
 	var oldHints map[string]*refreshCandidate
 	if err := st.Get("refresh-candidates", &oldHints); err != nil {
 		if errors.Is(err, &state.NoStateError{}) {
@@ -648,16 +700,9 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, rev
 	}
 
 	var missingNames []string
-	snapStates, err := All(st)
-	if err != nil {
-		return nil, nil, nil, err
-	}
 
 	for name, hint := range oldHints {
-		if _, ok := snapStates[name]; !ok {
-			continue
-		}
-		if !snapStates[name].IsInstalled() {
+		if stateByInstanceName[name] == nil {
 			continue
 		}
 		if !hint.Monitored {
@@ -702,12 +747,11 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, rev
 }
 
 func refreshCandidatesCore(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
-	snapStates, err := All(st)
-	if err != nil {
-		return nil, nil, nil, err
+	if opts == nil {
+		return nil, nil, nil, fmt.Errorf("internal error: opts cannot be nil")
 	}
 
-	opts, err = refreshOptions(st, opts)
+	snapStates, err := All(st)
 	if err != nil {
 		return nil, nil, nil, err
 	}

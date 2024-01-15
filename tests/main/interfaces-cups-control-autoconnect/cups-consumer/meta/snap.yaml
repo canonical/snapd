@@ -1,0 +1,7 @@
+name: cups-consumer
+version: 1.0
+summary: Basic cups-control consumer snap
+description: A basic snap that has a cups-control plug
+
+plugs:
+  cups-control:

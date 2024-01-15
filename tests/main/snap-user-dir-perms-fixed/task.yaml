@@ -1,5 +1,9 @@
 summary: Ensure snap userd autostart fixes up directory permissions of ~/snap
 
+details: |
+  Verifies that when snap userd is autostarted, the permissions in ~/snap
+  are fixed to 700. Check this scenario for root and test users.
+
 # don't run on trusty, tests.session does not work on trusty due to the
 # lack of user session support there
 systems:

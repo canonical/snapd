@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -66,7 +67,7 @@ func (s *snapFileSuite) TestGetFile(c *check.C) {
 				sideInfo := &snap.SideInfo{Revision: snap.R(-1), RealName: "foo"}
 				snapst.Active = scen.active
 				snapst.Current = sideInfo.Revision
-				snapst.Sequence = append(snapst.Sequence, sideInfo)
+				snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, sequence.NewRevisionSideState(sideInfo, nil))
 				if scen.try {
 					snapst.TryMode = true
 				}

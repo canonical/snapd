@@ -79,9 +79,9 @@ type: os
 	})
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -158,9 +158,9 @@ volumes:
 	s.state.Lock()
 	snapstate.Set(s.state, "canonical-pc", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "canonical-pc", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "gadget",
 	})
@@ -179,9 +179,9 @@ hooks:
 	snaptest.MockSnap(c, mockTestSnapYaml, &snap.SideInfo{Revision: snap.R(11)})
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "test-snap", Revision: snap.R(11), SnapID: "testsnapidididididididididididid"},
-		},
+		}),
 		Current:  snap.R(11),
 		SnapType: "app",
 	})
@@ -232,9 +232,9 @@ volumes:
 	s.state.Lock()
 	snapstate.Set(s.state, "canonical-pc", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "canonical-pc", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "gadget",
 	})
@@ -246,9 +246,9 @@ volumes:
 
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "test-snap", Revision: snap.R(11), SnapID: "testsnapidididididididididididid"},
-		},
+		}),
 		Current:  snap.R(11),
 		SnapType: "app",
 	})
@@ -320,9 +320,9 @@ hooks:
 	s.state.Lock()
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "test-snap", Revision: snap.R(11), SnapID: "testsnapidididididididididididid"},
-		},
+		}),
 		Current:  snap.R(11),
 		SnapType: "app",
 	})
@@ -363,9 +363,9 @@ volumes:
 	s.state.Lock()
 	snapstate.Set(s.state, "canonical-pc", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "canonical-pc", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "gadget",
 	})
@@ -385,9 +385,9 @@ hooks:
 	snaptest.MockSnap(c, mockTestSnapYaml, &snap.SideInfo{Revision: snap.R(11)})
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "test-snap", Revision: snap.R(11), SnapID: "testsnapidididididididididididid"},
-		},
+		}),
 		Current:  snap.R(11),
 		SnapType: "app",
 	})
@@ -471,9 +471,9 @@ func (s *configcoreHandlerSuite) SetUpTest(c *C) {
 	s.state.Set("seeded", true)
 	snapstate.Set(s.state, "canonical-pc", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "canonical-pc", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "gadget",
 	})
@@ -510,9 +510,9 @@ volumes:
 
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "snapd", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "snapd",
 	})
@@ -570,9 +570,9 @@ volumes:
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "core", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
