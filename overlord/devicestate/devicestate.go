@@ -1228,16 +1228,12 @@ func checkForRequiredSnapsNotRequiredInModel(model *asserts.Model, vSets *snapas
 	return nil
 }
 
-func checkAllSnapsFromModelInValidationSets(model *asserts.Model, vSets *snapasserts.ValidationSets) error {
+func checkModelSnapsCanBePresentInValidationSets(model *asserts.Model, vSets *snapasserts.ValidationSets) error {
 	if len(vSets.Keys()) == 0 {
 		return nil
 	}
 
 	for _, sn := range model.AllSnaps() {
-		if !vSets.SnapConstrained(sn) {
-			return fmt.Errorf("snap presence is not constained by a validation set: %s", sn.SnapName())
-		}
-
 		if !vSets.CanBePresent(sn) {
 			return fmt.Errorf("snap presence is marked invalid by validation set: %s", sn.SnapName())
 		}
@@ -1627,9 +1623,8 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		return nil, err
 	}
 
-	// check that all snaps from the model are constained by a validation set
-	// and check that all snaps from the model are valid in the validation sets.
-	if err := checkAllSnapsFromModelInValidationSets(model, valsets); err != nil {
+	// check that all snaps from the model are valid in the validation sets
+	if err := checkModelSnapsCanBePresentInValidationSets(model, valsets); err != nil {
 		return nil, err
 	}
 

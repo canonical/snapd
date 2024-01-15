@@ -2903,49 +2903,6 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	c.Assert(err, ErrorMatches, "snap presence is marked invalid by validation set: pc-kernel")
 }
 
-func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsSnapNotConstained(c *C) {
-	devicestate.SetBootOkRan(s.mgr, true)
-
-	vset1, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
-		"type":         "validation-set",
-		"authority-id": "canonical",
-		"series":       "16",
-		"account-id":   "canonical",
-		"name":         "vset-1",
-		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
-				"name":     "snapd",
-				"id":       fakeSnapID("snapd"),
-				"revision": "12",
-				"presence": "required",
-			},
-			map[string]interface{}{
-				"name":     "core22",
-				"id":       fakeSnapID("core20"),
-				"revision": "12",
-				"presence": "required",
-			},
-			map[string]interface{}{
-				"name":     "pc",
-				"id":       fakeSnapID("pc"),
-				"revision": "12",
-				"presence": "required",
-			},
-		},
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	_, err = devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
-		ValidationSets: []*asserts.ValidationSet{vset1.(*asserts.ValidationSet)},
-	})
-	c.Assert(err, ErrorMatches, "snap presence is not constained by a validation set: pc-kernel")
-}
-
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsConflict(c *C) {
 	devicestate.SetBootOkRan(s.mgr, true)
 
