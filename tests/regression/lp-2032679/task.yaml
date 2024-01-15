@@ -3,6 +3,10 @@ summary: Refresh snap from 2.59 to stable having homedirs set
 systems: [ ubuntu-18*, ubuntu-2* ]
 
 prepare: |
+    if not os.query is-amd64; then
+        exit 0
+    fi
+
     apt remove -y snapd --purge
     apt install -y snapd
 
@@ -13,6 +17,10 @@ prepare: |
     tests.session -u mytest prepare
 
 restore: |
+    if not os.query is-amd64; then
+        exit 0
+    fi
+
     tests.session -u mytest restore
     userdel mytest
     rm -rf /home/mydir
@@ -24,11 +32,19 @@ restore: |
     distro_install_build_snapd
 
 execute: |
+    if not os.query is-amd64; then
+        exit 0
+    fi
+
     snap install snapd --revision 19122
     snap set system homedirs=/home/mydir/
 
     snap install kubectl --classic
     tests.session -u mytest exec sh -c "kubectl version" 2>&1 | NOMATCH "Permission denied"
+
+    # 2.60.2 regression
+    snap refresh snapd --revision 19993
+    tests.session -u mytest exec sh -c "kubectl version" 2>&1 | MATCH "Permission denied"
 
     snap refresh snapd --stable
     tests.session -u mytest exec sh -c "kubectl version" 2>&1 | NOMATCH "Permission denied"
