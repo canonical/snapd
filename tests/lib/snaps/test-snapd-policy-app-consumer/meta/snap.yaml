@@ -62,6 +62,9 @@ apps:
   camera:
     command: bin/run
     plugs: [ camera ]
+  can-bus:
+    command: bin/run
+    plugs: [ can-bus ]
   cifs-mount:
     command: bin/run
     plugs: [ cifs-mount ]
@@ -182,12 +185,6 @@ apps:
   home:
     command: bin/run
     plugs: [ home ]
-  system-packages-doc:
-    command: bin/run
-    plugs: [ system-packages-doc ]
-  system-source-code:
-    command: bin/run
-    plugs: [ system-source-code ]
   hostname-control:
     command: bin/run
     plugs: [ hostname-control ]
@@ -431,9 +428,6 @@ apps:
   service-watchdog:
     command: bin/run
     plugs: [ daemon-notify ]
-  can-bus:
-    command: bin/run
-    plugs: [ can-bus ]
   sd-control:
     command: bin/run
     plugs: [ sd-control ]
@@ -458,6 +452,12 @@ apps:
   system-observe:
     command: bin/run
     plugs: [ system-observe ]
+  system-packages-doc:
+    command: bin/run
+    plugs: [ system-packages-doc ]
+  system-source-code:
+    command: bin/run
+    plugs: [ system-source-code ]
   system-trace:
     command: bin/run
     plugs: [ system-trace ]
