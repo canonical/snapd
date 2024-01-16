@@ -462,11 +462,9 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		notification.WithUrgency(notification.LowUrgency),
 	}
 
-	// But if we have a desktop file of the busy application, use that apps's icon.
-	if finishRefresh.AppDesktopEntry != "" {
+	if finishRefresh.AppDesktopFile != "" {
 		parser := goconfigparser.New()
-		desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, finishRefresh.AppDesktopEntry+".desktop")
-		if err := parser.ReadFile(desktopFilePath); err == nil {
+		if err := parser.ReadFile(finishRefresh.AppDesktopFile); err == nil {
 			icon, _ = parser.Get("Desktop Entry", "Icon")
 		}
 	}
