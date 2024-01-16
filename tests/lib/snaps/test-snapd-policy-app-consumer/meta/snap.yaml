@@ -404,6 +404,9 @@ apps:
   removable-media:
     command: bin/run
     plugs: [ removable-media ]
+  ros-opt-data:
+    command: bin/run
+    plugs: [ ros-opt-data ]
   screen-inhibit-control:
     command: bin/run
     plugs: [ screen-inhibit-control ]
