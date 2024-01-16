@@ -3387,8 +3387,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
+	defer s.state.Unlock()
+
 	assertstatetest.AddMany(s.state, vsetAssert)
-	s.state.Unlock()
 
 	devicestate.MockSnapstateDownload(func(
 		_ context.Context, _ *state.State, name string, _ string, opts *snapstate.RevisionOptions, _ int, _ snapstate.Flags, _ snapstate.DeviceContext) (*state.TaskSet, *snap.Info, error,
@@ -3397,10 +3398,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		return nil, nil, nil
 	})
 
-	s.state.Lock()
-
-	localSideInfos := make([]*snap.SideInfo, 0, len(snapRevisions))
-	localPaths := make([]string, 0, len(snapRevisions))
+	localSnaps := make([]devicestate.LocalSnap, 0, len(snapRevisions))
 	for name, rev := range snapRevisions {
 
 		var files [][]string
@@ -3414,8 +3412,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 
 		si, path := createLocalSnap(c, name, fakeSnapID(name), rev.N, string(snapTypes[name]), base, files)
 
-		localSideInfos = append(localSideInfos, si)
-		localPaths = append(localPaths, path)
+		localSnaps = append(localSnaps, devicestate.LocalSnap{
+			SideInfo: si,
+			Path:     path,
+		})
 
 		s.setupSnapDeclForNameAndID(c, name, si.SnapID, "canonical")
 		s.setupSnapRevisionForFileAndID(c, path, si.SnapID, "canonical", rev)
@@ -3425,10 +3425,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
 	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
-		ValidationSets:     []*asserts.ValidationSet{vsetAssert.(*asserts.ValidationSet)},
-		LocalSnapPaths:     localPaths,
-		LocalSnapSideInfos: localSideInfos,
-		TestSystem:         true,
+		ValidationSets: []*asserts.ValidationSet{vsetAssert.(*asserts.ValidationSet)},
+		LocalSnaps:     localSnaps,
+		TestSystem:     true,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
@@ -3494,7 +3493,6 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	// simulate a restart and run change to completion
 	s.mockRestartAndSettle(c, s.state, chg)
@@ -3596,13 +3594,14 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 
 	assertstatetest.AddMany(s.state, vsetAssert)
 
-	localSideInfos := make([]*snap.SideInfo, 0, len(providedRevisions))
-	localPaths := make([]string, 0, len(providedRevisions))
+	localSnaps := make([]devicestate.LocalSnap, 0, len(providedRevisions))
 	for name, rev := range providedRevisions {
 		si, path := createLocalSnap(c, name, fakeSnapID(name), rev.N, string(snapTypes[name]), "", nil)
 
-		localSideInfos = append(localSideInfos, si)
-		localPaths = append(localPaths, path)
+		localSnaps = append(localSnaps, devicestate.LocalSnap{
+			SideInfo: si,
+			Path:     path,
+		})
 
 		s.setupSnapDeclForNameAndID(c, name, si.SnapID, "canonical")
 		s.setupSnapRevisionForFileAndID(c, path, si.SnapID, "canonical", rev)
@@ -3611,9 +3610,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
 	_, err = devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
-		ValidationSets:     []*asserts.ValidationSet{vsetAssert.(*asserts.ValidationSet)},
-		LocalSnapPaths:     localPaths,
-		LocalSnapSideInfos: localSideInfos,
+		ValidationSets: []*asserts.ValidationSet{vsetAssert.(*asserts.ValidationSet)},
+		LocalSnaps:     localSnaps,
 	})
 	c.Assert(err, ErrorMatches, `snap "pc" does not match revision required by validation sets: 100 != 10`)
 }
@@ -3668,20 +3666,20 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissi
 		"snapd":     snap.TypeSnapd,
 	}
 
-	localSideInfos := make([]*snap.SideInfo, 0, len(snapRevisions))
-	localPaths := make([]string, 0, len(snapRevisions))
+	localSnaps := make([]devicestate.LocalSnap, 0, len(snapRevisions))
 	for name, rev := range snapRevisions {
 		si, path := createLocalSnap(c, name, fakeSnapID(name), rev.N, string(snapTypes[name]), "", nil)
 
-		localSideInfos = append(localSideInfos, si)
-		localPaths = append(localPaths, path)
+		localSnaps = append(localSnaps, devicestate.LocalSnap{
+			SideInfo: si,
+			Path:     path,
+		})
 	}
 
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
 	_, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
-		LocalSnapPaths:     localPaths,
-		LocalSnapSideInfos: localSideInfos,
+		LocalSnaps: localSnaps,
 	})
 	c.Assert(err, ErrorMatches, `cannot create recovery system from model with snap that has no id: "pc"`)
 }
@@ -3706,8 +3704,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissi
 		"snapd":     snap.TypeSnapd,
 	}
 
-	localSideInfos := make([]*snap.SideInfo, 0, len(snapRevisions))
-	localPaths := make([]string, 0, len(snapRevisions))
+	localSnaps := make([]devicestate.LocalSnap, 0, len(snapRevisions))
 	for name, rev := range snapRevisions {
 		si, path := createLocalSnap(c, name, fakeSnapID(name), rev.N, string(snapTypes[name]), "", nil)
 
@@ -3715,15 +3712,16 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissi
 			si.SnapID = ""
 		}
 
-		localSideInfos = append(localSideInfos, si)
-		localPaths = append(localPaths, path)
+		localSnaps = append(localSnaps, devicestate.LocalSnap{
+			SideInfo: si,
+			Path:     path,
+		})
 	}
 
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
 	_, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
-		LocalSnapPaths:     localPaths,
-		LocalSnapSideInfos: localSideInfos,
+		LocalSnaps: localSnaps,
 	})
 	c.Assert(err, ErrorMatches, `cannot create recovery system from provided snap that has no id: "pc"`)
 }
@@ -3795,13 +3793,14 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 
 	assertstatetest.AddMany(s.state, vsetAssert)
 
-	localSideInfos := make([]*snap.SideInfo, 0, len(providedRevisions))
-	localPaths := make([]string, 0, len(providedRevisions))
+	localSnaps := make([]devicestate.LocalSnap, 0, len(providedRevisions))
 	for name, rev := range providedRevisions {
 		si, path := createLocalSnap(c, name, fakeSnapID(name), rev.N, string(snapTypes[name]), "", nil)
 
-		localSideInfos = append(localSideInfos, si)
-		localPaths = append(localPaths, path)
+		localSnaps = append(localSnaps, devicestate.LocalSnap{
+			SideInfo: si,
+			Path:     path,
+		})
 
 		s.setupSnapDeclForNameAndID(c, name, si.SnapID, "canonical")
 		s.setupSnapRevisionForFileAndID(c, path, si.SnapID, "canonical", rev)
@@ -3810,9 +3809,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
 	_, err = devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
-		ValidationSets:     []*asserts.ValidationSet{vsetAssert.(*asserts.ValidationSet)},
-		LocalSnapPaths:     localPaths,
-		LocalSnapSideInfos: localSideInfos,
+		ValidationSets: []*asserts.ValidationSet{vsetAssert.(*asserts.ValidationSet)},
+		LocalSnaps:     localSnaps,
 	})
 	c.Assert(err, ErrorMatches, `missing snap from local snaps provided for offline creation of recovery system: "pc", rev 10`)
 }
@@ -3999,8 +3997,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 
 	vset := vsetAssert.(*asserts.ValidationSet)
 
-	localSideInfos := make([]*snap.SideInfo, 0, len(snapRevisions))
-	localPaths := make([]string, 0, len(snapRevisions))
+	localSnaps := make([]devicestate.LocalSnap, 0, len(snapRevisions))
 	for name, rev := range snapRevisions {
 		si := &snap.SideInfo{RealName: name, Revision: snap.R(rev.N), SnapID: fakeSnapID(name)}
 
@@ -4026,8 +4023,10 @@ plugs:
 
 		path := snaptest.MakeTestSnapWithFiles(c, yaml, [][]string(nil))
 
-		localSideInfos = append(localSideInfos, si)
-		localPaths = append(localPaths, path)
+		localSnaps = append(localSnaps, devicestate.LocalSnap{
+			SideInfo: si,
+			Path:     path,
+		})
 
 		s.setupSnapDeclForNameAndID(c, name, si.SnapID, "canonical")
 		s.setupSnapRevisionForFileAndID(c, path, si.SnapID, "canonical", rev)
@@ -4037,9 +4036,8 @@ plugs:
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
 	_, err = devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
-		ValidationSets:     []*asserts.ValidationSet{vset},
-		LocalSnapSideInfos: localSideInfos,
-		LocalSnapPaths:     localPaths,
+		ValidationSets: []*asserts.ValidationSet{vset},
+		LocalSnaps:     localSnaps,
 	})
 
 	msg := `cannot create recovery system from model that is not self-contained:

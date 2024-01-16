@@ -1461,12 +1461,9 @@ type recoverySystemSetup struct {
 	// Tasks could come from a remodel, or from downloading snaps that were
 	// required by a validation set.
 	SnapSetupTasks []string `json:"snap-setup-tasks"`
-	// LocalSnaps is a list of snap.SideInfo structs that represent snaps thtat
-	// should be used to create the recovery system.
-	LocalSnaps []*snap.SideInfo `json:"local-snaps,omitempty"`
-	// LocalSnapPaths is a list of paths to snaps that corresponds to the list
-	// of snap.SideInfo structs in LocalSnaps.
-	LocalSnapPaths []string `json:"local-snap-paths,omitempty"`
+	// LocalSnaps is a list of snaps that should be used to create the recovery
+	// system.
+	LocalSnaps []LocalSnap `json:"local-snaps,omitempty"`
 	// TestSystem is set to true if the new recovery system should
 	// not be verified by rebooting into the new system. Once the system is
 	// created, it will immediately be considered a valid recovery system.
@@ -1506,14 +1503,6 @@ func pickRecoverySystemLabel(labelBase string) (string, error) {
 }
 
 func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []string, opts CreateRecoverySystemOptions) (*state.TaskSet, error) {
-	if len(opts.LocalSnapSideInfos) != len(opts.LocalSnapPaths) {
-		return nil, fmt.Errorf("internal error: list of side infos must be same length as list of paths")
-	}
-
-	if len(opts.LocalSnapSideInfos) > 0 && len(snapSetupTasks) > 0 {
-		return nil, fmt.Errorf("internal error: cannot create recovery system with both local snaps and snap setup tasks")
-	}
-
 	// precondition check, the directory should not exist yet
 	systemDirectory := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label)
 	exists, _, err := osutil.DirExists(systemDirectory)
@@ -1531,8 +1520,7 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []s
 		Directory: systemDirectory,
 		// IDs of the tasks carrying snap-setup
 		SnapSetupTasks: snapSetupTasks,
-		LocalSnaps:     opts.LocalSnapSideInfos,
-		LocalSnapPaths: opts.LocalSnapPaths,
+		LocalSnaps:     opts.LocalSnaps,
 		TestSystem:     opts.TestSystem,
 		MarkCurrent:    opts.MarkCurrent,
 	})
@@ -1554,6 +1542,16 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []s
 	return ts, nil
 }
 
+type LocalSnap struct {
+	// SideInfo is the snap.SideInfo struct that represents a local snap that
+	// will be used to create a recovery system.
+	SideInfo *snap.SideInfo
+
+	// Path is the path on disk to a snap that will be used to create a recovery
+	// system.
+	Path string
+}
+
 // CreateRecoverySystemOptions is the set of options that can be used with
 // CreateRecoverySystem.
 type CreateRecoverySystemOptions struct {
@@ -1566,16 +1564,11 @@ type CreateRecoverySystemOptions struct {
 	// set.
 	ValidationSets []*asserts.ValidationSet
 
-	// LocalSnapSideInfos is an optional list of snaps that will be used to
-	// create the new recovery system. If provided, this list must contain any
-	// snap that is not already installed that will be needed by the new recovery
+	// LocalSnaps is an optional list of snaps that will be used to create
+	// the new recovery system. If provided, this list must contain any snap
+	// that is not already installed that will be needed by the new recovery
 	// system.
-	LocalSnapSideInfos []*snap.SideInfo
-
-	// LocalSnapPaths is a list of paths to snaps that corresponds to the list
-	// of snap.SideInfo structs in SideInfos. It must be the same length as
-	// LocalSnapSideInfos.
-	LocalSnapPaths []string
+	LocalSnaps []LocalSnap
 
 	// TestSystem is set to true if the new recovery system should be verified
 	// by rebooting into the new system, prior to marking it as a valid recovery
@@ -1626,7 +1619,7 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 	// TODO: this restriction should be lifted eventually (in the case that we
 	// have a dangerous model), and we should fall back to using snap names in
 	// places that IDs are used
-	if err := checkForSnapIDs(model, opts.LocalSnapSideInfos); err != nil {
+	if err := checkForSnapIDs(model, opts.LocalSnaps); err != nil {
 		return nil, err
 	}
 
@@ -1641,7 +1634,7 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 	}
 
 	tracker := snap.NewSelfContainedSetPrereqTracker()
-	offline := len(opts.LocalSnapPaths) > 0
+	offline := len(opts.LocalSnaps) > 0
 
 	var downloadTSS []*state.TaskSet
 	for _, sn := range model.AllSnaps() {
@@ -1729,16 +1722,16 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 	return chg, nil
 }
 
-func checkForSnapIDs(model *asserts.Model, localSideInfos []*snap.SideInfo) error {
+func checkForSnapIDs(model *asserts.Model, localSnaps []LocalSnap) error {
 	for _, sn := range model.AllSnaps() {
 		if sn.ID() == "" {
 			return fmt.Errorf("cannot create recovery system from model with snap that has no id: %q", sn.Name)
 		}
 	}
 
-	for _, sn := range localSideInfos {
-		if sn.SnapID == "" {
-			return fmt.Errorf("cannot create recovery system from provided snap that has no id: %q", sn.RealName)
+	for _, sn := range localSnaps {
+		if sn.SideInfo.SnapID == "" {
+			return fmt.Errorf("cannot create recovery system from provided snap that has no id: %q", sn.SideInfo.RealName)
 		}
 	}
 
@@ -1747,8 +1740,8 @@ func checkForSnapIDs(model *asserts.Model, localSideInfos []*snap.SideInfo) erro
 
 func offlineSnapInfo(sn *asserts.ModelSnap, rev snap.Revision, opts CreateRecoverySystemOptions) (*snap.Info, error) {
 	index := -1
-	for i, si := range opts.LocalSnapSideInfos {
-		if sn.ID() == si.SnapID {
+	for i, si := range opts.LocalSnaps {
+		if sn.ID() == si.SideInfo.SnapID {
 			index = i
 			break
 		}
@@ -1759,21 +1752,20 @@ func offlineSnapInfo(sn *asserts.ModelSnap, rev snap.Revision, opts CreateRecove
 		)
 	}
 
-	si := opts.LocalSnapSideInfos[index]
-	path := opts.LocalSnapPaths[index]
+	localSnap := opts.LocalSnaps[index]
 
-	if !rev.Unset() && rev != si.Revision {
+	if !rev.Unset() && rev != localSnap.SideInfo.Revision {
 		return nil, fmt.Errorf(
-			"snap %q does not match revision required by validation sets: %v != %v", si.RealName, si.Revision, rev,
+			"snap %q does not match revision required by validation sets: %v != %v", localSnap.SideInfo.RealName, localSnap.SideInfo.Revision, rev,
 		)
 	}
 
-	s, err := snapfile.Open(path)
+	s, err := snapfile.Open(localSnap.Path)
 	if err != nil {
 		return nil, err
 	}
 
-	return snap.ReadInfoFromSnapFile(s, si)
+	return snap.ReadInfoFromSnapFile(s, localSnap.SideInfo)
 }
 
 func snapNeedsInstall(st *state.State, name string, rev snap.Revision) (bool, error) {
