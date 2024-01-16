@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -149,6 +150,25 @@ tryAgain:
 		return ErrCannotTrackProcess
 	}
 	return nil
+}
+
+// ConfirmSystemdAppTracking checks if systemd tracks this process as a snap app.
+//
+// If the application process is not tracked then ErrCannotTrackProcess is returned.
+func ConfirmSystemdAppTracking(securityTag string) error {
+	pid := osGetpid()
+	path, err := cgroupProcessPathInTrackingCgroup(pid)
+	if err != nil {
+		return err
+	}
+
+	// the transient scope of the application carries the security tag, eg:
+	// snap.hello-world.sh-4706fe54-7802-4808-aa7e-ae8b567239e0.scope
+	if strings.HasPrefix(filepath.Base(path), securityTag+"-") && strings.HasSuffix(path, ".scope") {
+		return nil
+	}
+
+	return ErrCannotTrackProcess
 }
 
 // ConfirmSystemdServiceTracking checks if systemd tracks this process as a snap service.
