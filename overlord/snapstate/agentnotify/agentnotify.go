@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
@@ -67,9 +68,16 @@ func notifyLinkSnap(snapsup *snapstate.SnapSetup) error {
 }
 
 var sendClientFinishRefreshNotification = func(snapsup *snapstate.SnapSetup) {
+	instanceName, instanceKey := snap.SplitInstanceName(snapsup.InstanceName())
+	var appDesktopEntry string
+	if instanceKey == "" {
+		appDesktopEntry = fmt.Sprintf("%s_%s", instanceName, snapsup.SnapName())
+	} else {
+		appDesktopEntry = fmt.Sprintf("%s+%s_%s", instanceName, instanceKey, snapsup.SnapName())
+	}
 	refreshInfo := &userclient.FinishedSnapRefreshInfo{
 		InstanceName:    snapsup.InstanceName(),
-		AppDesktopEntry: fmt.Sprintf("%s_%s", snapsup.SnapName(), snapsup.InstanceName()),
+		AppDesktopEntry: appDesktopEntry,
 	}
 	client := userclient.New()
 	// run in a go-routine to avoid potentially slow operation
