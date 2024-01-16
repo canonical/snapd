@@ -22,6 +22,7 @@ package agentnotify
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -67,7 +68,8 @@ func notifyLinkSnap(snapsup *snapstate.SnapSetup) error {
 
 var sendClientFinishRefreshNotification = func(snapsup *snapstate.SnapSetup) {
 	refreshInfo := &userclient.FinishedSnapRefreshInfo{
-		InstanceName: snapsup.InstanceName(),
+		InstanceName:    snapsup.InstanceName(),
+		AppDesktopEntry: fmt.Sprintf("%s_%s", snapsup.SnapName(), snapsup.InstanceName()),
 	}
 	client := userclient.New()
 	// run in a go-routine to avoid potentially slow operation

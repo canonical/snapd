@@ -438,6 +438,7 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 
 	decoder := json.NewDecoder(r.Body)
 
+	var icon string
 	var finishRefresh client.FinishedSnapRefreshInfo
 	if err := decoder.Decode(&finishRefresh); err != nil {
 		return BadRequest("cannot decode request body into finish refresh notification info: %v", err)
@@ -461,10 +462,19 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		notification.WithUrgency(notification.LowUrgency),
 	}
 
+	// But if we have a desktop file of the busy application, use that apps's icon.
+	if finishRefresh.AppDesktopEntry != "" {
+		parser := goconfigparser.New()
+		desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, finishRefresh.AppDesktopEntry+".desktop")
+		if err := parser.ReadFile(desktopFilePath); err == nil {
+			icon, _ = parser.Get("Desktop Entry", "Icon")
+		}
+	}
 	msg := &notification.Message{
 		Title: summary,
 		Body:  body,
 		Hints: hints,
+		Icon:  icon,
 	}
 	if err := c.s.notificationMgr.SendNotification(notification.ID(finishRefresh.InstanceName), msg); err != nil {
 		return SyncResponse(&resp{

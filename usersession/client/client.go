@@ -394,7 +394,8 @@ func (client *Client) PendingRefreshNotification(ctx context.Context, refreshInf
 
 // FinishedSnapRefreshInfo holds information about a finished refresh provided to userd.
 type FinishedSnapRefreshInfo struct {
-	InstanceName string `json:"instance-name"`
+	InstanceName    string `json:"instance-name"`
+	AppDesktopEntry string `json:"busy-app-desktop-entry,omitempty"`
 }
 
 // FinishRefreshNotification closes notification about a snap refresh.
