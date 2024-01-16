@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/desktop/notification"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/usersession/client"
@@ -461,13 +462,32 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		notification.WithDesktopEntry("io.snapcraft.SessionAgent"),
 		notification.WithUrgency(notification.LowUrgency),
 	}
+	si, _ := snap.ReadCurrentInfo(finishRefresh.InstanceName)
 
-	if finishRefresh.AppDesktopFile != "" {
-		parser := goconfigparser.New()
-		if err := parser.ReadFile(finishRefresh.AppDesktopFile); err == nil {
+	// trivial heuristic, if the app is named like a snap then
+	// it's considered to be the main user facing app and hopefully carries
+	// a nice icon
+	mainApp, ok := si.Apps[si.SnapName()]
+	parser := goconfigparser.New()
+	if ok && !mainApp.IsService() {
+		// got the main app, grab its desktop file
+		if err := parser.ReadFile(mainApp.DesktopFile()); err == nil {
 			icon, _ = parser.Get("Desktop Entry", "Icon")
 		}
 	}
+
+	if icon == "" {
+		// If it doesn't exist, take the first app in the snap with a DesktopFile with icon
+		for _, app := range si.Apps {
+			if app.IsService() {
+				continue
+			}
+			if err := parser.ReadFile(app.DesktopFile()); err == nil {
+				icon, _ = parser.Get("Desktop Entry", "Icon")
+			}
+		}
+	}
+
 	msg := &notification.Message{
 		Title: summary,
 		Body:  body,

@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
@@ -67,31 +66,8 @@ func notifyLinkSnap(snapsup *snapstate.SnapSetup) error {
 }
 
 var sendClientFinishRefreshNotification = func(snapsup *snapstate.SnapSetup) {
-	si, _ := snap.ReadCurrentInfo(snapsup.InstanceName())
-
-	// trivial heuristic, if the app is named like a snap then
-	// it's considered to be the main user facing app and hopefully carries
-	// a nice icon
-	mainApp, ok := si.Apps[si.SnapName()]
-	appDesktopFile := ""
-	if ok && !mainApp.IsService() {
-		// got the main app, grab its desktop file
-		appDesktopFile = mainApp.DesktopFile()
-	} else {
-		// If it doesn't exist, take the first app in the snap with a DesktopFile
-		for _, app := range si.Apps {
-			if app.IsService() {
-				continue
-			}
-			appDesktopFile = app.DesktopFile()
-			if appDesktopFile != "" {
-				break
-			}
-		}
-	}
 	refreshInfo := &userclient.FinishedSnapRefreshInfo{
-		InstanceName:   snapsup.InstanceName(),
-		AppDesktopFile: appDesktopFile,
+		InstanceName: snapsup.InstanceName(),
 	}
 	client := userclient.New()
 	// run in a go-routine to avoid potentially slow operation
