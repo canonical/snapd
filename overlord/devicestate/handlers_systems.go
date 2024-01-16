@@ -143,10 +143,6 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 		return fmt.Errorf("internal error: cannot obtain recovery system setup information")
 	}
 
-	if len(setup.LocalSnaps) != len(setup.LocalSnapPaths) {
-		return fmt.Errorf("internal error: number of side infos and paths must match")
-	}
-
 	label := setup.Label
 	systemDirectory := setup.Directory
 
@@ -158,25 +154,23 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 		//   * have just been downloaded by a task in setup.SnapSetupTasks
 		//   * already installed on the system
 
-		for i, si := range setup.LocalSnaps {
-			if si.RealName != name {
+		for _, l := range setup.LocalSnaps {
+			if l.SideInfo.RealName != name {
 				continue
 			}
 
-			path := setup.LocalSnapPaths[i]
-
 			// TODO: need to verify the snaps at some point?
-			snapf, err := snapfile.Open(path)
+			snapf, err := snapfile.Open(l.Path)
 			if err != nil {
 				return nil, "", false, err
 			}
 
-			info, err := snap.ReadInfoFromSnapFile(snapf, si)
+			info, err := snap.ReadInfoFromSnapFile(snapf, l.SideInfo)
 			if err != nil {
 				return nil, "", false, err
 			}
 
-			return info, path, true, nil
+			return info, l.Path, true, nil
 		}
 
 		// in a remodel scenario, the snaps may need to be fetched and thus
