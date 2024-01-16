@@ -352,31 +352,12 @@ func MaxInhibitionTime(st *state.State) time.Duration {
 // maxInhibitionDays returns refresh.max-inhibition-days value if set, or the default value (14 days).
 // It deals with potentially wrong type due to lax validation.
 func maxInhibitionDays(st *state.State) int {
-	var val interface{}
-	// due to lax validation of refresh.max-inhibition-days on set we might end up having a string representing a number here; handle it gracefully
-	// for backwards compatibility.
-	err := config.NewTransaction(st).Get("core", "refresh.max-inhibition-days", &val)
 	var maxInhibitionDays int
-	if err == nil {
-		switch v := val.(type) {
-		// this is the expected value; confusingly, since we pass interface{} to Get(), we get json.Number type; if int reference was passed,
-		// we would get an int instead of json.Number.
-		case json.Number:
-			maxInhibitionDays, err = strconv.Atoi(string(v))
-		// not really expected when requesting interface{}.
-		case int:
-			maxInhibitionDays = v
-		// we can get string here due to lax validation of refresh.max-inhibition-days on Set in older releases.
-		case string:
-			maxInhibitionDays, err = strconv.Atoi(v)
-		default:
-			logger.Noticef("internal error: refresh.max-inhibition-days system option has unexpected type: %T", v)
-		}
-	}
+	err := config.NewTransaction(st).Get("core", "refresh.max-inhibition-days", &maxInhibitionDays)
 
-	// this covers error from Get() and strconv above.
-	if err != nil && !config.IsNoOption(err) {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		logger.Noticef("internal error: refresh.max-inhibition-days system option is not valid: %v", err)
+		return 0
 	}
 
 	// not set, use default value
