@@ -5095,7 +5095,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 	s.state.Set("tried-systems", []string{expectedLabel})
 
 	resealKeyCalls := 0
-	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, expectReseal bool, u boot.Unlocker) error {
+	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, expectReseal bool, forceReseal bool, u boot.Unlocker) error {
 		resealKeyCalls++
 		c.Assert(len(tc.resealErr) >= resealKeyCalls, Equals, true)
 		c.Check(modeenv.GoodRecoverySystems, DeepEquals, []string{"0000", expectedLabel})
@@ -5418,7 +5418,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 	s.state.Set("tried-systems", []string{expectedLabel})
 
 	resealKeyCalls := 0
-	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, expectReseal bool, u boot.Unlocker) error {
+	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, expectReseal bool, forceReseal bool, u boot.Unlocker) error {
 		resealKeyCalls++
 		c.Check(modeenv.GoodRecoverySystems, DeepEquals, []string{"0000", expectedLabel})
 		c.Check(modeenv.CurrentRecoverySystems, DeepEquals, []string{"0000", expectedLabel})
@@ -5685,7 +5685,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 	s.state.Set("tried-systems", []string{expectedLabel})
 
 	resealKeyCalls := 0
-	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, expectReseal bool, u boot.Unlocker) error {
+	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, expectReseal bool, forceReseal bool, u boot.Unlocker) error {
 		resealKeyCalls++
 		// calls:
 		// 1 - promote recovery system

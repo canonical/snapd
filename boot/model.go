@@ -73,7 +73,8 @@ func DeviceChange(from snap.Device, to snap.Device, unlocker Unlocker) error {
 	// even if there is a reboot before the device/model file is updated, or
 	// before the final reseal with one model
 	const expectReseal = true
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, unlocker); err != nil {
+	const forceReseal = false
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, forceReseal, unlocker); err != nil {
 		// best effort clear the modeenv's try model
 		m.clearTryModel()
 		if mErr := m.Write(); mErr != nil {
@@ -114,7 +115,7 @@ func DeviceChange(from snap.Device, to snap.Device, unlocker Unlocker) error {
 
 	// past a successful reseal, the old recovery systems become unusable and will
 	// not be able to access the data anymore
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, unlocker); err != nil {
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, forceReseal, unlocker); err != nil {
 		// resealing failed, but modeenv and the file have been modified
 
 		// first restore the modeenv in case we reboot, such that if the

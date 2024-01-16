@@ -81,7 +81,7 @@ func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams) error) (rest
 }
 
 // MockResealKeyToModeenv is only useful in testing.
-func MockResealKeyToModeenv(f func(rootdir string, modeenv *Modeenv, expectReseal bool, unlocker Unlocker) error) (restore func()) {
+func MockResealKeyToModeenv(f func(rootdir string, modeenv *Modeenv, expectReseal, forceReseal bool, unlocker Unlocker) error) (restore func()) {
 	osutil.MustBeTestBinary("resealKeyToModeenv only can be mocked in tests")
 	old := resealKeyToModeenv
 	resealKeyToModeenv = f
@@ -421,7 +421,7 @@ var resealKeyToModeenv = resealKeyToModeenvImpl
 // atomically.  In particular we want to avoid resealing against
 // transient/in-memory information with the risk that successive
 // reseals during in-progress operations produce diverging outcomes.
-func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool, unlocker Unlocker) error {
+func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal, forceReseal bool, unlocker Unlocker) error {
 	if !isModeeenvLocked() {
 		return fmt.Errorf("internal error: cannot reseal without the modeenv lock")
 	}
@@ -436,13 +436,13 @@ func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool,
 	}
 	switch method {
 	case device.SealingMethodFDESetupHook:
-		return resealKeyToModeenvUsingFDESetupHook(rootdir, modeenv, expectReseal)
+		return resealKeyToModeenvUsingFDESetupHook(rootdir, modeenv, expectReseal, forceReseal)
 	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
 		if unlocker != nil {
 			// unlock/relock global state
 			defer unlocker()()
 		}
-		return resealKeyToModeenvSecboot(rootdir, modeenv, expectReseal)
+		return resealKeyToModeenvSecboot(rootdir, modeenv, expectReseal, forceReseal)
 	default:
 		return fmt.Errorf("unknown key sealing method: %q", method)
 	}
@@ -450,7 +450,7 @@ func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool,
 
 var resealKeyToModeenvUsingFDESetupHook = resealKeyToModeenvUsingFDESetupHookImpl
 
-func resealKeyToModeenvUsingFDESetupHookImpl(rootdir string, modeenv *Modeenv, expectReseal bool) error {
+func resealKeyToModeenvUsingFDESetupHookImpl(rootdir string, modeenv *Modeenv, expectReseal, forceReseal bool) error {
 	// TODO: we need to implement reseal at least in terms of
 	//       rebinding the keys to models on remodeling
 
@@ -472,7 +472,7 @@ func resealKeyToModeenvUsingFDESetupHookImpl(rootdir string, modeenv *Modeenv, e
 }
 
 // TODO:UC20: allow more than one model to accommodate the remodel scenario
-func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, expectReseal bool) error {
+func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, expectReseal, forceReseal bool) error {
 	// build the recovery mode boot chain
 	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
 		Role: bootloader.RoleRecovery,
@@ -544,7 +544,7 @@ func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, expectReseal bo
 	// reseal the run object
 	pbc := toPredictableBootChains(append(runModeBootChains, recoveryBootChainsForRunKey...))
 
-	needed, nextCount, err := isResealNeeded(pbc, bootChainsFileUnder(rootdir), expectReseal)
+	needed, nextCount, err := isResealNeeded(pbc, bootChainsFileUnder(rootdir), expectReseal, forceReseal)
 	if err != nil {
 		return err
 	}
@@ -569,7 +569,7 @@ func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, expectReseal bo
 	rpbc := toPredictableBootChains(recoveryBootChains)
 
 	var nextFallbackCount int
-	needed, nextFallbackCount, err = isResealNeeded(rpbc, recoveryBootChainsFileUnder(rootdir), expectReseal)
+	needed, nextFallbackCount, err = isResealNeeded(rpbc, recoveryBootChainsFileUnder(rootdir), expectReseal, forceReseal)
 	if err != nil {
 		return err
 	}
@@ -891,10 +891,14 @@ func sealKeyModelParams(pbc predictableBootChains, roleToBlName map[bootloader.R
 // together with the boot chains.
 // A hint expectReseal can be provided, it is used when the matching
 // is ambigous because the boot chains contain unrevisioned kernels.
-func isResealNeeded(pbc predictableBootChains, bootChainsFile string, expectReseal bool) (ok bool, nextCount int, err error) {
+func isResealNeeded(pbc predictableBootChains, bootChainsFile string, expectReseal, forceReseal bool) (ok bool, nextCount int, err error) {
 	previousPbc, c, err := readBootChains(bootChainsFile)
 	if err != nil {
 		return false, 0, err
+	}
+
+	if forceReseal {
+		return true, c + 1, nil
 	}
 
 	switch predictableBootChainsEqualForReseal(pbc, previousPbc) {

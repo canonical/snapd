@@ -33,5 +33,6 @@ func ForceReseal(unlocker Unlocker) error {
 	}
 
 	const expectReseal = true
-	return resealKeyToModeenv(dirs.GlobalRootDir, modeenv, expectReseal, unlocker)
+	const forceReseal = true
+	return resealKeyToModeenv(dirs.GlobalRootDir, modeenv, expectReseal, forceReseal, unlocker)
 }
