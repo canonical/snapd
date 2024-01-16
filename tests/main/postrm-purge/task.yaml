@@ -1,5 +1,7 @@
 summary: Check that package remove and purge removes everything related to snaps
-
+details: |
+  Ensure that the purge we do when removing the snapd package really removes all
+  snap related files from the host system.
 systems: [-ubuntu-core-*]
 
 prepare: |
