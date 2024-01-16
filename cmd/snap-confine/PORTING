@@ -5,7 +5,7 @@ and this project, snap-confine) to work on a new kernel. The confinement setup b
 snap-confine has several requirements on the kernel.
 
 TODO: list required patches (apparmor, seccomp)
-TODO: list required kernel configufation
+TODO: list required kernel configuration
 TODO: list minimum supported kernel version
 
 While you are working on porting those patches to your kernel of choice, you
