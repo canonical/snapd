@@ -3,7 +3,7 @@ summary: Refresh snap from 2.59 to stable having homedirs set
 systems: [ ubuntu-18*, ubuntu-2* ]
 
 prepare: |
-    if not os.query is-amd64; then
+    if not os.query is-pc-amd64; then
         exit 0
     fi
 
@@ -17,7 +17,7 @@ prepare: |
     tests.session -u mytest prepare
 
 restore: |
-    if not os.query is-amd64; then
+    if not os.query is-pc-amd64; then
         exit 0
     fi
 
@@ -32,7 +32,7 @@ restore: |
     distro_install_build_snapd
 
 execute: |
-    if not os.query is-amd64; then
+    if not os.query is-pc-amd64; then
         exit 0
     fi
 
