@@ -354,7 +354,7 @@ func maxInhibitionDays(st *state.State) int {
 	var maxInhibitionDays int = 0
 	err := config.NewTransaction(st).Get("core", "refresh.max-inhibition-days", &maxInhibitionDays)
 
-	if err != nil && !errors.Is(err, state.ErrNoState) {
+	if err != nil && !config.IsNoOption(err) {
 		logger.Noticef("internal error: refresh.max-inhibition-days system option is not valid: %v", err)
 	}
 
