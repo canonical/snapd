@@ -794,7 +794,8 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 	// Decide on what to do depending on the state of the snap and the remaining
 	// inhibition time.
 	now := time.Now()
-	// cannot inhibit refreshes for more than maxInhibition;
+	// cannot inhibit refreshes for more than maxInhibitionTime seconds;
+	maxInhibitionTimeValue := maxInhibitionTime(st)
 	switch {
 	case snapst.RefreshInhibitedTime == nil:
 		// If the snap did not have inhibited refresh yet then commence a new
@@ -802,14 +803,14 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 		// time in the snap state's RefreshInhibitedTime field. This field is
 		// reset to nil on successful refresh.
 		snapst.RefreshInhibitedTime = &now
-		busyErr.timeRemaining = (MaxInhibitionTime(st) - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
+		busyErr.timeRemaining = (maxInhibitionTimeValue - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
 		Set(st, info.InstanceName(), snapst)
-	case now.Sub(*snapst.RefreshInhibitedTime) < MaxInhibitionTime(st):
+	case now.Sub(*snapst.RefreshInhibitedTime) < maxInhibitionTimeValue:
 		// If we are still in the allowed window then just return the error but
 		// don't change the snap state again.
 		// TODO: as time left shrinks, send additional notifications with
 		// increasing frequency, allowing the user to understand the urgency.
-		busyErr.timeRemaining = (MaxInhibitionTime(st) - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
+		busyErr.timeRemaining = (maxInhibitionTimeValue - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
 	default:
 		// XXX: should we drop this notification?
 		// if the refresh inhibition window has ended, notify the user that the

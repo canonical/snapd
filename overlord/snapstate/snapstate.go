@@ -342,16 +342,10 @@ func refreshRetain(st *state.State) int {
 	return retain
 }
 
-func MaxInhibitionTime(st *state.State) time.Duration {
-	// deduct 1s so it doesn't look confusing initially when two notifications
-	// get displayed in short period of time and it immediately goes from "14 days"
-	// to "13 days" left.
-	return time.Duration(maxInhibitionDays(st))*24*time.Hour - time.Second
-}
+// maxInhibitionTime returns the value of the maximum inhibition time, in seconds
+func maxInhibitionTime(st *state.State) time.Duration {
 
-// maxInhibitionDays returns refresh.max-inhibition-days value if set, or the default value (14 days).
-func maxInhibitionDays(st *state.State) int {
-	var maxInhibitionDays int = 0
+	var maxInhibitionDays int
 	err := config.NewTransaction(st).Get("core", "refresh.max-inhibition-days", &maxInhibitionDays)
 
 	if err != nil && !config.IsNoOption(err) {
@@ -362,7 +356,11 @@ func maxInhibitionDays(st *state.State) int {
 	if maxInhibitionDays == 0 {
 		maxInhibitionDays = 14
 	}
-	return maxInhibitionDays
+
+	// deduct 1s so it doesn't look confusing initially when two notifications
+	// get displayed in short period of time and it immediately goes from "14 days"
+	// to "13 days" left.
+	return time.Duration(maxInhibitionDays)*24*time.Hour - time.Second
 }
 
 var excludeFromRefreshAppAwareness = func(t snap.Type) bool {
