@@ -5,8 +5,9 @@ details: |
     their systemd units, specifically container management interfaces have the
     Delegate=true snippet added to prevent CVE-2020-27352.
 
-# Docker is not supported anymore in ubuntu 14.04
-systems: [-ubuntu-14.04-64]
+# ubuntu-14.04: Docker is not supported anymore in ubuntu 14.04
+# arch: issue with generated AppArmor profiles, see https://paste.ubuntu.com/p/c5B3SFdqtx/
+systems: [-ubuntu-14.04-64, -arch-linux-*]
 
 prepare: |
     # build and install the strict test snap
