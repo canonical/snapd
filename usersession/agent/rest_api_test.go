@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"net/http/httptest"
 	"os"
+	"path"
 	"path/filepath"
 	"time"
 
@@ -35,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/desktop/notification"
 	"github.com/snapcore/snapd/desktop/notification/notificationtest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/usersession/agent"
@@ -54,6 +56,7 @@ var _ = Suite(&restSuite{})
 func (s *restSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.DBusTest.SetUpTest(c)
+	dirs.SnapDesktopFilesDir = c.MkDir()
 	dirs.SetRootDir(c.MkDir())
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
 	c.Assert(os.MkdirAll(xdgRuntimeDir, 0700), IsNil)
@@ -902,4 +905,112 @@ func (s *restSuite) TestPostCloseRefreshNotification(c *C) {
 		"urgency":       dbus.MakeVariant(byte(notification.LowUrgency)),
 		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
 	})
+}
+
+func createDesktopFile(info *snap.AppInfo, icon string) {
+	data := []byte("[Desktop Entry]\nName=" + info.Name + "\n")
+	if icon != "" {
+		data = append(data, []byte("Icon="+icon+"\n")...)
+	}
+	os.MkdirAll(path.Dir(info.DesktopFile()), 0755)
+	os.WriteFile(info.DesktopFile(), data, 0644)
+
+}
+
+func createSnapInfo(snapName string) *snap.Info {
+	si := snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: snapName,
+		},
+		Apps: make(map[string]*snap.AppInfo, 5),
+	}
+	return &si
+}
+
+func addAppToSnap(snapinfo *snap.Info, app string, isService bool, icon string) {
+	newInfo := snap.AppInfo{
+		Snap: snapinfo,
+		Name: app,
+	}
+	if isService {
+		newInfo.Daemon = "daemon"
+	}
+	snapinfo.Apps[app] = &newInfo
+	createDesktopFile(&newInfo, icon)
+}
+
+func (s *restSuite) TestGuessAppIconNoIconPrefixEqualApp(c *C) {
+	si := createSnapInfo("app1")
+	addAppToSnap(si, "app1", false, "")
+	icon := agent.GuessAppIcon(si)
+	c.Check(icon, Equals, "")
+}
+
+func (s *restSuite) TestGuessAppIconNoIconPrefixDifferentApp(c *C) {
+	si := createSnapInfo("snap1")
+	addAppToSnap(si, "app1", false, "")
+	icon := agent.GuessAppIcon(si)
+	c.Check(icon, Equals, "")
+}
+
+func (s *restSuite) TestGuessAppIconPrefixDifferentApp(c *C) {
+	si := createSnapInfo("snap1")
+	addAppToSnap(si, "app1", false, "iconname")
+	icon := agent.GuessAppIcon(si)
+	c.Check(icon, Equals, "iconname")
+}
+
+func (s *restSuite) TestGuessAppIconPrefixEqualApp(c *C) {
+	si := createSnapInfo("app1")
+	addAppToSnap(si, "app1", false, "iconname")
+	icon := agent.GuessAppIcon(si)
+	c.Check(icon, Equals, "iconname")
+}
+
+func (s *restSuite) TestGuessAppIconServicePrefixEqualApp(c *C) {
+	si := createSnapInfo("app1")
+	addAppToSnap(si, "app1", true, "iconname")
+	icon := agent.GuessAppIcon(si)
+	c.Check(icon, Equals, "")
+}
+
+func (s *restSuite) TestGuessAppIconServicePrefixDifferentApp(c *C) {
+	si := createSnapInfo("snap1")
+	addAppToSnap(si, "app1", true, "iconname")
+	icon := agent.GuessAppIcon(si)
+	c.Check(icon, Equals, "")
+}
+
+func (s *restSuite) TestGuessAppIconServiceTwoApps(c *C) {
+	si := createSnapInfo("app1")
+	addAppToSnap(si, "app1", true, "iconname1")
+	addAppToSnap(si, "app2", false, "iconname2")
+	icon := agent.GuessAppIcon(si)
+	c.Check(icon, Equals, "iconname2")
+}
+
+func (s *restSuite) TestGuessAppIconServiceTwoAppsServices(c *C) {
+	si := createSnapInfo("app1")
+	addAppToSnap(si, "app1", true, "iconname1")
+	addAppToSnap(si, "app2", true, "iconname2")
+	icon := agent.GuessAppIcon(si)
+	c.Check(icon, Equals, "")
+}
+
+func (s *restSuite) TestGuessAppIconServiceTwoAppsOneServicePrefixDifferent(c *C) {
+	si := createSnapInfo("snap1")
+	addAppToSnap(si, "app1", true, "iconname1")
+	addAppToSnap(si, "app2", false, "iconname2")
+	icon := agent.GuessAppIcon(si)
+	c.Check(icon, Equals, "iconname2")
+}
+
+func (s *restSuite) TestGuessAppIconTwoAppsPrefixDifferent(c *C) {
+	si := createSnapInfo("snap1")
+	addAppToSnap(si, "app1", false, "iconname1")
+	addAppToSnap(si, "app2", false, "iconname2")
+	icon := agent.GuessAppIcon(si)
+	if (icon != "iconname1") && (icon != "iconname2") {
+		c.Fail()
+	}
 }
