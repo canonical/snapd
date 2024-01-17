@@ -860,7 +860,16 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 			// This is also done for classic so that no confinement applies. Just in
 			// case the profile we start with is not permissive enough.
 			if (opts.DevMode || opts.Classic) && !opts.JailMode {
-				flags = append(flags, "complain")
+				if !strutil.ListContains(flags, "unconfined") {
+					// Profile modes unconfined and complain
+					// conflict with each other and are
+					// rejected by the parser, in any case
+					// this is fine since we already
+					// requested unconfined based on the
+					// spec and complain would no enforce
+					// any rules anyway.
+					flags = append(flags, "complain")
+				}
 			}
 			if len(flags) > 0 {
 				return "flags=(" + strings.Join(flags, ",") + ")"

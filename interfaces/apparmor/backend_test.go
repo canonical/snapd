@@ -1113,7 +1113,6 @@ func (s *backendSuite) TestUnconfinedFlag(c *C) {
 		flags := []string{"attach_disconnected", "mediate_deleted", "unconfined"}
 		prefix := commonPrefix
 		if opts.Classic {
-			flags = append(flags, "complain")
 			prefix = "\n#classic" + commonPrefix
 		}
 		contents := fmt.Sprintf(prefix+"\nprofile \"snap.samba.smbd\" flags=(%s) {\n\n}\n",
