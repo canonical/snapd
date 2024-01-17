@@ -22,6 +22,7 @@ package main_test
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"gopkg.in/check.v1"
@@ -156,4 +157,129 @@ func (s *snapSetSuite) mockSetConfigServer(c *check.C, expectedValue interface{}
 			c.Fatalf("unexpected path %q", r.URL.Path)
 		}
 	})
+}
+
+var _ = check.Suite(&aspectsSetSuite{})
+
+type aspectsSetSuite struct {
+	BaseSnapSuite
+}
+
+const asyncResp = `{
+	"type": "async",
+	"change": "123",
+	"status-code": 202
+}`
+
+func (s *aspectsSetSuite) TestAspectSet(c *check.C) {
+	var reqs int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch reqs {
+		case 0:
+			c.Check(r.Method, check.Equals, "PUT")
+			c.Check(r.URL.Path, check.Equals, "/v2/aspects/foo/bar/baz")
+			c.Check(r.URL.Query(), check.HasLen, 0)
+
+			raw, err := io.ReadAll(r.Body)
+			c.Check(err, check.IsNil)
+			c.Check(string(raw), check.Equals, `{"abc":"cba"}`)
+
+			w.WriteHeader(202)
+			fmt.Fprintln(w, asyncResp)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
+			fmt.Fprintf(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}\n`)
+		default:
+			err := fmt.Errorf("expected to get 2 requests, now on %d (%v)", reqs+1, r)
+			w.WriteHeader(500)
+			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+			c.Error(err)
+		}
+
+		reqs++
+	})
+
+	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", `abc="cba"`})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.HasLen, 0)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *aspectsSetSuite) TestAspectSetMany(c *check.C) {
+	var reqs int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch reqs {
+		case 0:
+			c.Check(r.Method, check.Equals, "PUT")
+			c.Check(r.URL.Path, check.Equals, "/v2/aspects/foo/bar/baz")
+			c.Check(r.URL.Query(), check.HasLen, 0)
+
+			raw, err := io.ReadAll(r.Body)
+			c.Check(err, check.IsNil)
+			c.Check(string(raw), check.Equals, `{"abc":{"foo":1},"xyz":true}`)
+
+			w.WriteHeader(202)
+			fmt.Fprintf(w, asyncResp)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
+			fmt.Fprintf(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}\n`)
+		default:
+			err := fmt.Errorf("expected to get 2 requests, now on %d (%v)", reqs+1, r)
+			w.WriteHeader(500)
+			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+			c.Error(err)
+		}
+
+		reqs++
+	})
+
+	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", `abc={"foo":1}`, "xyz=true"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.HasLen, 0)
+
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *aspectsSetSuite) TestAspectSetInvalidAspectID(c *check.C) {
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo//bar", "foo=bar"})
+	c.Assert(err, check.NotNil)
+	c.Check(err.Error(), check.Equals, "aspect identifier must conform to format: <account-id>/<bundle>/<aspect>")
+}
+
+func (s *aspectsSetSuite) TestAspectSetNoWait(c *check.C) {
+	var reqs int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch reqs {
+		case 0:
+			c.Check(r.Method, check.Equals, "PUT")
+			c.Check(r.URL.Path, check.Equals, "/v2/aspects/foo/bar/baz")
+			c.Check(r.URL.Query(), check.HasLen, 0)
+
+			raw, err := io.ReadAll(r.Body)
+			c.Check(err, check.IsNil)
+			c.Check(string(raw), check.Equals, `{"abc":1}`)
+
+			w.WriteHeader(202)
+			fmt.Fprintln(w, asyncResp)
+		default:
+			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
+			w.WriteHeader(500)
+			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+			c.Error(err)
+		}
+
+		reqs++
+	})
+
+	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "--no-wait", "foo/bar/baz", "abc=1"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.HasLen, 0)
+
+	c.Check(s.Stdout(), check.Equals, "123\n")
+	c.Check(s.Stderr(), check.Equals, "")
 }

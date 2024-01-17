@@ -265,6 +265,7 @@ func (s *aspectsSuite) testAspectSetMany(c *C) {
 	chg := st.Change(rspe.Change)
 	c.Check(chg.Kind(), check.Equals, "set-aspect")
 	c.Check(chg.Summary(), check.Equals, `Set aspect system/network/wifi-setup`)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
 
 	var databags map[string]map[string]aspects.JSONDataBag
 	err = st.Get("aspect-databags", &databags)
@@ -381,6 +382,8 @@ func (s *aspectsSuite) TestSetAspect(c *C) {
 		c.Check(chg.Summary(), Equals, `Set aspect system/network/wifi-setup`, cmt)
 
 		st.Lock()
+		c.Check(chg.Status(), Equals, state.DoneStatus)
+
 		var databags map[string]map[string]aspects.JSONDataBag
 		err = st.Get("aspect-databags", &databags)
 		st.Unlock()
@@ -416,10 +419,11 @@ func (s *aspectsSuite) TestUnsetAspect(c *C) {
 	st := s.d.Overlord().State()
 	st.Lock()
 	chg := st.Change(rspe.Change)
-	st.Unlock()
 
 	c.Check(chg.Kind(), check.Equals, "set-aspect")
 	c.Check(chg.Summary(), check.Equals, `Set aspect system/network/wifi-setup`)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	st.Unlock()
 }
 
 func (s *aspectsSuite) TestSetAspectError(c *C) {
