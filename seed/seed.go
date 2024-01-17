@@ -205,6 +205,14 @@ type PreseedCapable interface {
 	LoadPreseedAssertion() (*asserts.Preseed, error)
 }
 
+// Copier can be implemented by a seed that supports copying itself to a given
+// destination.
+type Copier interface {
+	// Copy copies the seed to the given seed partition. The root parameter
+	// is treated as the root of the seed partition.
+	Copy(root string) error
+}
+
 // Open returns a Seed implementation for the seed at seedDir.
 // label if not empty is used to identify a Core 20 recovery system seed.
 func Open(seedDir, label string) (Seed, error) {
