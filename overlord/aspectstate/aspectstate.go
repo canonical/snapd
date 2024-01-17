@@ -49,11 +49,7 @@ func SetAspect(databag aspects.DataBag, account, bundleName, aspect, field strin
 		}
 	}
 
-	if err := asp.Set(databag, field, value); err != nil {
-		return err
-	}
-
-	return nil
+	return asp.Set(databag, field, value)
 }
 
 // GetAspect finds the aspect identified by the account, bundleName and aspect
@@ -80,12 +76,7 @@ func GetAspect(databag aspects.DataBag, account, bundleName, aspect, field strin
 		}
 	}
 
-	result, err := asp.Get(databag, field)
-	if err != nil {
-		return nil, err
-	}
-
-	return result, nil
+	return asp.Get(databag, field)
 }
 
 // NewTransaction returns a transaction configured to read and write databags
