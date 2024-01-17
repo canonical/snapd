@@ -187,9 +187,7 @@ mount options=(rw, rbind) /bindfile* -> /newroot/run/host/container-manager,
 mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/usr/lib/@{multiarch}/** -> /newroot/var/lib/snapd/hostfs/usr/lib/@{multiarch}/**,
 
 # Allow masking of certain directories in the sandbox
-mount fstype=tmpfs options=(rw, nosuid, nodev) tmpfs -> /newroot/home/*/snap/steam/common/.local/share/vulkan/implicit_layer.d/,
 mount fstype=tmpfs options=(rw, nosuid, nodev) tmpfs -> /newroot/**,
-mount fstype=tmpfs options=(rw, nosuid, nodev) tmpfs -> /newroot/tmp/.X11-unix/,
 
 # Pivot from the intermediate root to sandbox root
 mount options in (rw, silent, rprivate) -> /oldroot/,
