@@ -141,6 +141,11 @@ Requires:       fuse
 Requires:       ((squashfuse and fuse) or kmod(squashfs.ko))
 %endif
 
+# Require xdelta for delta updates of snap packages.
+%if 0%{?fedora} || ( 0%{?rhel} && 0%{?rhel} > 8 )
+Requires:       xdelta
+%endif
+
 # bash-completion owns /usr/share/bash-completion/completions
 Requires:       bash-completion
 
