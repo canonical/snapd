@@ -455,7 +455,7 @@ func guessAppIcon(si *snap.Info) string {
 				continue
 			}
 			if err := parser.ReadFile(app.DesktopFile()); err == nil {
-				if icon, err = parser.Get("Desktop Entry", "Icon"); (icon != "") && (err == nil) {
+				if icon, err = parser.Get("Desktop Entry", "Icon"); err == nil && icon != "" {
 					break
 				}
 			}
