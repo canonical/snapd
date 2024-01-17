@@ -350,14 +350,12 @@ func MaxInhibitionTime(st *state.State) time.Duration {
 }
 
 // maxInhibitionDays returns refresh.max-inhibition-days value if set, or the default value (14 days).
-// It deals with potentially wrong type due to lax validation.
 func maxInhibitionDays(st *state.State) int {
-	var maxInhibitionDays int
+	var maxInhibitionDays int = 0
 	err := config.NewTransaction(st).Get("core", "refresh.max-inhibition-days", &maxInhibitionDays)
 
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		logger.Noticef("internal error: refresh.max-inhibition-days system option is not valid: %v", err)
-		return 0
 	}
 
 	// not set, use default value
