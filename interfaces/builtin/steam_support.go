@@ -138,8 +138,8 @@ mount options=(rw, rbind) /oldroot/home/{,**} -> /newroot/home/{,**},
 mount options=(rw, rbind) /oldroot/snap/** -> /newroot/snap/**,
 mount options=(rw, rbind) /oldroot/home/**/usr/ -> /newroot/usr/,
 mount options=(rw, rbind) /oldroot/home/**/usr/etc/** -> /newroot/etc/**,
-mount options=(rw, rbind) /oldroot/home/**/usr/etc/ld.so.cache -> /newroot/*/pressure-vessel/ldso/runtime-ld.so.cache,
-mount options=(rw, rbind) /oldroot/home/**/usr/etc/ld.so.conf -> /newroot/*/pressure-vessel/ldso/runtime-ld.so.conf,
+mount options=(rw, rbind) /oldroot/home/**/usr/etc/ld.so.cache -> /newroot/**,
+mount options=(rw, rbind) /oldroot/home/**/usr/etc/ld.so.conf -> /newroot/**,
 
 mount options=(rw, rbind) /oldroot/{home,media,mnt,run/media,opt,srv}/**/steamapps/common/** -> /newroot/**,
 
