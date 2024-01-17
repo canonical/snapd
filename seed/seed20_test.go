@@ -28,7 +28,6 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -3086,7 +3085,7 @@ func (s *seed20Suite) testLoadAutoImportAssertion(c *C, grade asserts.ModelGrade
 	sysLabel := "20191018"
 	seed20 := s.createMinimalSeed(c, string(grade), sysLabel)
 	c.Assert(seed20, NotNil)
-	c.Check(seed20.Model().Grade(), check.Equals, grade)
+	c.Check(seed20.Model().Grade(), Equals, grade)
 
 	// write test auto import assertion
 	switch sua {
@@ -3106,7 +3105,7 @@ func (s *seed20Suite) testLoadAutoImportAssertion(c *C, grade asserts.ModelGrade
 		c.Check(err, ErrorMatches, loadError.Error())
 	}
 	assertions, err := s.findAutoImportAssertion(seed20)
-	c.Check(err, check.ErrorMatches, "system-user assertion not found")
+	c.Check(err, ErrorMatches, "system-user assertion not found")
 	c.Assert(assertions, IsNil)
 }
 
@@ -3114,7 +3113,7 @@ func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousAutoImportAsserti
 	sysLabel := "20191018"
 	seed20 := s.createMinimalSeed(c, "dangerous", sysLabel)
 	c.Assert(seed20, NotNil)
-	c.Check(seed20.Model().Grade(), check.Equals, asserts.ModelDangerous)
+	c.Check(seed20.Model().Grade(), Equals, asserts.ModelDangerous)
 
 	seedtest.WriteValidAutoImportAssertion(c, s.Brands, s.SeedDir, sysLabel, 0644)
 
@@ -3126,12 +3125,12 @@ func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousAutoImportAsserti
 	assertions, err := s.findAutoImportAssertion(seed20)
 	c.Assert(err, IsNil)
 	// validate it's our assertion
-	c.Check(len(assertions), check.Equals, 1)
+	c.Check(len(assertions), Equals, 1)
 	systemUser := assertions[0].(*asserts.SystemUser)
-	c.Check(systemUser.Username(), check.Equals, "guy")
-	c.Check(systemUser.Email(), check.Equals, "foo@bar.com")
-	c.Check(systemUser.Name(), check.Equals, "Boring Guy")
-	c.Check(systemUser.AuthorityID(), check.Equals, "my-brand")
+	c.Check(systemUser.Username(), Equals, "guy")
+	c.Check(systemUser.Email(), Equals, "foo@bar.com")
+	c.Check(systemUser.Name(), Equals, "Boring Guy")
+	c.Check(systemUser.AuthorityID(), Equals, "my-brand")
 }
 
 func (s *seed20Suite) createMinimalSeed(c *C, grade string, sysLabel string) seed.Seed {
