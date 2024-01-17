@@ -33,8 +33,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/snapcore/snapd/asserts"
@@ -80,6 +82,82 @@ type seed20 struct {
 	// modes holds a matching applicable modes set for each snap in snaps
 	modes             [][]string
 	essentialSnapsNum int
+}
+
+// Copy implement Copier interface. Copies the seed to the given root, where
+// root is treated as the root of a seed partition.
+func (s *seed20) Copy(root string) (err error) {
+	// TODO: right now this method requires you to call LoadAssertions and
+	// LoadMeta first. is that okay? should Copier embed the Seed interface to
+	// make that easier? i could call them in here, but then i'd need to take in
+	// a db as a parameter.
+
+	srcSystemDir, err := filepath.Abs(s.systemDir)
+	if err != nil {
+		return err
+	}
+
+	destRoot, err := filepath.Abs(root)
+	if err != nil {
+		return err
+	}
+
+	label := filepath.Base(srcSystemDir)
+
+	if err := os.Mkdir(filepath.Join(destRoot, "systems"), 0755); err != nil && !errors.Is(err, fs.ErrExist) {
+		return err
+	}
+
+	destSystemDir := filepath.Join(destRoot, "systems", label)
+	if osutil.FileExists(destSystemDir) {
+		return fmt.Errorf("cannot create system: system %q already exists at %q", label, destSystemDir)
+	}
+
+	// TODO: is this a good idea? we won't be able to clean up asserted snaps
+	// that are copied, but i think that is ok
+	defer func() {
+		if err != nil {
+			os.RemoveAll(destSystemDir)
+		}
+	}()
+
+	// copy all files (including unasserted snaps) from the seed to the
+	// destination
+	err = filepath.Walk(srcSystemDir, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		destPath := filepath.Join(destRoot, "systems", label, strings.TrimPrefix(path, srcSystemDir))
+		if info.IsDir() {
+			return os.Mkdir(destPath, info.Mode())
+		}
+
+		return osutil.CopyFile(path, destPath, osutil.CopyFlagDefault)
+	})
+	if err != nil {
+		return err
+	}
+
+	// copy the asserted snaps that the seed needs
+	for _, sn := range s.snaps {
+		// unasserted snaps are already copied above, skip them
+		if sn.ID() == "" {
+			continue
+		}
+
+		destPath := filepath.Join(destRoot, "snaps", filepath.Base(sn.Path))
+
+		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+			return err
+		}
+
+		if err := osutil.CopyFile(sn.Path, destPath, osutil.CopyFlagOverwrite); err != nil {
+			return fmt.Errorf("cannot copy asserted snap: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
