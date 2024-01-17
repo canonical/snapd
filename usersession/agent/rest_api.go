@@ -451,7 +451,7 @@ func guessAppIcon(si *snap.Info) string {
 	if icon == "" {
 		// If it doesn't exist, take the first app in the snap with a DesktopFile with icon
 		for _, app := range si.Apps {
-			if app.IsService() {
+			if app.IsService() || app.Name == si.SnapName() {
 				continue
 			}
 			if err := parser.ReadFile(app.DesktopFile()); err == nil {
