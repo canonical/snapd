@@ -1398,6 +1398,103 @@ X-SnapdOrigin=bar
 	})
 }
 
+func (s *SystemdTestSuite) TestAddKernelModulesMountUnit(c *C) {
+	rootDir := dirs.GlobalRootDir
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snapd/snaps/mykernel+mykmod_11.comp")
+	makeMockFile(c, mockSnapPath)
+
+	addMountUnitOptions := &MountUnitOptions{
+		MountUnitType: BeforeDriversLoadMountUnit,
+		Lifetime:      Persistent,
+		Description:   "Mount unit for wifi kernel modules component",
+		What:          mockSnapPath,
+		Where:         "/run/mnt/kernel-modules/5.15.0-91-generic/mykmod/",
+		Fstype:        "squashfs",
+		Options:       []string{"nodev,ro,x-gdu.hide,x-gvfs-hide"},
+		Origin:        "",
+	}
+	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFileWithOptions(addMountUnitOptions)
+	c.Assert(err, IsNil)
+	defer os.Remove(mountUnitName)
+
+	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`[Unit]
+Description=Mount unit for wifi kernel modules component
+DefaultDependencies=no
+After=systemd-remount-fs.service
+Before=sysinit.target
+Before=systemd-udevd.service systemd-modules-load.service
+Before=umount.target
+Conflicts=umount.target
+
+[Mount]
+What=%s
+Where=/run/mnt/kernel-modules/5.15.0-91-generic/mykmod/
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
+
+[Install]
+WantedBy=sysinit.target
+`, mockSnapPath))
+	escapedUnit := "run-mnt-kernel\\x2dmodules-5.15.0\\x2d91\\x2dgeneric-mykmod.mount"
+	c.Assert(s.argses, DeepEquals, [][]string{
+		{"daemon-reload"},
+		{"--root", rootDir, "enable", escapedUnit},
+		{"reload-or-restart", escapedUnit},
+	})
+}
+
+func (s *SystemdTestSuite) TestAddKernelTreeMountUnit(c *C) {
+	rootDir := dirs.GlobalRootDir
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	// systemd would automatically add a dependency for this unit on the mount unit for
+	// /run/mnt/kernel-modules/5.15.0-91-generic/mykmod
+	addMountUnitOptions := &MountUnitOptions{
+		MountUnitType: BeforeDriversLoadMountUnit,
+		Lifetime:      Persistent,
+		Description:   "Mount unit for kernel modules in kernel tree",
+		What:          "/run/mnt/kernel-modules/5.15.0-91-generic/mykmod/modules/5.15.0-91-generic",
+		Where:         "/usr/lib/modules/5.15.0-91-generic/updates/mykmod/",
+		Fstype:        "none",
+		Options:       []string{"bind"},
+		Origin:        "",
+	}
+	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFileWithOptions(addMountUnitOptions)
+	c.Assert(err, IsNil)
+	defer os.Remove(mountUnitName)
+
+	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`[Unit]
+Description=Mount unit for kernel modules in kernel tree
+DefaultDependencies=no
+After=systemd-remount-fs.service
+Before=sysinit.target
+Before=systemd-udevd.service systemd-modules-load.service
+Before=umount.target
+Conflicts=umount.target
+
+[Mount]
+What=/run/mnt/kernel-modules/5.15.0-91-generic/mykmod/modules/5.15.0-91-generic
+Where=/usr/lib/modules/5.15.0-91-generic/updates/mykmod/
+Type=none
+Options=bind
+
+[Install]
+WantedBy=sysinit.target
+`))
+	escapedUnit := "usr-lib-modules-5.15.0\\x2d91\\x2dgeneric-updates-mykmod.mount"
+	c.Assert(s.argses, DeepEquals, [][]string{
+		{"daemon-reload"},
+		{"--root", rootDir, "enable", escapedUnit},
+		{"reload-or-restart", escapedUnit},
+	})
+}
+
 func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 	restore := selinux.MockIsEnabled(func() (bool, error) { return true, nil })
 	defer restore()
