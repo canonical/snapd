@@ -169,15 +169,15 @@ mount options=(rw, rbind) /bindfile* -> /newroot/run/host/font-dirs.xml,
 mount options=(rw, rbind) /oldroot/usr/share/icons/ -> /newroot/run/host/share/icons/,
 mount options=(rw, rbind) /oldroot/home/**/.local/share/icons/ -> /newroot/run/host/user-share/icons/,
 
-mount options=(rw, rbind) /oldroot/run/user/[0-9]*/wayland-* -> /newroot/*/pressure-vessel/wayland-*,
+mount options=(rw, rbind) /oldroot/run/user/[0-9]*/wayland-* -> /newroot/**,
 mount options=(rw, rbind) /oldroot/tmp/.X11-unix/X* -> /newroot/tmp/.X11-unix/X*,
-mount options=(rw, rbind) /bindfile* -> /newroot/*/pressure-vessel/Xauthority,
+mount options=(rw, rbind) /bindfile* -> /newroot/**,
 
-mount options=(rw, rbind) /bindfile* -> /newroot/*/pressure-vessel/pulse/config,
-mount options=(rw, rbind) /oldroot/run/user/[0-9]*/pulse/native -> /newroot/*/pressure-vessel/pulse/native,
+mount options=(rw, rbind) /bindfile* -> /newroot/**,
+mount options=(rw, rbind) /oldroot/run/user/[0-9]*/pulse/native -> /newroot/**,
 mount options=(rw, rbind) /oldroot/dev/snd/ -> /newroot/dev/snd/,
 mount options=(rw, rbind) /bindfile* -> /newroot/etc/asound.conf,
-mount options=(rw, rbind) /oldroot/run/user/[0-9]*/bus -> /newroot/*/pressure-vessel/bus,
+mount options=(rw, rbind) /oldroot/run/user/[0-9]*/bus -> /newroot/**,
 
 mount options=(rw, rbind) /oldroot/run/dbus/system_bus_socket -> /newroot/run/dbus/system_bus_socket,
 mount options=(rw, rbind) /oldroot/run/systemd/resolve/io.systemd.Resolve -> /newroot/run/systemd/resolve/io.systemd.Resolve,
@@ -188,7 +188,7 @@ mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/usr/lib/@{multiarch}/** 
 
 # Allow masking of certain directories in the sandbox
 mount fstype=tmpfs options=(rw, nosuid, nodev) tmpfs -> /newroot/home/*/snap/steam/common/.local/share/vulkan/implicit_layer.d/,
-mount fstype=tmpfs options=(rw, nosuid, nodev) tmpfs -> /newroot/*/pressure-vessel/ldso/,
+mount fstype=tmpfs options=(rw, nosuid, nodev) tmpfs -> /newroot/**,
 mount fstype=tmpfs options=(rw, nosuid, nodev) tmpfs -> /newroot/tmp/.X11-unix/,
 
 # Pivot from the intermediate root to sandbox root
