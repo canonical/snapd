@@ -1912,3 +1912,149 @@ func (*schemaSuite) TestUnexpectedTypes(c *C) {
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept element in "foo": expected %s type but got %T`, tc.expectedType, tc.testValue))
 	}
 }
+
+func (*schemaSuite) TestAlternativeTypesHappy(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": ["string", "int"]
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	for _, val := range []interface{}{`"one"`, `1`} {
+		input := []byte(fmt.Sprintf(`{"foo":%s}`, val))
+		err = schema.Validate(input)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (*schemaSuite) TestAlternativeTypesFail(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": ["string", "int"]
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	for _, val := range []interface{}{"1.1", "true", `{"bar": 1}`, `[1, 2]`} {
+		input := []byte(fmt.Sprintf(`{"foo":%s}`, val))
+		err = schema.Validate(input)
+		c.Assert(err, ErrorMatches, `cannot accept element in "foo": 
+	expected string .*
+	expected int .*`)
+	}
+}
+
+func (*schemaSuite) TestAlternativeTypesWithConstraintsHappy(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": [
+			{
+				"type": "int",
+				"min": 0
+			},
+			{
+				"type": "string",
+				"format": "[bB]ar"
+			}
+		]
+	}
+}`)
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	for _, val := range []interface{}{"3", "0", `"Bar"`, `"bar"`} {
+		input := []byte(fmt.Sprintf(`{"foo":%s}`, val))
+		err = schema.Validate(input)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (*schemaSuite) TestAlternativeTypesWithConstraintsFail(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": [
+			{
+				"type": "int",
+				"min": 0
+			},
+			{
+				"type": "string",
+				"pattern": "[bB]ar"
+			}
+		]
+	}
+}`)
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	err = schema.Validate([]byte(`{"foo":-1}`))
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": 
+	-1 is less than the allowed minimum 0
+	expected string type but got number`)
+
+	err = schema.Validate([]byte(`{"foo":"bAR"}`))
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": 
+	expected int type but got string
+	string "bAR" doesn't match schema pattern \[bB\]ar`)
+}
+
+func (*schemaSuite) TestAlternativeTypesNested(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": ["int", ["number", ["string"]]]
+	}
+}`)
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	for _, val := range []interface{}{`"one"`, `1`, `1.3`} {
+		input := []byte(fmt.Sprintf(`{"foo":%s}`, val))
+		err = schema.Validate(input)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (*schemaSuite) TestAlternativeTypesUnknownType(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": ["foo"]
+	}
+}`)
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse aspect schema: cannot parse unknown type "foo"`)
+}
+
+func (*schemaSuite) TestAlternativeTypesEmpty(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": []
+	}
+}`)
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse aspect schema: alternative type list cannot be empty`)
+}
+
+func (*schemaSuite) TestAlternativeTypesPathError(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": {
+			"schema": {
+				"bar": [{"schema": {"baz": "int"}}, {"schema": {"baz": {"schema": {"zab": {"type": "array", "values": "string"}}}}}]
+			}
+		}
+	}
+}`)
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	err = schema.Validate([]byte(`{"foo":{"bar": {"baz": {"zab": [1]}}}}`))
+	c.Assert(err, NotNil)
+	c.Assert(err.Error(), Equals, `cannot accept element in "foo.bar": 
+	..."baz": expected int type but got object
+	..."baz.zab[0]": expected string type but got number`)
+}

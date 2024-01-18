@@ -138,7 +138,42 @@ func (s *StorageSchema) Validate(raw []byte) error {
 	return s.topLevel.Validate(raw)
 }
 
+// parseAlternatives tries to parse raw as a JSON list of alternatives types.
+// If the input is not a JSON list, a *json.UnmarshalTypeError is returned.
+func (s *StorageSchema) parseAlternatives(raw json.RawMessage) (*alternativesSchema, error) {
+	var alternatives []json.RawMessage
+	if err := json.Unmarshal(raw, &alternatives); err != nil {
+		return nil, err
+	}
+
+	var alt alternativesSchema
+	for _, altRaw := range alternatives {
+		schema, err := s.parse(altRaw)
+		if err != nil {
+			return nil, err
+		}
+
+		alt.schemas = append(alt.schemas, schema)
+	}
+
+	if len(alt.schemas) == 0 {
+		return nil, fmt.Errorf(`alternative type list cannot be empty`)
+	}
+
+	return &alt, nil
+}
+
 func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
+	alt, err := s.parseAlternatives(raw)
+	if err != nil {
+		var typeErr *json.UnmarshalTypeError
+		if !errors.As(err, &typeErr) {
+			return nil, fmt.Errorf(`cannot parse aspect schema: %w`, err)
+		}
+	} else {
+		return alt, nil
+	}
+
 	var typ string
 	var schemaDef map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &schemaDef); err != nil {
@@ -209,6 +244,66 @@ func (s *StorageSchema) getUserType(ref string) (*userTypeRefParser, error) {
 	}
 
 	return nil, fmt.Errorf("cannot find user-defined type %q", ref)
+}
+
+type alternativesSchema struct {
+	// schemas holds schemas for the types allowed for the corresponding value.
+	schemas []Schema
+}
+
+// Validate that raw matches at least one of the schemas in the alternative list.
+func (v *alternativesSchema) Validate(raw []byte) error {
+	var errs []error
+	for _, schema := range v.schemas {
+		err := schema.Validate(raw)
+		if err == nil {
+			return nil
+		}
+
+		errs = append(errs, err)
+	}
+
+	var sb strings.Builder
+	for _, err := range errs {
+		sb.WriteString("\n\t")
+
+		if verr, ok := err.(*ValidationError); ok {
+			err = verr.Err
+
+			if len(verr.Path) != 0 {
+				sb.WriteString("...\"")
+				for i, part := range verr.Path {
+					switch v := part.(type) {
+					case string:
+						if i > 0 {
+							sb.WriteRune('.')
+						}
+
+						sb.WriteString(v)
+					case int:
+						sb.WriteString(fmt.Sprintf("[%d]", v))
+					default:
+						// can only happen due to bug
+						sb.WriteString(".<n/a>")
+					}
+				}
+				sb.WriteString("\": ")
+			}
+		}
+
+		sb.WriteString(err.Error())
+	}
+
+	return validationErrorf(sb.String())
+}
+
+func (v *alternativesSchema) parseConstraints(constraints map[string]json.RawMessage) error {
+	// should never be called
+	return fmt.Errorf("internal error: alternative type can't define constraints")
+}
+
+func (v *alternativesSchema) expectsConstraints() bool {
+	return false
 }
 
 type mapSchema struct {
