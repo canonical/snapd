@@ -1550,9 +1550,7 @@ type CreateRecoverySystemOptions struct {
 	// recovery system. If provided, all snaps used to create recovery system
 	// will follow the constraints imposed by the validation sets. If required
 	// snaps are not present on the system, and LocalSnapSideInfos is not
-	// provided, then the snaps will be downloaded. Note that if validation sets
-	// are provided, all snaps in the model must be constrained by a validation
-	// set.
+	// provided, then the snaps will be downloaded.
 	ValidationSets []*asserts.ValidationSet
 
 	// LocalSnaps is an optional list of snaps that will be used to create
