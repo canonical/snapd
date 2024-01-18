@@ -139,7 +139,7 @@ func (m *DeviceManager) recordSeededSystem(st *state.State, whatSeeded *seededSy
 	return nil
 }
 
-func (m *DeviceManager) deleteSeededSystem(st *state.State, whatSeeded *seededSystem) error {
+func (m *DeviceManager) removeSeededSystem(st *state.State, whatSeeded *seededSystem) error {
 	var seeded []seededSystem
 	if err := st.Get("seeded-systems", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
