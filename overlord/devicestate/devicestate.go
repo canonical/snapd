@@ -1714,13 +1714,13 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 func checkForSnapIDs(model *asserts.Model, localSnaps []LocalSnap) error {
 	for _, sn := range model.AllSnaps() {
 		if sn.ID() == "" {
-			return fmt.Errorf("cannot create recovery system from model with snap that has no id: %q", sn.Name)
+			return fmt.Errorf("cannot create recovery system from model with snap that has no snap id: %q", sn.Name)
 		}
 	}
 
 	for _, sn := range localSnaps {
 		if sn.SideInfo.SnapID == "" {
-			return fmt.Errorf("cannot create recovery system from provided snap that has no id: %q", sn.SideInfo.RealName)
+			return fmt.Errorf("cannot create recovery system from provided snap that has no snap id: %q", sn.SideInfo.RealName)
 		}
 	}
 
