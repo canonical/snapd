@@ -87,6 +87,8 @@ const (
 	snapdDesktopIntegrationSnapID = "IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu"
 )
 
+const defaultMaxInhibitionDays = 14
+
 var ErrNothingToDo = errors.New("nothing to do")
 
 var osutilCheckFreeSpace = osutil.CheckFreeSpace
@@ -342,9 +344,8 @@ func refreshRetain(st *state.State) int {
 	return retain
 }
 
-// maxInhibitionTime returns the value of the maximum inhibition time, in seconds
+// maxInhibitionTime returns the value of the maximum inhibition time
 func maxInhibitionTime(st *state.State) time.Duration {
-
 	var maxInhibitionDays int
 	err := config.NewTransaction(st).Get("core", "refresh.max-inhibition-days", &maxInhibitionDays)
 
@@ -354,7 +355,7 @@ func maxInhibitionTime(st *state.State) time.Duration {
 
 	// not set, use default value
 	if maxInhibitionDays == 0 {
-		maxInhibitionDays = 14
+		maxInhibitionDays = defaultMaxInhibitionDays
 	}
 
 	// deduct 1s so it doesn't look confusing initially when two notifications
