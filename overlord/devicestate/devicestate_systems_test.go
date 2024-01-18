@@ -4341,3 +4341,36 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemLastSystemFailure(
 	c.Assert(chg.Err(), ErrorMatches, `(?s)cannot perform the following tasks.* \(cannot remove last recovery system: "last"\)`)
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 }
+
+func (s *deviceMgrSystemsCreateSuite) waitfor(chg *state.Change) {
+	s.state.Unlock()
+	for i := 0; i < 5; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+		s.state.Lock()
+		if chg.Status().Ready() {
+			return
+		}
+		s.state.Unlock()
+	}
+	s.state.Lock()
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	devicestate.SetBootOkRan(s.mgr, true)
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	for _, chgType := range []string{"create-recovery-system", "remove-recovery-system", "remodel"} {
+		conflict := s.state.NewChange(chgType, "...")
+		conflict.AddTask(s.state.NewTask(chgType, "..."))
+
+		_, err := devicestate.RemoveRecoverySystem(s.state, "label")
+		c.Check(err, ErrorMatches, fmt.Sprintf("cannot remove recover system while %q change with change id %q is in progress", conflict.Kind(), conflict.ID()))
+
+		conflict.Abort()
+		s.waitfor(conflict)
+	}
+}

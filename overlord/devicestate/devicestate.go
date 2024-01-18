@@ -1587,9 +1587,26 @@ type CreateRecoverySystemOptions struct {
 
 var ErrNoRecoverySystem = errors.New("recovery system does not exist")
 
+func conflictingRecoverySystemChange(st *state.State) *state.Change {
+	for _, chg := range st.Changes() {
+		if chg.IsReady() {
+			continue
+		}
+		switch chg.Kind() {
+		case "create-recovery-system", "remove-recovery-system", "remodel":
+			return chg
+		}
+	}
+	return nil
+}
+
 // RemoveRecoverySystem removes the recovery system with the given label. The
 // current recovery system cannot be removed.
 func RemoveRecoverySystem(st *state.State, label string) (*state.Change, error) {
+	if chg := conflictingRecoverySystemChange(st); chg != nil {
+		return nil, fmt.Errorf("cannot remove recover system while %q change with change id %q is in progress", chg.Kind(), chg.ID())
+	}
+
 	recoverySystemsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems")
 	exists, _, err := osutil.DirExists(filepath.Join(recoverySystemsDir, label))
 	if err != nil {

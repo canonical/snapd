@@ -193,9 +193,6 @@ func snapsUniqueToRecoverySystem(target string, systems []*System) ([]*seed.Snap
 }
 
 func (m *DeviceManager) doRemoveRecoverySystem(t *state.Task, _ *tomb.Tomb) error {
-	// TODO: figure out how to use task conflicts to prevent this task from
-	// running at the same time as other recovery system tasks
-
 	systems, err := m.Systems()
 	if err != nil {
 		return fmt.Errorf("cannot get recovery systems: %w", err)
