@@ -1301,7 +1301,7 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	// create a snapshot
 	shID := uint64(12)
 	_, err := backend.Save(context.TODO(), shID, info, nil, []string{"snapuser"}, nil, nil)
-	c.Check(err, check.IsNil)
+	c.Assert(err, check.IsNil)
 
 	// content.json + num_files + export.json + footer
 	expectedSize := int64(1024 + 4*512 + 1024 + 2*512)
@@ -1312,13 +1312,13 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	buf := bytes.NewBuffer(nil)
 	ctx := context.Background()
 	se, err := backend.NewSnapshotExport(ctx, shID)
-	c.Check(err, check.IsNil)
+	c.Assert(err, check.IsNil)
 	err = se.Init()
 	c.Assert(err, check.IsNil)
 	c.Check(se.Size(), check.Equals, expectedSize)
 	// and we can stream the data
 	err = se.StreamTo(buf)
-	c.Assert(err, check.IsNil)
+	c.Check(err, check.IsNil)
 	c.Check(buf.Len(), check.Equals, int(expectedSize))
 
 	// and again to ensure size does not change when exported again
@@ -1329,7 +1329,7 @@ func (s *snapshotSuite) TestExportTwice(c *check.C) {
 	restore = backend.MockTimeNow(func() time.Time { return time.Date(2242, 1, 1, 12, 0, 0, 0, time.UTC) })
 	defer restore()
 	se2, err := backend.NewSnapshotExport(ctx, shID)
-	c.Check(err, check.IsNil)
+	c.Assert(err, check.IsNil)
 	err = se2.Init()
 	c.Assert(err, check.IsNil)
 	c.Check(se2.Size(), check.Equals, expectedSize)
