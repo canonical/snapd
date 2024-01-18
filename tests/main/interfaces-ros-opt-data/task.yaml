@@ -6,6 +6,7 @@ details: |
 environment:
     # keep in sync with ./test-snapd-sh/meta/snap.yaml
     TESTDIR: /opt/ros/testdir
+    SNAP_TESTDIR: /var/lib/snapd/hostfs/opt/ros/testdir
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
@@ -18,6 +19,7 @@ prepare: |
     "$TESTSTOOLS"/fs-state mock-file "$TESTDIR"/file.urdf
 
     # Second layer of dirs and files
+    "$TESTSTOOLS"/fs-state mock-dir "$TESTDIR"/testdir1
     "$TESTSTOOLS"/fs-state mock-file "$TESTDIR"/testdir1/file.yaml
     "$TESTSTOOLS"/fs-state mock-file "$TESTDIR/testdir1/file_no_extension"
     "$TESTSTOOLS"/fs-state mock-dir "$TESTDIR"/empty_dir
@@ -31,58 +33,58 @@ restore: |
 
 execute: |
     echo "The interface is connected by default"
-    snap interfaces -i ros-opt-data | MATCH "\\- +test-snapd-sh:ros-opt-data"
+    snap interfaces -i ros-opt-data | MATCH "test-snapd-sh:opt-ros"
 
     echo "So the snap is able to access all the allowed files and dirs in /opt/ros"
-    test-snapd-sh.with-opt-ros-plug -c "cat $TESTDIR/file.yaml" | MATCH "mock file"
-    test-snapd-sh.with-opt-ros-plug -c "cat $TESTDIR/file.xacro" | MATCH "mock file"
-    test-snapd-sh.with-opt-ros-plug -c "cat $TESTDIR/file.stl" | MATCH "mock file"
-    test-snapd-sh.with-opt-ros-plug -c "cat $TESTDIR/file.urdf" | MATCH "mock file"
-    test-snapd-sh.with-opt-ros-plug -c "cat $TESTDIR/testdir1/file.yaml" | MATCH "mock file"
+    test-snapd-sh.app-with-opt-ros-plug -c "cat $SNAP_TESTDIR/file.yaml" | MATCH "mock file"
+    test-snapd-sh.app-with-opt-ros-plug -c "cat $SNAP_TESTDIR/file.xacro" | MATCH "mock file"
+    test-snapd-sh.app-with-opt-ros-plug -c "cat $SNAP_TESTDIR/file.stl" | MATCH "mock file"
+    test-snapd-sh.app-with-opt-ros-plug -c "cat $SNAP_TESTDIR/file.urdf" | MATCH "mock file"
+    test-snapd-sh.app-with-opt-ros-plug -c "cat $SNAP_TESTDIR/testdir1/file.yaml" | MATCH "mock file"
 
-    test-snapd-sh.with-opt-ros-plug -c "ls $TESTDIR/testdir1"
-    test-snapd-sh.with-opt-ros-plug -c "ls $TESTDIR/empty_dir"
+    test-snapd-sh.app-with-opt-ros-plug -c "ls $SNAP_TESTDIR/testdir1"
+    test-snapd-sh.app-with-opt-ros-plug -c "ls $SNAP_TESTDIR/empty_dir"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
 
     echo "Then the snap is not able to to write files"
-    if test-snapd-sh.with-opt-ros-plug -c "echo test >> $TESTDIR/file.yaml" 2> call.error; then
+    if test-snapd-sh.app-with-opt-ros-plug -c "echo test >> $SNAP_TESTDIR/file.yaml" 2> call.error; then
         echo "Expected permission error when writing a file, no error received"
         exit 1
     fi
     MATCH "Permission denied" < call.error
 
     echo "Then the snap is not able to to access other files"
-    test-snapd-sh.with-opt-ros-plug -c "ls /root" 2>&1| MATCH "Permission denied"
+    test-snapd-sh.app-with-opt-ros-plug -c "ls /root" 2>&1| MATCH "Permission denied"
 
-    if test-snapd-sh.with-opt-ros-plug -c "cat $TESTDIR/file.txt" 2> call.error; then
+    if test-snapd-sh.app-with-opt-ros-plug -c "cat $SNAP_TESTDIR/file.txt" 2> call.error; then
         echo "Expected permission error accessing file.txt, no error received"
         exit 1
     fi
     MATCH "Permission denied" < call.error
-    if test-snapd-sh.with-opt-ros-plug -c "cat $TESTDIR/file.so" 2> call.error; then
+    if test-snapd-sh.app-with-opt-ros-plug -c "cat $SNAP_TESTDIR/file.so" 2> call.error; then
         echo "Expected permission error accessing file.so, no error received"
         exit 1
     fi
     MATCH "Permission denied" < call.error
-    if test-snapd-sh.with-opt-ros-plug -c "cat $TESTDIR/testdir1/file_no_extension" 2> call.error; then
+    if test-snapd-sh.app-with-opt-ros-plug -c "cat $SNAP_TESTDIR/testdir1/file_no_extension" 2> call.error; then
         echo "Expected permission error accessing file with no extension, no error received"
         exit 1
     fi
     MATCH "Permission denied" < call.error
 
     echo "When the plug is disconnected"
-    snap disconnect test-snapd-sh:ros-opt-data
+    snap disconnect test-snapd-sh:opt-ros
 
     echo "Then the snap is not able to read files and dirs in /opt/ros"
-    if test-snapd-sh.with-opt-ros-plug -c "ls $TESTDIR" 2> call.error; then
+    if test-snapd-sh.app-with-opt-ros-plug -c "ls $SNAP_TESTDIR" 2> call.error; then
         echo "Expected permission error accessing the opt/ros dir, no error received"
         exit 1
     fi
     MATCH "Permission denied" < call.error
-    if test-snapd-sh.with-opt-ros-plug -c "cat $TESTDIR/file.yaml" 2> call.error; then
+    if test-snapd-sh.app-with-opt-ros-plug -c "cat $SNAP_TESTDIR/file.yaml" 2> call.error; then
         echo "Expected permission error accessing a file.yaml, no error received"
         exit 1
     fi
