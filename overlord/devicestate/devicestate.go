@@ -116,9 +116,9 @@ func findSerial(st *state.State, device *auth.DeviceState) (*asserts.Serial, err
 	return a.(*asserts.Serial), nil
 }
 
-// findRevisionForModel returns the model assertion revision if any in the
+// findKnownRevisionOfModel returns the model assertion revision if any in the
 // assertion database for the given model, otherwise it returns -1.
-func findRevisionForModel(st *state.State, mod *asserts.Model) (modRevision int, err error) {
+func findKnownRevisionOfModel(st *state.State, mod *asserts.Model) (modRevision int, err error) {
 	a, err := assertstate.DB(st).Find(asserts.ModelType, map[string]string{
 		"series":   release.Series,
 		"brand-id": mod.BrandID(),
@@ -1222,7 +1222,7 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 		return nil, err
 	}
 
-	prevRev, err := findRevisionForModel(st, new)
+	prevRev, err := findKnownRevisionOfModel(st, new)
 	if err != nil {
 		return nil, err
 	}
@@ -1237,18 +1237,15 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 	remodelKind := ClassifyRemodel(current, new)
 
 	if _, err := findSerial(st, nil); err != nil {
-		cont := false
-		if errors.Is(err, state.ErrNoState) {
+		if !errors.Is(err, state.ErrNoState) {
+			return nil, err
+		}
+
+		if len(localSnaps) > 0 && remodelKind == UpdateRemodel {
 			// it is allowed to remodel without serial for
 			// offline remodels that are update only
-			if len(localSnaps) > 0 && remodelKind == UpdateRemodel {
-				cont = true
-			} else {
-				return nil, fmt.Errorf("cannot remodel without a serial")
-			}
-		}
-		if !cont {
-			return nil, err
+		} else {
+			return nil, fmt.Errorf("cannot remodel without a serial")
 		}
 	}
 
