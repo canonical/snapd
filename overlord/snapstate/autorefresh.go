@@ -794,7 +794,7 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 	// Decide on what to do depending on the state of the snap and the remaining
 	// inhibition time.
 	now := time.Now()
-	// cannot inhibit refreshes for more than maxInhibitionTime seconds;
+	// cannot inhibit refreshes for more than maxInhibitionTime
 	maxInhibitionTimeValue := maxInhibitionTime(st)
 	switch {
 	case snapst.RefreshInhibitedTime == nil:
