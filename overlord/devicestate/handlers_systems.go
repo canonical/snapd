@@ -159,7 +159,6 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 				continue
 			}
 
-			// TODO: need to verify the snaps at some point?
 			snapf, err := snapfile.Open(l.Path)
 			if err != nil {
 				return nil, "", false, err
