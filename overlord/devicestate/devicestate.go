@@ -1533,6 +1533,8 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []s
 	return ts, nil
 }
 
+// LocalSnap is a pair of a snap.SideInfo and a path to the snap file on disk
+// that is represented by the snap.SideInfo.
 type LocalSnap struct {
 	// SideInfo is the snap.SideInfo struct that represents a local snap that
 	// will be used to create a recovery system.
