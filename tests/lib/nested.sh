@@ -73,7 +73,7 @@ nested_wait_vm_ready() {
         # shellcheck disable=SC2016
         retry -n "$log_limit" --wait 1 --quiet --env serial_log="$serial_log" --env output_lines="$output_lines" \
             sh -c 'test "$(wc -l <"$serial_log")" -gt "$output_lines"'
-        output_lines="$(wc -l "$serial_log" | awk '{print $1;}')"
+        output_lines="$(wc -l <"$serial_log")"
 
         # Check no infinite loops during boot
         if nested_is_core_20_system || nested_is_core_22_system; then
