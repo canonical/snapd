@@ -441,6 +441,34 @@ func (*schemaSuite) TestMapSchemaRequiredNotInSchema(c *C) {
 	c.Assert(err, ErrorMatches, `cannot parse map's "required" constraint: required key "baz" must have schema entry`)
 }
 
+func (*schemaSuite) TestMapSchemaWithInvalidKeyFormat(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"-foo": "string"
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse map: key "-foo" doesn't conform to required format`)
+}
+
+func (*schemaSuite) TestMapRejectsInputMapWithInvalidKeyFormat(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": "int"
+	}
+}`)
+
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	input := []byte(`{
+	"-foo": 1
+}`)
+	err = schema.Validate(input)
+	c.Assert(err, ErrorMatches, `cannot accept top level element: key "-foo" doesn't conform to required format`)
+}
+
 func (*schemaSuite) TestMapInvalidConstraintCombos(c *C) {
 	type testcase struct {
 		name    string

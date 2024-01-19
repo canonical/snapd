@@ -246,6 +246,10 @@ func (v *mapSchema) Validate(raw []byte) error {
 		return validationErrorf(`cannot accept null value for "map" type`)
 	}
 
+	if err := validMapKeys(mapValue); err != nil {
+		return validationErrorFrom(err)
+	}
+
 	if v.entrySchemas != nil {
 		for key := range mapValue {
 			if _, ok := v.entrySchemas[key]; !ok {
@@ -323,6 +327,16 @@ func (v *mapSchema) Validate(raw []byte) error {
 	return nil
 }
 
+func validMapKeys(v map[string]json.RawMessage) error {
+	for k := range v {
+		if !validSubkey.Match([]byte(k)) {
+			return fmt.Errorf(`key %q doesn't conform to required format`, k)
+		}
+	}
+
+	return nil
+}
+
 func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) error {
 	err := checkExclusiveMapConstraints(constraints)
 	if err != nil {
@@ -334,6 +348,10 @@ func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) err
 		var entries map[string]json.RawMessage
 		if err := json.Unmarshal(rawEntries, &entries); err != nil {
 			return fmt.Errorf(`cannot parse map's "schema" constraint: %v`, err)
+		}
+
+		if err := validMapKeys(entries); err != nil {
+			return fmt.Errorf(`cannot parse map: %w`, err)
 		}
 
 		v.entrySchemas = make(map[string]Schema, len(entries))
