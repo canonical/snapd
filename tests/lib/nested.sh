@@ -27,10 +27,10 @@ nested_wait_for_ssh() {
     local wait=${2:-1}
 
     until remote.exec "true" &>/dev/null; do
-        retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             return 1
         fi
+        retry=$(( retry - 1 ))
         sleep "$wait"
     done
 }
@@ -40,10 +40,10 @@ nested_wait_for_no_ssh() {
     local wait=${2:-1}
 
     while remote.exec "true" &>/dev/null; do
-        retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             return 1
         fi
+        retry=$(( retry - 1 ))
         sleep "$wait"
     done
 }
@@ -56,13 +56,12 @@ nested_wait_vm_ready() {
     local output_lines=0
     local serial_log="$NESTED_LOGS_DIR"/serial.log
     while true; do
-        retry=$(( retry - 1 ))
-
         # Check the timeout is reached
         if [ $retry -le 0 ]; then
             echo "Timed out waiting for vm ready. Aborting!"
             return 1
         fi
+        retry=$(( retry - 1 ))
 
         # Check the vm is active
         if ! systemctl is-active "$NESTED_VM"; then
@@ -103,11 +102,11 @@ nested_wait_for_snap_command() {
     local wait=${2:-1}
 
     while ! remote.exec "command -v snap" &>/dev/null; do
-        retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             echo "Timed out waiting for command 'command -v snap' to success. Aborting!"
             return 1
         fi
+        retry=$(( retry - 1 ))
         sleep "$wait"
     done
 }
