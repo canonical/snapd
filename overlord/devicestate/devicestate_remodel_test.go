@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2023 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -268,6 +268,41 @@ func (s *deviceMgrRemodelSuite) TestRemodelCheckGrade(c *C) {
 		c.Check(chg, IsNil)
 		c.Check(err, ErrorMatches, t.errStr)
 	}
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelCannotUseOldModel(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+
+	// set a model assertion
+	cur := map[string]interface{}{
+		"brand":        "canonical",
+		"model":        "pc-model",
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	}
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"revision":     "2",
+	})
+	// no serial assertion, no serial in state
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	newModelHdrs := map[string]interface{}{
+		"revision": "1",
+	}
+	mergeMockModelHeaders(cur, newModelHdrs)
+	new := s.brands.Model("canonical", "pc-model", newModelHdrs)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil)
+	c.Check(chg, IsNil)
+	c.Check(err, ErrorMatches, "cannot remodel to older revision 1 of model canonical/pc-model than last revision 2 known to the device")
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelRequiresSerial(c *C) {
@@ -5155,6 +5190,16 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelLocalNonEssentialUpdate(c *C) {
 		&uc20RemodelLocalNonEssentialCase{isUpdate: true})
 }
 
+func (s *deviceMgrRemodelSuite) TestUC20RemodelLocalNonEssentialInstallNoSerial(c *C) {
+	s.testUC20RemodelLocalNonEssential(c,
+		&uc20RemodelLocalNonEssentialCase{isUpdate: false, noSerial: true})
+}
+
+func (s *deviceMgrRemodelSuite) TestUC20RemodelLocalNonEssentialUpdateNoSerial(c *C) {
+	s.testUC20RemodelLocalNonEssential(c,
+		&uc20RemodelLocalNonEssentialCase{isUpdate: true, noSerial: true})
+}
+
 func (s *deviceMgrRemodelSuite) TestUC20RemodelLocalNonEssentialInstallExtraSnap(c *C) {
 	// We check that it is fine to pass down a snap that is not used,
 	// although we might change the behavior in the future.
@@ -5172,6 +5217,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelLocalNonEssentialUpdateExtraSnap(
 type uc20RemodelLocalNonEssentialCase struct {
 	isUpdate    bool
 	notUsedSnap bool
+	noSerial    bool
 }
 
 func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20RemodelLocalNonEssentialCase) {
@@ -5220,11 +5266,16 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 		"snaps":        snaps,
 	})
 	s.makeSerialAssertionInState(c, "canonical", "pc-model", "serial")
-	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+	deviceState := auth.DeviceState{
 		Brand:  "canonical",
 		Model:  "pc-model",
 		Serial: "serial",
-	})
+	}
+	if tc.noSerial {
+		deviceState.Serial = ""
+		deviceState.KeyID = "device-key-id"
+	}
+	devicestatetest.SetDevice(s.state, &deviceState)
 
 	oldSeededTs := time.Now().AddDate(0, 0, -1)
 	s.state.Set("seeded-systems", []devicestate.SeededSystem{
