@@ -948,14 +948,21 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 	// run with filter
 	cmd.Env = envForExec(nil)
 	cmd.Stdin = Stdin
-	cmd.Stdout = Stdout
+	// note hijacking stdout, means it is no longer a tty and programs
+	// expecting stdout to be on a terminal (eg. bash) may misbehave at this
+	// point
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return err
 	}
-	filterDone := make(chan bool, 1)
+	filterDone := make(chan struct{})
+	stdoutProxyDone := make(chan struct{})
 	go func() {
-		defer func() { filterDone <- true }()
+		defer func() { close(filterDone) }()
 
 		if raw {
 			// Passing --strace='--raw' disables the filtering of
@@ -1013,10 +1020,17 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 		}
 		io.Copy(Stderr, r)
 	}()
+
+	go func() {
+		defer func() { close(stdoutProxyDone) }()
+		io.Copy(Stdout, stdout)
+	}()
+
 	if err := cmd.Start(); err != nil {
 		return err
 	}
 	<-filterDone
+	<-stdoutProxyDone
 	err = cmd.Wait()
 	return err
 }
