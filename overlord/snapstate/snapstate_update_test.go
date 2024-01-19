@@ -4218,6 +4218,35 @@ func (s *snapmgrTestSuite) TestUpdateGadgetTrackChecksSwitchingTracks(c *C) {
 
 }
 
+func (s *snapmgrTestSuite) TestUpdateWithDeviceContextSameRevisionSwitchesChannel(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
+		TrackingChannel: "other-channel/stable",
+		Current:         si.Revision,
+	})
+
+	prqt := new(testPrereqTracker)
+
+	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-7/stable"}, s.user.ID, snapstate.Flags{}, prqt, nil, "")
+	c.Assert(err, IsNil)
+	c.Check(ts.Tasks(), HasLen, 1)
+	c.Check(ts.Tasks()[0].Kind(), Equals, "switch-snap-channel")
+
+	c.Assert(prqt.infos, HasLen, 1)
+	c.Check(prqt.infos[0].SnapName(), Equals, "some-snap")
+	c.Check(prqt.missingProviderContentTagsCalls, Equals, 0)
+}
+
 func (s *snapmgrTestSuite) TestUpdateWithDeviceContext(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
