@@ -3681,7 +3681,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissi
 	_, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		LocalSnaps: localSnaps,
 	})
-	c.Assert(err, ErrorMatches, `cannot create recovery system from model with snap that has no id: "pc"`)
+	c.Assert(err, ErrorMatches, `cannot create recovery system from model with snap that has no snap id: "pc"`)
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissingSnapID(c *C) {
@@ -3723,7 +3723,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemMissi
 	_, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		LocalSnaps: localSnaps,
 	})
-	c.Assert(err, ErrorMatches, `cannot create recovery system from provided snap that has no id: "pc"`)
+	c.Assert(err, ErrorMatches, `cannot create recovery system from provided snap that has no snap id: "pc"`)
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsOfflineMissingSnap(c *C) {
