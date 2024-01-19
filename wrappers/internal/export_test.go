@@ -19,6 +19,17 @@
 
 package internal
 
+import (
+	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/usersession/client"
+)
+
 var (
 	GenerateOnCalendarSchedules = generateOnCalendarSchedules
 )
+
+func MockUserSessionQueryServiceStatusMany(f func(units []string) (map[int][]client.ServiceUnitStatus, map[int][]client.ServiceFailure, error)) (restore func()) {
+	restore = testutil.Backup(&userSessionQueryServiceStatusMany)
+	userSessionQueryServiceStatusMany = f
+	return restore
+}

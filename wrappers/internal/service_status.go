@@ -20,31 +20,53 @@
 package internal
 
 import (
+	"context"
+	"fmt"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/timeout"
+	"github.com/snapcore/snapd/usersession/client"
 )
 
 // ServiceStatus represents the status of a service, and any of its activation
-// service units. It also provides a method isEnabled which can determine the true
-// enable status for services that are activated.
+// service units. It also provides helper methods to access or calculate certain
+// properties of the service.
 type ServiceStatus struct {
 	name        string
+	user        bool
 	service     *systemd.UnitStatus
 	activators  []*systemd.UnitStatus
 	slotEnabled bool
 }
 
+// Name returns the human readable name of the service.
 func (s *ServiceStatus) Name() string {
 	return s.name
 }
 
+// ServiceUnitStatus returns the systemd.UnitStatus instance representing the
+// service.
 func (s *ServiceStatus) ServiceUnitStatus() *systemd.UnitStatus {
 	return s.service
 }
 
+// ActivatorUnitStatuses returns the systemd.UnitStatus instances that represent
+// any activator service units of this service.
+func (s *ServiceStatus) ActivatorUnitStatuses() []*systemd.UnitStatus {
+	return s.activators
+}
+
+// IsUserService returns whether the service is a user-daemon.
+func (s *ServiceStatus) IsUserService() bool {
+	return s.user
+}
+
+// IsEnabled returns whether the service is enabled, and takes into account whether
+// the service has activator units.
 func (s *ServiceStatus) IsEnabled() bool {
 	// If the service is slot activated, it cannot be disabled and thus always
 	// is enabled.
@@ -68,41 +90,143 @@ func (s *ServiceStatus) IsEnabled() bool {
 	return false
 }
 
-func appServiceUnitsMany(apps []*snap.AppInfo) []string {
-	var allUnits []string
+func appServiceUnitsMany(apps []*snap.AppInfo) (sys, usr []string) {
 	for _, app := range apps {
 		if !app.IsService() {
 			continue
 		}
-		// TODO: handle user daemons
-		if app.DaemonScope != snap.SystemDaemon {
-			continue
-		}
 		svc, activators := SnapServiceUnits(app)
-		allUnits = append(allUnits, svc)
-		allUnits = append(allUnits, activators...)
+		if app.DaemonScope == snap.SystemDaemon {
+			sys = append(sys, svc)
+			sys = append(sys, activators...)
+		} else if app.DaemonScope == snap.UserDaemon {
+			usr = append(usr, svc)
+			usr = append(usr, activators...)
+		}
 	}
-	return allUnits
+	return sys, usr
 }
 
 func serviceIsSlotActivated(app *snap.AppInfo) bool {
 	return len(app.ActivatesOn) > 0
 }
 
-func QueryServiceStatusMany(sysd systemd.Systemd, apps []*snap.AppInfo) ([]*ServiceStatus, error) {
-	allUnits := appServiceUnitsMany(apps)
-	unitStatuses, err := sysd.Status(allUnits)
+var userSessionQueryServiceStatusMany = func(units []string) (map[int][]client.ServiceUnitStatus, map[int][]client.ServiceFailure, error) {
+	// Avoid any expensive call if there are no user daemons
+	if len(units) == 0 {
+		return nil, nil, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
+	defer cancel()
+	cli := client.New()
+	return cli.ServiceStatus(ctx, units)
+}
+
+func clientUnitStatusToSystemdUnitStatus(unitStatus client.ServiceUnitStatus) *systemd.UnitStatus {
+	return &systemd.UnitStatus{
+		Daemon:           unitStatus.Daemon,
+		Id:               unitStatus.Id,
+		Name:             unitStatus.Name,
+		Names:            unitStatus.Names,
+		Enabled:          unitStatus.Enabled,
+		Active:           unitStatus.Active,
+		Installed:        unitStatus.Installed,
+		NeedDaemonReload: unitStatus.NeedDaemonReload,
+	}
+}
+
+func mapServiceStatusMany(stss []client.ServiceUnitStatus) map[string]*systemd.UnitStatus {
+	stsMap := make(map[string]*systemd.UnitStatus, len(stss))
+	for _, sts := range stss {
+		stsMap[sts.Name] = clientUnitStatusToSystemdUnitStatus(sts)
+	}
+	return stsMap
+}
+
+func queryUserServiceStatusMany(apps []*snap.AppInfo, units []string) (map[int][]*ServiceStatus, error) {
+	usrUnitStss, _, err := userSessionQueryServiceStatusMany(units)
 	if err != nil {
 		return nil, err
 	}
 
-	var appStatuses []*ServiceStatus
-	var statusIndex int
+	constructStatus := func(app *snap.AppInfo, stss map[string]*systemd.UnitStatus) *ServiceStatus {
+		primarySvcName, activators := SnapServiceUnits(app)
+		primarySvcUnit := stss[primarySvcName]
+		if primarySvcUnit == nil {
+			return nil
+		}
+
+		svcSt := &ServiceStatus{
+			name:        app.Name,
+			user:        true,
+			service:     primarySvcUnit,
+			slotEnabled: serviceIsSlotActivated(app),
+		}
+		if len(activators) > 0 {
+			for _, act := range activators {
+				actSvcUnit := stss[act]
+				if actSvcUnit == nil {
+					return nil
+				}
+				svcSt.activators = append(svcSt.activators, actSvcUnit)
+			}
+		}
+		return svcSt
+	}
+
+	// For each user we have results from, go through services and build a list of service results
+	svcsStatusMap := make(map[int][]*ServiceStatus)
+	for uid, stss := range usrUnitStss {
+		stsMap := mapServiceStatusMany(stss)
+		var svcs []*ServiceStatus
+		for _, app := range apps {
+			if !app.IsService() {
+				continue
+			}
+			if app.DaemonScope != snap.UserDaemon {
+				continue
+			}
+			svc := constructStatus(app, stsMap)
+			if svc == nil {
+				// In theory should not happen, we either receive *all* requested statuses from the REST service
+				// or none if something goes wrong with querying one of them. If we receive none, then the entry
+				// won't exist in usrUnitStss and we shouldn't even be in this loop.
+				return nil, fmt.Errorf("internal error: no status received for service %s", app.ServiceName())
+			}
+			svcs = append(svcs, svc)
+		}
+		svcsStatusMap[uid] = svcs
+	}
+	return svcsStatusMap, nil
+}
+
+func querySystemServiceStatusMany(sysd systemd.Systemd, apps []*snap.AppInfo, units []string) ([]*ServiceStatus, error) {
+	sysUnitStss, err := sysd.Status(units)
+	if err != nil {
+		return nil, err
+	}
+
+	var sysIndex int
+	getStatus := func(app *snap.AppInfo, activators []string) *ServiceStatus {
+		svcSt := &ServiceStatus{
+			name:        app.Name,
+			service:     sysUnitStss[sysIndex],
+			slotEnabled: serviceIsSlotActivated(app),
+		}
+		if len(activators) > 0 {
+			svcSt.activators = sysUnitStss[sysIndex+1 : sysIndex+1+len(activators)]
+		}
+		sysIndex += 1 + len(activators)
+		return svcSt
+	}
+
+	// For each of the system services, go through and build a service status result
+	var svcsStatuses []*ServiceStatus
 	for _, app := range apps {
 		if !app.IsService() {
 			continue
 		}
-		// TODO: handle user daemons
 		if app.DaemonScope != snap.SystemDaemon {
 			continue
 		}
@@ -110,18 +234,24 @@ func QueryServiceStatusMany(sysd systemd.Systemd, apps []*snap.AppInfo) ([]*Serv
 		// This builds on the principle that sysd.Status returns service unit statuses
 		// in the exact same order we requested them in.
 		_, activators := SnapServiceUnits(app)
-		svcSt := &ServiceStatus{
-			name:        app.Name,
-			service:     unitStatuses[statusIndex],
-			slotEnabled: serviceIsSlotActivated(app),
-		}
-		if len(activators) > 0 {
-			svcSt.activators = unitStatuses[statusIndex+1 : statusIndex+1+len(activators)]
-		}
-		appStatuses = append(appStatuses, svcSt)
-		statusIndex += 1 + len(activators)
+		svcsStatuses = append(svcsStatuses, getStatus(app, activators))
 	}
-	return appStatuses, nil
+	return svcsStatuses, nil
+}
+
+// QueryServiceStatusMany queries service statuses for all the provided apps. A list of system-service statuses
+// is returned, and a map detailing the statuses of services per logged in user.
+func QueryServiceStatusMany(apps []*snap.AppInfo, sysd systemd.Systemd) (sysSvcs []*ServiceStatus, userSvcs map[int][]*ServiceStatus, err error) {
+	sysUnits, usrUnits := appServiceUnitsMany(apps)
+	sysSvcs, err = querySystemServiceStatusMany(sysd, apps, sysUnits)
+	if err != nil {
+		return nil, nil, err
+	}
+	userSvcs, err = queryUserServiceStatusMany(apps, usrUnits)
+	if err != nil {
+		return nil, nil, err
+	}
+	return sysSvcs, userSvcs, nil
 }
 
 // SnapServiceUnits returns the service unit of the primary service, and a list

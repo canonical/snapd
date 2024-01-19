@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -3258,6 +3259,78 @@ func (s *servicesTestSuite) TestStopStartServicesWithSocketsDisableAndEnable(c *
 	})
 }
 
+func (s *servicesTestSuite) TestStartServicesWithServiceScope(c *C) {
+	info := snaptest.MockSnap(c, packageHelloNoSrv+`
+ svc1:
+  daemon: simple
+ svc2:
+  daemon: simple
+  daemon-scope: user
+`, &snap.SideInfo{Revision: snap.R(12)})
+
+	err := s.addSnapServices(info, false)
+	c.Assert(err, IsNil)
+
+	sorted := info.Services()
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Name < sorted[j].Name
+	})
+
+	err = wrappers.StartServices(sorted, nil, &wrappers.StartServicesFlags{ScopeOptions: wrappers.ScopeOptions{Scope: wrappers.ServiceScopeUser}}, &progress.Null, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+		{"--user", "daemon-reload"},
+		{"--user", "start", "snap.hello-snap.svc2.service"},
+	})
+
+	// Reset the sysd log
+	s.sysdLog = nil
+
+	err = wrappers.StartServices(sorted, nil, &wrappers.StartServicesFlags{ScopeOptions: wrappers.ScopeOptions{Scope: wrappers.ServiceScopeSystem}}, &progress.Null, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"start", "snap.hello-snap.svc1.service"},
+	})
+}
+
+func (s *servicesTestSuite) TestStopServicesWithServiceScope(c *C) {
+	info := snaptest.MockSnap(c, packageHelloNoSrv+`
+ svc1:
+  daemon: simple
+ svc2:
+  daemon: simple
+  daemon-scope: user
+`, &snap.SideInfo{Revision: snap.R(12)})
+
+	err := s.addSnapServices(info, false)
+	c.Assert(err, IsNil)
+
+	sorted := info.Services()
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Name < sorted[j].Name
+	})
+
+	err = wrappers.StopServices(sorted, &wrappers.StopServicesFlags{ScopeOptions: wrappers.ScopeOptions{Scope: wrappers.ServiceScopeUser}}, "", &progress.Null, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+		{"--user", "daemon-reload"},
+		{"--user", "stop", "snap.hello-snap.svc2.service"},
+		{"--user", "show", "--property=ActiveState", "snap.hello-snap.svc2.service"},
+	})
+
+	// Reset the sysd log
+	s.sysdLog = nil
+
+	err = wrappers.StopServices(sorted, &wrappers.StopServicesFlags{ScopeOptions: wrappers.ScopeOptions{Scope: wrappers.ServiceScopeSystem}}, "", &progress.Null, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"stop", "snap.hello-snap.svc1.service"},
+		{"show", "--property=ActiveState", "snap.hello-snap.svc1.service"},
+	})
+}
+
 func (s *servicesTestSuite) TestStartServicesWithDisabledActivatedService(c *C) {
 	info := snaptest.MockSnap(c, packageHelloNoSrv+`
  svc1:
@@ -4665,7 +4738,6 @@ apps:
 	s.sysdLog = nil
 	flags := wrappers.RestartServicesFlags{Reload: true, AlsoEnabledNonActive: true}
 	c.Assert(wrappers.RestartServices(info.Services(), nil, &flags, progress.Null, s.perfTimings), IsNil)
-	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
 		{"reload-or-restart", srvFile},
@@ -4688,6 +4760,218 @@ apps:
 		{"stop", srvFile},
 		{"show", "--property=ActiveState", srvFile},
 		{"start", srvFile},
+	})
+}
+
+func (s *servicesTestSuite) TestReloadOrRestartFailsRestart(c *C) {
+	const surviveYaml = `name: test-snap
+version: 1.0
+apps:
+  foo:
+    command: bin/foo
+    daemon: simple
+`
+	info := snaptest.MockSnap(c, surviveYaml, &snap.SideInfo{Revision: snap.R(1)})
+	srvFile := "snap.test-snap.foo.service"
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		if cmd[0] == "stop" && cmd[1] == srvFile {
+			return nil, fmt.Errorf("oh noes")
+		}
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
+			return out, nil
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	err := s.addSnapServices(info, false)
+	c.Assert(err, IsNil)
+
+	s.sysdLog = nil
+	flags := wrappers.RestartServicesFlags{AlsoEnabledNonActive: true}
+	c.Assert(wrappers.RestartServices(info.Services(), nil, &flags, progress.Null, s.perfTimings), ErrorMatches, `oh noes`)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
+		{"stop", srvFile},
+		{"show", "--property=ActiveState", srvFile},
+	})
+}
+
+func (s *servicesTestSuite) TestReloadOrRestartButNotInRightScope(c *C) {
+	const snapYaml = `name: test-snap
+version: 1.0
+apps:
+  foo:
+    command: bin/foo
+    daemon: simple
+`
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+	srvFile := "snap.test-snap.foo.service"
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
+			return out, nil
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	err := s.addSnapServices(info, false)
+	c.Assert(err, IsNil)
+
+	flags := wrappers.RestartServicesFlags{ScopeOptions: wrappers.ScopeOptions{Scope: wrappers.ServiceScopeUser}}
+	c.Assert(wrappers.RestartServices(info.Services(), nil, &flags, progress.Null, s.perfTimings), IsNil)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		// Only invocations from querying status
+		{"daemon-reload"},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
+	})
+}
+
+func (s *servicesTestSuite) TestReloadOrRestartUserDaemons(c *C) {
+	const snapYaml = `name: test-snap
+version: 1.0
+apps:
+  foo:
+    command: bin/foo
+    daemon: simple
+    daemon-scope: user
+`
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+	srvFile := "snap.test-snap.foo.service"
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
+			return out, nil
+		}
+		return []byte(`Type=notify
+Id=snap.test-snap.foo.service
+Names=snap.test-snap.foo.service
+ActiveState=inactive
+UnitFileState=enabled
+NeedDaemonReload=no
+`), nil
+	})
+	defer r()
+
+	err := s.addSnapServices(info, false)
+	c.Assert(err, IsNil)
+
+	s.sysdLog = nil
+	flags := wrappers.RestartServicesFlags{Reload: true, AlsoEnabledNonActive: true}
+	c.Assert(wrappers.RestartServices(info.Services(), nil, &flags, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"--user", "show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
+		{"--user", "reload-or-restart", srvFile},
+	})
+
+	s.sysdLog = nil
+	flags.Reload = false
+	c.Assert(wrappers.RestartServices(info.Services(), nil, &flags, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"--user", "show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
+		{"--user", "stop", srvFile},
+		{"--user", "show", "--property=ActiveState", srvFile},
+		{"--user", "start", srvFile},
+	})
+
+	s.sysdLog = nil
+	c.Assert(wrappers.RestartServices(info.Services(), nil, &wrappers.RestartServicesFlags{AlsoEnabledNonActive: true}, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"--user", "show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
+		{"--user", "stop", srvFile},
+		{"--user", "show", "--property=ActiveState", srvFile},
+		{"--user", "start", srvFile},
+	})
+}
+
+func (s *servicesTestSuite) TestReloadOrRestartUserDaemonsFails(c *C) {
+	const snapYaml = `name: test-snap
+version: 1.0
+apps:
+  foo:
+    command: bin/foo
+    daemon: simple
+    daemon-scope: user
+`
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+	srvFile := "snap.test-snap.foo.service"
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		// fail when restarting
+		if cmd[0] == "--user" && cmd[1] == "reload-or-restart" {
+			return nil, fmt.Errorf("oh noes")
+		}
+
+		// otherwise return normal output
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
+			return out, nil
+		}
+		return []byte(`Type=notify
+Id=snap.test-snap.foo.service
+Names=snap.test-snap.foo.service
+ActiveState=inactive
+UnitFileState=enabled
+NeedDaemonReload=no
+`), nil
+	})
+	defer r()
+
+	err := s.addSnapServices(info, false)
+	c.Assert(err, IsNil)
+
+	flags := wrappers.RestartServicesFlags{Reload: true, AlsoEnabledNonActive: true}
+	err = wrappers.RestartServices(info.Services(), nil, &flags, progress.Null, s.perfTimings)
+	c.Assert(err, ErrorMatches, `some user services failed to restart or reload`)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"--user", "daemon-reload"},
+		{"--user", "show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
+		{"--user", "reload-or-restart", srvFile},
+	})
+}
+
+func (s *servicesTestSuite) TestReloadOrRestartUserDaemonsButSystemScope(c *C) {
+	const snapYaml = `name: test-snap
+version: 1.0
+apps:
+  foo:
+    command: bin/foo
+    daemon: simple
+    daemon-scope: user
+`
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+	srvFile := "snap.test-snap.foo.service"
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
+			return out, nil
+		}
+		return []byte(`Type=notify
+Id=snap.test-snap.foo.service
+Names=snap.test-snap.foo.service
+ActiveState=inactive
+UnitFileState=enabled
+NeedDaemonReload=no
+`), nil
+	})
+	defer r()
+
+	err := s.addSnapServices(info, false)
+	c.Assert(err, IsNil)
+
+	flags := wrappers.RestartServicesFlags{ScopeOptions: wrappers.ScopeOptions{Scope: wrappers.ServiceScopeSystem}}
+	c.Assert(wrappers.RestartServices(info.Services(), []string{srvFile}, &flags, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		// Those comes from querying status of services
+		{"--user", "daemon-reload"},
+		{"--user", "show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
 	})
 }
 
@@ -4804,4 +5088,108 @@ func (s *servicesTestSuite) TestStopAndDisableServices(c *C) {
 		{"--no-reload", "disable", svcFile},
 		{"daemon-reload"},
 	})
+}
+
+func (s *servicesTestSuite) TestUsersToUids(c *C) {
+	r := wrappers.MockUserLookup(func(username string) (*user.User, error) {
+		switch username {
+		case "test":
+			return &user.User{
+				Uid:      "1000",
+				Gid:      "1000",
+				Username: username,
+				Name:     "test-user",
+				HomeDir:  "~",
+			}, nil
+		case "root":
+			return &user.User{
+				Uid:      "0",
+				Gid:      "0",
+				Username: username,
+				Name:     "root",
+				HomeDir:  "/",
+			}, nil
+		default:
+			return nil, fmt.Errorf("unexpected username in test: %s", username)
+		}
+	})
+	defer r()
+
+	users, err := wrappers.UsersToUids([]string{"root", "test"})
+	c.Assert(err, IsNil)
+	c.Check(users, DeepEquals, map[int]string{
+		0:    "root",
+		1000: "test",
+	})
+}
+
+func (s *servicesTestSuite) TestUsersToUidsEmpty(c *C) {
+	users, err := wrappers.UsersToUids([]string{})
+	c.Assert(err, IsNil)
+	c.Check(users, DeepEquals, map[int]string{})
+}
+
+func (s *servicesTestSuite) TestUsersToUidsFails(c *C) {
+	r := wrappers.MockUserLookup(func(username string) (*user.User, error) {
+		c.Check(username, Equals, "test")
+		return nil, fmt.Errorf("oh no")
+	})
+	defer r()
+
+	_, err := wrappers.UsersToUids([]string{"test"})
+	c.Assert(err, ErrorMatches, `oh no`)
+}
+
+func (s *servicesTestSuite) TestUsersToUidsFailsInvalidUid(c *C) {
+	r := wrappers.MockUserLookup(func(username string) (*user.User, error) {
+		c.Check(username, Equals, "root")
+		return &user.User{
+			Uid: "hello",
+		}, nil
+	})
+	defer r()
+
+	_, err := wrappers.UsersToUids([]string{"root"})
+	c.Assert(err, ErrorMatches, `strconv.Atoi: parsing "hello": invalid syntax`)
+}
+
+func (s *servicesTestSuite) TestNewUserServiceClientNames(c *C) {
+	r := wrappers.MockUserLookup(func(username string) (*user.User, error) {
+		switch username {
+		case "test":
+			return &user.User{
+				Uid:      "1000",
+				Gid:      "1000",
+				Username: username,
+				Name:     "test-user",
+				HomeDir:  "~",
+			}, nil
+		case "root":
+			return &user.User{
+				Uid:      "0",
+				Gid:      "0",
+				Username: username,
+				Name:     "root",
+				HomeDir:  "/",
+			}, nil
+		default:
+			return nil, fmt.Errorf("unexpected username in test: %s", username)
+		}
+	})
+	defer r()
+
+	cli, err := wrappers.NewUserServiceClientNames([]string{"root", "test"}, &progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(cli, NotNil)
+}
+
+func (s *servicesTestSuite) TestNewUserServiceClientNamesFails(c *C) {
+	r := wrappers.MockUserLookup(func(username string) (*user.User, error) {
+		c.Check(username, Equals, "test")
+		return nil, fmt.Errorf("oh no")
+	})
+	defer r()
+
+	_, err := wrappers.NewUserServiceClientNames([]string{"test"}, &progress.Null)
+	c.Assert(err, ErrorMatches, `oh no`)
 }
