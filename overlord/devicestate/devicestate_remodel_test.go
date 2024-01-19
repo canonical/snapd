@@ -6699,7 +6699,7 @@ func (s *deviceMgrSuite) testRemodelInvalidFromValidationSet(c *C, invalidSnap s
 	}
 
 	_, err = devicestate.RemodelTasks(context.Background(), s.state, currentModel, newModel, testDeviceCtx, "99", nil, nil, devicestate.RemodelOptions{})
-	c.Assert(err, ErrorMatches, fmt.Sprintf("snap presence is invalid: %s", invalidSnap))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("snap presence is marked invalid by validation set: %s", invalidSnap))
 }
 
 func (s *deviceMgrSuite) TestOfflineRemodelPresentValidationSet(c *C) {
@@ -6827,7 +6827,7 @@ func (s *deviceMgrSuite) testOfflineRemodelValidationSet(c *C, withValSet bool) 
 	if !withValSet {
 		c.Assert(err, ErrorMatches, "validation-set assertion not found")
 	} else {
-		c.Assert(err, ErrorMatches, "snap presence is invalid: snap-1")
+		c.Assert(err, ErrorMatches, "snap presence is marked invalid by validation set: snap-1")
 	}
 }
 
