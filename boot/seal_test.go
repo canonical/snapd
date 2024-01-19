@@ -479,6 +479,47 @@ func (u *mockUnlocker) unlocker() func() {
 	}
 }
 
+func isChainPresent(allowed []*secboot.LoadChain, files []bootloader.BootFile) bool {
+	if len(files) == 0 {
+		return len(allowed) == 0
+	}
+
+	current := files[0]
+	for _, c := range allowed {
+		if current.Path == c.Path && current.Snap == c.Snap && current.Role == c.Role {
+			if isChainPresent(c.Next, files[1:]) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+type containsChainChecker struct {
+	*CheckerInfo
+}
+
+var ContainsChain Checker = &containsChainChecker{
+	&CheckerInfo{Name: "ContainsChain", Params: []string{"chainscontainer", "chain"}},
+}
+
+func (c *containsChainChecker) Check(params []interface{}, names []string) (result bool, error string) {
+	allowed, ok := params[0].([]*secboot.LoadChain)
+	if !ok {
+		return false, "Wrong type for chain container"
+	}
+	bootFiles, ok := params[1].([]bootloader.BootFile)
+	if !ok {
+		return false, "Wrong type for boot file chain"
+	}
+	result = isChainPresent(allowed, bootFiles)
+	if !result {
+		error = fmt.Sprintf("Chain %v is not present in allowed boot chains", bootFiles)
+	}
+	return result, error
+}
+
 // TODO:UC20: also test fallback reseal
 func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 	var prevPbc boot.PredictableBootChains
@@ -492,12 +533,28 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 		reuseRecoveryPbc bool
 		resealErr        error
 		shimId           string
+		shimId2          string
+		noShim2          bool
 		grubId           string
+		grubId2          string
+		noGrub2          bool
 		runGrubId        string
 		err              string
 	}{
 		{sealedKeys: false, shimId: "bootx64.efi", grubId: "grubx64.efi", resealErr: nil, err: ""},
 		{sealedKeys: true, shimId: "bootx64.efi", grubId: "grubx64.efi", resealErr: nil, err: ""},
+		{sealedKeys: false, shimId: "bootx64.efi", grubId: "grubx64.efi", resealErr: nil, err: ""},
+		{sealedKeys: true, shimId: "bootx64.efi", grubId: "grubx64.efi", resealErr: nil, err: ""},
+		{sealedKeys: false, shimId2: "bootx64.efi", grubId2: "grubx64.efi", resealErr: nil, err: ""},
+		{sealedKeys: true, shimId2: "bootx64.efi", grubId2: "grubx64.efi", resealErr: nil, err: ""},
+		{sealedKeys: false, shimId: "bootx64.efi", grubId: "grubx64.efi", shimId2: "ubuntu:shimx64.efi", grubId2: "ubuntu:grubx64.efi", resealErr: nil, err: ""},
+		{sealedKeys: true, shimId: "bootx64.efi", grubId: "grubx64.efi", shimId2: "ubuntu:shimx64.efi", grubId2: "ubuntu:grubx64.efi", resealErr: nil, err: ""},
+		{sealedKeys: false, noGrub2: true, resealErr: nil, err: ""},
+		{sealedKeys: true, noGrub2: true, resealErr: nil, err: ""},
+		{sealedKeys: false, noShim2: true, resealErr: nil, err: ""},
+		{sealedKeys: true, noShim2: true, resealErr: nil, err: ""},
+		{sealedKeys: false, noShim2: true, noGrub2: true, resealErr: nil, err: ""},
+		{sealedKeys: true, noShim2: true, noGrub2: true, resealErr: nil, err: ""},
 		{sealedKeys: false, resealErr: nil, err: ""},
 		{sealedKeys: true, resealErr: nil, err: ""},
 		{sealedKeys: true, resealErr: errors.New("reseal error"), err: "cannot reseal the encryption key: reseal error"},
@@ -516,9 +573,17 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 		if shimId == "" {
 			shimId = "ubuntu:shimx64.efi"
 		}
+		shimId2 := tc.shimId2
+		if shimId2 == "" && !tc.noShim2 {
+			shimId2 = shimId
+		}
 		grubId := tc.grubId
 		if grubId == "" {
 			grubId = "ubuntu:grubx64.efi"
+		}
+		grubId2 := tc.grubId2
+		if grubId2 == "" && !tc.noGrub2 {
+			grubId2 = grubId
 		}
 		runGrubId := tc.runGrubId
 		if runGrubId == "" {
@@ -540,13 +605,29 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 
 		model := boottest.MakeMockUC20Model()
 
-		modeenv := &boot.Modeenv{
-			CurrentRecoverySystems: []string{"20200825"},
-			CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
-				grubId: []string{"grub-hash-1"},
-				shimId: []string{"shim-hash-1", "shim-hash-2"},
-			},
+		recoveryBootAssets := boot.BootAssetsMap{}
+		var expectedCache []string
+		recoveryBootAssets[shimId] = append(recoveryBootAssets[shimId], "shim-hash-1")
+		expectedCache = append(expectedCache, fmt.Sprintf("%s-shim-hash-1", shimId))
+		if shimId2 != "" {
+			recoveryBootAssets[shimId2] = append(recoveryBootAssets[shimId2], "shim-hash-2")
+			expectedCache = append(expectedCache, fmt.Sprintf("%s-shim-hash-2", shimId2))
+		}
+		recoveryBootAssets[grubId] = append(recoveryBootAssets[grubId], "grub-hash-1")
+		expectedCache = append(expectedCache, fmt.Sprintf("%s-grub-hash-1", grubId))
+		if grubId2 != "" {
+			recoveryBootAssets[grubId2] = append(recoveryBootAssets[grubId2], "grub-hash-2")
+			expectedCache = append(expectedCache, fmt.Sprintf("%s-grub-hash-2", grubId2))
+		}
 
+		expectedCache = append(expectedCache,
+			fmt.Sprintf("%s-run-grub-hash-1", runGrubId),
+			fmt.Sprintf("%s-run-grub-hash-2", runGrubId),
+		)
+
+		modeenv := &boot.Modeenv{
+			CurrentRecoverySystems:           []string{"20200825"},
+			CurrentTrustedRecoveryBootAssets: recoveryBootAssets,
 			CurrentTrustedBootAssets: boot.BootAssetsMap{
 				runGrubId: []string{"run-grub-hash-1", "run-grub-hash-2"},
 			},
@@ -572,13 +653,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 		}
 
 		// mock asset cache
-		mockAssetsCache(c, rootdir, "grub", []string{
-			fmt.Sprintf("%s-shim-hash-1", shimId),
-			fmt.Sprintf("%s-shim-hash-2", shimId),
-			fmt.Sprintf("%s-grub-hash-1", grubId),
-			fmt.Sprintf("%s-run-grub-hash-1", runGrubId),
-			fmt.Sprintf("%s-run-grub-hash-2", runGrubId),
-		})
+		mockAssetsCache(c, rootdir, "grub", expectedCache)
 
 		// set a mock recovery kernel
 		readSystemEssentialCalls := 0
@@ -601,14 +676,93 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 
 			// recovery parameters
 			shim := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-shim-hash-1", shimId)), bootloader.RoleRecovery)
-			shim2 := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-shim-hash-2", shimId)), bootloader.RoleRecovery)
+			shim2 := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-shim-hash-2", shimId2)), bootloader.RoleRecovery)
 			grub := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-grub-hash-1", grubId)), bootloader.RoleRecovery)
+			grub2 := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-grub-hash-2", grubId2)), bootloader.RoleRecovery)
 			kernel := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
 			// run mode parameters
 			runGrub := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-run-grub-hash-1", runGrubId)), bootloader.RoleRunMode)
 			runGrub2 := bootloader.NewBootFile("", filepath.Join(rootdir, fmt.Sprintf("var/lib/snapd/boot-assets/grub/%s-run-grub-hash-2", runGrubId)), bootloader.RoleRunMode)
 			runKernel := bootloader.NewBootFile(filepath.Join(rootdir, "var/lib/snapd/snaps/pc-kernel_500.snap"), "kernel.efi", bootloader.RoleRunMode)
 			runKernel2 := bootloader.NewBootFile(filepath.Join(rootdir, "var/lib/snapd/snaps/pc-kernel_600.snap"), "kernel.efi", bootloader.RoleRunMode)
+
+			var possibleChains [][]bootloader.BootFile
+			for _, possibleRunKernel := range []bootloader.BootFile{runKernel, runKernel2} {
+				possibleChains = append(possibleChains, []bootloader.BootFile{
+					shim,
+					grub,
+					runGrub,
+					possibleRunKernel,
+				})
+				possibleChains = append(possibleChains, []bootloader.BootFile{
+					shim,
+					grub,
+					runGrub2,
+					possibleRunKernel,
+				})
+				if grubId2 != "" {
+					if shimId2 == shimId {
+						// We keep the same boot chain so, shim -> grub2 is possible.
+						possibleChains = append(possibleChains, []bootloader.BootFile{
+							shim,
+							grub2,
+							runGrub2,
+							possibleRunKernel,
+						})
+					}
+					if shimId2 != "" {
+						possibleChains = append(possibleChains, []bootloader.BootFile{
+							shim2,
+							grub2,
+							runGrub2,
+							possibleRunKernel,
+						})
+					}
+				} else if shimId2 != "" {
+					// We should not test the case where we half update, to a completely new bootchain.
+					c.Assert(shimId, Equals, shimId2)
+
+					possibleChains = append(possibleChains, []bootloader.BootFile{
+						shim2,
+						grub,
+						runGrub2,
+						possibleRunKernel,
+					})
+				}
+			}
+
+			var possibleRecoveryChains [][]bootloader.BootFile
+			possibleRecoveryChains = append(possibleRecoveryChains, []bootloader.BootFile{
+				shim,
+				grub,
+				kernel,
+			})
+			if grubId2 != "" {
+				if shimId2 == shimId {
+					// We keep the same boot chain so, shim -> grub2 is possible.
+					possibleRecoveryChains = append(possibleRecoveryChains, []bootloader.BootFile{
+						shim,
+						grub2,
+						kernel,
+					})
+				}
+				if shimId2 != "" {
+					possibleRecoveryChains = append(possibleRecoveryChains, []bootloader.BootFile{
+						shim2,
+						grub2,
+						kernel,
+					})
+				}
+			} else if shimId2 != "" {
+				// We should not test the case where we half update, to a completely new bootchain.
+				c.Assert(shimId, Equals, shimId2)
+
+				possibleRecoveryChains = append(possibleRecoveryChains, []bootloader.BootFile{
+					shim2,
+					grub,
+					kernel,
+				})
+			}
 
 			checkRunParams := func() {
 				c.Check(params.KeyFiles, DeepEquals, []string{
@@ -618,47 +772,13 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 					"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 				})
-				// load chains
-				c.Assert(params.ModelParams[0].EFILoadChains, HasLen, 6)
-				// recovery load chains
-				c.Assert(params.ModelParams[0].EFILoadChains[:2], DeepEquals, []*secboot.LoadChain{
-					secboot.NewLoadChain(shim,
-						secboot.NewLoadChain(grub,
-							secboot.NewLoadChain(kernel))),
-					secboot.NewLoadChain(shim2,
-						secboot.NewLoadChain(grub,
-							secboot.NewLoadChain(kernel))),
-				})
-				// run load chains
-				c.Assert(params.ModelParams[0].EFILoadChains[2:4], DeepEquals, []*secboot.LoadChain{
-					secboot.NewLoadChain(shim,
-						secboot.NewLoadChain(grub,
-							secboot.NewLoadChain(runGrub,
-								secboot.NewLoadChain(runKernel)),
-							secboot.NewLoadChain(runGrub2,
-								secboot.NewLoadChain(runKernel)),
-						)),
-					secboot.NewLoadChain(shim2,
-						secboot.NewLoadChain(grub,
-							secboot.NewLoadChain(runGrub2,
-								secboot.NewLoadChain(runKernel)),
-						)),
-				})
 
-				c.Assert(params.ModelParams[0].EFILoadChains[4:], DeepEquals, []*secboot.LoadChain{
-					secboot.NewLoadChain(shim,
-						secboot.NewLoadChain(grub,
-							secboot.NewLoadChain(runGrub,
-								secboot.NewLoadChain(runKernel2)),
-							secboot.NewLoadChain(runGrub2,
-								secboot.NewLoadChain(runKernel2)),
-						)),
-					secboot.NewLoadChain(shim2,
-						secboot.NewLoadChain(grub,
-							secboot.NewLoadChain(runGrub2,
-								secboot.NewLoadChain(runKernel2)),
-						)),
-				})
+				for _, chain := range possibleChains {
+					c.Check(params.ModelParams[0].EFILoadChains, ContainsChain, chain)
+				}
+				for _, chain := range possibleRecoveryChains {
+					c.Check(params.ModelParams[0].EFILoadChains, ContainsChain, chain)
+				}
 			}
 
 			checkRecoveryParams := func() {
@@ -669,17 +789,9 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 				c.Check(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
 					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				})
-				// load chains
-				c.Assert(params.ModelParams[0].EFILoadChains, HasLen, 2)
-				// recovery load chains
-				c.Assert(params.ModelParams[0].EFILoadChains[:2], DeepEquals, []*secboot.LoadChain{
-					secboot.NewLoadChain(shim,
-						secboot.NewLoadChain(grub,
-							secboot.NewLoadChain(kernel))),
-					secboot.NewLoadChain(shim2,
-						secboot.NewLoadChain(grub,
-							secboot.NewLoadChain(kernel))),
-				})
+				for _, chain := range possibleRecoveryChains {
+					c.Check(params.ModelParams[0].EFILoadChains, ContainsChain, chain)
+				}
 			}
 
 			switch resealKeysCalls {
@@ -748,7 +860,21 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 		} else {
 			c.Assert(cnt, Equals, 1)
 		}
-		c.Check(pbc, DeepEquals, boot.PredictableBootChains{
+
+		var expectedRecoveryBootChains []boot.BootChain
+		var expectedRunBootChains []boot.BootChain
+		var shimHashes []string
+		shimHashes = append(shimHashes, "shim-hash-1")
+		if shimId2 != "" && shimId2 == shimId {
+			shimHashes = append(shimHashes, "shim-hash-2")
+		}
+		var grubHashes []string
+		grubHashes = append(grubHashes, "grub-hash-1")
+		if grubId2 != "" && grubId2 == grubId {
+			grubHashes = append(grubHashes, "grub-hash-2")
+		}
+		// recovery boot chains
+		expectedRecoveryBootChains = append(expectedRecoveryBootChains,
 			boot.BootChain{
 				BrandID:        "my-brand",
 				Model:          "my-model-uc20",
@@ -758,12 +884,12 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 					{
 						Role:   "recovery",
 						Name:   shimId,
-						Hashes: []string{"shim-hash-1", "shim-hash-2"},
+						Hashes: shimHashes,
 					},
 					{
 						Role:   "recovery",
 						Name:   grubId,
-						Hashes: []string{"grub-hash-1"},
+						Hashes: grubHashes,
 					},
 				},
 				Kernel:         "pc-kernel",
@@ -772,6 +898,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				},
 			},
+		)
+		expectedRunBootChains = append(expectedRunBootChains,
 			boot.BootChain{
 				BrandID:        "my-brand",
 				Model:          "my-model-uc20",
@@ -781,12 +909,12 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 					{
 						Role:   "recovery",
 						Name:   shimId,
-						Hashes: []string{"shim-hash-1", "shim-hash-2"},
+						Hashes: shimHashes,
 					},
 					{
 						Role:   "recovery",
 						Name:   grubId,
-						Hashes: []string{"grub-hash-1"},
+						Hashes: grubHashes,
 					},
 					{
 						Role:   "run-mode",
@@ -809,12 +937,12 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 					{
 						Role:   "recovery",
 						Name:   shimId,
-						Hashes: []string{"shim-hash-1", "shim-hash-2"},
+						Hashes: shimHashes,
 					},
 					{
 						Role:   "recovery",
 						Name:   grubId,
-						Hashes: []string{"grub-hash-1"},
+						Hashes: grubHashes,
 					},
 					{
 						Role:   "run-mode",
@@ -828,7 +956,102 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 					"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 				},
 			},
-		})
+		)
+		if shimId2 != "" && shimId2 != shimId && grubId2 != "" && grubId2 != grubId {
+			expectedExtraRecoveryBootChains := []boot.BootChain{
+				{
+					BrandID:        "my-brand",
+					Model:          "my-model-uc20",
+					Grade:          "dangerous",
+					ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+					AssetChain: []boot.BootAsset{
+						{
+							Role:   "recovery",
+							Name:   shimId2,
+							Hashes: []string{"shim-hash-2"},
+						},
+						{
+							Role:   "recovery",
+							Name:   grubId2,
+							Hashes: []string{"grub-hash-2"},
+						},
+					},
+					Kernel:         "pc-kernel",
+					KernelRevision: "1",
+					KernelCmdlines: []string{
+						"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+					},
+				},
+			}
+			expectedExtraBootChains := []boot.BootChain{
+				{
+					BrandID:        "my-brand",
+					Model:          "my-model-uc20",
+					Grade:          "dangerous",
+					ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+					AssetChain: []boot.BootAsset{
+						{
+							Role:   "recovery",
+							Name:   shimId2,
+							Hashes: []string{"shim-hash-2"},
+						},
+						{
+							Role:   "recovery",
+							Name:   grubId2,
+							Hashes: []string{"grub-hash-2"},
+						},
+						{
+							Role:   "run-mode",
+							Name:   runGrubId,
+							Hashes: []string{"run-grub-hash-1", "run-grub-hash-2"},
+						},
+					},
+					Kernel:         "pc-kernel",
+					KernelRevision: "500",
+					KernelCmdlines: []string{
+						"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+					},
+				},
+				{
+					BrandID:        "my-brand",
+					Model:          "my-model-uc20",
+					Grade:          "dangerous",
+					ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+					AssetChain: []boot.BootAsset{
+						{
+							Role:   "recovery",
+							Name:   shimId2,
+							Hashes: []string{"shim-hash-2"},
+						},
+						{
+							Role:   "recovery",
+							Name:   grubId2,
+							Hashes: []string{"grub-hash-2"},
+						},
+						{
+							Role:   "run-mode",
+							Name:   runGrubId,
+							Hashes: []string{"run-grub-hash-1", "run-grub-hash-2"},
+						},
+					},
+					Kernel:         "pc-kernel",
+					KernelRevision: "600",
+					KernelCmdlines: []string{
+						"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+					},
+				},
+			}
+
+			if shimId == "bootx64.efi" {
+				// the possible chains are ordered from bootloader.Grub. So it is always old bootchain to new bootchain
+				expectedRecoveryBootChains = append(expectedRecoveryBootChains, expectedExtraRecoveryBootChains...)
+				expectedRunBootChains = append(expectedRunBootChains, expectedExtraBootChains...)
+			} else {
+				expectedRecoveryBootChains = append(expectedExtraRecoveryBootChains, expectedRecoveryBootChains...)
+				expectedRunBootChains = append(expectedExtraBootChains, expectedRunBootChains...)
+			}
+		}
+		c.Check(pbc, DeepEquals, boot.PredictableBootChains(append(expectedRecoveryBootChains, expectedRunBootChains...)))
 		prevPbc = pbc
 		recoveryPbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains"))
 		c.Assert(err, IsNil)
