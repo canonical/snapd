@@ -83,7 +83,7 @@ nested_wait_vm_ready() {
             test "$(grep -c -E "Command line:.*BOOT_IMAGE=\(loop\)/kernel.img" "$serial_log")" -le 1
         fi
 
-        # Check if ssh can be stablished, and return if it is possible
+        # Check if ssh connection can be established, and return if it is possible
         if nested_wait_for_ssh 1 1; then
             echo "SSH connection ready"
             return
