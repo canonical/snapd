@@ -213,15 +213,7 @@ func AddUser(name string, opts *AddUserOptions) error {
 
 	var userTool string
 	var cmdStr []string
-	if hasAddUserExecutable() {
-		userTool = "adduser"
-		cmdStr = []string{
-			"adduser",
-			"--force-badname",
-			"--gecos", opts.Gecos,
-			"--disabled-password",
-		}
-	} else {
+	if !hasAddUserExecutable() {
 		userTool = "useradd"
 		cmdStr = []string{
 			"useradd",
@@ -229,6 +221,14 @@ func AddUser(name string, opts *AddUserOptions) error {
 			"--comment", opts.Gecos,
 			"--create-home",
 			"--shell", "/bin/bash",
+		}
+	} else {
+		userTool = "adduser"
+		cmdStr = []string{
+			"adduser",
+			"--force-badname",
+			"--gecos", opts.Gecos,
+			"--disabled-password",
 		}
 	}
 

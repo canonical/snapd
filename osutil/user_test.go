@@ -164,6 +164,8 @@ karl.sagan ALL=(ALL) NOPASSWD:ALL
 }
 
 func (s *createUserSuite) TestAddUserSSHKeys(c *check.C) {
+	r := osutil.MockhasAddUserExecutable(func() bool { return true })
+	defer r()
 	err := osutil.AddUser("karl.sagan", &osutil.AddUserOptions{
 		SSHKeys: []string{"ssh-key1", "ssh-key2"},
 	})
@@ -173,6 +175,8 @@ func (s *createUserSuite) TestAddUserSSHKeys(c *check.C) {
 }
 
 func (s *createUserSuite) TestAddUserInvalidUsername(c *check.C) {
+	r := osutil.MockhasAddUserExecutable(func() bool { return true })
+	defer r()
 	err := osutil.AddUser("k!", nil)
 	c.Assert(err, check.ErrorMatches, `cannot add user "k!": name contains invalid characters`)
 }
@@ -226,6 +230,8 @@ func (s *createUserSuite) TestAddUserWithPasswordForceChange(c *check.C) {
 }
 
 func (s *createUserSuite) TestAddUserPasswordForceChangeUnhappy(c *check.C) {
+	r := osutil.MockhasAddUserExecutable(func() bool { return true })
+	defer r()
 	mockSudoers := c.MkDir()
 	restorer := osutil.MockSudoersDotD(mockSudoers)
 	defer restorer()
@@ -309,10 +315,8 @@ func (s *createUserSuite) TestUserAddUnhappy(c *check.C) {
 
 	mockUserAdd := testutil.MockCommand(c, "useradd", "echo some error; exit 1")
 	defer mockUserAdd.Restore()
-
 	err := osutil.AddUser("lakatos", nil)
 	c.Assert(err, check.ErrorMatches, "useradd failed with: some error")
-
 }
 
 var usernameTestCases = map[string]bool{
