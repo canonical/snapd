@@ -211,10 +211,8 @@ func AddUser(name string, opts *AddUserOptions) error {
 		return fmt.Errorf("cannot add user %q: name contains invalid characters", name)
 	}
 
-	var userTool string
 	var cmdStr []string
 	if !hasAddUserExecutable() {
-		userTool = "useradd"
 		cmdStr = []string{
 			"useradd",
 			"--badname",
@@ -223,7 +221,6 @@ func AddUser(name string, opts *AddUserOptions) error {
 			"--shell", "/bin/bash",
 		}
 	} else {
-		userTool = "adduser"
 		cmdStr = []string{
 			"adduser",
 			"--force-badname",
@@ -239,7 +236,7 @@ func AddUser(name string, opts *AddUserOptions) error {
 
 	cmd := exec.Command(cmdStr[0], cmdStr[1:]...)
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("%s failed with: %s", userTool, OutputErr(output, err))
+		return fmt.Errorf("%s failed with: %s", cmdStr[0], OutputErr(output, err))
 	}
 
 	if opts.Sudoer {
