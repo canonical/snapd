@@ -187,6 +187,11 @@ var u2fDevices = []u2fDevice{
 		VendorIDPattern:  "047d",
 		ProductIDPattern: "8055",
 	},
+	{
+		Name:             "TrustKey TrustKey G310H",
+		VendorIDPattern:  "311f",
+		ProductIDPattern: "4a2a",
+	},
 }
 
 const u2fDevicesConnectedPlugAppArmor = `
