@@ -140,6 +140,7 @@ static const char *nvidia_globs[] = {
 	// libraries for CUDA DNN
 	// https://docs.nvidia.com/deeplearning/cudnn/api/index.html
 	// https://docs.nvidia.com/deeplearning/cudnn/install-guide/index.html
+	"libcudnn.so*",
 	"libcudnn_adv_infer*",
 	"libcudnn_adv_train*",
 	"libcudnn_cnn_infer*",
