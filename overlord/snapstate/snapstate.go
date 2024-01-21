@@ -2506,17 +2506,6 @@ func updateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 	switchCohortKey := snapst.CohortKey != opts.CohortKey
 	toggleIgnoreValidation := snapst.IgnoreValidation != flags.IgnoreValidation
 	if infoErr == store.ErrNoUpdateAvailable && (switchChannel || switchCohortKey || toggleIgnoreValidation) {
-		currentInfo, err := snapst.CurrentInfo()
-		if err != nil {
-			return nil, err
-		}
-
-		// if there isn't an update available, then we should sill add the
-		// current info to the prereq tracker. this is because we might not
-		// return an error from this function, and the caller will assume
-		// everything worked.
-		addPrereq(prqt, currentInfo)
-
 		if err := checkChangeConflictIgnoringOneChange(st, name, nil, fromChange); err != nil {
 			return nil, err
 		}
@@ -2560,6 +2549,17 @@ func updateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 			}
 			tts = append(tts, toggleTs)
 		}
+
+		currentInfo, err := snapst.CurrentInfo()
+		if err != nil {
+			return nil, err
+		}
+
+		// if there isn't an update available, then we should still add the
+		// current info to the prereq tracker. this is because we will not
+		// return an error from this function, and the caller will assume
+		// everything worked.
+		addPrereq(prqt, currentInfo)
 	}
 
 	if len(tts) == 0 && len(toUpdate) == 0 {
