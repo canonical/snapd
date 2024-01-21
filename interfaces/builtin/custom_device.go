@@ -43,7 +43,7 @@ const customDeviceBaseDeclarationSlots = `
     allow-installation: false
     allow-connection:
       plug-attributes:
-        content: $SLOT(custom-device)
+        custom-device: $SLOT(custom-device)
     deny-auto-connection: true
 `
 
