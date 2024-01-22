@@ -282,5 +282,7 @@ func MonitorSnapEnded(snapName string, channel chan<- string) error {
 	if err != nil {
 		return err
 	}
+
+	logger.Debugf("snap %v has %v processes: %v", snapName, len(paths), paths)
 	return currentWatcher.monitorDelete(paths, snapName, channel)
 }
