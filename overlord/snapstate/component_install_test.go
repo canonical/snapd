@@ -41,6 +41,8 @@ const (
 	compOptRevisionPresent
 	// Component revision is used by the currently active snap revision
 	compOptIsActive
+	// The component is of kernel-modules type
+	compOptKernelModules
 )
 
 // opts is a bitset with compOpt* as possible values.
@@ -55,6 +57,13 @@ func expectedComponentInstallTasks(opts int) []string {
 	// Revision is not the same as the current one installed
 	if opts&compOptRevisionPresent == 0 {
 		startTasks = append(startTasks, "mount-component")
+	}
+	// This task is only for kernel-modules
+	if opts&compOptKernelModules != 0 {
+		if opts&compOptIsActive != 0 {
+			startTasks = append(startTasks, "cleanup-kernel-modules-component")
+		}
+		startTasks = append(startTasks, "setup-kernel-modules-component")
 	}
 	// Component is installed (implicit if compOptRevisionPresent is set)
 	if opts&compOptIsActive != 0 {
@@ -103,11 +112,11 @@ func verifyComponentInstallTasks(c *C, opts int, ts *state.TaskSet) {
 	}
 }
 
-func createTestComponent(c *C, snapName, compName string) (*snap.ComponentInfo, string) {
+func createComponent(c *C, snapName, compName string, compType snap.ComponentType) (*snap.ComponentInfo, string) {
 	componentYaml := fmt.Sprintf(`component: %s+%s
-type: test
+type: %s
 version: 1.0
-`, snapName, compName)
+`, snapName, compName, compType)
 	compPath := snaptest.MakeTestComponent(c, componentYaml)
 	compf, err := snapfile.Open(compPath)
 	c.Assert(err, IsNil)
@@ -118,19 +127,27 @@ version: 1.0
 	return ci, compPath
 }
 
-func createTestSnapInfoForComponent(c *C, snapName string, snapRev snap.Revision, compName string) *snap.Info {
+func createTestComponent(c *C, snapName, compName string) (*snap.ComponentInfo, string) {
+	return createComponent(c, snapName, compName, snap.TestComponent)
+}
+
+func createSnapInfoForComponent(c *C, snapName string, snapRev snap.Revision, compName string, compType snap.ComponentType) *snap.Info {
 	snapYaml := fmt.Sprintf(`name: %s
 type: app
 version: 1.1
 components:
   %s:
-    type: test
-`, snapName, compName)
+    type: %s
+`, snapName, compName, compType)
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 	info.SideInfo = snap.SideInfo{RealName: snapName, Revision: snapRev}
 
 	return info
+}
+
+func createTestSnapInfoForComponent(c *C, snapName string, snapRev snap.Revision, compName string) *snap.Info {
+	return createSnapInfoForComponent(c, snapName, snapRev, compName, snap.TestComponent)
 }
 
 func createTestSnapSetup(info *snap.Info, flags snapstate.Flags) *snapstate.SnapSetup {
@@ -197,6 +214,30 @@ func (s *snapmgrTestSuite) TestInstallComponentPath(c *C) {
 	c.Assert(err, IsNil)
 
 	verifyComponentInstallTasks(c, compOptIsLocal, ts)
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	// File is not deleted
+	c.Assert(osutil.FileExists(compPath), Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestInstallKernelModulesComponentPath(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	_, compPath := createComponent(c, snapName, compName, snap.KernelModulesComponent)
+	info := createSnapInfoForComponent(c, snapName, snapRev, compName, snap.KernelModulesComponent)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	setStateWithOneSnap(s.state, snapName, snapRev)
+
+	csi := snap.NewComponentSideInfo(naming.ComponentRef{
+		SnapName: snapName, ComponentName: compName}, snap.R(33))
+	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	verifyComponentInstallTasks(c, compOptIsLocal|compOptKernelModules, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	// File is not deleted
 	c.Assert(osutil.FileExists(compPath), Equals, true)
@@ -334,6 +375,33 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresent(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	// Temporary file is deleted as component file is already in the system
 	c.Assert(osutil.FileExists(compPath), Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestInstallKernelModulesComponentPathCompPresent(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	currentCompRev := snap.R(5)
+	compRev := snap.R(7)
+	_, compPath := createComponent(c, snapName, compName, snap.KernelModulesComponent)
+	info := createSnapInfoForComponent(c, snapName, snapRev, compName, snap.KernelModulesComponent)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// There is already an installed component
+	setStateWithOneComponent(s.state, snapName, snapRev, compName, currentCompRev)
+
+	csi := snap.NewComponentSideInfo(naming.ComponentRef{
+		SnapName: snapName, ComponentName: compName}, compRev)
+	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
+		snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	verifyComponentInstallTasks(c, compOptIsLocal|compOptKernelModules|compOptIsActive, ts)
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	// File is not deleted
+	c.Assert(osutil.FileExists(compPath), Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresentDiffSnapRev(c *C) {
