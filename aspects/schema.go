@@ -99,15 +99,15 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 
 // userTypeRefParser parses references to user-defined types (e.g., $my-type).
 type userTypeRefParser struct {
-	parser
+	Schema
 
 	stringBased bool
 }
 
-func newUserTypeRefParser(p parser) *userTypeRefParser {
-	_, ok := p.(*stringSchema)
+func newUserTypeRefParser(s Schema) *userTypeRefParser {
+	_, ok := s.(*stringSchema)
 	return &userTypeRefParser{
-		parser:      p,
+		Schema:      s,
 		stringBased: ok,
 	}
 }
@@ -116,6 +116,11 @@ func newUserTypeRefParser(p parser) *userTypeRefParser {
 // define constraints (these are defined under "types" at the top level).
 func (*userTypeRefParser) expectsConstraints() bool {
 	return false
+}
+
+// parseConstraints is a no-op because type references can't define constraints.
+func (v *userTypeRefParser) parseConstraints(map[string]json.RawMessage) error {
+	return nil
 }
 
 // isStringBased returns true if this reference's base type is a string.
@@ -185,7 +190,7 @@ func parseTypeDefinition(raw json.RawMessage) (interface{}, error) {
 	}
 }
 
-func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
+func (s *StorageSchema) parse(raw json.RawMessage) (Schema, error) {
 	jsonType, err := parseTypeDefinition(raw)
 	if err != nil {
 		return nil, fmt.Errorf(`cannot parse type definition: %w`, err)
@@ -319,15 +324,6 @@ func (v *alternativesSchema) Validate(raw []byte) error {
 	}
 
 	return validationErrorf(sb.String())
-}
-
-func (v *alternativesSchema) parseConstraints(constraints map[string]json.RawMessage) error {
-	// should never be called
-	return fmt.Errorf("internal error: alternative type can't define constraints")
-}
-
-func (v *alternativesSchema) expectsConstraints() bool {
-	return false
 }
 
 type mapSchema struct {
