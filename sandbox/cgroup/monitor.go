@@ -22,7 +22,6 @@ package cgroup
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sync"
 
@@ -115,10 +114,8 @@ func (iw *inotifyWatcher) addWatch(newWatch *groupToWatch) {
 		if _, exists := iw.pathList[basePath]; !exists {
 			iw.pathList[basePath] = 0
 			if err := iw.wd.AddWatch(basePath, inotify.InDelete); err != nil {
-				target := &os.PathError{}
-				if !errors.As(err, &target) {
-					logger.Noticef("cannot add watch for path %s: %s", target.Path, target.Err)
-				}
+				// TODO propagate the error back to the caller
+				logger.Noticef("cannot add watch %v", err)
 				delete(iw.pathList, basePath)
 				continue
 			}

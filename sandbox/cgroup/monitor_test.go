@@ -433,3 +433,14 @@ func (s *monitorSuite) TestMonitorClose(c *C) {
 	default:
 	}
 }
+
+func (s *monitorSuite) TestMonitorError(c *C) {
+	w := cgroup.NewInotifyWatcher(context.Background())
+	ch := make(chan string)
+
+	// XXX note the error isn't propagated back to the caller
+	err := w.MonitorDelete([]string{filepath.Join(s.tempDir, "foo/bar/baz")}, "test", ch)
+	c.Assert(err, IsNil)
+
+	w.Close()
+}
