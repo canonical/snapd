@@ -141,9 +141,13 @@ func readOfflineRemodelForm(form *Form) (*asserts.Model, []*uploadedSnap, *asser
 	}
 
 	// Snap files
-	snapFiles, errRsp := form.GetSnapFiles()
-	if errRsp != nil {
-		return nil, nil, nil, errRsp
+	var snapFiles []*uploadedSnap
+	if len(form.FileRefs["snap"]) > 0 {
+		snaps, errRsp := form.GetSnapFiles()
+		if errRsp != nil {
+			return nil, nil, nil, errRsp
+		}
+		snapFiles = snaps
 	}
 
 	// Assertions
