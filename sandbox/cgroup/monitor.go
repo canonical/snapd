@@ -52,6 +52,11 @@ type inotifyWatcher struct {
 
 	done     func()
 	doneChan chan struct{}
+
+	// observer callback to facilitate testing, called when a watch is
+	// added, or a folder from a watched group is removed, or the whole
+	// group is empty and thus notified about
+	observeMonitorCb func(w *inotifyWatcher, name string)
 }
 
 // Contains the data corresponding to a CGroup that must be watched to detect
@@ -191,14 +196,28 @@ func (iw *inotifyWatcher) processDeletedPath(watch *groupToWatch, deletedPath st
 		iw.removePath(deletedPath)
 		delete(watch.folders, deletedPath)
 
+		iw.notifyObserver(watch)
 	}
 	if len(watch.folders) == 0 {
 		// if all the files/folders of this CGroup have been deleted, notify the
 		// client that it is done.
 		watch.sendClosedNotification()
+
+		iw.notifyObserver(watch)
 		return false
 	}
+
 	return true
+}
+
+func (iw *inotifyWatcher) notifyObserver(w *groupToWatch) {
+	if iw.observeMonitorCb != nil {
+		name := ""
+		if w != nil {
+			name = w.name
+		}
+		iw.observeMonitorCb(iw, name)
+	}
 }
 
 func (iw *inotifyWatcher) watcherMainLoop() {
