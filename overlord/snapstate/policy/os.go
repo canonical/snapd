@@ -20,6 +20,8 @@
 package policy
 
 import (
+	"errors"
+
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -56,6 +58,19 @@ func (p *osPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev s
 			}
 			return nil
 		}
+		return errIsModel
+	}
+
+	var snapdState snapstate.SnapState
+	err := snapstate.Get(st, "snapd", &snapdState)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	// if snapd snap is not installed, then this might be a system that has
+	// received snapd updates via the core snap. in that case, we can't remove
+	// the core snap.
+	if !snapdState.IsInstalled() {
 		return errIsModel
 	}
 
