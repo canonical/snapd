@@ -3477,6 +3477,15 @@ func (s *snapmgrTestSuite) TestDisableDoesNotEnableAgain(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestEnsureRemovesVulnerableCoreSnap(c *C) {
+	// install the snapd snap so that the core snap can be removed
+	s.state.Lock()
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		SnapType: "snapd",
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "snapd"}}),
+		Current:  snap.R(1),
+	})
+	s.state.Unlock()
+
 	s.testEnsureRemovesVulnerableSnap(c, "core")
 }
 
@@ -3523,9 +3532,6 @@ SNAPD_APPARMOR_REEXEC=1
 
 	st := s.state
 	st.Lock()
-	// ensure that only this specific snap is installed
-	snapstate.Set(s.state, "core", nil)
-	snapstate.Set(s.state, "snapd", nil)
 
 	snapSt := &snapstate.SnapState{
 		Active: true,
