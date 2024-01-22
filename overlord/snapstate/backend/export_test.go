@@ -73,3 +73,11 @@ func MockMkdirAllChown(f func(string, os.FileMode, sys.UserID, sys.GroupID) erro
 		mkdirAllChown = old
 	}
 }
+
+func MockRunDepmod(f func(baseDir, kernelVersion string) error) func() {
+	old := runDepmod
+	runDepmod = f
+	return func() {
+		runDepmod = old
+	}
+}

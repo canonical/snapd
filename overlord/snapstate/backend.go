@@ -80,6 +80,8 @@ type managerBackend interface {
 	StartServices(svcs []*snap.AppInfo, disabledSvcs []string, meter progress.Meter, tm timings.Measurer) error
 	StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error
 	QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error)
+	SetupKernelModulesComponent(cpi snap.ContainerPlaceInfo, cref naming.ComponentRef, kernelVersion string, meter progress.Meter) (err error)
+	UndoSetupKernelModulesComponent(cpi snap.ContainerPlaceInfo, cref naming.ComponentRef, kernelVersion string, meter progress.Meter) error
 
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *backend.InstallRecord, dev snap.Device, meter progress.Meter) error
