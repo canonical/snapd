@@ -211,7 +211,12 @@ func AddUser(name string, opts *AddUserOptions) error {
 		return fmt.Errorf("cannot add user %q: name contains invalid characters", name)
 	}
 
-	var cmdStr []string
+	cmdStr := []string{
+		"adduser",
+		"--force-badname",
+		"--gecos", opts.Gecos,
+		"--disabled-password",
+	}
 	if !hasAddUserExecutable() {
 		cmdStr = []string{
 			"useradd",
@@ -219,13 +224,6 @@ func AddUser(name string, opts *AddUserOptions) error {
 			"--comment", opts.Gecos,
 			"--create-home",
 			"--shell", "/bin/bash",
-		}
-	} else {
-		cmdStr = []string{
-			"adduser",
-			"--force-badname",
-			"--gecos", opts.Gecos,
-			"--disabled-password",
 		}
 	}
 
