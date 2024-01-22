@@ -119,6 +119,22 @@ func (*schemaSuite) TestMapSchemasRequireConstraints(c *C) {
 	c.Assert(err, ErrorMatches, `cannot parse "map": must be schema definition with constraints`)
 }
 
+func (*schemaSuite) TestTypeConstraintMustBeString(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"snaps": {
+			"type": 1,
+			"schema": {
+				"foo": "string"
+			}
+		}
+	}
+}`)
+
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse "type" constraint in type definition: json: cannot unmarshal number into.*`)
+}
+
 func (*schemaSuite) TestMapSchemasRequireSchemaOrKeyValues(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
@@ -2026,7 +2042,7 @@ func (*schemaSuite) TestAlternativeTypesUnknownType(c *C) {
 	}
 }`)
 	_, err := aspects.ParseSchema(schemaStr)
-	c.Assert(err, ErrorMatches, `cannot parse aspect schema: cannot parse unknown type "foo"`)
+	c.Assert(err, ErrorMatches, `cannot parse alternative types: cannot parse unknown type "foo"`)
 }
 
 func (*schemaSuite) TestAlternativeTypesEmpty(c *C) {
@@ -2036,7 +2052,7 @@ func (*schemaSuite) TestAlternativeTypesEmpty(c *C) {
 	}
 }`)
 	_, err := aspects.ParseSchema(schemaStr)
-	c.Assert(err, ErrorMatches, `cannot parse aspect schema: alternative type list cannot be empty`)
+	c.Assert(err, ErrorMatches, `cannot parse alternative types: alternative type list cannot be empty`)
 }
 
 func (*schemaSuite) TestAlternativeTypesPathError(c *C) {
@@ -2057,4 +2073,14 @@ func (*schemaSuite) TestAlternativeTypesPathError(c *C) {
 	c.Assert(err.Error(), Equals, `cannot accept element in "foo.bar": 
 	..."baz": expected int type but got object
 	..."baz.zab[0]": expected string type but got number`)
+}
+
+func (*schemaSuite) TestInvalidTypeDefinition(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": 1
+	}
+}`)
+	_, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, ErrorMatches, `cannot parse type definition: type must be expressed as map, string or list: json: cannot unmarshal number.*`)
 }
