@@ -257,6 +257,12 @@ func predictableBootChainsEqualForReseal(pb1, pb2 predictableBootChains) bootCha
 // bootAssetsToLoadChains generates a list of load chains covering given boot
 // assets sequence. At the end of each chain, adds an entry for the kernel boot
 // file.
+// We do not calculate some boot chains because they are impossible as
+// when we update assets we write first the binaries that are used
+// later, that is, if updating both shim and grub, the new grub is
+// copied first to the disk, so booting from the new shim to the old
+// grub is not possible. This is controlled by expectNext, that tells
+// us that the previous step in the chain is from a new asset.
 func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFile, roleToBlName map[bootloader.Role]string, expectNext bool) ([]*secboot.LoadChain, error) {
 	// kernel is added after all the assets
 	addKernelBootFile := len(assets) == 0
