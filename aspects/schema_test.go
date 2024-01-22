@@ -1975,7 +1975,7 @@ func (*schemaSuite) TestAlternativeTypesWithConstraintsHappy(c *C) {
 			},
 			{
 				"type": "string",
-				"format": "[bB]ar"
+				"pattern": "[bB]ar"
 			}
 		]
 	}
