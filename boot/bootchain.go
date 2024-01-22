@@ -277,13 +277,10 @@ func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFi
 		if i == 0 {
 			// i == 0 means currently installed asset
 			if len(thisAsset.Hashes) == 2 && expectNext {
-				fmt.Fprintf(os.Stderr, "Ignoring %s %s hash %s\n", thisAsset.Role, thisAsset.Name, hash)
 				continue
 			}
-			fmt.Fprintf(os.Stderr, "Keeping %s %s only hash %s\n", thisAsset.Role, thisAsset.Name, hash)
 		} else if i == 1 {
 			// i == 1 means new asset
-			fmt.Fprintf(os.Stderr, "Keeping %s %s new hash %s\n", thisAsset.Role, thisAsset.Name, hash)
 		} else {
 			// If there is a second asset, it is the next asset to be installed
 			return nil, fmt.Errorf("did not expect more than 2 hashes for %s", thisAsset.Name)
