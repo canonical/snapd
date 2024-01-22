@@ -20,6 +20,7 @@
 package cgroup
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -37,6 +38,8 @@ type inotifyWatcher struct {
 	wdErr error
 	// This is used to ensure that the watcher goroutine is launched only once
 	doOnce sync.Once
+	// Context
+	ctx context.Context
 	// This channel is used to add a new CGroup that has to be checked
 	addWatchChan chan *groupToWatch
 	// Contains the list of groups to monitor, to detect when they have been deleted
@@ -46,6 +49,9 @@ type inotifyWatcher struct {
 	// directory. See discussion in addWatch for details on why the parent
 	// needs to be tracked as well.
 	pathList map[string]uint
+
+	done     func()
+	doneChan chan struct{}
 }
 
 // Contains the data corresponding to a CGroup that must be watched to detect
@@ -62,12 +68,16 @@ type groupToWatch struct {
 	channel chan<- string
 }
 
-var currentWatcher *inotifyWatcher = newInotifyWatcher()
+var currentWatcher *inotifyWatcher = newInotifyWatcher(context.Background())
 
 func newInotifyWatcher(ctx context.Context) *inotifyWatcher {
+	ctx, cancel := context.WithCancel(ctx)
 	return &inotifyWatcher{
+		ctx:          ctx,
 		pathList:     make(map[string]uint),
 		addWatchChan: make(chan *groupToWatch),
+		doneChan:     make(chan struct{}),
+		done:         cancel,
 	}
 }
 
@@ -207,6 +217,9 @@ func (iw *inotifyWatcher) watcherMainLoop() {
 			iw.groupList = newGroupList
 		case newWatch := <-iw.addWatchChan:
 			iw.addWatch(newWatch)
+		case <-iw.ctx.Done():
+			close(iw.doneChan)
+			return
 		}
 	}
 }
