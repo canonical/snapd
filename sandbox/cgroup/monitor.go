@@ -20,7 +20,7 @@
 package cgroup
 
 import (
-	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -33,7 +33,8 @@ import (
 // inotifyWatcher manages the inotify watcher, allowing to have a single watch descriptor open
 type inotifyWatcher struct {
 	// The watch object
-	wd *inotify.Watcher
+	wd    *inotify.Watcher
+	wdErr error
 	// This is used to ensure that the watcher goroutine is launched only once
 	doOnce sync.Once
 	// This channel is used to add a new CGroup that has to be checked
@@ -216,15 +217,13 @@ func (iw *inotifyWatcher) monitorDelete(folders []string, name string, channel c
 	iw.doOnce.Do(func() {
 		iw.wd, err = inotify.NewWatcher()
 		if err != nil {
+			iw.wdErr = err
 			return
 		}
 		go iw.watcherMainLoop()
 	})
-	if err != nil {
-		return err
-	}
-	if iw.wd == nil {
-		return errors.New("cannot initialise Inotify.")
+	if iw.wdErr != nil {
+		return fmt.Errorf("cannot initialize inotify: %w", iw.wdErr)
 	}
 
 	foldersMap := make(map[string]struct{}, len(folders))
