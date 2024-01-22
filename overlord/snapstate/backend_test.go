@@ -914,10 +914,18 @@ func (f *fakeSnappyBackend) SetupComponent(compFilePath string, compPi snap.Cont
 }
 
 func (f *fakeSnappyBackend) SetupKernelModulesComponent(cpi snap.ContainerPlaceInfo, cref naming.ComponentRef, kernelVersion string, meter progress.Meter) (err error) {
+	meter.Notify("setup-kernel-modules-component")
+	f.appendOp(&fakeOp{
+		op: "setup-kernel-modules-component",
+	})
 	return nil
 }
 
-func (b *fakeSnappyBackend) UndoSetupKernelModulesComponent(cpi snap.ContainerPlaceInfo, cref naming.ComponentRef, kernelVersion string, meter progress.Meter) error {
+func (f *fakeSnappyBackend) UndoSetupKernelModulesComponent(cpi snap.ContainerPlaceInfo, cref naming.ComponentRef, kernelVersion string, meter progress.Meter) error {
+	meter.Notify("undo-setup-kernel-modules-component")
+	f.appendOp(&fakeOp{
+		op: "undo-setup-kernel-modules-component",
+	})
 	return nil
 }
 

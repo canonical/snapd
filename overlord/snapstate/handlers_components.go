@@ -22,6 +22,8 @@ package snapstate
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/logger"
@@ -391,6 +393,188 @@ func (m *SnapManager) undoUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (e
 
 	// Finally, write the state
 	Set(st, snapsup.InstanceName(), snapSt)
+	// Make sure we won't be rerun
+	t.SetStatus(state.UndoneStatus)
+
+	return nil
+}
+
+func kernelVersionFromPlaceInfo(spi snap.PlaceInfo) (string, error) {
+	const systemMapFilePrefix = "System.map-"
+	matchPath := filepath.Join(spi.MountDir(), systemMapFilePrefix+"*")
+	matches, err := filepath.Glob(matchPath)
+	if err != nil {
+		// could be only ErrBadPattern, should not really happen
+		return "", fmt.Errorf("internal error: %w", err)
+	}
+	if len(matches) != 1 {
+		return "", fmt.Errorf("number of matches for %s is %d", matchPath, len(matches))
+	}
+	return strings.TrimPrefix(matches[0], systemMapFilePrefix), nil
+}
+
+func (m *SnapManager) doSetupKernelModulesComponent(t *state.Task, _ *tomb.Tomb) error {
+	// kernel snap is expected to be mounted
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	perfTimings := state.TimingsForTask(t)
+
+	compSetup, snapsup, _, err := compSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	csi := compSetup.CompSideInfo
+	cpi := snap.MinimalComponentContainerPlaceInfo(compSetup.ComponentName(),
+		csi.Revision, snapsup.InstanceName(), snapsup.Revision())
+	pm := NewTaskProgressAdapterUnlocked(t)
+
+	// Find kernel version from matching kernel
+	spi := snap.MinimalPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
+	kernelVersion, err := kernelVersionFromPlaceInfo(spi)
+	if err != nil {
+		return err
+	}
+
+	st.Unlock()
+	timings.Run(perfTimings, "setup-kernel-modules-component",
+		fmt.Sprintf("setup of kernel-modules component %q", csi.Component),
+		func(timings.Measurer) {
+			err = m.backend.SetupKernelModulesComponent(cpi, csi.Component,
+				kernelVersion, pm)
+		})
+	st.Lock()
+	if err != nil {
+		return err
+	}
+
+	// Make sure we won't be rerun
+	t.SetStatus(state.DoneStatus)
+
+	return nil
+}
+
+func (m *SnapManager) undoSetupKernelModulesComponent(t *state.Task, _ *tomb.Tomb) error {
+	// kernel snap is expected to be mounted
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	perfTimings := state.TimingsForTask(t)
+
+	compSetup, snapsup, _, err := compSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	csi := compSetup.CompSideInfo
+	cpi := snap.MinimalComponentContainerPlaceInfo(compSetup.ComponentName(),
+		csi.Revision, snapsup.InstanceName(), snapsup.Revision())
+	pm := NewTaskProgressAdapterUnlocked(t)
+
+	// Find kernel version from matching kernel
+	spi := snap.MinimalPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
+	kernelVersion, err := kernelVersionFromPlaceInfo(spi)
+	if err != nil {
+		return err
+	}
+	st.Unlock()
+	timings.Run(perfTimings, "undo-setup-kernel-modules-component",
+		fmt.Sprintf("undo setup of kernel-modules component %q", csi.Component),
+		func(timings.Measurer) {
+			err = m.backend.UndoSetupKernelModulesComponent(cpi, csi.Component,
+				kernelVersion, pm)
+		})
+	st.Lock()
+	if err != nil {
+		return err
+	}
+
+	// Make sure we won't be rerun
+	t.SetStatus(state.UndoneStatus)
+
+	return nil
+}
+
+func (m *SnapManager) doCleanupKernelModulesComponent(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	perfTimings := state.TimingsForTask(t)
+
+	compSetup, snapsup, snapSt, err := compSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	cref := compSetup.CompSideInfo.Component
+
+	// This is the currently active component
+	activeComp := snapSt.CurrentComponentSideInfo(cref)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compSetup.ComponentName(),
+		activeComp.Revision, snapsup.InstanceName(), snapsup.Revision())
+	pm := NewTaskProgressAdapterUnlocked(t)
+
+	// Find kernel version from matching kernel
+	spi := snap.MinimalPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
+	kernelVersion, err := kernelVersionFromPlaceInfo(spi)
+	if err != nil {
+		return err
+	}
+	st.Unlock()
+	timings.Run(perfTimings, "cleanup-kernel-modules-component",
+		fmt.Sprintf("clean-up kernel-modules component %q", activeComp.Component),
+		func(timings.Measurer) {
+			err = m.backend.UndoSetupKernelModulesComponent(cpi,
+				activeComp.Component, kernelVersion, pm)
+		})
+	st.Lock()
+	if err != nil {
+		return err
+	}
+
+	// Make sure we won't be rerun
+	t.SetStatus(state.DoneStatus)
+
+	return nil
+}
+
+func (m *SnapManager) undoCleanupKernelModulesComponent(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+	perfTimings := state.TimingsForTask(t)
+
+	compSetup, snapsup, snapSt, err := compSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	cref := compSetup.CompSideInfo.Component
+
+	// This is the currently active component (already restored by undo unlink step)
+	activeComp := snapSt.CurrentComponentSideInfo(cref)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compSetup.ComponentName(),
+		activeComp.Revision, snapsup.InstanceName(), snapsup.Revision())
+	pm := NewTaskProgressAdapterUnlocked(t)
+
+	// Find kernel version from matching kernel
+	spi := snap.MinimalPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
+	kernelVersion, err := kernelVersionFromPlaceInfo(spi)
+	if err != nil {
+		return err
+	}
+
+	st.Unlock()
+	timings.Run(perfTimings, "undo-cleanup-kernel-modules-component",
+		fmt.Sprintf("undo clean-up of kernel-modules component %q", activeComp.Component),
+		func(timings.Measurer) {
+			err = m.backend.SetupKernelModulesComponent(cpi, activeComp.Component,
+				kernelVersion, pm)
+		})
+	st.Lock()
+	if err != nil {
+		return err
+	}
+
 	// Make sure we won't be rerun
 	t.SetStatus(state.UndoneStatus)
 
