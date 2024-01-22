@@ -352,7 +352,7 @@ func (v *mapSchema) Validate(raw []byte) error {
 	if err := json.Unmarshal(raw, &mapValue); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
 		if errors.As(err, &typeErr) {
-			return validationErrorf("expected map type but got %s", typeErr.Value)
+			return validationErrorf("expected map type but value was %s", typeErr.Value)
 		}
 		return validationErrorFrom(err)
 	}
@@ -572,7 +572,7 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 			}
 
 			if typ != "string" {
-				return nil, fmt.Errorf(`must be based on string but got %q`, typ)
+				return nil, fmt.Errorf(`must be based on string but type was %s`, typ)
 			}
 		}
 
@@ -601,7 +601,7 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 		return userType, nil
 	}
 
-	return nil, fmt.Errorf(`keys must be based on string but got %q`, typ)
+	return nil, fmt.Errorf(`keys must be based on string but type was %s`, typ)
 }
 
 func (v *mapSchema) expectsConstraints() bool { return true }
@@ -626,7 +626,7 @@ func (v *stringSchema) Validate(raw []byte) (err error) {
 	if err := json.Unmarshal(raw, &value); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
 		if errors.As(err, &typeErr) {
-			return fmt.Errorf("expected string type but got %s", typeErr.Value)
+			return fmt.Errorf("expected string type but value was %s", typeErr.Value)
 		}
 		return err
 	}
@@ -640,7 +640,7 @@ func (v *stringSchema) Validate(raw []byte) (err error) {
 	}
 
 	if v.pattern != nil && !v.pattern.Match([]byte(*value)) {
-		return fmt.Errorf(`string %q doesn't match schema pattern %s`, *value, v.pattern.String())
+		return fmt.Errorf(`expected string matching %s but value was %q`, v.pattern.String(), *value)
 	}
 
 	return nil
@@ -699,7 +699,7 @@ func (v *intSchema) Validate(raw []byte) (err error) {
 	if err := json.Unmarshal(raw, &num); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
 		if errors.As(err, &typeErr) {
-			return fmt.Errorf("expected int type but got %s", typeErr.Value)
+			return fmt.Errorf("expected int type but value was %s", typeErr.Value)
 		}
 		return err
 	}
@@ -804,7 +804,7 @@ func (v *numberSchema) Validate(raw []byte) (err error) {
 	if err := json.Unmarshal(raw, &num); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
 		if errors.As(err, &typeErr) {
-			return fmt.Errorf("expected number type but got %s", typeErr.Value)
+			return fmt.Errorf("expected number type but value was %s", typeErr.Value)
 		}
 		return err
 	}
@@ -905,7 +905,7 @@ func (v *booleanSchema) Validate(raw []byte) (err error) {
 	if err := json.Unmarshal(raw, &val); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
 		if errors.As(err, &typeErr) {
-			return fmt.Errorf("expected bool type but got %s", typeErr.Value)
+			return fmt.Errorf("expected bool type but value was %s", typeErr.Value)
 		}
 		return err
 	}
@@ -941,7 +941,7 @@ func (v *arraySchema) Validate(raw []byte) error {
 	if err := json.Unmarshal(raw, &array); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
 		if errors.As(err, &typeErr) {
-			return validationErrorf("expected array type but got %s", typeErr.Value)
+			return validationErrorf("expected array type but value was %s", typeErr.Value)
 		}
 		return validationErrorFrom(err)
 	}

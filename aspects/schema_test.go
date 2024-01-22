@@ -230,7 +230,7 @@ func (*schemaSuite) TestMapKeysConstraintMustBeStringBased(c *C) {
 }`)
 
 	_, err := aspects.ParseSchema(schemaStr)
-	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: must be based on string but got "map"`)
+	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: must be based on string but type was map`)
 
 	schemaStr = []byte(`{
 	"schema": {
@@ -241,7 +241,7 @@ func (*schemaSuite) TestMapKeysConstraintMustBeStringBased(c *C) {
 }`)
 
 	_, err = aspects.ParseSchema(schemaStr)
-	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: keys must be based on string but got "int"`)
+	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: keys must be based on string but type was int`)
 }
 
 func (*schemaSuite) TestMapWithValuesStringConstraintHappy(c *C) {
@@ -298,7 +298,7 @@ func (*schemaSuite) TestMapWithUnmetValuesConstraint(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot accept element in "snaps.foo": expected string type but got object`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "snaps.foo": expected string type but value was object`)
 }
 
 func (*schemaSuite) TestMapSchemaMetConstraintsWithMissingEntry(c *C) {
@@ -339,7 +339,7 @@ func (*schemaSuite) TestMapSchemaUnmetConstraint(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot accept element in "bar": expected string type but got object`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "bar": expected string type but value was object`)
 }
 
 func (*schemaSuite) TestMapSchemaWithMetRequiredConstraint(c *C) {
@@ -674,7 +674,7 @@ func (*schemaSuite) TestStringPatternNoMatch(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot accept element in "foo": string "F00" doesn't match schema pattern \[fb\]00`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": expected string matching \[fb\]00 but value was "F00"`)
 }
 
 func (*schemaSuite) TestStringPatternWrongFormat(c *C) {
@@ -936,7 +936,7 @@ func (*schemaSuite) TestMapBasedUserDefinedTypeFail(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot accept element in "snaps.core20.version": expected string type but got number`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "snaps.core20.version": expected string type but value was number`)
 }
 
 func (*schemaSuite) TestBadUserDefinedTypeName(c *C) {
@@ -1601,7 +1601,7 @@ func (*schemaSuite) TestArrayEnforcesOnlyOneType(c *C) {
 }`)
 
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot accept element in "foo\[1\]": expected string type but got number`)
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo\[1\]": expected string type but value was number`)
 }
 
 func (*schemaSuite) TestArrayWithUniqueRejectsDuplicates(c *C) {
@@ -1925,7 +1925,7 @@ func (*schemaSuite) TestUnexpectedTypes(c *C) {
 
 		input := []byte(fmt.Sprintf(`{"foo": %v}`, tc.testValue))
 		err = schema.Validate(input)
-		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept element in "foo": expected %s type but got %T`, tc.expectedType, tc.testValue))
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot accept element in "foo": expected %s type but value was %T`, tc.expectedType, tc.testValue))
 	}
 }
 
@@ -2011,12 +2011,12 @@ func (*schemaSuite) TestAlternativeTypesWithConstraintsFail(c *C) {
 	err = schema.Validate([]byte(`{"foo":-1}`))
 	c.Assert(err, ErrorMatches, `cannot accept element in "foo": 
 	-1 is less than the allowed minimum 0
-	expected string type but got number`)
+	expected string type but value was number`)
 
 	err = schema.Validate([]byte(`{"foo":"bAR"}`))
 	c.Assert(err, ErrorMatches, `cannot accept element in "foo": 
-	expected int type but got string
-	string "bAR" doesn't match schema pattern \[bB\]ar`)
+	expected int type but value was string
+	expected string matching \[bB\]ar but value was "bAR"`)
 }
 
 func (*schemaSuite) TestAlternativeTypesNested(c *C) {
@@ -2071,8 +2071,8 @@ func (*schemaSuite) TestAlternativeTypesPathError(c *C) {
 	err = schema.Validate([]byte(`{"foo":{"bar": {"baz": {"zab": [1]}}}}`))
 	c.Assert(err, NotNil)
 	c.Assert(err.Error(), Equals, `cannot accept element in "foo.bar": 
-	..."baz": expected int type but got object
-	..."baz.zab[0]": expected string type but got number`)
+	..."baz": expected int type but value was object
+	..."baz.zab[0]": expected string type but value was number`)
 }
 
 func (*schemaSuite) TestInvalidTypeDefinition(c *C) {
