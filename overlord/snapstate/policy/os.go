@@ -71,7 +71,7 @@ func (p *osPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev s
 	// received snapd updates via the core snap. in that case, we can't remove
 	// the core snap.
 	if !snapdState.IsInstalled() {
-		return errIsModel
+		return errSnapdNotInstalled
 	}
 
 	if !rev.Unset() {

@@ -154,7 +154,7 @@ func (s *canRemoveSuite) TestOSNoSnapdNotOK(c *check.C) {
 		Current:  snap.R(1),
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "core"}}),
 	}
-	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(1), classicDev), check.Equals, policy.ErrIsModel)
+	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(1), classicDev), check.Equals, policy.ErrSnapdNotInstalled)
 }
 
 func (s *canRemoveSuite) TestOSRequiredNotOK(c *check.C) {
