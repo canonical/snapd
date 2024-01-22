@@ -1,0 +1,17 @@
+summary: Check that we can remove core snap on classic systems.
+
+details: |
+    This test checks that we can remove core snap on classic systems. Classic
+    systems do not have 'base' set in their model. On UC systems, that would be
+    interpreted as 'core' being the base. On classic (non-hybrid) systems, that
+    should be interpreted as there not being a base required.
+
+# we just need a single system to verify this
+systems: [ubuntu-22.04-64]
+
+execute: |
+    snap install core
+
+    snap model --assertion | NOMATCH "base:"
+
+    snap remove core
