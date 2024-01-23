@@ -471,7 +471,7 @@ func resealKeyToModeenvUsingFDESetupHookImpl(rootdir string, modeenv *Modeenv, e
 	return nil
 }
 
-var SeedDir = dirs.SnapSeedDir
+var SeedDir = InitramfsUbuntuSeedDir
 
 // TODO:UC20: allow more than one model to accommodate the remodel scenario
 func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, expectReseal bool) error {
