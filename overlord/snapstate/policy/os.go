@@ -61,7 +61,7 @@ func (p *osPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev s
 		return errIsModel
 	}
 
-	if rev.Unset() || len(snapst.Sequence.Revisions) == 1 {
+	if rev.Unset() {
 		// revision will be unset if we're attempting to remove all
 		// snaps or just the one last remaining revision (although
 		// double check that), in either case, we need to ensure that
