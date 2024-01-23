@@ -3523,6 +3523,9 @@ SNAPD_APPARMOR_REEXEC=1
 
 	st := s.state
 	st.Lock()
+	// ensure that only this specific snap is installed
+	snapstate.Set(s.state, "core", nil)
+	snapstate.Set(s.state, "snapd", nil)
 
 	snapSt := &snapstate.SnapState{
 		Active: true,
