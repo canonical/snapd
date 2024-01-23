@@ -643,29 +643,11 @@ func (s *Info) CommonDataSaveDir() string {
 	return CommonDataSaveDir(s.InstanceName())
 }
 
-// DataHomeGlobs returns a slice of globbing expressions for the snap directories in use
-func DataHomeGlobs(opts *dirs.SnapDirOptions) []string {
-	if opts == nil {
-		opts = &dirs.SnapDirOptions{}
-	}
-
-	homeDirs := dirs.SnapHomeDirs()
-	for i, dir := range homeDirs {
-		// Convert each directory to a globbing expression
-		if opts.HiddenSnapDataDir {
-			homeDirs[i] = dir + "/*/" + dirs.HiddenSnapDataHomeDir
-		} else {
-			homeDirs[i] = dir + "/*/" + dirs.UserHomeSnapDir
-		}
-	}
-	return homeDirs
-}
-
 // DataHomeDirs returns the per user data directory of the snap across multiple
 // home directories.
 func (s *Info) DataHomeDirs(opts *dirs.SnapDirOptions) []string {
 	var dataHomeGlob []string
-	for _, glob := range DataHomeGlobs(opts) {
+	for _, glob := range dirs.DataHomeGlobs(opts) {
 		dataHomeGlob = append(dataHomeGlob, filepath.Join(glob, s.InstanceName(), s.Revision.String()))
 	}
 	return dataHomeGlob
@@ -675,7 +657,7 @@ func (s *Info) DataHomeDirs(opts *dirs.SnapDirOptions) []string {
 // of the snap in all defined home directories.
 func (s *Info) CommonDataHomeDirs(opts *dirs.SnapDirOptions) []string {
 	var comDataHomeGlob []string
-	for _, glob := range DataHomeGlobs(opts) {
+	for _, glob := range dirs.DataHomeGlobs(opts) {
 		comDataHomeGlob = append(comDataHomeGlob, filepath.Join(glob, s.InstanceName(), "common"))
 	}
 	return comDataHomeGlob

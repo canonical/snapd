@@ -50,8 +50,8 @@ func (s *snapdataSuite) TearDownTest(c *C) {
 }
 
 func (s *snapdataSuite) TestRemoveSnapData(c *C) {
-	dirs.SetSnapHomeDirs(filepath.Join(s.tempdir, "home"))
-	homedir := filepath.Join(s.tempdir, "home", "user1", "snap")
+	dirs.SetSnapHomeDirs("/home")
+	homedir := filepath.Join(dirs.GlobalRootDir, "home", "user1", "snap")
 	homeData := filepath.Join(homedir, "hello/10")
 	err := os.MkdirAll(homeData, 0755)
 	c.Assert(err, IsNil)
@@ -71,10 +71,10 @@ func (s *snapdataSuite) TestRemoveSnapData(c *C) {
 
 // same as TestRemoveSnapData but with multiple homedirs
 func (s *snapdataSuite) TestRemoveSnapDataMulti(c *C) {
-	homeDirs := []string{filepath.Join(s.tempdir, "home"),
-		filepath.Join(s.tempdir, "home", "company"),
-		filepath.Join(s.tempdir, "home", "department"),
-		filepath.Join(s.tempdir, "office")}
+	homeDirs := []string{filepath.Join(dirs.GlobalRootDir, "home"),
+		filepath.Join(dirs.GlobalRootDir, "home", "company"),
+		filepath.Join(dirs.GlobalRootDir, "home", "department"),
+		filepath.Join(dirs.GlobalRootDir, "office")}
 
 	dirs.SetSnapHomeDirs(strings.Join(homeDirs, ","))
 	snapHomeDataDirs := []string{}
@@ -105,16 +105,16 @@ func (s *snapdataSuite) TestRemoveSnapDataMulti(c *C) {
 }
 
 func (s *snapdataSuite) TestSnapDataDirs(c *C) {
-	homeDir1 := filepath.Join(s.tempdir, "home", "users")
-	homeDir2 := filepath.Join(s.tempdir, "remote", "users")
+	homeDir1 := filepath.Join("home", "users")
+	homeDir2 := filepath.Join("remote", "users")
 	homeDirs := homeDir1 + "," + homeDir2
 	dirs.SetSnapHomeDirs(homeDirs)
-	dataHomeDirs := []string{filepath.Join(homeDir1, "user1", "snap", "hello", "10"),
-		filepath.Join(homeDir1, "user2", "snap", "hello", "10"),
-		filepath.Join(homeDir2, "user3", "snap", "hello", "10"),
-		filepath.Join(homeDir2, "user4", "snap", "hello", "10"),
-		filepath.Join(s.tempdir, "root", "snap", "hello", "10"),
-		filepath.Join(s.tempdir, "var", "snap", "hello", "10")}
+	dataHomeDirs := []string{filepath.Join(dirs.GlobalRootDir, homeDir1, "user1", "snap", "hello", "10"),
+		filepath.Join(dirs.GlobalRootDir, homeDir1, "user2", "snap", "hello", "10"),
+		filepath.Join(dirs.GlobalRootDir, homeDir2, "user3", "snap", "hello", "10"),
+		filepath.Join(dirs.GlobalRootDir, homeDir2, "user4", "snap", "hello", "10"),
+		filepath.Join(dirs.GlobalRootDir, "root", "snap", "hello", "10"),
+		filepath.Join(dirs.GlobalRootDir, "var", "snap", "hello", "10")}
 	for _, path := range dataHomeDirs {
 		err := os.MkdirAll(path, 0755)
 		c.Assert(err, IsNil)
@@ -127,13 +127,13 @@ func (s *snapdataSuite) TestSnapDataDirs(c *C) {
 }
 
 func (s *snapdataSuite) TestSnapCommonDataDirs(c *C) {
-	homeDir1 := filepath.Join(s.tempdir, "home", "users")
-	homeDir2 := filepath.Join(s.tempdir, "remote", "users")
+	homeDir1 := filepath.Join(dirs.GlobalRootDir, "home", "users")
+	homeDir2 := filepath.Join(dirs.GlobalRootDir, "remote", "users")
 	homeDirs := homeDir1 + "," + homeDir2
 	dirs.SetSnapHomeDirs(homeDirs)
 	dataHomeDirs := []string{filepath.Join(homeDir1, "user1", "snap", "hello", "common"), filepath.Join(homeDir1, "user2", "snap", "hello", "common"),
 		filepath.Join(homeDir2, "user3", "snap", "hello", "common"), filepath.Join(homeDir2, "user4", "snap", "hello", "common"),
-		filepath.Join(s.tempdir, "root", "snap", "hello", "common"), filepath.Join(s.tempdir, "var", "snap", "hello", "common")}
+		filepath.Join(dirs.GlobalRootDir, "root", "snap", "hello", "common"), filepath.Join(dirs.GlobalRootDir, "var", "snap", "hello", "common")}
 	for _, path := range dataHomeDirs {
 		err := os.MkdirAll(path, 0755)
 		c.Assert(err, IsNil)
@@ -146,8 +146,8 @@ func (s *snapdataSuite) TestSnapCommonDataDirs(c *C) {
 }
 
 func (s *snapdataSuite) TestRemoveSnapCommonData(c *C) {
-	dirs.SetSnapHomeDirs(filepath.Join(s.tempdir, "home"))
-	homedir := filepath.Join(s.tempdir, "home", "user1", "snap")
+	dirs.SetSnapHomeDirs("/home")
+	homedir := filepath.Join(dirs.GlobalRootDir, "home", "user1", "snap")
 	homeCommonData := filepath.Join(homedir, "hello/common")
 	err := os.MkdirAll(homeCommonData, 0755)
 	c.Assert(err, IsNil)
@@ -155,7 +155,7 @@ func (s *snapdataSuite) TestRemoveSnapCommonData(c *C) {
 	err = os.MkdirAll(varCommonData, 0755)
 	c.Assert(err, IsNil)
 
-	rootCommonDir := filepath.Join(s.tempdir, "root", "snap", "hello", "common")
+	rootCommonDir := filepath.Join(dirs.GlobalRootDir, "root", "snap", "hello", "common")
 	c.Assert(os.MkdirAll(rootCommonDir, 0700), IsNil)
 
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
@@ -178,7 +178,7 @@ func (s *snapdataSuite) TestRemoveSnapCommonSave(c *C) {
 	err = os.MkdirAll(varCommonData, 0755)
 	c.Assert(err, IsNil)
 
-	rootCommonDir := filepath.Join(s.tempdir, "root", "snap", "hello", "common")
+	rootCommonDir := filepath.Join(dirs.GlobalRootDir, "root", "snap", "hello", "common")
 	c.Assert(os.MkdirAll(rootCommonDir, 0700), IsNil)
 
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})

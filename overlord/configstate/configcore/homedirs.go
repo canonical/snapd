@@ -118,12 +118,8 @@ func updateHomedirsConfig(config string, opts *fsOnlyContext) error {
 	}
 
 	// Update value in dirs
-	dirs.SetSnapHomeDirs(config)
-
 	var homedirs []string
-	if len(config) > 0 {
-		homedirs = strings.Split(config, ",")
-	}
+	homedirs = dirs.SetSnapHomeDirs(config)
 	return configureHomedirsInAppArmorAndReload(homedirs, opts)
 }
 
