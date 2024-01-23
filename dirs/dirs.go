@@ -146,7 +146,6 @@ var (
 var (
 	snapHomeDirsMu sync.Mutex
 	snapHomeDirs   []string
-	homeDirs       string
 )
 
 const (
@@ -221,7 +220,6 @@ func SnapHomeDirs() []string {
 func SetSnapHomeDirs(homedirs string) []string {
 	snapHomeDirsMu.Lock()
 	defer snapHomeDirsMu.Unlock()
-	homeDirs = homedirs
 	snapHomeDirs = strings.Split(homedirs, ",")
 	for i := range snapHomeDirs {
 		if !strings.HasPrefix(snapHomeDirs[i], GlobalRootDir) {
@@ -229,12 +227,6 @@ func SetSnapHomeDirs(homedirs string) []string {
 		}
 		// Make sure the paths are clean, necessary for unit tests.
 		snapHomeDirs[i] = filepath.Clean(snapHomeDirs[i])
-		fmt.Printf("SLICE INDEX %d:	", i)
-		fmt.Println(snapHomeDirs[i])
-		fmt.Print("homeDIRS:	")
-		fmt.Println(homeDirs)
-		fmt.Print("ROOTDIR:	")
-		fmt.Println(GlobalRootDir)
 	}
 
 	hasHome := false
@@ -599,7 +591,6 @@ func SetRootDir(rootdir string) {
 	for _, c := range callbacks {
 		c(rootdir)
 	}
-	SetSnapHomeDirs(homeDirs)
 }
 
 // what inside a (non-classic) snap is /usr/lib/snapd, outside can come from different places

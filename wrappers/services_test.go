@@ -114,7 +114,7 @@ func (s *servicesTestSuite) addSnapServices(snapInfo *snap.Info, preseeding bool
 
 func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	err := s.addSnapServices(info, false)
 	c.Assert(err, IsNil)
@@ -186,7 +186,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesAdds(c *C) {
 	}
 
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
 		info: nil,
@@ -231,7 +231,7 @@ WantedBy=multi-user.target
 
 func (s *servicesTestSuite) TestEnsureSnapServicesWithQuotas(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	// set up arbitrary quotas for the group to test they get written correctly to the slice
 	resourceLimits := quota.NewResourcesBuilder().
@@ -338,7 +338,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithZeroCpuCountQuotas(c *C) {
 	// Kind of a special case, if the cpu count is zero it needs to automatically scale
 	// at the moment of writing the service file to the current number of cpu cores
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	// set up arbitrary quotas for the group to test they get written correctly to the slice
 	resourceLimits := quota.NewResourcesBuilder().
@@ -436,7 +436,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithZeroCpuCountAndCpuSetQuota
 	// we provide only 1 allowed CPU, which means that the percentage that will be written is 50%
 	// and not 200% or how many cores that runs this test!
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	// set up arbitrary quotas for the group to test they get written correctly to the slice
 	resourceLimits := quota.NewResourcesBuilder().
@@ -529,7 +529,7 @@ TasksAccounting=true
 func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalNamespaceOnly(c *C) {
 	// Ensure that the journald.conf file is correctly written
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	// set up arbitrary quotas for the group to test they get written correctly to the slice
 	resourceLimits := quota.NewResourcesBuilder().
@@ -643,7 +643,7 @@ TasksAccounting=true
 func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalQuotas(c *C) {
 	// Ensure that the journald.conf file is correctly written
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	// set up arbitrary quotas for the group to test they get written correctly to the slice
 	resourceLimits := quota.NewResourcesBuilder().
@@ -762,7 +762,7 @@ TasksAccounting=true
 func (s *servicesTestSuite) TestEnsureSnapServicesWithJournalQuotaRateAsZero(c *C) {
 	// Ensure that the journald.conf file is correctly written
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	// set up arbitrary quotas for the group to test they get written correctly to the slice
 	resourceLimits := quota.NewResourcesBuilder().
@@ -894,8 +894,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSnapServices(c *C) {
 	// Furthermore we should see the service unit file for hello-snap.svc2 refer to the
 	// sub-group slice, and not the slice for the primary group.
 	info := snaptest.MockSnap(c, testSnapServicesYaml, &snap.SideInfo{Revision: snap.R(12)})
-	svc1File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
-	svc2File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service")
+	svc1File := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svc2File := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc2.service")
 
 	// setup quotas for the parent, including a journal quota to verify service sub-groups
 	// correctly inherit the journal namespace, even without having one directly specified.
@@ -1091,7 +1091,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithIncludeServices(c *C) {
 	// option to EnsureSnapServices. Thus what we will observe happen is that only the service
 	// file for svc2 will be written.
 	info := snaptest.MockSnap(c, testSnapServicesYaml, &snap.SideInfo{Revision: snap.R(12)})
-	svc2File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service")
+	svc2File := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc2.service")
 
 	// set up arbitrary quotas for the group to test they get written correctly to the slice
 	grp, err := quota.NewGroup("my-root", quota.NewResourcesBuilder().
@@ -1303,7 +1303,7 @@ func expChangeObserver(c *C, exp []changesObservation) (restore func(), obs wrap
 
 func (s *servicesTestSuite) TestEnsureSnapServicesRewritesQuotaSlices(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	memLimit1 := quantity.SizeGiB
 	memLimit2 := quantity.SizeGiB * 2
@@ -1329,7 +1329,7 @@ MemoryLimit=%[2]s
 # threads, etc for a slice
 TasksAccounting=true
 `
-	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
+	sliceFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.foogroup.slice")
 
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
 	svcContent := fmt.Sprintf(`[Unit]
@@ -1405,7 +1405,7 @@ WantedBy=multi-user.target
 
 func (s *servicesTestSuite) TestEnsureSnapServicesDoesNotRewriteQuotaSlicesOnNoop(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	memLimit := quantity.SizeGiB
 	taskLimit := 32 // arbitrarily chosen
@@ -1431,7 +1431,7 @@ MemoryLimit=%[2]s
 TasksAccounting=true
 TasksMax=%[3]d
 `
-	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
+	sliceFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.foogroup.slice")
 
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
 	svcContent := fmt.Sprintf(`[Unit]
@@ -1498,7 +1498,7 @@ func (s *servicesTestSuite) TestRemoveQuotaGroup(c *C) {
 	grp, err := quota.NewGroup("foogroup", resourceLimits)
 	c.Assert(err, IsNil)
 
-	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
+	sliceFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.foogroup.slice")
 	c.Assert(sliceFile, testutil.FileAbsent)
 
 	// removing the group when the slice file doesn't exist is not an error
@@ -1562,8 +1562,8 @@ apps:
   post-stop-command: bin/missya
   daemon: forking
 `, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile1 := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
-	svcFile2 := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-other-snap.svc1.service")
+	svcFile1 := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile2 := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-other-snap.svc1.service")
 
 	var err error
 	resourceLimits := quota.NewResourcesBuilder().
@@ -1580,8 +1580,8 @@ apps:
 	subgrp, err := grp.NewSubGroup("subgroup", resourceLimits)
 	c.Assert(err, IsNil)
 
-	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
-	subSliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup-subgroup.slice")
+	sliceFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.foogroup.slice")
+	subSliceFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.foogroup-subgroup.slice")
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
 		info1: {QuotaGroup: grp},
@@ -1704,7 +1704,7 @@ WantedBy=multi-user.target
 
 func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGeneratesParentGroups(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile1 := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile1 := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	var err error
 	resourceLimits := quota.NewResourcesBuilder().
@@ -1720,8 +1720,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGenerat
 	subgrp, err := grp.NewSubGroup("subgroup", resourceLimits)
 	c.Assert(err, IsNil)
 
-	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
-	subSliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup-subgroup.slice")
+	sliceFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.foogroup.slice")
+	subSliceFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.foogroup-subgroup.slice")
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
 		info: {QuotaGroup: subgrp},
@@ -1795,7 +1795,7 @@ TasksAccounting=true
 
 func (s *servicesTestSuite) TestEnsureSnapServiceEnsureError(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
-	svcFileDir := filepath.Join(s.tempdir, "/etc/systemd/system")
+	svcFileDir := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system")
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
 		info: nil,
@@ -1827,7 +1827,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesPreseedingHappy(c *C) {
 	}
 
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
 		info: nil,
@@ -1901,8 +1901,8 @@ apps:
   post-stop-command: bin/missya
   daemon: forking
 `, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile1 := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
-	svcFile2 := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-other-snap.svc1.service")
+	svcFile1 := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile2 := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-other-snap.svc1.service")
 
 	// some options per-snap
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
@@ -1976,8 +1976,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesCallback(c *C) {
   post-stop-command: bin/missya
   daemon: forking
 `, &snap.SideInfo{Revision: snap.R(12)})
-	svc1File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
-	svc2File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service")
+	svc1File := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svc2File := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc2.service")
 
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
 	template := `[Unit]
@@ -2069,8 +2069,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesAddsNewSvc(c *C) {
   post-stop-command: bin/missya
   daemon: forking
 `, &snap.SideInfo{Revision: snap.R(12)})
-	svc1File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
-	svc2File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service")
+	svc1File := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svc2File := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc2.service")
 
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
 	template := `[Unit]
@@ -2142,7 +2142,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesNoChangeNoop(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 
 	// pretend we already have a unit file setup
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
 	template := `[Unit]
@@ -2210,7 +2210,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesChanges(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 
 	// pretend we already have a unit file with no VitalityRank options set
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
 	template := `[Unit]
@@ -2273,7 +2273,7 @@ WantedBy=multi-user.target
 func (s *servicesTestSuite) TestEnsureSnapServicesRollsback(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	// pretend we already have a unit file with no VitalityRank options set
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
@@ -2357,7 +2357,7 @@ WantedBy=multi-user.target
 func (s *servicesTestSuite) TestEnsureSnapServicesRemovesNewAddOnRollback(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	// pretend we already have a unit file with no VitalityRank options set
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
@@ -2434,8 +2434,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesOnlyRemovesNewAddOnRollback(c 
 
 	// we won't delete existing files, but we will delete new files, so mock an
 	// existing file to check that it doesn't get deleted
-	svc1File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
-	svc2File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service")
+	svc1File := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svc2File := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc2.service")
 
 	// pretend we already have a unit file with no VitalityRank options set
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
@@ -2656,7 +2656,7 @@ plugs:
   daemon: simple
 `+t.plugSnippet,
 			&snap.SideInfo{Revision: snap.R(12)})
-		svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+		svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 		err := s.addSnapServices(info, false)
 		c.Assert(err, IsNil, comment)
@@ -2719,7 +2719,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemoveUserDaemons(c *C) {
   daemon: simple
   daemon-scope: user
 `, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/user/snap.hello-snap.svc1.service")
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/user/snap.hello-snap.svc1.service")
 
 	err := s.addSnapServices(info, false)
 	c.Assert(err, IsNil)
@@ -3121,7 +3121,7 @@ func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
 
 func (s *servicesTestSuite) TestStartServices(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err := wrappers.StartServices(info.Services(), nil, flags, &progress.Null, s.perfTimings)
@@ -3136,7 +3136,7 @@ func (s *servicesTestSuite) TestStartServices(c *C) {
 
 func (s *servicesTestSuite) TestStartServicesNoEnable(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	flags := &wrappers.StartServicesFlags{Enable: false}
 	err := wrappers.StartServices(info.Services(), nil, flags, &progress.Null, s.perfTimings)
@@ -3153,7 +3153,7 @@ func (s *servicesTestSuite) TestStartServicesUserDaemons(c *C) {
   daemon: simple
   daemon-scope: user
 `, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/user/snap.hello-snap.svc1.service")
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/user/snap.hello-snap.svc1.service")
 
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err := wrappers.StartServices(info.Services(), nil, flags, &progress.Null, s.perfTimings)
@@ -3167,7 +3167,7 @@ func (s *servicesTestSuite) TestStartServicesUserDaemons(c *C) {
 
 func (s *servicesTestSuite) TestStartServicesEnabledConditional(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
-	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
 	flags := &wrappers.StartServicesFlags{}
 	c.Check(wrappers.StartServices(info.Services(), nil, flags, progress.Null, s.perfTimings), IsNil)
@@ -3470,9 +3470,9 @@ func (s *servicesTestSuite) TestAddSnapSocketFiles(c *C) {
 
 `, &snap.SideInfo{Revision: snap.R(12)})
 
-	sock1File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.sock1.socket")
-	sock2File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.sock2.socket")
-	sock3File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.sock3.socket")
+	sock1File := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.sock1.socket")
+	sock2File := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.sock2.socket")
+	sock3File := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc1.sock3.socket")
 
 	err := s.addSnapServices(info, false)
 	c.Assert(err, IsNil)
@@ -3484,7 +3484,7 @@ FileDescriptorName=sock1
 ListenStream=%s
 SocketMode=0666
 
-`, filepath.Join(s.tempdir, "/var/snap/hello-snap/common/sock1.socket"))
+`, filepath.Join(dirs.GlobalRootDir, "/var/snap/hello-snap/common/sock1.socket"))
 	c.Check(sock1File, testutil.FileContains, expected)
 
 	expected = fmt.Sprintf(
@@ -3493,7 +3493,7 @@ Service=snap.hello-snap.svc1.service
 FileDescriptorName=sock2
 ListenStream=%s
 
-`, filepath.Join(s.tempdir, "/var/snap/hello-snap/12/sock2.socket"))
+`, filepath.Join(dirs.GlobalRootDir, "/var/snap/hello-snap/12/sock2.socket"))
 	c.Check(sock2File, testutil.FileContains, expected)
 
 	expected = fmt.Sprintf(
@@ -3502,7 +3502,7 @@ Service=snap.hello-snap.svc1.service
 FileDescriptorName=sock3
 ListenStream=%s
 
-`, filepath.Join(s.tempdir, "/run/user/0/snap.hello-snap/sock3.socket"))
+`, filepath.Join(dirs.GlobalRootDir, "/run/user/0/snap.hello-snap/sock3.socket"))
 	c.Check(sock3File, testutil.FileContains, expected)
 }
 
@@ -3522,9 +3522,9 @@ func (s *servicesTestSuite) TestAddSnapUserSocketFiles(c *C) {
       listen-stream: $XDG_RUNTIME_DIR/sock3.socket
 `, &snap.SideInfo{Revision: snap.R(12)})
 
-	sock1File := filepath.Join(s.tempdir, "/etc/systemd/user/snap.hello-snap.svc1.sock1.socket")
-	sock2File := filepath.Join(s.tempdir, "/etc/systemd/user/snap.hello-snap.svc1.sock2.socket")
-	sock3File := filepath.Join(s.tempdir, "/etc/systemd/user/snap.hello-snap.svc1.sock3.socket")
+	sock1File := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/user/snap.hello-snap.svc1.sock1.socket")
+	sock2File := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/user/snap.hello-snap.svc1.sock2.socket")
+	sock3File := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/user/snap.hello-snap.svc1.sock3.socket")
 
 	err := s.addSnapServices(info, false)
 	c.Assert(err, IsNil)
@@ -3867,19 +3867,19 @@ func (s *servicesTestSuite) TestServiceAfterBefore(c *C) {
 		kind    string
 		matches []string
 	}{{
-		file:    filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service"),
+		file:    filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc2.service"),
 		kind:    "After",
 		matches: []string{info.Apps["svc1"].ServiceName()},
 	}, {
-		file:    filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc3.service"),
+		file:    filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc3.service"),
 		kind:    "After",
 		matches: []string{info.Apps["svc2"].ServiceName()},
 	}, {
-		file:    filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc3.service"),
+		file:    filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc3.service"),
 		kind:    "Before",
 		matches: []string{info.Apps["svc4"].ServiceName()},
 	}, {
-		file: filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc4.service"),
+		file: filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc4.service"),
 		kind: "After",
 		matches: []string{
 			info.Apps["svc1"].ServiceName(),
@@ -3927,13 +3927,13 @@ func (s *servicesTestSuite) TestServiceWatchdog(c *C) {
 	err := s.addSnapServices(info, false)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service"))
+	content, err := ioutil.ReadFile(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc2.service"))
 	c.Assert(err, IsNil)
 	c.Check(strings.Contains(string(content), "\nWatchdogSec=12\n"), Equals, true)
 
 	noWatchdog := []string{
-		filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc3.service"),
-		filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc4.service"),
+		filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc3.service"),
+		filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc4.service"),
 	}
 	for _, svcPath := range noWatchdog {
 		content, err := ioutil.ReadFile(svcPath)
@@ -3952,7 +3952,7 @@ apps:
   daemon: simple
 `
 	info := snaptest.MockSnap(c, surviveYaml, &snap.SideInfo{Revision: snap.R(1)})
-	survivorFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.survive-snap.survivor.service")
+	survivorFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.survive-snap.survivor.service")
 
 	err := s.addSnapServices(info, false)
 	c.Assert(err, IsNil)
@@ -3991,7 +3991,7 @@ func (s *servicesTestSuite) TestStopServiceSigs(c *C) {
 	r := wrappers.MockKillWait(1 * time.Millisecond)
 	defer r()
 
-	survivorFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.survive-snap.srv.service")
+	survivorFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.survive-snap.srv.service")
 	for _, t := range []struct {
 		mode        string
 		expectedSig string
@@ -4357,11 +4357,11 @@ func (s *servicesTestSuite) TestServiceRestartDelay(c *C) {
 	err := s.addSnapServices(info, false)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service"))
+	content, err := ioutil.ReadFile(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc2.service"))
 	c.Assert(err, IsNil)
 	c.Check(strings.Contains(string(content), "\nRestartSec=12\n"), Equals, true)
 
-	content, err = ioutil.ReadFile(filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc3.service"))
+	content, err = ioutil.ReadFile(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc3.service"))
 	c.Assert(err, IsNil)
 	c.Check(strings.Contains(string(content), "RestartSec="), Equals, false)
 }

@@ -85,7 +85,7 @@ func (s *copydataSuite) TestCopyData(c *C) {
 
 func (s *copydataSuite) testCopyData(c *C, snapDir string, opts *dirs.SnapDirOptions) {
 	dirs.SetSnapHomeDirs("/home")
-	homedir := filepath.Join(s.tempdir, "home", "user1", snapDir)
+	homedir := filepath.Join(dirs.GlobalRootDir, "home", "user1", snapDir)
 	homeData := filepath.Join(homedir, "hello/10")
 	err := os.MkdirAll(homeData, 0755)
 	c.Assert(err, IsNil)
