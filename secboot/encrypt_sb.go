@@ -39,7 +39,6 @@ import (
 
 var (
 	sbInitializeLUKS2Container     = sb.InitializeLUKS2Container
-	sbAddLUKS2ContainerRecoveryKey = sb.AddLUKS2ContainerRecoveryKey
 )
 
 const keyslotsAreaKiBSize = 2560 // 2.5MB
