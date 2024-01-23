@@ -846,7 +846,7 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 		case "###FLAGS###":
 			// default flags
 			flags := []string{"attach_disconnected", "mediate_deleted"}
-			if spec.Unconfined() {
+			if spec.Unconfined() == UnconfinedEnabled {
 				// need both parser and kernel support for unconfined
 				pfeatures, _ := parserFeatures()
 				kfeatures, _ := kernelFeatures()
