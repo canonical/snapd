@@ -61,17 +61,24 @@ func (p *osPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev s
 		return errIsModel
 	}
 
-	var snapdState snapstate.SnapState
-	err := snapstate.Get(st, "snapd", &snapdState)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
+	if rev.Unset() || len(snapst.Sequence.Revisions) == 1 {
+		// revision will be unset if we're attempting to remove all
+		// snaps or just the one last remaining revision (although
+		// double check that), in either case, we need to ensure that
+		// the snapd snap is there
 
-	// if snapd snap is not installed, then this might be a system that has
-	// received snapd updates via the core snap. in that case, we can't remove
-	// the core snap.
-	if !snapdState.IsInstalled() {
-		return errSnapdNotInstalled
+		var snapdState snapstate.SnapState
+		err := snapstate.Get(st, "snapd", &snapdState)
+		if err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+
+		// if snapd snap is not installed, then this might be a system that has
+		// received snapd updates via the core snap. in that case, we can't remove
+		// the core snap.
+		if !snapdState.IsInstalled() {
+			return errSnapdNotInstalled
+		}
 	}
 
 	if !rev.Unset() {
