@@ -62,10 +62,9 @@ func (p *osPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev s
 	}
 
 	if rev.Unset() {
-		// revision will be unset if we're attempting to remove all
-		// snaps or just the one last remaining revision (although
-		// double check that), in either case, we need to ensure that
-		// the snapd snap is there
+		// revision will be unset if we're attempting to remove all snaps or
+		// just the one last remaining revision. in either case, we need to
+		// ensure that the snapd snap is there
 
 		var snapdState snapstate.SnapState
 		err := snapstate.Get(st, "snapd", &snapdState)
