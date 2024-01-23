@@ -38,7 +38,7 @@ import (
 )
 
 var (
-	sbInitializeLUKS2Container     = sb.InitializeLUKS2Container
+	sbInitializeLUKS2Container = sb.InitializeLUKS2Container
 )
 
 const keyslotsAreaKiBSize = 2560 // 2.5MB
