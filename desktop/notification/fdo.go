@@ -108,7 +108,9 @@ func (srv *fdoBackend) SendNotification(id ID, msg *Message) error {
 	srv.mu.Lock()
 	serverSideId := srv.localToServerID[id]
 	srv.mu.Unlock()
-	srv.parameters[id] = msg.Actions
+	if len(msg.Actions) != 0 {
+		srv.parameters[id] = msg.Actions
+	}
 	call := srv.obj.Call(dBusInterfaceName+".Notify", 0,
 		msg.AppName, serverSideId, msg.Icon, msg.Title, msg.Body,
 		flattenActions(msg.Actions), hints,
@@ -124,8 +126,10 @@ func (srv *fdoBackend) SendNotification(id ID, msg *Message) error {
 	// Since there is at least one notification, disable the idle
 	// timer to avoid the agent to exit, because that would invalidate
 	// the list of notifications and their parameters, and the notifications
-	// would become irresponsible.
-	srv.disableIdle = true
+	// would become irresponsible. But do it only if it has actions.
+	if len(msg.Actions) != 0 {
+		srv.disableIdle = true
+	}
 	return nil
 }
 
@@ -262,12 +266,12 @@ func (srv *fdoBackend) processNotificationClosed(sig *dbus.Signal, observer Obse
 	}
 
 	srv.mu.Lock()
+	defer srv.mu.Unlock()
 
 	// we may receive signals for notifications we don't know about, silently
 	// ignore them.
 	localID, ok := srv.serverToLocalID[id]
 	if !ok {
-		srv.mu.Unlock()
 		return nil
 	}
 
@@ -278,14 +282,12 @@ func (srv *fdoBackend) processNotificationClosed(sig *dbus.Signal, observer Obse
 	}
 	if len(srv.serverToLocalID) == 0 {
 		srv.lastRemove = time.Now()
-		// since all the notifications have been closed, we can
-		// now re-enable the idle timer.
+	}
+	if len(srv.parameters) == 0 {
+		// if all the notifications with actions have been closed,
+		// we can now re-enable the idle timer.
 		srv.disableIdle = false
 	}
-
-	// unlock the mutex before calling observer
-	srv.mu.Unlock()
-
 	return nil
 }
 
@@ -303,13 +305,15 @@ func (srv *fdoBackend) processActionInvoked(sig *dbus.Signal, observer Observer)
 	}
 
 	if observer != nil {
+		srv.mu.Lock()
 		localId, ok := srv.serverToLocalID[id]
 		if !ok {
+			srv.mu.Unlock()
 			return nil
 		}
-		parametersEntry, ok := srv.parameters[localId]
 		var parameters []string
-		if ok {
+
+		if parametersEntry, ok := srv.parameters[localId]; ok {
 			for _, entry := range parametersEntry {
 				if entry.ActionKey == actionKey {
 					parameters = entry.Parameters
@@ -317,7 +321,8 @@ func (srv *fdoBackend) processActionInvoked(sig *dbus.Signal, observer Observer)
 				}
 			}
 		}
-		return observer.ActionInvoked(srv.serverToLocalID[id], actionKey, parameters)
+		srv.mu.Unlock()
+		return observer.ActionInvoked(localId, actionKey, parameters)
 	}
 	return nil
 }

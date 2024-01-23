@@ -250,6 +250,23 @@ func (s *SessionAgent) Start() {
 	s.tomb.Go(s.exitOnIdle)
 	if s.notificationMgr != nil {
 		s.tomb.Go(s.handleNotifications)
+		/* 		msg := notification.Message{
+		   			Title: "A test without buttons",
+		   			Body:  "This is anotification test without actions",
+		   		}
+		   		s.notificationMgr.SendNotification("Test", &msg)
+
+		   		actions := []notification.Action{}
+		   		actions = append(actions, notification.Action{
+		   			ActionKey:     "key1",
+		   			LocalizedText: "Action 1",
+		   		})
+		   		msg2 := notification.Message{
+		   			Title:   "A test with buttons",
+		   			Body:    "This is anotification test with actions",
+		   			Actions: actions,
+		   		}
+		   		s.notificationMgr.SendNotification("Test2", &msg2) */
 	}
 	systemd.SdNotify("READY=1")
 }
