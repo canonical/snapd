@@ -143,53 +143,6 @@ func (s *StorageSchema) Validate(raw []byte) error {
 	return s.topLevel.Validate(raw)
 }
 
-// parseAlternatives takes a list of alternative types, parses them and creates
-// a schema that accepts values matching any alternative.
-func (s *StorageSchema) parseAlternatives(alternatives []json.RawMessage) (*alternativesSchema, error) {
-	alt := &alternativesSchema{schemas: make([]Schema, 0, len(alternatives))}
-	for _, altRaw := range alternatives {
-		schema, err := s.parse(altRaw)
-		if err != nil {
-			return nil, err
-		}
-
-		alt.schemas = append(alt.schemas, schema)
-	}
-
-	if len(alt.schemas) == 0 {
-		return nil, fmt.Errorf(`alternative type list cannot be empty`)
-	}
-
-	return alt, nil
-}
-
-// parseTypeDefinition tries to parse the raw JSON as a list, a map or a string
-// (the accepted ways to express types).
-func parseTypeDefinition(raw json.RawMessage) (interface{}, error) {
-	var typeErr *json.UnmarshalTypeError
-
-	var l []json.RawMessage
-	if err := json.Unmarshal(raw, &l); err == nil {
-		return l, nil
-	} else if !errors.As(err, &typeErr) {
-		return nil, err
-	}
-
-	var m map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &m); err == nil {
-		return m, nil
-	} else if !errors.As(err, &typeErr) {
-		return nil, err
-	}
-
-	var s string
-	if err := json.Unmarshal(raw, &s); err == nil {
-		return s, nil
-	} else {
-		return nil, fmt.Errorf(`type must be expressed as map, string or list: %w`, err)
-	}
-}
-
 func (s *StorageSchema) parse(raw json.RawMessage) (Schema, error) {
 	jsonType, err := parseTypeDefinition(raw)
 	if err != nil {
@@ -240,6 +193,53 @@ func (s *StorageSchema) parse(raw json.RawMessage) (Schema, error) {
 	}
 
 	return schema, nil
+}
+
+// parseTypeDefinition tries to parse the raw JSON as a list, a map or a string
+// (the accepted ways to express types).
+func parseTypeDefinition(raw json.RawMessage) (interface{}, error) {
+	var typeErr *json.UnmarshalTypeError
+
+	var l []json.RawMessage
+	if err := json.Unmarshal(raw, &l); err == nil {
+		return l, nil
+	} else if !errors.As(err, &typeErr) {
+		return nil, err
+	}
+
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err == nil {
+		return m, nil
+	} else if !errors.As(err, &typeErr) {
+		return nil, err
+	}
+
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s, nil
+	} else {
+		return nil, fmt.Errorf(`type must be expressed as map, string or list: %w`, err)
+	}
+}
+
+// parseAlternatives takes a list of alternative types, parses them and creates
+// a schema that accepts values matching any alternative.
+func (s *StorageSchema) parseAlternatives(alternatives []json.RawMessage) (*alternativesSchema, error) {
+	alt := &alternativesSchema{schemas: make([]Schema, 0, len(alternatives))}
+	for _, altRaw := range alternatives {
+		schema, err := s.parse(altRaw)
+		if err != nil {
+			return nil, err
+		}
+
+		alt.schemas = append(alt.schemas, schema)
+	}
+
+	if len(alt.schemas) == 0 {
+		return nil, fmt.Errorf(`alternative type list cannot be empty`)
+	}
+
+	return alt, nil
 }
 
 func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
