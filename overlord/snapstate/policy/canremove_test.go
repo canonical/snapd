@@ -121,6 +121,7 @@ func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *check.C) {
 	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(0), coreDev), check.Equals, policy.ErrIsModel)
 	// (well, single revisions are ok)
 	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(1), coreDev), check.IsNil)
+	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(1), classicDev), check.IsNil)
 	// removing os is also ok on classic systems
 	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(0), classicDev), check.IsNil)
 	// model kernel == snap kernel -> can't be removed
