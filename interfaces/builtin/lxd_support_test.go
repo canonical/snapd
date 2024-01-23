@@ -95,7 +95,7 @@ func (s *LxdSupportInterfaceSuite) TestAppArmorSpecUserNS(c *C) {
 func (s *LxdSupportInterfaceSuite) TestAppArmorSpecUnconfined(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
-	c.Assert(spec.Unconfined(), Equals, true)
+	c.Assert(spec.Unconfined(), Equals, apparmor.UnconfinedSupported)
 }
 
 func (s *LxdSupportInterfaceSuite) TestSecCompSpec(c *C) {
