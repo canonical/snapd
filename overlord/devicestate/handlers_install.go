@@ -1060,7 +1060,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 	defer unmountParts()
 
-	if !systemAndSnaps.Model.Classic() {
+	if gadget.VolumesHaveRole(mergedVols, gadget.SystemSeed) {
 		copier, ok := systemAndSnaps.Seed.(seed.Copier)
 		if !ok {
 			return fmt.Errorf("internal error: seed does not support copying: %s", systemAndSnaps.Label)
