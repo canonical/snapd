@@ -98,6 +98,7 @@ type ID string
 type Action struct {
 	ActionKey     string
 	LocalizedText string
+	Parameters    []string
 }
 
 // Hint describes supplementeary information that may be used by the server.
@@ -145,16 +146,12 @@ func (r CloseReason) String() string {
 
 // Observer is an interface for observing interactions with notification messages.
 //
-// An observer can be used to either observe a notification being closed or
-// dismissed or to react to actions being invoked by the user. Practical
+// An observer can be used to react to actions being invoked by the user. Practical
 // implementations must remember the ID of the message they have sent to filter
 // out other notifications.
 type Observer interface {
-	// NotificationClosed is called when a notification is either closed or removed
-	// from the persistent roster.
-	NotificationClosed(id ID, reason CloseReason) error
 	// ActionInvoked is caliled when one of the notification message actions is
 	// clicked by the user.
 	// XXX: revisit, should we return id at all? Remap to ID?
-	ActionInvoked(id uint32, actionKey string) error
+	ActionInvoked(id ID, actionKey string, parameters []string) error
 }

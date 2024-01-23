@@ -30,8 +30,9 @@ type NotificationManager interface {
 	SendNotification(id ID, msg *Message) error
 	CloseNotification(id ID) error
 	IdleDuration() time.Duration
+	IdleIsDisabled() bool
 
-	HandleNotifications(ctx context.Context) error
+	HandleNotifications(ctx context.Context, observer Observer) error
 }
 
 func NewNotificationManager(conn *dbus.Conn, desktopID string) NotificationManager {

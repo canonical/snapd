@@ -186,7 +186,8 @@ func (s *SessionAgent) Init() error {
 	// Set up notification manager
 	// Note that session bus may be nil, see the comment in tryConnectSessionBus.
 	if s.bus != nil {
-		s.notificationMgr = notification.NewNotificationManager(s.bus, "io.snapcraft.SessionAgent")
+		// Use the sessionAgentBusName to make it compatible with GApplication
+		s.notificationMgr = notification.NewNotificationManager(s.bus, sessionAgentBusName)
 	}
 
 	agentSocket := fmt.Sprintf("%s/%d/snapd-session-agent.socket", dirs.XdgRuntimeDirBase, os.Getuid())
@@ -298,6 +299,17 @@ Loop:
 			idleDuration := s.idle.idleDuration()
 			// notificationMgr may be nil if session bus is not available
 			if s.notificationMgr != nil {
+				if s.notificationMgr.IdleIsDisabled() {
+					// If there are pending notifications, and the backend
+					// doesn't allow to pass parameters or relaunch the agent
+					// when the user interacts with it, we cannot exit, because
+					// we would loss the notifications state.
+					timer.Reset(s.IdleTimeout)
+					s.idle.mu.Lock()
+					s.idle.lastActive = time.Now()
+					s.idle.mu.Unlock()
+					idleDuration = s.idle.idleDuration()
+				}
 				if dur := s.notificationMgr.IdleDuration(); dur < idleDuration {
 					idleDuration = dur
 				}
@@ -313,10 +325,35 @@ Loop:
 	return nil
 }
 
+type testObserver struct {
+	actionInvoked func(notification.ID, string, []string) error
+}
+
+func (t testObserver) ActionInvoked(id notification.ID, action string, params []string) error {
+	return t.actionInvoked(id, action, params)
+}
+
 // handleNotifications handles notifications in a blocking manner.
 // This should only be called when notificationMgr is available (i.e. s.bus is set).
 func (s *SessionAgent) handleNotifications() error {
-	err := s.notificationMgr.HandleNotifications(s.tomb.Context(context.Background()))
+	// This is just a simple test, it currently does nothing else than show the Notification ID,
+	// the actionKey and the parameters (if available)
+	observer := testObserver{
+		actionInvoked: func(id notification.ID, actionKey string, parameters []string) error {
+			fmt.Printf("Received action %s, %s, ", id, actionKey)
+			if parameters == nil {
+				fmt.Printf("without parameters")
+			} else {
+				for _, p := range parameters {
+					fmt.Printf("%s, ", p)
+				}
+			}
+			fmt.Printf("\n")
+
+			return nil
+		},
+	}
+	err := s.notificationMgr.HandleNotifications(s.tomb.Context(context.Background()), observer)
 	if err != nil {
 		logger.Noticef("%v", err)
 	}

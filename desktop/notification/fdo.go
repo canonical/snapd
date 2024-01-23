@@ -43,8 +43,16 @@ type fdoBackend struct {
 	mu              sync.Mutex
 	serverToLocalID map[uint32]ID
 	localToServerID map[ID]uint32
+	parameters      map[ID][]Action
 	lastRemove      time.Time
 	desktopID       string
+	disableIdle     bool
+}
+
+func (srv *fdoBackend) IdleIsDisabled() bool {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	return srv.disableIdle
 }
 
 // New returns new connection to a freedesktop.org message notification server.
@@ -59,6 +67,7 @@ var newFdoBackend = func(conn *dbus.Conn, desktopID string) NotificationManager 
 		obj:             conn.Object(dBusName, dBusObjectPath),
 		serverToLocalID: make(map[uint32]ID),
 		localToServerID: make(map[ID]uint32),
+		parameters:      make(map[ID][]Action),
 		desktopID:       desktopID,
 	}
 }
@@ -99,6 +108,7 @@ func (srv *fdoBackend) SendNotification(id ID, msg *Message) error {
 	srv.mu.Lock()
 	serverSideId := srv.localToServerID[id]
 	srv.mu.Unlock()
+	srv.parameters[id] = msg.Actions
 	call := srv.obj.Call(dBusInterfaceName+".Notify", 0,
 		msg.AppName, serverSideId, msg.Icon, msg.Title, msg.Body,
 		flattenActions(msg.Actions), hints,
@@ -111,6 +121,7 @@ func (srv *fdoBackend) SendNotification(id ID, msg *Message) error {
 	defer srv.mu.Unlock()
 	srv.serverToLocalID[serverSideId] = id
 	srv.localToServerID[id] = serverSideId
+	srv.disableIdle = true
 	return nil
 }
 
@@ -166,8 +177,8 @@ func (srv *fdoBackend) IdleDuration() time.Duration {
 	return time.Since(srv.lastRemove)
 }
 
-func (srv *fdoBackend) HandleNotifications(ctx context.Context) error {
-	return srv.ObserveNotifications(ctx, nil)
+func (srv *fdoBackend) HandleNotifications(ctx context.Context, observer Observer) error {
+	return srv.ObserveNotifications(ctx, observer)
 }
 
 // ObserveNotifications blocks and processes message notification signals.
@@ -241,7 +252,7 @@ func (srv *fdoBackend) processNotificationClosed(sig *dbus.Signal, observer Obse
 	if !ok {
 		return fmt.Errorf("expected first body element to be uint32, got %T", sig.Body[0])
 	}
-	reason, ok := sig.Body[1].(uint32)
+	_, ok = sig.Body[1].(uint32)
 	if !ok {
 		return fmt.Errorf("expected second body element to be uint32, got %T", sig.Body[1])
 	}
@@ -258,16 +269,17 @@ func (srv *fdoBackend) processNotificationClosed(sig *dbus.Signal, observer Obse
 
 	delete(srv.localToServerID, localID)
 	delete(srv.serverToLocalID, id)
+	if _, ok := srv.parameters[localID]; ok {
+		delete(srv.parameters, localID)
+	}
 	if len(srv.serverToLocalID) == 0 {
 		srv.lastRemove = time.Now()
+		srv.disableIdle = false
 	}
 
 	// unlock the mutex before calling observer
 	srv.mu.Unlock()
 
-	if observer != nil {
-		return observer.NotificationClosed(localID, CloseReason(reason))
-	}
 	return nil
 }
 
@@ -285,7 +297,21 @@ func (srv *fdoBackend) processActionInvoked(sig *dbus.Signal, observer Observer)
 	}
 
 	if observer != nil {
-		return observer.ActionInvoked(id, actionKey)
+		localId, ok := srv.serverToLocalID[id]
+		if !ok {
+			return nil
+		}
+		parametersEntry, ok := srv.parameters[localId]
+		var parameters []string
+		if ok {
+			for _, entry := range parametersEntry {
+				if entry.ActionKey == actionKey {
+					parameters = entry.Parameters
+					break
+				}
+			}
+		}
+		return observer.ActionInvoked(srv.serverToLocalID[id], actionKey, parameters)
 	}
 	return nil
 }

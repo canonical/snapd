@@ -177,7 +177,7 @@ func (s *fdoSuite) TestCloseNotificationUnknownNotification(c *C) {
 
 type testObserver struct {
 	notificationClosed func(notification.ID, notification.CloseReason) error
-	actionInvoked      func(uint32, string) error
+	actionInvoked      func(notification.ID, string, []string) error
 }
 
 func (o *testObserver) NotificationClosed(id notification.ID, reason notification.CloseReason) error {
@@ -187,9 +187,9 @@ func (o *testObserver) NotificationClosed(id notification.ID, reason notificatio
 	return nil
 }
 
-func (o *testObserver) ActionInvoked(id uint32, actionKey string) error {
+func (o *testObserver) ActionInvoked(id notification.ID, actionKey string, parameters []string) error {
 	if o.actionInvoked != nil {
-		return o.actionInvoked(id, actionKey)
+		return o.actionInvoked(id, actionKey, parameters)
 	}
 	return nil
 }
@@ -204,7 +204,7 @@ func (s *fdoSuite) TestObserveNotificationsContextAndSignalWatch(c *C) {
 	wg.Add(1)
 	go func() {
 		err := srv.ObserveNotifications(ctx, &testObserver{
-			actionInvoked: func(id uint32, actionKey string) error {
+			actionInvoked: func(id notification.ID, actionKey string, parameters []string) error {
 				select {
 				case signalDelivered <- struct{}{}:
 				default:
@@ -238,7 +238,7 @@ func (s *fdoSuite) TestObserveNotificationsProcessingError(c *C) {
 	wg.Add(1)
 	go func() {
 		err := srv.ObserveNotifications(context.TODO(), &testObserver{
-			actionInvoked: func(id uint32, actionKey string) error {
+			actionInvoked: func(id notification.ID, actionKey string, parameters []string) error {
 				signalDelivered <- struct{}{}
 				c.Check(id, Equals, uint32(42))
 				c.Check(actionKey, Equals, "action-key")
@@ -287,7 +287,7 @@ func (s *fdoSuite) TestProcessActionInvokedSignalSuccess(c *C) {
 		Name: "org.freedesktop.Notifications.ActionInvoked",
 		Body: []interface{}{uint32(42), "action-key"},
 	}, &testObserver{
-		actionInvoked: func(id uint32, actionKey string) error {
+		actionInvoked: func(id notification.ID, actionKey string, parameters []string) error {
 			called = true
 			c.Check(id, Equals, uint32(42))
 			c.Check(actionKey, Equals, "action-key")
@@ -304,7 +304,7 @@ func (s *fdoSuite) TestProcessActionInvokedSignalError(c *C) {
 		Name: "org.freedesktop.Notifications.ActionInvoked",
 		Body: []interface{}{uint32(42), "action-key"},
 	}, &testObserver{
-		actionInvoked: func(id uint32, actionKey string) error {
+		actionInvoked: func(id notification.ID, actionKey string, parameters []string) error {
 			return fmt.Errorf("boom")
 		},
 	})
