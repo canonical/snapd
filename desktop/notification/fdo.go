@@ -238,6 +238,15 @@ func (srv *fdoBackend) ObserveNotifications(ctx context.Context, observer Observ
 	}
 }
 
+func (srv *fdoBackend) GracefulShutdown() {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	for serverId := range srv.serverToLocalID {
+		call := srv.obj.Call(dBusInterfaceName+".CloseNotification", 0, serverId)
+		call.Store()
+	}
+}
+
 func (srv *fdoBackend) processSignal(sig *dbus.Signal, observer Observer) error {
 	switch sig.Name {
 	case dBusInterfaceName + ".NotificationClosed":

@@ -31,6 +31,7 @@ type NotificationManager interface {
 	CloseNotification(id ID) error
 	IdleDuration() time.Duration
 	IdleIsDisabled() bool
+	GracefulShutdown()
 
 	HandleNotifications(ctx context.Context, observer Observer) error
 }

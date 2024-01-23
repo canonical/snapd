@@ -128,6 +128,8 @@ func createOrgFreedesktopApplicationInterface() []introspect.Interface {
 	}
 }
 
+func (srv *gtkBackend) GracefulShutdown() {}
+
 // TODO: support actions via session agent.
 var newGtkBackend = func(conn *dbus.Conn, desktopID string) (NotificationManager, error) {
 	// If the D-Bus service is not already running, assume it is

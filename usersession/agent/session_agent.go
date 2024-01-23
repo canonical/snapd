@@ -244,6 +244,10 @@ func (s *SessionAgent) addRoutes() {
 	s.router.NotFoundHandler = NotFound("not found")
 }
 
+func (s *SessionAgent) GracefulShutdown() {
+	s.notificationMgr.GracefulShutdown()
+}
+
 func (s *SessionAgent) Start() {
 	s.tomb.Go(s.runServer)
 	s.tomb.Go(s.shutdownServerOnKill)

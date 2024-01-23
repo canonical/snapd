@@ -152,6 +152,7 @@ func (x *cmdUserd) runAgent() error {
 	select {
 	case sig := <-ch:
 		fmt.Fprintf(Stdout, "Exiting on %s.\n", sig)
+		agent.GracefulShutdown()
 	case <-agent.Dying():
 		// something called Stop()
 	}
