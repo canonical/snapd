@@ -80,6 +80,7 @@ type cmdInitramfsMounts struct{}
 func (c *cmdInitramfsMounts) Execute([]string) error {
 	boot.HasFDESetupHook = hasFDESetupHook
 	boot.RunFDESetupHook = runFDESetupHook
+	boot.SeedDir = boot.InitramfsUbuntuSeedDir
 
 	logger.Noticef("snap-bootstrap version %v starting", snapdtool.Version)
 
