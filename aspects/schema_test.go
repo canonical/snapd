@@ -1959,7 +1959,7 @@ func (*schemaSuite) TestAlternativeTypesFail(c *C) {
 	for _, val := range []interface{}{"1.1", "true", `{"bar": 1}`, `[1, 2]`} {
 		input := []byte(fmt.Sprintf(`{"foo":%s}`, val))
 		err = schema.Validate(input)
-		c.Assert(err, ErrorMatches, `cannot accept element in "foo": 
+		c.Assert(err, ErrorMatches, `cannot accept element in "foo": no matching schema:
 	expected string .*
 	expected int .*`)
 	}
@@ -2009,12 +2009,12 @@ func (*schemaSuite) TestAlternativeTypesWithConstraintsFail(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate([]byte(`{"foo":-1}`))
-	c.Assert(err, ErrorMatches, `cannot accept element in "foo": 
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": no matching schema:
 	-1 is less than the allowed minimum 0
 	expected string type but value was number`)
 
 	err = schema.Validate([]byte(`{"foo":"bAR"}`))
-	c.Assert(err, ErrorMatches, `cannot accept element in "foo": 
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": no matching schema:
 	expected int type but value was string
 	expected string matching \[bB\]ar but value was "bAR"`)
 }
@@ -2045,7 +2045,7 @@ func (*schemaSuite) TestAlternativeTypesNestedFail(c *C) {
 	c.Assert(err, IsNil)
 
 	err = schema.Validate([]byte(`{"foo":false}`))
-	c.Assert(err, ErrorMatches, `cannot accept element in "foo": 
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": no matching schema:
 	expected int type but value was bool
 	expected number type but value was bool
 	expected string type but value was bool`)
@@ -2086,7 +2086,7 @@ func (*schemaSuite) TestAlternativeTypesPathError(c *C) {
 
 	err = schema.Validate([]byte(`{"foo":{"bar": {"baz": {"zab": [1]}}}}`))
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, `cannot accept element in "foo.bar": 
+	c.Assert(err.Error(), Equals, `cannot accept element in "foo.bar": no matching schema:
 	..."baz": expected int type but value was object
 	..."baz.zab[0]": expected string type but value was number`)
 }

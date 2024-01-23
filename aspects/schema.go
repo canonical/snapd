@@ -312,6 +312,7 @@ func (v *alternativesSchema) Validate(raw []byte) error {
 	}
 
 	var sb strings.Builder
+	sb.WriteString("no matching schema:")
 	for _, err := range errs {
 		sb.WriteString("\n\t")
 
