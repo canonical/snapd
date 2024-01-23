@@ -183,13 +183,6 @@ func (s *SessionAgent) Init() error {
 		return err
 	}
 
-	// Set up notification manager
-	// Note that session bus may be nil, see the comment in tryConnectSessionBus.
-	if s.bus != nil {
-		// Use the sessionAgentBusName to make it compatible with GApplication
-		s.notificationMgr = notification.NewNotificationManager(s.bus, sessionAgentBusName)
-	}
-
 	agentSocket := fmt.Sprintf("%s/%d/snapd-session-agent.socket", dirs.XdgRuntimeDirBase, os.Getuid())
 	if l, err := netutil.GetListener(agentSocket, listenerMap); err != nil {
 		return fmt.Errorf("cannot listen on socket %s: %v", agentSocket, err)
@@ -224,6 +217,13 @@ func (s *SessionAgent) tryConnectSessionBus() (err error) {
 			s.bus = nil
 		}
 	}()
+
+	// Set up notification manager
+	// Use the sessionAgentBusName to make it compatible with GApplication
+	// Also, do it before requesting the well-known name to ensure that, if the
+	// agent has been launched with DBus-Activation, the org.freedesktop.Application
+	// interface is available when the name appears in the bus.
+	s.notificationMgr = notification.NewNotificationManager(s.bus, sessionAgentBusName)
 
 	reply, err := s.bus.RequestName(sessionAgentBusName, dbus.NameFlagDoNotQueue)
 	if err != nil {
