@@ -8,6 +8,8 @@ environment:
   # No partial gadget by default
   PARTIAL_GADGET: false
 
+  NESTED_ENABLE_TPM: true
+
   # Test both encrypted and unencrypted install using the muinstaller
   NESTED_ENABLE_TPM/encrypted,partial: true
   NESTED_ENABLE_SECURE_BOOT/encrypted,partial: true
@@ -15,6 +17,9 @@ environment:
   # unencrypted case
   NESTED_ENABLE_TPM/plain: false
   NESTED_ENABLE_SECURE_BOOT/plain: false
+
+  SEED_PARTITION: false
+  SEED_PARTITION/seeded: true
 
   # Using partial case (TPM used, see above)
   PARTIAL_GADGET/partial: true
@@ -70,7 +75,7 @@ execute: |
   if [ "$PARTIAL_GADGET" = true ]; then
       # Change to a gadget.yaml where "partial" is being used
       cp gadget-partial.yaml pc-gadget/meta/gadget.yaml
-  else
+  elif [ "$SEED_PARTITION" != 'true' ]; then
       # use the system-seed-null classic role
       sed -i 's/role: system-seed/role: system-seed-null/' pc-gadget/meta/gadget.yaml
   fi
@@ -223,8 +228,15 @@ execute: |
 
   # Make sure there is a change in assets to update
   sed -i 's/This program cannot be run in DOS mode/This program cannot be run in XXX mode/' pc-gadget/grubx64.efi
+
+  if [ "$SEED_PARTITION" = 'true' ]; then
+      role='system-seed'
+  else
+      role='system-seed-null'
+  fi
+
   # Bump edition of ubuntu-{seed,boot} content to get grub updated in both partitions
-  yq -i '(.volumes.pc.structure[] | select(.role == "system-seed-null") | .update.edition) |= . + 1' pc-gadget/meta/gadget.yaml
+  yq -i "(.volumes.pc.structure[] | select(.role == \"${role}\") | .update.edition) |= . + 1" pc-gadget/meta/gadget.yaml
   yq -i '(.volumes.pc.structure[] | select(.role == "system-boot") | .update.edition) |= . + 1' pc-gadget/meta/gadget.yaml
   nested_secboot_sign_file pc-gadget/grubx64.efi "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
   refresh_rebooting_snap pc pc.snap.orig ./pc-gadget
@@ -267,3 +279,25 @@ execute: |
       remote.exec 'test -e "/dev/disk/by-partlabel/BIOS\x20Boot"'
       remote.exec 'sudo fdisk -l /dev/vda' | MATCH '/dev/vda1\s+2048\s+4095\s+2048\s+1M\s+BIOS boot'
   fi
+
+  if [ "$SEED_PARTITION" = 'false' ]; then
+      remote.exec not test -e /run/mnt/ubuntu-seed/systems/classic
+      exit 0
+  fi
+
+  # check that seed is properly installed
+  remote.exec test -d /run/mnt/ubuntu-seed/systems/classic
+  remote.exec "sudo snap recovery" | MATCH 'classic\s+developer1\s+developer1-22-classic-dangerous\s+current'
+
+  # check for unasserted snaps
+  for sn in pc pc-kernel snapd; do
+      version=$(remote.exec "snap list ${sn}" | awk 'NR != 1 { print $2 }' | cut -d '+' -f 1)
+      remote.exec "test -f /run/mnt/ubuntu-seed/systems/classic/snaps/${sn}_${version}.snap"
+  done
+
+  # check for asserted snaps
+  core22_rev=$(remote.exec "snap list core22" | awk 'NR != 1 { print $3 }')
+  remote.exec "test -f /run/mnt/ubuntu-seed/snaps/core22_${core22_rev}.snap"
+
+  # model in the seed should match the one that was installed on the system
+  remote.exec "diff <(snap model --assertion) /run/mnt/ubuntu-seed/systems/classic/model"

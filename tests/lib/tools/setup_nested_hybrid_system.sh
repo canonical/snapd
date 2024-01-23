@@ -36,13 +36,15 @@ run_muinstaller() {
     tests.nested secboot-sign gadget pc-gadget "${snakeoil_key}" "${snakeoil_cert}"
     snap pack --filename=pc.snap pc-gadget/
 
+    build_snapd_snap .
+    mv snapd_*.snap snapd.snap
+
     # prepare a classic seed
-    # TODO:
-    # - repacked snapd snap
     snap prepare-image --classic \
         --channel=edge \
         --snap "${kernel_snap}" \
         --snap pc.snap \
+        --snap snapd.snap \
         "${model_assertion}" \
         ./classic-seed
 
