@@ -2019,7 +2019,7 @@ func (*schemaSuite) TestAlternativeTypesWithConstraintsFail(c *C) {
 	expected string matching \[bB\]ar but value was "bAR"`)
 }
 
-func (*schemaSuite) TestAlternativeTypesNested(c *C) {
+func (*schemaSuite) TestAlternativeTypesNestedHappy(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
 		"foo": ["int", ["number", ["string"]]]
@@ -2033,6 +2033,22 @@ func (*schemaSuite) TestAlternativeTypesNested(c *C) {
 		err = schema.Validate(input)
 		c.Assert(err, IsNil)
 	}
+}
+
+func (*schemaSuite) TestAlternativeTypesNestedFail(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": ["int", ["number", ["string"]]]
+	}
+}`)
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	err = schema.Validate([]byte(`{"foo":false}`))
+	c.Assert(err, ErrorMatches, `cannot accept element in "foo": 
+	expected int type but value was bool
+	expected number type but value was bool
+	expected string type but value was bool`)
 }
 
 func (*schemaSuite) TestAlternativeTypesUnknownType(c *C) {

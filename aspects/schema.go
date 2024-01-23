@@ -239,7 +239,26 @@ func (s *StorageSchema) parseAlternatives(alternatives []json.RawMessage) (*alte
 		return nil, fmt.Errorf(`alternative type list cannot be empty`)
 	}
 
+	flatAlts := flattenAlternatives(alt)
+	alt.schemas = flatAlts
+
 	return alt, nil
+}
+
+// flattenAlternatives takes the schemas that comprise the alternative schema
+// and flattens them into a single list.
+func flattenAlternatives(alt *alternativesSchema) []Schema {
+	var flat []Schema
+	for _, schema := range alt.schemas {
+		if altSchema, ok := schema.(*alternativesSchema); ok {
+			nestedAlts := flattenAlternatives(altSchema)
+			flat = append(flat, nestedAlts...)
+		} else {
+			flat = append(flat, schema)
+		}
+	}
+
+	return flat
 }
 
 func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
