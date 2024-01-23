@@ -68,7 +68,7 @@ type appPolicy struct{}
 
 func (appPolicy) CanRemove(_ *state.State, snapst *snapstate.SnapState, rev snap.Revision, dev snap.Device) error {
 	if ephemeral(dev) {
-		return errEphemeralSnapsNotRemovalable
+		return errEphemeralSnapsNotRemovable
 	}
 
 	if !rev.Unset() {

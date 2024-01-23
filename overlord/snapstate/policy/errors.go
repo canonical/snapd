@@ -34,7 +34,7 @@ var (
 	errSnapdNotRemovableOnCore       = errors.New("snapd required on core devices")
 	errSnapdNotYetRemovableOnClassic = errors.New("remove all other snaps first")
 
-	errEphemeralSnapsNotRemovalable = errors.New("no snaps are removable in any of the ephemeral modes")
+	errEphemeralSnapsNotRemovable = errors.New("no snaps are removable in any of the ephemeral modes")
 )
 
 type inUseByErr []string

@@ -37,7 +37,7 @@ func (p *kernelPolicy) CanRemove(_ *state.State, snapst *snapstate.SnapState, re
 	}
 
 	if ephemeral(dev) {
-		return errEphemeralSnapsNotRemovalable
+		return errEphemeralSnapsNotRemovable
 	}
 
 	if p.modelKernel == name {
