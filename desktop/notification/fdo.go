@@ -121,6 +121,10 @@ func (srv *fdoBackend) SendNotification(id ID, msg *Message) error {
 	defer srv.mu.Unlock()
 	srv.serverToLocalID[serverSideId] = id
 	srv.localToServerID[id] = serverSideId
+	// Since there is at least one notification, disable the idle
+	// timer to avoid the agent to exit, because that would invalidate
+	// the list of notifications and their parameters, and the notifications
+	// would become irresponsible.
 	srv.disableIdle = true
 	return nil
 }
@@ -274,6 +278,8 @@ func (srv *fdoBackend) processNotificationClosed(sig *dbus.Signal, observer Obse
 	}
 	if len(srv.serverToLocalID) == 0 {
 		srv.lastRemove = time.Now()
+		// since all the notifications have been closed, we can
+		// now re-enable the idle timer.
 		srv.disableIdle = false
 	}
 
