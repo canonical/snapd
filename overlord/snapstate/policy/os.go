@@ -46,9 +46,9 @@ func (p *osPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev s
 		return nil
 	}
 
-	// if the base is unset and dev.IsCoreBoot is true, then we know this is a
-	// UC16 system. note that base might be unset on classic models, so we must
-	// check dev.IsCoreBoot as well.
+	// consider the case of a UC16 system, where the model does not specify a base, 
+	// since 'core' is already implied and is actively used by the system, 
+	// which boots in the UC way
 	if p.modelBase == "" && dev.IsCoreBoot() {
 		if !rev.Unset() {
 			// TODO: tweak boot.InUse so that it DTRT when rev.Unset, call
