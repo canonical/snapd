@@ -178,7 +178,7 @@ func sealKeyForBootChainsImpl(
 }
 
 var SealKeyForBootChains = sealKeyForBootChainsImpl
-var SeedDir = dirs.SnapSeedDir
+var SeedDir = InitramfsUbuntuSeedDir
 
 func sealKeyToModeenvForMethod(
 	method device.SealingMethod,
