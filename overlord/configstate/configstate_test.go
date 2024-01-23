@@ -321,6 +321,7 @@ func (s *configcoreHijackSuite) TestConfigMngrInitHomeDirs(c *C) {
 	t.Commit()
 	s.state.Unlock()
 	err = configstate.Init(s.state, hookMgr)
+	c.Assert(err, IsNil)
 	snapHomeDirs := []string{"/home", "/home/department", "/users", "/users/seniors"}
 	c.Check(dirs.SnapHomeDirs(), DeepEquals, snapHomeDirs)
 }

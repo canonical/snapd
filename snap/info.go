@@ -643,7 +643,7 @@ func (s *Info) CommonDataSaveDir() string {
 	return CommonDataSaveDir(s.InstanceName())
 }
 
-// DataHomeDirs returns the per user data directory of the snap across multiple
+// DataHomeDirs returns the per user data directories of the snap across multiple
 // home directories.
 func (s *Info) DataHomeDirs(opts *dirs.SnapDirOptions) []string {
 	var dataHomeGlob []string
@@ -653,7 +653,7 @@ func (s *Info) DataHomeDirs(opts *dirs.SnapDirOptions) []string {
 	return dataHomeGlob
 }
 
-// CommonDataHomeDirs returns the per user data directory common across revisions
+// CommonDataHomeDirs returns the per user data directories common across revisions
 // of the snap in all defined home directories.
 func (s *Info) CommonDataHomeDirs(opts *dirs.SnapDirOptions) []string {
 	var comDataHomeGlob []string

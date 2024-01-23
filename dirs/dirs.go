@@ -205,7 +205,7 @@ func SnapHomeDirs() []string {
 	dirs := make([]string, len(snapHomeDirs))
 	copy(dirs, snapHomeDirs)
 	// Should never be true since SetSnapHomeDirs is ran on init.
-	// Usefull for unit tests.
+	// Useful for unit tests.
 	if len(dirs) == 0 {
 		return []string{filepath.Join(GlobalRootDir, "/home")}
 	}
@@ -220,15 +220,16 @@ func SnapHomeDirs() []string {
 func SetSnapHomeDirs(homedirs string) []string {
 	snapHomeDirsMu.Lock()
 	defer snapHomeDirsMu.Unlock()
-	snapHomeDirs = strings.Split(homedirs, ",")
-	for i := range snapHomeDirs {
-		if !strings.HasPrefix(snapHomeDirs[i], GlobalRootDir) {
-			snapHomeDirs[i] = filepath.Join(GlobalRootDir, snapHomeDirs[i])
+	if homedirs != "" {
+		snapHomeDirs = strings.Split(homedirs, ",")
+		for i := range snapHomeDirs {
+			if !strings.HasPrefix(snapHomeDirs[i], GlobalRootDir) {
+				snapHomeDirs[i] = filepath.Join(GlobalRootDir, snapHomeDirs[i])
+			}
+			// Make sure the paths are clean, necessary for unit tests.
+			snapHomeDirs[i] = filepath.Clean(snapHomeDirs[i])
 		}
-		// Make sure the paths are clean, necessary for unit tests.
-		snapHomeDirs[i] = filepath.Clean(snapHomeDirs[i])
 	}
-
 	hasHome := false
 	// Make sure /home is part of the list.
 	for _, e := range snapHomeDirs {
@@ -242,11 +243,11 @@ func SetSnapHomeDirs(homedirs string) []string {
 	}
 
 	// Generate data directory globbing expressions for each user.
-	SnapDataHomeGlob = make([]string, len(snapHomeDirs))
-	HiddenSnapDataHomeGlob = make([]string, len(snapHomeDirs))
-	for i, dir := range snapHomeDirs {
-		SnapDataHomeGlob[i] = dir + "/*/" + UserHomeSnapDir
-		HiddenSnapDataHomeGlob[i] = dir + "/*/" + HiddenSnapDataHomeDir
+	SnapDataHomeGlob = nil
+	HiddenSnapDataHomeGlob = nil
+	for _, dir := range snapHomeDirs {
+		SnapDataHomeGlob = append(SnapDataHomeGlob, dir+"/*/"+UserHomeSnapDir)
+		HiddenSnapDataHomeGlob = append(HiddenSnapDataHomeGlob, dir+"/*/"+HiddenSnapDataHomeDir)
 	}
 
 	return snapHomeDirs
@@ -268,18 +269,19 @@ func StripRootDir(dir string) string {
 }
 
 // DataHomeGlobs returns a slice of globbing expressions for the snap directories in use.
-// Uses the same mutex as snapHomeDirs since they are set within the same function.
 func DataHomeGlobs(opts *SnapDirOptions) []string {
 	snapHomeDirsMu.Lock()
 	defer snapHomeDirsMu.Unlock()
 	if opts == nil {
 		opts = &SnapDirOptions{}
 	}
-
+	glob := make([]string, len(SnapDataHomeGlob))
 	if opts.HiddenSnapDataDir {
-		return HiddenSnapDataHomeGlob
+		copy(glob, HiddenSnapDataHomeGlob)
+		return glob
 	}
-	return SnapDataHomeGlob
+	copy(glob, SnapDataHomeGlob)
+	return glob
 }
 
 // SupportsClassicConfinement returns true if the current directory layout supports classic confinement.
@@ -591,6 +593,9 @@ func SetRootDir(rootdir string) {
 	for _, c := range callbacks {
 		c(rootdir)
 	}
+
+	// If the root directory changes we also need to reset snapHomeDirs.
+	SetSnapHomeDirs("/home")
 }
 
 // what inside a (non-classic) snap is /usr/lib/snapd, outside can come from different places
