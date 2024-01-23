@@ -26,7 +26,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -178,7 +177,7 @@ func sealKeyForBootChainsImpl(
 }
 
 var SealKeyForBootChains = sealKeyForBootChainsImpl
-var SeedDir = dirs.SnapSeedDir
+var SeedDir = InitramfsUbuntuSeedDir
 
 func sealKeyToModeenvForMethod(
 	method device.SealingMethod,
