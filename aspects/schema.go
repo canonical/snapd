@@ -99,15 +99,15 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 
 // userTypeRefParser parses references to user-defined types (e.g., $my-type).
 type userTypeRefParser struct {
-	parser
+	Schema
 
 	stringBased bool
 }
 
-func newUserTypeRefParser(p parser) *userTypeRefParser {
-	_, ok := p.(*stringSchema)
+func newUserTypeRefParser(s Schema) *userTypeRefParser {
+	_, ok := s.(*stringSchema)
 	return &userTypeRefParser{
-		parser:      p,
+		Schema:      s,
 		stringBased: ok,
 	}
 }
@@ -116,6 +116,11 @@ func newUserTypeRefParser(p parser) *userTypeRefParser {
 // define constraints (these are defined under "types" at the top level).
 func (*userTypeRefParser) expectsConstraints() bool {
 	return false
+}
+
+// parseConstraints is a no-op because type references can't define constraints.
+func (v *userTypeRefParser) parseConstraints(map[string]json.RawMessage) error {
+	return nil
 }
 
 // isStringBased returns true if this reference's base type is a string.
@@ -138,19 +143,27 @@ func (s *StorageSchema) Validate(raw []byte) error {
 	return s.topLevel.Validate(raw)
 }
 
-func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
+func (s *StorageSchema) parse(raw json.RawMessage) (Schema, error) {
+	jsonType, err := parseTypeDefinition(raw)
+	if err != nil {
+		return nil, fmt.Errorf(`cannot parse type definition: %w`, err)
+	}
+
 	var typ string
 	var schemaDef map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &schemaDef); err != nil {
-		var typeErr *json.UnmarshalTypeError
-		if !errors.As(err, &typeErr) {
-			return nil, fmt.Errorf(`cannot parse aspect schema: %w`, err)
-		}
+	switch typedVal := jsonType.(type) {
+	case string:
+		typ = typedVal
 
-		if err := json.Unmarshal(raw, &typ); err != nil {
-			return nil, fmt.Errorf(`cannot parse aspect schema: types constraint must be expressed as maps or strings: %w`, err)
+	case []json.RawMessage:
+		alts, err := s.parseAlternatives(typedVal)
+		if err != nil {
+			return nil, fmt.Errorf(`cannot parse alternative types: %w`, err)
 		}
-	} else {
+		return alts, nil
+
+	case map[string]json.RawMessage:
+		schemaDef = typedVal
 		rawType, ok := schemaDef["type"]
 		if !ok {
 			typ = "map"
@@ -159,6 +172,10 @@ func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
 				return nil, fmt.Errorf(`cannot parse "type" constraint in type definition: %w`, err)
 			}
 		}
+
+	default:
+		// cannot happen save for programmer error
+		return nil, fmt.Errorf(`cannot parse schema definition of JSON type %T`, jsonType)
 	}
 
 	schema, err := s.newTypeSchema(typ)
@@ -176,6 +193,72 @@ func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
 	}
 
 	return schema, nil
+}
+
+// parseTypeDefinition tries to parse the raw JSON as a list, a map or a string
+// (the accepted ways to express types).
+func parseTypeDefinition(raw json.RawMessage) (interface{}, error) {
+	var typeErr *json.UnmarshalTypeError
+
+	var l []json.RawMessage
+	if err := json.Unmarshal(raw, &l); err == nil {
+		return l, nil
+	} else if !errors.As(err, &typeErr) {
+		return nil, err
+	}
+
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err == nil {
+		return m, nil
+	} else if !errors.As(err, &typeErr) {
+		return nil, err
+	}
+
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s, nil
+	} else {
+		return nil, fmt.Errorf(`type must be expressed as map, string or list: %w`, err)
+	}
+}
+
+// parseAlternatives takes a list of alternative types, parses them and creates
+// a schema that accepts values matching any alternative.
+func (s *StorageSchema) parseAlternatives(alternatives []json.RawMessage) (*alternativesSchema, error) {
+	alt := &alternativesSchema{schemas: make([]Schema, 0, len(alternatives))}
+	for _, altRaw := range alternatives {
+		schema, err := s.parse(altRaw)
+		if err != nil {
+			return nil, err
+		}
+
+		alt.schemas = append(alt.schemas, schema)
+	}
+
+	if len(alt.schemas) == 0 {
+		return nil, fmt.Errorf(`alternative type list cannot be empty`)
+	}
+
+	flatAlts := flattenAlternatives(alt)
+	alt.schemas = flatAlts
+
+	return alt, nil
+}
+
+// flattenAlternatives takes the schemas that comprise the alternative schema
+// and flattens them into a single list.
+func flattenAlternatives(alt *alternativesSchema) []Schema {
+	var flat []Schema
+	for _, schema := range alt.schemas {
+		if altSchema, ok := schema.(*alternativesSchema); ok {
+			nestedAlts := flattenAlternatives(altSchema)
+			flat = append(flat, nestedAlts...)
+		} else {
+			flat = append(flat, schema)
+		}
+	}
+
+	return flat
 }
 
 func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
@@ -211,6 +294,61 @@ func (s *StorageSchema) getUserType(ref string) (*userTypeRefParser, error) {
 	return nil, fmt.Errorf("cannot find user-defined type %q", ref)
 }
 
+type alternativesSchema struct {
+	// schemas holds schemas for the types allowed for the corresponding value.
+	schemas []Schema
+}
+
+// Validate that raw matches at least one of the schemas in the alternative list.
+func (v *alternativesSchema) Validate(raw []byte) error {
+	var errs []error
+	for _, schema := range v.schemas {
+		err := schema.Validate(raw)
+		if err == nil {
+			return nil
+		}
+
+		errs = append(errs, err)
+	}
+
+	var sb strings.Builder
+	sb.WriteString("no matching schema:")
+	for i, err := range errs {
+		sb.WriteString("\n\t")
+		if i > 0 {
+			sb.WriteString("or ")
+		}
+
+		if verr, ok := err.(*ValidationError); ok {
+			err = verr.Err
+
+			if len(verr.Path) != 0 {
+				sb.WriteString("...\"")
+				for i, part := range verr.Path {
+					switch v := part.(type) {
+					case string:
+						if i > 0 {
+							sb.WriteRune('.')
+						}
+
+						sb.WriteString(v)
+					case int:
+						sb.WriteString(fmt.Sprintf("[%d]", v))
+					default:
+						// can only happen due to bug
+						sb.WriteString(".<n/a>")
+					}
+				}
+				sb.WriteString("\": ")
+			}
+		}
+
+		sb.WriteString(err.Error())
+	}
+
+	return validationErrorf(sb.String())
+}
+
 type mapSchema struct {
 	// topSchema is the schema for the top-level schema which contains the user types.
 	topSchema *StorageSchema
@@ -237,7 +375,7 @@ func (v *mapSchema) Validate(raw []byte) error {
 	if err := json.Unmarshal(raw, &mapValue); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
 		if errors.As(err, &typeErr) {
-			return validationErrorf("expected map type but got %s", typeErr.Value)
+			return validationErrorf("expected map type but value was %s", typeErr.Value)
 		}
 		return validationErrorFrom(err)
 	}
@@ -457,7 +595,7 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 			}
 
 			if typ != "string" {
-				return nil, fmt.Errorf(`must be based on string but got %q`, typ)
+				return nil, fmt.Errorf(`must be based on string but type was %s`, typ)
 			}
 		}
 
@@ -486,7 +624,7 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 		return userType, nil
 	}
 
-	return nil, fmt.Errorf(`keys must be based on string but got %q`, typ)
+	return nil, fmt.Errorf(`keys must be based on string but type was %s`, typ)
 }
 
 func (v *mapSchema) expectsConstraints() bool { return true }
@@ -511,7 +649,7 @@ func (v *stringSchema) Validate(raw []byte) (err error) {
 	if err := json.Unmarshal(raw, &value); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
 		if errors.As(err, &typeErr) {
-			return fmt.Errorf("expected string type but got %s", typeErr.Value)
+			return fmt.Errorf("expected string type but value was %s", typeErr.Value)
 		}
 		return err
 	}
@@ -525,7 +663,7 @@ func (v *stringSchema) Validate(raw []byte) (err error) {
 	}
 
 	if v.pattern != nil && !v.pattern.Match([]byte(*value)) {
-		return fmt.Errorf(`string %q doesn't match schema pattern %s`, *value, v.pattern.String())
+		return fmt.Errorf(`expected string matching %s but value was %q`, v.pattern.String(), *value)
 	}
 
 	return nil
@@ -584,7 +722,7 @@ func (v *intSchema) Validate(raw []byte) (err error) {
 	if err := json.Unmarshal(raw, &num); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
 		if errors.As(err, &typeErr) {
-			return fmt.Errorf("expected int type but got %s", typeErr.Value)
+			return fmt.Errorf("expected int type but value was %s", typeErr.Value)
 		}
 		return err
 	}
@@ -689,7 +827,7 @@ func (v *numberSchema) Validate(raw []byte) (err error) {
 	if err := json.Unmarshal(raw, &num); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
 		if errors.As(err, &typeErr) {
-			return fmt.Errorf("expected number type but got %s", typeErr.Value)
+			return fmt.Errorf("expected number type but value was %s", typeErr.Value)
 		}
 		return err
 	}
@@ -790,7 +928,7 @@ func (v *booleanSchema) Validate(raw []byte) (err error) {
 	if err := json.Unmarshal(raw, &val); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
 		if errors.As(err, &typeErr) {
-			return fmt.Errorf("expected bool type but got %s", typeErr.Value)
+			return fmt.Errorf("expected bool type but value was %s", typeErr.Value)
 		}
 		return err
 	}
@@ -826,7 +964,7 @@ func (v *arraySchema) Validate(raw []byte) error {
 	if err := json.Unmarshal(raw, &array); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
 		if errors.As(err, &typeErr) {
-			return validationErrorf("expected array type but got %s", typeErr.Value)
+			return validationErrorf("expected array type but value was %s", typeErr.Value)
 		}
 		return validationErrorFrom(err)
 	}
@@ -887,6 +1025,10 @@ func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) e
 
 func (v *arraySchema) expectsConstraints() bool { return true }
 
+// TODO: keep a list of expected types (to support alternatives), an actual type/value
+// and then optional unmet constraints for the expected types. Then this could be used
+// to have more concise errors when there are many possible types
+// https://github.com/snapcore/snapd/pull/13502#discussion_r1463658230
 type ValidationError struct {
 	Path []interface{}
 	Err  error
