@@ -38,25 +38,33 @@ type featureSuite struct{}
 var _ = Suite(&featureSuite{})
 
 func (*featureSuite) TestName(c *C) {
-	c.Check(features.Layouts.String(), Equals, "layouts")
-	c.Check(features.ParallelInstances.String(), Equals, "parallel-instances")
-	c.Check(features.Hotplug.String(), Equals, "hotplug")
-	c.Check(features.SnapdSnap.String(), Equals, "snapd-snap")
-	c.Check(features.PerUserMountNamespace.String(), Equals, "per-user-mount-namespace")
-	c.Check(features.RefreshAppAwareness.String(), Equals, "refresh-app-awareness")
-	c.Check(features.ClassicPreservesXdgRuntimeDir.String(), Equals, "classic-preserves-xdg-runtime-dir")
-	c.Check(features.RobustMountNamespaceUpdates.String(), Equals, "robust-mount-namespace-updates")
-	c.Check(features.UserDaemons.String(), Equals, "user-daemons")
-	c.Check(features.DbusActivation.String(), Equals, "dbus-activation")
-	c.Check(features.HiddenSnapDataHomeDir.String(), Equals, "hidden-snap-folder")
-	c.Check(features.MoveSnapHomeDir.String(), Equals, "move-snap-home-dir")
-	c.Check(features.CheckDiskSpaceInstall.String(), Equals, "check-disk-space-install")
-	c.Check(features.CheckDiskSpaceRefresh.String(), Equals, "check-disk-space-refresh")
-	c.Check(features.CheckDiskSpaceRemove.String(), Equals, "check-disk-space-remove")
-	c.Check(features.GateAutoRefreshHook.String(), Equals, "gate-auto-refresh-hook")
-	c.Check(features.QuotaGroups.String(), Equals, "quota-groups")
-	c.Check(features.RefreshAppAwarenessUX.String(), Equals, "refresh-app-awareness-ux")
-	c.Check(features.AspectsConfiguration.String(), Equals, "aspects-configuration")
+	var tested int
+	check := func(f features.SnapdFeature, name string) {
+		c.Check(f.String(), Equals, name)
+		tested++
+	}
+
+	check(features.Layouts, "layouts")
+	check(features.ParallelInstances, "parallel-instances")
+	check(features.Hotplug, "hotplug")
+	check(features.SnapdSnap, "snapd-snap")
+	check(features.PerUserMountNamespace, "per-user-mount-namespace")
+	check(features.RefreshAppAwareness, "refresh-app-awareness")
+	check(features.ClassicPreservesXdgRuntimeDir, "classic-preserves-xdg-runtime-dir")
+	check(features.RobustMountNamespaceUpdates, "robust-mount-namespace-updates")
+	check(features.UserDaemons, "user-daemons")
+	check(features.DbusActivation, "dbus-activation")
+	check(features.HiddenSnapDataHomeDir, "hidden-snap-folder")
+	check(features.MoveSnapHomeDir, "move-snap-home-dir")
+	check(features.CheckDiskSpaceInstall, "check-disk-space-install")
+	check(features.CheckDiskSpaceRefresh, "check-disk-space-refresh")
+	check(features.CheckDiskSpaceRemove, "check-disk-space-remove")
+	check(features.GateAutoRefreshHook, "gate-auto-refresh-hook")
+	check(features.QuotaGroups, "quota-groups")
+	check(features.RefreshAppAwarenessUX, "refresh-app-awareness-ux")
+	check(features.AspectsConfiguration, "aspects-configuration")
+
+	c.Check(tested, Equals, features.NumberOfFeatures())
 	c.Check(func() { _ = features.SnapdFeature(1000).String() }, PanicMatches, "unknown feature flag code 1000")
 }
 
@@ -70,24 +78,32 @@ func (*featureSuite) TestKnownFeatures(c *C) {
 }
 
 func (*featureSuite) TestIsExported(c *C) {
-	c.Check(features.Layouts.IsExported(), Equals, false)
-	c.Check(features.Hotplug.IsExported(), Equals, false)
-	c.Check(features.SnapdSnap.IsExported(), Equals, false)
+	var tested int
+	check := func(f features.SnapdFeature, exported bool) {
+		c.Check(f.IsExported(), Equals, exported)
+		tested++
+	}
 
-	c.Check(features.ParallelInstances.IsExported(), Equals, true)
-	c.Check(features.PerUserMountNamespace.IsExported(), Equals, true)
-	c.Check(features.RefreshAppAwareness.IsExported(), Equals, true)
-	c.Check(features.ClassicPreservesXdgRuntimeDir.IsExported(), Equals, true)
-	c.Check(features.UserDaemons.IsExported(), Equals, false)
-	c.Check(features.DbusActivation.IsExported(), Equals, false)
-	c.Check(features.HiddenSnapDataHomeDir.IsExported(), Equals, true)
-	c.Check(features.MoveSnapHomeDir.IsExported(), Equals, true)
-	c.Check(features.CheckDiskSpaceInstall.IsExported(), Equals, false)
-	c.Check(features.CheckDiskSpaceRefresh.IsExported(), Equals, false)
-	c.Check(features.CheckDiskSpaceRemove.IsExported(), Equals, false)
-	c.Check(features.GateAutoRefreshHook.IsExported(), Equals, false)
-	c.Check(features.RefreshAppAwarenessUX.IsExported(), Equals, true)
-	c.Check(features.AspectsConfiguration.IsExported(), Equals, true)
+	check(features.Layouts, false)
+	check(features.Hotplug, false)
+	check(features.SnapdSnap, false)
+
+	check(features.ParallelInstances, true)
+	check(features.PerUserMountNamespace, true)
+	check(features.RefreshAppAwareness, true)
+	check(features.ClassicPreservesXdgRuntimeDir, true)
+	check(features.UserDaemons, false)
+	check(features.DbusActivation, false)
+	check(features.HiddenSnapDataHomeDir, true)
+	check(features.MoveSnapHomeDir, true)
+	check(features.CheckDiskSpaceInstall, false)
+	check(features.CheckDiskSpaceRefresh, false)
+	check(features.CheckDiskSpaceRemove, false)
+	check(features.GateAutoRefreshHook, false)
+	check(features.RefreshAppAwarenessUX, true)
+	check(features.AspectsConfiguration, true)
+
+	c.Check(tested, Equals, features.NumberOfFeatures())
 }
 
 func (*featureSuite) TestIsEnabled(c *C) {
@@ -110,24 +126,32 @@ func (*featureSuite) TestIsEnabled(c *C) {
 }
 
 func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
-	c.Check(features.Layouts.IsEnabledWhenUnset(), Equals, true)
-	c.Check(features.ParallelInstances.IsEnabledWhenUnset(), Equals, false)
-	c.Check(features.Hotplug.IsEnabledWhenUnset(), Equals, false)
-	c.Check(features.SnapdSnap.IsEnabledWhenUnset(), Equals, false)
-	c.Check(features.PerUserMountNamespace.IsEnabledWhenUnset(), Equals, false)
-	c.Check(features.RefreshAppAwareness.IsEnabledWhenUnset(), Equals, true)
-	c.Check(features.ClassicPreservesXdgRuntimeDir.IsEnabledWhenUnset(), Equals, true)
-	c.Check(features.RobustMountNamespaceUpdates.IsEnabledWhenUnset(), Equals, true)
-	c.Check(features.UserDaemons.IsEnabledWhenUnset(), Equals, false)
-	c.Check(features.DbusActivation.IsEnabledWhenUnset(), Equals, true)
-	c.Check(features.HiddenSnapDataHomeDir.IsEnabledWhenUnset(), Equals, false)
-	c.Check(features.MoveSnapHomeDir.IsEnabledWhenUnset(), Equals, false)
-	c.Check(features.CheckDiskSpaceInstall.IsEnabledWhenUnset(), Equals, false)
-	c.Check(features.CheckDiskSpaceRefresh.IsEnabledWhenUnset(), Equals, false)
-	c.Check(features.CheckDiskSpaceRemove.IsEnabledWhenUnset(), Equals, false)
-	c.Check(features.GateAutoRefreshHook.IsEnabledWhenUnset(), Equals, false)
-	c.Check(features.RefreshAppAwarenessUX.IsEnabledWhenUnset(), Equals, false)
-	c.Check(features.AspectsConfiguration.IsEnabledWhenUnset(), Equals, false)
+	var tested int
+	check := func(f features.SnapdFeature, enabledUnset bool) {
+		c.Check(f.IsEnabledWhenUnset(), Equals, enabledUnset)
+		tested++
+	}
+
+	check(features.Layouts, true)
+	check(features.ParallelInstances, false)
+	check(features.Hotplug, false)
+	check(features.SnapdSnap, false)
+	check(features.PerUserMountNamespace, false)
+	check(features.RefreshAppAwareness, true)
+	check(features.ClassicPreservesXdgRuntimeDir, true)
+	check(features.RobustMountNamespaceUpdates, true)
+	check(features.UserDaemons, false)
+	check(features.DbusActivation, true)
+	check(features.HiddenSnapDataHomeDir, false)
+	check(features.MoveSnapHomeDir, false)
+	check(features.CheckDiskSpaceInstall, false)
+	check(features.CheckDiskSpaceRefresh, false)
+	check(features.CheckDiskSpaceRemove, false)
+	check(features.GateAutoRefreshHook, false)
+	check(features.RefreshAppAwarenessUX, false)
+	check(features.AspectsConfiguration, false)
+
+	c.Check(tested, Equals, features.NumberOfFeatures())
 }
 
 func (*featureSuite) TestControlFile(c *C) {
