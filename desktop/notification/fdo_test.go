@@ -468,7 +468,7 @@ func (s *fdoSuite) TestNotificationWithActionsDoDisableAndEnableTimer(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(s.backend.GetAll(), HasLen, 0)
 	// wait for the DBus signal to be processed
-	notification.WaitForNSignals(1, true)
+	notification.WaitForNSignals(1)
 	c.Assert(srv.IdleIsDisabled(), Equals, false)
 }
 
@@ -527,12 +527,12 @@ func (s *fdoSuite) TestNotificationTwoWithActionsDoDisableAndEnableTimer(c *C) {
 	err = srv.CloseNotification("some-id")
 	c.Assert(err, IsNil)
 	// wait for the DBus signal to be processed
-	notification.WaitForNSignals(1, true)
+	notification.WaitForNSignals(1)
 	c.Assert(srv.IdleIsDisabled(), Equals, true)
 	// Closing the second must enable the timer
 	err = srv.CloseNotification("another-id")
 	c.Assert(err, IsNil)
-	notification.WaitForNSignals(1, true)
+	notification.WaitForNSignals(1)
 	c.Assert(srv.IdleIsDisabled(), Equals, false)
 }
 
@@ -579,12 +579,12 @@ func (s *fdoSuite) TestNotificationMixedWithAndWithoutActionsDoDisableAndEnableT
 	err = srv.CloseNotification("some-id")
 	c.Assert(err, IsNil)
 	// wait for the DBus signal to be processed
-	notification.WaitForNSignals(1, true)
+	notification.WaitForNSignals(1)
 	c.Assert(srv.IdleIsDisabled(), Equals, false)
 	// Closing the other must keep the timer enabled
 	err = srv.CloseNotification("another-id")
 	c.Assert(err, IsNil)
-	notification.WaitForNSignals(1, true)
+	notification.WaitForNSignals(1)
 	c.Assert(srv.IdleIsDisabled(), Equals, false)
 }
 
@@ -631,11 +631,70 @@ func (s *fdoSuite) TestNotificationMixedWithAndWithoutActionsDoDisableAndEnableT
 	err = srv.CloseNotification("another-id")
 	c.Assert(err, IsNil)
 	// wait for the DBus signal to be processed
-	notification.WaitForNSignals(1, true)
+	notification.WaitForNSignals(1)
 	c.Assert(srv.IdleIsDisabled(), Equals, true)
 	// Closing the other must enable the timer
 	err = srv.CloseNotification("some-id")
 	c.Assert(err, IsNil)
-	notification.WaitForNSignals(1, true)
+	notification.WaitForNSignals(1)
 	c.Assert(srv.IdleIsDisabled(), Equals, false)
+}
+
+type notificationData struct {
+	id         notification.ID
+	actionKey  string
+	parameters []string
+}
+
+func (s *fdoSuite) TestNotificationWithActions(c *C) {
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
+	restoreProcessSignal := notification.MockProcessSignal()
+	defer restoreProcessSignal()
+
+	tombS := tomb.Tomb{}
+	ch := make(chan notificationData)
+	observer := testObserver{
+		actionInvoked: func(id notification.ID, actionKey string, parameters []string) error {
+			ch <- notificationData{
+				id:         id,
+				actionKey:  actionKey,
+				parameters: parameters,
+			}
+			return nil
+		},
+	}
+	tombS.Go(func() error {
+		ctx := tombS.Context(context.Background())
+		return srv.HandleNotifications(ctx, &observer)
+	})
+	defer tombS.Kill(nil)
+
+	err := srv.SendNotification("some-id", &notification.Message{
+		Actions: []notification.Action{
+			{
+				ActionKey:     "key-1",
+				LocalizedText: "text-1",
+				Parameters:    []string{"param1", "param2"},
+			},
+			{
+				ActionKey:     "key-2",
+				LocalizedText: "text-2",
+			},
+		},
+	})
+	c.Assert(err, IsNil)
+
+	s.backend.InvokeAction(1, "key-1")
+
+	recvNotification := <-ch
+	c.Assert(recvNotification.id, Equals, notification.ID("some-id"))
+	c.Assert(recvNotification.actionKey, Equals, "key-1")
+	c.Assert(recvNotification.parameters, DeepEquals, []string{"param1", "param2"})
+
+	s.backend.InvokeAction(1, "key-2")
+
+	recvNotification = <-ch
+	c.Assert(recvNotification.id, Equals, notification.ID("some-id"))
+	c.Assert(recvNotification.actionKey, Equals, "key-2")
+	c.Assert(recvNotification.parameters, IsNil)
 }

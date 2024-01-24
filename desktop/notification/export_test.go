@@ -82,19 +82,21 @@ func GetSignalCounter() int {
 	return counter
 }
 
-func WaitForNSignals(n int, reset bool) {
+func WaitForNSignals(n int) {
 	for {
 		mu.Lock()
 		if signalCounter >= n {
-			if reset {
-				signalCounter = 0
-			} else {
-				signalCounter -= n
-			}
+			signalCounter -= n
 			mu.Unlock()
 			break
 		}
 		mu.Unlock()
 		time.Sleep(100 * time.Millisecond)
 	}
+}
+
+func ResetNSignals() {
+	mu.Lock()
+	signalCounter = 0
+	mu.Unlock()
 }
