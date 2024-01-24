@@ -1,14 +1,14 @@
 {
     "type": "model",
-    "authority-id": "FpA2tgNE8bUrUKSOhE6SOpsMdlcEJkDL",
+    "authority-id": "test-snapd",
     "series": "16",
-    "brand-id": "FpA2tgNE8bUrUKSOhE6SOpsMdlcEJkDL",
+    "brand-id": "test-snapd",
     "model": "my-model",
     "architecture": "amd64",
     "gadget": "test-snapd-pc",
     "base": "core18",
     "kernel": "pc-kernel=18",
     "serial-authority": ["generic"],
-    "timestamp": "2021-06-01T12:18:12+00:00",
+    "timestamp": "2024-01-11T16:19:03+00:00",
     "revision": "2"
 }
