@@ -1,8 +1,8 @@
 type: model
-authority-id: FpA2tgNE8bUrUKSOhE6SOpsMdlcEJkDL
+authority-id: test-snapd
 revision: 2
 series: 16
-brand-id: FpA2tgNE8bUrUKSOhE6SOpsMdlcEJkDL
+brand-id: test-snapd
 model: my-model
 architecture: amd64
 base: core18
@@ -10,16 +10,16 @@ gadget: pc=18
 kernel: test-snapd-pc-kernel
 serial-authority:
   - generic
-timestamp: 2021-06-01T12:18:12+00:00
-sign-key-sha3-384: u2EnPKDpHm8Or1VWwjs3duNosoBpFS4Da-c6vRQHPKwdllDOlQ02_JFGrxZDe03C
+timestamp: 2024-01-11T16:19:03+00:00
+sign-key-sha3-384: 7qWG-Uwck6Dji43a3Z8ZZrm7rAziZAch3xf76iFvqe4GaD0LI7U9lYPWMSJAsEgu
 
-AcLBcwQAAQoAHRYhBKg05U8V+aOkBzV5W4jJZcdh7V/PBQJgtkjWAAoJEIjJZcdh7V/PohgP/2fm
-XSlRe9vvjTvPGO/l1sr+NczyMLMdcrrZo3uwcLtO+qxMSlRYo0v+/l4kK/BIDozsh99tiZLGRcdp
-CVImDvRFo35PLfCqzCePPhr1m6rwnE9t6XEJ9/lFEQmMHwUvEx2AulcP9X8uu1lB8GmlGiY42QvK
-IBMDhXF7Nw9j/1P/L630FrlGFNJ9fQlhyI05WM5Er8OHatn1BIu1+1QCp19jiGf4joY/iuNYDYNL
-HLXZ6HtRX9ZvT/V5bfAjmaMQk6l+AligQDuOy/YAR7Je0aZVu/Zqsa6XAa1sJDNOyY/jxiHGatto
-k4ZZbiYKQ6YIW3/EcAHIguJpwRHEceL4MBUwo7cKeOXM/IhnzwrcVYgm7bLQ9PLzeIiHAYMpVW7B
-jaLpe4jUNKdKScdCecTadC6Zxp9Qef2NdlcpDpQ4hPilEZUmMscWVIR84CCUKRbN+WMRaEqHnCEe
-OC4sijrYKiqxwAkHq6X5uZsEVBHQ/WGJoml2yQ+gwzHM5G5gEKnMS+ujlYFbF4TQ58lJ/64KZYCi
-n4srfzV+wBdL8G9VSzs0u38vp4kM0kuMZwnlLbczKk5ggwVSKOxsTIQvuM2N8eiNi/M1a62y/pdc
-iHULT9AVY69PmtIfPi6I8IaqLRuVifyyKFJrBUBqD2C8ImGLZDzE+NbQSEwJHdAXIaAPHIzn
+AcLBcwQAAQoAHRYhBGESvKlz1RXG1IBOC0MdJKf2hr9ABQJloBVQAAoJEEMdJKf2hr9A4sUP/1YH
+AgyTq2p9CpbeuX/8E7d5g8+/JBh+96iZJXXsTtxIK49kWKPCvhYpxuYjJF8d0f591jQpITXNAfHn
+Jo9Nm9yDCUPupVQJhBqElQ2P1l5qtryLkOgAJt/xnM8POFrPdUiS/BITRjdKmqVtC6e9AQOLc2D1
+98GLn4VGq6sI8e2jMshDoi2wvqnLtTZPQ92RnNsSz48jc7cvcldw4+tKQ/hzUCUa0NpUcQ7nolxA
+xMNc4NV96Q/WDEeQP8MaD5VcQklNErap7fwcGOO1ETpgE4dsSqU/NFLZhWk1qEQVgyzoSyoCST7Q
+bPt34KPIQLXr2cq/GsN6DJHXKskKuH7FltfJQcYDp7PkuRf0y86wnr/2AvCSmvThzQoEPUi7bUhz
+K2omJbvmzRMoJrQV889DYMQIr7FvNr+cTgqowJ5R+HbolghoKccgrCM5bNSl6o0r939gj16xx0UO
+IdebmziyicMwXvn0URJkUwyBp8VwzmPtpnLWv2cdmkUSngfmhBUB/52oIOWbx/W+RtLangrzINjI
+VmpIQv9Rg1Te/GsHkM8L2r0wMUkT0apZorGKQ18ckNZZxp+xjrGmCqFEU2v5yVfCnzvJFQ7obvmo
+DueLmgigiTWE4dYGxISJYpVpoBDQyHp5suw1lsfvkoqNwX1tUzKutKUiHG3EacHjeoyXob2N

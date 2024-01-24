@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
@@ -322,6 +323,8 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
 
 	var testStore snapstate.StoreService
 

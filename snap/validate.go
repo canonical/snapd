@@ -1188,13 +1188,13 @@ func NeededDefaultProviders(info *Info) (providerSnapsToContentTag map[string][]
 	return (SimplePrereqTracker{}).MissingProviderContentTags(info, nil)
 }
 
-// SelfContainedPrereqTracker is a stateful helper to track
+// SelfContainedSetPrereqTracker is a stateful helper to track
 // prerequisites of snaps (default-providers in particular).
 // It is meant to be used when dealing with a self-contained set
 // of snaps, with no desire to fetch further snaps, so all
 // prerequisites must be present in the set itself.
 // This applies to first boot seeding and remodeling for example.
-// SelfContainedPrereqTracker implements snapstate.PrereqTracker.
+// SelfContainedSetPrereqTracker implements snapstate.PrereqTracker.
 type SelfContainedSetPrereqTracker struct {
 	snaps []*Info
 	all   *naming.SnapSet
@@ -1213,6 +1213,11 @@ func (prqt *SelfContainedSetPrereqTracker) Add(info *Info) {
 		prqt.all.Add(info)
 		prqt.snaps = append(prqt.snaps, info)
 	}
+}
+
+// Snaps returns all snaps that have been added to the tracker.
+func (prqt *SelfContainedSetPrereqTracker) Snaps() []*Info {
+	return append([]*Info{}, prqt.snaps...)
 }
 
 // MissingProviderContentTags implements snapstate.PrereqTracker.
