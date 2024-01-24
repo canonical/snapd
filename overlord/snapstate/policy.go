@@ -14,8 +14,12 @@ import (
 // involved in an operation. Rather than have a forest of `if`s
 // looking at type, model, etc, we move it to Policy and look it up.
 type Policy interface {
-	// CanRemove verifies that a snap can be removed.
-	// If rev is not unset, check for removing only that revision.
+	// CanRemove verifies that a snap can be removed. If rev is set, check
+	// for removing only that revision. A revision which is unset means that
+	// the snap will be completely gone after the operation, i.e. all
+	// installed revisions will be removed, which is equally true when
+	// removing the last remaining revision of the snap, even if said
+	// revision was explicitly passed by the user.
 	CanRemove(st *state.State, snapst *SnapState, rev snap.Revision, dev snap.Device) error
 }
 

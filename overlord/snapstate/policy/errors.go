@@ -26,10 +26,11 @@ import (
 )
 
 var (
-	errNoName       = errors.New("snap has no name (not installed?)")
-	errInUseForBoot = errors.New("snap is being used for boot")
-	errRequired     = errors.New("snap is required")
-	errIsModel      = errors.New("snap is used by the model")
+	errNoName            = errors.New("snap has no name (not installed?)")
+	errInUseForBoot      = errors.New("snap is being used for boot")
+	errRequired          = errors.New("snap is required")
+	errIsModel           = errors.New("snap is used by the model")
+	errSnapdNotInstalled = errors.New("core snap cannot be removed if snapd snap is not installed")
 
 	errSnapdNotRemovableOnCore       = errors.New("snapd required on core devices")
 	errSnapdNotYetRemovableOnClassic = errors.New("remove all other snaps first")
