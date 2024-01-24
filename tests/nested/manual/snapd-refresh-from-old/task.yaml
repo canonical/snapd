@@ -23,7 +23,10 @@ prepare: |
   tests.nested create-vm core
 
   # for refresh in later step of the test
-  "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB"/prepare.sh
+  build_snapd_snap .
+  mv snapd_*.snap snapd.snap
 
 execute: |
   remote.exec "sudo snap wait system seed.loaded"
@@ -47,6 +50,6 @@ execute: |
   fi
 
   echo "Now refresh snapd with current tree"
-  remote.push "snapd-from-deb.snap"
-  remote.exec "sudo snap install snapd-from-deb.snap --dangerous" || true
+  remote.push "snapd.snap"
+  remote.exec "sudo snap install snapd.snap --dangerous" || true
   remote.exec "snap list snapd" | MATCH "snapd .* x1 "

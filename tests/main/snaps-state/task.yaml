@@ -122,20 +122,6 @@ execute: |
             ;;
     esac
 
-    sha256_of_snap_file() {
-        local snapfile=$1
-        local filename=$2
-        local tmpdir
-        tmpdir=$(mktemp -d)
-
-        unsquashfs -d "$tmpdir/out" "$snapfile" "$filename" &>/dev/null
-
-        local sum
-        sum="$(sha256sum "$tmpdir/out/$filename")"
-        rm -rf "$tmpdir"
-        echo "$sum" | awk '{print $1}'
-    }
-
     # Skip test repack when the sru validation is being executed, in this
     # scenario the deb package used comes from the sru and repack is not done
     if [ "$SRU_VALIDATION" = 1 ]; then
@@ -149,20 +135,10 @@ execute: |
         test -e core/core-from-snapd-deb.snap
         rm -rf core
 
-        "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap snapd "$PWD"/snapd
-        test -e snapd/snapd-from-deb.snap
-        # Check the binary in the snap is the same than the installed in the system
-        test "$(sha256_of_snap_file snapd/snapd-from-deb.snap /usr/lib/snapd/snapd)" = "$(sha256sum /usr/lib/snapd/snapd | awk '{print $1}')"
-        rm -rf snapd
-
         cp "$SPREAD_PATH"/../snapd_*.deb current_snapd.deb
         "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap core "$PWD"/core current_snapd.deb
         test -e core/core-from-snapd-deb.snap
         rm -rf core
-
-        "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap snapd "$PWD"/snapd current_snapd.deb
-        test -e snapd/snapd-from-deb.snap
-        rm -rf snapd
 
         "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap core "$PWD"/core noexist.deb 2>&1 | MATCH "snaps-state: deb file used to repack not found: noexist.deb"
     fi

@@ -21,18 +21,26 @@ concurrency:
 
 jobs:
   snap-builds:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         toolchain:
           - default
           - FIPS
+        version:
+          # test version is a build of snapd with test keys and should
+          # only be installed by test runners. The pristine versions
+          # are the build that should be installed by human users.
+          - pristine
+          - test
     # only build the snap for pull requests, it's not needed on release branches
     # or on master since we have launchpad build recipes which do this already
     if: ${{ github.event_name == 'pull_request' }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
 
     - name: Select Go toolchain
       run: |
@@ -48,8 +56,21 @@ jobs:
                 exit 1
                 ;;
         esac
+        case "${{ matrix.version }}" in
+            pristine)
+                rm -f test-build
+                ;;
+            test)
+                touch test-build
+                ;;
+        esac
 
     - name: Build snapd snap
+      uses: snapcore/action-build@v1
+      with:
+        snapcraft-channel: 8.x/stable
+
+    - name: Build test snapd snap
       uses: snapcore/action-build@v1
       with:
         snapcraft-channel: 8.x/stable
@@ -71,7 +92,7 @@ jobs:
     - name: Uploading snapd snap artifact
       uses: actions/upload-artifact@v3
       with:
-        name: snap-files-${{ matrix.toolchain }}
+        name: snap-files-${{ matrix.toolchain }}-${{ matrix.version }}
         path: "*.snap"
 
   cache-build-deps:
@@ -592,7 +613,7 @@ jobs:
         verbose: true
 
   spread:
-    needs: [unit-tests]
+    needs: [unit-tests, snap-builds]
     # have spread jobs run on master on PRs only, but on both PRs and pushes to
     # release branches
     if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
@@ -793,6 +814,19 @@ jobs:
           # The log-filter tool is used to filter the spread logs to be stored
           echo FILTER_PARAMS="-o spread_$CHANGE_ID.filtered.log -e Debug -e WARNING: -f Failed=NO_LINES -f Error=NO_LINES"  >> $GITHUB_ENV
 
+    - name: Download built snap
+      uses: actions/download-artifact@v3
+      with:
+        name: snap-files-default-test
+        pattern: snapd_1337.*.snap
+        path: "${{ github.workspace }}/built-snap"
+
+    - name: Rename imported snap
+      run: |
+        for snap in built-snap/snapd_1337.*.snap; do
+          mv "${snap}" "${snap}.keep"
+        done
+
     - name: Run spread tests
       if: "!contains(github.event.pull_request.labels.*.name, 'Skip spread') && ( !startsWith(matrix.group, 'nested-') || contains(github.event.pull_request.labels.*.name, 'Run nested') )"
       env:
@@ -806,6 +840,16 @@ jobs:
             export NESTED_BUILD_SNAPD_FROM_CURRENT=true
             export NESTED_ENABLE_KVM=true
           fi
+
+          case "${{ matrix.systems }}" in
+            *-arm-*)
+              TESTS_USE_PREBUILT_SNAPD_SNAP=false
+              ;;
+            *)
+              TESTS_USE_PREBUILT_SNAPD_SNAP=true
+              ;;
+          esac
+          export TESTS_USE_PREBUILT_SNAPD_SNAP
 
           if [[ "${{ matrix.systems }}" =~ amazon-linux-2023 ]]; then
               # Amazon Linux 2023 has no xdelta, however we cannot disable
