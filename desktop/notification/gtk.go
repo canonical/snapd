@@ -128,6 +128,7 @@ func createOrgFreedesktopApplicationInterface() []introspect.Interface {
 	}
 }
 
+// GracefulShutdown has nothing to do in this backend
 func (srv *gtkBackend) GracefulShutdown() {}
 
 // TODO: support actions via session agent.
@@ -152,6 +153,8 @@ var newGtkBackend = func(conn *dbus.Conn, desktopID string) (NotificationManager
 	}
 
 	// Create the org.freedesktop.Application interface
+	// The application object must be like the desktopID, but in object form
+	// (thus, io.snapcraft.SessionAgent -> /io/snapcraft/SessionAgent)
 	gapplicationObjectPath := "/" + strings.ReplaceAll(desktopID, ".", "/")
 	var gapplicationNode = &introspect.Node{
 		Name:       gapplicationObjectPath,

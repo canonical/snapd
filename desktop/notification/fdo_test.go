@@ -27,6 +27,7 @@ import (
 
 	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/desktop/notification"
 	"github.com/snapcore/snapd/desktop/notification/notificationtest"
@@ -98,8 +99,15 @@ func (s *fdoSuite) TestSendNotificationSuccess(c *C) {
 		Priority:      notification.PriorityUrgent,
 		ExpireTimeout: time.Second * 1,
 		Actions: []notification.Action{
-			{ActionKey: "key-1", LocalizedText: "text-1"},
-			{ActionKey: "key-2", LocalizedText: "text-2"},
+			{
+				ActionKey:     "key-1",
+				LocalizedText: "text-1",
+				Parameters:    []string{"param1", "param2"},
+			},
+			{
+				ActionKey:     "key-2",
+				LocalizedText: "text-2",
+			},
 		},
 		Hints: []notification.Hint{
 			{Name: "hint-str", Value: "str"},
@@ -123,6 +131,16 @@ func (s *fdoSuite) TestSendNotificationSuccess(c *C) {
 		},
 		Expires: 1000,
 	})
+	parameters, ok := srv.GetParameters()["some-id"]
+	c.Check(ok, Equals, true)
+	c.Check(len(parameters), Equals, 2)
+	if parameters[0].ActionKey == "key-1" {
+		c.Check(parameters[0].Parameters, DeepEquals, []string{"param1", "param2"})
+		c.Check(len(parameters[1].Parameters), Equals, 0)
+	} else {
+		c.Check(parameters[1].Parameters, DeepEquals, []string{"param1", "param2"})
+		c.Check(len(parameters[0].Parameters), Equals, 0)
+	}
 }
 
 func (s *fdoSuite) TestSendNotificationWithServerDecidedExpireTimeout(c *C) {
@@ -400,4 +418,224 @@ func (s *fdoSuite) TestProcessNotificationClosedSignalBodyParseErrors(c *C) {
 		Body: []interface{}{true, uint32(2)},
 	}, &testObserver{})
 	c.Assert(err, ErrorMatches, "cannot process NotificationClosed signal: expected first body element to be uint32, got bool")
+}
+
+func (s *fdoSuite) TestNotificationWithoutActionsDontDisableTimer(c *C) {
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
+	err := srv.SendNotification("some-id", &notification.Message{})
+	c.Assert(err, IsNil)
+
+	parameters := srv.GetParameters()
+	c.Assert(len(parameters), Equals, 0)
+
+	c.Assert(srv.IdleIsDisabled(), Equals, false)
+}
+
+func (s *fdoSuite) TestNotificationWithActionsDoDisableAndEnableTimer(c *C) {
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
+	restoreProcessSignal := notification.MockProcessSignal()
+	defer restoreProcessSignal()
+
+	tombS := tomb.Tomb{}
+	tombS.Go(func() error {
+		ctx := tombS.Context(context.Background())
+		return srv.HandleNotifications(ctx, nil)
+	})
+	defer tombS.Kill(nil)
+
+	err := srv.SendNotification("some-id", &notification.Message{
+		Actions: []notification.Action{
+			{
+				ActionKey:     "key-1",
+				LocalizedText: "text-1",
+				Parameters:    []string{"param1", "param2"},
+			},
+			{
+				ActionKey:     "key-2",
+				LocalizedText: "text-2",
+			},
+		},
+	})
+	c.Assert(err, IsNil)
+
+	parameters := srv.GetParameters()
+	c.Assert(len(parameters), Equals, 1)
+
+	c.Assert(srv.IdleIsDisabled(), Equals, true)
+
+	// Now check that, when closed, the timer is enabled again
+	err = srv.CloseNotification("some-id")
+	c.Assert(err, IsNil)
+	c.Check(s.backend.GetAll(), HasLen, 0)
+	// wait for the DBus signal to be processed
+	notification.WaitForNSignals(1, true)
+	c.Assert(srv.IdleIsDisabled(), Equals, false)
+}
+
+func (s *fdoSuite) TestNotificationTwoWithActionsDoDisableAndEnableTimer(c *C) {
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
+	restoreProcessSignal := notification.MockProcessSignal()
+	defer restoreProcessSignal()
+
+	tombS := tomb.Tomb{}
+	tombS.Go(func() error {
+		ctx := tombS.Context(context.Background())
+		return srv.HandleNotifications(ctx, nil)
+	})
+	defer tombS.Kill(nil)
+
+	err := srv.SendNotification("some-id", &notification.Message{
+		Actions: []notification.Action{
+			{
+				ActionKey:     "key-1",
+				LocalizedText: "text-1",
+				Parameters:    []string{"param1", "param2"},
+			},
+			{
+				ActionKey:     "key-2",
+				LocalizedText: "text-2",
+			},
+		},
+	})
+	c.Assert(err, IsNil)
+
+	parameters := srv.GetParameters()
+	c.Assert(len(parameters), Equals, 1)
+
+	c.Assert(srv.IdleIsDisabled(), Equals, true)
+
+	err = srv.SendNotification("another-id", &notification.Message{
+		Actions: []notification.Action{
+			{
+				ActionKey:     "key-1",
+				LocalizedText: "text-1",
+				Parameters:    []string{"param1", "param2"},
+			},
+			{
+				ActionKey:     "key-2",
+				LocalizedText: "text-2",
+			},
+		},
+	})
+	c.Assert(err, IsNil)
+	parameters = srv.GetParameters()
+	c.Assert(len(parameters), Equals, 2)
+
+	c.Assert(srv.IdleIsDisabled(), Equals, true)
+
+	// Closing one must not enable the timer
+	err = srv.CloseNotification("some-id")
+	c.Assert(err, IsNil)
+	// wait for the DBus signal to be processed
+	notification.WaitForNSignals(1, true)
+	c.Assert(srv.IdleIsDisabled(), Equals, true)
+	// Closing the second must enable the timer
+	err = srv.CloseNotification("another-id")
+	c.Assert(err, IsNil)
+	notification.WaitForNSignals(1, true)
+	c.Assert(srv.IdleIsDisabled(), Equals, false)
+}
+
+func (s *fdoSuite) TestNotificationMixedWithAndWithoutActionsDoDisableAndEnableTimer(c *C) {
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
+	restoreProcessSignal := notification.MockProcessSignal()
+	defer restoreProcessSignal()
+
+	tombS := tomb.Tomb{}
+	tombS.Go(func() error {
+		ctx := tombS.Context(context.Background())
+		return srv.HandleNotifications(ctx, nil)
+	})
+	defer tombS.Kill(nil)
+
+	err := srv.SendNotification("some-id", &notification.Message{
+		Actions: []notification.Action{
+			{
+				ActionKey:     "key-1",
+				LocalizedText: "text-1",
+				Parameters:    []string{"param1", "param2"},
+			},
+			{
+				ActionKey:     "key-2",
+				LocalizedText: "text-2",
+			},
+		},
+	})
+	c.Assert(err, IsNil)
+
+	parameters := srv.GetParameters()
+	c.Assert(len(parameters), Equals, 1)
+
+	c.Assert(srv.IdleIsDisabled(), Equals, true)
+
+	err = srv.SendNotification("another-id", &notification.Message{})
+	c.Assert(err, IsNil)
+	parameters = srv.GetParameters()
+	c.Assert(len(parameters), Equals, 1)
+
+	c.Assert(srv.IdleIsDisabled(), Equals, true)
+
+	// Closing the one with parameters must enable the timer
+	err = srv.CloseNotification("some-id")
+	c.Assert(err, IsNil)
+	// wait for the DBus signal to be processed
+	notification.WaitForNSignals(1, true)
+	c.Assert(srv.IdleIsDisabled(), Equals, false)
+	// Closing the other must keep the timer enabled
+	err = srv.CloseNotification("another-id")
+	c.Assert(err, IsNil)
+	notification.WaitForNSignals(1, true)
+	c.Assert(srv.IdleIsDisabled(), Equals, false)
+}
+
+func (s *fdoSuite) TestNotificationMixedWithAndWithoutActionsDoDisableAndEnableTimer2(c *C) {
+	srv := notification.NewFdoBackend(s.SessionBus, "desktop-id").(*notification.FdoBackend)
+	restoreProcessSignal := notification.MockProcessSignal()
+	defer restoreProcessSignal()
+
+	tombS := tomb.Tomb{}
+	tombS.Go(func() error {
+		ctx := tombS.Context(context.Background())
+		return srv.HandleNotifications(ctx, nil)
+	})
+	defer tombS.Kill(nil)
+
+	err := srv.SendNotification("some-id", &notification.Message{
+		Actions: []notification.Action{
+			{
+				ActionKey:     "key-1",
+				LocalizedText: "text-1",
+				Parameters:    []string{"param1", "param2"},
+			},
+			{
+				ActionKey:     "key-2",
+				LocalizedText: "text-2",
+			},
+		},
+	})
+	c.Assert(err, IsNil)
+
+	parameters := srv.GetParameters()
+	c.Assert(len(parameters), Equals, 1)
+
+	c.Assert(srv.IdleIsDisabled(), Equals, true)
+
+	err = srv.SendNotification("another-id", &notification.Message{})
+	c.Assert(err, IsNil)
+	parameters = srv.GetParameters()
+	c.Assert(len(parameters), Equals, 1)
+
+	c.Assert(srv.IdleIsDisabled(), Equals, true)
+
+	// Closing the one without parameters must not enable the timer
+	err = srv.CloseNotification("another-id")
+	c.Assert(err, IsNil)
+	// wait for the DBus signal to be processed
+	notification.WaitForNSignals(1, true)
+	c.Assert(srv.IdleIsDisabled(), Equals, true)
+	// Closing the other must enable the timer
+	err = srv.CloseNotification("some-id")
+	c.Assert(err, IsNil)
+	notification.WaitForNSignals(1, true)
+	c.Assert(srv.IdleIsDisabled(), Equals, false)
 }

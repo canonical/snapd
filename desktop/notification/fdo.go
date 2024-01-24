@@ -231,7 +231,7 @@ func (srv *fdoBackend) ObserveNotifications(ctx context.Context, observer Observ
 			if !ok {
 				return nil
 			}
-			if err := srv.processSignal(sig, observer); err != nil {
+			if err := processSignal(srv, sig, observer); err != nil {
 				return err
 			}
 		}
@@ -247,7 +247,7 @@ func (srv *fdoBackend) GracefulShutdown() {
 	}
 }
 
-func (srv *fdoBackend) processSignal(sig *dbus.Signal, observer Observer) error {
+var processSignal = func(srv *fdoBackend, sig *dbus.Signal, observer Observer) error {
 	switch sig.Name {
 	case dBusInterfaceName + ".NotificationClosed":
 		if err := srv.processNotificationClosed(sig, observer); err != nil {
