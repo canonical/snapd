@@ -3864,7 +3864,7 @@ slots:
 	s.state.Lock()
 	snapstate.Set(s.state, "test-consumer", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{Revision: snap.R(1)}, {Revision: snap.R(2)}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1)}, {Revision: snap.R(2)}}),
 		Current:  snap.R(2),
 		SnapType: string("app"),
 	})
