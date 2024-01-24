@@ -857,7 +857,7 @@ func (s *copydataSuite) TestHideSnapDataSkipNoData(c *C) {
 
 	// only the user with snap data was migrated
 	newSnapDir := filepath.Join(homedir, dirs.HiddenSnapDataHomeDir)
-	matches, err := filepath.Glob(dirs.HiddenSnapDataHomeGlob[0])
+	matches, err := filepath.Glob(dirs.DataHomeGlobs(&dirs.SnapDirOptions{HiddenSnapDataDir: true})[0])
 	c.Assert(err, IsNil)
 	c.Assert(matches, HasLen, 1)
 	c.Assert(matches[0], Equals, newSnapDir)

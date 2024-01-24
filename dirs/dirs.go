@@ -40,11 +40,11 @@ var (
 
 	DistroLibExecDir string
 
-	HiddenSnapDataHomeGlob []string
+	hiddenSnapDataHomeGlob []string
 
 	SnapBlobDir          string
 	SnapDataDir          string
-	SnapDataHomeGlob     []string
+	snapDataHomeGlob     []string
 	SnapDownloadCacheDir string
 	SnapAppArmorDir      string
 	SnapSeccompBase      string
@@ -216,15 +216,15 @@ func SnapHomeDirs() []string {
 // Homedir must be a comma separated list of the user defined home directories.
 // If homedirs is empty, SnapHomeDirs will be a slice of length 1 containing "/home".
 // Also generates the data directory globbing expressions for each user.
-// Ran at startup by configstate.Init to initialize snapHomeDirs, SnapDataHomeGlob and HiddenSnapDataHomeGlob.
+// Ran at startup by configstate.Init to initialize snapHomeDirs, snapDataHomeGlob and hiddenSnapDataHomeGlob.
 func SetSnapHomeDirs(homedirs string) []string {
 	snapHomeDirsMu.Lock()
 	defer snapHomeDirsMu.Unlock()
 
 	//clear old values
 	snapHomeDirs = nil
-	SnapDataHomeGlob = nil
-	HiddenSnapDataHomeGlob = nil
+	snapDataHomeGlob = nil
+	hiddenSnapDataHomeGlob = nil
 
 	// Do not set the root directory as home unless explicitly specified with "."
 	if homedirs != "" {
@@ -236,8 +236,8 @@ func SetSnapHomeDirs(homedirs string) []string {
 				snapHomeDirs[i] = filepath.Join(GlobalRootDir, snapHomeDirs[i])
 			}
 			// Generate data directory globbing expressions for each user.
-			SnapDataHomeGlob = append(SnapDataHomeGlob, snapHomeDirs[i]+"/*/"+UserHomeSnapDir)
-			HiddenSnapDataHomeGlob = append(HiddenSnapDataHomeGlob, snapHomeDirs[i]+"/*/"+HiddenSnapDataHomeDir)
+			snapDataHomeGlob = append(snapDataHomeGlob, snapHomeDirs[i]+"/*/"+UserHomeSnapDir)
+			hiddenSnapDataHomeGlob = append(hiddenSnapDataHomeGlob, snapHomeDirs[i]+"/*/"+HiddenSnapDataHomeDir)
 		}
 	}
 
@@ -253,8 +253,8 @@ func SetSnapHomeDirs(homedirs string) []string {
 	// if not add it and create the glob expressions.
 	if !hasHome {
 		snapHomeDirs = append(snapHomeDirs, filepath.Join(GlobalRootDir, "/home"))
-		SnapDataHomeGlob = append(SnapDataHomeGlob, filepath.Join(GlobalRootDir, "/home", "*", UserHomeSnapDir))
-		HiddenSnapDataHomeGlob = append(HiddenSnapDataHomeGlob, filepath.Join(GlobalRootDir, "/home", "*", HiddenSnapDataHomeDir))
+		snapDataHomeGlob = append(snapDataHomeGlob, filepath.Join(GlobalRootDir, "/home", "*", UserHomeSnapDir))
+		hiddenSnapDataHomeGlob = append(hiddenSnapDataHomeGlob, filepath.Join(GlobalRootDir, "/home", "*", HiddenSnapDataHomeDir))
 	}
 
 	return snapHomeDirs
@@ -282,12 +282,12 @@ func DataHomeGlobs(opts *SnapDirOptions) []string {
 	if opts == nil {
 		opts = &SnapDirOptions{}
 	}
-	glob := make([]string, len(SnapDataHomeGlob))
+	glob := make([]string, len(snapDataHomeGlob))
 	if opts.HiddenSnapDataDir {
-		copy(glob, HiddenSnapDataHomeGlob)
+		copy(glob, hiddenSnapDataHomeGlob)
 		return glob
 	}
-	copy(glob, SnapDataHomeGlob)
+	copy(glob, snapDataHomeGlob)
 	return glob
 }
 
