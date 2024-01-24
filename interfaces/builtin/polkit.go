@@ -148,12 +148,24 @@ func (iface *polkitInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	return err
 }
 
+// hasPolkitDaemonExecutable checks known paths on core for the presence of
+// the polkit daemon executable. This function can be shortened but keep it like
+// this for readability.
+func hasPolkitDaemonExecutable() bool {
+	// On core22(+core-desktop?) polkitd is at /usr/libexec/polkitd
+	if osutil.IsExecutable("/usr/libexec/polkitd") {
+		return true
+	}
+	// On core24 polkitd is at /usr/lib/polkit-1/polkitd
+	return osutil.IsExecutable("/usr/lib/polkit-1/polkitd")
+}
+
 func init() {
 	registerIface(&polkitInterface{
 		commonInterface{
 			name:                  "polkit",
 			summary:               polkitSummary,
-			implicitOnCore:        osutil.IsExecutable("/usr/libexec/polkitd"),
+			implicitOnCore:        hasPolkitDaemonExecutable(),
 			implicitOnClassic:     true,
 			baseDeclarationPlugs:  polkitBaseDeclarationPlugs,
 			baseDeclarationSlots:  polkitBaseDeclarationSlots,
