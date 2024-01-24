@@ -273,7 +273,7 @@ apps:
 
 func (s *polkitInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
-	c.Check(si.ImplicitOnCore, Equals, osutil.IsExecutable("/usr/libexec/polkitd"))
+	c.Check(si.ImplicitOnCore, Equals, osutil.IsExecutable("/usr/libexec/polkitd") || osutil.IsExecutable("/usr/lib/polkit-1/polkitd"))
 	c.Check(si.ImplicitOnClassic, Equals, true)
 	c.Check(si.Summary, Equals, "allows access to polkitd to check authorisation")
 	c.Check(si.BaseDeclarationPlugs, testutil.Contains, "polkit")
