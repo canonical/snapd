@@ -92,6 +92,7 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.PerUserMountNamespace, true)
 	check(features.RefreshAppAwareness, true)
 	check(features.ClassicPreservesXdgRuntimeDir, true)
+	check(features.RobustMountNamespaceUpdates, true)
 	check(features.UserDaemons, false)
 	check(features.DbusActivation, false)
 	check(features.HiddenSnapDataHomeDir, true)
@@ -102,6 +103,7 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.GateAutoRefreshHook, false)
 	check(features.RefreshAppAwarenessUX, true)
 	check(features.AspectsConfiguration, true)
+	check(features.QuotaGroups, false)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 }
@@ -150,6 +152,7 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	check(features.GateAutoRefreshHook, false)
 	check(features.RefreshAppAwarenessUX, false)
 	check(features.AspectsConfiguration, false)
+	check(features.QuotaGroups, false)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 }
