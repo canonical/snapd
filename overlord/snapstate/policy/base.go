@@ -39,7 +39,7 @@ func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev
 	}
 
 	if ephemeral(dev) {
-		return errEphemeralSnapsNotRemovalable
+		return errEphemeralSnapsNotRemovable
 	}
 
 	if p.modelBase == name {

@@ -771,7 +771,7 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 				// initial seed change and continue on. This code will be
 				// removed/adapted before it is merged to the main branch,
 				// it is only meant to exist on the security release branch.
-				msg := fmt.Sprintf("neither snapd nor core snap available while preparing apparmor profile for devmode snap %s, panicing to restart snapd to continue seeding", snapInfo.InstanceName())
+				msg := fmt.Sprintf("neither snapd nor core snap available while preparing apparmor profile for devmode snap %s, panicking to restart snapd to continue seeding", snapInfo.InstanceName())
 				panic(msg)
 			}
 

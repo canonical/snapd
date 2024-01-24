@@ -292,7 +292,7 @@ func (s *backendSuite) TestInstallingDevmodeSnapNeitherSnapdNorCoreSnapInstalled
 	devMode := interfaces.ConfinementOptions{DevMode: true}
 	c.Assert(func() {
 		s.InstallSnap(c, devMode, "", ifacetest.SambaYamlV1, 1)
-	}, PanicMatches, "neither snapd nor core snap available while preparing apparmor profile for devmode snap samba, panicing to restart snapd to continue seeding")
+	}, PanicMatches, "neither snapd nor core snap available while preparing apparmor profile for devmode snap samba, panicking to restart snapd to continue seeding")
 }
 
 func (s *backendSuite) TestInstallingSnapWritesAndLoadsProfiles(c *C) {
