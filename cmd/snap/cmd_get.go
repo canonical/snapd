@@ -50,6 +50,14 @@ Nested values may be retrieved via a dotted path:
     frank
 `)
 
+// TODO: check the experimental feature is enabled and append this to get's help
+var longAspectGetHelp = i18n.G(`
+With the aspects experimental feature enabled, if the first argument passed
+into get is an aspect identifier matching the format <account-id>/<bundle>/<aspect>,
+get will use the aspects configuration API. In this case, the command returns
+the data retrieved from the requested dot-separated aspect paths.
+`)
+
 type cmdGet struct {
 	clientMixin
 	Positional struct {
@@ -63,7 +71,7 @@ type cmdGet struct {
 }
 
 func init() {
-	addCommand("get", shortGetHelp, longGetHelp, func() flags.Commander { return &cmdGet{} },
+	addCommand("get", shortGetHelp, longGetHelp+longAspectGetHelp, func() flags.Commander { return &cmdGet{} },
 		map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"d": i18n.G("Always return document, even with single key"),
@@ -242,7 +250,21 @@ func (x *cmdGet) Execute(args []string) error {
 	snapName := string(x.Positional.Snap)
 	confKeys := x.Positional.Keys
 
-	conf, err := x.client.Conf(snapName, confKeys)
+	var conf map[string]interface{}
+	var err error
+	// TODO: check that the experimental aspect feature is enabled
+	if isAspectID(snapName) {
+		// first argument is an aspectID, use the aspects API
+		aspectID := snapName
+		if err := validateAspectID(aspectID); err != nil {
+			return err
+		}
+
+		conf, err = x.client.AspectGet(aspectID, confKeys)
+	} else {
+		conf, err = x.client.Conf(snapName, confKeys)
+	}
+
 	if err != nil {
 		return err
 	}
