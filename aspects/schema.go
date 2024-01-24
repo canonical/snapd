@@ -313,8 +313,11 @@ func (v *alternativesSchema) Validate(raw []byte) error {
 
 	var sb strings.Builder
 	sb.WriteString("no matching schema:")
-	for _, err := range errs {
+	for i, err := range errs {
 		sb.WriteString("\n\t")
+		if i > 0 {
+			sb.WriteString("or ")
+		}
 
 		if verr, ok := err.(*ValidationError); ok {
 			err = verr.Err
@@ -1022,6 +1025,10 @@ func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) e
 
 func (v *arraySchema) expectsConstraints() bool { return true }
 
+// TODO: keep a list of expected types (to support alternatives), an actual type/value
+// and then optional unmet constraints for the expected types. Then this could be used
+// to have more concise errors when there are many possible types
+// https://github.com/snapcore/snapd/pull/13502#discussion_r1463658230
 type ValidationError struct {
 	Path []interface{}
 	Err  error
