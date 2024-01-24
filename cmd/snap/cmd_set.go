@@ -66,7 +66,10 @@ type cmdSet struct {
 }
 
 func init() {
-	addCommand("set", shortSetHelp, longSetHelp+longAspectSetHelp, func() flags.Commander { return &cmdSet{} },
+	if err := validateAspectFeatureFlag(); err == nil {
+		longSetHelp += longAspectSetHelp
+	}
+	addCommand("set", shortSetHelp, longSetHelp, func() flags.Commander { return &cmdSet{} },
 		waitDescs.also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"t": i18n.G("Parse the value strictly as JSON document"),
@@ -123,8 +126,11 @@ func (x *cmdSet) Execute([]string) error {
 
 	var chgID string
 	var err error
-	// TODO: check that the experimental aspect feature is enabled
 	if isAspectID(snapName) {
+		if err := validateAspectFeatureFlag(); err != nil {
+			return err
+		}
+
 		// first argument is an aspectID, use the aspects API
 		aspectID := snapName
 		if err := validateAspectID(aspectID); err != nil {

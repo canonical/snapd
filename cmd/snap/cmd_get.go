@@ -27,6 +27,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 )
 
@@ -50,7 +51,6 @@ Nested values may be retrieved via a dotted path:
     frank
 `)
 
-// TODO: check the experimental feature is enabled and append this to get's help
 var longAspectGetHelp = i18n.G(`
 With the aspects experimental feature enabled, if the first argument passed
 into get is an aspect identifier matching the format <account-id>/<bundle>/<aspect>,
@@ -71,7 +71,11 @@ type cmdGet struct {
 }
 
 func init() {
-	addCommand("get", shortGetHelp, longGetHelp+longAspectGetHelp, func() flags.Commander { return &cmdGet{} },
+	if err := validateAspectFeatureFlag(); err == nil {
+		longGetHelp += longAspectGetHelp
+	}
+
+	addCommand("get", shortGetHelp, longGetHelp, func() flags.Commander { return &cmdGet{} },
 		map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"d": i18n.G("Always return document, even with single key"),
@@ -252,8 +256,11 @@ func (x *cmdGet) Execute(args []string) error {
 
 	var conf map[string]interface{}
 	var err error
-	// TODO: check that the experimental aspect feature is enabled
 	if isAspectID(snapName) {
+		if err := validateAspectFeatureFlag(); err != nil {
+			return err
+		}
+
 		// first argument is an aspectID, use the aspects API
 		aspectID := snapName
 		if err := validateAspectID(aspectID); err != nil {
@@ -277,4 +284,12 @@ func (x *cmdGet) Execute(args []string) error {
 	default:
 		return x.outputDefault(conf, snapName, confKeys)
 	}
+}
+
+func validateAspectFeatureFlag() error {
+	if !features.AspectsConfiguration.IsEnabled() {
+		_, confName := features.AspectsConfiguration.ConfigOption()
+		return fmt.Errorf(`aspect-based configuration is disabled: you must set '%s' to true`, confName)
+	}
+	return nil
 }

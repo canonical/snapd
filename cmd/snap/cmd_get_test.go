@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"strings"
 
+	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	snapset "github.com/snapcore/snapd/cmd/snap"
@@ -226,12 +227,6 @@ func (s *SnapSuite) mockGetEmptyConfigServer(c *C) {
 	})
 }
 
-var _ = Suite(&aspectsGetSuite{})
-
-type aspectsGetSuite struct {
-	BaseSnapSuite
-}
-
 const syncResp = `{
   "type": "sync",
   "status-code": 200,
@@ -239,8 +234,11 @@ const syncResp = `{
   "result": %s
 }`
 
-func (s *aspectsGetSuite) TestAspectGet(c *C) {
+func (s *aspectsSuite) TestAspectGet(c *C) {
 	restore := snapset.MockIsStdinTTY(true)
+	defer restore()
+
+	restore = s.mockAspectsFlag(c)
 	defer restore()
 
 	var reqs int
@@ -273,8 +271,11 @@ func (s *aspectsGetSuite) TestAspectGet(c *C) {
 	c.Check(s.Stderr(), Equals, "")
 }
 
-func (s *aspectsGetSuite) TestAspectGetAsDocument(c *C) {
+func (s *aspectsSuite) TestAspectGetAsDocument(c *C) {
 	restore := snapset.MockIsStdinTTY(true)
+	defer restore()
+
+	restore = s.mockAspectsFlag(c)
 	defer restore()
 
 	var reqs int
@@ -311,8 +312,11 @@ func (s *aspectsGetSuite) TestAspectGetAsDocument(c *C) {
 	c.Check(s.Stderr(), Equals, "")
 }
 
-func (s *aspectsGetSuite) TestAspectGetMany(c *C) {
+func (s *aspectsSuite) TestAspectGetMany(c *C) {
 	restore := snapset.MockIsStdinTTY(true)
+	defer restore()
+
+	restore = s.mockAspectsFlag(c)
 	defer restore()
 
 	var reqs int
@@ -349,8 +353,11 @@ xyz  false
 	c.Check(s.Stderr(), Equals, "")
 }
 
-func (s *aspectsGetSuite) TestAspectGetManyAsDocument(c *C) {
+func (s *aspectsSuite) TestAspectGetManyAsDocument(c *C) {
 	restore := snapset.MockIsStdinTTY(true)
+	defer restore()
+
+	restore = s.mockAspectsFlag(c)
 	defer restore()
 
 	var reqs int
@@ -388,8 +395,29 @@ func (s *aspectsGetSuite) TestAspectGetManyAsDocument(c *C) {
 	c.Check(s.Stderr(), Equals, "")
 }
 
-func (s *aspectsSetSuite) TestAspectGetInvalidAspectID(c *C) {
+func (s *aspectsSuite) TestAspectGetInvalidAspectID(c *check.C) {
+	restore := s.mockAspectsFlag(c)
+	defer restore()
+
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo//bar", "foo=bar"})
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "aspect identifier must conform to format: <account-id>/<bundle>/<aspect>")
+}
+
+func (s *aspectsSuite) TestAspectGetDisabledFlag(c *check.C) {
+	var reqs int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch reqs {
+		default:
+			err := fmt.Errorf("expected to get no requests, now on %d (%v)", reqs+1, r)
+			w.WriteHeader(500)
+			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+			c.Error(err)
+		}
+
+		reqs++
+	})
+
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "abc"})
+	c.Assert(err, check.ErrorMatches, "aspect-based configuration is disabled: you must set 'experimental.aspects-configuration' to true")
 }
