@@ -21,9 +21,11 @@ prepare: |
       exit
   fi
 
-  "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap snapd
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB"/prepare.sh
+  build_snapd_snap .
   echo "Repack the snapd snap with a marker file"
-  unsquashfs -d snapd-snap snapd-from-deb.snap
+  unsquashfs -d snapd-snap snapd_*.snap
 
   echo "Leave a marker file that triggers boot config assets to be injected"
   echo 'bootassetstesting' > snapd-snap/usr/lib/snapd/bootassetstesting

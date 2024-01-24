@@ -460,90 +460,78 @@ prepare_classic() {
     fi
 }
 
-repack_snapd_snap_with_deb_content() {
-    local TARGET="$1"
-
-    local UNPACK_DIR="/tmp/snapd-unpack"
-    unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
-    # clean snap apparmor.d to ensure we put the right snap-confine apparmor
-    # file in place. Its called usr.lib.snapd.snap-confine on 14.04 but
-    # usr.lib.snapd.snap-confine.real everywhere else
-    rm -f "$UNPACK_DIR"/etc/apparmor.d/*
-
-    dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
-    cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/snapd
-    snap pack "$UNPACK_DIR" "$TARGET"
-    rm -rf "$UNPACK_DIR"
+ensure_snapcraft() {
+    if ! command -v snapcraft; then
+        snap install --channel="${SNAPCRAFT_SNAP_CHANNEL}" snapcraft --classic
+        "$TESTSTOOLS"/lxd-state prepare-snap
+    fi
 }
 
-repack_core_snap_with_tweaks() {
-    local CORESNAP="$1"
-    local TARGET="$2"
-
-    local UNPACK_DIR="/tmp/core-unpack"
-    unsquashfs -no-progress -d "$UNPACK_DIR" "$CORESNAP"
-
-    mkdir -p "$UNPACK_DIR"/etc/systemd/journald.conf.d
-    cat <<EOF > "$UNPACK_DIR"/etc/systemd/journald.conf.d/to-console.conf
-[Journal]
-ForwardToConsole=yes
-TTYPath=/dev/ttyS0
-MaxLevelConsole=debug
-EOF
-    mkdir -p "$UNPACK_DIR"/etc/systemd/system/snapd.service.d
-cat <<EOF > "$UNPACK_DIR"/etc/systemd/system/snapd.service.d/logging.conf
-[Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
-StandardOutput=journal+console
-StandardError=journal+console
-EOF
-
-    cp "${SPREAD_PATH}"/data/completion/bash/complete.sh "${UNPACK_DIR}"/usr/lib/snapd/complete.sh
-
-    snap pack --filename="$TARGET" "$UNPACK_DIR"
-
-    rm -rf "$UNPACK_DIR"
+cleanup_snapcraft() {
+    snap remove --purge lxd || true
+    "$TESTSTOOLS"/lxd-state undo-mount-changes
+    snap remove --purge snapcraft || true
 }
 
-repack_kernel_snap() {
-    local TARGET=$1
-    local VERSION
-    local UNPACK_DIR
-    local CHANNEL
+run_snapcraft() {
+    ensure_snapcraft
+    if ! (cd "${PROJECT_PATH}" && snapcraft "$@"); then
+        # shellcheck disable=SC2012
+        tail -n1000 "${HOME}/.local/state/snapcraft/log/$(ls -t "${HOME}/.local/state/snapcraft/log/" -1 | head -n1)"
+        false
+    fi
+    cleanup_snapcraft
+}
 
-    VERSION=$(nested_get_version)
-    if [ "$VERSION" = 16 ]; then
-        CHANNEL=latest
+build_snapd_snap() {
+    local TARGET
+    local snapd_snap_cache
+    TARGET="${1}"
+
+    snapd_snap_cache="${WORK_DIR:-/tmp/work-dir}/snapd_snap"
+    mkdir -p "${snapd_snap_cache}"
+    for snap in "${snapd_snap_cache}"/snapd_*.snap; do
+        if ! [ -f "${snap}" ]; then
+            if [ "${TESTS_USE_PREBUILT_SNAPD_SNAP}" = true ]; then
+                cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "${snapd_snap_cache}/snapd_from_ci.snap"
+            else
+                [ -d "${TARGET}" ] || mkdir "${TARGET}"
+                chmod -R go+r "${PROJECT_PATH}/tests"
+                run_snapcraft --use-lxd --verbosity quiet --output="snapd_from_snapcraft.snap"
+                mv "${PROJECT_PATH}"/snapd_from_snapcraft.snap "${snapd_snap_cache}"
+            fi
+        fi
+        break
+    done
+
+    cp "${snapd_snap_cache}"/snapd_*.snap "${TARGET}/"
+}
+
+build_snapd_snap_with_run_mode_firstboot_tweaks() {
+    local snapd_snap_cache
+    local TARGET
+
+    TARGET="${1}"
+
+    snapd_snap_cache="${WORK_DIR:-/tmp/work-dir}/snapd_snap_with_tweaks"
+    mkdir -p "${snapd_snap_cache}"
+    for snap in "${snapd_snap_cache}"/snapd_*.snap; do
+        if [ -f "${snap}" ]; then
+            cp "${snap}" "${TARGET}/"
+            return
+        fi
+    done
+
+    if [ "${TESTS_USE_PREBUILT_SNAPD_SNAP}" = true ]; then
+        cp "${PROJECT_PATH}/built-snap"/snapd_1337.*.snap.keep "/tmp/snapd_from_snapcraft.snap"
     else
-        CHANNEL=$VERSION
+        chmod -R go+r "${PROJECT_PATH}/tests"
+        run_snapcraft --use-lxd --verbosity quiet --output="snapd_from_snapcraft.snap"
+        mv "${PROJECT_PATH}/snapd_from_snapcraft.snap" "/tmp/snapd_from_snapcraft.snap"
     fi
 
-    echo "Repacking kernel snap"
-    UNPACK_DIR=/tmp/kernel-unpack
-    snap download --basename=pc-kernel --channel="$CHANNEL/${KERNEL_CHANNEL}" pc-kernel
-    unsquashfs -no-progress -d "$UNPACK_DIR" pc-kernel.snap
-    snap pack --filename="$TARGET" "$UNPACK_DIR"
-
-    rm -rf pc-kernel.snap "$UNPACK_DIR"
-}
-
-repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
-    local TARGET="$1"
-
     local UNPACK_DIR="/tmp/snapd-unpack"
-    unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
-
-    # data/preseed.json is not included in the deb, use the latest
-    # version from source tree to replace the one in the re-packed snapd snap.
-    cp "$PROJECT_PATH/data/preseed.json" "$UNPACK_DIR"/usr/lib/snapd
-
-    # clean snap apparmor.d to ensure we put the right snap-confine apparmor
-    # file in place. Its called usr.lib.snapd.snap-confine on 14.04 but
-    # usr.lib.snapd.snap-confine.real everywhere else
-    rm -f "$UNPACK_DIR"/etc/apparmor.d/*
-
-    dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
-    cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/snapd
+    unsquashfs -no-progress -d "$UNPACK_DIR" /tmp/snapd_from_snapcraft.snap
 
     # now install a unit that sets up enough so that we can connect
     cat > "$UNPACK_DIR"/lib/systemd/system/snapd.spread-tests-run-mode-tweaks.service <<'EOF'
@@ -613,10 +601,61 @@ touch /root/spread-setup-done
 EOF
     chmod 0755 "$UNPACK_DIR"/usr/lib/snapd/snapd.spread-tests-run-mode-tweaks.sh
 
+    mkdir -p "${snapd_snap_cache}"
+    snap pack "$UNPACK_DIR" "${snapd_snap_cache}/"
+    rm -rf "$UNPACK_DIR"
+    cp "${snapd_snap_cache}"/snapd_*.snap "${TARGET}/"
+}
+
+repack_core_snap_with_tweaks() {
+    local CORESNAP="$1"
+    local TARGET="$2"
+
+    local UNPACK_DIR="/tmp/core-unpack"
+    unsquashfs -no-progress -d "$UNPACK_DIR" "$CORESNAP"
+
+    mkdir -p "$UNPACK_DIR"/etc/systemd/journald.conf.d
+    cat <<EOF > "$UNPACK_DIR"/etc/systemd/journald.conf.d/to-console.conf
+[Journal]
+ForwardToConsole=yes
+TTYPath=/dev/ttyS0
+MaxLevelConsole=debug
+EOF
+    mkdir -p "$UNPACK_DIR"/etc/systemd/system/snapd.service.d
+cat <<EOF > "$UNPACK_DIR"/etc/systemd/system/snapd.service.d/logging.conf
+[Service]
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
+StandardOutput=journal+console
+StandardError=journal+console
+EOF
+
     cp "${SPREAD_PATH}"/data/completion/bash/complete.sh "${UNPACK_DIR}"/usr/lib/snapd/complete.sh
 
-    snap pack "$UNPACK_DIR" "$TARGET"
+    snap pack --filename="$TARGET" "$UNPACK_DIR"
+
     rm -rf "$UNPACK_DIR"
+}
+
+repack_kernel_snap() {
+    local TARGET=$1
+    local VERSION
+    local UNPACK_DIR
+    local CHANNEL
+
+    VERSION=$(nested_get_version)
+    if [ "$VERSION" = 16 ]; then
+        CHANNEL=latest
+    else
+        CHANNEL=$VERSION
+    fi
+
+    echo "Repacking kernel snap"
+    UNPACK_DIR=/tmp/kernel-unpack
+    snap download --basename=pc-kernel --channel="$CHANNEL/${KERNEL_CHANNEL}" pc-kernel
+    unsquashfs -no-progress -d "$UNPACK_DIR" pc-kernel.snap
+    snap pack --filename="$TARGET" "$UNPACK_DIR"
+
+    rm -rf pc-kernel.snap "$UNPACK_DIR"
 }
 
 # Builds kernel snap with bad kernel.efi, in different ways
@@ -1006,11 +1045,6 @@ setup_reflash_magic() {
     # need to be seeded to proceed with snap install
     snap wait system seed.loaded
 
-    # download the snapd snap for all uc systems except uc16
-    if ! is_test_target_core 16; then
-        snap download "--channel=${SNAPD_CHANNEL}" snapd
-    fi
-
     # we cannot use "snaps.names tool" here because no snaps are installed yet
     core_name="core"
     if is_test_target_core 18; then
@@ -1039,7 +1073,7 @@ setup_reflash_magic() {
     elif is_test_target_core 16; then
         # the new ubuntu-image expects mkfs to support -d option, which was not
         # supported yet by the version of mkfs that shipped with Ubuntu 16.04
-        snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+        snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
     else
         # shellcheck source=tests/lib/image.sh
         . "$TESTSLIB/image.sh"
@@ -1060,21 +1094,21 @@ setup_reflash_magic() {
     export UBUNTU_IMAGE_SNAP_CMD="$IMAGE_HOME/snap"
 
     if is_test_target_core 18; then
-        repack_snapd_snap_with_deb_content "$IMAGE_HOME"
+        build_snapd_snap "${IMAGE_HOME}"
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
     elif is_test_target_core 20; then
-        repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
+        build_snapd_snap_with_run_mode_firstboot_tweaks "$IMAGE_HOME"
         cp "$TESTSLIB/assertions/ubuntu-core-20-amd64.model" "$IMAGE_HOME/pc.model"
     elif is_test_target_core 22; then
-        repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
+        build_snapd_snap_with_run_mode_firstboot_tweaks "$IMAGE_HOME"
         if os.query is-arm; then
             cp "$TESTSLIB/assertions/ubuntu-core-22-arm64.model" "$IMAGE_HOME/pc.model"
         else
             cp "$TESTSLIB/assertions/ubuntu-core-22-amd64.model" "$IMAGE_HOME/pc.model"
         fi
     elif is_test_target_core 24; then
-        repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
+        build_snapd_snap_with_run_mode_firstboot_tweaks "$IMAGE_HOME"
         cp "$TESTSLIB/assertions/ubuntu-core-24-amd64.model" "$IMAGE_HOME/pc.model"
     else
         # FIXME: install would be better but we don't have dpkg on
@@ -1234,7 +1268,7 @@ EOF
             BASE=core24
         fi
         snap download "${BASE}" --channel="$BASE_CHANNEL" --basename="${BASE}"
-        
+
         # we want to download the specific channel referenced by $BASE_CHANNEL, 
         # but if we just seed that revision and $BASE_CHANNEL != $IMAGE_CHANNEL,
         # then immediately on booting, snapd will refresh from the revision that
@@ -1257,7 +1291,7 @@ EOF
         else 
             mv "${BASE}.snap" "${IMAGE_HOME}/${BASE}.snap"
         fi
-        
+
         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap ${IMAGE_HOME}/${BASE}.snap"
     fi
     local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image

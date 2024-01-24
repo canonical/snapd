@@ -18,8 +18,8 @@ environment:
 prepare: |
   #shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB"/prepare.sh
-  snap download "--channel=${SNAPD_CHANNEL}" snapd
-  repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks /tmp
+  [ -d /tmp/teaked-snapd-snap ] || mkdir -p /tmp/teaked-snapd-snap
+  build_snapd_snap_with_run_mode_firstboot_tweaks /tmp/teaked-snapd-snap
 
   snap pack systemusers-snap
 
@@ -47,7 +47,13 @@ execute: |
   export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
   echo "Running pre-seeding"
-  SNAPD_SNAP=$(ls /tmp/snapd*.snap)
+  for f in /tmp/teaked-snapd-snap/snapd*.snap; do
+    if [ "${SNAPD_SNAP:+set}" = set ]; then
+      echo "found multiple snaps in /tmp/teaked-snapd-snap" 1>&2
+      exit 1
+    fi
+    SNAPD_SNAP="${f}"
+  done
 
   # XXX: confusingly, the name of our test key is actually " (test)".
   SNAPD_DEBUG=1 snap prepare-image --preseed --preseed-sign-key=" (test)" --channel=stable \
