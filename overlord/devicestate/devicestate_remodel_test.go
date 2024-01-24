@@ -359,6 +359,8 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
+
 	var testDeviceCtx snapstate.DeviceContext
 
 	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
@@ -529,6 +531,8 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatNewTrack map[st
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
+
 	var testDeviceCtx snapstate.DeviceContext
 
 	var snapstateInstallWithDeviceContextCalled int
@@ -635,6 +639,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelRequiredSnaps(c *C) {
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
 
 	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags.Required, Equals, true)
@@ -753,6 +759,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelSwitchKernelTrack(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
+
 	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags.Required, Equals, true)
 		c.Check(deviceCtx, NotNil)
@@ -869,6 +877,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelLessRequiredSnaps(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
+
 	// set a model assertion
 	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
 		"architecture":   "amd64",
@@ -918,6 +928,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelStoreSwitch(c *C) {
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
 
 	var testStore snapstate.StoreService
 
@@ -1151,6 +1163,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelClash(c *C) {
 		Serial: "1234",
 	})
 
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
+
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture":   "amd64",
 		"kernel":         "pc-kernel",
@@ -1226,6 +1240,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashInProgress(c *C) {
 		Model:  "pc-model",
 		Serial: "1234",
 	})
+
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
 
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture":   "amd64",
@@ -1666,6 +1682,21 @@ volumes:
 		Serial: "serial",
 	})
 
+	const required = true
+	kernelInfo := snapstatetest.InstallSnap(c, s.state, "name: pc-kernel\nversion: 1\ntype: kernel\n", required, &snap.SideInfo{
+		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
+		Revision: snap.R(1),
+		RealName: "pc-kernel",
+	})
+
+	snapstatetest.InstallSnap(c, s.state, "name: core18\nversion: 1\ntype: base\n", required, &snap.SideInfo{
+		SnapID:   snaptest.AssertedSnapID("core18"),
+		Revision: snap.R(1),
+		RealName: "core18",
+	})
+
+	devicestate.SetBootRevisionsUpdated(s.mgr, true)
+
 	// the target model
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
@@ -1760,7 +1791,8 @@ volumes:
 					},
 				},
 			},
-			RootDir: currentGadgetInfo.MountDir(),
+			RootDir:       currentGadgetInfo.MountDir(),
+			KernelRootDir: kernelInfo.MountDir(),
 		}
 		gadget.SetEnclosingVolumeInStructs(gd.Info.Volumes)
 		c.Check(current, DeepEquals, gd)
@@ -1798,7 +1830,8 @@ volumes:
 					},
 				},
 			},
-			RootDir: newGadgetInfo.MountDir(),
+			RootDir:       newGadgetInfo.MountDir(),
+			KernelRootDir: kernelInfo.MountDir(),
 		}
 		gadget.SetEnclosingVolumeInStructs(gd.Info.Volumes)
 		c.Check(update, DeepEquals, gd)
@@ -1844,6 +1877,21 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
 		Model:  "pc-model",
 		Serial: "serial",
 	})
+
+	const required = true
+	snapstatetest.InstallSnap(c, s.state, "name: pc-kernel\nversion: 1\ntype: kernel\n", required, &snap.SideInfo{
+		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
+		Revision: snap.R(1),
+		RealName: "pc-kernel",
+	})
+
+	snapstatetest.InstallSnap(c, s.state, "name: core18\nversion: 1\ntype: base\n", required, &snap.SideInfo{
+		SnapID:   snaptest.AssertedSnapID("core18"),
+		Revision: snap.R(1),
+		RealName: "core18",
+	})
+
+	devicestate.SetBootRevisionsUpdated(s.mgr, true)
 
 	// the target model
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
@@ -1911,17 +1959,17 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
 	c.Check(s.restartRequests, HasLen, 0)
 }
 
-func (s *deviceMgrSuite) TestRemodelSwitchBase(c *C) {
+func (s *deviceMgrSuite) TestRemodelSwitchBaseIncompatibleGadget(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
+
 	var testDeviceCtx snapstate.DeviceContext
 
-	var snapstateInstallWithDeviceContextCalled int
 	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
-		snapstateInstallWithDeviceContextCalled++
 		c.Check(name, Equals, "core20")
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
@@ -1959,12 +2007,70 @@ func (s *deviceMgrSuite) TestRemodelSwitchBase(c *C) {
 
 	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true, DeviceModel: new, OldDeviceModel: current}
 
+	_, err = devicestate.RemodelTasks(context.Background(), s.state, current, new, nil, nil, testDeviceCtx, "99")
+	c.Assert(err, ErrorMatches, `cannot remodel with gadget snap that has a different base than the model: "core18" \!= "core20"`)
+}
+
+func (s *deviceMgrSuite) TestRemodelSwitchBase(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
+
+	var testDeviceCtx snapstate.DeviceContext
+
+	var snapstateInstallWithDeviceContextCalled int
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		snapstateInstallWithDeviceContextCalled++
+		switch name {
+		case "core20", "pc-20":
+		default:
+			c.Errorf("unexpected snap name %q", name)
+		}
+
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		tInstall.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	// set a model assertion
+	current := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	err := assertstate.Add(s.state, current)
+	c.Assert(err, IsNil)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc-20",
+		"base":         "core20",
+		"revision":     "1",
+	})
+
+	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true, DeviceModel: new, OldDeviceModel: current}
+
 	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, nil, nil, testDeviceCtx, "99")
 	c.Assert(err, IsNil)
-	// 1 switch to a new base plus the remodel task
-	c.Assert(tss, HasLen, 2)
+	// 1 switch to a new base, 1 switch to new gadget, plus the remodel task
+	c.Assert(tss, HasLen, 3)
 	// API was hit
-	c.Assert(snapstateInstallWithDeviceContextCalled, Equals, 1)
+	c.Assert(snapstateInstallWithDeviceContextCalled, Equals, 2)
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c *C) {
@@ -2665,7 +2771,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 			snapYaml = "name: core20-new\nversion: 1\ntype: base\n"
 			channel = "latest/stable"
 		case "pc-new":
-			snapYaml = "name: pc-new\nversion: 1\ntype: gadget\n"
+			snapYaml = "name: pc-new\nversion: 1\ntype: gadget\nbase: core20-new\n"
 		}
 		si := &snap.SideInfo{
 			RealName: alreadyInstalledName,
@@ -5267,12 +5373,54 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSelfContainedModelMissingDep(c *
 			Revision: snap.R("123"),
 		},
 		Type: "app",
+		Base: "core20",
 	}
 	if strutil.ListContains(missingWhat, "base") {
 		snapsupTemplate.Base = "foo-base"
 	}
 	if strutil.ListContains(missingWhat, "content") {
 		snapsupTemplate.Prereq = []string{"foo-content"}
+	}
+
+	fooYaml := `
+name: foo-missing-base
+version: 1
+@MISSING@
+`
+	contentPlug := `
+plugs:
+  foo-content-data:
+    content: foo-provided-content
+    interface: content
+    target: $SNAP/data-dir
+    default-provider: foo-content
+`
+	missing := ""
+	if strutil.ListContains(missingWhat, "base") {
+		missing += "base: foo-base\n"
+	} else {
+		missing += "base: core20\n"
+	}
+
+	if strutil.ListContains(missingWhat, "content") {
+		missing += contentPlug
+	}
+	fooYaml = strings.Replace(fooYaml, "@MISSING@", missing, 1)
+	// the gadget needs to be mocked
+	info := snaptest.MakeSnapFileAndDir(c, fooYaml, nil, &snap.SideInfo{
+		SnapID:   snaptest.AssertedSnapID("foo-missing-deps"),
+		Revision: snap.R(1),
+		RealName: "foo-missing-deps",
+	})
+
+	if missingWhen != "install" {
+		snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
+			SnapType:        string(info.Type()),
+			Active:          true,
+			Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&info.SideInfo}),
+			Current:         info.Revision,
+			TrackingChannel: "latest/stable",
+		})
 	}
 
 	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
@@ -5283,6 +5431,8 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSelfContainedModelMissingDep(c *
 		c.Check(flags.Required, Equals, true)
 		c.Check(deviceCtx, Equals, testDeviceCtx)
 		c.Check(fromChange, Equals, "99")
+
+		prqt.Add(info)
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
 		tDownload.Set("snap-setup", snapsupTemplate)
@@ -5307,6 +5457,8 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSelfContainedModelMissingDep(c *
 		c.Check(fromChange, Equals, "99")
 		c.Check(opts.Channel, Equals, "latest/stable")
 
+		prqt.Add(info)
+
 		var ts *state.TaskSet
 		if missingWhen == "update" {
 			tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s to track %s", name, opts.Channel))
@@ -5327,42 +5479,6 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSelfContainedModelMissingDep(c *
 		return ts, nil
 	})
 	defer restore()
-
-	if missingWhen != "install" {
-		fooYaml := `
-name: foo-missing-base
-version: 1
-@MISSING@
-`
-		contentPlug := `
-plugs:
-  foo-content-data:
-    interface: content
-    target: $SNAP/data-dir
-    default-provider: foo-content
-`
-		missing := ""
-		if strutil.ListContains(missingWhat, "base") {
-			missing += "base: foo-base\n"
-		}
-		if strutil.ListContains(missingWhat, "content") {
-			missing += contentPlug
-		}
-		fooYaml = strings.Replace(fooYaml, "@MISSING@", missing, 1)
-		// the gadget needs to be mocked
-		info := snaptest.MakeSnapFileAndDir(c, fooYaml, nil, &snap.SideInfo{
-			SnapID:   snaptest.AssertedSnapID("foo-missing-deps"),
-			Revision: snap.R(1),
-			RealName: "foo-missing-deps",
-		})
-		snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
-			SnapType:        string(info.Type()),
-			Active:          true,
-			Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&info.SideInfo}),
-			Current:         info.Revision,
-			TrackingChannel: "latest/stable",
-		})
-	}
 
 	new := s.brands.Model("canonical", "pc-new-model", map[string]interface{}{
 		"architecture": "amd64",
@@ -5432,14 +5548,19 @@ plugs:
 	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
 
 	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, nil, nil, testDeviceCtx, "99")
-	errMsg := `cannot remodel with incomplete model, the following snaps are required but not listed: "foo-base"`
-	switch {
-	case strutil.ListContains(missingWhat, "base") && strutil.ListContains(missingWhat, "content"):
-		errMsg = `cannot remodel with incomplete model, the following snaps are required but not listed: "foo-base", "foo-content"`
-	case strutil.ListContains(missingWhat, "content"):
-		errMsg = `cannot remodel with incomplete model, the following snaps are required but not listed: "foo-content"`
+
+	msg := `cannot remodel to model that is not self contained:`
+	if strutil.ListContains(missingWhat, "base") {
+		msg += `
+  - cannot use snap "foo-missing-deps": base "foo-base" is missing`
 	}
-	c.Assert(err, ErrorMatches, errMsg)
+
+	if strutil.ListContains(missingWhat, "content") {
+		msg += `
+  - cannot use snap "foo-missing-deps": default provider "foo-content" or any alternative provider for content "foo-provided-content" is missing`
+	}
+
+	c.Assert(err, ErrorMatches, msg)
 	c.Assert(tss, IsNil)
 }
 
@@ -5509,6 +5630,25 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSelfContainedModelMissingDepsOfM
 		},
 	})
 
+	// bar is missing the base, and a shared content provider which is
+	// missed by foo as well
+	fooYaml := `
+name: foo-missing-deps
+version: 1
+base: foo-base
+plugs:
+  foo-content-data:
+    content: foo-provided-content
+    interface: content
+    target: $SNAP/data-dir
+    default-provider: foo-content
+`
+	fooInfo := snaptest.MakeSnapFileAndDir(c, fooYaml, nil, &snap.SideInfo{
+		SnapID:   snaptest.AssertedSnapID("foo-missing-deps"),
+		Revision: snap.R(1),
+		RealName: "foo-missing-deps",
+	})
+
 	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		if name != "foo-missing-deps" {
 			c.Errorf("unexpected call to install for snap %q", name)
@@ -5517,6 +5657,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSelfContainedModelMissingDepsOfM
 		c.Check(flags.Required, Equals, true)
 		c.Check(deviceCtx, Equals, testDeviceCtx)
 		c.Check(fromChange, Equals, "99")
+
+		prqt.Add(fooInfo)
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
 		snapsupFoo := &snapstate.SnapSetup{
@@ -5540,6 +5682,33 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSelfContainedModelMissingDepsOfM
 	})
 	defer restore()
 
+	// bar is missing the base, and a shared content provider which is
+	// missed by foo as well
+	barYaml := `
+name: bar-missing-deps
+version: 1
+base: bar-base
+plugs:
+  bar-content-data:
+    content: foo-provided-content
+    interface: content
+    target: $SNAP/data-dir
+    default-provider: foo-content
+`
+	// the gadget needs to be mocked
+	barInfo := snaptest.MakeSnapFileAndDir(c, barYaml, nil, &snap.SideInfo{
+		SnapID:   snaptest.AssertedSnapID("bar-missing-deps"),
+		Revision: snap.R(1),
+		RealName: "bar-missing-deps",
+	})
+	snapstate.Set(s.state, barInfo.InstanceName(), &snapstate.SnapState{
+		SnapType:        string(barInfo.Type()),
+		Active:          true,
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&barInfo.SideInfo}),
+		Current:         barInfo.Revision,
+		TrackingChannel: "latest/stable",
+	})
+
 	restore = devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		if name != "bar-missing-deps" {
 			c.Errorf("unexpected call to update for snap %q", name)
@@ -5551,35 +5720,11 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSelfContainedModelMissingDepsOfM
 		c.Check(fromChange, Equals, "99")
 		c.Check(opts.Channel, Equals, "latest/stable")
 
+		prqt.Add(barInfo)
+
 		return state.NewTaskSet(), nil
 	})
 	defer restore()
-
-	// bar is missing the base, and a shared content provider which is
-	// missed by foo as well
-	barYaml := `
-name: bar-missing-deps
-version: 1
-base: bar-base
-plugs:
-  bar-content-data:
-    interface: content
-    target: $SNAP/data-dir
-    default-provider: foo-content
-`
-	// the gadget needs to be mocked
-	info := snaptest.MakeSnapFileAndDir(c, barYaml, nil, &snap.SideInfo{
-		SnapID:   snaptest.AssertedSnapID("bar-missing-deps"),
-		Revision: snap.R(1),
-		RealName: "bar-missing-deps",
-	})
-	snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
-		SnapType:        string(info.Type()),
-		Active:          true,
-		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&info.SideInfo}),
-		Current:         info.Revision,
-		TrackingChannel: "latest/stable",
-	})
 
 	new := s.brands.Model("canonical", "pc-new-model", map[string]interface{}{
 		"architecture": "amd64",
@@ -5653,8 +5798,14 @@ plugs:
 	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
 
 	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, nil, nil, testDeviceCtx, "99")
-	errMsg := `cannot remodel with incomplete model, the following snaps are required but not listed: "bar-base", "foo-base", "foo-content"`
-	c.Assert(err, ErrorMatches, errMsg)
+
+	msg := `cannot remodel to model that is not self contained:
+  - cannot use snap "foo-missing-deps": base "foo-base" is missing
+  - cannot use snap "foo-missing-deps": default provider "foo-content" or any alternative provider for content "foo-provided-content" is missing
+  - cannot use snap "bar-missing-deps": base "bar-base" is missing
+  - cannot use snap "bar-missing-deps": default provider "foo-content" or any alternative provider for content "foo-provided-content" is missing`
+
+	c.Assert(err, ErrorMatches, msg)
 	c.Assert(tss, IsNil)
 }
 
