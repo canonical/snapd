@@ -504,6 +504,8 @@ func (ro *remodelVariant) UpdateWithDeviceContext(st *state.State, snapName stri
 		// might have on the system (the revisions in SnapState.Sequence)
 		info, err := snapstate.CurrentInfo(st, snapName)
 		if err != nil {
+			// this case is unexpected, since UpdateWithDeviceContext should
+			// only be called if the snap is already installed
 			if errors.Is(err, &snap.NotInstalledError{}) {
 				return nil, fmt.Errorf("no snap file provided for %q", snapName)
 			}
