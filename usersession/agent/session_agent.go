@@ -254,7 +254,8 @@ func (s *SessionAgent) Start() {
 	s.tomb.Go(s.exitOnIdle)
 	if s.notificationMgr != nil {
 		s.tomb.Go(s.handleNotifications)
-		if true {
+		// just for testing; remove before merging
+		if false {
 			msg := notification.Message{
 				Title: "A test without buttons",
 				Body:  "This is anotification test without actions",
@@ -264,6 +265,10 @@ func (s *SessionAgent) Start() {
 			actions := []notification.Action{}
 			actions = append(actions, notification.Action{
 				ActionKey:     "key1",
+				LocalizedText: "Action 1",
+			})
+			actions = append(actions, notification.Action{
+				ActionKey:     "default",
 				LocalizedText: "Action 1",
 			})
 			msg2 := notification.Message{

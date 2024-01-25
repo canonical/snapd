@@ -38,9 +38,9 @@ type NotificationManager interface {
 
 func NewNotificationManager(conn *dbus.Conn, desktopID string) NotificationManager {
 	// first try the GTK backend
-	/*if manager, err := newGtkBackend(conn, desktopID); err == nil {
+	if manager, err := newGtkBackend(conn, desktopID); err == nil {
 		return manager
-	}*/
+	}
 
 	// fallback to the older FDO API
 	return newFdoBackend(conn, desktopID)
