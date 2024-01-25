@@ -514,7 +514,8 @@ func (ro *remodelVariant) UpdateWithDeviceContext(st *state.State, snapName stri
 
 		// this would only occur from programmer error, since
 		// UpdateWithDeviceContext should only be called if either the snap
-		// revision or channel needs to change
+		// revision or channel needs to change. once we get here, we know that
+		// the revision is the same, so the channel should be different.
 		if opts == nil || opts.Channel == info.Channel {
 			return nil, fmt.Errorf("internal error: installed snap %q already on channel %q", snapName, info.Channel)
 		}
