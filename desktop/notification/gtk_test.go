@@ -117,6 +117,7 @@ func (s *gtkSuite) TestCloseNotificationError(c *C) {
 
 func (s *gtkSuite) TestNotificationGtkWithActions(c *C) {
 	srv, err := notification.NewGtkBackend(s.SessionBus, sessionAgentBusName)
+	c.Assert(err, IsNil)
 	srv.GetConn().RequestName(sessionAgentBusName, dbus.NameFlagDoNotQueue)
 
 	tombS := tomb.Tomb{}
