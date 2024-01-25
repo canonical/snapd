@@ -46,13 +46,6 @@ type fdoBackend struct {
 	parameters      map[ID][]Action
 	lastRemove      time.Time
 	desktopID       string
-	disableIdle     bool
-}
-
-func (srv *fdoBackend) IdleIsDisabled() bool {
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
-	return srv.disableIdle
 }
 
 // New returns new connection to a freedesktop.org message notification server.
@@ -70,6 +63,10 @@ var newFdoBackend = func(conn *dbus.Conn, desktopID string) NotificationManager 
 		parameters:      make(map[ID][]Action),
 		desktopID:       desktopID,
 	}
+}
+
+func (srv *fdoBackend) GetConn() *dbus.Conn {
+	return srv.conn
 }
 
 // ServerInformation returns the information about the notification server.
@@ -123,13 +120,6 @@ func (srv *fdoBackend) SendNotification(id ID, msg *Message) error {
 	defer srv.mu.Unlock()
 	srv.serverToLocalID[serverSideId] = id
 	srv.localToServerID[id] = serverSideId
-	// Since there is at least one notification, disable the idle
-	// timer to avoid the agent to exit, because that would invalidate
-	// the list of notifications and their parameters, and the notifications
-	// would become irresponsible. But do it only if it has actions.
-	if len(msg.Actions) != 0 {
-		srv.disableIdle = true
-	}
 	return nil
 }
 
@@ -241,6 +231,7 @@ func (srv *fdoBackend) ObserveNotifications(ctx context.Context, observer Observ
 func (srv *fdoBackend) GracefulShutdown() {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
+	// on shutdown, close all the notifications
 	for serverId := range srv.serverToLocalID {
 		call := srv.obj.Call(dBusInterfaceName+".CloseNotification", 0, serverId)
 		call.Store()
@@ -291,11 +282,6 @@ func (srv *fdoBackend) processNotificationClosed(sig *dbus.Signal, observer Obse
 	}
 	if len(srv.serverToLocalID) == 0 {
 		srv.lastRemove = time.Now()
-	}
-	if len(srv.parameters) == 0 {
-		// if all the notifications with actions have been closed,
-		// we can now re-enable the idle timer.
-		srv.disableIdle = false
 	}
 	return nil
 }

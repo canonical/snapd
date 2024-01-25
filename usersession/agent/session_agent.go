@@ -254,23 +254,25 @@ func (s *SessionAgent) Start() {
 	s.tomb.Go(s.exitOnIdle)
 	if s.notificationMgr != nil {
 		s.tomb.Go(s.handleNotifications)
-		/* 		msg := notification.Message{
-		   			Title: "A test without buttons",
-		   			Body:  "This is anotification test without actions",
-		   		}
-		   		s.notificationMgr.SendNotification("Test", &msg)
+		if true {
+			msg := notification.Message{
+				Title: "A test without buttons",
+				Body:  "This is anotification test without actions",
+			}
+			s.notificationMgr.SendNotification("Test", &msg)
 
-		   		actions := []notification.Action{}
-		   		actions = append(actions, notification.Action{
-		   			ActionKey:     "key1",
-		   			LocalizedText: "Action 1",
-		   		})
-		   		msg2 := notification.Message{
-		   			Title:   "A test with buttons",
-		   			Body:    "This is anotification test with actions",
-		   			Actions: actions,
-		   		}
-		   		s.notificationMgr.SendNotification("Test2", &msg2) */
+			actions := []notification.Action{}
+			actions = append(actions, notification.Action{
+				ActionKey:     "key1",
+				LocalizedText: "Action 1",
+			})
+			msg2 := notification.Message{
+				Title:   "A test with buttons",
+				Body:    "This is anotification test with actions",
+				Actions: actions,
+			}
+			s.notificationMgr.SendNotification("Test2", &msg2)
+		}
 	}
 	systemd.SdNotify("READY=1")
 }
@@ -320,17 +322,6 @@ Loop:
 			idleDuration := s.idle.idleDuration()
 			// notificationMgr may be nil if session bus is not available
 			if s.notificationMgr != nil {
-				if s.notificationMgr.IdleIsDisabled() {
-					// If there are pending notifications, and the backend
-					// doesn't allow to pass parameters or relaunch the agent
-					// when the user interacts with it, we cannot exit, because
-					// we would loss the notifications state.
-					timer.Reset(s.IdleTimeout)
-					s.idle.mu.Lock()
-					s.idle.lastActive = time.Now()
-					s.idle.mu.Unlock()
-					idleDuration = s.idle.idleDuration()
-				}
 				if dur := s.notificationMgr.IdleDuration(); dur < idleDuration {
 					idleDuration = dur
 				}

@@ -62,6 +62,7 @@ var signalCounter int = 0
 var mu sync.Mutex
 
 func MockProcessSignal() (restore func()) {
+	signalCounter = 0
 	old := processSignal
 	processSignal = func(srv *fdoBackend, signal *dbus.Signal, observer Observer) error {
 		mu.Lock()

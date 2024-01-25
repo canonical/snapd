@@ -22,7 +22,9 @@ package notificationtest
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/godbus/dbus"
 
@@ -42,8 +44,9 @@ type GtkNotification struct {
 }
 
 type GtkServer struct {
-	conn *dbus.Conn
-	err  *dbus.Error
+	conn        *dbus.Conn
+	err         *dbus.Error
+	recvCounter int
 
 	mu            sync.Mutex
 	notifications map[string]*GtkNotification
@@ -126,8 +129,43 @@ func (server *GtkServer) Close(id string) error {
 	}
 	delete(server.notifications, id)
 
-	// XXX: does real server emit any signal like with fdo?
+	// XXX: does real server emit any signal like with fdo? Nope.
 	return nil
+}
+
+func (server *GtkServer) InvokeAction(endpoint string, notificationId string, actionName string, parameters []string) error {
+	server.mu.Lock()
+	defer server.mu.Unlock()
+
+	path := dbus.ObjectPath("/" + strings.ReplaceAll(endpoint, ".", "/"))
+	obj := server.conn.Object(endpoint, path)
+	extraParams := make(map[string]dbus.Variant)
+	params := []string{}
+	params = append(params, notificationId)
+	params = append(params, actionName)
+	for _, p := range parameters {
+		params = append(params, p)
+	}
+	err := obj.Call("org.freedesktop.Application.ActivateAction",
+		0,
+		"Notification",
+		[]dbus.Variant{dbus.MakeVariant(params)},
+		extraParams).Store()
+	return err
+}
+
+func (server *GtkServer) WaitCounter(n int) {
+	for {
+		server.mu.Lock()
+		if server.recvCounter >= n {
+			server.recvCounter -= n
+			server.mu.Unlock()
+			break
+		}
+		server.mu.Unlock()
+		time.Sleep(100 * time.Millisecond)
+	}
+
 }
 
 type gtkApi struct {
@@ -148,10 +186,12 @@ func (a gtkApi) AddNotification(desktopID, id string, info map[string]dbus.Varia
 		Info:      info,
 	}
 	a.server.notifications[id] = notification
+	a.server.recvCounter++
 	return nil
 }
 
 func (a gtkApi) RemoveNotification(desktopId, id string) *dbus.Error {
+	a.server.recvCounter++
 	if a.server.err != nil {
 		return a.server.err
 	}

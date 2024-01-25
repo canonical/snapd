@@ -36,16 +36,11 @@ const (
 )
 
 type gtkBackend struct {
-	conn        *dbus.Conn
-	manager     dbus.BusObject
-	desktopID   string
-	firstUse    time.Time
-	disableIdle bool
-	gapp        gapplicationType
-}
-
-func (srv *gtkBackend) IdleIsDisabled() bool {
-	return srv.disableIdle
+	conn      *dbus.Conn
+	manager   dbus.BusObject
+	desktopID string
+	firstUse  time.Time
+	gapp      gapplicationType
 }
 
 type gapplicationType struct {
@@ -164,6 +159,10 @@ var newGtkBackend = func(conn *dbus.Conn, desktopID string) (NotificationManager
 	conn.Export(&b.gapp, dbus.ObjectPath(gapplicationObjectPath), "org.freedesktop.Application")
 	conn.Export(introspect.NewIntrospectable(gapplicationNode), dbus.ObjectPath(gapplicationObjectPath), "org.freedesktop.DBus.Introspectable")
 	return b, nil
+}
+
+func (srv *gtkBackend) GetConn() *dbus.Conn {
+	return srv.conn
 }
 
 func gtkPriority(priority Priority) string {

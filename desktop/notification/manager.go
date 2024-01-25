@@ -30,17 +30,17 @@ type NotificationManager interface {
 	SendNotification(id ID, msg *Message) error
 	CloseNotification(id ID) error
 	IdleDuration() time.Duration
-	IdleIsDisabled() bool
 	GracefulShutdown()
+	GetConn() *dbus.Conn
 
 	HandleNotifications(ctx context.Context, observer Observer) error
 }
 
 func NewNotificationManager(conn *dbus.Conn, desktopID string) NotificationManager {
 	// first try the GTK backend
-	if manager, err := newGtkBackend(conn, desktopID); err == nil {
+	/*if manager, err := newGtkBackend(conn, desktopID); err == nil {
 		return manager
-	}
+	}*/
 
 	// fallback to the older FDO API
 	return newFdoBackend(conn, desktopID)
