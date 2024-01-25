@@ -38,5 +38,5 @@ func (client *Client) Reseal() (changeID string, err error) {
 		"Content-Type": "application/json",
 	}
 
-	return client.doAsync("POST", "/v2/reseal", nil, headers, bytes.NewReader(data))
+	return client.doAsync("POST", "/v2/system-reseal", nil, headers, bytes.NewReader(data))
 }
