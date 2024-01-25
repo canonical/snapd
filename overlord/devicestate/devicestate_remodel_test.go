@@ -1697,18 +1697,17 @@ volumes:
 		Serial: "serial",
 	})
 
-	const required = true
-	kernelInfo := snapstatetest.InstallSnap(c, s.state, "name: pc-kernel\nversion: 1\ntype: kernel\n", required, &snap.SideInfo{
+	kernelInfo := snapstatetest.InstallSnap(c, s.state, "name: pc-kernel\nversion: 1\ntype: kernel\n", &snap.SideInfo{
 		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
-	snapstatetest.InstallSnap(c, s.state, "name: core18\nversion: 1\ntype: base\n", required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, s.state, "name: core18\nversion: 1\ntype: base\n", &snap.SideInfo{
 		SnapID:   snaptest.AssertedSnapID("core18"),
 		Revision: snap.R(1),
 		RealName: "core18",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
 	devicestate.SetBootRevisionsUpdated(s.mgr, true)
 
@@ -1893,18 +1892,17 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
 		Serial: "serial",
 	})
 
-	const required = true
-	snapstatetest.InstallSnap(c, s.state, "name: pc-kernel\nversion: 1\ntype: kernel\n", required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, s.state, "name: pc-kernel\nversion: 1\ntype: kernel\n", &snap.SideInfo{
 		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
-	snapstatetest.InstallSnap(c, s.state, "name: core18\nversion: 1\ntype: base\n", required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, s.state, "name: core18\nversion: 1\ntype: base\n", &snap.SideInfo{
 		SnapID:   snaptest.AssertedSnapID("core18"),
 		Revision: snap.R(1),
 		RealName: "core18",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
 	devicestate.SetBootRevisionsUpdated(s.mgr, true)
 
@@ -2765,26 +2763,26 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnaps(c *C) {
 	snapstatetest.InstallEssentialSnaps(c, s.state, "core20", nil)
 
 	// install snaps that will be needed for new model
-	snapstatetest.InstallSnap(c, s.state, "name: pc-new\nversion: 1\ntype: gadget\nbase: core20-new", true, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, s.state, "name: pc-new\nversion: 1\ntype: gadget\nbase: core20-new", &snap.SideInfo{
 		SnapID:   snaptest.AssertedSnapID("pc-new"),
 		Revision: snap.R(222),
 		RealName: "pc-new",
 		Channel:  "20/stable",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
-	snapstatetest.InstallSnap(c, s.state, "name: pc-kernel-new\nversion: 1\ntype: kernel\n", true, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, s.state, "name: pc-kernel-new\nversion: 1\ntype: kernel\n", &snap.SideInfo{
 		SnapID:   snaptest.AssertedSnapID("pc-kernel-new"),
 		Revision: snap.R(222),
 		RealName: "pc-kernel-new",
 		Channel:  "20/stable",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
-	snapstatetest.InstallSnap(c, s.state, "name: core20-new\nversion: 1\ntype: base\n", true, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, s.state, "name: core20-new\nversion: 1\ntype: base\n", &snap.SideInfo{
 		SnapID:   snaptest.AssertedSnapID("core20-new"),
 		Revision: snap.R(222),
 		RealName: "core20-new",
 		Channel:  "latest/stable",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
 	// not yet installed app-snap, that will be provided as a local snap
 	appSnap := &snap.SideInfo{
@@ -3016,26 +3014,26 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnapsChannelSwitch
 	snapstatetest.InstallEssentialSnaps(c, s.state, "core20", nil)
 
 	// install snaps that will be needed for new model
-	snapstatetest.InstallSnap(c, s.state, "name: pc-new\nversion: 1\ntype: gadget\nbase: core20-new", true, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, s.state, "name: pc-new\nversion: 1\ntype: gadget\nbase: core20-new", &snap.SideInfo{
 		SnapID:   snaptest.AssertedSnapID("pc-new"),
 		Revision: snap.R(222),
 		RealName: "pc-new",
 		Channel:  "20/stable",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
-	snapstatetest.InstallSnap(c, s.state, "name: pc-kernel-new\nversion: 1\ntype: kernel\n", true, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, s.state, "name: pc-kernel-new\nversion: 1\ntype: kernel\n", &snap.SideInfo{
 		SnapID:   snaptest.AssertedSnapID("pc-kernel-new"),
 		Revision: snap.R(222),
 		RealName: "pc-kernel-new",
 		Channel:  "20/stable",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
-	snapstatetest.InstallSnap(c, s.state, "name: core20-new\nversion: 1\ntype: base\n", true, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, s.state, "name: core20-new\nversion: 1\ntype: base\n", &snap.SideInfo{
 		SnapID:   snaptest.AssertedSnapID("core20-new"),
 		Revision: snap.R(222),
 		RealName: "core20-new",
 		Channel:  "latest/stable",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
 	// not yet installed app-snap, that will be provided as a local snap
 	appSnap := &snap.SideInfo{

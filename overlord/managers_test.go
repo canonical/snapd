@@ -5203,12 +5203,11 @@ func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBase(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	const required = true
-	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
 	si := &snap.SideInfo{RealName: "core18", SnapID: fakeSnapID("core18"), Revision: snap.R(1)}
 	snapstate.Set(st, "core18", &snapstate.SnapState{
@@ -5371,12 +5370,11 @@ func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBaseUndo(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	const required = true
-	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
 	si := &snap.SideInfo{RealName: "core18", SnapID: fakeSnapID("core18"), Revision: snap.R(1)}
 	snapstate.Set(st, "core18", &snapstate.SnapState{
@@ -5539,18 +5537,17 @@ func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBaseUndoOnRollback(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	const required = true
-	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
-	snapstatetest.InstallSnap(c, st, "name: core18\nversion: 1\ntype: base\n", required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: core18\nversion: 1\ntype: base\n", &snap.SideInfo{
 		SnapID:   fakeSnapID("core18"),
 		Revision: snap.R(1),
 		RealName: "core18",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
 	si2 := &snap.SideInfo{RealName: "pc", SnapID: fakeSnapID("pc"), Revision: snap.R(1)}
 	gadgetSnapYaml := "name: pc\nversion: 1.0\ntype: gadget"
@@ -6362,18 +6359,17 @@ func (s *mgrsSuiteCore) TestRemodelSwitchGadgetTrack(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	const required = true
-	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
-	snapstatetest.InstallSnap(c, st, "name: core\nversion: 1\ntype: base\n", required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: core\nversion: 1\ntype: base\n", &snap.SideInfo{
 		SnapID:   fakeSnapID("core"),
 		Revision: snap.R(1),
 		RealName: "core",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
 	err := bloader.SetBootVars(map[string]string{
 		"snap_mode":   boot.DefaultStatus,
@@ -6494,12 +6490,11 @@ func (s *mgrsSuiteCore) TestRemodelSwitchToDifferentGadget(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	const required = true
-	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
 	si := &snap.SideInfo{RealName: "core18", SnapID: fakeSnapID("core18"), Revision: snap.R(1)}
 	snapstate.Set(st, "core18", &snapstate.SnapState{
@@ -6659,12 +6654,11 @@ func (s *mgrsSuiteCore) TestRemodelSwitchToIncompatibleGadget(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	const required = true
-	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
 	si := &snap.SideInfo{RealName: "core18", SnapID: fakeSnapID("core18"), Revision: snap.R(1)}
 	snapstate.Set(st, "core18", &snapstate.SnapState{
