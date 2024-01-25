@@ -23,6 +23,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 )
 
+// ForceReseal will reseal the device even if no change requires resealing
 func ForceReseal(unlocker Unlocker) error {
 	modeenvLock()
 	defer modeenvUnlock()
