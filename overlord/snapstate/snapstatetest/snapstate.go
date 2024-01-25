@@ -41,7 +41,8 @@ func fakeSnapID(name string) string {
 }
 
 type InstallSnapOptions struct {
-	Required bool
+	Required         bool
+	PreserveSequence bool
 }
 
 func InstallSnap(c *check.C, st *state.State, yaml string, si *snap.SideInfo, opts InstallSnapOptions) *snap.Info {
@@ -52,10 +53,20 @@ func InstallSnap(c *check.C, st *state.State, yaml string, si *snap.SideInfo, op
 		t = snap.TypeOS
 	}
 
+	var seq sequence.SnapSequence
+	if opts.PreserveSequence {
+		var ss snapstate.SnapState
+		err := snapstate.Get(st, info.InstanceName(), &ss)
+		c.Assert(err, check.IsNil)
+		seq.Revisions = append(seq.Revisions, ss.Sequence.Revisions...)
+	}
+
+	seq.Revisions = append(seq.Revisions, sequence.NewRevisionSideState(si, nil))
+
 	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
 		SnapType:        string(t),
 		Active:          true,
-		Sequence:        NewSequenceFromSnapSideInfos([]*snap.SideInfo{&info.SideInfo}),
+		Sequence:        seq,
 		Current:         info.Revision,
 		Flags:           snapstate.Flags{Required: opts.Required},
 		TrackingChannel: si.Channel,
