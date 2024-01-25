@@ -56,6 +56,7 @@ func (*featureSuite) TestName(c *C) {
 	c.Check(features.GateAutoRefreshHook.String(), Equals, "gate-auto-refresh-hook")
 	c.Check(features.QuotaGroups.String(), Equals, "quota-groups")
 	c.Check(features.RefreshAppAwarenessUX.String(), Equals, "refresh-app-awareness-ux")
+	c.Check(features.AspectsConfiguration.String(), Equals, "aspects-configuration")
 	c.Check(func() { _ = features.SnapdFeature(1000).String() }, PanicMatches, "unknown feature flag code 1000")
 }
 
@@ -86,6 +87,7 @@ func (*featureSuite) TestIsExported(c *C) {
 	c.Check(features.CheckDiskSpaceRemove.IsExported(), Equals, false)
 	c.Check(features.GateAutoRefreshHook.IsExported(), Equals, false)
 	c.Check(features.RefreshAppAwarenessUX.IsExported(), Equals, true)
+	c.Check(features.AspectsConfiguration.IsExported(), Equals, true)
 }
 
 func (*featureSuite) TestIsEnabled(c *C) {
@@ -125,6 +127,7 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	c.Check(features.CheckDiskSpaceRemove.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.GateAutoRefreshHook.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.RefreshAppAwarenessUX.IsEnabledWhenUnset(), Equals, false)
+	c.Check(features.AspectsConfiguration.IsEnabledWhenUnset(), Equals, false)
 }
 
 func (*featureSuite) TestControlFile(c *C) {
@@ -137,6 +140,7 @@ func (*featureSuite) TestControlFile(c *C) {
 	c.Check(features.RefreshAppAwarenessUX.ControlFile(), Equals, "/var/lib/snapd/features/refresh-app-awareness-ux")
 	// Features that are not exported don't have a control file.
 	c.Check(features.Layouts.ControlFile, PanicMatches, `cannot compute the control file of feature "layouts" because that feature is not exported`)
+	c.Check(features.AspectsConfiguration.ControlFile(), Equals, "/var/lib/snapd/features/aspects-configuration")
 }
 
 func (*featureSuite) TestConfigOptionLayouts(c *C) {

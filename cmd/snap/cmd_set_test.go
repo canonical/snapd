@@ -24,10 +24,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 
 	"gopkg.in/check.v1"
 
 	snapset "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 )
 
 type snapSetSuite struct {
@@ -159,10 +162,29 @@ func (s *snapSetSuite) mockSetConfigServer(c *check.C, expectedValue interface{}
 	})
 }
 
-var _ = check.Suite(&aspectsSetSuite{})
-
-type aspectsSetSuite struct {
+type aspectsSuite struct {
 	BaseSnapSuite
+	tmpDir string
+}
+
+var _ = check.Suite(&aspectsSuite{})
+
+func (s *aspectsSuite) SetUp(c *check.C) {
+	s.BaseSnapSuite.SetUpTest(c)
+	s.tmpDir = c.MkDir()
+}
+
+func (s *aspectsSuite) mockAspectsFlag(c *check.C) (restore func()) {
+	old := dirs.FeaturesDir
+	dirs.FeaturesDir = s.tmpDir
+
+	aspectsCtlFile := features.AspectsConfiguration.ControlFile()
+	c.Assert(os.WriteFile(aspectsCtlFile, []byte(nil), 0644), check.IsNil)
+
+	return func() {
+		c.Assert(os.Remove(aspectsCtlFile), check.IsNil)
+		dirs.FeaturesDir = old
+	}
 }
 
 const asyncResp = `{
@@ -171,7 +193,10 @@ const asyncResp = `{
 	"status-code": 202
 }`
 
-func (s *aspectsSetSuite) TestAspectSet(c *check.C) {
+func (s *aspectsSuite) TestAspectSet(c *check.C) {
+	restore := s.mockAspectsFlag(c)
+	defer restore()
+
 	var reqs int
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch reqs {
@@ -208,7 +233,10 @@ func (s *aspectsSetSuite) TestAspectSet(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *aspectsSetSuite) TestAspectSetMany(c *check.C) {
+func (s *aspectsSuite) TestAspectSetMany(c *check.C) {
+	restore := s.mockAspectsFlag(c)
+	defer restore()
+
 	var reqs int
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch reqs {
@@ -245,13 +273,19 @@ func (s *aspectsSetSuite) TestAspectSetMany(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *aspectsSetSuite) TestAspectSetInvalidAspectID(c *check.C) {
+func (s *aspectsSuite) TestAspectSetInvalidAspectID(c *check.C) {
+	restore := s.mockAspectsFlag(c)
+	defer restore()
+
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo//bar", "foo=bar"})
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, "aspect identifier must conform to format: <account-id>/<bundle>/<aspect>")
 }
 
-func (s *aspectsSetSuite) TestAspectSetNoWait(c *check.C) {
+func (s *aspectsSuite) TestAspectSetNoWait(c *check.C) {
+	restore := s.mockAspectsFlag(c)
+	defer restore()
+
 	var reqs int
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch reqs {
@@ -282,4 +316,22 @@ func (s *aspectsSetSuite) TestAspectSetNoWait(c *check.C) {
 
 	c.Check(s.Stdout(), check.Equals, "123\n")
 	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *aspectsSuite) TestAspectSetDisabledFlag(c *check.C) {
+	var reqs int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch reqs {
+		default:
+			err := fmt.Errorf("expected to get no requests, now on %d (%v)", reqs+1, r)
+			w.WriteHeader(500)
+			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+			c.Error(err)
+		}
+
+		reqs++
+	})
+
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", "abc=1"})
+	c.Assert(err, check.ErrorMatches, "aspect-based configuration is disabled: you must set 'experimental.aspects-configuration' to true")
 }

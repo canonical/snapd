@@ -31,13 +31,17 @@ import (
 	"github.com/snapcore/snapd/aspects"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type aspectsSuite struct {
 	apiBaseSuite
+
+	st *state.State
 }
 
 var _ = Suite(&aspectsSuite{})
@@ -48,20 +52,33 @@ func (s *aspectsSuite) SetUpTest(c *C) {
 	s.expectReadAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
 	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
 
-	st := state.New(nil)
-	o := overlord.MockWithState(st)
+	s.st = state.New(nil)
+	o := overlord.MockWithState(s.st)
 	s.d = daemon.NewWithOverlord(o)
 
-	st.Lock()
+	s.st.Lock()
 	databags := map[string]map[string]aspects.JSONDataBag{
 		"system": {"network": aspects.NewJSONDataBag()},
 	}
-	st.Set("aspect-databags", databags)
-	st.Unlock()
+	s.st.Set("aspect-databags", databags)
+	s.st.Unlock()
+}
 
+func (s *aspectsSuite) setFeatureFlag(c *C) {
+	_, confOption := features.AspectsConfiguration.ConfigOption()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	tr := config.NewTransaction(s.st)
+	err := tr.Set("core", confOption, true)
+	c.Assert(err, IsNil)
+	tr.Commit()
 }
 
 func (s *aspectsSuite) TestGetAspect(c *C) {
+	s.setFeatureFlag(c)
+
 	type test struct {
 		name  string
 		value interface{}
@@ -94,6 +111,8 @@ func (s *aspectsSuite) TestGetAspect(c *C) {
 }
 
 func (s *aspectsSuite) TestAspectGetMany(c *C) {
+	s.setFeatureFlag(c)
+
 	var calls int
 	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, _, _, _, _ string) (interface{}, error) {
 		calls++
@@ -119,6 +138,8 @@ func (s *aspectsSuite) TestAspectGetMany(c *C) {
 }
 
 func (s *aspectsSuite) TestAspectGetSomeFieldNotFound(c *C) {
+	s.setFeatureFlag(c)
+
 	var calls int
 	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, acc, bundle, aspect, _ string) (interface{}, error) {
 		calls++
@@ -144,6 +165,8 @@ func (s *aspectsSuite) TestAspectGetSomeFieldNotFound(c *C) {
 }
 
 func (s *aspectsSuite) TestGetAspectNoFieldsFound(c *C) {
+	s.setFeatureFlag(c)
+
 	var calls int
 	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, _, _, _, _ string) (interface{}, error) {
 		calls++
@@ -178,6 +201,8 @@ func (s *aspectsSuite) TestGetAspectNoFieldsFound(c *C) {
 }
 
 func (s *aspectsSuite) TestAspectGetDatabagNotFound(c *C) {
+	s.setFeatureFlag(c)
+
 	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, _, _, _, _ string) (interface{}, error) {
 		return nil, &aspects.NotFoundError{Account: "foo", BundleName: "network", Aspect: "wifi-setup", Operation: "get", Request: "ssid", Cause: "mocked"}
 	})
@@ -192,8 +217,7 @@ func (s *aspectsSuite) TestAspectGetDatabagNotFound(c *C) {
 }
 
 func (s *aspectsSuite) TestAspectSetManyWithExistingState(c *C) {
-	st := s.d.Overlord().State()
-	st.Lock()
+	s.st.Lock()
 
 	databag := aspects.NewJSONDataBag()
 	err := databag.Set("wifi.ssid", "foo")
@@ -202,21 +226,20 @@ func (s *aspectsSuite) TestAspectSetManyWithExistingState(c *C) {
 	databags := map[string]map[string]aspects.JSONDataBag{
 		"system": {"network": databag},
 	}
-	st.Set("aspect-databags", databags)
-	st.Unlock()
+	s.st.Set("aspect-databags", databags)
+	s.st.Unlock()
 
 	s.testAspectSetMany(c)
 }
 
 func (s *aspectsSuite) TestAspectSetManyWithExistingEmptyState(c *C) {
-	st := s.d.Overlord().State()
-	st.Lock()
+	s.st.Lock()
 
 	databags := map[string]map[string]aspects.JSONDataBag{
 		"system": {"network": aspects.NewJSONDataBag()},
 	}
-	st.Set("aspect-databags", databags)
-	st.Unlock()
+	s.st.Set("aspect-databags", databags)
+	s.st.Unlock()
 
 	s.testAspectSetMany(c)
 }
@@ -226,6 +249,8 @@ func (s *aspectsSuite) TestAspectSetMany(c *C) {
 }
 
 func (s *aspectsSuite) testAspectSetMany(c *C) {
+	s.setFeatureFlag(c)
+
 	var calls int
 	restore := daemon.MockAspectstateSet(func(bag aspects.DataBag, _, _, _, field string, value interface{}) error {
 		calls++
@@ -281,6 +306,8 @@ func (s *aspectsSuite) testAspectSetMany(c *C) {
 }
 
 func (s *aspectsSuite) TestGetAspectError(c *C) {
+	s.setFeatureFlag(c)
+
 	type test struct {
 		name string
 		err  error
@@ -305,6 +332,8 @@ func (s *aspectsSuite) TestGetAspectError(c *C) {
 }
 
 func (s *aspectsSuite) TestGetAspectMissingField(c *C) {
+	s.setFeatureFlag(c)
+
 	req, err := http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup", nil)
 	c.Assert(err, IsNil)
 
@@ -314,6 +343,8 @@ func (s *aspectsSuite) TestGetAspectMissingField(c *C) {
 }
 
 func (s *aspectsSuite) TestGetAspectMisshapenQuery(c *C) {
+	s.setFeatureFlag(c)
+
 	var calls int
 	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, _, _, _, field string) (interface{}, error) {
 		calls++
@@ -341,6 +372,8 @@ func (s *aspectsSuite) TestGetAspectMisshapenQuery(c *C) {
 }
 
 func (s *aspectsSuite) TestSetAspect(c *C) {
+	s.setFeatureFlag(c)
+
 	type test struct {
 		name  string
 		value interface{}
@@ -398,6 +431,8 @@ func (s *aspectsSuite) TestSetAspect(c *C) {
 }
 
 func (s *aspectsSuite) TestUnsetAspect(c *C) {
+	s.setFeatureFlag(c)
+
 	restore := daemon.MockAspectstateSet(func(_ aspects.DataBag, acc, bundleName, aspect, field string, value interface{}) error {
 		c.Check(acc, Equals, "system")
 		c.Check(bundleName, Equals, "network")
@@ -427,6 +462,8 @@ func (s *aspectsSuite) TestUnsetAspect(c *C) {
 }
 
 func (s *aspectsSuite) TestSetAspectError(c *C) {
+	s.setFeatureFlag(c)
+
 	type test struct {
 		name string
 		err  error
@@ -454,6 +491,8 @@ func (s *aspectsSuite) TestSetAspectError(c *C) {
 }
 
 func (s *aspectsSuite) TestSetAspectEmptyBody(c *C) {
+	s.setFeatureFlag(c)
+
 	restore := daemon.MockAspectstateSet(func(aspects.DataBag, string, string, string, string, interface{}) error {
 		err := errors.New("unexpected call to aspectstate.Set")
 		c.Error(err)
@@ -470,6 +509,8 @@ func (s *aspectsSuite) TestSetAspectEmptyBody(c *C) {
 }
 
 func (s *aspectsSuite) TestSetAspectBadRequest(c *C) {
+	s.setFeatureFlag(c)
+
 	buf := bytes.NewBufferString(`{`)
 	req, err := http.NewRequest("PUT", "/v2/aspects/system/network/wifi-setup", buf)
 	c.Assert(err, IsNil)
@@ -480,6 +521,8 @@ func (s *aspectsSuite) TestSetAspectBadRequest(c *C) {
 }
 
 func (s *aspectsSuite) TestGetBadRequest(c *C) {
+	s.setFeatureFlag(c)
+
 	restore := daemon.MockAspectstateGet(func(_ aspects.DataBag, acc, bundleName, aspect, field string) (interface{}, error) {
 		return nil, &aspects.BadRequestError{
 			Account:    "acc",
@@ -493,7 +536,6 @@ func (s *aspectsSuite) TestGetBadRequest(c *C) {
 	defer restore()
 
 	req, err := http.NewRequest("GET", "/v2/aspects/acc/bundle/foo?fields=foo", &bytes.Buffer{})
-	req.Header.Set("Content-Type", "application/json")
 	c.Assert(err, IsNil)
 
 	rspe := s.errorReq(c, req, nil)
@@ -503,6 +545,8 @@ func (s *aspectsSuite) TestGetBadRequest(c *C) {
 }
 
 func (s *aspectsSuite) TestSetBadRequest(c *C) {
+	s.setFeatureFlag(c)
+
 	restore := daemon.MockAspectstateSet(func(aspects.DataBag, string, string, string, string, interface{}) error {
 		return &aspects.BadRequestError{
 			Account:    "acc",
@@ -523,5 +567,41 @@ func (s *aspectsSuite) TestSetBadRequest(c *C) {
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Message, Equals, `cannot set "foo" in aspect acc/bundle/foo: bad request`)
+	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
+}
+
+func (s *aspectsSuite) TestSetFailUnsetFeatureFlag(c *C) {
+	restore := daemon.MockAspectstateSet(func(aspects.DataBag, string, string, string, string, interface{}) error {
+		err := fmt.Errorf("unexpected call to aspectstate")
+		c.Error(err)
+		return err
+	})
+	defer restore()
+
+	buf := bytes.NewBufferString(`{"a.b.c": "foo"}`)
+	req, err := http.NewRequest("PUT", "/v2/aspects/acc/bundle/foo", buf)
+	req.Header.Set("Content-Type", "application/json")
+	c.Assert(err, IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Message, Equals, `aspect-based configuration disabled: you must set 'experimental.aspects-configuration' to true`)
+	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
+}
+
+func (s *aspectsSuite) TestGetFailUnsetFeatureFlag(c *C) {
+	restore := daemon.MockAspectstateSet(func(aspects.DataBag, string, string, string, string, interface{}) error {
+		err := fmt.Errorf("unexpected call to aspectstate")
+		c.Error(err)
+		return err
+	})
+	defer restore()
+
+	req, err := http.NewRequest("GET", "/v2/aspects/acc/bundle/foo?fields=my-field", nil)
+	c.Assert(err, IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Message, Equals, `aspect-based configuration disabled: you must set 'experimental.aspects-configuration' to true`)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
 }
