@@ -27,7 +27,7 @@ import (
 )
 
 var sealCmd = &Command{
-	Path:        "/v2/reseal",
+	Path:        "/v2/system-reseal",
 	POST:        postReseal,
 	WriteAccess: rootAccess{},
 }
