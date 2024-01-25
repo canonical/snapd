@@ -22,7 +22,6 @@ package daemon
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
@@ -76,33 +75,9 @@ func getRequests(c *Command, r *http.Request, user *auth.UserState) Response {
 		return userNotAllowedPromptingClientResponse(user)
 	}
 
-	query := r.URL.Query()
-	follow := false
-	if s := query.Get("follow"); s != "" {
-		f, err := strconv.ParseBool(s)
-		if err != nil {
-			return BadRequest("invalid value for follow: %q: %v", s, err)
-		}
-		follow = f
-	}
-
 	ucred, err := ucrednetGet(r.RemoteAddr)
 	if err != nil {
 		return Forbidden("cannot get remote user: %v", err)
-	}
-
-	if follow {
-		// TODO: provide a way to stop these when the daemon stops.
-		// XXX: is there a way to tell when the connection has been closed by
-		// the UI client? Can't let requestsCh be closed by the daemon, that
-		// would cause a panic when the prompting manager tries to write or
-		// close it.
-		jsonSeqResp, requestsCh := newFollowRequestsSeqResponse()
-		// TODO: implement the following:
-		// respWriter := c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRequestsChan(ucred.Uid, requestsCh)
-		// When daemon stops, call respWriter.Stop()
-		_ = c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRequestsChan(ucred.Uid, requestsCh)
-		return jsonSeqResp
 	}
 
 	result, err := c.d.overlord.InterfaceManager().Prompting().GetRequests(ucred.Uid)
@@ -171,32 +146,9 @@ func getRules(c *Command, r *http.Request, user *auth.UserState) Response {
 	snap := query.Get("snap")
 	app := query.Get("app")
 
-	follow := false
-	if s := query.Get("follow"); s != "" {
-		f, err := strconv.ParseBool(s)
-		if err != nil {
-			return BadRequest("invalid value for follow: %q: %v", s, err)
-		}
-		follow = f
-	}
-
 	ucred, err := ucrednetGet(r.RemoteAddr)
 	if err != nil {
 		return Forbidden("cannot get remote user: %v", err)
-	}
-
-	if follow {
-		// TODO: provide a way to stop these when the daemon stops.
-		// XXX: is there a way to tell when the connection has been closed by
-		// the UI client? Can't let requestsCh be closed by the daemon, that
-		// would cause a panic when the prompting manager tries to write or
-		// close it.
-		jsonSeqResp, rulesCh := newFollowRulesSeqResponse()
-		// TODO: implement the following:
-		// respWriter := c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRulesChan(ucred.Uid, snap, app, rulesCh)
-		// When daemon stops, call respWriter.Stop()
-		_ = c.d.overlord.InterfaceManager().Prompting().RegisterAndPopulateFollowRulesChan(ucred.Uid, snap, app, rulesCh)
-		return jsonSeqResp
 	}
 
 	if app != "" && snap == "" {

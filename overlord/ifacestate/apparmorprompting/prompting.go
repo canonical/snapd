@@ -2,7 +2,6 @@ package apparmorprompting
 
 import (
 	"fmt"
-	"sync"
 
 	"gopkg.in/tomb.v2"
 
@@ -25,42 +24,15 @@ type Interface interface {
 	Stop() error
 }
 
-type followReqEntry struct {
-	respWriters map[*FollowRequestsSeqResponseWriter]bool
-	lock        sync.Mutex
-}
-
-type appEntry struct {
-	respWriters map[*FollowRulesSeqResponseWriter]bool
-}
-
-type snapEntry struct {
-	respWriters map[*FollowRulesSeqResponseWriter]bool
-	appEntries  map[string]*appEntry
-}
-
-type followRuleEntry struct {
-	snapEntries map[string]*snapEntry
-	respWriters map[*FollowRulesSeqResponseWriter]bool
-	lock        sync.Mutex
-}
-
 type Prompting struct {
-	tomb              tomb.Tomb
-	listener          *listener.Listener
-	requests          *promptrequests.RequestDB
-	rules             *accessrules.AccessRuleDB
-	followReqEntries  map[uint32]*followReqEntry
-	followReqLock     sync.Mutex
-	followRuleEntries map[uint32]*followRuleEntry
-	followRuleLock    sync.Mutex
+	tomb     tomb.Tomb
+	listener *listener.Listener
+	requests *promptrequests.RequestDB
+	rules    *accessrules.AccessRuleDB
 }
 
 func New() Interface {
-	p := &Prompting{
-		followReqEntries:  make(map[uint32]*followReqEntry),
-		followRuleEntries: make(map[uint32]*followRuleEntry),
-	}
+	p := &Prompting{}
 	return p
 }
 
@@ -101,268 +73,6 @@ func (p *Prompting) disconnect() error {
 
 var listenerClose = func(l *listener.Listener) error {
 	return l.Close()
-}
-
-func (p *Prompting) followReqEntryForUser(userID uint32) *followReqEntry {
-	p.followReqLock.Lock()
-	defer p.followReqLock.Unlock()
-	entry, exists := p.followReqEntries[userID]
-	if !exists {
-		return nil
-	}
-	return entry
-}
-
-func (p *Prompting) followReqEntryForUserOrInit(userID uint32) *followReqEntry {
-	p.followReqLock.Lock()
-	defer p.followReqLock.Unlock()
-	entry, exists := p.followReqEntries[userID]
-	if !exists {
-		entry = &followReqEntry{
-			respWriters: make(map[*FollowRequestsSeqResponseWriter]bool),
-		}
-		p.followReqEntries[userID] = entry
-	}
-	return entry
-}
-
-func (p *Prompting) followRuleEntryForUser(userID uint32) *followRuleEntry {
-	p.followRuleLock.Lock()
-	defer p.followRuleLock.Unlock()
-	entry, exists := p.followRuleEntries[userID]
-	if !exists {
-		return nil
-	}
-	return entry
-}
-
-func (p *Prompting) followRuleEntryForUserOrInit(userID uint32) *followRuleEntry {
-	p.followRuleLock.Lock()
-	defer p.followRuleLock.Unlock()
-	entry, exists := p.followRuleEntries[userID]
-	if !exists {
-		entry = &followRuleEntry{
-			snapEntries: make(map[string]*snapEntry),
-			respWriters: make(map[*FollowRulesSeqResponseWriter]bool),
-		}
-		p.followRuleEntries[userID] = entry
-	}
-	return entry
-}
-
-func (p *Prompting) RegisterAndPopulateFollowRequestsChan(userID uint32, requestsCh chan *promptrequests.PromptRequest) *FollowRequestsSeqResponseWriter {
-	respWriter := newFollowRequestsSeqResponseWriter(requestsCh)
-
-	entry := p.followReqEntryForUserOrInit(userID)
-
-	entry.lock.Lock()
-	defer entry.lock.Unlock()
-	entry.respWriters[respWriter] = true
-
-	// Start goroutine to wait until respWriter should be removed from
-	// entry.respWriters, either because it has been stopped or the tomb
-	// is dying.
-	p.tomb.Go(func() error {
-		select {
-		case <-p.tomb.Dying():
-			respWriter.Stop()
-		case <-respWriter.Stopping():
-		}
-		entry.lock.Lock()
-		defer entry.lock.Unlock()
-		delete(entry.respWriters, respWriter)
-		return nil
-	})
-
-	// Record current outstanding requests before unlocking.
-	// This way, no new requests (which are sent out independently) can
-	// preempt getting current requests and thus be sent here as well,
-	// causing duplicate requests.
-	outstandingRequests := p.requests.Requests(userID)
-	p.tomb.Go(func() error {
-		// This could block if the chan is filled, so separate goroutine
-		for _, req := range outstandingRequests {
-			if !respWriter.WriteRequest(req) {
-				// respWriter has been stopped
-				break
-			}
-		}
-		return nil
-	})
-	return respWriter
-}
-
-func (p *Prompting) RegisterAndPopulateFollowRulesChan(userID uint32, snap string, app string, rulesCh chan *accessrules.AccessRule) *FollowRulesSeqResponseWriter {
-	respWriter := newFollowRulesSeqResponseWriter(rulesCh)
-
-	entry := p.followRuleEntryForUserOrInit(userID)
-
-	entry.lock.Lock()
-	defer entry.lock.Unlock()
-
-	var outstandingRules []*accessrules.AccessRule
-
-	// The following is ugly, but while addresses of structs may change,
-	// addresses of entries containing maps should not, so it is safe to
-	// retain those entries, rather than storing their embedded maps in a
-	// common variable.
-	if snap == "" {
-		entry.respWriters[respWriter] = true
-		// Start goroutine to wait until respWriter should be removed
-		// from entry.respWriters, either because it has been stopped
-		// or the tomb is dying.
-		p.tomb.Go(func() error {
-			select {
-			case <-p.tomb.Dying():
-				respWriter.Stop()
-			case <-respWriter.Stopping():
-			}
-			entry.lock.Lock()
-			defer entry.lock.Unlock()
-			delete(entry.respWriters, respWriter)
-			return nil
-		})
-		outstandingRules = p.rules.Rules(userID)
-	} else {
-		sEntry := entry.snapEntries[snap]
-		if sEntry == nil {
-			sEntry = &snapEntry{
-				respWriters: make(map[*FollowRulesSeqResponseWriter]bool),
-				appEntries:  make(map[string]*appEntry),
-			}
-			entry.snapEntries[snap] = sEntry
-		}
-		if app == "" {
-			sEntry.respWriters[respWriter] = true
-			// Start goroutine to wait until respWriter should be removed
-			// from sEntry.respWriters, either because it has been stopped
-			// or the tomb is dying.
-			p.tomb.Go(func() error {
-				select {
-				case <-p.tomb.Dying():
-					respWriter.Stop()
-				case <-respWriter.Stopping():
-				}
-				entry.lock.Lock()
-				defer entry.lock.Unlock()
-				delete(sEntry.respWriters, respWriter)
-				return nil
-			})
-			outstandingRules = p.rules.RulesForSnap(userID, snap)
-		} else {
-			saEntry := sEntry.appEntries[app]
-			if saEntry == nil {
-				saEntry = &appEntry{
-					respWriters: make(map[*FollowRulesSeqResponseWriter]bool),
-				}
-				sEntry.appEntries[app] = saEntry
-			}
-			saEntry.respWriters[respWriter] = true
-			// Start goroutine to wait until respWriter should be removed
-			// from saEntry.respWriters, either because it has been stopped
-			// or the tomb is dying.
-			p.tomb.Go(func() error {
-				select {
-				case <-p.tomb.Dying():
-					respWriter.Stop()
-				case <-respWriter.Stopping():
-				}
-				entry.lock.Lock()
-				defer entry.lock.Unlock()
-				delete(saEntry.respWriters, respWriter)
-				return nil
-			})
-			outstandingRules = p.rules.RulesForSnapApp(userID, snap, app)
-		}
-	}
-
-	p.tomb.Go(func() error {
-		// This could block if the chan is filled, so separate goroutine
-		for _, req := range outstandingRules {
-			if !respWriter.WriteRule(req) {
-				// respWriter has been stopped
-				break
-			}
-		}
-		return nil
-	})
-	return respWriter
-}
-
-// Notify all open connections for requests with the given userID that a new
-// request has been received.
-func (p *Prompting) notifyNewRequest(userID uint32, newRequest *promptrequests.PromptRequest) {
-	p.tomb.Go(func() error {
-		entry := p.followReqEntryForUser(userID)
-		if entry == nil {
-			return nil
-		}
-		// Lock so that new incoming request is not mixed in with the
-		// initial outstanding requests.
-		entry.lock.Lock()
-		defer entry.lock.Unlock()
-		for writer := range entry.respWriters {
-			// Don't want to block while holding lock, in case one
-			// of the requestsChan entries is full.
-			p.tomb.Go(func() error {
-				writer.WriteRequest(newRequest)
-				return nil
-			})
-		}
-		return nil
-	})
-}
-
-// Notify all open connections for rules with the given userID that a new
-// rule has been received.
-func (p *Prompting) notifyNewRule(userID uint32, newRule *accessrules.AccessRule) {
-	p.tomb.Go(func() error {
-		entry := p.followRuleEntryForUser(userID)
-		if entry == nil {
-			return nil
-		}
-		// Lock so that new incoming rule are not mixed in with the
-		// initial rules.
-		entry.lock.Lock()
-		defer entry.lock.Unlock()
-
-		for writer := range entry.respWriters {
-			// Don't want to block while holding lock, in case one
-			// of the requestsChan entries is full.
-			p.tomb.Go(func() error {
-				writer.WriteRule(newRule)
-				return nil
-			})
-		}
-
-		sEntry := entry.snapEntries[newRule.Snap]
-		if sEntry == nil {
-			return nil
-		}
-		for writer := range sEntry.respWriters {
-			// Don't want to block while holding lock, in case one
-			// of the requestsChan entries is full.
-			p.tomb.Go(func() error {
-				writer.WriteRule(newRule)
-				return nil
-			})
-		}
-
-		saEntry := sEntry.appEntries[newRule.App]
-		if saEntry == nil {
-			return nil
-		}
-		for writer := range saEntry.respWriters {
-			// Don't want to block while holding lock, in case one
-			// of the requestsChan entries is full.
-			p.tomb.Go(func() error {
-				writer.WriteRule(newRule)
-				return nil
-			})
-		}
-
-		return nil
-	})
 }
 
 func (p *Prompting) Run() error {
@@ -457,7 +167,6 @@ func (p *Prompting) handleListenerReq(req *listener.Request) error {
 
 	logger.Noticef("adding request to internal storage: %+v", newRequest)
 
-	p.notifyNewRequest(userID, newRequest)
 	return nil
 }
 
@@ -521,7 +230,6 @@ func (p *Prompting) PostRequest(userID uint32, requestID string, reply *PromptRe
 		// CreateAccessRule (CreateAccessRuleFromReply ?)
 		return nil, err
 	}
-	p.notifyNewRule(userID, newRule)
 
 	// Apply new rule to outstanding prompt requests.
 	satisfiedReqIDs, err := p.requests.HandleNewRule(userID, newRule.Snap, newRule.App, newRule.PathPattern, newRule.Outcome, newRule.Permissions)
@@ -597,7 +305,6 @@ func (p *Prompting) PostRulesCreate(userID uint32, rules []*PostRulesCreateRuleC
 			continue
 		}
 		createdRules = append(createdRules, newRule)
-		p.notifyNewRule(userID, newRule)
 		// Apply new rule to outstanding requests. If error occurs,
 		// include it in the list of errors from creating rules.
 		if _, err := p.requests.HandleNewRule(userID, newRule.Snap, newRule.App, newRule.PathPattern, newRule.Outcome, newRule.Permissions); err != nil {

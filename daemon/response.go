@@ -33,8 +33,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/accessrules"
-	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/promptrequests"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -332,104 +330,6 @@ func (rr *journalLineReaderSeqResponse) ServeHTTP(w http.ResponseWriter, r *http
 		logger.Noticef("cannot stream response; problem writing: %v", err)
 	}
 	rr.Close()
-}
-
-type followRequestsSeqResponse struct {
-	requestsCh chan *promptrequests.PromptRequest
-}
-
-func newFollowRequestsSeqResponse() (*followRequestsSeqResponse, chan *promptrequests.PromptRequest) {
-	resp := &followRequestsSeqResponse{
-		requestsCh: make(chan *promptrequests.PromptRequest, 16),
-	}
-	return resp, resp.requestsCh
-}
-
-func (fr *followRequestsSeqResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json-seq")
-
-	flusher, hasFlusher := w.(http.Flusher)
-
-	var err error
-	writer := bufio.NewWriter(w)
-	enc := json.NewEncoder(writer)
-	for {
-		req, received := <-fr.requestsCh
-		if !received {
-			// requestsCh is closed
-			break
-		}
-		writer.WriteByte(0x1E) // RS -- see ascii(7), and RFC7464
-		if err := enc.Encode(req); err != nil {
-			break
-		}
-		if err := writer.Flush(); err != nil {
-			break
-		}
-		if hasFlusher {
-			flusher.Flush()
-		}
-	}
-
-	if err != nil && err != io.EOF {
-		writer.WriteByte(0x1E) // RS -- see ascii(7), and RFC7464
-		marshalled, _ := json.Marshal(map[string]error{"error": err})
-		writer.Write(marshalled)
-		writer.WriteByte('\n')
-		logger.Noticef("cannot stream response; problem reading: %v", err)
-	}
-	if err := writer.Flush(); err != nil {
-		logger.Noticef("cannot stream response; problem writing: %v", err)
-	}
-}
-
-type followRulesSeqResponse struct {
-	rulesCh chan *accessrules.AccessRule
-}
-
-func newFollowRulesSeqResponse() (*followRulesSeqResponse, chan *accessrules.AccessRule) {
-	resp := &followRulesSeqResponse{
-		rulesCh: make(chan *accessrules.AccessRule, 16),
-	}
-	return resp, resp.rulesCh
-}
-
-func (fr *followRulesSeqResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json-seq")
-
-	flusher, hasFlusher := w.(http.Flusher)
-
-	var err error
-	writer := bufio.NewWriter(w)
-	enc := json.NewEncoder(writer)
-	for {
-		req, received := <-fr.rulesCh
-		if !received {
-			// rulesCh is closed
-			break
-		}
-		writer.WriteByte(0x1E) // RS -- see ascii(7), and RFC7464
-		if err := enc.Encode(req); err != nil {
-			break
-		}
-		if err := writer.Flush(); err != nil {
-			break
-		}
-		if hasFlusher {
-			flusher.Flush()
-		}
-	}
-
-	if err != nil && err != io.EOF {
-		writer.WriteByte(0x1E) // RS -- see ascii(7), and RFC7464
-		marshalled, _ := json.Marshal(map[string]error{"error": err})
-		writer.Write(marshalled)
-		writer.WriteByte('\n')
-		logger.Noticef("cannot stream response; problem reading: %v", err)
-	}
-	if err := writer.Flush(); err != nil {
-		logger.Noticef("cannot stream response; problem writing: %v", err)
-	}
 }
 
 type assertResponse struct {
