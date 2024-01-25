@@ -500,6 +500,8 @@ func (ro *remodelVariant) UpdateWithDeviceContext(st *state.State, snapName stri
 				userID, snapStateFlags, tracker, deviceCtx, fromChange)
 		}
 
+		// TODO: this should also take into account other revisions that we
+		// might have on the system (the revisions in SnapState.Sequence)
 		info, err := snapstate.CurrentInfo(st, snapName)
 		if err != nil {
 			if errors.Is(err, &snap.NotInstalledError{}) {
