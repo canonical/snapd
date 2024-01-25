@@ -419,7 +419,7 @@ type ResealToModeenvOptions struct {
 	// the boot chains contain unrevisioned kernels.
 	ExpectReseal bool
 	// Force forces resealing to happen
-	Force        bool
+	Force bool
 }
 
 // resealKeyToModeenv reseals the existing encryption key to the
