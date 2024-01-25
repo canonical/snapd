@@ -604,10 +604,7 @@ func (g *grub) getGrubShimBinaryFullPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if osutil.FileExists(filepath.Join(g.rootdir, assets.fallbackBinary)) {
-		return filepath.Join(g.rootdir, assets.shimBinary), nil
-	}
-	return filepath.Join(g.rootdir, assets.defaultShimBinary), nil
+	return filepath.Join(g.rootdir, assets.shimBinary.path), nil
 }
 
 // TrustedAssets returns the map of relative paths to asset
@@ -705,7 +702,7 @@ func (g *grub) BootChains(runBl Bootloader, kernelPath string) ([][]BootFile, er
 
 // ConstructShimEfiLoadOption returns a serialized load option for the shim
 // binary. It should be called on a UefiBootloader.
-func (g *grub) EfiLoadOptionParameters() (description string, assetPath string, optionalData []byte, err error) {
+func (g *grub) ParametersForEfiLoadOption() (description string, assetPath string, optionalData []byte, err error) {
 	assetPath, err = g.getGrubShimBinaryFullPath()
 	if err != nil {
 		return "", "", nil, err

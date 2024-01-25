@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2023 Canonical Ltd
+ * Copyright (C) 2023-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -210,13 +210,13 @@ func setUbuntuSeedEfiBootVariables() error {
 	// Set EFI boot variables according to bootloader on ubuntu-seed
 	seedBl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
 	if err != nil {
-		return fmt.Errorf("cannot find bootloader in seed directory: %v; skipping setting EFI variables", err)
+		return fmt.Errorf("cannot find bootloader in seed directory: %v; skipping set1ting EFI variables", err)
 	}
 	ubl, ok := seedBl.(bootloader.UefiBootloader)
 	if !ok {
 		return errUnsupportedBootloader
 	}
-	description, assetPath, optionalData, err := ubl.EfiLoadOptionParameters()
+	description, assetPath, optionalData, err := ubl.ParametersForEfiLoadOption()
 	if err != nil {
 		return fmt.Errorf("cannot get EFI load option parameter: %v", err)
 	}
