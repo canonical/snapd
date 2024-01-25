@@ -1216,7 +1216,7 @@ func checkForInvalidSnapsInModel(model *asserts.Model, vSets *snapasserts.Valida
 // RemodelOptions are options for Remodel.
 type RemodelOptions struct {
 	// Offline is true if the remodel should be done without reaching out to the
-	// store. Any snaps needed for the remodel, and are not already installed,
+	// store. Any snaps needed for the remodel, that are not already installed,
 	// should be provided via the parameters to Remodel. Snaps that are already
 	// installed will be used if they match the revisions that are required by
 	// the model.
