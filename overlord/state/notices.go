@@ -205,11 +205,20 @@ const (
 	// Recorded by "snap run" command when it is inhibited from running a
 	// a snap due an ongoing refresh.
 	SnapRunInhibitNotice NoticeType = "snap-run-inhibit"
+
+	// Recorded whenever a prompt request is created or resolved. The key for
+	// interfaces-prompting-request notices is the request ID.
+	PromptingRequestNotice NoticeType = "interfaces-prompting-request"
+
+	// Recorded whenever a prompting rule is created, modified, deleted, or
+	// expired. The key for interfaces-prompting-rule-update notices is the
+	// rule ID.
+	PromptingRuleUpdateNotice NoticeType = "interfaces-prompting-rule-update"
 )
 
 func (t NoticeType) Valid() bool {
 	switch t {
-	case ChangeUpdateNotice, WarningNotice, RefreshInhibitNotice, SnapRunInhibitNotice:
+	case ChangeUpdateNotice, WarningNotice, RefreshInhibitNotice, SnapRunInhibitNotice, PromptingRequestNotice, PromptingRuleUpdateNotice:
 		return true
 	}
 	return false
