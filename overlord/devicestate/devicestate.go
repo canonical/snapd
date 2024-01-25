@@ -494,7 +494,7 @@ func (ro *remodelVariant) UpdateWithDeviceContext(st *state.State, snapName stri
 		opts = &snapstate.RevisionOptions{}
 	}
 	if ro.offline {
-		pathSI := sideInfoAndPathFromID(ro.localSnaps, ro.localSnapPaths, snapID)
+		pathSI := ro.sideInfoAndPathFromID(snapID)
 		if pathSI != nil {
 			return snapstateUpdatePathWithDeviceContext(st, pathSI.localSi, pathSI.path, snapName, opts,
 				userID, snapStateFlags, tracker, deviceCtx, fromChange)
@@ -538,7 +538,7 @@ func (ro *remodelVariant) InstallWithDeviceContext(ctx context.Context, st *stat
 		opts = &snapstate.RevisionOptions{}
 	}
 	if ro.offline {
-		pathSI := sideInfoAndPathFromID(ro.localSnaps, ro.localSnapPaths, snapID)
+		pathSI := ro.sideInfoAndPathFromID(snapID)
 		if pathSI == nil {
 			return nil, fmt.Errorf("no snap file provided for %q", snapName)
 		}
@@ -548,6 +548,25 @@ func (ro *remodelVariant) InstallWithDeviceContext(ctx context.Context, st *stat
 	}
 	return snapstateInstallWithDeviceContext(ctx, st, snapName,
 		opts, userID, snapStateFlags, tracker, deviceCtx, fromChange)
+}
+
+// sideInfoAndPathFromID returns the SideInfo/path for a given snap ID. Note
+// that this will work only for asserted snaps, that is the only case we
+// support for remodeling at the moment.
+func (ro *remodelVariant) sideInfoAndPathFromID(id string) *pathSideInfo {
+	for i, si := range ro.localSnaps {
+		if si.SnapID == id {
+			return &pathSideInfo{localSi: ro.localSnaps[i], path: ro.localSnapPaths[i]}
+		}
+	}
+	// We do not return an error because
+	// 1. We call the function also when there are no local snaps,
+	//    so not finding is expected.
+	// 2. Even if local snaps are required, it is not known yet if
+	//    the one identified by id is really needed (it could have
+	//    been already installed, etc.). So the returned SideInfo is
+	//    checked later in {Install,Update}WithDeviceContext.
+	return nil
 }
 
 func revisionOptionsForRemodel(channel string, revision snap.Revision, valsets []snapasserts.ValidationSetKey) *snapstate.RevisionOptions {
@@ -692,25 +711,6 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pat
 		}
 	}
 	return ts, nil
-}
-
-// sideInfoAndPathFromID returns the SideInfo/path for a given snap ID. Note
-// that this will work only for asserted snaps, that is the only case we
-// support for remodeling at the moment.
-func sideInfoAndPathFromID(sis []*snap.SideInfo, paths []string, id string) *pathSideInfo {
-	for i, si := range sis {
-		if si.SnapID == id {
-			return &pathSideInfo{localSi: sis[i], path: paths[i]}
-		}
-	}
-	// We do not return an error because
-	// 1. We call the function also when there are no local snaps,
-	//    so not finding is expected.
-	// 2. Even if local snaps are required, it is not known yet if
-	//    the one identified by id is really needed (it could have
-	//    been already installed, etc.). So the returned SideInfo is
-	//    checked later in {Install,Update}WithDeviceContext.
-	return nil
 }
 
 // tasksForEssentialSnap returns tasks for essential snaps (actually,
