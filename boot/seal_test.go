@@ -674,9 +674,11 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 		// expectReseal to false as it doesn't matter;
 		// the behavior with unasserted kernel is tested in
 		// boot_test.go specific tests
-		const expectReseal = false
-		const forceReseal = false
-		err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, forceReseal, u.unlocker)
+		options := &boot.ResealToModeenvOptions{
+			ExpectReseal: false,
+			Force:        false,
+		}
+		err = boot.ResealKeyToModeenv(rootdir, modeenv, options, u.unlocker)
 		if !tc.sealedKeys || (tc.reuseRunPbc && tc.reuseRecoveryPbc) {
 			// did nothing
 			c.Assert(err, IsNil)
@@ -954,9 +956,11 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 	// expectReseal to false as it doesn't matter;
 	// the behavior with unasserted kernel is tested in
 	// boot_test.go specific tests
-	const expectReseal = false
-	const forceReseal = false
-	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, forceReseal, nil)
+	options := &boot.ResealToModeenvOptions{
+		ExpectReseal: false,
+		Force:        false,
+	}
+	err = boot.ResealKeyToModeenv(rootdir, modeenv, options, nil)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 2)
 
@@ -1168,9 +1172,11 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 	})
 	defer restore()
 
-	const expectReseal = false
-	const forceReseal = false
-	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, forceReseal, nil)
+	options := &boot.ResealToModeenvOptions{
+		ExpectReseal: false,
+		Force:        false,
+	}
+	err = boot.ResealKeyToModeenv(rootdir, modeenv, options, nil)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 2)
 
@@ -1616,12 +1622,16 @@ func (s *sealSuite) TestIsResealNeeded(c *C) {
 	err := boot.WriteBootChains(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 2)
 	c.Assert(err, IsNil)
 
-	needed, _, err := boot.IsResealNeeded(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), false, false)
+	options := &boot.ResealToModeenvOptions{
+		ExpectReseal: false,
+		Force:        false,
+	}
+	needed, _, err := boot.IsResealNeeded(pbc, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), options)
 	c.Assert(err, IsNil)
 	c.Check(needed, Equals, false)
 
 	otherchain := []boot.BootChain{pbc[0]}
-	needed, cnt, err := boot.IsResealNeeded(otherchain, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), false, false)
+	needed, cnt, err := boot.IsResealNeeded(otherchain, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), options)
 	c.Assert(err, IsNil)
 	// chains are different
 	c.Check(needed, Equals, true)
@@ -1629,7 +1639,7 @@ func (s *sealSuite) TestIsResealNeeded(c *C) {
 
 	// boot-chains does not exist, we cannot compare so advise to reseal
 	otherRootdir := c.MkDir()
-	needed, cnt, err = boot.IsResealNeeded(otherchain, filepath.Join(dirs.SnapFDEDirUnder(otherRootdir), "boot-chains"), false, false)
+	needed, cnt, err = boot.IsResealNeeded(otherchain, filepath.Join(dirs.SnapFDEDirUnder(otherRootdir), "boot-chains"), options)
 	c.Assert(err, IsNil)
 	c.Check(needed, Equals, true)
 	c.Check(cnt, Equals, 1)
@@ -1637,7 +1647,7 @@ func (s *sealSuite) TestIsResealNeeded(c *C) {
 	// exists but cannot be read
 	c.Assert(os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0000), IsNil)
 	defer os.Chmod(filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), 0755)
-	needed, _, err = boot.IsResealNeeded(otherchain, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), false, false)
+	needed, _, err = boot.IsResealNeeded(otherchain, filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains"), options)
 	c.Assert(err, ErrorMatches, "cannot open existing boot chains data file: open .*/boot-chains: permission denied")
 	c.Check(needed, Equals, false)
 
@@ -1649,17 +1659,21 @@ func (s *sealSuite) TestIsResealNeeded(c *C) {
 	err = boot.WriteBootChains(unrevchain, bootChainsFile, 2)
 	c.Assert(err, IsNil)
 
-	needed, cnt, err = boot.IsResealNeeded(pbc, bootChainsFile, false, false)
+	needed, cnt, err = boot.IsResealNeeded(pbc, bootChainsFile, options)
 	c.Assert(err, IsNil)
 	c.Check(needed, Equals, true)
 	c.Check(cnt, Equals, 3)
 
 	// cases falling back to expectReseal
-	needed, _, err = boot.IsResealNeeded(unrevchain, bootChainsFile, false, false)
+	needed, _, err = boot.IsResealNeeded(unrevchain, bootChainsFile, options)
 	c.Assert(err, IsNil)
 	c.Check(needed, Equals, false)
 
-	needed, cnt, err = boot.IsResealNeeded(unrevchain, bootChainsFile, true, false)
+	options = &boot.ResealToModeenvOptions{
+		ExpectReseal: true,
+		Force:        false,
+	}
+	needed, cnt, err = boot.IsResealNeeded(unrevchain, bootChainsFile, options)
 	c.Assert(err, IsNil)
 	c.Check(needed, Equals, true)
 	c.Check(cnt, Equals, 3)
@@ -1763,7 +1777,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 	defer dirs.SetRootDir("")
 
 	resealKeyToModeenvUsingFDESetupHookCalled := 0
-	restore := boot.MockResealKeyToModeenvUsingFDESetupHook(func(string, *boot.Modeenv, bool, bool) error {
+	restore := boot.MockResealKeyToModeenvUsingFDESetupHook(func(string, *boot.Modeenv, *boot.ResealToModeenvOptions) error {
 		resealKeyToModeenvUsingFDESetupHookCalled++
 		return nil
 	})
@@ -1793,9 +1807,11 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
 	}
-	const expectReseal = false
-	const forceReseal = false
-	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, forceReseal, nil)
+	options := &boot.ResealToModeenvOptions{
+		ExpectReseal: false,
+		Force:        false,
+	}
+	err = boot.ResealKeyToModeenv(rootdir, modeenv, options, nil)
 	c.Assert(err, IsNil)
 	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
 }
@@ -1806,7 +1822,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
 	defer dirs.SetRootDir("")
 
 	resealKeyToModeenvUsingFDESetupHookCalled := 0
-	restore := boot.MockResealKeyToModeenvUsingFDESetupHook(func(string, *boot.Modeenv, bool, bool) error {
+	restore := boot.MockResealKeyToModeenvUsingFDESetupHook(func(string, *boot.Modeenv, *boot.ResealToModeenvOptions) error {
 		resealKeyToModeenvUsingFDESetupHookCalled++
 		return fmt.Errorf("fde setup hook failed")
 	})
@@ -1828,9 +1844,11 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
 	}
-	const expectReseal = false
-	const forceReseal = false
-	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, forceReseal, nil)
+	options := &boot.ResealToModeenvOptions{
+		ExpectReseal: false,
+		Force:        false,
+	}
+	err = boot.ResealKeyToModeenv(rootdir, modeenv, options, nil)
 	c.Assert(err, ErrorMatches, "fde setup hook failed")
 	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
 }
@@ -2040,9 +2058,11 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 	// expectReseal to false as it doesn't matter;
 	// the behavior with unasserted kernel is tested in
 	// boot_test.go specific tests
-	const expectReseal = false
-	const forceReseal = false
-	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, forceReseal, nil)
+	options := &boot.ResealToModeenvOptions{
+		ExpectReseal: false,
+		Force:        false,
+	}
+	err = boot.ResealKeyToModeenv(rootdir, modeenv, options, nil)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 2)
 

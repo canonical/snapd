@@ -987,7 +987,7 @@ func (s *uc20RemodelLogicSuite) SetUpTest(c *C) {
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, expectReseal bool, forceReseal bool, _ boot.Unlocker) error {
+	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, options *boot.ResealToModeenvOptions, _ boot.Unlocker) error {
 		return fmt.Errorf("not expected to be called")
 	})
 	s.AddCleanup(restore)
@@ -1088,7 +1088,7 @@ func (s *uc20RemodelLogicSuite) TestReregRemodelContextUC20(c *C) {
 	c.Assert(err, IsNil)
 
 	resealKeysCalls := 0
-	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, expectReseal bool, forceReseal bool, u boot.Unlocker) error {
+	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, options *boot.ResealToModeenvOptions, u boot.Unlocker) error {
 		resealKeysCalls++
 		c.Check(m.CurrentRecoverySystems, DeepEquals, []string{"0000", "1234"})
 		c.Check(m.GoodRecoverySystems, DeepEquals, []string{"0000", "1234"})
@@ -1198,7 +1198,7 @@ func (s *uc20RemodelLogicSuite) TestUpdateRemodelContext(c *C) {
 	c.Assert(chg.Get("new-model", &encNewModel), IsNil)
 
 	resealKeysCalls := 0
-	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, expectReseal bool, forceReseal bool, u boot.Unlocker) error {
+	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, options *boot.ResealToModeenvOptions, u boot.Unlocker) error {
 		resealKeysCalls++
 		c.Check(m.CurrentRecoverySystems, DeepEquals, []string{"0000", "1234"})
 		c.Check(m.GoodRecoverySystems, DeepEquals, []string{"0000", "1234"})
@@ -1299,7 +1299,7 @@ func (s *uc20RemodelLogicSuite) TestSimpleRemodelErr(c *C) {
 	c.Assert(chg.Get("new-model", &encNewModel), IsNil)
 
 	resealKeysCalls := 0
-	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, expectReseal bool, forceReseal bool, u boot.Unlocker) error {
+	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, options *boot.ResealToModeenvOptions, u boot.Unlocker) error {
 		resealKeysCalls++
 		c.Check(m.CurrentRecoverySystems, DeepEquals, []string{"0000", "1234"})
 		c.Check(m.GoodRecoverySystems, DeepEquals, []string{"0000", "1234"})

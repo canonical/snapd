@@ -94,9 +94,11 @@ func clearTryRecoverySystem(dev snap.Device, systemLabel string) error {
 
 	// but we still want to reseal, in case the cleanup did not reach this
 	// point before
-	const expectReseal = true
-	const forceReseal = false
-	resealErr := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, forceReseal, nil)
+	options := &ResealToModeenvOptions{
+		ExpectReseal: true,
+		Force:        false,
+	}
+	resealErr := resealKeyToModeenv(dirs.GlobalRootDir, m, options, nil)
 
 	if resealErr != nil {
 		return resealErr
@@ -177,9 +179,11 @@ func SetTryRecoverySystem(dev snap.Device, systemLabel string) (err error) {
 	// until the keys are resealed, even if we unexpectedly boot into the
 	// tried system, data will still be inaccessible and the system will be
 	// considered as nonoperational
-	const expectReseal = true
-	const forceReseal = false
-	return resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, forceReseal, nil)
+	options := &ResealToModeenvOptions{
+		ExpectReseal: true,
+		Force:        false,
+	}
+	return resealKeyToModeenv(dirs.GlobalRootDir, m, options, nil)
 }
 
 type errInconsistentRecoverySystemState struct {
@@ -422,9 +426,11 @@ func PromoteTriedRecoverySystem(dev snap.Device, systemLabel string, triedSystem
 		}
 	}
 
-	const expectReseal = true
-	const forceReseal = false
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, forceReseal, nil); err != nil {
+	options := &ResealToModeenvOptions{
+		ExpectReseal: true,
+		Force:        false,
+	}
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, options, nil); err != nil {
 		if cleanupErr := dropRecoverySystem(dev, systemLabel); cleanupErr != nil {
 			err = fmt.Errorf("%v (cleanup failed: %v)", err, cleanupErr)
 		}
@@ -466,9 +472,11 @@ func dropRecoverySystem(dev snap.Device, systemLabel string) error {
 		}
 	}
 
-	const expectReseal = true
-	const forceReseal = false
-	return resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal, forceReseal, nil)
+	options := &ResealToModeenvOptions{
+		ExpectReseal: true,
+		Force:        false,
+	}
+	return resealKeyToModeenv(dirs.GlobalRootDir, m, options, nil)
 }
 
 // MarkRecoveryCapableSystem records a given system as one that we can recover

@@ -225,8 +225,11 @@ func (u20 *bootStateUpdate20) commit() error {
 	// changed because of unasserted kernels, then pass a
 	// flag as hint whether to reseal based on whether we
 	// wrote the modeenv
-	const forceReseal = false
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, u20.writeModeenv, expectReseal, forceReseal, nil); err != nil {
+	options := &ResealToModeenvOptions{
+		ExpectReseal: expectReseal,
+		Force:        false,
+	}
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, u20.writeModeenv, options, nil); err != nil {
 		return err
 	}
 
