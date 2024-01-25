@@ -215,7 +215,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	runner.AddBlocked(gadgetUpdateBlocked)
 
-	runner.AddHandler("reseal", m.doReseal, nil)
+	runner.AddHandler("boot-reseal", m.doReseal, nil)
 
 	// wire FDE kernel hook support into boot
 	boot.HasFDESetupHook = m.hasFDESetupHook
