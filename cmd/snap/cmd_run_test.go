@@ -1037,24 +1037,7 @@ echo "stdout output 2"
 	s.ResetStdStreams()
 	sudoCmd.ForgetCalls()
 
-	// try again without filtering
-	rest, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--strace=--raw", "--", "snapname.app", "--arg1", "arg2"})
-	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
-	c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
-		{
-			"sudo", "-E",
-			filepath.Join(straceCmd.BinDir(), "strace"),
-			"-u", user.Username,
-			"-f",
-			"-e", strace.ExcludedSyscalls,
-			filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
-			"snap.snapname.app",
-			filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
-			"snapname.app", "--arg1", "arg2",
-		},
-	})
-	c.Check(s.Stdout(), check.Equals, "stdout output 1\nstdout output 2\n")
+	// unfiltered output cases
 	expectedFullFmt := `execve("/path/to/snap-confine")
 snap-confine/snap-exec strace stuff
 getuid() = 1000
@@ -1062,7 +1045,45 @@ execve("%s/snapName/x2/bin/foo")
 interessting strace output
 and more
 `
-	c.Check(s.Stderr(), check.Equals, fmt.Sprintf(expectedFullFmt, dirs.SnapMountDir))
+	expectedFull := fmt.Sprintf(expectedFullFmt, dirs.SnapMountDir)
+
+	for _, tc := range []struct {
+		arg   string
+		entry []string
+	}{
+		{arg: "--raw"},
+		{arg: "-o foo", entry: []string{"-o", "foo"}},
+		{arg: "-o=foo", entry: []string{"-o=foo"}},
+		{arg: "--output foo", entry: []string{"--output", "foo"}},
+		{arg: "--output=foo", entry: []string{"--output=foo"}},
+	} {
+		s.ResetStdStreams()
+		sudoCmd.ForgetCalls()
+
+		rest, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{
+			"run", "--strace=" + tc.arg, "--", "snapname.app", "--arg1", "arg2",
+		})
+		c.Assert(err, check.IsNil)
+		c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+		c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
+			append(append([]string{
+				"sudo", "-E",
+				filepath.Join(straceCmd.BinDir(), "strace"),
+				"-u", user.Username,
+				"-f",
+				"-e", strace.ExcludedSyscalls,
+			},
+				tc.entry...),
+				[]string{
+					filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+					"snap.snapname.app",
+					filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+					"snapname.app", "--arg1", "arg2",
+				}...),
+		})
+		c.Check(s.Stdout(), check.Equals, "stdout output 1\nstdout output 2\n")
+		c.Check(s.Stderr(), check.Equals, expectedFull)
+	}
 }
 
 func (s *RunSuite) TestSnapRunAppWithStraceOptions(c *check.C) {
