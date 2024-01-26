@@ -231,7 +231,11 @@ func (srv *fdoBackend) ObserveNotifications(ctx context.Context, observer Observ
 func (srv *fdoBackend) GracefulShutdown() {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
-	// on shutdown, close all the notifications
+	// On shutdown, close all the notifications, because the next time
+	// the agent is launched, all the associations between serverID and
+	// clientID (and parameters for each action) would have been lost, so
+	// it will be impossible to answer to them, because the new process has
+	// no way of knowing that a notification belonged to an old agent process.
 	for serverId := range srv.serverToLocalID {
 		call := srv.obj.Call(dBusInterfaceName+".CloseNotification", 0, serverId)
 		call.Store()
