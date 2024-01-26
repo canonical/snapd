@@ -493,45 +493,47 @@ func (ro *remodelVariant) UpdateWithDeviceContext(st *state.State, snapName stri
 	if opts == nil {
 		opts = &snapstate.RevisionOptions{}
 	}
-	if ro.offline {
-		pathSI := ro.sideInfoAndPathFromID(snapID)
-		if pathSI != nil {
-			return snapstateUpdatePathWithDeviceContext(st, pathSI.localSi, pathSI.path, snapName, opts,
-				userID, snapStateFlags, tracker, deviceCtx, fromChange)
-		}
 
-		// TODO: this should also take into account other revisions that we
-		// might have on the system (the revisions in SnapState.Sequence)
-		info, err := snapstate.CurrentInfo(st, snapName)
-		if err != nil {
-			// this case is unexpected, since UpdateWithDeviceContext should
-			// only be called if the snap is already installed
-			if errors.Is(err, &snap.NotInstalledError{}) {
-				return nil, fmt.Errorf("internal error: no snap file provided for %q", snapName)
-			}
-			return nil, err
-		}
-
-		if opts != nil && !opts.Revision.Unset() && info.Revision != opts.Revision {
-			return nil, fmt.Errorf("installed snap %q does not match revision required to be used for offline remodel: %s != %s", snapName, opts.Revision, info.Revision)
-		}
-
-		// this would only occur from programmer error, since
-		// UpdateWithDeviceContext should only be called if either the snap
-		// revision or channel needs to change. once we get here, we know that
-		// the revision is the same, so the channel should be different.
-		if opts == nil || opts.Channel == info.Channel {
-			return nil, fmt.Errorf("internal error: installed snap %q already on channel %q", snapName, info.Channel)
-		}
-
-		// since snapstate.Switch doesn't take a prereq tracker, we need to add
-		// it explicitly
-		tracker.Add(info)
-
-		return snapstateSwitch(st, snapName, opts)
+	if !ro.offline {
+		return snapstateUpdateWithDeviceContext(st, snapName, opts,
+			userID, snapStateFlags, tracker, deviceCtx, fromChange)
 	}
-	return snapstateUpdateWithDeviceContext(st, snapName, opts,
-		userID, snapStateFlags, tracker, deviceCtx, fromChange)
+
+	pathSI := ro.sideInfoAndPathFromID(snapID)
+	if pathSI != nil {
+		return snapstateUpdatePathWithDeviceContext(st, pathSI.localSi, pathSI.path, snapName, opts,
+			userID, snapStateFlags, tracker, deviceCtx, fromChange)
+	}
+
+	// TODO: this should also take into account other revisions that we
+	// might have on the system (the revisions in SnapState.Sequence)
+	info, err := snapstate.CurrentInfo(st, snapName)
+	if err != nil {
+		// this case is unexpected, since UpdateWithDeviceContext should
+		// only be called if the snap is already installed
+		if errors.Is(err, &snap.NotInstalledError{}) {
+			return nil, fmt.Errorf("internal error: no snap file provided for %q", snapName)
+		}
+		return nil, err
+	}
+
+	if opts != nil && !opts.Revision.Unset() && info.Revision != opts.Revision {
+		return nil, fmt.Errorf("installed snap %q does not match revision required to be used for offline remodel: %s != %s", snapName, opts.Revision, info.Revision)
+	}
+
+	// this would only occur from programmer error, since
+	// UpdateWithDeviceContext should only be called if either the snap
+	// revision or channel needs to change. once we get here, we know that
+	// the revision is the same, so the channel should be different.
+	if opts == nil || opts.Channel == info.Channel {
+		return nil, fmt.Errorf("internal error: installed snap %q already on channel %q", snapName, info.Channel)
+	}
+
+	// since snapstate.Switch doesn't take a prereq tracker, we need to add
+	// it explicitly
+	tracker.Add(info)
+
+	return snapstateSwitch(st, snapName, opts)
 }
 
 func (ro *remodelVariant) InstallWithDeviceContext(ctx context.Context, st *state.State,
