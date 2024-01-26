@@ -24,7 +24,7 @@ printf '%s\n' "-950" > /proc/$$/oom_score_adj
 cat /proc/meminfo
 
 # ensure we can do a connect to localhost
-echo ubuntu:ubuntu|chpasswd
+echo "${AUTOPKGTEST_NORMAL_USER:-ubuntu}":"${AUTOPKGTEST_NORMAL_USER:-ubuntu}" | chpasswd
 sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /etc/ssh/sshd_config
 systemctl reload ssh.service
 
