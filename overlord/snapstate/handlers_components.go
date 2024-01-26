@@ -400,8 +400,8 @@ func (m *SnapManager) undoUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (e
 }
 
 func kernelVersionFromPlaceInfo(spi snap.PlaceInfo) (string, error) {
-	const systemMapFilePrefix = "System.map-"
-	matchPath := filepath.Join(spi.MountDir(), systemMapFilePrefix+"*")
+	systemMapPathPrefix := filepath.Join(spi.MountDir(), "System.map-")
+	matchPath := systemMapPathPrefix + "*"
 	matches, err := filepath.Glob(matchPath)
 	if err != nil {
 		// could be only ErrBadPattern, should not really happen
@@ -410,7 +410,7 @@ func kernelVersionFromPlaceInfo(spi snap.PlaceInfo) (string, error) {
 	if len(matches) != 1 {
 		return "", fmt.Errorf("number of matches for %s is %d", matchPath, len(matches))
 	}
-	return strings.TrimPrefix(matches[0], systemMapFilePrefix), nil
+	return strings.TrimPrefix(matches[0], systemMapPathPrefix), nil
 }
 
 func (m *SnapManager) doSetupKernelModulesComponent(t *state.Task, _ *tomb.Tomb) error {
