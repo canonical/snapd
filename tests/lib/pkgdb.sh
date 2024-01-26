@@ -83,8 +83,8 @@ distro_name_package() {
 
 distro_install_local_package() {
     allow_downgrades=false
-    while [ -n "$1" ]; do
-        case "$1" in
+    while [ -n "${1:-}" ]; do
+        case "${1:-}" in
             --allow-downgrades)
                 allow_downgrades=true
                 shift
@@ -97,8 +97,10 @@ distro_install_local_package() {
     case "$SPREAD_SYSTEM" in
         ubuntu-14.04-*|debian-*)
             # relying on dpkg as apt(-get) does not support installation from local files in trusty.
-            eatmydata dpkg -i --force-depends --auto-deconfigure --force-depends-version "$@"
-            eatmydata apt-get -f install -y
+            if [ -$# -gt 0 ]; then
+                eatmydata dpkg -i --force-depends --auto-deconfigure --force-depends-version "$@"
+                eatmydata apt-get -f install -y
+            fi
             ;;
         ubuntu-*)
             flags="-y --no-install-recommends"
@@ -106,7 +108,9 @@ distro_install_local_package() {
                 flags="$flags --allow-downgrades"
             fi
             # shellcheck disable=SC2086
-            apt install $flags "$@"
+            if [ -$# -gt 0 ]; then
+                apt install $flags "$@"
+            fi
             ;;
         amazon-*|centos-7-*)
             quiet yum -y localinstall "$@"
