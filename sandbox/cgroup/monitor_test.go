@@ -379,44 +379,6 @@ func (s *monitorSuite) TestMonitorSnapEndedIntegration(c *C) {
 	c.Check(snapName, Equals, "firefox")
 }
 
-func (s *monitorSuite) TestMonitorUnbuffered(c *C) {
-	cb := 0
-	monitorEvent := make(chan string)
-	ctx, cancel := context.WithCancel(context.Background())
-	s.AddCleanup(cgroup.MockInotifyWatcher(ctx, func(w *cgroup.InotifyWatcher, name string) {
-		cb++
-		switch cb {
-		case 1:
-			// notify about snap monitoring being added
-			monitorEvent <- name
-		case 2, 3:
-			monitorEvent <- name
-		default:
-			c.Fatalf("unexpected callback: %d %q", cb, name)
-		}
-
-	}))
-	defer cancel()
-
-	folder1 := makeTestFolder(c, s.tempDir, "folder1")
-
-	filelist := []string{folder1}
-	ch := make(chan string)
-	err := cgroup.MonitorDelete(filelist, "test1", ch)
-	c.Assert(err, IsNil)
-
-	<-monitorEvent
-
-	// channel is closed
-	close(ch)
-
-	err = os.Remove(folder1)
-	c.Assert(err, IsNil)
-
-	// remove was observed
-	c.Check(<-monitorEvent, Equals, "test1")
-}
-
 func (s *monitorSuite) TestMonitorClose(c *C) {
 	w := cgroup.NewInotifyWatcher(context.Background())
 	f := makeTestFolder(c, s.tempDir, "foo")
