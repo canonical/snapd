@@ -236,6 +236,7 @@ func (srv *fdoBackend) GracefulShutdown() {
 	// clientID (and parameters for each action) would have been lost, so
 	// it will be impossible to answer to them, because the new process has
 	// no way of knowing that a notification belonged to an old agent process.
+	// (Maybe close only those with actions?)
 	for serverId := range srv.serverToLocalID {
 		call := srv.obj.Call(dBusInterfaceName+".CloseNotification", 0, serverId)
 		call.Store()
