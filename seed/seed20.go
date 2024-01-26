@@ -135,6 +135,16 @@ func (s *seed20) Copy(seedDir string, label string) (err error) {
 		return err
 	}
 
+	if err := s.LoadMeta(AllModes, nil, timings.New(nil)); err != nil {
+		return err
+	}
+
+	destAssertedSnapDir := filepath.Join(destSeedDir, "snaps")
+
+	if err := os.MkdirAll(destAssertedSnapDir, 0755); err != nil {
+		return err
+	}
+
 	// copy the asserted snaps that the seed needs
 	for _, sn := range s.snaps {
 		// unasserted snaps are already copied above, skip them
@@ -142,13 +152,9 @@ func (s *seed20) Copy(seedDir string, label string) (err error) {
 			continue
 		}
 
-		destPath := filepath.Join(destSeedDir, "snaps", filepath.Base(sn.Path))
+		destSnapPath := filepath.Join(destAssertedSnapDir, filepath.Base(sn.Path))
 
-		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
-			return err
-		}
-
-		if err := osutil.CopyFile(sn.Path, destPath, osutil.CopyFlagOverwrite); err != nil {
+		if err := osutil.CopyFile(sn.Path, destSnapPath, osutil.CopyFlagOverwrite); err != nil {
 			return fmt.Errorf("cannot copy asserted snap: %w", err)
 		}
 	}

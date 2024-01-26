@@ -3559,9 +3559,6 @@ func (s *seed20Suite) testCopy(c *C, destLabel string) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
-
 	copier, ok := seed20.(seed.Copier)
 	c.Assert(ok, Equals, true)
 
@@ -3647,9 +3644,6 @@ func (s *seed20Suite) TestCopyCleanup(c *C) {
 	err = seed20.LoadAssertions(s.db, s.commitTo)
 	c.Assert(err, IsNil)
 
-	err = seed20.LoadMeta(seed.AllModes, nil, s.perfTimings)
-	c.Assert(err, IsNil)
-
 	copier, ok := seed20.(seed.Copier)
 	c.Assert(ok, Equals, true)
 
@@ -3659,7 +3653,7 @@ func (s *seed20Suite) TestCopyCleanup(c *C) {
 
 	destSeedDir := c.MkDir()
 	err = copier.Copy(destSeedDir, label)
-	c.Check(err, testutil.ErrorIs, os.ErrNotExist)
+	c.Check(err, NotNil)
 
 	// seed destination should have been cleaned up
 	c.Check(filepath.Join(destSeedDir, "systems", label), testutil.FileAbsent)
