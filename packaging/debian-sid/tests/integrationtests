@@ -23,6 +23,10 @@ printf '%s\n' "-950" > /proc/$$/oom_score_adj
 # see what mem we have (for debugging)
 cat /proc/meminfo
 
+# who are we?
+echo "We are running as $(id)"
+echo "Normal user is ${AUTOPKGTEST_NORMAL_USER:-unset}"
+
 # ensure we can do a connect to localhost
 echo "${AUTOPKGTEST_NORMAL_USER:-ubuntu}":"${AUTOPKGTEST_NORMAL_USER:-ubuntu}" | chpasswd
 sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /etc/ssh/sshd_config
