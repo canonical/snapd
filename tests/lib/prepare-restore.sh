@@ -265,6 +265,7 @@ prepare_project() {
     # no need to modify anything further for autopkgtest
     # we want to run as pristine as possible
     if [ "$SPREAD_BACKEND" = autopkgtest ]; then
+        create_test_user
         exit 0
     fi
 
