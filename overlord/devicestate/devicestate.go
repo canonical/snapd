@@ -494,18 +494,31 @@ func (ro *remodelVariant) UpdateWithDeviceContext(st *state.State, snapName stri
 		opts = &snapstate.RevisionOptions{}
 	}
 
+	// if an online context, we can go directly to the store
 	if !ro.offline {
 		return snapstateUpdateWithDeviceContext(st, snapName, opts,
 			userID, snapStateFlags, tracker, deviceCtx, fromChange)
 	}
 
-	pathSI := ro.sideInfoAndPathFromID(snapID)
+	pathSI := ro.maybeSideInfoAndPathFromID(snapID)
+
+	// if we find the side info in the locally provided snaps, then we can
+	// directly call snapstate.UpdatePathWithDeviceContext on it
 	if pathSI != nil {
 		return snapstateUpdatePathWithDeviceContext(st, pathSI.localSi, pathSI.path, snapName, opts,
 			userID, snapStateFlags, tracker, deviceCtx, fromChange)
 	}
 
-	// TODO: this should also take into account other revisions that we
+	// if we cannot find the side info in the locally provided snaps, then we
+	// will try to use an already installed snap. if the installed snap does not
+	// match the requested revision, then we will return an error. if the snap
+	// does match the requested revision, then we will switch the channel to the
+	// requested channel. see the comment below about how calling this method in
+	// the case where the snap needs neither a revision nor channel change would
+	// be a bug.
+
+	// TODO: currently, we only consider the snap revision that currently
+	// installed. this should also take into account other revisions that we
 	// might have on the system (the revisions in SnapState.Sequence)
 	info, err := snapstate.CurrentInfo(st, snapName)
 	if err != nil {
@@ -522,9 +535,9 @@ func (ro *remodelVariant) UpdateWithDeviceContext(st *state.State, snapName stri
 	}
 
 	// this would only occur from programmer error, since
-	// UpdateWithDeviceContext should only be called if either the snap
-	// revision or channel needs to change. once we get here, we know that
-	// the revision is the same, so the channel should be different.
+	// UpdateWithDeviceContext should only be called if either the snap revision
+	// or channel needs to change. once we get here, we know that the revision
+	// is the same, so the channel should be different.
 	if opts == nil || opts.Channel == info.Channel {
 		return nil, fmt.Errorf("internal error: installed snap %q already on channel %q", snapName, info.Channel)
 	}
@@ -545,7 +558,11 @@ func (ro *remodelVariant) InstallWithDeviceContext(ctx context.Context, st *stat
 		opts = &snapstate.RevisionOptions{}
 	}
 	if ro.offline {
-		pathSI := ro.sideInfoAndPathFromID(snapID)
+		pathSI := ro.maybeSideInfoAndPathFromID(snapID)
+
+		// if we can't find the snap as a locally provided snap, then there is
+		// nothing to do but return an error. that is because this method should
+		// only be called if the snap is not already installed.
 		if pathSI == nil {
 			return nil, fmt.Errorf("no snap file provided for %q", snapName)
 		}
@@ -557,22 +574,16 @@ func (ro *remodelVariant) InstallWithDeviceContext(ctx context.Context, st *stat
 		opts, userID, snapStateFlags, tracker, deviceCtx, fromChange)
 }
 
-// sideInfoAndPathFromID returns the SideInfo/path for a given snap ID. Note
-// that this will work only for asserted snaps, that is the only case we
-// support for remodeling at the moment.
-func (ro *remodelVariant) sideInfoAndPathFromID(id string) *pathSideInfo {
+// maybeSideInfoAndPathFromID returns the SideInfo/path for a given snap ID.
+// Note that this will work only for asserted snaps, that is the only case we
+// support for remodeling at the moment. If the snap cannot be found, then nil
+// is returned.
+func (ro *remodelVariant) maybeSideInfoAndPathFromID(id string) *pathSideInfo {
 	for i, si := range ro.localSnaps {
 		if si.SnapID == id {
 			return &pathSideInfo{localSi: ro.localSnaps[i], path: ro.localSnapPaths[i]}
 		}
 	}
-	// We do not return an error because
-	// 1. We call the function also when there are no local snaps,
-	//    so not finding is expected.
-	// 2. Even if local snaps are required, it is not known yet if
-	//    the one identified by id is really needed (it could have
-	//    been already installed, etc.). So the returned SideInfo is
-	//    checked later in {Install,Update}WithDeviceContext.
 	return nil
 }
 
