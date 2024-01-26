@@ -623,21 +623,22 @@ func (s *apparmorSuite) TestGenerateAAREExclusionPatterns(c *C) {
 		{
 			comment:         "single shortest",
 			excludePatterns: []string{"/ab"},
-			prefix:          "pre ",
-			suffix:          " suf",
+			prefix:          "change_profile ",
+			suffix:          " -> suf,",
 			expRule: `
-pre /[^a]** suf
-pre /a[^b]** suf
+change_profile /[^a]** -> suf,
+change_profile /a[^b]** -> suf,
 `[1:],
 		},
 		{
 			comment:         "single simple with wildcard",
 			excludePatterns: []string{"/a/*/bc"},
+			suffix:          " r,",
 			expRule: `
-/[^a]**
-/a[^/]**
-/a/*/[^b]**
-/a/*/b[^c]**
+/[^a]** r,
+/a[^/]** r,
+/a/*/[^b]** r,
+/a/*/b[^c]** r,
 `[1:],
 		},
 
@@ -645,125 +646,130 @@ pre /a[^b]** suf
 		{
 			comment:         "same length no overlap shortest",
 			excludePatterns: []string{"/a", "/d"},
+			suffix:          " r,",
 			expRule: `
-/[^ad]**
+/[^ad]** r,
 `[1:],
 		},
 		{
 			comment:         "diff length no overlap shortest",
 			excludePatterns: []string{"/a", "/dc"},
+			suffix:          " r,",
 			expRule: `
-/[^ad]**
-/d[^c]**
+/[^ad]** r,
+/d[^c]** r,
 `[1:],
 		},
 		{
 			comment:         "diff length overlap",
 			excludePatterns: []string{"/ad", "/adc"},
+			suffix:          " r,",
 			expRule: `
-/[^a]**
-/a[^d]**
-/ad[^c]**
+/[^a]** r,
+/a[^d]** r,
+/ad[^c]** r,
 `[1:],
 		},
 		{
 			comment:         "same length no overlap",
 			excludePatterns: []string{"/ab", "/de"},
+			suffix:          " r,",
 			expRule: `
-/[^ad]**
-/{a[^b],d[^e]}**
+/[^ad]** r,
+/{a[^b],d[^e]}** r,
 `[1:],
 		},
 		{
 			comment:         "same length overlap",
 			excludePatterns: []string{"/ab", "/ac"},
+			suffix:          " r,",
 			expRule: `
-/[^a]**
-/a[^bc]**
+/[^a]** r,
+/a[^bc]** r,
 `[1:],
 		},
 		{
 			comment:         "same length overlap",
 			excludePatterns: []string{"/AB", "/AC"},
+			suffix:          " r,",
 			expRule: `
-/[^A]**
-/A[^BC]**
+/[^A]** r,
+/A[^BC]** r,
 `[1:],
 		},
 		{
 			comment:         "same length overlap with wildcard",
 			excludePatterns: []string{"/ab/*/c", "/ad/*/c"},
+			suffix:          " r,",
 			expRule: `
-/[^a]**
-/a[^bd]**
-/a{b[^/],d[^/]}**
-/a{b/*/[^c],d/*/[^c]}**
+/[^a]** r,
+/a[^bd]** r,
+/a{b[^/],d[^/]}** r,
+/a{b/*/[^c],d/*/[^c]}** r,
 `[1:],
 		},
 		{
-			comment: "different length same overlap with extra nonoverlapping",
-			// this is special because if we weren't using an OrderedSet and
-			// instead had a []rune in the negCharsByAllowChars impl, we would
-			// get rules like
-			// /a/{b[^cc],f[^g]}
-			// instead of the correct one which is de-duplicated like
-			// /a/{b[^c],f[^g]}
-			// apparmor doesn't like the former and only accepts the latter
+			comment:         "different length same overlap with extra nonoverlapping",
 			excludePatterns: []string{"/a/bc/d", "/a/bc/e", "/a/fg"},
+			suffix:          " r,",
 			expRule: `
-/[^a]**
-/a[^/]**
-/a/[^bf]**
-/a/{b[^c],f[^g]}**
-/a/bc[^/]**
-/a/bc/[^de]**
+/[^a]** r,
+/a[^/]** r,
+/a/[^bf]** r,
+/a/{b[^c],f[^g]}** r,
+/a/bc[^/]** r,
+/a/bc/[^de]** r,
 `[1:],
 		},
 		{
 			comment:         "diff length overlap with wildcard",
 			excludePatterns: []string{"/abc/*/c", "/ad/*/c"},
+			suffix:          " r,",
 			expRule: `
-/[^a]**
-/a[^bd]**
-/a{b[^c],d[^/]}**
-/abc[^/]**
-/ad/*/[^c]**
-/abc/*/[^c]**
+/[^a]** r,
+/a[^bd]** r,
+/a{b[^c],d[^/]}** r,
+/abc[^/]** r,
+/ad/*/[^c]** r,
+/abc/*/[^c]** r,
 `[1:],
 		},
 		{
 			comment:         "more diff length overlap with wildcard",
 			excludePatterns: []string{"/abc/*/c", "/ab/*/e", "/ad/*/c"},
+			suffix:          " r,",
 			expRule: `
-/[^a]**
-/a[^bd]**
-/a{b[^c/],d[^/]}**
-/abc[^/]**
-/a{b/*/[^e],d/*/[^c]}**
-/abc/*/[^c]**
+/[^a]** r,
+/a[^bd]** r,
+/a{b[^c/],d[^/]}** r,
+/abc[^/]** r,
+/a{b/*/[^e],d/*/[^c]}** r,
+/abc/*/[^c]** r,
 `[1:],
 		},
 		{
 			comment:         "very diff length overlap with wildcard after diff length",
 			excludePatterns: []string{"/abc/*/c/*/e", "/ad/*/c"},
+			suffix:          " r,",
 			expRule: `
-/[^a]**
-/a[^bd]**
-/a{b[^c],d[^/]}**
-/abc[^/]**
-/ad/*/[^c]**
-/abc/*/[^c]**
-/abc/*/c[^/]**
-/abc/*/c/*/[^e]**
+/[^a]** r,
+/a[^bd]** r,
+/a{b[^c],d[^/]}** r,
+/abc[^/]** r,
+/ad/*/[^c]** r,
+/abc/*/[^c]** r,
+/abc/*/c[^/]** r,
+/abc/*/c/*/[^e]** r,
 `[1:],
 		},
 		{
 			comment:         "same length overlap with wildcard in overlap",
 			excludePatterns: []string{"/a/*/b", "/a/*/c"},
+			suffix:          " r,",
 			expRule: `
-/[^a]**
-/a[^/]**
-/a/*/[^bc]**
+/[^a]** r,
+/a[^/]** r,
+/a/*/[^bc]** r,
 `[1:],
 		},
 
@@ -783,7 +789,16 @@ pre /a[^b]** suf
 			excludePatterns: []string{"foo"},
 			err:             "exclude patterns must be absolute filepaths",
 		},
-
+		{
+			comment:         "pattern has suffix",
+			excludePatterns: []string{"/foo/*-bar"},
+			err:             "exclude patterns does not support suffixes for now",
+		},
+		{
+			comment:         "wildcard after common pattern",
+			excludePatterns: []string{"/foo/*/bar", "/foo/bar"},
+			err:             "first character after a common subpattern cannot be a wildcard",
+		},
 		// specific cases used around codebase
 		{
 			comment: "any file inherit exec rules except snap-confine for devmode snap executing other snaps",
@@ -919,33 +934,34 @@ pre /a[^b]** suf
 				"/var/lib/snapd/hostfs/proc/",
 				"/var/lib/snapd/hostfs/sys/",
 			},
+			suffix: " r,",
 			expRule: `
-/[^dpsv]**
-/{d[^e],p[^r],s[^y],v[^a]}**
-/{de[^v],pr[^o],sy[^s],va[^r]}**
-/{dev[^/],pro[^c],sys[^/],var[^/]}**
-/{proc[^/],var/[^l]}**
-/var/l[^i]**
-/var/li[^b]**
-/var/lib[^/]**
-/var/lib/[^s]**
-/var/lib/s[^n]**
-/var/lib/sn[^a]**
-/var/lib/sna[^p]**
-/var/lib/snap[^d]**
-/var/lib/snapd[^/]**
-/var/lib/snapd/[^h]**
-/var/lib/snapd/h[^o]**
-/var/lib/snapd/ho[^s]**
-/var/lib/snapd/hos[^t]**
-/var/lib/snapd/host[^f]**
-/var/lib/snapd/hostf[^s]**
-/var/lib/snapd/hostfs[^/]**
-/var/lib/snapd/hostfs/[^dps]**
-/{var/lib/snapd/hostfs/d[^e],var/lib/snapd/hostfs/p[^r],var/lib/snapd/hostfs/s[^y]}**
-/{var/lib/snapd/hostfs/de[^v],var/lib/snapd/hostfs/pr[^o],var/lib/snapd/hostfs/sy[^s]}**
-/{var/lib/snapd/hostfs/dev[^/],var/lib/snapd/hostfs/pro[^c],var/lib/snapd/hostfs/sys[^/]}**
-/var/lib/snapd/hostfs/proc[^/]**
+/[^dpsv]** r,
+/{d[^e],p[^r],s[^y],v[^a]}** r,
+/{de[^v],pr[^o],sy[^s],va[^r]}** r,
+/{dev[^/],pro[^c],sys[^/],var[^/]}** r,
+/{proc[^/],var/[^l]}** r,
+/var/l[^i]** r,
+/var/li[^b]** r,
+/var/lib[^/]** r,
+/var/lib/[^s]** r,
+/var/lib/s[^n]** r,
+/var/lib/sn[^a]** r,
+/var/lib/sna[^p]** r,
+/var/lib/snap[^d]** r,
+/var/lib/snapd[^/]** r,
+/var/lib/snapd/[^h]** r,
+/var/lib/snapd/h[^o]** r,
+/var/lib/snapd/ho[^s]** r,
+/var/lib/snapd/hos[^t]** r,
+/var/lib/snapd/host[^f]** r,
+/var/lib/snapd/hostf[^s]** r,
+/var/lib/snapd/hostfs[^/]** r,
+/var/lib/snapd/hostfs/[^dps]** r,
+/{var/lib/snapd/hostfs/d[^e],var/lib/snapd/hostfs/p[^r],var/lib/snapd/hostfs/s[^y]}** r,
+/{var/lib/snapd/hostfs/de[^v],var/lib/snapd/hostfs/pr[^o],var/lib/snapd/hostfs/sy[^s]}** r,
+/{var/lib/snapd/hostfs/dev[^/],var/lib/snapd/hostfs/pro[^c],var/lib/snapd/hostfs/sys[^/]}** r,
+/var/lib/snapd/hostfs/proc[^/]** r,
 `[1:],
 		},
 	}
@@ -956,13 +972,21 @@ pre /a[^b]** suf
 			Prefix: t.prefix,
 			Suffix: t.suffix,
 		}
-		fmt.Println(t.excludePatterns)
 		res, err := apparmor.GenerateAAREExclusionPatterns(t.excludePatterns, opts)
 		if t.err != "" {
 			c.Assert(err, ErrorMatches, t.err, comment)
 			continue
 		}
 		c.Assert(err, IsNil)
-		c.Assert(res, Equals, t.expRule, comment)
+
+		resHash, err1 := testutil.AppArmorParseAndHashHelper("profile test {" + res + "}")
+		expectedHash, err2 := testutil.AppArmorParseAndHashHelper("profile test {" + t.expRule + "}")
+		if (err1 != nil) || (err2 != nil) {
+			comment = Commentf(t.comment + "\n\nNote that an error occurred in AppArmorParseAndHashHelper " +
+				"while compiling and hashing the apparmor policy and string comparison was used as fallback.")
+			c.Assert(res, Equals, t.expRule, comment)
+		} else {
+			c.Assert(resHash, Equals, expectedHash, comment)
+		}
 	}
 }
