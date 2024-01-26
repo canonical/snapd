@@ -26,11 +26,12 @@ import (
 )
 
 type resealData struct {
+	Reboot bool `json:"reboot"`
 }
 
 // Remodel tries to remodel the system with the given assertion data
-func (client *Client) Reseal() (changeID string, err error) {
-	data, err := json.Marshal(&resealData{})
+func (client *Client) Reseal(reboot bool) (changeID string, err error) {
+	data, err := json.Marshal(&resealData{Reboot: reboot})
 	if err != nil {
 		return "", fmt.Errorf("cannot marshal reseal data: %v", err)
 	}

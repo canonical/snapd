@@ -29,6 +29,7 @@ import (
 
 type cmdReboot struct {
 	clientMixin
+	waitMixin
 	Positional struct {
 		Label string
 	} `positional-args:"true"`
@@ -37,6 +38,7 @@ type cmdReboot struct {
 	InstallMode      bool `long:"install"`
 	RecoverMode      bool `long:"recover"`
 	FactoryResetMode bool `long:"factory-reset"`
+	Reseal           bool `long:"reseal"`
 }
 
 var shortRebootHelp = i18n.G("Reboot into selected system and mode")
@@ -50,14 +52,17 @@ trigger a regular reboot.
 When called without a system label but with a mode it will use the
 current system to enter the given mode.
 
-Note that "recover", "factory-reset" and "run" modes are only available for the
+Note that "recover", "factory-reset" modes are only available for the
 current system.
+
+"--reseal" will force resealing keys on the system before
+rebooting. This is only available for the current system.
 `)
 
 func init() {
 	addCommand("reboot", shortRebootHelp, longRebootHelp, func() flags.Commander {
 		return &cmdReboot{}
-	}, map[string]string{
+	}, waitDescs.also(map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"run": i18n.G("Boot into run mode"),
 		// TRANSLATORS: This should not start with a lowercase letter.
@@ -66,7 +71,9 @@ func init() {
 		"recover": i18n.G("Boot into recover mode"),
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"factory-reset": i18n.G("Boot into factory-reset mode"),
-	}, []argDesc{
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"reseal": i18n.G("Reseal the keys to the device before rebooting"),
+	}), []argDesc{
 		{
 			// TRANSLATORS: This needs to begin with < and end with >
 			name: i18n.G("<label>"),
@@ -100,9 +107,35 @@ func (x *cmdReboot) modeFromCommandline() (string, error) {
 	return mode, nil
 }
 
+func (x *cmdReboot) doReseal() error {
+	if x.RunMode || x.RecoverMode || x.InstallMode || x.FactoryResetMode {
+		return fmt.Errorf("--run/--recover/--factory-reset/--install cannot be provided along --reseal")
+	}
+
+	if x.Positional.Label != "" {
+		return fmt.Errorf("system label cannot be provided along --reseal")
+	}
+
+	const reboot = true
+	id, err := x.client.Reseal(reboot)
+	if err != nil {
+		return err
+	}
+
+	if _, err := x.wait(id); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (x *cmdReboot) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
+	}
+
+	if x.Reseal {
+		x.doReseal()
 	}
 
 	mode, err := x.modeFromCommandline()

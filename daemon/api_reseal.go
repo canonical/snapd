@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/snapcore/snapd/overlord/auth"
@@ -32,12 +33,22 @@ var sealCmd = &Command{
 	WriteAccess: rootAccess{},
 }
 
+type resealData struct {
+	Reboot bool `json:"reboot"`
+}
+
 func postReseal(c *Command, r *http.Request, user *auth.UserState) Response {
+	var data resealData
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&data); err != nil {
+		return BadRequest("cannot decode request body into a resealData: %v", err)
+	}
+
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
-	chg := devicestate.Reseal(st)
+	chg := devicestate.Reseal(st, data.Reboot)
 	ensureStateSoon(st)
 	return AsyncResponse(nil, chg.ID())
 }

@@ -23,6 +23,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -31,5 +32,22 @@ func (m *DeviceManager) doReseal(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	return boot.ForceReseal(st.Unlocker())
+	var reboot bool
+	var systemLabel string
+	var mode string
+
+	t.Get("reboot-after", &reboot)
+	if reboot {
+		t.Get("system-label", &systemLabel)
+		t.Get("mode", &mode)
+	}
+
+	if err := boot.ForceReseal(st.Unlocker()); err != nil {
+		return err
+	}
+
+	if reboot {
+		restart.Request(m.state, restart.RestartSystemNow, nil)
+	}
+	return nil
 }

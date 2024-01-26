@@ -1834,9 +1834,10 @@ func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[
 	return chg, nil
 }
 
-func Reseal(st *state.State) *state.Change {
+func Reseal(st *state.State, reboot bool) *state.Change {
 	chg := st.NewChange("reseal-device", i18n.G("Reseal device against boot parameters"))
 	task := st.NewTask("boot-reseal", i18n.G("Reseal device against boot parameters"))
+	task.Set("reboot-after", reboot)
 	chg.AddTask(task)
 	return chg
 }
