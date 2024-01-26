@@ -174,12 +174,12 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 		// Remove units from previous component
 		if compInstalled {
 			undoSetupKernMod := st.NewTask("cleanup-kernel-modules-component",
-				fmt.Sprintf(i18n.G("Clean-up previous kernel-modules component"),
+				fmt.Sprintf(i18n.G("Clean-up previous kernel-modules component %q%s"),
 					compSi.Component, revisionStr))
 			addTask(undoSetupKernMod)
 		}
 		setupKernMod := st.NewTask("setup-kernel-modules-component",
-			fmt.Sprintf(i18n.G("Set-up kernel-modules component"),
+			fmt.Sprintf(i18n.G("Set-up kernel-modules component %q%s"),
 				compSi.Component, revisionStr))
 		addTask(setupKernMod)
 	}
