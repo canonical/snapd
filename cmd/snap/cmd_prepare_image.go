@@ -58,6 +58,7 @@ type cmdPrepareImage struct {
 	ExtraSnaps         []string `long:"extra-snaps" hidden:"yes"` // DEPRECATED
 	RevisionsFile      string   `long:"revisions"`
 	WriteRevisionsFile string   `long:"write-revisions" optional:"true" optional-value:"./seed.manifest"`
+	Validation         string   `long:"validation" choice:"ignore" choice:"enforce"`
 }
 
 func init() {
@@ -97,6 +98,8 @@ For preparing classic images it supports a --classic mode`),
 			"channel": i18n.G("The channel to use"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"customize": i18n.G("Image customizations specified as JSON file."),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"validation": i18n.G("Control whether validations should be ignored or enforced."),
 		}, []argDesc{
 			{
 				// TRANSLATORS: This needs to begin with < and end with >
@@ -120,13 +123,15 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	// level for "snap" command, for seed/seedwriter used by image however
 	// we want real validation.
 	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
-
+	imageCustomizations := *new(image.Customizations)
+	imageCustomizations.Validation = x.Validation
 	opts := &image.Options{
 		Snaps:            x.ExtraSnaps,
 		ModelFile:        x.Positional.ModelAssertionFn,
 		Channel:          x.Channel,
 		Architecture:     x.Architecture,
 		SeedManifestPath: x.WriteRevisionsFile,
+		Customizations:   imageCustomizations,
 	}
 
 	if x.RevisionsFile != "" {
