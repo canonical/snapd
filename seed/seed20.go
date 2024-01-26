@@ -84,9 +84,8 @@ type seed20 struct {
 	essentialSnapsNum int
 }
 
-// Copy implement Copier interface. Copies the seed to the given root, where
-// root is treated as the root of a seed partition.
-func (s *seed20) Copy(root string) (err error) {
+// Copy implement Copier interface.
+func (s *seed20) Copy(seedDir string, label string) (err error) {
 	// TODO: right now this method requires you to call LoadAssertions and
 	// LoadMeta first. is that okay? should Copier embed the Seed interface to
 	// make that easier? i could call them in here, but then i'd need to take in
@@ -97,18 +96,20 @@ func (s *seed20) Copy(root string) (err error) {
 		return err
 	}
 
-	destRoot, err := filepath.Abs(root)
+	if label == "" {
+		label = filepath.Base(srcSystemDir)
+	}
+
+	destSeedDir, err := filepath.Abs(seedDir)
 	if err != nil {
 		return err
 	}
 
-	label := filepath.Base(srcSystemDir)
-
-	if err := os.Mkdir(filepath.Join(destRoot, "systems"), 0755); err != nil && !errors.Is(err, fs.ErrExist) {
+	if err := os.Mkdir(filepath.Join(destSeedDir, "systems"), 0755); err != nil && !errors.Is(err, fs.ErrExist) {
 		return err
 	}
 
-	destSystemDir := filepath.Join(destRoot, "systems", label)
+	destSystemDir := filepath.Join(destSeedDir, "systems", label)
 	if osutil.FileExists(destSystemDir) {
 		return fmt.Errorf("cannot create system: system %q already exists at %q", label, destSystemDir)
 	}
@@ -128,7 +129,7 @@ func (s *seed20) Copy(root string) (err error) {
 			return err
 		}
 
-		destPath := filepath.Join(destRoot, "systems", label, strings.TrimPrefix(path, srcSystemDir))
+		destPath := filepath.Join(destSeedDir, "systems", label, strings.TrimPrefix(path, srcSystemDir))
 		if info.IsDir() {
 			return os.Mkdir(destPath, info.Mode())
 		}
@@ -146,7 +147,7 @@ func (s *seed20) Copy(root string) (err error) {
 			continue
 		}
 
-		destPath := filepath.Join(destRoot, "snaps", filepath.Base(sn.Path))
+		destPath := filepath.Join(destSeedDir, "snaps", filepath.Base(sn.Path))
 
 		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
 			return err

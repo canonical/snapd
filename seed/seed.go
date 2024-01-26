@@ -208,9 +208,10 @@ type PreseedCapable interface {
 // Copier can be implemented by a seed that supports copying itself to a given
 // destination.
 type Copier interface {
-	// Copy copies the seed to the given seed partition. The root parameter
-	// is treated as the root of the seed partition.
-	Copy(root string) error
+	// Copy copies the seed to the given seedDir with the label provided. If
+	// label is empty, then the label of the seed that implements Copier is
+	// used. This interface only makes sense to implement for UC20+ seeds.
+	Copy(seedDir string, label string) error
 }
 
 // Open returns a Seed implementation for the seed at seedDir.
