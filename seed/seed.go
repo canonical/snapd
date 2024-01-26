@@ -210,7 +210,9 @@ type PreseedCapable interface {
 type Copier interface {
 	// Copy copies the seed to the given seedDir with the label provided. If
 	// label is empty, then the label of the seed that implements Copier is
-	// used. This interface only makes sense to implement for UC20+ seeds.
+	// used. This interface only makes sense to implement for UC20+ seeds. Copy
+	// requires you to call the methods LoadAssertions and LoadMeta first. Only
+	// the snaps for the mode that was passed to LoadMeta will be copied.
 	Copy(seedDir string, label string) error
 }
 

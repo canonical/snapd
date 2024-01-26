@@ -86,11 +86,6 @@ type seed20 struct {
 
 // Copy implement Copier interface.
 func (s *seed20) Copy(seedDir string, label string) (err error) {
-	// TODO: right now this method requires you to call LoadAssertions and
-	// LoadMeta first. is that okay? should Copier embed the Seed interface to
-	// make that easier? i could call them in here, but then i'd need to take in
-	// a db as a parameter.
-
 	srcSystemDir, err := filepath.Abs(s.systemDir)
 	if err != nil {
 		return err
