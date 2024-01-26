@@ -473,10 +473,20 @@ func (x *cmdRun) straceOpts() (opts []string, raw bool, err error) {
 
 	opts = make([]string, 0, len(split))
 	for _, opt := range split {
-		if opt == "--raw" {
+		switch {
+		case opt == "--raw":
 			raw = true
 			continue
+
+		case opt == "--output" || opt == "-o" ||
+			strings.HasPrefix(opt, "--output=") ||
+			strings.HasPrefix(opt, "-o="):
+			// the user may have redirected strace output to a file,
+			// in which case we cannot filter out
+			// strace-confine/strace-exec call chain
+			raw = true
 		}
+
 		opts = append(opts, opt)
 	}
 	return opts, raw, nil
@@ -948,6 +958,15 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 	// run with filter
 	cmd.Env = envForExec(nil)
 	cmd.Stdin = Stdin
+	if raw {
+		// no output filtering, we can pass the child's stdout/stderr
+		// directly
+		cmd.Stdout = Stdout
+		cmd.Stderr = Stderr
+
+		return cmd.Run()
+	}
+
 	// note hijacking stdout, means it is no longer a tty and programs
 	// expecting stdout to be on a terminal (eg. bash) may misbehave at this
 	// point
@@ -962,16 +981,7 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 	filterDone := make(chan struct{})
 	stdoutProxyDone := make(chan struct{})
 	go func() {
-		defer func() { close(filterDone) }()
-
-		if raw {
-			// Passing --strace='--raw' disables the filtering of
-			// early strace output. This is useful when tracking
-			// down issues with snap helpers such as snap-confine,
-			// snap-exec ...
-			io.Copy(Stderr, stderr)
-			return
-		}
+		defer close(filterDone)
 
 		r := bufio.NewReader(stderr)
 
@@ -1022,7 +1032,7 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 	}()
 
 	go func() {
-		defer func() { close(stdoutProxyDone) }()
+		defer close(stdoutProxyDone)
 		io.Copy(Stdout, stdout)
 	}()
 
