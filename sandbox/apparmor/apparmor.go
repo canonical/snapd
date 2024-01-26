@@ -109,11 +109,36 @@ type AAREExclusionPatternsOptions struct {
 // /{usr/lib/sn[^a],var/lib/sn[^a]}** r,
 // /{usr/lib/sna[^p],var/lib/sna[^p]}** r,
 // /{usr/lib/snap[^d],var/lib/snap[^d]}** r,
+//
+// Note that with the previous rules, /usr/lib/snapdaemon would not match any rule
+//
+// This function has the following limitations:
+// The first character after a subpattern common to two or more excludePatterns cannot
+// be '*' on any of the excludePatterns that share the common prefix.
+// Eg. ["/snap/core/**", "/snap/*/core/**"] where '/snap/' would be the subpattern common
+// to both excludePattern, and '*' would be the first character after the common subpattern
+// in the second excludePattern.
+// This is because there are no apparmor rules that can fulfill both requirements.
+// For /snap/[^c]** -> It will also match /snap/a/core/** which should be excluded by
+// the second pattern.
+// For /snap/[^c*]** -> It will also exclude access to /snap/a/a that should be allowed
+// as it is not explicitly excluded by any pattern
+//
+// When the '*' is used to exclude suffixes, like in ["/*.bin"], rules should be generated
+// in a reverse way:
+//
+// /*[^n]{,/**} rw,
+// /*[^i]n{,/**} rw,
+// /*[^b]in{,/**} rw,
+// /*[^.]bin{,/**} rw,
+//
+// While generating those rules is technically possible, it will make the logic way more
+// complex, thus the function would just return an error if a pattern of this kind is found.
+// This functionality can be added in a subsequent PR if needed in the future
 func GenerateAAREExclusionPatterns(excludePatterns []string, opts *AAREExclusionPatternsOptions) (string, error) {
 	if len(excludePatterns) == 0 {
 		return "", fmt.Errorf("no patterns provided")
 	}
-
 	seen := map[string]bool{}
 	for _, patt := range excludePatterns {
 		// check for duplicates
@@ -139,11 +164,12 @@ func GenerateAAREExclusionPatterns(excludePatterns []string, opts *AAREExclusion
 		opts = &AAREExclusionPatternsOptions{}
 	}
 	return generateAAREExclusionPatternsGenericImpl(excludePatterns, opts)
+
 }
 
 func generateAAREExclusionPatternsGenericImpl(excludePatterns []string, opts *AAREExclusionPatternsOptions) (string, error) {
 
-	// Find the longest pattern
+	// Find the length of longest pattern (size)
 	size := 0
 	for _, pattern := range excludePatterns {
 		if len(pattern) > size {
@@ -151,59 +177,79 @@ func generateAAREExclusionPatternsGenericImpl(excludePatterns []string, opts *AA
 		}
 	}
 
-	builder := &strings.Builder{}
-	commonPattern := "/"
-	diverged := false
-	for charInd := 1; charInd < size; charInd++ {
-
-		// Group patterns
-		subpatternsPrefix := make([]string, len(excludePatterns))
-		subpatternsCharset := make([]string, len(excludePatterns))
-		subpatternsLen := 0
+	// Find the longest prefix common to ALL patterns.
+	commonPrefix := ""
+findCommonPrefix:
+	for charInd := 0; charInd < size; charInd++ {
 		for _, pattern := range excludePatterns {
-			// Skip patterns that are already finished
-			if charInd >= len(pattern) {
-				continue
-			}
-			if (pattern[charInd] == '*') || ((pattern[charInd] == '/') && (pattern[charInd-1] == '*')) {
-				continue
-			}
-			// Add the pattern if it didn't exist yet
-			prefixAlreadyExists := false
-			for i := 0; i < subpatternsLen; i++ {
-				if pattern[:charInd] == subpatternsPrefix[i] {
-					if !strings.Contains(subpatternsCharset[i], string(pattern[charInd])) {
-						subpatternsCharset[i] = subpatternsCharset[i] + string(pattern[charInd])
-					}
-					prefixAlreadyExists = true
-				}
-			}
-			if prefixAlreadyExists == false {
-				subpatternsPrefix[subpatternsLen] = pattern[:charInd]
-				subpatternsCharset[subpatternsLen] = string(pattern[charInd])
-				subpatternsLen++
+			if (charInd >= len(pattern)) || (pattern[charInd] != excludePatterns[0][charInd]) {
+				break findCommonPrefix
 			}
 		}
+		commonPrefix = excludePatterns[0][:charInd+1]
+	}
 
-		// Store the longest prefix common to all subpatterns
-		if (subpatternsLen == 1) && !diverged {
-			commonPattern = subpatternsPrefix[0]
-		} else {
-			diverged = true
+	// This loop will iterate over the length of the longest excludePattern
+	// (charInd = 1..size), generating an apparmor rule on each iteration
+	// for the corresponding subpatterns, understanding as such, the first
+	// (charInd+1) characters of the excludePatterns.
+	builder := &strings.Builder{}
+	for charInd := 1; charInd < size; charInd++ {
+
+		// This loop will group the subpatterns properly, generating the subpatterns map, where:
+		//     - the key would be the subpatternPrefix, considering as such the subpattern except
+		//       its last character (pattern[0:charInd]).
+		//     - the value would be the charset, which would be the subpattern last character
+		//       (pattern[charInd]). If several subpatterns share the same subpatternPrefix, the
+		//       charset would be a string including the last character of all those subpatterns.
+		subpatternPrefix := ""
+		subpatterns := map[string]string{}
+		for _, pattern := range excludePatterns {
+			// Handle unsupported cases
+			if (charInd < len(pattern)) && pattern[charInd] == '*' {
+				// Check if the excludePattern has a character different from '/' after a wildcard
+				if ((charInd + 1) < len(pattern)) && (pattern[charInd+1] != '/') {
+					return "", errors.New("exclude patterns does not support suffixes for now")
+				}
+				// Check if '*' is the first character after a common subpattern
+				for _, patt := range excludePatterns {
+					if (patt != pattern) && ((charInd) < len(patt)) && (pattern[:charInd] == patt[:charInd]) && (patt[charInd] != '*') {
+						return "", errors.New("first character after a common subpattern cannot be a wildcard")
+					}
+				}
+			}
+
+			// Skip patterns that are already finished, wildcards and slashes preceded by wildcards.
+			if (charInd >= len(pattern)) ||
+				(pattern[charInd] == '*') ||
+				((pattern[charInd] == '/') && (pattern[charInd-1] == '*')) {
+				continue
+			}
+			// Group subpatterns
+			subpatternPrefix = pattern[:charInd]
+			if charset, exists := subpatterns[subpatternPrefix]; !exists {
+				// Add the pattern if it didn't exist yet
+				subpatterns[subpatternPrefix] = string(pattern[charInd])
+			} else {
+				if !strings.Contains(charset, string(pattern[charInd])) {
+					// Two patterns only differ on the last character
+					subpatterns[subpatternPrefix] = charset + string(pattern[charInd])
+				}
+			}
 		}
 
 		// Write patterns
-		if subpatternsLen == 0 {
+		if len(subpatterns) == 0 {
 			continue
-		} else if subpatternsLen == 1 {
-			res := fmt.Sprintf("%s%s[^%s]**%s\n", opts.Prefix, subpatternsPrefix[0], subpatternsCharset[0], opts.Suffix)
+		} else if len(subpatterns) == 1 {
+			res := fmt.Sprintf("%s%s[^%s]**%s\n", opts.Prefix, subpatternPrefix, subpatterns[subpatternPrefix], opts.Suffix)
 			builder.WriteString(res)
 		} else {
-			aux := make([]string, subpatternsLen)
-			for i := 0; i < subpatternsLen; i++ {
-				aux[i] = subpatternsPrefix[i][len(commonPattern):] + "[^" + subpatternsCharset[i] + "]"
+			var aux []string
+			for prefix, charset := range subpatterns {
+				aux = append(aux, prefix[len(commonPrefix):]+"[^"+charset+"]")
 			}
-			res := fmt.Sprintf("%s%s{%s}**%s\n", opts.Prefix, commonPattern, strings.Join(aux[:], ","), opts.Suffix)
+			res := fmt.Sprintf("%s%s{%s}**%s\n", opts.Prefix, commonPrefix, strings.Join(aux[:], ","), opts.Suffix)
 			builder.WriteString(res)
 		}
 
