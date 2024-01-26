@@ -208,6 +208,7 @@ type PreseedCapable interface {
 // Copier can be implemented by a seed that supports copying itself to a given
 // destination.
 type Copier interface {
+	Seed
 	// Copy copies the seed to the given seedDir with the label provided. If
 	// label is empty, then the label of the seed that implements Copier is
 	// used. This interface only makes sense to implement for UC20+ seeds. Copy
