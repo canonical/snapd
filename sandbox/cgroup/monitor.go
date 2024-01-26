@@ -49,7 +49,7 @@ type inotifyWatcher struct {
 	// needs to be tracked as well.
 	pathList map[string]uint
 
-	done     func()
+	done     context.CancelFunc
 	doneChan chan struct{}
 
 	// observer callback to facilitate testing, called when a watch is
@@ -86,6 +86,7 @@ func newInotifyWatcher(ctx context.Context) *inotifyWatcher {
 }
 
 func (gtw *groupToWatch) sendClosedNotification() {
+	// Use a goroutine to avoid getting blocked on the channel
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
@@ -209,11 +210,7 @@ func (iw *inotifyWatcher) processDeletedPath(watch *groupToWatch, deletedPath st
 
 func (iw *inotifyWatcher) notifyObserver(w *groupToWatch) {
 	if iw.observeMonitorCb != nil {
-		name := ""
-		if w != nil {
-			name = w.name
-		}
-		iw.observeMonitorCb(iw, name)
+		iw.observeMonitorCb(iw, w.name)
 	}
 }
 
@@ -280,6 +277,6 @@ func MonitorSnapEnded(snapName string, channel chan<- string) error {
 		return err
 	}
 
-	logger.Debugf("snap %v has %v processes: %v", snapName, len(paths), paths)
+	logger.Debugf("snap %s has %d processes: %v", snapName, len(paths), paths)
 	return currentWatcher.monitorDelete(paths, snapName, channel)
 }
