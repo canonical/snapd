@@ -596,7 +596,7 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pat
 
 	revOpts := revisionOptionsForRemodel(newModelSnapChannel, ms.newRequiredRevision, ms.newModelValidationSets)
 
-	newSnapID := ""
+	var newSnapID string
 	// a nil model snap will happen for bases on UC16 models.
 	if ms.newModelSnap != nil {
 		newSnapID = ms.newModelSnap.SnapID
