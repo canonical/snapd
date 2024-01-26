@@ -118,10 +118,10 @@ func MonitorDelete(folders []string, name string, channel chan string) error {
 type InotifyWatcher = inotifyWatcher
 
 func MockInotifyWatcher(ctx context.Context, obsMonitor func(w *InotifyWatcher, name string)) (restore func()) {
-	old := currentWatcher
+	restore = testutil.Backup(&currentWatcher)
 	currentWatcher = newInotifyWatcher(ctx)
 	currentWatcher.observeMonitorCb = obsMonitor
-	return func() { currentWatcher = old }
+	return restore
 }
 
 func MockInitWatcherClose() { currentWatcher.Close() }

@@ -68,14 +68,11 @@ func makeTestFolder(c *C, root string, name string) (fullPath string) {
 func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 	cb := 0
 	monitorAdded := make(chan struct{})
-	ctx, cancel := context.WithCancel(context.Background())
-	s.AddCleanup(cgroup.MockInotifyWatcher(ctx, func(w *cgroup.InotifyWatcher, name string) {
+	s.AddCleanup(cgroup.MockInotifyWatcher(context.Background(), func(w *cgroup.InotifyWatcher, name string) {
 		cb++
 		switch cb {
 		case 1:
-			if cb == 1 {
-				close(monitorAdded)
-			}
+			close(monitorAdded)
 			c.Check(name, Equals, "test1")
 		case 2, 3:
 		default:
@@ -84,7 +81,6 @@ func (s *monitorSuite) TestMonitorSnapBasicWork(c *C) {
 
 	}))
 	defer cgroup.MockInitWatcherClose()
-	defer cancel()
 
 	folder1 := makeTestFolder(c, s.tempDir, "folder1")
 	// canary
@@ -113,21 +109,18 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 	cb := 0
 	monitorAdded := make(chan struct{})
 	allDone := make(chan struct{})
-	ctx, cancel := context.WithCancel(context.Background())
-	s.AddCleanup(cgroup.MockInotifyWatcher(ctx, func(w *cgroup.InotifyWatcher, name string) {
+	s.AddCleanup(cgroup.MockInotifyWatcher(context.Background(), func(w *cgroup.InotifyWatcher, name string) {
 		cb++
 		switch cb {
 		case 1:
 			// add for folder1 and folder2
-			if cb == 1 {
-				close(monitorAdded)
-				// paths we track + the parent dir is referenced twice
-				c.Assert(w.MonitoredDirs(), DeepEquals, map[string]uint{
-					s.tempDir: uint(2),
-					folder1:   uint(1),
-					folder2:   uint(1),
-				})
-			}
+			close(monitorAdded)
+			// paths we track + the parent dir is referenced twice
+			c.Assert(w.MonitoredDirs(), DeepEquals, map[string]uint{
+				s.tempDir: uint(2),
+				folder1:   uint(1),
+				folder2:   uint(1),
+			})
 			fallthrough
 		case 2, 3, 4:
 			// removal of folder1, folder2, folder3
@@ -141,7 +134,7 @@ func (s *monitorSuite) TestMonitorSnapTwoSnapsAtTheSameTime(c *C) {
 		}
 
 	}))
-	defer cancel()
+	defer cgroup.MockInitWatcherClose()
 
 	err := cgroup.MonitorDelete(filelist, "test2", s.eventsCh)
 	c.Assert(err, Equals, nil)
@@ -180,8 +173,7 @@ func (s *monitorSuite) TestMonitorOverlap(c *C) {
 	cb := 0
 	monitorAdded := make(chan struct{}, 2)
 	allDone := make(chan struct{})
-	ctx, cancel := context.WithCancel(context.Background())
-	s.AddCleanup(cgroup.MockInotifyWatcher(ctx, func(w *cgroup.InotifyWatcher, name string) {
+	s.AddCleanup(cgroup.MockInotifyWatcher(context.Background(), func(w *cgroup.InotifyWatcher, name string) {
 		cb++
 		switch cb {
 		case 1, 2:
@@ -214,7 +206,7 @@ func (s *monitorSuite) TestMonitorOverlap(c *C) {
 		}
 
 	}))
-	defer cancel()
+	defer cgroup.MockInitWatcherClose()
 
 	set1Ch := make(chan string, 1)
 	set2Ch := make(chan string, 1)
@@ -269,8 +261,7 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 
 	events := 0
 	monitorAdded := make(chan string)
-	ctx, cancel := context.WithCancel(context.Background())
-	s.AddCleanup(cgroup.MockInotifyWatcher(ctx, func(w *cgroup.InotifyWatcher, name string) {
+	s.AddCleanup(cgroup.MockInotifyWatcher(context.Background(), func(w *cgroup.InotifyWatcher, name string) {
 		events++
 		switch events {
 		case 1, 2:
@@ -289,7 +280,7 @@ func (s *monitorSuite) TestMonitorSnapTwoProcessesAtTheSameTime(c *C) {
 			c.Fatalf("unexpected callback: %d %q", events, name)
 		}
 	}))
-	defer cancel()
+	defer cgroup.MockInitWatcherClose()
 
 	filelist1 := []string{folder1}
 	filelist2 := []string{folder2}
