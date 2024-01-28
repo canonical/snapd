@@ -85,7 +85,7 @@ type seed20 struct {
 }
 
 // Copy implement Copier interface.
-func (s *seed20) Copy(seedDir string, label string) (err error) {
+func (s *seed20) Copy(seedDir string, label string, tm timings.Measurer) (err error) {
 	srcSystemDir, err := filepath.Abs(s.systemDir)
 	if err != nil {
 		return err
@@ -109,13 +109,19 @@ func (s *seed20) Copy(seedDir string, label string) (err error) {
 		return fmt.Errorf("cannot create system: system %q already exists at %q", label, destSystemDir)
 	}
 
-	// TODO: is this a good idea? we won't be able to clean up asserted snaps
-	// that are copied, but i think that is ok
+	// note: we don't clean up asserted snaps that were copied over
 	defer func() {
 		if err != nil {
 			os.RemoveAll(destSystemDir)
 		}
 	}()
+
+	if err := s.LoadMeta(AllModes, nil, tm); err != nil {
+		return err
+	}
+
+	span := tm.StartSpan("copy-seed20", fmt.Sprintf("copy seed20 from %s to %s", srcSystemDir, destSystemDir))
+	defer span.Stop()
 
 	// copy all files (including unasserted snaps) from the seed to the
 	// destination
@@ -132,10 +138,6 @@ func (s *seed20) Copy(seedDir string, label string) (err error) {
 		return osutil.CopyFile(path, destPath, osutil.CopyFlagDefault)
 	})
 	if err != nil {
-		return err
-	}
-
-	if err := s.LoadMeta(AllModes, nil, timings.New(nil)); err != nil {
 		return err
 	}
 

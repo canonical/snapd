@@ -3564,7 +3564,7 @@ func (s *seed20Suite) testCopy(c *C, destLabel string) {
 
 	destSeedDir := c.MkDir()
 
-	err = copier.Copy(destSeedDir, destLabel)
+	err = copier.Copy(destSeedDir, destLabel, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	checkDirContents(c, filepath.Join(destSeedDir, "snaps"), []string{
@@ -3600,7 +3600,7 @@ func (s *seed20Suite) testCopy(c *C, destLabel string) {
 	compareDirs(c, filepath.Join(s.SeedDir, "snaps"), filepath.Join(destSeedDir, "snaps"))
 	compareDirs(c, filepath.Join(s.SeedDir, "systems", srcLabel), destSystemDir)
 
-	err = copier.Copy(destSeedDir, copiedLabel)
+	err = copier.Copy(destSeedDir, copiedLabel, s.perfTimings)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot create system: system %q already exists at %q`, copiedLabel, destSystemDir))
 }
 
@@ -3652,7 +3652,7 @@ func (s *seed20Suite) TestCopyCleanup(c *C) {
 	c.Assert(err, IsNil)
 
 	destSeedDir := c.MkDir()
-	err = copier.Copy(destSeedDir, label)
+	err = copier.Copy(destSeedDir, label, s.perfTimings)
 	c.Check(err, NotNil)
 
 	// seed destination should have been cleaned up
