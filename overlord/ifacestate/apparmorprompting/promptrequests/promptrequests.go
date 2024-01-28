@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/common"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 )
 
@@ -30,11 +31,14 @@ type userRequestDB struct {
 type RequestDB struct {
 	PerUser map[uint32]*userRequestDB
 	mutex   sync.Mutex
+	// Function to issue a notice for a change in a request
+	notifyRequest func(userID uint32, requestID string, options *state.AddNoticeOptions) error
 }
 
-func New() *RequestDB {
+func New(notifyRequest func(userID uint32, requestID string, options *state.AddNoticeOptions) error) *RequestDB {
 	return &RequestDB{
-		PerUser: make(map[uint32]*userRequestDB),
+		PerUser:       make(map[uint32]*userRequestDB),
+		notifyRequest: notifyRequest,
 	}
 }
 
@@ -75,6 +79,7 @@ func (rdb *RequestDB) AddOrMerge(user uint32, snap string, app string, path stri
 		listenerReqs: []*listener.Request{listenerReq},
 	}
 	userEntry.ByID[id] = req
+	rdb.notifyRequest(user, id, nil)
 	return req, false
 }
 
@@ -133,6 +138,7 @@ func (rdb *RequestDB) Reply(user uint32, id string, outcome common.OutcomeType) 
 		}
 	}
 	delete(userEntry.ByID, id)
+	rdb.notifyRequest(user, id, nil)
 	return req, nil
 }
 
@@ -186,6 +192,7 @@ func (rdb *RequestDB) HandleNewRule(user uint32, snap string, app string, pathPa
 		}
 		delete(userEntry.ByID, id)
 		satisfiedReqIDs = append(satisfiedReqIDs, id)
+		rdb.notifyRequest(user, id, nil)
 	}
 	return satisfiedReqIDs, nil
 }

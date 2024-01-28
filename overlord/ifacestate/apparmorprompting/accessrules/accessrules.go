@@ -13,6 +13,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/common"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 var ErrPathPatternMissingFromTree = errors.New("path pattern was not found in the access rule tree")
@@ -49,6 +50,24 @@ func (rule *AccessRule) removePermissionFromPermissionsList(permission common.Pe
 	return nil
 }
 
+func (rule *AccessRule) Expired(currentTime time.Time) (bool, error) {
+	switch rule.Lifespan {
+	case common.LifespanTimespan:
+		expiration, err := time.Parse(time.RFC3339, rule.Expiration)
+		if err != nil {
+			// Expiration is malformed, should not occur
+			return false, err
+		}
+		if currentTime.After(expiration) {
+			return true, nil
+		}
+		return false, nil
+	case common.LifespanSession:
+		// TODO: return true if the user session has changed
+	}
+	return false, nil
+}
+
 type permissionDB struct {
 	// permissionDB contains a map from path pattern to access rule ID
 	PathRules map[string]string
@@ -73,14 +92,17 @@ type AccessRuleDB struct {
 	ByID    map[string]*AccessRule
 	PerUser map[uint32]*userDB
 	mutex   sync.Mutex
+	// Function to issue a notice for a change in a rule
+	notifyRule func(userID uint32, ruleID string, options *state.AddNoticeOptions) error
 }
 
 // Creates a new access rule database, loads existing access rules from the
 // path given by dbpath(), and returns the populated database.
-func New() (*AccessRuleDB, error) {
+func New(notifyRule func(userID uint32, ruleID string, options *state.AddNoticeOptions) error) (*AccessRuleDB, error) {
 	ardb := &AccessRuleDB{
-		ByID:    make(map[string]*AccessRule),
-		PerUser: make(map[uint32]*userDB),
+		ByID:       make(map[string]*AccessRule),
+		PerUser:    make(map[uint32]*userDB),
+		notifyRule: notifyRule,
 	}
 	return ardb, ardb.load()
 }
@@ -205,21 +227,49 @@ func getNewerRule(id1 string, ts1 string, id2 string, ts2 string) string {
 // This function is only required if database is left inconsistent (should not
 // occur) or when loading, in case the stored rules on disk were corrupted.
 //
+// By default, issues a notice for each rule which is modified or deleted as a
+// result of a conflict with another rule. If notifyEveryRule is true, issues
+// a notice for every rule which was in the database prior to the beginning of
+// the function. In either case, at most one notice is issued for each rule.
+//
 // Discards the current access rule tree, then iterates through the rules in
 // ardb.ByID and re-populates the tree.  If there are any conflicts between
 // rules (that is, rules share the same path pattern and one or more of the
 // same permissions), the conflicting permission is removed from the rule with
 // the earlier timestamp.  When the function returns, the database should be
 // fully internally consistent and without conflicting rules.
-func (ardb *AccessRuleDB) RefreshTreeEnforceConsistency() {
+func (ardb *AccessRuleDB) RefreshTreeEnforceConsistency(notifyEveryRule bool) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
 	needToSave := false
+	defer func() {
+		if needToSave {
+			ardb.save()
+		}
+	}()
+	modifiedUserRuleIDs := make(map[uint32]map[string]bool)
+	defer func() {
+		for user, ruleIDs := range modifiedUserRuleIDs {
+			for ruleID := range ruleIDs {
+				ardb.notifyRule(user, ruleID, nil)
+			}
+		}
+	}()
 	newByID := make(map[string]*AccessRule)
 	ardb.PerUser = make(map[uint32]*userDB)
 	for id, rule := range ardb.ByID {
-		err, conflictingID, conflictingPermission := ardb.addRuleToTree(rule)
-		for err != nil {
+		_, exists := modifiedUserRuleIDs[rule.User]
+		if !exists {
+			modifiedUserRuleIDs[rule.User] = make(map[string]bool)
+		}
+		if notifyEveryRule {
+			modifiedUserRuleIDs[rule.User][id] = true
+		}
+		for {
+			err, conflictingID, conflictingPermission := ardb.addRuleToTree(rule)
+			if err == nil {
+				break
+			}
 			// Err must be ErrPathPatternConflict.
 			// Prioritize newer rules by pruning permission from old rule until no conflicts remain.
 			conflictingRule := ardb.ByID[conflictingID] // must exist
@@ -228,22 +278,21 @@ func (ardb *AccessRuleDB) RefreshTreeEnforceConsistency() {
 				if conflictingRule.removePermissionFromPermissionsList(conflictingPermission) == ErrPermissionsEmpty {
 					delete(newByID, conflictingID)
 				}
+				modifiedUserRuleIDs[conflictingRule.User][conflictingID] = true
 			} else {
 				rule.removePermissionFromPermissionsList(conflictingPermission) // ignore error
+				modifiedUserRuleIDs[rule.User][id] = true
 			}
-			err, conflictingID, conflictingPermission = ardb.addRuleToTree(rule)
 			needToSave = true
 		}
 		if len(rule.Permissions) > 0 {
 			newByID[id] = rule
 		} else {
 			needToSave = true
+			modifiedUserRuleIDs[rule.User][id] = true
 		}
 	}
 	ardb.ByID = newByID
-	if needToSave {
-		ardb.save()
-	}
 }
 
 func (ardb *AccessRuleDB) load() error {
@@ -262,7 +311,8 @@ func (ardb *AccessRuleDB) load() error {
 		ardb.ByID[rule.ID] = rule
 	}
 
-	ardb.RefreshTreeEnforceConsistency()
+	notifyEveryRule := true
+	ardb.RefreshTreeEnforceConsistency(notifyEveryRule)
 
 	return nil
 }
@@ -333,28 +383,35 @@ func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, pa
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
 	needToSave := false
+	defer func() {
+		if needToSave {
+			ardb.save()
+		}
+	}()
 	pathMap := ardb.permissionDBForUserSnapAppPermission(user, snap, app, permission).PathRules
 	matchingPatterns := make([]string, 0)
+	// Make sure all rules use the same expiration timestamp, so a rule with
+	// an earlier expiration cannot outlive another rule with a later one.
 	currTime := time.Now()
 	for pathPattern, id := range pathMap {
 		matchingRule, exists := ardb.ByID[id]
 		if !exists {
 			// Database was left inconsistent, should not occur
 			delete(pathMap, id)
+			// Issue a notice for the offending rule, just in case
+			ardb.notifyRule(user, id, nil)
 			continue
 		}
-		if matchingRule.Lifespan == common.LifespanTimespan {
-			expiration, err := time.Parse(time.RFC3339, matchingRule.Expiration)
-			if err != nil {
-				// Expiration is malformed, should not occur
-				return false, err
-			}
-			if currTime.After(expiration) {
-				needToSave = true
-				ardb.removeRuleFromTree(matchingRule)
-				delete(ardb.ByID, id)
-				continue
-			}
+		expired, err := matchingRule.Expired(currTime)
+		if err != nil {
+			return false, err
+		}
+		if expired {
+			needToSave = true
+			ardb.removeRuleFromTree(matchingRule)
+			delete(ardb.ByID, id)
+			ardb.notifyRule(user, id, nil)
+			continue
 		}
 		matched, err := common.PathPatternMatches(pathPattern, path)
 		if err != nil {
@@ -381,10 +438,8 @@ func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, pa
 	if matchingRule.Lifespan == common.LifespanSingle {
 		ardb.removeRuleFromTree(matchingRule)
 		delete(ardb.ByID, matchingID)
+		ardb.notifyRule(user, matchingID, nil)
 		needToSave = true
-	}
-	if needToSave {
-		ardb.save()
 	}
 	switch matchingRule.Outcome {
 	case "allow":
@@ -434,6 +489,7 @@ func (ardb *AccessRuleDB) CreateAccessRule(user uint32, snap string, app string,
 	}
 	ardb.ByID[newRule.ID] = newRule
 	ardb.save()
+	ardb.notifyRule(user, newRule.ID, nil)
 	return newRule, nil
 }
 
@@ -451,6 +507,7 @@ func (ardb *AccessRuleDB) DeleteAccessRule(user uint32, id string) (*AccessRule,
 	// If error occurs, rule was still fully removed from tree
 	delete(ardb.ByID, id)
 	ardb.save()
+	ardb.notifyRule(user, id, nil)
 	return rule, err
 }
 
@@ -488,23 +545,27 @@ func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern s
 	}
 	if err = ardb.removeRuleFromTree(origRule); err != nil {
 		// If error occurs, rule is fully removed from tree
+		ardb.notifyRule(user, id, nil)
 		return nil, err
 	}
 	newRule, err := ardb.PopulateNewAccessRule(user, origRule.Snap, origRule.App, pathPattern, outcome, lifespan, duration, permissions)
 	if err != nil {
 		ardb.addRuleToTree(origRule) // ignore any new error
-		// origRule was successfully removed, it should be successfully added
+		// origRule was successfully removed before, so it should now be able
+		// to be successfully re-added without error, and all is unchanged.
 		return nil, err
 	}
 	newRule.ID = origRule.ID
 	err, conflictingID, conflictingPermission := ardb.addRuleToTree(newRule)
 	if err != nil {
 		ardb.addRuleToTree(origRule) // ignore any new error
-		// origRule was successfully removed, it should be successfully added
+		// origRule was successfully removed before, so it should now be able
+		// to be successfully re-added without error, and all is unchanged.
 		return nil, fmt.Errorf("%s: ID: '%s', Permission: '%s'", err, conflictingID, conflictingPermission)
 	}
 	ardb.ByID[newRule.ID] = newRule
 	ardb.save()
+	ardb.notifyRule(user, id, nil)
 	return newRule, nil
 }
 
@@ -512,9 +573,34 @@ func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern s
 func (ardb *AccessRuleDB) Rules(user uint32) []*AccessRule {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
+	ruleFilter := func(rule *AccessRule) bool {
+		return rule.User == user
+	}
+	return ardb.rulesInternal(ruleFilter)
+}
+
+func (ardb *AccessRuleDB) rulesInternal(ruleFilter func(rule *AccessRule) bool) []*AccessRule {
 	rules := make([]*AccessRule, 0)
-	for _, rule := range ardb.ByID {
-		if rule.User == user {
+	currTime := time.Now()
+	needToSave := false
+	defer func() {
+		if needToSave {
+			ardb.save()
+		}
+	}()
+	for id, rule := range ardb.ByID {
+		expired, err := rule.Expired(currTime)
+		if err != nil {
+			// Issue with expiration, this should not occur
+		}
+		if expired {
+			needToSave = true
+			ardb.removeRuleFromTree(rule)
+			delete(ardb.ByID, id)
+			ardb.notifyRule(rule.User, id, nil)
+			continue
+		}
+		if ruleFilter(rule) {
 			rules = append(rules, rule)
 		}
 	}
@@ -525,24 +611,18 @@ func (ardb *AccessRuleDB) Rules(user uint32) []*AccessRule {
 func (ardb *AccessRuleDB) RulesForSnap(user uint32, snap string) []*AccessRule {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
-	rules := make([]*AccessRule, 0)
-	for _, rule := range ardb.ByID {
-		if rule.User == user && rule.Snap == snap {
-			rules = append(rules, rule)
-		}
+	ruleFilter := func(rule *AccessRule) bool {
+		return rule.User == user && rule.Snap == snap
 	}
-	return rules
+	return ardb.rulesInternal(ruleFilter)
 }
 
 // Returns all access rules which apply to the given user, snap, and app.
 func (ardb *AccessRuleDB) RulesForSnapApp(user uint32, snap string, app string) []*AccessRule {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
-	rules := make([]*AccessRule, 0)
-	for _, rule := range ardb.ByID {
-		if rule.User == user && rule.Snap == snap && rule.App == app {
-			rules = append(rules, rule)
-		}
+	ruleFilter := func(rule *AccessRule) bool {
+		return rule.User == user && rule.Snap == snap && rule.App == app
 	}
-	return rules
+	return ardb.rulesInternal(ruleFilter)
 }

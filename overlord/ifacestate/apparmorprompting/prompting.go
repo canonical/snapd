@@ -10,6 +10,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/accessrules"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/common"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/promptrequests"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 )
@@ -29,10 +30,28 @@ type Prompting struct {
 	listener *listener.Listener
 	requests *promptrequests.RequestDB
 	rules    *accessrules.AccessRuleDB
+
+	notifyRequest func(userID uint32, requestID string, options *state.AddNoticeOptions) error
+	notifyRule    func(userID uint32, ruleID string, options *state.AddNoticeOptions) error
 }
 
-func New() Interface {
-	p := &Prompting{}
+func New(s *state.State) Interface {
+	notifyRequest := func(userID uint32, requestID string, options *state.AddNoticeOptions) error {
+		s.Lock()
+		defer s.Unlock()
+		_, err := s.AddNotice(&userID, state.PromptingRequestNotice, requestID, options)
+		return err
+	}
+	notifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
+		s.Lock()
+		defer s.Unlock()
+		_, err := s.AddNotice(&userID, state.PromptingRuleUpdateNotice, ruleID, options)
+		return err
+	}
+	p := &Prompting{
+		notifyRequest: notifyRequest,
+		notifyRule:    notifyRule,
+	}
 	return p
 }
 
@@ -48,8 +67,8 @@ func (p *Prompting) Connect() error {
 		return fmt.Errorf("cannot register prompting listener: %v", err)
 	}
 	p.listener = l
-	p.requests = promptrequests.New()
-	p.rules, _ = accessrules.New() // ignore error (failed to load existing rules)
+	p.requests = promptrequests.New(p.notifyRequest)
+	p.rules, _ = accessrules.New(p.notifyRule) // ignore error (failed to load existing rules)
 	return nil
 }
 

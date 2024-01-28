@@ -541,7 +541,7 @@ func (m *InterfaceManager) initUDevMonitor() error {
 // and any existing prompting instance should already be stopped, as it will be
 // overridden.
 func (m *InterfaceManager) initPrompting() error {
-	prompt := createPrompting()
+	prompt := createPrompting(m.state)
 	if err := prompt.Connect(); err != nil {
 		return err
 	}

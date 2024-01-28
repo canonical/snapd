@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -51,7 +52,8 @@ func (s *apparmorPromptingSuite) TestSmoke(c *C) {
 	defer restorePromptingEnabled()
 	restoreListener := apparmorprompting.MockListener()
 	defer restoreListener()
-	p := apparmorprompting.New()
+	st := state.New(nil)
+	p := apparmorprompting.New(st)
 	c.Assert(p, NotNil)
 	c.Assert(p.Connect(), IsNil)
 	c.Assert(p.Run(), IsNil)

@@ -10,6 +10,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/common"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/promptrequests"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -28,7 +29,11 @@ func (s *promptrequestsSuite) SetUpTest(c *C) {
 }
 
 func (s *promptrequestsSuite) TestNew(c *C) {
-	prdb := promptrequests.New()
+	notifyRequest := func(userID uint32, requestID string, options *state.AddNoticeOptions) error {
+		c.Fatalf("unexpected notice with userID %d and ID %s", userID, requestID)
+		return nil
+	}
+	prdb := promptrequests.New(notifyRequest)
 	c.Assert(prdb.PerUser, HasLen, 0)
 }
 
@@ -39,8 +44,15 @@ func (s *promptrequestsSuite) TestAddOrMergeRequests(c *C) {
 	})
 	defer restore()
 
-	rdb := promptrequests.New()
 	var user uint32 = 1000
+	requestNoticeIDs := make([]string, 0, 1)
+	notifyRequest := func(userID uint32, requestID string, options *state.AddNoticeOptions) error {
+		c.Check(userID, Equals, user)
+		requestNoticeIDs = append(requestNoticeIDs, requestID)
+		return nil
+	}
+
+	rdb := promptrequests.New(notifyRequest)
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -58,9 +70,16 @@ func (s *promptrequestsSuite) TestAddOrMergeRequests(c *C) {
 	after := time.Now()
 	c.Assert(merged, Equals, false)
 
+	c.Assert(requestNoticeIDs, HasLen, 1, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Check(requestNoticeIDs[0], Equals, req1.ID)
+	requestNoticeIDs = requestNoticeIDs[1:]
+
 	req2, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq2)
 	c.Assert(merged, Equals, true)
 	c.Assert(req2, Equals, req1)
+
+	// Merged requests should not trigger notice
+	c.Assert(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
 
 	timestamp, err := common.TimestampToTime(req1.Timestamp)
 	c.Assert(err, IsNil)
@@ -80,9 +99,15 @@ func (s *promptrequestsSuite) TestAddOrMergeRequests(c *C) {
 	c.Check(err, IsNil)
 	c.Check(storedReq, Equals, req1)
 
+	// Looking up request should not trigger notice
+	c.Assert(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+
 	req3, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq3)
 	c.Check(merged, Equals, true)
 	c.Check(req3, Equals, req1)
+
+	// Merged requests should not trigger notice
+	c.Assert(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
 }
 
 func (s *promptrequestsSuite) TestRequestWithIDErrors(c *C) {
@@ -92,8 +117,15 @@ func (s *promptrequestsSuite) TestRequestWithIDErrors(c *C) {
 	})
 	defer restore()
 
-	rdb := promptrequests.New()
 	var user uint32 = 1000
+	requestNoticeIDs := make([]string, 0, 1)
+	notifyRequest := func(userID uint32, requestID string, options *state.AddNoticeOptions) error {
+		c.Check(userID, Equals, user)
+		requestNoticeIDs = append(requestNoticeIDs, requestID)
+		return nil
+	}
+
+	rdb := promptrequests.New(notifyRequest)
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -103,6 +135,10 @@ func (s *promptrequestsSuite) TestRequestWithIDErrors(c *C) {
 
 	req, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq)
 	c.Check(merged, Equals, false)
+
+	c.Assert(requestNoticeIDs, HasLen, 1, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Check(requestNoticeIDs[0], Equals, req.ID)
+	requestNoticeIDs = requestNoticeIDs[1:]
 
 	result, err := rdb.RequestWithID(user, req.ID)
 	c.Check(err, IsNil)
@@ -115,6 +151,9 @@ func (s *promptrequestsSuite) TestRequestWithIDErrors(c *C) {
 	result, err = rdb.RequestWithID(user+1, "foo")
 	c.Check(err, Equals, promptrequests.ErrUserNotFound)
 	c.Check(result, IsNil)
+
+	// Looking up requests (with or without errors) should not trigger notices
+	c.Assert(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
 }
 
 func (s *promptrequestsSuite) TestReply(c *C) {
@@ -127,8 +166,15 @@ func (s *promptrequestsSuite) TestReply(c *C) {
 	})
 	defer restore()
 
-	rdb := promptrequests.New()
 	var user uint32 = 1000
+	requestNoticeIDs := make([]string, 0, 4)
+	notifyRequest := func(userID uint32, requestID string, options *state.AddNoticeOptions) error {
+		c.Check(userID, Equals, user)
+		requestNoticeIDs = append(requestNoticeIDs, requestID)
+		return nil
+	}
+
+	rdb := promptrequests.New(notifyRequest)
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -140,14 +186,20 @@ func (s *promptrequestsSuite) TestReply(c *C) {
 	req1, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq1)
 	c.Check(merged, Equals, false)
 
+	c.Assert(requestNoticeIDs, HasLen, 1, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Check(requestNoticeIDs[0], Equals, req1.ID)
+	requestNoticeIDs = requestNoticeIDs[1:]
+
 	req2, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq2)
 	c.Check(merged, Equals, true)
 	c.Check(req2, Equals, req1)
 
+	c.Assert(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+
 	outcome := common.OutcomeAllow
 	repliedReq, err := rdb.Reply(user, req1.ID, outcome)
+	c.Check(err, IsNil)
 	for _, listenerReq := range []*listener.Request{listenerReq1, listenerReq2} {
-		c.Check(err, IsNil)
 		c.Check(repliedReq, Equals, req1)
 		receivedReq := <-listenerReqChan
 		c.Check(receivedReq, Equals, listenerReq)
@@ -157,15 +209,26 @@ func (s *promptrequestsSuite) TestReply(c *C) {
 		c.Check(allowed, Equals, true)
 	}
 
+	c.Assert(requestNoticeIDs, HasLen, 1, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Check(requestNoticeIDs[0], Equals, repliedReq.ID)
+	requestNoticeIDs = requestNoticeIDs[1:]
+
 	listenerReq1 = &listener.Request{}
 	listenerReq2 = &listener.Request{}
 
 	req1, merged = rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq1)
 	c.Check(merged, Equals, false)
 
+	c.Assert(requestNoticeIDs, HasLen, 1, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Check(requestNoticeIDs[0], Equals, req1.ID)
+	requestNoticeIDs = requestNoticeIDs[1:]
+
 	req2, merged = rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq2)
 	c.Check(merged, Equals, true)
 	c.Check(req2, Equals, req1)
+
+	// Merged requests should not trigger notice
+	c.Assert(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
 
 	outcome = common.OutcomeDeny
 	repliedReq, err = rdb.Reply(user, req1.ID, outcome)
@@ -179,6 +242,10 @@ func (s *promptrequestsSuite) TestReply(c *C) {
 		c.Check(ok, Equals, true)
 		c.Check(allowed, Equals, false)
 	}
+
+	c.Assert(requestNoticeIDs, HasLen, 1, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Check(requestNoticeIDs[0], Equals, repliedReq.ID)
+	requestNoticeIDs = requestNoticeIDs[1:]
 }
 
 func (s *promptrequestsSuite) TestReplyErrors(c *C) {
@@ -188,8 +255,15 @@ func (s *promptrequestsSuite) TestReplyErrors(c *C) {
 	})
 	defer restore()
 
-	rdb := promptrequests.New()
 	var user uint32 = 1000
+	requestNoticeIDs := make([]string, 0, 1)
+	notifyRequest := func(userID uint32, requestID string, options *state.AddNoticeOptions) error {
+		c.Check(userID, Equals, user)
+		requestNoticeIDs = append(requestNoticeIDs, requestID)
+		return nil
+	}
+
+	rdb := promptrequests.New(notifyRequest)
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -199,6 +273,10 @@ func (s *promptrequestsSuite) TestReplyErrors(c *C) {
 
 	req, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq)
 	c.Check(merged, Equals, false)
+
+	c.Assert(requestNoticeIDs, HasLen, 1, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Check(requestNoticeIDs[0], Equals, req.ID)
+	requestNoticeIDs = requestNoticeIDs[1:]
 
 	outcome := common.OutcomeAllow
 
@@ -213,6 +291,9 @@ func (s *promptrequestsSuite) TestReplyErrors(c *C) {
 
 	_, err = rdb.Reply(user, req.ID, outcome)
 	c.Check(err, Equals, fakeError)
+
+	// Failed replies should not trigger notice
+	c.Assert(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
 }
 
 func (s *promptrequestsSuite) TestHandleNewRuleAllowPermissions(c *C) {
@@ -225,16 +306,23 @@ func (s *promptrequestsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	})
 	defer restore()
 
-	rdb := promptrequests.New()
-
 	var user uint32 = 1000
+	requestNoticeIDs := make([]string, 0, 6)
+	notifyRequest := func(userID uint32, requestID string, options *state.AddNoticeOptions) error {
+		c.Check(userID, Equals, user)
+		requestNoticeIDs = append(requestNoticeIDs, requestID)
+		return nil
+	}
+
+	rdb := promptrequests.New(notifyRequest)
+
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
 
 	permissions := []common.PermissionType{common.PermissionExecute, common.PermissionWrite, common.PermissionRead}
 	listenerReq1 := &listener.Request{}
-	_, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq1)
+	req1, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq1)
 	c.Check(merged, Equals, false)
 
 	permissions = []common.PermissionType{common.PermissionWrite, common.PermissionRead}
@@ -249,8 +337,15 @@ func (s *promptrequestsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 
 	permissions = []common.PermissionType{common.PermissionOpen}
 	listenerReq4 := &listener.Request{}
-	_, merged = rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq4)
+	req4, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq4)
 	c.Check(merged, Equals, false)
+
+	c.Assert(requestNoticeIDs, HasLen, 4, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Check(requestNoticeIDs[0], Equals, req1.ID)
+	c.Check(requestNoticeIDs[1], Equals, req2.ID)
+	c.Check(requestNoticeIDs[2], Equals, req3.ID)
+	c.Check(requestNoticeIDs[3], Equals, req4.ID)
+	requestNoticeIDs = requestNoticeIDs[4:]
 
 	stored := rdb.Requests(user)
 	c.Assert(stored, HasLen, 4)
@@ -264,6 +359,11 @@ func (s *promptrequestsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	c.Check(satisfied, HasLen, 2)
 	c.Check(strutil.ListContains(satisfied, req2.ID), Equals, true)
 	c.Check(strutil.ListContains(satisfied, req3.ID), Equals, true)
+
+	c.Assert(requestNoticeIDs, HasLen, 2, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Check(strutil.ListContains(requestNoticeIDs, req2.ID), Equals, true)
+	c.Check(strutil.ListContains(requestNoticeIDs, req3.ID), Equals, true)
+	requestNoticeIDs = requestNoticeIDs[2:]
 
 	for i := 0; i < 2; i++ {
 		satisfiedReq := <-listenerReqChan
@@ -293,16 +393,23 @@ func (s *promptrequestsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 	})
 	defer restore()
 
-	rdb := promptrequests.New()
-
 	var user uint32 = 1000
+	requestNoticeIDs := make([]string, 0, 6)
+	notifyRequest := func(userID uint32, requestID string, options *state.AddNoticeOptions) error {
+		c.Check(userID, Equals, user)
+		requestNoticeIDs = append(requestNoticeIDs, requestID)
+		return nil
+	}
+
+	rdb := promptrequests.New(notifyRequest)
+
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
 
 	permissions := []common.PermissionType{common.PermissionExecute, common.PermissionWrite, common.PermissionRead}
 	listenerReq1 := &listener.Request{}
-	_, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq1)
+	req1, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq1)
 	c.Check(merged, Equals, false)
 
 	permissions = []common.PermissionType{common.PermissionWrite, common.PermissionRead}
@@ -317,8 +424,15 @@ func (s *promptrequestsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 
 	permissions = []common.PermissionType{common.PermissionOpen}
 	listenerReq4 := &listener.Request{}
-	_, merged = rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq4)
+	req4, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq4)
 	c.Check(merged, Equals, false)
+
+	c.Assert(requestNoticeIDs, HasLen, 4, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Check(requestNoticeIDs[0], Equals, req1.ID)
+	c.Check(requestNoticeIDs[1], Equals, req2.ID)
+	c.Check(requestNoticeIDs[2], Equals, req3.ID)
+	c.Check(requestNoticeIDs[3], Equals, req4.ID)
+	requestNoticeIDs = requestNoticeIDs[4:]
 
 	stored := rdb.Requests(user)
 	c.Assert(stored, HasLen, 4)
@@ -332,6 +446,11 @@ func (s *promptrequestsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 	c.Check(satisfied, HasLen, 2)
 	c.Check(strutil.ListContains(satisfied, req2.ID), Equals, true)
 	c.Check(strutil.ListContains(satisfied, req3.ID), Equals, true)
+
+	c.Assert(requestNoticeIDs, HasLen, 2, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Check(strutil.ListContains(requestNoticeIDs, req2.ID), Equals, true)
+	c.Check(strutil.ListContains(requestNoticeIDs, req3.ID), Equals, true)
+	requestNoticeIDs = requestNoticeIDs[2:]
 
 	for i := 0; i < 2; i++ {
 		satisfiedReq := <-listenerReqChan
@@ -357,6 +476,10 @@ func (s *promptrequestsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
+
+	// The request is not modified (since not fully satisfied), so no notice should be issued
+	c.Assert(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+
 }
 
 func (s *promptrequestsSuite) TestHandleNewRuleNonMatches(c *C) {
@@ -369,9 +492,16 @@ func (s *promptrequestsSuite) TestHandleNewRuleNonMatches(c *C) {
 	})
 	defer restore()
 
-	rdb := promptrequests.New()
-
 	var user uint32 = 1000
+	requestNoticeIDs := make([]string, 0, 2)
+	notifyRequest := func(userID uint32, requestID string, options *state.AddNoticeOptions) error {
+		c.Check(userID, Equals, user)
+		requestNoticeIDs = append(requestNoticeIDs, requestID)
+		return nil
+	}
+
+	rdb := promptrequests.New(notifyRequest)
+
 	snap := "nextcloud"
 	app := "occ"
 	path := "/home/test/Documents/foo.txt"
@@ -379,6 +509,10 @@ func (s *promptrequestsSuite) TestHandleNewRuleNonMatches(c *C) {
 	listenerReq := &listener.Request{}
 	req, merged := rdb.AddOrMerge(user, snap, app, path, permissions, listenerReq)
 	c.Check(merged, Equals, false)
+
+	c.Assert(requestNoticeIDs, HasLen, 1, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Check(requestNoticeIDs[0], Equals, req.ID)
+	requestNoticeIDs = requestNoticeIDs[1:]
 
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
@@ -398,29 +532,45 @@ func (s *promptrequestsSuite) TestHandleNewRuleNonMatches(c *C) {
 	c.Check(err, Equals, common.ErrInvalidOutcome)
 	c.Check(satisfied, HasLen, 0)
 
+	c.Check(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+
 	satisfied, err = rdb.HandleNewRule(otherUser, otherSnap, otherApp, otherPattern, outcome, permissions)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
+
+	c.Check(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
 
 	satisfied, err = rdb.HandleNewRule(user, otherSnap, otherApp, otherPattern, outcome, permissions)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
+	c.Check(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+
 	satisfied, err = rdb.HandleNewRule(user, snap, otherApp, otherPattern, outcome, permissions)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
+
+	c.Check(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
 
 	satisfied, err = rdb.HandleNewRule(user, snap, app, otherPattern, outcome, permissions)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
+	c.Check(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+
 	satisfied, err = rdb.HandleNewRule(user, snap, app, badPattern, outcome, permissions)
 	c.Check(err, ErrorMatches, "syntax error in pattern")
 	c.Check(satisfied, HasLen, 0)
 
+	c.Check(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+
 	satisfied, err = rdb.HandleNewRule(user, snap, app, pathPattern, outcome, permissions)
 	c.Check(err, IsNil)
 	c.Assert(satisfied, HasLen, 1)
+
+	c.Assert(requestNoticeIDs, HasLen, 1, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Check(requestNoticeIDs[0], Equals, req.ID)
+	requestNoticeIDs = requestNoticeIDs[1:]
 
 	satisfiedReq := <-listenerReqChan
 	c.Check(satisfiedReq, Equals, listenerReq)
