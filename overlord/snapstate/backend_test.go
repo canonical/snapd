@@ -85,6 +85,13 @@ type fakeOp struct {
 
 	dirOpts  *dirs.SnapDirOptions
 	undoInfo *backend.UndoInfo
+
+	// Used for component related interface calls
+	compFilePath  string
+	compMountDir  string
+	compMountFile string
+	cref          naming.ComponentRef
+	kernelVersion string
 }
 
 type fakeOps []fakeOp
@@ -905,7 +912,10 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 func (f *fakeSnappyBackend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *backend.InstallRecord, err error) {
 	meter.Notify("setup-component")
 	f.appendOp(&fakeOp{
-		op: "setup-component",
+		op:            "setup-component",
+		compFilePath:  compFilePath,
+		compMountDir:  compPi.MountDir(),
+		compMountFile: compPi.MountFile(),
 	})
 	if strings.HasSuffix(compPi.ContainerName(), "+broken") {
 		return nil, fmt.Errorf("cannot set-up component %q", compPi.ContainerName())
@@ -916,7 +926,11 @@ func (f *fakeSnappyBackend) SetupComponent(compFilePath string, compPi snap.Cont
 func (f *fakeSnappyBackend) SetupKernelModulesComponent(cpi snap.ContainerPlaceInfo, cref naming.ComponentRef, kernelVersion string, meter progress.Meter) (err error) {
 	meter.Notify("setup-kernel-modules-component")
 	f.appendOp(&fakeOp{
-		op: "setup-kernel-modules-component",
+		op:            "setup-kernel-modules-component",
+		compMountDir:  cpi.MountDir(),
+		compMountFile: cpi.MountFile(),
+		cref:          cref,
+		kernelVersion: kernelVersion,
 	})
 	return nil
 }
@@ -924,7 +938,11 @@ func (f *fakeSnappyBackend) SetupKernelModulesComponent(cpi snap.ContainerPlaceI
 func (f *fakeSnappyBackend) UndoSetupKernelModulesComponent(cpi snap.ContainerPlaceInfo, cref naming.ComponentRef, kernelVersion string, meter progress.Meter) error {
 	meter.Notify("undo-setup-kernel-modules-component")
 	f.appendOp(&fakeOp{
-		op: "undo-setup-kernel-modules-component",
+		op:            "undo-setup-kernel-modules-component",
+		compMountDir:  cpi.MountDir(),
+		compMountFile: cpi.MountFile(),
+		cref:          cref,
+		kernelVersion: kernelVersion,
 	})
 	return nil
 }
@@ -932,7 +950,9 @@ func (f *fakeSnappyBackend) UndoSetupKernelModulesComponent(cpi snap.ContainerPl
 func (f *fakeSnappyBackend) UndoSetupComponent(cpi snap.ContainerPlaceInfo, installRecord *backend.InstallRecord, dev snap.Device, meter progress.Meter) error {
 	meter.Notify("undo-setup-component")
 	f.appendOp(&fakeOp{
-		op: "undo-setup-component",
+		op:            "undo-setup-component",
+		compMountDir:  cpi.MountDir(),
+		compMountFile: cpi.MountFile(),
 	})
 	if strings.HasSuffix(cpi.ContainerName(), "+brokenundo") {
 		return fmt.Errorf("cannot undo set-up of component %q", cpi.ContainerName())
@@ -942,7 +962,9 @@ func (f *fakeSnappyBackend) UndoSetupComponent(cpi snap.ContainerPlaceInfo, inst
 
 func (f *fakeSnappyBackend) RemoveComponentDir(cpi snap.ContainerPlaceInfo) error {
 	f.appendOp(&fakeOp{
-		op: "remove-component-dir",
+		op:            "remove-component-dir",
+		compMountDir:  cpi.MountDir(),
+		compMountFile: cpi.MountFile(),
 	})
 	return nil
 }
