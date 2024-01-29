@@ -28,7 +28,6 @@ import (
 )
 
 type cmdReboot struct {
-	clientMixin
 	waitMixin
 	Positional struct {
 		Label string
