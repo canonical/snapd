@@ -21,7 +21,6 @@ package backend_test
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -82,8 +81,6 @@ func (s *kernelModulesSuite) TestSetupKernelModulesComponentNoModules(c *C) {
 }
 
 func (s *kernelModulesSuite) TestSetupKernelModulesComponentWithModules(c *C) {
-	fmt.Println("TestSetupKernelModulesComponentWithModules")
-	defer fmt.Println("TestSetupKernelModulesComponentWithModules")
 	const snapName = "mysnap"
 	const compName = "mycomp"
 	const kernelVersion = "5.15.0-78-generic"

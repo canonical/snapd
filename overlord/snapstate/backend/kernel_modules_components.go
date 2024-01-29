@@ -64,8 +64,6 @@ type kernelModulesCleanupParts struct {
 }
 
 func cleanupKernelModulesSetup(parts *kernelModulesCleanupParts, kernelVersion string, meter progress.Meter) error {
-	fmt.Printf("cleaning up comp: %s\n", parts.compMountDir)
-	fmt.Printf("cleaning up mods: %s\n", parts.modulesMountDir)
 	if parts.modulesMountDir != "" {
 		if err := cleanupMount(parts.modulesMountDir, meter); err != nil {
 			return err
@@ -145,7 +143,6 @@ func (b Backend) SetupKernelModulesComponent(cpi snap.ContainerPlaceInfo, cref n
 		return fmt.Errorf("cannot create mount in %q: %w", componentMount, err)
 	}
 	cleanOnFailure.compMountDir = componentMount
-	fmt.Printf("created comp: %s\n", componentMount)
 
 	if hasModules {
 		// systemd automatically works out dependencies on the "what"
@@ -165,7 +162,6 @@ func (b Backend) SetupKernelModulesComponent(cpi snap.ContainerPlaceInfo, cref n
 			return fmt.Errorf("cannot create mount in %q: %w", modulesDir, err)
 		}
 		cleanOnFailure.modulesMountDir = modulesDir
-		fmt.Printf("created mods: %s\n", modulesDir)
 
 		// Rebuild modinfo files
 		if err := runDepmod("/usr", kernelVersion); err != nil {
