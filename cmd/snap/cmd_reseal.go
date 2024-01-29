@@ -50,7 +50,7 @@ func init() {
 
 func (x *cmdReseal) Execute(args []string) error {
 	const reboot = false
-	id, err := x.client.Reseal(false)
+	id, err := x.client.Reseal(reboot)
 
 	if err != nil {
 		return err
