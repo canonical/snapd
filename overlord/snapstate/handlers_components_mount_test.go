@@ -21,7 +21,9 @@ package snapstate_test
 
 import (
 	"fmt"
+	"path/filepath"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -76,7 +78,10 @@ func (s *mountCompSnapSuite) TestDoMountComponent(c *C) {
 	// Ensure backend calls have happened with the expected data
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "setup-component",
+			op:            "setup-component",
+			compFilePath:  compPath,
+			compMountDir:  filepath.Join(dirs.SnapMountDir, "mysnap/components/1/mycomp"),
+			compMountFile: filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap+mycomp_7.comp"),
 		},
 	})
 	// File not removed
@@ -127,13 +132,20 @@ func (s *mountCompSnapSuite) TestDoUndoMountComponent(c *C) {
 	// ensure undo was called the right way
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "setup-component",
+			op:            "setup-component",
+			compFilePath:  compPath,
+			compMountDir:  filepath.Join(dirs.SnapMountDir, "mysnap/components/1/mycomp"),
+			compMountFile: filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap+mycomp_7.comp"),
 		},
 		{
-			op: "undo-setup-component",
+			op:            "undo-setup-component",
+			compMountDir:  filepath.Join(dirs.SnapMountDir, "mysnap/components/1/mycomp"),
+			compMountFile: filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap+mycomp_7.comp"),
 		},
 		{
-			op: "remove-component-dir",
+			op:            "remove-component-dir",
+			compMountDir:  filepath.Join(dirs.SnapMountDir, "mysnap/components/1/mycomp"),
+			compMountFile: filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap+mycomp_7.comp"),
 		},
 	})
 }
@@ -177,10 +189,15 @@ func (s *mountCompSnapSuite) TestDoMountComponentSetupFails(c *C) {
 	// ensure undo was called the right way
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "setup-component",
+			op:            "setup-component",
+			compFilePath:  compPath,
+			compMountDir:  filepath.Join(dirs.SnapMountDir, "mysnap/components/1/broken"),
+			compMountFile: filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap+broken_7.comp"),
 		},
 		{
-			op: "remove-component-dir",
+			op:            "remove-component-dir",
+			compMountDir:  filepath.Join(dirs.SnapMountDir, "mysnap/components/1/broken"),
+			compMountFile: filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap+broken_7.comp"),
 		},
 	})
 }
@@ -231,10 +248,15 @@ func (s *mountCompSnapSuite) TestDoUndoMountComponentFails(c *C) {
 	// ensure undo was called the right way
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "setup-component",
+			op:            "setup-component",
+			compFilePath:  compPath,
+			compMountDir:  filepath.Join(dirs.SnapMountDir, "mysnap/components/1/brokenundo"),
+			compMountFile: filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap+brokenundo_7.comp"),
 		},
 		{
-			op: "undo-setup-component",
+			op:            "undo-setup-component",
+			compMountDir:  filepath.Join(dirs.SnapMountDir, "mysnap/components/1/brokenundo"),
+			compMountFile: filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap+brokenundo_7.comp"),
 		},
 	})
 }
@@ -278,13 +300,20 @@ func (s *mountCompSnapSuite) TestDoMountComponentMountFails(c *C) {
 	// ensure undo was called the right way
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "setup-component",
+			op:            "setup-component",
+			compFilePath:  compPath,
+			compMountDir:  filepath.Join(dirs.SnapMountDir, "mysnap/components/1/mycomp"),
+			compMountFile: filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap+mycomp_7.comp"),
 		},
 		{
-			op: "undo-setup-component",
+			op:            "undo-setup-component",
+			compMountDir:  filepath.Join(dirs.SnapMountDir, "mysnap/components/1/mycomp"),
+			compMountFile: filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap+mycomp_7.comp"),
 		},
 		{
-			op: "remove-component-dir",
+			op:            "remove-component-dir",
+			compMountDir:  filepath.Join(dirs.SnapMountDir, "mysnap/components/1/mycomp"),
+			compMountFile: filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap+mycomp_7.comp"),
 		},
 	})
 }

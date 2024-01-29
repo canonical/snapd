@@ -168,16 +168,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 		}
 	}
 
-	compInstalled := snapst.IsComponentInCurrentSeq(compSi.Component)
-
 	if compSetup.CompType == snap.KernelModulesComponent {
-		// Remove units from previous component
-		if compInstalled {
-			undoSetupKernMod := st.NewTask("cleanup-kernel-modules-component",
-				fmt.Sprintf(i18n.G("Clean-up previous kernel-modules component %q%s"),
-					compSi.Component, revisionStr))
-			addTask(undoSetupKernMod)
-		}
 		setupKernMod := st.NewTask("setup-kernel-modules-component",
 			fmt.Sprintf(i18n.G("Set-up kernel-modules component %q%s"),
 				compSi.Component, revisionStr))
@@ -188,6 +179,7 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 
 	// We might be replacing a component if a local install, otherwise
 	// this is not really possible.
+	compInstalled := snapst.IsComponentInCurrentSeq(compSi.Component)
 	if compInstalled {
 		unlink := st.NewTask("unlink-current-component", fmt.Sprintf(i18n.G(
 			"Make current revision for component %q unavailable"),

@@ -462,7 +462,7 @@ func (m *SnapManager) undoSetupKernelModulesComponent(t *state.Task, _ *tomb.Tom
 	defer st.Unlock()
 	perfTimings := state.TimingsForTask(t)
 
-	compSetup, snapsup, _, err := compSetupAndState(t)
+	compSetup, snapsup, snapSt, err := compSetupAndState(t)
 	if err != nil {
 		return err
 	}
@@ -478,13 +478,33 @@ func (m *SnapManager) undoSetupKernelModulesComponent(t *state.Task, _ *tomb.Tom
 	if err != nil {
 		return err
 	}
+
+	// Find out if a previously installed component has been restored
+	// by the undo link step.
+	restoredCsi := snapSt.CurrentComponentSideInfo(csi.Component)
+
 	st.Unlock()
-	timings.Run(perfTimings, "undo-setup-kernel-modules-component",
-		fmt.Sprintf("undo setup of kernel-modules component %q", csi.Component),
-		func(timings.Measurer) {
-			err = m.backend.UndoSetupKernelModulesComponent(cpi, csi.Component,
-				kernelVersion, pm)
-		})
+	if restoredCsi == nil {
+		timings.Run(perfTimings, "undo-setup-kernel-modules-component",
+			fmt.Sprintf("undo setup of kernel-modules component %q", csi.Component),
+			func(timings.Measurer) {
+				err = m.backend.UndoSetupKernelModulesComponent(
+					cpi, csi.Component, kernelVersion, pm)
+			})
+	} else {
+		// Set-up will replace the mount units so they point to the
+		// previous component revision (note that the mount points,
+		// therefore the file names, are the same).
+		restoredCpi := snap.MinimalComponentContainerPlaceInfo(
+			restoredCsi.Component.ComponentName,
+			restoredCsi.Revision, snapsup.InstanceName(), snapsup.Revision())
+		timings.Run(perfTimings, "setup-kernel-modules-component",
+			fmt.Sprintf("setup of kernel-modules component %q", csi.Component),
+			func(timings.Measurer) {
+				err = m.backend.SetupKernelModulesComponent(
+					restoredCpi, restoredCsi.Component, kernelVersion, pm)
+			})
+	}
 	st.Lock()
 	if err != nil {
 		return err

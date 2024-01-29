@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -93,7 +94,11 @@ func (s *kernelModulesCompSnapSuite) TestDoSetupKernelModulesComponent(c *C) {
 	// Ensure backend calls have happened with the expected data
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "setup-kernel-modules-component",
+			op:            "setup-kernel-modules-component",
+			compMountDir:  filepath.Join(dirs.SnapMountDir, "mysnap/components/1/mycomp"),
+			compMountFile: filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap+mycomp_7.comp"),
+			cref:          cref,
+			kernelVersion: "5.15.0-78-generic",
 		},
 	})
 }
@@ -186,10 +191,87 @@ func (s *kernelModulesCompSnapSuite) TestDoThenUndoSetupKernelModulesComponent(c
 	// Ensure backend calls have happened with the expected data
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "setup-kernel-modules-component",
+			op:            "setup-kernel-modules-component",
+			compMountDir:  filepath.Join(dirs.SnapMountDir, "mysnap/components/1/mycomp"),
+			compMountFile: filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap+mycomp_7.comp"),
+			cref:          cref,
+			kernelVersion: "5.15.0-78-generic",
 		},
 		{
-			op: "undo-setup-kernel-modules-component",
+			op:            "undo-setup-kernel-modules-component",
+			compMountDir:  filepath.Join(dirs.SnapMountDir, "mysnap/components/1/mycomp"),
+			compMountFile: filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap+mycomp_7.comp"),
+			cref:          cref,
+			kernelVersion: "5.15.0-78-generic",
+		},
+	})
+}
+
+func (s *kernelModulesCompSnapSuite) TestDoThenUndoSetupKernelModulesComponentInstalled(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	snapRev := snap.R(2)
+	compRev := snap.R(7)
+	ci, compPath := createTestComponent(c, snapName, compName)
+	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	ssu := createTestSnapSetup(si, snapstate.Flags{})
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(
+		compMntDir string) (*snap.ComponentInfo, error) {
+		return ci, nil
+	}))
+	// Create file so kernel version can be found
+	c.Assert(os.MkdirAll(si.MountDir(), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(
+		si.MountDir(), "System.map-5.15.0-78-generic"), []byte{}, 0644), IsNil)
+
+	s.state.Lock()
+
+	// state must contain the component
+	setStateWithOneComponent(s.state, snapName, snap.R(1), compName, compRev)
+
+	t := s.state.NewTask("setup-kernel-modules-component", "task desc")
+	cref := naming.NewComponentRef(snapName, compName)
+	csi := snap.NewComponentSideInfo(cref, compRev)
+	t.Set("component-setup",
+		snapstate.NewComponentSetup(csi, snap.TestComponent, compPath))
+	t.Set("snap-setup", ssu)
+	chg := s.state.NewChange("test change", "change desc")
+	chg.AddTask(t)
+
+	terr := s.state.NewTask("error-trigger", "provoking undo setup")
+	terr.WaitFor(t)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Check(chg.Err().Error(), Equals, "cannot perform the following tasks:\n"+
+		"- provoking undo setup (error out)")
+	// State of task is as expected
+	c.Check(t.Status(), Equals, state.UndoneStatus)
+	s.state.Unlock()
+
+	// Ensure backend calls have happened with the expected data
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op:            "setup-kernel-modules-component",
+			compMountDir:  filepath.Join(dirs.SnapMountDir, "mysnap/components/2/mycomp"),
+			compMountFile: filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap+mycomp_7.comp"),
+			cref:          cref,
+			kernelVersion: "5.15.0-78-generic",
+		},
+		{
+			op:            "setup-kernel-modules-component",
+			compMountDir:  filepath.Join(dirs.SnapMountDir, "mysnap/components/2/mycomp"),
+			compMountFile: filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap+mycomp_7.comp"),
+			cref:          cref,
+			kernelVersion: "5.15.0-78-generic",
 		},
 	})
 }
@@ -240,7 +322,11 @@ func (s *kernelModulesCompSnapSuite) TestDoCleanupKernelModulesComponent(c *C) {
 	// Ensure backend calls have happened with the expected data
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "undo-setup-kernel-modules-component",
+			op:            "undo-setup-kernel-modules-component",
+			compMountDir:  filepath.Join(dirs.SnapMountDir, "kernelsnap/components/1/kmodcomp"),
+			compMountFile: filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/kernelsnap+kmodcomp_5.comp"),
+			cref:          cref,
+			kernelVersion: "5.15.0-78-generic",
 		},
 	})
 }
@@ -298,10 +384,18 @@ func (s *kernelModulesCompSnapSuite) TestDoThenUndoCleanupKernelModulesComponent
 	// Ensure backend calls have happened with the expected data
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "undo-setup-kernel-modules-component",
+			op:            "undo-setup-kernel-modules-component",
+			compMountDir:  filepath.Join(dirs.SnapMountDir, "kernelsnap/components/1/kmodcomp"),
+			compMountFile: filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/kernelsnap+kmodcomp_5.comp"),
+			cref:          cref,
+			kernelVersion: "5.15.0-78-generic",
 		},
 		{
-			op: "setup-kernel-modules-component",
+			op:            "setup-kernel-modules-component",
+			compMountDir:  filepath.Join(dirs.SnapMountDir, "kernelsnap/components/1/kmodcomp"),
+			compMountFile: filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/kernelsnap+kmodcomp_5.comp"),
+			cref:          cref,
+			kernelVersion: "5.15.0-78-generic",
 		},
 	})
 }

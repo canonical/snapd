@@ -60,9 +60,6 @@ func expectedComponentInstallTasks(opts int) []string {
 	}
 	// This task is only for kernel-modules
 	if opts&compOptKernelModules != 0 {
-		if opts&compOptIsActive != 0 {
-			startTasks = append(startTasks, "cleanup-kernel-modules-component")
-		}
 		startTasks = append(startTasks, "setup-kernel-modules-component")
 	}
 	// Component is installed (implicit if compOptRevisionPresent is set)
