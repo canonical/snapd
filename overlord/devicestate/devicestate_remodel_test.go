@@ -2946,9 +2946,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnaps(c *C) {
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnapsChannelSwitch(c *C) {
-	// remodel switches to a new set of kernel, base and gadget snaps, but some
-	// of those (kernel, base) happen to be already installed and tracking the
-	// right channels.
+	// remodel switches to a new set of kernel, base and gadget snaps. some of
+	// those (kernel, base) happen to be already installed, and the channel must
+	// be switched.
 	s.state.Lock()
 	defer s.state.Unlock()
 
