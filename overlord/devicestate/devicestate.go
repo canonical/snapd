@@ -600,7 +600,7 @@ func revisionOptionsForRemodel(channel string, revision snap.Revision, valsets [
 	return opts
 }
 
-func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pathSideInfo, ms modelSnapsForRemodel, remodelVar remodelVariant, deviceCtx snapstate.DeviceContext, fromChange string, tracker snapstate.PrereqTracker) (*state.TaskSet, error) {
+func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSnapsForRemodel, remodelVar remodelVariant, deviceCtx snapstate.DeviceContext, fromChange string, tracker snapstate.PrereqTracker) (*state.TaskSet, error) {
 	userID := 0
 	newModelSnapChannel, err := modelSnapChannelFromDefaultOrPinnedTrack(ms.new, ms.newModelSnap)
 	if err != nil {
@@ -769,7 +769,7 @@ func tasksForEssentialSnap(ctx context.Context, st *state.State,
 		newRequiredRevision:    revision,
 		newModelValidationSets: vSetKeys,
 	}
-	ts, err := remodelEssentialSnapTasks(ctx, st, nil, ms, remodelVar, deviceCtx, fromChange, tracker)
+	ts, err := remodelEssentialSnapTasks(ctx, st, ms, remodelVar, deviceCtx, fromChange, tracker)
 	if err != nil {
 		return nil, err
 	}
