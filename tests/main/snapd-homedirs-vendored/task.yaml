@@ -1,7 +1,13 @@
 summary: Test that vendored apparmor does not break any system tunables
 
+details: |
+    Verifies that on systems where we have an older snapd (pre vendored apparmor)
+    deb package, and the snap itself is upgraded to vendored apparmor, apparmor
+    snippets continue to work.
+
 # On ubuntu 18 and below snapd-internal is not available
-systems: [ubuntu-18*, ubuntu-2*]
+# ubuntu-24*: the snapd deb is version 2.60.4 which is post-vendored apparmor.
+systems: [ubuntu-18*, ubuntu-20*, ubuntu-22*, ubuntu-23*]
 
 environment:
     USERNAME: home-sweet-home
@@ -25,6 +31,12 @@ restore: |
     userdel -f --remove "$USERNAME"
     rm -rf /remote/users
 
+    # Reinstall the original snap
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    distro_purge_package snapd
+    distro_install_build_snapd
+
 debug: |
     # output custom snap-confine snippets
     ls -l /var/lib/snapd/apparmor/snap-confine/
@@ -35,7 +47,12 @@ debug: |
 
 execute: |
     echo "Downgrading the snapd deb to pre-vendored apparmor times"
-    TARGET_VER="$(apt list -a snapd|grep -- -updates|cut -f2 -d' ')"
+    TARGET_VER="$(apt list -a snapd | grep -- -updates | cut -f2 -d' ')"
+    # Ubuntu release on development doesn't have updates
+    if [ -z "$TARGET_VER" ]; then
+        CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
+        TARGET_VER="$(apt list -a snapd | grep -E "/$CODENAME( |,)" | cut -f2 -d' ')"
+    fi
     apt install -yqq --allow-downgrades snapd="$TARGET_VER"
     
     echo "But installing the vendored apparmor snapd with our changes"

@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -290,7 +291,7 @@ func (s *patch63Suite) TestPatch63(c *C) {
 	// none of the other information has changed
 	c.Check(all["prefix-postfix-slashes"], DeepEquals, &snapstate.SnapState{
 		SnapType: "app",
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
 				RealName:    "prefix-postfix-slashes",
 				SnapID:      "Hswp9oOzj3b4mw8gcC00XtxWnKH9QiCQ",
@@ -304,7 +305,7 @@ func (s *patch63Suite) TestPatch63(c *C) {
 				Channel:     "edge",
 				EditedTitle: "some-title",
 			},
-		},
+		}),
 		Active:          true,
 		Current:         snap.R(32),
 		TrackingChannel: "latest/edge",

@@ -20,7 +20,6 @@
 package patch_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -229,7 +228,7 @@ func (s *patch4Suite) SetUpTest(c *C) {
 
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.SnapStateFile, statePatch4JSON, 0644)
+	err = os.WriteFile(dirs.SnapStateFile, statePatch4JSON, 0644)
 	c.Assert(err, IsNil)
 }
 

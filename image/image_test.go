@@ -150,6 +150,9 @@ func (s *imageSuite) SetUpTest(c *C) {
 		return nil
 	})
 	s.AddCleanup(restore)
+
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
 }
 
 func (s *imageSuite) TearDownTest(c *C) {
@@ -382,7 +385,7 @@ func (s *imageSuite) TestMissingModelAssertions(c *C) {
 
 func (s *imageSuite) TestIncorrectModelAssertions(c *C) {
 	fn := filepath.Join(c.MkDir(), "broken-model.assertion")
-	err := ioutil.WriteFile(fn, nil, 0644)
+	err := os.WriteFile(fn, nil, 0644)
 	c.Assert(err, IsNil)
 	_, err = image.DecodeModelAssertion(&image.Options{
 		ModelFile: fn,
@@ -404,7 +407,7 @@ AXNpZw==
 `)
 
 	fn := filepath.Join(c.MkDir(), "different.assertion")
-	err := ioutil.WriteFile(fn, differentAssertion, 0644)
+	err := os.WriteFile(fn, differentAssertion, 0644)
 	c.Assert(err, IsNil)
 
 	_, err = image.DecodeModelAssertion(&image.Options{
@@ -438,7 +441,7 @@ AXNpZw==
 	for _, rsvd := range reserved {
 		tweaked := strings.Replace(mod, "kernel: kernel\n", fmt.Sprintf("kernel: kernel\n%s: stuff\n", rsvd), 1)
 		fn := filepath.Join(c.MkDir(), "model.assertion")
-		err := ioutil.WriteFile(fn, []byte(tweaked), 0644)
+		err := os.WriteFile(fn, []byte(tweaked), 0644)
 		c.Assert(err, IsNil)
 		_, err = image.DecodeModelAssertion(&image.Options{
 			ModelFile: fn,
@@ -465,7 +468,7 @@ AXNpZw==
 `
 
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := ioutil.WriteFile(fn, []byte(mod), 0644)
+	err := os.WriteFile(fn, []byte(mod), 0644)
 	c.Assert(err, IsNil)
 	_, err = image.DecodeModelAssertion(&image.Options{
 		ModelFile: fn,
@@ -489,7 +492,7 @@ AXNpZw==
 `
 
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := ioutil.WriteFile(fn, []byte(mod), 0644)
+	err := os.WriteFile(fn, []byte(mod), 0644)
 	c.Assert(err, IsNil)
 	_, err = image.DecodeModelAssertion(&image.Options{
 		ModelFile: fn,
@@ -513,7 +516,7 @@ AXNpZw==
 `
 
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := ioutil.WriteFile(fn, []byte(mod), 0644)
+	err := os.WriteFile(fn, []byte(mod), 0644)
 	c.Assert(err, IsNil)
 	_, err = image.DecodeModelAssertion(&image.Options{
 		ModelFile: fn,
@@ -538,7 +541,7 @@ AXNpZw==
 `
 
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := ioutil.WriteFile(fn, []byte(mod), 0644)
+	err := os.WriteFile(fn, []byte(mod), 0644)
 	c.Assert(err, IsNil)
 	_, err = image.DecodeModelAssertion(&image.Options{
 		ModelFile: fn,
@@ -548,7 +551,7 @@ AXNpZw==
 
 func (s *imageSuite) TestHappyDecodeModelAssertion(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(s.model), 0644)
 	c.Assert(err, IsNil)
 
 	a, err := image.DecodeModelAssertion(&image.Options{
@@ -1319,7 +1322,7 @@ func (s *imageSuite) testSetupSeedWithBaseWithCustomizationsAndDefaults(c *C, wi
 	tmpdir := c.MkDir()
 	rootdir := filepath.Join(tmpdir, "image")
 	cloudInitUserData := filepath.Join(tmpdir, "cloudstuff")
-	err := ioutil.WriteFile(cloudInitUserData, []byte(`# user cloud data`), 0644)
+	err := os.WriteFile(cloudInitUserData, []byte(`# user cloud data`), 0644)
 	c.Assert(err, IsNil)
 	s.setupSnaps(c, map[string]string{
 		"core18":    "canonical",
@@ -1371,7 +1374,7 @@ func (s *imageSuite) TestPrepareUC20CustomizationsUnsupported(c *C) {
 
 	model := s.makeUC20Model(nil)
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(model), 0644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -1392,7 +1395,7 @@ func (s *imageSuite) TestPrepareClassicCustomizationsUnsupported(c *C) {
 		"classic": "true",
 	})
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(model), 0644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -1418,7 +1421,7 @@ func (s *imageSuite) TestPrepareUC18CustomizationsUnsupported(c *C) {
 		"base":         "core18",
 	})
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(model), 0644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -1693,7 +1696,7 @@ func (s *imageSuite) TestInstallCloudConfigWithCloudConfig(c *C) {
 
 	targetDir := c.MkDir()
 	gadgetDir := c.MkDir()
-	err := ioutil.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), canary, 0644)
+	err := os.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), canary, 0644)
 	c.Assert(err, IsNil)
 
 	err = image.InstallCloudConfig(targetDir, gadgetDir)
@@ -2078,7 +2081,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAssertsValidationEnforce(c 
 
 func (s *imageSuite) TestCannotCreateGadgetUnpackDir(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(s.model), 0644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -2091,7 +2094,7 @@ func (s *imageSuite) TestCannotCreateGadgetUnpackDir(c *C) {
 
 func (s *imageSuite) TestNoLocalParallelSnapInstances(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(s.model), 0644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -2103,7 +2106,7 @@ func (s *imageSuite) TestNoLocalParallelSnapInstances(c *C) {
 
 func (s *imageSuite) TestNoInvalidSnapNames(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(s.model), 0644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -2115,7 +2118,7 @@ func (s *imageSuite) TestNoInvalidSnapNames(c *C) {
 
 func (s *imageSuite) TestPrepareInvalidChannel(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(s.model), 0644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -2127,7 +2130,7 @@ func (s *imageSuite) TestPrepareInvalidChannel(c *C) {
 
 func (s *imageSuite) TestPrepareClassicModeNoClassicModel(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(s.model), 0644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -2146,7 +2149,7 @@ func (s *imageSuite) TestPrepareClassicModelNoClassicMode(c *C) {
 	})
 
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(model), 0644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -2165,7 +2168,7 @@ func (s *imageSuite) TestPrepareClassicModelArchOverrideFails(c *C) {
 	})
 
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(model), 0644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -2186,7 +2189,7 @@ func (s *imageSuite) TestPrepareClassicModelSnapsButNoArchFails(c *C) {
 	})
 
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	err := os.WriteFile(fn, asserts.Encode(model), 0644)
 	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
@@ -2602,10 +2605,6 @@ func (s *imageSuite) TestSetupSeedBaseNone(c *C) {
 }
 
 func (s *imageSuite) TestSetupSeedCore18GadgetDefaults(c *C) {
-	tmpDir := c.MkDir()
-	dirs.SetRootDir(tmpDir)
-	defer dirs.SetRootDir("")
-
 	systemctlMock := testutil.MockCommand(c, "systemctl", "")
 	defer systemctlMock.Restore()
 
@@ -2648,31 +2647,6 @@ func (s *imageSuite) TestSetupSeedCore18GadgetDefaults(c *C) {
 	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, IsNil)
 	c.Check(osutil.FileExists(filepath.Join(rootdir, "_writable_defaults/etc/ssh/sshd_not_to_be_run")), Equals, true)
-}
-
-func (s *imageSuite) TestSetupSeedSnapCoreSatisfiesCore16(c *C) {
-	restore := image.MockTrusted(s.StoreSigning.Trusted)
-	defer restore()
-	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
-		"architecture":   "amd64",
-		"gadget":         "pc",
-		"kernel":         "pc-kernel",
-		"required-snaps": []interface{}{"snap-req-core16-base"},
-	})
-
-	rootdir := filepath.Join(c.MkDir(), "image")
-	s.setupSnaps(c, map[string]string{
-		"core":                "canonical",
-		"pc":                  "canonical",
-		"pc-kernel":           "canonical",
-		"snap-req-other-base": "canonical",
-	}, "")
-	opts := &image.Options{
-		PrepareDir: filepath.Dir(rootdir),
-	}
-
-	err := image.SetupSeed(s.tsto, model, opts)
-	c.Assert(err, IsNil)
 }
 
 func (s *imageSuite) TestSetupSeedStoreAssertionMissing(c *C) {
@@ -2826,7 +2800,8 @@ func (s *imageSuite) TestSetupSeedMissingContentProvider(c *C) {
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
-	c.Check(err, ErrorMatches, `cannot use snap "snap-req-content-provider" without its default content provider "gtk-common-themes" being added explicitly`)
+	// XXX content is empty because we disable SanitizePlugsSlots
+	c.Check(err, ErrorMatches, `prerequisites need to be added explicitly: cannot use snap "snap-req-content-provider": default provider "gtk-common-themes" or any alternative provider for content "" is missing`)
 }
 
 func (s *imageSuite) TestSetupSeedClassic(c *C) {
@@ -3644,7 +3619,7 @@ func (s *imageSuite) TestPrepareWithUC20Preseed(c *C) {
 
 	model := s.makeUC20Model(nil)
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	c.Assert(ioutil.WriteFile(fn, asserts.Encode(model), 0644), IsNil)
+	c.Assert(os.WriteFile(fn, asserts.Encode(model), 0644), IsNil)
 
 	err := image.Prepare(&image.Options{
 		ModelFile:      fn,
@@ -4624,7 +4599,7 @@ func (s *imageSuite) TestDownloadSnapsManifestValidationSets(c *C) {
 
 	// write a seed.manifest we will provide to image
 	manifestFile := filepath.Join(rootDir, "seed.manifest")
-	err := ioutil.WriteFile(manifestFile, []byte("canonical/base-set 1"), 0644)
+	err := os.WriteFile(manifestFile, []byte("canonical/base-set 1"), 0644)
 	c.Assert(err, IsNil)
 
 	manifest, err := seedwriter.ReadManifest(manifestFile)

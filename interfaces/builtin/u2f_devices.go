@@ -115,7 +115,7 @@ var u2fDevices = []u2fDevice{
 	{
 		Name:             "Google Titan U2F",
 		VendorIDPattern:  "18d1",
-		ProductIDPattern: "5026",
+		ProductIDPattern: "5026|9470",
 	},
 	{
 		Name:             "Tomu board + chopstx U2F + SoloKeys + Flipper zero",
@@ -166,6 +166,21 @@ var u2fDevices = []u2fDevice{
 		Name:             "U2F-TOKEN (Tomu et al.)",
 		VendorIDPattern:  "16d0",
 		ProductIDPattern: "0e90",
+	},
+	{
+		Name:             "Token2 FIDO2 key",
+		VendorIDPattern:  "349e",
+		ProductIDPattern: "0010|0011|0012|0020|0021|0022|0200|0201|0202",
+	},
+	{
+		Name:             "Swissbit iShield Key",
+		VendorIDPattern:  "1370",
+		ProductIDPattern: "0911",
+	},
+	{
+		Name:             "RSA DS100",
+		VendorIDPattern:  "15e1",
+		ProductIDPattern: "2019",
 	},
 }
 

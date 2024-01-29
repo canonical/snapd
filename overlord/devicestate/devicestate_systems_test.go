@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -39,12 +38,14 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
@@ -1387,7 +1388,7 @@ func (s *deviceMgrSystemsCreateSuite) makeSnapInState(c *C, name string, rev sna
 	snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
 		SnapType: string(info.Type()),
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 	})
 
@@ -1442,8 +1443,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 	s.state.Lock()
 
 	c.Assert(chg.Err(), IsNil)
-	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
-	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
+	c.Assert(tskCreate.Status(), Equals, state.WaitStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoStatus)
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
@@ -1492,6 +1493,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 	s.settle(c)
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// simulate a restart and run change to completion
+	s.mockRestartAndSettle(c, s.state, chg)
 
 	c.Assert(chg.Err(), IsNil)
 	c.Check(chg.IsReady(), Equals, true)
@@ -1617,8 +1621,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	defer s.state.Unlock()
 
 	c.Assert(chg.Err(), IsNil)
-	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
-	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
+	c.Assert(tskCreate.Status(), Equals, state.WaitStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoStatus)
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
@@ -1668,6 +1672,213 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
+
+	// simulate a restart and run change to completion
+	s.mockRestartAndSettle(c, s.state, chg)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.IsReady(), Equals, true)
+	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoneStatus)
+
+	// this would be part of a remodel so some state is cleaned up only at the end of remodel change
+	var triedSystemsAfterFinalize []string
+	err = s.state.Get("tried-systems", &triedSystemsAfterFinalize)
+	c.Assert(err, IsNil)
+	c.Check(triedSystemsAfterFinalize, DeepEquals, []string{"1234"})
+
+	modeenvAfterFinalize, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvAfterFinalize, testutil.JsonEquals, boot.Modeenv{
+		Mode:           "run",
+		Base:           "core20_3.snap",
+		CurrentKernels: []string{"pc-kernel_2.snap"},
+		// the system is kept in the current list
+		CurrentRecoverySystems: []string{"othersystem", "1234"},
+		// but not promoted to good systems yet
+		GoodRecoverySystems: []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
+	})
+	// no more calls to the bootloader past creating the system
+	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"), testutil.FileAbsent)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemodelValidationSet(c *C) {
+	// this test is mainly to make sure that the code that creates a recovery
+	// system is able to properly fetch validation set assertions. both
+	// assertions at an unconstrained sequence and a pinned sequence number.
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+
+	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", nil)
+	c.Assert(err, IsNil)
+	tsks := tss.Tasks()
+	c.Check(tsks, HasLen, 2)
+	tskCreate := tsks[0]
+	tskFinalize := tsks[1]
+	c.Assert(tskCreate.Summary(), Matches, `Create recovery system with label "1234"`)
+	c.Check(tskFinalize.Summary(), Matches, `Finalize recovery system with label "1234"`)
+
+	var systemSetupData map[string]interface{}
+	err = tskCreate.Get("recovery-system-setup", &systemSetupData)
+	c.Assert(err, IsNil)
+	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+		"label":            "1234",
+		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"),
+		"snap-setup-tasks": nil,
+	})
+	// add the test tasks to the change
+	chg := s.state.NewChange("create-recovery-system", "create recovery system")
+	chg.AddAll(tss)
+
+	// downloads are only accepted if the tasks are executed as part of
+	// remodel, so procure a new model
+	newModel := s.brands.Model("canonical", "pc-20", map[string]interface{}{
+		"architecture": "amd64",
+		// UC20
+		"grade": "dangerous",
+		"base":  "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.ss.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.ss.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "vset-1",
+				"mode":       "enforce",
+			},
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "vset-2",
+				"sequence":   "2",
+				"mode":       "enforce",
+			},
+		},
+		"revision": "2",
+	})
+
+	chg.Set("new-model", string(asserts.Encode(newModel)))
+
+	setSnaps := []interface{}{
+		map[string]interface{}{
+			"id":       snaptest.AssertedSnapID("some-snap"),
+			"name":     "some-snap",
+			"presence": "invalid",
+		},
+	}
+
+	setOne := map[string]interface{}{
+		"series":       "16",
+		"account-id":   "canonical",
+		"authority-id": "canonical",
+		"publisher-id": "canonical",
+		"name":         "vset-1",
+		"sequence":     "1",
+		"snaps":        setSnaps,
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"revision":     "1",
+	}
+
+	setTwo := map[string]interface{}{
+		"series":       "16",
+		"account-id":   "canonical",
+		"authority-id": "canonical",
+		"publisher-id": "canonical",
+		"name":         "vset-2",
+		"sequence":     "2",
+		"snaps":        setSnaps,
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"revision":     "1",
+	}
+
+	signer := s.brands.Signing("canonical")
+
+	vsetOne, err := signer.Sign(asserts.ValidationSetType, setOne, nil, "")
+	c.Check(err, IsNil)
+	c.Check(assertstate.Add(s.state, vsetOne), IsNil)
+
+	vsetTwo, err := signer.Sign(asserts.ValidationSetType, setTwo, nil, "")
+	c.Check(err, IsNil)
+	c.Check(assertstate.Add(s.state, vsetTwo), IsNil)
+
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(tskCreate.Status(), Equals, state.WaitStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoStatus)
+	// a reboot is expected
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+
+	validateCore20Seed(c, "1234", newModel, s.storeSigning.Trusted)
+	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"try_recovery_system":    "1234",
+		"recovery_system_status": "try",
+	})
+	modeenvAfterCreate, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem", "1234"},
+		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
+		// try model is unset as its measured properties are identical
+	})
+	// verify that new files are tracked correctly
+	expectedFilesLog := &bytes.Buffer{}
+	// new snap files are logged in this order
+	for _, fname := range []string{
+		"snapd_4.snap", "pc-kernel_2.snap", "core20_3.snap", "pc_1.snap",
+	} {
+		fmt.Fprintln(expectedFilesLog, filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps", fname))
+	}
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"),
+		testutil.FileEquals, expectedFilesLog.String())
+
+	// these things happen on snapd startup
+	restart.MockPending(s.state, restart.RestartUnset)
+	s.state.Set("tried-systems", []string{"1234"})
+	s.bootloader.SetBootVars(map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+	s.bootloader.SetBootVarsCalls = 0
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	// simulate a restart and run change to completion
+	s.mockRestartAndSettle(c, s.state, chg)
 
 	c.Assert(chg.Err(), IsNil)
 	c.Check(chg.IsReady(), Equals, true)
@@ -1818,8 +2029,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 	s.state.Lock()
 
 	c.Assert(chg.Err(), IsNil)
-	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
-	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
+	c.Assert(tskCreate.Status(), Equals, state.WaitStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoStatus)
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	// validity check asserted snaps location
@@ -1870,6 +2081,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 	s.settle(c)
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// simulate a restart and run change to completion
+	s.mockRestartAndSettle(c, s.state, chg)
 
 	c.Assert(chg.Err(), ErrorMatches, "(?s)cannot perform the following tasks.* provoking total undo.*")
 	c.Check(chg.IsReady(), Equals, true)
@@ -1929,8 +2143,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 	s.state.Lock()
 
 	c.Assert(chg.Err(), IsNil)
-	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
-	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
+	c.Assert(tskCreate.Status(), Equals, state.WaitStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoStatus)
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
@@ -1971,6 +2185,9 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 	s.settle(c)
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// 'create-recovery-system' is pending a restart
+	s.mockRestartAndSettle(c, s.state, chg)
 
 	c.Assert(chg.Err(), ErrorMatches, `(?s)cannot perform the following tasks.* Finalize recovery system with label "1234" \(cannot promote recovery system "1234": system has not been successfully tried\)`)
 	c.Check(chg.IsReady(), Equals, true)
@@ -2112,8 +2329,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemReboo
 
 	// so far so good
 	c.Assert(chg.Err(), IsNil)
-	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
-	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
+	c.Assert(tskCreate.Status(), Equals, state.WaitStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoStatus)
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 2)
@@ -2414,7 +2631,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetInfoErrorWrongGadget(c *C) 
 	isClassic := false
 	s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isClassic)
 	// break the seed by changing things
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"), []byte(`content-changed`), 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "snaps", "pc_1.snap"), []byte(`content-changed`), 0644)
 	c.Assert(err, IsNil)
 
 	_, _, _, err = s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")

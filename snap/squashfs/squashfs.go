@@ -380,10 +380,10 @@ func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
 
 // ListDir returns the content of a single directory inside a squashfs snap.
 func (s *Snap) ListDir(dirPath string) ([]string, error) {
-	output, err := exec.Command(
-		"unsquashfs", "-no-progress", "-dest", "_", "-l", s.path, dirPath).CombinedOutput()
+	output, stderr, err := osutil.RunSplitOutput(
+		"unsquashfs", "-no-progress", "-dest", "_", "-l", s.path, dirPath)
 	if err != nil {
-		return nil, osutil.OutputErr(output, err)
+		return nil, osutil.OutputErrCombine(output, stderr, err)
 	}
 
 	prefixPath := path.Join("_", dirPath)
@@ -505,6 +505,14 @@ type BuildOpts struct {
 	ExcludeFiles []string
 }
 
+// MinimumSnapSize is the smallest size a snap can be. The kernel attempts to read a
+// partition table from the snap when a loopback device is created from it. If the snap
+// is smaller than this size, some versions of the kernel will print error logs while
+// scanning the loopback device for partitions.
+// TODO: revisit if necessary, some distros (eg. openSUSE) patch squashfs-tools to pad to 64k but
+// kernel should work with this
+const MinimumSnapSize int64 = 16384
+
 // Build builds the snap.
 func (s *Snap) Build(sourceDir string, opts *BuildOpts) error {
 	if opts == nil {
@@ -537,6 +545,7 @@ func (s *Snap) Build(sourceDir string, opts *BuildOpts) error {
 		"-no-fragments",
 		"-no-progress",
 	)
+
 	if len(opts.ExcludeFiles) > 0 {
 		cmd.Args = append(cmd.Args, "-wildcards")
 		for _, excludeFile := range opts.ExcludeFiles {
@@ -548,7 +557,7 @@ func (s *Snap) Build(sourceDir string, opts *BuildOpts) error {
 		cmd.Args = append(cmd.Args, "-all-root", "-no-xattrs")
 	}
 
-	return osutil.ChDir(sourceDir, func() error {
+	err = osutil.ChDir(sourceDir, func() error {
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			return MksquashfsError{fmt.Sprintf("mksquashfs call failed: %s", osutil.OutputErr(output, err))}
@@ -556,11 +565,33 @@ func (s *Snap) Build(sourceDir string, opts *BuildOpts) error {
 
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	// Grow the snap if it is smaller than the minimum snap size. See
+	// MinimumSnapSize for more details.
+	return s.growSnapToMinSize(MinimumSnapSize)
 }
 
 // BuildDate returns the "Creation or last append time" as reported by unsquashfs.
 func (s *Snap) BuildDate() time.Time {
 	return BuildDate(s.path)
+}
+
+func (s *Snap) growSnapToMinSize(minSize int64) error {
+	size, err := s.Size()
+	if err != nil {
+		return fmt.Errorf("cannot get size of snap: %w", err)
+	}
+	if size >= minSize {
+		return nil
+	}
+	if err := os.Truncate(s.path, minSize); err != nil {
+		return fmt.Errorf("cannot grow snap to minimum size: %w", err)
+	}
+
+	return nil
 }
 
 // BuildDate returns the "Creation or last append time" as reported by unsquashfs.

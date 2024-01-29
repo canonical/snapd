@@ -5,7 +5,7 @@ details: |
     their systemd units, specifically container management interfaces have the
     Delegate=true snippet added to prevent CVE-2020-27352.
 
-# Docker is not supported anymore in ubuntu 14.04
+# ubuntu-14.04: Docker is not supported anymore in ubuntu 14.04
 systems: [-ubuntu-14.04-64]
 
 prepare: |

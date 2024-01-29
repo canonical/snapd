@@ -218,6 +218,11 @@ func (s *IntegrityTestSuite) TestGenerateAndAppendSuccess(c *C) {
 
 	snapPath, _ := snaptest.MakeTestSnapInfoWithFiles(c, "name: foo\nversion: 1.0", nil, nil)
 
+	// 8192 is the hash size that is created when running 'veritysetup format'
+	// on a minimally sized snap. there is not an easy way to calculate this
+	// value dynamically.
+	const verityHashSize = 8192
+
 	// mock the verity-setup command, what it does is make a copy of the snap
 	// and then returns pre-calculated output
 	vscmd := testutil.MockCommand(c, "veritysetup", fmt.Sprintf(`
@@ -227,11 +232,11 @@ case "$1" in
 		exit 0
 		;;
 	format)
-		cp %[1]s %[1]s.verity
-		echo "VERITY header information for %[1]s.verity"
+		truncate -s %[1]d %[2]s.verity
+		echo "VERITY header information for %[2]s.verity"
 		echo "UUID:            	f8b4f201-fe4e-41a2-9f1d-4908d3c76632"
 		echo "Hash type:       	1"
-		echo "Data blocks:     	1"
+		echo "Data blocks:     	4"
 		echo "Data block size: 	4096"
 		echo "Hash block size: 	4096"
 		echo "Hash algorithm:  	sha256"
@@ -239,7 +244,7 @@ case "$1" in
 		echo "Root hash:      	e2926364a8b1242d92fb1b56081e1ddb86eba35411961252a103a1c083c2be6d"
 		;;
 esac
-`, snapPath))
+`, verityHashSize, snapPath))
 	defer vscmd.Restore()
 
 	snapFileInfo, err := os.Stat(snapPath)
@@ -266,7 +271,7 @@ esac
 	err = integrityDataHeader.Decode(header)
 	c.Check(err, IsNil)
 	c.Check(integrityDataHeader.Type, Equals, "integrity")
-	c.Check(integrityDataHeader.Size, Equals, uint64(2*4096))
+	c.Check(integrityDataHeader.Size, Equals, uint64(verityHashSize+integrity.HeaderSize))
 	c.Check(integrityDataHeader.DmVerity.RootHash, HasLen, 64)
 
 	c.Assert(vscmd.Calls(), HasLen, 2)

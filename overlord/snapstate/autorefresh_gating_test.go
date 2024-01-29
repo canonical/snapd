@@ -22,7 +22,6 @@ package snapstate_test
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -122,14 +121,14 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml string, hasHook bool) *sn
 	si := &snap.SideInfo{RealName: snapName, SnapID: snapName + "-id", Revision: snap.R(1)}
 	snapstate.Set(st, snapName, &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		SnapType: string(snapInfo.Type()),
 	})
 
 	if hasHook {
 		c.Assert(os.MkdirAll(snapInfo.HooksDir(), 0775), IsNil)
-		err := ioutil.WriteFile(filepath.Join(snapInfo.HooksDir(), "gate-auto-refresh"), nil, 0755)
+		err := os.WriteFile(filepath.Join(snapInfo.HooksDir(), "gate-auto-refresh"), nil, 0755)
 		c.Assert(err, IsNil)
 	}
 	return snapInfo
@@ -1794,7 +1793,7 @@ func (s *autorefreshGatingSuite) TestHoldRefreshesBySystemIndefinitely(c *C) {
 		RealName: "some-snap",
 	}
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		Active:   true,
 	})
@@ -1829,7 +1828,7 @@ func (s *autorefreshGatingSuite) TestUnholdSnaps(c *C) {
 		RealName: "some-snap",
 	}
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		Active:   true,
 	})
@@ -1898,7 +1897,7 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, beforePhase1 func(), gate
 		return nil
 	}, nil)
 
-	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int, prqt snapstate.PrereqTracker) (uint64, error) {
 		c.Fatal("unexpected call to installSize")
 		return 0, nil
 	})
@@ -2023,7 +2022,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 	defer s.state.Unlock()
 
 	tasks := chg.Tasks()
-	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Handling re-refresh of "base-snap-b", "snap-a" as needed`)
+	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Monitoring snaps "base-snap-b", "snap-a" to determine whether extra refresh steps are required`)
 
 	var snaps map[string]interface{}
 	c.Assert(chg.Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
@@ -2089,7 +2088,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Held(c *C) {
 	c.Check(snaps["snap-a"], NotNil)
 
 	// no re-refresh for base-snap-b because it was held.
-	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Handling re-refresh of "snap-a" as needed`)
+	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Monitoring snap "snap-a" to determine whether extra refresh steps are required`)
 }
 
 func (s *snapmgrTestSuite) TestAutoRefreshPhase2Proceed(c *C) {
@@ -2188,7 +2187,7 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2DiskSpaceCheck(c *C, fail bool) 
 	defer restore()
 
 	var installSizeCalled bool
-	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int, prqt snapstate.PrereqTracker) (uint64, error) {
 		installSizeCalled = true
 		seen := map[string]bool{}
 		for _, sn := range snaps {
@@ -2519,7 +2518,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2GatedSnaps(c *C) {
 	tasks := chg.Tasks()
 	verifyPhasedAutorefreshTasks(c, tasks, expected)
 	// no re-refresh for snap-a because it was held.
-	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Handling re-refresh of "base-snap-b" as needed`)
+	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Monitoring snap "base-snap-b" to determine whether extra refresh steps are required`)
 
 	// only snap-a remains in refresh-candidates because it was held;
 	// base-snap-b got pruned (was refreshed).

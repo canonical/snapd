@@ -178,21 +178,30 @@ func (m *mkfsSuite) TestMkfsExt4Error(c *C) {
 	c.Assert(err, ErrorMatches, "command failed")
 }
 
-func (m *mkfsSuite) TestMkfsVfatHappySimple(c *C) {
+func (m *mkfsSuite) TestMkfsFat16HappySimple(c *C) {
+	m.testMkfsVfatHappySimple(c, "vfat-16", "16")
+}
+
+func (m *mkfsSuite) TestMkfsFat32HappySimple(c *C) {
+	m.testMkfsVfatHappySimple(c, "vfat", "32")
+	m.testMkfsVfatHappySimple(c, "vfat-32", "32")
+}
+
+func (m *mkfsSuite) testMkfsVfatHappySimple(c *C, fatType, fatBits string) {
 	// no contents, should not fail
 	d := c.MkDir()
 
 	cmd := testutil.MockCommand(c, "mkfs.vfat", "")
 	defer cmd.Restore()
 
-	err := mkfs.MakeWithContent("vfat", "foo.img", "my-label", d, 0, 0)
+	err := mkfs.MakeWithContent(fatType, "foo.img", "my-label", d, 0, 0)
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{
 			"mkfs.vfat",
 			"-S", "512",
 			"-s", "1",
-			"-F", "32",
+			"-F", fatBits,
 			"-n", "my-label",
 			"foo.img",
 		},
@@ -201,14 +210,14 @@ func (m *mkfsSuite) TestMkfsVfatHappySimple(c *C) {
 	cmd.ForgetCalls()
 
 	// empty label
-	err = mkfs.MakeWithContent("vfat", "foo.img", "", d, 0, 0)
+	err = mkfs.MakeWithContent(fatType, "foo.img", "", d, 0, 0)
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{
 			"mkfs.vfat",
 			"-S", "512",
 			"-s", "1",
-			"-F", "32",
+			"-F", fatBits,
 			"foo.img",
 		},
 	})
@@ -216,14 +225,14 @@ func (m *mkfsSuite) TestMkfsVfatHappySimple(c *C) {
 	cmd.ForgetCalls()
 
 	// no content
-	err = mkfs.Make("vfat", "foo.img", "my-label", 0, 0)
+	err = mkfs.Make(fatType, "foo.img", "my-label", 0, 0)
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{
 			"mkfs.vfat",
 			"-S", "512",
 			"-s", "1",
-			"-F", "32",
+			"-F", fatBits,
 			"-n", "my-label",
 			"foo.img",
 		},

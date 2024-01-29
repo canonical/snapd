@@ -1,3 +1,58 @@
+snapd (2.61.1~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #2024007
+    - Stop requiring default provider snaps on image building and first
+      boot if alternative providers are included and available
+    - Fix auth.json access for login as non-root group ID
+    - Fix incorrect remodelling conflict when changing track to older
+      snapd version
+    - Improved check-rerefresh message
+    - Fix UC16/18 kernel/gadget update failure due volume mismatch with
+      installed disk
+    - Stop auto-import of assertions during install modes
+    - Desktop interface exposes GetIdletime
+    - Polkit interface support for new polkit versions
+    - Fix not applying snapd snap changes in tracked channel when remodelling
+
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Fri, 24 Nov 2023 10:22:55 +0200
+
+snapd (2.61~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #2039017
+    - Fix control of activated services in 'snap start' and 'snap stop'
+    - Correctly reflect activated services in 'snap services'
+    - Disabled services are no longer enabled again when snap is
+      refreshed
+    - interfaces/builtin: added support for Token2 U2F keys
+    - interfaces/u2f-devices: add Swissbit iShield Key
+    - interfaces/builtin: update gpio apparmor to match pattern that
+      contains multiple subdirectories under /sys/devices/platform
+    - interfaces: add a polkit-agent interface
+    - interfaces: add pcscd interface
+    - Kernel command-line can now be edited in the gadget.yaml
+    - Only track validation-sets in run-mode, fixes validation-set
+      issues on first boot.
+    - Added support for using store.access to disable access to snap
+      store
+    - Support for fat16 partition in gadget
+    - Pre-seed authority delegation is now possible
+    - Support new system-user name  daemon
+    - Several bug fixes and improvements around remodelling
+    - Offline remodelling support
+
+ -- Philip Meulengracht <philip.meulengracht@canonical.com>  Fri, 13 Oct 2023 13:06:02 +0200
+
+snapd (2.60.4~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #2024007
+    - i/b/qualcomm_ipc_router.go: switch to plug/slot and add socket
+      permission
+    - interfaces/builtin: fix custom-device udev KERNEL values
+    - overlord: allow the firmware-updater snap to install user daemons
+    - interfaces: allow loopback as a block-device
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 15 Sep 2023 20:46:58 +0200
+
 snapd (2.60.3~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #2024007

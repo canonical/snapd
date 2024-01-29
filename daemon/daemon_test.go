@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -318,7 +319,7 @@ func (s *daemonSuite) TestMaintenanceJsonDeletedOnStart(c *check.C) {
 	b, err := json.Marshal(maintErr)
 	c.Assert(err, check.IsNil)
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755), check.IsNil)
-	c.Assert(ioutil.WriteFile(dirs.SnapdMaintenanceFile, b, 0644), check.IsNil)
+	c.Assert(os.WriteFile(dirs.SnapdMaintenanceFile, b, 0644), check.IsNil)
 
 	d := s.newTestDaemon(c)
 	makeDaemonListeners(c, d)
@@ -610,7 +611,7 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 	si := &snap.SideInfo{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"}
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 	})
 	st.Unlock()
@@ -749,7 +750,7 @@ func (s *daemonSuite) TestGracefulStop(c *check.C) {
 	si := &snap.SideInfo{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"}
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 	})
 	st.Unlock()
@@ -1242,7 +1243,7 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF","system-restart-from-boot-id":%q,"daemon-system-restart-at":"%s"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, curBootID, time.Now().UTC().Format(time.RFC3339)))
-	err = ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	err = os.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, check.IsNil)
 
 	oldRebootNoticeWait := rebootNoticeWait
@@ -1297,7 +1298,7 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 
 func (s *daemonSuite) TestRestartExpectedRebootOK(c *check.C) {
 	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF","system-restart-from-boot-id":%q,"daemon-system-restart-at":"%s"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, "boot-id-0", time.Now().UTC().Format(time.RFC3339)))
-	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	err := os.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, check.IsNil)
 
 	cmd := testutil.MockCommand(c, "shutdown", "")
@@ -1321,7 +1322,7 @@ func (s *daemonSuite) TestRestartExpectedRebootGiveUp(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"patch-sublevel":%d,"some":"data","refresh-privacy-key":"0123456789ABCDEF","system-restart-from-boot-id":%q,"daemon-system-restart-at":"%s","daemon-system-restart-tentative":3},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0,"last-lane-id":0}`, patch.Level, patch.Sublevel, curBootID, time.Now().UTC().Format(time.RFC3339)))
-	err = ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	err = os.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, check.IsNil)
 
 	cmd := testutil.MockCommand(c, "shutdown", "")

@@ -81,7 +81,7 @@ var templateCommon = `
 
 ###VAR###
 
-###PROFILEATTACH### (attach_disconnected,mediate_deleted) {
+###PROFILEATTACH### ###FLAGS### {
   #include <abstractions/base>
   #include <abstractions/consoles>
   #include <abstractions/openssl>
@@ -847,7 +847,7 @@ var classicTemplate = `
 
 ###VAR###
 
-###PROFILEATTACH### (attach_disconnected,mediate_deleted) {
+###PROFILEATTACH### ###FLAGS### {
   # set file rules so that exec() inherits our profile unless there is
   # already a profile for it (eg, snap-confine)
   / rwkl,
@@ -1082,6 +1082,9 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # snap checks if vendored apparmor parser should be used at startup
   /usr/lib/snapd/info r,
   /lib/apparmor/functions r,
+
+  # Allow snap-update-ns to open home directory
+  owner @{HOME}/ r,
 
 ###SNIPPETS###
 }

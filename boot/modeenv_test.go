@@ -90,7 +90,7 @@ func (s *modeenvSuite) TestReadEmptyErrors(c *C) {
 func (s *modeenvSuite) makeMockModeenvFile(c *C, content string) {
 	err := os.MkdirAll(filepath.Dir(s.mockModeenvPath), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(s.mockModeenvPath, []byte(content), 0644)
+	err = os.WriteFile(s.mockModeenvPath, []byte(content), 0644)
 	c.Assert(err, IsNil)
 }
 
@@ -160,8 +160,8 @@ current_kernel_command_lines=["foo", "bar"]
 		TryBase:        "core20_124.snap",
 		BaseStatus:     "try",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"thing1": {"hash1", "hash2"},
-			"thing2": {"hash3"},
+			"thing1": []string{"hash1", "hash2"},
+			"thing2": []string{"hash3"},
 		},
 		CurrentKernelCommandLines: boot.BootCommandLines{
 			"foo", "bar",
@@ -252,8 +252,8 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		BootFlags: []string{"foo", "factory"},
 
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"thing1": {"hash1", "hash2"},
-			"thing2": {"hash3"},
+			"thing1": []string{"hash1", "hash2"},
+			"thing2": []string{"hash3"},
 		},
 
 		CurrentKernelCommandLines: boot.BootCommandLines{
@@ -281,8 +281,8 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		BootFlags: []string{"foo", "factory"},
 
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
-			"thing1": {"hash1", "hash2"},
-			"thing2": {"hash3"},
+			"thing1": []string{"hash1", "hash2"},
+			"thing2": []string{"hash3"},
 		},
 
 		CurrentKernelCommandLines: boot.BootCommandLines{

@@ -20,8 +20,12 @@
 package builtin_test
 
 import (
+	"os"
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -167,6 +171,22 @@ func (s *cupsControlSuite) TestAppArmorSpecClassic(c *C) {
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.providerSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "peer=(label=\"snap.consumer.app\"")
+}
+
+func (s *cupsControlSuite) TestAutoConnect(c *C) {
+	tmpdir := c.MkDir()
+	dirs.SetRootDir(tmpdir)
+	defer dirs.SetRootDir("/")
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/etc/cups"), 0o777), IsNil)
+
+	// No cupsd.conf: allow auto-connect to the app slot
+	c.Check(s.iface.AutoConnect(s.plugInfo, s.coreSlotInfo), Equals, false)
+	c.Check(s.iface.AutoConnect(s.plugInfo, s.providerSlotInfo), Equals, true)
+
+	// cupsd.conf exists: allow auto-connect to the system slot
+	c.Assert(os.WriteFile(filepath.Join(tmpdir, "/etc/cups/cupsd.conf"), nil, 0o666), IsNil)
+	c.Check(s.iface.AutoConnect(s.plugInfo, s.coreSlotInfo), Equals, true)
+	c.Check(s.iface.AutoConnect(s.plugInfo, s.providerSlotInfo), Equals, false)
 }
 
 func (s *cupsControlSuite) TestStaticInfo(c *C) {

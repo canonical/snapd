@@ -23,46 +23,90 @@
 : "${NESTED_DISK_LOGICAL_BLOCK_SIZE:=512}"
 
 nested_wait_for_ssh() {
-    # TODO:UC20: the retry count should be lowered to something more reasonable.
-    local retry=800
-    local wait=1
+    local retry=${1:-800}
+    local wait=${2:-1}
 
-    until remote.exec "true"; do
-        retry=$(( retry - 1 ))
-        if [ $retry -le 0 ]; then
-            echo "Timed out waiting for command 'true' to succeed. Aborting!"
+    until remote.exec "true" &>/dev/null; do
+        if [ "$retry" -le 0 ]; then
             return 1
         fi
+        retry=$(( retry - 1 ))
         sleep "$wait"
     done
 }
 
 nested_wait_for_no_ssh() {
-    local retry=200
-    local wait=1
+    local retry=${1:-200}
+    local wait=${2:-1}
 
-    while remote.exec "true"; do
-        retry=$(( retry - 1 ))
-        if [ $retry -le 0 ]; then
-            echo "Timed out waiting for command 'true' to fail. Aborting!"
+    while remote.exec "true" &>/dev/null; do
+        if [ "$retry" -le 0 ]; then
             return 1
         fi
+        retry=$(( retry - 1 ))
         sleep "$wait"
     done
+}
+
+nested_wait_vm_ready() {
+    echo "Waiting the vm is ready to be used"
+    local retry=${1:-120}
+    local log_limit=${2:-30}
+
+    local output_lines=0
+    local serial_log="$NESTED_LOGS_DIR"/serial.log
+    while true; do
+        # Check the timeout is reached
+        if [ "$retry" -le 0 ]; then
+            echo "Timed out waiting for vm ready. Aborting!"
+            return 1
+        fi
+        retry=$(( retry - 1 ))
+
+        # Check the vm is active
+        if ! systemctl is-active "$NESTED_VM"; then
+            echo "Unit $nested_unit is not active. Aborting!"
+            return 1
+        fi
+
+        # Check during $limit seconds that the serial log is growing
+        # shellcheck disable=SC2016
+        retry -n "$log_limit" --wait 1 --quiet --env serial_log="$serial_log" --env output_lines="$output_lines" \
+            sh -c 'test "$(wc -l <"$serial_log")" -gt "$output_lines"'
+        output_lines="$(wc -l <"$serial_log")"
+
+        # Check no infinite loops during boot
+        if nested_is_core_20_system || nested_is_core_22_system; then
+            test "$(grep -c -E "Command line:.*snapd_recovery_mode=install" "$serial_log")" -le 1
+            test "$(grep -c -E "Command line:.*snapd_recovery_mode=run" "$serial_log")" -le 1
+        elif nested_is_core_16_system || nested_is_core_18_system; then
+            test "$(grep -c -E "Command line:.*BOOT_IMAGE=\(loop\)/kernel.img" "$serial_log")" -le 1
+        fi
+
+        # Check if ssh connection can be established, and return if it is possible
+        if nested_wait_for_ssh 1 1; then
+            echo "SSH connection ready"
+            return
+        fi
+
+        sleep 3
+    done
+
+    nested_check_unit_stays_active "$NESTED_VM" 2 1
 }
 
 nested_wait_for_snap_command() {
     # In this function the remote retry command cannot be used because it could
     # be executed before the tool is deployed.
-    local retry=200
-    local wait=1
+    local retry=${1:-200}
+    local wait=${2:-1}
 
-    while ! remote.exec "command -v snap"; do
-        retry=$(( retry - 1 ))
-        if [ $retry -le 0 ]; then
+    while ! remote.exec "command -v snap" &>/dev/null; do
+        if [ "$retry" -le 0 ]; then
             echo "Timed out waiting for command 'command -v snap' to success. Aborting!"
             return 1
         fi
+        retry=$(( retry - 1 ))
         sleep "$wait"
     done
 }
@@ -321,8 +365,8 @@ nested_refresh_to_new_core() {
             remote.exec "snap info snapd" | grep -E "^tracking: +latest/${NEW_CHANNEL}"
         else
             CHANGE_ID=$(remote.exec "sudo snap refresh core --${NEW_CHANNEL} --no-wait")
-            nested_wait_for_no_ssh
-            nested_wait_for_ssh
+            nested_wait_for_no_ssh 200 1
+            nested_wait_for_ssh 300 1
             # wait for the refresh to be done before checking, if we check too
             # quickly then operations on the core snap like reverting, etc. may
             # fail because it will have refresh-snap change in progress
@@ -548,7 +592,7 @@ nested_prepare_kernel() {
                 repack_kernel_snap "$kernel_snap"
 
             elif nested_is_core_20_system || nested_is_core_22_system; then
-                snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
+                snap download --basename=pc-kernel --channel="$version/${NESTED_KERNEL_CHANNEL}" pc-kernel
 
                 # set the unix bump time if the NESTED_* var is set,
                 # otherwise leave it empty
@@ -601,7 +645,7 @@ nested_prepare_gadget() {
             snakeoil_key="$PWD/$key_name.key"
             snakeoil_cert="$PWD/$key_name.pem"
 
-            snap download --basename=pc --channel="$version/edge" pc
+            snap download --basename=pc --channel="$version/${NESTED_GADGET_CHANNEL}" pc
             unsquashfs -d pc-gadget pc.snap
             nested_secboot_sign_gadget pc-gadget "$snakeoil_key" "$snakeoil_cert"
             case "${NESTED_UBUNTU_SAVE:-}" in
@@ -642,7 +686,7 @@ EOF
                 echo "$GADGET_EXTRA_CMDLINE" > pc-gadget/cmdline.extra
             fi
 
-            # pack it
+            # pack the gadget
             snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
 
             gadget_snap=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
@@ -701,6 +745,36 @@ nested_prepare_base() {
             "$TESTSTOOLS"/store-state make-snap-installable --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/${snap_name}.snap" "$snap_id"
         fi
     fi 
+}
+
+nested_prepare_essential_snaps() {
+    # shellcheck source=tests/lib/prepare.sh
+    . "$TESTSLIB"/prepare.sh
+    # shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
+    nested_prepare_snapd
+    nested_prepare_kernel
+    nested_prepare_gadget
+    nested_prepare_base
+}
+
+nested_configure_default_user() {
+    local IMAGE_NAME
+    IMAGE_NAME="$(nested_get_image_name core)"
+    # Configure the user for the vm
+    if [ "$NESTED_USE_CLOUD_INIT" = "true" ]; then
+        if nested_is_core_20_system || nested_is_core_22_system; then
+            nested_configure_cloud_init_on_core20_vm "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+        else
+            nested_configure_cloud_init_on_core_vm "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+        fi
+    else
+        nested_create_assertions_disk
+    fi
+
+    # Save a copy of the image
+    cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine"
 }
 
 nested_create_core_vm() {
@@ -792,19 +866,7 @@ nested_create_core_vm() {
         fi
     fi
 
-    # Configure the user for the vm
-    if [ "$NESTED_USE_CLOUD_INIT" = "true" ]; then
-        if nested_is_core_20_system || nested_is_core_22_system; then
-            nested_configure_cloud_init_on_core20_vm "$NESTED_IMAGES_DIR/$IMAGE_NAME"
-        else
-            nested_configure_cloud_init_on_core_vm "$NESTED_IMAGES_DIR/$IMAGE_NAME"
-        fi
-    else
-        nested_create_assertions_disk
-    fi
-
-    # Save a copy of the image
-    cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine"
+    nested_configure_default_user
 }
 
 nested_configure_cloud_init_on_core_vm() {
@@ -988,14 +1050,14 @@ nested_start_core_vm_unit() {
     # the caller can override PARAM_MEM
     local PARAM_MEM PARAM_SMP
     if [ "$SPREAD_BACKEND" = "google-nested" ] || [ "$SPREAD_BACKEND" = "google-nested-arm" ]; then
-        PARAM_MEM="${NESTED_PARAM_MEM:--m 4096}"
-        PARAM_SMP="-smp 2"
+        PARAM_MEM="-m ${NESTED_MEM:-4096}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-2}"
     elif [ "$SPREAD_BACKEND" = "google-nested-dev" ]; then
-        PARAM_MEM="${NESTED_PARAM_MEM:--m 8192}"
-        PARAM_SMP="-smp 4"
+        PARAM_MEM="-m ${NESTED_MEM:-8192}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-4}"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
-        PARAM_MEM="${NESTED_PARAM_MEM:--m 2048}"
-        PARAM_SMP="-smp 1"
+        PARAM_MEM="-m ${NESTED_MEM:-2048}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-1}"
     else
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
@@ -1126,7 +1188,7 @@ nested_start_core_vm_unit() {
                 if [ -z "$NESTED_TPM_NO_RESTART" ]; then
                     # reset the tpm state
                     snap stop test-snapd-swtpm > /dev/null
-                    rm /var/snap/test-snapd-swtpm/current/tpm2-00.permall
+                    rm /var/snap/test-snapd-swtpm/current/tpm2-00.permall || true
                     snap start test-snapd-swtpm > /dev/null
                 fi
             else
@@ -1185,10 +1247,13 @@ nested_start_core_vm_unit() {
     EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
 
     if [ "$EXPECT_SHUTDOWN" != "1" ]; then
-        # Wait until ssh is ready
-        nested_wait_for_ssh
+        # Wait until the vm is ready to receive connections
+        if ! nested_wait_vm_ready 120 40; then
+            echo "failed to wait for the vm becomes ready to receive connections"
+            return 1
+        fi
         # Wait for the snap command to be available
-        nested_wait_for_snap_command
+        nested_wait_for_snap_command 120 1
         # Wait for snap seeding to be done
         # retry this wait command up to 3 times since we sometimes see races 
         # where the snap command appears, then immediately disappears and then 
@@ -1274,7 +1339,7 @@ nested_shutdown() {
     # least can't hurt anything
     remote.exec "sync"
     remote.exec "sudo shutdown now" || true
-    nested_wait_for_no_ssh
+    nested_wait_for_no_ssh 120 1
     nested_force_stop_vm
     tests.systemd wait-for-service -n 30 --wait 1 --state inactive "$NESTED_VM"
     sync
@@ -1284,7 +1349,7 @@ nested_start() {
     nested_save_serial_log
     nested_force_start_vm
     tests.systemd wait-for-service -n 30 --wait 1 --state active "$NESTED_VM"
-    nested_wait_for_ssh
+    nested_wait_for_ssh 300 1
     nested_prepare_tools
 }
 
@@ -1334,13 +1399,14 @@ nested_start_classic_vm() {
     PARAM_SMP="-smp 1"
     # use only 2G of RAM for qemu-nested
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
-        PARAM_MEM="${NESTED_PARAM_MEM:--m 4096}"
-        PARAM_SMP="-smp 2"
+        PARAM_MEM="-m ${NESTED_MEM:-4096}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-2}"
     elif [ "$SPREAD_BACKEND" = "google-nested-dev" ]; then
-        PARAM_MEM="${NESTED_PARAM_MEM:--m 8192}"
-        PARAM_SMP="-smp 4"
+        PARAM_MEM="-m ${NESTED_MEM:-8192}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-4}"
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ]; then
-        PARAM_MEM="${NESTED_PARAM_MEM:--m 2048}"
+        PARAM_MEM="-m ${NESTED_MEM:-2048}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-1}"
     else
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
@@ -1430,7 +1496,10 @@ nested_start_classic_vm() {
         ${PARAM_EXTRA} \
         ${PARAM_CD} "
 
-    nested_wait_for_ssh
+    if ! nested_wait_vm_ready 60 60; then
+        echo "failed to wait for the vm becomes ready to receive connections"
+        return 1
+    fi
 
     # Copy tools to be used on tests
     nested_prepare_tools

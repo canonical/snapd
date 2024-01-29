@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
@@ -193,7 +194,8 @@ NeedDaemonReload=no
 			{Name: "socket1", Type: "socket", Active: enabled, Enabled: enabled},
 		})
 
-		// service with D-Bus activation
+		// service with slot activation will always be enabled as we cannot
+		// disable/enable slot activation at the moment.
 		app = &client.AppInfo{
 			Snap:   snp.InstanceName(),
 			Name:   "svc",
@@ -220,7 +222,7 @@ NeedDaemonReload=no
 		err = sd.DecorateWithStatus(app, snapApp)
 		c.Assert(err, IsNil)
 		c.Check(app.Active, Equals, enabled)
-		c.Check(app.Enabled, Equals, enabled)
+		c.Check(app.Enabled, Equals, true)
 		c.Check(app.Activators, DeepEquals, []client.AppActivator{
 			{Name: "org.example.Svc", Type: "dbus", Active: true, Enabled: true},
 		})
@@ -263,7 +265,7 @@ NeedDaemonReload=no
 		err = sd.DecorateWithStatus(app, snapApp)
 		c.Assert(err, IsNil)
 		c.Check(app.Active, Equals, false)
-		c.Check(app.Enabled, Equals, enabled)
+		c.Check(app.Enabled, Equals, true) // when a service is slot activated its always enabled
 		c.Check(app.Activators, DeepEquals, []client.AppActivator{
 			{Name: "socket1", Type: "socket", Active: false, Enabled: enabled},
 			{Name: "svc", Type: "timer", Active: false, Enabled: enabled},
@@ -402,7 +404,7 @@ func (s *snapServiceOptionsSuite) TestServiceControlTaskSummaries(c *C) {
 	snp := &snap.Info{SideInfo: si}
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -474,7 +476,7 @@ func (s *snapServiceOptionsSuite) TestLogReader(c *C) {
 	snp := &snap.Info{SideInfo: si}
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -521,7 +523,7 @@ func (s *snapServiceOptionsSuite) TestLogReaderFailsWithNonServices(c *C) {
 	snp := &snap.Info{SideInfo: si}
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -552,7 +554,7 @@ func (s *snapServiceOptionsSuite) TestLogReaderNamespaces(c *C) {
 	snp := &snap.Info{SideInfo: si}
 	snapstate.Set(st, "foo", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})

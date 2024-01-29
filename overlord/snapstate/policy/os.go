@@ -20,6 +20,8 @@
 package policy
 
 import (
+	"errors"
+
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -37,14 +39,17 @@ func (p *osPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev s
 	}
 
 	if ephemeral(dev) {
-		return errEphemeralSnapsNotRemovalable
+		return errEphemeralSnapsNotRemovable
 	}
 
 	if name == "ubuntu-core" {
 		return nil
 	}
 
-	if p.modelBase == "" {
+	// consider the case of a UC16 system, where the model does not specify a base,
+	// since 'core' is already implied and is actively used by the system,
+	// which boots in the UC way
+	if p.modelBase == "" && dev.IsCoreBoot() {
 		if !rev.Unset() {
 			// TODO: tweak boot.InUse so that it DTRT when rev.Unset, call
 			// it unconditionally as an extra precaution
@@ -54,6 +59,25 @@ func (p *osPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev s
 			return nil
 		}
 		return errIsModel
+	}
+
+	if rev.Unset() {
+		// revision will be unset if we're attempting to remove all snaps or
+		// just the one last remaining revision. in either case, we need to
+		// ensure that the snapd snap is there
+
+		var snapdState snapstate.SnapState
+		err := snapstate.Get(st, "snapd", &snapdState)
+		if err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+
+		// if snapd snap is not installed, then this might be a system that has
+		// received snapd updates via the core snap. in that case, we can't remove
+		// the core snap.
+		if !snapdState.IsInstalled() {
+			return errSnapdNotInstalled
+		}
 	}
 
 	if !rev.Unset() {

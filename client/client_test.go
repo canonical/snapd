@@ -35,7 +35,6 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
@@ -150,7 +149,7 @@ func (cs *clientSuite) TestClientWorks(c *C) {
 
 func makeMaintenanceFile(c *C, b []byte) {
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(dirs.SnapdMaintenanceFile, b, 0644), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapdMaintenanceFile, b, 0644), IsNil)
 }
 
 func (cs *clientSuite) TestClientSetMaintenanceForMaintenanceJSON(c *C) {
@@ -332,7 +331,7 @@ func (cs *clientSuite) TestClientWhoAmINobody(c *C) {
 }
 
 func (cs *clientSuite) TestClientWhoAmIRubbish(c *C) {
-	c.Assert(ioutil.WriteFile(client.TestStoreAuthFilename(os.Getenv("HOME")), []byte("rubbish"), 0644), IsNil)
+	c.Assert(os.WriteFile(client.TestStoreAuthFilename(os.Getenv("HOME")), []byte("rubbish"), 0644), IsNil)
 
 	email, err := cs.cli.WhoAmI()
 	c.Check(err, NotNil)
@@ -681,7 +680,7 @@ func (cs *clientSuite) TestClientSystemRecoveryKeys(c *C) {
 	c.Check(key.RecoveryKey, Equals, "42")
 }
 
-func (cs *clientSuite) TestClientDebugEnvVar(c *check.C) {
+func (cs *clientSuite) TestClientDebugEnvVar(c *C) {
 	buf, restore := logger.MockLogger()
 	defer restore()
 
@@ -702,9 +701,9 @@ func (cs *clientSuite) TestClientDebugEnvVar(c *check.C) {
 	os.Setenv("SNAP_CLIENT_DEBUG_HTTP", "7")
 
 	cli := client.New(&client.Config{BaseURL: srv.URL})
-	c.Assert(cli, check.NotNil)
+	c.Assert(cli, NotNil)
 	_, err := cli.Do("GET", "/", nil, strings.NewReader("foo"), nil, nil)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, IsNil)
 
 	// check request
 	c.Assert(buf.String(), testutil.Contains, `logger.go:67: DEBUG: > "GET`)

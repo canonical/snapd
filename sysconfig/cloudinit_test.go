@@ -61,7 +61,7 @@ func (s *sysconfigSuite) makeCloudCfgSrcDirFiles(c *C, cfgs ...string) (string, 
 	names := make([]string, 0, len(cfgs))
 	for i, mockCfg := range cfgs {
 		configFileName := fmt.Sprintf("seed-config-%d.cfg", i)
-		err := ioutil.WriteFile(filepath.Join(cloudCfgSrcDir, configFileName), []byte(mockCfg), 0644)
+		err := os.WriteFile(filepath.Join(cloudCfgSrcDir, configFileName), []byte(mockCfg), 0644)
 		c.Assert(err, IsNil)
 		names = append(names, configFileName)
 	}
@@ -74,7 +74,7 @@ func (s *sysconfigSuite) makeGadgetCloudConfFile(c *C, content string) string {
 	if content == "" {
 		content = "#cloud-config some gadget cloud config"
 	}
-	err := ioutil.WriteFile(gadgetCloudConf, []byte(content), 0644)
+	err := os.WriteFile(gadgetCloudConf, []byte(content), 0644)
 	c.Assert(err, IsNil)
 
 	return gadgetDir
@@ -90,7 +90,7 @@ func (s *sysconfigSuite) TestHasGadgetCloudConf(c *C) {
 
 	// creating one now is true
 	gadgetCloudConf := filepath.Join(gadgetDir, "cloud.conf")
-	err := ioutil.WriteFile(gadgetCloudConf, []byte("gadget cloud config"), 0644)
+	err := os.WriteFile(gadgetCloudConf, []byte("gadget cloud config"), 0644)
 	c.Assert(err, IsNil)
 
 	c.Assert(sysconfig.HasGadgetCloudConf(gadgetDir), Equals, true)
@@ -665,7 +665,7 @@ fi
 			cloudDir := filepath.Join(dirs.GlobalRootDir, "etc/cloud")
 			err := os.MkdirAll(cloudDir, 0755)
 			c.Assert(err, IsNil)
-			err = ioutil.WriteFile(filepath.Join(cloudDir, "cloud-init.disabled"), nil, 0644)
+			err = os.WriteFile(filepath.Join(cloudDir, "cloud-init.disabled"), nil, 0644)
 			c.Assert(err, IsNil)
 		}
 
@@ -673,7 +673,7 @@ fi
 			cloudDir := filepath.Join(dirs.GlobalRootDir, "etc/cloud/cloud.cfg.d")
 			err := os.MkdirAll(cloudDir, 0755)
 			c.Assert(err, IsNil)
-			err = ioutil.WriteFile(filepath.Join(cloudDir, "zzzz_snapd.cfg"), nil, 0644)
+			err = os.WriteFile(filepath.Join(cloudDir, "zzzz_snapd.cfg"), nil, 0644)
 			c.Assert(err, IsNil)
 		}
 
@@ -929,7 +929,7 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 		if t.cloudInitStatusJSON != "" {
 			err := os.MkdirAll(filepath.Dir(statusJSONFile), 0755)
 			c.Assert(err, IsNil, comment)
-			err = ioutil.WriteFile(statusJSONFile, []byte(t.cloudInitStatusJSON), 0644)
+			err = os.WriteFile(statusJSONFile, []byte(t.cloudInitStatusJSON), 0644)
 			c.Assert(err, IsNil, comment)
 		}
 
@@ -1117,7 +1117,7 @@ func (s *sysconfigSuite) TestCloudDatasourcesInUse(c *C) {
 	for _, t := range tt {
 		comment := Commentf(t.comment)
 		configFile := filepath.Join(c.MkDir(), "cloud.conf")
-		err := ioutil.WriteFile(configFile, []byte(t.configFileContent), 0644)
+		err := os.WriteFile(configFile, []byte(t.configFileContent), 0644)
 		c.Assert(err, IsNil, comment)
 		res, err := sysconfig.CloudDatasourcesInUse(configFile)
 		if t.expError != "" {
@@ -1243,7 +1243,7 @@ func (s *sysconfigSuite) TestCloudDatasourcesInUseForDirInUse(c *C) {
 		dir := c.MkDir()
 		for basename, content := range t.configFilesContents {
 			configFile := filepath.Join(dir, basename)
-			err := ioutil.WriteFile(configFile, []byte(content), 0644)
+			err := os.WriteFile(configFile, []byte(content), 0644)
 			c.Assert(err, IsNil, comment)
 		}
 
@@ -1428,7 +1428,7 @@ reporting:
 	for i, t := range tt {
 		comment := Commentf(t.comment)
 		inFile := filepath.Join(dir, fmt.Sprintf("%d.cfg", i))
-		err := ioutil.WriteFile(inFile, []byte(t.inStr), 0755)
+		err := os.WriteFile(inFile, []byte(t.inStr), 0755)
 		c.Assert(err, IsNil, comment)
 
 		out, err := sysconfig.FilterCloudCfgFile(inFile, []string{"MAAS"})

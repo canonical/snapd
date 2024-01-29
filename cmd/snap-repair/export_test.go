@@ -30,9 +30,12 @@ import (
 )
 
 var (
-	ParseArgs = parseArgs
-	Run       = run
+	ParseArgs       = parseArgs
+	Run             = run
+	ErrStoreOffline = errStoreOffline
 )
+
+type RepairConfig = repairConfig
 
 func MockBaseURL(baseurl string) (restore func()) {
 	orig := baseURL
@@ -124,12 +127,6 @@ func MockDefaultRepairTimeout(d time.Duration) (restore func()) {
 	return func() {
 		defaultRepairTimeout = orig
 	}
-}
-
-func MockErrtrackerReportRepair(mock func(string, string, string, map[string]string) (string, error)) (restore func()) {
-	prev := errtrackerReportRepair
-	errtrackerReportRepair = mock
-	return func() { errtrackerReportRepair = prev }
 }
 
 func MockTimeNow(f func() time.Time) (restore func()) {

@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build !nomanagers
-// +build !nomanagers
 
 /*
  * Copyright (C) 2020 Canonical Ltd
@@ -134,7 +133,7 @@ func (s *vitalitySuite) testConfigureVitalityWithValidSnap(c *C, uc18 bool) {
 	snaptest.MockSnap(c, mockSnapWithService, si)
 	s.state.Lock()
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		Active:   true,
 		SnapType: "app",
@@ -151,7 +150,7 @@ func (s *vitalitySuite) testConfigureVitalityWithValidSnap(c *C, uc18 bool) {
 	svcName := "snap.test-snap.foo.service"
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"daemon-reload"},
-		{"is-enabled", "snap.test-snap.foo.service"},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.test-snap.foo.service"},
 		{"--no-reload", "enable", "snap.test-snap.foo.service"},
 		{"daemon-reload"},
 		{"start", "snap.test-snap.foo.service"},
@@ -174,7 +173,7 @@ func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 	snaptest.MockSnap(c, mockSnapWithService, si)
 	s.state.Lock()
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		Active:   true,
 		SnapType: "app",
@@ -211,7 +210,7 @@ func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 	svcName := "snap.test-snap.foo.service"
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"daemon-reload"},
-		{"is-enabled", "snap.test-snap.foo.service"},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", "snap.test-snap.foo.service"},
 		{"--no-reload", "enable", "snap.test-snap.foo.service"},
 		{"daemon-reload"},
 		{"start", "snap.test-snap.foo.service"},
@@ -242,7 +241,7 @@ func (s *vitalitySuite) TestConfigureVitalityManySnaps(c *C) {
 		snaptest.MockSnap(c, mockSnapWithService, si)
 		s.state.Lock()
 		snapstate.Set(s.state, snapName, &snapstate.SnapState{
-			Sequence: []*snap.SideInfo{si},
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 			Current:  snap.R(1),
 			Active:   true,
 			SnapType: "app",
@@ -273,7 +272,7 @@ func (s *vitalitySuite) TestConfigureVitalityManySnapsDelta(c *C) {
 		snaptest.MockSnap(c, mockSnapWithService, si)
 		s.state.Lock()
 		snapstate.Set(s.state, snapName, &snapstate.SnapState{
-			Sequence: []*snap.SideInfo{si},
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 			Current:  snap.R(1),
 			Active:   true,
 			SnapType: "app",
@@ -308,7 +307,7 @@ func (s *vitalitySuite) TestConfigureVitalityManySnapsOneRemovedOneUnchanged(c *
 		snaptest.MockSnap(c, mockSnapWithService, si)
 		s.state.Lock()
 		snapstate.Set(s.state, snapName, &snapstate.SnapState{
-			Sequence: []*snap.SideInfo{si},
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 			Current:  snap.R(1),
 			Active:   true,
 			SnapType: "app",
@@ -366,7 +365,7 @@ func (s *vitalitySuite) TestConfigureVitalityNotActiveSnap(c *C) {
 	snaptest.MockSnap(c, mockSnapWithService, si)
 	s.state.Lock()
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		Active:   false,
 		SnapType: "app",

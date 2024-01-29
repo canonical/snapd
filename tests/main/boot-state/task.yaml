@@ -1,5 +1,9 @@
 summary: smoke test for the boot-state tool
 
+details: |
+    Verify the boot-state tool works properly. This tool is used to
+    simplify the tests when working with the different boot managers.
+
 backends: [google, qemu]
 
 execute: |

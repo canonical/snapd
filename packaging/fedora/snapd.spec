@@ -1,6 +1,7 @@
 # With Fedora, nothing is bundled. For everything else, bundling is used.
+# Amazon-linux 2023 is based on fedora but it is bundled
 # To use bundled stuff, use "--with vendorized" on rpmbuild
-%if 0%{?fedora}
+%if 0%{?fedora} && ! 0%{?amzn2023}
 %bcond_with vendorized
 %else
 %bcond_without vendorized
@@ -69,7 +70,7 @@
 
 # Until we have a way to add more extldflags to gobuild macro...
 # Always use external linking when building static binaries.
-%if 0%{?fedora} || 0%{?rhel} >= 8
+%if 0%{?fedora} || 0%{?rhel} >= 8 || 0%{?amzn2023}
 %define gobuild_static(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
 %endif
 %if 0%{?rhel} == 7
@@ -78,7 +79,7 @@
 %endif
 
 # These macros are missing BUILDTAGS in RHEL 8/9, see RHBZ#1825138
-%if 0%{?rhel} >= 8
+%if 0%{?rhel} >= 8 || 0%{?amzn2023}
 %define gobuild(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags'" -a -v -x %{?**};
 %endif
 
@@ -102,7 +103,7 @@
 %endif
 
 Name:           snapd
-Version:        2.60.3
+Version:        2.61.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -138,6 +139,11 @@ Requires:       fuse
 %else
 # snapd will use squashfuse in the event that squashfs.ko isn't available (cloud instances, containers, etc.)
 Requires:       ((squashfuse and fuse) or kmod(squashfs.ko))
+%endif
+
+# Require xdelta for delta updates of snap packages.
+%if 0%{?fedora} || ( 0%{?rhel} && 0%{?rhel} > 8 )
+Requires:       xdelta
 %endif
 
 # bash-completion owns /usr/share/bash-completion/completions
@@ -192,6 +198,7 @@ designed for working with self-contained, immutable packages.
 Summary:        Confinement system for snap applications
 License:        GPLv3
 BuildRequires:  autoconf
+BuildRequires:  autoconf-archive
 BuildRequires:  automake
 BuildRequires:  libtool
 BuildRequires:  gcc
@@ -352,7 +359,6 @@ Provides:      golang(%{import_path}/desktop/notification) = %{version}-%{releas
 Provides:      golang(%{import_path}/desktop/notification/notificationtest) = %{version}-%{release}
 Provides:      golang(%{import_path}/dirs) = %{version}-%{release}
 Provides:      golang(%{import_path}/docs) = %{version}-%{release}
-Provides:      golang(%{import_path}/errtracker) = %{version}-%{release}
 Provides:      golang(%{import_path}/features) = %{version}-%{release}
 Provides:      golang(%{import_path}/gadget) = %{version}-%{release}
 Provides:      golang(%{import_path}/gadget/edition) = %{version}-%{release}
@@ -537,7 +543,7 @@ BUILDTAGS="nosecboot"
 
 %if ! 0%{?with_bundled}
 # We don't need the snapcore fork for bolt - it is just a fix on ppc
-sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go errtracker/*.go
+sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go
 %endif
 
 # We have to build snapd first to prevent the build from
@@ -551,7 +557,7 @@ BUILDTAGS="${BUILDTAGS} nomanagers"
 # To ensure things work correctly with base snaps,
 # snap-exec, snap-update-ns, and snapctl need to be built statically
 (
-%if 0%{?rhel} >= 7
+%if 0%{?rhel} >= 7 || 0%{?amzn2023}
     # since RH Developer tools 2018.4 (and later releases),
     # the go-toolset module is built with FIPS compliance that
     # defaults to using libcrypto.so which gets loaded at runtime via dlopen(),
@@ -563,7 +569,7 @@ BUILDTAGS="${BUILDTAGS} nomanagers"
     %gobuild_static -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
 )
 
-%if 0%{?rhel}
+%if 0%{?rhel} || 0%{?amzn2023}
 # There's no static link library for libseccomp in RHEL/CentOS...
 sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
 %endif
@@ -996,6 +1002,52 @@ fi
 
 
 %changelog
+* Fri Nov 24 2023 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.61.1
+ - Stop requiring default provider snaps on image building and first
+   boot if alternative providers are included and available
+ - Fix auth.json access for login as non-root group ID
+ - Fix incorrect remodelling conflict when changing track to older
+   snapd version
+ - Improved check-rerefresh message
+ - Fix UC16/18 kernel/gadget update failure due volume mismatch with
+   installed disk
+ - Stop auto-import of assertions during install modes
+ - Desktop interface exposes GetIdletime
+ - Polkit interface support for new polkit versions
+ - Fix not applying snapd snap changes in tracked channel when remodelling
+
+* Fri Oct 13 2023 Philip Meulengracht <philip.meulengracht@canonical.com>
+- New upstream release 2.61
+ - Fix control of activated services in 'snap start' and 'snap stop'
+ - Correctly reflect activated services in 'snap services'
+ - Disabled services are no longer enabled again when snap is
+   refreshed
+ - interfaces/builtin: added support for Token2 U2F keys
+ - interfaces/u2f-devices: add Swissbit iShield Key
+ - interfaces/builtin: update gpio apparmor to match pattern that
+   contains multiple subdirectories under /sys/devices/platform
+ - interfaces: add a polkit-agent interface
+ - interfaces: add pcscd interface
+ - Kernel command-line can now be edited in the gadget.yaml
+ - Only track validation-sets in run-mode, fixes validation-set
+   issues on first boot.
+ - Added support for using store.access to disable access to snap
+   store
+ - Support for fat16 partition in gadget
+ - Pre-seed authority delegation is now possible
+ - Support new system-user name  daemon
+ - Several bug fixes and improvements around remodelling
+ - Offline remodelling support
+
+* Fri Sep 15 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.60.4
+ - i/b/qualcomm_ipc_router.go: switch to plug/slot and add socket
+   permission
+ - interfaces/builtin: fix custom-device udev KERNEL values
+ - overlord: allow the firmware-updater snap to install user daemons
+ - interfaces: allow loopback as a block-device
+
 * Fri Aug 25 2023 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.60.3
  - i/b/shared-memory: handle "private" plug attribute in shared-

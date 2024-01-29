@@ -274,6 +274,13 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 		return ref.Resolve(s.StoreSigning.Find)
 	}
 	retrieveSeq := func(seq *asserts.AtSequence) (asserts.Assertion, error) {
+		if seq.Sequence <= 0 {
+			hdrs, err := asserts.HeadersFromSequenceKey(seq.Type, seq.SequenceKey)
+			if err != nil {
+				return nil, err
+			}
+			return s.StoreSigning.FindSequence(seq.Type, hdrs, -1, seq.Type.MaxSupportedFormat())
+		}
 		return seq.Resolve(s.StoreSigning.Find)
 	}
 	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {

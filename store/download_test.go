@@ -26,7 +26,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -672,7 +671,7 @@ func (s *downloadSuite) TestDownloadWithDelta(c *C) {
 		defer restore()
 		restore = store.MockApplyDelta(func(_ *store.Store, name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
 			c.Check(deltaInfo, Equals, &testCase.info.Deltas[0])
-			err := ioutil.WriteFile(targetPath, []byte("snap-content-via-delta"), 0644)
+			err := os.WriteFile(targetPath, []byte("snap-content-via-delta"), 0644)
 			c.Assert(err, IsNil)
 			return nil
 		})

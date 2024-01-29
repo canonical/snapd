@@ -21,6 +21,7 @@ package boot
 
 import (
 	"fmt"
+	"sync/atomic"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
@@ -250,6 +251,13 @@ func MockResealKeyToModeenvUsingFDESetupHook(f func(string, *Modeenv, bool) erro
 	resealKeyToModeenvUsingFDESetupHook = f
 	return func() {
 		resealKeyToModeenvUsingFDESetupHook = old
+	}
+}
+
+func MockModeenvLocked() (restore func()) {
+	atomic.AddInt32(&modeenvLocked, 1)
+	return func() {
+		atomic.AddInt32(&modeenvLocked, -1)
 	}
 }
 

@@ -448,7 +448,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 		} else {
 			err := os.MkdirAll(filepath.Dir(forceUnencryptedPath), 0755)
 			c.Assert(err, IsNil)
-			err = ioutil.WriteFile(forceUnencryptedPath, nil, 0644)
+			err = os.WriteFile(forceUnencryptedPath, nil, 0644)
 			c.Assert(err, IsNil)
 		}
 
@@ -824,7 +824,7 @@ func (s *installSuite) mockBootloader(c *C, trustedAssets bool, managedAssets bo
 
 		err := os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755)
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "trusted-asset"), nil, 0644)
+		err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "trusted-asset"), nil, 0644)
 		c.Assert(err, IsNil)
 	} else {
 		bl := bootloadertest.Mock("mock", bootloaderRootdir)
@@ -970,7 +970,7 @@ func (s *installSuite) TestPrepareRunSystemDataSupportsCloudInitInDangerous(c *C
 	err := os.MkdirAll(cloudCfg, 0755)
 	c.Assert(err, IsNil)
 	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
-		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+		err = os.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
 		c.Assert(err, IsNil)
 	}
 
@@ -997,7 +997,7 @@ func (s *installSuite) TestPrepareRunSystemDataSupportsCloudInitGadgetAndSeedCon
 	err := os.MkdirAll(cloudCfg, 0755)
 	c.Assert(err, IsNil)
 	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
-		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+		err = os.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
 		c.Assert(err, IsNil)
 	}
 
@@ -1007,7 +1007,7 @@ func (s *installSuite) TestPrepareRunSystemDataSupportsCloudInitGadgetAndSeedCon
 	})
 
 	// we also have gadget cloud init too
-	err = ioutil.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644)
+	err = os.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	err = install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
@@ -1030,7 +1030,7 @@ func (s *installSuite) TestPrepareRunSystemDataSupportsCloudInitBothGadgetAndUbu
 	err := os.MkdirAll(cloudCfg, 0755)
 	c.Assert(err, IsNil)
 	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
-		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+		err = os.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
 		c.Assert(err, IsNil)
 	}
 
@@ -1038,7 +1038,7 @@ func (s *installSuite) TestPrepareRunSystemDataSupportsCloudInitBothGadgetAndUbu
 	mockModel := s.mockModel(nil)
 
 	// we also have gadget cloud init too
-	err = ioutil.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644)
+	err = os.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	err = install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
@@ -1083,7 +1083,7 @@ func (s *installSuite) TestPrepareRunSystemDataSecuredGadgetCloudConfCloudInit(c
 	})
 
 	// pretend we have a cloud.conf from the gadget
-	err := ioutil.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644)
+	err := os.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	err = install.PrepareRunSystemData(mockModel, gadgetDir, s.perfTimings)
@@ -1104,7 +1104,7 @@ func (s *installSuite) TestPrepareRunSystemDataSecuredNoUbuntuSeedCloudInit(c *C
 	err := os.MkdirAll(cloudCfg, 0755)
 	c.Assert(err, IsNil)
 	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
-		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+		err = os.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
 		c.Assert(err, IsNil)
 	}
 
@@ -1136,7 +1136,7 @@ func (s *installSuite) TestPrepareRunSystemDataWritesTimesyncdClockHappy(c *C) {
 
 	clockTsInSrc := filepath.Join(dirs.GlobalRootDir, "/var/lib/systemd/timesync/clock")
 	c.Assert(os.MkdirAll(filepath.Dir(clockTsInSrc), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(clockTsInSrc, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(clockTsInSrc, nil, 0644), IsNil)
 	// a month old timestamp file
 	c.Assert(os.Chtimes(clockTsInSrc, now.AddDate(0, -1, 0), now.AddDate(0, -1, 0)), IsNil)
 
@@ -1164,7 +1164,7 @@ func (s *installSuite) TestPrepareRunSystemDataWritesTimesyncdClockErr(c *C) {
 
 	clockTsInSrc := filepath.Join(dirs.GlobalRootDir, "/var/lib/systemd/timesync/clock")
 	c.Assert(os.MkdirAll(filepath.Dir(clockTsInSrc), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(clockTsInSrc, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(clockTsInSrc, nil, 0644), IsNil)
 
 	timesyncDirInDst := filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"), "/var/lib/systemd/timesync/")
 	c.Assert(os.MkdirAll(timesyncDirInDst, 0755), IsNil)
@@ -1259,7 +1259,7 @@ func (s *installSuite) TestApplyPreseededData(c *C) {
 	model := s.setupCore20Seed(c)
 
 	c.Assert(os.MkdirAll(writableDir, 0755), IsNil)
-	c.Assert(ioutil.WriteFile(preseedArtifact, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(preseedArtifact, nil, 0644), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "snaps"), 0755), IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
 
@@ -1310,7 +1310,7 @@ func (s *installSuite) TestApplyPreseededData(c *C) {
 		{"pc/1", "pc_1.snap"},
 		{"optional20-a/x1", "optional20-a_x1.snap"},
 	} {
-		c.Assert(osutil.FileExists(filepath.Join(writableDir, "/snap", seedSnap.name)), Equals, true, &dumpDirContents{c, writableDir})
+		c.Assert(osutil.FileExists(filepath.Join(writableDir, dirs.StripRootDir(dirs.SnapMountDir), seedSnap.name)), Equals, true, &dumpDirContents{c, writableDir})
 		c.Assert(osutil.FileExists(filepath.Join(writableDir, dirs.SnapBlobDir, seedSnap.blob)), Equals, true, &dumpDirContents{c, writableDir})
 	}
 
@@ -1347,7 +1347,7 @@ func (s *installSuite) TestApplyPreseededDataAssertionMissing(c *C) {
 	s.setupCore20Seed(c)
 
 	c.Assert(os.MkdirAll(writableDir, 0755), IsNil)
-	c.Assert(ioutil.WriteFile(preseedArtifact, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(preseedArtifact, nil, 0644), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "snaps"), 0755), IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
 
@@ -1363,7 +1363,7 @@ func (s *installSuite) TestApplyPreseededDataAssertionMissing(c *C) {
 
 	preseedAsPath := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed")
 	// empty "preseed" assertion file
-	c.Assert(ioutil.WriteFile(preseedAsPath, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(preseedAsPath, nil, 0644), IsNil)
 
 	err = install.ApplyPreseededData(preseedSeed, writableDir)
 	c.Assert(err, ErrorMatches, `system preseed assertion file must contain a preseed assertion`)
@@ -1375,8 +1375,8 @@ func (s *installSuite) TestApplyPreseededDataSnapMismatch(c *C) {
 
 	snapPath1 := filepath.Join(dirs.GlobalRootDir, "essential-snap_1.snap")
 	snapPath2 := filepath.Join(dirs.GlobalRootDir, "mode-snap_3.snap")
-	c.Assert(ioutil.WriteFile(snapPath1, nil, 0644), IsNil)
-	c.Assert(ioutil.WriteFile(snapPath2, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(snapPath1, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(snapPath2, nil, 0644), IsNil)
 
 	ubuntuSeedDir := filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-seed")
 	sysLabel := "20220105"
@@ -1384,7 +1384,7 @@ func (s *installSuite) TestApplyPreseededDataSnapMismatch(c *C) {
 	preseedArtifact := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed.tgz")
 	c.Assert(os.MkdirAll(filepath.Join(ubuntuSeedDir, "systems", sysLabel), 0755), IsNil)
 	c.Assert(os.MkdirAll(writableDir, 0755), IsNil)
-	c.Assert(ioutil.WriteFile(preseedArtifact, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(preseedArtifact, nil, 0644), IsNil)
 
 	model := s.mockModel(map[string]interface{}{
 		"grade": "dangerous",
@@ -1460,7 +1460,7 @@ func (s *installSuite) TestApplyPreseededDataWrongDigest(c *C) {
 	defer mockTarCmd.Restore()
 
 	snapPath1 := filepath.Join(dirs.GlobalRootDir, "essential-snap_1.snap")
-	c.Assert(ioutil.WriteFile(snapPath1, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(snapPath1, nil, 0644), IsNil)
 
 	ubuntuSeedDir := filepath.Join(dirs.GlobalRootDir, "run/mnt/ubuntu-seed")
 	sysLabel := "20220105"
@@ -1468,7 +1468,7 @@ func (s *installSuite) TestApplyPreseededDataWrongDigest(c *C) {
 	preseedArtifact := filepath.Join(ubuntuSeedDir, "systems", sysLabel, "preseed.tgz")
 	c.Assert(os.MkdirAll(filepath.Join(ubuntuSeedDir, "systems", sysLabel), 0755), IsNil)
 	c.Assert(os.MkdirAll(writableDir, 0755), IsNil)
-	c.Assert(ioutil.WriteFile(preseedArtifact, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(preseedArtifact, nil, 0644), IsNil)
 
 	model := s.mockModel(map[string]interface{}{
 		"grade": "dangerous",

@@ -978,7 +978,7 @@ func (s *SnapOpSuite) TestInstallPath(c *check.C) {
 	snapBody := []byte("snap-data")
 	s.RedirectClientToTestServer(s.srv.handle)
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
-	err := ioutil.WriteFile(snapPath, snapBody, 0644)
+	err := os.WriteFile(snapPath, snapBody, 0644)
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", snapPath})
@@ -1010,7 +1010,7 @@ func (s *SnapOpSuite) TestInstallPathDevMode(c *check.C) {
 	snapBody := []byte("snap-data")
 	s.RedirectClientToTestServer(s.srv.handle)
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
-	err := ioutil.WriteFile(snapPath, snapBody, 0644)
+	err := os.WriteFile(snapPath, snapBody, 0644)
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--devmode", snapPath})
@@ -1044,7 +1044,7 @@ func (s *SnapOpSuite) TestInstallPathClassic(c *check.C) {
 	snapBody := []byte("snap-data")
 	s.RedirectClientToTestServer(s.srv.handle)
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
-	err := ioutil.WriteFile(snapPath, snapBody, 0644)
+	err := os.WriteFile(snapPath, snapBody, 0644)
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--classic", snapPath})
@@ -1076,7 +1076,7 @@ func (s *SnapOpSuite) TestInstallPathDangerous(c *check.C) {
 	snapBody := []byte("snap-data")
 	s.RedirectClientToTestServer(s.srv.handle)
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
-	err := ioutil.WriteFile(snapPath, snapBody, 0644)
+	err := os.WriteFile(snapPath, snapBody, 0644)
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--dangerous", snapPath})
@@ -1108,7 +1108,7 @@ func (s *SnapOpSuite) TestInstallPathQuotaGroup(c *check.C) {
 	snapBody := []byte("snap-data")
 	s.RedirectClientToTestServer(s.srv.handle)
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
-	err := ioutil.WriteFile(snapPath, snapBody, 0644)
+	err := os.WriteFile(snapPath, snapBody, 0644)
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--quota-group", "foo", snapPath})
@@ -1167,7 +1167,7 @@ func (s *SnapOpSuite) TestInstallPathManyTransactional(c *check.C) {
 	for _, snap := range snaps {
 		path := filepath.Join(c.MkDir(), snap)
 		args = append(args, path)
-		err := ioutil.WriteFile(path, []byte("snap-data"), 0644)
+		err := os.WriteFile(path, []byte("snap-data"), 0644)
 		c.Assert(err, check.IsNil)
 	}
 
@@ -1206,7 +1206,7 @@ func (s *SnapOpSuite) TestInstallPathInstance(c *check.C) {
 	// instance is named foo_bar
 	s.srv.snap = "foo_bar"
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
-	err := ioutil.WriteFile(snapPath, snapBody, 0644)
+	err := os.WriteFile(snapPath, snapBody, 0644)
 	c.Assert(err, check.IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", snapPath, "--name", "foo_bar"})
@@ -1265,7 +1265,7 @@ func (s *SnapOpSuite) TestInstallPathMany(c *check.C) {
 	for _, snap := range snaps {
 		path := filepath.Join(c.MkDir(), snap)
 		args = append(args, path)
-		err := ioutil.WriteFile(path, []byte("snap-data"), 0644)
+		err := os.WriteFile(path, []byte("snap-data"), 0644)
 		c.Assert(err, check.IsNil)
 	}
 

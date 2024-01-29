@@ -227,10 +227,23 @@ type StaticInfo struct {
 	// system-packages-doc that could get the flag set back to false.
 	AffectsPlugOnRefresh bool `json:"affects-plug-on-refresh,omitempty"`
 
-	// BaseDeclarationPlugs defines an optional extension to the base-declaration assertion relevant for this interface.
+	// BaseDeclarationPlugs defines optional plug-side rules in the
+	// base-declaration assertion relevant for this interface. See
+	// interfaces/builtin/README.md, especially "Base declaration policy
+	// patterns".
 	BaseDeclarationPlugs string
-	// BaseDeclarationSlots defines an optional extension to the base-declaration assertion relevant for this interface.
+	// BaseDeclarationSlots defines an optional slot-side rules in the
+	// base-declaration assertion relevant for this interface. See
+	// interfaces/builtin/README.md, especially "Base declaration policy
+	// patterns".
 	BaseDeclarationSlots string
+
+	// AppArmorUnconfinedPlugs results in the snap that plugs this interface
+	// being granted the AppArmor unconfined profile mode
+	AppArmorUnconfinedPlugs bool `json:"apparmor-unconfined-plugs,omitempty"`
+	// Similarly, AppArmorUnconfinedSlots results in the snap that slots this interface
+	// being granted the AppArmor unconfined profile mode
+	AppArmorUnconfinedSlots bool `json:"apparmor-unconfined-slots,omitempty"`
 }
 
 // PermanentPlugServiceSnippets will return the set of snippets for the systemd

@@ -1,4 +1,48 @@
-# New in snapd 2.60.3:
+# In progress:
+* Installation of local snap components
+* Started improving support for user daemons by introducing new control switches --user/--users/--system for service operations
+
+# Next:
+* state: add support for notices (from pebble)
+* daemon: add notices to the snapd API under `/v2/notices` and `/v2/notice`
+
+# New in snapd 2.61.1:
+* Stop requiring default provider snaps on image building and first boot if alternative providers are included and available
+* Fix auth.json access for login as non-root group ID
+* Fix incorrect remodelling conflict when changing track to older snapd version
+* Improved check-rerefresh message
+* Fix UC16/18 kernel/gadget update failure due volume mismatch with installed disk
+* Stop auto-import of assertions during install modes
+* Desktop interface exposes GetIdletime
+* Polkit interface support for new polkit versions
+* Fix not applying snapd snap changes in tracked channel when remodelling
+
+# New in snapd 2.61:
+* Fix control of activated services in 'snap start' and 'snap stop'
+* Correctly reflect activated services in 'snap services'
+* Disabled services are no longer enabled again when snap is refreshed
+* interfaces/builtin: added support for Token2 U2F keys
+* interfaces/u2f-devices: add Swissbit iShield Key
+* interfaces/builtin: update gpio apparmor to match pattern that contains multiple subdirectories under /sys/devices/platform
+* interfaces: add a polkit-agent interface
+* interfaces: add pcscd interface
+* Kernel command-line can now be edited in the gadget.yaml
+* Only track validation-sets in run-mode, fixes validation-set issues on first boot.
+* Added support for using store.access to disable access to snap store
+* Support for fat16 partition in gadget
+* Pre-seed authority delegation is now possible
+* Support new system-user name  _daemon_
+* Several bug fixes and improvements around remodelling
+* Offline remodelling support
+
+# New in snapd 2.60.4:
+* Switch to plug/slot in the "qualcomm-ipc-router" interface
+  but keeping backward compatibility
+* Fix "custom-device" udev KERNEL values
+* Allow firmware-updater snap to install user-daemons
+* Allow loopback as a block device
+
+# NEW in snapd 2.60.3:
 * Fix bug in the "private" plug attribute of the shared-memory
   interface that can result in a crash when upgrading from an
   old version of snapd.
@@ -17,7 +61,7 @@
 * Use "aes-cbc-essiv:sha256" in cryptsetup on arm 32bit devices
   to increase speed on devices with CAAM support
 * Stop using `-O no-expr-simplify` in apparmor_parser to avoid
-  potential exponential memory use. This can lead to slower 
+  potential exponential memory use. This can lead to slower
   policy complication in some cases but it is much safer on
   low memory devices.
 

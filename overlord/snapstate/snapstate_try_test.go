@@ -21,7 +21,6 @@ package snapstate_test
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -64,7 +63,7 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C, extra
 			buf.WriteString(extra)
 		}
 	}
-	err = ioutil.WriteFile(tryYaml, buf.Bytes(), 0644)
+	err = os.WriteFile(tryYaml, buf.Bytes(), 0644)
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("try", "try snap")

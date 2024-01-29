@@ -34,11 +34,11 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -98,9 +98,6 @@ func (s *baseHookManagerSuite) commonSetUpTest(c *C) {
 		s.context = context
 		return s.mockHandler
 	})
-	s.AddCleanup(hookstate.MockErrtrackerReport(func(string, string, string, map[string]string) (string, error) {
-		return "", nil
-	}))
 }
 
 func (s *baseHookManagerSuite) commonTearDownTest(c *C) {
@@ -136,7 +133,7 @@ func (s *baseHookManagerSuite) setUpSnap(c *C, instanceName string, yaml string)
 	snaptest.MockSnapInstance(c, instanceName, yaml, sideInfo)
 	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 		Active:      true,
-		Sequence:    []*snap.SideInfo{sideInfo},
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:     snap.R(1),
 		InstanceKey: instanceKey,
 	})
@@ -926,67 +923,6 @@ func (s *hookManagerSuite) TestHookTaskRunsRightSnapCmd(c *C) {
 
 }
 
-func (s *hookManagerSuite) TestHookTaskHandlerReportsErrorIfRequested(c *C) {
-	s.state.Lock()
-	var hooksup hookstate.HookSetup
-	s.task.Get("hook-setup", &hooksup)
-	hooksup.TrackError = true
-	s.task.Set("hook-setup", &hooksup)
-	s.state.Unlock()
-
-	errtrackerCalled := false
-	hookstate.MockErrtrackerReport(func(snap, errmsg, dupSig string, extra map[string]string) (string, error) {
-		c.Check(snap, Equals, "test-snap")
-		c.Check(errmsg, Equals, "hook configure in snap \"test-snap\" failed: hook failed at user request")
-		c.Check(dupSig, Equals, "hook:test-snap:configure:exit status 1\nhook failed at user request\n")
-
-		errtrackerCalled = true
-		return "some-oopsid", nil
-	})
-
-	// Force the snap command to exit 1, and print something to stderr
-	cmd := testutil.MockCommand(
-		c, "snap", ">&2 echo 'hook failed at user request'; exit 1")
-	defer cmd.Restore()
-
-	s.se.Ensure()
-	s.se.Wait()
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	c.Check(errtrackerCalled, Equals, true)
-}
-
-func (s *hookManagerSuite) TestHookTaskHandlerReportsErrorDisabled(c *C) {
-	s.state.Lock()
-	var hooksup hookstate.HookSetup
-	s.task.Get("hook-setup", &hooksup)
-	hooksup.TrackError = true
-	s.task.Set("hook-setup", &hooksup)
-
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "problem-reports.disabled", true)
-	tr.Commit()
-	s.state.Unlock()
-
-	hookstate.MockErrtrackerReport(func(snap, errmsg, dupSig string, extra map[string]string) (string, error) {
-		c.Fatalf("no error reports should be generated")
-		return "", nil
-	})
-
-	// Force the snap command to exit 1, and print something to stderr
-	cmd := testutil.MockCommand(
-		c, "snap", ">&2 echo 'hook failed at user request'; exit 1")
-	defer cmd.Restore()
-
-	s.se.Ensure()
-	s.se.Wait()
-
-	s.state.Lock()
-	defer s.state.Unlock()
-}
-
 func (s *hookManagerSuite) TestHookTasksForSameSnapAreSerialized(c *C) {
 	var Executing int32
 	var TotalExecutions int32
@@ -1081,7 +1017,7 @@ func (s *hookManagerSuite) TestHookTasksForDifferentSnapsRunConcurrently(c *C) {
 	c.Assert(info.Hooks, HasLen, 1)
 	snapstate.Set(s.state, "test-snap-1", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:  snap.R(1),
 	})
 
@@ -1089,7 +1025,7 @@ func (s *hookManagerSuite) TestHookTasksForDifferentSnapsRunConcurrently(c *C) {
 	snaptest.MockSnap(c, snapYaml2, sideInfo)
 	snapstate.Set(s.state, "test-snap-2", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:  snap.R(1),
 	})
 

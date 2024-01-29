@@ -70,9 +70,9 @@ func runFDEinitramfsHelper(name string, stdin []byte) (output []byte, err error)
 		// permissions, so deleting first is the right thing to do
 		os.Remove(streamFile)
 		if stream == "stdin" {
-			err = ioutil.WriteFile(streamFile, stdin, 0600)
+			err = os.WriteFile(streamFile, stdin, 0600)
 		} else {
-			err = ioutil.WriteFile(streamFile, nil, 0600)
+			err = os.WriteFile(streamFile, nil, 0600)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("cannot create %s for %s: %v", name, stream, err)

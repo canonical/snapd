@@ -5,7 +5,7 @@ version: 1.0
 plugs:
     personal-files:
         read: [$HOME/.testdir1, $HOME/.testfile1, $HOME/testfile1, $HOME/testdir1]
-        write: [$HOME/.testdir1, $HOME/.testfile1]
+        write: [$HOME/.testdir1, $HOME/.testfile1, $HOME/.missing/testdir1]
 
 apps:
     with-personal-files-plug:

@@ -1,5 +1,8 @@
 summary: Verify that the maintenance message is included in the daemon API responses when available
 
+details: |
+  Verify present of the maintenance message in the local API.
+
 # kinda slow test, probably enough to keep on one system
 systems: [ubuntu-core-20-64]
 
@@ -37,7 +40,7 @@ execute: |
         snap revert snapd
 
         echo "Testing maintenance message for system reboots"
-        snap refresh core20 --channel=stable &
+        snap refresh core20 --channel=stable --amend &
         retry -n 20 --wait 0.5 sh -c 'test-snapd-curl.curl -sS --unix-socket /run/snapd.socket http://localhost/v2/changes?select=all | jq ".maintenance" | MATCH "system is restarting"'
         wait
 

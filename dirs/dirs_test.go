@@ -20,7 +20,6 @@
 package dirs_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -192,7 +191,7 @@ func (s *DirsTestSuite) TestInsideBaseSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(inside, Equals, false)
 
-	err = ioutil.WriteFile(snapYaml, []byte{}, 0755)
+	err = os.WriteFile(snapYaml, []byte{}, 0755)
 	c.Assert(err, IsNil)
 
 	inside, err = dirs.IsInsideBaseSnap()

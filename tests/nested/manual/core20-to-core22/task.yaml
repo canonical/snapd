@@ -1,13 +1,15 @@
 summary: verify a UC20 to UC22 remodel
 
+details: |
+    This test verifies remodeling from UC20 to UC22 works. Once the remodeling
+    is done and the machine boots into UC22 the test verifies that recover system
+    is usable and there should be no core20 since the new UC22 is seeded.
+
 # the test may be unstable as UC22 is effectively a work-in-progress thing, and
 # the model in question uses latest/edge of core22 and 22/edge of pc and
 # pc-kernel snaps
 
 systems: [ubuntu-20.04-64]
-
-# TODO: re-enable the test once lp:1979197 is fixed
-manual: true
 
 environment:
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/valid-for-testing-pc-{VERSION}.model
@@ -83,5 +85,5 @@ execute: |
     echo "And back to run mode"
     remote.exec "sudo snap wait system seed.loaded"
     remote.exec sudo snap reboot --run | MATCH 'Reboot into "run" mode.'
-    rmeote.wait-for reboot "${boot_id}"
+    remote.wait-for reboot "${boot_id}"
     remote.exec 'sudo cat /proc/cmdline' | MATCH "snapd_recovery_mode=run "

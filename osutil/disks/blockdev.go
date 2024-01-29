@@ -21,7 +21,6 @@ package disks
 
 import (
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
 
@@ -29,9 +28,9 @@ import (
 )
 
 func blockdevSizeCmd(cmd, devpath string) (uint64, error) {
-	out, err := exec.Command("blockdev", cmd, devpath).CombinedOutput()
+	out, stderr, err := osutil.RunSplitOutput("blockdev", cmd, devpath)
 	if err != nil {
-		return 0, osutil.OutputErr(out, err)
+		return 0, osutil.OutputErrCombine(out, stderr, err)
 	}
 	nospace := strings.TrimSpace(string(out))
 	sz, err := strconv.ParseUint(nospace, 10, 64)

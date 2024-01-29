@@ -636,7 +636,7 @@ func (d *Daemon) doReboot(sigCh chan<- os.Signal, rst restart.RestartType, rbi *
 		action = boot.RebootPoweroff
 	}
 	// ask for shutdown and wait for it to happen.
-	// if we exit snapd will be restared by systemd
+	// if we exit snapd will be restarted by systemd
 	if err := reboot(action, rebootDelay, rbi); err != nil {
 		return err
 	}

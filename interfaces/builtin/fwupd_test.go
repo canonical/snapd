@@ -241,21 +241,35 @@ func (s *FwupdInterfaceSuite) TestPermanentSlotUdevImplicit(c *C) {
 	c.Assert(err, IsNil)
 
 	snippets := spec.Snippets()
-	c.Assert(snippets, HasLen, 5+1)
+	c.Assert(snippets, HasLen, 12+1)
 
 	c.Assert(snippets[0], Equals, `# fwupd
 KERNEL=="drm_dp_aux[0-9]*", TAG+="snap_uefi-fw-tools_app2"`)
 	c.Assert(snippets[1], Equals, `# fwupd
 KERNEL=="gpiochip[0-9]*", TAG+="snap_uefi-fw-tools_app2"`)
 	c.Assert(snippets[2], Equals, `# fwupd
-KERNEL=="mei[0-9]*", TAG+="snap_uefi-fw-tools_app2"`)
+KERNEL=="i2c-[0-9]*", TAG+="snap_uefi-fw-tools_app2"`)
 	c.Assert(snippets[3], Equals, `# fwupd
-KERNEL=="nvme[0-9]*", TAG+="snap_uefi-fw-tools_app2"`)
+KERNEL=="ipmi[0-9]*", TAG+="snap_uefi-fw-tools_app2"`)
 	c.Assert(snippets[4], Equals, `# fwupd
+KERNEL=="mei[0-9]*", TAG+="snap_uefi-fw-tools_app2"`)
+	c.Assert(snippets[5], Equals, `# fwupd
+KERNEL=="mtd[0-9]*", TAG+="snap_uefi-fw-tools_app2"`)
+	c.Assert(snippets[6], Equals, `# fwupd
+KERNEL=="nvme[0-9]*", TAG+="snap_uefi-fw-tools_app2"`)
+	c.Assert(snippets[7], Equals, `# fwupd
 KERNEL=="tpm[0-9]*", TAG+="snap_uefi-fw-tools_app2"`)
+	c.Assert(snippets[8], Equals, `# fwupd
+KERNEL=="tpmrm[0-9]*", TAG+="snap_uefi-fw-tools_app2"`)
+	c.Assert(snippets[9], Equals, `# fwupd
+KERNEL=="video[0-9]*", TAG+="snap_uefi-fw-tools_app2"`)
+	c.Assert(snippets[10], Equals, `# fwupd
+KERNEL=="wmi/dell-smbios", TAG+="snap_uefi-fw-tools_app2"`)
+	c.Assert(snippets[11], Equals, `# fwupd
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", TAG+="snap_uefi-fw-tools_app2"`)
 
 	expected := fmt.Sprintf(`TAG=="snap_uefi-fw-tools_app2", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_uefi-fw-tools_app2 $devpath $major:$minor"`, dirs.DistroLibExecDir)
-	c.Assert(snippets[5], Equals, expected)
+	c.Assert(snippets[12], Equals, expected)
 
 	// The implicit slot found on classic systems does not generate any rules
 	spec = &udev.Specification{}

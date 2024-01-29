@@ -38,6 +38,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/squashfs"
@@ -46,13 +47,6 @@ import (
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
-
-type SquashfsTestSuite struct {
-	oldStdout, oldStderr, outf *os.File
-	testutil.BaseTest
-}
-
-var _ = Suite(&SquashfsTestSuite{})
 
 func makeSnap(c *C, manifest, data string) *squashfs.Snap {
 	cur, _ := os.Getwd()
@@ -65,17 +59,17 @@ func makeSnapContents(c *C, manifest, data string) string {
 	c.Assert(err, IsNil)
 
 	// our regular snap.yaml
-	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "snap.yaml"), []byte(manifest), 0644)
+	err = os.WriteFile(filepath.Join(tmp, "meta", "snap.yaml"), []byte(manifest), 0644)
 	c.Assert(err, IsNil)
 
 	// some hooks
-	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "hooks", "foo-hook"), nil, 0755)
+	err = os.WriteFile(filepath.Join(tmp, "meta", "hooks", "foo-hook"), nil, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "hooks", "bar-hook"), nil, 0755)
+	err = os.WriteFile(filepath.Join(tmp, "meta", "hooks", "bar-hook"), nil, 0755)
 	c.Assert(err, IsNil)
 	// And a file in another directory in there, just for testing (not a valid
 	// hook)
-	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "hooks", "dir", "baz"), nil, 0755)
+	err = os.WriteFile(filepath.Join(tmp, "meta", "hooks", "dir", "baz"), nil, 0755)
 	c.Assert(err, IsNil)
 
 	// some empty directories
@@ -83,7 +77,7 @@ func makeSnapContents(c *C, manifest, data string) string {
 	c.Assert(err, IsNil)
 
 	// some data
-	err = ioutil.WriteFile(filepath.Join(tmp, "data.bin"), []byte(data), 0644)
+	err = os.WriteFile(filepath.Join(tmp, "data.bin"), []byte(data), 0644)
 	c.Assert(err, IsNil)
 
 	return tmp
@@ -107,9 +101,18 @@ func makeSnapInDir(c *C, dir, manifest, data string) *squashfs.Snap {
 	return sn
 }
 
+type SquashfsTestSuite struct {
+	testutil.BaseTest
+
+	oldStdout, oldStderr, outf *os.File
+}
+
+var _ = Suite(&SquashfsTestSuite{})
+
 func (s *SquashfsTestSuite) SetUpTest(c *C) {
 	d := c.MkDir()
 	dirs.SetRootDir(d)
+	s.AddCleanup(func() { dirs.SetRootDir("") })
 	err := os.Chdir(d)
 	c.Assert(err, IsNil)
 
@@ -148,7 +151,7 @@ func (s *SquashfsTestSuite) TestNotFileHasSquashfsHeader(c *C) {
 	}
 
 	for _, d := range data {
-		err := ioutil.WriteFile("not-a-snap", []byte(d), 0644)
+		err := os.WriteFile("not-a-snap", []byte(d), 0644)
 		c.Assert(err, IsNil)
 
 		c.Check(squashfs.FileHasSquashfsHeader("not-a-snap"), Equals, false)
@@ -592,9 +595,9 @@ func (s *SquashfsTestSuite) TestBuildAll(c *C) {
 	buildDir := c.MkDir()
 	err := os.MkdirAll(filepath.Join(buildDir, "/random/dir"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(buildDir, "data.bin"), []byte("data"), 0644)
+	err = os.WriteFile(filepath.Join(buildDir, "data.bin"), []byte("data"), 0644)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(buildDir, "random", "data.bin"), []byte("more data"), 0644)
+	err = os.WriteFile(filepath.Join(buildDir, "random", "data.bin"), []byte("more data"), 0644)
 	c.Assert(err, IsNil)
 
 	sn := squashfs.New(filepath.Join(c.MkDir(), "foo.snap"))
@@ -625,13 +628,13 @@ func (s *SquashfsTestSuite) TestBuildUsesExcludes(c *C) {
 	buildDir := c.MkDir()
 	err := os.MkdirAll(filepath.Join(buildDir, "/random/dir"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(buildDir, "data.bin"), []byte("data"), 0644)
+	err = os.WriteFile(filepath.Join(buildDir, "data.bin"), []byte("data"), 0644)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(buildDir, "random", "data.bin"), []byte("more data"), 0644)
+	err = os.WriteFile(filepath.Join(buildDir, "random", "data.bin"), []byte("more data"), 0644)
 	c.Assert(err, IsNil)
 
 	excludesFilename := filepath.Join(buildDir, ".snapignore")
-	err = ioutil.WriteFile(excludesFilename, []byte(`
+	err = os.WriteFile(excludesFilename, []byte(`
 # ignore just one of the data.bin files we just added (the toplevel one)
 data.bin
 # also ignore ourselves
@@ -668,12 +671,17 @@ func (s *SquashfsTestSuite) TestBuildSupportsMultipleExcludesWithOnlyOneWildcard
 		c.Check(cmd, Equals, "/usr/bin/mksquashfs")
 		return nil, errors.New("bzzt")
 	})()
-	mksq := testutil.MockCommand(c, "mksquashfs", "")
+	mksq := testutil.MockCommand(c, "mksquashfs", `/usr/bin/mksquashfs "$@"`)
 	defer mksq.Restore()
 
+	fakeSourcedir := c.MkDir()
+	for _, n := range []string{"exclude1", "exclude2", "exclude3"} {
+		err := os.WriteFile(filepath.Join(fakeSourcedir, n), nil, 0644)
+		c.Assert(err, IsNil)
+	}
 	snapPath := filepath.Join(c.MkDir(), "foo.snap")
 	sn := squashfs.New(snapPath)
-	err := sn.Build(c.MkDir(), &squashfs.BuildOpts{
+	err := sn.Build(fakeSourcedir, &squashfs.BuildOpts{
 		SnapType:     "core",
 		ExcludeFiles: []string{"exclude1", "exclude2", "exclude3"},
 	})
@@ -693,7 +701,8 @@ func (s *SquashfsTestSuite) TestBuildUsesMksquashfsFromCoreIfAvailable(c *C) {
 	defer squashfs.MockCommandFromSystemSnap(func(cmd string, args ...string) (*exec.Cmd, error) {
 		usedFromCore = true
 		c.Check(cmd, Equals, "/usr/bin/mksquashfs")
-		return &exec.Cmd{Path: "/bin/true"}, nil
+		fakeCmd := exec.Cmd{Path: "/usr/bin/mksquashfs", Args: []string{"/usr/bin/mksquashfs"}}
+		return &fakeCmd, nil
 	})()
 	mksq := testutil.MockCommand(c, "mksquashfs", "exit 1")
 	defer mksq.Restore()
@@ -714,7 +723,7 @@ func (s *SquashfsTestSuite) TestBuildUsesMksquashfsFromClassicIfCoreUnavailable(
 		c.Check(cmd, Equals, "/usr/bin/mksquashfs")
 		return nil, errors.New("bzzt")
 	})()
-	mksq := testutil.MockCommand(c, "mksquashfs", "")
+	mksq := testutil.MockCommand(c, "mksquashfs", `/usr/bin/mksquashfs "$@"`)
 	defer mksq.Restore()
 
 	buildDir := c.MkDir()
@@ -749,7 +758,7 @@ func (s *SquashfsTestSuite) TestBuildVariesArgsByType(c *C) {
 	defer squashfs.MockCommandFromSystemSnap(func(cmd string, args ...string) (*exec.Cmd, error) {
 		return nil, errors.New("bzzt")
 	})()
-	mksq := testutil.MockCommand(c, "mksquashfs", "")
+	mksq := testutil.MockCommand(c, "mksquashfs", `/usr/bin/mksquashfs "$@"`)
 	defer mksq.Restore()
 
 	buildDir := c.MkDir()
@@ -872,16 +881,16 @@ func (s *SquashfsTestSuite) TestBuildChecksReadDifferentFiles(c *C) {
 
 	err := os.MkdirAll(filepath.Join(d, "ro-dir"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(d, "ro-dir", "in-ro-dir"), []byte("123"), 0664)
+	err = os.WriteFile(filepath.Join(d, "ro-dir", "in-ro-dir"), []byte("123"), 0664)
 	c.Assert(err, IsNil)
 	err = os.Chmod(filepath.Join(d, "ro-dir"), 0000)
 	c.Assert(err, IsNil)
 	// so that tear down does not complain
 	defer os.Chmod(filepath.Join(d, "ro-dir"), 0755)
 
-	err = ioutil.WriteFile(filepath.Join(d, "ro-file"), []byte("123"), 0000)
+	err = os.WriteFile(filepath.Join(d, "ro-file"), []byte("123"), 0000)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(d, "ro-empty-file"), nil, 0000)
+	err = os.WriteFile(filepath.Join(d, "ro-empty-file"), nil, 0000)
 	c.Assert(err, IsNil)
 
 	err = syscall.Mkfifo(filepath.Join(d, "fifo"), 0000)
@@ -907,7 +916,7 @@ func (s *SquashfsTestSuite) TestBuildChecksReadErrorLimit(c *C) {
 	// make more than maxErrPaths entries
 	for i := 0; i < squashfs.MaxErrPaths; i++ {
 		p := filepath.Join(d, fmt.Sprintf("0%d", i))
-		err := ioutil.WriteFile(p, []byte("123"), 0000)
+		err := os.WriteFile(p, []byte("123"), 0000)
 		c.Assert(err, IsNil)
 		err = os.Chmod(p, 0000)
 		c.Assert(err, IsNil)
@@ -961,4 +970,36 @@ func (s *SquashfsTestSuite) TestBuildWithCompressionUnhappy(c *C) {
 		Compression: "silly",
 	})
 	c.Assert(err, ErrorMatches, "(?m)^mksquashfs call failed: ")
+}
+
+func (s *SquashfsTestSuite) TestBuildBelowMinimumSize(c *C) {
+	// this snap is empty. without truncating it to be larger, it should be smaller than
+	// the minimum snap size
+	sn := squashfs.New(filepath.Join(c.MkDir(), "truncate_me.snap"))
+	sn.Build(c.MkDir(), nil)
+
+	size, err := sn.Size()
+	c.Assert(err, IsNil)
+
+	switch size {
+	case squashfs.MinimumSnapSize:
+		// all good
+	case 65536:
+		// some distros carry out of tree patches for squashfs-tools and
+		// pad to 64k by default
+	default:
+		c.Fatalf("unexpected squashfs size %v", size)
+	}
+}
+
+func (s *SquashfsTestSuite) TestBuildAboveMinimumSize(c *C) {
+	// fill a snap with random data that will not compress well. it should be forced
+	// to be bigger than the minimum threshold
+	randomData := randutil.RandomString(int(squashfs.MinimumSnapSize * 2))
+	sn := makeSnapInDir(c, c.MkDir(), "name: do_not_truncate_me", randomData)
+
+	size, err := sn.Size()
+	c.Assert(err, IsNil)
+
+	c.Assert(int(size), testutil.IntGreaterThan, int(squashfs.MinimumSnapSize), Commentf("random snap data: %s", randomData))
 }

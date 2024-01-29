@@ -176,6 +176,15 @@ type ValidationSet struct {
 	timestamp time.Time
 }
 
+// SequenceKey returns the sequence key for this validation set.
+func (vs *ValidationSet) SequenceKey() string {
+	return vsSequenceKey(vs.Series(), vs.AccountID(), vs.Name())
+}
+
+func vsSequenceKey(series, accountID, name string) string {
+	return fmt.Sprintf("%s/%s/%s", series, accountID, name)
+}
+
 // Series returns the series for which the snap in the set are declared.
 func (vs *ValidationSet) Series() string {
 	return vs.HeaderString("series")

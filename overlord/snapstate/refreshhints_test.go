@@ -96,9 +96,9 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(5), SnapID: "some-snap-id"},
-		},
+		}),
 		Current:         snap.R(5),
 		SnapType:        "app",
 		UserID:          1,
@@ -203,9 +203,9 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "other-snap", Revision: snap.R(1), SnapID: "other-snap-id"},
-		},
+		}),
 		Current:         snap.R(1),
 		SnapType:        "app",
 		TrackingChannel: "devel",
@@ -285,7 +285,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	err = snapstate.Get(s.state, "some-snap", &snapst1)
 	c.Assert(err, IsNil)
 
-	sup, snapst, err := cand1.SnapSetupForUpdate(s.state, nil, 0, nil)
+	sup, snapst, err := cand1.SnapSetupForUpdate(s.state, nil, 0, nil, nil)
 	c.Assert(err, IsNil)
 	c.Check(sup, DeepEquals, &snapstate.SnapSetup{
 		Base:    "some-base",
@@ -311,7 +311,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	err = snapstate.Get(s.state, "other-snap", &snapst2)
 	c.Assert(err, IsNil)
 
-	sup, snapst, err = cand2.SnapSetupForUpdate(s.state, nil, 0, nil)
+	sup, snapst, err = cand2.SnapSetupForUpdate(s.state, nil, 0, nil, nil)
 	c.Assert(err, IsNil)
 	c.Check(sup, DeepEquals, &snapstate.SnapSetup{
 		Type:    "app",
@@ -420,11 +420,14 @@ func (s *refreshHintsTestSuite) TestPruneRefreshCandidatesIncorrectFormat(c *C) 
 
 func (s *refreshHintsTestSuite) TestRefreshHintsNotApplicableWrongArch(c *C) {
 	s.state.Lock()
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "other-snap", Revision: snap.R(1), SnapID: "other-snap-id"},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -468,9 +471,9 @@ func (s *refreshHintsTestSuite) TestRefreshHintsAbortsMonitoringForRemovedCandid
 	s.state.Lock()
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "other-snap", Revision: snap.R(1), SnapID: "other-snap-id"},
-		},
+		}),
 		Current: snap.R(1),
 	})
 	s.state.Unlock()
@@ -517,12 +520,14 @@ func (s *refreshHintsTestSuite) TestRefreshHintsAbortsMonitoringForRemovedCandid
 
 func (s *refreshHintsTestSuite) TestRefreshHintsNotApplicableWrongEpoch(c *C) {
 	s.state.Lock()
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
 
 	si := &snap.SideInfo{RealName: "other-snap", Revision: snap.R(1), SnapID: "other-snap-id"}
 	snaptest.MockSnap(c, otherSnapYaml, si)
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -556,4 +561,21 @@ func (s *refreshHintsTestSuite) TestRefreshHintsNotApplicableWrongEpoch(c *C) {
 	c.Assert(candidates, HasLen, 1)
 	// other-snap ignored due to epoch
 	c.Check(candidates["some-snap"], NotNil)
+}
+
+func (s *refreshHintsTestSuite) TestSnapStoreOffline(c *C) {
+	setStoreAccess(s.state, "offline")
+
+	rh := snapstate.NewRefreshHints(s.state)
+	err := rh.Ensure()
+	c.Check(err, IsNil)
+
+	c.Check(s.store.ops, HasLen, 0)
+
+	setStoreAccess(s.state, nil)
+
+	err = rh.Ensure()
+	c.Check(err, IsNil)
+
+	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
 }

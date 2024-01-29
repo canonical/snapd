@@ -21,7 +21,6 @@ package randutil_test
 
 import (
 	"encoding/base64"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -72,7 +71,7 @@ func (s *cryptoRandutilSuite) TestRandomKernelUUIDNoPerm(c *C) {
 	uuidPath := filepath.Join(c.MkDir(), "no-perm")
 	defer randutil.MockKernelUUIDPath(uuidPath)()
 
-	err := ioutil.WriteFile(uuidPath, []byte(kernelTestUUID), 0)
+	err := os.WriteFile(uuidPath, []byte(kernelTestUUID), 0)
 	c.Assert(err, IsNil)
 
 	value, err := randutil.RandomKernelUUID()
@@ -92,7 +91,7 @@ func (s *cryptoRandutilSuite) TestRandomKernelUUID(c *C) {
 		uuidPath := filepath.Join(c.MkDir(), "uuid")
 		defer randutil.MockKernelUUIDPath(uuidPath)()
 
-		err := ioutil.WriteFile(uuidPath, []byte(uuid), 0444)
+		err := os.WriteFile(uuidPath, []byte(uuid), 0444)
 		c.Assert(err, IsNil)
 
 		value, err := randutil.RandomKernelUUID()

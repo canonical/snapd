@@ -43,46 +43,40 @@ func SetAspect(databag aspects.DataBag, account, bundleName, aspect, field strin
 			Account:    account,
 			BundleName: bundleName,
 			Aspect:     aspect,
-			Field:      field,
+			Operation:  "set",
+			Request:    field,
 			Cause:      "aspect not found",
 		}
 	}
 
-	if err := asp.Set(databag, field, value); err != nil {
-		return err
-	}
-
-	return nil
+	return asp.Set(databag, field, value)
 }
 
 // GetAspect finds the aspect identified by the account, bundleName and aspect
 // and returns the specified field value from the provided matching databag
 // through the value output parameter.
-func GetAspect(databag aspects.DataBag, account, bundleName, aspect, field string, value interface{}) error {
+func GetAspect(databag aspects.DataBag, account, bundleName, aspect, field string) (interface{}, error) {
 	accPatterns := aspecttest.MockWifiSetupAspect()
 	schema := aspects.NewJSONSchema()
 
 	aspectBundle, err := aspects.NewAspectBundle(account, bundleName, accPatterns, schema)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	asp := aspectBundle.Aspect(aspect)
 	if asp == nil {
-		return &aspects.NotFoundError{
+		return nil, &aspects.NotFoundError{
 			Account:    account,
 			BundleName: bundleName,
 			Aspect:     aspect,
-			Field:      field,
+			Operation:  "get",
+			Request:    field,
 			Cause:      "aspect not found",
 		}
 	}
 
-	if err := asp.Get(databag, field, value); err != nil {
-		return err
-	}
-
-	return nil
+	return asp.Get(databag, field)
 }
 
 // NewTransaction returns a transaction configured to read and write databags

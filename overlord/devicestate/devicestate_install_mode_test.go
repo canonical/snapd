@@ -143,7 +143,7 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcKernelAndGadget(c *C, ins
 	}
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
 		SnapType: "kernel",
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		Active:   true,
 	})
@@ -159,7 +159,7 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcKernelAndGadget(c *C, ins
 	}
 	snapstate.Set(s.state, "core20", &snapstate.SnapState{
 		SnapType: "base",
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		Active:   true,
 	})
@@ -176,7 +176,7 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcGadget(c *C, installDevic
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType: "gadget",
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		Active:   true,
 	})
@@ -283,7 +283,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 
 		err := os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755)
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "trusted-asset"), nil, 0644)
+		err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "trusted-asset"), nil, 0644)
 		c.Assert(err, IsNil)
 	}
 
@@ -388,7 +388,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 	})
 	defer restore()
 
-	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\n"), 0644)
 	c.Assert(err, IsNil)
 
@@ -419,7 +419,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallExpTasks(c *C) {
 	})
 	defer restore()
 
-	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\n"), 0644)
 	c.Assert(err, IsNil)
 
@@ -475,7 +475,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallRestoresPreseedArtifact(c *C) {
 	})
 	defer restoreApplyPreseed()
 
-	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\nrecovery_system=20200105\n"), 0644)
 	c.Assert(err, IsNil)
 
@@ -524,7 +524,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallNoPreseedArtifact(c *C) {
 	})
 	defer restoreApplyPreseed()
 
-	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\nrecovery_system=20200105\n"), 0644)
 	c.Assert(err, IsNil)
 
@@ -573,7 +573,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallRestoresPreseedArtifactError(c *C
 	})
 	defer restoreApplyPreseed()
 
-	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\nrecovery_system=20200105\n"), 0644)
 	c.Assert(err, IsNil)
 
@@ -621,7 +621,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallRestoresPreseedArtifactModelMisma
 	})
 	defer restoreApplyPreseed()
 
-	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\nrecovery_system=20200105\n"), 0644)
 	c.Assert(err, IsNil)
 
@@ -757,7 +757,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookExpTasks(c *
 	})
 	defer restore()
 
-	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\n"), 0644)
 	c.Assert(err, IsNil)
 
@@ -839,7 +839,7 @@ func (s *deviceMgrInstallModeSuite) testInstallWithInstallDeviceHookSnapctlReboo
 	})
 	defer restore()
 
-	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\n"), 0644)
 	c.Assert(err, IsNil)
 
@@ -891,7 +891,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithBrokenInstallDeviceHookUnhapp
 	})
 	defer restore()
 
-	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\n"), 0644)
 	c.Assert(err, IsNil)
 
@@ -947,7 +947,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallSetupRunSystemTaskNoRestarts(c *C
 	})
 	defer restore()
 
-	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\n"), 0644)
 	c.Assert(err, IsNil)
 
@@ -1140,7 +1140,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallBootloaderVarSetFails(c *C) {
 	restore = installLogic.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return fmt.Errorf("no encrypted soup for you") })
 	defer restore()
 
-	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\nrecovery_system=1234"), 0644)
 	c.Assert(err, IsNil)
 
@@ -1169,7 +1169,7 @@ func (s *deviceMgrInstallModeSuite) testInstallEncryptionValidityChecks(c *C, er
 	restore = installLogic.MockSecbootCheckTPMKeySealingSupported(func(secboot.TPMProvisionMode) error { return nil })
 	defer restore()
 
-	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\n"), 0644)
 	c.Assert(err, IsNil)
 
@@ -1289,7 +1289,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunsPrepareRunSystemDataErr(c
 }
 
 func (s *deviceMgrInstallModeSuite) testInstallGadgetNoSave(c *C, grade string) {
-	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\n"), 0644)
 	c.Assert(err, IsNil)
 
@@ -1300,7 +1300,7 @@ func (s *deviceMgrInstallModeSuite) testInstallGadgetNoSave(c *C, grade string) 
 	c.Assert(err, IsNil)
 	// replace gadget yaml with one that has no ubuntu-save
 	c.Assert(uc20gadgetYaml, Not(testutil.Contains), "ubuntu-save")
-	err = ioutil.WriteFile(filepath.Join(info.MountDir(), "meta/gadget.yaml"), []byte(uc20gadgetYaml), 0644)
+	err = os.WriteFile(filepath.Join(info.MountDir(), "meta/gadget.yaml"), []byte(uc20gadgetYaml), 0644)
 	c.Assert(err, IsNil)
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
@@ -1482,7 +1482,7 @@ echo "mock output of: $(basename "$0") $*"
 `)
 	defer mockedSnapCmd.Restore()
 
-	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\n"), 0644)
 	c.Assert(err, IsNil)
 
@@ -1603,7 +1603,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 
 		err := os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755)
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "trusted-asset"), nil, 0644)
+		err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "trusted-asset"), nil, 0644)
 		c.Assert(err, IsNil)
 	}
 
@@ -1669,10 +1669,10 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 
 		// this would be done by boot
 		if tc.encrypt {
-			err := ioutil.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
+			err := os.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
 				[]byte("save"), 0644)
 			c.Check(err, IsNil)
-			err = ioutil.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+			err = os.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
 				[]byte("new-data"), 0644)
 			c.Check(err, IsNil)
 		}
@@ -1895,7 +1895,7 @@ echo "mock output of: $(basename "$0") $*"
 
 	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde/marker"), nil, 0644)
+	err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde/marker"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	logbuf, restore := logger.MockLogger()
@@ -1959,7 +1959,7 @@ echo "mock output of: $(basename "$0") $*"
 
 	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde/marker"), nil, 0644)
+	err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde/marker"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	logbuf, restore := logger.MockLogger()
@@ -2093,7 +2093,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetPreviouslyEncrypted(c *C) {
 	// pretend snap-bootstrap mounted ubuntu-save and there is an encryption marker file
 	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde/marker"), nil, 0644)
+	err = os.WriteFile(filepath.Join(boot.InitramfsUbuntuSaveDir, "device/fde/marker"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	// no serials, no device keys
@@ -2397,7 +2397,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithUbuntuSaveSnapFoldersHappy(c 
 	restore = osutil.MockMountInfo(fmt.Sprintf(mountSnapSaveFmt, dirs.GlobalRootDir))
 	defer restore()
 
-	err = ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+	err = os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\n"), 0644)
 	c.Assert(err, IsNil)
 

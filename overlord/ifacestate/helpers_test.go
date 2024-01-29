@@ -22,7 +22,6 @@ package ifacestate_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -303,7 +303,7 @@ func (s *helpersSuite) TestCheckIsSystemSnapPresentWithCore(c *C) {
 
 	snapstate.Set(s.st, snapInfo.InstanceName(), &snapstate.SnapState{
 		Active:      true,
-		Sequence:    []*snap.SideInfo{sideInfo},
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:     sideInfo.Revision,
 		SnapType:    string(snapInfo.Type()),
 		InstanceKey: snapInfo.InstanceKey,
@@ -333,7 +333,7 @@ func (s *helpersSuite) TestCheckIsSystemSnapPresentWithSnapd(c *C) {
 
 	snapstate.Set(s.st, snapInfo.InstanceName(), &snapstate.SnapState{
 		Active:      true,
-		Sequence:    []*snap.SideInfo{sideInfo},
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:     sideInfo.Revision,
 		SnapType:    string(snapInfo.Type()),
 		InstanceKey: snapInfo.InstanceKey,
@@ -384,7 +384,7 @@ apps:
 	st.Lock()
 	snapst := &snapstate.SnapState{
 		SnapType: string(snap.TypeApp),
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Active:   true,
 		Current:  snap.R(1),
 	}
@@ -400,7 +400,7 @@ apps:
 	// Put a fake system key in place, we just want to see that file being removed.
 	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.SnapSystemKeyFile, []byte("system-key"), 0755)
+	err = os.WriteFile(dirs.SnapSystemKeyFile, []byte("system-key"), 0755)
 	c.Assert(err, IsNil)
 
 	// Put up a fake logger to capture logged messages.
@@ -433,7 +433,7 @@ apps:
 		st.Lock()
 		snapst := &snapstate.SnapState{
 			SnapType: string(snap.TypeApp),
-			Sequence: []*snap.SideInfo{si},
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 			Active:   true,
 			Current:  snap.R(1),
 		}

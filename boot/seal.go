@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020-2022 Canonical Ltd
+ * Copyright (C) 2020-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -81,7 +81,7 @@ func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams) error) (rest
 }
 
 // MockResealKeyToModeenv is only useful in testing.
-func MockResealKeyToModeenv(f func(rootdir string, modeenv *Modeenv, expectReseal bool) error) (restore func()) {
+func MockResealKeyToModeenv(f func(rootdir string, modeenv *Modeenv, expectReseal bool, unlocker Unlocker) error) (restore func()) {
 	osutil.MustBeTestBinary("resealKeyToModeenv only can be mocked in tests")
 	old := resealKeyToModeenv
 	resealKeyToModeenv = f
@@ -122,12 +122,18 @@ type sealKeyToModeenvFlags struct {
 	// SeedDir is the path where to find mounted seed with
 	// essential snaps.
 	SeedDir string
+	// Unlocker is used unlock the snapd state for long operations
+	StateUnlocker Unlocker
 }
 
 // sealKeyToModeenvImpl seals the supplied keys to the parameters specified
 // in modeenv.
 // It assumes to be invoked in install mode.
 func sealKeyToModeenvImpl(key, saveKey keys.EncryptionKey, model *asserts.Model, modeenv *Modeenv, flags sealKeyToModeenvFlags) error {
+	if !isModeeenvLocked() {
+		return fmt.Errorf("internal error: cannot seal without the modeenv lock")
+	}
+
 	// make sure relevant locations exist
 	for _, p := range []string{
 		InitramfsSeedEncryptionKeyDir,
@@ -145,6 +151,10 @@ func sealKeyToModeenvImpl(key, saveKey keys.EncryptionKey, model *asserts.Model,
 		return sealKeyToModeenvUsingFDESetupHook(key, saveKey, model, modeenv, flags)
 	}
 
+	if flags.StateUnlocker != nil {
+		relock := flags.StateUnlocker()
+		defer relock()
+	}
 	return sealKeyToModeenvUsingSecboot(key, saveKey, model, modeenv, flags)
 }
 
@@ -411,7 +421,11 @@ var resealKeyToModeenv = resealKeyToModeenvImpl
 // atomically.  In particular we want to avoid resealing against
 // transient/in-memory information with the risk that successive
 // reseals during in-progress operations produce diverging outcomes.
-func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool) error {
+func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool, unlocker Unlocker) error {
+	if !isModeeenvLocked() {
+		return fmt.Errorf("internal error: cannot reseal without the modeenv lock")
+	}
+
 	method, err := device.SealedKeysMethod(rootdir)
 	if err == device.ErrNoSealedKeys {
 		// nothing to do
@@ -424,6 +438,10 @@ func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, expectReseal bool)
 	case device.SealingMethodFDESetupHook:
 		return resealKeyToModeenvUsingFDESetupHook(rootdir, modeenv, expectReseal)
 	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
+		if unlocker != nil {
+			// unlock/relock global state
+			defer unlocker()()
+		}
 		return resealKeyToModeenvSecboot(rootdir, modeenv, expectReseal)
 	default:
 		return fmt.Errorf("unknown key sealing method: %q", method)
@@ -687,7 +705,7 @@ func recoveryBootChainsForSystems(systems []string, modesForSystems map[string][
 			}
 			for _, mode := range modes {
 				// get the command line for this mode
-				cmdline, err := composeCommandLine(currentEdition, mode, system, seedGadget.Path)
+				cmdline, err := composeCommandLine(currentEdition, mode, system, seedGadget.Path, model)
 				if err != nil {
 					return fmt.Errorf("cannot obtain kernel command line for mode %q: %v", mode, err)
 				}

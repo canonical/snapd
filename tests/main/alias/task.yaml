@@ -1,5 +1,8 @@
 summary: Check snap alias and snap unalias
 
+details: |
+    Verify the basic scenarios for the snap alias, unalias and aliases commands.
+
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local aliases
 

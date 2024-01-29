@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021-2022 Canonical Ltd
+ * Copyright (C) 2021-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -269,6 +269,13 @@ func copyNonZeroFrom(src, dst *storeSnap) {
 
 func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	info := &snap.Info{}
+	// if snap-yaml is available fill in as much as possible from there
+	if len(d.SnapYAML) != 0 {
+		if parsedYamlInfo, err := snap.InfoFromSnapYaml([]byte(d.SnapYAML)); err == nil {
+			info = parsedYamlInfo
+		}
+	}
+
 	info.RealName = d.Name
 	info.Revision = snap.R(d.Revision)
 	info.SnapID = d.SnapID
@@ -319,28 +326,6 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 		info.LegacyWebsite = d.Website
 	}
 	info.StoreURL = d.StoreURL
-
-	// fill in the plug/slot data etc
-	if rawYamlInfo, err := snap.InfoFromSnapYaml([]byte(d.SnapYAML)); err == nil {
-		if info.Plugs == nil {
-			info.Plugs = make(map[string]*snap.PlugInfo)
-		}
-		for k, v := range rawYamlInfo.Plugs {
-			info.Plugs[k] = v
-			info.Plugs[k].Snap = info
-		}
-		if info.Slots == nil {
-			info.Slots = make(map[string]*snap.SlotInfo)
-		}
-		for k, v := range rawYamlInfo.Slots {
-			info.Slots[k] = v
-			info.Slots[k].Snap = info
-		}
-		for _, s := range rawYamlInfo.Assumes {
-			info.Assumes = append(info.Assumes, s)
-		}
-		info.SnapProvenance = rawYamlInfo.SnapProvenance
-	}
 
 	// convert prices
 	if len(d.Prices) > 0 {

@@ -3,6 +3,7 @@ Section: devel
 Priority: optional
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 Build-Depends: autoconf,
+               autoconf-archive,
                automake,
                autotools-dev,
                bash-completion,

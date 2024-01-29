@@ -22,7 +22,6 @@ package testutil
 import (
 	"bufio"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -75,7 +74,7 @@ func (s *DBusTest) SetUpSuite(c *C) {
 
 	s.tmpdir = c.MkDir()
 	configFile := filepath.Join(s.tmpdir, "session.conf")
-	err := ioutil.WriteFile(configFile, []byte(fmt.Sprintf(sessionBusConfigTemplate, s.tmpdir)), 0644)
+	err := os.WriteFile(configFile, []byte(fmt.Sprintf(sessionBusConfigTemplate, s.tmpdir)), 0644)
 	c.Assert(err, IsNil)
 	s.dbusDaemon = exec.Command("dbus-daemon", "--print-address", fmt.Sprintf("--config-file=%s", configFile))
 	s.dbusDaemon.Stderr = os.Stderr

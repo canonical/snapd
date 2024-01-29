@@ -37,7 +37,7 @@ func (p *snapdPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, re
 	}
 
 	if ephemeral(dev) {
-		return errEphemeralSnapsNotRemovalable
+		return errEphemeralSnapsNotRemovable
 	}
 
 	if !rev.Unset() {

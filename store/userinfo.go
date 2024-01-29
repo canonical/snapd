@@ -41,6 +41,13 @@ type User struct {
 }
 
 func (s *Store) UserInfo(email string) (userinfo *User, err error) {
+	// most other store network operations use s.endpointURL, which returns an
+	// error if the store is offline. this doesn't, so we need to explicitly
+	// check.
+	if err := s.checkStoreOnline(); err != nil {
+		return nil, err
+	}
+
 	var v keysReply
 	ssourl := fmt.Sprintf("%s/keys/%s", authURL(), url.QueryEscape(email))
 

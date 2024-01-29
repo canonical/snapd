@@ -8,15 +8,16 @@ func NewOSPolicy(m string) *osPolicy             { return &osPolicy{modelBase: m
 func NewSnapdPolicy(onClassic bool) *snapdPolicy { return &snapdPolicy{onClassic: onClassic} }
 
 var (
-	ErrNoName       = errNoName
-	ErrInUseForBoot = errInUseForBoot
-	ErrRequired     = errRequired
-	ErrIsModel      = errIsModel
+	ErrNoName            = errNoName
+	ErrInUseForBoot      = errInUseForBoot
+	ErrRequired          = errRequired
+	ErrIsModel           = errIsModel
+	ErrSnapdNotInstalled = errSnapdNotInstalled
 
 	ErrSnapdNotRemovableOnCore       = errSnapdNotRemovableOnCore
 	ErrSnapdNotYetRemovableOnClassic = errSnapdNotYetRemovableOnClassic
 
-	ErrEphemeralSnapsNotRemovalable = errEphemeralSnapsNotRemovalable
+	ErrEphemeralSnapsNotRemovable = errEphemeralSnapsNotRemovable
 )
 
 func InUseByErr(snaps ...string) error {

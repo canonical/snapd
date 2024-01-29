@@ -257,7 +257,7 @@ gen_require(`
 	type usr_t;
 ')
 allow snappy_t usr_t:dir { write remove_name add_name };
-allow snappy_t usr_t:lnk_file { create unlink };
+allow snappy_t usr_t:lnk_file { create unlink rename };
 
 # Allow snapd to use ssh-keygen
 ssh_exec_keygen(snappy_t)
@@ -401,6 +401,13 @@ allow snappy_t var_t:sock_file unlink;
 # snapd picks the process start time from /proc/<pid>/stat for polkit
 allow snappy_t unconfined_t:dir search;
 allow snappy_t unconfined_t:file { open read };
+
+# Allow snapd to get file attributes in policykit_auth_exec_t domain
+gen_require(`
+    type policykit_auth_exec_t;
+')
+allow snappy_t policykit_auth_exec_t:file { getattr };
+allow snappy_cli_t policykit_auth_exec_t:file { getattr };
 
 # the release package calls stat() on /proc/sys/fs/binfmt_misc/WSLInterop to
 # detect WSL

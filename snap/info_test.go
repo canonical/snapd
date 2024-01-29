@@ -22,7 +22,6 @@ package snap_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -60,6 +59,8 @@ func (s *infoSimpleSuite) TearDownTest(c *C) {
 }
 
 func (s *infoSimpleSuite) TestReadInfoPanicsIfSanitizeUnset(c *C) {
+	defer snap.MockSanitizePlugsSlots(nil)()
+
 	si := &snap.SideInfo{Revision: snap.R(1)}
 	snaptest.MockSnap(c, sampleYaml, si)
 	c.Assert(func() { snap.ReadInfo("sample", si) }, Panics, `SanitizePlugsSlots function not set`)
@@ -461,7 +462,7 @@ func (s *infoSuite) TestReadInfoUnparsable(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
 	p := filepath.Join(snap.MinimalPlaceInfo("sample", si.Revision).MountDir(), "meta", "snap.yaml")
 	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(p, []byte(`- :`), 0644), IsNil)
+	c.Assert(os.WriteFile(p, []byte(`- :`), 0644), IsNil)
 
 	info, err := snap.ReadInfo("sample", si)
 	c.Check(info, IsNil)
@@ -476,7 +477,7 @@ func (s *infoSuite) TestReadInfoUnfindable(c *C) {
 	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
 	p := filepath.Join(snap.MinimalPlaceInfo("sample", si.Revision).MountDir(), "meta", "snap.yaml")
 	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(p, []byte(``), 0644), IsNil)
+	c.Assert(os.WriteFile(p, []byte(``), 0644), IsNil)
 
 	info, err := snap.ReadInfo("sample", si)
 	c.Check(err, ErrorMatches, `cannot find installed snap "sample" at revision 42: missing file .*var/lib/snapd/snaps/sample_42.snap`)
@@ -488,7 +489,7 @@ func (s *infoSuite) TestReadInfoDanglingSymlink(c *C) {
 	mpi := snap.MinimalPlaceInfo("sample", si.Revision)
 	p := filepath.Join(mpi.MountDir(), "meta", "snap.yaml")
 	c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(p, []byte(`name: test`), 0644), IsNil)
+	c.Assert(os.WriteFile(p, []byte(`name: test`), 0644), IsNil)
 	c.Assert(os.MkdirAll(filepath.Dir(mpi.MountFile()), 0755), IsNil)
 	c.Assert(os.Symlink("/dangling", mpi.MountFile()), IsNil)
 
@@ -514,7 +515,7 @@ func makeTestSnap(c *C, snapYaml string) string {
 	c.Assert(err, IsNil)
 
 	// our regular snap.yaml
-	err = ioutil.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(snapYaml), 0644)
+	err = os.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(snapYaml), 0644)
 	c.Assert(err, IsNil)
 
 	dest := filepath.Join(tmp, "foo.snap")
@@ -824,13 +825,33 @@ hooks:
 func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidImplicitHook(c *C) {
 	yaml := `name: foo
 version: 1.0`
-	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, emptyHooks("123abc"))
 
-	snapf, err := snapfile.Open(snapPath)
+	contents := [][]string{
+		{"meta/hooks/123abc", ""},
+	}
+	sideInfo := &snap.SideInfo{}
+	snapInfo := snaptest.MockSnapWithFiles(c, yaml, sideInfo, contents)
+	snapf, err := snapfile.Open(snapInfo.MountDir())
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, ErrorMatches, ".*invalid hook name.*")
+}
+
+func (s *infoSuite) TestReadInfoFromSnapFileCatchesImplicitHookDefaultConfigureOnly(c *C) {
+	yaml := `name: foo
+version: 1.0`
+
+	contents := [][]string{
+		{"meta/hooks/default-configure", ""},
+	}
+	sideInfo := &snap.SideInfo{}
+	snapInfo := snaptest.MockSnapWithFiles(c, yaml, sideInfo, contents)
+	snapf, err := snapfile.Open(snapInfo.MountDir())
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, ErrorMatches, "cannot specify \"default-configure\" hook without \"configure\" hook")
 }
 
 func (s *infoSuite) checkInstalledSnapAndSnapFile(c *C, instanceName, yaml string, contents string, hooks []string, checker func(c *C, info *snap.Info)) {
@@ -1178,6 +1199,7 @@ func (s *infoSuite) testDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.UserXdgRuntimeDir(12345), Equals, "/run/user/12345/snap.name")
 	// XXX: Those are actually a globs, not directories
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name")
+	c.Check(info.BinaryNameGlobs(), DeepEquals, []string{"name", "name.*"})
 }
 
 func (s *infoSuite) TestMinimalInfoDirAndFileMethodsParallelInstall(c *C) {
@@ -1205,6 +1227,31 @@ func (s *infoSuite) testInstanceDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.UserXdgRuntimeDir(12345), Equals, "/run/user/12345/snap.name_instance")
 	// XXX: Those are actually a globs, not directories
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name_instance")
+	c.Check(info.BinaryNameGlobs(), DeepEquals, []string{"name_instance", "name_instance.*"})
+}
+
+func (s *infoSuite) TestComponentPlaceInfoMethods(c *C) {
+	dirs.SetRootDir("")
+	info := snap.MinimalSnapContainerPlaceInfo("name", snap.R("1"))
+
+	var cpi snap.ContainerPlaceInfo = info
+	c.Check(cpi.ContainerName(), Equals, "name")
+	c.Check(cpi.Filename(), Equals, "name_1.snap")
+	c.Check(cpi.MountDir(), Equals, fmt.Sprintf("%s/name/1", dirs.SnapMountDir))
+	c.Check(cpi.MountFile(), Equals, "/var/lib/snapd/snaps/name_1.snap")
+	c.Check(cpi.MountDescription(), Equals, "Mount unit for name, revision 1")
+}
+
+func (s *infoSuite) TestComponentPlaceInfoMethodsParallelInstall(c *C) {
+	dirs.SetRootDir("")
+	info := snap.MinimalSnapContainerPlaceInfo("name_instance", snap.R("1"))
+
+	var cpi snap.ContainerPlaceInfo = info
+	c.Check(cpi.ContainerName(), Equals, "name_instance")
+	c.Check(cpi.Filename(), Equals, "name_instance_1.snap")
+	c.Check(cpi.MountDir(), Equals, fmt.Sprintf("%s/name_instance/1", dirs.SnapMountDir))
+	c.Check(cpi.MountFile(), Equals, "/var/lib/snapd/snaps/name_instance_1.snap")
+	c.Check(cpi.MountDescription(), Equals, "Mount unit for name_instance, revision 1")
 }
 
 func (s *infoSuite) TestDataHomeDirs(c *C) {

@@ -21,7 +21,6 @@ package configcore
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -49,7 +48,7 @@ func handleFaillockConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOn
 	case "":
 		// nothing to do if unset
 	case "true":
-		if err := ioutil.WriteFile(marker, nil, 0644); err != nil {
+		if err := os.WriteFile(marker, nil, 0644); err != nil {
 			return err
 		}
 	case "false":

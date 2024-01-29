@@ -20,7 +20,6 @@
 package healthstate_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -33,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -78,7 +78,7 @@ func (s *healthSuite) SetUpTest(c *check.C) {
 	snapstate.ReplaceStore(s.state, storetest.Store{})
 	sideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{sideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:  snap.R(42),
 		Active:   true,
 		SnapType: "app",
@@ -125,7 +125,7 @@ func (s *healthSuite) testHealth(c *check.C, cond healthHookTestCondition) {
 		hookFn := filepath.Join(s.info.MountDir(), "meta", "hooks", "check-health")
 		c.Assert(os.MkdirAll(filepath.Dir(hookFn), 0755), check.IsNil)
 		// the hook won't actually be called, but needs to exist
-		c.Assert(ioutil.WriteFile(hookFn, nil, 0755), check.IsNil)
+		c.Assert(os.WriteFile(hookFn, nil, 0755), check.IsNil)
 	}
 
 	s.state.Lock()
@@ -149,7 +149,6 @@ func (s *healthSuite) testHealth(c *check.C, cond healthHookTestCondition) {
 		Optional:    true,
 		Timeout:     time.Second,
 		IgnoreError: false,
-		TrackError:  false,
 	})
 
 	t0 := time.Now()

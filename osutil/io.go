@@ -221,7 +221,7 @@ func (aw *AtomicFile) CommitAs(filename string) error {
 	return aw.commit()
 }
 
-// The AtomicWrite* family of functions work like ioutil.WriteFile(), but the
+// The AtomicWrite* family of functions work like os.WriteFile(), but the
 // file created is an AtomicWriter, which is Committed before returning.
 //
 // AtomicWriteChown and AtomicWriteFileChown take an uid and a gid that can be

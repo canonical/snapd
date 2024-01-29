@@ -95,9 +95,13 @@ func (x *cmdSign) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("cannot use %q key: %v"), x.KeyName, err)
 	}
 
+	ak, accKeyErr := mustGetOneAssert("account-key", map[string]string{"public-key-sha3-384": privKey.PublicKey().ID()})
+	accountKey, _ := ak.(*asserts.AccountKey)
+
 	signOpts := signtool.Options{
-		KeyID:     privKey.PublicKey().ID(),
-		Statement: statement,
+		KeyID:      privKey.PublicKey().ID(),
+		AccountKey: accountKey,
+		Statement:  statement,
 	}
 
 	encodedAssert, err := signtool.Sign(&signOpts, keypairMgr)
@@ -114,9 +118,8 @@ func (x *cmdSign) Execute(args []string) error {
 	}
 
 	if x.Chain {
-		accountKey, err := mustGetOneAssert("account-key", map[string]string{"public-key-sha3-384": privKey.PublicKey().ID()})
-		if err != nil {
-			return err
+		if accKeyErr != nil {
+			return fmt.Errorf(i18n.G("cannot create assertion chain: %w"), accKeyErr)
 		}
 
 		err = enc.Encode(accountKey)
@@ -124,14 +127,18 @@ func (x *cmdSign) Execute(args []string) error {
 			return err
 		}
 
-		account, err := mustGetOneAssert("account", map[string]string{"account-id": accountKey.(*asserts.AccountKey).AccountID()})
+		account, err := mustGetOneAssert("account", map[string]string{"account-id": accountKey.AccountID()})
 		if err != nil {
-			return err
+			return fmt.Errorf(i18n.G("cannot create assertion chain: %w"), err)
 		}
 
 		err = enc.Encode(account)
 		if err != nil {
 			return err
+		}
+	} else {
+		if accountKey == nil {
+			fmt.Fprintf(Stderr, i18n.G("WARNING: could not fetch account-key to cross-check signed assertion with key constraints.\n"))
 		}
 	}
 
@@ -147,7 +154,7 @@ func (x *cmdSign) Execute(args []string) error {
 func mustGetOneAssert(assertType string, headers map[string]string) (asserts.Assertion, error) {
 	asserts, err := downloadAssertion(assertType, headers)
 	if err != nil {
-		return nil, fmt.Errorf(i18n.G("cannot create assertion chain: %w"), err)
+		return nil, err
 	}
 
 	if len(asserts) != 1 {

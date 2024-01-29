@@ -30,10 +30,12 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -160,6 +162,9 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.st, repo)
+
 	snapstate.ReplaceStore(s.st, &s.fakeStore)
 
 	// mock installed snaps
@@ -171,24 +176,24 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	})
 	snapstate.Set(s.st, info1.InstanceName(), &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
 				RealName: info1.SnapName(),
 				Revision: info1.Revision,
 				SnapID:   "test-snap-id",
 			},
-		},
+		}),
 		Current: info1.Revision,
 	})
 	snapstate.Set(s.st, info2.InstanceName(), &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
 				RealName: info2.SnapName(),
 				Revision: info2.Revision,
 				SnapID:   "other-snap-id",
 			},
-		},
+		}),
 		Current: info2.Revision,
 	})
 

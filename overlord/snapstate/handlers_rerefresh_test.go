@@ -25,12 +25,16 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -51,7 +55,7 @@ func changeWithLanesAndSnapSetups(st *state.State, snapNames ...string) *state.C
 	chg := st.NewChange("sample", "...")
 	for _, snapName := range snapNames {
 		lane := st.NewLane()
-		tsk := st.NewTask(fmt.Sprintf("a-task-for-snap-%s-in-lane-%d", snapName, lane), "test")
+		tsk := st.NewTask("download-snap", fmt.Sprintf("a-task-for-snap-%s-in-lane-%d", snapName, lane))
 		tsk.Set("snap-setup", &snapstate.SnapSetup{
 			SideInfo: &snap.SideInfo{RealName: snapName},
 		})
@@ -60,6 +64,16 @@ func changeWithLanesAndSnapSetups(st *state.State, snapNames ...string) *state.C
 		tsk.SetStatus(state.DoneStatus)
 	}
 	return chg
+}
+
+func (s *reRefreshSuite) SetUpTest(c *C) {
+	s.baseHandlerSuite.SetUpTest(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := restart.Manager(s.state, "boot-id-1", nil)
+	c.Assert(err, IsNil)
 }
 
 func (s *reRefreshSuite) TestDoCheckReRefreshFailsWithoutReRefreshSetup(c *C) {
@@ -130,7 +144,7 @@ func (s *reRefreshSuite) TestDoCheckReRefreshPassesReRefreshSetupData(c *C) {
 	var chgID string
 	defer snapstate.MockReRefreshUpdateMany(func(_ context.Context, _ *state.State, snaps []string, _ []*snapstate.RevisionOptions, userID int, _ snapstate.UpdateFilter, flags *snapstate.Flags, changeID string) ([]string, *snapstate.UpdateTaskSets, error) {
 		c.Check(changeID, Equals, chgID)
-		expected := []string{"won", "too", "tree"}
+		expected := []string{"foo", "bar", "baz"}
 		sort.Strings(expected)
 		sort.Strings(snaps)
 		c.Check(snaps, DeepEquals, expected)
@@ -149,7 +163,7 @@ func (s *reRefreshSuite) TestDoCheckReRefreshPassesReRefreshSetupData(c *C) {
 		"devmode":  true,
 		"jailmode": true,
 	})
-	chg := changeWithLanesAndSnapSetups(s.state, "won", "too", "tree")
+	chg := changeWithLanesAndSnapSetups(s.state, "foo", "bar", "baz")
 	chg.AddTask(task)
 	chgID = chg.ID()
 	s.state.Unlock()
@@ -166,20 +180,20 @@ func (s *reRefreshSuite) TestDoCheckReRefreshPassesReRefreshSetupData(c *C) {
 
 func (s *reRefreshSuite) TestDoCheckReRefreshAddsNewTasks(c *C) {
 	defer snapstate.MockReRefreshUpdateMany(func(_ context.Context, st *state.State, snaps []string, _ []*snapstate.RevisionOptions, _ int, _ snapstate.UpdateFilter, _ *snapstate.Flags, _ string) ([]string, *snapstate.UpdateTaskSets, error) {
-		expected := []string{"won", "too", "tree"}
+		expected := []string{"foo", "bar", "baz"}
 		sort.Strings(expected)
 		sort.Strings(snaps)
 		c.Check(snaps, DeepEquals, expected)
 
-		task := st.NewTask("witness", "...")
+		task := st.NewTask("witness", "witness")
 
 		tasksetGrp := &snapstate.UpdateTaskSets{Refresh: []*state.TaskSet{state.NewTaskSet(task)}}
-		return []string{"won"}, tasksetGrp, nil
+		return []string{"foo"}, tasksetGrp, nil
 	})()
 
 	s.state.Lock()
-	chg := changeWithLanesAndSnapSetups(s.state, "won", "too", "tree")
-	task := s.state.NewTask("check-rerefresh", "test")
+	chg := changeWithLanesAndSnapSetups(s.state, "foo", "bar", "baz")
+	task := s.state.NewTask("check-rerefresh", "check rerefresh")
 	task.Set("rerefresh-setup", map[string]interface{}{})
 	chg.AddTask(task)
 	s.state.Unlock()
@@ -191,24 +205,84 @@ func (s *reRefreshSuite) TestDoCheckReRefreshAddsNewTasks(c *C) {
 	defer s.state.Unlock()
 
 	c.Check(task.Status(), Equals, state.DoneStatus)
-	c.Check(logstr(task), Contains, `Found re-refresh for "won".`)
+	c.Check(logstr(task), Contains, `Found re-refresh for "foo".`)
 
 	tasks := chg.Tasks()
 	c.Assert(tasks, HasLen, 5)
 	for i, kind := range []string{
-		"a-task-for-snap-won-in-lane-1",
-		"a-task-for-snap-too-in-lane-2",
-		"a-task-for-snap-tree-in-lane-3",
-		"check-rerefresh",
+		"a-task-for-snap-foo-in-lane-1",
+		"a-task-for-snap-bar-in-lane-2",
+		"a-task-for-snap-baz-in-lane-3",
+		"check rerefresh",
 		"witness",
+	} {
+		c.Check(tasks[i].Summary(), Equals, kind)
+	}
+}
+
+func (s *reRefreshSuite) TestDoCheckReRefreshWaitOnPendingRestart(c *C) {
+	s.runner.AddHandler("a-task-for-snap-foo", func(task *state.Task, tomb *tomb.Tomb) error {
+		st := task.State()
+		st.Lock()
+		defer st.Unlock()
+		return restart.FinishTaskWithRestart(task, state.DoneStatus, restart.RestartSystem, "foo", nil)
+	}, nil)
+
+	// setup the change for check-rerefresh, then we manually request for
+	// one of the tasks to reboot
+	s.state.Lock()
+
+	chg := s.state.NewChange("sample", "...")
+	lane := s.state.NewLane()
+	tsk := s.state.NewTask("a-task-for-snap-foo", "test")
+	tsk.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "foo"},
+	})
+	// In order for the code to be tested we need a task to go into WaitStatus.
+	restart.MarkTaskAsRestartBoundary(tsk, restart.RestartBoundaryDirectionDo)
+	chg.AddTask(tsk)
+	tsk.JoinLane(lane)
+	task := s.state.NewTask("check-rerefresh", "test")
+	task.Set("rerefresh-setup", map[string]interface{}{})
+	chg.AddTask(task)
+	s.state.Unlock()
+
+	// retry will be hit, so we must ensure again
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+
+		s.state.Lock()
+		status := task.Status()
+		s.state.Unlock()
+		if status == state.WaitStatus {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(task.Status(), Equals, state.WaitStatus)
+	c.Check(task.WaitedStatus(), Equals, state.DoStatus)
+	c.Check(chg.Status(), Equals, state.WaitStatus)
+	c.Check(logstr(task), Matches, `*. INFO Task set to wait until a system restart allows to continue`)
+
+	tasks := chg.Tasks()
+	c.Assert(tasks, HasLen, 2)
+	for i, kind := range []string{
+		"a-task-for-snap-foo",
+		"check-rerefresh",
 	} {
 		c.Check(tasks[i].Kind(), Equals, kind)
 	}
 }
 
 // wrapper around snapstate.RefreshedSnaps for easier testing
-func refreshedSnaps(task *state.Task) string {
-	snaps, _ := snapstate.RefreshedSnaps(task)
+func refreshedSnaps(c *C, task *state.Task) string {
+	snaps, _, err := snapstate.RefreshedSnaps(task)
+	c.Assert(err, IsNil)
 	sort.Strings(snaps)
 	return strings.Join(snaps, ",")
 }
@@ -217,7 +291,7 @@ func refreshedSnaps(task *state.Task) string {
 // for a snap with t1snap, the second one with status t2status.
 func addLane(st *state.State, chg *state.Change, t1snap string, t2status state.Status) {
 	lane := st.NewLane()
-	t1 := st.NewTask("test1", "...")
+	t1 := st.NewTask("download-snap", "...")
 	t1.JoinLane(lane)
 	t1.Set("snap-setup", snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: t1snap}})
 	t1.SetStatus(state.DoneStatus)
@@ -237,7 +311,7 @@ func (s *reRefreshSuite) TestLaneSnapsSimple(c *C) {
 	addLane(s.state, chg, "aaa", state.DoneStatus)
 	task := s.state.NewTask("check-rerefresh", "...")
 	chg.AddTask(task)
-	c.Check(refreshedSnaps(task), Equals, "aaa")
+	c.Check(refreshedSnaps(c, task), Equals, "aaa")
 }
 
 func (s *reRefreshSuite) TestLaneSnapsMoreLanes(c *C) {
@@ -249,7 +323,7 @@ func (s *reRefreshSuite) TestLaneSnapsMoreLanes(c *C) {
 	addLane(s.state, chg, "bbb", state.DoneStatus)
 	task := s.state.NewTask("check-rerefresh", "...")
 	chg.AddTask(task)
-	c.Check(refreshedSnaps(task), Equals, "aaa,bbb")
+	c.Check(refreshedSnaps(c, task), Equals, "aaa,bbb")
 }
 
 func (s *reRefreshSuite) TestLaneSnapsFailedLane(c *C) {
@@ -262,7 +336,7 @@ func (s *reRefreshSuite) TestLaneSnapsFailedLane(c *C) {
 	addLane(s.state, chg, "ccc", state.ErrorStatus)
 	task := s.state.NewTask("check-rerefresh", "...")
 	chg.AddTask(task)
-	c.Check(refreshedSnaps(task), Equals, "aaa,bbb")
+	c.Check(refreshedSnaps(c, task), Equals, "aaa,bbb")
 }
 
 func (s *reRefreshSuite) TestLaneSnapsRerefreshResets(c *C) {
@@ -276,7 +350,7 @@ func (s *reRefreshSuite) TestLaneSnapsRerefreshResets(c *C) {
 	addLane(s.state, chg, "ddd", state.DoneStatus)
 	task := s.state.NewTask("check-rerefresh", "...")
 	chg.AddTask(task)
-	c.Check(refreshedSnaps(task), Equals, "ddd")
+	c.Check(refreshedSnaps(c, task), Equals, "ddd")
 }
 
 func (s *reRefreshSuite) TestLaneSnapsStopsAtSelf(c *C) {
@@ -291,11 +365,38 @@ func (s *reRefreshSuite) TestLaneSnapsStopsAtSelf(c *C) {
 	chg.AddTask(s.state.NewTask("check-rerefresh", "..."))
 
 	// unless we're looking for _that_ task (this is defensive; can't really happen)
-	c.Check(refreshedSnaps(task), Equals, "aaa,bbb")
+	c.Check(refreshedSnaps(c, task), Equals, "aaa,bbb")
 }
 
 func (s *reRefreshSuite) TestLaneSnapsTwoSetups(c *C) {
-	// check that only the first SnapSetup is important
+	// Verify that two snaps on the same lane is also detected
+	// and returned correctly.
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts := state.NewTaskSet()
+	t1 := s.state.NewTask("download-snap", "...")
+	t1.Set("snap-setup", snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "one"}})
+	t1.SetStatus(state.DoneStatus)
+	ts.AddTask(t1)
+	t2 := s.state.NewTask("download-snap", "...")
+	t2.Set("snap-setup", snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "two"}})
+	t2.WaitFor(t1)
+	ts.AddTask(t2)
+	t2.SetStatus(state.DoneStatus)
+	ts.JoinLane(s.state.NewLane())
+	chg := s.state.NewChange("testing", "...")
+	chg.AddAll(ts)
+
+	task := s.state.NewTask("check-rerefresh", "...")
+	chg.AddTask(task)
+
+	c.Check(refreshedSnaps(c, task), Equals, "one,two")
+}
+
+func (s *reRefreshSuite) TestLaneSnapsTwoSetupsFailed(c *C) {
+	// Verify that two snaps on the same lane, where one of them has failed
+	// will result in both being not reported.
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -308,7 +409,7 @@ func (s *reRefreshSuite) TestLaneSnapsTwoSetups(c *C) {
 	t2.Set("snap-setup", snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "two"}})
 	t2.WaitFor(t1)
 	ts.AddTask(t2)
-	t2.SetStatus(state.DoneStatus)
+	t2.SetStatus(state.ErrorStatus)
 	ts.JoinLane(s.state.NewLane())
 	chg := s.state.NewChange("testing", "...")
 	chg.AddAll(ts)
@@ -316,20 +417,18 @@ func (s *reRefreshSuite) TestLaneSnapsTwoSetups(c *C) {
 	task := s.state.NewTask("check-rerefresh", "...")
 	chg.AddTask(task)
 
-	c.Check(refreshedSnaps(task), Equals, "one")
+	c.Check(refreshedSnaps(c, task), Equals, "")
 }
 
-func (s *reRefreshSuite) TestLaneSnapsBadSetup(c *C) {
-	// check that a bad SnapSetup doesn't make the thing fail
+func (s *reRefreshSuite) TestLaneSnapsInvalidSetup(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	ts := state.NewTaskSet()
-	t1 := s.state.NewTask("test1", "...")
-	t1.Set("snap-setup", "what is this")
+	t1 := s.state.NewTask("download-snap", "...")
 	t1.SetStatus(state.DoneStatus)
 	ts.AddTask(t1)
-	t2 := s.state.NewTask("test2", "...")
+	t2 := s.state.NewTask("download-snap", "...")
 	t2.Set("snap-setup", snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "two"}})
 	t2.WaitFor(t1)
 	ts.AddTask(t2)
@@ -341,16 +440,40 @@ func (s *reRefreshSuite) TestLaneSnapsBadSetup(c *C) {
 	task := s.state.NewTask("check-rerefresh", "...")
 	chg.AddTask(task)
 
-	c.Check(refreshedSnaps(task), Equals, "two")
+	snaps, _, err := snapstate.RefreshedSnaps(task)
+	c.Check(snaps, HasLen, 0)
+	c.Check(err, ErrorMatches, `internal error: expected SnapSetup for download-snap: no state entry for key "snap-setup"`)
+}
+
+func (s *reRefreshSuite) TestLaneSnapsIgnoresOtherTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts := state.NewTaskSet()
+	t1 := s.state.NewTask("test1", "...")
+	t1.SetStatus(state.DoneStatus)
+	ts.AddTask(t1)
+	t2 := s.state.NewTask("download-snap", "...")
+	t2.Set("snap-setup", snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "two"}})
+	t2.WaitFor(t1)
+	ts.AddTask(t2)
+	t2.SetStatus(state.DoneStatus)
+	ts.JoinLane(s.state.NewLane())
+	chg := s.state.NewChange("testing", "...")
+	chg.AddAll(ts)
+
+	task := s.state.NewTask("check-rerefresh", "...")
+	chg.AddTask(task)
+	c.Check(refreshedSnaps(c, task), Equals, "two")
 }
 
 func (*reRefreshSuite) TestFilterReturnsFalseIfEpochEqual(c *C) {
 	// these work because we're mocking ReadInfo
 	snapst := &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(7)},
-		},
+		}),
 		Current:  snap.R(7),
 		SnapType: "app",
 	}
@@ -364,9 +487,9 @@ func (s *reRefreshSuite) TestFilterReturnsFalseIfEpochEqualZero(c *C) {
 	// these work because we're mocking ReadInfo
 	snapst := &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "snap-with-empty-epoch", Revision: snap.R(7)},
-		},
+		}),
 		Current:  snap.R(7),
 		SnapType: "app",
 	}
@@ -462,7 +585,7 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertSnapsOneRev
 	si11 := &snap.SideInfo{RealName: "some-snap1", SnapID: "aaqKhntON3vR7kwEbVPsILm7bUViPDzx", Revision: snap.R(1)}
 	snapstate.Set(s.state, "some-snap1", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si11, si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si11, si1}),
 		Current:  snap.R(3),
 		SnapType: "app",
 	})
@@ -472,7 +595,7 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertSnapsOneRev
 	si2 := &snap.SideInfo{RealName: "some-snap2", SnapID: "bgtKhntON3vR7kwEbVPsILm7bUViPDzx", Revision: snap.R(2)}
 	snapstate.Set(s.state, "some-snap2", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  snap.R(2),
 		SnapType: "app",
 	})
@@ -481,7 +604,7 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertSnapsOneRev
 	si3 := &snap.SideInfo{RealName: "some-snap3", SnapID: "abcKhntON3vR7kwEbVPsILm7bUViPDzx", Revision: snap.R(3)}
 	snapstate.Set(s.state, "some-snap3", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si3},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si3}),
 		Current:  snap.R(3),
 		SnapType: "app",
 	})
@@ -565,7 +688,7 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertNoSnapsRefr
 	si1 := &snap.SideInfo{RealName: "some-snap1", SnapID: "aaqKhntON3vR7kwEbVPsILm7bUViPDzx", Revision: snap.R(1)}
 	snapstate.Set(s.state, "some-snap1", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -636,7 +759,7 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertJustValidat
 	si1 := &snap.SideInfo{RealName: "some-snap1", SnapID: "aaqKhntON3vR7kwEbVPsILm7bUViPDzx", Revision: snap.R(1)}
 	snapstate.Set(s.state, "some-snap1", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -645,7 +768,7 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertJustValidat
 	si3 := &snap.SideInfo{RealName: "some-snap2", SnapID: "abcKhntON3vR7kwEbVPsILm7bUViPDzx", Revision: snap.R(3)}
 	snapstate.Set(s.state, "some-snap2", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si3},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si3}),
 		Current:  snap.R(3),
 		SnapType: "app",
 	})
@@ -703,7 +826,7 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertStillValid(
 	si1 := &snap.SideInfo{RealName: "some-snap1", SnapID: "aaqKhntON3vR7kwEbVPsILm7bUViPDzx", Revision: snap.R(3)}
 	snapstate.Set(s.state, "some-snap1", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si1},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
 		Current:  snap.R(3),
 		SnapType: "app",
 	})
@@ -712,7 +835,7 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertStillValid(
 	si3 := &snap.SideInfo{RealName: "some-snap2", SnapID: "abcKhntON3vR7kwEbVPsILm7bUViPDzx", Revision: snap.R(1)}
 	snapstate.Set(s.state, "some-snap2", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si3},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si3}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})

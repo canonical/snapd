@@ -52,7 +52,7 @@ execute: |
   done
   # Bump edition of ubuntu-boot content
   gadget_p=pc-gadget/meta/gadget.yaml
-  yq -i '(.volumes.pc.structure | with_entries(select(.value.name == "ubuntu-boot")) | .[].update.edition) |= . + 1' "$gadget_p"
+  yq -i '(.volumes.pc.structure[] | select(.name == "ubuntu-boot") | .update.edition) |= . + 1' "$gadget_p"
   # Re-pack snaps we want to update
   snap pack --filename=pc-new.snap pc-gadget
   snap pack --filename=pc-kernel-new.snap "$CACHE_D"/snap-pc-kernel
@@ -88,7 +88,7 @@ execute: |
       remote.push "$snap_filename"
       boot_id=$(tests.nested boot-id)
       # install will exit when waiting for the reboot
-      remote.exec sudo snap install --dangerous "$snap_filename" | MATCH "set to wait until a manual system restart allows to continue"
+      remote.exec sudo snap install --dangerous "$snap_filename" | MATCH "Task set to wait until a system restart allows to continue"
 
       # Check that a reboot notification was setup
       remote.exec test -f /run/reboot-required
@@ -136,7 +136,7 @@ execute: |
 
   echo "Refresh pc gadget and assert assets got updated"
   refresh_rebooting_snap pc-new.snap pc reboot
-  for f in /boot/grub/kernel.efi /run/mnt/ubuntu-boot/EFI/boot/bootx64.efi /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi; do
+  for f in /boot/grub/kernel.efi /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi; do
       remote.exec sudo grep -q -a '"This program cannot be run in XXX mode"' "$f"
   done
 

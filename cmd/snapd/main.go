@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/daemon"
-	"github.com/snapcore/snapd/errtracker"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox"
@@ -46,9 +45,6 @@ func init() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %s\n", err)
 	}
-	// set here to avoid accidental submits in e.g. unit tests
-	errtracker.CrashDbURLBase = "https://daisy.ubuntu.com/"
-	errtracker.SnapdVersion = snapdtool.Version
 }
 
 func main() {

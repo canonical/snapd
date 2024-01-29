@@ -20,7 +20,6 @@
 package snapstate_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -29,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -130,7 +130,7 @@ func (s *refreshSuite) TestPendingSnapRefreshInfo(c *C) {
 	err = snapstate.NewBusySnapError(s.info, nil, []string{"app"}, nil)
 	desktopFile := s.info.Apps["app"].DesktopFile()
 	c.Assert(os.MkdirAll(filepath.Dir(desktopFile), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(desktopFile, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(desktopFile, nil, 0644), IsNil)
 	refreshInfo = err.PendingSnapRefreshInfo()
 	c.Check(refreshInfo.InstanceName, Equals, s.info.InstanceName())
 	c.Check(refreshInfo.BusyAppName, Equals, "app")
@@ -138,7 +138,7 @@ func (s *refreshSuite) TestPendingSnapRefreshInfo(c *C) {
 }
 
 func (s *refreshSuite) addInstalledSnap(snapst *snapstate.SnapState) (*snapstate.SnapState, *snap.Info) {
-	snapName := snapst.Sequence[0].RealName
+	snapName := snapst.Sequence.Revisions[0].Snap.RealName
 	snapstate.Set(s.state, snapName, snapst)
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: snapName, Revision: snapst.Current}}
 	return snapst, info
@@ -147,9 +147,9 @@ func (s *refreshSuite) addInstalledSnap(snapst *snapstate.SnapState) (*snapstate
 func (s *refreshSuite) addFakeInstalledSnap() (*snapstate.SnapState, *snap.Info) {
 	return s.addInstalledSnap(&snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "pkg", Revision: snap.R(5), SnapID: "pkg-snap-id"},
-		},
+		}),
 		Current:  snap.R(5),
 		SnapType: "app",
 		UserID:   1,
@@ -174,9 +174,10 @@ func (s *refreshSuite) TestDoSoftRefreshCheckAllowed(c *C) {
 	c.Assert(err, IsNil)
 
 	// In addition, the inhibition lock is not set.
-	hint, err := runinhibit.IsLocked(info.InstanceName())
+	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName())
 	c.Assert(err, IsNil)
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{})
 }
 
 func (s *refreshSuite) TestDoSoftRefreshCheckDisallowed(c *C) {
@@ -197,9 +198,10 @@ func (s *refreshSuite) TestDoSoftRefreshCheckDisallowed(c *C) {
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
 
 	// Validity check: the inhibition lock was not set.
-	hint, err := runinhibit.IsLocked(info.InstanceName())
+	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName())
 	c.Assert(err, IsNil)
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{})
 }
 
 func (s *refreshSuite) TestDoHardRefreshFlowRefreshAllowed(c *C) {

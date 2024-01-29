@@ -426,7 +426,7 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 			// not touch it, unless a gadget asset update says to update that
 			// image file with a new binary image file. This also covers the
 			// partial filesystem case.
-			if gs.Filesystem != "" && gs.Filesystem != ds.PartitionFSType {
+			if gs.Filesystem != "" && gs.LinuxFilesystem() != ds.PartitionFSType {
 				// use more specific error message for structures that are
 				// not creatable at install when we are not being strict
 				if !IsCreatableAtInstall(gs) && !opts.AssumeCreatablePartitionsCreated {
@@ -938,6 +938,10 @@ func buildNewVolumeToDeviceMapping(mod Model, old GadgetData, vols map[string]*V
 
 	traits, err := DiskTraitsFromDeviceAndValidate(vol, dev, validateOpts)
 	if err != nil {
+		if isPreUC20 {
+			logger.Noticef("WARNING: not applying gadget asset updates on main system-boot volume due to error while finding disk traits: %v", err)
+			return nil, errSkipUpdateProceedRefresh
+		}
 		return nil, err
 	}
 
@@ -1607,8 +1611,19 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy
 	if len(oldVol.LaidOutStructure) != len(newVol.LaidOutStructure) {
 		return nil, errors.New("internal error: the number of structures in new and old volume definitions is different")
 	}
+	// We must order updates from the latest binary in the boot
+	// chain to the newest. So any seed partitions should come
+	// after boot partitions.
+	var seedUpdates []updatePair
+	var bootUpdates []updatePair
 	for j, oldStruct := range oldVol.LaidOutStructure {
 		newStruct := newVol.LaidOutStructure[j]
+		updatesTarget := &updates
+		if strings.HasPrefix(newStruct.Role(), "system-seed") {
+			updatesTarget = &seedUpdates
+		} else if strings.HasPrefix(newStruct.Role(), "system-boot") {
+			updatesTarget = &bootUpdates
+		}
 		// update only when the policy says so; boot assets
 		// are assumed to be backwards compatible, once
 		// deployed they are not rolled back or replaced unless
@@ -1616,24 +1631,26 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy
 		if update, filter := policy(&oldStruct, &newStruct); update {
 			// Ensure content is resolved and filtered. Filtering
 			// is required for e.g. KernelUpdatePolicy, see above.
-			resolvedContent, err := resolveVolumeContent(newGadgetRootDir, newKernelRootDir, kernelInfo, &newStruct, filter)
+			resolvedContent, err := resolveVolumeContent(newGadgetRootDir, newKernelRootDir, kernelInfo, newStruct.VolumeStructure, filter)
 			if err != nil {
 				return nil, err
 			}
-			// Nothing to do after filtering
-			if filter != nil && len(resolvedContent) == 0 && len(newStruct.LaidOutContent) == 0 {
+			// No resolved or raw content that would need updating
+			if len(resolvedContent) == 0 && len(newStruct.LaidOutContent) == 0 {
 				continue
 			}
 			newVol.LaidOutStructure[j].ResolvedContent = resolvedContent
 
 			// and add to updates
-			updates = append(updates, updatePair{
+			*updatesTarget = append(*updatesTarget, updatePair{
 				from:   &oldVol.LaidOutStructure[j],
 				to:     &newVol.LaidOutStructure[j],
 				volume: newVol.Volume,
 			})
 		}
 	}
+	updates = append(updates, bootUpdates...)
+	updates = append(updates, seedUpdates...)
 	return updates, nil
 }
 

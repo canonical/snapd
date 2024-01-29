@@ -37,7 +37,7 @@ func (p *gadgetPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, r
 	}
 
 	if ephemeral(dev) {
-		return errEphemeralSnapsNotRemovalable
+		return errEphemeralSnapsNotRemovable
 	}
 
 	if p.modelGadget != name {

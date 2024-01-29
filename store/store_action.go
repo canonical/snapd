@@ -538,9 +538,14 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		return nil, nil, err
 	}
 
+	u, err := s.endpointURL(snapActionEndpPath, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	reqOptions := &requestOptions{
 		Method:      "POST",
-		URL:         s.endpointURL(snapActionEndpPath, nil),
+		URL:         u,
 		Accept:      jsonContentType,
 		ContentType: jsonContentType,
 		Data:        jsonData,
