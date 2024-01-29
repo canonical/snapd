@@ -2017,7 +2017,7 @@ func (s *deviceMgrSuite) TestRemodelSwitchBase(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil, nil)
 
 	var testDeviceCtx snapstate.DeviceContext
 

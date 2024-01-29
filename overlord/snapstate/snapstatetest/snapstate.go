@@ -61,7 +61,7 @@ func InstallSnap(c *check.C, st *state.State, yaml string, files [][]string, req
 func InstallEssentialSnaps(c *check.C, st *state.State, base string, gadgetFiles [][]string, bloader bootloader.Bootloader) {
 	const required = true
 
-	InstallSnap(c, st, fmt.Sprintf("name: pc\nversion: 1\ntype: gadget\nbase: %s", base), required, &snap.SideInfo{
+	InstallSnap(c, st, fmt.Sprintf("name: pc\nversion: 1\ntype: gadget\nbase: %s", base), gadgetFiles, required, &snap.SideInfo{
 		SnapID:   fakeSnapID("pc"),
 		Revision: snap.R(1),
 		RealName: "pc",
