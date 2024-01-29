@@ -56,7 +56,7 @@ func init() {
 	registerIface(&rosOptDataInterface{commonInterface{
 		name:                  "ros-opt-data",
 		summary:               rosOptDataSummary,
-		implicitOnCore:        true,
+		implicitOnCore:        false,
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  rosOptDataBaseDeclarationSlots,
 		connectedPlugAppArmor: rosOptDataConnectedPlugAppArmor,

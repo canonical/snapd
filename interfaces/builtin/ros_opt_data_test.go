@@ -51,16 +51,16 @@ apps:
   plugs: [ros-opt-data]
 `
 
-const rosOptDataCoreYaml = `name: core
+const rosOptDataProducerYaml = `name: producer
 version: 0
-type: os
-slots:
-  ros-opt-data:
+apps:
+  app:
+   slots: [ros-opt-data]
 `
 
 func (s *rosOptDataInterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, rosOptDataConsumerYaml, nil, "ros-opt-data")
-	s.slot, s.slotInfo = MockConnectedSlot(c, rosOptDataCoreYaml, nil, "ros-opt-data")
+	s.slot, s.slotInfo = MockConnectedSlot(c, rosOptDataProducerYaml, nil, "ros-opt-data")
 }
 
 func (s *rosOptDataInterfaceSuite) TestName(c *C) {
@@ -88,7 +88,7 @@ func (s *rosOptDataInterfaceSuite) TestAppArmorSpec(c *C) {
 
 func (s *rosOptDataInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
-	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
 	c.Assert(si.Summary, testutil.Contains, `Allows read-only access`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "ros-opt-data")
