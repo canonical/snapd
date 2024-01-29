@@ -232,8 +232,8 @@ func (s *refreshSuite) TestConfigureRefreshMaxInhibitionDays(c *C) {
 		{val: "23", err: `max-inhibition-days must be a number between 1 and 21, not "23"`},
 		{val: 0, err: `max-inhibition-days must be a number between 1 and 21, not "0"`},
 		// happy cases
-		{val: nil}, // default value (14 days)
-		{val: ""},  // default value (14 days)
+		{val: nil}, // default value (21 days)
+		{val: ""},  // default value (21 days)
 		{val: 1},
 		{val: "1"},
 		{val: 14},
