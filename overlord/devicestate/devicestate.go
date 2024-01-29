@@ -1204,15 +1204,7 @@ func checkForSystemSeed(st *state.State, deviceCtx snapstate.DeviceContext) (boo
 		return false, fmt.Errorf("cannot get gadget data: %w", err)
 	}
 
-	for _, vol := range gadgetData.Info.Volumes {
-		for _, vs := range vol.Structure {
-			if vs.Role == gadget.SystemSeed {
-				return true, nil
-			}
-		}
-	}
-
-	return false, nil
+	return gadgetData.Info.HasRole(gadget.SystemSeed), nil
 }
 
 // Remodel takes a new model assertion and generates a change that
