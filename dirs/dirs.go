@@ -216,7 +216,7 @@ func SnapHomeDirs() []string {
 // Homedir must be a comma separated list of the user defined home directories.
 // If homedirs is empty, SnapHomeDirs will be a slice of length 1 containing "/home".
 // Also generates the data directory globbing expressions for each user.
-// Ran at startup by configstate.Init to initialize snapHomeDirs, snapDataHomeGlob and hiddenSnapDataHomeGlob.
+// Ran at startup by configstate.Init, returns snapHomeDirs. Use DataHomeGlobs to retrieve globs.
 func SetSnapHomeDirs(homedirs string) []string {
 	snapHomeDirsMu.Lock()
 	defer snapHomeDirsMu.Unlock()
@@ -230,9 +230,14 @@ func SetSnapHomeDirs(homedirs string) []string {
 	if homedirs != "" {
 		snapHomeDirs = strings.Split(homedirs, ",")
 		for i := range snapHomeDirs {
-			// Make the path absolute if relative, also cleans the path for unit tests and HasPrefix
-			snapHomeDirs[i] = filepath.Join("/", snapHomeDirs[i])
-			if !strings.HasPrefix(snapHomeDirs[i], GlobalRootDir) {
+			// clean the path
+			snapHomeDirs[i] = filepath.Clean(snapHomeDirs[i])
+			globalRootDir := GlobalRootDir
+			// Avoid false positives with HasPrefix
+			if globalRootDir != "/" {
+				globalRootDir = globalRootDir + "/"
+			}
+			if !strings.HasPrefix(snapHomeDirs[i], globalRootDir) {
 				snapHomeDirs[i] = filepath.Join(GlobalRootDir, snapHomeDirs[i])
 			}
 			// Generate data directory globbing expressions for each user.
@@ -282,13 +287,10 @@ func DataHomeGlobs(opts *SnapDirOptions) []string {
 	if opts == nil {
 		opts = &SnapDirOptions{}
 	}
-	glob := make([]string, len(snapDataHomeGlob))
 	if opts.HiddenSnapDataDir {
-		copy(glob, hiddenSnapDataHomeGlob)
-		return glob
+		return hiddenSnapDataHomeGlob
 	}
-	copy(glob, snapDataHomeGlob)
-	return glob
+	return snapDataHomeGlob
 }
 
 // SupportsClassicConfinement returns true if the current directory layout supports classic confinement.
@@ -426,6 +428,7 @@ func SetRootDir(rootdir string) {
 	if rootdir == "" {
 		rootdir = "/"
 	}
+	filepath.Clean(rootdir)
 	GlobalRootDir = rootdir
 
 	altDirDistros := []string{

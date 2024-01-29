@@ -86,7 +86,7 @@ func (s *DirsTestSuite) TestSnapHomeDirs(c *C) {
 	c.Check(dirs.DataHomeGlobs(&hidden), DeepEquals, hiddenDataGlob)
 
 	// Expected output should append /ROOTDIR to each entry except if already present
-	getSnapHomeFromSet = dirs.SetSnapHomeDirs("/home/homeDir1,/new/root/home/homeDirs/homeDir1///,/home/homeDir2/,new/root/home/homeTest/users/")
+	getSnapHomeFromSet = dirs.SetSnapHomeDirs("/home/homeDir1,/new/root/home/homeDirs/homeDir1///,/home/homeDir2/,/new/root/home/homeTest/users/")
 	snapHomeDirs = []string{"/new/root/home/homeDir1", "/new/root/home/homeDirs/homeDir1", "/new/root/home/homeDir2", "/new/root/home/homeTest/users", "/new/root/home"}
 	dataGlob = []string{"/new/root/home/homeDir1/*/snap", "/new/root/home/homeDirs/homeDir1/*/snap", "/new/root/home/homeDir2/*/snap",
 		"/new/root/home/homeTest/users/*/snap", "/new/root/home/*/snap"}

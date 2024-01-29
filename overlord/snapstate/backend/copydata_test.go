@@ -1065,7 +1065,7 @@ func (s *copydataSuite) TestCleanupAfterCopyAndMigration(c *C) {
 
 func (s *copydataSuite) TestRemoveIfEmpty(c *C) {
 	file := filepath.Join(dirs.GlobalRootDir, "random")
-	c.Assert(ioutil.WriteFile(file, []byte("stuff"), 0664), IsNil)
+	c.Assert(os.WriteFile(file, []byte("stuff"), 0664), IsNil)
 
 	// dir contains a file, shouldn't do anything
 	c.Assert(backend.RemoveIfEmpty(dirs.GlobalRootDir), IsNil)
