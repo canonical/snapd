@@ -10219,13 +10219,13 @@ func (s *refreshSuite) TestSetMaxInhibitionDays(c *C) {
 	var maxInhibitionDays int
 	tr.Get("core", "refresh.max-inhibition-days", &maxInhibitionDays)
 	c.Assert(maxInhibitionDays, Equals, 0)
-	maxInhibitionTime := snapstate.MaxInhibitionTime(st)
+	maxInhibitionTime := snapstate.MaxInhibitionDuration(st)
 	c.Assert(maxInhibitionTime, Equals, 14*24*time.Hour-time.Second)
 	err := tr.Set("core", "refresh.max-inhibition-days", 10)
 	c.Assert(err, IsNil)
 	tr.Commit()
 	tr.Get("core", "refresh.max-inhibition-days", &maxInhibitionDays)
 	c.Assert(maxInhibitionDays, Equals, 10)
-	maxInhibitionTime = snapstate.MaxInhibitionTime(st)
+	maxInhibitionTime = snapstate.MaxInhibitionDuration(st)
 	c.Assert(maxInhibitionTime, Equals, 10*24*time.Hour-time.Second)
 }

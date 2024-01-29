@@ -770,6 +770,26 @@ func (e *timedBusySnapError) Is(err error) bool {
 	return ok
 }
 
+// maxInhibitionDuration returns the value of the maximum inhibition time
+func maxInhibitionDuration(st *state.State) time.Duration {
+	var maxInhibitionDays int
+	err := config.NewTransaction(st).Get("core", "refresh.max-inhibition-days", &maxInhibitionDays)
+
+	if err != nil && !config.IsNoOption(err) {
+		logger.Noticef("internal error: refresh.max-inhibition-days system option is not valid: %v", err)
+	}
+
+	// not set, use default value
+	if maxInhibitionDays == 0 {
+		maxInhibitionDays = defaultMaxInhibitionDays
+	}
+
+	// deduct 1s so it doesn't look confusing initially when two notifications
+	// get displayed in short period of time and it immediately goes from "14 days"
+	// to "13 days" left.
+	return time.Duration(maxInhibitionDays)*24*time.Hour - time.Second
+}
+
 // inhibitRefresh returns whether a refresh is forced due to inhibition
 // timeout or an error if refresh is inhibited by running apps.
 //
@@ -794,8 +814,8 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 	// Decide on what to do depending on the state of the snap and the remaining
 	// inhibition time.
 	now := time.Now()
-	// cannot inhibit refreshes for more than maxInhibitionTime
-	maxInhibitionTimeValue := maxInhibitionTime(st)
+	// cannot inhibit refreshes for more than maxInhibitionDuration
+	maxInhibitionTimeValue := maxInhibitionDuration(st)
 	switch {
 	case snapst.RefreshInhibitedTime == nil:
 		// If the snap did not have inhibited refresh yet then commence a new

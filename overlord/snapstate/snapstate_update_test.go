@@ -10228,7 +10228,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshCreatePreDownload(c *C) {
 	refreshInfo := busyErr.PendingSnapRefreshInfo()
 	c.Check(refreshInfo, DeepEquals, &userclient.PendingSnapRefreshInfo{
 		InstanceName:  "some-snap",
-		TimeRemaining: snapstate.MaxInhibitionTime(s.state),
+		TimeRemaining: snapstate.MaxInhibitionDuration(s.state),
 	})
 
 	tasks := ts.Tasks()
@@ -10656,7 +10656,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 		refreshInfo := busyErr.PendingSnapRefreshInfo()
 		c.Check(refreshInfo, DeepEquals, &userclient.PendingSnapRefreshInfo{
 			InstanceName:  "some-snap",
-			TimeRemaining: snapstate.MaxInhibitionTime(s.state),
+			TimeRemaining: snapstate.MaxInhibitionDuration(s.state),
 		})
 		c.Assert(ts, IsNil)
 
@@ -11137,7 +11137,7 @@ func (s *snapmgrTestSuite) TestUnlinkMonitorSnapOnHardCheckFailure(c *C) {
 	var notified bool
 	restore := snapstate.MockAsyncPendingRefreshNotification(func(_ context.Context, pendingInfo *userclient.PendingSnapRefreshInfo) {
 		c.Check(pendingInfo.InstanceName, Equals, "some-snap")
-		c.Check(pendingInfo.TimeRemaining, Equals, snapstate.MaxInhibitionTime(s.state))
+		c.Check(pendingInfo.TimeRemaining, Equals, snapstate.MaxInhibitionDuration(s.state))
 		notified = true
 	})
 	defer restore()

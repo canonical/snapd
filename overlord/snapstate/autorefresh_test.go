@@ -1031,7 +1031,7 @@ func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c
 	defer restore()
 
 	instant := time.Now()
-	pastInstant := instant.Add(-snapstate.MaxInhibitionTime(s.state) / 2) // In the middle of the allowed window
+	pastInstant := instant.Add(-snapstate.MaxInhibitionDuration(s.state) / 2) // In the middle of the allowed window
 
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
 	info := &snap.Info{SideInfo: *si}
@@ -1075,7 +1075,7 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 	defer restore()
 
 	instant := time.Now()
-	pastInstant := instant.Add(-snapstate.MaxInhibitionTime(s.state) * 2)
+	pastInstant := instant.Add(-snapstate.MaxInhibitionDuration(s.state) * 2)
 
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
 	info := &snap.Info{SideInfo: *si}
@@ -1106,7 +1106,7 @@ func (s *autoRefreshTestSuite) TestInhibitNoNotificationOnManualRefresh(c *C) {
 	})
 	defer restore()
 
-	pastInstant := time.Now().Add(-snapstate.MaxInhibitionTime(s.state))
+	pastInstant := time.Now().Add(-snapstate.MaxInhibitionDuration(s.state))
 
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
 	info := &snap.Info{SideInfo: *si}
