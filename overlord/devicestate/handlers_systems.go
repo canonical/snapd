@@ -130,7 +130,7 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 	}
 
 	if !remodelCtx.IsCoreBoot() {
-		return fmt.Errorf("cannot create recovery systems on a classic system")
+		return fmt.Errorf("cannot create recovery systems on a classic (non-hybrid) system")
 	}
 
 	model := remodelCtx.Model()
@@ -284,6 +284,10 @@ func (m *DeviceManager) undoCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) er
 	remodelCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
 		return err
+	}
+
+	if !remodelCtx.IsCoreBoot() {
+		return fmt.Errorf("cannot create recovery systems on a classic (non-hybrid) system")
 	}
 
 	setup, err := taskRecoverySystemSetup(t)
