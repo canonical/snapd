@@ -226,11 +226,11 @@ func (s *refreshSuite) TestConfigureRefreshMaxInhibitionDays(c *C) {
 		val interface{}
 		err string
 	}{
-		{val: "zzz", err: `max-inhibition-days must be a number between 1 and 14, not "zzz"`},
-		{val: "-1", err: `max-inhibition-days must be a number between 1 and 14, not "-1"`},
-		{val: -1, err: `max-inhibition-days must be a number between 1 and 14, not "-1"`},
-		{val: "21", err: `max-inhibition-days must be a number between 1 and 14, not "21"`},
-		{val: 0, err: `max-inhibition-days must be a number between 1 and 14, not "0"`},
+		{val: "zzz", err: `max-inhibition-days must be a number between 1 and 21, not "zzz"`},
+		{val: "-1", err: `max-inhibition-days must be a number between 1 and 21, not "-1"`},
+		{val: -1, err: `max-inhibition-days must be a number between 1 and 21, not "-1"`},
+		{val: "21", err: `max-inhibition-days must be a number between 1 and 21, not "21"`},
+		{val: 0, err: `max-inhibition-days must be a number between 1 and 21, not "0"`},
 		// happy cases
 		{val: nil}, // default value (14 days)
 		{val: ""},  // default value (14 days)
