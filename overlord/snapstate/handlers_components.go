@@ -22,10 +22,9 @@ package snapstate
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
-	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
@@ -399,20 +398,6 @@ func (m *SnapManager) undoUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (e
 	return nil
 }
 
-func kernelVersionFromPlaceInfo(spi snap.PlaceInfo) (string, error) {
-	systemMapPathPrefix := filepath.Join(spi.MountDir(), "System.map-")
-	matchPath := systemMapPathPrefix + "*"
-	matches, err := filepath.Glob(matchPath)
-	if err != nil {
-		// could be only ErrBadPattern, should not really happen
-		return "", fmt.Errorf("internal error: %w", err)
-	}
-	if len(matches) != 1 {
-		return "", fmt.Errorf("number of matches for %s is %d", matchPath, len(matches))
-	}
-	return strings.TrimPrefix(matches[0], systemMapPathPrefix), nil
-}
-
 func (m *SnapManager) doSetupKernelModulesComponent(t *state.Task, _ *tomb.Tomb) error {
 	// kernel snap is expected to be mounted
 	st := t.State()
@@ -432,7 +417,7 @@ func (m *SnapManager) doSetupKernelModulesComponent(t *state.Task, _ *tomb.Tomb)
 
 	// Find kernel version from matching kernel
 	spi := snap.MinimalPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
-	kernelVersion, err := kernelVersionFromPlaceInfo(spi)
+	kernelVersion, err := kernel.KernelVersionFromPlaceInfo(spi)
 	if err != nil {
 		return err
 	}
@@ -474,7 +459,7 @@ func (m *SnapManager) undoSetupKernelModulesComponent(t *state.Task, _ *tomb.Tom
 
 	// Find kernel version from matching kernel
 	spi := snap.MinimalPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
-	kernelVersion, err := kernelVersionFromPlaceInfo(spi)
+	kernelVersion, err := kernel.KernelVersionFromPlaceInfo(spi)
 	if err != nil {
 		return err
 	}
@@ -536,7 +521,7 @@ func (m *SnapManager) doCleanupKernelModulesComponent(t *state.Task, _ *tomb.Tom
 
 	// Find kernel version from matching kernel
 	spi := snap.MinimalPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
-	kernelVersion, err := kernelVersionFromPlaceInfo(spi)
+	kernelVersion, err := kernel.KernelVersionFromPlaceInfo(spi)
 	if err != nil {
 		return err
 	}
@@ -578,7 +563,7 @@ func (m *SnapManager) undoCleanupKernelModulesComponent(t *state.Task, _ *tomb.T
 
 	// Find kernel version from matching kernel
 	spi := snap.MinimalPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
-	kernelVersion, err := kernelVersionFromPlaceInfo(spi)
+	kernelVersion, err := kernel.KernelVersionFromPlaceInfo(spi)
 	if err != nil {
 		return err
 	}

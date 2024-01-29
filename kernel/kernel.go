@@ -25,7 +25,9 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
+	"github.com/snapcore/snapd/snap"
 	"gopkg.in/yaml.v2"
 )
 
@@ -76,4 +78,24 @@ func ReadInfo(kernelSnapRootDir string) (*Info, error) {
 		return nil, fmt.Errorf("cannot read kernel info: %v", err)
 	}
 	return InfoFromKernelYaml(content)
+}
+
+// KernelVersionFromPlaceInfo returns the kernel version for a mounted kernel
+// snap (this would be the output if "uname -r" for a running kernel).
+func KernelVersionFromPlaceInfo(spi snap.PlaceInfo) (string, error) {
+	systemMapPathPrefix := filepath.Join(spi.MountDir(), "System.map-")
+	matchPath := systemMapPathPrefix + "*"
+	matches, err := filepath.Glob(matchPath)
+	if err != nil {
+		// could be only ErrBadPattern, should not really happen
+		return "", fmt.Errorf("internal error: %w", err)
+	}
+	if len(matches) != 1 {
+		return "", fmt.Errorf("number of matches for %s is %d", matchPath, len(matches))
+	}
+	version := strings.TrimPrefix(matches[0], systemMapPathPrefix)
+	if version == "" {
+		return "", fmt.Errorf("kernel version not set in %s", matches[0])
+	}
+	return version, nil
 }

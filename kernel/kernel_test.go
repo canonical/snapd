@@ -26,7 +26,10 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/kernel"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func makeMockKernel(c *C, kernelYaml string, filesWithContent map[string]string) string {
@@ -47,9 +50,18 @@ func makeMockKernel(c *C, kernelYaml string, filesWithContent map[string]string)
 	return kernelRootDir
 }
 
-type kernelYamlTestSuite struct{}
+type kernelTestSuite struct {
+	testutil.BaseTest
+}
 
-var _ = Suite(&kernelYamlTestSuite{})
+var _ = Suite(&kernelTestSuite{})
+
+func (s *kernelTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+}
 
 func TestCommand(t *testing.T) { TestingT(t) }
 
@@ -67,19 +79,19 @@ assets:
   non-#alphanumeric:
 `)
 
-func (s *kernelYamlTestSuite) TestInfoFromKernelYamlSad(c *C) {
+func (s *kernelTestSuite) TestInfoFromKernelYamlSad(c *C) {
 	ki, err := kernel.InfoFromKernelYaml([]byte("foo"))
 	c.Check(err, ErrorMatches, "(?m)cannot parse kernel metadata: .*")
 	c.Check(ki, IsNil)
 }
 
-func (s *kernelYamlTestSuite) TestInfoFromKernelYamlBadName(c *C) {
+func (s *kernelTestSuite) TestInfoFromKernelYamlBadName(c *C) {
 	ki, err := kernel.InfoFromKernelYaml(mockInvalidKernelYaml)
 	c.Check(err, ErrorMatches, `invalid asset name "non-#alphanumeric", please use only alphanumeric characters and dashes`)
 	c.Check(ki, IsNil)
 }
 
-func (s *kernelYamlTestSuite) TestInfoFromKernelYamlHappy(c *C) {
+func (s *kernelTestSuite) TestInfoFromKernelYamlHappy(c *C) {
 	ki, err := kernel.InfoFromKernelYaml(mockKernelYaml)
 	c.Check(err, IsNil)
 	c.Check(ki, DeepEquals, &kernel.Info{
@@ -95,13 +107,13 @@ func (s *kernelYamlTestSuite) TestInfoFromKernelYamlHappy(c *C) {
 	})
 }
 
-func (s *kernelYamlTestSuite) TestReadKernelYamlOptional(c *C) {
+func (s *kernelTestSuite) TestReadKernelYamlOptional(c *C) {
 	ki, err := kernel.ReadInfo("this-path-does-not-exist")
 	c.Check(err, IsNil)
 	c.Check(ki, DeepEquals, &kernel.Info{})
 }
 
-func (s *kernelYamlTestSuite) TestReadKernelYamlSad(c *C) {
+func (s *kernelTestSuite) TestReadKernelYamlSad(c *C) {
 	mockKernelSnapRoot := c.MkDir()
 	kernelYamlPath := filepath.Join(mockKernelSnapRoot, "meta/kernel.yaml")
 	err := os.MkdirAll(filepath.Dir(kernelYamlPath), 0755)
@@ -114,7 +126,7 @@ func (s *kernelYamlTestSuite) TestReadKernelYamlSad(c *C) {
 	c.Check(ki, IsNil)
 }
 
-func (s *kernelYamlTestSuite) TestReadKernelYamlHappy(c *C) {
+func (s *kernelTestSuite) TestReadKernelYamlHappy(c *C) {
 	mockKernelSnapRoot := c.MkDir()
 	kernelYamlPath := filepath.Join(mockKernelSnapRoot, "meta/kernel.yaml")
 	err := os.MkdirAll(filepath.Dir(kernelYamlPath), 0755)
@@ -135,4 +147,42 @@ func (s *kernelYamlTestSuite) TestReadKernelYamlHappy(c *C) {
 			},
 		},
 	})
+}
+
+func (s *kernelTestSuite) TestKernelVersionFromPlaceInfo(c *C) {
+	spi := snap.MinimalPlaceInfo("pc-kernel", snap.R(1))
+
+	c.Assert(os.MkdirAll(spi.MountDir(), 0755), IsNil)
+
+	// No map file
+	ver, err := kernel.KernelVersionFromPlaceInfo(spi)
+	c.Check(err, ErrorMatches, `number of matches for .* is 0`)
+	c.Check(ver, Equals, "")
+
+	// Create file so kernel version can be found
+	c.Assert(os.WriteFile(filepath.Join(
+		spi.MountDir(), "System.map-5.15.0-78-generic"), []byte{}, 0644), IsNil)
+	ver, err = kernel.KernelVersionFromPlaceInfo(spi)
+	c.Check(err, IsNil)
+	c.Check(ver, Equals, "5.15.0-78-generic")
+
+	// Too many matches
+	c.Assert(os.WriteFile(filepath.Join(
+		spi.MountDir(), "System.map-6.8.0-71-generic"), []byte{}, 0644), IsNil)
+	ver, err = kernel.KernelVersionFromPlaceInfo(spi)
+	c.Check(err, ErrorMatches, `number of matches for .* is 2`)
+	c.Check(ver, Equals, "")
+}
+
+func (s *kernelTestSuite) TestKernelVersionFromPlaceInfoNotSetInFile(c *C) {
+	spi := snap.MinimalPlaceInfo("pc-kernel", snap.R(1))
+
+	c.Assert(os.MkdirAll(spi.MountDir(), 0755), IsNil)
+
+	// Create bad file name
+	c.Assert(os.WriteFile(filepath.Join(
+		spi.MountDir(), "System.map-"), []byte{}, 0644), IsNil)
+	ver, err := kernel.KernelVersionFromPlaceInfo(spi)
+	c.Check(err, ErrorMatches, `kernel version not set in .*System\.map\-`)
+	c.Check(ver, Equals, "")
 }
