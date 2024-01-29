@@ -138,7 +138,7 @@ func (x *cmdReboot) Execute(args []string) error {
 	}
 
 	if x.Reseal {
-		x.doReseal()
+		return x.doReseal()
 	}
 
 	mode, err := x.modeFromCommandline()
