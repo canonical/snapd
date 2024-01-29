@@ -123,6 +123,9 @@ func (x *cmdReboot) doReseal() error {
 	}
 
 	if _, err := x.wait(id); err != nil {
+		if err == noWait {
+			return nil
+		}
 		return err
 	}
 
