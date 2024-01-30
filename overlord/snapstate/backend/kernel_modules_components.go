@@ -201,7 +201,9 @@ func (b Backend) UndoSetupKernelModulesComponent(cpi snap.ContainerPlaceInfo, cr
 		// /usr/lib/firmware/updates (set var in kernelModulesCleanupParts)
 	}
 
-	// Remove created mount units
+	// Remove created mount units. If the component had modules we need to
+	// re-create the modules metainformation by running depmod so it is
+	// consistent with the currently available modules.
 	if hasModules {
 		partsToClean.modulesMountDir =
 			modulesMountPoint(cref.ComponentName, kernelVersion)

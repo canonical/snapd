@@ -134,7 +134,7 @@ func (s *kernelModulesCompSnapSuite) TestDoSetupKernelModulesComponentNoKernVers
 
 	s.state.Lock()
 	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n"+
-		`\- task desc \(number of matches for .*System.map-\* is 0\)`)
+		`\- task desc \(unexpected number of matches \(0\) for glob .*System.map-\*\)`)
 	c.Assert(t.Status(), Equals, state.ErrorStatus)
 	s.state.Unlock()
 

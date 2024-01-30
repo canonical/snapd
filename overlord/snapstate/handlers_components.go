@@ -405,7 +405,7 @@ func (m *SnapManager) doSetupKernelModulesComponent(t *state.Task, _ *tomb.Tomb)
 	defer st.Unlock()
 	perfTimings := state.TimingsForTask(t)
 
-	compSetup, snapsup, _, err := compSetupAndState(t)
+	compSetup, snapsup, snapSt, err := compSetupAndState(t)
 	if err != nil {
 		return err
 	}
@@ -431,6 +431,23 @@ func (m *SnapManager) doSetupKernelModulesComponent(t *state.Task, _ *tomb.Tomb)
 		})
 	st.Lock()
 	if err != nil {
+		// We need to restore the units for the previous component
+		currentCsi := snapSt.CurrentComponentSideInfo(csi.Component)
+		if currentCsi != nil {
+			currentCpi := snap.MinimalComponentContainerPlaceInfo(
+				currentCsi.Component.ComponentName,
+				currentCsi.Revision, snapsup.InstanceName(), snapsup.Revision())
+			var restoreErr error
+			timings.Run(perfTimings, "setup-kernel-modules-component",
+				fmt.Sprintf("restore setup of kernel-modules component %q", currentCsi.Component),
+				func(timings.Measurer) {
+					restoreErr = m.backend.SetupKernelModulesComponent(currentCpi, currentCsi.Component,
+						kernelVersion, pm)
+				})
+			if restoreErr != nil {
+				t.Logf("error while restoring previous component: %v", restoreErr)
+			}
+		}
 		return err
 	}
 
