@@ -343,6 +343,11 @@ func (s *State) NewChange(kind, summary string) *Change {
 	id := strconv.Itoa(s.lastChangeId)
 	chg := newChange(s, id, kind, summary)
 	s.changes[id] = chg
+	// Add change-update notice for newly spawned change
+	// NOTE: Implies State.writing()
+	if err := chg.addNotice(); err != nil {
+		logger.Panicf(`internal error: failed to add "change-update" notice for new change: %v`, err)
+	}
 	return chg
 }
 
