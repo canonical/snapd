@@ -51,7 +51,7 @@ trigger a regular reboot.
 When called without a system label but with a mode it will use the
 current system to enter the given mode.
 
-Note that "recover", "factory-reset" modes are only available for the
+Note that "recover", "factory-reset" and "run" modes are only available for the
 current system.
 
 "--reseal" will force resealing keys on the system before

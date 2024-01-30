@@ -46,11 +46,17 @@ current system to enter the given mode.
 Note that "recover", "factory-reset" and "run" modes are only available for the
 current system.
 
+"--reseal" will force resealing keys on the system before
+rebooting. This is only available for the current system.
+
 [reboot command options]
+      --no-wait          Do not wait for the operation to finish but just print
+                         the change id.
       --run              Boot into run mode
       --install          Boot into install mode
       --recover          Boot into recover mode
       --factory-reset    Boot into factory-reset mode
+      --reseal           Reseal the keys to the device before rebooting
 
 [reboot command arguments]
   <label>:               The recovery system label
