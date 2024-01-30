@@ -3704,7 +3704,7 @@ func compareDirs(c *C, expected, got string) {
 	c.Assert(err, IsNil)
 
 	gotCount := 0
-	err = filepath.WalkDir(expected, func(_ string, _ fs.DirEntry, err error) error {
+	err = filepath.WalkDir(got, func(_ string, _ fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
