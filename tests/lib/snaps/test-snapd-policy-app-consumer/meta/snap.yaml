@@ -401,6 +401,9 @@ apps:
   raw-volume:
     command: bin/run
     plugs: [ raw-volume ]
+  remoteproc:
+    command: bin/run
+    plugs: [ remoteproc ]
   removable-media:
     command: bin/run
     plugs: [ removable-media ]
