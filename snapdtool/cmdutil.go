@@ -107,6 +107,11 @@ func CommandFromSystemSnap(name string, cmdArgs ...string) (*exec.Cmd, error) {
 	}
 
 	cmdPath := filepath.Join(root, name)
+
+	if from == "snapd" {
+		return exec.Command(cmdPath, cmdArgs...), nil
+	}
+
 	interp, err := elfInterp(cmdPath)
 	if err != nil {
 		return nil, err
