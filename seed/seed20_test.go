@@ -3647,13 +3647,15 @@ func (s *seed20Suite) TestCopyCleanup(c *C) {
 	copier, ok := seed20.(seed.Copier)
 	c.Assert(ok, Equals, true)
 
+	removedSnap := filepath.Join(s.SeedDir, "snaps", "snapd_1.snap")
+
 	// remove a snap from the original seed to make the copy fail
-	err = os.Remove(filepath.Join(s.SeedDir, "snaps", "snapd_1.snap"))
+	err = os.Remove(removedSnap)
 	c.Assert(err, IsNil)
 
 	destSeedDir := c.MkDir()
 	err = copier.Copy(destSeedDir, label, s.perfTimings)
-	c.Check(err, NotNil)
+	c.Check(err, ErrorMatches, fmt.Sprintf("cannot stat snap: stat %s: no such file or directory", removedSnap))
 
 	// seed destination should have been cleaned up
 	c.Check(filepath.Join(destSeedDir, "systems", label), testutil.FileAbsent)
