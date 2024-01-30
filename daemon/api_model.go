@@ -116,7 +116,7 @@ func storeRemodel(c *Command, r *http.Request) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	chg, err := devicestateRemodel(st, newModel, nil, nil)
+	chg, err := devicestateRemodel(st, newModel, nil, nil, devicestate.RemodelOptions{})
 	if err != nil {
 		return BadRequest("cannot remodel device: %v", err)
 	}
@@ -190,7 +190,9 @@ func startOfflineRemodelChange(st *state.State, newModel *asserts.Model,
 	}
 
 	// Now create and start the remodel change
-	chg, err := devicestateRemodel(st, newModel, slInfo.sideInfos, slInfo.tmpPaths)
+	chg, err := devicestateRemodel(st, newModel, slInfo.sideInfos, slInfo.tmpPaths, devicestate.RemodelOptions{
+		Offline: true,
+	})
 	if err != nil {
 		return nil, BadRequest("cannot remodel device: %v", err)
 	}

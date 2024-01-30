@@ -26,7 +26,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func MockDevicestateRemodel(mock func(*state.State, *asserts.Model, []*snap.SideInfo, []string) (*state.Change, error)) (restore func()) {
+func MockDevicestateRemodel(mock func(*state.State, *asserts.Model, []*snap.SideInfo, []string, devicestate.RemodelOptions) (*state.Change, error)) (restore func()) {
 	oldDevicestateRemodel := devicestateRemodel
 	devicestateRemodel = mock
 	return func() {
