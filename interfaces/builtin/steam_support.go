@@ -22,6 +22,7 @@ package builtin
 import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
 )
 
 const steamSupportSummary = `allow Steam to configure pressure-vessel containers`
@@ -399,7 +400,7 @@ func init() {
 	registerIface(&steamSupportInterface{commonInterface{
 		name:                  "steam-support",
 		summary:               steamSupportSummary,
-		implicitOnCore:        true,
+		implicitOnCore:        release.OnCoreDesktop,
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  steamSupportBaseDeclarationSlots,
 		baseDeclarationPlugs:  steamSupportBaseDeclarationPlugs,
