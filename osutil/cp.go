@@ -76,17 +76,17 @@ func CopyFile(src, dst string, flags CopyFlag) (err error) {
 
 	fin, err := openfile(src, os.O_RDONLY, 0)
 	if err != nil {
-		return fmt.Errorf("unable to open %s: %v", src, err)
+		return fmt.Errorf("unable to open %s: %w", src, err)
 	}
 	defer func() {
 		if cerr := fin.Close(); cerr != nil && err == nil {
-			err = fmt.Errorf("when closing %s: %v", src, cerr)
+			err = fmt.Errorf("when closing %s: %w", src, cerr)
 		}
 	}()
 
 	fi, err := fin.Stat()
 	if err != nil {
-		return fmt.Errorf("unable to stat %s: %v", src, err)
+		return fmt.Errorf("unable to stat %s: %w", src, err)
 	}
 
 	outflags := os.O_WRONLY | os.O_CREATE | os.O_TRUNC
@@ -96,21 +96,21 @@ func CopyFile(src, dst string, flags CopyFlag) (err error) {
 
 	fout, err := openfile(dst, outflags, fi.Mode())
 	if err != nil {
-		return fmt.Errorf("unable to create %s: %v", dst, err)
+		return fmt.Errorf("unable to create %s: %w", dst, err)
 	}
 	defer func() {
 		if cerr := fout.Close(); cerr != nil && err == nil {
-			err = fmt.Errorf("when closing %s: %v", dst, cerr)
+			err = fmt.Errorf("when closing %s: %w", dst, cerr)
 		}
 	}()
 
 	if err := copyfile(fin, fout, fi); err != nil {
-		return fmt.Errorf("unable to copy %s to %s: %v", src, dst, err)
+		return fmt.Errorf("unable to copy %s to %s: %w", src, dst, err)
 	}
 
 	if flags&CopyFlagSync != 0 {
 		if err = fout.Sync(); err != nil {
-			return fmt.Errorf("unable to sync %s: %v", dst, err)
+			return fmt.Errorf("unable to sync %s: %w", dst, err)
 		}
 	}
 
