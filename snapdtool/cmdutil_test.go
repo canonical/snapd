@@ -68,29 +68,40 @@ func (s *cmdutilSuite) makeMockLdSoConf(c *C, root string) {
 	c.Assert(err, IsNil)
 }
 
-func (s *cmdutilSuite) TestCommandFromSystemSnap(c *C) {
-	for _, snap := range []string{"core", "snapd"} {
+func (s *cmdutilSuite) TestCommandFromSystemSnapOldTrick(c *C) {
+	root := filepath.Join(dirs.SnapMountDir, "core", "current")
+	s.makeMockLdSoConf(c, root)
 
-		root := filepath.Join(dirs.SnapMountDir, snap, "current")
-		s.makeMockLdSoConf(c, root)
+	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
+	osutil.CopyFile(truePath, filepath.Join(root, "/usr/bin/xdelta3"), 0)
+	cmd, err := snapdtool.CommandFromSystemSnap("/usr/bin/xdelta3", "--some-xdelta-arg")
+	c.Assert(err, IsNil)
 
-		os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
-		osutil.CopyFile(truePath, filepath.Join(root, "/usr/bin/xdelta3"), 0)
-		cmd, err := snapdtool.CommandFromSystemSnap("/usr/bin/xdelta3", "--some-xdelta-arg")
-		c.Assert(err, IsNil)
+	out, err := exec.Command("/bin/sh", "-c", fmt.Sprintf("readelf -l %s |grep interpreter:|cut -f2 -d:|cut -f1 -d]", truePath)).Output()
+	c.Assert(err, IsNil)
+	interp := strings.TrimSpace(string(out))
 
-		out, err := exec.Command("/bin/sh", "-c", fmt.Sprintf("readelf -l %s |grep interpreter:|cut -f2 -d:|cut -f1 -d]", truePath)).Output()
-		c.Assert(err, IsNil)
-		interp := strings.TrimSpace(string(out))
+	c.Check(cmd.Args, DeepEquals, []string{
+		filepath.Join(root, interp),
+		"--library-path",
+		fmt.Sprintf("%s/lib/x86_64-linux-gnu:%s/usr/lib/x86_64-linux-gnu", root, root),
+		filepath.Join(root, "/usr/bin/xdelta3"),
+		"--some-xdelta-arg",
+	})
+}
 
-		c.Check(cmd.Args, DeepEquals, []string{
-			filepath.Join(root, interp),
-			"--library-path",
-			fmt.Sprintf("%s/lib/x86_64-linux-gnu:%s/usr/lib/x86_64-linux-gnu", root, root),
-			filepath.Join(root, "/usr/bin/xdelta3"),
-			"--some-xdelta-arg",
-		})
-	}
+func (s *cmdutilSuite) TestCommandFromSystemSnapNotrick(c *C) {
+	root := filepath.Join(dirs.SnapMountDir, "snapd", "current")
+
+	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
+	osutil.CopyFile(truePath, filepath.Join(root, "/usr/bin/xdelta3"), 0)
+	cmd, err := snapdtool.CommandFromSystemSnap("/usr/bin/xdelta3", "--some-xdelta-arg")
+	c.Assert(err, IsNil)
+
+	c.Check(cmd.Args, DeepEquals, []string{
+		filepath.Join(root, "/usr/bin/xdelta3"),
+		"--some-xdelta-arg",
+	})
 }
 
 func (s *cmdutilSuite) TestCommandFromCoreSymlinkCycle(c *C) {
