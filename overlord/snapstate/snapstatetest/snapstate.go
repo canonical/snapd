@@ -49,11 +49,12 @@ func InstallSnap(c *check.C, st *state.State, yaml string, files [][]string, req
 	}
 
 	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
-		SnapType: string(t),
-		Active:   true,
-		Sequence: NewSequenceFromSnapSideInfos([]*snap.SideInfo{&info.SideInfo}),
-		Current:  info.Revision,
-		Flags:    snapstate.Flags{Required: required},
+		SnapType:        string(t),
+		Active:          true,
+		Sequence:        NewSequenceFromSnapSideInfos([]*snap.SideInfo{&info.SideInfo}),
+		Current:         info.Revision,
+		Flags:           snapstate.Flags{Required: required},
+		TrackingChannel: si.Channel,
 	})
 	return info
 }

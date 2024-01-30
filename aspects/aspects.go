@@ -424,7 +424,7 @@ func namespaceResult(res interface{}, suffixParts []string) (interface{}, error)
 
 // Get returns the aspect value identified by the request. If either the named
 // aspect or the corresponding value can't be found, a NotFoundError is returned.
-func (a *Aspect) Get(databag DataBag, request string) (map[string]interface{}, error) {
+func (a *Aspect) Get(databag DataBag, request string) (interface{}, error) {
 	if err := validateAspectDottedPath(request, nil); err != nil {
 		return nil, badRequestErrorFrom(a, "get", request, err.Error())
 	}
@@ -461,8 +461,7 @@ func (a *Aspect) Get(databag DataBag, request string) (map[string]interface{}, e
 		return nil, notFoundErrorFrom(a, "get", request, "matching rules don't map to any values")
 	}
 
-	// the top level maps the request to the remaining namespace
-	return map[string]interface{}{request: merged}, nil
+	return merged, nil
 }
 
 func mergeNamespaces(old, new interface{}) (interface{}, error) {

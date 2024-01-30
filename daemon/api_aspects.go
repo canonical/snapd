@@ -25,8 +25,11 @@ import (
 	"net/http"
 
 	"github.com/snapcore/snapd/aspects"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/aspectstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -41,6 +44,14 @@ var (
 )
 
 func getAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
+	st := c.d.state
+	st.Lock()
+	defer st.Unlock()
+
+	if err := validateAspectFeatureFlag(st); err != nil {
+		return err
+	}
+
 	vars := muxVars(r)
 	account, bundleName, aspect := vars["account"], vars["bundle"], vars["aspect"]
 	fields := strutil.CommaSeparatedList(r.URL.Query().Get("fields"))
@@ -48,17 +59,13 @@ func getAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 	if len(fields) == 0 {
 		return BadRequest("missing aspect fields")
 	}
-	results := make(map[string]interface{})
-
-	st := c.d.state
-	st.Lock()
-	defer st.Unlock()
 
 	tx, err := aspectstate.NewTransaction(st, account, bundleName)
 	if err != nil {
 		return toAPIError(err)
 	}
 
+	results := make(map[string]interface{})
 	for _, field := range fields {
 		result, err := aspectstateGetAspect(tx, account, bundleName, aspect, field)
 		if err != nil {
@@ -83,6 +90,14 @@ func getAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 }
 
 func setAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
+	st := c.d.state
+	st.Lock()
+	defer st.Unlock()
+
+	if err := validateAspectFeatureFlag(st); err != nil {
+		return err
+	}
+
 	vars := muxVars(r)
 	account, bundleName, aspect := vars["account"], vars["bundle"], vars["aspect"]
 
@@ -91,10 +106,6 @@ func setAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 	if err := decoder.Decode(&values); err != nil {
 		return BadRequest("cannot decode aspect request body: %v", err)
 	}
-
-	st := c.d.state
-	st.Lock()
-	defer st.Unlock()
 
 	tx, err := aspectstate.NewTransaction(st, account, bundleName)
 	if err != nil {
@@ -115,6 +126,7 @@ func setAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 	// NOTE: could be sync but this is closer to the final version and the conf API
 	summary := fmt.Sprintf("Set aspect %s/%s/%s", account, bundleName, aspect)
 	chg := newChange(st, "set-aspect", summary, nil, nil)
+	chg.SetStatus(state.DoneStatus)
 	ensureStateSoon(st)
 
 	return AsyncResponse(nil, chg.ID())
@@ -131,4 +143,18 @@ func toAPIError(err error) *apiError {
 	default:
 		return InternalError(err.Error())
 	}
+}
+
+func validateAspectFeatureFlag(st *state.State) *apiError {
+	tr := config.NewTransaction(st)
+	enabled, err := features.Flag(tr, features.AspectsConfiguration)
+	if err != nil && !config.IsNoOption(err) {
+		return InternalError(fmt.Sprintf("internal error: cannot check aspect configuration flag: %s", err))
+	}
+
+	if !enabled {
+		_, confName := features.AspectsConfiguration.ConfigOption()
+		return BadRequest(fmt.Sprintf("aspect-based configuration disabled: you must set '%s' to true", confName))
+	}
+	return nil
 }

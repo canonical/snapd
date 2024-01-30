@@ -48,7 +48,7 @@ func (s *aspectTestSuite) TestGetAspect(c *C) {
 
 	res, err := aspectstate.GetAspect(databag, "system", "network", "wifi-setup", "ssid")
 	c.Assert(err, IsNil)
-	c.Assert(res, DeepEquals, map[string]interface{}{"ssid": "foo"})
+	c.Assert(res, DeepEquals, "foo")
 }
 
 func (s *aspectTestSuite) TestGetNotFound(c *C) {

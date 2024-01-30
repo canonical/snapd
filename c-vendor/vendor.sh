@@ -8,12 +8,13 @@ if [ ! -d ./squashfuse ]; then
     git clone https://github.com/vasi/squashfuse
 fi
 
-# This is the commit that was tagged as 0.2.0, released on June 2023:
-# https://github.com/vasi/squashfuse/releases/tag/0.2.0
-# It contains bug fixes and adds multithreading support to squashfuse_ll.
+# This is the commit that was tagged as 0.5.0, released on September 2023:
+# https://github.com/vasi/squashfuse/releases/tag/v0.5.0
+# It contains bug fixes and enables multithreading support to squashfuse_ll
+# by default.
 # It still should work with both "libfuse-dev" and "libfuse3-dev" which
 # is important as 16.04 only has libfuse-dev and 21.10 only has libfuse3-dev
-SQUASHFUSE_REF=7ce9d15f4b0a7a76ddf08e662abde4a3e340bb41
+SQUASHFUSE_REF=3f4dd2928ab362f8b20eab2be864d8e622472df5
 
 if [ -d ./squashfuse/.git ]; then
 		cd squashfuse
