@@ -10000,3 +10000,89 @@ func (s *snapmgrTestSuite) TestRefreshInhibitProceedTime(c *C) {
 	expectedRefreshInhibitProceedTime := refreshInhibitedTime.Add(snapstate.MaxInhibition)
 	c.Check(snapst.RefreshInhibitProceedTime(s.state), Equals, expectedRefreshInhibitProceedTime)
 }
+
+func (s *snapmgrTestSuite) TestChangeStatusRecordsChangeUpdateNotice(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("refresh", "")
+
+	s.o.TaskRunner().AddHandler("fake-task", func(task *state.Task, tomb *tomb.Tomb) error { return nil }, nil)
+
+	var prev *state.Task
+	addTask := func(name string) {
+		t := st.NewTask(name, "")
+		chg.AddTask(t)
+		if prev != nil {
+			t.WaitFor(prev)
+		}
+		prev = t
+	}
+
+	for i := 0; i < 5; i++ {
+		addTask("fake-task")
+	}
+
+	s.settle(c)
+
+	// Check notice is recorded on change status updates
+	notices := s.state.Notices(nil)
+	c.Assert(notices, HasLen, 1)
+	n := noticeToMap(c, notices[0])
+	c.Check(n["type"], Equals, "change-update")
+	c.Check(n["key"], Equals, chg.ID())
+	c.Check(n["last-data"], DeepEquals, map[string]any{"kind": "refresh"})
+	// Default -> Doing -> Done
+	c.Check(n["occurrences"], Equals, 3.0)
+}
+
+func (s *snapmgrTestSuite) TestChangeStatusUndoRecordsChangeUpdateNotice(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("refresh", "")
+
+	s.o.TaskRunner().AddHandler("fake-task", func(task *state.Task, tomb *tomb.Tomb) error { return nil }, nil)
+
+	var prev *state.Task
+	addTask := func(name string) {
+		t := st.NewTask(name, "")
+		chg.AddTask(t)
+		if prev != nil {
+			t.WaitFor(prev)
+		}
+		prev = t
+	}
+
+	for i := 0; i < 5; i++ {
+		addTask("fake-task")
+	}
+	addTask("error-trigger")
+	for i := 0; i < 5; i++ {
+		addTask("fake-task")
+	}
+
+	s.settle(c)
+
+	// Check notice is recorded on change status updates
+	notices := s.state.Notices(nil)
+	c.Assert(notices, HasLen, 1)
+	n := noticeToMap(c, notices[0])
+	c.Check(n["type"], Equals, "change-update")
+	c.Check(n["key"], Equals, chg.ID())
+	c.Check(n["last-data"], DeepEquals, map[string]any{"kind": "refresh"})
+	// Default -> Doing -> Undo -> Abort -> Undo -> Error
+	c.Check(n["occurrences"], Equals, 6.0)
+}
+
+// noticeToMap converts a Notice to a map using a JSON marshal-unmarshal round trip.
+func noticeToMap(c *C, notice *state.Notice) map[string]any {
+	buf, err := json.Marshal(notice)
+	c.Assert(err, IsNil)
+	var n map[string]any
+	err = json.Unmarshal(buf, &n)
+	c.Assert(err, IsNil)
+	return n
+}
