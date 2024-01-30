@@ -156,7 +156,7 @@ func (s *kernelTestSuite) TestKernelVersionFromPlaceInfo(c *C) {
 
 	// No map file
 	ver, err := kernel.KernelVersionFromPlaceInfo(spi)
-	c.Check(err, ErrorMatches, `number of matches for .* is 0`)
+	c.Check(err, ErrorMatches, `unexpected number of matches \(0\) for glob .*`)
 	c.Check(ver, Equals, "")
 
 	// Create file so kernel version can be found
@@ -170,7 +170,7 @@ func (s *kernelTestSuite) TestKernelVersionFromPlaceInfo(c *C) {
 	c.Assert(os.WriteFile(filepath.Join(
 		spi.MountDir(), "System.map-6.8.0-71-generic"), []byte{}, 0644), IsNil)
 	ver, err = kernel.KernelVersionFromPlaceInfo(spi)
-	c.Check(err, ErrorMatches, `number of matches for .* is 2`)
+	c.Check(err, ErrorMatches, `unexpected number of matches \(2\) for glob .*`)
 	c.Check(ver, Equals, "")
 }
 

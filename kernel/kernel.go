@@ -91,7 +91,7 @@ func KernelVersionFromPlaceInfo(spi snap.PlaceInfo) (string, error) {
 		return "", fmt.Errorf("internal error: %w", err)
 	}
 	if len(matches) != 1 {
-		return "", fmt.Errorf("number of matches for %s is %d", matchPath, len(matches))
+		return "", fmt.Errorf("unexpected number of matches (%d) for glob %s", len(matches), matchPath)
 	}
 	version := strings.TrimPrefix(matches[0], systemMapPathPrefix)
 	if version == "" {
