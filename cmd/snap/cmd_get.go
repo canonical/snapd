@@ -52,10 +52,10 @@ Nested values may be retrieved via a dotted path:
 `)
 
 var longAspectGetHelp = i18n.G(`
-With the aspects experimental feature enabled, if the first argument passed
-into get is an aspect identifier matching the format <account-id>/<bundle>/<aspect>,
-get will use the aspects configuration API. In this case, the command returns
-the data retrieved from the requested dot-separated aspect paths.
+If the first argument passed into get is an aspect identifier matching the
+format <account-id>/<bundle>/<aspect>, get will use the aspects configuration
+API. In this case, the command returns the data retrieved from the requested
+dot-separated aspect paths.
 `)
 
 type cmdGet struct {

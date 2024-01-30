@@ -20,6 +20,9 @@
 package main_test
 
 import (
+	"fmt"
+	"net/http"
+
 	"gopkg.in/check.v1"
 
 	snapunset "github.com/snapcore/snapd/cmd/snap"
@@ -44,4 +47,55 @@ func (s *snapSetSuite) TestSnapUnset(c *check.C) {
 	_, err := snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "snapname", "key"})
 	c.Assert(err, check.IsNil)
 	c.Check(s.setConfApiCalls, check.Equals, 1)
+}
+
+func (s *aspectsSuite) TestAspectUnset(c *check.C) {
+	restore := s.mockAspectsFlag(c)
+	defer restore()
+
+	s.mockAspectServer(c, `{"abc":null}`, false)
+
+	_, err := snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "foo/bar/baz", "abc"})
+	c.Assert(err, check.IsNil)
+}
+
+func (s *aspectsSuite) TestAspectUnsetNoWait(c *check.C) {
+	restore := s.mockAspectsFlag(c)
+	defer restore()
+
+	s.mockAspectServer(c, `{"abc":null}`, true)
+
+	rest, err := snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "--no-wait", "foo/bar/baz", "abc"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.HasLen, 0)
+
+	c.Check(s.Stdout(), check.Equals, "123\n")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *aspectsSuite) TestAspectUnsetDisabledFlag(c *check.C) {
+	var reqs int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch reqs {
+		default:
+			err := fmt.Errorf("expected to get no requests, now on %d (%v)", reqs+1, r)
+			w.WriteHeader(500)
+			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+			c.Error(err)
+		}
+
+		reqs++
+	})
+
+	_, err := snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "foo/bar/baz", "abc"})
+	c.Assert(err, check.ErrorMatches, "aspect-based configuration is disabled: you must set 'experimental.aspects-configuration' to true")
+}
+
+func (s *aspectsSuite) TestAspectUnsetInvalidAspectID(c *check.C) {
+	restore := s.mockAspectsFlag(c)
+	defer restore()
+
+	_, err := snapunset.Parser(snapunset.Client()).ParseArgs([]string{"unset", "foo//bar", "abc"})
+	c.Assert(err, check.NotNil)
+	c.Check(err.Error(), check.Equals, "aspect identifier must conform to format: <account-id>/<bundle>/<aspect>")
 }
