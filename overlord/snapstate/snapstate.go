@@ -2379,6 +2379,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions) (*state.TaskSet
 		// set the from state (i.e. no change), they are overridden from opts as needed below
 		CohortKey: snapst.CohortKey,
 		Channel:   snapst.TrackingChannel,
+		Type:      snap.Type(snapst.SnapType),
 	}
 
 	if opts.Channel != "" {
