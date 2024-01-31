@@ -27,27 +27,25 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
+var (
+	bootForceReseal = boot.ForceReseal
+	restartRequest  = restart.Request
+)
+
 func (m *DeviceManager) doReseal(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
 
 	var reboot bool
-	var systemLabel string
-	var mode string
-
 	t.Get("reboot-after", &reboot)
-	if reboot {
-		t.Get("system-label", &systemLabel)
-		t.Get("mode", &mode)
-	}
 
-	if err := boot.ForceReseal(st.Unlocker()); err != nil {
+	if err := bootForceReseal(st.Unlocker()); err != nil {
 		return err
 	}
 
 	if reboot {
-		restart.Request(m.state, restart.RestartSystemNow, nil)
+		restartRequest(m.state, restart.RestartSystemNow, nil)
 	}
 	return nil
 }

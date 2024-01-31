@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
@@ -587,4 +588,16 @@ func CleanUpEncryptionSetupDataInCache(st *state.State, label string) {
 	defer st.Unlock()
 	key := encryptionSetupDataKey{label}
 	st.Cache(key, nil)
+}
+
+func MockBootForceReseal(f func(unlocker boot.Unlocker) error) (restore func()) {
+	restore = testutil.Backup(&bootForceReseal)
+	bootForceReseal = f
+	return restore
+}
+
+func MockRestartRequest(f func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo)) (restore func()) {
+	restore = testutil.Backup(&restartRequest)
+	restartRequest = f
+	return restore
 }
