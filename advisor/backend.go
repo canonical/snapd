@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nobolt
 
 /*
  * Copyright (C) 2018 Canonical Ltd
@@ -43,18 +44,6 @@ type writer struct {
 	tx        *bolt.Tx
 	cmdBucket *bolt.Bucket
 	pkgBucket *bolt.Bucket
-}
-
-type CommandDB interface {
-	// AddSnap adds the entries for commands pointing to the given
-	// snap name to the commands database.
-	AddSnap(snapName, version, summary string, commands []string) error
-	// Commit persist the changes, and closes the database. If the
-	// database has already been committed/rollbacked, does nothing.
-	Commit() error
-	// Rollback aborts the changes, and closes the database. If the
-	// database has already been committed/rollbacked, does nothing.
-	Rollback() error
 }
 
 // Create opens the commands database for writing, and starts a

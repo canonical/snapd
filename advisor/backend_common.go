@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-//go:build !nobolt
 
 /*
  * Copyright (C) 2018 Canonical Ltd
@@ -18,24 +17,16 @@
  *
  */
 
-package advisor_test
+package advisor
 
-import (
-	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/advisor"
-)
-
-func (s *cmdfinderSuite) TestFindPackageHit(c *C) {
-	pkg, err := advisor.FindPackage("foo")
-	c.Assert(err, IsNil)
-	c.Check(pkg, DeepEquals, &advisor.Package{
-		Snap: "foo", Version: "1.0", Summary: "foo summary",
-	})
-}
-
-func (s *cmdfinderSuite) TestFindPackageMiss(c *C) {
-	pkg, err := advisor.FindPackage("moh")
-	c.Assert(err, IsNil)
-	c.Check(pkg, IsNil)
+type CommandDB interface {
+	// AddSnap adds the entries for commands pointing to the given
+	// snap name to the commands database.
+	AddSnap(snapName, version, summary string, commands []string) error
+	// Commit persist the changes, and closes the database. If the
+	// database has already been committed/rollbacked, does nothing.
+	Commit() error
+	// Rollback aborts the changes, and closes the database. If the
+	// database has already been committed/rollbacked, does nothing.
+	Rollback() error
 }
