@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/desktop/notification/notificationtest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/usersession/agent"
@@ -1013,4 +1014,43 @@ func (s *restSuite) TestGuessAppIconTwoAppsPrefixDifferent(c *C) {
 	if (icon != "iconname1") && (icon != "iconname2") {
 		c.Fail()
 	}
+}
+
+func (s *restSuite) TestPostCloseRefreshNotificationWithIconDefault(c *C) {
+	dirs.SetRootDir(c.MkDir())
+
+	snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	// add a notification first
+	mockYaml := `
+name: snap-name
+apps:
+  other-app:
+    command: /bin/foo
+  snap-name:
+    command: /bin/foo
+`
+	snaptest.MockSnapCurrent(c, mockYaml[1:], &snap.SideInfo{
+		Revision: snap.R("42"),
+	})
+
+	desktopEntry := `
+[Desktop Entry]
+Icon=foo.png
+`
+	os.MkdirAll(dirs.SnapDesktopFilesDir, 0755)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "snap-name_snap-name.desktop"), []byte(desktopEntry[1:]), 0644), IsNil)
+	refreshInfo := &client.FinishedSnapRefreshInfo{InstanceName: "snap-name"}
+	s.testPostFinishRefreshNotificationBody(c, refreshInfo)
+
+	notifications := s.notify.GetAll()
+	c.Assert(notifications, HasLen, 1)
+	n := notifications[0]
+	// boring stuff is checked above
+	c.Check(n.Summary, Equals, `snap-name was updated.`)
+	c.Check(n.Body, Equals, "Ready to launch.")
+	c.Check(n.Hints, DeepEquals, map[string]dbus.Variant{
+		"urgency":       dbus.MakeVariant(byte(notification.LowUrgency)),
+		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
+	})
+	c.Check(n.Icon, Equals, "foo.png")
 }
