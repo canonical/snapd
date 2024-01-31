@@ -93,6 +93,7 @@
 %{!?_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
 %{!?_systemdgeneratordir: %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators}
 %{!?_systemd_system_env_generator_dir: %global _systemd_system_env_generator_dir %{_prefix}/lib/systemd/system-environment-generators}
+%{!?_tmpfilesdir: %global _tmpfilesdir %{_prefix}/lib/tmpfiles.d}
 
 # Fedora selinux-policy includes 'map' permission on a 'file' class. However,
 # Amazon Linux 2 does not have the updated policy containing the fix for
@@ -143,7 +144,9 @@ Requires:       ((squashfuse and fuse) or kmod(squashfs.ko))
 
 # Require xdelta for delta updates of snap packages.
 %if 0%{?fedora} || ( 0%{?rhel} && 0%{?rhel} > 8 )
+%if ! 0%{?amzn2023}
 Requires:       xdelta
+%endif
 %endif
 
 # bash-completion owns /usr/share/bash-completion/completions
@@ -200,6 +203,7 @@ License:        GPLv3
 BuildRequires:  autoconf
 BuildRequires:  autoconf-archive
 BuildRequires:  automake
+BuildRequires:  make
 BuildRequires:  libtool
 BuildRequires:  gcc
 BuildRequires:  gettext
@@ -222,7 +226,8 @@ BuildRequires:  libseccomp-static
 BuildRequires:  valgrind
 %endif
 BuildRequires:  %{_bindir}/rst2man
-%if 0%{?fedora}
+%if 0%{?fedora} && ! 0%{?amzn2023}
+# AL2023 does not have shellcheck
 # ShellCheck in EPEL is too old...
 BuildRequires:  %{_bindir}/shellcheck
 %endif
@@ -557,7 +562,7 @@ BUILDTAGS="${BUILDTAGS} nomanagers"
 # To ensure things work correctly with base snaps,
 # snap-exec, snap-update-ns, and snapctl need to be built statically
 (
-%if 0%{?rhel} >= 7 || 0%{?amzn2023}
+%if 0%{?rhel} >= 7
     # since RH Developer tools 2018.4 (and later releases),
     # the go-toolset module is built with FIPS compliance that
     # defaults to using libcrypto.so which gets loaded at runtime via dlopen(),
@@ -569,7 +574,7 @@ BUILDTAGS="${BUILDTAGS} nomanagers"
     %gobuild_static -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
 )
 
-%if 0%{?rhel} || 0%{?amzn2023}
+%if 0%{?rhel}
 # There's no static link library for libseccomp in RHEL/CentOS...
 sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
 %endif
@@ -580,8 +585,8 @@ sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
 %if 0%{?rhel} == 7
     M4PARAM='-D distro_rhel7'
 %endif
-%if 0%{?rhel} == 7 || 0%{?rhel} == 8
-    # RHEL7 and RHEL8 are missing the BPF interfaces from their reference policy
+%if 0%{?rhel} == 7 || 0%{?rhel} == 8 || 0%{?rhel} == 9
+    # RHEL7, RHEL8 and RHEL9 are missing the BPF interfaces from their reference policy
     M4PARAM="$M4PARAM -D no_bpf"
 %endif
     # Build SELinux module
