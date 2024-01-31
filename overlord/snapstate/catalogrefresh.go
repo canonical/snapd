@@ -123,6 +123,10 @@ func (r *catalogRefresh) Ensure() error {
 	switch err {
 	case nil:
 		logger.Debugf("Catalog refresh succeeded.")
+	case advisor.ErrNotSupported:
+		// This may happen if Bolt is disabled (e.g. Debian on RISC V).
+		logger.Debugf("Catalog refresh is not supported on this system")
+		// Do not fail silently so that tests can have the right expectations.
 	case store.ErrTooManyRequests:
 		logger.Debugf("Catalog refresh postponed.")
 		err = nil
