@@ -20,9 +20,9 @@
 package cgroup
 
 import (
-	"errors"
-	"os"
-	"path"
+	"context"
+	"fmt"
+	"path/filepath"
 	"sync"
 
 	"github.com/snapcore/snapd/logger"
@@ -33,27 +33,29 @@ import (
 // inotifyWatcher manages the inotify watcher, allowing to have a single watch descriptor open
 type inotifyWatcher struct {
 	// The watch object
-	wd *inotify.Watcher
+	wd    *inotify.Watcher
+	wdErr error
 	// This is used to ensure that the watcher goroutine is launched only once
 	doOnce sync.Once
+	// Context
+	ctx context.Context
 	// This channel is used to add a new CGroup that has to be checked
 	addWatchChan chan *groupToWatch
 	// Contains the list of groups to monitor, to detect when they have been deleted
 	groupList []*groupToWatch
 	// Contains the list of paths being monitored by the inotify watcher.
-	// The paths monitored aren't the CGroup paths, but the parent ones, because
-	// in /sys/fs is not possible to detect the InDeleteSelf message, only the
-	// InDelete one, so we must monitor the parent folder and detect when a
-	// specific folder, corresponding to a CGroup, has been deleted.
-	// Each path has associated an integer, which is an usage counter. Every
-	// time a new CGroup paths have to be monitored, the parent paths are
-	// checked in the map, and if they already exist, the usage counter is
-	// incremented by one (of course, if a parent path isn't in the map,
-	// it is initialized to one). Every time the path of a CGroup is deleted,
-	// the corresponding usage counter here corresponding to the parent path
-	// is decremented, and when it reaches zero, it is removed and inotify is
-	// notified to stop monitoring it.
-	pathList map[string]int32
+	// The paths monitored are both the actual leaf path and the parent
+	// directory. See discussion in addWatch for details on why the parent
+	// needs to be tracked as well.
+	pathList map[string]uint
+
+	done     context.CancelFunc
+	doneChan chan struct{}
+
+	// observer callback to facilitate testing, called when a watch is
+	// added, or a folder from a watched group is removed, or the whole
+	// group is empty and thus notified about
+	observeMonitorCb func(w *inotifyWatcher, name string)
 }
 
 // Contains the data corresponding to a CGroup that must be watched to detect
@@ -61,92 +63,155 @@ type inotifyWatcher struct {
 type groupToWatch struct {
 	// This is the CGroup identifier
 	name string
-	// This contains a list of folders to monitor. When all of them have been
+	// This contains a hash map of folders to monitor. When all of them have been
 	// deleted, the CGroup has been destroyed and there are no processes running
-	folders []string
+	folders map[string]struct{}
 	// This channel is used to notify to the requester that this CGroup has been
 	// destroyed. The watcher writes the CGroup identifier on it; this way, the
 	// same channel can be shared to monitor several CGroups.
 	channel chan<- string
 }
 
-var currentWatcher *inotifyWatcher = &inotifyWatcher{
-	wd:           nil,
-	pathList:     make(map[string]int32),
-	addWatchChan: make(chan *groupToWatch),
+var currentWatcher *inotifyWatcher = newInotifyWatcher(context.Background())
+
+func newInotifyWatcher(ctx context.Context) *inotifyWatcher {
+	ctx, cancel := context.WithCancel(ctx)
+	return &inotifyWatcher{
+		ctx:          ctx,
+		pathList:     make(map[string]uint),
+		addWatchChan: make(chan *groupToWatch),
+		doneChan:     make(chan struct{}),
+		done:         cancel,
+	}
 }
 
 func (gtw *groupToWatch) sendClosedNotification() {
-	defer func() {
-		if err := recover(); err != nil {
-			logger.Noticef("Failed to send Closed notification for %s", gtw.name)
-		}
+	// Use a goroutine to avoid getting blocked on the channel
+	go func() {
+		defer func() {
+			if err := recover(); err != nil {
+				logger.Noticef("cannot send closed notification for %s", gtw.name)
+			}
+		}()
+		gtw.channel <- gtw.name
 	}()
-	gtw.channel <- gtw.name
+}
+
+// Close stops the watcher and waits for it to finish.
+func (iw *inotifyWatcher) Close() {
+	iw.done()
+	<-iw.doneChan
+	for p := range iw.pathList {
+		iw.removePath(p)
+	}
+	iw.wd.Close()
 }
 
 func (iw *inotifyWatcher) addWatch(newWatch *groupToWatch) {
-	var folderList []string
-	for _, fullPath := range newWatch.folders {
+	for fullPath := range newWatch.folders {
 		// It's not possible to use inotify.InDeleteSelf in /sys/fs because it
 		// isn't triggered, so we must monitor the parent folder and use InDelete
-		basePath := path.Dir(fullPath)
+		basePath := filepath.Dir(fullPath)
 		if _, exists := iw.pathList[basePath]; !exists {
 			iw.pathList[basePath] = 0
 			if err := iw.wd.AddWatch(basePath, inotify.InDelete); err != nil {
-				target := &os.PathError{}
-				if !errors.As(err, &target) {
-					logger.Noticef("Error when calling AddWatch for path %s: %s", target.Path, target.Err)
-				}
+				// TODO propagate the error back to the caller
+				logger.Noticef("cannot add watch %v", err)
 				delete(iw.pathList, basePath)
 				continue
 			}
 		}
+
+		// bump for the base path, since we're relying on a watch being added there
+		iw.pathList[basePath]++
+		// bump on the actual path
 		iw.pathList[fullPath]++
-		if osutil.FileExists(fullPath) {
-			folderList = append(folderList, fullPath)
-		} else {
+
+		if !osutil.FileExists(fullPath) {
+			// the path is gone by now
+			delete(newWatch.folders, fullPath)
 			iw.removePath(fullPath)
 		}
 	}
-	if len(folderList) == 0 {
+
+	if len(newWatch.folders) == 0 {
 		newWatch.sendClosedNotification()
 	} else {
-		newWatch.folders = folderList
 		iw.groupList = append(iw.groupList, newWatch)
 	}
+
+	iw.notifyObserver(newWatch)
+
+	logger.Debugf("watches after add: %v", iw.pathList)
 }
 
 func (iw *inotifyWatcher) removePath(fullPath string) {
-	iw.pathList[fullPath]--
-	if iw.pathList[fullPath] == 0 {
-		iw.wd.RemoveWatch(fullPath)
-		delete(iw.pathList, fullPath)
+	cnt, ok := iw.pathList[fullPath]
+
+	if !ok {
+		// path we are not watching
+		return
 	}
+
+	parent := filepath.Dir(fullPath)
+
+	cnt--
+	// we are also keeping references to the parent, see
+	// addWatch about the details
+	iw.pathList[parent]--
+
+	if cnt > 0 {
+		// still references to this path
+		iw.pathList[fullPath] = cnt
+		return
+	}
+
+	logger.Debugf("removing watch for %s", fullPath)
+
+	delete(iw.pathList, fullPath)
+
+	// deal with parent now
+	if iw.pathList[parent] == 0 {
+		if err := iw.wd.RemoveWatch(parent); err != nil {
+			logger.Noticef("cannot remove watch: %v", err)
+		}
+
+		delete(iw.pathList, parent)
+	}
+
+	logger.Debugf("watches after remove: %v", iw.pathList)
 }
 
 // processDeletedPath checks if the received path corresponds to the passed
 // CGroup, removing it from the list of folders being watched in that CGroup if
 // needed. It returns true if there remain folders to be monitored in that CGroup,
 // or false if all the folders of that CGroup have been deleted.
-func (iw *inotifyWatcher) processDeletedPath(watch *groupToWatch, deletedPath string) bool {
-	for i, fullPath := range watch.folders {
-		if fullPath == deletedPath {
-			// if the folder name is in the list of folders to monitor, decrement the
-			// parent's usage counter, and remove it from the list of folders to watch
-			// in this CGroup (by not adding it to tmpFolders)
-			iw.removePath(fullPath)
-			watch.folders = append(watch.folders[:i], watch.folders[i+1:]...)
-			break
-		}
+func (iw *inotifyWatcher) processDeletedPath(watch *groupToWatch, deletedPath string) (keepWatching bool) {
+	if _, ok := watch.folders[deletedPath]; ok {
+		// if the folder name is in the list of folders to monitor, decrement the
+		// parent's usage counter, and remove it from the list of folders to watch
+		// in this CGroup (by not adding it to tmpFolders)
+		iw.removePath(deletedPath)
+		delete(watch.folders, deletedPath)
+
+		iw.notifyObserver(watch)
 	}
 	if len(watch.folders) == 0 {
 		// if all the files/folders of this CGroup have been deleted, notify the
 		// client that it is done.
 		watch.sendClosedNotification()
+
+		iw.notifyObserver(watch)
 		return false
 	}
+
 	return true
+}
+
+func (iw *inotifyWatcher) notifyObserver(w *groupToWatch) {
+	if iw.observeMonitorCb != nil {
+		iw.observeMonitorCb(iw, w.name)
+	}
 }
 
 func (iw *inotifyWatcher) watcherMainLoop() {
@@ -165,6 +230,9 @@ func (iw *inotifyWatcher) watcherMainLoop() {
 			iw.groupList = newGroupList
 		case newWatch := <-iw.addWatchChan:
 			iw.addWatch(newWatch)
+		case <-iw.ctx.Done():
+			close(iw.doneChan)
+			return
 		}
 	}
 }
@@ -175,19 +243,23 @@ func (iw *inotifyWatcher) monitorDelete(folders []string, name string, channel c
 	iw.doOnce.Do(func() {
 		iw.wd, err = inotify.NewWatcher()
 		if err != nil {
+			iw.wdErr = err
 			return
 		}
 		go iw.watcherMainLoop()
 	})
-	if err != nil {
-		return err
+	if iw.wdErr != nil {
+		return fmt.Errorf("cannot initialize inotify: %w", iw.wdErr)
 	}
-	if iw.wd == nil {
-		return errors.New("cannot initialise Inotify.")
+
+	foldersMap := make(map[string]struct{}, len(folders))
+	for _, f := range folders {
+		foldersMap[f] = struct{}{}
 	}
+
 	iw.addWatchChan <- &groupToWatch{
 		name:    name,
-		folders: folders,
+		folders: foldersMap,
 		channel: channel,
 	}
 	return nil
@@ -204,5 +276,7 @@ func MonitorSnapEnded(snapName string, channel chan<- string) error {
 	if err != nil {
 		return err
 	}
+
+	logger.Debugf("snap %s has %d processes: %v", snapName, len(paths), paths)
 	return currentWatcher.monitorDelete(paths, snapName, channel)
 }
