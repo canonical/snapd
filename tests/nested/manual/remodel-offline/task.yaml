@@ -57,7 +57,6 @@ execute: |
 
   new_model_rev=test-snapd-remodel-offline-rev1.model
   remote.push "$TESTSLIB/assertions/$new_model_rev"
-  remote.push "$TESTSLIB/assertions/test-snapd-core22-required-vset.assert"
   remodel_options="--no-wait"
 
   # if we are only using preinstalled/acked snaps/assertions, then we have to
@@ -106,7 +105,8 @@ execute: |
       remodel_options="$remodel_options --snap pc-kernel.snap --assertion pc-kernel.assert"
   fi
 
-  # ack/add new assertions to CLI params
+  # ack/add new validation set assertion to CLI params
+  remote.push "$TESTSLIB/assertions/test-snapd-core22-required-vset.assert"
   if [ "${USE_INSTALLED_VSET}" = 'true' ]; then
       remote.exec "snap ack test-snapd-core22-required-vset.assert"
   else
