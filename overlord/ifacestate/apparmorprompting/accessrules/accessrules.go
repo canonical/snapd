@@ -31,6 +31,7 @@ type AccessRule struct {
 	User        uint32                  `json:"user"`
 	Snap        string                  `json:"snap"`
 	App         string                  `json:"app"`
+	Interface   string                  `json:"interface"`
 	PathPattern string                  `json:"path-pattern"`
 	Outcome     common.OutcomeType      `json:"outcome"`
 	Lifespan    common.LifespanType     `json:"lifespan"`
@@ -73,9 +74,14 @@ type permissionDB struct {
 	PathRules map[string]string
 }
 
-type appDB struct {
-	// appDB contains a map from permission to permissionDB for a particular app
+type interfaceDB struct {
+	// interfaceDB contains a map from permission to permissionDB for a particular interface
 	PerPermission map[common.PermissionType]*permissionDB
+}
+
+type appDB struct {
+	// appDB contains a map from interface to interfaceDB for a particular app
+	PerInterface map[string]*interfaceDB
 }
 
 type snapDB struct {
@@ -111,7 +117,7 @@ func (ardb *AccessRuleDB) dbpath() string {
 	return filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "access-rules.json")
 }
 
-func (ardb *AccessRuleDB) permissionDBForUserSnapAppPermission(user uint32, snap string, app string, permission common.PermissionType) *permissionDB {
+func (ardb *AccessRuleDB) permissionDBForUserSnapAppInterfacePermission(user uint32, snap string, app string, iface string, permission common.PermissionType) *permissionDB {
 	userSnaps := ardb.PerUser[user]
 	if userSnaps == nil {
 		userSnaps = &userDB{
@@ -126,19 +132,26 @@ func (ardb *AccessRuleDB) permissionDBForUserSnapAppPermission(user uint32, snap
 		}
 		userSnaps.PerSnap[snap] = snapApps
 	}
-	appPerms := snapApps.PerApp[app]
-	if appPerms == nil {
-		appPerms = &appDB{
+	appInterfaces := snapApps.PerApp[app]
+	if appInterfaces == nil {
+		appInterfaces = &appDB{
+			PerInterface: make(map[string]*interfaceDB),
+		}
+		snapApps.PerApp[app] = appInterfaces
+	}
+	interfacePerms := appInterfaces.PerInterface[iface]
+	if interfacePerms == nil {
+		interfacePerms = &interfaceDB{
 			PerPermission: make(map[common.PermissionType]*permissionDB),
 		}
-		snapApps.PerApp[app] = appPerms
+		appInterfaces.PerInterface[iface] = interfacePerms
 	}
-	permPaths := appPerms.PerPermission[permission]
+	permPaths := interfacePerms.PerPermission[permission]
 	if permPaths == nil {
 		permPaths = &permissionDB{
 			PathRules: make(map[string]string),
 		}
-		appPerms.PerPermission[permission] = permPaths
+		interfacePerms.PerPermission[permission] = permPaths
 	}
 	return permPaths
 }
@@ -146,7 +159,7 @@ func (ardb *AccessRuleDB) permissionDBForUserSnapAppPermission(user uint32, snap
 func (ardb *AccessRuleDB) addRulePermissionToTree(rule *AccessRule, permission common.PermissionType) (error, string) {
 	// If there is a conflicting path pattern from another rule, returns an
 	// error along with the ID of the conflicting rule.
-	permPaths := ardb.permissionDBForUserSnapAppPermission(rule.User, rule.Snap, rule.App, permission)
+	permPaths := ardb.permissionDBForUserSnapAppInterfacePermission(rule.User, rule.Snap, rule.App, rule.Interface, permission)
 	pathPattern := rule.PathPattern
 	if id, exists := permPaths.PathRules[pathPattern]; exists {
 		return ErrPathPatternConflict, id
@@ -156,7 +169,7 @@ func (ardb *AccessRuleDB) addRulePermissionToTree(rule *AccessRule, permission c
 }
 
 func (ardb *AccessRuleDB) removeRulePermissionFromTree(rule *AccessRule, permission common.PermissionType) error {
-	permPaths := ardb.permissionDBForUserSnapAppPermission(rule.User, rule.Snap, rule.App, permission)
+	permPaths := ardb.permissionDBForUserSnapAppInterfacePermission(rule.User, rule.Snap, rule.App, rule.Interface, permission)
 	pathPattern := rule.PathPattern
 	id, exists := permPaths.PathRules[pathPattern]
 	if !exists {
@@ -352,7 +365,7 @@ func validatePatternOutcomeLifespanDuration(pathPattern string, outcome common.O
 // time, to compute the expiration time for the rule, and stores that as part
 // of the access rule which is returned.  If any of the given parameters are
 // invalid, returns a corresponding error.
-func (ardb *AccessRuleDB) PopulateNewAccessRule(user uint32, snap string, app string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration string, permissions []common.PermissionType) (*AccessRule, error) {
+func (ardb *AccessRuleDB) PopulateNewAccessRule(user uint32, snap string, app string, iface string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration string, permissions []common.PermissionType) (*AccessRule, error) {
 	pathPattern = common.StripTrailingSlashes(pathPattern)
 	expiration, err := validatePatternOutcomeLifespanDuration(pathPattern, outcome, lifespan, duration)
 	if err != nil {
@@ -367,6 +380,7 @@ func (ardb *AccessRuleDB) PopulateNewAccessRule(user uint32, snap string, app st
 		User:        user,
 		Snap:        snap,
 		App:         app,
+		Interface:   iface,
 		PathPattern: pathPattern,
 		Outcome:     outcome,
 		Lifespan:    lifespan,
@@ -377,9 +391,9 @@ func (ardb *AccessRuleDB) PopulateNewAccessRule(user uint32, snap string, app st
 }
 
 // Checks whether the given path with the given permission is allowed or
-// denied by existing access rules for the given user, snap, and app.  If no
-// access rule applies, returns ErrNoMatchingRule.
-func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, path string, permission common.PermissionType) (bool, error) {
+// denied by existing access rules for the given user, snap, app, and interface.
+// If no access rule applies, returns ErrNoMatchingRule.
+func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, iface string, path string, permission common.PermissionType) (bool, error) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
 	needToSave := false
@@ -388,7 +402,7 @@ func (ardb *AccessRuleDB) IsPathAllowed(user uint32, snap string, app string, pa
 			ardb.save()
 		}
 	}()
-	pathMap := ardb.permissionDBForUserSnapAppPermission(user, snap, app, permission).PathRules
+	pathMap := ardb.permissionDBForUserSnapAppInterfacePermission(user, snap, app, iface, permission).PathRules
 	matchingPatterns := make([]string, 0)
 	// Make sure all rules use the same expiration timestamp, so a rule with
 	// an earlier expiration cannot outlive another rule with a later one.
@@ -476,11 +490,11 @@ func (ardb *AccessRuleDB) RuleWithID(user uint32, id string) (*AccessRule, error
 // database.  If any of the given parameters are invalid, returns an error.
 // Otherwise, returns the newly-created access rule, and saves the database to
 // disk.
-func (ardb *AccessRuleDB) CreateAccessRule(user uint32, snap string, app string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration string, permissions []common.PermissionType) (*AccessRule, error) {
+func (ardb *AccessRuleDB) CreateAccessRule(user uint32, snap string, app string, iface string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration string, permissions []common.PermissionType) (*AccessRule, error) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
 	pathPattern = common.StripTrailingSlashes(pathPattern)
-	newRule, err := ardb.PopulateNewAccessRule(user, snap, app, pathPattern, outcome, lifespan, duration, permissions)
+	newRule, err := ardb.PopulateNewAccessRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
 	if err != nil {
 		return nil, err
 	}
@@ -548,7 +562,7 @@ func (ardb *AccessRuleDB) ModifyAccessRule(user uint32, id string, pathPattern s
 		ardb.notifyRule(user, id, nil)
 		return nil, err
 	}
-	newRule, err := ardb.PopulateNewAccessRule(user, origRule.Snap, origRule.App, pathPattern, outcome, lifespan, duration, permissions)
+	newRule, err := ardb.PopulateNewAccessRule(user, origRule.Snap, origRule.App, origRule.Interface, pathPattern, outcome, lifespan, duration, permissions)
 	if err != nil {
 		ardb.addRuleToTree(origRule) // ignore any new error
 		// origRule was successfully removed before, so it should now be able
@@ -623,6 +637,26 @@ func (ardb *AccessRuleDB) RulesForSnapApp(user uint32, snap string, app string) 
 	defer ardb.mutex.Unlock()
 	ruleFilter := func(rule *AccessRule) bool {
 		return rule.User == user && rule.Snap == snap && rule.App == app
+	}
+	return ardb.rulesInternal(ruleFilter)
+}
+
+// Returns all access rules which apply to the given user, snap, and interface.
+func (ardb *AccessRuleDB) RulesForSnapInterface(user uint32, snap string, iface string) []*AccessRule {
+	ardb.mutex.Lock()
+	defer ardb.mutex.Unlock()
+	ruleFilter := func(rule *AccessRule) bool {
+		return rule.User == user && rule.Snap == snap && rule.Interface == iface
+	}
+	return ardb.rulesInternal(ruleFilter)
+}
+
+// Returns all access rules which apply to the given user, snap, app, and interface.
+func (ardb *AccessRuleDB) RulesForSnapAppInterface(user uint32, snap string, app string, iface string) []*AccessRule {
+	ardb.mutex.Lock()
+	defer ardb.mutex.Unlock()
+	ruleFilter := func(rule *AccessRule) bool {
+		return rule.User == user && rule.Snap == snap && rule.App == app && rule.Interface == iface
 	}
 	return ardb.rulesInternal(ruleFilter)
 }

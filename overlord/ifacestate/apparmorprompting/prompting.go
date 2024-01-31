@@ -153,6 +153,8 @@ func (p *Prompting) handleListenerReq(req *listener.Request) error {
 		// the triggering process is not a snap, so treat apparmor label as both snap and app fields
 	}
 
+	iface := common.SelectSingleInterface(req.Interfaces())
+
 	path := req.Path()
 
 	permissions, err := common.PermissionMaskToPermissionsList(req.Permission().(notify.FilePermission))
@@ -162,7 +164,7 @@ func (p *Prompting) handleListenerReq(req *listener.Request) error {
 
 	satisfiedPerms := make([]common.PermissionType, 0, len(permissions))
 	for _, perm := range permissions {
-		if yesNo, err := p.rules.IsPathAllowed(userID, snap, app, path, perm); err == nil {
+		if yesNo, err := p.rules.IsPathAllowed(userID, snap, app, iface, path, perm); err == nil {
 			if !yesNo {
 				logger.Noticef("request denied by existing rule: %+v", req)
 				// TODO: the response puts all original permissions in the
@@ -178,7 +180,7 @@ func (p *Prompting) handleListenerReq(req *listener.Request) error {
 		return req.Reply(true)
 	}
 
-	newRequest, merged := p.requests.AddOrMerge(userID, snap, app, path, permissions, req)
+	newRequest, merged := p.requests.AddOrMerge(userID, snap, app, iface, path, permissions, req)
 	if merged {
 		logger.Noticef("new request merged with identical existing request: %+v", newRequest)
 		return nil
@@ -237,7 +239,7 @@ func (p *Prompting) PostRequest(userID uint32, requestID string, reply *PromptRe
 	}
 
 	// Create new rule based on the reply.
-	newRule, err := p.rules.CreateAccessRule(userID, req.Snap, req.App, reply.PathPattern, reply.Outcome, reply.Lifespan, reply.Duration, reply.Permissions)
+	newRule, err := p.rules.CreateAccessRule(userID, req.Snap, req.App, req.Interface, reply.PathPattern, reply.Outcome, reply.Lifespan, reply.Duration, reply.Permissions)
 	if err != nil {
 		// XXX: should only occur if identical path to an existing rule with
 		// overlapping permissions
@@ -251,7 +253,7 @@ func (p *Prompting) PostRequest(userID uint32, requestID string, reply *PromptRe
 	}
 
 	// Apply new rule to outstanding prompt requests.
-	satisfiedReqIDs, err := p.requests.HandleNewRule(userID, newRule.Snap, newRule.App, newRule.PathPattern, newRule.Outcome, newRule.Permissions)
+	satisfiedReqIDs, err := p.requests.HandleNewRule(userID, newRule.Snap, newRule.App, newRule.Interface, newRule.PathPattern, newRule.Outcome, newRule.Permissions)
 	if err != nil {
 		return nil, err
 	}
@@ -262,6 +264,7 @@ func (p *Prompting) PostRequest(userID uint32, requestID string, reply *PromptRe
 type PostRulesCreateRuleContents struct {
 	Snap        string                  `json:"snap"`
 	App         string                  `json:"app"`
+	Interface   string                  `json:"interface"`
 	PathPattern string                  `json:"path-pattern"`
 	Outcome     common.OutcomeType      `json:"outcome"`
 	Lifespan    common.LifespanType     `json:"lifespan"`
@@ -270,8 +273,9 @@ type PostRulesCreateRuleContents struct {
 }
 
 type PostRulesDeleteSelectors struct {
-	Snap string `json:"snap"`
-	App  string `json:"app,omitempty"`
+	Snap      string `json:"snap"`
+	App       string `json:"app,omitempty"`
+	Interface string `json:"interface,omitempty"`
 }
 
 type PostRulesRequestBody struct {
@@ -293,8 +297,16 @@ type PostRuleRequestBody struct {
 	Rule   *PostRuleModifyRuleContents `json:"rule,omitempty"`
 }
 
-func (p *Prompting) GetRules(userID uint32, snap string, app string) ([]*accessrules.AccessRule, error) {
-	// Daemon already checked that if app != "", then snap != ""
+func (p *Prompting) GetRules(userID uint32, snap string, app string, iface string) ([]*accessrules.AccessRule, error) {
+	// Daemon already checked that if app != "" or iface != "", then snap != ""
+	if iface != "" {
+		if app != "" {
+			rules := p.rules.RulesForSnapAppInterface(userID, snap, app, iface)
+			return rules, nil
+		}
+		rules := p.rules.RulesForSnapInterface(userID, snap, iface)
+		return rules, nil
+	}
 	if app != "" {
 		rules := p.rules.RulesForSnapApp(userID, snap, app)
 		return rules, nil
@@ -313,12 +325,13 @@ func (p *Prompting) PostRulesCreate(userID uint32, rules []*PostRulesCreateRuleC
 	for _, ruleContents := range rules {
 		snap := ruleContents.Snap
 		app := ruleContents.App
+		iface := ruleContents.Interface
 		pathPattern := ruleContents.PathPattern
 		outcome := ruleContents.Outcome
 		lifespan := ruleContents.Lifespan
 		duration := ruleContents.Duration
 		permissions := ruleContents.Permissions
-		newRule, err := p.rules.CreateAccessRule(userID, snap, app, pathPattern, outcome, lifespan, duration, permissions)
+		newRule, err := p.rules.CreateAccessRule(userID, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
 		if err != nil {
 			errors = append(errors, err)
 			continue
@@ -326,7 +339,7 @@ func (p *Prompting) PostRulesCreate(userID uint32, rules []*PostRulesCreateRuleC
 		createdRules = append(createdRules, newRule)
 		// Apply new rule to outstanding requests. If error occurs,
 		// include it in the list of errors from creating rules.
-		if _, err := p.requests.HandleNewRule(userID, newRule.Snap, newRule.App, newRule.PathPattern, newRule.Outcome, newRule.Permissions); err != nil {
+		if _, err := p.requests.HandleNewRule(userID, newRule.Snap, newRule.App, newRule.Interface, newRule.PathPattern, newRule.Outcome, newRule.Permissions); err != nil {
 			errors = append(errors, err)
 		}
 	}
@@ -345,9 +358,16 @@ func (p *Prompting) PostRulesDelete(userID uint32, deleteSelectors []*PostRulesD
 	for _, selector := range deleteSelectors {
 		snap := selector.Snap
 		app := selector.App
+		iface := selector.Interface
 		var rulesToDelete []*accessrules.AccessRule
 		// Already checked that snap != ""
-		if app != "" {
+		if iface != "" {
+			if app != "" {
+				rulesToDelete = p.rules.RulesForSnapAppInterface(userID, snap, app, iface)
+			} else {
+				rulesToDelete = p.rules.RulesForSnapInterface(userID, snap, iface)
+			}
+		} else if app != "" {
 			rulesToDelete = p.rules.RulesForSnapApp(userID, snap, app)
 		} else {
 			rulesToDelete = p.rules.RulesForSnap(userID, snap)

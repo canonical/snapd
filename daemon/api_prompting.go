@@ -145,6 +145,7 @@ func getRules(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	snap := query.Get("snap")
 	app := query.Get("app")
+	iface := query.Get("interface")
 
 	ucred, err := ucrednetGet(r.RemoteAddr)
 	if err != nil {
@@ -154,7 +155,10 @@ func getRules(c *Command, r *http.Request, user *auth.UserState) Response {
 	if app != "" && snap == "" {
 		return BadRequest("app parameter provided, must also provide snap parameter")
 	}
-	result, err := c.d.overlord.InterfaceManager().Prompting().GetRules(ucred.Uid, snap, app)
+	if iface != "" && snap == "" {
+		return BadRequest("interface parameter provided, must also provide snap parameter")
+	}
+	result, err := c.d.overlord.InterfaceManager().Prompting().GetRules(ucred.Uid, snap, app, iface)
 	if err != nil {
 		return InternalError("%v", err)
 	}

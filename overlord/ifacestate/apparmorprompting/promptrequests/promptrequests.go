@@ -19,6 +19,7 @@ type PromptRequest struct {
 	Timestamp    string                  `json:"timestamp"`
 	Snap         string                  `json:"snap"`
 	App          string                  `json:"app"`
+	Interface    string                  `json:"interface"`
 	Path         string                  `json:"path"`
 	Permissions  []common.PermissionType `json:"permissions"`
 	listenerReqs []*listener.Request     `json:"-"`
@@ -49,7 +50,7 @@ func New(notifyRequest func(userID uint32, requestID string, options *state.AddN
 // added, returns the new request and false, indicating the request was not
 // merged. If it was merged with an identical existing request, returns the
 // existing request and true.
-func (rdb *RequestDB) AddOrMerge(user uint32, snap string, app string, path string, permissions []common.PermissionType, listenerReq *listener.Request) (*PromptRequest, bool) {
+func (rdb *RequestDB) AddOrMerge(user uint32, snap string, app string, iface string, path string, permissions []common.PermissionType, listenerReq *listener.Request) (*PromptRequest, bool) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 	userEntry, exists := rdb.PerUser[user]
@@ -74,6 +75,7 @@ func (rdb *RequestDB) AddOrMerge(user uint32, snap string, app string, path stri
 		Timestamp:    timestamp,
 		Snap:         snap,
 		App:          app,
+		Interface:    iface,
 		Path:         path,
 		Permissions:  permissions, // TODO: copy permissions list?
 		listenerReqs: []*listener.Request{listenerReq},
@@ -148,7 +150,7 @@ var sendReply = func(listenerReq *listener.Request, reply interface{}) error {
 
 // If any existing requests are satisfied by the given rule, send the decision
 // along their respective channels, and return their IDs.
-func (rdb *RequestDB) HandleNewRule(user uint32, snap string, app string, pathPattern string, outcome common.OutcomeType, permissions []common.PermissionType) ([]string, error) {
+func (rdb *RequestDB) HandleNewRule(user uint32, snap string, app string, iface string, pathPattern string, outcome common.OutcomeType, permissions []common.PermissionType) ([]string, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 	var outcomeBool bool
@@ -166,7 +168,7 @@ func (rdb *RequestDB) HandleNewRule(user uint32, snap string, app string, pathPa
 		return satisfiedReqIDs, nil
 	}
 	for id, req := range userEntry.ByID {
-		if !(snap == req.Snap && app == req.App) {
+		if !(req.Snap == snap && req.App == app && req.Interface == iface) {
 			continue
 		}
 		matched, err := common.PathPatternMatches(pathPattern, req.Path)
