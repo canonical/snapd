@@ -66,9 +66,8 @@ func (s *SnapSuite) TestRemodelOffline(c *C) {
 		n++
 	})
 
-	var err error
 	modelPath := filepath.Join(dirs.GlobalRootDir, "new-model")
-	err = os.WriteFile(modelPath, []byte("snap1"), 0644)
+	err := os.WriteFile(modelPath, []byte("snap1"), 0644)
 	c.Assert(err, IsNil)
 
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"remodel", "--no-wait", "--offline", modelPath})
