@@ -22,6 +22,7 @@ package snap_test
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"testing"
 	"time"
 
@@ -2189,18 +2190,148 @@ components:
 `))
 	c.Assert(err, IsNil)
 	c.Check(info.InstanceName(), Equals, "snap")
-	c.Check(info.Components, DeepEquals, map[string]snap.Component{
+	c.Check(info.Components, DeepEquals, map[string]*snap.Component{
 		"test1": {
 			Type:        "test",
 			Summary:     "test component",
 			Description: "long component description",
+			Name:        "test1",
 		},
 		"test2": {
 			Type:        "test",
 			Summary:     "test component 2",
 			Description: "long component description 2",
+			Name:        "test2",
 		},
 	})
+}
+
+func (s *YamlSuite) TestUnmarshalComponentsHook(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+components:
+  test1:
+    type: test
+    summary: test component
+    description: long component description
+    hooks:
+      install:
+        plugs: [network]
+        command-chain: [chain1, chain2]
+        environment:
+          k1: v1
+          k2: v2
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.InstanceName(), Equals, "snap")
+
+	component := info.Components["test1"]
+	c.Assert(component, NotNil)
+
+	hook := component.Hooks["install"]
+	c.Assert(hook, NotNil)
+	c.Check(hook.CommandChain, DeepEquals, []string{"chain1", "chain2"})
+	c.Check(hook.Environment, DeepEquals, *strutil.NewOrderedMap("k1", "v1", "k2", "v2"))
+}
+
+func (s *YamlSuite) TestUnmarshalComponentsHooksWithPlugs(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+components:
+  test1:
+    type: test
+    summary: test component
+    description: long component description
+    hooks:
+      install:
+        plugs: [network, network-bind]
+      pre-refresh:
+        plugs: [test-plug]
+      post-refresh:
+      remove:
+  test2:
+    hooks:
+      pre-refresh:
+        plugs: [test-plug, test2-plug]
+plugs:
+  network-client:
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.InstanceName(), Equals, "snap")
+
+	type hook struct {
+		plugs []string
+	}
+
+	type component struct {
+		hooks map[string]hook
+	}
+
+	expectedComponents := map[string]component{
+		"test1": {
+			hooks: map[string]hook{
+				"install": {
+					plugs: []string{"network", "network-bind", "network-client"},
+				},
+				"pre-refresh": {
+					plugs: []string{"network-client", "test-plug"},
+				},
+				"post-refresh": {
+					plugs: []string{"network-client"},
+				},
+				"remove": {
+					plugs: []string{"network-client"},
+				},
+			},
+		},
+		"test2": {
+			hooks: map[string]hook{
+				"pre-refresh": {
+					plugs: []string{"network-client", "test-plug", "test2-plug"},
+				},
+			},
+		},
+	}
+
+	foundComponents := make(map[string]component, len(info.Components))
+	for _, foundComponent := range info.Components {
+		foundHooks := make(map[string]hook)
+		for _, foundHook := range foundComponent.Hooks {
+			foundPlugs := make([]string, 0, len(foundHook.Plugs))
+			for _, foundPlug := range foundHook.Plugs {
+				foundPlugs = append(foundPlugs, foundPlug.Name)
+			}
+
+			sort.Strings(foundPlugs)
+
+			foundHooks[foundHook.Name] = hook{
+				plugs: foundPlugs,
+			}
+		}
+
+		foundComponents[foundComponent.Name] = component{
+			hooks: foundHooks,
+		}
+	}
+
+	c.Check(foundComponents, DeepEquals, expectedComponents)
+}
+
+func (s *YamlSuite) TestUnmarshalComponentsHooksUnsupported(c *C) {
+	_, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+components:
+  test1:
+    type: test
+    summary: test component
+    description: long component description
+    hooks:
+      unsupported:
+        plugs: [plug-for-unsupported]
+plugs:
+  network-client:
+`))
+	c.Assert(err, ErrorMatches, `unsupported component hook: "unsupported"`)
 }
 
 func (s *YamlSuite) TestUnmarshalComponentsError(c *C) {

@@ -117,6 +117,13 @@ type hookYaml struct {
 	CommandChain []string           `yaml:"command-chain,omitempty"`
 }
 
+type componentYaml struct {
+	Type        ComponentType       `yaml:"type"`
+	Summary     string              `yaml:"summary"`
+	Description string              `yaml:"description"`
+	Hooks       map[string]hookYaml `yaml:"hooks,omitempty"`
+}
+
 type layoutYaml struct {
 	Bind     string `yaml:"bind,omitempty"`
 	BindFile string `yaml:"bind-file,omitempty"`
@@ -125,12 +132,6 @@ type layoutYaml struct {
 	Group    string `yaml:"group,omitempty"`
 	Mode     string `yaml:"mode,omitempty"`
 	Symlink  string `yaml:"symlink,omitempty"`
-}
-
-type componentYaml struct {
-	Type        ComponentType `yaml:"type"`
-	Summary     string        `yaml:"summary"`
-	Description string        `yaml:"description"`
 }
 
 type socketsYaml struct {
@@ -190,9 +191,11 @@ func infoFromSnapYaml(yamlData []byte, strk *scopedTracker) (*Info, error) {
 		return nil, err
 	}
 
-	setComponentsFromSnapYaml(y, snap)
-
 	strk.init(len(y.Apps) + len(y.Hooks))
+
+	if err := setComponentsFromSnapYaml(y, snap, strk); err != nil {
+		return nil, err
+	}
 
 	// Collect all apps, their aliases and hooks
 	if err := setAppsFromSnapYaml(y, snap, strk); err != nil {
@@ -310,18 +313,50 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 	return snap
 }
 
-func setComponentsFromSnapYaml(y snapYaml, snap *Info) {
+func setComponentsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 	if len(y.Components) > 0 {
-		snap.Components = make(map[string]Component, len(y.Components))
+		snap.Components = make(map[string]*Component, len(y.Components))
 	}
 
 	for name, data := range y.Components {
-		snap.Components[name] = Component{
+		component := Component{
+			Name:        name,
 			Type:        data.Type,
 			Summary:     data.Summary,
 			Description: data.Description,
 		}
+
+		if len(data.Hooks) > 0 {
+			component.Hooks = make(map[string]*HookInfo, len(data.Hooks))
+		}
+
+		for hookName, hookData := range data.Hooks {
+			if !IsComponentHookSupported(hookName) {
+				return fmt.Errorf("unsupported component hook: %q", hookName)
+			}
+
+			componentHook := &HookInfo{
+				Snap:         snap,
+				Name:         hookName,
+				Environment:  hookData.Environment,
+				CommandChain: hookData.CommandChain,
+				Component:    &component,
+				Explicit:     true,
+			}
+
+			if len(hookData.PlugNames) > 0 {
+				componentHook.Plugs = make(map[string]*PlugInfo, len(hookData.PlugNames))
+			}
+
+			bindPlugsToHook(componentHook, hookData.PlugNames, snap, strk)
+
+			component.Hooks[hookName] = componentHook
+		}
+
+		snap.Components[name] = &component
 	}
+
+	return nil
 }
 
 func setPlugsFromSnapYaml(y snapYaml, snap *Info) error {
@@ -509,37 +544,50 @@ func setHooksFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) {
 		}
 
 		snap.Hooks[hookName] = hook
+
 		// Bind all plugs/slots listed in this hook
-		for _, plugName := range yHook.PlugNames {
-			plug, ok := snap.Plugs[plugName]
-			if !ok {
-				// Create implicit plug definitions if required
-				plug = &PlugInfo{
-					Snap:      snap,
-					Name:      plugName,
-					Interface: plugName,
-				}
-				snap.Plugs[plugName] = plug
+		bindPlugsToHook(hook, yHook.PlugNames, snap, strk)
+		bindSlotsToHook(hook, yHook.SlotNames, snap, strk)
+	}
+}
+
+func bindSlotsToHook(hook *HookInfo, slotNames []string, snap *Info, strk *scopedTracker) {
+	for _, slotName := range slotNames {
+		slot, ok := snap.Slots[slotName]
+		if !ok {
+			// Create implicit slot definitions if required
+			slot = &SlotInfo{
+				Snap:      snap,
+				Name:      slotName,
+				Interface: slotName,
 			}
-			// Mark the plug as scoped.
-			strk.markPlug(plug)
-			hook.Plugs[plugName] = plug
+			snap.Slots[slotName] = slot
 		}
-		for _, slotName := range yHook.SlotNames {
-			slot, ok := snap.Slots[slotName]
-			if !ok {
-				// Create implicit slot definitions if required
-				slot = &SlotInfo{
-					Snap:      snap,
-					Name:      slotName,
-					Interface: slotName,
-				}
-				snap.Slots[slotName] = slot
+
+		// Mark the slot as scoped.
+		strk.markSlot(slot)
+
+		hook.Slots[slotName] = slot
+	}
+}
+
+func bindPlugsToHook(hook *HookInfo, plugNames []string, snap *Info, strk *scopedTracker) {
+	for _, plugName := range plugNames {
+		plug, ok := snap.Plugs[plugName]
+		if !ok {
+			// Create implicit plug definitions if required
+			plug = &PlugInfo{
+				Snap:      snap,
+				Name:      plugName,
+				Interface: plugName,
 			}
-			// Mark the slot as scoped.
-			strk.markSlot(slot)
-			hook.Slots[slotName] = slot
+			snap.Plugs[plugName] = plug
 		}
+
+		// Mark the plug as scoped.
+		strk.markPlug(plug)
+
+		hook.Plugs[plug.Name] = plug
 	}
 }
 
@@ -593,6 +641,15 @@ func bindUnscopedPlugs(snap *Info, strk *scopedTracker) {
 
 		for _, hook := range snap.Hooks {
 			hook.Plugs[plugName] = plug
+		}
+
+		for _, component := range snap.Components {
+			for _, componentHook := range component.Hooks {
+				if componentHook.Plugs == nil {
+					componentHook.Plugs = make(map[string]*PlugInfo)
+				}
+				componentHook.Plugs[plugName] = plug
+			}
 		}
 	}
 }
