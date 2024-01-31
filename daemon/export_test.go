@@ -372,3 +372,9 @@ func MockRebootNoticeWait(d time.Duration) (restore func()) {
 	rebootNoticeWait = d
 	return restore
 }
+
+func MockDevicestateReseal(f func(st *state.State, reboot bool) *state.Change) (restore func()) {
+	restore = testutil.Backup(&devicestateReseal)
+	devicestateReseal = f
+	return restore
+}

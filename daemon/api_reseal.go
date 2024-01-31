@@ -27,6 +27,10 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 )
 
+var (
+	devicestateReseal = devicestate.Reseal
+)
+
 var sealCmd = &Command{
 	Path:        "/v2/system-reseal",
 	POST:        postReseal,
@@ -48,7 +52,7 @@ func postReseal(c *Command, r *http.Request, user *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	chg := devicestate.Reseal(st, data.Reboot)
+	chg := devicestateReseal(st, data.Reboot)
 	ensureStateSoon(st)
 	return AsyncResponse(nil, chg.ID())
 }
