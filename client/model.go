@@ -64,8 +64,9 @@ func (client *Client) Remodel(b []byte, opts RemodelOpts) (changeID string, err 
 	return client.doAsync("POST", "/v2/model", nil, headers, bytes.NewReader(data))
 }
 
-// RemodelWithLocalSnaps tries to remodel the system with the given model assertion
-// and local snaps and assertion files.
+// RemodelWithLocalSnaps tries to remodel the system with the given model
+// assertion and local snaps and assertion files. Remodeling using this method
+// will ensure that snapd does not contact the store.
 func (client *Client) RemodelWithLocalSnaps(
 	model []byte, snapPaths, assertPaths []string) (changeID string, err error) {
 
