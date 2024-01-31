@@ -3443,7 +3443,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesDefaultPolicy(c *C) {
 	// no previous edition specified in the structure, as if it was not
 	// specified in gadget.yaml
 	c.Assert(oldData.Info.Volumes["foo"].Structure[1].Update, DeepEquals, gadget.VolumeUpdate{})
-	// new one has edition set explcitly
+	// new one has edition set explicitly
 	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 5
 
 	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
@@ -3481,7 +3481,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesDefaultPolicy(c *C) {
 
 	toUpdate := map[string]int{}
 	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
-		toUpdate[ps.Name()] = toUpdate[ps.Name()] + 1
+		toUpdate[ps.Name()]++
 		return &mockUpdater{}, nil
 	})
 	defer restore()
