@@ -99,7 +99,7 @@ For preparing classic images it supports a --classic mode`),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"customize": i18n.G("Image customizations specified as JSON file."),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"validation": i18n.G("Control whether validations should be ignored or enforced."),
+			"validation": i18n.G("Control whether validations should be ignored or enforced. (default: ignore)"),
 		}, []argDesc{
 			{
 				// TRANSLATORS: This needs to begin with < and end with >
@@ -123,8 +123,10 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	// level for "snap" command, for seed/seedwriter used by image however
 	// we want real validation.
 	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
-	imageCustomizations := *new(image.Customizations)
-	imageCustomizations.Validation = x.Validation
+	imageCustomizations := image.Customizations{
+		Validation: x.Validation,
+	}
+
 	opts := &image.Options{
 		Snaps:            x.ExtraSnaps,
 		ModelFile:        x.Positional.ModelAssertionFn,
