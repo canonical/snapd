@@ -277,6 +277,7 @@ func (*listenerSuite) TestRunSimple(c *C) {
 		case req := <-l.Reqs():
 			c.Assert(req.PID(), Equals, msg.Pid)
 			c.Assert(req.Label(), Equals, label)
+			c.Assert(req.Interfaces(), DeepEquals, []string{"home"}) // TODO: implement actual interface in message tag
 			c.Assert(req.SubjectUID(), Equals, msg.SUID)
 			c.Assert(req.Path(), Equals, path)
 			c.Assert(req.Class(), Equals, notify.AA_CLASS_FILE)

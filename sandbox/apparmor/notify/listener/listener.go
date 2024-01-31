@@ -65,6 +65,9 @@ type Request struct {
 	pid uint32
 	// label is the apparmor label on the process which triggered the request.
 	label string
+	// interfaces is the list of snapd interface associated with the apparmor
+	// rules which triggered the request.
+	interfaces []string
 	// subjectUID is the UID of the subject which triggered the request.
 	subjectUID uint32
 
@@ -92,9 +95,11 @@ func newRequest(msg *notify.MsgNotificationFile) (*Request, error) {
 	default:
 		return nil, fmt.Errorf("unsupported mediation class: %v", msg.Class)
 	}
+	interfaces := []string{"home"} // TODO: set according to tag included in msg
 	return &Request{
 		pid:        msg.Pid,
 		label:      msg.Label,
+		interfaces: interfaces,
 		subjectUID: msg.SUID,
 
 		path:       msg.Name,
@@ -113,6 +118,12 @@ func (r *Request) PID() uint32 {
 // Label returns the apparmor label on the process which triggered the request.
 func (r *Request) Label() string {
 	return r.label
+}
+
+// Interface returns the list of snapd interfaces associated with the apparmor
+// rules which triggered the request.
+func (r *Request) Interfaces() []string {
+	return r.interfaces
 }
 
 // SubjectUID returns the UID of the subject which triggered the request.
