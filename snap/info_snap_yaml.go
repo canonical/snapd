@@ -34,28 +34,28 @@ import (
 )
 
 type snapYaml struct {
-	Name            string                 `yaml:"name"`
-	Version         string                 `yaml:"version"`
-	Type            Type                   `yaml:"type"`
-	Architectures   []string               `yaml:"architectures,omitempty"`
-	Assumes         []string               `yaml:"assumes"`
-	Title           string                 `yaml:"title"`
-	Description     string                 `yaml:"description"`
-	Summary         string                 `yaml:"summary"`
-	Provenance      string                 `yaml:"provenance"`
-	License         string                 `yaml:"license,omitempty"`
-	Epoch           Epoch                  `yaml:"epoch,omitempty"`
-	Base            string                 `yaml:"base,omitempty"`
-	Confinement     ConfinementType        `yaml:"confinement,omitempty"`
-	Environment     strutil.OrderedMap     `yaml:"environment,omitempty"`
-	Plugs           map[string]interface{} `yaml:"plugs,omitempty"`
-	Slots           map[string]interface{} `yaml:"slots,omitempty"`
-	Apps            map[string]appYaml     `yaml:"apps,omitempty"`
-	Hooks           map[string]hookYaml    `yaml:"hooks,omitempty"`
-	Layout          map[string]layoutYaml  `yaml:"layout,omitempty"`
-	SystemUsernames map[string]interface{} `yaml:"system-usernames,omitempty"`
-	Links           map[string][]string    `yaml:"links,omitempty"`
-	Components      map[string]Component   `yaml:"components,omitempty"`
+	Name            string                   `yaml:"name"`
+	Version         string                   `yaml:"version"`
+	Type            Type                     `yaml:"type"`
+	Architectures   []string                 `yaml:"architectures,omitempty"`
+	Assumes         []string                 `yaml:"assumes"`
+	Title           string                   `yaml:"title"`
+	Description     string                   `yaml:"description"`
+	Summary         string                   `yaml:"summary"`
+	Provenance      string                   `yaml:"provenance"`
+	License         string                   `yaml:"license,omitempty"`
+	Epoch           Epoch                    `yaml:"epoch,omitempty"`
+	Base            string                   `yaml:"base,omitempty"`
+	Confinement     ConfinementType          `yaml:"confinement,omitempty"`
+	Environment     strutil.OrderedMap       `yaml:"environment,omitempty"`
+	Plugs           map[string]interface{}   `yaml:"plugs,omitempty"`
+	Slots           map[string]interface{}   `yaml:"slots,omitempty"`
+	Apps            map[string]appYaml       `yaml:"apps,omitempty"`
+	Hooks           map[string]hookYaml      `yaml:"hooks,omitempty"`
+	Layout          map[string]layoutYaml    `yaml:"layout,omitempty"`
+	SystemUsernames map[string]interface{}   `yaml:"system-usernames,omitempty"`
+	Links           map[string][]string      `yaml:"links,omitempty"`
+	Components      map[string]componentYaml `yaml:"components,omitempty"`
 
 	// TypoLayouts is used to detect the use of the incorrect plural form of "layout"
 	TypoLayouts typoDetector `yaml:"layouts,omitempty"`
@@ -127,6 +127,12 @@ type layoutYaml struct {
 	Symlink  string `yaml:"symlink,omitempty"`
 }
 
+type componentYaml struct {
+	Type        ComponentType `yaml:"type"`
+	Summary     string        `yaml:"summary"`
+	Description string        `yaml:"description"`
+}
+
 type socketsYaml struct {
 	ListenStream string      `yaml:"listen-stream,omitempty"`
 	SocketMode   os.FileMode `yaml:"socket-mode,omitempty"`
@@ -183,6 +189,8 @@ func infoFromSnapYaml(yamlData []byte, strk *scopedTracker) (*Info, error) {
 	if err := setSlotsFromSnapYaml(y, snap); err != nil {
 		return nil, err
 	}
+
+	setComponentsFromSnapYaml(y, snap)
 
 	strk.init(len(y.Apps) + len(y.Hooks))
 
@@ -292,7 +300,6 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 		Hooks:               make(map[string]*HookInfo),
 		Plugs:               make(map[string]*PlugInfo),
 		Slots:               make(map[string]*SlotInfo),
-		Components:          y.Components,
 		Environment:         y.Environment,
 		SystemUsernames:     make(map[string]*SystemUsernameInfo),
 		OriginalLinks:       make(map[string][]string),
@@ -301,6 +308,20 @@ func infoSkeletonFromSnapYaml(y snapYaml) *Info {
 	sort.Strings(snap.Assumes)
 
 	return snap
+}
+
+func setComponentsFromSnapYaml(y snapYaml, snap *Info) {
+	if len(y.Components) > 0 {
+		snap.Components = make(map[string]Component, len(y.Components))
+	}
+
+	for name, data := range y.Components {
+		snap.Components[name] = Component{
+			Type:        data.Type,
+			Summary:     data.Summary,
+			Description: data.Description,
+		}
+	}
 }
 
 func setPlugsFromSnapYaml(y snapYaml, snap *Info) error {
