@@ -15,7 +15,6 @@
 
 SNAPD_ENVIRONMENT_FILE := /etc/environment
 BINDIR := /usr/bin
-LIBEXECDIR := /usr/lib
 SYSTEMDUSERUNITDIR := /usr/lib/systemd/user
 
 SYSTEMD_UNITS_GENERATED := $(wildcard *.in)
@@ -38,5 +37,4 @@ clean:
 %: %.in
 	cat $< | \
 		sed s:@bindir@:$(BINDIR):g | \
-		sed s:@libexecdir@:$(LIBEXECDIR):g | \
 		cat > $@
