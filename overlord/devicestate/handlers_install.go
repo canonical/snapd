@@ -1019,9 +1019,8 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		}
 
 		if copier, ok := sysSeed.(seed.Copier); ok {
-			db := assertstate.DB(st)
-			err = copier.LoadAssertions(db, func(b *asserts.Batch) error {
-				return assertstate.AddBatch(st, b, nil)
+			err = copier.LoadAssertions(nil, func(b *asserts.Batch) error {
+				return nil
 			})
 			if err != nil {
 				return fmt.Errorf("cannot load seed assertions: %w", err)
