@@ -134,6 +134,7 @@ func (cs *clientSuite) TestClientRemodel(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(jsonBody, HasLen, 1)
 	c.Check(jsonBody["new-model"], Equals, string(remodelJsonData))
+	c.Check(jsonBody["offline"], IsNil)
 }
 
 func (cs *clientSuite) TestClientRemodelOffline(c *C) {
