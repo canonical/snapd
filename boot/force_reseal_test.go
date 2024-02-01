@@ -29,8 +29,6 @@ import (
 )
 
 type forceResealSuite struct {
-	restoreModeenvLock        func()
-	restoreResealKeyToModeenv func()
 }
 
 var _ = Suite(&forceResealSuite{})
@@ -49,13 +47,12 @@ func (s *forceResealSuite) TestForceResealHappy(c *C) {
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	restoreResealKeyToModeenv := boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, options *boot.ResealToModeenvOptions, unlocker boot.Unlocker) error {
+	defer boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, options *boot.ResealToModeenvOptions, unlocker boot.Unlocker) error {
 		c.Assert(rootdir, Equals, dirs.GlobalRootDir)
 		c.Assert(options.Force, Equals, true)
 		defer unlocker()()
 		return nil
-	})
-	defer restoreResealKeyToModeenv()
+	})()
 
 	err = boot.ForceReseal(u.unlocker)
 	c.Assert(err, IsNil)
@@ -71,12 +68,11 @@ func (s *forceResealSuite) TestForceResealError(c *C) {
 	}
 	err := m.WriteTo("")
 
-	restoreResealKeyToModeenv := boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, options *boot.ResealToModeenvOptions, unlocker boot.Unlocker) error {
+	defer boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, options *boot.ResealToModeenvOptions, unlocker boot.Unlocker) error {
 		c.Assert(rootdir, Equals, dirs.GlobalRootDir)
 		c.Assert(options.Force, Equals, true)
 		return fmt.Errorf(`CUSTOMERROR`)
-	})
-	defer restoreResealKeyToModeenv()
+	})()
 
 	err = boot.ForceReseal(u.unlocker)
 	c.Assert(err, ErrorMatches, `CUSTOMERROR`)
