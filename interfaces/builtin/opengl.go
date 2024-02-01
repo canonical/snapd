@@ -185,7 +185,7 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 unix (send, receive) type=dgram peer=(addr="@var/run/nvidia-xdriver-*"),
 `
 
-type openGlInterface struct {
+type openglInterface struct {
 	commonInterface
 }
 
@@ -217,7 +217,7 @@ const (
 	nvProfilesDirInMountNs = "/usr/share/nvidia"
 )
 
-func (iface *openGlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+func (iface *openglInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(openglConnectedPlugAppArmor)
 
 	// Allow mounting the Nvidia driver profiles directory
@@ -241,7 +241,7 @@ func (iface *openGlInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 	return nil
 }
 
-func (iface *openGlInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+func (iface *openglInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// Do nothing if this doesn't exist on the host
 	hostNvProfilesDir := filepath.Join(dirs.GlobalRootDir, nvProfilesDirInHostNs)
 	if !osutil.IsDirectory(hostNvProfilesDir) {
@@ -258,7 +258,7 @@ func (iface *openGlInterface) MountConnectedPlug(spec *mount.Specification, plug
 }
 
 func init() {
-	registerIface(&openGlInterface{
+	registerIface(&openglInterface{
 		commonInterface: commonInterface{
 			name:                 "opengl",
 			summary:              openglSummary,
