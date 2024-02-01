@@ -33,5 +33,5 @@ type CommandDB interface {
 	Rollback() error
 }
 
-// ErrNotSupported indicates that bolt support is disabled and avisor is unusable.
-var ErrNotSupported = errors.New("not supported")
+// ErrNotSupported indicates that advisor is not supported.
+var ErrNotSupported = errors.New("advisor is not supported")
