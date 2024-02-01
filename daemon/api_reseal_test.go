@@ -42,7 +42,7 @@ func (s *resealSuite) SetUpTest(c *C) {
 	s.expectRootAccess()
 }
 
-func (s *recoveryKeysSuite) testResealHappy(c *C, reboot bool) {
+func (s *resealSuite) testResealHappy(c *C, reboot bool) {
 	d := s.daemon(c)
 
 	devicestateResealCalls := 0
@@ -63,10 +63,10 @@ func (s *recoveryKeysSuite) testResealHappy(c *C, reboot bool) {
 	c.Check(devicestateResealCalls, Equals, 1)
 }
 
-func (s *recoveryKeysSuite) TestResealRebootHappy(c *C) {
+func (s *resealSuite) TestResealRebootHappy(c *C) {
 	s.testResealHappy(c, true)
 }
 
-func (s *recoveryKeysSuite) TestResealNoRebootHappy(c *C) {
+func (s *resealSuite) TestResealNoRebootHappy(c *C) {
 	s.testResealHappy(c, false)
 }
