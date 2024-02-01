@@ -26,63 +26,6 @@ func (s *commonSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(s.tmpdir)
 }
 
-func (s *commonSuite) TestRemovePermissionFromList(c *C) {
-	cases := []struct {
-		initial []common.PermissionType
-		remove  common.PermissionType
-		final   []common.PermissionType
-		err     error
-	}{
-		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
-			common.PermissionRead,
-			[]common.PermissionType{common.PermissionWrite, common.PermissionExecute},
-			nil,
-		},
-		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
-			common.PermissionWrite,
-			[]common.PermissionType{common.PermissionRead, common.PermissionExecute},
-			nil,
-		},
-		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
-			common.PermissionExecute,
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite},
-			nil,
-		},
-		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionRead},
-			common.PermissionRead,
-			[]common.PermissionType{common.PermissionWrite},
-			nil,
-		},
-		{
-			[]common.PermissionType{common.PermissionRead},
-			common.PermissionRead,
-			[]common.PermissionType{},
-			nil,
-		},
-		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionRead},
-			common.PermissionRead,
-			[]common.PermissionType{},
-			nil,
-		},
-		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
-			common.PermissionAppend,
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
-			common.ErrPermissionNotInList,
-		},
-	}
-	for _, testCase := range cases {
-		result, err := common.RemovePermissionFromList(testCase.initial, testCase.remove)
-		c.Assert(err, Equals, testCase.err)
-		c.Assert(result, DeepEquals, testCase.final)
-	}
-}
-
 func (s *commonSuite) TestTimestamps(c *C) {
 	before := time.Now()
 	ts := common.CurrentTimestamp()
@@ -298,6 +241,63 @@ func (s *commonSuite) TestPermissionsListContains(c *C) {
 		common.PermissionChangeGroup,
 	} {
 		c.Check(common.PermissionsListContains(permissionsList, perm), Equals, false)
+	}
+}
+
+func (s *commonSuite) TestRemovePermissionFromList(c *C) {
+	cases := []struct {
+		initial []common.PermissionType
+		remove  common.PermissionType
+		final   []common.PermissionType
+		err     error
+	}{
+		{
+			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
+			common.PermissionRead,
+			[]common.PermissionType{common.PermissionWrite, common.PermissionExecute},
+			nil,
+		},
+		{
+			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
+			common.PermissionWrite,
+			[]common.PermissionType{common.PermissionRead, common.PermissionExecute},
+			nil,
+		},
+		{
+			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
+			common.PermissionExecute,
+			[]common.PermissionType{common.PermissionRead, common.PermissionWrite},
+			nil,
+		},
+		{
+			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionRead},
+			common.PermissionRead,
+			[]common.PermissionType{common.PermissionWrite},
+			nil,
+		},
+		{
+			[]common.PermissionType{common.PermissionRead},
+			common.PermissionRead,
+			[]common.PermissionType{},
+			nil,
+		},
+		{
+			[]common.PermissionType{common.PermissionRead, common.PermissionRead},
+			common.PermissionRead,
+			[]common.PermissionType{},
+			nil,
+		},
+		{
+			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
+			common.PermissionAppend,
+			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
+			common.ErrPermissionNotInList,
+		},
+	}
+	for _, testCase := range cases {
+		result, err := common.RemovePermissionFromList(testCase.initial, testCase.remove)
+		c.Assert(err, Equals, testCase.err)
+		c.Assert(result, DeepEquals, testCase.final)
 	}
 }
 

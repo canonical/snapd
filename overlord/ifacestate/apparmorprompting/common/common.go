@@ -69,29 +69,6 @@ const (
 	PermissionChangeProfileOnExec PermissionType = "change-profile-on-exec"
 )
 
-// Removes the given permission from the given list of permissions.
-// Returns a new list with all instances of the given permission removed.
-// If the given permission is not found in the list, returns an error, along
-// with the original list.
-func RemovePermissionFromList(list []PermissionType, permission PermissionType) ([]PermissionType, error) {
-	if len(list) == 0 {
-		return list, ErrPermissionNotInList
-	}
-	newList := make([]PermissionType, 0, len(list)-1)
-	found := false
-	for _, perm := range list {
-		if perm == permission {
-			found = true
-			continue
-		}
-		newList = append(newList, perm)
-	}
-	if !found {
-		return list, ErrPermissionNotInList
-	}
-	return newList, nil
-}
-
 // Converts the given timestamp string to a time.Time in Local time.
 // The timestamp string is expected to be of the format time.RFC3999Nano.
 // If it cannot be parsed as such, returns an error.
@@ -225,6 +202,29 @@ func PermissionsListContains(list []PermissionType, permission PermissionType) b
 		}
 	}
 	return false
+}
+
+// Removes the given permission from the given list of permissions.
+// Returns a new list with all instances of the given permission removed.
+// If the given permission is not found in the list, returns an error, along
+// with the original list.
+func RemovePermissionFromList(list []PermissionType, permission PermissionType) ([]PermissionType, error) {
+	if len(list) == 0 {
+		return list, ErrPermissionNotInList
+	}
+	newList := make([]PermissionType, 0, len(list)-1)
+	found := false
+	for _, perm := range list {
+		if perm == permission {
+			found = true
+			continue
+		}
+		newList = append(newList, perm)
+	}
+	if !found {
+		return list, ErrPermissionNotInList
+	}
+	return newList, nil
 }
 
 var allowablePathPatternRegexp = regexp.MustCompile(`^(/|(/[^/*{}]+)*(/\*|(/\*\*)?(/\*\.[^/*{}]+)?)?)$`)
