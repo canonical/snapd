@@ -104,6 +104,22 @@ func (s *commonSuite) TestLabelToSnapAppUnhappy(c *C) {
 	}
 }
 
+func (s *commonSuite) TestSelectSingleInterface(c *C) {
+	defaultInterface := "other"
+	fakeIface := "foo"
+	c.Check(common.SelectSingleInterface([]string{}), Equals, defaultInterface, Commentf("input: []string{}"))
+	c.Check(common.SelectSingleInterface([]string{""}), Equals, defaultInterface, Commentf(`input: []string{""}`))
+	c.Check(common.SelectSingleInterface([]string{fakeIface}), Equals, defaultInterface, Commentf(`input: []string{""}`))
+	for iface := range common.InterfacePriorities {
+		c.Check(common.SelectSingleInterface([]string{iface}), Equals, iface)
+		fakeList := []string{iface, fakeIface}
+		c.Check(common.SelectSingleInterface(fakeList), Equals, iface)
+		fakeList = []string{fakeIface, iface}
+		c.Check(common.SelectSingleInterface(fakeList), Equals, iface)
+	}
+	c.Check(common.SelectSingleInterface([]string{"home", "camera", "foo"}), Equals, "home")
+}
+
 func (s *commonSuite) TestPermissionMaskToPermissionsList(c *C) {
 	cases := []struct {
 		mask notify.FilePermission
