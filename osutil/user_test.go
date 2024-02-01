@@ -100,7 +100,7 @@ func (s *createUserSuite) TestUserAddExtraUsersFalse(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string{
-		{"useradd", "--badname", "--comment", "my gecos", "--create-home", "--shell", "/bin/bash", "lakatos"},
+		{"useradd", "--comment", "my gecos", "--create-home", "--shell", "/bin/bash", "lakatos"},
 	})
 }
 
@@ -130,7 +130,7 @@ func (s *createUserSuite) TestUserAddExtraUsersTrue(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string{
-		{"useradd", "--badname", "--comment", "my gecos", "--create-home", "--shell", "/bin/bash", "--extrausers", "lakatos"},
+		{"useradd", "--comment", "my gecos", "--create-home", "--shell", "/bin/bash", "--extrausers", "lakatos"},
 	})
 }
 
@@ -219,7 +219,7 @@ func (s *createUserSuite) TestAddUserWithPasswordForceChange(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string{
-		{"useradd", "--badname", "--comment", "my gecos", "--create-home", "--shell", "/bin/bash", "karl.popper"},
+		{"useradd", "--comment", "my gecos", "--create-home", "--shell", "/bin/bash", "karl.popper"},
 	})
 	c.Check(s.mockUserMod.Calls(), check.DeepEquals, [][]string{
 		{"usermod", "--password", "$6$salt$hash", "karl.popper"},
@@ -322,11 +322,11 @@ func (s *createUserSuite) TestUserAddUnhappy(c *check.C) {
 var usernameTestCases = map[string]bool{
 	"a":       true,
 	"a-b":     true,
-	"a+b":     true,
+	"a+b":     false,
 	"a.b":     true,
 	"a_b":     true,
 	"1":       true,
-	"1+":      true,
+	"1+":      false,
 	"1.":      true,
 	"1_":      true,
 	"-":       false,

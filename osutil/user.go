@@ -60,16 +60,19 @@ type AddUserOptions struct {
 // We check the (user)name ourselves, adduser is a bit too
 // strict (i.e. no `.`) - this regexp is in sync with that SSO
 // allows as valid usernames.
+// On systems where there are no adduser, this is the regex that verifies
+// users being created, and serves as a replacement for the regex that adduser
+// was providing.
 //
 // IsValidUsername define what is valid for a "system-user" assertion.
-var IsValidUsername = regexp.MustCompile(`^[a-z0-9][-a-z0-9+._]*$`).MatchString
+var IsValidUsername = regexp.MustCompile(`^[a-z0-9][-a-z0-9._]*$`).MatchString
 
 // IsValidSnapSystemUsername defines what is valid for the
 // "system-usernames" stanza in the snap.yaml.
 //
 // Unlike a normal username a system usernames can be encloused in "_"
 // (e.g. _username_ is valid)
-var IsValidSnapSystemUsername = regexp.MustCompile(`^([_][-a-z0-9+._]+[_]|[a-z0-9][-a-z0-9+._]*)$`).MatchString
+var IsValidSnapSystemUsername = regexp.MustCompile(`^([_][-a-z0-9._]+[_]|[a-z0-9][-a-z0-9._]*)$`).MatchString
 
 // EnsureSnapUserGroup uses the standard shadow utilities' 'useradd'
 // and 'groupadd' commands for creating non-login system users and
@@ -218,9 +221,10 @@ func AddUser(name string, opts *AddUserOptions) error {
 		"--disabled-password",
 	}
 	if !hasAddUserExecutable() {
+		// No reason to use --badname for useradd, we are already a lot more
+		// strict than useradd, with our own regex "IsValidUsername".
 		cmdStr = []string{
 			"useradd",
-			"--badname",
 			"--comment", opts.Gecos,
 			"--create-home",
 			"--shell", "/bin/bash",
