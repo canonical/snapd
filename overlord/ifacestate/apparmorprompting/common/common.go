@@ -83,6 +83,13 @@ const (
 	PermissionChangeProfileOnExec PermissionType = "change-profile-on-exec"
 )
 
+// If kernel request contains multiple interfaces, one must take priority.
+// Lower value is higher priority, and entries should be in priority order.
+var interfacePriorities = map[string]int{
+	"home":   0,
+	"camera": 1,
+}
+
 // TimestampToTime converts the given timestamp string to a time.Time in Local
 // time. The timestamp string is expected to be of the format time.RFC3339Nano.
 // If it cannot be parsed as such, returns an error.
@@ -136,6 +143,25 @@ func LabelToSnapApp(label string) (snap string, app string, err error) {
 	snap = components[1]
 	app = components[2]
 	return snap, app, nil
+}
+
+// SelectSingleInterface selects the interface with the highest priority from
+// the given list. If none of the given interfaces are included in
+// interfacePriorities, or if the list is empty, return "other".
+func SelectSingleInterface(interfaces []string) string {
+	bestIface := "other"
+	bestPriority := len(interfacePriorities)
+	for _, iface := range interfaces {
+		priority, exists := interfacePriorities[iface]
+		if !exists {
+			continue
+		}
+		if priority < bestPriority {
+			bestPriority = priority
+			bestIface = iface
+		}
+	}
+	return bestIface
 }
 
 // PermissionMaskToPermissionsList converts the given aparmor file permission
