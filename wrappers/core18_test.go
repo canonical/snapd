@@ -66,7 +66,6 @@ func makeMockSnapdSnap(c *C) *snap.Info {
 		{"usr/share/dbus-1/system.d/io.netplan.Netplan.conf", "<busconfig/>"},
 		// D-Bus activation files
 		{"usr/share/dbus-1/services/io.snapcraft.Launcher.service", "[D-BUS Service]\nName=io.snapcraft.Launcher"},
-		{"usr/share/dbus-1/services/io.snapcraft.Prompt.service", "[D-BUS Service]\nName=io.snapcraft.Prompt"},
 		{"usr/share/dbus-1/services/io.snapcraft.Settings.service", "[D-BUS Service]\nName=io.snapcraft.Settings"},
 		{"usr/share/dbus-1/services/io.snapcraft.SessionAgent.service", "[D-BUS Service]\nName=io.snapcraft.SessionAgent"},
 	})

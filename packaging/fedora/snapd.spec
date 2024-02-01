@@ -723,11 +723,6 @@ rm %{buildroot}%{_libexecdir}/snapd/system-shutdown
 rm -f %{buildroot}%{_unitdir}/snapd.apparmor.service
 rm -f %{buildroot}%{_libexecdir}/snapd/snapd-apparmor
 
-# Remove prompt services
-rm %{buildroot}%{_unitdir}/snapd.aa-prompt-listener.service
-rm %{buildroot}%{_userunitdir}/snapd.aa-prompt-ui.service
-rm %{buildroot}%{_datadir}/dbus-1/services/io.snapcraft.Prompt.service
-
 # Install Polkit configuration
 install -m 644 -D data/polkit/io.snapcraft.snapd.policy %{buildroot}%{_datadir}/polkit-1/actions
 
