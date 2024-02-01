@@ -1,7 +1,0 @@
-[Unit]
-Description=snapd UI prompt
-
-[Service]
-Type=dbus
-BusName=io.snapcraft.Prompt
-ExecStart=@bindir@/snapd-aa-prompt-ui

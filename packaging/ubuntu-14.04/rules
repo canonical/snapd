@@ -219,13 +219,6 @@ override_dh_install:
 	rm $(CURDIR)/debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.apparmor.service
 	rm $(CURDIR)/debian/tmp/usr/bin/snapd-apparmor
 
-	# Remove prompt services, not used on 14.04
-	rm $(CURDIR)/debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.aa-prompt-listener.service
-	rm $(CURDIR)/debian/snapd/usr/lib/systemd/user/snapd.aa-prompt-ui.service
-	rm $(CURDIR)/debian/snapd/usr/share/dbus-1/services/io.snapcraft.Prompt.service
-	rm $(CURDIR)/debian/tmp/usr/bin/snapd-aa-prompt-listener
-	rm $(CURDIR)/debian/tmp/usr/bin/snapd-aa-prompt-ui
-
 	dh_install
 
 override_dh_auto_install: snap.8

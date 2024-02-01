@@ -4,8 +4,6 @@ usr/bin/snapctl /usr/lib/snapd/
 usr/bin/snap-exec /usr/lib/snapd/
 usr/bin/snap-update-ns /usr/lib/snapd/
 usr/bin/snapd /usr/lib/snapd/
-usr/bin/snapd-aa-prompt-listener /usr/lib/snapd/
-usr/bin/snapd-aa-prompt-ui /usr/lib/snapd/
 usr/bin/snap-seccomp /usr/lib/snapd/
 usr/bin/snapd-apparmor /usr/lib/snapd/
 

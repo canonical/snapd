@@ -475,7 +475,6 @@ type: snapd
 	otherFiles := [][]string{
 		// D-Bus activation files
 		{"usr/share/dbus-1/services/io.snapcraft.Launcher.service", "[D-BUS Service]\nName=io.snapcraft.Launcher"},
-		{"usr/share/dbus-1/services/io.snapcraft.Prompt.service", "[D-BUS Service]\nName=io.snapcraft.Prompt"},
 		{"usr/share/dbus-1/services/io.snapcraft.Settings.service", "[D-BUS Service]\nName=io.snapcraft.Settings"},
 		{"usr/share/dbus-1/services/io.snapcraft.SessionAgent.service", "[D-BUS Service]\nName=io.snapcraft.SessionAgent"},
 	}
@@ -528,8 +527,6 @@ WantedBy=snapd.service
 	// D-Bus service activation files for snap userd
 	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Launcher.service"), testutil.FileEquals,
 		"[D-BUS Service]\nName=io.snapcraft.Launcher")
-	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Prompt.service"), testutil.FileEquals,
-		"[D-BUS Service]\nName=io.snapcraft.Prompt")
 	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Settings.service"), testutil.FileEquals,
 		"[D-BUS Service]\nName=io.snapcraft.Settings")
 	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.SessionAgent.service"), testutil.FileEquals,
@@ -793,7 +790,6 @@ func (s *linkCleanupSuite) testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c *C
 
 	// D-Bus service activation
 	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Launcher.service"), checker)
-	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Prompt.service"), checker)
 	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Settings.service"), checker)
 	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.SessionAgent.service"), checker)
 }
