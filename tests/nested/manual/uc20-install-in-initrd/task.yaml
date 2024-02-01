@@ -97,5 +97,5 @@ execute: |
   if [ "${INSTALL_MODE}" = secureboot ]; then
     remote.exec test -f /var/lib/snapd/device/fde/boot-chains
   else
-    remote.exec ! test -f /var/lib/snapd/device/fde/boot-chains
+    remote.exec not test -f /var/lib/snapd/device/fde/boot-chains
   fi
