@@ -89,7 +89,6 @@ func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 
 	for _, srv := range []string{
 		"io.snapcraft.Launcher.service",
-		"io.snapcraft.Prompt.service",
 		"io.snapcraft.Settings.service",
 	} {
 		dst := filepath.Join("/usr/share/dbus-1/services/", srv)
