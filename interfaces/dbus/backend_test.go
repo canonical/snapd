@@ -304,7 +304,6 @@ func makeFakeDbusConfigAndUserdServiceFiles(c *C, coreOrSnapdSnap *snap.Info) {
 
 	for _, fn := range []string{
 		"io.snapcraft.Launcher.service",
-		"io.snapcraft.Prompt.service",
 		"io.snapcraft.Settings.service",
 	} {
 		content := fmt.Sprintf("content of %s for snap %s", fn, coreOrSnapdSnap.InstanceName())
@@ -315,7 +314,6 @@ func makeFakeDbusConfigAndUserdServiceFiles(c *C, coreOrSnapdSnap *snap.Info) {
 
 var expectedDBusConfigFiles = []string{
 	"/usr/share/dbus-1/services/io.snapcraft.Launcher.service",
-	"/usr/share/dbus-1/services/io.snapcraft.Prompt.service",
 	"/usr/share/dbus-1/services/io.snapcraft.Settings.service",
 	"/usr/share/dbus-1/session.d/snapd.session-services.conf",
 	"/usr/share/dbus-1/system.d/snapd.system-services.conf",
