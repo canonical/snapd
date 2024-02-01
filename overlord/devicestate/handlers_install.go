@@ -1012,13 +1012,14 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	defer unmountParts()
 
 	if !sys.Model.Classic() {
-		if copier, ok := sysSeed.(seed.Copier); ok {
-			logger.Debugf("copying label %q to seed partition", sys.Label)
-			if err := copier.Copy(seedMntDir, sys.Label, timings.New(nil)); err != nil {
-				return fmt.Errorf("cannot copy seed: %w", err)
-			}
-		} else {
-			logger.Debugf("seed does not support copying: %s", sys.Label)
+		copier, ok := sysSeed.(seed.Copier)
+		if !ok {
+			return fmt.Errorf("internal error: seed does not support copying: %s", sys.Label)
+		}
+
+		logger.Debugf("copying label %q to seed partition", sys.Label)
+		if err := copier.Copy(seedMntDir, sys.Label, timings.New(nil)); err != nil {
+			return fmt.Errorf("cannot copy seed: %w", err)
 		}
 	}
 
