@@ -45,7 +45,6 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/assertstate"
 	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -855,12 +854,12 @@ func mountSeedSnap(seedSn *seed.Snap) (mountpoint string, unmount func() error, 
 }
 
 func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string) (
-	*System, map[snap.Type]*snap.Info, map[snap.Type]*seed.Snap, map[snap.Type]string, func(), error) {
+	*System, seed.Seed, map[snap.Type]*snap.Info, map[snap.Type]*seed.Snap, map[snap.Type]string, func(), error) {
 
 	essentialTypes := []snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget}
-	sys, snapInfos, snapSeeds, err := m.loadSystemAndEssentialSnaps(systemLabel, essentialTypes)
+	sys, sd, snapInfos, snapSeeds, err := m.loadSystemAndEssentialSnaps(systemLabel, essentialTypes)
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, err
 	}
 	// Unset revision here actually means that the snap is local.
 	// Assign then a local revision as seeding/installing the snap would do.
@@ -884,13 +883,13 @@ func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string) (
 		mntPt, unmountSnap, err := mountSeedSnap(seedSn)
 		if err != nil {
 			unmount()
-			return nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, err
 		}
 		unmountFuncs = append(unmountFuncs, unmountSnap)
 		mntPtForType[seedSn.EssentialType] = mntPt
 	}
 
-	return sys, snapInfos, snapSeeds, mntPtForType, unmount, nil
+	return sys, sd, snapInfos, snapSeeds, mntPtForType, unmount, nil
 }
 
 // doInstallFinish performs the finish step of the install. It will
@@ -929,7 +928,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Unlock()
-	sys, snapInfos, snapSeeds, mntPtForType, unmount, err := m.loadAndMountSystemLabelSnaps(systemLabel)
+	sys, sysSeed, snapInfos, snapSeeds, mntPtForType, unmount, err := m.loadAndMountSystemLabelSnaps(systemLabel)
 	st.Lock()
 	if err != nil {
 		return err
@@ -1013,19 +1012,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	defer unmountParts()
 
 	if !sys.Model.Classic() {
-		sysSeed, err := seedOpen(dirs.SnapSeedDir, sys.Label)
-		if err != nil {
-			return fmt.Errorf("cannot open seed: %w", err)
-		}
-
 		if copier, ok := sysSeed.(seed.Copier); ok {
-			err = copier.LoadAssertions(nil, func(b *asserts.Batch) error {
-				return nil
-			})
-			if err != nil {
-				return fmt.Errorf("cannot load seed assertions: %w", err)
-			}
-
 			logger.Debugf("copying label %q to seed partition", sys.Label)
 			if err := copier.Copy(seedMntDir, sys.Label, timings.New(nil)); err != nil {
 				return fmt.Errorf("cannot copy seed: %w", err)
@@ -1103,7 +1090,7 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	logger.Debugf("install-setup-storage-encryption for %q on %v", systemLabel, onVolumes)
 
 	st.Unlock()
-	sys, snapInfos, snapSeeds, mntPtForType, unmount, err := m.loadAndMountSystemLabelSnaps(systemLabel)
+	sys, _, snapInfos, snapSeeds, mntPtForType, unmount, err := m.loadAndMountSystemLabelSnaps(systemLabel)
 	st.Lock()
 	if err != nil {
 		return err
