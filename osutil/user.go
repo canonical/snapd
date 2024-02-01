@@ -199,7 +199,7 @@ var hasAddUserExecutable = func() bool {
 // AddUser uses the Debian/Ubuntu/derivative 'adduser' command for creating
 // regular login users on Ubuntu Core. 'adduser' is not portable cross-distro
 // but is convenient for creating regular login users.
-// if 'adduser' is not avaialble, 'useradd' is used instead.
+// if 'adduser' is not available, 'useradd' is used instead.
 // This order is preferred as older version of 'useradd' does not support
 // "--badname" option.
 //
