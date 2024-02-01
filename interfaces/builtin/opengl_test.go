@@ -170,7 +170,7 @@ func (s *OpenglInterfaceSuite) TestMountSpec(c *C) {
 	c.Assert(entries, HasLen, 1)
 
 	const hostfs = "/var/lib/snapd/hostfs"
-	c.Check(entries[0].Name, Equals, hostfs+dirs.NvidiaProfilesDir)
+	c.Check(entries[0].Name, Equals, filepath.Join(hostfs, tmpdir, "/usr/share/nvidia"))
 	c.Check(entries[0].Dir, Equals, "/usr/share/nvidia")
 	c.Check(entries[0].Options, DeepEquals, []string{"bind", "ro"})
 }

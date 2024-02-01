@@ -115,8 +115,6 @@ var (
 	SnapDeviceSaveDir string
 	SnapDataSaveDir   string
 
-	NvidiaProfilesDir string
-
 	CloudMetaDataFile     string
 	CloudInstanceDataFile string
 
@@ -510,8 +508,6 @@ func SetRootDir(rootdir string) {
 
 	ErrtrackerDbDir = filepath.Join(rootdir, snappyDir, "errtracker.db")
 	SysfsDir = filepath.Join(rootdir, "/sys")
-
-	NvidiaProfilesDir = filepath.Join(rootdir, "/usr/share/nvidia")
 
 	FeaturesDir = FeaturesDirUnder(rootdir)
 

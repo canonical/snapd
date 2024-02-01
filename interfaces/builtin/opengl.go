@@ -20,6 +20,8 @@
 package builtin
 
 import (
+	"path/filepath"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -206,11 +208,21 @@ var openglConnectedPlugUDev = []string{
 	`KERNEL=="galcore"`,
 }
 
+// Those two are the same, but in theory they are separate and can move (or
+// could move) dependently. The first path is as seen on the initial mount
+// namespace of the host. The second path is as seen inside the per-snap mount
+// namespace.
+const (
+	nvProfilesDirInHostNs  = "/usr/share/nvidia"
+	nvProfilesDirInMountNs = "/usr/share/nvidia"
+)
+
 func (iface *openGlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(openglConnectedPlugAppArmor)
 
 	// Allow mounting the Nvidia driver profiles directory
-	if !osutil.IsDirectory(dirs.NvidiaProfilesDir) {
+	hostNvProfilesDir := filepath.Join(dirs.GlobalRootDir, nvProfilesDirInHostNs)
+	if !osutil.IsDirectory(hostNvProfilesDir) {
 		return nil
 	}
 
@@ -218,11 +230,11 @@ func (iface *openGlInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 	mount options=(bind) /var/lib/snapd/hostfs%[1]s/ -> %[2]s/,
 	remount options=(bind, ro) %[2]s/,
 	umount %[2]s/,
-`, dirs.NvidiaProfilesDir, dirs.StripRootDir(dirs.NvidiaProfilesDir))
+`, hostNvProfilesDir, nvProfilesDirInMountNs)
 
 	apparmor.GenWritableProfile(
 		spec.AddUpdateNSf,
-		dirs.StripRootDir(dirs.NvidiaProfilesDir),
+		nvProfilesDirInMountNs,
 		3,
 	)
 
@@ -231,13 +243,14 @@ func (iface *openGlInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 
 func (iface *openGlInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// Do nothing if this doesn't exist on the host
-	if !osutil.IsDirectory(dirs.NvidiaProfilesDir) {
+	hostNvProfilesDir := filepath.Join(dirs.GlobalRootDir, nvProfilesDirInHostNs)
+	if !osutil.IsDirectory(hostNvProfilesDir) {
 		return nil
 	}
 
 	spec.AddMountEntry(osutil.MountEntry{
-		Name:    "/var/lib/snapd/hostfs" + dirs.NvidiaProfilesDir,
-		Dir:     dirs.StripRootDir(dirs.NvidiaProfilesDir),
+		Name:    filepath.Join("/var/lib/snapd/hostfs", hostNvProfilesDir),
+		Dir:     nvProfilesDirInMountNs,
 		Options: []string{"bind", "ro"},
 	})
 
