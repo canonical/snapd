@@ -62,7 +62,7 @@ execute: |
   # if we are only using preinstalled/acked snaps/assertions, then we have to
   # use the --offline flag to indicate that we want to use already installed
   # snaps
-  if [ "${USE_INSTALLED_ESSENTIAL_SNAPS}" = 'true' -a "${USE_INSTALLED_VSET}" = 'true' -a "${USE_INSTALLED_APP}" = 'true' ]; then
+  if [ "${USE_INSTALLED_ESSENTIAL_SNAPS}" = 'true' ] && [ "${USE_INSTALLED_VSET}" = 'true' ] && [ "${USE_INSTALLED_APP}" = 'true' ]; then
       remodel_options="$remodel_options --offline"
   fi
 
