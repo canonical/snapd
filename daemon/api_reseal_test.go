@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-var _ = Suite(&recoveryKeysSuite{})
+var _ = Suite(&resealSuite{})
 
 type resealSuite struct {
 	apiBaseSuite
