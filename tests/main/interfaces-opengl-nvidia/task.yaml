@@ -1,5 +1,11 @@
 summary: Ensure that basic opengl works with faked nvidia
 
+details: |
+    The opengl interface provides access to specific device nodes and libraries.
+    Some of the libraries are exposed from the classic host. There is
+    considerable complexity in providing access to nvidia user-space libraries.
+    Depending on the host operating system version the location of the
+    libraries differs.
 systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-2*]
 
 environment:
