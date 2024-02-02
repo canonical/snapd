@@ -234,22 +234,23 @@ func SetSnapHomeDirs(homedirs string) []string {
 			snapHomeDirs[i] = filepath.Clean(snapHomeDirs[i])
 			globalRootDir := GlobalRootDir
 			// Avoid false positives with HasPrefix
-			if globalRootDir != "/" {
-				globalRootDir = globalRootDir + "/"
+			if globalRootDir != "/" && !strings.HasSuffix(globalRootDir, "/") {
+				globalRootDir += "/"
 			}
 			if !strings.HasPrefix(snapHomeDirs[i], globalRootDir) {
 				snapHomeDirs[i] = filepath.Join(GlobalRootDir, snapHomeDirs[i])
 			}
 			// Generate data directory globbing expressions for each user.
-			snapDataHomeGlob = append(snapDataHomeGlob, snapHomeDirs[i]+"/*/"+UserHomeSnapDir)
-			hiddenSnapDataHomeGlob = append(hiddenSnapDataHomeGlob, snapHomeDirs[i]+"/*/"+HiddenSnapDataHomeDir)
+			snapDataHomeGlob = append(snapDataHomeGlob, filepath.Join(snapHomeDirs[i], "*", UserHomeSnapDir))
+			hiddenSnapDataHomeGlob = append(hiddenSnapDataHomeGlob, filepath.Join(snapHomeDirs[i], "*", HiddenSnapDataHomeDir))
 		}
 	}
 
 	// Make sure /home is part of the list.
 	hasHome := false
+	globalHome := filepath.Join(GlobalRootDir, "/home")
 	for _, e := range snapHomeDirs {
-		if e == filepath.Join(GlobalRootDir, "/home") {
+		if e == globalHome {
 			hasHome = true
 			break
 		}
@@ -284,12 +285,10 @@ func StripRootDir(dir string) string {
 func DataHomeGlobs(opts *SnapDirOptions) []string {
 	snapHomeDirsMu.Lock()
 	defer snapHomeDirsMu.Unlock()
-	if opts == nil {
-		opts = &SnapDirOptions{}
-	}
-	if opts.HiddenSnapDataDir {
+	if opts != nil && opts.HiddenSnapDataDir {
 		return hiddenSnapDataHomeGlob
 	}
+
 	return snapDataHomeGlob
 }
 
@@ -433,7 +432,6 @@ func SetRootDir(rootdir string) {
 	if rootdir == "" {
 		rootdir = "/"
 	}
-	filepath.Clean(rootdir)
 	GlobalRootDir = rootdir
 
 	altDirDistros := []string{
@@ -603,14 +601,15 @@ func SetRootDir(rootdir string) {
 
 	FeaturesDir = FeaturesDirUnder(rootdir)
 
+	// If the root directory changes we also need to reset snapHomeDirs.
+	SetSnapHomeDirs("/home")
+
 	// call the callbacks last so that the callbacks can just reference the
 	// global vars if they want, instead of using the new rootdir directly
 	for _, c := range callbacks {
 		c(rootdir)
 	}
 
-	// If the root directory changes we also need to reset snapHomeDirs.
-	SetSnapHomeDirs("/home")
 }
 
 // what inside a (non-classic) snap is /usr/lib/snapd, outside can come from different places
