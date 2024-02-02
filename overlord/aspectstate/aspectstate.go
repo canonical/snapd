@@ -32,7 +32,7 @@ func SetAspect(databag aspects.DataBag, account, bundleName, aspect, field strin
 	accPatterns := aspecttest.MockWifiSetupAspect()
 	schema := aspects.NewJSONSchema()
 
-	aspectBundle, err := aspects.NewAspectBundle(account, bundleName, accPatterns, schema)
+	aspectBundle, err := aspects.NewBundle(account, bundleName, accPatterns, schema)
 	if err != nil {
 		return err
 	}
@@ -59,7 +59,7 @@ func GetAspect(databag aspects.DataBag, account, bundleName, aspect, field strin
 	accPatterns := aspecttest.MockWifiSetupAspect()
 	schema := aspects.NewJSONSchema()
 
-	aspectBundle, err := aspects.NewAspectBundle(account, bundleName, accPatterns, schema)
+	aspectBundle, err := aspects.NewBundle(account, bundleName, accPatterns, schema)
 	if err != nil {
 		return nil, err
 	}
