@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -47,7 +48,41 @@ const remodelError = `{
   "status-code": 400
 }`
 
-func (s *SnapSuite) TestRemodelOfflineOk(c *C) {
+func (s *SnapSuite) TestRemodelOffline(c *C) {
+	n := 0
+
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "POST")
+		c.Check(r.URL.Path, Equals, "/v2/model")
+		w.WriteHeader(202)
+
+		var req map[string]interface{}
+		err := json.NewDecoder(r.Body).Decode(&req)
+		c.Assert(err, IsNil)
+
+		c.Check(req["offline"], Equals, true)
+
+		fmt.Fprint(w, remodelOk)
+		n++
+	})
+
+	modelPath := filepath.Join(dirs.GlobalRootDir, "new-model")
+	err := os.WriteFile(modelPath, []byte("snap1"), 0644)
+	c.Assert(err, IsNil)
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"remodel", "--no-wait", "--offline", modelPath})
+
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Assert(n, Equals, 1)
+
+	c.Check(s.Stdout(), Matches, "101\n")
+	c.Check(s.Stderr(), Equals, "")
+
+	s.ResetStdStreams()
+}
+
+func (s *SnapSuite) TestRemodelLocalSnapsOk(c *C) {
 	n := 0
 
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -78,7 +113,7 @@ func (s *SnapSuite) TestRemodelOfflineOk(c *C) {
 	s.ResetStdStreams()
 }
 
-func (s *SnapSuite) TestRemodelOfflineError(c *C) {
+func (s *SnapSuite) TestRemodelLocalSnapsError(c *C) {
 	n := 0
 
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
