@@ -138,9 +138,9 @@ type Bundle struct {
 	aspects map[string]*Aspect
 }
 
-// NewAspectBundle returns a new aspect bundle for the specified aspects
+// NewBundle returns a new aspect bundle for the specified aspects
 // and access patterns.
-func NewAspectBundle(account string, bundleName string, aspects map[string]interface{}, schema Schema) (*Bundle, error) {
+func NewBundle(account string, bundleName string, aspects map[string]interface{}, schema Schema) (*Bundle, error) {
 	if len(aspects) == 0 {
 		return nil, errors.New(`cannot define aspects bundle: no aspects`)
 	}
@@ -153,7 +153,7 @@ func NewAspectBundle(account string, bundleName string, aspects map[string]inter
 	}
 
 	for name, v := range aspects {
-		accessPatterns, ok := v.([]map[string]string)
+		accessPatterns, ok := v.([]interface{})
 		if !ok {
 			return nil, fmt.Errorf("cannot define aspect %q: access patterns should be a list of maps", name)
 		} else if len(accessPatterns) == 0 {
@@ -171,7 +171,7 @@ func NewAspectBundle(account string, bundleName string, aspects map[string]inter
 	return aspectBundle, nil
 }
 
-func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string) (*Aspect, error) {
+func newAspect(bundle *Bundle, name string, aspectPatterns []interface{}) (*Aspect, error) {
 	aspect := &Aspect{
 		Name:           name,
 		accessPatterns: make([]*accessPattern, 0, len(aspectPatterns)),
@@ -179,22 +179,46 @@ func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string) 
 	}
 
 	readRequests := make(map[string]bool)
-	for _, aspectPattern := range aspectPatterns {
-		request, ok := aspectPattern["request"]
-		if !ok || request == "" {
+	for _, aspectPatternRaw := range aspectPatterns {
+		aspectPattern, ok := aspectPatternRaw.(map[string]interface{})
+		if !ok {
+			return nil, errors.New("each access pattern should be a map")
+		}
+
+		requestRaw, ok := aspectPattern["request"]
+		if !ok || requestRaw == "" {
 			return nil, errors.New(`access patterns must have a "request" field`)
 		}
 
-		storage, ok := aspectPattern["storage"]
-		if !ok || storage == "" {
+		request, ok := requestRaw.(string)
+		if !ok {
+			return nil, errors.New(`"request" must be a string`)
+		}
+
+		storageRaw, ok := aspectPattern["storage"]
+		if !ok || storageRaw == "" {
 			return nil, errors.New(`access patterns must have a "storage" field`)
+		}
+
+		storage, ok := storageRaw.(string)
+		if !ok {
+			return nil, errors.New(`"storage" must be a string`)
 		}
 
 		if err := validateRequestStoragePair(request, storage); err != nil {
 			return nil, err
 		}
 
-		switch aspectPattern["access"] {
+		accessRaw, ok := aspectPattern["access"]
+		var access string
+		if ok {
+			access, ok = accessRaw.(string)
+			if !ok {
+				return nil, errors.New(`"access" must be a string`)
+			}
+		}
+
+		switch access {
 		case "read", "read-write", "":
 			if readRequests[request] {
 				return nil, fmt.Errorf(`cannot have several reading rules with the same "request" field`)
@@ -202,7 +226,7 @@ func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string) 
 			readRequests[request] = true
 		}
 
-		accPattern, err := newAccessPattern(request, storage, aspectPattern["access"])
+		accPattern, err := newAccessPattern(request, storage, access)
 		if err != nil {
 			return nil, err
 		}
