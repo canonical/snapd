@@ -155,7 +155,7 @@ func NewBundle(account string, bundleName string, aspects map[string]interface{}
 	for name, v := range aspects {
 		accessPatterns, ok := v.([]interface{})
 		if !ok {
-			return nil, fmt.Errorf("cannot define aspect %q: access patterns should be a list", name)
+			return nil, fmt.Errorf("cannot define aspect %q: access patterns should be a list of maps", name)
 		} else if len(accessPatterns) == 0 {
 			return nil, fmt.Errorf("cannot define aspect %q: no access patterns found", name)
 		}

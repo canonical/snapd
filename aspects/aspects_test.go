@@ -48,7 +48,7 @@ func (*aspectSuite) TestNewAspectBundle(c *C) {
 		},
 		{
 			bundle: map[string]interface{}{"bar": "baz"},
-			err:    `cannot define aspect "bar": access patterns should be a list`,
+			err:    `cannot define aspect "bar": access patterns should be a list of maps`,
 		},
 		{
 			bundle: map[string]interface{}{"bar": []interface{}{"foo"}},
