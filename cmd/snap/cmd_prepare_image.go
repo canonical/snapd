@@ -123,9 +123,6 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	// level for "snap" command, for seed/seedwriter used by image however
 	// we want real validation.
 	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
-	imageCustomizations := image.Customizations{
-		Validation: x.Validation,
-	}
 
 	opts := &image.Options{
 		Snaps:            x.ExtraSnaps,
@@ -133,7 +130,6 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 		Channel:          x.Channel,
 		Architecture:     x.Architecture,
 		SeedManifestPath: x.WriteRevisionsFile,
-		Customizations:   imageCustomizations,
 	}
 
 	if x.RevisionsFile != "" {
@@ -150,6 +146,16 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 			return err
 		}
 		opts.Customizations = *custo
+	}
+
+	if x.Validation != "" {
+		if opts.Customizations.Validation == "" {
+			opts.Customizations.Validation = x.Validation
+		} else {
+			opts.Customizations = image.Customizations{
+				Validation: x.Validation,
+			}
+		}
 	}
 
 	snaps := make([]string, 0, len(x.Snaps)+len(x.ExtraSnaps))

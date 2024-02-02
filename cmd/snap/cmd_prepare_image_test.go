@@ -175,6 +175,38 @@ func (s *SnapPrepareImageSuite) TestPrepareImageCustomize(c *C) {
 	})
 }
 
+func (s *SnapPrepareImageSuite) TestPrepareImageCustomizeValidated(c *C) {
+	var opts *image.Options
+	prep := func(o *image.Options) error {
+		opts = o
+		return nil
+	}
+	r := cmdsnap.MockImagePrepare(prep)
+	defer r()
+
+	tmpdir := c.MkDir()
+	customizeFile := filepath.Join(tmpdir, "custo.json")
+	err := os.WriteFile(customizeFile, []byte(`{
+  "console-conf": "disabled",
+  "cloud-init-user-data": "cloud-init-user-data"
+}`), 0644)
+	c.Assert(err, IsNil)
+
+	rest, err := cmdsnap.Parser(cmdsnap.Client()).ParseArgs([]string{"prepare-image", "model", "prepare-dir", "--validation", "enforce", "--customize", customizeFile})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+
+	c.Check(opts, DeepEquals, &image.Options{
+		ModelFile:  "model",
+		PrepareDir: "prepare-dir",
+		Customizations: image.Customizations{
+			ConsoleConf:       "disabled",
+			CloudInitUserData: "cloud-init-user-data",
+			Validation:        "enforce",
+		},
+	})
+}
+
 func (s *SnapPrepareImageSuite) TestReadSeedManifest(c *C) {
 	var opts *image.Options
 	prep := func(o *image.Options) error {
@@ -259,5 +291,27 @@ func (s *SnapPrepareImageSuite) TestPrepareImageWriteRevisions(c *C) {
 		ModelFile:        "model",
 		PrepareDir:       "prepare-dir",
 		SeedManifestPath: "/tmp/seed.manifest",
+	})
+}
+
+func (s *SnapPrepareImageSuite) TestPrepareImagValidation(c *C) {
+	var opts *image.Options
+	prep := func(o *image.Options) error {
+		opts = o
+		return nil
+	}
+	r := cmdsnap.MockImagePrepare(prep)
+	defer r()
+
+	rest, err := cmdsnap.Parser(cmdsnap.Client()).ParseArgs([]string{"prepare-image", "--validation", "ignore", "model", "prepare-dir"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+
+	c.Check(opts, DeepEquals, &image.Options{
+		ModelFile:  "model",
+		PrepareDir: "prepare-dir",
+		Customizations: image.Customizations{
+			Validation: "ignore",
+		},
 	})
 }
