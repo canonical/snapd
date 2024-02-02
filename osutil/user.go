@@ -200,8 +200,6 @@ var hasAddUserExecutable = func() bool {
 // regular login users on Ubuntu Core. 'adduser' is not portable cross-distro
 // but is convenient for creating regular login users.
 // if 'adduser' is not available, 'useradd' is used instead.
-// This order is preferred as older version of 'useradd' does not support
-// "--badname" option.
 //
 // The username created by this function will be checked against
 // IsValidUsername().
