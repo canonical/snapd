@@ -313,6 +313,61 @@ WantedBy=snapd.service
 	})
 }
 
+func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnCoreDeletesRemovedServices(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+
+	// reset root dir
+	dirs.SetRootDir(s.tempdir)
+
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		if cmd[0] == "show" && cmd[1] == "--property=Id,ActiveState,UnitFileState,Type" {
+			s := fmt.Sprintf("Type=oneshot\nId=%s\nActiveState=inactive\nUnitFileState=enabled\n", cmd[2])
+			return []byte(s), nil
+		}
+		if len(cmd) == 2 && cmd[0] == "is-enabled" {
+			// pretend snapd.socket is disabled
+			if cmd[1] == "snapd.socket" {
+				return []byte("disabled"), &mockSystemctlError{msg: "disabled", exitCode: 1}
+			}
+			return []byte("enabled"), nil
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer systemctlRestorer()
+
+	info := makeMockSnapdSnap(c)
+
+	// Prompt service was removed from snapd, check that service file is
+	// deleted when it previously existed.
+	vestigialServiceFile := filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Prompt.service")
+	// Launcher service still exists, make sure the service file is overwritten
+	// when it previously existed.
+	existingServiceFile := filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Launcher.service")
+
+	// Create old service files
+	os.MkdirAll(dirs.SnapDBusSessionServicesDir, 0750)
+	for _, fn := range []string{existingServiceFile, vestigialServiceFile} {
+		f, err := os.Create(fn)
+		c.Assert(err, IsNil)
+		f.Close()
+	}
+
+	// add the snapd service
+	err := wrappers.AddSnapdSnapServices(info, nil, progress.Null)
+	c.Assert(err, IsNil)
+
+	// Check that vestigial service was deleted
+	c.Check(vestigialServiceFile, testutil.FileAbsent)
+	// Check that existing service still exists, and was overwritten
+	c.Check(existingServiceFile, testutil.FilePresent)
+	c.Check(existingServiceFile, Not(testutil.FileEquals), "")
+}
+
 func (s *servicesTestSuite) TestAddSnapServicesForSnapdOnClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
