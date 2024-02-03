@@ -358,6 +358,51 @@ func (s *backendSuite) TestSetupWritesDbusFilesForSnapd(c *C) {
 	s.testSetupWritesDbusFilesForCoreOrSnapd(c, snapdYaml)
 }
 
+func (s *backendSuite) TestSetupDeletesDbusFilesWhenServiceRemoved(c *C) {
+	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.R(2)})
+	makeFakeDbusConfigAndUserdServiceFiles(c, snapdInfo)
+
+	vestigialConfigFile := "/usr/share/dbus-1/services/io.snapcraft.Prompt.service"
+	existingConfigFile := expectedDBusConfigFiles[0]
+
+	// Create config files to be present before setup
+	for _, fn := range []string{vestigialConfigFile, existingConfigFile} {
+		f, err := os.Create(filepath.Join(dirs.GlobalRootDir, fn))
+		c.Assert(err, IsNil)
+		f.Close()
+	}
+
+	// Config files are not modified if we haven't reexecuted
+	err := s.Backend.Setup(snapdInfo, interfaces.ConfinementOptions{}, s.Repo, nil)
+	c.Assert(err, IsNil)
+
+	for _, fn := range expectedDBusConfigFiles {
+		if fn != existingConfigFile {
+			c.Check(filepath.Join(dirs.GlobalRootDir, fn), testutil.FileAbsent)
+		}
+	}
+
+	c.Check(filepath.Join(dirs.GlobalRootDir, vestigialConfigFile), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.GlobalRootDir, existingConfigFile), testutil.FilePresent)
+
+	// Now make it look like snapd was reexecuted
+	restore := snapdtool.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(snapdInfo.MountDir(), "/usr/lib/snapd/snapd"), nil
+	})
+	defer restore()
+
+	err = s.Backend.Setup(snapdInfo, interfaces.ConfinementOptions{}, s.Repo, nil)
+	c.Assert(err, IsNil)
+
+	for _, fn := range expectedDBusConfigFiles {
+		c.Check(filepath.Join(dirs.GlobalRootDir, fn), testutil.FilePresent)
+		c.Check(filepath.Join(dirs.GlobalRootDir, fn), testutil.FileEquals, fmt.Sprintf("content of %s for snap snapd", filepath.Base(fn)))
+	}
+
+	// Check that old config file was removed
+	c.Check(filepath.Join(dirs.GlobalRootDir, vestigialConfigFile), testutil.FileAbsent)
+}
+
 func (s *backendSuite) TestSetupWritesDbusFilesBothSnapdAndCoreInstalled(c *C) {
 	err := os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapd/current"), 0755)
 	c.Assert(err, IsNil)
