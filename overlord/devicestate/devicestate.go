@@ -539,19 +539,17 @@ func (ro *remodelVariant) UpdateWithDeviceContext(st *state.State, snapName stri
 			return nil, err
 		}
 
-		// if the current revision isn't the revision that is installed,
-		// then look at the previous revisions that we have to see if any of
-		// those match
-		for _, rev := range ss.Sequence.Revisions {
-			if rev.Snap.Revision == opts.Revision {
-				// this won't reach out to the store since we know that we
-				// already have the snap revision on disk
-				return snapstateUpdateWithDeviceContext(st, snapName, opts,
-					userID, snapStateFlags, tracker, deviceCtx, fromChange)
-			}
+		// if the current revision isn't the revision that is installed, then
+		// look at the previous revisions that we have to see if any of those
+		// match
+		if ss.Sequence.LastIndex(opts.Revision) == -1 {
+			return nil, fmt.Errorf("installed snap %q does not match revision required to be used for offline remodel: %s != %s", snapName, opts.Revision, info.Revision)
 		}
 
-		return nil, fmt.Errorf("installed snap %q does not match revision required to be used for offline remodel: %s != %s", snapName, opts.Revision, info.Revision)
+		// this won't reach out to the store since we know that we already have
+		// the snap revision on disk
+		return snapstateUpdateWithDeviceContext(st, snapName, opts,
+			userID, snapStateFlags, tracker, deviceCtx, fromChange)
 	}
 
 	// this would only occur from programmer error, since
