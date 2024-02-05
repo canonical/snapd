@@ -902,6 +902,22 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 	return snapType, &backend.InstallRecord{}, nil
 }
 
+func (f *fakeSnappyBackend) SetupKernelSnap(instanceName string, rev snap.Revision, meter progress.Meter) (err error) {
+	meter.Notify("setup-kernel-snap")
+	f.appendOp(&fakeOp{
+		op: "setup-kernel-snap",
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) RemoveKernelSnapSetup(instanceName string, rev snap.Revision, meter progress.Meter) error {
+	meter.Notify("remove-kernel-snap-setup")
+	f.appendOp(&fakeOp{
+		op: "remove-kernel-snap-setup",
+	})
+	return nil
+}
+
 func (f *fakeSnappyBackend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *backend.InstallRecord, err error) {
 	meter.Notify("setup-component")
 	f.appendOp(&fakeOp{
