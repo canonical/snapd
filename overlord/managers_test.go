@@ -4826,6 +4826,7 @@ const (
 	noConfigure = 1 << iota
 	isGadget
 	isKernel
+	hasModeenv
 )
 
 func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags int) int {
@@ -4836,6 +4837,10 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 		what := "gadget"
 		if flags&isKernel != 0 {
 			what = "kernel"
+		}
+		if flags&isKernel != 0 && flags&hasModeenv != 0 {
+			c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup kernel driver tree for "%s" (%s)`, name, revno))
+			i++
 		}
 		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update assets from %s "%s" (%s)`, what, name, revno))
 		i++
@@ -4850,6 +4855,10 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Make snap "%s" (%s) available to the system`, name, revno))
 	i++
+	if flags&isKernel != 0 && flags&hasModeenv != 0 {
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Cleanup kernel driver tree for "%s" (%s)`, name, revno))
+		i++
+	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Automatically connect eligible plugs and slots of snap "%s"`, name))
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set automatic aliases for snap "%s"`, name))
@@ -4890,6 +4899,10 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string, flags i
 		if flags&isKernel != 0 {
 			what = "kernel"
 		}
+		if flags&isKernel != 0 && flags&hasModeenv != 0 {
+			c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup kernel driver tree for "%s" (%s)`, name, revno))
+			i++
+		}
 		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update assets from %s %q (%s)`, what, name, revno))
 		i++
 	}
@@ -4905,6 +4918,10 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Automatically connect eligible plugs and slots of snap "%s"`, name))
 	i++
+	if flags&isKernel != 0 && flags&hasModeenv != 0 {
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Cleanup kernel driver tree for "%s" (%s)`, name, revno))
+		i++
+	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set automatic aliases for snap "%s"`, name))
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" aliases`, name))
@@ -7918,7 +7935,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentKernelChannel(c *C) {
 	// then create recovery
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then all installs in sequential order
-	validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel)
+	validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel|hasModeenv)
 }
 
 func (s *mgrsSuiteCore) TestRemodelUC20DifferentGadgetChannel(c *C) {
@@ -9574,7 +9591,7 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 	// then create recovery
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then all refreshes and install in sequential order (no configure hooks for bases though)
-	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel)
+	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel|hasModeenv)
 	i += validateInstallTasks(c, tasks[i:], "core22", "1", noConfigure)
 	i += validateRefreshTasks(c, tasks[i:], "pc", "34", isGadget)
 	// finally new model assertion
@@ -9886,7 +9903,7 @@ func (s *mgrsSuiteCore) testRemodelUC20ToUC22(c *C, mockSnapdRefresh bool) {
 	// then create recovery
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then all refreshes and install in sequential order (no configure hooks for bases though)
-	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel)
+	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel|hasModeenv)
 	i += validateInstallTasks(c, tasks[i:], "core22", "1", noConfigure)
 	i += validateRefreshTasks(c, tasks[i:], "pc", "34", isGadget)
 	// finally new model assertion
