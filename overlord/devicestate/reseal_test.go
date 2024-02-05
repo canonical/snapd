@@ -25,17 +25,17 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/devicestate"
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
@@ -103,8 +103,8 @@ func (s *deviceMgrResealSuite) SetUpTest(c *C) {
 		KernelDeviceNode: "/dev/fakedevice0p1",
 		PartitionType:    "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
 		DiskIndex:        1,
-		StartInBytes:     1024*1024,
-		SizeInBytes:      100*1024*1024,
+		StartInBytes:     1024 * 1024,
+		SizeInBytes:      100 * 1024 * 1024,
 	}
 
 	bootPart := disks.Partition{
@@ -113,8 +113,8 @@ func (s *deviceMgrResealSuite) SetUpTest(c *C) {
 		PartitionUUID:    "ubuntu-boot-partuuid",
 		KernelDeviceNode: "/dev/fakedevice0p2",
 		DiskIndex:        2,
-		StartInBytes:     101*1024*1024,
-		SizeInBytes:      100*1024*1024,
+		StartInBytes:     101 * 1024 * 1024,
+		SizeInBytes:      100 * 1024 * 1024,
 	}
 
 	dataPart := disks.Partition{
@@ -124,8 +124,8 @@ func (s *deviceMgrResealSuite) SetUpTest(c *C) {
 		PartitionUUID:    "ubuntu-data-partuuid",
 		KernelDeviceNode: "/dev/fakedevice0p4",
 		DiskIndex:        3,
-		StartInBytes:     201*1024*1024,
-		SizeInBytes:      100*1024*1024,
+		StartInBytes:     201 * 1024 * 1024,
+		SizeInBytes:      100 * 1024 * 1024,
 	}
 
 	savePart := disks.Partition{
@@ -135,8 +135,8 @@ func (s *deviceMgrResealSuite) SetUpTest(c *C) {
 		PartitionUUID:    "ubuntu-save-partuuid",
 		KernelDeviceNode: "/dev/fakedevice0p3",
 		DiskIndex:        4,
-		StartInBytes:     301*1024*1024,
-		SizeInBytes:      100*1024*1024,
+		StartInBytes:     301 * 1024 * 1024,
+		SizeInBytes:      100 * 1024 * 1024,
 	}
 
 	fakeDisk := &disks.MockDiskMapping{
@@ -149,10 +149,10 @@ func (s *deviceMgrResealSuite) SetUpTest(c *C) {
 			dataPart,
 			savePart,
 		},
-		DiskSchema: "gpt",
-		SectorSizeBytes: 512,
-		DiskUsableSectorEnd: 2*1024*1024-1,
-		DiskSizeInBytes: 1024*1024*1024,
+		DiskSchema:          "gpt",
+		SectorSizeBytes:     512,
+		DiskUsableSectorEnd: 2*1024*1024 - 1,
+		DiskSizeInBytes:     1024 * 1024 * 1024,
 	}
 
 	s.AddCleanup(disks.MockDeviceNameToDiskMapping(
