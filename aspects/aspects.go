@@ -394,7 +394,11 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 			return err
 		}
 
-		matches = append(matches, requestMatch{storagePath: path, suffixParts: suffixParts})
+		matches = append(matches, requestMatch{
+			storagePath: path,
+			suffixParts: suffixParts,
+			request:     accessPatt.originalRequest,
+		})
 	}
 
 	if len(matches) == 0 {
@@ -405,6 +409,12 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	sort.Slice(matches, func(x, y int) bool {
 		return matches[x].storagePath < matches[y].storagePath
 	})
+
+	if value != nil {
+		if err := checkSchemaMismatch(a.bundle.schema, matches); err != nil {
+			return err
+		}
+	}
 
 	for _, match := range matches {
 		nestedValue := value
@@ -436,6 +446,88 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	}
 
 	return nil
+}
+
+func checkSchemaMismatch(schema Schema, matches []requestMatch) error {
+	pathTypes := make(map[string][]SchemaType)
+out:
+	for _, match := range matches {
+		path := match.storagePath
+		pathParts := strings.Split(path, ".")
+		schemas, err := schema.SchemaAt(pathParts)
+		if err != nil {
+			var serr *schemaAtError
+			if errors.As(err, &serr) {
+				parts := strings.Split(path, ".")
+				subParts := parts[:len(parts)-serr.left]
+				subPath := strings.Join(subParts, ".")
+
+				return fmt.Errorf(`path %q for request %q is invalid after %q: %w`,
+					path, match.request, subPath, serr.err)
+			}
+
+			return fmt.Errorf(`internal error: unexpected error finding schema at %q: %w`, path, err)
+		}
+
+		var newTypes []SchemaType
+		for _, schema := range schemas {
+			switch t := schema.Type(); t {
+			case Any:
+				// schema accepts "any" so it's never incompatible w/ other paths
+				continue out
+			case Alt:
+				// shouldn't happen except for programmer error because alternatives'
+				// SchemaAt should return the composing schemas, not itself
+				return fmt.Errorf(`internal error: unexpected Alt schema type along path`)
+			default:
+				newTypes = append(newTypes, t)
+			}
+
+		}
+
+		for oldPath, oldTypes := range pathTypes {
+			var pathMatch bool
+		pathMatching:
+			for _, newType := range newTypes {
+				// find a pair of types in the two paths that can accept the same data
+				for _, oldType := range oldTypes {
+					if newType == oldType || (newType == Number && oldType == Int) || (newType == Int && oldType == Number) {
+						// accept two different types of number since an int could apply to both
+						pathMatch = true
+						break pathMatching
+					}
+				}
+			}
+
+			if !pathMatch {
+				oldSetStr, newSetStr := schemaTypesStr(oldTypes), schemaTypesStr(newTypes)
+				return fmt.Errorf(`storage paths %q and %q for request %q require incompatible types: %s != %s`,
+					oldPath, path, match.request, oldSetStr, newSetStr)
+			}
+		}
+
+		pathTypes[path] = newTypes
+	}
+
+	return nil
+}
+
+func schemaTypesStr(types []SchemaType) string {
+	if len(types) == 1 {
+		return types[0].String()
+	}
+
+	var sb strings.Builder
+	sb.WriteRune('[')
+	for i, typ := range types {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(typ.String())
+	}
+	sb.WriteRune(']')
+
+	return sb.String()
 }
 
 // namespaceResult creates a nested namespace around the result that corresponds
@@ -558,6 +650,9 @@ type requestMatch struct {
 	// suffixParts contains the nested suffix of the entry's request that wasn't
 	// matched by the request.
 	suffixParts []string
+
+	// request is the full request as it appears in the assertion's access rule.
+	request string
 }
 
 // matchGetRequest either returns the first exact match for the request or, if
@@ -580,7 +675,11 @@ func (a *Aspect) matchGetRequest(request string) (matches []requestMatch, err er
 			continue
 		}
 
-		m := requestMatch{storagePath: path, suffixParts: restSuffix}
+		m := requestMatch{
+			storagePath: path,
+			suffixParts: restSuffix,
+			request:     accessPatt.originalRequest,
+		}
 		matches = append(matches, m)
 	}
 
