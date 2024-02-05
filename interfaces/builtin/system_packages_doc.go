@@ -81,6 +81,28 @@ func (iface *systemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	apparmor.GenWritableProfile(emit, "/usr/share/cups/", 3)
 	apparmor.GenWritableProfile(emit, "/usr/share/gimp/2.0/", 3)
 	apparmor.GenWritableProfile(emit, "/usr/share/libreoffice/", 3)
+
+	if base := plug.Snap().Base; base == "bare" || base == "test-snapd-base-bare" {
+		// The bare snap does not have enough mount points, causing us to create a mimic over /
+		// which only works when snap-update-ns is invoked without the sandbox by snapd. When invoked
+		// from starting snap via the snap-run -> snap-confine -> snap-update-ns chain, the permissions
+		// are not sufficient.
+		//
+		// In essence, constructing this sort of mimic requires nearly arbitrary writes/mounts at root:
+		// See bug comments for details LP:#2044335
+		emit(`
+  # Writable mimic over / - extra permissions generalized
+  "/**" rw,
+  mount options=(rbind, rw) "/**" -> "/tmp/.snap/**",
+  mount fstype=tmpfs options=(rw) tmpfs -> "/**",
+  mount options=(rbind, rw) "/tmp/.snap/**" -> "/**",
+  mount options=(bind, rw) "/tmp/.snap/**" -> "/**",
+  mount options=(rprivate) -> "/tmp/.snap/**",
+  mount options=(rprivate) -> "/**",
+  umount "/**",
+`)
+	}
+
 	return nil
 }
 
