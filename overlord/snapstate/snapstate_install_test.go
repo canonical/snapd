@@ -2254,10 +2254,15 @@ epoch: 1*
 			path:  mockSnap,
 			revno: snap.R("x3"),
 		},
-		{
+	}
+	// aliases removal is skipped when refresh-app-awareness-ux is enabled
+	if !refreshAppAwarenessUX {
+		expected = append(expected, fakeOp{
 			op:   "remove-snap-aliases",
 			name: "mock",
-		},
+		})
+	}
+	expected = append(expected, fakeOps{
 		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "mock",
@@ -2306,7 +2311,7 @@ epoch: 1*
 			name:  "mock",
 			revno: snap.R("x3"),
 		},
-	}
+	}...)
 
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())

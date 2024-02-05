@@ -1624,6 +1624,12 @@ func (s *snapmgrTestSuite) testRevertRunThrough(c *C, refreshAppAwarenessUX bool
 			op: "update-aliases",
 		},
 	}
+	// aliases removal is skipped when refresh-app-awareness-ux is enabled
+	if refreshAppAwarenessUX {
+		// remove "remove-snap-aliases" operation
+		expected = expected[1:]
+	}
+
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
