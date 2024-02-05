@@ -29,10 +29,10 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil/disks"
-	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/overlord/restart"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 var (
@@ -62,7 +62,6 @@ func reencryptPartitions(model *asserts.Model, gadgetDir string, recoveryKey sb.
 	if err != nil {
 		return nil, fmt.Errorf("cannot read %v partitions: %w", bootDevice, err)
 	}
-
 
 	volCompatOps := &gadget.VolumeCompatibilityOptions{
 		AssumeCreatablePartitionsCreated: true,
