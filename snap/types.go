@@ -188,12 +188,12 @@ type ComponentType string
 
 const (
 	// TestComponent is just for testing purposes.
-	// TODO add here new component when there is more progress on the
-	// components implementation.
 	TestComponent ComponentType = "test"
+	// KernelModulesComponent is for components containing modules/firmware
+	KernelModulesComponent ComponentType = "kernel-modules"
 )
 
-var validComponentTypes = [...]ComponentType{TestComponent}
+var validComponentTypes = [...]ComponentType{TestComponent, KernelModulesComponent}
 
 // Component represents a snap component.
 type Component struct {
