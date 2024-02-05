@@ -53,7 +53,10 @@ execute: |
   remote.exec 'sudo snap remodel classic-model-rev1.assert'
   remote.exec 'test -f /run/reboot-required'
   remote.exec 'snap changes' | MATCH 'Wait.*Refresh model assertion from revision 0 to 1'
+
+  boot_id="$( tests.nested boot-id )"
   remote.exec 'sudo reboot || true'
+  remote.wait-for reboot "${boot_id}"
 
   retry -n 30 --wait 1 sh -c "remote.exec 'snap changes' | MATCH 'Done.*Refresh model assertion from revision 0 to 1'"
 
