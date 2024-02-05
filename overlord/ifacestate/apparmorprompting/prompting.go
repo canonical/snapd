@@ -197,11 +197,17 @@ func (p *Prompting) Stop() error {
 }
 
 func (p *Prompting) GetRequests(userID uint32) ([]*promptrequests.PromptRequest, error) {
+	if !PromptingEnabled() {
+		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
+	}
 	reqs := p.requests.Requests(userID)
 	return reqs, nil
 }
 
 func (p *Prompting) GetRequest(userID uint32, requestID string) (*promptrequests.PromptRequest, error) {
+	if !PromptingEnabled() {
+		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
+	}
 	req, err := p.requests.RequestWithID(userID, requestID)
 	return req, err
 }
@@ -215,6 +221,9 @@ type PromptReply struct {
 }
 
 func (p *Prompting) PostRequest(userID uint32, requestID string, reply *PromptReply) ([]string, error) {
+	if !PromptingEnabled() {
+		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
+	}
 	req, err := p.requests.Reply(userID, requestID, reply.Outcome)
 	if err != nil {
 		return nil, err
@@ -298,6 +307,9 @@ type PostRuleRequestBody struct {
 }
 
 func (p *Prompting) GetRules(userID uint32, snap string, app string, iface string) ([]*accessrules.AccessRule, error) {
+	if !PromptingEnabled() {
+		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
+	}
 	// Daemon already checked that if app != "" or iface != "", then snap != ""
 	if iface != "" {
 		if app != "" {
@@ -320,6 +332,9 @@ func (p *Prompting) GetRules(userID uint32, snap string, app string, iface strin
 }
 
 func (p *Prompting) PostRulesCreate(userID uint32, rules []*PostRulesCreateRuleContents) ([]*accessrules.AccessRule, error) {
+	if !PromptingEnabled() {
+		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
+	}
 	createdRules := make([]*accessrules.AccessRule, 0, len(rules))
 	errors := make([]error, 0)
 	for _, ruleContents := range rules {
@@ -354,6 +369,9 @@ func (p *Prompting) PostRulesCreate(userID uint32, rules []*PostRulesCreateRuleC
 }
 
 func (p *Prompting) PostRulesDelete(userID uint32, deleteSelectors []*PostRulesDeleteSelectors) ([]*accessrules.AccessRule, error) {
+	if !PromptingEnabled() {
+		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
+	}
 	deletedRules := make([]*accessrules.AccessRule, 0)
 	for _, selector := range deleteSelectors {
 		snap := selector.Snap
@@ -384,11 +402,17 @@ func (p *Prompting) PostRulesDelete(userID uint32, deleteSelectors []*PostRulesD
 }
 
 func (p *Prompting) GetRule(userID uint32, ruleID string) (*accessrules.AccessRule, error) {
+	if !PromptingEnabled() {
+		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
+	}
 	rule, err := p.rules.RuleWithID(userID, ruleID)
 	return rule, err
 }
 
 func (p *Prompting) PostRuleModify(userID uint32, ruleID string, contents *PostRuleModifyRuleContents) (*accessrules.AccessRule, error) {
+	if !PromptingEnabled() {
+		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
+	}
 	pathPattern := contents.PathPattern
 	outcome := contents.Outcome
 	lifespan := contents.Lifespan
@@ -399,6 +423,9 @@ func (p *Prompting) PostRuleModify(userID uint32, ruleID string, contents *PostR
 }
 
 func (p *Prompting) PostRuleDelete(userID uint32, ruleID string) (*accessrules.AccessRule, error) {
+	if !PromptingEnabled() {
+		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
+	}
 	rule, err := p.rules.DeleteAccessRule(userID, ruleID)
 	return rule, err
 }
