@@ -1,0 +1,44 @@
+summary: Reseal keys after hardware change
+
+details: |
+  TODO
+
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+
+environment:
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  NESTED_ENABLE_OVMF: true
+
+  RESET_TPM/reset: true
+  RESET_TPM/no_reset: false
+
+prepare: |
+  tests.nested build-image core
+  tests.nested create-vm core
+  if [ "${RESET_TPM}" = true ]; then
+    remote.exec "sudo snap recovery --show-keys" | sed 's/^recovery: *//' >recovery.txt
+  fi
+
+execute: |
+  if [ "${RESET_TPM}" = true ]; then
+    boot_id="$(tests.nested boot-id)"
+    tests.nested vm stop
+    snap stop test-snapd-swtpm
+    rm /var/snap/test-snapd-swtpm/current/tpm2-00.permall || true
+    snap start test-snapd-swtpm
+    (while [ -f recovery.txt ]; do
+      nc -w 5 -4 127.0.0.1 7777 -v <recovery.txt || true
+      sleep 1
+     done) &
+    tests.nested vm start
+    rm recovery.txt
+    wait || true
+    remote.wait-for reboot "${boot_id}"
+  fi
+
+  boot_id="$(tests.nested boot-id)"
+  remote.exec "sudo snap reboot --reseal"
+  remote.wait-for reboot "${boot_id}"
+
