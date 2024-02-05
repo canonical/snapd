@@ -225,16 +225,18 @@ func (m *autoRefresh) clearRefreshHold() {
 func (m *autoRefresh) AtSeed() error {
 	// on classic hold refreshes for 2h after seeding
 	if release.OnClassic {
-		var t1 time.Time
-		tr := config.NewTransaction(m.state)
-		err := tr.Get("core", "refresh.hold", &t1)
-		if !config.IsNoOption(err) {
-			// already set or error
+		holdTime, err := effectiveRefreshHold(m.state)
+		if err != nil {
 			return err
+		}
+		if !holdTime.IsZero() {
+			// already set
+			return nil
 		}
 		// TODO: have a policy that if the snapd exe itself
 		// is older than X weeks/months we skip the holding?
 		now := time.Now().UTC()
+		tr := config.NewTransaction(m.state)
 		tr.Set("core", "refresh.hold", now.Add(2*time.Hour))
 		tr.Commit()
 		m.nextRefresh = now
