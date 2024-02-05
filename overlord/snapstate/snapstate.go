@@ -345,9 +345,6 @@ func isCoreSnap(snapName string) bool {
 }
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
-	// NB: we should strive not to need or propagate deviceCtx
-	// here, the resulting effects/changes were not pleasant at
-	// one point
 	tr := config.NewTransaction(st)
 	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
 	if err != nil && !config.IsNoOption(err) {
@@ -543,20 +540,30 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = unlink
 	}
 
-	// find out whether this is a core boot device
-	isCoreBoot, err := isCoreBootDevice(st)
+	// we need to know some of the characteristics of the device - it is
+	// expected to always have a model/device context at this point. Note
+	// that in a remodel this would use the old model, but that does not
+	// matter for the information we want to extract from deviceCtx here.
+	deviceCtx, err := DeviceCtx(st, nil, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	if isCoreBoot && (snapsup.Type == snap.TypeGadget || (snapsup.Type == snap.TypeKernel && !TestingLeaveOutKernelUpdateGadgetAssets)) {
+	// This task is necessary only for UC20+ and hybrid
+	if deviceCtx.HasModeenv() && snapsup.Type == snap.TypeKernel {
+		setupKernel := st.NewTask("setup-kernel-snap", fmt.Sprintf(i18n.G("Setup kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
+		addTask(setupKernel)
+		prev = setupKernel
+	}
+
+	if deviceCtx.IsCoreBoot() && (snapsup.Type == snap.TypeGadget || (snapsup.Type == snap.TypeKernel && !TestingLeaveOutKernelUpdateGadgetAssets)) {
 		// gadget update currently for core boot systems only
 		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q%s"), snapsup.Type, snapsup.InstanceName(), revisionStr))
 		addTask(gadgetUpdate)
 		prev = gadgetUpdate
 	}
 	// kernel command line from gadget is for core boot systems only
-	if isCoreBoot && snapsup.Type == snap.TypeGadget {
+	if deviceCtx.IsCoreBoot() && snapsup.Type == snap.TypeGadget {
 		// make sure no other active changes are changing the kernel command line
 		if err := CheckUpdateKernelCommandLineConflict(st, fromChange); err != nil {
 			return nil, err
@@ -588,6 +595,14 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(autoConnect)
 	prev = autoConnect
 
+	if deviceCtx.HasModeenv() && snapsup.Type == snap.TypeKernel {
+		// This task needs to run after we're back and running the new
+		// kernel after a reboot was requested in link-snap handler.
+		setupKernel := st.NewTask("remove-old-kernel-snap-setup", fmt.Sprintf(i18n.G("Cleanup kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
+		addTask(setupKernel)
+		prev = setupKernel
+	}
+
 	// setup aliases
 	setAutoAliases := st.NewTask("set-auto-aliases", fmt.Sprintf(i18n.G("Set automatic aliases for snap %q"), snapsup.InstanceName()))
 	addTask(setAutoAliases)
@@ -603,7 +618,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = prefer
 	}
 
-	if isCoreBoot && snapsup.Type == snap.TypeSnapd {
+	if deviceCtx.IsCoreBoot() && snapsup.Type == snap.TypeSnapd {
 		// make sure no other active changes are changing the kernel command line
 		if err := CheckUpdateKernelCommandLineConflict(st, fromChange); err != nil {
 			return nil, err
@@ -3033,6 +3048,21 @@ func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*stat
 	ts := state.NewTaskSet(prepareSnap)
 	// preserve the same order as during the update
 	if info.Type() == snap.TypeKernel {
+		// Note that in a remodel this would use the old model, but
+		// that does not matter for the information we want to extract
+		// from deviceCtx here.
+		deviceCtx, err := DeviceCtx(st, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+		if deviceCtx.HasModeenv() {
+			setupKernel := st.NewTask("setup-kernel-snap", fmt.Sprintf(i18n.G("Setup kernel driver tree for %q (%s) for remodel"), snapsup.InstanceName(), snapst.Current))
+			ts.AddTask(setupKernel)
+			setupKernel.Set("snap-setup-task", prepareSnap.ID())
+			setupKernel.WaitFor(prev)
+			prev = setupKernel
+		}
+
 		// kernel snaps can carry boot assets
 		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s) for remodel"), snapsup.Type, snapsup.InstanceName(), snapst.Current))
 		gadgetUpdate.Set("snap-setup-task", prepareSnap.ID())
@@ -3077,6 +3107,21 @@ func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet,
 	prev := allTasks[len(allTasks)-1]
 	// preserve the same order as during the update
 	if snapsup.Type == snap.TypeKernel {
+		// Note that in a remodel this would use the old model, but
+		// that does not matter for the information we want to extract
+		// from deviceCtx here.
+		deviceCtx, err := DeviceCtx(st, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+		if deviceCtx.HasModeenv() {
+			setupKernel := st.NewTask("setup-kernel-snap", fmt.Sprintf(i18n.G("Setup kernel driver tree for %q (%s) for remodel"), snapsup.InstanceName(), snapsup.Revision()))
+			setupKernel.Set("snap-setup-task", snapSetupTask.ID())
+			setupKernel.WaitFor(prev)
+			ts.AddTask(setupKernel)
+			prev = setupKernel
+		}
+
 		// kernel snaps can carry boot assets
 		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s) for remodel"), snapsup.Type, snapsup.InstanceName(), snapsup.Revision()))
 		gadgetUpdate.Set("snap-setup-task", snapSetupTask.ID())

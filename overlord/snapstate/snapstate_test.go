@@ -508,6 +508,7 @@ const (
 	noLastBeforeModificationsEdge
 	preferInstalled
 	localSnap
+	hasModeenv
 )
 
 func taskKinds(tasks []*state.Task) []string {
@@ -7223,11 +7224,24 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnRefresh(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnKernelRefresh(c *C) {
+	s.testGadgetUpdateTaskAddedOnUC20KernelRefresh(c, doesReRefresh)
+}
+
+func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnUC20KernelRefresh(c *C) {
+	s.testGadgetUpdateTaskAddedOnUC20KernelRefresh(c, doesReRefresh|hasModeenv)
+}
+
+func (s *snapmgrTestSuite) testGadgetUpdateTaskAddedOnUC20KernelRefresh(c *C, opts int) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	if opts&hasModeenv != 0 {
+		// UC20 model has additional tasks for the kernel
+		defer snapstatetest.MockDeviceModel(MakeModel20("brand-gadget", nil))()
+	}
 
 	snapstate.Set(s.state, "brand-kernel", &snapstate.SnapState{
 		Active: true,
@@ -7243,8 +7257,7 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnKernelRefresh(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-	verifyUpdateTasks(c, snap.TypeKernel, doesReRefresh, 0, ts)
-
+	verifyUpdateTasks(c, snap.TypeKernel, opts, 0, ts)
 }
 
 func (s *snapmgrTestSuite) TestForSnapSetupResetsFlags(c *C) {
@@ -7973,6 +7986,7 @@ var nonReLinkKinds = []string{
 	"start-snap-services",
 	"run-hook[configure]",
 	"run-hook[check-health]",
+	"remove-old-kernel-snap-setup",
 }
 
 func kindsToSet(kinds []string) map[string]bool {
@@ -7984,28 +7998,52 @@ func kindsToSet(kinds []string) map[string]bool {
 }
 
 func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelHappy(c *C) {
+	s.testRemodelLinkNewBaseOrKernelHappy(c, 0)
+}
+
+func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrUC20KernelHappy(c *C) {
+	s.testRemodelLinkNewBaseOrKernelHappy(c, hasModeenv)
+}
+
+func (s *snapmgrTestSuite) testRemodelLinkNewBaseOrKernelHappy(c *C, opts int) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	if opts&hasModeenv != 0 {
+		// UC20 model has additional tasks for the kernel
+		defer snapstatetest.MockDeviceModel(MakeModel20("brand-gadget", nil))()
+	}
+
 	s.addSnapsForRemodel(c)
 
 	ts, err := snapstate.LinkNewBaseOrKernel(s.state, "some-kernel", "")
 	c.Assert(err, IsNil)
 	tasks := ts.Tasks()
-	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, 0, 0, []string{"prepare-snap"}, kindsToSet(nonReLinkKinds)))
-	c.Assert(tasks, HasLen, 3)
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, opts, 0, []string{"prepare-snap"}, kindsToSet(nonReLinkKinds)))
 	tPrepare := tasks[0]
-	tUpdateGadgetAssets := tasks[1]
-	tLink := tasks[2]
+	var tLink, tUpdateGadgetAssets *state.Task
+	if opts&hasModeenv != 0 {
+		c.Assert(tasks, HasLen, 4)
+		tSetupKernelSnap := tasks[1]
+		c.Assert(tSetupKernelSnap.Kind(), Equals, "setup-kernel-snap")
+		c.Assert(tSetupKernelSnap.Summary(), Equals, `Setup kernel driver tree for "some-kernel" (2) for remodel`)
+		c.Assert(tSetupKernelSnap.WaitTasks(), DeepEquals, []*state.Task{tPrepare})
+		tUpdateGadgetAssets = tasks[2]
+		tLink = tasks[3]
+	} else {
+		c.Assert(tasks, HasLen, 3)
+		tUpdateGadgetAssets = tasks[1]
+		tLink = tasks[2]
+	}
 	c.Assert(tPrepare.Kind(), Equals, "prepare-snap")
 	c.Assert(tPrepare.Summary(), Equals, `Prepare snap "some-kernel" (2) for remodel`)
 	c.Assert(tPrepare.Has("snap-setup"), Equals, true)
 	c.Assert(tUpdateGadgetAssets.Kind(), Equals, "update-gadget-assets")
 	c.Assert(tUpdateGadgetAssets.Summary(), Equals, `Update assets from kernel "some-kernel" (2) for remodel`)
-	c.Assert(tUpdateGadgetAssets.WaitTasks(), DeepEquals, []*state.Task{tPrepare})
 	c.Assert(tLink.Kind(), Equals, "link-snap")
 	c.Assert(tLink.Summary(), Equals, `Make snap "some-kernel" (2) available to the system during remodel`)
 	c.Assert(tLink.WaitTasks(), DeepEquals, []*state.Task{tUpdateGadgetAssets})
@@ -8068,12 +8106,25 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelNoRemodelConflict(c *C)
 }
 
 func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrKernel(c *C) {
+	s.testRemodelAddLinkNewBaseOrKernel(c, 0)
+}
+
+func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrUC20Kernel(c *C) {
+	s.testRemodelAddLinkNewBaseOrKernel(c, hasModeenv)
+}
+
+func (s *snapmgrTestSuite) testRemodelAddLinkNewBaseOrKernel(c *C, opts int) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
 	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	if opts&hasModeenv != 0 {
+		// UC20 model has additional tasks for the kernel
+		defer snapstatetest.MockDeviceModel(MakeModel20("brand-gadget", nil))()
+	}
 
 	// try a kernel snap first
 	si := &snap.SideInfo{RealName: "some-kernel", Revision: snap.R(2)}
@@ -8090,16 +8141,26 @@ func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrKernel(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks := tsNew.Tasks()
-	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, 0, 0, []string{"prepare-snap", "test-task"}, kindsToSet(nonReLinkKinds)))
+	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, opts, 0, []string{"prepare-snap", "test-task"}, kindsToSet(nonReLinkKinds)))
 	// since this is the kernel, we have our task + test task + update-gadget-assets + link-snap
-	c.Assert(tasks, HasLen, 4)
-	tUpdateGadgetAssets := tasks[2]
-	tLink := tasks[3]
+	var tLink, tUpdateGadgetAssets *state.Task
+	if opts&hasModeenv != 0 {
+		c.Assert(tasks, HasLen, 5)
+		tSetupKernelSnap := tasks[2]
+		c.Assert(tSetupKernelSnap.Kind(), Equals, "setup-kernel-snap")
+		c.Assert(tSetupKernelSnap.Summary(), Equals, `Setup kernel driver tree for "some-kernel" (2) for remodel`)
+		c.Assert(tSetupKernelSnap.WaitTasks(), DeepEquals, []*state.Task{
+			testTask,
+		})
+		tUpdateGadgetAssets = tasks[3]
+		tLink = tasks[4]
+	} else {
+		c.Assert(tasks, HasLen, 4)
+		tUpdateGadgetAssets = tasks[2]
+		tLink = tasks[3]
+	}
 	c.Assert(tUpdateGadgetAssets.Kind(), Equals, "update-gadget-assets")
 	c.Assert(tUpdateGadgetAssets.Summary(), Equals, `Update assets from kernel "some-kernel" (2) for remodel`)
-	c.Assert(tUpdateGadgetAssets.WaitTasks(), DeepEquals, []*state.Task{
-		testTask,
-	})
 	c.Assert(tLink.Kind(), Equals, "link-snap")
 	c.Assert(tLink.Summary(), Equals, `Make snap "some-kernel" (2) available to the system during remodel`)
 	c.Assert(tLink.WaitTasks(), DeepEquals, []*state.Task{
