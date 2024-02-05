@@ -163,7 +163,7 @@ func (s *deviceMgrResealSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(disks.MockMountPointDisksToPartitionMapping(
 		map[disks.Mountpoint]*disks.MockDiskMapping{
-			disks.Mountpoint{Mountpoint: "/run/mnt/ubuntu-boot", IsDecryptedDevice: false}: fakeDisk,
+			{Mountpoint: "/run/mnt/ubuntu-boot", IsDecryptedDevice: false}: fakeDisk,
 		},
 	))
 }
