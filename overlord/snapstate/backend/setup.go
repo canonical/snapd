@@ -26,9 +26,12 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/systemd"
 )
 
 // InstallRecord keeps a record of what installation effectively did as hints
@@ -109,6 +112,67 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 
 	installRecord = &InstallRecord{TargetSnapExisted: didNothing}
 	return t, installRecord, nil
+}
+
+func earlyKernelMountDir(ksnapName string, rev snap.Revision) string {
+	return filepath.Join("/run/mnt/kernel-snaps", ksnapName, rev.String())
+}
+
+// SetupKernelSnap does extra configuration for kernel snaps.
+func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, meter progress.Meter) (err error) {
+	var sysd systemd.Systemd
+	if b.preseed {
+		sysd = systemd.NewEmulationMode(dirs.GlobalRootDir)
+	} else {
+		sysd = systemd.New(systemd.SystemMode, meter)
+	}
+
+	// Create early mount for the snap
+	cpi := snap.MinimalSnapContainerPlaceInfo(instanceName, rev)
+
+	earlyMountDir := earlyKernelMountDir(instanceName, rev)
+	addMountUnitOptions := &systemd.MountUnitOptions{
+		MountUnitType: systemd.BeforeDriversLoadMountUnit,
+		Lifetime:      systemd.Persistent,
+		Description:   "Early mount unit for kernel snap",
+		What:          cpi.MountFile(),
+		Where:         earlyMountDir,
+		Fstype:        "squashfs",
+		Options:       []string{"nodev,ro,x-gdu.hide,x-gvfs-hide"},
+	}
+	_, err = sysd.EnsureMountUnitFileWithOptions(addMountUnitOptions)
+	if err != nil {
+		return fmt.Errorf("cannot create mount in %q: %w", earlyMountDir, err)
+	}
+
+	// Clean-up mount if the kernel tree cannot be built
+	defer func() {
+		if err == nil {
+			return
+		}
+		if e := sysd.RemoveMountUnitFile(filepath.Join(dirs.GlobalRootDir, earlyMountDir)); e != nil {
+			meter.Notify(fmt.Sprintf("while trying to clean up due to previous failure: %v", e))
+		}
+	}()
+
+	// Build kernel tree that will be mounted from initramfs
+	return kernel.EnsureKernelDriversTree(instanceName, rev, filepath.Join(dirs.GlobalRootDir, earlyMountDir))
+}
+
+func (b Backend) RemoveKernelSnapSetup(instanceName string, rev snap.Revision, meter progress.Meter) error {
+	if err := kernel.RemoveKernelDriversTree(instanceName, rev); err != nil {
+		return err
+	}
+
+	var sysd systemd.Systemd
+	if b.preseed {
+		sysd = systemd.NewEmulationMode(dirs.GlobalRootDir)
+	} else {
+		sysd = systemd.New(systemd.SystemMode, meter)
+	}
+
+	earlyMountDir := earlyKernelMountDir(instanceName, rev)
+	return sysd.RemoveMountUnitFile(filepath.Join(dirs.GlobalRootDir, earlyMountDir))
 }
 
 // SetupComponent prepares and mounts a component for further processing.
