@@ -21,10 +21,11 @@ package boot
 
 import (
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 // ForceReseal will reseal the device even if no change requires resealing
-func ForceReseal(unlocker Unlocker) error {
+func ForceReseal(keyForRole map[string]keys.EncryptionKey, unlocker Unlocker) error {
 	modeenvLock()
 	defer modeenvUnlock()
 
@@ -36,6 +37,8 @@ func ForceReseal(unlocker Unlocker) error {
 	options := &ResealToModeenvOptions{
 		ExpectReseal: true,
 		Force:        true,
+		KeyForRole:   keyForRole,
 	}
+
 	return resealKeyToModeenv(dirs.GlobalRootDir, modeenv, options, unlocker)
 }

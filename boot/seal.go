@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
@@ -420,6 +421,8 @@ type ResealToModeenvOptions struct {
 	ExpectReseal bool
 	// Force forces resealing to happen
 	Force bool
+	// New keys to reseal
+	KeyForRole map[string]keys.EncryptionKey
 }
 
 // resealKeyToModeenv reseals the existing encryption key to the
@@ -547,6 +550,21 @@ func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, options *Reseal
 		bootloader.RoleRunMode:  bl.Name(),
 	}
 	saveFDEDir := dirs.SnapFDEDirUnderSave(dirs.SnapSaveDirUnder(rootdir))
+
+	var authKey *ecdsa.PrivateKey
+	if options.Force {
+		authKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			return fmt.Errorf("cannot generate key for signing dynamic authorization policies: %w", err)
+		}
+		if err := secbootReleasePCRResourceHandles(
+			secboot.RunObjectPCRPolicyCounterHandle,
+			secboot.FallbackObjectPCRPolicyCounterHandle,
+		); err != nil {
+			return fmt.Errorf("cannot cleanup resource handles: %w", err)
+		}
+	}
+
 	authKeyFile := filepath.Join(saveFDEDir, "tpm-policy-auth-key")
 
 	// reseal the run object
@@ -560,8 +578,19 @@ func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, options *Reseal
 		pbcJSON, _ := json.Marshal(pbc)
 		logger.Debugf("resealing (%d) to boot chains: %s", nextCount, pbcJSON)
 
-		if err := resealRunObjectKeys(pbc, authKeyFile, roleToBlName); err != nil {
-			return err
+		if options.Force {
+			key, ok := options.KeyForRole[gadget.SystemData]
+			if !ok {
+				return fmt.Errorf("Missing key")
+			}
+			runObjectKeyPCRHandle := uint32(secboot.RunObjectPCRPolicyCounterHandle)
+			if err := sealRunObjectKeys(key, pbc, authKey, roleToBlName, runObjectKeyPCRHandle); err != nil {
+				return err
+			}
+		} else {
+			if err := resealRunObjectKeys(pbc, authKeyFile, roleToBlName); err != nil {
+				return err
+			}
 		}
 		logger.Debugf("resealing (%d) succeeded", nextCount)
 
@@ -585,10 +614,26 @@ func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, options *Reseal
 		rpbcJSON, _ := json.Marshal(rpbc)
 		logger.Debugf("resealing (%d) to recovery boot chains: %s", nextFallbackCount, rpbcJSON)
 
-		if err := resealFallbackObjectKeys(rpbc, authKeyFile, roleToBlName); err != nil {
-			return err
+		if options.Force {
+			key, ok := options.KeyForRole[gadget.SystemData]
+			if !ok {
+				return fmt.Errorf("Missing key")
+			}
+			saveKey, ok := options.KeyForRole[gadget.SystemSave]
+			if !ok {
+				return fmt.Errorf("Missing key")
+			}
+			fallbackObjectKeyPCRHandle := uint32(secboot.FallbackObjectPCRPolicyCounterHandle)
+			const factoryReset = false
+			if err := sealFallbackObjectKeys(key, saveKey, rpbc, authKey, roleToBlName, factoryReset, fallbackObjectKeyPCRHandle); err != nil {
+				return err
+			}
+		} else {
+			if err := resealFallbackObjectKeys(rpbc, authKeyFile, roleToBlName); err != nil {
+				return err
+			}
+			logger.Debugf("fallback resealing (%d) succeeded", nextFallbackCount)
 		}
-		logger.Debugf("fallback resealing (%d) succeeded", nextFallbackCount)
 
 		recoveryBootChainsPath := recoveryBootChainsFileUnder(rootdir)
 		if err := writeBootChains(rpbc, recoveryBootChainsPath, nextFallbackCount); err != nil {

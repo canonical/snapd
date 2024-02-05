@@ -590,7 +590,7 @@ func CleanUpEncryptionSetupDataInCache(st *state.State, label string) {
 	st.Cache(key, nil)
 }
 
-func MockBootForceReseal(f func(unlocker boot.Unlocker) error) (restore func()) {
+func MockBootForceReseal(f func(keyForRole map[string]keys.EncryptionKey, unlocker boot.Unlocker) error) (restore func()) {
 	restore = testutil.Backup(&bootForceReseal)
 	bootForceReseal = f
 	return restore

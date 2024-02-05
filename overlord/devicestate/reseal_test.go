@@ -20,14 +20,18 @@
 package devicestate_test
 
 import (
+	"encoding/hex"
 	"fmt"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 )
 
 type deviceMgrResealSuite struct {
@@ -38,18 +42,35 @@ var _ = Suite(&deviceMgrResealSuite{})
 
 func (s *deviceMgrResealSuite) SetUpTest(c *C) {
 	s.deviceMgrBaseSuite.setupBaseTest(c, false)
+	s.setUC20PCModelInState(c)
+	devicestate.SetSystemMode(s.mgr, "run")
 }
 
 func (s *deviceMgrResealSuite) testResealHappy(c *C, reboot bool) {
+	mockSystemRecoveryKeys(c, false)
+	mockSnapFDEFile(c, "marker", nil)
+
+	rkeystr, err := hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e")
+	c.Assert(err, IsNil)
+	defer devicestate.MockSecbootEnsureRecoveryKey(func(keyFile string, rkeyDevs []secboot.RecoveryKeyDevice) (keys.RecoveryKey, error) {
+		var rkey keys.RecoveryKey
+		copy(rkey[:], []byte(rkeystr))
+		return rkey, nil
+	})()
+
 	finishReseal := make(chan struct{})
 	startedReseal := make(chan struct{})
 
 	forceResealCalls := 0
-	defer devicestate.MockBootForceReseal(func(unlocker boot.Unlocker) error {
+	defer devicestate.MockBootForceReseal(func(keyForRole map[string]keys.EncryptionKey, unlocker boot.Unlocker) error {
 		forceResealCalls++
 		defer unlocker()()
 		startedReseal <- struct{}{}
 		<-finishReseal
+		_, hasDataKey := keyForRole[gadget.SystemData]
+		_, hasSaveKey := keyForRole[gadget.SystemSave]
+		c.Assert(hasDataKey, Equals, true)
+		c.Assert(hasSaveKey, Equals, true)
 		return nil
 	})()
 
@@ -102,11 +123,13 @@ func (s *deviceMgrResealSuite) TestResealNoRebootHappy(c *C) {
 }
 
 func (s *deviceMgrResealSuite) TestResealError(c *C) {
+	mockSystemRecoveryKeys(c, false)
+
 	finishReseal := make(chan struct{})
 	startedReseal := make(chan struct{})
 
 	forceResealCalls := 0
-	defer devicestate.MockBootForceReseal(func(unlocker boot.Unlocker) error {
+	defer devicestate.MockBootForceReseal(func(keyForRole map[string]keys.EncryptionKey, unlocker boot.Unlocker) error {
 		forceResealCalls++
 		defer unlocker()()
 		startedReseal <- struct{}{}

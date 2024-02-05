@@ -26,6 +26,13 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/secboot/keys"
+)
+
+var (
+	dataKey = keys.EncryptionKey{'d', 'a', 't', 'a', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	saveKey = keys.EncryptionKey{'s', 'a', 'v', 'e', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 )
 
 type forceResealSuite struct {
@@ -54,7 +61,11 @@ func (s *forceResealSuite) TestForceResealHappy(c *C) {
 		return nil
 	})()
 
-	err = boot.ForceReseal(u.unlocker)
+	keyForRole := map[string]keys.EncryptionKey{
+		gadget.SystemData: dataKey,
+		gadget.SystemSave: saveKey,
+	}
+	err = boot.ForceReseal(keyForRole, u.unlocker)
 	c.Assert(err, IsNil)
 
 	c.Assert(u.unlocked, Equals, 1)
@@ -74,6 +85,10 @@ func (s *forceResealSuite) TestForceResealError(c *C) {
 		return fmt.Errorf(`CUSTOMERROR`)
 	})()
 
-	err = boot.ForceReseal(u.unlocker)
+	keyForRole := map[string]keys.EncryptionKey{
+		gadget.SystemData: dataKey,
+		gadget.SystemSave: saveKey,
+	}
+	err = boot.ForceReseal(keyForRole, u.unlocker)
 	c.Assert(err, ErrorMatches, `CUSTOMERROR`)
 }
