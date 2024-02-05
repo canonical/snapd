@@ -96,8 +96,11 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 			"run-hook[pre-refresh]",
 			"stop-snap-services",
 			"remove-aliases",
-			"unlink-current-snap",
 		)
+		expected = append(expected, "unlink-current-snap")
+	}
+	if opts&updatesGadgetAssets != 0 && opts&hasModeenv != 0 {
+		expected = append(expected, "setup-kernel-snap")
 	}
 	if opts&(updatesGadget|updatesGadgetAssets) != 0 {
 		expected = append(expected, "update-gadget-assets")
@@ -109,7 +112,11 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 		"copy-snap-data",
 		"setup-profiles",
 		"link-snap",
-		"auto-connect",
+		"auto-connect")
+	if opts&updatesGadgetAssets != 0 && opts&hasModeenv != 0 {
+		expected = append(expected, "remove-old-kernel-snap-setup")
+	}
+	expected = append(expected,
 		"set-auto-aliases",
 		"setup-aliases")
 	if opts&preferInstalled != 0 {
