@@ -128,7 +128,37 @@ type DataBag interface {
 // be committed.
 type Schema interface {
 	Validate(data []byte) error
+
+	// SchemaAt returns the schemas (e.g., string, int, etc) that may be at the
+	// provided path. If the path cannot be followed, an error is returned.
+	SchemaAt(path []string) ([]Schema, error)
+
+	// Type returns the SchemaType corresponding to the Schema.
+	Type() SchemaType
 }
+
+type SchemaType uint
+
+func (v SchemaType) String() string {
+	if int(v) >= len(typeStrings) {
+		panic("unknown schema type")
+	}
+
+	return typeStrings[v]
+}
+
+const (
+	Int SchemaType = iota
+	Number
+	String
+	Bool
+	Map
+	Array
+	Any
+	Alt
+)
+
+var typeStrings = [...]string{"int", "number", "string", "bool", "map", "array", "any", "alt"}
 
 // Bundle holds a series of related aspects.
 type Bundle struct {
@@ -1002,4 +1032,13 @@ func (s JSONSchema) Validate(jsonData []byte) error {
 	// the top-level is always an object
 	var data map[string]json.RawMessage
 	return json.Unmarshal(jsonData, &data)
+}
+
+// SchemaAt always returns the JSONSchema.
+func (v JSONSchema) SchemaAt(path []string) ([]Schema, error) {
+	return []Schema{v}, nil
+}
+
+func (v JSONSchema) Type() SchemaType {
+	return Any
 }
