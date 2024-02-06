@@ -815,8 +815,22 @@ ptrace (read, trace) peer=unconfined,
 /snap/snapd/*/usr/lib/snapd/snap-confin[^e]** rwlix,
 `
 
+	// Generate profile to compare with
+	privilegedProfile := dockerSupportPrivilegedAppArmor + dockerSupportConnectedPlugAppArmor
+
+	// if apparmor supports userns mediation then add this too
+	if apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
+		features, err := apparmor_sandbox.ParserFeatures()
+		if err != nil {
+			fmt.Println("Error while getting parser features")
+			fmt.Println(err)
+		}
+		if strutil.ListContains(features, "userns") {
+			privilegedProfile += dockerSupportConnectedPlugAppArmorUserNS
+		}
+	}
+
 	// Profile existing profile
-	privilegedProfile := dockerSupportPrivilegedAppArmor + dockerSupportConnectedPlugAppArmor + dockerSupportConnectedPlugAppArmorUserNS
 	expectedHash, err := testutil.AppArmorParseAndHashHelper("#include <tunables/global> \nprofile docker_support {" + privilegedProfile + "}")
 	c.Assert(err, IsNil)
 
