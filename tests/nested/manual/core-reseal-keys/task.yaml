@@ -1,7 +1,9 @@
 summary: Reseal keys after hardware change
 
 details: |
-  TODO
+  This test verifies the behavior of "snap reboot --reseal", both in the
+  case TPM has been changed (motherboard swap, reset, etc.) or when the TPM
+  is still working correctly.
 
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
@@ -39,6 +41,6 @@ execute: |
   fi
 
   boot_id="$(tests.nested boot-id)"
-  remote.exec "sudo snap reboot --reseal"
+  remote.exec "sudo snap reboot --reseal --no-wait"
   remote.wait-for reboot "${boot_id}"
 
