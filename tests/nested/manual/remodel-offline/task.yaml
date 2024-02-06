@@ -81,7 +81,7 @@ execute: |
       remote.exec "snap install --revision=28 hello-world"
 
       # refresh to the latest revision to make sure that remodeling will look
-      # for previsouly installed revisions when doing an offline remodel
+      # for previously installed revisions when doing an offline remodel
       remote.exec "snap refresh hello-world"
       remote.exec "snap list hello-world" | awk 'NR != 1 { print $3 }' | NOMATCH 28
   else
