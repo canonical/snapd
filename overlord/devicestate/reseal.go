@@ -111,12 +111,12 @@ func (m *DeviceManager) doReseal(t *state.Task, _ *tomb.Tomb) error {
 	mgr := deviceMgr(st)
 	sysKeys, err := mgr.EnsureRecoveryKeys()
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot retrieve recovery keys: %w", err)
 	}
 
 	recoveryKey, err := sb.ParseRecoveryKey(sysKeys.RecoveryKey)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot parse recovery keys: %w", err)
 	}
 
 	var reboot bool
@@ -125,25 +125,25 @@ func (m *DeviceManager) doReseal(t *state.Task, _ *tomb.Tomb) error {
 
 	model, err := m.Model()
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot retrieve model: %w", err)
 	}
 	deviceCtx, err := DeviceCtx(m.state, nil, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot retrieve device context: %w", err)
 	}
 
 	gadgetSnapInfo, err := snapstate.GadgetInfo(st, deviceCtx)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot retrieve gadget info: %w", err)
 	}
 
 	keyForRole, err := reencryptPartitions(model, gadgetSnapInfo.MountDir(), recoveryKey)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot reencrypt partitions: %w", err)
 	}
 
 	if err := bootForceReseal(keyForRole, st.Unlocker()); err != nil {
-		return err
+		return fmt.Errorf("cannot forcefully reseal keys: %w", err)
 	}
 
 	if reboot {
