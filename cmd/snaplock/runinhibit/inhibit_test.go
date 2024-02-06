@@ -20,7 +20,9 @@
 package runinhibit_test
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -222,8 +224,10 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedWalkthrough(c *C) {
 
 	notInhibitedCalled := 0
 	inhibitedCalled := 0
-
-	tickerWait := func() {
+	// closed channel returns immediately
+	waitCh := make(chan time.Time)
+	close(waitCh)
+	tickerWait := func() <-chan time.Time {
 		// lock should be released during wait interval
 		checkFileNotLocked(c, runinhibit.HintFile("pkg"))
 
@@ -231,10 +235,12 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedWalkthrough(c *C) {
 			// let's remove run inhibtion
 			c.Assert(runinhibit.Unlock("pkg"), IsNil)
 		}
+
+		return waitCh
 	}
 	defer runinhibit.MockNewTicker(tickerWait)()
 
-	notInhibited := func() error {
+	notInhibited := func(ctx context.Context) error {
 		notInhibitedCalled++
 
 		hint, _, err := runinhibit.IsLocked("pkg")
@@ -246,7 +252,7 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedWalkthrough(c *C) {
 
 		return nil
 	}
-	inhibited := func(hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error) {
+	inhibited := func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error) {
 		inhibitedCalled++
 
 		// notInhibited() should not be called before inhibited
@@ -261,7 +267,7 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedWalkthrough(c *C) {
 		return false, nil
 	}
 
-	flock, err := runinhibit.WaitWhileInhibited("pkg", notInhibited, inhibited, 1*time.Millisecond)
+	flock, err := runinhibit.WaitWhileInhibited(context.TODO(), "pkg", notInhibited, inhibited, 1*time.Millisecond)
 	c.Assert(err, IsNil)
 
 	// we are still holding the lock
@@ -273,20 +279,70 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedWalkthrough(c *C) {
 	flock.Close()
 }
 
+func (s *runInhibitSuite) TestWaitWhileInhibitedContextCancellation(c *C) {
+	c.Assert(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo), IsNil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	inhibitedCalled := 0
+	tickerWait := func() <-chan time.Time {
+		// lock should be released during wait interval
+		checkFileNotLocked(c, runinhibit.HintFile("pkg"))
+
+		if inhibitedCalled == 2 {
+			// let's cancel the context
+			cancel()
+		}
+
+		// give precedence to ctx.Done() channel
+		return time.After(200 * time.Millisecond)
+	}
+	defer runinhibit.MockNewTicker(tickerWait)()
+
+	notInhibited := func(ctx context.Context) error {
+		return fmt.Errorf("this should never be reached")
+	}
+	inhibited := func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error) {
+		inhibitedCalled++
+
+		c.Check(hint, Equals, runinhibit.HintInhibitedForRefresh)
+		c.Check(*inhibitInfo, Equals, s.inhibitInfo)
+
+		// lock should be held
+		checkFileLocked(c, runinhibit.HintFile("pkg"))
+
+		return false, nil
+	}
+
+	flock, err := runinhibit.WaitWhileInhibited(ctx, "pkg", notInhibited, inhibited, 1*time.Millisecond)
+	c.Check(errors.Is(err, context.Canceled), Equals, true)
+	c.Check(flock, IsNil)
+
+	// lock must be released on error
+	checkFileNotLocked(c, runinhibit.HintFile("pkg"))
+
+	c.Check(inhibitedCalled, Equals, 2)
+}
+
 func (s *runInhibitSuite) TestWaitWhileInhibitedNilCallbacks(c *C) {
 	c.Assert(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo), IsNil)
 
 	waitCalled := 0
-	tickerWait := func() {
+	// closed channel returns immediately
+	waitCh := make(chan time.Time)
+	close(waitCh)
+	tickerWait := func() <-chan time.Time {
 		waitCalled++
 		// lock should be released during wait interval
 		checkFileNotLocked(c, runinhibit.HintFile("pkg"))
 		// let's remove run inhibtion
 		c.Assert(runinhibit.Unlock("pkg"), IsNil)
+
+		return waitCh
 	}
 	defer runinhibit.MockNewTicker(tickerWait)()
 
-	flock, err := runinhibit.WaitWhileInhibited("pkg", nil, nil, 1*time.Millisecond)
+	flock, err := runinhibit.WaitWhileInhibited(context.TODO(), "pkg", nil, nil, 1*time.Millisecond)
 	// nil callbacks are skipped and must not panic
 	c.Assert(err, IsNil)
 
@@ -302,20 +358,20 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedCallbackError(c *C) {
 	c.Assert(os.MkdirAll(runinhibit.InhibitDir, 0755), IsNil)
 	c.Assert(os.WriteFile(runinhibit.HintFile("pkg"), nil, 0644), IsNil)
 
-	notInhibited := func() error {
+	notInhibited := func(ctx context.Context) error {
 		return fmt.Errorf("notInhibited error")
 	}
-	flock, err := runinhibit.WaitWhileInhibited("pkg", notInhibited, nil, 1*time.Millisecond)
+	flock, err := runinhibit.WaitWhileInhibited(context.TODO(), "pkg", notInhibited, nil, 1*time.Millisecond)
 	c.Assert(err, ErrorMatches, "notInhibited error")
 	c.Check(flock, IsNil)
 	// lock must be released on error
 	checkFileNotLocked(c, runinhibit.HintFile("pkg"))
 
 	c.Assert(runinhibit.LockWithHint("pkg", runinhibit.HintInhibitedForRefresh, s.inhibitInfo), IsNil)
-	inhibited := func(hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error) {
+	inhibited := func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error) {
 		return false, fmt.Errorf("inhibited error")
 	}
-	flock, err = runinhibit.WaitWhileInhibited("pkg", nil, inhibited, 1*time.Millisecond)
+	flock, err = runinhibit.WaitWhileInhibited(context.TODO(), "pkg", nil, inhibited, 1*time.Millisecond)
 	c.Assert(err, ErrorMatches, "inhibited error")
 	c.Check(flock, IsNil)
 	// lock must be released on error
@@ -328,11 +384,11 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedCont(c *C) {
 	notInhibitedCalled := 0
 	inhibitedCalled := 0
 
-	notInhibited := func() error {
+	notInhibited := func(ctx context.Context) error {
 		notInhibitedCalled++
 		return nil
 	}
-	inhibited := func(hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error) {
+	inhibited := func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error) {
 		inhibitedCalled++
 
 		// lock should be held
@@ -342,7 +398,7 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedCont(c *C) {
 		return true, nil
 	}
 
-	flock, err := runinhibit.WaitWhileInhibited("pkg", notInhibited, inhibited, 1*time.Millisecond)
+	flock, err := runinhibit.WaitWhileInhibited(context.TODO(), "pkg", notInhibited, inhibited, 1*time.Millisecond)
 	c.Assert(err, IsNil)
 
 	// we are still holding the lock
@@ -365,18 +421,18 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedHintFileNotExist(c *C) {
 	notInhibitedCalled := 0
 	inhibitedCalled := 0
 
-	notInhibited := func() error {
+	notInhibited := func(ctx context.Context) error {
 		notInhibitedCalled++
 		c.Check(runinhibit.HintFile("pkg"), testutil.FileAbsent)
 		return nil
 	}
-	inhibited := func(hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error) {
+	inhibited := func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error) {
 		inhibitedCalled++
 		c.Error("this should never be called")
 		return false, nil
 	}
 
-	flock, err := runinhibit.WaitWhileInhibited("pkg", notInhibited, inhibited, 1*time.Millisecond)
+	flock, err := runinhibit.WaitWhileInhibited(context.TODO(), "pkg", notInhibited, inhibited, 1*time.Millisecond)
 	c.Assert(err, IsNil)
 	// hint file still does not exist
 	c.Check(runinhibit.HintFile("pkg"), testutil.FileAbsent)
@@ -390,13 +446,13 @@ func (s *runInhibitSuite) TestWaitWhileInhibitedHintFileNotExist(c *C) {
 func (s *runInhibitSuite) TestWaitWhileInhibitedHintFileNotExistNilCallback(c *C) {
 	c.Assert(os.RemoveAll(runinhibit.HintFile("pkg")), IsNil)
 
-	inhibited := func(hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error) {
+	inhibited := func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error) {
 		c.Error("this should never be called")
 		return false, nil
 	}
 
 	// check that we don't panic when notInhibited is nil
-	flock, err := runinhibit.WaitWhileInhibited("pkg", nil, inhibited, 1*time.Millisecond)
+	flock, err := runinhibit.WaitWhileInhibited(context.TODO(), "pkg", nil, inhibited, 1*time.Millisecond)
 	c.Assert(err, IsNil)
 	// hint file still does not exist
 	c.Check(runinhibit.HintFile("pkg"), testutil.FileAbsent)

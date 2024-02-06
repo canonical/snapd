@@ -1663,8 +1663,7 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:   "remove-snap-aliases",
-			name: "some-snap",
+			op: "update-aliases",
 		},
 		{
 			op:    "auto-connect:Undoing",
@@ -2216,7 +2215,7 @@ version: 1.0`)
 	c.Assert(snapst.LocalRevision(), Equals, snap.R(-1))
 }
 
-func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThrough(c *C) {
+func (s *snapmgrTestSuite) testInstallSubsequentLocalRunThrough(c *C, refreshAppAwarenessUX bool) {
 	// use the real thing for this one
 	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
 
@@ -2255,18 +2254,24 @@ epoch: 1*
 			path:  mockSnap,
 			revno: snap.R("x3"),
 		},
-		{
+	}
+	// aliases removal is skipped when refresh-app-awareness-ux is enabled
+	if !refreshAppAwarenessUX {
+		expected = append(expected, fakeOp{
 			op:   "remove-snap-aliases",
 			name: "mock",
-		},
+		})
+	}
+	expected = append(expected, fakeOps{
 		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "mock",
 			inhibitHint: "refresh",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "mock/x2"),
+			op:                 "unlink-snap",
+			path:               filepath.Join(dirs.SnapMountDir, "mock/x2"),
+			unlinkSkipBinaries: refreshAppAwarenessUX,
 		},
 		{
 			op:   "copy-data",
@@ -2306,7 +2311,7 @@ epoch: 1*
 			name:  "mock",
 			revno: snap.R("x3"),
 		},
-	}
+	}...)
 
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
@@ -2342,6 +2347,15 @@ epoch: 1*
 		Revision: snap.R(-3),
 	})
 	c.Assert(snapst.LocalRevision(), Equals, snap.R(-3))
+}
+
+func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThrough(c *C) {
+	s.testInstallSubsequentLocalRunThrough(c, false)
+}
+
+func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThroughSkipBinaries(c *C) {
+	s.enableRefreshAppAwarenessUX()
+	s.testInstallSubsequentLocalRunThrough(c, true)
 }
 
 func (s *snapmgrTestSuite) TestInstallOldSubsequentLocalRunThrough(c *C) {

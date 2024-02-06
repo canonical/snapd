@@ -533,10 +533,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = stop
 
 		removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), snapsup.InstanceName()))
+		removeAliases.Set("remove-reason", removeAliasesReasonRefresh)
 		addTask(removeAliases)
 		prev = removeAliases
 
 		unlink := st.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), snapsup.InstanceName()))
+		unlink.Set("unlink-reason", unlinkReasonRefresh)
 		addTask(unlink)
 		prev = unlink
 	}
@@ -2957,6 +2959,7 @@ func MigrateHome(st *state.State, snaps []string) ([]*state.TaskSet, error) {
 		prev = stop
 
 		unlink := st.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), name))
+		unlink.Set("unlink-reason", unlinkReasonHomeMigration)
 		addTask(unlink)
 		prev = unlink
 
@@ -3286,6 +3289,7 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 
 	removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), snapsup.InstanceName()))
 	removeAliases.Set("snap-setup-task", stopSnapServices.ID())
+	removeAliases.Set("remove-reason", removeAliasesReasonDisable)
 	removeAliases.WaitFor(stopSnapServices)
 
 	unlinkSnap := st.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) unavailable to the system"), snapsup.InstanceName(), snapst.Current))
@@ -3525,6 +3529,7 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 		removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), name))
 		removeAliases.WaitFor(prev) // prev is not needed beyond here
 		removeAliases.Set("snap-setup-task", stopSnapServices.ID())
+		removeAliases.Set("remove-reason", removeAliasesReasonRemove)
 
 		unlink := st.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), name))
 		unlink.Set("snap-setup-task", stopSnapServices.ID())

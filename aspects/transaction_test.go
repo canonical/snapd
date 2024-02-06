@@ -115,6 +115,14 @@ func (f *failingSchema) Validate([]byte) error {
 	return f.err
 }
 
+func (f *failingSchema) SchemaAt(path []string) ([]aspects.Schema, error) {
+	return []aspects.Schema{f}, nil
+}
+
+func (f *failingSchema) Type() aspects.SchemaType {
+	return aspects.Any
+}
+
 func (s *transactionTestSuite) TestRollBackOnCommitError(c *C) {
 	databag := aspects.NewJSONDataBag()
 	witness := &witnessReadWriter{bag: databag}

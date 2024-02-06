@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/strutil"
@@ -141,6 +142,15 @@ type StorageSchema struct {
 // Validate validates the provided JSON object.
 func (s *StorageSchema) Validate(raw []byte) error {
 	return s.topLevel.Validate(raw)
+}
+
+// AtPath returns the types that may be stored at the specified path.
+func (s *StorageSchema) SchemaAt(path []string) ([]Schema, error) {
+	return s.topLevel.SchemaAt(path)
+}
+
+func (s *StorageSchema) Type() SchemaType {
+	return s.topLevel.Type()
 }
 
 func (s *StorageSchema) parse(raw json.RawMessage) (Schema, error) {
@@ -349,6 +359,37 @@ func (v *alternativesSchema) Validate(raw []byte) error {
 	return validationErrorf(sb.String())
 }
 
+// SchemaAt returns the list of schemas at the end of the path or an error if
+// the path cannot be followed.
+func (v *alternativesSchema) SchemaAt(path []string) ([]Schema, error) {
+	if len(path) == 0 {
+		return v.schemas, nil
+	}
+
+	var types []Schema
+	var lastErr error
+	for _, alt := range v.schemas {
+		altTypes, err := alt.SchemaAt(path)
+		if err != nil {
+			// some schemas may permit the path
+			lastErr = err
+			continue
+		}
+		types = append(types, altTypes...)
+	}
+
+	// TODO: find better way to combine errors
+	if len(types) == 0 {
+		return nil, lastErr
+	}
+
+	return types, nil
+}
+
+func (v *alternativesSchema) Type() SchemaType {
+	return Alt
+}
+
 type mapSchema struct {
 	// topSchema is the schema for the top-level schema which contains the user types.
 	topSchema *StorageSchema
@@ -473,6 +514,31 @@ func validMapKeys(v map[string]json.RawMessage) error {
 	}
 
 	return nil
+}
+
+// SchemaAt returns the Map schema if this is the last path element. If not, it
+// calls SchemaAt for the next path element's schema if the path is valid.
+func (v *mapSchema) SchemaAt(path []string) ([]Schema, error) {
+	if len(path) == 0 {
+		return []Schema{v}, nil
+	}
+
+	key := path[0]
+	if v.entrySchemas != nil {
+		valSchema, ok := v.entrySchemas[key]
+		if !ok {
+			return nil, schemaAtErrorf(path, `cannot use %q as key in map`, key)
+		}
+
+		return valSchema.SchemaAt(path[1:])
+	}
+
+	return v.valueSchema.SchemaAt(path[1:])
+}
+
+// Type returns the Map type.
+func (v *mapSchema) Type() SchemaType {
+	return Map
 }
 
 func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) error {
@@ -669,6 +735,20 @@ func (v *stringSchema) Validate(raw []byte) (err error) {
 	return nil
 }
 
+// SchemaAt returns the string schema if the path terminates at this schema and
+// an error if not.
+func (v *stringSchema) SchemaAt(path []string) ([]Schema, error) {
+	if len(path) != 0 {
+		return nil, schemaAtErrorf(path, `cannot follow path beyond "string" type`)
+	}
+
+	return []Schema{v}, nil
+}
+
+func (v *stringSchema) Type() SchemaType {
+	return String
+}
+
 func (v *stringSchema) parseConstraints(constraints map[string]json.RawMessage) error {
 	if rawChoices, ok := constraints["choices"]; ok {
 		var choices []string
@@ -732,6 +812,21 @@ func (v *intSchema) Validate(raw []byte) (err error) {
 	}
 
 	return validateNumber(*num, v.choices, v.min, v.max)
+}
+
+// SchemaAt returns the int schema if the path terminates here and an error if
+// not.
+func (v *intSchema) SchemaAt(path []string) ([]Schema, error) {
+	if len(path) != 0 {
+		return nil, schemaAtErrorf(path, `cannot follow path beyond "int" type`)
+	}
+
+	return []Schema{v}, nil
+}
+
+// Type returns the Int schema type.
+func (v *intSchema) Type() SchemaType {
+	return Int
 }
 
 func (v *intSchema) parseConstraints(constraints map[string]json.RawMessage) error {
@@ -807,6 +902,21 @@ func (v *anySchema) parseConstraints(constraints map[string]json.RawMessage) err
 	return nil
 }
 
+// SchemaAt returns the any schema if the path terminates here and an error if
+// not.
+func (v *anySchema) SchemaAt(path []string) ([]Schema, error) {
+	if len(path) != 0 {
+		return nil, schemaAtErrorf(path, `cannot follow path beyond "any" type`)
+	}
+
+	return []Schema{v}, nil
+}
+
+// Type returns the Any schema type.
+func (v *anySchema) Type() SchemaType {
+	return Any
+}
+
 func (v *anySchema) expectsConstraints() bool { return false }
 
 type numberSchema struct {
@@ -837,6 +947,21 @@ func (v *numberSchema) Validate(raw []byte) (err error) {
 	}
 
 	return validateNumber(*num, v.choices, v.min, v.max)
+}
+
+// SchemaAt returns the number schema if the path terminates here and an error if
+// not.
+func (v *numberSchema) SchemaAt(path []string) ([]Schema, error) {
+	if len(path) != 0 {
+		return nil, schemaAtErrorf(path, `cannot follow path beyond "number" type`)
+	}
+
+	return []Schema{v}, nil
+}
+
+// Type returns the Number schema type.
+func (v *numberSchema) Type() SchemaType {
+	return Number
 }
 
 func validateNumber[Num ~int64 | ~float64](num Num, choices []Num, min, max *Num) error {
@@ -940,6 +1065,21 @@ func (v *booleanSchema) Validate(raw []byte) (err error) {
 	return nil
 }
 
+// SchemaAt returns the boolean schema if the path terminates here and an error
+// if not.
+func (v *booleanSchema) SchemaAt(path []string) ([]Schema, error) {
+	if len(path) != 0 {
+		return nil, schemaAtErrorf(path, `cannot follow path beyond "bool" type`)
+	}
+
+	return []Schema{v}, nil
+}
+
+// Type return the Bool type.
+func (v *booleanSchema) Type() SchemaType {
+	return Bool
+}
+
 func (v *booleanSchema) parseConstraints(map[string]json.RawMessage) error {
 	// no error because we're not explicitly rejecting unsupported keywords (for now)
 	return nil
@@ -996,6 +1136,27 @@ func (v *arraySchema) Validate(raw []byte) error {
 	}
 
 	return nil
+}
+
+// SchemaAt returns the array schema the path is empty. Otherwise, it calls SchemaAt
+// for the next path element's schema if the path is valid.
+func (v *arraySchema) SchemaAt(path []string) ([]Schema, error) {
+	if len(path) == 0 {
+		return []Schema{v}, nil
+	}
+
+	key := path[0]
+	_, err := strconv.ParseUint(key, 10, 0)
+	if err != nil {
+		return nil, schemaAtErrorf(path, `key %q cannot be used to index array`, key)
+	}
+
+	return v.elementType.SchemaAt(path[1:])
+}
+
+// Type returns the Array schema type.
+func (v *arraySchema) Type() SchemaType {
+	return Array
 }
 
 func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) error {
@@ -1068,4 +1229,20 @@ func validationErrorFrom(err error) error {
 
 func validationErrorf(format string, v ...interface{}) error {
 	return &ValidationError{Err: fmt.Errorf(format, v...)}
+}
+
+type schemaAtError struct {
+	left int
+	err  error
+}
+
+func (e *schemaAtError) Error() string {
+	return e.err.Error()
+}
+
+func schemaAtErrorf(path []string, format string, v ...interface{}) error {
+	return &schemaAtError{
+		left: len(path),
+		err:  fmt.Errorf(format, v...),
+	}
 }

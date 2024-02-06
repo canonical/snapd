@@ -128,7 +128,37 @@ type DataBag interface {
 // be committed.
 type Schema interface {
 	Validate(data []byte) error
+
+	// SchemaAt returns the schemas (e.g., string, int, etc) that may be at the
+	// provided path. If the path cannot be followed, an error is returned.
+	SchemaAt(path []string) ([]Schema, error)
+
+	// Type returns the SchemaType corresponding to the Schema.
+	Type() SchemaType
 }
+
+type SchemaType uint
+
+func (v SchemaType) String() string {
+	if int(v) >= len(typeStrings) {
+		panic("unknown schema type")
+	}
+
+	return typeStrings[v]
+}
+
+const (
+	Int SchemaType = iota
+	Number
+	String
+	Bool
+	Map
+	Array
+	Any
+	Alt
+)
+
+var typeStrings = [...]string{"int", "number", "string", "bool", "map", "array", "any", "alt"}
 
 // Bundle holds a series of related aspects.
 type Bundle struct {
@@ -138,9 +168,9 @@ type Bundle struct {
 	aspects map[string]*Aspect
 }
 
-// NewAspectBundle returns a new aspect bundle for the specified aspects
+// NewBundle returns a new aspect bundle for the specified aspects
 // and access patterns.
-func NewAspectBundle(account string, bundleName string, aspects map[string]interface{}, schema Schema) (*Bundle, error) {
+func NewBundle(account string, bundleName string, aspects map[string]interface{}, schema Schema) (*Bundle, error) {
 	if len(aspects) == 0 {
 		return nil, errors.New(`cannot define aspects bundle: no aspects`)
 	}
@@ -153,7 +183,7 @@ func NewAspectBundle(account string, bundleName string, aspects map[string]inter
 	}
 
 	for name, v := range aspects {
-		accessPatterns, ok := v.([]map[string]string)
+		accessPatterns, ok := v.([]interface{})
 		if !ok {
 			return nil, fmt.Errorf("cannot define aspect %q: access patterns should be a list of maps", name)
 		} else if len(accessPatterns) == 0 {
@@ -171,7 +201,7 @@ func NewAspectBundle(account string, bundleName string, aspects map[string]inter
 	return aspectBundle, nil
 }
 
-func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string) (*Aspect, error) {
+func newAspect(bundle *Bundle, name string, aspectPatterns []interface{}) (*Aspect, error) {
 	aspect := &Aspect{
 		Name:           name,
 		accessPatterns: make([]*accessPattern, 0, len(aspectPatterns)),
@@ -179,22 +209,46 @@ func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string) 
 	}
 
 	readRequests := make(map[string]bool)
-	for _, aspectPattern := range aspectPatterns {
-		request, ok := aspectPattern["request"]
-		if !ok || request == "" {
+	for _, aspectPatternRaw := range aspectPatterns {
+		aspectPattern, ok := aspectPatternRaw.(map[string]interface{})
+		if !ok {
+			return nil, errors.New("each access pattern should be a map")
+		}
+
+		requestRaw, ok := aspectPattern["request"]
+		if !ok || requestRaw == "" {
 			return nil, errors.New(`access patterns must have a "request" field`)
 		}
 
-		storage, ok := aspectPattern["storage"]
-		if !ok || storage == "" {
+		request, ok := requestRaw.(string)
+		if !ok {
+			return nil, errors.New(`"request" must be a string`)
+		}
+
+		storageRaw, ok := aspectPattern["storage"]
+		if !ok || storageRaw == "" {
 			return nil, errors.New(`access patterns must have a "storage" field`)
+		}
+
+		storage, ok := storageRaw.(string)
+		if !ok {
+			return nil, errors.New(`"storage" must be a string`)
 		}
 
 		if err := validateRequestStoragePair(request, storage); err != nil {
 			return nil, err
 		}
 
-		switch aspectPattern["access"] {
+		accessRaw, ok := aspectPattern["access"]
+		var access string
+		if ok {
+			access, ok = accessRaw.(string)
+			if !ok {
+				return nil, errors.New(`"access" must be a string`)
+			}
+		}
+
+		switch access {
 		case "read", "read-write", "":
 			if readRequests[request] {
 				return nil, fmt.Errorf(`cannot have several reading rules with the same "request" field`)
@@ -202,7 +256,7 @@ func newAspect(bundle *Bundle, name string, aspectPatterns []map[string]string) 
 			readRequests[request] = true
 		}
 
-		accPattern, err := newAccessPattern(request, storage, aspectPattern["access"])
+		accPattern, err := newAccessPattern(request, storage, access)
 		if err != nil {
 			return nil, err
 		}
@@ -340,7 +394,11 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 			return err
 		}
 
-		matches = append(matches, requestMatch{storagePath: path, suffixParts: suffixParts})
+		matches = append(matches, requestMatch{
+			storagePath: path,
+			suffixParts: suffixParts,
+			request:     accessPatt.originalRequest,
+		})
 	}
 
 	if len(matches) == 0 {
@@ -351,6 +409,12 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	sort.Slice(matches, func(x, y int) bool {
 		return matches[x].storagePath < matches[y].storagePath
 	})
+
+	if value != nil {
+		if err := checkSchemaMismatch(a.bundle.schema, matches); err != nil {
+			return err
+		}
+	}
 
 	for _, match := range matches {
 		nestedValue := value
@@ -382,6 +446,88 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	}
 
 	return nil
+}
+
+func checkSchemaMismatch(schema Schema, matches []requestMatch) error {
+	pathTypes := make(map[string][]SchemaType)
+out:
+	for _, match := range matches {
+		path := match.storagePath
+		pathParts := strings.Split(path, ".")
+		schemas, err := schema.SchemaAt(pathParts)
+		if err != nil {
+			var serr *schemaAtError
+			if errors.As(err, &serr) {
+				parts := strings.Split(path, ".")
+				subParts := parts[:len(parts)-serr.left]
+				subPath := strings.Join(subParts, ".")
+
+				return fmt.Errorf(`path %q for request %q is invalid after %q: %w`,
+					path, match.request, subPath, serr.err)
+			}
+
+			return fmt.Errorf(`internal error: unexpected error finding schema at %q: %w`, path, err)
+		}
+
+		var newTypes []SchemaType
+		for _, schema := range schemas {
+			switch t := schema.Type(); t {
+			case Any:
+				// schema accepts "any" so it's never incompatible w/ other paths
+				continue out
+			case Alt:
+				// shouldn't happen except for programmer error because alternatives'
+				// SchemaAt should return the composing schemas, not itself
+				return fmt.Errorf(`internal error: unexpected Alt schema type along path`)
+			default:
+				newTypes = append(newTypes, t)
+			}
+
+		}
+
+		for oldPath, oldTypes := range pathTypes {
+			var pathMatch bool
+		pathMatching:
+			for _, newType := range newTypes {
+				// find a pair of types in the two paths that can accept the same data
+				for _, oldType := range oldTypes {
+					if newType == oldType || (newType == Number && oldType == Int) || (newType == Int && oldType == Number) {
+						// accept two different types of number since an int could apply to both
+						pathMatch = true
+						break pathMatching
+					}
+				}
+			}
+
+			if !pathMatch {
+				oldSetStr, newSetStr := schemaTypesStr(oldTypes), schemaTypesStr(newTypes)
+				return fmt.Errorf(`storage paths %q and %q for request %q require incompatible types: %s != %s`,
+					oldPath, path, match.request, oldSetStr, newSetStr)
+			}
+		}
+
+		pathTypes[path] = newTypes
+	}
+
+	return nil
+}
+
+func schemaTypesStr(types []SchemaType) string {
+	if len(types) == 1 {
+		return types[0].String()
+	}
+
+	var sb strings.Builder
+	sb.WriteRune('[')
+	for i, typ := range types {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(typ.String())
+	}
+	sb.WriteRune(']')
+
+	return sb.String()
 }
 
 // namespaceResult creates a nested namespace around the result that corresponds
@@ -504,6 +650,9 @@ type requestMatch struct {
 	// suffixParts contains the nested suffix of the entry's request that wasn't
 	// matched by the request.
 	suffixParts []string
+
+	// request is the full request as it appears in the assertion's access rule.
+	request string
 }
 
 // matchGetRequest either returns the first exact match for the request or, if
@@ -526,7 +675,11 @@ func (a *Aspect) matchGetRequest(request string) (matches []requestMatch, err er
 			continue
 		}
 
-		m := requestMatch{storagePath: path, suffixParts: restSuffix}
+		m := requestMatch{
+			storagePath: path,
+			suffixParts: restSuffix,
+			request:     accessPatt.originalRequest,
+		}
 		matches = append(matches, m)
 	}
 
@@ -978,4 +1131,13 @@ func (s JSONSchema) Validate(jsonData []byte) error {
 	// the top-level is always an object
 	var data map[string]json.RawMessage
 	return json.Unmarshal(jsonData, &data)
+}
+
+// SchemaAt always returns the JSONSchema.
+func (v JSONSchema) SchemaAt(path []string) ([]Schema, error) {
+	return []Schema{v}, nil
+}
+
+func (v JSONSchema) Type() SchemaType {
+	return Any
 }
