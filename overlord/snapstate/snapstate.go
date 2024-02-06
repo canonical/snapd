@@ -1104,7 +1104,7 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 type PrereqTracker interface {
 	// Add adds a snap for tracking.
 	Add(*snap.Info)
-	// MissingProviderContetTags returns a map keyed by the names of all
+	// MissingProviderContentTags returns a map keyed by the names of all
 	// missing default-providers for the content plugs that the given
 	// snap.Info needs. The map values are the corresponding content tags.
 	// Different prerequisites trackers might decide in different
