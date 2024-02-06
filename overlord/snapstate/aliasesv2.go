@@ -354,7 +354,7 @@ func checkAliasesConflicts(st *state.State, snapName string, candAutoDisabled bo
 }
 
 // checkSnapAliasConflict checks whether instanceName and its command
-// namepsace conflicts against installed snap aliases.
+// namespace conflicts against installed snap aliases.
 func checkSnapAliasConflict(st *state.State, instanceName string) error {
 	prefix := fmt.Sprintf("%s.", instanceName)
 	snapStates, err := All(st)
