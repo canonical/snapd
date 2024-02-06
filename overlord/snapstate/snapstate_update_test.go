@@ -4229,7 +4229,7 @@ func (s *snapmgrTestSuite) TestUpdateWithDeviceContextSameRevisionSwitchesChanne
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,
-		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
+		Sequence:        []*snap.SideInfo{&si},
 		TrackingChannel: "other-channel/stable",
 		Current:         si.Revision,
 	})
