@@ -1520,7 +1520,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	// undo migration-related state changes (set in doLinkSnap). The respective
 	// file migrations are undone either above or in undoCopySnapData. State
 	// should only be set in tasks that link the snap for safety and consistency.
-	setMigrationFlagsinState(snapst, snapsup)
+	setMigrationFlagsInState(snapst, snapsup)
 
 	if err := writeMigrationStatus(t, snapst, snapsup); err != nil {
 		return err
@@ -2089,7 +2089,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// don't keep the old state because, if we fail, we may or may not be able to
 	// revert the migration. We set the migration status after undoing any
 	// migration related ops
-	setMigrationFlagsinState(snapst, snapsup)
+	setMigrationFlagsInState(snapst, snapsup)
 
 	newInfo, err := readInfo(snapsup.InstanceName(), cand.Snap, 0)
 	if err != nil {
@@ -2336,7 +2336,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	}
 }
 
-func setMigrationFlagsinState(snapst *SnapState, snapsup *SnapSetup) {
+func setMigrationFlagsInState(snapst *SnapState, snapsup *SnapSetup) {
 	if snapsup.MigratedHidden {
 		snapst.MigratedHidden = true
 	} else if snapsup.UndidHiddenMigration {
