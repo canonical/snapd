@@ -2888,7 +2888,7 @@ func installModeDisabledServices(st *state.State, snapst *SnapState, currentInfo
 		enabledByHookSvcs[svcName] = true
 	}
 
-	// find what servies the previous snap had
+	// find what services the previous snap had
 	prevCurrentSvcs := map[string]bool{}
 	if psi := snapst.previousSideInfo(); psi != nil {
 		var prevCurrentInfo *snap.Info
