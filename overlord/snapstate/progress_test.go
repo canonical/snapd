@@ -68,7 +68,7 @@ func (s *progressAdapterTestSuite) TestProgressAdapterSetTaskProgress(c *C) {
 	// we expect 1000 bytes
 	m.Start("msg", 1000)
 
-	// write a single byte (0.1% of the toal)
+	// write a single byte (0.1% of the total)
 	m.Write([]byte("1"))
 
 	// check that the progress is not updated yet
