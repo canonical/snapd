@@ -312,7 +312,7 @@ func (s *deviceMgrResealSuite) TestResealError(c *C) {
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
-	c.Check(chg.Err(), ErrorMatches, `(?s)cannot perform the following tasks.*Reseal device against boot parameters \(some error\)`)
+	c.Check(chg.Err(), ErrorMatches, `(?s)cannot perform the following tasks.*Reseal device against boot parameters \(cannot forcefully reseal keys: some error\)`)
 
 	c.Check(forceResealCalls, Equals, 1)
 	c.Check(restartRequestCalls, Equals, 0)
