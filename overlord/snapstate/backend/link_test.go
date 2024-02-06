@@ -830,7 +830,7 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	c.Assert(err, IsNil)
 
 	info, snapdUnits := mockSnapdSnapForLink(c)
-	// all generated untis
+	// all generated units
 	generatedSnapdUnits := append(snapdUnits,
 		[]string{"usr-lib-snapd.mount", "mount unit"})
 
@@ -848,7 +848,7 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	// validity checks
 	c.Check(filepath.Join(dirs.SnapServicesDir, "snapd.service"), testutil.FileContains,
 		fmt.Sprintf("[Service]\nExecStart=%s/usr/lib/snapd/snapd\n", info.MountDir()))
-	// expecting all generated untis to be present
+	// expecting all generated units to be present
 	for _, entry := range generatedSnapdUnits {
 		c.Check(toEtcUnitPath(entry[0]), testutil.FilePresent)
 	}
