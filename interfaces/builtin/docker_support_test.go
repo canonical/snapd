@@ -20,6 +20,7 @@
 package builtin_test
 
 import (
+	"github.com/snapcore/snapd/strutil"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -821,10 +822,7 @@ ptrace (read, trace) peer=unconfined,
 	// if apparmor supports userns mediation then add this too
 	if apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
 		features, err := apparmor_sandbox.ParserFeatures()
-		if err != nil {
-			fmt.Println("Error while getting parser features")
-			fmt.Println(err)
-		}
+		c.Assert(err, IsNil)
 		if strutil.ListContains(features, "userns") {
 			privilegedProfile += dockerSupportConnectedPlugAppArmorUserNS
 		}
