@@ -4666,7 +4666,7 @@ var maybeRestoreValidationSetsAndRevertSnaps = func(st *state.State, refreshedSn
 		// if we hit ValidationSetsValidationError but it's not about wrong revisions,
 		// then something is really broken (we shouldn't have invalid or missing required
 		// snaps at this point).
-		return nil, fmt.Errorf("internal error: unexpected validation error of installed snaps after unsuccesfull refresh: %v", verr)
+		return nil, fmt.Errorf("internal error: unexpected validation error of installed snaps after unsuccessful refresh: %v", verr)
 	}
 
 	wrongRevSnaps := func() []string {
