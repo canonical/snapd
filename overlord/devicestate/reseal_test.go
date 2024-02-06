@@ -204,11 +204,21 @@ func (s *deviceMgrResealSuite) testResealHappy(c *C, reboot bool) {
 	})()
 
 	s.state.Lock()
+	defer s.state.Unlock()
 	chg := devicestate.Reseal(s.state, reboot)
 
 	s.state.Unlock()
 	s.se.Ensure()
-	<-startedReseal
+	s.state.Lock()
+
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+	c.Check(chg.Err(), IsNil)
+
+	s.state.Unlock()
+	select {
+	case <-startedReseal:
+	case <-chg.Ready():
+	}
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.DoingStatus)
@@ -233,7 +243,6 @@ func (s *deviceMgrResealSuite) testResealHappy(c *C, reboot bool) {
 	} else {
 		c.Check(restartRequestCalls, Equals, 0)
 	}
-	s.state.Unlock()
 }
 
 func (s *deviceMgrResealSuite) TestResealRebootHappy(c *C) {
@@ -276,16 +285,21 @@ func (s *deviceMgrResealSuite) TestResealError(c *C) {
 	})()
 
 	s.state.Lock()
+	defer s.state.Unlock()
+
 	const reboot = true
 	chg := devicestate.Reseal(s.state, reboot)
 
 	s.state.Unlock()
 	s.se.Ensure()
-	<-startedReseal
+	select {
+	case <-startedReseal:
+	case <-chg.Ready():
+	}
 	s.state.Lock()
 
 	c.Check(chg.Status(), Equals, state.DoingStatus)
-	c.Check(chg.Err(), IsNil)
+	c.Assert(chg.Err(), IsNil)
 
 	c.Check(forceResealCalls, Equals, 1)
 	c.Check(restartRequestCalls, Equals, 0)
@@ -302,5 +316,4 @@ func (s *deviceMgrResealSuite) TestResealError(c *C) {
 
 	c.Check(forceResealCalls, Equals, 1)
 	c.Check(restartRequestCalls, Equals, 0)
-	s.state.Unlock()
 }
