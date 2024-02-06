@@ -346,7 +346,7 @@ func CheckUpdateKernelCommandLineConflict(st *state.State, ignoreChangeID string
 			}
 		case "update-managed-boot-config":
 			return &ChangeConflictError{
-				Message:    "boot config is being updated, no change in kernel commnd line is allowed meanwhile",
+				Message:    "boot config is being updated, no change in kernel command line is allowed meanwhile",
 				ChangeKind: task.Kind(),
 				ChangeID:   chg.ID(),
 			}
