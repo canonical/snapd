@@ -128,7 +128,6 @@ apps:
   plugs: [lxd-support-with-unconfined-mode]
 `
 
-
 	plug, _ := MockConnectedPlug(c, lxdSupportWithUnconfinedModeConsumerYaml, nil, "lxd-support-with-unconfined-mode")
 
 	c.Assert(spec.AddConnectedPlug(s.iface, plug, s.slot), IsNil)
