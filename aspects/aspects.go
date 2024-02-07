@@ -183,14 +183,17 @@ func NewBundle(account string, bundleName string, aspects map[string]interface{}
 	}
 
 	for name, v := range aspects {
-		accessPatterns, ok := v.([]interface{})
-		if !ok {
-			return nil, fmt.Errorf("cannot define aspect %q: access patterns should be a list of maps", name)
-		} else if len(accessPatterns) == 0 {
-			return nil, fmt.Errorf("cannot define aspect %q: no access patterns found", name)
+		aspectMap, ok := v.(map[string]interface{})
+		if !ok || len(aspectMap) == 0 {
+			return nil, fmt.Errorf("cannot define aspect %q: aspect must be non-empty map", name)
 		}
 
-		aspect, err := newAspect(aspectBundle, name, accessPatterns)
+		rules, ok := aspectMap["rules"].([]interface{})
+		if !ok || len(rules) == 0 {
+			return nil, fmt.Errorf("cannot define aspect %q: aspect rules must be non-empty list", name)
+		}
+
+		aspect, err := newAspect(aspectBundle, name, rules)
 		if err != nil {
 			return nil, fmt.Errorf("cannot define aspect %q: %w", name, err)
 		}

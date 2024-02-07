@@ -47,24 +47,25 @@ account-id: brand-id1
 name: my-network
 aspects:
   wifi-setup:
-    -
-      request: ssids
-      storage: wifi.ssids
-    -
-      request: ssid
-      storage: wifi.ssid
-      access: read-write
-    -
-      request: password
-      storage: wifi.psk
-      access: write
-    -
-      request: status
-      storage: wifi.status
-      access: read
-    -
-      request: private.{key}
-      storage: wifi.{key}
+    rules:
+      -
+        request: ssids
+        storage: wifi.ssids
+      -
+        request: ssid
+        storage: wifi.ssid
+        access: read-write
+      -
+        request: password
+        storage: wifi.psk
+        access: write
+      -
+        request: status
+        storage: wifi.status
+        access: read
+      -
+        request: private.{key}
+        storage: wifi.{key}
 storage:
     {
       "schema": {
