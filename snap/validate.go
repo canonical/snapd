@@ -363,6 +363,11 @@ func Validate(info *Info) error {
 		if err := ValidateDescription(comp.Description); err != nil {
 			return err
 		}
+		for _, hook := range comp.Hooks {
+			if err := ValidateHook(hook); err != nil {
+				return err
+			}
+		}
 	}
 
 	if err := validateTitle(info.Title()); err != nil {
