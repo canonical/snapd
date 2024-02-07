@@ -44,7 +44,7 @@ execute: |
     MATCH "^homedirs=/remote/users$" < /var/lib/snapd/system-params
 
     echo "And that the AppArmor tunable file is proper"
-    MATCH "^@{HOMEDIRS}\\+=\"/remote/users\"$" < /etc/apparmor.d/tunables/home.d/snapd
+    MATCH "^@{HOMEDIRS}\\+=\"/remote/users\" \"/home\"$" < /etc/apparmor.d/tunables/home.d/snapd
 
     echo "Invoke the test app again (should now work)"
     sudo -u "$USERNAME" -i test-snapd-sh.sh -c "echo Hello world" | MATCH "Hello world"
@@ -56,7 +56,7 @@ execute: |
         | MATCH "preserved mount is not stale, reusing"
     
     # Get the revison of the snap
-    rev=$(snap list test-snapd-sh|tail -n1|tr -s ' '|cut -f3 -d' ')
+    rev=$(readlink /snap/test-snapd-sh/current)
 
     homes=("/root/" "/home/test/" "/remote/users/$USERNAME/")
     echo "That has some user data"
@@ -70,7 +70,7 @@ execute: |
 
     echo "When the snap is refreshed"
     snap refresh --channel=edge test-snapd-sh
-    new_rev=$(snap list test-snapd-sh|tail -n1|tr -s ' '|cut -f3 -d' ')
+    new_rev=$(readlink /snap/test-snapd-sh/current)
 
     echo "Then the user data gets copied"
     for h in "${homes[@]}"; do
