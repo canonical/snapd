@@ -114,6 +114,25 @@ func (s *LxdSupportInterfaceSuite) TestAppArmorSpecUnconfined(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
 	c.Assert(spec.Unconfined(), Equals, apparmor.UnconfinedSupported)
+
+	// Unconfined mode is enabled by the plug when it enables it via the
+	// enable-unconfined-mode attribute
+	const lxdSupportWithUnconfinedModeConsumerYaml = `name: consumer
+version: 0
+plugs:
+  lxd-support-with-unconfined-mode:
+    interface: lxd-support
+    enable-unconfined-mode: true
+apps:
+ app:
+  plugs: [lxd-support-with-unconfined-mode]
+`
+
+
+	plug, _ := MockConnectedPlug(c, lxdSupportWithUnconfinedModeConsumerYaml, nil, "lxd-support-with-unconfined-mode")
+
+	c.Assert(spec.AddConnectedPlug(s.iface, plug, s.slot), IsNil)
+	c.Assert(spec.Unconfined(), Equals, apparmor.UnconfinedEnabled)
 }
 
 func (s *LxdSupportInterfaceSuite) TestSecCompSpec(c *C) {
