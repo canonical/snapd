@@ -1016,7 +1016,6 @@ func (s *restSuite) TestGuessAppIconTwoAppsPrefixDifferent(c *C) {
 }
 
 func (s *restSuite) TestPostCloseRefreshNotificationWithIconDefault(c *C) {
-
 	snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	// add a notification first
 	mockYaml := `
