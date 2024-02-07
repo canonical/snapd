@@ -344,6 +344,11 @@ func setComponentsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) erro
 				Explicit:     true,
 			}
 
+			// TODO: this might need to change one day
+			if len(hookData.SlotNames) > 0 {
+				return fmt.Errorf("component hooks cannot have slots")
+			}
+
 			if len(hookData.PlugNames) > 0 {
 				componentHook.Plugs = make(map[string]*PlugInfo, len(hookData.PlugNames))
 			}

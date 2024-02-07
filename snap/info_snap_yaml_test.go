@@ -2344,3 +2344,17 @@ components:
 	c.Assert(err.Error(), Equals, `cannot parse snap.yaml: unknown component type "badtype"`)
 	c.Assert(info, IsNil)
 }
+
+func (s *YamlSuite) TestUnmarshalComponentsHookSlotsError(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+components:
+  test1:
+    type: test
+    hooks:
+      install:
+        slots: [slot-for-install]
+`))
+	c.Assert(err.Error(), Equals, `component hooks cannot have slots`)
+	c.Assert(info, IsNil)
+}
