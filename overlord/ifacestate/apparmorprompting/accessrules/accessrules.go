@@ -240,7 +240,7 @@ func getNewerRule(id1 string, ts1 string, id2 string, ts2 string) string {
 // This function is only required if database is left inconsistent (should not
 // occur) or when loading, in case the stored rules on disk were corrupted.
 //
-// By default, issues a notice for each rule which is modified or deleted as a
+// By default, issues a notice for each rule which is modified or removed as a
 // result of a conflict with another rule. If notifyEveryRule is true, issues
 // a notice for every rule which was in the database prior to the beginning of
 // the function. In either case, at most one notice is issued for each rule.
@@ -510,7 +510,7 @@ func (ardb *AccessRuleDB) CreateAccessRule(user uint32, snap string, app string,
 // Removes the access rule with the given ID from the rules database.  If the
 // rule does not apply to the given user, returns ErrUserNotAllowed.  If
 // successful, saves the database to disk.
-func (ardb *AccessRuleDB) DeleteAccessRule(user uint32, id string) (*AccessRule, error) {
+func (ardb *AccessRuleDB) RemoveAccessRule(user uint32, id string) (*AccessRule, error) {
 	ardb.mutex.Lock()
 	defer ardb.mutex.Unlock()
 	rule, err := ardb.ruleWithIDInternal(user, id)

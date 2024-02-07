@@ -76,7 +76,7 @@ func (s *accessruleSuite) TestPopulateNewAccessRule(c *C) {
 	}
 }
 
-func (s *accessruleSuite) TestCreateDeleteAccessRuleSimple(c *C) {
+func (s *accessruleSuite) TestCreateRemoveAccessRuleSimple(c *C) {
 	var user uint32 = 1000
 	ruleNoticeIDs := make([]string, 0, 2)
 	notifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
@@ -139,12 +139,12 @@ func (s *accessruleSuite) TestCreateDeleteAccessRuleSimple(c *C) {
 		c.Assert(pathID, Equals, accessRule.ID)
 	}
 
-	deletedRule, err := ardb.DeleteAccessRule(user, accessRule.ID)
+	removedRule, err := ardb.RemoveAccessRule(user, accessRule.ID)
 	c.Assert(err, IsNil)
-	c.Assert(deletedRule, DeepEquals, accessRule)
+	c.Assert(removedRule, DeepEquals, accessRule)
 
 	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
-	c.Check(ruleNoticeIDs[0], Equals, deletedRule.ID)
+	c.Check(ruleNoticeIDs[0], Equals, removedRule.ID)
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
 	c.Assert(ardb.ByID, HasLen, 0)

@@ -189,20 +189,20 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 			return InternalError("%v", err)
 		}
 		return SyncResponse(result)
-	case "delete":
-		for _, selector := range postBody.DeleteSelectors {
+	case "remove":
+		for _, selector := range postBody.RemoveSelectors {
 			snap := selector.Snap
 			if snap == "" {
 				return BadRequest(`must include "snap" parameter in "selectors"`)
 			}
 		}
-		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesDelete(ucred.Uid, postBody.DeleteSelectors)
+		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesRemove(ucred.Uid, postBody.RemoveSelectors)
 		if err != nil {
 			return InternalError("%v", err)
 		}
 		return SyncResponse(result)
 	default:
-		return BadRequest(`action must "create" or "delete"`)
+		return BadRequest(`action must "create" or "remove"`)
 	}
 }
 
@@ -253,13 +253,13 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 			return InternalError("%v", err)
 		}
 		return SyncResponse(result)
-	case "delete":
-		result, err := c.d.overlord.InterfaceManager().Prompting().PostRuleDelete(ucred.Uid, id)
+	case "remove":
+		result, err := c.d.overlord.InterfaceManager().Prompting().PostRuleRemove(ucred.Uid, id)
 		if err != nil {
 			return InternalError("%v", err)
 		}
 		return SyncResponse(result)
 	default:
-		return BadRequest(`action must be "create" or "delete"`)
+		return BadRequest(`action must be "create" or "remove"`)
 	}
 }

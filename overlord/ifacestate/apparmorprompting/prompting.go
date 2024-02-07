@@ -281,7 +281,7 @@ type PostRulesCreateRuleContents struct {
 	Permissions []common.PermissionType `json:"permissions"`
 }
 
-type PostRulesDeleteSelectors struct {
+type PostRulesRemoveSelectors struct {
 	Snap      string `json:"snap"`
 	App       string `json:"app,omitempty"`
 	Interface string `json:"interface,omitempty"`
@@ -290,7 +290,7 @@ type PostRulesDeleteSelectors struct {
 type PostRulesRequestBody struct {
 	Action          string                         `json:"action"`
 	CreateRules     []*PostRulesCreateRuleContents `json:"rules,omitempty"`
-	DeleteSelectors []*PostRulesDeleteSelectors    `json:"selectors,omitempty"`
+	RemoveSelectors []*PostRulesRemoveSelectors    `json:"selectors,omitempty"`
 }
 
 type PostRuleModifyRuleContents struct {
@@ -368,37 +368,37 @@ func (p *Prompting) PostRulesCreate(userID uint32, rules []*PostRulesCreateRuleC
 	return createdRules, nil
 }
 
-func (p *Prompting) PostRulesDelete(userID uint32, deleteSelectors []*PostRulesDeleteSelectors) ([]*accessrules.AccessRule, error) {
+func (p *Prompting) PostRulesRemove(userID uint32, removeSelectors []*PostRulesRemoveSelectors) ([]*accessrules.AccessRule, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
-	deletedRules := make([]*accessrules.AccessRule, 0)
-	for _, selector := range deleteSelectors {
+	removedRules := make([]*accessrules.AccessRule, 0)
+	for _, selector := range removeSelectors {
 		snap := selector.Snap
 		app := selector.App
 		iface := selector.Interface
-		var rulesToDelete []*accessrules.AccessRule
+		var rulesToRemove []*accessrules.AccessRule
 		// Already checked that snap != ""
 		if iface != "" {
 			if app != "" {
-				rulesToDelete = p.rules.RulesForSnapAppInterface(userID, snap, app, iface)
+				rulesToRemove = p.rules.RulesForSnapAppInterface(userID, snap, app, iface)
 			} else {
-				rulesToDelete = p.rules.RulesForSnapInterface(userID, snap, iface)
+				rulesToRemove = p.rules.RulesForSnapInterface(userID, snap, iface)
 			}
 		} else if app != "" {
-			rulesToDelete = p.rules.RulesForSnapApp(userID, snap, app)
+			rulesToRemove = p.rules.RulesForSnapApp(userID, snap, app)
 		} else {
-			rulesToDelete = p.rules.RulesForSnap(userID, snap)
+			rulesToRemove = p.rules.RulesForSnap(userID, snap)
 		}
-		for _, rule := range rulesToDelete {
-			deletedRule, err := p.rules.DeleteAccessRule(userID, rule.ID)
+		for _, rule := range rulesToRemove {
+			removedRule, err := p.rules.RemoveAccessRule(userID, rule.ID)
 			if err != nil {
 				continue
 			}
-			deletedRules = append(deletedRules, deletedRule)
+			removedRules = append(removedRules, removedRule)
 		}
 	}
-	return deletedRules, nil
+	return removedRules, nil
 }
 
 func (p *Prompting) GetRule(userID uint32, ruleID string) (*accessrules.AccessRule, error) {
@@ -422,10 +422,10 @@ func (p *Prompting) PostRuleModify(userID uint32, ruleID string, contents *PostR
 	return rule, err
 }
 
-func (p *Prompting) PostRuleDelete(userID uint32, ruleID string) (*accessrules.AccessRule, error) {
+func (p *Prompting) PostRuleRemove(userID uint32, ruleID string) (*accessrules.AccessRule, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
-	rule, err := p.rules.DeleteAccessRule(userID, ruleID)
+	rule, err := p.rules.RemoveAccessRule(userID, ruleID)
 	return rule, err
 }
