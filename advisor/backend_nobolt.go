@@ -1,8 +1,8 @@
-// -*- Mode: Go; indent-tabs-mode: t -*-
-//go:build !nobolt
+//go:build nobolt
 
+// -*- Mode: Go; indent-tabs-mode: t -*-
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,24 +18,19 @@
  *
  */
 
-package advisor_test
+package advisor
 
-import (
-	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/advisor"
-)
-
-func (s *cmdfinderSuite) TestFindPackageHit(c *C) {
-	pkg, err := advisor.FindPackage("foo")
-	c.Assert(err, IsNil)
-	c.Check(pkg, DeepEquals, &advisor.Package{
-		Snap: "foo", Version: "1.0", Summary: "foo summary",
-	})
+// Create fails with ErrNotSupported.
+func Create() (CommandDB, error) {
+	return nil, ErrNotSupported
 }
 
-func (s *cmdfinderSuite) TestFindPackageMiss(c *C) {
-	pkg, err := advisor.FindPackage("moh")
-	c.Assert(err, IsNil)
-	c.Check(pkg, IsNil)
+// DumpCommands fails with ErrNotSupported.
+func DumpCommands() (map[string]string, error) {
+	return nil, ErrNotSupported
+}
+
+// Open fails with ErrNotSupported.
+func Open() (Finder, error) {
+	return nil, ErrNotSupported
 }

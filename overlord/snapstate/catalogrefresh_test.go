@@ -21,6 +21,7 @@ package snapstate_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -129,6 +130,9 @@ func (s *catalogRefreshTestSuite) TestCatalogRefresh(c *C) {
 
 	c.Check(osutil.FileExists(dirs.SnapCommandsDB), Equals, true)
 	dump, err := advisor.DumpCommands()
+	if errors.Is(err, advisor.ErrNotSupported) {
+		c.Skip("bolt is not supported")
+	}
 	c.Assert(err, IsNil)
 	c.Check(dump, DeepEquals, map[string]string{
 		"foo": `[{"snap":"foo","version":"1.0"}]`,
@@ -146,6 +150,9 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshTooMany(c *C) {
 	t0 := time.Now()
 
 	err := cr7.Ensure()
+	if errors.Is(err, advisor.ErrNotSupported) {
+		c.Skip("bolt is not supported")
+	}
 	c.Check(err, IsNil) // !!
 
 	// next now has a delta (next refresh is not before t0 + delta)
@@ -201,6 +208,9 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshTooNew(c *C) {
 
 	cr7 := snapstate.NewCatalogRefresh(s.state)
 	err := cr7.Ensure()
+	if errors.Is(err, advisor.ErrNotSupported) {
+		c.Skip("bolt is not supported")
+	}
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, DeepEquals, []string{"sections", "write-catalog"})
 }
@@ -285,6 +295,9 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshSkipWhenTesting(c *C) {
 	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
 
 	err = cr7.Ensure()
+	if errors.Is(err, advisor.ErrNotSupported) {
+		c.Skip("bolt is not supported")
+	}
 	c.Check(err, IsNil)
 
 	// refresh happened
@@ -307,6 +320,10 @@ func (s *catalogRefreshTestSuite) TestSnapStoreOffline(c *C) {
 	setStoreAccess(s.state, nil)
 
 	err = af.Ensure()
+	if errors.Is(err, advisor.ErrNotSupported) {
+		c.Skip("bolt is not supported")
+	}
+
 	c.Check(err, IsNil)
 
 	c.Check(s.store.ops, DeepEquals, []string{"sections", "write-catalog"})

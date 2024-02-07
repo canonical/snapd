@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nobolt
 
 /*
  * Copyright (C) 2018 Canonical Ltd

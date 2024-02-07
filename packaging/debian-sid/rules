@@ -65,8 +65,8 @@ endif
 # check if we need to include the testkeys in the binary
 # TAGS are the go build tags for all binaries, SNAP_TAGS are for snap
 # build only.
-TAGS=nosecboot
-SNAP_TAGS=nosecboot nomanagers
+TAGS=nosecboot nobolt
+SNAP_TAGS=nosecboot nomanagers nobolt
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 	TAGS+= withtestkeys
 	SNAP_TAGS+= withtestkeys
