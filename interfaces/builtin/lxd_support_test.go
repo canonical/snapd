@@ -74,6 +74,24 @@ func (s *LxdSupportInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
+func (s *LxdSupportInterfaceSuite) TestSanitizePlugInvalid(c *C) {
+	const lxdSupportInvalidConsumerYaml = `name: consumer
+version: 0
+plugs:
+  lxd-support-invalid-attr:
+    interface: lxd-support
+    enable-unconfined-mode: 1
+
+apps:
+ app:
+  plugs:
+    - lxd-support-invalid-attr
+`
+
+	_, plugInfo := MockConnectedPlug(c, lxdSupportInvalidConsumerYaml, nil, "lxd-support-invalid-attr")
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches, "lxd-support plug requires bool with 'enable-unconfined-mode'")
+}
+
 func (s *LxdSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
