@@ -65,14 +65,30 @@ var (
 
 // consoleConfWrapperUITool returns a hardcoded path to the console conf wrapper
 func consoleConfWrapperUITool() (*exec.Cmd, error) {
-	tool := filepath.Join(dirs.GlobalRootDir, "usr/bin/console-conf")
-
-	if _, err := os.Stat(tool); err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("chooser UI tool %q does not exist", tool)
-		}
-		return nil, fmt.Errorf("cannot stat UI tool binary: %v", err)
+	// console conf may either be provided as a snap or be part of
+	// the boot base
+	candidateTools := []string{
+		filepath.Join(dirs.GlobalRootDir, "usr/bin/console-conf"),
+		filepath.Join(dirs.SnapBinariesDir, "console-conf"),
 	}
+
+	var tool string
+
+	for _, maybeTool := range candidateTools {
+		if _, err := os.Stat(maybeTool); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, fmt.Errorf("cannot stat UI tool binary: %v", err)
+		} else {
+			tool = maybeTool
+			break
+		}
+	}
+	if tool == "" {
+		return nil, fmt.Errorf("chooser UI tools %q do not exist", candidateTools)
+	}
+
 	return exec.Command(tool, "--recovery-chooser-mode"), nil
 }
 
