@@ -1099,7 +1099,8 @@ func (s *backendSuite) TestUnconfinedFlag(c *C) {
 	s.Iface.InterfaceStaticInfo.AppArmorUnconfinedSlots = true
 	// will only be enabled if the interface also enables unconfined
 	s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-		spec.SetUnconfinedEnabled()
+		err := spec.SetUnconfinedEnabled()
+		c.Assert(err, IsNil)
 		return nil
 	}
 	// test both classic and non-classic confinement
