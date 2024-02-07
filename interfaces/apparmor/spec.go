@@ -31,8 +31,9 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-// unconfined mode is only enabled when the interface supports it as a static
-// property and it is then enabled via EnableUnconfined() method
+// UnconfinedMode describes the states of support for the AppArmor unconfined
+// profile mode - this is only enabled when the interface supports it as a
+// static property and it is then enabled via SetUnconfinedEnabled() method
 type UnconfinedMode int
 
 const (
@@ -771,15 +772,16 @@ func (spec *Specification) SuppressPycacheDeny() bool {
 	return spec.suppressPycacheDeny
 }
 
-// supportsUnconfined records whether a profile perhaps should be applied without any real
-// confinement - this will only occur if the spec also EnableUnconfined()
+// setUnconfinedSuported records whether a profile perhaps should be applied
+// without any real confinement - this will only occur if the spec also enables
+// this by calling SetEnableUnconfined()
 func (spec *Specification) setUnconfinedSupported() {
 	spec.unconfined = UnconfinedSupported
 }
 
 // SetUnconfinedEnabled records whether a profile should be applied without any
 // real confinement - the spec must already support unconfined profiles via a
-// previous call to setUnconfinedSupported
+// previous call to setUnconfinedSupported()
 func (spec *Specification) SetUnconfinedEnabled() error {
 	if spec.unconfined != UnconfinedSupported {
 		return fmt.Errorf("unconfined profiles not supported")
