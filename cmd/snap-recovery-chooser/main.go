@@ -63,7 +63,6 @@ var (
 	chooserTool = consoleConfWrapperUITool
 )
 
-// consoleConfWrapperUITool returns a hardcoded path to the console conf wrapper
 func consoleConfWrapperUITool() (*exec.Cmd, error) {
 	// console conf may either be provided as a snap or be part of
 	// the boot base
