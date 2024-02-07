@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
@@ -2281,4 +2282,97 @@ func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
 		}
 	}
 
+}
+
+func (s *sealSuite) TestForceResealKeyToModeenv(c *C) {
+	rootdir := c.MkDir()
+	dirs.SetRootDir(rootdir)
+	defer dirs.SetRootDir("")
+
+	marker := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
+	err := os.MkdirAll(filepath.Dir(marker), 0755)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	model := boottest.MakeMockUC20Model()
+
+	defer boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
+		return model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
+	})()
+
+	err = createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-seed"))
+	c.Assert(err, IsNil)
+
+	err = createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-boot"))
+	c.Assert(err, IsNil)
+
+	modeenv := &boot.Modeenv{
+		RecoverySystem: "20200825",
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"grubx64.efi": []string{"grub-hash-1"},
+			"bootx64.efi": []string{"shim-hash-1"},
+		},
+
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"grubx64.efi": []string{"run-grub-hash-1"},
+		},
+
+		CurrentKernels: []string{"pc-kernel_500.snap"},
+
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		},
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
+	}
+
+	mockAssetsCache(c, rootdir, "grub", []string{
+		"bootx64.efi-shim-hash-1",
+		"grubx64.efi-grub-hash-1",
+		"grubx64.efi-run-grub-hash-1",
+	})
+
+	keyForRole := map[string]keys.EncryptionKey{
+		gadget.SystemData: keys.EncryptionKey{'d', 'a', 't', 'a', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+		gadget.SystemSave: keys.EncryptionKey{'s', 'a', 'v', 'e', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+	}
+
+	options := &boot.ResealToModeenvOptions{
+		ExpectReseal: false,
+		Force:        true,
+		KeyForRole:   keyForRole,
+	}
+
+	secbootSealKeysCalls := 0
+	defer boot.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) error {
+		secbootSealKeysCalls++
+		return nil
+	})()
+
+	defer boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		c.Errorf("Unexpected called to secboot.ResealKeys")
+		return fmt.Errorf("Unexpected")
+	})()
+
+	defer boot.MockSecbootPCRHandleOfSealedKey(func(p string) (uint32, error) {
+		c.Errorf("Unexpected called to secboot.ResealKeys")
+		return 0, fmt.Errorf("Unexpected")
+	})()
+
+	secbootReleasePCRResourceHandlesCalls := 0
+	defer boot.MockSecbootReleasePCRResourceHandles(func(handles ...uint32) error {
+		secbootReleasePCRResourceHandlesCalls++
+		return nil
+	})()
+
+	u := mockUnlocker{}
+	defer boot.MockModeenvLocked()()
+	err = boot.ResealKeyToModeenv(rootdir, modeenv, options, u.unlocker)
+	c.Assert(err, IsNil)
+
+	c.Assert(secbootSealKeysCalls, Equals, 2)
+	c.Assert(secbootReleasePCRResourceHandlesCalls, Equals, 1)
 }
