@@ -71,8 +71,16 @@ func (*aspectSuite) TestNewAspectBundle(c *C) {
 			err:    `cannot define aspect "bar": access patterns must have a "request" field`,
 		},
 		{
+			bundle: map[string]interface{}{"bar": map[string]interface{}{"rules": []interface{}{map[string]interface{}{"request": 1}}}},
+			err:    `cannot define aspect "bar": "request" must be a string`,
+		},
+		{
 			bundle: map[string]interface{}{"bar": map[string]interface{}{"rules": []interface{}{map[string]interface{}{"request": "foo"}}}},
 			err:    `cannot define aspect "bar": access patterns must have a "storage" field`,
+		},
+		{
+			bundle: map[string]interface{}{"bar": map[string]interface{}{"rules": []interface{}{map[string]interface{}{"request": "foo", "storage": 1}}}},
+			err:    `cannot define aspect "bar": "storage" must be a string`,
 		},
 		{
 			bundle: map[string]interface{}{
@@ -84,6 +92,10 @@ func (*aspectSuite) TestNewAspectBundle(c *C) {
 				},
 			},
 			err: `cannot define aspect "bar": cannot have several reading rules with the same "request" field`,
+		},
+		{
+			bundle: map[string]interface{}{"bar": map[string]interface{}{"rules": []interface{}{map[string]interface{}{"request": "foo", "storage": "bar", "access": 1}}}},
+			err:    `cannot define aspect "bar": "access" must be a string`,
 		},
 		{
 			bundle: map[string]interface{}{
