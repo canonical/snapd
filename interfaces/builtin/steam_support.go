@@ -205,6 +205,8 @@ deny /usr/bin/{chfn,chsh,gpasswd,mount,newgrp,passwd,su,sudo,umount} x,
 /run/host/usr/sbin/ldconfig* ixr,
 /run/host/usr/bin/localedef ixr,
 /var/cache/ldconfig/** rw,
+/sys/module/nvidia/version r,
+/etc/debian_chroot r,
 
 capability sys_admin,
 capability sys_ptrace,
