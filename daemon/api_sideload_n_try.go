@@ -336,7 +336,10 @@ func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) 
 
 	msg := fmt.Sprintf(i18n.G("Install %q %s from file %q"), instanceName, container, snapFile.filename)
 	chg := newChange(st, "install-"+container, msg, []*state.TaskSet{tset}, []string{instanceName})
-	apiData := map[string]string{"snap-name": instanceName}
+	apiData := map[string]interface{}{
+		"snap-name":  instanceName,
+		"snap-names": []string{instanceName},
+	}
 	if compInfo != nil {
 		apiData["component-name"] = compInfo.Component.ComponentName
 	}
@@ -578,7 +581,10 @@ func trySnap(st *state.State, trydir string, flags snapstate.Flags) Response {
 
 	msg := fmt.Sprintf(i18n.G("Try %q snap from %s"), info.InstanceName(), trydir)
 	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tset}, []string{info.InstanceName()})
-	chg.Set("api-data", map[string]string{"snap-name": info.InstanceName()})
+	chg.Set("api-data", map[string]interface{}{
+		"snap-name":  info.InstanceName(),
+		"snap-names": []string{info.InstanceName()},
+	})
 
 	ensureStateSoon(st)
 
