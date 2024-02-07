@@ -27,9 +27,9 @@ import (
 	"github.com/snapcore/snapd/aspects"
 )
 
-// AspectBundle holds a aspect-bundle assertion, which is a definition by an
-// account of access aspect ("views") and a storage schema and for a set of
-// related configuration under the purview of the account.
+// AspectBundle holds an aspect-bundle assertion, which is a definition by an
+// account of access aspects ("views") and a storage schema for a set of
+// related configuration options under the purview of the account.
 type AspectBundle struct {
 	assertionBase
 
@@ -87,7 +87,7 @@ func assembleAspectBundle(assert assertionBase) (Assertion, error) {
 	}
 	schema, err := aspects.ParseSchema([]byte(storageStr))
 	if err != nil {
-		return nil, fmt.Errorf(`"storage" schema stanza: %w`, err)
+		return nil, fmt.Errorf(`invalid "storage" schema stanza: %w`, err)
 	}
 
 	bundle, err := aspects.NewBundle(accountID, name, aspectsMap, schema)

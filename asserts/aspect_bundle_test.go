@@ -119,7 +119,7 @@ func (s *aspectBundleSuite) TestDecodeInvalid(c *C) {
 		{"read-write", "update", `cannot define aspect "wifi-setup": cannot create aspect pattern:.*`},
 		{storageStanza, "", `"storage" stanza is mandatory`},
 		{storageStanza, "storage:\n  - foo\n", `invalid "storage" schema stanza, expected schema text`},
-		{storageStanza, "storage:\n    {}\n", `"storage" schema stanza: cannot parse top level schema: must have a "schema" constraint`},
+		{storageStanza, "storage:\n    {}\n", `invalid "storage" schema stanza: cannot parse top level schema: must have a "schema" constraint`},
 	}
 
 	for _, test := range invalidTests {
