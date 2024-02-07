@@ -57,7 +57,6 @@ var _ = Suite(&restSuite{})
 func (s *restSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.DBusTest.SetUpTest(c)
-	dirs.SnapDesktopFilesDir = c.MkDir()
 	dirs.SetRootDir(c.MkDir())
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
 	c.Assert(os.MkdirAll(xdgRuntimeDir, 0700), IsNil)
@@ -1017,7 +1016,6 @@ func (s *restSuite) TestGuessAppIconTwoAppsPrefixDifferent(c *C) {
 }
 
 func (s *restSuite) TestPostCloseRefreshNotificationWithIconDefault(c *C) {
-	dirs.SetRootDir(c.MkDir())
 
 	snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	// add a notification first
@@ -1045,12 +1043,12 @@ Icon=foo.png
 	notifications := s.notify.GetAll()
 	c.Assert(notifications, HasLen, 1)
 	n := notifications[0]
-	// boring stuff is checked above
 	c.Check(n.Summary, Equals, `snap-name was updated.`)
 	c.Check(n.Body, Equals, "Ready to launch.")
 	c.Check(n.Hints, DeepEquals, map[string]dbus.Variant{
 		"urgency":       dbus.MakeVariant(byte(notification.LowUrgency)),
 		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
 	})
+	// boring stuff is checked above
 	c.Check(n.Icon, Equals, "foo.png")
 }
