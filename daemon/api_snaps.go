@@ -158,6 +158,8 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 		chg.Set("system-restart-immediate", true)
 	}
 
+	chg.Set("api-data", map[string]interface{}{"snap-names": inst.Snaps})
+
 	ensureStateSoon(st)
 
 	return AsyncResponse(nil, chg.ID())
@@ -675,9 +677,9 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 		chg.Set("system-restart-immediate", true)
 	}
 
-	ensureStateSoon(st)
-
 	chg.Set("api-data", map[string]interface{}{"snap-names": res.Affected})
+
+	ensureStateSoon(st)
 
 	return AsyncResponse(res.Result, chg.ID())
 }

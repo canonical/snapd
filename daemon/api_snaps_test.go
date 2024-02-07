@@ -1556,6 +1556,10 @@ func (s *snapsSuite) testPostSnap(c *check.C, extraJSON string, checkOpts func(o
 	c.Check(soon, check.Equals, 1)
 	c.Check(chg.Tasks()[0].Summary(), check.Equals, "Doing a fake install")
 
+	var apiData map[string]interface{}
+	c.Check(chg.Get("api-data", &apiData), check.IsNil)
+	c.Check(apiData["snap-names"], check.DeepEquals, []interface{}{"foo"})
+
 	summary = chg.Summary()
 	err = chg.Get("system-restart-immediate", &systemRestartImmediate)
 	if err != nil && !errors.Is(err, state.ErrNoState) {

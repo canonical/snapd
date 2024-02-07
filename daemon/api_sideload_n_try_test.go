@@ -261,7 +261,8 @@ func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[strin
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, check.IsNil)
 	c.Check(apiData, check.DeepEquals, map[string]interface{}{
-		"snap-name": expectedInstanceName,
+		"snap-name":  expectedInstanceName,
+		"snap-names": []interface{}{expectedInstanceName},
 	})
 
 	summary = chg.Summary()
@@ -486,6 +487,7 @@ func (s *sideloadSuite) sideloadComponentCheck(c *check.C, content string,
 	c.Assert(err, check.IsNil)
 	c.Check(apiData, check.DeepEquals, map[string]interface{}{
 		"snap-name":      expectedInstanceName,
+		"snap-names":     []interface{}{expectedInstanceName},
 		"component-name": expectedCompSideInfo.Component.ComponentName,
 	})
 
@@ -621,7 +623,8 @@ version: 1`, nil)
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, check.IsNil)
 	c.Check(apiData, check.DeepEquals, map[string]interface{}{
-		"snap-name": "foo",
+		"snap-name":  "foo",
+		"snap-names": []interface{}{"foo"},
 	})
 }
 
@@ -1337,7 +1340,8 @@ func (s *trySuite) TestTrySnap(c *check.C) {
 		err = chg.Get("api-data", &apiData)
 		c.Assert(err, check.IsNil, check.Commentf(t.desc))
 		c.Check(apiData, check.DeepEquals, map[string]interface{}{
-			"snap-name": "foo",
+			"snap-name":  "foo",
+			"snap-names": []interface{}{"foo"},
 		}, check.Commentf(t.desc))
 
 		c.Check(soon, check.Equals, 1, check.Commentf(t.desc))
