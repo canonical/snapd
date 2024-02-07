@@ -109,7 +109,7 @@ func (iface *lxdSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 		// since we set appArmorUnconfinedPlugs to true in the static
 		// info below, we know that the spec will already support the
 		// unconfined mode and so this call will not fail
-		spec.SetUnconfinedEnabled()
+		_ = spec.SetUnconfinedEnabled()
 	}
 	return nil
 }
