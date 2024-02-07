@@ -117,7 +117,7 @@ func (s *aspectBundleSuite) TestDecodeInvalid(c *C) {
 		{s.tsLine, "", `"timestamp" header is mandatory`},
 		{aspectsStanza, "aspects: foo\n", `"aspects" header must be a map`},
 		{aspectsStanza, "", `"aspects" stanza is mandatory`},
-		{"read-write", "update", `cannot define aspect "wifi-setup": cannot create aspect pattern:.*`},
+		{"read-write", "update", `cannot define aspect "wifi-setup": cannot create aspect rule:.*`},
 		{storageStanza, "", `"storage" stanza is mandatory`},
 		{storageStanza, "storage:\n  - foo\n", `invalid "storage" schema stanza, expected schema text`},
 		{storageStanza, "storage:\n    {}\n", `invalid "storage" schema stanza: cannot parse top level schema: must have a "schema" constraint`},
