@@ -106,8 +106,7 @@ environment:
     NESTED_REPACK_BASE_SNAP: '$(HOST: echo "${NESTED_REPACK_BASE_SNAP:-true}")'
 
 backends:
-    google-east:
-        type: google
+    google:
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
         location: snapd-spread/us-east1-b
         halt-timeout: 2h

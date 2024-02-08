@@ -395,37 +395,37 @@ jobs:
             backend: google-central
             systems: 'opensuse-15.5-64 opensuse-tumbleweed-64'
           - group: ubuntu-trusty-xenial
-            backend: google-east
+            backend: google
             systems: 'ubuntu-14.04-64 ubuntu-16.04-64'
           - group: ubuntu-bionic
-            backend: google-east
+            backend: google
             systems: 'ubuntu-18.04-32 ubuntu-18.04-64'
           - group: ubuntu-focal-jammy
-            backend: google-east
+            backend: google
             systems: 'ubuntu-20.04-64 ubuntu-22.04-64'
           - group: ubuntu-no-lts
-            backend: google-east
+            backend: google
             systems: 'ubuntu-23.04-64 ubuntu-23.10-64'
           - group: ubuntu-daily
-            backend: google-east
+            backend: google
             systems: 'ubuntu-24.04-64'
           - group: ubuntu-core-16
-            backend: google-east
+            backend: google
             systems: 'ubuntu-core-16-64'
           - group: ubuntu-core-18
-            backend: google-east
+            backend: google
             systems: 'ubuntu-core-18-64'
           - group: ubuntu-core-20
-            backend: google-east
+            backend: google
             systems: 'ubuntu-core-20-64'
           - group: ubuntu-core-22
-            backend: google-east
+            backend: google
             systems: 'ubuntu-core-22-64'
           - group: ubuntu-arm
             backend: google-arm
             systems: 'ubuntu-20.04-arm-64 ubuntu-core-22-arm-64'
           - group: ubuntu-secboot
-            backend: google-east
+            backend: google
             systems: 'ubuntu-secboot-20.04-64'
     steps:
     - name: Cleanup job workspace
