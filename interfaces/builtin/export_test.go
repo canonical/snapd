@@ -35,8 +35,6 @@ var (
 	ImplicitSystemPermanentSlot = implicitSystemPermanentSlot
 	ImplicitSystemConnectedSlot = implicitSystemConnectedSlot
 	LabelExpr                   = labelExpr
-	PlugAppLabelExpr            = plugAppLabelExpr
-	SlotAppLabelExpr            = slotAppLabelExpr
 	AareExclusivePatterns       = aareExclusivePatterns
 	GetDesktopFileRules         = getDesktopFileRules
 	StringListAttribute         = stringListAttribute

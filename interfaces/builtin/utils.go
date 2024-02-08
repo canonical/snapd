@@ -73,16 +73,6 @@ func labelExpr(apps map[string]*snap.AppInfo, hooks map[string]*snap.HookInfo, s
 	return buf.String()
 }
 
-// XXX: rename as it includes hooks too
-func slotAppLabelExpr(slot *interfaces.ConnectedSlot) string {
-	return labelExpr(slot.Apps(), slot.Hooks(), slot.Snap())
-}
-
-// XXX: rename as it includes hooks too
-func plugAppLabelExpr(plug *interfaces.ConnectedPlug) string {
-	return labelExpr(plug.Apps(), plug.Hooks(), plug.Snap())
-}
-
 // Determine if the permanent slot side is provided by the
 // system. Some implicit slots can be provided by the system or by an
 // application snap (eg avahi can be installed as deb or snap, upower

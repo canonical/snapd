@@ -118,30 +118,6 @@ func (s *utilsSuite) TestLabelExpr(c *C) {
 	c.Check(label, Equals, `"snap.test-snap."`)
 }
 
-func (s *utilsSuite) TestPlugLabelExpr(c *C) {
-	connectedPlug, _ := MockConnectedPlug(c, yaml, nil, "network")
-	label := builtin.PlugAppLabelExpr(connectedPlug)
-	c.Check(label, Equals, `"snap.test-snap.{hook.install,hook.post-refresh}"`)
-
-	connectedPlug, _ = MockConnectedPlug(c, yaml, nil, "home")
-	label = builtin.PlugAppLabelExpr(connectedPlug)
-	c.Check(label, Equals, `"snap.test-snap.{app1,app2}"`)
-
-	connectedPlug, _ = MockConnectedPlug(c, yaml, nil, "x11")
-	label = builtin.PlugAppLabelExpr(connectedPlug)
-	c.Check(label, Equals, `"snap.test-snap.*"`)
-}
-
-func (s *utilsSuite) TestSlotLabelExpr(c *C) {
-	connectedSlot, _ := MockConnectedSlot(c, yaml, nil, "unity8")
-	label := builtin.SlotAppLabelExpr(connectedSlot)
-	c.Check(label, Equals, `"snap.test-snap.app1"`)
-
-	connectedSlot, _ = MockConnectedSlot(c, yaml, nil, "opengl")
-	label = builtin.SlotAppLabelExpr(connectedSlot)
-	c.Check(label, Equals, `"snap.test-snap.*"`)
-}
-
 func (s *utilsSuite) TestAareExclusivePatterns(c *C) {
 	res := builtin.AareExclusivePatterns("foo-bar")
 	c.Check(res, DeepEquals, []string{
