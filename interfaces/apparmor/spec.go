@@ -654,7 +654,7 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 		AppArmorConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		restore := spec.setScope(plug.SecurityTags())
+		restore := spec.setScope(spec.appSet.SecurityTagsForConnectedPlug(plug))
 		defer restore()
 		return iface.AppArmorConnectedPlug(spec, plug, slot)
 	}
@@ -667,7 +667,7 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 		AppArmorConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		restore := spec.setScope(slot.SecurityTags())
+		restore := spec.setScope(spec.appSet.SecurityTagsForConnectedSlot(slot))
 		defer restore()
 		return iface.AppArmorConnectedSlot(spec, plug, slot)
 	}
@@ -684,7 +684,7 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 		AppArmorPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		restore := spec.setScope(plug.SecurityTags())
+		restore := spec.setScope(spec.appSet.SecurityTagsForPlug(plug))
 		defer restore()
 		return iface.AppArmorPermanentPlug(spec, plug)
 	}
@@ -701,7 +701,7 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 		AppArmorPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		restore := spec.setScope(slot.SecurityTags())
+		restore := spec.setScope(spec.appSet.SecurityTagsForSlot(slot))
 		defer restore()
 		return iface.AppArmorPermanentSlot(spec, slot)
 	}

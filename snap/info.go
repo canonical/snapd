@@ -1002,19 +1002,6 @@ func (plug *PlugInfo) Lookup(key string) (interface{}, bool) {
 	return lookupAttr(plug.Attrs, key)
 }
 
-// SecurityTags returns security tags associated with a given plug.
-func (plug *PlugInfo) SecurityTags() []string {
-	tags := make([]string, 0, len(plug.Apps)+len(plug.Hooks))
-	for _, app := range plug.Apps {
-		tags = append(tags, app.SecurityTag())
-	}
-	for _, hook := range plug.Hooks {
-		tags = append(tags, hook.SecurityTag())
-	}
-	sort.Strings(tags)
-	return tags
-}
-
 // String returns the representation of the plug as snap:plug string.
 func (plug *PlugInfo) String() string {
 	return fmt.Sprintf("%s:%s", plug.Snap.InstanceName(), plug.Name)
@@ -1026,19 +1013,6 @@ func (slot *SlotInfo) Attr(key string, val interface{}) error {
 
 func (slot *SlotInfo) Lookup(key string) (interface{}, bool) {
 	return lookupAttr(slot.Attrs, key)
-}
-
-// SecurityTags returns security tags associated with a given slot.
-func (slot *SlotInfo) SecurityTags() []string {
-	tags := make([]string, 0, len(slot.Apps))
-	for _, app := range slot.Apps {
-		tags = append(tags, app.SecurityTag())
-	}
-	for _, hook := range slot.Hooks {
-		tags = append(tags, hook.SecurityTag())
-	}
-	sort.Strings(tags)
-	return tags
 }
 
 // String returns the representation of the slot as snap:slot string.
