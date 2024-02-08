@@ -16,12 +16,15 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
 	"net/http"
 	"strconv"
+	"time"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
@@ -80,7 +83,7 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		// Caller did provide a types filter, but they're all invalid notice types.
 		// Return no notices, rather than the default of all notices.
-		return SyncResponse([]*state.Notice{})
+		return SyncResponse([]*noticeInfo{})
 	}
 
 	keys := strutil.MultiCommaSeparatedList(query["keys"])
@@ -130,7 +133,12 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 	if notices == nil {
 		notices = []*state.Notice{} // avoid null result
 	}
-	return SyncResponse(notices)
+
+	noticeInfos := make([]*noticeInfo, 0, len(notices))
+	for _, notice := range notices {
+		noticeInfos = append(noticeInfos, notice2noticeInfo(notice))
+	}
+	return SyncResponse(noticeInfos)
 }
 
 // Get the UID of the request. If the UID is not known, return an error.
@@ -195,7 +203,7 @@ func getNotice(c *Command, r *http.Request, user *auth.UserState) Response {
 	if !noticeViewableByUser(notice, requestUID) {
 		return Forbidden("not allowed to access notice with id %q", noticeID)
 	}
-	return SyncResponse(notice)
+	return SyncResponse(notice2noticeInfo(notice))
 }
 
 // Only the user associated with the given notice, as well as the root user,
@@ -212,4 +220,31 @@ func noticeViewableByUser(notice *state.Notice, requestUID uint32) bool {
 		return true
 	}
 	return requestUID == userID
+}
+
+type noticeInfo struct {
+	ID            string            `json:"id"`
+	UserID        *uint32           `json:"user-id"`
+	Type          string            `json:"type"`
+	Key           string            `json:"key"`
+	FirstOccurred time.Time         `json:"first-occurred"`
+	LastOccurred  time.Time         `json:"last-occurred"`
+	LastRepeated  time.Time         `json:"last-repeated"`
+	Occurrences   int               `json:"occurrences"`
+	LastData      map[string]string `json:"last-data,omitempty"`
+	RepeatAfter   string            `json:"repeat-after,omitempty"`
+	ExpireAfter   string            `json:"expire-after,omitempty"`
+}
+
+func notice2noticeInfo(n *state.Notice) *noticeInfo {
+	raw, err := json.Marshal(n)
+	if err != nil {
+		logger.Panicf("internal error: cannot marshal notice: %v", err)
+	}
+	var info noticeInfo
+	err = json.Unmarshal(raw, &info)
+	if err != nil {
+		logger.Panicf("internal error: cannot unmarshal notice: %v", err)
+	}
+	return &info
 }

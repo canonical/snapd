@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -94,10 +95,10 @@ func (s *noticesSuite) testNoticesFilter(c *C, makeQuery func(after time.Time) u
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notices, ok := rsp.Result.([]*state.Notice)
+	notices, ok := rsp.Result.([]*daemon.NoticeInfo)
 	c.Assert(ok, Equals, true)
 	c.Assert(notices, HasLen, 1)
-	n := noticeToMap(c, notices[0])
+	n := noticeInfoToMap(c, notices[0])
 
 	firstOccurred, err := time.Parse(time.RFC3339, n["first-occurred"].(string))
 	c.Assert(err, IsNil)
@@ -139,12 +140,12 @@ func (s *noticesSuite) TestNoticesFilterMultipleTypes(c *C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notices, ok := rsp.Result.([]*state.Notice)
+	notices, ok := rsp.Result.([]*daemon.NoticeInfo)
 	c.Assert(ok, Equals, true)
 	c.Assert(notices, HasLen, 2)
-	n := noticeToMap(c, notices[0])
+	n := noticeInfoToMap(c, notices[0])
 	c.Assert(n["type"], Equals, "change-update")
-	n = noticeToMap(c, notices[1])
+	n = noticeInfoToMap(c, notices[1])
 	c.Assert(n["type"], Equals, "warning")
 }
 
@@ -166,12 +167,12 @@ func (s *noticesSuite) TestNoticesFilterMultipleKeys(c *C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notices, ok := rsp.Result.([]*state.Notice)
+	notices, ok := rsp.Result.([]*daemon.NoticeInfo)
 	c.Assert(ok, Equals, true)
 	c.Assert(notices, HasLen, 2)
-	n := noticeToMap(c, notices[0])
+	n := noticeInfoToMap(c, notices[0])
 	c.Assert(n["key"], Equals, "456")
-	n = noticeToMap(c, notices[1])
+	n = noticeInfoToMap(c, notices[1])
 	c.Assert(n["key"], Equals, "danger")
 }
 
@@ -193,10 +194,10 @@ func (s *noticesSuite) TestNoticesFilterInvalidTypes(c *C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notices, ok := rsp.Result.([]*state.Notice)
+	notices, ok := rsp.Result.([]*daemon.NoticeInfo)
 	c.Assert(ok, Equals, true)
 	c.Assert(notices, HasLen, 1)
-	n := noticeToMap(c, notices[0])
+	n := noticeInfoToMap(c, notices[0])
 	c.Assert(n["type"], Equals, "warning")
 
 	// Check that if all types are invalid, no notices are returned, and there
@@ -207,7 +208,7 @@ func (s *noticesSuite) TestNoticesFilterInvalidTypes(c *C) {
 	rsp = s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notices, ok = rsp.Result.([]*state.Notice)
+	notices, ok = rsp.Result.([]*daemon.NoticeInfo)
 	c.Assert(ok, Equals, true)
 	c.Assert(notices, HasLen, 0)
 }
@@ -236,13 +237,13 @@ func (s *noticesSuite) TestNoticesUserIDAdminDefault(c *C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notices, ok := rsp.Result.([]*state.Notice)
+	notices, ok := rsp.Result.([]*daemon.NoticeInfo)
 	c.Assert(ok, Equals, true)
 	c.Assert(notices, HasLen, 2)
-	n := noticeToMap(c, notices[0])
+	n := noticeInfoToMap(c, notices[0])
 	c.Assert(n["user-id"], Equals, float64(admin))
 	c.Assert(n["key"], Equals, "123")
-	n = noticeToMap(c, notices[1])
+	n = noticeInfoToMap(c, notices[1])
 	c.Assert(n["user-id"], Equals, nil)
 	c.Assert(n["key"], Equals, "danger")
 }
@@ -275,12 +276,12 @@ func (s *noticesSuite) TestNoticesUserIDAdminFilter(c *C) {
 		rsp := s.syncReq(c, req, nil)
 		c.Check(rsp.Status, Equals, 200)
 
-		notices, ok := rsp.Result.([]*state.Notice)
+		notices, ok := rsp.Result.([]*daemon.NoticeInfo)
 		c.Assert(ok, Equals, true)
 		c.Assert(notices, HasLen, 2)
-		n := noticeToMap(c, notices[0])
+		n := noticeInfoToMap(c, notices[0])
 		c.Assert(n["user-id"], Equals, float64(uid))
-		n = noticeToMap(c, notices[1])
+		n = noticeInfoToMap(c, notices[1])
 		c.Assert(n["user-id"], Equals, nil)
 	}
 }
@@ -309,13 +310,13 @@ func (s *noticesSuite) TestNoticesUserIDNonAdminDefault(c *C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notices, ok := rsp.Result.([]*state.Notice)
+	notices, ok := rsp.Result.([]*daemon.NoticeInfo)
 	c.Assert(ok, Equals, true)
 	c.Assert(notices, HasLen, 2)
-	n := noticeToMap(c, notices[0])
+	n := noticeInfoToMap(c, notices[0])
 	c.Assert(n["user-id"], Equals, float64(nonAdmin))
 	c.Assert(n["key"], Equals, "error1")
-	n = noticeToMap(c, notices[1])
+	n = noticeInfoToMap(c, notices[1])
 	c.Assert(n["user-id"], Equals, nil)
 	c.Assert(n["key"], Equals, "danger")
 }
@@ -363,19 +364,19 @@ func (s *noticesSuite) TestNoticesSelectAdminFilter(c *C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notices, ok := rsp.Result.([]*state.Notice)
+	notices, ok := rsp.Result.([]*daemon.NoticeInfo)
 	c.Assert(ok, Equals, true)
 	c.Assert(notices, HasLen, 4)
-	n := noticeToMap(c, notices[0])
+	n := noticeInfoToMap(c, notices[0])
 	c.Assert(n["user-id"], Equals, float64(admin))
 	c.Assert(n["key"], Equals, "123")
-	n = noticeToMap(c, notices[1])
+	n = noticeInfoToMap(c, notices[1])
 	c.Assert(n["user-id"], Equals, float64(nonAdmin))
 	c.Assert(n["key"], Equals, "error1")
-	n = noticeToMap(c, notices[2])
+	n = noticeInfoToMap(c, notices[2])
 	c.Assert(n["user-id"], Equals, float64(otherNonAdmin))
 	c.Assert(n["key"], Equals, "456")
-	n = noticeToMap(c, notices[3])
+	n = noticeInfoToMap(c, notices[3])
 	c.Assert(n["user-id"], Equals, nil)
 	c.Assert(n["key"], Equals, "danger")
 }
@@ -432,10 +433,10 @@ func (s *noticesSuite) TestNoticesWait(c *C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notices, ok := rsp.Result.([]*state.Notice)
+	notices, ok := rsp.Result.([]*daemon.NoticeInfo)
 	c.Assert(ok, Equals, true)
 	c.Assert(notices, HasLen, 1)
-	n := noticeToMap(c, notices[0])
+	n := noticeInfoToMap(c, notices[0])
 	c.Check(n["user-id"], Equals, nil)
 	c.Check(n["type"], Equals, "warning")
 	c.Check(n["key"], Equals, "foo")
@@ -450,7 +451,7 @@ func (s *noticesSuite) TestNoticesTimeout(c *C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notices, ok := rsp.Result.([]*state.Notice)
+	notices, ok := rsp.Result.([]*daemon.NoticeInfo)
 	c.Assert(ok, Equals, true)
 	c.Assert(notices, HasLen, 0)
 }
@@ -546,9 +547,9 @@ func (s *noticesSuite) TestNotice(c *C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notice, ok := rsp.Result.(*state.Notice)
+	notice, ok := rsp.Result.(*daemon.NoticeInfo)
 	c.Assert(ok, Equals, true)
-	n := noticeToMap(c, notice)
+	n := noticeInfoToMap(c, notice)
 	c.Check(n["user-id"], Equals, nil)
 	c.Check(n["type"], Equals, "warning")
 	c.Check(n["key"], Equals, "bar")
@@ -559,9 +560,9 @@ func (s *noticesSuite) TestNotice(c *C) {
 	rsp = s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 
-	notice, ok = rsp.Result.(*state.Notice)
+	notice, ok = rsp.Result.(*daemon.NoticeInfo)
 	c.Assert(ok, Equals, true)
-	n = noticeToMap(c, notice)
+	n = noticeInfoToMap(c, notice)
 	c.Check(n["user-id"], Equals, 1000.0)
 	c.Check(n["type"], Equals, "warning")
 	c.Check(n["key"], Equals, "fizz")
@@ -603,9 +604,9 @@ func (s *noticesSuite) TestNoticeAdminAllowed(c *C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 200)
 
-	notice, ok := rsp.Result.(*state.Notice)
+	notice, ok := rsp.Result.(*daemon.NoticeInfo)
 	c.Assert(ok, Equals, true)
-	n := noticeToMap(c, notice)
+	n := noticeInfoToMap(c, notice)
 	c.Check(n["user-id"], Equals, 1000.0)
 	c.Check(n["type"], Equals, "warning")
 	c.Check(n["key"], Equals, "danger")
@@ -628,8 +629,8 @@ func (s *noticesSuite) TestNoticeNonAdminNotAllowed(c *C) {
 	c.Check(rsp.Status, Equals, 403)
 }
 
-func noticeToMap(c *C, notice *state.Notice) map[string]any {
-	buf, err := json.Marshal(notice)
+func noticeInfoToMap(c *C, info *daemon.NoticeInfo) map[string]any {
+	buf, err := json.Marshal(info)
 	c.Assert(err, IsNil)
 	var n map[string]any
 	err = json.Unmarshal(buf, &n)
