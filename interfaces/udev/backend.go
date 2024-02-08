@@ -71,7 +71,7 @@ func snapRulesFilePath(snapName string) string {
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	snapName := snapInfo.InstanceName()
-	spec, err := repo.SnapSpecification(b.Name(), snapName)
+	spec, err := repo.SnapSpecification(b.Name(), snapInfo)
 	if err != nil {
 		return fmt.Errorf("cannot obtain udev specification for snap %q: %s", snapName, err)
 	}
@@ -162,7 +162,7 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (conte
 	return content
 }
 
-func (b *Backend) NewSpecification() interfaces.Specification {
+func (b *Backend) NewSpecification(*interfaces.SnapAppSet) interfaces.Specification {
 	return &Specification{}
 }
 

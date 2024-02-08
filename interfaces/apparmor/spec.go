@@ -44,6 +44,8 @@ const (
 
 // Specification assists in collecting apparmor entries associated with an interface.
 type Specification struct {
+	appSet *interfaces.SnapAppSet
+
 	// scope for various Add{...}Snippet functions
 	securityTags []string
 
@@ -107,6 +109,10 @@ type Specification struct {
 	// Unconfined profile mode allows a profile to be applied without any
 	// real confinement
 	unconfined UnconfinedMode
+}
+
+func (spec *Specification) SnapAppSet() *interfaces.SnapAppSet {
+	return spec.appSet
 }
 
 // setScope sets the scope of subsequent AddSnippet family functions.

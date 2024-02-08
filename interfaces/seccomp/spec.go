@@ -29,9 +29,14 @@ import (
 
 // Specification keeps all the seccomp snippets.
 type Specification struct {
+	appSet *interfaces.SnapAppSet
 	// Snippets are indexed by security tag.
 	snippets     map[string][]string
 	securityTags []string
+}
+
+func (spec *Specification) SnapAppSet() *interfaces.SnapAppSet {
+	return spec.appSet
 }
 
 // AddSnippet adds a new seccomp snippet.

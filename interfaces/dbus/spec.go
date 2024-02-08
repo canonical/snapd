@@ -30,8 +30,13 @@ import (
 // Specification keeps all the dbus snippets.
 type Specification struct {
 	// Snippets are indexed by security tag.
+	appSet       *interfaces.SnapAppSet
 	snippets     map[string][]string
 	securityTags []string
+}
+
+func (spec *Specification) SnapAppSet() *interfaces.SnapAppSet {
+	return spec.appSet
 }
 
 // AddSnippet adds a new dbus snippet.

@@ -43,9 +43,15 @@ type Specification struct {
 	entries  []entry
 	iface    string
 
+	appSet *interfaces.SnapAppSet
+
 	securityTags             []string
 	udevadmSubsystemTriggers []string
 	controlsDeviceCgroup     bool
+}
+
+func (spec *Specification) SnapAppSet() *interfaces.SnapAppSet {
+	return spec.appSet
 }
 
 // SetControlsDeviceCgroup marks a specification as needing to control
