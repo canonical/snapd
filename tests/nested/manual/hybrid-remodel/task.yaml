@@ -6,40 +6,22 @@ details: |
 
 systems: [ubuntu-22.04-64]
 
+environment:
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  NESTED_REPACK_KERNEL_SNAP: true
+  NESTED_ENABLE_OVMF: true
+
+  STORE_ADDR: localhost:11028
+  STORE_DIR: $(pwd)/fake-store-blobdir
+
 prepare: |
-  # FIXME: The gadget snap for classic is not yet available. So for
-  #        the moment, the test modifies the gadget for Ubuntu Core.
-  #        This should be removed when the classic snap is available.
-  VERSION="$(tests.nested show version)"
-  snap download --basename=pc --channel="$VERSION/edge" pc
-  unsquashfs -d pc-gadget pc.snap
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB/prepare.sh"
+  # shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB"/nested.sh
 
-  # gadget.yaml needs a different structure than for Ubuntu Core
-  python3 "$TESTSLIB"/tweak-gadget.py pc-gadget/meta/gadget.yaml
-  snap pack --filename=pc_x1.snap pc-gadget
-
-  SNAPD_DEB="$(find "$PROJECT_PATH"/.. -maxdepth 1 -name "snapd_*.deb" -printf "%f\n")"
-  SNAP_DEB_PARAM="--snapd-deb $PROJECT_PATH/../$SNAPD_DEB"
-
-  # create an image that looks like a classic image
-  # shellcheck disable=SC2086
-  "$TESTSTOOLS"/mkimage-uc22 --base-dir "$PWD" --snap pc_x1.snap $SNAP_DEB_PARAM "$TESTSLIB"/assertions/classic-model.assert
-
-  tests.pkgs install qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx cpu-checker
-
-  MACHINE_PARAM="-machine ubuntu"
-  if kvm-ok; then
-    MACHINE_PARAM="-machine ubuntu,accel=kvm"
-  fi
-
-  tests.systemd create-and-start-unit "nested-vm" "qemu-system-x86_64 -m 1500 -nographic $MACHINE_PARAM -snapshot -netdev user,id=net.0,hostfwd=tcp::10022-:22 -device rtl8139,netdev=net.0 -bios /usr/share/OVMF/OVMF_CODE.fd -drive file=$PWD/boot.img,if=virtio -serial file:$PWD/serial.log"
-
-  # run built image
-  remote.setup config --host localhost --port 10022 --user user1 --pass ubuntu
-  remote.wait-for ssh
-
-  # wait until the image boots and seeds  
-  remote.exec "sudo snap wait system seed.loaded"
+  "${TESTSTOOLS}"/muinstaller.sh \
+     --model "${TESTSLIB}/assertions/classic-model.assert"
 
 restore: |
   tests.systemd stop-unit --remove "nested-vm"
@@ -47,15 +29,18 @@ restore: |
 execute: |
   remote.wait-for device-initialized
 
+  # install this so that we get reboot notifications
+  remote.exec "sudo apt install -y update-notifier-common"
+
   remote.push "${TESTSLIB}/assertions/classic-model-rev1.assert"
 
   # remodel and reboot. we need to reboot because we swapped the kernel snap
   change_id=$(remote.exec 'sudo snap remodel --no-wait classic-model-rev1.assert')
-  retry -n 10 --wait 2 remote.exec "snap tasks ${change_id} | grep 'INFO Task set to wait until a system restart allows to continue'"
+  retry -n 100 --wait 5 remote.exec "snap tasks ${change_id} | grep 'INFO Task set to wait until a system restart allows to continue'"
   remote.exec 'test -f /run/reboot-required'
 
   boot_id="$(tests.nested boot-id)"
-  remote.exec 'sudo reboot || true'
+  remote.exec 'sudo reboot' || true
   remote.wait-for reboot "${boot_id}"
   remote.exec snap watch "${change_id}"
   remote.exec 'snap changes' | MATCH "${change_id}\s+Done.+Refresh model assertion from revision 0 to 1"
