@@ -3,7 +3,10 @@
 set -uxe
 
 run_muinstaller() {
+    # shellcheck source=tests/lib/prepare.sh
     . "${TESTSLIB}/prepare.sh"
+
+    # shellcheck source=tests/lib/nested.sh
     . "${TESTSLIB}/nested.sh"
 
     local model_assertion="${1}"
