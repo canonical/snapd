@@ -815,9 +815,8 @@ prepare: |
                 apt-get install -y xdelta3 curl eatmydata >& "$tf" || ( cat "$tf"; exit 1 )
                 ;;
             amazon-linux-2023-*)
-                # Amazon linux 2023 has already pre-installed the xdelta package
-                # which is not in the repo yet
-                yum install -y --allowerasing curl &> "$tf" || (cat "$tf"; exit 1)
+                echo "deltas are not supported on $SPREAD_SYSTEM, use NO_DELTA=1 when running spread"
+                exit 1
                 ;;
             amazon-*|centos-7-*)
                 yum install -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
