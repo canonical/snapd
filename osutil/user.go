@@ -219,8 +219,10 @@ func AddUser(name string, opts *AddUserOptions) error {
 		"--disabled-password",
 	}
 	if !hasAddUserExecutable() {
-		// No reason to use --badname for useradd, we are already a lot more
-		// strict than useradd, with our own regex "IsValidUsername".
+		// No reason to use --badname for useradd, we are already a lot
+		// more strict than useradd, with our own regex
+		// "IsValidUsername". Users created by useradd have the password
+		// disabled by default.
 		cmdStr = []string{
 			"useradd",
 			"--comment", opts.Gecos,
