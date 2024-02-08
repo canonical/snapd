@@ -674,6 +674,9 @@ repack: |
         cat <&3 >&4
     elif ! git show-ref "$DELTA_REF" > /dev/null; then
         cat <&3 >&4
+    elif [ -n "${NO_DELTA-}" ]; then
+        # delta has been disabled by the caller
+        cat <&3 >&4
     else
         tmpdir="$(mktemp -d)"
         #shellcheck disable=SC2064
