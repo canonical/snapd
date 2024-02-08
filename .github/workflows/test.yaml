@@ -493,6 +493,15 @@ jobs:
               SPREAD=spread-arm
           fi
 
+          if [[ "${{ matrix.systems }}" =~ amazon-linux-2023 ]]; then
+              # Amazon Linux 2023 has no xdelta, however we cannot disable
+              # xdelta on a per-target basis as it's used in the repack section
+              # of spread.yaml, which is shared by all targets, so all systems
+              # in this batch will not use delta for transferring project data
+              echo "Disabling xdelta support"
+              export NO_DELTA=1
+          fi
+
           RUN_TESTS=""
           # Save previous failed test results in FAILED_TESTS env var
           if [ -n "$FAILED_TESTS" ]; then
