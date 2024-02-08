@@ -374,40 +374,58 @@ jobs:
       matrix:
         include:
           - group: amazon-linux
+            backend: google-central
             systems: 'amazon-linux-2-64 amazon-linux-2023-64'
           - group: arch-linux
+            backend: google-central
             systems: 'arch-linux-64'
           - group: centos
+            backend: google-central
             systems: 'centos-7-64 centos-8-64 centos-9-64'
           - group: debian-req
+            backend: google-central
             systems: 'debian-11-64'
           - group: debian-no-req
+            backend: google-central
             systems: 'debian-12-64 debian-sid-64'
           - group: fedora
+            backend: google-central
             systems: 'fedora-38-64 fedora-39-64'
           - group: opensuse
+            backend: google-central
             systems: 'opensuse-15.5-64 opensuse-tumbleweed-64'
           - group: ubuntu-trusty-xenial
+            backend: google-east
             systems: 'ubuntu-14.04-64 ubuntu-16.04-64'
           - group: ubuntu-bionic
+            backend: google-east
             systems: 'ubuntu-18.04-32 ubuntu-18.04-64'
           - group: ubuntu-focal-jammy
+            backend: google-east
             systems: 'ubuntu-20.04-64 ubuntu-22.04-64'
           - group: ubuntu-no-lts
+            backend: google-east
             systems: 'ubuntu-23.04-64 ubuntu-23.10-64'
           - group: ubuntu-daily
+            backend: google-east
             systems: 'ubuntu-24.04-64'
           - group: ubuntu-core-16
+            backend: google-east
             systems: 'ubuntu-core-16-64'
           - group: ubuntu-core-18
+            backend: google-east
             systems: 'ubuntu-core-18-64'
           - group: ubuntu-core-20
+            backend: google-east
             systems: 'ubuntu-core-20-64'
           - group: ubuntu-core-22
+            backend: google-east
             systems: 'ubuntu-core-22-64'
           - group: ubuntu-arm
+            backend: google-arm
             systems: 'ubuntu-20.04-arm-64 ubuntu-core-22-arm-64'
           - group: ubuntu-secboot
+            backend: google-east
             systems: 'ubuntu-secboot-20.04-64'
     steps:
     - name: Cleanup job workspace
@@ -470,10 +488,8 @@ jobs:
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
 
-          BACKEND=google
           SPREAD=spread
           if [[ "${{ matrix.systems }}" =~ -arm- ]]; then
-              BACKEND=google-arm
               SPREAD=spread-arm
           fi
 
@@ -483,7 +499,7 @@ jobs:
               RUN_TESTS="$FAILED_TESTS"
           else
               for SYSTEM in ${{ matrix.systems }}; do
-                  RUN_TESTS="$RUN_TESTS $BACKEND:$SYSTEM:tests/..."
+                  RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:tests/..."
               done
           fi
           # Run spread tests

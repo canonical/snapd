@@ -106,7 +106,8 @@ environment:
     NESTED_REPACK_BASE_SNAP: '$(HOST: echo "${NESTED_REPACK_BASE_SNAP:-true}")'
 
 backends:
-    google:
+    google-east:
+        type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
         location: snapd-spread/us-east1-b
         halt-timeout: 2h
@@ -155,6 +156,12 @@ backends:
                   storage: 12G
                   workers: 8
 
+    google-central:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/us-central1-b
+        halt-timeout: 2h
+        systems:
             - debian-11-64:
                   workers: 6
             - debian-12-64:
