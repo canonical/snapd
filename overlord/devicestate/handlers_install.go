@@ -853,12 +853,12 @@ func mountSeedSnap(seedSn *seed.Snap) (mountpoint string, unmount func() error, 
 		nil
 }
 
-func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string) (systemAndEssentialSnaps, map[snap.Type]string, func(), error) {
+func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string) (*systemAndEssentialSnaps, map[snap.Type]string, func(), error) {
 
 	essentialTypes := []snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget}
 	systemAndSnaps, err := m.loadSystemAndEssentialSnaps(systemLabel, essentialTypes)
 	if err != nil {
-		return systemAndEssentialSnaps{}, nil, nil, err
+		return nil, nil, nil, err
 	}
 	// Unset revision here actually means that the snap is local.
 	// Assign then a local revision as seeding/installing the snap would do.
@@ -885,7 +885,7 @@ func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string) (system
 		mntPt, unmountSnap, err := mountSeedSnap(seedSn)
 		if err != nil {
 			unmount()
-			return systemAndEssentialSnaps{}, nil, nil, err
+			return nil, nil, nil, err
 		}
 		unmountFuncs = append(unmountFuncs, unmountSnap)
 		mntPtForType[seedSn.EssentialType] = mntPt

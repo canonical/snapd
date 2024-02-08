@@ -2136,20 +2136,20 @@ type systemAndEssentialSnaps struct {
 // loadSystemAndEssentialSnaps loads information for the given label, which
 // includes system, gadget information, gadget and kernel snaps info,
 // and gadget and kernel seed snap info.
-func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, types []snap.Type) (systemAndEssentialSnaps, error) {
+func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, types []snap.Type) (*systemAndEssentialSnaps, error) {
 	// get current system as input for loadSeedAndSystem()
 	systemMode := m.SystemMode(SysAny)
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
 
 	s, sys, err := loadSeedAndSystem(wantedSystemLabel, currentSys)
 	if err != nil {
-		return systemAndEssentialSnaps{}, err
+		return nil, err
 	}
 
 	// 2. get the gadget volumes for the given system-label
 	perf := &timings.Timings{}
 	if err := s.LoadEssentialMeta(types, perf); err != nil {
-		return systemAndEssentialSnaps{}, fmt.Errorf("cannot load essential snaps metadata: %v", err)
+		return nil, fmt.Errorf("cannot load essential snaps metadata: %v", err)
 	}
 	// EssentialSnaps is always ordered, see asserts.Model.EssentialSnaps:
 	// "snapd, kernel, boot base, gadget." and snaps not loaded above
@@ -2160,27 +2160,27 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 	for _, seedSnap := range s.EssentialSnaps() {
 		typ := seedSnap.EssentialType
 		if seedSnap.Path == "" {
-			return systemAndEssentialSnaps{}, fmt.Errorf("internal error: cannot get snap path for %s", typ)
+			return nil, fmt.Errorf("internal error: cannot get snap path for %s", typ)
 		}
 		snapf, err := snapfile.Open(seedSnap.Path)
 		if err != nil {
-			return systemAndEssentialSnaps{}, fmt.Errorf("cannot open snap from %q: %v", seedSnap.Path, err)
+			return nil, fmt.Errorf("cannot open snap from %q: %v", seedSnap.Path, err)
 		}
 		snapInfo, err := snap.ReadInfoFromSnapFile(snapf, seedSnap.SideInfo)
 		if err != nil {
-			return systemAndEssentialSnaps{}, err
+			return nil, err
 		}
 		if snapInfo.SnapType != typ {
-			return systemAndEssentialSnaps{}, fmt.Errorf("cannot use snap info, expected %s but got %s", typ, snapInfo.SnapType)
+			return nil, fmt.Errorf("cannot use snap info, expected %s but got %s", typ, snapInfo.SnapType)
 		}
 		seedSnaps[typ] = seedSnap
 		snapInfos[typ] = snapInfo
 	}
 	if len(snapInfos) != len(types) {
-		return systemAndEssentialSnaps{}, fmt.Errorf("internal error: retrieved snap infos (%d) does not match number of types (%d)", len(snapInfos), len(types))
+		return nil, fmt.Errorf("internal error: retrieved snap infos (%d) does not match number of types (%d)", len(snapInfos), len(types))
 	}
 
-	return systemAndEssentialSnaps{
+	return &systemAndEssentialSnaps{
 		System:          sys,
 		Seed:            s,
 		InfosByType:     snapInfos,
