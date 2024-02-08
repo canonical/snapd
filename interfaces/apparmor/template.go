@@ -975,6 +975,9 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # Allow reading the command line (snap-update-ns uses it in pre-Go bootstrap code).
   @{PROC}/@{pid}/cmdline r,
 
+  # Allow reading of own maps (Go runtime)
+  @{PROC}/@{pid}/maps r,
+
   # Allow reading file descriptor paths
   @{PROC}/@{pid}/fd/* r,
   # Allow reading /proc/version. For release.go WSL detection.
