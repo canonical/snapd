@@ -3006,7 +3006,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreConflictingInstall(c *C) {
 	s.se.Ensure()
 	s.se.Wait()
 
-	// change is not ready yet, because the prerequists triggered
+	// change is not ready yet, because the prerequisites triggered
 	// a state.Retry{} because of the conflicting change
 	c.Assert(chg.IsReady(), Equals, false)
 
