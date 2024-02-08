@@ -407,8 +407,8 @@ gen_require(`
     type policykit_auth_exec_t;
     type policykit_exec_t;
 ')
-allow snappy_t policykit_auth_exec_t:file { getattr };
 allow snappy_t policykit_exec_t:file { getattr };
+allow snappy_t policykit_auth_exec_t:file { getattr };
 allow snappy_cli_t policykit_exec_t:file { getattr };
 allow snappy_cli_t policykit_auth_exec_t:file { getattr };
 
