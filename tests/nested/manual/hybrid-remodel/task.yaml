@@ -20,7 +20,7 @@ prepare: |
   # shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB"/nested.sh
 
-  "${TESTSTOOLS}"/muinstaller.sh \
+  "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
      --model "${TESTSLIB}/assertions/classic-model.assert"
 
 restore: |

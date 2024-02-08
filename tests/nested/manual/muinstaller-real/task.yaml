@@ -103,7 +103,9 @@ execute: |
   EOF
   fi
 
-  "${TESTSTOOLS}"/muinstaller.sh \
+  # setup_nested_hybrid_system.sh runs the muinstaller to install a hybrid
+  # system
+  "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
      --model classic.model \
      --store-dir "${STORE_DIR}" \
      --gadget pc.snap \
