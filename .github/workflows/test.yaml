@@ -541,15 +541,10 @@ jobs:
               echo "Running spread log parser"
               ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
 
-              BACKEND=google
-              if [[ "${{ matrix.systems }}" =~ -arm- ]]; then
-                  BACKEND=google-arm
-              fi
-
               echo "Determining which tests were executed"
               RUN_TESTS=""
               for SYSTEM in ${{ matrix.systems }}; do
-                  RUN_TESTS="$RUN_TESTS $BACKEND:$SYSTEM:tests/..."
+                  RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:tests/..."
               done
               if [ -n "$FAILED_TESTS" ]; then
                   RUN_TESTS="$FAILED_TESTS"
