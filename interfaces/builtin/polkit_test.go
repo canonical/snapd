@@ -271,9 +271,15 @@ apps:
 	c.Assert(err, ErrorMatches, `snap "other" has interface "polkit" with invalid value type bool for "action-prefix" attribute: \*string`)
 }
 
+func (s *polkitInterfaceSuite) isProfilePathAccessible(c *C) bool {
+	mntProfile, err := osutil.LoadMountProfile("/proc/self/mounts")
+	c.Assert(err, IsNil)
+	return builtin.IsPathMountedWritable(mntProfile, "/usr/share/polkit-1/actions")
+}
+
 func (s *polkitInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
-	c.Check(si.ImplicitOnCore, Equals, osutil.IsExecutable("/usr/libexec/polkitd") || osutil.IsExecutable("/usr/lib/polkit-1/polkitd"))
+	c.Check(si.ImplicitOnCore, Equals, s.isProfilePathAccessible(c) && (osutil.IsExecutable("/usr/libexec/polkitd") || osutil.IsExecutable("/usr/lib/polkit-1/polkitd")))
 	c.Check(si.ImplicitOnClassic, Equals, true)
 	c.Check(si.Summary, Equals, "allows access to polkitd to check authorisation")
 	c.Check(si.BaseDeclarationPlugs, testutil.Contains, "polkit")
