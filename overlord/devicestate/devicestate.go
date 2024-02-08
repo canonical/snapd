@@ -1239,7 +1239,8 @@ func checkForInvalidSnapsInModel(model *asserts.Model, vSets *snapasserts.Valida
 }
 
 func checkForSystemSeed(st *state.State, deviceCtx snapstate.DeviceContext) (bool, error) {
-	// on non-classic systems, we will always have a seed partition
+	// on non-classic systems, we will always have a seed partition. this check
+	// isn't needed, but it makes testing classic systems simpler.
 	if !deviceCtx.Classic() {
 		return true, nil
 	}
