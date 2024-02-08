@@ -40,6 +40,7 @@ var (
 	AareExclusivePatterns       = aareExclusivePatterns
 	GetDesktopFileRules         = getDesktopFileRules
 	StringListAttribute         = stringListAttribute
+	IsPathMountedWritable       = isPathMountedWritable
 )
 
 func MprisGetName(iface interfaces.Interface, attribs map[string]interface{}) (string, error) {
