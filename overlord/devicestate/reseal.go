@@ -27,7 +27,9 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -97,6 +99,13 @@ func reencryptPartitions(model *asserts.Model, gadgetDir string, recoveryKey sb.
 			sb.ChangeLUKS2KeyUsingRecoveryKey(onDiskStruct.Node, recoveryKey, encryptionKey)
 			keyForRole[vs.Role] = encryptionKey
 		default:
+		}
+	}
+
+	saveKey, hasSaveKey := keyForRole[gadget.SystemSave]
+	if hasSaveKey {
+		if err := saveKey.Save(device.SaveKeyUnder(dirs.SnapFDEDir)); err != nil {
+			return nil, fmt.Errorf("cannot store system save key: %v", err)
 		}
 	}
 
