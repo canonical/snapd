@@ -2362,6 +2362,10 @@ func (s *sealSuite) TestForceResealKeyToModeenv(c *C) {
 		return 0, fmt.Errorf("Unexpected")
 	})()
 
+	defer boot.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
+		return nil
+	})()
+
 	secbootReleasePCRResourceHandlesCalls := 0
 	defer boot.MockSecbootReleasePCRResourceHandles(func(handles ...uint32) error {
 		secbootReleasePCRResourceHandlesCalls++

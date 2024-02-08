@@ -553,6 +553,12 @@ func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, options *Reseal
 
 	var authKey *ecdsa.PrivateKey
 	if options.Force {
+		lockoutAuthFile := device.TpmLockoutAuthUnder(saveFDEDir)
+		tpmProvisionMode := secboot.TPMProvisionFull
+		if err := secbootProvisionTPM(tpmProvisionMode, lockoutAuthFile); err != nil {
+			return err
+		}
+
 		authKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		if err != nil {
 			return fmt.Errorf("cannot generate key for signing dynamic authorization policies: %w", err)
