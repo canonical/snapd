@@ -140,6 +140,7 @@ plugs:
 		Snap:      info,
 		Name:      "network-client",
 		Interface: "network-client",
+		Unscoped:  true,
 	})
 }
 
@@ -158,6 +159,7 @@ plugs:
 		Snap:      info,
 		Name:      "net",
 		Interface: "network-client",
+		Unscoped:  true,
 	})
 }
 
@@ -177,6 +179,7 @@ plugs:
 		Snap:      info,
 		Name:      "net",
 		Interface: "network-client",
+		Unscoped:  true,
 	})
 }
 
@@ -198,6 +201,7 @@ plugs:
 		Name:      "net",
 		Interface: "network-client",
 		Attrs:     map[string]interface{}{"ipv6-aware": true},
+		Unscoped:  true,
 	})
 }
 
@@ -227,6 +231,7 @@ plugs:
 			"l": []interface{}{int64(1), int64(2), int64(3)},
 			"m": map[string]interface{}{"a": "A", "b": "B"},
 		},
+		Unscoped: true,
 	})
 }
 
@@ -251,6 +256,7 @@ plugs:
 		Name:      "net",
 		Interface: "network-client",
 		Attrs:     map[string]interface{}{"attr": int64(2)},
+		Unscoped:  true,
 	})
 }
 
@@ -276,6 +282,7 @@ apps:
 		Name:      "network-client",
 		Interface: "network-client",
 		Apps:      map[string]*snap.AppInfo{app.Name: app},
+		Unscoped:  true,
 	})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
 		Snap:  info,
@@ -398,6 +405,7 @@ plugs:
 		Name:      "network-client",
 		Interface: "network-client",
 		Attrs:     map[string]interface{}{"ipv6-aware": true},
+		Unscoped:  true,
 	})
 }
 
@@ -419,6 +427,7 @@ plugs:
 		Name:      "bool-file",
 		Interface: "bool-file",
 		Label:     "Disk I/O indicator",
+		Unscoped:  true,
 	})
 }
 
@@ -532,6 +541,7 @@ slots:
 		Snap:      info,
 		Name:      "network-client",
 		Interface: "network-client",
+		Unscoped:  true,
 	})
 }
 
@@ -550,6 +560,7 @@ slots:
 		Snap:      info,
 		Name:      "net",
 		Interface: "network-client",
+		Unscoped:  true,
 	})
 }
 
@@ -569,6 +580,7 @@ slots:
 		Snap:      info,
 		Name:      "net",
 		Interface: "network-client",
+		Unscoped:  true,
 	})
 }
 
@@ -590,6 +602,7 @@ slots:
 		Name:      "net",
 		Interface: "network-client",
 		Attrs:     map[string]interface{}{"ipv6-aware": true},
+		Unscoped:  true,
 	})
 }
 
@@ -618,6 +631,7 @@ slots:
 			"l": []interface{}{int64(1), int64(2)},
 			"m": map[string]interface{}{"a": "A"},
 		},
+		Unscoped: true,
 	})
 }
 
@@ -642,6 +656,7 @@ slots:
 		Name:      "net",
 		Interface: "network-client",
 		Attrs:     map[string]interface{}{"attr": int64(2)},
+		Unscoped:  true,
 	})
 }
 
@@ -666,6 +681,7 @@ apps:
 		Name:      "network-client",
 		Interface: "network-client",
 		Apps:      map[string]*snap.AppInfo{app.Name: app},
+		Unscoped:  true,
 	})
 	c.Assert(app, DeepEquals, &snap.AppInfo{
 		Snap:  info,
@@ -750,6 +766,7 @@ slots:
 		Name:      "network-client",
 		Interface: "network-client",
 		Attrs:     map[string]interface{}{"ipv6-aware": true},
+		Unscoped:  true,
 	})
 }
 
@@ -772,6 +789,7 @@ slots:
 		Name:      "led0",
 		Interface: "bool-file",
 		Label:     "Front panel LED (red)",
+		Unscoped:  true,
 	})
 }
 
@@ -801,6 +819,7 @@ hooks:
 		Name:      "test-slot",
 		Interface: "test-slot",
 		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+		Unscoped:  true,
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
@@ -1062,6 +1081,7 @@ hooks:
 		Name:      "test-plug",
 		Interface: "test-plug",
 		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
+		Unscoped:  true,
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,

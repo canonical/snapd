@@ -801,6 +801,70 @@ func (s *Info) IsActive() bool {
 	return err == nil && tag == rev
 }
 
+// TODO: implement this without using the Apps field in PlugInfo
+// AppsForPlug returns the list of apps that are associated with the given plug.
+// If the plug is unscoped, then all apps are returned.
+func (s *Info) AppsForPlug(plug *PlugInfo) []*AppInfo {
+	apps := make([]*AppInfo, 0, len(plug.Apps))
+	for _, app := range plug.Apps {
+		apps = append(apps, app)
+	}
+	return apps
+}
+
+// TODO: implement this without using the Apps field in SlotInfo
+// AppsForSlot returns the list of apps that are associated with the given slot.
+// If the slot is unscoped, then all apps are returned.
+func (s *Info) AppsForSlot(slot *SlotInfo) []*AppInfo {
+	apps := make([]*AppInfo, 0, len(slot.Apps))
+	for _, app := range slot.Apps {
+		apps = append(apps, app)
+	}
+	return apps
+}
+
+// HooksForPlug returns the list of hooks that are associated with the given
+// plug. If the plug is unscoped, then all hooks are returned.
+func (s *Info) HooksForPlug(plug *PlugInfo) []*HookInfo {
+	if plug.Unscoped {
+		hooks := make([]*HookInfo, 0, len(s.Hooks))
+		for _, hook := range s.Hooks {
+			hooks = append(hooks, hook)
+		}
+		return hooks
+	}
+
+	var hooks []*HookInfo
+	for _, hook := range s.Hooks {
+		if _, ok := hook.Plugs[plug.Name]; ok {
+			hooks = append(hooks, hook)
+		}
+	}
+
+	return hooks
+}
+
+// HooksForSlot returns the list of hooks that are associated with the given
+// slot. If the slot is unscoped, then all hooks are returned.
+func (s *Info) HooksForSlot(slot *SlotInfo) []*HookInfo {
+	if slot.Unscoped {
+		hooks := make([]*HookInfo, 0, len(s.Hooks))
+		for _, hook := range s.Hooks {
+			hooks = append(hooks, hook)
+		}
+		return hooks
+	}
+
+	var hooks []*HookInfo
+	for _, hook := range s.Hooks {
+		if _, ok := hook.Slots[slot.Name]; ok {
+			hooks = append(hooks, hook)
+		}
+	}
+
+	return hooks
+}
+
 // BadInterfacesSummary returns a summary of the problems of bad plugs
 // and slots in the snap.
 func BadInterfacesSummary(snapInfo *Info) string {
@@ -897,6 +961,7 @@ type PlugInfo struct {
 	Label     string
 	Apps      map[string]*AppInfo
 	Hooks     map[string]*HookInfo
+	Unscoped  bool
 }
 
 func lookupAttr(attrs map[string]interface{}, path string) (interface{}, bool) {
@@ -1027,6 +1092,8 @@ type SlotInfo struct {
 	Label     string
 	Apps      map[string]*AppInfo
 	Hooks     map[string]*HookInfo
+
+	Unscoped bool
 
 	// HotplugKey is a unique key built by the slot's interface
 	// using properties of a hotplugged device so that the same

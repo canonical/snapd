@@ -578,6 +578,9 @@ func bindUnscopedPlugs(snap *Info, strk *scopedTracker) {
 		if strk.plug(plug) {
 			continue
 		}
+
+		plug.Unscoped = true
+
 		for appName, app := range snap.Apps {
 			app.Plugs[plugName] = plug
 			plug.Apps[appName] = app
@@ -595,6 +598,9 @@ func bindUnscopedSlots(snap *Info, strk *scopedTracker) {
 		if strk.slot(slot) {
 			continue
 		}
+
+		slot.Unscoped = true
+
 		for appName, app := range snap.Apps {
 			app.Slots[slotName] = slot
 			slot.Apps[appName] = app
