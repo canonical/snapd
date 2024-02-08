@@ -234,8 +234,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 				"default-provider": "foo-snap:",
 				"content":          "some-content",
 			},
-			Apps:  map[string]*snap.AppInfo{},
-			Hooks: map[string]*snap.HookInfo{},
+			Apps: map[string]*snap.AppInfo{},
 		}}
 	info2.Plugs = plugs
 

@@ -818,7 +818,6 @@ hooks:
 		Snap:      info,
 		Name:      "test-slot",
 		Interface: "test-slot",
-		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
 		Unscoped:  true,
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
@@ -854,7 +853,6 @@ hooks:
 		Snap:      info,
 		Name:      "test-slot",
 		Interface: "test-slot",
-		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
@@ -1044,7 +1042,6 @@ hooks:
 		Snap:      info,
 		Name:      "test-plug",
 		Interface: "test-plug",
-		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
@@ -1080,7 +1077,6 @@ hooks:
 		Snap:      info,
 		Name:      "test-plug",
 		Interface: "test-plug",
-		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
 		Unscoped:  true,
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
@@ -1117,7 +1113,6 @@ hooks:
 		Snap:      info,
 		Name:      "test-plug",
 		Interface: "test-plug",
-		Hooks:     map[string]*snap.HookInfo{withPlugHook.Name: withPlugHook},
 	})
 	c.Assert(withPlugHook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
@@ -1161,7 +1156,6 @@ hooks:
 		Snap:      info,
 		Name:      "test-plug",
 		Interface: "test-interface",
-		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
 	})
 	c.Check(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,
@@ -1199,7 +1193,6 @@ apps:
 		Name:      "test-plug",
 		Interface: "test-plug",
 		Apps:      map[string]*snap.AppInfo{},
-		Hooks:     map[string]*snap.HookInfo{hook.Name: hook},
 	})
 	c.Assert(hook, DeepEquals, &snap.HookInfo{
 		Snap:  info,

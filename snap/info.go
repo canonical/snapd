@@ -960,7 +960,6 @@ type PlugInfo struct {
 	Attrs     map[string]interface{}
 	Label     string
 	Apps      map[string]*AppInfo
-	Hooks     map[string]*HookInfo
 	Unscoped  bool
 }
 
@@ -1065,7 +1064,6 @@ type SlotInfo struct {
 	Attrs     map[string]interface{}
 	Label     string
 	Apps      map[string]*AppInfo
-	Hooks     map[string]*HookInfo
 
 	Unscoped bool
 

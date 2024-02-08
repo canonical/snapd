@@ -143,11 +143,6 @@ func (plug *ConnectedPlug) Apps() map[string]*snap.AppInfo {
 	return plug.plugInfo.Apps
 }
 
-// Hooks returns all the hooks associated with this plug.
-func (plug *ConnectedPlug) Hooks() map[string]*snap.HookInfo {
-	return plug.plugInfo.Hooks
-}
-
 // StaticAttr returns a static attribute with the given key, or error if attribute doesn't exist.
 func (plug *ConnectedPlug) StaticAttr(key string, val interface{}) error {
 	return getAttribute(plug.Snap().InstanceName(), plug.Interface(), plug.staticAttrs, nil, key, val)
@@ -209,11 +204,6 @@ func (slot *ConnectedSlot) Snap() *snap.Info {
 // Apps returns all the apps associated with this slot.
 func (slot *ConnectedSlot) Apps() map[string]*snap.AppInfo {
 	return slot.slotInfo.Apps
-}
-
-// Hooks returns all the hooks associated with this slot.
-func (slot *ConnectedSlot) Hooks() map[string]*snap.HookInfo {
-	return slot.slotInfo.Hooks
 }
 
 // StaticAttr returns a static attribute with the given key, or error if attribute doesn't exist.

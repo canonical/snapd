@@ -1103,10 +1103,6 @@ func verifyImplicitHook(c *C, info *snap.Info, hookName string, plugNames []stri
 		plug := hook.Plugs[plugName]
 		c.Assert(plug, NotNil, Commentf("Expected hook plugs to contain %q", plugName))
 		c.Check(plug.Name, Equals, plugName)
-		c.Check(plug.Hooks, HasLen, 1)
-		hook = plug.Hooks[hookName]
-		c.Assert(hook, NotNil, Commentf("Expected plug to be associated with hook %q", hookName))
-		c.Check(hook.Name, Equals, hookName)
 
 		// Verify also that the hook plug made it into info.Plugs
 		c.Check(info.Plugs[plugName], DeepEquals, plug)
@@ -1125,10 +1121,6 @@ func verifyExplicitHook(c *C, info *snap.Info, hookName string, plugNames []stri
 		plug := hook.Plugs[plugName]
 		c.Assert(plug, NotNil, Commentf("Expected hook plugs to contain %q", plugName))
 		c.Check(plug.Name, Equals, plugName)
-		c.Check(plug.Hooks, HasLen, 1)
-		hook = plug.Hooks[hookName]
-		c.Assert(hook, NotNil, Commentf("Expected plug to be associated with hook %q", hookName))
-		c.Check(hook.Name, Equals, hookName)
 
 		// Verify also that the hook plug made it into info.Plugs
 		c.Check(info.Plugs[plugName], DeepEquals, plug)
@@ -1139,10 +1131,6 @@ func verifyExplicitHook(c *C, info *snap.Info, hookName string, plugNames []stri
 		slot := hook.Slots[slotName]
 		c.Assert(slot, NotNil, Commentf("Expected hook slots to contain %q", slotName))
 		c.Check(slot.Name, Equals, slotName)
-		c.Check(slot.Hooks, HasLen, 1)
-		hook = slot.Hooks[hookName]
-		c.Assert(hook, NotNil, Commentf("Expected slot to be associated with hook %q", hookName))
-		c.Check(hook.Name, Equals, hookName)
 
 		// Verify also that the hook plug made it into info.Slots
 		c.Check(info.Slots[slotName], DeepEquals, slot)
