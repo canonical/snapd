@@ -586,11 +586,21 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	prev = setupSecurity
 
 	// finalize (wrappers+current symlink)
+	// 
+	// For essential snaps that require reboots, 'link-snap' is currently marked as the edge of that reboot
+	// sequence. This means that we currently expect 'link-snap' to request the reboot and be the last task
+	// to run before the reboot takes place (for that lane/change). This task is assigned the edge 'MaybeRebootEdge'
+	// to indicate this.
 	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q%s available to the system"), snapsup.InstanceName(), revisionStr))
 	addTask(linkSnap)
 	prev = linkSnap
 
 	// auto-connections
+	//
+	// For essential snaps that require reboots, 'auto-connect' is marked as edge 'MaybeRebootWaitEdge' to indicate
+	// that this task is expected to be the first to run after the reboot (for that lane/change). This is noted here
+	// to make sure we consider any changes between 'link-snap' and 'auto-connect', as that need the edges to be
+	// modified as well.
 	autoConnect := st.NewTask("auto-connect", fmt.Sprintf(i18n.G("Automatically connect eligible plugs and slots of snap %q"), snapsup.InstanceName()))
 	addTask(autoConnect)
 	prev = autoConnect
