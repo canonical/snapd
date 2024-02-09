@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -50,7 +51,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -447,7 +447,7 @@ type pathSideInfo struct {
 
 func (ro *remodelVariant) UpdateWithDeviceContext(st *state.State,
 	pathSI *pathSideInfo, snapName, channel string,
-	userID int, snapStateFlags snapstate.Flags,
+	userID int, snapStateFlags snapstate.Flags, tracker snapstate.PrereqTracker,
 	deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 	logger.Debugf("snap %s track changed", snapName)
 	if ro.localSnapsRequired {
@@ -456,16 +456,16 @@ func (ro *remodelVariant) UpdateWithDeviceContext(st *state.State,
 		}
 		return snapstateUpdatePathWithDeviceContext(st, pathSI.localSi, pathSI.path, snapName,
 			&snapstate.RevisionOptions{Channel: channel},
-			userID, snapStateFlags, nil, deviceCtx, fromChange)
+			userID, snapStateFlags, tracker, deviceCtx, fromChange)
 	}
 	return snapstateUpdateWithDeviceContext(st, snapName,
 		&snapstate.RevisionOptions{Channel: channel},
-		userID, snapStateFlags, nil, deviceCtx, fromChange)
+		userID, snapStateFlags, tracker, deviceCtx, fromChange)
 }
 
 func (ro *remodelVariant) InstallWithDeviceContext(ctx context.Context, st *state.State,
 	pathSI *pathSideInfo, snapName, channel string, userID int,
-	snapStateFlags snapstate.Flags, deviceCtx snapstate.DeviceContext,
+	snapStateFlags snapstate.Flags, tracker snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext,
 	fromChange string) (*state.TaskSet, error) {
 	logger.Debugf("snap %s needs install", snapName)
 	if ro.localSnapsRequired {
@@ -474,14 +474,14 @@ func (ro *remodelVariant) InstallWithDeviceContext(ctx context.Context, st *stat
 		}
 		return snapstateInstallPathWithDeviceContext(st, pathSI.localSi, pathSI.path, snapName,
 			&snapstate.RevisionOptions{Channel: channel},
-			userID, snapStateFlags, nil, deviceCtx, fromChange)
+			userID, snapStateFlags, tracker, deviceCtx, fromChange)
 	}
 	return snapstateInstallWithDeviceContext(ctx, st, snapName,
 		&snapstate.RevisionOptions{Channel: channel},
-		userID, snapStateFlags, nil, deviceCtx, fromChange)
+		userID, snapStateFlags, tracker, deviceCtx, fromChange)
 }
 
-func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pathSideInfo, ms modelSnapsForRemodel, remodelVar remodelVariant, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pathSideInfo, ms modelSnapsForRemodel, remodelVar remodelVariant, deviceCtx snapstate.DeviceContext, fromChange string, tracker snapstate.PrereqTracker) (*state.TaskSet, error) {
 	userID := 0
 	newModelSnapChannel, err := modelSnapChannelFromDefaultOrPinnedTrack(ms.new, ms.newModelSnap)
 	if err != nil {
@@ -507,8 +507,17 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pat
 			// new model specifies the same snap, but with a new channel
 			return remodelVar.UpdateWithDeviceContext(st,
 				pathSI, ms.newSnap, newModelSnapChannel, userID,
-				snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
+				snapstate.Flags{NoReRefresh: true}, tracker, deviceCtx, fromChange)
 		}
+
+		// if we are here, then the snap is already installed and does not need
+		// any changes. thus, add it to the prereq tracker.
+		info, err := snapstate.CurrentInfo(st, ms.currentSnap)
+		if err != nil {
+			return nil, err
+		}
+		tracker.Add(info)
+
 		return nil, nil
 	}
 
@@ -521,7 +530,7 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pat
 		// which needs to be installed
 		return remodelVar.InstallWithDeviceContext(ctx, st,
 			pathSI, ms.newSnap, newModelSnapChannel, userID,
-			snapstate.Flags{}, deviceCtx, fromChange)
+			snapstate.Flags{}, tracker, deviceCtx, fromChange)
 	}
 
 	// in UC20+ models, the model can specify a channel for each
@@ -536,6 +545,12 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pat
 	}
 
 	if !changed {
+		info, err := snapstate.CurrentInfo(st, ms.newSnap)
+		if err != nil {
+			return nil, err
+		}
+		tracker.Add(info)
+
 		if ms.newModelSnap != nil && ms.newModelSnap.SnapType == "gadget" {
 			return snapstate.SwitchToNewGadget(st, ms.newSnap, fromChange)
 		}
@@ -544,7 +559,7 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pat
 
 	ts, err := remodelVar.UpdateWithDeviceContext(st,
 		pathSI, ms.newSnap, newModelSnapChannel, userID,
-		snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
+		snapstate.Flags{NoReRefresh: true}, tracker, deviceCtx, fromChange)
 	if err != nil {
 		return nil, err
 	}
@@ -575,30 +590,6 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, pathSI *pat
 	return ts, nil
 }
 
-// collect all prerequisites of a given snap from its task set
-func prereqsFromSnapTaskSet(ts *state.TaskSet) ([]string, error) {
-	for _, t := range ts.Tasks() {
-		// find the first task that carries snap setup
-		sup, err := snapstate.TaskSnapSetup(t)
-		if err != nil {
-			if !errors.Is(err, state.ErrNoState) {
-				return nil, err
-			}
-			// try the next one
-			continue
-		}
-		var prereqs []string
-		if sup.Base != "" {
-			prereqs = append(prereqs, sup.Base)
-		}
-		if len(sup.Prereq) > 0 {
-			prereqs = append(prereqs, sup.Prereq...)
-		}
-		return prereqs, nil
-	}
-	return nil, fmt.Errorf("internal error: cannot identify task-snap-setup in taskset")
-}
-
 // sideInfoAndPathFromID returns the SideInfo/path for a given snap ID. Note
 // that this will work only for asserted snaps, that is the only case we
 // support for remodeling at the moment.
@@ -624,8 +615,8 @@ func tasksForEssentialSnap(ctx context.Context, st *state.State,
 	snapType string,
 	current, new *asserts.Model,
 	localSnaps []*snap.SideInfo, paths []string,
-	deviceCtx snapstate.DeviceContext, fromChange string,
-) (string, *state.TaskSet, error) {
+	tracker snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string,
+) (*state.TaskSet, error) {
 	var currentSnap, newSnap string
 	var currentModelSnap, newModelSnap *asserts.ModelSnap
 	switch snapType {
@@ -645,7 +636,7 @@ func tasksForEssentialSnap(ctx context.Context, st *state.State,
 		newSnap = new.Gadget()
 		newModelSnap = new.GadgetSnap()
 	default:
-		return "", nil, fmt.Errorf("internal error: unexpected type %q", snapType)
+		return nil, fmt.Errorf("internal error: unexpected type %q", snapType)
 	}
 	localSnapsRequired := len(localSnaps) > 0
 	remodelVar := remodelVariant{localSnapsRequired: localSnapsRequired}
@@ -662,14 +653,14 @@ func tasksForEssentialSnap(ctx context.Context, st *state.State,
 	if newModelSnap != nil {
 		pathSi = sideInfoAndPathFromID(localSnaps, paths, newModelSnap.SnapID)
 	}
-	ts, err := remodelEssentialSnapTasks(ctx, st, pathSi, ms, remodelVar, deviceCtx, fromChange)
+	ts, err := remodelEssentialSnapTasks(ctx, st, pathSi, ms, remodelVar, deviceCtx, fromChange, tracker)
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
-	return newSnap, ts, err
+	return ts, err
 }
 
-func remodelSnapdSnapTasks(st *state.State, newModel *asserts.Model, localSnaps []*snap.SideInfo, paths []string, remodelVar remodelVariant, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+func remodelSnapdSnapTasks(st *state.State, newModel *asserts.Model, localSnaps []*snap.SideInfo, paths []string, tracker snapstate.PrereqTracker, remodelVar remodelVariant, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 	// First check if snapd snap is installed at all (might be the case
 	// for uc16, which happens for some tests).
 	var ss snapstate.SnapState
@@ -698,7 +689,7 @@ func remodelSnapdSnapTasks(st *state.State, newModel *asserts.Model, localSnaps 
 		userID := 0
 		return remodelVar.UpdateWithDeviceContext(st,
 			pathSi, "snapd", newSnapdChannel, userID,
-			snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
+			snapstate.Flags{NoReRefresh: true}, tracker, deviceCtx, fromChange)
 	}
 	return nil, nil
 }
@@ -729,22 +720,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	userID := 0
 	var tss []*state.TaskSet
 
-	// XXX TODO: switch to use instead a PrereqTracker
-	// that supports properly self-contained set of snaps
-	// instead of updateNeededSnapsFromTs and NeededDefaultProviders
-	snapsAccountedFor := make(map[string]bool)
-	neededSnaps := make(map[string]bool)
-
-	updateNeededSnapsFromTs := func(ts *state.TaskSet) error {
-		prereqs, err := prereqsFromSnapTaskSet(ts)
-		if err != nil {
-			return err
-		}
-		for _, p := range prereqs {
-			neededSnaps[p] = true
-		}
-		return nil
-	}
+	tracker := snap.NewSelfContainedSetPrereqTracker()
 
 	// If local snaps are provided, all needed snaps must be locally
 	// provided. We check this flag whenever a snap installation/update is
@@ -753,14 +729,13 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	remodelVar := remodelVariant{localSnapsRequired: localSnapsRequired}
 
 	// First handle snapd as a special case
-	ts, err := remodelSnapdSnapTasks(st, new, localSnaps, paths, remodelVar, deviceCtx, fromChange)
+	ts, err := remodelSnapdSnapTasks(st, new, localSnaps, paths, tracker, remodelVar, deviceCtx, fromChange)
 	if err != nil {
 		return nil, err
 	}
 	if ts != nil {
 		tss = append(tss, ts)
 	}
-	snapsAccountedFor["snapd"] = true
 
 	// TODO: this order is not correct, and needs to be changed to match the
 	// order that is described in the comment on essentialSnapsRestartOrder in
@@ -772,21 +747,28 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 			// Already handled
 			continue
 		}
-		newSnap, ts, err := tasksForEssentialSnap(ctx, st,
-			modelSnap.SnapType, current, new, localSnaps, paths,
+		ts, err := tasksForEssentialSnap(ctx, st,
+			modelSnap.SnapType, current, new, localSnaps, paths, tracker,
 			deviceCtx, fromChange)
 		if err != nil {
 			return nil, err
 		}
 		if ts != nil {
 			tss = append(tss, ts)
-			if modelSnap.SnapType == "gadget" {
-				if err := updateNeededSnapsFromTs(ts); err != nil {
-					return nil, err
-				}
-			}
 		}
-		snapsAccountedFor[newSnap] = true
+	}
+
+	// if base is not set, then core will not be returned in the list of snaps
+	// returned by new.EssentialSnaps(). since we know that we are remodeling
+	// from a core-based system to a core-based system, then the core snap must
+	// be installed. thus, we can safely add it to the prereq tracker. note that
+	// moving from a UC16 model to a newer model is not supported.
+	if new.Base() == "" {
+		currentBase, err := snapstate.CurrentInfo(st, "core")
+		if err != nil {
+			return nil, err
+		}
+		tracker.Add(currentBase)
 	}
 
 	// sort the snaps so that we collect the task sets for base snaps first, and
@@ -830,7 +812,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		if needsInstall {
 			ts, err = remodelVar.InstallWithDeviceContext(ctx, st,
 				snapPathSi, modelSnap.SnapName(), newModelSnapChannel,
-				userID, snapstate.Flags{Required: true}, deviceCtx,
+				userID, snapstate.Flags{Required: true}, tracker, deviceCtx,
 				fromChange)
 			if err != nil {
 				return nil, err
@@ -848,64 +830,38 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 				ts, err = remodelVar.UpdateWithDeviceContext(st,
 					snapPathSi, modelSnap.SnapName(),
 					newModelSnapChannel, userID,
-					snapstate.Flags{NoReRefresh: true},
+					snapstate.Flags{NoReRefresh: true}, tracker,
 					deviceCtx, fromChange)
 				if err != nil {
 					return nil, err
 				}
 				tss = append(tss, ts)
-			}
-		}
-		if currentInfo == nil {
-			// snap is not installed, we have a task set then
-			if err := updateNeededSnapsFromTs(ts); err != nil {
-				return nil, err
-			}
-		} else {
-			// snap is installed already, so we have 2 possible
-			// scenarios, one the snap will be updated, in which
-			// case we have a task set and should make sure that the
-			// prerequisites of the new revision are accounted for,
-			// or two, the snap revision is not being modified so
-			// grab whatever is required for the current revision
-			if ts != nil && ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge) != nil {
-				// not a simple task snap-switch-channel, so
-				// take the prerequisites needed by the new
-				// revision we're updating to
-				if err := updateNeededSnapsFromTs(ts); err != nil {
-					return nil, err
-				}
 			} else {
-				if currentInfo.Base != "" {
-					neededSnaps[currentInfo.Base] = true
-				}
-				// deal with content providers
-				for defProvider := range snap.NeededDefaultProviders(currentInfo) {
-					neededSnaps[defProvider] = true
-				}
+				tracker.Add(currentInfo)
 			}
 		}
-		snapsAccountedFor[modelSnap.SnapName()] = true
-	}
-	// Now we know what snaps are in the model and whether they have any
-	// dependencies. Verify that the model is self contained, in the sense
-	// that all prerequisites of the snaps in the model, i.e. bases and
-	// default content providers are explicitly listed in the model
-	var missingSnaps []string
-	for needed := range neededSnaps {
-		if !snapsAccountedFor[needed] {
-			missingSnaps = append(missingSnaps, needed)
-		}
-	}
-	if len(missingSnaps) != 0 {
-		sort.Strings(missingSnaps)
-		return nil, fmt.Errorf("cannot remodel with incomplete model, the following snaps are required but not listed: %s", strutil.Quoted(missingSnaps))
 	}
 
-	// TODO: fix the prerequisite task getting stuck during a remodel by
-	// making it a NOP, but ensure that the dependencies of new snaps are
-	// getting installed or updated if needed and are properly ordered wrt
-	// to the tasks that require them (eg. run-hooks)
+	if err := checkRequiredGadgetMatchesModelBase(new, tracker); err != nil {
+		return nil, err
+	}
+
+	warnings, errs := tracker.Check()
+	for _, w := range warnings {
+		logger.Noticef("remodel prerequisites warning: %v", w)
+	}
+
+	if len(errs) > 0 {
+		var builder strings.Builder
+		builder.WriteString("cannot remodel to model that is not self contained:")
+
+		for _, err := range errs {
+			builder.WriteString("\n  - ")
+			builder.WriteString(err.Error())
+		}
+
+		return nil, errors.New(builder.String())
+	}
 
 	// Keep track of downloads tasks carrying snap-setup which is needed for
 	// recovery system tasks
@@ -1034,6 +990,29 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		return nil, err
 	}
 	return tss, nil
+}
+
+func checkRequiredGadgetMatchesModelBase(model *asserts.Model, tracker *snap.SelfContainedSetPrereqTracker) error {
+	modelBase := model.Base()
+	if modelBase == "" {
+		modelBase = "core"
+	}
+
+	for _, sn := range tracker.Snaps() {
+		if sn.Type() != snap.TypeGadget {
+			continue
+		}
+
+		gadgetBase := sn.Base
+		if gadgetBase == "" {
+			gadgetBase = "core"
+		}
+
+		if gadgetBase != modelBase {
+			return fmt.Errorf("cannot remodel with gadget snap that has a different base than the model: %q != %q", gadgetBase, modelBase)
+		}
+	}
+	return nil
 }
 
 // Remodel takes a new model assertion and generates a change that

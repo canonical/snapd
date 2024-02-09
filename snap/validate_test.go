@@ -2321,6 +2321,27 @@ func (s *ValidateSuite) TestSelfContainedSetPrereqTrackerBasics(c *C) {
 	c.Check(prqt.MissingProviderContentTags(nil, nil), IsNil)
 }
 
+func (s *validateSuite) TestSelfContainedSetPrereqTrackerSnaps(c *C) {
+	prqt := NewSelfContainedSetPrereqTracker()
+
+	// snap-1 here is twice to ensure it is de-duped
+	for _, sn := range []string{"snap-1", "snap-1", "snap-2"} {
+		yaml := fmt.Sprintf(`name: %s
+base: some-base
+version: 1.0`, sn)
+		info, err := InfoFromSnapYamlWithSideInfo([]byte(yaml), nil, NewScopedTracker())
+		c.Assert(err, IsNil)
+
+		prqt.Add(info)
+	}
+
+	snaps := prqt.Snaps()
+	c.Assert(snaps, HasLen, 2)
+
+	c.Check(snaps[0].SuggestedName, Equals, "snap-1")
+	c.Check(snaps[1].SuggestedName, Equals, "snap-2")
+}
+
 func (s *validateSuite) TestSelfContainedSetPrereqTrackerMissingBase(c *C) {
 	const yaml = `name: some-snap
 base: some-base
