@@ -586,7 +586,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	prev = setupSecurity
 
 	// finalize (wrappers+current symlink)
-	// 
+	//
 	// For essential snaps that require reboots, 'link-snap' is currently marked as the edge of that reboot
 	// sequence. This means that we currently expect 'link-snap' to request the reboot and be the last task
 	// to run before the reboot takes place (for that lane/change). This task is assigned the edge 'MaybeRebootEdge'
