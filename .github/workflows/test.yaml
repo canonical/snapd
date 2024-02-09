@@ -488,6 +488,8 @@ jobs:
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
 
+          set -x
+
           SPREAD=spread
           if [[ "${{ matrix.systems }}" =~ -arm- ]]; then
               SPREAD=spread-arm
