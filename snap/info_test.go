@@ -2094,3 +2094,130 @@ version: 1.0`, nil)
 	_, _, err = snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
 	c.Check(err, ErrorMatches, `cannot extract assertion max formats information, snaps of type app do not carry snapd`)
 }
+
+func (s *infoSuite) TestAppsForPlug(c *C) {
+	const snapYaml = `
+name: snap
+version: 1
+apps:
+ one:
+   command: one
+   plugs: [scoped-plug]
+ two:
+   command: two
+hooks:
+  install:
+    plugs: [hook-plug]
+plugs:
+  unscoped-plug:
+  hook-plug:
+`
+
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	scoped := info.Plugs["scoped-plug"]
+	c.Assert(scoped, NotNil)
+
+	scopedApps := info.AppsForPlug(scoped)
+	c.Assert(scopedApps, testutil.DeepUnsortedMatches, []*snap.AppInfo{info.Apps["one"]})
+
+	unscoped := info.Plugs["unscoped-plug"]
+	c.Assert(unscoped, NotNil)
+
+	unscopedApps := info.AppsForPlug(unscoped)
+	c.Assert(unscopedApps, testutil.DeepUnsortedMatches, []*snap.AppInfo{info.Apps["one"], info.Apps["two"]})
+}
+
+func (s *infoSuite) TestAppsForSlot(c *C) {
+	const snapYaml = `
+name: snap
+version: 1
+apps:
+ one:
+   command: one
+   slots: [scoped-slot]
+ two:
+   command: two
+hooks:
+  install:
+    slots: [hook-slot]
+slots:
+  unscoped-slot:
+  hook-slot:
+`
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	scoped := info.Slots["scoped-slot"]
+	c.Assert(scoped, NotNil)
+
+	scopedApps := info.AppsForSlot(scoped)
+	c.Assert(scopedApps, testutil.DeepUnsortedMatches, []*snap.AppInfo{info.Apps["one"]})
+
+	unscoped := info.Slots["unscoped-slot"]
+	c.Assert(unscoped, NotNil)
+
+	unscopedApps := info.AppsForSlot(unscoped)
+	c.Assert(unscopedApps, testutil.DeepUnsortedMatches, []*snap.AppInfo{info.Apps["one"], info.Apps["two"]})
+}
+
+func (s *infoSuite) TestHooksForPlug(c *C) {
+	const snapYaml = `
+name: snap
+version: 1
+apps:
+ one:
+   command: one
+   plugs: [app-plug]
+hooks:
+  install:
+    plugs: [scoped-plug]
+  pre-refresh:
+plugs:
+  unscoped-plug:
+  app-plug:
+`
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	scoped := info.Plugs["scoped-plug"]
+	c.Assert(scoped, NotNil)
+
+	scopedHooks := info.HooksForPlug(scoped)
+	c.Assert(scopedHooks, testutil.DeepUnsortedMatches, []*snap.HookInfo{info.Hooks["install"]})
+
+	unscoped := info.Plugs["unscoped-plug"]
+	c.Assert(unscoped, NotNil)
+
+	unscopedHooks := info.HooksForPlug(unscoped)
+	c.Assert(unscopedHooks, testutil.DeepUnsortedMatches, []*snap.HookInfo{info.Hooks["install"], info.Hooks["pre-refresh"]})
+}
+
+func (s *infoSuite) TestHooksForSlot(c *C) {
+	const snapYaml = `
+name: snap
+version: 1
+apps:
+ one:
+   command: one
+   slots: [app-slot]
+hooks:
+  install:
+    slots: [scoped-slot]
+  pre-refresh:
+slots:
+  unscoped-slot:
+  app-slot:
+`
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	scoped := info.Slots["scoped-slot"]
+	c.Assert(scoped, NotNil)
+
+	scopedHooks := info.HooksForSlot(scoped)
+	c.Assert(scopedHooks, testutil.DeepUnsortedMatches, []*snap.HookInfo{info.Hooks["install"]})
+
+	unscoped := info.Slots["unscoped-slot"]
+	c.Assert(unscoped, NotNil)
+
+	unscopedHooks := info.HooksForSlot(unscoped)
+	c.Assert(unscopedHooks, testutil.DeepUnsortedMatches, []*snap.HookInfo{info.Hooks["install"], info.Hooks["pre-refresh"]})
+}
