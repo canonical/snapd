@@ -370,6 +370,9 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "some-snap-now-classic"
 	case "some-snap-was-classic-id":
 		name = "some-snap-was-classic"
+	case "some-snap-with-new-base-id":
+		name = "some-snap-with-new-base"
+		base = "core22"
 	case "core-snap-id":
 		name = "core"
 		typ = snap.TypeOS
@@ -396,7 +399,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "snap-content-plug"
 	case "snap-content-slot-id":
 		name = "snap-content-slot"
-	case "snapd-snap-id":
+	case "snapd-snap-id", "snapd-without-version-id":
 		name = "snapd"
 		typ = snap.TypeSnapd
 	case "kernel-id":
@@ -468,6 +471,10 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		Architectures: []string{"all"},
 		Epoch:         epoch,
 		Base:          base,
+	}
+
+	if strings.HasSuffix(cand.snapID, "-without-version-id") {
+		info.Version = ""
 	}
 
 	if name == "outdated-consumer" {
