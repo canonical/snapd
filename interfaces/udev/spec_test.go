@@ -89,7 +89,7 @@ slots:
 }
 
 func (s *specSuite) SetUpTest(c *C) {
-	s.spec = &udev.Specification{}
+	s.spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap))
 }
 
 func (s *specSuite) TestAddSnippte(c *C) {

@@ -90,7 +90,7 @@ func (s *specSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
-	s.spec = &apparmor.Specification{}
+	s.spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap))
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 }

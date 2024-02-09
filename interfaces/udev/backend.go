@@ -162,8 +162,8 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (conte
 	return content
 }
 
-func (b *Backend) NewSpecification(*interfaces.SnapAppSet) interfaces.Specification {
-	return &Specification{}
+func (b *Backend) NewSpecification(appSet *interfaces.SnapAppSet) interfaces.Specification {
+	return &Specification{appSet: appSet}
 }
 
 // SandboxFeatures returns the list of features supported by snapd for mediating access to kernel devices.

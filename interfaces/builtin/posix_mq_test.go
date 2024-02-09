@@ -455,7 +455,7 @@ func (s *PosixMQInterfaceSuite) checkSlotSeccompSnippet(c *C, spec *seccomp.Spec
 }
 
 func (s *PosixMQInterfaceSuite) TestReadWriteMQAppArmor(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testReadWriteSlotInfo.Snap))
 	err := spec.AddPermanentSlot(s.iface, s.testReadWriteSlotInfo)
 	c.Assert(err, IsNil)
 	err = spec.AddConnectedPlug(s.iface, s.testReadWritePlug, s.testReadWriteSlot)
@@ -472,7 +472,7 @@ func (s *PosixMQInterfaceSuite) TestReadWriteMQAppArmor(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestReadWriteMQSeccomp(c *C) {
-	spec := &seccomp.Specification{}
+	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.testReadWriteSlotInfo.Snap))
 	err := spec.AddPermanentSlot(s.iface, s.testReadWriteSlotInfo)
 	c.Assert(err, IsNil)
 	err = spec.AddConnectedPlug(s.iface, s.testReadWritePlug, s.testReadWriteSlot)
@@ -490,7 +490,7 @@ func (s *PosixMQInterfaceSuite) TestReadWriteMQSeccomp(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQAppArmor(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testDefaultPermsSlotInfo.Snap))
 	err := spec.AddPermanentSlot(s.iface, s.testDefaultPermsSlotInfo)
 	c.Assert(err, IsNil)
 	err = spec.AddConnectedPlug(s.iface, s.testDefaultPermsPlug, s.testDefaultPermsSlot)
@@ -507,7 +507,7 @@ func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQAppArmor(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQSeccomp(c *C) {
-	spec := &seccomp.Specification{}
+	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.testDefaultPermsSlotInfo.Snap))
 	err := spec.AddPermanentSlot(s.iface, s.testDefaultPermsSlotInfo)
 	c.Assert(err, IsNil)
 	err = spec.AddConnectedPlug(s.iface, s.testDefaultPermsPlug, s.testDefaultPermsSlot)
@@ -526,7 +526,7 @@ func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQSeccomp(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestReadOnlyMQAppArmor(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testReadOnlySlotInfo.Snap))
 	err := spec.AddPermanentSlot(s.iface, s.testReadOnlySlotInfo)
 	c.Assert(err, IsNil)
 	err = spec.AddConnectedPlug(s.iface, s.testReadOnlyPlug, s.testReadOnlySlot)
@@ -541,7 +541,7 @@ func (s *PosixMQInterfaceSuite) TestReadOnlyMQAppArmor(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestReadOnlyMQSeccomp(c *C) {
-	spec := &seccomp.Specification{}
+	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.testReadOnlySlotInfo.Snap))
 	err := spec.AddPermanentSlot(s.iface, s.testReadOnlySlotInfo)
 	c.Assert(err, IsNil)
 	err = spec.AddConnectedPlug(s.iface, s.testReadOnlyPlug, s.testReadOnlySlot)
@@ -560,7 +560,7 @@ func (s *PosixMQInterfaceSuite) TestReadOnlyMQSeccomp(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestPathArrayMQAppArmor(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testPathArraySlotInfo.Snap))
 	err := spec.AddPermanentSlot(s.iface, s.testPathArraySlotInfo)
 	c.Assert(err, IsNil)
 	err = spec.AddConnectedPlug(s.iface, s.testPathArrayPlug, s.testPathArraySlot)
@@ -581,7 +581,7 @@ func (s *PosixMQInterfaceSuite) TestPathArrayMQAppArmor(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestPathArrayMQSeccomp(c *C) {
-	spec := &seccomp.Specification{}
+	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.testPathArraySlotInfo.Snap))
 	err := spec.AddPermanentSlot(s.iface, s.testPathArraySlotInfo)
 	c.Assert(err, IsNil)
 	err = spec.AddConnectedPlug(s.iface, s.testPathArrayPlug, s.testPathArraySlot)
@@ -600,7 +600,7 @@ func (s *PosixMQInterfaceSuite) TestPathArrayMQSeccomp(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestAllPermsMQAppArmor(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testAllPermsSlotInfo.Snap))
 	err := spec.AddPermanentSlot(s.iface, s.testAllPermsSlotInfo)
 	c.Assert(err, IsNil)
 	err = spec.AddConnectedPlug(s.iface, s.testAllPermsPlug, s.testAllPermsSlot)
@@ -615,7 +615,7 @@ func (s *PosixMQInterfaceSuite) TestAllPermsMQAppArmor(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestAllPermsMQSeccomp(c *C) {
-	spec := &seccomp.Specification{}
+	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.testAllPermsSlotInfo.Snap))
 	err := spec.AddPermanentSlot(s.iface, s.testAllPermsSlotInfo)
 	c.Assert(err, IsNil)
 	err = spec.AddConnectedPlug(s.iface, s.testAllPermsPlug, s.testAllPermsSlot)
@@ -634,26 +634,26 @@ func (s *PosixMQInterfaceSuite) TestAllPermsMQSeccomp(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestPathValidationPosixMQ(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testInvalidPath1SlotInfo.Snap))
 	err := spec.AddPermanentSlot(s.iface, s.testInvalidPath1SlotInfo)
 	c.Check(err, ErrorMatches,
 		`posix-mq "path" attribute must conform to the POSIX message queue name specifications \(see "man mq_overview"\): /../../test-invalid`)
 }
 
 func (s *PosixMQInterfaceSuite) TestPathValidationAppArmorRegex(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testInvalidPath2SlotInfo.Snap))
 	err := spec.AddPermanentSlot(s.iface, s.testInvalidPath2SlotInfo)
 	c.Check(err, ErrorMatches, `posix-mq "path" attribute is invalid: /test-invalid-2"\["`)
 }
 
 func (s *PosixMQInterfaceSuite) TestPathStringValidation(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testInvalidPath3SlotInfo.Snap))
 	err := spec.AddPermanentSlot(s.iface, s.testInvalidPath3SlotInfo)
 	c.Check(err, ErrorMatches, `snap "producer" has interface "posix-mq" with invalid value type map\[string\]interface {} for "path" attribute: \*\[\]string`)
 }
 
 func (s *PosixMQInterfaceSuite) TestInvalidPerms1(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testInvalidPerms1SlotInfo.Snap))
 	// The slot should function correctly here as it receives the full list
 	// of built-in permissions, not what's listed in the configuration
 	err := spec.AddPermanentSlot(s.iface, s.testInvalidPerms1SlotInfo)
@@ -666,7 +666,7 @@ func (s *PosixMQInterfaceSuite) TestInvalidPerms1(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestInvalidPerms3(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testInvalidPerms3SlotInfo.Snap))
 	err := spec.AddPermanentSlot(s.iface, s.testInvalidPerms3SlotInfo)
 	c.Assert(err, IsNil)
 	err = spec.AddConnectedPlug(s.iface, s.testInvalidPerms3Plug, s.testInvalidPerms3Slot)

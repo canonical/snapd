@@ -182,7 +182,7 @@ func (s *PwmInterfaceSuite) TestApparmorConnectedPlugIgnoresMissingSymlink(c *C)
 		return "", os.ErrNotExist
 	})
 
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.gadgetPlug.Snap()))
 	err := spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetPwmSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
@@ -200,7 +200,7 @@ func (s *PwmInterfaceSuite) TestApparmorConnectedPlug(c *C) {
 		return "/sys/dev/foo/class/pwm/pwmchip10", nil
 	})
 
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.gadgetPlug.Snap()))
 	err := spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetPwmSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.SnippetForTag("snap.my-device.svc"), testutil.Contains, `/sys/dev/foo/class/pwm/pwmchip10/pwm100/* rwk`)

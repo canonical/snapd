@@ -75,7 +75,7 @@ func (s *NetlinkConnectorInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *NetlinkConnectorInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	seccompSpec := &seccomp.Specification{}
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})

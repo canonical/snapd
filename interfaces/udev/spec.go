@@ -50,6 +50,12 @@ type Specification struct {
 	controlsDeviceCgroup     bool
 }
 
+func NewSpecification(appSet *interfaces.SnapAppSet) *Specification {
+	return &Specification{
+		appSet: appSet,
+	}
+}
+
 func (spec *Specification) SnapAppSet() *interfaces.SnapAppSet {
 	return spec.appSet
 }

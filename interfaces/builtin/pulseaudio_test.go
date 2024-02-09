@@ -104,7 +104,7 @@ func (s *PulseAudioInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *PulseAudioInterfaceSuite) TestSecCompOnClassic(c *C) {
-	seccompSpec := &seccomp.Specification{}
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.classicSlotInfo.Snap))
 	err := seccompSpec.AddPermanentSlot(s.iface, s.classicSlotInfo)
 	c.Assert(err, IsNil)
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.classicSlot)
@@ -114,7 +114,7 @@ func (s *PulseAudioInterfaceSuite) TestSecCompOnClassic(c *C) {
 }
 
 func (s *PulseAudioInterfaceSuite) TestSecCompOnAllSnaps(c *C) {
-	seccompSpec := &seccomp.Specification{}
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
 	err := seccompSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
 	c.Assert(err, IsNil)
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot)
@@ -126,7 +126,7 @@ func (s *PulseAudioInterfaceSuite) TestSecCompOnAllSnaps(c *C) {
 
 func (s *PulseAudioInterfaceSuite) TestApparmorOnClassic(c *C) {
 	// connected plug to classic slot
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/ r,\n")
@@ -139,7 +139,7 @@ func (s *PulseAudioInterfaceSuite) TestApparmorOnClassic(c *C) {
 
 func (s *PulseAudioInterfaceSuite) TestApparmorOnCoreNotSnapd(c *C) {
 	// connected plug to classic slot
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/ r,\n")
@@ -151,7 +151,7 @@ func (s *PulseAudioInterfaceSuite) TestApparmorOnCoreNotSnapd(c *C) {
 }
 
 func (s *PulseAudioInterfaceSuite) TestUDev(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 4)
 	c.Assert(spec.Snippets(), testutil.Contains, `# pulseaudio
