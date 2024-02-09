@@ -101,6 +101,44 @@ func (s *snapAppSetSuite) TestLabelExpr(c *C) {
 	c.Check(label, Equals, `"snap.test-snap."`)
 }
 
+func (s *snapAppSetSuite) TestPlugSecurityTags(c *C) {
+	const yaml = `name: name
+version: 1
+apps:
+  app1:
+  app2:
+hooks:
+  install:
+plugs:
+  plug:
+slots:
+  slot:`
+	info, connectedPlug := mockInfoAndConnectedPlug(c, yaml, nil, "plug")
+	set := interfaces.NewSnapAppSet(info)
+
+	tags := set.SecurityTagsForConnectedPlug(connectedPlug)
+	c.Assert(tags, DeepEquals, []string{"snap.name.app1", "snap.name.app2", "snap.name.hook.install"})
+}
+
+func (s *snapAppSetSuite) TestSlotSecurityTags(c *C) {
+	const yaml = `name: name
+version: 1
+apps:
+  app1:
+  app2:
+hooks:
+  install:
+plugs:
+  plug:
+slots:
+  slot:`
+	info, connectedSlot := mockInfoAndConnectedSlot(c, yaml, nil, "slot")
+	set := interfaces.NewSnapAppSet(info)
+
+	tags := set.SecurityTagsForConnectedSlot(connectedSlot)
+	c.Assert(tags, DeepEquals, []string{"snap.name.app1", "snap.name.app2", "snap.name.hook.install"})
+}
+
 func appsInMap(apps map[string]*snap.AppInfo) []*snap.AppInfo {
 	result := make([]*snap.AppInfo, 0, len(apps))
 	for _, app := range apps {
