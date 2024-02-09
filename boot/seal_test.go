@@ -2336,8 +2336,8 @@ func (s *sealSuite) TestForceResealKeyToModeenv(c *C) {
 	})
 
 	keyForRole := map[string]keys.EncryptionKey{
-		gadget.SystemData: keys.EncryptionKey{'d', 'a', 't', 'a', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
-		gadget.SystemSave: keys.EncryptionKey{'s', 'a', 'v', 'e', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+		gadget.SystemData: {'d', 'a', 't', 'a', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+		gadget.SystemSave: {'s', 'a', 'v', 'e', 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
 	}
 
 	options := &boot.ResealToModeenvOptions{
