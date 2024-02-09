@@ -185,7 +185,7 @@ purge() {
     done
 
     # stop snapd services
-    for serv in snapd.autoimport.service snapd.seeded.service snapd.apparmor.service snapd.mounts.target snapd.mounts-pre.target; do
+    for serv in snapd.autoimport.service snapd.seeded.service snapd.apparmor.service snapd.mounts.target snapd.mounts-pre.target snapd.system-services-pre.target; do
         systemctl_stop "$serv"
     done
 

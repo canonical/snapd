@@ -110,8 +110,8 @@ func (s *serviceTimerUnitGenSuite) TestServiceTimerServiceUnit(c *C) {
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application snap.app
 Requires=%s-snap-44.mount
-Wants=network.target
-After=%s-snap-44.mount network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%s-snap-44.mount snapd.system-services-pre.target
 X-Snappy=yes
 
 [Service]

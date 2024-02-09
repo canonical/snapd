@@ -10325,8 +10325,8 @@ apps:
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application test-snap.svc1
 Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[1]s snapd.system-services-pre.target
 %[2]s=usr-lib-snapd.mount
 After=usr-lib-snapd.mount
 X-Snappy=yes
@@ -10560,8 +10560,8 @@ apps:
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application test-snap.svc1
 Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
+Wants=snapd.system-services-pre.target
+After=%[1]s snapd.system-services-pre.target
 %[2]s=usr-lib-snapd.mount
 After=usr-lib-snapd.mount
 X-Snappy=yes
