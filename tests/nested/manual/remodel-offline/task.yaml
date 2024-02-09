@@ -16,6 +16,30 @@ environment:
   GADGET_NAME: test-snapd-remodel-pc
   NEW_GADGET_NAME: test-snapd-remodel-pc-min-size
 
+  # provide everything needed for the remodel via the CLI
+  USE_INSTALLED_APP/local_snaps: false
+  USE_INSTALLED_VSET/local_snaps: false
+  USE_INSTALLED_ESSENTIAL_SNAPS/local_snaps: false
+
+  # preinstall/ack everything needed for the remodel, this ensures that the
+  # --offline flag is working as expected
+  USE_INSTALLED_APP/installed_snaps: true
+  USE_INSTALLED_ESSENTIAL_SNAPS/installed_snaps: true
+  USE_INSTALLED_VSET/installed_snaps: true
+
+  # preinstall essential snaps needed for the remodel, app snap and validation
+  # set is provided via the CLI
+  USE_INSTALLED_APP/local_and_installed_snaps: false
+  USE_INSTALLED_ESSENTIAL_SNAPS/local_and_installed_snaps: true
+  USE_INSTALLED_VSET/local_and_installed_snaps: false
+
+  # preinstall essential and app snaps needed for the remodel, validation set is
+  # provided via the CLI. this catches the case where only assertions were sent
+  # with the form data, which was not previously supported
+  USE_INSTALLED_APP/local_assertions: true
+  USE_INSTALLED_ESSENTIAL_SNAPS/local_assertions: true
+  USE_INSTALLED_VSET/local_assertions: false
+
 prepare: |
   export NESTED_CUSTOM_MODEL="$TESTSLIB/assertions/test-snapd-remodel-offline-rev0.model"
   tests.nested build-image core
@@ -34,23 +58,60 @@ execute: |
   new_model_rev=test-snapd-remodel-offline-rev1.model
   remote.push "$TESTSLIB/assertions/$new_model_rev"
   remodel_options="--no-wait"
-  # Get specific revision to grab pc 22 with compatible gadget with the one
-  # in 20/stable.
-  # TODO update this code to use pc from 22/stable when it has min-size
-  # for the ubuntu-save partition -> for sn_name in pc pc-kernel; do ...
-  remote.exec "snap download --revision=148 --basename=pc pc"
-  remodel_options="$remodel_options --snap pc.snap --assertion pc.assert"
-  #shellcheck disable=SC2043
-  for sn_name in pc-kernel; do
-      remote.exec "snap download --channel=22/stable --basename=$sn_name $sn_name"
-      remodel_options="$remodel_options --snap $sn_name.snap --assertion $sn_name.assert"
+
+  # if we are only using preinstalled/acked snaps/assertions, then we have to
+  # use the --offline flag to indicate that we want to use already installed
+  # snaps
+  if [ "${USE_INSTALLED_ESSENTIAL_SNAPS}" = 'true' ] && [ "${USE_INSTALLED_VSET}" = 'true' ] && [ "${USE_INSTALLED_APP}" = 'true' ]; then
+      remodel_options="$remodel_options --offline"
+  fi
+
+  # install/download new bases required for the new model
+  for sn_name in core22 core; do
+      if [ "${USE_INSTALLED_ESSENTIAL_SNAPS}" = 'true' ]; then
+          remote.exec "snap install ${sn_name}"
+      else
+          remote.exec "snap download --basename=${sn_name} ${sn_name}"
+          remodel_options="$remodel_options --snap ${sn_name}.snap --assertion ${sn_name}.assert"
+      fi
   done
 
-  for sn_name in core22 hello-world core; do
-      remote.exec "snap download --basename=${sn_name} ${sn_name}"
-      remodel_options="$remodel_options --snap ${sn_name}.snap --assertion ${sn_name}.assert"
-  done
+  # install/download app required for the new model
+  if [ "${USE_INSTALLED_APP}" = 'true' ]; then
+      remote.exec "snap install --revision=28 hello-world"
+  else
+      remote.exec "snap download --revision=28 --basename=hello-world hello-world"
+      remodel_options="$remodel_options --snap hello-world.snap --assertion hello-world.assert"
+  fi
 
+  # install/download new kernel and gadget required for the new model
+  if [ "${USE_INSTALLED_ESSENTIAL_SNAPS}" = 'true' ]; then
+      # Get specific revision to grab pc 22 with compatible gadget with the one
+      # in 20/stable.
+      # TODO update this code to use pc from 22/stable when it has min-size
+      # for the ubuntu-save partition
+      remote.exec "snap refresh --revision=148 pc"
+
+      # --no-wait here, since this should trigger a reboot
+      remote.exec "snap refresh --no-wait --channel=22/stable pc-kernel"
+
+      remote.wait-for reboot "$boot_id"
+      boot_id="$(tests.nested boot-id)"
+  else
+      remote.exec "snap download --revision=148 --basename=pc pc"
+      remodel_options="$remodel_options --snap pc.snap --assertion pc.assert"
+
+      remote.exec "snap download --channel=22/stable --basename=pc-kernel pc-kernel"
+      remodel_options="$remodel_options --snap pc-kernel.snap --assertion pc-kernel.assert"
+  fi
+
+  # ack/add new validation set assertion to CLI params
+  remote.push "$TESTSLIB/assertions/test-snapd-core22-required-vset.assert"
+  if [ "${USE_INSTALLED_VSET}" = 'true' ]; then
+      remote.exec "snap ack test-snapd-core22-required-vset.assert"
+  else
+      remodel_options="$remodel_options --assertion test-snapd-core22-required-vset.assert"
+  fi
 
   # Make sure we cannot access the store
   netplan_cfg=50-bad-gw.yaml
