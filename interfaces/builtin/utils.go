@@ -20,12 +20,10 @@
 package builtin
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
-	"sort"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -34,44 +32,6 @@ import (
 
 // The maximum number of Usb bInterfaceNumber.
 const UsbMaxInterfaces = 32
-
-// labelExpr returns the specification of the apparmor label describing
-// given apps and hooks. The result has one of three forms,
-// depending on how apps are bound to the slot:
-//
-// - "snap.$snap_instance.$app" if there is exactly one app bound
-// - "snap.$snap_instance.{$app1,...$appN, $hook1...$hookN}" if there are some, but not all, apps/hooks bound
-// - "snap.$snap_instance.*" if all apps/hook are bound to the plug or slot
-func labelExpr(apps map[string]*snap.AppInfo, hooks map[string]*snap.HookInfo, snap *snap.Info) string {
-	var buf bytes.Buffer
-
-	names := make([]string, 0, len(apps)+len(hooks))
-	for appName := range apps {
-		names = append(names, appName)
-	}
-	for hookName := range hooks {
-		names = append(names, fmt.Sprintf("hook.%s", hookName))
-	}
-	sort.Strings(names)
-
-	fmt.Fprintf(&buf, `"snap.%s.`, snap.InstanceName())
-	if len(names) == 1 {
-		buf.WriteString(names[0])
-	} else if len(apps) == len(snap.Apps) && len(hooks) == len(snap.Hooks) {
-		buf.WriteByte('*')
-	} else if len(names) > 0 {
-		buf.WriteByte('{')
-		for _, name := range names {
-			buf.WriteString(name)
-			buf.WriteByte(',')
-		}
-		// remove trailing comma
-		buf.Truncate(buf.Len() - 1)
-		buf.WriteByte('}')
-	} // else: len(names)==0, gives "snap.<name>." that doesn't match anything
-	buf.WriteByte('"')
-	return buf.String()
-}
 
 // Determine if the permanent slot side is provided by the
 // system. Some implicit slots can be provided by the system or by an
