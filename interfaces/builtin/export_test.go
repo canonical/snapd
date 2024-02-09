@@ -34,7 +34,6 @@ var (
 	ResolveSpecialVariable      = resolveSpecialVariable
 	ImplicitSystemPermanentSlot = implicitSystemPermanentSlot
 	ImplicitSystemConnectedSlot = implicitSystemConnectedSlot
-	LabelExpr                   = labelExpr
 	AareExclusivePatterns       = aareExclusivePatterns
 	GetDesktopFileRules         = getDesktopFileRules
 	StringListAttribute         = stringListAttribute
