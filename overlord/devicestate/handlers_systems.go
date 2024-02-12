@@ -133,6 +133,8 @@ func purgeNewSystemSnapFiles(logfile string) error {
 }
 
 func snapsUniqueToRecoverySystem(target string, systems []*System) ([]*seed.Snap, error) {
+	// asserted snaps are shared by systems, figure out which ones are unique to
+	// the system we want to remove
 	requiredByOtherSystems := make(map[string]bool)
 	for _, sys := range systems {
 		if sys.Label == target {
@@ -155,7 +157,9 @@ func snapsUniqueToRecoverySystem(target string, systems []*System) ([]*seed.Snap
 		}
 
 		err = sd.Iter(func(sn *seed.Snap) error {
-			requiredByOtherSystems[sn.Path] = true
+			if sn.ID() != "" {
+				requiredByOtherSystems[sn.Path] = true
+			}
 			return nil
 		})
 		if err != nil {
@@ -180,7 +184,7 @@ func snapsUniqueToRecoverySystem(target string, systems []*System) ([]*seed.Snap
 
 	var uniqueToTarget []*seed.Snap
 	err = targetSeed.Iter(func(sn *seed.Snap) error {
-		if !requiredByOtherSystems[sn.Path] {
+		if sn.ID() != "" && !requiredByOtherSystems[sn.Path] {
 			uniqueToTarget = append(uniqueToTarget, sn)
 		}
 		return nil
