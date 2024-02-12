@@ -16,7 +16,6 @@ package daemon
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -24,7 +23,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
@@ -237,14 +235,24 @@ type noticeInfo struct {
 }
 
 func notice2noticeInfo(n *state.Notice) *noticeInfo {
-	raw, err := json.Marshal(n)
-	if err != nil {
-		logger.Panicf("internal error: cannot marshal notice: %v", err)
+	info := noticeInfo{
+		ID:            n.ID(),
+		Type:          string(n.Type()),
+		Key:           n.Key(),
+		FirstOccurred: n.FirstOccurred(),
+		LastOccurred:  n.LastOccurred(),
+		LastRepeated:  n.LastRepeated(),
+		Occurrences:   n.Occurrences(),
+		LastData:      n.LastData(),
 	}
-	var info noticeInfo
-	err = json.Unmarshal(raw, &info)
-	if err != nil {
-		logger.Panicf("internal error: cannot unmarshal notice: %v", err)
+	if n.RepeatAfter() != 0 {
+		info.RepeatAfter = n.RepeatAfter().String()
+	}
+	if n.ExpireAfter() != 0 {
+		info.ExpireAfter = n.ExpireAfter().String()
+	}
+	if userID, isSet := n.UserID(); isSet {
+		info.UserID = &userID
 	}
 	return &info
 }

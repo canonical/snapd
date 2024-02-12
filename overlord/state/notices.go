@@ -99,6 +99,11 @@ func (n *Notice) String() string {
 	return fmt.Sprintf("Notice %s (%s:%s:%s)", n.id, userIDStr, n.noticeType, n.key)
 }
 
+// ID is the unique ID for this notice.
+func (n *Notice) ID() string {
+	return n.id
+}
+
 // UserID returns the value of the notice's user ID and whether it is set.
 // If it is nil, then the returned userID is 0, and isSet is false.
 func (n *Notice) UserID() (userID uint32, isSet bool) {
@@ -114,16 +119,65 @@ func flattenUserID(userID *uint32) (uid uint32, isSet bool) {
 	return *userID, true
 }
 
+// Type represents a group of notices originating from a common source.
+func (n *Notice) Type() NoticeType {
+	return n.noticeType
+}
+
+// Key is a string that differentiates notices of the same type.
+func (n *Notice) Key() string {
+	return n.key
+}
+
+// FirstOccurred is the first time this notice occurs.
+func (n *Notice) FirstOccurred() time.Time {
+	return n.firstOccurred
+}
+
+// LastOccurred is the last time this notice occurred.
+func (n *Notice) LastOccurred() time.Time {
+	return n.lastOccurred
+}
+
+// LastRepeated is the time this notice was last "repeated".
+func (n *Notice) LastRepeated() time.Time {
+	return n.lastRepeated
+}
+
+// Occurrences is the number of times this notice has occurred.
+func (n *Notice) Occurrences() int {
+	return n.occurrences
+}
+
+// LastData is additional data captured from the last occurrence of this notice.
+func (n *Notice) LastData() map[string]string {
+	return n.lastData
+}
+
+// RepeatAfter is how long after this notice was last repeated should we allow
+// it to repeat.
+func (n *Notice) RepeatAfter() time.Duration {
+	return n.repeatAfter
+}
+
+// ExpireAfter is how long since this notice last occurred until we should drop it.
+func (n *Notice) ExpireAfter() time.Duration {
+	return n.expireAfter
+}
+
 // expired reports whether this notice has expired (relative to the given "now").
 func (n *Notice) expired(now time.Time) bool {
 	return n.lastOccurred.Add(n.expireAfter).Before(now)
 }
 
-func (n *Notice) GetRepeatCheckValue(v interface{}) error {
+// GetRepeatCheckValue gets current RepeatCheckData.
+//
+// NOTE: "value" must be JSON unmarshallable.
+func (n *Notice) GetRepeatCheckValue(value interface{}) error {
 	if n.repeatCheckData == nil {
 		return ErrNoState
 	}
-	if err := json.Unmarshal(*n.repeatCheckData, v); err != nil {
+	if err := json.Unmarshal(*n.repeatCheckData, value); err != nil {
 		return fmt.Errorf("internal error: could not unmarshal RepeatCheckData: %v", err)
 	}
 	return nil

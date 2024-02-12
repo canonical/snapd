@@ -102,8 +102,26 @@ func (s *noticesSuite) TestUnmarshal(c *C) {
 	err := json.Unmarshal(noticeJSON, &notice)
 	c.Assert(err, IsNil)
 
-	// The Notice fields aren't exported, so we need to marshal it into JSON
-	// and then unmarshal it into a map to test.
+	c.Check(notice.ID(), Equals, "1")
+	userID, isSet := notice.UserID()
+	c.Assert(isSet, Equals, true)
+	c.Check(userID, Equals, uint32(1000))
+	c.Check(notice.Type(), Equals, state.ChangeUpdateNotice)
+	c.Check(notice.Key(), Equals, "123")
+	c.Check(notice.FirstOccurred(), Equals, time.Date(2023, 9, 1, 5, 23, 1, 0, time.UTC))
+	c.Check(notice.LastOccurred(), Equals, time.Date(2023, 9, 1, 7, 23, 2, 0, time.UTC))
+	c.Check(notice.LastRepeated(), Equals, time.Date(2023, 9, 1, 6, 23, 3, 123456789, time.UTC))
+	c.Check(notice.Occurrences(), Equals, 2)
+	c.Check(notice.LastData(), DeepEquals, map[string]string{"k": "v"})
+	c.Check(notice.RepeatAfter(), Equals, time.Hour)
+	c.Check(notice.ExpireAfter(), Equals, 168*time.Hour)
+	var repeatCheckData map[string]any
+	c.Assert(notice.GetRepeatCheckValue(&repeatCheckData), IsNil)
+	c.Check(repeatCheckData, DeepEquals, map[string]any{
+		"test": map[string]any{"k": "v"},
+	})
+
+	// Check that the notice marshel back to JSON as expected
 	n := noticeToMap(c, notice)
 	c.Assert(n, DeepEquals, map[string]any{
 		"id":             "1",
@@ -341,7 +359,8 @@ func (s *noticesSuite) TestRepeatNoRepeatCheckData(c *C) {
 			repeatCheckCalled++
 
 			var value string
-			c.Check(oldNotice.GetRepeatCheckValue(&value), Equals, state.ErrNoState)
+			err := oldNotice.GetRepeatCheckValue(&value)
+			c.Check(errors.Is(err, state.ErrNoState), Equals, true)
 
 			return nil
 		},
