@@ -39,13 +39,13 @@ func New(s *state.State) Interface {
 	notifyRequest := func(userID uint32, requestID string, options *state.AddNoticeOptions) error {
 		s.Lock()
 		defer s.Unlock()
-		_, err := s.AddNotice(&userID, state.PromptingRequestNotice, requestID, options)
+		_, err := s.AddNotice(&userID, state.RequestsPromptNotice, requestID, options)
 		return err
 	}
 	notifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
 		s.Lock()
 		defer s.Unlock()
-		_, err := s.AddNotice(&userID, state.PromptingRuleUpdateNotice, ruleID, options)
+		_, err := s.AddNotice(&userID, state.RequestsRuleUpdateNotice, ruleID, options)
 		return err
 	}
 	p := &Prompting{
