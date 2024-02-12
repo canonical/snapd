@@ -113,7 +113,7 @@ parts:
       - liblzma5
     stage:
       - lib/*
-  # Needed by squashfs-tools and fc-cache
+  # Needed by squashfs-tools
   zlib:
     plugin: nil
     stage-packages:
@@ -143,28 +143,6 @@ parts:
       if [ "$(readlink -f lib64/ld64.so.2)" = "/lib/powerpc64le-linux-gnu/ld-2.23.so" ]; then
           ln -f -s ../lib/powerpc64le-linux-gnu/ld-2.23.so lib64/ld64.so.2
       fi
-  # the version in Ubuntu 16.04 (cache v6)
-  fontconfig-xenial:
-    plugin: nil
-    build-packages: [python3-apt]
-    source: https://github.com/snapcore/fc-cache-static-builder.git
-    override-build: |
-      ./build-from-security.py xenial
-      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
-      cp -a fc-cache-xenial $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v6
-    prime:
-      - bin/fc-cache-v6
-  # the version in Ubuntu 18.04 (cache v7)
-  fontconfig-bionic:
-    plugin: nil
-    build-packages: [python3-apt]
-    source: https://github.com/snapcore/fc-cache-static-builder.git
-    override-build: |
-      ./build-from-security.py bionic
-      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
-      cp -a fc-cache-bionic $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v7
-    prime:
-      - bin/fc-cache-v7
   apparmor:
     plugin: autotools
     build-packages: [bison, flex, gettext, g++, pkg-config, wget]
