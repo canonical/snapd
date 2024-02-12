@@ -151,9 +151,6 @@ func currentSystemForMode(st *state.State, mode string) (*currentSystem, error) 
 }
 
 func currentSeededSystem(st *state.State) (*seededSystem, error) {
-	st.Lock()
-	defer st.Unlock()
-
 	var whatseeded []seededSystem
 	if err := st.Get("seeded-systems", &whatseeded); err != nil {
 		return nil, err

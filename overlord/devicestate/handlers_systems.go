@@ -197,14 +197,14 @@ func snapsUniqueToRecoverySystem(target string, systems []*System) ([]string, er
 }
 
 func (m *DeviceManager) doRemoveRecoverySystem(t *state.Task, _ *tomb.Tomb) error {
-	systems, err := m.Systems()
-	if err != nil {
-		return fmt.Errorf("cannot get recovery systems: %w", err)
-	}
-
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
+
+	systems, err := m.systems()
+	if err != nil {
+		return fmt.Errorf("cannot get recovery systems: %w", err)
+	}
 
 	setup, err := taskRemoveRecoverySystemSetup(t)
 	if err != nil {

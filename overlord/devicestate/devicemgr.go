@@ -2060,8 +2060,20 @@ var ErrNoSystems = errors.New("no systems seeds")
 // Systems list the available recovery/seeding systems. Returns the list of
 // systems, ErrNoSystems when no systems seeds were found or other error.
 func (m *DeviceManager) Systems() ([]*System, error) {
-	// it's tough luck when we cannot determine the current system seed
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	// currently we hold the lock for the entire duration of this method. this
+	// should be fine for now, since we aren't calling LoadMeta on any of the
+	// seeds that m.systems operates on. if that changes, when we might need to
+	// rethink the locking strategy here.
+	return m.systems()
+}
+
+func (m *DeviceManager) systems() ([]*System, error) {
 	systemMode := m.SystemMode(SysAny)
+
+	// it's tough luck when we cannot determine the current system seed
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
 
 	systemLabels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*"))
@@ -2078,8 +2090,8 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 		label := filepath.Base(fpLabel)
 		system, err := systemFromSeed(label, currentSys)
 		if err != nil {
-			// TODO:UC20 add a Broken field to the seed system like
-			// we do for snap.Info
+			// TODO:UC20 add a Broken field to the seed system like we do for
+			// snap.Info
 			logger.Noticef("cannot load system %q seed: %v", label, err)
 			continue
 		}
@@ -2136,7 +2148,9 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 
 	// get current system as input for loadSeedAndSystem()
 	systemMode := m.SystemMode(SysAny)
+	m.state.Lock()
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
+	m.state.Unlock()
 
 	s, sys, err := loadSeedAndSystem(wantedSystemLabel, currentSys)
 	if err != nil {
@@ -2210,7 +2224,9 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 	// no systemLabel means "current" so get the current system label
 	if systemLabel == "" {
 		systemMode := m.SystemMode(SysAny)
+		m.state.Lock()
 		currentSys, err := currentSystemForMode(m.state, systemMode)
+		m.state.Unlock()
 		if err != nil {
 			return fmt.Errorf("cannot get current system: %v", err)
 		}
@@ -2259,7 +2275,9 @@ func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSyst
 	// make sure that currentSys == nil does not break
 	// the code below!
 	// TODO: should we log the error?
+	m.state.Lock()
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
+	m.state.Unlock()
 
 	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
 	if _, err := os.Stat(systemSeedDir); err != nil {
