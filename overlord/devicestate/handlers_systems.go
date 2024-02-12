@@ -48,12 +48,12 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-func taskRemoveRecoverySystemSetup(t *state.Task) (removeRecoverySystemSetup, error) {
+func taskRemoveRecoverySystemSetup(t *state.Task) (*removeRecoverySystemSetup, error) {
 	var setup removeRecoverySystemSetup
 	if err := t.Get("remove-recovery-system-setup", &setup); err != nil {
-		return removeRecoverySystemSetup{}, err
+		return nil, err
 	}
-	return setup, nil
+	return &setup, nil
 }
 
 func taskRecoverySystemSetup(t *state.Task) (*recoverySystemSetup, error) {
