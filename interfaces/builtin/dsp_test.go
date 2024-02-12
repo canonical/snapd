@@ -107,7 +107,7 @@ func (s *dspSuite) TestUDevConnectedPlugAmbarella(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 6)
 	c.Assert(spec.Snippets(), testutil.Contains, `# dsp
 KERNEL=="iav", TAG+="snap_my-device_svc"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_my-device_svc", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_my-device_svc $devpath $major:$minor"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_my-device_svc", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_my-device_svc"`, dirs.DistroLibExecDir))
 }
 
 func (s *dspSuite) TestUDevConnectedPlugNoFlavor(c *C) {

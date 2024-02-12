@@ -266,7 +266,7 @@ func (s *HidrawInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
 SUBSYSTEM=="hidraw", KERNEL=="hidraw0", TAG+="snap_client-snap_app-accessing-2-devices"`
 	c.Assert(snippet, Equals, expectedSnippet1)
 	extraSnippet := spec.Snippets()[1]
-	expectedExtraSnippet1 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-2-devices", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-2-devices $devpath $major:$minor"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet1 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-2-devices", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-2-devices"`, dirs.DistroLibExecDir)
 	c.Assert(extraSnippet, Equals, expectedExtraSnippet1)
 
 	// add the plug for the first slot with vendor and product ids
@@ -279,7 +279,7 @@ IMPORT{builtin}="usb_id"
 SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", TAG+="snap_client-snap_app-accessing-2-devices"`
 	c.Assert(snippet, Equals, expectedSnippet2)
 	extraSnippet = spec.Snippets()[1]
-	expectedExtraSnippet2 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-2-devices", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-2-devices $devpath $major:$minor"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet2 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-2-devices", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-2-devices"`, dirs.DistroLibExecDir)
 	c.Assert(extraSnippet, Equals, expectedExtraSnippet2)
 
 	// add the plug for the second slot with vendor and product ids
@@ -292,7 +292,7 @@ IMPORT{builtin}="usb_id"
 SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", TAG+="snap_client-snap_app-accessing-2-devices"`
 	c.Assert(snippet, Equals, expectedSnippet3)
 	extraSnippet = spec.Snippets()[1]
-	expectedExtraSnippet3 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-2-devices", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-2-devices $devpath $major:$minor"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet3 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-2-devices", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-2-devices"`, dirs.DistroLibExecDir)
 	c.Assert(extraSnippet, Equals, expectedExtraSnippet3)
 }
 
@@ -325,7 +325,7 @@ func (s *HidrawInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 func (s *HidrawInterfaceSuite) TestConnectedPlugUDevSnippetsForPath(c *C) {
 	expectedSnippet1 := `# hidraw
 SUBSYSTEM=="hidraw", KERNEL=="hidraw0", TAG+="snap_client-snap_app-accessing-2-devices"`
-	expectedExtraSnippet1 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-2-devices", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-2-devices $devpath $major:$minor"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet1 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-2-devices", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-2-devices"`, dirs.DistroLibExecDir)
 	udevSpec := &udev.Specification{}
 	err := udevSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testSlot1)
 	c.Assert(err, IsNil)
@@ -338,7 +338,7 @@ SUBSYSTEM=="hidraw", KERNEL=="hidraw0", TAG+="snap_client-snap_app-accessing-2-d
 	expectedSnippet2 := `# hidraw
 IMPORT{builtin}="usb_id"
 SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", TAG+="snap_client-snap_app-accessing-2-devices"`
-	expectedExtraSnippet2 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-2-devices", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-2-devices $devpath $major:$minor"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet2 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-2-devices", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-2-devices"`, dirs.DistroLibExecDir)
 	udevSpec = &udev.Specification{}
 	err = udevSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1)
 	c.Assert(err, IsNil)
@@ -351,7 +351,7 @@ SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct
 	expectedSnippet3 := `# hidraw
 IMPORT{builtin}="usb_id"
 SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", TAG+="snap_client-snap_app-accessing-2-devices"`
-	expectedExtraSnippet3 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-2-devices", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-2-devices $devpath $major:$minor"`, dirs.DistroLibExecDir)
+	expectedExtraSnippet3 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-2-devices", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-2-devices"`, dirs.DistroLibExecDir)
 	udevSpec = &udev.Specification{}
 	err = udevSpec.AddConnectedPlug(s.iface, s.testPlugPort2, s.testUDev2)
 	c.Assert(err, IsNil)

@@ -168,8 +168,7 @@ type Bundle struct {
 	aspects map[string]*Aspect
 }
 
-// NewBundle returns a new aspect bundle for the specified aspects
-// and access patterns.
+// NewBundle returns a new aspect bundle with the specified aspects and their rules.
 func NewBundle(account string, bundleName string, aspects map[string]interface{}, schema Schema) (*Bundle, error) {
 	if len(aspects) == 0 {
 		return nil, errors.New(`cannot define aspects bundle: no aspects`)
@@ -183,14 +182,17 @@ func NewBundle(account string, bundleName string, aspects map[string]interface{}
 	}
 
 	for name, v := range aspects {
-		accessPatterns, ok := v.([]interface{})
-		if !ok {
-			return nil, fmt.Errorf("cannot define aspect %q: access patterns should be a list of maps", name)
-		} else if len(accessPatterns) == 0 {
-			return nil, fmt.Errorf("cannot define aspect %q: no access patterns found", name)
+		aspectMap, ok := v.(map[string]interface{})
+		if !ok || len(aspectMap) == 0 {
+			return nil, fmt.Errorf("cannot define aspect %q: aspect must be non-empty map", name)
 		}
 
-		aspect, err := newAspect(aspectBundle, name, accessPatterns)
+		rules, ok := aspectMap["rules"].([]interface{})
+		if !ok || len(rules) == 0 {
+			return nil, fmt.Errorf("cannot define aspect %q: aspect rules must be non-empty list", name)
+		}
+
+		aspect, err := newAspect(aspectBundle, name, rules)
 		if err != nil {
 			return nil, fmt.Errorf("cannot define aspect %q: %w", name, err)
 		}
@@ -201,23 +203,23 @@ func NewBundle(account string, bundleName string, aspects map[string]interface{}
 	return aspectBundle, nil
 }
 
-func newAspect(bundle *Bundle, name string, aspectPatterns []interface{}) (*Aspect, error) {
+func newAspect(bundle *Bundle, name string, aspectRules []interface{}) (*Aspect, error) {
 	aspect := &Aspect{
-		Name:           name,
-		accessPatterns: make([]*accessPattern, 0, len(aspectPatterns)),
-		bundle:         bundle,
+		Name:        name,
+		aspectRules: make([]*aspectRule, 0, len(aspectRules)),
+		bundle:      bundle,
 	}
 
 	readRequests := make(map[string]bool)
-	for _, aspectPatternRaw := range aspectPatterns {
-		aspectPattern, ok := aspectPatternRaw.(map[string]interface{})
+	for _, ruleRaw := range aspectRules {
+		aspectRule, ok := ruleRaw.(map[string]interface{})
 		if !ok {
-			return nil, errors.New("each access pattern should be a map")
+			return nil, errors.New("each aspect rule should be a map")
 		}
 
-		requestRaw, ok := aspectPattern["request"]
+		requestRaw, ok := aspectRule["request"]
 		if !ok || requestRaw == "" {
-			return nil, errors.New(`access patterns must have a "request" field`)
+			return nil, errors.New(`aspect rules must have a "request" field`)
 		}
 
 		request, ok := requestRaw.(string)
@@ -225,9 +227,9 @@ func newAspect(bundle *Bundle, name string, aspectPatterns []interface{}) (*Aspe
 			return nil, errors.New(`"request" must be a string`)
 		}
 
-		storageRaw, ok := aspectPattern["storage"]
+		storageRaw, ok := aspectRule["storage"]
 		if !ok || storageRaw == "" {
-			return nil, errors.New(`access patterns must have a "storage" field`)
+			return nil, errors.New(`aspect rules must have a "storage" field`)
 		}
 
 		storage, ok := storageRaw.(string)
@@ -239,7 +241,7 @@ func newAspect(bundle *Bundle, name string, aspectPatterns []interface{}) (*Aspe
 			return nil, err
 		}
 
-		accessRaw, ok := aspectPattern["access"]
+		accessRaw, ok := aspectRule["access"]
 		var access string
 		if ok {
 			access, ok = accessRaw.(string)
@@ -256,12 +258,12 @@ func newAspect(bundle *Bundle, name string, aspectPatterns []interface{}) (*Aspe
 			readRequests[request] = true
 		}
 
-		accPattern, err := newAccessPattern(request, storage, access)
+		rule, err := newAspectRule(request, storage, access)
 		if err != nil {
 			return nil, err
 		}
 
-		aspect.accessPatterns = append(aspect.accessPatterns, accPattern)
+		aspect.aspectRules = append(aspect.aspectRules, rule)
 	}
 
 	return aspect, nil
@@ -357,11 +359,11 @@ func (d *Bundle) Aspect(aspect string) *Aspect {
 	return d.aspects[aspect]
 }
 
-// Aspect is a group of access patterns under a bundle.
+// Aspect carries access rules for a particular aspect in a bundle.
 type Aspect struct {
-	Name           string
-	accessPatterns []*accessPattern
-	bundle         *Bundle
+	Name        string
+	aspectRules []*aspectRule
+	bundle      *Bundle
 }
 
 type expandedMatch struct {
@@ -384,17 +386,17 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 
 	var matches []requestMatch
 	subkeys := strings.Split(request, ".")
-	for _, accessPatt := range a.accessPatterns {
-		placeholders, suffixParts, ok := accessPatt.match(subkeys)
+	for _, rule := range a.aspectRules {
+		placeholders, suffixParts, ok := rule.match(subkeys)
 		if !ok {
 			continue
 		}
 
-		if !accessPatt.isWriteable() {
+		if !rule.isWriteable() {
 			continue
 		}
 
-		path, err := accessPatt.storagePath(placeholders)
+		path, err := rule.storagePath(placeholders)
 		if err != nil {
 			return err
 		}
@@ -412,7 +414,7 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 		matches = append(matches, requestMatch{
 			storagePath: path,
 			suffixParts: suffixParts,
-			request:     accessPatt.originalRequest,
+			request:     rule.originalRequest,
 		})
 	}
 
@@ -746,25 +748,25 @@ type requestMatch struct {
 // prefix of. If no match is found, a NotFoundError is returned.
 func (a *Aspect) matchGetRequest(request string) (matches []requestMatch, err error) {
 	subkeys := strings.Split(request, ".")
-	for _, accessPatt := range a.accessPatterns {
-		placeholders, restSuffix, ok := accessPatt.match(subkeys)
+	for _, rule := range a.aspectRules {
+		placeholders, restSuffix, ok := rule.match(subkeys)
 		if !ok {
 			continue
 		}
 
-		path, err := accessPatt.storagePath(placeholders)
+		path, err := rule.storagePath(placeholders)
 		if err != nil {
 			return nil, err
 		}
 
-		if !accessPatt.isReadable() {
+		if !rule.isReadable() {
 			continue
 		}
 
 		m := requestMatch{
 			storagePath: path,
 			suffixParts: restSuffix,
-			request:     accessPatt.originalRequest,
+			request:     rule.originalRequest,
 		}
 		matches = append(matches, m)
 	}
@@ -792,10 +794,10 @@ func (a *Aspect) matchGetRequest(request string) (matches []requestMatch, err er
 	return matches, nil
 }
 
-func newAccessPattern(request, storage, accesstype string) (*accessPattern, error) {
+func newAspectRule(request, storage, accesstype string) (*aspectRule, error) {
 	accType, err := newAccessType(accesstype)
 	if err != nil {
-		return nil, fmt.Errorf("cannot create aspect pattern: %w", err)
+		return nil, fmt.Errorf("cannot create aspect rule: %w", err)
 	}
 
 	requestSubkeys := strings.Split(request, ".")
@@ -824,7 +826,7 @@ func newAccessPattern(request, storage, accesstype string) (*accessPattern, erro
 		pathWriters = append(pathWriters, patt)
 	}
 
-	return &accessPattern{
+	return &aspectRule{
 		originalRequest: request,
 		request:         requestMatchers,
 		storage:         pathWriters,
@@ -836,10 +838,10 @@ func isPlaceholder(part string) bool {
 	return part[0] == '{' && part[len(part)-1] == '}'
 }
 
-// accessPattern represents an individual aspect access pattern. It can be used
-// to match a request and map it into a corresponding storage, potentially with
+// aspectRule represents an individual aspect rule. It can be used to match a
+// request and map it into a corresponding storage path, potentially with
 // placeholders filled in.
-type accessPattern struct {
+type aspectRule struct {
 	originalRequest string
 	request         []requestMatcher
 	storage         []storageWriter
@@ -849,7 +851,7 @@ type accessPattern struct {
 // match returns true if the subkeys match the pattern exactly or as a prefix.
 // If placeholders are "filled in" when matching, those are returned in a map.
 // If the subkeys match as a prefix, the remaining suffix is returned.
-func (p *accessPattern) match(reqSubkeys []string) (placeholders map[string]string, restSuffix []string, match bool) {
+func (p *aspectRule) match(reqSubkeys []string) (placeholders map[string]string, restSuffix []string, match bool) {
 	if len(p.request) < len(reqSubkeys) {
 		return nil, nil, false
 	}
@@ -870,7 +872,7 @@ func (p *accessPattern) match(reqSubkeys []string) (placeholders map[string]stri
 
 // storagePath takes a map of placeholders to their values in the aspect name and
 // returns the path with its placeholder values filled in with the map's values.
-func (p *accessPattern) storagePath(placeholders map[string]string) (string, error) {
+func (p *aspectRule) storagePath(placeholders map[string]string) (string, error) {
 	sb := &strings.Builder{}
 
 	for _, subkey := range p.storage {
@@ -889,11 +891,11 @@ func (p *accessPattern) storagePath(placeholders map[string]string) (string, err
 	return sb.String(), nil
 }
 
-func (p accessPattern) isReadable() bool {
+func (p aspectRule) isReadable() bool {
 	return p.access == readWrite || p.access == read
 }
 
-func (p accessPattern) isWriteable() bool {
+func (p aspectRule) isWriteable() bool {
 	return p.access == readWrite || p.access == write
 }
 

@@ -106,7 +106,7 @@ func (s *sdControlSuite) TestUDevConnectedPlugDualSD(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# sd-control
 KERNEL=="DualSD", TAG+="snap_my-device_svc"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_my-device_svc", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_my-device_svc $devpath $major:$minor"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_my-device_svc", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_my-device_svc"`, dirs.DistroLibExecDir))
 }
 
 func (s *sdControlSuite) TestUDevConnectedPlugNoFlavor(c *C) {

@@ -212,7 +212,7 @@ KERNEL=="tty[a-zA-Z]*[0-9]*|cdc-wdm[0-9]*", TAG+="snap_ofono_app"`)
 KERNEL=="tun", TAG+="snap_ofono_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# ofono
 KERNEL=="dsp", TAG+="snap_ofono_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_ofono_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_ofono_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_ofono_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_ofono_app"`, dirs.DistroLibExecDir))
 }
 
 func (s *OfonoInterfaceSuite) TestInterfaces(c *C) {

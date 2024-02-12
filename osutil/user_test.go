@@ -40,6 +40,7 @@ type createUserSuite struct {
 	restorer func()
 
 	mockAddUser *testutil.MockCmd
+	mockUserAdd *testutil.MockCmd
 	mockUserMod *testutil.MockCmd
 	mockPasswd  *testutil.MockCmd
 }
@@ -60,6 +61,7 @@ func (s *createUserSuite) SetUpTest(c *check.C) {
 		}, nil
 	})
 	s.mockAddUser = testutil.MockCommand(c, "adduser", "")
+	s.mockUserAdd = testutil.MockCommand(c, "useradd", "")
 	s.mockUserMod = testutil.MockCommand(c, "usermod", "")
 	s.mockPasswd = testutil.MockCommand(c, "passwd", "")
 }
@@ -67,11 +69,15 @@ func (s *createUserSuite) SetUpTest(c *check.C) {
 func (s *createUserSuite) TearDownTest(c *check.C) {
 	s.restorer()
 	s.mockAddUser.Restore()
+	s.mockUserAdd.Restore()
 	s.mockUserMod.Restore()
 	s.mockPasswd.Restore()
 }
 
 func (s *createUserSuite) TestAddUserExtraUsersFalse(c *check.C) {
+	r := osutil.MockhasAddUserExecutable(func() bool { return true })
+	defer r()
+
 	err := osutil.AddUser("lakatos", &osutil.AddUserOptions{
 		Gecos:      "my gecos",
 		ExtraUsers: false,
@@ -83,7 +89,25 @@ func (s *createUserSuite) TestAddUserExtraUsersFalse(c *check.C) {
 	})
 }
 
+func (s *createUserSuite) TestUserAddExtraUsersFalse(c *check.C) {
+	r := osutil.MockhasAddUserExecutable(func() bool { return false })
+	defer r()
+
+	err := osutil.AddUser("lakatos", &osutil.AddUserOptions{
+		Gecos:      "my gecos",
+		ExtraUsers: false,
+	})
+	c.Assert(err, check.IsNil)
+
+	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string{
+		{"useradd", "--comment", "my gecos", "--create-home", "--shell", "/bin/bash", "lakatos"},
+	})
+}
+
 func (s *createUserSuite) TestAddUserExtraUsersTrue(c *check.C) {
+	r := osutil.MockhasAddUserExecutable(func() bool { return true })
+	defer r()
+
 	err := osutil.AddUser("lakatos", &osutil.AddUserOptions{
 		Gecos:      "my gecos",
 		ExtraUsers: true,
@@ -95,7 +119,24 @@ func (s *createUserSuite) TestAddUserExtraUsersTrue(c *check.C) {
 	})
 }
 
+func (s *createUserSuite) TestUserAddExtraUsersTrue(c *check.C) {
+	r := osutil.MockhasAddUserExecutable(func() bool { return false })
+	defer r()
+
+	err := osutil.AddUser("lakatos", &osutil.AddUserOptions{
+		Gecos:      "my gecos",
+		ExtraUsers: true,
+	})
+	c.Assert(err, check.IsNil)
+
+	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string{
+		{"useradd", "--comment", "my gecos", "--create-home", "--shell", "/bin/bash", "--extrausers", "lakatos"},
+	})
+}
+
 func (s *createUserSuite) TestAddSudoUser(c *check.C) {
+	r := osutil.MockhasAddUserExecutable(func() bool { return true })
+	defer r()
 	mockSudoers := c.MkDir()
 	restorer := osutil.MockSudoersDotD(mockSudoers)
 	defer restorer()
@@ -123,6 +164,8 @@ karl.sagan ALL=(ALL) NOPASSWD:ALL
 }
 
 func (s *createUserSuite) TestAddUserSSHKeys(c *check.C) {
+	r := osutil.MockhasAddUserExecutable(func() bool { return true })
+	defer r()
 	err := osutil.AddUser("karl.sagan", &osutil.AddUserOptions{
 		SSHKeys: []string{"ssh-key1", "ssh-key2"},
 	})
@@ -132,11 +175,16 @@ func (s *createUserSuite) TestAddUserSSHKeys(c *check.C) {
 }
 
 func (s *createUserSuite) TestAddUserInvalidUsername(c *check.C) {
+	r := osutil.MockhasAddUserExecutable(func() bool { return true })
+	defer r()
 	err := osutil.AddUser("k!", nil)
 	c.Assert(err, check.ErrorMatches, `cannot add user "k!": name contains invalid characters`)
 }
 
 func (s *createUserSuite) TestAddUserWithPassword(c *check.C) {
+	r := osutil.MockhasAddUserExecutable(func() bool { return true })
+	defer r()
+
 	mockSudoers := c.MkDir()
 	restorer := osutil.MockSudoersDotD(mockSudoers)
 	defer restorer()
@@ -156,6 +204,9 @@ func (s *createUserSuite) TestAddUserWithPassword(c *check.C) {
 }
 
 func (s *createUserSuite) TestAddUserWithPasswordForceChange(c *check.C) {
+	r := osutil.MockhasAddUserExecutable(func() bool { return false })
+	defer r()
+
 	mockSudoers := c.MkDir()
 	restorer := osutil.MockSudoersDotD(mockSudoers)
 	defer restorer()
@@ -167,8 +218,8 @@ func (s *createUserSuite) TestAddUserWithPasswordForceChange(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	c.Check(s.mockAddUser.Calls(), check.DeepEquals, [][]string{
-		{"adduser", "--force-badname", "--gecos", "my gecos", "--disabled-password", "karl.popper"},
+	c.Check(s.mockUserAdd.Calls(), check.DeepEquals, [][]string{
+		{"useradd", "--comment", "my gecos", "--create-home", "--shell", "/bin/bash", "karl.popper"},
 	})
 	c.Check(s.mockUserMod.Calls(), check.DeepEquals, [][]string{
 		{"usermod", "--password", "$6$salt$hash", "karl.popper"},
@@ -179,6 +230,8 @@ func (s *createUserSuite) TestAddUserWithPasswordForceChange(c *check.C) {
 }
 
 func (s *createUserSuite) TestAddUserPasswordForceChangeUnhappy(c *check.C) {
+	r := osutil.MockhasAddUserExecutable(func() bool { return true })
+	defer r()
 	mockSudoers := c.MkDir()
 	restorer := osutil.MockSudoersDotD(mockSudoers)
 	defer restorer()
@@ -245,6 +298,9 @@ func (s *createUserSuite) TestUidGid(c *check.C) {
 }
 
 func (s *createUserSuite) TestAddUserUnhappy(c *check.C) {
+	r := osutil.MockhasAddUserExecutable(func() bool { return true })
+	defer r()
+
 	mockAddUser := testutil.MockCommand(c, "adduser", "echo some error; exit 1")
 	defer mockAddUser.Restore()
 
@@ -253,14 +309,24 @@ func (s *createUserSuite) TestAddUserUnhappy(c *check.C) {
 
 }
 
+func (s *createUserSuite) TestUserAddUnhappy(c *check.C) {
+	r := osutil.MockhasAddUserExecutable(func() bool { return false })
+	defer r()
+
+	mockUserAdd := testutil.MockCommand(c, "useradd", "echo some error; exit 1")
+	defer mockUserAdd.Restore()
+	err := osutil.AddUser("lakatos", nil)
+	c.Assert(err, check.ErrorMatches, "useradd failed with: some error")
+}
+
 var usernameTestCases = map[string]bool{
 	"a":       true,
 	"a-b":     true,
-	"a+b":     true,
+	"a+b":     false,
 	"a.b":     true,
 	"a_b":     true,
 	"1":       true,
-	"1+":      true,
+	"1+":      false,
 	"1.":      true,
 	"1_":      true,
 	"-":       false,
