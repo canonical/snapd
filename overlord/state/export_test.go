@@ -79,11 +79,3 @@ var (
 func (s *State) NumNotices() int {
 	return len(s.notices)
 }
-
-func (n *Notice) Get(k string, v interface{}) error {
-	return n.internalData.get(k, v)
-}
-
-func (n *Notice) Set(k string, v interface{}) {
-	n.internalData.set(k, v)
-}

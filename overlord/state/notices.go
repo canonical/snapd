@@ -21,6 +21,8 @@ import (
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 const (
@@ -83,8 +85,10 @@ type Notice struct {
 	// won't be tracked after it expires.
 	expireAfter time.Duration
 
-	// Internal data kept for stateful tracking throughout the notice's lifetime.
-	internalData customData
+	// Data used by AddNoticeOptions.RepeatCheck to update options
+	// dynamically based on existing state. It is kept for stateful tracking
+	// throughout the notice's lifetime.
+	repeatCheckData *json.RawMessage
 }
 
 func (n *Notice) String() string {
@@ -115,6 +119,29 @@ func (n *Notice) expired(now time.Time) bool {
 	return n.lastOccurred.Add(n.expireAfter).Before(now)
 }
 
+func (n *Notice) GetRepeatCheckValue(v interface{}) error {
+	if n.repeatCheckData == nil {
+		return ErrNoState
+	}
+	if err := json.Unmarshal(*n.repeatCheckData, v); err != nil {
+		return fmt.Errorf("internal error: could not unmarshal RepeatCheckData: %v", err)
+	}
+	return nil
+}
+
+func (n *Notice) setRepeatCheckValue(v interface{}) {
+	if v == nil {
+		// keep data
+		return
+	}
+	serialized, err := json.Marshal(v)
+	if err != nil {
+		logger.Panicf("internal error: could not marshal RepeatCheckData value: %v", err)
+	}
+	rawJson := json.RawMessage(serialized)
+	n.repeatCheckData = &rawJson
+}
+
 type marshalledNotice struct {
 	ID            string            `json:"id"`
 	UserID        *uint32           `json:"user-id"`
@@ -128,21 +155,21 @@ type marshalledNotice struct {
 	RepeatAfter   string            `json:"repeat-after,omitempty"`
 	ExpireAfter   string            `json:"expire-after,omitempty"`
 
-	InternalData map[string]*json.RawMessage `json:"internal-data,omitempty"`
+	RepeatCheckData *json.RawMessage `json:"repeat-check-data,omitempty"`
 }
 
 func (n *Notice) MarshalJSON() ([]byte, error) {
 	jn := marshalledNotice{
-		ID:            n.id,
-		UserID:        n.userID,
-		Type:          string(n.noticeType),
-		Key:           n.key,
-		FirstOccurred: n.firstOccurred,
-		LastOccurred:  n.lastOccurred,
-		LastRepeated:  n.lastRepeated,
-		Occurrences:   n.occurrences,
-		LastData:      n.lastData,
-		InternalData:  n.internalData,
+		ID:              n.id,
+		UserID:          n.userID,
+		Type:            string(n.noticeType),
+		Key:             n.key,
+		FirstOccurred:   n.firstOccurred,
+		LastOccurred:    n.lastOccurred,
+		LastRepeated:    n.lastRepeated,
+		Occurrences:     n.occurrences,
+		LastData:        n.lastData,
+		RepeatCheckData: n.repeatCheckData,
 	}
 	if n.repeatAfter != 0 {
 		jn.RepeatAfter = n.repeatAfter.String()
@@ -168,6 +195,7 @@ func (n *Notice) UnmarshalJSON(data []byte) error {
 	n.lastRepeated = jn.LastRepeated
 	n.occurrences = jn.Occurrences
 	n.lastData = jn.LastData
+	n.repeatCheckData = jn.RepeatCheckData
 	if jn.RepeatAfter != "" {
 		n.repeatAfter, err = time.ParseDuration(jn.RepeatAfter)
 		if err != nil {
@@ -180,11 +208,6 @@ func (n *Notice) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("invalid expire-after duration: %w", err)
 		}
 	}
-	custData := jn.InternalData
-	if custData == nil {
-		custData = make(customData)
-	}
-	n.internalData = custData
 	return nil
 }
 
@@ -220,28 +243,29 @@ type AddNoticeOptions struct {
 	// Time, if set, overrides time.Now() as the notice occurrence time.
 	Time time.Time
 
-	// RepeatCheck, if set, overrides "RepeatAfter" value dynamically based
-	// on the current state.
+	// RepeatCheckData is saved for stateful tracking throughout the notice's lifetime.
 	//
-	// NOTE: Set/Get operation on "data" are persisted and can be used
-	// for statful tracking throughout notice's lifetime.
-	RepeatCheck func(data InternalNoticeData) (newRepeatAfter time.Duration, err error)
+	// It is intended to be accessed through RepeatCheck callback through
+	// oldNotice.GetRepeatCheckValue().
+	//
+	// NOTES:
+	//	- RepeatCheckData must be JSON marshallable.
+	//	- Setting RepeatCheckData to nil doesn't remove old state.
+	RepeatCheckData interface{}
+
+	// RepeatCheck, if set, overrides options dynamically based on the current state
+	// through updating newNoticeOpts.
+	//
+	// NOTE: Current state is intended to be accessed through oldNotice.GetRepeatCheckValue().
+	RepeatCheck func(oldNotice *Notice, newNoticeOpts *AddNoticeOptions) error
 }
 
-type InternalNoticeData struct {
-	internalData customData
-}
-
-func (d InternalNoticeData) Get(k string, v interface{}) error {
-	return d.internalData.get(k, v)
-}
-
-func (d InternalNoticeData) Has(k string) bool {
-	return d.internalData.has(k)
-}
-
-func (d InternalNoticeData) Set(k string, v interface{}) {
-	d.internalData.set(k, v)
+func (o *AddNoticeOptions) now() time.Time {
+	now := o.Time
+	if now.IsZero() {
+		now = time.Now()
+	}
+	return now.UTC()
 }
 
 // AddNotice records an occurrence of a notice with the specified type and key
@@ -257,11 +281,7 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 
 	s.writing()
 
-	now := options.Time
-	if now.IsZero() {
-		now = time.Now()
-	}
-	now = now.UTC()
+	now := options.now()
 	newOrRepeated := false
 	uid, hasUserID := flattenUserID(userID)
 	uniqueKey := noticeKey{hasUserID, uid, noticeType, key}
@@ -278,20 +298,26 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 			lastRepeated:  now,
 			expireAfter:   defaultNoticeExpireAfter,
 			occurrences:   1,
-			internalData:  make(customData),
 		}
+		notice.setRepeatCheckValue(options.RepeatCheckData)
 		s.notices[uniqueKey] = notice
 		newOrRepeated = true
 	} else {
 		// Additional occurrence, update existing notice
 		notice.occurrences++
 		if options.RepeatCheck != nil {
-			repeatAfter, err := options.RepeatCheck(InternalNoticeData{notice.internalData})
+			if err := options.RepeatCheck(notice, options); err != nil {
+				return "", err
+			}
+			// Validate new options
+			err := validateNotice(noticeType, key, options)
 			if err != nil {
 				return "", err
 			}
-			options.RepeatAfter = repeatAfter
+			// Update time
+			now = options.now()
 		}
+		notice.setRepeatCheckValue(options.RepeatCheckData)
 		if options.RepeatAfter == 0 || now.After(notice.lastRepeated.Add(options.RepeatAfter)) {
 			// Update last repeated time if repeat-after time has elapsed (or is zero)
 			notice.lastRepeated = now
