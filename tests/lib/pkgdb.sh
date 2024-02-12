@@ -742,7 +742,6 @@ pkg_dependencies_amazon(){
             "
     fi
     echo "
-        curl
         dbus-x11
         expect
         fontconfig
