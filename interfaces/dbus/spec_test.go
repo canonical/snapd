@@ -90,15 +90,22 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	spec := dbus.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	var r interfaces.Specification = spec
 	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
-	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.snap1.app1": {"connected-plug", "permanent-plug"},
+	})
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.snap1.app1"})
+	c.Assert(spec.SnippetForTag("snap.snap1.app1"), Equals, "connected-plug\npermanent-plug\n")
+
+	spec = dbus.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap()))
+	r = spec
+	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.snap2.app2": {"connected-slot", "permanent-slot"},
 	})
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.snap1.app1", "snap.snap2.app2"})
-	c.Assert(spec.SnippetForTag("snap.snap1.app1"), Equals, "connected-plug\npermanent-plug\n")
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.snap2.app2"})
+	c.Assert(spec.SnippetForTag("snap.snap2.app2"), Equals, "connected-slot\npermanent-slot\n")
 
 	c.Assert(spec.SnippetForTag("non-existing"), Equals, "")
 }

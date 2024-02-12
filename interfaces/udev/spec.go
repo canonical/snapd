@@ -156,7 +156,12 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 	}
 	ifname := iface.Name()
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = spec.appSet.SecurityTagsForConnectedPlug(plug)
+		tags, err := spec.appSet.SecurityTagsForConnectedPlug(plug)
+		if err != nil {
+			return err
+		}
+
+		spec.securityTags = tags
 		spec.iface = ifname
 		defer func() { spec.securityTags = nil; spec.iface = "" }()
 		return iface.UDevConnectedPlug(spec, plug, slot)
@@ -171,7 +176,12 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 	}
 	ifname := iface.Name()
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = spec.appSet.SecurityTagsForConnectedSlot(slot)
+		tags, err := spec.appSet.SecurityTagsForConnectedSlot(slot)
+		if err != nil {
+			return err
+		}
+
+		spec.securityTags = tags
 		spec.iface = ifname
 		defer func() { spec.securityTags = nil; spec.iface = "" }()
 		return iface.UDevConnectedSlot(spec, plug, slot)
@@ -186,7 +196,12 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 	}
 	ifname := iface.Name()
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = spec.appSet.SecurityTagsForPlug(plug)
+		tags, err := spec.appSet.SecurityTagsForPlug(plug)
+		if err != nil {
+			return err
+		}
+
+		spec.securityTags = tags
 		spec.iface = ifname
 		defer func() { spec.securityTags = nil; spec.iface = "" }()
 		return iface.UDevPermanentPlug(spec, plug)
@@ -201,7 +216,12 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 	}
 	ifname := iface.Name()
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = spec.appSet.SecurityTagsForSlot(slot)
+		tags, err := spec.appSet.SecurityTagsForSlot(slot)
+		if err != nil {
+			return err
+		}
+
+		spec.securityTags = tags
 		spec.iface = ifname
 		defer func() { spec.securityTags = nil; spec.iface = "" }()
 		return iface.UDevPermanentSlot(spec, slot)

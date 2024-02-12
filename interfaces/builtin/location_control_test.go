@@ -120,42 +120,64 @@ func (s *LocationControlInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSom
 
 // The label uses short form when exactly one app is bound to the location slot
 func (s *LocationControlInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
-	app := &snap.AppInfo{Name: "app"}
+	snapInfo := &snap.Info{
+		SuggestedName: "location",
+		Apps:          map[string]*snap.AppInfo{"app": {Name: "app"}},
+	}
+	for _, a := range snapInfo.Apps {
+		a.Snap = snapInfo
+	}
+
 	slot := interfaces.NewConnectedSlot(&snap.SlotInfo{
-		Snap: &snap.Info{
-			SuggestedName: "location",
-			Apps:          map[string]*snap.AppInfo{"app": app},
-		},
+		Snap:      snapInfo,
 		Name:      "location",
 		Interface: "location",
-		Apps:      map[string]*snap.AppInfo{"app": app},
+		Apps:      map[string]*snap.AppInfo{"app": snapInfo.Apps["app"]},
 	}, nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	plug := interfaces.NewConnectedPlug(&snap.PlugInfo{
+		Snap:      snapInfo,
+		Name:      "location",
+		Interface: "location",
+		Apps:      map[string]*snap.AppInfo{"app": snapInfo.Apps["app"]},
+	}, nil, nil)
+
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.location-consumer.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.location-consumer.app"), testutil.Contains, `peer=(label="snap.location.app"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.location.app"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.location.app"), testutil.Contains, `peer=(label="snap.location.app"),`)
 }
 
 // The label glob when all apps are bound to the location plug
 func (s *LocationControlInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
-	app1 := &snap.AppInfo{Name: "app1"}
-	app2 := &snap.AppInfo{Name: "app2"}
+	snapInfo := &snap.Info{
+		SuggestedName: "location",
+		Apps:          map[string]*snap.AppInfo{"app1": {Name: "app1"}, "app2": {Name: "app2"}},
+	}
+	for _, a := range snapInfo.Apps {
+		a.Snap = snapInfo
+	}
+
 	plug := interfaces.NewConnectedPlug(&snap.PlugInfo{
-		Snap: &snap.Info{
-			SuggestedName: "location",
-			Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-		},
+		Snap:      snapInfo,
 		Name:      "location",
 		Interface: "location",
-		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+		Apps:      map[string]*snap.AppInfo{"app1": snapInfo.Apps["app1"], "app2": snapInfo.Apps["app2"]},
 	}, nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap()))
-	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
+	slot := interfaces.NewConnectedSlot(&snap.SlotInfo{
+		Snap:      snapInfo,
+		Name:      "location",
+		Interface: "location",
+		Apps:      map[string]*snap.AppInfo{"app1": snapInfo.Apps["app1"], "app2": snapInfo.Apps["app2"]},
+	}, nil, nil)
+
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(slot.Snap()))
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, slot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.location.app2"})
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.location.app1", "snap.location.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.location.app1"), testutil.Contains, `peer=(label="snap.location.*"),`)
 	c.Assert(apparmorSpec.SnippetForTag("snap.location.app2"), testutil.Contains, `peer=(label="snap.location.*"),`)
 }
 

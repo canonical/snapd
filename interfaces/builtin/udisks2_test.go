@@ -206,12 +206,15 @@ func (s *UDisks2InterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label="snap.consumer.{app1,app2}"),`)
 
 	// permanent slot have a non-nil security snippet for apparmor
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
+	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
+	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label=unconfined),`)
+
 	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.producer.app"})
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.app"),`)
-	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label=unconfined),`)
 }
 
 func (s *UDisks2InterfaceSuite) TestAppArmorSpecOnClassic(c *C) {
@@ -244,6 +247,8 @@ func (s *UDisks2InterfaceSuite) TestDBusSpecOnClassic(c *C) {
 	spec := dbus.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
+
+	spec = dbus.NewSpecification(interfaces.NewSnapAppSet(s.classicSlotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }

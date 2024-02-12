@@ -237,26 +237,29 @@ func (s *QrtrInterfaceSuite) TestSanitizePlugConnectionMissingAppArmorSandboxFea
 func (s *QrtrInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client.app", "snap.server.app"})
-
-	c.Assert(spec.SnippetForTag("snap.client.app"), testutil.Contains, "network qipcrtr,\n")
-	c.Assert(spec.SnippetForTag("snap.client.app"), Not(testutil.Contains), "capability net_admin,\n")
-	c.Assert(spec.SnippetForTag("snap.client.app"), testutil.Contains, `unix (connect, send, receive) type=seqpacket addr="@\x00\x00" peer=(label="snap.server.app"),`)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.server.app"})
 
 	c.Assert(spec.SnippetForTag("snap.server.app"), testutil.Contains, "network qipcrtr,\n")
 	c.Assert(spec.SnippetForTag("snap.server.app"), testutil.Contains, "capability net_admin,\n")
 	c.Assert(spec.SnippetForTag("snap.server.app"), testutil.Contains, `unix (accept, send, receive) type=seqpacket addr="@\x00\x00" peer=(label="snap.client.app"),`)
 	c.Assert(spec.SnippetForTag("snap.server.app"), testutil.Contains, `unix (bind, listen) type=seqpacket addr="@\x00\x00",`)
+
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap))
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client.app"})
+
+	c.Assert(spec.SnippetForTag("snap.client.app"), testutil.Contains, "network qipcrtr,\n")
+	c.Assert(spec.SnippetForTag("snap.client.app"), Not(testutil.Contains), "capability net_admin,\n")
+	c.Assert(spec.SnippetForTag("snap.client.app"), testutil.Contains, `unix (connect, send, receive) type=seqpacket addr="@\x00\x00" peer=(label="snap.server.app"),`)
+
 }
 
 func (s *QrtrInterfaceSuite) TestSecCompSpec(c *C) {
 	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.server.app"})
 	c.Assert(spec.SnippetForTag("snap.server.app"), testutil.Contains, "bind\n")

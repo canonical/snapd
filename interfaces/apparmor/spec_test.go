@@ -101,13 +101,19 @@ func (s *specSuite) TearDownTest(c *C) {
 
 // The spec.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
-	var r interfaces.Specification = s.spec
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap))
+	var r interfaces.Specification = spec
 	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
-	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
-	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
+	c.Assert(spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.snap1.app1": {"connected-plug", "permanent-plug"},
+	})
+
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
+	r = spec
+	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.snap2.app2": {"connected-slot", "permanent-slot"},
 	})
 }

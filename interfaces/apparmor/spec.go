@@ -660,7 +660,12 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 		AppArmorConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		restore := spec.setScope(spec.appSet.SecurityTagsForConnectedPlug(plug))
+		tags, err := spec.appSet.SecurityTagsForConnectedPlug(plug)
+		if err != nil {
+			return err
+		}
+
+		restore := spec.setScope(tags)
 		defer restore()
 		return iface.AppArmorConnectedPlug(spec, plug, slot)
 	}
@@ -673,7 +678,12 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 		AppArmorConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		restore := spec.setScope(spec.appSet.SecurityTagsForConnectedSlot(slot))
+		tags, err := spec.appSet.SecurityTagsForConnectedSlot(slot)
+		if err != nil {
+			return err
+		}
+
+		restore := spec.setScope(tags)
 		defer restore()
 		return iface.AppArmorConnectedSlot(spec, plug, slot)
 	}
@@ -690,7 +700,12 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 		AppArmorPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		restore := spec.setScope(spec.appSet.SecurityTagsForPlug(plug))
+		tags, err := spec.appSet.SecurityTagsForPlug(plug)
+		if err != nil {
+			return err
+		}
+
+		restore := spec.setScope(tags)
 		defer restore()
 		return iface.AppArmorPermanentPlug(spec, plug)
 	}
@@ -707,7 +722,12 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 		AppArmorPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		restore := spec.setScope(spec.appSet.SecurityTagsForSlot(slot))
+		tags, err := spec.appSet.SecurityTagsForSlot(slot)
+		if err != nil {
+			return err
+		}
+
+		restore := spec.setScope(tags)
 		defer restore()
 		return iface.AppArmorPermanentSlot(spec, slot)
 	}

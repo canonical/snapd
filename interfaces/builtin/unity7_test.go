@@ -101,7 +101,7 @@ func (s *Unity7InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(apparmorSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, `deny /var/lib/snapd/desktop/applications/other-sna[^p]* r,`)
 
 	// connected plugs for instance name have a non-nil security snippet for apparmor
-	apparmorSpec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plugInst.Snap()))
 	err = apparmorSpec.AddConnectedPlug(s.iface, s.plugInst, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other-snap_instance.app2"})

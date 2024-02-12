@@ -143,23 +143,34 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 
 // The label glob when all apps are bound to the maliit plug
 func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
-	app1 := &snap.AppInfo{Name: "app1"}
-	app2 := &snap.AppInfo{Name: "app2"}
+	snapInfo := &snap.Info{
+		SuggestedName: "maliit",
+		Apps:          map[string]*snap.AppInfo{"app1": {Name: "app1"}, "app2": {Name: "app2"}},
+	}
+	for _, a := range snapInfo.Apps {
+		a.Snap = snapInfo
+	}
+
 	plug := interfaces.NewConnectedPlug(&snap.PlugInfo{
-		Snap: &snap.Info{
-			SuggestedName: "maliit",
-			Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-		},
+		Snap:      snapInfo,
 		Name:      "maliit",
 		Interface: "maliit",
-		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+		Apps:      map[string]*snap.AppInfo{"app1": snapInfo.Apps["app1"], "app2": snapInfo.Apps["app2"]},
 	}, nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap()))
-	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
+	slot := interfaces.NewConnectedSlot(&snap.SlotInfo{
+		Snap:      snapInfo,
+		Name:      "maliit",
+		Interface: "maliit",
+		Apps:      map[string]*snap.AppInfo{"app1": snapInfo.Apps["app1"], "app2": snapInfo.Apps["app2"]},
+	}, nil, nil)
+
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(slot.Snap()))
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, slot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.maliit"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.maliit.maliit"), testutil.Contains, `peer=(label="snap.maliit.*"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.app1", "snap.maliit.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.maliit.app1"), testutil.Contains, `peer=(label="snap.maliit.*"),`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.maliit.app2"), testutil.Contains, `peer=(label="snap.maliit.*"),`)
 }
 
 // The label uses alternation when some, but not all, apps is bound to the maliit plug

@@ -87,24 +87,35 @@ func (s *FwupdInterfaceSuite) TestName(c *C) {
 
 // The label glob when all apps are bound to the fwupd slot
 func (s *FwupdInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
-	app1 := &snap.AppInfo{Name: "app1"}
-	app2 := &snap.AppInfo{Name: "app2"}
-	slot := &snap.SlotInfo{
-		Snap: &snap.Info{
-			SuggestedName: "uefi-fw-tools",
-			Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-		},
-		Name:      "fwupd",
-		Interface: "fwupd",
-		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+	snapInfo := &snap.Info{
+		SuggestedName: "uefi-fw-tools",
+		Apps:          map[string]*snap.AppInfo{"app1": {Name: "app1"}, "app2": {Name: "app2"}},
+	}
+	for _, a := range snapInfo.Apps {
+		a.Snap = snapInfo
 	}
 
+	plug := interfaces.NewConnectedPlug(&snap.PlugInfo{
+		Snap:      snapInfo,
+		Name:      "fwupd",
+		Interface: "fwupd",
+		Apps:      map[string]*snap.AppInfo{"app1": snapInfo.Apps["app1"], "app2": snapInfo.Apps["app2"]},
+	}, nil, nil)
+
+	slot := interfaces.NewConnectedSlot(&snap.SlotInfo{
+		Snap:      snapInfo,
+		Name:      "fwupd",
+		Interface: "fwupd",
+		Apps:      map[string]*snap.AppInfo{"app1": snapInfo.Apps["app1"], "app2": snapInfo.Apps["app2"]},
+	}, nil, nil)
+
 	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
-	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, interfaces.NewConnectedSlot(slot, nil, nil))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.uefi-fw-tools.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.uefi-fw-tools.app"), testutil.Contains, `peer=(label="snap.uefi-fw-tools.*"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.uefi-fw-tools.app1", "snap.uefi-fw-tools.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.uefi-fw-tools.app1"), testutil.Contains, `peer=(label="snap.uefi-fw-tools.*"),`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.uefi-fw-tools.app2"), testutil.Contains, `peer=(label="snap.uefi-fw-tools.*"),`)
 }
 
 // The label uses alternation when some, but not all, apps is bound to the fwupd slot

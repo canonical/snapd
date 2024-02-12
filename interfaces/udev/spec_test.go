@@ -153,12 +153,17 @@ func (s *specSuite) TestTagDeviceAltLibexecdir(c *C) {
 
 // The spec.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
-	var r interfaces.Specification = s.spec
-	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap))
+	var r interfaces.Specification = spec
 	c.Assert(r.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.Snippets(), DeepEquals, []string{"connected-plug", "permanent-plug"})
+
+	spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
+	r = spec
+	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
-	c.Assert(s.spec.Snippets(), DeepEquals, []string{"connected-plug", "connected-slot", "permanent-plug", "permanent-slot"})
+	c.Assert(spec.Snippets(), DeepEquals, []string{"connected-slot", "permanent-slot"})
 }
 
 func (s *specSuite) TestControlsDeviceCgroup(c *C) {

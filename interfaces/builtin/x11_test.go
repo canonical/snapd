@@ -207,10 +207,8 @@ func (s *X11InterfaceSuite) TestSecCompOnClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.classicSlotInfo.Snap))
-	err := seccompSpec.AddPermanentSlot(s.iface, s.classicSlotInfo)
-	c.Assert(err, IsNil)
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.classicSlot)
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.classicSlot)
 	c.Assert(err, IsNil)
 
 	// app snap has additional seccomp rules
@@ -226,12 +224,15 @@ func (s *X11InterfaceSuite) TestSecCompOnCore(c *C) {
 	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
 	err := seccompSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
 	c.Assert(err, IsNil)
+
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.x11.app"})
+	c.Assert(seccompSpec.SnippetForTag("snap.x11.app"), testutil.Contains, "listen\n")
+
+	seccompSpec = seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot)
 	c.Assert(err, IsNil)
 
-	// both app and x11 have secomp rules set
-	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.x11.app"})
-	c.Assert(seccompSpec.SnippetForTag("snap.x11.app"), testutil.Contains, "listen\n")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(seccompSpec.SnippetForTag("snap.consumer.app"), testutil.Contains, "bind\n")
 }
 

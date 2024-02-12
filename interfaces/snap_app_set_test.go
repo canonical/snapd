@@ -116,7 +116,8 @@ slots:
 	info, connectedPlug := mockInfoAndConnectedPlug(c, yaml, nil, "plug")
 	set := interfaces.NewSnapAppSet(info)
 
-	tags := set.SecurityTagsForConnectedPlug(connectedPlug)
+	tags, err := set.SecurityTagsForConnectedPlug(connectedPlug)
+	c.Assert(err, IsNil)
 	c.Assert(tags, DeepEquals, []string{"snap.name.app1", "snap.name.app2", "snap.name.hook.install"})
 }
 
@@ -135,7 +136,8 @@ slots:
 	info, connectedSlot := mockInfoAndConnectedSlot(c, yaml, nil, "slot")
 	set := interfaces.NewSnapAppSet(info)
 
-	tags := set.SecurityTagsForConnectedSlot(connectedSlot)
+	tags, err := set.SecurityTagsForConnectedSlot(connectedSlot)
+	c.Assert(err, IsNil)
 	c.Assert(tags, DeepEquals, []string{"snap.name.app1", "snap.name.app2", "snap.name.hook.install"})
 }
 

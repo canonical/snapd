@@ -165,12 +165,16 @@ func (s *BluezInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label="snap.consumer.{app1,app2}"),`)
 
 	// permanent slot have a non-nil security snippet for apparmor
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.appSlotInfo.Snap))
+	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlotInfo), IsNil)
+
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
+	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label=unconfined),`)
+
 	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.appSlot), IsNil)
-	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlotInfo), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.producer.app"})
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.app"),`)
-	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label=unconfined),`)
 
 	// on a classic system with bluez slot coming from the core snap.
 	restore = release.MockOnClassic(true)

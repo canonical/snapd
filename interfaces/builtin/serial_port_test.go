@@ -39,9 +39,8 @@ type SerialPortInterfaceSuite struct {
 	testutil.BaseTest
 	iface interfaces.Interface
 
-	osSnapInfo *snap.Info
-
 	// OS Snap
+	osSnapInfo           *snap.Info
 	testSlot1            *interfaces.ConnectedSlot
 	testSlot1Info        *snap.SlotInfo
 	testSlot2            *interfaces.ConnectedSlot
@@ -102,6 +101,7 @@ type SerialPortInterfaceSuite struct {
 	badInterfaceSlotInfo *snap.SlotInfo
 
 	// Gadget Snap
+	gadgetSnapInfo        *snap.Info
 	testUDev1             *interfaces.ConnectedSlot
 	testUDev1Info         *snap.SlotInfo
 	testUDev2             *interfaces.ConnectedSlot
@@ -280,7 +280,7 @@ slots:
 	s.badInterfaceSlotInfo = s.osSnapInfo.Slots["bad-interface"]
 	s.badInterfaceSlot = interfaces.NewConnectedSlot(s.badInterfaceSlotInfo, nil, nil)
 
-	gadgetSnapInfo := snaptest.MockInfo(c, `
+	s.gadgetSnapInfo = snaptest.MockInfo(c, `
 name: some-device
 version: 0
 type: gadget
@@ -329,21 +329,21 @@ slots:
       usb-interface-number: 32
       path: /dev/serial-port-overinterfacenumber
 `, nil)
-	s.testUDev1Info = gadgetSnapInfo.Slots["test-udev-1"]
+	s.testUDev1Info = s.gadgetSnapInfo.Slots["test-udev-1"]
 	s.testUDev1 = interfaces.NewConnectedSlot(s.testUDev1Info, nil, nil)
-	s.testUDev2Info = gadgetSnapInfo.Slots["test-udev-2"]
+	s.testUDev2Info = s.gadgetSnapInfo.Slots["test-udev-2"]
 	s.testUDev2 = interfaces.NewConnectedSlot(s.testUDev2Info, nil, nil)
-	s.testUDev3Info = gadgetSnapInfo.Slots["test-udev-3"]
+	s.testUDev3Info = s.gadgetSnapInfo.Slots["test-udev-3"]
 	s.testUDev3 = interfaces.NewConnectedSlot(s.testUDev3Info, nil, nil)
-	s.testUDevBadValue1Info = gadgetSnapInfo.Slots["test-udev-bad-value-1"]
+	s.testUDevBadValue1Info = s.gadgetSnapInfo.Slots["test-udev-bad-value-1"]
 	s.testUDevBadValue1 = interfaces.NewConnectedSlot(s.testUDevBadValue1Info, nil, nil)
-	s.testUDevBadValue2Info = gadgetSnapInfo.Slots["test-udev-bad-value-2"]
+	s.testUDevBadValue2Info = s.gadgetSnapInfo.Slots["test-udev-bad-value-2"]
 	s.testUDevBadValue3 = interfaces.NewConnectedSlot(s.testUDevBadValue2Info, nil, nil)
-	s.testUDevBadValue3Info = gadgetSnapInfo.Slots["test-udev-bad-value-3"]
+	s.testUDevBadValue3Info = s.gadgetSnapInfo.Slots["test-udev-bad-value-3"]
 	s.testUDevBadValue3 = interfaces.NewConnectedSlot(s.testUDevBadValue3Info, nil, nil)
-	s.testUDevBadValue4Info = gadgetSnapInfo.Slots["test-udev-bad-value-4"]
+	s.testUDevBadValue4Info = s.gadgetSnapInfo.Slots["test-udev-bad-value-4"]
 	s.testUDevBadValue4 = interfaces.NewConnectedSlot(s.testUDevBadValue4Info, nil, nil)
-	s.testUDevBadValue5Info = gadgetSnapInfo.Slots["test-udev-bad-value-5"]
+	s.testUDevBadValue5Info = s.gadgetSnapInfo.Slots["test-udev-bad-value-5"]
 	s.testUDevBadValue5 = interfaces.NewConnectedSlot(s.testUDevBadValue5Info, nil, nil)
 
 	consumingSnapInfo := snaptest.MockInfo(c, `
@@ -446,6 +446,7 @@ func (s *SerialPortInterfaceSuite) TestPermanentSlotUDevSnippets(c *C) {
 		c.Assert(spec.Snippets(), HasLen, 0)
 	}
 
+	spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.gadgetSnapInfo))
 	expectedSnippet1 := `# serial-port
 IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", SYMLINK+="serial-port-zigbee"`
@@ -455,7 +456,7 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}==
 	snippet := spec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet1)
 
-	spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.osSnapInfo))
+	spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.gadgetSnapInfo))
 	expectedSnippet2 := `# serial-port
 IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", SYMLINK+="serial-port-mydevice"`
@@ -465,7 +466,7 @@ SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}==
 	snippet = spec.Snippets()[0]
 	c.Assert(snippet, Equals, expectedSnippet2)
 
-	spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.osSnapInfo))
+	spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.gadgetSnapInfo))
 	// The ENV{ID_USB_INTERFACE_NUM} is set to two hex digits
 	// For instance, the expectedSnippet3 is set to 00
 	expectedSnippet3 := `# serial-port

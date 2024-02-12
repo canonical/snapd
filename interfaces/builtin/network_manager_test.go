@@ -209,9 +209,12 @@ func (s *NetworkManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
+
+	apparmorSpec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap()))
 	err = apparmorSpec.AddPermanentSlot(s.iface, s.slotInfo)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), HasLen, 2)
+	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
 
 	dbusSpec := dbus.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
 	err = dbusSpec.AddPermanentSlot(s.iface, s.slotInfo)

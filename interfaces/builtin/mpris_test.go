@@ -213,23 +213,34 @@ func (s *MprisInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 
 // The label glob when all apps are bound to the mpris plug
 func (s *MprisInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
-	app1 := &snap.AppInfo{Name: "app1"}
-	app2 := &snap.AppInfo{Name: "app2"}
+	snapInfo := &snap.Info{
+		SuggestedName: "mpris",
+		Apps:          map[string]*snap.AppInfo{"app1": {Name: "app1"}, "app2": {Name: "app2"}},
+	}
+	for _, a := range snapInfo.Apps {
+		a.Snap = snapInfo
+	}
+
 	plug := interfaces.NewConnectedPlug(&snap.PlugInfo{
-		Snap: &snap.Info{
-			SuggestedName: "mpris",
-			Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-		},
+		Snap:      snapInfo,
 		Name:      "mpris",
 		Interface: "mpris",
-		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+		Apps:      map[string]*snap.AppInfo{"app1": snapInfo.Apps["app1"], "app2": snapInfo.Apps["app2"]},
 	}, nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap()))
-	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
+	slot := interfaces.NewConnectedSlot(&snap.SlotInfo{
+		Snap:      snapInfo,
+		Name:      "mpris",
+		Interface: "mpris",
+		Apps:      map[string]*snap.AppInfo{"app1": snapInfo.Apps["app1"], "app2": snapInfo.Apps["app2"]},
+	}, nil, nil)
+
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(slot.Snap()))
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, slot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mpris.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.mpris.app"), testutil.Contains, `peer=(label="snap.mpris.*"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mpris.app1", "snap.mpris.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.mpris.app1"), testutil.Contains, `peer=(label="snap.mpris.*"),`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.mpris.app2"), testutil.Contains, `peer=(label="snap.mpris.*"),`)
 }
 
 // The label uses alternation when some, but not all, apps is bound to the mpris plug

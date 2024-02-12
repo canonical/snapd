@@ -23,14 +23,18 @@ func NewSnapAppSet(info *snap.Info) *SnapAppSet {
 // SecurityTagsForConnectedPlug returns the security tags for the given plug.
 // These are derived from the security tags of the apps and hooks that are
 // associated with the plug.
-func (a *SnapAppSet) SecurityTagsForConnectedPlug(plug *ConnectedPlug) []string {
+func (a *SnapAppSet) SecurityTagsForConnectedPlug(plug *ConnectedPlug) ([]string, error) {
 	return a.SecurityTagsForPlug(plug.plugInfo)
 }
 
 // SecurityTagsForPlug returns the security tags for the given plug. These are
 // derived from the security tags of the apps and hooks that are associated with
 // the plug.
-func (a *SnapAppSet) SecurityTagsForPlug(plug *snap.PlugInfo) []string {
+func (a *SnapAppSet) SecurityTagsForPlug(plug *snap.PlugInfo) ([]string, error) {
+	if plug.Snap.InstanceName() != a.info.InstanceName() {
+		return nil, fmt.Errorf("plug %s is from %s, expected snap: %s", plug.Name, plug.Snap.InstanceName(), a.info.InstanceName())
+	}
+
 	apps := a.info.AppsForPlug(plug)
 	hooks := a.info.HooksForPlug(plug)
 
@@ -45,20 +49,24 @@ func (a *SnapAppSet) SecurityTagsForPlug(plug *snap.PlugInfo) []string {
 
 	sort.Strings(tags)
 
-	return tags
+	return tags, nil
 }
 
 // SecurityTagsForConnectedSlot returns the security tags for the given slot. These
 // are derived from the security tags of the apps and hooks that are associated
 // with the slot.
-func (a *SnapAppSet) SecurityTagsForConnectedSlot(slot *ConnectedSlot) []string {
+func (a *SnapAppSet) SecurityTagsForConnectedSlot(slot *ConnectedSlot) ([]string, error) {
 	return a.SecurityTagsForSlot(slot.slotInfo)
 }
 
 // SecurityTagsForSlot returns the security tags for the given slot. These are
 // derived from the security tags of the apps and hooks that are associated with
 // the slot.
-func (a *SnapAppSet) SecurityTagsForSlot(slot *snap.SlotInfo) []string {
+func (a *SnapAppSet) SecurityTagsForSlot(slot *snap.SlotInfo) ([]string, error) {
+	if slot.Snap.InstanceName() != a.info.InstanceName() {
+		return nil, fmt.Errorf("slot %s is from %s, expected snap %s", slot.Name, slot.Snap.InstanceName(), a.info.InstanceName())
+	}
+
 	apps := a.info.AppsForSlot(slot)
 	hooks := a.info.HooksForSlot(slot)
 
@@ -73,23 +81,41 @@ func (a *SnapAppSet) SecurityTagsForSlot(slot *snap.SlotInfo) []string {
 
 	sort.Strings(tags)
 
-	return tags
+	return tags, nil
 }
 
 // PlugLabelExpression returns the label expression for the given plug. It is
 // constructed from the apps and hooks that are associated with the plug.
 func (a *SnapAppSet) PlugLabelExpression(plug *ConnectedPlug) string {
-	apps := a.info.AppsForPlug(plug.plugInfo)
-	hooks := a.info.HooksForPlug(plug.plugInfo)
-	return labelExpr(apps, hooks, plug.Snap())
+	// TODO: this is a hack that will not continue to work once component hooks
+	// are introduced. the methods on SnapAppSet should only be called on
+	// slots/hooks that originated from the snap that the SnapAppSet was derived
+	// from.
+	info := a.info
+	if a.info.InstanceName() != plug.plugInfo.Snap.InstanceName() {
+		info = plug.plugInfo.Snap
+	}
+
+	apps := info.AppsForPlug(plug.plugInfo)
+	hooks := info.HooksForPlug(plug.plugInfo)
+	return labelExpr(apps, hooks, info)
 }
 
 // SlotLabelExpression returns the label expression for the given slot. It is
 // constructed from the apps and hooks that are associated with the slot.
 func (a *SnapAppSet) SlotLabelExpression(slot *ConnectedSlot) string {
-	apps := a.info.AppsForSlot(slot.slotInfo)
-	hooks := a.info.HooksForSlot(slot.slotInfo)
-	return labelExpr(apps, hooks, slot.Snap())
+	// TODO: this is a hack that will not continue to work once component hooks
+	// are introduced. the methods on SnapAppSet should only be called on
+	// slots/hooks that originated from the snap that the SnapAppSet was derived
+	// from.
+	info := a.info
+	if a.info.InstanceName() != slot.slotInfo.Snap.InstanceName() {
+		info = slot.slotInfo.Snap
+	}
+
+	apps := info.AppsForSlot(slot.slotInfo)
+	hooks := info.HooksForSlot(slot.slotInfo)
+	return labelExpr(apps, hooks, info)
 }
 
 // labelExpr returns the specification of the apparmor label describing given

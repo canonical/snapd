@@ -39,6 +39,7 @@ type HidrawInterfaceSuite struct {
 	iface interfaces.Interface
 
 	// OS Snap
+	osSnapInfo           *snap.Info
 	testSlot1            *interfaces.ConnectedSlot
 	testSlot1Info        *snap.SlotInfo
 	testSlot2            *interfaces.ConnectedSlot
@@ -57,6 +58,7 @@ type HidrawInterfaceSuite struct {
 	badInterfaceSlotInfo *snap.SlotInfo
 
 	// Gadget Snap
+	gadgetSnapInfo        *snap.Info
 	testUDev1             *interfaces.ConnectedSlot
 	testUDev1Info         *snap.SlotInfo
 	testUDev2             *interfaces.ConnectedSlot
@@ -82,7 +84,7 @@ var _ = Suite(&HidrawInterfaceSuite{
 })
 
 func (s *HidrawInterfaceSuite) SetUpTest(c *C) {
-	osSnapInfo := snaptest.MockInfo(c, `
+	s.osSnapInfo = snaptest.MockInfo(c, `
 name: ubuntu-core
 version: 0
 type: os
@@ -108,24 +110,24 @@ slots:
         path: /dev/hidraw9271
     bad-interface: other-interface
 `, nil)
-	s.testSlot1Info = osSnapInfo.Slots["test-port-1"]
+	s.testSlot1Info = s.osSnapInfo.Slots["test-port-1"]
 	s.testSlot1 = interfaces.NewConnectedSlot(s.testSlot1Info, nil, nil)
-	s.testSlot2Info = osSnapInfo.Slots["test-port-2"]
+	s.testSlot2Info = s.osSnapInfo.Slots["test-port-2"]
 	s.testSlot2 = interfaces.NewConnectedSlot(s.testSlot2Info, nil, nil)
-	s.testSlotCleanedInfo = osSnapInfo.Slots["test-port-unclean"]
+	s.testSlotCleanedInfo = s.osSnapInfo.Slots["test-port-unclean"]
 	s.testSlotCleaned = interfaces.NewConnectedSlot(s.testSlotCleanedInfo, nil, nil)
-	s.missingPathSlotInfo = osSnapInfo.Slots["missing-path"]
+	s.missingPathSlotInfo = s.osSnapInfo.Slots["missing-path"]
 	s.missingPathSlot = interfaces.NewConnectedSlot(s.missingPathSlotInfo, nil, nil)
-	s.badPathSlot1Info = osSnapInfo.Slots["bad-path-1"]
+	s.badPathSlot1Info = s.osSnapInfo.Slots["bad-path-1"]
 	s.badPathSlot1 = interfaces.NewConnectedSlot(s.badPathSlot1Info, nil, nil)
-	s.badPathSlot2Info = osSnapInfo.Slots["bad-path-2"]
+	s.badPathSlot2Info = s.osSnapInfo.Slots["bad-path-2"]
 	s.badPathSlot2 = interfaces.NewConnectedSlot(s.badPathSlot2Info, nil, nil)
-	s.badPathSlot3Info = osSnapInfo.Slots["bad-path-3"]
+	s.badPathSlot3Info = s.osSnapInfo.Slots["bad-path-3"]
 	s.badPathSlot3 = interfaces.NewConnectedSlot(s.badPathSlot3Info, nil, nil)
-	s.badInterfaceSlotInfo = osSnapInfo.Slots["bad-interface"]
+	s.badInterfaceSlotInfo = s.osSnapInfo.Slots["bad-interface"]
 	s.badInterfaceSlot = interfaces.NewConnectedSlot(s.badInterfaceSlotInfo, nil, nil)
 
-	gadgetSnapInfo := snaptest.MockInfo(c, `
+	s.gadgetSnapInfo = snaptest.MockInfo(c, `
 name: some-device
 version: 0
 type: gadget
@@ -156,15 +158,15 @@ slots:
       usb-product: 0x4321
       path: /dev/my-device
 `, nil)
-	s.testUDev1Info = gadgetSnapInfo.Slots["test-udev-1"]
+	s.testUDev1Info = s.gadgetSnapInfo.Slots["test-udev-1"]
 	s.testUDev1 = interfaces.NewConnectedSlot(s.testUDev1Info, nil, nil)
-	s.testUDev2Info = gadgetSnapInfo.Slots["test-udev-2"]
+	s.testUDev2Info = s.gadgetSnapInfo.Slots["test-udev-2"]
 	s.testUDev2 = interfaces.NewConnectedSlot(s.testUDev2Info, nil, nil)
-	s.testUDevBadValue1Info = gadgetSnapInfo.Slots["test-udev-bad-value-1"]
+	s.testUDevBadValue1Info = s.gadgetSnapInfo.Slots["test-udev-bad-value-1"]
 	s.testUDevBadValue1 = interfaces.NewConnectedSlot(s.testUDevBadValue1Info, nil, nil)
-	s.testUDevBadValue2Info = gadgetSnapInfo.Slots["test-udev-bad-value-2"]
+	s.testUDevBadValue2Info = s.gadgetSnapInfo.Slots["test-udev-bad-value-2"]
 	s.testUDevBadValue2 = interfaces.NewConnectedSlot(s.testUDevBadValue2Info, nil, nil)
-	s.testUDevBadValue3Info = gadgetSnapInfo.Slots["test-udev-bad-value-3"]
+	s.testUDevBadValue3Info = s.gadgetSnapInfo.Slots["test-udev-bad-value-3"]
 	s.testUDevBadValue3 = interfaces.NewConnectedSlot(s.testUDevBadValue3Info, nil, nil)
 
 	consumingSnapInfo := snaptest.MockInfo(c, `
@@ -232,7 +234,7 @@ func (s *HidrawInterfaceSuite) TestSanitizeBadGadgetSnapSlots(c *C) {
 }
 
 func (s *HidrawInterfaceSuite) TestPermanentSlotUDevSnippets(c *C) {
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.testSlot1Info.Snap))
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.osSnapInfo))
 	for _, slot := range []*snap.SlotInfo{s.testSlot1Info, s.testSlot2Info} {
 		c.Assert(spec.AddPermanentSlot(s.iface, slot), IsNil)
 		c.Assert(spec.Snippets(), HasLen, 0)
@@ -241,6 +243,7 @@ func (s *HidrawInterfaceSuite) TestPermanentSlotUDevSnippets(c *C) {
 	expectedSnippet1 := `# hidraw
 IMPORT{builtin}="usb_id"
 SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", SYMLINK+="hidraw-canbus"`
+	spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.gadgetSnapInfo))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.testUDev1Info), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet := spec.Snippets()[0]
@@ -249,7 +252,7 @@ SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct
 	expectedSnippet2 := `# hidraw
 IMPORT{builtin}="usb_id"
 SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", SYMLINK+="hidraw-mydevice"`
-	spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.testUDev2Info.Snap))
+	spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.gadgetSnapInfo))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.testUDev2Info), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	snippet = spec.Snippets()[0]
