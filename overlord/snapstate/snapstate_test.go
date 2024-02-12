@@ -9988,3 +9988,15 @@ func (s *snapmgrTestSuite) TestCleanDownloadsKeepsNewDownloads(c *C) {
 	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_2.snap"), testutil.FilePresent)
 	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_3.snap"), testutil.FilePresent)
 }
+
+func (s *snapmgrTestSuite) TestRefreshInhibitProceedTime(c *C) {
+	snapst := snapstate.SnapState{}
+	// No pending refresh
+	c.Check(snapst.RefreshInhibitProceedTime(s.state).IsZero(), Equals, true)
+
+	// Refresh inhibited
+	refreshInhibitedTime := time.Date(2024, 2, 12, 18, 36, 56, 0, time.UTC)
+	snapst.RefreshInhibitedTime = &refreshInhibitedTime
+	expectedRefreshInhibitProceedTime := refreshInhibitedTime.Add(snapstate.MaxInhibition)
+	c.Check(snapst.RefreshInhibitProceedTime(s.state), Equals, expectedRefreshInhibitProceedTime)
+}
