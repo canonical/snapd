@@ -2136,6 +2136,8 @@ type systemAndEssentialSnaps struct {
 // loadSystemAndEssentialSnaps loads information for the given label, which
 // includes system, gadget information, gadget and kernel snaps info,
 // and gadget and kernel seed snap info.
+// TODO: make this method optionally return the system seed, since it might not
+// always be needed, and it is quite large.
 func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, types []snap.Type) (*systemAndEssentialSnaps, error) {
 	// get current system as input for loadSeedAndSystem()
 	systemMode := m.SystemMode(SysAny)
