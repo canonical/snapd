@@ -736,7 +736,7 @@ pkg_dependencies_amazon(){
     if os.query is-amazon-linux 2023; then
         echo "
             bpftool
-            gnupg2-full
+            gpg
             python-docutils
             python3-gobject
             "
