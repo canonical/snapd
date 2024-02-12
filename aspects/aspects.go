@@ -365,8 +365,8 @@ type Aspect struct {
 }
 
 type expandedMatch struct {
-	// path is dot-separated storage path without unfilled placeholders.
-	path string
+	// storagePath is dot-separated storage path without unfilled placeholders.
+	storagePath string
 
 	// request is the original request field that the request was matched with.
 	request string
@@ -434,9 +434,9 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 
 		for path, val := range pathsToValues {
 			expandedMatches = append(expandedMatches, expandedMatch{
-				path:    path,
-				request: match.request,
-				value:   val,
+				storagePath: path,
+				request:     match.request,
+				value:       val,
 			})
 		}
 	}
@@ -448,7 +448,7 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	}
 
 	for _, match := range expandedMatches {
-		if err := databag.Set(match.path, match.value); err != nil {
+		if err := databag.Set(match.storagePath, match.value); err != nil {
 			return err
 		}
 
@@ -469,7 +469,7 @@ func checkSchemaMismatch(schema Schema, matches []expandedMatch) error {
 	pathTypes := make(map[string][]SchemaType)
 out:
 	for _, match := range matches {
-		path := match.path
+		path := match.storagePath
 		pathParts := strings.Split(path, ".")
 		schemas, err := schema.SchemaAt(pathParts)
 		if err != nil {
@@ -547,17 +547,17 @@ func schemaTypesStr(types []SchemaType) string {
 	return sb.String()
 }
 
-// getValuesThroughPaths takes a match's storage path and unmatched suffix and
-// strips the outer layers of the value to be set so it can be used at the storage
-// path. Parts of the suffix that are placeholders will be expanded based on what
-// keys exist in the value at that point and the mapping will be used to complete
-// the storage path.
+// getValuesThroughPaths takes a match's storage path and unmatched request
+// suffix and strips the outer layers of the value to be set so it can be used
+// at the storage path. Parts of the suffix that are placeholders will be
+// expanded based on what keys exist in the value at that point and the mapping
+// will be used to complete the storage path.
 var getValuesThroughPaths = getValuesThroughPathsImpl
 
-func getValuesThroughPathsImpl(storagePath string, suffixParts []string, val interface{}) (map[string]interface{}, error) {
+func getValuesThroughPathsImpl(storagePath string, reqSuffixParts []string, val interface{}) (map[string]interface{}, error) {
 	// use the non-placeholder parts of the suffix to find the value to write
 	var placeIndex int
-	for _, part := range suffixParts {
+	for _, part := range reqSuffixParts {
 		if isPlaceholder(part) {
 			// there is a placeholder, we have to consider potentially many candidates
 			break
@@ -578,7 +578,7 @@ func getValuesThroughPathsImpl(storagePath string, suffixParts []string, val int
 
 	// we reached the end of the suffix (there are no unmatched placeholders) so
 	// we have the full storage path and final value
-	if placeIndex == len(suffixParts) {
+	if placeIndex == len(reqSuffixParts) {
 		return map[string]interface{}{storagePath: val}, nil
 	}
 
@@ -591,8 +591,8 @@ func getValuesThroughPathsImpl(storagePath string, suffixParts []string, val int
 	// suffix has an unmatched placeholder, try all possible values to fill it and
 	// find the corresponding nested value.
 	for cand, candVal := range mapVal {
-		newStoragePath := replaceIn(storagePath, suffixParts[placeIndex], cand)
-		pathsToValues, err := getValuesThroughPathsImpl(newStoragePath, suffixParts[placeIndex+1:], candVal)
+		newStoragePath := replaceIn(storagePath, reqSuffixParts[placeIndex], cand)
+		pathsToValues, err := getValuesThroughPathsImpl(newStoragePath, reqSuffixParts[placeIndex+1:], candVal)
 		if err != nil {
 			return nil, err
 		}
