@@ -1316,6 +1316,80 @@ func (s *snapsSuite) TestSnapManyInfosReturnsHolds(c *check.C) {
 	}
 }
 
+func (s *snapsSuite) TestSnapInfoReturnsRefreshInhibitProceedTime(c *check.C) {
+	d := s.daemon(c)
+	s.mkInstalledInState(c, d, "foo", "bar", "v0", snap.R(5), true, "")
+
+	st := d.Overlord().State()
+	st.Lock()
+	var snapst snapstate.SnapState
+	// Update snap state with RefreshInhibitedTime.
+	c.Assert(snapstate.Get(st, "foo", &snapst), check.IsNil)
+	refreshInhibitTime := time.Date(2024, 2, 15, 2, 29, 1, 9, time.UTC)
+	snapst.RefreshInhibitedTime = &refreshInhibitTime
+	snapstate.Set(st, "foo", &snapst)
+	// Get expected proceed time while we have the lock.
+	expectedProceedTime := snapst.RefreshInhibitProceedTime(st)
+	st.Unlock()
+
+	req, err := http.NewRequest("GET", "/v2/snaps/foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, nil)
+
+	c.Assert(rsp.Result, check.FitsTypeOf, &client.Snap{})
+	snapInfo := rsp.Result.(*client.Snap)
+	c.Assert(snapInfo.RefreshInhibitProceedTime, check.NotNil)
+
+	c.Check(snapInfo.RefreshInhibitProceedTime.Equal(expectedProceedTime), check.Equals, true)
+}
+
+func (s *snapsSuite) TestSnapManyInfosReturnsRefreshInhibitProceedTime(c *check.C) {
+	d := s.daemon(c)
+	s.mkInstalledInState(c, d, "snap-a", "bar", "v0", snap.R(5), true, "")
+	s.mkInstalledInState(c, d, "snap-b", "bar", "v0", snap.R(5), true, "")
+	s.mkInstalledInState(c, d, "snap-c", "bar", "v0", snap.R(5), true, "")
+
+	st := d.Overlord().State()
+	st.Lock()
+	var snapst snapstate.SnapState
+	// Update snap-a state with RefreshInhibitedTime.
+	c.Assert(snapstate.Get(st, "snap-a", &snapst), check.IsNil)
+	refreshInhibitTime := time.Date(2024, 2, 15, 2, 29, 1, 9, time.UTC)
+	snapst.RefreshInhibitedTime = &refreshInhibitTime
+	snapstate.Set(st, "snap-a", &snapst)
+	// Get expected proceed time for snap-a while we have the lock.
+	expectedProceedTimeA := snapst.RefreshInhibitProceedTime(st)
+	// Update snap-b state with RefreshInhibitedTime.
+	c.Assert(snapstate.Get(st, "snap-b", &snapst), check.IsNil)
+	refreshInhibitTime = time.Date(2024, 1, 15, 2, 29, 1, 9, time.UTC)
+	snapst.RefreshInhibitedTime = &refreshInhibitTime
+	snapstate.Set(st, "snap-b", &snapst)
+	// Get expected proceed time for snap-a while we have the lock.
+	expectedProceedTimeB := snapst.RefreshInhibitProceedTime(st)
+	st.Unlock()
+
+	req, err := http.NewRequest("GET", "/v2/snaps", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.jsonReq(c, req, nil)
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 3)
+
+	for _, snap := range snaps {
+		testCmt := check.Commentf("snap %s failed", snap["name"])
+		switch snap["name"] {
+		case "snap-a":
+			c.Assert(snap["refresh-inhibit-proceed-time"], check.Equals, expectedProceedTimeA.Format(time.RFC3339Nano), testCmt)
+		case "snap-b":
+			c.Assert(snap["refresh-inhibit-proceed-time"], check.Equals, expectedProceedTimeB.Format(time.RFC3339Nano), testCmt)
+		case "snap-c":
+			_, ok := snap["refresh-inhibit-proceed-time"]
+			c.Assert(ok, check.Equals, false)
+		}
+	}
+}
+
 func (s *snapsSuite) TestMapLocalFields(c *check.C) {
 	media := snap.MediaInfos{
 		{
