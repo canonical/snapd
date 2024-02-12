@@ -28,30 +28,30 @@ import (
 )
 
 var (
-	promptingRequestsCmd = &Command{
-		Path:       "/v2/interfaces/prompting/requests",
-		GET:        getRequests,
+	requestsPromptsCmd = &Command{
+		Path:       "/v2/interfaces/requests/prompts",
+		GET:        getPrompts,
 		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-prompting-control"}},
 	}
 
-	promptingRequestCmd = &Command{
-		Path:        "/v2/interfaces/prompting/requests/{id}",
-		GET:         getRequest,
-		POST:        postRequest,
+	requestsPromptCmd = &Command{
+		Path:        "/v2/interfaces/requests/prompts/{id}",
+		GET:         getPrompt,
+		POST:        postPrompt,
 		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-prompting-control"}},
 		WriteAccess: interfaceOpenAccess{Interfaces: []string{"snap-prompting-control"}},
 	}
 
-	promptingRulesCmd = &Command{
-		Path:        "/v2/interfaces/prompting/rules",
+	requestsRulesCmd = &Command{
+		Path:        "/v2/interfaces/requests/rules",
 		GET:         getRules,
 		POST:        postRules,
 		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-prompting-control"}},
 		WriteAccess: interfaceAuthenticatedAccess{Interfaces: []string{"snap-prompting-control"}, Polkit: polkitActionManage},
 	}
 
-	promptingRuleCmd = &Command{
-		Path:        "/v2/interfaces/prompting/rules/{id}",
+	requestsRuleCmd = &Command{
+		Path:        "/v2/interfaces/requests/rules/{id}",
 		GET:         getRule,
 		POST:        postRule,
 		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-prompting-control"}},
@@ -70,7 +70,7 @@ func userNotAllowedPromptingClientResponse(user *auth.UserState) Response {
 	return SyncResponse("user not allowed")
 }
 
-func getRequests(c *Command, r *http.Request, user *auth.UserState) Response {
+func getPrompts(c *Command, r *http.Request, user *auth.UserState) Response {
 	if !userAllowedPromptingClient(user) {
 		return userNotAllowedPromptingClientResponse(user)
 	}
@@ -88,7 +88,7 @@ func getRequests(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(result)
 }
 
-func getRequest(c *Command, r *http.Request, user *auth.UserState) Response {
+func getPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	id := vars["id"]
 
@@ -109,7 +109,7 @@ func getRequest(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(result)
 }
 
-func postRequest(c *Command, r *http.Request, user *auth.UserState) Response {
+func postPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	id := vars["id"]
 
@@ -238,7 +238,7 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 	var postBody apparmorprompting.PostRuleRequestBody
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&postBody); err != nil {
-		return BadRequest("cannot decode request body into prompting rule modification or deletion: %v", err)
+		return BadRequest("cannot decode request body into request rule modification or deletion: %v", err)
 	}
 
 	ucred, err := ucrednetGet(r.RemoteAddr)
