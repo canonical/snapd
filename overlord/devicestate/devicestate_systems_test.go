@@ -4368,7 +4368,7 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemConflict(c *C) {
 		conflict.AddTask(s.state.NewTask(chgType, "..."))
 
 		_, err := devicestate.RemoveRecoverySystem(s.state, "label")
-		c.Check(err, ErrorMatches, fmt.Sprintf("cannot remove recover system while %q change with change id %q is in progress", conflict.Kind(), conflict.ID()))
+		c.Check(err, ErrorMatches, fmt.Sprintf("cannot remove recovery system while %q change with change id %q is in progress", conflict.Kind(), conflict.ID()))
 
 		conflict.Abort()
 		s.waitfor(conflict)

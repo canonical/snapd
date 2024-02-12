@@ -1604,7 +1604,7 @@ func conflictingRecoverySystemChange(st *state.State) *state.Change {
 // current recovery system cannot be removed.
 func RemoveRecoverySystem(st *state.State, label string) (*state.Change, error) {
 	if chg := conflictingRecoverySystemChange(st); chg != nil {
-		return nil, fmt.Errorf("cannot remove recover system while %q change with change id %q is in progress", chg.Kind(), chg.ID())
+		return nil, fmt.Errorf("cannot remove recovery system while %q change with change id %q is in progress", chg.Kind(), chg.ID())
 	}
 
 	recoverySystemsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems")
