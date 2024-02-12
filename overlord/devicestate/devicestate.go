@@ -1415,6 +1415,15 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 		}
 	}
 
+	// make sure that no other recovery system change is in progress
+	if chg := conflictingRecoverySystemChange(st); chg != nil {
+		return nil, &snapstate.ChangeConflictError{
+			Message:    "cannot remodel while other change related to recovery systems is in progress",
+			ChangeKind: chg.Kind(),
+			ChangeID:   chg.ID(),
+		}
+	}
+
 	var msg string
 	if current.BrandID() == new.BrandID() && current.Model() == new.Model() {
 		msg = fmt.Sprintf(i18n.G("Refresh model assertion from revision %v to %v"), current.Revision(), new.Revision())
@@ -1604,7 +1613,11 @@ func conflictingRecoverySystemChange(st *state.State) *state.Change {
 // current recovery system cannot be removed.
 func RemoveRecoverySystem(st *state.State, label string) (*state.Change, error) {
 	if chg := conflictingRecoverySystemChange(st); chg != nil {
-		return nil, fmt.Errorf("cannot remove recovery system while %q change with change id %q is in progress", chg.Kind(), chg.ID())
+		return nil, &snapstate.ChangeConflictError{
+			Message:    "cannot remove recovery system while a conflicting change is in progress",
+			ChangeKind: chg.Kind(),
+			ChangeID:   chg.ID(),
+		}
 	}
 
 	recoverySystemsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems")
@@ -1632,6 +1645,15 @@ func RemoveRecoverySystem(st *state.State, label string) (*state.Change, error) 
 // CreateRecoverySystem creates a new recovery system with the given label. See
 // CreateRecoverySystemOptions for details on the options that can be provided.
 func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySystemOptions) (chg *state.Change, err error) {
+	// make sure that no other recovery system change is in progress
+	if chg := conflictingRecoverySystemChange(st); chg != nil {
+		return nil, &snapstate.ChangeConflictError{
+			Message:    "cannot create recovery system while a conflicting change is in progress",
+			ChangeKind: chg.Kind(),
+			ChangeID:   chg.ID(),
+		}
+	}
+
 	var seeded bool
 	err = st.Get("seeded", &seeded)
 	if err != nil && !errors.Is(err, state.ErrNoState) {

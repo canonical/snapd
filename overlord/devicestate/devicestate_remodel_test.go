@@ -1275,6 +1275,66 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashInProgress(c *C) {
 	})
 }
 
+func (s *deviceMgrRemodelSuite) TestRemodelClashWithRecoverySystem(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	var chg *state.Change
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		// simulate another recovery system being created
+		chg = s.state.NewChange("create-recovery-system", "...")
+
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tDownload.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: name,
+			},
+		})
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		tInstall.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "1234")
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "1234",
+	})
+
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil)
+
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture":   "amd64",
+		"kernel":         "pc-kernel",
+		"gadget":         "pc",
+		"base":           "core18",
+		"required-snaps": []interface{}{"new-required-snap-1"},
+		"revision":       "1",
+	})
+
+	_, err := devicestate.Remodel(s.state, new, nil, nil, devicestate.RemodelOptions{})
+	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
+		Message:    "cannot remodel while other change related to recovery systems is in progress",
+		ChangeKind: chg.Kind(),
+		ChangeID:   chg.ID(),
+	})
+}
+
 func (s *deviceMgrRemodelSuite) TestReregRemodelClashAnyChange(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
