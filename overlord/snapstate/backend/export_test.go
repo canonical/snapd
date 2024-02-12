@@ -21,7 +21,6 @@ package backend
 
 import (
 	"os"
-	"os/exec"
 
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
@@ -39,22 +38,6 @@ func MockWrappersAddSnapdSnapServices(f func(s *snap.Info, opts *wrappers.AddSna
 	wrappersAddSnapdSnapServices = f
 	return func() {
 		wrappersAddSnapdSnapServices = old
-	}
-}
-
-func MockUpdateFontconfigCaches(f func() error) (restore func()) {
-	oldUpdateFontconfigCaches := updateFontconfigCaches
-	updateFontconfigCaches = f
-	return func() {
-		updateFontconfigCaches = oldUpdateFontconfigCaches
-	}
-}
-
-func MockCommandFromSystemSnap(f func(string, ...string) (*exec.Cmd, error)) (restore func()) {
-	old := commandFromSystemSnap
-	commandFromSystemSnap = f
-	return func() {
-		commandFromSystemSnap = old
 	}
 }
 
