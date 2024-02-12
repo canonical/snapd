@@ -4200,7 +4200,17 @@ func verifySystemRemoved(c *C, label string, expectedSnaps ...string) {
 	c.Check(foundSnaps, testutil.DeepUnsortedMatches, expectedSnaps)
 }
 
+func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemMockedRetry(c *C) {
+	const mockRetry = true
+	s.testRemoveRecoverySystem(c, mockRetry)
+}
+
 func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystem(c *C) {
+	const mockRetry = false
+	s.testRemoveRecoverySystem(c, mockRetry)
+}
+
+func (s *deviceMgrSystemsCreateSuite) testRemoveRecoverySystem(c *C, mockRetry bool) {
 	restore := seed.MockTrusted(s.storeSigning.Trusted)
 	s.AddCleanup(restore)
 
@@ -4275,6 +4285,25 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystem(c *C) {
 	chg, err := devicestate.RemoveRecoverySystem(s.state, removeLabel)
 	c.Assert(err, IsNil)
 
+	if mockRetry {
+		tasks := chg.Tasks()
+		if len(tasks) != 1 {
+			c.Fatalf("expected 1 task, got %d", len(tasks))
+		}
+
+		// remove the recovery system to make sure we're testing the case where
+		// we inspect the task for a list of snaps to remove, since inspecting
+		// the seed would be impossible
+		err := os.RemoveAll(filepath.Join(dirs.SnapSeedDir, "systems", removeLabel))
+		c.Assert(err, IsNil)
+
+		tasks[0].Set("snaps-to-remove", []string{
+			filepath.Join(dirs.SnapSeedDir, "snaps/pc-kernel_11.snap"),
+			filepath.Join(dirs.SnapSeedDir, "snaps/core20_12.snap"),
+			filepath.Join(dirs.SnapSeedDir, "snaps/snapd_13.snap"),
+		})
+	}
+
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
@@ -4285,8 +4314,6 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystem(c *C) {
 	// these snaps are left over from the first recovery system
 	remainingSnaps := []string{"pc_1.snap", "pc-kernel_2.snap", "core20_3.snap", "snapd_4.snap"}
 	verifySystemRemoved(c, removeLabel, remainingSnaps...)
-
-	makeDirIdentical(c, boot.InitramfsUbuntuSeedDir, dirs.SnapSeedDir)
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemCurrentFailure(c *C) {
