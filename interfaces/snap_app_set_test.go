@@ -52,6 +52,28 @@ func (s *snapAppSetSuite) TestPlugLabelExpr(c *C) {
 	c.Check(label, Equals, `"snap.test-snap.*"`)
 }
 
+func (s *snapAppSetSuite) TestPlugLabelExprInfoFallback(c *C) {
+	info := snaptest.MockInfo(c, yaml, nil)
+	set := interfaces.NewSnapAppSet(info)
+
+	const otherInfo = `name: other-name
+version: 1
+apps:
+  app1:
+  app2:
+hooks:
+  install:
+plugs:
+  plug:
+slots:
+  slot:`
+
+	_, connectedPlug := mockInfoAndConnectedPlug(c, otherInfo, nil, "plug")
+
+	label := set.PlugLabelExpression(connectedPlug)
+	c.Check(label, Equals, `"snap.other-name.*"`)
+}
+
 func (s *snapAppSetSuite) TestSlotLabelExpr(c *C) {
 	info, connectedSlot := mockInfoAndConnectedSlot(c, yaml, nil, "unity8")
 	set := interfaces.NewSnapAppSet(info)
@@ -64,6 +86,28 @@ func (s *snapAppSetSuite) TestSlotLabelExpr(c *C) {
 
 	label = set.SlotLabelExpression(connectedSlot)
 	c.Check(label, Equals, `"snap.test-snap.*"`)
+}
+
+func (s *snapAppSetSuite) TestSlotLabelExprInfoFallback(c *C) {
+	info := snaptest.MockInfo(c, yaml, nil)
+	set := interfaces.NewSnapAppSet(info)
+
+	const otherInfo = `name: other-name
+version: 1
+apps:
+  app1:
+  app2:
+hooks:
+  install:
+plugs:
+  plug:
+slots:
+  slot:`
+
+	_, connectedSlot := mockInfoAndConnectedSlot(c, otherInfo, nil, "slot")
+
+	label := set.SlotLabelExpression(connectedSlot)
+	c.Check(label, Equals, `"snap.other-name.*"`)
 }
 
 func (s *snapAppSetSuite) TestLabelExpr(c *C) {
