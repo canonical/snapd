@@ -4322,10 +4322,12 @@ func (s *deviceMgrSystemsCreateSuite) testRemoveRecoverySystem(c *C, mockRetry b
 		err := os.RemoveAll(filepath.Join(dirs.SnapSeedDir, "systems", removeLabel))
 		c.Assert(err, IsNil)
 
-		tasks[0].Set("snaps-to-remove", []string{
-			filepath.Join(dirs.SnapSeedDir, "snaps/pc-kernel_11.snap"),
-			filepath.Join(dirs.SnapSeedDir, "snaps/core20_12.snap"),
-			filepath.Join(dirs.SnapSeedDir, "snaps/snapd_13.snap"),
+		tasks[0].Set("snaps-to-remove", devicestate.UniqueSnapsInRecoverySystem{
+			SnapPaths: []string{
+				filepath.Join(dirs.SnapSeedDir, "snaps/pc-kernel_11.snap"),
+				filepath.Join(dirs.SnapSeedDir, "snaps/core20_12.snap"),
+				filepath.Join(dirs.SnapSeedDir, "snaps/snapd_13.snap"),
+			},
 		})
 	}
 

@@ -132,6 +132,10 @@ func purgeNewSystemSnapFiles(logfile string) error {
 	return s.Err()
 }
 
+type uniqueSnapsInRecoverySystem struct {
+	SnapPaths []string `json:"snap-paths"`
+}
+
 func snapsUniqueToRecoverySystem(target string, systems []*System) ([]string, error) {
 	// asserted snaps are shared by systems, figure out which ones are unique to
 	// the system we want to remove
@@ -240,16 +244,18 @@ func (m *DeviceManager) doRemoveRecoverySystem(t *state.Task, _ *tomb.Tomb) erro
 	// we first check if we already have stored a list of snaps to remove
 	// (meaning, this task is being re-run). if the list isn't present, then we
 	// calculate it and store it in the task state for potential future re-runs.
-	var snapsToRemove []string
+	var snapsToRemove uniqueSnapsInRecoverySystem
 	if err := t.Get("snaps-to-remove", &snapsToRemove); err != nil {
 		if !errors.Is(err, state.ErrNoState) {
 			return fmt.Errorf("cannot get snaps to remove from task: %w", err)
 		}
 
-		snapsToRemove, err = snapsUniqueToRecoverySystem(setup.Label, systems)
+		uniqueSnapPaths, err := snapsUniqueToRecoverySystem(setup.Label, systems)
 		if err != nil {
 			return fmt.Errorf("cannot get snaps unique to recovery system %q: %w", setup.Label, err)
 		}
+
+		snapsToRemove.SnapPaths = uniqueSnapPaths
 
 		t.Set("snaps-to-remove", snapsToRemove)
 	}
@@ -260,7 +266,7 @@ func (m *DeviceManager) doRemoveRecoverySystem(t *state.Task, _ *tomb.Tomb) erro
 		return fmt.Errorf("cannot drop recovery system %q: %v", setup.Label, err)
 	}
 
-	for _, sn := range snapsToRemove {
+	for _, sn := range snapsToRemove.SnapPaths {
 		path := filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps", filepath.Base(sn))
 		if err := os.RemoveAll(path); err != nil {
 			return fmt.Errorf("cannot remove snap %q: %w", path, err)
