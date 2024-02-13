@@ -1,5 +1,8 @@
 summary: Check different completions
 
+details: |
+    Check bash completion functionality.
+
 # takes >6min to run in total
 backends: [-autopkgtest]
 
