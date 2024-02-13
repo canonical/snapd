@@ -187,6 +187,10 @@ mount options=(rw, rbind) /bindfile* -> /newroot/run/host/container-manager,
 # Allow mounting Nvidia drivers into the sandbox
 mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/usr/lib/@{multiarch}/** -> /newroot/var/lib/snapd/hostfs/usr/lib/@{multiarch}/**,
 
+mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/usr/share/** -> /newroot/**,
+mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/ -> /newroot/var/lib/snapd/hostfs/,
+mount options=(rw, rbind) /oldroot/snap/ -> /newroot/snap/,
+
 # Allow masking of certain directories in the sandbox
 mount fstype=tmpfs options=(rw, nosuid, nodev) tmpfs -> /newroot/**,
 
