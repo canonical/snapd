@@ -36,7 +36,7 @@ func (s *canRemoveSuite) SetUpTest(c *check.C) {
 
 	snapstate.Set(s.st, "snapd", &snapstate.SnapState{
 		SnapType: "snapd",
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "snapd"}}),
+		Sequence: []*snap.SideInfo{{Revision: snap.R(1), RealName: "snapd"}},
 		Current:  snap.R(1),
 	})
 
@@ -152,7 +152,7 @@ func (s *canRemoveSuite) TestOSNoSnapdNotOK(c *check.C) {
 
 	snapst := &snapstate.SnapState{
 		Current:  snap.R(1),
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "core"}}),
+		Sequence: []*snap.SideInfo{{Revision: snap.R(1), RealName: "core"}},
 	}
 	// revision is unset as if we're fully removing core from the system
 	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.Revision{}, classicDev), check.Equals, policy.ErrSnapdNotInstalled)
