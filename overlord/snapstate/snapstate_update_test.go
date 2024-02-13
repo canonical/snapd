@@ -114,7 +114,6 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// ensure garbage collection runs as the last tasks
@@ -184,8 +183,6 @@ func (s *snapmgrTestSuite) TestRepeatedUpdatesDoGC(c *C) {
 	tr.Commit()
 
 	s.fakeStore.refreshRevnos = make(map[string]snap.Revision)
-
-	defer s.se.Stop()
 
 	for refreshRev := 2; refreshRev < 10; refreshRev++ {
 		s.fakeStore.refreshRevnos["some-snap-id"] = snap.R(refreshRev)
@@ -367,7 +364,6 @@ func (s *snapmgrTestSuite) testUpdateCanDoBackwards(c *C, refreshAppAwarenessUX 
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	expected := fakeOps{
@@ -516,7 +512,6 @@ func (s *snapmgrTestSuite) testOpSequence(c *C, opts *opSeqOpts) (*snapstate.Sna
 	}
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	var snapst snapstate.SnapState
@@ -778,7 +773,6 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// ensure all our tasks ran
@@ -934,7 +928,6 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 	c.Assert(te, NotNil)
 	c.Assert(te.Kind(), Equals, "validate-snap")
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	expected := fakeOps{
@@ -1188,7 +1181,6 @@ func (s *snapmgrTestSuite) TestUpdateDropsRevertStatus(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// verify snaps in the system state
@@ -1542,7 +1534,6 @@ func (s *snapmgrTestSuite) TestUpdateWithNewBase(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
@@ -1586,7 +1577,6 @@ func (s *snapmgrTestSuite) TestUpdateWithAlreadyInstalledBase(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
@@ -1621,7 +1611,6 @@ func (s *snapmgrTestSuite) TestUpdateWithNewDefaultProvider(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
@@ -1680,7 +1669,6 @@ func (s *snapmgrTestSuite) TestUpdateWithInstalledDefaultProvider(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
@@ -1707,7 +1695,6 @@ func (s *snapmgrTestSuite) TestUpdateRememberedUserRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
@@ -1763,7 +1750,6 @@ func (s *snapmgrTestSuite) TestUpdateModelKernelSwitchTrackRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Check(chg.Status(), Equals, state.DoneStatus)
@@ -1887,7 +1873,6 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 	}
 	c.Check(updated, HasLen, 3)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
@@ -1993,7 +1978,6 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 	}
 	c.Check(updated, HasLen, 3)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
@@ -2118,7 +2102,6 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserWithNoStoreAuthRunThro
 	}
 	c.Check(updated, HasLen, 3)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
@@ -2210,7 +2193,6 @@ func (s *snapmgrTestSuite) testUpdateUndoRunThrough(c *C, refreshAppAwarenessUX 
 
 	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/some-snap/11")
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	expected := fakeOps{
@@ -2460,7 +2442,6 @@ func (s *snapmgrTestSuite) TestUpdateUndoRestoresRevisionConfig(c *C) {
 	terr.JoinLane(last.Lanes()[0])
 	chg.AddTask(terr)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
@@ -2499,8 +2480,6 @@ func (s *snapmgrTestSuite) TestUpdateMakesConfigSnapshot(c *C) {
 	ts, err := snapstate.Update(s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
-
-	defer s.se.Stop()
 
 	restore := snapstate.MockEnsuredMountsUpdated(s.snapmgr, true)
 	defer restore()
@@ -2551,7 +2530,6 @@ func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarene
 	terr.JoinLane(last.Lanes()[0])
 	chg.AddTask(terr)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	expected := fakeOps{
@@ -2800,7 +2778,6 @@ func (s *snapmgrTestSuite) TestUpdateToRevisionRememberedUserRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
@@ -2961,7 +2938,6 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 	te := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(te, IsNil)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	expected := fakeOps{
@@ -3103,7 +3079,6 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionToggleIgnoreValidationRunThroug
 	chg := s.state.NewChange("refresh", "refresh a snap")
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// verify snapSetup info
@@ -3268,7 +3243,6 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	chg := s.state.NewChange("refresh", "refresh snap")
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// verify snap has IgnoreValidation set
@@ -3315,7 +3289,6 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	chg = s.state.NewChange("refresh", "refresh snaps")
 	chg.AddAll(tts[0])
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	snapst = snapstate.SnapState{}
@@ -3367,7 +3340,6 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	chg = s.state.NewChange("refresh", "refresh snap")
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	snapst = snapstate.SnapState{}
@@ -3458,7 +3430,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateIgnoreValidationSticky(c *C
 	chg := s.state.NewChange("refresh", "refresh snaps")
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// ensure all our tasks ran
@@ -3864,7 +3835,6 @@ func (s *snapmgrTestSuite) TestUpdateManyPartialFailureCheckRerefreshDone(c *C) 
 
 	checkIsAutoRefresh(c, chg.Tasks(), true)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// not updated
@@ -4620,7 +4590,6 @@ func (s *snapmgrTestSuite) TestUpdateClassicConfinementFiltering(c *C) {
 	chg := s.state.NewChange("refresh", "refresh snap")
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Err(), IsNil)
@@ -4692,7 +4661,6 @@ func (s *snapmgrTestSuite) TestUpdateClassicFromClassic(c *C) {
 	chg := s.state.NewChange("refresh", "refresh snap")
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// verify snap is in classic
@@ -5040,7 +5008,6 @@ func (s *snapmgrTestSuite) TestUpdateManyTransactionallyFails(c *C) {
 		chg.AddAll(ts)
 	}
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// content consumer snap fails to download
@@ -5115,7 +5082,6 @@ func (s *snapmgrTestSuite) TestUpdateManyFailureDoesntUndoSnapdRefresh(c *C) {
 	// refresh of some-snap fails on link-snap
 	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/some-snap/11")
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Check(chg.Err(), ErrorMatches, ".*cannot perform the following tasks:\n- Make snap \"some-snap\" \\(11\\) available to the system.*")
@@ -5848,7 +5814,6 @@ func (s *snapmgrTestSuite) TestUnlinkCurrentSnapLastActiveDisabledServicesSet(c 
 		}
 	}
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Err(), IsNil)
@@ -5905,7 +5870,6 @@ func (s *snapmgrTestSuite) TestUnlinkCurrentSnapMergedLastActiveDisabledServices
 		}
 	}
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Err(), IsNil)
@@ -5962,7 +5926,6 @@ func (s *snapmgrTestSuite) TestUnlinkCurrentSnapPassthroughLastActiveDisabledSer
 		}
 	}
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Err(), IsNil)
@@ -6017,7 +5980,6 @@ func (s *snapmgrTestSuite) TestStopSnapServicesSavesSnapSetupLastActiveDisabledS
 	chg.AddTask(t1)
 	chg.AddTask(t2)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Err(), IsNil)
@@ -6069,7 +6031,6 @@ func (s *snapmgrTestSuite) TestStopSnapServicesFirstSavesSnapSetupLastActiveDisa
 	t.Set("snap-setup", snapsup)
 	chg.AddTask(t)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Err(), IsNil)
@@ -6120,7 +6081,6 @@ func (s *snapmgrTestSuite) TestRefreshDoesntRestoreRevisionConfig(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// config of rev. 1 has been stored in per-revision map
@@ -6183,7 +6143,6 @@ func (s *snapmgrTestSuite) TestUpdateContentProviderDownloadFailure(c *C) {
 		chg.AddAll(ts)
 	}
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// content consumer snap fails to download
@@ -6276,7 +6235,6 @@ func (s *snapmgrTestSuite) TestEmptyUpdateWithChannelChangeAndAutoAlias(c *C) {
 	chg := s.state.NewChange("refresh", "refresh snap")
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Err(), IsNil)
@@ -8477,7 +8435,6 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 		"core18": true,
 	}
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// mock restart for the 'link-snap' step and run change to
@@ -8667,7 +8624,6 @@ func (s *snapmgrTestSuite) TestUpdateGadgetKernelSingleRebootHappy(c *C) {
 		"gadget": true,
 	}
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// mock restart for the 'link-snap' step and run change to
@@ -8856,7 +8812,6 @@ func (s *snapmgrTestSuite) TestUpdateBaseGadgetSingleRebootHappy(c *C) {
 		"gadget": true,
 	}
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// mock restart for the 'link-snap' step and run change to
@@ -9007,7 +8962,6 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootWithCannotRebootSetHa
 		"core18": true,
 	}
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// mock restart for the 'link-snap' step and run change to
@@ -9117,7 +9071,6 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUnsupportedWithCoreHa
 		"core":   true,
 	}
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// first 'auto-connect' restart here
@@ -9397,7 +9350,6 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUndone(c *C) {
 		return nil
 	}
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// both snaps have requested a restart at 'auto-connect', handle this here
@@ -9555,7 +9507,6 @@ func (s *snapmgrTestSuite) TestUpdateBaseGadgetKernelSingleRebootUndone(c *C) {
 		return nil
 	}
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// kernel requests a reboot
@@ -9837,7 +9788,6 @@ NextSnap3:
 	}
 	s.fakeBackend.linkSnapMaybeReboot = len(s.fakeBackend.linkSnapRebootFor) > 0
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	if !s.fakeBackend.linkSnapMaybeReboot {
@@ -9976,7 +9926,6 @@ func (s *snapmgrTestSuite) TestUpdateBaseAndSnapdOrder(c *C) {
 		"core18": true,
 	}
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// mock restart for the 'link-snap' step and run change to
@@ -11051,6 +11000,7 @@ func (s *snapmgrTestSuite) TestDeletedMonitoredMapIsCorrectlyDeleted(c *C) {
 	monitorSignal <- "foo"
 	waitFor(s.state, c, func() bool { return s.state.Change("4") != nil })
 	s.state.Lock()
+	defer s.state.Unlock()
 	c.Assert(s.state.Change("4").Kind(), Equals, "auto-refresh")
 	s.settle(c)
 

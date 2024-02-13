@@ -594,7 +594,6 @@ func (s *snapmgrTestSuite) TestAliasRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -651,7 +650,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceAliasRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -769,7 +767,6 @@ func (s *snapmgrTestSuite) TestAliasOverAutoRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -970,7 +967,6 @@ func (s *snapmgrTestSuite) TestDisableAllAliasesRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -1040,7 +1036,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceDisableAllAliasesRunThrough(c *C)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -1135,7 +1130,6 @@ func (s *snapmgrTestSuite) TestRemoveManualAliasRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -1185,7 +1179,6 @@ func (s *snapmgrTestSuite) TestRemoveManualAliasOverAutoRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -1232,7 +1225,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveManualAliasRunThrough(c *C)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -1398,7 +1390,6 @@ func (s *snapmgrTestSuite) TestPreferRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
@@ -1460,7 +1451,6 @@ func (s *snapmgrTestSuite) TestParallelInstancePreferRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%v", chg.Err()))
