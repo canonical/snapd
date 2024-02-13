@@ -87,6 +87,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
@@ -13728,4 +13729,372 @@ func (s *mgrsSuite) TestDownloadSpecificRevision(c *C) {
 		"snap-sha3-384": digest,
 	})
 	c.Check(err, IsNil)
+}
+
+const snapYamlMonitoredAppFormat = `
+name: %s
+version: %s
+
+apps:
+    app:
+        command: $SNAP/foo
+`
+
+func (s *mgrsSuite) TestUpdateOneWithMonitoring(c *C) {
+	restore := cgroup.MockVersion(cgroup.V2, nil)
+	defer restore()
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	err := assertstate.Add(st, s.devAcct)
+	c.Assert(err, IsNil)
+
+	rev := snap.R(1)
+	snapDecl := s.prereqSnapAssertions(c, map[string]interface{}{"snap-name": "held-with-app-running"})
+	err = assertstate.Add(st, snapDecl)
+	c.Assert(err, IsNil)
+
+	s.mockInstalledSnapWithRevAndFiles(c,
+		fmt.Sprintf(snapYamlMonitoredAppFormat, "held-with-app-running", "0"), rev, nil)
+
+	// now add some more snap revisions
+	revno := "2"
+	snapPath, _ := s.makeStoreTestSnap(c,
+		fmt.Sprintf(snapYamlMonitoredAppFormat, "held-with-app-running", "1"), revno)
+	s.serveSnap(snapPath, revno)
+
+	// auto-refresh
+	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0,
+		&snapstate.Flags{IsAutoRefresh: true})
+	c.Assert(err, IsNil)
+	sort.Strings(affected)
+	c.Check(affected, DeepEquals, []string{"held-with-app-running"})
+	chg := st.NewChange("refresh-snaps", "...")
+	for _, taskset := range tasksets {
+		chg.AddAll(taskset)
+	}
+
+	// mock a running process in the snap's context
+	snaptest.PopulateDir(dirs.GlobalRootDir, [][]string{
+		{"/sys/fs/cgroup/snap.held-with-app-running.app.scope/cgroup.procs", "1234\n"},
+	})
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	dumpTasks(c, "after settle", chg.Tasks())
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*snap "held-with-app-running" has running apps.*`)
+
+	// app was not refreshed
+	si, err := snapstate.CurrentInfo(st, "held-with-app-running")
+	c.Assert(err, IsNil)
+	c.Check(si.Revision, Equals, snap.R(1))
+
+	var candidates map[string]interface{}
+	st.Get("refresh-candidates", &candidates)
+	c.Logf("candidates: %v", candidates)
+
+	// refresh-candidate should not be empty
+	c.Assert(candidates, HasLen, 1)
+
+	// remove the entry as if the app has closed
+	err = os.RemoveAll(filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/snap.held-with-app-running.app.scope"))
+	c.Assert(err, IsNil)
+
+	// what's supposed to happen now is the file removal will be noticed, a
+	// change will be kicked off and the snap will get a refresh
+	st.Unlock()
+	s.o.Loop()
+	chg = waitForReadyChangeKind(c, st, "auto-refresh")
+	err = s.o.Stop()
+	c.Assert(err, IsNil)
+	st.Lock()
+	// we found the change
+	c.Assert(chg, NotNil)
+	dumpTasks(c, "after loop", chg.Tasks())
+	c.Check(chg.Err(), IsNil)
+
+	// app got refreshed
+	si, err = snapstate.CurrentInfo(st, "held-with-app-running")
+	c.Assert(err, IsNil)
+	c.Check(si.Revision, Equals, snap.R(2))
+}
+
+func (s *mgrsSuite) TestUpdateManyWithMonitoring(c *C) {
+	// similar to a test with a single snap, bu 2 snaps are being refresh,
+	// one refresh gets fully completed while the other is held back due to
+	// a running application
+	restore := cgroup.MockVersion(cgroup.V2, nil)
+	defer restore()
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	err := assertstate.Add(st, s.devAcct)
+	c.Assert(err, IsNil)
+
+	snapNames := []string{"aaaa", "held-with-app-running"}
+	for _, name := range snapNames {
+		rev := snap.R(1)
+		snapDecl := s.prereqSnapAssertions(c, map[string]interface{}{"snap-name": name})
+		err = assertstate.Add(st, snapDecl)
+		c.Assert(err, IsNil)
+
+		s.mockInstalledSnapWithRevAndFiles(c,
+			fmt.Sprintf(snapYamlMonitoredAppFormat, name, "0"), rev, nil)
+	}
+
+	// now add some more snap revisions
+	revno := "2"
+	for _, name := range snapNames {
+		snapPath, _ := s.makeStoreTestSnap(c,
+			fmt.Sprintf(snapYamlMonitoredAppFormat, name, "1"), revno)
+		s.serveSnap(snapPath, revno)
+	}
+
+	// auto-refresh
+	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0,
+		&snapstate.Flags{IsAutoRefresh: true})
+	c.Assert(err, IsNil)
+	sort.Strings(affected)
+	c.Check(affected, DeepEquals, snapNames)
+	chg := st.NewChange("refresh-snaps", "...")
+	for _, taskset := range tasksets {
+		chg.AddAll(taskset)
+	}
+
+	// mock a running process in the snap's context
+	snaptest.PopulateDir(dirs.GlobalRootDir, [][]string{
+		{"/sys/fs/cgroup/snap.held-with-app-running.app.scope/cgroup.procs", "1234\n"},
+	})
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	dumpTasks(c, "after settle", chg.Tasks())
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*snap "held-with-app-running" has running apps.*`)
+
+	si, err := snapstate.CurrentInfo(st, "aaaa")
+	c.Assert(err, IsNil)
+	// aaaa snap was refreshed
+	c.Check(si.Revision, Equals, snap.R(2))
+
+	// but the other snap was held
+	si, err = snapstate.CurrentInfo(st, "held-with-app-running")
+	c.Assert(err, IsNil)
+	c.Check(si.Revision, Equals, snap.R(1))
+
+	// state information about snap being monitored is supposed to be preserved
+	var candidates map[string]interface{}
+	st.Get("refresh-candidates", &candidates)
+	c.Logf("candidates: %v", candidates)
+
+	// refresh-candidate should not be empty
+	c.Check(candidates, HasLen, 1)
+
+	// remove the entry as if the app has closed
+	err = os.RemoveAll(filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/snap.held-with-app-running.app.scope"))
+	c.Assert(err, IsNil)
+
+	// what's supposed to happen now is the file removal will be noticed, a
+	// change will be kicked off and the snap will get a refresh
+	st.Unlock()
+	s.o.Loop()
+
+	chg = waitForReadyChangeKind(c, st, "auto-refresh")
+	err = s.o.Stop()
+	c.Assert(err, IsNil)
+	st.Lock()
+	// we found the change
+	c.Assert(chg, NotNil)
+	dumpTasks(c, "after loop", chg.Tasks())
+	c.Check(chg.Err(), IsNil)
+
+	// app got refreshed
+	si, err = snapstate.CurrentInfo(st, "held-with-app-running")
+	c.Assert(err, IsNil)
+	c.Check(si.Revision, Equals, snap.R(2))
+}
+
+func (s *mgrsSuite) TestUpdateManyStoreUpdateWhileWaitingWithMonitoring(c *C) {
+	// similar to a test with many snaps, but a new revision of a snap gets
+	// published to the store, while we are waiting for the app to close, as
+	// a result it should be picked up if refresh hints run in the meantime
+	// and the unblocked refresh should update to that revision
+	restore := cgroup.MockVersion(cgroup.V2, nil)
+	defer restore()
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	err := assertstate.Add(st, s.devAcct)
+	c.Assert(err, IsNil)
+
+	snapNames := []string{"aaaa", "held-with-app-running"}
+	for _, name := range snapNames {
+		rev := snap.R(1)
+		snapDecl := s.prereqSnapAssertions(c, map[string]interface{}{"snap-name": name})
+		err = assertstate.Add(st, snapDecl)
+		c.Assert(err, IsNil)
+
+		s.mockInstalledSnapWithRevAndFiles(c,
+			fmt.Sprintf(snapYamlMonitoredAppFormat, name, "0"), rev, nil)
+	}
+
+	// now add some more snap revisions
+	revno := "2"
+	for _, name := range snapNames {
+		snapPath, _ := s.makeStoreTestSnap(c,
+			fmt.Sprintf(snapYamlMonitoredAppFormat, name, "1"), revno)
+		s.serveSnap(snapPath, revno)
+	}
+
+	// auto-refresh
+	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0,
+		&snapstate.Flags{IsAutoRefresh: true})
+	c.Assert(err, IsNil)
+	sort.Strings(affected)
+	c.Check(affected, DeepEquals, snapNames)
+	chg := st.NewChange("refresh-snaps", "...")
+	for _, taskset := range tasksets {
+		chg.AddAll(taskset)
+	}
+
+	// mock a running process in the snap's context
+	snaptest.PopulateDir(dirs.GlobalRootDir, [][]string{
+		{"/sys/fs/cgroup/snap.held-with-app-running.app.scope/cgroup.procs", "1234\n"},
+	})
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	dumpTasks(c, "after settle", chg.Tasks())
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*snap "held-with-app-running" has running apps.*`)
+
+	si, err := snapstate.CurrentInfo(st, "aaaa")
+	c.Assert(err, IsNil)
+	// aaaa snap was refreshed
+	c.Check(si.Revision, Equals, snap.R(2))
+
+	// but the other snap was held
+	si, err = snapstate.CurrentInfo(st, "held-with-app-running")
+	c.Assert(err, IsNil)
+	c.Check(si.Revision, Equals, snap.R(1))
+
+	// state information about snap being monitored is supposed to be preserved
+	var candidates map[string]interface{}
+	st.Get("refresh-candidates", &candidates)
+	c.Logf("candidates: %v", candidates)
+
+	// refresh-candidate should not be empty
+	c.Check(candidates, HasLen, 1)
+	c.Assert(candidates["held-with-app-running"], NotNil)
+
+	c.Logf("create another mock revision")
+
+	// while refresh candidates has been populated, bump the revision of the
+	// snap being held
+	snapPath, _ := s.makeStoreTestSnap(c,
+		fmt.Sprintf(snapYamlMonitoredAppFormat, "held-with-app-running", "1.1"), "3")
+	s.serveSnap(snapPath, "3")
+
+	// pretend we can auto-refresh
+	triggered := false
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) {
+		if !triggered {
+			st.Set("last-refresh", time.Now().Add(-2*24*time.Hour))
+			st.Set("last-refresh-hints", time.Now().Add(-2*24*time.Hour))
+			triggered = true
+		}
+		return true, nil
+	}
+
+	// prevent catalog refresh
+	c.Assert(os.MkdirAll(dirs.SnapCacheDir, 0755), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapNamesFile, nil, 0644), IsNil)
+
+	st.Unlock()
+	// ensure to trigger refresh-hints update
+	s.o.SnapManager().Ensure()
+	st.Lock()
+
+	c.Logf("single Ensure() done")
+
+	// remove the entry as if the app has closed
+	err = os.RemoveAll(filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/snap.held-with-app-running.app.scope"))
+	c.Assert(err, IsNil)
+
+	// what's supposed to happen now is the file removal will be noticed, a
+	// change will be kicked off and the snap will get a refresh
+	st.Unlock()
+	s.o.Loop()
+
+	chg = waitForReadyChangeKind(c, st, "auto-refresh")
+	err = s.o.Stop()
+	c.Assert(err, IsNil)
+	st.Lock()
+	// we found the change
+	c.Assert(chg, NotNil)
+	dumpTasks(c, "after loop", chg.Tasks())
+	c.Check(chg.Err(), IsNil)
+
+	// app got refreshed to the latest revision which was published while we
+	// were waiting for processes to finish
+	si, err = snapstate.CurrentInfo(st, "held-with-app-running")
+	c.Assert(err, IsNil)
+	c.Check(si.Revision, Equals, snap.R(3))
+}
+
+func waitForReadyChangeKind(c *C, st *state.State, kind string) (chg *state.Change) {
+	checkTicker := time.NewTicker(time.Second)
+	timeout := time.After(settleTimeout)
+waitLoop:
+	for {
+		select {
+		case <-checkTicker.C:
+			st.Lock()
+			if chg == nil {
+				for _, maybeChg := range st.Changes() {
+					if maybeChg.Kind() == kind {
+						chg = maybeChg
+						break
+					}
+				}
+			}
+			rdy := false
+			if chg != nil {
+				dumpTasks(c, "loop ticker", chg.Tasks())
+				rdy = chg.IsReady()
+			}
+			st.Unlock()
+			if rdy {
+				break waitLoop
+			}
+		case <-timeout:
+			c.Errorf("timeout waiting for prune to complete")
+			c.FailNow()
+		}
+	}
+
+	c.Assert(chg, NotNil, Commentf("cannot find a ready change of kind %s", kind))
+	return chg
 }
