@@ -180,6 +180,15 @@ func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, 
 				ChangeKind: "create-recovery-system",
 				ChangeID:   chg.ID(),
 			}
+		case "remove-recovery-system":
+			if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
+				continue
+			}
+			return &ChangeConflictError{
+				Message:    "removing recovery system in progress, no other changes allowed until this is done",
+				ChangeKind: "remove-recovery-system",
+				ChangeID:   chg.ID(),
+			}
 		case "revert-snap", "refresh-snap":
 			// Snapd downgrades are exclusive changes
 			if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
