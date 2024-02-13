@@ -71,7 +71,6 @@ func (s *snapmgrTestSuite) testTrySetsTryMode(flags snapstate.Flags, c *C, extra
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Err(), IsNil)
