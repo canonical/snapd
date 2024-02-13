@@ -29,15 +29,15 @@ func (s *promptrequestsSuite) SetUpTest(c *C) {
 }
 
 func (s *promptrequestsSuite) TestNew(c *C) {
-	notifyRequest := func(userID uint32, requestID string, options *state.AddNoticeOptions) error {
-		c.Fatalf("unexpected notice with userID %d and ID %s", userID, requestID)
+	notifyPrompt := func(userID uint32, promptID string, options *state.AddNoticeOptions) error {
+		c.Fatalf("unexpected notice with userID %d and ID %s", userID, promptID)
 		return nil
 	}
-	prdb := promptrequests.New(notifyRequest)
-	c.Assert(prdb.PerUser, HasLen, 0)
+	pdb := promptrequests.New(notifyPrompt)
+	c.Assert(pdb.PerUser, HasLen, 0)
 }
 
-func (s *promptrequestsSuite) TestAddOrMergeRequests(c *C) {
+func (s *promptrequestsSuite) TestAddOrMergePrompt(c *C) {
 	restore := promptrequests.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
@@ -45,14 +45,14 @@ func (s *promptrequestsSuite) TestAddOrMergeRequests(c *C) {
 	defer restore()
 
 	var user uint32 = 1000
-	requestNoticeIDs := make([]string, 0, 1)
-	notifyRequest := func(userID uint32, requestID string, options *state.AddNoticeOptions) error {
+	promptNoticeIDs := make([]string, 0, 1)
+	notifyPrompt := func(userID uint32, promptID string, options *state.AddNoticeOptions) error {
 		c.Check(userID, Equals, user)
-		requestNoticeIDs = append(requestNoticeIDs, requestID)
+		promptNoticeIDs = append(promptNoticeIDs, promptID)
 		return nil
 	}
 
-	rdb := promptrequests.New(notifyRequest)
+	pdb := promptrequests.New(notifyPrompt)
 	snap := "nextcloud"
 	app := "occ"
 	iface := "home"
@@ -63,56 +63,56 @@ func (s *promptrequestsSuite) TestAddOrMergeRequests(c *C) {
 	listenerReq2 := &listener.Request{}
 	listenerReq3 := &listener.Request{}
 
-	stored := rdb.Requests(user)
+	stored := pdb.Prompts(user)
 	c.Assert(stored, HasLen, 0)
 
 	before := time.Now()
-	req1, merged := rdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq1)
+	prompt1, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq1)
 	after := time.Now()
 	c.Assert(merged, Equals, false)
 
-	c.Assert(requestNoticeIDs, HasLen, 1, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
-	c.Check(requestNoticeIDs[0], Equals, req1.ID)
-	requestNoticeIDs = requestNoticeIDs[1:]
+	c.Assert(promptNoticeIDs, HasLen, 1, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
+	c.Check(promptNoticeIDs[0], Equals, prompt1.ID)
+	promptNoticeIDs = promptNoticeIDs[1:]
 
-	req2, merged := rdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq2)
+	prompt2, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq2)
 	c.Assert(merged, Equals, true)
-	c.Assert(req2, Equals, req1)
+	c.Assert(prompt2, Equals, prompt1)
 
-	// Merged requests should not trigger notice
-	c.Assert(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	// Merged prompts should not trigger notice
+	c.Assert(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	timestamp, err := common.TimestampToTime(req1.Timestamp)
+	timestamp, err := common.TimestampToTime(prompt1.Timestamp)
 	c.Assert(err, IsNil)
 	c.Check(timestamp.After(before), Equals, true)
 	c.Check(timestamp.Before(after), Equals, true)
 
-	c.Check(req1.Snap, Equals, snap)
-	c.Check(req1.App, Equals, app)
-	c.Check(req1.Interface, Equals, iface)
-	c.Check(req1.Path, Equals, path)
-	c.Check(req1.Permissions, DeepEquals, permissions)
+	c.Check(prompt1.Snap, Equals, snap)
+	c.Check(prompt1.App, Equals, app)
+	c.Check(prompt1.Interface, Equals, iface)
+	c.Check(prompt1.Path, Equals, path)
+	c.Check(prompt1.Permissions, DeepEquals, permissions)
 
-	stored = rdb.Requests(user)
+	stored = pdb.Prompts(user)
 	c.Assert(stored, HasLen, 1)
-	c.Check(stored[0], Equals, req1)
+	c.Check(stored[0], Equals, prompt1)
 
-	storedReq, err := rdb.RequestWithID(user, req1.ID)
+	storedPrompt, err := pdb.PromptWithID(user, prompt1.ID)
 	c.Check(err, IsNil)
-	c.Check(storedReq, Equals, req1)
+	c.Check(storedPrompt, Equals, prompt1)
 
-	// Looking up request should not trigger notice
-	c.Assert(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	// Looking up prompt should not trigger notice
+	c.Assert(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	req3, merged := rdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq3)
+	prompt3, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq3)
 	c.Check(merged, Equals, true)
-	c.Check(req3, Equals, req1)
+	c.Check(prompt3, Equals, prompt1)
 
-	// Merged requests should not trigger notice
-	c.Assert(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	// Merged prompts should not trigger notice
+	c.Assert(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 }
 
-func (s *promptrequestsSuite) TestRequestWithIDErrors(c *C) {
+func (s *promptrequestsSuite) TestPromptWithIDErrors(c *C) {
 	restore := promptrequests.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
@@ -120,14 +120,14 @@ func (s *promptrequestsSuite) TestRequestWithIDErrors(c *C) {
 	defer restore()
 
 	var user uint32 = 1000
-	requestNoticeIDs := make([]string, 0, 1)
-	notifyRequest := func(userID uint32, requestID string, options *state.AddNoticeOptions) error {
+	promptNoticeIDs := make([]string, 0, 1)
+	notifyPrompt := func(userID uint32, promptID string, options *state.AddNoticeOptions) error {
 		c.Check(userID, Equals, user)
-		requestNoticeIDs = append(requestNoticeIDs, requestID)
+		promptNoticeIDs = append(promptNoticeIDs, promptID)
 		return nil
 	}
 
-	rdb := promptrequests.New(notifyRequest)
+	pdb := promptrequests.New(notifyPrompt)
 	snap := "nextcloud"
 	app := "occ"
 	iface := "system-files"
@@ -136,27 +136,27 @@ func (s *promptrequestsSuite) TestRequestWithIDErrors(c *C) {
 
 	listenerReq := &listener.Request{}
 
-	req, merged := rdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq)
+	prompt, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq)
 	c.Check(merged, Equals, false)
 
-	c.Assert(requestNoticeIDs, HasLen, 1, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
-	c.Check(requestNoticeIDs[0], Equals, req.ID)
-	requestNoticeIDs = requestNoticeIDs[1:]
+	c.Assert(promptNoticeIDs, HasLen, 1, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
+	c.Check(promptNoticeIDs[0], Equals, prompt.ID)
+	promptNoticeIDs = promptNoticeIDs[1:]
 
-	result, err := rdb.RequestWithID(user, req.ID)
+	result, err := pdb.PromptWithID(user, prompt.ID)
 	c.Check(err, IsNil)
-	c.Check(result, Equals, req)
+	c.Check(result, Equals, prompt)
 
-	result, err = rdb.RequestWithID(user, "foo")
-	c.Check(err, Equals, promptrequests.ErrRequestIDNotFound)
+	result, err = pdb.PromptWithID(user, "foo")
+	c.Check(err, Equals, promptrequests.ErrPromptIDNotFound)
 	c.Check(result, IsNil)
 
-	result, err = rdb.RequestWithID(user+1, "foo")
+	result, err = pdb.PromptWithID(user+1, "foo")
 	c.Check(err, Equals, promptrequests.ErrUserNotFound)
 	c.Check(result, IsNil)
 
-	// Looking up requests (with or without errors) should not trigger notices
-	c.Assert(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	// Looking up prompts (with or without errors) should not trigger notices
+	c.Assert(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 }
 
 func (s *promptrequestsSuite) TestReply(c *C) {
@@ -170,14 +170,14 @@ func (s *promptrequestsSuite) TestReply(c *C) {
 	defer restore()
 
 	var user uint32 = 1000
-	requestNoticeIDs := make([]string, 0, 4)
-	notifyRequest := func(userID uint32, requestID string, options *state.AddNoticeOptions) error {
+	promptNoticeIDs := make([]string, 0, 4)
+	notifyPrompt := func(userID uint32, promptID string, options *state.AddNoticeOptions) error {
 		c.Check(userID, Equals, user)
-		requestNoticeIDs = append(requestNoticeIDs, requestID)
+		promptNoticeIDs = append(promptNoticeIDs, promptID)
 		return nil
 	}
 
-	rdb := promptrequests.New(notifyRequest)
+	pdb := promptrequests.New(notifyPrompt)
 	snap := "nextcloud"
 	app := "occ"
 	iface := "personal-files"
@@ -187,24 +187,24 @@ func (s *promptrequestsSuite) TestReply(c *C) {
 	listenerReq1 := &listener.Request{}
 	listenerReq2 := &listener.Request{}
 
-	req1, merged := rdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq1)
+	prompt1, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq1)
 	c.Check(merged, Equals, false)
 
-	c.Assert(requestNoticeIDs, HasLen, 1, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
-	c.Check(requestNoticeIDs[0], Equals, req1.ID)
-	requestNoticeIDs = requestNoticeIDs[1:]
+	c.Assert(promptNoticeIDs, HasLen, 1, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
+	c.Check(promptNoticeIDs[0], Equals, prompt1.ID)
+	promptNoticeIDs = promptNoticeIDs[1:]
 
-	req2, merged := rdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq2)
+	prompt2, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq2)
 	c.Check(merged, Equals, true)
-	c.Check(req2, Equals, req1)
+	c.Check(prompt2, Equals, prompt1)
 
-	c.Assert(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Assert(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
 	outcome := common.OutcomeAllow
-	repliedReq, err := rdb.Reply(user, req1.ID, outcome)
+	repliedPrompt, err := pdb.Reply(user, prompt1.ID, outcome)
 	c.Check(err, IsNil)
+	c.Check(repliedPrompt, Equals, prompt1)
 	for _, listenerReq := range []*listener.Request{listenerReq1, listenerReq2} {
-		c.Check(repliedReq, Equals, req1)
 		receivedReq := <-listenerReqChan
 		c.Check(receivedReq, Equals, listenerReq)
 		result := <-replyChan
@@ -213,32 +213,32 @@ func (s *promptrequestsSuite) TestReply(c *C) {
 		c.Check(allowed, Equals, true)
 	}
 
-	c.Assert(requestNoticeIDs, HasLen, 1, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
-	c.Check(requestNoticeIDs[0], Equals, repliedReq.ID)
-	requestNoticeIDs = requestNoticeIDs[1:]
+	c.Assert(promptNoticeIDs, HasLen, 1, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
+	c.Check(promptNoticeIDs[0], Equals, repliedPrompt.ID)
+	promptNoticeIDs = promptNoticeIDs[1:]
 
 	listenerReq1 = &listener.Request{}
 	listenerReq2 = &listener.Request{}
 
-	req1, merged = rdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq1)
+	prompt1, merged = pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq1)
 	c.Check(merged, Equals, false)
 
-	c.Assert(requestNoticeIDs, HasLen, 1, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
-	c.Check(requestNoticeIDs[0], Equals, req1.ID)
-	requestNoticeIDs = requestNoticeIDs[1:]
+	c.Assert(promptNoticeIDs, HasLen, 1, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
+	c.Check(promptNoticeIDs[0], Equals, prompt1.ID)
+	promptNoticeIDs = promptNoticeIDs[1:]
 
-	req2, merged = rdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq2)
+	prompt2, merged = pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq2)
 	c.Check(merged, Equals, true)
-	c.Check(req2, Equals, req1)
+	c.Check(prompt2, Equals, prompt1)
 
-	// Merged requests should not trigger notice
-	c.Assert(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	// Merged prompts should not trigger notice
+	c.Assert(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
 	outcome = common.OutcomeDeny
-	repliedReq, err = rdb.Reply(user, req1.ID, outcome)
+	repliedPrompt, err = pdb.Reply(user, prompt1.ID, outcome)
+	c.Check(err, IsNil)
+	c.Check(repliedPrompt, Equals, prompt1)
 	for _, listenerReq := range []*listener.Request{listenerReq1, listenerReq2} {
-		c.Check(err, IsNil)
-		c.Check(repliedReq, Equals, req1)
 		receivedReq := <-listenerReqChan
 		c.Check(receivedReq, Equals, listenerReq)
 		result := <-replyChan
@@ -247,9 +247,9 @@ func (s *promptrequestsSuite) TestReply(c *C) {
 		c.Check(allowed, Equals, false)
 	}
 
-	c.Assert(requestNoticeIDs, HasLen, 1, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
-	c.Check(requestNoticeIDs[0], Equals, repliedReq.ID)
-	requestNoticeIDs = requestNoticeIDs[1:]
+	c.Assert(promptNoticeIDs, HasLen, 1, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
+	c.Check(promptNoticeIDs[0], Equals, repliedPrompt.ID)
+	promptNoticeIDs = promptNoticeIDs[1:]
 }
 
 func (s *promptrequestsSuite) TestReplyErrors(c *C) {
@@ -260,14 +260,14 @@ func (s *promptrequestsSuite) TestReplyErrors(c *C) {
 	defer restore()
 
 	var user uint32 = 1000
-	requestNoticeIDs := make([]string, 0, 1)
-	notifyRequest := func(userID uint32, requestID string, options *state.AddNoticeOptions) error {
+	promptNoticeIDs := make([]string, 0, 1)
+	notifyPrompt := func(userID uint32, promptID string, options *state.AddNoticeOptions) error {
 		c.Check(userID, Equals, user)
-		requestNoticeIDs = append(requestNoticeIDs, requestID)
+		promptNoticeIDs = append(promptNoticeIDs, promptID)
 		return nil
 	}
 
-	rdb := promptrequests.New(notifyRequest)
+	pdb := promptrequests.New(notifyPrompt)
 	snap := "nextcloud"
 	app := "occ"
 	iface := "removable-media"
@@ -276,29 +276,29 @@ func (s *promptrequestsSuite) TestReplyErrors(c *C) {
 
 	listenerReq := &listener.Request{}
 
-	req, merged := rdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq)
+	prompt, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq)
 	c.Check(merged, Equals, false)
 
-	c.Assert(requestNoticeIDs, HasLen, 1, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
-	c.Check(requestNoticeIDs[0], Equals, req.ID)
-	requestNoticeIDs = requestNoticeIDs[1:]
+	c.Assert(promptNoticeIDs, HasLen, 1, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
+	c.Check(promptNoticeIDs[0], Equals, prompt.ID)
+	promptNoticeIDs = promptNoticeIDs[1:]
 
 	outcome := common.OutcomeAllow
 
-	_, err := rdb.Reply(user, "foo", outcome)
-	c.Check(err, Equals, promptrequests.ErrRequestIDNotFound)
+	_, err := pdb.Reply(user, "foo", outcome)
+	c.Check(err, Equals, promptrequests.ErrPromptIDNotFound)
 
-	_, err = rdb.Reply(user+1, "foo", outcome)
+	_, err = pdb.Reply(user+1, "foo", outcome)
 	c.Check(err, Equals, promptrequests.ErrUserNotFound)
 
-	_, err = rdb.Reply(user, req.ID, common.OutcomeUnset)
+	_, err = pdb.Reply(user, prompt.ID, common.OutcomeUnset)
 	c.Check(err, Equals, common.ErrInvalidOutcome)
 
-	_, err = rdb.Reply(user, req.ID, outcome)
+	_, err = pdb.Reply(user, prompt.ID, outcome)
 	c.Check(err, Equals, fakeError)
 
 	// Failed replies should not trigger notice
-	c.Assert(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Assert(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 }
 
 func (s *promptrequestsSuite) TestHandleNewRuleAllowPermissions(c *C) {
@@ -312,14 +312,14 @@ func (s *promptrequestsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	defer restore()
 
 	var user uint32 = 1000
-	requestNoticeIDs := make([]string, 0, 6)
-	notifyRequest := func(userID uint32, requestID string, options *state.AddNoticeOptions) error {
+	promptNoticeIDs := make([]string, 0, 6)
+	notifyPrompt := func(userID uint32, promptID string, options *state.AddNoticeOptions) error {
 		c.Check(userID, Equals, user)
-		requestNoticeIDs = append(requestNoticeIDs, requestID)
+		promptNoticeIDs = append(promptNoticeIDs, promptID)
 		return nil
 	}
 
-	rdb := promptrequests.New(notifyRequest)
+	pdb := promptrequests.New(notifyPrompt)
 
 	snap := "nextcloud"
 	app := "occ"
@@ -328,48 +328,48 @@ func (s *promptrequestsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 
 	permissions := []common.PermissionType{common.PermissionExecute, common.PermissionWrite, common.PermissionRead}
 	listenerReq1 := &listener.Request{}
-	req1, merged := rdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq1)
+	prompt1, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq1)
 	c.Check(merged, Equals, false)
 
 	permissions = []common.PermissionType{common.PermissionWrite, common.PermissionRead}
 	listenerReq2 := &listener.Request{}
-	req2, merged := rdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq2)
+	prompt2, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq2)
 	c.Check(merged, Equals, false)
 
 	permissions = []common.PermissionType{common.PermissionRead}
 	listenerReq3 := &listener.Request{}
-	req3, merged := rdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq3)
+	prompt3, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq3)
 	c.Check(merged, Equals, false)
 
 	permissions = []common.PermissionType{common.PermissionOpen}
 	listenerReq4 := &listener.Request{}
-	req4, merged := rdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq4)
+	prompt4, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq4)
 	c.Check(merged, Equals, false)
 
-	c.Assert(requestNoticeIDs, HasLen, 4, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
-	c.Check(requestNoticeIDs[0], Equals, req1.ID)
-	c.Check(requestNoticeIDs[1], Equals, req2.ID)
-	c.Check(requestNoticeIDs[2], Equals, req3.ID)
-	c.Check(requestNoticeIDs[3], Equals, req4.ID)
-	requestNoticeIDs = requestNoticeIDs[4:]
+	c.Assert(promptNoticeIDs, HasLen, 4, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
+	c.Check(promptNoticeIDs[0], Equals, prompt1.ID)
+	c.Check(promptNoticeIDs[1], Equals, prompt2.ID)
+	c.Check(promptNoticeIDs[2], Equals, prompt3.ID)
+	c.Check(promptNoticeIDs[3], Equals, prompt4.ID)
+	promptNoticeIDs = promptNoticeIDs[4:]
 
-	stored := rdb.Requests(user)
+	stored := pdb.Prompts(user)
 	c.Assert(stored, HasLen, 4)
 
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
 	permissions = []common.PermissionType{common.PermissionWrite, common.PermissionRead, common.PermissionAppend}
 
-	satisfied, err := rdb.HandleNewRule(user, snap, app, iface, pathPattern, outcome, permissions)
+	satisfied, err := pdb.HandleNewRule(user, snap, app, iface, pathPattern, outcome, permissions)
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 2)
-	c.Check(strutil.ListContains(satisfied, req2.ID), Equals, true)
-	c.Check(strutil.ListContains(satisfied, req3.ID), Equals, true)
+	c.Check(strutil.ListContains(satisfied, prompt2.ID), Equals, true)
+	c.Check(strutil.ListContains(satisfied, prompt3.ID), Equals, true)
 
-	c.Assert(requestNoticeIDs, HasLen, 2, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
-	c.Check(strutil.ListContains(requestNoticeIDs, req2.ID), Equals, true)
-	c.Check(strutil.ListContains(requestNoticeIDs, req3.ID), Equals, true)
-	requestNoticeIDs = requestNoticeIDs[2:]
+	c.Assert(promptNoticeIDs, HasLen, 2, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
+	c.Check(strutil.ListContains(promptNoticeIDs, prompt2.ID), Equals, true)
+	c.Check(strutil.ListContains(promptNoticeIDs, prompt3.ID), Equals, true)
+	promptNoticeIDs = promptNoticeIDs[2:]
 
 	for i := 0; i < 2; i++ {
 		satisfiedReq := <-listenerReqChan
@@ -385,7 +385,7 @@ func (s *promptrequestsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 		c.Check(allowed, Equals, true)
 	}
 
-	stored = rdb.Requests(user)
+	stored = pdb.Prompts(user)
 	c.Assert(stored, HasLen, 2)
 }
 
@@ -400,14 +400,14 @@ func (s *promptrequestsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 	defer restore()
 
 	var user uint32 = 1000
-	requestNoticeIDs := make([]string, 0, 6)
-	notifyRequest := func(userID uint32, requestID string, options *state.AddNoticeOptions) error {
+	promptNoticeIDs := make([]string, 0, 6)
+	notifyPrompt := func(userID uint32, promptID string, options *state.AddNoticeOptions) error {
 		c.Check(userID, Equals, user)
-		requestNoticeIDs = append(requestNoticeIDs, requestID)
+		promptNoticeIDs = append(promptNoticeIDs, promptID)
 		return nil
 	}
 
-	rdb := promptrequests.New(notifyRequest)
+	pdb := promptrequests.New(notifyPrompt)
 
 	snap := "nextcloud"
 	app := "occ"
@@ -416,48 +416,48 @@ func (s *promptrequestsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 
 	permissions := []common.PermissionType{common.PermissionExecute, common.PermissionWrite, common.PermissionRead}
 	listenerReq1 := &listener.Request{}
-	req1, merged := rdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq1)
+	prompt1, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq1)
 	c.Check(merged, Equals, false)
 
 	permissions = []common.PermissionType{common.PermissionWrite, common.PermissionRead}
 	listenerReq2 := &listener.Request{}
-	req2, merged := rdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq2)
+	prompt2, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq2)
 	c.Check(merged, Equals, false)
 
 	permissions = []common.PermissionType{common.PermissionRead}
 	listenerReq3 := &listener.Request{}
-	req3, merged := rdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq3)
+	prompt3, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq3)
 	c.Check(merged, Equals, false)
 
 	permissions = []common.PermissionType{common.PermissionOpen}
 	listenerReq4 := &listener.Request{}
-	req4, merged := rdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq4)
+	prompt4, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq4)
 	c.Check(merged, Equals, false)
 
-	c.Assert(requestNoticeIDs, HasLen, 4, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
-	c.Check(requestNoticeIDs[0], Equals, req1.ID)
-	c.Check(requestNoticeIDs[1], Equals, req2.ID)
-	c.Check(requestNoticeIDs[2], Equals, req3.ID)
-	c.Check(requestNoticeIDs[3], Equals, req4.ID)
-	requestNoticeIDs = requestNoticeIDs[4:]
+	c.Assert(promptNoticeIDs, HasLen, 4, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
+	c.Check(promptNoticeIDs[0], Equals, prompt1.ID)
+	c.Check(promptNoticeIDs[1], Equals, prompt2.ID)
+	c.Check(promptNoticeIDs[2], Equals, prompt3.ID)
+	c.Check(promptNoticeIDs[3], Equals, prompt4.ID)
+	promptNoticeIDs = promptNoticeIDs[4:]
 
-	stored := rdb.Requests(user)
+	stored := pdb.Prompts(user)
 	c.Assert(stored, HasLen, 4)
 
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeDeny
 	permissions = []common.PermissionType{common.PermissionWrite, common.PermissionRead, common.PermissionAppend}
 
-	satisfied, err := rdb.HandleNewRule(user, snap, app, iface, pathPattern, outcome, permissions)
+	satisfied, err := pdb.HandleNewRule(user, snap, app, iface, pathPattern, outcome, permissions)
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 2)
-	c.Check(strutil.ListContains(satisfied, req2.ID), Equals, true)
-	c.Check(strutil.ListContains(satisfied, req3.ID), Equals, true)
+	c.Check(strutil.ListContains(satisfied, prompt2.ID), Equals, true)
+	c.Check(strutil.ListContains(satisfied, prompt3.ID), Equals, true)
 
-	c.Assert(requestNoticeIDs, HasLen, 2, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
-	c.Check(strutil.ListContains(requestNoticeIDs, req2.ID), Equals, true)
-	c.Check(strutil.ListContains(requestNoticeIDs, req3.ID), Equals, true)
-	requestNoticeIDs = requestNoticeIDs[2:]
+	c.Assert(promptNoticeIDs, HasLen, 2, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
+	c.Check(strutil.ListContains(promptNoticeIDs, prompt2.ID), Equals, true)
+	c.Check(strutil.ListContains(promptNoticeIDs, prompt3.ID), Equals, true)
+	promptNoticeIDs = promptNoticeIDs[2:]
 
 	for i := 0; i < 2; i++ {
 		satisfiedReq := <-listenerReqChan
@@ -473,20 +473,19 @@ func (s *promptrequestsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 		c.Check(allowed, Equals, false)
 	}
 
-	stored = rdb.Requests(user)
+	stored = pdb.Prompts(user)
 	c.Check(stored, HasLen, 2)
 
 	// check that denying the final missing permission does not deny the whole rule.
 	// TODO: change this behaviour?
 	permissions = []common.PermissionType{common.PermissionExecute}
-	satisfied, err = rdb.HandleNewRule(user, snap, app, iface, pathPattern, outcome, permissions)
+	satisfied, err = pdb.HandleNewRule(user, snap, app, iface, pathPattern, outcome, permissions)
 
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
-	// The request is not modified (since not fully satisfied), so no notice should be issued
-	c.Assert(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
-
+	// The prompt is not modified (since not fully satisfied), so no notice should be issued
+	c.Assert(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 }
 
 func (s *promptrequestsSuite) TestHandleNewRuleNonMatches(c *C) {
@@ -500,14 +499,14 @@ func (s *promptrequestsSuite) TestHandleNewRuleNonMatches(c *C) {
 	defer restore()
 
 	var user uint32 = 1000
-	requestNoticeIDs := make([]string, 0, 2)
-	notifyRequest := func(userID uint32, requestID string, options *state.AddNoticeOptions) error {
+	promptNoticeIDs := make([]string, 0, 2)
+	notifyPrompt := func(userID uint32, promptID string, options *state.AddNoticeOptions) error {
 		c.Check(userID, Equals, user)
-		requestNoticeIDs = append(requestNoticeIDs, requestID)
+		promptNoticeIDs = append(promptNoticeIDs, promptID)
 		return nil
 	}
 
-	rdb := promptrequests.New(notifyRequest)
+	pdb := promptrequests.New(notifyPrompt)
 
 	snap := "nextcloud"
 	app := "occ"
@@ -515,12 +514,12 @@ func (s *promptrequestsSuite) TestHandleNewRuleNonMatches(c *C) {
 	path := "/home/test/Documents/foo.txt"
 	permissions := []common.PermissionType{common.PermissionRead}
 	listenerReq := &listener.Request{}
-	req, merged := rdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq)
+	prompt, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq)
 	c.Check(merged, Equals, false)
 
-	c.Assert(requestNoticeIDs, HasLen, 1, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
-	c.Check(requestNoticeIDs[0], Equals, req.ID)
-	requestNoticeIDs = requestNoticeIDs[1:]
+	c.Assert(promptNoticeIDs, HasLen, 1, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
+	c.Check(promptNoticeIDs[0], Equals, prompt.ID)
+	promptNoticeIDs = promptNoticeIDs[1:]
 
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
@@ -533,59 +532,59 @@ func (s *promptrequestsSuite) TestHandleNewRuleNonMatches(c *C) {
 	badPattern := "\\home\\test\\"
 	badOutcome := common.OutcomeType("foo")
 
-	stored := rdb.Requests(user)
+	stored := pdb.Prompts(user)
 	c.Assert(stored, HasLen, 1)
-	c.Assert(stored[0], Equals, req)
+	c.Assert(stored[0], Equals, prompt)
 
-	satisfied, err := rdb.HandleNewRule(otherUser, otherSnap, otherApp, otherInterface, otherPattern, badOutcome, permissions)
+	satisfied, err := pdb.HandleNewRule(otherUser, otherSnap, otherApp, otherInterface, otherPattern, badOutcome, permissions)
 	c.Check(err, Equals, common.ErrInvalidOutcome)
 	c.Check(satisfied, HasLen, 0)
 
-	c.Check(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = rdb.HandleNewRule(otherUser, otherSnap, otherApp, otherInterface, otherPattern, outcome, permissions)
+	satisfied, err = pdb.HandleNewRule(otherUser, otherSnap, otherApp, otherInterface, otherPattern, outcome, permissions)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
-	c.Check(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = rdb.HandleNewRule(user, otherSnap, otherApp, otherInterface, otherPattern, outcome, permissions)
+	satisfied, err = pdb.HandleNewRule(user, otherSnap, otherApp, otherInterface, otherPattern, outcome, permissions)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
-	c.Check(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = rdb.HandleNewRule(user, snap, otherApp, otherInterface, otherPattern, outcome, permissions)
+	satisfied, err = pdb.HandleNewRule(user, snap, otherApp, otherInterface, otherPattern, outcome, permissions)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
-	c.Check(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = rdb.HandleNewRule(user, snap, app, otherInterface, otherPattern, outcome, permissions)
+	satisfied, err = pdb.HandleNewRule(user, snap, app, otherInterface, otherPattern, outcome, permissions)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
-	c.Check(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = rdb.HandleNewRule(user, snap, app, iface, otherPattern, outcome, permissions)
+	satisfied, err = pdb.HandleNewRule(user, snap, app, iface, otherPattern, outcome, permissions)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
-	c.Check(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = rdb.HandleNewRule(user, snap, app, iface, badPattern, outcome, permissions)
+	satisfied, err = pdb.HandleNewRule(user, snap, app, iface, badPattern, outcome, permissions)
 	c.Check(err, ErrorMatches, "syntax error in pattern")
 	c.Check(satisfied, HasLen, 0)
 
-	c.Check(requestNoticeIDs, HasLen, 0, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
+	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = rdb.HandleNewRule(user, snap, app, iface, pathPattern, outcome, permissions)
+	satisfied, err = pdb.HandleNewRule(user, snap, app, iface, pathPattern, outcome, permissions)
 	c.Check(err, IsNil)
 	c.Assert(satisfied, HasLen, 1)
 
-	c.Assert(requestNoticeIDs, HasLen, 1, Commentf("requestNoticeIDs: %v; rdb.PerUser[%d]: %+v", requestNoticeIDs, user, rdb.PerUser[user]))
-	c.Check(requestNoticeIDs[0], Equals, req.ID)
-	requestNoticeIDs = requestNoticeIDs[1:]
+	c.Assert(promptNoticeIDs, HasLen, 1, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
+	c.Check(promptNoticeIDs[0], Equals, prompt.ID)
+	promptNoticeIDs = promptNoticeIDs[1:]
 
 	satisfiedReq := <-listenerReqChan
 	c.Check(satisfiedReq, Equals, listenerReq)
@@ -594,6 +593,6 @@ func (s *promptrequestsSuite) TestHandleNewRuleNonMatches(c *C) {
 	c.Check(ok, Equals, true)
 	c.Check(allowed, Equals, true)
 
-	stored = rdb.Requests(user)
+	stored = pdb.Prompts(user)
 	c.Check(stored, HasLen, 0)
 }

@@ -28,12 +28,12 @@ func (s *accessruleSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(s.tmpdir)
 }
 
-func (s *accessruleSuite) TestPopulateNewAccessRule(c *C) {
+func (s *accessruleSuite) TestPopulateNewRule(c *C) {
 	notifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
 		c.Errorf("unexpected rule notice with user %d and ID %s", userID, ruleID)
 		return nil
 	}
-	ardb, _ := accessrules.New(notifyRule)
+	rdb, _ := accessrules.New(notifyRule)
 
 	var user uint32 = 1000
 	snap := "lxd"
@@ -53,7 +53,7 @@ func (s *accessruleSuite) TestPopulateNewAccessRule(c *C) {
 		"/home/test/**/*.pdf",
 		"/home/test/*",
 	} {
-		rule, err := ardb.PopulateNewAccessRule(user, snap, app, iface, pattern, outcome, lifespan, duration, permissions)
+		rule, err := rdb.PopulateNewRule(user, snap, app, iface, pattern, outcome, lifespan, duration, permissions)
 		c.Check(err, IsNil)
 		c.Check(rule.User, Equals, user)
 		c.Check(rule.Snap, Equals, snap)
@@ -70,13 +70,13 @@ func (s *accessruleSuite) TestPopulateNewAccessRule(c *C) {
 		"/home/test/*/**",
 		"/home/test/*/*.txt",
 	} {
-		rule, err := ardb.PopulateNewAccessRule(user, snap, app, iface, pattern, outcome, lifespan, duration, permissions)
+		rule, err := rdb.PopulateNewRule(user, snap, app, iface, pattern, outcome, lifespan, duration, permissions)
 		c.Assert(err, Equals, common.ErrInvalidPathPattern)
 		c.Assert(rule, IsNil)
 	}
 }
 
-func (s *accessruleSuite) TestCreateRemoveAccessRuleSimple(c *C) {
+func (s *accessruleSuite) TestCreateRemoveRuleSimple(c *C) {
 	var user uint32 = 1000
 	ruleNoticeIDs := make([]string, 0, 2)
 	notifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
@@ -84,7 +84,7 @@ func (s *accessruleSuite) TestCreateRemoveAccessRuleSimple(c *C) {
 		ruleNoticeIDs = append(ruleNoticeIDs, ruleID)
 		return nil
 	}
-	ardb, _ := accessrules.New(notifyRule)
+	rdb, _ := accessrules.New(notifyRule)
 
 	snap := "lxd"
 	app := "lxc"
@@ -99,21 +99,21 @@ func (s *accessruleSuite) TestCreateRemoveAccessRuleSimple(c *C) {
 		common.PermissionExecute,
 	}
 
-	accessRule, err := ardb.CreateAccessRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	rule, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, IsNil)
 
-	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
-	c.Check(ruleNoticeIDs[0], Equals, accessRule.ID)
+	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
+	c.Check(ruleNoticeIDs[0], Equals, rule.ID)
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
-	c.Assert(ardb.ByID, HasLen, 1)
-	storedRule, exists := ardb.ByID[accessRule.ID]
+	c.Assert(rdb.ByID, HasLen, 1)
+	storedRule, exists := rdb.ByID[rule.ID]
 	c.Assert(exists, Equals, true)
-	c.Assert(storedRule, DeepEquals, accessRule)
+	c.Assert(storedRule, DeepEquals, rule)
 
-	c.Assert(ardb.PerUser, HasLen, 1)
+	c.Assert(rdb.PerUser, HasLen, 1)
 
-	userEntry, exists := ardb.PerUser[user]
+	userEntry, exists := rdb.PerUser[user]
 	c.Assert(exists, Equals, true)
 	c.Assert(userEntry.PerSnap, HasLen, 1)
 
@@ -136,21 +136,21 @@ func (s *accessruleSuite) TestCreateRemoveAccessRuleSimple(c *C) {
 
 		pathID, exists := permissionEntry.PathRules[pathPattern]
 		c.Assert(exists, Equals, true)
-		c.Assert(pathID, Equals, accessRule.ID)
+		c.Assert(pathID, Equals, rule.ID)
 	}
 
-	removedRule, err := ardb.RemoveAccessRule(user, accessRule.ID)
+	removedRule, err := rdb.RemoveRule(user, rule.ID)
 	c.Assert(err, IsNil)
-	c.Assert(removedRule, DeepEquals, accessRule)
+	c.Assert(removedRule, DeepEquals, rule)
 
-	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 	c.Check(ruleNoticeIDs[0], Equals, removedRule.ID)
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
-	c.Assert(ardb.ByID, HasLen, 0)
-	c.Assert(ardb.PerUser, HasLen, 1)
+	c.Assert(rdb.ByID, HasLen, 0)
+	c.Assert(rdb.PerUser, HasLen, 1)
 
-	userEntry, exists = ardb.PerUser[user]
+	userEntry, exists = rdb.PerUser[user]
 	c.Assert(exists, Equals, true)
 	c.Assert(userEntry.PerSnap, HasLen, 1)
 
@@ -173,7 +173,7 @@ func (s *accessruleSuite) TestCreateRemoveAccessRuleSimple(c *C) {
 	}
 }
 
-func (s *accessruleSuite) TestCreateAccessRuleUnhappy(c *C) {
+func (s *accessruleSuite) TestCreateRuleUnhappy(c *C) {
 	var user uint32 = 1000
 	ruleNoticeIDs := make([]string, 0, 1)
 	notifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
@@ -181,7 +181,7 @@ func (s *accessruleSuite) TestCreateAccessRuleUnhappy(c *C) {
 		ruleNoticeIDs = append(ruleNoticeIDs, ruleID)
 		return nil
 	}
-	ardb, _ := accessrules.New(notifyRule)
+	rdb, _ := accessrules.New(notifyRule)
 
 	snap := "lxd"
 	app := "lxc"
@@ -196,36 +196,36 @@ func (s *accessruleSuite) TestCreateAccessRuleUnhappy(c *C) {
 		common.PermissionExecute,
 	}
 
-	storedRule, err := ardb.CreateAccessRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	storedRule, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, IsNil)
 
-	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 	c.Check(ruleNoticeIDs[0], Equals, storedRule.ID)
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
 	conflictingPermissions := permissions[:1]
-	_, err = ardb.CreateAccessRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, conflictingPermissions)
+	_, err = rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, conflictingPermissions)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("^%s.*%s.*%s.*", accessrules.ErrPathPatternConflict, storedRule.ID, conflictingPermissions[0]))
 
 	// Error while adding rule should cause no notice to be issued
-	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 
 	badPattern := "bad/pattern"
-	_, err = ardb.CreateAccessRule(user, snap, app, iface, badPattern, outcome, lifespan, duration, permissions)
+	_, err = rdb.CreateRule(user, snap, app, iface, badPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, Equals, common.ErrInvalidPathPattern)
 
 	// Error while adding rule should cause no notice to be issued
-	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 
 	badOutcome := common.OutcomeType("secret third thing")
-	_, err = ardb.CreateAccessRule(user, snap, app, iface, pathPattern, badOutcome, lifespan, duration, permissions)
+	_, err = rdb.CreateRule(user, snap, app, iface, pathPattern, badOutcome, lifespan, duration, permissions)
 	c.Assert(err, Equals, common.ErrInvalidOutcome)
 
 	// Error while adding rule should cause no notice to be issued
-	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 }
 
-func (s *accessruleSuite) TestModifyAccessRule(c *C) {
+func (s *accessruleSuite) TestModifyRule(c *C) {
 	var user uint32 = 1000
 	ruleNoticeIDs := make([]string, 0, 5)
 	notifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
@@ -233,7 +233,7 @@ func (s *accessruleSuite) TestModifyAccessRule(c *C) {
 		ruleNoticeIDs = append(ruleNoticeIDs, ruleID)
 		return nil
 	}
-	ardb, _ := accessrules.New(notifyRule)
+	rdb, _ := accessrules.New(notifyRule)
 
 	snap := "lxd"
 	app := "lxc"
@@ -248,11 +248,11 @@ func (s *accessruleSuite) TestModifyAccessRule(c *C) {
 		common.PermissionExecute,
 	}
 
-	storedRule, err := ardb.CreateAccessRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	storedRule, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, IsNil)
-	c.Assert(ardb.ByID, HasLen, 1)
+	c.Assert(rdb.ByID, HasLen, 1)
 
-	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 	c.Check(ruleNoticeIDs[0], Equals, storedRule.ID)
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
@@ -262,39 +262,39 @@ func (s *accessruleSuite) TestModifyAccessRule(c *C) {
 	otherPermissions := []common.PermissionType{
 		conflictingPermission,
 	}
-	otherRule, err := ardb.CreateAccessRule(user, snap, app, iface, otherPathPattern, outcome, lifespan, duration, otherPermissions)
+	otherRule, err := rdb.CreateRule(user, snap, app, iface, otherPathPattern, outcome, lifespan, duration, otherPermissions)
 	c.Assert(err, IsNil)
-	c.Assert(ardb.ByID, HasLen, 2)
+	c.Assert(rdb.ByID, HasLen, 2)
 
-	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 	c.Check(ruleNoticeIDs[0], Equals, otherRule.ID)
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
 	// Check that modifying with the original values results in an identical rule
-	unchangedRule1, err := ardb.ModifyAccessRule(user, storedRule.ID, pathPattern, outcome, lifespan, duration, permissions)
+	unchangedRule1, err := rdb.ModifyRule(user, storedRule.ID, pathPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, IsNil)
 	// Timestamp should be different, the rest should be the same
 	unchangedRule1.Timestamp = storedRule.Timestamp
 	c.Assert(unchangedRule1, DeepEquals, storedRule)
-	c.Assert(ardb.ByID, HasLen, 2)
+	c.Assert(rdb.ByID, HasLen, 2)
 
 	// Though rule was modified with the same values as it originally had, the
 	// timestamp was changed, and thus a notice should be issued for it.
-	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 	c.Check(ruleNoticeIDs[0], Equals, unchangedRule1.ID)
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
 	// Check that modifying with unset values results in an identical rule
-	unchangedRule2, err := ardb.ModifyAccessRule(user, storedRule.ID, "", common.OutcomeUnset, common.LifespanUnset, "", nil)
+	unchangedRule2, err := rdb.ModifyRule(user, storedRule.ID, "", common.OutcomeUnset, common.LifespanUnset, "", nil)
 	c.Assert(err, IsNil)
 	// Timestamp should be different, the rest should be the same
 	unchangedRule2.Timestamp = storedRule.Timestamp
 	c.Assert(unchangedRule2, DeepEquals, storedRule)
-	c.Assert(ardb.ByID, HasLen, 2)
+	c.Assert(rdb.ByID, HasLen, 2)
 
 	// Though rule was modified with unset values, and thus was unchanged aside
 	// from the timestamp, a notice should be issued for it.
-	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 	c.Check(ruleNoticeIDs[0], Equals, unchangedRule2.ID)
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
@@ -303,37 +303,37 @@ func (s *accessruleSuite) TestModifyAccessRule(c *C) {
 	newLifespan := common.LifespanTimespan
 	newDuration := "1s"
 	newPermissions := []common.PermissionType{common.PermissionAppend}
-	modifiedRule, err := ardb.ModifyAccessRule(user, storedRule.ID, newPathPattern, newOutcome, newLifespan, newDuration, newPermissions)
+	modifiedRule, err := rdb.ModifyRule(user, storedRule.ID, newPathPattern, newOutcome, newLifespan, newDuration, newPermissions)
 	c.Assert(err, IsNil)
-	c.Assert(ardb.ByID, HasLen, 2)
+	c.Assert(rdb.ByID, HasLen, 2)
 
-	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 	c.Check(ruleNoticeIDs[0], Equals, modifiedRule.ID)
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
 	badPathPattern := "bad/pattern"
-	output, err := ardb.ModifyAccessRule(user, storedRule.ID, badPathPattern, outcome, lifespan, duration, permissions)
+	output, err := rdb.ModifyRule(user, storedRule.ID, badPathPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, Equals, common.ErrInvalidPathPattern)
 	c.Assert(output, IsNil)
-	c.Assert(ardb.ByID, HasLen, 2)
+	c.Assert(rdb.ByID, HasLen, 2)
 
 	// Error while modifying rule should cause no notice to be issued
-	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 
-	currentRule, exists := ardb.ByID[storedRule.ID]
+	currentRule, exists := rdb.ByID[storedRule.ID]
 	c.Assert(exists, Equals, true)
 	c.Assert(currentRule, DeepEquals, modifiedRule)
 
 	conflictingPermissions := append(newPermissions, conflictingPermission)
-	output, err = ardb.ModifyAccessRule(user, storedRule.ID, newPathPattern, newOutcome, newLifespan, newDuration, conflictingPermissions)
+	output, err = rdb.ModifyRule(user, storedRule.ID, newPathPattern, newOutcome, newLifespan, newDuration, conflictingPermissions)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("^%s.*%s.*%s.*", accessrules.ErrPathPatternConflict, otherRule.ID, conflictingPermission))
 	c.Assert(output, IsNil)
-	c.Assert(ardb.ByID, HasLen, 2)
+	c.Assert(rdb.ByID, HasLen, 2)
 
 	// Permission conflicts while modifying rule should cause no notice to be issued
-	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 
-	currentRule, exists = ardb.ByID[storedRule.ID]
+	currentRule, exists = rdb.ByID[storedRule.ID]
 	c.Assert(exists, Equals, true)
 	c.Assert(currentRule, DeepEquals, modifiedRule)
 }
@@ -346,7 +346,7 @@ func (s *accessruleSuite) TestRuleWithID(c *C) {
 		ruleNoticeIDs = append(ruleNoticeIDs, ruleID)
 		return nil
 	}
-	ardb, _ := accessrules.New(notifyRule)
+	rdb, _ := accessrules.New(notifyRule)
 
 	snap := "lxd"
 	app := "lxc"
@@ -361,28 +361,28 @@ func (s *accessruleSuite) TestRuleWithID(c *C) {
 		common.PermissionExecute,
 	}
 
-	newRule, err := ardb.CreateAccessRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	newRule, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, IsNil)
 	c.Assert(newRule, NotNil)
 
-	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 	c.Check(ruleNoticeIDs[0], Equals, newRule.ID)
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
-	accessedRule, err := ardb.RuleWithID(user, newRule.ID)
+	accessedRule, err := rdb.RuleWithID(user, newRule.ID)
 	c.Check(err, IsNil)
 	c.Check(accessedRule, DeepEquals, newRule)
 
-	accessedRule, err = ardb.RuleWithID(user, "nonexistent")
+	accessedRule, err = rdb.RuleWithID(user, "nonexistent")
 	c.Check(err, Equals, accessrules.ErrRuleIDNotFound)
 	c.Check(accessedRule, IsNil)
 
-	accessedRule, err = ardb.RuleWithID(user+1, newRule.ID)
+	accessedRule, err = rdb.RuleWithID(user+1, newRule.ID)
 	c.Check(err, Equals, accessrules.ErrUserNotAllowed)
 	c.Check(accessedRule, IsNil)
 
 	// Reading (or failing to read) a notice should not trigger a notice
-	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 }
 
 func (s *accessruleSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
@@ -393,7 +393,7 @@ func (s *accessruleSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
 		ruleNoticeIDs = append(ruleNoticeIDs, ruleID)
 		return nil
 	}
-	ardb, _ := accessrules.New(notifyRule)
+	rdb, _ := accessrules.New(notifyRule)
 
 	snap := "lxd"
 	app := "lxc"
@@ -408,20 +408,20 @@ func (s *accessruleSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
 		common.PermissionExecute,
 	}
 
-	accessRule, err := ardb.PopulateNewAccessRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	rule, err := rdb.PopulateNewRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, IsNil)
-	ardb.ByID[accessRule.ID] = accessRule
+	rdb.ByID[rule.ID] = rule
 	notifyEveryRule := true
-	ardb.RefreshTreeEnforceConsistency(notifyEveryRule)
+	rdb.RefreshTreeEnforceConsistency(notifyEveryRule)
 
 	// Test that RefreshTreeEnforceConsistency results in a single notice
-	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
-	c.Check(ruleNoticeIDs[0], Equals, accessRule.ID)
+	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
+	c.Check(ruleNoticeIDs[0], Equals, rule.ID)
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
-	c.Assert(ardb.PerUser, HasLen, 1)
+	c.Assert(rdb.PerUser, HasLen, 1)
 
-	userEntry, exists := ardb.PerUser[user]
+	userEntry, exists := rdb.PerUser[user]
 	c.Assert(exists, Equals, true)
 	c.Assert(userEntry.PerSnap, HasLen, 1)
 
@@ -444,7 +444,7 @@ func (s *accessruleSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
 
 		pathID, exists := permissionEntry.PathRules[pathPattern]
 		c.Assert(exists, Equals, true)
-		c.Assert(pathID, Equals, accessRule.ID)
+		c.Assert(pathID, Equals, rule.ID)
 	}
 }
 
@@ -456,7 +456,7 @@ func (s *accessruleSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 		ruleNoticeIDs = append(ruleNoticeIDs, ruleID)
 		return nil
 	}
-	ardb, _ := accessrules.New(notifyRule)
+	rdb, _ := accessrules.New(notifyRule)
 
 	snap := "lxd"
 	app := "lxc"
@@ -472,84 +472,84 @@ func (s *accessruleSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	}
 
 	// Create two rules with bad timestamps
-	badTsRule1, err := ardb.PopulateNewAccessRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions[:1])
+	badTsRule1, err := rdb.PopulateNewRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions[:1])
 	c.Assert(err, IsNil)
 	badTsRule1.Timestamp = "bar"
 	time.Sleep(time.Millisecond)
-	badTsRule2, err := ardb.PopulateNewAccessRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions[:1])
+	badTsRule2, err := rdb.PopulateNewRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions[:1])
 	c.Assert(err, IsNil)
 	badTsRule2.Timestamp = "baz"
-	ardb.ByID[badTsRule1.ID] = badTsRule1
-	ardb.ByID[badTsRule2.ID] = badTsRule2
+	rdb.ByID[badTsRule1.ID] = badTsRule1
+	rdb.ByID[badTsRule2.ID] = badTsRule2
 
 	c.Assert(badTsRule1, Not(Equals), badTsRule2)
 
 	// The former should be overwritten by RefreshTreeEnforceConsistency
 	notifyEveryRule := false
-	ardb.RefreshTreeEnforceConsistency(notifyEveryRule)
-	c.Assert(ardb.ByID, HasLen, 1, Commentf("ardb.ByID: %+v", ardb.ByID))
-	_, exists := ardb.ByID[badTsRule2.ID]
+	rdb.RefreshTreeEnforceConsistency(notifyEveryRule)
+	c.Assert(rdb.ByID, HasLen, 1, Commentf("rdb.ByID: %+v", rdb.ByID))
+	_, exists := rdb.ByID[badTsRule2.ID]
 	c.Assert(exists, Equals, true)
 	// The latter should be overwritten by any conflicting rule which has a valid timestamp
 
 	// Since notifyEveryRule = false, only one notice should be issued, for the overwritten rule
-	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 	c.Check(ruleNoticeIDs[0], Equals, badTsRule1.ID)
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
 	// Create a rule with the earliest timestamp, which will be totally overwritten when attempting to add later
-	earliestRule, err := ardb.PopulateNewAccessRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	earliestRule, err := rdb.PopulateNewRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, IsNil)
 
 	// Create and add a rule which will overwrite the rule with bad timestamp
-	initialRule, err := ardb.PopulateNewAccessRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	initialRule, err := rdb.PopulateNewRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, IsNil)
-	ardb.ByID[initialRule.ID] = initialRule
-	ardb.RefreshTreeEnforceConsistency(notifyEveryRule)
+	rdb.ByID[initialRule.ID] = initialRule
+	rdb.RefreshTreeEnforceConsistency(notifyEveryRule)
 
 	// Expect notice for rule with bad timestamp, not initialRule
-	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 	c.Check(ruleNoticeIDs[0], Equals, badTsRule2.ID)
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
 	// Check that rule with bad timestamp was overwritten
 	c.Assert(initialRule.Permissions, HasLen, len(permissions))
-	c.Assert(ardb.ByID, HasLen, 1, Commentf("ardb.ByID: %+v", ardb.ByID))
-	initialRuleRet, exists := ardb.ByID[initialRule.ID]
+	c.Assert(rdb.ByID, HasLen, 1, Commentf("rdb.ByID: %+v", rdb.ByID))
+	initialRuleRet, exists := rdb.ByID[initialRule.ID]
 	c.Assert(exists, Equals, true)
 	c.Assert(initialRuleRet.Permissions, DeepEquals, permissions)
 
 	// Create newer rule which will overwrite all but the first permission of initialRule
 	newRulePermissions := permissions[1:]
-	newRule, err := ardb.PopulateNewAccessRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, newRulePermissions)
+	newRule, err := rdb.PopulateNewRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, newRulePermissions)
 	c.Assert(err, IsNil)
 
-	ardb.ByID[newRule.ID] = newRule
-	ardb.ByID[earliestRule.ID] = earliestRule
-	ardb.RefreshTreeEnforceConsistency(notifyEveryRule)
+	rdb.ByID[newRule.ID] = newRule
+	rdb.ByID[earliestRule.ID] = earliestRule
+	rdb.RefreshTreeEnforceConsistency(notifyEveryRule)
 
 	// Expect notice for initialRule and earliestRule, not newRule
-	c.Assert(ruleNoticeIDs, HasLen, 2, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 2, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 	c.Check(strutil.ListContains(ruleNoticeIDs, initialRule.ID), Equals, true)
 	c.Check(strutil.ListContains(ruleNoticeIDs, earliestRule.ID), Equals, true)
 	ruleNoticeIDs = ruleNoticeIDs[2:]
 
-	c.Assert(ardb.ByID, HasLen, 2, Commentf("ardb.ByID: %+v", ardb.ByID))
+	c.Assert(rdb.ByID, HasLen, 2, Commentf("rdb.ByID: %+v", rdb.ByID))
 
-	_, exists = ardb.ByID[earliestRule.ID]
+	_, exists = rdb.ByID[earliestRule.ID]
 	c.Assert(exists, Equals, false)
 
-	initialRuleRet, exists = ardb.ByID[initialRule.ID]
+	initialRuleRet, exists = rdb.ByID[initialRule.ID]
 	c.Assert(exists, Equals, true)
 	c.Assert(initialRuleRet.Permissions, DeepEquals, permissions[:1])
 
-	newRuleRet, exists := ardb.ByID[newRule.ID]
+	newRuleRet, exists := rdb.ByID[newRule.ID]
 	c.Assert(exists, Equals, true)
 	c.Assert(newRuleRet.Permissions, DeepEquals, newRulePermissions, Commentf("newRulePermissions: %+v", newRulePermissions))
 
-	c.Assert(ardb.PerUser, HasLen, 1)
+	c.Assert(rdb.PerUser, HasLen, 1)
 
-	userEntry, exists := ardb.PerUser[user]
+	userEntry, exists := rdb.PerUser[user]
 	c.Assert(exists, Equals, true)
 	c.Assert(userEntry.PerSnap, HasLen, 1)
 
@@ -584,7 +584,7 @@ func (s *accessruleSuite) TestNewSaveLoad(c *C) {
 	doNotNotifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
 		return nil
 	}
-	ardb, _ := accessrules.New(doNotNotifyRule)
+	rdb, _ := accessrules.New(doNotNotifyRule)
 
 	var user uint32 = 1000
 	snap := "lxd"
@@ -600,11 +600,11 @@ func (s *accessruleSuite) TestNewSaveLoad(c *C) {
 		common.PermissionExecute,
 	}
 
-	rule1, err := ardb.CreateAccessRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions[:1])
+	rule1, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions[:1])
 	c.Assert(err, IsNil)
-	rule2, err := ardb.CreateAccessRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions[1:2])
+	rule2, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions[1:2])
 	c.Assert(err, IsNil)
-	rule3, err := ardb.CreateAccessRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions[2:])
+	rule3, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions[2:])
 	c.Assert(err, IsNil)
 
 	ruleIDs := []string{rule1.ID, rule2.ID, rule3.ID}
@@ -619,8 +619,8 @@ func (s *accessruleSuite) TestNewSaveLoad(c *C) {
 	}
 	loadedArdb, err := accessrules.New(notifyRule)
 	c.Assert(err, IsNil)
-	c.Assert(ardb.ByID, DeepEquals, loadedArdb.ByID)
-	c.Assert(ardb.PerUser, DeepEquals, loadedArdb.PerUser)
+	c.Assert(rdb.ByID, DeepEquals, loadedArdb.ByID)
+	c.Assert(rdb.PerUser, DeepEquals, loadedArdb.PerUser)
 }
 
 func (s *accessruleSuite) TestIsPathAllowed(c *C) {
@@ -639,7 +639,7 @@ func (s *accessruleSuite) TestIsPathAllowed(c *C) {
 		ruleNoticeIDs = append(ruleNoticeIDs, ruleID)
 		return nil
 	}
-	ardb, _ := accessrules.New(notifyRule)
+	rdb, _ := accessrules.New(notifyRule)
 
 	snap := "lxd"
 	app := "lxc"
@@ -653,10 +653,10 @@ func (s *accessruleSuite) TestIsPathAllowed(c *C) {
 	}
 
 	for pattern, outcome := range patterns {
-		newRule, err := ardb.CreateAccessRule(user, snap, app, iface, pattern, outcome, lifespan, duration, permissions)
+		newRule, err := rdb.CreateRule(user, snap, app, iface, pattern, outcome, lifespan, duration, permissions)
 		c.Assert(err, IsNil)
 
-		c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+		c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 		c.Check(ruleNoticeIDs[0], Equals, newRule.ID)
 		ruleNoticeIDs = ruleNoticeIDs[1:]
 	}
@@ -698,12 +698,12 @@ func (s *accessruleSuite) TestIsPathAllowed(c *C) {
 	cases["/home/test/file.png.jpg"] = false
 
 	for path, expected := range cases {
-		result, err := ardb.IsPathAllowed(user, snap, app, iface, path, permissions[0])
-		c.Assert(err, IsNil, Commentf("path: %s: error: %v\nardb.ByID: %+v", path, err, ardb.ByID))
-		c.Assert(result, Equals, expected, Commentf("path: %s: expected %b but got %b\nardb.ByID: %+v", path, expected, result, ardb.ByID))
+		result, err := rdb.IsPathAllowed(user, snap, app, iface, path, permissions[0])
+		c.Assert(err, IsNil, Commentf("path: %s: error: %v\nrdb.ByID: %+v", path, err, rdb.ByID))
+		c.Assert(result, Equals, expected, Commentf("path: %s: expected %b but got %b\nrdb.ByID: %+v", path, expected, result, rdb.ByID))
 
 		// Matching against rules should not cause any notices
-		c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+		c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 	}
 }
 
@@ -715,7 +715,7 @@ func (s *accessruleSuite) TestRuleExpiration(c *C) {
 		ruleNoticeIDs = append(ruleNoticeIDs, ruleID)
 		return nil
 	}
-	ardb, _ := accessrules.New(notifyRule)
+	rdb, _ := accessrules.New(notifyRule)
 
 	snap := "lxd"
 	app := "lxc"
@@ -730,10 +730,10 @@ func (s *accessruleSuite) TestRuleExpiration(c *C) {
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanSingle
 	duration := ""
-	rule1, err := ardb.CreateAccessRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	rule1, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, IsNil)
 
-	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 	c.Check(ruleNoticeIDs[0], Equals, rule1.ID)
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
@@ -741,10 +741,10 @@ func (s *accessruleSuite) TestRuleExpiration(c *C) {
 	outcome = common.OutcomeDeny
 	lifespan = common.LifespanTimespan
 	duration = "2s"
-	rule2, err := ardb.CreateAccessRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	rule2, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, IsNil)
 
-	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 	c.Check(ruleNoticeIDs[0], Equals, rule2.ID)
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
@@ -752,70 +752,70 @@ func (s *accessruleSuite) TestRuleExpiration(c *C) {
 	outcome = common.OutcomeAllow
 	lifespan = common.LifespanTimespan
 	duration = "1s"
-	rule3, err := ardb.CreateAccessRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	rule3, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, IsNil)
 
-	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 	c.Check(ruleNoticeIDs[0], Equals, rule3.ID)
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
 	path1 := "/home/test/Pictures/img.png"
 	path2 := "/home/test/Pictures/img.jpg"
 
-	allowed, err := ardb.IsPathAllowed(user, snap, app, iface, path1, common.PermissionRead)
+	allowed, err := rdb.IsPathAllowed(user, snap, app, iface, path1, common.PermissionRead)
 	c.Assert(err, IsNil)
 	c.Assert(allowed, Equals, true)
-	allowed, err = ardb.IsPathAllowed(user, snap, app, iface, path2, common.PermissionRead)
+	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path2, common.PermissionRead)
 	c.Assert(err, IsNil)
 	c.Assert(allowed, Equals, false)
 
 	// No rules expired, so should not cause a notice
-	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 
 	time.Sleep(time.Second)
 
-	allowed, err = ardb.IsPathAllowed(user, snap, app, iface, path1, common.PermissionRead)
+	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path1, common.PermissionRead)
 	c.Assert(err, IsNil)
 	c.Assert(allowed, Equals, false)
 
 	// rule3 should have expired and triggered a notice
-	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 	c.Check(ruleNoticeIDs[0], Equals, rule3.ID)
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
-	allowed, err = ardb.IsPathAllowed(user, snap, app, iface, path2, common.PermissionRead)
+	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path2, common.PermissionRead)
 	c.Assert(err, IsNil)
 	c.Assert(allowed, Equals, false)
 
 	// No rules newly expired, so should not cause a notice
-	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 
 	time.Sleep(time.Second)
 
 	// Matches rule1, which has lifetime single, which thus expires.
 	// Meanwhile, rule2 also expires.
-	allowed, err = ardb.IsPathAllowed(user, snap, app, iface, path1, common.PermissionRead)
+	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path1, common.PermissionRead)
 	c.Assert(err, Equals, nil)
 	c.Assert(allowed, Equals, true)
 
-	c.Assert(ruleNoticeIDs, HasLen, 2, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 2, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 	c.Check(strutil.ListContains(ruleNoticeIDs, rule1.ID), Equals, true)
 	c.Check(strutil.ListContains(ruleNoticeIDs, rule2.ID), Equals, true)
 	ruleNoticeIDs = ruleNoticeIDs[2:]
 
-	allowed, err = ardb.IsPathAllowed(user, snap, app, iface, path2, common.PermissionRead)
+	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path2, common.PermissionRead)
 	c.Assert(err, Equals, accessrules.ErrNoMatchingRule)
 	c.Assert(allowed, Equals, false)
 
-	allowed, err = ardb.IsPathAllowed(user, snap, app, iface, path1, common.PermissionRead)
+	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path1, common.PermissionRead)
 	c.Assert(err, Equals, accessrules.ErrNoMatchingRule)
 	c.Assert(allowed, Equals, false)
-	allowed, err = ardb.IsPathAllowed(user, snap, app, iface, path2, common.PermissionRead)
+	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path2, common.PermissionRead)
 	c.Assert(err, Equals, accessrules.ErrNoMatchingRule)
 	c.Assert(allowed, Equals, false)
 
 	// No rules newly expired, so should not cause a notice
-	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; ardb.ByID: %+v", ruleNoticeIDs, ardb.ByID))
+	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 }
 
 type userAndID struct {
@@ -833,7 +833,7 @@ func (s *accessruleSuite) TestRulesLookup(c *C) {
 		ruleNotices = append(ruleNotices, newUserAndID)
 		return nil
 	}
-	ardb, _ := accessrules.New(notifyRule)
+	rdb, _ := accessrules.New(notifyRule)
 
 	var origUser uint32 = 1000
 	snap := "lxd"
@@ -849,50 +849,50 @@ func (s *accessruleSuite) TestRulesLookup(c *C) {
 		common.PermissionExecute,
 	}
 
-	rule1, err := ardb.CreateAccessRule(origUser, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	rule1, err := rdb.CreateRule(origUser, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, IsNil)
 
-	c.Assert(ruleNotices, HasLen, 1, Commentf("ruleNoticeIDs: %+v; ardb.ByID: %+v", ruleNotices, ardb.ByID))
+	c.Assert(ruleNotices, HasLen, 1, Commentf("ruleNoticeIDs: %+v; rdb.ByID: %+v", ruleNotices, rdb.ByID))
 	c.Check(ruleNotices[0].userID, Equals, origUser)
 	c.Check(ruleNotices[0].ruleID, Equals, rule1.ID)
 	ruleNotices = ruleNotices[1:]
 
 	user := origUser + 1
-	rule2, err := ardb.CreateAccessRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	rule2, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, IsNil)
 
-	c.Assert(ruleNotices, HasLen, 1, Commentf("ruleNoticeIDs: %+v; ardb.ByID: %+v", ruleNotices, ardb.ByID))
+	c.Assert(ruleNotices, HasLen, 1, Commentf("ruleNoticeIDs: %+v; rdb.ByID: %+v", ruleNotices, rdb.ByID))
 	c.Check(ruleNotices[0].userID, Equals, user)
 	c.Check(ruleNotices[0].ruleID, Equals, rule2.ID)
 	ruleNotices = ruleNotices[1:]
 
 	snap = "nextcloud"
 	app = "occ"
-	rule3, err := ardb.CreateAccessRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	rule3, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, IsNil)
 
-	c.Assert(ruleNotices, HasLen, 1, Commentf("ruleNoticeIDs: %+v; ardb.ByID: %+v", ruleNotices, ardb.ByID))
+	c.Assert(ruleNotices, HasLen, 1, Commentf("ruleNoticeIDs: %+v; rdb.ByID: %+v", ruleNotices, rdb.ByID))
 	c.Check(ruleNotices[0].userID, Equals, user)
 	c.Check(ruleNotices[0].ruleID, Equals, rule3.ID)
 	ruleNotices = ruleNotices[1:]
 
 	iface = "system-files"
-	rule4, err := ardb.CreateAccessRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	rule4, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
 	c.Assert(err, IsNil)
 
-	c.Assert(ruleNotices, HasLen, 1, Commentf("ruleNoticeIDs: %+v; ardb.ByID: %+v", ruleNotices, ardb.ByID))
+	c.Assert(ruleNotices, HasLen, 1, Commentf("ruleNoticeIDs: %+v; rdb.ByID: %+v", ruleNotices, rdb.ByID))
 	c.Check(ruleNotices[0].userID, Equals, user)
 	c.Check(ruleNotices[0].ruleID, Equals, rule4.ID)
 	ruleNotices = ruleNotices[1:]
 
-	origUserRules := ardb.Rules(origUser)
+	origUserRules := rdb.Rules(origUser)
 	c.Assert(origUserRules, HasLen, 1)
 	c.Assert(origUserRules[0], DeepEquals, rule1)
 
-	userRules := ardb.Rules(user)
+	userRules := rdb.Rules(user)
 	c.Assert(userRules, HasLen, 3)
 OUTER_LOOP_USER:
-	for _, rule := range []*accessrules.AccessRule{rule2, rule3, rule4} {
+	for _, rule := range []*accessrules.Rule{rule2, rule3, rule4} {
 		for _, userRule := range userRules {
 			if reflect.DeepEqual(rule, userRule) {
 				continue OUTER_LOOP_USER
@@ -901,10 +901,10 @@ OUTER_LOOP_USER:
 		c.Assert(rule, DeepEquals, userRules[2])
 	}
 
-	userSnapRules := ardb.RulesForSnap(user, snap)
+	userSnapRules := rdb.RulesForSnap(user, snap)
 	c.Assert(userSnapRules, HasLen, 2)
 OUTER_LOOP_USER_SNAP:
-	for _, rule := range []*accessrules.AccessRule{rule3, rule4} {
+	for _, rule := range []*accessrules.Rule{rule3, rule4} {
 		for _, userRule := range userRules {
 			if reflect.DeepEqual(rule, userRule) {
 				continue OUTER_LOOP_USER_SNAP
@@ -913,10 +913,10 @@ OUTER_LOOP_USER_SNAP:
 		c.Assert(rule, DeepEquals, userRules[1])
 	}
 
-	userSnapAppRules := ardb.RulesForSnapAppInterface(user, snap, app, iface)
+	userSnapAppRules := rdb.RulesForSnapAppInterface(user, snap, app, iface)
 	c.Assert(userSnapAppRules, HasLen, 1)
 	c.Assert(userSnapAppRules[0], DeepEquals, rule4)
 
 	// Looking up these rules should not cause any notices
-	c.Assert(ruleNotices, HasLen, 0, Commentf("ruleNoticeIDs: %+v; ardb.ByID: %+v", ruleNotices, ardb.ByID))
+	c.Assert(ruleNotices, HasLen, 0, Commentf("ruleNoticeIDs: %+v; rdb.ByID: %+v", ruleNotices, rdb.ByID))
 }

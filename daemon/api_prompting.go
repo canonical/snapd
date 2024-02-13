@@ -80,7 +80,7 @@ func getPrompts(c *Command, r *http.Request, user *auth.UserState) Response {
 		return Forbidden("cannot get remote user: %v", err)
 	}
 
-	result, err := c.d.overlord.InterfaceManager().Prompting().GetRequests(ucred.Uid)
+	result, err := c.d.overlord.InterfaceManager().Prompting().GetPrompts(ucred.Uid)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -101,7 +101,7 @@ func getPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 		return Forbidden("cannot get remote user: %v", err)
 	}
 
-	result, err := c.d.overlord.InterfaceManager().Prompting().GetRequest(ucred.Uid, id)
+	result, err := c.d.overlord.InterfaceManager().Prompting().GetPrompt(ucred.Uid, id)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -128,7 +128,7 @@ func postPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into prompt reply: %v", err)
 	}
 
-	result, err := c.d.overlord.InterfaceManager().Prompting().PostRequest(ucred.Uid, id, &reply)
+	result, err := c.d.overlord.InterfaceManager().Prompting().PostPrompt(ucred.Uid, id, &reply)
 	if err != nil {
 		return InternalError("%v", err)
 	}

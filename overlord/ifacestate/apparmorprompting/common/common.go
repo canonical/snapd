@@ -129,8 +129,8 @@ func LabelToSnapApp(label string) (snap string, app string, err error) {
 }
 
 // Select the interface with the highest priority from the listener request to
-// use with prompting requests and rules. If none of the given interfaces are
-// included in interfacePriorities, or the list is empty, return "other".
+// use with prompts and rules. If none of the given interfaces are included in
+// interfacePriorities, or the list is empty, return "other".
 func SelectSingleInterface(interfaces []string) string {
 	bestIface := "other"
 	bestPriority := len(interfacePriorities)

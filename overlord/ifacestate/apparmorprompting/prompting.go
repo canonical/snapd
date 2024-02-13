@@ -28,18 +28,18 @@ type Interface interface {
 type Prompting struct {
 	tomb     tomb.Tomb
 	listener *listener.Listener
-	requests *promptrequests.RequestDB
-	rules    *accessrules.AccessRuleDB
+	prompts  *promptrequests.PromptDB
+	rules    *accessrules.RuleDB
 
-	notifyRequest func(userID uint32, requestID string, options *state.AddNoticeOptions) error
-	notifyRule    func(userID uint32, ruleID string, options *state.AddNoticeOptions) error
+	notifyPrompt func(userID uint32, promptID string, options *state.AddNoticeOptions) error
+	notifyRule   func(userID uint32, ruleID string, options *state.AddNoticeOptions) error
 }
 
 func New(s *state.State) Interface {
-	notifyRequest := func(userID uint32, requestID string, options *state.AddNoticeOptions) error {
+	notifyPrompt := func(userID uint32, promptID string, options *state.AddNoticeOptions) error {
 		s.Lock()
 		defer s.Unlock()
-		_, err := s.AddNotice(&userID, state.RequestsPromptNotice, requestID, options)
+		_, err := s.AddNotice(&userID, state.RequestsPromptNotice, promptID, options)
 		return err
 	}
 	notifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
@@ -49,8 +49,8 @@ func New(s *state.State) Interface {
 		return err
 	}
 	p := &Prompting{
-		notifyRequest: notifyRequest,
-		notifyRule:    notifyRule,
+		notifyPrompt: notifyPrompt,
+		notifyRule:   notifyRule,
 	}
 	return p
 }
@@ -59,7 +59,7 @@ func (p *Prompting) Connect() error {
 	if !PromptingEnabled() {
 		return nil
 	}
-	if p.requests != nil {
+	if p.prompts != nil {
 		return fmt.Errorf("cannot connect: listener is already registered")
 	}
 	l, err := listenerRegister()
@@ -67,7 +67,7 @@ func (p *Prompting) Connect() error {
 		return fmt.Errorf("cannot register prompting listener: %v", err)
 	}
 	p.listener = l
-	p.requests = promptrequests.New(p.notifyRequest)
+	p.prompts = promptrequests.New(p.notifyPrompt)
 	p.rules, _ = accessrules.New(p.notifyRule) // ignore error (failed to load existing rules)
 	return nil
 }
@@ -180,13 +180,13 @@ func (p *Prompting) handleListenerReq(req *listener.Request) error {
 		return req.Reply(true)
 	}
 
-	newRequest, merged := p.requests.AddOrMerge(userID, snap, app, iface, path, permissions, req)
+	newPrompt, merged := p.prompts.AddOrMerge(userID, snap, app, iface, path, permissions, req)
 	if merged {
-		logger.Noticef("new request merged with identical existing request: %+v", newRequest)
+		logger.Noticef("new prompt merged with identical existing prompt: %+v", newPrompt)
 		return nil
 	}
 
-	logger.Noticef("adding request to internal storage: %+v", newRequest)
+	logger.Noticef("adding prompt to internal storage: %+v", newPrompt)
 
 	return nil
 }
@@ -196,20 +196,20 @@ func (p *Prompting) Stop() error {
 	return p.tomb.Wait()
 }
 
-func (p *Prompting) GetRequests(userID uint32) ([]*promptrequests.PromptRequest, error) {
+func (p *Prompting) GetPrompts(userID uint32) ([]*promptrequests.Prompt, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
-	reqs := p.requests.Requests(userID)
-	return reqs, nil
+	prompts := p.prompts.Prompts(userID)
+	return prompts, nil
 }
 
-func (p *Prompting) GetRequest(userID uint32, requestID string) (*promptrequests.PromptRequest, error) {
+func (p *Prompting) GetPrompt(userID uint32, promptID string) (*promptrequests.Prompt, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
-	req, err := p.requests.RequestWithID(userID, requestID)
-	return req, err
+	prompt, err := p.prompts.PromptWithID(userID, promptID)
+	return prompt, err
 }
 
 type PromptReply struct {
@@ -220,11 +220,11 @@ type PromptReply struct {
 	Permissions []common.PermissionType `json:"permissions"`
 }
 
-func (p *Prompting) PostRequest(userID uint32, requestID string, reply *PromptReply) ([]string, error) {
+func (p *Prompting) PostPrompt(userID uint32, promptID string, reply *PromptReply) ([]string, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
-	req, err := p.requests.Reply(userID, requestID, reply.Outcome)
+	prompt, err := p.prompts.Reply(userID, promptID, reply.Outcome)
 	if err != nil {
 		return nil, err
 	}
@@ -239,35 +239,35 @@ func (p *Prompting) PostRequest(userID uint32, requestID string, reply *PromptRe
 	// interfaces, so we do not assert anything else particular about the
 	// reply.PathPattern.
 	// TODO: Should this be reconsidered?
-	matches, err := common.PathPatternMatches(reply.PathPattern, req.Path)
+	matches, err := common.PathPatternMatches(reply.PathPattern, prompt.Path)
 	if err != nil {
 		return nil, common.ErrInvalidPathPattern
 	}
 	if !matches {
-		return nil, fmt.Errorf("path pattern in reply does not match originally requested path: '%s' does not match '%s'; skipping rule generation", reply.PathPattern, req.Path)
+		return nil, fmt.Errorf("path pattern in reply does not match originally requested path: '%s' does not match '%s'; skipping rule generation", reply.PathPattern, prompt.Path)
 	}
 
 	// Create new rule based on the reply.
-	newRule, err := p.rules.CreateAccessRule(userID, req.Snap, req.App, req.Interface, reply.PathPattern, reply.Outcome, reply.Lifespan, reply.Duration, reply.Permissions)
+	newRule, err := p.rules.CreateRule(userID, prompt.Snap, prompt.App, prompt.Interface, reply.PathPattern, reply.Outcome, reply.Lifespan, reply.Duration, reply.Permissions)
 	if err != nil {
 		// XXX: should only occur if identical path to an existing rule with
 		// overlapping permissions
-		// TODO: extract conflicting permissions, retry CreateAccessRule with
+		// TODO: extract conflicting permissions, retry CreateRule with
 		// conflicting permissions removed
 		// TODO: what to do if new reply has different Outcome from previous
 		// conflicting rule? Modify old rule to remove conflicting permissions,
 		// then re-add new rule? This should probably be built into a version of
-		// CreateAccessRule (CreateAccessRuleFromReply ?)
+		// CreateRule (CreateRuleFromReply ?)
 		return nil, err
 	}
 
-	// Apply new rule to outstanding prompt requests.
-	satisfiedReqIDs, err := p.requests.HandleNewRule(userID, newRule.Snap, newRule.App, newRule.Interface, newRule.PathPattern, newRule.Outcome, newRule.Permissions)
+	// Apply new rule to outstanding prompts.
+	satisfiedPromptIDs, err := p.prompts.HandleNewRule(userID, newRule.Snap, newRule.App, newRule.Interface, newRule.PathPattern, newRule.Outcome, newRule.Permissions)
 	if err != nil {
 		return nil, err
 	}
 
-	return satisfiedReqIDs, nil
+	return satisfiedPromptIDs, nil
 }
 
 type PostRulesCreateRuleContents struct {
@@ -306,7 +306,7 @@ type PostRuleRequestBody struct {
 	Rule   *PostRuleModifyRuleContents `json:"rule,omitempty"`
 }
 
-func (p *Prompting) GetRules(userID uint32, snap string, app string, iface string) ([]*accessrules.AccessRule, error) {
+func (p *Prompting) GetRules(userID uint32, snap string, app string, iface string) ([]*accessrules.Rule, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
@@ -331,11 +331,11 @@ func (p *Prompting) GetRules(userID uint32, snap string, app string, iface strin
 	return rules, nil
 }
 
-func (p *Prompting) PostRulesCreate(userID uint32, rules []*PostRulesCreateRuleContents) ([]*accessrules.AccessRule, error) {
+func (p *Prompting) PostRulesCreate(userID uint32, rules []*PostRulesCreateRuleContents) ([]*accessrules.Rule, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
-	createdRules := make([]*accessrules.AccessRule, 0, len(rules))
+	createdRules := make([]*accessrules.Rule, 0, len(rules))
 	errors := make([]error, 0)
 	for _, ruleContents := range rules {
 		snap := ruleContents.Snap
@@ -346,15 +346,15 @@ func (p *Prompting) PostRulesCreate(userID uint32, rules []*PostRulesCreateRuleC
 		lifespan := ruleContents.Lifespan
 		duration := ruleContents.Duration
 		permissions := ruleContents.Permissions
-		newRule, err := p.rules.CreateAccessRule(userID, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+		newRule, err := p.rules.CreateRule(userID, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
 		if err != nil {
 			errors = append(errors, err)
 			continue
 		}
 		createdRules = append(createdRules, newRule)
-		// Apply new rule to outstanding requests. If error occurs,
+		// Apply new rule to outstanding prompts. If error occurs,
 		// include it in the list of errors from creating rules.
-		if _, err := p.requests.HandleNewRule(userID, newRule.Snap, newRule.App, newRule.Interface, newRule.PathPattern, newRule.Outcome, newRule.Permissions); err != nil {
+		if _, err := p.prompts.HandleNewRule(userID, newRule.Snap, newRule.App, newRule.Interface, newRule.PathPattern, newRule.Outcome, newRule.Permissions); err != nil {
 			errors = append(errors, err)
 		}
 	}
@@ -368,16 +368,16 @@ func (p *Prompting) PostRulesCreate(userID uint32, rules []*PostRulesCreateRuleC
 	return createdRules, nil
 }
 
-func (p *Prompting) PostRulesRemove(userID uint32, removeSelectors []*PostRulesRemoveSelectors) ([]*accessrules.AccessRule, error) {
+func (p *Prompting) PostRulesRemove(userID uint32, removeSelectors []*PostRulesRemoveSelectors) ([]*accessrules.Rule, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
-	removedRules := make([]*accessrules.AccessRule, 0)
+	removedRules := make([]*accessrules.Rule, 0)
 	for _, selector := range removeSelectors {
 		snap := selector.Snap
 		app := selector.App
 		iface := selector.Interface
-		var rulesToRemove []*accessrules.AccessRule
+		var rulesToRemove []*accessrules.Rule
 		// Already checked that snap != ""
 		if iface != "" {
 			if app != "" {
@@ -391,7 +391,7 @@ func (p *Prompting) PostRulesRemove(userID uint32, removeSelectors []*PostRulesR
 			rulesToRemove = p.rules.RulesForSnap(userID, snap)
 		}
 		for _, rule := range rulesToRemove {
-			removedRule, err := p.rules.RemoveAccessRule(userID, rule.ID)
+			removedRule, err := p.rules.RemoveRule(userID, rule.ID)
 			if err != nil {
 				continue
 			}
@@ -401,7 +401,7 @@ func (p *Prompting) PostRulesRemove(userID uint32, removeSelectors []*PostRulesR
 	return removedRules, nil
 }
 
-func (p *Prompting) GetRule(userID uint32, ruleID string) (*accessrules.AccessRule, error) {
+func (p *Prompting) GetRule(userID uint32, ruleID string) (*accessrules.Rule, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
@@ -409,7 +409,7 @@ func (p *Prompting) GetRule(userID uint32, ruleID string) (*accessrules.AccessRu
 	return rule, err
 }
 
-func (p *Prompting) PostRuleModify(userID uint32, ruleID string, contents *PostRuleModifyRuleContents) (*accessrules.AccessRule, error) {
+func (p *Prompting) PostRuleModify(userID uint32, ruleID string, contents *PostRuleModifyRuleContents) (*accessrules.Rule, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
@@ -418,14 +418,14 @@ func (p *Prompting) PostRuleModify(userID uint32, ruleID string, contents *PostR
 	lifespan := contents.Lifespan
 	duration := contents.Duration
 	permissions := contents.Permissions
-	rule, err := p.rules.ModifyAccessRule(userID, ruleID, pathPattern, outcome, lifespan, duration, permissions)
+	rule, err := p.rules.ModifyRule(userID, ruleID, pathPattern, outcome, lifespan, duration, permissions)
 	return rule, err
 }
 
-func (p *Prompting) PostRuleRemove(userID uint32, ruleID string) (*accessrules.AccessRule, error) {
+func (p *Prompting) PostRuleRemove(userID uint32, ruleID string) (*accessrules.Rule, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
-	rule, err := p.rules.RemoveAccessRule(userID, ruleID)
+	rule, err := p.rules.RemoveRule(userID, ruleID)
 	return rule, err
 }

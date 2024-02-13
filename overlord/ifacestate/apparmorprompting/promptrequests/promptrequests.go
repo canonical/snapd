@@ -10,11 +10,10 @@ import (
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 )
 
-var ErrConflictingRequestID = errors.New("a prompt request with the same ID already exists")
-var ErrRequestIDNotFound = errors.New("no request with the given ID found for the given user")
-var ErrUserNotFound = errors.New("no prompt requests found for the given user")
+var ErrPromptIDNotFound = errors.New("no prompt with the given ID found for the given user")
+var ErrUserNotFound = errors.New("no prompts found for the given user")
 
-type PromptRequest struct {
+type Prompt struct {
 	ID           string                  `json:"id"`
 	Timestamp    string                  `json:"timestamp"`
 	Snap         string                  `json:"snap"`
@@ -25,52 +24,52 @@ type PromptRequest struct {
 	listenerReqs []*listener.Request     `json:"-"`
 }
 
-type userRequestDB struct {
-	ByID map[string]*PromptRequest
+type userPromptDB struct {
+	ByID map[string]*Prompt
 }
 
-type RequestDB struct {
-	PerUser map[uint32]*userRequestDB
+type PromptDB struct {
+	PerUser map[uint32]*userPromptDB
 	mutex   sync.Mutex
-	// Function to issue a notice for a change in a request
-	notifyRequest func(userID uint32, requestID string, options *state.AddNoticeOptions) error
+	// Function to issue a notice for a change in a prompt
+	notifyPrompt func(userID uint32, promptID string, options *state.AddNoticeOptions) error
 }
 
-func New(notifyRequest func(userID uint32, requestID string, options *state.AddNoticeOptions) error) *RequestDB {
-	return &RequestDB{
-		PerUser:       make(map[uint32]*userRequestDB),
-		notifyRequest: notifyRequest,
+func New(notifyPrompt func(userID uint32, promptID string, options *state.AddNoticeOptions) error) *PromptDB {
+	return &PromptDB{
+		PerUser:      make(map[uint32]*userPromptDB),
+		notifyPrompt: notifyPrompt,
 	}
 }
 
-// Creates, adds, and returns a new prompt request from the given parameters.
+// Creates, adds, and returns a new prompt with the given parameters.
 //
-// If the parameters exactly match an existing request, merge it with that
-// existing request instead, and do not add a new request. If a new request was
-// added, returns the new request and false, indicating the request was not
-// merged. If it was merged with an identical existing request, returns the
-// existing request and true.
-func (rdb *RequestDB) AddOrMerge(user uint32, snap string, app string, iface string, path string, permissions []common.PermissionType, listenerReq *listener.Request) (*PromptRequest, bool) {
-	rdb.mutex.Lock()
-	defer rdb.mutex.Unlock()
-	userEntry, exists := rdb.PerUser[user]
+// If the parameters exactly match an existing prompt, merge it with that
+// existing prompt instead, and do not add a new prompt. If a new prompt was
+// added, returns the new prompt and false, indicating the prompt was not
+// merged. If it was merged with an identical existing prompt, returns the
+// existing prompt and true.
+func (pdb *PromptDB) AddOrMerge(user uint32, snap string, app string, iface string, path string, permissions []common.PermissionType, listenerReq *listener.Request) (*Prompt, bool) {
+	pdb.mutex.Lock()
+	defer pdb.mutex.Unlock()
+	userEntry, exists := pdb.PerUser[user]
 	if !exists {
-		rdb.PerUser[user] = &userRequestDB{
-			ByID: make(map[string]*PromptRequest),
+		pdb.PerUser[user] = &userPromptDB{
+			ByID: make(map[string]*Prompt),
 		}
-		userEntry = rdb.PerUser[user]
+		userEntry = pdb.PerUser[user]
 	}
 
-	// Search for an identical existing request, merge if found
-	for _, req := range userEntry.ByID {
-		if req.Snap == snap && req.App == app && req.Path == path && reflect.DeepEqual(req.Permissions, permissions) {
-			req.listenerReqs = append(req.listenerReqs, listenerReq)
-			return req, true
+	// Search for an identical existing prompt, merge if found
+	for _, prompt := range userEntry.ByID {
+		if prompt.Snap == snap && prompt.App == app && prompt.Path == path && reflect.DeepEqual(prompt.Permissions, permissions) {
+			prompt.listenerReqs = append(prompt.listenerReqs, listenerReq)
+			return prompt, true
 		}
 	}
 
 	id, timestamp := common.NewIDAndTimestamp()
-	req := &PromptRequest{
+	prompt := &Prompt{
 		ID:           id,
 		Timestamp:    timestamp,
 		Snap:         snap,
@@ -80,50 +79,50 @@ func (rdb *RequestDB) AddOrMerge(user uint32, snap string, app string, iface str
 		Permissions:  permissions, // TODO: copy permissions list?
 		listenerReqs: []*listener.Request{listenerReq},
 	}
-	userEntry.ByID[id] = req
-	rdb.notifyRequest(user, id, nil)
-	return req, false
+	userEntry.ByID[id] = prompt
+	pdb.notifyPrompt(user, id, nil)
+	return prompt, false
 }
 
-func (rdb *RequestDB) Requests(user uint32) []*PromptRequest {
-	rdb.mutex.Lock()
-	defer rdb.mutex.Unlock()
-	userEntry, exists := rdb.PerUser[user]
+func (pdb *PromptDB) Prompts(user uint32) []*Prompt {
+	pdb.mutex.Lock()
+	defer pdb.mutex.Unlock()
+	userEntry, exists := pdb.PerUser[user]
 	if !exists {
-		return make([]*PromptRequest, 0)
+		return make([]*Prompt, 0)
 	}
-	requests := make([]*PromptRequest, 0, len(userEntry.ByID))
-	for _, req := range userEntry.ByID {
-		requests = append(requests, req)
+	prompts := make([]*Prompt, 0, len(userEntry.ByID))
+	for _, prompt := range userEntry.ByID {
+		prompts = append(prompts, prompt)
 	}
-	return requests
+	return prompts
 }
 
-func (rdb *RequestDB) RequestWithID(user uint32, id string) (*PromptRequest, error) {
-	rdb.mutex.Lock()
-	defer rdb.mutex.Unlock()
-	userEntry, exists := rdb.PerUser[user]
+func (pdb *PromptDB) PromptWithID(user uint32, id string) (*Prompt, error) {
+	pdb.mutex.Lock()
+	defer pdb.mutex.Unlock()
+	userEntry, exists := pdb.PerUser[user]
 	if !exists {
 		return nil, ErrUserNotFound
 	}
-	req, exists := userEntry.ByID[id]
+	prompt, exists := userEntry.ByID[id]
 	if !exists {
-		return nil, ErrRequestIDNotFound
+		return nil, ErrPromptIDNotFound
 	}
-	return req, nil
+	return prompt, nil
 }
 
-// Reply resolves the request with the given ID using the given outcome.
-func (rdb *RequestDB) Reply(user uint32, id string, outcome common.OutcomeType) (*PromptRequest, error) {
-	rdb.mutex.Lock()
-	defer rdb.mutex.Unlock()
-	userEntry, exists := rdb.PerUser[user]
+// Reply resolves the prompt with the given ID using the given outcome.
+func (pdb *PromptDB) Reply(user uint32, id string, outcome common.OutcomeType) (*Prompt, error) {
+	pdb.mutex.Lock()
+	defer pdb.mutex.Unlock()
+	userEntry, exists := pdb.PerUser[user]
 	if !exists || len(userEntry.ByID) == 0 {
 		return nil, ErrUserNotFound
 	}
-	req, exists := userEntry.ByID[id]
+	prompt, exists := userEntry.ByID[id]
 	if !exists {
-		return nil, ErrRequestIDNotFound
+		return nil, ErrPromptIDNotFound
 	}
 	var outcomeBool bool
 	switch outcome {
@@ -134,25 +133,25 @@ func (rdb *RequestDB) Reply(user uint32, id string, outcome common.OutcomeType) 
 	default:
 		return nil, common.ErrInvalidOutcome
 	}
-	for _, listenerReq := range req.listenerReqs {
+	for _, listenerReq := range prompt.listenerReqs {
 		if err := sendReply(listenerReq, outcomeBool); err != nil {
 			return nil, err
 		}
 	}
 	delete(userEntry.ByID, id)
-	rdb.notifyRequest(user, id, nil)
-	return req, nil
+	pdb.notifyPrompt(user, id, nil)
+	return prompt, nil
 }
 
 var sendReply = func(listenerReq *listener.Request, reply interface{}) error {
 	return listenerReq.Reply(reply)
 }
 
-// If any existing requests are satisfied by the given rule, send the decision
+// If any existing prompts are satisfied by the given rule, send the decision
 // along their respective channels, and return their IDs.
-func (rdb *RequestDB) HandleNewRule(user uint32, snap string, app string, iface string, pathPattern string, outcome common.OutcomeType, permissions []common.PermissionType) ([]string, error) {
-	rdb.mutex.Lock()
-	defer rdb.mutex.Unlock()
+func (pdb *PromptDB) HandleNewRule(user uint32, snap string, app string, iface string, pathPattern string, outcome common.OutcomeType, permissions []common.PermissionType) ([]string, error) {
+	pdb.mutex.Lock()
+	defer pdb.mutex.Unlock()
 	var outcomeBool bool
 	switch outcome {
 	case common.OutcomeAllow:
@@ -162,16 +161,16 @@ func (rdb *RequestDB) HandleNewRule(user uint32, snap string, app string, iface 
 	default:
 		return nil, common.ErrInvalidOutcome
 	}
-	var satisfiedReqIDs []string
-	userEntry, exists := rdb.PerUser[user]
+	var satisfiedPromptIDs []string
+	userEntry, exists := pdb.PerUser[user]
 	if !exists {
-		return satisfiedReqIDs, nil
+		return satisfiedPromptIDs, nil
 	}
-	for id, req := range userEntry.ByID {
-		if !(req.Snap == snap && req.App == app && req.Interface == iface) {
+	for id, prompt := range userEntry.ByID {
+		if !(prompt.Snap == snap && prompt.App == app && prompt.Interface == iface) {
 			continue
 		}
-		matched, err := common.PathPatternMatches(pathPattern, req.Path)
+		matched, err := common.PathPatternMatches(pathPattern, prompt.Path)
 		if err != nil {
 			// Only possible error is ErrBadPattern
 			return nil, err
@@ -179,7 +178,7 @@ func (rdb *RequestDB) HandleNewRule(user uint32, snap string, app string, iface 
 		if !matched {
 			continue
 		}
-		remainingPermissions := req.Permissions
+		remainingPermissions := prompt.Permissions
 		for _, perm := range permissions {
 			remainingPermissions, _ = common.RemovePermissionFromList(remainingPermissions, perm)
 		}
@@ -188,13 +187,13 @@ func (rdb *RequestDB) HandleNewRule(user uint32, snap string, app string, iface 
 			// leave it up to the UI to prompt for all at once.
 			continue
 		}
-		// all permissions of request satisfied
-		for _, listenerReq := range req.listenerReqs {
+		// all permissions of prompt satisfied
+		for _, listenerReq := range prompt.listenerReqs {
 			sendReply(listenerReq, outcomeBool)
 		}
 		delete(userEntry.ByID, id)
-		satisfiedReqIDs = append(satisfiedReqIDs, id)
-		rdb.notifyRequest(user, id, nil)
+		satisfiedPromptIDs = append(satisfiedPromptIDs, id)
+		pdb.notifyPrompt(user, id, nil)
 	}
-	return satisfiedReqIDs, nil
+	return satisfiedPromptIDs, nil
 }
