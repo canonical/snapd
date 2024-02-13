@@ -960,7 +960,11 @@ type PlugInfo struct {
 	Attrs     map[string]interface{}
 	Label     string
 	Apps      map[string]*AppInfo
-	Unscoped  bool
+
+	// Unscoped is true if the plug is declared at the top-level of the
+	// snap.yaml file, and it is not specifically referenced by any apps or
+	// hooks. Unscoped slots are attached to all apps and hooks in the snap.
+	Unscoped bool
 }
 
 func lookupAttr(attrs map[string]interface{}, path string) (interface{}, bool) {
@@ -1065,6 +1069,9 @@ type SlotInfo struct {
 	Label     string
 	Apps      map[string]*AppInfo
 
+	// Unscoped is true if the slot is declared at the top-level of the
+	// snap.yaml file, and it is not specifically referenced by any apps or
+	// hooks. Unscoped slots are attached to all apps and hooks in the snap.
 	Unscoped bool
 
 	// HotplugKey is a unique key built by the slot's interface
