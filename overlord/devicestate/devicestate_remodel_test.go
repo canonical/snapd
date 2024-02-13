@@ -1285,6 +1285,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashWithRecoverySystem(c *C) {
 	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		// simulate another recovery system being created
 		chg = s.state.NewChange("create-recovery-system", "...")
+		chg.AddTask(s.state.NewTask("fake-create-recovery-system", "..."))
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
 		tDownload.Set("snap-setup", &snapstate.SnapSetup{
@@ -1329,7 +1330,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashWithRecoverySystem(c *C) {
 
 	_, err := devicestate.Remodel(s.state, new, nil, nil, devicestate.RemodelOptions{})
 	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
-		Message:    "cannot remodel while other change related to recovery systems is in progress",
+		Message:    "creating recovery system in progress, no other changes allowed until this is done",
 		ChangeKind: chg.Kind(),
 		ChangeID:   chg.ID(),
 	})

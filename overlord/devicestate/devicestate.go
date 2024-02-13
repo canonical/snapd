@@ -1415,13 +1415,9 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 		}
 	}
 
-	// make sure that no other recovery system change is in progress
-	if chg := conflictingRecoverySystemChange(st); chg != nil {
-		return nil, &snapstate.ChangeConflictError{
-			Message:    "cannot remodel while other change related to recovery systems is in progress",
-			ChangeKind: chg.Kind(),
-			ChangeID:   chg.ID(),
-		}
+	// check for exclusive changes again since we released the lock
+	if err := snapstate.CheckChangeConflictRunExclusively(st, "remodel"); err != nil {
+		return nil, err
 	}
 
 	var msg string
@@ -1596,28 +1592,11 @@ type CreateRecoverySystemOptions struct {
 
 var ErrNoRecoverySystem = errors.New("recovery system does not exist")
 
-func conflictingRecoverySystemChange(st *state.State) *state.Change {
-	for _, chg := range st.Changes() {
-		if chg.IsReady() {
-			continue
-		}
-		switch chg.Kind() {
-		case "create-recovery-system", "remove-recovery-system", "remodel":
-			return chg
-		}
-	}
-	return nil
-}
-
 // RemoveRecoverySystem removes the recovery system with the given label. The
 // current recovery system cannot be removed.
 func RemoveRecoverySystem(st *state.State, label string) (*state.Change, error) {
-	if chg := conflictingRecoverySystemChange(st); chg != nil {
-		return nil, &snapstate.ChangeConflictError{
-			Message:    "cannot remove recovery system while a conflicting change is in progress",
-			ChangeKind: chg.Kind(),
-			ChangeID:   chg.ID(),
-		}
+	if err := snapstate.CheckChangeConflictRunExclusively(st, "remove-recovery-system"); err != nil {
+		return nil, err
 	}
 
 	recoverySystemsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems")
@@ -1645,13 +1624,8 @@ func RemoveRecoverySystem(st *state.State, label string) (*state.Change, error) 
 // CreateRecoverySystem creates a new recovery system with the given label. See
 // CreateRecoverySystemOptions for details on the options that can be provided.
 func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySystemOptions) (chg *state.Change, err error) {
-	// make sure that no other recovery system change is in progress
-	if chg := conflictingRecoverySystemChange(st); chg != nil {
-		return nil, &snapstate.ChangeConflictError{
-			Message:    "cannot create recovery system while a conflicting change is in progress",
-			ChangeKind: chg.Kind(),
-			ChangeID:   chg.ID(),
-		}
+	if err := snapstate.CheckChangeConflictRunExclusively(st, "create-recovery-system"); err != nil {
+		return nil, err
 	}
 
 	var seeded bool

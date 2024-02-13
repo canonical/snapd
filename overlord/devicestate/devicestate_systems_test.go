@@ -1341,11 +1341,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemConfl
 		conflict.AddTask(s.state.NewTask(chgType, "..."))
 
 		_, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{})
-		c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
-			Message:    "cannot create recovery system while a conflicting change is in progress",
-			ChangeKind: conflict.Kind(),
-			ChangeID:   conflict.ID(),
-		})
+		conflictErr, ok := err.(*snapstate.ChangeConflictError)
+		c.Assert(ok, Equals, true, Commentf("expected a snapstate.ChangeConflictError, got %T", err))
+
+		c.Check(conflictErr.ChangeID, Equals, conflict.ID())
+		c.Check(conflictErr.ChangeKind, Equals, conflict.Kind())
 
 		conflict.Abort()
 		s.waitfor(conflict)
@@ -4422,11 +4422,11 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemConflict(c *C) {
 		conflict.AddTask(s.state.NewTask(chgType, "..."))
 
 		_, err := devicestate.RemoveRecoverySystem(s.state, "label")
-		c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
-			Message:    "cannot remove recovery system while a conflicting change is in progress",
-			ChangeKind: conflict.Kind(),
-			ChangeID:   conflict.ID(),
-		})
+		conflictErr, ok := err.(*snapstate.ChangeConflictError)
+		c.Assert(ok, Equals, true, Commentf("expected a snapstate.ChangeConflictError, got %T", err))
+
+		c.Check(conflictErr.ChangeID, Equals, conflict.ID())
+		c.Check(conflictErr.ChangeKind, Equals, conflict.Kind())
 
 		conflict.Abort()
 		s.waitfor(conflict)
