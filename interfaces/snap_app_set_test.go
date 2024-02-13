@@ -165,6 +165,22 @@ slots:
 	c.Assert(tags, DeepEquals, []string{"snap.name.app1", "snap.name.app2", "snap.name.hook.install"})
 }
 
+func (s *snapAppSetSuite) TestPlugSecurityTagsWrongSnap(c *C) {
+	const yaml = `name: name
+version: 1`
+	info := snaptest.MockInfo(c, yaml, nil)
+	set := interfaces.NewSnapAppSet(info)
+
+	const otherYaml = `name: other-name
+version: 1
+plugs:
+  plug:`
+	_, connectedPlug := mockInfoAndConnectedPlug(c, otherYaml, nil, "plug")
+
+	_, err := set.SecurityTagsForConnectedPlug(connectedPlug)
+	c.Assert(err, ErrorMatches, `plug "plug" is from snap "other-name", expected snap: "name"`)
+}
+
 func (s *snapAppSetSuite) TestSlotSecurityTags(c *C) {
 	const yaml = `name: name
 version: 1
@@ -183,6 +199,22 @@ slots:
 	tags, err := set.SecurityTagsForConnectedSlot(connectedSlot)
 	c.Assert(err, IsNil)
 	c.Assert(tags, DeepEquals, []string{"snap.name.app1", "snap.name.app2", "snap.name.hook.install"})
+}
+
+func (s *snapAppSetSuite) TestSlotSecurityTagsWrongSnap(c *C) {
+	const yaml = `name: name
+version: 1`
+	info := snaptest.MockInfo(c, yaml, nil)
+	set := interfaces.NewSnapAppSet(info)
+
+	const otherYaml = `name: other-name
+version: 1
+slots:
+  slot:`
+	_, connectedSlot := mockInfoAndConnectedSlot(c, otherYaml, nil, "slot")
+
+	_, err := set.SecurityTagsForConnectedSlot(connectedSlot)
+	c.Assert(err, ErrorMatches, `slot "slot" is from snap "other-name", expected snap: "name"`)
 }
 
 func appsInMap(apps map[string]*snap.AppInfo) []*snap.AppInfo {
