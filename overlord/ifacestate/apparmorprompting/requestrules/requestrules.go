@@ -1,4 +1,4 @@
-package accessrules
+package requestrules
 
 import (
 	"encoding/json"
@@ -357,7 +357,7 @@ func validatePatternOutcomeLifespanDuration(pathPattern string, outcome common.O
 }
 
 // TODO: unexport (probably, avoid confusion with CreateRule)
-// Users of accessrules should probably autofill rules from JSON and never call
+// Users of requestrules should probably autofill rules from JSON and never call
 // this function directly.
 //
 // Constructs a new rule with the given parameters as values, with the

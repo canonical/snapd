@@ -1,4 +1,4 @@
-package accessrules_test
+package requestrules_test
 
 import (
 	"fmt"
@@ -9,31 +9,31 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/accessrules"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/common"
+	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/requestrules"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
 
-type accessruleSuite struct {
+type requestrulesSuite struct {
 	tmpdir string
 }
 
-var _ = Suite(&accessruleSuite{})
+var _ = Suite(&requestrulesSuite{})
 
-func (s *accessruleSuite) SetUpTest(c *C) {
+func (s *requestrulesSuite) SetUpTest(c *C) {
 	s.tmpdir = c.MkDir()
 	dirs.SetRootDir(s.tmpdir)
 }
 
-func (s *accessruleSuite) TestPopulateNewRule(c *C) {
+func (s *requestrulesSuite) TestPopulateNewRule(c *C) {
 	notifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
 		c.Errorf("unexpected rule notice with user %d and ID %s", userID, ruleID)
 		return nil
 	}
-	rdb, _ := accessrules.New(notifyRule)
+	rdb, _ := requestrules.New(notifyRule)
 
 	var user uint32 = 1000
 	snap := "lxd"
@@ -76,7 +76,7 @@ func (s *accessruleSuite) TestPopulateNewRule(c *C) {
 	}
 }
 
-func (s *accessruleSuite) TestCreateRemoveRuleSimple(c *C) {
+func (s *requestrulesSuite) TestCreateRemoveRuleSimple(c *C) {
 	var user uint32 = 1000
 	ruleNoticeIDs := make([]string, 0, 2)
 	notifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
@@ -84,7 +84,7 @@ func (s *accessruleSuite) TestCreateRemoveRuleSimple(c *C) {
 		ruleNoticeIDs = append(ruleNoticeIDs, ruleID)
 		return nil
 	}
-	rdb, _ := accessrules.New(notifyRule)
+	rdb, _ := requestrules.New(notifyRule)
 
 	snap := "lxd"
 	app := "lxc"
@@ -173,7 +173,7 @@ func (s *accessruleSuite) TestCreateRemoveRuleSimple(c *C) {
 	}
 }
 
-func (s *accessruleSuite) TestCreateRuleUnhappy(c *C) {
+func (s *requestrulesSuite) TestCreateRuleUnhappy(c *C) {
 	var user uint32 = 1000
 	ruleNoticeIDs := make([]string, 0, 1)
 	notifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
@@ -181,7 +181,7 @@ func (s *accessruleSuite) TestCreateRuleUnhappy(c *C) {
 		ruleNoticeIDs = append(ruleNoticeIDs, ruleID)
 		return nil
 	}
-	rdb, _ := accessrules.New(notifyRule)
+	rdb, _ := requestrules.New(notifyRule)
 
 	snap := "lxd"
 	app := "lxc"
@@ -205,7 +205,7 @@ func (s *accessruleSuite) TestCreateRuleUnhappy(c *C) {
 
 	conflictingPermissions := permissions[:1]
 	_, err = rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, conflictingPermissions)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("^%s.*%s.*%s.*", accessrules.ErrPathPatternConflict, storedRule.ID, conflictingPermissions[0]))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("^%s.*%s.*%s.*", requestrules.ErrPathPatternConflict, storedRule.ID, conflictingPermissions[0]))
 
 	// Error while adding rule should cause no notice to be issued
 	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
@@ -225,7 +225,7 @@ func (s *accessruleSuite) TestCreateRuleUnhappy(c *C) {
 	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 }
 
-func (s *accessruleSuite) TestModifyRule(c *C) {
+func (s *requestrulesSuite) TestModifyRule(c *C) {
 	var user uint32 = 1000
 	ruleNoticeIDs := make([]string, 0, 5)
 	notifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
@@ -233,7 +233,7 @@ func (s *accessruleSuite) TestModifyRule(c *C) {
 		ruleNoticeIDs = append(ruleNoticeIDs, ruleID)
 		return nil
 	}
-	rdb, _ := accessrules.New(notifyRule)
+	rdb, _ := requestrules.New(notifyRule)
 
 	snap := "lxd"
 	app := "lxc"
@@ -326,7 +326,7 @@ func (s *accessruleSuite) TestModifyRule(c *C) {
 
 	conflictingPermissions := append(newPermissions, conflictingPermission)
 	output, err = rdb.ModifyRule(user, storedRule.ID, newPathPattern, newOutcome, newLifespan, newDuration, conflictingPermissions)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("^%s.*%s.*%s.*", accessrules.ErrPathPatternConflict, otherRule.ID, conflictingPermission))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("^%s.*%s.*%s.*", requestrules.ErrPathPatternConflict, otherRule.ID, conflictingPermission))
 	c.Assert(output, IsNil)
 	c.Assert(rdb.ByID, HasLen, 2)
 
@@ -338,7 +338,7 @@ func (s *accessruleSuite) TestModifyRule(c *C) {
 	c.Assert(currentRule, DeepEquals, modifiedRule)
 }
 
-func (s *accessruleSuite) TestRuleWithID(c *C) {
+func (s *requestrulesSuite) TestRuleWithID(c *C) {
 	var user uint32 = 1000
 	ruleNoticeIDs := make([]string, 0, 1)
 	notifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
@@ -346,7 +346,7 @@ func (s *accessruleSuite) TestRuleWithID(c *C) {
 		ruleNoticeIDs = append(ruleNoticeIDs, ruleID)
 		return nil
 	}
-	rdb, _ := accessrules.New(notifyRule)
+	rdb, _ := requestrules.New(notifyRule)
 
 	snap := "lxd"
 	app := "lxc"
@@ -374,18 +374,18 @@ func (s *accessruleSuite) TestRuleWithID(c *C) {
 	c.Check(accessedRule, DeepEquals, newRule)
 
 	accessedRule, err = rdb.RuleWithID(user, "nonexistent")
-	c.Check(err, Equals, accessrules.ErrRuleIDNotFound)
+	c.Check(err, Equals, requestrules.ErrRuleIDNotFound)
 	c.Check(accessedRule, IsNil)
 
 	accessedRule, err = rdb.RuleWithID(user+1, newRule.ID)
-	c.Check(err, Equals, accessrules.ErrUserNotAllowed)
+	c.Check(err, Equals, requestrules.ErrUserNotAllowed)
 	c.Check(accessedRule, IsNil)
 
 	// Reading (or failing to read) a notice should not trigger a notice
 	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 }
 
-func (s *accessruleSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
+func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
 	var user uint32 = 1000
 	ruleNoticeIDs := make([]string, 0, 1)
 	notifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
@@ -393,7 +393,7 @@ func (s *accessruleSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
 		ruleNoticeIDs = append(ruleNoticeIDs, ruleID)
 		return nil
 	}
-	rdb, _ := accessrules.New(notifyRule)
+	rdb, _ := requestrules.New(notifyRule)
 
 	snap := "lxd"
 	app := "lxc"
@@ -448,7 +448,7 @@ func (s *accessruleSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
 	}
 }
 
-func (s *accessruleSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
+func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	var user uint32 = 1000
 	ruleNoticeIDs := make([]string, 0, 4)
 	notifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
@@ -456,7 +456,7 @@ func (s *accessruleSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 		ruleNoticeIDs = append(ruleNoticeIDs, ruleID)
 		return nil
 	}
-	rdb, _ := accessrules.New(notifyRule)
+	rdb, _ := requestrules.New(notifyRule)
 
 	snap := "lxd"
 	app := "lxc"
@@ -580,11 +580,11 @@ func (s *accessruleSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	}
 }
 
-func (s *accessruleSuite) TestNewSaveLoad(c *C) {
+func (s *requestrulesSuite) TestNewSaveLoad(c *C) {
 	doNotNotifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
 		return nil
 	}
-	rdb, _ := accessrules.New(doNotNotifyRule)
+	rdb, _ := requestrules.New(doNotNotifyRule)
 
 	var user uint32 = 1000
 	snap := "lxd"
@@ -617,13 +617,13 @@ func (s *accessruleSuite) TestNewSaveLoad(c *C) {
 		previous = append(previous, ruleID)
 		return nil
 	}
-	loadedArdb, err := accessrules.New(notifyRule)
+	loadedArdb, err := requestrules.New(notifyRule)
 	c.Assert(err, IsNil)
 	c.Assert(rdb.ByID, DeepEquals, loadedArdb.ByID)
 	c.Assert(rdb.PerUser, DeepEquals, loadedArdb.PerUser)
 }
 
-func (s *accessruleSuite) TestIsPathAllowed(c *C) {
+func (s *requestrulesSuite) TestIsPathAllowed(c *C) {
 	var user uint32 = 1000
 	patterns := make(map[string]common.OutcomeType)
 	patterns["/home/test/Documents/**"] = common.OutcomeAllow
@@ -639,7 +639,7 @@ func (s *accessruleSuite) TestIsPathAllowed(c *C) {
 		ruleNoticeIDs = append(ruleNoticeIDs, ruleID)
 		return nil
 	}
-	rdb, _ := accessrules.New(notifyRule)
+	rdb, _ := requestrules.New(notifyRule)
 
 	snap := "lxd"
 	app := "lxc"
@@ -707,7 +707,7 @@ func (s *accessruleSuite) TestIsPathAllowed(c *C) {
 	}
 }
 
-func (s *accessruleSuite) TestRuleExpiration(c *C) {
+func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 	var user uint32 = 1000
 	ruleNoticeIDs := make([]string, 0, 6)
 	notifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
@@ -715,7 +715,7 @@ func (s *accessruleSuite) TestRuleExpiration(c *C) {
 		ruleNoticeIDs = append(ruleNoticeIDs, ruleID)
 		return nil
 	}
-	rdb, _ := accessrules.New(notifyRule)
+	rdb, _ := requestrules.New(notifyRule)
 
 	snap := "lxd"
 	app := "lxc"
@@ -804,14 +804,14 @@ func (s *accessruleSuite) TestRuleExpiration(c *C) {
 	ruleNoticeIDs = ruleNoticeIDs[2:]
 
 	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path2, common.PermissionRead)
-	c.Assert(err, Equals, accessrules.ErrNoMatchingRule)
+	c.Assert(err, Equals, requestrules.ErrNoMatchingRule)
 	c.Assert(allowed, Equals, false)
 
 	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path1, common.PermissionRead)
-	c.Assert(err, Equals, accessrules.ErrNoMatchingRule)
+	c.Assert(err, Equals, requestrules.ErrNoMatchingRule)
 	c.Assert(allowed, Equals, false)
 	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path2, common.PermissionRead)
-	c.Assert(err, Equals, accessrules.ErrNoMatchingRule)
+	c.Assert(err, Equals, requestrules.ErrNoMatchingRule)
 	c.Assert(allowed, Equals, false)
 
 	// No rules newly expired, so should not cause a notice
@@ -823,7 +823,7 @@ type userAndID struct {
 	ruleID string
 }
 
-func (s *accessruleSuite) TestRulesLookup(c *C) {
+func (s *requestrulesSuite) TestRulesLookup(c *C) {
 	ruleNotices := make([]*userAndID, 0, 4)
 	notifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
 		newUserAndID := &userAndID{
@@ -833,7 +833,7 @@ func (s *accessruleSuite) TestRulesLookup(c *C) {
 		ruleNotices = append(ruleNotices, newUserAndID)
 		return nil
 	}
-	rdb, _ := accessrules.New(notifyRule)
+	rdb, _ := requestrules.New(notifyRule)
 
 	var origUser uint32 = 1000
 	snap := "lxd"
@@ -892,7 +892,7 @@ func (s *accessruleSuite) TestRulesLookup(c *C) {
 	userRules := rdb.Rules(user)
 	c.Assert(userRules, HasLen, 3)
 OUTER_LOOP_USER:
-	for _, rule := range []*accessrules.Rule{rule2, rule3, rule4} {
+	for _, rule := range []*requestrules.Rule{rule2, rule3, rule4} {
 		for _, userRule := range userRules {
 			if reflect.DeepEqual(rule, userRule) {
 				continue OUTER_LOOP_USER
@@ -904,7 +904,7 @@ OUTER_LOOP_USER:
 	userSnapRules := rdb.RulesForSnap(user, snap)
 	c.Assert(userSnapRules, HasLen, 2)
 OUTER_LOOP_USER_SNAP:
-	for _, rule := range []*accessrules.Rule{rule3, rule4} {
+	for _, rule := range []*requestrules.Rule{rule3, rule4} {
 		for _, userRule := range userRules {
 			if reflect.DeepEqual(rule, userRule) {
 				continue OUTER_LOOP_USER_SNAP

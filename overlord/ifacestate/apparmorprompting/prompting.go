@@ -7,9 +7,9 @@ import (
 
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/accessrules"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/common"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/promptrequests"
+	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/requestrules"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
@@ -29,7 +29,7 @@ type Prompting struct {
 	tomb     tomb.Tomb
 	listener *listener.Listener
 	prompts  *promptrequests.PromptDB
-	rules    *accessrules.RuleDB
+	rules    *requestrules.RuleDB
 
 	notifyPrompt func(userID uint32, promptID string, options *state.AddNoticeOptions) error
 	notifyRule   func(userID uint32, ruleID string, options *state.AddNoticeOptions) error
@@ -68,7 +68,7 @@ func (p *Prompting) Connect() error {
 	}
 	p.listener = l
 	p.prompts = promptrequests.New(p.notifyPrompt)
-	p.rules, _ = accessrules.New(p.notifyRule) // ignore error (failed to load existing rules)
+	p.rules, _ = requestrules.New(p.notifyRule) // ignore error (failed to load existing rules)
 	return nil
 }
 
@@ -306,7 +306,7 @@ type PostRuleRequestBody struct {
 	Rule   *PostRuleModifyRuleContents `json:"rule,omitempty"`
 }
 
-func (p *Prompting) GetRules(userID uint32, snap string, app string, iface string) ([]*accessrules.Rule, error) {
+func (p *Prompting) GetRules(userID uint32, snap string, app string, iface string) ([]*requestrules.Rule, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
@@ -331,11 +331,11 @@ func (p *Prompting) GetRules(userID uint32, snap string, app string, iface strin
 	return rules, nil
 }
 
-func (p *Prompting) PostRulesCreate(userID uint32, rules []*PostRulesCreateRuleContents) ([]*accessrules.Rule, error) {
+func (p *Prompting) PostRulesCreate(userID uint32, rules []*PostRulesCreateRuleContents) ([]*requestrules.Rule, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
-	createdRules := make([]*accessrules.Rule, 0, len(rules))
+	createdRules := make([]*requestrules.Rule, 0, len(rules))
 	errors := make([]error, 0)
 	for _, ruleContents := range rules {
 		snap := ruleContents.Snap
@@ -368,16 +368,16 @@ func (p *Prompting) PostRulesCreate(userID uint32, rules []*PostRulesCreateRuleC
 	return createdRules, nil
 }
 
-func (p *Prompting) PostRulesRemove(userID uint32, removeSelectors []*PostRulesRemoveSelectors) ([]*accessrules.Rule, error) {
+func (p *Prompting) PostRulesRemove(userID uint32, removeSelectors []*PostRulesRemoveSelectors) ([]*requestrules.Rule, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
-	removedRules := make([]*accessrules.Rule, 0)
+	removedRules := make([]*requestrules.Rule, 0)
 	for _, selector := range removeSelectors {
 		snap := selector.Snap
 		app := selector.App
 		iface := selector.Interface
-		var rulesToRemove []*accessrules.Rule
+		var rulesToRemove []*requestrules.Rule
 		// Already checked that snap != ""
 		if iface != "" {
 			if app != "" {
@@ -401,7 +401,7 @@ func (p *Prompting) PostRulesRemove(userID uint32, removeSelectors []*PostRulesR
 	return removedRules, nil
 }
 
-func (p *Prompting) GetRule(userID uint32, ruleID string) (*accessrules.Rule, error) {
+func (p *Prompting) GetRule(userID uint32, ruleID string) (*requestrules.Rule, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
@@ -409,7 +409,7 @@ func (p *Prompting) GetRule(userID uint32, ruleID string) (*accessrules.Rule, er
 	return rule, err
 }
 
-func (p *Prompting) PostRuleModify(userID uint32, ruleID string, contents *PostRuleModifyRuleContents) (*accessrules.Rule, error) {
+func (p *Prompting) PostRuleModify(userID uint32, ruleID string, contents *PostRuleModifyRuleContents) (*requestrules.Rule, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
@@ -422,7 +422,7 @@ func (p *Prompting) PostRuleModify(userID uint32, ruleID string, contents *PostR
 	return rule, err
 }
 
-func (p *Prompting) PostRuleRemove(userID uint32, ruleID string) (*accessrules.Rule, error) {
+func (p *Prompting) PostRuleRemove(userID uint32, ruleID string) (*requestrules.Rule, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
