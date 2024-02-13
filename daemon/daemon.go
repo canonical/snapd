@@ -434,7 +434,7 @@ var (
 	rebootNoticeWait       = 3 * time.Second
 	rebootWaitTimeout      = 10 * time.Minute
 	rebootRetryWaitTimeout = 5 * time.Minute
-	rebootMaxTentatives    = 3
+	rebootMaxTentative     = 3
 )
 
 func (d *Daemon) updateMaintenanceFile(rst restart.RestartType) error {
@@ -682,17 +682,17 @@ func (d *Daemon) RebootDidNotHappen(st *state.State) error {
 		return err
 	}
 	nTentative++
-	if nTentative > rebootMaxTentatives {
+	if nTentative > rebootMaxTentative {
 		// giving up, proceed normally, some in-progress refresh
 		// might get rolled back!!
 		restart.ClearReboot(st)
 		clearReboot(st)
-		logger.Noticef("snapd was restarted while a system restart was expected, snapd retried to schedule and waited again for a system restart %d times and is giving up", rebootMaxTentatives)
+		logger.Noticef("snapd was restarted while a system restart was expected, snapd retried to schedule and waited again for a system restart %d times and is giving up", rebootMaxTentative)
 		return nil
 	}
 	st.Set("daemon-system-restart-tentative", nTentative)
 	d.state = st
-	logger.Noticef("snapd was restarted while a system restart was expected, snapd will try to schedule and wait for a system restart again (tenative %d/%d)", nTentative, rebootMaxTentatives)
+	logger.Noticef("snapd was restarted while a system restart was expected, snapd will try to schedule and wait for a system restart again (tenative %d/%d)", nTentative, rebootMaxTentative)
 	return errExpectedReboot
 }
 
