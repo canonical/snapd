@@ -31,6 +31,15 @@ func (s *canRemoveSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	s.st = state.New(nil)
 
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	snapstate.Set(s.st, "snapd", &snapstate.SnapState{
+		SnapType: "snapd",
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "snapd"}}),
+		Current:  snap.R(1),
+	})
+
 	s.bootloader = boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
 	bootloader.Force(s.bootloader)
 	s.bootloader.SetBootBase("base_99.snap")
@@ -111,6 +120,9 @@ func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *check.C) {
 	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(0), coreDev), check.Equals, policy.ErrIsModel)
 	// (well, single revisions are ok)
 	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(1), coreDev), check.IsNil)
+	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(1), classicDev), check.IsNil)
+	// removing os is also ok on classic systems
+	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(0), classicDev), check.IsNil)
 	// model kernel == snap kernel -> can't be removed
 	c.Check(policy.NewKernelPolicy("kernel").CanRemove(s.st, snapst, snap.R(0), coreDev), check.Equals, policy.ErrIsModel)
 	// (well, single revisions are ok)
@@ -130,6 +142,20 @@ func (s *canRemoveSuite) TestOSInUseNotOK(c *check.C) {
 	// but not if it's the one we booted
 	s.bootloader.SetBootBase("core_1.snap")
 	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(1), coreDev), check.Equals, policy.ErrInUseForBoot)
+}
+
+func (s *canRemoveSuite) TestOSNoSnapdNotOK(c *check.C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	snapstate.Set(s.st, "snapd", nil)
+
+	snapst := &snapstate.SnapState{
+		Current:  snap.R(1),
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "core"}}),
+	}
+	// revision is unset as if we're fully removing core from the system
+	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.Revision{}, classicDev), check.Equals, policy.ErrSnapdNotInstalled)
 }
 
 func (s *canRemoveSuite) TestOSRequiredNotOK(c *check.C) {
