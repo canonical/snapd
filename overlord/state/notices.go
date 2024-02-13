@@ -190,11 +190,14 @@ const (
 	// Warnings are a subset of notices where the key is a human-readable
 	// warning message.
 	WarningNotice NoticeType = "warning"
+
+	// Recorded whenever an auto-refresh is inhibited for one or more snaps.
+	RefreshInhibitNotice NoticeType = "refresh-inhibit"
 )
 
 func (t NoticeType) Valid() bool {
 	switch t {
-	case ChangeUpdateNotice, WarningNotice:
+	case ChangeUpdateNotice, WarningNotice, RefreshInhibitNotice:
 		return true
 	}
 	return false
@@ -276,6 +279,9 @@ func validateNotice(noticeType NoticeType, key string, options *AddNoticeOptions
 	}
 	if key == "" {
 		return fmt.Errorf("internal error: attempted to add %s notice with invalid key %q", noticeType, key)
+	}
+	if noticeType == RefreshInhibitNotice && key != "-" {
+		return fmt.Errorf(`internal error: attempted to add %s notice with invalid key %q, only "-" key is supported`, noticeType, key)
 	}
 	return nil
 }
