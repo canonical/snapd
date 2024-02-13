@@ -58,7 +58,8 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 // Setup installs the polkit policy files specific to a given snap.
 //
 // Polkit has no concept of a complain mode so confinment type is ignored.
-func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+	snapInfo := appSet.Info()
 	snapName := snapInfo.InstanceName()
 	// Get the policies that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), snapInfo)

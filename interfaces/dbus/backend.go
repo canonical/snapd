@@ -153,7 +153,8 @@ func setupHostDBusConf(snapInfo *snap.Info) error {
 // included, those files will be removed as well.
 //
 // DBus has no concept of a complain mode so confinment type is ignored.
-func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+	snapInfo := appSet.Info()
 	snapName := snapInfo.InstanceName()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), snapInfo)
@@ -228,6 +229,8 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (conte
 
 		addContent(securityTag, hookSnippets, content)
 	}
+
+	// TODO: something with component hooks will need to happen here
 
 	return content
 }

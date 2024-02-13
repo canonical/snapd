@@ -25,7 +25,6 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -190,6 +189,6 @@ func (m *InterfaceManager) TransitionConnectionsCoreMigration(st *state.State, o
 	return m.transitionConnectionsCoreMigration(st, oldName, newName)
 }
 
-func (m *InterfaceManager) SetupSecurityByBackend(task *state.Task, snaps []*snap.Info, opts []interfaces.ConfinementOptions, tm timings.Measurer) error {
-	return m.setupSecurityByBackend(task, snaps, opts, tm)
+func (m *InterfaceManager) SetupSecurityByBackend(task *state.Task, appSets []*interfaces.SnapAppSet, opts []interfaces.ConfinementOptions, tm timings.Measurer) error {
+	return m.setupSecurityByBackend(task, appSets, opts, tm)
 }
