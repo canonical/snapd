@@ -1097,7 +1097,7 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 }
 
 // A PrereqTracker helps tracking snap prerequisites for one or across
-// multiple snap operations. Depending of usage context implementatiomns
+// multiple snap operations. Depending of usage context implementations
 // can be stateful or stateless.
 // Functions taking a PrereqTracker accept nil and promise to call
 // Add once for any target snap.
