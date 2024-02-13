@@ -69,6 +69,29 @@ const (
 	PermissionChangeProfileOnExec PermissionType = "change-profile-on-exec"
 )
 
+var AllPermissions = []PermissionType{
+	PermissionExecute,
+	PermissionWrite,
+	PermissionRead,
+	PermissionAppend,
+	PermissionCreate,
+	PermissionDelete,
+	PermissionOpen,
+	PermissionRename,
+	PermissionSetAttr,
+	PermissionGetAttr,
+	PermissionSetCred,
+	PermissionGetCred,
+	PermissionChangeMode,
+	PermissionChangeOwner,
+	PermissionChangeGroup,
+	PermissionLock,
+	PermissionExecuteMap,
+	PermissionLink,
+	PermissionChangeProfile,
+	PermissionChangeProfileOnExec,
+}
+
 // If kernel request contains multiple interfaces, one must take priority.
 // Lower value is higher priority, and entries should be in priority order.
 var interfacePriorities = map[string]int{

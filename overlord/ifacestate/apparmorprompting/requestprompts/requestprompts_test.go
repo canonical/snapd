@@ -90,8 +90,8 @@ func (s *requestpromptsSuite) TestAddOrMergePrompt(c *C) {
 	c.Check(prompt1.Snap, Equals, snap)
 	c.Check(prompt1.App, Equals, app)
 	c.Check(prompt1.Interface, Equals, iface)
-	c.Check(prompt1.Path, Equals, path)
-	c.Check(prompt1.Permissions, DeepEquals, permissions)
+	c.Check(prompt1.Constraints.Path, Equals, path)
+	c.Check(prompt1.Constraints.Permissions, DeepEquals, permissions)
 
 	stored = pdb.Prompts(user)
 	c.Assert(stored, HasLen, 1)

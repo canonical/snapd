@@ -239,12 +239,12 @@ func (p *Prompting) PostPrompt(userID uint32, promptID string, reply *PromptRepl
 	// interfaces, so we do not assert anything else particular about the
 	// reply.PathPattern.
 	// TODO: Should this be reconsidered?
-	matches, err := common.PathPatternMatches(reply.PathPattern, prompt.Path)
+	matches, err := prompt.Constraints.Matches(reply.PathPattern)
 	if err != nil {
-		return nil, common.ErrInvalidPathPattern
+		return nil, err
 	}
 	if !matches {
-		return nil, fmt.Errorf("path pattern in reply does not match originally requested path: '%s' does not match '%s'; skipping rule generation", reply.PathPattern, prompt.Path)
+		return nil, fmt.Errorf("path pattern in reply does not match originally requested path: '%s' does not match '%v'; skipping rule generation", reply.PathPattern, prompt.Constraints)
 	}
 
 	// Create new rule based on the reply.

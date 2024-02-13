@@ -14,14 +14,29 @@ var ErrPromptIDNotFound = errors.New("no prompt with the given ID found for the 
 var ErrUserNotFound = errors.New("no prompts found for the given user")
 
 type Prompt struct {
-	ID           string                  `json:"id"`
-	Timestamp    string                  `json:"timestamp"`
-	Snap         string                  `json:"snap"`
-	App          string                  `json:"app"`
-	Interface    string                  `json:"interface"`
-	Path         string                  `json:"path"`
-	Permissions  []common.PermissionType `json:"permissions"`
-	listenerReqs []*listener.Request     `json:"-"`
+	ID           string              `json:"id"`
+	Timestamp    string              `json:"timestamp"`
+	Snap         string              `json:"snap"`
+	App          string              `json:"app"`
+	Interface    string              `json:"interface"`
+	Constraints  *promptConstraints  `json:"constraints"`
+	listenerReqs []*listener.Request `json:"-"`
+}
+
+type promptConstraints struct {
+	Path                 string                  `json:"path"`
+	Permissions          []common.PermissionType `json:"permissions"`
+	AvailablePermissions []common.PermissionType `json:"available-permissions"`
+}
+
+func (pc *promptConstraints) Equals(other *promptConstraints) bool {
+	// XXX: should AvailablePermissions be compared?
+	return pc.Path == other.Path && reflect.DeepEqual(pc.Permissions, other.Permissions)
+}
+
+func (pc *promptConstraints) Matches(pathPattern string) (bool, error) {
+	// Only possible error is ErrBadPattern
+	return common.PathPatternMatches(pathPattern, pc.Path)
 }
 
 type userPromptDB struct {
@@ -60,9 +75,15 @@ func (pdb *PromptDB) AddOrMerge(user uint32, snap string, app string, iface stri
 		userEntry = pdb.PerUser[user]
 	}
 
+	constraints := &promptConstraints{
+		Path:                 path,
+		Permissions:          permissions,
+		AvailablePermissions: common.AllPermissions,
+	}
+
 	// Search for an identical existing prompt, merge if found
 	for _, prompt := range userEntry.ByID {
-		if prompt.Snap == snap && prompt.App == app && prompt.Path == path && reflect.DeepEqual(prompt.Permissions, permissions) {
+		if prompt.Snap == snap && prompt.App == app && prompt.Interface == iface && prompt.Constraints.Equals(constraints) {
 			prompt.listenerReqs = append(prompt.listenerReqs, listenerReq)
 			return prompt, true
 		}
@@ -75,8 +96,7 @@ func (pdb *PromptDB) AddOrMerge(user uint32, snap string, app string, iface stri
 		Snap:         snap,
 		App:          app,
 		Interface:    iface,
-		Path:         path,
-		Permissions:  permissions, // TODO: copy permissions list?
+		Constraints:  constraints,
 		listenerReqs: []*listener.Request{listenerReq},
 	}
 	userEntry.ByID[id] = prompt
@@ -170,21 +190,18 @@ func (pdb *PromptDB) HandleNewRule(user uint32, snap string, app string, iface s
 		if !(prompt.Snap == snap && prompt.App == app && prompt.Interface == iface) {
 			continue
 		}
-		matched, err := common.PathPatternMatches(pathPattern, prompt.Path)
+		matched, err := prompt.Constraints.Matches(pathPattern)
 		if err != nil {
-			// Only possible error is ErrBadPattern
 			return nil, err
 		}
 		if !matched {
 			continue
 		}
-		remainingPermissions := prompt.Permissions
+		remainingPermissions := prompt.Constraints.Permissions
 		for _, perm := range permissions {
 			remainingPermissions, _ = common.RemovePermissionFromList(remainingPermissions, perm)
 		}
 		if len(remainingPermissions) > 0 {
-			// If we don't satisfy all permissions with the new rule,
-			// leave it up to the UI to prompt for all at once.
 			continue
 		}
 		// all permissions of prompt satisfied
