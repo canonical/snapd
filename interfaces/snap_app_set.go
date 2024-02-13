@@ -32,7 +32,7 @@ func (a *SnapAppSet) SecurityTagsForConnectedPlug(plug *ConnectedPlug) ([]string
 // the plug.
 func (a *SnapAppSet) SecurityTagsForPlug(plug *snap.PlugInfo) ([]string, error) {
 	if plug.Snap.InstanceName() != a.info.InstanceName() {
-		return nil, fmt.Errorf("plug %q is from snap %q, expected snap: %q", plug.Name, plug.Snap.InstanceName(), a.info.InstanceName())
+		return nil, fmt.Errorf("internal error: plug %q is from snap %q, security tags can only be computed for processed target snap: %q", plug.Name, plug.Snap.InstanceName(), a.info.InstanceName())
 	}
 
 	apps := a.info.AppsForPlug(plug)
@@ -64,7 +64,7 @@ func (a *SnapAppSet) SecurityTagsForConnectedSlot(slot *ConnectedSlot) ([]string
 // the slot.
 func (a *SnapAppSet) SecurityTagsForSlot(slot *snap.SlotInfo) ([]string, error) {
 	if slot.Snap.InstanceName() != a.info.InstanceName() {
-		return nil, fmt.Errorf("slot %q is from snap %q, expected snap: %q", slot.Name, slot.Snap.InstanceName(), a.info.InstanceName())
+		return nil, fmt.Errorf("internal error: slot %q is from snap %q, security tags can only be computed for processed target snap: %q", slot.Name, slot.Snap.InstanceName(), a.info.InstanceName())
 	}
 
 	apps := a.info.AppsForSlot(slot)

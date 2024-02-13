@@ -178,7 +178,7 @@ plugs:
 	_, connectedPlug := mockInfoAndConnectedPlug(c, otherYaml, nil, "plug")
 
 	_, err := set.SecurityTagsForConnectedPlug(connectedPlug)
-	c.Assert(err, ErrorMatches, `plug "plug" is from snap "other-name", expected snap: "name"`)
+	c.Assert(err, ErrorMatches, `internal error: plug "plug" is from snap "other-name", security tags can only be computed for processed target snap: "name"`)
 }
 
 func (s *snapAppSetSuite) TestSlotSecurityTags(c *C) {
@@ -214,7 +214,7 @@ slots:
 	_, connectedSlot := mockInfoAndConnectedSlot(c, otherYaml, nil, "slot")
 
 	_, err := set.SecurityTagsForConnectedSlot(connectedSlot)
-	c.Assert(err, ErrorMatches, `slot "slot" is from snap "other-name", expected snap: "name"`)
+	c.Assert(err, ErrorMatches, `internal error: slot "slot" is from snap "other-name", security tags can only be computed for processed target snap: "name"`)
 }
 
 func appsInMap(apps map[string]*snap.AppInfo) []*snap.AppInfo {
