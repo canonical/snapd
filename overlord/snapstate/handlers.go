@@ -1430,7 +1430,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 		err = m.backend.UnlinkSnap(oldInfo, linkCtx, NewTaskProgressAdapterLocked(t))
 		if err != nil {
 			if relinkErr := m.restoreUnlinkOnError(t, oldInfo, perfTimings); relinkErr != nil {
-				return relinkErr
+				t.Errorf("cannot restore unlinked snap: %v", relinkErr)
 			}
 			return err
 		}
