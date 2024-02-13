@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/interfaces"
 	. "github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
@@ -1230,12 +1231,15 @@ func (s *RepositorySuite) TestSnapSpecification(c *C) {
 	c.Assert(repo.AddPlug(s.plug), IsNil)
 	c.Assert(repo.AddSlot(s.slot), IsNil)
 
+	plugAppSet := interfaces.NewSnapAppSet(s.plug.Snap)
+	slotAppSet := interfaces.NewSnapAppSet(s.slot.Snap)
+
 	// Snaps should get static security now
-	spec, err := repo.SnapSpecification(testSecurity, s.plug.Snap)
+	spec, err := repo.SnapSpecification(testSecurity, plugAppSet)
 	c.Assert(err, IsNil)
 	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{"static plug snippet"})
 
-	spec, err = repo.SnapSpecification(testSecurity, s.slot.Snap)
+	spec, err = repo.SnapSpecification(testSecurity, slotAppSet)
 	c.Assert(err, IsNil)
 	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{"static slot snippet"})
 
@@ -1245,14 +1249,14 @@ func (s *RepositorySuite) TestSnapSpecification(c *C) {
 	c.Assert(err, IsNil)
 
 	// Snaps should get static and connection-specific security now
-	spec, err = repo.SnapSpecification(testSecurity, s.plug.Snap)
+	spec, err = repo.SnapSpecification(testSecurity, plugAppSet)
 	c.Assert(err, IsNil)
 	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{
 		"static plug snippet",
 		"connection-specific plug snippet",
 	})
 
-	spec, err = repo.SnapSpecification(testSecurity, s.slot.Snap)
+	spec, err = repo.SnapSpecification(testSecurity, slotAppSet)
 	c.Assert(err, IsNil)
 	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{
 		"static slot snippet",
@@ -1282,11 +1286,15 @@ func (s *RepositorySuite) TestSnapSpecificationFailureWithConnectionSnippets(c *
 	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
-	spec, err := repo.SnapSpecification(testSecurity, s.plug.Snap)
+	plugAppSet := interfaces.NewSnapAppSet(s.plug.Snap)
+
+	spec, err := repo.SnapSpecification(testSecurity, plugAppSet)
 	c.Assert(err, ErrorMatches, "cannot compute snippet for consumer")
 	c.Assert(spec, IsNil)
 
-	spec, err = repo.SnapSpecification(testSecurity, s.slot.Snap)
+	slotAppSet := interfaces.NewSnapAppSet(s.slot.Snap)
+
+	spec, err = repo.SnapSpecification(testSecurity, slotAppSet)
 	c.Assert(err, ErrorMatches, "cannot compute snippet for provider")
 	c.Assert(spec, IsNil)
 }
@@ -1312,11 +1320,11 @@ func (s *RepositorySuite) TestSnapSpecificationFailureWithPermanentSnippets(c *C
 	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
-	spec, err := repo.SnapSpecification(testSecurity, s.plug.Snap)
+	spec, err := repo.SnapSpecification(testSecurity, interfaces.NewSnapAppSet(s.plug.Snap))
 	c.Assert(err, ErrorMatches, "cannot compute snippet for consumer")
 	c.Assert(spec, IsNil)
 
-	spec, err = repo.SnapSpecification(testSecurity, s.slot.Snap)
+	spec, err = repo.SnapSpecification(testSecurity, interfaces.NewSnapAppSet(s.slot.Snap))
 	c.Assert(err, ErrorMatches, "cannot compute snippet for provider")
 	c.Assert(spec, IsNil)
 }

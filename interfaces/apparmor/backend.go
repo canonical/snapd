@@ -345,12 +345,13 @@ type profilePathsResults struct {
 }
 
 func (b *Backend) prepareProfiles(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) (prof *profilePathsResults, err error) {
-	snapInfo := appSet.Info()
-	snapName := snapInfo.InstanceName()
-	spec, err := repo.SnapSpecification(b.Name(), snapInfo)
+	snapName := appSet.InstanceName()
+	spec, err := repo.SnapSpecification(b.Name(), appSet)
 	if err != nil {
 		return nil, fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
 	}
+
+	snapInfo := appSet.Info()
 
 	// Add snippets for parallel snap installation mapping
 	spec.(*Specification).AddOvername(snapInfo)

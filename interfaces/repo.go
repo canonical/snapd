@@ -912,7 +912,7 @@ func (r *Repository) Interfaces() *Interfaces {
 }
 
 // SnapSpecification returns the specification of a given snap in a given security system.
-func (r *Repository) SnapSpecification(securitySystem SecuritySystem, info *snap.Info) (Specification, error) {
+func (r *Repository) SnapSpecification(securitySystem SecuritySystem, appSet *SnapAppSet) (Specification, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -924,12 +924,12 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, info *snap
 		}
 	}
 
-	snapName := info.InstanceName()
+	snapName := appSet.InstanceName()
 	if backend == nil {
 		return nil, fmt.Errorf("cannot handle interfaces of snap %q, security system %q is not known", snapName, securitySystem)
 	}
 
-	spec := backend.NewSpecification(NewSnapAppSet(info))
+	spec := backend.NewSpecification(appSet)
 
 	// XXX: If either of the AddConnected{Plug,Slot} methods for a connection
 	// fail resiliently as-in they can never succeed (such as the case where a

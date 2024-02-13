@@ -237,10 +237,9 @@ func parallelCompile(compiler Compiler, profiles []string) error {
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
-	snapInfo := appSet.Info()
-	snapName := snapInfo.InstanceName()
+	snapName := appSet.InstanceName()
 	// Get the snippets that apply to this snap
-	spec, err := repo.SnapSpecification(b.Name(), snapInfo)
+	spec, err := repo.SnapSpecification(b.Name(), appSet)
 	if err != nil {
 		return fmt.Errorf("cannot obtain seccomp specification for snap %q: %s", snapName, err)
 	}

@@ -154,13 +154,14 @@ func setupHostDBusConf(snapInfo *snap.Info) error {
 //
 // DBus has no concept of a complain mode so confinment type is ignored.
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
-	snapInfo := appSet.Info()
-	snapName := snapInfo.InstanceName()
+	snapName := appSet.InstanceName()
 	// Get the snippets that apply to this snap
-	spec, err := repo.SnapSpecification(b.Name(), snapInfo)
+	spec, err := repo.SnapSpecification(b.Name(), appSet)
 	if err != nil {
 		return fmt.Errorf("cannot obtain dbus specification for snap %q: %s", snapName, err)
 	}
+
+	snapInfo := appSet.Info()
 
 	// copy some config files when installing core/snapd if we reexec
 	if shouldCopyConfigFiles(snapInfo) {
@@ -230,7 +231,8 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (conte
 		addContent(securityTag, hookSnippets, content)
 	}
 
-	// TODO: something with component hooks will need to happen here
+	// TODO: something with component hooks will need to happen here, the param
+	// to this method should probably be a SnapAppSet, rather than a snap.Info
 
 	return content
 }
