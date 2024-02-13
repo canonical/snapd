@@ -801,9 +801,9 @@ func (s *Info) IsActive() bool {
 	return err == nil && tag == rev
 }
 
-// TODO: implement this without using the Apps field in PlugInfo
 // AppsForPlug returns the list of apps that are associated with the given plug.
 // If the plug is unscoped, then all apps are returned.
+// TODO: implement this without using the Apps field in PlugInfo
 func (s *Info) AppsForPlug(plug *PlugInfo) []*AppInfo {
 	apps := make([]*AppInfo, 0, len(plug.Apps))
 	for _, app := range plug.Apps {
@@ -812,9 +812,9 @@ func (s *Info) AppsForPlug(plug *PlugInfo) []*AppInfo {
 	return apps
 }
 
-// TODO: implement this without using the Apps field in SlotInfo
 // AppsForSlot returns the list of apps that are associated with the given slot.
 // If the slot is unscoped, then all apps are returned.
+// TODO: implement this without using the Apps field in SlotInfo
 func (s *Info) AppsForSlot(slot *SlotInfo) []*AppInfo {
 	apps := make([]*AppInfo, 0, len(slot.Apps))
 	for _, app := range slot.Apps {
