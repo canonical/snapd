@@ -1333,12 +1333,37 @@ const (
 	unlinkReasonHomeMigration unlinkReason = "home-migration"
 )
 
+// restoreUnlinkOnError assumes that state is locked.
+func (m *SnapManager) restoreUnlinkOnError(t *state.Task, info *snap.Info, tm timings.Measurer) error {
+	st := t.State()
+
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return err
+	}
+
+	opts, err := SnapServiceOptions(st, info, nil)
+	if err != nil {
+		return err
+	}
+	linkCtx := backend.LinkContext{
+		FirstInstall:   false,
+		IsUndo:         true,
+		ServiceOptions: opts,
+	}
+	_, err = m.backend.LinkSnap(info, deviceCtx, linkCtx, tm)
+	return err
+}
+
 func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// called only during refresh when a new revision of a snap is being
 	// installed
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
 
 	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
@@ -1404,6 +1429,9 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 		}
 		err = m.backend.UnlinkSnap(oldInfo, linkCtx, NewTaskProgressAdapterLocked(t))
 		if err != nil {
+			if relinkErr := m.restoreUnlinkOnError(t, oldInfo, perfTimings); relinkErr != nil {
+				return relinkErr
+			}
 			return err
 		}
 	}
