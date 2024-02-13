@@ -131,9 +131,11 @@ func (s *noticesSuite) TestNoticesFilterMultipleTypes(c *C) {
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
+	time.Sleep(time.Microsecond)
+	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
 	st.Unlock()
 
-	req, err := http.NewRequest("GET", "/v2/notices?types=change-update&types=warning", nil)
+	req, err := http.NewRequest("GET", "/v2/notices?types=change-update&types=warning&types=refresh-inhibit", nil)
 	c.Assert(err, IsNil)
 	req.RemoteAddr = "pid=100;uid=1000;socket=;"
 	rsp := s.syncReq(c, req, nil)
@@ -141,11 +143,13 @@ func (s *noticesSuite) TestNoticesFilterMultipleTypes(c *C) {
 
 	notices, ok := rsp.Result.([]*state.Notice)
 	c.Assert(ok, Equals, true)
-	c.Assert(notices, HasLen, 2)
+	c.Assert(notices, HasLen, 3)
 	n := noticeToMap(c, notices[0])
 	c.Assert(n["type"], Equals, "change-update")
 	n = noticeToMap(c, notices[1])
 	c.Assert(n["type"], Equals, "warning")
+	n = noticeToMap(c, notices[2])
+	c.Assert(n["type"], Equals, "refresh-inhibit")
 }
 
 func (s *noticesSuite) TestNoticesFilterMultipleKeys(c *C) {
