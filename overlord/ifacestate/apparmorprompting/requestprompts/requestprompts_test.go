@@ -1,4 +1,4 @@
-package promptrequests_test
+package requestprompts_test
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/common"
-	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/promptrequests"
+	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/requestprompts"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
 	"github.com/snapcore/snapd/strutil"
@@ -17,28 +17,28 @@ import (
 
 func Test(t *testing.T) { TestingT(t) }
 
-type promptrequestsSuite struct {
+type requestpromptsSuite struct {
 	tmpdir string
 }
 
-var _ = Suite(&promptrequestsSuite{})
+var _ = Suite(&requestpromptsSuite{})
 
-func (s *promptrequestsSuite) SetUpTest(c *C) {
+func (s *requestpromptsSuite) SetUpTest(c *C) {
 	s.tmpdir = c.MkDir()
 	dirs.SetRootDir(s.tmpdir)
 }
 
-func (s *promptrequestsSuite) TestNew(c *C) {
+func (s *requestpromptsSuite) TestNew(c *C) {
 	notifyPrompt := func(userID uint32, promptID string, options *state.AddNoticeOptions) error {
 		c.Fatalf("unexpected notice with userID %d and ID %s", userID, promptID)
 		return nil
 	}
-	pdb := promptrequests.New(notifyPrompt)
+	pdb := requestprompts.New(notifyPrompt)
 	c.Assert(pdb.PerUser, HasLen, 0)
 }
 
-func (s *promptrequestsSuite) TestAddOrMergePrompt(c *C) {
-	restore := promptrequests.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
+func (s *requestpromptsSuite) TestAddOrMergePrompt(c *C) {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -52,7 +52,7 @@ func (s *promptrequestsSuite) TestAddOrMergePrompt(c *C) {
 		return nil
 	}
 
-	pdb := promptrequests.New(notifyPrompt)
+	pdb := requestprompts.New(notifyPrompt)
 	snap := "nextcloud"
 	app := "occ"
 	iface := "home"
@@ -112,8 +112,8 @@ func (s *promptrequestsSuite) TestAddOrMergePrompt(c *C) {
 	c.Assert(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 }
 
-func (s *promptrequestsSuite) TestPromptWithIDErrors(c *C) {
-	restore := promptrequests.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
+func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
 		c.Fatalf("should not have called sendReply")
 		return nil
 	})
@@ -127,7 +127,7 @@ func (s *promptrequestsSuite) TestPromptWithIDErrors(c *C) {
 		return nil
 	}
 
-	pdb := promptrequests.New(notifyPrompt)
+	pdb := requestprompts.New(notifyPrompt)
 	snap := "nextcloud"
 	app := "occ"
 	iface := "system-files"
@@ -148,21 +148,21 @@ func (s *promptrequestsSuite) TestPromptWithIDErrors(c *C) {
 	c.Check(result, Equals, prompt)
 
 	result, err = pdb.PromptWithID(user, "foo")
-	c.Check(err, Equals, promptrequests.ErrPromptIDNotFound)
+	c.Check(err, Equals, requestprompts.ErrPromptIDNotFound)
 	c.Check(result, IsNil)
 
 	result, err = pdb.PromptWithID(user+1, "foo")
-	c.Check(err, Equals, promptrequests.ErrUserNotFound)
+	c.Check(err, Equals, requestprompts.ErrUserNotFound)
 	c.Check(result, IsNil)
 
 	// Looking up prompts (with or without errors) should not trigger notices
 	c.Assert(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 }
 
-func (s *promptrequestsSuite) TestReply(c *C) {
+func (s *requestpromptsSuite) TestReply(c *C) {
 	listenerReqChan := make(chan *listener.Request, 2)
 	replyChan := make(chan interface{}, 2)
-	restore := promptrequests.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
 		listenerReqChan <- listenerReq
 		replyChan <- reply
 		return nil
@@ -177,7 +177,7 @@ func (s *promptrequestsSuite) TestReply(c *C) {
 		return nil
 	}
 
-	pdb := promptrequests.New(notifyPrompt)
+	pdb := requestprompts.New(notifyPrompt)
 	snap := "nextcloud"
 	app := "occ"
 	iface := "personal-files"
@@ -252,9 +252,9 @@ func (s *promptrequestsSuite) TestReply(c *C) {
 	promptNoticeIDs = promptNoticeIDs[1:]
 }
 
-func (s *promptrequestsSuite) TestReplyErrors(c *C) {
+func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 	fakeError := fmt.Errorf("fake reply error")
-	restore := promptrequests.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
 		return fakeError
 	})
 	defer restore()
@@ -267,7 +267,7 @@ func (s *promptrequestsSuite) TestReplyErrors(c *C) {
 		return nil
 	}
 
-	pdb := promptrequests.New(notifyPrompt)
+	pdb := requestprompts.New(notifyPrompt)
 	snap := "nextcloud"
 	app := "occ"
 	iface := "removable-media"
@@ -286,10 +286,10 @@ func (s *promptrequestsSuite) TestReplyErrors(c *C) {
 	outcome := common.OutcomeAllow
 
 	_, err := pdb.Reply(user, "foo", outcome)
-	c.Check(err, Equals, promptrequests.ErrPromptIDNotFound)
+	c.Check(err, Equals, requestprompts.ErrPromptIDNotFound)
 
 	_, err = pdb.Reply(user+1, "foo", outcome)
-	c.Check(err, Equals, promptrequests.ErrUserNotFound)
+	c.Check(err, Equals, requestprompts.ErrUserNotFound)
 
 	_, err = pdb.Reply(user, prompt.ID, common.OutcomeUnset)
 	c.Check(err, Equals, common.ErrInvalidOutcome)
@@ -301,10 +301,10 @@ func (s *promptrequestsSuite) TestReplyErrors(c *C) {
 	c.Assert(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 }
 
-func (s *promptrequestsSuite) TestHandleNewRuleAllowPermissions(c *C) {
+func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	listenerReqChan := make(chan *listener.Request, 2)
 	replyChan := make(chan interface{}, 2)
-	restore := promptrequests.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
 		listenerReqChan <- listenerReq
 		replyChan <- reply
 		return nil
@@ -319,7 +319,7 @@ func (s *promptrequestsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 		return nil
 	}
 
-	pdb := promptrequests.New(notifyPrompt)
+	pdb := requestprompts.New(notifyPrompt)
 
 	snap := "nextcloud"
 	app := "occ"
@@ -389,10 +389,10 @@ func (s *promptrequestsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	c.Assert(stored, HasLen, 2)
 }
 
-func (s *promptrequestsSuite) TestHandleNewRuleDenyPermissions(c *C) {
+func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 	listenerReqChan := make(chan *listener.Request, 2)
 	replyChan := make(chan interface{}, 2)
-	restore := promptrequests.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
 		listenerReqChan <- listenerReq
 		replyChan <- reply
 		return nil
@@ -407,7 +407,7 @@ func (s *promptrequestsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 		return nil
 	}
 
-	pdb := promptrequests.New(notifyPrompt)
+	pdb := requestprompts.New(notifyPrompt)
 
 	snap := "nextcloud"
 	app := "occ"
@@ -488,10 +488,10 @@ func (s *promptrequestsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 	c.Assert(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 }
 
-func (s *promptrequestsSuite) TestHandleNewRuleNonMatches(c *C) {
+func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	listenerReqChan := make(chan *listener.Request, 1)
 	replyChan := make(chan interface{}, 1)
-	restore := promptrequests.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
+	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
 		listenerReqChan <- listenerReq
 		replyChan <- reply
 		return nil
@@ -506,7 +506,7 @@ func (s *promptrequestsSuite) TestHandleNewRuleNonMatches(c *C) {
 		return nil
 	}
 
-	pdb := promptrequests.New(notifyPrompt)
+	pdb := requestprompts.New(notifyPrompt)
 
 	snap := "nextcloud"
 	app := "occ"

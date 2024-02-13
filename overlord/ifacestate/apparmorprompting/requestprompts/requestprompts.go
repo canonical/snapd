@@ -1,4 +1,4 @@
-package promptrequests
+package requestprompts
 
 import (
 	"errors"

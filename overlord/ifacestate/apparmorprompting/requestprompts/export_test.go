@@ -17,7 +17,7 @@
  *
  */
 
-package promptrequests
+package requestprompts
 
 import (
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"

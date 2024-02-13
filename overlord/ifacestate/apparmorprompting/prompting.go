@@ -8,7 +8,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/common"
-	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/promptrequests"
+	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/requestprompts"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/requestrules"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
@@ -28,7 +28,7 @@ type Interface interface {
 type Prompting struct {
 	tomb     tomb.Tomb
 	listener *listener.Listener
-	prompts  *promptrequests.PromptDB
+	prompts  *requestprompts.PromptDB
 	rules    *requestrules.RuleDB
 
 	notifyPrompt func(userID uint32, promptID string, options *state.AddNoticeOptions) error
@@ -67,7 +67,7 @@ func (p *Prompting) Connect() error {
 		return fmt.Errorf("cannot register prompting listener: %v", err)
 	}
 	p.listener = l
-	p.prompts = promptrequests.New(p.notifyPrompt)
+	p.prompts = requestprompts.New(p.notifyPrompt)
 	p.rules, _ = requestrules.New(p.notifyRule) // ignore error (failed to load existing rules)
 	return nil
 }
@@ -196,7 +196,7 @@ func (p *Prompting) Stop() error {
 	return p.tomb.Wait()
 }
 
-func (p *Prompting) GetPrompts(userID uint32) ([]*promptrequests.Prompt, error) {
+func (p *Prompting) GetPrompts(userID uint32) ([]*requestprompts.Prompt, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
@@ -204,7 +204,7 @@ func (p *Prompting) GetPrompts(userID uint32) ([]*promptrequests.Prompt, error) 
 	return prompts, nil
 }
 
-func (p *Prompting) GetPrompt(userID uint32, promptID string) (*promptrequests.Prompt, error) {
+func (p *Prompting) GetPrompt(userID uint32, promptID string) (*requestprompts.Prompt, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
