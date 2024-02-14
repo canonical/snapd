@@ -27,7 +27,7 @@ prepare: |
     remote.setup config --host "$host" --port "$port" --user "$user" --pass "$pass"
 
 restore: |
-    tests.systemd stop-and-remove-unit "$unit"    
+    tests.systemd stop-unit --remove "$unit"
     rm -f pc.img "$(remote.setup get-config-path)"
 
 execute: |
