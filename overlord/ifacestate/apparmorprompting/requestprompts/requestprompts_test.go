@@ -312,7 +312,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	defer restore()
 
 	var user uint32 = 1000
-	promptNoticeIDs := make([]string, 0, 6)
+	promptNoticeIDs := make([]string, 0, 8)
 	notifyPrompt := func(userID uint32, promptID string, options *state.AddNoticeOptions) error {
 		c.Check(userID, Equals, user)
 		promptNoticeIDs = append(promptNoticeIDs, promptID)
@@ -366,10 +366,13 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	c.Check(strutil.ListContains(satisfied, prompt2.ID), Equals, true)
 	c.Check(strutil.ListContains(satisfied, prompt3.ID), Equals, true)
 
-	c.Assert(promptNoticeIDs, HasLen, 2, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
+	// Read and write permissions of prompt1 satisfied, so notice re-issued,
+	// but it has one remaining permission. prompt2 and prompt3 fully satisfied.
+	c.Assert(promptNoticeIDs, HasLen, 3, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
+	c.Check(strutil.ListContains(promptNoticeIDs, prompt1.ID), Equals, true)
 	c.Check(strutil.ListContains(promptNoticeIDs, prompt2.ID), Equals, true)
 	c.Check(strutil.ListContains(promptNoticeIDs, prompt3.ID), Equals, true)
-	promptNoticeIDs = promptNoticeIDs[2:]
+	promptNoticeIDs = promptNoticeIDs[3:]
 
 	for i := 0; i < 2; i++ {
 		satisfiedReq := <-listenerReqChan
@@ -387,11 +390,29 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 
 	stored = pdb.Prompts(user)
 	c.Assert(stored, HasLen, 2)
+
+	// Check that allowing the final missing permission allows the prompt.
+	permissions = []common.PermissionType{common.PermissionExecute}
+	satisfied, err = pdb.HandleNewRule(user, snap, app, iface, pathPattern, outcome, permissions)
+
+	c.Assert(err, IsNil)
+	c.Check(satisfied, HasLen, 1)
+	c.Check(satisfied[0], Equals, prompt1.ID)
+
+	c.Assert(promptNoticeIDs, HasLen, 1, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
+	c.Check(promptNoticeIDs[0], Equals, prompt1.ID)
+
+	satisfiedReq := <-listenerReqChan
+	c.Check(satisfiedReq, Equals, listenerReq1)
+	result := <-replyChan
+	allowed, ok := result.(bool)
+	c.Check(ok, Equals, true)
+	c.Check(allowed, Equals, true)
 }
 
 func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
-	listenerReqChan := make(chan *listener.Request, 2)
-	replyChan := make(chan interface{}, 2)
+	listenerReqChan := make(chan *listener.Request, 3)
+	replyChan := make(chan interface{}, 3)
 	restore := requestprompts.MockSendReply(func(listenerReq *listener.Request, reply interface{}) error {
 		listenerReqChan <- listenerReq
 		replyChan <- reply
@@ -400,7 +421,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 	defer restore()
 
 	var user uint32 = 1000
-	promptNoticeIDs := make([]string, 0, 6)
+	promptNoticeIDs := make([]string, 0, 7)
 	notifyPrompt := func(userID uint32, promptID string, options *state.AddNoticeOptions) error {
 		c.Check(userID, Equals, user)
 		promptNoticeIDs = append(promptNoticeIDs, promptID)
@@ -448,44 +469,47 @@ func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 	outcome := common.OutcomeDeny
 	permissions = []common.PermissionType{common.PermissionWrite, common.PermissionRead, common.PermissionAppend}
 
+	// If one or more permissions denied each for prompts 1-3, so each is denied
 	satisfied, err := pdb.HandleNewRule(user, snap, app, iface, pathPattern, outcome, permissions)
 	c.Assert(err, IsNil)
-	c.Check(satisfied, HasLen, 2)
+	c.Check(satisfied, HasLen, 3)
+	c.Check(strutil.ListContains(satisfied, prompt1.ID), Equals, true)
 	c.Check(strutil.ListContains(satisfied, prompt2.ID), Equals, true)
 	c.Check(strutil.ListContains(satisfied, prompt3.ID), Equals, true)
 
-	c.Assert(promptNoticeIDs, HasLen, 2, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
+	c.Assert(promptNoticeIDs, HasLen, 3, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
+	c.Check(strutil.ListContains(promptNoticeIDs, prompt1.ID), Equals, true)
 	c.Check(strutil.ListContains(promptNoticeIDs, prompt2.ID), Equals, true)
 	c.Check(strutil.ListContains(promptNoticeIDs, prompt3.ID), Equals, true)
-	promptNoticeIDs = promptNoticeIDs[2:]
+	promptNoticeIDs = promptNoticeIDs[3:]
 
-	for i := 0; i < 2; i++ {
-		satisfiedReq := <-listenerReqChan
+	for i := 0; i < 3; i++ {
+		var satisfiedReq *listener.Request
+		select {
+		case satisfiedReq = <-listenerReqChan:
+		case <-time.NewTimer(5 * time.Second).C:
+			c.Errorf("failed to receive satisfied request %d", i)
+		}
 		switch satisfiedReq {
+		case listenerReq1:
 		case listenerReq2:
 		case listenerReq3:
 		default:
 			c.Errorf("unexpected request satisfied by new rule")
 		}
-		result := <-replyChan
+		var result interface{}
+		select {
+		case result = <-replyChan:
+		case <-time.NewTimer(5 * time.Second).C:
+			c.Errorf("failed to receive reply %d", i)
+		}
 		allowed, ok := result.(bool)
 		c.Check(ok, Equals, true)
 		c.Check(allowed, Equals, false)
 	}
 
 	stored = pdb.Prompts(user)
-	c.Check(stored, HasLen, 2)
-
-	// check that denying the final missing permission does not deny the whole rule.
-	// TODO: change this behaviour?
-	permissions = []common.PermissionType{common.PermissionExecute}
-	satisfied, err = pdb.HandleNewRule(user, snap, app, iface, pathPattern, outcome, permissions)
-
-	c.Assert(err, IsNil)
-	c.Check(satisfied, HasLen, 0)
-
-	// The prompt is not modified (since not fully satisfied), so no notice should be issued
-	c.Assert(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
+	c.Check(stored, HasLen, 1)
 }
 
 func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {

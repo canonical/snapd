@@ -39,6 +39,23 @@ func (pc *promptConstraints) Matches(pathPattern string) (bool, error) {
 	return common.PathPatternMatches(pathPattern, pc.Path)
 }
 
+func (pc *promptConstraints) subtractPermissions(permissions []common.PermissionType) bool {
+	modified := false
+	newPermissions := make([]common.PermissionType, 0, len(pc.Permissions))
+OUTER_PERMS:
+	for _, perm := range pc.Permissions {
+		for _, omit := range permissions {
+			if omit == perm {
+				modified = true
+				continue OUTER_PERMS
+			}
+		}
+		newPermissions = append(newPermissions, perm)
+	}
+	pc.Permissions = newPermissions
+	return modified
+}
+
 type userPromptDB struct {
 	ByID map[string]*Prompt
 }
@@ -197,20 +214,20 @@ func (pdb *PromptDB) HandleNewRule(user uint32, snap string, app string, iface s
 		if !matched {
 			continue
 		}
-		remainingPermissions := prompt.Constraints.Permissions
-		for _, perm := range permissions {
-			remainingPermissions, _ = common.RemovePermissionFromList(remainingPermissions, perm)
-		}
-		if len(remainingPermissions) > 0 {
+		modified := prompt.Constraints.subtractPermissions(permissions)
+		if !modified {
 			continue
 		}
-		// all permissions of prompt satisfied
+		pdb.notifyPrompt(user, id, nil)
+		if len(prompt.Constraints.Permissions) > 0 && outcomeBool == true {
+			continue
+		}
+		// all permissions of prompt satisfied, or any permission denied
 		for _, listenerReq := range prompt.listenerReqs {
 			sendReply(listenerReq, outcomeBool)
 		}
 		delete(userEntry.ByID, id)
 		satisfiedPromptIDs = append(satisfiedPromptIDs, id)
-		pdb.notifyPrompt(user, id, nil)
 	}
 	return satisfiedPromptIDs, nil
 }
