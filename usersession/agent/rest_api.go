@@ -447,17 +447,18 @@ func guessAppIcon(si *snap.Info) string {
 			icon, _ = parser.Get("Desktop Entry", "Icon")
 		}
 	}
+	if icon != "" {
+		return icon
+	}
 
-	if icon == "" {
-		// If it doesn't exist, take the first app in the snap with a DesktopFile with icon
-		for _, app := range si.Apps {
-			if app.IsService() || app.Name == si.SnapName() {
-				continue
-			}
-			if err := parser.ReadFile(app.DesktopFile()); err == nil {
-				if icon, err = parser.Get("Desktop Entry", "Icon"); err == nil && icon != "" {
-					break
-				}
+	// If it doesn't exist, take the first app in the snap with a DesktopFile with icon
+	for _, app := range si.Apps {
+		if app.IsService() || app.Name == si.SnapName() {
+			continue
+		}
+		if err := parser.ReadFile(app.DesktopFile()); err == nil {
+			if icon, err = parser.Get("Desktop Entry", "Icon"); err == nil && icon != "" {
+				break
 			}
 		}
 	}
@@ -469,7 +470,6 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		return resp
 	}
 
-	var icon string
 	decoder := json.NewDecoder(r.Body)
 
 	var finishRefresh client.FinishedSnapRefreshInfo
@@ -495,6 +495,7 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		notification.WithUrgency(notification.LowUrgency),
 	}
 
+	var icon string
 	if si, err := snap.ReadCurrentInfo(finishRefresh.InstanceName); err == nil {
 		icon = guessAppIcon(si)
 	} else {
