@@ -100,7 +100,7 @@ func (r *refreshHints) refresh() error {
 		return fmt.Errorf("internal error: cannot get refresh-candidates: %v", err)
 	}
 
-	setNewRefreshCandidates(r.state, hints)
+	updateRefreshCandidates(r.state, hints, nil)
 	return nil
 }
 
