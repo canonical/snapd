@@ -210,6 +210,7 @@ deny /usr/bin/{chfn,chsh,gpasswd,mount,newgrp,passwd,su,sudo,umount} x,
 /run/host/usr/bin/localedef ixr,
 /var/cache/ldconfig/** rw,
 /sys/module/nvidia/version r,
+/var/lib/snapd/hostfs/usr/share/nvidia/** mr,
 /etc/debian_chroot r,
 
 capability sys_admin,
