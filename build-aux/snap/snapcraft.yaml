@@ -103,11 +103,14 @@ parts:
       - -usr/lib64
       - -etc/ld.so.conf.d
       - -usr/share/man
+      - -usr/share/lintian
+      - -usr/share/lintian/**
     override-build: |
       craftctl default
       mv "${CRAFT_PART_INSTALL}/usr/lib/libnss_extrausers.so.2" "${CRAFT_PART_INSTALL}/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/"
       cp -rT "${CRAFT_PART_INSTALL}/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" "${CRAFT_PART_INSTALL}/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}"
       rm -rf "${CRAFT_PART_INSTALL}/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}"
+      find "${CRAFT_PART_INSTALL}/usr/share/doc" \( -not -type d -not -name "copyright" -delete \) -o \( -type d -empty -delete \)
 
   apparmor:
     plugin: autotools
@@ -194,7 +197,7 @@ parts:
       cd "${CRAFT_PART_BUILD}/cmd"
 
       autoreconf -fvi
-      ./configure --prefix=/usr --libexec=/usr/lib/snapd --without-unit-tests --enable-static-libapparmor
+      ./configure --prefix=/usr --libexec=/usr/lib/snapd --without-unit-tests --enable-static-libapparmor --disable-host-binaries
       make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
       make -j1 DESTDIR="${CRAFT_PART_INSTALL}" install
 
