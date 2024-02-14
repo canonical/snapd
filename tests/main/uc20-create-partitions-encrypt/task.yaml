@@ -53,7 +53,7 @@ prepare: |
     echo "Get the UC20 gadget"
     if os.query is-focal; then
         snap download --channel=20/edge pc
-    elif os.query is-ubuntu 22.04 || os.query is-ubuntu 23.04; then
+    elif os.query is-ubuntu 22.04; then
         snap download --channel=22/edge pc
     fi
     unsquashfs -d gadget-dir pc_*.snap
