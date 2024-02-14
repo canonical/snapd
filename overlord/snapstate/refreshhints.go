@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -258,6 +259,62 @@ func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 	}
 
 	setNewRefreshCandidates(st, candidates)
+	return nil
+}
+
+// updateRefreshCandidates updates the current set of refresh candidates stored
+// in the state. When the list of canDropOldNames is empty, existing entries
+// which aren't part of the update are dropped. When the list if non empty, only
+// those entries mentioned in the list are dropped, other existing entries are
+// preserved. Whenever an existing entry is to be updated, only its snap-setup
+// content is changed, other fields remain unchanged.
+func updateRefreshCandidates(st *state.State, hints map[string]*refreshCandidate, canDropOldNames []string) error {
+	var oldHints map[string]*refreshCandidate
+	if err := st.Get("refresh-candidates", &oldHints); err != nil {
+		if !errors.Is(err, &state.NoStateError{}) {
+			return err
+		}
+	}
+
+	if len(oldHints) == 0 {
+		st.Set("refresh-candidates", hints)
+		return nil
+	}
+
+	dropSelectOld := len(canDropOldNames) != 0
+
+	var deleted []string
+
+	// selectively process existing entries
+	for oldHintName, oldHint := range oldHints {
+		newHint, hasUpdate := hints[oldHintName]
+
+		if hasUpdate {
+			// this hint has an update, but we only override snap
+			// setup
+			oldHint.SnapSetup = newHint.SnapSetup
+		} else {
+			if !dropSelectOld || (dropSelectOld && strutil.ListContains(canDropOldNames, oldHintName)) {
+				// we have no new hint for this snap
+				deleted = append(deleted, oldHintName)
+				delete(oldHints, oldHintName)
+			}
+		}
+	}
+	// now add all new entries
+	for newHintName, newHint := range hints {
+		// preserved entries have already been processed
+		if _, processed := oldHints[newHintName]; !processed {
+			oldHints[newHintName] = newHint
+		}
+	}
+
+	// stop monitoring candidates which were deleted
+	for _, dropped := range deleted {
+		abortMonitoring(st, dropped)
+	}
+
+	st.Set("refresh-candidates", oldHints)
 	return nil
 }
 
