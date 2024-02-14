@@ -34,6 +34,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/advisor"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
@@ -10236,6 +10237,345 @@ func (s *snapmgrTestSuite) TestAutoRefreshCreatePreDownload(c *C) {
 	c.Assert(tasks[0].Summary(), testutil.Contains, "Pre-download snap \"some-snap\" (2) from channel")
 }
 
+func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecorded(c *C) {
+	refreshAppsCheckCalled := 0
+	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
+		refreshAppsCheckCalled++
+		if si.SnapID == "some-snap-id" {
+			return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
+		}
+		return nil
+	})
+	defer restore()
+
+	var monitored int
+	restore = snapstate.MockCgroupMonitorSnapEnded(func(string, chan<- string) error {
+		monitored++
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: string(snap.TypeApp),
+	})
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-other-snap", SnapID: "some-other-snap-id", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: string(snap.TypeApp),
+	})
+	s.state.Unlock()
+
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+	// Trigger autorefresh.Ensure().
+	err := s.snapmgr.Ensure()
+	if errors.Is(err, advisor.ErrNotSupported) {
+		c.Skip("bolt is not supported")
+	}
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chgs := s.state.Changes()
+	sort.Slice(chgs, func(i, j int) bool {
+		return chgs[i].Kind() < chgs[j].Kind()
+	})
+	c.Assert(chgs, HasLen, 2)
+	c.Check(chgs[1].Kind(), Equals, "pre-download")
+	c.Check(chgs[1].Status(), Equals, state.DoStatus)
+	c.Check(chgs[0].Kind(), Equals, "auto-refresh")
+	c.Check(chgs[0].Status(), Equals, state.DoStatus)
+	// No notices are recorded until auto-refresh change is marked as ready.
+	checkRefreshInhibitNotice(c, s.state, 0)
+
+	s.settle(c)
+
+	// - Twice in soft-check of original auto-refresh (once per snap).
+	// - Once in pre-download (for some-snap).
+	// - Once in hard-check of original auto-refresh (for some-other-snap).
+	c.Check(refreshAppsCheckCalled, Equals, 4)
+	// Pre-downloaded snap is monitored.
+	c.Check(monitored, Equals, 1)
+
+	chgs = s.state.Changes()
+	sort.Slice(chgs, func(i, j int) bool {
+		return chgs[i].Kind() < chgs[j].Kind()
+	})
+	c.Assert(chgs, HasLen, 2)
+	c.Check(chgs[1].Kind(), Equals, "pre-download")
+	c.Check(chgs[1].Status(), Equals, state.DoneStatus)
+	// A continued auto-refresh shouldn't be created because snap is still monitored.
+	c.Check(chgs[0].Kind(), Equals, "auto-refresh")
+	c.Check(chgs[0].Status(), Equals, state.DoneStatus)
+
+	// Aggregate notice is recorded when auto-refresh change is marked as ready.
+	checkRefreshInhibitNotice(c, s.state, 1)
+}
+
+func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecordedOnPreDownloadOnly(c *C) {
+	refreshAppsCheckCalled := 0
+	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
+		refreshAppsCheckCalled++
+		if refreshAppsCheckCalled == 1 {
+			return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
+		}
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: string(snap.TypeApp),
+	})
+	s.state.Unlock()
+
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+	// Trigger autorefresh.Ensure().
+	err := s.snapmgr.Ensure()
+	if errors.Is(err, advisor.ErrNotSupported) {
+		c.Skip("bolt is not supported")
+	}
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chgs := s.state.Changes()
+	c.Assert(chgs, HasLen, 1)
+	c.Check(chgs[0].Kind(), Equals, "pre-download")
+	c.Check(chgs[0].Status(), Equals, state.DoStatus)
+	// If all refresh candidates are blocked from auto-refresh and only a
+	// pre-download change is created for those snaps we should still record
+	// a notice.
+	checkRefreshInhibitNotice(c, s.state, 1)
+
+	s.settle(c)
+
+	// - Once in soft-check of original auto-refresh.
+	// - Once in pre-download.
+	// - Once in soft-check of continued auto-refresh.
+	// - Once in hard-check of continued auto-refresh.
+	c.Check(refreshAppsCheckCalled, Equals, 4)
+
+	chgs = s.state.Changes()
+	sort.Slice(chgs, func(i, j int) bool {
+		return chgs[i].Kind() < chgs[j].Kind()
+	})
+
+	c.Assert(chgs, HasLen, 2)
+	c.Check(chgs[1].Kind(), Equals, "pre-download")
+	c.Check(chgs[1].Status(), Equals, state.DoneStatus)
+	// Continued auto-refresh.
+	c.Check(chgs[0].Kind(), Equals, "auto-refresh")
+	c.Check(chgs[0].Status(), Equals, state.DoneStatus)
+
+	// No more snaps are marked as inhibited after the continued auto-refresh
+	// The set of inhibtied snaps changed to an empty set, so another notice is recorded.
+	checkRefreshInhibitNotice(c, s.state, 2)
+}
+
+func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeNotRecorded(c *C) {
+	s.state.Lock()
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: string(snap.TypeApp),
+	})
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-other-snap", SnapID: "some-other-snap-id", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: string(snap.TypeApp),
+	})
+	s.state.Unlock()
+
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+	// Trigger autorefresh.Ensure().
+	err := s.snapmgr.Ensure()
+	if errors.Is(err, advisor.ErrNotSupported) {
+		c.Skip("bolt is not supported")
+	}
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chgs := s.state.Changes()
+	c.Assert(chgs, HasLen, 1)
+	c.Check(chgs[0].Kind(), Equals, "auto-refresh")
+	c.Check(chgs[0].Status(), Equals, state.DoStatus)
+	// No notices are recorded.
+	checkRefreshInhibitNotice(c, s.state, 0)
+
+	s.settle(c)
+
+	chgs = s.state.Changes()
+	c.Assert(chgs, HasLen, 1)
+	c.Check(chgs[0].Kind(), Equals, "auto-refresh")
+	c.Check(chgs[0].Status(), Equals, state.DoneStatus)
+	// No notices are recorded because no snaps are blocked.
+	checkRefreshInhibitNotice(c, s.state, 0)
+}
+
+func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecordedOnce(c *C) {
+	refreshAppsCheckCalled := 0
+	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
+		refreshAppsCheckCalled++
+		return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
+	})
+	defer restore()
+
+	// Never close monitoring channel to avoid triggering a continued auto-refresh
+	var monitored int
+	restore = snapstate.MockCgroupMonitorSnapEnded(func(string, chan<- string) error {
+		monitored++
+		return nil
+	})
+	defer restore()
+
+	// Setup test snaps
+	s.state.Lock()
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: string(snap.TypeApp),
+	})
+	// Verify list is empty
+	checkLastRecordedInhibitedSnaps(c, s.state, nil)
+	s.state.Unlock()
+
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+	// Trigger autorefresh.Ensure().
+	err := s.snapmgr.Ensure()
+	if errors.Is(err, advisor.ErrNotSupported) {
+		c.Skip("bolt is not supported")
+	}
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// First auto-refresh attempt
+	s.settle(c)
+	chgs := s.state.Changes()
+	c.Assert(chgs, HasLen, 1)
+	c.Check(chgs[0].Kind(), Equals, "pre-download")
+	c.Check(chgs[0].Status(), Equals, state.DoneStatus)
+	// If all refresh candidates are blocked from auto-refresh and only a
+	// pre-download change is created for those snaps we should still record
+	// a notice.
+	checkRefreshInhibitNotice(c, s.state, 1)
+	checkLastRecordedInhibitedSnaps(c, s.state, []string{"some-snap"})
+
+	forceAutoRefresh := func() {
+		s.state.Unlock()
+		// Fake nextRefresh to now.
+		s.snapmgr.MockNextRefresh(time.Now())
+		// Fake that the retryRefreshDelay is over
+		restore = snapstate.MockRefreshRetryDelay(1 * time.Millisecond)
+		defer restore()
+		time.Sleep(10 * time.Millisecond)
+		// Trigger autorefresh.Ensure().
+		c.Assert(s.snapmgr.Ensure(), IsNil)
+		s.state.Lock()
+	}
+
+	// Force another auto-refresh to check that notice is not repeated
+	// for the same set of inhibited snaps.
+	forceAutoRefresh()
+	s.settle(c)
+
+	chgs = s.state.Changes()
+	c.Assert(chgs, HasLen, 2)
+	// Old pre-download
+	c.Check(chgs[0].Kind(), Equals, "pre-download")
+	c.Check(chgs[0].Status(), Equals, state.DoneStatus)
+	// New pre-download
+	c.Check(chgs[1].Kind(), Equals, "pre-download")
+	c.Check(chgs[1].Status(), Equals, state.DoneStatus)
+	// No new notices recorded because the set of inhibited snaps was not changed.
+	checkRefreshInhibitNotice(c, s.state, 1)
+	checkLastRecordedInhibitedSnaps(c, s.state, []string{"some-snap"})
+
+	// Add another inhibited snap.
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-other-snap", SnapID: "some-other-snap-id", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: string(snap.TypeApp),
+	})
+
+	// Force another auto-refresh to check that notice is recorded because
+	// the set of inhibited snaps changed.
+	forceAutoRefresh()
+	s.settle(c)
+
+	chgs = s.state.Changes()
+	c.Assert(chgs, HasLen, 3)
+	// Old pre-download
+	c.Check(chgs[0].Kind(), Equals, "pre-download")
+	c.Check(chgs[0].Status(), Equals, state.DoneStatus)
+	// Old pre-download
+	c.Check(chgs[1].Kind(), Equals, "pre-download")
+	c.Check(chgs[1].Status(), Equals, state.DoneStatus)
+	// Latest pre-download
+	c.Check(chgs[1].Kind(), Equals, "pre-download")
+	c.Check(chgs[1].Status(), Equals, state.DoneStatus)
+	// New notice occurrence is recorded because the set of inhibited snaps changed.
+	checkLastRecordedInhibitedSnaps(c, s.state, []string{"some-snap", "some-other-snap"})
+	checkRefreshInhibitNotice(c, s.state, 2)
+}
+
+func checkLastRecordedInhibitedSnaps(c *C, st *state.State, snaps []string) {
+	var lastRecordedInhibitedSnaps map[string]bool
+	err := st.Get("last-recorded-inhibited-snaps", &lastRecordedInhibitedSnaps)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		c.Fail()
+	}
+	c.Assert(len(lastRecordedInhibitedSnaps), Equals, len(snaps))
+	for _, snap := range snaps {
+		c.Assert(lastRecordedInhibitedSnaps[snap], Equals, true)
+	}
+}
+
+func checkRefreshInhibitNotice(c *C, st *state.State, occurrences int) {
+	notices := st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.RefreshInhibitNotice}})
+	if occurrences == 0 {
+		c.Assert(notices, HasLen, 0)
+		return
+	}
+	c.Assert(notices, HasLen, 1)
+	n := noticeToMap(c, notices[0])
+	c.Check(n["type"], Equals, "refresh-inhibit")
+	c.Check(n["key"], Equals, "-")
+	c.Check(n["occurrences"], Equals, float64(occurrences))
+	c.Check(n["user-id"], Equals, nil)
+}
+
 func (s *snapmgrTestSuite) TestAutoRefreshBusySnapButOngoingPreDownload(c *C) {
 	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
 		return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
@@ -12060,7 +12400,6 @@ type: snapd
 
 	s.state.EnsureBefore(0)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	fmt.Printf("Settle returned\n")
