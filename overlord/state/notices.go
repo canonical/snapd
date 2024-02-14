@@ -299,27 +299,17 @@ type AddNoticeOptions struct {
 
 	// RepeatCheckData is saved for stateful tracking throughout the notice's lifetime.
 	//
-	// It is intended to be accessed through RepeatCheck callback through
-	// oldNotice.GetRepeatCheckValue().
-	//
 	// NOTES:
 	//	- RepeatCheckData must be JSON marshallable.
-	//	- Setting RepeatCheckData to nil doesn't remove old state.
+	//	- Setting RepeatCheckData to nil does not remove old state.
+	//	- RepeatCheckData and RepeatCheck cannot be set at the same time.
 	RepeatCheckData interface{}
 
-	// RepeatCheck, if set, overrides options dynamically based on the current state
-	// through updating newNoticeOpts.
+	// RepeatCheck, if set, returns whether this notice should be repeated and also
+	// returns the new repeat check data.
 	//
-	// NOTE: Current state is intended to be accessed through oldNotice.GetRepeatCheckValue().
-	RepeatCheck func(oldNotice *Notice, newNoticeOpts *AddNoticeOptions) error
-}
-
-func (o *AddNoticeOptions) now() time.Time {
-	now := o.Time
-	if now.IsZero() {
-		now = time.Now()
-	}
-	return now.UTC()
+	// NOTE: Current state can be accessed through oldNotice.GetRepeatCheckValue().
+	RepeatCheck func(oldNotice *Notice, newNoticeOpts *AddNoticeOptions) (repeatOk bool, newRepeatCheckData interface{}, err error)
 }
 
 // AddNotice records an occurrence of a notice with the specified type and key
@@ -335,7 +325,10 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 
 	s.writing()
 
-	now := options.now()
+	now := options.Time
+	if now.IsZero() {
+		now = time.Now()
+	}
 	newOrRepeated := false
 	uid, hasUserID := flattenUserID(userID)
 	uniqueKey := noticeKey{hasUserID, uid, noticeType, key}
@@ -357,21 +350,21 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 		s.notices[uniqueKey] = notice
 		newOrRepeated = true
 	} else {
-		// Additional occurrence, update existing notice
-		notice.occurrences++
 		if options.RepeatCheck != nil {
-			if err := options.RepeatCheck(notice, options); err != nil {
-				return "", err
-			}
-			// Validate new options
-			err := validateNotice(noticeType, key, options)
+			repeatOk, newRepeatCheckData, err := options.RepeatCheck(notice, options)
 			if err != nil {
 				return "", err
 			}
-			// Update time
-			now = options.now()
+			notice.setRepeatCheckValue(newRepeatCheckData)
+			// drop notice
+			if !repeatOk {
+				return notice.id, nil
+			}
+		} else if options.RepeatCheckData != nil {
+			notice.setRepeatCheckValue(options.RepeatCheckData)
 		}
-		notice.setRepeatCheckValue(options.RepeatCheckData)
+		// Additional occurrence, update existing notice
+		notice.occurrences++
 		if options.RepeatAfter == 0 || now.After(notice.lastRepeated.Add(options.RepeatAfter)) {
 			// Update last repeated time if repeat-after time has elapsed (or is zero)
 			notice.lastRepeated = now
@@ -395,6 +388,9 @@ func validateNotice(noticeType NoticeType, key string, options *AddNoticeOptions
 	}
 	if key == "" {
 		return fmt.Errorf("internal error: attempted to add %s notice with invalid key %q", noticeType, key)
+	}
+	if options.RepeatCheck != nil && options.RepeatCheckData != nil {
+		return fmt.Errorf("internal error: cannot use RepeatCheck and RepeatCheckData at the same time")
 	}
 	return nil
 }
