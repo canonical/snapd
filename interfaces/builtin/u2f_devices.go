@@ -182,6 +182,11 @@ var u2fDevices = []u2fDevice{
 		VendorIDPattern:  "15e1",
 		ProductIDPattern: "2019",
 	},
+	{
+		Name:             "Kensington VeriMark Guard Fingerprint Key",
+		VendorIDPattern:  "047d",
+		ProductIDPattern: "8055",
+	},
 }
 
 const u2fDevicesConnectedPlugAppArmor = `
