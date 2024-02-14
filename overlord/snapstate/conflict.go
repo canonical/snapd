@@ -102,7 +102,7 @@ func affectedSnaps(t *state.Task) ([]string, error) {
 func snapSetupFromChange(chg *state.Change) (*SnapSetup, error) {
 	for _, t := range chg.Tasks() {
 		// Check a known task of each change that we know keep snap info.
-		if t.Kind() != "prerequisites" {
+		if t.Kind() != "prepare-snap" && t.Kind() != "download-snap" {
 			continue
 		}
 		return TaskSnapSetup(t)
