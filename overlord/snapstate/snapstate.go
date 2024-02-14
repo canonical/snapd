@@ -1857,7 +1857,7 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 			return nil, nil, err
 		}
 
-		setNewRefreshCandidates(st, hints)
+		updateRefreshCandidates(st, hints, names)
 	}
 
 	if filter != nil {
