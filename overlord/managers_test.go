@@ -34,6 +34,7 @@ import (
 	"net/url"
 	"os"
 	"os/user"
+	"path"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -84,6 +85,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
@@ -4523,6 +4525,99 @@ version: 1`
 	c.Assert(conns, DeepEquals, map[string]interface{}{
 		"some-snap:network core:network": map[string]interface{}{"interface": "network", "auto": true},
 	})
+}
+
+// addSnapServices adds service units for the applications from the snap which
+// are services. The services do not get enabled or started.
+func (s *mgrsSuite) addSnapServices(snapInfo *snap.Info) error {
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		snapInfo: nil,
+	}
+	ensureOpts := &wrappers.EnsureSnapServicesOptions{}
+	return wrappers.EnsureSnapServices(m, ensureOpts, nil, progress.Null)
+}
+
+func (s *mgrsSuite) TestUpdateFailOnUnlinkRestores(c *C) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		// inject an error during removal
+		if cmd[0] == "--no-reload" && cmd[1] == "disable" && cmd[2] == "snap.some-snap.svc1.service" {
+			return nil, fmt.Errorf("timeout")
+		}
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
+			return out, nil
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	const someSnapYaml = `name: some-snap
+version: 1.0
+apps:
+   svc1:
+     command: bin.sh
+     daemon: simple
+`
+	snapPath, _ := s.makeStoreTestSnap(c, someSnapYaml, "40")
+	s.serveSnap(snapPath, "40")
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	si1 := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
+	snapInfo := snaptest.MockSnap(c, someSnapYaml, si1)
+	s.addSnapServices(snapInfo)
+
+	// ensure service file is present for our service
+	svcPath := path.Join(dirs.GlobalRootDir, "etc/systemd/system/snap.some-snap.svc1.service")
+	c.Check(svcPath, testutil.FilePresent)
+
+	// some-snap has inactive revisions
+	si0 := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(0)}
+	si2 := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(2)}
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si0, si1, si2}),
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	// refresh all
+	err := assertstate.RefreshSnapDeclarations(st, 0, nil)
+	c.Assert(err, IsNil)
+
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"some-snap"}, nil, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(updates, HasLen, 1)
+	c.Assert(tts, HasLen, 2)
+	verifyLastTasksetIsRerefresh(c, tts)
+
+	// to make TaskSnapSetup work
+	chg := st.NewChange("refresh", "...")
+	chg.AddAll(tts[0])
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// ensure that the error was observed
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	var unlinkTask *state.Task
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "unlink-current-snap" {
+			unlinkTask = t
+			break
+		}
+	}
+	c.Check(unlinkTask, NotNil)
+	c.Check(unlinkTask.Status(), Equals, state.ErrorStatus)
+
+	// ensure that service files are still present
+	c.Check(svcPath, testutil.FilePresent)
 }
 
 const someSnapYaml = `name: some-snap
