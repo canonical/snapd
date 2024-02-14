@@ -69,6 +69,7 @@ parts:
       "${CRAFT_PART_SRC_WORK}/configure" --prefix=/snap/snapd/current/usr
       make -j"${CRAFT_PARALLEL_BUILD_COUNT}" -C .. objdir="${PWD}" "${PWD}/linkobj/libc_pic.a"
       make elf/ldso_install DESTDIR="${CRAFT_PART_INSTALL}"
+      strip "${CRAFT_PART_INSTALL}/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
       install -Dm755 -t "${CRAFT_PART_INSTALL}/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" "${CRAFT_PART_INSTALL}/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
     stage:
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/ld*.so*
@@ -259,6 +260,8 @@ parts:
           git diff
         ) > "${CRAFT_PART_INSTALL}/usr/lib/snapd/dirty-git-tree-info.txt"
       fi
+
+      find "${CRAFT_PART_INSTALL}/usr/lib/snapd" "${CRAFT_PART_INSTALL}/usr/bin" -type f -exec strip {} ";"
 
   fix-linker:
     plugin: nil
