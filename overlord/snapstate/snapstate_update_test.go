@@ -11825,8 +11825,11 @@ func (s *snapmgrTestSuite) TestUpdateManyFilteredForSnapsNotInOldHints(c *C) {
 	err = s.state.Get("refresh-candidates", &newCands)
 	c.Assert(err, IsNil)
 
-	c.Assert(newCands, HasLen, 1)
+	c.Assert(newCands, HasLen, 2)
 	c.Check(newCands["some-snap"], NotNil)
+	// a monitored snap was preserved
+	c.Assert(newCands["some-other-snap"], NotNil)
+	c.Check(newCands["some-other-snap"].Monitored, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyFilteredNotAutoRefreshNoRetry(c *C) {
