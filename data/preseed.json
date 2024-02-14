@@ -17,6 +17,7 @@
         "var/lib/snapd/cookie",
         "var/lib/snapd/dbus-1",
         "var/lib/snapd/mount",
+        "var/lib/snapd/kernel",
         "var/snap",
         "var/cache/snapd/aux",
         "var/cache/apparmor"
