@@ -378,6 +378,29 @@ type expandedMatch struct {
 	value interface{}
 }
 
+// deepCopy returns a deep copy of the value. Only supports the types that the
+// API can take (so maps, slices and primitive types).
+func deepCopy(value interface{}) interface{} {
+	switch typeVal := value.(type) {
+	case map[string]interface{}:
+		mapCopy := make(map[string]interface{}, len(typeVal))
+		for k, v := range typeVal {
+			mapCopy[k] = deepCopy(v)
+		}
+		return mapCopy
+
+	case []interface{}:
+		sliceCopy := make([]interface{}, 0, len(typeVal))
+		for _, v := range typeVal {
+			sliceCopy = append(sliceCopy, deepCopy(v))
+		}
+		return sliceCopy
+
+	default:
+		return value
+	}
+}
+
 // Set sets the named aspect to a specified value.
 func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	if err := validateAspectDottedPath(request, nil); err != nil {
@@ -427,6 +450,7 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 		return matches[x].storagePath < matches[y].storagePath
 	})
 
+	copyValue := deepCopy(value)
 	var expandedMatches []expandedMatch
 	for _, match := range matches {
 		pathsToValues, err := getValuesThroughPaths(match.storagePath, match.suffixParts, value)
@@ -441,6 +465,33 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 				value:       val,
 			})
 		}
+
+		// prune this match's path from the value so that we can check whether
+		// anything is left at the end
+		copyValue, err = prunePathInValue(match.suffixParts, copyValue)
+		if err != nil {
+			return badRequestErrorFrom(a, "set", request, err.Error())
+		}
+	}
+
+	// value still has data after removing data used by the matches. Return an
+	// error to keep this consistent with doing many Sets with specific paths
+	if copyValue != nil {
+		var parts []string
+		for copyValue != nil {
+			mapVal, ok := copyValue.(map[string]interface{})
+			if !ok {
+				break
+			}
+
+			for k, v := range mapVal {
+				parts = append(parts, k)
+				copyValue = v
+				break
+			}
+		}
+
+		return fmt.Errorf("value contains unused data under %q", strings.Join(parts, "."))
 	}
 
 	if value != nil {
@@ -616,6 +667,63 @@ func replaceIn(path, key, value string) string {
 	}
 
 	return strings.Join(parts, ".")
+}
+
+func prunePathInValue(parts []string, val interface{}) (interface{}, error) {
+	if len(parts) == 0 {
+		return nil, nil
+	} else if val == nil {
+		return nil, nil
+	}
+
+	mapVal, ok := val.(map[string]interface{})
+	if !ok {
+		// shouldn't happen since we already checked this
+		return nil, fmt.Errorf(`expected map but got %T`, val)
+	}
+
+	if isPlaceholder(parts[0]) {
+		nested := make(map[string]interface{})
+		for k, v := range mapVal {
+			newVal, err := prunePathInValue(parts[1:], v)
+			if err != nil {
+				return nil, err
+			}
+
+			if newVal != nil {
+				nested[k] = newVal
+			}
+		}
+
+		if len(nested) == 0 {
+			return nil, nil
+		}
+
+		return nested, nil
+	}
+
+	nested, ok := mapVal[parts[0]]
+	if !ok {
+		// shouldn't happen since we already checked this
+		return nil, fmt.Errorf(`cannot use unmatched part %q as key in %v`, parts[0], nested)
+	}
+
+	newValue, err := prunePathInValue(parts[1:], nested)
+	if err != nil {
+		return nil, err
+	}
+
+	if newValue == nil {
+		delete(mapVal, parts[0])
+	} else {
+		mapVal[parts[0]] = newValue
+	}
+
+	if len(mapVal) == 0 {
+		return nil, nil
+	}
+
+	return mapVal, nil
 }
 
 // namespaceResult creates a nested namespace around the result that corresponds

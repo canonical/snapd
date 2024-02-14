@@ -1814,3 +1814,74 @@ func (s *aspectSuite) TestGetValuesThroughPaths(c *C) {
 		}
 	}
 }
+
+func (s *aspectSuite) TestAspectSetErrorIfValueContainsUnusedParts(c *C) {
+	type testcase struct {
+		request string
+		value   interface{}
+		err     string
+	}
+
+	tcs := []testcase{
+		{
+			request: "a",
+			value: map[string]interface{}{
+				"b": map[string]interface{}{"d": "value", "u": 1},
+			},
+			err: `value contains unused data under "b.u"`,
+		},
+		{
+			request: "a",
+			value: map[string]interface{}{
+				"b": map[string]interface{}{"d": "value", "u": 1},
+				"c": map[string]interface{}{"d": "value"},
+			},
+			err: `value contains unused data under "b.u"`,
+		},
+		{
+			request: "b",
+			value: map[string]interface{}{
+				"e": []interface{}{"a"},
+				"f": 1,
+			},
+			err: `value contains unused data under "e"`,
+		},
+		{
+			request: "c",
+			value: map[string]interface{}{
+				"d": map[string]interface{}{
+					"e": map[string]interface{}{
+						"f": "value",
+					},
+					"f": 1,
+				},
+			},
+			err: `value contains unused data under "d.f"`,
+		},
+	}
+
+	for i, tc := range tcs {
+		cmt := Commentf("failed test number %d", i+1)
+		databag := aspects.NewJSONDataBag()
+		aspectBundle, err := aspects.NewBundle("acc", "bundle", map[string]interface{}{
+			"foo": map[string]interface{}{
+				"rules": []interface{}{
+					map[string]interface{}{"request": "a.{x}.d", "storage": "a.{x}"},
+					map[string]interface{}{"request": "c.d.e.f", "storage": "d"},
+					map[string]interface{}{"request": "b.f", "storage": "b.f"},
+				},
+			},
+		}, aspects.NewJSONSchema())
+		c.Assert(err, IsNil)
+
+		asp := aspectBundle.Aspect("foo")
+		c.Assert(asp, NotNil)
+
+		err = asp.Set(databag, tc.request, tc.value)
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err, cmt)
+		} else {
+			c.Check(err, IsNil, cmt)
+		}
+	}
+}
