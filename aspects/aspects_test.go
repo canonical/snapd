@@ -1828,7 +1828,7 @@ func (s *aspectSuite) TestAspectSetErrorIfValueContainsUnusedParts(c *C) {
 			value: map[string]interface{}{
 				"b": map[string]interface{}{"d": "value", "u": 1},
 			},
-			err: `value contains unused data under "b.u"`,
+			err: `cannot set "a" in aspect acc/bundle/foo: value contains unused data under "b.u"`,
 		},
 		{
 			request: "a",
@@ -1836,7 +1836,7 @@ func (s *aspectSuite) TestAspectSetErrorIfValueContainsUnusedParts(c *C) {
 				"b": map[string]interface{}{"d": "value", "u": 1},
 				"c": map[string]interface{}{"d": "value"},
 			},
-			err: `value contains unused data under "b.u"`,
+			err: `cannot set "a" in aspect acc/bundle/foo: value contains unused data under "b.u"`,
 		},
 		{
 			request: "b",
@@ -1844,7 +1844,7 @@ func (s *aspectSuite) TestAspectSetErrorIfValueContainsUnusedParts(c *C) {
 				"e": []interface{}{"a"},
 				"f": 1,
 			},
-			err: `value contains unused data under "e"`,
+			err: `cannot set "b" in aspect acc/bundle/foo: value contains unused data under "e"`,
 		},
 		{
 			request: "c",
@@ -1856,7 +1856,7 @@ func (s *aspectSuite) TestAspectSetErrorIfValueContainsUnusedParts(c *C) {
 					"f": 1,
 				},
 			},
-			err: `value contains unused data under "d.f"`,
+			err: `cannot set "c" in aspect acc/bundle/foo: value contains unused data under "d.f"`,
 		},
 	}
 

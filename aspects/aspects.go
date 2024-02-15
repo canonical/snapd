@@ -378,29 +378,6 @@ type expandedMatch struct {
 	value interface{}
 }
 
-// deepCopy returns a deep copy of the value. Only supports the types that the
-// API can take (so maps, slices and primitive types).
-func deepCopy(value interface{}) interface{} {
-	switch typeVal := value.(type) {
-	case map[string]interface{}:
-		mapCopy := make(map[string]interface{}, len(typeVal))
-		for k, v := range typeVal {
-			mapCopy[k] = deepCopy(v)
-		}
-		return mapCopy
-
-	case []interface{}:
-		sliceCopy := make([]interface{}, 0, len(typeVal))
-		for _, v := range typeVal {
-			sliceCopy = append(sliceCopy, deepCopy(v))
-		}
-		return sliceCopy
-
-	default:
-		return value
-	}
-}
-
 // Set sets the named aspect to a specified value.
 func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	if err := validateAspectDottedPath(request, nil); err != nil {
@@ -450,8 +427,8 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 		return matches[x].storagePath < matches[y].storagePath
 	})
 
-	copyValue := deepCopy(value)
 	var expandedMatches []expandedMatch
+	suffixes := make(map[string]struct{}, len(matches))
 	for _, match := range matches {
 		pathsToValues, err := getValuesThroughPaths(match.storagePath, match.suffixParts, value)
 		if err != nil {
@@ -466,32 +443,15 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 			})
 		}
 
-		// prune this match's path from the value so that we can check whether
-		// anything is left at the end
-		copyValue, err = prunePathInValue(match.suffixParts, copyValue)
-		if err != nil {
-			return badRequestErrorFrom(a, "set", request, err.Error())
-		}
+		// store the suffix in a map so we deduplicate them before checking if the
+		// value is used in its entirety
+		suffixes[strings.Join(match.suffixParts, ".")] = struct{}{}
 	}
 
-	// value still has data after removing data used by the matches. Return an
-	// error to keep this consistent with doing many Sets with specific paths
-	if copyValue != nil {
-		var parts []string
-		for copyValue != nil {
-			mapVal, ok := copyValue.(map[string]interface{})
-			if !ok {
-				break
-			}
-
-			for k, v := range mapVal {
-				parts = append(parts, k)
-				copyValue = v
-				break
-			}
-		}
-
-		return fmt.Errorf("value contains unused data under %q", strings.Join(parts, "."))
+	// check if value is entirely used. If not we fail to be consistent with doing
+	// the same write individually (each branch at a time)
+	if err := checkForUnusedBranches(value, suffixes); err != nil {
+		return badRequestErrorFrom(a, "set", request, err.Error())
 	}
 
 	if value != nil {
@@ -667,6 +627,69 @@ func replaceIn(path, key, value string) string {
 	}
 
 	return strings.Join(parts, ".")
+}
+
+// checkForUnusedBranches check that the value is entirely used by the paths.
+func checkForUnusedBranches(value interface{}, paths map[string]struct{}) error {
+	// prune each path from the value. If anything is left at the end, the paths
+	// don't collectively cover the entire value
+	copyValue := deepCopy(value)
+	for path := range paths {
+		var err error
+		var pathParts []string
+		if path != "" {
+			pathParts = strings.Split(path, ".")
+		}
+
+		copyValue, err = prunePathInValue(pathParts, copyValue)
+		if err != nil {
+			return err
+		}
+	}
+
+	// after pruning each path the value is nil, so all of it is used
+	if copyValue == nil {
+		return nil
+	}
+
+	var parts []string
+	for copyValue != nil {
+		mapVal, ok := copyValue.(map[string]interface{})
+		if !ok {
+			break
+		}
+
+		for k, v := range mapVal {
+			parts = append(parts, k)
+			copyValue = v
+			break
+		}
+	}
+
+	return fmt.Errorf("value contains unused data under %q", strings.Join(parts, "."))
+}
+
+// deepCopy returns a deep copy of the value. Only supports the types that the
+// API can take (so maps, slices and primitive types).
+func deepCopy(value interface{}) interface{} {
+	switch typeVal := value.(type) {
+	case map[string]interface{}:
+		mapCopy := make(map[string]interface{}, len(typeVal))
+		for k, v := range typeVal {
+			mapCopy[k] = deepCopy(v)
+		}
+		return mapCopy
+
+	case []interface{}:
+		sliceCopy := make([]interface{}, 0, len(typeVal))
+		for _, v := range typeVal {
+			sliceCopy = append(sliceCopy, deepCopy(v))
+		}
+		return sliceCopy
+
+	default:
+		return value
+	}
 }
 
 func prunePathInValue(parts []string, val interface{}) (interface{}, error) {
