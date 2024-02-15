@@ -702,7 +702,7 @@ jobs:
       run: |
           CHANGED_FILES="${{ steps.get-changed-files.outputs.all_changed_files }}"
           for file in CHANGED_FILES; do
-              if [[ "$file" == tests/nested/**/* ]] || [[ "$file" == tests/lib/nested.sh ]]
+              if [[ "$file" == tests/nested/**/* ]] || [[ "$file" == tests/lib/nested.sh ]]; then
                   echo "changes_found=true" >> $GITHUB_OUTPUT
                   exit 0
               fi
