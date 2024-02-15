@@ -296,6 +296,16 @@ override_dh_install:
 
 	dh_install
 
+	# use "usr/lib" here because apparently systemd looks only there
+	dh_install usr/lib/systemd/system-environment-generators
+	# but on non usr-merge installations, system generators end up in lib
+	if [ -e debian/tmp/usr/lib/systemd/system-generators ]; then	\
+		dh_install usr/lib/systemd/system-generators;		\
+	else								\
+		dh_install lib/systemd/system-generators;		\
+	fi
+
+
 override_dh_auto_install: snap.8
 	dh_auto_install -O--buildsystem=golang
 
