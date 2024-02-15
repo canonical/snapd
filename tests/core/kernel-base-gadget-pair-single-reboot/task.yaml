@@ -5,8 +5,8 @@ details: |
     together with a single reboot. The test then reverts each of the snaps to ensure system is left
     in untouched state. (Otherwise our spread checks will complain).
 
-# TODO make the test work with ubuntu-core-20
-systems: [ubuntu-core-18-*]
+# don't run on UC16 - not supported there
+systems: [ubuntu-core-18-*, ubuntu-core-2*]
 
 environment:
     SNAP_ONE/kernel_base: core
@@ -18,18 +18,24 @@ environment:
     SNAP_ONE/kernel_gadget: pc
     SNAP_TWO/kernel_gadget: pc-kernel
 
+    SNAPD_NO_MEMORY_LIMIT: 1
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |
+    # To get VERSION_ID defined
+    . /etc/os-release
+
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
 
-    core_snap=core20
-    if os.query is-core18; then
-        core_snap=core18
-    fi
+    snap install remarshal jq
+    tests.cleanup defer snap remove remarshal
+    tests.cleanup defer snap remove jq
+
+    # does not work for 16, but we don't support 16 for this
+    core_snap="core${VERSION_ID}"
 
     # read all for simplification
     readlink /snap/pc-kernel/current > pc-kernel.rev
@@ -44,14 +50,25 @@ restore: |
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
 
 execute: |
+    # To get VERSION_ID defined
+    . /etc/os-release
+
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
 
-    core_snap=core20
-    if os.query is-core18; then
-        core_snap=core18
+    if not snap list pc; then
+        echo "This test needs a host using 'pc' gadget snap"
+        exit 1
+    fi
+
+    # does not work for 16, but we don't support 16 for this
+    core_snap="core${VERSION_ID}"
+    core_id="$(snap info "$core_snap" | awk -F: '$1 == "snap-id" {sub(/^[^:]+:/, "");print}' | xargs)"
+    if os.query is-core20; then
+        # snap-id doesn't appear on core20?
+        core_id=DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q
     fi
 
     if [ "$SNAP_ONE" = "core" ]; then
@@ -61,13 +78,61 @@ execute: |
     fi
 
     if [ "$SPREAD_REBOOT" = 0 ]; then
+        echo Downloading snaps needed
+        snap download pc-kernel --channel="$VERSION_ID"/edge
+        snap download "$core_snap" --edge
+
+        # prepare gadget update if gadget variant
+        if [[ "$SNAP_ONE" == "pc" ]] || [[ "$SNAP_TWO" == "pc" ]]; then
+            cp pc-snap/meta/gadget.yaml gadget.yaml.orig
+
+            system_seed=""
+            if os.query is-core20 || os.query is-core22 ; then
+                system_seed="--system-seed"
+            fi
+
+            # prepare update
+            python3 ../gadget-update-pc/generate.py ./gadget.yaml.orig v1 $system_seed > pc-snap/meta/gadget.yaml
+            echo 'this is foo-x2' > foo-x2.img
+            cp foo-x2.img pc-snap/foo.img
+            echo 'this is foo.cfg' > pc-snap/foo.cfg
+            if os.query is-core20 || os.query is-core22; then
+                echo 'this is foo-seed.cfg' > pc-snap/foo-seed.cfg
+            fi
+            sed -i -e 's/^version: \(.*\)-1/version: \1-2/' pc-snap/meta/snap.yaml
+            snap pack pc-snap --filename=pc_x1.snap
+        fi
+
         snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
         "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
 
-        "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" "$SNAP_ONE"
-        "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" "$SNAP_TWO"
+        prepare_snap() {
+            local SNAP_NAME="$1"
+            local SNAP_ID="$2"
+            local SNAP_REV="$3"
+            local SNAP_PATH="$4"
+            
+            cat <<EOF > "$SNAP_NAME-decl-headers.json"
+    {"snap-id": "$SNAP_ID"}
+    EOF
+            cat <<EOF > "$SNAP_NAME-rev-headers.json"
+    {"snap-id": "$SNAP_ID", "snap-revision": "$SNAP_REV"}
+    EOF
 
-        snap refresh --no-wait "$SNAP_ONE" "$SNAP_TWO" > refresh-change-id
+            p=$(fakestore new-snap-declaration --dir "$BLOB_DIR" "$SNAP_NAME" --snap-decl-json "$SNAP_NAME-decl-headers.json")
+            snap ack "$p"
+            p=$(fakestore new-snap-revision --dir "$BLOB_DIR" "$SNAP_PATH" --snap-rev-json "$SNAP_NAME-rev-headers.json")
+            snap ack "$p"
+            cp -av "$SNAP_PATH" "$BLOB_DIR/"
+        }
+
+        if [[ "$SNAP_ONE" == "pc" ]] || [[ "$SNAP_TWO" == "pc" ]]; then
+            prepare_snap pc UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH 1000 "$(ls pc_*.snap)"
+        fi
+        prepare_snap pc-kernel pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza 1000 "$(ls pc-kernel_*.snap)"
+        prepare_snap "$core_snap" "$core_id" 1000 "$(ls ${core_snap}_*.snap)"
+
+        snap install "$SNAP_ONE" "$SNAP_TWO" --dangerous --no-wait > refresh-change-id
         test -n "$(cat refresh-change-id)"
         change_id="$(cat refresh-change-id)"
         
@@ -97,7 +162,7 @@ execute: |
                 MATCH 'snap_mode=try' < boot-vars.dump
                 MATCH 'snap_try_kernel=pc-kernel_.*.snap' < boot-vars.dump
             fi
-        elif os.query is-core20; then
+        elif os.query is-core20 || os.query is-core22 || os.query is-core24; then
             if [[ "$SNAP_ONE" == "pc-kernel" ]] || [[ "$SNAP_TWO" == "pc-kernel" ]]; then
                 stat /boot/grub/try-kernel.efi | MATCH 'pc_kernel.*.snap/kernel.efi'
                 stat -L /boot/grub/try-kernel.efi
@@ -115,14 +180,12 @@ execute: |
         change_id="$(cat refresh-change-id)"
         # XXX: is this sufficiently robust?
         snap watch "$change_id" || true
-        snap changes | MATCH "$change_id\s+(Done|Error)"
-        # we expect re-refresh to fail since the tests uses a fake store
+        snap changes | MATCH "$change_id\s+Done"
         snap change "$change_id" > tasks.done
-        MATCH '^Error .* Monitoring .* to determine whether extra refresh steps are required' < tasks.done
-        # no other errors
-        grep -v 'Monitoring .* to determine whether extra refresh steps are required' < tasks.done | NOMATCH '^Error'
+        # nothing has failed
+        NOMATCH '^Error' < tasks.done
         # nothing was undone
-        grep -v 'Monitoring .* to determine whether extra refresh steps are required' < tasks.done | NOMATCH '^Undone'
+        NOMATCH '^Undone' < tasks.done
         # we did not even try to hijack shutdown (/bin/systemctl) because that
         # could race with snapd (if that wanted to call it), so just check that
         # the system is in a stable state once we have already determined that

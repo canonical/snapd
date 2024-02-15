@@ -9,6 +9,7 @@ details: |
 systems: [ubuntu-core-18-*]
 
 environment:
+    SNAPD_NO_MEMORY_LIMIT: 1
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |
