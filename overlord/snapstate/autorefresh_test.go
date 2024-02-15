@@ -1007,8 +1007,9 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 	})
 	defer restore()
 
-	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
+	inhibitionTimeout, err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
+	c.Check(inhibitionTimeout, Equals, false)
 
 	var timedErr *snapstate.TimedBusySnapError
 	c.Assert(errors.As(err, &timedErr), Equals, true)
@@ -1045,8 +1046,9 @@ func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c
 	})
 	defer restore()
 
-	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
+	inhibitionTimeout, err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
+	c.Check(inhibitionTimeout, Equals, false)
 
 	var timedErr *snapstate.TimedBusySnapError
 	c.Assert(errors.As(err, &timedErr), Equals, true)
@@ -1088,8 +1090,9 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 	})
 	defer restore()
 
-	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
+	inhibitionTimeout, err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err == nil, Equals, true)
+	c.Check(inhibitionTimeout, Equals, true)
 	c.Check(notificationCount, Equals, 1)
 }
 
@@ -1119,8 +1122,9 @@ func (s *autoRefreshTestSuite) TestInhibitNoNotificationOnManualRefresh(c *C) {
 	})
 	defer restore()
 
-	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
+	inhibitionTimeout, err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err, testutil.ErrorIs, &snapstate.BusySnapError{})
+	c.Check(inhibitionTimeout, Equals, false)
 }
 
 func (s *autoRefreshTestSuite) TestBlockedAutoRefreshCreatesPreDownloads(c *C) {

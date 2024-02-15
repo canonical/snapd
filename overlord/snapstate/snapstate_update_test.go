@@ -10868,6 +10868,108 @@ func (s *snapmgrTestSuite) TestUnlinkMonitorSnapOnHardCheckFailure(c *C) {
 	s.settle(c)
 }
 
+func (s *snapmgrTestSuite) TestRefreshForcedOnRefreshInhibitionTimeout(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	instant := time.Now()
+	pastInstant := instant.Add(-snapstate.MaxInhibition * 2)
+	// Add first snap
+	si1 := &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(1),
+	}
+	snaptest.MockSnap(c, `name: some-snap`, si1)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
+		Current:  si1.Revision,
+		// Pretend inhibition is overdue.
+		RefreshInhibitedTime: &pastInstant,
+	})
+	// Add second snap to check that the list is being appended to properly.
+	si2 := &snap.SideInfo{
+		RealName: "some-other-snap",
+		SnapID:   "some-other-snap-id",
+		Revision: snap.R(1),
+	}
+	snaptest.MockSnap(c, `name: some-other-snap`, si2)
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
+		Current:  si2.Revision,
+		// Pretend inhibition is overdue.
+		RefreshInhibitedTime: &pastInstant,
+	})
+
+	s.fakeStore.downloads = []fakeDownload{
+		{
+			macaroon: s.user.StoreMacaroon,
+			name:     "some-snap",
+			target:   filepath.Join(dirs.SnapBlobDir, "some-snap_instance_11.snap"),
+		},
+		{
+			macaroon: s.user.StoreMacaroon,
+			name:     "some-other-snap",
+			target:   filepath.Join(dirs.SnapBlobDir, "some-other-snap_instance_11.snap"),
+		},
+	}
+
+	var notified int
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(_ context.Context, _ *userclient.Client, pendingInfo *userclient.PendingSnapRefreshInfo) {
+		c.Check(pendingInfo.TimeRemaining, Equals, time.Duration(0))
+		notified++
+	})
+	defer restore()
+
+	check := make(map[string]int, 2)
+	restore = snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+		check[info.InstanceName()]++
+
+		switch check[info.InstanceName()] {
+		case 1:
+			return nil
+		case 2:
+			return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
+		default:
+			return nil
+		}
+	})
+	defer restore()
+
+	updated, tss, err := snapstate.AutoRefresh(context.Background(), s.state)
+	c.Assert(err, IsNil)
+	sort.Slice(updated, func(i, j int) bool {
+		return updated[i] < updated[j]
+	})
+	c.Check(updated, DeepEquals, []string{"some-other-snap", "some-snap"})
+	c.Assert(tss, NotNil)
+	c.Check(tss.Refresh, NotNil)
+	c.Check(tss.PreDownload, IsNil)
+
+	chg := s.state.NewChange("refresh", "test refresh")
+	for _, ts := range tss.Refresh {
+		chg.AddAll(ts)
+	}
+
+	s.settle(c)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	var apiData map[string]interface{}
+	c.Assert(chg.Get("api-data", &apiData), IsNil)
+	refreshForced := apiData["refresh-forced"].([]interface{})
+	sort.Slice(refreshForced, func(i, j int) bool {
+		return refreshForced[i].(string) < refreshForced[j].(string)
+	})
+	c.Check(refreshForced, DeepEquals, []interface{}{"some-other-snap", "some-snap"})
+	// TODO: Check that change-update notice is added
+
+	c.Check(notified, Equals, 2)
+	c.Check(check["some-snap"], Equals, 2)
+	c.Check(check["some-other-snap"], Equals, 2)
+}
+
 func (s *snapmgrTestSuite) TestDeletedMonitoredMapIsCorrectlyDeleted(c *C) {
 	s.state.Lock()
 	si := &snap.SideInfo{
