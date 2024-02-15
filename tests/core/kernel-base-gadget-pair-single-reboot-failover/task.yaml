@@ -127,7 +127,7 @@ execute: |
             fi
         elif os.query is-core20; then
             if [[ "$SNAP_ONE" == "pc-kernel" ]] || [[ "$SNAP_TWO" == "pc-kernel" ]]; then
-                stat /boot/grub/try-kernel.efi | MATCH 'pc_kernel.*.snap/kernel.efi'
+                stat /boot/grub/try-kernel.efi | MATCH 'pc-kernel.*.snap/kernel.efi'
                 stat -L /boot/grub/try-kernel.efi
             fi
             if [[ "$SNAP_ONE" == *"core"* ]] || [[ "$SNAP_TWO" == *"core"* ]]; then
