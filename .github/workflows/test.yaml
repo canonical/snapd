@@ -696,8 +696,6 @@ jobs:
     - name: Get changed files
       id: get-changed-files
       uses: tj-actions/changed-files@v34.5.1
-      with:
-        path: ./src/github.com/snapcore/snapd
 
     - name: Detect changes files
       id: detect-changes
