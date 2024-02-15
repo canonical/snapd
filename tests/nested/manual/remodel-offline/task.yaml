@@ -93,10 +93,12 @@ execute: |
       remote.exec "snap refresh --revision=148 pc"
 
       # --no-wait here, since this should trigger a reboot
-      remote.exec "snap refresh --no-wait --channel=22/stable pc-kernel"
+      KERNEL_CHG_ID=$(remote.exec "snap refresh --no-wait --channel=22/stable pc-kernel")
 
       remote.wait-for reboot "$boot_id"
       boot_id="$(tests.nested boot-id)"
+      # Wait for the change to finish
+      remote.exec sudo snap watch "$KERNEL_CHG_ID"
   else
       remote.exec "snap download --revision=148 --basename=pc pc"
       remodel_options="$remodel_options --snap pc.snap --assertion pc.assert"
