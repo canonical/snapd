@@ -1511,7 +1511,7 @@ EOF
 
         # also add debug command line parameters to the kernel command line via
         # the gadget in case things go side ways and we need to debug
-        snap download --basename=pc --channel="${BRANCH}/${KERNEL_CHANNEL}" pc
+        snap download --basename=pc --channel="${BRANCH}/${GADGET_CHANNEL}" pc
         test -e pc.snap
         unsquashfs -d pc-gadget pc.snap
         # TODO: it would be desirable when we need to do in-depth debugging of
@@ -1550,6 +1550,20 @@ EOF
         SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
         nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+        snap pack --filename=pc-repacked.snap pc-gadget 
+        mv pc-repacked.snap $IMAGE_HOME/pc-repacked.snap
+        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $IMAGE_HOME/pc-repacked.snap"
+    fi
+
+    # for core18 if we need an unasserted gadget, allow this
+    if is_test_target_core 18 && [ "$CORE18_GADGET_REPACK" = "true" ]; then
+        snap download --basename=pc --channel="18/${GADGET_CHANNEL}" pc
+        test -e pc.snap
+        unsquashfs -d pc-gadget pc.snap
+        
+        # enable debug
+        sed -i 's/panic=-1/panic=-1 snapd.debug=1/' pc-gadget/grub.cfg
+
         snap pack --filename=pc-repacked.snap pc-gadget 
         mv pc-repacked.snap $IMAGE_HOME/pc-repacked.snap
         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $IMAGE_HOME/pc-repacked.snap"

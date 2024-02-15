@@ -1,55 +1,115 @@
 summary: Verify that updating all of base, gadget and kernel only needs one reboot
 
 details: |
-    Check that when all of base, gadget and kernel are refreshed together, only one reboot
-    is needed. Verify that all the refreshed snaps can be reverted to the initial version.
+    Test ensures that all three of the essential snaps (base, gadget and kernel) can be updated
+    together with a single reboot. The test then reverts each of the snaps to ensure system is left
+    in untouched state. (Otherwise our spread checks will complain).
 
-# TODO make the test work with ubuntu-core-20
-systems: [ubuntu-core-18-*]
+systems: [ubuntu-core-18-*, ubuntu-core-2*]
+
+# run before remodel test, unfortunately some tests mess with snaps installed
+# and this causes this test to be messed with
+priority: 600
 
 environment:
-    BLOB_DIR: $(pwd)/fake-store-blobdir
+    UPDATE_VARIANT/gadget_reboot: reboot
+    UPDATE_VARIANT/gadget_noreboot: no-reboot
+
+    GADGET_CHANNEL: edge
+    CORE18_GADGET_REPACK: true
+
+    # We are uploading too much in terms of size for the snaps
+    # we sideload. On UC18 this is disabled automatically, but
+    # on UC20+ this has proved to be an issue
+    SNAPD_NO_MEMORY_LIMIT: 1
 
 prepare: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
+    # To get VERSION_ID defined
+    . /etc/os-release
+
+    # does not work for 16, but we don't support 16 for this
+    core_snap="core${VERSION_ID}"
 
     readlink "/snap/pc-kernel/current" > pc-kernel.rev
-    readlink "/snap/core18/current" > core.rev
+    readlink "/snap/$core_snap/current" > core.rev
     readlink "/snap/pc/current" > pc.rev
-    
-restore: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-    "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
-    
+
 execute: |
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
+    # To get VERSION_ID defined
+    . /etc/os-release
+
+    if not snap list pc; then
+        echo "This test needs a host using 'pc' gadget snap"
+        exit 1
     fi
 
-    core_snap=core20
-    if os.query is-core18; then
-        core_snap=core18
-    fi
+    # does not work for 16, but we don't support 16 for this
+    core_snap="core${VERSION_ID}"
+
+    wait_and_verify_change() {
+        local CHANGE_ID="$1"
+        # XXX: is this sufficiently robust?
+        snap watch "$CHANGE_ID" || true
+        snap changes | MATCH "$CHANGE_ID\s+Done"
+        snap change "$CHANGE_ID" > tasks.done
+        # nothing has failed
+        NOMATCH '^Error' < tasks.done
+        # nothing was undone
+        NOMATCH '^Undone' < tasks.done
+        # nothing is waiting
+        NOMATCH '^Wait' < tasks.done
+
+        # we did not even try to hijack shutdown (/bin/systemctl) because that
+        # could race with snapd (if that wanted to call it), so just check that
+        # the system is in a stable state once we have already determined that
+        # the change is complete
+        # XXX systemctl exits with non-0 when in degraded state
+        # Note: on bionic, is-system-running does not support --wait
+        retry -n 30 sh -c '(systemctl is-system-running || true) | MATCH "(running|degraded)"'
+    }
 
     if [ "$SPREAD_REBOOT" = 0 ]; then
-        snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
-        "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
+        echo Downloading snaps needed
+        snap download pc-kernel --channel="$VERSION_ID"/edge
 
-        "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" pc-kernel
-        "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" "$core_snap"
-        "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" pc
+        snap download "$core_snap" --edge --basename=core-for-repack
+        unsquashfs -d base-snap core-for-repack.snap
+        rm core-for-repack.snap core-for-repack.assert
+        snap pack base-snap
 
-        snap refresh --no-wait core18 pc pc-kernel > refresh-change-id
+        # We run one with a vanilla gadget, and one with another gadget
+        cp /var/lib/snapd/snaps/pc_*.snap gadget.snap
+        unsquashfs -d pc-snap gadget.snap        
+        
+        if [ "$UPDATE_VARIANT" = "no-reboot" ]; then
+            # prepare a vanilla version
+            sed -i -e 's/^version: \(.*\)/version: \1-1/' pc-snap/meta/snap.yaml
+            snap pack pc-snap --filename=pc_x1.snap
+        else
+            cp pc-snap/meta/gadget.yaml gadget.yaml.orig
+
+            system_seed=""
+            if os.query is-core-ge 20; then
+                system_seed="--system-seed"
+            fi
+
+            # prepare update
+            python3 ../gadget-update-pc/generate.py ./gadget.yaml.orig v1 $system_seed > pc-snap/meta/gadget.yaml
+            echo 'this is foo-x2' > foo-x2.img
+            cp foo-x2.img pc-snap/foo.img
+            echo 'this is foo.cfg' > pc-snap/foo.cfg
+            if os.query is-core-ge 20; then
+                echo 'this is foo-seed.cfg' > pc-snap/foo-seed.cfg
+            fi
+            sed -i -e 's/^version: \(.*\)-1/version: \1-2/' pc-snap/meta/snap.yaml
+            snap pack pc-snap --filename=pc_x1.snap
+        fi
+
+        snap install "$(ls ${core_snap}_*.snap)" "$(ls pc_*.snap)" "$(ls pc-kernel_*.snap)" --dangerous --no-wait > refresh-change-id
+        
         test -n "$(cat refresh-change-id)"
         change_id="$(cat refresh-change-id)"
-        
+
         # wait for the link task to be done for base
         retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
 
@@ -74,10 +134,10 @@ execute: |
             MATCH 'snap_mode=try' < boot-vars.dump
             MATCH 'snap_try_core=core18_.*.snap' < boot-vars.dump
             MATCH 'snap_try_kernel=pc-kernel_.*.snap' < boot-vars.dump
-        elif os.query is-core20; then
-            stat /boot/grub/kernel.efi | MATCH 'pc_kernel.*.snap/kernel.efi'
+        elif os.query is-core-ge 20; then
+            stat /boot/grub/kernel.efi | MATCH 'pc-kernel.*.snap/kernel.efi'
             stat -L /boot/grub/kernel.efi
-            stat /boot/grub/try-kernel.efi | MATCH 'pc_kernel.*.snap/kernel.efi'
+            stat /boot/grub/try-kernel.efi | MATCH 'pc-kernel.*.snap/kernel.efi'
             stat -L /boot/grub/try-kernel.efi
         else
             echo "unsupported Ubuntu Core system"
@@ -87,50 +147,45 @@ execute: |
         REBOOT
     elif [ "$SPREAD_REBOOT" = 1 ]; then
         change_id="$(cat refresh-change-id)"
-        # XXX: is this sufficiently robust?
-        snap watch "$change_id" || true
-        snap changes | MATCH "$change_id\s+(Done|Error)"
-        # we expect re-refresh to fail since the tests uses a fake store
-        snap change "$change_id" > tasks.done
-        MATCH '^Error .* Monitoring .* to determine whether extra refresh steps are required' < tasks.done
-        # no other errors
-        grep -v 'Monitoring .* to determine whether extra refresh steps are required' < tasks.done | NOMATCH '^Error'
-        # nothing was undone
-        grep -v 'Monitoring .* to determine whether extra refresh steps are required' < tasks.done | NOMATCH '^Undone'
-        # we did not even try to hijack shutdown (/bin/systemctl) because that
-        # could race with snapd (if that wanted to call it), so just check that
-        # the system is in a stable state once we have already determined that
-        # the change is complete
-        # XXX systemctl exits with non-0 when in degraded state
-        # Note: on bionic, is-system-running does not support --wait
-        retry -n 30 sh -c '(systemctl is-system-running || true) | MATCH "(running|degraded)"'
-
-        # fake refreshes generate revision numbers that are n+1
-        expecting_kernel="$(($(cat pc-kernel.rev) + 1))"
-        expecting_core="$(($(cat core.rev) + 1))"
-        expecting_gadget="$(($(cat pc.rev) + 1))"
+        wait_and_verify_change "$change_id"
+        
+        # expect generate revision numbers that are n+1
+        expecting_kernel="$(($(grep -o -E '[0-9]+' < pc-kernel.rev) + 1))"
+        expecting_gadget="$(($(grep -o -E '[0-9]+' < pc.rev) + 1))"
+        expecting_core="$(($(grep -o -E '[0-9]+' < core.rev) + 1))"
+        if ! grep "x" ./core.rev; then
+            expecting_core="1"
+        fi
 
         # verify that current points to new revisions
-        test "$(readlink /snap/pc-kernel/current)" = "$expecting_kernel"
-        test "$(readlink /snap/pc/current)" = "$expecting_gadget"
-        test "$(readlink /snap/$core_snap/current)" = "$expecting_core"
+        test "$(readlink /snap/pc-kernel/current | grep -o -E '[0-9]+')" = "$expecting_kernel"
+        test "$(readlink /snap/pc/current | grep -o -E '[0-9]+')" = "$expecting_gadget"
+        test "$(readlink /snap/$core_snap/current | grep -o -E '[0-9]+')" = "$expecting_core"
 
         # now we need to revert both snaps for restore to behave properly, start
         # with the kernel
-        snap revert pc-kernel --revision "$(cat pc-kernel.rev)"
+        snap revert pc-kernel --no-wait > revert-change-id
+        retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
+
         REBOOT
     elif [ "$SPREAD_REBOOT" = 2 ]; then
-        snap watch --last=revert\?
+        change_id="$(cat revert-change-id)"
+        wait_and_verify_change "$change_id"
+
         # now the gadget
-        snap revert pc --revision "$(cat pc.rev)"
+        snap revert pc --no-wait > revert-change-id
+        change_id="$(cat revert-change-id)"
+        wait_and_verify_change "$change_id"
+
+        # now the base
+        snap revert "$core_snap" --no-wait > revert-change-id
+        retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
+
         REBOOT
     elif [ "$SPREAD_REBOOT" = 3 ]; then
-        snap watch --last=revert\?
-        # now the base
-        snap revert "$core_snap" --revision "$(cat core.rev)"
-        REBOOT
-    elif [ "$SPREAD_REBOOT" = 4 ]; then
-        snap watch --last=revert\?
+        change_id="$(cat revert-change-id)"
+        wait_and_verify_change "$change_id"
+
         # we're done, verify current symlinks to the right revisions
         test "$(readlink /snap/pc-kernel/current)" = "$(cat pc-kernel.rev)"
         test "$(readlink /snap/pc/current)" = "$(cat pc.rev)"
