@@ -852,6 +852,10 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup) (err error) {
 		if err != nil {
 			return fmt.Errorf("cannot get current snapd snap info: %v", err)
 		}
+
+		// Old versions of snapd did not fill in the version field, unintentionally
+		// triggering snapd downgrade detection logic. Fill in the version from the
+		// snapd we are currently using.
 		if snapsup.Version == "" {
 			snapsup.Version = snapdInfo.Version
 			if err = SetTaskSnapSetup(task, snapsup); err != nil {
