@@ -45,7 +45,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
-	"github.com/snapcore/snapd/wrappers"
 )
 
 var _ = check.Suite(&appsSuite{})
@@ -536,7 +535,7 @@ func (s *appsSuite) testPostAppsUser(c *check.C, inst servicestate.Instruction, 
 func (s *appsSuite) TestPostAppsStartOne(c *check.C) {
 	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a.svc2"}}
 	expected := []serviceControlArgs{
-		{action: "start", names: []string{"snap-a.svc2"}, scope: servicestate.ScopeSelector(wrappers.ServiceScopeAll)},
+		{action: "start", names: []string{"snap-a.svc2"}, scope: servicestate.ScopeSelector{"system", "user"}},
 	}
 	chg := s.testPostApps(c, inst, expected)
 	chg.State().Lock()
@@ -551,7 +550,7 @@ func (s *appsSuite) TestPostAppsStartOne(c *check.C) {
 func (s *appsSuite) TestPostAppsStartTwo(c *check.C) {
 	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a"}}
 	expected := []serviceControlArgs{
-		{action: "start", names: []string{"snap-a.svc1", "snap-a.svc2"}, scope: servicestate.ScopeSelector(wrappers.ServiceScopeAll)},
+		{action: "start", names: []string{"snap-a.svc1", "snap-a.svc2"}, scope: servicestate.ScopeSelector{"system", "user"}},
 	}
 	chg := s.testPostApps(c, inst, expected)
 
@@ -567,7 +566,7 @@ func (s *appsSuite) TestPostAppsStartTwo(c *check.C) {
 func (s *appsSuite) TestPostAppsStartThree(c *check.C) {
 	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a", "snap-b"}}
 	expected := []serviceControlArgs{
-		{action: "start", names: []string{"snap-a.svc1", "snap-a.svc2", "snap-b.svc3"}, scope: servicestate.ScopeSelector(wrappers.ServiceScopeAll)},
+		{action: "start", names: []string{"snap-a.svc1", "snap-a.svc2", "snap-b.svc3"}, scope: servicestate.ScopeSelector{"system", "user"}},
 	}
 	chg := s.testPostApps(c, inst, expected)
 	// check the summary expands the snap into actual apps
@@ -584,7 +583,7 @@ func (s *appsSuite) TestPostAppsStartThree(c *check.C) {
 func (s *appsSuite) TestPostAppsStop(c *check.C) {
 	inst := servicestate.Instruction{Action: "stop", Names: []string{"snap-a.svc2"}}
 	expected := []serviceControlArgs{
-		{action: "stop", names: []string{"snap-a.svc2"}, scope: servicestate.ScopeSelector(wrappers.ServiceScopeAll)},
+		{action: "stop", names: []string{"snap-a.svc2"}, scope: servicestate.ScopeSelector{"system", "user"}},
 	}
 	s.testPostApps(c, inst, expected)
 }
@@ -592,7 +591,7 @@ func (s *appsSuite) TestPostAppsStop(c *check.C) {
 func (s *appsSuite) TestPostAppsRestart(c *check.C) {
 	inst := servicestate.Instruction{Action: "restart", Names: []string{"snap-a.svc2"}}
 	expected := []serviceControlArgs{
-		{action: "restart", names: []string{"snap-a.svc2"}, scope: servicestate.ScopeSelector(wrappers.ServiceScopeAll)},
+		{action: "restart", names: []string{"snap-a.svc2"}, scope: servicestate.ScopeSelector{"system", "user"}},
 	}
 	s.testPostApps(c, inst, expected)
 }
@@ -601,7 +600,7 @@ func (s *appsSuite) TestPostAppsReload(c *check.C) {
 	inst := servicestate.Instruction{Action: "restart", Names: []string{"snap-a.svc2"}}
 	inst.Reload = true
 	expected := []serviceControlArgs{
-		{action: "restart", options: "reload", names: []string{"snap-a.svc2"}, scope: servicestate.ScopeSelector(wrappers.ServiceScopeAll)},
+		{action: "restart", options: "reload", names: []string{"snap-a.svc2"}, scope: servicestate.ScopeSelector{"system", "user"}},
 	}
 	s.testPostApps(c, inst, expected)
 }
@@ -610,7 +609,7 @@ func (s *appsSuite) TestPostAppsEnableNow(c *check.C) {
 	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a.svc2"}}
 	inst.Enable = true
 	expected := []serviceControlArgs{
-		{action: "start", options: "enable", names: []string{"snap-a.svc2"}, scope: servicestate.ScopeSelector(wrappers.ServiceScopeAll)},
+		{action: "start", options: "enable", names: []string{"snap-a.svc2"}, scope: servicestate.ScopeSelector{"system", "user"}},
 	}
 	s.testPostApps(c, inst, expected)
 }
@@ -619,7 +618,7 @@ func (s *appsSuite) TestPostAppsDisableNow(c *check.C) {
 	inst := servicestate.Instruction{Action: "stop", Names: []string{"snap-a.svc2"}}
 	inst.Disable = true
 	expected := []serviceControlArgs{
-		{action: "stop", options: "disable", names: []string{"snap-a.svc2"}, scope: servicestate.ScopeSelector(wrappers.ServiceScopeAll)},
+		{action: "stop", options: "disable", names: []string{"snap-a.svc2"}, scope: servicestate.ScopeSelector{"system", "user"}},
 	}
 	s.testPostApps(c, inst, expected)
 }
@@ -641,7 +640,7 @@ func (s *appsSuite) TestPostAppsScopesUserAsRootNotAllowed(c *check.C) {
 	inst := servicestate.Instruction{
 		Action: "start",
 		Names:  []string{"snap-a.svc1"},
-		Scope:  servicestate.ScopeSelector(wrappers.ServiceScopeUser),
+		Scope:  servicestate.ScopeSelector{"user"},
 		Users: servicestate.UserSelector{
 			Selector: servicestate.UserSelectionSelf,
 		},
@@ -661,14 +660,14 @@ func (s *appsSuite) TestPostAppsUsersAsRootHappy(c *check.C) {
 	inst := servicestate.Instruction{
 		Action: "start",
 		Names:  []string{"snap-a.svc1"},
-		Scope:  servicestate.ScopeSelector(wrappers.ServiceScopeUser),
+		Scope:  servicestate.ScopeSelector{"user"},
 		Users: servicestate.UserSelector{
 			Selector: servicestate.UserSelectionAll,
 		},
 	}
 	expected := []serviceControlArgs{
 		// Expect no user to appear as we are not logged in
-		{action: "start", names: []string{"snap-a.svc1"}, scope: servicestate.ScopeSelector(wrappers.ServiceScopeUser)},
+		{action: "start", names: []string{"snap-a.svc1"}, scope: servicestate.ScopeSelector{"user"}},
 	}
 	s.testPostApps(c, inst, expected)
 }
@@ -676,7 +675,7 @@ func (s *appsSuite) TestPostAppsUsersAsRootHappy(c *check.C) {
 func (s *appsSuite) TestPostAppsScopesNotSpecifiedForRoot(c *check.C) {
 	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-e.svc4"}}
 	expected := []serviceControlArgs{
-		{action: "start", names: []string{"snap-e.svc4"}, scope: servicestate.ScopeSelector(wrappers.ServiceScopeAll)},
+		{action: "start", names: []string{"snap-e.svc4"}, scope: servicestate.ScopeSelector{"system", "user"}},
 	}
 	s.testPostApps(c, inst, expected)
 }
@@ -685,13 +684,13 @@ func (s *appsSuite) TestPostAppsUsersAsUserHappy(c *check.C) {
 	inst := servicestate.Instruction{
 		Action: "start",
 		Names:  []string{"snap-a.svc1"},
-		Scope:  servicestate.ScopeSelector(wrappers.ServiceScopeUser),
+		Scope:  servicestate.ScopeSelector{"user"},
 		Users: servicestate.UserSelector{
 			Selector: servicestate.UserSelectionAll,
 		},
 	}
 	expected := []serviceControlArgs{
-		{action: "start", names: []string{"snap-a.svc1"}, scope: servicestate.ScopeSelector(wrappers.ServiceScopeUser)},
+		{action: "start", names: []string{"snap-a.svc1"}, scope: servicestate.ScopeSelector{"user"}},
 	}
 	s.testPostAppsUser(c, inst, expected, "")
 }
@@ -716,7 +715,7 @@ func (s *appsSuite) TestPostAppsUsersUser(c *check.C) {
 		},
 	}
 	expected := []serviceControlArgs{
-		{action: "start", names: []string{"snap-a.svc1"}, scope: servicestate.ScopeSelector(wrappers.ServiceScopeSystem), users: []string{"username"}},
+		{action: "start", names: []string{"snap-a.svc1"}, scope: servicestate.ScopeSelector{"system"}, users: []string{"username"}},
 	}
 	s.testPostAppsUser(c, inst, expected, "")
 }
@@ -731,21 +730,21 @@ func (s *appsSuite) TestPostAppsUsersWithUsernames(c *check.C) {
 	}
 	expected := []serviceControlArgs{
 		// Expect no user to appear as we are not logged in
-		{action: "start", names: []string{"snap-a.svc1"}, scope: servicestate.ScopeSelector(wrappers.ServiceScopeAll), users: []string{"my-user", "other-user"}},
+		{action: "start", names: []string{"snap-a.svc1"}, scope: servicestate.ScopeSelector{"system", "user"}, users: []string{"my-user", "other-user"}},
 	}
 	s.testPostApps(c, inst, expected)
 }
 
 func (s *appsSuite) TestPostAppsUserNotSpecifiedForRoot(c *check.C) {
-	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-e.svc4"}, Scope: servicestate.ScopeSelector(wrappers.ServiceScopeSystem)}
+	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-e.svc4"}, Scope: servicestate.ScopeSelector{"system"}}
 	expected := []serviceControlArgs{
-		{action: "start", names: []string{"snap-e.svc4"}, scope: servicestate.ScopeSelector(wrappers.ServiceScopeSystem)},
+		{action: "start", names: []string{"snap-e.svc4"}, scope: servicestate.ScopeSelector{"system"}},
 	}
 	s.testPostApps(c, inst, expected)
 }
 
 func (s *appsSuite) TestPostAppsUserNotSpecifiedForUser(c *check.C) {
-	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-e.svc4"}, Scope: servicestate.ScopeSelector(wrappers.ServiceScopeUser)}
+	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-e.svc4"}, Scope: servicestate.ScopeSelector{"user"}}
 	s.testPostAppsUser(c, inst, nil, "cannot perform operation on services: non-root users must specify users when targeting user services")
 }
 

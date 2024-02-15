@@ -73,10 +73,10 @@ func (us *UserSelector) UserList(currentUser *user.User) ([]string, error) {
 		return us.Names, nil
 	case UserSelectionSelf:
 		if currentUser == nil {
-			return nil, fmt.Errorf("internal error: for \"self\" the current user must be provided")
+			return nil, fmt.Errorf(`internal error: for "self" the current user must be provided`)
 		}
 		if currentUser.Uid == "0" {
-			return nil, fmt.Errorf("cannot use \"self\" for root user")
+			return nil, fmt.Errorf(`cannot use "self" for root user`)
 		}
 		return []string{currentUser.Username}, nil
 	case UserSelectionAll:
@@ -125,28 +125,26 @@ func (us *UserSelector) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type ScopeSelector wrappers.ServiceScope
+type ScopeSelector []string
 
 func (ss *ScopeSelector) UnmarshalJSON(b []byte) error {
-	var s string
-	if err := json.Unmarshal(b, &s); err != nil {
-		return fmt.Errorf("cannot unmarshal, expected a string")
+	var scopes []string
+	if err := json.Unmarshal(b, &scopes); err != nil {
+		return fmt.Errorf("cannot unmarshal, expected a list of strings")
 	}
 
-	// XXX: Currently this will not allow non-root users to target both
-	// user/system daemons at once. Unless we do a similar trick like
-	// UserSelector or introduce a specific "all" so we can keep distinguishing
-	// between not-set and all.
-	switch s {
-	case "":
-		*ss = ScopeSelector(wrappers.ServiceScopeAll)
-	case "system":
-		*ss = ScopeSelector(wrappers.ServiceScopeSystem)
-	case "user":
-		*ss = ScopeSelector(wrappers.ServiceScopeUser)
-	default:
-		return fmt.Errorf(`cannot unmarshal, expected one of: "system", "user"`)
+	if len(scopes) > 2 {
+		return fmt.Errorf("unexpected number of scopes: %v", scopes)
 	}
+
+	for _, s := range scopes {
+		switch s {
+		case "system", "user":
+		default:
+			return fmt.Errorf(`cannot unmarshal, expected one of: "system", "user"`)
+		}
+	}
+	*ss = scopes
 	return nil
 }
 
@@ -161,7 +159,23 @@ type Instruction struct {
 }
 
 func (i *Instruction) ServiceScope() wrappers.ServiceScope {
-	return wrappers.ServiceScope(i.Scope)
+	var hasUser, hasSystem bool
+	for _, opt := range i.Scope {
+		switch opt {
+		case "user":
+			hasUser = true
+		case "system":
+			hasSystem = true
+		}
+	}
+	switch {
+	case hasSystem && !hasUser:
+		return wrappers.ServiceScopeSystem
+	case hasUser && !hasSystem:
+		return wrappers.ServiceScopeUser
+	default:
+		return wrappers.ServiceScopeAll
+	}
 }
 
 func (i *Instruction) hasUserService(apps []*snap.AppInfo) bool {
@@ -178,16 +192,19 @@ func (i *Instruction) hasUserService(apps []*snap.AppInfo) bool {
 // Make sure to call Instruction.Validate() before calling this.
 func (i *Instruction) EnsureDefaultScopeForUser(u *user.User) {
 	// Set default scopes if not provided
-	if i.Scope == ScopeSelector(wrappers.ServiceScopeAll) {
-		// If non-root imply the service scope only to keep in line with backwards compatibility
-		if u.Uid != "0" {
-			i.Scope = ScopeSelector(wrappers.ServiceScopeSystem)
+	if len(i.Scope) == 0 {
+		// If root is making this request, implied scopes are all
+		if u.Uid == "0" {
+			i.Scope = ScopeSelector{"system", "user"}
+		} else {
+			// Otherwise imply the service scope only
+			i.Scope = ScopeSelector{"system"}
 		}
 	}
 }
 
 func (i *Instruction) validateScope(u *user.User, apps []*snap.AppInfo) error {
-	if i.Scope == ScopeSelector(wrappers.ServiceScopeAll) {
+	if len(i.Scope) == 0 {
 		// Providing no scope is only an issue for non-root users if the
 		// target is user-daemons.
 		if u.Uid != "0" && i.hasUserService(apps) {
