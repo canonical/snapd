@@ -745,15 +745,16 @@ func (e *timedBusySnapError) Is(err error) bool {
 	return ok
 }
 
-// inhibitRefresh returns an error if refresh is inhibited by running apps.
+// inhibitRefresh returns whether a refresh is forced due to inhibition
+// timeout or an error if refresh is inhibited by running apps.
 //
 // Internally the snap state is updated to remember when the inhibition first
 // took place. Apps can inhibit refreshes for up to "maxInhibition", beyond
 // that period the refresh will go ahead despite application activity.
-func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info *snap.Info) error {
+func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info *snap.Info) (inhibitionTimeout bool, err error) {
 	checkerErr := refreshAppsCheck(info)
 	if checkerErr == nil {
-		return nil
+		return false, nil
 	}
 
 	// carries the remaining inhibition time along with the BusySnapError
@@ -762,7 +763,7 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 	// if it's not a snap busy error or the refresh is manual, surface the error
 	// to the user instead of notifying or delaying the refresh
 	if !snapsup.IsAutoRefresh || !errors.As(checkerErr, &busyErr.err) {
-		return checkerErr
+		return false, checkerErr
 	}
 
 	// Decide on what to do depending on the state of the snap and the remaining
@@ -791,10 +792,10 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 		// important to return "nil" type here instead of
 		// setting busyErr to nil as otherwise we return a nil
 		// interface which is not the nil type
-		return nil
+		return true, nil
 	}
 
-	return busyErr
+	return false, busyErr
 }
 
 // for testing outside of snapstate
