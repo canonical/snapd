@@ -49,4 +49,4 @@ c-vendor/squashfuse/snapfuse usr/bin
 # use "usr/lib" here because apparently systemd looks only there
 usr/lib/systemd/system-environment-generators
 # but system generators end up in lib
-lib/systemd/system-generators
+@systemd-lib@/system-generators
