@@ -292,7 +292,6 @@ nested_qemu_name() {
     else
         command -v qemu-system-x86_64
     fi
-
 }
 
 nested_get_snap_rev_for_channel() {

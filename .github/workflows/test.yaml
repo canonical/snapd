@@ -7,14 +7,6 @@ on:
     # branch, the master branch runs are just for unit tests + codecov.io
     branches: [ "master","release/**" ]
 
-  # XXX we suspect that the whenever the labeler workflow executes successfully
-  # it will trigger another workflow of tests on master, temporarily disable to
-  # see if that improves the situation
-  # workflow_run:
-  #   workflows: ["Pull Request Labeler"]
-  #   types:
-  #     - completed
-
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
@@ -701,10 +693,28 @@ jobs:
           echo "Collected labels: $LABELS"
       shell: bash
 
+    - name: Get changed files
+      id: get-changed-files
+      uses: tj-actions/changed-files@v34.5.1
+      with:
+        path: ./src/github.com/snapcore/snapd
+
+    - name: Detect changes files
+      id: detect-changes
+      run: |
+          CHANGED_FILES="${{ steps.get-changed-files.outputs.all_changed_files }}"
+          for file in CHANGED_FILES; do
+              if [[ "$file" == tests/nested/**/* ]] || [[ "$file" == tests/lib/nested.sh ]]
+                  echo "changes_found=true" >> $GITHUB_OUTPUT
+                  exit 0
+              fi
+          done
+          echo "changes_found=false" >> $GITHUB_OUTPUT
+
     - name: Run spread tests
       # run if the commit is pushed to the release/* branch or there is a 'Run
-      # nested' label set on the PR
-      if: "contains(steps.collect-pr-labels.outputs.labels, 'Run nested') || contains(github.ref, 'refs/heads/release/')"
+      # nested' label set on the PR or there is a change in a nested test/lib
+      if: "contains(steps.collect-pr-labels.outputs.labels, 'Run nested') || contains(steps.detect-changes.outputs.changes_found, 'true') || contains(github.ref, 'refs/heads/release/')"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
