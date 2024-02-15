@@ -19,6 +19,11 @@ environment:
 
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
+    # We are uploading too much in terms of size for the snaps
+    # we sideload. On UC18 this is disabled automatically, but
+    # on UC20+ this has proved to be an issue
+    SNAPD_NO_MEMORY_LIMIT: 1
+
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         tests.exec skip-test "This test needs test keys to be trusted" && exit 0
@@ -124,7 +129,7 @@ execute: |
             fi
         elif os.query is-core20; then
             if [[ "$SNAP_ONE" == "pc-kernel" ]] || [[ "$SNAP_TWO" == "pc-kernel" ]]; then
-                stat /boot/grub/try-kernel.efi | MATCH 'pc_kernel.*.snap/kernel.efi'
+                stat /boot/grub/try-kernel.efi | MATCH 'pc-kernel.*.snap/kernel.efi'
                 stat -L /boot/grub/try-kernel.efi
             fi
             if [[ "$SNAP_ONE" == *"core"* ]] || [[ "$SNAP_TWO" == *"core"* ]]; then

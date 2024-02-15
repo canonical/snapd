@@ -91,6 +91,8 @@ environment:
     SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS: '$(HOST: echo "${SPREAD_SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS:-0}")'
     # Allow mismatch in snapd/kernel versions
     SNAPD_ALLOW_SNAPD_KERNEL_MISMATCH: '$(HOST: echo "${SNAPD_ALLOW_SNAPD_KERNEL_MISMATCH:-true}")'
+    # Option for core18 to have an unasserted gadget snap with debug output
+    CORE18_GADGET_REPACK: '$(HOST: echo "${CORE18_GADGET_REPACK:-false}")'
 
     # Directory where the nested images and test assets are stored
     NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/var/tmp/work-dir}")'
