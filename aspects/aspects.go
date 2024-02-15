@@ -448,8 +448,8 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 		suffixes[strings.Join(match.suffixParts, ".")] = struct{}{}
 	}
 
-	// check if value is entirely used. If not we fail to be consistent with doing
-	// the same write individually (each branch at a time)
+	// check if value is entirely used. If not, we fail so this is consistent
+	// with doing the same write individually (one branch at a time)
 	if err := checkForUnusedBranches(value, suffixes); err != nil {
 		return badRequestErrorFrom(a, "set", request, err.Error())
 	}
@@ -629,7 +629,7 @@ func replaceIn(path, key, value string) string {
 	return strings.Join(parts, ".")
 }
 
-// checkForUnusedBranches check that the value is entirely used by the paths.
+// checkForUnusedBranches checks that the value is entirely covered by the paths.
 func checkForUnusedBranches(value interface{}, paths map[string]struct{}) error {
 	// prune each path from the value. If anything is left at the end, the paths
 	// don't collectively cover the entire value
