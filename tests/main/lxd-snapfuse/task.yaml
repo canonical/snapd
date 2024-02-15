@@ -1,5 +1,10 @@
 summary: Check snapfuse works
 
+details: |
+    This test validates snaps can be installed and removed in lxd container
+    by regular users and by root. Also checks snapfuse is running in the
+    lxd container and lzo compressed snaps can be used normally
+
 # we just need a single system to verify this
 systems: [ubuntu-22.04-64]
 
