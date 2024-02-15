@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -10566,4 +10566,121 @@ func (s *snapmgrTestSuite) TestSnapdRefreshForRemodel(c *C) {
 	_, err = snapstate.UpdateWithDeviceContext(s.state, "snapd", opts, s.user.ID, snapstate.Flags{}, nil, nil, "")
 	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
 	c.Check(err, ErrorMatches, "remodeling in progress, no other changes allowed until this is done")
+}
+
+func (s *snapmgrTestSuite) TestUpdateSnapdAndSnapPullingNewBase(c *C) {
+	// classic = true, avoid messing with snapd services
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	fakeAutoConnect := func(task *state.Task, _ *tomb.Tomb) error {
+		st := task.State()
+		st.Lock()
+		defer st.Unlock()
+		kind := task.Kind()
+		status := task.Status()
+		snapsup, err := snapstate.TaskSnapSetup(task)
+		if err != nil {
+			return err
+		}
+		if status == state.DoingStatus {
+			if snapsup.Type == snap.TypeSnapd {
+				si := snapsup.SideInfo
+				// snapd is installed by now
+				snaptest.MockSnapCurrent(c, `
+name: snapd
+version: snapdVer
+type: snapd
+`, snapsup.SideInfo)
+				snapstate.Set(st, "snapd", &snapstate.SnapState{
+					SnapType:        "snapd",
+					Active:          true,
+					Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+					Current:         si.Revision,
+					Flags:           snapstate.Flags{Required: true},
+					TrackingChannel: si.Channel,
+				})
+			}
+			// fake restart
+			restart.MockPending(st, restart.RestartUnset)
+			if err := snapstate.FinishRestart(task, snapsup); err != nil {
+				panic(err)
+			}
+		}
+		return s.fakeBackend.ForeignTask(kind, status, snapsup)
+	}
+
+	s.o.TaskRunner().AddHandler("auto-connect", fakeAutoConnect, fakeAutoConnect)
+
+	snapstate.Set(s.state, "core22", nil) // NOTE: core22 is not installed.
+	snapstate.Set(s.state, "some-snap-with-new-base", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{
+				RealName: "some-snap-with-new-base",
+				SnapID:   "some-snap-with-new-base-id",
+				Revision: snap.R(1),
+			},
+		}),
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{
+				RealName: "snapd",
+				SnapID:   "snapd-without-version-id",
+				Revision: snap.R(1),
+			},
+		}),
+		Current:  snap.R(1),
+		SnapType: "snapd",
+	})
+
+	updated, taskSets, err := snapstate.UpdateMany(context.Background(), s.state,
+		[]string{"snapd", "some-snap-with-new-base"},
+		[]*snapstate.RevisionOptions{{
+			Revision: snap.R(1),
+			Channel:  "latest/stable",
+		}, {
+			Revision: snap.R(1),
+			Channel:  "some-channel",
+		}},
+		s.user.ID, &snapstate.Flags{
+			IgnoreRunning: true,
+			Transaction:   client.TransactionPerSnap, // XXX: it is unclear if this represents the real-world behavior.
+		})
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("refresh-snap", "refresh snapd and some other snap pulling in a base")
+
+	for _, taskSet := range taskSets {
+		chg.AddAll(taskSet)
+	}
+
+	// XXX: This mimics newChange from daemon/api.go
+	if updated != nil {
+		chg.Set("snap-names", updated)
+	}
+
+	s.state.EnsureBefore(0)
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	fmt.Printf("Settle returned\n")
+
+	didDownloadCore22 := false
+
+	for _, fakeOp := range s.fakeBackend.ops {
+		if fakeOp.op == "storesvc-download" && fakeOp.name == "core22" {
+			didDownloadCore22 = true
+		}
+	}
+
+	c.Assert(didDownloadCore22, Equals, true, Commentf("core22 was *not* downloaded"))
 }
