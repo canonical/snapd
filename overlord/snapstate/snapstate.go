@@ -1097,7 +1097,7 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 }
 
 // A PrereqTracker helps tracking snap prerequisites for one or across
-// multiple snap operations. Depending of usage context implementatiomns
+// multiple snap operations. Depending of usage context implementations
 // can be stateful or stateless.
 // Functions taking a PrereqTracker accept nil and promise to call
 // Add once for any target snap.
@@ -1673,7 +1673,7 @@ func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, err
 var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx DeviceContext) (validated []*snap.Info, err error)
 
 // UpdateMany updates everything from the given list of names that the
-// store says is updateable. If the list is empty, update everything.
+// store says is updatable. If the list is empty, update everything.
 // Note that the state must be locked by the caller.
 func UpdateMany(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
 	updated, tasksetGrp, err := updateManyFiltered(ctx, st, names, revOpts, userID, nil, flags, "")

@@ -340,13 +340,6 @@ prepare_project() {
         fi
     fi
 
-    if os.query is-amazon-linux 2023; then
-        # Amazon Linux 2023 does not have xdelta in repositories, but it is
-        # installed in our images, drop it to ensure 'vanilla' experience, see
-        # SNAPDENG-15306
-        dnf remove xdelta -y
-    fi
-
     # debian-sid packaging is special
     if os.query is-debian sid; then
         if [ ! -d packaging/debian-sid ]; then

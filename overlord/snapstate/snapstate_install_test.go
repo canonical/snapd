@@ -3006,7 +3006,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreConflictingInstall(c *C) {
 	s.se.Ensure()
 	s.se.Wait()
 
-	// change is not ready yet, because the prerequists triggered
+	// change is not ready yet, because the prerequisites triggered
 	// a state.Retry{} because of the conflicting change
 	c.Assert(chg.IsReady(), Equals, false)
 
@@ -3457,7 +3457,7 @@ func (s *snapmgrTestSuite) TestInstallUserDaemonsChecksFeatureFlag(c *C) {
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
 }
 
-func (s *snapmgrTestSuite) TestInstallUserDaemonsUsupportedOnTrusty(c *C) {
+func (s *snapmgrTestSuite) TestInstallUserDaemonsUnsupportedOnTrusty(c *C) {
 	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
 	defer restore()
 	s.state.Lock()

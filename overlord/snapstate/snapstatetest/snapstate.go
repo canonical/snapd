@@ -40,7 +40,12 @@ func fakeSnapID(name string) string {
 	return snaptest.AssertedSnapID(name)
 }
 
-func InstallSnap(c *check.C, st *state.State, yaml string, required bool, si *snap.SideInfo) *snap.Info {
+type InstallSnapOptions struct {
+	Required         bool
+	PreserveSequence bool
+}
+
+func InstallSnap(c *check.C, st *state.State, yaml string, si *snap.SideInfo, opts InstallSnapOptions) *snap.Info {
 	info := snaptest.MakeSnapFileAndDir(c, yaml, nil, si)
 
 	t := info.Type()
@@ -48,37 +53,45 @@ func InstallSnap(c *check.C, st *state.State, yaml string, required bool, si *sn
 		t = snap.TypeOS
 	}
 
+	var seq sequence.SnapSequence
+	if opts.PreserveSequence {
+		var ss snapstate.SnapState
+		err := snapstate.Get(st, info.InstanceName(), &ss)
+		c.Assert(err, check.IsNil)
+		seq.Revisions = append(seq.Revisions, ss.Sequence.Revisions...)
+	}
+
+	seq.Revisions = append(seq.Revisions, sequence.NewRevisionSideState(si, nil))
+
 	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
 		SnapType:        string(t),
 		Active:          true,
-		Sequence:        NewSequenceFromSnapSideInfos([]*snap.SideInfo{&info.SideInfo}),
+		Sequence:        seq,
 		Current:         info.Revision,
-		Flags:           snapstate.Flags{Required: required},
+		Flags:           snapstate.Flags{Required: opts.Required},
 		TrackingChannel: si.Channel,
 	})
 	return info
 }
 
 func InstallEssentialSnaps(c *check.C, st *state.State, base string, bloader bootloader.Bootloader) {
-	const required = true
-
-	InstallSnap(c, st, fmt.Sprintf("name: pc\nversion: 1\ntype: gadget\nbase: %s", base), required, &snap.SideInfo{
+	InstallSnap(c, st, fmt.Sprintf("name: pc\nversion: 1\ntype: gadget\nbase: %s", base), &snap.SideInfo{
 		SnapID:   fakeSnapID("pc"),
 		Revision: snap.R(1),
 		RealName: "pc",
-	})
+	}, InstallSnapOptions{Required: true})
 
-	InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", required, &snap.SideInfo{
+	InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
-	})
+	}, InstallSnapOptions{Required: true})
 
-	InstallSnap(c, st, fmt.Sprintf("name: %s\nversion: 1\ntype: base\n", base), required, &snap.SideInfo{
+	InstallSnap(c, st, fmt.Sprintf("name: %s\nversion: 1\ntype: base\n", base), &snap.SideInfo{
 		SnapID:   fakeSnapID(base),
 		Revision: snap.R(1),
 		RealName: base,
-	})
+	}, InstallSnapOptions{Required: true})
 
 	if bloader != nil {
 		err := bloader.SetBootVars(map[string]string{
