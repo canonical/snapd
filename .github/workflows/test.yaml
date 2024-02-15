@@ -6,10 +6,14 @@ on:
     # we trigger runs on master branch, but we do not run spread on master 
     # branch, the master branch runs are just for unit tests + codecov.io
     branches: [ "master","release/**" ]
-  workflow_run:
-    workflows: ["Pull Request Labeler"]
-    types:
-      - completed
+
+  # XXX we suspect that the whenever the labeler workflow executes successfully
+  # it will trigger another workflow of tests on master, temporarily disable to
+  # see if that improves the situation
+  # workflow_run:
+  #   workflows: ["Pull Request Labeler"]
+  #   types:
+  #     - completed
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
