@@ -434,7 +434,7 @@ var (
 	rebootNoticeWait       = 3 * time.Second
 	rebootWaitTimeout      = 10 * time.Minute
 	rebootRetryWaitTimeout = 5 * time.Minute
-	rebootMaxTentative     = 3
+	rebootMaxAttempts      = 3
 )
 
 func (d *Daemon) updateMaintenanceFile(rst restart.RestartType) error {
@@ -676,23 +676,23 @@ var errExpectedReboot = errors.New("expected reboot did not happen")
 
 // RebootDidNotHappen implements part of overlord.RestartBehavior.
 func (d *Daemon) RebootDidNotHappen(st *state.State) error {
-	var nTentative int
-	err := st.Get("daemon-system-restart-tentative", &nTentative)
+	var attempt int
+	err := st.Get("daemon-system-restart-tentative", &attempt)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
-	nTentative++
-	if nTentative > rebootMaxTentative {
+	attempt++
+	if attempt > rebootMaxAttempts {
 		// giving up, proceed normally, some in-progress refresh
 		// might get rolled back!!
 		restart.ClearReboot(st)
 		clearReboot(st)
-		logger.Noticef("snapd was restarted while a system restart was expected, snapd retried to schedule and waited again for a system restart %d times and is giving up", rebootMaxTentative)
+		logger.Noticef("snapd was restarted while a system restart was expected, snapd retried to schedule and waited again for a system restart %d times and is giving up", rebootMaxAttempts)
 		return nil
 	}
-	st.Set("daemon-system-restart-tentative", nTentative)
+	st.Set("daemon-system-restart-tentative", attempt)
 	d.state = st
-	logger.Noticef("snapd was restarted while a system restart was expected, snapd will try to schedule and wait for a system restart again (tenative %d/%d)", nTentative, rebootMaxTentative)
+	logger.Noticef("snapd was restarted while a system restart was expected, snapd will try to schedule and wait for a system restart again (attempt %d/%d)", attempt, rebootMaxAttempts)
 	return errExpectedReboot
 }
 
