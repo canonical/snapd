@@ -20,6 +20,11 @@ prepare: |
         exit
     fi
 
+    # Install core snap to avoid installing it using the fake store
+    if not snap list core; then
+      snap install core
+    fi
+
     snap debug can-manage-refreshes | MATCH false
 
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
