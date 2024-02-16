@@ -1,5 +1,10 @@
 summary: Test support for non-standard home directory paths and data copy between revisions
 
+details: |
+    Verifies that the snap data in non-standard home directories gets properly copied between
+    revisions when the snap package is refreshed to a newer revision. Also makes sure that the
+    snap data in non-standard home directories is deleted when the snap package is removed.
+
 systems:
     - -ubuntu-core-*  # Home dirs cannot be changed
     - -centos-*       # No AppArmor support
