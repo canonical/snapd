@@ -170,9 +170,8 @@ func (n *Notice) expired(now time.Time) bool {
 	return n.lastOccurred.Add(n.expireAfter).Before(now)
 }
 
-// GetRepeatCheckValue gets current RepeatCheckData.
-//
-// NOTE: "value" must be JSON unmarshallable.
+// GetRepeatCheckData unmarshals the previously stored repeat check data (from
+// AddNoticeOptions or RepeatCheck) into the value parameter
 func (n *Notice) GetRepeatCheckValue(value interface{}) error {
 	if n.repeatCheckData == nil {
 		return ErrNoState
