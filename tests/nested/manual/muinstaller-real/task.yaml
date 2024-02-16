@@ -252,6 +252,6 @@ execute: |
 
   if [ "$PARTIAL_GADGET" = true ]; then
       # make sure that our gpt partition is still there
-      remote.exec test -e '/dev/disk/by-partlabel/BIOS\x20Boot'
+      remote.exec 'test -e "/dev/disk/by-partlabel/BIOS\x20Boot"'
       remote.exec 'sudo fdisk -l /dev/vda' | MATCH '/dev/vda1\s+2048\s+4095\s+2048\s+1M\s+BIOS boot'
   fi
