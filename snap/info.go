@@ -963,7 +963,7 @@ type PlugInfo struct {
 
 	// Unscoped is true if the plug is declared at the top-level of the
 	// snap.yaml file, and it is not specifically referenced by any apps or
-	// hooks. Unscoped slots are attached to all apps and hooks in the snap.
+	// hooks. Unscoped plugs are attached to all apps and hooks in the snap.
 	Unscoped bool
 }
 
