@@ -44,6 +44,8 @@ const (
 
 // Specification assists in collecting apparmor entries associated with an interface.
 type Specification struct {
+	// appSet is the set of snap applications and hooks that the specification
+	// applies to.
 	appSet *interfaces.SnapAppSet
 
 	// scope for various Add{...}Snippet functions
