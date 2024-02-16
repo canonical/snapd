@@ -53,16 +53,19 @@ func (s *requestrulesSuite) TestPopulateNewRule(c *C) {
 		"/home/test/**/*.pdf",
 		"/home/test/*",
 	} {
-		rule, err := rdb.PopulateNewRule(user, snap, app, iface, pattern, outcome, lifespan, duration, permissions)
+		constraints := &common.Constraints{
+			PathPattern: pattern,
+			Permissions: permissions,
+		}
+		rule, err := rdb.PopulateNewRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
 		c.Check(err, IsNil)
 		c.Check(rule.User, Equals, user)
 		c.Check(rule.Snap, Equals, snap)
 		c.Check(rule.App, Equals, app)
-		c.Check(rule.PathPattern, Equals, pattern)
+		c.Check(rule.Constraints, Equals, constraints)
 		c.Check(rule.Outcome, Equals, outcome)
 		c.Check(rule.Lifespan, Equals, lifespan)
 		c.Check(rule.Expiration, Equals, "")
-		c.Check(rule.Permissions, DeepEquals, permissions)
 	}
 
 	for _, pattern := range []string{
@@ -70,7 +73,11 @@ func (s *requestrulesSuite) TestPopulateNewRule(c *C) {
 		"/home/test/*/**",
 		"/home/test/*/*.txt",
 	} {
-		rule, err := rdb.PopulateNewRule(user, snap, app, iface, pattern, outcome, lifespan, duration, permissions)
+		constraints := &common.Constraints{
+			PathPattern: pattern,
+			Permissions: permissions,
+		}
+		rule, err := rdb.PopulateNewRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
 		c.Assert(err, Equals, common.ErrInvalidPathPattern)
 		c.Assert(rule, IsNil)
 	}
@@ -88,7 +95,7 @@ func (s *requestrulesSuite) TestCreateRemoveRuleSimple(c *C) {
 
 	snap := "lxd"
 	app := "lxc"
-	iface := "system-files"
+	iface := "home"
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanForever
@@ -98,8 +105,12 @@ func (s *requestrulesSuite) TestCreateRemoveRuleSimple(c *C) {
 		common.PermissionWrite,
 		common.PermissionExecute,
 	}
+	constraints := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: permissions,
+	}
 
-	rule, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	rule, err := rdb.CreateRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
@@ -195,8 +206,12 @@ func (s *requestrulesSuite) TestCreateRuleUnhappy(c *C) {
 		common.PermissionWrite,
 		common.PermissionExecute,
 	}
+	constraints := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: permissions,
+	}
 
-	storedRule, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	storedRule, err := rdb.CreateRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
@@ -204,21 +219,29 @@ func (s *requestrulesSuite) TestCreateRuleUnhappy(c *C) {
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
 	conflictingPermissions := permissions[:1]
-	_, err = rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, conflictingPermissions)
+	conflictingConstraints := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: conflictingPermissions,
+	}
+	_, err = rdb.CreateRule(user, snap, app, iface, conflictingConstraints, outcome, lifespan, duration)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("^%s.*%s.*%s.*", requestrules.ErrPathPatternConflict, storedRule.ID, conflictingPermissions[0]))
 
 	// Error while adding rule should cause no notice to be issued
 	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 
 	badPattern := "bad/pattern"
-	_, err = rdb.CreateRule(user, snap, app, iface, badPattern, outcome, lifespan, duration, permissions)
+	badConstraints := &common.Constraints{
+		PathPattern: badPattern,
+		Permissions: permissions,
+	}
+	_, err = rdb.CreateRule(user, snap, app, iface, badConstraints, outcome, lifespan, duration)
 	c.Assert(err, Equals, common.ErrInvalidPathPattern)
 
 	// Error while adding rule should cause no notice to be issued
 	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 
 	badOutcome := common.OutcomeType("secret third thing")
-	_, err = rdb.CreateRule(user, snap, app, iface, pathPattern, badOutcome, lifespan, duration, permissions)
+	_, err = rdb.CreateRule(user, snap, app, iface, constraints, badOutcome, lifespan, duration)
 	c.Assert(err, Equals, common.ErrInvalidOutcome)
 
 	// Error while adding rule should cause no notice to be issued
@@ -247,8 +270,12 @@ func (s *requestrulesSuite) TestModifyRule(c *C) {
 		common.PermissionWrite,
 		common.PermissionExecute,
 	}
+	constraints := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: permissions,
+	}
 
-	storedRule, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	storedRule, err := rdb.CreateRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 	c.Assert(rdb.ByID, HasLen, 1)
 
@@ -262,7 +289,11 @@ func (s *requestrulesSuite) TestModifyRule(c *C) {
 	otherPermissions := []common.PermissionType{
 		conflictingPermission,
 	}
-	otherRule, err := rdb.CreateRule(user, snap, app, iface, otherPathPattern, outcome, lifespan, duration, otherPermissions)
+	otherConstraints := &common.Constraints{
+		PathPattern: otherPathPattern,
+		Permissions: otherPermissions,
+	}
+	otherRule, err := rdb.CreateRule(user, snap, app, iface, otherConstraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 	c.Assert(rdb.ByID, HasLen, 2)
 
@@ -271,7 +302,7 @@ func (s *requestrulesSuite) TestModifyRule(c *C) {
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
 	// Check that modifying with the original values results in an identical rule
-	unchangedRule1, err := rdb.ModifyRule(user, storedRule.ID, pathPattern, outcome, lifespan, duration, permissions)
+	unchangedRule1, err := rdb.ModifyRule(user, storedRule.ID, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 	// Timestamp should be different, the rest should be the same
 	unchangedRule1.Timestamp = storedRule.Timestamp
@@ -285,7 +316,7 @@ func (s *requestrulesSuite) TestModifyRule(c *C) {
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
 	// Check that modifying with unset values results in an identical rule
-	unchangedRule2, err := rdb.ModifyRule(user, storedRule.ID, "", common.OutcomeUnset, common.LifespanUnset, "", nil)
+	unchangedRule2, err := rdb.ModifyRule(user, storedRule.ID, nil, common.OutcomeUnset, common.LifespanUnset, "")
 	c.Assert(err, IsNil)
 	// Timestamp should be different, the rest should be the same
 	unchangedRule2.Timestamp = storedRule.Timestamp
@@ -303,7 +334,11 @@ func (s *requestrulesSuite) TestModifyRule(c *C) {
 	newLifespan := common.LifespanTimespan
 	newDuration := "1s"
 	newPermissions := []common.PermissionType{common.PermissionAppend}
-	modifiedRule, err := rdb.ModifyRule(user, storedRule.ID, newPathPattern, newOutcome, newLifespan, newDuration, newPermissions)
+	newConstraints := &common.Constraints{
+		PathPattern: newPathPattern,
+		Permissions: newPermissions,
+	}
+	modifiedRule, err := rdb.ModifyRule(user, storedRule.ID, newConstraints, newOutcome, newLifespan, newDuration)
 	c.Assert(err, IsNil)
 	c.Assert(rdb.ByID, HasLen, 2)
 
@@ -312,7 +347,11 @@ func (s *requestrulesSuite) TestModifyRule(c *C) {
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
 	badPathPattern := "bad/pattern"
-	output, err := rdb.ModifyRule(user, storedRule.ID, badPathPattern, outcome, lifespan, duration, permissions)
+	badConstraints := &common.Constraints{
+		PathPattern: badPathPattern,
+		Permissions: permissions,
+	}
+	output, err := rdb.ModifyRule(user, storedRule.ID, badConstraints, outcome, lifespan, duration)
 	c.Assert(err, Equals, common.ErrInvalidPathPattern)
 	c.Assert(output, IsNil)
 	c.Assert(rdb.ByID, HasLen, 2)
@@ -325,7 +364,11 @@ func (s *requestrulesSuite) TestModifyRule(c *C) {
 	c.Assert(currentRule, DeepEquals, modifiedRule)
 
 	conflictingPermissions := append(newPermissions, conflictingPermission)
-	output, err = rdb.ModifyRule(user, storedRule.ID, newPathPattern, newOutcome, newLifespan, newDuration, conflictingPermissions)
+	conflictingConstraints := &common.Constraints{
+		PathPattern: newPathPattern,
+		Permissions: conflictingPermissions,
+	}
+	output, err = rdb.ModifyRule(user, storedRule.ID, conflictingConstraints, newOutcome, newLifespan, newDuration)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("^%s.*%s.*%s.*", requestrules.ErrPathPatternConflict, otherRule.ID, conflictingPermission))
 	c.Assert(output, IsNil)
 	c.Assert(rdb.ByID, HasLen, 2)
@@ -350,7 +393,7 @@ func (s *requestrulesSuite) TestRuleWithID(c *C) {
 
 	snap := "lxd"
 	app := "lxc"
-	iface := "system-files"
+	iface := "home"
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanForever
@@ -360,8 +403,12 @@ func (s *requestrulesSuite) TestRuleWithID(c *C) {
 		common.PermissionWrite,
 		common.PermissionExecute,
 	}
+	constraints := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: permissions,
+	}
 
-	newRule, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	newRule, err := rdb.CreateRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 	c.Assert(newRule, NotNil)
 
@@ -397,7 +444,7 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
 
 	snap := "lxd"
 	app := "lxc"
-	iface := "system-backup"
+	iface := "home"
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanForever
@@ -407,8 +454,12 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
 		common.PermissionWrite,
 		common.PermissionExecute,
 	}
+	constraints := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: permissions,
+	}
 
-	rule, err := rdb.PopulateNewRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	rule, err := rdb.PopulateNewRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 	rdb.ByID[rule.ID] = rule
 	notifyEveryRule := true
@@ -472,11 +523,19 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	}
 
 	// Create two rules with bad timestamps
-	badTsRule1, err := rdb.PopulateNewRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions[:1])
+	constraints1 := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: copyPermissions(permissions[:1]),
+	}
+	badTsRule1, err := rdb.PopulateNewRule(user, snap, app, iface, constraints1, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 	badTsRule1.Timestamp = "bar"
 	time.Sleep(time.Millisecond)
-	badTsRule2, err := rdb.PopulateNewRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions[:1])
+	constraints2 := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: copyPermissions(permissions[:1]),
+	}
+	badTsRule2, err := rdb.PopulateNewRule(user, snap, app, iface, constraints2, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 	badTsRule2.Timestamp = "baz"
 	rdb.ByID[badTsRule1.ID] = badTsRule1
@@ -498,11 +557,19 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
 	// Create a rule with the earliest timestamp, which will be totally overwritten when attempting to add later
-	earliestRule, err := rdb.PopulateNewRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	earliestConstraints := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: copyPermissions(permissions),
+	}
+	earliestRule, err := rdb.PopulateNewRule(user, snap, app, iface, earliestConstraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	// Create and add a rule which will overwrite the rule with bad timestamp
-	initialRule, err := rdb.PopulateNewRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	initialConstraints := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: copyPermissions(permissions),
+	}
+	initialRule, err := rdb.PopulateNewRule(user, snap, app, iface, initialConstraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 	rdb.ByID[initialRule.ID] = initialRule
 	rdb.RefreshTreeEnforceConsistency(notifyEveryRule)
@@ -513,15 +580,18 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
 	// Check that rule with bad timestamp was overwritten
-	c.Assert(initialRule.Permissions, HasLen, len(permissions))
 	c.Assert(rdb.ByID, HasLen, 1, Commentf("rdb.ByID: %+v", rdb.ByID))
 	initialRuleRet, exists := rdb.ByID[initialRule.ID]
 	c.Assert(exists, Equals, true)
-	c.Assert(initialRuleRet.Permissions, DeepEquals, permissions)
+	c.Assert(initialRuleRet.Constraints.Permissions, DeepEquals, permissions)
 
 	// Create newer rule which will overwrite all but the first permission of initialRule
 	newRulePermissions := permissions[1:]
-	newRule, err := rdb.PopulateNewRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, newRulePermissions)
+	newConstraints := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: copyPermissions(newRulePermissions),
+	}
+	newRule, err := rdb.PopulateNewRule(user, snap, app, iface, newConstraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	rdb.ByID[newRule.ID] = newRule
@@ -541,11 +611,11 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 
 	initialRuleRet, exists = rdb.ByID[initialRule.ID]
 	c.Assert(exists, Equals, true)
-	c.Assert(initialRuleRet.Permissions, DeepEquals, permissions[:1])
+	c.Assert(initialRuleRet.Constraints.Permissions, DeepEquals, permissions[:1])
 
 	newRuleRet, exists := rdb.ByID[newRule.ID]
 	c.Assert(exists, Equals, true)
-	c.Assert(newRuleRet.Permissions, DeepEquals, newRulePermissions, Commentf("newRulePermissions: %+v", newRulePermissions))
+	c.Assert(newRuleRet.Constraints.Permissions, DeepEquals, newRulePermissions, Commentf("newRulePermissions: %+v", newRulePermissions))
 
 	c.Assert(rdb.PerUser, HasLen, 1)
 
@@ -580,6 +650,12 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	}
 }
 
+func copyPermissions(permissions []common.PermissionType) []common.PermissionType {
+	newPermissions := make([]common.PermissionType, len(permissions))
+	copy(newPermissions, permissions)
+	return newPermissions
+}
+
 func (s *requestrulesSuite) TestNewSaveLoad(c *C) {
 	doNotNotifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
 		return nil
@@ -600,11 +676,23 @@ func (s *requestrulesSuite) TestNewSaveLoad(c *C) {
 		common.PermissionExecute,
 	}
 
-	rule1, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions[:1])
+	constraints1 := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: permissions[:1],
+	}
+	rule1, err := rdb.CreateRule(user, snap, app, iface, constraints1, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
-	rule2, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions[1:2])
+	constraints2 := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: permissions[1:2],
+	}
+	rule2, err := rdb.CreateRule(user, snap, app, iface, constraints2, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
-	rule3, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions[2:])
+	constraints3 := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: permissions[2:],
+	}
+	rule3, err := rdb.CreateRule(user, snap, app, iface, constraints3, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	ruleIDs := []string{rule1.ID, rule2.ID, rule3.ID}
@@ -653,7 +741,11 @@ func (s *requestrulesSuite) TestIsPathAllowed(c *C) {
 	}
 
 	for pattern, outcome := range patterns {
-		newRule, err := rdb.CreateRule(user, snap, app, iface, pattern, outcome, lifespan, duration, permissions)
+		newConstraints := &common.Constraints{
+			PathPattern: pattern,
+			Permissions: permissions,
+		}
+		newRule, err := rdb.CreateRule(user, snap, app, iface, newConstraints, outcome, lifespan, duration)
 		c.Assert(err, IsNil)
 
 		c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
@@ -730,7 +822,11 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanSingle
 	duration := ""
-	rule1, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	constraints1 := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: permissions,
+	}
+	rule1, err := rdb.CreateRule(user, snap, app, iface, constraints1, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
@@ -741,7 +837,11 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 	outcome = common.OutcomeDeny
 	lifespan = common.LifespanTimespan
 	duration = "2s"
-	rule2, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	constraints2 := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: permissions,
+	}
+	rule2, err := rdb.CreateRule(user, snap, app, iface, constraints2, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
@@ -752,7 +852,11 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 	outcome = common.OutcomeAllow
 	lifespan = common.LifespanTimespan
 	duration = "1s"
-	rule3, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	constraints3 := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: permissions,
+	}
+	rule3, err := rdb.CreateRule(user, snap, app, iface, constraints3, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
@@ -848,8 +952,12 @@ func (s *requestrulesSuite) TestRulesLookup(c *C) {
 		common.PermissionWrite,
 		common.PermissionExecute,
 	}
+	constraints := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: permissions,
+	}
 
-	rule1, err := rdb.CreateRule(origUser, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	rule1, err := rdb.CreateRule(origUser, snap, app, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	c.Assert(ruleNotices, HasLen, 1, Commentf("ruleNoticeIDs: %+v; rdb.ByID: %+v", ruleNotices, rdb.ByID))
@@ -858,7 +966,7 @@ func (s *requestrulesSuite) TestRulesLookup(c *C) {
 	ruleNotices = ruleNotices[1:]
 
 	user := origUser + 1
-	rule2, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	rule2, err := rdb.CreateRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	c.Assert(ruleNotices, HasLen, 1, Commentf("ruleNoticeIDs: %+v; rdb.ByID: %+v", ruleNotices, rdb.ByID))
@@ -868,7 +976,7 @@ func (s *requestrulesSuite) TestRulesLookup(c *C) {
 
 	snap = "nextcloud"
 	app = "occ"
-	rule3, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	rule3, err := rdb.CreateRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	c.Assert(ruleNotices, HasLen, 1, Commentf("ruleNoticeIDs: %+v; rdb.ByID: %+v", ruleNotices, rdb.ByID))
@@ -876,8 +984,8 @@ func (s *requestrulesSuite) TestRulesLookup(c *C) {
 	c.Check(ruleNotices[0].ruleID, Equals, rule3.ID)
 	ruleNotices = ruleNotices[1:]
 
-	iface = "system-files"
-	rule4, err := rdb.CreateRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	iface = "camera"
+	rule4, err := rdb.CreateRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	c.Assert(ruleNotices, HasLen, 1, Commentf("ruleNoticeIDs: %+v; rdb.ByID: %+v", ruleNotices, rdb.ByID))

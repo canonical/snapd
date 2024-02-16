@@ -359,8 +359,12 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
 	permissions = []common.PermissionType{common.PermissionWrite, common.PermissionRead, common.PermissionAppend}
+	constraints := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: permissions,
+	}
 
-	satisfied, err := pdb.HandleNewRule(user, snap, app, iface, pathPattern, outcome, permissions)
+	satisfied, err := pdb.HandleNewRule(user, snap, app, iface, constraints, outcome)
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 2)
 	c.Check(strutil.ListContains(satisfied, prompt2.ID), Equals, true)
@@ -393,7 +397,11 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 
 	// Check that allowing the final missing permission allows the prompt.
 	permissions = []common.PermissionType{common.PermissionExecute}
-	satisfied, err = pdb.HandleNewRule(user, snap, app, iface, pathPattern, outcome, permissions)
+	constraints = &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: permissions,
+	}
+	satisfied, err = pdb.HandleNewRule(user, snap, app, iface, constraints, outcome)
 
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 1)
@@ -468,9 +476,13 @@ func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeDeny
 	permissions = []common.PermissionType{common.PermissionWrite, common.PermissionRead, common.PermissionAppend}
+	constraints := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: permissions,
+	}
 
 	// If one or more permissions denied each for prompts 1-3, so each is denied
-	satisfied, err := pdb.HandleNewRule(user, snap, app, iface, pathPattern, outcome, permissions)
+	satisfied, err := pdb.HandleNewRule(user, snap, app, iface, constraints, outcome)
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 3)
 	c.Check(strutil.ListContains(satisfied, prompt1.ID), Equals, true)
@@ -547,62 +559,74 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
+	constraints := &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: permissions,
+	}
 
 	otherUser := user + 1
 	otherSnap := "ldx"
 	otherApp := "lxc"
 	otherInterface := "system-files"
 	otherPattern := "/home/test/Pictures/**.png"
+	otherConstraints := &common.Constraints{
+		PathPattern: otherPattern,
+		Permissions: permissions,
+	}
 	badPattern := "\\home\\test\\"
 	badOutcome := common.OutcomeType("foo")
+	badConstraints := &common.Constraints{
+		PathPattern: badPattern,
+		Permissions: permissions,
+	}
 
 	stored := pdb.Prompts(user)
 	c.Assert(stored, HasLen, 1)
 	c.Assert(stored[0], Equals, prompt)
 
-	satisfied, err := pdb.HandleNewRule(otherUser, otherSnap, otherApp, otherInterface, otherPattern, badOutcome, permissions)
+	satisfied, err := pdb.HandleNewRule(otherUser, otherSnap, otherApp, otherInterface, otherConstraints, badOutcome)
 	c.Check(err, Equals, common.ErrInvalidOutcome)
 	c.Check(satisfied, HasLen, 0)
 
 	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = pdb.HandleNewRule(otherUser, otherSnap, otherApp, otherInterface, otherPattern, outcome, permissions)
+	satisfied, err = pdb.HandleNewRule(otherUser, otherSnap, otherApp, otherInterface, otherConstraints, outcome)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
 	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = pdb.HandleNewRule(user, otherSnap, otherApp, otherInterface, otherPattern, outcome, permissions)
+	satisfied, err = pdb.HandleNewRule(user, otherSnap, otherApp, otherInterface, otherConstraints, outcome)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
 	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = pdb.HandleNewRule(user, snap, otherApp, otherInterface, otherPattern, outcome, permissions)
+	satisfied, err = pdb.HandleNewRule(user, snap, otherApp, otherInterface, otherConstraints, outcome)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
 	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = pdb.HandleNewRule(user, snap, app, otherInterface, otherPattern, outcome, permissions)
+	satisfied, err = pdb.HandleNewRule(user, snap, app, otherInterface, otherConstraints, outcome)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
 	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = pdb.HandleNewRule(user, snap, app, iface, otherPattern, outcome, permissions)
+	satisfied, err = pdb.HandleNewRule(user, snap, app, iface, otherConstraints, outcome)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
 	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = pdb.HandleNewRule(user, snap, app, iface, badPattern, outcome, permissions)
+	satisfied, err = pdb.HandleNewRule(user, snap, app, iface, badConstraints, outcome)
 	c.Check(err, ErrorMatches, "syntax error in pattern")
 	c.Check(satisfied, HasLen, 0)
 
 	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = pdb.HandleNewRule(user, snap, app, iface, pathPattern, outcome, permissions)
+	satisfied, err = pdb.HandleNewRule(user, snap, app, iface, constraints, outcome)
 	c.Check(err, IsNil)
 	c.Assert(satisfied, HasLen, 1)
 

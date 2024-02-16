@@ -162,7 +162,7 @@ func (p *Prompting) handleListenerReq(req *listener.Request) error {
 		// some permission bits were unrecognized, ignore them
 	}
 
-	satisfiedPerms := make([]common.PermissionType, 0, len(permissions))
+	remainingPerms := make([]common.PermissionType, 0, len(permissions))
 	for _, perm := range permissions {
 		if yesNo, err := p.rules.IsPathAllowed(userID, snap, app, iface, path, perm); err == nil {
 			if !yesNo {
@@ -172,10 +172,12 @@ func (p *Prompting) handleListenerReq(req *listener.Request) error {
 				// the others?
 				return req.Reply(false)
 			}
-			satisfiedPerms = append(satisfiedPerms, perm)
+		} else {
+			// No matching rule found
+			remainingPerms = append(remainingPerms, perm)
 		}
 	}
-	if len(satisfiedPerms) == len(permissions) {
+	if len(remainingPerms) == 0 {
 		logger.Noticef("request allowed by existing rule: %+v", req)
 		return req.Reply(true)
 	}
@@ -213,18 +215,39 @@ func (p *Prompting) GetPrompt(userID uint32, promptID string) (*requestprompts.P
 }
 
 type PromptReply struct {
-	Outcome     common.OutcomeType      `json:"action"`
-	Lifespan    common.LifespanType     `json:"lifespan"`
-	Duration    string                  `json:"duration,omitempty"`
-	PathPattern string                  `json:"path-pattern"`
-	Permissions []common.PermissionType `json:"permissions"`
+	Outcome     common.OutcomeType  `json:"action"`
+	Lifespan    common.LifespanType `json:"lifespan"`
+	Duration    string              `json:"duration,omitempty"`
+	Constraints *common.Constraints `json:"constraints"`
 }
 
 func (p *Prompting) PostPrompt(userID uint32, promptID string, reply *PromptReply) ([]string, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
-	prompt, err := p.prompts.Reply(userID, promptID, reply.Outcome)
+	prompt, err := p.prompts.PromptWithID(userID, promptID)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := common.ValidateConstraintsOutcomeLifespanDuration(prompt.Interface, reply.Constraints, reply.Outcome, reply.Lifespan, reply.Duration); err != nil {
+		return nil, err
+	}
+
+	// Check that reply.Constraints matches original requested path.
+	// AppArmor is responsible for pre-vetting that all paths which appear
+	// in requests from the kernel are allowed by the appropriate
+	// interfaces, so we do not assert anything else particular about the
+	// reply.Constraints.
+	// TODO: Should this be reconsidered?
+	matches, err := reply.Constraints.Match(prompt.Constraints.Path)
+	if err != nil {
+		return nil, err
+	}
+	if !matches {
+		return nil, fmt.Errorf("constraints in reply do not match original request: '%v' does not match '%v'; skipping rule generation", reply.Constraints, prompt.Constraints)
+	}
+
+	prompt, err = p.prompts.Reply(userID, promptID, reply.Outcome)
 	if err != nil {
 		return nil, err
 	}
@@ -233,25 +256,11 @@ func (p *Prompting) PostPrompt(userID uint32, promptID string, reply *PromptRepl
 		return make([]string, 0), nil
 	}
 
-	// Check that reply.PathPattern contains original requested path.
-	// AppArmor is responsible for pre-vetting that all paths which appear
-	// in requests from the kernel are allowed by the appropriate
-	// interfaces, so we do not assert anything else particular about the
-	// reply.PathPattern.
-	// TODO: Should this be reconsidered?
-	matches, err := prompt.Constraints.Matches(reply.PathPattern)
-	if err != nil {
-		return nil, err
-	}
-	if !matches {
-		return nil, fmt.Errorf("path pattern in reply does not match originally requested path: '%s' does not match '%v'; skipping rule generation", reply.PathPattern, prompt.Constraints)
-	}
-
 	// Create new rule based on the reply.
-	newRule, err := p.rules.CreateRule(userID, prompt.Snap, prompt.App, prompt.Interface, reply.PathPattern, reply.Outcome, reply.Lifespan, reply.Duration, reply.Permissions)
+	newRule, err := p.rules.CreateRule(userID, prompt.Snap, prompt.App, prompt.Interface, reply.Constraints, reply.Outcome, reply.Lifespan, reply.Duration)
 	if err != nil {
-		// XXX: should only occur if identical path to an existing rule with
-		// overlapping permissions
+		// XXX: should only occur if identical constraints to an existing rule
+		// with overlapping permissions
 		// TODO: extract conflicting permissions, retry CreateRule with
 		// conflicting permissions removed
 		// TODO: what to do if new reply has different Outcome from previous
@@ -262,7 +271,7 @@ func (p *Prompting) PostPrompt(userID uint32, promptID string, reply *PromptRepl
 	}
 
 	// Apply new rule to outstanding prompts.
-	satisfiedPromptIDs, err := p.prompts.HandleNewRule(userID, newRule.Snap, newRule.App, newRule.Interface, newRule.PathPattern, newRule.Outcome, newRule.Permissions)
+	satisfiedPromptIDs, err := p.prompts.HandleNewRule(userID, newRule.Snap, newRule.App, newRule.Interface, newRule.Constraints, newRule.Outcome)
 	if err != nil {
 		return nil, err
 	}
@@ -271,14 +280,13 @@ func (p *Prompting) PostPrompt(userID uint32, promptID string, reply *PromptRepl
 }
 
 type PostRulesCreateRuleContents struct {
-	Snap        string                  `json:"snap"`
-	App         string                  `json:"app"`
-	Interface   string                  `json:"interface"`
-	PathPattern string                  `json:"path-pattern"`
-	Outcome     common.OutcomeType      `json:"outcome"`
-	Lifespan    common.LifespanType     `json:"lifespan"`
-	Duration    string                  `json:"duration,omitempty"`
-	Permissions []common.PermissionType `json:"permissions"`
+	Snap        string              `json:"snap"`
+	App         string              `json:"app"`
+	Interface   string              `json:"interface"`
+	Constraints *common.Constraints `json:"constraints"`
+	Outcome     common.OutcomeType  `json:"outcome"`
+	Lifespan    common.LifespanType `json:"lifespan"`
+	Duration    string              `json:"duration,omitempty"`
 }
 
 type PostRulesRemoveSelectors struct {
@@ -294,11 +302,10 @@ type PostRulesRequestBody struct {
 }
 
 type PostRuleModifyRuleContents struct {
-	PathPattern string                  `json:"path-pattern,omitempty"`
-	Outcome     common.OutcomeType      `json:"outcome,omitempty"`
-	Lifespan    common.LifespanType     `json:"lifespan,omitempty"`
-	Duration    string                  `json:"duration,omitempty"`
-	Permissions []common.PermissionType `json:"permissions,omitempty"`
+	Constraints *common.Constraints `json:"constraints,omitempty"`
+	Outcome     common.OutcomeType  `json:"outcome,omitempty"`
+	Lifespan    common.LifespanType `json:"lifespan,omitempty"`
+	Duration    string              `json:"duration,omitempty"`
 }
 
 type PostRuleRequestBody struct {
@@ -341,12 +348,11 @@ func (p *Prompting) PostRulesCreate(userID uint32, rules []*PostRulesCreateRuleC
 		snap := ruleContents.Snap
 		app := ruleContents.App
 		iface := ruleContents.Interface
-		pathPattern := ruleContents.PathPattern
+		constraints := ruleContents.Constraints
 		outcome := ruleContents.Outcome
 		lifespan := ruleContents.Lifespan
 		duration := ruleContents.Duration
-		permissions := ruleContents.Permissions
-		newRule, err := p.rules.CreateRule(userID, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+		newRule, err := p.rules.CreateRule(userID, snap, app, iface, constraints, outcome, lifespan, duration)
 		if err != nil {
 			errors = append(errors, err)
 			continue
@@ -354,7 +360,7 @@ func (p *Prompting) PostRulesCreate(userID uint32, rules []*PostRulesCreateRuleC
 		createdRules = append(createdRules, newRule)
 		// Apply new rule to outstanding prompts. If error occurs,
 		// include it in the list of errors from creating rules.
-		if _, err := p.prompts.HandleNewRule(userID, newRule.Snap, newRule.App, newRule.Interface, newRule.PathPattern, newRule.Outcome, newRule.Permissions); err != nil {
+		if _, err := p.prompts.HandleNewRule(userID, newRule.Snap, newRule.App, newRule.Interface, newRule.Constraints, newRule.Outcome); err != nil {
 			errors = append(errors, err)
 		}
 	}
@@ -413,12 +419,11 @@ func (p *Prompting) PostRuleModify(userID uint32, ruleID string, contents *PostR
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
-	pathPattern := contents.PathPattern
+	constraints := contents.Constraints
 	outcome := contents.Outcome
 	lifespan := contents.Lifespan
 	duration := contents.Duration
-	permissions := contents.Permissions
-	rule, err := p.rules.ModifyRule(userID, ruleID, pathPattern, outcome, lifespan, duration, permissions)
+	rule, err := p.rules.ModifyRule(userID, ruleID, constraints, outcome, lifespan, duration)
 	return rule, err
 }
 

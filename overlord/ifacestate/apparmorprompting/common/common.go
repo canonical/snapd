@@ -26,6 +26,45 @@ var ErrInvalidDurationNegative = errors.New("invalid duration: duration must be 
 var ErrNoPatterns = errors.New("no patterns given, cannot establish precedence")
 var ErrUnrecognizedFilePermission = errors.New("file permissions mask contains unrecognized permission")
 
+type Constraints struct {
+	PathPattern string           `json:"path-pattern"`
+	Permissions []PermissionType `json:"permissions"`
+}
+
+func (constraints *Constraints) ValidateForInterface(iface string) error {
+	switch iface {
+	case "home", "camera":
+	default:
+		return fmt.Errorf("constraints incompatible with the given interface: %s", iface)
+	}
+	return ValidatePathPattern(constraints.PathPattern)
+}
+
+func (constraints *Constraints) Match(path string) (bool, error) {
+	return PathPatternMatches(constraints.PathPattern, path)
+}
+
+// Removes the given permission from the permissions associated with the
+// constraints. Assumes that the permission occurs at most once in the list.
+// If the permission does not exist in the list, returns ErrPermissionNotInList.
+func (constraints *Constraints) RemovePermission(permission PermissionType) error {
+	origLen := len(constraints.Permissions)
+	i := 0
+	for i < len(constraints.Permissions) {
+		perm := constraints.Permissions[i]
+		if perm != permission {
+			i++
+			continue
+		}
+		copy(constraints.Permissions[i:], constraints.Permissions[i+1:])
+		constraints.Permissions = constraints.Permissions[:len(constraints.Permissions)-1]
+	}
+	if origLen == len(constraints.Permissions) {
+		return ErrPermissionNotInList
+	}
+	return nil
+}
+
 type OutcomeType string
 
 const (
@@ -33,6 +72,17 @@ const (
 	OutcomeAllow OutcomeType = "allow"
 	OutcomeDeny  OutcomeType = "deny"
 )
+
+func (outcome OutcomeType) AsBool() (bool, error) {
+	switch outcome {
+	case OutcomeAllow:
+		return true, nil
+	case OutcomeDeny:
+		return false, nil
+	default:
+		return false, ErrInvalidOutcome
+	}
+}
 
 type LifespanType string
 
@@ -253,29 +303,6 @@ func PermissionsListContains(list []PermissionType, permission PermissionType) b
 	return false
 }
 
-// Removes the given permission from the given list of permissions.
-// Returns a new list with all instances of the given permission removed.
-// If the given permission is not found in the list, returns an error, along
-// with the original list.
-func RemovePermissionFromList(list []PermissionType, permission PermissionType) ([]PermissionType, error) {
-	if len(list) == 0 {
-		return list, ErrPermissionNotInList
-	}
-	newList := make([]PermissionType, 0, len(list)-1)
-	found := false
-	for _, perm := range list {
-		if perm == permission {
-			found = true
-			continue
-		}
-		newList = append(newList, perm)
-	}
-	if !found {
-		return list, ErrPermissionNotInList
-	}
-	return newList, nil
-}
-
 var allowablePathPatternRegexp = regexp.MustCompile(`^(/|(/[^/*{}]+)*(/\*|(/\*\*)?(/\*\.[^/*{}]+)?)?)$`)
 
 // Checks that the given path pattern is valid.  Returns nil if so, otherwise
@@ -324,8 +351,23 @@ func ValidateLifespanParseDuration(lifespan LifespanType, duration string) (stri
 			return "", ErrInvalidDurationNegative
 		}
 		expirationString = time.Now().Add(parsedDuration).Format(time.RFC3339)
+	default:
+		return "", ErrInvalidLifespan
 	}
 	return expirationString, nil
+}
+
+// Ensures that the given constraints, outcome, lifespan, and duration are valid
+// for the given interface. If not, returns an error. Additionally, converts the
+// given duration to an expiration timestamp.
+func ValidateConstraintsOutcomeLifespanDuration(iface string, constraints *Constraints, outcome OutcomeType, lifespan LifespanType, duration string) (string, error) {
+	if err := constraints.ValidateForInterface(iface); err != nil {
+		return "", err
+	}
+	if err := ValidateOutcome(outcome); err != nil {
+		return "", err
+	}
+	return ValidateLifespanParseDuration(lifespan, duration)
 }
 
 // Determines which of the path patterns in the given patterns list is the

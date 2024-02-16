@@ -34,11 +34,6 @@ func (pc *promptConstraints) Equals(other *promptConstraints) bool {
 	return pc.Path == other.Path && reflect.DeepEqual(pc.Permissions, other.Permissions)
 }
 
-func (pc *promptConstraints) Matches(pathPattern string) (bool, error) {
-	// Only possible error is ErrBadPattern
-	return common.PathPatternMatches(pathPattern, pc.Path)
-}
-
 func (pc *promptConstraints) subtractPermissions(permissions []common.PermissionType) bool {
 	modified := false
 	newPermissions := make([]common.PermissionType, 0, len(pc.Permissions))
@@ -161,14 +156,9 @@ func (pdb *PromptDB) Reply(user uint32, id string, outcome common.OutcomeType) (
 	if !exists {
 		return nil, ErrPromptIDNotFound
 	}
-	var outcomeBool bool
-	switch outcome {
-	case common.OutcomeAllow:
-		outcomeBool = true
-	case common.OutcomeDeny:
-		outcomeBool = false
-	default:
-		return nil, common.ErrInvalidOutcome
+	outcomeBool, err := outcome.AsBool()
+	if err != nil {
+		return nil, err
 	}
 	for _, listenerReq := range prompt.listenerReqs {
 		if err := sendReply(listenerReq, outcomeBool); err != nil {
@@ -186,17 +176,12 @@ var sendReply = func(listenerReq *listener.Request, reply interface{}) error {
 
 // If any existing prompts are satisfied by the given rule, send the decision
 // along their respective channels, and return their IDs.
-func (pdb *PromptDB) HandleNewRule(user uint32, snap string, app string, iface string, pathPattern string, outcome common.OutcomeType, permissions []common.PermissionType) ([]string, error) {
+func (pdb *PromptDB) HandleNewRule(user uint32, snap string, app string, iface string, constraints *common.Constraints, outcome common.OutcomeType) ([]string, error) {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
-	var outcomeBool bool
-	switch outcome {
-	case common.OutcomeAllow:
-		outcomeBool = true
-	case common.OutcomeDeny:
-		outcomeBool = false
-	default:
-		return nil, common.ErrInvalidOutcome
+	outcomeBool, err := outcome.AsBool()
+	if err != nil {
+		return nil, err
 	}
 	var satisfiedPromptIDs []string
 	userEntry, exists := pdb.PerUser[user]
@@ -207,14 +192,14 @@ func (pdb *PromptDB) HandleNewRule(user uint32, snap string, app string, iface s
 		if !(prompt.Snap == snap && prompt.App == app && prompt.Interface == iface) {
 			continue
 		}
-		matched, err := prompt.Constraints.Matches(pathPattern)
+		matched, err := constraints.Match(prompt.Constraints.Path)
 		if err != nil {
 			return nil, err
 		}
 		if !matched {
 			continue
 		}
-		modified := prompt.Constraints.subtractPermissions(permissions)
+		modified := prompt.Constraints.subtractPermissions(constraints.Permissions)
 		if !modified {
 			continue
 		}
@@ -222,7 +207,7 @@ func (pdb *PromptDB) HandleNewRule(user uint32, snap string, app string, iface s
 		if len(prompt.Constraints.Permissions) > 0 && outcomeBool == true {
 			continue
 		}
-		// all permissions of prompt satisfied, or any permission denied
+		// All permissions of prompt satisfied, or any permission denied
 		for _, listenerReq := range prompt.listenerReqs {
 			sendReply(listenerReq, outcomeBool)
 		}

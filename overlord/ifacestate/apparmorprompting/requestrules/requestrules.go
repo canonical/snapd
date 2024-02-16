@@ -26,26 +26,23 @@ var ErrNoMatchingRule = errors.New("no rules match the given path")
 var ErrUserNotAllowed = errors.New("the given user is not allowed to request the rule with the given ID")
 
 type Rule struct {
-	ID          string                  `json:"id"`
-	Timestamp   string                  `json:"timestamp"`
-	User        uint32                  `json:"user"`
-	Snap        string                  `json:"snap"`
-	App         string                  `json:"app"`
-	Interface   string                  `json:"interface"`
-	PathPattern string                  `json:"path-pattern"`
-	Outcome     common.OutcomeType      `json:"outcome"`
-	Lifespan    common.LifespanType     `json:"lifespan"`
-	Expiration  string                  `json:"expiration"`
-	Permissions []common.PermissionType `json:"permissions"`
+	ID          string              `json:"id"`
+	Timestamp   string              `json:"timestamp"`
+	User        uint32              `json:"user"`
+	Snap        string              `json:"snap"`
+	App         string              `json:"app"`
+	Interface   string              `json:"interface"`
+	Constraints *common.Constraints `json:"constraints"`
+	Outcome     common.OutcomeType  `json:"outcome"`
+	Lifespan    common.LifespanType `json:"lifespan"`
+	Expiration  string              `json:"expiration"`
 }
 
-func (rule *Rule) removePermissionFromPermissionsList(permission common.PermissionType) error {
-	newList, err := common.RemovePermissionFromList(rule.Permissions, permission)
-	if err != nil {
+func (rule *Rule) removePermission(permission common.PermissionType) error {
+	if err := rule.Constraints.RemovePermission(permission); err != nil {
 		return err
 	}
-	rule.Permissions = newList
-	if len(newList) == 0 {
+	if len(rule.Constraints.Permissions) == 0 {
 		return ErrPermissionsEmpty
 	}
 	return nil
@@ -160,7 +157,7 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission common.Permiss
 	// If there is a conflicting path pattern from another rule, returns an
 	// error along with the ID of the conflicting rule.
 	permPaths := rdb.permissionDBForUserSnapAppInterfacePermission(rule.User, rule.Snap, rule.App, rule.Interface, permission)
-	pathPattern := rule.PathPattern
+	pathPattern := rule.Constraints.PathPattern
 	if id, exists := permPaths.PathRules[pathPattern]; exists {
 		return ErrPathPatternConflict, id
 	}
@@ -170,7 +167,7 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission common.Permiss
 
 func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission common.PermissionType) error {
 	permPaths := rdb.permissionDBForUserSnapAppInterfacePermission(rule.User, rule.Snap, rule.App, rule.Interface, permission)
-	pathPattern := rule.PathPattern
+	pathPattern := rule.Constraints.PathPattern
 	id, exists := permPaths.PathRules[pathPattern]
 	if !exists {
 		// Database was left inconsistent, should not occur
@@ -188,8 +185,8 @@ func (rdb *RuleDB) addRuleToTree(rule *Rule) (error, string, common.PermissionTy
 	// If there is a conflicting path pattern from another rule, returns an
 	// error along with the ID of the conflicting rule and the permission for
 	// which the conflict occurred
-	addedPermissions := make([]common.PermissionType, 0, len(rule.Permissions))
-	for _, permission := range rule.Permissions {
+	addedPermissions := make([]common.PermissionType, 0, len(rule.Constraints.Permissions))
+	for _, permission := range rule.Constraints.Permissions {
 		if err, conflictingID := rdb.addRulePermissionToTree(rule, permission); err != nil {
 			for _, prevPerm := range addedPermissions {
 				rdb.removeRulePermissionFromTree(rule, prevPerm)
@@ -204,7 +201,7 @@ func (rdb *RuleDB) addRuleToTree(rule *Rule) (error, string, common.PermissionTy
 func (rdb *RuleDB) removeRuleFromTree(rule *Rule) error {
 	// Fully removes the rule from the tree, even if an error occurs
 	var err error
-	for _, permission := range rule.Permissions {
+	for _, permission := range rule.Constraints.Permissions {
 		if e := rdb.removeRulePermissionFromTree(rule, permission); e != nil {
 			// Database was left inconsistent, should not occur.
 			// Store the most recent non-nil error, but keep removing.
@@ -288,17 +285,17 @@ func (rdb *RuleDB) RefreshTreeEnforceConsistency(notifyEveryRule bool) {
 			conflictingRule := rdb.ByID[conflictingID] // must exist
 			if getNewerRule(id, rule.Timestamp, conflictingID, conflictingRule.Timestamp) == id {
 				rdb.removeRulePermissionFromTree(conflictingRule, conflictingPermission) // must return nil
-				if conflictingRule.removePermissionFromPermissionsList(conflictingPermission) == ErrPermissionsEmpty {
+				if conflictingRule.removePermission(conflictingPermission) == ErrPermissionsEmpty {
 					delete(newByID, conflictingID)
 				}
 				modifiedUserRuleIDs[conflictingRule.User][conflictingID] = true
 			} else {
-				rule.removePermissionFromPermissionsList(conflictingPermission) // ignore error
+				rule.removePermission(conflictingPermission) // ignore error
 				modifiedUserRuleIDs[rule.User][id] = true
 			}
 			needToSave = true
 		}
-		if len(rule.Permissions) > 0 {
+		if len(rule.Constraints.Permissions) > 0 {
 			newByID[id] = rule
 		} else {
 			needToSave = true
@@ -346,16 +343,6 @@ func (rdb *RuleDB) save() error {
 	return osutil.AtomicWriteFile(target, b, 0600, 0)
 }
 
-func validatePatternOutcomeLifespanDuration(pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration string) (string, error) {
-	if err := common.ValidatePathPattern(pathPattern); err != nil {
-		return "", err
-	}
-	if err := common.ValidateOutcome(outcome); err != nil {
-		return "", err
-	}
-	return common.ValidateLifespanParseDuration(lifespan, duration)
-}
-
 // TODO: unexport (probably, avoid confusion with CreateRule)
 // Users of requestrules should probably autofill rules from JSON and never call
 // this function directly.
@@ -365,14 +352,11 @@ func validatePatternOutcomeLifespanDuration(pathPattern string, outcome common.O
 // time, to compute the expiration time for the rule, and stores that as part
 // of the rule which is returned. If any of the given parameters are invalid,
 // returns a corresponding error.
-func (rdb *RuleDB) PopulateNewRule(user uint32, snap string, app string, iface string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration string, permissions []common.PermissionType) (*Rule, error) {
-	pathPattern = common.StripTrailingSlashes(pathPattern)
-	expiration, err := validatePatternOutcomeLifespanDuration(pathPattern, outcome, lifespan, duration)
+func (rdb *RuleDB) PopulateNewRule(user uint32, snap string, app string, iface string, constraints *common.Constraints, outcome common.OutcomeType, lifespan common.LifespanType, duration string) (*Rule, error) {
+	expiration, err := common.ValidateConstraintsOutcomeLifespanDuration(iface, constraints, outcome, lifespan, duration)
 	if err != nil {
 		return nil, err
 	}
-	newPermissions := make([]common.PermissionType, len(permissions))
-	copy(newPermissions, permissions)
 	id, timestamp := common.NewIDAndTimestamp()
 	newRule := Rule{
 		ID:          id,
@@ -381,11 +365,10 @@ func (rdb *RuleDB) PopulateNewRule(user uint32, snap string, app string, iface s
 		Snap:        snap,
 		App:         app,
 		Interface:   iface,
-		PathPattern: pathPattern,
+		Constraints: constraints,
 		Outcome:     outcome,
 		Lifespan:    lifespan,
 		Expiration:  expiration,
-		Permissions: newPermissions,
 	}
 	return &newRule, nil
 }
@@ -427,7 +410,7 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, app string, iface str
 			rdb.notifyRule(user, id, nil)
 			continue
 		}
-		matched, err := common.PathPatternMatches(pathPattern, path)
+		matched, err := matchingRule.Constraints.Match(path)
 		if err != nil {
 			// Only possible error is ErrBadPattern, which should not occur
 			return false, err
@@ -489,11 +472,10 @@ func (rdb *RuleDB) RuleWithID(user uint32, id string) (*Rule, error) {
 // Creates a rule with the given information and adds it to the rule database.
 // If any of the given parameters are invalid, returns an error. Otherwise,
 // returns the newly-created rule, and saves the database to disk.
-func (rdb *RuleDB) CreateRule(user uint32, snap string, app string, iface string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration string, permissions []common.PermissionType) (*Rule, error) {
+func (rdb *RuleDB) CreateRule(user uint32, snap string, app string, iface string, constraints *common.Constraints, outcome common.OutcomeType, lifespan common.LifespanType, duration string) (*Rule, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
-	pathPattern = common.StripTrailingSlashes(pathPattern)
-	newRule, err := rdb.PopulateNewRule(user, snap, app, iface, pathPattern, outcome, lifespan, duration, permissions)
+	newRule, err := rdb.PopulateNewRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
 	if err != nil {
 		return nil, err
 	}
@@ -533,38 +515,40 @@ func (rdb *RuleDB) RemoveRule(user uint32, id string) (*Rule, error) {
 // time. If there is any error while adding the modified rule to the database,
 // rolls back to the previous unmodified rule, leaving the databse unchanged.
 // If the database is changed, it is saved to disk.
-func (rdb *RuleDB) ModifyRule(user uint32, id string, pathPattern string, outcome common.OutcomeType, lifespan common.LifespanType, duration string, permissions []common.PermissionType) (*Rule, error) {
+func (rdb *RuleDB) ModifyRule(user uint32, id string, constraints *common.Constraints, outcome common.OutcomeType, lifespan common.LifespanType, duration string) (*Rule, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
+	changeOccurred := false
+	defer func() {
+		if changeOccurred {
+			rdb.save()
+			rdb.notifyRule(user, id, nil)
+		}
+	}()
 	origRule, err := rdb.ruleWithIDInternal(user, id)
 	if err != nil {
 		return nil, err
 	}
-	if pathPattern == "" {
-		pathPattern = origRule.PathPattern
+	if constraints == nil {
+		constraints = origRule.Constraints
 	}
-	pathPattern = common.StripTrailingSlashes(pathPattern)
 	if outcome == common.OutcomeUnset {
 		outcome = origRule.Outcome
 	}
 	if lifespan == common.LifespanUnset {
 		lifespan = origRule.Lifespan
 	}
-	if permissions == nil || len(permissions) == 0 {
-		// Treat empty permissions list as leave permissions unchanged
-		// since go has little distinction between nil and empty list.
-		permissions = origRule.Permissions
-	}
 	if err = rdb.removeRuleFromTree(origRule); err != nil {
 		// If error occurs, rule is fully removed from tree
-		rdb.notifyRule(user, id, nil)
+		changeOccurred = true
 		return nil, err
 	}
-	newRule, err := rdb.PopulateNewRule(user, origRule.Snap, origRule.App, origRule.Interface, pathPattern, outcome, lifespan, duration, permissions)
+	newRule, err := rdb.PopulateNewRule(user, origRule.Snap, origRule.App, origRule.Interface, constraints, outcome, lifespan, duration)
 	if err != nil {
 		rdb.addRuleToTree(origRule) // ignore any new error
 		// origRule was successfully removed before, so it should now be able
 		// to be successfully re-added without error, and all is unchanged.
+		changeOccurred = false
 		return nil, err
 	}
 	newRule.ID = origRule.ID
@@ -573,11 +557,11 @@ func (rdb *RuleDB) ModifyRule(user uint32, id string, pathPattern string, outcom
 		rdb.addRuleToTree(origRule) // ignore any new error
 		// origRule was successfully removed before, so it should now be able
 		// to be successfully re-added without error, and all is unchanged.
+		changeOccurred = false
 		return nil, fmt.Errorf("%s: ID: '%s', Permission: '%s'", err, conflictingID, conflictingPermission)
 	}
 	rdb.ByID[newRule.ID] = newRule
-	rdb.save()
-	rdb.notifyRule(user, id, nil)
+	changeOccurred = true
 	return newRule, nil
 }
 

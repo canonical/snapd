@@ -26,6 +26,203 @@ func (s *commonSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(s.tmpdir)
 }
 
+func (s *commonSuite) TestConstraintsValidateForInterface(c *C) {
+	goodConstraints := &common.Constraints{
+		PathPattern: "/path/to/foo",
+		Permissions: []common.PermissionType{common.PermissionRead},
+	}
+	badConstraints := &common.Constraints{
+		PathPattern: "bad\\pattern",
+		Permissions: []common.PermissionType{common.PermissionRead},
+	}
+	goodInterface := "home"
+	badInterface := "foo"
+
+	c.Check(goodConstraints.ValidateForInterface(goodInterface), IsNil)
+	c.Check(goodConstraints.ValidateForInterface(badInterface), NotNil)
+	c.Check(badConstraints.ValidateForInterface(goodInterface), Equals, common.ErrInvalidPathPattern)
+}
+
+func (*commonSuite) TestConstraintsMatch(c *C) {
+	cases := []struct {
+		pattern string
+		path    string
+		matches bool
+	}{
+		{
+			"/home/test/Documents/foo.txt",
+			"/home/test/Documents/foo.txt",
+			true,
+		},
+		{
+			"/home/test/Documents/foo",
+			"/home/test/Documents/foo.txt",
+			false,
+		},
+		{
+			"/home/test/Documents",
+			"/home/test/Documents",
+			true,
+		},
+		{
+			"/home/test/Documents/*",
+			"/home/test/Documents",
+			true,
+		},
+		{
+			"/home/test/Documents/**",
+			"/home/test/Documents",
+			true,
+		},
+		{
+			"/home/test/Documents/*",
+			"/home/test/Documents/foo.txt",
+			true,
+		},
+		{
+			"/home/test/Documents/**",
+			"/home/test/Documents/foo.txt",
+			true,
+		},
+		{
+			"/home/test/Documents/**/*.txt",
+			"/home/test/Documents/foo.txt",
+			true,
+		},
+		{
+			"/home/test/Documents/**/*.txt",
+			"/home/test/Documents/foo/bar.tar.gz",
+			false,
+		},
+		{
+			"/home/test/Documents/**",
+			"/home/test/Documents/foo/bar.tar.gz",
+			true,
+		},
+		{
+			"/home/test/Documents/**/*.gz",
+			"/home/test/Documents/foo/bar.tar.gz",
+			true,
+		},
+		{
+			"/home/test/Documents/**/*.tar.gz",
+			"/home/test/Documents/foo/bar.tar.gz",
+			true,
+		},
+		{
+			"/home/test/Documents/*.tar.gz",
+			"/home/test/Documents/foo/bar.tar.gz",
+			false,
+		},
+		{
+			"/home/test/Documents/*",
+			"/home/test/Documents/foo/bar.tar.gz",
+			false,
+		},
+		{
+			"/home/test/**",
+			"/home/test/Documents/foo/bar.tar.gz",
+			true,
+		},
+		{
+			"/home/test/*",
+			"/home/test/Documents/foo/bar.tar.gz",
+			false,
+		},
+		{
+			"/home/test/**/*.tar.gz",
+			"/home/test/Documents/foo/bar.tar.gz",
+			true,
+		},
+		{
+			"/home/test/**/*.gz",
+			"/home/test/Documents/foo/bar.tar.gz",
+			true,
+		},
+		{
+			"/home/test/**/*.txt",
+			"/home/test/Documents/foo/bar.tar.gz",
+			false,
+		},
+	}
+	for _, testCase := range cases {
+		constraints := &common.Constraints{
+			PathPattern: testCase.pattern,
+			Permissions: []common.PermissionType{common.PermissionRead},
+		}
+		result, err := constraints.Match(testCase.path)
+		c.Check(err, IsNil, Commentf("test case: %+v", testCase))
+		c.Check(result, Equals, testCase.matches, Commentf("test case: %+v", testCase))
+	}
+}
+
+func (s *commonSuite) TestConstraintsRemovePermission(c *C) {
+	cases := []struct {
+		initial []common.PermissionType
+		remove  common.PermissionType
+		final   []common.PermissionType
+		err     error
+	}{
+		{
+			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
+			common.PermissionRead,
+			[]common.PermissionType{common.PermissionWrite, common.PermissionExecute},
+			nil,
+		},
+		{
+			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
+			common.PermissionWrite,
+			[]common.PermissionType{common.PermissionRead, common.PermissionExecute},
+			nil,
+		},
+		{
+			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
+			common.PermissionExecute,
+			[]common.PermissionType{common.PermissionRead, common.PermissionWrite},
+			nil,
+		},
+		{
+			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionRead},
+			common.PermissionRead,
+			[]common.PermissionType{common.PermissionWrite},
+			nil,
+		},
+		{
+			[]common.PermissionType{common.PermissionRead},
+			common.PermissionRead,
+			[]common.PermissionType{},
+			nil,
+		},
+		{
+			[]common.PermissionType{common.PermissionRead, common.PermissionRead},
+			common.PermissionRead,
+			[]common.PermissionType{},
+			nil,
+		},
+		{
+			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
+			common.PermissionAppend,
+			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
+			common.ErrPermissionNotInList,
+		},
+		{
+			[]common.PermissionType{},
+			common.PermissionRead,
+			[]common.PermissionType{},
+			common.ErrPermissionNotInList,
+		},
+	}
+	for _, testCase := range cases {
+		constraints := &common.Constraints{
+			PathPattern: "/path/to/foo",
+			Permissions: testCase.initial,
+		}
+		err := constraints.RemovePermission(testCase.remove)
+		c.Check(err, Equals, testCase.err)
+		c.Check(constraints.Permissions, DeepEquals, testCase.final)
+	}
+}
+
 func (s *commonSuite) TestTimestamps(c *C) {
 	before := time.Now()
 	ts := common.CurrentTimestamp()
@@ -260,61 +457,17 @@ func (s *commonSuite) TestPermissionsListContains(c *C) {
 	}
 }
 
-func (s *commonSuite) TestRemovePermissionFromList(c *C) {
-	cases := []struct {
-		initial []common.PermissionType
-		remove  common.PermissionType
-		final   []common.PermissionType
-		err     error
-	}{
-		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
-			common.PermissionRead,
-			[]common.PermissionType{common.PermissionWrite, common.PermissionExecute},
-			nil,
-		},
-		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
-			common.PermissionWrite,
-			[]common.PermissionType{common.PermissionRead, common.PermissionExecute},
-			nil,
-		},
-		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
-			common.PermissionExecute,
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite},
-			nil,
-		},
-		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionRead},
-			common.PermissionRead,
-			[]common.PermissionType{common.PermissionWrite},
-			nil,
-		},
-		{
-			[]common.PermissionType{common.PermissionRead},
-			common.PermissionRead,
-			[]common.PermissionType{},
-			nil,
-		},
-		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionRead},
-			common.PermissionRead,
-			[]common.PermissionType{},
-			nil,
-		},
-		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
-			common.PermissionAppend,
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
-			common.ErrPermissionNotInList,
-		},
-	}
-	for _, testCase := range cases {
-		result, err := common.RemovePermissionFromList(testCase.initial, testCase.remove)
-		c.Assert(err, Equals, testCase.err)
-		c.Assert(result, DeepEquals, testCase.final)
-	}
+func (s *commonSuite) TestOutcomeAsBool(c *C) {
+	result, err := common.OutcomeAllow.AsBool()
+	c.Check(err, IsNil)
+	c.Check(result, Equals, true)
+	result, err = common.OutcomeDeny.AsBool()
+	c.Check(err, IsNil)
+	c.Check(result, Equals, false)
+	_, err = common.OutcomeUnset.AsBool()
+	c.Check(err, Equals, common.ErrInvalidOutcome)
+	_, err = common.OutcomeType("foo").AsBool()
+	c.Check(err, Equals, common.ErrInvalidOutcome)
 }
 
 func (s *commonSuite) TestValidatePathPattern(c *C) {
@@ -403,6 +556,38 @@ func (s *commonSuite) TestValidateLifespanParseDuration(c *C) {
 	c.Check(err, IsNil)
 	c.Check(expirationTime.After(time.Now()), Equals, true)
 	c.Check(expirationTime.Before(time.Now().Add(parsedValidDuration)), Equals, true)
+}
+
+func (s *commonSuite) TestValidateConstraintsOutcomeLifespanDuration(c *C) {
+	goodInterface := "home"
+	badInterface := "foo"
+	goodConstraints := &common.Constraints{
+		PathPattern: "/path/to/something",
+		Permissions: []common.PermissionType{common.PermissionRead},
+	}
+	badConstraints := &common.Constraints{
+		PathPattern: "bad\\path",
+		Permissions: []common.PermissionType{common.PermissionRead},
+	}
+	goodOutcome := common.OutcomeAllow
+	badOutcome := common.OutcomeUnset
+	goodLifespan := common.LifespanTimespan
+	badLifespan := common.LifespanUnset
+	goodDuration := "10s"
+	badDuration := "foo"
+
+	_, err := common.ValidateConstraintsOutcomeLifespanDuration(goodInterface, goodConstraints, goodOutcome, goodLifespan, goodDuration)
+	c.Check(err, IsNil)
+	_, err = common.ValidateConstraintsOutcomeLifespanDuration(badInterface, goodConstraints, goodOutcome, goodLifespan, goodDuration)
+	c.Check(err, NotNil)
+	_, err = common.ValidateConstraintsOutcomeLifespanDuration(goodInterface, badConstraints, goodOutcome, goodLifespan, goodDuration)
+	c.Check(err, Equals, common.ErrInvalidPathPattern)
+	_, err = common.ValidateConstraintsOutcomeLifespanDuration(goodInterface, goodConstraints, badOutcome, goodLifespan, goodDuration)
+	c.Check(err, Equals, common.ErrInvalidOutcome)
+	_, err = common.ValidateConstraintsOutcomeLifespanDuration(goodInterface, goodConstraints, goodOutcome, badLifespan, goodDuration)
+	c.Check(err, Equals, common.ErrInvalidLifespan)
+	_, err = common.ValidateConstraintsOutcomeLifespanDuration(goodInterface, goodConstraints, goodOutcome, goodLifespan, badDuration)
+	c.Check(err, Equals, common.ErrInvalidDurationParseError)
 }
 
 func (s *commonSuite) TestGetHighestPrecedencePattern(c *C) {
@@ -569,114 +754,5 @@ func (*commonSuite) TestStripTrailingSlashes(c *C) {
 	for _, testCase := range cases {
 		result := common.StripTrailingSlashes(testCase.orig)
 		c.Check(result, Equals, testCase.stripped)
-	}
-}
-
-func (*commonSuite) TestPathPatternMatches(c *C) {
-	cases := []struct {
-		pattern string
-		path    string
-		matches bool
-	}{
-		{
-			"/home/test/Documents/foo.txt",
-			"/home/test/Documents/foo.txt",
-			true,
-		},
-		{
-			"/home/test/Documents/foo",
-			"/home/test/Documents/foo.txt",
-			false,
-		},
-		{
-			"/home/test/Documents",
-			"/home/test/Documents",
-			true,
-		},
-		{
-			"/home/test/Documents/*",
-			"/home/test/Documents",
-			true,
-		},
-		{
-			"/home/test/Documents/**",
-			"/home/test/Documents",
-			true,
-		},
-		{
-			"/home/test/Documents/*",
-			"/home/test/Documents/foo.txt",
-			true,
-		},
-		{
-			"/home/test/Documents/**",
-			"/home/test/Documents/foo.txt",
-			true,
-		},
-		{
-			"/home/test/Documents/**/*.txt",
-			"/home/test/Documents/foo.txt",
-			true,
-		},
-		{
-			"/home/test/Documents/**/*.txt",
-			"/home/test/Documents/foo/bar.tar.gz",
-			false,
-		},
-		{
-			"/home/test/Documents/**",
-			"/home/test/Documents/foo/bar.tar.gz",
-			true,
-		},
-		{
-			"/home/test/Documents/**/*.gz",
-			"/home/test/Documents/foo/bar.tar.gz",
-			true,
-		},
-		{
-			"/home/test/Documents/**/*.tar.gz",
-			"/home/test/Documents/foo/bar.tar.gz",
-			true,
-		},
-		{
-			"/home/test/Documents/*.tar.gz",
-			"/home/test/Documents/foo/bar.tar.gz",
-			false,
-		},
-		{
-			"/home/test/Documents/*",
-			"/home/test/Documents/foo/bar.tar.gz",
-			false,
-		},
-		{
-			"/home/test/**",
-			"/home/test/Documents/foo/bar.tar.gz",
-			true,
-		},
-		{
-			"/home/test/*",
-			"/home/test/Documents/foo/bar.tar.gz",
-			false,
-		},
-		{
-			"/home/test/**/*.tar.gz",
-			"/home/test/Documents/foo/bar.tar.gz",
-			true,
-		},
-		{
-			"/home/test/**/*.gz",
-			"/home/test/Documents/foo/bar.tar.gz",
-			true,
-		},
-		{
-			"/home/test/**/*.txt",
-			"/home/test/Documents/foo/bar.tar.gz",
-			false,
-		},
-	}
-	for _, testCase := range cases {
-		result, err := common.PathPatternMatches(testCase.pattern, testCase.path)
-		c.Check(err, IsNil, Commentf("test case: %+v", testCase))
-		c.Check(result, Equals, testCase.matches, Commentf("test case: %+v", testCase))
 	}
 }
