@@ -304,8 +304,8 @@ type AddNoticeOptions struct {
 	//	- RepeatCheckData and RepeatCheck cannot be set at the same time.
 	RepeatCheckData interface{}
 
-	// RepeatCheck, if set, returns whether this notice should be repeated and also
-	// returns the new repeat check data.
+	// RepeatCheck, if set, returns whether this notice is forced to not be repeated
+	// and also returns the new repeat check data.
 	//
 	// NOTE: Current state can be accessed through oldNotice.GetRepeatCheckValue().
 	RepeatCheck func(oldNotice *Notice, newNoticeOpts *AddNoticeOptions) (repeatOk bool, newRepeatCheckData interface{}, err error)
@@ -349,22 +349,20 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 		s.notices[uniqueKey] = notice
 		newOrRepeated = true
 	} else {
+		repeatOk := true
 		if options.RepeatCheck != nil {
-			repeatOk, newRepeatCheckData, err := options.RepeatCheck(notice, options)
+			var newRepeatCheckData interface{}
+			repeatOk, newRepeatCheckData, err = options.RepeatCheck(notice, options)
 			if err != nil {
 				return "", err
 			}
 			notice.setRepeatCheckValue(newRepeatCheckData)
-			// drop notice
-			if !repeatOk {
-				return notice.id, nil
-			}
 		} else if options.RepeatCheckData != nil {
 			notice.setRepeatCheckValue(options.RepeatCheckData)
 		}
 		// Additional occurrence, update existing notice
 		notice.occurrences++
-		if options.RepeatAfter == 0 || now.After(notice.lastRepeated.Add(options.RepeatAfter)) {
+		if repeatOk && (options.RepeatAfter == 0 || now.After(notice.lastRepeated.Add(options.RepeatAfter))) {
 			// Update last repeated time if repeat-after time has elapsed (or is zero)
 			notice.lastRepeated = now
 			newOrRepeated = true

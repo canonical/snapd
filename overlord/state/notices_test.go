@@ -354,13 +354,28 @@ func (s *noticesSuite) TestRepeatCheckNoRepeat(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	baseTime := time.Now()
+
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{
+		Time:            baseTime,
 		RepeatCheckData: state.DefaultStatus,
 	})
 	time.Sleep(time.Microsecond)
 
+	notices := st.Notices(nil)
+	c.Assert(notices, HasLen, 1)
+	c.Check(notices[0].Occurrences(), Equals, 1)
+	c.Check(notices[0].FirstOccurred(), Equals, baseTime)
+	c.Check(notices[0].LastOccurred(), Equals, baseTime)
+	c.Check(notices[0].LastRepeated(), Equals, baseTime)
+	// RepeatCheckData is initialized
+	var repeatCheckData state.Status
+	c.Assert(notices[0].GetRepeatCheckValue(&repeatCheckData), IsNil)
+	c.Check(repeatCheckData, Equals, state.DefaultStatus)
+
 	var repeatCheckCalled int
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{
+		Time: baseTime.Add(24 * time.Hour),
 		RepeatCheck: func(oldNotice *state.Notice, newNoticeOpts *state.AddNoticeOptions) (bool, interface{}, error) {
 			repeatCheckCalled++
 
@@ -369,18 +384,21 @@ func (s *noticesSuite) TestRepeatCheckNoRepeat(c *C) {
 			c.Assert(err, IsNil)
 			c.Check(value, Equals, state.DefaultStatus)
 
-			// drop notice
+			// don't repeat
 			return false, state.DoStatus, nil
 		},
 	})
 
 	c.Check(repeatCheckCalled, Equals, 1)
 
-	notices := st.Notices(nil)
+	notices = st.Notices(nil)
 	c.Assert(notices, HasLen, 1)
-	// Second notice was dropped
-	c.Check(notices[0].Occurrences(), Equals, 1)
-	var repeatCheckData state.Status
+	c.Check(notices[0].Occurrences(), Equals, 2)
+	c.Check(notices[0].FirstOccurred(), Equals, baseTime)
+	c.Check(notices[0].LastOccurred(), Equals, baseTime.Add(24*time.Hour))
+	// Second notice was not repeated
+	c.Check(notices[0].LastRepeated(), Equals, baseTime)
+	// RepeatCheckData is updated
 	c.Assert(notices[0].GetRepeatCheckValue(&repeatCheckData), IsNil)
 	c.Check(repeatCheckData, Equals, state.DoStatus)
 }
