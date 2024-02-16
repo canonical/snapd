@@ -4557,7 +4557,7 @@ apps:
 	si2 := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(2)}
 	snapstate.Set(st, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si0, si1, si2}),
+		Sequence: []*snap.SideInfo{si0, si1, si2},
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
