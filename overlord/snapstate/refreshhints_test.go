@@ -608,8 +608,12 @@ func (s *refreshHintsTestSuite) TestUpdateCandidatesNonDiscriminating(c *C) {
 	c.Check(hints["bar"].Monitored, Equals, true)
 
 	err = snapstate.UpdateRefreshCandidates(s.state, map[string]*snapstate.RefreshCandidate{
-		// bar without Monitored flag
-		"bar": {SnapSetup: snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "bar", Revision: snap.R(2)}}},
+		// bar with Monitored flag preserved by the caller, as in
+		// refreshHintsFromCandidates()
+		"bar": {
+			SnapSetup: snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "bar", Revision: snap.R(2)}},
+			Monitored: true,
+		},
 		"baz": {SnapSetup: snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "baz", Revision: snap.R(4)}}},
 	}, nil)
 	c.Assert(err, IsNil)
