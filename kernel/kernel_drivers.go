@@ -41,13 +41,19 @@ var osSymlink = os.Symlink
 // separated by dots for the kernel version.
 var utsRelease = regexp.MustCompile(`^([0-9]+\.){2}[0-9]+`)
 
-const earlyKernelsDir = "/run/mnt/kernel-snaps"
+const earlyKernelsDir = "mnt/kernel-snaps"
 
 // EarlyKernelModsComponentMountDir returns the path where components are mounted on
 // early boot.
 func EarlyKernelModsComponentMountDir(compName string, compRev snap.Revision, ksnapName string, snapRev snap.Revision) string {
-	return filepath.Join(dirs.GlobalRootDir, earlyKernelsDir,
+	return filepath.Join(dirs.RunDir, earlyKernelsDir,
 		ksnapName, "components", snapRev.String(), compName, compRev.String())
+}
+
+// EarlyKernelMountDir returns the mount directory for early on boot mount of
+// kernel snaps.
+func EarlyKernelMountDir(ksnapName string, rev snap.Revision) string {
+	return filepath.Join(dirs.RunDir, "mnt/kernel-snaps", ksnapName, rev.String())
 }
 
 // KernelVersionFromModulesDir returns the kernel version for a mounted kernel
