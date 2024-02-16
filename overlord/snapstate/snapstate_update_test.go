@@ -10598,7 +10598,7 @@ type: snapd
 				snapstate.Set(st, "snapd", &snapstate.SnapState{
 					SnapType:        "snapd",
 					Active:          true,
-					Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+					Sequence:        []*snap.SideInfo{si},
 					Current:         si.Revision,
 					Flags:           snapstate.Flags{Required: true},
 					TrackingChannel: si.Channel,
@@ -10618,25 +10618,25 @@ type: snapd
 	snapstate.Set(s.state, "core22", nil) // NOTE: core22 is not installed.
 	snapstate.Set(s.state, "some-snap-with-new-base", &snapstate.SnapState{
 		Active: true,
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+		Sequence: []*snap.SideInfo{
 			{
 				RealName: "some-snap-with-new-base",
 				SnapID:   "some-snap-with-new-base-id",
 				Revision: snap.R(1),
 			},
-		}),
+		},
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
 		Active: true,
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+		Sequence: []*snap.SideInfo{
 			{
 				RealName: "snapd",
 				SnapID:   "snapd-without-version-id",
 				Revision: snap.R(1),
 			},
-		}),
+		},
 		Current:  snap.R(1),
 		SnapType: "snapd",
 	})

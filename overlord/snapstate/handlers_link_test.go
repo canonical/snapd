@@ -660,7 +660,7 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapRelinksOnFailure(c *C) {
 	// With a snap "foo" at revision 42
 	si := &snap.SideInfo{RealName: "foo", Revision: snap.R(42)}
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Sequence: []*snap.SideInfo{si},
 		Current:  si.Revision,
 		Active:   true,
 	})
@@ -711,7 +711,7 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapRelinksOnFailure(c *C) {
 
 	// We should still see Rev 42 active
 	c.Check(snapst.Active, Equals, true)
-	c.Check(snapst.Sequence.Revisions, HasLen, 1)
+	c.Check(snapst.Sequence, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(42))
 	c.Check(task.Status(), Equals, state.ErrorStatus)
 	expected := fakeOps{
