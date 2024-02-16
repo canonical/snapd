@@ -587,20 +587,29 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	// finalize (wrappers+current symlink)
 	//
-	// For essential snaps that require reboots, 'link-snap' is currently marked as the edge of that reboot
-	// sequence. This means that we currently expect 'link-snap' to request the reboot and be the last task
-	// to run before the reboot takes place (for that lane/change). This task is assigned the edge 'MaybeRebootEdge'
-	// to indicate this.
+	// For essential snaps that require reboots, 'link-snap' is currently
+	// marked as the edge of that reboot sequence. This means that we currently
+	// expect 'link-snap' to request the reboot and be the last task to run
+	// before the reboot takes place (for that lane/change). This task is
+	// assigned the edge 'MaybeRebootEdge' to indicate this.
+	//
+	// 'link-snap' is the last task to run before a reboot for cases like the kernel
+	// where we would like to try to make sure it boots correctly before we perform
+	// additional tasks.
 	linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q%s available to the system"), snapsup.InstanceName(), revisionStr))
 	addTask(linkSnap)
 	prev = linkSnap
 
 	// auto-connections
 	//
-	// For essential snaps that require reboots, 'auto-connect' is marked as edge 'MaybeRebootWaitEdge' to indicate
-	// that this task is expected to be the first to run after the reboot (for that lane/change). This is noted here
-	// to make sure we consider any changes between 'link-snap' and 'auto-connect', as that need the edges to be
-	// modified as well.
+	// For essential snaps that require reboots, 'auto-connect' is marked
+	// as edge 'MaybeRebootWaitEdge' to indicate that this task is expected
+	// to be the first to run after the reboot (for that lane/change). This
+	// is noted here to make sure we consider any changes between 'link-snap'
+	// and 'auto-connect', as that need the edges to be modified as well.
+	//
+	// 'auto-connect' is expected to run first after the reboot as it also
+	// performs some reboot-verification code.
 	autoConnect := st.NewTask("auto-connect", fmt.Sprintf(i18n.G("Automatically connect eligible plugs and slots of snap %q"), snapsup.InstanceName()))
 	addTask(autoConnect)
 	prev = autoConnect
