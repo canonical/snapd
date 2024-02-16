@@ -34,6 +34,8 @@ import (
 	"github.com/snapcore/snapd/desktop/notification"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/usersession/client"
@@ -431,6 +433,38 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	return SyncResponse(nil)
 }
 
+func guessAppIcon(si *snap.Info) string {
+	var icon string
+	parser := goconfigparser.New()
+
+	// trivial heuristic, if the app is named like a snap then
+	// it's considered to be the main user facing app and hopefully carries
+	// a nice icon
+	mainApp, ok := si.Apps[si.SnapName()]
+	if ok && !mainApp.IsService() {
+		// got the main app, grab its desktop file
+		if err := parser.ReadFile(mainApp.DesktopFile()); err == nil {
+			icon, _ = parser.Get("Desktop Entry", "Icon")
+		}
+	}
+	if icon != "" {
+		return icon
+	}
+
+	// If it doesn't exist, take the first app in the snap with a DesktopFile with icon
+	for _, app := range si.Apps {
+		if app.IsService() || app.Name == si.SnapName() {
+			continue
+		}
+		if err := parser.ReadFile(app.DesktopFile()); err == nil {
+			if icon, err = parser.Get("Desktop Entry", "Icon"); err == nil && icon != "" {
+				break
+			}
+		}
+	}
+	return icon
+}
+
 func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 	if ok, resp := validateJSONRequest(r); !ok {
 		return resp
@@ -461,10 +495,18 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		notification.WithUrgency(notification.LowUrgency),
 	}
 
+	var icon string
+	if si, err := snap.ReadCurrentInfo(finishRefresh.InstanceName); err == nil {
+		icon = guessAppIcon(si)
+	} else {
+		logger.Noticef("cannot load snap-info for %s: %v", finishRefresh.InstanceName, err)
+	}
+
 	msg := &notification.Message{
 		Title: summary,
 		Body:  body,
 		Hints: hints,
+		Icon:  icon,
 	}
 	if err := c.s.notificationMgr.SendNotification(notification.ID(finishRefresh.InstanceName), msg); err != nil {
 		return SyncResponse(&resp{
