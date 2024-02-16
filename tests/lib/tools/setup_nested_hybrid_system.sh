@@ -18,7 +18,7 @@ run_muinstaller() {
     local kernel_snap="${5}"
     local kernel_assertion="${6}"
     local label="${7}"
-    local fake_disk="${8}"
+    local disk="${8}"
 
     # ack the needed assertions
     snap ack "${kernel_assertion}"
@@ -73,7 +73,7 @@ run_muinstaller() {
     #
     # start it so that cloud-init creates ssh keys and user
     # We set a serial for our disk to easily locate it when invoking muinstaller (virtio-target)
-    NESTED_PARAM_EXTRA="-drive file=${fake_disk},if=none,snapshot=off,format=raw,id=disk2 \
+    NESTED_PARAM_EXTRA="-drive file=${disk},if=none,snapshot=off,format=raw,id=disk2 \
         -device virtio-blk-pci,drive=disk2,serial=target"
     tests.nested create-vm classic --extra-param "${NESTED_PARAM_EXTRA}"
 
@@ -142,14 +142,14 @@ run_muinstaller() {
 
     remote.exec "sudo sync"
 
-    # Stop and remove the classic vm now that the attached disk (${fake_disk})
+    # Stop and remove the classic vm now that the attached disk (${disk})
     # contains a just installed UC image.
     tests.nested vm remove
     sync
 
     # HACK: rename to "core" image because we need to boot with OVMF
     # we really should fix this so that classic and core VMs are more similar
-    mv "${fake_disk}" "${NESTED_IMAGES_DIR}/${image_name}"
+    mv "${disk}" "${NESTED_IMAGES_DIR}/${image_name}"
 
     # Change seed part label to capitals so we cover that use case
     image_path="${NESTED_IMAGES_DIR}/${image_name}"
@@ -174,7 +174,7 @@ main() {
     local kernel_snap=""
     local kernel_assertion=""
     local label="classic"
-    local fake_disk=""
+    local disk=""
     while [ $# -gt 0 ]; do
         case "$1" in
             --model)
@@ -205,8 +205,8 @@ main() {
                 label="${2}"
                 shift 2
                 ;;
-            --fake-disk)
-                fake_disk="${2}"
+            --disk)
+                disk="${2}"
                 shift 2
                 ;;
             --*|-*)
@@ -248,8 +248,8 @@ main() {
     # paths for all inputs
     model_assertion="$(realpath "${model_assertion}")"
 
-    if [ -n "${fake_disk}" ]; then
-        fake_disk="$(realpath "${fake_disk}")"
+    if [ -n "${disk}" ]; then
+        disk="$(realpath "${disk}")"
     fi
 
     if [ -n "${store_dir}" ]; then
@@ -273,9 +273,9 @@ main() {
 
     # create new disk (if the caller didn't provide one) for the installer to
     # work on and attach to the VM
-    if [ -z "${fake_disk}" ]; then
-        fake_disk="${PWD}/fake-disk.img"
-        truncate --size=6G "${fake_disk}"
+    if [ -z "${disk}" ]; then
+        disk="${PWD}/disk.img"
+        truncate --size=6G "${disk}"
     fi
 
     # if a gadget wasn't provided, download one we know should work for hybrid
@@ -295,7 +295,7 @@ main() {
 
     run_muinstaller "${model_assertion}" "${store_dir}" "${gadget_snap}" \
         "${gadget_assertion}" "${kernel_snap}" "${kernel_assertion}" "${label}" \
-        "${fake_disk}"
+        "${disk}"
 
     )
 }
