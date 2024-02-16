@@ -20,10 +20,13 @@
 package builtin
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -75,6 +78,18 @@ func (iface *lxdSupportInterface) Name() string {
 	return "lxd-support"
 }
 
+func (iface *lxdSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	// It's fine if enable-unconfined-mode isn't specified, but if it is,
+	// it needs to be bool
+	if v, ok := plug.Attrs["enable-unconfined-mode"]; ok {
+		if _, ok = v.(bool); !ok {
+			return fmt.Errorf("lxd-support plug requires bool with 'enable-unconfined-mode'")
+		}
+	}
+
+	return nil
+}
+
 func (iface *lxdSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(lxdSupportConnectedPlugAppArmor)
 	// if apparmor supports userns mediation then add this too
@@ -86,6 +101,15 @@ func (iface *lxdSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 		if strutil.ListContains(features, "userns") {
 			spec.AddSnippet(lxdSupportConnectedPlugAppArmorWithUserNS)
 		}
+	}
+	var enableUnconfinedMode bool
+	// enable-unconfined-mode was validated in BeforePreparePlug()
+	_ = plug.Attr("enable-unconfined-mode", &enableUnconfinedMode)
+	if enableUnconfinedMode {
+		// since we set appArmorUnconfinedPlugs to true in the static
+		// info below, we know that the spec will already support the
+		// unconfined mode and so this call will not fail
+		_ = spec.SetUnconfinedEnabled()
 	}
 	return nil
 }
