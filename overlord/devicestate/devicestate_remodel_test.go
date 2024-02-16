@@ -300,7 +300,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelCannotUseOldModel(c *C) {
 	}
 	mergeMockModelHeaders(cur, newModelHdrs)
 	new := s.brands.Model("canonical", "pc-model", newModelHdrs)
-	chg, err := devicestate.Remodel(s.state, new, nil, nil, devicestate.RemodelOptions{})
+	chg, err := devicestate.Remodel(s.state, new, []*snap.SideInfo{}, nil, devicestate.RemodelOptions{})
 	c.Check(chg, IsNil)
 	c.Check(err, ErrorMatches, "cannot remodel to older revision 1 of model canonical/pc-model than last revision 2 known to the device")
 }
