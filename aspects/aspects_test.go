@@ -1885,3 +1885,36 @@ func (s *aspectSuite) TestAspectSetErrorIfValueContainsUnusedParts(c *C) {
 		}
 	}
 }
+
+func (*aspectSuite) TestAspectSummaryWrongType(c *C) {
+	for _, val := range []interface{}{
+		1,
+		true,
+		[]interface{}{"foo"},
+		map[string]interface{}{"foo": "bar"},
+	} {
+		bundle, err := aspects.NewBundle("acc", "bundle", map[string]interface{}{
+			"foo": map[string]interface{}{
+				"summary": val,
+				"rules": []interface{}{
+					map[string]interface{}{"request": "foo", "storage": "foo"},
+				},
+			},
+		}, nil)
+		c.Check(err.Error(), Equals, fmt.Sprintf(`cannot define aspect "foo": aspect summary must be a string but got %T`, val))
+		c.Check(bundle, IsNil)
+	}
+}
+
+func (*aspectSuite) TestAspectSummary(c *C) {
+	bundle, err := aspects.NewBundle("acc", "bundle", map[string]interface{}{
+		"foo": map[string]interface{}{
+			"summary": "some summary of the aspect",
+			"rules": []interface{}{
+				map[string]interface{}{"request": "foo", "storage": "foo"},
+			},
+		},
+	}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(bundle, NotNil)
+}

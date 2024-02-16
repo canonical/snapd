@@ -187,6 +187,12 @@ func NewBundle(account string, bundleName string, aspects map[string]interface{}
 			return nil, fmt.Errorf("cannot define aspect %q: aspect must be non-empty map", name)
 		}
 
+		if summary, ok := aspectMap["summary"]; ok {
+			if _, ok = summary.(string); !ok {
+				return nil, fmt.Errorf("cannot define aspect %q: aspect summary must be a string but got %T", name, summary)
+			}
+		}
+
 		rules, ok := aspectMap["rules"].([]interface{})
 		if !ok || len(rules) == 0 {
 			return nil, fmt.Errorf("cannot define aspect %q: aspect rules must be non-empty list", name)
