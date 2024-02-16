@@ -102,7 +102,7 @@ func affectedSnaps(t *state.Task) ([]string, error) {
 func snapSetupFromChange(chg *state.Change) (*SnapSetup, error) {
 	for _, t := range chg.Tasks() {
 		// Check a known task of each change that we know keep snap info.
-		if t.Kind() != "prerequisites" {
+		if t.Kind() != "prepare-snap" && t.Kind() != "download-snap" {
 			continue
 		}
 		return TaskSnapSetup(t)
@@ -346,7 +346,7 @@ func CheckUpdateKernelCommandLineConflict(st *state.State, ignoreChangeID string
 			}
 		case "update-managed-boot-config":
 			return &ChangeConflictError{
-				Message:    "boot config is being updated, no change in kernel commnd line is allowed meanwhile",
+				Message:    "boot config is being updated, no change in kernel command line is allowed meanwhile",
 				ChangeKind: task.Kind(),
 				ChangeID:   chg.ID(),
 			}

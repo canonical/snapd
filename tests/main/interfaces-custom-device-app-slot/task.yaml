@@ -1,0 +1,89 @@
+summary: Test that apps can be allowed to sport and self-connect custom-device slots
+
+details: |
+    Usually custom-device slots are meant to be provided by gadgets,
+    but we support allowing app snaps to carry them, e.g.
+    for custom hardware dedicated apps for wide distribution.
+
+    The test checks that with an appropriate snap-declaration
+    this is allowed including self-connection if desired.
+
+systems:
+    - -ubuntu-14.04*
+
+environment:
+    BLOB_DIR: $(pwd)/fake-store-blobdir
+
+prepare: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    snap debug can-manage-refreshes | MATCH false
+
+    snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
+
+    "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
+
+    snap_path=$("$TESTSTOOLS"/snaps-state pack-local device-app)
+    "$TESTSTOOLS"/store-state make-snap-installable "$BLOB_DIR" "${snap_path}" deviceappZididididididididididid
+    cat > snap-decl.json <<'EOF'
+    {
+      "format": "5",
+      "revision": "1",
+      "snap-name": "device-app",
+      "snap-id": "deviceappZididididididididididid",
+      "slots": {
+        "custom-device": {
+           "allow-installation": {
+              "slot-attributes": {
+                "files": "$MISSING",
+                "devices": [
+                  "/dev/video\\[0-9\\]"
+                ]
+              },
+              "slot-names": ["custom-v4l-dev"]
+           },
+           "allow-connection": {
+              "plug-attributes": {
+                "custom-device": "$SLOT(custom-device)"
+              }
+           },
+           "allow-auto-connection": {
+              "slot-attributes": {
+                "custom-device": "custom-v4l"
+              },
+              "plug-attributes": {
+                "custom-device": "$SLOT(custom-device)"
+              },
+              "plug-snap-id": [
+                "deviceappZididididididididididid"
+              ]
+           }
+        }
+      }
+    }
+    EOF
+    fakestore new-snap-declaration --dir "${BLOB_DIR}" --snap-decl-json snap-decl.json
+    snap ack "${BLOB_DIR}"/asserts/*.snap-declaration
+
+restore: |
+    if [ "$TRUST_TEST_KEYS" = false ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+    "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
+
+execute: |
+    if [ "$TRUST_TEST_KEYS" = false ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    echo "Install the device-app snap"
+    snap install device-app
+
+    echo "Verify that the udev rule has been generated"
+    UDEV_RULE="$(grep -v '^#' /etc/udev/rules.d/70-snap.device-app.rules)"
+    echo "$UDEV_RULE" | MATCH '^KERNEL=="video\[0-9\]", SUBSYSTEM=="v4l", TAG\+="snap_device-app_cmd"$'

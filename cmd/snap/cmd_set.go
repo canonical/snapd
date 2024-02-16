@@ -46,12 +46,11 @@ Configuration option may be unset with exclamation mark:
     $ snap set snap-name author!
 `)
 
-// TODO: check the experimental feature is enabled and append this to set's help
 var longAspectSetHelp = i18n.G(`
-With the aspects experimental feature enabled, if the first argument passed
-into set is an aspect identifier matching the format <account-id>/<bundle>/<aspect>,
-set will use the aspects configuration API. In this case, the command sets the
-values as provided for the dot-separated aspect paths.
+If the first argument passed into set is an aspect identifier matching the
+format <account-id>/<bundle>/<aspect>, set will use the aspects configuration
+API. In this case, the command sets the values as provided for the dot-separated
+aspect paths.
 `)
 
 type cmdSet struct {
@@ -69,6 +68,7 @@ func init() {
 	if err := validateAspectFeatureFlag(); err == nil {
 		longSetHelp += longAspectSetHelp
 	}
+
 	addCommand("set", shortSetHelp, longSetHelp, func() flags.Commander { return &cmdSet{} },
 		waitDescs.also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.

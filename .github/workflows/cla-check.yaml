@@ -1,7 +1,8 @@
 name: cla-check
 on:
-  # Only run on pull requests: not pushes
-  pull_request:
+  # Only run when a pull request get opened; run in the context of the base
+  # repository, not the fork so that comments can be posted
+  pull_request_target:
     branches: [ "master", "release/**" ]
 
 jobs:

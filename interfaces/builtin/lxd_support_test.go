@@ -74,6 +74,24 @@ func (s *LxdSupportInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
+func (s *LxdSupportInterfaceSuite) TestSanitizePlugInvalid(c *C) {
+	const lxdSupportInvalidConsumerYaml = `name: consumer
+version: 0
+plugs:
+  lxd-support-invalid-attr:
+    interface: lxd-support
+    enable-unconfined-mode: 1
+
+apps:
+ app:
+  plugs:
+    - lxd-support-invalid-attr
+`
+
+	_, plugInfo := MockConnectedPlug(c, lxdSupportInvalidConsumerYaml, nil, "lxd-support-invalid-attr")
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches, "lxd-support plug requires bool with 'enable-unconfined-mode'")
+}
+
 func (s *LxdSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
@@ -95,7 +113,25 @@ func (s *LxdSupportInterfaceSuite) TestAppArmorSpecUserNS(c *C) {
 func (s *LxdSupportInterfaceSuite) TestAppArmorSpecUnconfined(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
-	c.Assert(spec.Unconfined(), Equals, true)
+	c.Assert(spec.Unconfined(), Equals, apparmor.UnconfinedSupported)
+
+	// Unconfined mode is enabled by the plug when it enables it via the
+	// enable-unconfined-mode attribute
+	const lxdSupportWithUnconfinedModeConsumerYaml = `name: consumer
+version: 0
+plugs:
+  lxd-support-with-unconfined-mode:
+    interface: lxd-support
+    enable-unconfined-mode: true
+apps:
+ app:
+  plugs: [lxd-support-with-unconfined-mode]
+`
+
+	plug, _ := MockConnectedPlug(c, lxdSupportWithUnconfinedModeConsumerYaml, nil, "lxd-support-with-unconfined-mode")
+
+	c.Assert(spec.AddConnectedPlug(s.iface, plug, s.slot), IsNil)
+	c.Assert(spec.Unconfined(), Equals, apparmor.UnconfinedEnabled)
 }
 
 func (s *LxdSupportInterfaceSuite) TestSecCompSpec(c *C) {

@@ -34,6 +34,7 @@ import (
 	"net/url"
 	"os"
 	"os/user"
+	"path"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -84,6 +85,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
@@ -4525,6 +4527,99 @@ version: 1`
 	})
 }
 
+// addSnapServices adds service units for the applications from the snap which
+// are services. The services do not get enabled or started.
+func (s *mgrsSuite) addSnapServices(snapInfo *snap.Info) error {
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		snapInfo: nil,
+	}
+	ensureOpts := &wrappers.EnsureSnapServicesOptions{}
+	return wrappers.EnsureSnapServices(m, ensureOpts, nil, progress.Null)
+}
+
+func (s *mgrsSuite) TestUpdateFailOnUnlinkRestores(c *C) {
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		// inject an error during removal
+		if cmd[0] == "--no-reload" && cmd[1] == "disable" && cmd[2] == "snap.some-snap.svc1.service" {
+			return nil, fmt.Errorf("timeout")
+		}
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
+			return out, nil
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	const someSnapYaml = `name: some-snap
+version: 1.0
+apps:
+   svc1:
+     command: bin.sh
+     daemon: simple
+`
+	snapPath, _ := s.makeStoreTestSnap(c, someSnapYaml, "40")
+	s.serveSnap(snapPath, "40")
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	si1 := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
+	snapInfo := snaptest.MockSnap(c, someSnapYaml, si1)
+	s.addSnapServices(snapInfo)
+
+	// ensure service file is present for our service
+	svcPath := path.Join(dirs.GlobalRootDir, "etc/systemd/system/snap.some-snap.svc1.service")
+	c.Check(svcPath, testutil.FilePresent)
+
+	// some-snap has inactive revisions
+	si0 := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(0)}
+	si2 := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(2)}
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si0, si1, si2}),
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	// refresh all
+	err := assertstate.RefreshSnapDeclarations(st, 0, nil)
+	c.Assert(err, IsNil)
+
+	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"some-snap"}, nil, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(updates, HasLen, 1)
+	c.Assert(tts, HasLen, 2)
+	verifyLastTasksetIsRerefresh(c, tts)
+
+	// to make TaskSnapSetup work
+	chg := st.NewChange("refresh", "...")
+	chg.AddAll(tts[0])
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	// ensure that the error was observed
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	var unlinkTask *state.Task
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "unlink-current-snap" {
+			unlinkTask = t
+			break
+		}
+	}
+	c.Check(unlinkTask, NotNil)
+	c.Check(unlinkTask.Status(), Equals, state.ErrorStatus)
+
+	// ensure that service files are still present
+	c.Check(svcPath, testutil.FilePresent)
+}
+
 const someSnapYaml = `name: some-snap
 version: 1.0
 apps:
@@ -4826,6 +4921,7 @@ const (
 	noConfigure = 1 << iota
 	isGadget
 	isKernel
+	hasModeenv
 )
 
 func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags int) int {
@@ -4836,6 +4932,10 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 		what := "gadget"
 		if flags&isKernel != 0 {
 			what = "kernel"
+		}
+		if flags&isKernel != 0 && flags&hasModeenv != 0 {
+			c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup kernel driver tree for "%s" (%s)`, name, revno))
+			i++
 		}
 		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update assets from %s "%s" (%s)`, what, name, revno))
 		i++
@@ -4850,6 +4950,10 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Make snap "%s" (%s) available to the system`, name, revno))
 	i++
+	if flags&isKernel != 0 && flags&hasModeenv != 0 {
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Cleanup kernel driver tree for "%s" (%s)`, name, revno))
+		i++
+	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Automatically connect eligible plugs and slots of snap "%s"`, name))
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set automatic aliases for snap "%s"`, name))
@@ -4890,6 +4994,10 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string, flags i
 		if flags&isKernel != 0 {
 			what = "kernel"
 		}
+		if flags&isKernel != 0 && flags&hasModeenv != 0 {
+			c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup kernel driver tree for "%s" (%s)`, name, revno))
+			i++
+		}
 		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update assets from %s %q (%s)`, what, name, revno))
 		i++
 	}
@@ -4905,6 +5013,10 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Automatically connect eligible plugs and slots of snap "%s"`, name))
 	i++
+	if flags&isKernel != 0 && flags&hasModeenv != 0 {
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Cleanup kernel driver tree for "%s" (%s)`, name, revno))
+		i++
+	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set automatic aliases for snap "%s"`, name))
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" aliases`, name))
@@ -5203,12 +5315,11 @@ func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBase(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	const required = true
-	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
 	si := &snap.SideInfo{RealName: "core18", SnapID: fakeSnapID("core18"), Revision: snap.R(1)}
 	snapstate.Set(st, "core18", &snapstate.SnapState{
@@ -5371,12 +5482,11 @@ func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBaseUndo(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	const required = true
-	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
 	si := &snap.SideInfo{RealName: "core18", SnapID: fakeSnapID("core18"), Revision: snap.R(1)}
 	snapstate.Set(st, "core18", &snapstate.SnapState{
@@ -5539,18 +5649,17 @@ func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBaseUndoOnRollback(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	const required = true
-	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
-	snapstatetest.InstallSnap(c, st, "name: core18\nversion: 1\ntype: base\n", nil, required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: core18\nversion: 1\ntype: base\n", nil, &snap.SideInfo{
 		SnapID:   fakeSnapID("core18"),
 		Revision: snap.R(1),
 		RealName: "core18",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
 	si2 := &snap.SideInfo{RealName: "pc", SnapID: fakeSnapID("pc"), Revision: snap.R(1)}
 	gadgetSnapYaml := "name: pc\nversion: 1.0\ntype: gadget"
@@ -6362,18 +6471,17 @@ func (s *mgrsSuiteCore) TestRemodelSwitchGadgetTrack(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	const required = true
-	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
-	snapstatetest.InstallSnap(c, st, "name: core\nversion: 1\ntype: base\n", nil, required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: core\nversion: 1\ntype: base\n", nil, &snap.SideInfo{
 		SnapID:   fakeSnapID("core"),
 		Revision: snap.R(1),
 		RealName: "core",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
 	err := bloader.SetBootVars(map[string]string{
 		"snap_mode":   boot.DefaultStatus,
@@ -6494,12 +6602,11 @@ func (s *mgrsSuiteCore) TestRemodelSwitchToDifferentGadget(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	const required = true
-	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
 	si := &snap.SideInfo{RealName: "core18", SnapID: fakeSnapID("core18"), Revision: snap.R(1)}
 	snapstate.Set(st, "core18", &snapstate.SnapState{
@@ -6659,12 +6766,11 @@ func (s *mgrsSuiteCore) TestRemodelSwitchToIncompatibleGadget(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	const required = true
-	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, required, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
-	})
+	}, snapstatetest.InstallSnapOptions{Required: true})
 
 	si := &snap.SideInfo{RealName: "core18", SnapID: fakeSnapID("core18"), Revision: snap.R(1)}
 	snapstate.Set(st, "core18", &snapstate.SnapState{
@@ -7918,7 +8024,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentKernelChannel(c *C) {
 	// then create recovery
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then all installs in sequential order
-	validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel)
+	validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel|hasModeenv)
 }
 
 func (s *mgrsSuiteCore) TestRemodelUC20DifferentGadgetChannel(c *C) {
@@ -9574,7 +9680,7 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 	// then create recovery
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then all refreshes and install in sequential order (no configure hooks for bases though)
-	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel)
+	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel|hasModeenv)
 	i += validateInstallTasks(c, tasks[i:], "core22", "1", noConfigure)
 	i += validateRefreshTasks(c, tasks[i:], "pc", "34", isGadget)
 	// finally new model assertion
@@ -9606,6 +9712,16 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 }
 
 func (s *mgrsSuiteCore) TestRemodelUC20ToUC22(c *C) {
+	const mockSnapdRefresh = false
+	s.testRemodelUC20ToUC22(c, mockSnapdRefresh)
+}
+
+func (s *mgrsSuiteCore) TestRemodelUC20ToUC22MockSnapdRefresh(c *C) {
+	const mockSnapdRefresh = true
+	s.testRemodelUC20ToUC22(c, mockSnapdRefresh)
+}
+
+func (s *mgrsSuiteCore) testRemodelUC20ToUC22(c *C, mockSnapdRefresh bool) {
 	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
 	restore := kcmdline.MockProcCmdline(filepath.Join(dirs.GlobalRootDir, "proc/cmdline"))
 	defer restore()
@@ -9701,6 +9817,15 @@ func (s *mgrsSuiteCore) TestRemodelUC20ToUC22(c *C) {
 	chg, err := devicestate.Remodel(st, newModel, nil, nil, devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 	dumpTasks(c, "at the beginning", chg.Tasks())
+
+	if mockSnapdRefresh {
+		// on a snapd refresh, we might upgrade from a snapd that didn't set
+		// "test-system" on "recovery-system-setup". in that case, we should
+		// test to make sure that we still test the recovery system due to this
+		// being a remodel.
+		err := mockTestSystemDefaultToFalse(chg)
+		c.Assert(err, IsNil)
+	}
 
 	st.Unlock()
 	err = s.o.Settle(settleTimeout)
@@ -9867,7 +9992,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20ToUC22(c *C) {
 	// then create recovery
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then all refreshes and install in sequential order (no configure hooks for bases though)
-	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel)
+	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel|hasModeenv)
 	i += validateInstallTasks(c, tasks[i:], "core22", "1", noConfigure)
 	i += validateRefreshTasks(c, tasks[i:], "pc", "34", isGadget)
 	// finally new model assertion
@@ -9887,6 +10012,26 @@ func (s *mgrsSuiteCore) TestRemodelUC20ToUC22(c *C) {
 		"1234", expectedLabel,
 	})
 	c.Check(m.Base, Equals, "core22_1.snap")
+}
+
+func mockTestSystemDefaultToFalse(chg *state.Change) error {
+	for _, t := range chg.Tasks() {
+		if t.Kind() != "create-recovery-system" {
+			continue
+		}
+
+		var setup map[string]interface{}
+		if err := t.Get("recovery-system-setup", &setup); err != nil {
+			return err
+		}
+
+		setup["test-system"] = false
+		t.Set("recovery-system-setup", setup)
+
+		return nil
+	}
+
+	return errors.New("no create-recovery-system task found")
 }
 
 func (s *mgrsSuiteCore) TestInstallKernelSnapRollbackUpdatesBootloaderEnv(c *C) {

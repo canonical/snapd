@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -332,7 +332,15 @@ func (s *snapmgrTestSuite) TestUpdateTasksWithOldCurrent(c *C) {
 	c.Check(snapsup.Revision(), Equals, si4.Revision)
 }
 
-func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
+func (s *snapmgrTestSuite) enableRefreshAppAwarenessUX() {
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
+	tr.Commit()
+	s.state.Unlock()
+}
+
+func (s *snapmgrTestSuite) testUpdateCanDoBackwards(c *C, refreshAppAwarenessUX bool) {
 	si7 := snap.SideInfo{
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
@@ -373,8 +381,9 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 			inhibitHint: "refresh",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
+			op:                 "unlink-snap",
+			path:               filepath.Join(dirs.SnapMountDir, "some-snap/11"),
+			unlinkSkipBinaries: refreshAppAwarenessUX,
 		},
 		{
 			op:   "copy-data",
@@ -417,9 +426,23 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 			revno: snap.R(7),
 		},
 	}
+	// aliases removal is skipped when refresh-app-awareness-ux is enabled
+	if refreshAppAwarenessUX {
+		// remove "remove-snap-aliases" operation
+		expected = expected[1:]
+	}
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+}
+
+func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
+	s.testUpdateCanDoBackwards(c, false)
+}
+
+func (s *snapmgrTestSuite) TestUpdateCanDoBackwardsSkipBinaries(c *C) {
+	s.enableRefreshAppAwarenessUX()
+	s.testUpdateCanDoBackwards(c, true)
 }
 
 func revs(seq []*sequence.RevisionSideState) []int {
@@ -854,7 +877,7 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 	}, nil))
 }
 
-func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
+func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool) {
 	// we start without the auxiliary store info (or with an older one)
 	c.Check(snapstate.AuxStoreInfoFilename("services-snap-id"), testutil.FileAbsent)
 
@@ -898,6 +921,13 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	}, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
+
+	// check unlink-reason
+	unlinkTask := findLastTask(chg, "unlink-current-snap")
+	c.Assert(unlinkTask, NotNil)
+	var unlinkReason string
+	unlinkTask.Get("unlink-reason", &unlinkReason)
+	c.Check(unlinkReason, Equals, "refresh")
 
 	// local modifications, edge must be set
 	te := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
@@ -970,18 +1000,24 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		{
 			op: "current-snap-service-states",
 		},
-		{
+	}
+	// aliases removal is skipped when refresh-app-awareness-ux is enabled
+	if !refreshAppAwarenessUX {
+		expected = append(expected, fakeOp{
 			op:   "remove-snap-aliases",
 			name: "services-snap",
-		},
+		})
+	}
+	expected = append(expected, fakeOps{
 		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "services-snap",
 			inhibitHint: "refresh",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "services-snap/7"),
+			op:                 "unlink-snap",
+			path:               filepath.Join(dirs.SnapMountDir, "services-snap/7"),
+			unlinkSkipBinaries: refreshAppAwarenessUX,
 		},
 		{
 			op:   "copy-data",
@@ -1028,7 +1064,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			name:  "services-snap",
 			revno: snap.R(11),
 		},
-	}
+	}...)
 
 	// ensure all our tasks ran
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
@@ -1105,6 +1141,15 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 
 	// we end up with the auxiliary store info
 	c.Check(snapstate.AuxStoreInfoFilename("services-snap-id"), testutil.FilePresent)
+}
+
+func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
+	s.testUpdateRunThrough(c, false)
+}
+
+func (s *snapmgrTestSuite) TestUpdateRunThroughSkipBinaries(c *C) {
+	s.enableRefreshAppAwarenessUX()
+	s.testUpdateRunThrough(c, true)
 }
 
 func (s *snapmgrTestSuite) TestUpdateDropsRevertStatus(c *C) {
@@ -1227,7 +1272,7 @@ func (s *snapmgrTestSuite) TestUpdateResetsHoldState(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
+func (s *snapmgrTestSuite) testParallelInstanceUpdateRunThrough(c *C, refreshAppAwarenessUX bool) {
 	// use services-snap here to make sure services would be stopped/started appropriately
 	si := snap.SideInfo{
 		RealName: "services-snap",
@@ -1326,18 +1371,24 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 		{
 			op: "current-snap-service-states",
 		},
-		{
+	}
+	// aliases removal is skipped when refresh-app-awareness-ux is enabled
+	if !refreshAppAwarenessUX {
+		expected = append(expected, fakeOp{
 			op:   "remove-snap-aliases",
 			name: "services-snap_instance",
-		},
+		})
+	}
+	expected = append(expected, fakeOps{
 		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "services-snap_instance",
 			inhibitHint: "refresh",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "services-snap_instance/7"),
+			op:                 "unlink-snap",
+			path:               filepath.Join(dirs.SnapMountDir, "services-snap_instance/7"),
+			unlinkSkipBinaries: refreshAppAwarenessUX,
 		},
 		{
 			op:   "copy-data",
@@ -1384,7 +1435,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 			name:  "services-snap_instance",
 			revno: snap.R(11),
 		},
-	}
+	}...)
 
 	// ensure all our tasks ran
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
@@ -1456,6 +1507,15 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 		SnapID:   "services-snap-id",
 		Revision: snap.R(11),
 	}, nil))
+}
+
+func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
+	s.testParallelInstanceUpdateRunThrough(c, false)
+}
+
+func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThroughSkipBinaries(c *C) {
+	s.enableRefreshAppAwarenessUX()
+	s.testParallelInstanceUpdateRunThrough(c, true)
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithNewBase(c *C) {
@@ -2126,7 +2186,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserWithNoStoreAuthRunThro
 	c.Check(seen["core-snap-id"], Equals, 1)
 }
 
-func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
+func (s *snapmgrTestSuite) testUpdateUndoRunThrough(c *C, refreshAppAwarenessUX bool) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
@@ -2206,18 +2266,24 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			path:  filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 			revno: snap.R(11),
 		},
-		{
+	}
+	// aliases removal is skipped when refresh-app-awareness-ux is enabled
+	if !refreshAppAwarenessUX {
+		expected = append(expected, fakeOp{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
-		},
+		})
+	}
+	expected = append(expected, fakeOps{
 		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap",
 			inhibitHint: "refresh",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+			op:                 "unlink-snap",
+			path:               filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+			unlinkSkipBinaries: refreshAppAwarenessUX,
 		},
 		{
 			op:   "copy-data",
@@ -2247,8 +2313,9 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
+			op:                 "unlink-snap",
+			path:               filepath.Join(dirs.SnapMountDir, "some-snap/11"),
+			unlinkSkipBinaries: false,
 		},
 		{
 			op:    "setup-profiles:Undoing",
@@ -2269,9 +2336,14 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
-		{
+	}...)
+	// aliases removal undo is skipped when refresh-app-awareness-ux is enabled
+	if !refreshAppAwarenessUX {
+		expected = append(expected, fakeOp{
 			op: "update-aliases",
-		},
+		})
+	}
+	expected = append(expected, fakeOps{
 		{
 			op:    "undo-setup-snap",
 			name:  "some-snap",
@@ -2283,7 +2355,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			name: "some-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap"),
 		},
-	}
+	}...)
 
 	// ensure all our tasks ran
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
@@ -2308,6 +2380,15 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		Channel:  "",
 		Revision: snap.R(7),
 	}, nil))
+}
+
+func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
+	s.testUpdateUndoRunThrough(c, false)
+}
+
+func (s *snapmgrTestSuite) TestUpdateUndoRunThroughSkipBinaries(c *C) {
+	s.enableRefreshAppAwarenessUX()
+	s.testUpdateUndoRunThrough(c, true)
 }
 
 func lastWithLane(tasks []*state.Task) *state.Task {
@@ -2436,7 +2517,7 @@ func (s *snapmgrTestSuite) TestUpdateMakesConfigSnapshot(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
+func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarenessUX bool) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
@@ -2527,18 +2608,24 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			path:  filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 			revno: snap.R(11),
 		},
-		{
+	}
+	// aliases removal is skipped when refresh-app-awareness-ux is enabled
+	if !refreshAppAwarenessUX {
+		expected = append(expected, fakeOp{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
-		},
+		})
+	}
+	expected = append(expected, fakeOps{
 		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap",
 			inhibitHint: "refresh",
 		},
 		{
-			op:   "unlink-snap",
-			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+			op:                 "unlink-snap",
+			path:               filepath.Join(dirs.SnapMountDir, "some-snap/7"),
+			unlinkSkipBinaries: refreshAppAwarenessUX,
 		},
 		{
 			op:   "copy-data",
@@ -2575,11 +2662,20 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		{
 			op: "update-aliases",
 		},
-		// undoing everything from here down...
-		{
+	}...)
+	// undoing everything from here down...
+	if refreshAppAwarenessUX {
+		// refresh-app-awareness-ux changes setup-aliases undo behavior
+		expected = append(expected, fakeOp{
+			op: "update-aliases",
+		})
+	} else {
+		expected = append(expected, fakeOp{
 			op:   "remove-snap-aliases",
 			name: "some-snap",
-		},
+		})
+	}
+	expected = append(expected, fakeOps{
 		{
 			op:    "auto-connect:Undoing",
 			name:  "some-snap",
@@ -2608,9 +2704,14 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			op:   "link-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 		},
-		{
+	}...)
+	// aliases removal undo is skipped when refresh-app-awareness-ux is enabled
+	if !refreshAppAwarenessUX {
+		expected = append(expected, fakeOp{
 			op: "update-aliases",
-		},
+		})
+	}
+	expected = append(expected, fakeOps{
 		{
 			op:    "undo-setup-snap",
 			name:  "some-snap",
@@ -2622,7 +2723,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			name: "some-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap"),
 		},
-	}
+	}...)
 
 	// ensure all our tasks ran
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
@@ -2648,6 +2749,15 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		Channel:  "",
 		Revision: snap.R(7),
 	}, nil))
+}
+
+func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
+	s.testUpdateTotalUndoRunThrough(c, false)
+}
+
+func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThroughSkipBinaries(c *C) {
+	s.enableRefreshAppAwarenessUX()
+	s.testUpdateTotalUndoRunThrough(c, true)
 }
 
 func (s *snapmgrTestSuite) TestUpdateSameRevision(c *C) {
@@ -11785,4 +11895,121 @@ func (s *snapmgrTestSuite) TestUpdateManyFilteredNotAutoRefreshNoRetry(c *C) {
 	c.Check(storeSnapIDs, HasLen, 2)
 	c.Check(storeSnapIDs["some-snap-id"], Equals, true)
 	c.Check(storeSnapIDs["some-other-snap-id"], Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestUpdateSnapdAndSnapPullingNewBase(c *C) {
+	// classic = true, avoid messing with snapd services
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	fakeAutoConnect := func(task *state.Task, _ *tomb.Tomb) error {
+		st := task.State()
+		st.Lock()
+		defer st.Unlock()
+		kind := task.Kind()
+		status := task.Status()
+		snapsup, err := snapstate.TaskSnapSetup(task)
+		if err != nil {
+			return err
+		}
+		if status == state.DoingStatus {
+			if snapsup.Type == snap.TypeSnapd {
+				si := snapsup.SideInfo
+				// snapd is installed by now
+				snaptest.MockSnapCurrent(c, `
+name: snapd
+version: snapdVer
+type: snapd
+`, snapsup.SideInfo)
+				snapstate.Set(st, "snapd", &snapstate.SnapState{
+					SnapType:        "snapd",
+					Active:          true,
+					Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+					Current:         si.Revision,
+					Flags:           snapstate.Flags{Required: true},
+					TrackingChannel: si.Channel,
+				})
+			}
+			// fake restart
+			restart.MockPending(st, restart.RestartUnset)
+			if err := snapstate.FinishRestart(task, snapsup); err != nil {
+				panic(err)
+			}
+		}
+		return s.fakeBackend.ForeignTask(kind, status, snapsup)
+	}
+
+	s.o.TaskRunner().AddHandler("auto-connect", fakeAutoConnect, fakeAutoConnect)
+
+	snapstate.Set(s.state, "core22", nil) // NOTE: core22 is not installed.
+	snapstate.Set(s.state, "some-snap-with-new-base", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{
+				RealName: "some-snap-with-new-base",
+				SnapID:   "some-snap-with-new-base-id",
+				Revision: snap.R(1),
+			},
+		}),
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{
+				RealName: "snapd",
+				SnapID:   "snapd-without-version-id",
+				Revision: snap.R(1),
+			},
+		}),
+		Current:  snap.R(1),
+		SnapType: "snapd",
+	})
+
+	updated, taskSets, err := snapstate.UpdateMany(context.Background(), s.state,
+		[]string{"snapd", "some-snap-with-new-base"},
+		[]*snapstate.RevisionOptions{{
+			Revision: snap.R(1),
+			Channel:  "latest/stable",
+		}, {
+			Revision: snap.R(1),
+			Channel:  "some-channel",
+		}},
+		s.user.ID, &snapstate.Flags{
+			IgnoreRunning: true,
+			Transaction:   client.TransactionPerSnap, // XXX: it is unclear if this represents the real-world behavior.
+		})
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("refresh-snap", "refresh snapd and some other snap pulling in a base")
+
+	for _, taskSet := range taskSets {
+		chg.AddAll(taskSet)
+	}
+
+	// XXX: This mimics newChange from daemon/api.go
+	if updated != nil {
+		chg.Set("snap-names", updated)
+	}
+
+	s.state.EnsureBefore(0)
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	fmt.Printf("Settle returned\n")
+
+	didDownloadCore22 := false
+
+	for _, fakeOp := range s.fakeBackend.ops {
+		if fakeOp.op == "storesvc-download" && fakeOp.name == "core22" {
+			didDownloadCore22 = true
+		}
+	}
+
+	c.Assert(didDownloadCore22, Equals, true, Commentf("core22 was *not* downloaded"))
 }

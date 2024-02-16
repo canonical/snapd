@@ -20,6 +20,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -259,12 +260,12 @@ func (x *cmdRun) Execute(args []string) error {
 	return x.snapRunApp(snapApp, args)
 }
 
-func maybeWaitWhileInhibited(snapName string) error {
+func maybeWaitWhileInhibited(ctx context.Context, snapName string) error {
 	// If the snap is inhibited from being used then postpone running it until
 	// that condition passes. Inhibition UI can be dismissed by the user, in
 	// which case we don't run the application at all.
 	if features.RefreshAppAwareness.IsEnabled() {
-		return waitWhileInhibited(snapName)
+		return waitWhileInhibited(ctx, snapName)
 	}
 	return nil
 }
@@ -509,7 +510,8 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 	}
 
 	if !app.IsService() {
-		if err := maybeWaitWhileInhibited(snapName); err != nil {
+		// TODO: use signal.NotifyContext as context when snap-run flow is finalized
+		if err := maybeWaitWhileInhibited(context.Background(), snapName); err != nil {
 			return err
 		}
 	}

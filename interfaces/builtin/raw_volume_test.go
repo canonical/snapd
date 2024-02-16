@@ -298,7 +298,7 @@ func (s *rawVolumeInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets()[0], Equals, `# raw-volume
 KERNEL=="vda1", TAG+="snap_client-snap_app-accessing-1-part"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-1-part", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-1-part $devpath $major:$minor"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-1-part", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-1-part"`, dirs.DistroLibExecDir))
 
 	spec = &udev.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPart2, s.testUDev2), IsNil)

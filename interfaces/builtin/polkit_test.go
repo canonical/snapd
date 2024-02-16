@@ -271,9 +271,15 @@ apps:
 	c.Assert(err, ErrorMatches, `snap "other" has interface "polkit" with invalid value type bool for "action-prefix" attribute: \*string`)
 }
 
+func (s *polkitInterfaceSuite) isProfilePathAccessible(c *C) bool {
+	mntProfile, err := osutil.LoadMountProfile("/proc/self/mounts")
+	c.Assert(err, IsNil)
+	return builtin.IsPathMountedWritable(mntProfile, "/usr/share/polkit-1/actions")
+}
+
 func (s *polkitInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
-	c.Check(si.ImplicitOnCore, Equals, osutil.IsExecutable("/usr/libexec/polkitd"))
+	c.Check(si.ImplicitOnCore, Equals, s.isProfilePathAccessible(c) && (osutil.IsExecutable("/usr/libexec/polkitd") || osutil.IsExecutable("/usr/lib/polkit-1/polkitd")))
 	c.Check(si.ImplicitOnClassic, Equals, true)
 	c.Check(si.Summary, Equals, "allows access to polkitd to check authorisation")
 	c.Check(si.BaseDeclarationPlugs, testutil.Contains, "polkit")
@@ -282,4 +288,71 @@ func (s *polkitInterfaceSuite) TestStaticInfo(c *C) {
 
 func (s *polkitInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
+
+func (s *polkitInterfaceSuite) TestIsPathMountedWritable(c *C) {
+
+	tests := []struct {
+		mounts   string
+		path     string
+		expected bool
+	}{
+		// Test a base case where root is ro
+		{
+			`rpool/ROOT/ubuntu / zfs ro,relatime,xattr,posixacl,casesensitive 0 0
+`,
+			"/usr/share/polkit-1/actions",
+			false,
+		},
+
+		// Test a base case where root is rw
+		{
+			`rpool/ROOT/ubuntu / zfs rw,relatime,xattr,posixacl,casesensitive 0 0
+`,
+			"/usr/share/polkit-1/actions",
+			true,
+		},
+
+		// Test a case where the root is mounted rw, but /usr/share is ro
+		{
+			`rpool/ROOT/ubuntu / zfs rw,relatime,xattr,posixacl,casesensitive 0 0
+rpool/ROOT/ubuntu/usr/share /usr/share zfs ro,relatime,xattr,posixacl,casesensitive 0 0
+`,
+			"/usr/share/polkit-1/actions",
+			false,
+		},
+
+		// Test a case where the root is mounted ro, but /usr/share is rw
+		{
+			`rpool/ROOT/ubuntu / zfs ro,relatime,xattr,posixacl,casesensitive 0 0
+rpool/ROOT/ubuntu/usr/share /usr/share zfs rw,relatime,xattr,posixacl,casesensitive 0 0
+`,
+			"/usr/share/polkit-1/actions",
+			true,
+		},
+
+		// Test a case where the root is mounted rw, but the path specifically being ro
+		{
+			`rpool/ROOT/ubuntu / zfs ro,relatime,xattr,posixacl,casesensitive 0 0
+rpool/ROOT/ubuntu/usr/share/polkit-1/actions /usr/share/polkit-1/actions zfs ro,relatime,xattr,posixacl,casesensitive 0 0
+`,
+			"/usr/share/polkit-1/actions",
+			false,
+		},
+
+		// Test a case where the path string ends on '/', so we know it's handled
+		{
+			`rpool/ROOT/ubuntu / zfs ro,relatime,xattr,posixacl,casesensitive 0 0
+rpool/ROOT/ubuntu/usr/share /usr/share zfs rw,relatime,xattr,posixacl,casesensitive 0 0
+`,
+			"/usr/share/",
+			true,
+		},
+	}
+
+	for _, t := range tests {
+		mntProfile, err := osutil.LoadMountProfileText(t.mounts)
+		c.Assert(err, IsNil)
+		c.Check(builtin.IsPathMountedWritable(mntProfile, t.path), Equals, t.expected)
+	}
 }

@@ -94,6 +94,16 @@ func (s *modelSuite) TestPostRemodelUnhappyWrongAssertion(c *check.C) {
 }
 
 func (s *modelSuite) TestPostRemodel(c *check.C) {
+	const offline = false
+	s.testPostRemodel(c, offline)
+}
+
+func (s *modelSuite) TestPostRemodelOffline(c *check.C) {
+	const offline = true
+	s.testPostRemodel(c, offline)
+}
+
+func (s *modelSuite) testPostRemodel(c *check.C, offline bool) {
 	s.expectRootAccess()
 
 	oldModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults)
@@ -124,7 +134,7 @@ func (s *modelSuite) TestPostRemodel(c *check.C) {
 
 	var devicestateRemodelGotModel *asserts.Model
 	defer daemon.MockDevicestateRemodel(func(st *state.State, nm *asserts.Model, localSnaps []*snap.SideInfo, paths []string, opts devicestate.RemodelOptions) (*state.Change, error) {
-		c.Check(opts.Offline, check.Equals, false)
+		c.Check(opts.Offline, check.Equals, offline)
 		devicestateRemodelGotModel = nm
 		chg := st.NewChange("remodel", "...")
 		return chg, nil
@@ -133,7 +143,10 @@ func (s *modelSuite) TestPostRemodel(c *check.C) {
 	// create a valid model assertion
 	c.Assert(err, check.IsNil)
 	modelEncoded := string(asserts.Encode(newModel))
-	data, err := json.Marshal(daemon.PostModelData{NewModel: modelEncoded})
+	data, err := json.Marshal(daemon.PostModelData{
+		NewModel: modelEncoded,
+		Offline:  offline,
+	})
 	c.Check(err, check.IsNil)
 
 	// set it and validate that this is what we was passed to

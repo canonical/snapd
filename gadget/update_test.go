@@ -3434,6 +3434,66 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 	})
 }
 
+func (u *updateTestSuite) TestUpdateApplyUpdatesDefaultPolicy(c *C) {
+	oldData, newData, rollbackDir := u.policyDataSet(c)
+	c.Assert(oldData.Info.Volumes["foo"].Structure, HasLen, 5)
+	c.Assert(newData.Info.Volumes["foo"].Structure, HasLen, 5)
+
+	c.Check(oldData.Info.Volumes["foo"].Structure[1].Name, Equals, "first")
+	// no previous edition specified in the structure, as if it was not
+	// specified in gadget.yaml
+	c.Assert(oldData.Info.Volumes["foo"].Structure[1].Update, DeepEquals, gadget.VolumeUpdate{})
+	// new one has edition set explicitly
+	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 5
+
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		return map[string]map[int]gadget.StructureLocation{
+				"foo": {
+					0: {
+						Device: "/dev/foo",
+						Offset: quantity.OffsetMiB,
+					},
+					1: {
+						RootMountPoint: "/foo",
+					},
+					2: {
+						RootMountPoint: "/foo",
+					},
+					3: {
+						RootMountPoint: "/foo",
+					},
+					4: {
+						RootMountPoint: "/foo",
+					},
+				},
+			}, map[string]map[int]*gadget.OnDiskStructure{
+				"foo": {
+					0: {},
+					1: {},
+					2: {},
+					3: {},
+					4: {},
+				},
+			},
+			nil
+	})
+	defer r()
+
+	toUpdate := map[string]int{}
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		toUpdate[ps.Name()]++
+		return &mockUpdater{}, nil
+	})
+	defer restore()
+
+	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(toUpdate, DeepEquals, map[string]int{
+		// the structure was picked for update
+		"first": 1,
+	})
+}
+
 func (u *updateTestSuite) TestUpdateApplyUpdatesRemodelPolicy(c *C) {
 	oldData, newData, rollbackDir := u.policyDataSet(c)
 

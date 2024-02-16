@@ -194,12 +194,12 @@ distro_install_package() {
             quiet eatmydata apt-get install $APT_FLAGS -y "${pkg_names[@]}"
             retval=$?
             ;;
-        amazon-*|centos-7-*)
+        amazon-linux-2-*|centos-7-*)
             # shellcheck disable=SC2086
             quiet yum -y install $YUM_FLAGS "${pkg_names[@]}"
             retval=$?
             ;;
-        fedora-*|centos-*)
+        fedora-*|centos-*|amazon-linux-2023-*)
             # shellcheck disable=SC2086
             quiet dnf -y --refresh install $DNF_FLAGS "${pkg_names[@]}"
             retval=$?
@@ -736,13 +736,12 @@ pkg_dependencies_amazon(){
     if os.query is-amazon-linux 2023; then
         echo "
             bpftool
-            gnupg2-full
+            gpg
             python-docutils
             python3-gobject
             "
     fi
     echo "
-        curl
         dbus-x11
         expect
         fontconfig

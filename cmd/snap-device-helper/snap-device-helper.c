@@ -34,8 +34,8 @@
 
 #include "snap-device-helper.h"
 
-static unsigned long must_strtoul(char *str) {
-    char *end = str;
+static unsigned long must_strtoul(const char *str) {
+    char *end = NULL;
     unsigned long val = strtoul(str, &end, 10);
     if (*end != '\0') {
         die("malformed number \"%s\"", str);
@@ -143,22 +143,37 @@ static char *udev_to_security_tag(const char *udev_tag) {
     return tag;
 }
 
-/* sysroot can be mocked in tests */
-static const char *sysroot = "/";
-
 int snap_device_helper_run(const struct sdh_invocation *inv) {
     const char *action = inv->action;
     const char *udev_tagname = inv->tagname;
-    const char *devpath = inv->devpath;
-    const char *majmin = inv->majmin;
+    const char *major = inv->major;
+    const char *minor = inv->minor;
+    const char *subsystem = inv->subsystem;
 
     bool allow = false;
 
-    if (strlen(majmin) < 3) {
-        die("no or malformed major/minor \"%s\"", majmin);
+    if ((major == NULL) && (minor == NULL)) {
+        /* no device node */
+        return 0;
     }
-    if (strlen(devpath) <= strlen("/devices/")) {
-        die("no or malformed devpath \"%s\"", devpath);
+    if ((major == NULL) || (minor == NULL)) {
+        die("incomplete major/minor");
+    }
+    if (subsystem != NULL) {
+        /* ignore kobjects that are not devices */
+        if (strcmp(subsystem, "subsystem") == 0) {
+            return 0;
+        }
+        if (strcmp(subsystem, "module") == 0) {
+            return 0;
+        }
+        if (strcmp(subsystem, "drivers") == 0) {
+            return 0;
+        }
+    }
+
+    if (action == NULL) {
+        die("ERROR: no action given");
     }
     if (sc_streq(action, "bind") || sc_streq(action, "add") || sc_streq(action, "change")) {
         allow = true;
@@ -177,33 +192,8 @@ int snap_device_helper_run(const struct sdh_invocation *inv) {
 
     char *security_tag SC_CLEANUP(sc_cleanup_string) = udev_to_security_tag(udev_tagname);
 
-    int devtype = S_IFCHR;
-    /* find out the actual subsystem */
-    char sysdevsubsystem[PATH_MAX] = {0};
-    char fullsubsystem[PATH_MAX] = {0};
-    sc_must_snprintf(sysdevsubsystem, sizeof(sysdevsubsystem), "%s/sys/%s/subsystem", sysroot, devpath);
-    if (readlink(sysdevsubsystem, fullsubsystem, sizeof(fullsubsystem)) < 0) {
-        if (errno == ENOENT && sc_streq(action, "remove")) {
-            // on removal the devices are going away, so it is possible that the
-            // symlink is already gone, in which case try guessing the type like
-            // the old shell-based snap-device-helper did:
-            //
-            // > char devices are .../nvme/nvme* but block devices are
-            // > .../nvme/nvme*/nvme*n* and .../nvme/nvme*/nvme*n*p* so if have a
-            // > device that has nvme/nvme*/nvme*n* in it, treat it as a block
-            // > device
-            if ((fnmatch("*/block/*", devpath, 0) == 0) || (fnmatch("*/nvme/nvme*/nvme*n*", devpath, 0) == 0)) {
-                devtype = S_IFBLK;
-            }
-        } else {
-            die("cannot read symlink %s", sysdevsubsystem);
-        }
-    } else {
-        char *subsystem = basename(fullsubsystem);
-        if (sc_streq(subsystem, "block")) {
-            devtype = S_IFBLK;
-        }
-    }
+    int devtype = ((subsystem != NULL) && (strcmp(subsystem, "block") == 0))?S_IFBLK:S_IFCHR;
+
     sc_device_cgroup *cgroup = sc_device_cgroup_new(security_tag, SC_DEVICE_CGROUP_FROM_EXISTING);
     if (!cgroup) {
         if (errno == ENOENT) {
@@ -212,19 +202,6 @@ int snap_device_helper_run(const struct sdh_invocation *inv) {
         }
         die("cannot create device cgroup wrapper");
     }
-
-    /* the format is <major>:<minor> */
-    char *major SC_CLEANUP(sc_cleanup_string) = sc_strdup(majmin);
-    char *sep = strchr(major, ':');
-    // sep is always \0 terminated so this checks if the part after ":" is empty
-    if (sep == NULL || sep[1] == '\0') {
-        /* not found, or a last character */
-        die("malformed major:minor string: %s", major);
-    }
-    /* set an end for the major number string */
-    *sep = '\0';
-    sep++;
-    char *minor = sep;
 
     int devmajor = must_strtoul(major);
     int devminor = must_strtoul(minor);

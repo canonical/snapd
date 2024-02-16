@@ -57,6 +57,10 @@ type LinkContext struct {
 	// RequireMountedSnapdSnap indicates that the apps and services
 	// generated when linking need to use tooling from the snapd snap mount.
 	RequireMountedSnapdSnap bool
+
+	// SkipBinaries indicates that we should skip removing snap binaries,
+	// icons and desktop files in UnlinkSnap
+	SkipBinaries bool
 }
 
 func updateCurrentSymlinks(info *snap.Info) (e error) {
@@ -96,13 +100,6 @@ func updateCurrentSymlinks(info *snap.Info) (e error) {
 	return os.Symlink(filepath.Base(mountDir), currentActiveSymlink)
 }
 
-func hasFontConfigCache(info *snap.Info) bool {
-	if info.Type() == snap.TypeOS || info.Type() == snap.TypeSnapd {
-		return true
-	}
-	return false
-}
-
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
 func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext, tm timings.Measurer) (rebootRequired boot.RebootInfo, e error) {
 	if info.Revision.Unset() {
@@ -123,22 +120,9 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 			return
 		}
 		timings.Run(tm, "remove-wrappers", fmt.Sprintf("remove wrappers of snap %s", info.InstanceName()), func(timings.Measurer) {
-			removeGeneratedWrappers(info, linkCtx.FirstInstall, progress.Null)
+			removeGeneratedWrappers(info, linkCtx, progress.Null)
 		})
 	}()
-
-	// fontconfig is only relevant on classic and is carried by 'core' or
-	// 'snapd' snaps
-	// for non-core snaps, fontconfig cache needs to be updated before the
-	// snap applications are runnable
-	if dev.Classic() && !hasFontConfigCache(info) {
-		timings.Run(tm, "update-fc-cache", "update font config caches", func(timings.Measurer) {
-			// XXX: does this need cleaning up? (afaict no)
-			if err := updateFontconfigCaches(); err != nil {
-				logger.Noticef("cannot update fontconfig cache: %v", err)
-			}
-		})
-	}
 
 	var rebootInfo boot.RebootInfo
 	if !b.preseed {
@@ -155,16 +139,6 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 	}
 	// if anything below here could return error, you need to
 	// somehow clean up whatever updateCurrentSymlinks did
-
-	// for core snap, fontconfig cache can be updated after the snap has
-	// been made available
-	if dev.Classic() && hasFontConfigCache(info) {
-		timings.Run(tm, "update-fc-cache", "update font config caches", func(timings.Measurer) {
-			if err := updateFontconfigCaches(); err != nil {
-				logger.Noticef("cannot update fontconfig cache: %v", err)
-			}
-		})
-	}
 
 	// Stop inhibiting application startup by removing the inhibitor file.
 	if err := runinhibit.Unlock(info.InstanceName()); err != nil {
@@ -240,34 +214,37 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	return nil
 }
 
-func removeGeneratedWrappers(s *snap.Info, firstInstallUndo bool, meter progress.Meter) error {
+func removeGeneratedWrappers(s *snap.Info, linkCtx LinkContext, meter progress.Meter) error {
 	if s.Type() == snap.TypeSnapd {
-		return removeGeneratedSnapdWrappers(s, firstInstallUndo, progress.Null)
+		return removeGeneratedSnapdWrappers(s, linkCtx.FirstInstall, progress.Null)
 	}
 
-	err1 := wrappers.RemoveSnapBinaries(s)
-	if err1 != nil {
-		logger.Noticef("Cannot remove binaries for %q: %v", s.InstanceName(), err1)
+	var err1, err2, err3 error
+	if !linkCtx.SkipBinaries {
+		err1 = wrappers.RemoveSnapBinaries(s)
+		if err1 != nil {
+			logger.Noticef("Cannot remove binaries for %q: %v", s.InstanceName(), err1)
+		}
+
+		err2 = wrappers.RemoveSnapDesktopFiles(s)
+		if err2 != nil {
+			logger.Noticef("Cannot remove desktop files for %q: %v", s.InstanceName(), err2)
+		}
+
+		err3 = wrappers.RemoveSnapIcons(s)
+		if err3 != nil {
+			logger.Noticef("Cannot remove desktop icons for %q: %v", s.InstanceName(), err3)
+		}
 	}
 
-	err2 := wrappers.RemoveSnapDBusActivationFiles(s)
-	if err2 != nil {
-		logger.Noticef("Cannot remove D-Bus activation for %q: %v", s.InstanceName(), err2)
-	}
-
-	err3 := wrappers.RemoveSnapServices(s, meter)
-	if err3 != nil {
-		logger.Noticef("Cannot remove services for %q: %v", s.InstanceName(), err3)
-	}
-
-	err4 := wrappers.RemoveSnapDesktopFiles(s)
+	err4 := wrappers.RemoveSnapDBusActivationFiles(s)
 	if err4 != nil {
-		logger.Noticef("Cannot remove desktop files for %q: %v", s.InstanceName(), err4)
+		logger.Noticef("Cannot remove D-Bus activation for %q: %v", s.InstanceName(), err4)
 	}
 
-	err5 := wrappers.RemoveSnapIcons(s)
+	err5 := wrappers.RemoveSnapServices(s, meter)
 	if err5 != nil {
-		logger.Noticef("Cannot remove desktop icons for %q: %v", s.InstanceName(), err5)
+		logger.Noticef("Cannot remove services for %q: %v", s.InstanceName(), err5)
 	}
 
 	return firstErr(err1, err2, err3, err4, err5)
@@ -309,7 +286,7 @@ func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress
 	}
 
 	// remove generated services, binaries etc
-	err1 := removeGeneratedWrappers(info, linkCtx.FirstInstall, meter)
+	err1 := removeGeneratedWrappers(info, linkCtx, meter)
 
 	// and finally remove current symlinks
 	err2 := removeCurrentSymlinks(info)

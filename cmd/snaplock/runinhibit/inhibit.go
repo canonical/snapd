@@ -22,6 +22,7 @@
 package runinhibit
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -281,15 +282,15 @@ func RemoveLockFile(snapName string) error {
 
 // needed for better mocking
 type ticker interface {
-	Wait()
+	Wait() <-chan time.Time
 }
 
 type timeTicker struct {
 	interval time.Duration
 }
 
-func (t *timeTicker) Wait() {
-	time.Sleep(t.interval)
+func (t *timeTicker) Wait() <-chan time.Time {
+	return time.After(t.interval)
 }
 
 var newTicker = func(interval time.Duration) ticker {
@@ -308,7 +309,7 @@ var newTicker = func(interval time.Duration) ticker {
 // NOTE: A snap without a hint file is considered not inhibited and a nil FileLock is returned.
 //
 // NOTE: It is the caller's responsibility to release the returned file lock.
-var WaitWhileInhibited = func(snapName string, notInhibited func() error, inhibited func(hint Hint, inhibitInfo *InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, err error) {
+var WaitWhileInhibited = func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint Hint, inhibitInfo *InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, err error) {
 	ticker := newTicker(interval)
 
 	// Release lock if we return early with an error
@@ -325,7 +326,7 @@ var WaitWhileInhibited = func(snapName string, notInhibited func() error, inhibi
 		// We must return flock alongside errors so that cleanup defer can close it.
 		if os.IsNotExist(err) {
 			if notInhibited != nil {
-				if err := notInhibited(); err != nil {
+				if err := notInhibited(ctx); err != nil {
 					// No flock opened, it is okay to return nil here
 					return nil, err
 				}
@@ -350,7 +351,7 @@ var WaitWhileInhibited = func(snapName string, notInhibited func() error, inhibi
 
 		if hint == HintNotInhibited {
 			if notInhibited != nil {
-				if err := notInhibited(); err != nil {
+				if err := notInhibited(ctx); err != nil {
 					return flock, err
 				}
 			}
@@ -361,7 +362,7 @@ var WaitWhileInhibited = func(snapName string, notInhibited func() error, inhibi
 				if err != nil {
 					return flock, err
 				}
-				cont, err := inhibited(hint, &inhibitInfo)
+				cont, err := inhibited(ctx, hint, &inhibitInfo)
 				if err != nil {
 					return flock, err
 				}
@@ -373,7 +374,11 @@ var WaitWhileInhibited = func(snapName string, notInhibited func() error, inhibi
 
 		// Close the lock file explicitly so we can try to lock again after waiting for the interval.
 		flock.Close()
-		ticker.Wait()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.Wait():
+		}
 	}
 }
 

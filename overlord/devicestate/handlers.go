@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -31,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
@@ -71,6 +73,17 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 				logger.Debugf("unmounting snap %s at %s", info.InstanceName(), info.MountDir())
 				if _, err := exec.Command("umount", "-d", "-l", info.MountDir()).CombinedOutput(); err != nil {
 					return err
+				}
+				// Remove early mount for the kernel snap
+				// TODO we need something like EarlyKernelPlaceInfo
+				// to avoid repeating the kernel-snaps path.
+				if tp, _ := snapSt.Type(); tp == snap.TypeKernel {
+					earlyMntPt := filepath.Join("/run/mnt/kernel-snaps",
+						info.RealName, info.Revision.String())
+					if _, err := exec.Command("umount", "-d", "-l",
+						earlyMntPt).CombinedOutput(); err != nil {
+						return err
+					}
 				}
 			}
 
@@ -136,6 +149,24 @@ func (m *DeviceManager) recordSeededSystem(st *state.State, whatSeeded *seededSy
 	// but rather it describes the currently existing
 	seeded = append([]seededSystem{*whatSeeded}, seeded...)
 	st.Set("seeded-systems", seeded)
+	return nil
+}
+
+func (m *DeviceManager) removeSeededSystem(st *state.State, whatSeeded *seededSystem) error {
+	var seeded []seededSystem
+	if err := st.Get("seeded-systems", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	for i, sys := range seeded {
+		if sys.sameAs(whatSeeded) {
+			seeded = append(seeded[:i], seeded[i+1:]...)
+			break
+		}
+	}
+
+	st.Set("seeded-systems", seeded)
+
 	return nil
 }
 

@@ -162,6 +162,12 @@ func (s *snapSetSuite) mockSetConfigServer(c *check.C, expectedValue interface{}
 	})
 }
 
+const asyncResp = `{
+	"type": "async",
+	"change": "123",
+	"status-code": 202
+}`
+
 type aspectsSuite struct {
 	BaseSnapSuite
 	tmpDir string
@@ -187,15 +193,12 @@ func (s *aspectsSuite) mockAspectsFlag(c *check.C) (restore func()) {
 	}
 }
 
-const asyncResp = `{
-	"type": "async",
-	"change": "123",
-	"status-code": 202
-}`
-
-func (s *aspectsSuite) TestAspectSet(c *check.C) {
-	restore := s.mockAspectsFlag(c)
-	defer restore()
+func (s *aspectsSuite) mockAspectServer(c *check.C, expectedRequest string, nowait bool) {
+	fail := func(w http.ResponseWriter, err error) {
+		w.WriteHeader(500)
+		fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+		c.Error(err)
+	}
 
 	var reqs int
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -207,23 +210,34 @@ func (s *aspectsSuite) TestAspectSet(c *check.C) {
 
 			raw, err := io.ReadAll(r.Body)
 			c.Check(err, check.IsNil)
-			c.Check(string(raw), check.Equals, `{"abc":"cba"}`)
+			c.Check(string(raw), check.Equals, expectedRequest)
 
 			w.WriteHeader(202)
 			fmt.Fprintln(w, asyncResp)
 		case 1:
+			if nowait {
+				err := fmt.Errorf("expected only one request, on %d (%v)", reqs+1, r)
+				fail(w, err)
+				return
+			}
+
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
 			fmt.Fprintf(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}\n`)
 		default:
 			err := fmt.Errorf("expected to get 2 requests, now on %d (%v)", reqs+1, r)
-			w.WriteHeader(500)
-			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
-			c.Error(err)
+			fail(w, err)
 		}
 
 		reqs++
 	})
+}
+
+func (s *aspectsSuite) TestAspectSet(c *check.C) {
+	restore := s.mockAspectsFlag(c)
+	defer restore()
+
+	s.mockAspectServer(c, `{"abc":"cba"}`, false)
 
 	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", `abc="cba"`})
 	c.Assert(err, check.IsNil)
@@ -237,33 +251,7 @@ func (s *aspectsSuite) TestAspectSetMany(c *check.C) {
 	restore := s.mockAspectsFlag(c)
 	defer restore()
 
-	var reqs int
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch reqs {
-		case 0:
-			c.Check(r.Method, check.Equals, "PUT")
-			c.Check(r.URL.Path, check.Equals, "/v2/aspects/foo/bar/baz")
-			c.Check(r.URL.Query(), check.HasLen, 0)
-
-			raw, err := io.ReadAll(r.Body)
-			c.Check(err, check.IsNil)
-			c.Check(string(raw), check.Equals, `{"abc":{"foo":1},"xyz":true}`)
-
-			w.WriteHeader(202)
-			fmt.Fprintf(w, asyncResp)
-		case 1:
-			c.Check(r.Method, check.Equals, "GET")
-			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
-			fmt.Fprintf(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}\n`)
-		default:
-			err := fmt.Errorf("expected to get 2 requests, now on %d (%v)", reqs+1, r)
-			w.WriteHeader(500)
-			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
-			c.Error(err)
-		}
-
-		reqs++
-	})
+	s.mockAspectServer(c, `{"abc":{"foo":1},"xyz":true}`, false)
 
 	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", `abc={"foo":1}`, "xyz=true"})
 	c.Assert(err, check.IsNil)
@@ -286,29 +274,7 @@ func (s *aspectsSuite) TestAspectSetNoWait(c *check.C) {
 	restore := s.mockAspectsFlag(c)
 	defer restore()
 
-	var reqs int
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch reqs {
-		case 0:
-			c.Check(r.Method, check.Equals, "PUT")
-			c.Check(r.URL.Path, check.Equals, "/v2/aspects/foo/bar/baz")
-			c.Check(r.URL.Query(), check.HasLen, 0)
-
-			raw, err := io.ReadAll(r.Body)
-			c.Check(err, check.IsNil)
-			c.Check(string(raw), check.Equals, `{"abc":1}`)
-
-			w.WriteHeader(202)
-			fmt.Fprintln(w, asyncResp)
-		default:
-			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
-			w.WriteHeader(500)
-			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
-			c.Error(err)
-		}
-
-		reqs++
-	})
+	s.mockAspectServer(c, `{"abc":1}`, true)
 
 	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "--no-wait", "foo/bar/baz", "abc=1"})
 	c.Assert(err, check.IsNil)
@@ -334,4 +300,14 @@ func (s *aspectsSuite) TestAspectSetDisabledFlag(c *check.C) {
 
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", "abc=1"})
 	c.Assert(err, check.ErrorMatches, "aspect-based configuration is disabled: you must set 'experimental.aspects-configuration' to true")
+}
+
+func (s *aspectsSuite) TestAspectSetExclamationMark(c *check.C) {
+	restore := s.mockAspectsFlag(c)
+	defer restore()
+
+	s.mockAspectServer(c, `{"abc":null}`, false)
+
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", "abc!"})
+	c.Assert(err, check.IsNil)
 }

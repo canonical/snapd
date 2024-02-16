@@ -26,7 +26,7 @@ import (
 )
 
 var (
-	coreNameFormat = regexp.MustCompile("^core(?P<version>[0-9]*)$")
+	coreNameFormat = regexp.MustCompile("^core(?P<version>[0-9]*)(?:-.*)?$")
 )
 
 // CoreVersion extract the version component of the core snap name

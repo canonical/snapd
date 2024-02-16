@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -1397,7 +1396,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 // snap given the mound point, mount file, and side info.
 func ReadInfoFromMountPoint(name, mountPoint, mountFile string, si *SideInfo) (*Info, error) {
 	snapYamlFn := filepath.Join(mountPoint, "meta", "snap.yaml")
-	meta, err := ioutil.ReadFile(snapYamlFn)
+	meta, err := os.ReadFile(snapYamlFn)
 	if os.IsNotExist(err) {
 		return nil, &NotFoundError{Snap: name, Revision: si.Revision, Path: snapYamlFn}
 	}

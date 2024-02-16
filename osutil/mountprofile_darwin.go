@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2022 Canonical Ltd
+ * Copyright (C) 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,25 +17,12 @@
  *
  */
 
-package main
+package osutil
 
-import (
-	"fmt"
-	"os"
-
-	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/snapdtool"
-)
-
-func init() {
-	err := logger.SimpleSetup()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %v\n", err)
-	}
+type MountProfile struct {
+	Entries []MountEntry
 }
 
-func main() {
-	snapdtool.ExecInSnapdOrCoreSnap()
-	// This point is only reached if reexec did not happen
-	fmt.Fprintln(os.Stderr, "AA Prompt listener not implemented")
+func LoadMountProfile(fname string) (*MountProfile, error) {
+	return nil, ErrDarwin
 }

@@ -227,8 +227,8 @@ type msgNotificationFile struct {
 	Deny  uint32
 	Pid   uint32
 	Label uint32
-	Class uint32
-	Op    uint32
+	Class uint16
+	Op    uint16
 	// msgNotificationFileKernel
 	SUID uint32
 	OUID uint32
@@ -642,7 +642,7 @@ func (*listenerSuite) TestRunErrors(c *C) {
 			msgNotificationFile{
 				Length: 1234,
 			},
-			`cannot extract first message: length in header exceeds data length: 1234 > 56`,
+			`cannot extract first message: length in header exceeds data length: 1234 > 52`,
 		},
 		{
 			msgNotificationFile{
@@ -659,7 +659,7 @@ func (*listenerSuite) TestRunErrors(c *C) {
 		},
 		{
 			msgNotificationFile{
-				Length:           56,
+				Length:           52,
 				Version:          3,
 				NotificationType: notify.APPARMOR_NOTIF_CANCEL,
 			},
@@ -667,10 +667,10 @@ func (*listenerSuite) TestRunErrors(c *C) {
 		},
 		{
 			msgNotificationFile{
-				Length:           56,
+				Length:           52,
 				Version:          3,
 				NotificationType: notify.APPARMOR_NOTIF_OP,
-				Class:            uint32(notify.AA_CLASS_DBUS),
+				Class:            uint16(notify.AA_CLASS_DBUS),
 			},
 			`unsupported mediation class: AA_CLASS_DBUS`,
 		},

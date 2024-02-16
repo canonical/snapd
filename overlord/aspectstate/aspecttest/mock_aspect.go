@@ -18,17 +18,19 @@
 
 package aspecttest
 
-// MockWifiSetupAspect returns some mocked aspect access patterns for the
+// MockWifiSetupAspect returns some mocked aspect rules for the
 // system/network/wifi-setup. This will eventually be replaced by proper
 // aspect assertions.
 func MockWifiSetupAspect() map[string]interface{} {
 	return map[string]interface{}{
-		"wifi-setup": []map[string]string{
-			{"request": "ssids", "storage": "wifi.ssids"},
-			{"request": "ssid", "storage": "wifi.ssid", "access": "read-write"},
-			{"request": "password", "storage": "wifi.psk", "access": "write"},
-			{"request": "status", "storage": "wifi.status", "access": "read"},
-			{"request": "private.{placeholder}", "storage": "wifi.{placeholder}"},
+		"wifi-setup": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{"request": "ssids", "storage": "wifi.ssids"},
+				map[string]interface{}{"request": "ssid", "storage": "wifi.ssid", "access": "read-write"},
+				map[string]interface{}{"request": "password", "storage": "wifi.psk", "access": "write"},
+				map[string]interface{}{"request": "status", "storage": "wifi.status", "access": "read"},
+				map[string]interface{}{"request": "private.{placeholder}", "storage": "wifi.{placeholder}"},
+			},
 		},
 	}
 }

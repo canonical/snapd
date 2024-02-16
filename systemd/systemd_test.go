@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/sandbox/selinux"
+	"github.com/snapcore/snapd/systemd"
 	. "github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -2015,6 +2016,56 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
 
 	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "fuse.squashfuse", mockSnapPath, "/snap/snapname/123", "-o", "nodev,a,b,c"})
 	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide,x-gvfs-hide"))
+}
+
+func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithOptions(c *C) {
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
+
+	restore := MockSquashFsType(func() (string, []string) { return "fuse.squashfuse", []string{"a,b,c"} })
+	defer restore()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", "")
+	defer mockMountCmd.Restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/pc-kernel_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	mountUnitOptions := &systemd.MountUnitOptions{
+		MountUnitType: systemd.BeforeDriversLoadMountUnit,
+		Lifetime:      systemd.Persistent,
+		Description:   "Early mount unit for kernel snap",
+		What:          mockSnapPath,
+		Where:         "/run/mnt/kernel-snaps/pc-kernel/1",
+		Fstype:        "squashfs",
+		Options:       []string{"nodev,ro,x-gdu.hide,x-gvfs-hide"},
+	}
+	mountUnitName, err := sysd.EnsureMountUnitFileWithOptions(mountUnitOptions)
+
+	c.Assert(err, IsNil)
+	defer os.Remove(mountUnitName)
+
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "fuse.squashfuse", mockSnapPath, "/run/mnt/kernel-snaps/pc-kernel/1", "-o", "nodev,a,b,c"})
+	where := filepath.Join(dirs.RunDir, "mnt/kernel-snaps/pc-kernel/1")
+	c.Check(osutil.IsDirectory(where), Equals, true)
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals,
+		fmt.Sprintf(`[Unit]
+Description=Early mount unit for kernel snap
+DefaultDependencies=no
+After=systemd-remount-fs.service
+Before=sysinit.target
+Before=systemd-udevd.service systemd-modules-load.service
+Before=umount.target
+Conflicts=umount.target
+
+[Mount]
+What=%s
+Where=/run/mnt/kernel-snaps/pc-kernel/1
+Type=squashfs
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
+
+[Install]
+WantedBy=sysinit.target
+`, mockSnapPath))
 }
 
 func (s *SystemdTestSuite) TestPreseedModeMountError(c *C) {

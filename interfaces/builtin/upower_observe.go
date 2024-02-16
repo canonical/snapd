@@ -195,7 +195,7 @@ dbus (send)
     bus=system
     path=/org/freedesktop/UPower/devices/**
     interface=org.freedesktop.UPower.Device
-    member=GetHistory
+    member={GetHistory,Refresh}
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 # Receive property changed events
