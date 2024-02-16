@@ -40,6 +40,54 @@ var ErrInvalidDurationParseError = errors.New("invalid duration: error parsing d
 var ErrInvalidDurationNegative = errors.New("invalid duration: duration must be greater than zero")
 var ErrUnrecognizedFilePermission = errors.New("file permissions mask contains unrecognized permission")
 
+type Constraints struct {
+	PathPattern string           `json:"path-pattern"`
+	Permissions []PermissionType `json:"permissions"`
+}
+
+// ValidateForInterface returns nil if the constraints are valid for the given
+// interface, otherwise returns an error.
+func (constraints *Constraints) ValidateForInterface(iface string) error {
+	switch iface {
+	case "home", "camera":
+	default:
+		return fmt.Errorf("constraints incompatible with the given interface: %s", iface)
+	}
+	// TODO: change to this once PR #13730 is merged:
+	// return ValidatePathPattern(constraints.PathPattern)
+	return nil
+}
+
+// Match returns true if the constraints match the given path, otherwise false.
+//
+// If the constraints or path are invalid, returns an error.
+func (constraints *Constraints) Match(path string) (bool, error) {
+	// TODO: change to this once PR #13730 is merged:
+	// return PathPatternMatch(constraints.PathPattern, path)
+	return true, nil
+}
+
+// RemovePermission removes every instance of the given permission from the
+// permissions list associated with the constraints. If the permission does
+// not exist in the list, returns ErrPermissionNotInList.
+func (constraints *Constraints) RemovePermission(permission PermissionType) error {
+	origLen := len(constraints.Permissions)
+	i := 0
+	for i < len(constraints.Permissions) {
+		perm := constraints.Permissions[i]
+		if perm != permission {
+			i++
+			continue
+		}
+		copy(constraints.Permissions[i:], constraints.Permissions[i+1:])
+		constraints.Permissions = constraints.Permissions[:len(constraints.Permissions)-1]
+	}
+	if origLen == len(constraints.Permissions) {
+		return ErrPermissionNotInList
+	}
+	return nil
+}
+
 type OutcomeType string
 
 const (
@@ -47,6 +95,18 @@ const (
 	OutcomeAllow OutcomeType = "allow"
 	OutcomeDeny  OutcomeType = "deny"
 )
+
+// AsBool returns the outcome as a boolean, or an error if it cannot be parsed.
+func (outcome OutcomeType) AsBool() (bool, error) {
+	switch outcome {
+	case OutcomeAllow:
+		return true, nil
+	case OutcomeDeny:
+		return false, nil
+	default:
+		return false, ErrInvalidOutcome
+	}
+}
 
 type LifespanType string
 
@@ -249,28 +309,6 @@ func PermissionsListContains(list []PermissionType, permission PermissionType) b
 	return false
 }
 
-// RemovePermissionFromList returns a new list with all instances of the given
-// permission removed. If the given permission is not found in the list, returns
-// an error, along with the original list.
-func RemovePermissionFromList(list []PermissionType, permission PermissionType) ([]PermissionType, error) {
-	if len(list) == 0 {
-		return list, ErrPermissionNotInList
-	}
-	newList := make([]PermissionType, 0, len(list)-1)
-	found := false
-	for _, perm := range list {
-		if perm == permission {
-			found = true
-			continue
-		}
-		newList = append(newList, perm)
-	}
-	if !found {
-		return list, ErrPermissionNotInList
-	}
-	return newList, nil
-}
-
 // ValidateOutcome returns nil if the given outcome is valid, otherwise an error.
 func ValidateOutcome(outcome OutcomeType) error {
 	switch outcome {
@@ -307,6 +345,21 @@ func ValidateLifespanParseDuration(lifespan LifespanType, duration string) (stri
 			return "", ErrInvalidDurationNegative
 		}
 		expirationString = time.Now().Add(parsedDuration).Format(time.RFC3339)
+	default:
+		return "", ErrInvalidLifespan
 	}
 	return expirationString, nil
+}
+
+// ValidateConstraintsOutcomeLifespanDuration returns an error if the given
+// constraints, outcome, lifespan, or duration are invalid. Otherwise, converts
+// the given duration to an expiration timestamp and returns it and nil error.
+func ValidateConstraintsOutcomeLifespanDuration(iface string, constraints *Constraints, outcome OutcomeType, lifespan LifespanType, duration string) (string, error) {
+	if err := constraints.ValidateForInterface(iface); err != nil {
+		return "", err
+	}
+	if err := ValidateOutcome(outcome); err != nil {
+		return "", err
+	}
+	return ValidateLifespanParseDuration(lifespan, duration)
 }

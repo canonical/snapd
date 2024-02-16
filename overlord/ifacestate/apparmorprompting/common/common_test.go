@@ -45,6 +45,91 @@ func (s *commonSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(s.tmpdir)
 }
 
+func (s *commonSuite) TestConstraintsValidateForInterface(c *C) {
+	goodConstraints := &common.Constraints{
+		PathPattern: "/path/to/foo",
+		Permissions: []common.PermissionType{common.PermissionRead},
+	}
+	// badConstraints := &common.Constraints{
+	//	PathPattern: "bad\\pattern",
+	//	Permissions: []common.PermissionType{common.PermissionRead},
+	// }
+	goodInterface := "home"
+	badInterface := "foo"
+
+	c.Check(goodConstraints.ValidateForInterface(goodInterface), IsNil)
+	c.Check(goodConstraints.ValidateForInterface(badInterface), NotNil)
+	// TODO: add this once PR #13730 is merged:
+	// c.Check(badConstraints.ValidateForInterface(goodInterface), Equals, common.ErrInvalidPathPattern)
+}
+
+func (s *commonSuite) TestConstraintsRemovePermission(c *C) {
+	cases := []struct {
+		initial []common.PermissionType
+		remove  common.PermissionType
+		final   []common.PermissionType
+		err     error
+	}{
+		{
+			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
+			common.PermissionRead,
+			[]common.PermissionType{common.PermissionWrite, common.PermissionExecute},
+			nil,
+		},
+		{
+			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
+			common.PermissionWrite,
+			[]common.PermissionType{common.PermissionRead, common.PermissionExecute},
+			nil,
+		},
+		{
+			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
+			common.PermissionExecute,
+			[]common.PermissionType{common.PermissionRead, common.PermissionWrite},
+			nil,
+		},
+		{
+			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionRead},
+			common.PermissionRead,
+			[]common.PermissionType{common.PermissionWrite},
+			nil,
+		},
+		{
+			[]common.PermissionType{common.PermissionRead},
+			common.PermissionRead,
+			[]common.PermissionType{},
+			nil,
+		},
+		{
+			[]common.PermissionType{common.PermissionRead, common.PermissionRead},
+			common.PermissionRead,
+			[]common.PermissionType{},
+			nil,
+		},
+		{
+			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
+			common.PermissionAppend,
+			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
+			common.ErrPermissionNotInList,
+		},
+		{
+			[]common.PermissionType{},
+			common.PermissionRead,
+			[]common.PermissionType{},
+			common.ErrPermissionNotInList,
+		},
+	}
+	for _, testCase := range cases {
+		constraints := &common.Constraints{
+			PathPattern: "/path/to/foo",
+			Permissions: testCase.initial,
+		}
+		err := constraints.RemovePermission(testCase.remove)
+		c.Check(err, Equals, testCase.err)
+		c.Check(constraints.Permissions, DeepEquals, testCase.final)
+	}
+}
+
 func (s *commonSuite) TestTimestamps(c *C) {
 	before := time.Now()
 	ts := common.CurrentTimestamp()
@@ -279,61 +364,17 @@ func (s *commonSuite) TestPermissionsListContains(c *C) {
 	}
 }
 
-func (s *commonSuite) TestRemovePermissionFromList(c *C) {
-	cases := []struct {
-		initial []common.PermissionType
-		remove  common.PermissionType
-		final   []common.PermissionType
-		err     error
-	}{
-		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
-			common.PermissionRead,
-			[]common.PermissionType{common.PermissionWrite, common.PermissionExecute},
-			nil,
-		},
-		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
-			common.PermissionWrite,
-			[]common.PermissionType{common.PermissionRead, common.PermissionExecute},
-			nil,
-		},
-		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
-			common.PermissionExecute,
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite},
-			nil,
-		},
-		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionRead},
-			common.PermissionRead,
-			[]common.PermissionType{common.PermissionWrite},
-			nil,
-		},
-		{
-			[]common.PermissionType{common.PermissionRead},
-			common.PermissionRead,
-			[]common.PermissionType{},
-			nil,
-		},
-		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionRead},
-			common.PermissionRead,
-			[]common.PermissionType{},
-			nil,
-		},
-		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
-			common.PermissionAppend,
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
-			common.ErrPermissionNotInList,
-		},
-	}
-	for _, testCase := range cases {
-		result, err := common.RemovePermissionFromList(testCase.initial, testCase.remove)
-		c.Assert(err, Equals, testCase.err)
-		c.Assert(result, DeepEquals, testCase.final)
-	}
+func (s *commonSuite) TestOutcomeAsBool(c *C) {
+	result, err := common.OutcomeAllow.AsBool()
+	c.Check(err, IsNil)
+	c.Check(result, Equals, true)
+	result, err = common.OutcomeDeny.AsBool()
+	c.Check(err, IsNil)
+	c.Check(result, Equals, false)
+	_, err = common.OutcomeUnset.AsBool()
+	c.Check(err, Equals, common.ErrInvalidOutcome)
+	_, err = common.OutcomeType("foo").AsBool()
+	c.Check(err, Equals, common.ErrInvalidOutcome)
 }
 
 func (s *commonSuite) TestValidateOutcome(c *C) {
@@ -384,4 +425,37 @@ func (s *commonSuite) TestValidateLifespanParseDuration(c *C) {
 	c.Check(err, IsNil)
 	c.Check(expirationTime.After(time.Now()), Equals, true)
 	c.Check(expirationTime.Before(time.Now().Add(parsedValidDuration)), Equals, true)
+}
+
+func (s *commonSuite) TestValidateConstraintsOutcomeLifespanDuration(c *C) {
+	goodInterface := "home"
+	badInterface := "foo"
+	goodConstraints := &common.Constraints{
+		PathPattern: "/path/to/something",
+		Permissions: []common.PermissionType{common.PermissionRead},
+	}
+	// badConstraints := &common.Constraints{
+	//	PathPattern: "bad\\path",
+	//	Permissions: []common.PermissionType{common.PermissionRead},
+	// }
+	goodOutcome := common.OutcomeAllow
+	badOutcome := common.OutcomeUnset
+	goodLifespan := common.LifespanTimespan
+	badLifespan := common.LifespanUnset
+	goodDuration := "10s"
+	badDuration := "foo"
+
+	_, err := common.ValidateConstraintsOutcomeLifespanDuration(goodInterface, goodConstraints, goodOutcome, goodLifespan, goodDuration)
+	c.Check(err, IsNil)
+	_, err = common.ValidateConstraintsOutcomeLifespanDuration(badInterface, goodConstraints, goodOutcome, goodLifespan, goodDuration)
+	c.Check(err, NotNil)
+	// TODO: add this once PR #13730 is merged:
+	// _, err = common.ValidateConstraintsOutcomeLifespanDuration(goodInterface, badConstraints, goodOutcome, goodLifespan, goodDuration)
+	// c.Check(err, Equals, common.ErrInvalidPathPattern)
+	_, err = common.ValidateConstraintsOutcomeLifespanDuration(goodInterface, goodConstraints, badOutcome, goodLifespan, goodDuration)
+	c.Check(err, Equals, common.ErrInvalidOutcome)
+	_, err = common.ValidateConstraintsOutcomeLifespanDuration(goodInterface, goodConstraints, goodOutcome, badLifespan, goodDuration)
+	c.Check(err, Equals, common.ErrInvalidLifespan)
+	_, err = common.ValidateConstraintsOutcomeLifespanDuration(goodInterface, goodConstraints, goodOutcome, goodLifespan, badDuration)
+	c.Check(err, Equals, common.ErrInvalidDurationParseError)
 }
