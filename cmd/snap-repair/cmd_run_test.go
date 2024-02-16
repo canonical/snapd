@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 
@@ -44,6 +45,32 @@ func (r *repairSuite) TestNonRoot(c *C) {
 	os.Args = []string{"snap-repair", "run"}
 	err := repair.Run()
 	c.Assert(err, ErrorMatches, "must be run as root")
+}
+
+func (r *repairSuite) TestOffline(c *C) {
+	restore := repair.MockOsGetuid(func() int { return 0 })
+	defer restore()
+	restore = release.MockOnClassic(false)
+	defer restore()
+
+	r.freshState(c)
+
+	data, err := json.Marshal(repair.RepairConfig{
+		StoreOffline: true,
+	})
+	c.Assert(err, IsNil)
+
+	err = os.MkdirAll(filepath.Dir(dirs.SnapRepairConfigFile), 0755)
+	c.Assert(err, IsNil)
+
+	err = osutil.AtomicWriteFile(dirs.SnapRepairConfigFile, data, 0644, 0)
+	c.Assert(err, IsNil)
+
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+	os.Args = []string{"snap-repair", "run"}
+	err = repair.Run()
+	c.Assert(err, IsNil)
 }
 
 func (r *repairSuite) TestRun(c *C) {
