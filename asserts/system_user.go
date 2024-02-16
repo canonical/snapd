@@ -28,7 +28,8 @@ import (
 	"time"
 )
 
-var validSystemUserUsernames = regexp.MustCompile(`^[a-z0-9][-a-z0-9+.-_]*$`)
+// validSystemUserUsernames matches the regex we allow by osutil/user.go:IsValidUsername
+var validSystemUserUsernames = regexp.MustCompile(`^[a-z0-9][-a-z0-9._]*$`)
 
 // SystemUser holds a system-user assertion which allows creating local
 // system users.
