@@ -642,7 +642,9 @@ jobs:
 
     - name: Checkout code
       uses: actions/checkout@v3
-      fetch-depth: 0
+      with:
+        # needed for git commit history
+        fetch-depth: 0
 
     - name: Get previous attempt
       id: get-previous-attempt
