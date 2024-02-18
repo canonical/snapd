@@ -366,6 +366,18 @@ type Aspect struct {
 	bundle      *Bundle
 }
 
+type expandedMatch struct {
+	// storagePath is dot-separated storage path without unfilled placeholders.
+	storagePath string
+
+	// request is the original request field that the request was matched with.
+	request string
+
+	// value is the nested value obtained after removing the original values' outer
+	// layers that correspond to the unmatched suffix.
+	value interface{}
+}
+
 // Set sets the named aspect to a specified value.
 func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	if err := validateAspectDottedPath(request, nil); err != nil {
@@ -380,13 +392,6 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 			continue
 		}
 
-		for _, part := range suffixParts {
-			// TODO: add support for setting with unmatched placeholders
-			if isPlaceholder(part) {
-				return badRequestErrorFrom(a, "set", request, "cannot set with unmatched placeholders")
-			}
-		}
-
 		if !rule.isWriteable() {
 			continue
 		}
@@ -394,6 +399,16 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 		path, err := rule.storagePath(placeholders)
 		if err != nil {
 			return err
+		}
+
+		if value == nil {
+			// TODO: in the future, check the storage and complete paths according to
+			// the data that is currently stored?
+			for _, part := range strings.Split(path, ".") {
+				if isPlaceholder(part) {
+					return badRequestErrorFrom(a, "set", request, "cannot unset with unmatched placeholders")
+				}
+			}
 		}
 
 		matches = append(matches, requestMatch{
@@ -412,28 +427,41 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 		return matches[x].storagePath < matches[y].storagePath
 	})
 
+	var expandedMatches []expandedMatch
+	suffixes := make(map[string]struct{}, len(matches))
+	for _, match := range matches {
+		pathsToValues, err := getValuesThroughPaths(match.storagePath, match.suffixParts, value)
+		if err != nil {
+			return badRequestErrorFrom(a, "set", request, err.Error())
+		}
+
+		for path, val := range pathsToValues {
+			expandedMatches = append(expandedMatches, expandedMatch{
+				storagePath: path,
+				request:     match.request,
+				value:       val,
+			})
+		}
+
+		// store the suffix in a map so we deduplicate them before checking if the
+		// value is used in its entirety
+		suffixes[strings.Join(match.suffixParts, ".")] = struct{}{}
+	}
+
+	// check if value is entirely used. If not, we fail so this is consistent
+	// with doing the same write individually (one branch at a time)
+	if err := checkForUnusedBranches(value, suffixes); err != nil {
+		return badRequestErrorFrom(a, "set", request, err.Error())
+	}
+
 	if value != nil {
-		if err := checkSchemaMismatch(a.bundle.schema, matches); err != nil {
+		if err := checkSchemaMismatch(a.bundle.schema, expandedMatches); err != nil {
 			return err
 		}
 	}
 
-	for _, match := range matches {
-		nestedValue := value
-
-		for _, part := range match.suffixParts {
-			mapVal, ok := nestedValue.(map[string]interface{})
-			if !ok {
-				return badRequestErrorFrom(a, "set", request, `expected map for unmatched request parts but got %T`, nestedValue)
-			}
-
-			nestedValue, ok = mapVal[part]
-			if !ok {
-				return badRequestErrorFrom(a, "set", request, `cannot find nested value with unmatched key %q`, part)
-			}
-		}
-
-		if err := databag.Set(match.storagePath, nestedValue); err != nil {
+	for _, match := range expandedMatches {
+		if err := databag.Set(match.storagePath, match.value); err != nil {
 			return err
 		}
 
@@ -450,7 +478,7 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	return nil
 }
 
-func checkSchemaMismatch(schema Schema, matches []requestMatch) error {
+func checkSchemaMismatch(schema Schema, matches []expandedMatch) error {
 	pathTypes := make(map[string][]SchemaType)
 out:
 	for _, match := range matches {
@@ -530,6 +558,195 @@ func schemaTypesStr(types []SchemaType) string {
 	sb.WriteRune(']')
 
 	return sb.String()
+}
+
+// getValuesThroughPaths takes a match's storage path and unmatched request
+// suffix and strips the outer layers of the value to be set so it can be used
+// at the storage path. Parts of the suffix that are placeholders will be
+// expanded based on what keys exist in the value at that point and the mapping
+// will be used to complete the storage path.
+var getValuesThroughPaths = getValuesThroughPathsImpl
+
+func getValuesThroughPathsImpl(storagePath string, reqSuffixParts []string, val interface{}) (map[string]interface{}, error) {
+	// use the non-placeholder parts of the suffix to find the value to write
+	var placeIndex int
+	for _, part := range reqSuffixParts {
+		if isPlaceholder(part) {
+			// there is a placeholder, we have to consider potentially many candidates
+			break
+		}
+
+		mapVal, ok := val.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf(`expected map for unmatched request parts but got %T`, val)
+		}
+
+		val, ok = mapVal[part]
+		if !ok {
+			return nil, fmt.Errorf(`cannot use unmatched part %q as key in %v`, part, mapVal)
+		}
+
+		placeIndex++
+	}
+
+	// we reached the end of the suffix (there are no unmatched placeholders) so
+	// we have the full storage path and final value
+	if placeIndex == len(reqSuffixParts) {
+		return map[string]interface{}{storagePath: val}, nil
+	}
+
+	mapVal, ok := val.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf(`expected map for unmatched request parts but got %T`, val)
+	}
+
+	storagePathsToValues := make(map[string]interface{})
+	// suffix has an unmatched placeholder, try all possible values to fill it and
+	// find the corresponding nested value.
+	for cand, candVal := range mapVal {
+		newStoragePath := replaceIn(storagePath, reqSuffixParts[placeIndex], cand)
+		pathsToValues, err := getValuesThroughPathsImpl(newStoragePath, reqSuffixParts[placeIndex+1:], candVal)
+		if err != nil {
+			return nil, err
+		}
+
+		for path, val := range pathsToValues {
+			storagePathsToValues[path] = val
+		}
+	}
+
+	return storagePathsToValues, nil
+}
+
+func replaceIn(path, key, value string) string {
+	parts := strings.Split(path, ".")
+	for i, part := range parts {
+		if part == key {
+			parts[i] = value
+		}
+	}
+
+	return strings.Join(parts, ".")
+}
+
+// checkForUnusedBranches checks that the value is entirely covered by the paths.
+func checkForUnusedBranches(value interface{}, paths map[string]struct{}) error {
+	// prune each path from the value. If anything is left at the end, the paths
+	// don't collectively cover the entire value
+	copyValue := deepCopy(value)
+	for path := range paths {
+		var err error
+		var pathParts []string
+		if path != "" {
+			pathParts = strings.Split(path, ".")
+		}
+
+		copyValue, err = prunePathInValue(pathParts, copyValue)
+		if err != nil {
+			return err
+		}
+	}
+
+	// after pruning each path the value is nil, so all of it is used
+	if copyValue == nil {
+		return nil
+	}
+
+	var parts []string
+	for copyValue != nil {
+		mapVal, ok := copyValue.(map[string]interface{})
+		if !ok {
+			break
+		}
+
+		for k, v := range mapVal {
+			parts = append(parts, k)
+			copyValue = v
+			break
+		}
+	}
+
+	return fmt.Errorf("value contains unused data under %q", strings.Join(parts, "."))
+}
+
+// deepCopy returns a deep copy of the value. Only supports the types that the
+// API can take (so maps, slices and primitive types).
+func deepCopy(value interface{}) interface{} {
+	switch typeVal := value.(type) {
+	case map[string]interface{}:
+		mapCopy := make(map[string]interface{}, len(typeVal))
+		for k, v := range typeVal {
+			mapCopy[k] = deepCopy(v)
+		}
+		return mapCopy
+
+	case []interface{}:
+		sliceCopy := make([]interface{}, 0, len(typeVal))
+		for _, v := range typeVal {
+			sliceCopy = append(sliceCopy, deepCopy(v))
+		}
+		return sliceCopy
+
+	default:
+		return value
+	}
+}
+
+func prunePathInValue(parts []string, val interface{}) (interface{}, error) {
+	if len(parts) == 0 {
+		return nil, nil
+	} else if val == nil {
+		return nil, nil
+	}
+
+	mapVal, ok := val.(map[string]interface{})
+	if !ok {
+		// shouldn't happen since we already checked this
+		return nil, fmt.Errorf(`expected map but got %T`, val)
+	}
+
+	if isPlaceholder(parts[0]) {
+		nested := make(map[string]interface{})
+		for k, v := range mapVal {
+			newVal, err := prunePathInValue(parts[1:], v)
+			if err != nil {
+				return nil, err
+			}
+
+			if newVal != nil {
+				nested[k] = newVal
+			}
+		}
+
+		if len(nested) == 0 {
+			return nil, nil
+		}
+
+		return nested, nil
+	}
+
+	nested, ok := mapVal[parts[0]]
+	if !ok {
+		// shouldn't happen since we already checked this
+		return nil, fmt.Errorf(`cannot use unmatched part %q as key in %v`, parts[0], nested)
+	}
+
+	newValue, err := prunePathInValue(parts[1:], nested)
+	if err != nil {
+		return nil, err
+	}
+
+	if newValue == nil {
+		delete(mapVal, parts[0])
+	} else {
+		mapVal[parts[0]] = newValue
+	}
+
+	if len(mapVal) == 0 {
+		return nil, nil
+	}
+
+	return mapVal, nil
 }
 
 // namespaceResult creates a nested namespace around the result that corresponds
