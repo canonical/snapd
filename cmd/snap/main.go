@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2023 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -50,8 +50,8 @@ func init() {
 	// set User-Agent for when 'snap' talks to the store directly (snap download etc...)
 	snapdenv.SetUserAgentFromVersion(snapdtool.Version, nil, "snap")
 
-	// plug/slot sanitization not used by snap commands (except for snap
-	// pack and snap prepare-iamge, which re-sets it), make it no-op.
+	// plug/slot sanitization not used by snap commands (except for snap pack
+	// which re-sets it), make it no-op.
 	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) {}
 }
 

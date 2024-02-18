@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.61.2
+Version:        2.61.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -723,6 +723,11 @@ rm %{buildroot}%{_libexecdir}/snapd/system-shutdown
 rm -f %{buildroot}%{_unitdir}/snapd.apparmor.service
 rm -f %{buildroot}%{_libexecdir}/snapd/snapd-apparmor
 
+# Remove prompt services
+rm %{buildroot}%{_unitdir}/snapd.aa-prompt-listener.service
+rm %{buildroot}%{_userunitdir}/snapd.aa-prompt-ui.service
+rm %{buildroot}%{_datadir}/dbus-1/services/io.snapcraft.Prompt.service
+
 # Install Polkit configuration
 install -m 644 -D data/polkit/io.snapcraft.snapd.policy %{buildroot}%{_datadir}/polkit-1/actions
 
@@ -991,26 +996,6 @@ fi
 
 
 %changelog
-* Fri Feb 16 2024 Ernest Lotter <ernest.lotter@canonical.com>
-- New upstream release 2.61.2
- - Fix to enable plug/slot sanitization for prepare-image
- - Fix panic when device-service.access=offline
- - Support offline remodeling
- - Allow offline update only remodels without serial
- - Fail early when remodeling to old model revision
- - Fix to enable plug/slot sanitization for validate-seed
- - Allow removal of core snap on classic systems
- - Fix network-control interface denial for file lock on /run/netns
- - Add well-known core24 snap-id
- - Fix remodel snap installation order
- - Prevent remodeling from UC18+ to UC16
- - Fix cups auto-connect on classic with cups snap installed
- - u2f-devices interface support for GoTrust Idem Key with USB-C
- - Fix to restore services after unlink failure
- - Add libcudnn.so to Nvidia libraries
- - Fix skipping base snap download due to false snapd downgrade
-   conflict
-
 * Fri Nov 24 2023 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.61.1
  - Stop requiring default provider snaps on image building and first

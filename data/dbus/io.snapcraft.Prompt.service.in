@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=io.snapcraft.Prompt
+Exec=@libexecdir@/snapd/snapd-aa-prompt-ui
+AssumedAppArmorLabel=unconfined

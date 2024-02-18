@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2024 Canonical Ltd
+ * Copyright (C) 2016-2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -114,23 +114,6 @@ func findSerial(st *state.State, device *auth.DeviceState) (*asserts.Serial, err
 	}
 
 	return a.(*asserts.Serial), nil
-}
-
-// findKnownRevisionOfModel returns the model assertion revision if any in the
-// assertion database for the given model, otherwise it returns -1.
-func findKnownRevisionOfModel(st *state.State, mod *asserts.Model) (modRevision int, err error) {
-	a, err := assertstate.DB(st).Find(asserts.ModelType, map[string]string{
-		"series":   release.Series,
-		"brand-id": mod.BrandID(),
-		"model":    mod.Model(),
-	})
-	if errors.Is(err, &asserts.NotFoundError{}) {
-		return -1, nil
-	}
-	if err != nil {
-		return 0, err
-	}
-	return a.Revision(), nil
 }
 
 // auto-refresh
@@ -1106,31 +1089,11 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 		return nil, err
 	}
 
-	prevRev, err := findKnownRevisionOfModel(st, new)
-	if err != nil {
-		return nil, err
-	}
-	if new.Revision() < prevRev {
-		return nil, fmt.Errorf("cannot remodel to older revision %d of model %s/%s than last revision %d known to the device", new.Revision(), new.BrandID(), new.Model(), prevRev)
-	}
-
-	// TODO: we need dedicated assertion language to permit for
-	// model transitions before we allow cross vault
-	// transitions.
-
-	remodelKind := ClassifyRemodel(current, new)
-
 	if _, err := findSerial(st, nil); err != nil {
-		if !errors.Is(err, state.ErrNoState) {
-			return nil, err
-		}
-
-		if len(localSnaps) > 0 && remodelKind == UpdateRemodel {
-			// it is allowed to remodel without serial for
-			// offline remodels that are update only
-		} else {
+		if errors.Is(err, state.ErrNoState) {
 			return nil, fmt.Errorf("cannot remodel without a serial")
 		}
+		return nil, err
 	}
 
 	if current.Series() != new.Series() {
@@ -1160,6 +1123,12 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 	if new.Base() == "" && current.Base() != "" {
 		return nil, errors.New("cannot remodel from UC18+ (using snapd snap) system back to UC16 system (using core snap)")
 	}
+
+	// TODO: we need dedicated assertion language to permit for
+	// model transitions before we allow cross vault
+	// transitions.
+
+	remodelKind := ClassifyRemodel(current, new)
 
 	// TODO: should we restrict remodel from one arch to another?
 	// There are valid use-cases here though, i.e. amd64 machine that

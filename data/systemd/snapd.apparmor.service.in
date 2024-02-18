@@ -10,12 +10,6 @@ DefaultDependencies=no
 Before=sysinit.target
 # This dependency is meant to ensure that apparmor initialization (whatever that might entail) is complete.
 After=apparmor.service
-# In case of re-execution, snapd snap has to be mounted. apparmor.service has
-# a dependency to local-fs.target which is enough in theory. But in case
-# this dependency dispappears, it is better to have an explicit dependency to
-# snapd.mount.target here.
-After=snapd.mounts.target
-Wants=snapd.mounts.target
 ConditionSecurity=apparmor
 RequiresMountsFor=/var/cache/apparmor /var/lib/snapd/apparmor/profiles
 

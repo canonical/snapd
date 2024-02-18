@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020-2024 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,14 +30,13 @@ var (
 		"core18": "CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6",
 		"core20": "DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q",
 		"core22": "amcUKQILKXHHTlmSa7NMdnXSx02dNeeT",
-		"core24": "dwTAh7MZZ01zyriOZErqd1JynQLiOGvM",
 	}
 
 	stagingWellKnownSnapIDs = map[string]string{
 		"core":   "xMNMpEm0COPZy7jq9YRwWVLCD9q5peow",
 		"snapd":  "Z44rtQD1v4r1LXGPCDZAJO3AOw1EDGqy",
 		"core18": "NhSvwckvNdvgdiVGlsO1vYmi3FPdTZ9U",
-		// TODO:UC20 no core20+ uploaded to staging yet
+		// TODO:UC20 no core20 uploaded to staging yet
 		"core20": "",
 	}
 )

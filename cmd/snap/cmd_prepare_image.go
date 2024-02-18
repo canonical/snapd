@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2023 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,9 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/image"
-	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/seed/seedwriter"
-	"github.com/snapcore/snapd/snap"
 )
 
 type cmdPrepareImage struct {
@@ -116,11 +114,6 @@ var imagePrepare = image.Prepare
 var seedwriterReadManifest = seedwriter.ReadManifest
 
 func (x *cmdPrepareImage) Execute(args []string) error {
-	// plug/slot sanitization is disabled (no-op) by default at the package
-	// level for "snap" command, for seed/seedwriter used by image however
-	// we want real validation.
-	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
-
 	opts := &image.Options{
 		Snaps:            x.ExtraSnaps,
 		ModelFile:        x.Positional.ModelAssertionFn,
