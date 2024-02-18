@@ -371,7 +371,6 @@ jobs:
         - debian-sid-64
         - fedora-37-64
         - fedora-38-64
-        - opensuse-15.4-64
         - opensuse-15.5-64
         - opensuse-tumbleweed-64
         - ubuntu-14.04-64

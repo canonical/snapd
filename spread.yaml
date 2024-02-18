@@ -185,8 +185,6 @@ backends:
                   storage: preserve-size
                   image: centos-9-64
 
-            - opensuse-15.4-64:
-                  workers: 6
             - opensuse-15.5-64:
                   workers: 6
             - opensuse-tumbleweed-64:
