@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2023 Canonical Ltd
+ * Copyright (C) 2016-2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -286,7 +286,7 @@ capability sys_admin, # for setns()
 network netlink raw,
 
 / r,
-/run/netns/ rk,     # no 'w' since snap-confine will create this for us
+/run/netns/ r,     # only 'r' since snap-confine will create this for us
 /run/netns/* rw,
 mount options=(rw, rshared) -> /run/netns/,
 mount options=(rw, bind) /run/netns/ -> /run/netns/,

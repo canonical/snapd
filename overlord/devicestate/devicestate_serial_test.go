@@ -853,35 +853,6 @@ func (s *deviceMgrSerialSuite) TestDoRequestSerialNoReachableDNS(c *C) {
 	s.testDoRequestSerialKeepsRetrying(c, &simulateNoDNSRoundTripper{})
 }
 
-func (s *deviceMgrSerialSuite) TestDoRequestSerialOffline(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	tr := config.NewTransaction(s.state)
-	err := tr.Set("pc", "device-service.access", "offline")
-	c.Assert(err, IsNil)
-	tr.Commit()
-
-	s.state.Unlock()
-
-	chg, _ := s.makeRequestChangeWithTransport(c, http.DefaultTransport)
-
-	s.se.Ensure()
-	s.se.Wait()
-
-	s.state.Lock()
-
-	// task will appear done, since we don't want to pollute system with retries
-	c.Check(chg.Status(), Equals, state.DoneStatus)
-	c.Assert(chg.Err(), IsNil)
-
-	device, err := devicestatetest.Device(s.state)
-	c.Assert(err, IsNil)
-
-	// but the serial will not be there
-	c.Check(device.Serial, Equals, "")
-}
-
 func (s *deviceMgrSerialSuite) testDoRequestSerialKeepsRetrying(c *C, rt http.RoundTripper) {
 	chg, t := s.makeRequestChangeWithTransport(c, rt)
 

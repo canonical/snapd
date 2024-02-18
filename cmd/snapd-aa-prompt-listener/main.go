@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,31 +20,22 @@
 package main
 
 import (
-	"github.com/jessevdk/go-flags"
+	"fmt"
+	"os"
 
-	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/snapdtool"
 )
 
-type cmdValidateSeed struct {
-	Positionals struct {
-		SeedYamlPath flags.Filename `positional-arg-name:"<seed-yaml-path>"`
-	} `positional-args:"true" required:"true"`
-}
-
 func init() {
-	cmd := addDebugCommand("validate-seed",
-		"(internal) validate seed.yaml",
-		"(internal) validate seed.yaml",
-		func() flags.Commander {
-			return &cmdValidateSeed{}
-		}, nil, nil)
-	cmd.hidden = true
+	err := logger.SimpleSetup()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "WARNING: failed to activate logging: %v\n", err)
+	}
 }
 
-func (x *cmdValidateSeed) Execute(args []string) error {
-	if len(args) > 0 {
-		return ErrExtraArgs
-	}
-
-	return seed.ValidateFromYaml(string(x.Positionals.SeedYamlPath))
+func main() {
+	snapdtool.ExecInSnapdOrCoreSnap()
+	// This point is only reached if reexec did not happen
+	fmt.Fprintln(os.Stderr, "AA Prompt listener not implemented")
 }

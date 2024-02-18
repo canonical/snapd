@@ -4332,7 +4332,6 @@ type: snapd
 		si := &snap.SideInfo{Revision: snap.R("x2"), RealName: tc.snapName}
 		snapInfo := snaptest.MockSnapCurrent(c, string(tc.snapYaml), si)
 		snapsup := &snapstate.SnapSetup{SideInfo: si, Type: snapInfo.SnapType}
-		task.Set("snap-setup", snapsup)
 
 		// restarting
 		restart.MockPending(st, restart.RestartUnset)

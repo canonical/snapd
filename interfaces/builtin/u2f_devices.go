@@ -150,7 +150,7 @@ var u2fDevices = []u2fDevice{
 	{
 		Name:             "GoTrust Idem Key",
 		VendorIDPattern:  "32a3",
-		ProductIDPattern: "3201|3203",
+		ProductIDPattern: "3201",
 	},
 	{
 		Name:             "Trezor",

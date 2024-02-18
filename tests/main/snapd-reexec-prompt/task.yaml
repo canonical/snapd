@@ -1,0 +1,46 @@
+summary: Test that snapd prompt services reexec into the snapd snap
+
+# Disable for Fedora, openSUSE and Arch as re-exec is not supported there yet
+# Disable on Ubuntu 14.04 and UC16 as this feature will not land there, and
+# there are limitations that render backporting hard.
+systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*, -ubuntu-14.04-*, -ubuntu-core-16-*]
+
+execute: |
+    if [ "${SNAP_REEXEC:-}" = "0" ]; then
+        echo "skipping test when SNAP_REEXEC is disabled"
+        exit 0
+    fi
+
+    echo "Verify that the needed service files are installed"
+    systemctl list-units --all "*prompt*" | MATCH "snapd.aa-prompt-listener.service"
+    DBUS_BASE_DIR="/usr/share/dbus-1"
+    SYSTEMD_SERVICE_DIR="/lib/systemd"
+    if os.query is-core; then
+        DBUS_BASE_DIR="/var/lib/snapd/dbus-1"
+        SYSTEMD_SERVICE_DIR="/etc/systemd"
+    fi
+
+    test -f "$DBUS_BASE_DIR/services/io.snapcraft.Prompt.service"
+
+    echo "Verify that the service programs exist"
+    # The services are likely disabled, but we still want to check that the
+    # programs are installed and executable
+    # We are directly opening the unit files instead of using systemctl,
+    # because the "ExecStart" property it returns is not directly usable:
+    # ExecStart={ path=/usr/lib/snapd/snapd-aa-prompt-listener ; ... }
+    PROMPT_LISTENER=$(grep ExecStart "$SYSTEMD_SERVICE_DIR/system/snapd.aa-prompt-listener.service" | cut -f2 -d'=')
+    PROMPT_UI=$(grep Exec "$DBUS_BASE_DIR/services/io.snapcraft.Prompt.service" | cut -f2 -d'=')
+
+    echo "Verify that re-exec works"
+    SNAPD_DEBUG=1 "$PROMPT_LISTENER" 2> strace.log
+    tests.cleanup defer rm strace.log
+    MATCH "AA Prompt listener not implemented" < strace.log
+    if os.query is-classic; then
+        MATCH "DEBUG: restarting into" < strace.log
+    fi
+
+    SNAPD_DEBUG=1 "$PROMPT_UI" 2> strace.log
+    MATCH "AA Prompt UI not implemented" < strace.log
+    if os.query is-classic; then
+        MATCH "DEBUG: restarting into" < strace.log
+    fi
