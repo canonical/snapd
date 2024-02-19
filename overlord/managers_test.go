@@ -14031,11 +14031,11 @@ func (s *mgrsSuite) TestUpdateManyStoreUpdateWhileWaitingWithMonitoring(c *C) {
 	c.Assert(os.WriteFile(dirs.SnapNamesFile, nil, 0644), IsNil)
 
 	st.Unlock()
-	// ensure to trigger refresh-hints update
-	s.o.SnapManager().Ensure()
+	s.o.Settle(settleTimeout)
 	st.Lock()
 
-	c.Logf("single Ensure() done")
+	dumpTasks(c, "after settle", chg.Tasks())
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*snap "held-with-app-running" has running apps.*`)
 
 	// remove the entry as if the app has closed
 	err = os.RemoveAll(filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/snap.held-with-app-running.app.scope"))
