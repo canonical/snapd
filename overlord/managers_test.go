@@ -13769,13 +13769,12 @@ func (s *mgrsSuite) TestUpdateOneWithMonitoring(c *C) {
 	s.serveSnap(snapPath, revno)
 
 	// auto-refresh
-	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0,
-		&snapstate.Flags{IsAutoRefresh: true})
+	affected, tasksets, err := snapstate.AutoRefresh(context.TODO(), st)
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, []string{"held-with-app-running"})
 	chg := st.NewChange("refresh-snaps", "...")
-	for _, taskset := range tasksets {
+	for _, taskset := range append(tasksets.PreDownload, tasksets.Refresh...) {
 		chg.AddAll(taskset)
 	}
 
@@ -13828,9 +13827,9 @@ func (s *mgrsSuite) TestUpdateOneWithMonitoring(c *C) {
 }
 
 func (s *mgrsSuite) TestUpdateManyWithMonitoring(c *C) {
-	// similar to a test with a single snap, bu 2 snaps are being refresh,
-	// one refresh gets fully completed while the other is held back due to
-	// a running application
+	// similar to a test with a single snap, but 2 snaps are being
+	// refreshed, one refresh gets fully completed while the other is held
+	// back due to a running application
 	restore := cgroup.MockVersion(cgroup.V2, nil)
 	defer restore()
 
@@ -13864,13 +13863,13 @@ func (s *mgrsSuite) TestUpdateManyWithMonitoring(c *C) {
 	}
 
 	// auto-refresh
-	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0,
-		&snapstate.Flags{IsAutoRefresh: true})
+	// auto-refresh
+	affected, tasksets, err := snapstate.AutoRefresh(context.TODO(), st)
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, snapNames)
 	chg := st.NewChange("refresh-snaps", "...")
-	for _, taskset := range tasksets {
+	for _, taskset := range append(tasksets.PreDownload, tasksets.Refresh...) {
 		chg.AddAll(taskset)
 	}
 
@@ -13967,13 +13966,12 @@ func (s *mgrsSuite) TestUpdateManyStoreUpdateWhileWaitingWithMonitoring(c *C) {
 	}
 
 	// auto-refresh
-	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, nil, nil, 0,
-		&snapstate.Flags{IsAutoRefresh: true})
+	affected, tasksets, err := snapstate.AutoRefresh(context.TODO(), st)
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, snapNames)
 	chg := st.NewChange("refresh-snaps", "...")
-	for _, taskset := range tasksets {
+	for _, taskset := range append(tasksets.PreDownload, tasksets.Refresh...) {
 		chg.AddAll(taskset)
 	}
 
