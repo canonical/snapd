@@ -415,7 +415,6 @@ func (s *noticesSuite) TestRepeatCheckChangeUpdateScenario(c *C) {
 		RepeatCheckData: state.DefaultStatus,
 	})
 	c.Assert(err, IsNil)
-	time.Sleep(time.Microsecond)
 	// Check notice
 	notice := st.Notice(id)
 	c.Check(notice.Occurrences(), Equals, 1)
@@ -466,7 +465,6 @@ func (s *noticesSuite) TestRepeatCheckChangeUpdateScenario(c *C) {
 			DoingCnt++
 		}
 	}
-	time.Sleep(time.Microsecond)
 	// Do, Doing only repeated once
 	c.Check(DoCnt, Equals, 1)
 	c.Check(DoingCnt, Equals, 1)
@@ -481,7 +479,6 @@ func (s *noticesSuite) TestRepeatCheckChangeUpdateScenario(c *C) {
 
 	now = now.Add(1 * time.Second)
 	onChangeStatus(state.DoneStatus)
-	time.Sleep(time.Microsecond)
 	// Check notice
 	notice = st.Notice(id)
 	c.Check(notice.Occurrences(), Equals, 22)
