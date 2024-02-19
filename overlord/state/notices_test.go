@@ -248,7 +248,7 @@ func (s *noticesSuite) TestRepeatCheckData(c *C) {
 	defer st.Unlock()
 
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{
-		RepeatCheckData: state.DefaultStatus,
+		RepeatCheckData: state.DoStatus,
 	})
 	time.Sleep(time.Microsecond)
 
@@ -257,7 +257,7 @@ func (s *noticesSuite) TestRepeatCheckData(c *C) {
 	c.Check(notices[0].Occurrences(), Equals, 1)
 	var repeatCheckData state.Status
 	c.Assert(notices[0].GetRepeatCheckValue(&repeatCheckData), IsNil)
-	c.Check(repeatCheckData, Equals, state.DefaultStatus)
+	c.Check(repeatCheckData, Equals, state.DoStatus)
 
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{
 		RepeatCheckData: state.DoingStatus,
@@ -269,50 +269,6 @@ func (s *noticesSuite) TestRepeatCheckData(c *C) {
 	c.Check(notices[0].Occurrences(), Equals, 2)
 	c.Assert(notices[0].GetRepeatCheckValue(&repeatCheckData), IsNil)
 	c.Check(repeatCheckData, Equals, state.DoingStatus)
-}
-
-func (s *noticesSuite) TestRepeatCheckDataNil(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
-
-	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{
-		RepeatCheckData: state.DefaultStatus,
-	})
-	time.Sleep(time.Microsecond)
-
-	notices := st.Notices(nil)
-	c.Assert(notices, HasLen, 1)
-	c.Check(notices[0].Occurrences(), Equals, 1)
-	var repeatCheckData state.Status
-	c.Assert(notices[0].GetRepeatCheckValue(&repeatCheckData), IsNil)
-	c.Check(repeatCheckData, Equals, state.DefaultStatus)
-
-	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{
-		RepeatCheckData: nil,
-	})
-	time.Sleep(time.Microsecond)
-
-	notices = st.Notices(nil)
-	c.Assert(notices, HasLen, 1)
-	c.Check(notices[0].Occurrences(), Equals, 2)
-	c.Assert(notices[0].GetRepeatCheckValue(&repeatCheckData), IsNil)
-	// Setting RepeatCheckData to nil doesn't remove old state.
-	c.Check(repeatCheckData, Equals, state.DefaultStatus)
-}
-
-func (s *noticesSuite) TestRepeatCheckDataAndRepeatCheckError(c *C) {
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
-
-	_, err := st.AddNotice(nil, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{
-		RepeatCheckData: state.DefaultStatus,
-		RepeatCheck: func(oldNotice *state.Notice, newNoticeOpts *state.AddNoticeOptions) (repeatOk bool, newRepeatCheckData interface{}, err error) {
-			return true, nil, nil
-		},
-	})
-	c.Assert(err, ErrorMatches, "internal error: cannot use RepeatCheck and RepeatCheckData at the same time")
 }
 
 func (s *noticesSuite) TestRepeatCheckRepeat(c *C) {
@@ -443,6 +399,96 @@ func (s *noticesSuite) TestRepeatCheckNoData(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(repeatCheckCalled, Equals, 1)
+}
+
+func (s *noticesSuite) TestRepeatCheckChangeUpdateScenario(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	baseTime := time.Now()
+	now := baseTime
+
+	// Change spawned
+	id, err := st.AddNotice(nil, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{
+		Time:            now,
+		RepeatCheckData: state.DefaultStatus,
+	})
+	c.Assert(err, IsNil)
+	time.Sleep(time.Microsecond)
+	// Check notice
+	notice := st.Notice(id)
+	c.Check(notice.Occurrences(), Equals, 1)
+	c.Check(notice.LastRepeated(), Equals, baseTime)
+	var status state.Status
+	c.Assert(notice.GetRepeatCheckValue(&status), IsNil)
+	c.Check(status, Equals, state.DefaultStatus)
+
+	// Assume repeatCheck is a global function that cannot use closure
+	repeatCheck := func(oldNotice *state.Notice, newNoticeOpts *state.AddNoticeOptions) (bool, interface{}, error) {
+		// Get new status from passed RepeatCheckData
+		newStatus, ok := newNoticeOpts.RepeatCheckData.(state.Status)
+		if !ok {
+			return false, nil, fmt.Errorf("internal error: expected state.Status in RepeatCheckData")
+		}
+		var oldStatus state.Status
+		if err := oldNotice.GetRepeatCheckValue(&oldStatus); err != nil && !errors.Is(err, state.ErrNoState) {
+			return false, nil, err
+		}
+		if (oldStatus == newStatus) || (oldStatus == state.DoingStatus && newStatus == state.DoStatus) {
+			// Don't repeat, keep old status
+			return false, oldStatus, nil
+		}
+		// Repeat and update status
+		return true, newStatus, nil
+	}
+
+	// Simulate change.notifyStatusChange()
+	onChangeStatus := func(new state.Status) {
+		addNotice(c, st, nil, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{
+			Time:            now,
+			RepeatCheckData: new,
+			RepeatCheck:     repeatCheck,
+		})
+	}
+
+	// Simulate alternating Do -> Doing -> Do status changes
+	var DoCnt, DoingCnt int
+	for i := 0; i < 10; i++ {
+		now = now.Add(1 * time.Second)
+		onChangeStatus(state.DoStatus)
+		if st.Notice(id).LastRepeated().Equal(now) {
+			DoCnt++
+		}
+		now = now.Add(1 * time.Second)
+		onChangeStatus(state.DoingStatus)
+		if st.Notice(id).LastRepeated().Equal(now) {
+			DoingCnt++
+		}
+	}
+	time.Sleep(time.Microsecond)
+	// Do, Doing only repeated once
+	c.Check(DoCnt, Equals, 1)
+	c.Check(DoingCnt, Equals, 1)
+
+	// Check notice
+	notice = st.Notice(id)
+	c.Check(notice.Occurrences(), Equals, 21)
+	// Default -> Do -> Doing then stop alternating
+	c.Check(notice.LastRepeated(), Equals, baseTime.Add(2*time.Second))
+	c.Assert(notice.GetRepeatCheckValue(&status), IsNil)
+	c.Check(status, Equals, state.DoingStatus)
+
+	now = now.Add(1 * time.Second)
+	onChangeStatus(state.DoneStatus)
+	time.Sleep(time.Microsecond)
+	// Check notice
+	notice = st.Notice(id)
+	c.Check(notice.Occurrences(), Equals, 22)
+	// Doing -> Done should repeat
+	c.Check(notice.LastRepeated(), Equals, baseTime.Add(21*time.Second))
+	c.Assert(notice.GetRepeatCheckValue(&status), IsNil)
+	c.Check(status, Equals, state.DoneStatus)
 }
 
 func (s *noticesSuite) TestNoticesFilterUserID(c *C) {
@@ -868,5 +914,7 @@ func noticeToMap(c *C, notice *state.Notice) map[string]any {
 
 func addNotice(c *C, st *state.State, userID *uint32, noticeType state.NoticeType, key string, options *state.AddNoticeOptions) {
 	_, err := st.AddNotice(userID, noticeType, key, options)
-	c.Assert(err, IsNil)
+	if err != nil {
+		c.Assert(err, IsNil)
+	}
 }

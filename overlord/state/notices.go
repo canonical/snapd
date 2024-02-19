@@ -300,8 +300,7 @@ type AddNoticeOptions struct {
 	//
 	// NOTES:
 	//	- RepeatCheckData must be JSON marshallable.
-	//	- Setting RepeatCheckData to nil does not remove old state.
-	//	- RepeatCheckData and RepeatCheck cannot be set at the same time.
+	//	- If RepeatCheck is set, its data return value takes priority.
 	RepeatCheckData interface{}
 
 	// RepeatCheck, if set, returns whether this notice is forced to not be repeated
@@ -309,6 +308,14 @@ type AddNoticeOptions struct {
 	//
 	// NOTE: Current state can be accessed through oldNotice.GetRepeatCheckValue().
 	RepeatCheck func(oldNotice *Notice, newNoticeOpts *AddNoticeOptions) (repeatOk bool, newRepeatCheckData interface{}, err error)
+}
+
+func (options *AddNoticeOptions) runRepeatCheck(notice *Notice) (repeatOk bool, newRepeatCheckData interface{}, err error) {
+	if options.RepeatCheck == nil {
+		// Fallback to options.RepeatCheckData
+		return true, options.RepeatCheckData, nil
+	}
+	return options.RepeatCheck(notice, options)
 }
 
 // AddNotice records an occurrence of a notice with the specified type and key
@@ -349,17 +356,12 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 		s.notices[uniqueKey] = notice
 		newOrRepeated = true
 	} else {
-		repeatOk := true
-		if options.RepeatCheck != nil {
-			var newRepeatCheckData interface{}
-			repeatOk, newRepeatCheckData, err = options.RepeatCheck(notice, options)
-			if err != nil {
-				return "", err
-			}
-			notice.setRepeatCheckValue(newRepeatCheckData)
-		} else if options.RepeatCheckData != nil {
-			notice.setRepeatCheckValue(options.RepeatCheckData)
+		repeatOk, newRepeatCheckData, err := options.runRepeatCheck(notice)
+		if err != nil {
+			return "", err
 		}
+		// Update RepeatCheckData
+		notice.setRepeatCheckValue(newRepeatCheckData)
 		// Additional occurrence, update existing notice
 		notice.occurrences++
 		if repeatOk && (options.RepeatAfter == 0 || now.After(notice.lastRepeated.Add(options.RepeatAfter))) {
@@ -385,9 +387,6 @@ func validateNotice(noticeType NoticeType, key string, options *AddNoticeOptions
 	}
 	if key == "" {
 		return fmt.Errorf("internal error: attempted to add %s notice with invalid key %q", noticeType, key)
-	}
-	if options.RepeatCheck != nil && options.RepeatCheckData != nil {
-		return fmt.Errorf("internal error: cannot use RepeatCheck and RepeatCheckData at the same time")
 	}
 	return nil
 }
