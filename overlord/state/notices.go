@@ -300,7 +300,8 @@ type AddNoticeOptions struct {
 	//
 	// NOTES:
 	//	- RepeatCheckData must be JSON marshallable.
-	//	- If RepeatCheck is set, its data return value takes priority.
+	//	- If RepeatCheck is set, its returned data takes priority.
+	//	- Notice repeat check data is only updated if the notice is repeated.
 	RepeatCheckData interface{}
 
 	// RepeatCheck, if set, returns whether this notice is forced to not be repeated
@@ -308,7 +309,6 @@ type AddNoticeOptions struct {
 	//
 	// NOTE:
 	//	- Current state can be accessed through oldNotice.GetRepeatCheckValue().
-	//	- If RepeatAfter is set, it takes precedence but RepeatCheck is still run to set new repeat check data.
 	RepeatCheck func(oldNotice *Notice, newNoticeOpts *AddNoticeOptions) (repeatOk bool, newRepeatCheckData interface{}, err error)
 }
 
@@ -318,15 +318,6 @@ func (options *AddNoticeOptions) runRepeatCheck(notice *Notice) (repeatOk bool, 
 		return true, options.RepeatCheckData, nil
 	}
 	return options.RepeatCheck(notice, options)
-}
-
-func (options *AddNoticeOptions) shouldRepeat(now time.Time, notice *Notice, repeatCheckOk bool) (repeatOk bool) {
-	// if options.RepeatAfter is set, it takes precedence
-	if options.RepeatAfter != 0 {
-		return now.After(notice.lastRepeated.Add(options.RepeatAfter))
-	}
-	// Otherwise, fallback to options.RepeatCheck result
-	return repeatCheckOk
 }
 
 // AddNotice records an occurrence of a notice with the specified type and key
@@ -367,19 +358,21 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 		s.notices[uniqueKey] = notice
 		newOrRepeated = true
 	} else {
-		repeatCheckOk, newRepeatCheckData, err := options.runRepeatCheck(notice)
-		if err != nil {
-			return "", err
+		if options.RepeatAfter == 0 || now.After(notice.lastRepeated.Add(options.RepeatAfter)) {
+			// Update last repeated time if repeat-after time has elapsed (or is zero)
+			// Consult RepeatCheck as well
+			repeatCheckOk, newRepeatCheckData, err := options.runRepeatCheck(notice)
+			if err != nil {
+				return "", err
+			}
+			if repeatCheckOk {
+				notice.setRepeatCheckValue(newRepeatCheckData)
+				notice.lastRepeated = now
+				newOrRepeated = true
+			}
 		}
-		// Update RepeatCheckData
-		notice.setRepeatCheckValue(newRepeatCheckData)
 		// Additional occurrence, update existing notice
 		notice.occurrences++
-		if options.shouldRepeat(now, notice, repeatCheckOk) {
-			// Update last repeated time if repeat-after time has elapsed (or is zero)
-			notice.lastRepeated = now
-			newOrRepeated = true
-		}
 	}
 	notice.lastOccurred = now
 	notice.lastData = options.Data

@@ -340,7 +340,7 @@ func (s *noticesSuite) TestRepeatCheckNoRepeat(c *C) {
 			c.Assert(err, IsNil)
 			c.Check(value, Equals, state.DefaultStatus)
 
-			// don't repeat
+			// don't repeat, repeatCheckData will not be updated
 			return false, state.DoStatus, nil
 		},
 	})
@@ -354,9 +354,9 @@ func (s *noticesSuite) TestRepeatCheckNoRepeat(c *C) {
 	c.Check(notices[0].LastOccurred(), Equals, baseTime.Add(24*time.Hour))
 	// Second notice was not repeated
 	c.Check(notices[0].LastRepeated(), Equals, baseTime)
-	// RepeatCheckData is updated
+	// RepeatCheckData is not updated because notice wasn't repeated
 	c.Assert(notices[0].GetRepeatCheckValue(&repeatCheckData), IsNil)
-	c.Check(repeatCheckData, Equals, state.DoStatus)
+	c.Check(repeatCheckData, Equals, state.DefaultStatus)
 }
 
 func (s *noticesSuite) TestRepeatCheckError(c *C) {
