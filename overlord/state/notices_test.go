@@ -102,19 +102,19 @@ func (s *noticesSuite) TestUnmarshal(c *C) {
 	err := json.Unmarshal(noticeJSON, &notice)
 	c.Assert(err, IsNil)
 
-	c.Check(notice.ID(), Equals, "1")
+	c.Check(notice.ID, Equals, "1")
 	userID, isSet := notice.UserID()
 	c.Assert(isSet, Equals, true)
 	c.Check(userID, Equals, uint32(1000))
-	c.Check(notice.Type(), Equals, state.ChangeUpdateNotice)
-	c.Check(notice.Key(), Equals, "123")
-	c.Check(notice.FirstOccurred(), Equals, time.Date(2023, 9, 1, 5, 23, 1, 0, time.UTC))
-	c.Check(notice.LastOccurred(), Equals, time.Date(2023, 9, 1, 7, 23, 2, 0, time.UTC))
-	c.Check(notice.LastRepeated(), Equals, time.Date(2023, 9, 1, 6, 23, 3, 123456789, time.UTC))
-	c.Check(notice.Occurrences(), Equals, 2)
-	c.Check(notice.LastData(), DeepEquals, map[string]string{"k": "v"})
-	c.Check(notice.RepeatAfter(), Equals, time.Hour)
-	c.Check(notice.ExpireAfter(), Equals, 168*time.Hour)
+	c.Check(notice.Type, Equals, state.ChangeUpdateNotice)
+	c.Check(notice.Key, Equals, "123")
+	c.Check(notice.FirstOccurred, Equals, time.Date(2023, 9, 1, 5, 23, 1, 0, time.UTC))
+	c.Check(notice.LastOccurred, Equals, time.Date(2023, 9, 1, 7, 23, 2, 0, time.UTC))
+	c.Check(notice.LastRepeated, Equals, time.Date(2023, 9, 1, 6, 23, 3, 123456789, time.UTC))
+	c.Check(notice.Occurrences, Equals, 2)
+	c.Check(notice.LastData, DeepEquals, map[string]string{"k": "v"})
+	c.Check(notice.RepeatAfter, Equals, time.Hour)
+	c.Check(notice.ExpireAfter, Equals, 168*time.Hour)
 	var repeatCheckData map[string]any
 	c.Assert(notice.GetRepeatCheckValue(&repeatCheckData), IsNil)
 	c.Check(repeatCheckData, DeepEquals, map[string]any{
@@ -254,7 +254,7 @@ func (s *noticesSuite) TestRepeatCheckData(c *C) {
 
 	notices := st.Notices(nil)
 	c.Assert(notices, HasLen, 1)
-	c.Check(notices[0].Occurrences(), Equals, 1)
+	c.Check(notices[0].Occurrences, Equals, 1)
 	var repeatCheckData state.Status
 	c.Assert(notices[0].GetRepeatCheckValue(&repeatCheckData), IsNil)
 	c.Check(repeatCheckData, Equals, state.DoStatus)
@@ -266,7 +266,7 @@ func (s *noticesSuite) TestRepeatCheckData(c *C) {
 
 	notices = st.Notices(nil)
 	c.Assert(notices, HasLen, 1)
-	c.Check(notices[0].Occurrences(), Equals, 2)
+	c.Check(notices[0].Occurrences, Equals, 2)
 	c.Assert(notices[0].GetRepeatCheckValue(&repeatCheckData), IsNil)
 	c.Check(repeatCheckData, Equals, state.DoingStatus)
 }
@@ -299,7 +299,7 @@ func (s *noticesSuite) TestRepeatCheckRepeat(c *C) {
 
 	notices := st.Notices(nil)
 	c.Assert(notices, HasLen, 1)
-	c.Check(notices[0].Occurrences(), Equals, 2)
+	c.Check(notices[0].Occurrences, Equals, 2)
 	var repeatCheckData state.Status
 	c.Assert(notices[0].GetRepeatCheckValue(&repeatCheckData), IsNil)
 	c.Check(repeatCheckData, Equals, state.DoStatus)
@@ -320,10 +320,10 @@ func (s *noticesSuite) TestRepeatCheckNoRepeat(c *C) {
 
 	notices := st.Notices(nil)
 	c.Assert(notices, HasLen, 1)
-	c.Check(notices[0].Occurrences(), Equals, 1)
-	c.Check(notices[0].FirstOccurred(), Equals, baseTime)
-	c.Check(notices[0].LastOccurred(), Equals, baseTime)
-	c.Check(notices[0].LastRepeated(), Equals, baseTime)
+	c.Check(notices[0].Occurrences, Equals, 1)
+	c.Check(notices[0].FirstOccurred, Equals, baseTime)
+	c.Check(notices[0].LastOccurred, Equals, baseTime)
+	c.Check(notices[0].LastRepeated, Equals, baseTime)
 	// RepeatCheckData is initialized
 	var repeatCheckData state.Status
 	c.Assert(notices[0].GetRepeatCheckValue(&repeatCheckData), IsNil)
@@ -349,11 +349,11 @@ func (s *noticesSuite) TestRepeatCheckNoRepeat(c *C) {
 
 	notices = st.Notices(nil)
 	c.Assert(notices, HasLen, 1)
-	c.Check(notices[0].Occurrences(), Equals, 2)
-	c.Check(notices[0].FirstOccurred(), Equals, baseTime)
-	c.Check(notices[0].LastOccurred(), Equals, baseTime.Add(24*time.Hour))
+	c.Check(notices[0].Occurrences, Equals, 2)
+	c.Check(notices[0].FirstOccurred, Equals, baseTime)
+	c.Check(notices[0].LastOccurred, Equals, baseTime.Add(24*time.Hour))
 	// Second notice was not repeated
-	c.Check(notices[0].LastRepeated(), Equals, baseTime)
+	c.Check(notices[0].LastRepeated, Equals, baseTime)
 	// RepeatCheckData is not updated because notice wasn't repeated
 	c.Assert(notices[0].GetRepeatCheckValue(&repeatCheckData), IsNil)
 	c.Check(repeatCheckData, Equals, state.DefaultStatus)
@@ -417,8 +417,8 @@ func (s *noticesSuite) TestRepeatCheckChangeUpdateScenario(c *C) {
 	c.Assert(err, IsNil)
 	// Check notice
 	notice := st.Notice(id)
-	c.Check(notice.Occurrences(), Equals, 1)
-	c.Check(notice.LastRepeated(), Equals, baseTime)
+	c.Check(notice.Occurrences, Equals, 1)
+	c.Check(notice.LastRepeated, Equals, baseTime)
 	var status state.Status
 	c.Assert(notice.GetRepeatCheckValue(&status), IsNil)
 	c.Check(status, Equals, state.DefaultStatus)
@@ -456,12 +456,12 @@ func (s *noticesSuite) TestRepeatCheckChangeUpdateScenario(c *C) {
 	for i := 0; i < 10; i++ {
 		now = now.Add(1 * time.Second)
 		onChangeStatus(state.DoStatus)
-		if st.Notice(id).LastRepeated().Equal(now) {
+		if st.Notice(id).LastRepeated.Equal(now) {
 			DoCnt++
 		}
 		now = now.Add(1 * time.Second)
 		onChangeStatus(state.DoingStatus)
-		if st.Notice(id).LastRepeated().Equal(now) {
+		if st.Notice(id).LastRepeated.Equal(now) {
 			DoingCnt++
 		}
 	}
@@ -471,9 +471,9 @@ func (s *noticesSuite) TestRepeatCheckChangeUpdateScenario(c *C) {
 
 	// Check notice
 	notice = st.Notice(id)
-	c.Check(notice.Occurrences(), Equals, 21)
+	c.Check(notice.Occurrences, Equals, 21)
 	// Default -> Do -> Doing then stop alternating
-	c.Check(notice.LastRepeated(), Equals, baseTime.Add(2*time.Second))
+	c.Check(notice.LastRepeated, Equals, baseTime.Add(2*time.Second))
 	c.Assert(notice.GetRepeatCheckValue(&status), IsNil)
 	c.Check(status, Equals, state.DoingStatus)
 
@@ -481,9 +481,9 @@ func (s *noticesSuite) TestRepeatCheckChangeUpdateScenario(c *C) {
 	onChangeStatus(state.DoneStatus)
 	// Check notice
 	notice = st.Notice(id)
-	c.Check(notice.Occurrences(), Equals, 22)
+	c.Check(notice.Occurrences, Equals, 22)
 	// Doing -> Done should repeat
-	c.Check(notice.LastRepeated(), Equals, baseTime.Add(21*time.Second))
+	c.Check(notice.LastRepeated, Equals, baseTime.Add(21*time.Second))
 	c.Assert(notice.GetRepeatCheckValue(&status), IsNil)
 	c.Check(status, Equals, state.DoneStatus)
 }

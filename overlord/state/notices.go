@@ -36,7 +36,7 @@ type Notice struct {
 	//
 	// Currently this is a monotonically increasing number, but that may well
 	// change in future. If your code relies on it being a number, it will break.
-	id string
+	ID string
 
 	// The UID of the user who may view this notice (often its creator).
 	// A nil userID means that the notice is public (viewable by all users).
@@ -45,7 +45,7 @@ type Notice struct {
 	// The notice type represents a group of notices originating from a common
 	// source. For example, notices which provide human-readable warnings have
 	// the type "warning".
-	noticeType NoticeType
+	Type NoticeType
 
 	// The notice key is a string that differentiates notices of this type.
 	// Notices recorded with the type and key of an existing notice count as
@@ -53,14 +53,14 @@ type Notice struct {
 	//
 	// This is limited to a maximum of MaxNoticeKeyLength bytes when added
 	// (it's an error to add a notice with a longer key).
-	key string
+	Key string
 
 	// The first time one of these notices (type and key combination) occurs.
-	firstOccurred time.Time
+	FirstOccurred time.Time
 
 	// The last time one of these notices occurred. This is updated every time
 	// one of these notices occurs.
-	lastOccurred time.Time
+	LastOccurred time.Time
 
 	// The time this notice was last "repeated". This is set when one of these
 	// notices first occurs, and updated when it reoccurs at least
@@ -68,22 +68,22 @@ type Notice struct {
 	//
 	// Notices and WaitNotices return notices ordered by lastRepeated time, so
 	// repeated notices will appear at the end of the returned list.
-	lastRepeated time.Time
+	LastRepeated time.Time
 
 	// The number of times one of these notices has occurred.
-	occurrences int
+	Occurrences int
 
 	// Additional data captured from the last occurrence of one of these notices.
-	lastData map[string]string
+	LastData map[string]string
 
 	// How long after one of these was last repeated should we allow it to repeat.
-	repeatAfter time.Duration
+	RepeatAfter time.Duration
 
 	// How long since one of these last occurred until we should drop the notice.
 	//
 	// The repeatAfter duration must be less than this, because the notice
 	// won't be tracked after it expires.
-	expireAfter time.Duration
+	ExpireAfter time.Duration
 
 	// Data used by AddNoticeOptions.RepeatCheck to update options
 	// dynamically based on existing state. It is kept for stateful tracking
@@ -96,12 +96,7 @@ func (n *Notice) String() string {
 	if n.userID != nil {
 		userIDStr = strconv.FormatUint(uint64(*n.userID), 10)
 	}
-	return fmt.Sprintf("Notice %s (%s:%s:%s)", n.id, userIDStr, n.noticeType, n.key)
-}
-
-// ID is the unique ID for this notice.
-func (n *Notice) ID() string {
-	return n.id
+	return fmt.Sprintf("Notice %s (%s:%s:%s)", n.ID, userIDStr, n.Type, n.Key)
 }
 
 // UserID returns the value of the notice's user ID and whether it is set.
@@ -119,55 +114,9 @@ func flattenUserID(userID *uint32) (uid uint32, isSet bool) {
 	return *userID, true
 }
 
-// Type represents a group of notices originating from a common source.
-func (n *Notice) Type() NoticeType {
-	return n.noticeType
-}
-
-// Key is a string that differentiates notices of the same type.
-func (n *Notice) Key() string {
-	return n.key
-}
-
-// FirstOccurred is the first time this notice occurs.
-func (n *Notice) FirstOccurred() time.Time {
-	return n.firstOccurred
-}
-
-// LastOccurred is the last time this notice occurred.
-func (n *Notice) LastOccurred() time.Time {
-	return n.lastOccurred
-}
-
-// LastRepeated is the time this notice was last "repeated".
-func (n *Notice) LastRepeated() time.Time {
-	return n.lastRepeated
-}
-
-// Occurrences is the number of times this notice has occurred.
-func (n *Notice) Occurrences() int {
-	return n.occurrences
-}
-
-// LastData is additional data captured from the last occurrence of this notice.
-func (n *Notice) LastData() map[string]string {
-	return n.lastData
-}
-
-// RepeatAfter is how long after this notice was last repeated should we allow
-// it to repeat.
-func (n *Notice) RepeatAfter() time.Duration {
-	return n.repeatAfter
-}
-
-// ExpireAfter is how long since this notice last occurred until we should drop it.
-func (n *Notice) ExpireAfter() time.Duration {
-	return n.expireAfter
-}
-
 // expired reports whether this notice has expired (relative to the given "now").
 func (n *Notice) expired(now time.Time) bool {
-	return n.lastOccurred.Add(n.expireAfter).Before(now)
+	return n.LastOccurred.Add(n.ExpireAfter).Before(now)
 }
 
 // GetRepeatCheckData unmarshals the previously stored repeat check data (from
@@ -213,22 +162,22 @@ type marshalledNotice struct {
 
 func (n *Notice) MarshalJSON() ([]byte, error) {
 	jn := marshalledNotice{
-		ID:              n.id,
+		ID:              n.ID,
 		UserID:          n.userID,
-		Type:            string(n.noticeType),
-		Key:             n.key,
-		FirstOccurred:   n.firstOccurred,
-		LastOccurred:    n.lastOccurred,
-		LastRepeated:    n.lastRepeated,
-		Occurrences:     n.occurrences,
-		LastData:        n.lastData,
+		Type:            string(n.Type),
+		Key:             n.Key,
+		FirstOccurred:   n.FirstOccurred,
+		LastOccurred:    n.LastOccurred,
+		LastRepeated:    n.LastRepeated,
+		Occurrences:     n.Occurrences,
+		LastData:        n.LastData,
 		RepeatCheckData: n.repeatCheckData,
 	}
-	if n.repeatAfter != 0 {
-		jn.RepeatAfter = n.repeatAfter.String()
+	if n.RepeatAfter != 0 {
+		jn.RepeatAfter = n.RepeatAfter.String()
 	}
-	if n.expireAfter != 0 {
-		jn.ExpireAfter = n.expireAfter.String()
+	if n.ExpireAfter != 0 {
+		jn.ExpireAfter = n.ExpireAfter.String()
 	}
 	return json.Marshal(jn)
 }
@@ -239,24 +188,24 @@ func (n *Notice) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-	n.id = jn.ID
+	n.ID = jn.ID
 	n.userID = jn.UserID
-	n.noticeType = NoticeType(jn.Type)
-	n.key = jn.Key
-	n.firstOccurred = jn.FirstOccurred
-	n.lastOccurred = jn.LastOccurred
-	n.lastRepeated = jn.LastRepeated
-	n.occurrences = jn.Occurrences
-	n.lastData = jn.LastData
+	n.Type = NoticeType(jn.Type)
+	n.Key = jn.Key
+	n.FirstOccurred = jn.FirstOccurred
+	n.LastOccurred = jn.LastOccurred
+	n.LastRepeated = jn.LastRepeated
+	n.Occurrences = jn.Occurrences
+	n.LastData = jn.LastData
 	n.repeatCheckData = jn.RepeatCheckData
 	if jn.RepeatAfter != "" {
-		n.repeatAfter, err = time.ParseDuration(jn.RepeatAfter)
+		n.RepeatAfter, err = time.ParseDuration(jn.RepeatAfter)
 		if err != nil {
 			return fmt.Errorf("invalid repeat-after duration: %w", err)
 		}
 	}
 	if jn.ExpireAfter != "" {
-		n.expireAfter, err = time.ParseDuration(jn.ExpireAfter)
+		n.ExpireAfter, err = time.ParseDuration(jn.ExpireAfter)
 		if err != nil {
 			return fmt.Errorf("invalid expire-after duration: %w", err)
 		}
@@ -345,20 +294,20 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 		// First occurrence of this notice userID+type+key
 		s.lastNoticeId++
 		notice = &Notice{
-			id:            strconv.Itoa(s.lastNoticeId),
+			ID:            strconv.Itoa(s.lastNoticeId),
 			userID:        userID,
-			noticeType:    noticeType,
-			key:           key,
-			firstOccurred: now,
-			lastRepeated:  now,
-			expireAfter:   defaultNoticeExpireAfter,
-			occurrences:   1,
+			Type:          noticeType,
+			Key:           key,
+			FirstOccurred: now,
+			LastRepeated:  now,
+			ExpireAfter:   defaultNoticeExpireAfter,
+			Occurrences:   1,
 		}
 		notice.setRepeatCheckValue(options.RepeatCheckData)
 		s.notices[uniqueKey] = notice
 		newOrRepeated = true
 	} else {
-		if options.RepeatAfter == 0 || now.After(notice.lastRepeated.Add(options.RepeatAfter)) {
+		if options.RepeatAfter == 0 || now.After(notice.LastRepeated.Add(options.RepeatAfter)) {
 			// Update last repeated time if repeat-after time has elapsed (or is zero)
 			// Consult RepeatCheck as well
 			repeatCheckOk, newRepeatCheckData, err := options.runRepeatCheck(notice)
@@ -367,22 +316,22 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 			}
 			if repeatCheckOk {
 				notice.setRepeatCheckValue(newRepeatCheckData)
-				notice.lastRepeated = now
+				notice.LastRepeated = now
 				newOrRepeated = true
 			}
 		}
 		// Additional occurrence, update existing notice
-		notice.occurrences++
+		notice.Occurrences++
 	}
-	notice.lastOccurred = now
-	notice.lastData = options.Data
-	notice.repeatAfter = options.RepeatAfter
+	notice.LastOccurred = now
+	notice.LastData = options.Data
+	notice.RepeatAfter = options.RepeatAfter
 
 	if newOrRepeated {
 		s.noticeCond.Broadcast()
 	}
 
-	return notice.id, nil
+	return notice.ID, nil
 }
 
 func validateNotice(noticeType NoticeType, key string, options *AddNoticeOptions) error {
@@ -426,13 +375,13 @@ func (f *NoticeFilter) matches(n *Notice) bool {
 		return false
 	}
 	// Can't use strutil.ListContains as Types is []NoticeType, not []string
-	if len(f.Types) > 0 && !sliceContains(f.Types, n.noticeType) {
+	if len(f.Types) > 0 && !sliceContains(f.Types, n.Type) {
 		return false
 	}
-	if len(f.Keys) > 0 && !sliceContains(f.Keys, n.key) {
+	if len(f.Keys) > 0 && !sliceContains(f.Keys, n.Key) {
 		return false
 	}
-	if !f.After.IsZero() && !n.lastRepeated.After(f.After) {
+	if !f.After.IsZero() && !n.LastRepeated.After(f.After) {
 		return false
 	}
 	return true
@@ -454,7 +403,7 @@ func (s *State) Notices(filter *NoticeFilter) []*Notice {
 
 	notices := s.flattenNotices(filter)
 	sort.Slice(notices, func(i, j int) bool {
-		return notices[i].lastRepeated.Before(notices[j].lastRepeated)
+		return notices[i].LastRepeated.Before(notices[j].LastRepeated)
 	})
 	return notices
 }
@@ -467,7 +416,7 @@ func (s *State) Notice(id string) *Notice {
 	// be small, and this function is probably only used rarely, so performance
 	// is unlikely to matter.
 	for _, notice := range s.notices {
-		if notice.id == id {
+		if notice.ID == id {
 			return notice
 		}
 	}
@@ -494,7 +443,7 @@ func (s *State) unflattenNotices(flat []*Notice) {
 			continue
 		}
 		userID, hasUserID := n.UserID()
-		uniqueKey := noticeKey{hasUserID, userID, n.noticeType, n.key}
+		uniqueKey := noticeKey{hasUserID, userID, n.Type, n.Key}
 		s.notices[uniqueKey] = n
 	}
 }

@@ -128,10 +128,6 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 		notices = st.Notices(filter)
 	}
 
-	if notices == nil {
-		notices = []*state.Notice{} // avoid null result
-	}
-
 	noticeInfos := make([]*noticeInfo, 0, len(notices))
 	for _, notice := range notices {
 		noticeInfos = append(noticeInfos, notice2noticeInfo(notice))
@@ -236,20 +232,20 @@ type noticeInfo struct {
 
 func notice2noticeInfo(n *state.Notice) *noticeInfo {
 	info := noticeInfo{
-		ID:            n.ID(),
-		Type:          string(n.Type()),
-		Key:           n.Key(),
-		FirstOccurred: n.FirstOccurred(),
-		LastOccurred:  n.LastOccurred(),
-		LastRepeated:  n.LastRepeated(),
-		Occurrences:   n.Occurrences(),
-		LastData:      n.LastData(),
+		ID:            n.ID,
+		Type:          string(n.Type),
+		Key:           n.Key,
+		FirstOccurred: n.FirstOccurred,
+		LastOccurred:  n.LastOccurred,
+		LastRepeated:  n.LastRepeated,
+		Occurrences:   n.Occurrences,
+		LastData:      n.LastData,
 	}
-	if n.RepeatAfter() != 0 {
-		info.RepeatAfter = n.RepeatAfter().String()
+	if n.RepeatAfter != 0 {
+		info.RepeatAfter = n.RepeatAfter.String()
 	}
-	if n.ExpireAfter() != 0 {
-		info.ExpireAfter = n.ExpireAfter().String()
+	if n.ExpireAfter != 0 {
+		info.ExpireAfter = n.ExpireAfter.String()
 	}
 	if userID, isSet := n.UserID(); isSet {
 		info.UserID = &userID
