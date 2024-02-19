@@ -3370,33 +3370,13 @@ func (s *servicesTestSuite) TestStartServicesWithDisabledActivatedService(c *C) 
 
 func (s *servicesTestSuite) TestStartServicesStopsServicesIncludingActivation(c *C) {
 	s.systemctlRestorer()
-	r := testutil.MockCommand(c, "systemctl", `#!/bin/sh
-	if [ "$1" = "--user" ]; then
-	    shift
-	fi
-	if [ "$1" = "--global" ]; then
-	    shift
-	fi
-	if [ "$1" = "--no-reload" ]; then
-	    shift
-	fi
-
-	case "$1" in
-		start)
-			exit 1
-			;;
-		enable)
-			;;
-		disable)
-			;;
-		daemon-reload)
-			;;
-	    *)
-	        echo "unexpected call $*"
-	        exit 2
-	esac
-	`)
-	defer r.Restore()
+	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		if len(cmd) == 2 && cmd[0] == "start" && cmd[1] == "snap.hello-snap.svc1.sock1.socket" {
+			return []byte("no"), fmt.Errorf("mock error")
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
 
 	info := snaptest.MockSnap(c, packageHelloNoSrv+`
  svc1:
@@ -3429,35 +3409,37 @@ func (s *servicesTestSuite) TestStartServicesStopsServicesIncludingActivation(c 
 	})
 
 	err = wrappers.StartServices(sorted, nil, &wrappers.StartServicesFlags{Enable: true}, &progress.Null, s.perfTimings)
-	c.Assert(err, NotNil)
-	c.Check(r.Calls(), DeepEquals, [][]string{
+	c.Check(err, NotNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
 		// Enable phase for the service activation units, we have one set of system daemon and one set of user daemon
-		{"systemctl", "daemon-reload"},
-		{"systemctl", "--user", "daemon-reload"},
-		{"systemctl", "--no-reload", "enable", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket"},
-		{"systemctl", "daemon-reload"},
-		{"systemctl", "--user", "--global", "--no-reload", "enable", "snap.hello-snap.svc2.sock1.socket", "snap.hello-snap.svc2.sock2.socket"},
+		{"daemon-reload"},
+		{"--user", "daemon-reload"},
+		{"--no-reload", "enable", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket"},
+		{"daemon-reload"},
+		{"--user", "--global", "--no-reload", "enable", "snap.hello-snap.svc2.sock1.socket", "snap.hello-snap.svc2.sock2.socket"},
 
 		// Start phase for service activation units, we have rigged the game by making sure this stage fails,
 		// so only one of the services will attempt to start
-		{"systemctl", "start", "snap.hello-snap.svc1.sock1.socket"},
+		{"start", "snap.hello-snap.svc1.sock1.socket"},
 
 		// Stop phase, where we attempt to stop the activation units and the primary services
 		// We first attempt to stop the user services, then the system services
-		{"systemctl", "--user", "stop", "snap.hello-snap.svc2.sock1.socket"},
-		{"systemctl", "--user", "show", "--property=ActiveState", "snap.hello-snap.svc2.sock1.socket"},
-		{"systemctl", "--user", "stop", "snap.hello-snap.svc2.sock2.socket"},
-		{"systemctl", "--user", "show", "--property=ActiveState", "snap.hello-snap.svc2.sock2.socket"},
-		{"systemctl", "--user", "stop", "snap.hello-snap.svc2.service"},
-		{"systemctl", "--user", "show", "--property=ActiveState", "snap.hello-snap.svc2.service"},
+		{"--user", "stop", "snap.hello-snap.svc2.sock1.socket"},
+		{"--user", "show", "--property=ActiveState", "snap.hello-snap.svc2.sock1.socket"},
+		{"--user", "stop", "snap.hello-snap.svc2.sock2.socket"},
+		{"--user", "show", "--property=ActiveState", "snap.hello-snap.svc2.sock2.socket"},
+		{"--user", "stop", "snap.hello-snap.svc2.service"},
+		{"--user", "show", "--property=ActiveState", "snap.hello-snap.svc2.service"},
 
-		{"systemctl", "stop", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket", "snap.hello-snap.svc1.service"},
-		{"systemctl", "show", "--property=ActiveState", "snap.hello-snap.svc1.sock1.socket"},
+		{"stop", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket", "snap.hello-snap.svc1.service"},
+		{"show", "--property=ActiveState", "snap.hello-snap.svc1.sock1.socket"},
+		{"show", "--property=ActiveState", "snap.hello-snap.svc1.sock2.socket"},
+		{"show", "--property=ActiveState", "snap.hello-snap.svc1.service"},
 
 		// Disable phase, where the activation units are being disabled
-		{"systemctl", "--no-reload", "disable", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket"},
-		{"systemctl", "daemon-reload"},
-		{"systemctl", "--user", "--global", "--no-reload", "disable", "snap.hello-snap.svc2.sock1.socket", "snap.hello-snap.svc2.sock2.socket"},
+		{"--no-reload", "disable", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket"},
+		{"daemon-reload"},
+		{"--user", "--global", "--no-reload", "disable", "snap.hello-snap.svc2.sock1.socket", "snap.hello-snap.svc2.sock2.socket"},
 	})
 }
 
