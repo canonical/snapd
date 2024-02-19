@@ -215,13 +215,8 @@ func (i *Instruction) validateScope(u *user.User, apps []*snap.AppInfo) error {
 }
 
 func (i *Instruction) validateUsers(u *user.User, apps []*snap.AppInfo) error {
-	users, err := i.Users.UserList(u)
-	if err != nil {
-		return err
-	}
-
 	// Perform some additional user checks
-	if len(users) == 0 {
+	if i.Users.Selector == UserSelectionList && len(i.Users.Names) == 0 {
 		// It is an error for a non-root to not specify any users if we are targeting
 		// user daemons
 		if u.Uid != "0" && i.hasUserService(apps) {

@@ -538,6 +538,15 @@ func (s *instructionSuite) TestValidateNoUsersForNonRootOnlySystemServicesHappy(
 	c.Check(inst.Validate(s.defaultUser, s.systemServices), IsNil)
 }
 
+func (s *instructionSuite) TestValidateAllUsersForNonRootHappy(c *C) {
+	// Provide scopes to avoid hitting any checks in validateScope
+	inst := &servicestate.Instruction{
+		Scope: servicestate.ScopeSelector{"system", "user"},
+		Users: servicestate.UserSelector{Selector: servicestate.UserSelectionAll},
+	}
+	c.Check(inst.Validate(s.defaultUser, s.mixServices), IsNil)
+}
+
 func (s *instructionSuite) TestValidateNoUsersForNonRootMixServicesFails(c *C) {
 	// Provide scopes to avoid hitting any checks in validateScope
 	inst := &servicestate.Instruction{Scope: servicestate.ScopeSelector{"system", "user"}}

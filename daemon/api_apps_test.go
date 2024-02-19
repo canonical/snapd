@@ -636,7 +636,7 @@ func (s *appsSuite) TestPostAppsFailedToGetUser(c *check.C) {
 	c.Check(rspe.Message, check.Matches, "cannot perform operation on services: failed")
 }
 
-func (s *appsSuite) TestPostAppsScopesUserAsRootNotAllowed(c *check.C) {
+func (s *appsSuite) TestPostAppsScopesSelfAsRootNotAllowed(c *check.C) {
 	inst := servicestate.Instruction{
 		Action: "start",
 		Names:  []string{"snap-a.svc1"},
@@ -653,10 +653,10 @@ func (s *appsSuite) TestPostAppsScopesUserAsRootNotAllowed(c *check.C) {
 
 	rspe := s.errorReq(c, req, s.authUser)
 	c.Check(rspe.Status, check.Equals, 400)
-	c.Check(rspe.Message, check.Matches, "cannot perform operation on services: cannot use \"self\" for root user")
+	c.Check(rspe.Message, check.Matches, `cannot use "self" for root user`)
 }
 
-func (s *appsSuite) TestPostAppsUsersAsRootHappy(c *check.C) {
+func (s *appsSuite) TestPostAppsAllUsersAsRootHappy(c *check.C) {
 	inst := servicestate.Instruction{
 		Action: "start",
 		Names:  []string{"snap-a.svc1"},
