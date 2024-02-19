@@ -53,7 +53,7 @@ func EarlyKernelModsComponentMountDir(compName string, compRev snap.Revision, ks
 // EarlyKernelMountDir returns the mount directory for early on boot mount of
 // kernel snaps.
 func EarlyKernelMountDir(ksnapName string, rev snap.Revision) string {
-	return filepath.Join(dirs.RunDir, "mnt/kernel-snaps", ksnapName, rev.String())
+	return filepath.Join(dirs.RunDir, earlyKernelsDir, ksnapName, rev.String())
 }
 
 // KernelVersionFromModulesDir returns the kernel version for a mounted kernel
