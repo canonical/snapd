@@ -268,7 +268,7 @@ func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 
 // updateRefreshCandidates updates the current set of refresh candidates stored
 // in the state. When the list of canDropOldNames is empty, existing entries
-// which aren't part of the update are dropped. When the list if non empty, only
+// which aren't part of the update are dropped. When the list is non empty, only
 // those entries mentioned in the list are dropped, other existing entries are
 // preserved. Whenever an existing entry is to be replaced, the caller must have
 // provided a hint which preserves the hint's state outside of snap-setup.
@@ -285,19 +285,17 @@ func updateRefreshCandidates(st *state.State, hints map[string]*refreshCandidate
 		return nil
 	}
 
-	dropSelectOld := len(canDropOldNames) != 0
+	dropAllOld := len(canDropOldNames) == 0
 
 	var deleted []string
 
 	// selectively process existing entries
 	for oldHintName := range oldHints {
-		newHint, hasUpdate := hints[oldHintName]
-
-		if hasUpdate {
+		if newHint, hasUpdate := hints[oldHintName]; hasUpdate {
 			// XXX we rely on the new hint preserving the state
 			oldHints[oldHintName] = newHint
 		} else {
-			if !dropSelectOld || (dropSelectOld && strutil.ListContains(canDropOldNames, oldHintName)) {
+			if dropAllOld || strutil.ListContains(canDropOldNames, oldHintName) {
 				// we have no new hint for this snap
 				deleted = append(deleted, oldHintName)
 				delete(oldHints, oldHintName)
