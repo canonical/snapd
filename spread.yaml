@@ -145,9 +145,6 @@ backends:
             - ubuntu-22.04-64:
                   storage: 12G
                   workers: 8
-            - ubuntu-23.04-64:
-                  storage: 12G
-                  workers: 8
             - ubuntu-23.10-64:
                   storage: 12G
                   workers: 8
@@ -233,8 +230,6 @@ backends:
             - ubuntu-20.04-64:
                   workers: 6
             - ubuntu-22.04-64:
-                  workers: 6
-            - ubuntu-23.04-64:
                   workers: 6
 
     google-nested:
@@ -366,9 +361,6 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-22.04-64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-23.04-64:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-23.10-64:

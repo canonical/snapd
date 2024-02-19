@@ -409,7 +409,7 @@ jobs:
             systems: 'ubuntu-20.04-64 ubuntu-22.04-64'
           - group: ubuntu-no-lts
             backend: google
-            systems: 'ubuntu-23.04-64 ubuntu-23.10-64'
+            systems: 'ubuntu-23.10-64'
           - group: ubuntu-daily
             backend: google
             systems: 'ubuntu-24.04-64'
