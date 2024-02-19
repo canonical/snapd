@@ -585,8 +585,8 @@ sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
 %if 0%{?rhel} == 7
     M4PARAM='-D distro_rhel7'
 %endif
-%if 0%{?rhel} == 7 || 0%{?rhel} == 8 || 0%{?rhel} == 9
-    # RHEL7, RHEL8 and RHEL9 are missing the BPF interfaces from their reference policy
+%if 0%{?rhel} == 7 || 0%{?rhel} == 8
+    # RHEL7, RHEL8 are missing the BPF interfaces from their reference policy
     M4PARAM="$M4PARAM -D no_bpf"
 %endif
     # Build SELinux module
