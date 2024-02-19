@@ -211,14 +211,16 @@ parts:
       fi
       CMDS=(bin/snap
             lib/snapd/snapd
+            lib/snapd/snap-exec
             lib/snapd/snap-failure
             lib/snapd/snap-fde-keymgr
+            lib/snapd/snap-preseed
+            lib/snapd/snap-recovery-chooser
+            lib/snapd/snap-repair
             lib/snapd/snap-seccomp
             lib/snapd/snap-update-ns
-            lib/snapd/snap-exec
-            lib/snapd/snap-preseed
-            lib/snapd/snapd-apparmor
-            lib/snapd/snapctl)
+            lib/snapd/snapctl
+            lib/snapd/snapd-apparmor)
       for cmd in "${CMDS[@]}"; do
         case "${cmd}" in
            # FIXME: some binaries need to be run confined in apps. But
