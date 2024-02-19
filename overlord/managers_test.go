@@ -14088,7 +14088,7 @@ waitLoop:
 				break waitLoop
 			}
 		case <-timeout:
-			c.Errorf("timeout waiting for prune to complete")
+			c.Errorf("timeout waiting for change to complete")
 			c.FailNow()
 		}
 	}
