@@ -61,7 +61,7 @@ execute: |
         | MATCH "preserved mount is not stale, reusing"
     
     # Get the revison of the snap
-    rev=$(readlink /snap/test-snapd-sh/current)
+    rev=$(snap list test-snapd-sh|tail -n1|tr -s ' '|cut -f3 -d' ')
 
     homes=("/root/" "/home/test/" "/remote/users/$USERNAME/")
     echo "That has some user data"
@@ -75,7 +75,7 @@ execute: |
 
     echo "When the snap is refreshed"
     snap refresh --channel=edge test-snapd-sh
-    new_rev=$(readlink /snap/test-snapd-sh/current)
+    new_rev=$(snap list test-snapd-sh|tail -n1|tr -s ' '|cut -f3 -d' ')
 
     echo "Then the user data gets copied"
     for h in "${homes[@]}"; do
