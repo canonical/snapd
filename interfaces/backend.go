@@ -110,7 +110,7 @@ type SecurityBackend interface {
 	Remove(snapName string) error
 
 	// NewSpecification returns a new specification associated with this backend.
-	NewSpecification() Specification
+	NewSpecification(*SnapAppSet) Specification
 
 	// SandboxFeatures returns a list of tags that identify sandbox features.
 	SandboxFeatures() []string

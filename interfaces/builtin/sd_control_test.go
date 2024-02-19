@@ -93,14 +93,14 @@ func (s *sdControlSuite) TestSanitizeSlot(c *C) {
 }
 
 func (s *sdControlSuite) TestApparmorConnectedPlugDualSD(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.dualSDPlug.Snap()))
 	err := spec.AddConnectedPlug(s.iface, s.dualSDPlug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.SnippetForTag("snap.my-device.svc"), testutil.Contains, "/dev/DualSD rw,\n")
 }
 
 func (s *sdControlSuite) TestUDevConnectedPlugDualSD(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.dualSDPlug.Snap()))
 	err := spec.AddConnectedPlug(s.iface, s.dualSDPlug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
@@ -110,14 +110,14 @@ KERNEL=="DualSD", TAG+="snap_my-device_svc"`)
 }
 
 func (s *sdControlSuite) TestUDevConnectedPlugNoFlavor(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.noFlavorPlug.Snap()))
 	err := spec.AddConnectedPlug(s.iface, s.noFlavorPlug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
 
 func (s *sdControlSuite) TestApparmorConnectedPlugNoFlavor(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.noFlavorPlug.Snap()))
 	err := spec.AddConnectedPlug(s.iface, s.noFlavorPlug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)

@@ -76,7 +76,7 @@ func (b *TestSecurityBackend) Remove(snapName string) error {
 	return b.RemoveCallback(snapName)
 }
 
-func (b *TestSecurityBackend) NewSpecification() interfaces.Specification {
+func (b *TestSecurityBackend) NewSpecification(*interfaces.SnapAppSet) interfaces.Specification {
 	return &Specification{}
 }
 

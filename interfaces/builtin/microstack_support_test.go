@@ -70,20 +70,20 @@ func (s *microStackSupportInterfaceSuite) TestName(c *C) {
 
 func (s *microStackSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
 
 	// connected plugs have a non-nil security snippet for seccomp
-	seccompSpec := &seccomp.Specification{}
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.Snippets(), HasLen, 1)
 }
 
 func (s *microStackSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.microstack.app"})
@@ -91,7 +91,7 @@ func (s *microStackSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	c.Assert(apparmorSpec.SnippetForTag("snap.microstack.app"), testutil.Contains, "/dev/microstack-*/{,**} rw,\n")
 	c.Assert(apparmorSpec.SnippetForTag("snap.microstack.app"), testutil.Contains, "unmount /run/netns/ovnmeta-*,\n")
 
-	seccompSpec := &seccomp.Specification{}
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.microstack.app"})
@@ -128,7 +128,7 @@ func (s *microStackSupportInterfaceSuite) TestKModConnectedPlug(c *C) {
 }
 
 func (s *microStackSupportInterfaceSuite) TestUDevConnectedPlug(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	// no udev specs because the interface controls it's own device cgroups
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)

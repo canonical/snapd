@@ -81,7 +81,7 @@ func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketDefault(c *C) {
 	defer restore()
 
 	// connected plugs have a non-nil security snippet for apparmor
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -96,7 +96,7 @@ func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractSpeci
 	defer restore()
 
 	// connected plugs have a non-nil security snippet for apparmor
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -112,7 +112,7 @@ func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractAny(c
 	defer restore()
 
 	// connected plugs have a non-nil security snippet for apparmor
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -128,7 +128,7 @@ func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvFsPath(c *C) 
 	defer restore()
 
 	// connected plugs have a non-nil security snippet for apparmor
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -155,7 +155,7 @@ func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvBadFormat(c *
 		c.Logf("trying %d: %v", idx, tc)
 		socketPath = tc.format
 		// connected plugs have a non-nil security snippet for apparmor
-		spec := &apparmor.Specification{}
+		spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 		err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 		c.Assert(err, ErrorMatches, tc.error)
 	}

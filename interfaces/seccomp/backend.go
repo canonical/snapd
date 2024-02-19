@@ -240,7 +240,7 @@ func parallelCompile(compiler Compiler, profiles []string) error {
 func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	snapName := snapInfo.InstanceName()
 	// Get the snippets that apply to this snap
-	spec, err := repo.SnapSpecification(b.Name(), snapName)
+	spec, err := repo.SnapSpecification(b.Name(), snapInfo)
 	if err != nil {
 		return fmt.Errorf("cannot obtain seccomp specification for snap %q: %s", snapName, err)
 	}
@@ -382,8 +382,8 @@ func generateContent(opts interfaces.ConfinementOptions, snippetForTag string, a
 }
 
 // NewSpecification returns an empty seccomp specification.
-func (b *Backend) NewSpecification() interfaces.Specification {
-	return &Specification{}
+func (b *Backend) NewSpecification(appSet *interfaces.SnapAppSet) interfaces.Specification {
+	return &Specification{appSet: appSet}
 }
 
 // SandboxFeatures returns the list of seccomp features supported by the kernel
