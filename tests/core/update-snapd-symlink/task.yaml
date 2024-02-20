@@ -1,0 +1,101 @@
+summary: Verify that snapd services are restarted with the right symlink
+
+details: |
+  When updating the snapd snap, we need to restart some
+  services. Those services need to be restarted when the symlink is
+  updated. And if the services fail, then we need to reset the
+  symlink.
+
+systems:
+  - ubuntu-core-20-*
+  - ubuntu-core-22-*
+
+restore: |
+  current_rev="$(readlink /snap/snapd/current)"
+  rm -rf ./snapd-modified
+  rm -rf ./snapd-broken
+  if [ -r initial-rev ]; then
+    initial_rev="$(cat initial-rev)"
+    rm initial-rev
+    for revno_path in /snap/snapd/*; do
+      revno="$(basename "${revno_path}")"
+      if [ "${revno}" != current ] && [ "${revno}" != "${initial_rev}" ]; then
+        if [ "${revno}" = "${current_rev}" ]; then
+          snap revert snapd --revision="${initial_rev}" || true
+        fi
+        snap remove snapd --revision="${revno}" || true
+      fi
+    done
+  fi
+
+execute: |
+  old_current="$(readlink /snap/snapd/current)"
+  echo "${old_current}" >initial-rev
+
+  unsquashfs -d ./snapd-modified "/var/lib/snapd/snaps/snapd_${old_current}.snap"
+  for binary in snapd snapd-apparmor; do
+    mv "./snapd-modified/usr/lib/snapd/${binary}" "./snapd-modified/usr/lib/snapd/${binary}.real"
+  cat <<\EOF >"./snapd-modified/usr/lib/snapd/${binary}"
+  #!/bin/bash
+  set -eux
+  binary="$(basename "$0")"
+  dir="$(dirname "$0")"
+  realpath "${dir}/${binary}.real" || true
+  realpath "/snap/snapd/current/usr/lib/snapd/${binary}.real" || true
+  stat "${dir}/${binary}.real" || true
+  stat "/snap/snapd/current/usr/lib/snapd/${binary}.real" || true
+  if ! [ "${dir}/${binary}.real" -ef "/snap/snapd/current/usr/lib/snapd/${binary}.real" ]; then
+    echo "Trying to execute the binary '${binary}' before it is available at the the right place" 1>&2
+    exit 1
+  fi
+  exec "${dir}/${binary}.real" "$@"
+  EOF
+    chmod +x "./snapd-modified/usr/lib/snapd/${binary}"
+  done
+  (cd snapd-modified && snap pack .)
+
+  unsquashfs -d ./snapd-broken "/var/lib/snapd/snaps/snapd_${old_current}.snap"
+  rm "./snapd-broken/usr/lib/snapd/snapd"
+  cat <<\EOF >"./snapd-broken/usr/lib/snapd/snapd"
+  #!/bin/bash
+  set -eu
+  echo "INJECT FAILURE" 1>&2
+  exit 1
+  EOF
+  chmod +x "./snapd-broken/usr/lib/snapd/snapd"
+  (cd snapd-broken && snap pack .)
+
+  unsquashfs -d ./snapd-broken-2 "/var/lib/snapd/snaps/snapd_${old_current}.snap"
+  cat <<\EOF >"./snapd-broken-2/lib/systemd/system/snapd.apparmor.service"
+  GARBAGE
+  EOF
+  (cd snapd-broken-2 && snap pack .)
+
+  snap install --dangerous snapd-modified/snapd_*.snap
+
+  # Verify we changed the symlink, so the install completed
+  [ "$(readlink /snap/snapd/current)" != "${old_current}" ]
+
+  new_current="$(readlink /snap/snapd/current)"
+
+  before_install="$(date +%s)"
+  broken_install_id="$(snap install --no-wait --dangerous snapd-broken/snapd_*.snap)"
+  snap watch "${broken_install_id}" || true
+  snap change "${broken_install_id}" | MATCH 'Error'
+
+  # snapd.failure.service is not running
+  systemctl show -p ActiveState --value snapd.failure.service | MATCH inactive
+  # but it has run since last install
+  last_activated="$(date --date="$(systemctl show -p InactiveEnterTimestamp --value snapd.failure.service)" +%s)"
+  [ -n "${last_activated}" ]
+  [ "${last_activated}" -gt "${before_install}" ]
+
+  # Verify we did *not* change the symlink, and the install got reverted
+  [ "$(readlink /snap/snapd/current)" = "${new_current}" ]
+
+  broken_install_id_2="$(snap install --no-wait --dangerous snapd-broken-2/snapd_*.snap)"
+  snap watch "${broken_install_id_2}" || true
+  snap change "${broken_install_id_2}" | MATCH 'Error'
+
+  # Verify we did *not* change the symlink, and the install got reverted
+  [ "$(readlink /snap/snapd/current)" = "${new_current}" ]
