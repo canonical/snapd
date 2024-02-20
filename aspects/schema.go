@@ -144,7 +144,7 @@ func (s *StorageSchema) Validate(raw []byte) error {
 	return s.topLevel.Validate(raw)
 }
 
-// AtPath returns the types that may be stored at the specified path.
+// SchemaAt returns the types that may be stored at the specified path.
 func (s *StorageSchema) SchemaAt(path []string) ([]Schema, error) {
 	return s.topLevel.SchemaAt(path)
 }
@@ -897,18 +897,14 @@ func (v *anySchema) Validate(raw []byte) (err error) {
 	return nil
 }
 
-func (v *anySchema) parseConstraints(constraints map[string]json.RawMessage) error {
+func (v *anySchema) parseConstraints(map[string]json.RawMessage) error {
 	// no error because we're not explicitly rejecting unsupported keywords (for now)
 	return nil
 }
 
-// SchemaAt returns the any schema if the path terminates here and an error if
+// SchemaAt returns the "any" schema if the path terminates here and an error if
 // not.
-func (v *anySchema) SchemaAt(path []string) ([]Schema, error) {
-	if len(path) != 0 {
-		return nil, schemaAtErrorf(path, `cannot follow path beyond "any" type`)
-	}
-
+func (v *anySchema) SchemaAt([]string) ([]Schema, error) {
 	return []Schema{v}, nil
 }
 
