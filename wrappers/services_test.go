@@ -2879,39 +2879,16 @@ func (s *servicesTestSuite) TestQueryDisabledServices(c *C) {
 	// svc 2 will be reported as enabled
 	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		s.sysdLog = append(s.sysdLog, cmd)
-		if len(cmd) >= 3 && cmd[0] == "show" {
-			svcNames := cmd[2:]
-			var output []byte
-			c.Logf("svc names: %v", svcNames)
-			for idx, svc := range svcNames {
-				if idx > 0 {
-					output = append(output, '\n')
-				}
-				switch svc {
-				case "snap.hello-snap.svc1.service":
-					output = append(output, []byte(`
-Type=notify
-Id=snap.hello-snap.svc1.service
-Names=snap.hello-snap.svc1.service
-NeedDaemonReload=no
-ActiveState=inactive
-UnitFileState=disabled
-`)[1:]...)
-				case "snap.hello-snap.svc2.service":
-					output = append(output, []byte(`
-Type=notify
-Id=snap.hello-snap.svc2.service
-Names=snap.hello-snap.svc2.service
-NeedDaemonReload=no
-ActiveState=inactive
-UnitFileState=enabled
-`)[1:]...)
-				}
-			}
-			c.Logf("output:\n%s\n<<<<end>>>", string(output))
-			return output, nil
-		}
-		return []byte("ActiveState=inactive\n"), nil
+		return systemdtest.HandleMockAllUnitsActiveOutput(cmd, map[string]systemdtest.ServiceState{
+			"snap.hello-snap.svc1.service": {
+				ActiveState:   "inactive",
+				UnitFileState: "disabled",
+			},
+			"snap.hello-snap.svc2.service": {
+				ActiveState:   "inactive",
+				UnitFileState: "enabled",
+			},
+		}), nil
 	})
 
 	disabledSvcs, err := wrappers.QueryDisabledServices(info, progress.Null)
@@ -2956,57 +2933,24 @@ func (s *servicesTestSuite) TestQueryDisabledServicesActivatedServices(c *C) {
 	// svc 1 has two socket activations that both will be reported as disabled
 	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		s.sysdLog = append(s.sysdLog, cmd)
-		if len(cmd) >= 3 && cmd[0] == "show" {
-			svcNames := cmd[2:]
-			var output []byte
-			c.Logf("svc names: %v", svcNames)
-			for idx, svc := range svcNames {
-				if idx > 0 {
-					output = append(output, '\n')
-				}
-				switch svc {
-				case "snap.hello-snap.svc1.service":
-					output = append(output, []byte(`
-Type=notify
-Id=snap.hello-snap.svc1.service
-Names=snap.hello-snap.svc1.service
-NeedDaemonReload=no
-ActiveState=inactive
-UnitFileState=static
-`)[1:]...)
-				case "snap.hello-snap.svc2.service":
-					output = append(output, []byte(`
-Type=notify
-Id=snap.hello-snap.svc2.service
-Names=snap.hello-snap.svc2.service
-NeedDaemonReload=no
-ActiveState=inactive
-UnitFileState=enabled
-`)[1:]...)
-				case "snap.hello-snap.svc1.sock1.socket":
-					output = append(output, []byte(`
-Type=notify
-Id=snap.hello-snap.svc1.sock1.socket
-Names=snap.hello-snap.svc1.sock1.socket
-ActiveState=inactive
-UnitFileState=disabled
-NeedDaemonReload=no
-`)[1:]...)
-				case "snap.hello-snap.svc1.sock2.socket":
-					output = append(output, []byte(`
-Type=notify
-Id=snap.hello-snap.svc1.sock2.socket
-Names=snap.hello-snap.svc1.sock2.socket
-ActiveState=inactive
-UnitFileState=disabled
-NeedDaemonReload=no
-`)[1:]...)
-				}
-			}
-			c.Logf("output:\n%s\n<<<<end>>>", string(output))
-			return output, nil
-		}
-		return []byte("ActiveState=inactive\n"), nil
+		return systemdtest.HandleMockAllUnitsActiveOutput(cmd, map[string]systemdtest.ServiceState{
+			"snap.hello-snap.svc1.service": {
+				ActiveState:   "inactive",
+				UnitFileState: "static",
+			},
+			"snap.hello-snap.svc2.service": {
+				ActiveState:   "inactive",
+				UnitFileState: "enabled",
+			},
+			"snap.hello-snap.svc1.sock1.socket": {
+				ActiveState:   "inactive",
+				UnitFileState: "disabled",
+			},
+			"snap.hello-snap.svc1.sock2.socket": {
+				ActiveState:   "inactive",
+				UnitFileState: "disabled",
+			},
+		}), nil
 	})
 
 	disabledSvcs, err := wrappers.QueryDisabledServices(info, progress.Null)
