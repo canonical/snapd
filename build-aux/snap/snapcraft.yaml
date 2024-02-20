@@ -239,7 +239,27 @@ parts:
              GO_LD_FLAGS=()
              ;;
         esac
-        go build -mod=vendor "${GO_LD_FLAGS[@]}" ${EXTRA_GO_FLAGS-} -o "${CRAFT_PART_INSTALL}/usr/${cmd}" "github.com/snapcore/snapd/cmd/$(basename ${cmd})"
+
+        case "${cmd}" in
+          bin/snap)
+            TAGS=(nomanagers)
+            case "$(craftctl get version)" in
+              1337.*)
+                TAGS+=(withtestkeys faultinject)
+                ;;
+            esac
+            ;;
+          *)
+            TAGS=()
+            case "$(craftctl get version)" in
+              1337.*)
+                TAGS+=(withtestkeys withbootassetstesting faultinject)
+                ;;
+            esac
+            ;;
+        esac
+
+        go build -mod=vendor -tags "${TAGS[*]}" "${GO_LD_FLAGS[@]}" ${EXTRA_GO_FLAGS-} -o "${CRAFT_PART_INSTALL}/usr/${cmd}" "github.com/snapcore/snapd/cmd/$(basename ${cmd})"
         unset CGO_ENABLED
       done
 
