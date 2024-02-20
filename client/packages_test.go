@@ -292,7 +292,7 @@ func (cs *clientSuite) testClientSnap(c *check.C, refreshInhibited bool) {
 	if refreshInhibited {
 		cs.rsp += `
                         "store-url": "https://snapcraft.io/chatroom",
-                        "refresh-inhibit-proceed-time": "2024-02-09T15:04:05Z"`
+                        "refresh-inhibit": { "proceed-time": "2024-02-09T15:04:05Z" }`
 	} else {
 		cs.rsp += `
                         "store-url": "https://snapcraft.io/chatroom"`
@@ -308,10 +308,11 @@ func (cs *clientSuite) testClientSnap(c *check.C, refreshInhibited bool) {
 	c.Assert(pkg.InstallDate.Equal(time.Date(2016, 1, 2, 15, 4, 5, 0, time.UTC)), check.Equals, true)
 	pkg.InstallDate = nil
 
-	var expectedRefreshInhibitProceedTime *time.Time
+	var expectedSnapRefreshInhibit *client.SnapRefreshInhibit
 	if refreshInhibited {
-		t := time.Date(2024, 2, 9, 15, 4, 5, 0, time.UTC)
-		expectedRefreshInhibitProceedTime = &t
+		expectedSnapRefreshInhibit = &client.SnapRefreshInhibit{
+			ProceedTime: time.Date(2024, 2, 9, 15, 4, 5, 0, time.UTC),
+		}
 	}
 	c.Assert(pkg, check.DeepEquals, &client.Snap{
 		ID:            "funky-snap-id",
@@ -352,9 +353,9 @@ func (cs *clientSuite) testClientSnap(c *check.C, refreshInhibited bool) {
 		Links: map[string][]string{
 			"website": {"http://example.com/funky"},
 		},
-		Website:                   "http://example.com/funky",
-		StoreURL:                  "https://snapcraft.io/chatroom",
-		RefreshInhibitProceedTime: expectedRefreshInhibitProceedTime,
+		Website:        "http://example.com/funky",
+		StoreURL:       "https://snapcraft.io/chatroom",
+		RefreshInhibit: expectedSnapRefreshInhibit,
 	})
 }
 

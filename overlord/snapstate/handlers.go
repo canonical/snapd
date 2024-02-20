@@ -898,7 +898,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 // the user and then triggers an auto-refresh.
 func asyncRefreshOnSnapClose(st *state.State, snapName string, refreshInfo *userclient.PendingSnapRefreshInfo) error {
 	// there's already a goroutine waiting for this snap to close so just notify
-	if isSnapMonitored(st, snapName) {
+	if IsSnapMonitored(st, snapName) {
 		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 		return nil
 	}
@@ -1079,10 +1079,6 @@ func monitoringAbort(st *state.State, snapName string) context.CancelFunc {
 		logger.Noticef("%v", err)
 	}
 	return aborts[snapName]
-}
-
-func isSnapMonitored(st *state.State, snapName string) bool {
-	return monitoringAbort(st, snapName) != nil
 }
 
 func abortMonitoring(st *state.State, snapName string) {
