@@ -13740,7 +13740,7 @@ apps:
         command: $SNAP/foo
 `
 
-func (s *mgrsSuite) TestUpdateOneWithMonitoring(c *C) {
+func (s *mgrsSuite) TestAutoRefreshOneWithMonitoring(c *C) {
 	restore := cgroup.MockVersion(cgroup.V2, nil)
 	defer restore()
 
@@ -13826,7 +13826,7 @@ func (s *mgrsSuite) TestUpdateOneWithMonitoring(c *C) {
 	c.Check(si.Revision, Equals, snap.R(2))
 }
 
-func (s *mgrsSuite) TestUpdateManyWithMonitoring(c *C) {
+func (s *mgrsSuite) TestAutoRefreshWithMonitoring(c *C) {
 	// similar to a test with a single snap, but 2 snaps are being
 	// refreshed, one refresh gets fully completed while the other is held
 	// back due to a running application
@@ -13928,7 +13928,7 @@ func (s *mgrsSuite) TestUpdateManyWithMonitoring(c *C) {
 	c.Check(si.Revision, Equals, snap.R(2))
 }
 
-func (s *mgrsSuite) TestUpdateManyStoreUpdateWhileWaitingWithMonitoring(c *C) {
+func (s *mgrsSuite) TestAutoRefreshStoreUpdateWhileWaitingWithMonitoring(c *C) {
 	// similar to a test with many snaps, but a new revision of a snap gets
 	// published to the store, while we are waiting for the app to close, as
 	// a result it should be picked up if refresh hints run in the meantime
