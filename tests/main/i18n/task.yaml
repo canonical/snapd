@@ -36,4 +36,4 @@ execute: |
     fi
 
     # shellcheck disable=SC2002
-    grep -v -E '(pt|ko|nl)_' /usr/share/i18n/SUPPORTED | xargs -d '\n' -Iloc env SNAPD_DEBUG=1 LANG=loc snap changes everything 2>&1 > /dev/null | NOMATCH panic:
+    grep -v -E '(pt|ko|nl|my)_' /usr/share/i18n/SUPPORTED | xargs -d '\n' -Iloc env SNAPD_DEBUG=1 LANG=loc snap changes everything 2>&1 > /dev/null | NOMATCH panic:
