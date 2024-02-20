@@ -169,6 +169,12 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 	}
 
 	// TODO hooks for components
+	if compSetup.CompType == snap.KernelModulesComponent {
+		kmodSetup := st.NewTask("setup-kernel-modules-component",
+			fmt.Sprintf(i18n.G("Set-up kernel-modules component %q%s"),
+				compSi.Component, revisionStr))
+		addTask(kmodSetup)
+	}
 
 	// We might be replacing a component if a local install, otherwise
 	// this is not really possible.
