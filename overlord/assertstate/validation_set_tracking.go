@@ -194,12 +194,6 @@ func ValidationSets(st *state.State) (map[string]*ValidationSetTracking, error) 
 // added to the returned set and replaces validation sets with same account/name
 // in case they were tracked already.
 func TrackedEnforcedValidationSets(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
-	valsets, err := ValidationSets(st)
-	if err != nil {
-		return nil, err
-	}
-
-	db := DB(st)
 	sets := snapasserts.NewValidationSets()
 
 	skip := make(map[string]bool, len(extraVss))
@@ -208,14 +202,54 @@ func TrackedEnforcedValidationSets(st *state.State, extraVss ...*asserts.Validat
 		skip[fmt.Sprintf("%s:%s", extraVs.AccountID(), extraVs.Name())] = true
 	}
 
+	skipSet := func(key string) bool {
+		// if extraVs matches an already enforced validation set, then skip that one, extraVs has been added
+		// before the loop.
+		return skip[key]
+	}
+
+	if err := trackedEnforcedValidationSets(st, skipSet, sets); err != nil {
+		return nil, err
+	}
+
+	return sets, nil
+}
+
+// TrackedEnforcedValidationSetsForModel returns a ValidationSets object for
+// currently tracked validation sets that are in enforcing mode and also
+// associated with the specified model.
+func TrackedEnforcedValidationSetsForModel(st *state.State, model *asserts.Model) (*snapasserts.ValidationSets, error) {
+	modelSets := make(map[string]bool, len(model.ValidationSets()))
+	for _, vs := range model.ValidationSets() {
+		modelSets[fmt.Sprintf("%s:%s", vs.AccountID, vs.Name)] = true
+	}
+
+	skipSet := func(key string) bool {
+		return !modelSets[key]
+	}
+
+	sets := snapasserts.NewValidationSets()
+	if err := trackedEnforcedValidationSets(st, skipSet, sets); err != nil {
+		return nil, err
+	}
+
+	return sets, nil
+}
+
+func trackedEnforcedValidationSets(st *state.State, skipSet func(string) bool, sets *snapasserts.ValidationSets) error {
+	valsets, err := ValidationSets(st)
+	if err != nil {
+		return err
+	}
+
+	db := DB(st)
+
 	for _, vs := range valsets {
 		if vs.Mode != Enforce {
 			continue
 		}
 
-		// if extraVs matches an already enforced validation set, then skip that one, extraVs has been added
-		// before the loop.
-		if skip[fmt.Sprintf("%s:%s", vs.AccountID, vs.Name)] {
+		if skipSet(fmt.Sprintf("%s:%s", vs.AccountID, vs.Name)) {
 			continue
 		}
 
@@ -232,16 +266,16 @@ func TrackedEnforcedValidationSets(st *state.State, extraVss ...*asserts.Validat
 
 		as, err := db.Find(asserts.ValidationSetType, headers)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		vsetAssert := as.(*asserts.ValidationSet)
 		if err := sets.Add(vsetAssert); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	return sets, err
+	return err
 }
 
 // addCurrentTrackingToValidationSetsHistory stores the current state of validation-sets
