@@ -476,6 +476,58 @@ func (s *instructionSuite) SetUpTest(c *C) {
 	}
 }
 
+func (s *instructionSuite) TestUnmarshalEmpty(c *C) {
+	const instJson = `{}`
+	var us servicestate.Instruction
+	err := json.Unmarshal([]byte(instJson), &us)
+	c.Assert(err, IsNil)
+	c.Check(us, DeepEquals, servicestate.Instruction{})
+
+	// Scope and users has custom unmarshal logic, test they are set
+	// to expected empty values
+	c.Check(us.Scope, HasLen, 0)
+	c.Check(us.Users.Selector, Equals, servicestate.UserSelectionList)
+	c.Check(us.Users.Names, HasLen, 0)
+}
+
+func (s *instructionSuite) TestUnmarshalSimple(c *C) {
+	const instJson = `{"action":"start", "names":["svc1", "svc2"], "enable": true}`
+	var us servicestate.Instruction
+	err := json.Unmarshal([]byte(instJson), &us)
+	c.Assert(err, IsNil)
+	c.Check(us, DeepEquals, servicestate.Instruction{
+		Action: "start",
+		Names:  []string{"svc1", "svc2"},
+		StartOptions: client.StartOptions{
+			Enable: true,
+		},
+	})
+
+	// Scope and users has custom unmarshal logic, test they are set
+	// to expected empty values
+	c.Check(us.Scope, HasLen, 0)
+	c.Check(us.Users.Selector, Equals, servicestate.UserSelectionList)
+	c.Check(us.Users.Names, HasLen, 0)
+}
+
+func (s *instructionSuite) TestUnmarshalWithScopes(c *C) {
+	const instJson = `{"action":"restart", "names":["svc1"], "reload": true, "scope": ["user"], "users": "all"}`
+	var us servicestate.Instruction
+	err := json.Unmarshal([]byte(instJson), &us)
+	c.Assert(err, IsNil)
+	c.Check(us, DeepEquals, servicestate.Instruction{
+		Action: "restart",
+		Names:  []string{"svc1"},
+		RestartOptions: client.RestartOptions{
+			Reload: true,
+		},
+		Scope: []string{"user"},
+		Users: servicestate.UserSelector{
+			Selector: servicestate.UserSelectionAll,
+		},
+	})
+}
+
 func (s *instructionSuite) TestEnsureDefaultScopeForUserDefaultRoot(c *C) {
 	inst := &servicestate.Instruction{}
 	inst.EnsureDefaultScopeForUser(s.rootUser)
