@@ -89,10 +89,8 @@ type Snap struct {
 	Hold *time.Time `json:"hold,omitempty"`
 	// GatingHold is the time until which the snap's refreshes are held by a snap.
 	GatingHold *time.Time `json:"gating-hold,omitempty"`
-	// RefreshInhibitProceedTime is the time after which a pending refresh is forced
-	// for a running snap in the next auto-refresh. If RefreshInhibitProceedTime is
-	// nil, then there are no pending refreshes.
-	RefreshInhibitProceedTime *time.Time `json:"refresh-inhibit-proceed-time,omitempty"`
+	// if RefreshInhibit is nil, then there is no pending refresh.
+	RefreshInhibit *SnapRefreshInhibit `json:"refresh-inhibit,omitempty"`
 }
 
 type SnapHealth struct {
@@ -101,6 +99,15 @@ type SnapHealth struct {
 	Status    string        `json:"status"`
 	Message   string        `json:"message,omitempty"`
 	Code      string        `json:"code,omitempty"`
+}
+
+type SnapRefreshInhibit struct {
+	// ProceedTime is the time after which a pending refresh is forced for a
+	// running snap in the next auto-refresh.
+	//
+	// NOTE: ProceedTime may be in the past, if a refresh is still pending and
+	// the snap applications are being monitored.
+	ProceedTime time.Time `json:"proceed-time"`
 }
 
 // Statuses and types a snap may have.

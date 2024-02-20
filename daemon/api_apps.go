@@ -119,7 +119,7 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 		snapNames[name] = true
 	}
 
-	snaps, err := allLocalSnapInfos(st, false, snapNames)
+	snaps, err := allLocalSnapInfos(st, snapSelectNone, snapNames)
 	if err != nil {
 		return nil, InternalError("cannot list local snaps! %v", err)
 	}

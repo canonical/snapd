@@ -120,7 +120,7 @@ func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
 		"MountedFrom",
 		"Hold",
 		"GatingHold",
-		"RefreshInhibitProceedTime",
+		"RefreshInhibit",
 	}
 	var checker func(string, reflect.Value)
 	checker = func(pfx string, x reflect.Value) {
