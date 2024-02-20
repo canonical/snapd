@@ -2877,48 +2877,19 @@ func (s *servicesTestSuite) TestQueryDisabledServices(c *C) {
 	// This will mock the following:
 	// svc 1 will be reported as disabled
 	// svc 2 will be reported as enabled
-	r := testutil.MockCommand(c, "systemctl", `#!/bin/sh
-	if [ "$1" = "--root" ]; then
-		# shifting by 2 also drops the temp dir arg to --root
-	    shift 2
-	fi
-
-	case "$1" in
-		show)
-			case "$3" in 
-			"snap.hello-snap.svc1.service"|"snap.hello-snap.svc2.service")
-				for SVC in $3 $4
-				do
-					echo "Type=notify"
-					echo "Id=$SVC"
-					echo "Names=$SVC"
-					echo "NeedDaemonReload=no"
-					if [ "$SVC" = "snap.hello-snap.svc1.service" ]; then
-						echo "ActiveState=inactive"
-						echo "UnitFileState=disabled"
-					elif [ "$SVC" = "snap.hello-snap.svc2.service" ]; then
-						echo "ActiveState=inactive"
-						echo "UnitFileState=enabled"
-					fi
-					if [ "$SVC" != "$4" ]; then 
-						echo ""
-					fi
-				done
-				exit 0
-				;;
-			*)
-				shift 2
-				echo "unexpected show of service $*"
-				exit 2
-				;;
-			esac
-	        ;;
-	    *)
-	        echo "unexpected op $*"
-	        exit 2
-	esac
-	`)
-	defer r.Restore()
+	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		return systemdtest.HandleMockAllUnitsActiveOutput(cmd, map[string]systemdtest.ServiceState{
+			"snap.hello-snap.svc1.service": {
+				ActiveState:   "inactive",
+				UnitFileState: "disabled",
+			},
+			"snap.hello-snap.svc2.service": {
+				ActiveState:   "inactive",
+				UnitFileState: "enabled",
+			},
+		}), nil
+	})
 
 	disabledSvcs, err := wrappers.QueryDisabledServices(info, progress.Null)
 	c.Assert(err, IsNil)
@@ -2928,10 +2899,10 @@ func (s *servicesTestSuite) TestQueryDisabledServices(c *C) {
 
 	// the calls could be out of order in the list, since iterating over a map
 	// is non-deterministic, so manually check each call
-	c.Assert(r.Calls(), HasLen, 1)
-	for _, call := range r.Calls() {
-		c.Assert(call, HasLen, 5)
-		c.Assert(call[:2], DeepEquals, []string{"systemctl", "show"})
+	c.Assert(s.sysdLog, HasLen, 1)
+	for _, call := range s.sysdLog {
+		c.Assert(call, HasLen, 4)
+		c.Assert(call[0], Equals, "show")
 		switch call[3] {
 		case "snap.hello-snap.svc1.service", "snap.hello-snap.svc2.service":
 		default:
@@ -2960,64 +2931,27 @@ func (s *servicesTestSuite) TestQueryDisabledServicesActivatedServices(c *C) {
 	// svc 1 will be reported as static
 	// svc 2 will be reported as enabled
 	// svc 1 has two socket activations that both will be reported as disabled
-	r := testutil.MockCommand(c, "systemctl", `#!/bin/sh
-	if [ "$1" = "--root" ]; then
-		# shifting by 2 also drops the temp dir arg to --root
-	    shift 2
-	fi
-
-	case "$1" in
-		show)
-			case "$3" in 
-			"snap.hello-snap.svc1.service"|"snap.hello-snap.svc2.service")
-				for SVC in $3 $4
-				do
-					echo "Type=notify"
-					echo "Id=$SVC"
-					echo "Names=$SVC"
-					echo "NeedDaemonReload=no"
-					if [ "$SVC" = "snap.hello-snap.svc1.service" ]; then
-						echo "ActiveState=inactive"
-						echo "UnitFileState=static"
-					elif [ "$SVC" = "snap.hello-snap.svc2.service" ]; then
-						echo "ActiveState=inactive"
-						echo "UnitFileState=enabled"
-					fi
-					if [ "$SVC" != "$4" ]; then 
-						echo ""
-					fi
-				done
-				exit 0
-				;;
-			"snap.hello-snap.svc1.sock1.socket"|"snap.hello-snap.svc1.sock2.socket")
-				echo "Type=notify"
-				echo "Id=snap.hello-snap.svc1.sock1.socket"
-				echo "Names=snap.hello-snap.svc1.sock1.socket"
-				echo "ActiveState=inactive"
-				echo "UnitFileState=disabled"
-				echo "NeedDaemonReload=no"
-				echo ""
-				echo "Type=notify"
-				echo "Id=snap.hello-snap.svc1.sock2.socket"
-				echo "Names=snap.hello-snap.svc1.sock2.socket"
-				echo "ActiveState=inactive"
-				echo "UnitFileState=disabled"
-				echo "NeedDaemonReload=no"
-				exit 0
-				;;
-			*)
-				shift 2
-				echo "unexpected show of service $*"
-				exit 2
-				;;
-			esac
-	        ;;
-	    *)
-	        echo "unexpected op $*"
-	        exit 2
-	esac
-	`)
-	defer r.Restore()
+	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		return systemdtest.HandleMockAllUnitsActiveOutput(cmd, map[string]systemdtest.ServiceState{
+			"snap.hello-snap.svc1.service": {
+				ActiveState:   "inactive",
+				UnitFileState: "static",
+			},
+			"snap.hello-snap.svc2.service": {
+				ActiveState:   "inactive",
+				UnitFileState: "enabled",
+			},
+			"snap.hello-snap.svc1.sock1.socket": {
+				ActiveState:   "inactive",
+				UnitFileState: "disabled",
+			},
+			"snap.hello-snap.svc1.sock2.socket": {
+				ActiveState:   "inactive",
+				UnitFileState: "disabled",
+			},
+		}), nil
+	})
 
 	disabledSvcs, err := wrappers.QueryDisabledServices(info, progress.Null)
 	c.Assert(err, IsNil)
@@ -3027,10 +2961,10 @@ func (s *servicesTestSuite) TestQueryDisabledServicesActivatedServices(c *C) {
 
 	// the calls could be out of order in the list, since iterating over a map
 	// is non-deterministic, so manually check each call
-	c.Assert(r.Calls(), HasLen, 2)
-	for _, call := range r.Calls() {
-		c.Assert(call, HasLen, 5)
-		c.Assert(call[:2], DeepEquals, []string{"systemctl", "show"})
+	c.Assert(s.sysdLog, HasLen, 2)
+	for _, call := range s.sysdLog {
+		c.Assert(call, HasLen, 4)
+		c.Assert(call[0], Equals, "show")
 		switch call[3] {
 		case "snap.hello-snap.svc1.service", "snap.hello-snap.svc2.service", "snap.hello-snap.svc3.service":
 		case "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket":
@@ -3047,73 +2981,27 @@ func (s *servicesTestSuite) TestAddSnapServicesWithDisabledServices(c *C) {
   daemon: forking
 `, &snap.SideInfo{Revision: snap.R(12)})
 
-	s.systemctlRestorer()
-	r := testutil.MockCommand(c, "systemctl", `#!/bin/sh
-	if [ "$1" = "--root" ]; then
-	    shift 2
-	fi
-	if [ "$1" = "--no-reload" ]; then
-	    shift
-	fi
-
-	case "$1" in
-		enable)
-			case "$2" in 
-				"snap.hello-snap.svc1.service")
-					echo "unexpected enable of disabled service $2"
-					exit 1
-					;;
-				"snap.hello-snap.svc2.service")
-					exit 0
-					;;
-				*)
-					echo "unexpected enable of service $2"
-					exit 1
-					;;
-			esac
-			;;
-		start)
-			case "$2" in
-				"snap.hello-snap.svc2.service")
-					exit 0
-					;;
-			*)
-					echo "unexpected start of service $2"
-					exit 1
-					;;
-			esac
-			;;
-		daemon-reload)
-			exit 0
-			;;
-	    *)
-	        echo "unexpected op $*"
-	        exit 2
-	esac
-	`)
-	defer r.Restore()
-
 	// svc1 will be disabled
 	disabledSvcs := []string{"svc1"}
 
 	err := s.addSnapServices(info, false)
 	c.Assert(err, IsNil)
 
-	c.Assert(r.Calls(), DeepEquals, [][]string{
-		{"systemctl", "daemon-reload"},
+	c.Assert(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
 	})
 
-	r.ForgetCalls()
+	s.sysdLog = nil
 
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err = wrappers.StartServices(info.Services(), disabledSvcs, flags, progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 
 	// only svc2 should be enabled
-	c.Assert(r.Calls(), DeepEquals, [][]string{
-		{"systemctl", "--no-reload", "enable", "snap.hello-snap.svc2.service"},
-		{"systemctl", "daemon-reload"},
-		{"systemctl", "start", "snap.hello-snap.svc2.service"},
+	c.Assert(s.sysdLog, DeepEquals, [][]string{
+		{"--no-reload", "enable", "snap.hello-snap.svc2.service"},
+		{"daemon-reload"},
+		{"start", "snap.hello-snap.svc2.service"},
 	})
 }
 
@@ -3370,33 +3258,13 @@ func (s *servicesTestSuite) TestStartServicesWithDisabledActivatedService(c *C) 
 
 func (s *servicesTestSuite) TestStartServicesStopsServicesIncludingActivation(c *C) {
 	s.systemctlRestorer()
-	r := testutil.MockCommand(c, "systemctl", `#!/bin/sh
-	if [ "$1" = "--user" ]; then
-	    shift
-	fi
-	if [ "$1" = "--global" ]; then
-	    shift
-	fi
-	if [ "$1" = "--no-reload" ]; then
-	    shift
-	fi
-
-	case "$1" in
-		start)
-			exit 1
-			;;
-		enable)
-			;;
-		disable)
-			;;
-		daemon-reload)
-			;;
-	    *)
-	        echo "unexpected call $*"
-	        exit 2
-	esac
-	`)
-	defer r.Restore()
+	s.systemctlRestorer = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		if len(cmd) == 2 && cmd[0] == "start" && cmd[1] == "snap.hello-snap.svc1.sock1.socket" {
+			return []byte("no"), fmt.Errorf("mock error")
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
 
 	info := snaptest.MockSnap(c, packageHelloNoSrv+`
  svc1:
@@ -3429,35 +3297,37 @@ func (s *servicesTestSuite) TestStartServicesStopsServicesIncludingActivation(c 
 	})
 
 	err = wrappers.StartServices(sorted, nil, &wrappers.StartServicesFlags{Enable: true}, &progress.Null, s.perfTimings)
-	c.Assert(err, NotNil)
-	c.Check(r.Calls(), DeepEquals, [][]string{
+	c.Check(err, NotNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
 		// Enable phase for the service activation units, we have one set of system daemon and one set of user daemon
-		{"systemctl", "daemon-reload"},
-		{"systemctl", "--user", "daemon-reload"},
-		{"systemctl", "--no-reload", "enable", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket"},
-		{"systemctl", "daemon-reload"},
-		{"systemctl", "--user", "--global", "--no-reload", "enable", "snap.hello-snap.svc2.sock1.socket", "snap.hello-snap.svc2.sock2.socket"},
+		{"daemon-reload"},
+		{"--user", "daemon-reload"},
+		{"--no-reload", "enable", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket"},
+		{"daemon-reload"},
+		{"--user", "--global", "--no-reload", "enable", "snap.hello-snap.svc2.sock1.socket", "snap.hello-snap.svc2.sock2.socket"},
 
 		// Start phase for service activation units, we have rigged the game by making sure this stage fails,
 		// so only one of the services will attempt to start
-		{"systemctl", "start", "snap.hello-snap.svc1.sock1.socket"},
+		{"start", "snap.hello-snap.svc1.sock1.socket"},
 
 		// Stop phase, where we attempt to stop the activation units and the primary services
 		// We first attempt to stop the user services, then the system services
-		{"systemctl", "--user", "stop", "snap.hello-snap.svc2.sock1.socket"},
-		{"systemctl", "--user", "show", "--property=ActiveState", "snap.hello-snap.svc2.sock1.socket"},
-		{"systemctl", "--user", "stop", "snap.hello-snap.svc2.sock2.socket"},
-		{"systemctl", "--user", "show", "--property=ActiveState", "snap.hello-snap.svc2.sock2.socket"},
-		{"systemctl", "--user", "stop", "snap.hello-snap.svc2.service"},
-		{"systemctl", "--user", "show", "--property=ActiveState", "snap.hello-snap.svc2.service"},
+		{"--user", "stop", "snap.hello-snap.svc2.sock1.socket"},
+		{"--user", "show", "--property=ActiveState", "snap.hello-snap.svc2.sock1.socket"},
+		{"--user", "stop", "snap.hello-snap.svc2.sock2.socket"},
+		{"--user", "show", "--property=ActiveState", "snap.hello-snap.svc2.sock2.socket"},
+		{"--user", "stop", "snap.hello-snap.svc2.service"},
+		{"--user", "show", "--property=ActiveState", "snap.hello-snap.svc2.service"},
 
-		{"systemctl", "stop", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket", "snap.hello-snap.svc1.service"},
-		{"systemctl", "show", "--property=ActiveState", "snap.hello-snap.svc1.sock1.socket"},
+		{"stop", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket", "snap.hello-snap.svc1.service"},
+		{"show", "--property=ActiveState", "snap.hello-snap.svc1.sock1.socket"},
+		{"show", "--property=ActiveState", "snap.hello-snap.svc1.sock2.socket"},
+		{"show", "--property=ActiveState", "snap.hello-snap.svc1.service"},
 
 		// Disable phase, where the activation units are being disabled
-		{"systemctl", "--no-reload", "disable", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket"},
-		{"systemctl", "daemon-reload"},
-		{"systemctl", "--user", "--global", "--no-reload", "disable", "snap.hello-snap.svc2.sock1.socket", "snap.hello-snap.svc2.sock2.socket"},
+		{"--no-reload", "disable", "snap.hello-snap.svc1.sock1.socket", "snap.hello-snap.svc1.sock2.socket"},
+		{"daemon-reload"},
+		{"--user", "--global", "--no-reload", "disable", "snap.hello-snap.svc2.sock1.socket", "snap.hello-snap.svc2.sock2.socket"},
 	})
 }
 
@@ -3525,46 +3395,13 @@ func (s *servicesTestSuite) TestNoStartDisabledServices(c *C) {
   daemon: simple
 `, &snap.SideInfo{Revision: snap.R(12)})
 
-	s.systemctlRestorer()
-	r := testutil.MockCommand(c, "systemctl", `#!/bin/sh
-	if [ "$1" = "--root" ]; then
-	    shift 2
-	fi
-	if [ "$1" = "--no-reload" ]; then
-	    shift
-	fi
-
-	case "$1" in
-		start)
-			if [ "$2" = "snap.hello-snap.svc2.service" ]; then
-				exit 0
-			fi
-			echo "unexpected start of service $2"
-			exit 1
-			;;
-		enable)
-			if [ "$2" = "snap.hello-snap.svc2.service" ]; then
-				exit 0
-			fi
-			echo "unexpected enable of service $2"
-			exit 1
-			;;
-		daemon-reload)
-			;;
-	    *)
-	        echo "unexpected call $*"
-	        exit 2
-	esac
-	`)
-	defer r.Restore()
-
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	err := wrappers.StartServices(info.Services(), []string{"svc1"}, flags, &progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
-	c.Assert(r.Calls(), DeepEquals, [][]string{
-		{"systemctl", "--no-reload", "enable", svc2Name},
-		{"systemctl", "daemon-reload"},
-		{"systemctl", "start", svc2Name},
+	c.Assert(s.sysdLog, DeepEquals, [][]string{
+		{"--no-reload", "enable", svc2Name},
+		{"daemon-reload"},
+		{"start", svc2Name},
 	})
 }
 

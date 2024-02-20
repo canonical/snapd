@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type ServiceState struct {
@@ -39,7 +40,12 @@ type ServiceState struct {
 func HandleMockAllUnitsActiveOutput(cmd []string, states map[string]ServiceState) []byte {
 	osutil.MustBeTestBinary("mocking systemctl output can only be done from tests")
 	if cmd[0] != "show" ||
-		cmd[1] != "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload" {
+		!strutil.ListContains([]string{
+			// extended properties for services and mounts
+			"--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload",
+			// base properties for everything else
+			"--property=Id,ActiveState,UnitFileState,Names",
+		}, cmd[1]) {
 		return nil
 	}
 	var output []byte
