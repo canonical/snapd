@@ -14062,6 +14062,120 @@ func (s *mgrsSuite) TestAutoRefreshStoreUpdateWhileWaitingWithMonitoring(c *C) {
 	c.Check(si.Revision, Equals, snap.R(3))
 }
 
+func (s *mgrsSuite) TestAutoRefreshStorePreDownloadWhileWaitingWithMonitoring(c *C) {
+	// similar to a test which performs auto-refresh with a snap held back,
+	// but this time, the snap is already active by the time we attempt
+	// auto-refresh, so a pre-download change which will set up monitoring
+	// in pre-download handler
+	restore := cgroup.MockVersion(cgroup.V2, nil)
+	defer restore()
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	err := assertstate.Add(st, s.devAcct)
+	c.Assert(err, IsNil)
+
+	snapNames := []string{"aaaa", "held-with-app-running"}
+	for _, name := range snapNames {
+		rev := snap.R(1)
+		snapDecl := s.prereqSnapAssertions(c, map[string]interface{}{"snap-name": name})
+		err = assertstate.Add(st, snapDecl)
+		c.Assert(err, IsNil)
+
+		s.mockInstalledSnapWithRevAndFiles(c,
+			fmt.Sprintf(snapYamlMonitoredAppFormat, name, "0"), rev, nil)
+	}
+
+	// now add some more snap revisions
+	revno := "2"
+	for _, name := range snapNames {
+		snapPath, _ := s.makeStoreTestSnap(c,
+			fmt.Sprintf(snapYamlMonitoredAppFormat, name, "1"), revno)
+		s.serveSnap(snapPath, revno)
+	}
+
+	// mock a running process in the snap's context before we try to launch auto-refresh
+	snaptest.PopulateDir(dirs.GlobalRootDir, [][]string{
+		{"/sys/fs/cgroup/snap.held-with-app-running.app.scope/cgroup.procs", "1234\n"},
+	})
+
+	// auto-refresh
+	affected, tasksets, err := snapstate.AutoRefresh(context.TODO(), st)
+	c.Assert(err, IsNil)
+	sort.Strings(affected)
+	// only the refreshed snap is treated as affected
+	c.Check(affected, DeepEquals, []string{"aaaa"})
+	// one snap has active apps and gets a pre-download change
+	c.Check(len(tasksets.PreDownload) > 0, Equals, true)
+	// other gets a full refresh
+	c.Check(len(tasksets.Refresh) > 0, Equals, true)
+	chgRef := st.NewChange("refresh-snaps", "...")
+	for _, ts := range tasksets.Refresh {
+		chgRef.AddAll(ts)
+	}
+	chgDl := st.NewChange("pre-download", "...")
+	for _, ts := range tasksets.PreDownload {
+		chgDl.AddAll(ts)
+	}
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	dumpTasks(c, "after settle refresh-snaps", chgRef.Tasks())
+	c.Assert(chgRef.Err(), IsNil)
+	dumpTasks(c, "after settle pre-download", chgDl.Tasks())
+	c.Assert(chgDl.Err(), IsNil)
+
+	si, err := snapstate.CurrentInfo(st, "aaaa")
+	c.Assert(err, IsNil)
+	// aaaa snap was refreshed
+	c.Check(si.Revision, Equals, snap.R(2))
+
+	// the other snap is still unchanged
+	si, err = snapstate.CurrentInfo(st, "held-with-app-running")
+	c.Assert(err, IsNil)
+	c.Check(si.Revision, Equals, snap.R(1))
+
+	// the pre-download handler must have created a state entry for the held snap
+	var candidates map[string]interface{}
+	st.Get("refresh-candidates", &candidates)
+	c.Logf("candidates: %v", candidates)
+
+	// refresh-candidate should not be empty
+	c.Check(candidates, HasLen, 1)
+	c.Assert(candidates["held-with-app-running"], NotNil)
+
+	// remove the entry as if the app has closed
+	err = os.RemoveAll(filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/snap.held-with-app-running.app.scope"))
+	c.Assert(err, IsNil)
+
+	// what's supposed to happen now is the file removal will be noticed, a
+	// change will be kicked off and the snap will get a refresh
+	st.Unlock()
+	s.o.Loop()
+
+	chgAuto := waitForReadyChangeKind(c, st, "auto-refresh")
+	err = s.o.Stop()
+	c.Assert(err, IsNil)
+	st.Lock()
+	// we found the change
+	c.Assert(chgAuto, NotNil)
+	dumpTasks(c, "after loop", chgAuto.Tasks())
+	c.Check(chgAuto.Err(), IsNil)
+
+	// app got refreshed
+	si, err = snapstate.CurrentInfo(st, "held-with-app-running")
+	c.Assert(err, IsNil)
+	c.Check(si.Revision, Equals, snap.R(2))
+}
+
 func waitForReadyChangeKind(c *C, st *state.State, kind string) (chg *state.Change) {
 	checkTicker := time.NewTicker(time.Second)
 	timeout := time.After(settleTimeout)
