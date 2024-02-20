@@ -250,6 +250,12 @@ func (m *DeviceManager) doRemoveRecoverySystem(t *state.Task, _ *tomb.Tomb) erro
 		snapsToRemove.SnapPaths = uniqueSnapPaths
 
 		t.Set("snaps-to-remove", snapsToRemove)
+
+		// we need to unlock and re-lock the state to make sure that
+		// snaps-to-remove is persisted. if we ever change how the exclusive
+		// tasks are handled, then we might need to revisit this.
+		st.Unlock()
+		st.Lock()
 	}
 
 	recoverySystemsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems")
