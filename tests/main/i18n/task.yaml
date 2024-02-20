@@ -1,5 +1,9 @@
 summary: Test that i18n works
 
+details: |
+  This test cheks the translations do not causes crashes nor warnings.
+  Checks that there are no panics when lancuage packs are installed.
+
 # no i18n yet in debian-sid
 systems: [-debian-sid-*]
 
