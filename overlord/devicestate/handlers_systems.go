@@ -269,6 +269,8 @@ func (m *DeviceManager) doRemoveRecoverySystem(t *state.Task, _ *tomb.Tomb) erro
 		return fmt.Errorf("cannot remove recovery system %q: %w", setup.Label, err)
 	}
 
+	t.SetStatus(state.DoneStatus)
+
 	return nil
 }
 
