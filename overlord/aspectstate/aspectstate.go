@@ -93,6 +93,15 @@ func GetAspect(st *state.State, account, bundleName, aspect string, fields []str
 		return nil, err
 	}
 
+	if len(fields) == 0 {
+		val, err := asp.Get(tx, "")
+		if err != nil {
+			return nil, err
+		}
+
+		return map[string]interface{}{"all": val}, nil
+	}
+
 	results := make(map[string]interface{}, len(fields))
 	for _, field := range fields {
 		value, err := asp.Get(tx, field)

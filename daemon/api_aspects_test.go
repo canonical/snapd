@@ -321,17 +321,6 @@ func (s *aspectsSuite) TestGetAspectError(c *C) {
 	}
 }
 
-func (s *aspectsSuite) TestGetAspectMissingField(c *C) {
-	s.setFeatureFlag(c)
-
-	req, err := http.NewRequest("GET", "/v2/aspects/system/network/wifi-setup", nil)
-	c.Assert(err, IsNil)
-
-	rspe := s.errorReq(c, req, nil)
-	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Error(), Equals, "missing aspect fields (api)")
-}
-
 func (s *aspectsSuite) TestGetAspectMisshapenQuery(c *C) {
 	s.setFeatureFlag(c)
 
@@ -594,4 +583,22 @@ func (s *aspectsSuite) TestGetFailUnsetFeatureFlag(c *C) {
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Message, Equals, `aspect-based configuration disabled: you must set 'experimental.aspects-configuration' to true`)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
+}
+
+func (s *aspectsSuite) TestGetNoFields(c *C) {
+	s.setFeatureFlag(c)
+
+	value := map[string]interface{}{"foo": 1, "bar": "baz", "nested": map[string]interface{}{"a": []interface{}{1, 2}}}
+	restore := daemon.MockAspectstateGet(func(_ *state.State, _, _, _ string, fields []string) (map[string]interface{}, error) {
+		c.Check(fields, IsNil)
+		return map[string]interface{}{"all": value}, nil
+	})
+	defer restore()
+
+	req, err := http.NewRequest("GET", "/v2/aspects/acc/bundle/foo", nil)
+	c.Assert(err, IsNil)
+
+	rspe := s.syncReq(c, req, nil)
+	c.Check(rspe.Status, Equals, 200)
+	c.Check(rspe.Result, DeepEquals, value)
 }

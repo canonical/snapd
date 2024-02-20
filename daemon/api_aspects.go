@@ -56,7 +56,12 @@ func getAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 	fields := strutil.CommaSeparatedList(r.URL.Query().Get("fields"))
 
 	if len(fields) == 0 {
-		return BadRequest("missing aspect fields")
+		results, err := aspectstateGetAspect(st, account, bundleName, aspect, nil)
+		if err != nil {
+			return toAPIError(err)
+		}
+
+		return SyncResponse(results["all"])
 	}
 
 	results, err := aspectstateGetAspect(st, account, bundleName, aspect, fields)
