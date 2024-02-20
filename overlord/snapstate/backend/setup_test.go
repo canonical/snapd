@@ -20,6 +20,7 @@
 package backend_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -37,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
@@ -627,4 +629,206 @@ func (s *setupSuite) TestSetupKernelSnapFailed(c *C) {
 	treedir := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel/kernel/33")
 	c.Assert(osutil.FileExists(mup), Equals, false)
 	c.Assert(osutil.FileExists(treedir), Equals, false)
+}
+
+func createKModsComps(c *C, idx, num int, ksnap string, kernRev snap.Revision) []*snap.ComponentSideInfo {
+	comps := make([]*snap.ComponentSideInfo, num)
+	for i := range comps {
+		idxStr := fmt.Sprintf("%d", idx+i)
+		compName := "comp" + idxStr
+		compRev := snap.R((idx+i)*10 + idx)
+		compDir := filepath.Join(dirs.RunDir, "mnt/kernel-snaps",
+			ksnap, "components", kernRev.String(), compName, compRev.String())
+		modsDir := filepath.Join(compDir, "modules/6.5.4-3-generic")
+		c.Assert(os.MkdirAll(modsDir, 0755), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(modsDir, "foo.ko"),
+			[]byte{}, 0644), IsNil)
+
+		comps[i] = snap.NewComponentSideInfo(
+			naming.NewComponentRef(ksnap, compName), compRev)
+	}
+	return comps
+}
+
+func (s *setupSuite) TestSetupAndRemoveKernelModulesComponents(c *C) {
+	ksnap := "kernel"
+	kernRev := snap.R(33)
+	toInstall := createKModsComps(c, 1, 2, ksnap, kernRev)
+
+	// Set-up and then remove
+	s.testSetupKernelModulesComponents(c, toInstall, nil, ksnap, kernRev, "")
+	s.testRemoveKernelModulesComponents(c, toInstall, nil, ksnap, kernRev, "")
+}
+
+func (s *setupSuite) TestSetupAndRemoveKernelModulesComponentsWithInstalled(c *C) {
+	ksnap := "kernel"
+	kernRev := snap.R(33)
+
+	// Set-up
+	firstInstalled := createKModsComps(c, 1, 2, ksnap, kernRev)
+	s.testSetupKernelModulesComponents(c, firstInstalled, nil, ksnap, kernRev, "")
+	// Add components, with some overlap (comp2/3 - new rev for comp2 though, 22)
+	newComps := createKModsComps(c, 2, 2, ksnap, kernRev)
+	s.testSetupKernelModulesComponents(c, newComps, firstInstalled, ksnap, kernRev, "")
+	// twice to check it is idempotent
+	s.testSetupKernelModulesComponents(c, newComps, firstInstalled, ksnap, kernRev, "")
+
+	// comp1 still there
+	checkInstalled(c, []*snap.ComponentSideInfo{firstInstalled[0]}, ksnap, kernRev)
+	// comp1 rev 21 removed
+	checkRemoved(c, []*snap.ComponentSideInfo{firstInstalled[1]}, ksnap, kernRev)
+
+	// restore to the previous situation
+	s.testRemoveKernelModulesComponents(c, newComps, firstInstalled, ksnap, kernRev, "")
+	// twice to check it is idempotent
+	s.testRemoveKernelModulesComponents(c, newComps, firstInstalled, ksnap, kernRev, "")
+}
+
+func (s *setupSuite) testSetupKernelModulesComponents(c *C, toInstall, installed []*snap.ComponentSideInfo, ksnap string, kernRev snap.Revision, errRegex string) {
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+
+	// Files from the early-mounted snap
+	revStr := kernRev.String()
+	snapdir := filepath.Join(dirs.GlobalRootDir, "run/mnt/kernel-snaps", ksnap, revStr)
+	fwdir := filepath.Join(snapdir, "firmware")
+	c.Assert(os.MkdirAll(fwdir, 0755), IsNil)
+	modsdir := filepath.Join(snapdir, "modules/6.5.4-3-generic")
+	c.Assert(os.MkdirAll(modsdir, 0755), IsNil)
+
+	// Run kernel set-up
+	err := s.be.SetupKernelSnap(ksnap, kernRev, progress.Null)
+	c.Assert(err, IsNil)
+	// ensure the kernel mount is created
+	what := filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/"+ksnap+"_"+revStr+".snap")
+	where := "/run/mnt/kernel-snaps/" + ksnap + "/" + revStr
+	mup := systemd.MountUnitPath(where)
+	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s", where))
+	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^What=%s", what))
+
+	// Run modules set-up
+	err = s.be.SetupKernelModulesComponents(toInstall, installed, ksnap, kernRev, progress.Null)
+	if errRegex == "" {
+		c.Assert(err, IsNil)
+		// ensure new units and files are around
+		checkInstalled(c, toInstall, ksnap, kernRev)
+	} else {
+		c.Assert(err, ErrorMatches, errRegex)
+		// Old units are still there
+		checkInstalled(c, installed, ksnap, kernRev)
+		// New units have been cleaned up
+		checkRemoved(c, toInstall, ksnap, kernRev)
+	}
+}
+
+func checkInstalled(c *C, installed []*snap.ComponentSideInfo, ksnap string, kernRev snap.Revision) {
+	for _, csi := range installed {
+		what := filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps",
+			csi.Component.String()+"_"+csi.Revision.String()+".comp")
+		where := filepath.Join("/run/mnt/kernel-snaps", ksnap, "components",
+			kernRev.String(), csi.Component.ComponentName, csi.Revision.String())
+		mup := systemd.MountUnitPath(where)
+		c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^What=%s",
+			regexp.QuoteMeta(what)))
+		c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s", where))
+
+		treedir := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir),
+			"kernel", ksnap, kernRev.String(),
+			"/lib/modules/6.5.4-3-generic/updates",
+			csi.Component.ComponentName)
+		dest, err := os.Readlink(treedir)
+		c.Assert(err, IsNil)
+		expected := filepath.Join(dirs.RunDir, "mnt/kernel-snaps",
+			ksnap, "components", kernRev.String(),
+			csi.Component.ComponentName, csi.Revision.String(),
+			"modules/6.5.4-3-generic")
+		c.Assert(dest, Equals, expected)
+
+		c.Assert(osutil.FileExists(filepath.Join(treedir, "foo.ko")), Equals, true)
+	}
+}
+
+func checkRemoved(c *C, removed []*snap.ComponentSideInfo, ksnap string, kernRev snap.Revision) {
+	for _, csi := range removed {
+		where := filepath.Join("/run/mnt/kernel-snaps", ksnap, "components",
+			kernRev.String(), csi.Component.ComponentName, csi.Revision.String())
+		mup := systemd.MountUnitPath(where)
+		c.Assert(osutil.FileExists(mup), Equals, false)
+
+		treedir := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir),
+			"kernel", ksnap, kernRev.String(),
+			"lib/modules/6.5.4-3-generic/updates",
+			csi.Component.ComponentName)
+		dest, err := os.Readlink(treedir)
+		if err == nil {
+			// If there is a link it should not point to the revision
+			// for this csi
+			revLink := filepath.Join(dirs.RunDir, "mnt/kernel-snaps",
+				ksnap, "components", kernRev.String(),
+				csi.Component.ComponentName, csi.Revision.String(),
+				"modules/6.5.4-3-generic")
+			c.Assert(dest == revLink, Equals, false)
+		}
+	}
+}
+
+func (s *setupSuite) testRemoveKernelModulesComponents(c *C, toRemove, finalComps []*snap.ComponentSideInfo, ksnap string, kernRev snap.Revision, errRegex string) {
+	err := s.be.RemoveKernelModulesComponentsSetup(toRemove, finalComps, ksnap, kernRev, progress.Null)
+	if err == nil {
+		// No left-overs
+		checkRemoved(c, toRemove, ksnap, kernRev)
+		// finalComps are installed
+		checkInstalled(c, finalComps, ksnap, kernRev)
+	} else {
+		c.Assert(err, ErrorMatches, errRegex)
+		// Not removed
+		checkInstalled(c, toRemove, ksnap, kernRev)
+	}
+}
+
+func (s *setupSuite) TestSetupKernelModulesComponentsFails(c *C) {
+	ksnap := "kernel"
+	kernRev := snap.R(33)
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		// Fail in the penultimate invocation, which disables the unit
+		// for comp2, rev. 21
+		if len(cmd) == 3 && cmd[1] == "disable" && strings.Contains(cmd[2], "comp2-21") {
+			return nil, errors.New("cannot disable comp2-21")
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	// Set-up
+	firstInstalled := createKModsComps(c, 1, 2, ksnap, kernRev)
+	s.testSetupKernelModulesComponents(c, firstInstalled, nil, ksnap, kernRev, "")
+	// Add components, with some overlap (comp2/3 - new rev for comp2 though, 22)
+	newComps := createKModsComps(c, 2, 2, ksnap, kernRev)
+	s.testSetupKernelModulesComponents(c, newComps, firstInstalled, ksnap, kernRev,
+		"cannot remove mount in .*: cannot disable comp2-21")
+}
+
+func (s *setupSuite) TestRemoveKernelModulesComponentsFails(c *C) {
+	ksnap := "kernel"
+	kernRev := snap.R(33)
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		// Fail in the penultimate invocation, which disables the unit
+		// for comp3, rev. 32.
+		if len(cmd) == 3 && cmd[1] == "disable" && strings.Contains(cmd[2], "comp3-32") {
+			return nil, errors.New("cannot disable comp3-32")
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	// Set-up
+	firstInstalled := createKModsComps(c, 1, 2, ksnap, kernRev)
+	s.testSetupKernelModulesComponents(c, firstInstalled, nil, ksnap, kernRev, "")
+	newComps := createKModsComps(c, 2, 2, ksnap, kernRev)
+	s.testSetupKernelModulesComponents(c, newComps, firstInstalled, ksnap, kernRev, "")
+	// Restore to the previous state, but fail
+	s.testRemoveKernelModulesComponents(c, newComps, firstInstalled, ksnap, kernRev,
+		"cannot remove mount in .*: cannot disable comp3-32")
 }
