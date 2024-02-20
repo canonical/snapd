@@ -4396,6 +4396,26 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemLastSystemFailure(
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 }
 
+func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemNoSystemWithName(c *C) {
+	restore := seed.MockTrusted(s.storeSigning.Trusted)
+	s.AddCleanup(restore)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	devicestate.SetBootOkRan(s.mgr, true)
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	const label = "last"
+	const markCurrent = false
+	s.createSystemForRemoval(c, label, 0, nil, markCurrent)
+
+	const missing = "missing"
+	_, err := devicestate.RemoveRecoverySystem(s.state, missing)
+	c.Check(err, NotNil)
+	c.Check(err, testutil.ErrorIs, devicestate.ErrNoRecoverySystem)
+}
+
 func (s *deviceMgrSystemsCreateSuite) waitfor(chg *state.Change) {
 	s.state.Unlock()
 	for i := 0; i < 5; i++ {
