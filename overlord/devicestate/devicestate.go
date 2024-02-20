@@ -1389,6 +1389,10 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 		}
 		fallthrough
 	case UpdateRemodel:
+		// TODO: make this case follow the same pattern as ReregRemodel, where
+		// we call remodelTasks from inside another task, so that the tasks for
+		// the remodel are added to an existing and running change. this will
+		// allow us to avoid things like calling snapstate.CheckChangeConflictRunExclusively again.
 		var err error
 		tss, err = remodelTasks(context.TODO(), st, current, new, remodCtx, "", localSnaps, paths, opts)
 		if err != nil {
