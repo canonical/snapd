@@ -1718,11 +1718,6 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		return nil, err
 	}
 
-	// snaps required by validation sets must also be required by the model
-	if err := checkForRequiredSnapsNotRequiredInModel(model, valsets); err != nil {
-		return nil, err
-	}
-
 	tracker := snap.NewSelfContainedSetPrereqTracker()
 	offline := len(opts.LocalSnaps) > 0
 
@@ -1742,6 +1737,19 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 			}
 			tracker.Add(info)
 			continue
+		}
+
+		if sn.Presence != "required" {
+			sets, _, err := valsets.CheckPresenceRequired(sn)
+			if err != nil {
+				return nil, err
+			}
+
+			// snap isn't already installed, and it isn't required by model or
+			// any validation sets, so we should skip it
+			if len(sets) == 0 {
+				continue
+			}
 		}
 
 		if offline {
