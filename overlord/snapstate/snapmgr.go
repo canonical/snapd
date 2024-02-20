@@ -681,6 +681,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("mount-component", m.doMountComponent, m.undoMountComponent)
 	runner.AddHandler("unlink-current-component", m.doUnlinkCurrentComponent, m.undoUnlinkCurrentComponent)
 	runner.AddHandler("link-component", m.doLinkComponent, m.undoLinkComponent)
+	runner.AddHandler("setup-kernel-modules-component", m.doSetupKernelModules, m.doRemoveKernelModulesSetup)
 
 	// control serialisation
 	runner.AddBlocked(m.blockedTask)

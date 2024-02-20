@@ -402,3 +402,72 @@ func (m *SnapManager) undoUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (e
 
 	return nil
 }
+
+func (m *SnapManager) doSetupKernelModules(t *state.Task, _ *tomb.Tomb) error {
+	// invariant: component not linked yet
+	st := t.State()
+
+	// snapSt is a copy of the current state
+	st.Lock()
+	compSetup, snapsup, snapSt, err := compSetupAndState(t)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	// kernel-modules components already in the system
+	st.Lock()
+	kmodComps := snapSt.Sequence.ComponentsWithTypeForRev(snapsup.Revision(), snap.KernelModulesComponent)
+	st.Unlock()
+
+	// Set-up the new kernel modules component - called with unlocked state
+	// as it can take a couple of seconds.
+	pm := NewTaskProgressAdapterUnlocked(t)
+	err = m.backend.SetupKernelModulesComponents(
+		[]*snap.ComponentSideInfo{compSetup.CompSideInfo},
+		kmodComps, snapsup.InstanceName(), snapsup.Revision(), pm)
+	if err != nil {
+		return err
+	}
+
+	// Make sure we won't be rerun
+	st.Lock()
+	defer st.Unlock()
+	t.SetStatus(state.DoneStatus)
+	return nil
+}
+
+func (m *SnapManager) doRemoveKernelModulesSetup(t *state.Task, _ *tomb.Tomb) error {
+	// invariant: component unlinked on undo
+	st := t.State()
+
+	// snapSt is a copy of the current state
+	st.Lock()
+	compSetup, snapsup, snapSt, err := compSetupAndState(t)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	// current kernel-modules components in the system
+	st.Lock()
+	kmodComps := snapSt.Sequence.ComponentsWithTypeForRev(snapsup.Revision(), snap.KernelModulesComponent)
+	st.Unlock()
+
+	// Restore kernel modules components state - called with unlocked state
+	// as it can take a couple of seconds.
+	pm := NewTaskProgressAdapterUnlocked(t)
+	// Component from compSetup has already been unlinked, so it is not in kmodComps
+	err = m.backend.RemoveKernelModulesComponentsSetup(
+		[]*snap.ComponentSideInfo{compSetup.CompSideInfo},
+		kmodComps, snapsup.InstanceName(), snapsup.Revision(), pm)
+	if err != nil {
+		return err
+	}
+
+	// Make sure we won't be rerun
+	st.Lock()
+	defer st.Unlock()
+	t.SetStatus(state.UndoneStatus)
+	return nil
+}
