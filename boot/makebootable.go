@@ -559,11 +559,10 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		return fmt.Errorf("cannot record %q as a recovery capable system: %v", recoverySystemLabel, err)
 	}
 
-	err = setUbuntuSeedEfiBootVariables()
-	if err == errUnsupportedBootloader {
-		logger.Debugf("%v", err)
-	} else if err != nil {
-		logger.Debugf("WARNING: %v", err)
+	if sealer != nil {
+		if err := sealer.UpdateBootEntry(); err != nil {
+			logger.Debugf("WARNING: %v", err)
+		}
 	}
 
 	return nil

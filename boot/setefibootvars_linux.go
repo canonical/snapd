@@ -29,8 +29,6 @@ import (
 
 	"github.com/canonical/go-efilib"
 	"github.com/canonical/go-efilib/linux"
-
-	"github.com/snapcore/snapd/bootloader"
 )
 
 var (
@@ -199,29 +197,4 @@ func SetEfiBootVariables(description string, assetPath string, optionalData []by
 		return err
 	}
 	return setEfiBootOrderVariable(bootNum)
-}
-
-// setUbuntuSeedEfiBootVariables sets EFI variables according to the bootloader
-// found on ubuntu seed if it is a UefiBootloader.
-func setUbuntuSeedEfiBootVariables() error {
-	opts := &bootloader.Options{
-		Role: bootloader.RoleRecovery,
-	}
-	// Set EFI boot variables according to bootloader on ubuntu-seed
-	seedBl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
-	if err != nil {
-		return fmt.Errorf("cannot find bootloader in seed directory: %v; skipping set1ting EFI variables", err)
-	}
-	ubl, ok := seedBl.(bootloader.UefiBootloader)
-	if !ok {
-		return errUnsupportedBootloader
-	}
-	description, assetPath, optionalData, err := ubl.ParametersForEfiLoadOption()
-	if err != nil {
-		return fmt.Errorf("cannot get EFI load option parameter: %v", err)
-	}
-	if err = SetEfiBootVariables(description, assetPath, optionalData); err != nil {
-		return fmt.Errorf("failed to set EFI boot variables: %v", err)
-	}
-	return nil
 }

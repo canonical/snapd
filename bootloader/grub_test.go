@@ -1424,13 +1424,26 @@ func (s *grubTestSuite) TestBootChainsNotRecoveryBootloader(c *C) {
 
 func (s *grubTestSuite) TestConstructShimEfiLoadOption(c *C) {
 	s.makeFakeGrubEFINativeEnv(c, nil)
-	g := bootloader.NewGrub(s.rootdir, nil)
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
 	ubl, ok := g.(bootloader.UefiBootloader)
 	c.Assert(ok, Equals, true)
 
-	description, assetPath, optionalData, err := ubl.ParametersForEfiLoadOption()
+	description, assetPath, optionalData, err := ubl.ParametersForEfiLoadOption([]string{"bootx64.efi", "boot:fbx64.efi", "ubuntu:shimx64.efi"})
 	c.Assert(err, IsNil)
 	c.Assert(description, Equals, "ubuntu")
 	c.Assert(assetPath, Equals, fmt.Sprintf("%s/EFI/ubuntu/shimx64.efi", s.rootdir))
+	c.Assert(optionalData, HasLen, 0)
+}
+
+func (s *grubTestSuite) TestConstructShimEfiLoadOptionOldBootchain(c *C) {
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	ubl, ok := g.(bootloader.UefiBootloader)
+	c.Assert(ok, Equals, true)
+
+	description, assetPath, optionalData, err := ubl.ParametersForEfiLoadOption([]string{"bootx64.efi"})
+	c.Assert(err, IsNil)
+	c.Assert(description, Equals, "ubuntu")
+	c.Assert(assetPath, Equals, fmt.Sprintf("%s/EFI/boot/bootx64.efi", s.rootdir))
 	c.Assert(optionalData, HasLen, 0)
 }

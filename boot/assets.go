@@ -226,6 +226,8 @@ func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string
 
 		recoveryBlName:        seedBl.Name(),
 		trustedRecoveryAssets: seedTrusted,
+
+		seedBootloader: seedBl,
 	}, nil
 }
 
@@ -270,6 +272,8 @@ type TrustedAssetsInstallObserver struct {
 
 	dataEncryptionKey keys.EncryptionKey
 	saveEncryptionKey keys.EncryptionKey
+
+	seedBootloader bootloader.Bootloader
 }
 
 // Observe observes the operation related to the content of a given gadget
@@ -352,6 +356,23 @@ func (o *TrustedAssetsInstallObserver) currentTrustedRecoveryBootAssetsMap() boo
 func (o *TrustedAssetsInstallObserver) ChosenEncryptionKeys(key, saveKey keys.EncryptionKey) {
 	o.dataEncryptionKey = key
 	o.saveEncryptionKey = saveKey
+}
+
+func (o *TrustedAssetsInstallObserver) UpdateBootEntry() error {
+	if o.seedBootloader == nil {
+		return nil
+	}
+	efiBl, ok := o.seedBootloader.(bootloader.UefiBootloader)
+	if !ok {
+		return nil
+	}
+
+	var updatedAssets []string
+	for name := range o.trackedRecoveryAssets {
+		updatedAssets = append(updatedAssets, name)
+	}
+
+	return doUpdateBootEntry(efiBl, updatedAssets)
 }
 
 // TrustedAssetsUpdateObserverForModel returns a new trusted assets observer for
@@ -445,6 +466,36 @@ type TrustedAssetsUpdateObserver struct {
 
 	modeenv       *Modeenv
 	modeenvLocked bool
+}
+
+func doUpdateBootEntry(efiBl bootloader.UefiBootloader, updatedAssets []string) error {
+	description, assetPath, optionalData, err := efiBl.ParametersForEfiLoadOption(updatedAssets)
+	if err != nil {
+		if errors.Is(err, bootloader.ErrNoBootChainFound) {
+			logger.Noticef("could not find a valid boot chain, skipping setting EFI variables")
+			return nil
+		} else {
+			return fmt.Errorf("cannot get EFI load option parameter: %v", err)
+		}
+	}
+	if err := SetEfiBootVariables(description, assetPath, optionalData); err != nil {
+		return fmt.Errorf("failed to set EFI boot variables: %v", err)
+	}
+	return nil
+}
+
+func (o *TrustedAssetsUpdateObserver) UpdateBootEntry() error {
+	efiBl, ok := o.seedBootloader.(bootloader.UefiBootloader)
+	if !ok {
+		return nil
+	}
+
+	var updatedAssets []string
+	for _, asset := range o.seedChangedAssets {
+		updatedAssets = append(updatedAssets, asset.name)
+	}
+
+	return doUpdateBootEntry(efiBl, updatedAssets)
 }
 
 // Done must be called when done with the observer if any of the
