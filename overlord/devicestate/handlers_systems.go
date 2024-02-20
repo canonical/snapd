@@ -48,14 +48,6 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-func taskRemoveRecoverySystemSetup(t *state.Task) (*removeRecoverySystemSetup, error) {
-	var setup removeRecoverySystemSetup
-	if err := t.Get("remove-recovery-system-setup", &setup); err != nil {
-		return nil, err
-	}
-	return &setup, nil
-}
-
 func taskRecoverySystemSetup(t *state.Task) (*recoverySystemSetup, error) {
 	var setup recoverySystemSetup
 
@@ -210,8 +202,8 @@ func (m *DeviceManager) doRemoveRecoverySystem(t *state.Task, _ *tomb.Tomb) erro
 		return fmt.Errorf("cannot get recovery systems: %w", err)
 	}
 
-	setup, err := taskRemoveRecoverySystemSetup(t)
-	if err != nil {
+	var setup removeRecoverySystemSetup
+	if err := t.Get("remove-recovery-system-setup", &setup); err != nil {
 		return err
 	}
 
