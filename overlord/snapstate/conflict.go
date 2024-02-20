@@ -181,6 +181,9 @@ func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, 
 				ChangeID:   chg.ID(),
 			}
 		case "remove-recovery-system":
+			// TODO: it is not totally necessary for this to be an exclusive
+			// change, we should probably make more fine-grained exclusivity
+			// rules
 			if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
 				continue
 			}
