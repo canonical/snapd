@@ -283,7 +283,7 @@ prepare_project() {
 
     # declare the "quiet" wrapper
 
-    if [ "$SPREAD_BACKEND" = external ]; then
+    if [ "$SPREAD_BACKEND" = "external" ] || [ "$SPREAD_BACKEND" = "testflinger" ]; then
         chown test.test -R "$PROJECT_PATH"
         exit 0
     fi
