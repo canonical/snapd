@@ -931,6 +931,8 @@ setup_reflash_magic() {
         core_name="core20"
     elif os.query is-core22; then
         core_name="core22"
+    elif os.query is-core24; then
+        core_name="core24"
     fi
     # XXX: we get "error: too early for operation, device not yet
     # seeded or device model not acknowledged" here sometimes. To
@@ -983,6 +985,9 @@ setup_reflash_magic() {
         else
             cp "$TESTSLIB/assertions/ubuntu-core-22-amd64.model" "$IMAGE_HOME/pc.model"
         fi
+    elif os.query is-core24; then
+        repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
+        cp "$TESTSLIB/assertions/ubuntu-core-24-amd64.model" "$IMAGE_HOME/pc.model"
     else
         # FIXME: install would be better but we don't have dpkg on
         #        the image
@@ -1048,11 +1053,13 @@ EOF
         fi
     fi
 
-    if os.query is-core20 || os.query is-core22; then
+    if os.query is-core-ge 20; then
         if os.query is-core20; then
             BRANCH=20
         elif os.query is-core22; then
             BRANCH=22
+        elif os.query is-core24; then
+            BRANCH=24
         fi
         snap download --basename=pc-kernel --channel="${BRANCH}/${KERNEL_CHANNEL}" pc-kernel
         # make sure we have the snap
@@ -1114,7 +1121,7 @@ EOF
 
     # on core18 we need to use the modified snapd snap and on core16
     # it is the modified core that contains our freshly build snapd
-    if os.query is-core18 || os.query is-core20 || os.query is-core22; then
+    if os.query is-core-ge 18; then
         extra_snap=("$IMAGE_HOME"/snapd_*.snap)
     else
         extra_snap=("$IMAGE_HOME"/core_*.snap)
@@ -1127,11 +1134,13 @@ EOF
     fi
 
     # download the core20 snap manually from the specified channel for UC20
-    if os.query is-core20 || os.query is-core22; then
+    if os.query is-core-ge 20; then
         if os.query is-core20; then
             BASE=core20
         elif os.query is-core22; then
             BASE=core22
+        elif os.query is-core24; then
+            BASE=core24
         fi
         snap download "${BASE}" --channel="$BASE_CHANNEL" --basename="${BASE}"
         
@@ -1177,7 +1186,7 @@ EOF
 
     if os.query is-arm; then
         LOOP_PARTITION=1
-    elif os.query is-core20 || os.query is-core22; then
+    elif os.query is-core-ge 20; then
         # (ab)use ubuntu-seed
         LOOP_PARTITION=2
     else
@@ -1187,7 +1196,7 @@ EOF
     # expand the uc16 and uc18 images a little bit (400M) as it currently will
     # run out of space easily from local spread runs if there are extra files in
     # the project not included in the git ignore and spread ignore, etc.
-    if ! (os.query is-core20 || os.query is-core22); then
+    if ! (os.query is-core-ge 20); then
         # grow the image by 400M
         truncate --size=+400M "$IMAGE_HOME/$IMAGE"
         # fix the GPT table because old versions of parted complain about this 
@@ -1211,7 +1220,7 @@ EOF
     dev=$(basename "$devloop")
 
     # resize the 2nd partition from that loop device to fix the size
-    if ! (os.query is-core20 || os.query is-core22); then
+    if ! (os.query is-core-ge 20); then
         resize2fs -p "/dev/mapper/${dev}p${LOOP_PARTITION}"
     fi
 
@@ -1238,7 +1247,7 @@ EOF
           --exclude /gopath/pkg/ \
           --include core/ \
           /home/gopath /mnt/user-data/
-    elif os.query is-core20 || os.query is-core22; then
+    elif os.query is-core-ge 20; then
         # prepare passwd for run-mode-overlay-data
 
         # use /etc/{group,passwd,shadow,gshadow} from the core20 snap, merged
@@ -1323,7 +1332,7 @@ EOF
     chmod +x "$IMAGE_HOME/prep-reflash.sh"
 
     DEVPREFIX=""
-    if os.query is-core20 || os.query is-core22; then
+    if os.query is-core-ge 20; then
         DEVPREFIX="/boot"
     fi
     # extract ROOT from /proc/cmdline
@@ -1378,7 +1387,7 @@ prepare_ubuntu_core() {
     done
 
     echo "Ensure the snapd snap is available"
-    if os.query is-core18 || os.query is-core20 || os.query is-core22; then
+    if os.query is-core-ge 18; then
         if ! snap list snapd; then
             echo "snapd snap on core18 is missing"
             snap list
@@ -1409,7 +1418,7 @@ prepare_ubuntu_core() {
 
     echo "Ensure the core snap is cached"
     # Cache snaps
-    if os.query is-core18 || os.query is-core20 || os.query is-core22 || os.query is-core24; then
+    if os.query is-core-ge 18; then
         if snap list core >& /dev/null; then
             echo "core snap on core18 should not be installed yet"
             snap list
@@ -1423,6 +1432,9 @@ prepare_ubuntu_core() {
             cache_snaps test-snapd-sh-core20
         fi
         if os.query is-core22; then
+            cache_snaps test-snapd-sh-core22
+        fi
+        if os.query is-core24; then
             cache_snaps test-snapd-sh-core22
         fi
     fi

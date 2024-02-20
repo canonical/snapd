@@ -8,11 +8,13 @@ details: |
     properly
 
 systems:
-  - ubuntu-core-20-*
-  - ubuntu-core-22-*
+  - ubuntu-core-2*
 
 execute: |
     case "$SPREAD_SYSTEM" in
+      ubuntu-core-24-*)
+        base_snap=core24
+        ;;
       ubuntu-core-22-*)
         base_snap=core22
         ;;
@@ -32,8 +34,8 @@ execute: |
     snap changes | MATCH "Done.*Initialize system state"
 
     echo "Check that a simple shell snap"
-    if os.query is-core22; then
-        snap install --edge "test-snapd-sh-${base_snap}"
+    if os.query is-core22 || os.query is-core24; then
+        snap install --edge "test-snapd-sh-22"
     else
         snap install "test-snapd-sh-${base_snap}"
     fi
@@ -48,7 +50,7 @@ execute: |
     "test-snapd-sh-${base_snap}.sh" -c 'cat /var/lib/extrausers/passwd' | MATCH test
 
     # rpi devices don't use grub
-    if ( os.query is-core20 || os.query is-core22 ) && not snap list pi-kernel &>/dev/null; then
+    if ( os.query is-core-ge 20 ) && not snap list pi-kernel &>/dev/null; then
         echo "Ensure extracted kernel.efi exists"
         kernel_name="$(snaps.name kernel)"
         test -e /boot/grub/"$kernel_name"*/kernel.efi
