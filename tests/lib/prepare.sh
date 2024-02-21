@@ -804,6 +804,17 @@ uc24_build_initramfs_kernel_snap() {
           --add-section .initrd=initrd.img --change-section-vma .initrd=0x3000000 \
           usr/lib/systemd/boot/efi/linuxx64.efi.stub \
           pc-kernel/kernel.efi
+
+    . "$TESTSLIB/nested.sh"
+    KEY_NAME=$(nested_get_snakeoil_key)
+
+    SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+    SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+
+    # sign the kernel
+    exit 1
+    nested_secboot_sign_kernel pc-kernel "$SNAKEOIL_KEY" "$SNAKEOIL_CERT" 
+
     snap pack pc-kernel
     mv pc-kernel*.snap "$TARGET"
     rm -rf pc-kernel
