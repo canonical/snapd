@@ -120,6 +120,10 @@ endif
 else
 ifeq ($(shell dpkg-vendor --query Vendor),Debian)
     BUILT_USING_PACKAGES=libcap-dev
+    VENDOR_ARGS=--enable-nvidia-multiarch --with-host-arch-triplet=$(DEB_HOST_MULTIARCH)
+ifeq ($(shell dpkg-architecture -qDEB_HOST_ARCH),amd64)
+		VENDOR_ARGS+= --with-host-arch-32bit-triplet=$(shell dpkg-architecture -f -ai386 -qDEB_HOST_MULTIARCH)
+endif
 else
     VENDOR_ARGS=--disable-apparmor
 endif

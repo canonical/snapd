@@ -1566,7 +1566,7 @@ func (s *realSystemSuite) TestSecureOpenPathNotFound(c *C) {
 
 	fd, err := update.OpenPath(path)
 	c.Check(fd, Equals, -1)
-	c.Check(err, ErrorMatches, "no such file or directory")
+	c.Check(err, ErrorMatches, `Unable to open .*: no such file or directory`)
 }
 
 func (s *realSystemSuite) TestSecureOpenPathSymlink(c *C) {
@@ -1596,5 +1596,5 @@ func (s *realSystemSuite) TestSecureOpenPathSymlinkedParent(c *C) {
 
 	fd, err := update.OpenPath(symlinkedPath)
 	c.Check(fd, Equals, -1)
-	c.Check(err, ErrorMatches, "not a directory")
+	c.Check(err, ErrorMatches, `Unable to open .*: not a directory`)
 }

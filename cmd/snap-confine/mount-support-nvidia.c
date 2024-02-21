@@ -45,7 +45,10 @@
 #define SC_GLVND_DIR  SC_EXTRA_LIB_DIR "/glvnd"
 
 #define SC_VULKAN_SOURCE_DIR "/usr/share/vulkan"
-#define SC_EGL_VENDOR_SOURCE_DIR "/usr/share/glvnd"
+#define SC_GLVND_VENDOR_SOURCE_DIR "/usr/share/glvnd"
+#define SC_EGL_VENDOR_SOURCE_DIR "/usr/share/egl"
+
+#define SC_NATIVE_LIBVA_DIR NATIVE_LIBDIR "/" HOST_ARCH_TRIPLET "/dri"
 
 // Location for NVIDIA vulkan files (including _wayland)
 static const char *vulkan_globs[] = {
@@ -55,13 +58,30 @@ static const char *vulkan_globs[] = {
 static const size_t vulkan_globs_len =
     sizeof vulkan_globs / sizeof *vulkan_globs;
 
+// Location for NVIDIA DRI files.
+static const char *libvaglobs[] = {
+	"nvidia_drv_video.so*",
+};
+
+static const size_t libvaglobs_len =
+    sizeof libvaglobs / sizeof *libvaglobs;
+
 // Location of EGL vendor files
-static const char *egl_vendor_globs[] = {
+static const char *glvnd_vendor_globs[] = {
 	"egl_vendor.d/*nvidia*.json",
+};
+
+static const size_t glvnd_vendor_globs_len =
+    sizeof glvnd_vendor_globs / sizeof *glvnd_vendor_globs;
+
+static const char *egl_vendor_globs[] = {
+	"egl_external_platform.d/*nvidia*.json",
 };
 
 static const size_t egl_vendor_globs_len =
     sizeof egl_vendor_globs / sizeof *egl_vendor_globs;
+
+static char *overlay_dir;
 
 #if defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
 
@@ -87,7 +107,7 @@ static const char *nvidia_globs[] = {
 	"libnvidia-cfg.so*",
 	"libnvidia-compiler.so*",
 	"libnvidia-eglcore.so*",
-	"libnvidia-egl-wayland*",
+	"libnvidia-egl*",
 	"libnvidia-encode.so*",
 	"libnvidia-fatbinaryloader.so*",
 	"libnvidia-fbc.so*",
@@ -255,7 +275,21 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 				die("cannot read symbolic link %s", pathname);
 			}
 			hostfs_symlink_target[num_read] = 0;
-			if (hostfs_symlink_target[0] == '/') {
+			if (!strncmp("/etc/alternatives/", hostfs_symlink_target, 18)) {
+				char hostfs_alt_symlink_target[512] = { 0 };
+				hostfs_alt_symlink_target[0] = 0;
+				num_read =
+				    readlink(hostfs_symlink_target, hostfs_alt_symlink_target,
+					    sizeof hostfs_alt_symlink_target - 1);
+				if (num_read == -1) {
+					die("cannot read symbolic link %s", pathname);
+				}
+				hostfs_alt_symlink_target[num_read] = 0;
+				sc_must_snprintf(symlink_target,
+						 sizeof symlink_target,
+						 "/var/lib/snapd/hostfs%s",
+						 hostfs_alt_symlink_target);
+			} else if (hostfs_symlink_target[0] == '/') {
 				sc_must_snprintf(symlink_target,
 						 sizeof symlink_target,
 						 "/var/lib/snapd/hostfs%s",
@@ -296,44 +330,101 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 	}
 }
 
+static void sc_overlay_init(const char *rootfs_dir)
+{
+	static char overlay_template[512];
+
+	sc_must_snprintf(overlay_template, sizeof(overlay_template), "%s/tmp/snap.nvidia_overlay_XXXXXX", rootfs_dir);
+	if (mkdtemp(overlay_template) == NULL) {
+		die("cannot create temporary directory %s for the nvidia overlay file system", overlay_template);
+	}
+
+	overlay_dir = overlay_template;
+
+	if (mount("none", overlay_dir, "tmpfs", MS_NODEV | MS_NOEXEC, NULL) != 0) {
+		die("cannot mount tmpfs at %s", overlay_dir);
+	}
+}
+
+static void sc_overlay_final(void)
+{
+	// Remount $tgt_dir (i.e. .../lib/gl) read only
+	debug("remounting overlay tmpfs as read-only %s", overlay_dir);
+	if (mount(NULL, overlay_dir, NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL) != 0) {
+		die("cannot remount %s as read-only", overlay_dir);
+	}
+}
+
+static int sc_overlay_mount(const char *target)
+{
+	char copy[512] = { 0 };
+
+	strncpy(copy, target, sizeof(copy) - 1);
+	const char *base_dir = basename(copy);
+	char overlay_upper[512] = { 0 };
+	char overlay_work[512] = { 0 };
+	char overlay_options[512] = { 0 };
+
+	sc_must_snprintf(overlay_upper, sizeof(overlay_upper), "%s/upper_%s", overlay_dir, base_dir);
+	sc_must_snprintf(overlay_work, sizeof(overlay_work), "%s/work_%s", overlay_dir, base_dir);
+	int res = mkdir(overlay_upper, 0755);
+	if (res != 0 && errno != EEXIST) {
+		die("cannot create overlay fs target %s", overlay_upper);
+	}
+	res = mkdir(overlay_work, 0755);
+	if (res != 0 && errno != EEXIST) {
+		die("cannot create overlay fs target %s", overlay_work);
+	}
+
+	res = mkdir(target, 0755);
+	if (res != 0 && errno != EEXIST) {
+		die("cannot create target %s", target);
+	}
+
+	sc_must_snprintf(overlay_options, sizeof(overlay_options), "lowerdir=%s,upperdir=%s,workdir=%s", target, overlay_upper, overlay_work);
+
+	if ((res = mount("overlay", target, "overlay", 0, overlay_options)) != 0) {
+		die("Unable to create overlay mount, target: %s, upper: %s, work: %s, options: %s, res: %d, errno: %d",
+				target, overlay_upper, overlay_work, overlay_options, res, errno);
+	}
+
+	return res;
+}
+
 static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
-					      const char *source_dir[],
-					      size_t source_dir_len,
+					      const char *source1,
+					      const char *source2,
 					      const char *tgt_dir,
 					      const char *glob_list[],
 					      size_t glob_list_len)
 {
 	// Bind mount a tmpfs on $rootfs_dir/$tgt_dir (i.e. /var/lib/snapd/lib/gl)
-	char buf[512] = { 0 };
+	char buf[511] = { 0 };
 	sc_must_snprintf(buf, sizeof(buf), "%s%s", rootfs_dir, tgt_dir);
 	const char *libgl_dir = buf;
 
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-	int res = mkdir(libgl_dir, 0755);
-	if (res != 0 && errno != EEXIST) {
-		die("cannot create tmpfs target %s", libgl_dir);
+	(void)sc_set_effective_identity(old);
+
+	if (sc_overlay_mount(libgl_dir) != 0) {
+		die("cannot mount overlay at %s", libgl_dir);
 	}
-	if (res == 0 && (chown(libgl_dir, 0, 0) < 0)) {
+
+	if (chown(libgl_dir, 0, 0) < 0) {
 		// Adjust the ownership only if we created the directory.
 		die("cannot change ownership of %s", libgl_dir);
 	}
-	(void)sc_set_effective_identity(old);
 
-	debug("mounting tmpfs at %s", libgl_dir);
-	if (mount("none", libgl_dir, "tmpfs", MS_NODEV | MS_NOEXEC, NULL) != 0) {
-		die("cannot mount tmpfs at %s", libgl_dir);
-	};
-
-	for (size_t i = 0; i < source_dir_len; i++) {
-		// Populate libgl_dir with symlinks to libraries from hostfs
-		sc_populate_libgl_with_hostfs_symlinks(libgl_dir, source_dir[i],
+	// Populate libgl_dir with symlinks to libraries from hostfs
+	if (source1 != NULL) {
+		sc_populate_libgl_with_hostfs_symlinks(libgl_dir, source1,
 						       glob_list,
 						       glob_list_len);
 	}
-	// Remount $tgt_dir (i.e. .../lib/gl) read only
-	debug("remounting tmpfs as read-only %s", libgl_dir);
-	if (mount(NULL, buf, NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL) != 0) {
-		die("cannot remount %s as read-only", buf);
+	if (source2 != NULL) {
+		sc_populate_libgl_with_hostfs_symlinks(libgl_dir, source2,
+						       glob_list,
+						       glob_list_len);
 	}
 }
 
@@ -359,33 +450,17 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir, const char **globs, size_t globs_len)
 {
 
-	static const char *native_sources[] = {
-		NATIVE_LIBDIR,
-		NATIVE_LIBDIR "/nvidia*",
-	};
-	const size_t native_sources_len =
-	    sizeof native_sources / sizeof *native_sources;
-
-#if UINTPTR_MAX == 0xffffffffffffffff
-	// Alternative 32-bit support
-	static const char *lib32_sources[] = {
-		LIB32_DIR,
-		LIB32_DIR "/nvidia*",
-	};
-	const size_t lib32_sources_len =
-	    sizeof lib32_sources / sizeof *lib32_sources;
-#endif
-
 	// Primary arch
 	sc_mkdir_and_mount_and_glob_files(rootfs_dir,
-					  native_sources, native_sources_len,
+					  NATIVE_LIBDIR, NATIVE_LIBDIR "/nvidia*",
 					  SC_LIBGL_DIR, globs,
 					  globs_len);
 
 #if UINTPTR_MAX == 0xffffffffffffffff
 	// Alternative 32-bit support
-	sc_mkdir_and_mount_and_glob_files(rootfs_dir, lib32_sources,
-					  lib32_sources_len, SC_LIBGL32_DIR,
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir,
+					  LIB32_DIR, LIB32_DIR "/nvidia*",
+					  SC_LIBGL32_DIR,
 					  globs, globs_len);
 #endif
 }
@@ -514,16 +589,10 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir, const char 
 	if ((strlen(HOST_ARCH_TRIPLET) > 0) &&
 	    (sc_mount_nvidia_is_driver_in_dir(native_libdir) == 1)) {
 
-		// sc_mkdir_and_mount_and_glob_files() takes an array of strings, so
-		// initialize native_sources accordingly, but calculate the array length
-		// dynamically to make adjustments to native_sources easier.
-		const char *native_sources[] = { native_libdir };
-		const size_t native_sources_len =
-		    sizeof native_sources / sizeof *native_sources;
 		// Primary arch
 		sc_mkdir_and_mount_and_glob_files(rootfs_dir,
-						  native_sources,
-						  native_sources_len,
+						  native_libdir,
+						  NULL,
 						  SC_LIBGL_DIR, globs,
 						  globs_len);
 
@@ -531,15 +600,8 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir, const char 
 		if ((strlen(HOST_ARCH32_TRIPLET) > 0) &&
 		    (sc_mount_nvidia_is_driver_in_dir(lib32_libdir) == 1)) {
 
-			// sc_mkdir_and_mount_and_glob_files() takes an array of strings, so
-			// initialize lib32_sources accordingly, but calculate the array length
-			// dynamically to make adjustments to lib32_sources easier.
-			const char *lib32_sources[] = { lib32_libdir };
-			const size_t lib32_sources_len =
-			    sizeof lib32_sources / sizeof *lib32_sources;
 			sc_mkdir_and_mount_and_glob_files(rootfs_dir,
-							  lib32_sources,
-							  lib32_sources_len,
+							  lib32_libdir, NULL,
 							  SC_LIBGL32_DIR,
 							  globs,
 							  globs_len);
@@ -558,27 +620,32 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir, const char 
 
 static void sc_mount_vulkan(const char *rootfs_dir)
 {
-	const char *vulkan_sources[] = {
-		SC_VULKAN_SOURCE_DIR,
-	};
-	const size_t vulkan_sources_len =
-	    sizeof vulkan_sources / sizeof *vulkan_sources;
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_VULKAN_SOURCE_DIR, NULL, SC_VULKAN_DIR, vulkan_globs, vulkan_globs_len);
+}
 
-	sc_mkdir_and_mount_and_glob_files(rootfs_dir, vulkan_sources,
-					  vulkan_sources_len, SC_VULKAN_DIR,
-					  vulkan_globs, vulkan_globs_len);
+static void sc_mount_glvnd(const char *rootfs_dir)
+{
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_GLVND_VENDOR_SOURCE_DIR, NULL, SC_GLVND_DIR, glvnd_vendor_globs, glvnd_vendor_globs_len);
 }
 
 static void sc_mount_egl(const char *rootfs_dir)
 {
-	const char *egl_vendor_sources[] = { SC_EGL_VENDOR_SOURCE_DIR };
-	const size_t egl_vendor_sources_len =
-	    sizeof egl_vendor_sources / sizeof *egl_vendor_sources;
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_EGL_VENDOR_SOURCE_DIR, NULL, SC_GLVND_DIR, egl_vendor_globs, egl_vendor_globs_len);
+	setenv("__EGL_VENDOR_LIBRARY_DIRS", SC_GLVND_DIR "/egl_vendor.d", true);
+	setenv("__EGL_EXTERNAL_PLATFORM_CONFIG_DIRS", SC_GLVND_DIR "/egl_external_platform.d", true);
+}
 
-	sc_mkdir_and_mount_and_glob_files(rootfs_dir, egl_vendor_sources,
-					  egl_vendor_sources_len, SC_GLVND_DIR,
-					  egl_vendor_globs,
-					  egl_vendor_globs_len);
+// This is all a dirty hack involving mangling the snap's filesystem.
+// Unfortunately, desktop-launcher from snapcraft unconditionally sets
+// LIBVA_DRIVERS_PATH, which means that we have no choice except to put any
+// libva files in that directory.
+static void sc_mount_libva(const char *rootfs_dir)
+{
+	char dest_dir[500] = { 0 };
+
+	sc_must_snprintf(dest_dir, sizeof dest_dir, "%s/usr/lib/%s/dri", getenv("SNAP"), HOST_ARCH_TRIPLET);
+
+	sc_mkdir_and_mount_and_glob_files(rootfs_dir, SC_NATIVE_LIBVA_DIR, NULL, dest_dir, libvaglobs, libvaglobs_len);
 }
 
 void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
@@ -598,6 +665,8 @@ void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
 		die("cannot change ownership of " SC_EXTRA_LIB_DIR);
 	}
 	(void)sc_set_effective_identity(old);
+
+	sc_overlay_init(rootfs_dir);
 
 #if defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
 	/* We include the globs for the glvnd libraries for old snaps
@@ -633,5 +702,9 @@ void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
 
 	// Common for both driver mechanisms
 	sc_mount_vulkan(rootfs_dir);
+	sc_mount_glvnd(rootfs_dir);
 	sc_mount_egl(rootfs_dir);
+	sc_mount_libva(rootfs_dir);
+
+	sc_overlay_final();
 }

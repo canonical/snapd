@@ -113,7 +113,7 @@ func OpenPath(path string) (int, error) {
 		}
 		fd, err = sysOpenat(fd, iter.CurrentNameNoSlash(), openFlags, 0)
 		if err != nil {
-			return -1, err
+			return -1, fmt.Errorf("Unable to open %s: %w", iter.CurrentPath(), err)
 		}
 	}
 
