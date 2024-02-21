@@ -289,7 +289,6 @@ prepare_project() {
     fi
 
     if [ "$SPREAD_BACKEND" = "testflinger" ]; then
-        groupadd --gid 12345 test
         adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test
         echo test:ubuntu | sudo chpasswd
         echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test
