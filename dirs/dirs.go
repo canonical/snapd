@@ -28,6 +28,7 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // the various file paths
@@ -198,13 +199,13 @@ func init() {
 	SetRootDir(root)
 }
 
-// SnapHomeDirs returns a slice of the home directories currently in use.
+// SnapHomeDirs returns a slice of the currently configured home directories.
 func SnapHomeDirs() []string {
 	snapHomeDirsMu.Lock()
 	defer snapHomeDirsMu.Unlock()
 	dirs := make([]string, len(snapHomeDirs))
 	copy(dirs, snapHomeDirs)
-	// Should never be true since SetSnapHomeDirs is ran on init and on SetRootDir calls.
+	// Should never be true since SetSnapHomeDirs is run on init and on SetRootDir calls.
 	// Useful for unit tests.
 	if len(dirs) == 0 {
 		return []string{filepath.Join(GlobalRootDir, "/home")}
@@ -213,10 +214,10 @@ func SnapHomeDirs() []string {
 }
 
 // SetSnapHomeDirs sets SnapHomeDirs to the user defined values and appends /home if needed.
-// Homedir must be a comma separated list of the user defined home directories.
+// homedirs must be a comma separated list of paths to home directories.
 // If homedirs is empty, SnapHomeDirs will be a slice of length 1 containing "/home".
 // Also generates the data directory globbing expressions for each user.
-// Ran at startup by configstate.Init, returns the split outsnap home directories. Use DataHomeGlobs to retrieve globs.
+// Ran at startup by configstate.Init, returns a slice of home directories.
 func SetSnapHomeDirs(homedirs string) []string {
 	snapHomeDirsMu.Lock()
 	defer snapHomeDirsMu.Unlock()
@@ -247,14 +248,7 @@ func SetSnapHomeDirs(homedirs string) []string {
 	}
 
 	// Make sure /home is part of the list.
-	hasHome := false
-	globalHome := filepath.Join(GlobalRootDir, "/home")
-	for _, e := range snapHomeDirs {
-		if e == globalHome {
-			hasHome = true
-			break
-		}
-	}
+	hasHome := strutil.ListContains(snapHomeDirs, filepath.Join(GlobalRootDir, "/home"))
 
 	// if not add it and create the glob expressions.
 	if !hasHome {
