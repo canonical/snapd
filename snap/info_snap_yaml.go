@@ -327,7 +327,7 @@ func setComponentsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) erro
 		}
 
 		if len(data.Hooks) > 0 {
-			component.Hooks = make(map[string]*HookInfo, len(data.Hooks))
+			component.ExplicitHooks = make(map[string]*HookInfo, len(data.Hooks))
 		}
 
 		for hookName, hookData := range data.Hooks {
@@ -355,7 +355,7 @@ func setComponentsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) erro
 
 			bindPlugsToHook(componentHook, hookData.PlugNames, snap, strk)
 
-			component.Hooks[hookName] = componentHook
+			component.ExplicitHooks[hookName] = componentHook
 		}
 
 		snap.Components[name] = &component
@@ -649,7 +649,7 @@ func bindUnscopedPlugs(snap *Info, strk *scopedTracker) {
 		}
 
 		for _, component := range snap.Components {
-			for _, componentHook := range component.Hooks {
+			for _, componentHook := range component.ExplicitHooks {
 				if componentHook.Plugs == nil {
 					componentHook.Plugs = make(map[string]*PlugInfo)
 				}

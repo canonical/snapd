@@ -2228,7 +2228,7 @@ components:
 	component := info.Components["test1"]
 	c.Assert(component, NotNil)
 
-	hook := component.Hooks["install"]
+	hook := component.ExplicitHooks["install"]
 	c.Assert(hook, NotNil)
 	c.Check(hook.CommandChain, DeepEquals, []string{"chain1", "chain2"})
 	c.Check(hook.Environment, DeepEquals, *strutil.NewOrderedMap("k1", "v1", "k2", "v2"))
@@ -2296,7 +2296,9 @@ plugs:
 	foundComponents := make(map[string]component, len(info.Components))
 	for _, foundComponent := range info.Components {
 		foundHooks := make(map[string]hook)
-		for _, foundHook := range foundComponent.Hooks {
+		for _, foundHook := range foundComponent.ExplicitHooks {
+			c.Check(foundHook.Explicit, Equals, true)
+
 			foundPlugs := make([]string, 0, len(foundHook.Plugs))
 			for _, foundPlug := range foundHook.Plugs {
 				foundPlugs = append(foundPlugs, foundPlug.Name)

@@ -197,11 +197,11 @@ var validComponentTypes = [...]ComponentType{TestComponent, KernelModulesCompone
 
 // Component represents a snap component.
 type Component struct {
-	Type        ComponentType
-	Summary     string
-	Description string
-	Name        string
-	Hooks       map[string]*HookInfo
+	Type          ComponentType
+	Summary       string
+	Description   string
+	Name          string
+	ExplicitHooks map[string]*HookInfo
 }
 
 type ComponentHookPlugs struct {
