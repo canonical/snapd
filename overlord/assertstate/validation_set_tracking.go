@@ -199,7 +199,7 @@ func TrackedEnforcedValidationSets(st *state.State, extraVss ...*asserts.Validat
 	skip := make(map[string]bool, len(extraVss))
 	for _, extraVs := range extraVss {
 		sets.Add(extraVs)
-		skip[fmt.Sprintf("%s:%s", extraVs.AccountID(), extraVs.Name())] = true
+		skip[ValidationSetKey(extraVs.AccountID(), extraVs.Name())] = true
 	}
 
 	skipSet := func(key string) bool {
@@ -221,7 +221,7 @@ func TrackedEnforcedValidationSets(st *state.State, extraVss ...*asserts.Validat
 func TrackedEnforcedValidationSetsForModel(st *state.State, model *asserts.Model) (*snapasserts.ValidationSets, error) {
 	modelSets := make(map[string]bool, len(model.ValidationSets()))
 	for _, vs := range model.ValidationSets() {
-		modelSets[fmt.Sprintf("%s:%s", vs.AccountID, vs.Name)] = true
+		modelSets[ValidationSetKey(vs.AccountID, vs.Name)] = true
 	}
 
 	skipSet := func(key string) bool {
@@ -249,7 +249,7 @@ func trackedEnforcedValidationSets(st *state.State, skipSet func(string) bool, s
 			continue
 		}
 
-		if skipSet(fmt.Sprintf("%s:%s", vs.AccountID, vs.Name)) {
+		if skipSet(ValidationSetKey(vs.AccountID, vs.Name)) {
 			continue
 		}
 
