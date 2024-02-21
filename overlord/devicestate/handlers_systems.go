@@ -253,7 +253,7 @@ func (m *DeviceManager) doRemoveRecoverySystem(t *state.Task, _ *tomb.Tomb) erro
 
 		// we need to unlock and re-lock the state to make sure that
 		// snaps-to-remove is persisted. if we ever change how the exclusive
-		// tasks are handled, then we might need to revisit this.
+		// changes are handled, then we might need to revisit this.
 		st.Unlock()
 		st.Lock()
 	}
