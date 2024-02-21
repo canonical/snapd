@@ -70,13 +70,13 @@ func (s *DockerInterfaceSuite) TestName(c *C) {
 }
 
 func (s *DockerInterfaceSuite) TestConnectedPlugSnippet(c *C) {
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.docker.app"), testutil.Contains, `run/docker.sock`)
 
-	seccompSpec := &seccomp.Specification{}
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.docker.app"})

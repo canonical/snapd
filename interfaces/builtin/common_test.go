@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/testutil"
@@ -58,7 +59,7 @@ slots:
 		name:              "common",
 		connectedPlugUDev: []string{`KERNEL=="foo"`},
 	}
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.Snippets(), DeepEquals, []string{
 		`# common
@@ -74,7 +75,7 @@ KERNEL=="foo", TAG+="snap_consumer_app-c"`,
 	iface = &commonInterface{
 		name: "common",
 	}
-	spec = &udev.Specification{}
+	spec = udev.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
@@ -220,7 +221,7 @@ slots:
 	}
 
 	for _, test := range tests {
-		spec := &apparmor.Specification{}
+		spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
 		iface := test.iface
 		// before connection, everything should be set to false
 		for _, check := range test.checks {
@@ -253,7 +254,7 @@ slots:
 		name:                 "common",
 		controlsDeviceCgroup: false,
 	}
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
@@ -262,7 +263,7 @@ slots:
 		name:                 "common",
 		controlsDeviceCgroup: true,
 	}
-	spec = &udev.Specification{}
+	spec = udev.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, true)

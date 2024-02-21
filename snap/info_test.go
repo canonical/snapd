@@ -251,25 +251,6 @@ func (s *infoSuite) TestAppInfoSecurityTag(c *C) {
 	c.Check(appInfo.SecurityTag(), Equals, "snap.http.GET")
 }
 
-func (s *infoSuite) TestPlugSlotSecurityTags(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`name: name
-apps:
-    app1:
-    app2:
-hooks:
-    hook1:
-plugs:
-    plug:
-slots:
-    slot:
-`))
-	c.Assert(err, IsNil)
-	c.Assert(info.Plugs["plug"].SecurityTags(), DeepEquals, []string{
-		"snap.name.app1", "snap.name.app2", "snap.name.hook.hook1"})
-	c.Assert(info.Slots["slot"].SecurityTags(), DeepEquals, []string{
-		"snap.name.app1", "snap.name.app2", "snap.name.hook.hook1"})
-}
-
 func (s *infoSuite) TestAppInfoWrapperPath(c *C) {
 	info, err := snap.InfoFromSnapYaml([]byte(`name: foo
 apps:
@@ -1122,10 +1103,6 @@ func verifyImplicitHook(c *C, info *snap.Info, hookName string, plugNames []stri
 		plug := hook.Plugs[plugName]
 		c.Assert(plug, NotNil, Commentf("Expected hook plugs to contain %q", plugName))
 		c.Check(plug.Name, Equals, plugName)
-		c.Check(plug.Hooks, HasLen, 1)
-		hook = plug.Hooks[hookName]
-		c.Assert(hook, NotNil, Commentf("Expected plug to be associated with hook %q", hookName))
-		c.Check(hook.Name, Equals, hookName)
 
 		// Verify also that the hook plug made it into info.Plugs
 		c.Check(info.Plugs[plugName], DeepEquals, plug)
@@ -1144,10 +1121,6 @@ func verifyExplicitHook(c *C, info *snap.Info, hookName string, plugNames []stri
 		plug := hook.Plugs[plugName]
 		c.Assert(plug, NotNil, Commentf("Expected hook plugs to contain %q", plugName))
 		c.Check(plug.Name, Equals, plugName)
-		c.Check(plug.Hooks, HasLen, 1)
-		hook = plug.Hooks[hookName]
-		c.Assert(hook, NotNil, Commentf("Expected plug to be associated with hook %q", hookName))
-		c.Check(hook.Name, Equals, hookName)
 
 		// Verify also that the hook plug made it into info.Plugs
 		c.Check(info.Plugs[plugName], DeepEquals, plug)
@@ -1158,10 +1131,6 @@ func verifyExplicitHook(c *C, info *snap.Info, hookName string, plugNames []stri
 		slot := hook.Slots[slotName]
 		c.Assert(slot, NotNil, Commentf("Expected hook slots to contain %q", slotName))
 		c.Check(slot.Name, Equals, slotName)
-		c.Check(slot.Hooks, HasLen, 1)
-		hook = slot.Hooks[hookName]
-		c.Assert(hook, NotNil, Commentf("Expected slot to be associated with hook %q", hookName))
-		c.Check(hook.Name, Equals, hookName)
 
 		// Verify also that the hook plug made it into info.Slots
 		c.Check(info.Slots[slotName], DeepEquals, slot)
@@ -2124,4 +2093,131 @@ version: 1.0`, nil)
 
 	_, _, err = snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
 	c.Check(err, ErrorMatches, `cannot extract assertion max formats information, snaps of type app do not carry snapd`)
+}
+
+func (s *infoSuite) TestAppsForPlug(c *C) {
+	const snapYaml = `
+name: snap
+version: 1
+apps:
+ one:
+   command: one
+   plugs: [scoped-plug]
+ two:
+   command: two
+hooks:
+  install:
+    plugs: [hook-plug]
+plugs:
+  unscoped-plug:
+  hook-plug:
+`
+
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	scoped := info.Plugs["scoped-plug"]
+	c.Assert(scoped, NotNil)
+
+	scopedApps := info.AppsForPlug(scoped)
+	c.Assert(scopedApps, testutil.DeepUnsortedMatches, []*snap.AppInfo{info.Apps["one"]})
+
+	unscoped := info.Plugs["unscoped-plug"]
+	c.Assert(unscoped, NotNil)
+
+	unscopedApps := info.AppsForPlug(unscoped)
+	c.Assert(unscopedApps, testutil.DeepUnsortedMatches, []*snap.AppInfo{info.Apps["one"], info.Apps["two"]})
+}
+
+func (s *infoSuite) TestAppsForSlot(c *C) {
+	const snapYaml = `
+name: snap
+version: 1
+apps:
+ one:
+   command: one
+   slots: [scoped-slot]
+ two:
+   command: two
+hooks:
+  install:
+    slots: [hook-slot]
+slots:
+  unscoped-slot:
+  hook-slot:
+`
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	scoped := info.Slots["scoped-slot"]
+	c.Assert(scoped, NotNil)
+
+	scopedApps := info.AppsForSlot(scoped)
+	c.Assert(scopedApps, testutil.DeepUnsortedMatches, []*snap.AppInfo{info.Apps["one"]})
+
+	unscoped := info.Slots["unscoped-slot"]
+	c.Assert(unscoped, NotNil)
+
+	unscopedApps := info.AppsForSlot(unscoped)
+	c.Assert(unscopedApps, testutil.DeepUnsortedMatches, []*snap.AppInfo{info.Apps["one"], info.Apps["two"]})
+}
+
+func (s *infoSuite) TestHooksForPlug(c *C) {
+	const snapYaml = `
+name: snap
+version: 1
+apps:
+ one:
+   command: one
+   plugs: [app-plug]
+hooks:
+  install:
+    plugs: [scoped-plug]
+  pre-refresh:
+plugs:
+  unscoped-plug:
+  app-plug:
+`
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	scoped := info.Plugs["scoped-plug"]
+	c.Assert(scoped, NotNil)
+
+	scopedHooks := info.HooksForPlug(scoped)
+	c.Assert(scopedHooks, testutil.DeepUnsortedMatches, []*snap.HookInfo{info.Hooks["install"]})
+
+	unscoped := info.Plugs["unscoped-plug"]
+	c.Assert(unscoped, NotNil)
+
+	unscopedHooks := info.HooksForPlug(unscoped)
+	c.Assert(unscopedHooks, testutil.DeepUnsortedMatches, []*snap.HookInfo{info.Hooks["install"], info.Hooks["pre-refresh"]})
+}
+
+func (s *infoSuite) TestHooksForSlot(c *C) {
+	const snapYaml = `
+name: snap
+version: 1
+apps:
+ one:
+   command: one
+   slots: [app-slot]
+hooks:
+  install:
+    slots: [scoped-slot]
+  pre-refresh:
+slots:
+  unscoped-slot:
+  app-slot:
+`
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	scoped := info.Slots["scoped-slot"]
+	c.Assert(scoped, NotNil)
+
+	scopedHooks := info.HooksForSlot(scoped)
+	c.Assert(scopedHooks, testutil.DeepUnsortedMatches, []*snap.HookInfo{info.Hooks["install"]})
+
+	unscoped := info.Slots["unscoped-slot"]
+	c.Assert(unscoped, NotNil)
+
+	unscopedHooks := info.HooksForSlot(unscoped)
+	c.Assert(unscopedHooks, testutil.DeepUnsortedMatches, []*snap.HookInfo{info.Hooks["install"], info.Hooks["pre-refresh"]})
 }

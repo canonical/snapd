@@ -30,8 +30,17 @@ import (
 // Specification keeps all the dbus snippets.
 type Specification struct {
 	// Snippets are indexed by security tag.
+	appSet       *interfaces.SnapAppSet
 	snippets     map[string][]string
 	securityTags []string
+}
+
+func NewSpecification(appSet *interfaces.SnapAppSet) *Specification {
+	return &Specification{appSet: appSet}
+}
+
+func (spec *Specification) SnapAppSet() *interfaces.SnapAppSet {
+	return spec.appSet
 }
 
 // AddSnippet adds a new dbus snippet.
@@ -85,7 +94,12 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 		DBusConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = plug.SecurityTags()
+		tags, err := spec.appSet.SecurityTagsForConnectedPlug(plug)
+		if err != nil {
+			return err
+		}
+
+		spec.securityTags = tags
 		defer func() { spec.securityTags = nil }()
 		return iface.DBusConnectedPlug(spec, plug, slot)
 	}
@@ -98,7 +112,12 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 		DBusConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = slot.SecurityTags()
+		tags, err := spec.appSet.SecurityTagsForConnectedSlot(slot)
+		if err != nil {
+			return err
+		}
+
+		spec.securityTags = tags
 		defer func() { spec.securityTags = nil }()
 		return iface.DBusConnectedSlot(spec, plug, slot)
 	}
@@ -111,7 +130,12 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 		DBusPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = plug.SecurityTags()
+		tags, err := spec.appSet.SecurityTagsForPlug(plug)
+		if err != nil {
+			return err
+		}
+
+		spec.securityTags = tags
 		defer func() { spec.securityTags = nil }()
 		return iface.DBusPermanentPlug(spec, plug)
 	}
@@ -124,7 +148,12 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 		DBusPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = slot.SecurityTags()
+		tags, err := spec.appSet.SecurityTagsForSlot(slot)
+		if err != nil {
+			return err
+		}
+
+		spec.securityTags = tags
 		defer func() { spec.securityTags = nil }()
 		return iface.DBusPermanentSlot(spec, slot)
 	}

@@ -281,7 +281,7 @@ func (iface *locationObserveInterface) DBusPermanentSlot(spec *dbus.Specificatio
 
 func (iface *locationObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
-	new := slotAppLabelExpr(slot)
+	new := spec.SnapAppSet().SlotLabelExpression(slot)
 	snippet := strings.Replace(locationObserveConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
@@ -294,7 +294,7 @@ func (iface *locationObserveInterface) AppArmorPermanentSlot(spec *apparmor.Spec
 
 func (iface *locationObserveInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
-	new := plugAppLabelExpr(plug)
+	new := spec.SnapAppSet().PlugLabelExpression(plug)
 	snippet := strings.Replace(locationObserveConnectedSlotAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil

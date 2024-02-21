@@ -418,6 +418,7 @@ var (
 	HoldDurationLeft           = holdDurationLeft
 	LastRefreshed              = lastRefreshed
 	PruneRefreshCandidates     = pruneRefreshCandidates
+	UpdateRefreshCandidates    = updateRefreshCandidates
 	ResetGatingForRefreshed    = resetGatingForRefreshed
 	PruneGating                = pruneGating
 	PruneSnapsHold             = pruneSnapsHold

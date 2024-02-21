@@ -69,26 +69,26 @@ func (s *MultipassSupportInterfaceSuite) TestName(c *C) {
 
 func (s *MultipassSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
 
 	// connected plugs have a non-nil security snippet for seccomp
-	seccompSpec := &seccomp.Specification{}
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.Snippets(), HasLen, 1)
 }
 
 func (s *MultipassSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.multipass.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.multipass.app"), testutil.Contains, "/{,usr/}sbin/apparmor_parser ixr,\n")
 
-	seccompSpec := &seccomp.Specification{}
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.multipass.app"})

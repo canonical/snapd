@@ -79,7 +79,7 @@ func (s *u2fDevicesInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *u2fDevicesInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `# Description: Allow write access to u2f hidraw devices.`)
@@ -87,7 +87,7 @@ func (s *u2fDevicesInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *u2fDevicesInterfaceSuite) TestUDevSpec(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 30)
 	c.Assert(spec.Snippets(), testutil.Contains, `# u2f-devices

@@ -30,6 +30,7 @@ const libvirtBaseDeclarationSlots = `
 `
 
 const libvirtConnectedPlugAppArmor = `
+/run/libvirt/libvirt-sock-ro rw,
 /run/libvirt/libvirt-sock rw,
 /etc/libvirt/* r,
 `

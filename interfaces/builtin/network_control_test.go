@@ -84,7 +84,7 @@ func (s *NetworkControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	r := apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
 	defer r()
 
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.SuppressSysModuleCapability(), Equals, true)
 	c.Check(spec.UsesSysModuleCapability(), Equals, false)
@@ -110,7 +110,7 @@ func (s *NetworkControlInterfaceSuite) TestAppArmorSpecWithNoAppArmor(c *C) {
 	r := apparmor_sandbox.MockLevel(apparmor_sandbox.Unsupported)
 	defer r()
 
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	// Check a rule that should always be there...
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/netns/* rw,\n")
@@ -124,7 +124,7 @@ func (s *NetworkControlInterfaceSuite) TestAppArmorSpecWithXdpFeature(c *C) {
 	r = apparmor_sandbox.MockFeatures(nil, nil, []string{"feat1", "xdp", "feat2"}, nil)
 	defer r()
 
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	// Check a rule that should always be there...
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/netns/* rw,\n")
@@ -133,14 +133,14 @@ func (s *NetworkControlInterfaceSuite) TestAppArmorSpecWithXdpFeature(c *C) {
 }
 
 func (s *NetworkControlInterfaceSuite) TestSecCompSpec(c *C) {
-	spec := &seccomp.Specification{}
+	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "setns - CLONE_NEWNET\n")
 }
 
 func (s *NetworkControlInterfaceSuite) TestUDevSpec(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 3)
 	c.Assert(spec.Snippets(), testutil.Contains, `# network-control

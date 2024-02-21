@@ -64,12 +64,18 @@ type NotFoundError struct {
 	BundleName string
 	Aspect     string
 	Operation  string
-	Request    string
+	Requests   []string
 	Cause      string
 }
 
 func (e *NotFoundError) Error() string {
-	return fmt.Sprintf("cannot %s %q in aspect %s/%s/%s: %s", e.Operation, e.Request, e.Account, e.BundleName, e.Aspect, e.Cause)
+	var reqStr string
+	if len(e.Requests) == 1 {
+		reqStr = fmt.Sprintf("%q", e.Requests[0])
+	} else {
+		reqStr = strutil.Quoted(e.Requests)
+	}
+	return fmt.Sprintf("cannot %s %s in aspect %s/%s/%s: %s", e.Operation, reqStr, e.Account, e.BundleName, e.Aspect, e.Cause)
 }
 
 func (e *NotFoundError) Is(err error) bool {
@@ -83,7 +89,7 @@ func notFoundErrorFrom(a *Aspect, op, request, errMsg string) *NotFoundError {
 		BundleName: a.bundle.Name,
 		Aspect:     a.Name,
 		Operation:  op,
-		Request:    request,
+		Requests:   []string{request},
 		Cause:      errMsg,
 	}
 }
@@ -164,7 +170,7 @@ var typeStrings = [...]string{"int", "number", "string", "bool", "map", "array",
 type Bundle struct {
 	Account string
 	Name    string
-	schema  Schema
+	Schema  Schema
 	aspects map[string]*Aspect
 }
 
@@ -177,7 +183,7 @@ func NewBundle(account string, bundleName string, aspects map[string]interface{}
 	aspectBundle := &Bundle{
 		Account: account,
 		Name:    bundleName,
-		schema:  schema,
+		Schema:  schema,
 		aspects: make(map[string]*Aspect, len(aspects)),
 	}
 
@@ -461,7 +467,7 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	}
 
 	if value != nil {
-		if err := checkSchemaMismatch(a.bundle.schema, expandedMatches); err != nil {
+		if err := checkSchemaMismatch(a.bundle.Schema, expandedMatches); err != nil {
 			return err
 		}
 	}
@@ -476,7 +482,10 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 			return err
 		}
 
-		if err := a.bundle.schema.Validate(data); err != nil {
+		// TODO: when using a transaction, the data only changes on commit so
+		// this is a bit of a waste. Maybe cache the result so we only do the first
+		// validation and then in aspectstate on Commit
+		if err := a.bundle.Schema.Validate(data); err != nil {
 			return fmt.Errorf(`cannot write data: %w`, err)
 		}
 	}
@@ -1212,7 +1221,6 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *i
 	// decode the next map level
 	var level map[string]json.RawMessage
 	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
-		// TODO: see TODO in newAspect()
 		if uErr, ok := err.(*json.UnmarshalTypeError); ok {
 			pathPrefix := strings.Join(subKeys[:index+1], ".")
 			return fmt.Errorf("cannot read path prefix %q: prefix maps to %s", pathPrefix, uErr.Value)

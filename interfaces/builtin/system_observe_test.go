@@ -20,10 +20,11 @@
 package builtin_test
 
 import (
-	. "gopkg.in/check.v1"
 	"os"
 	"path/filepath"
 	"strings"
+
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -82,7 +83,7 @@ func (s *SystemObserveInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *SystemObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
@@ -98,7 +99,7 @@ func (s *SystemObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(strings.Join(updateNS[:], "\n"), Equals, expectedUpdateNS)
 
 	// connected plugs have a non-nil security snippet for seccomp
-	seccompSpec := &seccomp.Specification{}
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})

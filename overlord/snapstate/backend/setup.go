@@ -156,7 +156,9 @@ func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, meter p
 	}()
 
 	// Build kernel tree that will be mounted from initramfs
-	return kernel.EnsureKernelDriversTree(instanceName, rev, filepath.Join(dirs.GlobalRootDir, earlyMountDir))
+	return kernel.EnsureKernelDriversTree(instanceName, rev,
+		filepath.Join(dirs.GlobalRootDir, earlyMountDir),
+		nil, &kernel.KernelDriversTreeOptions{KernelInstall: true})
 }
 
 func (b Backend) RemoveKernelSnapSetup(instanceName string, rev snap.Revision, meter progress.Meter) error {
