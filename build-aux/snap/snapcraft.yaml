@@ -138,7 +138,7 @@ parts:
     override-build: |
       cd "${CRAFT_PART_BUILD}"/libraries/libapparmor
       ./autogen.sh
-      ./configure --prefix=/usr --libdir="/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" --disable-man-pages --disable-perl --disable-python --disable-ruby
+      ./configure --prefix=/usr --libdir="/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" --disable-man-pages --disable-perl --disable-python --disable-ruby --enable-shared --disable-static
       make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
       make -C src install DESTDIR="${CRAFT_PART_INSTALL}"
       make -C include install DESTDIR="${CRAFT_PART_INSTALL}"
@@ -154,7 +154,7 @@ parts:
       else
         cp "${CRAFT_PROJECT_DIR}"/snap/local/apparmor/af_names.h .
       fi
-      make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
+      make -j"${CRAFT_PARALLEL_BUILD_COUNT}" AARE_LDFLAGS="-L${CRAFT_PART_INSTALL}/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" INCLUDE_APPARMOR="-I${CRAFT_PART_INSTALL}/usr/include" AALIB="-lapparmor -lpthread" USE_SYSTEM=1
       install -Dm755 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd" apparmor_parser
       install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor" parser.conf
       cd "${CRAFT_PART_BUILD}/profiles"
@@ -164,8 +164,6 @@ parts:
       cp -a apparmor.d/abstractions "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor.d"
       cp -a apparmor.d/tunables "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor.d"
     prime:
-      # We are statically linked
-      - -usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/**
       - -usr/include
 
   snapd:
@@ -198,8 +196,8 @@ parts:
       cd "${CRAFT_PART_BUILD}/cmd"
 
       autoreconf -fvi
-      ./configure --prefix=/usr --libexec=/usr/lib/snapd --without-unit-tests --enable-static-libapparmor --disable-host-binaries
-      make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
+      ./configure --prefix=/usr --libexec=/usr/lib/snapd --without-unit-tests --disable-host-binaries --disable-static-libapparmor
+      make -j"${CRAFT_PARALLEL_BUILD_COUNT}" APPARMOR_LIBS="-lapparmor"
       make -j1 DESTDIR="${CRAFT_PART_INSTALL}" install
 
       cd "${CRAFT_PART_BUILD}"
