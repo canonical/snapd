@@ -274,6 +274,9 @@ parts:
       install -Dm644 data/info "${CRAFT_PART_INSTALL}/usr/lib/snapd/info"
       install -Dm644 data/preseed.json "${CRAFT_PART_INSTALL}/usr/lib/snapd/preseed.json"
 
+      install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd" data/completion/bash/complete.sh
+      install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/share/bash-completion/completions" ./data/completion/bash/snap
+
       if sh -x ./mkversion.sh --output-only | grep "dirty"; then
         mkdir -p "${CRAFT_PART_INSTALL}/usr/lib/snapd"
         (
