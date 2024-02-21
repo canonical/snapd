@@ -157,12 +157,14 @@ func (p *Prompting) handleListenerReq(req *listener.Request) error {
 
 	path := req.Path()
 
-	permissions, err := common.PermissionMaskToPermissionsList(req.Permission().(notify.FilePermission))
+	permissions, err := common.AbstractPermissionsFromAppArmorPermissions(iface, req.Permission())
 	if err != nil {
-		// some permission bits were unrecognized, ignore them
+		logger.Noticef("error while parsing AppArmor permissions: %v", err)
+		// XXX: is it better to auto-deny here or auto-allow?
+		return req.Reply(false)
 	}
 
-	remainingPerms := make([]common.PermissionType, 0, len(permissions))
+	remainingPerms := make([]string, 0, len(permissions))
 	for _, perm := range permissions {
 		if yesNo, err := p.rules.IsPathAllowed(userID, snap, app, iface, path, perm); err == nil {
 			if !yesNo {
@@ -182,7 +184,7 @@ func (p *Prompting) handleListenerReq(req *listener.Request) error {
 		return req.Reply(true)
 	}
 
-	newPrompt, merged := p.prompts.AddOrMerge(userID, snap, app, iface, path, permissions, req)
+	newPrompt, merged := p.prompts.AddOrMerge(userID, snap, app, iface, path, remainingPerms, req)
 	if merged {
 		logger.Noticef("new prompt merged with identical existing prompt: %+v", newPrompt)
 		return nil
@@ -244,7 +246,11 @@ func (p *Prompting) PostPrompt(userID uint32, promptID string, reply *PromptRepl
 		return nil, err
 	}
 	if !matches {
-		return nil, fmt.Errorf("constraints in reply do not match original request: '%v' does not match '%v'; skipping rule generation", reply.Constraints, prompt.Constraints)
+		return nil, fmt.Errorf("constraints in reply do not match original request: '%v' does not match '%v'; please try again", reply.Constraints, prompt.Constraints)
+	}
+	contained := reply.Constraints.ContainPermissions(prompt.Constraints.Permissions)
+	if !contained {
+		return nil, fmt.Errorf("replied permissions do not include all requested permissions: requested %v, replied %v; please try again", prompt.Constraints.Permissions, reply.Constraints.Permissions)
 	}
 
 	prompt, err = p.prompts.Reply(userID, promptID, reply.Outcome)

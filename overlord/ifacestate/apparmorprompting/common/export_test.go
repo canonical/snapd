@@ -19,4 +19,10 @@
 
 package common
 
-var InterfacePriorities = interfacePriorities
+var (
+	InterfacePriorities           = interfacePriorities
+	InterfacePermissionsAvailable = interfacePermissionsAvailable
+	InterfaceFilePermissionsMaps  = interfaceFilePermissionsMaps
+
+	AbstractPermissionsFromAppArmorFilePermissions = abstractPermissionsFromAppArmorFilePermissions
+)

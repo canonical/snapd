@@ -57,7 +57,7 @@ func (s *requestpromptsSuite) TestAddOrMergePrompt(c *C) {
 	app := "occ"
 	iface := "home"
 	path := "/home/test/Documents/foo.txt"
-	permissions := []common.PermissionType{common.PermissionExecute, common.PermissionWrite, common.PermissionRead}
+	permissions := []string{"read", "write", "execute"}
 
 	listenerReq1 := &listener.Request{}
 	listenerReq2 := &listener.Request{}
@@ -132,7 +132,7 @@ func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 	app := "occ"
 	iface := "system-files"
 	path := "/home/test/Documents/foo.txt"
-	permissions := []common.PermissionType{common.PermissionExecute, common.PermissionWrite, common.PermissionRead}
+	permissions := []string{"read", "write", "execute"}
 
 	listenerReq := &listener.Request{}
 
@@ -182,7 +182,7 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 	app := "occ"
 	iface := "personal-files"
 	path := "/home/test/Documents/foo.txt"
-	permissions := []common.PermissionType{common.PermissionExecute, common.PermissionWrite, common.PermissionRead}
+	permissions := []string{"read", "write", "execute"}
 
 	listenerReq1 := &listener.Request{}
 	listenerReq2 := &listener.Request{}
@@ -272,7 +272,7 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 	app := "occ"
 	iface := "removable-media"
 	path := "/home/test/Documents/foo.txt"
-	permissions := []common.PermissionType{common.PermissionExecute, common.PermissionWrite, common.PermissionRead}
+	permissions := []string{"read", "write", "execute"}
 
 	listenerReq := &listener.Request{}
 
@@ -326,22 +326,22 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	iface := "home"
 	path := "/home/test/Documents/foo.txt"
 
-	permissions := []common.PermissionType{common.PermissionExecute, common.PermissionWrite, common.PermissionRead}
+	permissions := []string{"read", "write", "execute"}
 	listenerReq1 := &listener.Request{}
 	prompt1, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq1)
 	c.Check(merged, Equals, false)
 
-	permissions = []common.PermissionType{common.PermissionWrite, common.PermissionRead}
+	permissions = []string{"read", "write"}
 	listenerReq2 := &listener.Request{}
 	prompt2, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq2)
 	c.Check(merged, Equals, false)
 
-	permissions = []common.PermissionType{common.PermissionRead}
+	permissions = []string{"read"}
 	listenerReq3 := &listener.Request{}
 	prompt3, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq3)
 	c.Check(merged, Equals, false)
 
-	permissions = []common.PermissionType{common.PermissionOpen}
+	permissions = []string{"open"}
 	listenerReq4 := &listener.Request{}
 	prompt4, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq4)
 	c.Check(merged, Equals, false)
@@ -358,7 +358,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
-	permissions = []common.PermissionType{common.PermissionWrite, common.PermissionRead, common.PermissionAppend}
+	permissions = []string{"read", "write", "append"}
 	constraints := &common.Constraints{
 		PathPattern: pathPattern,
 		Permissions: permissions,
@@ -396,7 +396,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	c.Assert(stored, HasLen, 2)
 
 	// Check that allowing the final missing permission allows the prompt.
-	permissions = []common.PermissionType{common.PermissionExecute}
+	permissions = []string{"execute"}
 	constraints = &common.Constraints{
 		PathPattern: pathPattern,
 		Permissions: permissions,
@@ -443,22 +443,22 @@ func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 	iface := "home"
 	path := "/home/test/Documents/foo.txt"
 
-	permissions := []common.PermissionType{common.PermissionExecute, common.PermissionWrite, common.PermissionRead}
+	permissions := []string{"read", "write", "execute"}
 	listenerReq1 := &listener.Request{}
 	prompt1, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq1)
 	c.Check(merged, Equals, false)
 
-	permissions = []common.PermissionType{common.PermissionWrite, common.PermissionRead}
+	permissions = []string{"read", "write"}
 	listenerReq2 := &listener.Request{}
 	prompt2, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq2)
 	c.Check(merged, Equals, false)
 
-	permissions = []common.PermissionType{common.PermissionRead}
+	permissions = []string{"read"}
 	listenerReq3 := &listener.Request{}
 	prompt3, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq3)
 	c.Check(merged, Equals, false)
 
-	permissions = []common.PermissionType{common.PermissionOpen}
+	permissions = []string{"open"}
 	listenerReq4 := &listener.Request{}
 	prompt4, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq4)
 	c.Check(merged, Equals, false)
@@ -475,7 +475,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeDeny
-	permissions = []common.PermissionType{common.PermissionWrite, common.PermissionRead, common.PermissionAppend}
+	permissions = []string{"read", "write", "append"}
 	constraints := &common.Constraints{
 		PathPattern: pathPattern,
 		Permissions: permissions,
@@ -548,7 +548,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	app := "occ"
 	iface := "home"
 	path := "/home/test/Documents/foo.txt"
-	permissions := []common.PermissionType{common.PermissionRead}
+	permissions := []string{"read"}
 	listenerReq := &listener.Request{}
 	prompt, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq)
 	c.Check(merged, Equals, false)

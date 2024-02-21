@@ -42,11 +42,7 @@ func (s *requestrulesSuite) TestPopulateNewRule(c *C) {
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanSession
 	duration := ""
-	permissions := []common.PermissionType{
-		common.PermissionRead,
-		common.PermissionWrite,
-		common.PermissionExecute,
-	}
+	permissions := []string{"read", "write", "execute"}
 
 	for _, pattern := range []string{
 		"/home/test/Documents/**",
@@ -78,7 +74,7 @@ func (s *requestrulesSuite) TestPopulateNewRule(c *C) {
 			Permissions: permissions,
 		}
 		rule, err := rdb.PopulateNewRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
-		c.Assert(err, Equals, common.ErrInvalidPathPattern)
+		c.Assert(err, ErrorMatches, "invalid path pattern.*")
 		c.Assert(rule, IsNil)
 	}
 }
@@ -100,11 +96,7 @@ func (s *requestrulesSuite) TestCreateRemoveRuleSimple(c *C) {
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanForever
 	duration := ""
-	permissions := []common.PermissionType{
-		common.PermissionRead,
-		common.PermissionWrite,
-		common.PermissionExecute,
-	}
+	permissions := []string{"read", "write", "execute"}
 	constraints := &common.Constraints{
 		PathPattern: pathPattern,
 		Permissions: permissions,
@@ -201,11 +193,7 @@ func (s *requestrulesSuite) TestCreateRuleUnhappy(c *C) {
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanForever
 	duration := ""
-	permissions := []common.PermissionType{
-		common.PermissionRead,
-		common.PermissionWrite,
-		common.PermissionExecute,
-	}
+	permissions := []string{"read", "write", "execute"}
 	constraints := &common.Constraints{
 		PathPattern: pathPattern,
 		Permissions: permissions,
@@ -235,7 +223,18 @@ func (s *requestrulesSuite) TestCreateRuleUnhappy(c *C) {
 		Permissions: permissions,
 	}
 	_, err = rdb.CreateRule(user, snap, app, iface, badConstraints, outcome, lifespan, duration)
-	c.Assert(err, Equals, common.ErrInvalidPathPattern)
+	c.Assert(err, ErrorMatches, "invalid path pattern.*")
+
+	// Error while adding rule should cause no notice to be issued
+	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
+
+	badPermissions := []string{"foo"}
+	badConstraints = &common.Constraints{
+		PathPattern: pathPattern,
+		Permissions: badPermissions,
+	}
+	_, err = rdb.CreateRule(user, snap, app, iface, badConstraints, outcome, lifespan, duration)
+	c.Assert(err, ErrorMatches, "unsupported permission.*")
 
 	// Error while adding rule should cause no notice to be issued
 	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
@@ -265,11 +264,7 @@ func (s *requestrulesSuite) TestModifyRule(c *C) {
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanForever
 	duration := ""
-	permissions := []common.PermissionType{
-		common.PermissionRead,
-		common.PermissionWrite,
-		common.PermissionExecute,
-	}
+	permissions := []string{"read"}
 	constraints := &common.Constraints{
 		PathPattern: pathPattern,
 		Permissions: permissions,
@@ -283,10 +278,10 @@ func (s *requestrulesSuite) TestModifyRule(c *C) {
 	c.Check(ruleNoticeIDs[0], Equals, storedRule.ID)
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
-	conflictingPermission := common.PermissionRename
+	conflictingPermission := "write"
 
 	otherPathPattern := "/home/test/Pictures/**/*.png"
-	otherPermissions := []common.PermissionType{
+	otherPermissions := []string{
 		conflictingPermission,
 	}
 	otherConstraints := &common.Constraints{
@@ -333,7 +328,7 @@ func (s *requestrulesSuite) TestModifyRule(c *C) {
 	newOutcome := common.OutcomeDeny
 	newLifespan := common.LifespanTimespan
 	newDuration := "1s"
-	newPermissions := []common.PermissionType{common.PermissionAppend}
+	newPermissions := []string{"execute"}
 	newConstraints := &common.Constraints{
 		PathPattern: newPathPattern,
 		Permissions: newPermissions,
@@ -352,7 +347,7 @@ func (s *requestrulesSuite) TestModifyRule(c *C) {
 		Permissions: permissions,
 	}
 	output, err := rdb.ModifyRule(user, storedRule.ID, badConstraints, outcome, lifespan, duration)
-	c.Assert(err, Equals, common.ErrInvalidPathPattern)
+	c.Assert(err, ErrorMatches, "invalid path pattern.*")
 	c.Assert(output, IsNil)
 	c.Assert(rdb.ByID, HasLen, 2)
 
@@ -398,11 +393,7 @@ func (s *requestrulesSuite) TestRuleWithID(c *C) {
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanForever
 	duration := ""
-	permissions := []common.PermissionType{
-		common.PermissionRead,
-		common.PermissionWrite,
-		common.PermissionExecute,
-	}
+	permissions := []string{"read", "write", "execute"}
 	constraints := &common.Constraints{
 		PathPattern: pathPattern,
 		Permissions: permissions,
@@ -449,11 +440,7 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanForever
 	duration := ""
-	permissions := []common.PermissionType{
-		common.PermissionRead,
-		common.PermissionWrite,
-		common.PermissionExecute,
-	}
+	permissions := []string{"read", "write", "execute"}
 	constraints := &common.Constraints{
 		PathPattern: pathPattern,
 		Permissions: permissions,
@@ -516,11 +503,7 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanForever
 	duration := ""
-	permissions := []common.PermissionType{
-		common.PermissionRead,
-		common.PermissionWrite,
-		common.PermissionExecute,
-	}
+	permissions := []string{"read", "write", "execute"}
 
 	// Create two rules with bad timestamps
 	constraints1 := &common.Constraints{
@@ -650,8 +633,8 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	}
 }
 
-func copyPermissions(permissions []common.PermissionType) []common.PermissionType {
-	newPermissions := make([]common.PermissionType, len(permissions))
+func copyPermissions(permissions []string) []string {
+	newPermissions := make([]string, len(permissions))
 	copy(newPermissions, permissions)
 	return newPermissions
 }
@@ -670,11 +653,7 @@ func (s *requestrulesSuite) TestNewSaveLoad(c *C) {
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanForever
 	duration := ""
-	permissions := []common.PermissionType{
-		common.PermissionRead,
-		common.PermissionWrite,
-		common.PermissionExecute,
-	}
+	permissions := []string{"read", "write", "execute"}
 
 	constraints1 := &common.Constraints{
 		PathPattern: pathPattern,
@@ -734,11 +713,7 @@ func (s *requestrulesSuite) TestIsPathAllowed(c *C) {
 	iface := "home"
 	lifespan := common.LifespanForever
 	duration := ""
-	permissions := []common.PermissionType{
-		common.PermissionRead,
-		common.PermissionWrite,
-		common.PermissionExecute,
-	}
+	permissions := []string{"read", "write", "execute"}
 
 	for pattern, outcome := range patterns {
 		newConstraints := &common.Constraints{
@@ -812,11 +787,7 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 	snap := "lxd"
 	app := "lxc"
 	iface := "home"
-	permissions := []common.PermissionType{
-		common.PermissionRead,
-		common.PermissionWrite,
-		common.PermissionExecute,
-	}
+	permissions := []string{"read", "write", "execute"}
 
 	pathPattern := "/home/test/**"
 	outcome := common.OutcomeAllow
@@ -866,10 +837,10 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 	path1 := "/home/test/Pictures/img.png"
 	path2 := "/home/test/Pictures/img.jpg"
 
-	allowed, err := rdb.IsPathAllowed(user, snap, app, iface, path1, common.PermissionRead)
+	allowed, err := rdb.IsPathAllowed(user, snap, app, iface, path1, "read")
 	c.Assert(err, IsNil)
 	c.Assert(allowed, Equals, true)
-	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path2, common.PermissionRead)
+	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path2, "read")
 	c.Assert(err, IsNil)
 	c.Assert(allowed, Equals, false)
 
@@ -878,7 +849,7 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 
 	time.Sleep(time.Second)
 
-	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path1, common.PermissionRead)
+	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path1, "read")
 	c.Assert(err, IsNil)
 	c.Assert(allowed, Equals, false)
 
@@ -887,7 +858,7 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 	c.Check(ruleNoticeIDs[0], Equals, rule3.ID)
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
-	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path2, common.PermissionRead)
+	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path2, "read")
 	c.Assert(err, IsNil)
 	c.Assert(allowed, Equals, false)
 
@@ -898,7 +869,7 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 
 	// Matches rule1, which has lifetime single, which thus expires.
 	// Meanwhile, rule2 also expires.
-	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path1, common.PermissionRead)
+	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path1, "read")
 	c.Assert(err, Equals, nil)
 	c.Assert(allowed, Equals, true)
 
@@ -907,14 +878,14 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 	c.Check(strutil.ListContains(ruleNoticeIDs, rule2.ID), Equals, true)
 	ruleNoticeIDs = ruleNoticeIDs[2:]
 
-	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path2, common.PermissionRead)
+	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path2, "read")
 	c.Assert(err, Equals, requestrules.ErrNoMatchingRule)
 	c.Assert(allowed, Equals, false)
 
-	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path1, common.PermissionRead)
+	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path1, "read")
 	c.Assert(err, Equals, requestrules.ErrNoMatchingRule)
 	c.Assert(allowed, Equals, false)
-	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path2, common.PermissionRead)
+	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path2, "read")
 	c.Assert(err, Equals, requestrules.ErrNoMatchingRule)
 	c.Assert(allowed, Equals, false)
 
@@ -947,11 +918,7 @@ func (s *requestrulesSuite) TestRulesLookup(c *C) {
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanForever
 	duration := ""
-	permissions := []common.PermissionType{
-		common.PermissionRead,
-		common.PermissionWrite,
-		common.PermissionExecute,
-	}
+	permissions := []string{"read", "write", "execute"}
 	constraints := &common.Constraints{
 		PathPattern: pathPattern,
 		Permissions: permissions,
@@ -985,6 +952,7 @@ func (s *requestrulesSuite) TestRulesLookup(c *C) {
 	ruleNotices = ruleNotices[1:]
 
 	iface = "camera"
+	constraints.Permissions = []string{"access"}
 	rule4, err := rdb.CreateRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 

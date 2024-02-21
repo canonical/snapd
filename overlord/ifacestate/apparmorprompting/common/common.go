@@ -12,32 +12,43 @@ import (
 	doublestar "github.com/bmatcuk/doublestar/v4"
 
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
+	"github.com/snapcore/snapd/strutil"
 )
 
-var ErrPermissionNotInList = errors.New("permission not found in permissions list")
-var ErrInvalidSnapLabel = errors.New("the given label cannot be converted to snap and app")
-var ErrInvalidPathPattern = errors.New("the given path pattern is not allowed")
-var ErrInvalidOutcome = errors.New(`invalid rule outcome; must be "allow" or "deny"`)
-var ErrInvalidLifespan = errors.New("invalid lifespan")
-var ErrInvalidDurationForLifespan = fmt.Errorf(`invalid duration: duration must be empty unless lifespan is "%v"`, LifespanTimespan)
-var ErrInvalidDurationEmpty = fmt.Errorf(`invalid duration: duration must be specified if lifespan is "%v"`, LifespanTimespan)
-var ErrInvalidDurationParseError = errors.New("invalid duration: error parsing duration string")
-var ErrInvalidDurationNegative = errors.New("invalid duration: duration must be greater than zero")
-var ErrNoPatterns = errors.New("no patterns given, cannot establish precedence")
-var ErrUnrecognizedFilePermission = errors.New("file permissions mask contains unrecognized permission")
+var (
+	ErrInvalidSnapLabel           = errors.New("the given label cannot be converted to snap and app")
+	ErrInvalidOutcome             = errors.New(`invalid outcome; must be "allow" or "deny"`)
+	ErrInvalidLifespan            = errors.New("invalid lifespan")
+	ErrInvalidDurationForLifespan = fmt.Errorf(`invalid duration: duration must be empty unless lifespan is "%v"`, LifespanTimespan)
+	ErrInvalidDurationEmpty       = fmt.Errorf(`invalid duration: duration must be specified if lifespan is "%v"`, LifespanTimespan)
+	ErrInvalidDurationParseError  = errors.New("invalid duration: error parsing duration string")
+	ErrInvalidDurationNegative    = errors.New("invalid duration: duration must be greater than zero")
+	ErrNoPatterns                 = errors.New("no patterns given, cannot establish precedence")
+	ErrPermissionNotInList        = errors.New("permission not found in permissions list")
+	ErrPermissionsListEmpty       = errors.New("permissions list empty")
+	ErrUnrecognizedFilePermission = errors.New("file permissions mask contains unrecognized permission")
+)
 
 type Constraints struct {
-	PathPattern string           `json:"path-pattern"`
-	Permissions []PermissionType `json:"permissions"`
+	PathPattern string   `json:"path-pattern"`
+	Permissions []string `json:"permissions"`
 }
 
 func (constraints *Constraints) ValidateForInterface(iface string) error {
 	switch iface {
 	case "home", "camera":
+		if err := ValidatePathPattern(constraints.PathPattern); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("constraints incompatible with the given interface: %s", iface)
 	}
-	return ValidatePathPattern(constraints.PathPattern)
+	permissions, err := AbstractPermissionsFromList(iface, constraints.Permissions)
+	if err != nil {
+		return err
+	}
+	constraints.Permissions = permissions
+	return nil
 }
 
 func (constraints *Constraints) Match(path string) (bool, error) {
@@ -47,7 +58,7 @@ func (constraints *Constraints) Match(path string) (bool, error) {
 // Removes the given permission from the permissions associated with the
 // constraints. Assumes that the permission occurs at most once in the list.
 // If the permission does not exist in the list, returns ErrPermissionNotInList.
-func (constraints *Constraints) RemovePermission(permission PermissionType) error {
+func (constraints *Constraints) RemovePermission(permission string) error {
 	origLen := len(constraints.Permissions)
 	i := 0
 	for i < len(constraints.Permissions) {
@@ -63,6 +74,15 @@ func (constraints *Constraints) RemovePermission(permission PermissionType) erro
 		return ErrPermissionNotInList
 	}
 	return nil
+}
+
+func (constraints *Constraints) ContainPermissions(permissions []string) bool {
+	for _, perm := range permissions {
+		if !strutil.ListContains(constraints.Permissions, perm) {
+			return false
+		}
+	}
+	return true
 }
 
 type OutcomeType string
@@ -93,61 +113,6 @@ const (
 	LifespanSingle   LifespanType = "single"
 	LifespanTimespan LifespanType = "timespan"
 )
-
-type PermissionType string
-
-const (
-	PermissionExecute             PermissionType = "execute"
-	PermissionWrite               PermissionType = "write"
-	PermissionRead                PermissionType = "read"
-	PermissionAppend              PermissionType = "append"
-	PermissionCreate              PermissionType = "create"
-	PermissionDelete              PermissionType = "delete"
-	PermissionOpen                PermissionType = "open"
-	PermissionRename              PermissionType = "rename"
-	PermissionSetAttr             PermissionType = "set-attr"
-	PermissionGetAttr             PermissionType = "get-attr"
-	PermissionSetCred             PermissionType = "set-cred"
-	PermissionGetCred             PermissionType = "get-cred"
-	PermissionChangeMode          PermissionType = "change-mode"
-	PermissionChangeOwner         PermissionType = "change-owner"
-	PermissionChangeGroup         PermissionType = "change-group"
-	PermissionLock                PermissionType = "lock"
-	PermissionExecuteMap          PermissionType = "execute-map"
-	PermissionLink                PermissionType = "link"
-	PermissionChangeProfile       PermissionType = "change-profile"
-	PermissionChangeProfileOnExec PermissionType = "change-profile-on-exec"
-)
-
-var AllPermissions = []PermissionType{
-	PermissionExecute,
-	PermissionWrite,
-	PermissionRead,
-	PermissionAppend,
-	PermissionCreate,
-	PermissionDelete,
-	PermissionOpen,
-	PermissionRename,
-	PermissionSetAttr,
-	PermissionGetAttr,
-	PermissionSetCred,
-	PermissionGetCred,
-	PermissionChangeMode,
-	PermissionChangeOwner,
-	PermissionChangeGroup,
-	PermissionLock,
-	PermissionExecuteMap,
-	PermissionLink,
-	PermissionChangeProfile,
-	PermissionChangeProfileOnExec,
-}
-
-// If kernel request contains multiple interfaces, one must take priority.
-// Lower value is higher priority, and entries should be in priority order.
-var interfacePriorities = map[string]int{
-	"home":   0,
-	"camera": 1,
-}
 
 // Converts the given timestamp string to a time.Time in Local time.
 // The timestamp string is expected to be of the format time.RFC3999Nano.
@@ -201,6 +166,39 @@ func LabelToSnapApp(label string) (snap string, app string, err error) {
 	return snap, app, nil
 }
 
+var (
+	// If kernel request contains multiple interfaces, one must take priority.
+	// Lower value is higher priority, and entries should be in priority order.
+	interfacePriorities = map[string]int{
+		"home":   0,
+		"camera": 1,
+	}
+
+	// List of permissions available for each interface. This also defines the
+	// order in which the permissions should be presented.
+	interfacePermissionsAvailable = map[string][]string{
+		"home":   {"read", "write", "execute"},
+		"camera": {"access"},
+	}
+
+	// A mapping from interfaces which support AppArmor file permissions to
+	// the map between abstract permissions and those file permissions.
+	//
+	// Never include AA_MAY_OPEN in the maps below; it should always come from
+	// the kernel with another permission (e.g. AA_MAY_READ or AA_MAY_WRITE),
+	// and if it does not, it should be interpreted as AA_MAY_READ.
+	interfaceFilePermissionsMaps = map[string]map[string]notify.FilePermission{
+		"home": {
+			"read":    notify.AA_MAY_READ,
+			"write":   notify.AA_MAY_WRITE | notify.AA_MAY_APPEND | notify.AA_MAY_CREATE | notify.AA_MAY_DELETE | notify.AA_MAY_RENAME | notify.AA_MAY_CHMOD | notify.AA_MAY_LOCK | notify.AA_MAY_LINK,
+			"execute": notify.AA_MAY_EXEC | notify.AA_EXEC_MMAP,
+		},
+		"camera": {
+			"access": notify.AA_MAY_WRITE | notify.AA_MAY_READ | notify.AA_MAY_APPEND,
+		},
+	}
+)
+
 // Select the interface with the highest priority from the listener request to
 // use with prompts and rules. If none of the given interfaces are included in
 // interfacePriorities, or the list is empty, return "other".
@@ -220,96 +218,133 @@ func SelectSingleInterface(interfaces []string) string {
 	return bestIface
 }
 
-// Converts the given aparmor file permission mask into a list of permissions.
-// If the mask contains an unrecognized file permission, returns an error,
-// along with the list of all recognized permissions in the mask.
-func PermissionMaskToPermissionsList(p notify.FilePermission) ([]PermissionType, error) {
-	perms := make([]PermissionType, 0, 1)
-	// Want to be memory efficient, as this list could be stored for a long time.
-	// Most of the time, only one permission bit will be set anyway.
-	if p&notify.AA_MAY_EXEC != 0 {
-		perms = append(perms, PermissionExecute)
+// Returns the list of available permissions for the given interface.
+func AvailablePermissions(iface string) ([]string, error) {
+	available, exist := interfacePermissionsAvailable[iface]
+	if !exist {
+		return nil, fmt.Errorf("cannot get available permissions: unsupported interface: %s", iface)
 	}
-	if p&notify.AA_MAY_WRITE != 0 {
-		perms = append(perms, PermissionWrite)
-	}
-	if p&notify.AA_MAY_READ != 0 {
-		perms = append(perms, PermissionRead)
-	}
-	if p&notify.AA_MAY_APPEND != 0 {
-		perms = append(perms, PermissionAppend)
-	}
-	if p&notify.AA_MAY_CREATE != 0 {
-		perms = append(perms, PermissionCreate)
-	}
-	if p&notify.AA_MAY_DELETE != 0 {
-		perms = append(perms, PermissionDelete)
-	}
-	if p&notify.AA_MAY_OPEN != 0 {
-		perms = append(perms, PermissionOpen)
-	}
-	if p&notify.AA_MAY_RENAME != 0 {
-		perms = append(perms, PermissionRename)
-	}
-	if p&notify.AA_MAY_SETATTR != 0 {
-		perms = append(perms, PermissionSetAttr)
-	}
-	if p&notify.AA_MAY_GETATTR != 0 {
-		perms = append(perms, PermissionGetAttr)
-	}
-	if p&notify.AA_MAY_SETCRED != 0 {
-		perms = append(perms, PermissionSetCred)
-	}
-	if p&notify.AA_MAY_GETCRED != 0 {
-		perms = append(perms, PermissionGetCred)
-	}
-	if p&notify.AA_MAY_CHMOD != 0 {
-		perms = append(perms, PermissionChangeMode)
-	}
-	if p&notify.AA_MAY_CHOWN != 0 {
-		perms = append(perms, PermissionChangeOwner)
-	}
-	if p&notify.AA_MAY_CHGRP != 0 {
-		perms = append(perms, PermissionChangeGroup)
-	}
-	if p&notify.AA_MAY_LOCK != 0 {
-		perms = append(perms, PermissionLock)
-	}
-	if p&notify.AA_EXEC_MMAP != 0 {
-		perms = append(perms, PermissionExecuteMap)
-	}
-	if p&notify.AA_MAY_LINK != 0 {
-		perms = append(perms, PermissionLink)
-	}
-	if p&notify.AA_MAY_ONEXEC != 0 {
-		perms = append(perms, PermissionChangeProfileOnExec)
-	}
-	if p&notify.AA_MAY_CHANGE_PROFILE != 0 {
-		perms = append(perms, PermissionChangeProfile)
-	}
-	if !p.IsValid() {
-		return perms, ErrUnrecognizedFilePermission
-	}
-	return perms, nil
+	return available, nil
 }
 
-// Returns true if the given permissions list contains the given permission, else false.
-func PermissionsListContains(list []PermissionType, permission PermissionType) bool {
-	for _, perm := range list {
-		if perm == permission {
-			return true
+// Convert AppArmor permissions to a list of abstract permissions.
+func AbstractPermissionsFromAppArmorPermissions(iface string, permissions interface{}) ([]string, error) {
+	switch iface {
+	case "home", "camera":
+		return abstractPermissionsFromAppArmorFilePermissions(iface, permissions)
+	}
+	return nil, fmt.Errorf("cannot parse AppArmor permissions: unsupported interface: %s", iface)
+}
+
+// Convert AppArmor file permissions to a list of abstract permissions.
+func abstractPermissionsFromAppArmorFilePermissions(iface string, permissions interface{}) ([]string, error) {
+	filePerms, ok := permissions.(notify.FilePermission)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse the given permissions as file permissions")
+	}
+	abstractPermsAvailable, exists := interfacePermissionsAvailable[iface]
+	if !exists {
+		// This should never happen, since iface is checked in the calling function.
+		return nil, fmt.Errorf("internal error: no permissions list defined for interface: %s", iface)
+	}
+	abstractPermsMap, exists := interfaceFilePermissionsMaps[iface]
+	if !exists {
+		// This should never happen, since iface is checked in the calling function.
+		return nil, fmt.Errorf("internal error: no file permissions map defined for interface: %s", iface)
+	}
+	if filePerms == notify.AA_MAY_OPEN {
+		// Should not occur, but if a request is received for only open, treat it as read.
+		filePerms = notify.AA_MAY_READ
+	}
+	// Discard Open permission; re-add it to the permission mask later
+	filePerms &= ^notify.AA_MAY_OPEN
+	abstractPerms := make([]string, 0, 1) // most requests should only include one permission
+	for _, abstractPerm := range abstractPermsAvailable {
+		aaPermMapping, exists := abstractPermsMap[abstractPerm]
+		if !exists {
+			// This should never happen, since permission mappings are
+			// predefined and should be checked for correctness.
+			return nil, fmt.Errorf("internal error: no permission map defined for abstract permission %s for interface %s", abstractPerm, iface)
+		}
+		if filePerms&aaPermMapping != 0 {
+			abstractPerms = append(abstractPerms, abstractPerm)
+			filePerms &= ^aaPermMapping
 		}
 	}
-	return false
+	if filePerms != notify.FilePermission(0) {
+		return nil, fmt.Errorf("received unexpected permission for interface %s in AppArmor permission mask: %v", iface, filePerms)
+	}
+	if len(abstractPerms) == 0 {
+		origMask := permissions.(notify.FilePermission)
+		return nil, fmt.Errorf("no abstract permissions after parsing AppArmor permissions for interface: %s; original file permissions: %v", iface, origMask)
+	}
+	return abstractPerms, nil
+}
+
+func AbstractPermissionsFromList(iface string, permissions []string) ([]string, error) {
+	availablePerms, ok := interfacePermissionsAvailable[iface]
+	if !ok {
+		return nil, fmt.Errorf("unsupported interface: %s", iface)
+	}
+	permsSet := make(map[string]bool, len(permissions))
+	for _, perm := range permissions {
+		if !strutil.ListContains(availablePerms, perm) {
+			return nil, fmt.Errorf("unsupported permission for %s interface: %s", iface, perm)
+		}
+		permsSet[perm] = true
+	}
+	if len(permsSet) == 0 {
+		return nil, ErrPermissionsListEmpty
+	}
+	permissionsList := make([]string, 0, len(permsSet))
+	for _, perm := range availablePerms {
+		if exists := permsSet[perm]; exists {
+			permissionsList = append(permissionsList, perm)
+		}
+	}
+	return permissionsList, nil
+}
+
+// Convert abstract permissions to AppArmor permissions.
+func AbstractPermissionsToAppArmorPermissions(iface string, permissions []string) (interface{}, error) {
+	switch iface {
+	case "home", "camera":
+		return abstractPermissionsToAppArmorFilePermissions(iface, permissions)
+	}
+	return nil, fmt.Errorf("cannot convert abstract permissions to AppArmor permissions: unsupported interface: %s", iface)
+}
+
+func abstractPermissionsToAppArmorFilePermissions(iface string, permissions []string) (notify.FilePermission, error) {
+	if len(permissions) == 0 {
+		return notify.FilePermission(0), ErrPermissionsListEmpty
+	}
+	filePermsMap, exists := interfaceFilePermissionsMaps[iface]
+	if !exists {
+		// This should never happen, since iface is checked in the calling function
+		return notify.FilePermission(0), fmt.Errorf("internal error: no AppArmor file permissions map defined for interface: %s", iface)
+	}
+	filePerms := notify.FilePermission(0)
+	for _, perm := range permissions {
+		permMask, exists := filePermsMap[perm]
+		if !exists {
+			// Should not occur, since stored permissions list should have been validated
+			return notify.FilePermission(0), fmt.Errorf("no AppArmor file permission mapping for %s interface with abstract permission: %s", iface, perm)
+		}
+		filePerms |= permMask
+	}
+	if filePerms&(notify.AA_MAY_EXEC|notify.AA_MAY_WRITE|notify.AA_MAY_READ|notify.AA_MAY_APPEND|notify.AA_MAY_CREATE) != 0 {
+		filePerms |= notify.AA_MAY_OPEN
+	}
+	return filePerms, nil
 }
 
 var allowablePathPatternRegexp = regexp.MustCompile(`^(/|(/[^/*{}]+)*(/\*|(/\*\*)?(/\*\.[^/*{}]+)?)?)$`)
 
 // Checks that the given path pattern is valid.  Returns nil if so, otherwise
-// returns ErrInvalidPathPattern.
+// returns an error.
 func ValidatePathPattern(pattern string) error {
 	if !allowablePathPatternRegexp.MatchString(pattern) {
-		return ErrInvalidPathPattern
+		return fmt.Errorf("invalid path pattern: %q", pattern)
 	}
 	return nil
 }

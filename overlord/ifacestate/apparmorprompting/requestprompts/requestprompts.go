@@ -8,6 +8,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/common"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var ErrPromptIDNotFound = errors.New("no prompt with the given ID found for the given user")
@@ -24,9 +25,9 @@ type Prompt struct {
 }
 
 type promptConstraints struct {
-	Path                 string                  `json:"path"`
-	Permissions          []common.PermissionType `json:"permissions"`
-	AvailablePermissions []common.PermissionType `json:"available-permissions"`
+	Path                 string   `json:"path"`
+	Permissions          []string `json:"permissions"`
+	AvailablePermissions []string `json:"available-permissions"`
 }
 
 func (pc *promptConstraints) Equals(other *promptConstraints) bool {
@@ -34,21 +35,22 @@ func (pc *promptConstraints) Equals(other *promptConstraints) bool {
 	return pc.Path == other.Path && reflect.DeepEqual(pc.Permissions, other.Permissions)
 }
 
-func (pc *promptConstraints) subtractPermissions(permissions []common.PermissionType) bool {
-	modified := false
-	newPermissions := make([]common.PermissionType, 0, len(pc.Permissions))
-OUTER_PERMS:
-	for _, perm := range pc.Permissions {
-		for _, omit := range permissions {
-			if omit == perm {
-				modified = true
-				continue OUTER_PERMS
-			}
+func (pc *promptConstraints) subtractPermissions(permissions []string) bool {
+	origLen := len(pc.Permissions)
+	i := 0
+	for i < len(pc.Permissions) {
+		perm := pc.Permissions[i]
+		if !strutil.ListContains(permissions, perm) {
+			i++
+			continue
 		}
-		newPermissions = append(newPermissions, perm)
+		copy(pc.Permissions[i:], pc.Permissions[i+1:])
+		pc.Permissions = pc.Permissions[:len(pc.Permissions)-1]
 	}
-	pc.Permissions = newPermissions
-	return modified
+	if origLen != len(pc.Permissions) {
+		return true
+	}
+	return false
 }
 
 type userPromptDB struct {
@@ -76,7 +78,7 @@ func New(notifyPrompt func(userID uint32, promptID string, options *state.AddNot
 // added, returns the new prompt and false, indicating the prompt was not
 // merged. If it was merged with an identical existing prompt, returns the
 // existing prompt and true.
-func (pdb *PromptDB) AddOrMerge(user uint32, snap string, app string, iface string, path string, permissions []common.PermissionType, listenerReq *listener.Request) (*Prompt, bool) {
+func (pdb *PromptDB) AddOrMerge(user uint32, snap string, app string, iface string, path string, permissions []string, listenerReq *listener.Request) (*Prompt, bool) {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 	userEntry, exists := pdb.PerUser[user]
@@ -87,10 +89,15 @@ func (pdb *PromptDB) AddOrMerge(user uint32, snap string, app string, iface stri
 		userEntry = pdb.PerUser[user]
 	}
 
+	availablePermissions, _ := common.AvailablePermissions(iface)
+	// Error should be impossible, since caller has already validated that iface
+	// is valid, and tests check that all valid interfaces have valid available
+	// permissions returned by AvailablePermissions.
+
 	constraints := &promptConstraints{
 		Path:                 path,
 		Permissions:          permissions,
-		AvailablePermissions: common.AllPermissions,
+		AvailablePermissions: availablePermissions,
 	}
 
 	// Search for an identical existing prompt, merge if found

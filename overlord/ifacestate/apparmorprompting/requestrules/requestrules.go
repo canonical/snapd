@@ -20,8 +20,6 @@ var ErrPathPatternMissingFromTree = errors.New("path pattern was not found in th
 var ErrRuleIDMismatch = errors.New("the rule ID in the tree does not match the expected rule ID")
 var ErrRuleIDNotFound = errors.New("rule ID is not found")
 var ErrPathPatternConflict = errors.New("a rule with the same path pattern already exists in the tree")
-var ErrPermissionNotFound = errors.New("permission not found in the permissions list for the given rule")
-var ErrPermissionsEmpty = errors.New("all permissions have been removed from the permissions list of the given rule")
 var ErrNoMatchingRule = errors.New("no rules match the given path")
 var ErrUserNotAllowed = errors.New("the given user is not allowed to request the rule with the given ID")
 
@@ -38,12 +36,12 @@ type Rule struct {
 	Expiration  string              `json:"expiration"`
 }
 
-func (rule *Rule) removePermission(permission common.PermissionType) error {
+func (rule *Rule) removePermission(permission string) error {
 	if err := rule.Constraints.RemovePermission(permission); err != nil {
 		return err
 	}
 	if len(rule.Constraints.Permissions) == 0 {
-		return ErrPermissionsEmpty
+		return common.ErrPermissionsListEmpty
 	}
 	return nil
 }
@@ -73,7 +71,7 @@ type permissionDB struct {
 
 type interfaceDB struct {
 	// interfaceDB contains a map from permission to permissionDB for a particular interface
-	PerPermission map[common.PermissionType]*permissionDB
+	PerPermission map[string]*permissionDB
 }
 
 type appDB struct {
@@ -114,7 +112,7 @@ func (rdb *RuleDB) dbpath() string {
 	return filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "request-rules.json")
 }
 
-func (rdb *RuleDB) permissionDBForUserSnapAppInterfacePermission(user uint32, snap string, app string, iface string, permission common.PermissionType) *permissionDB {
+func (rdb *RuleDB) permissionDBForUserSnapAppInterfacePermission(user uint32, snap string, app string, iface string, permission string) *permissionDB {
 	userSnaps := rdb.PerUser[user]
 	if userSnaps == nil {
 		userSnaps = &userDB{
@@ -139,7 +137,7 @@ func (rdb *RuleDB) permissionDBForUserSnapAppInterfacePermission(user uint32, sn
 	interfacePerms := appInterfaces.PerInterface[iface]
 	if interfacePerms == nil {
 		interfacePerms = &interfaceDB{
-			PerPermission: make(map[common.PermissionType]*permissionDB),
+			PerPermission: make(map[string]*permissionDB),
 		}
 		appInterfaces.PerInterface[iface] = interfacePerms
 	}
@@ -153,7 +151,7 @@ func (rdb *RuleDB) permissionDBForUserSnapAppInterfacePermission(user uint32, sn
 	return permPaths
 }
 
-func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission common.PermissionType) (error, string) {
+func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) (error, string) {
 	// If there is a conflicting path pattern from another rule, returns an
 	// error along with the ID of the conflicting rule.
 	permPaths := rdb.permissionDBForUserSnapAppInterfacePermission(rule.User, rule.Snap, rule.App, rule.Interface, permission)
@@ -165,7 +163,7 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission common.Permiss
 	return nil, ""
 }
 
-func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission common.PermissionType) error {
+func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) error {
 	permPaths := rdb.permissionDBForUserSnapAppInterfacePermission(rule.User, rule.Snap, rule.App, rule.Interface, permission)
 	pathPattern := rule.Constraints.PathPattern
 	id, exists := permPaths.PathRules[pathPattern]
@@ -181,11 +179,11 @@ func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission common.Pe
 	return nil
 }
 
-func (rdb *RuleDB) addRuleToTree(rule *Rule) (error, string, common.PermissionType) {
+func (rdb *RuleDB) addRuleToTree(rule *Rule) (error, string, string) {
 	// If there is a conflicting path pattern from another rule, returns an
 	// error along with the ID of the conflicting rule and the permission for
 	// which the conflict occurred
-	addedPermissions := make([]common.PermissionType, 0, len(rule.Constraints.Permissions))
+	addedPermissions := make([]string, 0, len(rule.Constraints.Permissions))
 	for _, permission := range rule.Constraints.Permissions {
 		if err, conflictingID := rdb.addRulePermissionToTree(rule, permission); err != nil {
 			for _, prevPerm := range addedPermissions {
@@ -285,7 +283,7 @@ func (rdb *RuleDB) RefreshTreeEnforceConsistency(notifyEveryRule bool) {
 			conflictingRule := rdb.ByID[conflictingID] // must exist
 			if getNewerRule(id, rule.Timestamp, conflictingID, conflictingRule.Timestamp) == id {
 				rdb.removeRulePermissionFromTree(conflictingRule, conflictingPermission) // must return nil
-				if conflictingRule.removePermission(conflictingPermission) == ErrPermissionsEmpty {
+				if conflictingRule.removePermission(conflictingPermission) == common.ErrPermissionsListEmpty {
 					delete(newByID, conflictingID)
 				}
 				modifiedUserRuleIDs[conflictingRule.User][conflictingID] = true
@@ -376,7 +374,7 @@ func (rdb *RuleDB) PopulateNewRule(user uint32, snap string, app string, iface s
 // Checks whether the given path with the given permission is allowed or
 // denied by existing rules for the given user, snap, app, and interface.
 // If no rule applies, returns ErrNoMatchingRule.
-func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, app string, iface string, path string, permission common.PermissionType) (bool, error) {
+func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, app string, iface string, path string, permission string) (bool, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 	needToSave := false
