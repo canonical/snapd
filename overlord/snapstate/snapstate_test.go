@@ -10002,7 +10002,7 @@ func (s *snapmgrTestSuite) TestRefreshInhibitProceedTime(c *C) {
 	// Refresh inhibited
 	refreshInhibitedTime := time.Date(2024, 2, 12, 18, 36, 56, 0, time.UTC)
 	snapst.RefreshInhibitedTime = &refreshInhibitedTime
-	expectedRefreshInhibitProceedTime := refreshInhibitedTime.Add(snapstate.MaxInhibitionTime(st))
+	expectedRefreshInhibitProceedTime := refreshInhibitedTime.Add(snapstate.MaxInhibitionDuration(st))
 	c.Check(snapst.RefreshInhibitProceedTime(s.state), Equals, expectedRefreshInhibitProceedTime)
 }
 
