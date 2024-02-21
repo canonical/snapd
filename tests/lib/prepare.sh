@@ -785,6 +785,30 @@ EOF
     rm -rf repacked-kernel
 }
 
+uc24_build_initramfs_kernel_snap() {
+    local ORIG_SNAP="$1"
+    local TARGET="$2"
+
+    unsquashfs -d pc-kernel $ORIG_SNAP
+    objcopy -O binary -j .initrd pc-kernel/kernel.efi initrd.img
+    unmkinitramfs initrd.img initrd
+
+    cd initrd
+    find . | cpio --create --quiet --format=newc --owner=0:0 | lz4 -l -7 > ../initrd.img
+    cd -
+    quiet apt download systemd-boot-efi
+    dpkg --fsys-tarfile systemd-boot-efi_*.deb |
+       tar xf - ./usr/lib/systemd/boot/efi/linuxx64.efi.stub
+    objcopy -O binary -j .linux pc-kernel/kernel.efi linux
+    objcopy --add-section .linux=linux --change-section-vma .linux=0x2000000 \
+          --add-section .initrd=initrd.img --change-section-vma .initrd=0x3000000 \
+          usr/lib/systemd/boot/efi/linuxx64.efi.stub \
+          pc-kernel/kernel.efi
+    snap pack pc-kernel
+    mv pc-kernel*.snap "$TARGET"
+    rm -rf pc-kernel
+}
+
 setup_core_for_testing_by_modify_writable() {
     UNPACK_DIR="$1"
 
@@ -1065,12 +1089,21 @@ EOF
         # make sure we have the snap
         test -e pc-kernel.snap
         # build the initramfs with our snapd assets into the kernel snap
-        uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
+        if os.query is-core-ge 24; then
+            uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
+        else    
+            uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
+        fi
         EXTRA_FUNDAMENTAL="--snap $IMAGE_HOME/pc-kernel_*.snap"
 
         # also add debug command line parameters to the kernel command line via
         # the gadget in case things go side ways and we need to debug
-        snap download --basename=pc --channel="${BRANCH}/${KERNEL_CHANNEL}" pc
+        if os.query is-core24; then
+            # TODO: remove this once pc snap is available in beta channel
+            snap download --basename=pc --channel="${BRANCH}/edge" pc
+        else
+            snap download --basename=pc --channel="${BRANCH}/${KERNEL_CHANNEL}" pc
+        fi
         test -e pc.snap
         unsquashfs -d pc-gadget pc.snap
         
