@@ -217,7 +217,7 @@ func SnapHomeDirs() []string {
 // homedirs must be a comma separated list of paths to home directories.
 // If homedirs is empty, SnapHomeDirs will be a slice of length 1 containing "/home".
 // Also generates the data directory globbing expressions for each user.
-// Ran at startup by configstate.Init, returns a slice of home directories.
+// Expected to be run by configstate.Init, returns a slice of home directories.
 func SetSnapHomeDirs(homedirs string) []string {
 	snapHomeDirsMu.Lock()
 	defer snapHomeDirsMu.Unlock()
