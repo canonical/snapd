@@ -273,7 +273,7 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshInhibitionTimeout(c *C) {
 	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 	// Pretend its refresh inhibition timed out.
 	instant := time.Now()
-	pastInstant := instant.Add(-snapstate.MaxInhibition * 2)
+	pastInstant := instant.Add(-snapstate.MaxInhibitionDuration(s.state) * 2)
 	snapst.RefreshInhibitedTime = &pastInstant
 	snapstate.Set(s.state, snapst.InstanceName(), snapst)
 
