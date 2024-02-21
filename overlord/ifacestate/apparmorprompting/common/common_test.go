@@ -22,10 +22,14 @@ package common_test
 import (
 	"encoding/base32"
 	"encoding/binary"
+	"fmt"
 	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
+
+	// TODO: add this once PR #13730 is merged:
+	// doublestar "github.com/bmatcuk/doublestar/v4"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/common"
@@ -46,76 +50,144 @@ func (s *commonSuite) SetUpTest(c *C) {
 }
 
 func (s *commonSuite) TestConstraintsValidateForInterface(c *C) {
-	goodConstraints := &common.Constraints{
-		PathPattern: "/path/to/foo",
-		Permissions: []common.PermissionType{common.PermissionRead},
+	cases := []struct {
+		iface   string
+		pattern string
+		perms   []string
+		errStr  string
+	}{
+		{
+			"foo",
+			"invalid/path",
+			[]string{"read"},
+			"constraints incompatible with the given interface.*",
+		},
+		// TODO: add this once PR #13730 is merged:
+		// {
+		//	"home",
+		//	"invalid/path",
+		//	[]string{"read"},
+		//	"invalid path pattern.*",
+		// },
+		{
+			"camera",
+			"/valid/path",
+			[]string{"invalid"},
+			"unsupported permission.*",
+		},
+		{
+			"home",
+			"/valid/path",
+			[]string{},
+			fmt.Sprintf("%v", common.ErrPermissionsListEmpty),
+		},
 	}
-	// badConstraints := &common.Constraints{
-	//	PathPattern: "bad\\pattern",
-	//	Permissions: []common.PermissionType{common.PermissionRead},
-	// }
-	goodInterface := "home"
-	badInterface := "foo"
+	for _, testCase := range cases {
+		constraints := &common.Constraints{
+			PathPattern: testCase.pattern,
+			Permissions: testCase.perms,
+		}
+		err := constraints.ValidateForInterface(testCase.iface)
+		c.Check(err, ErrorMatches, testCase.errStr)
+	}
+}
 
-	c.Check(goodConstraints.ValidateForInterface(goodInterface), IsNil)
-	c.Check(goodConstraints.ValidateForInterface(badInterface), NotNil)
-	// TODO: add this once PR #13730 is merged:
-	// c.Check(badConstraints.ValidateForInterface(goodInterface), Equals, common.ErrInvalidPathPattern)
+func (*commonSuite) TestConstraintsMatch(c *C) {
+	cases := []struct {
+		pattern string
+		path    string
+		matches bool
+	}{
+		{
+			"/home/test/Documents/foo.txt",
+			"/home/test/Documents/foo.txt",
+			true,
+		},
+		// TODO: add this once PR #13730 is merged:
+		// {
+		//	"/home/test/Documents/foo",
+		//	"/home/test/Documents/foo.txt",
+		//	false,
+		// },
+	}
+	for _, testCase := range cases {
+		constraints := &common.Constraints{
+			PathPattern: testCase.pattern,
+			Permissions: []string{"read"},
+		}
+		result, err := constraints.Match(testCase.path)
+		c.Check(err, IsNil, Commentf("test case: %+v", testCase))
+		c.Check(result, Equals, testCase.matches, Commentf("test case: %+v", testCase))
+	}
+}
+
+func (s *commonSuite) TestConstraintsMatchUnhappy(c *C) {
+	badPath := `bad\pattern\`
+	badConstraints := &common.Constraints{
+		PathPattern: badPath,
+		Permissions: []string{"read"},
+	}
+	matches, err := badConstraints.Match(badPath)
+	// TODO: change to this once PR #13730 is merged:
+	// c.Check(err, Equals, doublestar.ErrBadPattern)
+	// c.Check(matches, Equals, false)
+	c.Check(err, Equals, nil)
+	c.Check(matches, Equals, true)
 }
 
 func (s *commonSuite) TestConstraintsRemovePermission(c *C) {
 	cases := []struct {
-		initial []common.PermissionType
-		remove  common.PermissionType
-		final   []common.PermissionType
+		initial []string
+		remove  string
+		final   []string
 		err     error
 	}{
 		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
-			common.PermissionRead,
-			[]common.PermissionType{common.PermissionWrite, common.PermissionExecute},
+			[]string{"read", "write", "execute"},
+			"read",
+			[]string{"write", "execute"},
 			nil,
 		},
 		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
-			common.PermissionWrite,
-			[]common.PermissionType{common.PermissionRead, common.PermissionExecute},
+			[]string{"read", "write", "execute"},
+			"write",
+			[]string{"read", "execute"},
 			nil,
 		},
 		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
-			common.PermissionExecute,
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite},
+			[]string{"read", "write", "execute"},
+			"execute",
+			[]string{"read", "write"},
 			nil,
 		},
 		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionRead},
-			common.PermissionRead,
-			[]common.PermissionType{common.PermissionWrite},
+			[]string{"read", "write", "read"},
+			"read",
+			[]string{"write"},
 			nil,
 		},
 		{
-			[]common.PermissionType{common.PermissionRead},
-			common.PermissionRead,
-			[]common.PermissionType{},
+			[]string{"read"},
+			"read",
+			[]string{},
 			nil,
 		},
 		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionRead},
-			common.PermissionRead,
-			[]common.PermissionType{},
+			[]string{"read", "read"},
+			"read",
+			[]string{},
 			nil,
 		},
 		{
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
-			common.PermissionAppend,
-			[]common.PermissionType{common.PermissionRead, common.PermissionWrite, common.PermissionExecute},
+			[]string{"read", "write", "execute"},
+			"append",
+			[]string{"read", "write", "execute"},
 			common.ErrPermissionNotInList,
 		},
 		{
-			[]common.PermissionType{},
-			common.PermissionRead,
-			[]common.PermissionType{},
+			[]string{},
+			"read",
+			[]string{},
 			common.ErrPermissionNotInList,
 		},
 	}
@@ -128,6 +200,85 @@ func (s *commonSuite) TestConstraintsRemovePermission(c *C) {
 		c.Check(err, Equals, testCase.err)
 		c.Check(constraints.Permissions, DeepEquals, testCase.final)
 	}
+}
+
+func (s *commonSuite) TestConstraintsContainPermissions(c *C) {
+	cases := []struct {
+		constPerms []string
+		queryPerms []string
+		contained  bool
+	}{
+		{
+			[]string{"read", "write", "execute"},
+			[]string{"read", "write", "execute"},
+			true,
+		},
+		{
+			[]string{"execute", "write", "read"},
+			[]string{"read", "write", "execute"},
+			true,
+		},
+		{
+			[]string{"read", "write", "execute"},
+			[]string{"read"},
+			true,
+		},
+		{
+			[]string{"read", "write", "execute"},
+			[]string{"execute"},
+			true,
+		},
+		{
+			[]string{"read", "write", "execute"},
+			[]string{"read", "write", "execute", "append"},
+			false,
+		},
+		{
+			[]string{"read", "write", "execute"},
+			[]string{"read", "append"},
+			false,
+		},
+		{
+			[]string{"foo", "bar", "baz"},
+			[]string{"foo", "bar"},
+			true,
+		},
+		{
+			[]string{"foo", "bar", "baz"},
+			[]string{"fizz", "buzz"},
+			false,
+		},
+	}
+	for _, testCase := range cases {
+		constraints := &common.Constraints{
+			PathPattern: "arbitrary",
+			Permissions: testCase.constPerms,
+		}
+		contained := constraints.ContainPermissions(testCase.queryPerms)
+		c.Check(contained, Equals, testCase.contained, Commentf("testCase: %+v", testCase))
+	}
+}
+
+func (s *commonSuite) TestOutcomeAsBool(c *C) {
+	result, err := common.OutcomeAllow.AsBool()
+	c.Check(err, IsNil)
+	c.Check(result, Equals, true)
+	result, err = common.OutcomeDeny.AsBool()
+	c.Check(err, IsNil)
+	c.Check(result, Equals, false)
+	_, err = common.OutcomeUnset.AsBool()
+	c.Check(err, Equals, common.ErrInvalidOutcome)
+	_, err = common.OutcomeType("foo").AsBool()
+	c.Check(err, Equals, common.ErrInvalidOutcome)
+}
+
+func (s *commonSuite) TestTimestampToTime(c *C) {
+	t1, err := common.TimestampToTime("2004-10-20T10:04:05.999999999-05:00")
+	c.Assert(err, IsNil)
+	c.Check(t1.UTC(), Equals, time.Date(2004, time.October, 20, 15, 4, 5, 999999999, time.UTC))
+	c.Check(t1.UTC(), Not(Equals), time.Date(2004, time.October, 20, 10, 4, 5, 999999999, time.UTC))
+	_, err = common.TimestampToTime("2004-10-20")
+	c.Assert(err, NotNil)
 }
 
 func (s *commonSuite) TestTimestamps(c *C) {
@@ -208,173 +359,375 @@ func (s *commonSuite) TestLabelToSnapAppUnhappy(c *C) {
 	}
 }
 
+func constructPermissionsMaps() []map[string]map[string]interface{} {
+	var permissionsMaps []map[string]map[string]interface{}
+	// interfaceFilePermissionsMaps
+	filePermissionsMaps := make(map[string]map[string]interface{})
+	for iface, permsMap := range common.InterfaceFilePermissionsMaps {
+		filePermissionsMaps[iface] = make(map[string]interface{}, len(permsMap))
+		for perm, val := range permsMap {
+			filePermissionsMaps[iface][perm] = val
+		}
+	}
+	permissionsMaps = append(permissionsMaps, filePermissionsMaps)
+	// TODO: do the same for other maps of permissions maps in the future
+	return permissionsMaps
+}
+
+func (s *commonSuite) TestInterfacesAndPermissionsCompleteness(c *C) {
+	permissionsMaps := constructPermissionsMaps()
+	// Check that every interface in interfacePriorities is also in
+	// interfacePermissionsAvailable and exactly one of the permissions maps.
+	// Also, check that the permissions for a given interface in
+	// interfacePermissionsAvailable are identical to the permissions in the
+	// interface's permissions map.
+	// Also, check that each priority only occurs once.
+	usedPriorities := make(map[int]bool)
+	for iface, priority := range common.InterfacePriorities {
+		_, exists := usedPriorities[priority]
+		c.Check(exists, Equals, false, Commentf("priority for %s interface is not unique: %d", iface, priority))
+		usedPriorities[priority] = true
+		perms, err := common.AvailablePermissions(iface)
+		c.Check(err, IsNil, Commentf("interface missing from interfacePermissionsAvailable: %s", iface))
+		c.Check(perms, Not(HasLen), 0, Commentf("interface has no available permissions: %s", iface))
+		found := false
+		for _, permsMaps := range permissionsMaps {
+			pMap, exists := permsMaps[iface]
+			if !exists {
+				continue
+			}
+			c.Check(found, Equals, false, Commentf("interface found in more than one map of interface permissions maps: %s", iface))
+			found = true
+			// Check that permissions in the list and map are identical
+			c.Check(pMap, HasLen, len(perms), Commentf("permissions list and map inconsistent for interface: %s", iface))
+			for _, perm := range perms {
+				_, exists := pMap[perm]
+				c.Check(exists, Equals, true, Commentf("missing permission mapping for %s interface permission: %s", iface, perm))
+			}
+		}
+		if !found {
+			c.Errorf("interface not included in any map of interface permissions maps: %s", iface)
+		}
+	}
+	// Check that every interface in interfacePermissionsAvailable is also in
+	// interfacePriorities.
+	for iface := range common.InterfacePermissionsAvailable {
+		_, exists := common.InterfacePriorities[iface]
+		c.Check(exists, Equals, true, Commentf("interfacePriorities missing interface from interfacePermissionsAvailable: %s", iface))
+	}
+	// Check that every interface in one of the permissions maps is also in
+	// interfacePriorities.
+	for _, permsMaps := range permissionsMaps {
+		for iface := range permsMaps {
+			_, exists := common.InterfacePriorities[iface]
+			c.Check(exists, Equals, true, Commentf("interface not found in any map of permissions maps: %s", iface))
+		}
+	}
+}
+
+func (s *commonSuite) TestInterfaceFilePermissionsMapsCorrectness(c *C) {
+	for iface, permsMap := range common.InterfaceFilePermissionsMaps {
+		seenPermissions := notify.FilePermission(0)
+		for name, mask := range permsMap {
+			if duplicate := seenPermissions & mask; duplicate != notify.FilePermission(0) {
+				c.Errorf("AppArmor file permission found in more than one permission map for %s interface: %s", iface, duplicate.String())
+			}
+			c.Check(mask&notify.AA_MAY_OPEN, Equals, notify.FilePermission(0), Commentf("AA_MAY_OPEN may not be included in permissions maps, but %s interface includes it in the map for permission: %s", iface, name))
+			seenPermissions |= mask
+		}
+	}
+}
+
 func (s *commonSuite) TestSelectSingleInterface(c *C) {
 	defaultInterface := "other"
-	fakeIface := "foo"
+	fakeInterface := "foo"
 	c.Check(common.SelectSingleInterface([]string{}), Equals, defaultInterface, Commentf("input: []string{}"))
 	c.Check(common.SelectSingleInterface([]string{""}), Equals, defaultInterface, Commentf(`input: []string{""}`))
-	c.Check(common.SelectSingleInterface([]string{fakeIface}), Equals, defaultInterface, Commentf(`input: []string{""}`))
+	c.Check(common.SelectSingleInterface([]string{fakeInterface}), Equals, defaultInterface, Commentf(`input: []string{""}`))
 	for iface := range common.InterfacePriorities {
 		c.Check(common.SelectSingleInterface([]string{iface}), Equals, iface)
-		fakeList := []string{iface, fakeIface}
+		fakeList := []string{iface, fakeInterface}
 		c.Check(common.SelectSingleInterface(fakeList), Equals, iface)
-		fakeList = []string{fakeIface, iface}
+		fakeList = []string{fakeInterface, iface}
 		c.Check(common.SelectSingleInterface(fakeList), Equals, iface)
 	}
 	c.Check(common.SelectSingleInterface([]string{"home", "camera", "foo"}), Equals, "home")
 }
 
-func (s *commonSuite) TestPermissionMaskToPermissionsList(c *C) {
+func (s *commonSuite) TestAvailablePermissions(c *C) {
+	for iface, perms := range common.InterfacePermissionsAvailable {
+		available, err := common.AvailablePermissions(iface)
+		c.Check(err, IsNil)
+		c.Check(available, DeepEquals, perms)
+	}
+	available, err := common.AvailablePermissions("foo")
+	c.Check(err, ErrorMatches, ".*unsupported interface.*")
+	c.Check(available, IsNil)
+}
+
+func (s *commonSuite) TestAbstractPermissionsFromAppArmorFilePermissionsHappy(c *C) {
 	cases := []struct {
-		mask notify.FilePermission
-		list []common.PermissionType
+		iface string
+		mask  notify.FilePermission
+		list  []string
 	}{
 		{
-			notify.FilePermission(0),
-			[]common.PermissionType{},
-		},
-		{
-			notify.AA_MAY_EXEC,
-			[]common.PermissionType{common.PermissionExecute},
-		},
-		{
-			notify.AA_MAY_WRITE,
-			[]common.PermissionType{common.PermissionWrite},
-		},
-		{
+			"home",
 			notify.AA_MAY_READ,
-			[]common.PermissionType{common.PermissionRead},
+			[]string{"read"},
 		},
 		{
-			notify.AA_MAY_APPEND,
-			[]common.PermissionType{common.PermissionAppend},
+			"home",
+			notify.AA_MAY_WRITE | notify.AA_MAY_APPEND | notify.AA_MAY_CREATE | notify.AA_MAY_DELETE | notify.AA_MAY_RENAME | notify.AA_MAY_CHMOD | notify.AA_MAY_LOCK | notify.AA_MAY_LINK,
+			[]string{"write"},
 		},
 		{
-			notify.AA_MAY_CREATE,
-			[]common.PermissionType{common.PermissionCreate},
+			"home",
+			notify.AA_MAY_EXEC | notify.AA_EXEC_MMAP,
+			[]string{"execute"},
 		},
 		{
-			notify.AA_MAY_DELETE,
-			[]common.PermissionType{common.PermissionDelete},
-		},
-		{
+			"home",
 			notify.AA_MAY_OPEN,
-			[]common.PermissionType{common.PermissionOpen},
+			[]string{"read"},
 		},
 		{
-			notify.AA_MAY_RENAME,
-			[]common.PermissionType{common.PermissionRename},
+			"home",
+			notify.AA_MAY_OPEN | notify.AA_MAY_WRITE,
+			[]string{"write"},
 		},
 		{
-			notify.AA_MAY_SETATTR,
-			[]common.PermissionType{common.PermissionSetAttr},
+			"home",
+			notify.AA_MAY_EXEC | notify.AA_MAY_WRITE | notify.AA_MAY_READ,
+			[]string{"read", "write", "execute"},
 		},
 		{
-			notify.AA_MAY_GETATTR,
-			[]common.PermissionType{common.PermissionGetAttr},
+			"camera",
+			notify.AA_MAY_WRITE | notify.AA_MAY_READ | notify.AA_MAY_APPEND,
+			[]string{"access"},
 		},
 		{
-			notify.AA_MAY_SETCRED,
-			[]common.PermissionType{common.PermissionSetCred},
-		},
-		{
-			notify.AA_MAY_GETCRED,
-			[]common.PermissionType{common.PermissionGetCred},
-		},
-		{
-			notify.AA_MAY_CHMOD,
-			[]common.PermissionType{common.PermissionChangeMode},
-		},
-		{
-			notify.AA_MAY_CHOWN,
-			[]common.PermissionType{common.PermissionChangeOwner},
-		},
-		{
-			notify.AA_MAY_CHGRP,
-			[]common.PermissionType{common.PermissionChangeGroup},
-		},
-		{
-			notify.AA_MAY_LOCK,
-			[]common.PermissionType{common.PermissionLock},
-		},
-		{
-			notify.AA_EXEC_MMAP,
-			[]common.PermissionType{common.PermissionExecuteMap},
-		},
-		{
-			notify.AA_MAY_LINK,
-			[]common.PermissionType{common.PermissionLink},
-		},
-		{
-			notify.AA_MAY_ONEXEC,
-			[]common.PermissionType{common.PermissionChangeProfileOnExec},
-		},
-		{
-			notify.AA_MAY_CHANGE_PROFILE,
-			[]common.PermissionType{common.PermissionChangeProfile},
-		},
-		{
-			notify.AA_MAY_READ | notify.AA_MAY_WRITE | notify.AA_MAY_EXEC,
-			[]common.PermissionType{common.PermissionExecute, common.PermissionWrite, common.PermissionRead},
+			"camera",
+			notify.AA_MAY_OPEN,
+			[]string{"access"},
 		},
 	}
 	for _, testCase := range cases {
-		perms, err := common.PermissionMaskToPermissionsList(testCase.mask)
-		c.Assert(err, IsNil, Commentf("testCase: %+v", testCase))
-		c.Assert(perms, DeepEquals, testCase.list)
-	}
-
-	unrecognizedFilePerm := notify.FilePermission(1 << 17)
-	perms, err := common.PermissionMaskToPermissionsList(unrecognizedFilePerm)
-	c.Assert(err, Equals, common.ErrUnrecognizedFilePermission)
-	c.Assert(perms, HasLen, 0)
-
-	mixed := unrecognizedFilePerm | notify.AA_MAY_READ | notify.AA_MAY_WRITE
-	expected := []common.PermissionType{common.PermissionWrite, common.PermissionRead}
-	perms, err = common.PermissionMaskToPermissionsList(mixed)
-	c.Assert(err, Equals, common.ErrUnrecognizedFilePermission)
-	c.Assert(perms, DeepEquals, expected)
-}
-
-func (s *commonSuite) TestPermissionsListContains(c *C) {
-	permissionsList := []common.PermissionType{
-		common.PermissionExecute,
-		common.PermissionWrite,
-		common.PermissionRead,
-		common.PermissionAppend,
-		common.PermissionOpen,
-	}
-	for _, perm := range []common.PermissionType{
-		common.PermissionExecute,
-		common.PermissionWrite,
-		common.PermissionRead,
-		common.PermissionAppend,
-		common.PermissionOpen,
-	} {
-		c.Check(common.PermissionsListContains(permissionsList, perm), Equals, true)
-	}
-	for _, perm := range []common.PermissionType{
-		common.PermissionCreate,
-		common.PermissionDelete,
-		common.PermissionRename,
-		common.PermissionChangeOwner,
-		common.PermissionChangeGroup,
-	} {
-		c.Check(common.PermissionsListContains(permissionsList, perm), Equals, false)
+		perms, err := common.AbstractPermissionsFromAppArmorPermissions(testCase.iface, testCase.mask)
+		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
+		c.Check(perms, DeepEquals, testCase.list)
 	}
 }
 
-func (s *commonSuite) TestOutcomeAsBool(c *C) {
-	result, err := common.OutcomeAllow.AsBool()
-	c.Check(err, IsNil)
-	c.Check(result, Equals, true)
-	result, err = common.OutcomeDeny.AsBool()
-	c.Check(err, IsNil)
-	c.Check(result, Equals, false)
-	_, err = common.OutcomeUnset.AsBool()
-	c.Check(err, Equals, common.ErrInvalidOutcome)
-	_, err = common.OutcomeType("foo").AsBool()
-	c.Check(err, Equals, common.ErrInvalidOutcome)
+func (s *commonSuite) TestAbstractPermissionsFromAppArmorFilePermissionsUnhappy(c *C) {
+	cases := []struct {
+		iface  string
+		perms  interface{}
+		errStr string
+	}{
+		{
+			"foo",
+			"anything",
+			".*unsupported interface.*",
+		},
+		{
+			"home",
+			"not a file permission",
+			"failed to parse the given permissions as file permissions",
+		},
+		{
+			"home",
+			notify.FilePermission(1 << 17),
+			"received unexpected permission for interface.*",
+		},
+		{
+			"home",
+			notify.AA_MAY_GETATTR | notify.AA_MAY_READ,
+			"received unexpected permission for interface.*",
+		},
+		{
+			"camera",
+			notify.AA_MAY_EXEC,
+			"received unexpected permission for interface.*",
+		},
+		{
+			"camera",
+			notify.AA_MAY_EXEC | notify.AA_MAY_READ,
+			"received unexpected permission for interface.*",
+		},
+		{
+			"home",
+			notify.FilePermission(0),
+			"no abstract permissions.*",
+		},
+	}
+	for _, testCase := range cases {
+		perms, err := common.AbstractPermissionsFromAppArmorPermissions(testCase.iface, testCase.perms)
+		c.Check(perms, IsNil, Commentf("received unexpected non-nil permissions list for test case: %+v", testCase))
+		c.Check(err, ErrorMatches, testCase.errStr)
+	}
+}
+
+func (s *commonSuite) TestAbstractPermissionsFromListHappy(c *C) {
+	cases := []struct {
+		iface   string
+		initial []string
+		final   []string
+	}{
+		{
+			"home",
+			[]string{"write", "read", "execute"},
+			[]string{"read", "write", "execute"},
+		},
+		{
+			"home",
+			[]string{"execute", "write", "read"},
+			[]string{"read", "write", "execute"},
+		},
+		{
+			"home",
+			[]string{"write", "write", "write"},
+			[]string{"write"},
+		},
+		{
+			"camera",
+			[]string{"access", "access", "access"},
+			[]string{"access"},
+		},
+	}
+	for _, testCase := range cases {
+		perms, err := common.AbstractPermissionsFromList(testCase.iface, testCase.initial)
+		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
+		c.Check(perms, DeepEquals, testCase.final, Commentf("testCase: %+v", testCase))
+	}
+}
+
+func (s *commonSuite) TestAbstractPermissionsFromListUnhappy(c *C) {
+	cases := []struct {
+		iface  string
+		perms  []string
+		errStr string
+	}{
+		{
+			"foo",
+			[]string{"read"},
+			"unsupported interface.*",
+		},
+		{
+			"home",
+			[]string{"access"},
+			"unsupported permission.*",
+		},
+		{
+			"home",
+			[]string{"read", "write", "access"},
+			"unsupported permission.*",
+		},
+		{
+			"camera",
+			[]string{"read", "access"},
+			"unsupported permission.*",
+		},
+		{
+			"home",
+			[]string{},
+			fmt.Sprintf("%v", common.ErrPermissionsListEmpty),
+		},
+	}
+	for _, testCase := range cases {
+		perms, err := common.AbstractPermissionsFromList(testCase.iface, testCase.perms)
+		c.Check(perms, IsNil, Commentf("testCase: %+v", testCase))
+		c.Check(err, ErrorMatches, testCase.errStr, Commentf("testCase: %+v", testCase))
+	}
+}
+
+func (s *commonSuite) TestAbstractPermissionsToAppArmorFilePermissionsHappy(c *C) {
+	cases := []struct {
+		iface string
+		list  []string
+		mask  notify.FilePermission
+	}{
+		{
+			"home",
+			[]string{"read"},
+			notify.AA_MAY_OPEN | notify.AA_MAY_READ,
+		},
+		{
+			"home",
+			[]string{"write"},
+			notify.AA_MAY_OPEN | notify.AA_MAY_WRITE | notify.AA_MAY_APPEND | notify.AA_MAY_CREATE | notify.AA_MAY_DELETE | notify.AA_MAY_RENAME | notify.AA_MAY_CHMOD | notify.AA_MAY_LOCK | notify.AA_MAY_LINK,
+		},
+		{
+			"home",
+			[]string{"execute"},
+			notify.AA_MAY_OPEN | notify.AA_MAY_EXEC | notify.AA_EXEC_MMAP,
+		},
+		{
+			"home",
+			[]string{"read", "execute"},
+			notify.AA_MAY_OPEN | notify.AA_MAY_READ | notify.AA_MAY_EXEC | notify.AA_EXEC_MMAP,
+		},
+		{
+			"home",
+			[]string{"execute", "write", "read"},
+			notify.AA_MAY_OPEN | notify.AA_MAY_READ | notify.AA_MAY_EXEC | notify.AA_EXEC_MMAP | notify.AA_MAY_WRITE | notify.AA_MAY_APPEND | notify.AA_MAY_CREATE | notify.AA_MAY_DELETE | notify.AA_MAY_RENAME | notify.AA_MAY_CHMOD | notify.AA_MAY_LOCK | notify.AA_MAY_LINK,
+		},
+		{
+			"camera",
+			[]string{"access"},
+			notify.AA_MAY_OPEN | notify.AA_MAY_WRITE | notify.AA_MAY_READ | notify.AA_MAY_APPEND,
+		},
+	}
+	for _, testCase := range cases {
+		ret, err := common.AbstractPermissionsToAppArmorPermissions(testCase.iface, testCase.list)
+		c.Check(err, IsNil)
+		perms, ok := ret.(notify.FilePermission)
+		c.Check(ok, Equals, true, Commentf("failed to parse return value as FilePermission for test case: %+v", testCase))
+		c.Check(perms, Equals, testCase.mask)
+	}
+}
+
+func (s *commonSuite) TestAbstractPermissionsToAppArmorFilePermissionsUnhappy(c *C) {
+	cases := []struct {
+		iface  string
+		perms  []string
+		errStr string
+	}{
+		{
+			"foo",
+			[]string{},
+			".*unsupported interface.*",
+		},
+		{
+			"home",
+			[]string{},
+			fmt.Sprintf("%v", common.ErrPermissionsListEmpty),
+		},
+		{
+			"home",
+			[]string{"foo"},
+			"no AppArmor file permission mapping .* abstract permission.*",
+		},
+		{
+			"home",
+			[]string{"access"},
+			"no AppArmor file permission mapping .* abstract permission.*",
+		},
+		{
+			"home",
+			[]string{"read", "foo", "write"},
+			"no AppArmor file permission mapping .* abstract permission.*",
+		},
+		{
+			"camera",
+			[]string{"read"},
+			"no AppArmor file permission mapping .* abstract permission.*",
+		},
+	}
+	for _, testCase := range cases {
+		_, err := common.AbstractPermissionsToAppArmorPermissions(testCase.iface, testCase.perms)
+		c.Check(err, ErrorMatches, testCase.errStr)
+	}
 }
 
 func (s *commonSuite) TestValidateOutcome(c *C) {
@@ -432,11 +785,11 @@ func (s *commonSuite) TestValidateConstraintsOutcomeLifespanDuration(c *C) {
 	badInterface := "foo"
 	goodConstraints := &common.Constraints{
 		PathPattern: "/path/to/something",
-		Permissions: []common.PermissionType{common.PermissionRead},
+		Permissions: []string{"read"},
 	}
 	// badConstraints := &common.Constraints{
 	//	PathPattern: "bad\\path",
-	//	Permissions: []common.PermissionType{common.PermissionRead},
+	//	Permissions: []string{"read"},
 	// }
 	goodOutcome := common.OutcomeAllow
 	badOutcome := common.OutcomeUnset
@@ -451,7 +804,7 @@ func (s *commonSuite) TestValidateConstraintsOutcomeLifespanDuration(c *C) {
 	c.Check(err, NotNil)
 	// TODO: add this once PR #13730 is merged:
 	// _, err = common.ValidateConstraintsOutcomeLifespanDuration(goodInterface, badConstraints, goodOutcome, goodLifespan, goodDuration)
-	// c.Check(err, Equals, common.ErrInvalidPathPattern)
+	// c.Check(err, ErrorMatches, "invalid path pattern.*")
 	_, err = common.ValidateConstraintsOutcomeLifespanDuration(goodInterface, goodConstraints, badOutcome, goodLifespan, goodDuration)
 	c.Check(err, Equals, common.ErrInvalidOutcome)
 	_, err = common.ValidateConstraintsOutcomeLifespanDuration(goodInterface, goodConstraints, goodOutcome, badLifespan, goodDuration)
