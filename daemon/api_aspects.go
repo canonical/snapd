@@ -26,7 +26,6 @@ import (
 
 	"github.com/snapcore/snapd/aspects"
 	"github.com/snapcore/snapd/features"
-	"github.com/snapcore/snapd/overlord/aspectstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
@@ -60,30 +59,9 @@ func getAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return BadRequest("missing aspect fields")
 	}
 
-	tx, err := aspectstate.NewTransaction(st, account, bundleName)
+	results, err := aspectstateGetAspect(st, account, bundleName, aspect, fields)
 	if err != nil {
 		return toAPIError(err)
-	}
-
-	results := make(map[string]interface{})
-	for _, field := range fields {
-		result, err := aspectstateGetAspect(tx, account, bundleName, aspect, field)
-		if err != nil {
-			if errors.Is(err, &aspects.NotFoundError{}) && len(fields) > 1 {
-				// keep looking; return partial result if only some fields are found
-				continue
-			} else {
-				return toAPIError(err)
-			}
-		}
-
-		results[field] = result
-	}
-
-	// no results were found, return 404
-	if len(results) == 0 {
-		errMsg := fmt.Sprintf("cannot get fields %s of aspect %s/%s/%s", strutil.Quoted(fields), account, bundleName, aspect)
-		return NotFound(errMsg)
 	}
 
 	return SyncResponse(results)
@@ -107,19 +85,8 @@ func setAspect(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return BadRequest("cannot decode aspect request body: %v", err)
 	}
 
-	tx, err := aspectstate.NewTransaction(st, account, bundleName)
+	err := aspectstateSetAspect(st, account, bundleName, aspect, values)
 	if err != nil {
-		return toAPIError(err)
-	}
-
-	for field, value := range values {
-		err := aspectstateSetAspect(tx, account, bundleName, aspect, field, value)
-		if err != nil {
-			return toAPIError(err)
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
 		return toAPIError(err)
 	}
 

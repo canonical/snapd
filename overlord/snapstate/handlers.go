@@ -1355,6 +1355,26 @@ func (m *SnapManager) restoreUnlinkOnError(t *state.Task, info *snap.Info, tm ti
 	return err
 }
 
+func onRefreshInhibitionTimeout(chg *state.Change, snapName string) error {
+	var data map[string]interface{}
+	err := chg.Get("api-data", &data)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if len(data) == 0 {
+		data = make(map[string]interface{})
+	}
+
+	cur, _ := data["refresh-forced"].([]interface{})
+	cur = append(cur, snapName)
+	data["refresh-forced"] = cur
+
+	chg.Set("api-data", data)
+
+	// TODO: record a change-update notice here
+	return nil
+}
+
 func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// called only during refresh when a new revision of a snap is being
 	// installed
@@ -1387,7 +1407,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 		// held to prevent snap-run from advancing until UnlinkSnap, executed
 		// below, completes.
 		// XXX: should we skip it if type is snap.TypeSnapd?
-		lock, err := hardEnsureNothingRunningDuringRefresh(m.backend, st, snapst, snapsup, oldInfo)
+		inhibitionTimeout, lock, err := hardEnsureNothingRunningDuringRefresh(m.backend, st, snapst, snapsup, oldInfo)
 		if err != nil {
 			var busyErr *timedBusySnapError
 			if errors.As(err, &busyErr) {
@@ -1399,6 +1419,11 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 			}
 
 			return err
+		}
+		if inhibitionTimeout {
+			if err := onRefreshInhibitionTimeout(t.Change(), snapsup.InstanceName()); err != nil {
+				return err
+			}
 		}
 
 		defer lock.Close()

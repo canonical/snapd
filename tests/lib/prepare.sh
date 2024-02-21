@@ -952,14 +952,8 @@ setup_reflash_magic() {
         snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
     else
         # shellcheck source=tests/lib/image.sh
-        #. "$TESTSLIB/image.sh"
-        #get_ubuntu_image
-        # TODO: revert this once ubuntu-image is fixed
-        # Currently it is failing with
-        # runtime: goroutine stack exceeds 1000000000-byte limit
-        # runtime: sp=0xc0204963b0 stack=[0xc020496000, 0xc040496000]
-        # fatal error: stack overflow
-        snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+        . "$TESTSLIB/image.sh"
+        get_ubuntu_image
     fi
 
     # needs to be under /home because ubuntu-device-flash
@@ -1166,9 +1160,7 @@ EOF
         
         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap ${IMAGE_HOME}/${BASE}.snap"
     fi
-    # TODO: revert this when ubuntu-image issue is fixed
-    #local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
-    UBUNTU_IMAGE=/snap/bin/ubuntu-image
+    local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
     if os.query is-core16 || os.query is-arm; then
         # ubuntu-image on 16.04 needs to be installed from a snap
         UBUNTU_IMAGE=/snap/bin/ubuntu-image

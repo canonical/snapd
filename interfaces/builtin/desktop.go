@@ -498,7 +498,7 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 		// provided by the OS snap and so will run unconfined
 		new = "unconfined"
 	} else {
-		new = slotAppLabelExpr(slot)
+		new = spec.SnapAppSet().SlotLabelExpression(slot)
 	}
 	snippet := strings.Replace(desktopConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)

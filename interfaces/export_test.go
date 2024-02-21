@@ -75,4 +75,5 @@ type SystemKey = systemKey
 var (
 	GetAttribute     = getAttribute
 	SystemKeyVersion = systemKeyVersion
+	LabelExpr        = labelExpr
 )

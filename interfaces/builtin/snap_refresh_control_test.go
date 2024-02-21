@@ -68,13 +68,13 @@ func (s *SnapRefreshControlInterfaceSuite) TestName(c *C) {
 
 func (s *SnapRefreshControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have nil security snippet for apparmor and seccomp
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), IsNil)
 	c.Assert(apparmorSpec.Snippets(), HasLen, 0)
 
-	seccompSpec := &seccomp.Specification{}
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(seccompSpec.Snippets(), HasLen, 0)
 }

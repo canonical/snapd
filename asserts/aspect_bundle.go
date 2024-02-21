@@ -77,6 +77,10 @@ func assembleAspectBundle(assert assertionBase) (Assertion, error) {
 		return nil, fmt.Errorf(`"aspects" stanza is mandatory`)
 	}
 
+	if _, err := checkOptionalString(assert.headers, "summary"); err != nil {
+		return nil, err
+	}
+
 	v, ok := assert.headers["storage"]
 	if !ok {
 		return nil, fmt.Errorf(`"storage" stanza is mandatory`)

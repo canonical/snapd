@@ -531,6 +531,22 @@ func (snapst *SnapState) InstanceName() string {
 	return snap.InstanceName(cur.RealName, snapst.InstanceKey)
 }
 
+// RefreshInhibitProceedTime is the time after which a pending refresh is forced
+// for a running snap in the next auto-refresh. Zero time indicates that there
+// are no pending refreshes.
+//
+// The provided state must be locked by the caller.
+func (snapst *SnapState) RefreshInhibitProceedTime(st *state.State) time.Time {
+	if snapst.RefreshInhibitedTime == nil {
+		// Zero time, no pending refreshes.
+		return time.Time{}
+	}
+	// TODO: state is needed for when configurable max inhibition
+	// is introduced (i.e. "core.refresh.max-inhibition-days").
+	proceedTime := snapst.RefreshInhibitedTime.Add(maxInhibition)
+	return proceedTime
+}
+
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
 	for _, si := range snapst.Sequence.SideInfos() {
 		if si.Revision == needle {

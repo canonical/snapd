@@ -848,6 +848,54 @@ func (s *autoRefreshTestSuite) TestAtSeedPolicy(c *C) {
 	c.Check(t1.Equal(t2), Equals, true)
 }
 
+func (s *autoRefreshTestSuite) TestAtSeedRefreshHeld(c *C) {
+	// it is possible that refresh.hold has already been set to a valid time
+	// or "forever" even before snapd was started for the first time
+	r := release.MockOnClassic(true)
+	defer r()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "refresh.hold", "forever"), IsNil)
+	tr.Commit()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	err := af.AtSeed()
+	c.Assert(err, IsNil)
+	c.Check(af.NextRefresh().IsZero(), Equals, true)
+
+	// now use a valid timestamp
+	tr = config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "refresh.hold", time.Now().UTC()), IsNil)
+	tr.Commit()
+
+	af = snapstate.NewAutoRefresh(s.state)
+	err = af.AtSeed()
+	c.Assert(err, IsNil)
+	c.Check(af.NextRefresh().IsZero(), Equals, true)
+}
+
+func (s *autoRefreshTestSuite) TestAtSeedInvalidHold(c *C) {
+	// it is possible that refresh.hold has already been set to forever even
+	// before snapd was started for the first time
+	r := release.MockOnClassic(true)
+	defer r()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "refresh.hold", "this-is-invalid-time"), IsNil)
+	tr.Commit()
+
+	af := snapstate.NewAutoRefresh(s.state)
+
+	err := af.AtSeed()
+	c.Assert(err, ErrorMatches, `parsing time "this-is-invalid-time" .*cannot parse.*`)
+}
+
 func (s *autoRefreshTestSuite) TestCanRefreshOnMetered(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -959,8 +1007,9 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 	})
 	defer restore()
 
-	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
+	inhibitionTimeout, err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
+	c.Check(inhibitionTimeout, Equals, false)
 
 	var timedErr *snapstate.TimedBusySnapError
 	c.Assert(errors.As(err, &timedErr), Equals, true)
@@ -997,8 +1046,9 @@ func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c
 	})
 	defer restore()
 
-	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
+	inhibitionTimeout, err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
+	c.Check(inhibitionTimeout, Equals, false)
 
 	var timedErr *snapstate.TimedBusySnapError
 	c.Assert(errors.As(err, &timedErr), Equals, true)
@@ -1040,8 +1090,9 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 	})
 	defer restore()
 
-	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
+	inhibitionTimeout, err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err == nil, Equals, true)
+	c.Check(inhibitionTimeout, Equals, true)
 	c.Check(notificationCount, Equals, 1)
 }
 
@@ -1071,8 +1122,9 @@ func (s *autoRefreshTestSuite) TestInhibitNoNotificationOnManualRefresh(c *C) {
 	})
 	defer restore()
 
-	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
+	inhibitionTimeout, err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err, testutil.ErrorIs, &snapstate.BusySnapError{})
+	c.Check(inhibitionTimeout, Equals, false)
 }
 
 func (s *autoRefreshTestSuite) TestBlockedAutoRefreshCreatesPreDownloads(c *C) {

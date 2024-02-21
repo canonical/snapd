@@ -68,7 +68,8 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 
-	about, err := localSnapInfo(c.d.overlord.State(), name)
+	st := c.d.overlord.State()
+	about, err := localSnapInfo(st, name)
 	if err != nil {
 		if err == errNoSnap {
 			return SnapNotFound(name, err)
@@ -915,7 +916,8 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	}
 
-	found, err := allLocalSnapInfos(c.d.overlord.State(), all, wanted)
+	st := c.d.overlord.State()
+	found, err := allLocalSnapInfos(st, all, wanted)
 	if err != nil {
 		return InternalError("cannot list local snaps! %v", err)
 	}

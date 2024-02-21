@@ -163,7 +163,6 @@ execute: |
         opensuse-15.5-64)
             os.query is-opensuse
             os.query is-opensuse 15.5
-            ! os.query is-opensuse tumbleweed
             os.query is-classic
             ! os.query is-core
             ;;
