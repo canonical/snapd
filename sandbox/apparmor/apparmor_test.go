@@ -282,6 +282,8 @@ func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
 			expectedCalls = append(expectedCalls, []string{"apparmor_parser", "--preprocess"})
 			contents += fmt.Sprintf("%d ", code)
 		}
+		// the parser version is probed and logged in probeParserFeatures()
+		expectedCalls = append(expectedCalls, []string{"apparmor_parser", "--version"})
 		// probeParserFeatures() sorts the features
 		sort.Strings(expFeatures)
 		err := os.WriteFile(filepath.Join(d, "codes"), []byte(contents), 0755)
@@ -337,6 +339,7 @@ profile snap-test {
 profile snap-test flags=(unconfined) {
  # test unconfined
 }
+
 `)
 	}
 
