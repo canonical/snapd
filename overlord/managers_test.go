@@ -13803,14 +13803,15 @@ func (s *mgrsSuite) TestAutoRefreshOneWithMonitoring(c *C) {
 	// refresh-candidate should not be empty
 	c.Assert(candidates, HasLen, 1)
 
-	// remove the entry as if the app has closed
-	err = os.RemoveAll(filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/snap.held-with-app-running.app.scope"))
-	c.Assert(err, IsNil)
-
 	// what's supposed to happen now is the file removal will be noticed, a
 	// change will be kicked off and the snap will get a refresh
 	st.Unlock()
 	s.o.Loop()
+
+	// remove the entry as if the app has closed
+	err = os.RemoveAll(filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/snap.held-with-app-running.app.scope"))
+	c.Assert(err, IsNil)
+
 	chg = waitForReadyChangeKind(c, st, "auto-refresh")
 	err = s.o.Stop()
 	c.Assert(err, IsNil)
@@ -13904,14 +13905,14 @@ func (s *mgrsSuite) TestAutoRefreshWithMonitoring(c *C) {
 	// refresh-candidate should not be empty
 	c.Check(candidates, HasLen, 1)
 
-	// remove the entry as if the app has closed
-	err = os.RemoveAll(filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/snap.held-with-app-running.app.scope"))
-	c.Assert(err, IsNil)
-
 	// what's supposed to happen now is the file removal will be noticed, a
 	// change will be kicked off and the snap will get a refresh
 	st.Unlock()
 	s.o.Loop()
+
+	// remove the entry as if the app has closed
+	err = os.RemoveAll(filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/snap.held-with-app-running.app.scope"))
+	c.Assert(err, IsNil)
 
 	chg = waitForReadyChangeKind(c, st, "auto-refresh")
 	err = s.o.Stop()
@@ -14037,14 +14038,15 @@ func (s *mgrsSuite) TestAutoRefreshStoreUpdateWhileWaitingWithMonitoring(c *C) {
 	dumpTasks(c, "after settle", chg.Tasks())
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*snap "held-with-app-running" has running apps.*`)
 
-	// remove the entry as if the app has closed
-	err = os.RemoveAll(filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/snap.held-with-app-running.app.scope"))
-	c.Assert(err, IsNil)
-
 	// what's supposed to happen now is the file removal will be noticed, a
 	// change will be kicked off and the snap will get a refresh
 	st.Unlock()
 	s.o.Loop()
+
+	// remove the entry as if the app has closed, this can be done only
+	// after calling Loop()
+	err = os.RemoveAll(filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/snap.held-with-app-running.app.scope"))
+	c.Assert(err, IsNil)
 
 	chg = waitForReadyChangeKind(c, st, "auto-refresh")
 	err = s.o.Stop()
@@ -14152,14 +14154,15 @@ func (s *mgrsSuite) TestAutoRefreshStorePreDownloadWhileWaitingWithMonitoring(c 
 	c.Check(candidates, HasLen, 1)
 	c.Assert(candidates["held-with-app-running"], NotNil)
 
-	// remove the entry as if the app has closed
-	err = os.RemoveAll(filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/snap.held-with-app-running.app.scope"))
-	c.Assert(err, IsNil)
-
 	// what's supposed to happen now is the file removal will be noticed, a
 	// change will be kicked off and the snap will get a refresh
 	st.Unlock()
 	s.o.Loop()
+
+	// remove the entry as if the app has closed, this can be done only
+	// after calling Loop()
+	err = os.RemoveAll(filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/snap.held-with-app-running.app.scope"))
+	c.Assert(err, IsNil)
 
 	chgAuto := waitForReadyChangeKind(c, st, "auto-refresh")
 	err = s.o.Stop()
