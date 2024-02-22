@@ -196,19 +196,19 @@ func ValidationSets(st *state.State) (map[string]*ValidationSetTracking, error) 
 func TrackedEnforcedValidationSets(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 	sets := snapasserts.NewValidationSets()
 
-	skip := make(map[string]bool, len(extraVss))
+	setsToSkip := make(map[string]bool, len(extraVss))
 	for _, extraVs := range extraVss {
 		sets.Add(extraVs)
-		skip[ValidationSetKey(extraVs.AccountID(), extraVs.Name())] = true
+		setsToSkip[ValidationSetKey(extraVs.AccountID(), extraVs.Name())] = true
 	}
 
-	skipSet := func(key string) bool {
+	skip := func(key string) bool {
 		// if extraVs matches an already enforced validation set, then skip that one, extraVs has been added
 		// before the loop.
-		return skip[key]
+		return setsToSkip[key]
 	}
 
-	if err := trackedEnforcedValidationSets(st, skipSet, sets); err != nil {
+	if err := trackedEnforcedValidationSets(st, skip, sets); err != nil {
 		return nil, err
 	}
 
@@ -224,19 +224,19 @@ func TrackedEnforcedValidationSetsForModel(st *state.State, model *asserts.Model
 		modelSets[ValidationSetKey(vs.AccountID, vs.Name)] = true
 	}
 
-	skipSet := func(key string) bool {
+	skip := func(key string) bool {
 		return !modelSets[key]
 	}
 
 	sets := snapasserts.NewValidationSets()
-	if err := trackedEnforcedValidationSets(st, skipSet, sets); err != nil {
+	if err := trackedEnforcedValidationSets(st, skip, sets); err != nil {
 		return nil, err
 	}
 
 	return sets, nil
 }
 
-func trackedEnforcedValidationSets(st *state.State, skipSet func(string) bool, sets *snapasserts.ValidationSets) error {
+func trackedEnforcedValidationSets(st *state.State, skip func(string) bool, sets *snapasserts.ValidationSets) error {
 	valsets, err := ValidationSets(st)
 	if err != nil {
 		return err
@@ -249,7 +249,7 @@ func trackedEnforcedValidationSets(st *state.State, skipSet func(string) bool, s
 			continue
 		}
 
-		if skipSet(ValidationSetKey(vs.AccountID, vs.Name)) {
+		if skip(ValidationSetKey(vs.AccountID, vs.Name)) {
 			continue
 		}
 
