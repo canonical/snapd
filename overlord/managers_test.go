@@ -5082,7 +5082,7 @@ func (s *mgrsSuiteCore) TestRemodelRequiredSnapsAdded(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	snapstatetest.InstallEssentialSnaps(c, st, "core", bloader)
+	snapstatetest.InstallEssentialSnaps(c, st, "core", nil, bloader)
 
 	// pretend we have an old required snap installed
 	si1 := &snap.SideInfo{RealName: "old-required-snap-1", Revision: snap.R(1)}
@@ -5189,7 +5189,7 @@ func (s *mgrsSuiteCore) TestRemodelRequiredSnapsAddedUndo(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	snapstatetest.InstallEssentialSnaps(c, st, "core", bloader)
+	snapstatetest.InstallEssentialSnaps(c, st, "core", nil, bloader)
 
 	// pretend we have an old required snap installed
 	si1 := &snap.SideInfo{RealName: "old-required-snap-1", Revision: snap.R(1)}
@@ -5316,7 +5316,7 @@ func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBase(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
@@ -5483,7 +5483,7 @@ func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBaseUndo(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
@@ -5650,13 +5650,13 @@ func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBaseUndoOnRollback(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
 	}, snapstatetest.InstallSnapOptions{Required: true})
 
-	snapstatetest.InstallSnap(c, st, "name: core18\nversion: 1\ntype: base\n", &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: core18\nversion: 1\ntype: base\n", nil, &snap.SideInfo{
 		SnapID:   fakeSnapID("core18"),
 		Revision: snap.R(1),
 		RealName: "core18",
@@ -6368,7 +6368,7 @@ func (s *mgrsSuiteCore) TestRemodelStoreSwitch(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	snapstatetest.InstallEssentialSnaps(c, st, "core", bloader)
+	snapstatetest.InstallEssentialSnaps(c, st, "core", nil, bloader)
 
 	s.checkDeviceAndAuthContext = func(dac store.DeviceAndAuthContext) {
 		// the DeviceAndAuthContext assumes state is unlocked
@@ -6472,13 +6472,13 @@ func (s *mgrsSuiteCore) TestRemodelSwitchGadgetTrack(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
 	}, snapstatetest.InstallSnapOptions{Required: true})
 
-	snapstatetest.InstallSnap(c, st, "name: core\nversion: 1\ntype: base\n", &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: core\nversion: 1\ntype: base\n", nil, &snap.SideInfo{
 		SnapID:   fakeSnapID("core"),
 		Revision: snap.R(1),
 		RealName: "core",
@@ -6603,7 +6603,7 @@ func (s *mgrsSuiteCore) TestRemodelSwitchToDifferentGadget(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
@@ -6767,7 +6767,7 @@ func (s *mgrsSuiteCore) TestRemodelSwitchToIncompatibleGadget(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", &snap.SideInfo{
+	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
@@ -6992,7 +6992,7 @@ func (s *mgrsSuiteCore) TestRemodelReregistration(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	snapstatetest.InstallEssentialSnaps(c, st, "core", bloader)
+	snapstatetest.InstallEssentialSnaps(c, st, "core", nil, bloader)
 
 	s.checkDeviceAndAuthContext = func(dac store.DeviceAndAuthContext) {
 		// the DeviceAndAuthContext assumes state is unlocked

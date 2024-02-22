@@ -1135,8 +1135,15 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		firstInstallInChain.WaitFor(lastDownloadInChain)
 	}
 
+	// hybrid core/classic systems might have a system-seed-null; in that case,
+	// we cannot create a recovery system
+	hasSystemSeed, err := checkForSystemSeed(st, deviceCtx)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find ubuntu seed role: %w", err)
+	}
+
 	recoverySetupTaskID := ""
-	if new.Grade() != asserts.ModelGradeUnset {
+	if new.Grade() != asserts.ModelGradeUnset && hasSystemSeed {
 		// create a recovery when remodeling to a UC20 system, actual
 		// policy for possible remodels has already been verified by the
 		// caller
@@ -1256,6 +1263,21 @@ func checkForInvalidSnapsInModel(model *asserts.Model, vSets *snapasserts.Valida
 	return nil
 }
 
+func checkForSystemSeed(st *state.State, deviceCtx snapstate.DeviceContext) (bool, error) {
+	// on non-classic systems, we will always have a seed partition. this check
+	// isn't needed, but it makes testing classic systems simpler.
+	if !deviceCtx.Classic() {
+		return true, nil
+	}
+
+	gadgetData, err := CurrentGadgetData(st, deviceCtx)
+	if err != nil {
+		return false, fmt.Errorf("cannot get gadget data: %w", err)
+	}
+
+	return gadgetData.Info.HasRole(gadget.SystemSeed), nil
+}
+
 // RemodelOptions are options for Remodel.
 type RemodelOptions struct {
 	// Offline is true if the remodel should be done without reaching out to the
@@ -1326,10 +1348,15 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 		return nil, fmt.Errorf("cannot remodel to different series yet")
 	}
 
-	// don't allow remodel on classic for now
-	if current.Classic() {
-		return nil, fmt.Errorf("cannot remodel from classic model")
+	devCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get device context: %v", err)
 	}
+
+	if devCtx.IsClassicBoot() {
+		return nil, fmt.Errorf("cannot remodel from classic (non-hybrid) model")
+	}
+
 	if current.Classic() != new.Classic() {
 		return nil, fmt.Errorf("cannot remodel across classic and non-classic models")
 	}

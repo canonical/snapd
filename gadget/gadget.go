@@ -128,6 +128,19 @@ type Info struct {
 	KernelCmdline KernelCmdline `yaml:"kernel-cmdline"`
 }
 
+// HasRole returns true if any of the volume structures in this Info has the
+// given role.
+func (i *Info) HasRole(role string) bool {
+	for _, v := range i.Volumes {
+		for _, s := range v.Structure {
+			if s.Role == role {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // PartialProperty is a gadget property that can be partially defined.
 type PartialProperty string
 
