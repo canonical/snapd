@@ -3,6 +3,10 @@ summary: Ensure that the system-files interface works.
 details: |
     The system-files interface allows access specific system files or directories.
 
+systems:
+  # This test cannot work on Ubuntu Core
+  - -ubuntu-core-*
+
 environment:
     # keep in sync with ./test-snapd-sh/meta/snap.yaml
     TESTDIR: /opt/ros/testdir

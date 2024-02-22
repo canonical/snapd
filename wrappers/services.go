@@ -81,10 +81,10 @@ var killWait = 5 * time.Second
 type ScopeOptions struct {
 	// Scope determines the types of services affected. This can be either
 	// or both of system services and user services.
-	Scope ServiceScope
+	Scope ServiceScope `json:"scope,omitempty"`
 	// Users if set, determines which users the operation should include, if
 	// the scope includes user services.
-	Users []string
+	Users []string `json:"users,omitempty"`
 }
 
 type userServiceClient struct {

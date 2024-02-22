@@ -175,7 +175,7 @@ jobs:
 
     - name: Get changed files
       id: changed-files
-      uses: tj-actions/changed-files@v34.5.1
+      uses: tj-actions/changed-files@v41.0.0
       with:
         path: ./src/github.com/snapcore/snapd
 

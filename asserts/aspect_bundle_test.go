@@ -45,6 +45,7 @@ const (
 authority-id: brand-id1
 account-id: brand-id1
 name: my-network
+summary: aspect-bundle description
 aspects:
   wifi-setup:
     rules:

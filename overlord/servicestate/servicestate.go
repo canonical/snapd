@@ -20,9 +20,11 @@
 package servicestate
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"os/user"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -42,12 +44,199 @@ import (
 	"github.com/snapcore/snapd/wrappers"
 )
 
+type UserSelection int
+
+const (
+	UserSelectionList UserSelection = iota
+	UserSelectionSelf
+	UserSelectionAll
+)
+
+// UserSelector is a support structure for correctly translating a way of
+// representing both a list of user-names, and specific keywords like "self"
+// and "all" for JSON marshalling.
+//
+// When "Selector == UserSelectionList" then Names is used as the data source and
+// the data is treated like a list of strings.
+// When "Selector == UserSelectionSelf|UserSelectionAll", then the data source will
+// be a single string that represent this in the form of "self|all".
+type UserSelector struct {
+	Names    []string
+	Selector UserSelection
+}
+
+// UserList returns a decoded list of users which takes any keyword into account.
+// Takes the current user to be able to handle special keywords like 'user'.
+func (us *UserSelector) UserList(currentUser *user.User) ([]string, error) {
+	switch us.Selector {
+	case UserSelectionList:
+		return us.Names, nil
+	case UserSelectionSelf:
+		if currentUser == nil {
+			return nil, fmt.Errorf(`internal error: for "self" the current user must be provided`)
+		}
+		if currentUser.Uid == "0" {
+			return nil, fmt.Errorf(`cannot use "self" for root user`)
+		}
+		return []string{currentUser.Username}, nil
+	case UserSelectionAll:
+		// Empty list indicates all.
+		return nil, nil
+	}
+	return nil, fmt.Errorf("internal error: unsupported selector %d specified", us.Selector)
+}
+
+func (us UserSelector) MarshalJSON() ([]byte, error) {
+	switch us.Selector {
+	case UserSelectionList:
+		return json.Marshal(us.Names)
+	case UserSelectionSelf:
+		return json.Marshal("self")
+	case UserSelectionAll:
+		return json.Marshal("all")
+	default:
+		return nil, fmt.Errorf("internal error: unsupported selector %d specified", us.Selector)
+	}
+}
+
+func (us *UserSelector) UnmarshalJSON(b []byte) error {
+	// Try treating it as a list of usernames first
+	var users []string
+	if err := json.Unmarshal(b, &users); err == nil {
+		us.Names = users
+		us.Selector = UserSelectionList
+		return nil
+	}
+
+	// Fallback to string, which would indicate a keyword
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return fmt.Errorf("cannot unmarshal, expected a string or a list of strings")
+	}
+
+	switch s {
+	case "self":
+		us.Selector = UserSelectionSelf
+	case "all":
+		us.Selector = UserSelectionAll
+	default:
+		return fmt.Errorf(`cannot unmarshal, expected one of: "self", "all"`)
+	}
+	return nil
+}
+
+type ScopeSelector []string
+
+func (ss *ScopeSelector) UnmarshalJSON(b []byte) error {
+	var scopes []string
+	if err := json.Unmarshal(b, &scopes); err != nil {
+		return fmt.Errorf("cannot unmarshal, expected a list of strings")
+	}
+
+	if len(scopes) > 2 {
+		return fmt.Errorf("unexpected number of scopes: %v", scopes)
+	}
+
+	for _, s := range scopes {
+		switch s {
+		case "system", "user":
+		default:
+			return fmt.Errorf(`cannot unmarshal, expected one of: "system", "user"`)
+		}
+	}
+	*ss = scopes
+	return nil
+}
+
 type Instruction struct {
-	Action string   `json:"action"`
-	Names  []string `json:"names"`
+	Action string        `json:"action"`
+	Names  []string      `json:"names"`
+	Scope  ScopeSelector `json:"scope"`
+	Users  UserSelector  `json:"users"`
 	client.StartOptions
 	client.StopOptions
 	client.RestartOptions
+}
+
+func (i *Instruction) ServiceScope() wrappers.ServiceScope {
+	var hasUser, hasSystem bool
+	for _, opt := range i.Scope {
+		switch opt {
+		case "user":
+			hasUser = true
+		case "system":
+			hasSystem = true
+		}
+	}
+	switch {
+	case hasSystem && !hasUser:
+		return wrappers.ServiceScopeSystem
+	case hasUser && !hasSystem:
+		return wrappers.ServiceScopeUser
+	default:
+		return wrappers.ServiceScopeAll
+	}
+}
+
+func (i *Instruction) hasUserService(apps []*snap.AppInfo) bool {
+	for _, app := range apps {
+		if app.IsService() && app.DaemonScope == snap.UserDaemon {
+			return true
+		}
+	}
+	return false
+}
+
+// EnsureDefaultScopeForUser sets up default scopes based on the type of user
+// if none were provided.
+// Make sure to call Instruction.Validate() before calling this.
+func (i *Instruction) EnsureDefaultScopeForUser(u *user.User) {
+	// Set default scopes if not provided
+	if len(i.Scope) == 0 {
+		// If root is making this request, implied scopes are all
+		if u.Uid == "0" {
+			i.Scope = ScopeSelector{"system", "user"}
+		} else {
+			// Otherwise imply the service scope only
+			i.Scope = ScopeSelector{"system"}
+		}
+	}
+}
+
+func (i *Instruction) validateScope(u *user.User, apps []*snap.AppInfo) error {
+	if len(i.Scope) == 0 {
+		// Providing no scope is only an issue for non-root users if the
+		// target is user-daemons.
+		if u.Uid != "0" && i.hasUserService(apps) {
+			return fmt.Errorf("non-root users must specify service scope when targeting user services")
+		}
+	}
+	return nil
+}
+
+func (i *Instruction) validateUsers(u *user.User, apps []*snap.AppInfo) error {
+	// Perform some additional user checks
+	if i.Users.Selector == UserSelectionList && len(i.Users.Names) == 0 {
+		// It is an error for a non-root to not specify any users if we are targeting
+		// user daemons
+		if u.Uid != "0" && i.hasUserService(apps) {
+			return fmt.Errorf("non-root users must specify users when targeting user services")
+		}
+	}
+	return nil
+}
+
+// Validate validates the some of the data members in the Instruction. Currently
+// this validates user-list and scope. This should only be called once when the structure
+// is initialized/deserialized.
+func (i *Instruction) Validate(u *user.User, apps []*snap.AppInfo) error {
+	if err := i.validateScope(u, apps); err != nil {
+		return err
+	}
+	if err := i.validateUsers(u, apps); err != nil {
+		return err
+	}
+	return nil
 }
 
 type ServiceActionConflictError struct{ error }
@@ -75,7 +264,7 @@ func computeExplicitServices(appInfos []*snap.AppInfo, names []string) map[strin
 }
 
 // serviceControlTs creates "service-control" task for every snap derived from appInfos.
-func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instruction) (*state.TaskSet, error) {
+func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, cu *user.User) (*state.TaskSet, error) {
 	servicesBySnap := make(map[string][]string, len(appInfos))
 	explicitServices := computeExplicitServices(appInfos, inst.Names)
 	sortedNames := make([]string, 0, len(appInfos))
@@ -101,7 +290,18 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 			return nil, err
 		}
 
-		cmd := &ServiceAction{SnapName: snapName}
+		users, err := inst.Users.UserList(cu)
+		if err != nil {
+			return nil, err
+		}
+
+		cmd := &ServiceAction{
+			SnapName: snapName,
+			ScopeOptions: wrappers.ScopeOptions{
+				Scope: inst.ServiceScope(),
+				Users: users,
+			},
+		}
 		switch {
 		case inst.Action == "start":
 			cmd.Action = "start"
@@ -167,7 +367,7 @@ type Flags struct {
 // The appInfos and inst define the services and the command to execute.
 // Context is used to determine change conflicts - we will not conflict with
 // tasks from same change as that of context's.
-func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, flags *Flags, context *hookstate.Context) ([]*state.TaskSet, error) {
+func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, cu *user.User, flags *Flags, context *hookstate.Context) ([]*state.TaskSet, error) {
 	var tts []*state.TaskSet
 	var ctlcmds []string
 
@@ -237,7 +437,7 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, flags
 
 	// XXX: serviceControlTs could be merged with above logic at the cost of
 	// slightly more complicated logic.
-	ts, err := serviceControlTs(st, appInfos, inst)
+	ts, err := serviceControlTs(st, appInfos, inst, cu)
 	if err != nil {
 		return nil, err
 	}
