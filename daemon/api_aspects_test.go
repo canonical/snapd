@@ -90,7 +90,7 @@ func (s *aspectsSuite) TestGetAspect(c *C) {
 		{name: "map", value: map[string]int{"foo": 123}},
 	} {
 		cmt := Commentf("%s test", t.name)
-		restore := daemon.MockAspectstateGet(func(_ *state.State, acc, bundleName, aspect string, fields []string) (map[string]interface{}, error) {
+		restore := daemon.MockAspectstateGet(func(_ *state.State, acc, bundleName, aspect string, fields []string) (interface{}, error) {
 			c.Check(acc, Equals, "system", cmt)
 			c.Check(bundleName, Equals, "network", cmt)
 			c.Check(aspect, Equals, "wifi-setup", cmt)
@@ -113,7 +113,7 @@ func (s *aspectsSuite) TestAspectGetMany(c *C) {
 	s.setFeatureFlag(c)
 
 	var calls int
-	restore := daemon.MockAspectstateGet(func(_ *state.State, _, _, _ string, _ []string) (map[string]interface{}, error) {
+	restore := daemon.MockAspectstateGet(func(_ *state.State, _, _, _ string, _ []string) (interface{}, error) {
 		calls++
 		switch calls {
 		case 1:
@@ -138,7 +138,7 @@ func (s *aspectsSuite) TestAspectGetSomeFieldNotFound(c *C) {
 	s.setFeatureFlag(c)
 
 	var calls int
-	restore := daemon.MockAspectstateGet(func(_ *state.State, acc, bundle, aspect string, _ []string) (map[string]interface{}, error) {
+	restore := daemon.MockAspectstateGet(func(_ *state.State, acc, bundle, aspect string, _ []string) (interface{}, error) {
 		calls++
 		switch calls {
 		case 1:
@@ -163,7 +163,7 @@ func (s *aspectsSuite) TestGetAspectNoFieldsFound(c *C) {
 	s.setFeatureFlag(c)
 
 	var calls int
-	restore := daemon.MockAspectstateGet(func(_ *state.State, _, _, _ string, fields []string) (map[string]interface{}, error) {
+	restore := daemon.MockAspectstateGet(func(_ *state.State, _, _, _ string, fields []string) (interface{}, error) {
 		calls++
 		switch calls {
 		case 1:
@@ -194,7 +194,7 @@ func (s *aspectsSuite) TestGetAspectNoFieldsFound(c *C) {
 func (s *aspectsSuite) TestAspectGetDatabagNotFound(c *C) {
 	s.setFeatureFlag(c)
 
-	restore := daemon.MockAspectstateGet(func(_ *state.State, _, _, _ string, _ []string) (map[string]interface{}, error) {
+	restore := daemon.MockAspectstateGet(func(_ *state.State, _, _, _ string, _ []string) (interface{}, error) {
 		return nil, &aspects.NotFoundError{Account: "foo", BundleName: "network", Aspect: "wifi-setup", Operation: "get", Requests: []string{"ssid"}, Cause: "mocked"}
 	})
 	defer restore()
@@ -308,7 +308,7 @@ func (s *aspectsSuite) TestGetAspectError(c *C) {
 		{name: "aspect not found", err: &aspects.NotFoundError{}, code: 404},
 		{name: "internal", err: errors.New("internal"), code: 500},
 	} {
-		restore := daemon.MockAspectstateGet(func(_ *state.State, _, _, _ string, _ []string) (map[string]interface{}, error) {
+		restore := daemon.MockAspectstateGet(func(_ *state.State, _, _, _ string, _ []string) (interface{}, error) {
 			return nil, t.err
 		})
 
@@ -325,7 +325,7 @@ func (s *aspectsSuite) TestGetAspectMisshapenQuery(c *C) {
 	s.setFeatureFlag(c)
 
 	var calls int
-	restore := daemon.MockAspectstateGet(func(_ *state.State, _, _, _ string, fields []string) (map[string]interface{}, error) {
+	restore := daemon.MockAspectstateGet(func(_ *state.State, _, _, _ string, fields []string) (interface{}, error) {
 		calls++
 		switch calls {
 		case 1:
@@ -502,7 +502,7 @@ func (s *aspectsSuite) TestSetAspectBadRequest(c *C) {
 func (s *aspectsSuite) TestGetBadRequest(c *C) {
 	s.setFeatureFlag(c)
 
-	restore := daemon.MockAspectstateGet(func(_ *state.State, acc, bundleName, aspect string, fields []string) (map[string]interface{}, error) {
+	restore := daemon.MockAspectstateGet(func(_ *state.State, acc, bundleName, aspect string, fields []string) (interface{}, error) {
 		return nil, &aspects.BadRequestError{
 			Account:    "acc",
 			BundleName: "bundle",
@@ -589,9 +589,9 @@ func (s *aspectsSuite) TestGetNoFields(c *C) {
 	s.setFeatureFlag(c)
 
 	value := map[string]interface{}{"foo": 1, "bar": "baz", "nested": map[string]interface{}{"a": []interface{}{1, 2}}}
-	restore := daemon.MockAspectstateGet(func(_ *state.State, _, _, _ string, fields []string) (map[string]interface{}, error) {
+	restore := daemon.MockAspectstateGet(func(_ *state.State, _, _, _ string, fields []string) (interface{}, error) {
 		c.Check(fields, IsNil)
-		return map[string]interface{}{"all": value}, nil
+		return value, nil
 	})
 	defer restore()
 

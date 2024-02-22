@@ -68,8 +68,9 @@ func SetAspect(st *state.State, account, bundleName, aspect string, requests map
 
 // GetAspect finds the aspect identified by the account, bundleName and aspect
 // and uses it to get the values for the specified fields. The results are
-// returned in a map of fields to their values.
-func GetAspect(st *state.State, account, bundleName, aspect string, fields []string) (map[string]interface{}, error) {
+// returned in a map of fields to their values, unless there are no fields in
+// which case the entire aspect is just returned as-is.
+func GetAspect(st *state.State, account, bundleName, aspect string, fields []string) (interface{}, error) {
 	bundleAssert, err := assertstate.AspectBundle(st, account, bundleName)
 	if err != nil {
 		return nil, err
@@ -99,7 +100,7 @@ func GetAspect(st *state.State, account, bundleName, aspect string, fields []str
 			return nil, err
 		}
 
-		return map[string]interface{}{"all": val}, nil
+		return val, nil
 	}
 
 	results := make(map[string]interface{}, len(fields))

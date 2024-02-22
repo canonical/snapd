@@ -192,7 +192,9 @@ func (s *aspectTestSuite) TestAspectstateSetWithExistingState(c *C) {
 
 	results, err := aspectstate.GetAspect(s.state, s.devAccID, "network", "wifi-setup", []string{"ssid"})
 	c.Assert(err, IsNil)
-	c.Assert(results["ssid"], Equals, "bar")
+	resultsMap, ok := results.(map[string]interface{})
+	c.Assert(ok, Equals, true)
+	c.Assert(resultsMap["ssid"], Equals, "bar")
 
 	err = aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "baz"})
 	c.Assert(err, IsNil)
@@ -263,12 +265,10 @@ func (s *aspectTestSuite) TestAspectstateGetEntireAspect(c *C) {
 	res, err := aspectstate.GetAspect(s.state, s.devAccID, "network", "wifi-setup", nil)
 	c.Assert(err, IsNil)
 	c.Assert(res, DeepEquals, map[string]interface{}{
-		"all": map[string]interface{}{
-			"ssids": []interface{}{"foo", "bar"},
-			"private": map[string]interface{}{
-				"a": float64(1),
-				"b": float64(2),
-			},
+		"ssids": []interface{}{"foo", "bar"},
+		"private": map[string]interface{}{
+			"a": float64(1),
+			"b": float64(2),
 		},
 	})
 }

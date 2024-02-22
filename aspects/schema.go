@@ -902,8 +902,7 @@ func (v *anySchema) parseConstraints(map[string]json.RawMessage) error {
 	return nil
 }
 
-// SchemaAt returns the "any" schema if the path terminates here and an error if
-// not.
+// SchemaAt returns the "any" schema.
 func (v *anySchema) SchemaAt([]string) ([]Schema, error) {
 	return []Schema{v}, nil
 }
