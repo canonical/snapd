@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -674,71 +673,6 @@ func (s *linkCleanupSuite) TestLinkCleansUpDataDirAndSymlinksOnSymlinkFail(c *C)
 	c.Check(filepath.Join(s.info.MountDir(), "..", "current"), testutil.FileAbsent)
 }
 
-func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCachesClassic(c *C) {
-	current := filepath.Join(s.info.MountDir(), "..", "current")
-
-	for _, dev := range []snap.Device{mockDev, mockClassicDev} {
-		var updateFontconfigCaches int
-		restore := backend.MockUpdateFontconfigCaches(func() error {
-			c.Assert(osutil.FileExists(current), Equals, false)
-			updateFontconfigCaches += 1
-			return nil
-		})
-		defer restore()
-
-		_, err := s.be.LinkSnap(s.info, dev, backend.LinkContext{}, s.perfTimings)
-		c.Assert(err, IsNil)
-		if dev.Classic() {
-			c.Assert(updateFontconfigCaches, Equals, 1)
-		} else {
-			c.Assert(updateFontconfigCaches, Equals, 0)
-		}
-		c.Assert(os.Remove(current), IsNil)
-	}
-}
-
-func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCachesCallsFromNewCurrent(c *C) {
-	const yaml = `name: core
-version: 1.0
-type: os
-`
-	// old version is 'current'
-	infoOld := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
-	mountDirOld := infoOld.MountDir()
-	err := os.Symlink(filepath.Base(mountDirOld), filepath.Join(mountDirOld, "..", "current"))
-	c.Assert(err, IsNil)
-
-	oldCmdV6 := testutil.MockCommand(c, filepath.Join(mountDirOld, "bin", "fc-cache-v6"), "")
-	oldCmdV7 := testutil.MockCommand(c, filepath.Join(mountDirOld, "bin", "fc-cache-v7"), "")
-
-	infoNew := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(12)})
-	mountDirNew := infoNew.MountDir()
-
-	newCmdV6 := testutil.MockCommand(c, filepath.Join(mountDirNew, "bin", "fc-cache-v6"), "")
-	newCmdV7 := testutil.MockCommand(c, filepath.Join(mountDirNew, "bin", "fc-cache-v7"), "")
-
-	// provide our own mock, osutil.CommandFromCore expects an ELF binary
-	restore := backend.MockCommandFromSystemSnap(func(name string, args ...string) (*exec.Cmd, error) {
-		cmd := filepath.Join(dirs.SnapMountDir, "core", "current", name)
-		c.Logf("command from core: %v", cmd)
-		return exec.Command(cmd, args...), nil
-	})
-	defer restore()
-
-	_, err = s.be.LinkSnap(infoNew, mockClassicDev, backend.LinkContext{}, s.perfTimings)
-	c.Assert(err, IsNil)
-
-	c.Check(oldCmdV6.Calls(), HasLen, 0)
-	c.Check(oldCmdV7.Calls(), HasLen, 0)
-
-	c.Check(newCmdV6.Calls(), DeepEquals, [][]string{
-		{"fc-cache-v6", "--system-only"},
-	})
-	c.Check(newCmdV7.Calls(), DeepEquals, [][]string{
-		{"fc-cache-v7", "--system-only"},
-	})
-}
-
 func (s *linkCleanupSuite) testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c *C, firstInstall bool) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
@@ -830,7 +764,7 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	c.Assert(err, IsNil)
 
 	info, snapdUnits := mockSnapdSnapForLink(c)
-	// all generated untis
+	// all generated units
 	generatedSnapdUnits := append(snapdUnits,
 		[]string{"usr-lib-snapd.mount", "mount unit"})
 
@@ -848,7 +782,7 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	// validity checks
 	c.Check(filepath.Join(dirs.SnapServicesDir, "snapd.service"), testutil.FileContains,
 		fmt.Sprintf("[Service]\nExecStart=%s/usr/lib/snapd/snapd\n", info.MountDir()))
-	// expecting all generated untis to be present
+	// expecting all generated units to be present
 	for _, entry := range generatedSnapdUnits {
 		c.Check(toEtcUnitPath(entry[0]), testutil.FilePresent)
 	}

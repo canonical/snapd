@@ -5108,3 +5108,58 @@ func (s *assertMgrSuite) TestValidationSetsFromModelConflict(c *C) {
 	}, s.trivialDeviceCtx)
 	c.Check(err, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})
 }
+
+func (s *assertMgrSuite) aspectBundle(c *C, name string, extraHeaders map[string]interface{}) *asserts.AspectBundle {
+	headers := map[string]interface{}{
+		"series":       "16",
+		"account-id":   s.dev1AcctKey.AccountID(),
+		"authority-id": s.dev1AcctKey.AccountID(),
+		"name":         name,
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	for h, v := range extraHeaders {
+		headers[h] = v
+	}
+
+	as, err := s.dev1Signing.Sign(asserts.AspectBundleType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	return as.(*asserts.AspectBundle)
+}
+
+func (s *assertMgrSuite) TestAspectBundle(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1AcctKey)
+	c.Assert(err, IsNil)
+
+	aspectBundleFoo := s.aspectBundle(c, "foo", map[string]interface{}{
+		"storage": `{"schema": { "a": "any"}}`,
+		"aspects": map[string]interface{}{
+			"an-aspect": map[string]interface{}{
+				"rules": []interface{}{
+					map[string]interface{}{"request": "a", "storage": "a"},
+					map[string]interface{}{"request": "b", "storage": "b"},
+				},
+			},
+		},
+	})
+	err = assertstate.Add(s.state, aspectBundleFoo)
+	c.Assert(err, IsNil)
+
+	_, err = assertstate.AspectBundle(s.state, "no-account", "foo")
+	c.Assert(err, testutil.ErrorIs, &asserts.NotFoundError{})
+
+	bundleAs, err := assertstate.AspectBundle(s.state, s.dev1AcctKey.AccountID(), "foo")
+	c.Assert(err, IsNil)
+
+	bundle := bundleAs.Bundle()
+	c.Check(bundle.Account, Equals, s.dev1AcctKey.AccountID())
+	c.Check(bundle.Name, Equals, "foo")
+	c.Check(bundle.Schema, NotNil)
+}

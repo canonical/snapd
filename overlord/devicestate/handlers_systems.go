@@ -40,7 +40,6 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -281,11 +280,6 @@ func (m *DeviceManager) doRemoveRecoverySystem(t *state.Task, _ *tomb.Tomb) erro
 }
 
 func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err error) {
-	if release.OnClassic {
-		// TODO: this may need to be lifted in the future
-		return fmt.Errorf("cannot create recovery systems on a classic system")
-	}
-
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -294,6 +288,11 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 	if err != nil {
 		return err
 	}
+
+	if !remodelCtx.IsCoreBoot() {
+		return fmt.Errorf("cannot create recovery systems on a classic (non-hybrid) system")
+	}
+
 	model := remodelCtx.Model()
 	isRemodel := remodelCtx.ForRemodeling()
 
@@ -479,11 +478,6 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 }
 
 func (m *DeviceManager) undoCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) error {
-	if release.OnClassic {
-		// TODO: this may need to be lifted in the future
-		return fmt.Errorf("internal error: cannot create recovery systems on a classic system")
-	}
-
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -491,6 +485,10 @@ func (m *DeviceManager) undoCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) er
 	remodelCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
 		return err
+	}
+
+	if !remodelCtx.IsCoreBoot() {
+		return fmt.Errorf("cannot create recovery systems on a classic (non-hybrid) system")
 	}
 
 	setup, err := taskRecoverySystemSetup(t)
@@ -531,11 +529,6 @@ func (m *DeviceManager) undoCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) er
 }
 
 func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tomb) error {
-	if release.OnClassic {
-		// TODO: this may need to be lifted in the future
-		return fmt.Errorf("internal error: cannot finalize recovery systems on a classic system")
-	}
-
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()

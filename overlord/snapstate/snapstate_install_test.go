@@ -96,8 +96,11 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 			"run-hook[pre-refresh]",
 			"stop-snap-services",
 			"remove-aliases",
-			"unlink-current-snap",
 		)
+		expected = append(expected, "unlink-current-snap")
+	}
+	if opts&updatesGadgetAssets != 0 && opts&hasModeenv != 0 {
+		expected = append(expected, "setup-kernel-snap")
 	}
 	if opts&(updatesGadget|updatesGadgetAssets) != 0 {
 		expected = append(expected, "update-gadget-assets")
@@ -109,7 +112,11 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 		"copy-snap-data",
 		"setup-profiles",
 		"link-snap",
-		"auto-connect",
+		"auto-connect")
+	if opts&updatesGadgetAssets != 0 && opts&hasModeenv != 0 {
+		expected = append(expected, "remove-old-kernel-snap-setup")
+	}
+	expected = append(expected,
 		"set-auto-aliases",
 		"setup-aliases")
 	if opts&preferInstalled != 0 {
@@ -769,7 +776,7 @@ func (s *snapmgrTestSuite) TestGadgetInstallConflict(c *C) {
 
 	_, err := snapstate.Install(context.Background(), s.state, "brand-gadget",
 		nil, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "boot config is being updated, no change in kernel commnd line is allowed meanwhile")
+	c.Assert(err, ErrorMatches, "boot config is being updated, no change in kernel command line is allowed meanwhile")
 }
 
 func (s *snapmgrTestSuite) TestInstallNoRestartBoundaries(c *C) {
@@ -3006,7 +3013,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreConflictingInstall(c *C) {
 	s.se.Ensure()
 	s.se.Wait()
 
-	// change is not ready yet, because the prerequists triggered
+	// change is not ready yet, because the prerequisites triggered
 	// a state.Retry{} because of the conflicting change
 	c.Assert(chg.IsReady(), Equals, false)
 
@@ -3457,7 +3464,7 @@ func (s *snapmgrTestSuite) TestInstallUserDaemonsChecksFeatureFlag(c *C) {
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.user-daemons' to true")
 }
 
-func (s *snapmgrTestSuite) TestInstallUserDaemonsUsupportedOnTrusty(c *C) {
+func (s *snapmgrTestSuite) TestInstallUserDaemonsUnsupportedOnTrusty(c *C) {
 	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
 	defer restore()
 	s.state.Lock()

@@ -1,0 +1,47 @@
+{
+    "type": "model",
+    "series": "16",
+    "authority-id": "test-snapd",
+    "brand-id": "test-snapd",
+    "model": "ubuntu-core-22-pc-amd64",
+    "architecture": "amd64",
+    "timestamp": "2023-11-09T07:50:10+00:00",
+    "base": "core22",
+    "grade": "dangerous",
+    "classic": "true",
+    "distribution": "ubuntu",
+    "revision": "1",
+    "serial-authority": [
+        "generic"
+    ],
+    "snaps": [
+        {
+            "name": "pc",
+            "type": "gadget",
+            "default-channel": "22/edge"
+        },
+        {
+            "name": "pc-kernel",
+            "type": "kernel",
+            "default-channel": "22-hwe/stable"
+        },
+        {
+            "name": "core22",
+            "type": "base",
+            "default-channel": "latest/stable",
+            "id": "amcUKQILKXHHTlmSa7NMdnXSx02dNeeT"
+        },
+        {
+            "name": "snapd",
+            "type": "snapd",
+            "default-channel": "latest/edge",
+            "id": "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
+        },
+        {
+            "default-channel": "latest/edge",
+            "id": "vFTrGWyktbEDwuYJjdsZykV270mqcNz8",
+            "name": "jq-core22",
+            "type": "app"
+        }
+    ]
+}

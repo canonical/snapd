@@ -531,6 +531,22 @@ func (snapst *SnapState) InstanceName() string {
 	return snap.InstanceName(cur.RealName, snapst.InstanceKey)
 }
 
+// RefreshInhibitProceedTime is the time after which a pending refresh is forced
+// for a running snap in the next auto-refresh. Zero time indicates that there
+// are no pending refreshes.
+//
+// The provided state must be locked by the caller.
+func (snapst *SnapState) RefreshInhibitProceedTime(st *state.State) time.Time {
+	if snapst.RefreshInhibitedTime == nil {
+		// Zero time, no pending refreshes.
+		return time.Time{}
+	}
+	// TODO: state is needed for when configurable max inhibition
+	// is introduced (i.e. "core.refresh.max-inhibition-days").
+	proceedTime := snapst.RefreshInhibitedTime.Add(maxInhibition)
+	return proceedTime
+}
+
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
 	for _, si := range snapst.Sequence.SideInfos() {
 		if si.Revision == needle {
@@ -623,6 +639,10 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("toggle-snap-flags", m.doToggleSnapFlags, nil)
 	runner.AddHandler("check-rerefresh", m.doCheckReRefresh, nil)
 	runner.AddHandler("conditional-auto-refresh", m.doConditionalAutoRefresh, nil)
+
+	// specific set-up for the kernel snap
+	runner.AddHandler("setup-kernel-snap", m.doSetupKernelSnap, m.undoSetupKernelSnap)
+	runner.AddHandler("remove-old-kernel-snap-setup", m.doCleanupOldKernelSnap, m.undoCleanupOldKernelSnap)
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
@@ -964,9 +984,23 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 		return nil
 	}
 
+	// Wait for the system to be seeded before transtioning
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil {
+		if !errors.Is(err, state.ErrNoState) {
+			// already seeded or other error
+			return err
+		}
+		return nil
+	}
+	if !seeded {
+		return nil
+	}
+
 	// check if snapd snap is installed
 	var snapst SnapState
-	err := Get(m.state, "snapd", &snapst)
+	err = Get(m.state, "snapd", &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -1058,6 +1092,20 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	}
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
+	}
+
+	// Wait for the system to be seeded before transtioning
+	var seeded bool
+	err = m.state.Get("seeded", &seeded)
+	if err != nil {
+		if !errors.Is(err, state.ErrNoState) {
+			// already seeded or other error
+			return err
+		}
+		return nil
+	}
+	if !seeded {
+		return nil
 	}
 
 	// check that there is no change in flight already, this is a

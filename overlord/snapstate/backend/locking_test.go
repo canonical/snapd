@@ -43,7 +43,7 @@ func (s *lockingSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 }
 
-func (s *lockingSuite) TestRunInhibitSnapForUnlinkPositiveDescision(c *C) {
+func (s *lockingSuite) TestRunInhibitSnapForUnlinkPositiveDecision(c *C) {
 	const yaml = `name: snap-name
 version: 1
 `

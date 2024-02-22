@@ -2,6 +2,11 @@ name: test-snapd-sh
 summary: A no-strings-attached, no-fuss shell for writing tests
 version: 1.0
 
+plugs:
+    opt-ros:  
+        interface: ros-opt-data
+
 apps:
-    cmd:
+    app-with-opt-ros-plug:
         command: bin/sh
+        plugs: [opt-ros]

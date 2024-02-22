@@ -1,0 +1,19 @@
+{
+	"type": "aspect-bundle",
+	"account-id": "developer1",
+	"authority-id": "developer1",
+	"name": "network",
+	"aspects": {
+		"wifi-setup": {
+			"rules": [
+				{"request": "ssids", "storage": "wifi.ssids"},
+				{"request": "ssid", "storage": "wifi.ssid", "access": "read-write"},
+				{"request": "password", "storage": "wifi.psk", "access": "write"},
+				{"request": "status", "storage": "wifi.status", "access": "read"},
+				{"request": "private.{placeholder}", "storage": "wifi.{placeholder}"}
+			]
+		}
+	},
+	"storage": "{ \"schema\": { \"wifi\" : { \"values\": \"any\" } } }",
+	"timestamp": "2024-02-09T17:11:32Z"
+}

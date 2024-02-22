@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -112,13 +111,13 @@ type PlaceInfo interface {
 	// UserXdgRuntimeDir returns the per user XDG_RUNTIME_DIR directory
 	UserXdgRuntimeDir(userID sys.UserID) string
 
-	// DataHomeDir returns a glob that matches all per user data directories
+	// DataHomeDirs returns a slice of globs that match all per user data directories
 	// of a snap.
-	DataHomeDir(opts *dirs.SnapDirOptions) string
+	DataHomeDirs(opts *dirs.SnapDirOptions) []string
 
-	// CommonDataHomeDir returns a glob that matches all per user data
+	// CommonDataHomeDirs returns a slice of globs that match all per user data
 	// directories common across revisions of the snap.
-	CommonDataHomeDir(opts *dirs.SnapDirOptions) string
+	CommonDataHomeDirs(opts *dirs.SnapDirOptions) []string
 
 	// XdgRuntimeDirs returns a glob that matches all XDG_RUNTIME_DIR
 	// directories for all users of the snap.
@@ -694,28 +693,24 @@ func (s *Info) CommonDataSaveDir() string {
 	return CommonDataSaveDir(s.InstanceName())
 }
 
-// DataHomeGlob returns the globbing expression for the snap directories in use
-func DataHomeGlob(opts *dirs.SnapDirOptions) string {
-	if opts == nil {
-		opts = &dirs.SnapDirOptions{}
+// DataHomeDirs returns the per user data directories of the snap across multiple
+// home directories.
+func (s *Info) DataHomeDirs(opts *dirs.SnapDirOptions) []string {
+	var dataHomeGlob []string
+	for _, glob := range dirs.DataHomeGlobs(opts) {
+		dataHomeGlob = append(dataHomeGlob, filepath.Join(glob, s.InstanceName(), s.Revision.String()))
 	}
-
-	if opts.HiddenSnapDataDir {
-		return dirs.HiddenSnapDataHomeGlob
-	}
-
-	return dirs.SnapDataHomeGlob
+	return dataHomeGlob
 }
 
-// DataHomeDir returns the per user data directory of the snap.
-func (s *Info) DataHomeDir(opts *dirs.SnapDirOptions) string {
-	return filepath.Join(DataHomeGlob(opts), s.InstanceName(), s.Revision.String())
-}
-
-// CommonDataHomeDir returns the per user data directory common across revisions
-// of the snap.
-func (s *Info) CommonDataHomeDir(opts *dirs.SnapDirOptions) string {
-	return filepath.Join(DataHomeGlob(opts), s.InstanceName(), "common")
+// CommonDataHomeDirs returns the per user data directories common across revisions
+// of the snap in all defined home directories.
+func (s *Info) CommonDataHomeDirs(opts *dirs.SnapDirOptions) []string {
+	var comDataHomeGlob []string
+	for _, glob := range dirs.DataHomeGlobs(opts) {
+		comDataHomeGlob = append(comDataHomeGlob, filepath.Join(glob, s.InstanceName(), "common"))
+	}
+	return comDataHomeGlob
 }
 
 // UserXdgRuntimeDir returns the XDG_RUNTIME_DIR directory of the snap for a
@@ -800,6 +795,70 @@ func (s *Info) IsActive() bool {
 	cur := filepath.Join(dir, "current")
 	tag, err := os.Readlink(cur)
 	return err == nil && tag == rev
+}
+
+// AppsForPlug returns the list of apps that are associated with the given plug.
+// If the plug is unscoped, then all apps are returned.
+// TODO: implement this without using the Apps field in PlugInfo
+func (s *Info) AppsForPlug(plug *PlugInfo) []*AppInfo {
+	apps := make([]*AppInfo, 0, len(plug.Apps))
+	for _, app := range plug.Apps {
+		apps = append(apps, app)
+	}
+	return apps
+}
+
+// AppsForSlot returns the list of apps that are associated with the given slot.
+// If the slot is unscoped, then all apps are returned.
+// TODO: implement this without using the Apps field in SlotInfo
+func (s *Info) AppsForSlot(slot *SlotInfo) []*AppInfo {
+	apps := make([]*AppInfo, 0, len(slot.Apps))
+	for _, app := range slot.Apps {
+		apps = append(apps, app)
+	}
+	return apps
+}
+
+// HooksForPlug returns the list of hooks that are associated with the given
+// plug. If the plug is unscoped, then all hooks are returned.
+func (s *Info) HooksForPlug(plug *PlugInfo) []*HookInfo {
+	if plug.Unscoped {
+		hooks := make([]*HookInfo, 0, len(s.Hooks))
+		for _, hook := range s.Hooks {
+			hooks = append(hooks, hook)
+		}
+		return hooks
+	}
+
+	var hooks []*HookInfo
+	for _, hook := range s.Hooks {
+		if _, ok := hook.Plugs[plug.Name]; ok {
+			hooks = append(hooks, hook)
+		}
+	}
+
+	return hooks
+}
+
+// HooksForSlot returns the list of hooks that are associated with the given
+// slot. If the slot is unscoped, then all hooks are returned.
+func (s *Info) HooksForSlot(slot *SlotInfo) []*HookInfo {
+	if slot.Unscoped {
+		hooks := make([]*HookInfo, 0, len(s.Hooks))
+		for _, hook := range s.Hooks {
+			hooks = append(hooks, hook)
+		}
+		return hooks
+	}
+
+	var hooks []*HookInfo
+	for _, hook := range s.Hooks {
+		if _, ok := hook.Slots[slot.Name]; ok {
+			hooks = append(hooks, hook)
+		}
+	}
+
+	return hooks
 }
 
 // BadInterfacesSummary returns a summary of the problems of bad plugs
@@ -897,7 +956,11 @@ type PlugInfo struct {
 	Attrs     map[string]interface{}
 	Label     string
 	Apps      map[string]*AppInfo
-	Hooks     map[string]*HookInfo
+
+	// Unscoped is true if the plug is declared at the top-level of the
+	// snap.yaml file, and it is not specifically referenced by any apps or
+	// hooks. Unscoped plugs are attached to all apps and hooks in the snap.
+	Unscoped bool
 }
 
 func lookupAttr(attrs map[string]interface{}, path string) (interface{}, bool) {
@@ -938,19 +1001,6 @@ func (plug *PlugInfo) Lookup(key string) (interface{}, bool) {
 	return lookupAttr(plug.Attrs, key)
 }
 
-// SecurityTags returns security tags associated with a given plug.
-func (plug *PlugInfo) SecurityTags() []string {
-	tags := make([]string, 0, len(plug.Apps)+len(plug.Hooks))
-	for _, app := range plug.Apps {
-		tags = append(tags, app.SecurityTag())
-	}
-	for _, hook := range plug.Hooks {
-		tags = append(tags, hook.SecurityTag())
-	}
-	sort.Strings(tags)
-	return tags
-}
-
 // String returns the representation of the plug as snap:plug string.
 func (plug *PlugInfo) String() string {
 	return fmt.Sprintf("%s:%s", plug.Snap.InstanceName(), plug.Name)
@@ -962,19 +1012,6 @@ func (slot *SlotInfo) Attr(key string, val interface{}) error {
 
 func (slot *SlotInfo) Lookup(key string) (interface{}, bool) {
 	return lookupAttr(slot.Attrs, key)
-}
-
-// SecurityTags returns security tags associated with a given slot.
-func (slot *SlotInfo) SecurityTags() []string {
-	tags := make([]string, 0, len(slot.Apps))
-	for _, app := range slot.Apps {
-		tags = append(tags, app.SecurityTag())
-	}
-	for _, hook := range slot.Hooks {
-		tags = append(tags, hook.SecurityTag())
-	}
-	sort.Strings(tags)
-	return tags
 }
 
 // String returns the representation of the slot as snap:slot string.
@@ -1027,7 +1064,11 @@ type SlotInfo struct {
 	Attrs     map[string]interface{}
 	Label     string
 	Apps      map[string]*AppInfo
-	Hooks     map[string]*HookInfo
+
+	// Unscoped is true if the slot is declared at the top-level of the
+	// snap.yaml file, and it is not specifically referenced by any apps or
+	// hooks. Unscoped slots are attached to all apps and hooks in the snap.
+	Unscoped bool
 
 	// HotplugKey is a unique key built by the slot's interface
 	// using properties of a hotplugged device so that the same
@@ -1397,7 +1438,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 // snap given the mound point, mount file, and side info.
 func ReadInfoFromMountPoint(name, mountPoint, mountFile string, si *SideInfo) (*Info, error) {
 	snapYamlFn := filepath.Join(mountPoint, "meta", "snap.yaml")
-	meta, err := ioutil.ReadFile(snapYamlFn)
+	meta, err := os.ReadFile(snapYamlFn)
 	if os.IsNotExist(err) {
 		return nil, &NotFoundError{Snap: name, Revision: si.Revision, Path: snapYamlFn}
 	}

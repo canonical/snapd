@@ -142,6 +142,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	snowflakes := map[string]bool{
 		"content":            true,
 		"core-support":       true,
+		"desktop":            true,
 		"home":               true,
 		"lxd-support":        true,
 		"microstack-support": true,
@@ -149,6 +150,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"packagekit-control": true,
 		"pkcs11":             true,
 		"snapd-control":      true,
+		"upower-observe":     true,
 		"empty":              true,
 	}
 
@@ -156,7 +158,6 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	autoconnect := map[string]bool{
 		"audio-playback":          true,
 		"browser-support":         true,
-		"desktop":                 true,
 		"desktop-legacy":          true,
 		"gsettings":               true,
 		"media-hub":               true,
@@ -167,6 +168,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"online-accounts-service": true,
 		"opengl":                  true,
 		"optical-drive":           true,
+		"ros-opt-data":            true,
 		"screen-inhibit-control":  true,
 		"ubuntu-download-manager": true,
 		"unity7":                  true,
@@ -199,6 +201,7 @@ func (s *baseDeclSuite) TestAutoConnectionImplicitSlotOnly(c *C) {
 
 	// these auto-connect only with an implicit slot
 	autoconnect := map[string]bool{
+		"desktop":        true,
 		"upower-observe": true,
 	}
 
@@ -1081,6 +1084,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"content":                   true,
 		"cups":                      true,
 		"custom-device":             true,
+		"desktop":                   true,
 		"docker":                    true,
 		"fwupd":                     true,
 		"location-control":          true,
@@ -1124,6 +1128,7 @@ func (s *baseDeclSuite) TestConnectionImplicitSlotOnly(c *C) {
 
 	// these allow connect only with an implicit slot
 	autoconnect := map[string]bool{
+		"desktop":             true,
 		"qualcomm-ipc-router": true,
 		"upower-observe":      true,
 	}

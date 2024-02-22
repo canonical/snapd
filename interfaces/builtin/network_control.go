@@ -233,8 +233,7 @@ capability setuid,
 
 # resolvconf
 /{,usr/}sbin/resolvconf ixr,
-/run/resolvconf/{,**} rk,
-/run/resolvconf/** w,
+/run/resolvconf/{,**} rwk,
 /etc/resolvconf/{,**} r,
 /{,usr/}lib/resolvconf/* ix,
 # Required by resolvconf

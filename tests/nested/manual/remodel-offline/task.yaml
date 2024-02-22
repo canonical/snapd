@@ -79,6 +79,11 @@ execute: |
   # install/download app required for the new model
   if [ "${USE_INSTALLED_APP}" = 'true' ]; then
       remote.exec "snap install --revision=28 hello-world"
+
+      # refresh to the latest revision to make sure that remodeling will look
+      # for previously installed revisions when doing an offline remodel
+      remote.exec "snap refresh hello-world"
+      remote.exec "snap list hello-world" | awk 'NR != 1 { print $3 }' | NOMATCH 28
   else
       remote.exec "snap download --revision=28 --basename=hello-world hello-world"
       remodel_options="$remodel_options --snap hello-world.snap --assertion hello-world.assert"
@@ -93,10 +98,12 @@ execute: |
       remote.exec "snap refresh --revision=148 pc"
 
       # --no-wait here, since this should trigger a reboot
-      remote.exec "snap refresh --no-wait --channel=22/stable pc-kernel"
+      KERNEL_CHG_ID=$(remote.exec "snap refresh --no-wait --channel=22/stable pc-kernel")
 
       remote.wait-for reboot "$boot_id"
       boot_id="$(tests.nested boot-id)"
+      # Wait for the change to finish
+      remote.exec sudo snap watch "$KERNEL_CHG_ID"
   else
       remote.exec "snap download --revision=148 --basename=pc pc"
       remodel_options="$remodel_options --snap pc.snap --assertion pc.assert"

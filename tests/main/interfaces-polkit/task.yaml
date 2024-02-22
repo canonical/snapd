@@ -1,6 +1,10 @@
 summary: Ensure that the polkit interface works.
 
-systems: [-ubuntu-core-*]
+details: |
+  Verify polkit interface.
+
+# amazon-linux-2023: polkit not installed by default
+systems: [-ubuntu-core-*, -amazon-linux-2023-*]
 
 prepare: |
     if ! tests.session has-session-systemd-and-dbus; then

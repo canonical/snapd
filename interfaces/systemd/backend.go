@@ -65,7 +65,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	// Record all the extra systemd services for this snap.
 	snapName := snapInfo.InstanceName()
 	// Get the services that apply to this snap
-	spec, err := repo.SnapSpecification(b.Name(), snapName)
+	spec, err := repo.SnapSpecification(b.Name(), snapInfo)
 	if err != nil {
 		return fmt.Errorf("cannot obtain systemd services for snap %q: %s", snapName, err)
 	}
@@ -155,7 +155,7 @@ func (b *Backend) Remove(snapName string) error {
 }
 
 // NewSpecification returns a new systemd specification.
-func (b *Backend) NewSpecification() interfaces.Specification {
+func (b *Backend) NewSpecification(*interfaces.SnapAppSet) interfaces.Specification {
 	return &Specification{}
 }
 

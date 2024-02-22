@@ -79,7 +79,7 @@ func (s *systemBackupInterfaceSuite) TestAppArmorSpec(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `capability dac_read_search,`)

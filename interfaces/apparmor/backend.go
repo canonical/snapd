@@ -346,7 +346,7 @@ type profilePathsResults struct {
 
 func (b *Backend) prepareProfiles(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) (prof *profilePathsResults, err error) {
 	snapName := snapInfo.InstanceName()
-	spec, err := repo.SnapSpecification(b.Name(), snapName)
+	spec, err := repo.SnapSpecification(b.Name(), snapInfo)
 	if err != nil {
 		return nil, fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
 	}
@@ -846,7 +846,7 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 		case "###FLAGS###":
 			// default flags
 			flags := []string{"attach_disconnected", "mediate_deleted"}
-			if spec.Unconfined() {
+			if spec.Unconfined() == UnconfinedEnabled {
 				// need both parser and kernel support for unconfined
 				pfeatures, _ := parserFeatures()
 				kfeatures, _ := kernelFeatures()
@@ -959,8 +959,8 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 }
 
 // NewSpecification returns a new, empty apparmor specification.
-func (b *Backend) NewSpecification() interfaces.Specification {
-	return &Specification{}
+func (b *Backend) NewSpecification(appSet *interfaces.SnapAppSet) interfaces.Specification {
+	return &Specification{appSet: appSet}
 }
 
 // SandboxFeatures returns the list of apparmor features supported by the kernel.

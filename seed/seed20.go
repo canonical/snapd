@@ -120,7 +120,7 @@ func (s *seed20) Copy(seedDir string, label string, tm timings.Measurer) (err er
 		return err
 	}
 
-	span := tm.StartSpan("copy-seed20", fmt.Sprintf("copy seed20 from %s to %s", srcSystemDir, destSystemDir))
+	span := tm.StartSpan("copy-recovery-system", fmt.Sprintf("copy recovery system from %s to %s", srcSystemDir, destSystemDir))
 	defer span.Stop()
 
 	// copy all files (including unasserted snaps) from the seed to the

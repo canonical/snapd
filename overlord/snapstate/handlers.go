@@ -1333,12 +1333,57 @@ const (
 	unlinkReasonHomeMigration unlinkReason = "home-migration"
 )
 
+// restoreUnlinkOnError assumes that state is locked.
+func (m *SnapManager) restoreUnlinkOnError(t *state.Task, info *snap.Info, tm timings.Measurer) error {
+	st := t.State()
+
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return err
+	}
+
+	opts, err := SnapServiceOptions(st, info, nil)
+	if err != nil {
+		return err
+	}
+	linkCtx := backend.LinkContext{
+		FirstInstall:   false,
+		IsUndo:         true,
+		ServiceOptions: opts,
+	}
+	_, err = m.backend.LinkSnap(info, deviceCtx, linkCtx, tm)
+	return err
+}
+
+func onRefreshInhibitionTimeout(chg *state.Change, snapName string) error {
+	var data map[string]interface{}
+	err := chg.Get("api-data", &data)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if len(data) == 0 {
+		data = make(map[string]interface{})
+	}
+
+	cur, _ := data["refresh-forced"].([]interface{})
+	cur = append(cur, snapName)
+	data["refresh-forced"] = cur
+
+	chg.Set("api-data", data)
+
+	// TODO: record a change-update notice here
+	return nil
+}
+
 func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// called only during refresh when a new revision of a snap is being
 	// installed
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
 
 	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
@@ -1362,7 +1407,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 		// held to prevent snap-run from advancing until UnlinkSnap, executed
 		// below, completes.
 		// XXX: should we skip it if type is snap.TypeSnapd?
-		lock, err := hardEnsureNothingRunningDuringRefresh(m.backend, st, snapst, snapsup, oldInfo)
+		inhibitionTimeout, lock, err := hardEnsureNothingRunningDuringRefresh(m.backend, st, snapst, snapsup, oldInfo)
 		if err != nil {
 			var busyErr *timedBusySnapError
 			if errors.As(err, &busyErr) {
@@ -1374,6 +1419,11 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 			}
 
 			return err
+		}
+		if inhibitionTimeout {
+			if err := onRefreshInhibitionTimeout(t.Change(), snapsup.InstanceName()); err != nil {
+				return err
+			}
 		}
 
 		defer lock.Close()
@@ -1404,6 +1454,9 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 		}
 		err = m.backend.UnlinkSnap(oldInfo, linkCtx, NewTaskProgressAdapterLocked(t))
 		if err != nil {
+			if relinkErr := m.restoreUnlinkOnError(t, oldInfo, perfTimings); relinkErr != nil {
+				t.Errorf("cannot restore unlinked snap: %v", relinkErr)
+			}
 			return err
 		}
 	}
@@ -1520,7 +1573,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	// undo migration-related state changes (set in doLinkSnap). The respective
 	// file migrations are undone either above or in undoCopySnapData. State
 	// should only be set in tasks that link the snap for safety and consistency.
-	setMigrationFlagsinState(snapst, snapsup)
+	setMigrationFlagsInState(snapst, snapsup)
 
 	if err := writeMigrationStatus(t, snapst, snapsup); err != nil {
 		return err
@@ -2089,7 +2142,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// don't keep the old state because, if we fail, we may or may not be able to
 	// revert the migration. We set the migration status after undoing any
 	// migration related ops
-	setMigrationFlagsinState(snapst, snapsup)
+	setMigrationFlagsInState(snapst, snapsup)
 
 	newInfo, err := readInfo(snapsup.InstanceName(), cand.Snap, 0)
 	if err != nil {
@@ -2336,7 +2389,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	}
 }
 
-func setMigrationFlagsinState(snapst *SnapState, snapsup *SnapSetup) {
+func setMigrationFlagsInState(snapst *SnapState, snapsup *SnapSetup) {
 	if snapsup.MigratedHidden {
 		snapst.MigratedHidden = true
 	} else if snapsup.UndidHiddenMigration {
@@ -2888,7 +2941,7 @@ func installModeDisabledServices(st *state.State, snapst *SnapState, currentInfo
 		enabledByHookSvcs[svcName] = true
 	}
 
-	// find what servies the previous snap had
+	// find what services the previous snap had
 	prevCurrentSvcs := map[string]bool{}
 	if psi := snapst.previousSideInfo(); psi != nil {
 		var prevCurrentInfo *snap.Info
@@ -4666,7 +4719,7 @@ var maybeRestoreValidationSetsAndRevertSnaps = func(st *state.State, refreshedSn
 		// if we hit ValidationSetsValidationError but it's not about wrong revisions,
 		// then something is really broken (we shouldn't have invalid or missing required
 		// snaps at this point).
-		return nil, fmt.Errorf("internal error: unexpected validation error of installed snaps after unsuccesfull refresh: %v", verr)
+		return nil, fmt.Errorf("internal error: unexpected validation error of installed snaps after unsuccessful refresh: %v", verr)
 	}
 
 	wrongRevSnaps := func() []string {
@@ -4813,4 +4866,163 @@ var getDirMigrationOpts = func(st *state.State, snapst *SnapState, snapsup *Snap
 	}
 
 	return opts, nil
+}
+
+func (m *SnapManager) doSetupKernelSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	snapsup, snapSt, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	st.Unlock()
+	pm := NewTaskProgressAdapterUnlocked(t)
+	timings.Run(perfTimings, "setup-kernel-snap",
+		fmt.Sprintf("setup of kernel snap %q", snapsup.InstanceName()),
+		func(timings.Measurer) {
+			err = m.backend.SetupKernelSnap(
+				snapsup.InstanceName(), snapsup.Revision(), pm)
+		})
+	st.Lock()
+	if err != nil {
+		return err
+	}
+
+	perfTimings.Save(st)
+
+	// Needed so the old drivers tree can be removed later
+	prevRev := snapSt.Current
+	t.Change().Set("previous-kernel-rev", prevRev)
+
+	// Make sure we won't be rerun
+	t.SetStatus(state.DoneStatus)
+
+	return nil
+}
+
+func (m *SnapManager) undoSetupKernelSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	snapsup, _, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	st.Unlock()
+	pm := NewTaskProgressAdapterUnlocked(t)
+	timings.Run(perfTimings, "remove-kernel-snap-setup",
+		fmt.Sprintf("remove kernel snap setup %q", snapsup.InstanceName()),
+		func(timings.Measurer) {
+			err = m.backend.RemoveKernelSnapSetup(
+				snapsup.InstanceName(), snapsup.Revision(), pm)
+		})
+	st.Lock()
+	if err != nil {
+		return err
+	}
+
+	perfTimings.Save(st)
+	// Make sure we won't be rerun
+	t.SetStatus(state.UndoneStatus)
+
+	return nil
+}
+
+func (m *SnapManager) doCleanupOldKernelSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	_, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	currInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	// This is stored by doSetupKernelSnap - now after the reboot triggered
+	// after linking the new snap, we can remove the old drivers tree.
+	var prevRev snap.Revision
+	err = t.Change().Get("previous-kernel-rev", &prevRev)
+	if err != nil {
+		return err
+	}
+
+	// Might be unset on first installation
+	if !prevRev.Unset() {
+		st.Unlock()
+		pm := NewTaskProgressAdapterUnlocked(t)
+		timings.Run(perfTimings, "remove-old-kernel-snap-setup",
+			fmt.Sprintf("cleanup of previous kernel snap %q", currInfo.InstanceName()),
+			func(timings.Measurer) {
+				err = m.backend.RemoveKernelSnapSetup(
+					currInfo.InstanceName(), prevRev, pm)
+			})
+		st.Lock()
+		if err != nil {
+			return err
+		}
+	}
+
+	perfTimings.Save(st)
+	// Make sure we won't be rerun
+	t.SetStatus(state.DoneStatus)
+
+	return nil
+}
+
+func (m *SnapManager) undoCleanupOldKernelSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	_, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	currInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	// Now we must re-do the previous revision kernel drivers tree
+	var prevRev snap.Revision
+	err = t.Change().Get("previous-kernel-rev", &prevRev)
+	if err != nil {
+		return err
+	}
+
+	if !prevRev.Unset() {
+		st.Unlock()
+		pm := NewTaskProgressAdapterUnlocked(t)
+		timings.Run(perfTimings, "undo-remove-old-kernel-snap-setup",
+			fmt.Sprintf("undo cleanup of previous kernel snap %q", currInfo.InstanceName()),
+			func(timings.Measurer) {
+				err = m.backend.SetupKernelSnap(
+					currInfo.InstanceName(), prevRev, pm)
+			})
+		st.Lock()
+		if err != nil {
+			return err
+		}
+	}
+
+	perfTimings.Save(st)
+	// Make sure we won't be rerun
+	t.SetStatus(state.UndoneStatus)
+
+	return nil
 }

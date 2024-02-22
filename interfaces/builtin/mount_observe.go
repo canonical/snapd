@@ -45,6 +45,12 @@ const mountObserveConnectedPlugAppArmor = `
 owner @{PROC}/@{pid}/mounts r,
 owner @{PROC}/@{pid}/mountinfo r,
 owner @{PROC}/@{pid}/mountstats r,
+
+# some processes might read mount* from /proc/thread-self/ instead
+# and those resolve to the following: (no mountstats here)
+owner @{PROC}/@{pid}/task/@{tid}/mounts r,
+owner @{PROC}/@{pid}/task/@{tid}/mountinfo r,
+
 /sys/devices/*/block/{,**} r,
 
 # Needed by 'htop' to calculate RAM usage more accurately (and informational purposes, if enabled)

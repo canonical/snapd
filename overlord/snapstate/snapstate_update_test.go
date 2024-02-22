@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -10868,6 +10868,108 @@ func (s *snapmgrTestSuite) TestUnlinkMonitorSnapOnHardCheckFailure(c *C) {
 	s.settle(c)
 }
 
+func (s *snapmgrTestSuite) TestRefreshForcedOnRefreshInhibitionTimeout(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	instant := time.Now()
+	pastInstant := instant.Add(-snapstate.MaxInhibition * 2)
+	// Add first snap
+	si1 := &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(1),
+	}
+	snaptest.MockSnap(c, `name: some-snap`, si1)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
+		Current:  si1.Revision,
+		// Pretend inhibition is overdue.
+		RefreshInhibitedTime: &pastInstant,
+	})
+	// Add second snap to check that the list is being appended to properly.
+	si2 := &snap.SideInfo{
+		RealName: "some-other-snap",
+		SnapID:   "some-other-snap-id",
+		Revision: snap.R(1),
+	}
+	snaptest.MockSnap(c, `name: some-other-snap`, si2)
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
+		Current:  si2.Revision,
+		// Pretend inhibition is overdue.
+		RefreshInhibitedTime: &pastInstant,
+	})
+
+	s.fakeStore.downloads = []fakeDownload{
+		{
+			macaroon: s.user.StoreMacaroon,
+			name:     "some-snap",
+			target:   filepath.Join(dirs.SnapBlobDir, "some-snap_instance_11.snap"),
+		},
+		{
+			macaroon: s.user.StoreMacaroon,
+			name:     "some-other-snap",
+			target:   filepath.Join(dirs.SnapBlobDir, "some-other-snap_instance_11.snap"),
+		},
+	}
+
+	var notified int
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(_ context.Context, _ *userclient.Client, pendingInfo *userclient.PendingSnapRefreshInfo) {
+		c.Check(pendingInfo.TimeRemaining, Equals, time.Duration(0))
+		notified++
+	})
+	defer restore()
+
+	check := make(map[string]int, 2)
+	restore = snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+		check[info.InstanceName()]++
+
+		switch check[info.InstanceName()] {
+		case 1:
+			return nil
+		case 2:
+			return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
+		default:
+			return nil
+		}
+	})
+	defer restore()
+
+	updated, tss, err := snapstate.AutoRefresh(context.Background(), s.state)
+	c.Assert(err, IsNil)
+	sort.Slice(updated, func(i, j int) bool {
+		return updated[i] < updated[j]
+	})
+	c.Check(updated, DeepEquals, []string{"some-other-snap", "some-snap"})
+	c.Assert(tss, NotNil)
+	c.Check(tss.Refresh, NotNil)
+	c.Check(tss.PreDownload, IsNil)
+
+	chg := s.state.NewChange("refresh", "test refresh")
+	for _, ts := range tss.Refresh {
+		chg.AddAll(ts)
+	}
+
+	s.settle(c)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	var apiData map[string]interface{}
+	c.Assert(chg.Get("api-data", &apiData), IsNil)
+	refreshForced := apiData["refresh-forced"].([]interface{})
+	sort.Slice(refreshForced, func(i, j int) bool {
+		return refreshForced[i].(string) < refreshForced[j].(string)
+	})
+	c.Check(refreshForced, DeepEquals, []interface{}{"some-other-snap", "some-snap"})
+	// TODO: Check that change-update notice is added
+
+	c.Check(notified, Equals, 2)
+	c.Check(check["some-snap"], Equals, 2)
+	c.Check(check["some-other-snap"], Equals, 2)
+}
+
 func (s *snapmgrTestSuite) TestDeletedMonitoredMapIsCorrectlyDeleted(c *C) {
 	s.state.Lock()
 	si := &snap.SideInfo{
@@ -11825,8 +11927,11 @@ func (s *snapmgrTestSuite) TestUpdateManyFilteredForSnapsNotInOldHints(c *C) {
 	err = s.state.Get("refresh-candidates", &newCands)
 	c.Assert(err, IsNil)
 
-	c.Assert(newCands, HasLen, 1)
+	c.Assert(newCands, HasLen, 2)
 	c.Check(newCands["some-snap"], NotNil)
+	// a monitored snap was preserved
+	c.Assert(newCands["some-other-snap"], NotNil)
+	c.Check(newCands["some-other-snap"].Monitored, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyFilteredNotAutoRefreshNoRetry(c *C) {
@@ -11895,4 +12000,121 @@ func (s *snapmgrTestSuite) TestUpdateManyFilteredNotAutoRefreshNoRetry(c *C) {
 	c.Check(storeSnapIDs, HasLen, 2)
 	c.Check(storeSnapIDs["some-snap-id"], Equals, true)
 	c.Check(storeSnapIDs["some-other-snap-id"], Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestUpdateSnapdAndSnapPullingNewBase(c *C) {
+	// classic = true, avoid messing with snapd services
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	fakeAutoConnect := func(task *state.Task, _ *tomb.Tomb) error {
+		st := task.State()
+		st.Lock()
+		defer st.Unlock()
+		kind := task.Kind()
+		status := task.Status()
+		snapsup, err := snapstate.TaskSnapSetup(task)
+		if err != nil {
+			return err
+		}
+		if status == state.DoingStatus {
+			if snapsup.Type == snap.TypeSnapd {
+				si := snapsup.SideInfo
+				// snapd is installed by now
+				snaptest.MockSnapCurrent(c, `
+name: snapd
+version: snapdVer
+type: snapd
+`, snapsup.SideInfo)
+				snapstate.Set(st, "snapd", &snapstate.SnapState{
+					SnapType:        "snapd",
+					Active:          true,
+					Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+					Current:         si.Revision,
+					Flags:           snapstate.Flags{Required: true},
+					TrackingChannel: si.Channel,
+				})
+			}
+			// fake restart
+			restart.MockPending(st, restart.RestartUnset)
+			if err := snapstate.FinishRestart(task, snapsup); err != nil {
+				panic(err)
+			}
+		}
+		return s.fakeBackend.ForeignTask(kind, status, snapsup)
+	}
+
+	s.o.TaskRunner().AddHandler("auto-connect", fakeAutoConnect, fakeAutoConnect)
+
+	snapstate.Set(s.state, "core22", nil) // NOTE: core22 is not installed.
+	snapstate.Set(s.state, "some-snap-with-new-base", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{
+				RealName: "some-snap-with-new-base",
+				SnapID:   "some-snap-with-new-base-id",
+				Revision: snap.R(1),
+			},
+		}),
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{
+				RealName: "snapd",
+				SnapID:   "snapd-without-version-id",
+				Revision: snap.R(1),
+			},
+		}),
+		Current:  snap.R(1),
+		SnapType: "snapd",
+	})
+
+	updated, taskSets, err := snapstate.UpdateMany(context.Background(), s.state,
+		[]string{"snapd", "some-snap-with-new-base"},
+		[]*snapstate.RevisionOptions{{
+			Revision: snap.R(1),
+			Channel:  "latest/stable",
+		}, {
+			Revision: snap.R(1),
+			Channel:  "some-channel",
+		}},
+		s.user.ID, &snapstate.Flags{
+			IgnoreRunning: true,
+			Transaction:   client.TransactionPerSnap, // XXX: it is unclear if this represents the real-world behavior.
+		})
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("refresh-snap", "refresh snapd and some other snap pulling in a base")
+
+	for _, taskSet := range taskSets {
+		chg.AddAll(taskSet)
+	}
+
+	// XXX: This mimics newChange from daemon/api.go
+	if updated != nil {
+		chg.Set("snap-names", updated)
+	}
+
+	s.state.EnsureBefore(0)
+
+	defer s.se.Stop()
+	s.settle(c)
+
+	fmt.Printf("Settle returned\n")
+
+	didDownloadCore22 := false
+
+	for _, fakeOp := range s.fakeBackend.ops {
+		if fakeOp.op == "storesvc-download" && fakeOp.name == "core22" {
+			didDownloadCore22 = true
+		}
+	}
+
+	c.Assert(didDownloadCore22, Equals, true, Commentf("core22 was *not* downloaded"))
 }

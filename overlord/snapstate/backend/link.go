@@ -100,13 +100,6 @@ func updateCurrentSymlinks(info *snap.Info) (e error) {
 	return os.Symlink(filepath.Base(mountDir), currentActiveSymlink)
 }
 
-func hasFontConfigCache(info *snap.Info) bool {
-	if info.Type() == snap.TypeOS || info.Type() == snap.TypeSnapd {
-		return true
-	}
-	return false
-}
-
 // LinkSnap makes the snap available by generating wrappers and setting the current symlinks.
 func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext, tm timings.Measurer) (rebootRequired boot.RebootInfo, e error) {
 	if info.Revision.Unset() {
@@ -131,19 +124,6 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 		})
 	}()
 
-	// fontconfig is only relevant on classic and is carried by 'core' or
-	// 'snapd' snaps
-	// for non-core snaps, fontconfig cache needs to be updated before the
-	// snap applications are runnable
-	if dev.Classic() && !hasFontConfigCache(info) {
-		timings.Run(tm, "update-fc-cache", "update font config caches", func(timings.Measurer) {
-			// XXX: does this need cleaning up? (afaict no)
-			if err := updateFontconfigCaches(); err != nil {
-				logger.Noticef("cannot update fontconfig cache: %v", err)
-			}
-		})
-	}
-
 	var rebootInfo boot.RebootInfo
 	if !b.preseed {
 		bootCtx := boot.NextBootContext{BootWithoutTry: linkCtx.IsUndo}
@@ -159,16 +139,6 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 	}
 	// if anything below here could return error, you need to
 	// somehow clean up whatever updateCurrentSymlinks did
-
-	// for core snap, fontconfig cache can be updated after the snap has
-	// been made available
-	if dev.Classic() && hasFontConfigCache(info) {
-		timings.Run(tm, "update-fc-cache", "update font config caches", func(timings.Measurer) {
-			if err := updateFontconfigCaches(); err != nil {
-				logger.Noticef("cannot update fontconfig cache: %v", err)
-			}
-		})
-	}
 
 	// Stop inhibiting application startup by removing the inhibitor file.
 	if err := runinhibit.Unlock(info.InstanceName()); err != nil {

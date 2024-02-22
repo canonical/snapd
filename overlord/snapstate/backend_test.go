@@ -370,6 +370,9 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "some-snap-now-classic"
 	case "some-snap-was-classic-id":
 		name = "some-snap-was-classic"
+	case "some-snap-with-new-base-id":
+		name = "some-snap-with-new-base"
+		base = "core22"
 	case "core-snap-id":
 		name = "core"
 		typ = snap.TypeOS
@@ -396,7 +399,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "snap-content-plug"
 	case "snap-content-slot-id":
 		name = "snap-content-slot"
-	case "snapd-snap-id":
+	case "snapd-snap-id", "snapd-without-version-id":
 		name = "snapd"
 		typ = snap.TypeSnapd
 	case "kernel-id":
@@ -468,6 +471,10 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		Architectures: []string{"all"},
 		Epoch:         epoch,
 		Base:          base,
+	}
+
+	if strings.HasSuffix(cand.snapID, "-without-version-id") {
+		info.Version = ""
 	}
 
 	if name == "outdated-consumer" {
@@ -900,6 +907,22 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 		return snapType, nil, nil
 	}
 	return snapType, &backend.InstallRecord{}, nil
+}
+
+func (f *fakeSnappyBackend) SetupKernelSnap(instanceName string, rev snap.Revision, meter progress.Meter) (err error) {
+	meter.Notify("setup-kernel-snap")
+	f.appendOp(&fakeOp{
+		op: "setup-kernel-snap",
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) RemoveKernelSnapSetup(instanceName string, rev snap.Revision, meter progress.Meter) error {
+	meter.Notify("remove-kernel-snap-setup")
+	f.appendOp(&fakeOp{
+		op: "remove-kernel-snap-setup",
+	})
+	return nil
 }
 
 func (f *fakeSnappyBackend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *backend.InstallRecord, err error) {

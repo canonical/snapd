@@ -43,8 +43,9 @@ type aboutSnap struct {
 	snapst *snapstate.SnapState
 	health *client.SnapHealth
 
-	hold       time.Time
-	gatingHold time.Time
+	hold                      time.Time
+	gatingHold                time.Time
+	refreshInhibitProceedTime time.Time
 }
 
 // localSnapInfo returns the information about the current snap for the given
@@ -81,13 +82,15 @@ func localSnapInfo(st *state.State, name string) (aboutSnap, error) {
 	if err != nil {
 		return aboutSnap{}, InternalError("%v", err)
 	}
+	refreshInhibitProceedTime := snapst.RefreshInhibitProceedTime(st)
 
 	return aboutSnap{
-		info:       info,
-		snapst:     &snapst,
-		health:     clientHealthFromHealthstate(health),
-		hold:       userHold,
-		gatingHold: gatingHold,
+		info:                      info,
+		snapst:                    &snapst,
+		health:                    clientHealthFromHealthstate(health),
+		hold:                      userHold,
+		gatingHold:                gatingHold,
+		refreshInhibitProceedTime: refreshInhibitProceedTime,
 	}, nil
 }
 
@@ -131,6 +134,7 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 		if err != nil {
 			return nil, err
 		}
+		refreshInhibitProceedTime := snapst.RefreshInhibitProceedTime(st)
 
 		var aboutThis []aboutSnap
 		var info *snap.Info
@@ -153,11 +157,12 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 					return nil, err
 				}
 				abSnap := aboutSnap{
-					info:       info,
-					snapst:     snapst,
-					health:     health,
-					hold:       userHold,
-					gatingHold: gatingHold,
+					info:                      info,
+					snapst:                    snapst,
+					health:                    health,
+					hold:                      userHold,
+					gatingHold:                gatingHold,
+					refreshInhibitProceedTime: refreshInhibitProceedTime,
 				}
 				aboutThis = append(aboutThis, abSnap)
 			}
@@ -173,11 +178,12 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 			}
 
 			abSnap := aboutSnap{
-				info:       info,
-				snapst:     snapst,
-				health:     health,
-				hold:       userHold,
-				gatingHold: gatingHold,
+				info:                      info,
+				snapst:                    snapst,
+				health:                    health,
+				hold:                      userHold,
+				gatingHold:                gatingHold,
+				refreshInhibitProceedTime: refreshInhibitProceedTime,
 			}
 			aboutThis = append(aboutThis, abSnap)
 		}
@@ -239,7 +245,9 @@ func mapLocal(about aboutSnap, sd clientutil.StatusDecorator) *client.Snap {
 	if !about.gatingHold.IsZero() {
 		result.GatingHold = &about.gatingHold
 	}
-
+	if !about.refreshInhibitProceedTime.IsZero() {
+		result.RefreshInhibitProceedTime = &about.refreshInhibitProceedTime
+	}
 	return result
 }
 

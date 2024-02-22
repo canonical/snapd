@@ -22,6 +22,7 @@ package ctlcmd_test
 import (
 	"context"
 	"fmt"
+	"os/user"
 	"sort"
 
 	. "gopkg.in/check.v1"
@@ -138,7 +139,7 @@ apps:
 `
 
 func mockServiceChangeFunc(testServiceControlInputs func(appInfos []*snap.AppInfo, inst *servicestate.Instruction)) func() {
-	return ctlcmd.MockServicestateControlFunc(func(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction, flags *servicestate.Flags, context *hookstate.Context) ([]*state.TaskSet, error) {
+	return ctlcmd.MockServicestateControlFunc(func(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction, cu *user.User, flags *servicestate.Flags, context *hookstate.Context) ([]*state.TaskSet, error) {
 		testServiceControlInputs(appInfos, inst)
 		return nil, fmt.Errorf("forced error")
 	})

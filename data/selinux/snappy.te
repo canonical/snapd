@@ -402,11 +402,14 @@ allow snappy_t var_t:sock_file unlink;
 allow snappy_t unconfined_t:dir search;
 allow snappy_t unconfined_t:file { open read };
 
-# Allow snapd to get file attributes in policykit_auth_exec_t domain
+# Allow snapd to get file attributes in policykit{,_auth}_exec_t domain
 gen_require(`
     type policykit_auth_exec_t;
+    type policykit_exec_t;
 ')
+allow snappy_t policykit_exec_t:file { getattr };
 allow snappy_t policykit_auth_exec_t:file { getattr };
+allow snappy_cli_t policykit_exec_t:file { getattr };
 allow snappy_cli_t policykit_auth_exec_t:file { getattr };
 
 # the release package calls stat() on /proc/sys/fs/binfmt_misc/WSLInterop to
