@@ -156,7 +156,7 @@ dbus (send)
   peer=(label=unconfined),
 
 # Allow access to the ICC profiles in the home directory to
-# be refered to from colord
+# be referred to from colord
 owner @{HOME}/.local/share/icc r,
 `
 
