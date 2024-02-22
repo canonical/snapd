@@ -28,11 +28,11 @@ import (
 
 // ComponentInfo is the content of a component.yaml file.
 type ComponentInfo struct {
-	Component   naming.ComponentRef `yaml:"component"`
-	Type        ComponentType       `yaml:"type"`
-	Version     string              `yaml:"version"`
-	Summary     string              `yaml:"summary"`
-	Description string              `yaml:"description"`
+	Component   naming.ComponentRef
+	Type        ComponentType
+	Version     string
+	Summary     string
+	Description string
 
 	// TODO: we will need to add fields here to carry around details about
 	// explicit and implicit hooks.
