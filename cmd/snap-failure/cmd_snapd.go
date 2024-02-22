@@ -145,6 +145,16 @@ func (c *cmdSnapd) Execute(args []string) error {
 	}
 
 	logger.Noticef("restoring invoking snapd from: %v", snapdPath)
+	if prevRev != "0" {
+		// if prevRev was "0" it means we did *not* find a
+		// previous revision and we would obey the current
+		// symlink. So we overwrite the symlink only if
+		// prevRev != "0".
+		currentSymlink := filepath.Join(dirs.SnapMountDir, "snapd", "current")
+		if err := osutil.AtomicSymlink(prevRev, currentSymlink); err != nil {
+			return fmt.Errorf("cannot create symlink %s: %v", currentSymlink, err)
+		}
+	}
 	// start previous snapd
 	cmd := runCmd(snapdPath, nil, []string{"SNAPD_REVERT_TO_REV=" + prevRev, "SNAPD_DEBUG=1"})
 	if err = cmd.Run(); err != nil {
