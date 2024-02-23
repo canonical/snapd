@@ -791,17 +791,26 @@ uc24_build_initramfs_kernel_snap() {
 
     unsquashfs -d pc-kernel $ORIG_SNAP
     objcopy -O binary -j .initrd pc-kernel/kernel.efi initrd.img
+
     unmkinitramfs initrd.img initrd
 
-    cd initrd
-    find . | cpio --create --quiet --format=newc --owner=0:0 | lz4 -l -7 > ../initrd.img
+    if os.query is-pc-amd64; then
+        cd initrd/main
+        find . | cpio --create --quiet --format=newc --owner=0:0 | lz4 -l -7 > ../../initrd.img
+    else
+        cd initrd
+        find . | cpio --create --quiet --format=newc --owner=0:0 | lz4 -l -7 > ../initrd.img
+    fi
     cd -
+
     quiet apt download systemd-boot-efi
+    quiet apt install -y llvm
     dpkg --fsys-tarfile systemd-boot-efi_*.deb |
        tar xf - ./usr/lib/systemd/boot/efi/linuxx64.efi.stub
     objcopy -O binary -j .linux pc-kernel/kernel.efi linux
-    objcopy --add-section .linux=linux --change-section-vma .linux=0x2000000 \
-          --add-section .initrd=initrd.img --change-section-vma .initrd=0x3000000 \
+
+    llvm-objcopy --add-section .linux=linux --set-section-flags .linux=readonly,data \
+          --add-section .initrd=initrd.img --set-section-flags .initrd=readonly,data \
           usr/lib/systemd/boot/efi/linuxx64.efi.stub \
           pc-kernel/kernel.efi
 
@@ -812,11 +821,10 @@ uc24_build_initramfs_kernel_snap() {
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
     # sign the kernel
-    exit 1
     nested_secboot_sign_kernel pc-kernel "$SNAKEOIL_KEY" "$SNAKEOIL_CERT" 
 
     snap pack pc-kernel
-    mv pc-kernel*.snap "$TARGET"
+    mv pc-kernel_*.snap "$TARGET"
     rm -rf pc-kernel
 }
 
