@@ -815,7 +815,11 @@ func exportBPF(fout *os.File, filter *seccomp.ScmpFilter) (bpfLen int64, err err
 	return nowPos - oldPos, nil
 }
 
-// keep in sync with seccomp-support.c
+// New .bin2 seccomp files are composed by the following header, and potentially one
+// allow filter and/or one deny filter (if lenAllowFilter and lenDenyFilter are greater
+// than 0 respectively). When more than one filter is loaded, the kernel applies
+// the most restrictive action, thus any explicit deny will take precedence.
+// This struct needs to be in sync with seccomp-support.c
 type scSeccompFileHeader struct {
 	header  [2]byte
 	version byte
@@ -830,14 +834,14 @@ type scSeccompFileHeader struct {
 	reserved2 [112]byte
 }
 
-func writeUnrestrictedFilter(out string) error {
+func writeUnrestrictedFilter(outFile string) error {
 	hdr := scSeccompFileHeader{
 		header:  [2]byte{'S', 'C'},
 		version: 0x1,
 		// tell snap-confine
 		unrestricted: 0x1,
 	}
-	fout, err := osutil.NewAtomicFile(out, 0644, 0, osutil.NoChown, osutil.NoChown)
+	fout, err := osutil.NewAtomicFile(outFile, 0644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return err
 	}

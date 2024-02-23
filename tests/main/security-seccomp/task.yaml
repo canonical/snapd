@@ -96,10 +96,12 @@ execute: |
     # TODO: filtering on setpriority is a bit confusing as it is not part
     # of the "negative args" filter added in ec7c9f27c97 so the fact that
     # negative args are denied is a bit magic
-    echo "Explicitly deny arg filtered setpriority rule"
-    cp -a "$SRC".orig "$SRC"
+    echo "Explicitly deny arg filtered setpriority rule takes precedence to (allow) arg filtered setpriority rule"
+    sed 's/^\(setpriority.*\)/#SPREAD: \1\nsetpriority PRIO_PROCESS 0 <=19/g' "$SRC".orig > "$SRC"
     echo '~setpriority PRIO_PROCESS 0 >10' >> "$SRC"
     snapd.tool exec snap-seccomp compile "$SRC" "$BIN"
+    echo "and check that positive non-explicitly denied nice succeeds"
+    test-snapd-setpriority 10  | MATCH 'Successfully used setpriority\(PRIO_PROCESS, 0, 10\)'
     echo "and check that explicitly denied parameters fail with the explicit denial error code"
     test-snapd-setpriority 11  | MATCH 'Insufficient privileges \(EACCES\)'
     echo "and check that negative nice still fails with implicit denial"
