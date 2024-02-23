@@ -155,7 +155,6 @@ func getRules(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 
 	snap := query.Get("snap")
-	app := query.Get("app")
 	iface := query.Get("interface")
 
 	ucred, err := ucrednetGet(r.RemoteAddr)
@@ -163,13 +162,10 @@ func getRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		return Forbidden("cannot get remote user: %v", err)
 	}
 
-	if app != "" && snap == "" {
-		return BadRequest(`"app" field provided, must also provide "snap" field`)
-	}
 	if iface != "" && snap == "" {
 		return BadRequest(`"interface" field provided, must also provide "snap" field`)
 	}
-	result, err := c.d.overlord.InterfaceManager().Prompting().GetRules(ucred.Uid, snap, app, iface)
+	result, err := c.d.overlord.InterfaceManager().Prompting().GetRules(ucred.Uid, snap, iface)
 	if err != nil {
 		return InternalError("%v", err)
 	}

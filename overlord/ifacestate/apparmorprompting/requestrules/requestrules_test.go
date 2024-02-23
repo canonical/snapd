@@ -37,7 +37,6 @@ func (s *requestrulesSuite) TestPopulateNewRule(c *C) {
 
 	var user uint32 = 1000
 	snap := "lxd"
-	app := "lxc"
 	iface := "home"
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanSession
@@ -53,11 +52,10 @@ func (s *requestrulesSuite) TestPopulateNewRule(c *C) {
 			PathPattern: pattern,
 			Permissions: permissions,
 		}
-		rule, err := rdb.PopulateNewRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
+		rule, err := rdb.PopulateNewRule(user, snap, iface, constraints, outcome, lifespan, duration)
 		c.Check(err, IsNil)
 		c.Check(rule.User, Equals, user)
 		c.Check(rule.Snap, Equals, snap)
-		c.Check(rule.App, Equals, app)
 		c.Check(rule.Constraints, Equals, constraints)
 		c.Check(rule.Outcome, Equals, outcome)
 		c.Check(rule.Lifespan, Equals, lifespan)
@@ -73,7 +71,7 @@ func (s *requestrulesSuite) TestPopulateNewRule(c *C) {
 			PathPattern: pattern,
 			Permissions: permissions,
 		}
-		rule, err := rdb.PopulateNewRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
+		rule, err := rdb.PopulateNewRule(user, snap, iface, constraints, outcome, lifespan, duration)
 		c.Assert(err, ErrorMatches, "invalid path pattern.*")
 		c.Assert(rule, IsNil)
 	}
@@ -90,7 +88,6 @@ func (s *requestrulesSuite) TestAddRemoveRuleSimple(c *C) {
 	rdb, _ := requestrules.New(notifyRule)
 
 	snap := "lxd"
-	app := "lxc"
 	iface := "home"
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
@@ -102,7 +99,7 @@ func (s *requestrulesSuite) TestAddRemoveRuleSimple(c *C) {
 		Permissions: permissions,
 	}
 
-	rule, err := rdb.AddRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
+	rule, err := rdb.AddRule(user, snap, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
@@ -122,13 +119,9 @@ func (s *requestrulesSuite) TestAddRemoveRuleSimple(c *C) {
 
 	snapEntry, exists := userEntry.PerSnap[snap]
 	c.Assert(exists, Equals, true)
-	c.Assert(snapEntry.PerApp, HasLen, 1)
+	c.Assert(snapEntry.PerInterface, HasLen, 1)
 
-	appEntry, exists := snapEntry.PerApp[app]
-	c.Assert(exists, Equals, true)
-	c.Assert(appEntry.PerInterface, HasLen, 1)
-
-	interfaceEntry, exists := appEntry.PerInterface[iface]
+	interfaceEntry, exists := snapEntry.PerInterface[iface]
 	c.Assert(exists, Equals, true)
 	c.Assert(interfaceEntry.PerPermission, HasLen, 3)
 
@@ -159,13 +152,9 @@ func (s *requestrulesSuite) TestAddRemoveRuleSimple(c *C) {
 
 	snapEntry, exists = userEntry.PerSnap[snap]
 	c.Assert(exists, Equals, true)
-	c.Assert(snapEntry.PerApp, HasLen, 1)
+	c.Assert(snapEntry.PerInterface, HasLen, 1)
 
-	appEntry, exists = snapEntry.PerApp[app]
-	c.Assert(exists, Equals, true)
-	c.Assert(appEntry.PerInterface, HasLen, 1)
-
-	interfaceEntry, exists = appEntry.PerInterface[iface]
+	interfaceEntry, exists = snapEntry.PerInterface[iface]
 	c.Assert(exists, Equals, true)
 	c.Assert(interfaceEntry.PerPermission, HasLen, 3)
 
@@ -187,7 +176,6 @@ func (s *requestrulesSuite) TestAddRuleUnhappy(c *C) {
 	rdb, _ := requestrules.New(notifyRule)
 
 	snap := "lxd"
-	app := "lxc"
 	iface := "home"
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
@@ -199,7 +187,7 @@ func (s *requestrulesSuite) TestAddRuleUnhappy(c *C) {
 		Permissions: permissions,
 	}
 
-	storedRule, err := rdb.AddRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
+	storedRule, err := rdb.AddRule(user, snap, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
@@ -211,7 +199,7 @@ func (s *requestrulesSuite) TestAddRuleUnhappy(c *C) {
 		PathPattern: pathPattern,
 		Permissions: conflictingPermissions,
 	}
-	_, err = rdb.AddRule(user, snap, app, iface, conflictingConstraints, outcome, lifespan, duration)
+	_, err = rdb.AddRule(user, snap, iface, conflictingConstraints, outcome, lifespan, duration)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("^%s.*%s.*%s.*", requestrules.ErrPathPatternConflict, storedRule.ID, conflictingPermissions[0]))
 
 	// Error while adding rule should cause no notice to be issued
@@ -222,7 +210,7 @@ func (s *requestrulesSuite) TestAddRuleUnhappy(c *C) {
 		PathPattern: badPattern,
 		Permissions: permissions,
 	}
-	_, err = rdb.AddRule(user, snap, app, iface, badConstraints, outcome, lifespan, duration)
+	_, err = rdb.AddRule(user, snap, iface, badConstraints, outcome, lifespan, duration)
 	c.Assert(err, ErrorMatches, "invalid path pattern.*")
 
 	// Error while adding rule should cause no notice to be issued
@@ -233,14 +221,14 @@ func (s *requestrulesSuite) TestAddRuleUnhappy(c *C) {
 		PathPattern: pathPattern,
 		Permissions: badPermissions,
 	}
-	_, err = rdb.AddRule(user, snap, app, iface, badConstraints, outcome, lifespan, duration)
+	_, err = rdb.AddRule(user, snap, iface, badConstraints, outcome, lifespan, duration)
 	c.Assert(err, ErrorMatches, "unsupported permission.*")
 
 	// Error while adding rule should cause no notice to be issued
 	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
 
 	badOutcome := common.OutcomeType("secret third thing")
-	_, err = rdb.AddRule(user, snap, app, iface, constraints, badOutcome, lifespan, duration)
+	_, err = rdb.AddRule(user, snap, iface, constraints, badOutcome, lifespan, duration)
 	c.Assert(err, Equals, common.ErrInvalidOutcome)
 
 	// Error while adding rule should cause no notice to be issued
@@ -258,7 +246,6 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	rdb, _ := requestrules.New(notifyRule)
 
 	snap := "lxd"
-	app := "lxc"
 	iface := "home"
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
@@ -270,7 +257,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 		Permissions: permissions,
 	}
 
-	storedRule, err := rdb.AddRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
+	storedRule, err := rdb.AddRule(user, snap, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 	c.Assert(rdb.ByID, HasLen, 1)
 
@@ -288,7 +275,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 		PathPattern: otherPathPattern,
 		Permissions: otherPermissions,
 	}
-	otherRule, err := rdb.AddRule(user, snap, app, iface, otherConstraints, outcome, lifespan, duration)
+	otherRule, err := rdb.AddRule(user, snap, iface, otherConstraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 	c.Assert(rdb.ByID, HasLen, 2)
 
@@ -387,7 +374,6 @@ func (s *requestrulesSuite) TestRuleWithID(c *C) {
 	rdb, _ := requestrules.New(notifyRule)
 
 	snap := "lxd"
-	app := "lxc"
 	iface := "home"
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
@@ -399,7 +385,7 @@ func (s *requestrulesSuite) TestRuleWithID(c *C) {
 		Permissions: permissions,
 	}
 
-	newRule, err := rdb.AddRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
+	newRule, err := rdb.AddRule(user, snap, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 	c.Assert(newRule, NotNil)
 
@@ -434,7 +420,6 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
 	rdb, _ := requestrules.New(notifyRule)
 
 	snap := "lxd"
-	app := "lxc"
 	iface := "home"
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
@@ -446,7 +431,7 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
 		Permissions: permissions,
 	}
 
-	rule, err := rdb.PopulateNewRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
+	rule, err := rdb.PopulateNewRule(user, snap, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 	rdb.ByID[rule.ID] = rule
 	notifyEveryRule := true
@@ -465,13 +450,9 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
 
 	snapEntry, exists := userEntry.PerSnap[snap]
 	c.Assert(exists, Equals, true)
-	c.Assert(snapEntry.PerApp, HasLen, 1)
+	c.Assert(snapEntry.PerInterface, HasLen, 1)
 
-	appEntry, exists := snapEntry.PerApp[app]
-	c.Assert(exists, Equals, true)
-	c.Assert(appEntry.PerInterface, HasLen, 1)
-
-	interfaceEntry, exists := appEntry.PerInterface[iface]
+	interfaceEntry, exists := snapEntry.PerInterface[iface]
 	c.Assert(exists, Equals, true)
 	c.Assert(interfaceEntry.PerPermission, HasLen, 3)
 
@@ -497,7 +478,6 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	rdb, _ := requestrules.New(notifyRule)
 
 	snap := "lxd"
-	app := "lxc"
 	iface := "home"
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
@@ -510,7 +490,7 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 		PathPattern: pathPattern,
 		Permissions: copyPermissions(permissions[:1]),
 	}
-	badTsRule1, err := rdb.PopulateNewRule(user, snap, app, iface, constraints1, outcome, lifespan, duration)
+	badTsRule1, err := rdb.PopulateNewRule(user, snap, iface, constraints1, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 	badTsRule1.Timestamp = "bar"
 	time.Sleep(time.Millisecond)
@@ -518,7 +498,7 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 		PathPattern: pathPattern,
 		Permissions: copyPermissions(permissions[:1]),
 	}
-	badTsRule2, err := rdb.PopulateNewRule(user, snap, app, iface, constraints2, outcome, lifespan, duration)
+	badTsRule2, err := rdb.PopulateNewRule(user, snap, iface, constraints2, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 	badTsRule2.Timestamp = "baz"
 	rdb.ByID[badTsRule1.ID] = badTsRule1
@@ -544,7 +524,7 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 		PathPattern: pathPattern,
 		Permissions: copyPermissions(permissions),
 	}
-	earliestRule, err := rdb.PopulateNewRule(user, snap, app, iface, earliestConstraints, outcome, lifespan, duration)
+	earliestRule, err := rdb.PopulateNewRule(user, snap, iface, earliestConstraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	// Create and add a rule which will overwrite the rule with bad timestamp
@@ -552,7 +532,7 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 		PathPattern: pathPattern,
 		Permissions: copyPermissions(permissions),
 	}
-	initialRule, err := rdb.PopulateNewRule(user, snap, app, iface, initialConstraints, outcome, lifespan, duration)
+	initialRule, err := rdb.PopulateNewRule(user, snap, iface, initialConstraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 	rdb.ByID[initialRule.ID] = initialRule
 	rdb.RefreshTreeEnforceConsistency(notifyEveryRule)
@@ -574,7 +554,7 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 		PathPattern: pathPattern,
 		Permissions: copyPermissions(newRulePermissions),
 	}
-	newRule, err := rdb.PopulateNewRule(user, snap, app, iface, newConstraints, outcome, lifespan, duration)
+	newRule, err := rdb.PopulateNewRule(user, snap, iface, newConstraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	rdb.ByID[newRule.ID] = newRule
@@ -608,13 +588,9 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 
 	snapEntry, exists := userEntry.PerSnap[snap]
 	c.Assert(exists, Equals, true)
-	c.Assert(snapEntry.PerApp, HasLen, 1)
+	c.Assert(snapEntry.PerInterface, HasLen, 1)
 
-	appEntry, exists := snapEntry.PerApp[app]
-	c.Assert(exists, Equals, true)
-	c.Assert(appEntry.PerInterface, HasLen, 1)
-
-	interfaceEntry, exists := appEntry.PerInterface[iface]
+	interfaceEntry, exists := snapEntry.PerInterface[iface]
 	c.Assert(exists, Equals, true)
 	c.Assert(interfaceEntry.PerPermission, HasLen, 3)
 
@@ -647,7 +623,6 @@ func (s *requestrulesSuite) TestNewSaveLoad(c *C) {
 
 	var user uint32 = 1000
 	snap := "lxd"
-	app := "lxc"
 	iface := "home"
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
@@ -659,19 +634,19 @@ func (s *requestrulesSuite) TestNewSaveLoad(c *C) {
 		PathPattern: pathPattern,
 		Permissions: permissions[:1],
 	}
-	rule1, err := rdb.AddRule(user, snap, app, iface, constraints1, outcome, lifespan, duration)
+	rule1, err := rdb.AddRule(user, snap, iface, constraints1, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 	constraints2 := &common.Constraints{
 		PathPattern: pathPattern,
 		Permissions: permissions[1:2],
 	}
-	rule2, err := rdb.AddRule(user, snap, app, iface, constraints2, outcome, lifespan, duration)
+	rule2, err := rdb.AddRule(user, snap, iface, constraints2, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 	constraints3 := &common.Constraints{
 		PathPattern: pathPattern,
 		Permissions: permissions[2:],
 	}
-	rule3, err := rdb.AddRule(user, snap, app, iface, constraints3, outcome, lifespan, duration)
+	rule3, err := rdb.AddRule(user, snap, iface, constraints3, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	ruleIDs := []string{rule1.ID, rule2.ID, rule3.ID}
@@ -709,7 +684,6 @@ func (s *requestrulesSuite) TestIsPathAllowed(c *C) {
 	rdb, _ := requestrules.New(notifyRule)
 
 	snap := "lxd"
-	app := "lxc"
 	iface := "home"
 	lifespan := common.LifespanForever
 	duration := ""
@@ -720,7 +694,7 @@ func (s *requestrulesSuite) TestIsPathAllowed(c *C) {
 			PathPattern: pattern,
 			Permissions: permissions,
 		}
-		newRule, err := rdb.AddRule(user, snap, app, iface, newConstraints, outcome, lifespan, duration)
+		newRule, err := rdb.AddRule(user, snap, iface, newConstraints, outcome, lifespan, duration)
 		c.Assert(err, IsNil)
 
 		c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
@@ -765,7 +739,7 @@ func (s *requestrulesSuite) TestIsPathAllowed(c *C) {
 	cases["/home/test/file.png.jpg"] = false
 
 	for path, expected := range cases {
-		result, err := rdb.IsPathAllowed(user, snap, app, iface, path, permissions[0])
+		result, err := rdb.IsPathAllowed(user, snap, iface, path, permissions[0])
 		c.Assert(err, IsNil, Commentf("path: %s: error: %v\nrdb.ByID: %+v", path, err, rdb.ByID))
 		c.Assert(result, Equals, expected, Commentf("path: %s: expected %b but got %b\nrdb.ByID: %+v", path, expected, result, rdb.ByID))
 
@@ -785,7 +759,6 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 	rdb, _ := requestrules.New(notifyRule)
 
 	snap := "lxd"
-	app := "lxc"
 	iface := "home"
 	permissions := []string{"read", "write", "execute"}
 
@@ -797,7 +770,7 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 		PathPattern: pathPattern,
 		Permissions: permissions,
 	}
-	rule1, err := rdb.AddRule(user, snap, app, iface, constraints1, outcome, lifespan, duration)
+	rule1, err := rdb.AddRule(user, snap, iface, constraints1, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
@@ -812,7 +785,7 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 		PathPattern: pathPattern,
 		Permissions: permissions,
 	}
-	rule2, err := rdb.AddRule(user, snap, app, iface, constraints2, outcome, lifespan, duration)
+	rule2, err := rdb.AddRule(user, snap, iface, constraints2, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
@@ -827,7 +800,7 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 		PathPattern: pathPattern,
 		Permissions: permissions,
 	}
-	rule3, err := rdb.AddRule(user, snap, app, iface, constraints3, outcome, lifespan, duration)
+	rule3, err := rdb.AddRule(user, snap, iface, constraints3, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
@@ -837,10 +810,10 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 	path1 := "/home/test/Pictures/img.png"
 	path2 := "/home/test/Pictures/img.jpg"
 
-	allowed, err := rdb.IsPathAllowed(user, snap, app, iface, path1, "read")
+	allowed, err := rdb.IsPathAllowed(user, snap, iface, path1, "read")
 	c.Assert(err, IsNil)
 	c.Assert(allowed, Equals, true)
-	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path2, "read")
+	allowed, err = rdb.IsPathAllowed(user, snap, iface, path2, "read")
 	c.Assert(err, IsNil)
 	c.Assert(allowed, Equals, false)
 
@@ -849,7 +822,7 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 
 	time.Sleep(time.Second)
 
-	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path1, "read")
+	allowed, err = rdb.IsPathAllowed(user, snap, iface, path1, "read")
 	c.Assert(err, IsNil)
 	c.Assert(allowed, Equals, false)
 
@@ -858,7 +831,7 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 	c.Check(ruleNoticeIDs[0], Equals, rule3.ID)
 	ruleNoticeIDs = ruleNoticeIDs[1:]
 
-	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path2, "read")
+	allowed, err = rdb.IsPathAllowed(user, snap, iface, path2, "read")
 	c.Assert(err, IsNil)
 	c.Assert(allowed, Equals, false)
 
@@ -869,7 +842,7 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 
 	// Matches rule1, which has lifetime single, which thus expires.
 	// Meanwhile, rule2 also expires.
-	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path1, "read")
+	allowed, err = rdb.IsPathAllowed(user, snap, iface, path1, "read")
 	c.Assert(err, Equals, nil)
 	c.Assert(allowed, Equals, true)
 
@@ -878,14 +851,14 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 	c.Check(strutil.ListContains(ruleNoticeIDs, rule2.ID), Equals, true)
 	ruleNoticeIDs = ruleNoticeIDs[2:]
 
-	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path2, "read")
+	allowed, err = rdb.IsPathAllowed(user, snap, iface, path2, "read")
 	c.Assert(err, Equals, requestrules.ErrNoMatchingRule)
 	c.Assert(allowed, Equals, false)
 
-	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path1, "read")
+	allowed, err = rdb.IsPathAllowed(user, snap, iface, path1, "read")
 	c.Assert(err, Equals, requestrules.ErrNoMatchingRule)
 	c.Assert(allowed, Equals, false)
-	allowed, err = rdb.IsPathAllowed(user, snap, app, iface, path2, "read")
+	allowed, err = rdb.IsPathAllowed(user, snap, iface, path2, "read")
 	c.Assert(err, Equals, requestrules.ErrNoMatchingRule)
 	c.Assert(allowed, Equals, false)
 
@@ -912,7 +885,6 @@ func (s *requestrulesSuite) TestRulesLookup(c *C) {
 
 	var origUser uint32 = 1000
 	snap := "lxd"
-	app := "lxc"
 	iface := "home"
 	pathPattern := "/home/test/Documents/**"
 	outcome := common.OutcomeAllow
@@ -924,7 +896,7 @@ func (s *requestrulesSuite) TestRulesLookup(c *C) {
 		Permissions: permissions,
 	}
 
-	rule1, err := rdb.AddRule(origUser, snap, app, iface, constraints, outcome, lifespan, duration)
+	rule1, err := rdb.AddRule(origUser, snap, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	c.Assert(ruleNotices, HasLen, 1, Commentf("ruleNoticeIDs: %+v; rdb.ByID: %+v", ruleNotices, rdb.ByID))
@@ -933,7 +905,7 @@ func (s *requestrulesSuite) TestRulesLookup(c *C) {
 	ruleNotices = ruleNotices[1:]
 
 	user := origUser + 1
-	rule2, err := rdb.AddRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
+	rule2, err := rdb.AddRule(user, snap, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	c.Assert(ruleNotices, HasLen, 1, Commentf("ruleNoticeIDs: %+v; rdb.ByID: %+v", ruleNotices, rdb.ByID))
@@ -942,8 +914,7 @@ func (s *requestrulesSuite) TestRulesLookup(c *C) {
 	ruleNotices = ruleNotices[1:]
 
 	snap = "nextcloud"
-	app = "occ"
-	rule3, err := rdb.AddRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
+	rule3, err := rdb.AddRule(user, snap, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	c.Assert(ruleNotices, HasLen, 1, Commentf("ruleNoticeIDs: %+v; rdb.ByID: %+v", ruleNotices, rdb.ByID))
@@ -953,7 +924,7 @@ func (s *requestrulesSuite) TestRulesLookup(c *C) {
 
 	iface = "camera"
 	constraints.Permissions = []string{"access"}
-	rule4, err := rdb.AddRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
+	rule4, err := rdb.AddRule(user, snap, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	c.Assert(ruleNotices, HasLen, 1, Commentf("ruleNoticeIDs: %+v; rdb.ByID: %+v", ruleNotices, rdb.ByID))
@@ -989,9 +960,9 @@ OUTER_LOOP_USER_SNAP:
 		c.Assert(rule, DeepEquals, userRules[1])
 	}
 
-	userSnapAppRules := rdb.RulesForSnapAppInterface(user, snap, app, iface)
-	c.Assert(userSnapAppRules, HasLen, 1)
-	c.Assert(userSnapAppRules[0], DeepEquals, rule4)
+	userSnapInterfaceRules := rdb.RulesForSnapInterface(user, snap, iface)
+	c.Assert(userSnapInterfaceRules, HasLen, 1)
+	c.Assert(userSnapInterfaceRules[0], DeepEquals, rule4)
 
 	// Looking up these rules should not cause any notices
 	c.Assert(ruleNotices, HasLen, 0, Commentf("ruleNoticeIDs: %+v; rdb.ByID: %+v", ruleNotices, rdb.ByID))

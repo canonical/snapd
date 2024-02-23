@@ -54,7 +54,6 @@ func (s *requestpromptsSuite) TestAddOrMergePrompt(c *C) {
 
 	pdb := requestprompts.New(notifyPrompt)
 	snap := "nextcloud"
-	app := "occ"
 	iface := "home"
 	path := "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
@@ -67,7 +66,7 @@ func (s *requestpromptsSuite) TestAddOrMergePrompt(c *C) {
 	c.Assert(stored, HasLen, 0)
 
 	before := time.Now()
-	prompt1, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq1)
+	prompt1, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq1)
 	after := time.Now()
 	c.Assert(merged, Equals, false)
 
@@ -75,7 +74,7 @@ func (s *requestpromptsSuite) TestAddOrMergePrompt(c *C) {
 	c.Check(promptNoticeIDs[0], Equals, prompt1.ID)
 	promptNoticeIDs = promptNoticeIDs[1:]
 
-	prompt2, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq2)
+	prompt2, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq2)
 	c.Assert(merged, Equals, true)
 	c.Assert(prompt2, Equals, prompt1)
 
@@ -88,7 +87,6 @@ func (s *requestpromptsSuite) TestAddOrMergePrompt(c *C) {
 	c.Check(timestamp.Before(after), Equals, true)
 
 	c.Check(prompt1.Snap, Equals, snap)
-	c.Check(prompt1.App, Equals, app)
 	c.Check(prompt1.Interface, Equals, iface)
 	c.Check(prompt1.Constraints.Path, Equals, path)
 	c.Check(prompt1.Constraints.Permissions, DeepEquals, permissions)
@@ -104,7 +102,7 @@ func (s *requestpromptsSuite) TestAddOrMergePrompt(c *C) {
 	// Looking up prompt should not trigger notice
 	c.Assert(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	prompt3, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq3)
+	prompt3, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq3)
 	c.Check(merged, Equals, true)
 	c.Check(prompt3, Equals, prompt1)
 
@@ -129,14 +127,13 @@ func (s *requestpromptsSuite) TestPromptWithIDErrors(c *C) {
 
 	pdb := requestprompts.New(notifyPrompt)
 	snap := "nextcloud"
-	app := "occ"
 	iface := "system-files"
 	path := "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
 
 	listenerReq := &listener.Request{}
 
-	prompt, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq)
+	prompt, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq)
 	c.Check(merged, Equals, false)
 
 	c.Assert(promptNoticeIDs, HasLen, 1, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
@@ -179,7 +176,6 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 
 	pdb := requestprompts.New(notifyPrompt)
 	snap := "nextcloud"
-	app := "occ"
 	iface := "personal-files"
 	path := "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
@@ -187,14 +183,14 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 	listenerReq1 := &listener.Request{}
 	listenerReq2 := &listener.Request{}
 
-	prompt1, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq1)
+	prompt1, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq1)
 	c.Check(merged, Equals, false)
 
 	c.Assert(promptNoticeIDs, HasLen, 1, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 	c.Check(promptNoticeIDs[0], Equals, prompt1.ID)
 	promptNoticeIDs = promptNoticeIDs[1:]
 
-	prompt2, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq2)
+	prompt2, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq2)
 	c.Check(merged, Equals, true)
 	c.Check(prompt2, Equals, prompt1)
 
@@ -220,14 +216,14 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 	listenerReq1 = &listener.Request{}
 	listenerReq2 = &listener.Request{}
 
-	prompt1, merged = pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq1)
+	prompt1, merged = pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq1)
 	c.Check(merged, Equals, false)
 
 	c.Assert(promptNoticeIDs, HasLen, 1, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 	c.Check(promptNoticeIDs[0], Equals, prompt1.ID)
 	promptNoticeIDs = promptNoticeIDs[1:]
 
-	prompt2, merged = pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq2)
+	prompt2, merged = pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq2)
 	c.Check(merged, Equals, true)
 	c.Check(prompt2, Equals, prompt1)
 
@@ -269,14 +265,13 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 
 	pdb := requestprompts.New(notifyPrompt)
 	snap := "nextcloud"
-	app := "occ"
 	iface := "removable-media"
 	path := "/home/test/Documents/foo.txt"
 	permissions := []string{"read", "write", "execute"}
 
 	listenerReq := &listener.Request{}
 
-	prompt, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq)
+	prompt, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq)
 	c.Check(merged, Equals, false)
 
 	c.Assert(promptNoticeIDs, HasLen, 1, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
@@ -322,28 +317,27 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 	pdb := requestprompts.New(notifyPrompt)
 
 	snap := "nextcloud"
-	app := "occ"
 	iface := "home"
 	path := "/home/test/Documents/foo.txt"
 
 	permissions := []string{"read", "write", "execute"}
 	listenerReq1 := &listener.Request{}
-	prompt1, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq1)
+	prompt1, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq1)
 	c.Check(merged, Equals, false)
 
 	permissions = []string{"read", "write"}
 	listenerReq2 := &listener.Request{}
-	prompt2, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq2)
+	prompt2, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq2)
 	c.Check(merged, Equals, false)
 
 	permissions = []string{"read"}
 	listenerReq3 := &listener.Request{}
-	prompt3, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq3)
+	prompt3, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq3)
 	c.Check(merged, Equals, false)
 
 	permissions = []string{"open"}
 	listenerReq4 := &listener.Request{}
-	prompt4, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq4)
+	prompt4, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq4)
 	c.Check(merged, Equals, false)
 
 	c.Assert(promptNoticeIDs, HasLen, 4, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
@@ -364,7 +358,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 		Permissions: permissions,
 	}
 
-	satisfied, err := pdb.HandleNewRule(user, snap, app, iface, constraints, outcome)
+	satisfied, err := pdb.HandleNewRule(user, snap, iface, constraints, outcome)
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 2)
 	c.Check(strutil.ListContains(satisfied, prompt2.ID), Equals, true)
@@ -401,7 +395,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleAllowPermissions(c *C) {
 		PathPattern: pathPattern,
 		Permissions: permissions,
 	}
-	satisfied, err = pdb.HandleNewRule(user, snap, app, iface, constraints, outcome)
+	satisfied, err = pdb.HandleNewRule(user, snap, iface, constraints, outcome)
 
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 1)
@@ -439,28 +433,27 @@ func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 	pdb := requestprompts.New(notifyPrompt)
 
 	snap := "nextcloud"
-	app := "occ"
 	iface := "home"
 	path := "/home/test/Documents/foo.txt"
 
 	permissions := []string{"read", "write", "execute"}
 	listenerReq1 := &listener.Request{}
-	prompt1, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq1)
+	prompt1, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq1)
 	c.Check(merged, Equals, false)
 
 	permissions = []string{"read", "write"}
 	listenerReq2 := &listener.Request{}
-	prompt2, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq2)
+	prompt2, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq2)
 	c.Check(merged, Equals, false)
 
 	permissions = []string{"read"}
 	listenerReq3 := &listener.Request{}
-	prompt3, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq3)
+	prompt3, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq3)
 	c.Check(merged, Equals, false)
 
 	permissions = []string{"open"}
 	listenerReq4 := &listener.Request{}
-	prompt4, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq4)
+	prompt4, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq4)
 	c.Check(merged, Equals, false)
 
 	c.Assert(promptNoticeIDs, HasLen, 4, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
@@ -482,7 +475,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleDenyPermissions(c *C) {
 	}
 
 	// If one or more permissions denied each for prompts 1-3, so each is denied
-	satisfied, err := pdb.HandleNewRule(user, snap, app, iface, constraints, outcome)
+	satisfied, err := pdb.HandleNewRule(user, snap, iface, constraints, outcome)
 	c.Assert(err, IsNil)
 	c.Check(satisfied, HasLen, 3)
 	c.Check(strutil.ListContains(satisfied, prompt1.ID), Equals, true)
@@ -545,12 +538,11 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	pdb := requestprompts.New(notifyPrompt)
 
 	snap := "nextcloud"
-	app := "occ"
 	iface := "home"
 	path := "/home/test/Documents/foo.txt"
 	permissions := []string{"read"}
 	listenerReq := &listener.Request{}
-	prompt, merged := pdb.AddOrMerge(user, snap, app, iface, path, permissions, listenerReq)
+	prompt, merged := pdb.AddOrMerge(user, snap, iface, path, permissions, listenerReq)
 	c.Check(merged, Equals, false)
 
 	c.Assert(promptNoticeIDs, HasLen, 1, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
@@ -566,7 +558,6 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 
 	otherUser := user + 1
 	otherSnap := "ldx"
-	otherApp := "lxc"
 	otherInterface := "system-files"
 	otherPattern := "/home/test/Pictures/**.png"
 	otherConstraints := &common.Constraints{
@@ -584,49 +575,43 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	c.Assert(stored, HasLen, 1)
 	c.Assert(stored[0], Equals, prompt)
 
-	satisfied, err := pdb.HandleNewRule(otherUser, otherSnap, otherApp, otherInterface, otherConstraints, badOutcome)
+	satisfied, err := pdb.HandleNewRule(otherUser, otherSnap, otherInterface, otherConstraints, badOutcome)
 	c.Check(err, Equals, common.ErrInvalidOutcome)
 	c.Check(satisfied, HasLen, 0)
 
 	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = pdb.HandleNewRule(otherUser, otherSnap, otherApp, otherInterface, otherConstraints, outcome)
+	satisfied, err = pdb.HandleNewRule(otherUser, otherSnap, otherInterface, otherConstraints, outcome)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
 	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = pdb.HandleNewRule(user, otherSnap, otherApp, otherInterface, otherConstraints, outcome)
+	satisfied, err = pdb.HandleNewRule(user, otherSnap, otherInterface, otherConstraints, outcome)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
 	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = pdb.HandleNewRule(user, snap, otherApp, otherInterface, otherConstraints, outcome)
+	satisfied, err = pdb.HandleNewRule(user, snap, otherInterface, otherConstraints, outcome)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
 	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = pdb.HandleNewRule(user, snap, app, otherInterface, otherConstraints, outcome)
+	satisfied, err = pdb.HandleNewRule(user, snap, iface, otherConstraints, outcome)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
 	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = pdb.HandleNewRule(user, snap, app, iface, otherConstraints, outcome)
-	c.Check(err, IsNil)
-	c.Check(satisfied, HasLen, 0)
-
-	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
-
-	satisfied, err = pdb.HandleNewRule(user, snap, app, iface, badConstraints, outcome)
+	satisfied, err = pdb.HandleNewRule(user, snap, iface, badConstraints, outcome)
 	c.Check(err, ErrorMatches, "syntax error in pattern")
 	c.Check(satisfied, HasLen, 0)
 
 	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = pdb.HandleNewRule(user, snap, app, iface, constraints, outcome)
+	satisfied, err = pdb.HandleNewRule(user, snap, iface, constraints, outcome)
 	c.Check(err, IsNil)
 	c.Assert(satisfied, HasLen, 1)
 

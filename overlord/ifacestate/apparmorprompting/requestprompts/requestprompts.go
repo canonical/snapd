@@ -18,7 +18,6 @@ type Prompt struct {
 	ID           string              `json:"id"`
 	Timestamp    string              `json:"timestamp"`
 	Snap         string              `json:"snap"`
-	App          string              `json:"app"`
 	Interface    string              `json:"interface"`
 	Constraints  *promptConstraints  `json:"constraints"`
 	listenerReqs []*listener.Request `json:"-"`
@@ -78,7 +77,7 @@ func New(notifyPrompt func(userID uint32, promptID string, options *state.AddNot
 // added, returns the new prompt and false, indicating the prompt was not
 // merged. If it was merged with an identical existing prompt, returns the
 // existing prompt and true.
-func (pdb *PromptDB) AddOrMerge(user uint32, snap string, app string, iface string, path string, permissions []string, listenerReq *listener.Request) (*Prompt, bool) {
+func (pdb *PromptDB) AddOrMerge(user uint32, snap string, iface string, path string, permissions []string, listenerReq *listener.Request) (*Prompt, bool) {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 	userEntry, exists := pdb.PerUser[user]
@@ -102,7 +101,7 @@ func (pdb *PromptDB) AddOrMerge(user uint32, snap string, app string, iface stri
 
 	// Search for an identical existing prompt, merge if found
 	for _, prompt := range userEntry.ByID {
-		if prompt.Snap == snap && prompt.App == app && prompt.Interface == iface && prompt.Constraints.Equals(constraints) {
+		if prompt.Snap == snap && prompt.Interface == iface && prompt.Constraints.Equals(constraints) {
 			prompt.listenerReqs = append(prompt.listenerReqs, listenerReq)
 			return prompt, true
 		}
@@ -113,7 +112,6 @@ func (pdb *PromptDB) AddOrMerge(user uint32, snap string, app string, iface stri
 		ID:           id,
 		Timestamp:    timestamp,
 		Snap:         snap,
-		App:          app,
 		Interface:    iface,
 		Constraints:  constraints,
 		listenerReqs: []*listener.Request{listenerReq},
@@ -183,7 +181,7 @@ var sendReply = func(listenerReq *listener.Request, reply interface{}) error {
 
 // If any existing prompts are satisfied by the given rule, send the decision
 // along their respective channels, and return their IDs.
-func (pdb *PromptDB) HandleNewRule(user uint32, snap string, app string, iface string, constraints *common.Constraints, outcome common.OutcomeType) ([]string, error) {
+func (pdb *PromptDB) HandleNewRule(user uint32, snap string, iface string, constraints *common.Constraints, outcome common.OutcomeType) ([]string, error) {
 	pdb.mutex.Lock()
 	defer pdb.mutex.Unlock()
 	outcomeBool, err := outcome.AsBool()
@@ -196,7 +194,7 @@ func (pdb *PromptDB) HandleNewRule(user uint32, snap string, app string, iface s
 		return satisfiedPromptIDs, nil
 	}
 	for id, prompt := range userEntry.ByID {
-		if !(prompt.Snap == snap && prompt.App == app && prompt.Interface == iface) {
+		if !(prompt.Snap == snap && prompt.Interface == iface) {
 			continue
 		}
 		matched, err := constraints.Match(prompt.Constraints.Path)

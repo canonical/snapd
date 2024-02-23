@@ -373,37 +373,32 @@ func (s *commonSuite) TestNewIDAndTimestamp(c *C) {
 	c.Assert(parsedTimePaired, Equals, parsedTimestamp)
 }
 
-func (s *commonSuite) TestLabelToSnapAppHappy(c *C) {
+func (s *commonSuite) TestLabelToSnap(c *C) {
 	cases := []struct {
 		label string
 		snap  string
-		app   string
 	}{
 		{
 			label: "snap.nextcloud.occ",
 			snap:  "nextcloud",
-			app:   "occ",
 		},
 		{
 			label: "snap.lxd.lxc",
 			snap:  "lxd",
-			app:   "lxc",
 		},
 		{
 			label: "snap.firefox.firefox",
 			snap:  "firefox",
-			app:   "firefox",
 		},
 	}
 	for _, testCase := range cases {
-		snap, app, err := common.LabelToSnapApp(testCase.label)
+		snap, err := common.LabelToSnap(testCase.label)
 		c.Check(err, IsNil)
 		c.Check(snap, Equals, testCase.snap)
-		c.Check(app, Equals, testCase.app)
 	}
 }
 
-func (s *commonSuite) TestLabelToSnapAppUnhappy(c *C) {
+func (s *commonSuite) TestLabelToSnapUnhappy(c *C) {
 	cases := []string{
 		"snap",
 		"snap.nextcloud",
@@ -412,10 +407,9 @@ func (s *commonSuite) TestLabelToSnapAppUnhappy(c *C) {
 		"SNAP.NEXTCLOUD.OCC",
 	}
 	for _, label := range cases {
-		snap, app, err := common.LabelToSnapApp(label)
+		snap, err := common.LabelToSnap(label)
 		c.Check(err, Equals, common.ErrInvalidSnapLabel)
 		c.Check(snap, Equals, label)
-		c.Check(app, Equals, label)
 	}
 }
 

@@ -28,7 +28,6 @@ type Rule struct {
 	Timestamp   string              `json:"timestamp"`
 	User        uint32              `json:"user"`
 	Snap        string              `json:"snap"`
-	App         string              `json:"app"`
 	Interface   string              `json:"interface"`
 	Constraints *common.Constraints `json:"constraints"`
 	Outcome     common.OutcomeType  `json:"outcome"`
@@ -74,14 +73,9 @@ type interfaceDB struct {
 	PerPermission map[string]*permissionDB
 }
 
-type appDB struct {
-	// appDB contains a map from interface to interfaceDB for a particular app
-	PerInterface map[string]*interfaceDB
-}
-
 type snapDB struct {
-	// snapDB contains a map from app to appDB for a particular snap
-	PerApp map[string]*appDB
+	// snapDB contains a map from interface to interfaceDB for a particular snap
+	PerInterface map[string]*interfaceDB
 }
 
 type userDB struct {
@@ -112,7 +106,7 @@ func (rdb *RuleDB) dbpath() string {
 	return filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "request-rules.json")
 }
 
-func (rdb *RuleDB) permissionDBForUserSnapAppInterfacePermission(user uint32, snap string, app string, iface string, permission string) *permissionDB {
+func (rdb *RuleDB) permissionDBForUserSnapInterfacePermission(user uint32, snap string, iface string, permission string) *permissionDB {
 	userSnaps := rdb.PerUser[user]
 	if userSnaps == nil {
 		userSnaps = &userDB{
@@ -120,26 +114,19 @@ func (rdb *RuleDB) permissionDBForUserSnapAppInterfacePermission(user uint32, sn
 		}
 		rdb.PerUser[user] = userSnaps
 	}
-	snapApps := userSnaps.PerSnap[snap]
-	if snapApps == nil {
-		snapApps = &snapDB{
-			PerApp: make(map[string]*appDB),
-		}
-		userSnaps.PerSnap[snap] = snapApps
-	}
-	appInterfaces := snapApps.PerApp[app]
-	if appInterfaces == nil {
-		appInterfaces = &appDB{
+	snapInterfaces := userSnaps.PerSnap[snap]
+	if snapInterfaces == nil {
+		snapInterfaces = &snapDB{
 			PerInterface: make(map[string]*interfaceDB),
 		}
-		snapApps.PerApp[app] = appInterfaces
+		userSnaps.PerSnap[snap] = snapInterfaces
 	}
-	interfacePerms := appInterfaces.PerInterface[iface]
+	interfacePerms := snapInterfaces.PerInterface[iface]
 	if interfacePerms == nil {
 		interfacePerms = &interfaceDB{
 			PerPermission: make(map[string]*permissionDB),
 		}
-		appInterfaces.PerInterface[iface] = interfacePerms
+		snapInterfaces.PerInterface[iface] = interfacePerms
 	}
 	permPaths := interfacePerms.PerPermission[permission]
 	if permPaths == nil {
@@ -154,7 +141,7 @@ func (rdb *RuleDB) permissionDBForUserSnapAppInterfacePermission(user uint32, sn
 func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) (error, string) {
 	// If there is a conflicting path pattern from another rule, returns an
 	// error along with the ID of the conflicting rule.
-	permPaths := rdb.permissionDBForUserSnapAppInterfacePermission(rule.User, rule.Snap, rule.App, rule.Interface, permission)
+	permPaths := rdb.permissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
 	pathPattern := rule.Constraints.PathPattern
 	if id, exists := permPaths.PathRules[pathPattern]; exists {
 		return ErrPathPatternConflict, id
@@ -164,7 +151,7 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) (error
 }
 
 func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) error {
-	permPaths := rdb.permissionDBForUserSnapAppInterfacePermission(rule.User, rule.Snap, rule.App, rule.Interface, permission)
+	permPaths := rdb.permissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
 	pathPattern := rule.Constraints.PathPattern
 	id, exists := permPaths.PathRules[pathPattern]
 	if !exists {
@@ -350,7 +337,7 @@ func (rdb *RuleDB) save() error {
 // time, to compute the expiration time for the rule, and stores that as part
 // of the rule which is returned. If any of the given parameters are invalid,
 // returns a corresponding error.
-func (rdb *RuleDB) PopulateNewRule(user uint32, snap string, app string, iface string, constraints *common.Constraints, outcome common.OutcomeType, lifespan common.LifespanType, duration string) (*Rule, error) {
+func (rdb *RuleDB) PopulateNewRule(user uint32, snap string, iface string, constraints *common.Constraints, outcome common.OutcomeType, lifespan common.LifespanType, duration string) (*Rule, error) {
 	expiration, err := common.ValidateConstraintsOutcomeLifespanDuration(iface, constraints, outcome, lifespan, duration)
 	if err != nil {
 		return nil, err
@@ -361,7 +348,6 @@ func (rdb *RuleDB) PopulateNewRule(user uint32, snap string, app string, iface s
 		Timestamp:   timestamp,
 		User:        user,
 		Snap:        snap,
-		App:         app,
 		Interface:   iface,
 		Constraints: constraints,
 		Outcome:     outcome,
@@ -372,9 +358,9 @@ func (rdb *RuleDB) PopulateNewRule(user uint32, snap string, app string, iface s
 }
 
 // Checks whether the given path with the given permission is allowed or
-// denied by existing rules for the given user, snap, app, and interface.
+// denied by existing rules for the given user, snap, and interface.
 // If no rule applies, returns ErrNoMatchingRule.
-func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, app string, iface string, path string, permission string) (bool, error) {
+func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path string, permission string) (bool, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 	needToSave := false
@@ -383,7 +369,7 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, app string, iface str
 			rdb.save()
 		}
 	}()
-	pathMap := rdb.permissionDBForUserSnapAppInterfacePermission(user, snap, app, iface, permission).PathRules
+	pathMap := rdb.permissionDBForUserSnapInterfacePermission(user, snap, iface, permission).PathRules
 	matchingPatterns := make([]string, 0)
 	// Make sure all rules use the same expiration timestamp, so a rule with
 	// an earlier expiration cannot outlive another rule with a later one.
@@ -470,10 +456,10 @@ func (rdb *RuleDB) RuleWithID(user uint32, id string) (*Rule, error) {
 // Creates a rule with the given information and adds it to the rule database.
 // If any of the given parameters are invalid, returns an error. Otherwise,
 // returns the newly-added rule, and saves the database to disk.
-func (rdb *RuleDB) AddRule(user uint32, snap string, app string, iface string, constraints *common.Constraints, outcome common.OutcomeType, lifespan common.LifespanType, duration string) (*Rule, error) {
+func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *common.Constraints, outcome common.OutcomeType, lifespan common.LifespanType, duration string) (*Rule, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
-	newRule, err := rdb.PopulateNewRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
+	newRule, err := rdb.PopulateNewRule(user, snap, iface, constraints, outcome, lifespan, duration)
 	if err != nil {
 		return nil, err
 	}
@@ -541,7 +527,7 @@ func (rdb *RuleDB) PatchRule(user uint32, id string, constraints *common.Constra
 		changeOccurred = true
 		return nil, err
 	}
-	newRule, err := rdb.PopulateNewRule(user, origRule.Snap, origRule.App, origRule.Interface, constraints, outcome, lifespan, duration)
+	newRule, err := rdb.PopulateNewRule(user, origRule.Snap, origRule.Interface, constraints, outcome, lifespan, duration)
 	if err != nil {
 		rdb.addRuleToTree(origRule) // ignore any new error
 		// origRule was successfully removed before, so it should now be able
@@ -611,32 +597,12 @@ func (rdb *RuleDB) RulesForSnap(user uint32, snap string) []*Rule {
 	return rdb.rulesInternal(ruleFilter)
 }
 
-// Returns all rules which apply to the given user, snap, and app.
-func (rdb *RuleDB) RulesForSnapApp(user uint32, snap string, app string) []*Rule {
-	rdb.mutex.Lock()
-	defer rdb.mutex.Unlock()
-	ruleFilter := func(rule *Rule) bool {
-		return rule.User == user && rule.Snap == snap && rule.App == app
-	}
-	return rdb.rulesInternal(ruleFilter)
-}
-
 // Returns all rules which apply to the given user, snap, and interface.
 func (rdb *RuleDB) RulesForSnapInterface(user uint32, snap string, iface string) []*Rule {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 	ruleFilter := func(rule *Rule) bool {
 		return rule.User == user && rule.Snap == snap && rule.Interface == iface
-	}
-	return rdb.rulesInternal(ruleFilter)
-}
-
-// Returns all rules which apply to the given user, snap, app, and interface.
-func (rdb *RuleDB) RulesForSnapAppInterface(user uint32, snap string, app string, iface string) []*Rule {
-	rdb.mutex.Lock()
-	defer rdb.mutex.Unlock()
-	ruleFilter := func(rule *Rule) bool {
-		return rule.User == user && rule.Snap == snap && rule.App == app && rule.Interface == iface
 	}
 	return rdb.rulesInternal(ruleFilter)
 }

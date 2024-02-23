@@ -101,7 +101,7 @@ func (p *Prompting) Run() error {
 	p.tomb.Go(func() error {
 		if p.listener == nil {
 			logger.Noticef("listener is nil, exiting Prompting.Run() early")
-			return fmt.Errorf("listener is nil, cannot run apparmor prompting")
+			return fmt.Errorf("listener is nil, cannot run AppArmor prompting")
 		}
 		p.tomb.Go(func() error {
 			logger.Noticef("starting listener")
@@ -148,9 +148,9 @@ var (
 
 func (p *Prompting) handleListenerReq(req *listener.Request) error {
 	userID := uint32(req.SubjectUID())
-	snap, app, err := common.LabelToSnapApp(req.Label())
+	snap, err := common.LabelToSnap(req.Label())
 	if err != nil {
-		// the triggering process is not a snap, so treat apparmor label as both snap and app fields
+		// the triggering process is not a snap, so treat apparmor label as snap field
 	}
 
 	iface := common.SelectSingleInterface(req.Interfaces())
@@ -166,7 +166,7 @@ func (p *Prompting) handleListenerReq(req *listener.Request) error {
 
 	remainingPerms := make([]string, 0, len(permissions))
 	for _, perm := range permissions {
-		if yesNo, err := p.rules.IsPathAllowed(userID, snap, app, iface, path, perm); err == nil {
+		if yesNo, err := p.rules.IsPathAllowed(userID, snap, iface, path, perm); err == nil {
 			if !yesNo {
 				logger.Noticef("request denied by existing rule: %+v", req)
 				// TODO: the response puts all original permissions in the
@@ -184,7 +184,7 @@ func (p *Prompting) handleListenerReq(req *listener.Request) error {
 		return req.Reply(true)
 	}
 
-	newPrompt, merged := p.prompts.AddOrMerge(userID, snap, app, iface, path, remainingPerms, req)
+	newPrompt, merged := p.prompts.AddOrMerge(userID, snap, iface, path, remainingPerms, req)
 	if merged {
 		logger.Noticef("new prompt merged with identical existing prompt: %+v", newPrompt)
 		return nil
@@ -263,7 +263,7 @@ func (p *Prompting) PostPrompt(userID uint32, promptID string, reply *PromptRepl
 	}
 
 	// Add new rule based on the reply.
-	newRule, err := p.rules.AddRule(userID, prompt.Snap, prompt.App, prompt.Interface, reply.Constraints, reply.Outcome, reply.Lifespan, reply.Duration)
+	newRule, err := p.rules.AddRule(userID, prompt.Snap, prompt.Interface, reply.Constraints, reply.Outcome, reply.Lifespan, reply.Duration)
 	if err != nil {
 		// XXX: should only occur if identical constraints to an existing rule
 		// with overlapping permissions
@@ -277,7 +277,7 @@ func (p *Prompting) PostPrompt(userID uint32, promptID string, reply *PromptRepl
 	}
 
 	// Apply new rule to outstanding prompts.
-	satisfiedPromptIDs, err := p.prompts.HandleNewRule(userID, newRule.Snap, newRule.App, newRule.Interface, newRule.Constraints, newRule.Outcome)
+	satisfiedPromptIDs, err := p.prompts.HandleNewRule(userID, newRule.Snap, newRule.Interface, newRule.Constraints, newRule.Outcome)
 	if err != nil {
 		return nil, err
 	}
@@ -287,7 +287,6 @@ func (p *Prompting) PostPrompt(userID uint32, promptID string, reply *PromptRepl
 
 type AddRuleContents struct {
 	Snap        string              `json:"snap"`
-	App         string              `json:"app"`
 	Interface   string              `json:"interface"`
 	Constraints *common.Constraints `json:"constraints"`
 	Outcome     common.OutcomeType  `json:"outcome"`
@@ -297,7 +296,6 @@ type AddRuleContents struct {
 
 type RemoveRulesSelector struct {
 	Snap      string `json:"snap"`
-	App       string `json:"app,omitempty"`
 	Interface string `json:"interface,omitempty"`
 }
 
@@ -308,21 +306,13 @@ type PatchRuleContents struct {
 	Duration    string              `json:"duration,omitempty"`
 }
 
-func (p *Prompting) GetRules(userID uint32, snap string, app string, iface string) ([]*requestrules.Rule, error) {
+func (p *Prompting) GetRules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
-	// Daemon already checked that if app != "" or iface != "", then snap != ""
+	// Daemon already checked that if iface != "", then snap != ""
 	if iface != "" {
-		if app != "" {
-			rules := p.rules.RulesForSnapAppInterface(userID, snap, app, iface)
-			return rules, nil
-		}
 		rules := p.rules.RulesForSnapInterface(userID, snap, iface)
-		return rules, nil
-	}
-	if app != "" {
-		rules := p.rules.RulesForSnapApp(userID, snap, app)
 		return rules, nil
 	}
 	if snap != "" {
@@ -338,18 +328,17 @@ func (p *Prompting) PostRulesAdd(userID uint32, ruleContents *AddRuleContents) (
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
 	snap := ruleContents.Snap
-	app := ruleContents.App
 	iface := ruleContents.Interface
 	constraints := ruleContents.Constraints
 	outcome := ruleContents.Outcome
 	lifespan := ruleContents.Lifespan
 	duration := ruleContents.Duration
-	newRule, err := p.rules.AddRule(userID, snap, app, iface, constraints, outcome, lifespan, duration)
+	newRule, err := p.rules.AddRule(userID, snap, iface, constraints, outcome, lifespan, duration)
 	if err != nil {
 		return nil, err
 	}
 	// Apply new rule to outstanding prompts.
-	if _, err = p.prompts.HandleNewRule(userID, newRule.Snap, newRule.App, newRule.Interface, newRule.Constraints, newRule.Outcome); err != nil {
+	if _, err = p.prompts.HandleNewRule(userID, newRule.Snap, newRule.Interface, newRule.Constraints, newRule.Outcome); err != nil {
 		return nil, err
 	}
 	return newRule, nil
@@ -361,18 +350,11 @@ func (p *Prompting) PostRulesRemove(userID uint32, selector *RemoveRulesSelector
 	}
 	removedRules := make([]*requestrules.Rule, 0)
 	snap := selector.Snap
-	app := selector.App
 	iface := selector.Interface
 	var rulesToRemove []*requestrules.Rule
 	// Already checked that snap != ""
 	if iface != "" {
-		if app != "" {
-			rulesToRemove = p.rules.RulesForSnapAppInterface(userID, snap, app, iface)
-		} else {
-			rulesToRemove = p.rules.RulesForSnapInterface(userID, snap, iface)
-		}
-	} else if app != "" {
-		rulesToRemove = p.rules.RulesForSnapApp(userID, snap, app)
+		rulesToRemove = p.rules.RulesForSnapInterface(userID, snap, iface)
 	} else {
 		rulesToRemove = p.rules.RulesForSnap(userID, snap)
 	}
