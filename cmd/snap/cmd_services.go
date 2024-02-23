@@ -202,7 +202,7 @@ func (s *svcLogs) Execute(args []string) error {
 	return nil
 }
 
-func serviceScope(user, users, system bool) ([]string, error) {
+func serviceScope(user, users, system bool) (client.ScopeSelector, error) {
 	switch {
 	case user && system:
 		return nil, fmt.Errorf("--user and --system cannot be used in conjunction with each other")
@@ -211,21 +211,26 @@ func serviceScope(user, users, system bool) ([]string, error) {
 	case users && system:
 		return nil, fmt.Errorf("--users and --system cannot be used in conjunction with each other")
 	case (user || users) && !system:
-		return []string{"user"}, nil
+		return client.ScopeSelector([]string{"user"}), nil
 	case !(user || users) && system:
-		return []string{"system"}, nil
+		return client.ScopeSelector([]string{"system"}), nil
 	}
 	return nil, nil
 }
 
-func serviceUsers(user, users bool) []string {
+func serviceUsers(user, users bool) client.UserSelector {
 	switch {
 	case user && !users:
-		return []string{"user"}
+		return client.UserSelector{
+			Selector: client.UserSelectionSelf,
+		}
 	case users:
-		return []string{"users"}
+		return client.UserSelector{
+			Selector: client.UserSelectionAll,
+		}
 	}
-	return nil
+	// empty for now
+	return client.UserSelector{}
 }
 
 type svcStart struct {

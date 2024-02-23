@@ -22,6 +22,7 @@ package client_test
 import (
 	"encoding/json"
 	"fmt"
+	"os/user"
 	"strconv"
 	"strings"
 
@@ -217,7 +218,7 @@ func (cs *clientSuite) TestClientLogsNotFound(c *check.C) {
 	c.Check(actual, check.HasLen, 0)
 }
 
-func (cs *clientSuite) checkCommonFields(c *check.C, reqOp map[string]interface{}, names, scope, users []string, comment check.CommentInterface) {
+func (cs *clientSuite) checkCommonFields(c *check.C, reqOp map[string]interface{}, names []string, scope client.ScopeSelector, users client.UserSelector, comment check.CommentInterface) {
 	inames := make([]interface{}, len(names))
 	for i, name := range names {
 		inames[i] = interface{}(name)
@@ -233,14 +234,21 @@ func (cs *clientSuite) checkCommonFields(c *check.C, reqOp map[string]interface{
 	} else {
 		c.Check(reqOp["scope"], check.IsNil, comment)
 	}
-	if len(users) > 0 {
-		unames := make([]interface{}, len(users))
-		for i, u := range users {
-			unames[i] = interface{}(u)
+	switch users.Selector {
+	case client.UserSelectionSelf:
+		c.Check(reqOp["users"], check.Equals, `self`, comment)
+	case client.UserSelectionAll:
+		c.Check(reqOp["users"], check.Equals, `all`, comment)
+	case client.UserSelectionList:
+		if len(users.Names) > 0 {
+			unames := make([]interface{}, len(users.Names))
+			for i, u := range users.Names {
+				unames[i] = interface{}(u)
+			}
+			c.Check(reqOp["users"], check.DeepEquals, unames, comment)
+		} else {
+			c.Check(reqOp["users"], check.IsNil, comment)
 		}
-		c.Check(reqOp["user-services-of"], check.DeepEquals, unames, comment)
-	} else {
-		c.Check(reqOp["user-services-of"], check.IsNil, comment)
 	}
 }
 
@@ -250,8 +258,8 @@ func (cs *clientSuite) TestClientServiceStart(c *check.C) {
 
 	tests := []struct {
 		names []string
-		scope []string
-		users []string
+		scope client.ScopeSelector
+		users client.UserSelector
 		opts  client.StartOptions
 	}{
 		{},
@@ -292,11 +300,15 @@ func (cs *clientSuite) TestClientServiceStart(c *check.C) {
 		},
 		{
 			names: []string{"foo"},
-			users: []string{"user"},
+			users: client.UserSelector{
+				Selector: client.UserSelectionSelf,
+			},
 		},
 		{
 			names: []string{"foo"},
-			users: []string{"users"},
+			users: client.UserSelector{
+				Selector: client.UserSelectionAll,
+			},
 		},
 	}
 
@@ -333,8 +345,8 @@ func (cs *clientSuite) TestClientServiceStop(c *check.C) {
 
 	tests := []struct {
 		names []string
-		scope []string
-		users []string
+		scope client.ScopeSelector
+		users client.UserSelector
 		opts  client.StopOptions
 	}{
 		{},
@@ -375,11 +387,15 @@ func (cs *clientSuite) TestClientServiceStop(c *check.C) {
 		},
 		{
 			names: []string{"foo"},
-			users: []string{"user"},
+			users: client.UserSelector{
+				Selector: client.UserSelectionSelf,
+			},
 		},
 		{
 			names: []string{"foo"},
-			users: []string{"users"},
+			users: client.UserSelector{
+				Selector: client.UserSelectionAll,
+			},
 		},
 	}
 
@@ -416,8 +432,8 @@ func (cs *clientSuite) TestClientServiceRestart(c *check.C) {
 
 	tests := []struct {
 		names []string
-		scope []string
-		users []string
+		scope client.ScopeSelector
+		users client.UserSelector
 		opts  client.RestartOptions
 	}{
 		{},
@@ -458,11 +474,15 @@ func (cs *clientSuite) TestClientServiceRestart(c *check.C) {
 		},
 		{
 			names: []string{"foo"},
-			users: []string{"user"},
+			users: client.UserSelector{
+				Selector: client.UserSelectionSelf,
+			},
 		},
 		{
 			names: []string{"foo"},
-			users: []string{"users"},
+			users: client.UserSelector{
+				Selector: client.UserSelectionAll,
+			},
 		},
 	}
 
@@ -491,4 +511,159 @@ func (cs *clientSuite) TestClientServiceRestart(c *check.C) {
 			}
 		}
 	}
+}
+
+type userSelectorSuite struct{}
+
+var _ = check.Suite(&userSelectorSuite{})
+
+func (s *userSelectorSuite) TestUserScopeMarshalListOfUsernames(c *check.C) {
+	us := client.UserSelector{
+		Names: []string{"user", "user-two"},
+	}
+	b, err := json.Marshal(us)
+	c.Assert(err, check.IsNil)
+	c.Check(string(b), check.Equals, `["user","user-two"]`)
+}
+
+func (s *userSelectorSuite) TestUserScopeMarshalStringKeyword(c *check.C) {
+	us := client.UserSelector{
+		Selector: client.UserSelectionSelf,
+	}
+	b, err := json.Marshal(us)
+	c.Assert(err, check.IsNil)
+	c.Check(string(b), check.Equals, `"self"`)
+}
+
+func (s *userSelectorSuite) TestUserScopeMarshalInvalidSelector(c *check.C) {
+	us := client.UserSelector{
+		Selector: 42,
+	}
+	_, err := json.Marshal(us)
+	c.Assert(err, check.ErrorMatches, `.* internal error: unsupported selector 42 specified`)
+}
+
+func (s *userSelectorSuite) TestUserScopeUnmarshalInvalidType(c *check.C) {
+	const userScopeJson = `1`
+	var us client.UserSelector
+	err := json.Unmarshal([]byte(userScopeJson), &us)
+	c.Assert(err, check.ErrorMatches, `cannot unmarshal, expected a string or a list of strings`)
+}
+
+func (s *userSelectorSuite) TestUserScopeUnmarshalListOfUsernames(c *check.C) {
+	const userScopeJson = `["my-user","other-user"]`
+	var us client.UserSelector
+	err := json.Unmarshal([]byte(userScopeJson), &us)
+	c.Assert(err, check.IsNil)
+	c.Check(us, check.DeepEquals, client.UserSelector{
+		Names: []string{"my-user", "other-user"},
+	})
+}
+
+func (s *userSelectorSuite) TestUserScopeUnmarshalStringKeyword(c *check.C) {
+	const userScopeJson = `"all"`
+	var us client.UserSelector
+	err := json.Unmarshal([]byte(userScopeJson), &us)
+	c.Assert(err, check.IsNil)
+	c.Check(us, check.DeepEquals, client.UserSelector{
+		Selector: client.UserSelectionAll,
+	})
+}
+
+func (s *userSelectorSuite) TestUserListCurrentUser(c *check.C) {
+	us := client.UserSelector{
+		Selector: client.UserSelectionSelf,
+	}
+
+	users, err := us.UserList(&user.User{
+		Uid:      "1000",
+		Username: "my-user",
+	})
+	c.Assert(err, check.IsNil)
+	c.Check(users, check.DeepEquals, []string{"my-user"})
+}
+
+func (s *userSelectorSuite) TestUserListCurrentUserInvalidNil(c *check.C) {
+	us := client.UserSelector{
+		Selector: client.UserSelectionSelf,
+	}
+
+	users, err := us.UserList(nil)
+	c.Assert(err, check.ErrorMatches, `internal error: for "self" the current user must be provided`)
+	c.Check(users, check.IsNil)
+}
+
+func (s *userSelectorSuite) TestUserListCurrentUserNotValidForRoot(c *check.C) {
+	us := client.UserSelector{
+		Selector: client.UserSelectionSelf,
+	}
+
+	users, err := us.UserList(&user.User{
+		Uid:      "0",
+		Username: "my-user",
+	})
+	c.Assert(err, check.ErrorMatches, `cannot use "self" for root user`)
+	c.Check(users, check.IsNil)
+}
+
+func (s *userSelectorSuite) TestUserListInvalidSelector(c *check.C) {
+	us := client.UserSelector{
+		Selector: 42,
+	}
+
+	users, err := us.UserList(nil)
+	c.Assert(err, check.ErrorMatches, `internal error: unsupported selector 42 specified`)
+	c.Check(users, check.IsNil)
+}
+
+func (s *userSelectorSuite) TestUserListUsersReturnsEmpty(c *check.C) {
+	us := client.UserSelector{
+		Selector: client.UserSelectionAll,
+	}
+
+	users, err := us.UserList(nil)
+	c.Assert(err, check.IsNil)
+	c.Check(users, check.IsNil)
+}
+
+type scopeSelectorSuite struct{}
+
+var _ = check.Suite(&scopeSelectorSuite{})
+
+func (s *scopeSelectorSuite) TestScopeUnmarshalInvalidType(c *check.C) {
+	const userScopeJson = `1`
+	var us client.ScopeSelector
+	err := json.Unmarshal([]byte(userScopeJson), &us)
+	c.Assert(err, check.ErrorMatches, `cannot unmarshal, expected a list of strings`)
+}
+
+func (s *scopeSelectorSuite) TestScopeUnmarshalInvalidKeyword(c *check.C) {
+	const userScopeJson = `["all"]`
+	var us client.ScopeSelector
+	err := json.Unmarshal([]byte(userScopeJson), &us)
+	c.Assert(err, check.ErrorMatches, `cannot unmarshal, expected one of: "system", "user"`)
+}
+
+func (s *scopeSelectorSuite) TestScopeUnmarshalNone(c *check.C) {
+	const userScopeJson = `[]`
+	var us client.ScopeSelector
+	err := json.Unmarshal([]byte(userScopeJson), &us)
+	c.Assert(err, check.IsNil)
+	c.Check(us, check.DeepEquals, client.ScopeSelector{})
+}
+
+func (s *scopeSelectorSuite) TestScopeUnmarshalSystem(c *check.C) {
+	const userScopeJson = `["system"]`
+	var us client.ScopeSelector
+	err := json.Unmarshal([]byte(userScopeJson), &us)
+	c.Assert(err, check.IsNil)
+	c.Check(us, check.DeepEquals, client.ScopeSelector{"system"})
+}
+
+func (s *scopeSelectorSuite) TestScopeUnmarshalUser(c *check.C) {
+	const userScopeJson = `["user"]`
+	var us client.ScopeSelector
+	err := json.Unmarshal([]byte(userScopeJson), &us)
+	c.Assert(err, check.IsNil)
+	c.Check(us, check.DeepEquals, client.ScopeSelector{"user"})
 }
