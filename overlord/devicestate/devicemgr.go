@@ -2042,6 +2042,7 @@ type System struct {
 
 var defaultSystemActions = []SystemAction{
 	{Title: "Install", Mode: "install"},
+	{Title: "Recover", Mode: "recover"},
 }
 var currentSystemActions = []SystemAction{
 	{Title: "Reinstall", Mode: "install"},
@@ -2235,14 +2236,12 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 
 	// no systemLabel means "current" so get the current system label
 	if systemLabel == "" {
-		systemMode := m.SystemMode(SysAny)
-		m.state.Lock()
-		currentSys, err := currentSystemForMode(m.state, systemMode)
-		m.state.Unlock()
+		defaultLabel, err := defaultSystemLabel(m.state, m, mode)
 		if err != nil {
-			return fmt.Errorf("cannot get current system: %v", err)
+			return err
 		}
-		systemLabel = currentSys.System
+
+		systemLabel = defaultLabel
 	}
 
 	switched := func(systemLabel string, sysAction *SystemAction) {
@@ -2252,6 +2251,34 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 	// even if we are already in the right mode we restart here by
 	// passing rebootCurrent as this is what the user requested
 	return m.switchToSystemAndMode(systemLabel, mode, rebootCurrent, switched)
+}
+
+func defaultSystemLabel(st *state.State, manager *DeviceManager, mode string) (string, error) {
+	st.Lock()
+	defer st.Unlock()
+
+	if mode == "recover" {
+		var defaultRecoverySystem string
+		if err := st.Get("default-recovery-system", &defaultRecoverySystem); err != nil && !errors.Is(err, state.ErrNoState) {
+			return "", err
+		}
+
+		if defaultRecoverySystem != "" {
+			return defaultRecoverySystem, nil
+		}
+
+		// intentionally fall through here, since we fall back to using the most
+		// recently seeded system if there isn't a default recovery system
+		// explicitly set
+	}
+
+	systemMode := manager.SystemMode(SysAny)
+	currentSys, err := currentSystemForMode(st, systemMode)
+	if err != nil {
+		return "", fmt.Errorf("cannot get current system: %v", err)
+	}
+
+	return currentSys.System, nil
 }
 
 // RequestSystemAction requests the provided system to be run in a

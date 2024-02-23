@@ -288,6 +288,7 @@ func (s *deviceMgrSystemsSuite) TestListSystemsNotPossible(c *C) {
 // TODO:UC20 update once we can list actions
 var defaultSystemActions []devicestate.SystemAction = []devicestate.SystemAction{
 	{Title: "Install", Mode: "install"},
+	{Title: "Recover", Mode: "recover"},
 }
 var currentSystemActions []devicestate.SystemAction = []devicestate.SystemAction{
 	{Title: "Reinstall", Mode: "install"},
@@ -750,8 +751,6 @@ func (s *deviceMgrSystemsSuite) TestRequestModeForNonCurrent(c *C) {
 	// request mode reserved for current system
 	err := s.mgr.RequestSystemAction(s.mockedSystemSeeds[1].label, devicestate.SystemAction{Mode: "run"})
 	c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
-	err = s.mgr.RequestSystemAction(s.mockedSystemSeeds[1].label, devicestate.SystemAction{Mode: "recover"})
-	c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
 	err = s.mgr.RequestSystemAction(s.mockedSystemSeeds[1].label, devicestate.SystemAction{Mode: "factory-reset"})
 	c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
 	c.Check(s.restartRequests, HasLen, 0)
@@ -866,6 +865,10 @@ func (s *deviceMgrSystemsSuite) TestRebootFromRunOnlyHappy(c *C) {
 			BrandID: s.mockedSystemSeeds[0].brand.AccountID(),
 		},
 	})
+
+	const defaultRecoverySystem = "20200318"
+	s.state.Set("default-recovery-system", defaultRecoverySystem)
+
 	s.state.Unlock()
 
 	for _, mode := range []string{"recover", "install", "factory-reset"} {
@@ -876,14 +879,21 @@ func (s *deviceMgrSystemsSuite) TestRebootFromRunOnlyHappy(c *C) {
 		err := s.mgr.Reboot("", mode)
 		c.Assert(err, IsNil)
 
+		var expectedLabel string
+		if mode == "recover" {
+			expectedLabel = defaultRecoverySystem
+		} else {
+			expectedLabel = s.mockedSystemSeeds[0].label
+		}
+
 		m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
 		c.Assert(err, IsNil)
 		c.Check(m, DeepEquals, map[string]string{
-			"snapd_recovery_system": s.mockedSystemSeeds[0].label,
+			"snapd_recovery_system": expectedLabel,
 			"snapd_recovery_mode":   mode,
 		})
 		c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
-		c.Check(s.logbuf.String(), Matches, fmt.Sprintf(`.*: rebooting into system "20191119" in "%s" mode\n`, mode))
+		c.Check(s.logbuf.String(), Matches, fmt.Sprintf(`.*: rebooting into system "%s" in "%s" mode\n`, expectedLabel, mode))
 	}
 }
 
@@ -2753,12 +2763,10 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncyptionInfoHappy(c *C)
 	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label")
 	c.Assert(err, IsNil)
 	c.Check(system, DeepEquals, &devicestate.System{
-		Label: "some-label",
-		Model: fakeModel,
-		Brand: s.brands.Account("my-brand"),
-		Actions: []devicestate.SystemAction{
-			{Title: "Install", Mode: "install"},
-		},
+		Label:   "some-label",
+		Model:   fakeModel,
+		Brand:   s.brands.Account("my-brand"),
+		Actions: defaultSystemActions,
 	})
 	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
 	c.Check(encInfo, DeepEquals, &install.EncryptionSupportInfo{
