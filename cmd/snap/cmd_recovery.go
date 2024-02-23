@@ -56,10 +56,21 @@ func init() {
 }
 
 func notesForSystem(sys *client.System) string {
+	var notes []string
+
 	if sys.Current {
-		return "current"
+		notes = append(notes, "current")
 	}
-	return "-"
+
+	if sys.DefaultRecoverySystem {
+		notes = append(notes, "default-recovery-system")
+	}
+
+	if len(notes) == 0 {
+		return "-"
+	}
+
+	return strings.Join(notes, ",")
 }
 
 func (x *cmdRecovery) showKeys(w io.Writer) error {
