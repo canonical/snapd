@@ -40,11 +40,12 @@ recovery system.
 When called without a system label and without a mode it will just
 trigger a regular reboot.
 
-When called without a system label but with a mode it will use the
-current system to enter the given mode.
+When called without a system label, the current system will be used for all
+modes except for "recover". The default recovery system will be used for
+"recover" mode, in the absence of a provided label.
 
-Note that "recover", "factory-reset" and "run" modes are only available for the
-current system.
+Note that "factory-reset" and "run" modes are only available for the current
+system.
 
 [reboot command options]
       --run              Boot into run mode
