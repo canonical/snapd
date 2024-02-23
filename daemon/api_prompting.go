@@ -70,6 +70,17 @@ func userNotAllowedPromptingClientResponse(user *auth.UserState) Response {
 	return SyncResponse("user not allowed")
 }
 
+type postRulesRequestBody struct {
+	Action         string                                 `json:"action"`
+	AddRule        *apparmorprompting.AddRuleContents     `json:"rule,omitempty"`
+	RemoveSelector *apparmorprompting.RemoveRulesSelector `json:"selector,omitempty"`
+}
+
+type postRuleRequestBody struct {
+	Action    string                               `json:"action"`
+	PatchRule *apparmorprompting.PatchRuleContents `json:"rule,omitempty"`
+}
+
 func getPrompts(c *Command, r *http.Request, user *auth.UserState) Response {
 	if !userAllowedPromptingClient(user) {
 		return userNotAllowedPromptingClientResponse(user)
@@ -153,10 +164,10 @@ func getRules(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	if app != "" && snap == "" {
-		return BadRequest("app parameter provided, must also provide snap parameter")
+		return BadRequest(`"app" field provided, must also provide "snap" field`)
 	}
 	if iface != "" && snap == "" {
-		return BadRequest("interface parameter provided, must also provide snap parameter")
+		return BadRequest(`"interface" field provided, must also provide "snap" field`)
 	}
 	result, err := c.d.overlord.InterfaceManager().Prompting().GetRules(ucred.Uid, snap, app, iface)
 	if err != nil {
@@ -176,33 +187,36 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		return Forbidden("cannot get remote user: %v", err)
 	}
 
-	var postBody apparmorprompting.PostRulesRequestBody
+	var postBody postRulesRequestBody
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&postBody); err != nil {
-		return BadRequest("cannot decode request body into prompting rule contents: %v", err)
+		return BadRequest("cannot decode request body for rules endpoint: %v", err)
 	}
 
 	switch postBody.Action {
-	case "create":
-		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesCreate(ucred.Uid, postBody.CreateRules)
+	case "add":
+		if postBody.AddRule == nil {
+			return BadRequest(`must include "rule" field in request body when action is "add"`)
+		}
+		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesAdd(ucred.Uid, postBody.AddRule)
 		if err != nil {
 			return InternalError("%v", err)
 		}
 		return SyncResponse(result)
 	case "remove":
-		for _, selector := range postBody.RemoveSelectors {
-			snap := selector.Snap
-			if snap == "" {
-				return BadRequest(`must include "snap" parameter in "selectors"`)
-			}
+		if postBody.RemoveSelector == nil {
+			return BadRequest(`must include "selector" field in request body when action is "remove"`)
 		}
-		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesRemove(ucred.Uid, postBody.RemoveSelectors)
+		if postBody.RemoveSelector.Snap == "" {
+			return BadRequest(`must include "snap" field in "selector"`)
+		}
+		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesRemove(ucred.Uid, postBody.RemoveSelector)
 		if err != nil {
 			return InternalError("%v", err)
 		}
 		return SyncResponse(result)
 	default:
-		return BadRequest(`action must "create" or "remove"`)
+		return BadRequest(`"action" field must be "create" or "remove"`)
 	}
 }
 
@@ -235,7 +249,7 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 		return userNotAllowedPromptingClientResponse(user)
 	}
 
-	var postBody apparmorprompting.PostRuleRequestBody
+	var postBody postRuleRequestBody
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&postBody); err != nil {
 		return BadRequest("cannot decode request body into request rule modification or deletion: %v", err)
@@ -247,8 +261,11 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	switch postBody.Action {
-	case "modify":
-		result, err := c.d.overlord.InterfaceManager().Prompting().PostRuleModify(ucred.Uid, id, postBody.Rule)
+	case "patch":
+		if postBody.PatchRule == nil {
+			return BadRequest(`must include "rule" field in request body when action is "patch"`)
+		}
+		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulePatch(ucred.Uid, id, postBody.PatchRule)
 		if err != nil {
 			return InternalError("%v", err)
 		}
@@ -260,6 +277,6 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		return SyncResponse(result)
 	default:
-		return BadRequest(`action must be "create" or "remove"`)
+		return BadRequest(`action must be "add" or "remove"`)
 	}
 }

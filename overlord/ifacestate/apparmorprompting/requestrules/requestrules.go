@@ -341,7 +341,7 @@ func (rdb *RuleDB) save() error {
 	return osutil.AtomicWriteFile(target, b, 0600, 0)
 }
 
-// TODO: unexport (probably, avoid confusion with CreateRule)
+// TODO: unexport (probably, avoid confusion with AddRule)
 // Users of requestrules should probably autofill rules from JSON and never call
 // this function directly.
 //
@@ -469,8 +469,8 @@ func (rdb *RuleDB) RuleWithID(user uint32, id string) (*Rule, error) {
 
 // Creates a rule with the given information and adds it to the rule database.
 // If any of the given parameters are invalid, returns an error. Otherwise,
-// returns the newly-created rule, and saves the database to disk.
-func (rdb *RuleDB) CreateRule(user uint32, snap string, app string, iface string, constraints *common.Constraints, outcome common.OutcomeType, lifespan common.LifespanType, duration string) (*Rule, error) {
+// returns the newly-added rule, and saves the database to disk.
+func (rdb *RuleDB) AddRule(user uint32, snap string, app string, iface string, constraints *common.Constraints, outcome common.OutcomeType, lifespan common.LifespanType, duration string) (*Rule, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 	newRule, err := rdb.PopulateNewRule(user, snap, app, iface, constraints, outcome, lifespan, duration)
@@ -504,16 +504,16 @@ func (rdb *RuleDB) RemoveRule(user uint32, id string) (*Rule, error) {
 	return rule, err
 }
 
-// Modifies the rule with the given ID. The rule is modified by constructing a
+// Patches the rule with the given ID. The rule is modified by constructing a
 // new rule based on the given parameters, and then replacing the old rule with
 // the same ID with the new rule. Any of the parameters which are equal to the
 // default/unset value for their types are replaced by the corresponding values
 // in the existing rule. Even if the given new rule contents exactly match the
 // existing rule contents, the timestamp of the rule is updated to the current
-// time. If there is any error while adding the modified rule to the database,
+// time. If there is any error while adding the patched rule to the database,
 // rolls back to the previous unmodified rule, leaving the databse unchanged.
 // If the database is changed, it is saved to disk.
-func (rdb *RuleDB) ModifyRule(user uint32, id string, constraints *common.Constraints, outcome common.OutcomeType, lifespan common.LifespanType, duration string) (*Rule, error) {
+func (rdb *RuleDB) PatchRule(user uint32, id string, constraints *common.Constraints, outcome common.OutcomeType, lifespan common.LifespanType, duration string) (*Rule, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 	changeOccurred := false

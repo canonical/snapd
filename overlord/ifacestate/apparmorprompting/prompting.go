@@ -262,17 +262,17 @@ func (p *Prompting) PostPrompt(userID uint32, promptID string, reply *PromptRepl
 		return make([]string, 0), nil
 	}
 
-	// Create new rule based on the reply.
-	newRule, err := p.rules.CreateRule(userID, prompt.Snap, prompt.App, prompt.Interface, reply.Constraints, reply.Outcome, reply.Lifespan, reply.Duration)
+	// Add new rule based on the reply.
+	newRule, err := p.rules.AddRule(userID, prompt.Snap, prompt.App, prompt.Interface, reply.Constraints, reply.Outcome, reply.Lifespan, reply.Duration)
 	if err != nil {
 		// XXX: should only occur if identical constraints to an existing rule
 		// with overlapping permissions
-		// TODO: extract conflicting permissions, retry CreateRule with
+		// TODO: extract conflicting permissions, retry AddRule with
 		// conflicting permissions removed
 		// TODO: what to do if new reply has different Outcome from previous
 		// conflicting rule? Modify old rule to remove conflicting permissions,
 		// then re-add new rule? This should probably be built into a version of
-		// CreateRule (CreateRuleFromReply ?)
+		// AddRule (AddRuleFromReply ?)
 		return nil, err
 	}
 
@@ -285,7 +285,7 @@ func (p *Prompting) PostPrompt(userID uint32, promptID string, reply *PromptRepl
 	return satisfiedPromptIDs, nil
 }
 
-type PostRulesCreateRuleContents struct {
+type AddRuleContents struct {
 	Snap        string              `json:"snap"`
 	App         string              `json:"app"`
 	Interface   string              `json:"interface"`
@@ -295,28 +295,17 @@ type PostRulesCreateRuleContents struct {
 	Duration    string              `json:"duration,omitempty"`
 }
 
-type PostRulesRemoveSelectors struct {
+type RemoveRulesSelector struct {
 	Snap      string `json:"snap"`
 	App       string `json:"app,omitempty"`
 	Interface string `json:"interface,omitempty"`
 }
 
-type PostRulesRequestBody struct {
-	Action          string                         `json:"action"`
-	CreateRules     []*PostRulesCreateRuleContents `json:"rules,omitempty"`
-	RemoveSelectors []*PostRulesRemoveSelectors    `json:"selectors,omitempty"`
-}
-
-type PostRuleModifyRuleContents struct {
+type PatchRuleContents struct {
 	Constraints *common.Constraints `json:"constraints,omitempty"`
 	Outcome     common.OutcomeType  `json:"outcome,omitempty"`
 	Lifespan    common.LifespanType `json:"lifespan,omitempty"`
 	Duration    string              `json:"duration,omitempty"`
-}
-
-type PostRuleRequestBody struct {
-	Action string                      `json:"action"`
-	Rule   *PostRuleModifyRuleContents `json:"rule,omitempty"`
 }
 
 func (p *Prompting) GetRules(userID uint32, snap string, app string, iface string) ([]*requestrules.Rule, error) {
@@ -344,71 +333,55 @@ func (p *Prompting) GetRules(userID uint32, snap string, app string, iface strin
 	return rules, nil
 }
 
-func (p *Prompting) PostRulesCreate(userID uint32, rules []*PostRulesCreateRuleContents) ([]*requestrules.Rule, error) {
+func (p *Prompting) PostRulesAdd(userID uint32, ruleContents *AddRuleContents) (*requestrules.Rule, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
-	createdRules := make([]*requestrules.Rule, 0, len(rules))
-	errors := make([]error, 0)
-	for _, ruleContents := range rules {
-		snap := ruleContents.Snap
-		app := ruleContents.App
-		iface := ruleContents.Interface
-		constraints := ruleContents.Constraints
-		outcome := ruleContents.Outcome
-		lifespan := ruleContents.Lifespan
-		duration := ruleContents.Duration
-		newRule, err := p.rules.CreateRule(userID, snap, app, iface, constraints, outcome, lifespan, duration)
-		if err != nil {
-			errors = append(errors, err)
-			continue
-		}
-		createdRules = append(createdRules, newRule)
-		// Apply new rule to outstanding prompts. If error occurs,
-		// include it in the list of errors from creating rules.
-		if _, err := p.prompts.HandleNewRule(userID, newRule.Snap, newRule.App, newRule.Interface, newRule.Constraints, newRule.Outcome); err != nil {
-			errors = append(errors, err)
-		}
+	snap := ruleContents.Snap
+	app := ruleContents.App
+	iface := ruleContents.Interface
+	constraints := ruleContents.Constraints
+	outcome := ruleContents.Outcome
+	lifespan := ruleContents.Lifespan
+	duration := ruleContents.Duration
+	newRule, err := p.rules.AddRule(userID, snap, app, iface, constraints, outcome, lifespan, duration)
+	if err != nil {
+		return nil, err
 	}
-	if len(errors) > 0 {
-		err := fmt.Errorf("")
-		for i, e := range errors {
-			err = fmt.Errorf("%w%+v: %v; ", err, rules[i], e)
-		}
-		return createdRules, err
+	// Apply new rule to outstanding prompts.
+	if _, err = p.prompts.HandleNewRule(userID, newRule.Snap, newRule.App, newRule.Interface, newRule.Constraints, newRule.Outcome); err != nil {
+		return nil, err
 	}
-	return createdRules, nil
+	return newRule, nil
 }
 
-func (p *Prompting) PostRulesRemove(userID uint32, removeSelectors []*PostRulesRemoveSelectors) ([]*requestrules.Rule, error) {
+func (p *Prompting) PostRulesRemove(userID uint32, selector *RemoveRulesSelector) ([]*requestrules.Rule, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
 	removedRules := make([]*requestrules.Rule, 0)
-	for _, selector := range removeSelectors {
-		snap := selector.Snap
-		app := selector.App
-		iface := selector.Interface
-		var rulesToRemove []*requestrules.Rule
-		// Already checked that snap != ""
-		if iface != "" {
-			if app != "" {
-				rulesToRemove = p.rules.RulesForSnapAppInterface(userID, snap, app, iface)
-			} else {
-				rulesToRemove = p.rules.RulesForSnapInterface(userID, snap, iface)
-			}
-		} else if app != "" {
-			rulesToRemove = p.rules.RulesForSnapApp(userID, snap, app)
+	snap := selector.Snap
+	app := selector.App
+	iface := selector.Interface
+	var rulesToRemove []*requestrules.Rule
+	// Already checked that snap != ""
+	if iface != "" {
+		if app != "" {
+			rulesToRemove = p.rules.RulesForSnapAppInterface(userID, snap, app, iface)
 		} else {
-			rulesToRemove = p.rules.RulesForSnap(userID, snap)
+			rulesToRemove = p.rules.RulesForSnapInterface(userID, snap, iface)
 		}
-		for _, rule := range rulesToRemove {
-			removedRule, err := p.rules.RemoveRule(userID, rule.ID)
-			if err != nil {
-				continue
-			}
-			removedRules = append(removedRules, removedRule)
+	} else if app != "" {
+		rulesToRemove = p.rules.RulesForSnapApp(userID, snap, app)
+	} else {
+		rulesToRemove = p.rules.RulesForSnap(userID, snap)
+	}
+	for _, rule := range rulesToRemove {
+		removedRule, err := p.rules.RemoveRule(userID, rule.ID)
+		if err != nil {
+			continue
 		}
+		removedRules = append(removedRules, removedRule)
 	}
 	return removedRules, nil
 }
@@ -421,7 +394,7 @@ func (p *Prompting) GetRule(userID uint32, ruleID string) (*requestrules.Rule, e
 	return rule, err
 }
 
-func (p *Prompting) PostRuleModify(userID uint32, ruleID string, contents *PostRuleModifyRuleContents) (*requestrules.Rule, error) {
+func (p *Prompting) PostRulePatch(userID uint32, ruleID string, contents *PatchRuleContents) (*requestrules.Rule, error) {
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
@@ -429,7 +402,7 @@ func (p *Prompting) PostRuleModify(userID uint32, ruleID string, contents *PostR
 	outcome := contents.Outcome
 	lifespan := contents.Lifespan
 	duration := contents.Duration
-	rule, err := p.rules.ModifyRule(userID, ruleID, constraints, outcome, lifespan, duration)
+	rule, err := p.rules.PatchRule(userID, ruleID, constraints, outcome, lifespan, duration)
 	return rule, err
 }
 
