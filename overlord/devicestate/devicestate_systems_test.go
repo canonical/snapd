@@ -2987,6 +2987,106 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	c.Check(vSetErr.Snaps[fakeSnapID("pc")].Error(), Equals, `cannot constrain snap "pc" at different revisions 12 (canonical/vset-1), 13 (canonical/vset-2)`)
 }
 
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsConflictWithModel(c *C) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core20",
+		"revision":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.ss.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.ss.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "core20",
+				"id":   s.ss.AssertedSnapID("core20"),
+				"type": "base",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   s.ss.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+		},
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "vset-model",
+				"mode":       "enforce",
+			},
+		},
+	})
+
+	vsetModel, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "vset-model",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc",
+				"id":       fakeSnapID("pc"),
+				"revision": "12",
+				"presence": "required",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	assertstatetest.AddMany(s.state, vsetModel)
+	assertstate.UpdateValidationSet(s.state, &assertstate.ValidationSetTracking{
+		AccountID: "canonical",
+		Name:      "vset-model",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+	})
+
+	vset1, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "vset-1",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc",
+				"id":       fakeSnapID("pc"),
+				"revision": "13",
+				"presence": "required",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	_, err = devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+		ValidationSets: []*asserts.ValidationSet{vset1.(*asserts.ValidationSet)},
+	})
+	c.Assert(err, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})
+
+	vSetErr := &snapasserts.ValidationSetsConflictError{}
+	c.Check(errors.As(err, &vSetErr), Equals, true)
+	c.Check(vSetErr.Snaps[fakeSnapID("pc")].Error(), Equals, `cannot constrain snap "pc" at different revisions 12 (canonical/vset-model), 13 (canonical/vset-1)`)
+}
+
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemNoTestSystemMarkCurrent(c *C) {
 	const markCurrent = true
 	s.testDeviceManagerCreateRecoverySystemNoTestSystem(c, markCurrent)
@@ -3096,6 +3196,73 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 
 func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValidationSetsHappy(c *C, markCurrent bool) {
 	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core20",
+		"revision":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.ss.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.ss.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "core20",
+				"id":   s.ss.AssertedSnapID("core20"),
+				"type": "base",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   s.ss.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+		},
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": "canonical",
+				"name":       "vset-model",
+				"mode":       "enforce",
+			},
+		},
+	})
+
+	vsetModel, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "vset-model",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc",
+				"id":       fakeSnapID("pc"),
+				"presence": "required",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	assertstatetest.AddMany(s.state, vsetModel)
+	assertstate.UpdateValidationSet(s.state, &assertstate.ValidationSetTracking{
+		AccountID: "canonical",
+		Name:      "vset-model",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+	})
 
 	snapRevisions := map[string]snap.Revision{
 		"pc":        snap.R(10),
@@ -3240,9 +3407,6 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
 		return ts, info, nil
 	})
-
-	s.state.Lock()
-	defer s.state.Unlock()
 
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 	s.mockStandardSnapsModeenvAndBootloaderState(c)

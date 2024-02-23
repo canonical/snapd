@@ -1683,11 +1683,18 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		return nil, fmt.Errorf("cannot create new recovery systems until fully seeded")
 	}
 
-	valsets := snapasserts.NewValidationSets()
+	model, err := findModel(st)
+	if err != nil {
+		return nil, err
+	}
+
+	valsets, err := assertstate.TrackedEnforcedValidationSetsForModel(st, model)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, vs := range opts.ValidationSets {
-		if err := valsets.Add(vs); err != nil {
-			return nil, err
-		}
+		valsets.Add(vs)
 	}
 
 	if err := valsets.Conflict(); err != nil {
@@ -1695,11 +1702,6 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 	}
 
 	revisions, err := valsets.Revisions()
-	if err != nil {
-		return nil, err
-	}
-
-	model, err := findModel(st)
 	if err != nil {
 		return nil, err
 	}

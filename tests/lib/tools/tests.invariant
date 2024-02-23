@@ -104,6 +104,11 @@ check_stray_dbus_daemon() {
 			if [ "$user" = "external" ]; then
 				continue
 			fi
+                        # On qemu backend, sudo from user "ubuntu" is used. So the session
+                        # for user "ubuntu" is expected to exist.
+			if [ "$user" = "ubuntu" ]; then
+				continue
+			fi
 			# Report stray dbus-daemon.
 			failed+=("pid:$pid user:$user cmdline:$cmdline")
 		done
