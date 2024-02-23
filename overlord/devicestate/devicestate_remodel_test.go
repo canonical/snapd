@@ -5079,6 +5079,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 			SeedTime:  oldSeededTs,
 		},
 	})
+	s.state.Set("default-recovery-system", "0000")
 	// current gadget
 	siModelGadget := &snap.SideInfo{
 		RealName: "pc",
@@ -5241,6 +5242,10 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 				Revision:  model.Revision(),
 			},
 		})
+
+		var defaultSystem string
+		c.Assert(s.state.Get("default-recovery-system", &defaultSystem), IsNil)
+		c.Check(defaultSystem, Equals, expectedLabel)
 	} else {
 		// however, error is still logged, both to the task and the logger
 		c.Check(strings.Join(setModelTask.Log(), "\n"), Matches, tc.taskLogMatch)
@@ -5258,6 +5263,10 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 				Revision:  model.Revision(),
 			},
 		})
+
+		var defaultSystem string
+		c.Assert(s.state.Get("default-recovery-system", &defaultSystem), IsNil)
+		c.Check(defaultSystem, Equals, "0000")
 	}
 }
 

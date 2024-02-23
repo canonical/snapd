@@ -2067,8 +2067,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoN
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	const previousDefault = "previous"
+	s.state.Set("default-recovery-system", previousDefault)
+
 	chg, err := devicestate.CreateRecoverySystem(s.state, "1234undo", devicestate.CreateRecoverySystemOptions{
-		MarkCurrent: true,
+		MarkDefault: true,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
@@ -2135,19 +2138,24 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoN
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/some-snap_1.snap"),
 	})
 
-	var systems []devicestate.SeededSystem
-	err = s.state.Get("seeded-systems", &systems)
+	var defaultSystem string
+	err = s.state.Get("default-recovery-system", &defaultSystem)
 	c.Assert(err, IsNil)
-	c.Check(systems, HasLen, 0)
+	c.Check(defaultSystem, Equals, previousDefault)
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoTestSystem(c *C) {
 	devicestate.SetBootOkRan(s.mgr, true)
 
 	s.state.Lock()
+	defer s.state.Unlock()
+
+	const previousDefault = "previous"
+	s.state.Set("default-recovery-system", previousDefault)
+
 	chg, err := devicestate.CreateRecoverySystem(s.state, "1234undo", devicestate.CreateRecoverySystemOptions{
 		TestSystem:  true,
-		MarkCurrent: true,
+		MarkDefault: true,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
@@ -2222,7 +2230,6 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoT
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	// simulate a restart and run change to completion
 	s.mockRestartAndSettle(c, s.state, chg)
@@ -2262,10 +2269,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoT
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/some-snap_1.snap"),
 	})
 
-	var systems []devicestate.SeededSystem
-	err = s.state.Get("seeded-systems", &systems)
+	var defaultSystem string
+	err = s.state.Get("default-recovery-system", &defaultSystem)
 	c.Assert(err, IsNil)
-	c.Check(systems, HasLen, 0)
+	c.Check(defaultSystem, Equals, previousDefault)
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinalizeErrsWhenSystemFailed(c *C) {
@@ -3087,17 +3094,17 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	c.Check(vSetErr.Snaps[fakeSnapID("pc")].Error(), Equals, `cannot constrain snap "pc" at different revisions 12 (canonical/vset-model), 13 (canonical/vset-1)`)
 }
 
-func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemNoTestSystemMarkCurrent(c *C) {
-	const markCurrent = true
-	s.testDeviceManagerCreateRecoverySystemNoTestSystem(c, markCurrent)
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemNoTestSystemMarkDefault(c *C) {
+	const markDefault = true
+	s.testDeviceManagerCreateRecoverySystemNoTestSystem(c, markDefault)
 }
 
-func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemNoTestSystemNoMarkCurrent(c *C) {
-	const markCurrent = false
-	s.testDeviceManagerCreateRecoverySystemNoTestSystem(c, markCurrent)
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemNoTestSystemNoMarkDefault(c *C) {
+	const markDefault = false
+	s.testDeviceManagerCreateRecoverySystemNoTestSystem(c, markDefault)
 }
 
-func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemNoTestSystem(c *C, markCurrent bool) {
+func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemNoTestSystem(c *C, markDefault bool) {
 	devicestate.SetBootOkRan(s.mgr, true)
 
 	s.state.Lock()
@@ -3108,7 +3115,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemNoTes
 
 	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		TestSystem:  false,
-		MarkCurrent: markCurrent,
+		MarkDefault: markDefault,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
@@ -3164,15 +3171,14 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemNoTes
 
 	checkForSnapsInSeed(c, "snapd_4.snap", "pc-kernel_2.snap", "core20_3.snap", "pc_1.snap")
 
-	if markCurrent {
-		var systems []devicestate.SeededSystem
-		err := s.state.Get("seeded-systems", &systems)
+	if markDefault {
+		var defaultSystem string
+		err := s.state.Get("default-recovery-system", &defaultSystem)
 		c.Assert(err, IsNil)
-		c.Assert(systems, HasLen, 1)
-		c.Check(systems[0].System, Equals, "1234")
+		c.Check(defaultSystem, Equals, "1234")
 	} else {
-		var systems []devicestate.SeededSystem
-		err := s.state.Get("seeded-systems", &systems)
+		var defaultSystem string
+		err := s.state.Get("default-recovery-system", &defaultSystem)
 		c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	}
 }
@@ -3184,17 +3190,17 @@ func checkForSnapsInSeed(c *C, snaps ...string) {
 	}
 }
 
-func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsMarkCurrent(c *C) {
-	const markCurrent = true
-	s.testDeviceManagerCreateRecoverySystemValidationSetsHappy(c, markCurrent)
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsMarkDefault(c *C) {
+	const markDefault = true
+	s.testDeviceManagerCreateRecoverySystemValidationSetsHappy(c, markDefault)
 }
 
-func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsNoMarkCurrent(c *C) {
-	const markCurrent = false
-	s.testDeviceManagerCreateRecoverySystemValidationSetsHappy(c, markCurrent)
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsNoMarkDefault(c *C) {
+	const markDefault = false
+	s.testDeviceManagerCreateRecoverySystemValidationSetsHappy(c, markDefault)
 }
 
-func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValidationSetsHappy(c *C, markCurrent bool) {
+func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValidationSetsHappy(c *C, markDefault bool) {
 	devicestate.SetBootOkRan(s.mgr, true)
 
 	s.state.Lock()
@@ -3414,7 +3420,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		ValidationSets: []*asserts.ValidationSet{vset},
 		TestSystem:     true,
-		MarkCurrent:    markCurrent,
+		MarkDefault:    markDefault,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
@@ -3513,15 +3519,14 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 1)
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"), testutil.FileAbsent)
 
-	if markCurrent {
-		var systems []devicestate.SeededSystem
-		err := s.state.Get("seeded-systems", &systems)
+	if markDefault {
+		var defaultSystem string
+		err := s.state.Get("default-recovery-system", &defaultSystem)
 		c.Assert(err, IsNil)
-		c.Assert(systems, HasLen, 1)
-		c.Check(systems[0].System, Equals, "1234")
+		c.Assert(defaultSystem, Equals, "1234")
 	} else {
-		var systems []devicestate.SeededSystem
-		err := s.state.Get("seeded-systems", &systems)
+		var defaultSystem string
+		err := s.state.Get("default-recovery-system", &defaultSystem)
 		c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	}
 }
@@ -4241,13 +4246,13 @@ plugs:
 	c.Assert(err, ErrorMatches, msg)
 }
 
-func (s *deviceMgrSystemsCreateSuite) createSystemForRemoval(c *C, label string, expectedDownloads int, vSets []*asserts.ValidationSet, markCurrent bool) {
+func (s *deviceMgrSystemsCreateSuite) createSystemForRemoval(c *C, label string, expectedDownloads int, vSets []*asserts.ValidationSet, markDefault bool) {
 	s.restartRequests = nil
 
 	chg, err := devicestate.CreateRecoverySystem(s.state, label, devicestate.CreateRecoverySystemOptions{
 		ValidationSets: vSets,
 		TestSystem:     true,
-		MarkCurrent:    markCurrent,
+		MarkDefault:    markDefault,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
@@ -4410,9 +4415,9 @@ func (s *deviceMgrSystemsCreateSuite) testRemoveRecoverySystem(c *C, mockRetry b
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
 	// create a system that will use already installed snaps
-	const markCurrent = false
+	const markDefault = false
 	const keepLabel = "keep"
-	s.createSystemForRemoval(c, keepLabel, 0, nil, markCurrent)
+	s.createSystemForRemoval(c, keepLabel, 0, nil, markDefault)
 
 	snapRevisions := map[string]snap.Revision{
 		"pc":        snap.R(1),  // this snap will be shared between validation sets
@@ -4469,7 +4474,7 @@ func (s *deviceMgrSystemsCreateSuite) testRemoveRecoverySystem(c *C, mockRetry b
 	c.Assert(err, IsNil)
 
 	const removeLabel = "remove"
-	s.createSystemForRemoval(c, removeLabel, 0, []*asserts.ValidationSet{vsetAssert.(*asserts.ValidationSet)}, markCurrent)
+	s.createSystemForRemoval(c, removeLabel, 0, []*asserts.ValidationSet{vsetAssert.(*asserts.ValidationSet)}, markDefault)
 
 	chg, err := devicestate.RemoveRecoverySystem(s.state, removeLabel)
 	c.Assert(err, IsNil)
@@ -4518,11 +4523,11 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemCurrentFailure(c *
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
 	const keep = "keep"
-	const markCurrent = true
-	s.createSystemForRemoval(c, keep, 0, nil, markCurrent)
+	const markDefault = true
+	s.createSystemForRemoval(c, keep, 0, nil, markDefault)
 
 	const label = "current"
-	s.createSystemForRemoval(c, label, 0, nil, markCurrent)
+	s.createSystemForRemoval(c, label, 0, nil, markDefault)
 
 	chg, err := devicestate.RemoveRecoverySystem(s.state, label)
 	c.Check(err, IsNil)
@@ -4546,8 +4551,8 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemLastSystemFailure(
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
 	const label = "last"
-	const markCurrent = false
-	s.createSystemForRemoval(c, label, 0, nil, markCurrent)
+	const markDefault = false
+	s.createSystemForRemoval(c, label, 0, nil, markDefault)
 
 	chg, err := devicestate.RemoveRecoverySystem(s.state, label)
 	c.Check(err, IsNil)
@@ -4571,8 +4576,8 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemNoSystemWithName(c
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
 	const label = "last"
-	const markCurrent = false
-	s.createSystemForRemoval(c, label, 0, nil, markCurrent)
+	const markDefault = false
+	s.createSystemForRemoval(c, label, 0, nil, markDefault)
 
 	const missing = "missing"
 	_, err := devicestate.RemoveRecoverySystem(s.state, missing)

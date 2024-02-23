@@ -27,7 +27,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -455,7 +454,7 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 			return fmt.Errorf("cannot promote recovery system %q: %v", label, err)
 		}
 
-		if err := recordSeededAndMarkRecoveryCapable(st, setup.MarkCurrent, m, model, label); err != nil {
+		if err := markSystemRecoveryCapableAndDefault(t, setup.MarkDefault, label); err != nil {
 			return err
 		}
 
@@ -505,8 +504,8 @@ func (m *DeviceManager) undoCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) er
 	// marking the system as seeded and recovery capable
 	if skipSystemTest {
 		// TODO: should this error go in undoErr, rather than just being logged?
-		// this undoes what happens in recordSeededAndMarkRecoveryCapable
-		if err := removeSeededSystemAndUnmarkRecoveryCapable(st, m, remodelCtx.Model(), label); err != nil {
+		// this undoes what happens in markSystemRecoveryCapableAndDefault
+		if err := unmarkSystemRecoveryCapableAndDefault(t, label); err != nil {
 			t.Logf("when deleting and unmarking seeded system: %v", err)
 		}
 	}
@@ -578,9 +577,7 @@ func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tom
 			return fmt.Errorf("cannot promote recovery system %q: %v", label, err)
 		}
 
-		model := remodelCtx.Model()
-
-		if err := recordSeededAndMarkRecoveryCapable(st, setup.MarkCurrent, m, model, label); err != nil {
+		if err := markSystemRecoveryCapableAndDefault(t, setup.MarkDefault, label); err != nil {
 			return err
 		}
 
@@ -594,18 +591,17 @@ func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tom
 	return nil
 }
 
-func recordSeededAndMarkRecoveryCapable(st *state.State, markCurrent bool, m *DeviceManager, model *asserts.Model, label string) error {
-	if markCurrent {
-		if err := m.recordSeededSystem(st, &seededSystem{
-			System:    label,
-			Model:     model.Model(),
-			BrandID:   model.BrandID(),
-			Revision:  model.Revision(),
-			Timestamp: model.Timestamp(),
-			SeedTime:  time.Now(),
-		}); err != nil {
-			return fmt.Errorf("cannot record a new seeded system: %v", err)
+func markSystemRecoveryCapableAndDefault(t *state.Task, markDefault bool, label string) error {
+	if markDefault {
+		st := t.State()
+
+		var previousDefault string
+		if err := st.Get("default-recovery-system", &previousDefault); err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
 		}
+
+		t.Set("previous-default-recovery-system", previousDefault)
+		st.Set("default-recovery-system", label)
 	}
 
 	if err := boot.MarkRecoveryCapableSystem(label); err != nil {
@@ -614,20 +610,42 @@ func recordSeededAndMarkRecoveryCapable(st *state.State, markCurrent bool, m *De
 	return nil
 }
 
-func removeSeededSystemAndUnmarkRecoveryCapable(st *state.State, m *DeviceManager, model *asserts.Model, label string) error {
-	if err := m.removeSeededSystem(st, &seededSystem{
-		System:    label,
-		Model:     model.Model(),
-		BrandID:   model.BrandID(),
-		Revision:  model.Revision(),
-		Timestamp: model.Timestamp(),
-	}); err != nil {
-		return fmt.Errorf("cannot delete seeded system: %v", err)
+func unmarkSystemRecoveryCapableAndDefault(t *state.Task, label string) error {
+	if err := unmarkRecoverySystemDefault(t, label); err != nil {
+		return fmt.Errorf("cannot unmark system as default recovery system: %w", err)
 	}
 
 	if err := boot.UnmarkRecoveryCapableSystem(label); err != nil {
 		return fmt.Errorf("cannot unark system as recovery capable: %w", err)
 	}
+
+	return nil
+}
+
+func unmarkRecoverySystemDefault(t *state.Task, label string) error {
+	st := t.State()
+
+	var currentDefault string
+	if err := st.Get("default-recovery-system", &currentDefault); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	// if the current default isn't this label, then there is nothing to do.
+	if currentDefault != label {
+		return nil
+	}
+
+	var previousDefault string
+	if err := t.Get("previous-default-recovery-system", &previousDefault); err != nil {
+		// if this task doesn't have a previous default, then we know that this
+		// task did not update the default, so there is nothing to do
+		if errors.Is(err, state.ErrNoState) {
+			return nil
+		}
+		return err
+	}
+
+	st.Set("default-recovery-system", previousDefault)
 
 	return nil
 }
@@ -651,10 +669,8 @@ func (m *DeviceManager) undoFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.T
 	// during a remodel, setting the system as seeded and recovery capable will
 	// happen in the set-model task
 	if !remodelCtx.ForRemodeling() {
-		model := remodelCtx.Model()
-
-		// this undoes what happens in recordSeededAndMarkRecoveryCapable
-		if err := removeSeededSystemAndUnmarkRecoveryCapable(st, m, model, label); err != nil {
+		// this undoes what happens in markSystemRecoveryCapableAndDefault
+		if err := unmarkSystemRecoveryCapableAndDefault(t, label); err != nil {
 			return err
 		}
 	}
