@@ -348,6 +348,24 @@ rpool/ROOT/ubuntu/usr/share /usr/share zfs rw,relatime,xattr,posixacl,casesensit
 			"/usr/share/",
 			true,
 		},
+		// Test an more real example
+		{
+			`/dev/sda3 /run/mnt/ubuntu-boot ext4 rw,relatime 0 0
+/dev/sda2 /run/mnt/ubuntu-seed vfat rw,relatime,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro[7m>[27m
+/dev/sda5 /run/mnt/data ext4 rw,nosuid,relatime 0 0
+/dev/sda4 /run/mnt/ubuntu-save ext4 rw,relatime,stripe=4 0 0
+/dev/loop0 /run/mnt/base squashfs ro,relatime,errors=continue 0 0
+/dev/loop1 /run/mnt/gadget squashfs ro,relatime,errors=continue 0 0
+/dev/loop2 /run/mnt/kernel squashfs ro,relatime,errors=continue 0 0
+/dev/loop3 /run/mnt/snapd squashfs ro,relatime,errors=continue 0 0
+/dev/loop0 / squashfs ro,relatime,errors=continue 0 0
+/dev/loop5 /snap/test-snapd-rsync-core22/1 squashfs ro,nodev,relatime,errors=continue 0 0
+/dev/loop6 /snap/jq-core22/1 squashfs ro,nodev,relatime,errors=continue 0 0
+nsfs /run/snapd/ns/jq-core22.mnt nsfs rw 0 0
+`,
+			"/usr/share/polkit-1/actions",
+			false,
+		},
 	}
 
 	for _, t := range tests {
