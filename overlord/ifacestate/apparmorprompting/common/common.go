@@ -32,7 +32,7 @@ import (
 )
 
 var (
-	ErrInvalidSnapLabel           = errors.New("the given label cannot be converted to snap and app")
+	ErrInvalidSnapLabel           = errors.New("the given label cannot be converted to snap")
 	ErrInvalidOutcome             = errors.New(`invalid outcome; must be "allow" or "deny"`)
 	ErrInvalidLifespan            = errors.New("invalid lifespan")
 	ErrInvalidDurationForLifespan = fmt.Errorf(`invalid duration: duration must be empty unless lifespan is "%v"`, LifespanTimespan)
@@ -181,18 +181,17 @@ func NewIDAndTimestamp() (id string, timestamp string) {
 	return id, timestamp
 }
 
-// LabelToSnapApp extracts the snap and app names from the given label.
+// LabelToSnap extracts the snap name from the given AppArmor label.
 //
 // If the label is not of the form 'snap.<snap>.<app>', returns an error, and
-// returns the label as both the snap and the app.
-func LabelToSnapApp(label string) (snap string, app string, err error) {
+// returns the label as the snap.
+func LabelToSnap(label string) (string, error) {
 	components := strings.Split(label, ".")
 	if len(components) != 3 || components[0] != "snap" {
-		return label, label, ErrInvalidSnapLabel
+		return label, ErrInvalidSnapLabel
 	}
-	snap = components[1]
-	app = components[2]
-	return snap, app, nil
+	snap := components[1]
+	return snap, nil
 }
 
 var (
