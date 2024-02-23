@@ -2038,6 +2038,9 @@ type System struct {
 	Brand *asserts.Account
 	// Actions available for this system
 	Actions []SystemAction
+	// DefaultRecoverySystem is true when the system is the default recovery
+	// system.
+	DefaultRecoverySystem bool
 }
 
 var defaultSystemActions = []SystemAction{
@@ -2086,10 +2089,15 @@ func (m *DeviceManager) systems() ([]*System, error) {
 		return nil, ErrNoSystems
 	}
 
+	var defaultRecoverySystem string
+	if err := m.state.Get("default-recovery-system", &defaultRecoverySystem); err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, err
+	}
+
 	var systems []*System
 	for _, fpLabel := range systemLabels {
 		label := filepath.Base(fpLabel)
-		system, err := systemFromSeed(label, currentSys)
+		system, err := systemFromSeed(label, currentSys, defaultRecoverySystem)
 		if err != nil {
 			// TODO:UC20 add a Broken field to the seed system like we do for
 			// snap.Info
@@ -2160,7 +2168,15 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
 	m.state.Unlock()
 
-	s, sys, err := loadSeedAndSystem(wantedSystemLabel, currentSys)
+	var defaultRecoverySystem string
+	m.state.Lock()
+	if err := m.state.Get("default-recovery-system", &defaultRecoverySystem); err != nil && !errors.Is(err, state.ErrNoState) {
+		m.state.Unlock()
+		return nil, err
+	}
+	m.state.Unlock()
+
+	s, sys, err := loadSeedAndSystem(wantedSystemLabel, currentSys, defaultRecoverySystem)
 	if err != nil {
 		return nil, err
 	}
@@ -2318,12 +2334,20 @@ func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSyst
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
 	m.state.Unlock()
 
+	var defaultRecoverySystem string
+	m.state.Lock()
+	if err := m.state.Get("default-recovery-system", &defaultRecoverySystem); err != nil && !errors.Is(err, state.ErrNoState) {
+		m.state.Unlock()
+		return err
+	}
+	m.state.Unlock()
+
 	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
 	if _, err := os.Stat(systemSeedDir); err != nil {
 		// XXX: should we wrap this instead return a naked stat error?
 		return err
 	}
-	system, err := systemFromSeed(systemLabel, currentSys)
+	system, err := systemFromSeed(systemLabel, currentSys, defaultRecoverySystem)
 	if err != nil {
 		return fmt.Errorf("cannot load seed system: %v", err)
 	}
