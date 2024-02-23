@@ -1,0 +1,67 @@
+summary: create a recovery system and reboot into it
+details: |
+  This test creates a recovery system and validates that the newly created
+  system can be rebooted into.
+
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+
+environment:
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/test-snapd-recovery-system-pc-{VERSION}.model
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+
+prepare: |
+    tests.nested build-image core
+    tests.nested create-vm core
+
+execute: |
+  function post_json_data() {
+    route=$1
+    template=$2
+    shift 2
+
+    response=$(printf "${template}" "$@" | remote.exec "sudo test-snapd-curl.curl -X POST -H 'Content-Type: application/json' --unix-socket /run/snapd.socket -d @- http://localhost${route}")
+    if ! jq -e .change <<< "${response}"; then
+      echo "could not get change id from response: ${response}"
+      false
+    fi
+  }
+
+  #shellcheck source=tests/lib/core-config.sh
+  . "$TESTSLIB"/core-config.sh
+
+  wait_for_first_boot_change
+
+  remote.exec sudo snap install --edge --devmode test-snapd-curl
+
+  boot_id="$(tests.nested boot-id)"
+
+  # create the system
+  change_id=$(post_json_data /v2/systems '{"action": "create", "label": "new-system", "validation-sets": ["test-snapd/recovery-system-pinned=1"], "mark-default": true}')
+
+  remote.exec snap watch "${change_id}"
+
+  remote.exec 'test -d /run/mnt/ubuntu-seed/systems/new-system'
+  remote.exec 'sudo cat /var/lib/snapd/modeenv' > modeenv
+  MATCH 'current_recovery_systems=.*,new-system$' < modeenv
+  MATCH 'good_recovery_systems=.*,new-system$' < modeenv
+
+  remote.exec 'sudo snap recovery' | awk '$1 == "new-system" { print $4 }' | MATCH 'default-recovery-system'
+
+  remote.exec 'sudo snap reboot --recover new-system'
+  remote.wait-for reboot "${boot_id}"
+
+  remote.wait-for snap-command
+
+  wait_for_first_boot_change
+
+  # since hello-world has ['run', 'ephemeral'] as its modes in the model, it
+  # will be here. additionally, it will be pinned to revision 28 because of the
+  # validation set that was used to create the recovery system.
+  retry -n 10 --wait 1 sh -c "remote.exec 'snap list hello-world' | awk 'NR != 1 { print \$3 }' | MATCH '28'"
+
+  remote.exec 'cat /proc/cmdline' | MATCH 'snapd_recovery_mode=recover'
+  remote.exec 'sudo cat /var/lib/snapd/modeenv' > modeenv
+  MATCH 'mode=recover' < modeenv
+  MATCH 'recovery_system=new-system' < modeenv
