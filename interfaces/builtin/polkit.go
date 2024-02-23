@@ -150,8 +150,9 @@ func (iface *polkitInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 }
 
 func isPathMountedWritable(mntProfile *osutil.MountProfile, fsPath string) bool {
-	mntMap := make(map[string]osutil.MountEntry, len(mntProfile.Entries))
-	for _, mnt := range mntProfile.Entries {
+	mntMap := make(map[string]*osutil.MountEntry, len(mntProfile.Entries))
+	for i := range mntProfile.Entries {
+		mnt := &mntProfile.Entries[i]
 		mntMap[mnt.Dir] = mnt
 	}
 
