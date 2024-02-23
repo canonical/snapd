@@ -371,8 +371,9 @@ type Systemd interface {
 	Restart(services []string) error
 	// Reload or restart the service via 'systemctl reload-or-restart'
 	ReloadOrRestart(services []string) error
-	// RestartAll restarts the given service using systemctl restart --all
-	RestartAll(service string) error
+	// RestartNoWaitForStop restarts the given services using systemctl restart,
+	// with no snapd specific logic to wait for the services to stop.
+	RestartNoWaitForStop(services []string) error
 	// Status fetches the status of given units. Statuses are
 	// returned in the same order as unit names passed in
 	// argument.
@@ -1156,11 +1157,11 @@ func (s *systemd) Restart(serviceNames []string) error {
 	return s.Start(serviceNames)
 }
 
-func (s *systemd) RestartAll(serviceName string) error {
+func (s *systemd) RestartNoWaitForStop(services []string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call restart with GlobalUserMode")
 	}
-	_, err := s.systemctl("restart", serviceName, "--all")
+	_, err := s.systemctl(append([]string{"restart"}, services...)...)
 	return err
 }
 
@@ -1542,11 +1543,8 @@ func (s *systemd) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) 
 		if err := s.EnableNoReload(units); err != nil {
 			return "", err
 		}
-		// In the case of mountCreated, ReloadOrRestart
-		// has the same effect as just Start.
-		// In the case of MountUpdate, we need to reload
-		// the unit.
-		if err := s.ReloadOrRestart(units); err != nil {
+		// Start/restart the created or modified unit now
+		if err := s.RestartNoWaitForStop(units); err != nil {
 			return "", err
 		}
 	}

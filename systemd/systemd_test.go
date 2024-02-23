@@ -1186,7 +1186,7 @@ WantedBy=multi-user.target
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"--root", rootDir, "enable", "snap-snapname-123.mount"},
-		{"reload-or-restart", "snap-snapname-123.mount"},
+		{"restart", "snap-snapname-123.mount"},
 	})
 }
 
@@ -1310,7 +1310,7 @@ WantedBy=multi-user.target
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"--root", rootDir, "enable", "snap-snapname-123.mount"},
-		{"reload-or-restart", "snap-snapname-123.mount"},
+		{"restart", "snap-snapname-123.mount"},
 	})
 }
 
@@ -1346,7 +1346,7 @@ WantedBy=multi-user.target
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"--no-reload", "enable", "snap-snapname-x1.mount"},
-		{"reload-or-restart", "snap-snapname-x1.mount"},
+		{"restart", "snap-snapname-x1.mount"},
 	})
 }
 
@@ -1395,7 +1395,7 @@ X-SnapdOrigin=bar
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"--root", rootDir, "enable", "snap-snapname-345.mount"},
-		{"reload-or-restart", "snap-snapname-345.mount"},
+		{"restart", "snap-snapname-345.mount"},
 	})
 }
 
@@ -1444,7 +1444,7 @@ WantedBy=sysinit.target
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"--root", rootDir, "enable", escapedUnit},
-		{"reload-or-restart", escapedUnit},
+		{"restart", escapedUnit},
 	})
 }
 
@@ -1492,7 +1492,7 @@ WantedBy=sysinit.target
 	c.Assert(s.argses, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"--root", rootDir, "enable", escapedUnit},
-		{"reload-or-restart", escapedUnit},
+		{"restart", escapedUnit},
 	})
 }
 
