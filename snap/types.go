@@ -204,10 +204,6 @@ type Component struct {
 	ExplicitHooks map[string]*HookInfo
 }
 
-type ComponentHookPlugs struct {
-	PlugNames []string `yaml:"plugs"`
-}
-
 func (ct *ComponentType) UnmarshalYAML(unmarshall func(interface{}) error) error {
 	typeStr := ""
 	if err := unmarshall(&typeStr); err != nil {
