@@ -21,7 +21,7 @@
 #include <glib.h>
 
 /* restore_os_release is an internal helper for mock_os_release */
-static void restore_os_release(gpointer * old)
+static void restore_os_release(gpointer *old)
 {
 	unlink(os_release);
 	os_release = (const char *)old;
@@ -35,7 +35,8 @@ static void mock_os_release(const char *mocked)
 	const char *old = os_release;
 	if (mocked != NULL) {
 		os_release = "os-release.test";
-		g_assert_true(g_file_set_contents(os_release, mocked, -1, NULL));
+		g_assert_true(g_file_set_contents
+			      (os_release, mocked, -1, NULL));
 	} else {
 		os_release = "os-release.missing";
 	}
@@ -44,7 +45,7 @@ static void mock_os_release(const char *mocked)
 }
 
 /* restore_meta_snap_yaml is an internal helper for mock_meta_snap_yaml */
-static void restore_meta_snap_yaml(gpointer * old)
+static void restore_meta_snap_yaml(gpointer *old)
 {
 	unlink(meta_snap_yaml);
 	meta_snap_yaml = (const char *)old;
@@ -177,12 +178,10 @@ static void test_is_on_custom_base(void)
 }
 
 static const char *os_release_debian_like_valid = ""
-    "ID=my-fun-distro\n"
-	"ID_LIKE=debian\n";
+    "ID=my-fun-distro\n" "ID_LIKE=debian\n";
 
 static const char *os_release_debian_like_quoted_valid = ""
-    "ID=my-fun-distro\n"
-	"ID_LIKE=\"debian\"\n";
+    "ID=my-fun-distro\n" "ID_LIKE=\"debian\"\n";
 
 /* actual debian only sets ID=debian */
 static const char *os_release_actual_debian_valid = "ID=debian\n";

@@ -169,8 +169,8 @@ static void g_test_in_ephemeral_dir(void)
 /**
  * Test sc_nonfatal_mkpath() given two directories.
  **/
-static void _test_sc_nonfatal_mkpath(const gchar * dirname,
-				     const gchar * subdirname)
+static void _test_sc_nonfatal_mkpath(const gchar *dirname,
+				     const gchar *subdirname)
 {
 	// Check that directory does not exist.
 	g_assert_false(g_file_test(dirname, G_FILE_TEST_EXISTS |

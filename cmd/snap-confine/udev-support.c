@@ -40,7 +40,7 @@
 #include "udev-support.h"
 
 /* Allow access to common devices. */
-static void sc_udev_allow_common(sc_device_cgroup * cgroup)
+static void sc_udev_allow_common(sc_device_cgroup *cgroup)
 {
 	/* The devices we add here have static number allocation.
 	 * https://www.kernel.org/doc/html/v4.11/admin-guide/devices.html */
@@ -62,7 +62,7 @@ static void sc_udev_allow_common(sc_device_cgroup * cgroup)
  * See also:
  * https://www.kernel.org/doc/Documentation/admin-guide/devices.txt
  **/
-static void sc_udev_allow_pty_slaves(sc_device_cgroup * cgroup)
+static void sc_udev_allow_pty_slaves(sc_device_cgroup *cgroup)
 {
 	for (unsigned pty_major = 136; pty_major <= 143; pty_major++) {
 		sc_device_cgroup_allow(cgroup, S_IFCHR, pty_major,
@@ -82,7 +82,7 @@ static void sc_udev_allow_pty_slaves(sc_device_cgroup * cgroup)
  *
  * https://www.kernel.org/doc/Documentation/admin-guide/devices.txt
  **/
-static void sc_udev_allow_nvidia(sc_device_cgroup * cgroup)
+static void sc_udev_allow_nvidia(sc_device_cgroup *cgroup)
 {
 	struct stat sbuf;
 
@@ -122,7 +122,7 @@ static void sc_udev_allow_nvidia(sc_device_cgroup * cgroup)
  * Currently /dev/uhid isn't represented in sysfs, so add it to the device
  * cgroup if it exists and let AppArmor handle the mediation.
  **/
-static void sc_udev_allow_uhid(sc_device_cgroup * cgroup)
+static void sc_udev_allow_uhid(sc_device_cgroup *cgroup)
 {
 	struct stat sbuf;
 
@@ -141,7 +141,7 @@ static void sc_udev_allow_uhid(sc_device_cgroup * cgroup)
  * it unconditionally to the cgroup and rely on AppArmor to mediate the
  * access. LP: #1859084
  **/
-static void sc_udev_allow_dev_net_tun(sc_device_cgroup * cgroup)
+static void sc_udev_allow_dev_net_tun(sc_device_cgroup *cgroup)
 {
 	struct stat sbuf;
 
@@ -158,7 +158,7 @@ static void sc_udev_allow_dev_net_tun(sc_device_cgroup * cgroup)
  * tags corresponding to snap applications. Here we interrogate udev and allow
  * access to all assigned devices.
  **/
-static void sc_udev_allow_assigned_device(sc_device_cgroup * cgroup,
+static void sc_udev_allow_assigned_device(sc_device_cgroup *cgroup,
 					  struct udev_device *device)
 {
 	const char *path = udev_device_get_syspath(device);
@@ -192,7 +192,7 @@ static void sc_udev_allow_assigned_device(sc_device_cgroup * cgroup,
 	}
 }
 
-static void sc_udev_setup_acls_common(sc_device_cgroup * cgroup)
+static void sc_udev_setup_acls_common(sc_device_cgroup *cgroup)
 {
 
 	/* Allow access to various devices. */

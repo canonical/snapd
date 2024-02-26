@@ -22,13 +22,13 @@
 int main(int argc, char *argv[]) {
     int old_invocation_detected = (argc >= 5);
 
-    if ((argc != 2) && !old_invocation_detected)  {
+    if ((argc != 2) && !old_invocation_detected) {
         die("incorrect number of arguments");
     }
 
     struct sdh_invocation inv = {
         .action = getenv("ACTION"),
-        .tagname = old_invocation_detected?argv[2]:argv[1],
+        .tagname = old_invocation_detected ? argv[2] : argv[1],
         .major = getenv("MAJOR"),
         .minor = getenv("MINOR"),
         .subsystem = getenv("SUBSYSTEM"),
