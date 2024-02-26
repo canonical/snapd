@@ -85,6 +85,39 @@ func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	return mockSnap(c, "", yamlText, sideInfo)
 }
 
+// MockComponent puts a component.yaml file on disk so to mock an installed
+// component, based on the provided arguments.
+//
+// The caller is responsible for mocking root directory with dirs.SetRootDir()
+// and for altering the overlord state if required.
+func MockComponent(c *check.C, componentName string, yamlText string, info *snap.Info) *snap.ComponentInfo {
+	// Put the YAML on disk, in the right spot.
+	metaDir := filepath.Join(snap.BaseDir(info.InstanceName()), "components", info.Revision.String(), componentName, "meta")
+	err := os.MkdirAll(metaDir, 0755)
+	c.Assert(err, check.IsNil)
+
+	err = os.WriteFile(filepath.Join(metaDir, "component.yaml"), []byte(yamlText), 0644)
+	c.Assert(err, check.IsNil)
+
+	// Write the .snap to disk
+	err = os.MkdirAll(filepath.Dir(info.MountFile()), 0755)
+	c.Assert(err, check.IsNil)
+
+	snapContents := fmt.Sprintf("%s+%s", info.SnapName(), componentName)
+	if info.InstanceKey != "" {
+		snapContents += "_" + info.InstanceKey
+	}
+
+	// TODO: write something to disk for the component snap file, like in
+	// MockSnap
+
+	container := snapdir.New(filepath.Dir(metaDir))
+	component, err := snap.ReadComponentInfoFromContainer(container, info)
+	c.Assert(err, check.IsNil)
+
+	return component
+}
+
 // MockSnapInstance puts a snap.yaml file on disk so to mock an installed snap
 // instance, based on the provided arguments.
 //
