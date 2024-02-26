@@ -50,7 +50,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 	}
 
 	// Read ComponentInfo
-	compInfo, _, err := backend.OpenComponentFile(path)
+	compInfo, _, err := backend.OpenComponentFile(path, info)
 	if err != nil {
 		return nil, err
 	}

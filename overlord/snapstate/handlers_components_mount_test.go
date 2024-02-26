@@ -46,11 +46,11 @@ func (s *mountCompSnapSuite) TestDoMountComponent(c *C) {
 	const compName = "mycomp"
 	snapRev := snap.R(1)
 	compRev := snap.R(7)
-	ci, compPath := createTestComponent(c, snapName, compName)
 	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	ci, compPath := createTestComponent(c, snapName, compName, si)
 	ssu := createTestSnapSetup(si, snapstate.Flags{})
 	s.AddCleanup(snapstate.MockReadComponentInfo(func(
-		compMntDir string) (*snap.ComponentInfo, error) {
+		compMntDir string, snapInfo *snap.Info) (*snap.ComponentInfo, error) {
 		return ci, nil
 	}))
 
@@ -88,11 +88,11 @@ func (s *mountCompSnapSuite) TestDoUndoMountComponent(c *C) {
 	const compName = "mycomp"
 	snapRev := snap.R(1)
 	compRev := snap.R(7)
-	ci, compPath := createTestComponent(c, snapName, compName)
 	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	ci, compPath := createTestComponent(c, snapName, compName, si)
 	ssu := createTestSnapSetup(si, snapstate.Flags{})
 	s.AddCleanup(snapstate.MockReadComponentInfo(func(
-		compMntDir string) (*snap.ComponentInfo, error) {
+		compMntDir string, snapInfo *snap.Info) (*snap.ComponentInfo, error) {
 		return ci, nil
 	}))
 
@@ -144,11 +144,11 @@ func (s *mountCompSnapSuite) TestDoMountComponentSetupFails(c *C) {
 	const compName = "broken"
 	snapRev := snap.R(1)
 	compRev := snap.R(7)
-	ci, compPath := createTestComponent(c, snapName, compName)
 	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	ci, compPath := createTestComponent(c, snapName, compName, si)
 	ssu := createTestSnapSetup(si, snapstate.Flags{})
 	s.AddCleanup(snapstate.MockReadComponentInfo(func(
-		compMntDir string) (*snap.ComponentInfo, error) {
+		compMntDir string, snapInfo *snap.Info) (*snap.ComponentInfo, error) {
 		return ci, nil
 	}))
 
@@ -191,11 +191,11 @@ func (s *mountCompSnapSuite) TestDoUndoMountComponentFails(c *C) {
 	const compName = "brokenundo"
 	snapRev := snap.R(1)
 	compRev := snap.R(7)
-	ci, compPath := createTestComponent(c, snapName, compName)
 	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	ci, compPath := createTestComponent(c, snapName, compName, si)
 	ssu := createTestSnapSetup(si, snapstate.Flags{})
 	s.AddCleanup(snapstate.MockReadComponentInfo(func(
-		compMntDir string) (*snap.ComponentInfo, error) {
+		compMntDir string, snapInfo *snap.Info) (*snap.ComponentInfo, error) {
 		return ci, nil
 	}))
 
@@ -244,11 +244,11 @@ func (s *mountCompSnapSuite) TestDoMountComponentMountFails(c *C) {
 	const compName = "mycomp"
 	snapRev := snap.R(1)
 	compRev := snap.R(7)
-	ci, compPath := createTestComponent(c, snapName, compName)
 	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	ci, compPath := createTestComponent(c, snapName, compName, si)
 	ssu := createTestSnapSetup(si, snapstate.Flags{})
 	s.AddCleanup(snapstate.MockReadComponentInfo(func(
-		compMntDir string) (*snap.ComponentInfo, error) {
+		compMntDir string, snapInfo *snap.Info) (*snap.ComponentInfo, error) {
 		return ci, fmt.Errorf("cannot read component")
 	}))
 
