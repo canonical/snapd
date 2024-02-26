@@ -51,10 +51,12 @@ const desktopBaseDeclarationSlots = `
     deny-installation:
       slot-snap-type:
         - app
-    deny-connection:
-      on-classic: false
     deny-auto-connection:
-      on-classic: false
+      slot-snap-type:
+        - app
+    deny-connection:
+      slot-snap-type:
+        - app
 `
 
 const desktopConnectedPlugAppArmor = `

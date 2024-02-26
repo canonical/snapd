@@ -260,9 +260,15 @@ func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 
 	for _, snapName := range snaps {
 		delete(candidates, snapName)
+		abortMonitoring(st, snapName)
 	}
 
-	setNewRefreshCandidates(st, candidates)
+	if len(candidates) == 0 {
+		st.Set("refresh-candidates", nil)
+	} else {
+		st.Set("refresh-candidates", candidates)
+	}
+
 	return nil
 }
 
@@ -317,38 +323,4 @@ func updateRefreshCandidates(st *state.State, hints map[string]*refreshCandidate
 
 	st.Set("refresh-candidates", oldHints)
 	return nil
-}
-
-// setNewRefreshCandidates is used to set/replace "refresh-candidates" making
-// sure that any snap that is no longer a candidate has its monitoring stopped.
-// Must always be used when replacing the full "refresh-candidates"
-func setNewRefreshCandidates(st *state.State, hints map[string]*refreshCandidate) {
-	stopMonitoringOutdatedCandidates(st, hints)
-	if len(hints) == 0 {
-		st.Set("refresh-candidates", nil)
-		return
-	}
-	st.Set("refresh-candidates", hints)
-}
-
-// stopMonitoringOutdatedCandidates aborts the monitoring for snaps for which a
-// refresh candidate has been removed (possibly because the channel was reverted
-// to an older version)
-func stopMonitoringOutdatedCandidates(st *state.State, hints map[string]*refreshCandidate) {
-	var oldHints map[string]*refreshCandidate
-	if err := st.Get("refresh-candidates", &oldHints); err != nil {
-		if errors.Is(err, &state.NoStateError{}) {
-			// nothing to abort
-			return
-		}
-
-		logger.Noticef("cannot abort removed refresh candidates: %v", err)
-		return
-	}
-
-	for oldCand := range oldHints {
-		if _, ok := hints[oldCand]; !ok {
-			abortMonitoring(st, oldCand)
-		}
-	}
 }

@@ -338,7 +338,7 @@ func (s *noticesSuite) TestNoticesUserIDNonAdminFilter(c *C) {
 	c.Check(rsp.Status, Equals, 403)
 }
 
-func (s *noticesSuite) TestNoticesSelectAdminFilter(c *C) {
+func (s *noticesSuite) TestNoticesUsersAdminFilter(c *C) {
 	s.daemon(c)
 
 	st := s.d.Overlord().State()
@@ -355,8 +355,8 @@ func (s *noticesSuite) TestNoticesSelectAdminFilter(c *C) {
 	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
 	st.Unlock()
 
-	// Test that admin user may get all notices with --select=all filter
-	reqUrl := "/v2/notices?select=all"
+	// Test that admin user may get all notices with --users=all filter
+	reqUrl := "/v2/notices?users=all"
 	req, err := http.NewRequest("GET", reqUrl, nil)
 	c.Check(err, IsNil)
 	req.RemoteAddr = "pid=100;uid=0;socket=;"
@@ -380,7 +380,7 @@ func (s *noticesSuite) TestNoticesSelectAdminFilter(c *C) {
 	c.Assert(n["key"], Equals, "danger")
 }
 
-func (s *noticesSuite) TestNoticesSelectNonAdminFilter(c *C) {
+func (s *noticesSuite) TestNoticesUsersNonAdminFilter(c *C) {
 	s.daemon(c)
 
 	st := s.d.Overlord().State()
@@ -389,8 +389,8 @@ func (s *noticesSuite) TestNoticesSelectNonAdminFilter(c *C) {
 	addNotice(c, st, &nonAdmin, state.WarningNotice, "error1", nil)
 	st.Unlock()
 
-	// Test that non-admin user may not use --select filter
-	reqUrl := "/v2/notices?select=all"
+	// Test that non-admin user may not use --users filter
+	reqUrl := "/v2/notices?users=all"
 	req, err := http.NewRequest("GET", reqUrl, nil)
 	c.Check(err, IsNil)
 	req.RemoteAddr = "pid=100;uid=1000;socket=;"
@@ -499,12 +499,12 @@ func (s *noticesSuite) TestNoticesInvalidUserIDLow(c *C) {
 	s.testNoticesBadRequest(c, "user-id=-1", `invalid "user-id" filter:.*`)
 }
 
-func (s *noticesSuite) TestNoticesInvalidSelect(c *C) {
-	s.testNoticesBadRequest(c, "select=foo", `invalid "select" filter:.*`)
+func (s *noticesSuite) TestNoticesInvalidUsers(c *C) {
+	s.testNoticesBadRequest(c, "users=foo", `invalid "users" filter:.*`)
 }
 
-func (s *noticesSuite) TestNoticesInvalidUserIDWithSelect(c *C) {
-	s.testNoticesBadRequest(c, "user-id=1234&select=all", `cannot use both "select" and "user-id" parameters`)
+func (s *noticesSuite) TestNoticesInvalidUserIDWithUsers(c *C) {
+	s.testNoticesBadRequest(c, "user-id=1234&users=all", `cannot use both "users" and "user-id" parameters`)
 }
 
 func (s *noticesSuite) TestNoticesInvalidAfter(c *C) {

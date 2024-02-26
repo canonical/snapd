@@ -167,6 +167,12 @@ func (s *appsSuite) SetUpTest(c *check.C) {
 	d.Overlord().Loop()
 	s.AddCleanup(func() { d.Overlord().Stop() })
 	s.AddCleanup(systemd.MockSystemdVersion(237, nil))
+	s.expectAppsAccess()
+}
+
+func (s *appsSuite) expectAppsAccess() {
+	s.expectOpenAccess()
+	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
 }
 
 func (s *appsSuite) TestSplitAppName(c *check.C) {
