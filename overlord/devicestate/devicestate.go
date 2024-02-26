@@ -1431,6 +1431,10 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 		}
 		fallthrough
 	case UpdateRemodel:
+		// TODO: make this case follow the same pattern as ReregRemodel, where
+		// we call remodelTasks from inside another task, so that the tasks for
+		// the remodel are added to an existing and running change. this will
+		// allow us to avoid things like calling snapstate.CheckChangeConflictRunExclusively again.
 		var err error
 		tss, err = remodelTasks(context.TODO(), st, current, new, remodCtx, "", localSnaps, paths, opts)
 		if err != nil {
@@ -1455,6 +1459,11 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 			ChangeKind: chg.Kind(),
 			ChangeID:   chg.ID(),
 		}
+	}
+
+	// check for exclusive changes again since we released the lock
+	if err := snapstate.CheckChangeConflictRunExclusively(st, "remodel"); err != nil {
+		return nil, err
 	}
 
 	var msg string
@@ -1533,6 +1542,19 @@ func pickRecoverySystemLabel(labelBase string) (string, error) {
 		}
 	}
 	return fmt.Sprintf("%s-%d", labelBase, maxExistingNumber+1), nil
+}
+
+type removeRecoverySystemSetup struct {
+	Label string `json:"label"`
+}
+
+func removeRecoverySystemTasks(st *state.State, label string) (*state.TaskSet, error) {
+	remove := st.NewTask("remove-recovery-system", fmt.Sprintf("Remove recovery system with label %q", label))
+	remove.Set("remove-recovery-system-setup", &removeRecoverySystemSetup{
+		Label: label,
+	})
+
+	return state.NewTaskSet(remove), nil
 }
 
 func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []string, opts CreateRecoverySystemOptions) (*state.TaskSet, error) {
@@ -1616,9 +1638,42 @@ type CreateRecoverySystemOptions struct {
 
 var ErrNoRecoverySystem = errors.New("recovery system does not exist")
 
+// RemoveRecoverySystem removes the recovery system with the given label. The
+// current recovery system cannot be removed.
+func RemoveRecoverySystem(st *state.State, label string) (*state.Change, error) {
+	if err := snapstate.CheckChangeConflictRunExclusively(st, "remove-recovery-system"); err != nil {
+		return nil, err
+	}
+
+	recoverySystemsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems")
+	exists, _, err := osutil.DirExists(filepath.Join(recoverySystemsDir, label))
+	if err != nil {
+		return nil, err
+	}
+
+	if !exists {
+		return nil, fmt.Errorf("%q not found: %w", label, ErrNoRecoverySystem)
+	}
+
+	chg := st.NewChange("remove-recovery-system", fmt.Sprintf("Remove recovery system with label %q", label))
+
+	removeTS, err := removeRecoverySystemTasks(st, label)
+	if err != nil {
+		return nil, err
+	}
+
+	chg.AddAll(removeTS)
+
+	return chg, nil
+}
+
 // CreateRecoverySystem creates a new recovery system with the given label. See
 // CreateRecoverySystemOptions for details on the options that can be provided.
 func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySystemOptions) (chg *state.Change, err error) {
+	if err := snapstate.CheckChangeConflictRunExclusively(st, "create-recovery-system"); err != nil {
+		return nil, err
+	}
+
 	var seeded bool
 	err = st.Get("seeded", &seeded)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
