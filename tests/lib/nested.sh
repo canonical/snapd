@@ -65,14 +65,17 @@ nested_wait_vm_ready() {
 
         # Check the vm is active
         if ! systemctl is-active "$NESTED_VM"; then
-            echo "Unit $nested_unit is not active. Aborting!"
+            echo "Unit $NESTED_VM is not active. Aborting!"
             return 1
         fi
 
         # Check during $limit seconds that the serial log is growing
         # shellcheck disable=SC2016
-        retry -n "$log_limit" --wait 1 --quiet --env serial_log="$serial_log" --env output_lines="$output_lines" \
-            sh -c 'test "$(wc -l <"$serial_log")" -gt "$output_lines"'
+        if ! retry -n "$log_limit" --wait 1 --env serial_log="$serial_log" --env output_lines="$output_lines" \
+            sh -c 'test "$(wc -l <"$serial_log")" -gt "$output_lines"'; then
+            echo "Serial log for $NESTED_VM unit is not producing output, Aborting!"
+            return 1
+        fi
         output_lines="$(wc -l <"$serial_log")"
 
         # Check no infinite loops during boot

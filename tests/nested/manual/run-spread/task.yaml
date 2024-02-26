@@ -8,7 +8,19 @@ backends: [google-nested-dev]
 
 systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
 
-kill-timeout: 6h
+environment:
+    TESTS/full: "tests/"
+    TESTS/smoke: "tests/smoke/"
+    TESTS/custom: ""
+    NESTED_BUILD_SNAPD_FROM_CURRENT: false
+
+kill-timeout: 8h
+warn-timeout: 3m
+
+manual: true
+
+artifacts: 
+    - spread.log
 
 prepare: |
     tests.nested build-image core
@@ -22,4 +34,10 @@ execute: |
 
     set +x
     export SPREAD_EXTERNAL_ADDRESS=localhost:8022
-    "$SPREAD" -v "external:$NESTED_SPREAD_SYSTEM:tests/..."
+    RUN_TESTS="external:$NESTED_SPREAD_SYSTEM:$TESTS"
+    if [ "$SPREAD_VARIANT" = "custom" ]; then
+        RUN_TESTS="$NESTED_SPREAD_TESTS"
+        remote.refresh full
+    fi
+
+    "$SPREAD" -v "$RUN_TESTS" | tee spread.log

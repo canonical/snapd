@@ -1119,6 +1119,8 @@ suites:
             NESTED_IMAGE_ID: "unset"
             # Configuration file used for remote tools
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
+            # Define which tests to run in the nested vm in run-spread test
+            NESTED_SPREAD_TESTS:  '$(HOST: echo "${NESTED_SPREAD_TESTS:-}")'
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m
