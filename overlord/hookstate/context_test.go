@@ -86,7 +86,7 @@ func (s *contextSuite) TestHookSource(c *C) {
 	s.componentContext.setup.Snap = "test-snap_instance-key"
 	defer func() { s.componentContext.setup.Snap = "test-snap" }()
 
-	c.Check(s.componentContext.HookSource(), Equals, "test-snap+test-component_instance-key")
+	c.Check(s.componentContext.HookSource(), Equals, "test-snap_instance-key+test-component")
 }
 
 func (s *contextSuite) TestSetAndGet(c *C) {
