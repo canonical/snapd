@@ -23,6 +23,7 @@ SUPPORTED_KEYS = [
     "warn-timeout",
     "kill-timeout",
     "environment",
+    "articfacts",
     "prepare",
     "restore",
     "debug",
