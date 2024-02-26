@@ -52,6 +52,7 @@ import (
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/snapenv"
 	"github.com/snapcore/snapd/strutil/shlex"
 	"github.com/snapcore/snapd/timeutil"
@@ -336,6 +337,12 @@ func getSnapInfo(snapName string, revision snap.Revision) (info *snap.Info, err 
 	return info, err
 }
 
+func getComponentInfo(name string, rev snap.Revision, snapInfo *snap.Info) (*snap.ComponentInfo, error) {
+	cpi := snap.MinimalComponentContainerPlaceInfo(name, rev, snapInfo.InstanceName(), snapInfo.Revision)
+	container := snapdir.New(cpi.MountDir())
+	return snap.ReadComponentInfoFromContainer(container, snapInfo)
+}
+
 func createOrUpdateUserDataSymlink(info *snap.Info, usr *user.User, opts *dirs.SnapDirOptions) error {
 	// 'current' symlink for user data (SNAP_USER_DATA)
 	userData := info.UserDataDir(usr.HomeDir, opts)
@@ -519,23 +526,40 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 	return x.runSnapConfine(info, app.SecurityTag(), snapApp, "", args)
 }
 
-func (x *cmdRun) snapRunHook(snapName string) error {
+func (x *cmdRun) snapRunHook(snapTarget string) error {
+	snapInstance, componentName := snap.ComponentFromSnapComponentInstance(snapTarget)
+
 	revision, err := snap.ParseRevision(x.Revision)
 	if err != nil {
 		return err
 	}
 
-	info, err := getSnapInfo(snapName, revision)
+	info, err := getSnapInfo(snapInstance, revision)
 	if err != nil {
 		return err
 	}
 
-	hook := info.Hooks[x.HookName]
-	if hook == nil {
-		return fmt.Errorf(i18n.G("cannot find hook %q in %q"), x.HookName, snapName)
+	var hook *snap.HookInfo
+	if componentName == "" {
+		hook = info.Hooks[x.HookName]
+	} else {
+		// TODO: somehow get the component revision here? although if only one
+		// revision of a component is mounted for a revision of a snap, then is it
+		// needed?
+		componentRevision := snap.Revision{}
+
+		component, err := getComponentInfo(componentName, componentRevision, info)
+		if err != nil {
+			return err
+		}
+		hook = component.Hooks[x.HookName]
 	}
 
-	return x.runSnapConfine(info, hook.SecurityTag(), snapName, hook.Name, nil)
+	if hook == nil {
+		return fmt.Errorf(i18n.G("cannot find hook %q in %q"), x.HookName, snapTarget)
+	}
+
+	return x.runSnapConfine(info, hook.SecurityTag(), snapTarget, hook.Name, nil)
 }
 
 func (x *cmdRun) snapRunTimer(snapApp, timer string, args []string) error {
