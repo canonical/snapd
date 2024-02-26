@@ -8,16 +8,18 @@ backends: [google-nested-dev]
 
 systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
 
+manual: true
+
+warn-timeout: 3m
+kill-timeout: 8h
+
 environment:
     TESTS/full: "tests/"
+    NESTED_BUILD_SNAPD_FROM_CURRENT/full: true
     TESTS/smoke: "tests/smoke/"
+    NESTED_BUILD_SNAPD_FROM_CURRENT/smoke: true
     TESTS/custom: ""
-    NESTED_BUILD_SNAPD_FROM_CURRENT: false
-
-kill-timeout: 8h
-warn-timeout: 3m
-
-manual: true
+    NESTED_BUILD_SNAPD_FROM_CURRENT/custom: false
 
 artifacts: 
     - spread.log
