@@ -54,42 +54,10 @@ check-unit-tests:
 	echo "unit tests are disabled (rebuild with --enable-unit-tests)"
 endif
 
-new_format = \
-	 libsnap-confine-private/bpf-support.c \
-	 libsnap-confine-private/bpf-support.h \
-	 libsnap-confine-private/cgroup-support.c \
-	 libsnap-confine-private/cgroup-support.h \
-	 libsnap-confine-private/cgroup-support-test.c \
-	 libsnap-confine-private/device-cgroup-support.c \
-	 libsnap-confine-private/device-cgroup-support.h \
-	 libsnap-confine-private/infofile-test.c \
-	 libsnap-confine-private/infofile.c \
-	 libsnap-confine-private/infofile.h \
-	 libsnap-confine-private/panic-test.h \
-	 libsnap-confine-private/panic.c \
-	 libsnap-confine-private/panic.h \
-	 snap-confine/seccomp-support-ext.c \
-	 snap-confine/seccomp-support-ext.h \
-	 snap-confine/selinux-support.c \
-	 snap-confine/selinux-support.h \
-	 snap-confine/snap-confine-invocation-test.c \
-	 snap-confine/snap-confine-invocation.c \
-	 snap-confine/snap-confine-invocation.h \
-	 snap-device-helper/main.c \
-	 snap-device-helper/snap-device-helper.c \
-	 snap-device-helper/snap-device-helper.h \
-	 snap-device-helper/snap-device-helper-test.c \
-	 snap-discard-ns/snap-discard-ns.c \
-	 snap-gdb-shim/snap-gdb-shim.c \
-	 snap-gdb-shim/snap-gdbserver-shim.c
-
 # NOTE: clang-format is using project-wide .clang-format file.
 .PHONY: fmt
-fmt:: $(filter     $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])))
+fmt:: $(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch]))
 	clang-format -i $^
-
-fmt:: $(filter-out $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildcard $(srcdir)/$(dir)/*.[ch])))
-	HOME=$(srcdir) indent $^
 
 # The hack target helps developers work on snap-confine on their live system by
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
