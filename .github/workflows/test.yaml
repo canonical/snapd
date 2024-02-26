@@ -196,6 +196,19 @@ jobs:
           sudo apt-get install -y python3-yamlordereddictloader
           ./run-checks --static
 
+    - name: Check C source code formatting
+      run: |
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
+          ./autogen.sh
+          # apply formatting
+          make fmt
+
+          if [ -n "$(git diff --stat)" ]; then
+              git diff
+              echo "C files are not fomratted correctly, run 'make fmt'"
+              exit 1
+          fi
+
   unit-tests:
     needs: [static-checks]
     runs-on: ubuntu-22.04
