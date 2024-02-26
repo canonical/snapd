@@ -20,12 +20,12 @@
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
-#endif				// HAVE_CONFIG_H
+#endif  // HAVE_CONFIG_H
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <sys/types.h>
 #include <dirent.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
 
 // SC_CLEANUP will run the given cleanup function when the variable next
 // to it goes out of scope.
@@ -68,7 +68,7 @@ void sc_cleanup_shallow_strv(const char ***ptr);
  * The variable MUST be initialized for correct operation.
  * The safe initialisation value is NULL.
  **/
-void sc_cleanup_file(FILE ** ptr);
+void sc_cleanup_file(FILE **ptr);
 
 /**
  * Close an open file with endmntent(3)
@@ -77,7 +77,7 @@ void sc_cleanup_file(FILE ** ptr);
  * The variable MUST be initialized for correct operation.
  * The safe initialisation value is NULL.
  **/
-void sc_cleanup_endmntent(FILE ** ptr);
+void sc_cleanup_endmntent(FILE **ptr);
 
 /**
  * Close an open directory with closedir(3)
@@ -86,7 +86,7 @@ void sc_cleanup_endmntent(FILE ** ptr);
  * The variable MUST be initialized for correct operation.
  * The safe initialisation value is NULL.
  **/
-void sc_cleanup_closedir(DIR ** ptr);
+void sc_cleanup_closedir(DIR **ptr);
 
 /**
  * Close an open file descriptor with close(2)

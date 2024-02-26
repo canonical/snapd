@@ -104,4 +104,4 @@ void sc_enable_sanity_timeout(void);
  **/
 void sc_disable_sanity_timeout(void);
 
-#endif				// SNAP_CONFINE_LOCKING_H
+#endif  // SNAP_CONFINE_LOCKING_H

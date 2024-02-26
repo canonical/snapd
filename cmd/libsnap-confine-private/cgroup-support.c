@@ -107,9 +107,8 @@ static bool traverse_looking_for_prefix_in_dir(DIR *root, const char *prefix, co
             // is this an error?
             if (errno != 0) {
                 if (errno == ENOENT) {
-                    // the processes may exit and the group entries may go away at
-                    // any time
-                    // the entries may go away at any time
+                    // the processes may exit and the group entries may go away
+                    // at any time the entries may go away at any time
                     break;
                 }
                 die("cannot read directory entry");

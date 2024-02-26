@@ -213,7 +213,8 @@ static void test_infofile_get_ini_key(void) {
     g_assert_cmpstr(value, ==, "value-two");
     free(value);
 
-    /* Key matching in the second section (identical to the key from 1st section) */
+    /* Key matching in the second section (identical to the key from 1st
+     * section) */
     value = NULL;
     rewind(stream);
     rc = sc_infofile_get_ini_section_key(stream, "section2", "key", &value, &err);

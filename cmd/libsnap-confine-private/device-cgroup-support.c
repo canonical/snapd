@@ -86,21 +86,22 @@ static int _sc_cgroup_v1_init(sc_device_cgroup *self, int flags) {
      * if we deny devices for an existing group that we just opened,
      * we risk denying access to a device that a currently running process
      * is about to access and should legitimately have access to.
-     * A concrete example of this is when this function is used by snap-device-helper
-     * when a new udev device event is triggered and we are adding that device
-     * to the snap's device cgroup. At this point, a running application may be
-     * accessing other devices which it should have access to (such as /dev/null
-     * or one of the other common, default devices) we would deny access to that
-     * existing device by re-creating the allow list of devices every time.
+     * A concrete example of this is when this function is used by
+     * snap-device-helper when a new udev device event is triggered and we are
+     * adding that device to the snap's device cgroup. At this point, a running
+     * application may be accessing other devices which it should have access to
+     * (such as /dev/null or one of the other common, default devices) we would
+     * deny access to that existing device by re-creating the allow list of
+     * devices every time.
      * */
     if (!from_existing) {
         /* starting a device cgroup from scratch, so deny device access by
          * default.
          *
-         * Write 'a' to devices.deny to remove all existing devices that were added
-         * in previous launcher invocations, then add the static and assigned
-         * devices. This ensures that at application launch the cgroup only has
-         * what is currently assigned. */
+         * Write 'a' to devices.deny to remove all existing devices that were
+         * added in previous launcher invocations, then add the static and
+         * assigned devices. This ensures that at application launch the cgroup
+         * only has what is currently assigned. */
         sc_dprintf(self->v1.fds.devices_deny_fd, "a");
     }
     return 0;
@@ -376,7 +377,8 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
             debug("device map not present, not creating one");
             /* restore the errno so that the caller sees ENOENT */
             errno = get_by_path_errno;
-            /* there is no map, and we haven't been asked to setup a new cgroup */
+            /* there is no map, and we haven't been asked to setup a new cgroup
+             */
             return -1;
         }
         debug("device map not present yet");
@@ -384,7 +386,8 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         const size_t value_size = 1;
         /* kernels used to do account of BPF memory using rlimit memlock pool,
          * thus on older kernels (seen on 5.10), the map effectively locks 11
-         * pages (45k) of memlock memory, while on newer kernels (5.11+) only 2 (8k) */
+         * pages (45k) of memlock memory, while on newer kernels (5.11+) only 2
+         * (8k) */
         /* NOTE: the new file map must be owned by root:root. */
         devmap_fd = bpf_create_map(BPF_MAP_TYPE_HASH, sizeof(struct sc_cgroup_v2_device_key), value_size, max_entries);
         if (devmap_fd < 0) {
@@ -516,7 +519,8 @@ static void _sc_cgroup_v2_deny_bpf(sc_device_cgroup *self, int kind, int major, 
 static void _sc_cgroup_v2_attach_pid_bpf(sc_device_cgroup *self, pid_t pid) {
     /* we are setting up device filtering for ourselves */
     if (pid != getpid()) {
-        die("internal error: cannot attach device cgroup to other process than current");
+        die("internal error: cannot attach device cgroup to other process than "
+            "current");
     }
     if (self->v2.prog_fd == -1) {
         die("internal error: BPF program not loaded");
@@ -738,27 +742,23 @@ static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup
     int SC_CLEANUP(sc_cleanup_close) devices_deny_fd = -1;
     int SC_CLEANUP(sc_cleanup_close) cgroup_procs_fd = -1;
 
-    /* Open device files relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
+    /* Open device files relative to
+     * /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
     struct device_file_t {
         int *fd;
         const char *relpath;
-    } device_files[] = {
-        { &devices_allow_fd, "devices.allow" },
-        { &devices_deny_fd, "devices.deny" },
-        { &cgroup_procs_fd, "cgroup.procs" },
-        { NULL, NULL }
-    };
+    } device_files[] = {{&devices_allow_fd, "devices.allow"},
+                        {&devices_deny_fd, "devices.deny"},
+                        {&cgroup_procs_fd, "cgroup.procs"},
+                        {NULL, NULL}};
 
-    for (struct device_file_t *device_file = device_files;
-         device_file->fd != NULL;
-         device_file++) {
+    for (struct device_file_t *device_file = device_files; device_file->fd != NULL; device_file++) {
         int fd = openat(security_tag_fd, device_file->relpath, O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
         if (fd < 0) {
             if (from_existing && errno == ENOENT) {
                 return -1;
             }
-            die("cannot open %s/%s/%s/%s", cgroup_path,
-                devices_relpath, security_tag_relpath, device_file->relpath);
+            die("cannot open %s/%s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath, device_file->relpath);
         }
         *device_file->fd = fd;
     }

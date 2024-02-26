@@ -26,8 +26,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <string.h>
-#include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #define SC_COOKIE_DIR "/var/lib/snapd/cookie"
@@ -37,39 +37,31 @@
  **/
 static const char *sc_cookie_dir = SC_COOKIE_DIR;
 
-char *sc_cookie_get_from_snapd(const char *snap_name, struct sc_error **errorp)
-{
-	char context_path[PATH_MAX] = { 0 };
-	struct sc_error *err = NULL;
-	char *context = NULL;
+char *sc_cookie_get_from_snapd(const char *snap_name, struct sc_error **errorp) {
+    char context_path[PATH_MAX] = {0};
+    struct sc_error *err = NULL;
+    char *context = NULL;
 
-	sc_must_snprintf(context_path, sizeof(context_path), "%s/snap.%s",
-			 sc_cookie_dir, snap_name);
-	int fd SC_CLEANUP(sc_cleanup_close) = -1;
-	fd = open(context_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
-	if (fd < 0) {
-		err =
-		    sc_error_init_from_errno(errno,
-					     "warning: cannot open cookie file %s",
-					     context_path);
-		goto out;
-	}
-	// large enough buffer for opaque cookie string
-	char context_val[255] = { 0 };
-	ssize_t n = read(fd, context_val, sizeof(context_val) - 1);
-	if (n < 0) {
-		err =
-		    sc_error_init_from_errno(errno,
-					     "cannot read cookie file %s",
-					     context_path);
-		goto out;
-	}
-	context = strndup(context_val, n);
-	if (context == NULL) {
-		die("cannot duplicate snap cookie value");
-	}
+    sc_must_snprintf(context_path, sizeof(context_path), "%s/snap.%s", sc_cookie_dir, snap_name);
+    int fd SC_CLEANUP(sc_cleanup_close) = -1;
+    fd = open(context_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0) {
+        err = sc_error_init_from_errno(errno, "warning: cannot open cookie file %s", context_path);
+        goto out;
+    }
+    // large enough buffer for opaque cookie string
+    char context_val[255] = {0};
+    ssize_t n = read(fd, context_val, sizeof(context_val) - 1);
+    if (n < 0) {
+        err = sc_error_init_from_errno(errno, "cannot read cookie file %s", context_path);
+        goto out;
+    }
+    context = strndup(context_val, n);
+    if (context == NULL) {
+        die("cannot duplicate snap cookie value");
+    }
 
- out:
-	sc_error_forward(errorp, err);
-	return context;
+out:
+    sc_error_forward(errorp, err);
+    return context;
 }

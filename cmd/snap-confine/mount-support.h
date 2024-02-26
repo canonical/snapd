@@ -18,9 +18,9 @@
 #ifndef SNAP_MOUNT_SUPPORT_H
 #define SNAP_MOUNT_SUPPORT_H
 
+#include <sys/types.h>
 #include "../libsnap-confine-private/apparmor-support.h"
 #include "snap-confine-invocation.h"
-#include <sys/types.h>
 
 /* Base location where extra libraries might be made available to the snap.
  * This is currently used for graphics drivers, but could pontentially be used
@@ -41,9 +41,8 @@
  * - creates private /dev/pts
  * - processes mount profiles
  **/
-void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
-			  const sc_invocation * inv, const gid_t real_gid,
-			  const gid_t saved_gid);
+void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd, const sc_invocation *inv,
+                          const gid_t real_gid, const gid_t saved_gid);
 
 /**
  * Ensure that / or /snap is mounted with the SHARED option.
@@ -63,8 +62,7 @@ void sc_ensure_shared_snap_mount(void);
  * - reconfigure all existing mounts to slave mode
  * - perform all user mounts
  */
-void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd,
-			  const char *snap_name);
+void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd, const char *snap_name);
 
 /**
  * Ensure that SNAP_MOUNT_DIR and /var/snap are mount points.
@@ -80,6 +78,5 @@ void sc_ensure_snap_dir_shared_mounts(void);
  *
  * Create bind mounts from instance specific locations to non-instance ones.
  */
-void sc_setup_parallel_instance_classic_mounts(const char *snap_name,
-					       const char *snap_instance_name);
+void sc_setup_parallel_instance_classic_mounts(const char *snap_name, const char *snap_instance_name);
 #endif

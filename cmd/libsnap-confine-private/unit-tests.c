@@ -18,12 +18,11 @@
 #include "config.h"
 #endif
 
-#include "unit-tests.h"
 #include <glib.h>
+#include "unit-tests.h"
 
-int sc_run_unit_tests(int *argc, char ***argv)
-{
-	g_test_init(argc, argv, NULL);
-	g_test_set_nonfatal_assertions();
-	return g_test_run();
+int sc_run_unit_tests(int *argc, char ***argv) {
+    g_test_init(argc, argv, NULL);
+    g_test_set_nonfatal_assertions();
+    return g_test_run();
 }

@@ -102,9 +102,10 @@ static char *udev_to_security_tag(const char *udev_tag) {
              * snap.foo_instance.bar
              * snap.foo_hook.hookname
              *
-             * there is ambiguity and we cannot correctly handle an instance named
-             * 'hook' as snap.foo_hook.bar could be snap.foo.hook.bar or
-             * snap.foo_hook.bar, for simplicity assume snap.foo.hook.bar more likely.
+             * there is ambiguity and we cannot correctly handle an instance
+             * named 'hook' as snap.foo_hook.bar could be snap.foo.hook.bar or
+             * snap.foo_hook.bar, for simplicity assume snap.foo.hook.bar more
+             * likely.
              */
             if (sc_startswith(more_sep, "_hook.")) {
                 /* snap.foo_hook.bar -> snap.foo.hook.bar */
@@ -180,10 +181,10 @@ int snap_device_helper_run(const struct sdh_invocation *inv) {
     } else if (sc_streq(action, "remove")) {
         allow = false;
     } else if (sc_streq(action, "unbind")) {
-        /* "unbind" does not mean removal of the device, the device node can still exist.
-         * Usually "unbind" will happen before a "remove" if a removed device is bound to a driver.
-         * We will disable access to the device once we get "remove". For "unbind", we
-         * simply ignore it.
+        /* "unbind" does not mean removal of the device, the device node can
+         * still exist. Usually "unbind" will happen before a "remove" if a
+         * removed device is bound to a driver. We will disable access to the
+         * device once we get "remove". For "unbind", we simply ignore it.
          */
         return 0;
     } else {
@@ -192,7 +193,7 @@ int snap_device_helper_run(const struct sdh_invocation *inv) {
 
     char *security_tag SC_CLEANUP(sc_cleanup_string) = udev_to_security_tag(udev_tagname);
 
-    int devtype = ((subsystem != NULL) && (strcmp(subsystem, "block") == 0))?S_IFBLK:S_IFCHR;
+    int devtype = ((subsystem != NULL) && (strcmp(subsystem, "block") == 0)) ? S_IFBLK : S_IFCHR;
 
     sc_device_cgroup *cgroup = sc_device_cgroup_new(security_tag, SC_DEVICE_CGROUP_FROM_EXISTING);
     if (!cgroup) {

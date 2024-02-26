@@ -79,7 +79,8 @@ struct sc_mount_ns *sc_open_mount_ns(const char *group_name);
 /**
  * Close namespace group.
  *
- * This will close all of the open file descriptors and release allocated memory.
+ * This will close all of the open file descriptors and release allocated
+ * memory.
  */
 void sc_close_mount_ns(struct sc_mount_ns *group);
 
@@ -93,9 +94,8 @@ void sc_close_mount_ns(struct sc_mount_ns *group);
  * was discarded the function returns ESRCH. If the mount namespace was joined
  * it returns zero.
  **/
-int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
-			 *apparmor, const sc_invocation * inv,
-			 int snap_discard_ns_fd);
+int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor *apparmor, const sc_invocation *inv,
+                         int snap_discard_ns_fd);
 
 /**
  * Join a preserved, per-user, mount namespace if one exists.
@@ -105,9 +105,8 @@ int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
  *
  * The return is ESRCH if a preserved per-user mount namespace does not exist
  * and cannot be joined or zero otherwise.
-**/
-int sc_join_preserved_per_user_ns(struct sc_mount_ns *group,
-				  const char *snap_name);
+ **/
+int sc_join_preserved_per_user_ns(struct sc_mount_ns *group, const char *snap_name);
 
 /**
  * Fork off a helper process for mount namespace capture.
@@ -148,6 +147,6 @@ void sc_preserve_populated_per_user_mount_ns(struct sc_mount_ns *group);
  **/
 void sc_wait_for_helper(struct sc_mount_ns *group);
 
-void sc_store_ns_info(const sc_invocation * inv);
+void sc_store_ns_info(const sc_invocation *inv);
 
 #endif

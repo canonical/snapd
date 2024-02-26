@@ -42,7 +42,9 @@
 
 int main(int argc, char** argv) {
     if (argc != 2 && argc != 3) {
-        printf("Usage: snap-discard-ns [--from-snap-confine] <SNAP-INSTANCE-NAME>\n");
+        printf(
+            "Usage: snap-discard-ns [--from-snap-confine] "
+            "<SNAP-INSTANCE-NAME>\n");
         return 0;
     }
     const char* snap_instance_name;
@@ -69,9 +71,9 @@ int main(int argc, char** argv) {
     } else {
         /* Grab the lock holding the snap instance. This prevents races from
          * concurrently executing snap-confine. The lock is explicitly released
-         * during normal operation but it is not preserved across the life-cycle of
-         * the process anyway so no attempt is made to unlock it ahead of any call
-         * to die() */
+         * during normal operation but it is not preserved across the life-cycle
+         * of the process anyway so no attempt is made to unlock it ahead of any
+         * call to die() */
         snap_lock_fd = sc_lock_snap(snap_instance_name);
     }
     debug("discarding mount namespaces of snap %s", snap_instance_name);

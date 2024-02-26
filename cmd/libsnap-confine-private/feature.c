@@ -30,44 +30,41 @@
 
 static const char *feature_flag_dir = "/var/lib/snapd/features";
 
-bool sc_feature_enabled(sc_feature_flag flag)
-{
-	const char *file_name;
-	switch (flag) {
-	case SC_FEATURE_PER_USER_MOUNT_NAMESPACE:
-		file_name = "per-user-mount-namespace";
-		break;
-	case SC_FEATURE_REFRESH_APP_AWARENESS:
-		file_name = "refresh-app-awareness";
-		break;
-	case SC_FEATURE_PARALLEL_INSTANCES:
-		file_name = "parallel-instances";
-		break;
-	case SC_FEATURE_HIDDEN_SNAP_FOLDER:
-		file_name = "hidden-snap-folder";
-		break;
-	default:
-		die("unknown feature flag code %d", flag);
-	}
+bool sc_feature_enabled(sc_feature_flag flag) {
+    const char *file_name;
+    switch (flag) {
+        case SC_FEATURE_PER_USER_MOUNT_NAMESPACE:
+            file_name = "per-user-mount-namespace";
+            break;
+        case SC_FEATURE_REFRESH_APP_AWARENESS:
+            file_name = "refresh-app-awareness";
+            break;
+        case SC_FEATURE_PARALLEL_INSTANCES:
+            file_name = "parallel-instances";
+            break;
+        case SC_FEATURE_HIDDEN_SNAP_FOLDER:
+            file_name = "hidden-snap-folder";
+            break;
+        default:
+            die("unknown feature flag code %d", flag);
+    }
 
-	int dirfd SC_CLEANUP(sc_cleanup_close) = -1;
-	dirfd =
-	    open(feature_flag_dir,
-		 O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW | O_PATH);
-	if (dirfd < 0 && errno == ENOENT) {
-		return false;
-	}
-	if (dirfd < 0) {
-		die("cannot open path %s", feature_flag_dir);
-	}
+    int dirfd SC_CLEANUP(sc_cleanup_close) = -1;
+    dirfd = open(feature_flag_dir, O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW | O_PATH);
+    if (dirfd < 0 && errno == ENOENT) {
+        return false;
+    }
+    if (dirfd < 0) {
+        die("cannot open path %s", feature_flag_dir);
+    }
 
-	struct stat file_info;
-	if (fstatat(dirfd, file_name, &file_info, AT_SYMLINK_NOFOLLOW) < 0) {
-		if (errno == ENOENT) {
-			return false;
-		}
-		die("cannot inspect file %s/%s", feature_flag_dir, file_name);
-	}
+    struct stat file_info;
+    if (fstatat(dirfd, file_name, &file_info, AT_SYMLINK_NOFOLLOW) < 0) {
+        if (errno == ENOENT) {
+            return false;
+        }
+        die("cannot inspect file %s/%s", feature_flag_dir, file_name);
+    }
 
-	return S_ISREG(file_info.st_mode);
+    return S_ISREG(file_info.st_mode);
 }

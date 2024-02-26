@@ -20,61 +20,54 @@
 #include <mntent.h>
 #include <unistd.h>
 
-void sc_cleanup_string(char **ptr)
-{
-	if (ptr != NULL && *ptr != NULL) {
-		free(*ptr);
-		*ptr = NULL;
-	}
+void sc_cleanup_string(char **ptr) {
+    if (ptr != NULL && *ptr != NULL) {
+        free(*ptr);
+        *ptr = NULL;
+    }
 }
 
-void sc_cleanup_deep_strv(char ***ptr)
-{
-	if (ptr != NULL && *ptr != NULL) {
-		for (char **str = *ptr; *str != NULL; str++) {
-			free(*str);
-		}
-		free(*ptr);
-		*ptr = NULL;
-	}
+void sc_cleanup_deep_strv(char ***ptr) {
+    if (ptr != NULL && *ptr != NULL) {
+        for (char **str = *ptr; *str != NULL; str++) {
+            free(*str);
+        }
+        free(*ptr);
+        *ptr = NULL;
+    }
 }
 
-void sc_cleanup_shallow_strv(const char ***ptr)
-{
-	if (ptr != NULL && *ptr != NULL) {
-		free(*ptr);
-		*ptr = NULL;
-	}
+void sc_cleanup_shallow_strv(const char ***ptr) {
+    if (ptr != NULL && *ptr != NULL) {
+        free(*ptr);
+        *ptr = NULL;
+    }
 }
 
-void sc_cleanup_file(FILE ** ptr)
-{
-	if (ptr != NULL && *ptr != NULL) {
-		fclose(*ptr);
-		*ptr = NULL;
-	}
+void sc_cleanup_file(FILE **ptr) {
+    if (ptr != NULL && *ptr != NULL) {
+        fclose(*ptr);
+        *ptr = NULL;
+    }
 }
 
-void sc_cleanup_endmntent(FILE ** ptr)
-{
-	if (ptr != NULL && *ptr != NULL) {
-		endmntent(*ptr);
-		*ptr = NULL;
-	}
+void sc_cleanup_endmntent(FILE **ptr) {
+    if (ptr != NULL && *ptr != NULL) {
+        endmntent(*ptr);
+        *ptr = NULL;
+    }
 }
 
-void sc_cleanup_closedir(DIR ** ptr)
-{
-	if (ptr != NULL && *ptr != NULL) {
-		closedir(*ptr);
-		*ptr = NULL;
-	}
+void sc_cleanup_closedir(DIR **ptr) {
+    if (ptr != NULL && *ptr != NULL) {
+        closedir(*ptr);
+        *ptr = NULL;
+    }
 }
 
-void sc_cleanup_close(int *ptr)
-{
-	if (ptr != NULL && *ptr != -1) {
-		close(*ptr);
-		*ptr = -1;
-	}
+void sc_cleanup_close(int *ptr) {
+    if (ptr != NULL && *ptr != -1) {
+        close(*ptr);
+        *ptr = -1;
+    }
 }

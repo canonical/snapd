@@ -26,7 +26,6 @@ void rm_rf_tmp(const char *dir);
 /**
  * Create an argc + argv pair out of a NULL terminated argument list.
  **/
-void
-    __attribute__((sentinel)) test_argc_argv(int *argcp, char ***argvp, ...);
+void __attribute__((sentinel)) test_argc_argv(int *argcp, char ***argvp, ...);
 
 #endif

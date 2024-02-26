@@ -130,7 +130,8 @@ int sc_infofile_get_ini_section_key(FILE *stream, const char *section, const cha
         /* Replace the first '=' with string terminator byte. */
         *eq_ptr = '\0';
 
-        /* If the key matches the one we are looking for, store it and stop scanning. */
+        /* If the key matches the one we are looking for, store it and stop
+         * scanning. */
         const char *scanned_key = line_buf;
         const char *scanned_value = eq_ptr + 1;
         if (sc_streq(scanned_key, key)) {

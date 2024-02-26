@@ -65,7 +65,8 @@ void sc_init_invocation(sc_invocation *inv, const struct sc_args *args, const ch
     char snap_name[SNAP_NAME_LEN + 1] = {0};
     sc_snap_drop_instance_key(snap_instance, snap_name, sizeof snap_name);
 
-    /* Invocation helps to pass relevant data to various parts of snap-confine. */
+    /* Invocation helps to pass relevant data to various parts of snap-confine.
+     */
     memset(inv, 0, sizeof *inv);
     inv->base_snap_name = sc_strdup(base_snap_name);
     inv->orig_base_snap_name = sc_strdup(base_snap_name);
@@ -146,8 +147,7 @@ void sc_check_rootfs_dir(sc_invocation *inv) {
     die("cannot locate base snap %s", inv->base_snap_name);
 }
 
-static char* read_homedirs_from_system_params(void)
-{
+static char *read_homedirs_from_system_params(void) {
     FILE *f SC_CLEANUP(sc_cleanup_file) = NULL;
     f = fopen("/var/lib/snapd/system-params", "r");
     if (f == NULL) {
@@ -164,8 +164,7 @@ static char* read_homedirs_from_system_params(void)
     return NULL;
 }
 
-void sc_invocation_init_homedirs(sc_invocation *inv)
-{
+void sc_invocation_init_homedirs(sc_invocation *inv) {
     char *config_line SC_CLEANUP(sc_cleanup_string) = read_homedirs_from_system_params();
     if (config_line == NULL) {
         return;

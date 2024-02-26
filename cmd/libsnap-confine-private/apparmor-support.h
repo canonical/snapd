@@ -24,28 +24,28 @@
  * Type of apparmor confinement.
  **/
 enum sc_apparmor_mode {
-	// The enforcement mode was not recognized.
-	SC_AA_INVALID = -1,
-	// The enforcement mode is not applicable because apparmor is disabled.
-	SC_AA_NOT_APPLICABLE = 0,
-	// The enforcement mode is "enforcing"
-	SC_AA_ENFORCE = 1,
-	// The enforcement mode is "complain"
-	SC_AA_COMPLAIN,
-	// The enforcement mode is "mixed"
-	SC_AA_MIXED,
+    // The enforcement mode was not recognized.
+    SC_AA_INVALID = -1,
+    // The enforcement mode is not applicable because apparmor is disabled.
+    SC_AA_NOT_APPLICABLE = 0,
+    // The enforcement mode is "enforcing"
+    SC_AA_ENFORCE = 1,
+    // The enforcement mode is "complain"
+    SC_AA_COMPLAIN,
+    // The enforcement mode is "mixed"
+    SC_AA_MIXED,
 };
 
 /**
  * Data required to manage apparmor wrapper.
  **/
 struct sc_apparmor {
-	// The mode of enforcement. In addition to the two apparmor defined modes
-	// can be also SC_AA_INVALID (unknown mode reported by apparmor) and
-	// SC_AA_NOT_APPLICABLE (when we're not linked with apparmor).
-	enum sc_apparmor_mode mode;
-	// Flag indicating that the current process is confined.
-	bool is_confined;
+    // The mode of enforcement. In addition to the two apparmor defined modes
+    // can be also SC_AA_INVALID (unknown mode reported by apparmor) and
+    // SC_AA_NOT_APPLICABLE (when we're not linked with apparmor).
+    enum sc_apparmor_mode mode;
+    // Flag indicating that the current process is confined.
+    bool is_confined;
 };
 
 /**
@@ -74,8 +74,7 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor);
  * process termination. As an exception, when SNAPPY_LAUNCHER_INSIDE_TESTS
  * environment variable is set then the process is not terminated.
  **/
-void
-sc_maybe_aa_change_onexec(struct sc_apparmor *apparmor, const char *profile);
+void sc_maybe_aa_change_onexec(struct sc_apparmor *apparmor, const char *profile);
 
 /**
  * Maybe call aa_change_hat(2)
@@ -86,8 +85,6 @@ sc_maybe_aa_change_onexec(struct sc_apparmor *apparmor, const char *profile);
  * As with many functions in the snap-confine tree, all errors result in
  * process termination.
  **/
-void
-sc_maybe_aa_change_hat(struct sc_apparmor *apparmor,
-		       const char *subprofile, unsigned long magic_token);
+void sc_maybe_aa_change_hat(struct sc_apparmor *apparmor, const char *subprofile, unsigned long magic_token);
 
 #endif

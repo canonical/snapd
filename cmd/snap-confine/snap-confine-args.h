@@ -28,11 +28,11 @@
 #define SC_ARGS_DOMAIN "args"
 
 enum {
-	/**
-	 * Error indicating that the command line arguments could not be parsed
-	 * correctly and usage message should be displayed to the user.
-	 **/
-	SC_ARGS_ERR_USAGE = 1,
+    /**
+     * Error indicating that the command line arguments could not be parsed
+     * correctly and usage message should be displayed to the user.
+     **/
+    SC_ARGS_ERR_USAGE = 1,
 };
 
 /**
@@ -64,9 +64,8 @@ struct sc_args;
  * Both argc and argv are modified so the caller can look at the first unparsed
  * argument at argc[0]. This is only done if argument parsing is successful.
  **/
-__attribute__((warn_unused_result))
-struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
-				       sc_error ** errorp);
+__attribute__((warn_unused_result)) struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
+                                                                           sc_error **errorp);
 
 /**
  * Free the object describing command-line arguments to snap-confine.

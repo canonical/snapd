@@ -40,8 +40,10 @@ static int sys_bpf(enum bpf_cmd cmd, union bpf_attr *attr, size_t size) {
 #define __ptr_as_u64(__x) ((uint64_t)(uintptr_t)__x)
 
 int bpf_create_map(enum bpf_map_type type, size_t key_size, size_t value_size, size_t max_entries) {
-    debug("create bpf map of type 0x%x, key size %zu, value size %zu, entries %zu", type, key_size, value_size,
-          max_entries);
+    debug(
+        "create bpf map of type 0x%x, key size %zu, value size %zu, entries "
+        "%zu",
+        type, key_size, value_size, max_entries);
     union bpf_attr attr;
     memset(&attr, 0, sizeof(attr));
     attr.map_type = type;
