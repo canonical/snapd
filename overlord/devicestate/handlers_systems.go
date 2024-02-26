@@ -212,6 +212,10 @@ func (m *DeviceManager) doRemoveRecoverySystem(t *state.Task, _ *tomb.Tomb) erro
 			if sys.Current {
 				return fmt.Errorf("cannot remove current recovery system: %q", setup.Label)
 			}
+
+			if sys.DefaultRecoverySystem {
+				return fmt.Errorf("cannot remove default recovery system: %q", setup.Label)
+			}
 			break
 		}
 	}

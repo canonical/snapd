@@ -4358,6 +4358,13 @@ func (s *deviceMgrSystemsCreateSuite) createSystemForRemoval(c *C, label string,
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 1)
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label, "snapd-new-file-log"), testutil.FileAbsent)
 
+	if markDefault {
+		var defaultSystem string
+		err := s.state.Get("default-recovery-system", &defaultSystem)
+		c.Assert(err, IsNil)
+		c.Check(defaultSystem, Equals, label)
+	}
+
 	// boot.InitramfsUbuntuSeedDir and dirs.SnapSeedDir are usually different
 	// mount points of the same device. to emulate this, we can copy the files
 	// from boot.InitramfsUbuntuSeedDir (where they are written during creation)
@@ -4561,11 +4568,21 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemCurrentFailure(c *
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
 	const keep = "keep"
-	const markDefault = true
+	const markDefault = false
 	s.createSystemForRemoval(c, keep, 0, nil, markDefault)
 
 	const label = "current"
 	s.createSystemForRemoval(c, label, 0, nil, markDefault)
+
+	// make it look like the most recently seeded system, we prevent the removal
+	// of this
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{
+			System:  "current",
+			Model:   "pc-20",
+			BrandID: "canonical",
+		},
+	})
 
 	chg, err := devicestate.RemoveRecoverySystem(s.state, label)
 	c.Check(err, IsNil)
@@ -4575,6 +4592,34 @@ func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemCurrentFailure(c *
 	s.state.Lock()
 
 	c.Assert(chg.Err(), ErrorMatches, `(?s)cannot perform the following tasks.* \(cannot remove current recovery system: "current"\)`)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestRemoveRecoverySystemDefaultFailure(c *C) {
+	restore := seed.MockTrusted(s.storeSigning.Trusted)
+	s.AddCleanup(restore)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	devicestate.SetBootOkRan(s.mgr, true)
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	const keep = "keep"
+	const markDefault = true
+	s.createSystemForRemoval(c, keep, 0, nil, markDefault)
+
+	const label = "default"
+	s.createSystemForRemoval(c, label, 0, nil, markDefault)
+
+	chg, err := devicestate.RemoveRecoverySystem(s.state, label)
+	c.Check(err, IsNil)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), ErrorMatches, `(?s)cannot perform the following tasks.* \(cannot remove default recovery system: "default"\)`)
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 }
 
