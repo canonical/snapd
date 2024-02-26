@@ -575,25 +575,25 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	c.Assert(stored, HasLen, 1)
 	c.Assert(stored[0], Equals, prompt)
 
-	satisfied, err := pdb.HandleNewRule(otherUser, otherSnap, otherInterface, otherConstraints, badOutcome)
+	satisfied, err := pdb.HandleNewRule(user, snap, iface, constraints, badOutcome)
 	c.Check(err, Equals, common.ErrInvalidOutcome)
 	c.Check(satisfied, HasLen, 0)
 
 	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = pdb.HandleNewRule(otherUser, otherSnap, otherInterface, otherConstraints, outcome)
+	satisfied, err = pdb.HandleNewRule(otherUser, snap, iface, constraints, outcome)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
 	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = pdb.HandleNewRule(user, otherSnap, otherInterface, otherConstraints, outcome)
+	satisfied, err = pdb.HandleNewRule(user, otherSnap, iface, constraints, outcome)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
 	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	satisfied, err = pdb.HandleNewRule(user, snap, otherInterface, otherConstraints, outcome)
+	satisfied, err = pdb.HandleNewRule(user, snap, otherInterface, constraints, outcome)
 	c.Check(err, IsNil)
 	c.Check(satisfied, HasLen, 0)
 
