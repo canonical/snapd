@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 type hijackFunc func(ctx *Context) error
@@ -343,8 +344,9 @@ func (m *HookManager) runHookGuardForRestarting(context *Context) error {
 }
 
 func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hooksup *HookSetup, tomb *tomb.Tomb) error {
-	mustHijack := m.hijacked(hooksup.Hook, hooksup.Snap) != nil
+	mustHijack := context.IsSnapHook() && m.hijacked(hooksup.Hook, hooksup.Snap) != nil
 	hookExists := false
+
 	if !mustHijack {
 		// not hijacked, snap must be installed
 		if !snapst.IsInstalled() {
@@ -356,9 +358,24 @@ func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hoo
 			return fmt.Errorf("cannot read %q snap details: %v", hooksup.Snap, err)
 		}
 
-		hookExists = info.Hooks[hooksup.Hook] != nil
-		if !hookExists && !hooksup.Optional {
-			return fmt.Errorf("snap %q has no %q hook", hooksup.Snap, hooksup.Hook)
+		if context.IsSnapHook() {
+			hookExists = info.Hooks[hooksup.Hook] != nil
+			if !hookExists && !hooksup.Optional {
+				return fmt.Errorf("snap %q has no %q hook", hooksup.Snap, hooksup.Hook)
+			}
+		} else {
+			comp, err := snapst.CurrentComponentInfo(naming.ComponentRef{
+				SnapName:      info.SnapName(),
+				ComponentName: hooksup.Component,
+			})
+			if err != nil {
+				return fmt.Errorf(`cannot read "%s+%s" component details: %v`, info.SnapName(), hooksup.Component, err)
+			}
+
+			hookExists = comp.Hooks[hooksup.Hook] != nil
+			if !hookExists && !hooksup.Optional {
+				return fmt.Errorf(`component "%s+%s" has no %q hook`, info.SnapName(), hooksup.Component, hooksup.Hook)
+			}
 		}
 	}
 
@@ -449,7 +466,7 @@ func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hoo
 }
 
 func runHookImpl(c *Context, tomb *tomb.Tomb) ([]byte, error) {
-	return runHookAndWait(c.InstanceName(), c.SnapRevision(), c.HookName(), c.ID(), c.Timeout(), tomb)
+	return runHookAndWait(c.HookSource(), c.SnapRevision(), c.HookName(), c.ID(), c.Timeout(), tomb)
 }
 
 var runHook = runHookImpl
@@ -488,8 +505,8 @@ func snapCmd() string {
 
 var defaultHookTimeout = 10 * time.Minute
 
-func runHookAndWait(snapName string, revision snap.Revision, hookName, hookContext string, timeout time.Duration, tomb *tomb.Tomb) ([]byte, error) {
-	argv := []string{snapCmd(), "run", "--hook", hookName, "-r", revision.String(), snapName}
+func runHookAndWait(hookSource string, revision snap.Revision, hookName, hookContext string, timeout time.Duration, tomb *tomb.Tomb) ([]byte, error) {
+	argv := []string{snapCmd(), "run", "--hook", hookName, "-r", revision.String(), hookSource}
 	if timeout == 0 {
 		timeout = defaultHookTimeout
 	}
