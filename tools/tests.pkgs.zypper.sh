@@ -31,33 +31,36 @@ remap_one() {
 }
 
 cmd_install() {
-    set -x
-    # shellcheck disable=SC2068
-    zypper install -y $@
-    set +x
+    local ZYPPER_FLAGS="-y"
+    while [ -n "$1" ]; do
+        case "$1" in
+            --no-install-recommends)
+                ZYPPER_FLAGS="$ZYPPER_FLAGS --no-recommends"
+                shift
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+
+    # shellcheck disable=SC2068,SC2086
+    zypper install $ZYPPER_FLAGS $@
 }
 
 cmd_is_installed() {
-    set -x
     rpm -qi "$1" >/dev/null 2>&1
-    set +x
 }
 
 cmd_query() {
-    set -x
     zypper info "$1"
-    set +x
 }
 
 cmd_list_installed() {
-    set -x
     rpm -qa | sort
-    set +x
 }
 
 cmd_remove() {
-    set -x
     # shellcheck disable=SC2068
     zypper remove -y $@
-    set +x
 }
