@@ -61,7 +61,7 @@ description: long description
 	compf, err := snapfile.Open(testComp)
 	c.Assert(err, IsNil)
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf)
+	ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
 	c.Assert(err, IsNil)
 	c.Assert(ci, DeepEquals, snap.NewComponentInfo(
 		naming.NewComponentRef("mysnap", "test-info"),
@@ -84,7 +84,7 @@ version: 1.0.2
 	compf, err := snapfile.Open(testComp)
 	c.Assert(err, IsNil)
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf)
+	ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
 	c.Assert(err, IsNil)
 	c.Assert(ci, DeepEquals, snap.NewComponentInfo(
 		naming.NewComponentRef("mysnap", "test-info"),
@@ -105,7 +105,7 @@ description: long description
 	compf, err := snapfile.Open(testComp)
 	c.Assert(err, IsNil)
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf)
+	ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
 	c.Assert(err.Error(), Equals, `cannot parse component.yaml: incorrect component name "mysnap-test-info"`)
 	c.Assert(ci, IsNil)
 }
@@ -121,7 +121,7 @@ foo: bar
 	compf, err := snapfile.Open(testComp)
 	c.Assert(err, IsNil)
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf)
+	ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
 	c.Assert(err, ErrorMatches, `.*\n.*: field foo not found in type snap.ComponentInfo`)
 	c.Assert(ci, IsNil)
 }
@@ -146,7 +146,7 @@ version: 1.0
 		compf, err := snapfile.Open(testComp)
 		c.Assert(err, IsNil)
 
-		ci, err := snap.ReadComponentInfoFromContainer(compf)
+		ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
 		c.Assert(err, ErrorMatches, tc.error)
 		c.Assert(ci, IsNil)
 	}
@@ -161,7 +161,7 @@ version: 1.0
 	compf, err := snapfile.Open(testComp)
 	c.Assert(err, IsNil)
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf)
+	ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
 	c.Assert(err.Error(), Equals, `component type cannot be empty`)
 	c.Assert(ci, IsNil)
 }
@@ -176,7 +176,7 @@ version: 1.0
 	compf, err := snapfile.Open(testComp)
 	c.Assert(err, IsNil)
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf)
+	ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
 	c.Assert(err.Error(), Equals, `cannot parse component.yaml: unknown component type "unknowntype"`)
 	c.Assert(ci, IsNil)
 }
@@ -204,7 +204,7 @@ version: %s
 		compf, err := snapfile.Open(testComp)
 		c.Assert(err, IsNil)
 
-		ci, err := snap.ReadComponentInfoFromContainer(compf)
+		ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
 		if tc.error != "" {
 			c.Check(err, ErrorMatches, tc.error)
 			c.Check(ci, IsNil)
@@ -233,7 +233,7 @@ version: 1.0
 		compf, err := snapfile.Open(testComp)
 		c.Assert(err, IsNil)
 
-		ci, err := snap.ReadComponentInfoFromContainer(compf)
+		ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
 		c.Check(err, ErrorMatches, tc.error)
 		c.Assert(ci, IsNil)
 	}
@@ -253,7 +253,7 @@ description: 👹👺👻👽👾🤖
 	compf, err := snapfile.Open(testComp)
 	c.Assert(err, IsNil)
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf)
+	ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
 	c.Assert(err, ErrorMatches, "summary can have up to 128 codepoints, got 130")
 	c.Assert(ci, IsNil)
 }
@@ -271,7 +271,7 @@ description: %s
 	compf, err := snapfile.Open(testComp)
 	c.Assert(err, IsNil)
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf)
+	ci, err := snap.ReadComponentInfoFromContainer(compf, nil)
 	c.Assert(err, ErrorMatches, "description can have up to 4096 codepoints, got 4098")
 	c.Assert(ci, IsNil)
 }

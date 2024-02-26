@@ -520,7 +520,7 @@ func (snapst *SnapState) CurrentComponentInfo(cref naming.ComponentRef) (*snap.C
 
 	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
 		csi.Revision, si.InstanceName(), si.SnapRevision())
-	return readComponentInfo(cpi.MountDir())
+	return readComponentInfo(cpi.MountDir(), si)
 }
 
 func (snapst *SnapState) InstanceName() string {

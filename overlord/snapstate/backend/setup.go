@@ -176,7 +176,7 @@ func (b Backend) RemoveKernelSnapSetup(instanceName string, rev snap.Revision, m
 func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *InstallRecord, err error) {
 	// This assumes that the component was already verified or --dangerous was used.
 
-	_, snapf, oErr := OpenComponentFile(compFilePath)
+	_, snapf, oErr := OpenComponentFile(compFilePath, nil)
 	if oErr != nil {
 		return nil, oErr
 	}

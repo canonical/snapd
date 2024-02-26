@@ -103,7 +103,7 @@ func verifyComponentInstallTasks(c *C, opts int, ts *state.TaskSet) {
 	}
 }
 
-func createTestComponent(c *C, snapName, compName string) (*snap.ComponentInfo, string) {
+func createTestComponent(c *C, snapName, compName string, snapInfo *snap.Info) (*snap.ComponentInfo, string) {
 	componentYaml := fmt.Sprintf(`component: %s+%s
 type: test
 version: 1.0
@@ -112,7 +112,7 @@ version: 1.0
 	compf, err := snapfile.Open(compPath)
 	c.Assert(err, IsNil)
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf)
+	ci, err := snap.ReadComponentInfoFromContainer(compf, snapInfo)
 	c.Assert(err, IsNil)
 
 	return ci, compPath
@@ -182,8 +182,8 @@ func (s *snapmgrTestSuite) TestInstallComponentPath(c *C) {
 	const snapName = "mysnap"
 	const compName = "mycomp"
 	snapRev := snap.R(1)
-	_, compPath := createTestComponent(c, snapName, compName)
 	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	_, compPath := createTestComponent(c, snapName, compName, info)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -206,9 +206,9 @@ func (s *snapmgrTestSuite) TestInstallComponentPathWrongComponent(c *C) {
 	const snapName = "mysnap"
 	const compName = "mycomp"
 	snapRev := snap.R(1)
-	_, compPath := createTestComponent(c, snapName, compName)
 	// The snap does not declare "mycomp"
 	info := createTestSnapInfoForComponent(c, snapName, snapRev, "other-comp")
+	_, compPath := createTestComponent(c, snapName, compName, nil)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -220,20 +220,21 @@ func (s *snapmgrTestSuite) TestInstallComponentPathWrongComponent(c *C) {
 	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
 		snapstate.Flags{})
 	c.Assert(ts, IsNil)
-	c.Assert(err.Error(), Equals, `"mycomp" is not a component for snap "mysnap"`)
+	c.Assert(err, ErrorMatches, `.*"mycomp" is not a component for snap "mysnap"`)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentPathWrongType(c *C) {
 	const snapName = "mysnap"
 	const compName = "mycomp"
 	snapRev := snap.R(1)
-	_, compPath := createTestComponent(c, snapName, compName)
 	info := createTestSnapInfoForComponent(c, snapName, snapRev, "other-comp")
 	// The component in snap.yaml has type different to the one in component.yaml
 	// (we have to set it in this way as parsers check for allowed types).
 	info.Components[compName] = &snap.Component{
 		Type: "random-comp-type",
 	}
+
+	_, compPath := createTestComponent(c, snapName, compName, info)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -254,9 +255,9 @@ func (s *snapmgrTestSuite) TestInstallComponentPathForParallelInstall(c *C) {
 	const compName = "mycomp"
 	const snapKey = "key"
 	snapRev := snap.R(1)
-	_, compPath := createTestComponent(c, snapName, compName)
 	info := createTestSnapInfoForComponent(c, snapName, snap.R(1), compName)
 	info.InstanceKey = snapKey
+	_, compPath := createTestComponent(c, snapName, compName, info)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -293,8 +294,8 @@ func (s *snapmgrTestSuite) TestInstallComponentPathWrongSnap(c *C) {
 	const snapName = "mysnap"
 	const compName = "mycomp"
 	snapRev := snap.R(1)
-	_, compPath := createTestComponent(c, snapName, compName)
 	info := createTestSnapInfoForComponent(c, "other-snap", snapRev, compName)
+	_, compPath := createTestComponent(c, snapName, compName, info)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -315,8 +316,8 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresent(c *C) {
 	const compName = "mycomp"
 	snapRev := snap.R(1)
 	compRev := snap.R(7)
-	_, compPath := createTestComponent(c, snapName, compName)
 	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	_, compPath := createTestComponent(c, snapName, compName, info)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -342,8 +343,8 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresentDiffSnapRe
 	snapRev1 := snap.R(1)
 	snapRev2 := snap.R(2)
 	compRev := snap.R(7)
-	_, compPath := createTestComponent(c, snapName, compName)
 	info := createTestSnapInfoForComponent(c, snapName, snapRev1, compName)
+	_, compPath := createTestComponent(c, snapName, compName, info)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -383,8 +384,8 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompAlreadyInstalled(c *C) {
 	const compName = "mycomp"
 	snapRev := snap.R(1)
 	compRev := snap.R(33)
-	_, compPath := createTestComponent(c, snapName, compName)
 	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	_, compPath := createTestComponent(c, snapName, compName, info)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -408,8 +409,8 @@ func (s *snapmgrTestSuite) TestInstallComponentPathSnapNotActive(c *C) {
 	const compName = "mycomp"
 	snapRev := snap.R(1)
 	compRev := snap.R(7)
-	_, compPath := createTestComponent(c, snapName, compName)
 	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	_, compPath := createTestComponent(c, snapName, compName, info)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -436,8 +437,8 @@ func (s *snapmgrTestSuite) TestInstallComponentRemodelConflict(c *C) {
 	const snapName = "mysnap"
 	const compName = "mycomp"
 	snapRev := snap.R(1)
-	_, compPath := createTestComponent(c, snapName, compName)
 	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	_, compPath := createTestComponent(c, snapName, compName, info)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -461,8 +462,8 @@ func (s *snapmgrTestSuite) TestInstallComponentUpdateConflict(c *C) {
 	const snapName = "some-snap"
 	const compName = "mycomp"
 	snapRev := snap.R(1)
-	_, compPath := createTestComponent(c, snapName, compName)
 	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	_, compPath := createTestComponent(c, snapName, compName, info)
 
 	s.state.Lock()
 	defer s.state.Unlock()
