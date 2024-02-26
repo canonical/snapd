@@ -79,7 +79,7 @@ func (s *aspectTestSuite) SetUpTest(c *C) {
 				map[string]interface{}{"request": "ssid", "storage": "wifi.ssid", "access": "read-write"},
 				map[string]interface{}{"request": "password", "storage": "wifi.psk", "access": "write"},
 				map[string]interface{}{"request": "status", "storage": "wifi.status", "access": "read"},
-				map[string]interface{}{"request": "private.{placeholder}", "storage": "wifi.{placeholder}"},
+				map[string]interface{}{"request": "private.{placeholder}", "storage": "private.{placeholder}"},
 			},
 		},
 	}
@@ -89,8 +89,22 @@ func (s *aspectTestSuite) SetUpTest(c *C) {
 		"account-id":   devAccKey.AccountID(),
 		"name":         "network",
 		"aspects":      rules,
-		"storage":      `{"schema": {"wifi" : {"schema": {"ssids": {"type": "array", "values": "any"}, "ssid": "string"}}}}`,
-		"timestamp":    "2030-11-06T09:16:26Z",
+		"storage": `{
+	"schema": {
+		"wifi" : {
+			"schema": {
+				"ssids": {"type": "array", "values": "any"},
+				"ssid": "string",
+				"psk": "string",
+				"status":"string"
+			}
+		},
+		"private": {
+			"values": "any"
+		}
+	}
+}`,
+		"timestamp": "2030-11-06T09:16:26Z",
 	}
 	as, err := signingDB.Sign(asserts.AspectBundleType, headers, nil, "")
 	c.Assert(err, IsNil)

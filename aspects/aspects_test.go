@@ -1468,8 +1468,7 @@ func (s *aspectSuite) TestSetPreCheckValueFailsIncompatibleTypes(c *C) {
 }`, one.schemaStr, other.schemaStr)))
 			c.Assert(err, IsNil)
 
-			databag := aspects.NewJSONDataBag()
-			aspectBundle, err := aspects.NewBundle("acc", "bundle", map[string]interface{}{
+			_, err = aspects.NewBundle("acc", "bundle", map[string]interface{}{
 				"foo": map[string]interface{}{
 					"rules": []interface{}{
 						map[string]interface{}{"request": "foo", "storage": "foo", "access": "write"},
@@ -1477,20 +1476,7 @@ func (s *aspectSuite) TestSetPreCheckValueFailsIncompatibleTypes(c *C) {
 					},
 				},
 			}, schema)
-			c.Assert(err, IsNil)
-
-			asp := aspectBundle.Aspect("foo")
-			c.Assert(asp, NotNil)
-
-			err = asp.Set(databag, "foo", one.value)
-			c.Assert(err, ErrorMatches, fmt.Sprintf(`storage paths "bar" and "foo" for request "foo" require incompatible types: %s != %s`, other.typ, one.typ))
-
-			// schema mismatch check happens before any write
-			_, err = databag.Get("foo")
-			c.Assert(err, ErrorMatches, `no value was found under path "foo"`)
-
-			_, err = databag.Get("bar")
-			c.Assert(err, ErrorMatches, `no value was found under path "bar"`)
+			c.Assert(err, ErrorMatches, fmt.Sprintf(`.*storage paths "foo" and "bar" for request "foo" require incompatible types: %s != %s`, one.typ, other.typ))
 		}
 	}
 }
@@ -1536,8 +1522,7 @@ func (*aspectSuite) TestSetPreCheckMultipleAlternativeTypesFail(c *C) {
 	schema, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	databag := aspects.NewJSONDataBag()
-	aspectBundle, err := aspects.NewBundle("acc", "bundle", map[string]interface{}{
+	_, err = aspects.NewBundle("acc", "bundle", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
 				map[string]interface{}{"request": "foo", "storage": "foo", "access": "write"},
@@ -1545,13 +1530,7 @@ func (*aspectSuite) TestSetPreCheckMultipleAlternativeTypesFail(c *C) {
 			},
 		},
 	}, schema)
-	c.Assert(err, IsNil)
-
-	asp := aspectBundle.Aspect("foo")
-	c.Assert(asp, NotNil)
-
-	err = asp.Set(databag, "foo", 1)
-	c.Assert(err.Error(), Equals, `storage paths "bar" and "foo" for request "foo" require incompatible types: [string, array, map] != [int, bool]`)
+	c.Assert(err, ErrorMatches, `.*storage paths "foo" and "bar" for request "foo" require incompatible types: \[int, bool\] != \[string, array, map\]`)
 }
 
 func (*aspectSuite) TestAssertionRuleSchemaMismatch(c *C) {
@@ -1568,7 +1547,6 @@ func (*aspectSuite) TestAssertionRuleSchemaMismatch(c *C) {
 	schema, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, IsNil)
 
-	databag := aspects.NewJSONDataBag()
 	aspectBundle, err := aspects.NewBundle("acc", "bundle", map[string]interface{}{
 		"foo": map[string]interface{}{
 			"rules": []interface{}{
@@ -1577,16 +1555,39 @@ func (*aspectSuite) TestAssertionRuleSchemaMismatch(c *C) {
 			},
 		},
 	}, schema)
-	c.Assert(err, IsNil)
-
-	asp := aspectBundle.Aspect("foo")
-	c.Assert(asp, NotNil)
-
-	err = asp.Set(databag, "foo", 1)
-	c.Assert(err.Error(), Equals, `path "bar.b.c" for request "foo" is invalid after "bar.b": cannot follow path beyond "string" type`)
+	c.Assert(err, ErrorMatches, `.*storage path "foo.b.c" for request "foo" is invalid after "foo": cannot follow path beyond "int" type`)
+	c.Assert(aspectBundle, IsNil)
 }
 
-func (*aspectSuite) TestSetPreCheckMultipleAlternativeTypesHappy(c *C) {
+func (*aspectSuite) TestSchemaMismatchCheckDifferentLevelPaths(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"snaps": {
+			"values": {
+				"schema": {
+					"status": {
+						"type": "string"
+					}
+				}
+			}
+		}
+	}
+}`)
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	_, err = aspects.NewBundle("acc", "bundle", map[string]interface{}{
+		"foo": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{"request": "snaps.{snap}", "storage": "snaps.{snap}"},
+				map[string]interface{}{"request": "snaps.{snap}.status", "storage": "snaps.{snap}.status"},
+			},
+		},
+	}, schema)
+	c.Assert(err, IsNil)
+}
+
+func (*aspectSuite) TestSchemaMismatchCheckMultipleAlternativeTypesHappy(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
 		"foo": ["int", "bool"],
@@ -1914,7 +1915,7 @@ func (*aspectSuite) TestAspectSummary(c *C) {
 				map[string]interface{}{"request": "foo", "storage": "foo"},
 			},
 		},
-	}, nil)
+	}, aspects.NewJSONSchema())
 	c.Assert(err, IsNil)
 	c.Assert(bundle, NotNil)
 }
