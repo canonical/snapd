@@ -100,9 +100,45 @@ func (c *Context) InstanceName() string {
 	return c.setup.Snap
 }
 
+// HookSource returns a string that identifies the source of a hook. This could
+// either be a snap or a component. Snaps will be in the form "<snap_instance>".
+// Components will be in the form "<snap_name>+<component_name>_<instance_key>".
+// The "_<instance_key>" suffix will be omitted if the snap does not have an
+// instance key.
+func (c *Context) HookSource() string {
+	if c.setup.Component == "" {
+		return c.setup.Snap
+	}
+
+	return snap.SnapComponentName(c.setup.Snap, c.setup.Component)
+}
+
+// IsComponentHook returns true if this context is associated with a component
+// hook.
+func (c *Context) IsComponentHook() bool {
+	return !c.IsSnapHook()
+}
+
+// IsSnapHook returns true if this context is associated with a snap hook.
+func (c *Context) IsSnapHook() bool {
+	return c.setup.Component == ""
+}
+
+// InstanceName returns the name of the component containing the hook. If the hook
+// is not associated with a component, it returns an empty string.
+func (c *Context) ComponentName() string {
+	return c.setup.Component
+}
+
 // SnapRevision returns the revision of the snap containing the hook.
 func (c *Context) SnapRevision() snap.Revision {
 	return c.setup.Revision
+}
+
+// ComponentRevision returns the revision of the snap component containing the
+// hook. This returned revision is only valid if the hook is a component hook.
+func (c *Context) ComponentRevision() snap.Revision {
+	return c.setup.ComponentRevision
 }
 
 // Task returns the task associated with the hook or (nil, false) if the context is ephemeral
