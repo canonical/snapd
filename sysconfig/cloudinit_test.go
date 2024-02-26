@@ -29,6 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -54,6 +55,11 @@ func (s *sysconfigSuite) SetUpTest(c *C) {
 	oldTmpdir := os.Getenv("TMPDIR")
 	os.Setenv("TMPDIR", s.tmpdir)
 	s.AddCleanup(func() { os.Unsetenv(oldTmpdir) })
+	err := os.MkdirAll(filepath.Join(s.tmpdir, "proc"), 0755)
+	c.Assert(err, IsNil)
+	restore := kcmdline.MockProcCmdline(filepath.Join(s.tmpdir, "proc/cmdline"))
+	s.AddCleanup(restore)
+
 }
 
 func (s *sysconfigSuite) makeCloudCfgSrcDirFiles(c *C, cfgs ...string) (string, []string) {
@@ -579,6 +585,7 @@ func (s *sysconfigSuite) TestCloudInitStatus(c *C) {
 		exp             sysconfig.CloudInitState
 		restrictedFile  bool
 		disabledFile    bool
+		disabledKernel  bool
 		expError        string
 	}{
 		{
@@ -615,6 +622,11 @@ func (s *sysconfigSuite) TestCloudInitStatus(c *C) {
 			comment:      "disabled permanently via file",
 			disabledFile: true,
 			exp:          sysconfig.CloudInitDisabledPermanently,
+		},
+		{
+			comment:        "disabled permanently via kernel commandline",
+			disabledKernel: true,
+			exp:            sysconfig.CloudInitDisabledPermanently,
 		},
 		{
 			comment:         "errored w/ exit code 0",
@@ -669,6 +681,15 @@ fi
 			c.Assert(err, IsNil)
 		}
 
+		mockProcCmdline := filepath.Join(s.tmpdir, "proc/cmdline")
+		if t.disabledKernel {
+			err := os.WriteFile(mockProcCmdline, []byte("BOOT_IMAGE=/vmlinuz-6.1.53- root=UUID=63642d181-ad10-4457-80b0-14289c2183ef ro cloud-init=disabled panic_on_warn"), 0644)
+			c.Assert(err, IsNil)
+		} else {
+			err := os.WriteFile(mockProcCmdline, []byte("BOOT_IMAGE=/vmlinuz-6.1.53- root=UUID=63642d181-ad10-4457-80b0-14289c2183ef ro cloud-init=enabled panic_on_warn"), 0644)
+			c.Assert(err, IsNil)
+		}
+
 		if t.restrictedFile {
 			cloudDir := filepath.Join(dirs.GlobalRootDir, "etc/cloud/cloud.cfg.d")
 			err := os.MkdirAll(cloudDir, 0755)
@@ -687,7 +708,7 @@ fi
 
 		// if the restricted file was there we don't call cloud-init status
 		var expCalls [][]string
-		if !t.restrictedFile && !t.disabledFile {
+		if !t.restrictedFile && !t.disabledFile && !t.disabledKernel {
 			expCalls = [][]string{
 				{"cloud-init", "status"},
 			}
