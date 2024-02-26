@@ -1361,6 +1361,12 @@ func (app *AppInfo) EnvChain() []osutil.ExpandableEnv {
 // Security tags are used by various security subsystems as "profile names" and
 // sometimes also as a part of the file name.
 func (hook *HookInfo) SecurityTag() string {
+	if hook.Component != nil {
+		return HookSecurityTag(SnapComponentName(
+			hook.Snap.InstanceName(),
+			hook.Component.Name,
+		), hook.Name)
+	}
 	return HookSecurityTag(hook.Snap.InstanceName(), hook.Name)
 }
 
