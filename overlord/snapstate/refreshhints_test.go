@@ -374,8 +374,26 @@ func (s *refreshHintsTestSuite) TestPruneRefreshCandidates(c *C) {
 				},
 			},
 		},
+		"snap-f": {
+			SnapSetup: snapstate.SnapSetup{
+				Type: "app",
+				SideInfo: &snap.SideInfo{
+					RealName: "snap-c",
+					Revision: snap.R(1),
+				},
+			},
+			Monitored: true,
+		},
 	}
 	st.Set("refresh-candidates", candidates)
+
+	abortCalled := false
+
+	st.Cache("monitored-snaps", map[string]context.CancelFunc{
+		"snap-f": func() {
+			abortCalled = true
+		},
+	})
 
 	c.Assert(snapstate.PruneRefreshCandidates(st, "snap-a"), IsNil)
 
@@ -387,6 +405,13 @@ func (s *refreshHintsTestSuite) TestPruneRefreshCandidates(c *C) {
 	c.Check(ok, Equals, true)
 	_, ok = candidates2["snap-c"]
 	c.Check(ok, Equals, true)
+	_, ok = candidates2["snap-f"]
+	c.Check(ok, Equals, true)
+	m := st.Cached("monitored-snaps")
+	monitored, ok := m.(map[string]context.CancelFunc)
+	c.Assert(ok, Equals, true)
+	c.Check(monitored["snap-f"], NotNil)
+	c.Check(abortCalled, Equals, false)
 
 	var candidates3 map[string]*snapstate.RefreshCandidate
 	c.Assert(snapstate.PruneRefreshCandidates(st, "snap-b"), IsNil)
@@ -397,6 +422,25 @@ func (s *refreshHintsTestSuite) TestPruneRefreshCandidates(c *C) {
 	c.Check(ok, Equals, false)
 	_, ok = candidates3["snap-c"]
 	c.Check(ok, Equals, true)
+	_, ok = candidates3["snap-f"]
+	c.Check(ok, Equals, true)
+	m = st.Cached("monitored-snaps")
+	monitored, ok = m.(map[string]context.CancelFunc)
+	c.Assert(ok, Equals, true)
+	c.Check(monitored["snap-f"], NotNil)
+	c.Check(abortCalled, Equals, false)
+
+	var candidates4 map[string]*snapstate.RefreshCandidate
+	c.Assert(snapstate.PruneRefreshCandidates(st, "snap-f"), IsNil)
+	c.Assert(st.Get("refresh-candidates", &candidates4), IsNil)
+	_, ok = candidates4["snap-c"]
+	c.Check(ok, Equals, true)
+	_, ok = candidates4["snap-f"]
+	c.Check(ok, Equals, false)
+	m = st.Cached("monitored-snaps")
+	// this is expected as the monitoring handler normally does the cleanup
+	c.Assert(m, NotNil)
+	c.Check(abortCalled, Equals, true)
 }
 
 func (s *refreshHintsTestSuite) TestPruneRefreshCandidatesIncorrectFormat(c *C) {
