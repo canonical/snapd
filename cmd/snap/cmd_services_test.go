@@ -60,6 +60,7 @@ func (s *appOpSuite) expectedBody(op string, names, extra []string) map[string]i
 	expectedBody := map[string]interface{}{
 		"action": op,
 		"names":  inames,
+		"users":  []interface{}{},
 	}
 	for _, x := range extra {
 		expectedBody[x] = true
@@ -215,23 +216,31 @@ func (s *appOpSuite) TestAppOpsScopeSwitches(c *check.C) {
 		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, nil), check.DeepEquals, map[string]interface{}{
 			"action": op,
 			"names":  []interface{}{"foo", "bar"},
+			"users":  []interface{}{},
 		})
 		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"user"}), check.DeepEquals, map[string]interface{}{
-			"action":           op,
-			"names":            []interface{}{"foo", "bar"},
-			"scope":            []interface{}{"user"},
-			"user-services-of": []interface{}{"user"},
+			"action": op,
+			"names":  []interface{}{"foo", "bar"},
+			"scope":  []interface{}{"user"},
+			"users":  "self",
 		})
 		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"users"}), check.DeepEquals, map[string]interface{}{
-			"action":           op,
-			"names":            []interface{}{"foo", "bar"},
-			"scope":            []interface{}{"user"},
-			"user-services-of": []interface{}{"users"},
+			"action": op,
+			"names":  []interface{}{"foo", "bar"},
+			"scope":  []interface{}{"user"},
+			"users":  "all",
+		})
+		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"users=my-user,other-user"}), check.DeepEquals, map[string]interface{}{
+			"action": op,
+			"names":  []interface{}{"foo", "bar"},
+			"scope":  []interface{}{"user"},
+			"users":  []interface{}{"my-user", "other-user"},
 		})
 		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"system"}), check.DeepEquals, map[string]interface{}{
 			"action": op,
 			"names":  []interface{}{"foo", "bar"},
 			"scope":  []interface{}{"system"},
+			"users":  []interface{}{},
 		})
 	}
 }

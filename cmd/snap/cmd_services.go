@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type svcStatus struct {
@@ -93,37 +94,19 @@ func init() {
 		}), argdescs)
 
 	addCommand("start", shortStartHelp, longStartHelp, func() flags.Commander { return &svcStart{} },
-		waitDescs.also(map[string]string{
+		waitDescs.also(userAndScopeDescs).also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"enable": i18n.G("As well as starting the service now, arrange for it to be started on boot."),
-			// TRANSLATORS: This should not start with a lowercase letter.
-			"user": i18n.G("The operation should only affect user services for the current user."),
-			// TRANSLATORS: This should not start with a lowercase letter.
-			"users": i18n.G("The operation should only affect user services."),
-			// TRANSLATORS: This should not start with a lowercase letter.
-			"system": i18n.G("The operation should only affect system services."),
 		}), argdescs)
 	addCommand("stop", shortStopHelp, longStopHelp, func() flags.Commander { return &svcStop{} },
-		waitDescs.also(map[string]string{
+		waitDescs.also(userAndScopeDescs).also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"disable": i18n.G("As well as stopping the service now, arrange for it to no longer be started on boot."),
-			// TRANSLATORS: This should not start with a lowercase letter.
-			"user": i18n.G("The operation should only affect user services for the current user."),
-			// TRANSLATORS: This should not start with a lowercase letter.
-			"users": i18n.G("The operation should only affect user services."),
-			// TRANSLATORS: This should not start with a lowercase letter.
-			"system": i18n.G("The operation should only affect system services."),
 		}), argdescs)
 	addCommand("restart", shortRestartHelp, longRestartHelp, func() flags.Commander { return &svcRestart{} },
-		waitDescs.also(map[string]string{
+		waitDescs.also(userAndScopeDescs).also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"reload": i18n.G("If the service has a reload command, use it instead of restarting."),
-			// TRANSLATORS: This should not start with a lowercase letter.
-			"user": i18n.G("The operation should only affect user services for the current user."),
-			// TRANSLATORS: This should not start with a lowercase letter.
-			"users": i18n.G("The operation should only affect user services."),
-			// TRANSLATORS: This should not start with a lowercase letter.
-			"system": i18n.G("The operation should only affect system services."),
 		}), argdescs)
 }
 
@@ -202,60 +185,73 @@ func (s *svcLogs) Execute(args []string) error {
 	return nil
 }
 
-func serviceScope(user, users, system bool) (client.ScopeSelector, error) {
+type userAndScopeMixin struct {
+	System bool   `long:"system"`
+	User   bool   `long:"user"`
+	Users  string `long:"users" optional:"yes" optional-value:"*"`
+}
+
+var userAndScopeDescs = mixinDescs{
+	// TRANSLATORS: This should not start with a lowercase letter.
+	"system": i18n.G("The operation should only affect system services."),
+	// TRANSLATORS: This should not start with a lowercase letter.
+	"user": i18n.G("The operation should only affect user services for the current user."),
+	// TRANSLATORS: This should not start with a lowercase letter.
+	"users": i18n.G("The operation should affect all user services."),
+}
+
+func (um *userAndScopeMixin) serviceScope() (client.ScopeSelector, error) {
 	switch {
-	case user && system:
+	case um.User && um.System:
 		return nil, fmt.Errorf("--user and --system cannot be used in conjunction with each other")
-	case user && users:
+	case um.Users != "" && um.User:
 		return nil, fmt.Errorf("--user and --users cannot be used in conjunction with each other")
-	case users && system:
+	case um.Users != "" && um.System:
 		return nil, fmt.Errorf("--users and --system cannot be used in conjunction with each other")
-	case (user || users) && !system:
+	case (um.User || um.Users != "") && !um.System:
 		return client.ScopeSelector([]string{"user"}), nil
-	case !(user || users) && system:
+	case !(um.User || um.Users != "") && um.System:
 		return client.ScopeSelector([]string{"system"}), nil
 	}
 	return nil, nil
 }
 
-func serviceUsers(user, users bool) client.UserSelector {
+func (um *userAndScopeMixin) serviceUsers() client.UserSelector {
 	switch {
-	case user && !users:
+	case um.User:
 		return client.UserSelector{
 			Selector: client.UserSelectionSelf,
 		}
-	case users:
+	case um.Users == "*":
 		return client.UserSelector{
 			Selector: client.UserSelectionAll,
 		}
 	}
-	// empty for now
-	return client.UserSelector{}
+	return client.UserSelector{
+		Selector: client.UserSelectionList,
+		Names:    strutil.CommaSeparatedList(um.Users),
+	}
 }
 
 type svcStart struct {
 	waitMixin
+	userAndScopeMixin
 	Positional struct {
 		ServiceNames []serviceName `required:"1"`
 	} `positional-args:"yes" required:"yes"`
 	Enable bool `long:"enable"`
-	User   bool `long:"user"`
-	System bool `long:"system"`
-	Users  bool `long:"users"`
 }
 
 func (s *svcStart) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	scope, err := serviceScope(s.User, s.Users, s.System)
+	scope, err := s.serviceScope()
 	if err != nil {
 		return err
 	}
 	names := svcNames(s.Positional.ServiceNames)
-	changeID, err := s.client.Start(names, scope,
-		serviceUsers(s.User, s.Users),
-		client.StartOptions{Enable: s.Enable})
+	changeID, err := s.client.Start(names, scope, s.serviceUsers(), client.StartOptions{Enable: s.Enable})
 	if err != nil {
 		return err
 	}
@@ -273,27 +269,23 @@ func (s *svcStart) Execute(args []string) error {
 
 type svcStop struct {
 	waitMixin
+	userAndScopeMixin
 	Positional struct {
 		ServiceNames []serviceName `required:"1"`
 	} `positional-args:"yes" required:"yes"`
 	Disable bool `long:"disable"`
-	User    bool `long:"user"`
-	System  bool `long:"system"`
-	Users   bool `long:"users"`
 }
 
 func (s *svcStop) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	scope, err := serviceScope(s.User, s.Users, s.System)
+	scope, err := s.serviceScope()
 	if err != nil {
 		return err
 	}
 	names := svcNames(s.Positional.ServiceNames)
-	changeID, err := s.client.Stop(names, scope,
-		serviceUsers(s.User, s.Users),
-		client.StopOptions{Disable: s.Disable})
+	changeID, err := s.client.Stop(names, scope, s.serviceUsers(), client.StopOptions{Disable: s.Disable})
 	if err != nil {
 		return err
 	}
@@ -311,27 +303,23 @@ func (s *svcStop) Execute(args []string) error {
 
 type svcRestart struct {
 	waitMixin
+	userAndScopeMixin
 	Positional struct {
 		ServiceNames []serviceName `required:"1"`
 	} `positional-args:"yes" required:"yes"`
 	Reload bool `long:"reload"`
-	User   bool `long:"user"`
-	System bool `long:"system"`
-	Users  bool `long:"users"`
 }
 
 func (s *svcRestart) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	scope, err := serviceScope(s.User, s.Users, s.System)
+	scope, err := s.serviceScope()
 	if err != nil {
 		return err
 	}
 	names := svcNames(s.Positional.ServiceNames)
-	changeID, err := s.client.Restart(names, scope,
-		serviceUsers(s.User, s.Users),
-		client.RestartOptions{Reload: s.Reload})
+	changeID, err := s.client.Restart(names, scope, s.serviceUsers(), client.RestartOptions{Reload: s.Reload})
 	if err != nil {
 		return err
 	}

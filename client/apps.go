@@ -295,8 +295,8 @@ var ErrNoNames = errors.New(`"names" must not be empty`)
 type appInstruction struct {
 	Action string        `json:"action"`
 	Names  []string      `json:"names"`
-	Scope  ScopeSelector `json:"scope"`
-	Users  UserSelector  `json:"users"`
+	Scope  ScopeSelector `json:"scope,omitempty"`
+	Users  UserSelector  `json:"users,omitempty"`
 	StartOptions
 	StopOptions
 	RestartOptions
