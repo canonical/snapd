@@ -52,10 +52,14 @@ static void test_sc_security_tag_validate(void)
 	g_assert_false(sc_security_tag_validate("snap.-name.app", "-name"));
 	g_assert_false(sc_security_tag_validate("snap.name!app", "name!"));
 	g_assert_false(sc_security_tag_validate("snap.name.-app", "name"));
-	g_assert_false(sc_security_tag_validate("snap.name.app!hook.foo", "name"));
-	g_assert_false(sc_security_tag_validate("snap.name.app.hook!foo", "name"));
-	g_assert_false(sc_security_tag_validate("snap.name.app.hook.-foo", "name"));
-	g_assert_false(sc_security_tag_validate("snap.name.app.hook.f00", "name"));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.name.app!hook.foo", "name"));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.name.app.hook!foo", "name"));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.name.app.hook.-foo", "name"));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.name.app.hook.f00", "name"));
 	g_assert_false(sc_security_tag_validate("sna.pname.app", "pname"));
 	g_assert_false(sc_security_tag_validate("snap.n@me.app", "n@me"));
 	g_assert_false(sc_security_tag_validate("SNAP.name.app", "name"));
@@ -76,18 +80,21 @@ static void test_sc_security_tag_validate(void)
 		       ("snap.foo_inst@nace.bar-baz", "foo"));
 	g_assert_false(sc_security_tag_validate
 		       ("snap.foo_in-stan-ce.bar-baz", "foo"));
-	g_assert_false(sc_security_tag_validate("snap.foo_in stan.bar-baz", "foo"));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.foo_in stan.bar-baz", "foo"));
 
 	// Test names that are both good, but snap name doesn't match security tag
 	g_assert_false(sc_security_tag_validate("snap.foo.hook.bar", "fo"));
 	g_assert_false(sc_security_tag_validate("snap.foo.hook.bar", "fooo"));
 	g_assert_false(sc_security_tag_validate("snap.foo.hook.bar", "snap"));
 	g_assert_false(sc_security_tag_validate("snap.foo.hook.bar", "bar"));
-	g_assert_false(sc_security_tag_validate("snap.foo_instance.bar", "foo_bar"));
+	g_assert_false(sc_security_tag_validate
+		       ("snap.foo_instance.bar", "foo_bar"));
 
 	// Regression test 12to8
 	g_assert_true(sc_security_tag_validate("snap.12to8.128to8", "12to8"));
-	g_assert_true(sc_security_tag_validate("snap.123test.123test", "123test"));
+	g_assert_true(sc_security_tag_validate
+		      ("snap.123test.123test", "123test"));
 	g_assert_true(sc_security_tag_validate
 		      ("snap.123test.hook.configure", "123test"));
 
@@ -571,7 +578,8 @@ static void test_sc_snap_split_instance_name_basic(void)
 
 static void __attribute__((constructor)) init(void)
 {
-	g_test_add_func("/snap/sc_security_tag_validate", test_sc_security_tag_validate);
+	g_test_add_func("/snap/sc_security_tag_validate",
+			test_sc_security_tag_validate);
 	g_test_add_func("/snap/sc_is_hook_security_tag",
 			test_sc_is_hook_security_tag);
 

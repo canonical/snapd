@@ -59,12 +59,12 @@ static void sc_free_mountinfo(sc_mountinfo * info)
 static void sc_free_mountinfo_entry(sc_mountinfo_entry * entry)
     __attribute__((nonnull(1)));
 
-sc_mountinfo_entry *sc_first_mountinfo_entry(sc_mountinfo * info)
+sc_mountinfo_entry *sc_first_mountinfo_entry(sc_mountinfo *info)
 {
 	return info->first;
 }
 
-sc_mountinfo_entry *sc_next_mountinfo_entry(sc_mountinfo_entry * entry)
+sc_mountinfo_entry *sc_next_mountinfo_entry(sc_mountinfo_entry *entry)
 {
 	return entry->next;
 }
@@ -112,7 +112,7 @@ sc_mountinfo *sc_parse_mountinfo(const char *fname)
 }
 
 static void show_buffers(const char *line, int offset,
-			 sc_mountinfo_entry * entry)
+			 sc_mountinfo_entry *entry)
 {
 #ifdef MOUNTINFO_DEBUG
 	fprintf(stderr, "Input buffer (first), with offset arrow\n");
@@ -147,7 +147,7 @@ static bool is_octal_digit(char c)
 	return c >= '0' && c <= '7';
 }
 
-static char *parse_next_string_field_ex(sc_mountinfo_entry * entry,
+static char *parse_next_string_field_ex(sc_mountinfo_entry *entry,
 					const char *line, size_t *offset,
 					bool allow_spaces_in_field)
 {
@@ -230,7 +230,7 @@ static char *parse_next_string_field_ex(sc_mountinfo_entry * entry,
 }
 
 // Return the next space separated string field in the given line
-static char *parse_next_string_field(sc_mountinfo_entry * entry,
+static char *parse_next_string_field(sc_mountinfo_entry *entry,
 				     const char *line, size_t *offset)
 {
 	return parse_next_string_field_ex(entry, line, offset, false);
@@ -238,7 +238,7 @@ static char *parse_next_string_field(sc_mountinfo_entry * entry,
 
 // Return the last string field in the given line, this means the field
 // is allowed to contain spaces (' ', 0x20)
-static char *parse_last_string_field(sc_mountinfo_entry * entry,
+static char *parse_last_string_field(sc_mountinfo_entry *entry,
 				     const char *line, size_t *offset)
 {
 	return parse_next_string_field_ex(entry, line, offset, true);
@@ -328,7 +328,7 @@ static sc_mountinfo_entry *sc_parse_mountinfo_entry(const char *line)
 	return NULL;
 }
 
-void sc_cleanup_mountinfo(sc_mountinfo ** ptr)
+void sc_cleanup_mountinfo(sc_mountinfo **ptr)
 {
 	if (*ptr != NULL) {
 		sc_free_mountinfo(*ptr);
@@ -336,7 +336,7 @@ void sc_cleanup_mountinfo(sc_mountinfo ** ptr)
 	}
 }
 
-static void sc_free_mountinfo(sc_mountinfo * info)
+static void sc_free_mountinfo(sc_mountinfo *info)
 {
 	sc_mountinfo_entry *entry, *next;
 	for (entry = info->first; entry != NULL; entry = next) {
@@ -346,7 +346,7 @@ static void sc_free_mountinfo(sc_mountinfo * info)
 	free(info);
 }
 
-static void sc_free_mountinfo_entry(sc_mountinfo_entry * entry)
+static void sc_free_mountinfo_entry(sc_mountinfo_entry *entry)
 {
 	free(entry);
 }
