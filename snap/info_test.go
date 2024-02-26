@@ -2265,3 +2265,53 @@ slots:
 	unscopedHooks := info.HooksForSlot(unscoped)
 	c.Assert(unscopedHooks, testutil.DeepUnsortedMatches, []*snap.HookInfo{info.Hooks["install"], info.Hooks["pre-refresh"]})
 }
+
+func (s *infoSuite) TestHookSecurityTags(c *C) {
+	const snapYaml = `
+name: test-snap
+version: 1
+components:
+  test-component:
+    hooks:
+      install:
+hooks:
+  install:
+`
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	component := info.Components["test-component"]
+	c.Assert(component, NotNil)
+
+	componentHook := component.ExplicitHooks["install"]
+	c.Assert(componentHook, NotNil)
+	c.Check(componentHook.SecurityTag(), Equals, "snap.test-snap+test-component.hook.install")
+
+	hook := info.Hooks["install"]
+	c.Assert(hook, NotNil)
+	c.Check(hook.SecurityTag(), Equals, "snap.test-snap.hook.install")
+}
+
+func (s *infoSuite) TestHookSecurityTagsInstance(c *C) {
+	const snapYaml = `
+name: test-snap
+version: 1
+components:
+  test-component:
+    hooks:
+      install:
+hooks:
+  install:
+`
+	info := snaptest.MockSnapInstance(c, "test-snap_instance", snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	component := info.Components["test-component"]
+	c.Assert(component, NotNil)
+
+	componentHook := component.ExplicitHooks["install"]
+	c.Assert(componentHook, NotNil)
+	c.Check(componentHook.SecurityTag(), Equals, "snap.test-snap+test-component_instance.hook.install")
+
+	hook := info.Hooks["install"]
+	c.Assert(hook, NotNil)
+	c.Check(hook.SecurityTag(), Equals, "snap.test-snap_instance.hook.install")
+}
