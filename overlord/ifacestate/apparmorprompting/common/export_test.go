@@ -23,6 +23,4 @@ var (
 	InterfacePriorities           = interfacePriorities
 	InterfacePermissionsAvailable = interfacePermissionsAvailable
 	InterfaceFilePermissionsMaps  = interfaceFilePermissionsMaps
-
-	AbstractPermissionsFromAppArmorFilePermissions = abstractPermissionsFromAppArmorFilePermissions
 )
