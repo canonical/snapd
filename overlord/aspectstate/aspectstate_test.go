@@ -79,7 +79,7 @@ func (s *aspectTestSuite) SetUpTest(c *C) {
 				map[string]interface{}{"request": "ssid", "storage": "wifi.ssid", "access": "read-write"},
 				map[string]interface{}{"request": "password", "storage": "wifi.psk", "access": "write"},
 				map[string]interface{}{"request": "status", "storage": "wifi.status", "access": "read"},
-				map[string]interface{}{"request": "private.{placeholder}", "storage": "wifi.{placeholder}"},
+				map[string]interface{}{"request": "private.{placeholder}", "storage": "wifi.private.{placeholder}"},
 			},
 		},
 	}
@@ -89,7 +89,7 @@ func (s *aspectTestSuite) SetUpTest(c *C) {
 		"account-id":   devAccKey.AccountID(),
 		"name":         "network",
 		"aspects":      rules,
-		"storage":      `{"schema": {"wifi" : {"schema": {"ssids": {"type": "array", "values": "any"}, "ssid": "string"}}}}`,
+		"storage":      `{"schema": {"wifi": {"values": "any"}}}`,
 		"timestamp":    "2030-11-06T09:16:26Z",
 	}
 	as, err := signingDB.Sign(asserts.AspectBundleType, headers, nil, "")
@@ -192,7 +192,9 @@ func (s *aspectTestSuite) TestAspectstateSetWithExistingState(c *C) {
 
 	results, err := aspectstate.GetAspect(s.state, s.devAccID, "network", "wifi-setup", []string{"ssid"})
 	c.Assert(err, IsNil)
-	c.Assert(results["ssid"], Equals, "bar")
+	resultsMap, ok := results.(map[string]interface{})
+	c.Assert(ok, Equals, true)
+	c.Assert(resultsMap["ssid"], Equals, "bar")
 
 	err = aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "baz"})
 	c.Assert(err, IsNil)
@@ -244,4 +246,29 @@ func (s *aspectTestSuite) TestAspectstateSetWithNoState(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(value, Equals, "bar")
 	}
+}
+
+func (s *aspectTestSuite) TestAspectstateGetEntireAspect(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	err := aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{
+		"ssids":    []interface{}{"foo", "bar"},
+		"password": "pass",
+		"private": map[string]interface{}{
+			"a": 1,
+			"b": 2,
+		},
+	})
+	c.Assert(err, IsNil)
+
+	res, err := aspectstate.GetAspect(s.state, s.devAccID, "network", "wifi-setup", nil)
+	c.Assert(err, IsNil)
+	c.Assert(res, DeepEquals, map[string]interface{}{
+		"ssids": []interface{}{"foo", "bar"},
+		"private": map[string]interface{}{
+			"a": float64(1),
+			"b": float64(2),
+		},
+	})
 }

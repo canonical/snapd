@@ -1918,3 +1918,43 @@ func (*aspectSuite) TestAspectSummary(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(bundle, NotNil)
 }
+
+func (s *aspectSuite) TestGetEntireAspect(c *C) {
+	databag := aspects.NewJSONDataBag()
+	aspectBundle, err := aspects.NewBundle("acc", "bundle", map[string]interface{}{
+		"foo": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{"request": "foo.{bar}", "storage": "foo-path.{bar}"},
+				map[string]interface{}{"request": "abc", "storage": "abc-path"},
+				map[string]interface{}{"request": "write-only", "storage": "write-only", "access": "write"},
+			},
+		},
+	}, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	asp := aspectBundle.Aspect("foo")
+	c.Assert(asp, NotNil)
+
+	err = asp.Set(databag, "foo", map[string]interface{}{
+		"bar": "value",
+		"baz": "other",
+	})
+	c.Assert(err, IsNil)
+
+	err = asp.Set(databag, "abc", "cba")
+	c.Assert(err, IsNil)
+
+	err = asp.Set(databag, "write-only", "value")
+	c.Assert(err, IsNil)
+
+	result, err := asp.Get(databag, "")
+	c.Assert(err, IsNil)
+
+	c.Assert(result, DeepEquals, map[string]interface{}{
+		"foo": map[string]interface{}{
+			"bar": "value",
+			"baz": "other",
+		},
+		"abc": "cba",
+	})
+}
