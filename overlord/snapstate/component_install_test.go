@@ -63,6 +63,11 @@ func expectedComponentInstallTasks(opts int) []string {
 	// link-component is always present
 	startTasks = append(startTasks, "link-component")
 
+	// expect the install hook if the snap wasn't already installed
+	if opts&compOptIsActive == 0 {
+		startTasks = append(startTasks, "run-hook[install]")
+	}
+
 	return startTasks
 }
 

@@ -186,6 +186,11 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 			compSi.Component, revisionStr))
 	addTask(linkSnap)
 
+	if !compInstalled {
+		installHook := SetupInstallComponentHook(st, snapsup.InstanceName(), compSi.Component.ComponentName)
+		addTask(installHook)
+	}
+
 	installSet := state.NewTaskSet(tasks...)
 	installSet.MarkEdge(prepare, BeginEdge)
 	installSet.MarkEdge(linkSnap, MaybeRebootEdge)
