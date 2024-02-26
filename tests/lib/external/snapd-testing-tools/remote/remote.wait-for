@@ -165,7 +165,7 @@ wait_for_refresh_reboot() {
     wait_for_ssh "$DEFAULT_WAIT_FOR_SSH_ATTEMPTS" "$DEFAULT_WAIT_FOR_SSH_WAIT"
     for _ in $(seq 5); do
         # The refresh is being executed
-        if remote.exec "snap changes" | grep -Eq "$change_id.*Doing.*(Auto-refresh|Refresh)"; then
+        if remote.exec "snap changes" | grep -Eq "$change_id.*(Do | Doing ).*(Auto-refresh|Refresh)"; then
             # The systems is waiting for reboot
             if remote.exec "sudo journalctl -u snapd -n 30" | grep -q "Waiting for system reboot"; then
                 echo "remote.wait-for: waiting for system reboot"
@@ -202,7 +202,7 @@ wait_for_refresh_reboot() {
 wait_for_refresh(){
     echo "remote.wait-for: waiting for either auto-refresh or refresh"
 
-    change_line="$(remote.exec 'snap changes' | grep -E 'Doing.*(Auto-refresh|Refresh)' || true)"
+    change_line="$(remote.exec 'snap changes' | grep -E '(Do | Doing ).*(Auto-refresh|Refresh)' || true)"
     if [ -n "$change_line" ]; then
         echo "remote.wait-for: refresh in progress"
         change_id="$(echo "$change_line" | awk '{ print $1 }')"
@@ -216,7 +216,7 @@ wait_for_refresh(){
         echo ""
 
         changes="$(remote.exec 'snap changes')"
-        if echo "$changes" | grep -Eq "$change_id.*Doing.*(Auto-refresh|Refresh)"; then
+        if echo "$changes" | grep -Eq "$change_id.*(Do | Doing ).*(Auto-refresh|Refresh)"; then
             echo "remote.wait-for: still doing refresh, exiting"
         elif echo "$changes" | grep -Eq "$change_id.*Error.*(Auto-refresh|Refresh)"; then
             echo "remote.wait-for: refresh failed"
