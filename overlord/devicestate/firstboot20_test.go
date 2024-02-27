@@ -509,6 +509,12 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 			Timestamp: model.Timestamp(),
 			SeedTime:  seedTime,
 		}})
+
+		var defaultRecoverySystem string
+		err = state.Get("default-recovery-system", &defaultRecoverySystem)
+		c.Assert(err, IsNil)
+
+		c.Assert(defaultRecoverySystem, Equals, m.RecoverySystem)
 	} else {
 		c.Assert(err, NotNil)
 	}
