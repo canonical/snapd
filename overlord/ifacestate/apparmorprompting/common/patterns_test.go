@@ -33,7 +33,7 @@ func (s *commonSuite) TestValidatePathPattern(c *C) {
 		"/foo/file.txt",
 		"/foo/bar",
 		"/foo/bar/*",
-		"/foo/bar/*.tar.gz",
+		"/foo/bar/*.gz",
 		"/foo/bar/**",
 		"/foo/bar/**/*.zip",
 	} {
@@ -151,17 +151,10 @@ func (s *commonSuite) TestGetHighestPrecedencePattern(c *C) {
 		},
 		{
 			[]string{
-				"/foo/**/*.gz",
-				"/foo/**/*.tar.gz",
-			},
-			"/foo/**/*.tar.gz",
-		},
-		{
-			[]string{
 				"/foo/bar/**/*.gz",
-				"/foo/**/*.tar.gz",
+				"/foo/**/*.gz",
 			},
-			"/foo/**/*.tar.gz",
+			"/foo/bar/**/*.gz",
 		},
 	} {
 		highestPrecedence, err := common.GetHighestPrecedencePattern(testCase.Patterns)

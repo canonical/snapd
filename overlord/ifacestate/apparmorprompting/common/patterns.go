@@ -11,82 +11,163 @@ import (
 
 var ErrNoPatterns = errors.New("no patterns given, cannot establish precedence")
 
-var allowablePathPatternRegexp = regexp.MustCompile(`^(/|(/[^/*{}]+)*(/\*|(/\*\*)?(/\*\.[^/*{}]+)?)?)$`)
-
-// ValidatePathPattern returns nil if the pattern is valid, otherwise an error.
-func ValidatePathPattern(pattern string) error {
-	if !allowablePathPatternRegexp.MatchString(pattern) {
-		return fmt.Errorf("invalid path pattern: %q", pattern)
+var (
+	// The following are the allowed path pattern suffixes, in order of precedence.
+	// Complete valid path patterns are a base path, which cannot contain wildcards,
+	// groups, or character classes, followed by either one of these suffixes or a
+	// group over multiple suffixes. In the latter case, each suffix in the group
+	// may be preceded by one or more path components, similar to the base path.
+	allowableSuffixPatternsByPrecedence = []string{
+		``,              //           (no suffix, pattern is exact match)
+		`/\*\.\w+`,      // /*.ext    (any file matching given extension in base path directory)
+		`/\*\*/\*\.\w+`, // /**/*.ext (any file matching given extension in any subdirectory of base path)
+		`/\.\*`,         // /.*       (dotfiles in base path directory)
+		`/\*\*/\.\*`,    // /**/.*    (dotfiles in any subdirectory of base path)
+		`/\*`,           // /*        (any file in base path directory)
+		`/\*\*`,         // /**       (any file in any subdirectory of base path)
 	}
-	return nil
+
+	problematicChars = `,*{}\[\]\\`
+	// All of the following patterns must begin with '(' and end with ')'.
+	// The above problematic chars must be escaped if used as literals in a path pattern:
+	safePathChar              = fmt.Sprintf(`([^/%s]|\\[%s])`, problematicChars, problematicChars)
+	basePathPattern           = fmt.Sprintf(`((/%s+)*)`, safePathChar)
+	anySuffixPattern          = fmt.Sprintf(`(%s)`, strings.Join(allowableSuffixPatternsByPrecedence, "|"))
+	anySuffixesInGroupPattern = fmt.Sprintf(`(\{%s%s(,%s%s)+\})`, basePathPattern, anySuffixPattern, basePathPattern, anySuffixPattern)
+	// The following is the regexp which all client-provided path patterns must match
+	allowablePathPatternRegexp = regexp.MustCompile(fmt.Sprintf(`^(/|%s(%s|%s))$`, basePathPattern, anySuffixPattern, anySuffixesInGroupPattern))
+
+	patternPrecedenceRegexps = buildPrecedenceRegexps()
+)
+
+func buildPrecedenceRegexps() []*regexp.Regexp {
+	precedenceRegexps := make([]*regexp.Regexp, 0, len(allowableSuffixPatternsByPrecedence)+1)
+	precedenceRegexps = append(precedenceRegexps, regexp.MustCompile(`^/$`))
+	for _, suffix := range allowableSuffixPatternsByPrecedence {
+		re := regexp.MustCompile(fmt.Sprintf(`^%s%s$`, basePathPattern, suffix))
+		precedenceRegexps = append(precedenceRegexps, re)
+	}
+	return precedenceRegexps
 }
 
-// Determines which of the path patterns in the given patterns list is the
-// most specific, and thus has the highest priority.  Assumes that all of the
-// given patterns satisfy ValidatePathPattern(), so this is not verified as
-// part of this function.
+// Expands a group, if it exists, in the path pattern, and creates a new
+// string for every option in that group.
+func ExpandPathPattern(pattern string) ([]string, error) {
+	errPrefix := "invalid path pattern"
+	var basePattern string
+	groupStrings := make([]string, 0, strings.Count(pattern, ",")+1)
+	var currGroupStart int
+	index := 0
+	for index < len(pattern) {
+		switch pattern[index] {
+		case '\\':
+			index += 1
+			if index == len(pattern) {
+				return nil, fmt.Errorf(`%s: trailing non-escaping '\' character: %q`, errPrefix, pattern)
+			}
+		case '{':
+			if basePattern != "" {
+				return nil, fmt.Errorf(`%s: multiple unescaped '{' characters: %q`, errPrefix, pattern)
+			}
+			if index == len(pattern)-1 {
+				return nil, fmt.Errorf(`%s: trailing unescaped '{' character: %q`, errPrefix, pattern)
+			}
+			basePattern = pattern[:index]
+			currGroupStart = index + 1
+		case '}':
+			if basePattern == "" {
+				return nil, fmt.Errorf(`%s: unmatched '}' character: %q`, errPrefix, pattern)
+			}
+			if index != len(pattern)-1 {
+				return nil, fmt.Errorf(`%s: characters after group closed by '}': %s`, errPrefix, pattern)
+			}
+			currGroup := pattern[currGroupStart:index]
+			groupStrings = append(groupStrings, currGroup)
+			currGroupStart = -1
+		case ',':
+			currGroup := pattern[currGroupStart:index]
+			groupStrings = append(groupStrings, currGroup)
+			currGroupStart = index + 1
+		}
+		index += 1
+	}
+	if basePattern == "" {
+		return []string{pattern}, nil
+	}
+	if currGroupStart != -1 {
+		return nil, fmt.Errorf(`%s: unmatched '{' character: %q`, errPrefix, pattern)
+	}
+	expanded := make([]string, len(groupStrings))
+	for i, str := range groupStrings {
+		expanded[i] = basePattern + str
+	}
+	return expanded, nil
+}
+
+// Determines which of the given path patterns is the most specific (top priority).
 //
-// Exact matches always have the highest priority.  Then, the pattern with the
-// most specific file extension has priority.  If no matching patterns have
-// file extensions (or if multiple share the most specific file extension),
-// then the longest pattern (excluding trailing * wildcards) is the most
-// specific.  Lastly, the priority order is: .../foo > .../foo/* > .../foo/**
+// Assumes that all of the given patterns satisfy ValidatePathPattern(), so this
+// is not verified as part of this function. Additionally, also assumes that the
+// patterns have been previously expanded using ExpandPathPattern(), so there
+// are no groups in any of the patterns.
+//
+// For patterns ending in /** or file extensions, multiple patterns may match
+// a suffix of the same precedence. In this case, since there are no groups or
+// internal wildcard characters, the longest pattern must have the highest
+// precedence.
+// For example:
+// - /foo/bar/** has higher precedence than /foo/**
+// - /foo/bar/*.tar.gz has higher precedence than /foo/bar/*.gz
+// - /foo/bar/**/*.tar.gz has higher precedence than /foo/bar/**/*.gz
 func GetHighestPrecedencePattern(patterns []string) (string, error) {
 	if len(patterns) == 0 {
 		return "", ErrNoPatterns
 	}
-	// First find rules with extensions, if any exist -- these are most specific
-	// longer file extensions are more specific than longer paths, so
-	// /foo/bar/**/*.tar.gz is more specific than /foo/bar/baz/**/*.gz
-	extensions := make(map[string][]string)
+	highestPrecedence := len(patternPrecedenceRegexps)
+	highestPrecedencePatterns := make([]string, 0, len(patterns))
+PATTERN_LOOP:
 	for _, pattern := range patterns {
-		if strings.Index(pattern, "*") == -1 {
-			// Exact match, has highest precedence
-			return pattern, nil
+		for i, re := range patternPrecedenceRegexps {
+			if !re.MatchString(pattern) {
+				continue
+			}
+			if i < highestPrecedence {
+				highestPrecedence = i
+				highestPrecedencePatterns = highestPrecedencePatterns[:0]
+			}
+			if i == highestPrecedence {
+				highestPrecedencePatterns = append(highestPrecedencePatterns, pattern)
+			}
+			continue PATTERN_LOOP
 		}
-		segments := strings.Split(pattern, "/")
-		finalSegment := segments[len(segments)-1]
-		extPrefix := "*."
-		if !strings.HasPrefix(finalSegment, extPrefix) {
-			continue
-		}
-		extension := finalSegment[len(extPrefix):]
-		extensions[extension] = append(extensions[extension], pattern)
+		return "", fmt.Errorf("pattern does not match any suffix, cannot establish precedence: %s", pattern)
 	}
-	longestExtension := ""
-	for extension, extPatterns := range extensions {
-		if len(extension) > len(longestExtension) {
-			longestExtension = extension
-			patterns = extPatterns
-		}
+	if len(highestPrecedencePatterns) == 0 {
+		// Should never occur
+		return "", ErrNoPatterns
 	}
-	// Either patterns all have same extension, or patterns have no extension
-	// (but possibly trailing /* or /**).
-	// Prioritize longest patterns (excluding /** or /*).
-	longestCleanedLength := 0
-	longestCleanedPatterns := make([]string, 0)
-	for _, pattern := range patterns {
-		cleanedPattern := strings.ReplaceAll(pattern, "/**", "")
-		cleanedPattern = strings.ReplaceAll(cleanedPattern, "/*", "")
-		length := len(cleanedPattern)
-		if length < longestCleanedLength {
-			continue
-		}
-		if length > longestCleanedLength {
-			longestCleanedLength = length
-			longestCleanedPatterns = longestCleanedPatterns[:0] // clear but preserve allocated memory
-		}
-		longestCleanedPatterns = append(longestCleanedPatterns, pattern)
+	if len(highestPrecedencePatterns) == 1 {
+		return highestPrecedencePatterns[0], nil
 	}
-	// longestCleanedPatterns is all the most-specific patterns that match.
-	// Now, want to prioritize .../foo over .../foo/* over .../foo/**, so take shortest of these
-	shortestPattern := longestCleanedPatterns[0]
-	for _, pattern := range longestCleanedPatterns {
-		if len(pattern) < len(shortestPattern) {
-			shortestPattern = pattern
+	longestPattern := ""
+	for _, pattern := range highestPrecedencePatterns {
+		if len(pattern) == len(longestPattern) {
+			// Should not occur
+			return "", fmt.Errorf("multiple highest-precedence patterns with the same length: %s and %s", longestPattern, pattern)
+		}
+		if len(pattern) > len(longestPattern) {
+			longestPattern = pattern
 		}
 	}
-	return shortestPattern, nil
+	return longestPattern, nil
+}
+
+// ValidatePathPattern returns nil if the pattern is valid, otherwise an error.
+func ValidatePathPattern(pattern string) error {
+	if pattern == "" || !allowablePathPatternRegexp.MatchString(pattern) {
+		return fmt.Errorf("invalid path pattern: %q", pattern)
+	}
+	return nil
 }
 
 func StripTrailingSlashes(path string) string {
