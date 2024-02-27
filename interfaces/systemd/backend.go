@@ -61,15 +61,15 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+func (b *Backend) Setup(appSet *interfaces.SnapAppSet, confinement interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	// Record all the extra systemd services for this snap.
-	snapName := snapInfo.InstanceName()
+	snapName := appSet.InstanceName()
 	// Get the services that apply to this snap
-	spec, err := repo.SnapSpecification(b.Name(), snapInfo)
+	spec, err := repo.SnapSpecification(b.Name(), appSet)
 	if err != nil {
 		return fmt.Errorf("cannot obtain systemd services for snap %q: %s", snapName, err)
 	}
-	content := deriveContent(spec.(*Specification), snapInfo)
+	content := deriveContent(spec.(*Specification), appSet)
 	// synchronize the content with the filesystem
 	dir := dirs.SnapServicesDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -165,14 +165,14 @@ func (b *Backend) SandboxFeatures() []string {
 }
 
 // deriveContent computes .service files based on requests made to the specification.
-func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]osutil.FileState {
+func deriveContent(spec *Specification, appSet *interfaces.SnapAppSet) map[string]osutil.FileState {
 	services := spec.Services()
 	if len(services) == 0 {
 		return nil
 	}
 	content := make(map[string]osutil.FileState)
 	for suffix, service := range services {
-		filename := serviceName(snapInfo.InstanceName(), suffix)
+		filename := serviceName(appSet.InstanceName(), suffix)
 		content[filename] = &osutil.MemoryFileState{
 			Content: []byte(service.String()),
 			Mode:    0644,

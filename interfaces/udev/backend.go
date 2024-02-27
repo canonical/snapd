@@ -69,13 +69,13 @@ func snapRulesFilePath(snapName string) string {
 // UDev has no concept of a complain mode so confinement options are ignored.
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
-func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
-	snapName := snapInfo.InstanceName()
-	spec, err := repo.SnapSpecification(b.Name(), snapInfo)
+func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+	snapName := appSet.InstanceName()
+	spec, err := repo.SnapSpecification(b.Name(), appSet)
 	if err != nil {
 		return fmt.Errorf("cannot obtain udev specification for snap %q: %s", snapName, err)
 	}
-	content := b.deriveContent(spec.(*Specification), snapInfo)
+	content := b.deriveContent(spec.(*Specification))
 	subsystemTriggers := spec.(*Specification).TriggeredSubsystems()
 
 	dir := dirs.SnapUdevRulesDir
@@ -83,7 +83,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		return fmt.Errorf("cannot create directory for udev rules %q: %s", dir, err)
 	}
 
-	rulesFilePath := snapRulesFilePath(snapInfo.InstanceName())
+	rulesFilePath := snapRulesFilePath(snapName)
 
 	if len(content) == 0 {
 		// Make sure that the rules file gets removed when we don't have any
@@ -157,7 +157,7 @@ func (b *Backend) Remove(snapName string) error {
 	return b.reloadRules(nil)
 }
 
-func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (content []string) {
+func (b *Backend) deriveContent(spec *Specification) (content []string) {
 	content = append(content, spec.Snippets()...)
 	return content
 }
