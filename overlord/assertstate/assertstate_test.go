@@ -5139,7 +5139,7 @@ func (s *assertMgrSuite) TestAspectBundle(c *C) {
 	c.Assert(err, IsNil)
 
 	aspectBundleFoo := s.aspectBundle(c, "foo", map[string]interface{}{
-		"storage": `{"schema": { "a": "any"}}`,
+		"storage": `{"schema": {"a": "string", "b": "string"}}`,
 		"aspects": map[string]interface{}{
 			"an-aspect": map[string]interface{}{
 				"rules": []interface{}{
