@@ -20,10 +20,13 @@
 package assertstate_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -575,4 +578,56 @@ func (s *validationSetTrackingSuite) TestValidationSetSequence(c *C) {
 	c.Check(tr.Sequence(), Equals, 2)
 	tr.PinnedAt = 1
 	c.Check(tr.Sequence(), Equals, 1)
+}
+
+func (s *validationSetTrackingSuite) TestTrackedEnforcedValidationSets(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	a := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"store":        "my-brand-store",
+		"gadget":       "gadget",
+		"kernel":       "krnl",
+		"validation-sets": []interface{}{
+			map[string]interface{}{
+				"account-id": s.dev1acct.AccountID(),
+				"name":       "foo",
+				"mode":       "enforce",
+				"sequence":   "9",
+			},
+			map[string]interface{}{
+				"account-id": s.dev1acct.AccountID(),
+				"name":       "bar",
+				"mode":       "prefer-enforce",
+				"sequence":   "9",
+			},
+		},
+	})
+
+	model := a.(*asserts.Model)
+
+	for _, name := range []string{"foo", "bar", "baz"} {
+		assertstate.UpdateValidationSet(s.st, &assertstate.ValidationSetTracking{
+			AccountID: s.dev1acct.AccountID(),
+			Name:      name,
+			Mode:      assertstate.Enforce,
+			Current:   9,
+		})
+		vs := s.mockAssert(c, name, "9", "required")
+		c.Assert(assertstate.Add(s.st, vs), IsNil)
+	}
+
+	sets, err := assertstate.TrackedEnforcedValidationSetsForModel(s.st, model)
+	c.Assert(err, IsNil)
+
+	keys := sets.Keys()
+	c.Check(keys, testutil.Contains, snapasserts.ValidationSetKey(fmt.Sprintf("16/%s/%s/9", s.dev1acct.AccountID(), "foo")))
+	c.Check(keys, testutil.Contains, snapasserts.ValidationSetKey(fmt.Sprintf("16/%s/%s/9", s.dev1acct.AccountID(), "bar")))
+	c.Check(keys, Not(testutil.Contains), snapasserts.ValidationSetKey(fmt.Sprintf("16/%s/%s/9", s.dev1acct.AccountID(), "baz")))
 }

@@ -250,6 +250,7 @@ var templateCommon = `
   /dev/{,u}random w,
   /etc/machine-id r,
   /etc/mime.types r,
+  /etc/default/keyboard r,
   @{PROC}/ r,
   @{PROC}/version r,
   @{PROC}/version_signature r,

@@ -1467,6 +1467,14 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 			RealName: "snap-c",
 			Revision: snap.R(5),
 		},
+	}, {
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeApp,
+		SideInfo: snap.SideInfo{
+			// this one will be monitored for running apps
+			RealName: "snap-f",
+			Revision: snap.R(6),
+		},
 	}}
 
 	st := s.state
@@ -1478,6 +1486,7 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 	mockInstalledSnap(c, s.state, snapCyaml, noHook)
 	mockInstalledSnap(c, s.state, baseSnapByaml, noHook)
 	mockInstalledSnap(c, s.state, snapDyaml, noHook)
+	mockInstalledSnap(c, s.state, snapFyaml, noHook)
 
 	restore := snapstatetest.MockDeviceModel(DefaultModel())
 	defer restore()
@@ -1492,10 +1501,19 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 		"snap-a": {"gating-snap"},
 		"snap-d": {"gating-snap"},
 	})
-
+	// we're already monitoring one of the snaps
+	st.Cache("monitored-snaps", map[string]context.CancelFunc{
+		"snap-f": func() {},
+	})
+	st.Set("refresh-candidates", map[string]*snapstate.RefreshCandidate{
+		"snap-f": {
+			SnapSetup: snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "snap-f", Revision: snap.R(6)}},
+			Monitored: true,
+		},
+	})
 	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
-	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-a", "snap-c"})
+	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-a", "snap-c", "snap-f"})
 	c.Assert(tss, HasLen, 2)
 
 	c.Assert(tss[0].Tasks(), HasLen, 1)
@@ -1542,6 +1560,21 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 				DownloadInfo: &snap.DownloadInfo{},
 			},
 		},
+		"snap-f": {
+			SnapSetup: snapstate.SnapSetup{
+				Type:      "app",
+				PlugsOnly: true,
+				Flags: snapstate.Flags{
+					IsAutoRefresh: true,
+				},
+				SideInfo: &snap.SideInfo{
+					RealName: "snap-f",
+					Revision: snap.R(6),
+				},
+				DownloadInfo: &snap.DownloadInfo{},
+			},
+			Monitored: true,
+		},
 	})
 
 	c.Assert(tss[1].Tasks(), HasLen, 2)
@@ -1566,10 +1599,12 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 	// check that refresh-candidates in the state were updated
 	var candidates map[string]*snapstate.RefreshCandidate
 	c.Assert(st.Get("refresh-candidates", &candidates), IsNil)
-	c.Assert(candidates, HasLen, 3)
+	c.Assert(candidates, HasLen, 4)
 	c.Check(candidates["snap-a"], NotNil)
 	c.Check(candidates["base-snap-b"], NotNil)
 	c.Check(candidates["snap-c"], NotNil)
+	c.Assert(candidates["snap-f"], NotNil)
+	c.Check(candidates["snap-f"].Monitored, Equals, true)
 
 	// check that after autoRefreshPhase1 any held snaps that are not in refresh
 	// candidates got removed.

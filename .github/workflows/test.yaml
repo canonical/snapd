@@ -78,6 +78,8 @@ jobs:
           sudo apt clean
           sudo apt update
           sudo apt build-dep -d -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+          # for indent
+          sudo apt install texinfo autopoint
 
     - name: Copy dependencies
       run: |
@@ -90,7 +92,7 @@ jobs:
         path: ./cached-apt.tar
 
   static-checks:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     needs: [cache-build-deps]
     env:
       GOPATH: ${{ github.workspace }}
@@ -195,6 +197,43 @@ jobs:
           fi
           sudo apt-get install -y python3-yamlordereddictloader
           ./run-checks --static
+
+    - name: Cache prebuilt indent
+      id: cache-indent-bin
+      uses: actions/cache@v3
+      with:
+        path: indent-bin
+        key: ${{ runner.os }}-indent-2.2.13
+
+    # build indent 2.2.13 which has this patch
+    # https://git.savannah.gnu.org/cgit/indent.git/commit/?id=22b83d68e9a8b429590f42920e9f473a236123cf
+    - name: Build indent 2.2.13
+      if: steps.cache-indent-bin.outputs.cache-hit != 'true'
+      run: |
+          sudo apt install texinfo autopoint
+          curl -O https://ftp.gnu.org/gnu/indent/indent-2.2.13.tar.xz
+          tar xvf indent-2.2.13.tar.xz
+          cd indent-2.2.13
+          autoreconf -if
+          # set prefix in case we want to pack to tar/extract into system
+          ./configure --prefix=/opt/indent
+          make -j
+          make install DESTDIR=${{ github.workspace }}/indent-bin
+          find ${{ github.workspace }}/indent-bin -ls
+
+    - name: Check C source code formatting
+      run: |
+          set -x
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
+          ./autogen.sh
+          # apply formatting
+          PATH=${{ github.workspace }}/indent-bin/opt/indent/bin:$PATH make fmt
+
+          if [ -n "$(git diff --stat)" ]; then
+              git diff
+              echo "C files are not fomratted correctly, run 'make fmt'"
+              exit 1
+          fi
 
   unit-tests:
     needs: [static-checks]

@@ -278,6 +278,22 @@ func newAspect(bundle *Bundle, name string, aspectRules []interface{}) (*Aspect,
 		aspect.aspectRules = append(aspect.aspectRules, rule)
 	}
 
+	// check that the rules matching a given request can be satisfied with some
+	// data type (otherwise, no data can ever be written there)
+	pathToRules := make(map[string][]*aspectRule)
+	for _, rule := range aspect.aspectRules {
+		// TODO: once the paths support list index placeholders, also add mapping
+		// for the prefixes of each path and their implied types (Map or Array)
+		path := rule.originalRequest
+		pathToRules[path] = append(pathToRules[path], rule)
+	}
+
+	for _, rules := range pathToRules {
+		if err := checkSchemaMismatch(bundle.Schema, rules); err != nil {
+			return nil, err
+		}
+	}
+
 	return aspect, nil
 }
 
@@ -466,12 +482,6 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 		return badRequestErrorFrom(a, "set", request, err.Error())
 	}
 
-	if value != nil {
-		if err := checkSchemaMismatch(a.bundle.Schema, expandedMatches); err != nil {
-			return err
-		}
-	}
-
 	for _, match := range expandedMatches {
 		if err := databag.Set(match.storagePath, match.value); err != nil {
 			return err
@@ -493,11 +503,13 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	return nil
 }
 
-func checkSchemaMismatch(schema Schema, matches []expandedMatch) error {
+// checkSchemaMismatch checks whether the rules accept compatible schema types.
+// If not, then no data can satisfy these rules and the aspect should be rejected.
+func checkSchemaMismatch(schema Schema, rules []*aspectRule) error {
 	pathTypes := make(map[string][]SchemaType)
 out:
-	for _, match := range matches {
-		path := match.storagePath
+	for _, rule := range rules {
+		path := rule.originalStorage
 		pathParts := strings.Split(path, ".")
 		schemas, err := schema.SchemaAt(pathParts)
 		if err != nil {
@@ -507,8 +519,8 @@ out:
 				subParts := parts[:len(parts)-serr.left]
 				subPath := strings.Join(subParts, ".")
 
-				return fmt.Errorf(`path %q for request %q is invalid after %q: %w`,
-					path, match.request, subPath, serr.err)
+				return fmt.Errorf(`storage path %q for request %q is invalid after %q: %w`,
+					path, rule.originalRequest, subPath, serr.err)
 			}
 
 			return fmt.Errorf(`internal error: unexpected error finding schema at %q: %w`, path, err)
@@ -547,7 +559,7 @@ out:
 			if !pathMatch {
 				oldSetStr, newSetStr := schemaTypesStr(oldTypes), schemaTypesStr(newTypes)
 				return fmt.Errorf(`storage paths %q and %q for request %q require incompatible types: %s != %s`,
-					oldPath, path, match.request, oldSetStr, newSetStr)
+					oldPath, path, rule.originalRequest, oldSetStr, newSetStr)
 			}
 		}
 
@@ -805,8 +817,10 @@ func namespaceResult(res interface{}, suffixParts []string) (interface{}, error)
 // Get returns the aspect value identified by the request. If either the named
 // aspect or the corresponding value can't be found, a NotFoundError is returned.
 func (a *Aspect) Get(databag DataBag, request string) (interface{}, error) {
-	if err := validateAspectDottedPath(request, nil); err != nil {
-		return nil, badRequestErrorFrom(a, "get", request, err.Error())
+	if request != "" {
+		if err := validateAspectDottedPath(request, nil); err != nil {
+			return nil, badRequestErrorFrom(a, "get", request, err.Error())
+		}
 	}
 
 	matches, err := a.matchGetRequest(request)
@@ -893,7 +907,11 @@ type requestMatch struct {
 // no entry is an exact match, one or more entries that the request matches a
 // prefix of. If no match is found, a NotFoundError is returned.
 func (a *Aspect) matchGetRequest(request string) (matches []requestMatch, err error) {
-	subkeys := strings.Split(request, ".")
+	var subkeys []string
+	if request != "" {
+		subkeys = strings.Split(request, ".")
+	}
+
 	for _, rule := range a.aspectRules {
 		placeholders, restSuffix, ok := rule.match(subkeys)
 		if !ok {
@@ -974,6 +992,7 @@ func newAspectRule(request, storage, accesstype string) (*aspectRule, error) {
 
 	return &aspectRule{
 		originalRequest: request,
+		originalStorage: storage,
 		request:         requestMatchers,
 		storage:         pathWriters,
 		access:          accType,
@@ -989,9 +1008,11 @@ func isPlaceholder(part string) bool {
 // placeholders filled in.
 type aspectRule struct {
 	originalRequest string
-	request         []requestMatcher
-	storage         []storageWriter
-	access          accessType
+	originalStorage string
+
+	request []requestMatcher
+	storage []storageWriter
+	access  accessType
 }
 
 // match returns true if the subkeys match the pattern exactly or as a prefix.
@@ -1004,7 +1025,8 @@ func (p *aspectRule) match(reqSubkeys []string) (placeholders map[string]string,
 
 	placeholders = make(map[string]string)
 	for i, subkey := range reqSubkeys {
-		if !p.request[i].match(subkey, placeholders) {
+		// empty request matches everything
+		if len(reqSubkeys) != 0 && !p.request[i].match(subkey, placeholders) {
 			return nil, nil, false
 		}
 	}

@@ -2236,7 +2236,7 @@ func (*schemaSuite) TestSchemaAtNestedInArray(c *C) {
 }
 
 func (*schemaSuite) TestSchemaAtExceedingSchemaLeafSchema(c *C) {
-	for _, typ := range []string{"int", "number", "bool", "string", "any"} {
+	for _, typ := range []string{"int", "number", "bool", "string"} {
 		cmt := Commentf("type %q test", typ)
 		schemaStr := []byte(fmt.Sprintf(`{
 	"schema": {
@@ -2255,14 +2255,14 @@ func (*schemaSuite) TestSchemaAtExceedingSchemaLeafSchema(c *C) {
 func (*schemaSuite) TestSchemaAtExceedingSchemaContainerSchema(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
-		"foo": {"type": "array", "values": "any"}
+		"foo": {"type": "array", "values": "string"}
 	}
 }`)
 	schema, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	schemas, err := schema.SchemaAt([]string{"foo", "0", "bar"})
-	c.Assert(err, ErrorMatches, `cannot follow path beyond "any" type`)
+	c.Assert(err, ErrorMatches, `cannot follow path beyond "string" type`)
 	c.Assert(schemas, IsNil)
 }
 
@@ -2324,4 +2324,18 @@ func (*schemaSuite) TestSchemaAtAlternativesFail(c *C) {
 	schemas, err := schema.SchemaAt([]string{"foo", "bar"})
 	c.Assert(err, ErrorMatches, `cannot follow path beyond "string" type`)
 	c.Assert(schemas, IsNil)
+}
+
+func (*schemaSuite) TestSchemaAtAnyAcceptsLongerPath(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": "any"
+	}
+}`)
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	schemas, err := schema.SchemaAt([]string{"foo", "baz"})
+	c.Assert(err, IsNil)
+	c.Assert(schemas, NotNil)
 }

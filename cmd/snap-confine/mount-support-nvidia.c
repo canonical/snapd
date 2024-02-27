@@ -164,8 +164,7 @@ static const char *glvnd_globs[] = {
 	"libGLU.so*",
 };
 
-static const size_t glvnd_globs_len =
-    sizeof glvnd_globs / sizeof *glvnd_globs;
+static const size_t glvnd_globs_len = sizeof glvnd_globs / sizeof *glvnd_globs;
 
 #endif				// defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
 
@@ -356,7 +355,8 @@ static void sc_mkdir_and_mount_and_glob_files(const char *rootfs_dir,
 //
 // In non GLVND cases we just copy across the exposed libGLs and NVIDIA
 // libraries from wherever we find, and clobbering is also harmless.
-static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir, const char **globs, size_t globs_len)
+static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir,
+					  const char **globs, size_t globs_len)
 {
 
 	static const char *native_sources[] = {
@@ -379,8 +379,7 @@ static void sc_mount_nvidia_driver_biarch(const char *rootfs_dir, const char **g
 	// Primary arch
 	sc_mkdir_and_mount_and_glob_files(rootfs_dir,
 					  native_sources, native_sources_len,
-					  SC_LIBGL_DIR, globs,
-					  globs_len);
+					  SC_LIBGL_DIR, globs, globs_len);
 
 #if UINTPTR_MAX == 0xffffffffffffffff
 	// Alternative 32-bit support
@@ -399,10 +398,10 @@ typedef struct {
 	// Driver version format is MAJOR.MINOR[.MICRO] but we only care about the
 	// major version and the full version string. The micro component has been
 	// seen with relevant leading zeros (e.g. "440.48.02").
-	char raw[128]; // The size was picked as "big enough" for version strings.
+	char raw[128];		// The size was picked as "big enough" for version strings.
 } sc_nv_version;
 
-static void sc_probe_nvidia_driver(sc_nv_version * version)
+static void sc_probe_nvidia_driver(sc_nv_version *version)
 {
 	memset(version, 0, sizeof *version);
 
@@ -506,7 +505,9 @@ static int sc_mount_nvidia_is_driver_in_dir(const char *dir)
 	return 0;
 }
 
-static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir, const char **globs, size_t globs_len)
+static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir,
+					     const char **globs,
+					     size_t globs_len)
 {
 	const char *native_libdir = NATIVE_LIBDIR "/" HOST_ARCH_TRIPLET;
 	const char *lib32_libdir = NATIVE_LIBDIR "/" HOST_ARCH32_TRIPLET;
@@ -541,8 +542,7 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir, const char 
 							  lib32_sources,
 							  lib32_sources_len,
 							  SC_LIBGL32_DIR,
-							  globs,
-							  globs_len);
+							  globs, globs_len);
 		}
 	} else {
 		// Attempt mount of both the native and 32-bit variants of the driver if they exist
@@ -618,7 +618,8 @@ void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name)
 			die("cannot allocate globs array");
 		}
 		memcpy(full_globs, nvidia_globs, sizeof nvidia_globs);
-		memcpy(&full_globs[nvidia_globs_len], glvnd_globs, sizeof glvnd_globs);
+		memcpy(&full_globs[nvidia_globs_len], glvnd_globs,
+		       sizeof glvnd_globs);
 		globs = full_globs;
 		globs_len = nvidia_globs_len + glvnd_globs_len;
 	}

@@ -62,15 +62,15 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	}
 
-	if len(query["select"]) > 0 {
+	if len(query["users"]) > 0 {
 		if requestUID != 0 {
-			return Forbidden(`only admins may use the "select" filter`)
+			return Forbidden(`only admins may use the "users" filter`)
 		}
 		if len(query["user-id"]) > 0 {
-			return BadRequest(`cannot use both "select" and "user-id" parameters`)
+			return BadRequest(`cannot use both "users" and "user-id" parameters`)
 		}
-		if query.Get("select") != "all" {
-			return BadRequest(`invalid "select" filter: must be "all"`)
+		if query.Get("users") != "all" {
+			return BadRequest(`invalid "users" filter: must be "all"`)
 		}
 		// Clear the userID filter so all notices will be returned.
 		userID = nil

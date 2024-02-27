@@ -33,16 +33,18 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 func taskRecoverySystemSetup(t *state.Task) (*recoverySystemSetup, error) {
@@ -121,12 +123,163 @@ func purgeNewSystemSnapFiles(logfile string) error {
 	return s.Err()
 }
 
-func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err error) {
-	if release.OnClassic {
-		// TODO: this may need to be lifted in the future
-		return fmt.Errorf("cannot create recovery systems on a classic system")
+type uniqueSnapsInRecoverySystem struct {
+	SnapPaths []string `json:"snap-paths"`
+}
+
+func snapsUniqueToRecoverySystem(target string, systems []*System) ([]string, error) {
+	// asserted snaps are shared by systems, figure out which ones are unique to
+	// the system we want to remove
+	requiredByOtherSystems := make(map[string]bool)
+	for _, sys := range systems {
+		if sys.Label == target {
+			continue
+		}
+
+		sd, err := seed.Open(dirs.SnapSeedDir, sys.Label)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := sd.LoadAssertions(nil, func(*asserts.Batch) error {
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+
+		if err := sd.LoadMeta(seed.AllModes, nil, timings.New(nil)); err != nil {
+			return nil, err
+		}
+
+		err = sd.Iter(func(sn *seed.Snap) error {
+			if sn.ID() != "" {
+				requiredByOtherSystems[sn.Path] = true
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
+	targetSeed, err := seed.Open(dirs.SnapSeedDir, target)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := targetSeed.LoadAssertions(nil, func(*asserts.Batch) error {
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	if err := targetSeed.LoadMeta(seed.AllModes, nil, timings.New(nil)); err != nil {
+		return nil, err
+	}
+
+	var uniqueToTarget []string
+	err = targetSeed.Iter(func(sn *seed.Snap) error {
+		if sn.ID() != "" && !requiredByOtherSystems[sn.Path] {
+			uniqueToTarget = append(uniqueToTarget, sn.Path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return uniqueToTarget, nil
+}
+
+func (m *DeviceManager) doRemoveRecoverySystem(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	systems, err := m.systems()
+	if err != nil {
+		return fmt.Errorf("cannot get recovery systems: %w", err)
+	}
+
+	var setup removeRecoverySystemSetup
+	if err := t.Get("remove-recovery-system-setup", &setup); err != nil {
+		return err
+	}
+
+	found := false
+	for _, sys := range systems {
+		if sys.Label == setup.Label {
+			found = true
+			if sys.Current {
+				return fmt.Errorf("cannot remove current recovery system: %q", setup.Label)
+			}
+			break
+		}
+	}
+
+	// if we couldn't find the system in the returned list of systems, then we
+	// might have already attempted to remove it. in that case, we should do our
+	// best effort at making sure that it is fully removed.
+
+	if found && len(systems) == 1 {
+		return fmt.Errorf("cannot remove last recovery system: %q", setup.Label)
+	}
+
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return fmt.Errorf("cannot get device context: %w", err)
+	}
+
+	// if this task has partially run before, then we might have already removed
+	// some files required to load the being-removed system seed. to avoid this,
+	// we first check if we already have stored a list of snaps to remove
+	// (meaning, this task is being re-run). if the list isn't present, then we
+	// calculate it and store it in the task state for potential future re-runs.
+	var snapsToRemove uniqueSnapsInRecoverySystem
+	if err := t.Get("snaps-to-remove", &snapsToRemove); err != nil {
+		if !errors.Is(err, state.ErrNoState) {
+			return fmt.Errorf("cannot get snaps to remove from task: %w", err)
+		}
+
+		uniqueSnapPaths, err := snapsUniqueToRecoverySystem(setup.Label, systems)
+		if err != nil {
+			return fmt.Errorf("cannot get snaps unique to recovery system %q: %w", setup.Label, err)
+		}
+
+		snapsToRemove.SnapPaths = uniqueSnapPaths
+
+		t.Set("snaps-to-remove", snapsToRemove)
+
+		// we need to unlock and re-lock the state to make sure that
+		// snaps-to-remove is persisted. if we ever change how the exclusive
+		// changes are handled, then we might need to revisit this.
+		st.Unlock()
+		st.Lock()
+	}
+
+	recoverySystemsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems")
+
+	if err := boot.DropRecoverySystem(deviceCtx, setup.Label); err != nil {
+		return fmt.Errorf("cannot drop recovery system %q: %v", setup.Label, err)
+	}
+
+	for _, sn := range snapsToRemove.SnapPaths {
+		path := filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps", filepath.Base(sn))
+		if err := os.RemoveAll(path); err != nil {
+			return fmt.Errorf("cannot remove snap %q: %w", path, err)
+		}
+	}
+
+	if err := os.RemoveAll(filepath.Join(recoverySystemsDir, setup.Label)); err != nil {
+		return fmt.Errorf("cannot remove recovery system %q: %w", setup.Label, err)
+	}
+
+	t.SetStatus(state.DoneStatus)
+
+	return nil
+}
+
+func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err error) {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -135,6 +288,11 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 	if err != nil {
 		return err
 	}
+
+	if !remodelCtx.IsCoreBoot() {
+		return fmt.Errorf("cannot create recovery systems on a classic (non-hybrid) system")
+	}
+
 	model := remodelCtx.Model()
 	isRemodel := remodelCtx.ForRemodeling()
 
@@ -320,11 +478,6 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 }
 
 func (m *DeviceManager) undoCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) error {
-	if release.OnClassic {
-		// TODO: this may need to be lifted in the future
-		return fmt.Errorf("internal error: cannot create recovery systems on a classic system")
-	}
-
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -332,6 +485,10 @@ func (m *DeviceManager) undoCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) er
 	remodelCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
 		return err
+	}
+
+	if !remodelCtx.IsCoreBoot() {
+		return fmt.Errorf("cannot create recovery systems on a classic (non-hybrid) system")
 	}
 
 	setup, err := taskRecoverySystemSetup(t)
@@ -372,11 +529,6 @@ func (m *DeviceManager) undoCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) er
 }
 
 func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tomb) error {
-	if release.OnClassic {
-		// TODO: this may need to be lifted in the future
-		return fmt.Errorf("internal error: cannot finalize recovery systems on a classic system")
-	}
-
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()

@@ -309,7 +309,8 @@ static bool base_snap_device_changed(sc_mountinfo *mi, dev_t base_snap_dev)
 	return true;
 }
 
-static bool homedirs_are_mounted(sc_mountinfo *mi, char **homedirs, int num_homedirs)
+static bool homedirs_are_mounted(sc_mountinfo *mi, char **homedirs,
+				 int num_homedirs)
 {
 	if (num_homedirs == 0) {
 		return true;
@@ -345,7 +346,7 @@ static bool homedirs_are_mounted(sc_mountinfo *mi, char **homedirs, int num_home
 
 // Inspect the namespace and check if we should discard it.
 static bool should_discard_current_ns(const struct sc_invocation *inv,
-                                      dev_t base_snap_dev)
+				      dev_t base_snap_dev)
 {
 	sc_mountinfo *mi SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
 
@@ -353,14 +354,12 @@ static bool should_discard_current_ns(const struct sc_invocation *inv,
 	if (mi == NULL) {
 		die("cannot parse mountinfo of the current process");
 	}
-
 	// The namespace may become "stale" when the rootfs is not the same
 	// device we found above. This will happen whenever the base snap is
 	// refreshed since the namespace was first created.
 	if (base_snap_device_changed(mi, base_snap_dev)) {
 		return true;
 	}
-
 	// Another reason for becoming stale is if the homedirs configuration has
 	// changed: so this code will check that all homedirs are mounted in the
 	// namespace.
@@ -402,7 +401,7 @@ enum sc_discard_vote {
  * does not record the name of the base snap then transition cannot be
  * detected.
 **/
-static bool is_base_transition(const sc_invocation * inv)
+static bool is_base_transition(const sc_invocation *inv)
 {
 	char info_path[PATH_MAX] = { 0 };
 	sc_must_snprintf(info_path,
@@ -445,7 +444,7 @@ static bool sc_is_mount_ns_in_use(const char *snap_instance);
 // inspect the namespace and send information back via eventfd and then exit
 // unconditionally.
 static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd,
-						 const sc_invocation * inv,
+						 const sc_invocation *inv,
 						 int snap_discard_ns_fd)
 {
 	char base_snap_rev[PATH_MAX] = { 0 };
@@ -595,7 +594,7 @@ static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent);
 static void helper_capture_per_user_ns(struct sc_mount_ns *group, pid_t parent);
 
 int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor
-			 *apparmor, const sc_invocation * inv,
+			 *apparmor, const sc_invocation *inv,
 			 int snap_discard_ns_fd)
 {
 	// Open the mount namespace file.
@@ -950,7 +949,7 @@ void sc_wait_for_helper(struct sc_mount_ns *group)
 	sc_wait_for_capture_helper(group);
 }
 
-void sc_store_ns_info(const sc_invocation * inv)
+void sc_store_ns_info(const sc_invocation *inv)
 {
 	FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
 	char info_path[PATH_MAX] = { 0 };

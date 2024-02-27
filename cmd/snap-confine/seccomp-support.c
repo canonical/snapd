@@ -152,14 +152,14 @@ bool sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
 	// set on the system.
 	validate_bpfpath_is_safe(profile_path);
 
-    /* The extra space has dual purpose. First of all, it is required to detect
-     * feof() while still being able to correctly read MAX_BPF_SIZE bytes of
-     * seccomp profile.  In addition, because we treat the profile as a
-     * quasi-string and use sc_streq(), to compare it. The extra space is used
-     * as a way to ensure the result is a terminated string (though in practice
-     * it can contain embedded NULs any earlier position). Note that
-     * sc_read_seccomp_filter knows about the extra space and ensures that the
-     * buffer is never empty. */
+	/* The extra space has dual purpose. First of all, it is required to detect
+	 * feof() while still being able to correctly read MAX_BPF_SIZE bytes of
+	 * seccomp profile.  In addition, because we treat the profile as a
+	 * quasi-string and use sc_streq(), to compare it. The extra space is used
+	 * as a way to ensure the result is a terminated string (though in practice
+	 * it can contain embedded NULs any earlier position). Note that
+	 * sc_read_seccomp_filter knows about the extra space and ensures that the
+	 * buffer is never empty. */
 	char bpf[MAX_BPF_SIZE + 1] = { 0 };
 	size_t num_read = sc_read_seccomp_filter(profile_path, bpf, sizeof bpf);
 	if (sc_streq(bpf, "@unrestricted\n")) {

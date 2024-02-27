@@ -33,14 +33,11 @@
 typedef struct _sdh_test_fixture {
 } sdh_test_fixture;
 
-static void sdh_test_set_up(sdh_test_fixture *fixture, gconstpointer user_data) {
-}
+static void sdh_test_set_up(sdh_test_fixture *fixture, gconstpointer user_data) {}
 
 static void mocks_reset(void);
 
-static void sdh_test_tear_down(sdh_test_fixture *fixture, gconstpointer user_data) {
-    mocks_reset();
-}
+static void sdh_test_tear_down(sdh_test_fixture *fixture, gconstpointer user_data) { mocks_reset(); }
 
 static struct mocks {
     size_t cgroup_new_calls;
@@ -114,7 +111,8 @@ static void test_sdh_action(sdh_test_fixture *fixture, gconstpointer test_data) 
 
     int ret = snap_device_helper_run(&inv_block);
     g_assert_cmpint(ret, ==, 0);
-    if (g_strcmp0(td->action, "add") == 0 || g_strcmp0(td->action, "change") == 0 || g_strcmp0(td->action, "bind") == 0) {
+    if (g_strcmp0(td->action, "add") == 0 || g_strcmp0(td->action, "change") == 0 ||
+        g_strcmp0(td->action, "bind") == 0) {
         g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_allow_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_deny_calls, ==, 0);
@@ -151,7 +149,8 @@ static void test_sdh_action(sdh_test_fixture *fixture, gconstpointer test_data) 
     };
     ret = snap_device_helper_run(&inv_serial);
     g_assert_cmpint(ret, ==, 0);
-    if (g_strcmp0(td->action, "add") == 0 || g_strcmp0(td->action, "change") == 0 || g_strcmp0(td->action, "bind") == 0) {
+    if (g_strcmp0(td->action, "add") == 0 || g_strcmp0(td->action, "change") == 0 ||
+        g_strcmp0(td->action, "bind") == 0) {
         g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_allow_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_deny_calls, ==, 0);
@@ -334,8 +333,8 @@ static void test_sdh_action_remove_fallback_devtype(sdh_test_fixture *fixture, g
     }
 }
 
-static void run_sdh_die(const char *action, const char *tagname, const char *major,
-                        const char *minor, const char *subsystem, const char *msg) {
+static void run_sdh_die(const char *action, const char *tagname, const char *major, const char *minor,
+                        const char *subsystem, const char *msg) {
     struct sdh_invocation inv = {
         .action = action,
         .tagname = tagname,
@@ -374,24 +373,20 @@ static void test_sdh_err_wrongdevmajorminor2(sdh_test_fixture *fixture, gconstpo
 
 static void test_sdh_err_badaction(sdh_test_fixture *fixture, gconstpointer test_data) {
     // bogus action
-    run_sdh_die("badaction", "snap_foo_bar", "8", "4", "block",
-                "ERROR: unknown action \"badaction\"\n");
+    run_sdh_die("badaction", "snap_foo_bar", "8", "4", "block", "ERROR: unknown action \"badaction\"\n");
 }
 
 static void test_sdh_err_noaction(sdh_test_fixture *fixture, gconstpointer test_data) {
     // bogus action
-    run_sdh_die(NULL, "snap_foo_bar", "8", "4", "block",
-                "ERROR: no action given\n");
+    run_sdh_die(NULL, "snap_foo_bar", "8", "4", "block", "ERROR: no action given\n");
 }
 
 static void test_sdh_err_funtag1(sdh_test_fixture *fixture, gconstpointer test_data) {
-    run_sdh_die("add", "snap___bar", "8", "4", "block",
-                "security tag \"snap._.bar\" for snap \"_\" is not valid\n");
+    run_sdh_die("add", "snap___bar", "8", "4", "block", "security tag \"snap._.bar\" for snap \"_\" is not valid\n");
 }
 
 static void test_sdh_err_funtag2(sdh_test_fixture *fixture, gconstpointer test_data) {
-    run_sdh_die("add", "snap_foobar", "8", "4", "block",
-                "missing app name in tag \"snap_foobar\"\n");
+    run_sdh_die("add", "snap_foobar", "8", "4", "block", "missing app name in tag \"snap_foobar\"\n");
 }
 
 static void test_sdh_err_funtag3(sdh_test_fixture *fixture, gconstpointer test_data) {
@@ -399,8 +394,7 @@ static void test_sdh_err_funtag3(sdh_test_fixture *fixture, gconstpointer test_d
 }
 
 static void test_sdh_err_funtag4(sdh_test_fixture *fixture, gconstpointer test_data) {
-    run_sdh_die("add", "snap_foo_", "8", "4", "block",
-                "security tag \"snap.foo.\" for snap \"foo\" is not valid\n");
+    run_sdh_die("add", "snap_foo_", "8", "4", "block", "security tag \"snap.foo.\" for snap \"foo\" is not valid\n");
 }
 
 static void test_sdh_err_funtag5(sdh_test_fixture *fixture, gconstpointer test_data) {
@@ -410,13 +404,11 @@ static void test_sdh_err_funtag5(sdh_test_fixture *fixture, gconstpointer test_d
 }
 
 static void test_sdh_err_funtag6(sdh_test_fixture *fixture, gconstpointer test_data) {
-    run_sdh_die("add", "snap__barbar", "8", "4", "block",
-                "missing snap name in tag \"snap__barbar\"\n");
+    run_sdh_die("add", "snap__barbar", "8", "4", "block", "missing snap name in tag \"snap__barbar\"\n");
 }
 
 static void test_sdh_err_funtag7(sdh_test_fixture *fixture, gconstpointer test_data) {
-    run_sdh_die("add", "snap_barbarbarbar", "8", "4", "block",
-                "missing app name in tag \"snap_barbarbarbar\"\n");
+    run_sdh_die("add", "snap_barbarbarbar", "8", "4", "block", "missing app name in tag \"snap_barbarbarbar\"\n");
 }
 
 static void test_sdh_err_funtag8(sdh_test_fixture *fixture, gconstpointer test_data) {
