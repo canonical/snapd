@@ -1362,10 +1362,10 @@ components:
       %s:
 `
 
-	snapInfo := snaptest.MockSnapInstance(c, snapName, fmt.Sprintf(snapYaml, snapName, componentName, hookName), sideInfo)
+	snapInfo := snaptest.MockSnapInstance(c, instanceName, fmt.Sprintf(snapYaml, snapName, componentName, hookName), sideInfo)
 	snaptest.MockComponent(c, componentName, fmt.Sprintf(componentYaml, snapName, componentName), snapInfo)
 
-	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{{
 			Snap: sideInfo,
@@ -1382,11 +1382,12 @@ components:
 func (s *componentHookManagerSuite) SetUpTest(c *C) {
 	s.commonSetUpTest(c)
 
-	s.setUpComponent(c, "test-snap", "test-component", "install")
 	s.mockHandler = hooktest.NewMockHandler()
 }
 
 func (s *componentHookManagerSuite) TestComponentHookTaskEnsure(c *C) {
+	s.setUpComponent(c, "test-snap", "test-component", "install")
+
 	s.se.Ensure()
 	s.se.Wait()
 
@@ -1396,6 +1397,28 @@ func (s *componentHookManagerSuite) TestComponentHookTaskEnsure(c *C) {
 	c.Check(s.command.Calls(), DeepEquals, [][]string{{
 		"snap", "run", "--hook", "install", "-r", "1", "test-snap+test-component",
 	}})
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.DoneStatus)
+	c.Check(s.change.Status(), Equals, state.DoneStatus)
+
+	c.Check(s.manager.NumRunningHooks(), Equals, 0)
+}
+
+func (s *componentHookManagerSuite) TestComponentHookTaskEnsureInstance(c *C) {
+	s.setUpComponent(c, "test-snap_instance", "test-component", "install")
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.command.Calls(), DeepEquals, [][]string{{
+		"snap", "run", "--hook", "install", "-r", "1", "test-snap+test-component_instance",
+	}})
+
+	fmt.Println(s.change.Err())
 
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.DoneStatus)

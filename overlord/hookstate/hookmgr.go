@@ -353,28 +353,29 @@ func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hoo
 			return fmt.Errorf("cannot find %q snap", hooksup.Snap)
 		}
 
-		if context.IsSnapHook() {
-			info, err := snapst.CurrentInfo()
-			if err != nil {
-				return fmt.Errorf("cannot read %q snap details: %v", hooksup.Snap, err)
-			}
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			return fmt.Errorf("cannot read %q snap details: %v", hooksup.Snap, err)
+		}
 
+		if context.IsSnapHook() {
 			hookExists = info.Hooks[hooksup.Hook] != nil
 			if !hookExists && !hooksup.Optional {
 				return fmt.Errorf("snap %q has no %q hook", hooksup.Snap, hooksup.Hook)
 			}
 		} else {
+			// TODO: should this use instance name or just the snap name?
 			comp, err := snapst.CurrentComponentInfo(naming.ComponentRef{
-				SnapName:      hooksup.Snap,
+				SnapName:      info.SnapName(),
 				ComponentName: hooksup.Component,
 			})
 			if err != nil {
-				return fmt.Errorf(`cannot read "%s+%s" component details: %v`, hooksup.Snap, hooksup.Component, err)
+				return fmt.Errorf(`cannot read "%s+%s" component details: %v`, info.SnapName(), hooksup.Component, err)
 			}
 
 			hookExists = comp.Hooks[hooksup.Hook] != nil
 			if !hookExists && !hooksup.Optional {
-				return fmt.Errorf(`component "%s+%s" has no %q hook`, hooksup.Snap, hooksup.Component, hooksup.Hook)
+				return fmt.Errorf(`component "%s+%s" has no %q hook`, info.SnapName(), hooksup.Component, hooksup.Hook)
 			}
 		}
 	}
