@@ -723,8 +723,8 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 
-		// i've done this a lot, i wonder if there should be/would it be
-		// possible for something like a SnapState.CurrentAppSet()?
+		// TODO: we do this a lot, would it be possible for something like a
+		// SnapState.CurrentAppSet()?
 		appSet := interfaces.NewSnapAppSet(snapInfo)
 
 		opts, err := buildConfinementOptions(st, snapInfo, snapst.Flags)
