@@ -72,7 +72,8 @@ nested_wait_vm_ready() {
         # Check during $limit seconds that the serial log is growing
         # shellcheck disable=SC2016
         if ! retry -n "$log_limit" --wait 1 --env serial_log="$serial_log" --env output_lines="$output_lines" \
-            sh -c 'test "$(wc -l <"$serial_log")" -gt "$output_lines"'; then
+            sh -c 'test "$(wc -l <"$serial_log")" -gt "$output_lines"';
+        then
             echo "Serial log for $NESTED_VM unit is not producing output, Aborting!"
             return 1
         fi
