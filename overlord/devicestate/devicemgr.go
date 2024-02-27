@@ -2090,8 +2090,8 @@ func (m *DeviceManager) systems() ([]*System, error) {
 		return nil, ErrNoSystems
 	}
 
-	var defaultRecoverySystem string
-	if err := m.state.Get("default-recovery-system", &defaultRecoverySystem); err != nil && !errors.Is(err, state.ErrNoState) {
+	defaultRecoverySystem, err := m.defaultRecoverySystem()
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
@@ -2157,6 +2157,24 @@ type systemAndEssentialSnaps struct {
 	SeedSnapsByType map[snap.Type]*seed.Snap
 }
 
+// DefaultRecoverySystem returns the label of the default recovery system, if
+// there is one. state.ErrNoState is returned if a default recovery system has
+// not been set.
+func (m *DeviceManager) DefaultRecoverySystem() (string, error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	return m.defaultRecoverySystem()
+}
+
+func (m *DeviceManager) defaultRecoverySystem() (string, error) {
+	var defaultRecoverySystem string
+	if err := m.state.Get("default-recovery-system", &defaultRecoverySystem); err != nil {
+		return "", err
+	}
+	return defaultRecoverySystem, nil
+}
+
 // loadSystemAndEssentialSnaps loads information for the given label, which
 // includes system, gadget information, gadget and kernel snaps info,
 // and gadget and kernel seed snap info.
@@ -2169,13 +2187,10 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
 	m.state.Unlock()
 
-	var defaultRecoverySystem string
-	m.state.Lock()
-	if err := m.state.Get("default-recovery-system", &defaultRecoverySystem); err != nil && !errors.Is(err, state.ErrNoState) {
-		m.state.Unlock()
+	defaultRecoverySystem, err := m.DefaultRecoverySystem()
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
-	m.state.Unlock()
 
 	s, sys, err := loadSeedAndSystem(wantedSystemLabel, currentSys, defaultRecoverySystem)
 	if err != nil {
@@ -2276,8 +2291,8 @@ func defaultSystemLabel(st *state.State, manager *DeviceManager, mode string) (s
 
 	switch mode {
 	case "recover", "factory-reset":
-		var defaultRecoverySystem string
-		if err := st.Get("default-recovery-system", &defaultRecoverySystem); err != nil && !errors.Is(err, state.ErrNoState) {
+		defaultRecoverySystem, err := manager.defaultRecoverySystem()
+		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return "", err
 		}
 
@@ -2337,13 +2352,10 @@ func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSyst
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
 	m.state.Unlock()
 
-	var defaultRecoverySystem string
-	m.state.Lock()
-	if err := m.state.Get("default-recovery-system", &defaultRecoverySystem); err != nil && !errors.Is(err, state.ErrNoState) {
-		m.state.Unlock()
+	defaultRecoverySystem, err := m.DefaultRecoverySystem()
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
-	m.state.Unlock()
 
 	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
 	if _, err := os.Stat(systemSeedDir); err != nil {
