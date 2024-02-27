@@ -169,18 +169,17 @@ func (b *Backend) NewSpecification(appSet *interfaces.SnapAppSet) interfaces.Spe
 // SandboxFeatures returns the list of features supported by snapd for mediating access to kernel devices.
 func (b *Backend) SandboxFeatures() []string {
 	commonFeatures := []string{
-		"tagging", /* Tagging dynamically associates new devices with specific snaps */
-	}
-	cgroupv1Features := []string{
+		"tagging",          /* Tagging dynamically associates new devices with specific snaps */
 		"device-filtering", /* Snapd can limit device access for each snap */
-		"device-cgroup-v1", /* Snapd creates a device group (v1) for each snap */
 	}
 
 	if cgroup.IsUnified() {
-		// TODO: update v2 device cgroup is supported
-		return commonFeatures
+		return append(commonFeatures,
+			"device-cgroup-v2", /* Snapd creates a device group (v2) for each snap */
+		)
+	} else {
+		return append(commonFeatures,
+			"device-cgroup-v1", /* Snapd creates a device group (v1) for each snap */
+		)
 	}
-
-	features := append(cgroupv1Features, commonFeatures...)
-	return features
 }
