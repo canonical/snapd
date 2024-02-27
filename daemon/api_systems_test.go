@@ -237,6 +237,7 @@ func (s *systemsSuite) TestSystemsGetSome(c *check.C) {
 				Actions: []client.SystemAction{
 					{Title: "Install", Mode: "install"},
 					{Title: "Recover", Mode: "recover"},
+					{Title: "Factory reset", Mode: "factory-reset"},
 				},
 			}, {
 				Current:               true,
@@ -952,6 +953,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 		Actions: []client.SystemAction{
 			{Title: "Install", Mode: "install"},
 			{Title: "Recover", Mode: "recover"},
+			{Title: "Factory reset", Mode: "factory-reset"},
 		},
 
 		Brand: snap.StoreAccount{

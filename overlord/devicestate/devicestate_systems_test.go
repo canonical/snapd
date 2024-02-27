@@ -289,7 +289,9 @@ func (s *deviceMgrSystemsSuite) TestListSystemsNotPossible(c *C) {
 var defaultSystemActions []devicestate.SystemAction = []devicestate.SystemAction{
 	{Title: "Install", Mode: "install"},
 	{Title: "Recover", Mode: "recover"},
+	{Title: "Factory reset", Mode: "factory-reset"},
 }
+
 var currentSystemActions []devicestate.SystemAction = []devicestate.SystemAction{
 	{Title: "Reinstall", Mode: "install"},
 	{Title: "Recover", Mode: "recover"},
@@ -781,8 +783,6 @@ func (s *deviceMgrSystemsSuite) TestRequestModeForNonCurrent(c *C) {
 	// request mode reserved for current system
 	err := s.mgr.RequestSystemAction(s.mockedSystemSeeds[1].label, devicestate.SystemAction{Mode: "run"})
 	c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
-	err = s.mgr.RequestSystemAction(s.mockedSystemSeeds[1].label, devicestate.SystemAction{Mode: "factory-reset"})
-	c.Assert(err, Equals, devicestate.ErrUnsupportedAction)
 	c.Check(s.restartRequests, HasLen, 0)
 	c.Check(s.logbuf.String(), Equals, "")
 }
@@ -910,9 +910,10 @@ func (s *deviceMgrSystemsSuite) TestRebootFromRunOnlyHappy(c *C) {
 		c.Assert(err, IsNil)
 
 		var expectedLabel string
-		if mode == "recover" {
+		switch mode {
+		case "recover", "factory-reset":
 			expectedLabel = defaultRecoverySystem
-		} else {
+		case "install":
 			expectedLabel = s.mockedSystemSeeds[0].label
 		}
 

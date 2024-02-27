@@ -2046,6 +2046,7 @@ type System struct {
 var defaultSystemActions = []SystemAction{
 	{Title: "Install", Mode: "install"},
 	{Title: "Recover", Mode: "recover"},
+	{Title: "Factory reset", Mode: "factory-reset"},
 }
 var currentSystemActions = []SystemAction{
 	{Title: "Reinstall", Mode: "install"},
@@ -2273,7 +2274,8 @@ func defaultSystemLabel(st *state.State, manager *DeviceManager, mode string) (s
 	st.Lock()
 	defer st.Unlock()
 
-	if mode == "recover" {
+	switch mode {
+	case "recover", "factory-reset":
 		var defaultRecoverySystem string
 		if err := st.Get("default-recovery-system", &defaultRecoverySystem); err != nil && !errors.Is(err, state.ErrNoState) {
 			return "", err
@@ -2286,15 +2288,16 @@ func defaultSystemLabel(st *state.State, manager *DeviceManager, mode string) (s
 		// intentionally fall through here, since we fall back to using the most
 		// recently seeded system if there isn't a default recovery system
 		// explicitly set
-	}
+		fallthrough
+	default:
+		systemMode := manager.SystemMode(SysAny)
+		currentSys, err := currentSystemForMode(st, systemMode)
+		if err != nil {
+			return "", fmt.Errorf("cannot get current system: %v", err)
+		}
 
-	systemMode := manager.SystemMode(SysAny)
-	currentSys, err := currentSystemForMode(st, systemMode)
-	if err != nil {
-		return "", fmt.Errorf("cannot get current system: %v", err)
+		return currentSys.System, nil
 	}
-
-	return currentSys.System, nil
 }
 
 // RequestSystemAction requests the provided system to be run in a
