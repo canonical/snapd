@@ -1607,6 +1607,21 @@ func SplitInstanceName(instanceName string) (snapName, instanceKey string) {
 	return snapName, instanceKey
 }
 
+// SplitSnapComponentInstanceName extracts the snap component name from
+// a snap component instance name. Example:
+//   - SplitSnapComponentInstanceName("snap+component_1") -> "snap_1", "component"
+func SplitSnapComponentInstanceName(name string) (snapInstance, componentName string) {
+	snapInstance, componentName, _ = strings.Cut(name, "+")
+	return snapInstance, componentName
+}
+
+// SnapComponentName takes the snap name, the component name, and the
+// instance key and returns an instance name of the snap component. The instance
+// key will only be included if it is not empty.
+func SnapComponentName(snapInstance, componentName string) string {
+	return fmt.Sprintf("%s+%s", snapInstance, componentName)
+}
+
 // InstanceName takes the snap name and the instance key and returns an instance
 // name of the snap.
 func InstanceName(snapName, instanceKey string) string {
