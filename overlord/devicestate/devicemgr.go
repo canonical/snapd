@@ -2266,7 +2266,8 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 		return nil
 	}
 
-	// no systemLabel means "current" so get the current system label
+	// no systemLabel means we need to fall back to either the default recovery
+	// system, or the current system, depending on the requested mode
 	if systemLabel == "" {
 		defaultLabel, err := defaultSystemLabel(m.state, m, mode)
 		if err != nil {
@@ -2290,7 +2291,7 @@ func defaultSystemLabel(st *state.State, manager *DeviceManager, mode string) (s
 	defer st.Unlock()
 
 	switch mode {
-	case "recover", "factory-reset":
+	case "recover", "factory-reset", "install":
 		defaultRecoverySystem, err := manager.defaultRecoverySystem()
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return "", err
@@ -2304,7 +2305,7 @@ func defaultSystemLabel(st *state.State, manager *DeviceManager, mode string) (s
 		// recently seeded system if there isn't a default recovery system
 		// explicitly set
 		fallthrough
-	default:
+	case "run":
 		systemMode := manager.SystemMode(SysAny)
 		currentSys, err := currentSystemForMode(st, systemMode)
 		if err != nil {
@@ -2312,6 +2313,8 @@ func defaultSystemLabel(st *state.State, manager *DeviceManager, mode string) (s
 		}
 
 		return currentSys.System, nil
+	default:
+		return "", ErrUnsupportedAction
 	}
 }
 

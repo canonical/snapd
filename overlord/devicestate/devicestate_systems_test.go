@@ -887,6 +887,16 @@ func (s *deviceMgrSystemsSuite) TestRebootLabelAndModeHappy(c *C) {
 }
 
 func (s *deviceMgrSystemsSuite) TestRebootFromRunOnlyHappy(c *C) {
+	const setDefault = true
+	s.testRebootFromRunOnly(c, setDefault)
+}
+
+func (s *deviceMgrSystemsSuite) TestRebootFromRunOnlyFallBackToCurrent(c *C) {
+	const setDefault = false
+	s.testRebootFromRunOnly(c, setDefault)
+}
+
+func (s *deviceMgrSystemsSuite) testRebootFromRunOnly(c *C, setDefault bool) {
 	s.state.Lock()
 	s.state.Set("seeded-systems", []devicestate.SeededSystem{
 		{
@@ -896,8 +906,13 @@ func (s *deviceMgrSystemsSuite) TestRebootFromRunOnlyHappy(c *C) {
 		},
 	})
 
-	const defaultRecoverySystem = "20200318"
-	s.state.Set("default-recovery-system", defaultRecoverySystem)
+	var expectedLabel string
+	if setDefault {
+		s.state.Set("default-recovery-system", "20200318")
+		expectedLabel = "20200318"
+	} else {
+		expectedLabel = s.mockedSystemSeeds[0].label
+	}
 
 	s.state.Unlock()
 
@@ -908,14 +923,6 @@ func (s *deviceMgrSystemsSuite) TestRebootFromRunOnlyHappy(c *C) {
 
 		err := s.mgr.Reboot("", mode)
 		c.Assert(err, IsNil)
-
-		var expectedLabel string
-		switch mode {
-		case "recover", "factory-reset":
-			expectedLabel = defaultRecoverySystem
-		case "install":
-			expectedLabel = s.mockedSystemSeeds[0].label
-		}
 
 		m, err := s.bootloader.GetBootVars("snapd_recovery_mode", "snapd_recovery_system")
 		c.Assert(err, IsNil)
