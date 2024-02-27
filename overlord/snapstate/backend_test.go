@@ -1282,7 +1282,7 @@ func (f *fakeSnappyBackend) RemoveSnapSaveData(info *snap.Info, _ snap.Device) e
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bool) error {
+func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bool, opts *dirs.SnapDirOptions) error {
 	f.ops = append(f.ops, fakeOp{
 		op:             "remove-snap-data-dir",
 		name:           info.InstanceName(),
