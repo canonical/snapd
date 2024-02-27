@@ -343,13 +343,13 @@ var (
 	// group over multiple suffixes. In the latter case, each suffix in the group
 	// may be preceded by one or more path components, similar to the base path.
 	allowableSuffixPatternsByPrecedence = []string{
-		``,              //           (no suffix, pattern is exact match)
-		`/\*\.\w+`,      // /*.ext    (any file matching given extension in base path directory)
-		`/\*\*/\*\.\w+`, // /**/*.ext (any file matching given extension in any subdirectory of base path)
-		`/\.\*`,         // /.*       (dotfiles in base path directory)
-		`/\*\*/\.\*`,    // /**/.*    (dotfiles in any subdirectory of base path)
-		`/\*`,           // /*        (any file in base path directory)
-		`/\*\*`,         // /**       (any file in any subdirectory of base path)
+		``,                 //           (no suffix, pattern is exact match)
+		`/\*(\.\w+)+`,      // /*.ext    (any file matching given extension in base path directory)
+		`/\*\*/\*(\.\w+)+`, // /**/*.ext (any file matching given extension in any subdirectory of base path)
+		`/\.\*`,            // /.*       (dotfiles in base path directory)
+		`/\*\*/\.\*`,       // /**/.*    (dotfiles in any subdirectory of base path)
+		`/\*`,              // /*        (any file in base path directory)
+		`/\*\*`,            // /**       (any file in any subdirectory of base path)
 	}
 
 	problematicChars = `,*{}\[\]\\`
@@ -438,30 +438,33 @@ func ExpandPathPattern(pattern string) ([]string, error) {
 //
 // For patterns ending in /** or file extensions, multiple patterns may match
 // a suffix of the same precedence. In this case, since there are no groups or
-// internal wildcard characters, the longest pattern must have the highest
-// precedence.
+// internal wildcard characters, the pattern with the longest base path must
+// have the highest precedence, with the longest total pattern length breaking
+// ties.
 // For example:
 // - /foo/bar/** has higher precedence than /foo/**
-// - /foo/bar/*.tar.gz has higher precedence than /foo/bar/*.gz
+// - /foo/bar/*.gz has higher precedence than /foo/*.tar.gz
 // - /foo/bar/**/*.tar.gz has higher precedence than /foo/bar/**/*.gz
 func GetHighestPrecedencePattern(patterns []string) (string, error) {
 	if len(patterns) == 0 {
 		return "", ErrNoPatterns
 	}
 	highestPrecedence := len(patternPrecedenceRegexps)
-	highestPrecedencePatterns := make([]string, 0, len(patterns))
+	highestPrecedencePatterns := make(map[string]string)
 PATTERN_LOOP:
 	for _, pattern := range patterns {
 		for i, re := range patternPrecedenceRegexps {
-			if !re.MatchString(pattern) {
+			matches := re.FindStringSubmatch(pattern)
+			if matches == nil {
 				continue
 			}
 			if i < highestPrecedence {
 				highestPrecedence = i
-				highestPrecedencePatterns = highestPrecedencePatterns[:0]
+				highestPrecedencePatterns = make(map[string]string)
 			}
 			if i == highestPrecedence {
-				highestPrecedencePatterns = append(highestPrecedencePatterns, pattern)
+				matchedBasePath := matches[1]
+				highestPrecedencePatterns[pattern] = matchedBasePath
 			}
 			continue PATTERN_LOOP
 		}
@@ -471,18 +474,26 @@ PATTERN_LOOP:
 		// Should never occur
 		return "", ErrNoPatterns
 	}
-	if len(highestPrecedencePatterns) == 1 {
-		return highestPrecedencePatterns[0], nil
-	}
 	longestPattern := ""
-	for _, pattern := range highestPrecedencePatterns {
-		if len(pattern) == len(longestPattern) {
-			// Should not occur
-			return "", fmt.Errorf("multiple highest-precedence patterns with the same length: %s and %s", longestPattern, pattern)
+	longestBasePath := ""
+	for pattern, basePath := range highestPrecedencePatterns {
+		if len(basePath) < len(longestBasePath) {
+			continue
 		}
-		if len(pattern) > len(longestPattern) {
-			longestPattern = pattern
+		if len(basePath) == len(longestBasePath) {
+			if len(pattern) < len(longestPattern) {
+				continue
+			}
+			if len(pattern) == len(longestPattern) {
+				// Should not be able to have two paths with the same
+				// precedence and equal length base path and full pattern,
+				// since that implies they must have the same suffix, so the
+				// patterns must be identical, which should be impossible.
+				return "", fmt.Errorf("multiple highest-precedence patterns with the same base path and length: %s and %s", longestPattern, pattern)
+			}
 		}
+		longestPattern = pattern
+		longestBasePath = basePath
 	}
 	return longestPattern, nil
 }
