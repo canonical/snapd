@@ -90,7 +90,7 @@ func (s *aspectTestSuite) SetUpTest(c *C) {
 		"name":         "network",
 		"aspects":      rules,
 		"storage": `{
-	"schema": {
+		"schema": {
 		"wifi" : {
 			"schema": {
 				"ssids": {"type": "array", "values": "any"},
@@ -206,7 +206,9 @@ func (s *aspectTestSuite) TestAspectstateSetWithExistingState(c *C) {
 
 	results, err := aspectstate.GetAspect(s.state, s.devAccID, "network", "wifi-setup", []string{"ssid"})
 	c.Assert(err, IsNil)
-	c.Assert(results["ssid"], Equals, "bar")
+	resultsMap, ok := results.(map[string]interface{})
+	c.Assert(ok, Equals, true)
+	c.Assert(resultsMap["ssid"], Equals, "bar")
 
 	err = aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{"ssid": "baz"})
 	c.Assert(err, IsNil)
@@ -258,4 +260,29 @@ func (s *aspectTestSuite) TestAspectstateSetWithNoState(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(value, Equals, "bar")
 	}
+}
+
+func (s *aspectTestSuite) TestAspectstateGetEntireAspect(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	err := aspectstate.SetAspect(s.state, s.devAccID, "network", "wifi-setup", map[string]interface{}{
+		"ssids":    []interface{}{"foo", "bar"},
+		"password": "pass",
+		"private": map[string]interface{}{
+			"a": 1,
+			"b": 2,
+		},
+	})
+	c.Assert(err, IsNil)
+
+	res, err := aspectstate.GetAspect(s.state, s.devAccID, "network", "wifi-setup", nil)
+	c.Assert(err, IsNil)
+	c.Assert(res, DeepEquals, map[string]interface{}{
+		"ssids": []interface{}{"foo", "bar"},
+		"private": map[string]interface{}{
+			"a": float64(1),
+			"b": float64(2),
+		},
+	})
 }

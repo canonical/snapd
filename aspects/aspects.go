@@ -817,8 +817,10 @@ func namespaceResult(res interface{}, suffixParts []string) (interface{}, error)
 // Get returns the aspect value identified by the request. If either the named
 // aspect or the corresponding value can't be found, a NotFoundError is returned.
 func (a *Aspect) Get(databag DataBag, request string) (interface{}, error) {
-	if err := validateAspectDottedPath(request, nil); err != nil {
-		return nil, badRequestErrorFrom(a, "get", request, err.Error())
+	if request != "" {
+		if err := validateAspectDottedPath(request, nil); err != nil {
+			return nil, badRequestErrorFrom(a, "get", request, err.Error())
+		}
 	}
 
 	matches, err := a.matchGetRequest(request)
@@ -905,7 +907,11 @@ type requestMatch struct {
 // no entry is an exact match, one or more entries that the request matches a
 // prefix of. If no match is found, a NotFoundError is returned.
 func (a *Aspect) matchGetRequest(request string) (matches []requestMatch, err error) {
-	subkeys := strings.Split(request, ".")
+	var subkeys []string
+	if request != "" {
+		subkeys = strings.Split(request, ".")
+	}
+
 	for _, rule := range a.aspectRules {
 		placeholders, restSuffix, ok := rule.match(subkeys)
 		if !ok {
@@ -1019,7 +1025,8 @@ func (p *aspectRule) match(reqSubkeys []string) (placeholders map[string]string,
 
 	placeholders = make(map[string]string)
 	for i, subkey := range reqSubkeys {
-		if !p.request[i].match(subkey, placeholders) {
+		// empty request matches everything
+		if len(reqSubkeys) != 0 && !p.request[i].match(subkey, placeholders) {
 			return nil, nil, false
 		}
 	}
