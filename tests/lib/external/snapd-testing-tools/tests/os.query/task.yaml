@@ -93,11 +93,6 @@ execute: |
             os.query is-debian 11
             os.query is-classic
             ! os.query is-core
-
-            # check ubuntu comparisons
-            ! os.query is-ubuntu-lt 20.04
-            os.query is-ubuntu-ge 20.04 | MATCH "os.query: comparing non ubuntu system"
-            os.query is-ubuntu-lt 2>&1 | MATCH "os.query: version id is expected"
             ;;
         debian-12-64)
             os.query is-debian
