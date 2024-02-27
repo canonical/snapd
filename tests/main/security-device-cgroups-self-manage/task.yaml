@@ -1,0 +1,110 @@
+summary: Verify the scenarios in which a snap can self manage the device cgroup
+
+details: |
+  Verify scenarios where due to connected interfaces the snap can self-manage
+  the device cgroup.
+
+systems:
+  #TODO: bpftool is not available on core22 and tests.device-cgroup needs it for cgroups v2
+  - -ubuntu-core-22-*
+  # no i386 build of core24
+  - -ubuntu-18.04-32
+  # because udev is a mess there
+  - -ubuntu-14.04-*
+
+restore: |
+    if [ -e /etc/udev/rules.d/70-snap.container-mgr-snap.rules ]; then
+        rm /etc/udev/rules.d/70-snap.container-mgr-snap.rules
+        systemctl restart systemd-udevd
+        udevadm control --reload-rules
+        udevadm trigger
+    fi
+
+execute: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB/systems.sh"
+
+    snap install --edge core24
+    echo "Given snap is installed"
+    "$TESTSTOOLS"/snaps-state install-local container-mgr-snap
+
+    has_apparmor=1
+    if os.query is-fedora || os.query is-centos || os.query is-amazon-linux ; then
+        has_apparmor=0
+    fi
+
+    echo "No devices are assigned to the snap"
+    udevadm info "/dev/null" | NOMATCH "E: (CURRENT_)?TAGS=.*container-mgr-snap.*"
+
+    echo "Cgroup device settings file does not exist"
+    test ! -f  /var/lib/snapd/cgroup/snap.container-mgr-snap.device
+
+    # XXX note, we rely on the fact that device cgroup will return with EPERM
+    # (Operation not permitted), while when the access gets blocked by AppArmor
+    # we get EACCESS (Permission denied)
+    container-mgr-snap.docker-support -c 'dd if=/dev/kmsg of=/dev/null bs=1 count=1' 2>&1 | \
+        MATCH "Operation not permitted"
+
+    # snap uses core24 base, so has been placed into a default cgroup
+    # device 'c 1:3' is /dev/null and is among the devices we allow by default
+    tests.device-cgroup container-mgr-snap.docker-support dump | MATCH "c 1:3"
+
+    if is_cgroupv2; then
+        rm /sys/fs/bpf/snap/snap_container-mgr-snap_docker-support
+    else
+        rmdir /sys/fs/cgroup/devices/snap.container-mgr-snap.docker-support
+    fi
+
+    snap connect container-mgr-snap:docker-support :docker-support
+
+    MATCH "self-managed=true" < /var/lib/snapd/cgroup/snap.container-mgr-snap.device
+
+    echo "App can access devices (or gets blocked by AppArmor)"
+    container-mgr-snap.docker-support -c 'dd if=/dev/kmsg of=/dev/null bs=1 count=1' 2> stderr.out || true
+
+    NOMATCH "Operation not permitted" < stderr.out
+    if [ "$has_apparmor" = "1" ]; then
+        MATCH "Permission denied" < stderr.out
+    fi
+
+    echo "And no devices are not shown in the snap device list"
+    # /dev/null which is among the default devices
+    tests.device-cgroup container-mgr-snap.docker-support dump | NOMATCH "c 1:3"
+
+    echo "As there is no device cgroup related state for this app"
+    if is_cgroupv2; then
+        test ! -e /sys/fs/bpf/snap/snap_container-mgr-snap_docker-support
+    else
+        test ! -e /sys/fs/cgroup/devices/snap.container-mgr-snap.docker-support
+    fi
+
+    echo "Even when devices are explicitly tagged for the snap"
+    content="KERNEL==\"kmsg\", TAG+=\"container-mgr-snap_docker-support\""
+    echo "$content" > /etc/udev/rules.d/70-snap.container-mgr-snap.rules
+    udevadm control --reload-rules
+    udevadm settle
+    udevadm trigger
+    udevadm settle
+
+    udevadm info "/dev/kmsg" | MATCH "E: (CURRENT_)?TAGS=.*container-mgr-snap.*"
+
+    echo "Device cgroup does not block access to devices"
+    container-mgr-snap.docker-support -c 'dd if=/dev/kmsg of=/dev/null bs=1 count=1' 2> stderr.out || true
+
+    NOMATCH "Operation not permitted" < stderr.out
+    if [ "$has_apparmor" = "1" ]; then
+        MATCH "Permission denied" < stderr.out
+    fi
+
+    echo "And no devices are not shown in the snap device list"
+    # /dev/null
+    tests.device-cgroup container-mgr-snap.docker-support | NOMATCH "c 1:3"
+    # /dev/kmsg we tagged above
+    tests.device-cgroup container-mgr-snap.docker-support | NOMATCH "c 1:11"
+
+    echo "And still there is no device cgroup related state for this app"
+    if is_cgroupv2; then
+        test ! -e /sys/fs/bpf/snap/snap_container-mgr-snap_docker-support
+    else
+        test ! -e /sys/fs/cgroup/devices/snap.container-mgr-snap.docker-support
+    fi
