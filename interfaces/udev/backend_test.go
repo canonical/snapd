@@ -523,14 +523,16 @@ func (s *backendSuite) TestSandboxFeatures(c *C) {
 	defer restore()
 
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{
+		"tagging",
 		"device-filtering",
 		"device-cgroup-v1",
-		"tagging",
 	})
 
 	restore = cgroup.MockVersion(cgroup.V2, nil)
 	defer restore()
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{
 		"tagging",
+		"device-filtering",
+		"device-cgroup-v2",
 	})
 }
