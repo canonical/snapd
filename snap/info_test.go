@@ -1741,6 +1741,32 @@ func (s *infoSuite) TestInstanceNameInSnapInfo(c *C) {
 	c.Check(info.SnapName(), Equals, "snap-name")
 }
 
+func (s *infoSuite) TestComponentFromSnapComponentInstance(c *C) {
+	type testcase struct {
+		input        string
+		snapInstance string
+		component    string
+	}
+
+	tests := []testcase{
+		{"snap", "snap", ""},
+		{"snap_instance", "snap_instance", ""},
+		{"snap+component", "snap", "component"},
+		{"snap+component_instance", "snap_instance", "component"},
+	}
+
+	for _, t := range tests {
+		snapInstance, component := snap.ComponentFromSnapComponentInstance(t.input)
+		c.Check(snapInstance, Equals, t.snapInstance)
+		c.Check(component, Equals, t.component)
+	}
+}
+
+func (s *infoSuite) TestSnapComponentInstanceName(c *C) {
+	c.Check(snap.SnapComponentInstanceName("snap", "component", ""), Equals, "snap+component")
+	c.Check(snap.SnapComponentInstanceName("snap", "component", "instance"), Equals, "snap+component_instance")
+}
+
 func (s *infoSuite) TestIsActive(c *C) {
 	info1 := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(1)})
 	info2 := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(2)})
