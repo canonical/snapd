@@ -33,9 +33,15 @@ func (s *commonSuite) TestValidatePathPattern(c *C) {
 		"/foo/file.txt",
 		"/foo/bar",
 		"/foo/bar/*",
-		"/foo/bar/*.gz",
+		"/foo/bar/*.tar.gz",
 		"/foo/bar/**",
 		"/foo/bar/**/*.zip",
+		"/foo/bar/**/*.tar.gz",
+		`/foo/bar\,baz`,
+		`/foo/bar\{baz`,
+		`/foo/bar\\baz`,
+		`/foo/bar\*baz`,
+		`/foo/bar{,/baz/*,/fizz/**/*.txt}`,
 	} {
 		c.Check(common.ValidatePathPattern(pattern), IsNil, Commentf("valid path pattern `%s` was incorrectly not allowed", pattern))
 	}
@@ -55,6 +61,11 @@ func (s *commonSuite) TestValidatePathPattern(c *C) {
 		"/foo/bar/**/file.txt",
 		"/foo/bar/**/*",
 		"/foo/bar/**/*txt",
+		"/foo/ba,r",
+		"/foo/bar{/**/*.txt",
+		"/foo/ba,r/**/*.txt",
+		"/foo/bar/**/*.{txt",
+		"/foo/bar/**/*.txt,md",
 	} {
 		c.Check(common.ValidatePathPattern(pattern), ErrorMatches, "invalid path pattern.*", Commentf("invalid path pattern `%s` was incorrectly allowed", pattern))
 	}
@@ -151,10 +162,31 @@ func (s *commonSuite) TestGetHighestPrecedencePattern(c *C) {
 		},
 		{
 			[]string{
-				"/foo/bar/**/*.gz",
 				"/foo/**/*.gz",
+				"/foo/**/*.tar.gz",
+			},
+			"/foo/**/*.tar.gz",
+		},
+		{
+			[]string{
+				"/foo/bar/**/*.gz",
+				"/foo/**/*.tar.gz",
 			},
 			"/foo/bar/**/*.gz",
+		},
+		{
+			[]string{
+				"/foo/bar/*.gz",
+				"/foo/bar/**/*.tar.gz",
+			},
+			"/foo/bar/*.gz",
+		},
+		{
+			[]string{
+				"/foo/bar/x/**/*.gz",
+				"/foo/bar/**/*.tar.gz",
+			},
+			"/foo/bar/x/**/*.gz",
 		},
 	} {
 		highestPrecedence, err := common.GetHighestPrecedencePattern(testCase.Patterns)
