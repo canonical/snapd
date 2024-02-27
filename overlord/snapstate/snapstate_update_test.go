@@ -10963,7 +10963,14 @@ func (s *snapmgrTestSuite) TestRefreshForcedOnRefreshInhibitionTimeout(c *C) {
 		return refreshForced[i].(string) < refreshForced[j].(string)
 	})
 	c.Check(refreshForced, DeepEquals, []interface{}{"some-other-snap", "some-snap"})
-	// TODO: Check that change-update notice is added
+
+	notices := s.state.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.ChangeUpdateNotice}})
+	c.Assert(notices, HasLen, 1)
+	n := noticeToMap(c, notices[0])
+	c.Check(n["type"], Equals, "change-update")
+	c.Check(n["key"], Equals, chg.ID())
+	// 3 status changes (Default -> Doing -> Done) + 2 forced refreshes
+	c.Check(n["occurrences"], Equals, 5.0)
 
 	c.Check(notified, Equals, 2)
 	c.Check(check["some-snap"], Equals, 2)
