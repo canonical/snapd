@@ -1217,7 +1217,7 @@ func checkRequiredGadgetMatchesModelBase(model *asserts.Model, tracker *snap.Sel
 }
 
 func verifyModelValidationSets(st *state.State, newModel *asserts.Model, offline bool, deviceCtx snapstate.DeviceContext) (*snapasserts.ValidationSets, error) {
-	vSets, err := assertstate.ValidationSetsFromModel(st, newModel, assertstate.ValidationSetsModelOptions{
+	vSets, err := assertstate.ValidationSetsFromModel(st, newModel, assertstate.FetchValidationSetsOptions{
 		Offline: offline,
 	}, deviceCtx)
 	if err != nil {
