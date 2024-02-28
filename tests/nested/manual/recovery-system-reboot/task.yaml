@@ -11,6 +11,15 @@ environment:
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
 
+  MODE/recover: "recover"
+  MODE/factory_reset: "factory-reset"
+  MODE/install: "install"
+
+  # TODO: figure out a way to do this test without disabling secure boot and TMP
+  # see tests/nested/core/core20-reinstall-partitions/task.yaml for more details
+  NESTED_ENABLE_SECURE_BOOT/install: false
+  NESTED_ENABLE_TPM/install: false
+
 prepare: |
     tests.nested build-image core
     tests.nested create-vm core
@@ -49,19 +58,36 @@ execute: |
 
   remote.exec 'sudo snap recovery' | awk '$1 == "new-system" { print $4 }' | MATCH 'default-recovery-system'
 
-  remote.exec 'sudo snap reboot --recover new-system'
+  remote.exec "sudo snap reboot --${MODE}"
   remote.wait-for reboot "${boot_id}"
 
   remote.wait-for snap-command
 
   wait_for_first_boot_change
 
-  # since hello-world has ['run', 'ephemeral'] as its modes in the model, it
-  # will be here. additionally, it will be pinned to revision 28 because of the
-  # validation set that was used to create the recovery system.
-  retry -n 10 --wait 1 sh -c "remote.exec 'snap list hello-world' | awk 'NR != 1 { print \$3 }' | MATCH '28'"
+  if [ "${MODE}" = 'recover' ]; then
+    # since hello-world has ['run', 'ephemeral'] as its modes in the model, it
+    # will be here. additionally, it will be pinned to revision 28 because of the
+    # validation set that was used to create the recovery system.
+    retry -n 10 --wait 1 sh -c "remote.exec 'snap list hello-world' | awk 'NR != 1 { print \$3 }' | MATCH '28'"
 
-  remote.exec 'cat /proc/cmdline' | MATCH 'snapd_recovery_mode=recover'
-  remote.exec 'sudo cat /var/lib/snapd/modeenv' > modeenv
-  MATCH 'mode=recover' < modeenv
-  MATCH 'recovery_system=new-system' < modeenv
+    remote.exec 'cat /proc/cmdline' | MATCH 'snapd_recovery_mode=recover'
+    remote.exec 'sudo cat /var/lib/snapd/modeenv' > modeenv
+    MATCH 'mode=recover' < modeenv
+    MATCH 'recovery_system=new-system' < modeenv
+  elif [ "${MODE}" = 'factory-reset' ] || [ "${MODE}" = "install" ]; then
+    # wait for the system to finish being seeded
+    remote.exec "sudo snap wait system seed.loaded"
+
+    # should be back into run mode since we reset the device
+    remote.exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
+
+    # new system should be the default recovery system and the current system
+    remote.exec 'sudo snap recovery' > ./output
+    cat ./output | awk '$1 == "new-system" { print $4 }' | MATCH 'current,default-recovery-system'
+
+    # we can't check the revision, since auto-refresh will probably refresh the
+    # snap before we get to this point. at least check that the snap is here,
+    # though.
+    remote.exec 'snap list hello-world'
+  fi
