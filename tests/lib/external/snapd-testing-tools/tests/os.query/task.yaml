@@ -83,12 +83,6 @@ execute: |
             ! os.query is-core
             ;;
         debian-11-64)
-            os.query is-classic
-            os.query is-ubuntu 24.04
-            ! os.query is-ubuntu 21.04
-            ! os.query is-core
-            ;;
-        debian-11-64)
             os.query is-debian
             os.query is-debian 11
             os.query is-classic
