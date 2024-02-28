@@ -116,10 +116,16 @@ func removeDirs(dirs []string) error {
 // snapDataDirs returns the list of data directories for the given snap version
 func snapDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
 	// collect the directories, homes first
-	found, err := filepath.Glob(snap.DataHomeDir(opts))
-	if err != nil {
-		return nil, err
+	var found []string
+
+	for _, entry := range snap.DataHomeDirs(opts) {
+		entryPaths, err := filepath.Glob(entry)
+		if err != nil {
+			return nil, err
+		}
+		found = append(found, entryPaths...)
 	}
+
 	// then the /root user (including GlobalRootDir for tests)
 	found = append(found, snap.UserDataDir(filepath.Join(dirs.GlobalRootDir, "/root/"), opts))
 	// then system data
@@ -131,9 +137,14 @@ func snapDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) 
 // snapCommonDataDirs returns the list of data directories common between versions of the given snap
 func snapCommonDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
 	// collect the directories, homes first
-	found, err := filepath.Glob(snap.CommonDataHomeDir(opts))
-	if err != nil {
-		return nil, err
+	var found []string
+
+	for _, entry := range snap.CommonDataHomeDirs(opts) {
+		entryPaths, err := filepath.Glob(entry)
+		if err != nil {
+			return nil, err
+		}
+		found = append(found, entryPaths...)
 	}
 
 	// then the root user's common data dir

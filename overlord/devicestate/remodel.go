@@ -262,8 +262,14 @@ func (rc *baseRemodelContext) setRecoverySystemLabel(label string) {
 // updateRunModeSystem updates the device context used during boot and makes a
 // record of the new seeded system.
 func (rc *baseRemodelContext) updateRunModeSystem() error {
-	if rc.model.Grade() == asserts.ModelGradeUnset {
-		// nothing special for non-UC20 systems
+	hasSystemSeed, err := checkForSystemSeed(rc.st, &rc.groundDeviceContext)
+	if err != nil {
+		return fmt.Errorf("cannot look up ubuntu seed role: %w", err)
+	}
+
+	if rc.model.Grade() == asserts.ModelGradeUnset || !hasSystemSeed {
+		// nothing special for non-UC20 systems or systems without a real seed
+		// partition
 		return nil
 	}
 	if rc.recoverySystemLabel == "" {
@@ -273,7 +279,7 @@ func (rc *baseRemodelContext) updateRunModeSystem() error {
 	// booting and consider a new recovery system as as seeded
 	oldDeviceContext := rc.GroundContext()
 	newDeviceContext := &rc.groundDeviceContext
-	err := boot.DeviceChange(oldDeviceContext, newDeviceContext, rc.st.Unlocker())
+	err = boot.DeviceChange(oldDeviceContext, newDeviceContext, rc.st.Unlocker())
 	if err != nil {
 		return fmt.Errorf("cannot switch device: %v", err)
 	}

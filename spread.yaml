@@ -145,9 +145,6 @@ backends:
             - ubuntu-22.04-64:
                   storage: 12G
                   workers: 8
-            - ubuntu-23.04-64:
-                  storage: 12G
-                  workers: 8
             - ubuntu-23.10-64:
                   storage: 12G
                   workers: 8
@@ -155,6 +152,12 @@ backends:
                   storage: 12G
                   workers: 8
 
+    google-central:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/us-central1-b
+        halt-timeout: 2h
+        systems:
             - debian-11-64:
                   workers: 6
             - debian-12-64:
@@ -191,8 +194,6 @@ backends:
                   storage: preserve-size
                   image: centos-9-64
 
-            - opensuse-15.4-64:
-                  workers: 6
             - opensuse-15.5-64:
                   workers: 6
             - opensuse-tumbleweed-64:
@@ -230,8 +231,6 @@ backends:
                   workers: 6
             - ubuntu-22.04-64:
                   workers: 6
-            - ubuntu-23.04-64:
-                  workers: 6
 
     google-nested:
         type: google
@@ -244,19 +243,19 @@ backends:
             - ubuntu-16.04-64:
                   image: ubuntu-1604-64-virt-enabled
                   storage: 20G
-                  workers: 3
+                  workers: 4
             - ubuntu-18.04-64:
                   image: ubuntu-1804-64-virt-enabled
                   storage: 20G
-                  workers: 3
+                  workers: 4
             - ubuntu-20.04-64:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
-                  workers: 8
+                  workers: 10
             - ubuntu-22.04-64:
                   image: ubuntu-2204-64-virt-enabled
                   storage: 25G
-                  workers: 8
+                  workers: 10
 
     google-nested-arm:
         type: google
@@ -362,9 +361,6 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-22.04-64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-23.04-64:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-23.10-64:
@@ -535,6 +531,9 @@ backends:
             - ubuntu-core-24-64:
                   username: external
                   password: ubuntu
+            - ubuntu-core-24-arm-64:
+                  username: external
+                  password: ubuntu
 
 path: /home/gopath/src/github.com/snapcore/snapd
 
@@ -666,6 +665,9 @@ repack: |
     if ! echo "$SPREAD_BACKENDS" | grep -e linode -e google; then
         cat <&3 >&4
     elif ! git show-ref "$DELTA_REF" > /dev/null; then
+        cat <&3 >&4
+    elif [ -n "${NO_DELTA-}" ]; then
+        # delta has been disabled by the caller
         cat <&3 >&4
     else
         tmpdir="$(mktemp -d)"
@@ -805,9 +807,8 @@ prepare: |
                 apt-get install -y xdelta3 curl eatmydata >& "$tf" || ( cat "$tf"; exit 1 )
                 ;;
             amazon-linux-2023-*)
-                # Amazon linux 2023 has already pre-installed the xdelta package
-                # which is not in the repo yet
-                yum install -y --allowerasing curl &> "$tf" || (cat "$tf"; exit 1)
+                echo "deltas are not supported on $SPREAD_SYSTEM, use NO_DELTA=1 when running spread"
+                exit 1
                 ;;
             amazon-*|centos-7-*)
                 yum install -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
@@ -1063,12 +1064,38 @@ suites:
         environment:
             CONNECTIONS_PERCENTAGE: '$(HOST: echo "${PERF_CONNECTIONS_PERCENTAGE:-100}")'
             DISCONNECT_INTERFACES: '$(HOST: echo "${PERF_DISCONNECT_INTERFACES:-true}")'
+            CPU_LOAD: '$(HOST: echo "${PERF_CPU_LOAD:-}")'
+            LOAD_DURATION: '$(HOST: echo "${PERF_LOAD_DURATION:-1200}")'
+            NUM_PARALLEL: '$(HOST: echo "${PERF_NUM_PARALLEL:-10}")'
         manual: true
+        warn-timeout: 10m
+        kill-timeout: 60m
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+            if [ -n "$CPU_LOAD" ]; then
+                # Start load generator and wait until it is active
+                # It is generated as a systemd service to make it independent of snapd
+                # and also to make sure it is not blocking spread scripts
+                snap install --edge --devmode test-snapd-load-generator
+                tests.systemd create-and-start-unit load-generator "/snap/bin/test-snapd-load-generator.run -d $LOAD_DURATION -l $CPU_LOAD"
+                tests.systemd wait-for-service -n 5 --wait 1 --state active load-generator
+            fi
         restore-each: |
+            if [ -n "$CPU_LOAD" ]; then
+                # Now we make sure all the load generator processes are killed before
+                # the load-generator service is removed
+                #shellcheck disable=SC2009
+                PIDs="$(ps -ef | grep -e '^root.*python3.*load-generator' | awk '{print $2}')"
+                # shellcheck disable=SC2086
+                for pid in $PIDs; do
+                    if ps -p "$pid" &>/dev/null; then 
+                        kill -9 "$pid"
+                    fi
+                done
+                tests.systemd stop-unit --remove load-generator
+            fi
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
@@ -1253,7 +1280,6 @@ suites:
     tests/nested/perf/:
         summary: Performance and Load tests preparation suite
         backends: [google-nested, google-nested-dev, qemu-nested]
-        kill-timeout: 40m
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line
@@ -1275,6 +1301,8 @@ suites:
             SPREAD_URL: https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz
 
         manual: true
+        warn-timeout: 10m
+        kill-timeout: 60m
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh

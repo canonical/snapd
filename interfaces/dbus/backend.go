@@ -83,10 +83,14 @@ func shouldCopyConfigFiles(snapInfo *snap.Info) bool {
 }
 
 // setupDbusServiceForUserd will setup the service file for the new
-// `snap userd` instance on re-exec
+// `snap userd` instance on re-exec. If there are leftover service files in
+// place which are no longer required, those files will be deleted.
 func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 	coreOrSnapdRoot := snapInfo.MountDir()
 
+	// Only ever append to this list. If a file is no longer present on the
+	// root, it needs to needs to remain here so the previously-installed
+	// service file can be removed, if present.
 	for _, srv := range []string{
 		"io.snapcraft.Launcher.service",
 		"io.snapcraft.Prompt.service",
@@ -97,6 +101,14 @@ func setupDbusServiceForUserd(snapInfo *snap.Info) error {
 
 		// we only need the GlobalRootDir for testing
 		dst = filepath.Join(dirs.GlobalRootDir, dst)
+		if !osutil.FileExists(src) {
+			if osutil.FileExists(dst) {
+				if err := os.Remove(dst); err != nil {
+					return err
+				}
+			}
+			continue
+		}
 		if !osutil.FilesAreEqual(src, dst) {
 			if err := osutil.CopyFile(src, dst, osutil.CopyFlagPreserveAll); err != nil {
 				return err
@@ -137,11 +149,14 @@ func setupHostDBusConf(snapInfo *snap.Info) error {
 
 // Setup creates dbus configuration files specific to a given snap.
 //
+// If there are leftover configuration files for services which are no longer
+// included, those files will be removed as well.
+//
 // DBus has no concept of a complain mode so confinment type is ignored.
 func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	snapName := snapInfo.InstanceName()
 	// Get the snippets that apply to this snap
-	spec, err := repo.SnapSpecification(b.Name(), snapName)
+	spec, err := repo.SnapSpecification(b.Name(), snapInfo)
 	if err != nil {
 		return fmt.Errorf("cannot obtain dbus specification for snap %q: %s", snapName, err)
 	}
@@ -229,8 +244,8 @@ func addContent(securityTag string, snippet string, content map[string]osutil.Fi
 	}
 }
 
-func (b *Backend) NewSpecification() interfaces.Specification {
-	return &Specification{}
+func (b *Backend) NewSpecification(appSet *interfaces.SnapAppSet) interfaces.Specification {
+	return &Specification{appSet: appSet}
 }
 
 // SandboxFeatures returns list of features supported by snapd for dbus communication.

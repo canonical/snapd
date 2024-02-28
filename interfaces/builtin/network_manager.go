@@ -526,7 +526,7 @@ func (iface *networkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 		// of the OS snap and will run unconfined.
 		new = "unconfined"
 	} else {
-		new = slotAppLabelExpr(slot)
+		new = spec.SnapAppSet().SlotLabelExpression(slot)
 	}
 	snippet := strings.Replace(networkManagerConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
@@ -540,7 +540,7 @@ func (iface *networkManagerInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 
 func (iface *networkManagerInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###PLUG_SECURITY_TAGS###"
-	new := plugAppLabelExpr(plug)
+	new := spec.SnapAppSet().PlugLabelExpression(plug)
 	snippet := strings.Replace(networkManagerConnectedSlotAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	if !release.OnClassic {

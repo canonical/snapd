@@ -1,4 +1,9 @@
-summary: Test support for non-standard home directory paths
+summary: Test support for non-standard home directory paths and data copy between revisions
+
+details: |
+    Verifies that the snap data in non-standard home directories gets properly copied between
+    revisions when the snap package is refreshed to a newer revision. Also makes sure that the
+    snap data in non-standard home directories is deleted when the snap package is removed.
 
 systems:
     - -ubuntu-core-*  # Home dirs cannot be changed
@@ -13,9 +18,7 @@ prepare: |
     # Create a new user in a non-standard location
     mkdir -p /remote/users
     useradd -b /remote/users -m -U "$USERNAME"
-
-    # Install our test snap
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+    snap install test-snapd-sh
 
 restore: |
     userdel -f --remove "$USERNAME"
@@ -31,7 +34,7 @@ debug: |
 
 execute: |
     echo "Invoke the test app without setting up homedir support"
-    if sudo -u "$USERNAME" -i test-snapd-sh.cmd echo "Hello world" 2> stderr.log; then
+    if sudo -u "$USERNAME" -i test-snapd-sh.sh -c "echo Hello world" 2> stderr.log; then
         echo "The command succeeded; this is unexpected where AppArmor is fully working"
         test "$(snap debug confinement)" = partial
     else
@@ -46,13 +49,45 @@ execute: |
     MATCH "^homedirs=/remote/users$" < /var/lib/snapd/system-params
 
     echo "And that the AppArmor tunable file is proper"
-    MATCH "^@{HOMEDIRS}\\+=\"/remote/users\"$" < /etc/apparmor.d/tunables/home.d/snapd
+    MATCH "^@{HOMEDIRS}\\+=\"/remote/users\" \"/home\"$" < /etc/apparmor.d/tunables/home.d/snapd
 
     echo "Invoke the test app again (should now work)"
-    sudo -u "$USERNAME" -i test-snapd-sh.cmd echo "Hello world" | MATCH "Hello world"
+    sudo -u "$USERNAME" -i test-snapd-sh.sh -c "echo Hello world" | MATCH "Hello world"
 
     echo "Ensure that the namespace is reused"
     # Invoke the same command once more, but this time with debugging enabled,
     # to verify that the existing namespace is not discarded
-    sudo SNAPD_DEBUG=1 -u "$USERNAME" -i test-snapd-sh.cmd echo "Hello world" 2>&1 \
+    sudo SNAPD_DEBUG=1 -u "$USERNAME" -i test-snapd-sh.sh -c "echo Hello world" 2>&1 \
         | MATCH "preserved mount is not stale, reusing"
+    
+    # Get the revison of the snap
+    rev=$(snap list test-snapd-sh|tail -n1|tr -s ' '|cut -f3 -d' ')
+
+    homes=("/root/" "/home/test/" "/remote/users/$USERNAME/")
+    echo "That has some user data"
+    for h in "${homes[@]}"; do
+        test -d "$h"
+        d="${h}snap/test-snapd-sh/$rev"
+        mkdir -p "$d"
+        touch "$d/mock-data"
+        chown --recursive --reference="$h" "${h}snap/"
+    done
+
+    echo "When the snap is refreshed"
+    snap refresh --channel=edge test-snapd-sh
+    new_rev=$(snap list test-snapd-sh|tail -n1|tr -s ' '|cut -f3 -d' ')
+
+    echo "Then the user data gets copied"
+    for h in "${homes[@]}"; do
+        test -e "${h}snap/test-snapd-sh/$new_rev/mock-data"
+        test -e "${h}snap/test-snapd-sh/$rev/mock-data"
+    done
+
+    echo "When the snap is removed"
+    snap remove --purge test-snapd-sh
+
+    echo "Then all user data and root data is gone"
+    for h in "${homes[@]}"; do
+        test ! -e "${h}snap/test-snapd-sh/$new_rev/mock-data"
+        test ! -e "${h}snap/test-snapd-sh/$rev/mock-data"
+    done

@@ -146,8 +146,7 @@ void sc_check_rootfs_dir(sc_invocation *inv) {
     die("cannot locate base snap %s", inv->base_snap_name);
 }
 
-static char* read_homedirs_from_system_params(void)
-{
+static char *read_homedirs_from_system_params(void) {
     FILE *f SC_CLEANUP(sc_cleanup_file) = NULL;
     f = fopen("/var/lib/snapd/system-params", "r");
     if (f == NULL) {
@@ -164,8 +163,7 @@ static char* read_homedirs_from_system_params(void)
     return NULL;
 }
 
-void sc_invocation_init_homedirs(sc_invocation *inv)
-{
+void sc_invocation_init_homedirs(sc_invocation *inv) {
     char *config_line SC_CLEANUP(sc_cleanup_string) = read_homedirs_from_system_params();
     if (config_line == NULL) {
         return;

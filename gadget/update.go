@@ -1611,8 +1611,19 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy
 	if len(oldVol.LaidOutStructure) != len(newVol.LaidOutStructure) {
 		return nil, errors.New("internal error: the number of structures in new and old volume definitions is different")
 	}
+	// We must order updates from the latest binary in the boot
+	// chain to the newest. So any seed partitions should come
+	// after boot partitions.
+	var seedUpdates []updatePair
+	var bootUpdates []updatePair
 	for j, oldStruct := range oldVol.LaidOutStructure {
 		newStruct := newVol.LaidOutStructure[j]
+		updatesTarget := &updates
+		if strings.HasPrefix(newStruct.Role(), "system-seed") {
+			updatesTarget = &seedUpdates
+		} else if strings.HasPrefix(newStruct.Role(), "system-boot") {
+			updatesTarget = &bootUpdates
+		}
 		// update only when the policy says so; boot assets
 		// are assumed to be backwards compatible, once
 		// deployed they are not rolled back or replaced unless
@@ -1631,13 +1642,15 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy
 			newVol.LaidOutStructure[j].ResolvedContent = resolvedContent
 
 			// and add to updates
-			updates = append(updates, updatePair{
+			*updatesTarget = append(*updatesTarget, updatePair{
 				from:   &oldVol.LaidOutStructure[j],
 				to:     &newVol.LaidOutStructure[j],
 				volume: newVol.Volume,
 			})
 		}
 	}
+	updates = append(updates, bootUpdates...)
+	updates = append(updates, seedUpdates...)
 	return updates, nil
 }
 

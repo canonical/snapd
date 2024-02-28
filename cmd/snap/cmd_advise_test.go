@@ -22,6 +22,7 @@ package main_test
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -105,6 +106,9 @@ func (s *SnapSuite) TestAdviseCommandDumpDb(c *C) {
 	defer dirs.SetRootDir("")
 
 	db, err := advisor.Create()
+	if errors.Is(err, advisor.ErrNotSupported) {
+		c.Skip("bolt is not supported")
+	}
 	c.Assert(err, IsNil)
 	c.Assert(db.AddSnap("foo", "1.0", "foo summary", []string{"foo", "bar"}), IsNil)
 	c.Assert(db.Commit(), IsNil)

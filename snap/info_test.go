@@ -251,25 +251,6 @@ func (s *infoSuite) TestAppInfoSecurityTag(c *C) {
 	c.Check(appInfo.SecurityTag(), Equals, "snap.http.GET")
 }
 
-func (s *infoSuite) TestPlugSlotSecurityTags(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`name: name
-apps:
-    app1:
-    app2:
-hooks:
-    hook1:
-plugs:
-    plug:
-slots:
-    slot:
-`))
-	c.Assert(err, IsNil)
-	c.Assert(info.Plugs["plug"].SecurityTags(), DeepEquals, []string{
-		"snap.name.app1", "snap.name.app2", "snap.name.hook.hook1"})
-	c.Assert(info.Slots["slot"].SecurityTags(), DeepEquals, []string{
-		"snap.name.app1", "snap.name.app2", "snap.name.hook.hook1"})
-}
-
 func (s *infoSuite) TestAppInfoWrapperPath(c *C) {
 	info, err := snap.InfoFromSnapYaml([]byte(`name: foo
 apps:
@@ -1122,10 +1103,6 @@ func verifyImplicitHook(c *C, info *snap.Info, hookName string, plugNames []stri
 		plug := hook.Plugs[plugName]
 		c.Assert(plug, NotNil, Commentf("Expected hook plugs to contain %q", plugName))
 		c.Check(plug.Name, Equals, plugName)
-		c.Check(plug.Hooks, HasLen, 1)
-		hook = plug.Hooks[hookName]
-		c.Assert(hook, NotNil, Commentf("Expected plug to be associated with hook %q", hookName))
-		c.Check(hook.Name, Equals, hookName)
 
 		// Verify also that the hook plug made it into info.Plugs
 		c.Check(info.Plugs[plugName], DeepEquals, plug)
@@ -1144,10 +1121,6 @@ func verifyExplicitHook(c *C, info *snap.Info, hookName string, plugNames []stri
 		plug := hook.Plugs[plugName]
 		c.Assert(plug, NotNil, Commentf("Expected hook plugs to contain %q", plugName))
 		c.Check(plug.Name, Equals, plugName)
-		c.Check(plug.Hooks, HasLen, 1)
-		hook = plug.Hooks[hookName]
-		c.Assert(hook, NotNil, Commentf("Expected plug to be associated with hook %q", hookName))
-		c.Check(hook.Name, Equals, hookName)
 
 		// Verify also that the hook plug made it into info.Plugs
 		c.Check(info.Plugs[plugName], DeepEquals, plug)
@@ -1158,10 +1131,6 @@ func verifyExplicitHook(c *C, info *snap.Info, hookName string, plugNames []stri
 		slot := hook.Slots[slotName]
 		c.Assert(slot, NotNil, Commentf("Expected hook slots to contain %q", slotName))
 		c.Check(slot.Name, Equals, slotName)
-		c.Check(slot.Hooks, HasLen, 1)
-		hook = slot.Hooks[hookName]
-		c.Assert(hook, NotNil, Commentf("Expected slot to be associated with hook %q", hookName))
-		c.Check(hook.Name, Equals, hookName)
 
 		// Verify also that the hook plug made it into info.Slots
 		c.Check(info.Slots[slotName], DeepEquals, slot)
@@ -1198,8 +1167,6 @@ func (s *infoSuite) testDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.CommonDataSaveDir(), Equals, "/var/lib/snapd/save/snap/name")
 	c.Check(info.UserXdgRuntimeDir(12345), Equals, "/run/user/12345/snap.name")
 	// XXX: Those are actually a globs, not directories
-	c.Check(info.DataHomeDir(nil), Equals, "/home/*/snap/name/1")
-	c.Check(info.CommonDataHomeDir(nil), Equals, "/home/*/snap/name/common")
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name")
 	c.Check(info.BinaryNameGlobs(), DeepEquals, []string{"name", "name.*"})
 }
@@ -1228,8 +1195,6 @@ func (s *infoSuite) testInstanceDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.CommonDataSaveDir(), Equals, "/var/lib/snapd/save/snap/name_instance")
 	c.Check(info.UserXdgRuntimeDir(12345), Equals, "/run/user/12345/snap.name_instance")
 	// XXX: Those are actually a globs, not directories
-	c.Check(info.DataHomeDir(nil), Equals, "/home/*/snap/name_instance/1")
-	c.Check(info.CommonDataHomeDir(nil), Equals, "/home/*/snap/name_instance/common")
 	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name_instance")
 	c.Check(info.BinaryNameGlobs(), DeepEquals, []string{"name_instance", "name_instance.*"})
 }
@@ -1256,6 +1221,28 @@ func (s *infoSuite) TestComponentPlaceInfoMethodsParallelInstall(c *C) {
 	c.Check(cpi.MountDir(), Equals, fmt.Sprintf("%s/name_instance/1", dirs.SnapMountDir))
 	c.Check(cpi.MountFile(), Equals, "/var/lib/snapd/snaps/name_instance_1.snap")
 	c.Check(cpi.MountDescription(), Equals, "Mount unit for name_instance, revision 1")
+}
+
+func (s *infoSuite) TestDataHomeDirs(c *C) {
+	dirs.SetSnapHomeDirs("/home,/home/group1,/home/group2,/home/group3")
+	info := &snap.Info{SuggestedName: "name"}
+	info.SideInfo = snap.SideInfo{Revision: snap.R(1)}
+
+	homeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/snap/name/1"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/snap/name/1"),
+		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/snap/name/1"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/snap/name/1")}
+	commonHomeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/snap/name/common"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/snap/name/common"),
+		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/snap/name/common"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/snap/name/common")}
+	c.Check(info.DataHomeDirs(nil), DeepEquals, homeDirs)
+	c.Check(info.CommonDataHomeDirs(nil), DeepEquals, commonHomeDirs)
+
+	// Same test but with a hidden snap directory
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	hiddenHomeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/.snap/data/name/1"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/.snap/data/name/1"),
+		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/.snap/data/name/1"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/.snap/data/name/1")}
+	hiddenCommonHomeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/.snap/data/name/common"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/.snap/data/name/common"),
+		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/.snap/data/name/common"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/.snap/data/name/common")}
+	c.Check(info.DataHomeDirs(opts), DeepEquals, hiddenHomeDirs)
+	c.Check(info.CommonDataHomeDirs(opts), DeepEquals, hiddenCommonHomeDirs)
 }
 
 func BenchmarkTestParsePlaceInfoFromSnapFileName(b *testing.B) {
@@ -2124,4 +2111,131 @@ version: 1.0`, nil)
 
 	_, _, err = snap.SnapdAssertionMaxFormatsFromSnapFile(snapf)
 	c.Check(err, ErrorMatches, `cannot extract assertion max formats information, snaps of type app do not carry snapd`)
+}
+
+func (s *infoSuite) TestAppsForPlug(c *C) {
+	const snapYaml = `
+name: snap
+version: 1
+apps:
+ one:
+   command: one
+   plugs: [scoped-plug]
+ two:
+   command: two
+hooks:
+  install:
+    plugs: [hook-plug]
+plugs:
+  unscoped-plug:
+  hook-plug:
+`
+
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	scoped := info.Plugs["scoped-plug"]
+	c.Assert(scoped, NotNil)
+
+	scopedApps := info.AppsForPlug(scoped)
+	c.Assert(scopedApps, testutil.DeepUnsortedMatches, []*snap.AppInfo{info.Apps["one"]})
+
+	unscoped := info.Plugs["unscoped-plug"]
+	c.Assert(unscoped, NotNil)
+
+	unscopedApps := info.AppsForPlug(unscoped)
+	c.Assert(unscopedApps, testutil.DeepUnsortedMatches, []*snap.AppInfo{info.Apps["one"], info.Apps["two"]})
+}
+
+func (s *infoSuite) TestAppsForSlot(c *C) {
+	const snapYaml = `
+name: snap
+version: 1
+apps:
+ one:
+   command: one
+   slots: [scoped-slot]
+ two:
+   command: two
+hooks:
+  install:
+    slots: [hook-slot]
+slots:
+  unscoped-slot:
+  hook-slot:
+`
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	scoped := info.Slots["scoped-slot"]
+	c.Assert(scoped, NotNil)
+
+	scopedApps := info.AppsForSlot(scoped)
+	c.Assert(scopedApps, testutil.DeepUnsortedMatches, []*snap.AppInfo{info.Apps["one"]})
+
+	unscoped := info.Slots["unscoped-slot"]
+	c.Assert(unscoped, NotNil)
+
+	unscopedApps := info.AppsForSlot(unscoped)
+	c.Assert(unscopedApps, testutil.DeepUnsortedMatches, []*snap.AppInfo{info.Apps["one"], info.Apps["two"]})
+}
+
+func (s *infoSuite) TestHooksForPlug(c *C) {
+	const snapYaml = `
+name: snap
+version: 1
+apps:
+ one:
+   command: one
+   plugs: [app-plug]
+hooks:
+  install:
+    plugs: [scoped-plug]
+  pre-refresh:
+plugs:
+  unscoped-plug:
+  app-plug:
+`
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	scoped := info.Plugs["scoped-plug"]
+	c.Assert(scoped, NotNil)
+
+	scopedHooks := info.HooksForPlug(scoped)
+	c.Assert(scopedHooks, testutil.DeepUnsortedMatches, []*snap.HookInfo{info.Hooks["install"]})
+
+	unscoped := info.Plugs["unscoped-plug"]
+	c.Assert(unscoped, NotNil)
+
+	unscopedHooks := info.HooksForPlug(unscoped)
+	c.Assert(unscopedHooks, testutil.DeepUnsortedMatches, []*snap.HookInfo{info.Hooks["install"], info.Hooks["pre-refresh"]})
+}
+
+func (s *infoSuite) TestHooksForSlot(c *C) {
+	const snapYaml = `
+name: snap
+version: 1
+apps:
+ one:
+   command: one
+   slots: [app-slot]
+hooks:
+  install:
+    slots: [scoped-slot]
+  pre-refresh:
+slots:
+  unscoped-slot:
+  app-slot:
+`
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	scoped := info.Slots["scoped-slot"]
+	c.Assert(scoped, NotNil)
+
+	scopedHooks := info.HooksForSlot(scoped)
+	c.Assert(scopedHooks, testutil.DeepUnsortedMatches, []*snap.HookInfo{info.Hooks["install"]})
+
+	unscoped := info.Slots["unscoped-slot"]
+	c.Assert(unscoped, NotNil)
+
+	unscopedHooks := info.HooksForSlot(unscoped)
+	c.Assert(unscopedHooks, testutil.DeepUnsortedMatches, []*snap.HookInfo{info.Hooks["install"], info.Hooks["pre-refresh"]})
 }

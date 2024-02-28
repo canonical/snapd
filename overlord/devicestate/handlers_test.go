@@ -493,6 +493,8 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil, nil)
+
 	var testStore snapstate.StoreService
 
 	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {

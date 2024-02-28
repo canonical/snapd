@@ -105,7 +105,7 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	// On an all-snaps system, the desktop interface grants access
 	// to system fonts.
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.appSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access basic graphical desktop resources")
@@ -122,7 +122,7 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(updateNS, testutil.Contains, "  # Read-only access to /var/cache/fontconfig\n")
 
 	// There are permanent rules on the slot side
-	spec = &apparmor.Specification{}
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.appSlotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
 	c.Check(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "# Description: Can provide various desktop services")
@@ -131,7 +131,7 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	// On a classic system, additional permissions are granted
 	restore = release.MockOnClassic(true)
 	defer restore()
-	spec = &apparmor.Specification{}
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -151,7 +151,7 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(updateNS, testutil.Contains, "  # Read-only access to /var/cache/fontconfig\n")
 
 	// connected plug to core slot
-	spec = &apparmor.Specification{}
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
@@ -164,10 +164,13 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/local/share/fonts"), 0777), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0777), IsNil)
 
+	// mock an Ubuntu Core like system
 	restore := release.MockOnClassic(false)
 	defer restore()
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
 
-	// On all-snaps systems, the mounts are present
+	// On all-snaps systems like Ubuntu Core, the mounts are present
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.appSlot), IsNil)
 	c.Check(spec.MountEntries(), HasLen, 3)
@@ -177,8 +180,8 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	// are bind mounted from the host system if they exist.
 	restore = release.MockOnClassic(true)
 	defer restore()
-	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
-	defer restore()
+	// distro is already mocked to be Ubuntu
+
 	spec = &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 

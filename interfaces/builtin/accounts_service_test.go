@@ -70,7 +70,7 @@ func (s *AccountsServiceInterfaceSuite) TestSanitize(c *C) {
 }
 
 func (s *AccountsServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 1)
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface=org.gnome.OnlineAccounts.*`)

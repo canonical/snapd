@@ -73,13 +73,13 @@ type StoreService interface {
 type managerBackend interface {
 	// install related
 	SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, dev snap.Device, opts *backend.SetupSnapOptions, meter progress.Meter) (snap.Type, *backend.InstallRecord, error)
+	SetupKernelSnap(instanceName string, rev snap.Revision, meter progress.Meter) (err error)
 	SetupComponent(compFilePath string, compPi snap.ContainerPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *backend.InstallRecord, err error)
 	CopySnapData(newSnap, oldSnap *snap.Info, opts *dirs.SnapDirOptions, meter progress.Meter) error
 	SetupSnapSaveData(info *snap.Info, dev snap.Device, meter progress.Meter) error
 	LinkSnap(info *snap.Info, dev snap.Device, linkCtx backend.LinkContext, tm timings.Measurer) (rebootInfo boot.RebootInfo, err error)
 	StartServices(svcs []*snap.AppInfo, disabledSvcs []string, meter progress.Meter, tm timings.Measurer) error
 	StopServices(svcs []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error
-	ServicesEnableState(info *snap.Info, meter progress.Meter) (map[string]bool, error)
 	QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error)
 
 	// the undoers for install
@@ -103,6 +103,7 @@ type managerBackend interface {
 	DiscardSnapNamespace(snapName string) error
 	RemoveSnapInhibitLock(snapName string) error
 	RemoveAllSnapAppArmorProfiles() error
+	RemoveKernelSnapSetup(instanceName string, rev snap.Revision, meter progress.Meter) error
 
 	// alias related
 	UpdateAliases(add []*backend.Alias, remove []*backend.Alias) error

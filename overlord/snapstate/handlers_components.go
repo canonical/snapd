@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
@@ -64,6 +65,19 @@ func TaskComponentSetup(t *state.Task) (*ComponentSetup, *SnapSetup, error) {
 		return nil, nil, err
 	}
 	return &compSetup, snapsup, nil
+}
+
+func compSetupAndState(t *state.Task) (*ComponentSetup, *SnapSetup, *SnapState, error) {
+	csup, ssup, err := TaskComponentSetup(t)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	var snapst SnapState
+	err = Get(t.State(), ssup.InstanceName(), &snapst)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, nil, nil, err
+	}
+	return csup, ssup, &snapst, nil
 }
 
 func (m *SnapManager) doPrepareComponent(t *state.Task, _ *tomb.Tomb) error {
@@ -107,7 +121,7 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) (err error) 
 	// component types (see checkSnap and checkSnapCallbacks slice)
 
 	csi := compSetup.CompSideInfo
-	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
+	cpi := snap.MinimalComponentContainerPlaceInfo(compSetup.ComponentName(),
 		csi.Revision, snapsup.InstanceName(), snapsup.Revision())
 
 	defer func() {
@@ -214,7 +228,7 @@ func (m *SnapManager) undoMountComponent(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	csi := compSetup.CompSideInfo
-	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
+	cpi := snap.MinimalComponentContainerPlaceInfo(compSetup.ComponentName(),
 		csi.Revision, snapsup.InstanceName(), snapsup.Revision())
 
 	pm := NewTaskProgressAdapterUnlocked(t)
@@ -226,4 +240,159 @@ func (m *SnapManager) undoMountComponent(t *state.Task, _ *tomb.Tomb) error {
 	defer st.Unlock()
 
 	return m.backend.RemoveComponentDir(cpi)
+}
+
+func (m *SnapManager) doLinkComponent(t *state.Task, _ *tomb.Tomb) error {
+	// invariant: component is not in the state (unlink happens previously if necessary)
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// snapSt is a copy of the current state
+	compSetup, snapsup, snapSt, err := compSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	// Grab information for current snap revision
+	// TODO will this still be correct when jointly installing snap +
+	// components? Link for the snap should happen earlier. But we do not
+	// want to reboot until all components are linked and the initramfs has
+	// the information to mount them already. Probably we should link first
+	// the components and use information from SnapSetup in that case.
+	snapInfo, err := snapSt.CurrentInfo()
+	// the owner snap is expected to be installed (ErrNoCurrent not allowed)
+	if err != nil {
+		return err
+	}
+
+	cs := sequence.NewComponentState(compSetup.CompSideInfo, compSetup.CompType)
+	// set information for undoLinkComponent in the task
+	t.Set("linked-component", cs)
+	// Append new component to components of the current snap
+	if err := snapSt.Sequence.AddComponentForRevision(snapInfo.Revision, cs); err != nil {
+		return fmt.Errorf("internal error while linking component: %w", err)
+	}
+
+	// Store last component refresh time
+	if snapSt.LastCompRefreshTime == nil {
+		snapSt.LastCompRefreshTime = make(map[string]time.Time)
+	}
+	snapSt.LastCompRefreshTime[compSetup.ComponentName()] = timeNow()
+
+	// Finally, write the state
+	Set(st, snapsup.InstanceName(), snapSt)
+	// Make sure we won't be rerun
+	t.SetStatus(state.DoneStatus)
+
+	return nil
+}
+
+func (m *SnapManager) undoLinkComponent(t *state.Task, _ *tomb.Tomb) error {
+	// invariant: component is installed
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// snapSt is a copy of the current state
+	_, snapsup, snapSt, err := compSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	// Expected to be installed
+	snapInfo, err := snapSt.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	var linkedComp *sequence.ComponentState
+	err = t.Get("linked-component", &linkedComp)
+	if err != nil {
+		return err
+	}
+
+	// Restore old state
+	// relinking of the old component is done in the undo of unlink-current-snap
+	snapSt.Sequence.RemoveComponentForRevision(snapInfo.Revision,
+		linkedComp.SideInfo.Component)
+
+	// Finally, write the state
+	Set(st, snapsup.InstanceName(), snapSt)
+	// Make sure we won't be rerun
+	t.SetStatus(state.UndoneStatus)
+
+	return nil
+}
+
+func (m *SnapManager) doUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (err error) {
+	// invariant: current snap has a revision for this component installed
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// snapSt is a copy of the current state
+	compSetup, snapsup, snapSt, err := compSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	cref := compSetup.CompSideInfo.Component
+
+	// Expected to be installed
+	snapInfo, err := snapSt.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	// Remove current component for the current snap
+	unlinkedComp := snapSt.Sequence.RemoveComponentForRevision(snapInfo.Revision, cref)
+	if unlinkedComp == nil {
+		return fmt.Errorf("internal error while unlinking: %s expected but not found", cref)
+	}
+
+	// set information for undoUnlinkCurrentComponent in the task
+	t.Set("unlinked-component", unlinkedComp)
+
+	// Finally, write the state
+	Set(st, snapsup.InstanceName(), snapSt)
+	// Make sure we won't be rerun
+	t.SetStatus(state.DoneStatus)
+
+	return nil
+}
+
+func (m *SnapManager) undoUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (err error) {
+	// invariant: component is not installed
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// snapSt is a copy of the current state
+	_, snapsup, snapSt, err := compSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	// Expected to be installed
+	snapInfo, err := snapSt.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	var unlinkedComp sequence.ComponentState
+	err = t.Get("unlinked-component", &unlinkedComp)
+	if err != nil {
+		return err
+	}
+
+	if err := snapSt.Sequence.AddComponentForRevision(snapInfo.Revision, &unlinkedComp); err != nil {
+		return fmt.Errorf("internal error while undo unlink component: %w", err)
+	}
+
+	// Finally, write the state
+	Set(st, snapsup.InstanceName(), snapSt)
+	// Make sure we won't be rerun
+	t.SetStatus(state.UndoneStatus)
+
+	return nil
 }

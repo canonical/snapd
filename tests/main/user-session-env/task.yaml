@@ -81,15 +81,6 @@ execute: |
                 NOMATCH 'XDG_DATA_DIRS=.*[:]?/var/lib/snapd/desktop[:]?.*' < "${user}-child-env"
                 MATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-child-env"
                 ;;
-            test-fish:opensuse-15.4*)
-                # fish on openSUSE 15.4 somehow magically glues the ENV_* from su and
-                # PATH, but fortunately it also displays ENV_ROOTPATH
-                NOMATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-profile-env"
-                MATCH "ENV_ROOTPATH\s+.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-profile-env"
-                MATCH 'XDG_DATA_DIRS=.*[:]?/var/lib/snapd/desktop[:]?.*' < "${user}-child-env"
-                NOMATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-child-env"
-                MATCH "ENV_ROOTPATH\s+.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-child-env"
-                ;;
             *)
                 MATCH 'XDG_DATA_DIRS=.*[:]?/var/lib/snapd/desktop[:]?.*' < "${user}-profile-env"
                 MATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-profile-env"

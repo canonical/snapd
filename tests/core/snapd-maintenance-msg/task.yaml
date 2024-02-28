@@ -1,5 +1,8 @@
 summary: Verify that the maintenance message is included in the daemon API responses when available
 
+details: |
+  Verify present of the maintenance message in the local API.
+
 # kinda slow test, probably enough to keep on one system
 systems: [ubuntu-core-20-64]
 

@@ -1705,8 +1705,22 @@ func (s *snapmgrTestSuite) TestRemovePrunesRefreshGatingDataOnLastRevision(c *C)
 	}
 
 	rc := map[string]*snapstate.RefreshCandidate{
-		"some-snap": {},
-		"foo-snap":  {},
+		"some-snap": {
+			SnapSetup: snapstate.SnapSetup{
+				SideInfo: &snap.SideInfo{
+					RealName: "some-snap",
+					Revision: snap.R(7),
+				},
+			},
+		},
+		"foo-snap": {
+			SnapSetup: snapstate.SnapSetup{
+				SideInfo: &snap.SideInfo{
+					RealName: "foo-snap",
+					Revision: snap.R(7),
+				},
+			},
+		},
 	}
 	st.Set("refresh-candidates", rc)
 
@@ -1764,7 +1778,14 @@ func (s *snapmgrTestSuite) TestRemoveKeepsGatingDataIfNotLastRevision(c *C) {
 		LastRefreshTime: &t,
 	})
 
-	rc := map[string]*snapstate.RefreshCandidate{"some-snap": {}}
+	rc := map[string]*snapstate.RefreshCandidate{
+		"some-snap": {
+			SnapSetup: snapstate.SnapSetup{
+				SideInfo: &snap.SideInfo{
+					RealName: "some-snap",
+					Revision: snap.R(11),
+				},
+			}}}
 	st.Set("refresh-candidates", rc)
 
 	_, err := snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, "some-snap", 0, "some-snap")

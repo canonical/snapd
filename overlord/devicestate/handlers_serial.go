@@ -496,6 +496,8 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 
 var httputilNewHTTPClient = httputil.NewHTTPClient
 
+var errStoreOffline = errors.New("snap store is marked offline")
+
 func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, tm timings.Measurer) (serial *asserts.Serial, ancillaryBatch *asserts.Batch, err error) {
 	var serialSup serialSetup
 	err = t.Get("serial-setup", &serialSup)
@@ -520,8 +522,7 @@ func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.Privat
 	}
 
 	if !shouldRequest {
-		t.Logf("skipping getting serial, store is marked as offline")
-		return nil, nil, nil
+		return nil, nil, errStoreOffline
 	}
 
 	proxyConf := proxyconf.New(st)
@@ -819,8 +820,11 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return &state.Retry{After: retryInterval}
 	}
 	if err != nil { // errors & retries
+		if errors.Is(err, errStoreOffline) {
+			t.Logf("skipping getting serial, store is marked as offline")
+			return nil
+		}
 		return err
-
 	}
 
 	// TODO: the accept* helpers put the serial directly in the

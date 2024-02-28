@@ -31,6 +31,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -280,10 +281,14 @@ func (client *Client) serviceControlCall(ctx context.Context, action string, ser
 	for _, resp := range responses {
 		if agentErr, ok := resp.err.(*Error); ok && agentErr.Kind == "service-control" {
 			if errorValue, ok := agentErr.Value.(map[string]interface{}); ok {
-				failures, _ := decodeServiceErrors(resp.uid, errorValue, "start-errors")
-				startFailures = append(startFailures, failures...)
-				failures, _ = decodeServiceErrors(resp.uid, errorValue, "stop-errors")
-				stopFailures = append(stopFailures, failures...)
+				if failures, err := decodeServiceErrors(resp.uid, errorValue, "restart-errors"); err == nil && len(failures) > 0 {
+					startFailures = append(startFailures, failures...)
+				} else {
+					failures, _ := decodeServiceErrors(resp.uid, errorValue, "start-errors")
+					startFailures = append(startFailures, failures...)
+					failures, _ = decodeServiceErrors(resp.uid, errorValue, "stop-errors")
+					stopFailures = append(stopFailures, failures...)
+				}
 			}
 		}
 		if resp.err != nil && err == nil {
@@ -305,6 +310,67 @@ func (client *Client) ServicesStart(ctx context.Context, services []string) (sta
 func (client *Client) ServicesStop(ctx context.Context, services []string) (stopFailures []ServiceFailure, err error) {
 	_, stopFailures, err = client.serviceControlCall(ctx, "stop", services)
 	return stopFailures, err
+}
+
+func (client *Client) ServicesRestart(ctx context.Context, services []string) (restartFailures []ServiceFailure, err error) {
+	restartFailures, _, err = client.serviceControlCall(ctx, "restart", services)
+	return restartFailures, err
+}
+
+func (client *Client) ServicesReloadOrRestart(ctx context.Context, services []string) (restartFailures []ServiceFailure, err error) {
+	restartFailures, _, err = client.serviceControlCall(ctx, "reload-or-restart", services)
+	return restartFailures, err
+}
+
+// ServiceUnitStatus is a JSON encoding representing systemd.UnitStatus for a user service.
+type ServiceUnitStatus struct {
+	Daemon           string   `json:"daemon"`
+	Id               string   `json:"id"`
+	Name             string   `json:"name"`
+	Names            []string `json:"names"`
+	Enabled          bool     `json:"enabled"`
+	Active           bool     `json:"active"`
+	Installed        bool     `json:"installed"`
+	NeedDaemonReload bool     `json:"needs-reload"`
+}
+
+func (client *Client) ServiceStatus(ctx context.Context, services []string) (map[int][]ServiceUnitStatus, map[int][]ServiceFailure, error) {
+	q := make(url.Values)
+	q.Add("services", strings.Join(services, ","))
+
+	responses, err := client.doMany(ctx, "GET", "/v1/service-status", q, nil, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var respErr error
+	stss := make(map[int][]ServiceUnitStatus)
+	failures := make(map[int][]ServiceFailure)
+	for _, resp := range responses {
+		// Parse status errors which were a result of failure to retrieve status of services
+		if agentErr, ok := resp.err.(*Error); ok && agentErr.Kind == "service-status" {
+			if errorValue, ok := agentErr.Value.(map[string]interface{}); ok {
+				if fs, err := decodeServiceErrors(resp.uid, errorValue, "status-errors"); err == nil && len(fs) > 0 {
+					failures[resp.uid] = append(failures[resp.uid], fs...)
+				}
+			}
+			continue
+		}
+
+		// The response was an error, store the first error
+		if resp.err != nil && respErr == nil {
+			respErr = resp.err
+			continue
+		}
+
+		var si []ServiceUnitStatus
+		if err := json.Unmarshal(resp.Result, &si); err != nil && respErr == nil {
+			respErr = err
+			continue
+		}
+		stss[resp.uid] = si
+	}
+	return stss, failures, respErr
 }
 
 // PendingSnapRefreshInfo holds information about pending snap refresh provided to userd.

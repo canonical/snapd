@@ -1,0 +1,52 @@
+usr/bin/snap
+usr/bin/snapctl /usr/lib/snapd/
+usr/lib/snapd/system-shutdown
+usr/bin/snap-exec /usr/lib/snapd/
+usr/bin/snap-repair /usr/lib/snapd/
+usr/bin/snap-failure /usr/lib/snapd/
+usr/bin/snap-update-ns /usr/lib/snapd/
+usr/bin/snapd /usr/lib/snapd/
+usr/bin/snap-seccomp /usr/lib/snapd/
+usr/bin/snap-bootstrap /usr/lib/snapd/
+usr/bin/snap-preseed /usr/lib/snapd/
+usr/bin/snap-recovery-chooser /usr/lib/snapd/
+usr/bin/snap-fde-keymgr /usr/lib/snapd/
+usr/bin/snapd-apparmor /usr/lib/snapd/
+
+# bash completion
+data/completion/bash/snap /usr/share/bash-completion/completions
+data/completion/bash/complete.sh /usr/lib/snapd/
+data/completion/bash/etelpmoc.sh /usr/lib/snapd/
+# zsh completion
+data/completion/zsh/_snap /usr/share/zsh/vendor-completions
+# udev, must be installed before 80-udisks
+data/udev/rules.d/66-snapd-autoimport.rules /lib/udev/rules.d
+# snap/snapd version information
+data/info /usr/lib/snapd/
+# polkit actions
+data/polkit/io.snapcraft.snapd.policy /usr/share/polkit-1/actions/
+# apt hook
+data/apt/20snapd.conf /etc/apt/apt.conf.d/
+
+# snap-confine stuff
+etc/apparmor.d/usr.lib.snapd.snap-confine.real
+usr/lib/snapd/snap-device-helper
+usr/lib/snapd/snap-mgmt
+usr/lib/snapd/snap-confine
+usr/lib/snapd/snap-discard-ns
+usr/share/man/
+# for compatibility with ancient snap installs that wrote the shell based
+# wrapper scripts instead of the modern symlinks
+usr/bin/ubuntu-core-launcher
+
+# gdb helper
+usr/lib/snapd/snap-gdb-shim
+usr/lib/snapd/snap-gdbserver-shim
+
+# install squashfuse as snapfuse to ensure it is available in e.g. lxd
+c-vendor/squashfuse/snapfuse usr/bin
+
+# use "usr/lib" here because apparently systemd looks only there
+usr/lib/systemd/system-environment-generators
+# but system generators end up in lib
+@systemd-lib@/system-generators

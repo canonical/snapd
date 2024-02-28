@@ -6,10 +6,14 @@ on:
     # we trigger runs on master branch, but we do not run spread on master 
     # branch, the master branch runs are just for unit tests + codecov.io
     branches: [ "master","release/**" ]
-  workflow_run:
-    workflows: ["Pull Request Labeler"]
-    types:
-      - completed
+
+  # XXX we suspect that the whenever the labeler workflow executes successfully
+  # it will trigger another workflow of tests on master, temporarily disable to
+  # see if that improves the situation
+  # workflow_run:
+  #   workflows: ["Pull Request Labeler"]
+  #   types:
+  #     - completed
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
@@ -74,6 +78,8 @@ jobs:
           sudo apt clean
           sudo apt update
           sudo apt build-dep -d -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+          # for indent
+          sudo apt install texinfo autopoint
 
     - name: Copy dependencies
       run: |
@@ -86,7 +92,7 @@ jobs:
         path: ./cached-apt.tar
 
   static-checks:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     needs: [cache-build-deps]
     env:
       GOPATH: ${{ github.workspace }}
@@ -171,7 +177,7 @@ jobs:
 
     - name: Get changed files
       id: changed-files
-      uses: tj-actions/changed-files@v34.5.1
+      uses: tj-actions/changed-files@v41.0.0
       with:
         path: ./src/github.com/snapcore/snapd
 
@@ -191,6 +197,43 @@ jobs:
           fi
           sudo apt-get install -y python3-yamlordereddictloader
           ./run-checks --static
+
+    - name: Cache prebuilt indent
+      id: cache-indent-bin
+      uses: actions/cache@v3
+      with:
+        path: indent-bin
+        key: ${{ runner.os }}-indent-2.2.13
+
+    # build indent 2.2.13 which has this patch
+    # https://git.savannah.gnu.org/cgit/indent.git/commit/?id=22b83d68e9a8b429590f42920e9f473a236123cf
+    - name: Build indent 2.2.13
+      if: steps.cache-indent-bin.outputs.cache-hit != 'true'
+      run: |
+          sudo apt install texinfo autopoint
+          curl -O https://ftp.gnu.org/gnu/indent/indent-2.2.13.tar.xz
+          tar xvf indent-2.2.13.tar.xz
+          cd indent-2.2.13
+          autoreconf -if
+          # set prefix in case we want to pack to tar/extract into system
+          ./configure --prefix=/opt/indent
+          make -j
+          make install DESTDIR=${{ github.workspace }}/indent-bin
+          find ${{ github.workspace }}/indent-bin -ls
+
+    - name: Check C source code formatting
+      run: |
+          set -x
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
+          ./autogen.sh
+          # apply formatting
+          PATH=${{ github.workspace }}/indent-bin/opt/indent/bin:$PATH make fmt
+
+          if [ -n "$(git diff --stat)" ]; then
+              git diff
+              echo "C files are not fomratted correctly, run 'make fmt'"
+              exit 1
+          fi
 
   unit-tests:
     needs: [static-checks]
@@ -216,6 +259,7 @@ jobs:
           - snapd_debug
           - withbootassetstesting
           - nosecboot
+          - nobolt
           - faultinject
 
     steps:
@@ -306,6 +350,12 @@ jobs:
         # ${{ github.workspace }}/bin/govendor remove +unused
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
 
+    - name: Test Go (nobolt)
+      if: ${{ matrix.unit-scenario == 'nobolt' }}
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nobolt ./run-checks --unit
+
     - name: Test Go (faultinject)
       if: ${{ matrix.unit-scenario == 'faultinject' }}
       run: |
@@ -355,6 +405,7 @@ jobs:
     # have spread jobs run on master on PRs only, but on both PRs and pushes to
     # release branches
     if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
+    name: ${{ matrix.group }}
     runs-on: self-hosted
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
@@ -364,37 +415,61 @@ jobs:
       # fail-fast while we tackle that problem upstream.
       fail-fast: false
       matrix:
-        system:
-        - amazon-linux-2-64
-        - amazon-linux-2023-64
-        - arch-linux-64
-        - centos-7-64
-        - centos-8-64
-        - centos-9-64
-        - debian-11-64
-        - debian-12-64
-        - debian-sid-64
-        - fedora-38-64
-        - fedora-39-64
-        - opensuse-15.4-64
-        - opensuse-15.5-64
-        - opensuse-tumbleweed-64
-        - ubuntu-14.04-64
-        - ubuntu-16.04-64
-        - ubuntu-18.04-32
-        - ubuntu-18.04-64
-        - ubuntu-20.04-64
-        - ubuntu-20.04-arm-64
-        - ubuntu-22.04-64
-        - ubuntu-23.04-64
-        - ubuntu-23.10-64
-        - ubuntu-24.04-64
-        - ubuntu-core-16-64
-        - ubuntu-core-18-64
-        - ubuntu-core-20-64
-        - ubuntu-core-22-64
-        - ubuntu-core-22-arm-64
-        - ubuntu-secboot-20.04-64
+        include:
+          - group: amazon-linux
+            backend: google-central
+            systems: 'amazon-linux-2-64 amazon-linux-2023-64'
+          - group: arch-linux
+            backend: google-central
+            systems: 'arch-linux-64'
+          - group: centos
+            backend: google-central
+            systems: 'centos-7-64 centos-8-64 centos-9-64'
+          - group: debian-req
+            backend: google-central
+            systems: 'debian-11-64'
+          - group: debian-no-req
+            backend: google-central
+            systems: 'debian-12-64 debian-sid-64'
+          - group: fedora
+            backend: google-central
+            systems: 'fedora-38-64 fedora-39-64'
+          - group: opensuse
+            backend: google-central
+            systems: 'opensuse-15.5-64 opensuse-tumbleweed-64'
+          - group: ubuntu-trusty-xenial
+            backend: google
+            systems: 'ubuntu-14.04-64 ubuntu-16.04-64'
+          - group: ubuntu-bionic
+            backend: google
+            systems: 'ubuntu-18.04-32 ubuntu-18.04-64'
+          - group: ubuntu-focal-jammy
+            backend: google
+            systems: 'ubuntu-20.04-64 ubuntu-22.04-64'
+          - group: ubuntu-no-lts
+            backend: google
+            systems: 'ubuntu-23.10-64'
+          - group: ubuntu-daily
+            backend: google
+            systems: 'ubuntu-24.04-64'
+          - group: ubuntu-core-16
+            backend: google
+            systems: 'ubuntu-core-16-64'
+          - group: ubuntu-core-18
+            backend: google
+            systems: 'ubuntu-core-18-64'
+          - group: ubuntu-core-20
+            backend: google
+            systems: 'ubuntu-core-20-64'
+          - group: ubuntu-core-22
+            backend: google
+            systems: 'ubuntu-core-22-64'
+          - group: ubuntu-arm
+            backend: google-arm
+            systems: 'ubuntu-20.04-arm-64 ubuntu-core-22-arm-64'
+          - group: ubuntu-secboot
+            backend: google
+            systems: 'ubuntu-secboot-20.04-64'
     steps:
     - name: Cleanup job workspace
       id: cleanup-job-workspace
@@ -418,7 +493,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
+        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.group }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
 
     - name: Prepare test results env and vars
       id: prepare-test-results-env
@@ -456,17 +531,30 @@ jobs:
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
 
-          BACKEND=google
+          set -x
+
           SPREAD=spread
-          if [[ "${{ matrix.system }}" =~ -arm- ]]; then
-              BACKEND=google-arm
+          if [[ "${{ matrix.systems }}" =~ -arm- ]]; then
               SPREAD=spread-arm
           fi
 
+          if [[ "${{ matrix.systems }}" =~ amazon-linux-2023 ]]; then
+              # Amazon Linux 2023 has no xdelta, however we cannot disable
+              # xdelta on a per-target basis as it's used in the repack section
+              # of spread.yaml, which is shared by all targets, so all systems
+              # in this batch will not use delta for transferring project data
+              echo "Disabling xdelta support"
+              export NO_DELTA=1
+          fi
+
+          RUN_TESTS=""
           # Save previous failed test results in FAILED_TESTS env var
-          RUN_TESTS="$BACKEND:${{ matrix.system }}:tests/..."
           if [ -n "$FAILED_TESTS" ]; then
               RUN_TESTS="$FAILED_TESTS"
+          else
+              for SYSTEM in ${{ matrix.systems }}; do
+                  RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:tests/..."
+              done
           fi
           # Run spread tests
           # "pipefail" ensures that a non-zero status from the spread is
@@ -507,13 +595,11 @@ jobs:
               echo "Running spread log parser"
               ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
 
-              BACKEND=google
-              if [[ "${{ matrix.system }}" =~ -arm- ]]; then
-                  BACKEND=google-arm
-              fi
-
               echo "Determining which tests were executed"
-              RUN_TESTS="$BACKEND:${{ matrix.system }}:tests/..."
+              RUN_TESTS=""
+              for SYSTEM in ${{ matrix.systems }}; do
+                  RUN_TESTS="$RUN_TESTS ${{ matrix.backend }}:$SYSTEM:tests/..."
+              done
               if [ -n "$FAILED_TESTS" ]; then
                   RUN_TESTS="$FAILED_TESTS"
               fi
@@ -533,7 +619,7 @@ jobs:
       uses: actions/cache/save@v3
       with:
         path: "${{ github.workspace }}/.test-results"
-        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.system }}-${{ github.run_attempt }}"
+        key: "${{ github.job }}-results-${{ github.run_id }}-${{ matrix.group }}-${{ github.run_attempt }}"
 
   spread-nested:
     needs: [unit-tests]

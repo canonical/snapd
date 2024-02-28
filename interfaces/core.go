@@ -237,6 +237,13 @@ type StaticInfo struct {
 	// interfaces/builtin/README.md, especially "Base declaration policy
 	// patterns".
 	BaseDeclarationSlots string
+
+	// AppArmorUnconfinedPlugs results in the snap that plugs this interface
+	// being granted the AppArmor unconfined profile mode
+	AppArmorUnconfinedPlugs bool `json:"apparmor-unconfined-plugs,omitempty"`
+	// Similarly, AppArmorUnconfinedSlots results in the snap that slots this interface
+	// being granted the AppArmor unconfined profile mode
+	AppArmorUnconfinedSlots bool `json:"apparmor-unconfined-slots,omitempty"`
 }
 
 // PermanentPlugServiceSnippets will return the set of snippets for the systemd

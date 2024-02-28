@@ -141,6 +141,10 @@ execute: |
   MATCH "^etc/systemd/system/getty.target.wants/getty@tty1.service" < files.log
   MATCH "^etc/systemd/system/snapd.failure.service" < files.log
 
+  # tar tf already escapes '\', so we need to double escape it here
+  MATCH '^etc/systemd/system/run-mnt-kernel\\\\x2dsnaps-pc\\\\x2dkernel.*.mount' < files.log
+  MATCH '^etc/systemd/system/sysinit.target.wants/run-mnt-kernel\\\\x2dsnaps-pc\\\\x2dkernel.*.mount' < files.log
+
   MATCH "^snap/pc-kernel/current" < files.log
   MATCH "^snap/core20/current" < files.log
   MATCH "^snap/snapd/current" < files.log
@@ -166,6 +170,9 @@ execute: |
   MATCH "^var/lib/snapd/assertions/asserts-v0/model/16/developer1/testkeys-snapd-dangerous-core-20-amd64/" < files.log
   MATCH "^var/lib/snapd/assertions/asserts-v0/snap-revision/.*" < files.log
   MATCH "^var/lib/snapd/assertions/asserts-v0/account-key/.*" < files.log
+
+  MATCH "^var/lib/snapd/kernel/.*/lib/modules/.*" < files.log
+  MATCH "^var/lib/snapd/kernel/.*/lib/firmware/.*" < files.log
 
   MATCH "^var/lib/extrausers/group" < files.log
   MATCH "^var/lib/extrausers/passwd" < files.log

@@ -59,7 +59,7 @@ func (s *mountCompSnapSuite) TestDoMountComponent(c *C) {
 	t := s.state.NewTask("mount-component", "task desc")
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	t.Set("component-setup", snapstate.NewComponentSetup(csi, compPath))
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.TestComponent, compPath))
 	t.Set("snap-setup", ssu)
 	chg := s.state.NewChange("test change", "change desc")
 	chg.AddTask(t)
@@ -102,7 +102,7 @@ func (s *mountCompSnapSuite) TestDoUndoMountComponent(c *C) {
 	t := s.state.NewTask("mount-component", "task desc")
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	t.Set("component-setup", snapstate.NewComponentSetup(csi, compPath))
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.TestComponent, compPath))
 	t.Set("snap-setup", ssu)
 
 	chg := s.state.NewChange("sample", "...")
@@ -158,7 +158,7 @@ func (s *mountCompSnapSuite) TestDoMountComponentSetupFails(c *C) {
 	t := s.state.NewTask("mount-component", "task desc")
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	t.Set("component-setup", snapstate.NewComponentSetup(csi, compPath))
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.TestComponent, compPath))
 	t.Set("snap-setup", ssu)
 
 	chg := s.state.NewChange("sample", "...")
@@ -205,7 +205,7 @@ func (s *mountCompSnapSuite) TestDoUndoMountComponentFails(c *C) {
 	t := s.state.NewTask("mount-component", "task desc")
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	t.Set("component-setup", snapstate.NewComponentSetup(csi, compPath))
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.TestComponent, compPath))
 	t.Set("snap-setup", ssu)
 
 	chg := s.state.NewChange("sample", "...")
@@ -258,7 +258,7 @@ func (s *mountCompSnapSuite) TestDoMountComponentMountFails(c *C) {
 	t := s.state.NewTask("mount-component", "task desc")
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	t.Set("component-setup", snapstate.NewComponentSetup(csi, compPath))
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.TestComponent, compPath))
 	t.Set("snap-setup", ssu)
 
 	chg := s.state.NewChange("sample", "...")

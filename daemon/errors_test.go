@@ -160,7 +160,7 @@ func (s *errorsSuite) TestErrToResponse(c *C) {
 		{store.ErrNoUpdateAvailable, makeErrorRsp(client.ErrorKindSnapNoUpdateAvailable, store.ErrNoUpdateAvailable, ""), false},
 		{store.ErrLocalSnap, makeErrorRsp(client.ErrorKindSnapLocal, store.ErrLocalSnap, ""), false},
 		{aie, makeErrorRsp(client.ErrorKindSnapAlreadyInstalled, aie, "foo"), false},
-		{nie, makeErrorRsp(client.ErrorKindSnapNotInstalled, nie, "foo"), false},
+		{nie, daemon.SnapNotInstalled("foo", nie), false},
 		{ndme, makeErrorRsp(client.ErrorKindSnapNeedsDevMode, ndme, "foo"), false},
 		{nc, makeErrorRsp(client.ErrorKindSnapNotClassic, nc, "foo"), false},
 		{nce, makeErrorRsp(client.ErrorKindSnapNeedsClassic, nce, "foo"), false},

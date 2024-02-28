@@ -513,7 +513,7 @@ autoreconf -i -f
 ```
 
 This will drop makefiles and let you build stuff. You may find the `make hack`
-target, available in [./cmd/snap-confine/](./cmd/snap-confine/) handy. It installs the locally built
+target, available in [./cmd/](./cmd/) handy `(cd cmd; make hack)`. It installs the locally built
 version on your system and reloads the [AppArmor](https://apparmor.net/) profile.
 
 >The above configure options assume you are on Ubuntu and are generally
@@ -523,6 +523,12 @@ architecture and `--enable-nvidia-multiarch` allows the host's graphics drivers
 and libraries to be shared with snaps. If you are on a distro other than
 Ubuntu, try `--enable-nvidia-biarch` (though you'll likely need to add further
 system-specific options too).
+
+## Testing your changes locally 
+
+After building the code locally as explained in the previous section, you can run the 
+test suite available for snap-confine (among other low-level tools) by running the 
+`make check` target available in [./cmd]((./cmd/)).
 
 ## Submitting patches
 

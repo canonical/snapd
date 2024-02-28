@@ -71,8 +71,8 @@ func LockSealedKeys() error {
 	req := &RevealKeyRequest{
 		Op: "lock",
 	}
-	if output, err := runFDERevealKey(req); err != nil {
-		return fmt.Errorf(`cannot run fde-reveal-key "lock": %v`, osutil.OutputErr(output, err))
+	if _, err := runFDERevealKey(req); err != nil {
+		return err
 	}
 
 	return nil
@@ -111,7 +111,7 @@ func Reveal(params *RevealParams) (payload []byte, err error) {
 	}
 	output, err := runFDERevealKey(req)
 	if err != nil {
-		return nil, fmt.Errorf(`cannot run fde-reveal-key "reveal": %v`, osutil.OutputErr(output, err))
+		return nil, err
 	}
 	// We expect json output that fits the revealKeyResult json at
 	// this point. However the "denver" project uses the old and

@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
@@ -566,4 +567,64 @@ func (s *setupSuite) TestSetupComponentFilesDir(c *C) {
 	c.Assert(err, IsNil)
 	// Directory for the snap revision should be gone
 	c.Assert(osutil.FileExists(filepath.Dir(cpi.MountDir())), Equals, false)
+}
+
+func (s *setupSuite) TestSetupAndRemoveKernelSnapSetup(c *C) {
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+
+	// we don't get real mounting
+	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
+	defer os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
+
+	// Files from the early-mounted snap
+	snapdir := filepath.Join(dirs.GlobalRootDir, "run/mnt/kernel-snaps/kernel/33")
+	fwdir := filepath.Join(snapdir, "firmware")
+	c.Assert(os.MkdirAll(fwdir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(fwdir, "bar.bin"), []byte{}, 0644), IsNil)
+
+	// Run set-up
+	err := s.be.SetupKernelSnap("kernel", snap.R(33), progress.Null)
+	c.Assert(err, IsNil)
+
+	// ensure the right unit is created
+	what := filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/kernel_33.snap")
+	where := "/run/mnt/kernel-snaps/kernel/33"
+	mup := systemd.MountUnitPath(where)
+	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s", where))
+	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^What=%s", what))
+
+	// And the kernel files
+	treedir := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel/kernel/33")
+	c.Assert(osutil.FileExists(filepath.Join(treedir, "lib/firmware/bar.bin")), Equals, true)
+
+	// Now test cleaning-up
+	s.be.RemoveKernelSnapSetup("kernel", snap.R(33), progress.Null)
+	c.Assert(osutil.FileExists(mup), Equals, false)
+	c.Assert(osutil.FileExists(filepath.Join(treedir, "lib/firmware/bar.bin")), Equals, false)
+}
+
+func (s *setupSuite) TestSetupKernelSnapFailed(c *C) {
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+
+	// we don't get real mounting
+	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
+	defer os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
+
+	// File from the early-mounted snap
+	snapdir := filepath.Join(dirs.GlobalRootDir, "run/mnt/kernel-snaps/kernel/33")
+	fwdir := filepath.Join(snapdir, "firmware")
+	c.Assert(os.MkdirAll(fwdir, 0755), IsNil)
+	// Force failure via unexpected file type
+	c.Assert(syscall.Mkfifo(filepath.Join(fwdir, "fifo"), 0666), IsNil)
+
+	err := s.be.SetupKernelSnap("kernel", snap.R(33), progress.Null)
+	c.Assert(err, ErrorMatches, `"fifo" has unexpected file type: p---------`)
+
+	// All has been cleaned-up
+	mup := systemd.MountUnitPath("/run/mnt/kernel-snaps/kernel/33")
+	treedir := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel/kernel/33")
+	c.Assert(osutil.FileExists(mup), Equals, false)
+	c.Assert(osutil.FileExists(treedir), Equals, false)
 }

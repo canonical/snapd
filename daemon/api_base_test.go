@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
 	"time"
 
@@ -48,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox"
@@ -236,6 +238,25 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 
 	s.Brands = assertstest.NewSigningAccounts(s.StoreSigning)
 	s.Brands.Register("my-brand", brandPrivKey, nil)
+
+	s.AddCleanup(daemon.MockSystemUserFromRequest(func(r *http.Request) (*user.User, error) {
+		if s.authUser != nil {
+			return &user.User{
+				Uid:      "1337",
+				Gid:      "42",
+				Username: s.authUser.Username,
+				Name:     s.authUser.Username,
+				HomeDir:  "",
+			}, nil
+		}
+		return &user.User{
+			Uid:      "0",
+			Gid:      "0",
+			Username: "root",
+			Name:     "root",
+			HomeDir:  "",
+		}, nil
+	}))
 }
 
 func (s *apiBaseSuite) mockModel(st *state.State, model *asserts.Model) {
@@ -361,6 +382,9 @@ func newFakeSnapManager(st *state.State, runner *state.TaskRunner) *fakeSnapMana
 	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}, nil)
+	runner.AddHandler("fake-install-component", func(t *state.Task, _ *tomb.Tomb) error {
+		return nil
+	}, nil)
 	runner.AddHandler("fake-install-snap-error", func(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("fake-install-snap-error errored")
 	}, nil)
@@ -482,7 +506,7 @@ version: %s
 	var snapst snapstate.SnapState
 	snapstate.Get(st, instanceName, &snapst)
 	snapst.Active = active
-	snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, snapstate.NewRevisionSideInfo(&snapInfo.SideInfo, nil))
+	snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, sequence.NewRevisionSideState(&snapInfo.SideInfo, nil))
 	snapst.Current = snapInfo.SideInfo.Revision
 	snapst.TrackingChannel = "stable"
 	snapst.InstanceKey = instanceKey

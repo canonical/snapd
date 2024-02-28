@@ -28,7 +28,7 @@ execute: |
     pid=$!
     kill -s 0 "$pid"
     process-control-consumer.signal SIGTERM "$pid"
-    not kill -s 0 "$pid"
+    retry -n 10 not kill -s 0 "$pid"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit

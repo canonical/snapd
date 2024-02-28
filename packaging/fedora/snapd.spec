@@ -93,6 +93,7 @@
 %{!?_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
 %{!?_systemdgeneratordir: %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators}
 %{!?_systemd_system_env_generator_dir: %global _systemd_system_env_generator_dir %{_prefix}/lib/systemd/system-environment-generators}
+%{!?_tmpfilesdir: %global _tmpfilesdir %{_prefix}/lib/tmpfiles.d}
 
 # Fedora selinux-policy includes 'map' permission on a 'file' class. However,
 # Amazon Linux 2 does not have the updated policy containing the fix for
@@ -103,7 +104,7 @@
 %endif
 
 Name:           snapd
-Version:        2.61.1
+Version:        2.61.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -139,6 +140,13 @@ Requires:       fuse
 %else
 # snapd will use squashfuse in the event that squashfs.ko isn't available (cloud instances, containers, etc.)
 Requires:       ((squashfuse and fuse) or kmod(squashfs.ko))
+%endif
+
+# Require xdelta for delta updates of snap packages.
+%if 0%{?fedora} || ( 0%{?rhel} && 0%{?rhel} > 8 )
+%if ! 0%{?amzn2023}
+Requires:       xdelta
+%endif
 %endif
 
 # bash-completion owns /usr/share/bash-completion/completions
@@ -195,6 +203,7 @@ License:        GPLv3
 BuildRequires:  autoconf
 BuildRequires:  autoconf-archive
 BuildRequires:  automake
+BuildRequires:  make
 BuildRequires:  libtool
 BuildRequires:  gcc
 BuildRequires:  gettext
@@ -217,7 +226,8 @@ BuildRequires:  libseccomp-static
 BuildRequires:  valgrind
 %endif
 BuildRequires:  %{_bindir}/rst2man
-%if 0%{?fedora}
+%if 0%{?fedora} && ! 0%{?amzn2023}
+# AL2023 does not have shellcheck
 # ShellCheck in EPEL is too old...
 BuildRequires:  %{_bindir}/shellcheck
 %endif
@@ -552,7 +562,7 @@ BUILDTAGS="${BUILDTAGS} nomanagers"
 # To ensure things work correctly with base snaps,
 # snap-exec, snap-update-ns, and snapctl need to be built statically
 (
-%if 0%{?rhel} >= 7 || 0%{?amzn2023}
+%if 0%{?rhel} >= 7
     # since RH Developer tools 2018.4 (and later releases),
     # the go-toolset module is built with FIPS compliance that
     # defaults to using libcrypto.so which gets loaded at runtime via dlopen(),
@@ -564,7 +574,7 @@ BUILDTAGS="${BUILDTAGS} nomanagers"
     %gobuild_static -o bin/snapctl $GOFLAGS %{import_path}/cmd/snapctl
 )
 
-%if 0%{?rhel} || 0%{?amzn2023}
+%if 0%{?rhel}
 # There's no static link library for libseccomp in RHEL/CentOS...
 sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
 %endif
@@ -576,7 +586,7 @@ sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
     M4PARAM='-D distro_rhel7'
 %endif
 %if 0%{?rhel} == 7 || 0%{?rhel} == 8
-    # RHEL7 and RHEL8 are missing the BPF interfaces from their reference policy
+    # RHEL7, RHEL8 are missing the BPF interfaces from their reference policy
     M4PARAM="$M4PARAM -D no_bpf"
 %endif
     # Build SELinux module
@@ -723,11 +733,6 @@ rm %{buildroot}%{_libexecdir}/snapd/system-shutdown
 # Remove snapd apparmor service
 rm -f %{buildroot}%{_unitdir}/snapd.apparmor.service
 rm -f %{buildroot}%{_libexecdir}/snapd/snapd-apparmor
-
-# Remove prompt services
-rm %{buildroot}%{_unitdir}/snapd.aa-prompt-listener.service
-rm %{buildroot}%{_userunitdir}/snapd.aa-prompt-ui.service
-rm %{buildroot}%{_datadir}/dbus-1/services/io.snapcraft.Prompt.service
 
 # Install Polkit configuration
 install -m 644 -D data/polkit/io.snapcraft.snapd.policy %{buildroot}%{_datadir}/polkit-1/actions
@@ -997,6 +1002,26 @@ fi
 
 
 %changelog
+* Fri Feb 16 2024 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.61.2
+ - Fix to enable plug/slot sanitization for prepare-image
+ - Fix panic when device-service.access=offline
+ - Support offline remodeling
+ - Allow offline update only remodels without serial
+ - Fail early when remodeling to old model revision
+ - Fix to enable plug/slot sanitization for validate-seed
+ - Allow removal of core snap on classic systems
+ - Fix network-control interface denial for file lock on /run/netns
+ - Add well-known core24 snap-id
+ - Fix remodel snap installation order
+ - Prevent remodeling from UC18+ to UC16
+ - Fix cups auto-connect on classic with cups snap installed
+ - u2f-devices interface support for GoTrust Idem Key with USB-C
+ - Fix to restore services after unlink failure
+ - Add libcudnn.so to Nvidia libraries
+ - Fix skipping base snap download due to false snapd downgrade
+   conflict
+
 * Fri Nov 24 2023 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.61.1
  - Stop requiring default provider snaps on image building and first

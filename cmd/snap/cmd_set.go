@@ -46,6 +46,13 @@ Configuration option may be unset with exclamation mark:
     $ snap set snap-name author!
 `)
 
+var longAspectSetHelp = i18n.G(`
+If the first argument passed into set is an aspect identifier matching the
+format <account-id>/<bundle>/<aspect>, set will use the aspects configuration
+API. In this case, the command sets the values as provided for the dot-separated
+aspect paths.
+`)
+
 type cmdSet struct {
 	waitMixin
 	Positional struct {
@@ -58,6 +65,10 @@ type cmdSet struct {
 }
 
 func init() {
+	if err := validateAspectFeatureFlag(); err == nil {
+		longSetHelp += longAspectSetHelp
+	}
+
 	addCommand("set", shortSetHelp, longSetHelp, func() flags.Commander { return &cmdSet{} },
 		waitDescs.also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
@@ -78,7 +89,7 @@ func init() {
 		})
 }
 
-func (x *cmdSet) Execute(args []string) error {
+func (x *cmdSet) Execute([]string) error {
 	if x.String && x.Typed {
 		return fmt.Errorf(i18n.G("cannot use -t and -s together"))
 	}
@@ -112,16 +123,49 @@ func (x *cmdSet) Execute(args []string) error {
 	}
 
 	snapName := string(x.Positional.Snap)
-	id, err := x.client.SetConf(snapName, patchValues)
+
+	var chgID string
+	var err error
+	if isAspectID(snapName) {
+		if err := validateAspectFeatureFlag(); err != nil {
+			return err
+		}
+
+		// first argument is an aspectID, use the aspects API
+		aspectID := snapName
+		if err := validateAspectID(aspectID); err != nil {
+			return err
+		}
+
+		chgID, err = x.client.AspectSet(aspectID, patchValues)
+	} else {
+		chgID, err = x.client.SetConf(snapName, patchValues)
+	}
+
 	if err != nil {
 		return err
 	}
 
-	if _, err := x.wait(id); err != nil {
+	if _, err := x.wait(chgID); err != nil {
 		if err == noWait {
 			return nil
 		}
 		return err
+	}
+
+	return nil
+}
+
+func isAspectID(s string) bool {
+	return len(strings.Split(s, "/")) == 3
+}
+
+func validateAspectID(id string) error {
+	parts := strings.Split(id, "/")
+	for _, part := range parts {
+		if part == "" {
+			return fmt.Errorf(i18n.G("aspect identifier must conform to format: <account-id>/<bundle>/<aspect>"))
+		}
 	}
 
 	return nil

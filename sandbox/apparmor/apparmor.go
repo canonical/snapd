@@ -345,6 +345,16 @@ func probeKernelFeatures() ([]string, error) {
 	for _, fi := range dentries {
 		if fi.IsDir() {
 			features = append(features, fi.Name())
+			// also read any sub-features
+			subdenties, err := ioutil.ReadDir(filepath.Join(rootPath, featuresSysPath, fi.Name()))
+			if err != nil {
+				return []string{}, err
+			}
+			for _, subfi := range subdenties {
+				if subfi.IsDir() {
+					features = append(features, fi.Name()+":"+subfi.Name())
+				}
+			}
 		}
 	}
 	return features, nil
@@ -353,6 +363,7 @@ func probeKernelFeatures() ([]string, error) {
 func probeParserFeatures() ([]string, error) {
 	var featureProbes = []struct {
 		feature string
+		flags   []string
 		probe   string
 	}{
 		{
@@ -387,6 +398,11 @@ func probeParserFeatures() ([]string, error) {
 			feature: "userns",
 			probe:   "userns,",
 		},
+		{
+			feature: "unconfined",
+			flags:   []string{"unconfined"},
+			probe:   "# test unconfined",
+		},
 	}
 	_, internal, err := AppArmorParser()
 	if err != nil {
@@ -396,7 +412,7 @@ func probeParserFeatures() ([]string, error) {
 	for _, fp := range featureProbes {
 		// recreate the Cmd each time so we can exec it each time
 		cmd, _, _ := AppArmorParser()
-		if tryAppArmorParserFeature(cmd, fp.probe) {
+		if tryAppArmorParserFeature(cmd, fp.flags, fp.probe) {
 			features = append(features, fp.feature)
 		}
 	}
@@ -478,9 +494,14 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 }
 
 // tryAppArmorParserFeature attempts to pre-process a bit of apparmor syntax with a given parser.
-func tryAppArmorParserFeature(cmd *exec.Cmd, rule string) bool {
+func tryAppArmorParserFeature(cmd *exec.Cmd, flags []string, rule string) bool {
 	cmd.Args = append(cmd.Args, "--preprocess")
-	cmd.Stdin = bytes.NewBufferString(fmt.Sprintf("profile snap-test {\n %s\n}", rule))
+	flagSnippet := ""
+	if len(flags) > 0 {
+		flagSnippet = fmt.Sprintf("flags=(%s) ", strings.Join(flags, ","))
+	}
+	cmd.Stdin = bytes.NewBufferString(fmt.Sprintf("profile snap-test %s{\n %s\n}",
+		flagSnippet, rule))
 	output, err := cmd.CombinedOutput()
 	// older versions of apparmor_parser can exit with success even
 	// though they fail to parse

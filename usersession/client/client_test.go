@@ -449,6 +449,219 @@ func (s *clientSuite) TestServicesStopFailure(c *C) {
 	})
 }
 
+func (s *clientSuite) TestServicesRestart(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{
+  "type": "sync",
+  "result": null
+}`))
+	})
+	failures, err := s.cli.ServicesRestart(context.Background(), []string{"service1.service", "service2.service"})
+	c.Assert(err, IsNil)
+	c.Check(failures, HasLen, 0)
+}
+
+func (s *clientSuite) TestServicesRestartFailure(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(500)
+		w.Write([]byte(`{
+  "type": "error",
+  "result": {
+    "kind": "service-control",
+    "message": "failed to restart services",
+    "value": {
+      "restart-errors": {
+        "service2.service": "failed to restart"
+      }
+    }
+  }
+}`))
+	})
+	failures, err := s.cli.ServicesRestart(context.Background(), []string{"service1.service", "service2.service"})
+	c.Assert(err, ErrorMatches, "failed to restart services")
+	c.Check(failures, HasLen, 2)
+	failure0 := failures[0]
+	failure1 := failures[1]
+	if failure0.Uid == 1000 {
+		failure0, failure1 = failure1, failure0
+	}
+	c.Check(failure0, DeepEquals, client.ServiceFailure{
+		Uid:     42,
+		Service: "service2.service",
+		Error:   "failed to restart",
+	})
+	c.Check(failure1, DeepEquals, client.ServiceFailure{
+		Uid:     1000,
+		Service: "service2.service",
+		Error:   "failed to restart",
+	})
+}
+
+func (s *clientSuite) TestServicesRestartOrReload(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{
+  "type": "sync",
+  "result": null
+}`))
+	})
+	failures, err := s.cli.ServicesReloadOrRestart(context.Background(), []string{"service1.service", "service2.service"})
+	c.Assert(err, IsNil)
+	c.Check(failures, HasLen, 0)
+}
+
+func (s *clientSuite) TestServicesRestartOrReloadFailure(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(500)
+		w.Write([]byte(`{
+  "type": "error",
+  "result": {
+    "kind": "service-control",
+    "message": "failed to restart or reload services",
+    "value": {
+      "restart-errors": {
+        "service2.service": "failed to restart or reload"
+      }
+    }
+  }
+}`))
+	})
+	failures, err := s.cli.ServicesReloadOrRestart(context.Background(), []string{"service1.service", "service2.service"})
+	c.Assert(err, ErrorMatches, "failed to restart or reload services")
+	c.Check(failures, HasLen, 2)
+	failure0 := failures[0]
+	failure1 := failures[1]
+	if failure0.Uid == 1000 {
+		failure0, failure1 = failure1, failure0
+	}
+	c.Check(failure0, DeepEquals, client.ServiceFailure{
+		Uid:     42,
+		Service: "service2.service",
+		Error:   "failed to restart or reload",
+	})
+	c.Check(failure1, DeepEquals, client.ServiceFailure{
+		Uid:     1000,
+		Service: "service2.service",
+		Error:   "failed to restart or reload",
+	})
+}
+
+func (s *clientSuite) TestServiceStatus(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{
+  "type": "sync",
+  "result": [{
+	"active": false,
+	"daemon": "notify",
+	"enabled": true,
+	"id": "snap.foo.service",
+	"installed": true,
+	"name": "snap.foo.service",
+	"names": ["snap.foo.service"],
+	"needs-reload": false
+  }]
+}`))
+	})
+	si, failures, err := s.cli.ServiceStatus(context.Background(), []string{"snap.foo.service"})
+	c.Assert(err, IsNil)
+	c.Check(failures, HasLen, 0)
+	c.Check(si, DeepEquals, map[int][]client.ServiceUnitStatus{
+		42: {
+			{
+				Daemon:           "notify",
+				Id:               "snap.foo.service",
+				Name:             "snap.foo.service",
+				Names:            []string{"snap.foo.service"},
+				Enabled:          true,
+				Active:           false,
+				Installed:        true,
+				NeedDaemonReload: false,
+			},
+		},
+		1000: {
+			{
+				Daemon:           "notify",
+				Id:               "snap.foo.service",
+				Name:             "snap.foo.service",
+				Names:            []string{"snap.foo.service"},
+				Enabled:          true,
+				Active:           false,
+				Installed:        true,
+				NeedDaemonReload: false,
+			},
+		},
+	})
+}
+
+func (s *clientSuite) TestServiceStatusFatalError(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(500)
+		w.Write([]byte(`{
+  "type": "error",
+  "result": {
+    "message": "something bad happened"
+  }
+}`))
+	})
+	_, failures, err := s.cli.ServiceStatus(context.Background(), []string{"snap.foo.service"})
+	c.Check(err, ErrorMatches, `something bad happened`)
+	c.Check(failures, HasLen, 0)
+}
+
+func (s *clientSuite) TestServiceStatusWrongResultType(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write([]byte(`{
+  "type": "sync",
+  "result": ["a", "list"]
+}`))
+	})
+	_, failures, err := s.cli.ServiceStatus(context.Background(), []string{"snap.foo.service"})
+	c.Check(failures, DeepEquals, map[int][]client.ServiceFailure{})
+	c.Check(err, ErrorMatches, `json: cannot unmarshal string into Go value of type client.ServiceUnitStatus`)
+}
+
+func (s *clientSuite) TestServiceStatusFailure(c *C) {
+	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(500)
+		w.Write([]byte(`{
+  "type": "error",
+  "result": {
+    "kind": "service-status",
+    "message": "failed to restart or reload services",
+    "value": {
+      "status-errors": {
+        "service2.service": "failed to restart or reload"
+      }
+    }
+  }
+}`))
+	})
+
+	si, failures, err := s.cli.ServiceStatus(context.Background(), []string{"service1.service", "service2.service"})
+	c.Check(err, IsNil)
+	c.Check(si, DeepEquals, map[int][]client.ServiceUnitStatus{})
+	c.Check(failures, HasLen, 2)
+	for uid, fails := range failures {
+		failure0 := fails[0]
+		c.Check(failure0, DeepEquals, client.ServiceFailure{
+			Uid:     uid,
+			Service: "service2.service",
+			Error:   "failed to restart or reload",
+		})
+	}
+}
+
 func (s *clientSuite) TestPendingRefreshNotification(c *C) {
 	var n int32
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

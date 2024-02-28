@@ -39,12 +39,15 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
@@ -258,7 +261,234 @@ func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[strin
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, check.IsNil)
 	c.Check(apiData, check.DeepEquals, map[string]interface{}{
-		"snap-name": expectedInstanceName,
+		"snap-name":  expectedInstanceName,
+		"snap-names": []interface{}{expectedInstanceName},
+	})
+
+	summary = chg.Summary()
+	err = chg.Get("system-restart-immediate", &systemRestartImmediate)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		c.Error(err)
+	}
+	return summary, systemRestartImmediate
+}
+
+const sideLoadComponentBody = "" +
+	"----hello--\r\n" +
+	"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
+	"\r\n" +
+	"xyzzy\r\n" +
+	"----hello--\r\n" +
+	"Content-Disposition: form-data; name=\"dangerous\"\r\n" +
+	"\r\n" +
+	"true\r\n" +
+	"----hello--\r\n" +
+	"Content-Disposition: form-data; name=\"snap-path\"\r\n" +
+	"\r\n" +
+	"a/b/local+localcomp.comp\r\n" +
+	"----hello--\r\n"
+
+func (s *sideloadSuite) TestSideloadComponent(c *check.C) {
+	// try a multipart/form-data upload
+	body := sideLoadComponentBody
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	flags := snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap}
+	csi := snap.NewComponentSideInfo(naming.NewComponentRef("local", "comp"), snap.Revision{})
+
+	chgSummary, systemRestartImmediate := s.sideloadComponentCheck(c, body, head, "local", flags, csi)
+	c.Check(chgSummary, check.Equals, `Install "local" component from file "a/b/local+localcomp.comp"`)
+	c.Check(systemRestartImmediate, check.Equals, false)
+}
+
+func (s *sideloadSuite) TestSideloadComponentInstanceName(c *check.C) {
+	// try a multipart/form-data upload
+	body := sideLoadComponentBody +
+		"Content-Disposition: form-data; name=\"name\"\r\n" +
+		"\r\n" +
+		"local_instance\r\n" +
+		"----hello--\r\n"
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	flags := snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap}
+	csi := snap.NewComponentSideInfo(naming.NewComponentRef("local", "comp"), snap.Revision{})
+
+	chgSummary, systemRestartImmediate := s.sideloadComponentCheck(c, body, head, "local_instance", flags, csi)
+	c.Check(chgSummary, check.Equals, `Install "local_instance" component from file "a/b/local+localcomp.comp"`)
+	c.Check(systemRestartImmediate, check.Equals, false)
+}
+
+func (s *sideloadSuite) TestSideloadComponentNoDangerousFlag(c *check.C) {
+	logbuf, r := logger.MockLogger()
+	defer r()
+	body := "----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap-path\"\r\n" +
+		"\r\n" +
+		"a/b/local+localcomp.comp\r\n" +
+		"----hello--\r\n"
+	d := s.daemonWithFakeSnapManager(c)
+	s.markSeeded(d)
+
+	defer daemon.MockUnsafeReadSnapInfo(func(path string) (*snap.Info, error) {
+		return nil, daemon.BadRequest("mocking error to force reading as component")
+	})()
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(logbuf.String(), testutil.Contains,
+		"cannot sideload as a component: only unasserted installation of local component with --dangerous is supported at the moment")
+	c.Check(rspe.Message, check.Equals,
+		`cannot find signatures with metadata for snap "a/b/local+localcomp.comp"`)
+}
+
+func (s *sideloadSuite) TestSideloadComponentForNotInstalledSnap(c *check.C) {
+	logbuf, r := logger.MockLogger()
+	defer r()
+	body := "----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"dangerous\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap-path\"\r\n" +
+		"\r\n" +
+		"a/b/local+localcomp.comp\r\n" +
+		"----hello--\r\n"
+	d := s.daemonWithFakeSnapManager(c)
+	s.markSeeded(d)
+
+	defer daemon.MockUnsafeReadSnapInfo(func(path string) (*snap.Info, error) {
+		return nil, daemon.BadRequest("mocking error to force reading as component")
+	})()
+	defer daemon.MockReadComponentInfoFromCont(func(tempPath string) (*snap.ComponentInfo, error) {
+		return snap.NewComponentInfo(naming.NewComponentRef("local", "comp"),
+			snap.TestComponent, "1.0", "", ""), nil
+	})()
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	ssi := &snap.SideInfo{RealName: "other", Revision: snap.R(1),
+		SnapID: "some-other-snap-id"}
+	snapstate.Set(st, "other", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(ssi, nil)}),
+		Current: snap.R(1),
+	})
+	st.Unlock()
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(logbuf.String(), testutil.Contains,
+		`cannot sideload as a snap: cannot read snap file: mocking error to force reading as component`)
+	c.Check(logbuf.String(), testutil.Contains,
+		`cannot sideload as a component: snap owning "local+comp" not installed`)
+	c.Check(rspe.Message, check.Equals, `snap owning "local+comp" not installed`)
+	c.Check(rspe.Kind, check.Equals, client.ErrorKindSnapNotInstalled)
+}
+
+func (s *sideloadSuite) sideloadComponentCheck(c *check.C, content string,
+	head map[string]string, expectedInstanceName string, expectedFlags snapstate.Flags,
+	expectedCompSideInfo *snap.ComponentSideInfo) (
+	summary string, systemRestartImmediate bool) {
+
+	d := s.daemonWithFakeSnapManager(c)
+	s.markSeeded(d)
+
+	st := s.d.Overlord().State()
+
+	st.Lock()
+	defer st.Unlock()
+	ssi := &snap.SideInfo{RealName: "local", Revision: snap.R(1),
+		SnapID: "some-snap-id"}
+	snapstate.Set(st, expectedInstanceName, &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(ssi, nil)}),
+		Current: snap.R(1),
+	})
+	st.Unlock()
+
+	soon := 0
+	var origEnsureStateSoon func(*state.State)
+	origEnsureStateSoon, restore := daemon.MockEnsureStateSoon(func(st *state.State) {
+		soon++
+		origEnsureStateSoon(st)
+	})
+	defer restore()
+
+	c.Assert(expectedInstanceName != "", check.Equals, true, check.Commentf("expected instance name must be set"))
+
+	// setup done
+	installQueue := []string{}
+	defer daemon.MockUnsafeReadSnapInfo(func(path string) (*snap.Info, error) {
+		return nil, daemon.BadRequest("mocking error to force reading as component")
+	})()
+
+	defer daemon.MockReadComponentInfoFromCont(func(tempPath string) (*snap.ComponentInfo, error) {
+		return snap.NewComponentInfo(expectedCompSideInfo.Component,
+			snap.TestComponent, "1.0", "", ""), nil
+	})()
+
+	defer daemon.MockSnapstateInstallComponentPath(func(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info,
+		path string, flags snapstate.Flags) (*state.TaskSet, error) {
+		c.Check(csi, check.DeepEquals, expectedCompSideInfo)
+		c.Check(flags, check.DeepEquals, expectedFlags)
+		c.Check(path, testutil.FileEquals, "xyzzy")
+
+		installQueue = append(installQueue, csi.Component.String()+"::"+path)
+		t := st.NewTask("fake-install-component", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	})()
+
+	buf := bytes.NewBufferString(content)
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	for k, v := range head {
+		req.Header.Set(k, v)
+	}
+
+	rsp := s.asyncReq(c, req, nil)
+	n := 1
+	c.Assert(installQueue, check.HasLen, n)
+	c.Check(installQueue[n-1], check.Matches, "local\\+comp::.*/"+regexp.QuoteMeta(dirs.LocalInstallBlobTempPrefix)+".*")
+
+	st.Lock()
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+	c.Check(soon, check.Equals, 1)
+	c.Assert(chg.Tasks(), check.HasLen, n)
+
+	st.Unlock()
+	s.waitTrivialChange(c, chg)
+	st.Lock()
+
+	c.Check(chg.Kind(), check.Equals, "install-component")
+	var names []string
+	err = chg.Get("snap-names", &names)
+
+	c.Assert(err, check.IsNil)
+	c.Check(names, check.DeepEquals, []string{expectedInstanceName})
+	var apiData map[string]interface{}
+	err = chg.Get("api-data", &apiData)
+	c.Assert(err, check.IsNil)
+	c.Check(apiData, check.DeepEquals, map[string]interface{}{
+		"snap-name":      expectedInstanceName,
+		"snap-names":     []interface{}{expectedInstanceName},
+		"component-name": expectedCompSideInfo.Component.ComponentName,
 	})
 
 	summary = chg.Summary()
@@ -393,7 +623,8 @@ version: 1`, nil)
 	err = chg.Get("api-data", &apiData)
 	c.Assert(err, check.IsNil)
 	c.Check(apiData, check.DeepEquals, map[string]interface{}{
-		"snap-name": "foo",
+		"snap-name":  "foo",
+		"snap-names": []interface{}{"foo"},
 	})
 }
 
@@ -1109,7 +1340,8 @@ func (s *trySuite) TestTrySnap(c *check.C) {
 		err = chg.Get("api-data", &apiData)
 		c.Assert(err, check.IsNil, check.Commentf(t.desc))
 		c.Check(apiData, check.DeepEquals, map[string]interface{}{
-			"snap-name": "foo",
+			"snap-name":  "foo",
+			"snap-names": []interface{}{"foo"},
 		}, check.Commentf(t.desc))
 
 		c.Check(soon, check.Equals, 1, check.Commentf(t.desc))

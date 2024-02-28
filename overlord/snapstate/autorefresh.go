@@ -225,16 +225,18 @@ func (m *autoRefresh) clearRefreshHold() {
 func (m *autoRefresh) AtSeed() error {
 	// on classic hold refreshes for 2h after seeding
 	if release.OnClassic {
-		var t1 time.Time
-		tr := config.NewTransaction(m.state)
-		err := tr.Get("core", "refresh.hold", &t1)
-		if !config.IsNoOption(err) {
-			// already set or error
+		holdTime, err := effectiveRefreshHold(m.state)
+		if err != nil {
 			return err
+		}
+		if !holdTime.IsZero() {
+			// already set
+			return nil
 		}
 		// TODO: have a policy that if the snapd exe itself
 		// is older than X weeks/months we skip the holding?
 		now := time.Now().UTC()
+		tr := config.NewTransaction(m.state)
 		tr.Set("core", "refresh.hold", now.Add(2*time.Hour))
 		tr.Commit()
 		m.nextRefresh = now
@@ -745,15 +747,16 @@ func (e *timedBusySnapError) Is(err error) bool {
 	return ok
 }
 
-// inhibitRefresh returns an error if refresh is inhibited by running apps.
+// inhibitRefresh returns whether a refresh is forced due to inhibition
+// timeout or an error if refresh is inhibited by running apps.
 //
 // Internally the snap state is updated to remember when the inhibition first
 // took place. Apps can inhibit refreshes for up to "maxInhibition", beyond
 // that period the refresh will go ahead despite application activity.
-func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info *snap.Info) error {
+func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info *snap.Info) (inhibitionTimeout bool, err error) {
 	checkerErr := refreshAppsCheck(info)
 	if checkerErr == nil {
-		return nil
+		return false, nil
 	}
 
 	// carries the remaining inhibition time along with the BusySnapError
@@ -762,7 +765,7 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 	// if it's not a snap busy error or the refresh is manual, surface the error
 	// to the user instead of notifying or delaying the refresh
 	if !snapsup.IsAutoRefresh || !errors.As(checkerErr, &busyErr.err) {
-		return checkerErr
+		return false, checkerErr
 	}
 
 	// Decide on what to do depending on the state of the snap and the remaining
@@ -791,10 +794,10 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 		// important to return "nil" type here instead of
 		// setting busyErr to nil as otherwise we return a nil
 		// interface which is not the nil type
-		return nil
+		return true, nil
 	}
 
-	return busyErr
+	return false, busyErr
 }
 
 // for testing outside of snapstate

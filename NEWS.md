@@ -1,9 +1,28 @@
 # In progress:
 * Installation of local snap components
+* Started improving support for user daemons by introducing new control switches --user/--users/--system for service operations
 
 # Next:
 * state: add support for notices (from pebble)
 * daemon: add notices to the snapd API under `/v2/notices` and `/v2/notice`
+
+# New in snapd 2.61.2:
+* Fix to enable plug/slot sanitization for prepare-image
+* Fix panic when device-service.access=offline
+* Support offline remodeling
+* Allow offline update only remodels without serial
+* Fail early when remodeling to old model revision
+* Fix to enable plug/slot sanitization for validate-seed
+* Allow removal of core snap on classic systems
+* Fix network-control interface denial for file lock on /run/netns
+* Add well-known core24 snap-id
+* Fix remodel snap installation order
+* Prevent remodeling from UC18+ to UC16
+* Fix cups auto-connect on classic with cups snap installed
+* u2f-devices interface support for GoTrust Idem Key with USB-C
+* Fix to restore services after unlink failure
+* Add libcudnn.so to Nvidia libraries
+* Fix skipping base snap download due to false snapd downgrade conflict
 
 # New in snapd 2.61.1:
 * Stop requiring default provider snaps on image building and first boot if alternative providers are included and available

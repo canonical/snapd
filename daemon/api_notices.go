@@ -17,7 +17,10 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
+	"math"
 	"net/http"
+	"strconv"
 
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
@@ -28,18 +31,50 @@ var (
 	noticesCmd = &Command{
 		Path:       "/v2/notices",
 		GET:        getNotices,
-		ReadAccess: authenticatedAccess{},
+		ReadAccess: openAccess{},
 	}
 
 	noticeCmd = &Command{
 		Path:       "/v2/notices/{id}",
 		GET:        getNotice,
-		ReadAccess: authenticatedAccess{},
+		ReadAccess: openAccess{},
 	}
 )
 
 func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
+
+	requestUID, err := uidFromRequest(r)
+	if err != nil {
+		return Forbidden("cannot determine UID of request, so cannot retrieve notices")
+	}
+
+	// By default, return notices with the request UID and public notices.
+	userID := &requestUID
+
+	if len(query["user-id"]) > 0 {
+		if requestUID != 0 {
+			return Forbidden(`only admins may use the "user-id" filter`)
+		}
+		userID, err = sanitizeUserIDFilter(query["user-id"])
+		if err != nil {
+			return BadRequest(`invalid "user-id" filter: %v`, err)
+		}
+	}
+
+	if len(query["users"]) > 0 {
+		if requestUID != 0 {
+			return Forbidden(`only admins may use the "users" filter`)
+		}
+		if len(query["user-id"]) > 0 {
+			return BadRequest(`cannot use both "users" and "user-id" parameters`)
+		}
+		if query.Get("users") != "all" {
+			return BadRequest(`invalid "users" filter: must be "all"`)
+		}
+		// Clear the userID filter so all notices will be returned.
+		userID = nil
+	}
 
 	types, err := sanitizeTypesFilter(query["types"])
 	if err != nil {
@@ -56,9 +91,10 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	filter := &state.NoticeFilter{
-		Types: types,
-		Keys:  keys,
-		After: after,
+		UserID: userID,
+		Types:  types,
+		Keys:   keys,
+		After:  after,
 	}
 
 	timeout, err := parseOptionalDuration(query.Get("timeout"))
@@ -97,6 +133,34 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(notices)
 }
 
+// Get the UID of the request. If the UID is not known, return an error.
+func uidFromRequest(r *http.Request) (uint32, error) {
+	cred, err := ucrednetGet(r.RemoteAddr)
+	if err != nil {
+		return 0, fmt.Errorf("could not parse request UID")
+	}
+	return cred.Uid, nil
+}
+
+// Construct the user IDs filter which will be passed to state.Notices.
+// Must only be called if the query user ID argument is set.
+func sanitizeUserIDFilter(queryUserID []string) (*uint32, error) {
+	userIDStrs := strutil.MultiCommaSeparatedList(queryUserID)
+	if len(userIDStrs) != 1 {
+		return nil, fmt.Errorf(`must only include one "user-id"`)
+	}
+	userIDInt, err := strconv.ParseInt(userIDStrs[0], 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	if userIDInt < 0 || userIDInt > math.MaxUint32 {
+		return nil, fmt.Errorf("user ID is not a valid uint32: %d", userIDInt)
+	}
+	userID := uint32(userIDInt)
+	return &userID, nil
+}
+
+// Construct the types filter which will be passed to state.Notices.
 func sanitizeTypesFilter(queryTypes []string) ([]state.NoticeType, error) {
 	typeStrs := strutil.MultiCommaSeparatedList(queryTypes)
 	types := make([]state.NoticeType, 0, len(typeStrs))
@@ -116,6 +180,10 @@ func sanitizeTypesFilter(queryTypes []string) ([]state.NoticeType, error) {
 }
 
 func getNotice(c *Command, r *http.Request, user *auth.UserState) Response {
+	requestUID, err := uidFromRequest(r)
+	if err != nil {
+		return Forbidden("cannot determine UID of request, so cannot retrieve notice")
+	}
 	noticeID := muxVars(r)["id"]
 	st := c.d.overlord.State()
 	st.Lock()
@@ -124,5 +192,24 @@ func getNotice(c *Command, r *http.Request, user *auth.UserState) Response {
 	if notice == nil {
 		return NotFound("cannot find notice with id %q", noticeID)
 	}
+	if !noticeViewableByUser(notice, requestUID) {
+		return Forbidden("not allowed to access notice with id %q", noticeID)
+	}
 	return SyncResponse(notice)
+}
+
+// Only the user associated with the given notice, as well as the root user,
+// may view the notice. Snapd does also have authenticated admins which are not
+// root, but at the moment we do not have a level of notice visibility which
+// grants access to those admins, as well as root and the notice's user.
+func noticeViewableByUser(notice *state.Notice, requestUID uint32) bool {
+	userID, isSet := notice.UserID()
+	if !isSet {
+		return true
+	}
+	// Root is allowed to view any notice.
+	if requestUID == 0 {
+		return true
+	}
+	return requestUID == userID
 }

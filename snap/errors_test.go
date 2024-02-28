@@ -20,6 +20,7 @@
 package snap_test
 
 import (
+	"errors"
 	"fmt"
 
 	. "gopkg.in/check.v1"
@@ -39,4 +40,10 @@ func (s *errorsSuite) TestNotSnapErrorNoDetails(c *C) {
 func (s *errorsSuite) TestNotSnapErrorWithDetails(c *C) {
 	err := snap.NotSnapError{Path: "some-path", Err: fmt.Errorf(`cannot open "some path"`)}
 	c.Check(err, ErrorMatches, `cannot process snap or snapdir: cannot open "some path"`)
+}
+
+func (s *errorsSuite) TestNotInstalledErrorIs(c *C) {
+	err := snap.NotInstalledError{}
+	c.Check(err.Is(&snap.NotInstalledError{}), Equals, true)
+	c.Check(err.Is(errors.New("some error")), Equals, false)
 }

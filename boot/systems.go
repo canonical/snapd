@@ -515,3 +515,40 @@ func MarkRecoveryCapableSystem(systemLabel string) error {
 		"snapd_good_recovery_systems": systemsForEnv,
 	})
 }
+
+// UnmarkRecoveryCapableSystem removes a given system from the list of systems
+// that we can recover from.
+func UnmarkRecoveryCapableSystem(systemLabel string) error {
+	opts := &bootloader.Options{
+		Role: bootloader.RoleRecovery,
+	}
+
+	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
+	if err != nil {
+		return err
+	}
+	rbl, ok := bl.(bootloader.RecoveryAwareBootloader)
+	if !ok {
+		return nil
+	}
+	vars, err := rbl.GetBootVars("snapd_good_recovery_systems")
+	if err != nil {
+		return err
+	}
+	var systems []string
+	if vars["snapd_good_recovery_systems"] != "" {
+		systems = strings.Split(vars["snapd_good_recovery_systems"], ",")
+	}
+
+	for idx, sys := range systems {
+		if sys == systemLabel {
+			systems = append(systems[:idx], systems[idx+1:]...)
+			break
+		}
+	}
+
+	systemsForEnv := strings.Join(systems, ",")
+	return rbl.SetBootVars(map[string]string{
+		"snapd_good_recovery_systems": systemsForEnv,
+	})
+}

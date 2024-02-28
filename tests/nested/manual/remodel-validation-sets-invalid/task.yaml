@@ -37,4 +37,4 @@ execute: |
     # name=test-snapd-invalid-hello-world
     remote.push "${TESTSLIB}/assertions/test-snapd-remodel-invalid-vset-pc-${VERSION}.model"
 
-    not remote.exec sudo snap remodel "test-snapd-remodel-invalid-vset-pc-${VERSION}.model" 2>&1 | MATCH 'snap presence is invalid: hello-world'
+    not remote.exec sudo snap remodel "test-snapd-remodel-invalid-vset-pc-${VERSION}.model" 2>&1 | MATCH 'snap presence is marked invalid by validation set: hello-world'

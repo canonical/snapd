@@ -71,6 +71,7 @@ type fakeOp struct {
 
 	otherInstances         bool
 	unlinkFirstInstallUndo bool
+	unlinkSkipBinaries     bool
 	skipKernelExtraction   bool
 
 	services         []string
@@ -369,6 +370,9 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "some-snap-now-classic"
 	case "some-snap-was-classic-id":
 		name = "some-snap-was-classic"
+	case "some-snap-with-new-base-id":
+		name = "some-snap-with-new-base"
+		base = "core22"
 	case "core-snap-id":
 		name = "core"
 		typ = snap.TypeOS
@@ -395,7 +399,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "snap-content-plug"
 	case "snap-content-slot-id":
 		name = "snap-content-slot"
-	case "snapd-snap-id":
+	case "snapd-snap-id", "snapd-without-version-id":
 		name = "snapd"
 		typ = snap.TypeSnapd
 	case "kernel-id":
@@ -467,6 +471,10 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		Architectures: []string{"all"},
 		Epoch:         epoch,
 		Base:          base,
+	}
+
+	if strings.HasSuffix(cand.snapID, "-without-version-id") {
+		info.Version = ""
 	}
 
 	if name == "outdated-consumer" {
@@ -901,6 +909,22 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 	return snapType, &backend.InstallRecord{}, nil
 }
 
+func (f *fakeSnappyBackend) SetupKernelSnap(instanceName string, rev snap.Revision, meter progress.Meter) (err error) {
+	meter.Notify("setup-kernel-snap")
+	f.appendOp(&fakeOp{
+		op: "setup-kernel-snap",
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) RemoveKernelSnapSetup(instanceName string, rev snap.Revision, meter progress.Meter) error {
+	meter.Notify("remove-kernel-snap-setup")
+	f.appendOp(&fakeOp{
+		op: "remove-kernel-snap-setup",
+	})
+	return nil
+}
+
 func (f *fakeSnappyBackend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *backend.InstallRecord, err error) {
 	meter.Notify("setup-component")
 	f.appendOp(&fakeOp{
@@ -1148,11 +1172,19 @@ func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.Servi
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) ServicesEnableState(info *snap.Info, meter progress.Meter) (map[string]bool, error) {
+func (f *fakeSnappyBackend) QueryDisabledServices(info *snap.Info, meter progress.Meter) ([]string, error) {
+	var l []string
+
 	// return the disabled services as disabled and nothing else
 	m := make(map[string]bool)
 	for _, svc := range f.servicesCurrentlyDisabled {
 		m[svc] = false
+	}
+
+	for name, enabled := range m {
+		if !enabled {
+			l = append(l, name)
+		}
 	}
 
 	f.appendOp(&fakeOp{
@@ -1160,25 +1192,7 @@ func (f *fakeSnappyBackend) ServicesEnableState(info *snap.Info, meter progress.
 		disabledServices: f.servicesCurrentlyDisabled,
 	})
 
-	return m, f.maybeErrForLastOp()
-}
-
-func (f *fakeSnappyBackend) QueryDisabledServices(info *snap.Info, meter progress.Meter) ([]string, error) {
-	var l []string
-
-	m, err := f.ServicesEnableState(info, meter)
-	if err != nil {
-		return nil, err
-	}
-	for name, enabled := range m {
-		if !enabled {
-			l = append(l, name)
-		}
-	}
-
-	// XXX: add a fakeOp here?
-
-	return l, nil
+	return l, f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *backend.InstallRecord, dev snap.Device, p progress.Meter) error {
@@ -1229,6 +1243,7 @@ func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, linkCtx backend.LinkCont
 		path: info.MountDir(),
 
 		unlinkFirstInstallUndo: linkCtx.FirstInstall,
+		unlinkSkipBinaries:     linkCtx.SkipBinaries,
 	})
 	return f.maybeErrForLastOp()
 }

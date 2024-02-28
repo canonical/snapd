@@ -21,7 +21,6 @@ package snapstate
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -37,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/release"
@@ -69,6 +69,7 @@ type SnapManager struct {
 
 	ensuredMountsUpdated       bool
 	ensuredDesktopFilesUpdated bool
+	ensuredDownloadsCleaned    bool
 }
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
@@ -189,15 +190,23 @@ func (snapsup *SnapSetup) MountFile() string {
 type ComponentSetup struct {
 	// CompSideInfo for metadata not coming from the component
 	CompSideInfo *snap.ComponentSideInfo `json:"comp-side-info,omitempty"`
+	// CompType is needed as some types need special handling
+	CompType snap.ComponentType
 	// CompPath is the path to the file
 	CompPath string `json:"comp-path,omitempty"`
 }
 
-func NewComponentSetup(csi *snap.ComponentSideInfo, compPath string) *ComponentSetup {
+func NewComponentSetup(csi *snap.ComponentSideInfo, compType snap.ComponentType, compPath string) *ComponentSetup {
 	return &ComponentSetup{
 		CompSideInfo: csi,
+		CompType:     compType,
 		CompPath:     compPath,
 	}
+}
+
+// ComponentName returns the component name for compsu.
+func (compsu *ComponentSetup) ComponentName() string {
+	return compsu.CompSideInfo.Component.ComponentName
 }
 
 func (compsu *ComponentSetup) Revision() snap.Revision {
@@ -214,87 +223,12 @@ const (
 	NotBlocked
 )
 
-// RevisionSideState contains the side information for a snap and related components
-// installed in the system.
-type RevisionSideState struct {
-	Snap       *snap.SideInfo
-	Components []*snap.ComponentSideInfo
-}
-
-// revisionSideInfoMarshal is an ancillary structure used exclusively to
-// help marshaling of RevisionSideInfo.
-type revisionSideInfoMarshal struct {
-	// SideInfo is included for compatibility with older snapd state files
-	*snap.SideInfo
-	CompSideInfo []*snap.ComponentSideInfo `yaml:"components,omitempty" json:"components,omitempty"`
-}
-
-// MarshalJSON implements the json.Marshaler interface
-func (bsi RevisionSideState) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&revisionSideInfoMarshal{bsi.Snap, bsi.Components})
-}
-
-// UnmarshalJSON implements the json.Unmarshaler interface
-func (bsi *RevisionSideState) UnmarshalJSON(in []byte) error {
-	var aux revisionSideInfoMarshal
-	if err := json.Unmarshal(in, &aux); err != nil {
-		return err
-	}
-	bsi.Snap = aux.SideInfo
-	bsi.Components = aux.CompSideInfo
-	return nil
-}
-
-// NewRevisionSideInfo creates a RevisionSideInfo from snap and
-// related components side information.
-func NewRevisionSideInfo(snapSideInfo *snap.SideInfo, compSideInfo []*snap.ComponentSideInfo) *RevisionSideState {
-	return &RevisionSideState{Snap: snapSideInfo, Components: compSideInfo}
-}
-
-// SnapSequence is a container for a slice containing revisions of
-// snaps plus related components.
-// TODO add methods to access Revisions (length, copy, append) and
-// use them in handlers.go and snapstate.go.
-type SnapSequence struct {
-	// Revisions contains information for a snap revision and
-	// components SideInfo.
-	Revisions []*RevisionSideState
-}
-
-// MarshalJSON implements the json.Marshaler interface. We override the default
-// so serialization of the SnapState.Sequence field is compatible to what was
-// produced when it was defined as a []*snap.SideInfo. This is also the reason
-// to have SnapSequence.UnmarshalJSON and MarshalJSON/UnmarshalJSON for
-// RevisionSideState.
-func (snapSeq SnapSequence) MarshalJSON() ([]byte, error) {
-	return json.Marshal(snapSeq.Revisions)
-}
-
-// UnmarshalJSON implements the json.Unmarshaler interface
-func (snapSeq *SnapSequence) UnmarshalJSON(in []byte) error {
-	aux := []*RevisionSideState{}
-	if err := json.Unmarshal(in, &aux); err != nil {
-		return err
-	}
-	snapSeq.Revisions = aux
-	return nil
-}
-
-// SideInfos returns a slice with all the SideInfos for the snap sequence.
-func (snapSeq SnapSequence) SideInfos() []*snap.SideInfo {
-	sis := make([]*snap.SideInfo, len(snapSeq.Revisions))
-	for i, rev := range snapSeq.Revisions {
-		sis[i] = rev.Snap
-	}
-	return sis
-}
-
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
 	SnapType string `json:"type"` // Use Type and SetType
 	// Sequence contains installation side state for a snap revision and
 	// related components.
-	Sequence SnapSequence `json:"sequence"`
+	Sequence sequence.SnapSequence `json:"sequence"`
 
 	// RevertStatus maps revisions to RevertStatus for revisions that
 	// need special handling in Block().
@@ -326,7 +260,9 @@ type SnapState struct {
 	// aliases, see aliasesv2.go
 	Aliases             map[string]*AliasTarget `json:"aliases,omitempty"`
 	AutoAliasesDisabled bool                    `json:"auto-aliases-disabled,omitempty"`
-	AliasesPending      bool                    `json:"aliases-pending,omitempty"`
+	// AliasesPending when true indicates that aliases in internal state
+	// and on disk might not match.
+	AliasesPending bool `json:"aliases-pending,omitempty"`
 
 	// UserID of the user requesting the install
 	UserID int `json:"user-id,omitempty"`
@@ -343,6 +279,10 @@ type SnapState struct {
 
 	// LastRefreshTime records the time when the snap was last refreshed.
 	LastRefreshTime *time.Time `json:"last-refresh-time,omitempty"`
+
+	// LastRefreshTime is a map of component names to times that records
+	// the time when a component was last refreshed.
+	LastCompRefreshTime map[string]time.Time `json:"last-component-refresh-time,omitempty"`
 
 	// MigratedHidden is set if the user's snap dir has been migrated
 	// to ~/.snap/data.
@@ -409,13 +349,7 @@ func (snapst *SnapState) IsComponentInCurrentSeq(cref naming.ComponentRef) bool 
 	}
 
 	idx := snapst.LastIndex(snapst.Current)
-	for _, seqComp := range snapst.Sequence.Revisions[idx].Components {
-		if seqComp.Component == cref {
-			return true
-		}
-	}
-
-	return false
+	return snapst.Sequence.ComponentSideInfoForRev(idx, cref) != nil
 }
 
 // LocalRevision returns the "latest" local revision. Local revisions
@@ -441,6 +375,21 @@ func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
 	panic("cannot find snapst.Current in the snapst.Sequence.Revisions")
 }
 
+// CurrentComponentSideInfo returns the component side info for the revision indicated by
+// snapst.Current in the snap revision sequence if there is one.
+func (snapst *SnapState) CurrentComponentSideInfo(cref naming.ComponentRef) *snap.ComponentSideInfo {
+	if !snapst.IsInstalled() {
+		return nil
+	}
+
+	if idx := snapst.LastIndex(snapst.Current); idx >= 0 {
+		return snapst.Sequence.ComponentSideInfoForRev(idx, cref)
+	}
+
+	// should not really happen as the method checks if the snap is installed
+	panic("cannot find snapst.Current in snapst.Sequence.Revisions")
+}
+
 func (snapst *SnapState) previousSideInfo() *snap.SideInfo {
 	n := len(snapst.Sequence.Revisions)
 	if n < 2 {
@@ -457,25 +406,13 @@ func (snapst *SnapState) previousSideInfo() *snap.SideInfo {
 // LastIndex returns the last index of the given revision in the
 // snapst.Sequence.Revisions
 func (snapst *SnapState) LastIndex(revision snap.Revision) int {
-	for i := len(snapst.Sequence.Revisions) - 1; i >= 0; i-- {
-		if snapst.Sequence.Revisions[i].Snap.Revision == revision {
-			return i
-		}
-	}
-	return -1
+	return snapst.Sequence.LastIndex(revision)
 }
 
 // IsComponentRevPresent tells us if a given component revision is
 // present in the system for this snap.
 func (snapst *SnapState) IsComponentRevPresent(compSi *snap.ComponentSideInfo) bool {
-	for _, rev := range snapst.Sequence.Revisions {
-		for _, csi := range rev.Components {
-			if csi.Equal(compSi) {
-				return true
-			}
-		}
-	}
-	return false
+	return snapst.Sequence.IsComponentRevPresent(compSi)
 }
 
 // Block returns revisions that should be blocked on refreshes,
@@ -567,12 +504,47 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	return readInfo(name, cur, withAuxStoreInfo)
 }
 
+// CurrentComponentInfo returns the information about the current active
+// revision or the last active revision (if the component is inactive). It
+// returns the ErrNoCurrent error if the component is not found.
+func (snapst *SnapState) CurrentComponentInfo(cref naming.ComponentRef) (*snap.ComponentInfo, error) {
+	csi := snapst.CurrentComponentSideInfo(cref)
+	if csi == nil {
+		return nil, ErrNoCurrent
+	}
+
+	si, err := snapst.CurrentInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
+		csi.Revision, si.InstanceName(), si.SnapRevision())
+	return readComponentInfo(cpi.MountDir())
+}
+
 func (snapst *SnapState) InstanceName() string {
 	cur := snapst.CurrentSideInfo()
 	if cur == nil {
 		return ""
 	}
 	return snap.InstanceName(cur.RealName, snapst.InstanceKey)
+}
+
+// RefreshInhibitProceedTime is the time after which a pending refresh is forced
+// for a running snap in the next auto-refresh. Zero time indicates that there
+// are no pending refreshes.
+//
+// The provided state must be locked by the caller.
+func (snapst *SnapState) RefreshInhibitProceedTime(st *state.State) time.Time {
+	if snapst.RefreshInhibitedTime == nil {
+		// Zero time, no pending refreshes.
+		return time.Time{}
+	}
+	// TODO: state is needed for when configurable max inhibition
+	// is introduced (i.e. "core.refresh.max-inhibition-days").
+	proceedTime := snapst.RefreshInhibitedTime.Add(maxInhibition)
+	return proceedTime
 }
 
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
@@ -622,12 +594,14 @@ func Store(st *state.State, deviceCtx DeviceContext) StoreService {
 func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	preseed := snapdenv.Preseeding()
 	m := &SnapManager{
-		state:                st,
-		autoRefresh:          newAutoRefresh(st),
-		refreshHints:         newRefreshHints(st),
-		catalogRefresh:       newCatalogRefresh(st),
-		preseed:              preseed,
-		ensuredMountsUpdated: false,
+		state:                      st,
+		autoRefresh:                newAutoRefresh(st),
+		refreshHints:               newRefreshHints(st),
+		catalogRefresh:             newCatalogRefresh(st),
+		preseed:                    preseed,
+		ensuredMountsUpdated:       false,
+		ensuredDesktopFilesUpdated: false,
+		ensuredDownloadsCleaned:    false,
 	}
 	if preseed {
 		m.backend = backend.NewForPreseedMode()
@@ -666,6 +640,10 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("check-rerefresh", m.doCheckReRefresh, nil)
 	runner.AddHandler("conditional-auto-refresh", m.doConditionalAutoRefresh, nil)
 
+	// specific set-up for the kernel snap
+	runner.AddHandler("setup-kernel-snap", m.doSetupKernelSnap, m.undoSetupKernelSnap)
+	runner.AddHandler("remove-old-kernel-snap-setup", m.doCleanupOldKernelSnap, m.undoCleanupOldKernelSnap)
+
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
 	runner.AddHandler("cleanup", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
@@ -680,10 +658,10 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	// FIXME: drop the task entirely after a while
 	runner.AddHandler("clear-aliases", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
 	runner.AddHandler("set-auto-aliases", m.doSetAutoAliases, m.undoRefreshAliases)
-	runner.AddHandler("setup-aliases", m.doSetupAliases, m.doRemoveAliases)
+	runner.AddHandler("setup-aliases", m.doSetupAliases, m.undoSetupAliases)
 	runner.AddHandler("refresh-aliases", m.doRefreshAliases, m.undoRefreshAliases)
 	runner.AddHandler("prune-auto-aliases", m.doPruneAutoAliases, m.undoRefreshAliases)
-	runner.AddHandler("remove-aliases", m.doRemoveAliases, m.doSetupAliases)
+	runner.AddHandler("remove-aliases", m.doRemoveAliases, m.undoRemoveAliases)
 	runner.AddHandler("alias", m.doAlias, m.undoRefreshAliases)
 	runner.AddHandler("unalias", m.doUnalias, m.undoRefreshAliases)
 	runner.AddHandler("disable-aliases", m.doDisableAliases, m.undoRefreshAliases)
@@ -699,6 +677,9 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	// component tasks
 	runner.AddHandler("prepare-component", m.doPrepareComponent, nil)
 	runner.AddHandler("mount-component", m.doMountComponent, m.undoMountComponent)
+	runner.AddHandler("unlink-current-component", m.doUnlinkCurrentComponent, m.undoUnlinkCurrentComponent)
+	runner.AddHandler("link-component", m.doLinkComponent, m.undoLinkComponent)
+
 	// control serialisation
 	runner.AddBlocked(m.blockedTask)
 
@@ -716,6 +697,7 @@ func (m *SnapManager) StartUp() error {
 	if err := m.SyncCookies(m.state); err != nil {
 		return fmt.Errorf("failed to generate cookies: %q", err)
 	}
+
 	return nil
 }
 
@@ -1002,9 +984,23 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 		return nil
 	}
 
+	// Wait for the system to be seeded before transtioning
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil {
+		if !errors.Is(err, state.ErrNoState) {
+			// already seeded or other error
+			return err
+		}
+		return nil
+	}
+	if !seeded {
+		return nil
+	}
+
 	// check if snapd snap is installed
 	var snapst SnapState
-	err := Get(m.state, "snapd", &snapst)
+	err = Get(m.state, "snapd", &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -1096,6 +1092,20 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	}
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
+	}
+
+	// Wait for the system to be seeded before transtioning
+	var seeded bool
+	err = m.state.Get("seeded", &seeded)
+	if err != nil {
+		if !errors.Is(err, state.ErrNoState) {
+			// already seeded or other error
+			return err
+		}
+		return nil
+	}
+	if !seeded {
+		return nil
 	}
 
 	// check that there is no change in flight already, this is a
@@ -1269,7 +1279,7 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			}
 			squashfsPath := dirs.StripRootDir(info.MountFile())
 			whereDir := dirs.StripRootDir(info.MountDir())
-			if _, err = sysd.EnsureMountUnitFile(info.InstanceName(), info.MountDescription(), squashfsPath, whereDir, "squashfs"); err != nil {
+			if _, err = sysd.EnsureMountUnitFile(info.MountDescription(), squashfsPath, whereDir, "squashfs"); err != nil {
 				return err
 			}
 		}
@@ -1320,6 +1330,33 @@ func (m *SnapManager) ensureDesktopFilesUpdated() error {
 	return nil
 }
 
+func (m *SnapManager) ensureDownloadsCleaned() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.ensuredDownloadsCleaned {
+		return nil
+	}
+
+	// only run after we are seeded
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	if err := cleanDownloads(m.state); err != nil {
+		return err
+	}
+
+	m.ensuredDownloadsCleaned = true
+
+	return nil
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
 	if m.preseed {
@@ -1342,6 +1379,7 @@ func (m *SnapManager) Ensure() error {
 		m.ensureVulnerableSnapConfineVersionsRemovedOnClassic(),
 		m.ensureMountsUpdated(),
 		m.ensureDesktopFilesUpdated(),
+		m.ensureDownloadsCleaned(),
 	}
 
 	//FIXME: use firstErr helper

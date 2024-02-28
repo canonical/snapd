@@ -82,7 +82,7 @@
 
 
 Name:           snapd
-Version:        2.61.1
+Version:        2.61.2
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -286,11 +286,6 @@ done
 %make_install -f %{indigo_srcdir}/packaging/snapd.mk \
             GOPATH=%{indigo_gopath}:$GOPATH SNAPD_DEFINES_DIR=%{_builddir} \
             install
-%if ! %{with apparmor}
-rm %{buildroot}%{_unitdir}/snapd.aa-prompt-listener.service
-rm %{buildroot}%{_userunitdir}/snapd.aa-prompt-ui.service
-rm %{buildroot}%{_datadir}/dbus-1/services/io.snapcraft.Prompt.service
-%endif
 
 # Undo special permissions of the void directory. We handle that in RPM files
 # section below.
@@ -493,13 +488,10 @@ fi
 # When apparmor is enabled there are some additional entries.
 %if %{with apparmor}
 %config %{_sysconfdir}/apparmor.d
-%{_datadir}/dbus-1/services/io.snapcraft.Prompt.service
 %{_libexecdir}/snapd/snapd-apparmor
 %{_sbindir}/rcsnapd.apparmor
 %{_sysconfdir}/apparmor.d/%{apparmor_snapconfine_profile}
 %{_unitdir}/snapd.apparmor.service
-%{_unitdir}/snapd.aa-prompt-listener.service
-%{_userunitdir}/snapd.aa-prompt-ui.service
 %endif
 
 %changelog

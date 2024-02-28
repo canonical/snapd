@@ -116,7 +116,7 @@ const fwupdPermanentSlotAppArmor = `
   # Realtek MST plugin
   /dev/i2c-[0-9]* rw,
   # Redfish plugin
-  /dev/ipmi* rw,
+  /dev/ipmi* rwk,
 
   # MMC boot partitions
   /dev/mmcblk[0-9]{,[0-9],[0-9][0-9]}boot[0-9]* rwk,
@@ -388,9 +388,16 @@ func (iface *fwupdInterface) UDevPermanentSlot(spec *udev.Specification, slot *s
 	if !implicitSystemPermanentSlot(slot) {
 		spec.TagDevice(`KERNEL=="drm_dp_aux[0-9]*"`)
 		spec.TagDevice(`KERNEL=="gpiochip[0-9]*"`)
-		spec.TagDevice(`KERNEL=="tpm[0-9]*"`)
-		spec.TagDevice(`KERNEL=="nvme[0-9]*"`)
+		spec.TagDevice(`KERNEL=="i2c-[0-9]*"`)
+		spec.TagDevice(`KERNEL=="ipmi[0-9]*"`)
 		spec.TagDevice(`KERNEL=="mei[0-9]*"`)
+		spec.TagDevice(`KERNEL=="mtd[0-9]*"`)
+		spec.TagDevice(`KERNEL=="nvme[0-9]*"`)
+		spec.TagDevice(`KERNEL=="tpm[0-9]*"`)
+		spec.TagDevice(`KERNEL=="tpmrm[0-9]*"`)
+		spec.TagDevice(`KERNEL=="video[0-9]*"`)
+		spec.TagDevice(`KERNEL=="wmi/dell-smbios"`)
+		spec.TagDevice(`SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device"`)
 	}
 
 	return nil
@@ -409,7 +416,7 @@ func (iface *fwupdInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 	if implicitSystemConnectedSlot(slot) {
 		new = "unconfined"
 	} else {
-		new = slotAppLabelExpr(slot)
+		new = spec.SnapAppSet().SlotLabelExpression(slot)
 	}
 	snippet := strings.Replace(fwupdConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
@@ -453,7 +460,7 @@ func (iface *fwupdInterface) MountPermanentSlot(spec *mount.Specification, slot 
 func (iface *fwupdInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if !implicitSystemConnectedSlot(slot) {
 		old := "###PLUG_SECURITY_TAGS###"
-		new := plugAppLabelExpr(plug)
+		new := spec.SnapAppSet().PlugLabelExpression(plug)
 		snippet := strings.Replace(fwupdConnectedSlotAppArmor, old, new, -1)
 		spec.AddSnippet(snippet)
 	}

@@ -62,6 +62,19 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 			compInfo.Component.SnapName, info.RealName)
 	}
 
+	// Check that the component is specified in snap metadata
+	comp, ok := info.Components[csi.Component.ComponentName]
+	if !ok {
+		return nil, fmt.Errorf("%q is not a component for snap %q",
+			csi.Component.ComponentName, info.RealName)
+	}
+	// and that types in snap and component match
+	if comp.Type != compInfo.Type {
+		return nil,
+			fmt.Errorf("inconsistent component type (%q in snap, %q in component)",
+				comp.Type, compInfo.Type)
+	}
+
 	snapsup := &SnapSetup{
 		Base:        info.Base,
 		SideInfo:    &info.SideInfo,
@@ -74,6 +87,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 	}
 	compSetup := &ComponentSetup{
 		CompSideInfo: csi,
+		CompType:     compInfo.Type,
 		CompPath:     path,
 	}
 	// The file passed around is temporary, make sure it gets removed.

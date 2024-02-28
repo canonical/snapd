@@ -66,7 +66,7 @@ func (s *NetworkStatusSuite) TestName(c *C) {
 
 func (s *NetworkStatusSuite) TestAppArmorConnectedPlug(c *C) {
 	// If the slot is provided by a snap, access is restricted to the snap's label
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label=unconfined)`)
@@ -74,7 +74,7 @@ func (s *NetworkStatusSuite) TestAppArmorConnectedPlug(c *C) {
 }
 
 func (s *NetworkStatusSuite) TestAppArmorConnectedSlot(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.coreSlot.Snap()))
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }

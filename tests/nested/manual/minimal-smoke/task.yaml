@@ -19,25 +19,14 @@ prepare: |
 execute: |
     SPREAD="$(tests.nested download spread)"
 
-    # see https://docs.ubuntu.com/core/en/#advantages-for-iot for minimum
-    # requirements
-    MINIMAL_MEM=256
+    # Get the nested system to use
+    NESTED_SPREAD_SYSTEM="$(tests.nested nested-system)"
 
     # see https://ubuntu.com/core/docs/system-requirements for ubuntu-core
     # minimum requirements by version
-    if tests.nested is-nested uc20; then
+    MINIMAL_MEM=256
+    if tests.nested is-nested uc20 || tests.nested is-nested uc22; then
         MINIMAL_MEM=512
-        NESTED_SPREAD_SYSTEM=ubuntu-core-20-64
-    elif tests.nested is-nested uc22; then
-        MINIMAL_MEM=512
-        NESTED_SPREAD_SYSTEM=ubuntu-core-22-64
-    elif tests.nested is-nested uc18; then
-        NESTED_SPREAD_SYSTEM=ubuntu-core-18-64
-    elif tests.nested is-nested uc16; then
-        NESTED_SPREAD_SYSTEM=ubuntu-core-16-64
-    else
-        echo "unsupported nested system"
-        exit 1
     fi
 
     tests.nested create-vm core --param-mem "$MINIMAL_MEM"

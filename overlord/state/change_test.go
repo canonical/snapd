@@ -20,6 +20,7 @@
 package state_test
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -44,6 +45,15 @@ func (cs *changeSuite) TestNewChange(c *C) {
 	chg := st.NewChange("install", "summary...")
 	c.Check(chg.Kind(), Equals, "install")
 	c.Check(chg.Summary(), Equals, "summary...")
+
+	// Check notice is recorded on change spawn
+	notices := st.Notices(nil)
+	c.Assert(notices, HasLen, 1)
+	n := noticeToMap(c, notices[0])
+	c.Check(n["type"], Equals, "change-update")
+	c.Check(n["key"], Equals, chg.ID())
+	c.Check(n["last-data"], DeepEquals, map[string]any{"kind": "install"})
+	c.Check(n["occurrences"], Equals, 1.0)
 }
 
 func (cs *changeSuite) TestReadyTime(c *C) {
@@ -1449,4 +1459,123 @@ func (cs *changeSuite) TestIsWaitingUndoMultipleDependencies(c *C) {
 	t3.SetStatus(state.UndoneStatus)
 	t4.SetStatus(state.UndoneStatus)
 	c.Check(chg.Status(), Equals, state.WaitStatus)
+}
+
+func (cs *changeSuite) TestChangeStatusRecordsChangeUpdateNotice(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change", "...")
+
+	t1 := st.NewTask("task1", "...")
+	t2 := st.NewTask("task2", "...")
+	t2.WaitFor(t1)
+	t3 := st.NewTask("task3", "...")
+	t3.WaitFor(t2)
+
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+	chg.AddTask(t3)
+
+	// Verify that change status is alternating Doing -> Do -> Doing
+	t1.SetStatus(state.DoingStatus)
+	c.Assert(chg.Status(), Equals, state.DoingStatus)
+	t1.SetStatus(state.DoneStatus)
+	c.Assert(chg.Status(), Equals, state.DoStatus)
+
+	t2.SetStatus(state.DoingStatus)
+	c.Assert(chg.Status(), Equals, state.DoingStatus)
+	t2.SetStatus(state.DoneStatus)
+	c.Assert(chg.Status(), Equals, state.DoStatus)
+
+	t3.SetStatus(state.DoingStatus)
+	c.Assert(chg.Status(), Equals, state.DoingStatus)
+	t3.SetStatus(state.DoneStatus)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	// Check notice is recorded on change status updates and ignores
+	// the alternating status
+	notices := st.Notices(nil)
+	c.Assert(notices, HasLen, 1)
+	n := noticeToMap(c, notices[0])
+	c.Check(n["type"], Equals, "change-update")
+	c.Check(n["key"], Equals, chg.ID())
+	c.Check(n["last-data"], DeepEquals, map[string]any{"kind": "change"})
+	// Default -> Doing -> Done
+	c.Check(n["occurrences"], Equals, 3.0)
+}
+
+func (cs *changeSuite) TestChangeStatusUndoRecordsChangeUpdateNotice(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change", "...")
+
+	t1 := st.NewTask("task1", "...")
+	t2 := st.NewTask("task2", "...")
+	t2.WaitFor(t1)
+	t3 := st.NewTask("task3", "...")
+	t3.WaitFor(t2)
+
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+	chg.AddTask(t3)
+
+	// Verify that change status is alternating Doing -> Do -> Doing
+	t1.SetStatus(state.DoingStatus)
+	c.Assert(chg.Status(), Equals, state.DoingStatus)
+	t1.SetStatus(state.DoneStatus)
+	c.Assert(chg.Status(), Equals, state.DoStatus)
+
+	t2.SetStatus(state.DoingStatus)
+	c.Assert(chg.Status(), Equals, state.DoingStatus)
+	t2.SetStatus(state.DoneStatus)
+	c.Assert(chg.Status(), Equals, state.DoStatus)
+
+	// Trigger an error and abort change
+	chg.Abort()
+	t3.SetStatus(state.ErrorStatus)
+	c.Assert(chg.Status(), Equals, state.UndoStatus)
+
+	// Verify that change status is alternating Undo -> Undoing -> Undo
+	t2.SetStatus(state.UndoingStatus)
+	c.Assert(chg.Status(), Equals, state.UndoingStatus)
+	t2.SetStatus(state.UndoneStatus)
+	c.Assert(chg.Status(), Equals, state.UndoStatus)
+
+	t1.SetStatus(state.UndoingStatus)
+	c.Assert(chg.Status(), Equals, state.UndoingStatus)
+	t1.SetStatus(state.UndoneStatus)
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+
+	// Check notice is recorded on change status updates and ignores
+	// the alternating status
+	notices := st.Notices(nil)
+	c.Assert(notices, HasLen, 1)
+	n := noticeToMap(c, notices[0])
+	c.Check(n["type"], Equals, "change-update")
+	c.Check(n["key"], Equals, chg.ID())
+	c.Check(n["last-data"], DeepEquals, map[string]any{"kind": "change"})
+	// Default -> Doing -> Undo -> Undoing -> Error
+	c.Check(n["occurrences"], Equals, 5.0)
+}
+
+func (cs *changeSuite) TestChangeLastRecordedNoitceStatusPersisted(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change", "summary...")
+	chg.SetStatus(state.DoingStatus)
+
+	data, err := json.Marshal(chg)
+	c.Assert(err, IsNil)
+
+	var chgData map[string]any
+	err = json.Unmarshal(data, &chgData)
+	c.Assert(err, IsNil)
+	obtainedStatus := state.Status(chgData["last-recorded-notice-status"].(float64))
+	c.Check(obtainedStatus, Equals, state.DoingStatus)
 }

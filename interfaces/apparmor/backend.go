@@ -346,7 +346,7 @@ type profilePathsResults struct {
 
 func (b *Backend) prepareProfiles(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) (prof *profilePathsResults, err error) {
 	snapName := snapInfo.InstanceName()
-	spec, err := repo.SnapSpecification(b.Name(), snapName)
+	spec, err := repo.SnapSpecification(b.Name(), snapInfo)
 	if err != nil {
 		return nil, fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
 	}
@@ -608,11 +608,6 @@ var (
 	coreRuntimePattern = regexp.MustCompile("^core([0-9][0-9])?$")
 )
 
-const (
-	attachPattern  = "(attach_disconnected,mediate_deleted)"
-	attachComplain = "(attach_disconnected,mediate_deleted,complain)"
-)
-
 func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts interfaces.ConfinementOptions) (content map[string]osutil.FileState) {
 	content = make(map[string]osutil.FileState, len(snapInfo.Apps)+len(snapInfo.Hooks)+1)
 
@@ -683,13 +678,6 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 	if opts.Classic && !opts.JailMode {
 		policy = classicTemplate
 		ignoreSnippets = true
-	}
-	// If a snap is in devmode (or is using classic confinement) then make the
-	// profile non-enforcing where violations are logged but not denied.
-	// This is also done for classic so that no confinement applies. Just in
-	// case the profile we start with is not permissive enough.
-	if (opts.DevMode || opts.Classic) && !opts.JailMode {
-		policy = strings.Replace(policy, attachPattern, attachComplain, -1)
 	}
 	policy = templatePattern.ReplaceAllStringFunc(policy, func(placeholder string) string {
 		switch placeholder {
@@ -783,7 +771,7 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 				// initial seed change and continue on. This code will be
 				// removed/adapted before it is merged to the main branch,
 				// it is only meant to exist on the security release branch.
-				msg := fmt.Sprintf("neither snapd nor core snap available while preparing apparmor profile for devmode snap %s, panicing to restart snapd to continue seeding", snapInfo.InstanceName())
+				msg := fmt.Sprintf("neither snapd nor core snap available while preparing apparmor profile for devmode snap %s, panicking to restart snapd to continue seeding", snapInfo.InstanceName())
 				panic(msg)
 			}
 
@@ -855,6 +843,39 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 			return templateVariables(snapInfo, securityTag, cmdName)
 		case "###PROFILEATTACH###":
 			return fmt.Sprintf("profile \"%s\"", securityTag)
+		case "###FLAGS###":
+			// default flags
+			flags := []string{"attach_disconnected", "mediate_deleted"}
+			if spec.Unconfined() == UnconfinedEnabled {
+				// need both parser and kernel support for unconfined
+				pfeatures, _ := parserFeatures()
+				kfeatures, _ := kernelFeatures()
+				if strutil.ListContains(pfeatures, "unconfined") &&
+					strutil.ListContains(kfeatures, "policy:unconfined_restrictions") {
+					flags = append(flags, "unconfined")
+				}
+			}
+			// If a snap is in devmode (or is using classic confinement) then make the
+			// profile non-enforcing where violations are logged but not denied.
+			// This is also done for classic so that no confinement applies. Just in
+			// case the profile we start with is not permissive enough.
+			if (opts.DevMode || opts.Classic) && !opts.JailMode {
+				if !strutil.ListContains(flags, "unconfined") {
+					// Profile modes unconfined and complain
+					// conflict with each other and are
+					// rejected by the parser, in any case
+					// this is fine since we already
+					// requested unconfined based on the
+					// spec and complain would no enforce
+					// any rules anyway.
+					flags = append(flags, "complain")
+				}
+			}
+			if len(flags) > 0 {
+				return "flags=(" + strings.Join(flags, ",") + ")"
+			} else {
+				return ""
+			}
 		case "###PYCACHEDENY###":
 			if spec.SuppressPycacheDeny() {
 				return ""
@@ -938,8 +959,8 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 }
 
 // NewSpecification returns a new, empty apparmor specification.
-func (b *Backend) NewSpecification() interfaces.Specification {
-	return &Specification{}
+func (b *Backend) NewSpecification(appSet *interfaces.SnapAppSet) interfaces.Specification {
+	return &Specification{appSet: appSet}
 }
 
 // SandboxFeatures returns the list of apparmor features supported by the kernel.

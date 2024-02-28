@@ -1,3 +1,26 @@
+snapd (2.61.2~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #2039017
+    - Fix to enable plug/slot sanitization for prepare-image
+    - Fix panic when device-service.access=offline
+    - Support offline remodeling
+    - Allow offline update only remodels without serial
+    - Fail early when remodeling to old model revision
+    - Fix to enable plug/slot sanitization for validate-seed
+    - Allow removal of core snap on classic systems
+    - Fix network-control interface denial for file lock on /run/netns
+    - Add well-known core24 snap-id
+    - Fix remodel snap installation order
+    - Prevent remodeling from UC18+ to UC16
+    - Fix cups auto-connect on classic with cups snap installed
+    - u2f-devices interface support for GoTrust Idem Key with USB-C
+    - Fix to restore services after unlink failure
+    - Add libcudnn.so to Nvidia libraries
+    - Fix skipping base snap download due to false snapd downgrade
+      conflict
+
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Fri, 16 Feb 2024 20:22:23 +0200
+
 snapd (2.61.1~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #2024007

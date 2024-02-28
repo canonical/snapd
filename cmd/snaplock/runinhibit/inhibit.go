@@ -22,11 +22,13 @@
 package runinhibit
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -226,21 +228,15 @@ func IsLocked(snapName string) (Hint, InhibitInfo, error) {
 		return "", InhibitInfo{}, err
 	}
 	// Read hint
-	buf, err := ioutil.ReadAll(hintFlock.File())
+	hint, err := hintFromFile(hintFlock.File())
 	if err != nil {
 		return "", InhibitInfo{}, err
 	}
-	hint := Hint(string(buf))
 	if hint == HintNotInhibited {
 		return hint, InhibitInfo{}, nil
 	}
 	// Read inhibit info
-	buf, err = ioutil.ReadFile(InhibitInfoFile(snapName, hint))
-	if err != nil {
-		return "", InhibitInfo{}, err
-	}
-	var info InhibitInfo
-	err = json.Unmarshal(buf, &info)
+	info, err := readInhibitInfo(snapName, hint)
 	if err != nil {
 		return "", InhibitInfo{}, err
 	}
@@ -282,4 +278,127 @@ func RemoveLockFile(snapName string) error {
 	}
 
 	return nil
+}
+
+// needed for better mocking
+type ticker interface {
+	Wait() <-chan time.Time
+}
+
+type timeTicker struct {
+	interval time.Duration
+}
+
+func (t *timeTicker) Wait() <-chan time.Time {
+	return time.After(t.interval)
+}
+
+var newTicker = func(interval time.Duration) ticker {
+	return &timeTicker{interval}
+}
+
+// WaitWhileInhibited blocks until snap is not inhibited anymore and then returns
+// a locked hint file lock.
+//
+// The `inhibited` callback is run if the snap is initially inhibited, otherwise the `notInhibited`
+// callback is run. In either case, this callback runs with the hint file lock held`.
+//
+// If inhibited callback returns true, WaitWhileInhibited returns instantly without
+// waiting for the snap not being inhibited.
+//
+// NOTE: A snap without a hint file is considered not inhibited and a nil FileLock is returned.
+//
+// NOTE: It is the caller's responsibility to release the returned file lock.
+var WaitWhileInhibited = func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint Hint, inhibitInfo *InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, err error) {
+	ticker := newTicker(interval)
+
+	// Release lock if we return early with an error
+	defer func() {
+		// Keep lock if no errors occur
+		if err != nil && flock != nil {
+			flock.Close()
+			flock = nil
+		}
+	}()
+
+	for {
+		flock, err = osutil.OpenExistingLockForReading(HintFile(snapName))
+		// We must return flock alongside errors so that cleanup defer can close it.
+		if os.IsNotExist(err) {
+			if notInhibited != nil {
+				if err := notInhibited(ctx); err != nil {
+					// No flock opened, it is okay to return nil here
+					return nil, err
+				}
+			}
+			return nil, nil
+		}
+		if err != nil {
+			// No flock opened, it is okay to return nil here
+			return nil, err
+		}
+
+		// Hold read lock
+		if err := flock.ReadLock(); err != nil {
+			return flock, err
+		}
+
+		// Read inhibition hint
+		hint, err := hintFromFile(flock.File())
+		if err != nil {
+			return flock, err
+		}
+
+		if hint == HintNotInhibited {
+			if notInhibited != nil {
+				if err := notInhibited(ctx); err != nil {
+					return flock, err
+				}
+			}
+			return flock, nil
+		} else {
+			if inhibited != nil {
+				inhibitInfo, err := readInhibitInfo(snapName, hint)
+				if err != nil {
+					return flock, err
+				}
+				cont, err := inhibited(ctx, hint, &inhibitInfo)
+				if err != nil {
+					return flock, err
+				}
+				if cont {
+					return flock, nil
+				}
+			}
+		}
+
+		// Close the lock file explicitly so we can try to lock again after waiting for the interval.
+		flock.Close()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.Wait():
+		}
+	}
+}
+
+func hintFromFile(hintFile *os.File) (Hint, error) {
+	buf, err := ioutil.ReadAll(hintFile)
+	if err != nil {
+		return "", err
+	}
+	return Hint(string(buf)), nil
+}
+
+func readInhibitInfo(snapName string, hint Hint) (InhibitInfo, error) {
+	buf, err := ioutil.ReadFile(InhibitInfoFile(snapName, hint))
+	if err != nil {
+		return InhibitInfo{}, err
+	}
+	var info InhibitInfo
+	err = json.Unmarshal(buf, &info)
+	if err != nil {
+		return InhibitInfo{}, err
+	}
+	return info, nil
 }

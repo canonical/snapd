@@ -144,8 +144,15 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 
+	// hybrid core/classic systems might have a system-seed-null; in that case,
+	// we cannot create a recovery system
+	hasSystemSeed, err := checkForSystemSeed(st, remodCtx)
+	if err != nil {
+		return fmt.Errorf("cannot find ubuntu seed role: %w", err)
+	}
+
 	var recoverySetup *recoverySystemSetup
-	if new.Grade() != asserts.ModelGradeUnset {
+	if new.Grade() != asserts.ModelGradeUnset && hasSystemSeed {
 		var triedSystems []string
 		if err := st.Get("tried-systems", &triedSystems); err != nil {
 			return fmt.Errorf("cannot obtain tried recovery systems: %v", err)
@@ -313,7 +320,7 @@ func (m *DeviceManager) doPrepareRemodeling(t *state.Task, tmb *tomb.Tomb) error
 
 	chgID := t.Change().ID()
 
-	tss, err := remodelTasks(tmb.Context(nil), st, current, remodCtx.Model(), nil, nil, remodCtx, chgID)
+	tss, err := remodelTasks(tmb.Context(nil), st, current, remodCtx.Model(), remodCtx, chgID, nil, nil, RemodelOptions{})
 	if err != nil {
 		return err
 	}

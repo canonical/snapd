@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/strutil"
@@ -99,15 +100,15 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 
 // userTypeRefParser parses references to user-defined types (e.g., $my-type).
 type userTypeRefParser struct {
-	parser
+	Schema
 
 	stringBased bool
 }
 
-func newUserTypeRefParser(p parser) *userTypeRefParser {
-	_, ok := p.(*stringSchema)
+func newUserTypeRefParser(s Schema) *userTypeRefParser {
+	_, ok := s.(*stringSchema)
 	return &userTypeRefParser{
-		parser:      p,
+		Schema:      s,
 		stringBased: ok,
 	}
 }
@@ -116,6 +117,11 @@ func newUserTypeRefParser(p parser) *userTypeRefParser {
 // define constraints (these are defined under "types" at the top level).
 func (*userTypeRefParser) expectsConstraints() bool {
 	return false
+}
+
+// parseConstraints is a no-op because type references can't define constraints.
+func (v *userTypeRefParser) parseConstraints(map[string]json.RawMessage) error {
+	return nil
 }
 
 // isStringBased returns true if this reference's base type is a string.
@@ -138,19 +144,36 @@ func (s *StorageSchema) Validate(raw []byte) error {
 	return s.topLevel.Validate(raw)
 }
 
-func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
+// SchemaAt returns the types that may be stored at the specified path.
+func (s *StorageSchema) SchemaAt(path []string) ([]Schema, error) {
+	return s.topLevel.SchemaAt(path)
+}
+
+func (s *StorageSchema) Type() SchemaType {
+	return s.topLevel.Type()
+}
+
+func (s *StorageSchema) parse(raw json.RawMessage) (Schema, error) {
+	jsonType, err := parseTypeDefinition(raw)
+	if err != nil {
+		return nil, fmt.Errorf(`cannot parse type definition: %w`, err)
+	}
+
 	var typ string
 	var schemaDef map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &schemaDef); err != nil {
-		var typeErr *json.UnmarshalTypeError
-		if !errors.As(err, &typeErr) {
-			return nil, fmt.Errorf(`cannot parse aspect schema: %w`, err)
-		}
+	switch typedVal := jsonType.(type) {
+	case string:
+		typ = typedVal
 
-		if err := json.Unmarshal(raw, &typ); err != nil {
-			return nil, fmt.Errorf(`cannot parse aspect schema: types constraint must be expressed as maps or strings: %w`, err)
+	case []json.RawMessage:
+		alts, err := s.parseAlternatives(typedVal)
+		if err != nil {
+			return nil, fmt.Errorf(`cannot parse alternative types: %w`, err)
 		}
-	} else {
+		return alts, nil
+
+	case map[string]json.RawMessage:
+		schemaDef = typedVal
 		rawType, ok := schemaDef["type"]
 		if !ok {
 			typ = "map"
@@ -159,6 +182,10 @@ func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
 				return nil, fmt.Errorf(`cannot parse "type" constraint in type definition: %w`, err)
 			}
 		}
+
+	default:
+		// cannot happen save for programmer error
+		return nil, fmt.Errorf(`cannot parse schema definition of JSON type %T`, jsonType)
 	}
 
 	schema, err := s.newTypeSchema(typ)
@@ -176,6 +203,72 @@ func (s *StorageSchema) parse(raw json.RawMessage) (parser, error) {
 	}
 
 	return schema, nil
+}
+
+// parseTypeDefinition tries to parse the raw JSON as a list, a map or a string
+// (the accepted ways to express types).
+func parseTypeDefinition(raw json.RawMessage) (interface{}, error) {
+	var typeErr *json.UnmarshalTypeError
+
+	var l []json.RawMessage
+	if err := json.Unmarshal(raw, &l); err == nil {
+		return l, nil
+	} else if !errors.As(err, &typeErr) {
+		return nil, err
+	}
+
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err == nil {
+		return m, nil
+	} else if !errors.As(err, &typeErr) {
+		return nil, err
+	}
+
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s, nil
+	} else {
+		return nil, fmt.Errorf(`type must be expressed as map, string or list: %w`, err)
+	}
+}
+
+// parseAlternatives takes a list of alternative types, parses them and creates
+// a schema that accepts values matching any alternative.
+func (s *StorageSchema) parseAlternatives(alternatives []json.RawMessage) (*alternativesSchema, error) {
+	alt := &alternativesSchema{schemas: make([]Schema, 0, len(alternatives))}
+	for _, altRaw := range alternatives {
+		schema, err := s.parse(altRaw)
+		if err != nil {
+			return nil, err
+		}
+
+		alt.schemas = append(alt.schemas, schema)
+	}
+
+	if len(alt.schemas) == 0 {
+		return nil, fmt.Errorf(`alternative type list cannot be empty`)
+	}
+
+	flatAlts := flattenAlternatives(alt)
+	alt.schemas = flatAlts
+
+	return alt, nil
+}
+
+// flattenAlternatives takes the schemas that comprise the alternative schema
+// and flattens them into a single list.
+func flattenAlternatives(alt *alternativesSchema) []Schema {
+	var flat []Schema
+	for _, schema := range alt.schemas {
+		if altSchema, ok := schema.(*alternativesSchema); ok {
+			nestedAlts := flattenAlternatives(altSchema)
+			flat = append(flat, nestedAlts...)
+		} else {
+			flat = append(flat, schema)
+		}
+	}
+
+	return flat
 }
 
 func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
@@ -211,6 +304,92 @@ func (s *StorageSchema) getUserType(ref string) (*userTypeRefParser, error) {
 	return nil, fmt.Errorf("cannot find user-defined type %q", ref)
 }
 
+type alternativesSchema struct {
+	// schemas holds schemas for the types allowed for the corresponding value.
+	schemas []Schema
+}
+
+// Validate that raw matches at least one of the schemas in the alternative list.
+func (v *alternativesSchema) Validate(raw []byte) error {
+	var errs []error
+	for _, schema := range v.schemas {
+		err := schema.Validate(raw)
+		if err == nil {
+			return nil
+		}
+
+		errs = append(errs, err)
+	}
+
+	var sb strings.Builder
+	sb.WriteString("no matching schema:")
+	for i, err := range errs {
+		sb.WriteString("\n\t")
+		if i > 0 {
+			sb.WriteString("or ")
+		}
+
+		if verr, ok := err.(*ValidationError); ok {
+			err = verr.Err
+
+			if len(verr.Path) != 0 {
+				sb.WriteString("...\"")
+				for i, part := range verr.Path {
+					switch v := part.(type) {
+					case string:
+						if i > 0 {
+							sb.WriteRune('.')
+						}
+
+						sb.WriteString(v)
+					case int:
+						sb.WriteString(fmt.Sprintf("[%d]", v))
+					default:
+						// can only happen due to bug
+						sb.WriteString(".<n/a>")
+					}
+				}
+				sb.WriteString("\": ")
+			}
+		}
+
+		sb.WriteString(err.Error())
+	}
+
+	return validationErrorf(sb.String())
+}
+
+// SchemaAt returns the list of schemas at the end of the path or an error if
+// the path cannot be followed.
+func (v *alternativesSchema) SchemaAt(path []string) ([]Schema, error) {
+	if len(path) == 0 {
+		return v.schemas, nil
+	}
+
+	var types []Schema
+	var lastErr error
+	for _, alt := range v.schemas {
+		altTypes, err := alt.SchemaAt(path)
+		if err != nil {
+			// some schemas may permit the path
+			lastErr = err
+			continue
+		}
+		types = append(types, altTypes...)
+	}
+
+	// TODO: find better way to combine errors
+	if len(types) == 0 {
+		return nil, lastErr
+	}
+
+	return types, nil
+}
+
+func (v *alternativesSchema) Type() SchemaType {
+	return Alt
+}
+
 type mapSchema struct {
 	// topSchema is the schema for the top-level schema which contains the user types.
 	topSchema *StorageSchema
@@ -237,13 +416,17 @@ func (v *mapSchema) Validate(raw []byte) error {
 	if err := json.Unmarshal(raw, &mapValue); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
 		if errors.As(err, &typeErr) {
-			return validationErrorf("expected map type but got %s", typeErr.Value)
+			return validationErrorf("expected map type but value was %s", typeErr.Value)
 		}
 		return validationErrorFrom(err)
 	}
 
 	if mapValue == nil {
 		return validationErrorf(`cannot accept null value for "map" type`)
+	}
+
+	if err := validMapKeys(mapValue); err != nil {
+		return validationErrorFrom(err)
 	}
 
 	if v.entrySchemas != nil {
@@ -323,6 +506,41 @@ func (v *mapSchema) Validate(raw []byte) error {
 	return nil
 }
 
+func validMapKeys(v map[string]json.RawMessage) error {
+	for k := range v {
+		if !validSubkey.Match([]byte(k)) {
+			return fmt.Errorf(`key %q doesn't conform to required format`, k)
+		}
+	}
+
+	return nil
+}
+
+// SchemaAt returns the Map schema if this is the last path element. If not, it
+// calls SchemaAt for the next path element's schema if the path is valid.
+func (v *mapSchema) SchemaAt(path []string) ([]Schema, error) {
+	if len(path) == 0 {
+		return []Schema{v}, nil
+	}
+
+	key := path[0]
+	if v.entrySchemas != nil {
+		valSchema, ok := v.entrySchemas[key]
+		if !ok {
+			return nil, schemaAtErrorf(path, `cannot use %q as key in map`, key)
+		}
+
+		return valSchema.SchemaAt(path[1:])
+	}
+
+	return v.valueSchema.SchemaAt(path[1:])
+}
+
+// Type returns the Map type.
+func (v *mapSchema) Type() SchemaType {
+	return Map
+}
+
 func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) error {
 	err := checkExclusiveMapConstraints(constraints)
 	if err != nil {
@@ -334,6 +552,10 @@ func (v *mapSchema) parseConstraints(constraints map[string]json.RawMessage) err
 		var entries map[string]json.RawMessage
 		if err := json.Unmarshal(rawEntries, &entries); err != nil {
 			return fmt.Errorf(`cannot parse map's "schema" constraint: %v`, err)
+		}
+
+		if err := validMapKeys(entries); err != nil {
+			return fmt.Errorf(`cannot parse map: %w`, err)
 		}
 
 		v.entrySchemas = make(map[string]Schema, len(entries))
@@ -439,7 +661,7 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 			}
 
 			if typ != "string" {
-				return nil, fmt.Errorf(`must be based on string but got %q`, typ)
+				return nil, fmt.Errorf(`must be based on string but type was %s`, typ)
 			}
 		}
 
@@ -468,7 +690,7 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 		return userType, nil
 	}
 
-	return nil, fmt.Errorf(`keys must be based on string but got %q`, typ)
+	return nil, fmt.Errorf(`keys must be based on string but type was %s`, typ)
 }
 
 func (v *mapSchema) expectsConstraints() bool { return true }
@@ -493,7 +715,7 @@ func (v *stringSchema) Validate(raw []byte) (err error) {
 	if err := json.Unmarshal(raw, &value); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
 		if errors.As(err, &typeErr) {
-			return fmt.Errorf("expected string type but got %s", typeErr.Value)
+			return fmt.Errorf("expected string type but value was %s", typeErr.Value)
 		}
 		return err
 	}
@@ -507,10 +729,24 @@ func (v *stringSchema) Validate(raw []byte) (err error) {
 	}
 
 	if v.pattern != nil && !v.pattern.Match([]byte(*value)) {
-		return fmt.Errorf(`string %q doesn't match schema pattern %s`, *value, v.pattern.String())
+		return fmt.Errorf(`expected string matching %s but value was %q`, v.pattern.String(), *value)
 	}
 
 	return nil
+}
+
+// SchemaAt returns the string schema if the path terminates at this schema and
+// an error if not.
+func (v *stringSchema) SchemaAt(path []string) ([]Schema, error) {
+	if len(path) != 0 {
+		return nil, schemaAtErrorf(path, `cannot follow path beyond "string" type`)
+	}
+
+	return []Schema{v}, nil
+}
+
+func (v *stringSchema) Type() SchemaType {
+	return String
 }
 
 func (v *stringSchema) parseConstraints(constraints map[string]json.RawMessage) error {
@@ -566,7 +802,7 @@ func (v *intSchema) Validate(raw []byte) (err error) {
 	if err := json.Unmarshal(raw, &num); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
 		if errors.As(err, &typeErr) {
-			return fmt.Errorf("expected int type but got %s", typeErr.Value)
+			return fmt.Errorf("expected int type but value was %s", typeErr.Value)
 		}
 		return err
 	}
@@ -576,6 +812,21 @@ func (v *intSchema) Validate(raw []byte) (err error) {
 	}
 
 	return validateNumber(*num, v.choices, v.min, v.max)
+}
+
+// SchemaAt returns the int schema if the path terminates here and an error if
+// not.
+func (v *intSchema) SchemaAt(path []string) ([]Schema, error) {
+	if len(path) != 0 {
+		return nil, schemaAtErrorf(path, `cannot follow path beyond "int" type`)
+	}
+
+	return []Schema{v}, nil
+}
+
+// Type returns the Int schema type.
+func (v *intSchema) Type() SchemaType {
+	return Int
 }
 
 func (v *intSchema) parseConstraints(constraints map[string]json.RawMessage) error {
@@ -646,9 +897,19 @@ func (v *anySchema) Validate(raw []byte) (err error) {
 	return nil
 }
 
-func (v *anySchema) parseConstraints(constraints map[string]json.RawMessage) error {
+func (v *anySchema) parseConstraints(map[string]json.RawMessage) error {
 	// no error because we're not explicitly rejecting unsupported keywords (for now)
 	return nil
+}
+
+// SchemaAt returns the "any" schema.
+func (v *anySchema) SchemaAt([]string) ([]Schema, error) {
+	return []Schema{v}, nil
+}
+
+// Type returns the Any schema type.
+func (v *anySchema) Type() SchemaType {
+	return Any
 }
 
 func (v *anySchema) expectsConstraints() bool { return false }
@@ -671,7 +932,7 @@ func (v *numberSchema) Validate(raw []byte) (err error) {
 	if err := json.Unmarshal(raw, &num); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
 		if errors.As(err, &typeErr) {
-			return fmt.Errorf("expected number type but got %s", typeErr.Value)
+			return fmt.Errorf("expected number type but value was %s", typeErr.Value)
 		}
 		return err
 	}
@@ -681,6 +942,21 @@ func (v *numberSchema) Validate(raw []byte) (err error) {
 	}
 
 	return validateNumber(*num, v.choices, v.min, v.max)
+}
+
+// SchemaAt returns the number schema if the path terminates here and an error if
+// not.
+func (v *numberSchema) SchemaAt(path []string) ([]Schema, error) {
+	if len(path) != 0 {
+		return nil, schemaAtErrorf(path, `cannot follow path beyond "number" type`)
+	}
+
+	return []Schema{v}, nil
+}
+
+// Type returns the Number schema type.
+func (v *numberSchema) Type() SchemaType {
+	return Number
 }
 
 func validateNumber[Num ~int64 | ~float64](num Num, choices []Num, min, max *Num) error {
@@ -772,7 +1048,7 @@ func (v *booleanSchema) Validate(raw []byte) (err error) {
 	if err := json.Unmarshal(raw, &val); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
 		if errors.As(err, &typeErr) {
-			return fmt.Errorf("expected bool type but got %s", typeErr.Value)
+			return fmt.Errorf("expected bool type but value was %s", typeErr.Value)
 		}
 		return err
 	}
@@ -782,6 +1058,21 @@ func (v *booleanSchema) Validate(raw []byte) (err error) {
 	}
 
 	return nil
+}
+
+// SchemaAt returns the boolean schema if the path terminates here and an error
+// if not.
+func (v *booleanSchema) SchemaAt(path []string) ([]Schema, error) {
+	if len(path) != 0 {
+		return nil, schemaAtErrorf(path, `cannot follow path beyond "bool" type`)
+	}
+
+	return []Schema{v}, nil
+}
+
+// Type return the Bool type.
+func (v *booleanSchema) Type() SchemaType {
+	return Bool
 }
 
 func (v *booleanSchema) parseConstraints(map[string]json.RawMessage) error {
@@ -808,7 +1099,7 @@ func (v *arraySchema) Validate(raw []byte) error {
 	if err := json.Unmarshal(raw, &array); err != nil {
 		typeErr := &json.UnmarshalTypeError{}
 		if errors.As(err, &typeErr) {
-			return validationErrorf("expected array type but got %s", typeErr.Value)
+			return validationErrorf("expected array type but value was %s", typeErr.Value)
 		}
 		return validationErrorFrom(err)
 	}
@@ -842,6 +1133,27 @@ func (v *arraySchema) Validate(raw []byte) error {
 	return nil
 }
 
+// SchemaAt returns the array schema the path is empty. Otherwise, it calls SchemaAt
+// for the next path element's schema if the path is valid.
+func (v *arraySchema) SchemaAt(path []string) ([]Schema, error) {
+	if len(path) == 0 {
+		return []Schema{v}, nil
+	}
+
+	key := path[0]
+	_, err := strconv.ParseUint(key, 10, 0)
+	if err != nil {
+		return nil, schemaAtErrorf(path, `key %q cannot be used to index array`, key)
+	}
+
+	return v.elementType.SchemaAt(path[1:])
+}
+
+// Type returns the Array schema type.
+func (v *arraySchema) Type() SchemaType {
+	return Array
+}
+
 func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) error {
 	rawValues, ok := constraints["values"]
 	if !ok {
@@ -869,6 +1181,10 @@ func (v *arraySchema) parseConstraints(constraints map[string]json.RawMessage) e
 
 func (v *arraySchema) expectsConstraints() bool { return true }
 
+// TODO: keep a list of expected types (to support alternatives), an actual type/value
+// and then optional unmet constraints for the expected types. Then this could be used
+// to have more concise errors when there are many possible types
+// https://github.com/snapcore/snapd/pull/13502#discussion_r1463658230
 type ValidationError struct {
 	Path []interface{}
 	Err  error
@@ -908,4 +1224,20 @@ func validationErrorFrom(err error) error {
 
 func validationErrorf(format string, v ...interface{}) error {
 	return &ValidationError{Err: fmt.Errorf(format, v...)}
+}
+
+type schemaAtError struct {
+	left int
+	err  error
+}
+
+func (e *schemaAtError) Error() string {
+	return e.err.Error()
+}
+
+func schemaAtErrorf(path []string, format string, v ...interface{}) error {
+	return &schemaAtError{
+		left: len(path),
+		err:  fmt.Errorf(format, v...),
+	}
 }

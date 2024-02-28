@@ -74,7 +74,7 @@ func (s *personalFilesInterfaceSuite) TestName(c *C) {
 }
 
 func (s *personalFilesInterfaceSuite) TestConnectedPlugAppArmorHappy(c *C) {
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -115,7 +115,7 @@ apps:
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
 	plugInfo := plugSnap.Plugs["personal-files"]
 	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
 	err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, ErrorMatches, `cannot connect plug personal-files: 123 \(int64\) is not a string`)
 }
@@ -135,7 +135,7 @@ apps:
 	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
 	plugInfo := plugSnap.Plugs["personal-files"]
 	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
 	err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, ErrorMatches, `cannot connect plug personal-files: "\$NOTHOME/.local/share/target" must start with "\$HOME/"`)
 }

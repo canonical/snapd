@@ -68,6 +68,10 @@ const (
 	//  * journal quotas are still experimental
 	// while guota groups creation and management and memory, cpu, quotas are no longer experimental.
 	QuotaGroups
+	// RefreshAppAwarenessUX enables experimental UX improvements for refresh-app-awareness.
+	RefreshAppAwarenessUX
+	// AspectsConfiguration enables experimental aspect-based configuration.
+	AspectsConfiguration
 
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
@@ -108,6 +112,9 @@ var featureNames = map[SnapdFeature]string{
 	GateAutoRefreshHook: "gate-auto-refresh-hook",
 
 	QuotaGroups: "quota-groups",
+
+	RefreshAppAwarenessUX: "refresh-app-awareness-ux",
+	AspectsConfiguration:  "aspects-configuration",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
@@ -129,6 +136,9 @@ var featuresExported = map[SnapdFeature]bool{
 	RobustMountNamespaceUpdates:   true,
 	HiddenSnapDataHomeDir:         true,
 	MoveSnapHomeDir:               true,
+
+	RefreshAppAwarenessUX: true,
+	AspectsConfiguration:  true,
 }
 
 // String returns the name of a snapd feature.
