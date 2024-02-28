@@ -218,7 +218,8 @@ wait_for_refresh(){
         echo ""
 
         changes="$(remote.exec 'snap changes')"
-        if echo "$changes" | grep -Eq "$change_id.*(Do | Doing ).*(Auto-refresh|Refresh)"; then
+        # It checks a that refresh is in state either Do or Doing (and not Done)
+        if echo "$changes" | grep -Eq "$change_id.*( Do | Doing ).*(Auto-refresh|Refresh)"; then
             echo "remote.wait-for: still doing refresh, exiting"
         elif echo "$changes" | grep -Eq "$change_id.*Error.*(Auto-refresh|Refresh)"; then
             echo "remote.wait-for: refresh failed"
