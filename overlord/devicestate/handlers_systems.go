@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -458,7 +459,9 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 			return fmt.Errorf("cannot promote recovery system %q: %v", label, err)
 		}
 
-		if err := markSystemRecoveryCapableAndDefault(t, setup.MarkDefault, label); err != nil {
+		model := remodelCtx.Model()
+
+		if err := markSystemRecoveryCapableAndDefault(t, setup.MarkDefault, label, model); err != nil {
 			return err
 		}
 
@@ -581,7 +584,9 @@ func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tom
 			return fmt.Errorf("cannot promote recovery system %q: %v", label, err)
 		}
 
-		if err := markSystemRecoveryCapableAndDefault(t, setup.MarkDefault, label); err != nil {
+		model := remodelCtx.Model()
+
+		if err := markSystemRecoveryCapableAndDefault(t, setup.MarkDefault, label, model); err != nil {
 			return err
 		}
 
@@ -595,17 +600,46 @@ func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tom
 	return nil
 }
 
-func markSystemRecoveryCapableAndDefault(t *state.Task, markDefault bool, label string) error {
+type DefaultRecoverySystem struct {
+	// System is the label that is the current default recovery system.
+	System string `json:"system"`
+	// Model is the model that the system was derived from.
+	Model string `json:"model"`
+	// BrandID is the brand account ID
+	BrandID string `json:"brand-id"`
+	// Revision is the revision of the model assertion
+	Revision int `json:"revision"`
+	// Timestamp is the timestamp of the model assertion
+	Timestamp time.Time `json:"timestamp"`
+	// TimeMadeDefault is the timestamp when the system was made the default
+	TimeMadeDefault time.Time `json:"time-made-default"`
+}
+
+func (d *DefaultRecoverySystem) sameAs(other *System) bool {
+	return d != nil &&
+		d.System == other.Label &&
+		d.Model == other.Model.Model() &&
+		d.BrandID == other.Brand.AccountID()
+}
+
+func markSystemRecoveryCapableAndDefault(t *state.Task, markDefault bool, label string, model *asserts.Model) error {
 	if markDefault {
 		st := t.State()
 
-		var previousDefault string
+		var previousDefault DefaultRecoverySystem
 		if err := st.Get("default-recovery-system", &previousDefault); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 
 		t.Set("previous-default-recovery-system", previousDefault)
-		st.Set("default-recovery-system", label)
+		st.Set("default-recovery-system", DefaultRecoverySystem{
+			System:          label,
+			Model:           model.Model(),
+			BrandID:         model.BrandID(),
+			Revision:        model.Revision(),
+			Timestamp:       model.Timestamp(),
+			TimeMadeDefault: time.Now(),
+		})
 	}
 
 	if err := boot.MarkRecoveryCapableSystem(label); err != nil {
@@ -629,17 +663,17 @@ func unmarkSystemRecoveryCapableAndDefault(t *state.Task, label string) error {
 func unmarkRecoverySystemDefault(t *state.Task, label string) error {
 	st := t.State()
 
-	var currentDefault string
+	var currentDefault DefaultRecoverySystem
 	if err := st.Get("default-recovery-system", &currentDefault); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
 	// if the current default isn't this label, then there is nothing to do.
-	if currentDefault != label {
+	if currentDefault.System != label {
 		return nil
 	}
 
-	var previousDefault string
+	var previousDefault DefaultRecoverySystem
 	if err := t.Get("previous-default-recovery-system", &previousDefault); err != nil {
 		// if this task doesn't have a previous default, then we know that this
 		// task did not update the default, so there is nothing to do

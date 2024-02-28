@@ -2160,19 +2160,19 @@ type systemAndEssentialSnaps struct {
 // DefaultRecoverySystem returns the label of the default recovery system, if
 // there is one. state.ErrNoState is returned if a default recovery system has
 // not been set.
-func (m *DeviceManager) DefaultRecoverySystem() (string, error) {
+func (m *DeviceManager) DefaultRecoverySystem() (*DefaultRecoverySystem, error) {
 	m.state.Lock()
 	defer m.state.Unlock()
 
 	return m.defaultRecoverySystem()
 }
 
-func (m *DeviceManager) defaultRecoverySystem() (string, error) {
-	var defaultRecoverySystem string
-	if err := m.state.Get("default-recovery-system", &defaultRecoverySystem); err != nil {
-		return "", err
+func (m *DeviceManager) defaultRecoverySystem() (*DefaultRecoverySystem, error) {
+	var defaultSystem DefaultRecoverySystem
+	if err := m.state.Get("default-recovery-system", &defaultSystem); err != nil {
+		return nil, err
 	}
-	return defaultRecoverySystem, nil
+	return &defaultSystem, nil
 }
 
 // loadSystemAndEssentialSnaps loads information for the given label, which
@@ -2297,8 +2297,8 @@ func defaultSystemLabel(st *state.State, manager *DeviceManager, mode string) (s
 			return "", err
 		}
 
-		if defaultRecoverySystem != "" {
-			return defaultRecoverySystem, nil
+		if defaultRecoverySystem != nil {
+			return defaultRecoverySystem.System, nil
 		}
 
 		// intentionally fall through here, since we fall back to using the most

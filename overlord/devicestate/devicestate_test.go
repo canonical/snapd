@@ -2729,12 +2729,19 @@ func (s *deviceMgrSuite) TestDefaultRecoverySystem(c *C) {
 	_, err := s.mgr.DefaultRecoverySystem()
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
+	expectedSystem := devicestate.DefaultRecoverySystem{
+		System:   "label",
+		Model:    "model",
+		BrandID:  "brand",
+		Revision: 1,
+	}
+
 	// recovery system set
 	s.state.Lock()
-	s.state.Set("default-recovery-system", "label")
+	s.state.Set("default-recovery-system", expectedSystem)
 	s.state.Unlock()
 
-	label, err := s.mgr.DefaultRecoverySystem()
+	system, err := s.mgr.DefaultRecoverySystem()
 	c.Assert(err, IsNil)
-	c.Check(label, Equals, "label")
+	c.Check(*system, Equals, expectedSystem)
 }

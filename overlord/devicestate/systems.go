@@ -76,12 +76,12 @@ func checkSystemRequestConflict(st *state.State, systemLabel string) error {
 	return nil
 }
 
-func systemFromSeed(label string, current *currentSystem, defaultRecoverySystem string) (*System, error) {
+func systemFromSeed(label string, current *currentSystem, defaultRecoverySystem *DefaultRecoverySystem) (*System, error) {
 	_, sys, err := loadSeedAndSystem(label, current, defaultRecoverySystem)
 	return sys, err
 }
 
-func loadSeedAndSystem(label string, current *currentSystem, defaultRecoverySystem string) (seed.Seed, *System, error) {
+func loadSeedAndSystem(label string, current *currentSystem, defaultRecoverySystem *DefaultRecoverySystem) (seed.Seed, *System, error) {
 	s, err := seedOpen(dirs.SnapSeedDir, label)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot open: %v", err)
@@ -95,14 +95,15 @@ func loadSeedAndSystem(label string, current *currentSystem, defaultRecoverySyst
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot obtain brand: %v", err)
 	}
+
 	system := &System{
-		Current:               false,
-		Label:                 label,
-		Model:                 model,
-		Brand:                 brand,
-		Actions:               defaultSystemActions,
-		DefaultRecoverySystem: defaultRecoverySystem != "" && defaultRecoverySystem == label,
+		Current: false,
+		Label:   label,
+		Model:   model,
+		Brand:   brand,
+		Actions: defaultSystemActions,
 	}
+	system.DefaultRecoverySystem = defaultRecoverySystem.sameAs(system)
 	if current.sameAs(system) {
 		system.Current = true
 		system.Actions = current.actions
@@ -177,10 +178,7 @@ func seededSystemFromModeenv() (*seededSystem, error) {
 		return nil, fmt.Errorf("internal error: recovery system is unset")
 	}
 
-	// since we are not interested in the the default recovery system here, we
-	// can pass in an empty string
-	const defaultRecoverySystem = ""
-	system, err := systemFromSeed(modeEnv.RecoverySystem, nil, defaultRecoverySystem)
+	system, err := systemFromSeed(modeEnv.RecoverySystem, nil, nil)
 	if err != nil {
 		return nil, err
 	}

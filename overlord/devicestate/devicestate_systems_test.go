@@ -332,7 +332,12 @@ func (s *deviceMgrSystemsSuite) TestListSeedSystemsNoCurrent(c *C) {
 
 func (s *deviceMgrSystemsSuite) TestListSeedSystemsDefaultRecoverySystem(c *C) {
 	s.state.Lock()
-	s.state.Set("default-recovery-system", s.mockedSystemSeeds[0].label)
+	s.state.Set("default-recovery-system", devicestate.DefaultRecoverySystem{
+		System:   s.mockedSystemSeeds[0].label,
+		Model:    s.mockedSystemSeeds[0].model.Model(),
+		BrandID:  s.mockedSystemSeeds[0].model.BrandID(),
+		Revision: s.mockedSystemSeeds[0].model.Revision(),
+	})
 	s.state.Unlock()
 
 	systems, err := s.mgr.Systems()
@@ -908,8 +913,13 @@ func (s *deviceMgrSystemsSuite) testRebootFromRunOnly(c *C, setDefault bool) {
 
 	var expectedLabel string
 	if setDefault {
-		s.state.Set("default-recovery-system", "20200318")
 		expectedLabel = "20200318"
+		s.state.Set("default-recovery-system", devicestate.DefaultRecoverySystem{
+			System:   expectedLabel,
+			Model:    "model",
+			BrandID:  "brand",
+			Revision: 1,
+		})
 	} else {
 		expectedLabel = s.mockedSystemSeeds[0].label
 	}
@@ -2115,7 +2125,12 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoN
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	const previousDefault = "previous"
+	previousDefault := devicestate.DefaultRecoverySystem{
+		System:   "previous",
+		Model:    "model",
+		BrandID:  "brand",
+		Revision: 1,
+	}
 	s.state.Set("default-recovery-system", previousDefault)
 
 	chg, err := devicestate.CreateRecoverySystem(s.state, "1234undo", devicestate.CreateRecoverySystemOptions{
@@ -2186,10 +2201,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoN
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/some-snap_1.snap"),
 	})
 
-	var defaultSystem string
+	var defaultSystem devicestate.DefaultRecoverySystem
 	err = s.state.Get("default-recovery-system", &defaultSystem)
 	c.Assert(err, IsNil)
-	c.Check(defaultSystem, Equals, previousDefault)
+	c.Check(defaultSystem, DeepEquals, previousDefault)
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoTestSystem(c *C) {
@@ -2198,7 +2213,12 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoT
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	const previousDefault = "previous"
+	previousDefault := devicestate.DefaultRecoverySystem{
+		System:   "previous",
+		Model:    "model",
+		BrandID:  "brand",
+		Revision: 1,
+	}
 	s.state.Set("default-recovery-system", previousDefault)
 
 	chg, err := devicestate.CreateRecoverySystem(s.state, "1234undo", devicestate.CreateRecoverySystemOptions{
@@ -2317,7 +2337,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoT
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/some-snap_1.snap"),
 	})
 
-	var defaultSystem string
+	var defaultSystem devicestate.DefaultRecoverySystem
 	err = s.state.Get("default-recovery-system", &defaultSystem)
 	c.Assert(err, IsNil)
 	c.Check(defaultSystem, Equals, previousDefault)
@@ -3163,12 +3183,15 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemNoTes
 	checkForSnapsInSeed(c, "snapd_4.snap", "pc-kernel_2.snap", "core20_3.snap", "pc_1.snap")
 
 	if markDefault {
-		var defaultSystem string
+		var defaultSystem devicestate.DefaultRecoverySystem
 		err := s.state.Get("default-recovery-system", &defaultSystem)
 		c.Assert(err, IsNil)
-		c.Check(defaultSystem, Equals, "1234")
+
+		c.Assert(defaultSystem.System, Equals, "1234")
+		c.Assert(defaultSystem.Model, Equals, s.model.Model())
+		c.Assert(defaultSystem.BrandID, Equals, s.model.BrandID())
 	} else {
-		var defaultSystem string
+		var defaultSystem devicestate.DefaultRecoverySystem
 		err := s.state.Get("default-recovery-system", &defaultSystem)
 		c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	}
@@ -3582,12 +3605,15 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"), testutil.FileAbsent)
 
 	if opts.MarkDefault {
-		var defaultSystem string
+		var defaultSystem devicestate.DefaultRecoverySystem
 		err := s.state.Get("default-recovery-system", &defaultSystem)
 		c.Assert(err, IsNil)
-		c.Assert(defaultSystem, Equals, "1234")
+
+		c.Assert(defaultSystem.System, Equals, "1234")
+		c.Assert(defaultSystem.Model, Equals, s.model.Model())
+		c.Assert(defaultSystem.BrandID, Equals, s.model.BrandID())
 	} else {
-		var defaultSystem string
+		var defaultSystem devicestate.DefaultRecoverySystem
 		err := s.state.Get("default-recovery-system", &defaultSystem)
 		c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	}
@@ -4383,10 +4409,13 @@ func (s *deviceMgrSystemsCreateSuite) createSystemForRemoval(c *C, label string,
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label, "snapd-new-file-log"), testutil.FileAbsent)
 
 	if markDefault {
-		var defaultSystem string
+		var defaultSystem devicestate.DefaultRecoverySystem
 		err := s.state.Get("default-recovery-system", &defaultSystem)
 		c.Assert(err, IsNil)
-		c.Check(defaultSystem, Equals, label)
+
+		c.Assert(defaultSystem.System, Equals, label)
+		c.Assert(defaultSystem.Model, Equals, s.model.Model())
+		c.Assert(defaultSystem.BrandID, Equals, s.model.BrandID())
 	}
 
 	// boot.InitramfsUbuntuSeedDir and dirs.SnapSeedDir are usually different
