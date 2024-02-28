@@ -2883,61 +2883,6 @@ func fakeSnapID(name string) string {
 	return snaptest.AssertedSnapID(name)
 }
 
-func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsModelMissingRequired(c *C) {
-	devicestate.SetBootOkRan(s.mgr, true)
-
-	vset1, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
-		"type":         "validation-set",
-		"authority-id": "canonical",
-		"series":       "16",
-		"account-id":   "canonical",
-		"name":         "vset-1",
-		"sequence":     "1",
-		"snaps": []interface{}{
-			map[string]interface{}{
-				"name":     "snapd",
-				"id":       fakeSnapID("snapd"),
-				"revision": "12",
-				"presence": "required",
-			},
-			map[string]interface{}{
-				"name":     "core20",
-				"id":       fakeSnapID("core20"),
-				"revision": "12",
-				"presence": "required",
-			},
-			map[string]interface{}{
-				"name":     "pc",
-				"id":       fakeSnapID("pc"),
-				"revision": "12",
-				"presence": "required",
-			},
-			map[string]interface{}{
-				"name":     "pc-kernel",
-				"id":       fakeSnapID("pc-kernel"),
-				"revision": "12",
-				"presence": "required",
-			},
-			map[string]interface{}{
-				"name":     "snap-1",
-				"id":       fakeSnapID("snap-1"),
-				"revision": "12",
-				"presence": "required",
-			},
-		},
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	_, err = devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
-		ValidationSets: []*asserts.ValidationSet{vset1.(*asserts.ValidationSet)},
-	})
-	c.Assert(err, ErrorMatches, "missing required snap in model: snap-1")
-}
-
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsSnapInvalid(c *C) {
 	devicestate.SetBootOkRan(s.mgr, true)
 
@@ -3237,16 +3182,34 @@ func checkForSnapsInSeed(c *C, snaps ...string) {
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsMarkDefault(c *C) {
-	const markDefault = true
-	s.testDeviceManagerCreateRecoverySystemValidationSetsHappy(c, markDefault)
+	s.testDeviceManagerCreateRecoverySystemValidationSetsHappy(c, testCreateRecoverySystemValidationSetsOptions{
+		MarkDefault: true,
+	})
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsNoMarkDefault(c *C) {
-	const markDefault = false
-	s.testDeviceManagerCreateRecoverySystemValidationSetsHappy(c, markDefault)
+	s.testDeviceManagerCreateRecoverySystemValidationSetsHappy(c, testCreateRecoverySystemValidationSetsOptions{})
 }
 
-func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValidationSetsHappy(c *C, markDefault bool) {
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsOptionalSnap(c *C) {
+	s.testDeviceManagerCreateRecoverySystemValidationSetsHappy(c, testCreateRecoverySystemValidationSetsOptions{
+		RequireOptionalSnapInValidationSet: true,
+	})
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsPreinstallOptionalSnap(c *C) {
+	s.testDeviceManagerCreateRecoverySystemValidationSetsHappy(c, testCreateRecoverySystemValidationSetsOptions{
+		PreInstallOptionalSnap: true,
+	})
+}
+
+type testCreateRecoverySystemValidationSetsOptions struct {
+	MarkDefault                        bool
+	RequireOptionalSnapInValidationSet bool
+	PreInstallOptionalSnap             bool
+}
+
+func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValidationSetsHappy(c *C, opts testCreateRecoverySystemValidationSetsOptions) {
 	devicestate.SetBootOkRan(s.mgr, true)
 
 	s.state.Lock()
@@ -3279,6 +3242,12 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 				"name": "snapd",
 				"id":   s.ss.AssertedSnapID("snapd"),
 				"type": "snapd",
+			},
+			map[string]interface{}{
+				"name":     "other-required",
+				"id":       s.ss.AssertedSnapID("other-required"),
+				"type":     "app",
+				"presence": "optional",
 			},
 		},
 		"validation-sets": []interface{}{
@@ -3317,18 +3286,22 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	})
 
 	snapRevisions := map[string]snap.Revision{
-		"pc":        snap.R(10),
-		"pc-kernel": snap.R(11),
-		"core20":    snap.R(12),
-		"snapd":     snap.R(13),
+		"pc":             snap.R(10),
+		"pc-kernel":      snap.R(11),
+		"core20":         snap.R(12),
+		"snapd":          snap.R(13),
+		"other-required": snap.R(14),
 	}
 
 	snapTypes := map[string]snap.Type{
-		"pc":        snap.TypeGadget,
-		"pc-kernel": snap.TypeKernel,
-		"core20":    snap.TypeBase,
-		"snapd":     snap.TypeSnapd,
+		"pc":             snap.TypeGadget,
+		"pc-kernel":      snap.TypeKernel,
+		"core20":         snap.TypeBase,
+		"snapd":          snap.TypeSnapd,
+		"other-required": snap.TypeApp,
 	}
+
+	var validationSets []*asserts.ValidationSet
 
 	vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
 		"type":         "validation-set",
@@ -3367,7 +3340,34 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	}, nil, "")
 	c.Assert(err, IsNil)
 
-	vset := vsetAssert.(*asserts.ValidationSet)
+	validationSets = append(validationSets, vsetAssert.(*asserts.ValidationSet))
+
+	if opts.PreInstallOptionalSnap {
+		s.makeSnapInState(c, "other-required", snapRevisions["other-required"], nil)
+	}
+
+	if opts.RequireOptionalSnapInValidationSet {
+		vsetAssert, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]interface{}{
+			"type":         "validation-set",
+			"authority-id": "canonical",
+			"series":       "16",
+			"account-id":   "canonical",
+			"name":         "vset-2",
+			"sequence":     "1",
+			"snaps": []interface{}{
+				map[string]interface{}{
+					"name":     "other-required",
+					"id":       fakeSnapID("other-required"),
+					"revision": snapRevisions["other-required"].String(),
+					"presence": "required",
+				},
+			},
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+		}, nil, "")
+		c.Assert(err, IsNil)
+
+		validationSets = append(validationSets, vsetAssert.(*asserts.ValidationSet))
+	}
 
 	s.o.TaskRunner().AddHandler("mock-validate", func(task *state.Task, _ *tomb.Tomb) error {
 		st := task.State()
@@ -3464,15 +3464,21 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
 	chg, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
-		ValidationSets: []*asserts.ValidationSet{vset},
+		ValidationSets: validationSets,
 		TestSystem:     true,
-		MarkDefault:    markDefault,
+		MarkDefault:    opts.MarkDefault,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
 	tsks := chg.Tasks()
-	// 2*4 snaps (download + validate) + create system + finalize system
-	c.Check(tsks, HasLen, (2*4)+2)
+
+	snapCount := 4
+	if opts.RequireOptionalSnapInValidationSet {
+		snapCount++
+	}
+	// 2*snapCount snaps (download + validate) + create system + finalize system
+	c.Check(tsks, HasLen, (2*snapCount)+2)
+
 	tskCreate := tsks[0]
 	tskFinalize := tsks[1]
 	c.Assert(tskCreate.Summary(), Matches, `Create recovery system with label "1234"`)
@@ -3489,7 +3495,12 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
-	validateCore20Seed(c, "1234", s.model, s.storeSigning.Trusted)
+	var runModeSnaps []string
+	if opts.RequireOptionalSnapInValidationSet || opts.PreInstallOptionalSnap {
+		runModeSnaps = []string{"other-required"}
+	}
+	validateCore20Seed(c, "1234", s.model, s.storeSigning.Trusted, runModeSnaps...)
+
 	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
 	c.Check(m, DeepEquals, map[string]string{
@@ -3512,8 +3523,13 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	})
 
 	// verify that new files are tracked correctly
+	expectedFiles := []string{"snapd_13.snap", "pc-kernel_11.snap", "core20_12.snap", "pc_10.snap"}
+	if opts.RequireOptionalSnapInValidationSet || opts.PreInstallOptionalSnap {
+		expectedFiles = append(expectedFiles, "other-required_14.snap")
+	}
+
 	expectedFilesLog := &bytes.Buffer{}
-	for _, fname := range []string{"snapd_13.snap", "pc-kernel_11.snap", "core20_12.snap", "pc_10.snap"} {
+	for _, fname := range expectedFiles {
 		fmt.Fprintln(expectedFilesLog, filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps", fname))
 	}
 
@@ -3565,7 +3581,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 1)
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"), testutil.FileAbsent)
 
-	if markDefault {
+	if opts.MarkDefault {
 		var defaultSystem string
 		err := s.state.Get("default-recovery-system", &defaultSystem)
 		c.Assert(err, IsNil)

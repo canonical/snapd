@@ -800,6 +800,11 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 	return false, busyErr
 }
 
+// IsSnapMonitored checks if there's already a goroutine waiting for this snap to close.
+func IsSnapMonitored(st *state.State, snapName string) bool {
+	return monitoringAbort(st, snapName) != nil
+}
+
 // for testing outside of snapstate
 func MockRefreshCandidate(snapSetup *SnapSetup) interface{} {
 	return &refreshCandidate{

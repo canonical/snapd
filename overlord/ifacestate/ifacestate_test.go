@@ -1697,8 +1697,8 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 	// Ensure that the backend was used to setup security of both snaps
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
-	c.Check(s.secBackend.SetupCalls[0].SnapInfo.InstanceName(), Equals, "consumer")
-	c.Check(s.secBackend.SetupCalls[1].SnapInfo.InstanceName(), Equals, "producer")
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, "consumer")
+	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, "producer")
 
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{})
 	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{})
@@ -3090,7 +3090,7 @@ slots:
 	// producer snaps we introduce below.
 	secBackend := &ifacetest.TestSecurityBackend{
 		BackendName: "test",
-		SetupCallback: func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 			// Whenever this function is invoked to setup security for a snap
 			// we check the connection attributes that it would act upon.
 			// Because of how connection state is refreshed we never expect to
@@ -3244,7 +3244,7 @@ slots:
 	// producer snaps we introduce below.
 	secBackend := &ifacetest.TestSecurityBackend{
 		BackendName: "test",
-		SetupCallback: func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 			// Whenever this function is invoked to setup security for a snap
 			// we check the connection attributes that it would act upon.
 			// Those attributes should always match those of the snap version.
@@ -3252,7 +3252,7 @@ slots:
 			c.Assert(err, IsNil)
 			sysFilesConn, err2 := repo.Connection(sysFilesConnRef)
 			c.Assert(err2, IsNil)
-			switch snapInfo.Version {
+			switch appSet.Info().Version {
 			case "1":
 				c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
 				c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
@@ -3508,8 +3508,8 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityReloadsConnectionsWhenInv
 	// Ensure that the backend was used to setup security of both snaps
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
-	c.Check(s.secBackend.SetupCalls[0].SnapInfo.InstanceName(), Equals, "consumer")
-	c.Check(s.secBackend.SetupCalls[1].SnapInfo.InstanceName(), Equals, "producer")
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, "consumer")
+	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, "producer")
 
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{})
 	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{})
@@ -3526,8 +3526,8 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityReloadsConnectionsWhenInv
 	// Ensure that the backend was used to setup security of both snaps
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
-	c.Check(s.secBackend.SetupCalls[0].SnapInfo.InstanceName(), Equals, "producer")
-	c.Check(s.secBackend.SetupCalls[1].SnapInfo.InstanceName(), Equals, "consumer")
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, "producer")
+	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, "consumer")
 
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{})
 	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{})
@@ -3599,12 +3599,12 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 	// The snap was setup with DevModeConfinement
 	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
-	c.Check(s.secBackend.SetupCalls[0].SnapInfo.InstanceName(), Equals, "snap")
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, "snap")
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{DevMode: true})
 }
 
 func (s *interfaceManagerSuite) TestSetupProfilesSetupManyError(c *C) {
-	s.secBackend.SetupCallback = func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+	s.secBackend.SetupCallback = func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 		return fmt.Errorf("fail")
 	}
 
@@ -3639,9 +3639,9 @@ func (s *interfaceManagerSuite) TestSetupSecurityByBackendInvalidNumberOfSnaps(c
 	defer st.Unlock()
 
 	task := st.NewTask("foo", "")
-	snaps := []*snap.Info{}
+	appSets := []*interfaces.SnapAppSet{}
 	opts := []interfaces.ConfinementOptions{{}}
-	err := mgr.SetupSecurityByBackend(task, snaps, opts, nil)
+	err := mgr.SetupSecurityByBackend(task, appSets, opts, nil)
 	c.Check(err, ErrorMatches, `internal error: setupSecurityByBackend received an unexpected number of snaps.*`)
 }
 
@@ -3695,11 +3695,11 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
 	// The sample snap was setup, with the correct new revision.
-	c.Check(s.secBackend.SetupCalls[0].SnapInfo.InstanceName(), Equals, newSnapInfo.InstanceName())
-	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Revision, Equals, newSnapInfo.Revision)
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, newSnapInfo.InstanceName())
+	c.Check(s.secBackend.SetupCalls[0].AppSet.Info().Revision, Equals, newSnapInfo.Revision)
 	// The OS snap was setup (because it was affected).
-	c.Check(s.secBackend.SetupCalls[1].SnapInfo.InstanceName(), Equals, coreSnapInfo.InstanceName())
-	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Revision, Equals, coreSnapInfo.Revision)
+	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, coreSnapInfo.InstanceName())
+	c.Check(s.secBackend.SetupCalls[1].AppSet.Info().Revision, Equals, coreSnapInfo.Revision)
 }
 
 func (s *interfaceManagerSuite) TestSetupProfilesOnInstall(c *C) {
@@ -3734,8 +3734,8 @@ func (s *interfaceManagerSuite) TestSetupProfilesOnInstall(c *C) {
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
 	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
-	c.Check(s.secBackend.SetupCalls[0].SnapInfo.InstanceName(), Equals, installSnapInfo.InstanceName())
-	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Revision, Equals, installSnapInfo.Revision)
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, installSnapInfo.InstanceName())
+	c.Check(s.secBackend.SetupCalls[0].AppSet.Info().Revision, Equals, installSnapInfo.Revision)
 }
 
 func (s *interfaceManagerSuite) TestSetupProfilesKeepsUndesiredConnection(c *C) {
@@ -3883,14 +3883,14 @@ func (s *interfaceManagerSuite) TestAutoConnectSetupSecurityForConnectedSlots(c 
 
 	// The sample snap was setup, with the correct new revision:
 	// 1st call is for initial setup-profiles, 2nd call is for setup-profiles after connect task.
-	c.Check(s.secBackend.SetupCalls[0].SnapInfo.InstanceName(), Equals, snapInfo.InstanceName())
-	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Revision, Equals, snapInfo.Revision)
-	c.Check(s.secBackend.SetupCalls[1].SnapInfo.InstanceName(), Equals, snapInfo.InstanceName())
-	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Revision, Equals, snapInfo.Revision)
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, snapInfo.InstanceName())
+	c.Check(s.secBackend.SetupCalls[0].AppSet.Info().Revision, Equals, snapInfo.Revision)
+	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, snapInfo.InstanceName())
+	c.Check(s.secBackend.SetupCalls[1].AppSet.Info().Revision, Equals, snapInfo.Revision)
 
 	// The OS snap was setup (because its connected to sample snap).
-	c.Check(s.secBackend.SetupCalls[2].SnapInfo.InstanceName(), Equals, coreSnapInfo.InstanceName())
-	c.Check(s.secBackend.SetupCalls[2].SnapInfo.Revision, Equals, coreSnapInfo.Revision)
+	c.Check(s.secBackend.SetupCalls[2].AppSet.InstanceName(), Equals, coreSnapInfo.InstanceName())
+	c.Check(s.secBackend.SetupCalls[2].AppSet.Info().Revision, Equals, coreSnapInfo.Revision)
 }
 
 // auto-connect needs to setup security for connected slots after autoconnection
@@ -3935,7 +3935,7 @@ func (s *interfaceManagerSuite) TestAutoConnectSetupSecurityOnceWithMultiplePlug
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
 	setupCalls := make(map[string]int)
 	for _, sc := range s.secBackend.SetupCalls {
-		setupCalls[sc.SnapInfo.InstanceName()]++
+		setupCalls[sc.AppSet.InstanceName()]++
 	}
 	c.Check(setupCalls["snap"], Equals, 2)
 	c.Check(setupCalls["ubuntu-core"], Equals, 1)
@@ -4106,7 +4106,7 @@ slots:
 
 	// Security of the related snap was configured
 	c.Check(s.secBackend.SetupCalls, HasLen, 1)
-	c.Check(s.secBackend.SetupCalls[0].SnapInfo.InstanceName(), Equals, "producer")
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, "producer")
 
 	// Connection state was left intact
 	var conns map[string]interface{}
@@ -4198,8 +4198,8 @@ func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
 
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
-	c.Check(s.secBackend.SetupCalls[0].SnapInfo.InstanceName(), Equals, "producer")
-	c.Check(s.secBackend.SetupCalls[1].SnapInfo.InstanceName(), Equals, "consumer")
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, "producer")
+	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, "consumer")
 
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{})
 	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{})
@@ -4288,8 +4288,8 @@ func (s *interfaceManagerSuite) TestDisconnectSetsUpSecurity(c *C) {
 
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
-	c.Check(s.secBackend.SetupCalls[0].SnapInfo.InstanceName(), Equals, "consumer")
-	c.Check(s.secBackend.SetupCalls[1].SnapInfo.InstanceName(), Equals, "producer")
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, "consumer")
+	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, "producer")
 
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{})
 	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{})
@@ -4716,9 +4716,9 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 	// The first snap is setup in devmode, the second is not
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
-	c.Check(s.secBackend.SetupCalls[0].SnapInfo.InstanceName(), Equals, siC.InstanceName())
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, siC.InstanceName())
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{DevMode: true})
-	c.Check(s.secBackend.SetupCalls[1].SnapInfo.InstanceName(), Equals, siP.InstanceName())
+	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, siP.InstanceName())
 	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{})
 }
 
@@ -5107,8 +5107,8 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnRefresh(c *C) {
 	// setup the security of the snap we had in the state.
 	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
-	c.Check(s.secBackend.SetupCalls[0].SnapInfo.InstanceName(), Equals, snapInfo.InstanceName())
-	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Revision, Equals, snapInfo.Revision)
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, snapInfo.InstanceName())
+	c.Check(s.secBackend.SetupCalls[0].AppSet.Info().Revision, Equals, snapInfo.Revision)
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{})
 
 	var snapst snapstate.SnapState
@@ -5428,14 +5428,14 @@ func (s *interfaceManagerSuite) TestUndoConnect(c *C) {
 	c.Check(notConnected, NotNil)
 
 	c.Assert(s.secBackend.SetupCalls, HasLen, 4)
-	c.Check(s.secBackend.SetupCalls[0].SnapInfo.InstanceName(), Equals, "producer")
-	c.Check(s.secBackend.SetupCalls[1].SnapInfo.InstanceName(), Equals, "consumer")
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, "producer")
+	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, "consumer")
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{})
 	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{})
 
 	// by undo
-	c.Check(s.secBackend.SetupCalls[2].SnapInfo.InstanceName(), Equals, "producer")
-	c.Check(s.secBackend.SetupCalls[3].SnapInfo.InstanceName(), Equals, "consumer")
+	c.Check(s.secBackend.SetupCalls[2].AppSet.InstanceName(), Equals, "producer")
+	c.Check(s.secBackend.SetupCalls[3].AppSet.InstanceName(), Equals, "consumer")
 	c.Check(s.secBackend.SetupCalls[2].Options, DeepEquals, interfaces.ConfinementOptions{})
 	c.Check(s.secBackend.SetupCalls[3].Options, DeepEquals, interfaces.ConfinementOptions{})
 }
@@ -9209,7 +9209,7 @@ func (s *interfaceManagerSuite) TestConnectSetsUpSecurityFails(c *C) {
 	s.mockSnap(c, producerYaml)
 	_ = s.manager(c)
 
-	s.secBackend.SetupCallback = func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+	s.secBackend.SetupCallback = func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 		return fmt.Errorf("setup-callback failed")
 	}
 

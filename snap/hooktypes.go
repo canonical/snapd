@@ -41,6 +41,13 @@ var supportedHooks = []*HookType{
 	NewHookType(regexp.MustCompile("^gate-auto-refresh$")),
 }
 
+var supportedComponentHooks = []*HookType{
+	NewHookType(regexp.MustCompile("^install$")),
+	NewHookType(regexp.MustCompile("^pre-refresh$")),
+	NewHookType(regexp.MustCompile("^post-refresh$")),
+	NewHookType(regexp.MustCompile("^remove$")),
+}
+
 // HookType represents a pattern of supported hook names.
 type HookType struct {
 	pattern *regexp.Regexp
@@ -62,6 +69,18 @@ func (hookType HookType) Match(hookName string) bool {
 // supported hooks.
 func IsHookSupported(hookName string) bool {
 	for _, hookType := range supportedHooks {
+		if hookType.Match(hookName) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// IsComponentHookSupported returns true if the given hook name matches one of
+// the supported hooks.
+func IsComponentHookSupported(hookName string) bool {
+	for _, hookType := range supportedComponentHooks {
 		if hookType.Match(hookName) {
 			return true
 		}

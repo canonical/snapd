@@ -29,6 +29,7 @@ static void test_infofile_get_key(void) {
     char text[] =
         "key=value\n"
         "other-key=other-value\n"
+        "# a comment\n"
         "dup-key=value-one\n"
         "dup-key=value-two\n";
     FILE *stream = fmemopen(text, sizeof text - 1, "r");
@@ -184,6 +185,7 @@ static void test_infofile_get_ini_key(void) {
     char text[] =
         "[section1]\n"
         "key=value\n"
+        "# this is a section comment\n"
         "[section2]\n"
         "key2=value-two\n"
         "other-key2=other-value-two\n"
@@ -259,7 +261,40 @@ static void test_infofile_get_ini_key(void) {
     fclose(stream);
 }
 
+static void test_infofile_only_comments(void) {
+    int rc;
+    sc_error *err;
+
+    char text[] =
+        "# this is a section comment\n"
+        "# this is another comment\n";
+
+    char *value = NULL;
+
+    FILE *stream = fmemopen(text, sizeof text - 1, "r");
+    g_assert_nonnull(stream);
+    value = NULL;
+    rewind(stream);
+    rc = sc_infofile_get_ini_section_key(stream, "section1", "key", &value, &err);
+    g_assert_cmpint(rc, ==, 0);
+    g_assert_null(err);
+    g_assert_null(value);
+    fclose(stream);
+
+    /* try again with the other API */
+    stream = fmemopen(text, sizeof text - 1, "r");
+    g_assert_nonnull(stream);
+    value = NULL;
+    rewind(stream);
+    rc = sc_infofile_get_key(stream, "key", &value, &err);
+    g_assert_cmpint(rc, ==, 0);
+    g_assert_null(err);
+    g_assert_null(value);
+    fclose(stream);
+}
+
 static void __attribute__((constructor)) init(void) {
     g_test_add_func("/infofile/get_key", test_infofile_get_key);
     g_test_add_func("/infofile/get_ini_key", test_infofile_get_ini_key);
+    g_test_add_func("/infofile/only_comments", test_infofile_only_comments);
 }

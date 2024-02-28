@@ -355,7 +355,7 @@ type Info struct {
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
 
-	Components map[string]Component
+	Components map[string]*Component
 
 	// Plugs or slots with issues (they are not included in Plugs or Slots)
 	BadInterfaces map[string]string // slot or plug => message
@@ -1197,6 +1197,9 @@ func (mis MediaInfos) IconURL() string {
 // HookInfo provides information about a hook.
 type HookInfo struct {
 	Snap *Info
+
+	// Component will be nil if the hook is not a component hook.
+	Component *Component
 
 	Name  string
 	Plugs map[string]*PlugInfo

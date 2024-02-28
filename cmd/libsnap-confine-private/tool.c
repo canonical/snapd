@@ -123,7 +123,7 @@ void sc_call_snap_update_ns_as_user(int snap_update_ns_fd,
 		sc_must_snprintf(snap_real_home_env,
 				 sizeof(snap_real_home_env),
 				 "SNAP_REAL_HOME=%s", snap_real_home);
-        }
+	}
 
 	char *argv[] = {
 		"snap-update-ns",

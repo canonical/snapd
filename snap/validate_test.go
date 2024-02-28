@@ -2635,3 +2635,19 @@ components:
 		c.Check(err, ErrorMatches, fmt.Sprintf("%s can have up to %d codepoints, got %d", tc.field, tc.maxCodePoints, utf8.RuneCountInString(text)))
 	}
 }
+
+func (s *ValidateSuite) TestDetectInvalidComponentHooks(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+components:
+  test:
+    type: test
+    hooks:
+      install:
+        command-chain: [">_>"]
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `hook command-chain contains illegal.*`)
+}

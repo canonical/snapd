@@ -133,8 +133,8 @@ typedef struct sc_preserved_process_state {
  * umask is altered. It is set to zero to make the ownership of created files
  * and directories more predictable.
 **/
-static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state *
-						   proc_state)
+static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state
+						   *proc_state)
 {
 	/* Reset umask to zero, storing the old value. */
 	proc_state->orig_umask = umask(0);
@@ -160,8 +160,8 @@ static void sc_preserve_and_sanitize_process_state(sc_preserved_process_state *
 /**
  *  sc_restore_process_state restores values stored earlier.
 **/
-static void sc_restore_process_state(const sc_preserved_process_state *
-				     proc_state)
+static void sc_restore_process_state(const sc_preserved_process_state
+				     *proc_state)
 {
 	/* Restore original umask */
 	umask(proc_state->orig_umask);
@@ -183,8 +183,8 @@ static void sc_restore_process_state(const sc_preserved_process_state *
 	 **/
 
 	/* Read the target of symlink at /proc/self/fd/<fd-of-orig-cwd> */
-	char fd_path[PATH_MAX] = {0};
-	char orig_cwd[PATH_MAX] = {0};
+	char fd_path[PATH_MAX] = { 0 };
+	char orig_cwd[PATH_MAX] = { 0 };
 	ssize_t nread;
 	/* If the original working directory cannot be used for whatever reason then
 	 * move the process to a special void directory. */
@@ -302,8 +302,8 @@ static void log_startup_stage(const char *stage)
 /**
  *  sc_cleanup_preserved_process_state releases system resources.
 **/
-static void sc_cleanup_preserved_process_state(sc_preserved_process_state *
-					       proc_state)
+static void sc_cleanup_preserved_process_state(sc_preserved_process_state
+					       *proc_state)
 {
 	sc_cleanup_close(&proc_state->orig_cwd_fd);
 }
@@ -394,7 +394,7 @@ int main(int argc, char **argv)
 		// id is non-root.  This protects against, for example, unprivileged
 		// users trying to leverage the snap-confine in the core snap to
 		// escalate privileges.
-		errno = 0; // errno is insignificant here
+		errno = 0;	// errno is insignificant here
 		die("snap-confine has elevated permissions and is not confined"
 		    " but should be. Refusing to continue to avoid"
 		    " permission escalation attacks\n"
@@ -566,7 +566,7 @@ int main(int argc, char **argv)
 	return 1;
 }
 
-static void enter_classic_execution_environment(const sc_invocation * inv,
+static void enter_classic_execution_environment(const sc_invocation *inv,
 						gid_t real_gid, gid_t saved_gid)
 {
 	/* with parallel-instances enabled, main() reassociated with the mount ns of
@@ -623,7 +623,7 @@ static void enter_classic_execution_environment(const sc_invocation * inv,
 	}
 }
 
-static void enter_non_classic_execution_environment(sc_invocation * inv,
+static void enter_non_classic_execution_environment(sc_invocation *inv,
 						    struct sc_apparmor *aa,
 						    uid_t real_uid,
 						    gid_t real_gid,
