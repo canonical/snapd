@@ -51,7 +51,7 @@ nested_wait_for_no_ssh() {
 nested_wait_vm_ready() {
     echo "Waiting the vm is ready to be used"
     local retry=${1:-120}
-    local log_limit=${2:-30}
+    local log_limit=${2:-60}
 
     local output_lines=0
     local serial_log="$NESTED_LOGS_DIR"/serial.log
