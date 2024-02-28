@@ -40,9 +40,9 @@ recovery system.
 When called without a system label and without a mode it will just
 trigger a regular reboot.
 
-When called without a system label, the current system will be used for the
-"run" and "install" modes. The default recovery system will be used for the
-"recover" and "factory-reset" modes.
+When called without a label, the current system will be used for "run" mode. The
+default recovery system will be used for "recover", "factory-reset" and
+"install" modes.
 
 Note that the "run" mode is only available for the current system.
 
