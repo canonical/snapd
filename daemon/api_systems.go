@@ -402,8 +402,13 @@ func postSystemActionCreateOffline(c *Command, form *Form) Response {
 		return errRsp
 	}
 
+	var splitVSets []string
+	if vsetsList != "" {
+		splitVSets = strings.Split(vsetsList, ",")
+	}
+
 	// TODO: why is this a comma delimited list, rather than multiple values?
-	sequences, err := parseValidationSets(strings.Split(vsetsList, ","))
+	sequences, err := parseValidationSets(splitVSets)
 	if err != nil {
 		return BadRequest("cannot parse validation sets: %v", err)
 	}
@@ -412,9 +417,14 @@ func postSystemActionCreateOffline(c *Command, form *Form) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	snapFiles, errRsp := form.GetSnapFiles()
-	if errRsp != nil {
-		return errRsp
+	var snapFiles []*uploadedSnap
+	if len(form.FileRefs["snap"]) > 0 {
+		snaps, errRsp := form.GetSnapFiles()
+		if errRsp != nil {
+			return errRsp
+		}
+
+		snapFiles = snaps
 	}
 
 	batch := asserts.NewBatch(nil)
@@ -457,6 +467,8 @@ func postSystemActionCreateOffline(c *Command, form *Form) Response {
 		LocalSnaps:     localSnaps,
 		TestSystem:     testSystem,
 		MarkDefault:    markDefault,
+		// using the form-based API implies that this should be an offline operation
+		Offline: true,
 	})
 	if err != nil {
 		return InternalError("cannot create recovery system %q: %v", label[0], err)

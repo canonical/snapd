@@ -1769,3 +1769,111 @@ func (s *systemsCreateSuite) TestCreateSystemActionOffline(c *check.C) {
 
 	c.Check(st.Change(res.Change), check.NotNil)
 }
+
+func (s *systemsCreateSuite) TestCreateSystemActionOfflinePreinstalled(c *check.C) {
+	const (
+		expectedLabel = "1234"
+	)
+
+	fields := map[string][]string{
+		"action": {"create"},
+		"label":  {expectedLabel},
+	}
+
+	form, boundary := createFormData(c, fields, nil)
+
+	daemon.MockDevicestateCreateRecoverySystem(func(st *state.State, label string, opts devicestate.CreateRecoverySystemOptions) (*state.Change, error) {
+		c.Check(expectedLabel, check.Equals, label)
+		c.Check(opts.ValidationSets, check.HasLen, 0)
+		c.Check(opts.LocalSnaps, check.HasLen, 0)
+		c.Check(opts.Offline, check.Equals, true)
+
+		return st.NewChange("change", "..."), nil
+	})
+
+	req, err := http.NewRequest("POST", "/v2/systems", &form)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
+	req.Header.Set("Content-Length", strconv.Itoa(form.Len()))
+
+	res := s.asyncReq(c, req, nil)
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(st.Change(res.Change), check.NotNil)
+}
+
+func (s *systemsCreateSuite) TestCreateSystemActionOfflineJustValidationSets(c *check.C) {
+	accountID := s.dev1acct.AccountID()
+
+	const (
+		validationSet = "validation-set-1"
+		expectedLabel = "1234"
+	)
+
+	vsetAssert := s.mockDevAssertion(c, asserts.ValidationSetType, map[string]interface{}{
+		"name":     validationSet,
+		"sequence": "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc-kernel",
+				"id":       snaptest.AssertedSnapID("pc-kernel"),
+				"revision": "10",
+				"presence": "required",
+			},
+			map[string]interface{}{
+				"name":     "pc",
+				"id":       snaptest.AssertedSnapID("pc"),
+				"revision": "10",
+				"presence": "required",
+			},
+			map[string]interface{}{
+				"name":     "core20",
+				"id":       snaptest.AssertedSnapID("core20"),
+				"revision": "10",
+				"presence": "required",
+			},
+		},
+	})
+
+	assertions := []string{
+		string(asserts.Encode(vsetAssert)),
+		string(asserts.Encode(s.acct1Key)),
+		string(asserts.Encode(s.dev1acct)),
+	}
+
+	valSetString := accountID + "/" + validationSet
+	fields := map[string][]string{
+		"action":          {"create"},
+		"assertion":       assertions,
+		"label":           {expectedLabel},
+		"validation-sets": {valSetString},
+	}
+
+	form, boundary := createFormData(c, fields, nil)
+
+	daemon.MockDevicestateCreateRecoverySystem(func(st *state.State, label string, opts devicestate.CreateRecoverySystemOptions) (*state.Change, error) {
+		c.Check(expectedLabel, check.Equals, label)
+		c.Check(opts.ValidationSets, check.HasLen, 1)
+		c.Check(opts.ValidationSets[0].Body(), check.DeepEquals, vsetAssert.Body())
+		c.Check(opts.LocalSnaps, check.HasLen, 0)
+		c.Check(opts.Offline, check.Equals, true)
+
+		return st.NewChange("change", "..."), nil
+	})
+
+	req, err := http.NewRequest("POST", "/v2/systems", &form)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
+	req.Header.Set("Content-Length", strconv.Itoa(form.Len()))
+
+	res := s.asyncReq(c, req, nil)
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(st.Change(res.Change), check.NotNil)
+}
