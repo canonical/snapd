@@ -1634,6 +1634,10 @@ type CreateRecoverySystemOptions struct {
 	// MarkDefault is set to true if the new recovery system should be marked as
 	// the default recovery system.
 	MarkDefault bool
+
+	// Offline is true if the recovery system should be created without reaching
+	// out to the store. Offline must be set to true if LocalSnaps is provided.
+	Offline bool
 }
 
 var ErrNoRecoverySystem = errors.New("recovery system does not exist")
@@ -1672,6 +1676,10 @@ func RemoveRecoverySystem(st *state.State, label string) (*state.Change, error) 
 func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySystemOptions) (chg *state.Change, err error) {
 	if err := snapstate.CheckChangeConflictRunExclusively(st, "create-recovery-system"); err != nil {
 		return nil, err
+	}
+
+	if !opts.Offline && len(opts.LocalSnaps) > 0 {
+		return nil, errors.New("locally provided snaps cannot be provided when creating a recovery system online")
 	}
 
 	var seeded bool
@@ -1719,7 +1727,6 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 	}
 
 	tracker := snap.NewSelfContainedSetPrereqTracker()
-	offline := len(opts.LocalSnaps) > 0
 
 	var downloadTSS []*state.TaskSet
 	for _, sn := range model.AllSnaps() {
@@ -1752,7 +1759,7 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 			}
 		}
 
-		if offline {
+		if opts.Offline {
 			info, err := offlineSnapInfo(sn, rev, opts)
 			if err != nil {
 				return nil, err
