@@ -1252,7 +1252,7 @@ nested_start_core_vm_unit() {
 
     if [ "$EXPECT_SHUTDOWN" != "1" ]; then
         # Wait until the vm is ready to receive connections
-        if ! nested_wait_vm_ready 120 40; then
+        if ! nested_wait_vm_ready 120 60; then
             echo "failed to wait for the vm becomes ready to receive connections"
             return 1
         fi
