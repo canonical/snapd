@@ -1370,7 +1370,7 @@ func (s *aspectSuite) TestSetOverwriteValueWithNewLevel(c *C) {
 
 func (s *aspectSuite) TestSetValidatesDataWithSchemaPass(c *C) {
 	schema, err := aspects.ParseSchema([]byte(`{
-	"types": {
+	"aliases": {
 		"int-map": {
 			"type": "map",
 			"values": {
