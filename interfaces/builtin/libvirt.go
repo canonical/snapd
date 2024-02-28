@@ -33,7 +33,7 @@ const libvirtConnectedPlugAppArmor = `
 /run/libvirt/libvirt-sock-ro rw,
 /run/libvirt/libvirt-sock rw,
 /etc/libvirt/* r,
-/var/lib/snapd/hostfs/var/lib/libvirt/dnsmasq{,**} r,
+/var/lib/snapd/hostfs/var/lib/libvirt/dnsmasq/{,**} r,
 `
 
 const libvirtConnectedPlugSecComp = `
