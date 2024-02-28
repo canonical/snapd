@@ -32,7 +32,7 @@ jobs:
     - name: Build snapd snap
       uses: snapcore/action-build@v1
       with:
-        snapcraft-channel: 4.x/candidate
+        snapcraft-channel: 8.x/stable
 
     - name: Check built artifact
       run: |

@@ -339,10 +339,10 @@ func (s *linkSuite) TestLinkSnapdSnapCallsWrappersWithPreseedingFlag(c *C) {
 	defer restore()
 
 	var called bool
-	restoreAddSnapdSnapWrappers := backend.MockWrappersAddSnapdSnapServices(func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) error {
+	restoreAddSnapdSnapWrappers := backend.MockWrappersAddSnapdSnapServices(func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) (*wrappers.Restart, error) {
 		c.Check(opts.Preseeding, Equals, true)
 		called = true
-		return nil
+		return nil, nil
 	})
 	defer restoreAddSnapdSnapWrappers()
 

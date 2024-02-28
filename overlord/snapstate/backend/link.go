@@ -109,8 +109,9 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 	osutil.MaybeInjectFault("link-snap")
 
 	var err error
+	var restart *wrappers.Restart
 	timings.Run(tm, "generate-wrappers", fmt.Sprintf("generate wrappers for snap %s", info.InstanceName()), func(timings.Measurer) {
-		err = b.generateWrappers(info, linkCtx)
+		restart, err = b.generateWrappers(info, linkCtx)
 	})
 	if err != nil {
 		return boot.RebootInfo{}, err
@@ -140,6 +141,12 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 	// if anything below here could return error, you need to
 	// somehow clean up whatever updateCurrentSymlinks did
 
+	if restart != nil {
+		if err := restart.Restart(); err != nil {
+			logger.Noticef("WARNING: cannot restart services: %v", err)
+		}
+	}
+
 	// Stop inhibiting application startup by removing the inhibitor file.
 	if err := runinhibit.Unlock(info.InstanceName()); err != nil {
 		return boot.RebootInfo{}, err
@@ -157,7 +164,7 @@ func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReaso
 	return wrappers.StopServices(apps, nil, reason, meter, tm)
 }
 
-func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
+func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) (*wrappers.Restart, error) {
 	var err error
 	var cleanupFuncs []func(*snap.Info) error
 	defer func() {
@@ -175,7 +182,7 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 
 	// add the CLI apps from the snap.yaml
 	if err = wrappers.EnsureSnapBinaries(s); err != nil {
-		return err
+		return nil, err
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapBinaries)
 
@@ -187,7 +194,7 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	if err = wrappers.EnsureSnapServices(map[*snap.Info]*wrappers.SnapServiceOptions{
 		s: linkCtx.ServiceOptions,
 	}, ensureOpts, nil, progress.Null); err != nil {
-		return err
+		return nil, err
 	}
 	cleanupFuncs = append(cleanupFuncs, func(s *snap.Info) error {
 		return wrappers.RemoveSnapServices(s, progress.Null)
@@ -195,23 +202,23 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 
 	// add D-Bus service activation files
 	if err = wrappers.AddSnapDBusActivationFiles(s); err != nil {
-		return err
+		return nil, err
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapDBusActivationFiles)
 
 	// add the desktop files
 	if err = wrappers.EnsureSnapDesktopFiles([]*snap.Info{s}); err != nil {
-		return err
+		return nil, err
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapDesktopFiles)
 
 	// add the desktop icons
 	if err = wrappers.EnsureSnapIcons(s); err != nil {
-		return err
+		return nil, err
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapIcons)
 
-	return nil
+	return nil, nil
 }
 
 func removeGeneratedWrappers(s *snap.Info, linkCtx LinkContext, meter progress.Meter) error {
@@ -255,7 +262,7 @@ type GenerateSnapdWrappersOptions struct {
 	Preseeding bool
 }
 
-func GenerateSnapdWrappers(s *snap.Info, opts *GenerateSnapdWrappersOptions) error {
+func GenerateSnapdWrappers(s *snap.Info, opts *GenerateSnapdWrappersOptions) (*wrappers.Restart, error) {
 	wrappersOpts := &wrappers.AddSnapdSnapServicesOptions{}
 	if opts != nil {
 		wrappersOpts.Preseeding = opts.Preseeding
