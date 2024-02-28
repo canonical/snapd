@@ -67,7 +67,9 @@ struct __attribute__((__packed__)) sc_seccomp_file_header {
 	// reserved for future use
 	uint8_t reserved2[112];
 };
-static_assert(sizeof(struct sc_seccomp_file_header) == 128,"unexpected struct size");
+
+static_assert(sizeof(struct sc_seccomp_file_header) == 128,
+	      "unexpected struct size");
 
 static void validate_path_has_strict_perms(const char *path)
 {
@@ -139,32 +141,41 @@ static void sc_cleanup_sock_fprog(struct sock_fprog *prog)
 	prog->filter = NULL;
 }
 
-static void sc_must_read_filter_from_file(FILE *file, uint32_t len_bytes, char *what, struct sock_fprog *prog)
+static void sc_must_read_filter_from_file(FILE *file, uint32_t len_bytes,
+					  char *what, struct sock_fprog *prog)
 {
-    if (len_bytes == 0) {
-        die("%s filter may only be empty in unrestricted profiles", what);
-    }
+	if (len_bytes == 0) {
+		die("%s filter may only be empty in unrestricted profiles",
+		    what);
+	}
 	prog->len = len_bytes / sizeof(struct sock_filter);
 	prog->filter = (struct sock_filter *)malloc(len_bytes);
 	if (prog->filter == NULL) {
-		die("cannot allocate %u bytes of memory for %s seccomp filter ", len_bytes, what);
+		die("cannot allocate %u bytes of memory for %s seccomp filter ",
+		    len_bytes, what);
 	}
 	size_t num_read = fread(prog->filter, 1, len_bytes, file);
 	if (ferror(file)) {
 		die("cannot read %s filter", what);
 	}
 	if (num_read != len_bytes) {
-		die("short read for filter %s %zu != %i", what, num_read, len_bytes);
+		die("short read for filter %s %zu != %i", what, num_read,
+		    len_bytes);
 	}
 }
 
-static FILE* sc_must_read_and_validate_header_from_file(const char *profile_path, struct sc_seccomp_file_header *hdr)
+static FILE *sc_must_read_and_validate_header_from_file(const char
+							*profile_path,
+							struct
+							sc_seccomp_file_header
+							*hdr)
 {
 	FILE *file = fopen(profile_path, "rb");
 	if (file == NULL) {
 		die("cannot open seccomp filter %s", profile_path);
 	}
-	size_t num_read = fread(hdr, 1, sizeof(struct sc_seccomp_file_header), file);
+	size_t num_read =
+	    fread(hdr, 1, sizeof(struct sc_seccomp_file_header), file);
 	if (ferror(file) != 0) {
 		die("cannot read seccomp profile %s", profile_path);
 	}
@@ -172,7 +183,8 @@ static FILE* sc_must_read_and_validate_header_from_file(const char *profile_path
 		die("short read on seccomp header: %zu", num_read);
 	}
 	if (hdr->header[0] != 'S' || hdr->header[1] != 'C') {
-		die("unexpected seccomp header: %x%x", hdr->header[0], hdr->header[1]);
+		die("unexpected seccomp header: %x%x", hdr->header[0],
+		    hdr->header[1]);
 	}
 	if (hdr->version != 1) {
 		die("unexpected seccomp file version: %x", hdr->version);
@@ -193,9 +205,12 @@ static FILE* sc_must_read_and_validate_header_from_file(const char *profile_path
 	if (fstat(fileno(file), &stat_buf) != 0) {
 		die("cannot fstat the seccomp file");
 	}
-	off_t expected_size = sizeof(struct sc_seccomp_file_header)+hdr->len_allow_filter+hdr->len_deny_filter;
+	off_t expected_size =
+	    sizeof(struct sc_seccomp_file_header) + hdr->len_allow_filter +
+	    hdr->len_deny_filter;
 	if (stat_buf.st_size != expected_size) {
-		die("unexpected filesize %ju != %ju", stat_buf.st_size, expected_size);
+		die("unexpected filesize %ju != %ju", stat_buf.st_size,
+		    expected_size);
 	}
 
 	return file;
@@ -250,18 +265,20 @@ bool sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
 	// we stop supporting 14.04
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-braces"
-	struct sc_seccomp_file_header hdr = {0};
+	struct sc_seccomp_file_header hdr = { 0 };
 #pragma GCC diagnostic pop
-	FILE *file SC_CLEANUP(sc_cleanup_file) = sc_must_read_and_validate_header_from_file(profile_path, &hdr);
+	FILE *file SC_CLEANUP(sc_cleanup_file) =
+	    sc_must_read_and_validate_header_from_file(profile_path, &hdr);
 	if (hdr.unrestricted == 0x1) {
 		return false;
 	}
-
 	// populate allow
-        sc_must_read_filter_from_file(file, hdr.len_allow_filter, "allow", &prog_allow);
-        sc_must_read_filter_from_file(file, hdr.len_deny_filter, "deny", &prog_deny);
+	sc_must_read_filter_from_file(file, hdr.len_allow_filter, "allow",
+				      &prog_allow);
+	sc_must_read_filter_from_file(file, hdr.len_deny_filter, "deny",
+				      &prog_deny);
 
-        // apply both filters
+	// apply both filters
 	sc_apply_seccomp_filter(&prog_deny);
 	sc_apply_seccomp_filter(&prog_allow);
 

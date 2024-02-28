@@ -50,7 +50,8 @@ static void test_must_read_and_validate_header_from_file__missing_file(void)
 {
 	struct sc_seccomp_file_header hdr;
 	const char *profile = "/path/to/missing/file";
-	const char *expected_err = "cannot open seccomp filter /path/to/missing/file: No such file or directory\n";
+	const char *expected_err =
+	    "cannot open seccomp filter /path/to/missing/file: No such file or directory\n";
 
 	if (g_test_subprocess()) {
 		FILE *SC_CLEANUP(sc_cleanup_file) file =
@@ -61,12 +62,16 @@ static void test_must_read_and_validate_header_from_file__missing_file(void)
 		// that "file" is unused
 		g_assert_null(file);
 	}
-    g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_subprocess(NULL, 0, 0);
 	g_test_trap_assert_failed();
 	g_test_trap_assert_stderr(expected_err);
 }
 
-static void must_read_and_validate_header_from_file_dies_with(struct sc_seccomp_file_header hdr, const char *err_msg)
+static void must_read_and_validate_header_from_file_dies_with(struct
+							      sc_seccomp_file_header
+							      hdr,
+							      const char
+							      *err_msg)
 {
 	if (g_test_subprocess()) {
 		char SC_CLEANUP(sc_cleanup_string) * profile = NULL;
@@ -165,20 +170,28 @@ test_must_read_and_validate_header_from_file__len_deny_no_multiplier(void)
 
 static void __attribute__((constructor)) init(void)
 {
-	g_test_add_func("/seccomp/must_read_and_validate_header_from_file/happy",
+	g_test_add_func
+	    ("/seccomp/must_read_and_validate_header_from_file/happy",
 	     test_must_read_and_validate_header_from_file__happy);
-    g_test_add_func("/seccomp/must_read_and_validate_header_from_file/missing_file",
-         test_must_read_and_validate_header_from_file__missing_file);
-	g_test_add_func("/seccomp/must_read_and_validate_header_from_file/invalid_header",
+	g_test_add_func
+	    ("/seccomp/must_read_and_validate_header_from_file/missing_file",
+	     test_must_read_and_validate_header_from_file__missing_file);
+	g_test_add_func
+	    ("/seccomp/must_read_and_validate_header_from_file/invalid_header",
 	     test_must_read_and_validate_header_from_file__invalid_header);
-	g_test_add_func("/seccomp/must_read_and_validate_header_from_file/invalid_version",
+	g_test_add_func
+	    ("/seccomp/must_read_and_validate_header_from_file/invalid_version",
 	     test_must_read_and_validate_header_from_file__invalid_version);
-	g_test_add_func("/seccomp/must_read_and_validate_header_from_file/len_allow_too_big",
+	g_test_add_func
+	    ("/seccomp/must_read_and_validate_header_from_file/len_allow_too_big",
 	     test_must_read_and_validate_header_from_file__len_allow_too_big);
-	g_test_add_func("/seccomp/must_read_and_validate_header_from_file/len_allow_no_multiplier",
+	g_test_add_func
+	    ("/seccomp/must_read_and_validate_header_from_file/len_allow_no_multiplier",
 	     test_must_read_and_validate_header_from_file__len_allow_no_multiplier);
-	g_test_add_func("/seccomp/must_read_and_validate_header_from_file/len_deny_too_big",
+	g_test_add_func
+	    ("/seccomp/must_read_and_validate_header_from_file/len_deny_too_big",
 	     test_must_read_and_validate_header_from_file__len_deny_too_big);
-	g_test_add_func("/seccomp/must_read_and_validate_header_from_file/len_deny_no_multiplier",
+	g_test_add_func
+	    ("/seccomp/must_read_and_validate_header_from_file/len_deny_no_multiplier",
 	     test_must_read_and_validate_header_from_file__len_deny_no_multiplier);
 }
