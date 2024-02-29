@@ -543,12 +543,12 @@ func (x *cmdRun) snapRunHook(snapTarget string) error {
 	if componentName == "" {
 		hook = info.Hooks[x.HookName]
 	} else {
-		// TODO: somehow get the component revision here? although if only one
-		// revision of a component is mounted for a revision of a snap, then is it
-		// needed?
+		// TODO: we need to figure out how to get the component revision to set
+		// the environment variables that we provide to the hook
 		componentRevision := snap.Revision{}
+		_ = componentRevision
 
-		component, err := getComponentInfo(componentName, componentRevision, info)
+		component, err := getComponentInfo(componentName, info)
 		if err != nil {
 			return err
 		}
