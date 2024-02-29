@@ -76,9 +76,18 @@ apps:
   command-chain: [chain1, chain2]
  nostop:
   command: nostop
+components:
+ comp:
+  hooks:
+   install:
 `)
 
 var mockClassicYaml = append([]byte("confinement: classic\n"), mockYaml...)
+
+var mockComponentYaml = []byte(`component: snapname+comp
+type: test
+version: 1.0
+`)
 
 var mockHookYaml = []byte(`name: snapname
 version: 1.0
@@ -91,6 +100,11 @@ version: 1.0
 hooks:
  configure:
   command-chain: [chain1, chain2]
+components:
+ comp:
+  hooks:
+   install:
+    command-chain: [chain3, chain4]
 `)
 
 var binaryTemplate = `#!/bin/sh
@@ -287,7 +301,7 @@ func (s *snapExecSuite) TestSnapExecHookIntegration(c *C) {
 	defer restore()
 
 	// launch and verify it ran correctly
-	err := snapExec.ExecHook("snapname", "42", "configure")
+	err := snapExec.ExecHook("snapname", "", "42", "configure")
 	c.Assert(err, IsNil)
 	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/meta/hooks/configure", dirs.SnapMountDir))
 	c.Check(execArgs, DeepEquals, []string{execArgv0})
@@ -312,7 +326,7 @@ func (s *snapExecSuite) TestSnapExecHookCommandChainIntegration(c *C) {
 	chain2_path := fmt.Sprintf("%s/snapname/42/chain2", dirs.SnapMountDir)
 	hook_path := fmt.Sprintf("%s/snapname/42/meta/hooks/configure", dirs.SnapMountDir)
 
-	err := snapExec.ExecHook("snapname", "42", "configure")
+	err := snapExec.ExecHook("snapname", "", "42", "configure")
 	c.Assert(err, IsNil)
 	c.Check(execArgv0, Equals, chain1_path)
 	c.Check(execArgs, DeepEquals, []string{chain1_path, chain2_path, hook_path})
@@ -324,7 +338,7 @@ func (s *snapExecSuite) TestSnapExecHookMissingHookIntegration(c *C) {
 		Revision: snap.R("42"),
 	})
 
-	err := snapExec.ExecHook("snapname", "42", "missing-hook")
+	err := snapExec.ExecHook("snapname", "", "42", "missing-hook")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, "cannot find hook \"missing-hook\" in \"snapname\"")
 }
@@ -662,4 +676,54 @@ func (s *snapExecSuite) TestSnapExecCompleteClassicNoReexec(c *C) {
 		"foo"})
 	c.Check(execEnv, testutil.Contains, "SNAP_DATA=/var/snap/snapname/42")
 	c.Check(execEnv, testutil.Contains, "TMPDIR=/var/tmp99")
+}
+
+func (s *snapExecSuite) TestSnapExecComponentHookIntegration(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	snapInfo := snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("42"),
+	})
+	snaptest.MockComponent(c, "comp", string(mockComponentYaml), snapInfo)
+
+	execArgv0 := ""
+	execArgs := []string{}
+	restore := snapExec.MockSyscallExec(func(argv0 string, argv []string, env []string) error {
+		execArgv0 = argv0
+		execArgs = argv
+		return nil
+	})
+	defer restore()
+
+	hookPath := filepath.Join(dirs.SnapMountDir, "/snapname/components/42/comp/meta/hooks/install")
+
+	err := snapExec.ExecHook("snapname", "comp", "42", "install")
+	c.Assert(err, IsNil)
+	c.Check(execArgv0, Equals, hookPath)
+	c.Check(execArgs, DeepEquals, []string{execArgv0})
+}
+
+func (s *snapExecSuite) TestSnapExecComponentHookCommandChainIntegration(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	snapInfo := snaptest.MockSnap(c, string(mockHookCommandChainYaml), &snap.SideInfo{
+		Revision: snap.R("42"),
+	})
+	snaptest.MockComponent(c, "comp", string(mockComponentYaml), snapInfo)
+
+	execArgv0 := ""
+	execArgs := []string{}
+	restore := snapExec.MockSyscallExec(func(argv0 string, argv []string, env []string) error {
+		execArgv0 = argv0
+		execArgs = argv
+		return nil
+	})
+	defer restore()
+
+	chain3Path := filepath.Join(dirs.SnapMountDir, "/snapname/components/42/comp/chain3")
+	chain4Path := filepath.Join(dirs.SnapMountDir, "/snapname/components/42/comp/chain4")
+	hookPath := filepath.Join(dirs.SnapMountDir, "/snapname/components/42/comp/meta/hooks/install")
+
+	err := snapExec.ExecHook("snapname", "comp", "42", "install")
+	c.Assert(err, IsNil)
+	c.Check(execArgv0, Equals, chain3Path)
+	c.Check(execArgs, DeepEquals, []string{chain3Path, chain4Path, hookPath})
 }
