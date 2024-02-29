@@ -16,7 +16,6 @@ backends:
             - ubuntu-18.04-64:
             - ubuntu-20.04-64:
             - ubuntu-22.04-64:
-            - ubuntu-23.04-64:
             - ubuntu-23.10-64:
             - ubuntu-24.04-64:
             - debian-11-64:
