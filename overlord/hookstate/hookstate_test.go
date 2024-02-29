@@ -1381,7 +1381,6 @@ components:
 
 func (s *componentHookManagerSuite) SetUpTest(c *C) {
 	s.commonSetUpTest(c)
-
 	s.mockHandler = hooktest.NewMockHandler()
 }
 
@@ -1428,6 +1427,8 @@ func (s *componentHookManagerSuite) TestComponentHookTaskEnsureInstance(c *C) {
 }
 
 func (s *componentHookManagerSuite) TestComponentHookWithoutHookIsError(c *C) {
+	s.setUpComponent(c, "test-snap", "test-component", "install")
+
 	s.state.Lock()
 
 	var hooksup hookstate.HookSetup
