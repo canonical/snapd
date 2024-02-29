@@ -12,38 +12,56 @@ import (
 var ErrNoPatterns = errors.New("no patterns given, cannot establish precedence")
 
 var (
-	// The following are the allowed path pattern suffixes, in order of precedence.
-	// Complete valid path patterns are a base path, which cannot contain wildcards,
-	// groups, or character classes, followed by either one of these suffixes or a
-	// group over multiple suffixes. In the latter case, each suffix in the group
-	// may be preceded by one or more path components, similar to the base path.
-	allowableSuffixPatternsByPrecedence = []string{
-		``,                 //           (no suffix, pattern is exact match)
-		`/\*(\.\w+)+`,      // /*.ext    (any file matching given extension in base path directory)
-		`/\*\*/\*(\.\w+)+`, // /**/*.ext (any file matching given extension in any subdirectory of base path)
-		`/\.\*`,            // /.*       (dotfiles in base path directory)
-		`/\*\*/\.\*`,       // /**/.*    (dotfiles in any subdirectory of base path)
-		`/\*`,              // /*        (any file in base path directory)
-		`/\*\*`,            // /**       (any file in any subdirectory of base path)
+	// The following must be escaped if used as literals in a path pattern:
+	problematicChars = `,*{}\[\]\\`
+	// A single safe or escaped unsafe char in a path
+	safePathChar = fmt.Sprintf(`([^/%s]|\\[%s])`, problematicChars, problematicChars)
+	// Some path components which may contain or begin with but not end with '/'
+	optionalPathComponents = fmt.Sprintf(`(%s*(/%s+)*)`, safePathChar, safePathChar)
+
+	// The following defines a "base path" which is combined with one of the
+	// suffixes defined below to form a path pattern. The base path must not
+	// end in a '/' character, and the base path pattern must be enclosed in
+	// parentheses.
+	basePathPattern = fmt.Sprintf(`((/%s+)+)`, safePathChar)
+
+	// The following are the allowed path pattern suffixes. Complete valid path
+	// patterns are a base path, which cannot contain wildcards, groups, or
+	// character classes, followed by either one of these suffixes or a group
+	// over multiple suffixes. In the latter case, each suffix in the group may
+	// be preceded by one or more path components, similar to the base path.
+	// The suffixes are given in rough order of precedence, though precedence
+	// is determined by the length of the base path, followed by the length of
+	// the next explicit path component before the following '*' (if any), and
+	// so on. The first time a path component in one pattern is longer than the
+	// corresponding path component in the other pattern, the former has
+	// precedence over the latter.
+	allowableSuffixPatterns = []string{
+		// Suffixes with exact match have highest precedence
+		/*   alignment  */ `/?`,
+		// Suffixes with a single '*' character prioritize base pattern length, then suffix length
+		fmt.Sprintf( /* */ `/?\*%s/?`, optionalPathComponents), // single '*' anywhere
+		// Suffixes with '/**/' substrings prioritize base pattern length,
+		// followed by pattern length between '/**/' and next '*', if any.
+		fmt.Sprintf(`/\*\*%s/?`, basePathPattern),                               // '/**/' followed by more exact path
+		fmt.Sprintf(`/\*\*%s/?\*%s/?`, basePathPattern, optionalPathComponents), // '/**/[^*]' followed by more path with '*' anywhere
+		fmt.Sprintf(`/\*\*/\*(/|%s)%s/?`, safePathChar, optionalPathComponents), // '/**/*' followed by path components
+		/* align */ `/\*\*/?`,
 	}
 
-	problematicChars = `,*{}\[\]\\`
 	// All of the following patterns must begin with '(' and end with ')'.
-	// The above problematic chars must be escaped if used as literals in a path pattern:
-	safePathChar              = fmt.Sprintf(`([^/%s]|\\[%s])`, problematicChars, problematicChars)
-	basePathPattern           = fmt.Sprintf(`((/%s+)*)`, safePathChar)
-	anySuffixPattern          = fmt.Sprintf(`(%s)`, strings.Join(allowableSuffixPatternsByPrecedence, "|"))
-	anySuffixesInGroupPattern = fmt.Sprintf(`(\{%s%s(,%s%s)+\})`, basePathPattern, anySuffixPattern, basePathPattern, anySuffixPattern)
+	anySuffixPattern          = fmt.Sprintf(`(%s)`, strings.Join(allowableSuffixPatterns, "|"))
+	anySuffixesInGroupPattern = fmt.Sprintf(`(\{%s%s(,%s%s)+\})`, optionalPathComponents, anySuffixPattern, optionalPathComponents, anySuffixPattern)
 	// The following is the regexp which all client-provided path patterns must match
-	allowablePathPatternRegexp = regexp.MustCompile(fmt.Sprintf(`^(/|%s(%s|%s))$`, basePathPattern, anySuffixPattern, anySuffixesInGroupPattern))
+	allowablePathPatternRegexp = regexp.MustCompile(fmt.Sprintf(`^(%s?(%s|%s))$`, basePathPattern, anySuffixPattern, anySuffixesInGroupPattern))
 
 	patternPrecedenceRegexps = buildPrecedenceRegexps()
 )
 
 func buildPrecedenceRegexps() []*regexp.Regexp {
-	precedenceRegexps := make([]*regexp.Regexp, 0, len(allowableSuffixPatternsByPrecedence)+1)
+	precedenceRegexps := make([]*regexp.Regexp, 0, len(allowableSuffixPatterns)+1)
 	precedenceRegexps = append(precedenceRegexps, regexp.MustCompile(`^/$`))
-	for _, suffix := range allowableSuffixPatternsByPrecedence {
+	for _, suffix := range allowableSuffixPatterns {
 		re := regexp.MustCompile(fmt.Sprintf(`^%s%s$`, basePathPattern, suffix))
 		precedenceRegexps = append(precedenceRegexps, re)
 	}
@@ -124,53 +142,55 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 	if len(patterns) == 0 {
 		return "", ErrNoPatterns
 	}
-	highestPrecedence := len(patternPrecedenceRegexps)
-	highestPrecedencePatterns := make(map[string]string)
-PATTERN_LOOP:
+	remainingPatterns := make(map[string]string, len(patterns))
 	for _, pattern := range patterns {
-		for i, re := range patternPrecedenceRegexps {
-			matches := re.FindStringSubmatch(pattern)
-			if matches == nil {
+		remainingPatterns[pattern] = pattern
+	}
+	for len(remainingPatterns) > 0 {
+		nextRemaining := make(map[string]string, len(remainingPatterns))
+		longest := 0 // Set to -1 when a pattern with no remaining '*' is found
+		for pattern, remaining := range remainingPatterns {
+			index := strings.Index(remaining, "*")
+			if longest == -1 {
+				if index == -1 {
+					nextRemaining[pattern] = remaining
+				}
 				continue
 			}
-			if i < highestPrecedence {
-				highestPrecedence = i
-				highestPrecedencePatterns = make(map[string]string)
+			if index == -1 || index > longest {
+				nextRemaining = make(map[string]string, len(remainingPatterns))
+				longest = index
+			} else if index < longest {
+				continue
 			}
-			if i == highestPrecedence {
-				matchedBasePath := matches[1]
-				highestPrecedencePatterns[pattern] = matchedBasePath
-			}
-			continue PATTERN_LOOP
+			nextRemaining[pattern] = remaining[index+1:]
 		}
-		return "", fmt.Errorf("pattern does not match any suffix, cannot establish precedence: %s", pattern)
-	}
-	if len(highestPrecedencePatterns) == 0 {
-		// Should never occur
-		return "", ErrNoPatterns
-	}
-	longestPattern := ""
-	longestBasePath := ""
-	for pattern, basePath := range highestPrecedencePatterns {
-		if len(basePath) < len(longestBasePath) {
+		if len(nextRemaining) == 1 {
+			for pattern := range nextRemaining {
+				return pattern, nil
+			}
+		}
+		remainingPatterns = nextRemaining
+		if longest != -1 {
 			continue
 		}
-		if len(basePath) == len(longestBasePath) {
-			if len(pattern) < len(longestPattern) {
+		// nextRemaining only contains remaining which have no '*' characters.
+		// Choose the pattern with the longest remaining.
+		patternLongestRemaining := ""
+		for pattern, remaining := range nextRemaining {
+			if len(remaining) < longest {
 				continue
 			}
-			if len(pattern) == len(longestPattern) {
-				// Should not be able to have two paths with the same
-				// precedence and equal length base path and full pattern,
-				// since that implies they must have the same suffix, so the
-				// patterns must be identical, which should be impossible.
-				return "", fmt.Errorf("multiple highest-precedence patterns with the same base path and length: %s and %s", longestPattern, pattern)
+			if len(remaining) == longest {
+				return "", fmt.Errorf("multiple highest-precedence patterns: %s and %s", patternLongestRemaining, pattern)
 			}
+			patternLongestRemaining = pattern
+			longest = len(remaining)
 		}
-		longestPattern = pattern
-		longestBasePath = basePath
+		return patternLongestRemaining, nil
 	}
-	return longestPattern, nil
+	// This should not occur
+	return "", fmt.Errorf("internal error: ran out of path patterns")
 }
 
 // ValidatePathPattern returns nil if the pattern is valid, otherwise an error.
