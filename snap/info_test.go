@@ -2315,3 +2315,8 @@ hooks:
 	c.Assert(hook, NotNil)
 	c.Check(hook.SecurityTag(), Equals, "snap.test-snap_instance.hook.install")
 }
+
+func (s *infoSuite) TestComponentMountDir(c *C) {
+	dir := snap.ComponentMountDir("comp", "snap", snap.R(1))
+	c.Check(dir, Equals, filepath.Join(dirs.SnapMountDir, "snap", "components", "1", "comp"))
+}

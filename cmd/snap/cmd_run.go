@@ -337,9 +337,9 @@ func getSnapInfo(snapName string, revision snap.Revision) (info *snap.Info, err 
 	return info, err
 }
 
-func getComponentInfo(name string, rev snap.Revision, snapInfo *snap.Info) (*snap.ComponentInfo, error) {
-	cpi := snap.MinimalComponentContainerPlaceInfo(name, rev, snapInfo.InstanceName(), snapInfo.Revision)
-	container := snapdir.New(cpi.MountDir())
+func getComponentInfo(name string, snapInfo *snap.Info) (*snap.ComponentInfo, error) {
+	mountDir := snap.ComponentMountDir(name, snapInfo.InstanceName(), snapInfo.Revision)
+	container := snapdir.New(mountDir)
 	return snap.ReadComponentInfoFromContainer(container, snapInfo)
 }
 

@@ -184,6 +184,12 @@ func MountDir(name string, revision Revision) string {
 	return filepath.Join(BaseDir(name), revision.String())
 }
 
+// ComponentMountDir returns the base directory where it gets mounted of the snap with
+// the given name and revision.
+func ComponentMountDir(componentName string, snapInstance string, snapRevision Revision) string {
+	return filepath.Join(BaseDir(snapInstance), "components", snapRevision.String(), componentName)
+}
+
 // MountFile returns the path where the snap file that is mounted is installed,
 // using the default blob directory (dirs.SnapBlobDir).
 func MountFile(name string, revision Revision) string {
