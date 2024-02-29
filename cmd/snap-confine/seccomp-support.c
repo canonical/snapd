@@ -165,8 +165,7 @@ static void sc_must_read_filter_from_file(FILE *file, uint32_t len_bytes,
 }
 
 static FILE *sc_must_read_and_validate_header_from_file(const char
-							*profile_path,
-							struct
+							*profile_path, struct
 							sc_seccomp_file_header
 							*hdr)
 {

@@ -69,8 +69,7 @@ static void test_must_read_and_validate_header_from_file__missing_file(void)
 
 static void must_read_and_validate_header_from_file_dies_with(struct
 							      sc_seccomp_file_header
-							      hdr,
-							      const char
+							      hdr, const char
 							      *err_msg)
 {
 	if (g_test_subprocess()) {
