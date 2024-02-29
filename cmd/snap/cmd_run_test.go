@@ -66,6 +66,21 @@ hooks:
  configure:
 `)
 
+var mockYamlWithComponent = []byte(`name: snapname
+version: 1.0
+components:
+  comp:
+    hooks:
+      install:
+hooks:
+ configure:
+`)
+
+var mockComponentYaml = []byte(`component: snapname+comp
+type: test
+version: 1.0
+`)
+
 var mockYamlBaseNone1 = []byte(`name: snapname1
 version: 1.0
 base: none
@@ -581,6 +596,48 @@ func (s *RunSuite) TestSnapRunHookIntegration(c *check.C) {
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"--hook=configure", "snapname"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
+}
+
+func (s *RunSuite) TestSnapRunComponentHookIntegration(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	snapInfo := snaptest.MockSnapCurrent(c, string(mockYamlWithComponent), &snap.SideInfo{
+		Revision: snap.R(42),
+	})
+
+	snaptest.MockComponent(c, "comp", string(mockComponentYaml), snapInfo)
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restorer()
+
+	// Run a hook from the active revision
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=install", "--", "snapname+comp"})
+	c.Assert(err, check.IsNil)
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+		"snap.snapname+comp.hook.install",
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"--hook=install",
+		"snapname+comp",
+	})
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
+
+	c.Check(execEnv, testutil.Contains, "SNAP_COMPONENT=/snap/snapname/components/42/comp")
+	c.Check(execEnv, testutil.Contains, "SNAP_COMPONENT_NAME=snapname+comp")
+	c.Check(execEnv, testutil.Contains, "SNAP_COMPONENT_VERSION=1.0")
+	// TODO: fix this check for SNAP_COMPONENT_REVISION
+	c.Check(execEnv, testutil.Contains, "SNAP_COMPONENT_REVISION=TODO")
 }
 
 func (s *RunSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
