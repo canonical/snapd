@@ -184,6 +184,13 @@ func MountDir(name string, revision Revision) string {
 	return filepath.Join(BaseDir(name), revision.String())
 }
 
+// ComponentMountDir returns the directory where a component gets mounted, which
+// will be of the form:
+// /snaps/<snap_instance>/components/mnt/<component_name>/<component_revision>
+func ComponentMountDir(componentName string, compRevision Revision, snapInstance string) string {
+	return filepath.Join(ComponentsBaseDir(snapInstance), "mnt", componentName, compRevision.String())
+}
+
 // MountFile returns the path where the snap file that is mounted is installed,
 // using the default blob directory (dirs.SnapBlobDir).
 func MountFile(name string, revision Revision) string {
@@ -250,6 +257,13 @@ func CommonDataDir(name string) string {
 // name. The name can be either a snap name or snap instance name.
 func HooksDir(name string, revision Revision) string {
 	return filepath.Join(MountDir(name, revision), "meta", "hooks")
+}
+
+// ComponentHooksDir returns the directory containing the component's hooks for
+// the given component hook name. The provided snap name can be either a snap
+// name or snap instance name.
+func ComponentHooksDir(snapName, componentName string, revision Revision) string {
+	return filepath.Join(BaseDir(snapName), "components", revision.String(), componentName, "meta", "hooks")
 }
 
 func snapDataDir(opts *dirs.SnapDirOptions) string {
@@ -1219,6 +1233,18 @@ type HookInfo struct {
 	CommandChain []string
 
 	Explicit bool
+}
+
+// Path returns the path to the this hook. This handles both the component and
+// regular hook cases.
+func (hook *HookInfo) Path() string {
+	var dir string
+	if hook.Component != nil {
+		dir = ComponentHooksDir(hook.Snap.InstanceName(), hook.Component.Name, hook.Snap.Revision)
+	} else {
+		dir = HooksDir(hook.Snap.InstanceName(), hook.Snap.Revision)
+	}
+	return filepath.Join(dir, hook.Name)
 }
 
 // SystemUsernameInfo provides information about a system username (ie, a

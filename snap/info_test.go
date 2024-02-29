@@ -741,6 +741,47 @@ hooks:
 	})
 }
 
+func (s *infoSuite) TestHookPath(c *C) {
+	yaml := `name: foo
+version: 1.0
+type: app
+environment:
+ global-k: global-v
+hooks:
+ foo:
+  environment:
+   app-k: app-v
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	c.Check(info.Hooks["foo"].Path(), Equals, filepath.Join(dirs.SnapMountDir, "foo", info.Revision.String(), "meta", "hooks", "foo"))
+}
+
+func (s *infoSuite) TestComponentHookPath(c *C) {
+	yaml := `name: foo
+version: 1.0
+type: app
+components:
+ comp:
+  hooks:
+   install:
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	componentYaml := `component: foo+comp
+type: test
+version: 1.0
+    `
+
+	componentInfo := snaptest.MockComponent(c, componentYaml, info)
+
+	c.Check(componentInfo.Hooks["install"].Path(), Equals, filepath.Join(
+		dirs.SnapMountDir, "foo", "components", info.Revision.String(), "comp", "meta", "hooks", "install"),
+	)
+}
+
 func (s *infoSuite) TestSplitSnapApp(c *C) {
 	for _, t := range []struct {
 		in  string
@@ -1818,6 +1859,7 @@ func (s *infoSuite) TestDirAndFileHelpers(c *C) {
 	c.Check(snap.MountFile("name", snap.R(1)), Equals, "/var/lib/snapd/snaps/name_1.snap")
 	c.Check(snap.HooksDir("name", snap.R(1)), Equals, fmt.Sprintf("%s/name/1/meta/hooks", dirs.SnapMountDir))
 	c.Check(snap.BaseDataDir("name"), Equals, "/var/snap/name")
+	c.Check(snap.ComponentHooksDir("name", "comp", snap.R(1)), Equals, fmt.Sprintf("%s/name/components/1/comp/meta/hooks", dirs.SnapMountDir))
 	c.Check(snap.DataDir("name", snap.R(1)), Equals, "/var/snap/name/1")
 	c.Check(snap.CommonDataDir("name"), Equals, "/var/snap/name/common")
 	c.Check(snap.CommonDataSaveDir("name"), Equals, "/var/lib/snapd/save/snap/name")
@@ -2332,4 +2374,9 @@ hooks:
 	hook := info.Hooks["install"]
 	c.Assert(hook, NotNil)
 	c.Check(hook.SecurityTag(), Equals, "snap.test-snap_instance.hook.install")
+}
+
+func (s *infoSuite) TestComponentMountDir(c *C) {
+	dir := snap.ComponentMountDir("comp", snap.R(1), "snap")
+	c.Check(dir, Equals, filepath.Join(dirs.SnapMountDir, "snap", "components", "mnt", "comp", "1"))
 }
