@@ -108,7 +108,7 @@ func (s *SnapSuite) TestRecovery(c *C) {
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, `
 Label     Brand    Model       Notes
-20200101  brand-1  model-id-1  current,default-recovery-system
+20200101  brand-1  model-id-1  current,default-recovery
 20200802  brand-2  model-id-2  -
 `[1:])
 	c.Check(s.Stderr(), Equals, "")

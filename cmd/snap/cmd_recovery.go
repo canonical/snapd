@@ -63,7 +63,7 @@ func notesForSystem(sys *client.System) string {
 	}
 
 	if sys.DefaultRecoverySystem {
-		notes = append(notes, "default-recovery-system")
+		notes = append(notes, "default-recovery")
 	}
 
 	if len(notes) == 0 {
