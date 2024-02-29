@@ -120,6 +120,14 @@ parts:
       - zlib1g
     stage:
       - lib/*
+  # Also needed by squashfs-tools
+  zstd:
+    plugin: nil
+    stage-packages:
+      - libzstd1
+    stage:
+      - usr/lib/*
+      - lib/*
   # libc6 is part of core but we need it in the snapd snap for
   # CommandFromSystemSnap
   libc6:
