@@ -2719,3 +2719,29 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(autoImported, Equals, true)
 }
+
+func (s *deviceMgrSuite) TestDefaultRecoverySystem(c *C) {
+	// no recovery system set
+	s.state.Lock()
+	s.state.Set("default-recovery-system", nil)
+	s.state.Unlock()
+
+	_, err := s.mgr.DefaultRecoverySystem()
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+
+	expectedSystem := devicestate.DefaultRecoverySystem{
+		System:   "label",
+		Model:    "model",
+		BrandID:  "brand",
+		Revision: 1,
+	}
+
+	// recovery system set
+	s.state.Lock()
+	s.state.Set("default-recovery-system", expectedSystem)
+	s.state.Unlock()
+
+	system, err := s.mgr.DefaultRecoverySystem()
+	c.Assert(err, IsNil)
+	c.Check(*system, Equals, expectedSystem)
+}

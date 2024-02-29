@@ -1510,9 +1510,9 @@ type recoverySystemSetup struct {
 	// not be verified by rebooting into the new system. Once the system is
 	// created, it will immediately be considered a valid recovery system.
 	TestSystem bool `json:"test-system,omitempty"`
-	// MarkCurrent is set to true if the new recovery system should be
-	// marked as the current recovery system.
-	MarkCurrent bool `json:"mark-current,omitempty"`
+	// MarkDefault is set to true if the new recovery system should be marked as
+	// the default recovery system.
+	MarkDefault bool `json:"mark-default,omitempty"`
 }
 
 func pickRecoverySystemLabel(labelBase string) (string, error) {
@@ -1577,7 +1577,7 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []s
 		SnapSetupTasks: snapSetupTasks,
 		LocalSnaps:     opts.LocalSnaps,
 		TestSystem:     opts.TestSystem,
-		MarkCurrent:    opts.MarkCurrent,
+		MarkDefault:    opts.MarkDefault,
 	})
 
 	ts := state.NewTaskSet(create)
@@ -1631,9 +1631,9 @@ type CreateRecoverySystemOptions struct {
 	// recovery system.
 	TestSystem bool
 
-	// MarkCurrent is set to true if the new recovery system should be
-	// marked as the current system.
-	MarkCurrent bool
+	// MarkDefault is set to true if the new recovery system should be marked as
+	// the default recovery system.
+	MarkDefault bool
 }
 
 var ErrNoRecoverySystem = errors.New("recovery system does not exist")
