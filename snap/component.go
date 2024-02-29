@@ -193,7 +193,7 @@ func addAndBindImplicitComponentHook(componentInfo *ComponentInfo, snapInfo *Inf
 		return
 	}
 
-	// implciit hooks get all unscoped plugs
+	// implicit hooks get all unscoped plugs
 	unscopedPlugs := make(map[string]*PlugInfo)
 	for name, plug := range snapInfo.Plugs {
 		if plug.Unscoped {
