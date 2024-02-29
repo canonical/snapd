@@ -228,10 +228,11 @@ jobs:
           ./autogen.sh
           # apply formatting
           PATH=${{ github.workspace }}/indent-bin/opt/indent/bin:$PATH make fmt
-
+          set +x
           if [ -n "$(git diff --stat)" ]; then
               git diff
               echo "C files are not fomratted correctly, run 'make fmt'"
+              echo "make sure to have clang-format and indent 2.2.13+ installed"
               exit 1
           fi
 
