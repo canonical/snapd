@@ -71,7 +71,7 @@ execute: |
   remote.exec sudo snap recovery | MATCH 'new-system'
 
   if [ "${MARK_DEFAULT}" = 'true' ]; then
-    remote.exec 'sudo snap recovery' | awk '$1 == "new-system" { print $4 }' | MATCH 'default-recovery-system'
+    remote.exec 'sudo snap recovery' | awk '$1 == "new-system" { print $4 }' | MATCH 'default-recovery'
   fi
 
   remote.exec "test -f /var/lib/snapd/seed/snaps/hello-world_28.snap"

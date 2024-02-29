@@ -43,7 +43,7 @@ execute: |
 
   remote.exec snap watch "${change_id}"
 
-  remote.exec 'sudo snap recovery' | awk '$1 == "new-system" { print $4 }' | MATCH 'default-recovery-system'
+  remote.exec 'sudo snap recovery' | awk '$1 == "new-system" { print $4 }' | MATCH 'default-recovery'
 
   # check that the new label was appended to the current and good recovery
   # system lists

@@ -56,7 +56,7 @@ execute: |
   MATCH 'current_recovery_systems=.*,new-system$' < modeenv
   MATCH 'good_recovery_systems=.*,new-system$' < modeenv
 
-  remote.exec 'sudo snap recovery' | awk '$1 == "new-system" { print $4 }' | MATCH 'default-recovery-system'
+  remote.exec 'sudo snap recovery' | awk '$1 == "new-system" { print $4 }' | MATCH 'default-recovery'
 
   remote.exec "sudo snap reboot --${MODE}"
   remote.wait-for reboot "${boot_id}"
@@ -84,7 +84,7 @@ execute: |
 
     # new system should be the default recovery system and the current system
     remote.exec 'sudo snap recovery' > ./output
-    cat ./output | awk '$1 == "new-system" { print $4 }' | MATCH 'current,default-recovery-system'
+    cat ./output | awk '$1 == "new-system" { print $4 }' | MATCH 'current,default-recovery'
 
     # we can't check the revision, since auto-refresh will probably refresh the
     # snap before we get to this point. at least check that the snap is here,
