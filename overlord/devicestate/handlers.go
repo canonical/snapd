@@ -213,7 +213,14 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 		// since this is the most recently seeded system, it should also be the
 		// default recovery system. this is important when coming back from a
 		// factory-reset.
-		st.Set("default-recovery-system", whatSeeded.System)
+		st.Set("default-recovery-system", DefaultRecoverySystem{
+			System:          whatSeeded.System,
+			Model:           whatSeeded.Model,
+			BrandID:         whatSeeded.BrandID,
+			Revision:        whatSeeded.Revision,
+			Timestamp:       whatSeeded.Timestamp,
+			TimeMadeDefault: now,
+		})
 	}
 	st.Set("seed-time", now)
 	st.Set("seeded", true)

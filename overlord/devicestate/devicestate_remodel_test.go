@@ -5075,11 +5075,19 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 			System:    "0000",
 			Model:     model.Model(),
 			BrandID:   model.BrandID(),
+			Revision:  model.Revision(),
 			Timestamp: model.Timestamp(),
 			SeedTime:  oldSeededTs,
 		},
 	})
-	s.state.Set("default-recovery-system", "0000")
+	s.state.Set("default-recovery-system", devicestate.DefaultRecoverySystem{
+		System:          "0000",
+		Model:           model.Model(),
+		BrandID:         model.BrandID(),
+		Timestamp:       model.Timestamp(),
+		Revision:        model.Revision(),
+		TimeMadeDefault: oldSeededTs,
+	})
 	// current gadget
 	siModelGadget := &snap.SideInfo{
 		RealName: "pc",
@@ -5223,7 +5231,10 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 		// the system was seeded after our mocked 'now' or at the same
 		// time if clock resolution is very low, but not before it
 		c.Check(seededSystems[0].SeedTime.Before(now), Equals, false)
+		// record when the system was seeded
+		newSystemSeededTime := seededSystems[0].SeedTime
 		seededSystems[0].SeedTime = time.Time{}
+
 		c.Check(seededSystems[1].SeedTime.Equal(oldSeededTs), Equals, true)
 		seededSystems[1].SeedTime = time.Time{}
 		c.Check(seededSystems, DeepEquals, []devicestate.SeededSystem{
@@ -5238,14 +5249,24 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 				System:    "0000",
 				Model:     model.Model(),
 				BrandID:   model.BrandID(),
-				Timestamp: model.Timestamp(),
 				Revision:  model.Revision(),
+				Timestamp: model.Timestamp(),
 			},
 		})
 
-		var defaultSystem string
+		var defaultSystem devicestate.DefaultRecoverySystem
 		c.Assert(s.state.Get("default-recovery-system", &defaultSystem), IsNil)
-		c.Check(defaultSystem, Equals, expectedLabel)
+		// // check that the timestamp is not empty and clear it, so that
+		// // the comparison below works
+		c.Check(defaultSystem.TimeMadeDefault.Equal(newSystemSeededTime), Equals, true)
+		defaultSystem.TimeMadeDefault = time.Time{}
+		c.Check(defaultSystem, Equals, devicestate.DefaultRecoverySystem{
+			System:    expectedLabel,
+			Model:     new.Model(),
+			BrandID:   new.BrandID(),
+			Revision:  new.Revision(),
+			Timestamp: new.Timestamp(),
+		})
 	} else {
 		// however, error is still logged, both to the task and the logger
 		c.Check(strings.Join(setModelTask.Log(), "\n"), Matches, tc.taskLogMatch)
@@ -5264,9 +5285,19 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 			},
 		})
 
-		var defaultSystem string
+		var defaultSystem devicestate.DefaultRecoverySystem
 		c.Assert(s.state.Get("default-recovery-system", &defaultSystem), IsNil)
-		c.Check(defaultSystem, Equals, "0000")
+		// check that the timestamp is not empty and clear it, so that
+		// the comparison below works
+		c.Check(defaultSystem.TimeMadeDefault.Equal(oldSeededTs), Equals, true)
+		defaultSystem.TimeMadeDefault = time.Time{}
+		c.Check(defaultSystem, Equals, devicestate.DefaultRecoverySystem{
+			System:    "0000",
+			Model:     model.Model(),
+			BrandID:   model.BrandID(),
+			Timestamp: model.Timestamp(),
+			Revision:  model.Revision(),
+		})
 	}
 }
 

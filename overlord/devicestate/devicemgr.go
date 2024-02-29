@@ -2157,9 +2157,8 @@ type systemAndEssentialSnaps struct {
 	SeedSnapsByType map[snap.Type]*seed.Snap
 }
 
-// DefaultRecoverySystem returns the label of the default recovery system, if
-// there is one. state.ErrNoState is returned if a default recovery system has
-// not been set.
+// DefaultRecoverySystem returns the default recovery system, if there is one.
+// state.ErrNoState is returned if a default recovery system has not been set.
 func (m *DeviceManager) DefaultRecoverySystem() (*DefaultRecoverySystem, error) {
 	m.state.Lock()
 	defer m.state.Unlock()
