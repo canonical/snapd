@@ -364,7 +364,6 @@ func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hoo
 				return fmt.Errorf("snap %q has no %q hook", hooksup.Snap, hooksup.Hook)
 			}
 		} else {
-			// TODO: should this use instance name or just the snap name?
 			comp, err := snapst.CurrentComponentInfo(naming.ComponentRef{
 				SnapName:      info.SnapName(),
 				ComponentName: hooksup.Component,
