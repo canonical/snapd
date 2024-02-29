@@ -40,6 +40,7 @@ var _ = Suite(&componentSuite{})
 
 func (s *componentSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	dirs.SetRootDir(c.MkDir())
 }
 
@@ -306,4 +307,64 @@ func (s *componentSuite) TestComponentSideInfoEqual(c *C) {
 	} {
 		c.Check(csi.Equal(tc.csi), Equals, tc.equal)
 	}
+}
+
+func (s *componentSuite) TestReadComponentInfoFinishedWithSnapInfo(c *C) {
+	const componentYaml = `component: snap+component
+type: test
+version: 1.0
+summary: short description
+description: long description
+`
+	const compName = "snap+component"
+	testComp := snaptest.MakeTestComponentWithFiles(c, compName+".comp", componentYaml, [][]string{
+		{"meta/hooks/install", "echo 'explicit hook'"},
+		{"meta/hooks/pre-refresh", "echo 'implicit hook'"},
+	})
+
+	compf, err := snapfile.Open(testComp)
+	c.Assert(err, IsNil)
+
+	const snapYaml = `
+name: snap
+components:
+  component:
+    type: test
+    hooks:
+      install:
+        plugs: [network]
+plugs:
+  network-client:
+`
+
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+	c.Assert(err, IsNil)
+
+	ci, err := snap.ReadComponentInfoFromContainer(compf, snapInfo)
+	c.Assert(err, IsNil)
+
+	c.Check(ci.Component.ComponentName, Equals, "component")
+	c.Check(ci.Component.SnapName, Equals, "snap")
+	c.Check(ci.Type, Equals, snap.TestComponent)
+	c.Check(ci.Version, Equals, "1.0")
+	c.Check(ci.Summary, Equals, "short description")
+	c.Check(ci.Description, Equals, "long description")
+	c.Check(ci.FullName(), Equals, compName)
+
+	c.Check(ci.Hooks, HasLen, 2)
+
+	installHook := ci.Hooks["install"]
+	c.Assert(installHook, NotNil)
+	c.Check(installHook.Name, Equals, "install")
+	c.Check(installHook.Explicit, Equals, true)
+	c.Check(installHook.Plugs, HasLen, 2)
+	c.Check(installHook.Plugs["network-client"], NotNil)
+	c.Check(installHook.Plugs["network"], NotNil)
+
+	preRefreshHook := ci.Hooks["pre-refresh"]
+	c.Assert(preRefreshHook, NotNil)
+	c.Check(preRefreshHook.Name, Equals, "pre-refresh")
+	c.Check(preRefreshHook.Explicit, Equals, false)
+	c.Check(preRefreshHook.Plugs, HasLen, 1)
+	c.Check(preRefreshHook.Plugs["network-client"], NotNil)
 }
