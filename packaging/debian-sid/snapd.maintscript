@@ -1,6 +1,6 @@
+rm_conffile /etc/apparmor.d/usr.lib.snapd.snap-confine 2.23.6~ snap-confine
 # keep mount point busy
 # we used to ship a custom grub config that is no longer needed
 rm_conffile /etc/grub.d/09_snappy 1.7.3ubuntu1
 rm_conffile /etc/ld.so.conf.d/snappy.conf 2.0.7~
-rm_conffile /etc/apparmor.d/usr.lib.snapd.snap-confine 2.23.6~ snap-confine
 rm_conffile /etc/sudoers.d/99-snapd.conf 2.50~
