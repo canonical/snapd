@@ -1,12 +1,12 @@
 Tests: integrationtests
 Restrictions: allow-stderr, rw-build-tree, needs-root, breaks-testbed, isolation-machine
-Depends: @builddeps@,
-         bzr,
+Depends: bzr,
          ca-certificates,
          git,
          golang-golang-x-net-dev,
          locales,
-         openssh-server,
-         netcat-openbsd,
          net-tools,
-         snapd
+         netcat-openbsd,
+         openssh-server,
+         snapd,
+         @builddeps@
