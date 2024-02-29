@@ -527,7 +527,7 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 }
 
 func (x *cmdRun) snapRunHook(snapTarget string) error {
-	snapInstance, componentName := snap.ComponentFromSnapComponentInstance(snapTarget)
+	snapInstance, componentName := snap.SplitSnapComponentInstanceName(snapTarget)
 
 	revision, err := snap.ParseRevision(x.Revision)
 	if err != nil {

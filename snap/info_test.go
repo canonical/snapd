@@ -1756,7 +1756,7 @@ func (s *infoSuite) TestComponentFromSnapComponentInstance(c *C) {
 	}
 
 	for _, t := range tests {
-		snapInstance, component := snap.ComponentFromSnapComponentInstance(t.input)
+		snapInstance, component := snap.SplitSnapComponentInstanceName(t.input)
 		c.Check(snapInstance, Equals, t.snapInstance)
 		c.Check(component, Equals, t.component)
 	}
