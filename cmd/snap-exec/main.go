@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/snapenv"
 )
 
@@ -81,10 +82,12 @@ func parseArgs(args []string) (app string, appArgs []string, err error) {
 }
 
 func run() error {
-	snapApp, extraArgs, err := parseArgs(os.Args[1:])
+	snapTarget, extraArgs, err := parseArgs(os.Args[1:])
 	if err != nil {
 		return err
 	}
+
+	snapName, componentName := snap.SplitSnapComponentInstanceName(snapTarget)
 
 	// the SNAP_REVISION is set by `snap run` - we can not (easily)
 	// find it in `snap-exec` because `snap-exec` is run inside the
@@ -93,10 +96,10 @@ func run() error {
 
 	// Now actually handle the dispatching
 	if opts.Hook != "" {
-		return execHook(snapApp, revision, opts.Hook)
+		return execHook(snapName, componentName, revision, opts.Hook)
 	}
 
-	return execApp(snapApp, revision, opts.Command, extraArgs)
+	return execApp(snapName, revision, opts.Command, extraArgs)
 }
 
 const defaultShell = "/bin/bash"
@@ -128,12 +131,10 @@ func findCommand(app *snap.AppInfo, command string) (string, error) {
 	return cmd, nil
 }
 
-func absoluteCommandChain(snapInfo *snap.Info, commandChain []string) []string {
+func absoluteCommandChain(mountDir string, commandChain []string) []string {
 	chain := make([]string, 0, len(commandChain))
-	snapMountDir := snapInfo.MountDir()
-
 	for _, element := range commandChain {
-		chain = append(chain, filepath.Join(snapMountDir, element))
+		chain = append(chain, filepath.Join(mountDir, element))
 	}
 
 	return chain
@@ -245,7 +246,7 @@ func execApp(snapApp, revision, command string, args []string) error {
 	fullCmd = append(fullCmd, cmdArgs...)
 	fullCmd = append(fullCmd, args...)
 
-	fullCmd = append(absoluteCommandChain(app.Snap, app.CommandChain), fullCmd...)
+	fullCmd = append(absoluteCommandChain(app.Snap.MountDir(), app.CommandChain), fullCmd...)
 
 	logger.StartupStageTimestamp("snap-exec to app")
 	if err := syscallExec(fullCmd[0], fullCmd, env.ForExec()); err != nil {
@@ -255,7 +256,15 @@ func execApp(snapApp, revision, command string, args []string) error {
 	return nil
 }
 
-func execHook(snapName, revision, hookName string) error {
+func getComponentInfo(name string, snapInfo *snap.Info) (*snap.ComponentInfo, error) {
+	container := func(p string) (snap.Container, error) {
+		return snapdir.New(p), nil
+	}
+
+	return snap.ReadCurrentComponentInfo(name, snapInfo, container)
+}
+
+func execHook(snapName, componentName, revision, hookName string) error {
 	rev, err := snap.ParseRevision(revision)
 	if err != nil {
 		return err
@@ -268,7 +277,23 @@ func execHook(snapName, revision, hookName string) error {
 		return err
 	}
 
-	hook := info.Hooks[hookName]
+	var (
+		hook     *snap.HookInfo
+		mountDir string
+	)
+
+	if componentName == "" {
+		hook = info.Hooks[hookName]
+		mountDir = info.MountDir()
+	} else {
+		component, err := getComponentInfo(componentName, info)
+		if err != nil {
+			return err
+		}
+		hook = component.Hooks[hookName]
+		mountDir = snap.ComponentMountDir(component.Component.ComponentName, component.Revision, info.InstanceName())
+	}
+
 	if hook == nil {
 		return fmt.Errorf("cannot find hook %q in %q", hookName, snapName)
 	}
@@ -285,7 +310,9 @@ func execHook(snapName, revision, hookName string) error {
 		env.ExtendWithExpanded(eenv)
 	}
 
+	hookPath := filepath.Join(mountDir, "meta", "hooks", hookName)
+
 	// run the hook
-	cmd := append(absoluteCommandChain(hook.Snap, hook.CommandChain), filepath.Join(hook.Snap.HooksDir(), hook.Name))
+	cmd := append(absoluteCommandChain(mountDir, hook.CommandChain), hookPath)
 	return syscallExec(cmd[0], cmd, env.ForExec())
 }
