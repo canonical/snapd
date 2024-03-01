@@ -10,9 +10,12 @@ environment:
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  TEST_SYSTEM: false
 
   TEST_SYSTEM/untested: false
   TEST_SYSTEM/tested: true
+
+  PRE_INSTALLED_SNAPS/pre_installed_snaps: true
 
 prepare: |
     tests.nested build-image core
@@ -31,7 +34,13 @@ execute: |
   remote.push "${TESTSLIB}/assertions/test-snapd-recovery-system-pinned.assert"
   remote.exec snap download hello-world --revision=28 --basename=hello-world
 
-  response=$(remote.exec "sudo test-snapd-curl.curl -X POST --unix-socket /run/snapd.socket -F 'action=create' -F 'label=new-system' -F 'validation-sets=test-snapd/recovery-system-pinned=1' -F 'assertion=<test-snapd-recovery-system-pinned.assert' -F 'assertion=<hello-world.assert' -F 'snap=@hello-world.snap' -F 'test-system=${TEST_SYSTEM}' -F 'mark-default=true' http://localhost/v2/systems")
+  if [ "${PRE_INSTALLED_SNAPS}" = 'true' ]; then
+    remote.exec "sudo snap refresh --revision=28 hello-world"
+    remote.exec "sudo snap ack test-snapd-recovery-system-pinned.assert"
+    response=$(remote.exec "sudo test-snapd-curl.curl -X POST --unix-socket /run/snapd.socket -F 'action=create' -F 'label=new-system' -F 'validation-sets=test-snapd/recovery-system-pinned' -F 'test-system=${TEST_SYSTEM}' -F 'mark-default=true' http://localhost/v2/systems")
+  else
+    response=$(remote.exec "sudo test-snapd-curl.curl -X POST --unix-socket /run/snapd.socket -F 'action=create' -F 'label=new-system' -F 'validation-sets=test-snapd/recovery-system-pinned=1' -F 'assertion=<test-snapd-recovery-system-pinned.assert' -F 'assertion=<hello-world.assert' -F 'snap=@hello-world.snap' -F 'test-system=${TEST_SYSTEM}' -F 'mark-default=true' http://localhost/v2/systems")
+  fi
 
   change_id=$(jq -r .change <<< "${response}")
 
