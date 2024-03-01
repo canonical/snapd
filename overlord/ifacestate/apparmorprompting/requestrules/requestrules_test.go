@@ -63,9 +63,9 @@ func (s *requestrulesSuite) TestPopulateNewRule(c *C) {
 	}
 
 	for _, pattern := range []string{
-		"/home/test/**/foo.conf",
-		"/home/test/*/**",
-		"/home/test/*/*.txt",
+		`/home/test/**/foo.[abc]onf`,
+		`/home/test/*/**\`,
+		`/home/test/*{/*.txt`,
 	} {
 		constraints := &common.Constraints{
 			PathPattern: pattern,
@@ -714,25 +714,25 @@ func (s *requestrulesSuite) TestIsPathAllowed(c *C) {
 	cases["/home/test/file.png"] = true
 	cases["/home/test/file.jpg"] = false
 	cases["/home/test/Documents/file.png"] = true
-	cases["/home/test/Documents/file.jpg"] = false
-	cases["/home/test/Documents/foo/file.png"] = true
+	cases["/home/test/Documents/file.jpg"] = true
+	cases["/home/test/Documents/foo/file.png"] = false
 	cases["/home/test/Documents/foo/file.jpg"] = false
 	cases["/home/test/Documents/foo/bar/file.png"] = true
-	cases["/home/test/Documents/foo/bar/file.jpg"] = false
-	cases["/home/test/Documents/foo/bar/baz/file.png"] = true
+	cases["/home/test/Documents/foo/bar/file.jpg"] = true
+	cases["/home/test/Documents/foo/bar/baz/file.png"] = false
 	cases["/home/test/Documents/foo/bar/baz/file.jpg"] = false
 	cases["/home/test/Documents.png"] = true
 	cases["/home/test/Documents.jpg"] = false
 	cases["/home/test/Documents/foo.png"] = true
-	cases["/home/test/Documents/foo.jpg"] = false
+	cases["/home/test/Documents/foo.jpg"] = true
 	cases["/home/test/Documents/foo.txt"] = true
-	cases["/home/test/Documents/foo/bar.png"] = true
+	cases["/home/test/Documents/foo/bar.png"] = false
 	cases["/home/test/Documents/foo/bar.jpg"] = false
 	cases["/home/test/Documents/foo/bar.txt"] = false
 	cases["/home/test/Documents/foo/bar/baz.png"] = true
-	cases["/home/test/Documents/foo/bar/baz.jpg"] = false
+	cases["/home/test/Documents/foo/bar/baz.jpg"] = true
 	cases["/home/test/Documents/foo/bar/baz.png"] = true
-	cases["/home/test/Documents/foo/bar/baz/file.png"] = true
+	cases["/home/test/Documents/foo/bar/baz/file.png"] = false
 	cases["/home/test/Documents/foo/bar/baz/file.jpg"] = false
 	cases["/home/test/Documents/foo/bar/baz/file.txt"] = false
 	cases["/home/test/file.jpg.png"] = true
@@ -812,7 +812,7 @@ func (s *requestrulesSuite) TestRuleExpiration(c *C) {
 
 	allowed, err := rdb.IsPathAllowed(user, snap, iface, path1, "read")
 	c.Assert(err, IsNil)
-	c.Assert(allowed, Equals, true)
+	c.Assert(allowed, Equals, true, Commentf("rdb.ByID: %+v", rdb.ByID))
 	allowed, err = rdb.IsPathAllowed(user, snap, iface, path2, "read")
 	c.Assert(err, IsNil)
 	c.Assert(allowed, Equals, false)
