@@ -36,11 +36,17 @@ const (
 	ucrednetNobody    = uint32((1 << 32) - 1)
 )
 
-var raddrRegexp = regexp.MustCompile(`^pid=(\d+);uid=(\d+);socket=([^;]*);$`)
+var raddrRegexp = regexp.MustCompile(`^pid=(\d+);uid=(\d+);socket=([^;]*);(iface=([^;]*);)?$`)
 
 var ucrednetGet = ucrednetGetImpl
+var ucrednetGetWithInterface = ucrednetGetWithInterfaceImpl
 
 func ucrednetGetImpl(remoteAddr string) (*ucrednet, error) {
+	uc, _, err := ucrednetGetWithInterface(remoteAddr)
+	return uc, err
+}
+
+func ucrednetGetWithInterfaceImpl(remoteAddr string) (ucred *ucrednet, iface string, err error) {
 	// NOTE treat remoteAddr at one point included a user-controlled
 	// string. In case that happens again by accident, treat it as tainted,
 	// and be very suspicious of it.
@@ -57,12 +63,19 @@ func ucrednetGetImpl(remoteAddr string) (*ucrednet, error) {
 			u.Uid = uint32(v)
 		}
 		u.Socket = subs[3]
+		if len(subs) == 6 {
+			iface = subs[5]
+		}
 	}
 	if u.Pid == ucrednetNoProcess || u.Uid == ucrednetNobody {
-		return nil, errNoID
+		return nil, "", errNoID
 	}
 
-	return u, nil
+	return u, iface, nil
+}
+
+func ucrednetAttachInterface(remoteAddr, iface string) string {
+	return fmt.Sprintf("%siface=%s;", remoteAddr, iface)
 }
 
 type ucrednet struct {

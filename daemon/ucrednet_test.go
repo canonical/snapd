@@ -185,10 +185,45 @@ func (s *ucrednetSuite) TestGet(c *check.C) {
 	c.Check(u.Pid, check.Equals, int32(100))
 	c.Check(u.Uid, check.Equals, uint32(42))
 	c.Check(u.Socket, check.Equals, "/run/snap.socket")
+
+	u, err = ucrednetGet("pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe;")
+	c.Assert(err, check.IsNil)
+	c.Check(u.Pid, check.Equals, int32(100))
+	c.Check(u.Uid, check.Equals, uint32(42))
+	c.Check(u.Socket, check.Equals, "/run/snap.socket")
 }
 
 func (s *ucrednetSuite) TestGetSneak(c *check.C) {
 	u, err := ucrednetGet("pid=100;uid=42;socket=/run/snap.socket;pid=0;uid=0;socket=/tmp/my.socket")
 	c.Check(err, check.Equals, errNoID)
 	c.Check(u, check.IsNil)
+}
+
+func (s *ucrednetSuite) TestGetWithInterface(c *check.C) {
+	u, iface, err := ucrednetGetWithInterface("pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe;")
+	c.Assert(err, check.IsNil)
+	c.Check(u.Pid, check.Equals, int32(100))
+	c.Check(u.Uid, check.Equals, uint32(42))
+	c.Check(u.Socket, check.Equals, "/run/snap.socket")
+	c.Check(iface, check.Equals, "snap-refresh-observe")
+
+	// iface is optional
+	u, iface, err = ucrednetGetWithInterface("pid=100;uid=42;socket=/run/snap.socket;")
+	c.Assert(err, check.IsNil)
+	c.Check(u.Pid, check.Equals, int32(100))
+	c.Check(u.Uid, check.Equals, uint32(42))
+	c.Check(u.Socket, check.Equals, "/run/snap.socket")
+	c.Check(iface, check.Equals, "")
+}
+
+func (s *ucrednetSuite) TestAttachInterface(c *check.C) {
+	remoteAddr := ucrednetAttachInterface("pid=100;uid=42;socket=/run/snap.socket;", "snap-refresh-observe")
+	c.Check(remoteAddr, check.Equals, "pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe;")
+
+	u, iface, err := ucrednetGetWithInterface(remoteAddr)
+	c.Assert(err, check.IsNil)
+	c.Check(u.Pid, check.Equals, int32(100))
+	c.Check(u.Uid, check.Equals, uint32(42))
+	c.Check(u.Socket, check.Equals, "/run/snap.socket")
+	c.Check(iface, check.Equals, "snap-refresh-observe")
 }
