@@ -37,21 +37,26 @@ import (
 type accessType int
 
 const (
-	readWrite accessType = 1 << iota
+	readWrite accessType = iota
 	read
 	write
 )
 
+var accessTypeStrings = []string{"read-write", "read", "write"}
+
 func newAccessType(access string) (accessType, error) {
-	switch access {
-	case "", "read-write":
-		return readWrite, nil
-	case "read":
-		return read, nil
-	case "write":
-		return write, nil
+	// default to read-write access
+	if access == "" {
+		access = "read-write"
 	}
-	return 0, fmt.Errorf(`expected 'access' to be either "read-write", "read", "write" or empty but was %q`, access)
+
+	for i, accessStr := range accessTypeStrings {
+		if accessStr == access {
+			return accessType(i), nil
+		}
+	}
+
+	return readWrite, fmt.Errorf("expected 'access' to be either %s or empty but was %q", strutil.Quoted(accessTypeStrings), access)
 }
 
 type NotFoundError struct {
@@ -228,7 +233,8 @@ func newAspect(bundle *Bundle, name string, aspectRules []interface{}) (*Aspect,
 
 	readRequests := make(map[string]bool)
 	for _, rule := range aspect.rules {
-		if rule.access&(read|readWrite) != 0 {
+		switch rule.access {
+		case read, readWrite:
 			if readRequests[rule.originalRequest] {
 				return nil, fmt.Errorf(`cannot have several reading rules with the same "request" field`)
 			}
