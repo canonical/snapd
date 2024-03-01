@@ -35,6 +35,7 @@ execute: |
     template=$2
     shift 2
 
+    # shellcheck disable=SC2059
     response=$(printf "${template}" "$@" | remote.exec "sudo test-snapd-curl.curl -X POST -H 'Content-Type: application/json' --unix-socket /run/snapd.socket -d @- http://localhost${route}")
     if ! jq -e .change <<< "${response}"; then
       echo "could not get change id from response: ${response}"
