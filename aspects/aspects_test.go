@@ -1783,7 +1783,7 @@ func (s *aspectSuite) TestSetManyUnmatchedPlaceholders(c *C) {
 	})
 }
 
-func (s *aspectSuite) TestUnsetUnmatchedPlaceholder(c *C) {
+func (s *aspectSuite) TestUnsetUnmatchedPlaceholderLast(c *C) {
 	databag := aspects.NewJSONDataBag()
 	aspectBundle, err := aspects.NewBundle("acc", "bundle", map[string]interface{}{
 		"foo": map[string]interface{}{
@@ -1804,7 +1804,58 @@ func (s *aspectSuite) TestUnsetUnmatchedPlaceholder(c *C) {
 	c.Assert(err, IsNil)
 
 	err = asp.Unset(databag, "foo")
-	c.Assert(err, ErrorMatches, `cannot unset "foo" in aspect acc/bundle/foo: cannot unset with unmatched placeholders`)
+	c.Assert(err, IsNil)
+
+	_, err = asp.Get(databag, "foo")
+	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
+	c.Assert(err, ErrorMatches, `cannot get "foo" in aspect acc/bundle/foo: matching rules don't map to any values`)
+}
+
+func (s *aspectSuite) TestUnsetUnmatchedPlaceholderMid(c *C) {
+	databag := aspects.NewJSONDataBag()
+	aspectBundle, err := aspects.NewBundle("acc", "bundle", map[string]interface{}{
+		"foo": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{"request": "all.{bar}", "storage": "foo.{bar}"},
+				map[string]interface{}{"request": "one.{bar}", "storage": "foo.{bar}.one"},
+			},
+		},
+	}, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	asp := aspectBundle.Aspect("foo")
+	c.Assert(asp, NotNil)
+
+	err = asp.Set(databag, "all", map[string]interface{}{
+		// should remove only the "one" path
+		"a": map[string]interface{}{
+			"one": "value",
+			"two": "other",
+		},
+		// should be completely removed (only has a "one" path)
+		"b": map[string]interface{}{
+			"one": "value",
+		},
+		// should be untouched (no "one" path)
+		"c": map[string]interface{}{
+			"two": "value",
+		},
+	})
+	c.Assert(err, IsNil)
+
+	err = asp.Unset(databag, "one")
+	c.Assert(err, IsNil)
+
+	val, err := asp.Get(databag, "all")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, map[string]interface{}{
+		"a": map[string]interface{}{
+			"two": "other",
+		},
+		"c": map[string]interface{}{
+			"two": "value",
+		},
+	})
 }
 
 func (s *aspectSuite) TestGetValuesThroughPaths(c *C) {

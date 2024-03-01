@@ -520,14 +520,6 @@ func (a *Aspect) Unset(databag DataBag, request string) error {
 			return err
 		}
 
-		// TODO: in the future, check the storage and complete paths according to
-		// the data that is currently stored?
-		for _, part := range strings.Split(path, ".") {
-			if isPlaceholder(part) {
-				return badRequestErrorFrom(a, "unset", request, "cannot unset with unmatched placeholders")
-			}
-		}
-
 		matches = append(matches, requestMatch{
 			storagePath: path,
 			suffixParts: suffixParts,
@@ -1372,40 +1364,61 @@ func (s JSONDataBag) Unset(path string) error {
 
 func unset(subKeys []string, index int, node map[string]json.RawMessage) (json.RawMessage, error) {
 	key := subKeys[index]
+	matchAll := isPlaceholder(key)
+
 	if index == len(subKeys)-1 {
-		delete(node, key)
-		// if the parent node has no other entries, it can also be deleted
-		if len(node) == 0 {
+		if !matchAll {
+			delete(node, key)
+		}
+
+		if matchAll || len(node) == 0 {
+			// remove entire level
 			return nil, nil
 		}
 
 		return json.Marshal(node)
 	}
 
-	rawLevel, ok := node[key]
-	if !ok {
-		// no such entry, nothing to unset
-		return json.Marshal(node)
+	unsetKey := func(level map[string]json.RawMessage, key string) error {
+		nextLevelRaw, ok := level[key]
+		if !ok {
+			return nil
+		}
+
+		var nextLevel map[string]json.RawMessage
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(nextLevelRaw), &nextLevel); err != nil {
+			return err
+		}
+
+		updated, err := unset(subKeys, index+1, nextLevel)
+		if err != nil {
+			return err
+		}
+
+		// update the map with the sublevel which may have changed or been removed
+		if updated == nil {
+			delete(level, key)
+		} else {
+			level[key] = updated
+		}
+
+		return nil
 	}
 
-	var level map[string]json.RawMessage
-	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
-		return nil, err
-	}
-
-	rawLevel, err := unset(subKeys, index+1, level)
-	if err != nil {
-		return nil, err
-	}
-
-	if rawLevel == nil {
-		delete(node, key)
-
-		if len(node) == 0 {
-			return nil, nil
+	if matchAll {
+		for k := range node {
+			if err := unsetKey(node, k); err != nil {
+				return nil, err
+			}
 		}
 	} else {
-		node[key] = rawLevel
+		if err := unsetKey(node, key); err != nil {
+			return nil, err
+		}
+	}
+
+	if len(node) == 0 {
+		return nil, nil
 	}
 
 	return json.Marshal(node)
