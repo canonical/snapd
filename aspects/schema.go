@@ -67,26 +67,26 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 	}
 
 	schema := new(StorageSchema)
-	if val, ok := schemaDef["types"]; ok {
-		var userTypes map[string]json.RawMessage
-		if err := json.Unmarshal(val, &userTypes); err != nil {
-			return nil, fmt.Errorf(`cannot parse user-defined types map: %w`, err)
+	if aliasesRaw, ok := schemaDef["aliases"]; ok {
+		var aliases map[string]json.RawMessage
+		if err := json.Unmarshal(aliasesRaw, &aliases); err != nil {
+			return nil, fmt.Errorf(`cannot parse aliases map: %w`, err)
 		}
 
-		// TODO: if we want to allow user types to refer to others, this must be handled
-		// explicitly since userTypes will not preserve any order in the serialized JSON
-		schema.userTypes = make(map[string]*userTypeRefParser, len(userTypes))
-		for userTypeName, typeDef := range userTypes {
-			if !validUserType.Match([]byte(userTypeName)) {
-				return nil, fmt.Errorf(`cannot parse user-defined type name %q: must match %s`, userTypeName, validUserType)
+		// TODO: if we want to allow aliases to refer to others, this must be handled
+		// explicitly since the "aliases" map doesn't have any implicit order
+		schema.aliases = make(map[string]*aliasRefParser, len(aliases))
+		for alias, typeDef := range aliases {
+			if !validAliasName.Match([]byte(alias)) {
+				return nil, fmt.Errorf(`cannot parse alias name %q: must match %s`, alias, validAliasName)
 			}
 
-			userTypeSchema, err := schema.parse(typeDef)
+			aliasSchema, err := schema.parse(typeDef)
 			if err != nil {
-				return nil, fmt.Errorf(`cannot parse user-defined type %q: %w`, userTypeName, err)
+				return nil, fmt.Errorf(`cannot parse alias %q: %w`, alias, err)
 			}
 
-			schema.userTypes[userTypeName] = newUserTypeRefParser(userTypeSchema)
+			schema.aliases[alias] = newAliasRefParser(aliasSchema)
 		}
 	}
 
@@ -98,34 +98,34 @@ func ParseSchema(raw []byte) (*StorageSchema, error) {
 	return schema, nil
 }
 
-// userTypeRefParser parses references to user-defined types (e.g., $my-type).
-type userTypeRefParser struct {
+// aliasRefParser parses references to aliases (e.g., $my-type).
+type aliasRefParser struct {
 	Schema
 
 	stringBased bool
 }
 
-func newUserTypeRefParser(s Schema) *userTypeRefParser {
+func newAliasRefParser(s Schema) *aliasRefParser {
 	_, ok := s.(*stringSchema)
-	return &userTypeRefParser{
+	return &aliasRefParser{
 		Schema:      s,
 		stringBased: ok,
 	}
 }
 
-// expectsConstraints return false because a reference to user type doesn't
-// define constraints (these are defined under "types" at the top level).
-func (*userTypeRefParser) expectsConstraints() bool {
+// expectsConstraints return false because a reference to an alias doesn't
+// define constraints (these are defined under "aliases" at the top level).
+func (*aliasRefParser) expectsConstraints() bool {
 	return false
 }
 
 // parseConstraints is a no-op because type references can't define constraints.
-func (v *userTypeRefParser) parseConstraints(map[string]json.RawMessage) error {
+func (v *aliasRefParser) parseConstraints(map[string]json.RawMessage) error {
 	return nil
 }
 
 // isStringBased returns true if this reference's base type is a string.
-func (u *userTypeRefParser) isStringBased() bool {
+func (u *aliasRefParser) isStringBased() bool {
 	return u.stringBased
 }
 
@@ -135,8 +135,8 @@ type StorageSchema struct {
 	// topLevel is the schema for the top level map.
 	topLevel Schema
 
-	// userTypes contains schemas that can validate types defined by the user.
-	userTypes map[string]*userTypeRefParser
+	// aliases are schemas that can validate custom types defined by the user.
+	aliases map[string]*aliasRefParser
 }
 
 // Validate validates the provided JSON object.
@@ -289,19 +289,19 @@ func (s *StorageSchema) newTypeSchema(typ string) (parser, error) {
 		return &arraySchema{topSchema: s}, nil
 	default:
 		if typ != "" && typ[0] == '$' {
-			return s.getUserType(typ[1:])
+			return s.getAlias(typ[1:])
 		}
 
 		return nil, fmt.Errorf("cannot parse unknown type %q", typ)
 	}
 }
 
-func (s *StorageSchema) getUserType(ref string) (*userTypeRefParser, error) {
-	if userType, ok := s.userTypes[ref]; ok {
-		return userType, nil
+func (s *StorageSchema) getAlias(ref string) (*aliasRefParser, error) {
+	if alias, ok := s.aliases[ref]; ok {
+		return alias, nil
 	}
 
-	return nil, fmt.Errorf("cannot find user-defined type %q", ref)
+	return nil, fmt.Errorf("cannot find alias %q", ref)
 }
 
 type alternativesSchema struct {
@@ -391,7 +391,7 @@ func (v *alternativesSchema) Type() SchemaType {
 }
 
 type mapSchema struct {
-	// topSchema is the schema for the top-level schema which contains the user types.
+	// topSchema is the schema for the top-level schema which contains the aliases.
 	topSchema *StorageSchema
 
 	// entrySchemas maps keys to their expected types. Alternatively, the schema
@@ -678,16 +678,16 @@ func (v *mapSchema) parseMapKeyType(raw json.RawMessage) (Schema, error) {
 	}
 
 	if typ != "" && typ[0] == '$' {
-		userType, err := v.topSchema.getUserType(typ[1:])
+		alias, err := v.topSchema.getAlias(typ[1:])
 		if err != nil {
 			return nil, err
 		}
 
-		if !userType.isStringBased() {
+		if !alias.isStringBased() {
 			return nil, fmt.Errorf(`key type %q must be based on string`, typ[1:])
 		}
 
-		return userType, nil
+		return alias, nil
 	}
 
 	return nil, fmt.Errorf(`keys must be based on string but type was %s`, typ)
@@ -1083,7 +1083,7 @@ func (v *booleanSchema) parseConstraints(map[string]json.RawMessage) error {
 func (v *booleanSchema) expectsConstraints() bool { return false }
 
 type arraySchema struct {
-	// topSchema is the schema for the top-level schema which contains the user types.
+	// topSchema is the schema for the top-level schema which contains the aliases.
 	topSchema *StorageSchema
 
 	// elementType represents the type of the array's elements and can be used to

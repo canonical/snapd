@@ -20,6 +20,17 @@ func NewSnapAppSet(info *snap.Info) *SnapAppSet {
 	return &SnapAppSet{info: info}
 }
 
+// Info returns the snap.Info that this SnapAppSet is based on.
+func (a *SnapAppSet) Info() *snap.Info {
+	return a.info
+}
+
+// InstanceName returns the instance name of the snap that this SnapAppSet is
+// based on.
+func (a *SnapAppSet) InstanceName() string {
+	return a.info.InstanceName()
+}
+
 // SecurityTagsForConnectedPlug returns the security tags for the given plug.
 // These are derived from the security tags of the apps and hooks that are
 // associated with the plug.

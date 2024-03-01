@@ -1510,9 +1510,9 @@ type recoverySystemSetup struct {
 	// not be verified by rebooting into the new system. Once the system is
 	// created, it will immediately be considered a valid recovery system.
 	TestSystem bool `json:"test-system,omitempty"`
-	// MarkCurrent is set to true if the new recovery system should be
-	// marked as the current recovery system.
-	MarkCurrent bool `json:"mark-current,omitempty"`
+	// MarkDefault is set to true if the new recovery system should be marked as
+	// the default recovery system.
+	MarkDefault bool `json:"mark-default,omitempty"`
 }
 
 func pickRecoverySystemLabel(labelBase string) (string, error) {
@@ -1577,7 +1577,7 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []s
 		SnapSetupTasks: snapSetupTasks,
 		LocalSnaps:     opts.LocalSnaps,
 		TestSystem:     opts.TestSystem,
-		MarkCurrent:    opts.MarkCurrent,
+		MarkDefault:    opts.MarkDefault,
 	})
 
 	ts := state.NewTaskSet(create)
@@ -1631,9 +1631,9 @@ type CreateRecoverySystemOptions struct {
 	// recovery system.
 	TestSystem bool
 
-	// MarkCurrent is set to true if the new recovery system should be
-	// marked as the current system.
-	MarkCurrent bool
+	// MarkDefault is set to true if the new recovery system should be marked as
+	// the default recovery system.
+	MarkDefault bool
 }
 
 var ErrNoRecoverySystem = errors.New("recovery system does not exist")
@@ -1718,11 +1718,6 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		return nil, err
 	}
 
-	// snaps required by validation sets must also be required by the model
-	if err := checkForRequiredSnapsNotRequiredInModel(model, valsets); err != nil {
-		return nil, err
-	}
-
 	tracker := snap.NewSelfContainedSetPrereqTracker()
 	offline := len(opts.LocalSnaps) > 0
 
@@ -1742,6 +1737,19 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 			}
 			tracker.Add(info)
 			continue
+		}
+
+		if sn.Presence != "required" {
+			sets, _, err := valsets.CheckPresenceRequired(sn)
+			if err != nil {
+				return nil, err
+			}
+
+			// snap isn't already installed, and it isn't required by model or
+			// any validation sets, so we should skip it
+			if len(sets) == 0 {
+				continue
+			}
 		}
 
 		if offline {

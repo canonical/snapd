@@ -203,6 +203,12 @@ func (s *systemsSuite) TestSystemsGetSome(c *check.C) {
 		"revision": 2, "timestamp": "2009-11-10T23:00:00Z",
 		"seed-time": "2009-11-10T23:00:00Z",
 	}})
+	st.Set("default-recovery-system", devicestate.DefaultRecoverySystem{
+		System:   "20200318",
+		Model:    "my-model-2",
+		BrandID:  "my-brand",
+		Revision: 2,
+	})
 	st.Unlock()
 
 	s.expectAuthenticatedAccess()
@@ -235,10 +241,13 @@ func (s *systemsSuite) TestSystemsGetSome(c *check.C) {
 				},
 				Actions: []client.SystemAction{
 					{Title: "Install", Mode: "install"},
+					{Title: "Recover", Mode: "recover"},
+					{Title: "Factory reset", Mode: "factory-reset"},
 				},
 			}, {
-				Current: true,
-				Label:   "20200318",
+				Current:               true,
+				DefaultRecoverySystem: true,
+				Label:                 "20200318",
 				Model: client.SystemModelData{
 					Model:       "my-model-2",
 					BrandID:     "my-brand",
@@ -948,6 +957,8 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 		Model: s.seedModelForLabel20191119.Headers(),
 		Actions: []client.SystemAction{
 			{Title: "Install", Mode: "install"},
+			{Title: "Recover", Mode: "recover"},
+			{Title: "Factory reset", Mode: "factory-reset"},
 		},
 
 		Brand: snap.StoreAccount{

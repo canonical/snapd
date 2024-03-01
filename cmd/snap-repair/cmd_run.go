@@ -20,12 +20,14 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snapdenv"
 )
@@ -99,6 +101,14 @@ func (c *cmdRun) Execute(args []string) error {
 				// no more repairs
 				break
 			}
+
+			// if the store is offline, we want the unit to succeed and not
+			// report failures
+			if errors.Is(err, errStoreOffline) {
+				logger.NoGuardDebugf("running snap repair: %v", err)
+				return nil
+			}
+
 			if err != nil {
 				return err
 			}

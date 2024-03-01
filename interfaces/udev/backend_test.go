@@ -154,8 +154,9 @@ func (s *backendSuite) TestSecurityIsStable(c *C) {
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
+		appSet := interfaces.NewSnapAppSet(snapInfo)
 		s.udevadmCmd.ForgetCalls()
-		err := s.Backend.Setup(snapInfo, opts, s.Repo, s.meas)
+		err := s.Backend.Setup(appSet, opts, s.Repo, s.meas)
 		c.Assert(err, IsNil)
 		// rules are not re-loaded when nothing changes
 		c.Check(s.udevadmCmd.Calls(), HasLen, 0)
@@ -522,14 +523,16 @@ func (s *backendSuite) TestSandboxFeatures(c *C) {
 	defer restore()
 
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{
+		"tagging",
 		"device-filtering",
 		"device-cgroup-v1",
-		"tagging",
 	})
 
 	restore = cgroup.MockVersion(cgroup.V2, nil)
 	defer restore()
 	c.Assert(s.Backend.SandboxFeatures(), DeepEquals, []string{
 		"tagging",
+		"device-filtering",
+		"device-cgroup-v2",
 	})
 }

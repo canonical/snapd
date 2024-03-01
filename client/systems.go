@@ -53,6 +53,8 @@ type System struct {
 	Brand snap.StoreAccount `json:"brand,omitempty"`
 	// Actions available for this system
 	Actions []SystemAction `json:"actions,omitempty"`
+	// DefaultRecoverySystem is true when the system is the default recovery system
+	DefaultRecoverySystem bool `json:"default-recovery-system,omitempty"`
 }
 
 type SystemAction struct {

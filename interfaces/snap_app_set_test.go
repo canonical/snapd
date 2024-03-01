@@ -217,6 +217,20 @@ slots:
 	c.Assert(err, ErrorMatches, `internal error: slot "slot" is from snap "other-name", security tags can only be computed for processed target snap: "name"`)
 }
 
+func (s *snapAppSetSuite) TestInfo(c *C) {
+	info := snaptest.MockInfo(c, yaml, nil)
+	set := interfaces.NewSnapAppSet(info)
+
+	c.Check(set.Info(), DeepEquals, info)
+}
+
+func (s *snapAppSetSuite) TestInstanceName(c *C) {
+	info := snaptest.MockInfo(c, yaml, nil)
+	set := interfaces.NewSnapAppSet(info)
+
+	c.Check(set.InstanceName(), Equals, "test-snap")
+}
+
 func appsInMap(apps map[string]*snap.AppInfo) []*snap.AppInfo {
 	result := make([]*snap.AppInfo, 0, len(apps))
 	for _, app := range apps {

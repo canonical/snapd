@@ -1325,11 +1325,14 @@ func (s *snapsSuite) TestSnapInfoReturnsRefreshInhibitProceedTime(c *check.C) {
 	var snapst snapstate.SnapState
 	// Update snap state with RefreshInhibitedTime.
 	c.Assert(snapstate.Get(st, "foo", &snapst), check.IsNil)
-	refreshInhibitTime := time.Date(2024, 2, 15, 2, 29, 1, 9, time.UTC)
+	refreshInhibitTime := time.Now().Add(1 * time.Hour)
 	snapst.RefreshInhibitedTime = &refreshInhibitTime
 	snapstate.Set(st, "foo", &snapst)
 	// Get expected proceed time while we have the lock.
 	expectedProceedTime := snapst.RefreshInhibitProceedTime(st)
+
+	monitored := map[string]context.CancelFunc{"foo": func() {}}
+	st.Cache("monitored-snaps", monitored)
 	st.Unlock()
 
 	req, err := http.NewRequest("GET", "/v2/snaps/foo", nil)
@@ -1339,9 +1342,9 @@ func (s *snapsSuite) TestSnapInfoReturnsRefreshInhibitProceedTime(c *check.C) {
 
 	c.Assert(rsp.Result, check.FitsTypeOf, &client.Snap{})
 	snapInfo := rsp.Result.(*client.Snap)
-	c.Assert(snapInfo.RefreshInhibitProceedTime, check.NotNil)
+	c.Assert(snapInfo.RefreshInhibit, check.NotNil)
 
-	c.Check(snapInfo.RefreshInhibitProceedTime.Equal(expectedProceedTime), check.Equals, true)
+	c.Check(snapInfo.RefreshInhibit.ProceedTime.Equal(expectedProceedTime), check.Equals, true)
 }
 
 func (s *snapsSuite) TestSnapManyInfosReturnsRefreshInhibitProceedTime(c *check.C) {
@@ -1353,20 +1356,31 @@ func (s *snapsSuite) TestSnapManyInfosReturnsRefreshInhibitProceedTime(c *check.
 	st := d.Overlord().State()
 	st.Lock()
 	var snapst snapstate.SnapState
+
 	// Update snap-a state with RefreshInhibitedTime.
 	c.Assert(snapstate.Get(st, "snap-a", &snapst), check.IsNil)
-	refreshInhibitTime := time.Date(2024, 2, 15, 2, 29, 1, 9, time.UTC)
+	refreshInhibitTime := time.Now().Add(1 * time.Hour)
 	snapst.RefreshInhibitedTime = &refreshInhibitTime
 	snapstate.Set(st, "snap-a", &snapst)
 	// Get expected proceed time for snap-a while we have the lock.
 	expectedProceedTimeA := snapst.RefreshInhibitProceedTime(st)
+
 	// Update snap-b state with RefreshInhibitedTime.
 	c.Assert(snapstate.Get(st, "snap-b", &snapst), check.IsNil)
-	refreshInhibitTime = time.Date(2024, 1, 15, 2, 29, 1, 9, time.UTC)
+	refreshInhibitTime = time.Now().Add(1 * time.Hour)
 	snapst.RefreshInhibitedTime = &refreshInhibitTime
 	snapstate.Set(st, "snap-b", &snapst)
-	// Get expected proceed time for snap-a while we have the lock.
+	// Get expected proceed time for snap-b while we have the lock.
 	expectedProceedTimeB := snapst.RefreshInhibitProceedTime(st)
+
+	monitored := map[string]context.CancelFunc{
+		"snap-a": func() {},
+		// Simulate a scenario where a refresh is continued (i.e. snap is
+		// not monitored) but RefreshInhibitedTime is not reset yet.
+		"snap-b": nil,
+	}
+	st.Cache("monitored-snaps", monitored)
+
 	st.Unlock()
 
 	req, err := http.NewRequest("GET", "/v2/snaps", nil)
@@ -1380,11 +1394,71 @@ func (s *snapsSuite) TestSnapManyInfosReturnsRefreshInhibitProceedTime(c *check.
 		testCmt := check.Commentf("snap %s failed", snap["name"])
 		switch snap["name"] {
 		case "snap-a":
-			c.Assert(snap["refresh-inhibit-proceed-time"], check.Equals, expectedProceedTimeA.Format(time.RFC3339Nano), testCmt)
+			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
+			c.Assert(refreshInhibit["proceed-time"], check.Equals, expectedProceedTimeA.Format(time.RFC3339Nano), testCmt)
 		case "snap-b":
-			c.Assert(snap["refresh-inhibit-proceed-time"], check.Equals, expectedProceedTimeB.Format(time.RFC3339Nano), testCmt)
+			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
+			c.Assert(refreshInhibit["proceed-time"], check.Equals, expectedProceedTimeB.Format(time.RFC3339Nano), testCmt)
 		case "snap-c":
-			_, ok := snap["refresh-inhibit-proceed-time"]
+			_, ok := snap["refresh-inhibit"]
+			c.Assert(ok, check.Equals, false)
+		}
+	}
+}
+
+func (s *snapsSuite) TestSnapManyInfosSelectRefreshInhibited(c *check.C) {
+	d := s.daemon(c)
+	s.mkInstalledInState(c, d, "snap-a", "bar", "v0", snap.R(5), true, "")
+	s.mkInstalledInState(c, d, "snap-b", "bar", "v0", snap.R(5), true, "")
+	s.mkInstalledInState(c, d, "snap-c", "bar", "v0", snap.R(5), true, "")
+
+	st := d.Overlord().State()
+	st.Lock()
+	var snapst snapstate.SnapState
+
+	// Update snap-a state with RefreshInhibitedTime.
+	c.Assert(snapstate.Get(st, "snap-a", &snapst), check.IsNil)
+	refreshInhibitTime := time.Now().Add(1 * time.Hour)
+	snapst.RefreshInhibitedTime = &refreshInhibitTime
+	snapstate.Set(st, "snap-a", &snapst)
+	// Get expected proceed time for snap-a while we have the lock.
+	expectedProceedTimeA := snapst.RefreshInhibitProceedTime(st)
+
+	// Update snap-b state with RefreshInhibitedTime.
+	c.Assert(snapstate.Get(st, "snap-b", &snapst), check.IsNil)
+	// Simulate a scenario where proceed time is in the past but the snap is still monitored
+	refreshInhibitTime = time.Now().Add(-30 * 24 * time.Hour)
+	snapst.RefreshInhibitedTime = &refreshInhibitTime
+	snapstate.Set(st, "snap-b", &snapst)
+	// Get expected proceed time for snap-a while we have the lock.
+	expectedProceedTimeB := snapst.RefreshInhibitProceedTime(st)
+
+	monitored := map[string]context.CancelFunc{
+		"snap-a": func() {},
+		// Snap monitored should show as inhibited even when proceed-time is in the past
+		"snap-b": func() {},
+	}
+	st.Cache("monitored-snaps", monitored)
+
+	st.Unlock()
+
+	req, err := http.NewRequest("GET", "/v2/snaps?select=refresh-inhibited", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.jsonReq(c, req, nil)
+	snaps := snapList(rsp.Result)
+
+	for _, snap := range snaps {
+		testCmt := check.Commentf("snap %s failed", snap["name"])
+		switch snap["name"] {
+		case "snap-a":
+			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
+			c.Assert(refreshInhibit["proceed-time"], check.Equals, expectedProceedTimeA.Format(time.RFC3339Nano), testCmt)
+		case "snap-b":
+			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
+			c.Assert(refreshInhibit["proceed-time"], check.Equals, expectedProceedTimeB.Format(time.RFC3339Nano), testCmt)
+		case "snap-c":
+			_, ok := snap["refresh-inhibit"]
 			c.Assert(ok, check.Equals, false)
 		}
 	}

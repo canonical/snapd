@@ -51,7 +51,7 @@ nested_wait_for_no_ssh() {
 nested_wait_vm_ready() {
     echo "Waiting the vm is ready to be used"
     local retry=${1:-120}
-    local log_limit=${2:-30}
+    local log_limit=${2:-60}
 
     local output_lines=0
     local serial_log="$NESTED_LOGS_DIR"/serial.log
@@ -65,14 +65,18 @@ nested_wait_vm_ready() {
 
         # Check the vm is active
         if ! systemctl is-active "$NESTED_VM"; then
-            echo "Unit $nested_unit is not active. Aborting!"
+            echo "Unit $NESTED_VM is not active. Aborting!"
             return 1
         fi
 
         # Check during $limit seconds that the serial log is growing
         # shellcheck disable=SC2016
-        retry -n "$log_limit" --wait 1 --quiet --env serial_log="$serial_log" --env output_lines="$output_lines" \
-            sh -c 'test "$(wc -l <"$serial_log")" -gt "$output_lines"'
+        if ! retry -n "$log_limit" --wait 1 --env serial_log="$serial_log" --env output_lines="$output_lines" \
+            sh -c 'test "$(wc -l <"$serial_log")" -gt "$output_lines"';
+        then
+            echo "Serial log for $NESTED_VM unit is not producing output, Aborting!"
+            return 1
+        fi
         output_lines="$(wc -l <"$serial_log")"
 
         # Check no infinite loops during boot
@@ -1248,7 +1252,7 @@ nested_start_core_vm_unit() {
 
     if [ "$EXPECT_SHUTDOWN" != "1" ]; then
         # Wait until the vm is ready to receive connections
-        if ! nested_wait_vm_ready 120 40; then
+        if ! nested_wait_vm_ready 120 120; then
             echo "failed to wait for the vm becomes ready to receive connections"
             return 1
         fi

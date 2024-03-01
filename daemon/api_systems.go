@@ -86,8 +86,9 @@ func getAllSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 
 		rsp.Systems = append(rsp.Systems, client.System{
-			Current: ss.Current,
-			Label:   ss.Label,
+			Current:               ss.Current,
+			DefaultRecoverySystem: ss.DefaultRecoverySystem,
+			Label:                 ss.Label,
 			Model: client.SystemModelData{
 				Model:       ss.Model.Model(),
 				BrandID:     ss.Model.BrandID(),

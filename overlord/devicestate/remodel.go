@@ -283,16 +283,27 @@ func (rc *baseRemodelContext) updateRunModeSystem() error {
 	if err != nil {
 		return fmt.Errorf("cannot switch device: %v", err)
 	}
+	now := time.Now()
 	if err := rc.deviceMgr.recordSeededSystem(rc.st, &seededSystem{
 		System:    rc.recoverySystemLabel,
 		Model:     rc.model.Model(),
 		BrandID:   rc.model.BrandID(),
 		Revision:  rc.model.Revision(),
 		Timestamp: rc.model.Timestamp(),
-		SeedTime:  time.Now(),
+		SeedTime:  now,
 	}); err != nil {
 		return fmt.Errorf("cannot record a new seeded system: %v", err)
 	}
+
+	rc.st.Set("default-recovery-system", DefaultRecoverySystem{
+		System:          rc.recoverySystemLabel,
+		Model:           rc.model.Model(),
+		BrandID:         rc.model.BrandID(),
+		Revision:        rc.model.Revision(),
+		Timestamp:       rc.model.Timestamp(),
+		TimeMadeDefault: now,
+	})
+
 	if err := boot.MarkRecoveryCapableSystem(rc.recoverySystemLabel); err != nil {
 		return fmt.Errorf("cannot mark system %q as recovery capable", rc.recoverySystemLabel)
 	}

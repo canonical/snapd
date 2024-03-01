@@ -197,9 +197,11 @@ var validComponentTypes = [...]ComponentType{TestComponent, KernelModulesCompone
 
 // Component represents a snap component.
 type Component struct {
-	Type        ComponentType `yaml:"type"`
-	Summary     string        `yaml:"summary"`
-	Description string        `yaml:"description"`
+	Type          ComponentType
+	Summary       string
+	Description   string
+	Name          string
+	ExplicitHooks map[string]*HookInfo
 }
 
 func (ct *ComponentType) UnmarshalYAML(unmarshall func(interface{}) error) error {
