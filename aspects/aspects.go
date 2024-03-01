@@ -127,6 +127,7 @@ func badRequestErrorFrom(a *Aspect, operation, request, errMsg string, v ...inte
 type DataBag interface {
 	Get(path string) (interface{}, error)
 	Set(path string, value interface{}) error
+	Unset(path string) error
 	Data() ([]byte, error)
 }
 
@@ -406,10 +407,14 @@ type expandedMatch struct {
 	value interface{}
 }
 
-// Set sets the named aspect to a specified value.
+// Set sets the named aspect to a specified non-nil value.
 func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	if err := validateAspectDottedPath(request, nil); err != nil {
 		return badRequestErrorFrom(a, "set", request, err.Error())
+	}
+
+	if value == nil {
+		return fmt.Errorf("Set value cannot be nil")
 	}
 
 	var matches []requestMatch
@@ -427,16 +432,6 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 		path, err := rule.storagePath(placeholders)
 		if err != nil {
 			return err
-		}
-
-		if value == nil {
-			// TODO: in the future, check the storage and complete paths according to
-			// the data that is currently stored?
-			for _, part := range strings.Split(path, ".") {
-				if isPlaceholder(part) {
-					return badRequestErrorFrom(a, "set", request, "cannot unset with unmatched placeholders")
-				}
-			}
 		}
 
 		matches = append(matches, requestMatch{
@@ -497,6 +492,68 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 		// validation and then in aspectstate on Commit
 		if err := a.bundle.Schema.Validate(data); err != nil {
 			return fmt.Errorf(`cannot write data: %w`, err)
+		}
+	}
+
+	return nil
+}
+
+func (a *Aspect) Unset(databag DataBag, request string) error {
+	if err := validateAspectDottedPath(request, nil); err != nil {
+		return badRequestErrorFrom(a, "unset", request, err.Error())
+	}
+
+	var matches []requestMatch
+	subkeys := strings.Split(request, ".")
+	for _, rule := range a.aspectRules {
+		placeholders, suffixParts, ok := rule.match(subkeys)
+		if !ok {
+			continue
+		}
+
+		if !rule.isWriteable() {
+			continue
+		}
+
+		path, err := rule.storagePath(placeholders)
+		if err != nil {
+			return err
+		}
+
+		// TODO: in the future, check the storage and complete paths according to
+		// the data that is currently stored?
+		for _, part := range strings.Split(path, ".") {
+			if isPlaceholder(part) {
+				return badRequestErrorFrom(a, "unset", request, "cannot unset with unmatched placeholders")
+			}
+		}
+
+		matches = append(matches, requestMatch{
+			storagePath: path,
+			suffixParts: suffixParts,
+			request:     rule.originalRequest,
+		})
+	}
+
+	if len(matches) == 0 {
+		return notFoundErrorFrom(a, "unset", request, "no matching write rule")
+	}
+
+	for _, match := range matches {
+		if err := databag.Unset(match.storagePath); err != nil {
+			return err
+		}
+
+		data, err := databag.Data()
+		if err != nil {
+			return err
+		}
+
+		// TODO: when using a transaction, the data only changes on commit so
+		// this is a bit of a waste. Maybe cache the result so we only do the first
+		// validation and then in aspectstate on Commit
+		if err := a.bundle.Schema.Validate(data); err != nil {
+			return fmt.Errorf(`cannot unset data: %w`, err)
 		}
 	}
 
@@ -1258,14 +1315,7 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *i
 // If the value is nil, the entry is deleted.
 func (s JSONDataBag) Set(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
-
-	var err error
-	if value == nil {
-		_, err = unset(subKeys, 0, s)
-	} else {
-		_, err = set(subKeys, 0, s, value)
-	}
-
+	_, err := set(subKeys, 0, s, value)
 	return err
 }
 
@@ -1312,6 +1362,12 @@ func set(subKeys []string, index int, node map[string]json.RawMessage, value int
 
 	node[key] = rawLevel
 	return json.Marshal(node)
+}
+
+func (s JSONDataBag) Unset(path string) error {
+	subKeys := strings.Split(path, ".")
+	_, err := unset(subKeys, 0, s)
+	return err
 }
 
 func unset(subKeys []string, index int, node map[string]json.RawMessage) (json.RawMessage, error) {
