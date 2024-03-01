@@ -13,60 +13,14 @@ var ErrNoPatterns = errors.New("no patterns given, cannot establish precedence")
 
 var (
 	// The following must be escaped if used as literals in a path pattern:
-	problematicChars = `,*{}\[\]\\`
+	problematicChars = `{}\[\]\?`
 	// A single safe or escaped unsafe char in a path
-	safePathChar = fmt.Sprintf(`([^/%s]|\\[%s])`, problematicChars, problematicChars)
-	// Some path components which may contain or begin with but not end with '/'
-	optionalPathComponents = fmt.Sprintf(`(%s*(/%s+)*)`, safePathChar, safePathChar)
+	safePathChar = fmt.Sprintf(`([^%s]|\\[%s])`, problematicChars, problematicChars)
 
-	// The following defines a "base path" which is combined with one of the
-	// suffixes defined below to form a path pattern. The base path must not
-	// end in a '/' character, and the base path pattern must be enclosed in
-	// parentheses.
-	basePathPattern = fmt.Sprintf(`((/%s+)+)`, safePathChar)
-
-	// The following are the allowed path pattern suffixes. Complete valid path
-	// patterns are a base path, which cannot contain wildcards, groups, or
-	// character classes, followed by either one of these suffixes or a group
-	// over multiple suffixes. In the latter case, each suffix in the group may
-	// be preceded by one or more path components, similar to the base path.
-	// The suffixes are given in rough order of precedence, though precedence
-	// is determined by the length of the base path, followed by the length of
-	// the next explicit path component before the following '*' (if any), and
-	// so on. The first time a path component in one pattern is longer than the
-	// corresponding path component in the other pattern, the former has
-	// precedence over the latter.
-	allowableSuffixPatterns = []string{
-		// Suffixes with exact match have highest precedence
-		/*   alignment  */ `/?`,
-		// Suffixes with a single '*' character prioritize base pattern length, then suffix length
-		fmt.Sprintf( /* */ `/?\*%s/?`, optionalPathComponents), // single '*' anywhere
-		// Suffixes with '/**/' substrings prioritize base pattern length,
-		// followed by pattern length between '/**/' and next '*', if any.
-		fmt.Sprintf(`/\*\*%s/?`, basePathPattern),                               // '/**/' followed by more exact path
-		fmt.Sprintf(`/\*\*%s/?\*%s/?`, basePathPattern, optionalPathComponents), // '/**/[^*]' followed by more path with '*' anywhere
-		fmt.Sprintf(`/\*\*/\*(/|%s)%s/?`, safePathChar, optionalPathComponents), // '/**/*' followed by path components
-		/* align */ `/\*\*/?`,
-	}
-
-	// All of the following patterns must begin with '(' and end with ')'.
-	anySuffixPattern          = fmt.Sprintf(`(%s)`, strings.Join(allowableSuffixPatterns, "|"))
-	anySuffixesInGroupPattern = fmt.Sprintf(`(\{%s%s(,%s%s)+\})`, optionalPathComponents, anySuffixPattern, optionalPathComponents, anySuffixPattern)
-	// The following is the regexp which all client-provided path patterns must match
-	allowablePathPatternRegexp = regexp.MustCompile(fmt.Sprintf(`^(%s?(%s|%s))$`, basePathPattern, anySuffixPattern, anySuffixesInGroupPattern))
-
-	patternPrecedenceRegexps = buildPrecedenceRegexps()
+	// The following matches valid path patterns
+	allowablePathPattern       = fmt.Sprintf(`^/%s*([^\\]?{%s*(,%s*)+})?$`, safePathChar, safePathChar, safePathChar)
+	allowablePathPatternRegexp = regexp.MustCompile(allowablePathPattern)
 )
-
-func buildPrecedenceRegexps() []*regexp.Regexp {
-	precedenceRegexps := make([]*regexp.Regexp, 0, len(allowableSuffixPatterns)+1)
-	precedenceRegexps = append(precedenceRegexps, regexp.MustCompile(`^/$`))
-	for _, suffix := range allowableSuffixPatterns {
-		re := regexp.MustCompile(fmt.Sprintf(`^%s%s$`, basePathPattern, suffix))
-		precedenceRegexps = append(precedenceRegexps, re)
-	}
-	return precedenceRegexps
-}
 
 // Expands a group, if it exists, in the path pattern, and creates a new
 // string for every option in that group.
@@ -74,6 +28,7 @@ func ExpandPathPattern(pattern string) ([]string, error) {
 	errPrefix := "invalid path pattern"
 	var basePattern string
 	groupStrings := make([]string, 0, strings.Count(pattern, ",")+1)
+	sawGroup := false
 	var currGroupStart int
 	index := 0
 	for index < len(pattern) {
@@ -84,16 +39,17 @@ func ExpandPathPattern(pattern string) ([]string, error) {
 				return nil, fmt.Errorf(`%s: trailing non-escaping '\' character: %q`, errPrefix, pattern)
 			}
 		case '{':
-			if basePattern != "" {
+			if sawGroup {
 				return nil, fmt.Errorf(`%s: multiple unescaped '{' characters: %q`, errPrefix, pattern)
 			}
 			if index == len(pattern)-1 {
 				return nil, fmt.Errorf(`%s: trailing unescaped '{' character: %q`, errPrefix, pattern)
 			}
 			basePattern = pattern[:index]
+			sawGroup = true
 			currGroupStart = index + 1
 		case '}':
-			if basePattern == "" {
+			if !sawGroup || currGroupStart == -1 {
 				return nil, fmt.Errorf(`%s: unmatched '}' character: %q`, errPrefix, pattern)
 			}
 			if index != len(pattern)-1 {
@@ -109,17 +65,31 @@ func ExpandPathPattern(pattern string) ([]string, error) {
 		}
 		index += 1
 	}
-	if basePattern == "" {
-		return []string{pattern}, nil
+	if !sawGroup {
+		return []string{trimDuplicates(pattern)}, nil
 	}
 	if currGroupStart != -1 {
 		return nil, fmt.Errorf(`%s: unmatched '{' character: %q`, errPrefix, pattern)
 	}
 	expanded := make([]string, len(groupStrings))
 	for i, str := range groupStrings {
-		expanded[i] = basePattern + str
+		combined := basePattern + str
+		expanded[i] = trimDuplicates(combined)
 	}
 	return expanded, nil
+}
+
+var (
+	duplicateSlashes   = regexp.MustCompile(`(^|[^\\])/+`)
+	trailingDoublestar = regexp.MustCompile(`([^/\\])\*\*`)
+	leadingDoublestar  = regexp.MustCompile(`([^\\])\*\*([^/])`)
+)
+
+func trimDuplicates(pattern string) string {
+	pattern = duplicateSlashes.ReplaceAllString(pattern, `${1}/`)
+	pattern = trailingDoublestar.ReplaceAllString(pattern, `${1}*`)
+	pattern = leadingDoublestar.ReplaceAllString(pattern, `${1}*${2}`)
+	return pattern
 }
 
 // Determines which of the given path patterns is the most specific (top priority).
@@ -182,7 +152,8 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 				continue
 			}
 			if len(remaining) == longest {
-				return "", fmt.Errorf("multiple highest-precedence patterns: %s and %s", patternLongestRemaining, pattern)
+				// Impossible, since patterns must be duplicates but were in map
+				return "", fmt.Errorf("internal error: multiple highest-precedence patterns: %s and %s", patternLongestRemaining, pattern)
 			}
 			patternLongestRemaining = pattern
 			longest = len(remaining)
@@ -195,8 +166,14 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 
 // ValidatePathPattern returns nil if the pattern is valid, otherwise an error.
 func ValidatePathPattern(pattern string) error {
-	if pattern == "" || !allowablePathPatternRegexp.MatchString(pattern) {
+	if !doublestar.ValidatePattern(pattern) {
 		return fmt.Errorf("invalid path pattern: %q", pattern)
+	}
+	if pattern == "" || pattern[0] != '/' {
+		return fmt.Errorf("invalid path pattern: must start with '/': %q", pattern)
+	}
+	if !allowablePathPatternRegexp.MatchString(pattern) {
+		return fmt.Errorf("invalid path pattern: cannot contain unescaped '[', ']', or '?',  or >1 unescaped '{' or '}': %q", pattern)
 	}
 	return nil
 }
@@ -208,14 +185,28 @@ func StripTrailingSlashes(path string) string {
 	return path
 }
 
-func PathPatternMatches(pathPattern string, path string) (bool, error) {
-	path = StripTrailingSlashes(path)
-	matched, err := doublestar.Match(pathPattern, path)
+// PathPatternMatches returns true if the given pattern matches the given path.
+//
+// The pattern should not contain groups, and should likely have been an output
+// of ExpandPathPattern.
+//
+// The doublestar package has special cases for patterns ending in `/**`, `**/`,
+// and `/**/`: `/foo/**`, and `/foo/**/` both match `/foo`, but not `/foo/`.
+//
+// Since paths to directories are received with trailing slashes, we want to
+// ensure that patterns without trailing slashes match paths with trailing
+// slashes. However, patterns with trailing slashes should not match paths
+// without trailing slashes.
+func PathPatternMatches(pattern string, path string) (bool, error) {
+	matched, err := doublestar.Match(pattern, path)
 	if err != nil {
 		return false, err
 	}
 	if matched {
 		return true, nil
 	}
-	return doublestar.Match(pathPattern, path+"/")
+	patternSlash := doublestarSuffix.ReplaceAllString(pattern, `/`)
+	return doublestar.Match(patternSlash, path)
 }
+
+var doublestarSuffix = regexp.MustCompile(`(/\*\*)?/?$`)
