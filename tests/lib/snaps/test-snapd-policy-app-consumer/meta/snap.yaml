@@ -425,6 +425,9 @@ apps:
   snap-themes-control:
     command: bin/run
     plugs: [ snap-themes-control ]
+  snap-refresh-observe:
+    command: bin/run
+    plugs: [ snap-refresh-observe ]
   service-watchdog:
     command: bin/run
     plugs: [ daemon-notify ]
