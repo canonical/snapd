@@ -3,10 +3,10 @@ details: |
   This test creates a recovery system and validates that the newly created
   system can be rebooted into.
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-22.04-64]
 
 environment:
-  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/test-snapd-recovery-system-pc-{VERSION}.model
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/test-snapd-recovery-system-pc-22.model
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
@@ -46,8 +46,16 @@ execute: |
 
   boot_id="$(tests.nested boot-id)"
 
+  prev_system=$(remote.exec 'sudo snap recovery' | awk 'NR != 1 { print $1 }')
+
   # create the system
-  change_id=$(post_json_data /v2/systems '{"action": "create", "label": "new-system", "validation-sets": ["test-snapd/recovery-system-pinned=1"], "mark-default": true}')
+  change_id=$(post_json_data /v2/systems '{"action": "create", "label": "new-system", "validation-sets": ["test-snapd/test-snapd-pinned-essential-snaps=1"], "mark-default": true, "test-system": true}')
+
+  # wait for reboot since we tested the system
+  remote.wait-for reboot "${boot_id}"
+  boot_id="$(tests.nested boot-id)"
+
+  remote.wait-for snap-command
 
   remote.exec snap watch "${change_id}"
 
@@ -58,36 +66,43 @@ execute: |
 
   remote.exec 'sudo snap recovery' | awk '$1 == "new-system" { print $4 }' | MATCH 'default-recovery'
 
-  remote.exec "sudo snap reboot --${MODE}"
+  remote.exec "sudo snap reboot --${MODE}" || true
   remote.wait-for reboot "${boot_id}"
 
   remote.wait-for snap-command
-
   wait_for_first_boot_change
 
-  if [ "${MODE}" = 'recover' ]; then
-    # since hello-world has ['run', 'ephemeral'] as its modes in the model, it
-    # will be here. additionally, it will be pinned to revision 28 because of the
-    # validation set that was used to create the recovery system.
-    retry -n 10 --wait 1 sh -c "remote.exec 'snap list hello-world' | awk 'NR != 1 { print \$3 }' | MATCH '28'"
+  # wait for the system to finish being seeded
+  remote.exec "sudo snap wait system seed.loaded"
 
+  # hold everything so that we can check their revisions before they get auto-refreshed
+  remote.exec "snap list | awk 'NR != 1 { print \$1 }' | xargs sudo snap refresh --hold"
+
+  if [ "${MODE}" = 'recover' ]; then
     remote.exec 'cat /proc/cmdline' | MATCH 'snapd_recovery_mode=recover'
     remote.exec 'sudo cat /var/lib/snapd/modeenv' > modeenv
     MATCH 'mode=recover' < modeenv
     MATCH 'recovery_system=new-system' < modeenv
   elif [ "${MODE}" = 'factory-reset' ] || [ "${MODE}" = "install" ]; then
-    # wait for the system to finish being seeded
-    remote.exec "sudo snap wait system seed.loaded"
-
     # should be back into run mode since we reset the device
     remote.exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
 
     # new system should be the default recovery system and the current system
-    remote.exec 'sudo snap recovery' > ./output
-    cat ./output | awk '$1 == "new-system" { print $4 }' | MATCH 'current,default-recovery'
+    remote.exec 'sudo snap recovery' | awk '$1 == "new-system" { print $4 }' | MATCH 'current,default-recovery'
 
-    # we can't check the revision, since auto-refresh will probably refresh the
-    # snap before we get to this point. at least check that the snap is here,
-    # though.
-    remote.exec 'snap list hello-world'
+    remote.exec sudo snap install --edge --devmode test-snapd-curl
+
+    # since out new system is now the default and the current recovery system,
+    # we should be able to remove the old one
+    change_id=$(post_json_data "/v2/systems/${prev_system}" '{"action": "remove"}')
+    remote.exec "snap watch ${change_id}"
+    remote.exec "sudo snap recovery" | NOMATCH "${prev_system}"
   fi
+
+  # since hello-world has ['run', 'ephemeral'] as its modes in the model, it
+  # should be here in all tested modes.
+  remote.exec 'snap list hello-world'
+
+  remote.exec 'snap list core22' | awk 'NR != 1 { print $3 }' | MATCH '1033'
+  remote.exec 'snap list pc' | awk 'NR != 1 { print $3 }' | MATCH '136'
+  remote.exec 'snap list pc-kernel' | awk 'NR != 1 { print $3 }' | MATCH '1606'
