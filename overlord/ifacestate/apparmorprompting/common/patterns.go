@@ -80,15 +80,20 @@ func ExpandPathPattern(pattern string) ([]string, error) {
 }
 
 var (
-	duplicateSlashes   = regexp.MustCompile(`(^|[^\\])/+`)
-	trailingDoublestar = regexp.MustCompile(`([^/\\])\*\*`)
-	leadingDoublestar  = regexp.MustCompile(`([^\\])\*\*([^/])`)
+	duplicateSlashes    = regexp.MustCompile(`(^|[^\\])/+`)
+	charsDoublestar     = regexp.MustCompile(`([^/\\])\*\*`)
+	doublestarChars     = regexp.MustCompile(`([^\\])\*\*([^/])`)
+	duplicateDoublestar = regexp.MustCompile(`/\*\*(/\*\*)+`)
 )
 
 func trimDuplicates(pattern string) string {
 	pattern = duplicateSlashes.ReplaceAllString(pattern, `${1}/`)
-	pattern = trailingDoublestar.ReplaceAllString(pattern, `${1}*`)
-	pattern = leadingDoublestar.ReplaceAllString(pattern, `${1}*${2}`)
+	pattern = charsDoublestar.ReplaceAllString(pattern, `${1}*`)
+	pattern = doublestarChars.ReplaceAllString(pattern, `${1}*${2}`)
+	pattern = duplicateDoublestar.ReplaceAllString(pattern, `/**`)
+	if cleaned, found := strings.CutSuffix(pattern, "/**/*"); found {
+		return cleaned + "/**"
+	}
 	return pattern
 }
 
@@ -99,69 +104,148 @@ func trimDuplicates(pattern string) string {
 // patterns have been previously expanded using ExpandPathPattern(), so there
 // are no groups in any of the patterns.
 //
-// For patterns ending in /** or file extensions, multiple patterns may match
-// a suffix of the same precedence. In this case, since there are no groups or
-// internal wildcard characters, the pattern with the longest base path must
-// have the highest precedence, with the longest total pattern length breaking
-// ties.
-// For example:
-// - /foo/bar/** has higher precedence than /foo/**
-// - /foo/bar/*.gz has higher precedence than /foo/*.tar.gz
-// - /foo/bar/**/*.tar.gz has higher precedence than /foo/bar/**/*.gz
+// Below are some sample patterns, in order of precedence, though precedence is
+// only guaranteed between two patterns which may match the same path:
+//
+//	# literals
+//	- /foo/bar/baz
+//	- /foo/bar/
+//	# terminated
+//	- /foo/bar
+//	# singlestars
+//	- /foo/bar/*/baz
+//	- /foo/bar/*/
+//	- /foo/bar/*/*baz
+//	- /foo/bar/*/*
+//	- /foo/bar/*
+//	- /foo/bar/*/**
+//	# glob
+//	- /foo/bar*baz
+//	- /foo/bar*/baz
+//	- /foo/bar*/baz/**
+//	- /foo/bar*/
+//	- /foo/bar*/*baz
+//	- /foo/bar*/*/baz
+//	- /foo/bar*/*/
+//	- /foo/bar*/*
+//	- /foo/bar*
+//	# doublestars
+//	- /foo/bar/**/baz
+//	- /foo/bar/**/*baz/
+//	- /foo/bar/**/*baz
+//	# terminal doublestar
+//	- /foo/bar/**/        # These are tough... usually, /foo/bar/**/ would have precedence over
+//	- /foo/bar/**/*       # precedence over /foo/bar/**/*baz, but in this case,
+//	- /foo/bar/**         # the trailing *baz adds more specificity.
+//	# glob with immediate doublestar
+//	- /foo/bar*/**/baz
+//	- /foo/bar*/**/
+//	- /foo/bar*/**
 func GetHighestPrecedencePattern(patterns []string) (string, error) {
 	if len(patterns) == 0 {
 		return "", ErrNoPatterns
 	}
-	remainingPatterns := make(map[string]string, len(patterns))
+	// Map pattern to number of escaped characters which have been seen
+	remainingPatterns := make(map[string]int, len(patterns))
 	for _, pattern := range patterns {
-		remainingPatterns[pattern] = pattern
+		remainingPatterns[pattern] = 0
 	}
-	for len(remainingPatterns) > 0 {
-		nextRemaining := make(map[string]string, len(remainingPatterns))
-		longest := 0 // Set to -1 when a pattern with no remaining '*' is found
-		for pattern, remaining := range remainingPatterns {
-			index := strings.Index(remaining, "*")
-			if longest == -1 {
-				if index == -1 {
-					nextRemaining[pattern] = remaining
+	// Loop over index into each pattern until only one pattern left
+	for i := 0; len(remainingPatterns) > 1; i++ {
+		lrp := len(remainingPatterns)
+		nextLiteral := make(map[string]int, lrp)
+		terminated := ""
+		nextSinglestar := make(map[string]int, lrp)
+		nextGlob := make(map[string]int, lrp)
+		nextDoublestar := make(map[string]int, lrp)
+		terminalDoublestar := make(map[string]int, lrp)
+		nextGlobDoublestar := make(map[string]int, lrp)
+		for pattern, e := range remainingPatterns {
+			// For each pattern, e is number of escaped chars, thus the number
+			// which should be added to the index to compare equivalent indices
+			// into all patterns
+			patternLen := len(pattern)
+			if i+e >= patternLen {
+				// Could be ==, but to account for (invalid) patterns with
+				// trailing '\', use >= instead.
+				terminated = pattern
+				continue
+			}
+			// Check for '*' before '\\', since "\\*" is literal '*'
+			if pattern[i+e] == '*' {
+				if patternLen >= i+e+4 && pattern[i+e+1:i+e+4] == "/**" {
+					// Next parts of pattern are "*/**"
+					nextGlobDoublestar[pattern] = e
+					continue
 				}
+				nextGlob[pattern] = e
 				continue
 			}
-			if index == -1 || index > longest {
-				nextRemaining = make(map[string]string, len(remainingPatterns))
-				longest = index
-			} else if index < longest {
+			if pattern[i+e] == '\\' {
+				e += 1
+				if patternLen == i+e {
+					return "", fmt.Errorf(`invalid path pattern: trailing '\' character: %q`, pattern)
+				}
+			}
+			// Can safely check for '/' after '\\', since it is '/' either way
+			if pattern[i+e] != '/' || patternLen < i+e+2 || pattern[i+e+1] != '*' {
+				// Next parts of pattern are not "/*" or "/**"
+				nextLiteral[pattern] = e
 				continue
 			}
-			nextRemaining[pattern] = remaining[index+1:]
-		}
-		if len(nextRemaining) == 1 {
-			for pattern := range nextRemaining {
-				return pattern, nil
+			// pattern[i+e:i+e+2] must be "/*"
+			if patternLen < i+e+3 || pattern[i+e+2] != '*' {
+				// pattern[i+e:i+e+3] must not be "/**"
+				nextSinglestar[pattern] = e
+				continue
 			}
+			if patternLen == i+e+3 || (pattern[i+e+3] == '/' && (patternLen == i+e+4 || (patternLen == i+e+5 && pattern[i+e+4] == '*'))) {
+				// pattern[1+e:i+e+3 must terminate with "/**" or "/**/".
+				// Doesn't matter if pattern ends in "/**/*", that will be
+				// caught in the usual case later.
+				terminalDoublestar[pattern] = e
+				continue
+			}
+			// pattern has non-terminal "/**" next
+			nextDoublestar[pattern] = e
 		}
-		remainingPatterns = nextRemaining
-		if longest != -1 {
+		// Prioritize more literal pattern over all else
+		if len(nextLiteral) > 0 {
+			remainingPatterns = nextLiteral
 			continue
 		}
-		// nextRemaining only contains remaining which have no '*' characters.
-		// Choose the pattern with the longest remaining.
-		patternLongestRemaining := ""
-		for pattern, remaining := range nextRemaining {
-			if len(remaining) < longest {
-				continue
-			}
-			if len(remaining) == longest {
-				// Impossible, since patterns must be duplicates but were in map
-				return "", fmt.Errorf("internal error: multiple highest-precedence patterns: %s and %s", patternLongestRemaining, pattern)
-			}
-			patternLongestRemaining = pattern
-			longest = len(remaining)
+		// Prioritize terminated pattern over another glob or {single,double}stars
+		if terminated != "" {
+			return terminated, nil
 		}
-		return patternLongestRemaining, nil
+		// Prioritize singlestars over doublestars and globs
+		if len(nextSinglestar) > 0 {
+			remainingPatterns = nextSinglestar
+			continue
+		}
+		// Prioritize globs without immediate doublestar over doublestars
+		if len(nextGlob) > 0 {
+			remainingPatterns = nextGlob
+			continue
+		}
+		// Prioritize non-terminal doublestars over terminal doublestar and globs with immediate doublestars
+		if len(nextDoublestar) > 0 {
+			remainingPatterns = nextDoublestar
+			continue
+		}
+		// Prioritize terminal doublestars over globs with immediate doublestars
+		if len(terminalDoublestar) > 0 {
+			remainingPatterns = terminalDoublestar
+			continue
+		}
+		// Prioritize globs with immediate doublestar last
+		remainingPatterns = nextGlobDoublestar
 	}
-	// This should not occur
-	return "", fmt.Errorf("internal error: ran out of path patterns")
+	p := ""
+	for pattern := range remainingPatterns {
+		p = pattern
+	}
+	return p, nil
 }
 
 // ValidatePathPattern returns nil if the pattern is valid, otherwise an error.
