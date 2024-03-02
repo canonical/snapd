@@ -991,8 +991,8 @@ func (s *commonSuite) TestExpandPathPattern(c *C) {
 			[]string{`/foo/bar/baz/*.txt`},
 		},
 		{
-			`/foo///bar/baz/***.txt`,
-			[]string{`/foo/bar/baz/*.txt`},
+			`/foo///bar/**/**/**/baz/***.txt/**/**/*`,
+			[]string{`/foo/bar/**/baz/*.txt/**`},
 		},
 	} {
 		expanded, err := common.ExpandPathPattern(testCase.pattern)
@@ -1031,8 +1031,8 @@ func (s *commonSuite) TestExpandPathPatternUnhappy(c *C) {
 
 func (s *commonSuite) TestGetHighestPrecedencePattern(c *C) {
 	for i, testCase := range []struct {
-		Patterns          []string
-		HighestPrecedence string
+		patterns          []string
+		highestPrecedence string
 	}{
 		{
 			[]string{
@@ -1042,123 +1042,446 @@ func (s *commonSuite) TestGetHighestPrecedencePattern(c *C) {
 		},
 		{
 			[]string{
+				"/foo/bar",
 				"/foo",
-				"/foo/*",
+				"/foo/bar/baz",
 			},
-			"/foo",
-		},
-		{
-			[]string{
-				"/foo",
-				"/foo/**",
-			},
-			"/foo",
-		},
-		{
-			[]string{
-				"/foo/*",
-				"/foo/**",
-			},
-			"/foo/*",
-		},
-		{
-			[]string{
-				"/foo/**",
-				"/foo/*",
-			},
-			"/foo/*",
+			"/foo/bar/baz",
 		},
 		{
 			[]string{
 				"/foo",
-				"/foo/*",
-				"/foo/**",
+				"/foo/barbaz",
+				"/foobar",
 			},
-			"/foo",
+			"/foo/barbaz",
+		},
+		// Literals
+		{
+			[]string{
+				"/foo/bar/baz",
+				"/foo/bar/",
+			},
+			"/foo/bar/baz",
 		},
 		{
 			[]string{
-				"/foo/*",
+				"/foo/bar/",
 				"/foo/bar",
 			},
-			"/foo/bar",
+			"/foo/bar/",
 		},
 		{
 			[]string{
-				"/foo/*",
-				"/foo/*bar",
-			},
-			"/foo/*bar",
-		},
-		{
-			[]string{
-				"/foo/**",
-				"/foo/bar",
-			},
-			"/foo/bar",
-		},
-		{
-			[]string{
-				"/foo/**",
-				"/foo/**bar",
-			},
-			"/foo/**bar",
-		},
-		{
-			[]string{
-				"/foo/**",
-				"/foo/**/bar",
-			},
-			"/foo/**/bar",
-		},
-		{
-			[]string{
-				"/foo/**",
+				"/foo/bar/",
 				"/foo/bar/*",
+			},
+			"/foo/bar/",
+		},
+		{
+			[]string{
+				"/foo/bar/",
+				"/foo/bar/**",
+			},
+			"/foo/bar/",
+		},
+		{
+			[]string{
+				"/foo/bar/",
+				"/foo/bar/**/",
+			},
+			"/foo/bar/",
+		},
+		// Terminated
+		{
+			[]string{
+				"/foo/bar",
+				"/foo/bar/**",
+			},
+			"/foo/bar",
+		},
+		{
+			[]string{
+				"/foo/bar",
+				"/foo/bar*",
+			},
+			"/foo/bar",
+		},
+		// Singlestars
+		{
+			[]string{
+				"/foo/bar/*/baz",
+				"/foo/bar/*/*baz",
+			},
+			"/foo/bar/*/baz",
+		},
+		{
+			[]string{
+				"/foo/bar/*/baz",
+				"/foo/bar/*/*",
+			},
+			"/foo/bar/*/baz",
+		},
+		{
+			[]string{
+				"/foo/bar/*/",
+				"/foo/bar/*/*",
+			},
+			"/foo/bar/*/",
+		},
+		{
+			[]string{
+				"/foo/bar/*/",
+				"/foo/bar/*",
+			},
+			"/foo/bar/*/",
+		},
+		{
+			[]string{
+				"/foo/bar/*/",
+				"/foo/bar/*/**/",
+			},
+			"/foo/bar/*/",
+		},
+		{
+			[]string{
+				"/foo/bar/*/",
+				"/foo/bar/*/**",
+			},
+			"/foo/bar/*/",
+		},
+		{
+			[]string{
+				"/foo/bar/*/*baz",
+				"/foo/bar/*/*",
+			},
+			"/foo/bar/*/*baz",
+		},
+		{
+			[]string{
+				"/foo/bar/*/*baz",
+				"/foo/bar/*/**",
+			},
+			"/foo/bar/*/*baz",
+		},
+		{
+			[]string{
+				"/foo/bar/*/*",
+				"/foo/bar/*/**",
+			},
+			"/foo/bar/*/*",
+		},
+		{
+			[]string{
+				"/foo/bar/*",
+				"/foo/bar/*/**",
 			},
 			"/foo/bar/*",
 		},
 		{
 			[]string{
+				"/foo/bar/*",
+				"/foo/bar/**/baz",
+			},
+			"/foo/bar/*",
+		},
+		{
+			[]string{
+				"/foo/bar/*/**",
+				"/foo/bar/**/baz",
+			},
+			"/foo/bar/*/**",
+		},
+		// Globs
+		{
+			[]string{
+				"/foo/bar*baz",
+				"/foo/bar*",
+			},
+			"/foo/bar*baz",
+		},
+		{
+			[]string{
+				"/foo/bar*/baz",
+				"/foo/bar*/",
+			},
+			"/foo/bar*/baz",
+		},
+		{
+			[]string{
+				"/foo/bar*/baz",
+				"/foo/bar*/baz/**",
+			},
+			"/foo/bar*/baz",
+		},
+		{
+			[]string{
+				"/foo/bar*/baz",
+				"/foo/bar/**/baz",
+			},
+			"/foo/bar*/baz",
+		},
+		{
+			[]string{
+				"/foo/bar*/baz",
+				"/foo/bar/**/*baz/",
+			},
+			"/foo/bar*/baz",
+		},
+		{
+			[]string{
+				"/foo/bar*/baz",
 				"/foo/bar/**",
-				"/foo/**",
+			},
+			"/foo/bar*/baz",
+		},
+		{
+			[]string{
+				"/foo/bar*/baz/**",
+				"/foo/bar/**",
+			},
+			"/foo/bar*/baz/**",
+		},
+		{
+			[]string{
+				"/foo/bar*/",
+				"/foo/bar*/*baz",
+			},
+			"/foo/bar*/",
+		},
+		{
+			[]string{
+				"/foo/bar*/",
+				"/foo/bar*/*",
+			},
+			"/foo/bar*/",
+		},
+		{
+			[]string{
+				"/foo/bar*/",
+				"/foo/bar*/**/",
+			},
+			"/foo/bar*/",
+		},
+		{
+			[]string{
+				"/foo/bar*/",
+				"/foo/bar*/**",
+			},
+			"/foo/bar*/",
+		},
+		{
+			[]string{
+				"/foo/bar*/",
+				"/foo/bar/**/",
+			},
+			"/foo/bar*/",
+		},
+		{
+			[]string{
+				"/foo/bar*/",
+				"/foo/bar*/**/",
+			},
+			"/foo/bar*/",
+		},
+		{
+			[]string{
+				"/foo/bar*/*baz",
+				"/foo/bar*/*",
+			},
+			"/foo/bar*/*baz",
+		},
+		{
+			[]string{
+				"/foo/bar*/*baz",
+				"/foo/bar/**/baz",
+			},
+			"/foo/bar*/*baz",
+		},
+		{
+			[]string{
+				"/foo/bar*/*baz",
+				"/foo/bar*/**/baz",
+			},
+			"/foo/bar*/*baz",
+		},
+		{
+			[]string{
+				"/foo/bar*/*/baz",
+				"/foo/bar*/*/*",
+			},
+			"/foo/bar*/*/baz",
+		},
+		{
+			[]string{
+				"/foo/bar*/*/baz",
+				"/foo/bar/**/baz",
+			},
+			"/foo/bar*/*/baz",
+		},
+		{
+			[]string{
+				"/foo/bar*/*/",
+				"/foo/bar*/*",
+			},
+			"/foo/bar*/*/",
+		},
+		{
+			[]string{
+				"/foo/bar*/*/baz",
+				"/foo/bar*/**/baz",
+			},
+			"/foo/bar*/*/baz",
+		},
+		{
+			[]string{
+				"/foo/bar*/*/",
+				"/foo/bar/**/baz/",
+			},
+			"/foo/bar*/*/",
+		},
+		{
+			[]string{
+				"/foo/bar*/*/",
+				"/foo/bar*/**/baz/",
+			},
+			"/foo/bar*/*/",
+		},
+		{
+			[]string{
+				"/foo/bar*/*",
+				"/foo/bar/**/baz/",
+			},
+			"/foo/bar*/*",
+		},
+		{
+			[]string{
+				"/foo/bar*/*",
+				"/foo/bar*/**/baz/",
+			},
+			"/foo/bar*/*",
+		},
+		{
+			[]string{
+				"/foo/bar*",
+				"/foo/bar/**/",
+			},
+			"/foo/bar*",
+		},
+		{
+			[]string{
+				"/foo/bar*",
+				"/foo/bar*/**/",
+			},
+			"/foo/bar*",
+		},
+		// Doublestars
+		{
+			[]string{
+				"/foo/bar/**/baz",
+				"/foo/bar/**/*baz",
+			},
+			"/foo/bar/**/baz",
+		},
+		{
+			[]string{
+				"/foo/bar/**/baz",
+				"/foo/bar/**/*",
+			},
+			"/foo/bar/**/baz",
+		},
+		{
+			[]string{
+				"/foo/bar/**/*baz/",
+				"/foo/bar/**/*baz",
+			},
+			"/foo/bar/**/*baz/",
+		},
+		{
+			[]string{
+				"/foo/bar/**/*baz/",
+				"/foo/bar/**/",
+			},
+			"/foo/bar/**/*baz/",
+		},
+		{
+			[]string{
+				"/foo/bar/**/*baz",
+				"/foo/bar/**/",
+			},
+			"/foo/bar/**/*baz",
+		},
+		{
+			[]string{
+				"/foo/bar/**/*baz",
+				"/foo/bar/**/*",
+			},
+			"/foo/bar/**/*baz",
+		},
+		{
+			[]string{
+				"/foo/bar/**/*baz",
+				"/foo/bar*/**/baz",
+			},
+			"/foo/bar/**/*baz",
+		},
+		{
+			[]string{
+				"/foo/bar/**/",
+				"/foo/bar/**/*",
+			},
+			"/foo/bar/**/",
+		},
+		{
+			[]string{
+				"/foo/bar/**/",
+				"/foo/bar/**",
+			},
+			"/foo/bar/**/",
+		},
+		{
+			[]string{
+				"/foo/bar/**/",
+				"/foo/bar*/**/baz/",
+			},
+			"/foo/bar/**/",
+		},
+		{
+			[]string{
+				"/foo/bar/**/*",
+				"/foo/bar*/**/baz/",
+			},
+			"/foo/bar/**/*",
+		},
+		{
+			[]string{
+				"/foo/bar/**",
+				"/foo/bar*/**/baz/",
 			},
 			"/foo/bar/**",
 		},
+		// Globs followed by doublestars
 		{
 			[]string{
-				"/foo/**",
-				"/foo/bar/file.txt",
+				"/foo/bar*/**/baz",
+				"/foo/bar*/**/",
 			},
-			"/foo/bar/file.txt",
+			"/foo/bar*/**/baz",
 		},
 		{
 			[]string{
-				"/foo/**",
-				"/foo/**/*.tar.gz",
+				"/foo/bar*/**/",
+				"/foo/bar*/**",
 			},
-			"/foo/**/*.tar.gz",
+			"/foo/bar*/**/",
 		},
+		// Miscellaneous
 		{
 			[]string{
-				"/foo/**",
-				"/foo/**/bar/*.tar.gz",
+				"/foo/bar/*.gz",
+				"/foo/bar/*.tar.gz",
 			},
-			"/foo/**/bar/*.tar.gz",
-		},
-		{
-			[]string{
-				"/foo/**/*.txt",
-				"/foo/bar/**",
-			},
-			"/foo/bar/**",
-		},
-		{
-			[]string{
-				"/foo/**/*.gz",
-				"/foo/**/*.tar.gz",
-			},
-			"/foo/**/*.tar.gz",
+			"/foo/bar/*.tar.gz",
 		},
 		{
 			[]string{
@@ -1169,19 +1492,13 @@ func (s *commonSuite) TestGetHighestPrecedencePattern(c *C) {
 		},
 		{
 			[]string{
-				"/foo/bar/*.gz",
-				"/foo/bar/**/*.tar.gz",
-			},
-			"/foo/bar/*.gz",
-		},
-		{
-			[]string{
 				"/foo/bar/x/**/*.gz",
 				"/foo/bar/**/*.tar.gz",
 			},
 			"/foo/bar/x/**/*.gz",
 		},
 		{
+			// Both match `/foo/bar/baz.tar.gz`
 			[]string{
 				"/foo/bar/**/*.tar.gz",
 				"/foo/bar/*",
@@ -1197,12 +1514,12 @@ func (s *commonSuite) TestGetHighestPrecedencePattern(c *C) {
 			"/foo/bar/baz/**/*.txt",
 		},
 		{
-			// would match /foo/bar/, except '*' doesn't match '/'
+			// both match /foo/bar
 			[]string{
 				"/foo/bar*",
 				"/foo/bar/**",
 			},
-			"/foo/bar/**",
+			"/foo/bar*",
 		},
 		{
 			[]string{
@@ -1220,15 +1537,53 @@ func (s *commonSuite) TestGetHighestPrecedencePattern(c *C) {
 			},
 			"/foo/*/bar/**",
 		},
+		{
+			[]string{
+				`/foo/\\\b\a\r`,
+				`/foo/barbaz`,
+			},
+			`/foo/barbaz`,
+		},
+		{
+			[]string{
+				`/foo/\\`,
+				`/foo/*/bar/x`,
+			},
+			`/foo/\\`,
+		},
+		{
+			[]string{
+				`/foo/\**/b\ar/*\*`,
+				`/foo/*/bar/x`,
+			},
+			`/foo/\**/b\ar/*\*`,
+		},
+		// Patterns with "**[^/]" should not be emitted from ExpandPathPattern
+		{
+			[]string{
+				"/foo/**",
+				"/foo/**bar",
+			},
+			"/foo/**bar",
+		},
 	} {
-		highestPrecedence, err := common.GetHighestPrecedencePattern(testCase.Patterns)
+		highestPrecedence, err := common.GetHighestPrecedencePattern(testCase.patterns)
 		c.Check(err, IsNil, Commentf("Error occurred during test case %d:\n%+v", i, testCase))
-		c.Check(highestPrecedence, Equals, testCase.HighestPrecedence, Commentf("Highest precedence pattern incorrect for test case %d:\n%+v", i, testCase))
+		c.Check(highestPrecedence, Equals, testCase.highestPrecedence, Commentf("Highest precedence pattern incorrect for test case %d:\n%+v", i, testCase))
 	}
+}
 
+func (s *commonSuite) TestGetHighestPrecedencePatternUnhappy(c *C) {
 	empty, err := common.GetHighestPrecedencePattern([]string{})
 	c.Check(err, Equals, common.ErrNoPatterns)
 	c.Check(empty, Equals, "")
+
+	result, err := common.GetHighestPrecedencePattern([]string{
+		`/foo/bar`,
+		`/foo/bar\`,
+	})
+	c.Check(err, ErrorMatches, "invalid path pattern.*")
+	c.Check(result, Equals, "")
 }
 
 func (s *commonSuite) TestValidatePathPattern(c *C) {
@@ -1334,6 +1689,7 @@ func (s *commonSuite) TestValidatePathPattern(c *C) {
 		"/foo{bar,/baz}/{fizz,buzz}",
 		"/foo?bar",
 		"/foo/ba[rz]",
+		`/foo/bar\`,
 	} {
 		c.Check(common.ValidatePathPattern(pattern), ErrorMatches, "invalid path pattern.*", Commentf("invalid path pattern %q was incorrectly allowed", pattern))
 	}
