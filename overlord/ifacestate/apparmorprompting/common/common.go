@@ -422,6 +422,39 @@ func trimDuplicates(pattern string) string {
 	return pattern
 }
 
+type priorityType int
+
+const (
+	worstPriority priorityType = iota
+	priorityGlobDoublestar
+	priorityTerminalDoublestar
+	priorityDoublestar
+	priorityGlob
+	prioritySinglestar
+	priorityTerminated
+	priorityLiteral
+)
+
+type nextPatternsContainer struct {
+	currPriority    priorityType
+	nextPatternsMap map[string]int
+}
+
+func (np *nextPatternsContainer) addWithPriority(priority priorityType, pattern string, e int) {
+	if priority < np.currPriority {
+		return
+	}
+	if priority > np.currPriority {
+		np.nextPatternsMap = make(map[string]int)
+		np.currPriority = priority
+	}
+	np.nextPatternsMap[pattern] = e
+}
+
+func (np *nextPatternsContainer) nextPatterns() map[string]int {
+	return np.nextPatternsMap
+}
+
 // Determines which of the given path patterns is the most specific (top priority).
 //
 // Assumes that all of the given patterns satisfy ValidatePathPattern(), so this
@@ -431,6 +464,7 @@ func trimDuplicates(pattern string) string {
 //
 // Below are some sample patterns, in order of precedence, though precedence is
 // only guaranteed between two patterns which may match the same path:
+//
 //	# literals
 //	- /foo/bar/baz
 //	- /foo/bar/
@@ -476,33 +510,24 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 	}
 	// Loop over index into each pattern until only one pattern left
 	for i := 0; len(remainingPatterns) > 1; i++ {
-		lrp := len(remainingPatterns)
-		nextLiteral := make(map[string]int, lrp)
-		terminated := ""
-		nextSinglestar := make(map[string]int, lrp)
-		nextGlob := make(map[string]int, lrp)
-		nextDoublestar := make(map[string]int, lrp)
-		terminalDoublestar := make(map[string]int, lrp)
-		nextGlobDoublestar := make(map[string]int, lrp)
+		nextPatterns := nextPatternsContainer{}
 		for pattern, e := range remainingPatterns {
 			// For each pattern, e is number of escaped chars, thus the number
 			// which should be added to the index to compare equivalent indices
 			// into all patterns
 			patternLen := len(pattern)
-			if i+e >= patternLen {
-				// Could be ==, but to account for (invalid) patterns with
-				// trailing '\', use >= instead.
-				terminated = pattern
+			if i+e == patternLen {
+				nextPatterns.addWithPriority(priorityTerminated, pattern, e)
 				continue
 			}
 			// Check for '*' before '\\', since "\\*" is literal '*'
 			if pattern[i+e] == '*' {
 				if patternLen >= i+e+4 && pattern[i+e+1:i+e+4] == "/**" {
 					// Next parts of pattern are "*/**"
-					nextGlobDoublestar[pattern] = e
+					nextPatterns.addWithPriority(priorityGlobDoublestar, pattern, e)
 					continue
 				}
-				nextGlob[pattern] = e
+				nextPatterns.addWithPriority(priorityGlob, pattern, e)
 				continue
 			}
 			if pattern[i+e] == '\\' {
@@ -514,56 +539,26 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 			// Can safely check for '/' after '\\', since it is '/' either way
 			if pattern[i+e] != '/' || patternLen < i+e+2 || pattern[i+e+1] != '*' {
 				// Next parts of pattern are not "/*" or "/**"
-				nextLiteral[pattern] = e
+				nextPatterns.addWithPriority(priorityLiteral, pattern, e)
 				continue
 			}
 			// pattern[i+e:i+e+2] must be "/*"
 			if patternLen < i+e+3 || pattern[i+e+2] != '*' {
 				// pattern[i+e:i+e+3] must not be "/**"
-				nextSinglestar[pattern] = e
+				nextPatterns.addWithPriority(prioritySinglestar, pattern, e)
 				continue
 			}
 			if patternLen == i+e+3 || (pattern[i+e+3] == '/' && (patternLen == i+e+4 || (patternLen == i+e+5 && pattern[i+e+4] == '*'))) {
 				// pattern[1+e:i+e+3 must terminate with "/**" or "/**/".
 				// Doesn't matter if pattern ends in "/**/*", that will be
 				// caught in the usual case later.
-				terminalDoublestar[pattern] = e
+				nextPatterns.addWithPriority(priorityTerminalDoublestar, pattern, e)
 				continue
 			}
 			// pattern has non-terminal "/**" next
-			nextDoublestar[pattern] = e
+			nextPatterns.addWithPriority(priorityDoublestar, pattern, e)
 		}
-		// Prioritize more literal pattern over all else
-		if len(nextLiteral) > 0 {
-			remainingPatterns = nextLiteral
-			continue
-		}
-		// Prioritize terminated pattern over another glob or {single,double}stars
-		if terminated != "" {
-			return terminated, nil
-		}
-		// Prioritize singlestars over doublestars and globs
-		if len(nextSinglestar) > 0 {
-			remainingPatterns = nextSinglestar
-			continue
-		}
-		// Prioritize globs without immediate doublestar over doublestars
-		if len(nextGlob) > 0 {
-			remainingPatterns = nextGlob
-			continue
-		}
-		// Prioritize non-terminal doublestars over terminal doublestar and globs with immediate doublestars
-		if len(nextDoublestar) > 0 {
-			remainingPatterns = nextDoublestar
-			continue
-		}
-		// Prioritize terminal doublestars over globs with immediate doublestars
-		if len(terminalDoublestar) > 0 {
-			remainingPatterns = terminalDoublestar
-			continue
-		}
-		// Prioritize globs with immediate doublestar last
-		remainingPatterns = nextGlobDoublestar
+		remainingPatterns = nextPatterns.nextPatterns()
 	}
 	p := ""
 	for pattern := range remainingPatterns {
