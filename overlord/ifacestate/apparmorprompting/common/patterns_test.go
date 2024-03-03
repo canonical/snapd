@@ -54,6 +54,10 @@ func (s *commonSuite) TestExpandPathPattern(c *C) {
 			[]string{`/foo`, `/bar`, `/baz`},
 		},
 		{
+			`/{foo,/bar,bar,/baz}`,
+			[]string{`/foo`, `/bar`, `/baz`},
+		},
+		{
 			`/foo/bar\**baz`,
 			[]string{`/foo/bar\**baz`},
 		},
@@ -64,6 +68,22 @@ func (s *commonSuite) TestExpandPathPattern(c *C) {
 		{
 			`/foo/bar/baz/***.txt`,
 			[]string{`/foo/bar/baz/*.txt`},
+		},
+		{
+			`/foo/bar/baz******.txt`,
+			[]string{`/foo/bar/baz*.txt`},
+		},
+		{
+			`/foo/bar/baz/{?***,*?**,**?*,***?}.txt`,
+			[]string{`/foo/bar/baz/?*.txt`},
+		},
+		{
+			`/foo/bar/baz/{?***?,*?**?,**?*?,***??}.txt`,
+			[]string{`/foo/bar/baz/??*.txt`},
+		},
+		{
+			`/foo/bar/baz/{?***??,*?**??,**?*??,***???}.txt`,
+			[]string{`/foo/bar/baz/???*.txt`},
 		},
 		{
 			`/foo///bar/**/**/**/baz/***.txt/**/**/*`,
@@ -184,10 +204,31 @@ func (s *commonSuite) TestGetHighestPrecedencePattern(c *C) {
 		},
 		{
 			[]string{
+				"/foo/bar/baz",
+				"/foo/bar/ba?",
+			},
+			"/foo/bar/baz",
+		},
+		{
+			[]string{
+				"/foo/bar/baz",
+				"/foo/bar/b?z",
+			},
+			"/foo/bar/baz",
+		},
+		{
+			[]string{
 				"/foo/bar/",
 				"/foo/bar",
 			},
 			"/foo/bar/",
+		},
+		{
+			[]string{
+				"/foo/bar",
+				"/foo/ba?",
+			},
+			"/foo/bar",
 		},
 		{
 			[]string{
@@ -224,6 +265,35 @@ func (s *commonSuite) TestGetHighestPrecedencePattern(c *C) {
 				"/foo/bar*",
 			},
 			"/foo/bar",
+		},
+		// Any single character
+		{
+			[]string{
+				"/foo/bar?baz",
+				"/foo/bar*baz",
+			},
+			"/foo/bar?baz",
+		},
+		{
+			[]string{
+				"/foo/bar?baz",
+				"/foo/bar**baz",
+			},
+			"/foo/bar?baz",
+		},
+		{
+			[]string{
+				"/foo/ba?",
+				"/foo/ba*",
+			},
+			"/foo/ba?",
+		},
+		{
+			[]string{
+				"/foo/ba?/",
+				"/foo/ba?",
+			},
+			"/foo/ba?/",
 		},
 		// Singlestars
 		{
@@ -795,6 +865,7 @@ func (s *commonSuite) TestValidatePathPattern(c *C) {
 		"/foo/*/bar/*",
 		"/foo{bar,/baz}{fizz,buzz}",
 		"/foo{bar,/baz}/{fizz,buzz}",
+		"/foo?bar",
 	} {
 		c.Check(common.ValidatePathPattern(pattern), IsNil, Commentf("valid path pattern %q was incorrectly not allowed", pattern))
 	}
@@ -805,7 +876,6 @@ func (s *commonSuite) TestValidatePathPattern(c *C) {
 		"/foo/bar/**/*.{txt",
 		"{,/foo}",
 		"{/,foo}",
-		"/foo?bar",
 		"/foo/ba[rz]",
 		`/foo/bar\`,
 	} {

@@ -12,8 +12,8 @@ import (
 var ErrNoPatterns = errors.New("no patterns given, cannot establish precedence")
 
 var (
-	// The following must be escaped if used as literals in a path pattern:
-	problematicChars = `\[\]\?`
+	// The following must be escaped as literals in a path pattern:
+	problematicChars = `\[\]`
 	// A single safe or escaped unsafe char in a path
 	safePathChar = fmt.Sprintf(`([^%s]|\\[%s])`, problematicChars, problematicChars)
 
@@ -64,10 +64,16 @@ func ExpandPathPattern(pattern string) ([]string, error) {
 	}
 	// Append trailing literal string, if any, to all previously-expanded
 	// patterns, and clean the resulting patterns.
+	alreadySeen := make(map[string]bool, len(expanded))
 	newExpanded := make([]string, 0, len(expanded))
 	suffix := pattern[currLiteralStart:patternLen]
 	for _, prefix := range expanded {
-		newExpanded = append(newExpanded, cleanPattern(prefix+suffix))
+		final := cleanPattern(prefix + suffix)
+		if alreadySeen[final] {
+			continue
+		}
+		alreadySeen[final] = true
+		newExpanded = append(newExpanded, final)
 	}
 	expanded = newExpanded
 	return expanded, nil
@@ -136,9 +142,10 @@ func expandPathPatternFromIndex(pattern string, index, patternLen int) (expanded
 
 var (
 	duplicateSlashes    = regexp.MustCompile(`(^|[^\\])/+`)
-	charsDoublestar     = regexp.MustCompile(`([^/\\])\*\*`)
-	doublestarChars     = regexp.MustCompile(`([^\\])\*\*([^/])`)
-	duplicateDoublestar = regexp.MustCompile(`/\*\*(/\*\*)+`)
+	charsDoublestar     = regexp.MustCompile(`([^/\\])\*\*+`)
+	doublestarChars     = regexp.MustCompile(`([^\\])\*\*+([^/])`)
+	duplicateDoublestar = regexp.MustCompile(`/\*\*(/\*\*)+`) // relies on charsDoublestar running first
+	starsAnyMaybeStars  = regexp.MustCompile(`([^\\])\*+(\?\**)+`)
 )
 
 func cleanPattern(pattern string) string {
@@ -146,11 +153,23 @@ func cleanPattern(pattern string) string {
 	pattern = charsDoublestar.ReplaceAllString(pattern, `${1}*`)
 	pattern = doublestarChars.ReplaceAllString(pattern, `${1}*${2}`)
 	pattern = duplicateDoublestar.ReplaceAllString(pattern, `/**`)
+	pattern = starsAnyMaybeStars.ReplaceAllStringFunc(pattern, shiftStarAfterAnyChars)
 	if strings.HasSuffix(pattern, "/**/*") {
 		// Strip trailing "/*" from suffix
 		return pattern[:len(pattern)-2]
 	}
 	return pattern
+}
+
+func shiftStarAfterAnyChars(s string) string {
+	return strings.Map(deleteStars, s) + "*"
+}
+
+func deleteStars(r rune) rune {
+	if r == '*' {
+		return -1
+	}
+	return r
 }
 
 type priorityType int
@@ -162,6 +181,7 @@ const (
 	priorityDoublestar
 	priorityGlob
 	prioritySinglestar
+	prioritySingleChar
 	priorityTerminated
 	priorityLiteral
 )
@@ -202,6 +222,10 @@ func (np *nextPatternsContainer) nextPatterns() map[string]int {
 //	- /foo/bar/
 //	# terminated
 //	- /foo/bar
+//	# any single character
+//	- /foo/bar?baz
+//	- /foo/bar?
+//	- /foo/bar?/
 //	# singlestars
 //	- /foo/bar/*/baz
 //	- /foo/bar/*/
@@ -252,7 +276,11 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 				nextPatterns.addWithPriority(priorityTerminated, pattern, e)
 				continue
 			}
-			// Check for '*' before '\\', since "\\*" is literal '*'
+			// Check for '?' and '*' before '\\', since "\\*" is literal '*', etc.
+			if pattern[i+e] == '?' {
+				nextPatterns.addWithPriority(prioritySingleChar, pattern, e)
+				continue
+			}
 			if pattern[i+e] == '*' {
 				if patternLen >= i+e+4 && pattern[i+e+1:i+e+4] == "/**" {
 					// Next parts of pattern are "*/**"
