@@ -338,70 +338,125 @@ func abstractPermissionsToAppArmorFilePermissions(iface string, permissions []st
 
 var (
 	// The following must be escaped if used as literals in a path pattern:
-	problematicChars = `{}\[\]\?`
+	problematicChars = `\[\]\?`
 	// A single safe or escaped unsafe char in a path
 	safePathChar = fmt.Sprintf(`([^%s]|\\[%s])`, problematicChars, problematicChars)
 
 	// The following matches valid path patterns
-	allowablePathPattern       = fmt.Sprintf(`^/%s*([^\\]?{%s*(,%s*)+})?$`, safePathChar, safePathChar, safePathChar)
+	allowablePathPattern       = fmt.Sprintf(`^/%s*$`, safePathChar)
 	allowablePathPatternRegexp = regexp.MustCompile(allowablePathPattern)
 )
 
-// Expands a group, if it exists, in the path pattern, and creates a new
-// string for every option in that group.
+// Expands all groups in the given path pattern. Groups are enclosed by '{' '}'.
+// Returns a list of all the expanded path patterns, or an error if the given
+// pattern is invalid.
 func ExpandPathPattern(pattern string) ([]string, error) {
-	errPrefix := "invalid path pattern"
-	var basePattern string
-	groupStrings := make([]string, 0, strings.Count(pattern, ",")+1)
-	sawGroup := false
-	var currGroupStart int
-	index := 0
-	for index < len(pattern) {
-		switch pattern[index] {
-		case '\\':
-			index += 1
-			if index == len(pattern) {
-				return nil, fmt.Errorf(`%s: trailing non-escaping '\' character: %q`, errPrefix, pattern)
+	patternLen := len(pattern)
+	expanded := defaultPrefixes
+	currLiteralStart := 0
+	for i := 0; i < patternLen; i++ {
+		if pattern[i] == '\\' {
+			i += 1
+			if i == patternLen {
+				return nil, fmt.Errorf(`invalid path pattern: trailing unescaped '\' character: %q`, pattern)
 			}
-		case '{':
-			if sawGroup {
-				return nil, fmt.Errorf(`%s: multiple unescaped '{' characters: %q`, errPrefix, pattern)
-			}
-			if index == len(pattern)-1 {
-				return nil, fmt.Errorf(`%s: trailing unescaped '{' character: %q`, errPrefix, pattern)
-			}
-			basePattern = pattern[:index]
-			sawGroup = true
-			currGroupStart = index + 1
-		case '}':
-			if !sawGroup || currGroupStart == -1 {
-				return nil, fmt.Errorf(`%s: unmatched '}' character: %q`, errPrefix, pattern)
-			}
-			if index != len(pattern)-1 {
-				return nil, fmt.Errorf(`%s: characters after group closed by '}': %s`, errPrefix, pattern)
-			}
-			currGroup := pattern[currGroupStart:index]
-			groupStrings = append(groupStrings, currGroup)
-			currGroupStart = -1
-		case ',':
-			currGroup := pattern[currGroupStart:index]
-			groupStrings = append(groupStrings, currGroup)
-			currGroupStart = index + 1
+			continue
 		}
-		index += 1
+		if pattern[i] == '}' {
+			return nil, fmt.Errorf(`invalid path pattern: unmatched '}' character: %q`, pattern)
+		}
+		if pattern[i] != '{' {
+			continue
+		}
+		infix := pattern[currLiteralStart:i]
+		groupExpanded, groupEnd, err := expandPathPatternFromIndex(pattern, i+1, patternLen)
+		if err != nil {
+			return nil, err
+		}
+		newExpanded := make([]string, 0, len(expanded)*len(groupExpanded))
+		for _, prefix := range expanded {
+			for _, suffix := range groupExpanded {
+				newExpanded = append(newExpanded, prefix+infix+suffix)
+			}
+		}
+		expanded = newExpanded
+		currLiteralStart = groupEnd + 1
+		i = groupEnd // let for loop increment to index after '}'
 	}
-	if !sawGroup {
-		return []string{trimDuplicates(pattern)}, nil
+	if len(expanded) == 1 && expanded[0] == "" {
+		// Didn't expand any groups, so return whole pattern.
+		return []string{cleanPattern(pattern)}, nil
 	}
-	if currGroupStart != -1 {
-		return nil, fmt.Errorf(`%s: unmatched '{' character: %q`, errPrefix, pattern)
+	// Append trailing literal string, if any, to all previously-expanded
+	// patterns, and clean the resulting patterns.
+	newExpanded := make([]string, 0, len(expanded))
+	suffix := pattern[currLiteralStart:patternLen]
+	for _, prefix := range expanded {
+		newExpanded = append(newExpanded, cleanPattern(prefix+suffix))
 	}
-	expanded := make([]string, len(groupStrings))
-	for i, str := range groupStrings {
-		combined := basePattern + str
-		expanded[i] = trimDuplicates(combined)
-	}
+	expanded = newExpanded
 	return expanded, nil
+}
+
+var defaultPrefixes = []string{""}
+
+// Expands the contents of a group in the given path pattern, beginning at the
+// given index, until a '}' is seen. The given index should be the index of the
+// first character after the opening '{' of the group. Returns the list of
+// expanded strings, as well as the index of the closing '}' character.
+// Whenever a ',' character is encountered, cuts off the current sub-pattern
+// and begins a new one. Any '\'-escaped '{', ',', and '}' characters are
+// treated as literals. If the pattern terminates before a non-escaped '}' is
+// seen, returns an error.
+func expandPathPatternFromIndex(pattern string, index, patternLen int) (expanded []string, end int, err error) {
+	// Record total list of expanded patterns, to which other lists are appended
+	expanded = []string{}
+	// Within the current group option, record the current list of previously-
+	// expanded prefixes, and the start index of the subpattern following the
+	// most recent group.
+	currPrefixes := defaultPrefixes
+	currSubpatternStart := index
+	for i := index; i < patternLen; i++ {
+		if pattern[i] == '\\' {
+			i += 1
+			if i == patternLen {
+				return nil, 0, fmt.Errorf(`invalid path pattern: trailing unescaped '\' character: %q`, pattern)
+			}
+			continue
+		}
+		if pattern[i] == '{' {
+			infix := pattern[currSubpatternStart:i]
+			groupExpanded, groupEnd, err := expandPathPatternFromIndex(pattern, i+1, patternLen)
+			if err != nil {
+				return nil, 0, err
+			}
+			newPrefixes := make([]string, 0, len(currPrefixes)*len(groupExpanded))
+			for _, prefix := range currPrefixes {
+				for _, suffix := range groupExpanded {
+					newPrefixes = append(newPrefixes, prefix+infix+suffix)
+				}
+			}
+			currPrefixes = newPrefixes
+			currSubpatternStart = groupEnd + 1
+			i = groupEnd // let for loop increment to index after '}'
+			continue
+		}
+		if pattern[i] == ',' || pattern[i] == '}' {
+			suffix := pattern[currSubpatternStart:i]
+			newExpanded := make([]string, len(expanded), len(expanded)+len(currPrefixes))
+			copy(newExpanded, expanded)
+			for _, prefix := range currPrefixes {
+				newExpanded = append(newExpanded, prefix+suffix)
+			}
+			expanded = newExpanded
+			currPrefixes = defaultPrefixes
+			currSubpatternStart = i + 1
+		}
+		if pattern[i] == '}' {
+			return expanded, i, nil
+		}
+	}
+	return nil, 0, fmt.Errorf(`invalid path pattern: unmatched '{' character: %q`, pattern)
 }
 
 var (
@@ -411,7 +466,7 @@ var (
 	duplicateDoublestar = regexp.MustCompile(`/\*\*(/\*\*)+`)
 )
 
-func trimDuplicates(pattern string) string {
+func cleanPattern(pattern string) string {
 	pattern = duplicateSlashes.ReplaceAllString(pattern, `${1}/`)
 	pattern = charsDoublestar.ReplaceAllString(pattern, `${1}*`)
 	pattern = doublestarChars.ReplaceAllString(pattern, `${1}*${2}`)
@@ -578,7 +633,7 @@ func ValidatePathPattern(pattern string) error {
 		return fmt.Errorf("invalid path pattern: must start with '/': %q", pattern)
 	}
 	if !allowablePathPatternRegexp.MatchString(pattern) {
-		return fmt.Errorf("invalid path pattern: cannot contain unescaped '[', ']', or '?',  or >1 unescaped '{' or '}': %q", pattern)
+		return fmt.Errorf("invalid path pattern: cannot contain unescaped '[', ']', or '?': %q", pattern)
 	}
 	return nil
 }

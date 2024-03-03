@@ -672,6 +672,7 @@ func (s *requestrulesSuite) TestIsPathAllowed(c *C) {
 	patterns["/home/test/Documents/foo/**"] = common.OutcomeDeny
 	patterns["/home/test/Documents/foo/bar/**"] = common.OutcomeAllow
 	patterns["/home/test/Documents/foo/bar/baz/**"] = common.OutcomeDeny
+	patterns["/home/test/Documents/foo/bar/baz/**/{fizz,buzz}"] = common.OutcomeAllow
 	patterns["/home/test/**/*.png"] = common.OutcomeAllow
 	patterns["/home/test/**/*.jpg"] = common.OutcomeDeny
 
@@ -735,6 +736,8 @@ func (s *requestrulesSuite) TestIsPathAllowed(c *C) {
 	cases["/home/test/Documents/foo/bar/baz/file.png"] = false
 	cases["/home/test/Documents/foo/bar/baz/file.jpg"] = false
 	cases["/home/test/Documents/foo/bar/baz/file.txt"] = false
+	cases["/home/test/Documents/foo/bar/baz/fizz"] = true
+	cases["/home/test/Documents/foo/bar/baz/buzz"] = true
 	cases["/home/test/file.jpg.png"] = true
 	cases["/home/test/file.png.jpg"] = false
 
