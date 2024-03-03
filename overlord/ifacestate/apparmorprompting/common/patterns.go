@@ -91,8 +91,9 @@ func trimDuplicates(pattern string) string {
 	pattern = charsDoublestar.ReplaceAllString(pattern, `${1}*`)
 	pattern = doublestarChars.ReplaceAllString(pattern, `${1}*${2}`)
 	pattern = duplicateDoublestar.ReplaceAllString(pattern, `/**`)
-	if cleaned, found := strings.CutSuffix(pattern, "/**/*"); found {
-		return cleaned + "/**"
+	if strings.HasSuffix(pattern, "/**/*") {
+		// Strip trailing "/*" from suffix
+		return pattern[:len(pattern)-2]
 	}
 	return pattern
 }
