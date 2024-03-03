@@ -69,6 +69,41 @@ func (s *commonSuite) TestExpandPathPattern(c *C) {
 			`/foo///bar/**/**/**/baz/***.txt/**/**/*`,
 			[]string{`/foo/bar/**/baz/*.txt/**`},
 		},
+		{
+			`{a,b}c{d,e}f{g,h}`,
+			[]string{
+				`acdfg`,
+				`acdfh`,
+				`acefg`,
+				`acefh`,
+				`bcdfg`,
+				`bcdfh`,
+				`bcefg`,
+				`bcefh`,
+			},
+		},
+		{
+			`a{{b,c},d,{e{f,{,g}}}}h`,
+			[]string{
+				`abh`,
+				`ach`,
+				`adh`,
+				`aefh`,
+				`aeh`,
+				`aegh`,
+			},
+		},
+		{
+			`a{{b,c},d,\{e{f,{,g\}}}}h`,
+			[]string{
+				`abh`,
+				`ach`,
+				`adh`,
+				`a\{efh`,
+				`a\{eh`,
+				`a\{eg\}h`,
+			},
+		},
 	} {
 		expanded, err := common.ExpandPathPattern(testCase.pattern)
 		c.Check(err, IsNil, Commentf("test case: %+v", testCase))
@@ -91,11 +126,19 @@ func (s *commonSuite) TestExpandPathPatternUnhappy(c *C) {
 		},
 		{
 			`/foo/bar\`,
-			`invalid path pattern: trailing non-escaping '\\' character.*`,
+			`invalid path pattern: trailing unescaped '\\' character.*`,
 		},
 		{
 			`/foo/bar{`,
-			`invalid path pattern: trailing unescaped '{' character.*`,
+			`invalid path pattern: unmatched '{' character.*`,
+		},
+		{
+			`/foo/bar{baz\`,
+			`invalid path pattern: trailing unescaped '\\' character.*`,
+		},
+		{
+			`/foo/bar{baz{\`,
+			`invalid path pattern: trailing unescaped '\\' character.*`,
 		},
 	} {
 		result, err := common.ExpandPathPattern(testCase.pattern)
@@ -750,6 +793,8 @@ func (s *commonSuite) TestValidatePathPattern(c *C) {
 		"/foo/*/**",
 		"/foo/*/bar/**",
 		"/foo/*/bar/*",
+		"/foo{bar,/baz}{fizz,buzz}",
+		"/foo{bar,/baz}/{fizz,buzz}",
 	} {
 		c.Check(common.ValidatePathPattern(pattern), IsNil, Commentf("valid path pattern %q was incorrectly not allowed", pattern))
 	}
@@ -760,8 +805,6 @@ func (s *commonSuite) TestValidatePathPattern(c *C) {
 		"/foo/bar/**/*.{txt",
 		"{,/foo}",
 		"{/,foo}",
-		"/foo{bar,/baz}{fizz,buzz}",
-		"/foo{bar,/baz}/{fizz,buzz}",
 		"/foo?bar",
 		"/foo/ba[rz]",
 		`/foo/bar\`,
