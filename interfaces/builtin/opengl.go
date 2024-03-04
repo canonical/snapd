@@ -233,6 +233,7 @@ const openglHybrisConnectedPlugAppArmor = `
 /dev/ashmem rw,
 /dev/ion rw,
 /dev/kgsl-3d0 rw,
+/sys/devices/platform/soc/**/kgsl/kgsl-3d0/gpu_model rw,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{EGL,GLESv1_CM,GLESv2}_libhybris.so* rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libhybris-common.so* rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libhybris-platformcommon.so* rm,
