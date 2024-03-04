@@ -99,7 +99,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 		// Make sure that the rules file gets removed when we don't have any
 		// content and exists.
 		err = os.Remove(rulesFilePath)
-		if err != nil && !os.IsNotExist(err) {
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
 		} else if err == nil {
 			// FIXME: somehow detect the interfaces that were
@@ -138,7 +138,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 		// The snap cannot manage its own device cgroup, make sure that
 		// the flag is removed.
 		err = os.Remove(selfManageDeviceCgroupPath)
-		if err != nil && !os.IsNotExist(err) {
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
 	}
