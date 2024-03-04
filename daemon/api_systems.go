@@ -336,7 +336,7 @@ func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRe
 	}
 }
 
-func parseValidationSets(validationSets []string) ([]*asserts.AtSequence, error) {
+func assertionsFromValidationSetStrings(validationSets []string) ([]*asserts.AtSequence, error) {
 	sets := make([]*asserts.AtSequence, 0, len(validationSets))
 	for _, vs := range validationSets {
 		account, name, seq, err := snapasserts.ParseValidationSet(vs)
@@ -421,7 +421,7 @@ func postSystemActionCreateOffline(c *Command, form *Form) Response {
 	}
 
 	// TODO: why is this a comma delimited list, rather than multiple values?
-	sequences, err := parseValidationSets(splitVSets)
+	sequences, err := assertionsFromValidationSetStrings(splitVSets)
 	if err != nil {
 		return BadRequest("cannot parse validation sets: %v", err)
 	}
