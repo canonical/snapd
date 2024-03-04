@@ -419,10 +419,6 @@ func postSystemActionCreateOffline(c *Command, form *Form) Response {
 		return BadRequest("cannot parse validation sets: %v", err)
 	}
 
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
 	var snapFiles []*uploadedSnap
 	if len(form.FileRefs["snap"]) > 0 {
 		snaps, errRsp := form.GetSnapFiles()
@@ -439,6 +435,10 @@ func postSystemActionCreateOffline(c *Command, form *Form) Response {
 			return BadRequest("cannot decode assertion: %v", err)
 		}
 	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
 
 	if err := assertstate.AddBatch(st, batch, &asserts.CommitOptions{Precheck: true}); err != nil {
 		return BadRequest("error committing assertions: %v", err)
