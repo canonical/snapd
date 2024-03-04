@@ -351,7 +351,7 @@ func parseValidationSets(validationSets []string) ([]*asserts.AtSequence, error)
 	return sets, nil
 }
 
-func readValueFromForm(form *Form, key string) (string, *apiError) {
+func readFormValue(form *Form, key string) (string, *apiError) {
 	values := form.Values[key]
 	if len(values) != 1 {
 		return "", BadRequest("expected exactly one %q value in form", key)
@@ -359,7 +359,7 @@ func readValueFromForm(form *Form, key string) (string, *apiError) {
 	return values[0], nil
 }
 
-func readValueFromFormWithDefault(form *Form, key string, defaultValue string) (string, *apiError) {
+func readOptionalFormValue(form *Form, key string, defaultValue string) (string, *apiError) {
 	values := form.Values[key]
 	switch len(values) {
 	case 0:
@@ -371,33 +371,39 @@ func readValueFromFormWithDefault(form *Form, key string, defaultValue string) (
 	}
 }
 
+func readOptionalFormBoolean(form *Form, key string, defaultValue bool) (bool, *apiError) {
+	values := form.Values[key]
+	switch len(values) {
+	case 0:
+		return defaultValue, nil
+	case 1:
+		b, err := strconv.ParseBool(values[0])
+		if err != nil {
+			return false, BadRequest("cannot parse %q value as boolean: %s", key, values[0])
+		}
+		return b, nil
+	default:
+		return false, BadRequest("expected at most one %q value in form", key)
+	}
+}
+
 func postSystemActionCreateOffline(c *Command, form *Form) Response {
-	label, errRsp := readValueFromForm(form, "label")
+	label, errRsp := readFormValue(form, "label")
 	if errRsp != nil {
 		return errRsp
 	}
 
-	testSystemStr, errRsp := readValueFromFormWithDefault(form, "test-system", "false")
+	testSystem, errRsp := readOptionalFormBoolean(form, "test-system", false)
 	if errRsp != nil {
 		return errRsp
 	}
 
-	testSystem, err := strconv.ParseBool(testSystemStr)
-	if err != nil {
-		return BadRequest(`cannot parse "test-system" value as boolean: %s`, testSystemStr)
-	}
-
-	markDefaultStr, errRsp := readValueFromFormWithDefault(form, "mark-default", "false")
+	markDefault, errRsp := readOptionalFormBoolean(form, "mark-default", false)
 	if errRsp != nil {
 		return errRsp
 	}
 
-	markDefault, err := strconv.ParseBool(markDefaultStr)
-	if err != nil {
-		return BadRequest(`cannot parse "mark-default" value as boolean: %s`, markDefaultStr)
-	}
-
-	vsetsList, errRsp := readValueFromFormWithDefault(form, "validation-sets", "")
+	vsetsList, errRsp := readOptionalFormValue(form, "validation-sets", "")
 	if errRsp != nil {
 		return errRsp
 	}
