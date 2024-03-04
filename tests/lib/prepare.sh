@@ -976,6 +976,9 @@ setup_reflash_magic() {
         core_name="core22"
     elif os.query is-core24; then
         core_name="core24"
+        # TODO: revert this once snaps are ready in target channel
+        KERNEL_CHANNEL=edge
+        GADGET_CHANNEL=edge
     fi
     # XXX: we get "error: too early for operation, device not yet
     # seeded or device model not acknowledged" here sometimes. To
@@ -1108,7 +1111,7 @@ EOF
         # make sure we have the snap
         test -e pc-kernel.snap
         # build the initramfs with our snapd assets into the kernel snap
-        if os.query is-core-ge 24; then
+        if os.query is-ubuntu-ge 24; then
             uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
         else    
             uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
