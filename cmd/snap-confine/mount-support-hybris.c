@@ -93,25 +93,9 @@ static const size_t hybris_egl_vendor_globs_len =
 static void sc_hybris_mount_android_rootfs(const char *rootfs_dir)
 {
 	// Bind mount a tmpfs on $rootfs_dir/$tgt_dir (i.e. /var/lib/snapd/lib/gl)
-	char rfsbuf[PATH_MAX] = { 0 };
-	sc_must_snprintf(rfsbuf, sizeof(rfsbuf), "%s%s", rootfs_dir, SC_HYBRIS_ROOTFS);
-	const char *android_rootfs_dir = rfsbuf;
-
-	char sysbuf[PATH_MAX] = { 0 };
-	sc_must_snprintf(sysbuf, sizeof(sysbuf), "%s%s", rootfs_dir, SC_HYBRIS_SYSTEM_SYMLINK);
-	const char *android_system_symlink = sysbuf;
-
-	char vndbuf[PATH_MAX] = { 0 };
-	sc_must_snprintf(vndbuf, sizeof(vndbuf), "%s%s", rootfs_dir, SC_HYBRIS_VENDOR_SYMLINK);
-	const char *android_vendor_symlink = vndbuf;
-
-	char odmbuf[PATH_MAX] = { 0 };
-	sc_must_snprintf(odmbuf, sizeof(odmbuf), "%s%s", rootfs_dir, SC_HYBRIS_ODM_SYMLINK);
-	const char *android_odm_symlink = odmbuf;
-
-	char apxbuf[PATH_MAX] = { 0 };
-	sc_must_snprintf(apxbuf, sizeof(apxbuf), "%s%s", rootfs_dir, SC_HYBRIS_APEX_SYMLINK);
-	const char *android_apex_symlink = apxbuf;
+	char path_buf[PATH_MAX] = { 0 };
+	sc_must_snprintf(path_buf, sizeof(path_buf), "%s%s", rootfs_dir, SC_HYBRIS_ROOTFS);
+	const char *android_rootfs_dir = path_buf;
 
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 	int res = mkdir(android_rootfs_dir, 0755);
@@ -126,15 +110,26 @@ static void sc_hybris_mount_android_rootfs(const char *rootfs_dir)
 
 	(void)mount(SC_HYBRIS_ROOTFS, android_rootfs_dir, NULL, MS_BIND | MS_REC | MS_RDONLY, NULL);
 
+	sc_must_snprintf(path_buf, sizeof(path_buf), "%s%s", rootfs_dir, SC_HYBRIS_SYSTEM_SYMLINK);
+	const char *android_system_symlink = path_buf;
 	if (symlink(SC_HYBRIS_SYSTEM_SYMLINK_TARGET, android_system_symlink)) {
 		die("Cannot set symlink for %s", SC_HYBRIS_SYSTEM_SYMLINK);
 	}
+
+	sc_must_snprintf(path_buf, sizeof(path_buf), "%s%s", rootfs_dir, SC_HYBRIS_VENDOR_SYMLINK);
+	const char *android_vendor_symlink = path_buf;
 	if (symlink(SC_HYBRIS_VENDOR_SYMLINK_TARGET, android_vendor_symlink)) {
 		die("Cannot set symlink for %s", SC_HYBRIS_VENDOR_SYMLINK);
 	}
+
+	sc_must_snprintf(path_buf, sizeof(path_buf), "%s%s", rootfs_dir, SC_HYBRIS_ODM_SYMLINK);
+	const char *android_odm_symlink = path_buf;
 	if (symlink(SC_HYBRIS_ODM_SYMLINK_TARGET, android_odm_symlink)) {
 		die("Cannot set symlink for %s", SC_HYBRIS_ODM_SYMLINK);
 	}
+
+	sc_must_snprintf(path_buf, sizeof(path_buf), "%s%s", rootfs_dir, SC_HYBRIS_APEX_SYMLINK);
+	const char *android_apex_symlink = path_buf;
 	if (symlink(SC_HYBRIS_APEX_SYMLINK_TARGET, android_apex_symlink)) {
 		die("Cannot set symlink for %s", SC_HYBRIS_APEX_SYMLINK);
 	}
