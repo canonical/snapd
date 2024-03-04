@@ -414,31 +414,12 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	}
 
 	if value == nil {
-		return fmt.Errorf("Set value cannot be nil")
+		return fmt.Errorf("internal error: Set value cannot be nil")
 	}
 
-	var matches []requestMatch
-	subkeys := strings.Split(request, ".")
-	for _, rule := range a.aspectRules {
-		placeholders, suffixParts, ok := rule.match(subkeys)
-		if !ok {
-			continue
-		}
-
-		if !rule.isWriteable() {
-			continue
-		}
-
-		path, err := rule.storagePath(placeholders)
-		if err != nil {
-			return err
-		}
-
-		matches = append(matches, requestMatch{
-			storagePath: path,
-			suffixParts: suffixParts,
-			request:     rule.originalRequest,
-		})
+	matches, err := a.matchWriteRequest(request)
+	if err != nil {
+		return err
 	}
 
 	if len(matches) == 0 {
@@ -503,28 +484,9 @@ func (a *Aspect) Unset(databag DataBag, request string) error {
 		return badRequestErrorFrom(a, "unset", request, err.Error())
 	}
 
-	var matches []requestMatch
-	subkeys := strings.Split(request, ".")
-	for _, rule := range a.aspectRules {
-		placeholders, suffixParts, ok := rule.match(subkeys)
-		if !ok {
-			continue
-		}
-
-		if !rule.isWriteable() {
-			continue
-		}
-
-		path, err := rule.storagePath(placeholders)
-		if err != nil {
-			return err
-		}
-
-		matches = append(matches, requestMatch{
-			storagePath: path,
-			suffixParts: suffixParts,
-			request:     rule.originalRequest,
-		})
+	matches, err := a.matchWriteRequest(request)
+	if err != nil {
+		return err
 	}
 
 	if len(matches) == 0 {
@@ -550,6 +512,34 @@ func (a *Aspect) Unset(databag DataBag, request string) error {
 	}
 
 	return nil
+}
+
+func (a *Aspect) matchWriteRequest(request string) ([]requestMatch, error) {
+	var matches []requestMatch
+	subkeys := strings.Split(request, ".")
+	for _, rule := range a.aspectRules {
+		placeholders, suffixParts, ok := rule.match(subkeys)
+		if !ok {
+			continue
+		}
+
+		if !rule.isWriteable() {
+			continue
+		}
+
+		path, err := rule.storagePath(placeholders)
+		if err != nil {
+			return nil, err
+		}
+
+		matches = append(matches, requestMatch{
+			storagePath: path,
+			suffixParts: suffixParts,
+			request:     rule.originalRequest,
+		})
+	}
+
+	return matches, nil
 }
 
 // checkSchemaMismatch checks whether the rules accept compatible schema types.

@@ -246,7 +246,7 @@ func (*aspectSuite) TestSetWithNilValueFail(c *C) {
 	c.Assert(err, IsNil)
 
 	err = wsAspect.Set(databag, "foo", nil)
-	c.Assert(err, ErrorMatches, `Set value cannot be nil`)
+	c.Assert(err, ErrorMatches, `internal error: Set value cannot be nil`)
 
 	ssid, err := wsAspect.Get(databag, "foo")
 	c.Assert(err, IsNil)
