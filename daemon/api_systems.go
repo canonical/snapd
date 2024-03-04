@@ -420,7 +420,10 @@ func postSystemActionCreateOffline(c *Command, form *Form) Response {
 		splitVSets = strings.Split(vsetsList, ",")
 	}
 
-	// TODO: why is this a comma delimited list, rather than multiple values?
+	// this could be multiple "validation-set" values, but that would make it so
+	// that the field names in the form and JSON APIs are different, since the
+	// JSON API uses "validation-sets" (plural). to keep the APIs consistent, we
+	// use a comma-delimeted list of validation sets strings.
 	sequences, err := assertionsFromValidationSetStrings(splitVSets)
 	if err != nil {
 		return BadRequest("cannot parse validation sets: %v", err)
