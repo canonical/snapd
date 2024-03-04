@@ -107,6 +107,35 @@ static void sc_udev_allow_nvidia(sc_device_cgroup *cgroup) {
     }
 }
 
+/** Allow access to hybris devices.
+ *
+ * Required by Halium-based GNU/Linux adaptations to make use of certain device nodes.
+ *
+ * Note: Binder devices on newer Android kernels reside inside of their own binderfs mountpount.
+ **/
+static void sc_udev_allow_hybris(sc_device_cgroup *cgroup)
+{
+    /* Only go on here if this has been identified as a Halium/libhybris system
+     *
+     * In case the host happens to have binder available, but isn't identified as
+     * a system requiring it to drive host-residing Android drivers, then return early,
+     * otherwise we would open a hole between confined apps and unconfined Anbox or other
+     * which causes them to communicate over a potentially unmediated IPC interface.
+     */
+    struct stat propbuf;
+    if (stat("/system/build.prop", &propbuf) != 0) {
+        return;
+    }
+
+    const char *paths[] = {"/dev/binderfs/binder", "/dev/binderfs/hwbinder", "/dev/binder", "/dev/hwbinder"};
+    for (int i = 0; i < sizeof(paths)/sizeof(paths[0]); i++) {
+        struct stat sbuf;
+        if (stat(paths[i], &sbuf) == 0) {
+            sc_device_cgroup_allow(cgroup, S_IFCHR, major(sbuf.st_rdev), minor(sbuf.st_rdev));
+        }
+    }
+}
+
 /**
  * Allow access to /dev/uhid.
  *
@@ -182,6 +211,7 @@ static void sc_udev_setup_acls_common(sc_device_cgroup *cgroup) {
     sc_udev_allow_common(cgroup);
     sc_udev_allow_pty_slaves(cgroup);
     sc_udev_allow_nvidia(cgroup);
+    sc_udev_allow_hybris(cgroup);
     sc_udev_allow_uhid(cgroup);
     sc_udev_allow_dev_net_tun(cgroup);
 }
