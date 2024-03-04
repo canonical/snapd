@@ -136,7 +136,7 @@ mount options=(rw, rbind) /oldroot/opt/ -> /newroot/opt/,
 mount options=(rw, rbind) /oldroot/srv/ -> /newroot/srv/,
 mount options=(rw, rbind) /oldroot/run/udev/ -> /newroot/run/udev/,
 mount options=(rw, rbind) /oldroot/home/{,**} -> /newroot/home/{,**},
-mount options=(rw, rbind) /oldroot/snap/** -> /newroot/snap/**,
+mount options=(rw, rbind) /oldroot/snap/{,**} -> /newroot/snap/{,**},
 mount options=(rw, rbind) /oldroot/home/**/usr/ -> /newroot/usr/,
 mount options=(rw, rbind) /oldroot/home/**/usr/etc/** -> /newroot/etc/**,
 mount options=(rw, rbind) /oldroot/home/**/usr/etc/ld.so.cache -> /newroot/**,
@@ -189,7 +189,6 @@ mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/usr/lib/@{multiarch}/** 
 
 mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/usr/share/** -> /newroot/**,
 mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/ -> /newroot/var/lib/snapd/hostfs/,
-mount options=(rw, rbind) /oldroot/snap/ -> /newroot/snap/,
 
 # Allow masking of certain directories in the sandbox
 mount fstype=tmpfs options=(rw, nosuid, nodev) tmpfs -> /newroot/**,
