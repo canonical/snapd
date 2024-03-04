@@ -26,7 +26,9 @@ package udev
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -189,18 +191,27 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Remove(snapName string) error {
 	rulesFilePath := snapRulesFilePath(snapName)
-	err := os.Remove(rulesFilePath)
-	if os.IsNotExist(err) {
-		// If file doesn't exist we avoid reloading the udev rules when we return here
-		return nil
-	} else if err != nil {
+	selfManageDeviceCgroupPath := snapDeviceCgroupSelfManageFilePath(snapName)
+
+	// If file doesn't exist we avoid reloading the udev rules when we return here
+	needReload := false
+	if err := os.Remove(rulesFilePath); err == nil {
+		needReload = true
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+
+	if err := os.Remove(selfManageDeviceCgroupPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
 
 	// FIXME: somehow detect the interfaces that were disconnected and set
 	// subsystemTriggers appropriately. ATM, it is always going to be empty
 	// on disconnect.
-	return b.reloadRules(nil)
+	if needReload {
+		return b.reloadRules(nil)
+	}
+	return nil
 }
 
 func (b *Backend) deriveContent(spec *Specification) (content []string) {

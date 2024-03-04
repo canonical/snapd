@@ -346,6 +346,7 @@ func (s *backendSuite) TestControlsDeviceCgroup(c *C) {
 			"self-managed=true\n",
 		)
 		s.RemoveSnap(c, snapInfo)
+		c.Check(cgroupFname, testutil.FileAbsent)
 	}
 }
 
@@ -370,6 +371,7 @@ func (s *backendSuite) TestControlsDeviceCgroupCleansUpRules(c *C) {
 		"self-managed=true\n",
 	)
 	s.RemoveSnap(c, snapInfo)
+	c.Check(cgroupFname, testutil.FileAbsent)
 }
 
 func (s *backendSuite) TestNoControlsDeviceCgroupCleansUpFlag(c *C) {
