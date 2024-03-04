@@ -55,7 +55,7 @@ execute: |
                 INSTALLED=$(( INSTALLED + 1 ))
             else 
                 # this could cause the failure https://bugs.launchpad.net/snapstore-server/+bug/2049071
-                MATCH "error: snap \"$SNAP\" not found' < stderr.out
+                MATCH "error: snap \"$SNAP\" not found" < stderr.out
             fi
 
             if [ "$INSTALLED" = "$NUM_SNAPS" ]; then
