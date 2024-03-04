@@ -683,9 +683,6 @@ static void enter_non_classic_execution_environment(sc_invocation *inv,
 	/** Conditionally create, populate and join the device cgroup. */
 		sc_device_cgroup_mode mode = SC_DEVICE_CGROUP_MODE_REQUIRED;
 		const char *non_required_cgroup_bases[] = {
-			/* XXX the list is subject to change if no 'bare' base snaps using
-			 * system-files interface are found in the snap store */
-			"bare",
 			"core", "core16", "core18", "core20", "core22",
 			NULL,
 		};
