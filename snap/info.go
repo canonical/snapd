@@ -277,6 +277,16 @@ func snapDataDir(opts *dirs.SnapDirOptions) string {
 	return dirs.UserHomeSnapDir
 }
 
+// BaseDataHomeDirs returns the per user base data directories of the snap across multiple
+// home directories.
+func BaseDataHomeDirs(name string, opts *dirs.SnapDirOptions) []string {
+	var dataHomeGlob []string
+	for _, glob := range dirs.DataHomeGlobs(opts) {
+		dataHomeGlob = append(dataHomeGlob, filepath.Join(glob, name))
+	}
+	return dataHomeGlob
+}
+
 // UserDataDir returns the user-specific data directory for given snap name. The
 // name can be either a snap name or snap instance name.
 func UserDataDir(home string, name string, revision Revision, opts *dirs.SnapDirOptions) string {

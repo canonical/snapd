@@ -45,6 +45,10 @@ const networkSetupControlConnectedPlugAppArmor = `
 # Netplan uses busctl internally, so allow using that as well
 /usr/bin/busctl ixr,
 
+# from systemd 254 onward, busctl binds to a unix socket upon startup to
+# facilitate debugging
+unix (bind) type=stream addr="@[0-9a-fA-F]*/bus/busctl/*",
+
 /etc/netplan/{,**} rw,
 /etc/network/{,**} rw,
 /etc/systemd/network/{,**} rw,

@@ -2038,10 +2038,15 @@ type System struct {
 	Brand *asserts.Account
 	// Actions available for this system
 	Actions []SystemAction
+	// DefaultRecoverySystem is true when the system is the default recovery
+	// system.
+	DefaultRecoverySystem bool
 }
 
 var defaultSystemActions = []SystemAction{
 	{Title: "Install", Mode: "install"},
+	{Title: "Recover", Mode: "recover"},
+	{Title: "Factory reset", Mode: "factory-reset"},
 }
 var currentSystemActions = []SystemAction{
 	{Title: "Reinstall", Mode: "install"},
@@ -2085,10 +2090,15 @@ func (m *DeviceManager) systems() ([]*System, error) {
 		return nil, ErrNoSystems
 	}
 
+	defaultRecoverySystem, err := m.defaultRecoverySystem()
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, err
+	}
+
 	var systems []*System
 	for _, fpLabel := range systemLabels {
 		label := filepath.Base(fpLabel)
-		system, err := systemFromSeed(label, currentSys)
+		system, err := systemFromSeed(label, currentSys, defaultRecoverySystem)
 		if err != nil {
 			// TODO:UC20 add a Broken field to the seed system like we do for
 			// snap.Info
@@ -2147,6 +2157,23 @@ type systemAndEssentialSnaps struct {
 	SeedSnapsByType map[snap.Type]*seed.Snap
 }
 
+// DefaultRecoverySystem returns the default recovery system, if there is one.
+// state.ErrNoState is returned if a default recovery system has not been set.
+func (m *DeviceManager) DefaultRecoverySystem() (*DefaultRecoverySystem, error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	return m.defaultRecoverySystem()
+}
+
+func (m *DeviceManager) defaultRecoverySystem() (*DefaultRecoverySystem, error) {
+	var defaultSystem DefaultRecoverySystem
+	if err := m.state.Get("default-recovery-system", &defaultSystem); err != nil {
+		return nil, err
+	}
+	return &defaultSystem, nil
+}
+
 // loadSystemAndEssentialSnaps loads information for the given label, which
 // includes system, gadget information, gadget and kernel snaps info,
 // and gadget and kernel seed snap info.
@@ -2159,7 +2186,12 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
 	m.state.Unlock()
 
-	s, sys, err := loadSeedAndSystem(wantedSystemLabel, currentSys)
+	defaultRecoverySystem, err := m.DefaultRecoverySystem()
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, err
+	}
+
+	s, sys, err := loadSeedAndSystem(wantedSystemLabel, currentSys, defaultRecoverySystem)
 	if err != nil {
 		return nil, err
 	}
@@ -2233,16 +2265,15 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 		return nil
 	}
 
-	// no systemLabel means "current" so get the current system label
+	// no systemLabel means we need to fall back to either the default recovery
+	// system, or the current system, depending on the requested mode
 	if systemLabel == "" {
-		systemMode := m.SystemMode(SysAny)
-		m.state.Lock()
-		currentSys, err := currentSystemForMode(m.state, systemMode)
-		m.state.Unlock()
+		defaultLabel, err := defaultSystemLabel(m.state, m, mode)
 		if err != nil {
-			return fmt.Errorf("cannot get current system: %v", err)
+			return err
 		}
-		systemLabel = currentSys.System
+
+		systemLabel = defaultLabel
 	}
 
 	switched := func(systemLabel string, sysAction *SystemAction) {
@@ -2252,6 +2283,38 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 	// even if we are already in the right mode we restart here by
 	// passing rebootCurrent as this is what the user requested
 	return m.switchToSystemAndMode(systemLabel, mode, rebootCurrent, switched)
+}
+
+func defaultSystemLabel(st *state.State, manager *DeviceManager, mode string) (string, error) {
+	st.Lock()
+	defer st.Unlock()
+
+	switch mode {
+	case "recover", "factory-reset", "install":
+		defaultRecoverySystem, err := manager.defaultRecoverySystem()
+		if err != nil && !errors.Is(err, state.ErrNoState) {
+			return "", err
+		}
+
+		if defaultRecoverySystem != nil {
+			return defaultRecoverySystem.System, nil
+		}
+
+		// intentionally fall through here, since we fall back to using the most
+		// recently seeded system if there isn't a default recovery system
+		// explicitly set
+		fallthrough
+	case "run":
+		systemMode := manager.SystemMode(SysAny)
+		currentSys, err := currentSystemForMode(st, systemMode)
+		if err != nil {
+			return "", fmt.Errorf("cannot get current system: %v", err)
+		}
+
+		return currentSys.System, nil
+	default:
+		return "", ErrUnsupportedAction
+	}
 }
 
 // RequestSystemAction requests the provided system to be run in a
@@ -2291,12 +2354,17 @@ func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSyst
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
 	m.state.Unlock()
 
+	defaultRecoverySystem, err := m.DefaultRecoverySystem()
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
 	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
 	if _, err := os.Stat(systemSeedDir); err != nil {
 		// XXX: should we wrap this instead return a naked stat error?
 		return err
 	}
-	system, err := systemFromSeed(systemLabel, currentSys)
+	system, err := systemFromSeed(systemLabel, currentSys, defaultRecoverySystem)
 	if err != nil {
 		return fmt.Errorf("cannot load seed system: %v", err)
 	}

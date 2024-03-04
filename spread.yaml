@@ -272,9 +272,9 @@ backends:
     google-nested-dev:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-east1-b
+        location: snapd-spread/northamerica-northeast1-a
         plan: n2-standard-4
-        halt-timeout: 2h
+        halt-timeout: 6h
         cpu-family: "Intel Cascade Lake"
         systems:
             - ubuntu-16.04-64:
@@ -1119,6 +1119,8 @@ suites:
             NESTED_IMAGE_ID: "unset"
             # Configuration file used for remote tools
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
+            # Define which tests to run in the nested vm in run-spread test
+            NESTED_SPREAD_TESTS:  '$(HOST: echo "${NESTED_SPREAD_TESTS:-}")'
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m

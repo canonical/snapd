@@ -149,24 +149,6 @@ func (m *DeviceManager) recordSeededSystem(st *state.State, whatSeeded *seededSy
 	return nil
 }
 
-func (m *DeviceManager) removeSeededSystem(st *state.State, whatSeeded *seededSystem) error {
-	var seeded []seededSystem
-	if err := st.Get("seeded-systems", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-
-	for i, sys := range seeded {
-		if sys.sameAs(whatSeeded) {
-			seeded = append(seeded[:i], seeded[i+1:]...)
-			break
-		}
-	}
-
-	st.Set("seeded-systems", seeded)
-
-	return nil
-}
-
 func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -209,6 +191,18 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 		if err := m.recordSeededSystem(st, whatSeeded); err != nil {
 			return fmt.Errorf("cannot record the seeded system: %v", err)
 		}
+
+		// since this is the most recently seeded system, it should also be the
+		// default recovery system. this is important when coming back from a
+		// factory-reset.
+		st.Set("default-recovery-system", DefaultRecoverySystem{
+			System:          whatSeeded.System,
+			Model:           whatSeeded.Model,
+			BrandID:         whatSeeded.BrandID,
+			Revision:        whatSeeded.Revision,
+			Timestamp:       whatSeeded.Timestamp,
+			TimeMadeDefault: now,
+		})
 	}
 	st.Set("seed-time", now)
 	st.Set("seeded", true)

@@ -70,6 +70,8 @@ type SnapManager struct {
 	ensuredMountsUpdated       bool
 	ensuredDesktopFilesUpdated bool
 	ensuredDownloadsCleaned    bool
+
+	changeCallbackID int
 }
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
@@ -698,7 +700,21 @@ func (m *SnapManager) StartUp() error {
 		return fmt.Errorf("failed to generate cookies: %q", err)
 	}
 
+	// register handler that records a refresh-inhibit notice when
+	// the set of inhibited snaps is changed.
+	m.changeCallbackID = m.state.AddChangeStatusChangedHandler(processInhibitedAutoRefresh)
+
 	return nil
+}
+
+// Stop implements StateStopper. It will unregister the change callback
+// handler from state.
+func (m *SnapManager) Stop() {
+	st := m.state
+	st.Lock()
+	defer st.Unlock()
+
+	st.RemoveChangeStatusChangedHandler(m.changeCallbackID)
 }
 
 func (m *SnapManager) CanStandby() bool {

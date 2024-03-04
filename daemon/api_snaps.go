@@ -59,7 +59,7 @@ var (
 		Path:        "/v2/snaps",
 		GET:         getSnapsInfo,
 		POST:        postSnaps,
-		ReadAccess:  openAccess{},
+		ReadAccess:  interfaceOpenAccess{Interface: "snap-refresh-observe"},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 )

@@ -221,6 +221,10 @@ func MockNextRefresh(ar *autoRefresh, when time.Time) {
 	ar.nextRefresh = when
 }
 
+func (snapmgr *SnapManager) MockNextRefresh(when time.Time) {
+	snapmgr.autoRefresh.nextRefresh = when
+}
+
 func MockLastRefreshSchedule(ar *autoRefresh, schedule string) {
 	ar.lastRefreshSchedule = schedule
 }
@@ -377,9 +381,10 @@ var (
 
 // autorefresh
 var (
-	InhibitRefresh = inhibitRefresh
-	MaxInhibition  = maxInhibition
-	MaxDuration    = maxDuration
+	InhibitRefresh               = inhibitRefresh
+	MaxInhibition                = maxInhibition
+	MaxDuration                  = maxDuration
+	MaybeAddRefreshInhibitNotice = maybeAddRefreshInhibitNotice
 )
 
 type RefreshCandidate = refreshCandidate

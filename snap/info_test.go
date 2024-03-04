@@ -1286,6 +1286,20 @@ func (s *infoSuite) TestDataHomeDirs(c *C) {
 	c.Check(info.CommonDataHomeDirs(opts), DeepEquals, hiddenCommonHomeDirs)
 }
 
+func (s *infoSuite) TestBaseDataHomeDirs(c *C) {
+	dirs.SetSnapHomeDirs("/home,/home/group1,/home/group2,/home/group3")
+
+	homeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/snap/name"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/snap/name"),
+		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/snap/name"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/snap/name")}
+	c.Check(snap.BaseDataHomeDirs("name", nil), DeepEquals, homeDirs)
+
+	// Same test but with a hidden snap directory
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	hiddenHomeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/.snap/data/name"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/.snap/data/name"),
+		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/.snap/data/name"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/.snap/data/name")}
+	c.Check(snap.BaseDataHomeDirs("name", opts), DeepEquals, hiddenHomeDirs)
+}
+
 func BenchmarkTestParsePlaceInfoFromSnapFileName(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		for _, sn := range []string{
@@ -1843,6 +1857,7 @@ func (s *infoSuite) TestDirAndFileHelpers(c *C) {
 	c.Check(snap.MountFile("name", snap.R(1)), Equals, "/var/lib/snapd/snaps/name_1.snap")
 	c.Check(snap.HooksDir("name", snap.R(1)), Equals, fmt.Sprintf("%s/name/1/meta/hooks", dirs.SnapMountDir))
 	c.Check(snap.ComponentHooksDir("name", "comp", snap.R(1)), Equals, fmt.Sprintf("%s/name/components/1/comp/meta/hooks", dirs.SnapMountDir))
+	c.Check(snap.BaseDataDir("name"), Equals, "/var/snap/name")
 	c.Check(snap.DataDir("name", snap.R(1)), Equals, "/var/snap/name/1")
 	c.Check(snap.CommonDataDir("name"), Equals, "/var/snap/name/common")
 	c.Check(snap.CommonDataSaveDir("name"), Equals, "/var/lib/snapd/save/snap/name")
@@ -1854,6 +1869,7 @@ func (s *infoSuite) TestDirAndFileHelpers(c *C) {
 	c.Check(snap.MountDir("name_instance", snap.R(1)), Equals, fmt.Sprintf("%s/name_instance/1", dirs.SnapMountDir))
 	c.Check(snap.MountFile("name_instance", snap.R(1)), Equals, "/var/lib/snapd/snaps/name_instance_1.snap")
 	c.Check(snap.HooksDir("name_instance", snap.R(1)), Equals, fmt.Sprintf("%s/name_instance/1/meta/hooks", dirs.SnapMountDir))
+	c.Check(snap.BaseDataDir("name_instance"), Equals, "/var/snap/name_instance")
 	c.Check(snap.DataDir("name_instance", snap.R(1)), Equals, "/var/snap/name_instance/1")
 	c.Check(snap.CommonDataDir("name_instance"), Equals, "/var/snap/name_instance/common")
 	c.Check(snap.CommonDataSaveDir("name_instance"), Equals, "/var/lib/snapd/save/snap/name_instance")

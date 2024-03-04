@@ -1261,3 +1261,64 @@ func (s *autoRefreshTestSuite) TestSnapStoreOffline(c *C) {
 	c.Check(s.state.Changes(), HasLen, 1)
 	s.state.Unlock()
 }
+
+func (s *autoRefreshTestSuite) TestMaybeAddRefreshInhibitNotice(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	err := snapstate.MaybeAddRefreshInhibitNotice(st)
+	c.Assert(err, IsNil)
+	// empty set of inhibited snaps unchanged -> [], no notice recorded
+	c.Assert(st.Notices(nil), HasLen, 0)
+	// Verify list is empty
+	checkLastRecordedInhibitedSnaps(c, st, nil)
+
+	now := time.Now()
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		}),
+		Current:              snap.R(1),
+		SnapType:             string(snap.TypeApp),
+		RefreshInhibitedTime: &now,
+	})
+	err = snapstate.MaybeAddRefreshInhibitNotice(st)
+	c.Assert(err, IsNil)
+	// set of inhibited snaps changed -> ["some-snap"], notice recorded
+	checkRefreshInhibitNotice(c, st, 1)
+	checkLastRecordedInhibitedSnaps(c, st, []string{"some-snap"})
+
+	err = snapstate.MaybeAddRefreshInhibitNotice(st)
+	c.Assert(err, IsNil)
+	// set of inhibited snaps unchanged -> ["some-snap"], no notice recorded
+	checkRefreshInhibitNotice(c, st, 1)
+	checkLastRecordedInhibitedSnaps(c, st, []string{"some-snap"})
+
+	// mark "some-snap" as not inhibited
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		}),
+		Current:              snap.R(1),
+		SnapType:             string(snap.TypeApp),
+		RefreshInhibitedTime: nil,
+	})
+	// mark "some-other-snap" as inhibited
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-other-snap", SnapID: "some-other-snap-id", Revision: snap.R(1)},
+		}),
+		Current:              snap.R(1),
+		SnapType:             string(snap.TypeApp),
+		RefreshInhibitedTime: &now,
+	})
+	err = snapstate.MaybeAddRefreshInhibitNotice(st)
+	c.Assert(err, IsNil)
+	// set of inhibited snaps changed -> ["some-other-snap"], notice recorded
+	checkRefreshInhibitNotice(c, st, 2)
+	checkLastRecordedInhibitedSnaps(c, st, []string{"some-other-snap"})
+}
