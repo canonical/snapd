@@ -62,6 +62,9 @@ type FileReference struct {
 	TmpPath  string
 }
 
+// RemoveAllExcept removes all temporary files uploaded with form, except for
+// the given paths. Should be called once the files uploaded with the form are
+// no longer needed.
 func (f *Form) RemoveAllExcept(paths []string) {
 	for _, refs := range f.FileRefs {
 		for _, ref := range refs {

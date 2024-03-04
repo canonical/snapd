@@ -1646,8 +1646,13 @@ func (s *systemsCreateSuite) TestCreateSystemActionOfflineBadRequests(c *check.C
 		},
 	}
 
+	snaps := map[string]string{
+		"snap-1": "snap-1 contents",
+		"snap-2": "snap-2 contents",
+	}
+
 	for _, tc := range tests {
-		form, boundary := createFormData(c, tc.fields, nil)
+		form, boundary := createFormData(c, tc.fields, snaps)
 
 		req, err := http.NewRequest("POST", "/v2/systems", &form)
 		c.Assert(err, check.IsNil)
@@ -1657,6 +1662,11 @@ func (s *systemsCreateSuite) TestCreateSystemActionOfflineBadRequests(c *check.C
 		rspe := s.errorReq(c, req, nil)
 		c.Check(rspe.Status, check.Equals, 400)
 		c.Check(rspe, check.ErrorMatches, tc.result, check.Commentf("%+v", tc))
+
+		// make sure that form files we uploaded get removed on failure
+		files, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"*"))
+		c.Assert(err, check.IsNil)
+		c.Check(files, check.HasLen, 0)
 	}
 }
 

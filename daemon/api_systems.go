@@ -210,7 +210,7 @@ func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Respon
 	}
 }
 
-func postSystemsActionForm(c *Command, r *http.Request, contentTypeParams map[string]string) Response {
+func postSystemsActionForm(c *Command, r *http.Request, contentTypeParams map[string]string) (res Response) {
 	boundary := contentTypeParams["boundary"]
 	mpReader := multipart.NewReader(r.Body, boundary)
 	form, errRsp := readForm(mpReader)
@@ -222,6 +222,13 @@ func postSystemsActionForm(c *Command, r *http.Request, contentTypeParams map[st
 	if len(action) != 1 {
 		return BadRequest("expected exactly one action in form")
 	}
+
+	defer func() {
+		// remove all files associated with the form if we're returning an error
+		if _, ok := res.(*apiError); ok {
+			form.RemoveAllExcept(nil)
+		}
+	}()
 
 	switch action[0] {
 	case "create":
