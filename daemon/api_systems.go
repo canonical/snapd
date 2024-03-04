@@ -501,12 +501,14 @@ func postSystemActionCreate(c *Command, req *systemActionRequest) Response {
 		return BadRequest("label must be provided in request body for action %q", req.Action)
 	}
 
-	sequences, err := parseValidationSets(req.ValidationSets)
+	sequences, err := assertionsFromValidationSetStrings(req.ValidationSets)
 	if err != nil {
 		return BadRequest("cannot parse validation sets: %v", err)
 	}
 
-	validationSets, err := assertstate.FetchValidationSets(c.d.state, sequences, assertstate.FetchValidationSetsOptions{}, nil)
+	validationSets, err := assertstate.FetchValidationSets(c.d.state, sequences, assertstate.FetchValidationSetsOptions{
+		Offline: req.Offline,
+	}, nil)
 	if err != nil {
 		if errors.Is(err, &asserts.NotFoundError{}) {
 			return BadRequest("cannot fetch validation sets: %v", err)
@@ -518,6 +520,7 @@ func postSystemActionCreate(c *Command, req *systemActionRequest) Response {
 		ValidationSets: validationSets.Sets(),
 		TestSystem:     req.TestSystem,
 		MarkDefault:    req.MarkDefault,
+		Offline:        req.Offline,
 	})
 	if err != nil {
 		return InternalError("cannot create recovery system %q: %v", req.Label, err)

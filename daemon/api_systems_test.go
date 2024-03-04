@@ -1780,7 +1780,42 @@ func (s *systemsCreateSuite) TestCreateSystemActionOffline(c *check.C) {
 	c.Check(st.Change(res.Change), check.NotNil)
 }
 
-func (s *systemsCreateSuite) TestCreateSystemActionOfflinePreinstalled(c *check.C) {
+func (s *systemsCreateSuite) TestCreateSystemActionOfflinePreinstalledJSON(c *check.C) {
+	const (
+		expectedLabel = "1234"
+	)
+
+	daemon.MockDevicestateCreateRecoverySystem(func(st *state.State, label string, opts devicestate.CreateRecoverySystemOptions) (*state.Change, error) {
+		c.Check(expectedLabel, check.Equals, label)
+		c.Check(opts.ValidationSets, check.HasLen, 0)
+		c.Check(opts.LocalSnaps, check.HasLen, 0)
+		c.Check(opts.Offline, check.Equals, true)
+
+		return st.NewChange("change", "..."), nil
+	})
+
+	body := map[string]interface{}{
+		"action":  "create",
+		"label":   expectedLabel,
+		"offline": true,
+	}
+
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("POST", "/v2/systems", bytes.NewBuffer(b))
+	c.Assert(err, check.IsNil)
+
+	res := s.asyncReq(c, req, nil)
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(st.Change(res.Change), check.NotNil)
+}
+
+func (s *systemsCreateSuite) TestCreateSystemActionOfflinePreinstalledForm(c *check.C) {
 	const (
 		expectedLabel = "1234"
 	)

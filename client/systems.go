@@ -262,4 +262,8 @@ type CreateSystemOptions struct {
 	// MarkDefault is true if the system should be marked as the default
 	// recovery system.
 	MarkDefault bool `json:"mark-default,omitempty"`
+	// Offline is true if the system should be created without reaching out to
+	// the store. In the JSON variant of the API, only pre-installed
+	// snaps/assertions will be considered.
+	Offline bool `json:"offline,omitempty"`
 }

@@ -11,17 +11,30 @@ environment:
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
   TEST_SYSTEM: false
+  USE_FORM_API: true
 
   TEST_SYSTEM/untested: false
   TEST_SYSTEM/tested: true
 
   PRE_INSTALLED_SNAPS/pre_installed_snaps: true
 
+  PRE_INSTALLED_SNAPS/pre_installed_snaps_json: true
+  USE_FORM_API/pre_installed_snaps_json: false
+
 prepare: |
     tests.nested build-image core
     tests.nested create-vm core
 
 execute: |
+  function post_json_data() {
+    route=$1
+    template=$2
+    shift 2
+
+    # shellcheck disable=SC2059
+    printf "${template}" "$@" | remote.exec "sudo test-snapd-curl.curl -X POST -H 'Content-Type: application/json' --unix-socket /run/snapd.socket -d @- http://localhost${route}" | jq .
+  }
+
   #shellcheck source=tests/lib/core-config.sh
   . "$TESTSLIB"/core-config.sh
 
@@ -37,8 +50,16 @@ execute: |
   if [ "${PRE_INSTALLED_SNAPS}" = 'true' ]; then
     remote.exec "sudo snap refresh --revision=28 hello-world"
     remote.exec "sudo snap ack test-snapd-recovery-system-pinned.assert"
-    response=$(remote.exec "sudo test-snapd-curl.curl -X POST --unix-socket /run/snapd.socket -F 'action=create' -F 'label=new-system' -F 'validation-sets=test-snapd/recovery-system-pinned' -F 'test-system=${TEST_SYSTEM}' -F 'mark-default=true' http://localhost/v2/systems")
+
+    sudo snap set system store.access=offline
+
+    if [ "${USE_FORM_API}" = 'true' ]; then
+      response=$(remote.exec "sudo test-snapd-curl.curl -X POST --unix-socket /run/snapd.socket -F 'action=create' -F 'label=new-system' -F 'validation-sets=test-snapd/recovery-system-pinned' -F 'test-system=${TEST_SYSTEM}' -F 'mark-default=true' http://localhost/v2/systems")
+    else
+      response=$(post_json_data /v2/systems '{"action": "create", "label": "new-system", "validation-sets": ["test-snapd/recovery-system-pinned"], "mark-default": true, "offline": true, "test-system": %s}' "${TEST_SYSTEM}")
+    fi
   else
+    sudo snap set system store.access=offline
     response=$(remote.exec "sudo test-snapd-curl.curl -X POST --unix-socket /run/snapd.socket -F 'action=create' -F 'label=new-system' -F 'validation-sets=test-snapd/recovery-system-pinned=1' -F 'assertion=<test-snapd-recovery-system-pinned.assert' -F 'assertion=<hello-world.assert' -F 'snap=@hello-world.snap' -F 'test-system=${TEST_SYSTEM}' -F 'mark-default=true' http://localhost/v2/systems")
   fi
 
