@@ -599,12 +599,29 @@ func (s *RunSuite) TestSnapRunHookIntegration(c *check.C) {
 }
 
 func (s *RunSuite) TestSnapRunComponentHookIntegration(c *check.C) {
+	const instanceKey = ""
+	s.testSnapRunComponentHookIntegration(c, instanceKey)
+}
+
+func (s *RunSuite) TestSnapRunComponentHookFromInstanceIntegration(c *check.C) {
+	const instanceKey = "instance"
+	s.testSnapRunComponentHookIntegration(c, instanceKey)
+}
+
+func (s *RunSuite) testSnapRunComponentHookIntegration(c *check.C, instanceKey string) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
-	snapInfo := snaptest.MockSnapCurrent(c, string(mockYamlWithComponent), &snap.SideInfo{
-		Revision: snap.R(42),
-	})
+	var snapInfo *snap.Info
+	if instanceKey == "" {
+		snapInfo = snaptest.MockSnapCurrent(c, string(mockYamlWithComponent), &snap.SideInfo{
+			Revision: snap.R(42),
+		})
+	} else {
+		snapInfo = snaptest.MockSnapInstanceCurrent(c, "snapname_"+instanceKey, string(mockYamlWithComponent), &snap.SideInfo{
+			Revision: snap.R(42),
+		})
+	}
 
 	snaptest.MockComponent(c, "comp", string(mockComponentYaml), snapInfo)
 
@@ -620,19 +637,26 @@ func (s *RunSuite) TestSnapRunComponentHookIntegration(c *check.C) {
 	})
 	defer restorer()
 
+	expectedTarget := "snapname+comp"
+	if instanceKey != "" {
+		expectedTarget += "_" + instanceKey
+	}
+
 	// Run a hook from the active revision
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=install", "--", "snapname+comp"})
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=install", "--", expectedTarget})
 	c.Assert(err, check.IsNil)
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
 		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
-		"snap.snapname+comp.hook.install",
+		fmt.Sprintf("snap.%s.hook.install", expectedTarget),
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"--hook=install",
-		"snapname+comp",
+		expectedTarget,
 	})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 
+	// the mount namespace should make it appear as if the instance name is not
+	// there from inside the snap
 	c.Check(execEnv, testutil.Contains, "SNAP_COMPONENT=/snap/snapname/components/42/comp")
 	c.Check(execEnv, testutil.Contains, "SNAP_COMPONENT_NAME=snapname+comp")
 	c.Check(execEnv, testutil.Contains, "SNAP_COMPONENT_VERSION=1.0")
