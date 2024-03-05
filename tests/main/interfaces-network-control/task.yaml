@@ -76,7 +76,7 @@ execute: |
             echo "Expected error caling command with disconnected plug"
             exit 1
         fi
-        MATCH "Permission denied" < net-query.output
+        MATCH "(Permission denied|Operation not permitted)" < net-query.output
     fi
 
     echo "When the plug is connected"
@@ -97,7 +97,7 @@ execute: |
                 echo "Expected error calling command with disconnected plug"
                 exit 1
             fi
-            MATCH "Permission denied" < net-command.output
+            MATCH "(Permission denied|Operation not permitted)" < net-command.output
         fi
     fi
 
@@ -138,7 +138,7 @@ execute: |
         if network-control-consumer.cmd ip netns add test-ns-2 2>ns-create.output; then
             echo "Expected error calling ns create command with disconnected plug"
         fi
-        MATCH "Permission denied" < ns-create.output
+        MATCH "(Permission denied|Operation not permitted)" < ns-create.output
 
         echo "And the snap can't add a veth interface to an existing namespace"
         # first, move veth1 back to the root namespace
@@ -147,7 +147,7 @@ execute: |
             echo "Expected error trying to move veth to network namespace with disconnected plug"
             exit 1
         fi
-        MATCH "Permission denied" < ns-move.output
+        MATCH "(Permission denied|Operation not permitted)" < ns-move.output
 
 
         echo "And the snap can't execute a command in the context of the namespace"
@@ -155,7 +155,7 @@ execute: |
             echo "Expected error trying to execute command in a network namespace context with disconnected plug"
             exit 1
         fi
-        MATCH "Permission denied" < ns-exec.output
+        MATCH "(Permission denied|Operation not permitted)" < ns-exec.output
 
 
         echo "And AF_XDP can no longer be used"
@@ -164,6 +164,6 @@ execute: |
                 echo "Expected error trying to open AF_XDP socket"
                 exit 1
             fi
-            MATCH "Permission denied" < python-af-xdp.output
+            MATCH "(Permission denied|Operation not permitted)" < python-af-xdp.output
         fi
     fi
