@@ -36,8 +36,10 @@ execute: |
     echo "No devices are assigned to the snap"
     udevadm info "/dev/null" | NOMATCH "E: (CURRENT_)?TAGS=.*container-mgr-snap.*"
 
-    echo "Cgroup device settings file does not exist"
-    test ! -f  /var/lib/snapd/cgroup/snap.container-mgr-snap.device
+    echo "Cgroup device settings file exists"
+    test -f /var/lib/snapd/cgroup/snap.container-mgr-snap.device
+    # self-managed not added at all
+    NOMATCH "self-managed" < /var/lib/snapd/cgroup/snap.container-mgr-snap.device
 
     # we rely on the fact that device cgroup will return with EPERM
     # (Operation not permitted), while when the access gets blocked by AppArmor
