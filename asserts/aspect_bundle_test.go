@@ -67,21 +67,23 @@ aspects:
       -
         request: private.{key}
         storage: wifi.{key}
-storage:
-    {
-      "schema": {
-        "wifi": {
-          "type": "map",
-          "values": "any"
-        }
-      }
-    }
 ` + "TSLINE" +
-		"body-length: 0\n" +
-		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"sign-key-sha3-384: jv8_jihiizjvco9m55ppdqsdwuvuhfdibjus-3vw7f_idjix7ffn5qmxb21zquij\n" +
+		"body-length: 84" +
+		"\n\n" +
+		schema +
 		"\n\n" +
 		"AXNpZw=="
 )
+
+const schema = `{
+  "schema": {
+    "wifi": {
+      "type": "map",
+      "values": "any"
+    }
+  }
+}`
 
 func (s *aspectBundleSuite) TestDecodeOK(c *C) {
 	encoded := strings.Replace(aspectBundleExample, "TSLINE", s.tsLine, 1)
@@ -104,8 +106,8 @@ func (s *aspectBundleSuite) TestDecodeInvalid(c *C) {
 
 	encoded := strings.Replace(aspectBundleExample, "TSLINE", s.tsLine, 1)
 
-	aspectsStanza := encoded[strings.Index(encoded, "aspects:") : strings.Index(encoded, "\nstorage:")+1]
-	storageStanza := encoded[strings.Index(encoded, "\nstorage:")+1 : strings.Index(encoded, "timestamp:")]
+	aspectsStanza := encoded[strings.Index(encoded, "aspects:") : strings.Index(encoded, "timestamp:")+1]
+	body := encoded[strings.Index(encoded, "body-length:"):strings.Index(encoded, "\n\nAXN")]
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"account-id: brand-id1\n", "", `"account-id" header is mandatory`},
@@ -119,9 +121,9 @@ func (s *aspectBundleSuite) TestDecodeInvalid(c *C) {
 		{aspectsStanza, "aspects: foo\n", `"aspects" header must be a map`},
 		{aspectsStanza, "", `"aspects" stanza is mandatory`},
 		{"read-write", "update", `cannot define aspect "wifi-setup": cannot create aspect rule:.*`},
-		{storageStanza, "", `"storage" stanza is mandatory`},
-		{storageStanza, "storage:\n  - foo\n", `invalid "storage" schema stanza, expected schema text`},
-		{storageStanza, "storage:\n    {}\n", `invalid "storage" schema stanza: cannot parse top level schema: must have a "schema" constraint`},
+		{body, "body-length: 0", `body must contain aspect schema`},
+		{body, "body-length: 8\n\n  - foo\n", `invalid schema: invalid character ' ' in numeric literal`},
+		{body, "body-length: 2\n\n{}", `invalid schema: cannot parse top level schema: must have a "schema" constraint`},
 	}
 
 	for _, test := range invalidTests {
@@ -129,4 +131,38 @@ func (s *aspectBundleSuite) TestDecodeInvalid(c *C) {
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, validationSetErrPrefix+test.expectedErr)
 	}
+}
+
+func (s *aspectBundleSuite) TestDecodeFormatsSchema(c *C) {
+	encoded := strings.Replace(aspectBundleExample, "TSLINE", s.tsLine, 1)
+
+	body := encoded[strings.Index(encoded, "body-length:"):strings.Index(encoded, "\n\nAXN")]
+	compactBody := `body-length: 49
+
+{"schema":{"wifi":{"type":"map","values":"any"}}}`
+	input := strings.Replace(encoded, body, compactBody, 1)
+	a, err := asserts.Decode([]byte(input))
+	c.Assert(err, IsNil)
+	c.Assert(string(a.Body()), Equals, schema)
+
+}
+
+func (s *aspectBundleSuite) TestAssembleAndSIgnFormatsSchema(c *C) {
+	headers := map[string]interface{}{
+		"authority-id": "brand-id1",
+		"account-id":   "brand-id1",
+		"name":         "my-network",
+		"aspects": map[string]interface{}{
+			"foo": map[string]interface{}{
+				"rules": []interface{}{
+					map[string]interface{}{"request": "wifi", "storage": "wifi"},
+				},
+			},
+		},
+		"body-length": "49",
+		"timestamp":   s.ts.Format(time.RFC3339),
+	}
+	acct1, err := asserts.AssembleAndSignInTest(asserts.AspectBundleType, headers, []byte(`{"schema":{"wifi":{"type":"map","values":"any"}}}`), testPrivKey0)
+	c.Assert(err, IsNil)
+	c.Assert(string(acct1.Body()), Equals, schema)
 }

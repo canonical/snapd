@@ -81,17 +81,13 @@ func assembleAspectBundle(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	v, ok := assert.headers["storage"]
-	if !ok {
-		return nil, fmt.Errorf(`"storage" stanza is mandatory`)
+	if assert.body == nil {
+		return nil, fmt.Errorf(`body must contain aspect schema`)
 	}
-	storageStr, ok := v.(string)
-	if !ok {
-		return nil, fmt.Errorf(`invalid "storage" schema stanza, expected schema text`)
-	}
-	schema, err := aspects.ParseSchema([]byte(storageStr))
+
+	schema, err := aspects.ParseSchema(assert.body)
 	if err != nil {
-		return nil, fmt.Errorf(`invalid "storage" schema stanza: %w`, err)
+		return nil, fmt.Errorf(`invalid schema: %w`, err)
 	}
 
 	bundle, err := aspects.NewBundle(accountID, name, aspectsMap, schema)

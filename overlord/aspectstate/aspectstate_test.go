@@ -72,25 +72,25 @@ func (s *aspectTestSuite) SetUpTest(c *C) {
 	c.Check(signingDB, NotNil)
 	c.Assert(storeSigning.Add(devAccKey), IsNil)
 
-	rules := map[string]interface{}{
-		"wifi-setup": map[string]interface{}{
-			"rules": []interface{}{
-				map[string]interface{}{"request": "ssids", "storage": "wifi.ssids"},
-				map[string]interface{}{"request": "ssid", "storage": "wifi.ssid", "access": "read-write"},
-				map[string]interface{}{"request": "password", "storage": "wifi.psk", "access": "write"},
-				map[string]interface{}{"request": "status", "storage": "wifi.status", "access": "read"},
-				map[string]interface{}{"request": "private.{placeholder}", "storage": "private.{placeholder}"},
-			},
-		},
-	}
-
 	headers := map[string]interface{}{
 		"authority-id": devAccKey.AccountID(),
 		"account-id":   devAccKey.AccountID(),
 		"name":         "network",
-		"aspects":      rules,
-		"storage": `{
-		"schema": {
+		"aspects": map[string]interface{}{
+			"wifi-setup": map[string]interface{}{
+				"rules": []interface{}{
+					map[string]interface{}{"request": "ssids", "storage": "wifi.ssids"},
+					map[string]interface{}{"request": "ssid", "storage": "wifi.ssid", "access": "read-write"},
+					map[string]interface{}{"request": "password", "storage": "wifi.psk", "access": "write"},
+					map[string]interface{}{"request": "status", "storage": "wifi.status", "access": "read"},
+					map[string]interface{}{"request": "private.{placeholder}", "storage": "private.{placeholder}"},
+				},
+			},
+		},
+		"timestamp": "2030-11-06T09:16:26Z",
+	}
+	body := []byte(`{
+	"schema": {
 		"wifi" : {
 			"schema": {
 				"ssids": {"type": "array", "values": "any"},
@@ -103,10 +103,9 @@ func (s *aspectTestSuite) SetUpTest(c *C) {
 			"values": "any"
 		}
 	}
-}`,
-		"timestamp": "2030-11-06T09:16:26Z",
-	}
-	as, err := signingDB.Sign(asserts.AspectBundleType, headers, nil, "")
+}`)
+
+	as, err := signingDB.Sign(asserts.AspectBundleType, headers, body, "")
 	c.Assert(err, IsNil)
 	c.Assert(assertstate.Add(s.state, as), IsNil)
 

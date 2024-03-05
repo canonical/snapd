@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto"
+	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
@@ -100,7 +101,7 @@ func (at *AssertionType) MaxSupportedFormat() int {
 	return maxSupportedFormat[at.Name]
 }
 
-// SequencingForming returns true if the assertion type has a positive
+// SequenceForming returns true if the assertion type has a positive
 // integer >= 1 as the last component (preferably called "sequence")
 // of its primary key over which the assertions of the type form
 // sequences, usually without gaps, one sequence per sequence key (the
@@ -1021,6 +1022,16 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 		return nil, fmt.Errorf("unknown assertion type: %q", typ)
 	}
 
+	if assertType.Name == "aspect-bundle" {
+		if body == nil {
+			return nil, fmt.Errorf(`assertion aspect-bundle: body must contain aspect schema`)
+		}
+
+		if body, err = formatJSON(body); err != nil {
+			return nil, fmt.Errorf("assertion aspect-bundle: invalid schema: %w", err)
+		}
+	}
+
 	if assertType.flags&noAuthority == 0 {
 		if err := checkAuthority(assertType, headers); err != nil {
 			return nil, fmt.Errorf("assertion: %v", err)
@@ -1074,6 +1085,15 @@ func writeHeader(buf *bytes.Buffer, headers map[string]interface{}, name string)
 	appendEntry(buf, fmt.Sprintf("%s:", name), headers[name], 0)
 }
 
+func formatJSON(body []byte) ([]byte, error) {
+	var val map[string]interface{}
+	if err := json.Unmarshal(body, &val); err != nil {
+		return nil, err
+	}
+
+	return json.MarshalIndent(val, "", "  ")
+}
+
 func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, body []byte, privKey PrivateKey) (Assertion, error) {
 	err := checkAssertType(assertType)
 	if err != nil {
@@ -1091,6 +1111,16 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	// make sure we actually enforce that
 	if !utf8.Valid(body) {
 		return nil, fmt.Errorf("assertion body is not utf8")
+	}
+
+	if assertType.Name == "aspect-bundle" {
+		if body == nil {
+			return nil, fmt.Errorf(`assertion aspect-bundle: body must contain aspect schema`)
+		}
+
+		if body, err = formatJSON(body); err != nil {
+			return nil, fmt.Errorf("assertion aspect-bundle: invalid schema: %w", err)
+		}
 	}
 
 	finalHeaders := copyHeaders(headers)

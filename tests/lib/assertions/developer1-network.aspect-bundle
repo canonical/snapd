@@ -74,17 +74,25 @@ aspects:
       -
         request: private.{placeholder}
         storage: wifi.{placeholder}
-storage: { "schema": { "wifi" : { "values": "any" } } }
 timestamp: 2024-02-09T17:11:32Z
+body-length: 63
 sign-key-sha3-384: EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
 
-AcLBUgQAAQoABgUCZco8VQAAiYQQAGTov6k+cKmPX+lfNdYMoPjb+laRqEi6wUzGvlTqs6og8fxz
-W3p0jUOcZNSUvRC75jHhdlJWBkzatGUmQqkSruMlSS5+tj+8AWBOSGt8vrNXbXo65r3zPN0yuyFQ
-+80qnbEg8I5EQaMOtvkLfBjgRf0yRe99fS1uaM+MP2xZzhqFv7XliNDLn2vwmUOSg7lu6AmHhRvE
-tgqBeQtdwt3U+1cloWZqlgOwGen/eciUHom0Wkqe8UEfvNGf4iX0sah2oWn1eKODtxowx4urqRjf
-IqhHzv14RlBBAhibnbIorRoMuD/jdb0HkCdVrWJRKMN2go/vGsGd4ZQYFLDu66D7aydztkV2g9MT
-Akm/l1YqsJmUTysNkjU6etNZ7Th5fZzgn8/6KWNuQEw00Coe2OiIsK3ejTalyDuusv6WG2aDWdAa
-MM0J+SLHPMyoyFW9walU6d+JdVxj1SwWTGgWqx+yJNnu29zDKtLQ4LnRGoZdjz2fYUi/4LRpgAxC
-xMBDSESj4IA/JoEUMHzeZ2WfJcdPEVTcYvcYCmNMl6b64FCQ0TcGWoLAGf6CxvtkYexqfAIZrlco
-ClR6UiAAiWwpwAOnywBlFRRFF41DFFoZyWHVchJinMTsZFUCoCHoj5O4U3xRmg4QrpKTpt/gdOcN
-tKFWDSNGkFKhLFS1h86BU2m8Wuw7
+{
+  "schema": {
+    "wifi": {
+      "values": "any"
+    }
+  }
+}
+
+AcLBUgQAAQoABgUCZecNIwAAyxMQAGApyR/4d+rzjYDGrjZIXjJ9MovgqRlYVsF6w0ytEWh6jgGT
+1FQGz27wDpjZmxJmMatPxmFjNR8MKsMgP9hW/foqYE/SIkN5heLTUdghecUlxs+9DFBBrBFMrAxC
+jiSJSCEY/QYY89NP82QnzRDFW8i1OAtsof0hjW2ChYLjS9zq9GhHibFzobD4haMIS6vKpLnrV57A
+Mdbz46fArg8eG6+z3f4u9HlXjvY0l8SOsBE4GHIktFTx0VJYiVgVdtpLiXn66z4gzJUrhwH+HD9Z
+ELGwVYQAoHqWwd4PAiXyoV9L3LmPUe1HE8MjAZy8l/JKfcMEJgGlf6ht/LvSxMtdBD197GAJLblV
+Mlpk80xqFSNtOStWmZlSDmRQzfUkFAmA4IYz09pJ06S3oZ//jLQhRCULKIf5v7KASP9gZhEnndbr
+5GsEWjbB8J/XNJm0I3VuyEEGzNMK2xMYq8z1FyfnJRvLJcQlzRUXsO5NlMX7Qa75O8021lqIR2bR
+6gwYVGXjczt1VFZ3ygiV/hPVLjkGfU/FgqeVe5IXdpMpHzx7z8C4ml+EYtc7Ye0YoQ2plFNCqLjH
+2TACLBfx6XF3qIRem4+mR4hLAvUiiCedIlLlk9/EKRutKz6FNhwrFWfIck5HXUTMUdQzrWV7azcv
+bJS3bgWX4umx43KgkuHdyJ9YoecV
