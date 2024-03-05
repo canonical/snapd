@@ -439,7 +439,7 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 		// Need to compare the expanded path pattern, not the rule's path
 		// pattern, so that only expanded patterns which match are included,
 		// and the highest precedence expanded pattern can be computed.
-		matched, err := common.PathPatternMatches(pathPattern, path)
+		matched, err := common.PathPatternMatch(pathPattern, path)
 		if err != nil {
 			// Only possible error is ErrBadPattern, which should not occur
 			return false, err

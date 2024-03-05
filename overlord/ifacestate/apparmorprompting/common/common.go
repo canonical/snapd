@@ -46,7 +46,7 @@ func (constraints *Constraints) ValidateForInterface(iface string) error {
 }
 
 func (constraints *Constraints) Match(path string) (bool, error) {
-	return PathPatternMatches(constraints.PathPattern, path)
+	return PathPatternMatch(constraints.PathPattern, path)
 }
 
 // Removes the given permission from the permissions associated with the
@@ -331,29 +331,35 @@ func abstractPermissionsToAppArmorFilePermissions(iface string, permissions []st
 }
 
 var (
-	// The following must be escaped as literals in a path pattern:
-	problematicChars = `\[\]`
-	// A single safe or escaped unsafe char in a path
-	safePathChar = fmt.Sprintf(`([^%s]|\\[%s])`, problematicChars, problematicChars)
+	// The following matches valid path patterns. Patterns must begin with '\'
+	// and cannot contain unescaped '[' or ']' characters.
+	allowablePathPatternRegexp = regexp.MustCompile(`^/([^\[\]]|\\[\[\]])*$`)
 
-	// The following matches valid path patterns
-	allowablePathPattern       = fmt.Sprintf(`^/%s*$`, safePathChar)
-	allowablePathPatternRegexp = regexp.MustCompile(allowablePathPattern)
+	// The default previously-expanded prefixes to which new patterns or
+	// expanded groups are concatenated. This must be a slice containing the
+	// empty string, since at the beginning of the pattern, we have only one
+	// prefix to which to concatenate, and that prefix is the empty string.
+	// Importantly, this cannot be an empty slice, since concatenating every
+	// entry in an empty slice with every entry in a slice of expanded patterns
+	// would again result in an empty slice.
+	defaultPrefixes = []string{""}
 )
 
 // Expands all groups in the given path pattern. Groups are enclosed by '{' '}'.
 // Returns a list of all the expanded path patterns, or an error if the given
 // pattern is invalid.
 func ExpandPathPattern(pattern string) ([]string, error) {
-	patternLen := len(pattern)
-	expanded := defaultPrefixes
+	if len(pattern) == 0 {
+		return nil, fmt.Errorf(`invalid path pattern: pattern has length 0`)
+	}
+	if pattern[len(pattern)-1] == '\\' && len(pattern) > 1 && pattern[len(pattern)-2] != '\\' {
+		return nil, fmt.Errorf(`invalid path pattern: trailing unescaped '\' character: %q`, pattern)
+	}
+	currPrefixes := defaultPrefixes
 	currLiteralStart := 0
-	for i := 0; i < patternLen; i++ {
+	for i := 0; i < len(pattern); i++ {
 		if pattern[i] == '\\' {
 			i += 1
-			if i == patternLen {
-				return nil, fmt.Errorf(`invalid path pattern: trailing unescaped '\' character: %q`, pattern)
-			}
 			continue
 		}
 		if pattern[i] == '}' {
@@ -362,21 +368,22 @@ func ExpandPathPattern(pattern string) ([]string, error) {
 		if pattern[i] != '{' {
 			continue
 		}
-		infix := pattern[currLiteralStart:i]
-		groupExpanded, groupEnd, err := expandPathPatternFromIndex(pattern, i+1, patternLen)
+		groupExpanded, groupEnd, err := expandPathPatternFromIndex(pattern, i+1)
 		if err != nil {
 			return nil, err
 		}
-		newExpanded := make([]string, 0, len(expanded)*len(groupExpanded))
-		for _, prefix := range expanded {
+		infix := pattern[currLiteralStart:i]
+		newExpanded := make([]string, 0, len(currPrefixes)*len(groupExpanded))
+		for _, prefix := range currPrefixes {
 			for _, suffix := range groupExpanded {
 				newExpanded = append(newExpanded, prefix+infix+suffix)
 			}
 		}
-		expanded = newExpanded
+		currPrefixes = newExpanded
 		currLiteralStart = groupEnd + 1
 		i = groupEnd // let for loop increment to index after '}'
 	}
+	expanded := currPrefixes
 	if len(expanded) == 1 && expanded[0] == "" {
 		// Didn't expand any groups, so return whole pattern.
 		return []string{cleanPattern(pattern)}, nil
@@ -384,21 +391,18 @@ func ExpandPathPattern(pattern string) ([]string, error) {
 	// Append trailing literal string, if any, to all previously-expanded
 	// patterns, and clean the resulting patterns.
 	alreadySeen := make(map[string]bool, len(expanded))
-	newExpanded := make([]string, 0, len(expanded))
-	suffix := pattern[currLiteralStart:patternLen]
+	uniqueExpanded := make([]string, 0, len(expanded))
+	suffix := pattern[currLiteralStart:]
 	for _, prefix := range expanded {
-		final := cleanPattern(prefix + suffix)
-		if alreadySeen[final] {
+		cleaned := cleanPattern(prefix + suffix)
+		if alreadySeen[cleaned] {
 			continue
 		}
-		alreadySeen[final] = true
-		newExpanded = append(newExpanded, final)
+		alreadySeen[cleaned] = true
+		uniqueExpanded = append(uniqueExpanded, cleaned)
 	}
-	expanded = newExpanded
-	return expanded, nil
+	return uniqueExpanded, nil
 }
-
-var defaultPrefixes = []string{""}
 
 // Expands the contents of a group in the given path pattern, beginning at the
 // given index, until a '}' is seen. The given index should be the index of the
@@ -408,7 +412,7 @@ var defaultPrefixes = []string{""}
 // and begins a new one. Any '\'-escaped '{', ',', and '}' characters are
 // treated as literals. If the pattern terminates before a non-escaped '}' is
 // seen, returns an error.
-func expandPathPatternFromIndex(pattern string, index, patternLen int) (expanded []string, end int, err error) {
+func expandPathPatternFromIndex(pattern string, index int) (expanded []string, end int, err error) {
 	// Record total list of expanded patterns, to which other lists are appended
 	expanded = []string{}
 	// Within the current group option, record the current list of previously-
@@ -416,17 +420,14 @@ func expandPathPatternFromIndex(pattern string, index, patternLen int) (expanded
 	// most recent group.
 	currPrefixes := defaultPrefixes
 	currSubpatternStart := index
-	for i := index; i < patternLen; i++ {
+	for i := index; i < len(pattern); i++ {
 		if pattern[i] == '\\' {
 			i += 1
-			if i == patternLen {
-				return nil, 0, fmt.Errorf(`invalid path pattern: trailing unescaped '\' character: %q`, pattern)
-			}
 			continue
 		}
 		if pattern[i] == '{' {
 			infix := pattern[currSubpatternStart:i]
-			groupExpanded, groupEnd, err := expandPathPatternFromIndex(pattern, i+1, patternLen)
+			groupExpanded, groupEnd, err := expandPathPatternFromIndex(pattern, i+1)
 			if err != nil {
 				return nil, 0, err
 			}
@@ -445,10 +446,10 @@ func expandPathPatternFromIndex(pattern string, index, patternLen int) (expanded
 			suffix := pattern[currSubpatternStart:i]
 			newExpanded := make([]string, len(expanded), len(expanded)+len(currPrefixes))
 			copy(newExpanded, expanded)
-			for _, prefix := range currPrefixes {
-				newExpanded = append(newExpanded, prefix+suffix)
-			}
 			expanded = newExpanded
+			for _, prefix := range currPrefixes {
+				expanded = append(expanded, prefix+suffix)
+			}
 			currPrefixes = defaultPrefixes
 			currSubpatternStart = i + 1
 		}
@@ -472,23 +473,20 @@ func cleanPattern(pattern string) string {
 	pattern = charsDoublestar.ReplaceAllString(pattern, `${1}*`)
 	pattern = doublestarChars.ReplaceAllString(pattern, `${1}*${2}`)
 	pattern = duplicateDoublestar.ReplaceAllString(pattern, `/**`)
-	pattern = starsAnyMaybeStars.ReplaceAllStringFunc(pattern, shiftStarAfterAnyChars)
+	pattern = starsAnyMaybeStars.ReplaceAllStringFunc(pattern, func(s string) string {
+		deleteStars := func(r rune) rune {
+			if r == '*' {
+				return -1
+			}
+			return r
+		}
+		return strings.Map(deleteStars, s) + "*"
+	})
 	if strings.HasSuffix(pattern, "/**/*") {
 		// Strip trailing "/*" from suffix
 		return pattern[:len(pattern)-2]
 	}
 	return pattern
-}
-
-func shiftStarAfterAnyChars(s string) string {
-	return strings.Map(deleteStars, s) + "*"
-}
-
-func deleteStars(r rune) rune {
-	if r == '*' {
-		return -1
-	}
-	return r
 }
 
 type priorityType int
@@ -589,8 +587,7 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 			// For each pattern, e is number of escaped chars, thus the number
 			// which should be added to the index to compare equivalent indices
 			// into all patterns
-			patternLen := len(pattern)
-			if i+e == patternLen {
+			if i+e == len(pattern) {
 				nextPatterns.addWithPriority(priorityTerminated, pattern, e)
 				continue
 			}
@@ -600,7 +597,7 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 				continue
 			}
 			if pattern[i+e] == '*' {
-				if patternLen >= i+e+4 && pattern[i+e+1:i+e+4] == "/**" {
+				if i+e+3 < len(pattern) && pattern[i+e+1:i+e+4] == "/**" {
 					// Next parts of pattern are "*/**"
 					nextPatterns.addWithPriority(priorityGlobDoublestar, pattern, e)
 					continue
@@ -610,26 +607,26 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 			}
 			if pattern[i+e] == '\\' {
 				e += 1
-				if patternLen == i+e {
+				if i+e == len(pattern) {
 					return "", fmt.Errorf(`invalid path pattern: trailing '\' character: %q`, pattern)
 				}
 			}
 			// Can safely check for '/' after '\\', since it is '/' either way
-			if pattern[i+e] != '/' || patternLen < i+e+2 || pattern[i+e+1] != '*' {
+			if pattern[i+e] != '/' || i+e+1 >= len(pattern) || pattern[i+e+1] != '*' {
 				// Next parts of pattern are not "/*" or "/**"
 				nextPatterns.addWithPriority(priorityLiteral, pattern, e)
 				continue
 			}
 			// pattern[i+e:i+e+2] must be "/*"
-			if patternLen < i+e+3 || pattern[i+e+2] != '*' {
+			if i+e+2 >= len(pattern) || pattern[i+e+2] != '*' {
 				// pattern[i+e:i+e+3] must not be "/**"
 				nextPatterns.addWithPriority(prioritySinglestar, pattern, e)
 				continue
 			}
-			if patternLen == i+e+3 || (pattern[i+e+3] == '/' && (patternLen == i+e+4 || (patternLen == i+e+5 && pattern[i+e+4] == '*'))) {
-				// pattern[1+e:i+e+3 must terminate with "/**" or "/**/".
-				// Doesn't matter if pattern ends in "/**/*", that will be
-				// caught in the usual case later.
+			// pattern[i+e:i+e+3] must be "/**"
+			if i+e+3 == len(pattern) || (pattern[i+e+3] == '/' && (i+e+4 == len(pattern) || (i+e+5 == len(pattern) && pattern[i+e+4] == '*'))) {
+				// pattern[i+e:] must terminate with "/**" or "/**/" or "/**/*".
+				// Terminal "/**/*/" is more selective, and is not matched here.
 				nextPatterns.addWithPriority(priorityTerminalDoublestar, pattern, e)
 				continue
 			}
@@ -763,6 +760,8 @@ func StripTrailingSlashes(path string) string {
 	return path
 }
 
+var doublestarSuffix = regexp.MustCompile(`(/\*\*)?/?$`)
+
 // Returns true if the given pattern matches the given path. The pattern should
 // not contain groups, and should likely have been an output of ExpandPathPattern.
 //
@@ -773,7 +772,7 @@ func StripTrailingSlashes(path string) string {
 // ensure that patterns without trailing slashes match paths with trailing
 // slashes. However, patterns with trailing slashes should not match paths
 // without trailing slashes.
-func PathPatternMatches(pattern string, path string) (bool, error) {
+func PathPatternMatch(pattern string, path string) (bool, error) {
 	matched, err := doublestar.Match(pattern, path)
 	if err != nil {
 		return false, err
@@ -784,5 +783,3 @@ func PathPatternMatches(pattern string, path string) (bool, error) {
 	patternSlash := doublestarSuffix.ReplaceAllString(pattern, `/`)
 	return doublestar.Match(patternSlash, path)
 }
-
-var doublestarSuffix = regexp.MustCompile(`(/\*\*)?/?$`)

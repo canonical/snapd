@@ -1062,6 +1062,10 @@ func (s *commonSuite) TestExpandPathPatternUnhappy(c *C) {
 		errStr  string
 	}{
 		{
+			``,
+			`invalid path pattern: pattern has length 0`,
+		},
+		{
 			`/foo{bar`,
 			`invalid path pattern: unmatched '{' character.*`,
 		},
@@ -1084,6 +1088,10 @@ func (s *commonSuite) TestExpandPathPatternUnhappy(c *C) {
 		{
 			`/foo/bar{baz{\`,
 			`invalid path pattern: trailing unescaped '\\' character.*`,
+		},
+		{
+			`/foo/bar{baz{`,
+			`invalid path pattern: unmatched '{' character.*`,
 		},
 	} {
 		result, err := common.ExpandPathPattern(testCase.pattern)
@@ -1678,6 +1686,23 @@ func (s *commonSuite) TestGetHighestPrecedencePattern(c *C) {
 				"/foo/**bar",
 			},
 			"/foo/**bar",
+		},
+		// Duplicate patterns should never be passed into GetHighestPrecedencePattern
+		{
+			[]string{
+				"/foo/bar/",
+				"/foo/bar/",
+				"/foo/bar",
+			},
+			"/foo/bar/",
+		},
+		{
+			[]string{
+				"/foo/bar/**",
+				"/foo/bar/**",
+				"/foo/bar/*",
+			},
+			"/foo/bar/*",
 		},
 	} {
 		highestPrecedence, err := common.GetHighestPrecedencePattern(testCase.patterns)
