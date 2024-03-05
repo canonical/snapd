@@ -137,13 +137,12 @@ bool sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
 	if (max_wait > 3600) {
 		max_wait = 3600;
 	}
-	for (long i = 0; i < max_wait; ++i) {
-		if (access(profile_path, F_OK) == 0) {
-			break;
-		}
-		sleep(1);
-	}
 
+	if (!sc_wait_for_file(profile_path, max_wait)) {
+		/* log but proceed, we'll die a bit later */
+		debug("timeout waiting for seccomp binary profile file at %s",
+		      profile_path);
+	}
 	// TODO: move over to open/openat as an additional hardening measure.
 
 	// validate '/' down to profile_path are root-owned and not
