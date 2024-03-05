@@ -680,8 +680,13 @@ static void enter_non_classic_execution_environment(sc_invocation *inv,
 	// Set up a device cgroup, unless the snap has been allowed to manage the
 	// device cgroup by itself.
 	if (!is_device_cgroup_self_managed(inv)) {
-	/** Conditionally create, populate and join the device cgroup. */
+		/** Conditionally create, populate and join the device cgroup. */
 		sc_device_cgroup_mode mode = SC_DEVICE_CGROUP_MODE_REQUIRED;
+
+		/* Preserve the legacy behavior of no default device cgroup for snaps
+		 * using one of the following bases. Snaps using core24 and later bases
+		 * will be placed within a device cgroup. Note that 'bare' base is also
+		 * subject to the new behavior. */
 		const char *non_required_cgroup_bases[] = {
 			"core", "core16", "core18", "core20", "core22",
 			NULL,
