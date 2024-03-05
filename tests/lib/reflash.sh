@@ -47,6 +47,8 @@ if [ -b /dev/vda ]; then
   DISK=/dev/vda
 elif [ -b /dev/sda ]; then
   DISK=/dev/sda
+elif [ -b /dev/nvme0n1 ]; then
+  DISK=/dev/nvme0n1
 else
   echo "Cannot find disk" 2>&1
   exit 1
