@@ -624,6 +624,9 @@ static void enter_classic_execution_environment(const sc_invocation *inv,
 	}
 }
 
+/* max wait time for /var/lib/snapd/cgroup/<snap>.devices to appear */
+static const size_t DEVICES_FILE_MAX_WAIT = 120;
+
 static bool is_device_cgroup_self_managed(const sc_invocation *inv)
 {
 	char info_path[PATH_MAX] = { 0 };
@@ -632,12 +635,15 @@ static bool is_device_cgroup_self_managed(const sc_invocation *inv)
 			 "/var/lib/snapd/cgroup/snap.%s.device",
 			 inv->snap_instance);
 
+	/* TODO allow overriding timeout through env? */
+	if (!sc_wait_for_file(info_path, DEVICES_FILE_MAX_WAIT)) {
+		/* don't die explicitly here, we'll die when trying to open the file
+		 * (unless it shows up) */
+		debug("timeout waiting for devices file at %s", info_path);
+	}
+
 	FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
 	stream = fopen(info_path, "r");
-	if (stream == NULL && errno == ENOENT) {
-		/* File not there, so definitely not self-managed */
-		return false;
-	}
 	if (stream == NULL) {
 		die("cannot open %s", info_path);
 	}
