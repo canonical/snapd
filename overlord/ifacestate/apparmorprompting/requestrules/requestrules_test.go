@@ -421,7 +421,9 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
 
 	snap := "lxd"
 	iface := "home"
-	pathPattern := "/home/test/Documents/**"
+	pathPattern := "/home/test/{Documents,Downloads}/**"
+	expandedPatterns, err := common.ExpandPathPattern(pathPattern)
+	c.Assert(err, IsNil)
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanForever
 	duration := ""
@@ -459,17 +461,19 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencySimple(c *C) {
 	for _, permission := range permissions {
 		permissionEntry, exists := interfaceEntry.PerPermission[permission]
 		c.Assert(exists, Equals, true)
-		c.Assert(permissionEntry.PathRules, HasLen, 1)
+		c.Assert(permissionEntry.PathRules, HasLen, 2)
 
-		pathID, exists := permissionEntry.PathRules[pathPattern]
-		c.Assert(exists, Equals, true)
-		c.Assert(pathID, Equals, rule.ID)
+		for _, pattern := range expandedPatterns {
+			pathID, exists := permissionEntry.PathRules[pattern]
+			c.Check(exists, Equals, true)
+			c.Check(pathID, Equals, rule.ID)
+		}
 	}
 }
 
 func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	var user uint32 = 1000
-	ruleNoticeIDs := make([]string, 0, 4)
+	ruleNoticeIDs := make([]string, 0, 6)
 	notifyRule := func(userID uint32, ruleID string, options *state.AddNoticeOptions) error {
 		c.Check(userID, Equals, user)
 		ruleNoticeIDs = append(ruleNoticeIDs, ruleID)
@@ -479,7 +483,7 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 
 	snap := "lxd"
 	iface := "home"
-	pathPattern := "/home/test/Documents/**"
+	// Make sure all expanded path patterns include "/home/test/Documents/**/foo.txt"
 	outcome := common.OutcomeAllow
 	lifespan := common.LifespanForever
 	duration := ""
@@ -487,7 +491,7 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 
 	// Create two rules with bad timestamps
 	constraints1 := &common.Constraints{
-		PathPattern: pathPattern,
+		PathPattern: "/home/test/{Documents,Downloads}/**/foo.txt",
 		Permissions: copyPermissions(permissions[:1]),
 	}
 	badTsRule1, err := rdb.PopulateNewRule(user, snap, iface, constraints1, outcome, lifespan, duration)
@@ -495,7 +499,7 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	badTsRule1.Timestamp = "bar"
 	time.Sleep(time.Millisecond)
 	constraints2 := &common.Constraints{
-		PathPattern: pathPattern,
+		PathPattern: "/home/test/{Downloads,Documents/**}/foo.txt",
 		Permissions: copyPermissions(permissions[:1]),
 	}
 	badTsRule2, err := rdb.PopulateNewRule(user, snap, iface, constraints2, outcome, lifespan, duration)
@@ -521,15 +525,16 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 
 	// Create a rule with the earliest timestamp, which will be totally overwritten when attempting to add later
 	earliestConstraints := &common.Constraints{
-		PathPattern: pathPattern,
+		PathPattern: "/home/test/Documents/**/{foo,bar,baz}.txt",
 		Permissions: copyPermissions(permissions),
 	}
 	earliestRule, err := rdb.PopulateNewRule(user, snap, iface, earliestConstraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
 	// Create and add a rule which will overwrite the rule with bad timestamp
+	initialPathPattern := "/home/test/{Music,Pictures,Videos,Documents}/**/foo.txt"
 	initialConstraints := &common.Constraints{
-		PathPattern: pathPattern,
+		PathPattern: initialPathPattern,
 		Permissions: copyPermissions(permissions),
 	}
 	initialRule, err := rdb.PopulateNewRule(user, snap, iface, initialConstraints, outcome, lifespan, duration)
@@ -548,10 +553,63 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	c.Assert(exists, Equals, true)
 	c.Assert(initialRuleRet.Constraints.Permissions, DeepEquals, permissions)
 
+	// Create rule with expiration in the past, which will be immediately be discarded without conflicting with other rules
+	expiredConstraints := &common.Constraints{
+		PathPattern: "/home/test/Documents/**/foo.txt",
+		Permissions: copyPermissions(permissions),
+	}
+	expiredRule, err := rdb.PopulateNewRule(user, snap, iface, expiredConstraints, outcome, common.LifespanTimespan, "1s")
+	c.Assert(err, IsNil)
+	expiredRule.Expiration = time.Now().Add(-10 * time.Second).Format(time.RFC3339)
+
+	rdb.ByID[expiredRule.ID] = expiredRule
+	rdb.RefreshTreeEnforceConsistency(notifyEveryRule)
+
+	// Expect notice for only expiredRule
+	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
+	c.Check(strutil.ListContains(ruleNoticeIDs, expiredRule.ID), Equals, true)
+	ruleNoticeIDs = ruleNoticeIDs[1:]
+
+	c.Assert(rdb.ByID, HasLen, 1, Commentf("rdb.ByID: %+v", rdb.ByID))
+
+	_, exists = rdb.ByID[expiredRule.ID]
+	c.Assert(exists, Equals, false)
+
+	initialRuleRet, exists = rdb.ByID[initialRule.ID]
+	c.Assert(exists, Equals, true)
+	c.Assert(initialRuleRet.Constraints.Permissions, DeepEquals, permissions)
+
+	// Create rule with invalid path pattern, which will be immediately be discarded without conflicting with other rules
+	invalidConstraints := &common.Constraints{
+		PathPattern: "/home/test/Documents/**/foo.txt",
+		Permissions: copyPermissions(permissions),
+	}
+	invalidRule, err := rdb.PopulateNewRule(user, snap, iface, invalidConstraints, outcome, common.LifespanTimespan, "1s")
+	c.Assert(err, IsNil)
+	invalidRule.Constraints.PathPattern = "/home/test/Documents/**/foo.txt{"
+
+	rdb.ByID[invalidRule.ID] = invalidRule
+	rdb.RefreshTreeEnforceConsistency(notifyEveryRule)
+
+	// Expect notice for only invalidRule
+	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
+	c.Check(strutil.ListContains(ruleNoticeIDs, invalidRule.ID), Equals, true)
+	ruleNoticeIDs = ruleNoticeIDs[1:]
+
+	c.Assert(rdb.ByID, HasLen, 1, Commentf("rdb.ByID: %+v", rdb.ByID))
+
+	_, exists = rdb.ByID[invalidRule.ID]
+	c.Assert(exists, Equals, false)
+
+	initialRuleRet, exists = rdb.ByID[initialRule.ID]
+	c.Assert(exists, Equals, true)
+	c.Assert(initialRuleRet.Constraints.Permissions, DeepEquals, permissions)
+
 	// Create newer rule which will overwrite all but the first permission of initialRule
+	newPathPattern := "/home/test/Documents{,/,/**/foo.{txt,md,pdf}}"
 	newRulePermissions := permissions[1:]
 	newConstraints := &common.Constraints{
-		PathPattern: pathPattern,
+		PathPattern: newPathPattern,
 		Permissions: copyPermissions(newRulePermissions),
 	}
 	newRule, err := rdb.PopulateNewRule(user, snap, iface, newConstraints, outcome, lifespan, duration)
@@ -594,17 +652,27 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	c.Assert(exists, Equals, true)
 	c.Assert(interfaceEntry.PerPermission, HasLen, 3)
 
+	expandedInitialPathPatterns, err := common.ExpandPathPattern(initialPathPattern)
+	c.Assert(err, IsNil)
+	expandedNewPathPatterns, err := common.ExpandPathPattern(newPathPattern)
+	c.Assert(err, IsNil)
 	for i, permission := range permissions {
 		permissionEntry, exists := interfaceEntry.PerPermission[permission]
 		c.Assert(exists, Equals, true)
-		c.Assert(permissionEntry.PathRules, HasLen, 1)
-
-		pathID, exists := permissionEntry.PathRules[pathPattern]
-		c.Assert(exists, Equals, true)
+		var expandedPatterns []string
+		var ruleID string
 		if i == 0 {
-			c.Assert(pathID, Equals, initialRule.ID)
+			expandedPatterns = expandedInitialPathPatterns
+			ruleID = initialRule.ID
 		} else {
-			c.Assert(pathID, Equals, newRule.ID)
+			expandedPatterns = expandedNewPathPatterns
+			ruleID = newRule.ID
+		}
+		c.Assert(permissionEntry.PathRules, HasLen, len(expandedPatterns))
+		for _, expanded := range expandedPatterns {
+			pathID, exists := permissionEntry.PathRules[expanded]
+			c.Check(exists, Equals, true)
+			c.Check(pathID, Equals, ruleID)
 		}
 	}
 }

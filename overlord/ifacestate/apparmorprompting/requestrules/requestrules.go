@@ -16,23 +16,22 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-var ErrPathPatternMissingFromTree = errors.New("path pattern was not found in the rule tree")
-var ErrRuleIDMismatch = errors.New("the rule ID in the tree does not match the expected rule ID")
 var ErrRuleIDNotFound = errors.New("rule ID is not found")
 var ErrPathPatternConflict = errors.New("a rule with the same path pattern already exists in the tree")
 var ErrNoMatchingRule = errors.New("no rules match the given path")
 var ErrUserNotAllowed = errors.New("the given user is not allowed to request the rule with the given ID")
 
 type Rule struct {
-	ID          string              `json:"id"`
-	Timestamp   string              `json:"timestamp"`
-	User        uint32              `json:"user"`
-	Snap        string              `json:"snap"`
-	Interface   string              `json:"interface"`
-	Constraints *common.Constraints `json:"constraints"`
-	Outcome     common.OutcomeType  `json:"outcome"`
-	Lifespan    common.LifespanType `json:"lifespan"`
-	Expiration  string              `json:"expiration"`
+	ID               string              `json:"id"`
+	Timestamp        string              `json:"timestamp"`
+	User             uint32              `json:"user"`
+	Snap             string              `json:"snap"`
+	Interface        string              `json:"interface"`
+	Constraints      *common.Constraints `json:"constraints"`
+	expandedPatterns []string            `json:"-"`
+	Outcome          common.OutcomeType  `json:"outcome"`
+	Lifespan         common.LifespanType `json:"lifespan"`
+	Expiration       string              `json:"expiration"`
 }
 
 func (rule *Rule) removePermission(permission string) error {
@@ -64,7 +63,7 @@ func (rule *Rule) Expired(currentTime time.Time) (bool, error) {
 }
 
 type permissionDB struct {
-	// permissionDB contains a map from path pattern to rule ID
+	// permissionDB contains a map from expanded path pattern to rule ID
 	PathRules map[string]string
 }
 
@@ -138,32 +137,54 @@ func (rdb *RuleDB) permissionDBForUserSnapInterfacePermission(user uint32, snap 
 	return permPaths
 }
 
+// Add all the expanded path patterns for the rule to the map for the given
+// permission. If there is a conflicting path pattern from another rule, all
+// patterns which were previously added during this function call are removed
+// from the path map, and returns an error along with the ID of the conflicting
+// rule.
 func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string) (error, string) {
-	// If there is a conflicting path pattern from another rule, returns an
-	// error along with the ID of the conflicting rule.
 	permPaths := rdb.permissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
-	pathPattern := rule.Constraints.PathPattern
-	if id, exists := permPaths.PathRules[pathPattern]; exists {
-		return ErrPathPatternConflict, id
+	for i, pathPattern := range rule.expandedPatterns {
+		if id, exists := permPaths.PathRules[pathPattern]; exists {
+			for _, prevPattern := range rule.expandedPatterns[:i] {
+				delete(permPaths.PathRules, prevPattern)
+			}
+			return ErrPathPatternConflict, id
+		}
+		permPaths.PathRules[pathPattern] = rule.ID
 	}
-	permPaths.PathRules[pathPattern] = rule.ID
 	return nil, ""
 }
 
-func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) error {
+// Remove all the expanded path patterns for the rule to the map for the given
+// permission. If an expanded pattern is not found or maps to a different rule
+// ID than that of the given rule, continue to remove all other expanded paths
+// from the permission map (unless they map to a different rule ID), and return
+// an error.
+func (rdb *RuleDB) removeRulePermissionFromTree(rule *Rule, permission string) (err error) {
 	permPaths := rdb.permissionDBForUserSnapInterfacePermission(rule.User, rule.Snap, rule.Interface, permission)
-	pathPattern := rule.Constraints.PathPattern
-	id, exists := permPaths.PathRules[pathPattern]
-	if !exists {
-		// Database was left inconsistent, should not occur
-		return ErrPathPatternMissingFromTree
+	for _, pathPattern := range rule.expandedPatterns {
+		id, exists := permPaths.PathRules[pathPattern]
+		if !exists {
+			// Database was left inconsistent, should not occur
+			err = appendError(err, fmt.Errorf(`expanded path pattern not found in the rule tree: %q`, pathPattern))
+			continue
+		}
+		if id != rule.ID {
+			// Database was left inconsistent, should not occur
+			err = appendError(err, fmt.Errorf(`expanded path pattern maps to different rule ID: %q: %s`, pathPattern, id))
+			continue
+		}
+		delete(permPaths.PathRules, pathPattern)
 	}
-	if id != rule.ID {
-		// Database was left inconsistent, should not occur
-		return ErrRuleIDMismatch
+	return err
+}
+
+func appendError(prev, newest error) error {
+	if prev == nil {
+		return newest
 	}
-	delete(permPaths.PathRules, pathPattern)
-	return nil
+	return fmt.Errorf(`%v; %v`, prev, newest)
 }
 
 func (rdb *RuleDB) addRuleToTree(rule *Rule) (error, string, string) {
@@ -189,8 +210,8 @@ func (rdb *RuleDB) removeRuleFromTree(rule *Rule) error {
 	for _, permission := range rule.Constraints.Permissions {
 		if e := rdb.removeRulePermissionFromTree(rule, permission); e != nil {
 			// Database was left inconsistent, should not occur.
-			// Store the most recent non-nil error, but keep removing.
-			err = e
+			// Store the error, but keep removing.
+			err = appendError(err, e)
 		}
 	}
 	return err
@@ -250,6 +271,7 @@ func (rdb *RuleDB) RefreshTreeEnforceConsistency(notifyEveryRule bool) {
 			}
 		}
 	}()
+	currTime := time.Now()
 	newByID := make(map[string]*Rule)
 	rdb.PerUser = make(map[uint32]*userDB)
 	for id, rule := range rdb.ByID {
@@ -260,6 +282,21 @@ func (rdb *RuleDB) RefreshTreeEnforceConsistency(notifyEveryRule bool) {
 		if notifyEveryRule {
 			modifiedUserRuleIDs[rule.User][id] = true
 		}
+		if err := common.ValidateConstraintsOutcomeLifespanExpiration(rule.Interface, rule.Constraints, rule.Outcome, rule.Lifespan, rule.Expiration, currTime); err != nil {
+			// Invalid rule, discard it
+			needToSave = true
+			modifiedUserRuleIDs[rule.User][id] = true
+			continue
+		}
+		expandedPatterns, err := common.ExpandPathPattern(rule.Constraints.PathPattern)
+		if err != nil {
+			// Invalid path pattern, discard this rule
+			// This should not occur, since previous validation should catch invalid patterns.
+			needToSave = true
+			modifiedUserRuleIDs[rule.User][id] = true
+			continue
+		}
+		rule.expandedPatterns = expandedPatterns
 		for {
 			err, conflictingID, conflictingPermission := rdb.addRuleToTree(rule)
 			if err == nil {
@@ -342,17 +379,22 @@ func (rdb *RuleDB) PopulateNewRule(user uint32, snap string, iface string, const
 	if err != nil {
 		return nil, err
 	}
+	expandedPatterns, err := common.ExpandPathPattern(constraints.PathPattern)
+	if err != nil {
+		return nil, err
+	}
 	id, timestamp := common.NewIDAndTimestamp()
 	newRule := Rule{
-		ID:          id,
-		Timestamp:   timestamp,
-		User:        user,
-		Snap:        snap,
-		Interface:   iface,
-		Constraints: constraints,
-		Outcome:     outcome,
-		Lifespan:    lifespan,
-		Expiration:  expiration,
+		ID:               id,
+		Timestamp:        timestamp,
+		User:             user,
+		Snap:             snap,
+		Interface:        iface,
+		Constraints:      constraints,
+		expandedPatterns: expandedPatterns,
+		Outcome:          outcome,
+		Lifespan:         lifespan,
+		Expiration:       expiration,
 	}
 	return &newRule, nil
 }
@@ -394,7 +436,10 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 			rdb.notifyRule(user, id, nil)
 			continue
 		}
-		matched, err := matchingRule.Constraints.Match(path)
+		// Need to compare the expanded path pattern, not the rule's path
+		// pattern, so that only expanded patterns which match are included,
+		// and the highest precedence expanded pattern can be computed.
+		matched, err := common.PathPatternMatches(pathPattern, path)
 		if err != nil {
 			// Only possible error is ErrBadPattern, which should not occur
 			return false, err
