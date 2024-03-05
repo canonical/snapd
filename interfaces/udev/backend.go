@@ -129,9 +129,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 			Content: buf.Bytes(),
 			Mode:    0644,
 		})
-		if err == osutil.ErrSameState {
-			return nil
-		} else if err != nil {
+		if err != nil && !errors.Is(err, osutil.ErrSameState) {
 			return err
 		}
 	} else {
