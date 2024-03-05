@@ -28,6 +28,7 @@ execute: |
         exit 1
     fi
     rm -rf "$subdirPath"
+    rmdir "$SNAP_MOUNT_DIR/$SNAP_NAME/current"
 
     echo "Abort with a valid id - done"
     "$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME"
