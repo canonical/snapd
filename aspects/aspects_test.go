@@ -171,7 +171,7 @@ func (s *aspectSuite) TestAccessTypes(c *C) {
 
 		cmt := Commentf("\"%s access\" sub-test failed", t.access)
 		if t.err {
-			c.Assert(err, ErrorMatches, fmt.Sprintf(`.*expected 'access' to be one of "read-write", "read", "write" but was %q`, t.access), cmt)
+			c.Assert(err, ErrorMatches, fmt.Sprintf(`.*expected 'access' to be either "read-write", "read", "write" or empty but was %q`, t.access), cmt)
 			c.Check(aspectBundle, IsNil, cmt)
 		} else {
 			c.Assert(err, IsNil, cmt)
@@ -1958,4 +1958,154 @@ func (s *aspectSuite) TestGetEntireAspect(c *C) {
 		},
 		"abc": "cba",
 	})
+}
+
+func (*aspectSuite) TestAspectContentRule(c *C) {
+	rules := map[string]interface{}{
+		"bar": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{
+					"request": "a",
+					"storage": "c",
+					"content": []interface{}{
+						map[string]interface{}{
+							"request": "b",
+							"storage": "d",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	bundle, err := aspects.NewBundle("acc", "foo", rules, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	databag := aspects.NewJSONDataBag()
+	err = databag.Set("c.d", "value")
+	c.Assert(err, IsNil)
+
+	asp := bundle.Aspect("bar")
+	val, err := asp.Get(databag, "a.b")
+	c.Assert(err, IsNil)
+	c.Assert(val, Equals, "value")
+
+	err = asp.Set(databag, "a.b", "other")
+	c.Assert(err, IsNil)
+
+	val, err = asp.Get(databag, "a.b")
+	c.Assert(err, IsNil)
+	c.Assert(val, Equals, "other")
+}
+
+func (*aspectSuite) TestAspectWriteContentRuleNestedInRead(c *C) {
+	rules := map[string]interface{}{
+		"bar": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{
+					"request": "a",
+					"storage": "c",
+					"access":  "read",
+					"content": []interface{}{
+						map[string]interface{}{
+							"request": "b",
+							"storage": "d",
+							"access":  "write",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	bundle, err := aspects.NewBundle("acc", "foo", rules, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	databag := aspects.NewJSONDataBag()
+	asp := bundle.Aspect("bar")
+	err = asp.Set(databag, "a.b", "value")
+	c.Assert(err, IsNil)
+
+	_, err = asp.Get(databag, "a.b")
+	c.Assert(err, ErrorMatches, `.*: no matching read rule`)
+
+	val, err := asp.Get(databag, "a")
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, map[string]interface{}{"d": "value"})
+}
+
+func (*aspectSuite) TestAspectInvalidContentRules(c *C) {
+	type testcase struct {
+		content interface{}
+		err     string
+	}
+
+	tcs := []testcase{
+		{
+			content: []interface{}{},
+			err:     `.*"content" must be a non-empty list`,
+		},
+		{
+			content: map[string]interface{}{},
+			err:     `.*"content" must be a non-empty list`,
+		},
+		{
+			content: []interface{}{map[string]interface{}{"request": "a"}},
+			err:     `.*aspect rules must have a "storage" field`,
+		},
+	}
+
+	for _, tc := range tcs {
+		rules := map[string]interface{}{
+			"bar": map[string]interface{}{
+				"rules": []interface{}{
+					map[string]interface{}{
+						"request": "a",
+						"storage": "c",
+						"content": tc.content,
+					},
+				},
+			},
+		}
+
+		_, err := aspects.NewBundle("acc", "foo", rules, aspects.NewJSONSchema())
+		c.Assert(err, ErrorMatches, tc.err)
+	}
+}
+
+func (*aspectSuite) TestAspectSeveralNestedContentRules(c *C) {
+	rules := map[string]interface{}{
+		"bar": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{
+					"request": "a",
+					"storage": "a",
+					"content": []interface{}{
+						map[string]interface{}{
+							"request": "b.c",
+							"storage": "b.c",
+							"content": []interface{}{
+								map[string]interface{}{
+									"request": "d",
+									"storage": "d",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	bundle, err := aspects.NewBundle("acc", "foo", rules, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	databag := aspects.NewJSONDataBag()
+	asp := bundle.Aspect("bar")
+	err = asp.Set(databag, "a.b.c.d", "value")
+	c.Assert(err, IsNil)
+
+	val, err := asp.Get(databag, "a.b.c.d")
+	c.Assert(err, IsNil)
+	c.Assert(val, Equals, "value")
 }
