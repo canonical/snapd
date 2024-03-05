@@ -137,6 +137,10 @@ func (s *commonSuite) TestExpandPathPatternUnhappy(c *C) {
 		errStr  string
 	}{
 		{
+			``,
+			`invalid path pattern: pattern has length 0`,
+		},
+		{
 			`/foo{bar`,
 			`invalid path pattern: unmatched '{' character.*`,
 		},
@@ -159,6 +163,10 @@ func (s *commonSuite) TestExpandPathPatternUnhappy(c *C) {
 		{
 			`/foo/bar{baz{\`,
 			`invalid path pattern: trailing unescaped '\\' character.*`,
+		},
+		{
+			`/foo/bar{baz{`,
+			`invalid path pattern: unmatched '{' character.*`,
 		},
 	} {
 		result, err := common.ExpandPathPattern(testCase.pattern)
@@ -754,6 +762,23 @@ func (s *commonSuite) TestGetHighestPrecedencePattern(c *C) {
 			},
 			"/foo/**bar",
 		},
+		// Duplicate patterns should never be passed into GetHighestPrecedencePattern
+		{
+			[]string{
+				"/foo/bar/",
+				"/foo/bar/",
+				"/foo/bar",
+			},
+			"/foo/bar/",
+		},
+		{
+			[]string{
+				"/foo/bar/**",
+				"/foo/bar/**",
+				"/foo/bar/*",
+			},
+			"/foo/bar/*",
+		},
 	} {
 		highestPrecedence, err := common.GetHighestPrecedencePattern(testCase.patterns)
 		c.Check(err, IsNil, Commentf("Error occurred during test case %d:\n%+v", i, testCase))
@@ -936,7 +961,7 @@ func (*commonSuite) TestStripTrailingSlashes(c *C) {
 	}
 }
 
-func (*commonSuite) TestPathPatternMatches(c *C) {
+func (*commonSuite) TestPathPatternMatch(c *C) {
 	cases := []struct {
 		pattern string
 		path    string
@@ -1204,15 +1229,15 @@ func (*commonSuite) TestPathPatternMatches(c *C) {
 		},
 	}
 	for _, testCase := range cases {
-		matches, err := common.PathPatternMatches(testCase.pattern, testCase.path)
+		matches, err := common.PathPatternMatch(testCase.pattern, testCase.path)
 		c.Check(err, IsNil, Commentf("test case: %+v", testCase))
 		c.Check(matches, Equals, testCase.matches, Commentf("test case: %+v", testCase))
 	}
 }
 
-func (s *commonSuite) TestPathPatternMatchesUnhappy(c *C) {
+func (s *commonSuite) TestPathPatternMatchUnhappy(c *C) {
 	badPattern := `badpattern\`
-	matches, err := common.PathPatternMatches(badPattern, "foo")
+	matches, err := common.PathPatternMatch(badPattern, "foo")
 	c.Check(err, Equals, doublestar.ErrBadPattern)
 	c.Check(matches, Equals, false)
 }
