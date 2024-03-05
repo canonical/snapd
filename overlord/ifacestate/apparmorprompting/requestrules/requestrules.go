@@ -422,15 +422,7 @@ func (rdb *RuleDB) IsPathAllowed(user uint32, snap string, iface string, path st
 		rdb.notifyRule(user, matchingID, nil)
 		needToSave = true
 	}
-	switch matchingRule.Outcome {
-	case "allow":
-		return true, nil
-	case "deny":
-		return false, nil
-	default:
-		// Outcome should have been validated, so this should not occur
-		return false, common.ErrInvalidOutcome
-	}
+	return matchingRule.Outcome.AsBool()
 }
 
 func (rdb *RuleDB) ruleWithIDInternal(user uint32, id string) (*Rule, error) {

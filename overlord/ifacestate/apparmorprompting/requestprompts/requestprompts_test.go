@@ -287,7 +287,7 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 	c.Check(err, Equals, requestprompts.ErrUserNotFound)
 
 	_, err = pdb.Reply(user, prompt.ID, common.OutcomeUnset)
-	c.Check(err, Equals, common.ErrInvalidOutcome)
+	c.Check(err, ErrorMatches, `invalid outcome.*`)
 
 	_, err = pdb.Reply(user, prompt.ID, outcome)
 	c.Check(err, Equals, fakeError)
@@ -576,7 +576,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	c.Assert(stored[0], Equals, prompt)
 
 	satisfied, err := pdb.HandleNewRule(user, snap, iface, constraints, badOutcome)
-	c.Check(err, Equals, common.ErrInvalidOutcome)
+	c.Check(err, ErrorMatches, `invalid outcome.*`)
 	c.Check(satisfied, HasLen, 0)
 
 	c.Check(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))

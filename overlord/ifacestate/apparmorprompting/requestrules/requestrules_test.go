@@ -229,7 +229,7 @@ func (s *requestrulesSuite) TestAddRuleUnhappy(c *C) {
 
 	badOutcome := common.OutcomeType("secret third thing")
 	_, err = rdb.AddRule(user, snap, iface, constraints, badOutcome, lifespan, duration)
-	c.Assert(err, Equals, common.ErrInvalidOutcome)
+	c.Assert(err, ErrorMatches, `invalid outcome.*`)
 
 	// Error while adding rule should cause no notice to be issued
 	c.Assert(ruleNoticeIDs, HasLen, 0, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
