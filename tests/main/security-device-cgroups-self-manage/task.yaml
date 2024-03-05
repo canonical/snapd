@@ -5,7 +5,7 @@ details: |
   the device cgroup.
 
 systems:
-  #TODO: bpftool is not available on core22 and tests.device-cgroup needs it for cgroups v2
+  # bpftool is not available on core22 and tests.device-cgroup needs it for cgroups v2
   - -ubuntu-core-22-*
   # no i386 build of core24
   - -ubuntu-18.04-32
@@ -39,7 +39,7 @@ execute: |
     echo "Cgroup device settings file does not exist"
     test ! -f  /var/lib/snapd/cgroup/snap.container-mgr-snap.device
 
-    # XXX note, we rely on the fact that device cgroup will return with EPERM
+    # we rely on the fact that device cgroup will return with EPERM
     # (Operation not permitted), while when the access gets blocked by AppArmor
     # we get EACCESS (Permission denied)
     container-mgr-snap.docker-support -c 'dd if=/dev/kmsg of=/dev/null bs=1 count=1' 2>&1 | \
