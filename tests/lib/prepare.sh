@@ -1350,9 +1350,10 @@ EOF
     umount /mnt
     kpartx -d "$IMAGE_HOME/$IMAGE"
 
-    # the reflash magic
-    # FIXME: ideally in initrd, but this is good enough for now
-    cat > "$IMAGE_HOME/reflash.sh" << EOF
+    if os.query is-core16 || os.query is-core18; then
+        # the reflash magic
+        # FIXME: ideally in initrd, but this is good enough for now
+        cat > "$IMAGE_HOME/reflash.sh" << EOF
 #!/tmp/busybox sh
 set -e
 set -x
@@ -1371,7 +1372,7 @@ echo b > /proc/sysrq-trigger
 
 EOF
 
-    cat > "$IMAGE_HOME/prep-reflash.sh" << EOF
+        cat > "$IMAGE_HOME/prep-reflash.sh" << EOF
 #!/bin/sh -ex
 mount -t tmpfs none /tmp
 cp /bin/busybox /tmp
@@ -1383,16 +1384,16 @@ sync
 exec /tmp/reflash.sh
 
 EOF
-    chmod +x "$IMAGE_HOME/reflash.sh"
-    chmod +x "$IMAGE_HOME/prep-reflash.sh"
+        chmod +x "$IMAGE_HOME/reflash.sh"
+        chmod +x "$IMAGE_HOME/prep-reflash.sh"
 
-    DEVPREFIX=""
-    if os.query is-core-ge 20; then
-        DEVPREFIX="/boot"
-    fi
-    # extract ROOT from /proc/cmdline
-    ROOT=$(sed -e 's/^.*root=//' -e 's/ .*$//' /proc/cmdline)
-    cat >/boot/grub/grub.cfg <<EOF
+        DEVPREFIX=""
+        if os.query is-core-ge 20; then
+            DEVPREFIX="/boot"
+        fi
+        # extract ROOT from /proc/cmdline
+        ROOT=$(sed -e 's/^.*root=//' -e 's/ .*$//' /proc/cmdline)
+        cat >/boot/grub/grub.cfg <<EOF
 set default=0
 set timeout=2
 menuentry 'flash-all-snaps' {
@@ -1400,7 +1401,12 @@ linux $DEVPREFIX/vmlinuz root=$ROOT ro init=$IMAGE_HOME/prep-reflash.sh console=
 initrd $DEVPREFIX/initrd.img
 }
 EOF
+    else
+        gzip "${IMAGE_HOME}/${IMAGE}"
+        "${TESTSLIB}/reflash.sh" "${IMAGE_HOME}/${IMAGE}.gz"
+    fi
 }
+
 
 # prepare_ubuntu_core will prepare ubuntu-core 16+
 prepare_ubuntu_core() {
