@@ -88,9 +88,10 @@ var api = []*Command{
 }
 
 const (
-	polkitActionLogin            = "io.snapcraft.snapd.login"
-	polkitActionManage           = "io.snapcraft.snapd.manage"
-	polkitActionManageInterfaces = "io.snapcraft.snapd.manage-interfaces"
+	polkitActionLogin               = "io.snapcraft.snapd.login"
+	polkitActionManage              = "io.snapcraft.snapd.manage"
+	polkitActionManageInterfaces    = "io.snapcraft.snapd.manage-interfaces"
+	polkitActionManageConfiguration = "io.snapcraft.snapd.manage-configuration"
 )
 
 // userFromRequest extracts user information from request and return the respective user in state, if valid
