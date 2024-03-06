@@ -908,59 +908,6 @@ func (s *commonSuite) TestValidatePathPattern(c *C) {
 	}
 }
 
-func (*commonSuite) TestStripTrailingSlashes(c *C) {
-	cases := []struct {
-		orig     string
-		stripped string
-	}{
-		{
-			"foo",
-			"foo",
-		},
-		{
-			"foo/",
-			"foo",
-		},
-		{
-			"/foo",
-			"/foo",
-		},
-		{
-			"/foo/",
-			"/foo",
-		},
-		{
-			"/foo//",
-			"/foo",
-		},
-		{
-			"/foo///",
-			"/foo",
-		},
-		{
-			"/foo/bar",
-			"/foo/bar",
-		},
-		{
-			"/foo/bar/",
-			"/foo/bar",
-		},
-		{
-			"/foo/bar//",
-			"/foo/bar",
-		},
-		{
-			"/foo/bar///",
-			"/foo/bar",
-		},
-	}
-
-	for _, testCase := range cases {
-		result := common.StripTrailingSlashes(testCase.orig)
-		c.Check(result, Equals, testCase.stripped)
-	}
-}
-
 func (*commonSuite) TestPathPatternMatch(c *C) {
 	cases := []struct {
 		pattern string
@@ -968,43 +915,63 @@ func (*commonSuite) TestPathPatternMatch(c *C) {
 		matches bool
 	}{
 		{
-			"/home/test/Documents/foo.txt",
-			"/home/test/Documents/foo.txt",
+			"/home/test/Documents",
+			"/home/test/Documents",
 			true,
 		},
 		{
+			"/home/test/Documents",
+			"/home/test/Documents/",
+			true,
+		},
+		{
+			"/home/test/Documents/",
+			"/home/test/Documents",
+			false,
+		},
+		{
+			"/home/test/Documents/",
+			"/home/test/Documents/",
+			true,
+		},
+		{
+			"/home/test/Documents/*",
+			"/home/test/Documents",
+			false,
+		},
+		{
+			"/home/test/Documents/*",
+			"/home/test/Documents/",
+			true,
+		},
+		{
+			"/home/test/Documents/*",
 			"/home/test/Documents/foo",
-			"/home/test/Documents/foo.txt",
-			false,
-		},
-		{
-			"/home/test/Documents",
-			"/home/test/Documents",
-			true,
-		},
-		{
-			"/home/test/Documents",
-			"/home/test/Documents/",
-			true,
-		},
-		{
-			"/home/test/Documents/",
-			"/home/test/Documents",
-			false,
-		},
-		{
-			"/home/test/Documents/",
-			"/home/test/Documents/",
 			true,
 		},
 		{
 			"/home/test/Documents/*",
+			"/home/test/Documents/foo/",
+			true,
+		},
+		{
+			"/home/test/Documents/*/",
 			"/home/test/Documents",
 			false,
 		},
 		{
-			"/home/test/Documents/*",
+			"/home/test/Documents/*/",
 			"/home/test/Documents/",
+			false,
+		},
+		{
+			"/home/test/Documents/*/",
+			"/home/test/Documents/foo",
+			false,
+		},
+		{
+			"/home/test/Documents/*/",
+			"/home/test/Documents/foo/",
 			true,
 		},
 		{
@@ -1018,6 +985,20 @@ func (*commonSuite) TestPathPatternMatch(c *C) {
 			true,
 		},
 		{
+			"/home/test/Documents/**",
+			"/home/test/Documents/foo",
+			true,
+		},
+		{
+			"/home/test/Documents/**",
+			"/home/test/Documents/foo/",
+			true,
+		},
+		{
+			// Even though doublestar lets /path/to/a/**/ match /path/to/a, we
+			// want the ability to match only directories, so we impose the
+			// additional constraint that patterns ending in /**/ only match
+			// paths which end in /
 			"/home/test/Documents/**/",
 			"/home/test/Documents",
 			false,
@@ -1028,13 +1009,23 @@ func (*commonSuite) TestPathPatternMatch(c *C) {
 			true,
 		},
 		{
-			"/home/test/Documents/*",
-			"/home/test/Documents/foo.txt",
+			"/home/test/Documents/**/",
+			"/home/test/Documents/foo",
+			false,
+		},
+		{
+			"/home/test/Documents/**/",
+			"/home/test/Documents/foo/",
 			true,
 		},
 		{
-			"/home/test/Documents/**",
-			"/home/test/Documents/foo.txt",
+			"/home/test/Documents/**/",
+			"/home/test/Documents/foo/bar",
+			false,
+		},
+		{
+			"/home/test/Documents/**/",
+			"/home/test/Documents/foo/bar/",
 			true,
 		},
 		{
@@ -1046,11 +1037,6 @@ func (*commonSuite) TestPathPatternMatch(c *C) {
 			"/home/test/Documents/**/*.txt",
 			"/home/test/Documents/foo/bar.tar.gz",
 			false,
-		},
-		{
-			"/home/test/Documents/**",
-			"/home/test/Documents/foo/bar.tar.gz",
-			true,
 		},
 		{
 			"/home/test/Documents/**/*.gz",
@@ -1068,6 +1054,36 @@ func (*commonSuite) TestPathPatternMatch(c *C) {
 			false,
 		},
 		{
+			"/home/test/Documents/foo",
+			"/home/test/Documents/foo.txt",
+			false,
+		},
+		{
+			"/home/test/Documents/foo*",
+			"/home/test/Documents/foo.txt",
+			true,
+		},
+		{
+			"/home/test/Documents/foo?*",
+			"/home/test/Documents/foo.txt",
+			true,
+		},
+		{
+			"/home/test/Documents/foo????",
+			"/home/test/Documents/foo.txt",
+			true,
+		},
+		{
+			"/home/test/Documents/foo????*",
+			"/home/test/Documents/foo.txt",
+			true,
+		},
+		{
+			"/home/test/Documents/foo?????*",
+			"/home/test/Documents/foo.txt",
+			false,
+		},
+		{
 			"/home/test/Documents/*",
 			"/home/test/Documents/foo/bar.tar.gz",
 			false,
@@ -1076,11 +1092,6 @@ func (*commonSuite) TestPathPatternMatch(c *C) {
 			"/home/test/**",
 			"/home/test/Documents/foo/bar.tar.gz",
 			true,
-		},
-		{
-			"/home/test/*",
-			"/home/test/Documents/foo/bar.tar.gz",
-			false,
 		},
 		{
 			"/home/test/**/*.tar.gz",
@@ -1103,6 +1114,11 @@ func (*commonSuite) TestPathPatternMatch(c *C) {
 			false,
 		},
 		{
+			"/foo/bar?",
+			"/hoo/bar/",
+			false,
+		},
+		{
 			"/foo/bar/**",
 			"/foo/bar/",
 			true,
@@ -1113,9 +1129,39 @@ func (*commonSuite) TestPathPatternMatch(c *C) {
 			true,
 		},
 		{
+			"/foo/*/bar/**/baz**/fi*z/**buzz",
+			"/foo/abc/bar/baz/nm/fizz/xyzbuzz",
+			false,
+		},
+		{
 			"/foo*bar",
 			"/foobar",
 			true,
+		},
+		{
+			"/foo*bar",
+			"/fooxbar",
+			true,
+		},
+		{
+			"/foo*bar",
+			"/foo/bar",
+			false,
+		},
+		{
+			"/foo?bar",
+			"/foobar",
+			false,
+		},
+		{
+			"/foo?bar",
+			"/fooxbar",
+			true,
+		},
+		{
+			"/foo?bar",
+			"/foo/bar",
+			false,
 		},
 		{
 			"/foo/*/bar",
@@ -1198,33 +1244,18 @@ func (*commonSuite) TestPathPatternMatch(c *C) {
 			true,
 		},
 		{
+			"/foo/bar/**/*",
+			"/foo/bar/baz/",
+			true,
+		},
+		{
 			"/foo/bar/**/*/",
 			"/foo/bar/baz",
 			false,
 		},
 		{
-			"/foo/bar/**/*",
-			"/foo/bar/baz/",
-			true,
-		},
-		{
 			"/foo/bar/**/*/",
 			"/foo/bar/baz/",
-			true,
-		},
-		{
-			"/foo/bar/**/*",
-			"/foo/bar/baz/fizz",
-			true,
-		},
-		{
-			"/foo/bar/**/*/",
-			"/foo/bar/baz/fizz",
-			false,
-		},
-		{
-			"/foo/bar/**/*.txt",
-			"/foo/bar/baz.txt",
 			true,
 		},
 	}
