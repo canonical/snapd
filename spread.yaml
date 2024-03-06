@@ -1067,6 +1067,7 @@ suites:
             CPU_LOAD: '$(HOST: echo "${PERF_CPU_LOAD:-}")'
             LOAD_DURATION: '$(HOST: echo "${PERF_LOAD_DURATION:-1200}")'
             NUM_PARALLEL: '$(HOST: echo "${PERF_NUM_PARALLEL:-10}")'
+            NUM_SNAPS: '$(HOST: echo "${PERF_NUM_SNAPS:-100}")'
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m

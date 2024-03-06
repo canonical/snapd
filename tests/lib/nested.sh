@@ -69,6 +69,12 @@ nested_wait_vm_ready() {
             return 1
         fi
 
+        # Check if ssh connection can be established, and return if it is possible
+        if nested_wait_for_ssh 1 1; then
+            echo "SSH connection ready"
+            return
+        fi
+
         # Check during $limit seconds that the serial log is growing
         # shellcheck disable=SC2016
         if ! retry -n "$log_limit" --wait 1 --env serial_log="$serial_log" --env output_lines="$output_lines" \
@@ -85,12 +91,6 @@ nested_wait_vm_ready() {
             test "$(grep -c -E "Command line:.*snapd_recovery_mode=run" "$serial_log")" -le 1
         elif nested_is_core_16_system || nested_is_core_18_system; then
             test "$(grep -c -E "Command line:.*BOOT_IMAGE=\(loop\)/kernel.img" "$serial_log")" -le 1
-        fi
-
-        # Check if ssh connection can be established, and return if it is possible
-        if nested_wait_for_ssh 1 1; then
-            echo "SSH connection ready"
-            return
         fi
 
         sleep 3
