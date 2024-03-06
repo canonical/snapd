@@ -187,6 +187,7 @@ mount options=(rw, rbind) /bindfile* -> /newroot/run/host/container-manager,
 # Allow mounting Nvidia drivers into the sandbox
 mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/usr/lib/@{multiarch}/** -> /newroot/var/lib/snapd/hostfs/usr/lib/@{multiarch}/**,
 
+# Allow PV to access driver information and features necessary for some games to run
 mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/usr/share/** -> /newroot/**,
 mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/ -> /newroot/var/lib/snapd/hostfs/,
 
