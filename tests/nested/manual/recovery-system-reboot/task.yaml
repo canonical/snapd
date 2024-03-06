@@ -10,9 +10,10 @@ environment:
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
-  NESTED_REPACK_GADGET_SNAP: true
+  NESTED_REPACK_GADGET_SNAP: false
   NESTED_REPACK_KERNEL_SNAP: false
   NESTED_REPACK_BASE_SNAP: false
+  NESTED_FORCE_MS_KEYS: true
 
   MODE/recover: "recover"
   MODE/factory_reset: "factory-reset"
@@ -108,4 +109,5 @@ execute: |
   remote.exec 'snap list hello-world'
 
   remote.exec 'snap list core22' | awk 'NR != 1 { print $3 }' | MATCH '1033'
+  remote.exec 'snap list pc' | awk 'NR != 1 { print $3 }' | MATCH '145'
   remote.exec 'snap list pc-kernel' | awk 'NR != 1 { print $3 }' | MATCH '1606'
