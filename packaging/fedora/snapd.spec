@@ -102,7 +102,7 @@
 %endif
 
 Name:           snapd
-Version:        2.61.2
+Version:        2.61.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -991,6 +991,10 @@ fi
 
 
 %changelog
+* Wed Mar 06 2024 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.61.3
+ - Install systemd files in correct location for 24.04
+
 * Fri Feb 16 2024 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.61.2
  - Fix to enable plug/slot sanitization for prepare-image

@@ -1,3 +1,6 @@
+# New in snapd 2.61.3:
+* Install systemd files in correct location for 24.04
+
 # New in snapd 2.61.2:
 * Fix to enable plug/slot sanitization for prepare-image
 * Fix panic when device-service.access=offline
