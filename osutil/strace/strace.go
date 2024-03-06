@@ -48,6 +48,20 @@ func getExcludedSyscalls() string {
 // testsuites
 var ExcludedSyscalls = getExcludedSyscalls()
 
+func findStrace(u *user.User) (stracePath string, userOpts []string, err error) {
+	if path := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace"); osutil.FileExists(path) {
+		// strace-static cannot resolve usernames, pass uid/gid instead
+		return path, []string{"--uid", u.Uid, "--gid", u.Gid}, nil
+	}
+
+	stracePath, err = exec.LookPath("strace")
+	if err != nil {
+		return "", nil, fmt.Errorf("cannot find an installed strace, please try 'snap install strace-static'")
+	}
+
+	return stracePath, []string{"-u", u.Username}, nil
+}
+
 // Command returns how to run strace in the users context with the
 // right set of excluded system calls.
 func Command(extraStraceOpts []string, traceeCmd ...string) (*exec.Cmd, error) {
@@ -70,20 +84,9 @@ func Command(extraStraceOpts []string, traceeCmd ...string) (*exec.Cmd, error) {
 	// discussed.  We could use "-e trace=?syscall" but that is
 	// only available since strace 4.17 which is not even in
 	// ubutnu 17.10.
-	var userOpts []string
-	var stracePath string
-	cand := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace")
-	if osutil.FileExists(cand) {
-		stracePath = cand
-		// strace-static cannot resolve usernames, pass uid/gid instead
-		userOpts = []string{"--uid", current.Uid, "--gid", current.Gid}
-	}
-	if stracePath == "" {
-		stracePath, err = exec.LookPath("strace")
-		if err != nil {
-			return nil, fmt.Errorf("cannot find an installed strace, please try 'snap install strace-static'")
-		}
-		userOpts = []string{"-u", current.Username}
+	stracePath, userOpts, err := findStrace(current)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find an installed strace, please try 'snap install strace-static'")
 	}
 
 	args := []string{
