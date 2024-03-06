@@ -639,7 +639,7 @@ func (s *RunSuite) testSnapRunComponentHookIntegration(c *check.C, instanceKey s
 
 	expectedTarget := "snapname+comp"
 	if instanceKey != "" {
-		expectedTarget += "_" + instanceKey
+		expectedTarget = fmt.Sprintf("snapname_%s+comp", instanceKey)
 	}
 
 	// Run a hook from the active revision

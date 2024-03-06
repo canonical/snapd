@@ -1387,10 +1387,9 @@ func (app *AppInfo) EnvChain() []osutil.ExpandableEnv {
 // sometimes also as a part of the file name.
 func (hook *HookInfo) SecurityTag() string {
 	if hook.Component != nil {
-		return HookSecurityTag(SnapComponentInstanceName(
-			hook.Snap.SnapName(),
+		return HookSecurityTag(SnapComponentName(
+			hook.Snap.InstanceName(),
 			hook.Component.Name,
-			hook.Snap.InstanceKey,
 		), hook.Name)
 	}
 	return HookSecurityTag(hook.Snap.InstanceName(), hook.Name)
@@ -1637,20 +1636,15 @@ func SplitInstanceName(instanceName string) (snapName, instanceKey string) {
 // a snap component instance name. Example:
 //   - SplitSnapComponentInstanceName("snap+component_1") -> "snap_1", "component"
 func SplitSnapComponentInstanceName(name string) (snapInstance, componentName string) {
-	snapAndComponent, instanceKey := SplitInstanceName(name)
-	snapName, componentName, _ := strings.Cut(snapAndComponent, "+")
-	return InstanceName(snapName, instanceKey), componentName
+	snapInstance, componentName, _ = strings.Cut(name, "+")
+	return snapInstance, componentName
 }
 
-// SnapComponentInstanceName takes the snap name, the component name, and the
+// SnapComponentName takes the snap name, the component name, and the
 // instance key and returns an instance name of the snap component. The instance
 // key will only be included if it is not empty.
-func SnapComponentInstanceName(snapName, componentName, instanceKey string) string {
-	snapComponent := fmt.Sprintf("%s+%s", snapName, componentName)
-	if instanceKey != "" {
-		return fmt.Sprintf("%s_%s", snapComponent, instanceKey)
-	}
-	return snapComponent
+func SnapComponentName(snapInstance, componentName string) string {
+	return fmt.Sprintf("%s+%s", snapInstance, componentName)
 }
 
 // InstanceName takes the snap name and the instance key and returns an instance

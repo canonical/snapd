@@ -1114,7 +1114,7 @@ func (r *runnable) SecurityTag() string {
 // app.
 func (r *runnable) Target() string {
 	if r.component != nil {
-		return snap.SnapComponentInstanceName(r.info.SnapName(), r.component.Component.ComponentName, r.info.InstanceKey)
+		return snap.SnapComponentName(r.info.InstanceName(), r.component.Component.ComponentName)
 	}
 
 	if r.hook != nil {

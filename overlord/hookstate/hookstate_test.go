@@ -1414,7 +1414,7 @@ func (s *componentHookManagerSuite) TestComponentHookTaskEnsureInstance(c *C) {
 	defer s.state.Unlock()
 
 	c.Check(s.command.Calls(), DeepEquals, [][]string{{
-		"snap", "run", "--hook", "install", "-r", "1", "test-snap+test-component_instance",
+		"snap", "run", "--hook", "install", "-r", "1", "test-snap_instance+test-component",
 	}})
 
 	fmt.Println(s.change.Err())

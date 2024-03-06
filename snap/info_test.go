@@ -1807,7 +1807,7 @@ func (s *infoSuite) TestComponentFromSnapComponentInstance(c *C) {
 		{"snap", "snap", ""},
 		{"snap_instance", "snap_instance", ""},
 		{"snap+component", "snap", "component"},
-		{"snap+component_instance", "snap_instance", "component"},
+		{"snap_instance+component", "snap_instance", "component"},
 	}
 
 	for _, t := range tests {
@@ -1818,8 +1818,8 @@ func (s *infoSuite) TestComponentFromSnapComponentInstance(c *C) {
 }
 
 func (s *infoSuite) TestSnapComponentInstanceName(c *C) {
-	c.Check(snap.SnapComponentInstanceName("snap", "component", ""), Equals, "snap+component")
-	c.Check(snap.SnapComponentInstanceName("snap", "component", "instance"), Equals, "snap+component_instance")
+	c.Check(snap.SnapComponentName("snap", "component"), Equals, "snap+component")
+	c.Check(snap.SnapComponentName("snap_instance", "component"), Equals, "snap_instance+component")
 }
 
 func (s *infoSuite) TestIsActive(c *C) {
@@ -2367,7 +2367,7 @@ hooks:
 
 	componentHook := component.ExplicitHooks["install"]
 	c.Assert(componentHook, NotNil)
-	c.Check(componentHook.SecurityTag(), Equals, "snap.test-snap+test-component_instance.hook.install")
+	c.Check(componentHook.SecurityTag(), Equals, "snap.test-snap_instance+test-component.hook.install")
 
 	hook := info.Hooks["install"]
 	c.Assert(hook, NotNil)

@@ -110,9 +110,7 @@ func (c *Context) HookSource() string {
 		return c.setup.Snap
 	}
 
-	snapName, instanceKey := snap.SplitInstanceName(c.setup.Snap)
-
-	return snap.SnapComponentInstanceName(snapName, c.setup.Component, instanceKey)
+	return snap.SnapComponentName(c.setup.Snap, c.setup.Component)
 }
 
 // IsComponentHook returns true if this context is associated with a component
