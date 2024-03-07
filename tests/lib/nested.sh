@@ -1640,3 +1640,25 @@ nested_wait_for_device_initialized_change() {
         sleep "$wait"
     done
 }
+
+nested_check_spread_results() {
+    SPREAD_LOG=$1
+    if [ -z "$SPREAD_LOG" ]; then
+        return 1
+    fi
+
+    if grep -eq "Successful tasks:" "$SPREAD_LOG"; then
+        if grep -E "Failed (task|suite|project)" "$SPREAD_LOG"; then
+            return 1
+        fi
+        if ! grep -eq "Aborted tasks: 0" "$SPREAD_LOG"; then
+            return 1
+        fi
+
+        if [ "$EXIT_STATUS" = "0" ]; then
+            return 0
+        fi    
+    else
+        return 1
+    fi
+}

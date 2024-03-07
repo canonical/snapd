@@ -34,7 +34,7 @@ execute: |
             fi
             PARAMS=""
             if echo "$CHANNEL_INFO" | MATCH "$CHANNEL:.*-$"; then
-                snap install "$SNAP" "--$CHANNEL"
+                snap install --no-wait "$SNAP" "--$CHANNEL"
             elif echo "$CHANNEL_INFO" | MATCH "$CHANNEL:.*classic$"; then
                 if "$TESTSTOOLS"/snaps-state is-confinement-supported classic; then
                     PARAMS="--classic"
@@ -51,7 +51,7 @@ execute: |
                 continue
             fi
             
-            if snap install "$SNAP" --$CHANNEL $PARAMS 2> stderr.out; then
+            if snap install --no-wait "$SNAP" --$CHANNEL $PARAMS 2> stderr.out; then
                 INSTALLED=$(( INSTALLED + 1 ))
             else 
                 # this could cause the failure https://bugs.launchpad.net/snapstore-server/+bug/2049071
@@ -62,7 +62,14 @@ execute: |
                 echo "already $NUM_SNAPS installed, now check other features"
                 break
             fi
-        done        
+        done
+    done
+
+    while true; do
+        if snap changes | NOMATCH " Doing.*Install \".*\" snap"; then
+            break
+        fi
+        sleep 1        
     done
 
     snap refresh
