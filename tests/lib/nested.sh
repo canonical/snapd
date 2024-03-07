@@ -402,7 +402,8 @@ nested_refresh_to_new_core() {
 
 nested_get_snakeoil_key() {
     local KEYNAME="PkKek-1-snakeoil"
-    local VERSION="$(nested_get_version)"
+    local VERSION
+    VERSION="$(nested_get_version)"
     wget -q https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/"$VERSION"/snakeoil/"$KEYNAME".key
     wget -q https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/"$VERSION"/snakeoil/"$KEYNAME".pem
     echo "$KEYNAME"

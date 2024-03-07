@@ -789,7 +789,7 @@ uc24_build_initramfs_kernel_snap() {
     local ORIG_SNAP="$1"
     local TARGET="$2"
 
-    unsquashfs -d pc-kernel $ORIG_SNAP
+    unsquashfs -d pc-kernel "$ORIG_SNAP"
     objcopy -O binary -j .initrd pc-kernel/kernel.efi initrd.img
 
     unmkinitramfs initrd.img initrd
@@ -814,6 +814,7 @@ uc24_build_initramfs_kernel_snap() {
           usr/lib/systemd/boot/efi/linuxx64.efi.stub \
           pc-kernel/kernel.efi
 
+    #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
     KEY_NAME=$(nested_get_snakeoil_key)
 
@@ -1355,6 +1356,8 @@ EOF
         # test user
         setup_core_for_testing_by_modify_writable "$UNPACK_DIR"
     fi
+
+    #sed -i "1a set debug=all,-vfat,-fat" /mnt/EFI/ubuntu/grub.cfg
 
     # unmount the partition we just modified and delete the image's loop devices
     umount /mnt
