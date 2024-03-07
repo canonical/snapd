@@ -427,7 +427,7 @@ jobs:
             systems: 'ubuntu-core-22-64'
           - group: ubuntu-core-24
             backend: google
-            systems: 'ubuntu-core-22-64'
+            systems: 'ubuntu-core-24-64'
           - group: ubuntu-arm
             backend: google-arm
             systems: 'ubuntu-20.04-arm-64 ubuntu-core-22-arm-64'
