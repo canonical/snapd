@@ -75,24 +75,26 @@ aspects:
         request: private.{placeholder}
         storage: wifi.{placeholder}
 timestamp: 2024-02-09T17:11:32Z
-body-length: 63
+body-length: 92
 sign-key-sha3-384: EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
 
 {
-  "schema": {
-    "wifi": {
-      "values": "any"
+  "storage": {
+    "schema": {
+      "wifi": {
+        "values": "any"
+      }
     }
   }
 }
 
-AcLBUgQAAQoABgUCZecNIwAAyxMQAGApyR/4d+rzjYDGrjZIXjJ9MovgqRlYVsF6w0ytEWh6jgGT
-1FQGz27wDpjZmxJmMatPxmFjNR8MKsMgP9hW/foqYE/SIkN5heLTUdghecUlxs+9DFBBrBFMrAxC
-jiSJSCEY/QYY89NP82QnzRDFW8i1OAtsof0hjW2ChYLjS9zq9GhHibFzobD4haMIS6vKpLnrV57A
-Mdbz46fArg8eG6+z3f4u9HlXjvY0l8SOsBE4GHIktFTx0VJYiVgVdtpLiXn66z4gzJUrhwH+HD9Z
-ELGwVYQAoHqWwd4PAiXyoV9L3LmPUe1HE8MjAZy8l/JKfcMEJgGlf6ht/LvSxMtdBD197GAJLblV
-Mlpk80xqFSNtOStWmZlSDmRQzfUkFAmA4IYz09pJ06S3oZ//jLQhRCULKIf5v7KASP9gZhEnndbr
-5GsEWjbB8J/XNJm0I3VuyEEGzNMK2xMYq8z1FyfnJRvLJcQlzRUXsO5NlMX7Qa75O8021lqIR2bR
-6gwYVGXjczt1VFZ3ygiV/hPVLjkGfU/FgqeVe5IXdpMpHzx7z8C4ml+EYtc7Ye0YoQ2plFNCqLjH
-2TACLBfx6XF3qIRem4+mR4hLAvUiiCedIlLlk9/EKRutKz6FNhwrFWfIck5HXUTMUdQzrWV7azcv
-bJS3bgWX4umx43KgkuHdyJ9YoecV
+AcLBUgQAAQoABgUCZen+ywAA8mAQADL8tlQHe2QKIqK7Mt3CkXfAOsG8lRoTOulPIzctYpJu7XOG
+kFW1BGrRPwDZSKFf4qZXwO0SH4QbuQ4ykuw1qMO+JTFTmUcEw5JLrdSrGG21fGaZjfK/XXVsmUXA
+d1IzGTa3PYWwBptt1x4D1f/mXidxt26e8WBWzNJ1eih9q5XeOsvXuA7r4ekGjHr2epkNE8TO1wc6
+7j4QDs3KvN/jz6ivtH+fV9jY+23cVO1L45k+Odwgh/O0/hQIg9VxPZYvQIJi8FQTQabFJ1ncRdwp
+kZjP/Az053D8IuQLecFRJ7vpa2/plbtg1qLm/ptnGEmPa1szehJfH4tLjQXXukjwuTTryVjv+525
+OQYXHCcdtmqhh/0u2AAXz7VJj0M3sxCzBX16nEbSB0oErBSBrBFGl41htCzByFp3lGSkCSYVqwSH
++8oMyp7ucu3EQyaIt/qLPvgFP1pXABFi9ho2b4hRxojbsMvZs/cuLDhUCA86qQ2UmG/yinPH88JV
+xTumdsfzOUy+NjVe5x8Ag/VBEEHLNpM1mXFR8k3C85eh81EzSGPjXIOALM3z+xIV3jKQ3SFoSmjX
+M550G/Vagy2H/ue+vzqltawuJ+iInIcjXs5jhHNH6ekcfvaRciKHov1RayhQ2+D2mzVOUBKSkO64
+yTDDkGYoI+VuKP/pFxiZZ1gBIOh+

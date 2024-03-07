@@ -69,7 +69,7 @@ aspects:
         storage: wifi.{key}
 ` + "TSLINE" +
 		"sign-key-sha3-384: jv8_jihiizjvco9m55ppdqsdwuvuhfdibjus-3vw7f_idjix7ffn5qmxb21zquij\n" +
-		"body-length: 84" +
+		"body-length: 115" +
 		"\n\n" +
 		schema +
 		"\n\n" +
@@ -77,10 +77,12 @@ aspects:
 )
 
 const schema = `{
-  "schema": {
-    "wifi": {
-      "type": "map",
-      "values": "any"
+  "storage": {
+    "schema": {
+      "wifi": {
+        "type": "map",
+        "values": "any"
+      }
     }
   }
 }`
@@ -123,7 +125,8 @@ func (s *aspectBundleSuite) TestDecodeInvalid(c *C) {
 		{"read-write", "update", `cannot define aspect "wifi-setup": cannot create aspect rule:.*`},
 		{body, "body-length: 0", `body must contain aspect schema`},
 		{body, "body-length: 8\n\n  - foo\n", `invalid schema: invalid character ' ' in numeric literal`},
-		{body, "body-length: 2\n\n{}", `invalid schema: cannot parse top level schema: must have a "schema" constraint`},
+		{body, "body-length: 2\n\n{}", `body must contain a "storage" stanza`},
+		{body, "body-length: 14\n\n{\"storage\":{}}", `invalid schema: cannot parse top level schema: must have a "schema" constraint`},
 	}
 
 	for _, test := range invalidTests {
@@ -137,9 +140,9 @@ func (s *aspectBundleSuite) TestDecodeFormatsSchema(c *C) {
 	encoded := strings.Replace(aspectBundleExample, "TSLINE", s.tsLine, 1)
 
 	body := encoded[strings.Index(encoded, "body-length:"):strings.Index(encoded, "\n\nAXN")]
-	compactBody := `body-length: 49
+	compactBody := `body-length: 61
 
-{"schema":{"wifi":{"type":"map","values":"any"}}}`
+{"storage":{"schema":{"wifi":{"type":"map","values":"any"}}}}`
 	input := strings.Replace(encoded, body, compactBody, 1)
 	a, err := asserts.Decode([]byte(input))
 	c.Assert(err, IsNil)
@@ -147,7 +150,7 @@ func (s *aspectBundleSuite) TestDecodeFormatsSchema(c *C) {
 
 }
 
-func (s *aspectBundleSuite) TestAssembleAndSIgnFormatsSchema(c *C) {
+func (s *aspectBundleSuite) TestAssembleAndSignFormatsSchema(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "brand-id1",
 		"account-id":   "brand-id1",
@@ -159,10 +162,10 @@ func (s *aspectBundleSuite) TestAssembleAndSIgnFormatsSchema(c *C) {
 				},
 			},
 		},
-		"body-length": "49",
+		"body-length": "60",
 		"timestamp":   s.ts.Format(time.RFC3339),
 	}
-	acct1, err := asserts.AssembleAndSignInTest(asserts.AspectBundleType, headers, []byte(`{"schema":{"wifi":{"type":"map","values":"any"}}}`), testPrivKey0)
+	acct1, err := asserts.AssembleAndSignInTest(asserts.AspectBundleType, headers, []byte(`{"storage":{"schema":{"wifi":{"type":"map","values":"any"}}}}`), testPrivKey0)
 	c.Assert(err, IsNil)
 	c.Assert(string(acct1.Body()), Equals, schema)
 }

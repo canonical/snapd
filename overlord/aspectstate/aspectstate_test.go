@@ -90,17 +90,19 @@ func (s *aspectTestSuite) SetUpTest(c *C) {
 		"timestamp": "2030-11-06T09:16:26Z",
 	}
 	body := []byte(`{
-	"schema": {
-		"wifi" : {
-			"schema": {
-				"ssids": {"type": "array", "values": "any"},
-				"ssid": "string",
-				"psk": "string",
-				"status":"string"
+	"storage": {
+		"schema": {
+			"wifi" : {
+				"schema": {
+					"ssids": {"type": "array", "values": "any"},
+					"ssid": "string",
+					"psk": "string",
+					"status":"string"
+				}
+			},
+			"private": {
+				"values": "any"
 			}
-		},
-		"private": {
-			"values": "any"
 		}
 	}
 }`)

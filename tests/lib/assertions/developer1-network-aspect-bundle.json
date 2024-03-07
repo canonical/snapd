@@ -14,6 +14,6 @@
 			]
 		}
 	},
-	"body": "{ \"schema\": { \"wifi\" : { \"values\": \"any\" } } }",
+	"body": "{\"storage\": { \"schema\": { \"wifi\" : { \"values\": \"any\" } } } }",
 	"timestamp": "2024-02-09T17:11:32Z"
 }

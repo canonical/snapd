@@ -5148,7 +5148,7 @@ func (s *assertMgrSuite) TestAspectBundle(c *C) {
 			},
 		},
 	},
-		`{"schema": {"a": "string", "b": "string"}}`,
+		`{"storage": {"schema": {"a": "string", "b": "string"}}}`,
 	)
 	err = assertstate.Add(s.state, aspectBundleFoo)
 	c.Assert(err, IsNil)
