@@ -35,7 +35,7 @@ execute: |
 
     echo "Check that a simple shell snap"
     if os.query is-core22 || os.query is-core24; then
-        snap install --edge "test-snapd-sh-22"
+        snap install --edge "test-snapd-sh-core22"
     else
         snap install "test-snapd-sh-${base_snap}"
     fi

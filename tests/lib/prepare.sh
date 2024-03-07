@@ -1123,11 +1123,21 @@ EOF
         if os.query is-core24; then
             # TODO: remove this once pc snap is available in beta channel
             snap download --basename=pc --channel="${BRANCH}/edge" pc
+            # TODO: remove this once 24/edge channel is fixed
+            snap download --basename=pc-23 --channel="classic-23.10/edge" pc
         else
             snap download --basename=pc --channel="${BRANCH}/${KERNEL_CHANNEL}" pc
         fi
         test -e pc.snap
+
         unsquashfs -d pc-gadget pc.snap
+        # TODO: remove this once 24/edge channel is fixed
+        if os.query is-core24; then
+            unsquashfs -d pc-gadget-23 pc-23.snap
+            cp pc-gadget-23/shim.efi.signed pc-gadget/shim.efi.signed
+            cp pc-gadget-23/grubx64.efi pc-gadget/grubx64.efi
+            rm -r pc-gadget-23 pc-23.{snap,assert}
+        fi
         
         # TODO: it would be desirable when we need to do in-depth debugging of
         # UC20 runs in google to have snapd.debug=1 always on the kernel command
@@ -1350,7 +1360,7 @@ EOF
     umount /mnt
     kpartx -d "$IMAGE_HOME/$IMAGE"
 
-    if os.query is-core16 || os.query is-core18; then
+    if os.query is-core16; then
         # the reflash magic
         # FIXME: ideally in initrd, but this is good enough for now
         cat > "$IMAGE_HOME/reflash.sh" << EOF
@@ -1496,6 +1506,7 @@ prepare_ubuntu_core() {
             cache_snaps test-snapd-sh-core22
         fi
         if os.query is-core24; then
+            # TODO: move to test-snapd-sh-core24
             cache_snaps test-snapd-sh-core22
         fi
     fi
