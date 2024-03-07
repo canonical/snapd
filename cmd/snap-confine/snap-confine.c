@@ -658,6 +658,33 @@ static bool is_device_cgroup_self_managed(const sc_invocation *inv)
 	return sc_streq(self_managed_value, "true");
 }
 
+static sc_device_cgroup_mode device_cgroup_mode_for_snap(sc_invocation *inv)
+{
+    /** Conditionally create, populate and join the device cgroup. */
+	sc_device_cgroup_mode mode = SC_DEVICE_CGROUP_MODE_REQUIRED;
+
+	/* Preserve the legacy behavior of no default device cgroup for snaps
+	 * using one of the following bases. Snaps using core24 and later bases
+	 * will be placed within a device cgroup. Note that 'bare' base is also
+	 * subject to the new behavior. */
+	const char *non_required_cgroup_bases[] = {
+		"core", "core16", "core18", "core20", "core22",
+		NULL,
+	};
+	for (const char **non_required_on_base =
+	     non_required_cgroup_bases; *non_required_on_base != NULL;
+	     non_required_on_base++) {
+		if (sc_streq(inv->base_snap_name, *non_required_on_base)) {
+			debug
+			    ("device cgroup not required due to base %s",
+			     *non_required_on_base);
+			mode = SC_DEVICE_CGROUP_MODE_OPTIONAL;
+			break;
+		}
+	}
+	return mode;
+}
+
 static void enter_non_classic_execution_environment(sc_invocation *inv,
 						    struct sc_apparmor *aa,
 						    uid_t real_uid,
@@ -686,29 +713,7 @@ static void enter_non_classic_execution_environment(sc_invocation *inv,
 	// Set up a device cgroup, unless the snap has been allowed to manage the
 	// device cgroup by itself.
 	if (!is_device_cgroup_self_managed(inv)) {
-		/** Conditionally create, populate and join the device cgroup. */
-		sc_device_cgroup_mode mode = SC_DEVICE_CGROUP_MODE_REQUIRED;
-
-		/* Preserve the legacy behavior of no default device cgroup for snaps
-		 * using one of the following bases. Snaps using core24 and later bases
-		 * will be placed within a device cgroup. Note that 'bare' base is also
-		 * subject to the new behavior. */
-		const char *non_required_cgroup_bases[] = {
-			"core", "core16", "core18", "core20", "core22",
-			NULL,
-		};
-		for (const char **non_required_on_base =
-		     non_required_cgroup_bases; *non_required_on_base != NULL;
-		     non_required_on_base++) {
-			if (sc_streq
-			    (inv->base_snap_name, *non_required_on_base)) {
-				debug
-				    ("device cgroup not required due to base %s",
-				     *non_required_on_base);
-				mode = SC_DEVICE_CGROUP_MODE_OPTIONAL;
-				break;
-			}
-		}
+		sc_device_cgroup_mode mode = device_cgroup_mode_for_snap(inv);
 		sc_setup_device_cgroup(inv->security_tag, mode);
 	} else {
 		debug("device cgroup is self-managed by the snap");
