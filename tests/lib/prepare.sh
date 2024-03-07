@@ -1357,8 +1357,6 @@ EOF
         setup_core_for_testing_by_modify_writable "$UNPACK_DIR"
     fi
 
-    #sed -i "1a set debug=all,-vfat,-fat" /mnt/EFI/ubuntu/grub.cfg
-
     # unmount the partition we just modified and delete the image's loop devices
     umount /mnt
     kpartx -d "$IMAGE_HOME/$IMAGE"
