@@ -684,7 +684,7 @@ jobs:
               SPREAD=spread-arm
           fi
 
-          RUN_TESTS="$BACKEND:${{ matrix.system }}:tests/nested/..."
+          RUN_TESTS="$BACKEND:${{ matrix.system }}:tests/nested/manual/ $BACKEND:${{ matrix.system }}:tests/nested/core/ $BACKEND:${{ matrix.system }}:tests/nested/classic/"
           if [ -n "$FAILED_TESTS" ]; then
               RUN_TESTS="$FAILED_TESTS"
           fi
