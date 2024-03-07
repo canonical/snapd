@@ -11,7 +11,7 @@ systems:
   - -*-s390x
 
 environment:
-    STRACE_STATIC_CHANNEL: edge
+    STRACE_STATIC_CHANNEL: candidate
   
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local basic-run
