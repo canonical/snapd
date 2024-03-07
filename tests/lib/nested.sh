@@ -174,19 +174,24 @@ nested_uc20_transition_to_system_mode() {
 }
 
 nested_prepare_ssh() {
-    remote.exec "sudo adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test"
-    remote.exec "echo test:ubuntu | sudo chpasswd"
+    if nested_is_core_ge 24; then
+        remote.exec "sudo useradd --uid 12345 --extrausers test"
+        remote.exec "sudo useradd --extrausers external"
+    else 
+        remote.exec "sudo adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test"
+        remote.exec "sudo adduser --extrausers --quiet --disabled-password --gecos '' external"
+    fi
+
+    remote.exec "echo test:ubuntu123 | sudo chpasswd"
     remote.exec "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test"
     # Check we can connect with the new test user and make sudo
-    remote.exec --user test --pass ubuntu "sudo true"
+    remote.exec --user test --pass ubuntu123 "sudo true"
 
-    remote.exec "sudo adduser --extrausers --quiet --disabled-password --gecos '' external"
-    remote.exec "echo external:ubuntu | sudo chpasswd"
+    remote.exec "echo external:ubuntu123 | sudo chpasswd"
     remote.exec "echo 'external ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-external"
     # Check we can connect with the new external user and make sudo
-    remote.exec --user external --pass ubuntu "sudo true"
+    remote.exec --user external --pass ubuntu123 "sudo true"
 }
-
 
 nested_is_kvm_enabled() {
     if [ -n "$NESTED_ENABLE_KVM" ]; then
