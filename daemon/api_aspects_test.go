@@ -252,7 +252,7 @@ func (s *aspectsSuite) testAspectSetMany(c *C) {
 			bag := aspects.NewJSONDataBag()
 			err := bag.Set("wifi.ssid", "foo")
 			c.Check(err, IsNil)
-			err = bag.Set("wifi.psk", nil)
+			err = bag.Unset("wifi.psk")
 			c.Check(err, IsNil)
 
 			st.Set("aspect-databags", map[string]map[string]aspects.JSONDataBag{account: {bundle: bag}})
