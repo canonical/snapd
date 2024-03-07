@@ -134,6 +134,70 @@ func (a *SnapAppSet) SlotLabelExpression(slot *ConnectedSlot) string {
 	return labelExpr(apps, hooks, info)
 }
 
+// RunnableType is an enumeration of the different types of runnables that can
+// be present in a snap.
+type RunnableType int
+
+const (
+	RunnableApp RunnableType = iota
+	RunnableHook
+	RunnableComponentHook
+)
+
+// Runnable represents a runnable element of a snap.
+type Runnable struct {
+	// CommandName is the name of the command that is run when this runnable
+	// runs.
+	CommandName string
+	// SecurityTag is the security tag associated with the runnable. Security
+	// tags are used by various security subsystems as "profile names" and
+	// sometimes also as a part of the file name.
+	SecurityTag string
+	// Type is the type of the runnable, either an app, a hook, or a component
+	// hook.
+	Type RunnableType
+}
+
+// Runnables returns a list of all runnables known by the app set.
+func (a *SnapAppSet) Runnables() []Runnable {
+	var runnables []Runnable
+
+	for _, app := range a.info.Apps {
+		runnables = append(runnables, Runnable{
+			CommandName: app.Name,
+			SecurityTag: app.SecurityTag(),
+			Type:        RunnableApp,
+		})
+	}
+
+	for _, hook := range a.info.Hooks {
+		runnables = append(runnables, Runnable{
+			CommandName: fmt.Sprintf("hook.%s", hook.Name),
+			SecurityTag: hook.SecurityTag(),
+			Type:        RunnableHook,
+		})
+	}
+
+	for _, component := range a.components {
+		for _, hook := range component.Hooks {
+			runnables = append(runnables, Runnable{
+				CommandName: fmt.Sprintf("%s.hook.%s", component.Component, hook.Name),
+				SecurityTag: hook.SecurityTag(),
+				Type:        RunnableComponentHook,
+			})
+		}
+	}
+
+	sort.Slice(runnables, func(i, j int) bool {
+		if runnables[i].Type != runnables[j].Type {
+			return runnables[i].Type < runnables[j].Type
+		}
+		return runnables[i].CommandName < runnables[j].CommandName
+	})
+
+	return runnables
+}
+
 // labelExpr returns the specification of the apparmor label describing given
 // apps and hooks. The result has one of three forms, depending on how apps are
 // bound to the slot:
