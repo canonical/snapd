@@ -88,6 +88,5 @@ execute: |
 
     echo "Then all user data and root data is gone"
     for h in "${homes[@]}"; do
-        test ! -e "${h}snap/test-snapd-sh/$new_rev/mock-data"
-        test ! -e "${h}snap/test-snapd-sh/$rev/mock-data"
+        test ! -e "${h}snap/test-snapd-sh"
     done

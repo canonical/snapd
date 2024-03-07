@@ -212,6 +212,9 @@ apps:
   kernel-crypto-api:
     command: bin/run
     plugs: [ kernel-crypto-api ]
+  kernel-firmware-control:
+    command: bin/run
+    plugs: [ kernel-firmware-control ]
   kernel-module-control:
     command: bin/run
     plugs: [ kernel-module-control ]
@@ -425,6 +428,9 @@ apps:
   snap-themes-control:
     command: bin/run
     plugs: [ snap-themes-control ]
+  snap-refresh-observe:
+    command: bin/run
+    plugs: [ snap-refresh-observe ]
   service-watchdog:
     command: bin/run
     plugs: [ daemon-notify ]

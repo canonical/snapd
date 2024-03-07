@@ -283,7 +283,15 @@ prepare_project() {
 
     # declare the "quiet" wrapper
 
-    if [ "$SPREAD_BACKEND" = external ]; then
+    if [ "$SPREAD_BACKEND" = "external" ]; then
+        chown test.test -R "$PROJECT_PATH"
+        exit 0
+    fi
+
+    if [ "$SPREAD_BACKEND" = "testflinger" ]; then
+        adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test
+        echo test:ubuntu | sudo chpasswd
+        echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test
         chown test.test -R "$PROJECT_PATH"
         exit 0
     fi

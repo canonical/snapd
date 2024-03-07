@@ -100,6 +100,12 @@ func (n *Notice) UserID() (userID uint32, isSet bool) {
 	return flattenUserID(n.userID)
 }
 
+// Type returns the notice type which represents a group of notices
+// originating from a common source.
+func (n *Notice) Type() NoticeType {
+	return n.noticeType
+}
+
 func flattenUserID(userID *uint32) (uid uint32, isSet bool) {
 	if userID == nil {
 		return 0, false

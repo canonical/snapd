@@ -64,7 +64,7 @@ func MockCgroupSnapNameFromPid(new func(pid int) (string, error)) (restore func(
 
 var RequireInterfaceApiAccessImpl = requireInterfaceApiAccessImpl
 
-func MockRequireInterfaceApiAccess(new func(d *Daemon, ucred *ucrednet, interfaceName string) *apiError) (restore func()) {
+func MockRequireInterfaceApiAccess(new func(d *Daemon, r *http.Request, ucred *ucrednet, interfaceName string) *apiError) (restore func()) {
 	old := requireInterfaceApiAccess
 	requireInterfaceApiAccess = new
 	return func() {

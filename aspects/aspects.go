@@ -56,7 +56,7 @@ func newAccessType(access string) (accessType, error) {
 		}
 	}
 
-	return readWrite, fmt.Errorf("expected 'access' to be one of %s but was %q", strutil.Quoted(accessTypeStrings), access)
+	return readWrite, fmt.Errorf("expected 'access' to be either %s or empty but was %q", strutil.Quoted(accessTypeStrings), access)
 }
 
 type NotFoundError struct {
@@ -218,71 +218,36 @@ func NewBundle(account string, bundleName string, aspects map[string]interface{}
 
 func newAspect(bundle *Bundle, name string, aspectRules []interface{}) (*Aspect, error) {
 	aspect := &Aspect{
-		Name:        name,
-		aspectRules: make([]*aspectRule, 0, len(aspectRules)),
-		bundle:      bundle,
+		Name:   name,
+		rules:  make([]*aspectRule, 0, len(aspectRules)),
+		bundle: bundle,
 	}
 
-	readRequests := make(map[string]bool)
 	for _, ruleRaw := range aspectRules {
-		aspectRule, ok := ruleRaw.(map[string]interface{})
-		if !ok {
-			return nil, errors.New("each aspect rule should be a map")
-		}
-
-		requestRaw, ok := aspectRule["request"]
-		if !ok || requestRaw == "" {
-			return nil, errors.New(`aspect rules must have a "request" field`)
-		}
-
-		request, ok := requestRaw.(string)
-		if !ok {
-			return nil, errors.New(`"request" must be a string`)
-		}
-
-		storageRaw, ok := aspectRule["storage"]
-		if !ok || storageRaw == "" {
-			return nil, errors.New(`aspect rules must have a "storage" field`)
-		}
-
-		storage, ok := storageRaw.(string)
-		if !ok {
-			return nil, errors.New(`"storage" must be a string`)
-		}
-
-		if err := validateRequestStoragePair(request, storage); err != nil {
-			return nil, err
-		}
-
-		accessRaw, ok := aspectRule["access"]
-		var access string
-		if ok {
-			access, ok = accessRaw.(string)
-			if !ok {
-				return nil, errors.New(`"access" must be a string`)
-			}
-		}
-
-		switch access {
-		case "read", "read-write", "":
-			if readRequests[request] {
-				return nil, fmt.Errorf(`cannot have several reading rules with the same "request" field`)
-			}
-			readRequests[request] = true
-		}
-
-		rule, err := newAspectRule(request, storage, access)
+		rules, err := parseRule(nil, ruleRaw)
 		if err != nil {
 			return nil, err
 		}
 
-		aspect.aspectRules = append(aspect.aspectRules, rule)
+		aspect.rules = append(aspect.rules, rules...)
+	}
+
+	readRequests := make(map[string]bool)
+	for _, rule := range aspect.rules {
+		switch rule.access {
+		case read, readWrite:
+			if readRequests[rule.originalRequest] {
+				return nil, fmt.Errorf(`cannot have several reading rules with the same "request" field`)
+			}
+
+			readRequests[rule.originalRequest] = true
+		}
 	}
 
 	// check that the rules matching a given request can be satisfied with some
 	// data type (otherwise, no data can ever be written there)
 	pathToRules := make(map[string][]*aspectRule)
-	for _, rule := range aspect.aspectRules {
+	for _, rule := range aspect.rules {
 		// TODO: once the paths support list index placeholders, also add mapping
 		// for the prefixes of each path and their implied types (Map or Array)
 		path := rule.originalRequest
@@ -296,6 +261,75 @@ func newAspect(bundle *Bundle, name string, aspectRules []interface{}) (*Aspect,
 	}
 
 	return aspect, nil
+}
+
+func parseRule(parent *aspectRule, ruleRaw interface{}) ([]*aspectRule, error) {
+	ruleMap, ok := ruleRaw.(map[string]interface{})
+	if !ok {
+		return nil, errors.New("each aspect rule should be a map")
+	}
+
+	requestRaw, ok := ruleMap["request"]
+	if !ok || requestRaw == "" {
+		return nil, errors.New(`aspect rules must have a "request" field`)
+	}
+
+	request, ok := requestRaw.(string)
+	if !ok {
+		return nil, errors.New(`"request" must be a string`)
+	}
+
+	storageRaw, ok := ruleMap["storage"]
+	if !ok || storageRaw == "" {
+		return nil, errors.New(`aspect rules must have a "storage" field`)
+	}
+
+	storage, ok := storageRaw.(string)
+	if !ok {
+		return nil, errors.New(`"storage" must be a string`)
+	}
+
+	if err := validateRequestStoragePair(request, storage); err != nil {
+		return nil, err
+	}
+
+	accessRaw, ok := ruleMap["access"]
+	var access string
+	if ok {
+		access, ok = accessRaw.(string)
+		if !ok {
+			return nil, errors.New(`"access" must be a string`)
+		}
+	}
+
+	if parent != nil {
+		request = parent.originalRequest + "." + request
+		storage = parent.originalStorage + "." + storage
+	}
+
+	rule, err := newAspectRule(request, storage, access)
+	if err != nil {
+		return nil, err
+	}
+
+	rules := []*aspectRule{rule}
+	if contentRaw, ok := ruleMap["content"]; ok {
+		contentRulesRaw, ok := contentRaw.([]interface{})
+		if !ok || len(contentRulesRaw) == 0 {
+			return nil, fmt.Errorf(`"content" must be a non-empty list`)
+		}
+
+		for _, contentRule := range contentRulesRaw {
+			nestedRules, err := parseRule(rule, contentRule)
+			if err != nil {
+				return nil, err
+			}
+
+			rules = append(rules, nestedRules...)
+		}
+	}
+
+	return rules, nil
 }
 
 // validateRequestStoragePair checks that:
@@ -390,9 +424,9 @@ func (d *Bundle) Aspect(aspect string) *Aspect {
 
 // Aspect carries access rules for a particular aspect in a bundle.
 type Aspect struct {
-	Name        string
-	aspectRules []*aspectRule
-	bundle      *Bundle
+	Name   string
+	rules  []*aspectRule
+	bundle *Bundle
 }
 
 type expandedMatch struct {
@@ -517,7 +551,7 @@ func (a *Aspect) Unset(databag DataBag, request string) error {
 func (a *Aspect) matchWriteRequest(request string) ([]requestMatch, error) {
 	var matches []requestMatch
 	subkeys := strings.Split(request, ".")
-	for _, rule := range a.aspectRules {
+	for _, rule := range a.rules {
 		placeholders, suffixParts, ok := rule.match(subkeys)
 		if !ok {
 			continue
@@ -951,7 +985,7 @@ func (a *Aspect) matchGetRequest(request string) (matches []requestMatch, err er
 		subkeys = strings.Split(request, ".")
 	}
 
-	for _, rule := range a.aspectRules {
+	for _, rule := range a.rules {
 		placeholders, restSuffix, ok := rule.match(subkeys)
 		if !ok {
 			continue
