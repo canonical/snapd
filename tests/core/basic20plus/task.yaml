@@ -13,7 +13,8 @@ systems:
 execute: |
     case "$SPREAD_SYSTEM" in
       ubuntu-core-24-*)
-        base_snap=core24
+        # TODO: update this to core24 when test-snapd-sh-core24 is published
+        base_snap=core22
         ;;
       ubuntu-core-22-*)
         base_snap=core22

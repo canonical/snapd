@@ -29,7 +29,7 @@ execute: |
         umount /boot/efi
         umount /boot/grub
       fi
-    elif os.query is-core20 || os.query is-core22; then
+    elif os.query is-core-ge 20; then
       # TODO:UC20 The property of having to keep a mounted vfat at all time
       # is not the most fortunate. Any power loss will result in a dirty
       # filesystem. Could ubuntu-seed be re-mounted read-only at some point

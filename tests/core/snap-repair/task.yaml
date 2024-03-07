@@ -1,5 +1,9 @@
 summary: Ensure that snap-repair works on Ubuntu Core
 
+details: |
+    Checks the `snap repair` command is able repair the
+    system and the repairs are lister properly.
+
 environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
     STORE_ADDR: localhost:11028
@@ -53,6 +57,9 @@ execute: |
         elif os.query is-core22; then
             REPAIR_SCRIPT=uc22-run.sh
             REPAIR_JSON=uc22-run.json
+        elif os.query is-core24; then
+            REPAIR_SCRIPT=uc24-run.sh
+            REPAIR_JSON=uc24-run.json
         fi
 
         fakestore new-repair --dir "$BLOB_DIR" "$REPAIR_SCRIPT" --repair-json="$PWD/$REPAIR_JSON"
@@ -115,7 +122,7 @@ execute: |
 
         # on UC20 we also check that repair assertions scoped to recover mode 
         # work too
-        if os.query is-core20 || os.query is-core22; then
+        if os.query is-core-ge 20; then
             transition_to_recover_mode ""
         fi
     elif [ "$SPREAD_REBOOT" == "1" ]; then
@@ -129,6 +136,8 @@ execute: |
             fakestore new-repair --dir "$BLOB_DIR" uc20-recover.sh --repair-json="$PWD/uc20-recover.json"
         elif os.query is-core22; then
             fakestore new-repair --dir "$BLOB_DIR" uc22-recover.sh --repair-json="$PWD/uc22-recover.json"
+        elif os.query is-core24; then
+            fakestore new-repair --dir "$BLOB_DIR" uc24-recover.sh --repair-json="$PWD/uc24-recover.json"
         fi
 
         "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
