@@ -630,8 +630,6 @@ func (s *partitionTestSuite) TestRemovePartitionsWithDeviceRescan(c *C) {
 	err = os.WriteFile(filepath.Join(devPath, "device", "rescan"), nil, 0755)
 	c.Assert(err, IsNil)
 
-	fmt.Println("wrote", devPath)
-
 	restore := disks.MockDeviceNameToDiskMapping(m)
 	defer restore()
 
