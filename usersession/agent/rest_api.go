@@ -350,6 +350,27 @@ func serviceStatus(c *Command, r *http.Request) Response {
 	return SyncResponse(unitStatusToClientUnitStatus(stss))
 }
 
+func getLocalizedAppNameFromDesktopFile(parser *goconfigparser.ConfigParser, defaultName string) string {
+	// First try with full locale string (e.g. es_ES)
+	locale := fmt.Sprintf("Name[%s]", i18n.CurrentLocale())
+	if name, err := parser.Get("Desktop Entry", locale); err == nil && name != "" {
+		return name
+	}
+
+	// If not found, try with the country part
+	locale = fmt.Sprintf("Name[%s]", strings.Split(i18n.CurrentLocale(), "_")[0])
+	if name, err := parser.Get("Desktop Entry", locale); err == nil && name != "" {
+		return name
+	}
+
+	// If neither are found, try with the untranslated name
+	if name, err := parser.Get("Desktop Entry", "Name"); err == nil && name != "" {
+		return name
+	}
+
+	return defaultName
+}
+
 func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	if ok, resp := validateJSONRequest(r); !ok {
 		return resp
@@ -375,10 +396,22 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	}
 
 	// TODO: this message needs to be crafted better as it's the only thing guaranteed to be delivered.
-	summary := fmt.Sprintf(i18n.G("Update available for %s."), refreshInfo.InstanceName)
 	var urgencyLevel notification.Urgency
-	var body, icon string
+	var body, icon, name string
 	var hints []notification.Hint
+
+	name = refreshInfo.InstanceName
+	// If we have a desktop file of the busy application, use that apps's icon and name, if possible
+	if refreshInfo.BusyAppDesktopEntry != "" {
+		parser := goconfigparser.New()
+		desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, refreshInfo.BusyAppDesktopEntry+".desktop")
+		if err := parser.ReadFile(desktopFilePath); err == nil {
+			icon, _ = parser.Get("Desktop Entry", "Icon")
+			name = getLocalizedAppNameFromDesktopFile(parser, refreshInfo.InstanceName)
+		}
+	}
+
+	summary := fmt.Sprintf(i18n.G("Update available for %s."), name)
 
 	if daysLeft := int(refreshInfo.TimeRemaining.Truncate(time.Hour).Hours() / 24); daysLeft > 0 {
 		urgencyLevel = notification.LowUrgency
@@ -396,20 +429,12 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 			i18n.NG("Close the application to update now. It will update automatically in %d minute.",
 				"Close the application to update now. It will update automatically in %d minutes.", minutesLeft), minutesLeft)
 	} else {
-		summary = fmt.Sprintf(i18n.G("%s is updating now!"), refreshInfo.InstanceName)
+		summary = fmt.Sprintf(i18n.G("%s is updating now!"), name)
 		urgencyLevel = notification.CriticalUrgency
 	}
 	hints = append(hints, notification.WithUrgency(urgencyLevel))
 	// The notification is provided by snapd session agent.
 	hints = append(hints, notification.WithDesktopEntry("io.snapcraft.SessionAgent"))
-	// But if we have a desktop file of the busy application, use that apps's icon.
-	if refreshInfo.BusyAppDesktopEntry != "" {
-		parser := goconfigparser.New()
-		desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, refreshInfo.BusyAppDesktopEntry+".desktop")
-		if err := parser.ReadFile(desktopFilePath); err == nil {
-			icon, _ = parser.Get("Desktop Entry", "Icon")
-		}
-	}
 
 	msg := &notification.Message{
 		AppName: refreshInfo.BusyAppName,
@@ -433,8 +458,8 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	return SyncResponse(nil)
 }
 
-func guessAppIcon(si *snap.Info) string {
-	var icon string
+func guessAppData(si *snap.Info, defaultName string) (string, string) {
+	var icon, name string
 	parser := goconfigparser.New()
 
 	// trivial heuristic, if the app is named like a snap then
@@ -444,11 +469,13 @@ func guessAppIcon(si *snap.Info) string {
 	if ok && !mainApp.IsService() {
 		// got the main app, grab its desktop file
 		if err := parser.ReadFile(mainApp.DesktopFile()); err == nil {
+			name = getLocalizedAppNameFromDesktopFile(parser, defaultName)
 			icon, _ = parser.Get("Desktop Entry", "Icon")
 		}
 	}
+
 	if icon != "" {
-		return icon
+		return icon, name
 	}
 
 	// If it doesn't exist, take the first app in the snap with a DesktopFile with icon
@@ -457,12 +484,14 @@ func guessAppIcon(si *snap.Info) string {
 			continue
 		}
 		if err := parser.ReadFile(app.DesktopFile()); err == nil {
+			name = getLocalizedAppNameFromDesktopFile(parser, defaultName)
 			if icon, err = parser.Get("Desktop Entry", "Icon"); err == nil && icon != "" {
 				break
 			}
 		}
 	}
-	return icon
+
+	return icon, name
 }
 
 func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
@@ -477,6 +506,16 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		return BadRequest("cannot decode request body into finish refresh notification info: %v", err)
 	}
 
+	var icon, name string
+	if si, err := snap.ReadCurrentInfo(finishRefresh.InstanceName); err == nil {
+		icon, name = guessAppData(si, finishRefresh.InstanceName)
+	} else {
+		logger.Noticef("cannot load snap-info for %s: %v", finishRefresh.InstanceName, err)
+	}
+	if name == "" {
+		name = finishRefresh.InstanceName
+	}
+
 	// Note that since the connection is shared, we are not closing it.
 	if c.s.bus == nil {
 		return SyncResponse(&resp{
@@ -488,18 +527,11 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		})
 	}
 
-	summary := fmt.Sprintf(i18n.G("%s was updated."), finishRefresh.InstanceName)
+	summary := fmt.Sprintf(i18n.G("%s was updated."), name)
 	body := i18n.G("Ready to launch.")
 	hints := []notification.Hint{
 		notification.WithDesktopEntry("io.snapcraft.SessionAgent"),
 		notification.WithUrgency(notification.LowUrgency),
-	}
-
-	var icon string
-	if si, err := snap.ReadCurrentInfo(finishRefresh.InstanceName); err == nil {
-		icon = guessAppIcon(si)
-	} else {
-		logger.Noticef("cannot load snap-info for %s: %v", finishRefresh.InstanceName, err)
 	}
 
 	msg := &notification.Message{
@@ -508,7 +540,7 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		Hints: hints,
 		Icon:  icon,
 	}
-	if err := c.s.notificationMgr.SendNotification(notification.ID(finishRefresh.InstanceName), msg); err != nil {
+	if err := c.s.notificationMgr.SendNotification(notification.ID(name), msg); err != nil {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
 			Status: 500,

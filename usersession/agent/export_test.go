@@ -29,7 +29,7 @@ var (
 	ServiceStatusCmd              = serviceStatusCmd
 	PendingRefreshNotificationCmd = pendingRefreshNotificationCmd
 	FinishRefreshNotificationCmd  = finishRefreshNotificationCmd
-	GuessAppIcon                  = guessAppIcon
+	GuessAppData                  = guessAppData
 )
 
 func MockUcred(ucred *syscall.Ucred, err error) (restore func()) {
