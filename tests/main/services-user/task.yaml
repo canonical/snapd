@@ -6,16 +6,24 @@ details: |
     when performing these operations.
 
 # Only run on systems with polkit rules are supported
-systems: [ ubuntu-2* ]
+# TODO: add 24 once stable
+systems: [ ubuntu-20.04-64, ubuntu-22.04-64 ]
 
 prepare: |
     snap set system experimental.user-daemons=true
     tests.session kill-leaked
+
+    # prepare users for testing
     tests.session -u test prepare
+
+    if ! useradd -m -d /home/test2 test2; then
+        # Ubuntu Core requires using extrausers db
+        useradd --extrausers -m -d /home/test2 test2
+    fi
 
     cat <<\EOF >/etc/polkit-1/localauthority/50-local.d/spread.pkla
     [Normal Staff Permissions]
-    Identity=unix-user:test
+    Identity=unix-user:test;unix-user:test2
     Action=io.snapcraft.snapd.manage
     ResultAny=yes
     ResultInactive=no
@@ -24,12 +32,20 @@ prepare: |
 
 restore: |
     tests.session -u test restore
+    tests.session -u test2 restore
+    if ! userdel -rf test2; then
+        userdel --extrausers -rf test2
+    fi
     snap unset system experimental.user-daemons
 
 debug: |
     tests.session dump
+
+    # dump information
     tests.session -u test exec systemctl --user status snapd.session-agent.service || true
     tests.session -u test exec journalctl --user || true
+    tests.session -u test2 exec systemctl --user status snapd.session-agent.service || true
+    tests.session -u test2 exec journalctl --user || true
 
 execute: |
     echo "Installing the service snap"
@@ -39,35 +55,49 @@ execute: |
     systemctl status snap.test-snapd-user-service.svc3.service | MATCH "running"
     systemctl status snap.test-snapd-user-service.svc4.service | MATCH "running"
 
-    echo "We can see the user services running"
+    echo "(user test) We can see the user services running"
     tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.svc1.service | MATCH "active"
     tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.svc2.service | MATCH "active"
+
+    echo "(user test2) We can see the user services running"
+    tests.session -u test2 exec systemctl --user is-active snap.test-snapd-user-service.svc1.service | MATCH "active"
+    tests.session -u test2 exec systemctl --user is-active snap.test-snapd-user-service.svc2.service | MATCH "active"
 
     # if root is making this request, implied scopes are all
     echo "(root) Stopping all services for snap"
     snap stop test-snapd-user-service
     systemctl status snap.test-snapd-user-service.svc3.service | MATCH "inactive"
     systemctl status snap.test-snapd-user-service.svc4.service | MATCH "inactive"
+
+    echo "(user test) We can see the user services stopped"
     tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.svc1.service | MATCH "inactive"
     tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.svc2.service | MATCH "inactive"
 
+    echo "(user test2) We can see the user services stopped"
+    tests.session -u test2 exec systemctl --user is-active snap.test-snapd-user-service.svc1.service | MATCH "inactive"
+    tests.session -u test2 exec systemctl --user is-active snap.test-snapd-user-service.svc2.service | MATCH "inactive"
+
     # if non-root are making requests, and user services are the target,
     # then its an error to not specify --user scope
-    echo "(user) Trying to start services for snap, which will fail with no scope set"
+    echo "(user test) Trying to start services for snap, which will fail with no scope set"
     tests.session -u test exec snap start test-snapd-user-service 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH "non-root users must specify service scope when targeting user services"
     
-    echo "(user) Starting user services for snap with scope --user"
+    echo "(user test) Starting user services for snap with scope --user"
     tests.session -u test exec snap start --user test-snapd-user-service
 
-    echo "And we can see the user services running"
+    echo "(user test) And we can see the user services running"
     tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.svc1.service | MATCH "active"
     tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.svc2.service | MATCH "active"
 
-    echo "System services are still not running"
+    echo "(user test2) Services are still not running"
+    tests.session -u test2 exec systemctl --user is-active snap.test-snapd-user-service.svc1.service | MATCH "inactive"
+    tests.session -u test2 exec systemctl --user is-active snap.test-snapd-user-service.svc2.service | MATCH "inactive"
+
+    echo "(root) Services are still not running"
     systemctl status snap.test-snapd-user-service.svc3.service | MATCH "inactive"
     systemctl status snap.test-snapd-user-service.svc4.service | MATCH "inactive"
 
-    echo "(user) Trying to start system services without root, will fail"
+    echo "(user test) Trying to start system services without root, will fail"
     tests.session -u test exec snap start --system test-snapd-user-service 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH "non-root users must specify users when targeting user services"
 
     echo "(root) Stopping all services for snap"
@@ -76,6 +106,8 @@ execute: |
     systemctl status snap.test-snapd-user-service.svc4.service | MATCH "inactive"
     tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.svc1.service | MATCH "inactive"
     tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.svc2.service | MATCH "inactive"
+    tests.session -u test2 exec systemctl --user is-active snap.test-snapd-user-service.svc1.service | MATCH "inactive"
+    tests.session -u test2 exec systemctl --user is-active snap.test-snapd-user-service.svc2.service | MATCH "inactive"
 
     echo "(root) Starting system services for snap with scope --system"
     snap start --system test-snapd-user-service
@@ -83,8 +115,11 @@ execute: |
     echo "And only system services are running"
     systemctl status snap.test-snapd-user-service.svc3.service | MATCH "running"
     systemctl status snap.test-snapd-user-service.svc4.service | MATCH "running"
+
     tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.svc1.service | MATCH "inactive"
     tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.svc2.service | MATCH "inactive"
+    tests.session -u test2 exec systemctl --user is-active snap.test-snapd-user-service.svc1.service | MATCH "inactive"
+    tests.session -u test2 exec systemctl --user is-active snap.test-snapd-user-service.svc2.service | MATCH "inactive"
 
     echo "(root) Starting user services for snap with scope --user"
     snap start --user test-snapd-user-service 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH "cannot use \"self\" for root user"
@@ -92,7 +127,11 @@ execute: |
     echo "(root) Starting user services for snap with scope --users"
     snap start --users test-snapd-user-service
 
-    echo "And we can see the user services running"
+    echo "(user test) And we can see the user services running"
     tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.svc1.service | MATCH "active"
     tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.svc2.service | MATCH "active"
+
+    echo "(user test2) And we can see the user services running"
+    tests.session -u test2 exec systemctl --user is-active snap.test-snapd-user-service.svc1.service | MATCH "active"
+    tests.session -u test2 exec systemctl --user is-active snap.test-snapd-user-service.svc2.service | MATCH "active"
 
