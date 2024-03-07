@@ -69,23 +69,23 @@ type CreateOptions struct {
 // CreateMissingPartitions calls createMissingPartitions but returns only
 // OnDiskStructure, as it is meant to be used externally (i.e. by
 // muinstaller).
-func CreateMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.Volume, opts *CreateOptions) ([]*gadget.OnDiskAndGadgetStructurePair, error) {
-	dgpairs, err := createMissingPartitions(dl, pv, opts)
+func CreateMissingPartitions(dv *gadget.OnDiskVolume, gv *gadget.Volume, opts *CreateOptions) ([]*gadget.OnDiskAndGadgetStructurePair, error) {
+	dgpairs, err := createMissingPartitions(dv, gv, opts)
 	if err != nil {
 		return nil, err
 	}
 	return dgpairs, nil
 }
 
-// createMissingPartitions creates the partitions listed in the laid out volume
-// pv that are missing from the existing device layout, returning a list of
+// createMissingPartitions creates the partitions listed in the gadget
+// volume gv that are missing from the disk dv, returning a list of
 // structures that have been created.
-func createMissingPartitions(dl *gadget.OnDiskVolume, gv *gadget.Volume, opts *CreateOptions) ([]*gadget.OnDiskAndGadgetStructurePair, error) {
+func createMissingPartitions(dv *gadget.OnDiskVolume, gv *gadget.Volume, opts *CreateOptions) ([]*gadget.OnDiskAndGadgetStructurePair, error) {
 	if opts == nil {
 		opts = &CreateOptions{}
 	}
 
-	buf, created, err := buildPartitionList(dl, gv, opts)
+	buf, created, err := buildPartitionList(dv, gv, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -93,20 +93,20 @@ func createMissingPartitions(dl *gadget.OnDiskVolume, gv *gadget.Volume, opts *C
 		return created, nil
 	}
 
-	logger.Debugf("create partitions on %s: %s", dl.Device, buf.String())
+	logger.Debugf("create partitions on %s: %s", dv.Device, buf.String())
 
 	// Write the partition table. By default sfdisk will try to re-read the
 	// partition table with the BLKRRPART ioctl but will fail because the
 	// kernel side rescan removes and adds partitions and we have partitions
 	// mounted (so it fails on removal). Use --no-reread to skip this attempt.
-	cmd := exec.Command("sfdisk", "--append", "--no-reread", dl.Device)
+	cmd := exec.Command("sfdisk", "--append", "--no-reread", dv.Device)
 	cmd.Stdin = buf
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return created, osutil.OutputErr(output, err)
 	}
 
 	// Re-read the partition table
-	if err := reloadPartitionTable(opts.GadgetRootDir, dl.Device); err != nil {
+	if err := reloadPartitionTable(opts.GadgetRootDir, dv.Device); err != nil {
 		return nil, err
 	}
 
@@ -149,17 +149,26 @@ func buildPartitionList(dl *gadget.OnDiskVolume, vol *gadget.Volume, opts *Creat
 	// called before this function. muinstaller also checks for
 	// PartialStructure before this is run.
 	pIndex := 0
-
-	// Keep track what partitions we already have on disk - the keys to this map
-	// is the starting sector of the structure we have seen.
-	// TODO: use quantity.SectorOffset or similar when that is available
-
-	seen := map[uint64]bool{}
 	for _, s := range dl.Structure {
-		start := uint64(s.StartOffset) / sectorSize
-		seen[start] = true
 		if s.DiskIndex > pIndex {
 			pIndex = s.DiskIndex
+		}
+	}
+
+	// Find out partitions already on the disk, if we don't want to create
+	// all. If CreateAllMissingPartitions is set we are being called from
+	// muinstaller and no partitions are expected on the disk.
+	// TODO we should avoid using createMissingPartitions as ancillary
+	// method from muinstaller to avoid this sort of situation, maybe by copying
+	// the code around.
+	matchedStructs := map[int]*gadget.OnDiskStructure{}
+	if !opts.CreateAllMissingPartitions {
+		// EnsureVolumeCompatibility will ignore missing partitions as
+		// the AssumeCreatablePartitionsCreated option is false by default.
+		if matchedStructs, err = gadget.EnsureVolumeCompatibility(vol, dl, nil); err != nil {
+			return nil, nil, fmt.Errorf(
+				"gadget and boot device %v partition table not compatible: %v",
+				dl.Device, err)
 		}
 	}
 
@@ -180,6 +189,11 @@ func buildPartitionList(dl *gadget.OnDiskVolume, vol *gadget.Volume, opts *Creat
 		if !vs.IsPartition() {
 			continue
 		}
+		// Skip partitions defined in the gadget that are already in the volume
+		if ds, ok := matchedStructs[vs.YamlIndex]; ok {
+			lastEnd = ds.StartOffset + quantity.Offset(ds.Size)
+			continue
+		}
 
 		// Work out offset, might have not been set if min-size is used
 		// (but note that as we are creating we use the size value)
@@ -192,12 +206,6 @@ func buildPartitionList(dl *gadget.OnDiskVolume, vol *gadget.Volume, opts *Creat
 
 		lastEnd = offset + quantity.Offset(vs.Size)
 
-		// Skip partitions defined in the gadget that are already in the volume
-		startInSectors := uint64(offset) / sectorSize
-		if seen[startInSectors] {
-			continue
-		}
-
 		pIndex++
 
 		// Only allow creating certain partitions, namely the ubuntu-* roles
@@ -206,6 +214,7 @@ func buildPartitionList(dl *gadget.OnDiskVolume, vol *gadget.Volume, opts *Creat
 		}
 
 		// Check if the data partition should be expanded
+		startInSectors := uint64(offset) / sectorSize
 		newSizeInSectors := uint64(vs.Size) / sectorSize
 		if vs.Role == gadget.SystemData && canExpandData && startInSectors+newSizeInSectors < dl.UsableSectorsEnd {
 			// note that if startInSectors + newSizeInSectors == dl.UsableSectorEnd
