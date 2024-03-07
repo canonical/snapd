@@ -6,6 +6,9 @@
 * state: add support for notices (from pebble)
 * daemon: add notices to the snapd API under `/v2/notices` and `/v2/notice`
 
+# New in snapd 2.61.3:
+* Install systemd files in correct location for 24.04
+
 # New in snapd 2.61.2:
 * Fix to enable plug/slot sanitization for prepare-image
 * Fix panic when device-service.access=offline
