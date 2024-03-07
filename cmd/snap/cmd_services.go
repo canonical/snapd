@@ -188,7 +188,7 @@ func (s *svcLogs) Execute(args []string) error {
 type userAndScopeMixin struct {
 	System bool   `long:"system"`
 	User   bool   `long:"user"`
-	Users  string `long:"users" optional:"yes" optional-value:"*"`
+	Users  string `long:"users" optional:"yes" optional-value:"all"`
 }
 
 var userAndScopeDescs = mixinDescs{
@@ -200,20 +200,24 @@ var userAndScopeDescs = mixinDescs{
 	"users": i18n.G("The operation should affect all user services."),
 }
 
-func (um *userAndScopeMixin) serviceScope() (client.ScopeSelector, error) {
+func (um *userAndScopeMixin) validateScopes() error {
 	switch {
-	case um.User && um.System:
-		return nil, fmt.Errorf("--user and --system cannot be used in conjunction with each other")
 	case um.Users != "" && um.User:
-		return nil, fmt.Errorf("--user and --users cannot be used in conjunction with each other")
-	case um.Users != "" && um.System:
-		return nil, fmt.Errorf("--users and --system cannot be used in conjunction with each other")
-	case (um.User || um.Users != "") && !um.System:
-		return client.ScopeSelector([]string{"user"}), nil
-	case !(um.User || um.Users != "") && um.System:
-		return client.ScopeSelector([]string{"system"}), nil
+		return fmt.Errorf("--user and --users cannot be used in conjunction with each other")
+	case um.Users != "" && um.Users != "all":
+		return fmt.Errorf("only \"all\" is supported as a value for --users")
 	}
-	return nil, nil
+	return nil
+}
+
+func (um *userAndScopeMixin) serviceScope() client.ScopeSelector {
+	switch {
+	case (um.User || um.Users != "") && !um.System:
+		return client.ScopeSelector([]string{"user"})
+	case !(um.User || um.Users != "") && um.System:
+		return client.ScopeSelector([]string{"system"})
+	}
+	return nil
 }
 
 func (um *userAndScopeMixin) serviceUsers() client.UserSelector {
@@ -222,7 +226,7 @@ func (um *userAndScopeMixin) serviceUsers() client.UserSelector {
 		return client.UserSelector{
 			Selector: client.UserSelectionSelf,
 		}
-	case um.Users == "*":
+	case um.Users == "all":
 		return client.UserSelector{
 			Selector: client.UserSelectionAll,
 		}
@@ -246,12 +250,11 @@ func (s *svcStart) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	scope, err := s.serviceScope()
-	if err != nil {
+	if err := s.validateScopes(); err != nil {
 		return err
 	}
 	names := svcNames(s.Positional.ServiceNames)
-	changeID, err := s.client.Start(names, scope, s.serviceUsers(), client.StartOptions{Enable: s.Enable})
+	changeID, err := s.client.Start(names, s.serviceScope(), s.serviceUsers(), client.StartOptions{Enable: s.Enable})
 	if err != nil {
 		return err
 	}
@@ -280,12 +283,11 @@ func (s *svcStop) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	scope, err := s.serviceScope()
-	if err != nil {
+	if err := s.validateScopes(); err != nil {
 		return err
 	}
 	names := svcNames(s.Positional.ServiceNames)
-	changeID, err := s.client.Stop(names, scope, s.serviceUsers(), client.StopOptions{Disable: s.Disable})
+	changeID, err := s.client.Stop(names, s.serviceScope(), s.serviceUsers(), client.StopOptions{Disable: s.Disable})
 	if err != nil {
 		return err
 	}
@@ -314,12 +316,11 @@ func (s *svcRestart) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	scope, err := s.serviceScope()
-	if err != nil {
+	if err := s.validateScopes(); err != nil {
 		return err
 	}
 	names := svcNames(s.Positional.ServiceNames)
-	changeID, err := s.client.Restart(names, scope, s.serviceUsers(), client.RestartOptions{Reload: s.Reload})
+	changeID, err := s.client.Restart(names, s.serviceScope(), s.serviceUsers(), client.RestartOptions{Reload: s.Reload})
 	if err != nil {
 		return err
 	}

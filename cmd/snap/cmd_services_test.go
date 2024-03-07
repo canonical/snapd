@@ -224,17 +224,21 @@ func (s *appOpSuite) TestAppOpsScopeSwitches(c *check.C) {
 			"scope":  []interface{}{"user"},
 			"users":  "self",
 		})
+		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"user", "system"}), check.DeepEquals, map[string]interface{}{
+			"action": op,
+			"names":  []interface{}{"foo", "bar"},
+			"users":  "self",
+		})
 		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"users"}), check.DeepEquals, map[string]interface{}{
 			"action": op,
 			"names":  []interface{}{"foo", "bar"},
 			"scope":  []interface{}{"user"},
 			"users":  "all",
 		})
-		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"users=my-user,other-user"}), check.DeepEquals, map[string]interface{}{
+		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"users", "system"}), check.DeepEquals, map[string]interface{}{
 			"action": op,
 			"names":  []interface{}{"foo", "bar"},
-			"scope":  []interface{}{"user"},
-			"users":  []interface{}{"my-user", "other-user"},
+			"users":  "all",
 		})
 		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"system"}), check.DeepEquals, map[string]interface{}{
 			"action": op,
@@ -253,9 +257,8 @@ func (s *appOpSuite) TestAppOpsScopeInvalid(c *check.C) {
 	}
 
 	for _, op := range []string{"start", "stop", "restart"} {
-		c.Check(checkInvocation(op, []string{"foo"}, []string{"user", "system"}), check.ErrorMatches, `--user and --system cannot be used in conjunction with each other`)
 		c.Check(checkInvocation(op, []string{"foo"}, []string{"user", "users"}), check.ErrorMatches, `--user and --users cannot be used in conjunction with each other`)
-		c.Check(checkInvocation(op, []string{"foo"}, []string{"users", "system"}), check.ErrorMatches, `--users and --system cannot be used in conjunction with each other`)
+		c.Check(checkInvocation(op, []string{"foo"}, []string{"users=my-user", "system"}), check.ErrorMatches, `only "all" is supported as a value for --users`)
 	}
 }
 
