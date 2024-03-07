@@ -74,7 +74,7 @@ func (s *pcscdInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *pcscdInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(spec.SnippetForTag("snap.other.app"), testutil.Contains, "/{var/,}run/pcscd/pcscd.comm rw")

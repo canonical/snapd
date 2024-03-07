@@ -93,7 +93,7 @@ apps:
 }
 
 func (s *LxdSupportInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,usr/}{,s}bin/aa-exec ux,\n")
@@ -104,14 +104,14 @@ func (s *LxdSupportInterfaceSuite) TestAppArmorSpecUserNS(c *C) {
 	defer r()
 	r = apparmor_sandbox.MockFeatures(nil, nil, []string{"userns"}, nil)
 	defer r()
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "userns,\n")
 }
 
 func (s *LxdSupportInterfaceSuite) TestAppArmorSpecUnconfined(c *C) {
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap))
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap, nil))
 	c.Assert(spec.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
 	c.Assert(spec.Unconfined(), Equals, apparmor.UnconfinedSupported)
 
@@ -135,7 +135,7 @@ apps:
 }
 
 func (s *LxdSupportInterfaceSuite) TestSecCompSpec(c *C) {
-	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "@unrestricted\n")

@@ -156,7 +156,7 @@ func (s *backendSuite) TestSecurityIsStable(c *C) {
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
-		appSet := interfaces.NewSnapAppSet(snapInfo)
+		appSet := interfaces.NewSnapAppSet(snapInfo, nil)
 		s.udevadmCmd.ForgetCalls()
 		err := s.Backend.Setup(appSet, opts, s.Repo, s.meas)
 		c.Assert(err, IsNil)

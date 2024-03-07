@@ -83,7 +83,7 @@ func (s *SystemObserveInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *SystemObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
@@ -99,7 +99,7 @@ func (s *SystemObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(strings.Join(updateNS[:], "\n"), Equals, expectedUpdateNS)
 
 	// connected plugs have a non-nil security snippet for seccomp
-	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})

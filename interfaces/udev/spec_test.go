@@ -89,7 +89,7 @@ slots:
 }
 
 func (s *specSuite) SetUpTest(c *C) {
-	s.spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap))
+	s.spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap, nil))
 }
 
 func (s *specSuite) TestAddSnippte(c *C) {
@@ -153,13 +153,13 @@ func (s *specSuite) TestTagDeviceAltLibexecdir(c *C) {
 
 // The spec.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap))
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap, nil))
 	var r interfaces.Specification = spec
 	c.Assert(r.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
 	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), DeepEquals, []string{"connected-plug", "permanent-plug"})
 
-	spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
+	spec = udev.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
 	r = spec
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)

@@ -65,8 +65,8 @@ func (s *HelpersSuite) SetUpTest(c *C) {
 	snap1Info := snaptest.MockSnap(c, snapYaml1, &snap.SideInfo{Revision: snap.R(1)})
 	snap2Info := snaptest.MockSnap(c, snapYaml2, &snap.SideInfo{Revision: snap.R(1)})
 
-	s.snap1 = interfaces.NewSnapAppSet(snap1Info)
-	s.snap2 = interfaces.NewSnapAppSet(snap2Info)
+	s.snap1 = interfaces.NewSnapAppSet(snap1Info, nil)
+	s.snap2 = interfaces.NewSnapAppSet(snap2Info, nil)
 }
 
 func (s *HelpersSuite) TearDownTest(c *C) {

@@ -78,7 +78,7 @@ func (s *RawInputInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *RawInputInterfaceSuite) TestSecCompSpec(c *C) {
-	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "bind\n")
@@ -86,7 +86,7 @@ func (s *RawInputInterfaceSuite) TestSecCompSpec(c *C) {
 }
 
 func (s *RawInputInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/input/* rw,`)
@@ -96,7 +96,7 @@ func (s *RawInputInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *RawInputInterfaceSuite) TestUDevSpec(c *C) {
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 5)
 	c.Assert(spec.Snippets(), testutil.Contains, `# raw-input

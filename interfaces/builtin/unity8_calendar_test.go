@@ -87,7 +87,7 @@ func (s *Unity8CalendarInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *Unity8CalendarInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
@@ -109,7 +109,7 @@ func (s *Unity8CalendarInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(
 
 	release.OnClassic = false
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -133,7 +133,7 @@ func (s *Unity8CalendarInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome
 
 	release.OnClassic = false
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -155,7 +155,7 @@ func (s *Unity8CalendarInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(
 
 	release.OnClassic = false
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -165,7 +165,7 @@ func (s *Unity8CalendarInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(
 func (s *Unity8CalendarInterfaceSuite) TestConnectedPlugSnippetUsesUnconfinedLabelOnClassic(c *C) {
 	release.OnClassic = true
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -178,7 +178,7 @@ func (s *Unity8CalendarInterfaceSuite) TestConnectedPlugSnippetUsesUnconfinedLab
 
 func (s *Unity8CalendarInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	release.OnClassic = false
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -190,7 +190,7 @@ func (s *Unity8CalendarInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 }
 
 func (s *Unity8CalendarInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.coreSlot.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.coreSlot.Snap(), nil))
 	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.coreSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.unity8-calendar.app"})
@@ -198,7 +198,7 @@ func (s *Unity8CalendarInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 }
 
 func (s *Unity8CalendarInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil))
 	err := apparmorSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.unity8-calendar.app"})
@@ -206,7 +206,7 @@ func (s *Unity8CalendarInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 }
 
 func (s *Unity8CalendarInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
-	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil))
 	err := seccompSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.unity8-calendar.app"})

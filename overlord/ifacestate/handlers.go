@@ -117,7 +117,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 			return err
 		}
 
-		appSet := interfaces.NewSnapAppSet(affectedSnapInfo)
+		appSet := interfaces.NewSnapAppSet(affectedSnapInfo, nil)
 
 		opts, err := buildConfinementOptions(st, affectedSnapInfo, snapst.Flags)
 		if err != nil {
@@ -269,7 +269,7 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	confinementOpts := make([]interfaces.ConfinementOptions, 0, len(affectedSet))
 
 	// For the snap being setup we know exactly what was requested.
-	affectedSnapSets = append(affectedSnapSets, interfaces.NewSnapAppSet(snapInfo))
+	affectedSnapSets = append(affectedSnapSets, interfaces.NewSnapAppSet(snapInfo, nil))
 	confinementOpts = append(confinementOpts, opts)
 
 	// For remaining snaps we need to interrogate the state.
@@ -291,7 +291,7 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 			return err
 		}
 
-		affectedSnapSets = append(affectedSnapSets, interfaces.NewSnapAppSet(snapInfo))
+		affectedSnapSets = append(affectedSnapSets, interfaces.NewSnapAppSet(snapInfo, nil))
 		confinementOpts = append(confinementOpts, opts)
 	}
 
@@ -549,7 +549,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 	}
 
 	// TODO: should the repo return an app set here?
-	plugAppSet := interfaces.NewSnapAppSet(plug.Snap)
+	plugAppSet := interfaces.NewSnapAppSet(plug.Snap, nil)
 
 	slot := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	if slot == nil {
@@ -558,7 +558,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 	}
 
 	// TODO: should the repo return an app set here?
-	slotAppSet := interfaces.NewSnapAppSet(slot.Snap)
+	slotAppSet := interfaces.NewSnapAppSet(slot.Snap, nil)
 
 	// attributes are always present, even if there are no hooks (they're initialized by Connect).
 	plugDynamicAttrs, slotDynamicAttrs, err := getDynamicHookAttributes(task)
@@ -725,7 +725,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 
 		// TODO: we do this a lot, would it be possible for something like a
 		// SnapState.CurrentAppSet()?
-		appSet := interfaces.NewSnapAppSet(snapInfo)
+		appSet := interfaces.NewSnapAppSet(snapInfo, nil)
 
 		opts, err := buildConfinementOptions(st, snapInfo, snapst.Flags)
 		if err != nil {
@@ -832,8 +832,8 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 		return fmt.Errorf("snap %q has no %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	}
 
-	plugAppSet := interfaces.NewSnapAppSet(plug.Snap)
-	slotAppSet := interfaces.NewSnapAppSet(slot.Snap)
+	plugAppSet := interfaces.NewSnapAppSet(plug.Snap, nil)
+	slotAppSet := interfaces.NewSnapAppSet(slot.Snap, nil)
 
 	_, err = m.repo.Connect(connRef, nil, oldconn.DynamicPlugAttrs, nil, oldconn.DynamicSlotAttrs, nil)
 	if err != nil {
@@ -917,13 +917,13 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	if plug == nil {
 		return fmt.Errorf("internal error: snap %q has no %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
 	}
-	plugAppSet := interfaces.NewSnapAppSet(plug.Snap)
+	plugAppSet := interfaces.NewSnapAppSet(plug.Snap, nil)
 
 	slot := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	if slot == nil {
 		return fmt.Errorf("internal error: snap %q has no %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	}
-	slotAppSet := interfaces.NewSnapAppSet(slot.Snap)
+	slotAppSet := interfaces.NewSnapAppSet(slot.Snap, nil)
 
 	var plugSnapst snapstate.SnapState
 	err = snapstate.Get(st, plugRef.Snap, &plugSnapst)

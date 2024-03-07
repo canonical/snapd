@@ -111,7 +111,7 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 	}, nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -133,7 +133,7 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 	}, nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -153,7 +153,7 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c
 		Apps:      map[string]*snap.AppInfo{"app": app},
 	}, nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -161,7 +161,7 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c
 }
 
 func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesUnconfinedLabelOnClassic(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.classicSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -173,7 +173,7 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetUsesUnconfinedLabe
 }
 
 func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -185,7 +185,7 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 }
 
 func (s *UPowerObserveInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil))
 	err := apparmorSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.upowerd.app"})
@@ -193,7 +193,7 @@ func (s *UPowerObserveInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 }
 
 func (s *UPowerObserveInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
-	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil))
 	err := seccompSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.upowerd.app"})
@@ -212,7 +212,7 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c
 		Apps:      map[string]*snap.AppInfo{"app": app},
 	}, nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.coreSlot.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.coreSlot.Snap(), nil))
 	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.coreSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.upowerd.app"})

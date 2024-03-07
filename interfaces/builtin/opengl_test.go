@@ -88,7 +88,7 @@ func (s *OpenglInterfaceSuite) TestAppArmorSpec(c *C) {
 	dirs.SetRootDir(tmpdir)
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/nvidia"), 0777), IsNil)
 
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/nvidia* rw,`)
@@ -112,7 +112,7 @@ func (s *OpenglInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *OpenglInterfaceSuite) TestUDevSpec(c *C) {
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 15)
 	c.Assert(spec.Snippets(), testutil.Contains, `# opengl

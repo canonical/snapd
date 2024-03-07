@@ -90,7 +90,7 @@ func (s *specSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
-	s.spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap))
+	s.spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap, nil))
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 }
@@ -101,7 +101,7 @@ func (s *specSuite) TearDownTest(c *C) {
 
 // The spec.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap))
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap, nil))
 	var r interfaces.Specification = spec
 	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
@@ -109,7 +109,7 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 		"snap.snap1.app1": {"connected-plug", "permanent-plug"},
 	})
 
-	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
 	r = spec
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)

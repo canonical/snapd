@@ -140,7 +140,7 @@ plugs:
 }
 
 func (s *HomeInterfaceSuite) TestConnectedPlugAppArmorWithoutAttrib(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -163,7 +163,7 @@ apps:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := interfaces.NewConnectedPlug(info.Plugs["home"], nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.home-plug-snap.app2"})

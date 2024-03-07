@@ -156,7 +156,7 @@ func (s *GpioInterfaceSuite) TestApparmorConnectedPlugIgnoresMissingSymlink(c *C
 		return "", os.ErrNotExist
 	})
 
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.gadgetPlug.Snap()))
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.gadgetPlug.Snap(), nil))
 	err := spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetGpioSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
@@ -170,7 +170,7 @@ func (s *GpioInterfaceSuite) TestApparmorConnectedPlug(c *C) {
 		return "/sys/dev/foo/class/gpio/gpio100", nil
 	})
 
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.gadgetPlug.Snap()))
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.gadgetPlug.Snap(), nil))
 	err := spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetGpioSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.SnippetForTag("snap.my-device.svc"), testutil.Contains, `/sys/dev/foo/class/gpio/gpio100/* rwk`)

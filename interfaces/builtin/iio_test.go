@@ -198,7 +198,7 @@ func (s *IioInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
 }
 
 func (s *IioInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort1.Snap()))
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# iio
@@ -216,7 +216,7 @@ func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSingleSnippet(c *C) {
 
 /sys/devices/**/iio:device1/ r,  # Add any condensed parametric rules
 /sys/devices/**/iio:device1/** rwk,  # Add any condensed parametric rules`
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort1.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
@@ -241,7 +241,7 @@ func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSnippetsMultipleOptimized(c
 
 /sys/devices/**/iio:device{1,2}/ r,  # Add any condensed parametric rules
 /sys/devices/**/iio:device{1,2}/** rwk,  # Add any condensed parametric rules`
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort1.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort1.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1)
 	c.Assert(err, IsNil)
 	err = apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev2)

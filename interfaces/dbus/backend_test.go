@@ -321,7 +321,7 @@ var expectedDBusConfigFiles = []string{
 
 func (s *backendSuite) testSetupWritesDbusFilesForCoreOrSnapd(c *C, coreOrSnapdYaml string) {
 	coreOrSnapdInfo := snaptest.MockInfo(c, coreOrSnapdYaml, &snap.SideInfo{Revision: snap.R(2)})
-	coreOrSnapdAppSet := interfaces.NewSnapAppSet(coreOrSnapdInfo)
+	coreOrSnapdAppSet := interfaces.NewSnapAppSet(coreOrSnapdInfo, nil)
 
 	makeFakeDbusConfigAndUserdServiceFiles(c, coreOrSnapdInfo)
 
@@ -362,7 +362,7 @@ func (s *backendSuite) TestSetupWritesDbusFilesForSnapd(c *C) {
 
 func (s *backendSuite) TestSetupDeletesDbusFilesWhenServiceRemoved(c *C) {
 	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.R(2)})
-	snapdAppSet := interfaces.NewSnapAppSet(snapdInfo)
+	snapdAppSet := interfaces.NewSnapAppSet(snapdInfo, nil)
 	makeFakeDbusConfigAndUserdServiceFiles(c, snapdInfo)
 
 	vestigialConfigFile := "/usr/share/dbus-1/services/io.snapcraft.Prompt.service"
@@ -412,11 +412,11 @@ func (s *backendSuite) TestSetupWritesDbusFilesBothSnapdAndCoreInstalled(c *C) {
 
 	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(2)})
 	makeFakeDbusConfigAndUserdServiceFiles(c, coreInfo)
-	coreAppSet := interfaces.NewSnapAppSet(coreInfo)
+	coreAppSet := interfaces.NewSnapAppSet(coreInfo, nil)
 
 	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.R(3)})
 	makeFakeDbusConfigAndUserdServiceFiles(c, snapdInfo)
-	snapdAppSet := interfaces.NewSnapAppSet(snapdInfo)
+	snapdAppSet := interfaces.NewSnapAppSet(snapdInfo, nil)
 
 	restore := snapdtool.MockOsReadlink(func(string) (string, error) {
 		return filepath.Join(snapdInfo.MountDir(), "/usr/lib/snapd/snapd"), nil

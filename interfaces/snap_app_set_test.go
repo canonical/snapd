@@ -34,19 +34,19 @@ hooks:
 
 func (s *snapAppSetSuite) TestPlugLabelExpr(c *C) {
 	info, connectedPlug := mockInfoAndConnectedPlug(c, yaml, nil, "network")
-	set := interfaces.NewSnapAppSet(info)
+	set := interfaces.NewSnapAppSet(info, nil)
 
 	label := set.PlugLabelExpression(connectedPlug)
 	c.Check(label, Equals, `"snap.test-snap.{hook.install,hook.post-refresh}"`)
 
 	info, connectedPlug = mockInfoAndConnectedPlug(c, yaml, nil, "home")
-	set = interfaces.NewSnapAppSet(info)
+	set = interfaces.NewSnapAppSet(info, nil)
 
 	label = set.PlugLabelExpression(connectedPlug)
 	c.Check(label, Equals, `"snap.test-snap.{app1,app2}"`)
 
 	info, connectedPlug = mockInfoAndConnectedPlug(c, yaml, nil, "x11")
-	set = interfaces.NewSnapAppSet(info)
+	set = interfaces.NewSnapAppSet(info, nil)
 
 	label = set.PlugLabelExpression(connectedPlug)
 	c.Check(label, Equals, `"snap.test-snap.*"`)
@@ -54,7 +54,7 @@ func (s *snapAppSetSuite) TestPlugLabelExpr(c *C) {
 
 func (s *snapAppSetSuite) TestPlugLabelExprInfoFallback(c *C) {
 	info := snaptest.MockInfo(c, yaml, nil)
-	set := interfaces.NewSnapAppSet(info)
+	set := interfaces.NewSnapAppSet(info, nil)
 
 	const otherInfo = `name: other-name
 version: 1
@@ -76,13 +76,13 @@ slots:
 
 func (s *snapAppSetSuite) TestSlotLabelExpr(c *C) {
 	info, connectedSlot := mockInfoAndConnectedSlot(c, yaml, nil, "unity8")
-	set := interfaces.NewSnapAppSet(info)
+	set := interfaces.NewSnapAppSet(info, nil)
 
 	label := set.SlotLabelExpression(connectedSlot)
 	c.Check(label, Equals, `"snap.test-snap.app1"`)
 
 	info, connectedSlot = mockInfoAndConnectedSlot(c, yaml, nil, "opengl")
-	set = interfaces.NewSnapAppSet(info)
+	set = interfaces.NewSnapAppSet(info, nil)
 
 	label = set.SlotLabelExpression(connectedSlot)
 	c.Check(label, Equals, `"snap.test-snap.*"`)
@@ -90,7 +90,7 @@ func (s *snapAppSetSuite) TestSlotLabelExpr(c *C) {
 
 func (s *snapAppSetSuite) TestSlotLabelExprInfoFallback(c *C) {
 	info := snaptest.MockInfo(c, yaml, nil)
-	set := interfaces.NewSnapAppSet(info)
+	set := interfaces.NewSnapAppSet(info, nil)
 
 	const otherInfo = `name: other-name
 version: 1
@@ -158,7 +158,7 @@ plugs:
 slots:
   slot:`
 	info, connectedPlug := mockInfoAndConnectedPlug(c, yaml, nil, "plug")
-	set := interfaces.NewSnapAppSet(info)
+	set := interfaces.NewSnapAppSet(info, nil)
 
 	tags, err := set.SecurityTagsForConnectedPlug(connectedPlug)
 	c.Assert(err, IsNil)
@@ -169,7 +169,7 @@ func (s *snapAppSetSuite) TestPlugSecurityTagsWrongSnap(c *C) {
 	const yaml = `name: name
 version: 1`
 	info := snaptest.MockInfo(c, yaml, nil)
-	set := interfaces.NewSnapAppSet(info)
+	set := interfaces.NewSnapAppSet(info, nil)
 
 	const otherYaml = `name: other-name
 version: 1
@@ -194,7 +194,7 @@ plugs:
 slots:
   slot:`
 	info, connectedSlot := mockInfoAndConnectedSlot(c, yaml, nil, "slot")
-	set := interfaces.NewSnapAppSet(info)
+	set := interfaces.NewSnapAppSet(info, nil)
 
 	tags, err := set.SecurityTagsForConnectedSlot(connectedSlot)
 	c.Assert(err, IsNil)
@@ -205,7 +205,7 @@ func (s *snapAppSetSuite) TestSlotSecurityTagsWrongSnap(c *C) {
 	const yaml = `name: name
 version: 1`
 	info := snaptest.MockInfo(c, yaml, nil)
-	set := interfaces.NewSnapAppSet(info)
+	set := interfaces.NewSnapAppSet(info, nil)
 
 	const otherYaml = `name: other-name
 version: 1
@@ -219,14 +219,14 @@ slots:
 
 func (s *snapAppSetSuite) TestInfo(c *C) {
 	info := snaptest.MockInfo(c, yaml, nil)
-	set := interfaces.NewSnapAppSet(info)
+	set := interfaces.NewSnapAppSet(info, nil)
 
 	c.Check(set.Info(), DeepEquals, info)
 }
 
 func (s *snapAppSetSuite) TestInstanceName(c *C) {
 	info := snaptest.MockInfo(c, yaml, nil)
-	set := interfaces.NewSnapAppSet(info)
+	set := interfaces.NewSnapAppSet(info, nil)
 
 	c.Check(set.InstanceName(), Equals, "test-snap")
 }

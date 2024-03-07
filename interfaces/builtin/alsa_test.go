@@ -77,14 +77,14 @@ func (s *AlsaInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *AlsaInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/snd/* rw,")
 }
 
 func (s *AlsaInterfaceSuite) TestUDevpec(c *C) {
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 8)
 	c.Assert(spec.Snippets(), testutil.Contains, `# alsa

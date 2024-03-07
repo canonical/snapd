@@ -74,7 +74,7 @@ func (s *kernelCryptoAPIInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *kernelCryptoAPIInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access the Linux kernel crypto API")
@@ -82,7 +82,7 @@ func (s *kernelCryptoAPIInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *kernelCryptoAPIInterfaceSuite) TestSeccompSpec(c *C) {
-	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access the Linux kernel crypto API")

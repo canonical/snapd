@@ -85,7 +85,7 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 	}, nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -107,7 +107,7 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 	}, nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -115,7 +115,7 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 }
 
 func (s *MaliitInterfaceSuite) TestConnectedPlugSecComp(c *C) {
-	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), HasLen, 0)
@@ -134,7 +134,7 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 		Apps:      map[string]*snap.AppInfo{"app": app},
 	}, nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -165,7 +165,7 @@ func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
 		Apps:      map[string]*snap.AppInfo{"app1": snapInfo.Apps["app1"], "app2": snapInfo.Apps["app2"]},
 	}, nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(slot.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(slot.Snap(), nil))
 	err := apparmorSpec.AddConnectedSlot(s.iface, plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.app1", "snap.maliit.app2"})
@@ -188,7 +188,7 @@ func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSome(c *C) {
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 	}, nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap(), nil))
 	c.Assert(s.slot, NotNil)
 	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
@@ -209,7 +209,7 @@ func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 		Apps:      map[string]*snap.AppInfo{"app": app},
 	}, nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap(), nil))
 	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.maliit"})
@@ -217,7 +217,7 @@ func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 }
 
 func (s *MaliitInterfaceSuite) TestPermanentSlotSecComp(c *C) {
-	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
 	err := seccompSpec.AddPermanentSlot(s.iface, s.slotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.maliit"})
@@ -227,7 +227,7 @@ func (s *MaliitInterfaceSuite) TestPermanentSlotSecComp(c *C) {
 func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	release.OnClassic = false
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -239,7 +239,7 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 }
 
 func (s *MaliitInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
 	err := apparmorSpec.AddPermanentSlot(s.iface, s.slotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.maliit"})
@@ -247,7 +247,7 @@ func (s *MaliitInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 }
 
 func (s *MaliitInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
-	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
 	err := seccompSpec.AddPermanentSlot(s.iface, s.slotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.maliit"})
@@ -255,7 +255,7 @@ func (s *MaliitInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 }
 
 func (s *MaliitInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap(), nil))
 	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.maliit.maliit"})

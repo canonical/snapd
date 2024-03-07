@@ -155,7 +155,7 @@ func (s *BoolFileInterfaceSuite) TestPlugSnippetHandlesSymlinkErrors(c *C) {
 		return "", fmt.Errorf("broken symbolic link")
 	})
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.gpioSlot)
 	c.Assert(err, ErrorMatches, "cannot compute plug security snippet: broken symbolic link")
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 0)
@@ -167,7 +167,7 @@ func (s *BoolFileInterfaceSuite) TestAddConnectedPlugAdditionalSnippetsForLeds(c
 		return path, nil
 	})
 	// Using a led that doesn't match, does not add
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.ledSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.Snippets(), DeepEquals, map[string][]string{
@@ -183,7 +183,7 @@ func (s *BoolFileInterfaceSuite) TestAddConnectedPlugAdditionalSnippetsForLeds(c
 
 	// Make sure that using a path that matches the boolFileLedPattern adds the
 	// additional snippets
-	apparmorSpec2 := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec2 := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err = apparmorSpec2.AddConnectedPlug(s.iface, s.plug, s.ledSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec2.Snippets(), DeepEquals, map[string][]string{
@@ -203,14 +203,14 @@ func (s *BoolFileInterfaceSuite) TestPlugSnippetDereferencesSymlinks(c *C) {
 	})
 	// Extra apparmor permission to access GPIO value
 	// The path uses dereferenced symbolic links.
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.gpioSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), Equals, "(dereferenced)/sys/class/gpio/gpio13/value rwk,")
 	// Extra apparmor permission to access LED brightness.
 	// The path uses dereferenced symbolic links.
-	apparmorSpec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.ledSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -220,7 +220,7 @@ func (s *BoolFileInterfaceSuite) TestPlugSnippetDereferencesSymlinks(c *C) {
 func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetPanicksOnUnsanitizedSlots(c *C) {
 	// Unsanitized slots should never be used and cause a panic.
 	c.Assert(func() {
-		apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+		apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 		apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.missingPathSlot)
 	}, PanicMatches, "slot is not sanitized")
 }
@@ -228,17 +228,17 @@ func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetPanicksOnUnsanitizedSlo
 func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetUnusedSecuritySystems(c *C) {
 	for _, slot := range []*interfaces.ConnectedSlot{s.ledSlot, s.gpioSlot} {
 		// No extra seccomp permissions for plug
-		seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+		seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 		err := seccompSpec.AddConnectedPlug(s.iface, s.plug, slot)
 		c.Assert(err, IsNil)
 		c.Assert(seccompSpec.Snippets(), HasLen, 0)
 		// No extra dbus permissions for plug
-		dbusSpec := dbus.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+		dbusSpec := dbus.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 		err = dbusSpec.AddConnectedPlug(s.iface, s.plug, slot)
 		c.Assert(err, IsNil)
 		c.Assert(dbusSpec.Snippets(), HasLen, 0)
 		// No extra udev permissions for plug
-		udevSpec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+		udevSpec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 		c.Assert(udevSpec.AddConnectedPlug(s.iface, s.plug, slot), IsNil)
 		c.Assert(udevSpec.Snippets(), HasLen, 0)
 	}
@@ -246,17 +246,17 @@ func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetUnusedSecuritySystems(c
 
 func (s *BoolFileInterfaceSuite) TestPermanentPlugSnippetUnusedSecuritySystems(c *C) {
 	// No extra seccomp permissions for plug
-	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap))
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap, nil))
 	err := seccompSpec.AddPermanentPlug(s.iface, s.plugInfo)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.Snippets(), HasLen, 0)
 	// No extra dbus permissions for plug
-	dbusSpec := dbus.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap))
+	dbusSpec := dbus.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap, nil))
 	err = dbusSpec.AddPermanentPlug(s.iface, s.plugInfo)
 	c.Assert(err, IsNil)
 	c.Assert(dbusSpec.Snippets(), HasLen, 0)
 	// No extra udev permissions for plug
-	udevSpec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap))
+	udevSpec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap, nil))
 	c.Assert(udevSpec.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
 	c.Assert(udevSpec.Snippets(), HasLen, 0)
 }

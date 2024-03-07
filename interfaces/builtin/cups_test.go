@@ -195,7 +195,7 @@ const expSnapUpdateNsSnippet = `  # Mount cupsd socket from cups snap to client 
 
 func (s *cupsSuite) TestAppArmorSpec(c *C) {
 	// consumer to provider on core for ConnectedPlug
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.providerSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow communicating with the cups server")
@@ -209,7 +209,7 @@ func (s *cupsSuite) TestAppArmorSpec(c *C) {
 	c.Assert(strings.Join(spec.UpdateNS(), ""), Equals, expSnapUpdateNsSnippet)
 
 	// consumer to legacy provider
-	specLegacy := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	specLegacy := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	c.Assert(specLegacy.AddConnectedPlug(s.iface, s.plug, s.providerLegacySlot), IsNil)
 	c.Assert(specLegacy.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(specLegacy.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow communicating with the cups server")

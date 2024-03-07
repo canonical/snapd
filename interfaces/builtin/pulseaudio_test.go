@@ -104,7 +104,7 @@ func (s *PulseAudioInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *PulseAudioInterfaceSuite) TestSecCompOnClassic(c *C) {
-	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.classicSlot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
@@ -112,14 +112,14 @@ func (s *PulseAudioInterfaceSuite) TestSecCompOnClassic(c *C) {
 }
 
 func (s *PulseAudioInterfaceSuite) TestSecCompOnAllSnaps(c *C) {
-	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil))
 	err := seccompSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
 	c.Assert(err, IsNil)
 
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.pulseaudio.app1"})
 	c.Assert(seccompSpec.SnippetForTag("snap.pulseaudio.app1"), testutil.Contains, "listen\n")
 
-	seccompSpec = seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap))
+	seccompSpec = seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap, nil))
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
@@ -128,7 +128,7 @@ func (s *PulseAudioInterfaceSuite) TestSecCompOnAllSnaps(c *C) {
 
 func (s *PulseAudioInterfaceSuite) TestApparmorOnClassic(c *C) {
 	// connected plug to classic slot
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/ r,\n")
@@ -141,7 +141,7 @@ func (s *PulseAudioInterfaceSuite) TestApparmorOnClassic(c *C) {
 
 func (s *PulseAudioInterfaceSuite) TestApparmorOnCoreNotSnapd(c *C) {
 	// connected plug to classic slot
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/ r,\n")
@@ -153,7 +153,7 @@ func (s *PulseAudioInterfaceSuite) TestApparmorOnCoreNotSnapd(c *C) {
 }
 
 func (s *PulseAudioInterfaceSuite) TestUDev(c *C) {
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap, nil))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 4)
 	c.Assert(spec.Snippets(), testutil.Contains, `# pulseaudio

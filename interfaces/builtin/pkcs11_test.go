@@ -180,7 +180,7 @@ func (s *Pkcs11InterfaceSuite) TestName(c *C) {
 }
 
 func (s *Pkcs11InterfaceSuite) TestSecCompPermanentSlot(c *C) {
-	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.testSlot0Info.Snap))
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.testSlot0Info.Snap, nil))
 	err := seccompSpec.AddPermanentSlot(s.iface, s.testSlot0Info)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.gadget.p11-server"})
@@ -188,7 +188,7 @@ func (s *Pkcs11InterfaceSuite) TestSecCompPermanentSlot(c *C) {
 }
 
 func (s *Pkcs11InterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testSlot0Info.Snap))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testSlot0Info.Snap, nil))
 	err := apparmorSpec.AddPermanentSlot(s.iface, s.testSlot0Info)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.gadget.p11-server"})
@@ -218,12 +218,12 @@ func (s *Pkcs11InterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 }
 
 func (s *Pkcs11InterfaceSuite) TestPermanentSlotMissingSocketPath(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testBadSlot4Info.Snap))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testBadSlot4Info.Snap, nil))
 	c.Assert(apparmorSpec.AddPermanentSlot(s.iface, s.testBadSlot4Info), ErrorMatches, `cannot use pkcs11 slot without "pkcs11-socket" attribute`)
 }
 
 func (s *Pkcs11InterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testPlug1.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testPlug1.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.testPlug1, s.testSlot1)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app-accessing-2-slots"})
 	c.Assert(err, IsNil)

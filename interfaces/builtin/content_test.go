@@ -333,7 +333,7 @@ slots:
 	}}
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -514,7 +514,7 @@ slots:
 	}}
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -579,7 +579,7 @@ slots:
 	}}
 	c.Assert(spec.MountEntries(), DeepEquals, expectedMnt)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
@@ -646,7 +646,7 @@ slots:
 	// Create the mount and apparmor specifications.
 	mountSpec := &mount.Specification{}
 	c.Assert(mountSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(connectedPlug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(connectedPlug.Snap(), nil))
 	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
 
 	// Analyze the mount specification.
@@ -914,7 +914,7 @@ slots:
 
 	// Create the mount and apparmor specifications.
 	mountSpec := &mount.Specification{}
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(connectedPlug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(connectedPlug.Snap(), nil))
 	for _, connectedSlot := range []*interfaces.ConnectedSlot{connectedSlotOne, connectedSlotTwo} {
 		c.Assert(mountSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
 		c.Assert(apparmorSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
@@ -980,7 +980,7 @@ slots:
 	// Create the mount and apparmor specifications.
 	mountSpec := &mount.Specification{}
 	c.Assert(mountSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(connectedPlug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(connectedPlug.Snap(), nil))
 	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, connectedPlug, connectedSlot), IsNil)
 
 	// Analyze the mount specification
@@ -1035,7 +1035,7 @@ apps:
 	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
 	slot := interfaces.NewConnectedSlot(producerInfo.Slots["content"], nil, nil)
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(slot.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(slot.Snap(), nil))
 	err := apparmorSpec.AddConnectedSlot(s.iface, plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})

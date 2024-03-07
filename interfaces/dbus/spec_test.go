@@ -87,7 +87,7 @@ func (s *specSuite) SetUpTest(c *C) {
 
 // The spec.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
-	spec := dbus.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	spec := dbus.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	var r interfaces.Specification = spec
 	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
@@ -97,7 +97,7 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.snap1.app1"})
 	c.Assert(spec.SnippetForTag("snap.snap1.app1"), Equals, "connected-plug\npermanent-plug\n")
 
-	spec = dbus.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap()))
+	spec = dbus.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap(), nil))
 	r = spec
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)

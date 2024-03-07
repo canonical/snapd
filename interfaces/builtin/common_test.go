@@ -59,7 +59,7 @@ slots:
 		name:              "common",
 		connectedPlugUDev: []string{`KERNEL=="foo"`},
 	}
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(plug.Snap(), nil))
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.Snippets(), DeepEquals, []string{
 		`# common
@@ -75,7 +75,7 @@ KERNEL=="foo", TAG+="snap_consumer_app-c"`,
 	iface = &commonInterface{
 		name: "common",
 	}
-	spec = udev.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
+	spec = udev.NewSpecification(interfaces.NewSnapAppSet(plug.Snap(), nil))
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
@@ -221,7 +221,7 @@ slots:
 	}
 
 	for _, test := range tests {
-		spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
+		spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap(), nil))
 		iface := test.iface
 		// before connection, everything should be set to false
 		for _, check := range test.checks {
@@ -254,7 +254,7 @@ slots:
 		name:                 "common",
 		controlsDeviceCgroup: false,
 	}
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(plug.Snap(), nil))
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
@@ -263,7 +263,7 @@ slots:
 		name:                 "common",
 		controlsDeviceCgroup: true,
 	}
-	spec = udev.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
+	spec = udev.NewSpecification(interfaces.NewSnapAppSet(plug.Snap(), nil))
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, true)

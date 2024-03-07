@@ -94,7 +94,7 @@ func (s *OfonoInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 
 	release.OnClassic = false
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -118,7 +118,7 @@ func (s *OfonoInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 
 	release.OnClassic = false
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -140,7 +140,7 @@ func (s *OfonoInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 
 	release.OnClassic = false
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -150,7 +150,7 @@ func (s *OfonoInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 func (s *OfonoInterfaceSuite) TestConnectedPlugSnippetUsesUnconfinedLabelOnClassic(c *C) {
 	release.OnClassic = true
 
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -163,7 +163,7 @@ func (s *OfonoInterfaceSuite) TestConnectedPlugSnippetUsesUnconfinedLabelOnClass
 
 func (s *OfonoInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	release.OnClassic = false
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -175,7 +175,7 @@ func (s *OfonoInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 }
 
 func (s *OfonoInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap()))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap(), nil))
 	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	aasnippets := apparmorSpec.Snippets()
@@ -186,7 +186,7 @@ func (s *OfonoInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 }
 
 func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
-	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
 	err := apparmorSpec.AddPermanentSlot(s.iface, s.slotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.ofono.app"})
@@ -194,7 +194,7 @@ func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 }
 
 func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
-	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
 	err := seccompSpec.AddPermanentSlot(s.iface, s.slotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.ofono.app"})
@@ -202,7 +202,7 @@ func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
 }
 
 func (s *OfonoInterfaceSuite) TestPermanentSlotSnippetUDev(c *C) {
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 5)
 	c.Assert(spec.Snippets()[0], testutil.Contains, `LABEL="ofono_isi_end"`)
