@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Canonical Ltd
+// Copyright (c) 2023-2024 Canonical Ltd
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License version 3 as
@@ -172,6 +172,7 @@ func sanitizeNoticeUserIDFilter(queryUserID []string) (*uint32, error) {
 // Construct the types filter which will be passed to state.Notices.
 func sanitizeNoticeTypesFilter(queryTypes []string, r *http.Request) ([]state.NoticeType, error) {
 	typeStrs := strutil.MultiCommaSeparatedList(queryTypes)
+	alreadySeen := make(map[state.NoticeType]bool, len(typeStrs))
 	types := make([]state.NoticeType, 0, len(typeStrs))
 	for _, typeStr := range typeStrs {
 		noticeType := state.NoticeType(typeStr)
@@ -180,6 +181,10 @@ func sanitizeNoticeTypesFilter(queryTypes []string, r *http.Request) ([]state.No
 			// with unknown types succeed).
 			continue
 		}
+		if alreadySeen[noticeType] {
+			continue
+		}
+		alreadySeen[noticeType] = true
 		types = append(types, noticeType)
 	}
 	if len(types) == 0 {
@@ -188,7 +193,7 @@ func sanitizeNoticeTypesFilter(queryTypes []string, r *http.Request) ([]state.No
 		}
 		// No types were specified, populate with notice types snap can view
 		// with its connected interface.
-		ucred, iface, err := ucrednetGetWithInterface(r.RemoteAddr)
+		ucred, ifaces, err := ucrednetGetWithInterfaces(r.RemoteAddr)
 		if err != nil {
 			return nil, err
 		}
@@ -196,7 +201,16 @@ func sanitizeNoticeTypesFilter(queryTypes []string, r *http.Request) ([]state.No
 			// Not connecting through snapd-snap.socket, should have read-access to all types.
 			return nil, nil
 		}
-		types = allowedNoticeTypesForInterface(iface)
+		for _, iface := range ifaces {
+			ifaceNoticeTypes := allowedNoticeTypesForInterface(iface)
+			for _, t := range ifaceNoticeTypes {
+				if alreadySeen[t] {
+					continue
+				}
+				alreadySeen[t] = true
+				types = append(types, t)
+			}
+		}
 		if len(types) == 0 {
 			return nil, errors.New("snap cannot access any notice type")
 		}
@@ -259,7 +273,7 @@ func noticeViewableByUser(notice *state.Notice, requestUID uint32) bool {
 // noticeTypesViewableBySnap checks if passed interface allows the snap
 // to have read-access for the passed notice types.
 func noticeTypesViewableBySnap(types []state.NoticeType, r *http.Request) bool {
-	ucred, iface, err := ucrednetGetWithInterface(r.RemoteAddr)
+	ucred, ifaces, err := ucrednetGetWithInterfaces(r.RemoteAddr)
 	if err != nil {
 		return false
 	}
@@ -273,11 +287,15 @@ func noticeTypesViewableBySnap(types []state.NoticeType, r *http.Request) bool {
 		return false
 	}
 
+InterfaceTypeLoop:
 	for _, noticeType := range types {
 		allowedInterfaces := noticeReadInterfaces[noticeType]
-		if !strutil.ListContains(allowedInterfaces, iface) {
-			return false
+		for _, iface := range ifaces {
+			if strutil.ListContains(allowedInterfaces, iface) {
+				continue InterfaceTypeLoop
+			}
 		}
+		return false
 	}
 	return true
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,8 +25,11 @@ import (
 	"net"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	sys "syscall"
+
+	"github.com/snapcore/snapd/strutil"
 )
 
 var errNoID = errors.New("no pid/uid found")
@@ -39,14 +42,14 @@ const (
 var raddrRegexp = regexp.MustCompile(`^pid=(\d+);uid=(\d+);socket=([^;]*);(iface=([^;]*);)?$`)
 
 var ucrednetGet = ucrednetGetImpl
-var ucrednetGetWithInterface = ucrednetGetWithInterfaceImpl
+var ucrednetGetWithInterfaces = ucrednetGetWithInterfacesImpl
 
 func ucrednetGetImpl(remoteAddr string) (*ucrednet, error) {
-	uc, _, err := ucrednetGetWithInterface(remoteAddr)
+	uc, _, err := ucrednetGetWithInterfaces(remoteAddr)
 	return uc, err
 }
 
-func ucrednetGetWithInterfaceImpl(remoteAddr string) (ucred *ucrednet, iface string, err error) {
+func ucrednetGetWithInterfacesImpl(remoteAddr string) (ucred *ucrednet, ifaces []string, err error) {
 	// NOTE treat remoteAddr at one point included a user-controlled
 	// string. In case that happens again by accident, treat it as tainted,
 	// and be very suspicious of it.
@@ -62,20 +65,42 @@ func ucrednetGetWithInterfaceImpl(remoteAddr string) (ucred *ucrednet, iface str
 		if v, err := strconv.ParseUint(subs[2], 10, 32); err == nil {
 			u.Uid = uint32(v)
 		}
+		// group: ([^;]*) - socket path following socket=
 		u.Socket = subs[3]
-		if len(subs) == 6 {
-			iface = subs[5]
+		// group: (iface=([^;]*);)
+		if len(subs[4]) > 0 {
+			// group: ([^;]*) - actual interfaces joined together with & separator
+			ifaces = strings.Split(subs[5], "&")
 		}
 	}
 	if u.Pid == ucrednetNoProcess || u.Uid == ucrednetNobody {
-		return nil, "", errNoID
+		return nil, nil, errNoID
 	}
 
-	return u, iface, nil
+	return u, ifaces, nil
 }
 
 func ucrednetAttachInterface(remoteAddr, iface string) string {
-	return fmt.Sprintf("%siface=%s;", remoteAddr, iface)
+	inds := raddrRegexp.FindStringSubmatchIndex(remoteAddr)
+	if inds == nil {
+		// This should only occur if remoteAddr is invalid.
+		return fmt.Sprintf("%siface=%s;", remoteAddr, iface)
+	}
+	// start of string matching group "(iface=([^;]*);)"
+	ifaceSubStart := inds[8]
+	ifaceSubEnd := inds[9]
+	if ifaceSubStart == ifaceSubEnd {
+		// "(iface=([^;]*);)" not present.
+		return fmt.Sprintf("%siface=%s;", remoteAddr, iface)
+	}
+	// string matching group "([^;]*)" within "(iface=([^;]*);)"
+	ifacesStr := remoteAddr[inds[10]:inds[11]]
+	ifaces := strings.Split(ifacesStr, "&")
+	if strutil.ListContains(ifaces, iface) {
+		return remoteAddr
+	}
+	ifaces = append(ifaces, iface)
+	return fmt.Sprintf("%siface=%s;", remoteAddr[:ifaceSubStart], strings.Join(ifaces, "&"))
 }
 
 type ucrednet struct {
