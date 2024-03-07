@@ -5,6 +5,7 @@
 # Next:
 * state: add support for notices (from pebble)
 * daemon: add notices to the snapd API under `/v2/notices` and `/v2/notice`
+* Mandatory device cgroup for all snaps using bare and core24 base as well as future bases
 
 # New in snapd 2.61.3:
 * Install systemd files in correct location for 24.04

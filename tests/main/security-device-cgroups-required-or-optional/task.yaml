@@ -14,9 +14,12 @@ systems:
 execute: |
     echo "Given snap is installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core20
+    test -f /var/lib/snapd/cgroup/snap.test-snapd-sh-core20.device
+
     # XXX explicitly install core24 until there is no release into the stable channel
     snap install --edge core24
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+    test -f /var/lib/snapd/cgroup/snap.test-snapd-sh-core20.device
 
     echo "No devices are assigned to either snap"
     udevadm info "/dev/null" | NOMATCH "E: TAGS=.*snap_test-snapd-sh.*"

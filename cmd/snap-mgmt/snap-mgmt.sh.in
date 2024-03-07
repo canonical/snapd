@@ -197,6 +197,7 @@ purge() {
     rm -rf /var/lib/snapd/sequence/*
     rm -rf /var/lib/snapd/apparmor/*
     rm -rf /var/lib/snapd/inhibit/*
+    rm -rf /var/lib/snapd/cgroup/*
     rm -f /var/lib/snapd/state.json
     rm -f /var/lib/snapd/system-key
 
