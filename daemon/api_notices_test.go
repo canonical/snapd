@@ -40,7 +40,7 @@ type noticesSuite struct {
 func (s *noticesSuite) SetUpTest(c *C) {
 	s.apiBaseSuite.SetUpTest(c)
 
-	s.expectReadAccess(daemon.InterfaceOpenAccess{Interface: "snap-refresh-observe"})
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}})
 }
 
 func (s *noticesSuite) TestNoticesFilterUserID(c *C) {

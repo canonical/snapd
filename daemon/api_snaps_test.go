@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2022 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -69,7 +69,7 @@ func (s *snapsSuite) SetUpTest(c *check.C) {
 }
 
 func (s *snapsSuite) expectSnapsReadAccess() {
-	s.expectReadAccess(daemon.InterfaceOpenAccess{Interface: "snap-refresh-observe"})
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}})
 }
 
 func (s *snapsSuite) TestSnapsInfoIntegration(c *check.C) {

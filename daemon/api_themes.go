@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2020-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -45,8 +45,8 @@ var (
 		Path:        "/v2/accessories/themes",
 		GET:         checkThemes,
 		POST:        installThemes,
-		ReadAccess:  interfaceOpenAccess{Interface: "snap-themes-control"},
-		WriteAccess: interfaceAuthenticatedAccess{Interface: "snap-themes-control", Polkit: polkitActionManage},
+		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-themes-control"}},
+		WriteAccess: interfaceAuthenticatedAccess{Interfaces: []string{"snap-themes-control"}, Polkit: polkitActionManage},
 	}
 )
 

@@ -61,14 +61,14 @@ var (
 		Path:        "/v2/changes/{id}",
 		GET:         getChange,
 		POST:        abortChange,
-		ReadAccess:  interfaceOpenAccess{Interface: "snap-refresh-observe"},
+		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 
 	stateChangesCmd = &Command{
 		Path:       "/v2/changes",
 		GET:        getChanges,
-		ReadAccess: interfaceOpenAccess{Interface: "snap-refresh-observe"},
+		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}},
 	}
 
 	warningsCmd = &Command{

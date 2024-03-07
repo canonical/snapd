@@ -52,7 +52,7 @@ type generalSuite struct {
 }
 
 func (s *generalSuite) expectChangesReadAccess() {
-	s.expectReadAccess(daemon.InterfaceOpenAccess{Interface: "snap-refresh-observe"})
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}})
 }
 
 func (s *generalSuite) TestRoot(c *check.C) {
