@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -40,6 +41,7 @@ type typeFlags int
 const (
 	noAuthority typeFlags = 1 << iota
 	sequenceForming
+	jsonBody
 )
 
 // MetaHeaders is a list of headers in assertions which are about the assertion
@@ -141,7 +143,7 @@ var (
 	PreseedType              = &AssertionType{"preseed", []string{"series", "brand-id", "model", "system-label"}, nil, assemblePreseed, 0}
 	SnapResourceRevisionType = &AssertionType{"snap-resource-revision", []string{"snap-id", "resource-name", "resource-sha3-384", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapResourceRevision, 0}
 	SnapResourcePairType     = &AssertionType{"snap-resource-pair", []string{"snap-id", "resource-name", "resource-revision", "snap-revision", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapResourcePair, 0}
-	AspectBundleType         = &AssertionType{"aspect-bundle", []string{"account-id", "name"}, nil, assembleAspectBundle, 0}
+	AspectBundleType         = &AssertionType{"aspect-bundle", []string{"account-id", "name"}, nil, assembleAspectBundle, jsonBody}
 
 	// ...
 )
@@ -995,6 +997,34 @@ func checkNoAuthority(assertType *AssertionType, headers map[string]interface{})
 	return nil
 }
 
+func checkJSON(assertType *AssertionType, body []byte) (err error) {
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("assertion %s: %v", assertType.Name, err)
+		}
+	}()
+
+	if body == nil {
+		return fmt.Errorf(`body must contain JSON`)
+	}
+
+	var val interface{}
+	if err := json.Unmarshal(body, &val); err != nil {
+		return fmt.Errorf("invalid JSON: %v", err)
+	}
+
+	formatted, err := json.MarshalIndent(val, "", "  ")
+	if err != nil {
+		return fmt.Errorf("invalid JSON: %v", err)
+	}
+
+	if !reflect.DeepEqual(body, formatted) {
+		return fmt.Errorf(`JSON must be indented with 2 spaces and sort object entries by key`)
+	}
+
+	return nil
+}
+
 // assemble is the internal variant of Assemble, assumes headers are already checked for supported types
 func assemble(headers map[string]interface{}, body, content, signature []byte) (Assertion, error) {
 	length, err := checkIntWithDefault(headers, "body-length", 0)
@@ -1022,13 +1052,9 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 		return nil, fmt.Errorf("unknown assertion type: %q", typ)
 	}
 
-	if assertType.Name == "aspect-bundle" {
-		if body == nil {
-			return nil, fmt.Errorf(`assertion aspect-bundle: body must contain aspect schema`)
-		}
-
-		if body, err = formatJSON(body); err != nil {
-			return nil, fmt.Errorf("assertion aspect-bundle: invalid schema: %w", err)
+	if assertType.flags&jsonBody != 0 {
+		if err := checkJSON(assertType, body); err != nil {
+			return nil, err
 		}
 	}
 
@@ -1085,15 +1111,6 @@ func writeHeader(buf *bytes.Buffer, headers map[string]interface{}, name string)
 	appendEntry(buf, fmt.Sprintf("%s:", name), headers[name], 0)
 }
 
-func formatJSON(body []byte) ([]byte, error) {
-	var val map[string]interface{}
-	if err := json.Unmarshal(body, &val); err != nil {
-		return nil, err
-	}
-
-	return json.MarshalIndent(val, "", "  ")
-}
-
 func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, body []byte, privKey PrivateKey) (Assertion, error) {
 	err := checkAssertType(assertType)
 	if err != nil {
@@ -1101,6 +1118,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	}
 
 	withAuthority := assertType.flags&noAuthority == 0
+	withJSONBody := assertType.flags&jsonBody != 0
 
 	err = checkHeaders(headers)
 	if err != nil {
@@ -1111,16 +1129,6 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	// make sure we actually enforce that
 	if !utf8.Valid(body) {
 		return nil, fmt.Errorf("assertion body is not utf8")
-	}
-
-	if assertType.Name == "aspect-bundle" {
-		if body == nil {
-			return nil, fmt.Errorf(`assertion aspect-bundle: body must contain aspect schema`)
-		}
-
-		if body, err = formatJSON(body); err != nil {
-			return nil, fmt.Errorf("assertion aspect-bundle: invalid schema: %w", err)
-		}
 	}
 
 	finalHeaders := copyHeaders(headers)
@@ -1162,6 +1170,12 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	revision, err := checkRevision(finalHeaders)
 	if err != nil {
 		return nil, err
+	}
+
+	if withJSONBody {
+		if err := checkJSON(assertType, body); err != nil {
+			return nil, err
+		}
 	}
 
 	buf := bytes.NewBufferString("type: ")

@@ -90,21 +90,24 @@ func (s *aspectTestSuite) SetUpTest(c *C) {
 		"timestamp": "2030-11-06T09:16:26Z",
 	}
 	body := []byte(`{
-	"storage": {
-		"schema": {
-			"wifi" : {
-				"schema": {
-					"ssids": {"type": "array", "values": "any"},
-					"ssid": "string",
-					"psk": "string",
-					"status":"string"
-				}
-			},
-			"private": {
-				"values": "any"
-			}
-		}
-	}
+  "storage": {
+    "schema": {
+      "private": {
+        "values": "any"
+      },
+      "wifi": {
+        "schema": {
+          "psk": "string",
+          "ssid": "string",
+          "ssids": {
+            "type": "array",
+            "values": "any"
+          },
+          "status": "string"
+        }
+      }
+    }
+  }
 }`)
 
 	as, err := signingDB.Sign(asserts.AspectBundleType, headers, body, "")
