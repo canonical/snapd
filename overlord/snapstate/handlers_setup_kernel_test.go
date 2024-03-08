@@ -46,7 +46,7 @@ func (s *setupKernelSnapSuite) TestSetupKernelSnap(c *C) {
 
 	s.state.Lock()
 
-	t := s.state.NewTask("setup-kernel-snap", "test kernel setup")
+	t := s.state.NewTask("prepare-kernel-snap", "test kernel setup")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "mykernel",
@@ -72,7 +72,7 @@ func (s *setupKernelSnapSuite) TestSetupKernelSnap(c *C) {
 
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "setup-kernel-snap",
+			op: "prepare-kernel-snap",
 		},
 	})
 }
@@ -83,7 +83,7 @@ func (s *setupKernelSnapSuite) TestUndoSetupKernelSnap(c *C) {
 
 	s.state.Lock()
 
-	t := s.state.NewTask("setup-kernel-snap", "test kernel setup")
+	t := s.state.NewTask("prepare-kernel-snap", "test kernel setup")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "mykernel",
@@ -114,7 +114,7 @@ func (s *setupKernelSnapSuite) TestUndoSetupKernelSnap(c *C) {
 
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "setup-kernel-snap",
+			op: "prepare-kernel-snap",
 		},
 		{
 			op: "remove-kernel-snap-setup",
@@ -135,7 +135,7 @@ func (s *setupKernelSnapSuite) TestRemoveKernelSnapSetup(c *C) {
 		Current: snap.R(33),
 		UserID:  1,
 	})
-	t := s.state.NewTask("remove-old-kernel-snap-setup", "test remove kernel set-up")
+	t := s.state.NewTask("discard-old-kernel-snap-setup", "test discard kernel set-up")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "mykernel",
@@ -177,7 +177,7 @@ func (s *setupKernelSnapSuite) TestUndoRemoveKernelSnapSetup(c *C) {
 		Current: snap.R(33),
 		UserID:  1,
 	})
-	t := s.state.NewTask("remove-old-kernel-snap-setup", "test kernel setup")
+	t := s.state.NewTask("discard-old-kernel-snap-setup", "test discard setup")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "mykernel",
@@ -209,7 +209,7 @@ func (s *setupKernelSnapSuite) TestUndoRemoveKernelSnapSetup(c *C) {
 			op: "remove-kernel-snap-setup",
 		},
 		{
-			op: "setup-kernel-snap",
+			op: "prepare-kernel-snap",
 		},
 	})
 }

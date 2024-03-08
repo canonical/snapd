@@ -63,7 +63,7 @@ func (s *setupKernelComponentsSuite) testSetupKernelModules(c *C, snapName, errS
 	cs2 := sequence.NewComponentState(csi2, snap.KernelModulesComponent)
 	setStateWithComponents(s.state, snapName, snapRev, []*sequence.ComponentState{cs1, cs2})
 
-	t := s.state.NewTask("setup-kernel-modules-component", "test kernel modules")
+	t := s.state.NewTask("prepare-kernel-modules-components", "test kernel modules")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapName,
@@ -124,7 +124,7 @@ func (s *setupKernelComponentsSuite) testRemoveKernelModulesSetup(c *C, snapName
 	cs2 := sequence.NewComponentState(csi2, snap.KernelModulesComponent)
 	setStateWithComponents(s.state, snapName, snapRev, []*sequence.ComponentState{cs1, cs2})
 
-	t := s.state.NewTask("setup-kernel-modules-component", "test kernel modules")
+	t := s.state.NewTask("prepare-kernel-modules-components", "test kernel modules")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapName,

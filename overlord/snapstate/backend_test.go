@@ -913,9 +913,9 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 }
 
 func (f *fakeSnappyBackend) SetupKernelSnap(instanceName string, rev snap.Revision, meter progress.Meter) (err error) {
-	meter.Notify("setup-kernel-snap")
+	meter.Notify("prepare-kernel-snap")
 	f.appendOp(&fakeOp{
-		op: "setup-kernel-snap",
+		op: "prepare-kernel-snap",
 	})
 	return nil
 }
