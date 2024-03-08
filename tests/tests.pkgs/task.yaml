@@ -10,11 +10,9 @@ execute: |
 
     # pkgs tool presents the usage screen when invoked without arguments
     # or with the -h or --help options.
-    tests.pkgs | MATCH 'usage: tests.pkgs {install,remove} \[PACKAGE...\]'
-    tests.pkgs -h | MATCH 'usage: tests.pkgs {install,remove} \[PACKAGE...\]'
-    tests.pkgs --help | MATCH 'usage: tests.pkgs {install,remove} \[PACKAGE...\]'
-
-    # Update the packages db
+    tests.pkgs | MATCH 'usage: tests.pkgs install \[--no-install-recommends\] \[PACKAGE...\]'
+    tests.pkgs -h | MATCH 'usage: tests.pkgs install \[--no-install-recommends\] \[PACKAGE...\]'
+    tests.pkgs --help | MATCH 'usage: tests.pkgs install \[--no-install-recommends\] \[PACKAGE...\]'
 
     # Check the test pkg is not installed
     not tests.pkgs is-installed test-snapd-pkg-1
@@ -28,6 +26,11 @@ execute: |
     tests.pkgs remove test-snapd-pkg-1
     tests.pkgs query test-snapd-pkg-1
     not tests.pkgs is-installed test-snapd-pkg-1
+
+    # Install a package with --no-install-recommends option
+    tests.pkgs install --no-install-recommends test-snapd-pkg-1
+    tests.pkgs query test-snapd-pkg-1
+    tests.pkgs remove test-snapd-pkg-1
 
     # Install 2 test pkgs and check they are is installed
     tests.pkgs install test-snapd-pkg-1 test-snapd-pkg-2
