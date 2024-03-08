@@ -9,7 +9,7 @@ details: |
     The test is implemented with test-snapd-busybox-static, to avoid using
     real canonical-livepatch snap.
 
-systems: [ubuntu-*]
+systems: [ubuntu-1*, ubuntu-2*]
 
 prepare: |
     snap download test-snapd-busybox-static
