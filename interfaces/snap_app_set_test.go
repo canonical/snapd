@@ -179,10 +179,7 @@ hooks:
 plugs:
   plug:
 slots:
-  slot:
-components:
-  comp:
-    type: test`
+  slot:`
 	info, connectedPlug := mockInfoAndConnectedPlug(c, yaml, nil, "plug")
 	compInfo := snaptest.MockComponent(c, "component: name+comp\ntype: test\nversion: 1", info)
 
@@ -191,7 +188,12 @@ components:
 
 	tags, err := set.SecurityTagsForConnectedPlug(connectedPlug)
 	c.Assert(err, IsNil)
-	c.Assert(tags, DeepEquals, []string{"snap.name.app1", "snap.name.app2", "snap.name.hook.install"})
+	c.Assert(tags, DeepEquals, []string{
+		"snap.name+comp.hook.install",
+		"snap.name.app1",
+		"snap.name.app2",
+		"snap.name.hook.install",
+	})
 }
 
 func (s *snapAppSetSuite) TestPlugSecurityTagsWrongSnap(c *C) {

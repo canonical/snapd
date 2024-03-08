@@ -54,6 +54,10 @@ func (a *SnapAppSet) SecurityTagsForPlug(plug *snap.PlugInfo) ([]string, error) 
 	apps := a.info.AppsForPlug(plug)
 	hooks := a.info.HooksForPlug(plug)
 
+	for _, component := range a.components {
+		hooks = append(hooks, component.HooksForPlug(plug)...)
+	}
+
 	tags := make([]string, 0, len(apps)+len(hooks))
 	for _, app := range apps {
 		tags = append(tags, app.SecurityTag())
