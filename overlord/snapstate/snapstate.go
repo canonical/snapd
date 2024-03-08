@@ -859,6 +859,10 @@ var AddSnapToQuotaGroup = func(st *state.State, snapName string, quotaGroup stri
 	panic("internal error: snapstate.AddSnapToQuotaGroup is unset")
 }
 
+var HasActiveConnection = func(st *state.State, iface string) (bool, error) {
+	panic("internal error: snapstate.HasActiveConnection is unset")
+}
+
 var generateSnapdWrappers = backend.GenerateSnapdWrappers
 
 // FinishRestart will return a Retry error if there is a pending restart

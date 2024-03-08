@@ -45,6 +45,10 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
+func init() {
+	snapstate.HasActiveConnection = hasActiveConnection
+}
+
 var (
 	snapdAppArmorServiceIsDisabled = snapdAppArmorServiceIsDisabledImpl
 	profilesNeedRegeneration       = profilesNeedRegenerationImpl
@@ -1369,4 +1373,18 @@ func (m *InterfaceManager) discardSecurityProfilesLate(name string, rev snap.Rev
 		}
 	}
 	return nil
+}
+
+func hasActiveConnection(st *state.State, iface string) (bool, error) {
+	conns, err := getConns(st)
+	if err != nil {
+		return false, err
+	}
+	for _, cstate := range conns {
+		// look for connected interface
+		if !cstate.Undesired && !cstate.HotplugGone && cstate.Interface == iface {
+			return true, nil
+		}
+	}
+	return false, nil
 }
