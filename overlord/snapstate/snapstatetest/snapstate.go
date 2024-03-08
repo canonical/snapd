@@ -45,8 +45,8 @@ type InstallSnapOptions struct {
 	PreserveSequence bool
 }
 
-func InstallSnap(c *check.C, st *state.State, yaml string, si *snap.SideInfo, opts InstallSnapOptions) *snap.Info {
-	info := snaptest.MakeSnapFileAndDir(c, yaml, nil, si)
+func InstallSnap(c *check.C, st *state.State, yaml string, files [][]string, si *snap.SideInfo, opts InstallSnapOptions) *snap.Info {
+	info := snaptest.MakeSnapFileAndDir(c, yaml, files, si)
 
 	t := info.Type()
 	if si.RealName == "core" {
@@ -74,20 +74,20 @@ func InstallSnap(c *check.C, st *state.State, yaml string, si *snap.SideInfo, op
 	return info
 }
 
-func InstallEssentialSnaps(c *check.C, st *state.State, base string, bloader bootloader.Bootloader) {
-	InstallSnap(c, st, fmt.Sprintf("name: pc\nversion: 1\ntype: gadget\nbase: %s", base), &snap.SideInfo{
+func InstallEssentialSnaps(c *check.C, st *state.State, base string, gadgetFiles [][]string, bloader bootloader.Bootloader) {
+	InstallSnap(c, st, fmt.Sprintf("name: pc\nversion: 1\ntype: gadget\nbase: %s", base), gadgetFiles, &snap.SideInfo{
 		SnapID:   fakeSnapID("pc"),
 		Revision: snap.R(1),
 		RealName: "pc",
 	}, InstallSnapOptions{Required: true})
 
-	InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", &snap.SideInfo{
+	InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
 		RealName: "pc-kernel",
 	}, InstallSnapOptions{Required: true})
 
-	InstallSnap(c, st, fmt.Sprintf("name: %s\nversion: 1\ntype: base\n", base), &snap.SideInfo{
+	InstallSnap(c, st, fmt.Sprintf("name: %s\nversion: 1\ntype: base\n", base), nil, &snap.SideInfo{
 		SnapID:   fakeSnapID(base),
 		Revision: snap.R(1),
 		RealName: base,

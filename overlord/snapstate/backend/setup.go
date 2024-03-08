@@ -114,10 +114,6 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 	return t, installRecord, nil
 }
 
-func earlyKernelMountDir(ksnapName string, rev snap.Revision) string {
-	return filepath.Join("/run/mnt/kernel-snaps", ksnapName, rev.String())
-}
-
 // SetupKernelSnap does extra configuration for kernel snaps.
 func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, meter progress.Meter) (err error) {
 	var sysd systemd.Systemd
@@ -130,13 +126,13 @@ func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, meter p
 	// Create early mount for the snap
 	cpi := snap.MinimalSnapContainerPlaceInfo(instanceName, rev)
 
-	earlyMountDir := earlyKernelMountDir(instanceName, rev)
+	earlyMountDir := kernel.EarlyKernelMountDir(instanceName, rev)
 	addMountUnitOptions := &systemd.MountUnitOptions{
 		MountUnitType: systemd.BeforeDriversLoadMountUnit,
 		Lifetime:      systemd.Persistent,
 		Description:   "Early mount unit for kernel snap",
 		What:          cpi.MountFile(),
-		Where:         earlyMountDir,
+		Where:         dirs.StripRootDir(earlyMountDir),
 		Fstype:        "squashfs",
 		Options:       []string{"nodev,ro,x-gdu.hide,x-gvfs-hide"},
 	}
@@ -150,13 +146,14 @@ func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, meter p
 		if err == nil {
 			return
 		}
-		if e := sysd.RemoveMountUnitFile(filepath.Join(dirs.GlobalRootDir, earlyMountDir)); e != nil {
+		if e := sysd.RemoveMountUnitFile(earlyMountDir); e != nil {
 			meter.Notify(fmt.Sprintf("while trying to clean up due to previous failure: %v", e))
 		}
 	}()
 
 	// Build kernel tree that will be mounted from initramfs
-	return kernel.EnsureKernelDriversTree(instanceName, rev, filepath.Join(dirs.GlobalRootDir, earlyMountDir))
+	return kernel.EnsureKernelDriversTree(instanceName, rev,
+		earlyMountDir, nil, &kernel.KernelDriversTreeOptions{KernelInstall: true})
 }
 
 func (b Backend) RemoveKernelSnapSetup(instanceName string, rev snap.Revision, meter progress.Meter) error {
@@ -171,8 +168,8 @@ func (b Backend) RemoveKernelSnapSetup(instanceName string, rev snap.Revision, m
 		sysd = systemd.New(systemd.SystemMode, meter)
 	}
 
-	earlyMountDir := earlyKernelMountDir(instanceName, rev)
-	return sysd.RemoveMountUnitFile(filepath.Join(dirs.GlobalRootDir, earlyMountDir))
+	earlyMountDir := kernel.EarlyKernelMountDir(instanceName, rev)
+	return sysd.RemoveMountUnitFile(earlyMountDir)
 }
 
 // SetupComponent prepares and mounts a component for further processing.

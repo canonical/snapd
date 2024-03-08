@@ -22,22 +22,28 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 )
 
+var noticeReadInterfaces = map[state.NoticeType][]string{
+	state.ChangeUpdateNotice:   {"snap-refresh-observe"},
+	state.RefreshInhibitNotice: {"snap-refresh-observe"},
+}
+
 var (
 	noticesCmd = &Command{
 		Path:       "/v2/notices",
 		GET:        getNotices,
-		ReadAccess: openAccess{},
+		ReadAccess: interfaceOpenAccess{Interface: "snap-refresh-observe"},
 	}
 
 	noticeCmd = &Command{
 		Path:       "/v2/notices/{id}",
 		GET:        getNotice,
-		ReadAccess: openAccess{},
+		ReadAccess: interfaceOpenAccess{Interface: "snap-refresh-observe"},
 	}
 )
 
@@ -56,31 +62,34 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 		if requestUID != 0 {
 			return Forbidden(`only admins may use the "user-id" filter`)
 		}
-		userID, err = sanitizeUserIDFilter(query["user-id"])
+		userID, err = sanitizeNoticeUserIDFilter(query["user-id"])
 		if err != nil {
 			return BadRequest(`invalid "user-id" filter: %v`, err)
 		}
 	}
 
-	if len(query["select"]) > 0 {
+	if len(query["users"]) > 0 {
 		if requestUID != 0 {
-			return Forbidden(`only admins may use the "select" filter`)
+			return Forbidden(`only admins may use the "users" filter`)
 		}
 		if len(query["user-id"]) > 0 {
-			return BadRequest(`cannot use both "select" and "user-id" parameters`)
+			return BadRequest(`cannot use both "users" and "user-id" parameters`)
 		}
-		if query.Get("select") != "all" {
-			return BadRequest(`invalid "select" filter: must be "all"`)
+		if query.Get("users") != "all" {
+			return BadRequest(`invalid "users" filter: must be "all"`)
 		}
 		// Clear the userID filter so all notices will be returned.
 		userID = nil
 	}
 
-	types, err := sanitizeTypesFilter(query["types"])
+	types, err := sanitizeNoticeTypesFilter(query["types"], r)
 	if err != nil {
 		// Caller did provide a types filter, but they're all invalid notice types.
 		// Return no notices, rather than the default of all notices.
 		return SyncResponse([]*state.Notice{})
+	}
+	if !noticeTypesViewableBySnap(types, r) {
+		return Forbidden("snap cannot access specified notice types")
 	}
 
 	keys := strutil.MultiCommaSeparatedList(query["keys"])
@@ -144,7 +153,7 @@ func uidFromRequest(r *http.Request) (uint32, error) {
 
 // Construct the user IDs filter which will be passed to state.Notices.
 // Must only be called if the query user ID argument is set.
-func sanitizeUserIDFilter(queryUserID []string) (*uint32, error) {
+func sanitizeNoticeUserIDFilter(queryUserID []string) (*uint32, error) {
 	userIDStrs := strutil.MultiCommaSeparatedList(queryUserID)
 	if len(userIDStrs) != 1 {
 		return nil, fmt.Errorf(`must only include one "user-id"`)
@@ -161,7 +170,7 @@ func sanitizeUserIDFilter(queryUserID []string) (*uint32, error) {
 }
 
 // Construct the types filter which will be passed to state.Notices.
-func sanitizeTypesFilter(queryTypes []string) ([]state.NoticeType, error) {
+func sanitizeNoticeTypesFilter(queryTypes []string, r *http.Request) ([]state.NoticeType, error) {
 	typeStrs := strutil.MultiCommaSeparatedList(queryTypes)
 	types := make([]state.NoticeType, 0, len(typeStrs))
 	for _, typeStr := range typeStrs {
@@ -173,10 +182,40 @@ func sanitizeTypesFilter(queryTypes []string) ([]state.NoticeType, error) {
 		}
 		types = append(types, noticeType)
 	}
-	if len(types) == 0 && len(typeStrs) > 0 {
-		return nil, errors.New("all requested notice types invalid")
+	if len(types) == 0 {
+		if len(typeStrs) > 0 {
+			return nil, errors.New("all requested notice types invalid")
+		}
+		// No types were specified, populate with notice types snap can view
+		// with its connected interface.
+		ucred, iface, err := ucrednetGetWithInterface(r.RemoteAddr)
+		if err != nil {
+			return nil, err
+		}
+		if ucred.Socket == dirs.SnapdSocket {
+			// Not connecting through snapd-snap.socket, should have read-access to all types.
+			return nil, nil
+		}
+		types = allowedNoticeTypesForInterface(iface)
+		if len(types) == 0 {
+			return nil, errors.New("snap cannot access any notice type")
+		}
 	}
 	return types, nil
+}
+
+// allowedNoticeTypesForInterface returns a list of notice types that a snap
+// can read with connected interface.
+func allowedNoticeTypesForInterface(iface string) []state.NoticeType {
+	// Populate with notice types the snap can access through its plugged interfaces
+	var types []state.NoticeType
+	for noticeType, allowedInterfaces := range noticeReadInterfaces {
+		if strutil.ListContains(allowedInterfaces, iface) {
+			types = append(types, noticeType)
+		}
+	}
+
+	return types
 }
 
 func getNotice(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -193,6 +232,9 @@ func getNotice(c *Command, r *http.Request, user *auth.UserState) Response {
 		return NotFound("cannot find notice with id %q", noticeID)
 	}
 	if !noticeViewableByUser(notice, requestUID) {
+		return Forbidden("not allowed to access notice with id %q", noticeID)
+	}
+	if !noticeTypesViewableBySnap([]state.NoticeType{notice.Type()}, r) {
 		return Forbidden("not allowed to access notice with id %q", noticeID)
 	}
 	return SyncResponse(notice)
@@ -212,4 +254,30 @@ func noticeViewableByUser(notice *state.Notice, requestUID uint32) bool {
 		return true
 	}
 	return requestUID == userID
+}
+
+// noticeTypesViewableBySnap checks if passed interface allows the snap
+// to have read-access for the passed notice types.
+func noticeTypesViewableBySnap(types []state.NoticeType, r *http.Request) bool {
+	ucred, iface, err := ucrednetGetWithInterface(r.RemoteAddr)
+	if err != nil {
+		return false
+	}
+	if ucred.Socket == dirs.SnapdSocket {
+		// Not connecting through snapd-snap.socket, should have read-access to all types.
+		return true
+	}
+
+	if len(types) == 0 {
+		// At least one type must be specified for snaps
+		return false
+	}
+
+	for _, noticeType := range types {
+		allowedInterfaces := noticeReadInterfaces[noticeType]
+		if !strutil.ListContains(allowedInterfaces, iface) {
+			return false
+		}
+	}
+	return true
 }

@@ -215,12 +215,14 @@ struct sc_mount_config {
  * Ensures all required mount points have been created
  */
 static void sc_create_mount_points(const char *scratch_dir,
-                                   const struct sc_mount *mounts)
+				   const struct sc_mount *mounts)
 {
 	char dst[PATH_MAX] = { 0 };
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-	for (const struct sc_mount * mnt = mounts; mnt && mnt->path != NULL; mnt++) {
-		sc_must_snprintf(dst, sizeof(dst), "%s/%s", scratch_dir, mnt->path);
+	for (const struct sc_mount * mnt = mounts; mnt && mnt->path != NULL;
+	     mnt++) {
+		sc_must_snprintf(dst, sizeof(dst), "%s/%s", scratch_dir,
+				 mnt->path);
 		if (sc_nonfatal_mkpath(dst, 0755) < 0) {
 			die("cannot create mount point %s", dst);
 		}
@@ -240,8 +242,7 @@ static void sc_create_mount_points(const char *scratch_dir,
  * - All the target directories must exist
  * - All the source directories must exist, unless the mount is bi-directional
  */
-static void sc_do_mounts(const char *scratch_dir,
-                         const struct sc_mount *mounts)
+static void sc_do_mounts(const char *scratch_dir, const struct sc_mount *mounts)
 {
 	char dst[PATH_MAX] = { 0 };
 	// Bind mount certain directories from the host filesystem to the scratch
@@ -249,7 +250,8 @@ static void sc_do_mounts(const char *scratch_dir,
 	// of the peer group. This way the running application can alter any global
 	// state visible on the host and in other snaps. This can be restricted by
 	// disabling the "is_bidirectional" flag as can be seen below.
-	for (const struct sc_mount * mnt = mounts; mnt && mnt->path != NULL; mnt++) {
+	for (const struct sc_mount * mnt = mounts; mnt && mnt->path != NULL;
+	     mnt++) {
 
 		if (mnt->is_bidirectional) {
 			sc_identity old =
@@ -351,8 +353,8 @@ static void sc_initialize_ns_fstab(const char *snap_instance_name)
  * not touch them.
  */
 static void sc_replicate_base_rootfs(const char *scratch_dir,
-                                     const char *rootfs_dir,
-                                     const struct sc_mount *root_mounts)
+				     const char *rootfs_dir,
+				     const struct sc_mount *root_mounts)
 {
 	// First of all, fix the root filesystem:
 	// - remove write permissions for group and others
@@ -371,13 +373,12 @@ static void sc_replicate_base_rootfs(const char *scratch_dir,
 	if (rootfs_fd < 0) {
 		die("cannot open directory \"%s\"", rootfs_dir);
 	}
-
 	// rootfs_fd is now managed by fdopendir() and should not be used after
 	DIR *rootfs SC_CLEANUP(sc_cleanup_closedir) = fdopendir(rootfs_fd);
 	if (rootfs == NULL) {
-		die("cannot open directory \"%s\" from file descriptor", rootfs_dir);
+		die("cannot open directory \"%s\" from file descriptor",
+		    rootfs_dir);
 	}
-
 	// Will create folders/links as 0:0
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 
@@ -393,28 +394,30 @@ static void sc_replicate_base_rootfs(const char *scratch_dir,
 	while (true) {
 		errno = 0;
 		struct dirent *ent = readdir(rootfs);
-		if (ent == NULL) break;
+		if (ent == NULL)
+			break;
 
 		if (sc_streq(ent->d_name, ".") || sc_streq(ent->d_name, "..")) {
 			continue;
 		}
 
 		sc_must_snprintf(full_path, sizeof(full_path), "%s/%s",
-		                 scratch_dir, ent->d_name);
+				 scratch_dir, ent->d_name);
 		if (ent->d_type == DT_DIR) {
 			if (mkdir(full_path, 0755) < 0) {
-				die("cannot create directory \"%s\"", full_path);
+				die("cannot create directory \"%s\"",
+				    full_path);
 			}
-
 			// If the directory is listed in root_mounts skip it,
 			// as it will be created and mounted in
 			// sc_bootstrap_mount_namespace() later.
 			bool skip_dir = false;
-			const char *path_in_rootfs = full_path + scratch_dir_length;
-			for (const struct sc_mount *mnt = root_mounts;
+			const char *path_in_rootfs =
+			    full_path + scratch_dir_length;
+			for (const struct sc_mount * mnt = root_mounts;
 			     mnt->path != NULL; mnt++) {
-				if (sc_streq(path_in_rootfs, mnt->path) ||
-				    sc_streq(path_in_rootfs, mnt->altpath)) {
+				if (sc_streq(path_in_rootfs, mnt->path)
+				    || sc_streq(path_in_rootfs, mnt->altpath)) {
 					skip_dir = true;
 					break;
 				}
@@ -430,11 +433,13 @@ static void sc_replicate_base_rootfs(const char *scratch_dir,
 			char src_path[PATH_MAX];
 			sc_must_snprintf(src_path, sizeof(src_path), "%s/%s",
 					 rootfs_dir, ent->d_name);
-			sc_do_mount(src_path, full_path, NULL, MS_REC | MS_BIND, NULL);
+			sc_do_mount(src_path, full_path, NULL, MS_REC | MS_BIND,
+				    NULL);
 		} else if (ent->d_type == DT_LNK) {
 			char link_target[PATH_MAX + 1];
 			ssize_t len = readlinkat(rootfs_fd, ent->d_name,
-			                         link_target, sizeof(link_target) - 1);
+						 link_target,
+						 sizeof(link_target) - 1);
 			if (len < 0) {
 				die("cannot read symbolic link \"%s/%s\"",
 				    rootfs_dir, ent->d_name);
@@ -445,13 +450,15 @@ static void sc_replicate_base_rootfs(const char *scratch_dir,
 			// Both relative and absolute links will work out of the box, since
 			// we are going to do a pivot_root to scratch_dir.
 			if (symlink(link_target, full_path) < 0) {
-				die("cannot create symbolic link \"%s\"", full_path);
+				die("cannot create symbolic link \"%s\"",
+				    full_path);
 			}
 		} else if (ent->d_type == DT_REG) {
 			// Create an empty file which can be used as a mount point
 			int fd = open(full_path, O_CREAT | O_TRUNC, 0644);
 			if (fd < 0) {
-				die("cannot create mount point for file \"%s\"", full_path);
+				die("cannot create mount point for file \"%s\"",
+				    full_path);
 			}
 			close(fd);
 			char src_path[PATH_MAX];
@@ -459,8 +466,7 @@ static void sc_replicate_base_rootfs(const char *scratch_dir,
 					 rootfs_dir, ent->d_name);
 			sc_do_mount(src_path, full_path, NULL, MS_BIND, NULL);
 		} else {
-			die("unexpected directory entry \"%s\" of type %i encountered in \"%s\"",
-				ent->d_name, ent->d_type, rootfs_dir);
+			die("unexpected directory entry \"%s\" of type %i encountered in \"%s\"", ent->d_name, ent->d_type, rootfs_dir);
 		}
 	}
 
@@ -536,7 +542,8 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		// Create a tmpfs on scratch_dir; we'll them mount all the root
 		// directories of the base snap onto it.
 		sc_do_mount("none", scratch_dir, "tmpfs", 0, NULL);
-		sc_replicate_base_rootfs(scratch_dir, config->rootfs_dir, config->mounts);
+		sc_replicate_base_rootfs(scratch_dir, config->rootfs_dir,
+					 config->mounts);
 	} else {
 		// Recursively bind mount desired root filesystem directory over the
 		// scratch directory. This puts the initial content into the scratch
@@ -545,8 +552,8 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		//
 		// The mount is recursive because we need to accurately replicate the
 		// state of the root filesystem into the scratch directory.
-		sc_do_mount(config->rootfs_dir, scratch_dir, NULL, MS_REC | MS_BIND,
-		            NULL);
+		sc_do_mount(config->rootfs_dir, scratch_dir, NULL,
+			    MS_REC | MS_BIND, NULL);
 	}
 	// Make the scratch directory recursively slave. Nothing done there will be
 	// shared with the initial mount namespace. This effectively detaches us,
@@ -722,10 +729,12 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 			// before we have the chance to chown it to root:root. We are
 			// setting the usual 0755 permissions just after the chown below.
 			if (mkdir(SC_HOSTFS_DIR, 0000) < 0) {
-				die("cannot perform operation: mkdir %s", SC_HOSTFS_DIR);
+				die("cannot perform operation: mkdir %s",
+				    SC_HOSTFS_DIR);
 			}
 			if (chown(SC_HOSTFS_DIR, 0, 0) < 0) {
-				die("cannot set root ownership on %s directory", SC_HOSTFS_DIR);
+				die("cannot set root ownership on %s directory",
+				    SC_HOSTFS_DIR);
 			}
 			if (chmod(SC_HOSTFS_DIR, 0755) < 0) {
 				die("cannot set 0755 permissions on %s directory", SC_HOSTFS_DIR);
@@ -908,18 +917,18 @@ static struct sc_mount *sc_homedir_mounts(const struct sc_invocation *inv)
 	if (inv->num_homedirs == 0) {
 		return NULL;
 	}
-
 	// We add one element for the end-of-array indicator.
-	struct sc_mount *mounts = calloc(inv->num_homedirs + 1, sizeof(struct sc_mount));
+	struct sc_mount *mounts =
+	    calloc(inv->num_homedirs + 1, sizeof(struct sc_mount));
 	if (mounts == NULL) {
 		die("cannot allocate mount data for homedirs");
 	}
-
 	// Copy inv->homedirs to the mount structures
 	for (int i = 0; i < inv->num_homedirs; i++) {
 		debug("Adding homedir: %s", inv->homedirs[i]);
 		mounts[i].path = sc_strdup(inv->homedirs[i]);
-		mounts[i].is_bidirectional = true;
+		// Note that we are not setting bidirectional flag, so anything mounted
+		// here will not propagate to the host.
 	}
 	return mounts;
 }
@@ -930,18 +939,17 @@ static void sc_free_dynamic_mounts(struct sc_mount *mounts)
 	if (mounts == NULL) {
 		return;
 	}
-
 	// Cleanup allocated resources by each of the mount
 	// structures. The array will be terminated by a single zeroed
 	// entry.
 	for (int i = 0; mounts[i].path != NULL; i++) {
-		free((void*)mounts[i].path);
+		free((void *)mounts[i].path);
 	}
 	free(mounts);
 }
 
 void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
-			  const sc_invocation * inv, const gid_t real_gid,
+			  const sc_invocation *inv, const gid_t real_gid,
 			  const gid_t saved_gid)
 {
 	// Classify the current distribution, as claimed by /etc/os-release.
@@ -967,11 +975,11 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 			{.path = "/usr/src"},	// FIXME: move to SecurityMounts in system-trace interface
 			{.path = "/var/log"},	// FIXME: move to SecurityMounts in log-observe interface
 #ifdef MERGED_USR
-			{.path = "/run/media", .is_bidirectional = true, .altpath = "/media"},	// access to the users removable devices
+			{.path = "/run/media",.is_bidirectional = true,.altpath = "/media"},	// access to the users removable devices
 #else
-			{.path = "/media", .is_bidirectional = true},	// access to the users removable devices
+			{.path = "/media",.is_bidirectional = true},	// access to the users removable devices
 #endif				// MERGED_USR
-			{.path = "/run/netns", .is_bidirectional = true},	// access to the 'ip netns' network namespaces
+			{.path = "/run/netns",.is_bidirectional = true},	// access to the 'ip netns' network namespaces
 			// The /mnt directory is optional in base snaps to ensure backwards
 			// compatibility with the first version of base snaps that was
 			// released.
@@ -998,8 +1006,8 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd,
 		// In legacy mode we don't pivot to a base snap's rootfs and instead
 		// just arrange bi-directional mount propagation for two directories.
 		static const struct sc_mount mounts[] = {
-			{.path = "/media", .is_bidirectional = true},
-			{.path = "/run/netns", .is_bidirectional = true},
+			{.path = "/media",.is_bidirectional = true},
+			{.path = "/run/netns",.is_bidirectional = true},
 			{},
 		};
 		struct sc_mount_config legacy_config = {

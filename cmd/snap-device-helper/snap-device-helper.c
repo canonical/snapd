@@ -192,7 +192,7 @@ int snap_device_helper_run(const struct sdh_invocation *inv) {
 
     char *security_tag SC_CLEANUP(sc_cleanup_string) = udev_to_security_tag(udev_tagname);
 
-    int devtype = ((subsystem != NULL) && (strcmp(subsystem, "block") == 0))?S_IFBLK:S_IFCHR;
+    int devtype = ((subsystem != NULL) && (strcmp(subsystem, "block") == 0)) ? S_IFBLK : S_IFCHR;
 
     sc_device_cgroup *cgroup = sc_device_cgroup_new(security_tag, SC_DEVICE_CGROUP_FROM_EXISTING);
     if (!cgroup) {

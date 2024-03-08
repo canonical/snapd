@@ -254,7 +254,6 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	expected := fakeOps{
@@ -669,7 +668,6 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	expected := fakeOps{
@@ -842,7 +840,6 @@ func (s *snapmgrTestSuite) TestRemoveOneRevisionRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Check(len(s.fakeBackend.ops), Equals, 2)
@@ -923,7 +920,6 @@ func (s *snapmgrTestSuite) TestRemoveOneRevisionDropsRevertStatus(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// verify snaps in the system state
@@ -958,7 +954,6 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Check(len(s.fakeBackend.ops), Equals, 10)
@@ -1194,7 +1189,6 @@ func (s *snapmgrTestSuite) TestRemoveDeletesConfigOnLastRevision(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// verify snaps in the system state
@@ -1245,7 +1239,6 @@ func (s *snapmgrTestSuite) TestRemoveDoesntDeleteConfigIfNotLastRevision(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// verify snaps in the system state
@@ -1523,7 +1516,6 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoRestoresCurrent(c *C) {
 	// are still present.
 	injectError(c, chg, "clear-snap", snap.Revision{N: 1})
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
@@ -1601,7 +1593,6 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoLeavesInactiveSnapAfterDataIsLost(c
 	// current rev 1), before discarding the snap completely.
 	injectError(c, chg, "discard-snap", snap.Revision{N: 1})
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
@@ -1741,7 +1732,6 @@ func (s *snapmgrTestSuite) TestRemovePrunesRefreshGatingDataOnLastRevision(c *C)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// verify snaps in the system state
@@ -1800,7 +1790,6 @@ func (s *snapmgrTestSuite) TestRemoveKeepsGatingDataIfNotLastRevision(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	defer s.se.Stop()
 	s.settle(c)
 
 	// verify snap in the system state

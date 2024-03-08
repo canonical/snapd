@@ -28,9 +28,11 @@ import (
 )
 
 var (
-	AddMountUnit    = addMountUnit
-	RemoveMountUnit = removeMountUnit
-	RemoveIfEmpty   = removeIfEmpty
+	AddMountUnit       = addMountUnit
+	RemoveMountUnit    = removeMountUnit
+	RemoveIfEmpty      = removeIfEmpty
+	SnapDataDirs       = snapDataDirs
+	SnapCommonDataDirs = snapCommonDataDirs
 )
 
 func MockWrappersAddSnapdSnapServices(f func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) error) (restore func()) {

@@ -898,7 +898,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 // the user and then triggers an auto-refresh.
 func asyncRefreshOnSnapClose(st *state.State, snapName string, refreshInfo *userclient.PendingSnapRefreshInfo) error {
 	// there's already a goroutine waiting for this snap to close so just notify
-	if isSnapMonitored(st, snapName) {
+	if IsSnapMonitored(st, snapName) {
 		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 		return nil
 	}
@@ -1079,10 +1079,6 @@ func monitoringAbort(st *state.State, snapName string) context.CancelFunc {
 		logger.Noticef("%v", err)
 	}
 	return aborts[snapName]
-}
-
-func isSnapMonitored(st *state.State, snapName string) bool {
-	return monitoringAbort(st, snapName) != nil
 }
 
 func abortMonitoring(st *state.State, snapName string) {
@@ -1355,6 +1351,34 @@ func (m *SnapManager) restoreUnlinkOnError(t *state.Task, info *snap.Info, tm ti
 	return err
 }
 
+func onRefreshInhibitionTimeout(chg *state.Change, snapName string) error {
+	var data map[string]interface{}
+	err := chg.Get("api-data", &data)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if len(data) == 0 {
+		data = make(map[string]interface{})
+	}
+
+	cur, _ := data["refresh-forced"].([]interface{})
+	cur = append(cur, snapName)
+	data["refresh-forced"] = cur
+
+	chg.Set("api-data", data)
+
+	// record a change-update notice on forced snap refresh
+	opts := &state.AddNoticeOptions{
+		Data: map[string]string{"kind": chg.Kind()},
+	}
+	_, err = chg.State().AddNotice(nil, state.ChangeUpdateNotice, chg.ID(), opts)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	// called only during refresh when a new revision of a snap is being
 	// installed
@@ -1387,7 +1411,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 		// held to prevent snap-run from advancing until UnlinkSnap, executed
 		// below, completes.
 		// XXX: should we skip it if type is snap.TypeSnapd?
-		lock, err := hardEnsureNothingRunningDuringRefresh(m.backend, st, snapst, snapsup, oldInfo)
+		inhibitionTimeout, lock, err := hardEnsureNothingRunningDuringRefresh(m.backend, st, snapst, snapsup, oldInfo)
 		if err != nil {
 			var busyErr *timedBusySnapError
 			if errors.As(err, &busyErr) {
@@ -1399,6 +1423,11 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (err erro
 			}
 
 			return err
+		}
+		if inhibitionTimeout {
+			if err := onRefreshInhibitionTimeout(t.Change(), snapsup.InstanceName()); err != nil {
+				return err
+			}
 		}
 
 		defer lock.Close()
@@ -1634,7 +1663,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 		// no other instances of this snap, shared data directory can be
 		// removed now too
-		if err := m.backend.RemoveSnapDataDir(newInfo, otherInstances); err != nil {
+		if err := m.backend.RemoveSnapDataDir(newInfo, otherInstances, dirOpts); err != nil {
 			t.Errorf("cannot undo partial snap %q data copy, failed removing shared directory: %v", snapsup.InstanceName(), err)
 		}
 		return copyDataErr
@@ -1827,7 +1856,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 	// no other instances of this snap and no other revisions, shared data
 	// directory can be removed
-	if err := m.backend.RemoveSnapDataDir(newInfo, otherInstances); err != nil {
+	if err := m.backend.RemoveSnapDataDir(newInfo, otherInstances, dirOpts); err != nil {
 		return err
 	}
 	return nil
@@ -3356,7 +3385,7 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 		// Snap data directory can be removed now too
-		if err := m.backend.RemoveSnapDataDir(info, otherInstances); err != nil {
+		if err := m.backend.RemoveSnapDataDir(info, otherInstances, dirOpts); err != nil {
 			return err
 		}
 	}

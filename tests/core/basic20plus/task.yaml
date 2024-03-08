@@ -74,7 +74,7 @@ execute: |
     # ensure that our the-tool (and thus our snap-bootstrap ran)
     # for external backend the initramfs is not rebuilt
     echo "Check that we booted with the rebuilt initramfs in the kernel snap"
-    if [ "$SPREAD_BACKEND" != "external" ]; then
+    if [ "$SPREAD_BACKEND" != "external" ] && [ "$SPREAD_BACKEND" != "testflinger" ]; then
         test -e /writable/system-data/the-tool-ran
     fi
 

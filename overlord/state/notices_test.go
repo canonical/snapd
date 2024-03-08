@@ -145,6 +145,28 @@ func (s *noticesSuite) TestString(c *C) {
 	c.Assert(notice.String(), Equals, "Notice 2 (public:warning:scary)")
 }
 
+func (s *noticesSuite) TestType(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
+	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
+	addNotice(c, st, nil, state.WarningNotice, "danger!", nil)
+
+	notices := st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.ChangeUpdateNotice}})
+	c.Assert(notices, HasLen, 1)
+	c.Check(notices[0].Type(), Equals, state.ChangeUpdateNotice)
+
+	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.RefreshInhibitNotice}})
+	c.Assert(notices, HasLen, 1)
+	c.Check(notices[0].Type(), Equals, state.RefreshInhibitNotice)
+
+	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}})
+	c.Assert(notices, HasLen, 1)
+	c.Check(notices[0].Type(), Equals, state.WarningNotice)
+}
+
 func (s *noticesSuite) TestOccurrences(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -257,7 +279,7 @@ func (s *noticesSuite) TestNoticesFilterType(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	addNotice(c, st, nil, state.ChangeUpdateNotice, "443", nil)
+	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
 	time.Sleep(time.Microsecond)
@@ -287,38 +309,34 @@ func (s *noticesSuite) TestNoticesFilterType(c *C) {
 
 	// Another type
 	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.ChangeUpdateNotice}})
-	c.Assert(notices, HasLen, 2)
+	c.Assert(notices, HasLen, 1)
 	n = noticeToMap(c, notices[0])
-	c.Check(n["user-id"], Equals, nil)
-	c.Check(n["type"], Equals, "change-update")
-	c.Check(n["key"], Equals, "443")
-	n = noticeToMap(c, notices[1])
 	c.Check(n["user-id"], Equals, nil)
 	c.Check(n["type"], Equals, "change-update")
 	c.Check(n["key"], Equals, "123")
 
+	// Another type
+	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.RefreshInhibitNotice}})
+	c.Assert(notices, HasLen, 1)
+	n = noticeToMap(c, notices[0])
+	c.Check(n["user-id"], Equals, nil)
+	c.Check(n["type"], Equals, "refresh-inhibit")
+	c.Check(n["key"], Equals, "-")
+
 	// Multiple types
 	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{
 		state.ChangeUpdateNotice,
-		state.WarningNotice,
+		state.RefreshInhibitNotice,
 	}})
-	c.Assert(notices, HasLen, 4)
+	c.Assert(notices, HasLen, 2)
 	n = noticeToMap(c, notices[0])
 	c.Check(n["user-id"], Equals, nil)
-	c.Check(n["type"], Equals, "change-update")
-	c.Check(n["key"], Equals, "443")
+	c.Check(n["type"], Equals, "refresh-inhibit")
+	c.Check(n["key"], Equals, "-")
 	n = noticeToMap(c, notices[1])
 	c.Check(n["user-id"], Equals, nil)
 	c.Check(n["type"], Equals, "change-update")
 	c.Check(n["key"], Equals, "123")
-	n = noticeToMap(c, notices[2])
-	c.Check(n["user-id"], Equals, nil)
-	c.Check(n["type"], Equals, "warning")
-	c.Check(n["key"], Equals, "Warning 1!")
-	n = noticeToMap(c, notices[3])
-	c.Check(n["user-id"], Equals, nil)
-	c.Check(n["type"], Equals, "warning")
-	c.Check(n["key"], Equals, "Warning 2!")
 }
 
 func (s *noticesSuite) TestNoticesFilterKey(c *C) {
@@ -622,6 +640,27 @@ func (s *noticesSuite) TestWaitNoticesConcurrent(c *C) {
 		c.Fatalf("timed out waiting for WaitNotice goroutines to finish")
 	case <-done:
 	}
+}
+
+func (s *noticesSuite) TestValidateNotice(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	// Invalid type
+	id, err := st.AddNotice(nil, "bad-type", "123", nil)
+	c.Check(err, ErrorMatches, `internal error: attempted to add notice with invalid type "bad-type"`)
+	c.Check(id, Equals, "")
+
+	// Empty key
+	id, err = st.AddNotice(nil, state.ChangeUpdateNotice, "", nil)
+	c.Check(err, ErrorMatches, `internal error: attempted to add change-update notice with invalid key ""`)
+	c.Check(id, Equals, "")
+
+	// Unxpected key for refresh-inhibit notice
+	id, err = st.AddNotice(nil, state.RefreshInhibitNotice, "123", nil)
+	c.Check(err, ErrorMatches, `internal error: attempted to add refresh-inhibit notice with invalid key "123", only "-" key is supported`)
+	c.Check(id, Equals, "")
 }
 
 // noticeToMap converts a Notice to a map using a JSON marshal-unmarshal round trip.

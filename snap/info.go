@@ -111,13 +111,13 @@ type PlaceInfo interface {
 	// UserXdgRuntimeDir returns the per user XDG_RUNTIME_DIR directory
 	UserXdgRuntimeDir(userID sys.UserID) string
 
-	// DataHomeDir returns a glob that matches all per user data directories
+	// DataHomeDirs returns a slice of globs that match all per user data directories
 	// of a snap.
-	DataHomeDir(opts *dirs.SnapDirOptions) string
+	DataHomeDirs(opts *dirs.SnapDirOptions) []string
 
-	// CommonDataHomeDir returns a glob that matches all per user data
+	// CommonDataHomeDirs returns a slice of globs that match all per user data
 	// directories common across revisions of the snap.
-	CommonDataHomeDir(opts *dirs.SnapDirOptions) string
+	CommonDataHomeDirs(opts *dirs.SnapDirOptions) []string
 
 	// XdgRuntimeDirs returns a glob that matches all XDG_RUNTIME_DIR
 	// directories for all users of the snap.
@@ -264,6 +264,16 @@ func snapDataDir(opts *dirs.SnapDirOptions) string {
 	return dirs.UserHomeSnapDir
 }
 
+// BaseDataHomeDirs returns the per user base data directories of the snap across multiple
+// home directories.
+func BaseDataHomeDirs(name string, opts *dirs.SnapDirOptions) []string {
+	var dataHomeGlob []string
+	for _, glob := range dirs.DataHomeGlobs(opts) {
+		dataHomeGlob = append(dataHomeGlob, filepath.Join(glob, name))
+	}
+	return dataHomeGlob
+}
+
 // UserDataDir returns the user-specific data directory for given snap name. The
 // name can be either a snap name or snap instance name.
 func UserDataDir(home string, name string, revision Revision, opts *dirs.SnapDirOptions) string {
@@ -355,7 +365,7 @@ type Info struct {
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
 
-	Components map[string]Component
+	Components map[string]*Component
 
 	// Plugs or slots with issues (they are not included in Plugs or Slots)
 	BadInterfaces map[string]string // slot or plug => message
@@ -693,28 +703,24 @@ func (s *Info) CommonDataSaveDir() string {
 	return CommonDataSaveDir(s.InstanceName())
 }
 
-// DataHomeGlob returns the globbing expression for the snap directories in use
-func DataHomeGlob(opts *dirs.SnapDirOptions) string {
-	if opts == nil {
-		opts = &dirs.SnapDirOptions{}
+// DataHomeDirs returns the per user data directories of the snap across multiple
+// home directories.
+func (s *Info) DataHomeDirs(opts *dirs.SnapDirOptions) []string {
+	var dataHomeGlob []string
+	for _, glob := range dirs.DataHomeGlobs(opts) {
+		dataHomeGlob = append(dataHomeGlob, filepath.Join(glob, s.InstanceName(), s.Revision.String()))
 	}
-
-	if opts.HiddenSnapDataDir {
-		return dirs.HiddenSnapDataHomeGlob
-	}
-
-	return dirs.SnapDataHomeGlob
+	return dataHomeGlob
 }
 
-// DataHomeDir returns the per user data directory of the snap.
-func (s *Info) DataHomeDir(opts *dirs.SnapDirOptions) string {
-	return filepath.Join(DataHomeGlob(opts), s.InstanceName(), s.Revision.String())
-}
-
-// CommonDataHomeDir returns the per user data directory common across revisions
-// of the snap.
-func (s *Info) CommonDataHomeDir(opts *dirs.SnapDirOptions) string {
-	return filepath.Join(DataHomeGlob(opts), s.InstanceName(), "common")
+// CommonDataHomeDirs returns the per user data directories common across revisions
+// of the snap in all defined home directories.
+func (s *Info) CommonDataHomeDirs(opts *dirs.SnapDirOptions) []string {
+	var comDataHomeGlob []string
+	for _, glob := range dirs.DataHomeGlobs(opts) {
+		comDataHomeGlob = append(comDataHomeGlob, filepath.Join(glob, s.InstanceName(), "common"))
+	}
+	return comDataHomeGlob
 }
 
 // UserXdgRuntimeDir returns the XDG_RUNTIME_DIR directory of the snap for a
@@ -1201,6 +1207,9 @@ func (mis MediaInfos) IconURL() string {
 // HookInfo provides information about a hook.
 type HookInfo struct {
 	Snap *Info
+
+	// Component will be nil if the hook is not a component hook.
+	Component *Component
 
 	Name  string
 	Plugs map[string]*PlugInfo

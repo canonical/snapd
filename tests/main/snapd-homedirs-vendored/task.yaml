@@ -81,7 +81,7 @@ execute: |
     MATCH "^homedirs=/remote/users$" < /var/lib/snapd/system-params
 
     echo "And that the AppArmor tunable file is proper"
-    MATCH "^@{HOMEDIRS}\\+=\"/remote/users\"$" < /etc/apparmor.d/tunables/home.d/snapd
+    MATCH "^@{HOMEDIRS}\\+=\"/remote/users\" \"/home\"$" < /etc/apparmor.d/tunables/home.d/snapd
 
     echo "Invoke the test app again (should now work)"
     sudo -u "$USERNAME" -i test-snapd-sh.cmd echo "Hello world" | MATCH "Hello world"

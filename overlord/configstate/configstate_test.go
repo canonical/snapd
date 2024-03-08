@@ -308,6 +308,22 @@ func (s *configcoreHijackSuite) SetUpTest(c *C) {
 
 }
 
+func (s *configcoreHijackSuite) TestConfigMngrInitHomeDirs(c *C) {
+	s.o = overlord.Mock()
+	s.state = s.o.State()
+	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
+	c.Assert(err, IsNil)
+	s.state.Lock()
+	t := config.NewTransaction(s.state)
+	c.Assert(t.Set("core", "homedirs", "/home,/home/department,/users,/users/seniors"), IsNil)
+	t.Commit()
+	s.state.Unlock()
+	err = configstate.Init(s.state, hookMgr)
+	c.Assert(err, IsNil)
+	snapHomeDirs := []string{"/home", "/home/department", "/users", "/users/seniors"}
+	c.Check(dirs.SnapHomeDirs(), DeepEquals, snapHomeDirs)
+}
+
 type witnessManager struct {
 	state     *state.State
 	committed bool

@@ -33,6 +33,9 @@ type ComponentInfo struct {
 	Version     string              `yaml:"version"`
 	Summary     string              `yaml:"summary"`
 	Description string              `yaml:"description"`
+
+	// TODO: we will need to add fields here to carry around details about
+	// explicit and implicit hooks.
 }
 
 // NewComponentInfo creates a new ComponentInfo.

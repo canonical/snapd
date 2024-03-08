@@ -28,7 +28,6 @@ require (
 	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/macaroon.v1 v1.0.0-20150121114231-ab3940c6c165
-	gopkg.in/mgo.v2 v2.0.0-20180704144907-a7e2c1d573e1
 	gopkg.in/retry.v1 v1.0.3
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 	gopkg.in/tylerb/graceful.v1 v1.2.15

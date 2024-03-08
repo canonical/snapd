@@ -231,7 +231,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathWrongType(c *C) {
 	info := createTestSnapInfoForComponent(c, snapName, snapRev, "other-comp")
 	// The component in snap.yaml has type different to the one in component.yaml
 	// (we have to set it in this way as parsers check for allowed types).
-	info.Components[compName] = snap.Component{
+	info.Components[compName] = &snap.Component{
 		Type: "random-comp-type",
 	}
 

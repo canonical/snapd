@@ -22,12 +22,12 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"time"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -75,11 +75,8 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 					return err
 				}
 				// Remove early mount for the kernel snap
-				// TODO we need something like EarlyKernelPlaceInfo
-				// to avoid repeating the kernel-snaps path.
 				if tp, _ := snapSt.Type(); tp == snap.TypeKernel {
-					earlyMntPt := filepath.Join("/run/mnt/kernel-snaps",
-						info.RealName, info.Revision.String())
+					earlyMntPt := kernel.EarlyKernelMountDir(info.RealName, info.Revision)
 					if _, err := exec.Command("umount", "-d", "-l",
 						earlyMntPt).CombinedOutput(); err != nil {
 						return err
@@ -152,24 +149,6 @@ func (m *DeviceManager) recordSeededSystem(st *state.State, whatSeeded *seededSy
 	return nil
 }
 
-func (m *DeviceManager) removeSeededSystem(st *state.State, whatSeeded *seededSystem) error {
-	var seeded []seededSystem
-	if err := st.Get("seeded-systems", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-
-	for i, sys := range seeded {
-		if sys.sameAs(whatSeeded) {
-			seeded = append(seeded[:i], seeded[i+1:]...)
-			break
-		}
-	}
-
-	st.Set("seeded-systems", seeded)
-
-	return nil
-}
-
 func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -212,6 +191,18 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 		if err := m.recordSeededSystem(st, whatSeeded); err != nil {
 			return fmt.Errorf("cannot record the seeded system: %v", err)
 		}
+
+		// since this is the most recently seeded system, it should also be the
+		// default recovery system. this is important when coming back from a
+		// factory-reset.
+		st.Set("default-recovery-system", DefaultRecoverySystem{
+			System:          whatSeeded.System,
+			Model:           whatSeeded.Model,
+			BrandID:         whatSeeded.BrandID,
+			Revision:        whatSeeded.Revision,
+			Timestamp:       whatSeeded.Timestamp,
+			TimeMadeDefault: now,
+		})
 	}
 	st.Set("seed-time", now)
 	st.Set("seeded", true)

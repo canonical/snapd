@@ -1135,8 +1135,15 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		firstInstallInChain.WaitFor(lastDownloadInChain)
 	}
 
+	// hybrid core/classic systems might have a system-seed-null; in that case,
+	// we cannot create a recovery system
+	hasSystemSeed, err := checkForSystemSeed(st, deviceCtx)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find ubuntu seed role: %w", err)
+	}
+
 	recoverySetupTaskID := ""
-	if new.Grade() != asserts.ModelGradeUnset {
+	if new.Grade() != asserts.ModelGradeUnset && hasSystemSeed {
 		// create a recovery when remodeling to a UC20 system, actual
 		// policy for possible remodels has already been verified by the
 		// caller
@@ -1256,6 +1263,21 @@ func checkForInvalidSnapsInModel(model *asserts.Model, vSets *snapasserts.Valida
 	return nil
 }
 
+func checkForSystemSeed(st *state.State, deviceCtx snapstate.DeviceContext) (bool, error) {
+	// on non-classic systems, we will always have a seed partition. this check
+	// isn't needed, but it makes testing classic systems simpler.
+	if !deviceCtx.Classic() {
+		return true, nil
+	}
+
+	gadgetData, err := CurrentGadgetData(st, deviceCtx)
+	if err != nil {
+		return false, fmt.Errorf("cannot get gadget data: %w", err)
+	}
+
+	return gadgetData.Info.HasRole(gadget.SystemSeed), nil
+}
+
 // RemodelOptions are options for Remodel.
 type RemodelOptions struct {
 	// Offline is true if the remodel should be done without reaching out to the
@@ -1326,10 +1348,15 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 		return nil, fmt.Errorf("cannot remodel to different series yet")
 	}
 
-	// don't allow remodel on classic for now
-	if current.Classic() {
-		return nil, fmt.Errorf("cannot remodel from classic model")
+	devCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get device context: %v", err)
 	}
+
+	if devCtx.IsClassicBoot() {
+		return nil, fmt.Errorf("cannot remodel from classic (non-hybrid) model")
+	}
+
 	if current.Classic() != new.Classic() {
 		return nil, fmt.Errorf("cannot remodel across classic and non-classic models")
 	}
@@ -1404,6 +1431,10 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 		}
 		fallthrough
 	case UpdateRemodel:
+		// TODO: make this case follow the same pattern as ReregRemodel, where
+		// we call remodelTasks from inside another task, so that the tasks for
+		// the remodel are added to an existing and running change. this will
+		// allow us to avoid things like calling snapstate.CheckChangeConflictRunExclusively again.
 		var err error
 		tss, err = remodelTasks(context.TODO(), st, current, new, remodCtx, "", localSnaps, paths, opts)
 		if err != nil {
@@ -1428,6 +1459,11 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 			ChangeKind: chg.Kind(),
 			ChangeID:   chg.ID(),
 		}
+	}
+
+	// check for exclusive changes again since we released the lock
+	if err := snapstate.CheckChangeConflictRunExclusively(st, "remodel"); err != nil {
+		return nil, err
 	}
 
 	var msg string
@@ -1474,9 +1510,9 @@ type recoverySystemSetup struct {
 	// not be verified by rebooting into the new system. Once the system is
 	// created, it will immediately be considered a valid recovery system.
 	TestSystem bool `json:"test-system,omitempty"`
-	// MarkCurrent is set to true if the new recovery system should be
-	// marked as the current recovery system.
-	MarkCurrent bool `json:"mark-current,omitempty"`
+	// MarkDefault is set to true if the new recovery system should be marked as
+	// the default recovery system.
+	MarkDefault bool `json:"mark-default,omitempty"`
 }
 
 func pickRecoverySystemLabel(labelBase string) (string, error) {
@@ -1508,6 +1544,19 @@ func pickRecoverySystemLabel(labelBase string) (string, error) {
 	return fmt.Sprintf("%s-%d", labelBase, maxExistingNumber+1), nil
 }
 
+type removeRecoverySystemSetup struct {
+	Label string `json:"label"`
+}
+
+func removeRecoverySystemTasks(st *state.State, label string) (*state.TaskSet, error) {
+	remove := st.NewTask("remove-recovery-system", fmt.Sprintf("Remove recovery system with label %q", label))
+	remove.Set("remove-recovery-system-setup", &removeRecoverySystemSetup{
+		Label: label,
+	})
+
+	return state.NewTaskSet(remove), nil
+}
+
 func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []string, opts CreateRecoverySystemOptions) (*state.TaskSet, error) {
 	// precondition check, the directory should not exist yet
 	systemDirectory := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label)
@@ -1528,7 +1577,7 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []s
 		SnapSetupTasks: snapSetupTasks,
 		LocalSnaps:     opts.LocalSnaps,
 		TestSystem:     opts.TestSystem,
-		MarkCurrent:    opts.MarkCurrent,
+		MarkDefault:    opts.MarkDefault,
 	})
 
 	ts := state.NewTaskSet(create)
@@ -1582,16 +1631,49 @@ type CreateRecoverySystemOptions struct {
 	// recovery system.
 	TestSystem bool
 
-	// MarkCurrent is set to true if the new recovery system should be
-	// marked as the current system.
-	MarkCurrent bool
+	// MarkDefault is set to true if the new recovery system should be marked as
+	// the default recovery system.
+	MarkDefault bool
 }
 
 var ErrNoRecoverySystem = errors.New("recovery system does not exist")
 
+// RemoveRecoverySystem removes the recovery system with the given label. The
+// current recovery system cannot be removed.
+func RemoveRecoverySystem(st *state.State, label string) (*state.Change, error) {
+	if err := snapstate.CheckChangeConflictRunExclusively(st, "remove-recovery-system"); err != nil {
+		return nil, err
+	}
+
+	recoverySystemsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems")
+	exists, _, err := osutil.DirExists(filepath.Join(recoverySystemsDir, label))
+	if err != nil {
+		return nil, err
+	}
+
+	if !exists {
+		return nil, fmt.Errorf("%q not found: %w", label, ErrNoRecoverySystem)
+	}
+
+	chg := st.NewChange("remove-recovery-system", fmt.Sprintf("Remove recovery system with label %q", label))
+
+	removeTS, err := removeRecoverySystemTasks(st, label)
+	if err != nil {
+		return nil, err
+	}
+
+	chg.AddAll(removeTS)
+
+	return chg, nil
+}
+
 // CreateRecoverySystem creates a new recovery system with the given label. See
 // CreateRecoverySystemOptions for details on the options that can be provided.
 func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySystemOptions) (chg *state.Change, err error) {
+	if err := snapstate.CheckChangeConflictRunExclusively(st, "create-recovery-system"); err != nil {
+		return nil, err
+	}
+
 	var seeded bool
 	err = st.Get("seeded", &seeded)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -1601,11 +1683,18 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		return nil, fmt.Errorf("cannot create new recovery systems until fully seeded")
 	}
 
-	valsets := snapasserts.NewValidationSets()
+	model, err := findModel(st)
+	if err != nil {
+		return nil, err
+	}
+
+	valsets, err := assertstate.TrackedEnforcedValidationSetsForModel(st, model)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, vs := range opts.ValidationSets {
-		if err := valsets.Add(vs); err != nil {
-			return nil, err
-		}
+		valsets.Add(vs)
 	}
 
 	if err := valsets.Conflict(); err != nil {
@@ -1613,11 +1702,6 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 	}
 
 	revisions, err := valsets.Revisions()
-	if err != nil {
-		return nil, err
-	}
-
-	model, err := findModel(st)
 	if err != nil {
 		return nil, err
 	}
@@ -1631,11 +1715,6 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 
 	// check that all snaps from the model are valid in the validation sets
 	if err := checkForInvalidSnapsInModel(model, valsets); err != nil {
-		return nil, err
-	}
-
-	// snaps required by validation sets must also be required by the model
-	if err := checkForRequiredSnapsNotRequiredInModel(model, valsets); err != nil {
 		return nil, err
 	}
 
@@ -1658,6 +1737,19 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 			}
 			tracker.Add(info)
 			continue
+		}
+
+		if sn.Presence != "required" {
+			sets, _, err := valsets.CheckPresenceRequired(sn)
+			if err != nil {
+				return nil, err
+			}
+
+			// snap isn't already installed, and it isn't required by model or
+			// any validation sets, so we should skip it
+			if len(sets) == 0 {
+				continue
+			}
 		}
 
 		if offline {

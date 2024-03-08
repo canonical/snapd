@@ -59,7 +59,7 @@ var (
 		Path:        "/v2/snaps",
 		GET:         getSnapsInfo,
 		POST:        postSnaps,
-		ReadAccess:  openAccess{},
+		ReadAccess:  interfaceOpenAccess{Interface: "snap-refresh-observe"},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 )
@@ -897,13 +897,16 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	query := r.URL.Query()
-	var all bool
-	sel := query.Get("select")
-	switch sel {
+	var sel snapSelect
+	switch query.Get("select") {
+	case "":
+		sel = snapSelectNone
 	case "all":
-		all = true
-	case "enabled", "":
-		all = false
+		sel = snapSelectAll
+	case "enabled":
+		sel = snapSelectEnabled
+	case "refresh-inhibited":
+		sel = snapSelectRefreshInhibited
 	default:
 		return BadRequest("invalid select parameter: %q", sel)
 	}
@@ -917,7 +920,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	st := c.d.overlord.State()
-	found, err := allLocalSnapInfos(st, all, wanted)
+	found, err := allLocalSnapInfos(st, sel, wanted)
 	if err != nil {
 		return InternalError("cannot list local snaps! %v", err)
 	}

@@ -49,6 +49,10 @@ type generalSuite struct {
 	apiBaseSuite
 }
 
+func (s *generalSuite) expectChangesReadAccess() {
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interface: "snap-refresh-observe"})
+}
+
 func (s *generalSuite) TestRoot(c *check.C) {
 	s.daemon(c)
 
@@ -367,6 +371,7 @@ func (s *generalSuite) TestStateChangesDefaultToInProgress(c *check.C) {
 	defer restore()
 
 	// Setup
+	s.expectChangesReadAccess()
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
@@ -395,6 +400,7 @@ func (s *generalSuite) TestStateChangesInProgress(c *check.C) {
 	defer restore()
 
 	// Setup
+	s.expectChangesReadAccess()
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
@@ -423,6 +429,7 @@ func (s *generalSuite) TestStateChangesAll(c *check.C) {
 	defer restore()
 
 	// Setup
+	s.expectChangesReadAccess()
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
@@ -452,6 +459,7 @@ func (s *generalSuite) TestStateChangesReady(c *check.C) {
 	defer restore()
 
 	// Setup
+	s.expectChangesReadAccess()
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
@@ -480,6 +488,7 @@ func (s *generalSuite) TestStateChangesForSnapName(c *check.C) {
 	defer restore()
 
 	// Setup
+	s.expectChangesReadAccess()
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
@@ -509,6 +518,7 @@ func (s *generalSuite) TestStateChangesForSnapNameWithApp(c *check.C) {
 	defer restore()
 
 	// Setup
+	s.expectChangesReadAccess()
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
@@ -544,6 +554,7 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 	defer restore()
 
 	// Setup
+	s.expectChangesReadAccess()
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
@@ -614,6 +625,7 @@ func (s *generalSuite) TestStateChangeAbort(c *check.C) {
 	defer restore()
 
 	// Setup
+	s.expectChangesReadAccess()
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
@@ -679,6 +691,7 @@ func (s *generalSuite) TestStateChangeAbortIsReady(c *check.C) {
 	defer restore()
 
 	// Setup
+	s.expectChangesReadAccess()
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()

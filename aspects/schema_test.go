@@ -718,9 +718,9 @@ func (*schemaSuite) TestStringChoicesWrongFormat(c *C) {
 	c.Assert(err, ErrorMatches, `cannot parse "choices" constraint:.*`)
 }
 
-func (*schemaSuite) TestStringBasedUserType(c *C) {
+func (*schemaSuite) TestStringBasedAlias(c *C) {
 	schemaStr := []byte(`{
-	"types": {
+	"aliases": {
 		"snap-name": {
 			"type": "string",
 			"pattern": "^[a-z0-9-]*[a-z][a-z0-9-]*$"
@@ -766,9 +766,9 @@ func (*schemaSuite) TestStringBasedUserType(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (*schemaSuite) TestMapKeyMustBeStringUserType(c *C) {
+func (*schemaSuite) TestMapKeyMustBeStringAlias(c *C) {
 	schemaStr := []byte(`{
-	"types": {
+	"aliases": {
 		"key-type": {
 			"type": "map",
 			"schema": {}
@@ -785,19 +785,19 @@ func (*schemaSuite) TestMapKeyMustBeStringUserType(c *C) {
 	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: key type "key-type" must be based on string`)
 }
 
-func (*schemaSuite) TestUserDefinedTypesWrongFormat(c *C) {
+func (*schemaSuite) TestAliasesWrongFormat(c *C) {
 	schemaStr := []byte(`{
-	"types": ["foo"],
+	"aliases": ["foo"],
 	"schema": {}
 }`)
 
 	_, err := aspects.ParseSchema(schemaStr)
-	c.Assert(err, ErrorMatches, `cannot parse user-defined types map: json: cannot unmarshal.*`)
+	c.Assert(err, ErrorMatches, `cannot parse aliases map: json: cannot unmarshal.*`)
 }
 
-func (*schemaSuite) TestBadUserDefinedType(c *C) {
+func (*schemaSuite) TestBadAlias(c *C) {
 	schemaStr := []byte(`{
-	"types": {
+	"aliases": {
 		"mytype": {
 			"type": "bad-type"
 		}
@@ -806,10 +806,10 @@ func (*schemaSuite) TestBadUserDefinedType(c *C) {
 }`)
 
 	_, err := aspects.ParseSchema(schemaStr)
-	c.Assert(err, ErrorMatches, `cannot parse user-defined type "mytype": cannot parse unknown type "bad-type"`)
+	c.Assert(err, ErrorMatches, `cannot parse alias "mytype": cannot parse unknown type "bad-type"`)
 }
 
-func (*schemaSuite) TestUnknownUserDefinedType(c *C) {
+func (*schemaSuite) TestUnknownAlias(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
 		"snaps": {
@@ -819,10 +819,10 @@ func (*schemaSuite) TestUnknownUserDefinedType(c *C) {
 }`)
 
 	_, err := aspects.ParseSchema(schemaStr)
-	c.Assert(err, ErrorMatches, `cannot find user-defined type "foo"`)
+	c.Assert(err, ErrorMatches, `cannot find alias "foo"`)
 }
 
-func (*schemaSuite) TestUnknownUserDefinedTypeInKeys(c *C) {
+func (*schemaSuite) TestUnknownAliasInKeys(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
 		"snaps": {
@@ -832,12 +832,12 @@ func (*schemaSuite) TestUnknownUserDefinedTypeInKeys(c *C) {
 }`)
 
 	_, err := aspects.ParseSchema(schemaStr)
-	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: cannot find user-defined type "foo"`)
+	c.Assert(err, ErrorMatches, `cannot parse "keys" constraint: cannot find alias "foo"`)
 }
 
-func (*schemaSuite) TestMapBasedUserDefinedTypeHappy(c *C) {
+func (*schemaSuite) TestMapBasedAliasHappy(c *C) {
 	schemaStr := []byte(`{
-	"types": {
+	"aliases": {
 		"snap": {
 			"schema": {
 				"name": "string",
@@ -872,10 +872,10 @@ func (*schemaSuite) TestMapBasedUserDefinedTypeHappy(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (*schemaSuite) TestUserTypeReferenceDoesntRequireConstraints(c *C) {
-	// references to user-defined types don't require need constraints
+func (*schemaSuite) TestAliasReferenceDoesntRequireConstraints(c *C) {
+	// references to aliases don't require need constraints
 	schemaStr := []byte(`{
-	"types": {
+	"aliases": {
 		"my-type": {
 			"schema": {
 				"foo": "string"
@@ -892,10 +892,10 @@ func (*schemaSuite) TestUserTypeReferenceDoesntRequireConstraints(c *C) {
 
 }
 
-func (*schemaSuite) TestMapInUserTypeRequiresConstraints(c *C) {
-	// maps still require constraints even within user-defined types
+func (*schemaSuite) TestMapInAliasRequiresConstraints(c *C) {
+	// maps still require constraints even within aliases
 	schemaStr := []byte(`{
-	"types": {
+	"aliases": {
 		"my-type": "map"
 	},
 	"schema": {
@@ -904,12 +904,12 @@ func (*schemaSuite) TestMapInUserTypeRequiresConstraints(c *C) {
 }`)
 
 	_, err := aspects.ParseSchema(schemaStr)
-	c.Assert(err, ErrorMatches, `cannot parse user-defined type "my-type": cannot parse "map": must be schema definition with constraints`)
+	c.Assert(err, ErrorMatches, `cannot parse alias "my-type": cannot parse "map": must be schema definition with constraints`)
 }
 
-func (*schemaSuite) TestMapBasedUserDefinedTypeFail(c *C) {
+func (*schemaSuite) TestMapBasedAliasFail(c *C) {
 	schemaStr := []byte(`{
-	"types": {
+	"aliases": {
 		"snap": {
 			"schema": {
 				"name": "string",
@@ -940,9 +940,9 @@ func (*schemaSuite) TestMapBasedUserDefinedTypeFail(c *C) {
 	c.Assert(err, ErrorMatches, `cannot accept element in "snaps.core20.version": expected string type but value was number`)
 }
 
-func (*schemaSuite) TestBadUserDefinedTypeName(c *C) {
+func (*schemaSuite) TestBadAliasName(c *C) {
 	schemaStr := []byte(`{
-	"types": {
+	"aliases": {
 		"-foo": {
 			"schema": {
 				"name": "string",
@@ -959,7 +959,7 @@ func (*schemaSuite) TestBadUserDefinedTypeName(c *C) {
 
 	_, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, `cannot parse user-defined type name "-foo": must match ^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$`)
+	c.Assert(err.Error(), Equals, `cannot parse alias name "-foo": must match ^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$`)
 }
 
 func (*schemaSuite) TestIntegerHappy(c *C) {
@@ -1464,9 +1464,9 @@ func (*schemaSuite) TestMapTypeRejectsNull(c *C) {
 	c.Assert(err, ErrorMatches, `cannot accept element in "foo": cannot accept null value for "map" type`)
 }
 
-func (*schemaSuite) TestUserDefinedTypeRejectsNull(c *C) {
+func (*schemaSuite) TestAliasRejectsNull(c *C) {
 	schemaStr := []byte(`{
-	"types": {
+	"aliases": {
 		"mytype": {
 			"type": "string"
 		}
@@ -1541,9 +1541,9 @@ func (*schemaSuite) TestArrayHappy(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (*schemaSuite) TestArrayHappyWithUserDefinedType(c *C) {
+func (*schemaSuite) TestArrayHappyWithAlias(c *C) {
 	schemaStr := []byte(`{
-	"types": {
+	"aliases": {
 		"my-type": "string"
 	},
 	"schema": {
@@ -1733,7 +1733,7 @@ func (*schemaSuite) TestErrorContainsPathPrefixes(c *C) {
 
 func (*schemaSuite) TestPathPrefixWithMapUnderUserType(c *C) {
 	schemaStr := []byte(`{
-	"types": {
+	"aliases": {
 		"my-type": {
 			"schema": {
 				"bar": {
@@ -1756,9 +1756,9 @@ func (*schemaSuite) TestPathPrefixWithMapUnderUserType(c *C) {
 	c.Assert(err, ErrorMatches, `cannot accept element in "foo.bar": -1 is less than the allowed minimum 0`)
 }
 
-func (*schemaSuite) TestPathPrefixWithArrayUnderUserType(c *C) {
+func (*schemaSuite) TestPathPrefixWithArrayUnderAlias(c *C) {
 	schemaStr := []byte(`{
-	"types": {
+	"aliases": {
 		"my-type": {
 			"type": "int",
 			"min": 0
@@ -1779,9 +1779,9 @@ func (*schemaSuite) TestPathPrefixWithArrayUnderUserType(c *C) {
 	c.Assert(err, ErrorMatches, `cannot accept element in "foo\[0\]": -1 is less than the allowed minimum 0`)
 }
 
-func (*schemaSuite) TestPathPrefixWithArrayUnderUserWithAContainerElementType(c *C) {
+func (*schemaSuite) TestPathPrefixWithArrayUnderAliasWithAContainerElementType(c *C) {
 	schemaStr := []byte(`{
-	"types": {
+	"aliases": {
 		"my-type": {
 			"type": "array",
 			"values": {
@@ -1836,7 +1836,7 @@ func (*schemaSuite) TestPathPrefixWithKeyOrValueConstraints(c *C) {
 
 func (*schemaSuite) TestPathManyUserDefinedTypeReferences(c *C) {
 	schemaStr := []byte(`{
-	"types": {
+	"aliases": {
 		"my-type": {
 			"type": "map",
 			"values": {
@@ -2236,7 +2236,7 @@ func (*schemaSuite) TestSchemaAtNestedInArray(c *C) {
 }
 
 func (*schemaSuite) TestSchemaAtExceedingSchemaLeafSchema(c *C) {
-	for _, typ := range []string{"int", "number", "bool", "string", "any"} {
+	for _, typ := range []string{"int", "number", "bool", "string"} {
 		cmt := Commentf("type %q test", typ)
 		schemaStr := []byte(fmt.Sprintf(`{
 	"schema": {
@@ -2255,14 +2255,14 @@ func (*schemaSuite) TestSchemaAtExceedingSchemaLeafSchema(c *C) {
 func (*schemaSuite) TestSchemaAtExceedingSchemaContainerSchema(c *C) {
 	schemaStr := []byte(`{
 	"schema": {
-		"foo": {"type": "array", "values": "any"}
+		"foo": {"type": "array", "values": "string"}
 	}
 }`)
 	schema, err := aspects.ParseSchema(schemaStr)
 	c.Assert(err, IsNil)
 
 	schemas, err := schema.SchemaAt([]string{"foo", "0", "bar"})
-	c.Assert(err, ErrorMatches, `cannot follow path beyond "any" type`)
+	c.Assert(err, ErrorMatches, `cannot follow path beyond "string" type`)
 	c.Assert(schemas, IsNil)
 }
 
@@ -2324,4 +2324,18 @@ func (*schemaSuite) TestSchemaAtAlternativesFail(c *C) {
 	schemas, err := schema.SchemaAt([]string{"foo", "bar"})
 	c.Assert(err, ErrorMatches, `cannot follow path beyond "string" type`)
 	c.Assert(schemas, IsNil)
+}
+
+func (*schemaSuite) TestSchemaAtAnyAcceptsLongerPath(c *C) {
+	schemaStr := []byte(`{
+	"schema": {
+		"foo": "any"
+	}
+}`)
+	schema, err := aspects.ParseSchema(schemaStr)
+	c.Assert(err, IsNil)
+
+	schemas, err := schema.SchemaAt([]string{"foo", "baz"})
+	c.Assert(err, IsNil)
+	c.Assert(schemas, NotNil)
 }

@@ -742,23 +742,18 @@ static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup
     struct device_file_t {
         int *fd;
         const char *relpath;
-    } device_files[] = {
-        { &devices_allow_fd, "devices.allow" },
-        { &devices_deny_fd, "devices.deny" },
-        { &cgroup_procs_fd, "cgroup.procs" },
-        { NULL, NULL }
-    };
+    } device_files[] = {{&devices_allow_fd, "devices.allow"},
+                        {&devices_deny_fd, "devices.deny"},
+                        {&cgroup_procs_fd, "cgroup.procs"},
+                        {NULL, NULL}};
 
-    for (struct device_file_t *device_file = device_files;
-         device_file->fd != NULL;
-         device_file++) {
+    for (struct device_file_t *device_file = device_files; device_file->fd != NULL; device_file++) {
         int fd = openat(security_tag_fd, device_file->relpath, O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
         if (fd < 0) {
             if (from_existing && errno == ENOENT) {
                 return -1;
             }
-            die("cannot open %s/%s/%s/%s", cgroup_path,
-                devices_relpath, security_tag_relpath, device_file->relpath);
+            die("cannot open %s/%s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath, device_file->relpath);
         }
         *device_file->fd = fd;
     }

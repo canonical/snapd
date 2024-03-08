@@ -344,12 +344,14 @@ type profilePathsResults struct {
 	removed   []string
 }
 
-func (b *Backend) prepareProfiles(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) (prof *profilePathsResults, err error) {
-	snapName := snapInfo.InstanceName()
-	spec, err := repo.SnapSpecification(b.Name(), snapInfo)
+func (b *Backend) prepareProfiles(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) (prof *profilePathsResults, err error) {
+	snapName := appSet.InstanceName()
+	spec, err := repo.SnapSpecification(b.Name(), appSet)
 	if err != nil {
 		return nil, fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
 	}
+
+	snapInfo := appSet.Info()
 
 	// Add snippets for parallel snap installation mapping
 	spec.(*Specification).AddOvername(snapInfo)
@@ -438,11 +440,13 @@ func (b *Backend) prepareProfiles(snapInfo *snap.Info, opts interfaces.Confineme
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
-	prof, err := b.prepareProfiles(snapInfo, opts, repo)
+func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+	prof, err := b.prepareProfiles(appSet, opts, repo)
 	if err != nil {
 		return err
 	}
+
+	snapInfo := appSet.Info()
 
 	// Load all changed profiles with a flag that asks apparmor to skip reading
 	// the cache (since we know those changed for sure).  This allows us to
@@ -485,12 +489,12 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 // collects and returns them all.
 //
 // This method is useful mainly for regenerating profiles.
-func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
+func (b *Backend) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
 	var allChangedPaths, allUnchangedPaths, allRemovedPaths []string
 	var fallback bool
-	for _, snapInfo := range snaps {
-		opts := confinement(snapInfo.InstanceName())
-		prof, err := b.prepareProfiles(snapInfo, opts, repo)
+	for _, set := range appSets {
+		opts := confinement(set.InstanceName())
+		prof, err := b.prepareProfiles(set, opts, repo)
 		if err != nil {
 			fallback = true
 			break
@@ -506,7 +510,7 @@ func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string
 			aaFlags |= apparmor_sandbox.SkipKernelLoad
 		}
 		var errReloadChanged error
-		timings.Run(tm, "load-profiles[changed-many]", fmt.Sprintf("load changed security profiles of %d snaps", len(snaps)), func(nesttm timings.Measurer) {
+		timings.Run(tm, "load-profiles[changed-many]", fmt.Sprintf("load changed security profiles of %d snaps", len(appSets)), func(nesttm timings.Measurer) {
 			errReloadChanged = loadProfiles(allChangedPaths, apparmor_sandbox.CacheDir, aaFlags)
 		})
 
@@ -515,7 +519,7 @@ func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string
 			aaFlags |= apparmor_sandbox.SkipKernelLoad
 		}
 		var errReloadOther error
-		timings.Run(tm, "load-profiles[unchanged-many]", fmt.Sprintf("load unchanged security profiles %d snaps", len(snaps)), func(nesttm timings.Measurer) {
+		timings.Run(tm, "load-profiles[unchanged-many]", fmt.Sprintf("load unchanged security profiles %d snaps", len(appSets)), func(nesttm timings.Measurer) {
 			errReloadOther = loadProfiles(allUnchangedPaths, apparmor_sandbox.CacheDir, aaFlags)
 		})
 
@@ -537,10 +541,11 @@ func (b *Backend) SetupMany(snaps []*snap.Info, confinement func(snapName string
 	var errors []error
 	// if an error was encountered when processing all profiles at once, re-try them one by one
 	if fallback {
-		for _, snapInfo := range snaps {
-			opts := confinement(snapInfo.InstanceName())
-			if err := b.Setup(snapInfo, opts, repo, tm); err != nil {
-				errors = append(errors, fmt.Errorf("cannot setup profiles for snap %q: %s", snapInfo.InstanceName(), err))
+		for _, set := range appSets {
+			instanceName := set.InstanceName()
+			opts := confinement(instanceName)
+			if err := b.Setup(set, opts, repo, tm); err != nil {
+				errors = append(errors, fmt.Errorf("cannot setup profiles for snap %q: %s", instanceName, err))
 			}
 		}
 	}
@@ -621,6 +626,9 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info, opts i
 		securityTag := hookInfo.SecurityTag()
 		b.addContent(securityTag, snapInfo, "hook."+hookInfo.Name, opts, spec.SnippetForTag(securityTag), content, spec)
 	}
+
+	// TODO: something with component hooks will need to happen here
+
 	// Add profile for snap-update-ns if we have any apps or hooks.
 	// If we have neither then we don't have any need to create an executing environment.
 	// This applies to, for example, kernel snaps or gadget snaps (unless they have hooks).
