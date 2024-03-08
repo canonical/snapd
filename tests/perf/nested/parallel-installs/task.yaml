@@ -32,7 +32,7 @@ execute: |
     export PERF_CPU_LOAD="$CPU_LOAD"
     export SPREAD_EXTERNAL_ADDRESS=localhost:8022
     export PERF_NUM_PARALLEL="$NUM_PARALLEL"
-    "$SPREAD" external:"$NESTED_SPREAD_SYSTEM":tests/perf/"$TEST" | tee spread.log
+    "$SPREAD" external:"$NESTED_SPREAD_SYSTEM":tests/perf/main/"$TEST" | tee spread.log
 
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"

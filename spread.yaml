@@ -1060,7 +1060,7 @@ suites:
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
 
-    tests/perf/:
+    tests/perf/main/:
         summary: Performance and Load tests
         backends: [external]
         environment:
@@ -1282,7 +1282,7 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
 
-    tests/nested/perf/:
+    tests/perf/nested/:
         summary: Performance and Load tests preparation suite
         backends: [google-nested, google-nested-dev, qemu-nested]
         environment:
