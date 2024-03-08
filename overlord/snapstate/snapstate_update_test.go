@@ -12402,8 +12402,6 @@ type: snapd
 
 	s.settle(c)
 
-	fmt.Printf("Settle returned\n")
-
 	didDownloadCore22 := false
 
 	for _, fakeOp := range s.fakeBackend.ops {
