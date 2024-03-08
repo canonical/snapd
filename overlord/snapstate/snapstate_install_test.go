@@ -64,7 +64,7 @@ import (
 )
 
 func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []string, filterOut map[string]bool) []string {
-	if !release.OnClassic {
+	if !release.OnClassic || opts&isHybrid != 0 {
 		switch typ {
 		case snap.TypeGadget:
 			opts |= updatesGadget
@@ -99,7 +99,7 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 		)
 		expected = append(expected, "unlink-current-snap")
 	}
-	if opts&updatesGadgetAssets != 0 && opts&hasModeenv != 0 {
+	if opts&updatesGadgetAssets != 0 && opts&needsKernelSetup != 0 {
 		expected = append(expected, "setup-kernel-snap")
 	}
 	if opts&(updatesGadget|updatesGadgetAssets) != 0 {
@@ -113,7 +113,7 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 		"setup-profiles",
 		"link-snap",
 		"auto-connect")
-	if opts&updatesGadgetAssets != 0 && opts&hasModeenv != 0 {
+	if opts&updatesGadgetAssets != 0 && opts&needsKernelSetup != 0 {
 		expected = append(expected, "remove-old-kernel-snap-setup")
 	}
 	expected = append(expected,

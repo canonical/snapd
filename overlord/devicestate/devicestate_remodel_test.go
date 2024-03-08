@@ -2796,7 +2796,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnaps(c *C) {
 	// set a model assertion
 	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
-		"base":         "core20",
+		"base":         "core24",
 		"grade":        "dangerous",
 		"snaps": []interface{}{
 			map[string]interface{}{
@@ -2821,10 +2821,10 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnaps(c *C) {
 	})
 
 	// install snaps for current model
-	snapstatetest.InstallEssentialSnaps(c, s.state, "core20", nil, nil)
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core24", nil, nil)
 
 	// install snaps that will be needed for new model
-	snapstatetest.InstallSnap(c, s.state, "name: pc-new\nversion: 1\ntype: gadget\nbase: core20-new", nil, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, s.state, "name: pc-new\nversion: 1\ntype: gadget\nbase: core24-new", nil, &snap.SideInfo{
 		SnapID:   snaptest.AssertedSnapID("pc-new"),
 		Revision: snap.R(222),
 		RealName: "pc-new",
@@ -2838,10 +2838,10 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnaps(c *C) {
 		Channel:  "20/stable",
 	}, snapstatetest.InstallSnapOptions{Required: true})
 
-	snapstatetest.InstallSnap(c, s.state, "name: core20-new\nversion: 1\ntype: base\n", nil, &snap.SideInfo{
-		SnapID:   snaptest.AssertedSnapID("core20-new"),
+	snapstatetest.InstallSnap(c, s.state, "name: core24-new\nversion: 1\ntype: base\n", nil, &snap.SideInfo{
+		SnapID:   snaptest.AssertedSnapID("core24-new"),
 		Revision: snap.R(222),
-		RealName: "core20-new",
+		RealName: "core24-new",
 		Channel:  "latest/stable",
 	}, snapstatetest.InstallSnapOptions{Required: true})
 
@@ -2857,7 +2857,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnaps(c *C) {
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		// switch to a new base which is already installed
-		"base":     "core20-new",
+		"base":     "core24-new",
 		"grade":    "dangerous",
 		"revision": "1",
 		"snaps": []interface{}{
@@ -2936,10 +2936,10 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnaps(c *C) {
 	c.Assert(tUpdateAssetsKernel.Kind(), Equals, "update-gadget-assets")
 	c.Assert(tUpdateAssetsKernel.Summary(), Equals, `Update assets from kernel "pc-kernel-new" (222) for remodel`)
 	c.Assert(tPrepareBase.Kind(), Equals, "prepare-snap")
-	c.Assert(tPrepareBase.Summary(), Equals, `Prepare snap "core20-new" (222) for remodel`)
+	c.Assert(tPrepareBase.Summary(), Equals, `Prepare snap "core24-new" (222) for remodel`)
 	c.Assert(tPrepareBase.WaitTasks(), HasLen, 1)
 	c.Assert(tLinkBase.Kind(), Equals, "link-snap")
-	c.Assert(tLinkBase.Summary(), Equals, `Make snap "core20-new" (222) available to the system during remodel`)
+	c.Assert(tLinkBase.Summary(), Equals, `Make snap "core24-new" (222) available to the system during remodel`)
 	c.Assert(tPrepareGadget.Kind(), Equals, "prepare-snap")
 	c.Assert(tPrepareGadget.Summary(), Equals, `Prepare snap "pc-new" (222) for remodel`)
 	c.Assert(tPrepareGadget.WaitTasks(), HasLen, 1)
@@ -3053,7 +3053,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnapsChannelSwitch
 	// set a model assertion
 	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
-		"base":         "core20",
+		"base":         "core24",
 		"grade":        "dangerous",
 		"snaps": []interface{}{
 			map[string]interface{}{
@@ -3078,10 +3078,10 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnapsChannelSwitch
 	})
 
 	// install snaps for current model
-	snapstatetest.InstallEssentialSnaps(c, s.state, "core20", nil, nil)
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core24", nil, nil)
 
 	// install snaps that will be needed for new model
-	snapstatetest.InstallSnap(c, s.state, "name: pc-new\nversion: 1\ntype: gadget\nbase: core20-new", nil, &snap.SideInfo{
+	snapstatetest.InstallSnap(c, s.state, "name: pc-new\nversion: 1\ntype: gadget\nbase: core24-new", nil, &snap.SideInfo{
 		SnapID:   snaptest.AssertedSnapID("pc-new"),
 		Revision: snap.R(222),
 		RealName: "pc-new",
@@ -3095,10 +3095,10 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnapsChannelSwitch
 		Channel:  "20/stable",
 	}, snapstatetest.InstallSnapOptions{Required: true})
 
-	snapstatetest.InstallSnap(c, s.state, "name: core20-new\nversion: 1\ntype: base\n", nil, &snap.SideInfo{
-		SnapID:   snaptest.AssertedSnapID("core20-new"),
+	snapstatetest.InstallSnap(c, s.state, "name: core24-new\nversion: 1\ntype: base\n", nil, &snap.SideInfo{
+		SnapID:   snaptest.AssertedSnapID("core24-new"),
 		Revision: snap.R(222),
-		RealName: "core20-new",
+		RealName: "core24-new",
 		Channel:  "latest/stable",
 	}, snapstatetest.InstallSnapOptions{Required: true})
 
@@ -3114,7 +3114,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnapsChannelSwitch
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		// switch to a new base which is already installed
-		"base":     "core20-new",
+		"base":     "core24-new",
 		"grade":    "dangerous",
 		"revision": "1",
 		"snaps": []interface{}{
@@ -3193,10 +3193,10 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnapsChannelSwitch
 	c.Assert(tUpdateAssetsKernel.Kind(), Equals, "update-gadget-assets")
 	c.Assert(tUpdateAssetsKernel.Summary(), Equals, `Update assets from kernel "pc-kernel-new" (222) for remodel`)
 	c.Assert(tPrepareBase.Kind(), Equals, "prepare-snap")
-	c.Assert(tPrepareBase.Summary(), Equals, `Prepare snap "core20-new" (222) for remodel`)
+	c.Assert(tPrepareBase.Summary(), Equals, `Prepare snap "core24-new" (222) for remodel`)
 	c.Assert(tPrepareBase.WaitTasks(), HasLen, 1)
 	c.Assert(tLinkBase.Kind(), Equals, "link-snap")
-	c.Assert(tLinkBase.Summary(), Equals, `Make snap "core20-new" (222) available to the system during remodel`)
+	c.Assert(tLinkBase.Summary(), Equals, `Make snap "core24-new" (222) available to the system during remodel`)
 	c.Assert(tSwitchGadget.Kind(), Equals, "switch-snap")
 	c.Assert(tSwitchGadget.Summary(), Equals, `Switch snap "pc-new" from channel "20/stable" to "20/edge"`)
 	c.Assert(tSwitchGadget.WaitTasks(), HasLen, 1)
@@ -3311,7 +3311,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	// set a model assertion
 	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
-		"base":         "core20",
+		"base":         "core24",
 		"grade":        "dangerous",
 		"snaps": []interface{}{
 			map[string]interface{}{
@@ -3362,15 +3362,15 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 		TrackingChannel: "20/stable",
 	})
 	// new gadget, base and kernel which are already installed
-	for _, alreadyInstalledName := range []string{"pc-new", "pc-kernel-new", "core20-new"} {
+	for _, alreadyInstalledName := range []string{"pc-new", "pc-kernel-new", "core24-new"} {
 		snapYaml := "name: pc-kernel-new\nversion: 1\ntype: kernel\n"
 		channel := "20/stable"
 		switch alreadyInstalledName {
-		case "core20-new":
-			snapYaml = "name: core20-new\nversion: 1\ntype: base\n"
+		case "core24-new":
+			snapYaml = "name: core24-new\nversion: 1\ntype: base\n"
 			channel = "latest/stable"
 		case "pc-new":
-			snapYaml = "name: pc-new\nversion: 1\ntype: gadget\nbase: core20-new\n"
+			snapYaml = "name: pc-new\nversion: 1\ntype: gadget\nbase: core24-new\n"
 		}
 		si := &snap.SideInfo{
 			RealName: alreadyInstalledName,
@@ -3390,7 +3390,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		// switch to a new base which is already installed
-		"base":     "core20-new",
+		"base":     "core24-new",
 		"grade":    "dangerous",
 		"revision": "1",
 		"snaps": []interface{}{
@@ -3453,10 +3453,10 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	c.Assert(tUpdateAssetsKernel.Kind(), Equals, "update-gadget-assets")
 	c.Assert(tUpdateAssetsKernel.Summary(), Equals, `Update assets from kernel "pc-kernel-new" (222) for remodel`)
 	c.Assert(tPrepareBase.Kind(), Equals, "prepare-snap")
-	c.Assert(tPrepareBase.Summary(), Equals, `Prepare snap "core20-new" (222) for remodel`)
+	c.Assert(tPrepareBase.Summary(), Equals, `Prepare snap "core24-new" (222) for remodel`)
 	c.Assert(tPrepareBase.WaitTasks(), HasLen, 1)
 	c.Assert(tLinkBase.Kind(), Equals, "link-snap")
-	c.Assert(tLinkBase.Summary(), Equals, `Make snap "core20-new" (222) available to the system during remodel`)
+	c.Assert(tLinkBase.Summary(), Equals, `Make snap "core24-new" (222) available to the system during remodel`)
 	c.Assert(tPrepareGadget.Kind(), Equals, "prepare-snap")
 	c.Assert(tPrepareGadget.Summary(), Equals, `Prepare snap "pc-new" (222) for remodel`)
 	c.Assert(tPrepareGadget.WaitTasks(), HasLen, 1)
@@ -3560,7 +3560,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 
 	callsToMockedUpdate := 0
 	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
-		c.Assert(strutil.ListContains([]string{"core20-new", "pc-kernel-new", "pc-new"}, name), Equals, true,
+		c.Assert(strutil.ListContains([]string{"core24-new", "pc-kernel-new", "pc-new"}, name), Equals, true,
 			Commentf("unexpected snap %q", name))
 		callsToMockedUpdate++
 		c.Check(flags.Required, Equals, false)
@@ -3572,7 +3572,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 		tSwitchChannel := s.state.NewTask("switch-snap-channel", fmt.Sprintf("Switch %s channel to %s", name, opts.Channel))
 		typ := "kernel"
 		rev := snap.R(222)
-		if name == "core20-new" {
+		if name == "core24-new" {
 			typ = "base"
 			rev = snap.R(223)
 		} else if name == "pc-new" {
@@ -3597,7 +3597,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	callsToMockedUpdatePath := 0
 	restore = devicestate.MockSnapstateUpdatePathWithDeviceContext(func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		callsToMockedUpdatePath++
-		c.Assert(strutil.ListContains([]string{"core20-new", "pc-kernel-new", "pc-new"}, name), Equals, true,
+		c.Assert(strutil.ListContains([]string{"core24-new", "pc-kernel-new", "pc-new"}, name), Equals, true,
 			Commentf("unexpected snap %q", name))
 		c.Check(flags.Required, Equals, false)
 		c.Check(flags.NoReRefresh, Equals, true)
@@ -3608,7 +3608,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 		// switch channel using SideInfo from the local snap
 		tSwitchChannel := s.state.NewTask("switch-snap-channel", fmt.Sprintf("Switch %s channel to %s", name, opts.Channel))
 		typ := "kernel"
-		if name == "core20-new" {
+		if name == "core24-new" {
 			typ = "base"
 		} else if name == "pc-new" {
 			typ = "gadget"
@@ -3638,7 +3638,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	// set a model assertion
 	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
-		"base":         "core20",
+		"base":         "core24",
 		"grade":        "dangerous",
 		"snaps": []interface{}{
 			map[string]interface{}{
@@ -3689,13 +3689,13 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 		TrackingChannel: "20/stable",
 	})
 	// new gadget and kernel which are already installed
-	for _, alreadyInstalledName := range []string{"pc-kernel-new", "core20-new", "pc-new"} {
+	for _, alreadyInstalledName := range []string{"pc-kernel-new", "core24-new", "pc-new"} {
 		snapYaml := "name: pc-kernel-new\nversion: 1\ntype: kernel\n"
 		channel := "other/edge"
-		if alreadyInstalledName == "core20-new" {
-			snapYaml = "name: core20-new\nversion: 1\ntype: base\n"
+		if alreadyInstalledName == "core24-new" {
+			snapYaml = "name: core24-new\nversion: 1\ntype: base\n"
 		} else if alreadyInstalledName == "pc-new" {
-			snapYaml = "name: pc-new\nversion: 1\ntype: gadget\nbase: core20-new\n"
+			snapYaml = "name: pc-new\nversion: 1\ntype: gadget\nbase: core24-new\n"
 		}
 		si := &snap.SideInfo{
 			RealName: alreadyInstalledName,
@@ -3715,7 +3715,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
 		// switch to a new base which is already installed
-		"base":     "core20-new",
+		"base":     "core24-new",
 		"grade":    "dangerous",
 		"revision": "1",
 		"snaps": []interface{}{
@@ -3736,8 +3736,8 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 			},
 			map[string]interface{}{
 				// similar case for the base snap
-				"name":            "core20-new",
-				"id":              snaptest.AssertedSnapID("core20-new"),
+				"name":            "core24-new",
+				"id":              snaptest.AssertedSnapID("core24-new"),
 				"type":            "base",
 				"default-channel": "latest/stable",
 			},
@@ -3747,7 +3747,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	var localSnaps []*snap.SideInfo
 	var paths []string
 	if opts.localSnaps {
-		for i, name := range []string{"pc-kernel-new", "core20-new", "pc-new"} {
+		for i, name := range []string{"pc-kernel-new", "core24-new", "pc-new"} {
 			si, path := createLocalSnap(c, name, snaptest.AssertedSnapID(name), 222+i, "", "", nil)
 			localSnaps = append(localSnaps, si)
 			paths = append(paths, path)
@@ -3808,9 +3808,9 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	c.Assert(tLinkKernel.Kind(), Equals, "link-snap")
 	c.Assert(tLinkKernel.Summary(), Equals, `Make snap "pc-kernel-new" (222) available to the system during remodel`)
 	c.Assert(tSwitchChannelBase.Kind(), Equals, "switch-snap-channel")
-	c.Assert(tSwitchChannelBase.Summary(), Equals, `Switch core20-new channel to latest/stable`)
+	c.Assert(tSwitchChannelBase.Summary(), Equals, `Switch core24-new channel to latest/stable`)
 	c.Assert(tLinkBase.Kind(), Equals, "link-snap")
-	c.Assert(tLinkBase.Summary(), Equals, `Make snap "core20-new" (223) available to the system during remodel`)
+	c.Assert(tLinkBase.Summary(), Equals, `Make snap "core24-new" (223) available to the system during remodel`)
 	c.Assert(tSwitchChannelGadget.Kind(), Equals, "switch-snap-channel")
 	c.Assert(tSwitchChannelGadget.Summary(), Equals, `Switch pc-new channel to 20/stable`)
 	c.Assert(tUpdateAssetsFromGadget.Kind(), Equals, "update-gadget-assets")

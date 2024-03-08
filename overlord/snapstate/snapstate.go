@@ -53,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -541,16 +542,17 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	}
 
 	// we need to know some of the characteristics of the device - it is
-	// expected to always have a model/device context at this point. Note
-	// that in a remodel this would use the old model, but that does not
-	// matter for the information we want to extract from deviceCtx here.
+	// expected to always have a model/device context at this point.
+	// TODO in a remodel this would use the old model, we need to fix this
+	// as needsKernelSetup needs to know the new model for UC2{0,2} -> UC24
+	// remodel case.
 	deviceCtx, err := DeviceCtx(st, nil, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	// This task is necessary only for UC20+ and hybrid
-	if deviceCtx.HasModeenv() && snapsup.Type == snap.TypeKernel {
+	if snapsup.Type == snap.TypeKernel && needsKernelSetup(deviceCtx) {
 		setupKernel := st.NewTask("setup-kernel-snap", fmt.Sprintf(i18n.G("Setup kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(setupKernel)
 		prev = setupKernel
@@ -614,7 +616,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(autoConnect)
 	prev = autoConnect
 
-	if deviceCtx.HasModeenv() && snapsup.Type == snap.TypeKernel {
+	if snapsup.Type == snap.TypeKernel && needsKernelSetup(deviceCtx) {
 		// This task needs to run after we're back and running the new
 		// kernel after a reboot was requested in link-snap handler.
 		setupKernel := st.NewTask("remove-old-kernel-snap-setup", fmt.Sprintf(i18n.G("Cleanup kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
@@ -790,6 +792,54 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	installSet.MarkEdge(healthCheck, EndEdge)
 
 	return installSet, nil
+}
+
+func needsKernelSetup(devCtx DeviceContext) bool {
+	// Must be UC20+ or hybrid
+	if !devCtx.HasModeenv() {
+		return false
+	}
+
+	// Check that we have a snapd-generator that will create mount
+	// units for the drivers tree, for both classic & UC
+	if devCtx.Classic() {
+		// We run the generator from the deb package, so check its version
+		snapdInfoDir := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir)
+		debVersion, _, err := snapdtool.SnapdVersionFromInfoFile(snapdInfoDir)
+		if err != nil {
+			return false
+		}
+
+		res, err := strutil.VersionCompare(debVersion, "2.62")
+		if err != nil {
+			logger.Noticef("cannot compare %q to 2.62: %v", debVersion, err)
+			return false
+		}
+		if res >= 0 {
+			return true
+		}
+	} else {
+		// We assume core24 onwards has the generator, for older boot bases
+		// we return false.
+		// TODO this won't work for a UC2{0,2} -> UC24+ remodel as we
+		// need the context created from the new model. Get to this
+		// ASAP after snapd 2.62 release.
+		baseSn := devCtx.Model().BaseSnap()
+		if baseSn == nil {
+			logger.Noticef("internal error: no base in model")
+			return false
+		}
+		// TODO in remodeling we are not getting the right answer,
+		// how to fix that?
+		switch baseSn.SnapName() {
+		case "core20", "core22", "core22-desktop":
+			return false
+		default:
+			return true
+		}
+	}
+
+	return false
 }
 
 func findTasksMatchingKindAndSnap(st *state.State, kind string, snapName string, revision snap.Revision) ([]*state.Task, error) {
@@ -3088,14 +3138,14 @@ func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*stat
 	ts := state.NewTaskSet(prepareSnap)
 	// preserve the same order as during the update
 	if info.Type() == snap.TypeKernel {
-		// Note that in a remodel this would use the old model, but
-		// that does not matter for the information we want to extract
-		// from deviceCtx here.
+		// TODO in a remodel this would use the old model, we need to fix this
+		// as needsKernelSetup needs to know the new model for UC2{0,2} -> UC24
+		// remodel case.
 		deviceCtx, err := DeviceCtx(st, nil, nil)
 		if err != nil {
 			return nil, err
 		}
-		if deviceCtx.HasModeenv() {
+		if needsKernelSetup(deviceCtx) {
 			setupKernel := st.NewTask("setup-kernel-snap", fmt.Sprintf(i18n.G("Setup kernel driver tree for %q (%s) for remodel"), snapsup.InstanceName(), snapst.Current))
 			ts.AddTask(setupKernel)
 			setupKernel.Set("snap-setup-task", prepareSnap.ID())
@@ -3147,14 +3197,14 @@ func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet,
 	prev := allTasks[len(allTasks)-1]
 	// preserve the same order as during the update
 	if snapsup.Type == snap.TypeKernel {
-		// Note that in a remodel this would use the old model, but
-		// that does not matter for the information we want to extract
-		// from deviceCtx here.
+		// TODO in a remodel this would use the old model, we need to fix this
+		// as needsKernelSetup needs to know the new model for UC2{0,2} -> UC24
+		// remodel case.
 		deviceCtx, err := DeviceCtx(st, nil, nil)
 		if err != nil {
 			return nil, err
 		}
-		if deviceCtx.HasModeenv() {
+		if needsKernelSetup(deviceCtx) {
 			setupKernel := st.NewTask("setup-kernel-snap", fmt.Sprintf(i18n.G("Setup kernel driver tree for %q (%s) for remodel"), snapsup.InstanceName(), snapsup.Revision()))
 			setupKernel.Set("snap-setup-task", snapSetupTask.ID())
 			setupKernel.WaitFor(prev)
