@@ -178,24 +178,34 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	// Get the files that this snap should have
 	content := b.deriveContent(spec.(*Specification), appSet)
 
-	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
+	globs := profileGlobs(snapName)
+
 	dir := dirs.SnapDBusSystemPolicyDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for DBus configuration files %q: %s", dir, err)
 	}
-	_, _, err = osutil.EnsureDirState(dir, glob, content)
+
+	_, _, err = osutil.EnsureDirStateGlobs(dir, globs, content)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapName, err)
 	}
 	return nil
 }
 
+func profileGlobs(snapName string) []string {
+	var globs []string
+	for _, g := range interfaces.SecurityTagGlobs(snapName) {
+		globs = append(globs, fmt.Sprintf("%s.conf", g))
+	}
+	return globs
+}
+
 // Remove removes dbus configuration files of a given snap.
 //
 // This method should be called after removing a snap.
 func (b *Backend) Remove(snapName string) error {
-	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
-	_, _, err := osutil.EnsureDirState(dirs.SnapDBusSystemPolicyDir, glob, nil)
+	globs := profileGlobs(snapName)
+	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapDBusSystemPolicyDir, globs, nil)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapName, err)
 	}

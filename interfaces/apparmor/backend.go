@@ -310,7 +310,7 @@ func nsProfile(snapName string) string {
 // apps and hooks while the second profile describes the snap-update-ns profile
 // for the whole snap.
 func profileGlobs(snapName string) []string {
-	return []string{interfaces.SecurityTagGlob(snapName), nsProfile(snapName)}
+	return append(interfaces.SecurityTagGlobs(snapName), nsProfile(snapName))
 }
 
 // Determine if a profile filename is removable during core refresh/rollback.
@@ -399,10 +399,12 @@ func (b *Backend) prepareProfiles(appSet *interfaces.SnapAppSet, opts interfaces
 	content := b.deriveContent(spec.(*Specification), appSet, opts)
 
 	dir := dirs.SnapAppArmorDir
-	globs := profileGlobs(snapInfo.InstanceName())
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("cannot create directory for apparmor profiles %q: %s", dir, err)
 	}
+
+	globs := profileGlobs(snapInfo.InstanceName())
+
 	changed, removedPaths, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, content)
 	// XXX: in the old code this error was reported late, after doing load/removeCached.
 	if errEnsure != nil {

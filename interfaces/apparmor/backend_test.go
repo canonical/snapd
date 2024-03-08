@@ -2227,7 +2227,7 @@ func (s *backendSuite) TestCasperOverlaySnippets(c *C) {
 
 func (s *backendSuite) TestProfileGlobs(c *C) {
 	globs := apparmor.ProfileGlobs("foo")
-	c.Assert(globs, DeepEquals, []string{"snap.foo.*", "snap-update-ns.foo"})
+	c.Assert(globs, DeepEquals, []string{"snap.foo.*", "snap.foo+*.hook.*", "snap-update-ns.foo"})
 }
 
 func (s *backendSuite) TestNsProfile(c *C) {
