@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/godbus/dbus"
+	"github.com/mvo5/goconfigparser"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/desktop/notification"
@@ -907,13 +908,24 @@ func (s *restSuite) TestPostCloseRefreshNotification(c *C) {
 	})
 }
 
-func createDesktopFile(c *C, info *snap.AppInfo, icon string, name string) {
+func createDesktopFile(c *C, desktopFilePath string, icon string, name string, localizedNames map[string]string) {
 	data := []byte("[Desktop Entry]\nName=" + name + "\n")
 	if icon != "" {
 		data = append(data, []byte("Icon="+icon+"\n")...)
 	}
-	c.Assert(os.MkdirAll(path.Dir(info.DesktopFile()), 0755), IsNil)
-	c.Assert(os.WriteFile(info.DesktopFile(), data, 0644), IsNil)
+	for key, value := range localizedNames {
+		data = append(data, []byte("Name["+key+"]="+value+"\n")...)
+	}
+	c.Assert(os.MkdirAll(path.Dir(desktopFilePath), 0755), IsNil)
+	c.Assert(os.WriteFile(desktopFilePath, data, 0644), IsNil)
+}
+
+func createLocalizedDesktopFile(c *C, name string, localizedNames map[string]string) *goconfigparser.ConfigParser {
+	tmpFile := c.MkDir() + "desktop.desktop"
+	createDesktopFile(c, tmpFile, "", name, localizedNames)
+	parser := goconfigparser.New()
+	c.Assert(parser.ReadFile(tmpFile), IsNil)
+	return parser
 }
 
 func createSnapInfo(snapName string) *snap.Info {
@@ -935,7 +947,7 @@ func addAppToSnap(c *C, snapinfo *snap.Info, app string, isService bool, icon st
 		newInfo.Daemon = "daemon"
 	}
 	snapinfo.Apps[app] = &newInfo
-	createDesktopFile(c, &newInfo, icon, name)
+	createDesktopFile(c, newInfo.DesktopFile(), icon, name, nil)
 }
 
 func (s *restSuite) TestGuessAppIconNoIconPrefixEqualApp(c *C) {
@@ -976,7 +988,7 @@ func (s *restSuite) TestGuessAppIconServicePrefixEqualApp(c *C) {
 	addAppToSnap(c, si, "app1", true, "iconname", "appname")
 	icon, name := agent.GuessAppData(si, "")
 	c.Check(icon, Equals, "")
-	c.Check(name, Equals, "appname")
+	c.Check(name, Equals, "")
 }
 
 func (s *restSuite) TestGuessAppIconServicePrefixDifferentApp(c *C) {
@@ -984,7 +996,7 @@ func (s *restSuite) TestGuessAppIconServicePrefixDifferentApp(c *C) {
 	addAppToSnap(c, si, "app1", true, "iconname", "appname")
 	icon, name := agent.GuessAppData(si, "")
 	c.Check(icon, Equals, "")
-	c.Check(name, Equals, "appname")
+	c.Check(name, Equals, "")
 }
 
 func (s *restSuite) TestGuessAppIconServiceTwoApps(c *C) {
@@ -1002,7 +1014,7 @@ func (s *restSuite) TestGuessAppIconServiceTwoAppsServices(c *C) {
 	addAppToSnap(c, si, "app2", true, "iconname2", "appname2")
 	icon, name := agent.GuessAppData(si, "")
 	c.Check(icon, Equals, "")
-	c.Check(name, Equals, "appname2")
+	c.Check(name, Equals, "")
 }
 
 func (s *restSuite) TestGuessAppIconServiceTwoAppsOneServicePrefixDifferent(c *C) {
@@ -1065,4 +1077,61 @@ Icon=foo.png
 	})
 	// boring stuff is checked above
 	c.Check(n.Icon, Equals, "foo.png")
+}
+
+func (s *restSuite) TestLocalizedDesktopNameNoLocale(c *C) {
+	restore := agent.MockCurrentLocale("")
+	s.AddCleanup(restore)
+	localizedNames := map[string]string{
+		"es":    "testapp_es",
+		"es_ES": "testapp_es_ES",
+		"es_AR": "testapp_es_AR",
+		"en_US": "testapp_en_US",
+		"en":    "testapp_en",
+	}
+	parser := createLocalizedDesktopFile(c, "testapp", localizedNames)
+	name := agent.GetLocalizedAppNameFromDesktopFile(parser, "defaultName")
+	c.Assert(name, Equals, "testapp")
+}
+
+func (s *restSuite) TestLocalizedDesktopNameFullLocale(c *C) {
+	restore := agent.MockCurrentLocale("es_ES")
+	s.AddCleanup(restore)
+	localizedNames := map[string]string{
+		"es":    "testapp_es",
+		"es_ES": "testapp_es_ES",
+		"es_AR": "testapp_es_AR",
+		"en_US": "testapp_en_US",
+		"en":    "testapp_en",
+	}
+	parser := createLocalizedDesktopFile(c, "testapp", localizedNames)
+	name := agent.GetLocalizedAppNameFromDesktopFile(parser, "defaultName")
+	c.Assert(name, Equals, "testapp_es_ES")
+}
+
+func (s *restSuite) TestLocalizedDesktopNamePartialLocale(c *C) {
+	restore := agent.MockCurrentLocale("es_ES")
+	s.AddCleanup(restore)
+	localizedNames := map[string]string{
+		"es":    "testapp_es",
+		"es_AR": "testapp_es_AR",
+		"en_US": "testapp_en_US",
+		"en":    "testapp_en",
+	}
+	parser := createLocalizedDesktopFile(c, "testapp", localizedNames)
+	name := agent.GetLocalizedAppNameFromDesktopFile(parser, "defaultName")
+	c.Assert(name, Equals, "testapp_es")
+}
+
+func (s *restSuite) TestLocalizedDesktopNameLocaleNotFound(c *C) {
+	restore := agent.MockCurrentLocale("es_ES")
+	s.AddCleanup(restore)
+	localizedNames := map[string]string{
+		"es_AR": "testapp_es_AR",
+		"en_US": "testapp_en_US",
+		"en":    "testapp_en",
+	}
+	parser := createLocalizedDesktopFile(c, "testapp", localizedNames)
+	name := agent.GetLocalizedAppNameFromDesktopFile(parser, "defaultName")
+	c.Assert(name, Equals, "testapp")
 }

@@ -350,15 +350,17 @@ func serviceStatus(c *Command, r *http.Request) Response {
 	return SyncResponse(unitStatusToClientUnitStatus(stss))
 }
 
+var currentLocale = i18n.CurrentLocale
+
 func getLocalizedAppNameFromDesktopFile(parser *goconfigparser.ConfigParser, defaultName string) string {
 	// First try with full locale string (e.g. es_ES)
-	locale := fmt.Sprintf("Name[%s]", i18n.CurrentLocale())
+	locale := fmt.Sprintf("Name[%s]", currentLocale())
 	if name, err := parser.Get("Desktop Entry", locale); err == nil && name != "" {
 		return name
 	}
 
 	// If not found, try with the country part
-	locale = fmt.Sprintf("Name[%s]", strings.Split(i18n.CurrentLocale(), "_")[0])
+	locale = fmt.Sprintf("Name[%s]", strings.Split(currentLocale(), "_")[0])
 	if name, err := parser.Get("Desktop Entry", locale); err == nil && name != "" {
 		return name
 	}
