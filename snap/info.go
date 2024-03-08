@@ -846,22 +846,26 @@ func (s *Info) AppsForSlot(slot *SlotInfo) []*AppInfo {
 // HooksForPlug returns the list of hooks that are associated with the given
 // plug. If the plug is unscoped, then all hooks are returned.
 func (s *Info) HooksForPlug(plug *PlugInfo) []*HookInfo {
+	return hooksForPlug(plug, s.Hooks)
+}
+
+func hooksForPlug(plug *PlugInfo, hooks map[string]*HookInfo) []*HookInfo {
 	if plug.Unscoped {
-		hooks := make([]*HookInfo, 0, len(s.Hooks))
-		for _, hook := range s.Hooks {
-			hooks = append(hooks, hook)
+		plugHooks := make([]*HookInfo, 0, len(hooks))
+		for _, hook := range hooks {
+			plugHooks = append(plugHooks, hook)
 		}
-		return hooks
+		return plugHooks
 	}
 
-	var hooks []*HookInfo
-	for _, hook := range s.Hooks {
+	var plugHooks []*HookInfo
+	for _, hook := range hooks {
 		if _, ok := hook.Plugs[plug.Name]; ok {
-			hooks = append(hooks, hook)
+			plugHooks = append(plugHooks, hook)
 		}
 	}
 
-	return hooks
+	return plugHooks
 }
 
 // HooksForSlot returns the list of hooks that are associated with the given

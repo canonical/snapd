@@ -179,7 +179,10 @@ hooks:
 plugs:
   plug:
 slots:
-  slot:`
+  slot:
+components:
+  comp:
+    type: test`
 	info, connectedPlug := mockInfoAndConnectedPlug(c, yaml, nil, "plug")
 	compInfo := snaptest.MockComponent(c, "component: name+comp\ntype: test\nversion: 1", info)
 
@@ -256,6 +259,7 @@ hooks:
   install:
 components:
   comp:
+    type: test
     hooks:
       install:
 `
