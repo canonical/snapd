@@ -321,6 +321,33 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsProfiles(c *C) {
 	})
 }
 
+func (s *backendSuite) TestInstallingComponentWritesAndLoadsProfiles(c *C) {
+	const instanceName = ""
+	s.testInstallingComponentWritesAndLoadsProfiles(c, instanceName)
+}
+
+func (s *backendSuite) TestInstallingComponentWritesAndLoadsProfilesInstance(c *C) {
+	const instanceName = "snap_instance"
+	s.testInstallingComponentWritesAndLoadsProfiles(c, instanceName)
+}
+
+func (s *backendSuite) testInstallingComponentWritesAndLoadsProfiles(c *C, instanceName string) {
+	info := s.InstallSnapWithComponents(c, interfaces.ConfinementOptions{}, instanceName, ifacetest.SnapWithComponentsYaml, 1, []string{ifacetest.ComponentYaml})
+
+	expectedName := info.InstanceName()
+
+	componentHookProfile := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("snap.%s+comp.hook.install", expectedName))
+	// verify that profile for component hook was created
+	c.Check(componentHookProfile, testutil.FilePresent)
+
+	appProfile := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("snap.%s.app", expectedName))
+	updateNSProfile := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("snap-update-ns.%s", expectedName))
+	// apparmor_parser was used to load that file
+	c.Check(s.loadProfilesCalls, DeepEquals, []loadProfilesParams{
+		{[]string{updateNSProfile, componentHookProfile, appProfile}, fmt.Sprintf("%s/var/cache/apparmor", s.RootDir), apparmor_sandbox.SkipReadCache},
+	})
+}
+
 const layoutYaml = `name: myapp
 version: 1
 apps:
@@ -357,6 +384,43 @@ func (s *backendSuite) TestInstallingSnapWithoutAppsOrHooksDoesntAddProfiles(c *
 	// any apparmor profiles because there is no executable content that would need
 	// an execution environment and the corresponding mount namespace.
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", gadgetYaml, 1)
+	c.Check(s.loadProfilesCalls, HasLen, 0)
+}
+
+func (s *backendSuite) TestInstallingSnapWithComponentButNotInstalledDoesntAddProfiles(c *C) {
+	// installing a snap that has no app or hooks, but does have components
+	// defined, but no components are installed, should't generate any profiles
+	var snapWithComponents = `
+name: snap
+version: 1
+components:
+  comp:
+    type: test
+    hooks:
+      install:
+plugs:
+  iface:
+`
+
+	s.InstallSnapWithComponents(c, interfaces.ConfinementOptions{}, "", snapWithComponents, 1, nil)
+	c.Check(s.loadProfilesCalls, HasLen, 0)
+}
+
+func (s *backendSuite) TestInstallingSnapWithComponentWithNoHooks(c *C) {
+	// installing a snap that has no app or hooks, but does have components
+	// defined, but the component doesn't have hooks, should't generate any
+	// profiles
+	var snapWithComponents = `
+name: snap
+version: 1
+components:
+  comp:
+    type: test
+plugs:
+  iface:
+`
+
+	s.InstallSnapWithComponents(c, interfaces.ConfinementOptions{}, "", snapWithComponents, 1, []string{ifacetest.ComponentYaml})
 	c.Check(s.loadProfilesCalls, HasLen, 0)
 }
 
@@ -438,6 +502,42 @@ func (s *backendSuite) TestRemovingSnapWithHookRemovesAndUnloadsProfiles(c *C) {
 	}
 }
 
+func (s *backendSuite) TestRemovingComponentRemovesAndUnloadsProfiles(c *C) {
+	const instanceName = ""
+	s.testRemovingComponentRemovesAndUnloadsProfiles(c, instanceName)
+}
+
+func (s *backendSuite) TestRemovingComponentRemovesAndUnloadsProfilesInstance(c *C) {
+	const instanceName = "snap_instance"
+	s.testRemovingComponentRemovesAndUnloadsProfiles(c, instanceName)
+}
+
+func (s *backendSuite) testRemovingComponentRemovesAndUnloadsProfiles(c *C, instanceName string) {
+	for _, opts := range testedConfinementOpts {
+		snapInfo := s.InstallSnapWithComponents(c, opts, instanceName, ifacetest.SnapWithComponentsYaml, 1, []string{ifacetest.ComponentYaml})
+		s.removeCachedProfilesCalls = nil
+		s.RemoveSnap(c, snapInfo)
+
+		expectedName := snapInfo.InstanceName()
+
+		componentHookProfileName := fmt.Sprintf("snap.%s+comp.hook.install", expectedName)
+		updateNSProfileName := fmt.Sprintf("snap-update-ns.%s", expectedName)
+		appProfileName := fmt.Sprintf("snap.%s.app", expectedName)
+
+		componentHookProfile := filepath.Join(dirs.SnapAppArmorDir, componentHookProfileName)
+		updateNSProfile := filepath.Join(dirs.SnapAppArmorDir, updateNSProfileName)
+		appProfile := filepath.Join(dirs.SnapAppArmorDir, appProfileName)
+
+		c.Check(componentHookProfile, testutil.FileAbsent)
+		c.Check(updateNSProfile, testutil.FileAbsent)
+		c.Check(appProfile, testutil.FileAbsent)
+
+		c.Check(s.removeCachedProfilesCalls, DeepEquals, []removeCachedProfilesParams{
+			{[]string{updateNSProfileName, componentHookProfileName, appProfileName}, fmt.Sprintf("%s/var/cache/apparmor", s.RootDir)},
+		})
+	}
+}
+
 func (s *backendSuite) TestUpdatingSnapMakesNeccesaryChanges(c *C) {
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 1)
@@ -496,6 +596,81 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 			{[]string{updateNSProfile, nmbdProfile, smbdProfile}, fmt.Sprintf("%s/var/cache/apparmor", s.RootDir), 0},
 		})
 		s.RemoveSnap(c, snapInfo)
+	}
+}
+
+func (s *backendSuite) TestUpdatingSnapToOneWithMoreComponents(c *C) {
+	const instanceName = ""
+	s.testUpdatingSnapToOneWithMoreComponents(c, instanceName)
+}
+
+func (s *backendSuite) TestUpdatingSnapToOneWithMoreComponentsInstance(c *C) {
+	const instanceName = "snap_instance"
+	s.testUpdatingSnapToOneWithMoreComponents(c, instanceName)
+}
+
+func (s *backendSuite) testUpdatingSnapToOneWithMoreComponents(c *C, instanceName string) {
+	for _, opts := range testedConfinementOpts {
+		info := s.InstallSnap(c, opts, instanceName, ifacetest.SnapWithComponentsYaml, 1)
+		s.loadProfilesCalls = nil
+		info = s.UpdateSnapWithComponents(c, info, opts, ifacetest.SnapWithComponentsYaml, 1, []string{ifacetest.ComponentYaml})
+
+		expectedName := info.InstanceName()
+
+		updateNSProfile := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("snap-update-ns.%s", expectedName))
+		componentHookProfile := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("snap.%s+comp.hook.install", expectedName))
+		appProfile := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("snap.%s.app", expectedName))
+
+		// verify that profile "snap.snap+comp.hook.install" was created
+		c.Check(componentHookProfile, testutil.FilePresent)
+
+		// apparmor_parser was used to load all the profiles, the hook profile
+		// has changed so we force invalidate its cache.
+		c.Check(s.loadProfilesCalls, DeepEquals, []loadProfilesParams{
+			{[]string{componentHookProfile}, fmt.Sprintf("%s/var/cache/apparmor", s.RootDir), apparmor_sandbox.SkipReadCache},
+			{[]string{updateNSProfile, appProfile}, fmt.Sprintf("%s/var/cache/apparmor", s.RootDir), 0},
+		})
+		s.RemoveSnap(c, info)
+	}
+}
+
+func (s *backendSuite) TestUpdatingSnapToOneWithFewerComponents(c *C) {
+	const instanceName = ""
+	s.testUpdatingSnapToOneWithFewerComponents(c, instanceName)
+}
+
+func (s *backendSuite) TestUpdatingSnapToOneWithFewerComponentsInstance(c *C) {
+	const instanceName = "snap_instance"
+	s.testUpdatingSnapToOneWithFewerComponents(c, instanceName)
+}
+
+func (s *backendSuite) testUpdatingSnapToOneWithFewerComponents(c *C, instanceName string) {
+	for _, opts := range testedConfinementOpts {
+		info := s.InstallSnapWithComponents(c, opts, instanceName, ifacetest.SnapWithComponentsYaml, 1, []string{ifacetest.ComponentYaml})
+
+		fmt.Println(info.InstanceName())
+
+		s.loadProfilesCalls = nil
+		// NOTE: the revision is kept the same to just test on the application being removed
+		info = s.UpdateSnap(c, info, opts, ifacetest.SnapWithComponentsYaml, 1)
+
+		expectedName := info.InstanceName()
+
+		updateNSProfile := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("snap-update-ns.%s", expectedName))
+		hookProfile := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("snap.%s+comp.hook.install", expectedName))
+		appProfile := filepath.Join(dirs.SnapAppArmorDir, fmt.Sprintf("snap.%s.app", expectedName))
+
+		c.Check(appProfile, testutil.FilePresent)
+		c.Check(updateNSProfile, testutil.FilePresent)
+
+		// verify profile component hook profile was removed
+		c.Check(hookProfile, testutil.FileAbsent)
+
+		// apparmor_parser was used to remove the unused profile
+		c.Check(s.loadProfilesCalls, DeepEquals, []loadProfilesParams{
+			{[]string{updateNSProfile, appProfile}, fmt.Sprintf("%s/var/cache/apparmor", s.RootDir), 0},
+		})
+		s.RemoveSnap(c, info)
 	}
 }
 
@@ -1356,6 +1531,43 @@ profile "snap.foo.hook.configure" flags=(attach_disconnected,mediate_deleted) {
 	c.Check(profile, testutil.FileEquals, expected)
 	c.Check(stat.Mode(), Equals, os.FileMode(0644))
 	s.RemoveSnap(c, snapInfo)
+}
+
+func (s *backendSuite) TestTemplateVarsWithComponentHook(c *C) {
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer restore()
+	restore = osutil.MockIsHomeUsingRemoteFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	// NOTE: replace the real template with a shorter variant
+	restoreTemplate := apparmor.MockTemplate("\n" +
+		"###VAR###\n" +
+		"###PROFILEATTACH### ###FLAGS### {\n" +
+		"###SNIPPETS###\n" +
+		"}\n")
+	defer restoreTemplate()
+
+	expected := `
+# This is a snap name without the instance key
+@{SNAP_NAME}="snap"
+# This is a snap name with instance key
+@{SNAP_INSTANCE_NAME}="snap"
+@{SNAP_INSTANCE_DESKTOP}="snap"
+@{SNAP_COMMAND_NAME}="snap+comp.hook.install"
+@{SNAP_REVISION}="1"
+@{PROFILE_DBUS}="snap_2esnap_2bcomp_2ehook_2einstall"
+@{INSTALL_DIR}="/{,var/lib/snapd/}snap"
+profile "snap.snap+comp.hook.install" flags=(attach_disconnected,mediate_deleted) {
+
+}
+`
+	info := s.InstallSnapWithComponents(c, interfaces.ConfinementOptions{}, "", ifacetest.SnapWithComponentsYaml, 1, []string{ifacetest.ComponentYaml})
+
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.snap+comp.hook.install")
+	c.Check(profile, testutil.FileEquals, expected)
+
+	s.RemoveSnap(c, info)
 }
 
 const coreYaml = `name: core
