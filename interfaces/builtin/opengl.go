@@ -212,6 +212,8 @@ unix (send, receive) type=dgram peer=(addr="@var/run/nvidia-xdriver-*"),
 const openglHybrisConnectedPlugAppArmor = `
 # Hybris support
 /{,var/}run/shm/hybris_shm_data rw, # FIXME: LP: #1226569 (make app-specific)
+# This is a LD_PRELOADed TLS padding library allowing use of both
+# Android 9 and glibc TLS slots at the same time. Only used on Halium 9.
 /usr/lib/@{multiarch}/libtls-padding.so  mr,
 /android{,/**} r,
 /{,android/}system/build.prop r,
@@ -225,6 +227,8 @@ const openglHybrisConnectedPlugAppArmor = `
 /{,android/}odm/lib{,64}/**.so m,
 /{,android/}apex/com.android.runtime/lib{,64}/**     r,
 /{,android/}apex/com.android.runtime/lib{,64}/**.so  m,
+/{,android/}apex/com.android.i18n/lib{,64}/**.so     r,
+/{,android/}apex/com.android.i18n/lib{,64}/**.so     m,
 /{,dev/}socket/property_service rw, # attach_disconnected path
 /{,dev/}socket/logdw rw, # attach_disconnected path
 /{,dev/}__properties__/** rw, # attach_disconnected path
