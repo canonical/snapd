@@ -506,6 +506,50 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	return readInfo(name, cur, withAuxStoreInfo)
 }
 
+// CurrentComponentInfos return a snap.ComponentInfo slice that contains all of
+// the components for the current active revision or the last active revision.
+// It returns the ErrNoCurrent error if snapst.Current is unset.
+func (snapst *SnapState) CurrentComponentInfos() ([]*snap.ComponentInfo, error) {
+	if !snapst.IsInstalled() {
+		return nil, ErrNoCurrent
+	}
+
+	return snapst.ComponentInfosForRevision(snapst.Current)
+}
+
+// CurrentComponentInfos return a snap.ComponentInfo slice that contains all of
+// the components for the last appearance of the specified revision. Returns an
+// error if the revision is not found in the sequence of snaps.
+func (snapst *SnapState) ComponentInfosForRevision(rev snap.Revision) ([]*snap.ComponentInfo, error) {
+	index := snapst.LastIndex(rev)
+	if index == -1 {
+		return nil, fmt.Errorf("revision %s not found in sequence", rev)
+	}
+
+	revState := snapst.Sequence.Revisions[index]
+
+	instanceName := snap.InstanceName(revState.Snap.RealName, snapst.InstanceKey)
+	si, err := readInfo(instanceName, revState.Snap, withAuxStoreInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	compInfos := make([]*snap.ComponentInfo, 0, len(revState.Components))
+	for _, comp := range revState.Components {
+		cpi := snap.MinimalComponentContainerPlaceInfo(comp.SideInfo.Component.ComponentName,
+			comp.SideInfo.Revision, si.InstanceName(), si.SnapRevision())
+
+		compInfo, err := readComponentInfo(cpi.MountDir(), si)
+		if err != nil {
+			return nil, err
+		}
+
+		compInfos = append(compInfos, compInfo)
+	}
+
+	return compInfos, nil
+}
+
 // CurrentComponentInfo returns the information about the current active
 // revision or the last active revision (if the component is inactive). It
 // returns the ErrNoCurrent error if the component is not found.
