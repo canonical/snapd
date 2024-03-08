@@ -4935,7 +4935,7 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 			what = "kernel"
 		}
 		if flags&isKernel != 0 && flags&needsKernelSetup != 0 {
-			c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup kernel driver tree for "%s" (%s)`, name, revno))
+			c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Prepare kernel driver tree for "%s" (%s)`, name, revno))
 			i++
 		}
 		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update assets from %s "%s" (%s)`, what, name, revno))
@@ -4952,7 +4952,7 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Make snap "%s" (%s) available to the system`, name, revno))
 	i++
 	if flags&isKernel != 0 && flags&needsKernelSetup != 0 {
-		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Cleanup kernel driver tree for "%s" (%s)`, name, revno))
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Discard kernel driver tree for "%s" (%s)`, name, revno))
 		i++
 	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Automatically connect eligible plugs and slots of snap "%s"`, name))
@@ -4996,7 +4996,7 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string, flags i
 			what = "kernel"
 		}
 		if flags&isKernel != 0 && flags&needsKernelSetup != 0 {
-			c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup kernel driver tree for "%s" (%s)`, name, revno))
+			c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Prepare kernel driver tree for "%s" (%s)`, name, revno))
 			i++
 		}
 		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update assets from %s %q (%s)`, what, name, revno))
@@ -5015,7 +5015,7 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Automatically connect eligible plugs and slots of snap "%s"`, name))
 	i++
 	if flags&isKernel != 0 && flags&needsKernelSetup != 0 {
-		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Cleanup kernel driver tree for "%s" (%s)`, name, revno))
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Discard kernel driver tree for "%s" (%s)`, name, revno))
 		i++
 	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set automatic aliases for snap "%s"`, name))

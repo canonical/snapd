@@ -59,7 +59,7 @@ func expectedComponentInstallTasks(opts int) []string {
 		startTasks = append(startTasks, "mount-component")
 	}
 	if opts&compTypeIsKernMods != 0 {
-		startTasks = append(startTasks, "setup-kernel-modules-component")
+		startTasks = append(startTasks, "prepare-kernel-modules-components")
 	}
 	// Component is installed (implicit if compOptRevisionPresent is set)
 	if opts&compOptIsActive != 0 {

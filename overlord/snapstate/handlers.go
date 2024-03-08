@@ -4885,8 +4885,8 @@ func (m *SnapManager) doSetupKernelSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	st.Unlock()
 	pm := NewTaskProgressAdapterUnlocked(t)
-	timings.Run(perfTimings, "setup-kernel-snap",
-		fmt.Sprintf("setup of kernel snap %q", snapsup.InstanceName()),
+	timings.Run(perfTimings, "prepare-kernel-snap",
+		fmt.Sprintf("preparing kernel snap %q", snapsup.InstanceName()),
 		func(timings.Measurer) {
 			err = m.backend.SetupKernelSnap(
 				snapsup.InstanceName(), snapsup.Revision(), pm)
@@ -4967,8 +4967,8 @@ func (m *SnapManager) doCleanupOldKernelSnap(t *state.Task, _ *tomb.Tomb) error 
 	if !prevRev.Unset() {
 		st.Unlock()
 		pm := NewTaskProgressAdapterUnlocked(t)
-		timings.Run(perfTimings, "remove-old-kernel-snap-setup",
-			fmt.Sprintf("cleanup of previous kernel snap %q", currInfo.InstanceName()),
+		timings.Run(perfTimings, "discard-old-kernel-snap-setup",
+			fmt.Sprintf("discard previous kernel snap set-up %q", currInfo.InstanceName()),
 			func(timings.Measurer) {
 				err = m.backend.RemoveKernelSnapSetup(
 					currInfo.InstanceName(), prevRev, pm)
