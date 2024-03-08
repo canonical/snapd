@@ -1321,8 +1321,11 @@ nested_start_core_vm_unit() {
         nested_prepare_tools
         # Wait for cloud init to be done if the system is using cloud-init
         if [ "$NESTED_USE_CLOUD_INIT" = true ]; then
-            remote.exec "cloud-init status --wait" || true
-            remote.exec "cloud-init status" | MATCH "status: done"
+            if ! remote.exec "retry --wait 1 -n 5 sh -c 'cloud-init status --wait'"; then
+                # In uc24 the command `cloud-init status --wait` fails even when
+                # the status is done.
+                remote.exec "cloud-init status" | MATCH "status: done"
+            fi
         fi
     fi
 }
