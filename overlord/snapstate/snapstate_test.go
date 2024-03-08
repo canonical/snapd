@@ -337,7 +337,7 @@ SNAPD_APPARMOR_REEXEC=1
 
 	// mock so the actual notification code isn't called. It races with the SetRootDir
 	// call in the TearDown function. It's harmless but triggers go test -race
-	s.AddCleanup(snapstate.MockAsyncPendingRefreshNotification(func(context.Context, *userclient.Client, *userclient.PendingSnapRefreshInfo) {}))
+	s.AddCleanup(snapstate.MockAsyncPendingRefreshNotification(func(context.Context, *userclient.PendingSnapRefreshInfo) {}))
 }
 
 func (s *snapmgrBaseTest) TearDownTest(c *C) {

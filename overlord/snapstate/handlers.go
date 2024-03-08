@@ -899,7 +899,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 func asyncRefreshOnSnapClose(st *state.State, snapName string, refreshInfo *userclient.PendingSnapRefreshInfo) error {
 	// there's already a goroutine waiting for this snap to close so just notify
 	if IsSnapMonitored(st, snapName) {
-		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
+		maybeAsyncPendingRefreshNotification(context.TODO(), st, refreshInfo)
 		return nil
 	}
 
@@ -919,7 +919,7 @@ func asyncRefreshOnSnapClose(st *state.State, snapName string, refreshInfo *user
 	}
 
 	// notify the user about the blocked refresh
-	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
+	maybeAsyncPendingRefreshNotification(context.TODO(), st, refreshInfo)
 
 	go continueRefreshOnSnapClose(st, snapName, done, refreshCtx)
 	return nil

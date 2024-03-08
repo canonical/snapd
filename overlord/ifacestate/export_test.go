@@ -59,6 +59,7 @@ var (
 	AllocHotplugSeq              = allocHotplugSeq
 	AddHotplugSeqWaitTask        = addHotplugSeqWaitTask
 	AddHotplugSlot               = addHotplugSlot
+	HasActiveConnection          = hasActiveConnection
 
 	BatchConnectTasks                = batchConnectTasks
 	FirstTaskAfterBootWhenPreseeding = firstTaskAfterBootWhenPreseeding

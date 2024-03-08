@@ -989,7 +989,7 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, refreshInfo *userclient.PendingSnapRefreshInfo) {
 		c.Fatal("shouldn't trigger pending refresh notification unless it was an auto-refresh and we're overdue")
 	})
 	defer restore()
@@ -1024,7 +1024,7 @@ func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, refreshInfo *userclient.PendingSnapRefreshInfo) {
 		c.Fatal("shouldn't trigger pending refresh notification unless it was an auto-refresh and we're overdue")
 	})
 	defer restore()
@@ -1066,7 +1066,7 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 	defer s.state.Unlock()
 
 	notificationCount := 0
-	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, refreshInfo *userclient.PendingSnapRefreshInfo) {
 		notificationCount++
 		c.Check(refreshInfo.InstanceName, Equals, "pkg")
 		c.Check(refreshInfo.TimeRemaining, Equals, time.Duration(0))
@@ -1100,7 +1100,7 @@ func (s *autoRefreshTestSuite) TestInhibitNoNotificationOnManualRefresh(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, refreshInfo *userclient.PendingSnapRefreshInfo) {
 		c.Fatal("shouldn't trigger pending refresh notification if refresh was manual")
 	})
 	defer restore()
@@ -1321,4 +1321,48 @@ func (s *autoRefreshTestSuite) TestMaybeAddRefreshInhibitNotice(c *C) {
 	// set of inhibited snaps changed -> ["some-other-snap"], notice recorded
 	checkRefreshInhibitNotice(c, st, 2)
 	checkLastRecordedInhibitedSnaps(c, st, []string{"some-other-snap"})
+}
+
+func (s *autoRefreshTestSuite) TestMaybeAsyncPendingRefreshNotification(c *C) {
+	var connCheckCalled int
+	restore := snapstate.MockHasActiveConnection(func(st *state.State, iface string) (bool, error) {
+		connCheckCalled++
+		c.Check(iface, Equals, "snap-refresh-observe")
+		// no snap has the marker interface connected
+		return false, nil
+	})
+	defer restore()
+
+	expectedInfo := &userclient.PendingSnapRefreshInfo{
+		InstanceName:  "pkg",
+		TimeRemaining: 10 * time.Second,
+	}
+	var notificationCalled int
+	restore = snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, psri *userclient.PendingSnapRefreshInfo) {
+		notificationCalled++
+		c.Check(psri, Equals, expectedInfo)
+	})
+	defer restore()
+
+	snapstate.MaybeAsyncPendingRefreshNotification(context.TODO(), s.state, expectedInfo)
+	c.Check(connCheckCalled, Equals, 1)
+	c.Check(notificationCalled, Equals, 1)
+}
+
+func (s *autoRefreshTestSuite) TestMaybeAsyncPendingRefreshNotificationSkips(c *C) {
+	var connCheckCalled int
+	restore := snapstate.MockHasActiveConnection(func(st *state.State, iface string) (bool, error) {
+		connCheckCalled++
+		c.Check(iface, Equals, "snap-refresh-observe")
+		// marker interface found
+		return true, nil
+	})
+	defer restore()
+
+	restore = snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, psri *userclient.PendingSnapRefreshInfo) {
+		c.Fatal("shouldn't trigger pending refresh notification because marker interface is connected")
+	})
+	defer restore()
+
+	snapstate.MaybeAsyncPendingRefreshNotification(context.TODO(), s.state, &userclient.PendingSnapRefreshInfo{})
 }

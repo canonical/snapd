@@ -270,11 +270,19 @@ func MockLocalInstallLastCleanup(t time.Time) (restore func()) {
 	}
 }
 
-func MockAsyncPendingRefreshNotification(fn func(context.Context, *userclient.Client, *userclient.PendingSnapRefreshInfo)) (restore func()) {
+func MockAsyncPendingRefreshNotification(fn func(context.Context, *userclient.PendingSnapRefreshInfo)) (restore func()) {
 	old := asyncPendingRefreshNotification
 	asyncPendingRefreshNotification = fn
 	return func() {
 		asyncPendingRefreshNotification = old
+	}
+}
+
+func MockHasActiveConnection(fn func(st *state.State, iface string) (bool, error)) (restore func()) {
+	old := HasActiveConnection
+	HasActiveConnection = fn
+	return func() {
+		HasActiveConnection = old
 	}
 }
 
@@ -382,10 +390,11 @@ var (
 
 // autorefresh
 var (
-	InhibitRefresh               = inhibitRefresh
-	MaxInhibition                = maxInhibition
-	MaxDuration                  = maxDuration
-	MaybeAddRefreshInhibitNotice = maybeAddRefreshInhibitNotice
+	InhibitRefresh                       = inhibitRefresh
+	MaxInhibition                        = maxInhibition
+	MaxDuration                          = maxDuration
+	MaybeAddRefreshInhibitNotice         = maybeAddRefreshInhibitNotice
+	MaybeAsyncPendingRefreshNotification = maybeAsyncPendingRefreshNotification
 )
 
 type RefreshCandidate = refreshCandidate

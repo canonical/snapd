@@ -725,15 +725,32 @@ func getTime(st *state.State, timeKey string) (time.Time, error) {
 //
 // This allows the, possibly slow, communication with each snapd session agent,
 // to be performed without holding the snap state lock.
-var asyncPendingRefreshNotification = func(context context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+var asyncPendingRefreshNotification = func(ctx context.Context, refreshInfo *userclient.PendingSnapRefreshInfo) {
 	logger.Debugf("notifying agents about pending refresh for snap %q", refreshInfo.InstanceName)
-	// TODO: disable this behind refresh-app-awareness-ux experimental flag since
-	// this will be replaced (or used as fallback) when new notices flow is used.
+
 	go func() {
-		if err := client.PendingRefreshNotification(context, refreshInfo); err != nil {
+		client := userclient.New()
+		if err := client.PendingRefreshNotification(ctx, refreshInfo); err != nil {
 			logger.Noticef("Cannot send notification about pending refresh: %v", err)
 		}
 	}()
+}
+
+// maybeAsyncPendingRefreshNotification broadcasts desktop notification in a goroutine.
+//
+// The notification is sent only if no snap has the marker "snap-refresh-observe"
+// interface connected.
+func maybeAsyncPendingRefreshNotification(ctx context.Context, st *state.State, refreshInfo *userclient.PendingSnapRefreshInfo) {
+	markerExists, err := HasActiveConnection(st, "snap-refresh-observe")
+	if err != nil {
+		logger.Noticef("Cannot send notification about pending refresh: %v", err)
+		return
+	}
+	if markerExists {
+		// found snap with marker interface, skip notification
+		return
+	}
+	asyncPendingRefreshNotification(ctx, refreshInfo)
 }
 
 type timedBusySnapError struct {
@@ -796,10 +813,11 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 		// increasing frequency, allowing the user to understand the urgency.
 		busyErr.timeRemaining = (maxInhibition - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
 	default:
+		// XXX: should we drop this notification?
 		// if the refresh inhibition window has ended, notify the user that the
 		// refresh is happening now and ignore the error
 		refreshInfo := busyErr.PendingSnapRefreshInfo()
-		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
+		maybeAsyncPendingRefreshNotification(context.TODO(), st, refreshInfo)
 		// important to return "nil" type here instead of
 		// setting busyErr to nil as otherwise we return a nil
 		// interface which is not the nil type
