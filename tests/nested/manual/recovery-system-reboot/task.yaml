@@ -99,8 +99,13 @@ execute: |
 
     # since out new system is now the default and the current recovery system,
     # we should be able to remove the old one
-    change_id=$(post_json_data "/v2/systems/${prev_system}" '{"action": "remove"}')
-    remote.exec "snap watch ${change_id}"
+
+    # sometimes, this will conflict with an auto-refresh change. retry just in
+    # case.
+    export -f post_json_data
+    retry -n 10 --wait 2 bash -c "post_json_data '/v2/systems/${prev_system}' '{\"action\": \"remove\"}'"
+
+    remote.exec "snap watch --last=remove-recovery-system"
     remote.exec "sudo snap recovery" | NOMATCH "${prev_system}"
   fi
 
