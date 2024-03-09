@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,10 +30,12 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -105,6 +107,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	deviceMgr := c.d.overlord.DeviceManager()
 	st.Lock()
 	defer st.Unlock()
+	tr := config.NewTransaction(st)
 	nextRefresh := snapMgr.NextRefresh()
 	lastRefresh, _ := snapMgr.LastRefresh()
 	refreshHold, _ := snapMgr.EffectiveRefreshHold()
@@ -143,6 +146,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		"refresh":      refreshInfo,
 		"architecture": arch.DpkgArchitecture(),
 		"system-mode":  deviceMgr.SystemMode(devicestate.SysAny),
+		"features":     features.All(tr),
 	}
 	if systemdVirt != "" {
 		m["virtualization"] = systemdVirt
