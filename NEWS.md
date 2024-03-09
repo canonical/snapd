@@ -9,6 +9,7 @@
 * Added API route for creating recovery systems: POST to `/v2/systems` with action `create`
 * Added API route for removing recovery systems: POST to `/v2/systems/{label}` with action `remove`
 * Support for user daemons by introducing new control switches --user/--system/--users for service start/stop/restart
+* client,daemon: expose features supported/enabled in `/v2/system-info`
 
 # New in snapd 2.61.3:
 * Install systemd files in correct location for 24.04

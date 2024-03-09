@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/jsonutil"
 )
@@ -688,6 +689,8 @@ type SysInfo struct {
 	Refresh         RefreshInfo         `json:"refresh,omitempty"`
 	Confinement     string              `json:"confinement"`
 	SandboxFeatures map[string][]string `json:"sandbox-features,omitempty"`
+
+	Features map[string]features.FeatureInfo `json:"features,omitempty"`
 }
 
 func (rsp *response) err(cli *Client, statusCode int) error {
