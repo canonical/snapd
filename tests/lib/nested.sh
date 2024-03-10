@@ -1165,7 +1165,7 @@ nested_start_core_vm_unit() {
             mv OVMF_VARS.snakeoil.fd /usr/share/OVMF/OVMF_VARS.snakeoil.fd
         fi
         # In this case the kernel.efi is unsigned and signed with snaleoil certs
-        if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
+        if [ "$NESTED_FORCE_MS_KEYS" != "true" ] && [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
             OVMF_VARS="snakeoil"
         fi
 

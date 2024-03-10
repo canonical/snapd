@@ -1,0 +1,44 @@
+type: validation-set
+authority-id: test-snapd
+series: 16
+account-id: test-snapd
+name: recovery-system-pinned
+sequence: 1
+snaps:
+  -
+    id: buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ
+    name: hello-world
+    revision: 28
+  -
+    id: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
+    name: pc
+    presence: required
+  -
+    id: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
+    name: pc-kernel
+    presence: required
+  -
+    id: DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q
+    name: core20
+    presence: required
+  -
+    id: 99T7MUlRhtI3U0QFgl5mXXESAiSwt776
+    name: core
+    presence: required
+  -
+    id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+    name: snapd
+    presence: required
+timestamp: 2024-01-04T21:09:22Z
+sign-key-sha3-384: 7qWG-Uwck6Dji43a3Z8ZZrm7rAziZAch3xf76iFvqe4GaD0LI7U9lYPWMSJAsEgu
+
+AcLBcwQAAQoAHRYhBGESvKlz1RXG1IBOC0MdJKf2hr9ABQJllx6CAAoJEEMdJKf2hr9A3KQP/RQb
+/apZ6AXmv0Tfb/QFiFD1Fc5/Pzf12ANWQT5Omoz+JmTCjFIEJxjWjt51S0zxxdIpvY5366c0baZW
+UE09+6khrL5Tcy4xjbpbIh9wZEiRwAQI/rBC3kD8sjuj0ggkMayMnF2CmCKJXt8wb3Um94xkxJda
+5DHvJbp+N4E1IDeRMZWis3AJd9TyaYOpnISrREx8fDzaq3cu0XTnXUihIY5zti+jYKpLJ7lss0dj
+EOjmnQ1HDhRsvLdD6ISyeW/BuKT1/pzPJJ24bp1dnV3hXCN8iz99QyTQq3DezMVgmZfU3jlyMAFk
+0YNlVOLHwnMbf99rQe1ogkmMjS9p7v8K9Dqp4nfJL98WCssff5rIcohlH0JzkUHMFHtvmjOGFjor
+O6p+JbJGtb+5R2SW7ncnzA4TohwBsDwDRVyuT/Y7e+wxxJsfrDH2lf2/ku1VPewW7DW9CEPWiqlu
+RLa09NcMoo/w2FsnbjNcOg2oiTRbOhgK7w1vG3jfX4namowd7GRflEzA0GDfWrtxqi6NtYBX4/Mp
+l+UozC63rV5NE9k0Jy7+kMyVJcDF93VRxwFbsNubaYUMgSgxgpC2cnkfP405nRPH0UcqctUzB58R
+VvylWkxgI1lmghZEIaCrnXwXXptDK7l0ApN5LpyokM6Nc1fg8px65Z/4M43GfrHBz7TcKvt2

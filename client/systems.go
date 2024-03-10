@@ -248,3 +248,22 @@ func (client *Client) InstallSystem(systemLabel string, opts *InstallSystemOptio
 	}
 	return chgID, nil
 }
+
+// CreateSystemOptions contains the options for creating a new recovery system.
+type CreateSystemOptions struct {
+	// Label is the label of the new system.
+	Label string `json:"label,omitempty"`
+	// ValidationSets is a list of validation sets that snaps in the newly
+	// created system should be validated against.
+	ValidationSets []string `json:"validation-sets,omitempty"`
+	// TestSystem is true if the system should be tested by rebooting into the
+	// new system.
+	TestSystem bool `json:"test-system,omitempty"`
+	// MarkDefault is true if the system should be marked as the default
+	// recovery system.
+	MarkDefault bool `json:"mark-default,omitempty"`
+	// Offline is true if the system should be created without reaching out to
+	// the store. In the JSON variant of the API, only pre-installed
+	// snaps/assertions will be considered.
+	Offline bool `json:"offline,omitempty"`
+}

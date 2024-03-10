@@ -3747,8 +3747,8 @@ func (s *snapmgrTestSuite) TestEsnureCleansOldSideloads(c *C) {
 	c.Assert(filenames(), HasLen, 0)
 
 	s0 := filepath.Join(dirs.SnapBlobDir, "some.snap")
-	s1 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-12345")
-	s2 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-67890")
+	s1 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-12345.snap")
+	s2 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-67890.snap")
 
 	c.Assert(os.WriteFile(s0, nil, 0600), IsNil)
 	c.Assert(os.WriteFile(s1, nil, 0600), IsNil)
