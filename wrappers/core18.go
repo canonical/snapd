@@ -228,9 +228,6 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 		if err := sysd.Stop(serviceUnits); err != nil {
 			logger.Noticef("failed to stop %q: %v", unit, err)
 		}
-		if err := sysd.DisableNoReload(serviceUnits); err != nil {
-			logger.Noticef("failed to disable %q: %v", unit, err)
-		}
 	}
 
 	// daemon-reload so that we get the new services
