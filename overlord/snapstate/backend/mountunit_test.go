@@ -55,7 +55,7 @@ type FakeSystemd struct {
 	ListMountUnitsResult ResultForListMountUnits
 }
 
-func (s *FakeSystemd) EnsureMountUnitFile(description, what, where, fstype string) (string, error) {
+func (s *FakeSystemd) EnsureMountUnitFile(description, what, where, fstype string, flags systemd.EnsureMountUnitFlags) (string, error) {
 	s.EnsureMountUnitFileCalls = append(s.EnsureMountUnitFileCalls,
 		ParamsForEnsureMountUnitFile{description, what, where, fstype})
 	return s.EnsureMountUnitFileResult.path, s.EnsureMountUnitFileResult.err
