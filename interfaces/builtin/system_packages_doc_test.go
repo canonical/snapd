@@ -20,6 +20,8 @@
 package builtin_test
 
 import (
+	"strings"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
@@ -137,7 +139,6 @@ func (s *systemPackagesDocSuite) TestAppArmorSpec(c *C) {
 	c.Check(updateNS, testutil.Contains, "  \"/tmp/.snap/usr/share/libreoffice/\" rw,\n")
 	c.Check(updateNS, testutil.Contains, "  \"/tmp/.snap/usr/share/libreoffice/*/\" rw,\n")
 	c.Check(updateNS, testutil.Contains, "  mount options=(bind, rw) \"/tmp/.snap/usr/share/*\" -> \"/usr/share/*\",\n")
-
 }
 
 func (s *systemPackagesDocSuite) TestMountSpec(c *C) {
@@ -186,4 +187,34 @@ func (s *systemPackagesDocSuite) TestStaticInfo(c *C) {
 
 func (s *systemPackagesDocSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
+
+// Variant of the test for base: bare on the plug
+
+type systemPackagesDocBareBaseSuite struct {
+	systemPackagesDocSuite
+}
+
+var _ = Suite(&systemPackagesDocBareBaseSuite{
+	systemPackagesDocSuite{
+		iface: builtin.MustInterface("system-packages-doc"),
+	},
+})
+
+const systemPackagesDocBareBaseConsumerYaml = systemPackagesDocConsumerYaml + `
+base: bare
+`
+
+func (s *systemPackagesDocBareBaseSuite) SetUpTest(c *C) {
+	s.plug, s.plugInfo = MockConnectedPlug(c, systemPackagesDocBareBaseConsumerYaml, nil, "system-packages-doc")
+	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, systemPackagesDocCoreYaml, nil, "system-packages-doc")
+}
+
+func (s *systemPackagesDocBareBaseSuite) TestAppArmorSpec(c *C) {
+	s.systemPackagesDocSuite.TestAppArmorSpec(c)
+
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
+	updateNS := spec.UpdateNS()
+	c.Check(strings.Join(updateNS, "\n"), testutil.Contains, "  # Writable mimic over / - extra permissions generalized\n")
 }

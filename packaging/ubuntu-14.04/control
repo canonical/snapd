@@ -8,8 +8,8 @@ Build-Depends: autoconf,
                autotools-dev,
                bash-completion,
                ca-certificates,
-               debhelper (>= 9),
                dbus,
+               debhelper (>= 9),
                dh-apparmor,
                dh-autoreconf,
                dh-golang (>=1.7),
@@ -17,13 +17,13 @@ Build-Depends: autoconf,
                fakeroot,
                gcc-multilib [amd64],
                gettext,
-               grub-common,
                gnupg2,
                golang-any (>=2:1.18) | golang-1.18,
+               grub-common,
                indent,
                init-system-helpers,
-               libcap-dev,
                libapparmor-dev,
+               libcap-dev,
                libglib2.0-dev,
                libseccomp-dev (>= 2.1.1-1ubuntu1~trusty4),
                libudev-dev,
@@ -77,9 +77,17 @@ Depends: adduser,
          ${misc:Depends},
          ${shlibs:Depends}
 # recommends because of LP: #1675900
-Recommends: linux-generic-lts-xenial,
-Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22), snapd-xdg-open (<< 0.0.0)
-Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22), snapd-xdg-open (<< 0.0.0)
+Recommends: linux-generic-lts-xenial
+Replaces: snap-confine (<< 2.23),
+          snapd-xdg-open (<< 0.0.0),
+          ubuntu-core-launcher (<< 2.22),
+          ubuntu-snappy (<< 1.9),
+          ubuntu-snappy-cli (<< 1.9)
+Breaks: snap-confine (<< 2.23),
+        snapd-xdg-open (<< 0.0.0),
+        ubuntu-core-launcher (<< 2.22),
+        ubuntu-snappy (<< 1.9),
+        ubuntu-snappy-cli (<< 1.9)
 Conflicts: snap (<< 2013-11-29-1ubuntu1)
 Built-Using: ${Built-Using} ${misc:Built-Using}
 Description: Daemon and tooling that enable snap packages

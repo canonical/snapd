@@ -92,8 +92,8 @@ func (s *emulation) ReloadOrRestart(services []string) error {
 	return &notImplementedError{"ReloadOrRestart"}
 }
 
-func (s *emulation) RestartAll(service string) error {
-	return &notImplementedError{"RestartAll"}
+func (s *emulation) RestartNoWaitForStop(services []string) error {
+	return &notImplementedError{"RestartNoWaitForStop"}
 }
 
 func (s *emulation) Status(units []string) ([]*UnitStatus, error) {

@@ -91,7 +91,7 @@ type snapmgrBaseTest struct {
 	user2 *auth.UserState
 	user3 *auth.UserState
 
-	reloadOrRestarts map[string]int
+	restarts map[string]int
 }
 
 // state must be locked by caller
@@ -132,10 +132,10 @@ func (s *snapmgrBaseTest) mockSystemctlCallsUpdateMounts(c *C) (restore func()) 
 		if len(args) == 3 && args[0] == "--no-reload" && args[1] == "enable" {
 			return []byte(""), nil
 		}
-		if len(args) == 2 && args[0] == "reload-or-restart" {
-			value, ok := s.reloadOrRestarts[args[1]]
+		if len(args) == 2 && args[0] == "restart" {
+			value, ok := s.restarts[args[1]]
 			if ok {
-				s.reloadOrRestarts[args[1]] = value + 1
+				s.restarts[args[1]] = value + 1
 			}
 			return []byte(""), nil
 		}
@@ -334,7 +334,7 @@ SNAPD_APPARMOR_REEXEC=1
 	}))
 	s.AddCleanup(osutil.MockMountInfo(""))
 
-	s.reloadOrRestarts = make(map[string]int)
+	s.restarts = make(map[string]int)
 	s.AddCleanup(s.mockSystemctlCallsUpdateMounts(c))
 
 	// mock so the actual notification code isn't called. It races with the SetRootDir
@@ -3750,8 +3750,8 @@ func (s *snapmgrTestSuite) TestEsnureCleansOldSideloads(c *C) {
 	c.Assert(filenames(), HasLen, 0)
 
 	s0 := filepath.Join(dirs.SnapBlobDir, "some.snap")
-	s1 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-12345")
-	s2 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-67890")
+	s1 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-12345.snap")
+	s2 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-67890.snap")
 
 	c.Assert(os.WriteFile(s0, nil, 0600), IsNil)
 	c.Assert(os.WriteFile(s1, nil, 0600), IsNil)
@@ -8839,12 +8839,12 @@ WantedBy=multi-user.target
 	err := os.WriteFile(mountFile, []byte(mountContent), 0644)
 	c.Assert(err, IsNil)
 
-	s.reloadOrRestarts[unitName] = 0
+	s.restarts[unitName] = 0
 
 	err = s.snapmgr.Ensure()
 	c.Assert(err, IsNil)
 
-	c.Assert(s.reloadOrRestarts[unitName], Equals, 1)
+	c.Assert(s.restarts[unitName], Equals, 1)
 
 	expectedContent := fmt.Sprintf(`
 [Unit]
@@ -8916,12 +8916,12 @@ WantedBy=multi-user.target
 	err := os.WriteFile(mountFile, []byte(mountContent), 0644)
 	c.Assert(err, IsNil)
 
-	s.reloadOrRestarts[unitName] = 0
+	s.restarts[unitName] = 0
 
 	err = s.snapmgr.Ensure()
 	c.Assert(err, IsNil)
 
-	c.Assert(s.reloadOrRestarts[unitName], Equals, 0)
+	c.Assert(s.restarts[unitName], Equals, 0)
 
 	c.Assert(mountFile, testutil.FileEquals, mountContent)
 }
@@ -8956,12 +8956,12 @@ apps:
 	restore := snapstate.MockEnsuredMountsUpdated(s.snapmgr, false)
 	defer restore()
 
-	s.reloadOrRestarts[unitName] = 0
+	s.restarts[unitName] = 0
 
 	err := s.snapmgr.Ensure()
 	c.Assert(err, IsNil)
 
-	c.Assert(s.reloadOrRestarts[unitName], Equals, 1)
+	c.Assert(s.restarts[unitName], Equals, 1)
 
 	expectedContent := fmt.Sprintf(`
 [Unit]

@@ -82,7 +82,7 @@
 
 
 Name:           snapd
-Version:        2.61.2
+Version:        2.61.3
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -396,6 +396,7 @@ fi
 %dir %{_sharedstatedir}/snapd/assertions
 %dir %{_sharedstatedir}/snapd/cache
 %dir %{_sharedstatedir}/snapd/cookie
+%dir %{_sharedstatedir}/snapd/cgroup
 %dir %{_sharedstatedir}/snapd/dbus-1
 %dir %{_sharedstatedir}/snapd/dbus-1/services
 %dir %{_sharedstatedir}/snapd/dbus-1/system-services

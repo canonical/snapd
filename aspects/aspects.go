@@ -127,6 +127,7 @@ func badRequestErrorFrom(a *Aspect, operation, request, errMsg string, v ...inte
 type DataBag interface {
 	Get(path string) (interface{}, error)
 	Set(path string, value interface{}) error
+	Unset(path string) error
 	Data() ([]byte, error)
 }
 
@@ -440,44 +441,19 @@ type expandedMatch struct {
 	value interface{}
 }
 
-// Set sets the named aspect to a specified value.
+// Set sets the named aspect to a specified non-nil value.
 func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	if err := validateAspectDottedPath(request, nil); err != nil {
 		return badRequestErrorFrom(a, "set", request, err.Error())
 	}
 
-	var matches []requestMatch
-	subkeys := strings.Split(request, ".")
-	for _, rule := range a.rules {
-		placeholders, suffixParts, ok := rule.match(subkeys)
-		if !ok {
-			continue
-		}
+	if value == nil {
+		return fmt.Errorf("internal error: Set value cannot be nil")
+	}
 
-		if !rule.isWriteable() {
-			continue
-		}
-
-		path, err := rule.storagePath(placeholders)
-		if err != nil {
-			return err
-		}
-
-		if value == nil {
-			// TODO: in the future, check the storage and complete paths according to
-			// the data that is currently stored?
-			for _, part := range strings.Split(path, ".") {
-				if isPlaceholder(part) {
-					return badRequestErrorFrom(a, "set", request, "cannot unset with unmatched placeholders")
-				}
-			}
-		}
-
-		matches = append(matches, requestMatch{
-			storagePath: path,
-			suffixParts: suffixParts,
-			request:     rule.originalRequest,
-		})
+	matches, err := a.matchWriteRequest(request)
+	if err != nil {
+		return err
 	}
 
 	if len(matches) == 0 {
@@ -535,6 +511,69 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	}
 
 	return nil
+}
+
+func (a *Aspect) Unset(databag DataBag, request string) error {
+	if err := validateAspectDottedPath(request, nil); err != nil {
+		return badRequestErrorFrom(a, "unset", request, err.Error())
+	}
+
+	matches, err := a.matchWriteRequest(request)
+	if err != nil {
+		return err
+	}
+
+	if len(matches) == 0 {
+		return notFoundErrorFrom(a, "unset", request, "no matching write rule")
+	}
+
+	for _, match := range matches {
+		if err := databag.Unset(match.storagePath); err != nil {
+			return err
+		}
+
+		data, err := databag.Data()
+		if err != nil {
+			return err
+		}
+
+		// TODO: when using a transaction, the data only changes on commit so
+		// this is a bit of a waste. Maybe cache the result so we only do the first
+		// validation and then in aspectstate on Commit
+		if err := a.bundle.Schema.Validate(data); err != nil {
+			return fmt.Errorf(`cannot unset data: %w`, err)
+		}
+	}
+
+	return nil
+}
+
+func (a *Aspect) matchWriteRequest(request string) ([]requestMatch, error) {
+	var matches []requestMatch
+	subkeys := strings.Split(request, ".")
+	for _, rule := range a.rules {
+		placeholders, suffixParts, ok := rule.match(subkeys)
+		if !ok {
+			continue
+		}
+
+		if !rule.isWriteable() {
+			continue
+		}
+
+		path, err := rule.storagePath(placeholders)
+		if err != nil {
+			return nil, err
+		}
+
+		matches = append(matches, requestMatch{
+			storagePath: path,
+			suffixParts: suffixParts,
+			request:     rule.originalRequest,
+		})
+	}
+
+	return matches, nil
 }
 
 // checkSchemaMismatch checks whether the rules accept compatible schema types.
@@ -1292,14 +1331,7 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *i
 // If the value is nil, the entry is deleted.
 func (s JSONDataBag) Set(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
-
-	var err error
-	if value == nil {
-		_, err = unset(subKeys, 0, s)
-	} else {
-		_, err = set(subKeys, 0, s, value)
-	}
-
+	_, err := set(subKeys, 0, s, value)
 	return err
 }
 
@@ -1348,42 +1380,69 @@ func set(subKeys []string, index int, node map[string]json.RawMessage, value int
 	return json.Marshal(node)
 }
 
+func (s JSONDataBag) Unset(path string) error {
+	subKeys := strings.Split(path, ".")
+	_, err := unset(subKeys, 0, s)
+	return err
+}
+
 func unset(subKeys []string, index int, node map[string]json.RawMessage) (json.RawMessage, error) {
 	key := subKeys[index]
+	matchAll := isPlaceholder(key)
+
 	if index == len(subKeys)-1 {
-		delete(node, key)
-		// if the parent node has no other entries, it can also be deleted
-		if len(node) == 0 {
+		if !matchAll {
+			delete(node, key)
+		}
+
+		if matchAll || len(node) == 0 {
+			// remove entire level
 			return nil, nil
 		}
 
 		return json.Marshal(node)
 	}
 
-	rawLevel, ok := node[key]
-	if !ok {
-		// no such entry, nothing to unset
-		return json.Marshal(node)
+	unsetKey := func(level map[string]json.RawMessage, key string) error {
+		nextLevelRaw, ok := level[key]
+		if !ok {
+			return nil
+		}
+
+		var nextLevel map[string]json.RawMessage
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(nextLevelRaw), &nextLevel); err != nil {
+			return err
+		}
+
+		updated, err := unset(subKeys, index+1, nextLevel)
+		if err != nil {
+			return err
+		}
+
+		// update the map with the sublevel which may have changed or been removed
+		if updated == nil {
+			delete(level, key)
+		} else {
+			level[key] = updated
+		}
+
+		return nil
 	}
 
-	var level map[string]json.RawMessage
-	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
-		return nil, err
-	}
-
-	rawLevel, err := unset(subKeys, index+1, level)
-	if err != nil {
-		return nil, err
-	}
-
-	if rawLevel == nil {
-		delete(node, key)
-
-		if len(node) == 0 {
-			return nil, nil
+	if matchAll {
+		for k := range node {
+			if err := unsetKey(node, k); err != nil {
+				return nil, err
+			}
 		}
 	} else {
-		node[key] = rawLevel
+		if err := unsetKey(node, key); err != nil {
+			return nil, err
+		}
+	}
+
+	if len(node) == 0 {
+		return nil, nil
 	}
 
 	return json.Marshal(node)

@@ -212,6 +212,9 @@ apps:
   kernel-crypto-api:
     command: bin/run
     plugs: [ kernel-crypto-api ]
+  kernel-firmware-control:
+    command: bin/run
+    plugs: [ kernel-firmware-control ]
   kernel-module-control:
     command: bin/run
     plugs: [ kernel-module-control ]
@@ -398,6 +401,9 @@ apps:
   raw-volume:
     command: bin/run
     plugs: [ raw-volume ]
+  remoteproc:
+    command: bin/run
+    plugs: [ remoteproc ]
   removable-media:
     command: bin/run
     plugs: [ removable-media ]
