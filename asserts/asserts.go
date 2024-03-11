@@ -1010,16 +1010,16 @@ func checkJSON(assertType *AssertionType, body []byte) (err error) {
 
 	var val interface{}
 	if err := json.Unmarshal(body, &val); err != nil {
-		return fmt.Errorf("invalid JSON: %v", err)
+		return fmt.Errorf("invalid JSON in body: %v", err)
 	}
 
 	formatted, err := json.MarshalIndent(val, "", "  ")
 	if err != nil {
-		return fmt.Errorf("invalid JSON: %v", err)
+		return fmt.Errorf("invalid JSON in body: %v", err)
 	}
 
 	if !reflect.DeepEqual(body, formatted) {
-		return fmt.Errorf(`JSON must be indented with 2 spaces and sort object entries by key`)
+		return fmt.Errorf(`JSON in body must be indented with 2 spaces and sort object entries by key`)
 	}
 
 	return nil
@@ -1131,6 +1131,12 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 		return nil, fmt.Errorf("assertion body is not utf8")
 	}
 
+	if withJSONBody {
+		if err := checkJSON(assertType, body); err != nil {
+			return nil, err
+		}
+	}
+
 	finalHeaders := copyHeaders(headers)
 	bodyLength := len(body)
 	finalBody := make([]byte, bodyLength)
@@ -1170,12 +1176,6 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	revision, err := checkRevision(finalHeaders)
 	if err != nil {
 		return nil, err
-	}
-
-	if withJSONBody {
-		if err := checkJSON(assertType, body); err != nil {
-			return nil, err
-		}
 	}
 
 	buf := bytes.NewBufferString("type: ")

@@ -82,10 +82,6 @@ func assembleAspectBundle(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	if assert.body == nil {
-		return nil, fmt.Errorf(`body must contain aspect schema`)
-	}
-
 	var bodyMap map[string]json.RawMessage
 	if err := json.Unmarshal(assert.body, &bodyMap); err != nil {
 		return nil, err

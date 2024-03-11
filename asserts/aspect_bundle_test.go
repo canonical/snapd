@@ -124,11 +124,11 @@ func (s *aspectBundleSuite) TestDecodeInvalid(c *C) {
 		{aspectsStanza, "", `"aspects" stanza is mandatory`},
 		{"read-write", "update", `cannot define aspect "wifi-setup": cannot create aspect rule:.*`},
 		{body, "body-length: 0", `body must contain JSON`},
-		{body, "body-length: 8\n\n  - foo\n", `invalid JSON: invalid character ' ' in numeric literal`},
+		{body, "body-length: 8\n\n  - foo\n", `invalid JSON in body: invalid character ' ' in numeric literal`},
 		{body, "body-length: 2\n\n{}", `body must contain a "storage" stanza`},
 		{body, "body-length: 19\n\n{\n  \"storage\": {}\n}", `invalid schema: cannot parse top level schema: must have a "schema" constraint`},
 		{body, "body-length: 4\n\nnull", `body must contain a "storage" stanza`},
-		{body, "body-length: 54\n\n{\n\t\"storage\": {\n\t\t\"schema\": {\n\t\t\t\"foo\": \"any\"\n\t\t}\n\t}\n}", `JSON must be indented with 2 spaces and sort object entries by key`},
+		{body, "body-length: 54\n\n{\n\t\"storage\": {\n\t\t\"schema\": {\n\t\t\t\"foo\": \"any\"\n\t\t}\n\t}\n}", `JSON in body must be indented with 2 spaces and sort object entries by key`},
 		{body, `body-length: 79
 
 {
@@ -138,7 +138,7 @@ func (s *aspectBundleSuite) TestDecodeInvalid(c *C) {
       "a": "any"
     }
   }
-}`, `JSON must be indented with 2 spaces and sort object entries by key`},
+}`, `JSON in body must be indented with 2 spaces and sort object entries by key`},
 	}
 
 	for i, test := range invalidTests {
@@ -197,5 +197,5 @@ func (s *aspectBundleSuite) TestAssembleAndSignChecksSchemaFormatFail(c *C) {
 
 	schema := `{ "storage": { "schema": { "foo": "any" } } }`
 	_, err := asserts.AssembleAndSignInTest(asserts.AspectBundleType, headers, []byte(schema), testPrivKey0)
-	c.Assert(err, ErrorMatches, `assertion aspect-bundle: JSON must be indented with 2 spaces and sort object entries by key`)
+	c.Assert(err, ErrorMatches, `assertion aspect-bundle: JSON in body must be indented with 2 spaces and sort object entries by key`)
 }
