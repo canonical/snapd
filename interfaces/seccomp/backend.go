@@ -327,31 +327,17 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 		uidGidChownSyscalls.WriteString(rootSetUidGidSyscalls)
 	}
 
-	for _, hookInfo := range snapInfo.Hooks {
+	for _, r := range appSet.Runnables() {
 		if content == nil {
 			content = make(map[string]osutil.FileState)
 		}
-		securityTag := hookInfo.SecurityTag()
 
-		path := securityTag + ".src"
+		path := r.SecurityTag + ".src"
 		content[path] = &osutil.MemoryFileState{
-			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo, uidGidChownSyscalls.String()),
+			Content: generateContent(opts, spec.SnippetForTag(r.SecurityTag), addSocketcall, b.versionInfo, uidGidChownSyscalls.String()),
 			Mode:    0644,
 		}
 	}
-	for _, appInfo := range snapInfo.Apps {
-		if content == nil {
-			content = make(map[string]osutil.FileState)
-		}
-		securityTag := appInfo.SecurityTag()
-		path := securityTag + ".src"
-		content[path] = &osutil.MemoryFileState{
-			Content: generateContent(opts, spec.SnippetForTag(securityTag), addSocketcall, b.versionInfo, uidGidChownSyscalls.String()),
-			Mode:    0644,
-		}
-	}
-
-	// TODO: something with component hooks will need to happen here
 
 	return content, nil
 }

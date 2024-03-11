@@ -322,7 +322,8 @@ func (spec *Specification) emitLayout(si *snap.Info, layout *snap.Layout) {
 //
 // Importantly, the above mount operations are happening within the per-snap
 // mount namespace.
-func (spec *Specification) AddLayout(snapInfo *snap.Info) {
+func (spec *Specification) AddLayout(appSet *interfaces.SnapAppSet) {
+	snapInfo := appSet.Info()
 	if len(snapInfo.Layout) == 0 {
 		return
 	}
@@ -334,13 +335,11 @@ func (spec *Specification) AddLayout(snapInfo *snap.Info) {
 	}
 	sort.Strings(paths)
 
-	// Get tags describing all apps and hooks.
-	tags := make([]string, 0, len(snapInfo.Apps)+len(snapInfo.Hooks))
-	for _, app := range snapInfo.Apps {
-		tags = append(tags, app.SecurityTag())
-	}
-	for _, hook := range snapInfo.Hooks {
-		tags = append(tags, hook.SecurityTag())
+	// Get tags describing all runnables (apps, hooks, component hooks)
+	runnables := appSet.Runnables()
+	tags := make([]string, 0, len(runnables))
+	for _, r := range runnables {
+		tags = append(tags, r.SecurityTag)
 	}
 
 	// Append layout snippets to all tags; the layout applies equally to the

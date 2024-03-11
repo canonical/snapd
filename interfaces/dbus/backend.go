@@ -176,7 +176,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	}
 
 	// Get the files that this snap should have
-	content := b.deriveContent(spec.(*Specification), snapInfo)
+	content := b.deriveContent(spec.(*Specification), appSet)
 
 	glob := fmt.Sprintf("%s.conf", interfaces.SecurityTagGlob(snapName))
 	dir := dirs.SnapDBusSystemPolicyDir
@@ -204,10 +204,9 @@ func (b *Backend) Remove(snapName string) error {
 
 // deriveContent combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
-func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (content map[string]osutil.FileState) {
-	for _, appInfo := range snapInfo.Apps {
-		securityTag := appInfo.SecurityTag()
-		appSnippets := spec.SnippetForTag(securityTag)
+func (b *Backend) deriveContent(spec *Specification, appSet *interfaces.SnapAppSet) (content map[string]osutil.FileState) {
+	for _, r := range appSet.Runnables() {
+		appSnippets := spec.SnippetForTag(r.SecurityTag)
 		if appSnippets == "" {
 			continue
 		}
@@ -215,24 +214,8 @@ func (b *Backend) deriveContent(spec *Specification, snapInfo *snap.Info) (conte
 			content = make(map[string]osutil.FileState)
 		}
 
-		addContent(securityTag, appSnippets, content)
+		addContent(r.SecurityTag, appSnippets, content)
 	}
-
-	for _, hookInfo := range snapInfo.Hooks {
-		securityTag := hookInfo.SecurityTag()
-		hookSnippets := spec.SnippetForTag(securityTag)
-		if hookSnippets == "" {
-			continue
-		}
-		if content == nil {
-			content = make(map[string]osutil.FileState)
-		}
-
-		addContent(securityTag, hookSnippets, content)
-	}
-
-	// TODO: something with component hooks will need to happen here, the param
-	// to this method should probably be a SnapAppSet, rather than a snap.Info
 
 	return content
 }
