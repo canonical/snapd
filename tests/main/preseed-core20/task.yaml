@@ -157,6 +157,9 @@ execute: |
   MATCH "^var/lib/snapd/apparmor/profiles/snap-update-ns.pc" < files.log
   MATCH "^var/lib/snapd/apparmor/profiles/snap-confine.snapd.x1" < files.log
 
+  MATCH "^var/lib/snapd/cgroup/snap.pc.device" < files.log
+  MATCH "^var/lib/snapd/cgroup/snap.pc-kernel.device" < files.log
+
   MATCH "^var/lib/snapd/seccomp/bpf/snap.pc.hook.configure.src" < files.log
   MATCH "^var/lib/snapd/seccomp/bpf/snap.pc.hook.configure.bin" < files.log
 
