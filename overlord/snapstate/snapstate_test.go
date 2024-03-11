@@ -8789,6 +8789,14 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorWithInvalidS
 }
 
 func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMounts(c *C) {
+	s.testEnsureSnapStateRewriteMounts(c, "app")
+}
+
+func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsSnapdSnap(c *C) {
+	s.testEnsureSnapStateRewriteMounts(c, "snapd")
+}
+
+func (s *snapmgrTestSuite) testEnsureSnapStateRewriteMounts(c *C, snapType string) {
 	restore := snapstate.MockEnsuredMountsUpdated(s.snapmgr, false)
 	defer restore()
 
@@ -8797,7 +8805,7 @@ func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMounts(c *C) {
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{testSnapSideInfo}),
 		Current:  snap.R(42),
 		Active:   true,
-		SnapType: "app",
+		SnapType: snapType,
 	}
 	testYaml := `name: test-snap
 version: v1
@@ -8841,7 +8849,8 @@ WantedBy=multi-user.target
 	err = s.snapmgr.Ensure()
 	c.Assert(err, IsNil)
 
-	c.Assert(s.restarts[unitName], Equals, 1)
+	// no restarts of mount unit expected even if changed
+	c.Assert(s.restarts[unitName], Equals, 0)
 
 	expectedContent := fmt.Sprintf(`
 [Unit]

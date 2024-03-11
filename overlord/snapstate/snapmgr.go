@@ -1295,7 +1295,16 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			}
 			squashfsPath := dirs.StripRootDir(info.MountFile())
 			whereDir := dirs.StripRootDir(info.MountDir())
-			if _, err = sysd.EnsureMountUnitFile(info.MountDescription(), squashfsPath, whereDir, "squashfs"); err != nil {
+			// Ensure mount files, but do not restart mount units
+			// of snap files if the units are modified as services
+			// in the snap have a Requires= on them. Otherwise the
+			// services would be restarted.
+			//   This is especially relevant for the snapd snap as if
+			// this happens, it would end up in a bad state after
+			// an update.
+			if _, err = sysd.EnsureMountUnitFile(info.MountDescription(),
+				squashfsPath, whereDir, "squashfs",
+				systemd.EnsureMountUnitFlags{PreventRestartIfModified: true}); err != nil {
 				return err
 			}
 		}
