@@ -847,13 +847,13 @@ nested_create_core_vm() {
             fi
             # ubuntu-image creates sparse image files
             # shellcheck disable=SC2086
-            "$UBUNTU_IMAGE" snap --image-size 10G --validation=enforce \
+            SNAPD_DEBUG=1 "$UBUNTU_IMAGE" snap --image-size 10G --validation=enforce \
                "$NESTED_MODEL" \
                 $UBUNTU_IMAGE_CHANNEL_ARG \
                 "${UBUNTU_IMAGE_PRESEED_ARGS[@]:-}" \
                 --output-dir "$NESTED_IMAGES_DIR" \
                 --sector-size "${NESTED_DISK_LOGICAL_BLOCK_SIZE}" \
-                $EXTRA_SNAPS
+                $EXTRA_SNAPS |& tee "$NESTED_LOGS_DIR/ubuntu-image.log"
 
             # ubuntu-image dropped the --output parameter, so we have to rename
             # the image ourselves, the images are named after volumes listed in
