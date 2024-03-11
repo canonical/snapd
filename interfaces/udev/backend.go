@@ -140,7 +140,9 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 		}
 	}
 
-	if needReload {
+	// do not trigger a reload when running in preseeding mode (as we're
+	// running in a chroot environment and it would most likely fail)
+	if needReload && !b.preseed {
 		// FIXME: somehow detect the interfaces that were disconnected and set
 		// subsystemTriggers appropriately. ATM, it is always going to be empty
 		// on disconnect.
