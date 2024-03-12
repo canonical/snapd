@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -38,6 +38,7 @@ func init() {
 
 type restartCommand struct {
 	baseCommand
+	userAndScopeOptions
 	Positional struct {
 		ServiceNames []string `positional-arg-name:"<service>" required:"yes"`
 	} `positional-args:"yes" required:"yes"`
@@ -45,12 +46,18 @@ type restartCommand struct {
 }
 
 func (c *restartCommand) Execute(args []string) error {
+	if err := c.validateScopes(); err != nil {
+		return err
+	}
+
 	inst := servicestate.Instruction{
 		Action: "restart",
 		Names:  c.Positional.ServiceNames,
 		RestartOptions: client.RestartOptions{
 			Reload: c.Reload,
 		},
+		Scope: c.serviceScope(),
+		Users: c.serviceUsers(),
 	}
 	return runServiceCommand(c.context(), &inst)
 }
