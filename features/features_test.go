@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -63,6 +63,7 @@ func (*featureSuite) TestName(c *C) {
 	check(features.QuotaGroups, "quota-groups")
 	check(features.RefreshAppAwarenessUX, "refresh-app-awareness-ux")
 	check(features.AspectsConfiguration, "aspects-configuration")
+	check(features.AppArmorPrompting, "apparmor-prompting")
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 	c.Check(func() { _ = features.SnapdFeature(1000).String() }, PanicMatches, "unknown feature flag code 1000")
@@ -101,9 +102,10 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.CheckDiskSpaceRefresh, false)
 	check(features.CheckDiskSpaceRemove, false)
 	check(features.GateAutoRefreshHook, false)
+	check(features.QuotaGroups, false)
 	check(features.RefreshAppAwarenessUX, true)
 	check(features.AspectsConfiguration, true)
-	check(features.QuotaGroups, false)
+	check(features.AppArmorPrompting, false)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 }
@@ -150,9 +152,10 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	check(features.CheckDiskSpaceRefresh, false)
 	check(features.CheckDiskSpaceRemove, false)
 	check(features.GateAutoRefreshHook, false)
+	check(features.QuotaGroups, false)
 	check(features.RefreshAppAwarenessUX, false)
 	check(features.AspectsConfiguration, false)
-	check(features.QuotaGroups, false)
+	check(features.AppArmorPrompting, false)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 }
