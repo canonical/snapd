@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2017-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,7 @@ package snapstate
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/snapcore/snapd/features"
@@ -32,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -80,7 +82,8 @@ func (r *refreshHints) refresh() error {
 	var updates []*snap.Info
 	var ignoreValidationByInstanceName map[string]bool
 	timings.Run(perfTimings, "refresh-candidates", "query store for refresh candidates", func(tm timings.Measurer) {
-		updates, _, ignoreValidationByInstanceName, err = refreshCandidates(auth.EnsureContextTODO(), r.state, nil, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
+		updates, _, ignoreValidationByInstanceName, err = refreshCandidates(auth.EnsureContextTODO(),
+			r.state, nil, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
 	})
 	// TODO: we currently set last-refresh-hints even when there was an
 	// error. In the future we may retry with a backoff.
@@ -97,7 +100,10 @@ func (r *refreshHints) refresh() error {
 	if err != nil {
 		return fmt.Errorf("internal error: cannot get refresh-candidates: %v", err)
 	}
-	r.state.Set("refresh-candidates", hints)
+
+	// update candidates in state dropping all entries which are not part of
+	// the new hints
+	updateRefreshCandidates(r.state, hints, nil)
 	return nil
 }
 
@@ -122,8 +128,13 @@ func (r *refreshHints) Ensure() error {
 	r.state.Lock()
 	defer r.state.Unlock()
 
+	online, err := isStoreOnline(r.state)
+	if err != nil || !online {
+		return err
+	}
+
 	// CanAutoRefresh is a hook that is set by the devicestate
-	// code to ensure that we only AutoRefersh if the device has
+	// code to ensure that we only AutoRefresh if the device has
 	// bootstraped itself enough. This is only nil when snapstate
 	// is used in isolation (like in tests).
 	if CanAutoRefresh == nil {
@@ -168,7 +179,8 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 			continue
 		}
 
-		providerContentAttrs := defaultProviderContentAttrs(st, update)
+		monitoring := IsSnapMonitored(st, update.InstanceName())
+		providerContentAttrs := defaultProviderContentAttrs(st, update, nil)
 		snapsup := &refreshCandidate{
 			SnapSetup: SnapSetup{
 				Base:               update.Base,
@@ -181,6 +193,7 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 				DownloadInfo: &update.DownloadInfo,
 				SideInfo:     &update.SideInfo,
 				Type:         update.Type(),
+				Version:      update.Version,
 				PlugsOnly:    len(update.Slots) == 0,
 				InstanceKey:  update.InstanceKey,
 				auxStoreInfo: auxStoreInfo{
@@ -190,7 +203,8 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 					Website: update.Website(),
 				},
 			},
-			Version: update.Version,
+			// preserve fields not related to snap-setup
+			Monitored: monitoring,
 		}
 		hints[update.InstanceName()] = snapsup
 	}
@@ -206,7 +220,7 @@ func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 		return err
 	}
 	// Remove refresh-candidates from state if gate-auto-refresh-hook feature is
-	// not enabled. This acts as a workaround for the case where a snapd from
+	// not enabled and it is not a map. This acts as a workaround for the case where a snapd from
 	// edge was used and created refresh-candidates in the old format (an array)
 	// with the feature enabled, but the feature was then disabled so the new
 	// map format will never make it into the state.
@@ -214,8 +228,24 @@ func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 	// refresh-candidates in the correct format expected here.
 	// See https://forum.snapcraft.io/t/cannot-r-emove-snap-json-cannot-unmarshal-array-into-go-value-of-type-map-string-snapstate-refreshcandidate/27276
 	if !gateAutoRefreshHook {
-		st.Set("refresh-candidates", nil)
-		return nil
+		var rc interface{}
+		err = st.Get("refresh-candidates", &rc)
+		if err != nil {
+			if errors.Is(err, state.ErrNoState) {
+				// nothing to do
+				return nil
+			}
+		}
+		v := reflect.ValueOf(rc)
+		if !v.IsValid() {
+			// nothing to do
+			return nil
+		}
+		if v.Kind() != reflect.Map {
+			// just remove
+			st.Set("refresh-candidates", nil)
+			return nil
+		}
 	}
 
 	var candidates map[string]*refreshCandidate
@@ -230,8 +260,67 @@ func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 
 	for _, snapName := range snaps {
 		delete(candidates, snapName)
+		abortMonitoring(st, snapName)
 	}
 
-	st.Set("refresh-candidates", candidates)
+	if len(candidates) == 0 {
+		st.Set("refresh-candidates", nil)
+	} else {
+		st.Set("refresh-candidates", candidates)
+	}
+
+	return nil
+}
+
+// updateRefreshCandidates updates the current set of refresh candidates stored
+// in the state. When the list of canDropOldNames is empty, existing entries
+// which aren't part of the update are dropped. When the list is non empty, only
+// those entries mentioned in the list are dropped, other existing entries are
+// preserved. Whenever an existing entry is to be replaced, the caller must have
+// provided a hint which preserves the hint's state outside of snap-setup.
+func updateRefreshCandidates(st *state.State, hints map[string]*refreshCandidate, canDropOldNames []string) error {
+	var oldHints map[string]*refreshCandidate
+	if err := st.Get("refresh-candidates", &oldHints); err != nil {
+		if !errors.Is(err, &state.NoStateError{}) {
+			return err
+		}
+	}
+
+	if len(oldHints) == 0 {
+		st.Set("refresh-candidates", hints)
+		return nil
+	}
+
+	dropAllOld := len(canDropOldNames) == 0
+
+	var deleted []string
+
+	// selectively process existing entries
+	for oldHintName := range oldHints {
+		if newHint, hasUpdate := hints[oldHintName]; hasUpdate {
+			// XXX we rely on the new hint preserving the state
+			oldHints[oldHintName] = newHint
+		} else {
+			if dropAllOld || strutil.ListContains(canDropOldNames, oldHintName) {
+				// we have no new hint for this snap
+				deleted = append(deleted, oldHintName)
+				delete(oldHints, oldHintName)
+			}
+		}
+	}
+	// now add all new entries
+	for newHintName, newHint := range hints {
+		// preserved entries have already been processed
+		if _, processed := oldHints[newHintName]; !processed {
+			oldHints[newHintName] = newHint
+		}
+	}
+
+	// stop monitoring candidates which were deleted
+	for _, dropped := range deleted {
+		abortMonitoring(st, dropped)
+	}
+
+	st.Set("refresh-candidates", oldHints)
 	return nil
 }

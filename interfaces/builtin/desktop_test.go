@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -39,6 +38,8 @@ import (
 
 type DesktopInterfaceSuite struct {
 	iface        interfaces.Interface
+	appSlotInfo  *snap.SlotInfo
+	appSlot      *interfaces.ConnectedSlot
 	coreSlotInfo *snap.SlotInfo
 	coreSlot     *interfaces.ConnectedSlot
 	plugInfo     *snap.PlugInfo
@@ -56,6 +57,14 @@ apps:
   plugs: [desktop]
 `
 
+const desktopAppSlotYaml = `name: provider
+version: 0
+apps:
+  app:
+slots:
+  desktop:
+`
+
 const desktopCoreYaml = `name: core
 version: 0
 type: os
@@ -65,6 +74,7 @@ slots:
 
 func (s *DesktopInterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, desktopConsumerYaml, nil, "desktop")
+	s.appSlot, s.appSlotInfo = MockConnectedSlot(c, desktopAppSlotYaml, nil, "desktop")
 	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, desktopCoreYaml, nil, "desktop")
 }
 
@@ -93,31 +103,47 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	// connected plug to core slot
-	spec := &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
+	// On an all-snaps system, the desktop interface grants access
+	// to system fonts.
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.appSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access basic graphical desktop resources")
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/fonts>")
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/etc/gtk-3.0/settings.ini r,")
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow access to xdg-desktop-portal and xdg-document-portal")
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access basic graphical desktop resources")
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/fonts>")
 
-	// On an all-snaps system, the only UpdateNS rule is for the
-	// document portal.
+	// check desktop interface uses correct label for Mutter when provided
+	// by a snap
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "  member=\"GetIdletime\"\n    peer=(label=\"snap.provider.app\"),\n")
+
+	// There are UpdateNS rules to allow mounting the font directories too
 	updateNS := spec.UpdateNS()
-	profile0 := `  # Mount the document portal
-  mount options=(bind) /run/user/[0-9]*/doc/by-app/snap.consumer/ -> /run/user/[0-9]*/doc/,
-  umount /run/user/[0-9]*/doc/,
+	c.Check(updateNS, testutil.Contains, "  # Read-only access to /usr/share/fonts\n")
+	c.Check(updateNS, testutil.Contains, "  # Read-only access to /usr/local/share/fonts\n")
+	c.Check(updateNS, testutil.Contains, "  # Read-only access to /var/cache/fontconfig\n")
 
-`
-	c.Assert(strings.Join(updateNS, ""), Equals, profile0)
+	// There are permanent rules on the slot side
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.appSlotInfo.Snap))
+	c.Assert(spec.AddPermanentSlot(s.iface, s.appSlotInfo), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
+	c.Check(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "# Description: Can provide various desktop services")
+	c.Check(spec.SnippetForTag("snap.provider.app"), testutil.Contains, "interface=org.freedesktop.impl.portal.*")
 
-	// On a classic system, there are UpdateNS rules for the host
-	// system font mounts
+	// On a classic system, additional permissions are granted
 	restore = release.MockOnClassic(true)
 	defer restore()
-	spec = &apparmor.Specification{}
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
+
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access basic graphical desktop resources")
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/etc/gtk-3.0/settings.ini r,")
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow access to xdg-desktop-portal and xdg-document-portal")
+
+	// check desktop interface uses correct label for Mutter when provided
+	// by the system
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "  member=\"GetIdletime\"\n    peer=(label=unconfined),\n")
+
+	// As well as the font directories, the document portal can be mounted
 	updateNS = spec.UpdateNS()
 	c.Check(updateNS, testutil.Contains, "  # Mount the document portal\n")
 	c.Check(updateNS, testutil.Contains, "  # Read-only access to /usr/share/fonts\n")
@@ -125,7 +151,8 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(updateNS, testutil.Contains, "  # Read-only access to /var/cache/fontconfig\n")
 
 	// connected plug to core slot
-	spec = &apparmor.Specification{}
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
+	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
@@ -137,30 +164,28 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/local/share/fonts"), 0777), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0777), IsNil)
 
+	// mock an Ubuntu Core like system
 	restore := release.MockOnClassic(false)
 	defer restore()
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
 
-	// On all-snaps systems, the font related mount entries are missing
+	// On all-snaps systems like Ubuntu Core, the mounts are present
 	spec := &mount.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
-	c.Check(spec.MountEntries(), HasLen, 0)
-
-	entries := spec.UserMountEntries()
-	c.Check(entries, HasLen, 1)
-	c.Check(entries[0].Name, Equals, "$XDG_RUNTIME_DIR/doc/by-app/snap.consumer")
-	c.Check(entries[0].Dir, Equals, "$XDG_RUNTIME_DIR/doc")
-	c.Check(entries[0].Options, DeepEquals, []string{"bind", "rw", "x-snapd.ignore-missing"})
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.appSlot), IsNil)
+	c.Check(spec.MountEntries(), HasLen, 3)
+	c.Check(spec.UserMountEntries(), HasLen, 1)
 
 	// On classic systems, a number of font related directories
 	// are bind mounted from the host system if they exist.
 	restore = release.MockOnClassic(true)
 	defer restore()
-	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
-	defer restore()
+	// distro is already mocked to be Ubuntu
+
 	spec = &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 
-	entries = spec.MountEntries()
+	entries := spec.MountEntries()
 	c.Assert(entries, HasLen, 3)
 
 	const hostfs = "/var/lib/snapd/hostfs"
@@ -178,7 +203,9 @@ func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {
 
 	entries = spec.UserMountEntries()
 	c.Assert(entries, HasLen, 1)
+	c.Check(entries[0].Name, Equals, "$XDG_RUNTIME_DIR/doc/by-app/snap.consumer")
 	c.Check(entries[0].Dir, Equals, "$XDG_RUNTIME_DIR/doc")
+	c.Check(entries[0].Options, DeepEquals, []string{"bind", "rw", "x-snapd.ignore-missing"})
 
 	for _, distroWithQuirks := range []string{"fedora", "arch"} {
 		restore = release.MockReleaseInfo(&release.OS{ID: distroWithQuirks})

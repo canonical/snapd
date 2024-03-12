@@ -20,6 +20,7 @@
 package snapasserts_test
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"sort"
@@ -32,6 +33,8 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type validationSetsSuite struct{}
@@ -1141,4 +1144,369 @@ func (s *validationSetsSuite) TestValidationSetKeyComponents(c *C) {
 		},
 	}).(*asserts.ValidationSet))
 	c.Assert(valsetKey.Components(), DeepEquals, []string{"a", "b", "c", "13"})
+}
+
+func (s *validationSetsSuite) TestRevisions(c *C) {
+	valset1 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "my-snap",
+				"id":       snaptest.AssertedSnapID("my-snap"),
+				"presence": "optional",
+				"revision": "10",
+			},
+			map[string]interface{}{
+				"name":     "other-snap",
+				"id":       snaptest.AssertedSnapID("other-snap"),
+				"presence": "required",
+			},
+			// invalid snap should not be present in the result of (*ValidationSets).Revisions()
+			map[string]interface{}{
+				"name":     "invalid-snap",
+				"id":       snaptest.AssertedSnapID("invalid-snap"),
+				"presence": "invalid",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	valset2 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl2",
+		"sequence":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "other-snap",
+				"id":       snaptest.AssertedSnapID("other-snap"),
+				"presence": "optional",
+				"revision": "11",
+			},
+			map[string]interface{}{
+				"name":     "another-snap",
+				"id":       snaptest.AssertedSnapID("another-snap"),
+				"presence": "required",
+				"revision": "12",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	valsets := snapasserts.NewValidationSets()
+
+	// no validation sets
+	revisions, err := valsets.Revisions()
+	c.Assert(err, IsNil)
+	c.Check(revisions, HasLen, 0)
+
+	c.Assert(valsets.Add(valset1), IsNil)
+	c.Assert(valsets.Add(valset2), IsNil)
+
+	// validity
+	c.Assert(valsets.Conflict(), IsNil)
+
+	revisions, err = valsets.Revisions()
+	c.Assert(err, IsNil)
+	c.Check(revisions, HasLen, 3)
+
+	c.Check(revisions, DeepEquals, map[string]snap.Revision{
+		"my-snap":      snap.R(10),
+		"other-snap":   snap.R(11),
+		"another-snap": snap.R(12),
+	})
+}
+
+func (s *validationSetsSuite) TestCanBePresent(c *C) {
+	var snaps []*asserts.ValidationSetSnap
+	valset1 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "my-snap",
+				"id":       snaptest.AssertedSnapID("my-snap"),
+				"presence": "invalid",
+			},
+			map[string]interface{}{
+				"name":     "other-snap",
+				"id":       snaptest.AssertedSnapID("other-snap"),
+				"presence": "required",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	snaps = append(snaps, valset1.Snaps()...)
+
+	valset2 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl2",
+		"sequence":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "other-snap",
+				"id":       snaptest.AssertedSnapID("other-snap"),
+				"presence": "optional",
+			},
+			map[string]interface{}{
+				"name":     "another-snap",
+				"id":       snaptest.AssertedSnapID("another-snap"),
+				"presence": "invalid",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	snaps = append(snaps, valset2.Snaps()...)
+
+	valsets := snapasserts.NewValidationSets()
+
+	c.Assert(valsets.Add(valset1), IsNil)
+	c.Assert(valsets.Add(valset2), IsNil)
+
+	// validity
+	c.Assert(valsets.Conflict(), IsNil)
+
+	for _, sn := range snaps {
+		c.Check(valsets.CanBePresent(sn), Equals, sn.Presence != asserts.PresenceInvalid)
+	}
+}
+
+func (s *validationSetsSuite) TestKeys(c *C) {
+	valset1 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl",
+		"sequence":     "1",
+		"snaps":        []interface{}{},
+	}).(*asserts.ValidationSet)
+
+	valset2 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl2",
+		"sequence":     "2",
+		"snaps":        []interface{}{},
+	}).(*asserts.ValidationSet)
+
+	valsets := snapasserts.NewValidationSets()
+
+	c.Assert(valsets.Add(valset1), IsNil)
+	c.Assert(valsets.Add(valset2), IsNil)
+
+	c.Check(valsets.Keys(), testutil.DeepUnsortedMatches, []snapasserts.ValidationSetKey{
+		"16/account-id/my-snap-ctl2/2",
+		"16/account-id/my-snap-ctl/1",
+	})
+}
+
+func (s *validationSetsSuite) TestRequiredSnapNames(c *C) {
+	valset1 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "my-snap",
+				"id":       snaptest.AssertedSnapID("my-snap"),
+				"presence": "invalid",
+			},
+			map[string]interface{}{
+				"name":     "other-snap",
+				"id":       snaptest.AssertedSnapID("other-snap"),
+				"presence": "required",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	valset2 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl2",
+		"sequence":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "other-snap",
+				"id":       snaptest.AssertedSnapID("other-snap"),
+				"presence": "optional",
+			},
+			map[string]interface{}{
+				"name":     "another-snap",
+				"id":       snaptest.AssertedSnapID("another-snap"),
+				"presence": "required",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	valsets := snapasserts.NewValidationSets()
+
+	c.Assert(valsets.Add(valset1), IsNil)
+	c.Assert(valsets.Add(valset2), IsNil)
+
+	c.Check(valsets.RequiredSnaps(), testutil.DeepUnsortedMatches, []string{
+		"other-snap",
+		"another-snap",
+	})
+}
+
+func (s *validationSetsSuite) TestRevisionsConflict(c *C) {
+	valset1 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "my-snap",
+				"id":       snaptest.AssertedSnapID("my-snap"),
+				"presence": "required",
+				"revision": "10",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	valset2 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl2",
+		"sequence":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "my-snap",
+				"id":       snaptest.AssertedSnapID("my-snap"),
+				"presence": "required",
+				"revision": "11",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	valsets := snapasserts.NewValidationSets()
+	c.Assert(valsets.Add(valset1), IsNil)
+	c.Assert(valsets.Add(valset2), IsNil)
+
+	_, err := valsets.Revisions()
+	c.Assert(err, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})
+}
+
+func (s *validationSetsSuite) TestValidationSetsConflictErrorIs(c *C) {
+	err := &snapasserts.ValidationSetsConflictError{}
+
+	c.Check(err.Is(&snapasserts.ValidationSetsConflictError{}), Equals, true)
+	c.Check(err.Is(errors.New("other error")), Equals, false)
+
+	wrapped := fmt.Errorf("wrapped error: %w", err)
+	c.Check(wrapped, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})
+}
+
+func (s *validationSetsSuite) TestSets(c *C) {
+	valset1 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl",
+		"sequence":     "1",
+		"snaps":        []interface{}{},
+	}).(*asserts.ValidationSet)
+
+	valset2 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl2",
+		"sequence":     "2",
+		"snaps":        []interface{}{},
+	}).(*asserts.ValidationSet)
+
+	valsets := snapasserts.NewValidationSets()
+
+	c.Assert(valsets.Add(valset1), IsNil)
+	c.Assert(valsets.Add(valset2), IsNil)
+
+	sets := valsets.Sets()
+	c.Assert(sets, testutil.DeepUnsortedMatches, []*asserts.ValidationSet{valset1, valset2})
+}
+
+func (s *validationSetsSuite) TestSnapConstrained(c *C) {
+	valset1 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "my-snap",
+				"id":       snaptest.AssertedSnapID("my-snap"),
+				"presence": "invalid",
+			},
+			map[string]interface{}{
+				"name":     "other-snap",
+				"id":       snaptest.AssertedSnapID("other-snap"),
+				"presence": "required",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	valset2 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl2",
+		"sequence":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "other-snap",
+				"id":       snaptest.AssertedSnapID("other-snap"),
+				"presence": "optional",
+			},
+			map[string]interface{}{
+				"name":     "another-snap",
+				"id":       snaptest.AssertedSnapID("another-snap"),
+				"presence": "required",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	valsets := snapasserts.NewValidationSets()
+
+	c.Assert(valsets.Add(valset1), IsNil)
+	c.Assert(valsets.Add(valset2), IsNil)
+
+	for _, name := range []string{"my-snap", "other-snap", "another-snap"} {
+		c.Check(valsets.SnapConstrained(&asserts.ModelSnap{
+			Name: name,
+		}), Equals, true)
+	}
+
+	c.Check(valsets.SnapConstrained(&asserts.ModelSnap{
+		Name: "unknown-snap",
+	}), Equals, false)
 }

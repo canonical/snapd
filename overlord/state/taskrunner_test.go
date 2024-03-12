@@ -809,7 +809,7 @@ func (ts *taskRunnerSuite) TestStopAskForRetry(c *C) {
 	c.Check(t.AtTime().IsZero(), Equals, false)
 }
 
-func (ts *taskRunnerSuite) TestTaskReturningWait(c *C) {
+func (ts *taskRunnerSuite) testTaskReturningWait(c *C, waitedStatus, expectedStatus state.Status) {
 	sb := &stateBackend{}
 	st := state.New(sb)
 	r := state.NewTaskRunner(st)
@@ -817,7 +817,7 @@ func (ts *taskRunnerSuite) TestTaskReturningWait(c *C) {
 
 	r.AddHandler("ask-for-wait", func(t *state.Task, tb *tomb.Tomb) error {
 		// ask for wait
-		return &state.Wait{}
+		return &state.Wait{WaitedStatus: waitedStatus}
 	}, nil)
 
 	st.Lock()
@@ -833,6 +833,7 @@ func (ts *taskRunnerSuite) TestTaskReturningWait(c *C) {
 	st.Lock()
 	defer st.Unlock()
 	c.Check(t.Status(), Equals, state.WaitStatus)
+	c.Check(t.WaitedStatus(), Equals, expectedStatus)
 	c.Check(chg.Status().Ready(), Equals, false)
 
 	st.Unlock()
@@ -845,6 +846,16 @@ func (ts *taskRunnerSuite) TestTaskReturningWait(c *C) {
 	defer st.Unlock()
 	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(chg.Status().Ready(), Equals, false)
+}
+
+func (ts *taskRunnerSuite) TestTaskReturningWaitNormal(c *C) {
+	ts.testTaskReturningWait(c, state.UndoneStatus, state.UndoneStatus)
+}
+
+func (ts *taskRunnerSuite) TestTaskReturningWaitDefaultStatus(c *C) {
+	// If no state was set (DefaultStatus), then it should default to
+	// DoneStatus instead.
+	ts.testTaskReturningWait(c, state.DefaultStatus, state.DoneStatus)
 }
 
 func (ts *taskRunnerSuite) TestRetryAfterDuration(c *C) {

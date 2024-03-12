@@ -204,7 +204,7 @@ func InitramfsExposeBootFlagsForSystem(flags []string) error {
 		return err
 	}
 
-	return ioutil.WriteFile(snapBootFlagsFile, []byte(s), 0644)
+	return os.WriteFile(snapBootFlagsFile, []byte(s), 0644)
 }
 
 // BootFlags returns the current set of boot flags active for this boot. It uses
@@ -268,6 +268,8 @@ func setNextBootFlags(dev snap.Device, rootDir string, flags []string) error {
 	if !dev.HasModeenv() {
 		return errNotUC20
 	}
+
+	// XXX take the modeenv lock?
 
 	m, err := ReadModeenv(rootDir)
 	if err != nil {

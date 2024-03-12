@@ -74,7 +74,7 @@ func (s *ScreencastLegacyInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *ScreencastLegacyInterfaceSuite) TestAppArmorSpec(c *C) {
 	// connected plug to core slot
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access common desktop screenshot, screencast and recording")

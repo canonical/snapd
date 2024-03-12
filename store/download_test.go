@@ -26,7 +26,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -103,7 +102,7 @@ func (s *downloadSuite) TestActualDownloadAutoRefresh(c *C) {
 	var buf SillyBuffer
 	// keep tests happy
 	sha3 := ""
-	err := store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, &store.DownloadOptions{IsAutoRefresh: true})
+	err := store.Download(context.TODO(), "foo", sha3, mockServer.URL, nil, theStore, &buf, 0, nil, &store.DownloadOptions{Scheduled: true})
 	c.Assert(err, IsNil)
 	c.Check(buf.String(), Equals, "response-data")
 	c.Check(n, Equals, 1)
@@ -672,7 +671,7 @@ func (s *downloadSuite) TestDownloadWithDelta(c *C) {
 		defer restore()
 		restore = store.MockApplyDelta(func(_ *store.Store, name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
 			c.Check(deltaInfo, Equals, &testCase.info.Deltas[0])
-			err := ioutil.WriteFile(targetPath, []byte("snap-content-via-delta"), 0644)
+			err := os.WriteFile(targetPath, []byte("snap-content-via-delta"), 0644)
 			c.Assert(err, IsNil)
 			return nil
 		})

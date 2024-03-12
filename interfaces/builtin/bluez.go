@@ -95,6 +95,11 @@ dbus (bind)
 # Allow binding the service to the requested connection name
 dbus (bind)
     bus=system
+    name="org.bluez.obex.*",
+
+# Allow binding the service to the requested connection name
+dbus (bind)
+    bus=system
     name="org.bluez.mesh",
 
 # Allow traffic to/from our interface with any method for unconfined clients
@@ -214,6 +219,7 @@ const bluezPermanentSlotDBus = `
     <allow send_destination="org.bluez.obex"/>
     <allow send_destination="org.bluez.mesh"/>
     <allow send_interface="org.bluez.Agent1"/>
+    <allow send_interface="org.bluez.AgentManager1"/>
     <allow send_interface="org.bluez.MediaEndpoint1"/>
     <allow send_interface="org.bluez.MediaPlayer1"/>
     <allow send_interface="org.bluez.ThermometerWatcher1"/>
@@ -266,7 +272,7 @@ func (iface *bluezInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 	if release.OnClassic {
 		new = "unconfined"
 	} else {
-		new = slotAppLabelExpr(slot)
+		new = spec.SnapAppSet().SlotLabelExpression(slot)
 	}
 	snippet := strings.Replace(bluezConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
@@ -276,7 +282,7 @@ func (iface *bluezInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 func (iface *bluezInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if !release.OnClassic {
 		old := "###PLUG_SECURITY_TAGS###"
-		new := plugAppLabelExpr(plug)
+		new := spec.SnapAppSet().PlugLabelExpression(plug)
 		snippet := strings.Replace(bluezConnectedSlotAppArmor, old, new, -1)
 		spec.AddSnippet(snippet)
 	}

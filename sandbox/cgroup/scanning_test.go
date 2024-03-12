@@ -21,7 +21,6 @@ package cgroup_test
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -59,15 +58,22 @@ func mustParseTag(tag string) naming.SecurityTag {
 func (s *scanningSuite) TestSecurityTagFromCgroupPath(c *C) {
 	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.foo.service"), DeepEquals, mustParseTag("snap.foo.foo"))
 	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.bar.service"), DeepEquals, mustParseTag("snap.foo.bar"))
-	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.bar.$RANDOM.scope"), DeepEquals, mustParseTag("snap.foo.bar"))
-	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.hook.bar.$RANDOM.scope"), DeepEquals, mustParseTag("snap.foo.hook.bar"))
+	// We should be able to match both the old and new naming convention for scope units.
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.bar-54b38acc-3ba2-4c6d-b284-7ac07e1159e5.scope"), DeepEquals, mustParseTag("snap.foo.bar"))
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.bar-baz-54b38acc-3ba2-4c6d-b284-7ac07e1159e5.scope"), DeepEquals, mustParseTag("snap.foo.bar-baz"))
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.hook.bar-54b38acc-3ba2-4c6d-b284-7ac07e1159e5.scope"), DeepEquals, mustParseTag("snap.foo.hook.bar"))
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.hook.bar-baz-54b38acc-3ba2-4c6d-b284-7ac07e1159e5.scope"), DeepEquals, mustParseTag("snap.foo.hook.bar-baz"))
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.bar.54b38acc-3ba2-4c6d-b284-7ac07e1159e5.scope"), DeepEquals, mustParseTag("snap.foo.bar"))
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.bar-baz.54b38acc-3ba2-4c6d-b284-7ac07e1159e5.scope"), DeepEquals, mustParseTag("snap.foo.bar-baz"))
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.hook.bar.54b38acc-3ba2-4c6d-b284-7ac07e1159e5.scope"), DeepEquals, mustParseTag("snap.foo.hook.bar"))
+	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.hook.bar-baz.54b38acc-3ba2-4c6d-b284-7ac07e1159e5.scope"), DeepEquals, mustParseTag("snap.foo.hook.bar-baz"))
 	// We are not confused by snapd things.
 	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.service"), IsNil)
 	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snapd.service"), IsNil)
 	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.mount"), IsNil)
 	// Real data looks like this.
-	c.Check(cgroup.SecurityTagFromCgroupPath("snap.test-snapd-refresh.sh.d854bd35-2457-4ac8-b494-06061d74df33.scope"), DeepEquals, mustParseTag("snap.test-snapd-refresh.sh"))
-	c.Check(cgroup.SecurityTagFromCgroupPath("snap.test-snapd-refresh.hook.configure.d854bd35-2457-4ac8-b494-06061d74df33.scope"), DeepEquals, mustParseTag("snap.test-snapd-refresh.hook.configure"))
+	c.Check(cgroup.SecurityTagFromCgroupPath("snap.test-snapd-refresh.sh-d854bd35-2457-4ac8-b494-06061d74df33.scope"), DeepEquals, mustParseTag("snap.test-snapd-refresh.sh"))
+	c.Check(cgroup.SecurityTagFromCgroupPath("snap.test-snapd-refresh.hook.configure-d854bd35-2457-4ac8-b494-06061d74df33.scope"), DeepEquals, mustParseTag("snap.test-snapd-refresh.hook.configure"))
 	// Trailing slashes are automatically handled.
 	c.Check(cgroup.SecurityTagFromCgroupPath("/a/b/snap.foo.foo.service/"), DeepEquals, mustParseTag("snap.foo.foo"))
 }
@@ -102,7 +108,7 @@ func (s *scanningSuite) writePids(c *C, dir string, pids []int) string {
 
 	c.Assert(os.MkdirAll(path, 0755), IsNil)
 	finalPath := filepath.Join(path, "cgroup.procs")
-	c.Assert(ioutil.WriteFile(finalPath, buf.Bytes(), 0644), IsNil)
+	c.Assert(os.WriteFile(finalPath, buf.Bytes(), 0644), IsNil)
 	return finalPath
 }
 
@@ -181,7 +187,7 @@ func (s *scanningSuite) TestPidsOfSnapSecurityTags(c *C) {
 		defer restore()
 
 		// Pids are collected and assigned to bins by security tag
-		s.writePids(c, "system.slice/snap.pkg.hook.configure.$RANDOM.scope", []int{1})
+		s.writePids(c, "system.slice/snap.pkg.hook.configure-54b38acc-3ba2-4c6d-b284-7ac07e1159e5.scope", []int{1})
 		s.writePids(c, "system.slice/snap.pkg.daemon.service", []int{2})
 
 		pids, err := cgroup.PidsOfSnap("pkg")
@@ -203,7 +209,7 @@ func (s *scanningSuite) TestPathsOfSnapWithSecurityTags(c *C) {
 		defer restore()
 
 		// Pids are collected and assigned to bins by security tag
-		path1 := s.writePids(c, "system.slice/snap.pkg.hook.configure.$RANDOM.scope", []int{1})
+		path1 := s.writePids(c, "system.slice/snap.pkg.hook.configure-54b38acc-3ba2-4c6d-b284-7ac07e1159e5.scope", []int{1})
 		path2 := s.writePids(c, "system.slice/snap.pkg.daemon.service", []int{2})
 
 		paths, err := cgroup.InstancePathsOfSnap("pkg", options)
@@ -290,10 +296,10 @@ func (s *scanningSuite) TestPidsOfAggregation(c *C) {
 
 		// A single snap may be invoked by multiple users in different sessions.
 		// All of their PIDs are collected though.
-		s.writePids(c, "user.slice/user-1000.slice/user@1000.service/gnome-shell-wayland.service/snap.pkg.app.$RANDOM1.scope", []int{1}) // mock 1st invocation
-		s.writePids(c, "user.slice/user-1000.slice/user@1000.service/gnome-shell-wayland.service/snap.pkg.app.$RANDOM2.scope", []int{2}) // mock fork() by pid 1
-		s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.pkg.app.$RANDOM3.scope", []int{3}) // mock 2nd invocation
-		s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.pkg.app.$RANDOM4.scope", []int{4}) // mock fork() by pid 3
+		s.writePids(c, "user.slice/user-1000.slice/user@1000.service/gnome-shell-wayland.service/snap.pkg.app-54b38acc-3ba2-4c6d-b284-7ac07e1159e1.scope", []int{1}) // mock 1st invocation
+		s.writePids(c, "user.slice/user-1000.slice/user@1000.service/gnome-shell-wayland.service/snap.pkg.app-54b38acc-3ba2-4c6d-b284-7ac07e1159e2.scope", []int{2}) // mock fork() by pid 1
+		s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.pkg.app-54b38acc-3ba2-4c6d-b284-7ac07e1159e3.scope", []int{3}) // mock 2nd invocation
+		s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.pkg.app-54b38acc-3ba2-4c6d-b284-7ac07e1159e4.scope", []int{4}) // mock fork() by pid 3
 
 		pids, err := cgroup.PidsOfSnap("pkg")
 		c.Assert(err, IsNil, comment)
@@ -314,10 +320,10 @@ func (s *scanningSuite) TestPathsOfAggregation(c *C) {
 
 		// A single snap may be invoked by multiple users in different sessions.
 		// All of their PIDs are collected though.
-		path1 := s.writePids(c, "user.slice/user-1000.slice/user@1000.service/gnome-shell-wayland.service/snap.pkg.app.$RANDOM1.scope", []int{1}) // mock 1st invocation
-		path2 := s.writePids(c, "user.slice/user-1000.slice/user@1000.service/gnome-shell-wayland.service/snap.pkg.app.$RANDOM2.scope", []int{2}) // mock fork() by pid 1
-		path3 := s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.pkg.app.$RANDOM3.scope", []int{3}) // mock 2nd invocation
-		path4 := s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.pkg.app.$RANDOM4.scope", []int{4}) // mock fork() by pid 3
+		path1 := s.writePids(c, "user.slice/user-1000.slice/user@1000.service/gnome-shell-wayland.service/snap.pkg.app-54b38acc-3ba2-4c6d-b284-7ac07e1159e1.scope", []int{1}) // mock 1st invocation
+		path2 := s.writePids(c, "user.slice/user-1000.slice/user@1000.service/gnome-shell-wayland.service/snap.pkg.app-54b38acc-3ba2-4c6d-b284-7ac07e1159e2.scope", []int{2}) // mock fork() by pid 1
+		path3 := s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.pkg.app-54b38acc-3ba2-4c6d-b284-7ac07e1159e3.scope", []int{3}) // mock 2nd invocation
+		path4 := s.writePids(c, "user.slice/user-1001.slice/user@1001.service/gnome-shell-wayland.service/snap.pkg.app-54b38acc-3ba2-4c6d-b284-7ac07e1159e4.scope", []int{4}) // mock fork() by pid 3
 
 		paths, err := cgroup.InstancePathsOfSnap("pkg", options)
 		c.Assert(err, IsNil, comment)
@@ -337,16 +343,16 @@ func (s *scanningSuite) TestPidsOfSnapUnrelated(c *C) {
 
 		// We are not confusing snaps with other snaps, instances of our snap, and
 		// with non-snap hierarchies.
-		s.writePids(c, "user.slice/.../snap.pkg.app.$RANDOM1.scope", []int{1})
-		s.writePids(c, "user.slice/.../snap.other.snap.$RANDOM2.scope", []int{2})
+		s.writePids(c, "user.slice/.../snap.pkg.app-54b38acc-3ba2-4c6d-b284-7ac07e1159e5.scope", []int{1})
+		s.writePids(c, "user.slice/.../snap.other.snap-54b38acc-3ba2-4c6d-b284-7ac07e1159e5.scope", []int{2})
 		s.writePids(c, "user.slice/.../pkg.service", []int{3})
-		s.writePids(c, "user.slice/.../snap.pkg_instance.app.$RANDOM3.scope", []int{4})
+		s.writePids(c, "user.slice/.../snap.pkg_instance.app-54b38acc-3ba2-4c6d-b284-7ac07e1159e5.scope", []int{4})
 
 		// Write a file which is not cgroup.procs with the number 666 inside.
 		// We want to ensure this is not read by accident.
 		f := filepath.Join(s.rootDir, "/sys/fs/cgroup/unrelated.txt")
 		c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
-		c.Assert(ioutil.WriteFile(f, []byte("666"), 0644), IsNil)
+		c.Assert(os.WriteFile(f, []byte("666"), 0644), IsNil)
 
 		pids, err := cgroup.PidsOfSnap("pkg")
 		c.Assert(err, IsNil, comment)
@@ -367,16 +373,16 @@ func (s *scanningSuite) TestPathsOfSnapUnrelated(c *C) {
 
 		// We are not confusing snaps with other snaps, instances of our snap, and
 		// with non-snap hierarchies.
-		path1 := s.writePids(c, "user.slice/.../snap.pkg.app.$RANDOM1.scope", []int{1})
-		path2 := s.writePids(c, "user.slice/.../snap.other.snap.$RANDOM2.scope", []int{2})
+		path1 := s.writePids(c, "user.slice/.../snap.pkg.app-54b38acc-3ba2-4c6d-b284-7ac07e1159e5.scope", []int{1})
+		path2 := s.writePids(c, "user.slice/.../snap.other.snap-54b38acc-3ba2-4c6d-b284-7ac07e1159e5.scope", []int{2})
 		path3 := s.writePids(c, "user.slice/.../pkg.service", []int{3})
-		path4 := s.writePids(c, "user.slice/.../snap.pkg_instance.app.$RANDOM3.scope", []int{4})
+		path4 := s.writePids(c, "user.slice/.../snap.pkg_instance.app-54b38acc-3ba2-4c6d-b284-7ac07e1159e5.scope", []int{4})
 
 		// Write a file which is not cgroup.procs with the number 666 inside.
 		// We want to ensure this is not read by accident.
 		f := filepath.Join(s.rootDir, "/sys/fs/cgroup/unrelated.txt")
 		c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
-		c.Assert(ioutil.WriteFile(f, []byte("666"), 0644), IsNil)
+		c.Assert(os.WriteFile(f, []byte("666"), 0644), IsNil)
 
 		paths, err := cgroup.InstancePathsOfSnap("pkg", options)
 		c.Assert(err, IsNil, comment)

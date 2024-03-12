@@ -22,13 +22,20 @@ package client_test
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
 
 	"golang.org/x/xerrors"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 )
 
 const happyModelAssertionResponse = `type: model
@@ -101,7 +108,7 @@ const noSerialAssertionYetResponse = `
 }`
 
 func (cs *clientSuite) TestClientRemodelEndpoint(c *C) {
-	cs.cli.Remodel([]byte(`{"new-model": "some-model"}`))
+	cs.cli.Remodel([]byte(`{"new-model": "some-model"}`), client.RemodelOpts{})
 	c.Check(cs.req.Method, Equals, "POST")
 	c.Check(cs.req.URL.Path, Equals, "/v2/model")
 }
@@ -115,18 +122,43 @@ func (cs *clientSuite) TestClientRemodel(c *C) {
 		"change": "d728"
 	}`
 	remodelJsonData := []byte(`{"new-model": "some-model"}`)
-	id, err := cs.cli.Remodel(remodelJsonData)
+	id, err := cs.cli.Remodel(remodelJsonData, client.RemodelOpts{})
 	c.Assert(err, IsNil)
 	c.Check(id, Equals, "d728")
 	c.Assert(cs.req.Header.Get("Content-Type"), Equals, "application/json")
 
 	body, err := ioutil.ReadAll(cs.req.Body)
 	c.Assert(err, IsNil)
-	jsonBody := make(map[string]string)
+	jsonBody := make(map[string]interface{})
 	err = json.Unmarshal(body, &jsonBody)
 	c.Assert(err, IsNil)
 	c.Check(jsonBody, HasLen, 1)
 	c.Check(jsonBody["new-model"], Equals, string(remodelJsonData))
+	c.Check(jsonBody["offline"], IsNil)
+}
+
+func (cs *clientSuite) TestClientRemodelOffline(c *C) {
+	cs.status = 202
+	cs.rsp = `{
+        "type": "async",
+        "status-code": 202,
+                "result": {},
+        "change": "d728"
+    }`
+	remodelJsonData := []byte(`{"new-model": "some-model"}`)
+	id, err := cs.cli.Remodel(remodelJsonData, client.RemodelOpts{Offline: true})
+	c.Assert(err, IsNil)
+	c.Check(id, Equals, "d728")
+	c.Assert(cs.req.Header.Get("Content-Type"), Equals, "application/json")
+
+	body, err := io.ReadAll(cs.req.Body)
+	c.Assert(err, IsNil)
+	jsonBody := make(map[string]interface{})
+	err = json.Unmarshal(body, &jsonBody)
+	c.Assert(err, IsNil)
+	c.Check(jsonBody, HasLen, 2)
+	c.Check(jsonBody["new-model"], Equals, string(remodelJsonData))
+	c.Check(jsonBody["offline"], Equals, true)
 }
 
 func (cs *clientSuite) TestClientGetModelHappy(c *C) {
@@ -172,4 +204,90 @@ func (cs *clientSuite) TestClientCurrentModelAssertionErrIsWrapped(c *C) {
 	_, err := cs.cli.CurrentModelAssertion()
 	var e xerrors.Wrapper
 	c.Assert(err, Implements, &e)
+}
+
+func (cs *clientSuite) TestClientOfflineRemodel(c *C) {
+	cs.status = 202
+	cs.rsp = `{
+		"type": "async",
+		"status-code": 202,
+                "result": {},
+		"change": "d728"
+	}`
+	rawModel := []byte(`some-model`)
+
+	var err error
+	snapPaths := []string{filepath.Join(dirs.GlobalRootDir, "snap1.snap")}
+	err = os.WriteFile(snapPaths[0], []byte("snap1"), 0644)
+	c.Assert(err, IsNil)
+	assertsPaths := []string{filepath.Join(dirs.GlobalRootDir, "f1.asserts")}
+	err = os.WriteFile(assertsPaths[0], []byte("asserts1"), 0644)
+	c.Assert(err, IsNil)
+
+	id, err := cs.cli.RemodelWithLocalSnaps(rawModel, snapPaths, assertsPaths)
+	c.Assert(err, IsNil)
+	c.Check(id, Equals, "d728")
+	contentTypeReStr := "^multipart/form-data; boundary=([A-Za-z0-9]*)$"
+	contentType := cs.req.Header.Get("Content-Type")
+	c.Assert(contentType, Matches, contentTypeReStr)
+	contentTypeRe := regexp.MustCompile(contentTypeReStr)
+	matches := contentTypeRe.FindStringSubmatch(contentType)
+	c.Assert(len(matches), Equals, 2)
+	boundary := "--" + matches[1]
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, IsNil)
+	expected := boundary + `
+Content-Disposition: form-data; name="new-model"
+Content-Type: application/x.ubuntu.assertion
+
+some-model
+` + boundary + `
+Content-Disposition: form-data; name="assertion"
+Content-Type: application/x.ubuntu.assertion
+
+asserts1
+` + boundary + `
+Content-Disposition: form-data; name="snap"; filename="snap1.snap"
+Content-Type: application/octet-stream
+
+snap1
+` + boundary + `--
+`
+	expected = strings.Replace(expected, "\n", "\r\n", -1)
+	c.Assert(string(body), Equals, expected)
+}
+
+func (cs *clientSuite) TestClientOfflineRemodelServerError(c *C) {
+	cs.status = 404
+	cs.rsp = noSerialAssertionYetResponse
+	rawModel := []byte(`some-model`)
+
+	var err error
+	snapPaths := []string{filepath.Join(dirs.GlobalRootDir, "snap1.snap")}
+	err = os.WriteFile(snapPaths[0], []byte("snap1"), 0644)
+	c.Assert(err, IsNil)
+	assertsPaths := []string{filepath.Join(dirs.GlobalRootDir, "f1.asserts")}
+	err = os.WriteFile(assertsPaths[0], []byte("asserts1"), 0644)
+	c.Assert(err, IsNil)
+
+	id, err := cs.cli.RemodelWithLocalSnaps(rawModel, snapPaths, assertsPaths)
+	c.Assert(err.Error(), Equals, "no serial assertion yet")
+	c.Check(id, Equals, "")
+}
+
+func (cs *clientSuite) TestClientOfflineRemodelNoFile(c *C) {
+	rawModel := []byte(`some-model`)
+
+	paths := []string{filepath.Join(dirs.GlobalRootDir, "snap1.snap")}
+
+	// No snap file
+	id, err := cs.cli.RemodelWithLocalSnaps(rawModel, paths, nil)
+	c.Assert(err, ErrorMatches, `cannot open .*: no such file or directory`)
+	c.Assert(id, Equals, "")
+
+	// No assertions file
+	id, err = cs.cli.RemodelWithLocalSnaps(rawModel, nil, paths)
+	c.Assert(err, ErrorMatches, `cannot open .*: no such file or directory`)
+	c.Assert(id, Equals, "")
 }

@@ -7,9 +7,13 @@ backends: [-autopkgtest]
 # disable the following distributions
 # ubuntu-14, lack of systemd-run
 # ubuntu-20.04-arm*, because we use pc kernel and gadget.
+# ubuntu-core-*-arm-*, because image generade is not amd64
+# ubuntu-18.04-32, lack of pc-kernel snap for pc-i386
 systems:
 - -ubuntu-14.04-*
 - -ubuntu-20.04-arm-*
+- -ubuntu-core-*-arm-*
+- -ubuntu-18.04-32
 
 environment:
     ROOT: /home/test/tmp/
@@ -128,7 +132,7 @@ execute: |
     export SNAPPY_FORCE_API_URL=http://$STORE_ADDR
     echo Running prepare-image
     snap prepare-image --channel edge --snap test-snapd-sh --write-revisions --revisions "$ROOT"/seed.manifest "$TESTSLIB"/assertions/developer1-pc.model $ROOT
-    
+
     echo Verifying the expected revisions were retrieved
     test -e "$IMAGE/var/lib/snapd/seed/snaps/core_1.snap"
     test -e "$IMAGE/var/lib/snapd/seed/snaps/pc_1.snap"

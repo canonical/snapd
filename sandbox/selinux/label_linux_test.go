@@ -21,7 +21,7 @@ package selinux_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -39,7 +39,7 @@ var _ = check.Suite(&labelSuite{})
 
 func (l *labelSuite) SetUpTest(c *check.C) {
 	l.path = filepath.Join(c.MkDir(), "foo")
-	ioutil.WriteFile(l.path, []byte("foo"), 0644)
+	os.WriteFile(l.path, []byte("foo"), 0644)
 }
 
 func (l *labelSuite) TestVerifyHappyOk(c *check.C) {

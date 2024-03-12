@@ -69,7 +69,7 @@ execute: |
         systemctl status snapd|MATCH " /usr/lib/snapd/snapd"
         snap wait system seed.loaded
 
-        umount /snap/snapd/x2
+        retry -n 3 --wait 1 umount /snap/snapd/x2
         rm /etc/systemd/system/snap-snapd-x2.mount
         systemctl daemon-reload
         snap list

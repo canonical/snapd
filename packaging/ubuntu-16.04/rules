@@ -174,10 +174,11 @@ override_dh_clean:
 	(cd c-vendor/squashfuse && rm -f snapfuse && make distclean || true )
 
 override_dh_auto_build:
+	# generate dh-golang does not copy modules.txt
+	cp -a vendor/modules.txt _build/src/$(DH_GOPKG)/vendor
 	# usually done via `go generate` but that is not supported on powerpc
 	./mkversion.sh
 	# ensure auto-generated version is also in the build-tree
-	# XXX: do we need this?
 	(cd _build/src/$(DH_GOPKG)/ && ../../../../../mkversion.sh)
 	# Build golang bits
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
@@ -258,7 +259,13 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	$(MAKE) -C cmd check
 endif
 
-override_dh_install:
+
+debian/snapd.install: SYSTEMD_LIBDIR=$(shell pkg-config --variable=systemdutildir systemd)
+debian/snapd.install: debian/snapd.install.in
+	sed 's,@systemd-lib@,$(SYSTEMD_LIBDIR),g' $< >$@.tmp
+	mv $@.tmp $@
+
+override_dh_install: debian/snapd.install
 	# we do not need this in the package, its just needed during build
 	rm -rf ${CURDIR}/debian/tmp/usr/bin/xgettext-go
 	# toolbelt is not shippable

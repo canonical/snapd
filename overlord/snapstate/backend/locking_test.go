@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
@@ -42,11 +43,11 @@ func (s *lockingSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 }
 
-func (s *lockingSuite) TestRunInhibitSnapForUnlinkPositiveDescision(c *C) {
+func (s *lockingSuite) TestRunInhibitSnapForUnlinkPositiveDecision(c *C) {
 	const yaml = `name: snap-name
 version: 1
 `
-	info := snaptest.MockInfo(c, yaml, nil)
+	info := snaptest.MockInfo(c, yaml, &snap.SideInfo{Revision: snap.R(1)})
 	lock, err := s.be.RunInhibitSnapForUnlink(info, "hint", func() error {
 		// This decision function returns nil so the lock is established and
 		// the inhibition hint is set.
@@ -55,9 +56,10 @@ version: 1
 	c.Assert(err, IsNil)
 	c.Assert(lock, NotNil)
 	lock.Close()
-	hint, err := runinhibit.IsLocked(info.InstanceName())
+	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName())
 	c.Assert(err, IsNil)
 	c.Check(string(hint), Equals, "hint")
+	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{Previous: snap.R(1)})
 }
 
 func (s *lockingSuite) TestRunInhibitSnapForUnlinkNegativeDecision(c *C) {
@@ -72,9 +74,10 @@ version: 1
 	})
 	c.Assert(err, ErrorMatches, "propagated")
 	c.Assert(lock, IsNil)
-	hint, err := runinhibit.IsLocked(info.InstanceName())
+	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName())
 	c.Assert(err, IsNil)
 	c.Check(string(hint), Equals, "")
+	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{})
 }
 
 func (s *lockingSuite) TestWithSnapLock(c *C) {

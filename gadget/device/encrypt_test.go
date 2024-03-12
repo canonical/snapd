@@ -74,13 +74,13 @@ func (s *deviceSuite) TestReadEncryptionMarkers(c *C) {
 	p1 := filepath.Join(tmpdir, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker")
 	err := os.MkdirAll(filepath.Dir(p1), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(p1, []byte("marker-p1"), 0600)
+	err = os.WriteFile(p1, []byte("marker-p1"), 0600)
 	c.Assert(err, IsNil)
 
 	p2 := filepath.Join(tmpdir, boot.InstallHostFDESaveDir, "marker")
 	err = os.MkdirAll(filepath.Dir(p2), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(p2, []byte("marker-p2"), 0600)
+	err = os.WriteFile(p2, []byte("marker-p2"), 0600)
 	c.Assert(err, IsNil)
 
 	// reading them returns the two different values
@@ -143,7 +143,7 @@ func (s *deviceSuite) TestSealedKeysMethodWithWrongContentHappy(c *C) {
 	mockSealedKeyPath := filepath.Join(root, "/var/lib/snapd/device/fde/sealed-keys")
 	err := os.MkdirAll(filepath.Dir(mockSealedKeyPath), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(mockSealedKeyPath, []byte("invalid-sealing-method"), 0600)
+	err = os.WriteFile(mockSealedKeyPath, []byte("invalid-sealing-method"), 0600)
 	c.Assert(err, IsNil)
 
 	// invalid/unknown sealing methods do not error

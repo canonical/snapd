@@ -14,19 +14,12 @@ debug: |
     done
 
 execute: |
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
-    wait_for_service "multi-user.target"
+    tests.systemd wait-for-service -n 30 --state active multi-user.target
 
     case "$SPREAD_SYSTEM" in
         opensuse-tumbleweed-*)
             systemctl mask systemd-vconsole-setup.service
             systemctl reset-failed systemd-vconsole-setup.service
-            ;;
-        debian-10-*)
-            # modules-load fails trying to modprobe lp and parallel port drivers
-            # which are not part of the cloud kernel package
-            systemctl reset-failed systemd-modules-load.service
             ;;
         centos-8-*)
             # tries to load ipmi_si module which fails with ENODEV

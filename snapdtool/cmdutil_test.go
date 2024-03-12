@@ -21,7 +21,6 @@ package snapdtool_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -57,12 +56,12 @@ func (s *cmdutilSuite) makeMockLdSoConf(c *C, root string) {
 	err = os.MkdirAll(ldSoConfD, 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(ldSoConf, []byte("include /etc/ld.so.conf.d/*.conf"), 0644)
+	err = os.WriteFile(ldSoConf, []byte("include /etc/ld.so.conf.d/*.conf"), 0644)
 	c.Assert(err, IsNil)
 
 	ldSoConf1 := filepath.Join(ldSoConfD, "x86_64-linux-gnu.conf")
 
-	err = ioutil.WriteFile(ldSoConf1, []byte(`
+	err = os.WriteFile(ldSoConf1, []byte(`
 # Multiarch support
 /lib/x86_64-linux-gnu
 /usr/lib/x86_64-linux-gnu`), 0644)

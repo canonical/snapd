@@ -225,9 +225,9 @@ func serviceControlAffectedSnaps(t *state.Task) ([]string, error) {
 func getBootTime() (time.Time, error) {
 	cmd := exec.Command("uptime", "-s")
 	cmd.Env = append(cmd.Env, "TZ=UTC")
-	out, err := cmd.CombinedOutput()
+	out, stderr, err := osutil.RunCmd(cmd)
 	if err != nil {
-		return time.Time{}, osutil.OutputErr(out, err)
+		return time.Time{}, osutil.OutputErrCombine(out, stderr, err)
 	}
 
 	// parse the output from the command as a time

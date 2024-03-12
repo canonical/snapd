@@ -21,7 +21,6 @@ package store_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -56,7 +55,7 @@ func (s *cacheSuite) makeTestFile(c *C, name, content string) string {
 }
 func (s *cacheSuite) makeTestFileInDir(c *C, dir, name, content string) string {
 	p := filepath.Join(dir, name)
-	err := ioutil.WriteFile(p, []byte(content), 0644)
+	err := os.WriteFile(p, []byte(content), 0644)
 	c.Assert(err, IsNil)
 	return p
 }
@@ -185,7 +184,7 @@ func (s *cacheSuite) TestCleanupContinuesOnError(c *C) {
 
 func (s *cacheSuite) TestHardLinkCount(c *C) {
 	p := filepath.Join(s.tmp, "foo")
-	err := ioutil.WriteFile(p, nil, 0644)
+	err := os.WriteFile(p, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// trivial case
@@ -218,7 +217,7 @@ func (s *cacheSuite) TestHardLinkCount(c *C) {
 
 func (s *cacheSuite) TestCacheHitOnErrExist(c *C) {
 	targetPath := filepath.Join(s.tmp, "foo")
-	err := ioutil.WriteFile(targetPath, nil, 0644)
+	err := os.WriteFile(targetPath, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// put file in target path

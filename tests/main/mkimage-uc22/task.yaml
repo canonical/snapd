@@ -41,9 +41,7 @@ prepare: |
     MACHINE_PARAM="-machine ubuntu,accel=kvm"
   fi
 
-  # shellcheck source=tests/lib/systemd.sh
-  . "$TESTSLIB"/systemd.sh
-  systemd_create_and_start_unit "nested-vm" "qemu-system-x86_64 -m 1500 -nographic $MACHINE_PARAM -snapshot -netdev user,id=net.0,hostfwd=tcp::10022-:22 -device rtl8139,netdev=net.0 -bios /usr/share/OVMF/OVMF_CODE.fd -drive file=$PWD/boot.img,if=virtio -serial file:$PWD/serial.log"
+  tests.systemd create-and-start-unit "nested-vm" "qemu-system-x86_64 -m 1500 -nographic $MACHINE_PARAM -snapshot -netdev user,id=net.0,hostfwd=tcp::10022-:22 -device rtl8139,netdev=net.0 -bios /usr/share/OVMF/OVMF_CODE.fd -drive file=$PWD/boot.img,if=virtio -serial file:$PWD/serial.log"
 
   # run built image
   remote.setup config --host localhost --port 10022 --user user1 --pass ubuntu
@@ -51,6 +49,9 @@ prepare: |
 
   # wait until the image boots and seeds  
   remote.exec "sudo snap wait system seed.loaded"
+
+restore: |
+  tests.systemd stop-unit --remove "nested-vm"
 
 execute: |
   # Check the system loaded properly

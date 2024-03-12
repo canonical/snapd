@@ -12,8 +12,16 @@ prepare: |
 execute: |
     revno=$( snap list test-snapd-tools | awk '/^test-snapd/{print $3}' )
 
+    login_option="-l"
+    # pam configuration in arch linux requires to avoid login
+    if os.query is-arch-linux; then
+        login_option=""
+    fi
+
     for u in root test; do
-        su -l -c "
+        # Disabling warning as we don't want the (empty) argument for arch linux
+        # shellcheck disable=SC2086
+        su $login_option -c "
             set -e
             # use the snap so it creates the directories
             test-snapd-tools.echo OK
@@ -37,7 +45,9 @@ execute: |
     test "$revno" != "$new_revno"
 
     for u in root test; do
-        su -l -c "
+        # Disabling warning as we don't want the (empty) argument for arch linux
+        # shellcheck disable=SC2086
+        su $login_option -c "
             set -e
             # update the current symlink
             test-snapd-tools.echo OK
@@ -52,7 +62,9 @@ execute: |
     test "$new_revno" = "$( readlink ~/snap/test-snapd-tools/current )"
 
     for u in root test; do
-        su -l -c "
+        # Disabling warning as we don't want the (empty) argument for arch linux
+        # shellcheck disable=SC2086
+        su $login_option -c "
             set -e
             # canary is back
             test -e ~/snap/test-snapd-tools/current/canary.txt" "$u"

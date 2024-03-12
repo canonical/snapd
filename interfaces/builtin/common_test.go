@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/testutil"
@@ -58,23 +59,23 @@ slots:
 		name:              "common",
 		connectedPlugUDev: []string{`KERNEL=="foo"`},
 	}
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.Snippets(), DeepEquals, []string{
 		`# common
 KERNEL=="foo", TAG+="snap_consumer_app-a"`,
-		fmt.Sprintf(`TAG=="snap_consumer_app-a", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app-a $devpath $major:$minor"`, dirs.DistroLibExecDir),
+		fmt.Sprintf(`TAG=="snap_consumer_app-a", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_consumer_app-a"`, dirs.DistroLibExecDir),
 		// NOTE: app-b is unaffected as it doesn't have a plug reference.
 		`# common
 KERNEL=="foo", TAG+="snap_consumer_app-c"`,
-		fmt.Sprintf(`TAG=="snap_consumer_app-c", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app-c $devpath $major:$minor"`, dirs.DistroLibExecDir),
+		fmt.Sprintf(`TAG=="snap_consumer_app-c", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_consumer_app-c"`, dirs.DistroLibExecDir),
 	})
 
 	// connected plug udev rules are optional
 	iface = &commonInterface{
 		name: "common",
 	}
-	spec = &udev.Specification{}
+	spec = udev.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
@@ -169,6 +170,21 @@ slots:
 				{(*apparmor.Specification).SuppressHomeIx, true},
 			},
 		},
+		// PycacheDeny
+		{
+			// setting nothing
+			&commonInterface{name: "common", suppressPycacheDeny: false},
+			Checks{
+				{(*apparmor.Specification).SuppressPycacheDeny, false},
+			},
+		},
+		{
+			// setting suppress
+			&commonInterface{name: "common", suppressPycacheDeny: true},
+			Checks{
+				{(*apparmor.Specification).SuppressPycacheDeny, true},
+			},
+		},
 		// sys_module capability
 		{
 			// setting nothing
@@ -205,7 +221,7 @@ slots:
 	}
 
 	for _, test := range tests {
-		spec := &apparmor.Specification{}
+		spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
 		iface := test.iface
 		// before connection, everything should be set to false
 		for _, check := range test.checks {
@@ -238,7 +254,7 @@ slots:
 		name:                 "common",
 		controlsDeviceCgroup: false,
 	}
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
@@ -247,7 +263,7 @@ slots:
 		name:                 "common",
 		controlsDeviceCgroup: true,
 	}
-	spec = &udev.Specification{}
+	spec = udev.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, true)

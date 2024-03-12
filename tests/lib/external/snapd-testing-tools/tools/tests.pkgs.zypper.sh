@@ -31,8 +31,21 @@ remap_one() {
 }
 
 cmd_install() {
-    # shellcheck disable=SC2068
-    zypper install -y $@
+    local ZYPPER_FLAGS="-y"
+    while [ -n "$1" ]; do
+        case "$1" in
+            --no-install-recommends)
+                ZYPPER_FLAGS="$ZYPPER_FLAGS --no-recommends"
+                shift
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+
+    # shellcheck disable=SC2068,SC2086
+    zypper install $ZYPPER_FLAGS $@
 }
 
 cmd_is_installed() {

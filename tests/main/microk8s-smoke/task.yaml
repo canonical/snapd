@@ -1,20 +1,31 @@
 summary: Smoke test for microk8s
 
+details: |
+    Verify the basic functionalities for the microk8s snap. Check that
+    when the snap is installed, the  nodes and services can be retrieved,
+    and nginx service can be deployed and configured. Also check there
+    is not any denials during this process.
+
+backends:
+  - -external
+
 systems:
-  - -amazon-linux-2-* # fails to start service daemon-containerd
-  - -centos-7-*       # doesn't have libseccomp >= 2.4
-  - -centos-8-*       # fails to start service daemon-containerd
-  - -centos-9-*       # fails to start service daemon-containerd
-  - -fedora-36-*      # fails to start service daemon-containerd
-  - -fedora-37-*      # fails to start service daemon-containerd
-  - -debian-10-*      # doesn't have libseccomp >= 2.4
-  - -ubuntu-14.04-*   # doesn't have libseccomp >= 2.4
-  - -ubuntu-*-32      # no microk8s snap for 32 bit systems
-  - -arch-linux-*     # XXX: no curl to the pod for unknown reasons
-  - -ubuntu-*-arm*    # not available on arm
+  - -amazon-linux-2-*    # fails to start service daemon-containerd
+  - -amazon-linux-2023-* # fails to start service daemon-containerd
+  - -centos-7-*          # doesn't have libseccomp >= 2.4
+  - -centos-8-*          # fails to start service daemon-containerd
+  - -centos-9-*          # fails to start service daemon-containerd
+  - -fedora-38-*         # fails to start service daemon-containerd
+  - -fedora-39-*      # fails to start service daemon-containerd
+  - -ubuntu-14.04-*      # doesn't have libseccomp >= 2.4
+  - -ubuntu-*-32         # no microk8s snap for 32 bit systems
+  - -arch-linux-*        # XXX: no curl to the pod for unknown reasons
+  - -ubuntu-*-arm*       # not available on arm
 
 environment:
     CHANNEL/edge: 1.25-strict/edge
+    # apparmor profile of microk8s can make snapd exceed its spread memory limit
+    SNAPD_NO_MEMORY_LIMIT: 1
 
 prepare: |
     # ensure curl is available (needed for Ubuntu Core)

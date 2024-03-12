@@ -180,13 +180,13 @@ type Interface interface {
 	Name() string
 
 	// AutoConnect returns whether plug and slot should be
-	// implicitly auto-connected assuming they will be an
+	// implicitly auto-connected assuming there will be an
 	// unambiguous connection candidate and declaration-based checks
 	// allow.
 	AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool
 }
 
-// PlugSanitizer can be implemented by Interfaces that have reasons to sanitize
+// ConnPlugSanitizer can be implemented by Interfaces that have reasons to sanitize
 // their plugs specifically before a connection is performed.
 type ConnPlugSanitizer interface {
 	BeforeConnectPlug(plug *ConnectedPlug) error
@@ -205,7 +205,7 @@ type SlotSanitizer interface {
 // StaticInfo describes various static-info of a given interface.
 //
 // The Summary must be a one-line string of length suitable for listing views.
-// The DocsURL can point to website (e.g. a forum thread) that goes into more
+// The DocURL can point to website (e.g. a forum thread) that goes into more
 // depth and documents the interface in detail.
 type StaticInfo struct {
 	Summary string `json:"summary,omitempty"`
@@ -227,10 +227,23 @@ type StaticInfo struct {
 	// system-packages-doc that could get the flag set back to false.
 	AffectsPlugOnRefresh bool `json:"affects-plug-on-refresh,omitempty"`
 
-	// BaseDeclarationPlugs defines an optional extension to the base-declaration assertion relevant for this interface.
+	// BaseDeclarationPlugs defines optional plug-side rules in the
+	// base-declaration assertion relevant for this interface. See
+	// interfaces/builtin/README.md, especially "Base declaration policy
+	// patterns".
 	BaseDeclarationPlugs string
-	// BaseDeclarationSlots defines an optional extension to the base-declaration assertion relevant for this interface.
+	// BaseDeclarationSlots defines an optional slot-side rules in the
+	// base-declaration assertion relevant for this interface. See
+	// interfaces/builtin/README.md, especially "Base declaration policy
+	// patterns".
 	BaseDeclarationSlots string
+
+	// AppArmorUnconfinedPlugs results in the snap that plugs this interface
+	// being granted the AppArmor unconfined profile mode
+	AppArmorUnconfinedPlugs bool `json:"apparmor-unconfined-plugs,omitempty"`
+	// Similarly, AppArmorUnconfinedSlots results in the snap that slots this interface
+	// being granted the AppArmor unconfined profile mode
+	AppArmorUnconfinedSlots bool `json:"apparmor-unconfined-slots,omitempty"`
 }
 
 // PermanentPlugServiceSnippets will return the set of snippets for the systemd

@@ -1,12 +1,15 @@
 summary: Test for per-service quota-related snap functionality.
 
+# memory cgroup is disabled on external devices like rpi3
+backends:
+  - -external
+
 # these systems do not support journal quota groups due to their old systemd versions.
 # requires systemd v245+
 systems:
   - -amazon-linux-2-*
   - -centos-7-*
   - -centos-8-*
-  - -debian-10-64
   - -ubuntu-14.04-*
   - -ubuntu-16.04-*
   - -ubuntu-18.04-*

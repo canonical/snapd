@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -36,7 +36,7 @@ import (
 
 type packCmd struct {
 	CheckSkeleton bool   `long:"check-skeleton"`
-	AppendVerity  bool   `long:"append-integrity-data"`
+	AppendVerity  bool   `long:"append-integrity-data" hidden:"yes"`
 	Filename      string `long:"filename"`
 	Compression   string `long:"compression"`
 	Positional    struct {
@@ -61,11 +61,13 @@ When used with --check-skeleton, pack only checks whether snap-dir contains
 valid snap metadata and raises an error otherwise. Application commands listed
 in snap metadata file, but appearing with incorrect permission bits result in an
 error. Commands that are missing from snap-dir are listed in diagnostic
-messages.
+messages.`,
 
+/*
 When used with --append-integrity-data, pack will append dm-verity data at the end
 of the snap to be used with snapd's snap integrity verification mechanism.
-`)
+*/
+)
 
 func init() {
 	cmd := addCommand("pack",
@@ -113,7 +115,7 @@ func (x *packCmd) Execute([]string) error {
 		return err
 	}
 
-	snapPath, err := pack.Snap(x.Positional.SnapDir, &pack.Options{
+	snapPath, err := pack.Pack(x.Positional.SnapDir, &pack.Options{
 		TargetDir:   x.Positional.TargetDir,
 		SnapName:    x.Filename,
 		Compression: x.Compression,

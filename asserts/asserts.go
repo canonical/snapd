@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2022 Canonical Ltd
+ * Copyright (C) 2015-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -123,23 +123,26 @@ func (at *AssertionType) AcceptablePrimaryKey(key []string) bool {
 
 // Understood assertion types.
 var (
-	AccountType         = &AssertionType{"account", []string{"account-id"}, nil, assembleAccount, 0}
-	AccountKeyType      = &AssertionType{"account-key", []string{"public-key-sha3-384"}, nil, assembleAccountKey, 0}
-	RepairType          = &AssertionType{"repair", []string{"brand-id", "repair-id"}, nil, assembleRepair, sequenceForming}
-	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, nil, assembleModel, 0}
-	SerialType          = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, nil, assembleSerial, 0}
-	BaseDeclarationType = &AssertionType{"base-declaration", []string{"series"}, nil, assembleBaseDeclaration, 0}
-	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, nil, assembleSnapDeclaration, 0}
-	SnapBuildType       = &AssertionType{"snap-build", []string{"snap-sha3-384"}, nil, assembleSnapBuild, 0}
-	SnapRevisionType    = &AssertionType{"snap-revision", []string{"snap-sha3-384", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapRevision, 0}
-	SnapDeveloperType   = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, nil, assembleSnapDeveloper, 0}
-	SystemUserType      = &AssertionType{"system-user", []string{"brand-id", "email"}, nil, assembleSystemUser, 0}
-	ValidationType      = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, nil, assembleValidation, 0}
-	ValidationSetType   = &AssertionType{"validation-set", []string{"series", "account-id", "name", "sequence"}, nil, assembleValidationSet, sequenceForming}
-	StoreType           = &AssertionType{"store", []string{"store"}, nil, assembleStore, 0}
-	PreseedType         = &AssertionType{"preseed", []string{"series", "brand-id", "model", "system-label"}, nil, assemblePreseed, 0}
+	AccountType              = &AssertionType{"account", []string{"account-id"}, nil, assembleAccount, 0}
+	AccountKeyType           = &AssertionType{"account-key", []string{"public-key-sha3-384"}, nil, assembleAccountKey, 0}
+	RepairType               = &AssertionType{"repair", []string{"brand-id", "repair-id"}, nil, assembleRepair, sequenceForming}
+	ModelType                = &AssertionType{"model", []string{"series", "brand-id", "model"}, nil, assembleModel, 0}
+	SerialType               = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, nil, assembleSerial, 0}
+	BaseDeclarationType      = &AssertionType{"base-declaration", []string{"series"}, nil, assembleBaseDeclaration, 0}
+	SnapDeclarationType      = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, nil, assembleSnapDeclaration, 0}
+	SnapBuildType            = &AssertionType{"snap-build", []string{"snap-sha3-384"}, nil, assembleSnapBuild, 0}
+	SnapRevisionType         = &AssertionType{"snap-revision", []string{"snap-sha3-384", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapRevision, 0}
+	SnapDeveloperType        = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, nil, assembleSnapDeveloper, 0}
+	SystemUserType           = &AssertionType{"system-user", []string{"brand-id", "email"}, nil, assembleSystemUser, 0}
+	ValidationType           = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, nil, assembleValidation, 0}
+	ValidationSetType        = &AssertionType{"validation-set", []string{"series", "account-id", "name", "sequence"}, nil, assembleValidationSet, sequenceForming}
+	StoreType                = &AssertionType{"store", []string{"store"}, nil, assembleStore, 0}
+	PreseedType              = &AssertionType{"preseed", []string{"series", "brand-id", "model", "system-label"}, nil, assemblePreseed, 0}
+	SnapResourceRevisionType = &AssertionType{"snap-resource-revision", []string{"snap-id", "resource-name", "resource-sha3-384", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapResourceRevision, 0}
+	SnapResourcePairType     = &AssertionType{"snap-resource-pair", []string{"snap-id", "resource-name", "resource-revision", "snap-revision", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapResourcePair, 0}
+	AspectBundleType         = &AssertionType{"aspect-bundle", []string{"account-id", "name"}, nil, assembleAspectBundle, 0}
 
-// ...
+	// ...
 )
 
 // Assertion types without a definite authority set (on the wire and/or self-signed).
@@ -150,25 +153,28 @@ var (
 )
 
 var typeRegistry = map[string]*AssertionType{
-	AccountType.Name:         AccountType,
-	AccountKeyType.Name:      AccountKeyType,
-	ModelType.Name:           ModelType,
-	SerialType.Name:          SerialType,
-	BaseDeclarationType.Name: BaseDeclarationType,
-	SnapDeclarationType.Name: SnapDeclarationType,
-	SnapBuildType.Name:       SnapBuildType,
-	SnapRevisionType.Name:    SnapRevisionType,
-	SnapDeveloperType.Name:   SnapDeveloperType,
-	SystemUserType.Name:      SystemUserType,
-	ValidationType.Name:      ValidationType,
-	ValidationSetType.Name:   ValidationSetType,
-	RepairType.Name:          RepairType,
-	StoreType.Name:           StoreType,
+	AccountType.Name:              AccountType,
+	AccountKeyType.Name:           AccountKeyType,
+	ModelType.Name:                ModelType,
+	SerialType.Name:               SerialType,
+	BaseDeclarationType.Name:      BaseDeclarationType,
+	SnapDeclarationType.Name:      SnapDeclarationType,
+	SnapBuildType.Name:            SnapBuildType,
+	SnapRevisionType.Name:         SnapRevisionType,
+	SnapDeveloperType.Name:        SnapDeveloperType,
+	SystemUserType.Name:           SystemUserType,
+	ValidationType.Name:           ValidationType,
+	ValidationSetType.Name:        ValidationSetType,
+	RepairType.Name:               RepairType,
+	StoreType.Name:                StoreType,
+	PreseedType.Name:              PreseedType,
+	SnapResourceRevisionType.Name: SnapResourceRevisionType,
+	SnapResourcePairType.Name:     SnapResourcePairType,
+	AspectBundleType.Name:         AspectBundleType,
 	// no authority
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialRequestType.Name:        SerialRequestType,
 	AccountKeyRequestType.Name:    AccountKeyRequestType,
-	PreseedType.Name:              PreseedType,
 }
 
 // Type returns the AssertionType with name or nil
@@ -204,6 +210,9 @@ func init() {
 	// 2: support for user-presence constraint
 	maxSupportedFormat[SystemUserType.Name] = 2
 
+	// 1: support for constraints
+	maxSupportedFormat[AccountKeyType.Name] = 1
+
 	for _, at := range typeRegistry {
 		at.validate()
 	}
@@ -235,6 +244,7 @@ func MockOptionalPrimaryKey(assertType *AssertionType, key, defaultValue string)
 }
 
 var formatAnalyzer = map[*AssertionType]func(headers map[string]interface{}, body []byte) (formatnum int, err error){
+	AccountKeyType:      accountKeyFormatAnalyze,
 	SnapDeclarationType: snapDeclarationFormatAnalyze,
 	SystemUserType:      systemUserFormatAnalyze,
 }

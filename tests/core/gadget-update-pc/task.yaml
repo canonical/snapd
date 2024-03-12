@@ -13,7 +13,7 @@ prepare: |
         exit
     fi
 
-    if ! test -d /snap/pc; then
+    if not snap list pc; then
         echo "This test needs a host using 'pc' gadget snap"
         exit 1
     fi
@@ -54,8 +54,12 @@ prepare: |
     cp pc-snap/meta/gadget.yaml gadget.yaml.orig
 
     system_seed=""
+    system_bios="--system-bios"
     if os.query is-core20 || os.query is-core22 ; then
         system_seed="--system-seed"
+    fi
+    if os.query is-arm; then
+        system_bios=""
     fi
 
     # prepare first update
@@ -73,7 +77,9 @@ prepare: |
     EOF
 
     # prepare second update
-    python3 ./generate.py ./gadget.yaml.orig v2 $system_seed > pc-snap/meta/gadget.yaml
+    # Disabling warning as we don't want the (empty) arguments
+    # shellcheck disable=SC2086
+    python3 ./generate.py ./gadget.yaml.orig v2 $system_seed $system_bios > pc-snap/meta/gadget.yaml
     echo 'this is updated foo-x3' > foo-x3.img
     cp foo-x3.img pc-snap/foo.img
     echo 'this is updated foo.cfg' > pc-snap/foo.cfg
@@ -102,7 +108,7 @@ restore: |
         exit
     fi
 
-    if ! test -d /snap/pc; then
+    if not snap list pc; then
         echo "This test needs a host using 'pc' gadget snap"
         exit 1
     fi
@@ -124,7 +130,7 @@ execute: |
         exit
     fi
 
-    if ! test -d /snap/pc; then
+    if not snap list pc; then
         echo "This test needs a host using 'pc' gadget snap"
         exit 1
     fi

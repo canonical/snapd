@@ -11,13 +11,7 @@ systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
 execute: |
   echo "Build kernel with failing post-refresh hook"
   VERSION="$(tests.nested show version)"
-  CHANNEL=$VERSION
-  if [ "$VERSION" -eq 16 ]; then
-      CHANNEL=latest
-  fi
-  rm -rf pc-kernel
-  snap download --basename=pc-kernel --channel="$CHANNEL/edge" pc-kernel
-  unsquashfs -d pc-kernel pc-kernel.snap
+  unsquashfs -d pc-kernel "$(tests.nested get extra-snaps-path)"/pc-kernel.snap
   HOOKS_D=pc-kernel/meta/hooks/
   POST_REFRESH_P=$HOOKS_D/post-refresh
   mkdir -p "$HOOKS_D"
@@ -30,8 +24,6 @@ execute: |
 
   echo "Wait for the system to be seeded first"
   remote.exec "sudo snap wait system seed.loaded"
-
-  boot_id="$(tests.nested boot-id)"
 
   echo "Install kernel with failing post-refresh hook"
   remote.push pc-kernel_badhook.snap
@@ -51,6 +43,8 @@ execute: |
       snapd_snap=$(remote.exec find /var/lib/snapd/snaps/ -name 'snapd_*.snap')
   fi
 
+  boot_id="$(tests.nested boot-id)"
+
   chg_id=$(remote.exec "sudo snap install \
                              --dangerous --transaction=all-snaps --no-wait \
                              ./pc-kernel_badhook.snap \"$snapd_snap\"")
@@ -62,6 +56,9 @@ execute: |
   if [ "$VERSION" -eq 16 ]; then
       boot_id="$(tests.nested boot-id)"
       echo "Wait for second reboot for UC16"
+      remote.wait-for reboot "$boot_id"
+      boot_id="$(tests.nested boot-id)"
+      echo "Wait for third reboot for UC16"
       remote.wait-for reboot "$boot_id"
   fi
 

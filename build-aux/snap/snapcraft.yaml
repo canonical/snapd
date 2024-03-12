@@ -113,12 +113,20 @@ parts:
       - liblzma5
     stage:
       - lib/*
-  # Needed by squashfs-tools and fc-cache
+  # Needed by squashfs-tools
   zlib:
     plugin: nil
     stage-packages:
       - zlib1g
     stage:
+      - lib/*
+  # Also needed by squashfs-tools
+  zstd:
+    plugin: nil
+    stage-packages:
+      - libzstd1
+    stage:
+      - usr/lib/*
       - lib/*
   # libc6 is part of core but we need it in the snapd snap for
   # CommandFromSystemSnap
@@ -143,32 +151,22 @@ parts:
       if [ "$(readlink -f lib64/ld64.so.2)" = "/lib/powerpc64le-linux-gnu/ld-2.23.so" ]; then
           ln -f -s ../lib/powerpc64le-linux-gnu/ld-2.23.so lib64/ld64.so.2
       fi
-  # the version in Ubuntu 16.04 (cache v6)
-  fontconfig-xenial:
-    plugin: nil
-    build-packages: [python3-apt]
-    source: https://github.com/snapcore/fc-cache-static-builder.git
-    override-build: |
-      ./build-from-security.py xenial
-      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
-      cp -a fc-cache-xenial $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v6
-    prime:
-      - bin/fc-cache-v6
-  # the version in Ubuntu 18.04 (cache v7)
-  fontconfig-bionic:
-    plugin: nil
-    build-packages: [python3-apt]
-    source: https://github.com/snapcore/fc-cache-static-builder.git
-    override-build: |
-      ./build-from-security.py bionic
-      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
-      cp -a fc-cache-bionic $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v7
-    prime:
-      - bin/fc-cache-v7
   apparmor:
     plugin: autotools
-    build-packages: [bison, flex, gettext, g++, pkg-config]
-    source: https://launchpad.net/apparmor/3.0/3.0.7/+download/apparmor-3.0.7.tar.gz
+    build-packages: [bison, flex, gettext, g++, pkg-config, wget]
+    source: https://launchpad.net/apparmor/3.0/3.0.8/+download/apparmor-3.0.8.tar.gz
+    override-pull: |
+      snapcraftctl pull
+      # add support for mediating posix mqueue's and userns - these come from
+      # the ubuntu source package for lunar
+      # https://git.launchpad.net/ubuntu/+source/apparmor/tree/debian/patches/ubuntu?h=ubuntu/lunar
+      for feature in mqueue userns; do
+        wget https://git.launchpad.net/ubuntu/+source/apparmor/plain/debian/patches/ubuntu/add-${feature}-support.patch?h=ubuntu/lunar -O - | patch -p1
+      done
+      # apply local apparmor patches
+      for patch in $SNAPCRAFT_PROJECT_DIR/build-aux/snap/patches/apparmor/*; do
+          patch -p1 < $patch
+      done
     override-build: |
       cd $SNAPCRAFT_PART_BUILD/libraries/libapparmor
       ./autogen.sh

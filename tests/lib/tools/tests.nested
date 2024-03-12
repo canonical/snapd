@@ -4,7 +4,7 @@ show_help() {
     echo "usage: prepare"
     echo "       restore"
     echo "       build-image IMAGE-TYPE"
-    echo "       create-vm IMAGE-TYPE [--param-cdrom PARAM] [--param-mem PARAM]"
+    echo "       create-vm IMAGE-TYPE [--param-cdrom PARAM] [--param-cpus PARAM] [--param-mem PARAM]"
     echo "       is-nested [core|classic|uc16|uc18|uc20|uc22]"
     echo "       show [ATTRIBUTE]"
     echo "       vm <ACTION>"
@@ -18,6 +18,7 @@ show_help() {
     echo "       transition <recovery-system> <system-mode>"
     echo "       snap-rev <snap-name> [channel]"
     echo "       build-seed <seed-dir> <seed-name> <label>"
+    echo "       nested-system"
     echo ""
     echo "Available options:"
     echo "  -h --help   show this help message."
@@ -41,6 +42,9 @@ show_help() {
     echo "  transition:                 transition to system mode (just available for uc20)"
     echo "  snap-rev:                   get the snap rev in the vm (prints the installed rev if no channel provided)"
     echo "  build-seed                  build a seed that can be used to boot a vm"
+    echo "  prepare-essential-snaps     download and repack essential snaps (gadget, kernel, snapd) to include current snapd, and debug command lines"
+    echo "  configure-default-user      add either cloudinit user or a system-user assertion that will be auto-imported"
+    echo "  nested-system               retrieves the nested system used for spread nested tests"
     echo ""
     echo "IMAGE-TYPES:"
     echo "  core:    work with a core image"
@@ -129,7 +133,7 @@ create_vm() {
             ;;
     esac
 
-    local NESTED_PARAM_CD NESTED_PARAM_MEM NESTED_PARAM_EXTRA NESTED_TPM_NO_RESTART
+    local NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_TPM_NO_RESTART
     while [ $# -gt 0 ]; do
         case "$1" in
             --param-cdrom)
@@ -137,7 +141,11 @@ create_vm() {
                 shift 2
                 ;;
             --param-mem)
-                NESTED_PARAM_MEM="$2"
+                NESTED_MEM="$2"
+                shift 2
+                ;;
+            --param-cpus)
+                NESTED_CPUS="$2"
                 shift 2
                 ;;
             --extra-param)
@@ -155,9 +163,9 @@ create_vm() {
         esac
     done
 
-    export NESTED_PARAM_CD NESTED_PARAM_MEM NESTED_PARAM_EXTRA NESTED_TPM_NO_RESTART
+    export NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_TPM_NO_RESTART
     "$action"
-    unset NESTED_PARAM_CD NESTED_PARAM_MEM NESTED_PARAM_EXTRA NESTED_TPM_NO_RESTART
+    unset NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_TPM_NO_RESTART
 }
 
 is_nested() {
@@ -396,6 +404,29 @@ snap_rev() {
 
 build_seed() {
     nested_build_seed_cdrom "$@"
+}
+
+prepare_essential_snaps() {
+    nested_prepare_essential_snaps
+}
+
+configure_default_user() {
+    nested_configure_default_user
+}
+
+nested_system() {
+    if os.query is-ubuntu 16.04; then
+        echo ubuntu-core-16-64
+    elif os.query is-ubuntu 18.04; then
+        echo ubuntu-core-18-64
+    elif os.query is-ubuntu 20.04; then
+        echo ubuntu-core-20-64
+    elif os.query is-ubuntu 22.04; then
+        echo ubuntu-core-22-64
+    else
+        echo "unsupported nested system"
+        exit 1
+    fi
 }
 
 main() {

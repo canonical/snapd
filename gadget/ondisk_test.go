@@ -20,13 +20,15 @@
 package gadget_test
 
 import (
-	"io/ioutil"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/testutil"
@@ -56,16 +58,16 @@ func makeMockGadget(gadgetRoot, gadgetContent string) error {
 	if err := os.MkdirAll(filepath.Join(gadgetRoot, "meta"), 0755); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetContent), 0644); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "pc-boot.img"), []byte("pc-boot.img content"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(gadgetRoot, "pc-boot.img"), []byte("pc-boot.img content"), 0644); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "pc-core.img"), []byte("pc-core.img content"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(gadgetRoot, "pc-core.img"), []byte("pc-core.img content"), 0644); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(filepath.Join(gadgetRoot, "grubx64.efi"), []byte("grubx64.efi content"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(gadgetRoot, "grubx64.efi"), []byte("grubx64.efi content"), 0644); err != nil {
 		return err
 	}
 
@@ -415,5 +417,108 @@ func (s *ondiskTestSuite) TestOnDiskStructureFromPartition(c *C) {
 		PartitionFSLabel: "foobarfs",
 		PartitionFSType:  "ext4",
 		StartOffset:      1024 * 1024,
+	})
+}
+
+func (s *ondiskTestSuite) TestOnDiskVolumeFromGadgetVol(c *C) {
+	vdaSysPath := "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda"
+	restore := gadget.MockSysfsPathForBlockDevice(func(device string) (string, error) {
+		if strings.HasPrefix(device, "/dev/vda") == true {
+			return filepath.Join(vdaSysPath, filepath.Base(device)), nil
+		}
+		return "", fmt.Errorf("bad disk")
+	})
+	defer restore()
+
+	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
+	ginfo, _, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot)
+	c.Assert(err, IsNil)
+	defer restore()
+
+	// Initially without setting devices
+	diskVol, err := gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"])
+	c.Check(err.Error(), Equals, `volume "pc" has no device assigned`)
+	c.Check(diskVol, IsNil)
+
+	// Set devices as an installer would
+	for _, vol := range ginfo.Volumes {
+		for sIdx := range vol.Structure {
+			if vol.Structure[sIdx].Type == "mbr" {
+				continue
+			}
+			vol.Structure[sIdx].Device = fmt.Sprintf("/dev/vda%d", sIdx+1)
+		}
+	}
+
+	diskVol, err = gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"])
+	c.Check(err, IsNil)
+	c.Check(diskVol, DeepEquals, &gadgettest.MockGadgetPartitionedOnDiskVolume)
+
+	// Now setting it for the mbr
+	ginfo.Volumes["pc"].Structure[0].Device = "/dev/vda"
+	diskVol, err = gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"])
+	c.Check(err, IsNil)
+	c.Check(diskVol, DeepEquals, &gadgettest.MockGadgetPartitionedOnDiskVolume)
+
+	// Setting a wrong partition name
+	ginfo.Volumes["pc"].Structure[1].Device = "/dev/mmcblk0p1"
+	diskVol, err = gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["pc"])
+	c.Check(err.Error(), Equals, "bad disk")
+	c.Check(diskVol, IsNil)
+}
+
+func (s *ondiskTestSuite) TestOnDiskStructsFromGadget(c *C) {
+	gadgetYaml := `
+volumes:
+  disk:
+    bootloader: u-boot
+    structure:
+      - name: ubuntu-seed
+        filesystem: vfat
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+      - name: ubuntu-boot
+        filesystem: ext4
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+      - name: ubuntu-save
+        offset: 1100M
+        size: 10485760
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+      - name: ubuntu-data
+        filesystem: ext4
+        size: 1G
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+`
+	vol := mustParseVolume(c, gadgetYaml, "disk")
+	c.Assert(vol.Structure, HasLen, 4)
+
+	onDisk := gadget.OnDiskStructsFromGadget(vol)
+	c.Assert(onDisk, DeepEquals, map[int]*gadget.OnDiskStructure{
+		0: {
+			Name:        "ubuntu-seed",
+			Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			StartOffset: quantity.OffsetMiB,
+			Size:        500 * quantity.SizeMiB,
+		},
+		1: {
+			Name:        "ubuntu-boot",
+			Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			StartOffset: 501 * quantity.OffsetMiB,
+			Size:        500 * quantity.SizeMiB,
+		},
+		2: {
+			Name:        "ubuntu-save",
+			Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			StartOffset: 1100 * quantity.OffsetMiB,
+			Size:        10 * quantity.SizeMiB,
+		},
+		3: {
+			Name:        "ubuntu-data",
+			Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			StartOffset: 1110 * quantity.OffsetMiB,
+			Size:        quantity.SizeGiB,
+		},
 	})
 }

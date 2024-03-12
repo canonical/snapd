@@ -68,6 +68,10 @@ func (s *snapsSuite) SetUpTest(c *check.C) {
 	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
 }
 
+func (s *snapsSuite) expectSnapsReadAccess() {
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interface: "snap-refresh-observe"})
+}
+
 func (s *snapsSuite) TestSnapsInfoIntegration(c *check.C) {
 	s.checkSnapsInfoIntegration(c, false, nil)
 }
@@ -96,6 +100,7 @@ func snapList(rawSnaps interface{}) []map[string]interface{} {
 }
 
 func (s *snapsSuite) checkSnapsInfoIntegration(c *check.C, all bool, names []string) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	type tsnap struct {
@@ -170,6 +175,7 @@ func (s *snapsSuite) checkSnapsInfoIntegration(c *check.C, all bool, names []str
 }
 
 func (s *snapsSuite) TestSnapsInfoOnlyLocal(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	s.rsnaps = []*snap.Info{{
@@ -209,6 +215,7 @@ func (s *snapsSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapsInfoAllMixedPublishers(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	// the first 'local' is from a 'local' snap
@@ -236,6 +243,7 @@ func (s *snapsSuite) TestSnapsInfoAllMixedPublishers(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapsInfoAll(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(1), false, "")
@@ -282,6 +290,7 @@ func (s *snapsSuite) TestSnapsInfoAll(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapsInfoOnlyStore(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	s.suggestedCurrency = "EUR"
@@ -315,6 +324,7 @@ func (s *snapsSuite) TestSnapsInfoOnlyStore(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	state := d.Overlord().State()
@@ -340,6 +350,7 @@ func (s *snapsSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapsInfoLocalAndStore(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	s.rsnaps = []*snap.Info{{
@@ -386,6 +397,7 @@ func (s *snapsSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapsInfoDefaultSources(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	s.rsnaps = []*snap.Info{{
@@ -412,6 +424,7 @@ func (s *snapsSuite) TestSnapsInfoDefaultSources(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapsInfoFilterRemote(c *check.C) {
+	s.expectSnapsReadAccess()
 	s.daemon(c)
 
 	s.rsnaps = nil
@@ -464,7 +477,7 @@ func (s *snapsSuite) TestPostSnapsNoWeirdses(c *check.C) {
 			"jailmode":     "true",
 			"cohort-key":   `"what"`,
 			"leave-cohort": "true",
-			"purge":        "true",
+			"prefer":       "true",
 		} {
 			buf := strings.NewReader(fmt.Sprintf(`{"action": "%s","snaps":["foo","bar"], "%s": %s}`, action, weird, v))
 			req, err := http.NewRequest("POST", "/v2/snaps", buf)
@@ -524,6 +537,31 @@ func (s *snapsSuite) TestPostSnapsOptionsOtherErrors(c *check.C) {
 		c.Check(rspe.Status, check.Equals, 400)
 		c.Check(rspe.Message, testutil.Contains, test.expectedError, check.Commentf("test: %q", name))
 	}
+}
+
+func (s *snapsSuite) TestPostSnapsRemoveManyWithPurge(c *check.C) {
+	d := s.daemonWithOverlordMockAndStore()
+
+	defer daemon.MockSnapstateRemoveMany(func(s *state.State, names []string, opts *snapstate.RemoveFlags) ([]string, []*state.TaskSet, error) {
+		c.Check(names, check.HasLen, 2)
+		c.Check(opts.Purge, check.Equals, true)
+		t := s.NewTask("fake-remove-2", "Remove two")
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	})()
+
+	buf := strings.NewReader(fmt.Sprintf(`{"action": "remove", "snaps":["foo", "bar"], "purge":true}`))
+	req, err := http.NewRequest("POST", "/v2/snaps", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json")
+
+	rsp := s.jsonReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 202)
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Check(chg.Summary(), check.Equals, `Remove snaps "foo", "bar"`)
 }
 
 func (s *snapsSuite) TestPostSnapsOptionsClean(c *check.C) {
@@ -1247,6 +1285,7 @@ func (s *snapsSuite) TestSnapInfoReturnsHolds(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapManyInfosReturnsHolds(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 	s.mkInstalledInState(c, d, "snap-a", "bar", "v0", snap.R(5), true, "")
 	s.mkInstalledInState(c, d, "snap-b", "bar", "v0", snap.R(5), true, "")
@@ -1286,6 +1325,156 @@ func (s *snapsSuite) TestSnapManyInfosReturnsHolds(c *check.C) {
 		case "snap-b":
 			c.Assert(snap["gating-hold"], check.Equals, gatingHold.Format(time.RFC3339Nano))
 			_, ok := snap["hold"]
+			c.Assert(ok, check.Equals, false)
+		}
+	}
+}
+
+func (s *snapsSuite) TestSnapInfoReturnsRefreshInhibitProceedTime(c *check.C) {
+	d := s.daemon(c)
+	s.mkInstalledInState(c, d, "foo", "bar", "v0", snap.R(5), true, "")
+
+	st := d.Overlord().State()
+	st.Lock()
+	var snapst snapstate.SnapState
+	// Update snap state with RefreshInhibitedTime.
+	c.Assert(snapstate.Get(st, "foo", &snapst), check.IsNil)
+	refreshInhibitTime := time.Now().Add(1 * time.Hour)
+	snapst.RefreshInhibitedTime = &refreshInhibitTime
+	snapstate.Set(st, "foo", &snapst)
+	// Get expected proceed time while we have the lock.
+	expectedProceedTime := snapst.RefreshInhibitProceedTime(st)
+
+	monitored := map[string]context.CancelFunc{"foo": func() {}}
+	st.Cache("monitored-snaps", monitored)
+	st.Unlock()
+
+	req, err := http.NewRequest("GET", "/v2/snaps/foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, nil)
+
+	c.Assert(rsp.Result, check.FitsTypeOf, &client.Snap{})
+	snapInfo := rsp.Result.(*client.Snap)
+	c.Assert(snapInfo.RefreshInhibit, check.NotNil)
+
+	c.Check(snapInfo.RefreshInhibit.ProceedTime.Equal(expectedProceedTime), check.Equals, true)
+}
+
+func (s *snapsSuite) TestSnapManyInfosReturnsRefreshInhibitProceedTime(c *check.C) {
+	s.expectSnapsReadAccess()
+	d := s.daemon(c)
+	s.mkInstalledInState(c, d, "snap-a", "bar", "v0", snap.R(5), true, "")
+	s.mkInstalledInState(c, d, "snap-b", "bar", "v0", snap.R(5), true, "")
+	s.mkInstalledInState(c, d, "snap-c", "bar", "v0", snap.R(5), true, "")
+
+	st := d.Overlord().State()
+	st.Lock()
+	var snapst snapstate.SnapState
+
+	// Update snap-a state with RefreshInhibitedTime.
+	c.Assert(snapstate.Get(st, "snap-a", &snapst), check.IsNil)
+	refreshInhibitTime := time.Now().Add(1 * time.Hour)
+	snapst.RefreshInhibitedTime = &refreshInhibitTime
+	snapstate.Set(st, "snap-a", &snapst)
+	// Get expected proceed time for snap-a while we have the lock.
+	expectedProceedTimeA := snapst.RefreshInhibitProceedTime(st)
+
+	// Update snap-b state with RefreshInhibitedTime.
+	c.Assert(snapstate.Get(st, "snap-b", &snapst), check.IsNil)
+	refreshInhibitTime = time.Now().Add(1 * time.Hour)
+	snapst.RefreshInhibitedTime = &refreshInhibitTime
+	snapstate.Set(st, "snap-b", &snapst)
+	// Get expected proceed time for snap-b while we have the lock.
+	expectedProceedTimeB := snapst.RefreshInhibitProceedTime(st)
+
+	monitored := map[string]context.CancelFunc{
+		"snap-a": func() {},
+		// Simulate a scenario where a refresh is continued (i.e. snap is
+		// not monitored) but RefreshInhibitedTime is not reset yet.
+		"snap-b": nil,
+	}
+	st.Cache("monitored-snaps", monitored)
+
+	st.Unlock()
+
+	req, err := http.NewRequest("GET", "/v2/snaps", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.jsonReq(c, req, nil)
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 3)
+
+	for _, snap := range snaps {
+		testCmt := check.Commentf("snap %s failed", snap["name"])
+		switch snap["name"] {
+		case "snap-a":
+			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
+			c.Assert(refreshInhibit["proceed-time"], check.Equals, expectedProceedTimeA.Format(time.RFC3339Nano), testCmt)
+		case "snap-b":
+			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
+			c.Assert(refreshInhibit["proceed-time"], check.Equals, expectedProceedTimeB.Format(time.RFC3339Nano), testCmt)
+		case "snap-c":
+			_, ok := snap["refresh-inhibit"]
+			c.Assert(ok, check.Equals, false)
+		}
+	}
+}
+
+func (s *snapsSuite) TestSnapManyInfosSelectRefreshInhibited(c *check.C) {
+	s.expectSnapsReadAccess()
+	d := s.daemon(c)
+	s.mkInstalledInState(c, d, "snap-a", "bar", "v0", snap.R(5), true, "")
+	s.mkInstalledInState(c, d, "snap-b", "bar", "v0", snap.R(5), true, "")
+	s.mkInstalledInState(c, d, "snap-c", "bar", "v0", snap.R(5), true, "")
+
+	st := d.Overlord().State()
+	st.Lock()
+	var snapst snapstate.SnapState
+
+	// Update snap-a state with RefreshInhibitedTime.
+	c.Assert(snapstate.Get(st, "snap-a", &snapst), check.IsNil)
+	refreshInhibitTime := time.Now().Add(1 * time.Hour)
+	snapst.RefreshInhibitedTime = &refreshInhibitTime
+	snapstate.Set(st, "snap-a", &snapst)
+	// Get expected proceed time for snap-a while we have the lock.
+	expectedProceedTimeA := snapst.RefreshInhibitProceedTime(st)
+
+	// Update snap-b state with RefreshInhibitedTime.
+	c.Assert(snapstate.Get(st, "snap-b", &snapst), check.IsNil)
+	// Simulate a scenario where proceed time is in the past but the snap is still monitored
+	refreshInhibitTime = time.Now().Add(-30 * 24 * time.Hour)
+	snapst.RefreshInhibitedTime = &refreshInhibitTime
+	snapstate.Set(st, "snap-b", &snapst)
+	// Get expected proceed time for snap-a while we have the lock.
+	expectedProceedTimeB := snapst.RefreshInhibitProceedTime(st)
+
+	monitored := map[string]context.CancelFunc{
+		"snap-a": func() {},
+		// Snap monitored should show as inhibited even when proceed-time is in the past
+		"snap-b": func() {},
+	}
+	st.Cache("monitored-snaps", monitored)
+
+	st.Unlock()
+
+	req, err := http.NewRequest("GET", "/v2/snaps?select=refresh-inhibited", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.jsonReq(c, req, nil)
+	snaps := snapList(rsp.Result)
+
+	for _, snap := range snaps {
+		testCmt := check.Commentf("snap %s failed", snap["name"])
+		switch snap["name"] {
+		case "snap-a":
+			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
+			c.Assert(refreshInhibit["proceed-time"], check.Equals, expectedProceedTimeA.Format(time.RFC3339Nano), testCmt)
+		case "snap-b":
+			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
+			c.Assert(refreshInhibit["proceed-time"], check.Equals, expectedProceedTimeB.Format(time.RFC3339Nano), testCmt)
+		case "snap-c":
+			_, ok := snap["refresh-inhibit"]
 			c.Assert(ok, check.Equals, false)
 		}
 	}
@@ -1531,6 +1720,10 @@ func (s *snapsSuite) testPostSnap(c *check.C, extraJSON string, checkOpts func(o
 	c.Check(soon, check.Equals, 1)
 	c.Check(chg.Tasks()[0].Summary(), check.Equals, "Doing a fake install")
 
+	var apiData map[string]interface{}
+	c.Check(chg.Get("api-data", &apiData), check.IsNil)
+	c.Check(apiData["snap-names"], check.DeepEquals, []interface{}{"foo"})
+
 	summary = chg.Summary()
 	err = chg.Get("system-restart-immediate", &systemRestartImmediate)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -1587,6 +1780,21 @@ func (s *snapsSuite) TestPostSnapLeaveCohortUnsupportedAction(c *check.C) {
 
 	for _, action := range []string{"install", "remove", "revert", "enable", "disable", "xyzzy"} {
 		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "leave-cohort": true}`, action))
+		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+		c.Assert(err, check.IsNil)
+
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rspe.Message, check.Equals, expectedErr, check.Commentf("%q", action))
+	}
+}
+
+func (s *snapsSuite) TestPostSnapPreferWrongAction(c *check.C) {
+	s.daemonWithOverlordMock()
+	const expectedErr = "the prefer flag can only be specified on install"
+
+	for _, action := range []string{"remove", "refresh", "revert", "enable", "disable", "xyzzy"} {
+		buf := strings.NewReader(fmt.Sprintf(`{"action": "%s", "prefer": true}`, action))
 		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
 		c.Assert(err, check.IsNil)
 
@@ -3008,4 +3216,16 @@ func (s *snapsSuite) TestHoldAllSnapsGeneralRefreshesNotSupported(c *check.C) {
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 400)
 	c.Assert(rspe.Error(), check.Matches, `cannot hold: holding general refreshes for all snaps is not supported.*`)
+}
+
+func (s *snapsSuite) TestOnlyAllowUnaliasedOrPrefer(c *check.C) {
+	s.daemon(c)
+	buf := bytes.NewBufferString(`{"action": "install", "unaliased": true, "prefer": true}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/foo", buf)
+	req.Header.Set("Content-Type", "application/json")
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Assert(rspe.Error(), check.Matches, `cannot use unaliased and prefer flags together.*`)
 }

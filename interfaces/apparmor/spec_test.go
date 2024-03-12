@@ -90,7 +90,7 @@ func (s *specSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
-	s.spec = &apparmor.Specification{}
+	s.spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap))
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 }
@@ -101,13 +101,19 @@ func (s *specSuite) TearDownTest(c *C) {
 
 // The spec.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
-	var r interfaces.Specification = s.spec
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap))
+	var r interfaces.Specification = spec
 	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
-	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
-	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
+	c.Assert(spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.snap1.app1": {"connected-plug", "permanent-plug"},
+	})
+
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
+	r = spec
+	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.snap2.app2": {"connected-slot", "permanent-slot"},
 	})
 }
@@ -537,6 +543,42 @@ func (s *specSuite) TestApparmorExtraLayouts(c *C) {
 	// lines 3..9 is the traversal of the prefix for /usr/home/test
 }
 
+func (s *specSuite) TestAddEnsureDirMounts(c *C) {
+	ensureDirSpecs := []*interfaces.EnsureDirSpec{
+		{MustExistDir: "$HOME", EnsureDir: "$HOME/.local/share"},
+		{MustExistDir: "$HOME", EnsureDir: "$HOME/dir1/dir2"},
+		{MustExistDir: "/", EnsureDir: "/dir1/dir2"},
+		{MustExistDir: "/dir1", EnsureDir: "/dir1"},
+	}
+	s.spec.AddEnsureDirMounts("personal-files", ensureDirSpecs)
+	c.Check("\n"+strings.Join(s.spec.UpdateNS(), "\n"), Equals, `
+  # Allow the personal-files interface to create potentially missing directories
+  owner @{HOME}/ rw,
+  owner @{HOME}/.local/ rw,
+  owner @{HOME}/.local/share/ rw,
+  owner @{HOME}/dir1/ rw,
+  owner @{HOME}/dir1/dir2/ rw,
+  owner / rw,
+  owner /dir1/ rw,
+  owner /dir1/dir2/ rw,`)
+}
+
+func (s *specSuite) TestAddEnsureDirMountsReturnsOnDirsMatch(c *C) {
+	ensureDirSpecs := []*interfaces.EnsureDirSpec{
+		{MustExistDir: "/dir", EnsureDir: "/dir"},
+	}
+	s.spec.AddEnsureDirMounts("personal-files", ensureDirSpecs)
+	c.Check(s.spec.UpdateNS(), HasLen, 0)
+}
+
+func (s *specSuite) TestAddEnsureDirMountsReturnsOnPathIteratorError(c *C) {
+	ensureDirSpecs := []*interfaces.EnsureDirSpec{
+		{MustExistDir: "/dir1", EnsureDir: "/../"},
+	}
+	s.spec.AddEnsureDirMounts("personal-files", ensureDirSpecs)
+	c.Check(s.spec.UpdateNS(), HasLen, 0)
+}
+
 func (s *specSuite) TestUsesPtraceTrace(c *C) {
 	c.Assert(s.spec.UsesPtraceTrace(), Equals, false)
 	s.spec.SetUsesPtraceTrace()
@@ -553,4 +595,10 @@ func (s *specSuite) TestSetSuppressHomeIx(c *C) {
 	c.Assert(s.spec.SuppressHomeIx(), Equals, false)
 	s.spec.SetSuppressHomeIx()
 	c.Assert(s.spec.SuppressHomeIx(), Equals, true)
+}
+
+func (s *specSuite) TestSetSuppressPycacheDeny(c *C) {
+	c.Assert(s.spec.SuppressPycacheDeny(), Equals, false)
+	s.spec.SetSuppressPycacheDeny()
+	c.Assert(s.spec.SuppressPycacheDeny(), Equals, true)
 }

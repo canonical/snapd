@@ -79,7 +79,7 @@ func (s *DmCryptInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *DmCryptInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/mapper/control")
@@ -97,7 +97,7 @@ func (s *DmCryptInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *DmCryptInterfaceSuite) TestUDevSpec(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 4)
 	c.Assert(spec.Snippets(), testutil.Contains, `# dm-crypt
@@ -107,11 +107,11 @@ KERNEL=="dm-[0-9]", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# dm-crypt
 SUBSYSTEM=="block", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains,
-		fmt.Sprintf(`TAG=="snap_consumer_app", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
+		fmt.Sprintf(`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_consumer_app"`, dirs.DistroLibExecDir))
 }
 
 func (s *DmCryptInterfaceSuite) TestSeccompSpec(c *C) {
-	spec := &seccomp.Specification{}
+	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "add_key\n")

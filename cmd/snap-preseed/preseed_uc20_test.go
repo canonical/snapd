@@ -20,7 +20,6 @@
 package main_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -43,7 +42,7 @@ func (s *startPreseedSuite) TestRunPreseedUC20Happy(c *C) {
 	// for UC20 probing
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "system-seed/systems/20220203"), 0755), IsNil)
 	// we don't run tar, so create a fake artifact to make FileDigest happy
-	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
 
 	var called bool
 	restorePreseed := main.MockPreseedCore20(func(opts *preseed.CoreOptions) error {
@@ -72,7 +71,7 @@ func (s *startPreseedSuite) TestRunPreseedUC20HappyNoArgs(c *C) {
 
 	// for UC20 probing
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "system-seed/systems/20220203"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
 
 	var called bool
 	restorePreseed := main.MockPreseedCore20(func(opts *preseed.CoreOptions) error {
@@ -102,7 +101,7 @@ func (s *startPreseedSuite) TestResetUC20(c *C) {
 	// for UC20 probing
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "system-seed/systems/20220203"), 0755), IsNil)
 	// we don't run tar, so create a fake artifact to make FileDigest happy
-	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), nil, 0644), IsNil)
 
 	var called bool
 	restorePreseed := main.MockPreseedCore20(func(opts *preseed.CoreOptions) error {

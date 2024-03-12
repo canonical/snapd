@@ -91,7 +91,14 @@ func deriveIconContent(instanceName string, rootDir string, icons []string) (con
 	return content, nil
 }
 
-func AddSnapIcons(s *snap.Info) error {
+// EnsureSnapIcons puts in place the icon files for the applications from the snap.
+//
+// It also removes icon files from the applications of the old snap revision to ensure
+// that only new snap icon files exist.
+func EnsureSnapIcons(s *snap.Info) error {
+	if s == nil {
+		return fmt.Errorf("internal error: snap info cannot be nil")
+	}
 	if err := os.MkdirAll(dirs.SnapDesktopIconsDir, 0755); err != nil {
 		return err
 	}
@@ -111,6 +118,7 @@ func AddSnapIcons(s *snap.Info) error {
 	return err
 }
 
+// RemoveSnapIcons removes the added icons for the applications in the snap.
 func RemoveSnapIcons(s *snap.Info) error {
 	if !osutil.IsDirectory(dirs.SnapDesktopIconsDir) {
 		return nil

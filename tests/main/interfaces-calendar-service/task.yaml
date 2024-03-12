@@ -1,5 +1,9 @@
 summary: Ensure that the calendar-service interface works
 
+details: |
+    Verifies the calendar-service interface works, and it is not
+    connected by default
+
 # fails in the autopkgtest env with:
 # [Wed Aug 15 16:34:12 2018] audit: type=1400
 # audit(1534350852.923:58499): apparmor="DENIED" operation="connect"
@@ -20,12 +24,10 @@ systems:
     - -amazon-*  # no need to run this on amazon
     - -arch-linux-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -centos-*
-    - -debian-11-*
-    - -debian-sid-*
-    - -fedora-36-*  # test-snapd-eds is incompatible with eds version shipped with the distro
-    - -fedora-37-*  # test-snapd-eds is incompatible with eds version shipped with the distro
-    - -opensuse-15.3-*  # test-snapd-eds is incompatible with eds version shipped with the distro
-    - -opensuse-15.4-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -debian-*
+    - -fedora-38-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -fedora-39-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -opensuse-15.5-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -opensuse-tumbleweed-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -ubuntu-14.04-*  # no tests.session support, eds is too old
     - -ubuntu-2*  # test-snapd-eds is incompatible with eds shipped with the distro

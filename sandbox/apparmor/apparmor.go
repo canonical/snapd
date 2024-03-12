@@ -20,6 +20,7 @@
 package apparmor
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io/ioutil"
@@ -31,6 +32,7 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
@@ -85,6 +87,14 @@ func setupConfCacheDirs(newrootdir string) {
 		// TODO: it seems Solus has a different setup too, investigate this
 		SystemCacheDir = CacheDir
 	}
+
+	snapConfineDir := "snap-confine"
+	if _, internal, err := AppArmorParser(); err == nil {
+		if internal {
+			snapConfineDir = "snap-confine.internal"
+		}
+	}
+	SnapConfineAppArmorDir = filepath.Join(dirs.SnapdStateDir(newrootdir), "apparmor", snapConfineDir)
 }
 
 func init() {
@@ -93,9 +103,10 @@ func init() {
 }
 
 var (
-	ConfDir        string
-	CacheDir       string
-	SystemCacheDir string
+	ConfDir                string
+	CacheDir               string
+	SystemCacheDir         string
+	SnapConfineAppArmorDir string
 )
 
 func (level LevelType) String() string {
@@ -334,6 +345,16 @@ func probeKernelFeatures() ([]string, error) {
 	for _, fi := range dentries {
 		if fi.IsDir() {
 			features = append(features, fi.Name())
+			// also read any sub-features
+			subdenties, err := ioutil.ReadDir(filepath.Join(rootPath, featuresSysPath, fi.Name()))
+			if err != nil {
+				return []string{}, err
+			}
+			for _, subfi := range subdenties {
+				if subfi.IsDir() {
+					features = append(features, fi.Name()+":"+subfi.Name())
+				}
+			}
 		}
 	}
 	return features, nil
@@ -342,6 +363,7 @@ func probeKernelFeatures() ([]string, error) {
 func probeParserFeatures() ([]string, error) {
 	var featureProbes = []struct {
 		feature string
+		flags   []string
 		probe   string
 	}{
 		{
@@ -376,6 +398,11 @@ func probeParserFeatures() ([]string, error) {
 			feature: "userns",
 			probe:   "userns,",
 		},
+		{
+			feature: "unconfined",
+			flags:   []string{"unconfined"},
+			probe:   "# test unconfined",
+		},
 	}
 	_, internal, err := AppArmorParser()
 	if err != nil {
@@ -385,7 +412,7 @@ func probeParserFeatures() ([]string, error) {
 	for _, fp := range featureProbes {
 		// recreate the Cmd each time so we can exec it each time
 		cmd, _, _ := AppArmorParser()
-		if tryAppArmorParserFeature(cmd, fp.probe) {
+		if tryAppArmorParserFeature(cmd, fp.flags, fp.probe) {
 			features = append(features, fp.feature)
 		}
 	}
@@ -394,6 +421,32 @@ func probeParserFeatures() ([]string, error) {
 	}
 	sort.Strings(features)
 	return features, nil
+}
+
+func systemAppArmorLoadsSnapPolicy() bool {
+	// on older Ubuntu systems the system installed apparmor may try and
+	// load snapd generated apparmor policy (LP: #2024637)
+	f, err := os.Open(filepath.Join(dirs.GlobalRootDir, "/lib/apparmor/functions"))
+	if err != nil {
+		if !os.IsNotExist(err) {
+			logger.Debugf("cannot open apparmor functions file: %v", err)
+		}
+		return false
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, dirs.SnapAppArmorDir) {
+			return true
+		}
+	}
+	if scanner.Err() != nil {
+		logger.Debugf("cannot scan apparmor functions file: %v", scanner.Err())
+	}
+
+	return false
 }
 
 func snapdAppArmorSupportsReexecImpl() bool {
@@ -413,7 +466,7 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	// - but only use the internal one when we know that the system
 	// installed snapd-apparmor support re-exec
 	if path, err := snapdtool.InternalToolPath("apparmor_parser"); err == nil {
-		if osutil.IsExecutable(path) && snapdAppArmorSupportsReexec() {
+		if osutil.IsExecutable(path) && snapdAppArmorSupportsReexec() && !systemAppArmorLoadsSnapPolicy() {
 			prefix := strings.TrimSuffix(path, "apparmor_parser")
 			// when using the internal apparmor_parser also use
 			// its own configuration and includes etc plus
@@ -441,9 +494,14 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 }
 
 // tryAppArmorParserFeature attempts to pre-process a bit of apparmor syntax with a given parser.
-func tryAppArmorParserFeature(cmd *exec.Cmd, rule string) bool {
+func tryAppArmorParserFeature(cmd *exec.Cmd, flags []string, rule string) bool {
 	cmd.Args = append(cmd.Args, "--preprocess")
-	cmd.Stdin = bytes.NewBufferString(fmt.Sprintf("profile snap-test {\n %s\n}", rule))
+	flagSnippet := ""
+	if len(flags) > 0 {
+		flagSnippet = fmt.Sprintf("flags=(%s) ", strings.Join(flags, ","))
+	}
+	cmd.Stdin = bytes.NewBufferString(fmt.Sprintf("profile snap-test %s{\n %s\n}",
+		flagSnippet, rule))
 	output, err := cmd.CombinedOutput()
 	// older versions of apparmor_parser can exit with success even
 	// though they fail to parse

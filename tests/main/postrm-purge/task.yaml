@@ -1,5 +1,7 @@
 summary: Check that package remove and purge removes everything related to snaps
-
+details: |
+  Ensure that the purge we do when removing the snapd package really removes all
+  snap related files from the host system.
 systems: [-ubuntu-core-*]
 
 prepare: |
@@ -95,11 +97,18 @@ execute: |
 
     # XXX: use retry instead
     sleep 5
-    systemctl --no-legend --full > output.txt
+    # snap services may have failed and systemd will keep their 'state' in
+    # memory even after it's reloaded, since the purge does not run reset-failed
+    # to allow the user to inspect them as need we need to account for those
+    # entries in the output
+    systemctl --plain --no-legend --full |grep -v ' not-found failed ' > output.txt
     if grep -E "snap\..*\.(service|timer|socket)" < output.txt; then
         echo "found unexpected leftovers"
         exit 1
     fi
+
+    # Check no snapd services are listed
+    systemctl list-units --legend=no "snapd.*" | NOMATCH "loaded"
 
     echo "No dangling service symlinks are left behind"
     test -z "$(find /etc/systemd/system/multi-user.target.wants/ -name 'snap.test-snapd-service.*')"

@@ -4,12 +4,10 @@ systems: [-ubuntu-core-*]
 
 prepare: |
     echo "Ensure empty state"
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB/systemd.sh"
     echo "Ensure all snaps are gone"
     snapd.tool exec snap-mgmt --purge
 
-    systemd_stop_units snapd.service
+    tests.systemd stop-unit snapd.service
     rm -f /var/lib/snapd/state.json
     systemctl start snapd
     snap wait system seed.loaded

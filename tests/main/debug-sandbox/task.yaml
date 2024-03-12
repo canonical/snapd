@@ -6,7 +6,7 @@ execute: |
         snap debug sandbox-features | grep "confinement-options: " | NOMATCH "classic"
         snap debug sandbox-features | MATCH "apparmor: .+"
         ;;
-    ubuntu-*|opensuse-*|debian-10-*|debian-sid-*|arch-linux-*)
+    ubuntu-*|opensuse-*|debian-sid-*|arch-linux-*)
         # Debian, openSUSE, Arch because partial apparmor is enabled
         snap debug sandbox-features | MATCH "apparmor: .+"
         ;;

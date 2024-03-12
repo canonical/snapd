@@ -1,4 +1,8 @@
-summary: Check that an inhibited auto-refresh triggers a pre-download change and resumes on close
+summary: Check auto-refresh from a pre-download change
+
+details: |
+  Verify that an inhibited auto-refresh triggers a pre-download change and resumes on close
+
 
 # Ubuntu 14.04's special version of systemd doesn't have StartTransientUnit API.
 systems: [-ubuntu-14.04-*]
@@ -34,7 +38,7 @@ execute: |
     local OLD_CHANGE="$1"
     local NEW_CHANGE
 
-    for _ in $(seq 5); do
+    for _ in $(seq 30); do
       NEW_CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
       if [ "$NEW_CHANGE" -gt "$OLD_CHANGE" ]; then
         break
@@ -80,8 +84,8 @@ execute: |
 
   if os.query is-ubuntu && os.query is-classic; then
     # check that the pre-download notified the user to close the snap
-    retry -n 20 MATCH 'string "Pending update of "test-snapd-sh" snap"' < /home/test/notif.log
-    MATCH 'string "Close the app to update now \(.* days left\)"' < /home/test/notif.log
+    retry -n 20 MATCH 'string "Update available for test-snapd-sh."' < /home/test/notif.log
+    MATCH 'string "Close the application to update now. It will update automatically in .* days."' < /home/test/notif.log
 
     # stop all the dbus monitoring related processes
     systemctl kill user-12345.slice 2>/dev/null || true

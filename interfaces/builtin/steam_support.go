@@ -22,6 +22,7 @@ package builtin
 import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
 )
 
 const steamSupportSummary = `allow Steam to configure pressure-vessel containers`
@@ -135,11 +136,14 @@ mount options=(rw, rbind) /oldroot/opt/ -> /newroot/opt/,
 mount options=(rw, rbind) /oldroot/srv/ -> /newroot/srv/,
 mount options=(rw, rbind) /oldroot/run/udev/ -> /newroot/run/udev/,
 mount options=(rw, rbind) /oldroot/home/{,**} -> /newroot/home/{,**},
-mount options=(rw, rbind) /oldroot/snap/** -> /newroot/snap/**,
+mount options=(rw, rbind) /oldroot/snap/{,**} -> /newroot/snap/{,**},
 mount options=(rw, rbind) /oldroot/home/**/usr/ -> /newroot/usr/,
 mount options=(rw, rbind) /oldroot/home/**/usr/etc/** -> /newroot/etc/**,
-mount options=(rw, rbind) /oldroot/home/**/usr/etc/ld.so.cache -> /newroot/run/pressure-vessel/ldso/runtime-ld.so.cache,
-mount options=(rw, rbind) /oldroot/home/**/usr/etc/ld.so.conf -> /newroot/run/pressure-vessel/ldso/runtime-ld.so.conf,
+mount options=(rw, rbind) /oldroot/home/**/usr/etc/ld.so.cache -> /newroot/**,
+mount options=(rw, rbind) /oldroot/home/**/usr/etc/ld.so.conf -> /newroot/**,
+
+mount options=(rw, rbind) /oldroot/{home,media,mnt,run/media,opt,srv}/**/steamapps/common/** -> /newroot/**,
+
 mount options=(rw, rbind) /oldroot/mnt/{,**} -> /newroot/mnt/{,**},
 mount options=(rw, rbind) /oldroot/media/{,**} -> /newroot/media/{,**},
 mount options=(rw, rbind) /oldroot/run/media/ -> /newroot/run/media/,
@@ -150,6 +154,7 @@ mount options=(rw, rbind) /oldroot/etc/group -> /newroot/etc/group,
 mount options=(rw, rbind) /oldroot/etc/passwd -> /newroot/etc/passwd,
 mount options=(rw, rbind) /oldroot/etc/host.conf -> /newroot/etc/host.conf,
 mount options=(rw, rbind) /oldroot/etc/hosts -> /newroot/etc/hosts,
+mount options=(rw, rbind) /oldroot/usr/share/zoneinfo/** -> /newroot/etc/localtime,
 mount options=(rw, rbind) /oldroot/**/*resolv.conf -> /newroot/etc/resolv.conf,
 mount options=(rw, rbind) /bindfile* -> /newroot/etc/timezone,
 
@@ -165,15 +170,15 @@ mount options=(rw, rbind) /bindfile* -> /newroot/run/host/font-dirs.xml,
 mount options=(rw, rbind) /oldroot/usr/share/icons/ -> /newroot/run/host/share/icons/,
 mount options=(rw, rbind) /oldroot/home/**/.local/share/icons/ -> /newroot/run/host/user-share/icons/,
 
-mount options=(rw, rbind) /oldroot/run/user/[0-9]*/wayland-* -> /newroot/run/pressure-vessel/wayland-*,
+mount options=(rw, rbind) /oldroot/run/user/[0-9]*/wayland-* -> /newroot/**,
 mount options=(rw, rbind) /oldroot/tmp/.X11-unix/X* -> /newroot/tmp/.X11-unix/X*,
-mount options=(rw, rbind) /bindfile* -> /newroot/run/pressure-vessel/Xauthority,
+mount options=(rw, rbind) /bindfile* -> /newroot/**,
 
-mount options=(rw, rbind) /bindfile* -> /newroot/run/pressure-vessel/pulse/config,
-mount options=(rw, rbind) /oldroot/run/user/[0-9]*/pulse/native -> /newroot/run/pressure-vessel/pulse/native,
+mount options=(rw, rbind) /bindfile* -> /newroot/**,
+mount options=(rw, rbind) /oldroot/run/user/[0-9]*/pulse/native -> /newroot/**,
 mount options=(rw, rbind) /oldroot/dev/snd/ -> /newroot/dev/snd/,
 mount options=(rw, rbind) /bindfile* -> /newroot/etc/asound.conf,
-mount options=(rw, rbind) /oldroot/run/user/[0-9]*/bus -> /newroot/run/pressure-vessel/bus,
+mount options=(rw, rbind) /oldroot/run/user/[0-9]*/bus -> /newroot/**,
 
 mount options=(rw, rbind) /oldroot/run/dbus/system_bus_socket -> /newroot/run/dbus/system_bus_socket,
 mount options=(rw, rbind) /oldroot/run/systemd/resolve/io.systemd.Resolve -> /newroot/run/systemd/resolve/io.systemd.Resolve,
@@ -182,10 +187,12 @@ mount options=(rw, rbind) /bindfile* -> /newroot/run/host/container-manager,
 # Allow mounting Nvidia drivers into the sandbox
 mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/usr/lib/@{multiarch}/** -> /newroot/var/lib/snapd/hostfs/usr/lib/@{multiarch}/**,
 
+# Allow PV to access driver information and features necessary for some games to run
+mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/usr/share/** -> /newroot/**,
+mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/ -> /newroot/var/lib/snapd/hostfs/,
+
 # Allow masking of certain directories in the sandbox
-mount fstype=tmpfs options=(rw, nosuid, nodev) tmpfs -> /newroot/home/*/snap/steam/common/.local/share/vulkan/implicit_layer.d/,
-mount fstype=tmpfs options=(rw, nosuid, nodev) tmpfs -> /newroot/run/pressure-vessel/ldso/,
-mount fstype=tmpfs options=(rw, nosuid, nodev) tmpfs -> /newroot/tmp/.X11-unix/,
+mount fstype=tmpfs options=(rw, nosuid, nodev) tmpfs -> /newroot/**,
 
 # Pivot from the intermediate root to sandbox root
 mount options in (rw, silent, rprivate) -> /oldroot/,
@@ -194,15 +201,16 @@ pivot_root oldroot=/newroot/ /newroot/,
 umount /,
 
 # Permissions needed within sandbox root
+/usr/** ixr,
 deny /usr/bin/{chfn,chsh,gpasswd,mount,newgrp,passwd,su,sudo,umount} x,
-/usr/bin/** ixr,
-/usr/sbin/** ixr,
-/usr/lib/pressure-vessel/** ixr,
 /run/host/** mr,
-/run/pressure-vessel/** mrw,
+/*/pressure-vessel/** mrw,
 /run/host/usr/sbin/ldconfig* ixr,
 /run/host/usr/bin/localedef ixr,
 /var/cache/ldconfig/** rw,
+/sys/module/nvidia/version r,
+/var/lib/snapd/hostfs/usr/share/nvidia/** mr,
+/etc/debian_chroot r,
 
 capability sys_admin,
 capability sys_ptrace,
@@ -216,6 +224,10 @@ const steamSupportConnectedPlugSecComp = `
 mount
 umount2
 pivot_root
+
+# Native games using QtWebEngineProcess -
+# https://forum.snapcraft.io/t/autoconnect-request-steam-network-control/34267
+unshare CLONE_NEWNS
 `
 
 const steamSupportSteamInputUDevRules = `
@@ -393,7 +405,7 @@ func init() {
 	registerIface(&steamSupportInterface{commonInterface{
 		name:                  "steam-support",
 		summary:               steamSupportSummary,
-		implicitOnCore:        false,
+		implicitOnCore:        release.OnCoreDesktop,
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  steamSupportBaseDeclarationSlots,
 		baseDeclarationPlugs:  steamSupportBaseDeclarationPlugs,

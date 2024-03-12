@@ -37,7 +37,7 @@ func (r Revision) String() string {
 	if r.N < 0 {
 		return fmt.Sprintf("x%d", -r.N)
 	}
-	return strconv.Itoa(int(r.N))
+	return strconv.Itoa(r.N)
 }
 
 func (r Revision) Unset() bool {
@@ -85,7 +85,7 @@ func (r *Revision) UnmarshalJSON(data []byte) error {
 	return fmt.Errorf("invalid snap revision: %q", data)
 }
 
-// ParseRevisions returns the representation in r as a revision.
+// ParseRevision returns the representation in r as a revision.
 // See R for a function more suitable for hardcoded revisions.
 func ParseRevision(s string) (Revision, error) {
 	if s == "unset" {

@@ -200,7 +200,18 @@ inotify_rm_watch
 # input (man tty_ioctl), so we disallow it to prevent snaps plugging interfaces
 # with 'capability sys_admin' from interfering with other snaps or the
 # unconfined user's terminal.
+# similarly, TIOCLINUX allows to fake input as well (man ioctl_console) so
+# disallow that too
 # TODO: this should be scaled back even more
+~ioctl - TIOCSTI
+~ioctl - TIOCLINUX
+# restrict argument otherwise will match all uses of ioctl() and allow the rules
+# that were disallowed above
+# TODO: Fix the need to keep TIOCLINUX here - the issue is a unrestricted
+#       allow for "ioctl" here makes libseccomp "optimize" the deny rules
+#       above away and the generated bpf becomes just "allow ioctl".
+#       We should fix this by creating a way to make "AND" rules, so
+#       this becomes "ioctl - !TIOCSTI&&!TIOCLINUX" and remove the "~" again.
 ioctl - !TIOCSTI
 
 io_cancel
@@ -217,6 +228,10 @@ ioprio_get
 
 ipc
 kill
+# kcmp is guarded in the kernel via ptrace with PTRACE_MODE_READ_REALCREDS
+# such that the calling process must already be able to ptrace the target
+# processes and so this is safe.
+kcmp - - KCMP_FILE
 link
 linkat
 

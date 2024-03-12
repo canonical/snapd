@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -15,6 +15,7 @@
  *
  */
 
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,30 +31,204 @@
 #include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/string-utils.h"
 
-static sc_mountinfo_entry *find_root_mountinfo(sc_mountinfo * mounts)
+static sc_mountinfo_entry *find_dir_mountinfo(sc_mountinfo *mounts,
+					      const char *mnt_dir)
 {
 	sc_mountinfo_entry *cur, *root = NULL;
 	for (cur = sc_first_mountinfo_entry(mounts); cur != NULL;
 	     cur = sc_next_mountinfo_entry(cur)) {
-		// Look for the mount info entry for the root file-system.
-		if (sc_streq("/", cur->mount_dir)) {
+		// Look for the mount info entry. We take the last one, which
+		// would be the last mount on top of mnt_dir.
+		if (sc_streq(mnt_dir, cur->mount_dir)) {
 			root = cur;
 		}
 	}
 	return root;
 }
 
-static int ensure_root_fs_shared(const char *normal_dir)
+// Create a mount unit in normal_dir that is performed at early stages for
+// "what" in directory "where".
+// WARNING we need to escape special characters in "where" to create the unit
+// name. We should do the same as systemd-escape(1), but for simplicity we just
+// replace slashes with dashes, which is fine for the moment as this is called
+// currently for mountpoints /usr/lib/{modules,firmware} only.
+static int create_early_mount(const char *normal_dir,
+			      const char *what, const char *where)
 {
-	// Load /proc/self/mountinfo so that we can inspect the root filesystem.
-	sc_mountinfo *mounts SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
-	mounts = sc_parse_mountinfo(NULL);
-	if (!mounts) {
-		fprintf(stderr, "cannot open or parse /proc/self/mountinfo\n");
+	// Replace directory separators with dashes to build the unit name.
+	char *unit_name SC_CLEANUP(sc_cleanup_string) = NULL;
+	// (... + 1) to remove the initial '/'
+	unit_name = sc_strdup(where + 1);
+	for (char *p = unit_name; (p = strchr(p, '/')) != NULL; *p = '-') ;
+
+	// Construct the file name for a new systemd mount unit.
+	char fname[PATH_MAX + 1] = { 0 };
+	sc_must_snprintf(fname, sizeof fname,
+			 "%s/%s.mount", normal_dir, unit_name);
+
+	// Open the mount unit and write the contents.
+	FILE *f SC_CLEANUP(sc_cleanup_file) = NULL;
+	f = fopen(fname, "w");
+	if (!f) {
+		fprintf(stderr, "cannot write to %s: %m\n", fname);
+		return 1;
+	}
+	fprintf(f, "[Unit]\n");
+	fprintf(f, "Description=Early mount of kernel drivers tree\n");
+	fprintf(f, "DefaultDependencies=no\n");
+	fprintf(f, "After=systemd-remount-fs.service\n");
+	fprintf(f, "Before=sysinit.target\n");
+	fprintf(f,
+		"Before=systemd-udevd.service systemd-modules-load.service\n");
+	fprintf(f, "Before=umount.target\n");
+	fprintf(f, "Conflicts=umount.target\n");
+	fprintf(f, "\n");
+	fprintf(f, "[Mount]\n");
+	fprintf(f, "What=%s\n", what);
+	fprintf(f, "Where=%s\n", where);
+	fprintf(f, "Options=bind,shared\n");
+
+	// Wanted by sysinit.target.wants - create folders if needed and symlink
+
+	char wants_d[PATH_MAX + 1] = { 0 };
+	sc_must_snprintf(wants_d, sizeof wants_d,
+			 "%s/sysinit.target.wants", normal_dir);
+	if (mkdir(wants_d, 0755) != 0 && errno != EEXIST) {
+		fprintf(stderr, "cannot create %s directory: %m\n", wants_d);
 		return 1;
 	}
 
-	sc_mountinfo_entry *root = find_root_mountinfo(mounts);
+	char target[PATH_MAX + 1] = { 0 };
+	char lnpath[PATH_MAX + 1] = { 0 };
+	sc_must_snprintf(target, sizeof target, "../%s.mount", unit_name);
+	sc_must_snprintf(lnpath, sizeof lnpath,
+			 "%s/%s.mount", wants_d, unit_name);
+	if (symlink(target, lnpath) != 0) {
+		fprintf(stderr, "cannot create symlink %s: %m\n", lnpath);
+		return 1;
+	}
+
+	return 0;
+}
+
+#define MAJOR_LOOP_DEV 7
+#define SNAPD_DRIVERS_TREE_DIR "/var/lib/snapd/kernel"
+#define FIRMWARE_DIR "firmware"
+#define MODULES_DIR "modules"
+#define FIRMWARE_MNTPOINT "/usr/lib/" FIRMWARE_DIR
+#define MODULES_MNTPOINT "/usr/lib/" MODULES_DIR
+
+static int ensure_kernel_drivers_mounts(const char *normal_dir)
+{
+	const char *const kern_mnt_dir = "/run/mnt/kernel";
+	// Find mount information
+	sc_mountinfo *mounts SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
+	mounts = sc_parse_mountinfo("/proc/1/mountinfo");
+	if (!mounts) {
+		fprintf(stderr, "cannot open or parse /proc/1/mountinfo\n");
+		return 1;
+	}
+	// Create mount units only if not already present (which would be the
+	// case for an old initramfs) - otherwise systemd-fstab-generator
+	// complains, and older initramfs won't come in a kernel snap with
+	// support for components anyway.
+	const char *const kern_mntpts[] =
+	    { FIRMWARE_MNTPOINT, MODULES_MNTPOINT };
+	for (size_t i = 0; i < sizeof kern_mntpts / sizeof(char *); ++i) {
+		sc_mountinfo_entry *minfo =
+		    find_dir_mountinfo(mounts, kern_mntpts[i]);
+		// If the mounts already exist (old initramfs), do not create them -
+		// note that we additionally check for SNAPD_DRIVERS_TREE_DIR in the
+		// mount source to make sure the units created here are still
+		// generated on "systemctl daemon-reload".
+		if (minfo
+		    && strstr(minfo->root, SNAPD_DRIVERS_TREE_DIR) == NULL) {
+			return 0;
+		}
+	}
+
+	// Find active kernel name and revision by looking at what was
+	// mounted in /run/mnt/kernel by snap-bootstrap.
+
+	sc_mountinfo_entry *kern_minfo =
+	    find_dir_mountinfo(mounts, kern_mnt_dir);
+	if (!kern_minfo) {
+		// This is not Ubuntu Core / hybrid, do nothing and do not fail
+		return 0;
+	}
+	// Mount source should be a snap
+	if (!sc_streq(kern_minfo->fs_type, "squashfs")) {
+		fprintf(stderr, "unexpected fs type (%s) for %s\n",
+			kern_minfo->fs_type, kern_mnt_dir);
+		return 1;
+	}
+	// We expect a loop device as source
+	if (kern_minfo->dev_major != MAJOR_LOOP_DEV) {
+		fprintf(stderr, "mount source %s for %s is not a loop device\n",
+			kern_minfo->mount_source, kern_mnt_dir);
+		return 1;
+	}
+	// Find out backing file
+	char fname[PATH_MAX + 1] = { 0 };
+	sc_must_snprintf(fname, sizeof fname,
+			 "/sys/dev/block/%u:%u/loop/backing_file",
+			 kern_minfo->dev_major, kern_minfo->dev_minor);
+	FILE *f SC_CLEANUP(sc_cleanup_file) = NULL;
+	f = fopen(fname, "r");
+	if (!f) {
+		fprintf(stderr, "cannot open %s: %m\n", fname);
+		return 1;
+	}
+	char snap_path[PATH_MAX + 1] = { 0 };
+	if (fgets(snap_path, sizeof snap_path, f) == NULL) {
+		fprintf(stderr, "while reading %s: %m\n", fname);
+		return 1;
+	}
+	// Now parse the snap path
+	size_t i;
+	for (i = strlen(snap_path); i > 0 && snap_path[--i] != '/';) ;
+	char *snap_fname = snap_path + i + 1;
+
+	// snap_fname is expected to contain "<name>_<rev>.snap\n" - fgets includes
+	// that new line at the end, but anyway we ignore what comes after the dot.
+	char *saveptr = NULL;
+	char *snap_name = strtok_r(snap_fname, "_", &saveptr);
+	if (snap_name == NULL) {
+		fprintf(stderr, "snap name not found in loop backing file\n");
+		return 1;
+	}
+	char *snap_rev = strtok_r(NULL, ".", &saveptr);
+	if (snap_rev == NULL) {
+		fprintf(stderr,
+			"snap revision not found in loop backing file\n");
+		return 1;
+	}
+
+	int res;
+	char what[PATH_MAX + 1] = { 0 };
+	sc_must_snprintf(what, sizeof what,
+			 SNAPD_DRIVERS_TREE_DIR "/%s/%s/lib/" MODULES_DIR,
+			 snap_name, snap_rev);
+	res = create_early_mount(normal_dir, what, MODULES_MNTPOINT);
+	if (res != 0) {
+		return res;
+	}
+	sc_must_snprintf(what, sizeof what,
+			 SNAPD_DRIVERS_TREE_DIR "/%s/%s/lib/" FIRMWARE_DIR,
+			 snap_name, snap_rev);
+	return create_early_mount(normal_dir, what, FIRMWARE_MNTPOINT);
+}
+
+static int ensure_root_fs_shared(const char *normal_dir)
+{
+	// Load /proc/1/mountinfo so that we can inspect the root filesystem.
+	sc_mountinfo *mounts SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
+	mounts = sc_parse_mountinfo("/proc/1/mountinfo");
+	if (!mounts) {
+		fprintf(stderr, "cannot open or parse /proc/1/mountinfo\n");
+		return 1;
+	}
+	sc_mountinfo_entry *root = find_dir_mountinfo(mounts, "/");
 	if (!root) {
 		fprintf(stderr,
 			"cannot find mountinfo entry of the root filesystem\n");
@@ -89,8 +264,13 @@ static int ensure_root_fs_shared(const char *normal_dir)
 	fprintf(f, "Where=" SNAP_MOUNT_DIR "\n");
 	fprintf(f, "Type=none\n");
 	fprintf(f, "Options=bind,shared\n");
-	fprintf(f, "[Install]\n");
-	fprintf(f, "WantedBy=local-fs.target\n");
+
+	/* We do not need to create symlinks from any target since
+	 * this generated mount will automically be added to implicit
+	 * dependencies of sub mount units through
+	 * `RequiresMountsFor`.
+	 */
+
 	return 0;
 }
 
@@ -248,6 +428,7 @@ int main(int argc, char **argv)
 	int status = 0;
 	status = ensure_root_fs_shared(normal_dir);
 	status |= ensure_fusesquashfs_inside_container(normal_dir);
+	status |= ensure_kernel_drivers_mounts(normal_dir);
 
 	return status;
 }

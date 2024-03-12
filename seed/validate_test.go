@@ -20,14 +20,15 @@
 package seed_test
 
 import (
+	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -61,7 +62,7 @@ type: base
 
 func (s *validateSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
-	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(builtin.SanitizePlugsSlots))
 
 	s.TestingSeed16 = &seedtest.TestingSeed16{}
 	s.SetupAssertSigning("canonical")
@@ -97,7 +98,7 @@ func (s *validateSuite) makeSnapInSeed(c *C, snapYaml string) {
 
 func (s *validateSuite) makeSeedYaml(c *C, seedYaml string) string {
 	tmpf := filepath.Join(s.SeedDir, "seed.yaml")
-	err := ioutil.WriteFile(tmpf, []byte(seedYaml), 0644)
+	err := os.WriteFile(tmpf, []byte(seedYaml), 0644)
 	c.Assert(err, IsNil)
 	return tmpf
 }
@@ -146,6 +147,7 @@ plugs:
  gtk-3-themes:
   interface: content
   default-provider: gtk-common-themes
+  target: $SNAP/themes
 `)
 	seedFn := s.makeSeedYaml(c, `
 snaps:
@@ -157,7 +159,7 @@ snaps:
 
 	err := seed.ValidateFromYaml(seedFn)
 	c.Assert(err, ErrorMatches, `cannot validate seed:
- - cannot use snap "need-df": default provider "gtk-common-themes" is missing`)
+ - cannot use snap "need-df": default provider "gtk-common-themes" or any alternative provider for content "gtk-3-themes" is missing`)
 }
 
 func (s *validateSuite) TestValidateFromYamlSnapSnapdHappy(c *C) {
@@ -245,7 +247,7 @@ func (s *validateSuite) makeBrokenSnap(c *C, snapYaml string) (snapPath string) 
 	metaSnapYaml := filepath.Join(snapBuildDir, "meta", "snap.yaml")
 	err := os.MkdirAll(filepath.Dir(metaSnapYaml), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(metaSnapYaml, []byte(snapYaml), 0644)
+	err = os.WriteFile(metaSnapYaml, []byte(snapYaml), 0644)
 	c.Assert(err, IsNil)
 
 	// need to build the snap "manually" pack.Snap() will do validation
@@ -291,6 +293,7 @@ plugs:
  gtk-3-themes:
   interface: content
   default-provider: gtk-common-themes
+  target: $SNAP/themes
 `)
 
 	// "version" is missing in this yaml
@@ -316,7 +319,7 @@ snaps:
 	err = seed.ValidateFromYaml(seedFn)
 	c.Assert(err, ErrorMatches, `cannot validate seed:
  - cannot use snap "/.*/snaps/some-snap-invalid-yaml_1.snap": invalid snap version: cannot be empty
- - cannot use snap "need-df": default provider "gtk-common-themes" is missing`)
+ - cannot use snap "need-df": default provider "gtk-common-themes" or any alternative provider for content "gtk-3-themes" is missing`)
 }
 
 func (s *validateSuite) TestValidateFromYamlSnapSnapMissing(c *C) {
@@ -402,4 +405,30 @@ snaps:
 	err := seed.ValidateFromYaml(seedFn)
 	c.Assert(err, ErrorMatches, `cannot validate seed:
  - cannot read seed yaml: empty element in seed`)
+}
+
+func (s *validateSuite) TestValidateErrorSingle(c *C) {
+	err := seed.ValidationError{
+		SystemErrors: map[string][]error{
+			"system-1": {fmt.Errorf("err1")},
+		},
+	}
+	c.Check(err.Error(), Equals, `cannot validate seed system "system-1":
+ - err1`)
+}
+
+func (s *validateSuite) TestValidateErrorMulti(c *C) {
+	err1 := errors.New("err1")
+	err2 := errors.New("err2")
+	err := seed.ValidationError{
+		SystemErrors: map[string][]error{
+			"system-1": {err1},
+			"system-2": {err1, err2},
+		},
+	}
+	c.Check(err.Error(), Equals, `cannot validate seed system "system-1":
+ - err1
+and seed system "system-2":
+ - err1
+ - err2`)
 }

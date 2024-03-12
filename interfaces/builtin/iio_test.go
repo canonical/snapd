@@ -198,12 +198,12 @@ func (s *IioInterfaceSuite) TestSanitizeBadGadgetSnapSlot(c *C) {
 }
 
 func (s *IioInterfaceSuite) TestConnectedPlugUDevSnippets(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort1.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# iio
 KERNEL=="iio:device1", TAG+="snap_client-snap_app-accessing-1-port"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-1-port", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-1-port $devpath $major:$minor"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-1-port", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_client-snap_app-accessing-1-port"`, dirs.DistroLibExecDir))
 }
 
 func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSingleSnippet(c *C) {
@@ -216,7 +216,7 @@ func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSingleSnippet(c *C) {
 
 /sys/devices/**/iio:device1/ r,  # Add any condensed parametric rules
 /sys/devices/**/iio:device1/** rwk,  # Add any condensed parametric rules`
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort1.Snap()))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.client-snap.app-accessing-1-port"})
@@ -241,7 +241,7 @@ func (s *IioInterfaceSuite) TestConnectedPlugAppArmorSnippetsMultipleOptimized(c
 
 /sys/devices/**/iio:device{1,2}/ r,  # Add any condensed parametric rules
 /sys/devices/**/iio:device{1,2}/** rwk,  # Add any condensed parametric rules`
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.testPlugPort1.Snap()))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev1)
 	c.Assert(err, IsNil)
 	err = apparmorSpec.AddConnectedPlug(s.iface, s.testPlugPort1, s.testUDev2)

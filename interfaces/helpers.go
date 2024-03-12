@@ -22,29 +22,29 @@ package interfaces
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
 
 // SetupMany generates profiles of snaps using either SetupMany() method of the security backend (if implemented), or Setup(). All errors are logged.
 // The return value indicates if all profiles were successfully generated.
-func SetupMany(repo *Repository, backend SecurityBackend, snaps []*snap.Info, confinementOpts func(snapName string) ConfinementOptions, tm timings.Measurer) []error {
+func SetupMany(repo *Repository, backend SecurityBackend, appSets []*SnapAppSet, confinementOpts func(snapName string) ConfinementOptions, tm timings.Measurer) []error {
 	var errors []error
 	// use .SetupMany() if implemented by the backend, otherwise fall back to .Setup()
 	if setupManyInterface, ok := backend.(SecurityBackendSetupMany); ok {
-		timings.Run(tm, "setup-security-backend[many]", fmt.Sprintf("setup security backend %q for %d snaps", backend.Name(), len(snaps)), func(nesttm timings.Measurer) {
-			errors = setupManyInterface.SetupMany(snaps, confinementOpts, repo, nesttm)
+		timings.Run(tm, "setup-security-backend[many]", fmt.Sprintf("setup security backend %q for %d snaps", backend.Name(), len(appSets)), func(nesttm timings.Measurer) {
+			errors = setupManyInterface.SetupMany(appSets, confinementOpts, repo, nesttm)
 		})
 	} else {
 		// For each snap:
-		for _, snapInfo := range snaps {
+		for _, set := range appSets {
+			snapInfo := set.Info()
 			snapName := snapInfo.InstanceName()
 			// Compute confinement options
 			opts := confinementOpts(snapName)
 
 			// Refresh security of this snap and backend
 			timings.Run(tm, "setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurer) {
-				if err := backend.Setup(snapInfo, opts, repo, nesttm); err != nil {
+				if err := backend.Setup(set, opts, repo, nesttm); err != nil {
 					errors = append(errors, err)
 				}
 			})

@@ -419,22 +419,21 @@ type RevisionAuthority struct {
 	DeviceScope *DeviceScopeConstraint
 }
 
-// Check tests whether rev matches the revision authority constraints.
-// Optional model and store must be provided to cross-check device-specific
-// constraints.
-func (ra *RevisionAuthority) Check(rev *SnapRevision, model *Model, store *Store) error {
-	if !strutil.ListContains(ra.Provenance, rev.Provenance()) {
+func (ra *RevisionAuthority) checkProvenanceAndRevision(a interface {
+	Assertion
+	Provenance() string
+}, what string, revno int, model *Model, store *Store) error {
+	if !strutil.ListContains(ra.Provenance, a.Provenance()) {
 		return fmt.Errorf("provenance mismatch")
 	}
-	if rev.AuthorityID() != ra.AccountID {
+	if a.AuthorityID() != ra.AccountID {
 		return fmt.Errorf("authority-id mismatch")
 	}
-	revno := rev.SnapRevision()
 	if revno < ra.MinRevision {
-		return fmt.Errorf("snap revision %d is less than min-revision %d", revno, ra.MinRevision)
+		return fmt.Errorf("%s revision %d is less than min-revision %d", what, revno, ra.MinRevision)
 	}
 	if ra.MaxRevision != 0 && revno > ra.MaxRevision {
-		return fmt.Errorf("snap revision %d is greater than max-revision %d", revno, ra.MaxRevision)
+		return fmt.Errorf("%s revision %d is greater than max-revision %d", what, revno, ra.MaxRevision)
 	}
 	if ra.DeviceScope != nil && model != nil {
 		opts := DeviceScopeConstraintCheckOptions{UseFriendlyStores: true}
@@ -443,6 +442,27 @@ func (ra *RevisionAuthority) Check(rev *SnapRevision, model *Model, store *Store
 		}
 	}
 	return nil
+}
+
+// Check tests whether rev matches the revision authority constraints.
+// Optional model and store must be provided to cross-check device-specific
+// constraints.
+func (ra *RevisionAuthority) Check(rev *SnapRevision, model *Model, store *Store) error {
+	return ra.checkProvenanceAndRevision(rev, "snap", rev.SnapRevision(), model, store)
+}
+
+// CheckResourceRevision tests whether resrev matches the revision authority
+// constraints. Optional model and store must be provided to cross-check
+// device-specific constraints.
+func (ra *RevisionAuthority) CheckResourceRevision(resrev *SnapResourceRevision, model *Model, store *Store) error {
+	return ra.checkProvenanceAndRevision(resrev, "resource", resrev.ResourceRevision(), model, store)
+}
+
+// SnapIntegrity holds information about integrity data included in a revision
+// for a given snap.
+type SnapIntegrity struct {
+	SHA3_384 string
+	Size     uint64
 }
 
 // SnapFileSHA3_384 computes the SHA3-384 digest of the given snap file.
@@ -534,6 +554,8 @@ type SnapRevision struct {
 	snapSize     uint64
 	snapRevision int
 	timestamp    time.Time
+
+	snapIntegrity *SnapIntegrity
 }
 
 // SnapSHA3_384 returns the SHA3-384 digest of the snap.
@@ -571,6 +593,11 @@ func (snaprev *SnapRevision) DeveloperID() string {
 // Timestamp returns the time when the snap-revision was issued.
 func (snaprev *SnapRevision) Timestamp() time.Time {
 	return snaprev.timestamp
+}
+
+// SnapIntegrity returns the snap integrity data associated with the snap revision if any.
+func (snaprev *SnapRevision) SnapIntegrity() *SnapIntegrity {
+	return snaprev.snapIntegrity
 }
 
 // Implement further consistency checks.
@@ -679,11 +706,37 @@ func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
+	integrityMap, err := checkMap(assert.headers, "integrity")
+	if err != nil {
+		return nil, err
+	}
+
+	var snapIntegrity *SnapIntegrity
+
+	if integrityMap != nil {
+		// TODO: this will change again to support format agility
+		_, err := checkDigestWhat(integrityMap, "sha3-384", crypto.SHA3_384, "of integrity header")
+		if err != nil {
+			return nil, err
+		}
+
+		size, err := checkUintWhat(integrityMap, "size", 64, "of integrity header")
+		if err != nil {
+			return nil, err
+		}
+
+		snapIntegrity = &SnapIntegrity{
+			SHA3_384: integrityMap["sha3-384"].(string),
+			Size:     size,
+		}
+	}
+
 	return &SnapRevision{
 		assertionBase: assert,
 		snapSize:      snapSize,
 		snapRevision:  snapRevision,
 		timestamp:     timestamp,
+		snapIntegrity: snapIntegrity,
 	}, nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -86,7 +87,7 @@ func CreateTransientScopeForTracking(securityTag string, opts *TrackingOptions) 
 	// - the originally started scope must be marked as a delegate, with all
 	//   consequences.
 	// - the method AttachProcessesToUnit is unavailable on Ubuntu 16.04
-	unitName := fmt.Sprintf("%s.%s.scope", securityTag, uuid)
+	unitName := fmt.Sprintf("%s-%s.scope", securityTag, uuid)
 
 	pid := osGetpid()
 	start := time.Now()
@@ -149,6 +150,25 @@ tryAgain:
 		return ErrCannotTrackProcess
 	}
 	return nil
+}
+
+// ConfirmSystemdAppTracking checks if systemd tracks this process as a snap app.
+//
+// If the application process is not tracked then ErrCannotTrackProcess is returned.
+func ConfirmSystemdAppTracking(securityTag string) error {
+	pid := osGetpid()
+	path, err := cgroupProcessPathInTrackingCgroup(pid)
+	if err != nil {
+		return err
+	}
+
+	// the transient scope of the application carries the security tag, eg:
+	// snap.hello-world.sh-4706fe54-7802-4808-aa7e-ae8b567239e0.scope
+	if strings.HasPrefix(filepath.Base(path), securityTag+"-") && strings.HasSuffix(path, ".scope") {
+		return nil
+	}
+
+	return ErrCannotTrackProcess
 }
 
 // ConfirmSystemdServiceTracking checks if systemd tracks this process as a snap service.
@@ -451,10 +471,8 @@ var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) err
 	return doCreateTransientScopeNoSync(conn, unitName, pid)
 }
 
-var randomUUID = func() (string, error) {
-	// The source of the bytes generated here is the same as that of
-	// /dev/urandom which doesn't block and is sufficient for our purposes
-	// of avoiding clashing UUIDs that are needed for all of the non-service
-	// commands that are started with the help of this UUID.
-	return randutil.RandomKernelUUID(), nil
-}
+// The source of the bytes generated here is the same as that of
+// /dev/urandom which doesn't block and is sufficient for our purposes
+// of avoiding clashing UUIDs that are needed for all of the non-service
+// commands that are started with the help of this UUID.
+var randomUUID = randutil.RandomKernelUUID

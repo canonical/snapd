@@ -1,19 +1,21 @@
 summary: Check that try command works inside lxd container
 
+details: |
+  Verifies that the `snap try` command works inside a LXD container.
+
 systems: [ubuntu-2*]
 
 prepare: |
   echo "Install lxd"
   "$TESTSTOOLS"/lxd-state prepare-snap
 
-  # There isn't an official image for lunar yet, let's use the community one
-  if os.query is-ubuntu 23.04; then
-      CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
-      lxc launch --quiet "images:ubuntu/$CODENAME" ubuntu
-  else
-      VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
-      lxd.lxc launch --quiet "ubuntu:$VERSION_ID" ubuntu
+  REMOTE=ubuntu
+  # There isn't an official image for noble yet, let's use the daily one
+  if os.query is-ubuntu 24.04; then
+      REMOTE=ubuntu-daily
   fi
+  VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
+  lxd.lxc launch --quiet "$REMOTE:$VERSION_ID" ubuntu
 
   echo "Setting up proxy *inside* the container"
   if [ -n "${http_proxy:-}" ]; then

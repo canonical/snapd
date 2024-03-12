@@ -76,10 +76,10 @@ type Daemon struct {
 	router          *mux.Router
 	standbyOpinions *standby.StandbyOpinions
 
-	// set to what kind of restart was requested if any
+	// set to what kind of restart was requested (if any)
 	requestedRestart restart.RestartType
 	// reboot info needed to handle reboots
-	rebootInfo boot.RebootInfo
+	rebootInfo *boot.RebootInfo
 	// set to remember that we need to exit the daemon in a way that
 	// prevents systemd from restarting it
 	restartSocket bool
@@ -94,7 +94,7 @@ type Daemon struct {
 // A ResponseFunc handles one of the individual verbs for a method
 type ResponseFunc func(*Command, *http.Request, *auth.UserState) Response
 
-// A Command routes a request to an individual per-verb ResponseFUnc
+// A Command routes a request to an individual per-verb ResponseFunc
 type Command struct {
 	Path       string
 	PathPrefix string
@@ -227,7 +227,7 @@ func (d *Daemon) Init() error {
 		return err
 	}
 
-	// The SnapdSocket is required-- without it, die.
+	// The SnapdSocket is required -- without it, die.
 	if listener, err := netutil.GetListener(dirs.SnapdSocket, listenerMap); err == nil {
 		d.snapdListener = &ucrednetListener{Listener: listener}
 	} else {
@@ -249,15 +249,15 @@ func (d *Daemon) Init() error {
 	return nil
 }
 
-// SetDegradedMode puts the daemon into an degraded mode which will the
-// error given in the "err" argument for commands that are not marked
-// as readonlyOK.
+// SetDegradedMode puts the daemon into a degraded mode. In this mode
+// it will return the error given in the "err" argument for commands
+// that are not pure HTTP GETs.
 //
 // This is useful to report errors to the client when the daemon
 // cannot work because e.g. a snapd squashfs precondition check failed
 // or the system is out of diskspace.
 //
-// When the system is fine again calling "DegradedMode(nil)" is enough
+// When the system is fine again, calling "SetDegradedMode(nil)" is enough
 // to put the daemon into full operation again.
 func (d *Daemon) SetDegradedMode(err error) {
 	d.degradedErr = err
@@ -340,7 +340,7 @@ func (d *Daemon) Start() error {
 		logger.Noticef("adjusting startup timeout by %v (%s)", to, reasoning)
 		systemdSdNotify(fmt.Sprintf("EXTEND_TIMEOUT_USEC=%d", us))
 	}
-	// now perform expensive overlord/manages initiliazation
+	// now perform expensive overlord/manages initialization
 	if err := d.overlord.StartUp(); err != nil {
 		return err
 	}
@@ -397,10 +397,7 @@ func (d *Daemon) HandleRestart(t restart.RestartType, rebootInfo *boot.RebootInf
 			logger.Noticef("%s", err)
 		}
 	}
-	d.rebootInfo = boot.RebootInfo{}
-	if rebootInfo != nil {
-		d.rebootInfo = *rebootInfo
-	}
+	d.rebootInfo = rebootInfo
 
 	// die when asked to restart (systemd should get us back up!) etc
 	switch t {
@@ -437,7 +434,7 @@ var (
 	rebootNoticeWait       = 3 * time.Second
 	rebootWaitTimeout      = 10 * time.Minute
 	rebootRetryWaitTimeout = 5 * time.Minute
-	rebootMaxTentatives    = 3
+	rebootMaxAttempts      = 3
 )
 
 func (d *Daemon) updateMaintenanceFile(rst restart.RestartType) error {
@@ -507,9 +504,10 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		logger.Noticef("error writing maintenance file: %v", err)
 	}
 
-	d.snapdListener.Close()
-	d.standbyOpinions.Stop()
-
+	// take a timestamp before shutting down the snap listener, and
+	// use the time we may spend on waiting for hooks against the shutdown
+	// delay.
+	ts := time.Now()
 	if d.snapListener != nil {
 		// stop running hooks first
 		// and do it more gracefully if we are restarting
@@ -525,11 +523,18 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		hookMgr.StopHooks()
 		d.snapListener.Close()
 	}
+	timeSpent := time.Since(ts)
 
-	if needsFullShutdown {
-		// give time to polling clients to notice restart
-		time.Sleep(rebootNoticeWait)
+	// When shutting down the snapd listener wait until the rebootNoticeWait
+	// period has passed before snapdListener is closed to allow polling
+	// clients to access the daemon. For testing we disable this unless SNAPD_SHUTDOWN_DELAY
+	// has been set, to avoid incurring this wait for every daemon restart which happens
+	// quite often in testing.
+	if !snapdenv.Testing() || osutil.GetenvBool("SNAPD_SHUTDOWN_DELAY") {
+		time.Sleep(rebootNoticeWait - timeSpent)
 	}
+	d.snapdListener.Close()
+	d.standbyOpinions.Stop()
 
 	// We're using the background context here because the tomb's
 	// context will likely already have been cancelled when we are
@@ -578,7 +583,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 
 	if needsFullShutdown {
-		return d.doReboot(sigCh, d.requestedRestart, &rebootInfo, immediateShutdown, rebootWaitTimeout)
+		return d.doReboot(sigCh, d.requestedRestart, rebootInfo, immediateShutdown, rebootWaitTimeout)
 	}
 
 	if d.restartSocket {
@@ -631,7 +636,7 @@ func (d *Daemon) doReboot(sigCh chan<- os.Signal, rst restart.RestartType, rbi *
 		action = boot.RebootPoweroff
 	}
 	// ask for shutdown and wait for it to happen.
-	// if we exit snapd will be restared by systemd
+	// if we exit snapd will be restarted by systemd
 	if err := reboot(action, rebootDelay, rbi); err != nil {
 		return err
 	}
@@ -671,23 +676,23 @@ var errExpectedReboot = errors.New("expected reboot did not happen")
 
 // RebootDidNotHappen implements part of overlord.RestartBehavior.
 func (d *Daemon) RebootDidNotHappen(st *state.State) error {
-	var nTentative int
-	err := st.Get("daemon-system-restart-tentative", &nTentative)
+	var attempt int
+	err := st.Get("daemon-system-restart-tentative", &attempt)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
-	nTentative++
-	if nTentative > rebootMaxTentatives {
+	attempt++
+	if attempt > rebootMaxAttempts {
 		// giving up, proceed normally, some in-progress refresh
 		// might get rolled back!!
 		restart.ClearReboot(st)
 		clearReboot(st)
-		logger.Noticef("snapd was restarted while a system restart was expected, snapd retried to schedule and waited again for a system restart %d times and is giving up", rebootMaxTentatives)
+		logger.Noticef("snapd was restarted while a system restart was expected, snapd retried to schedule and waited again for a system restart %d times and is giving up", rebootMaxAttempts)
 		return nil
 	}
-	st.Set("daemon-system-restart-tentative", nTentative)
+	st.Set("daemon-system-restart-tentative", attempt)
 	d.state = st
-	logger.Noticef("snapd was restarted while a system restart was expected, snapd will try to schedule and wait for a system restart again (tenative %d/%d)", nTentative, rebootMaxTentatives)
+	logger.Noticef("snapd was restarted while a system restart was expected, snapd will try to schedule and wait for a system restart again (attempt %d/%d)", attempt, rebootMaxAttempts)
 	return errExpectedReboot
 }
 

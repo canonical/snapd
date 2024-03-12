@@ -36,6 +36,16 @@ prepare: |
   fi
 
   snap pack pc-gadget-no-cgroup --filename=pc-cgroup-disabled.snap
+  
+  # make sure that the snapd daemon gives us time for comms before
+  # closing the socket
+  sed -i '/^Environment=/ s/$/ SNAPD_SHUTDOWN_DELAY=1/' /etc/systemd/system/snapd.service.d/local.conf
+  systemctl restart snapd
+
+restore: |
+  # remove SNAPD_SHUTDOWN_DELAY again
+  sed -i 's/SNAPD_SHUTDOWN_DELAY=1//g' /etc/systemd/system/snapd.service.d/local.conf
+  systemctl restart snapd
 
 execute: |
   if not os.query is-pc-amd64; then

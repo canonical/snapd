@@ -30,6 +30,7 @@ import (
 	"github.com/juju/ratelimit"
 	"gopkg.in/retry.v1"
 
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
@@ -167,6 +168,14 @@ func (sto *Store) MockCacher(obs downloadCache) (restore func()) {
 	sto.cacher = obs
 	return func() {
 		sto.cacher = oldCacher
+	}
+}
+
+func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client) (restore func()) {
+	old := httputilNewHTTPClient
+	httputilNewHTTPClient = f
+	return func() {
+		httputilNewHTTPClient = old
 	}
 }
 

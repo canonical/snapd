@@ -80,7 +80,10 @@ check_lxcfs_mounted() {
 
 check_stray_dbus_daemon() {
 	n="$1" # invariant name
-	(
+	wait_for_dbus_daemon=5
+	failed=()
+	while [ "${wait_for_dbus_daemon}" -gt 0 ]; do
+		failed=()
 		skipped_system=0
 		skipped_root_session=0
 		for pid in $(pgrep -x dbus-daemon); do
@@ -101,12 +104,22 @@ check_stray_dbus_daemon() {
 			if [ "$user" = "external" ]; then
 				continue
 			fi
+                        # On qemu backend, sudo from user "ubuntu" is used. So the session
+                        # for user "ubuntu" is expected to exist.
+			if [ "$user" = "ubuntu" ]; then
+				continue
+			fi
 			# Report stray dbus-daemon.
-			echo "pid:$pid user:$user cmdline:$cmdline"
+			failed+=("pid:$pid user:$user cmdline:$cmdline")
 		done
-	) > "$TESTSTMP/tests.invariant.$n"
-	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
-		echo "tests.invariant: more than one dbus-daemon running" >&2
+		: $((wait_for_dbus_daemon--))
+		sleep 1
+	done
+
+	if [ "${#failed[@]}" -ne 0 ]; then
+		(for line in "${failed[@]}"; do
+			echo "${line}"
+		done) >"$TESTSTMP/tests.invariant.$n"
 		cat "$TESTSTMP/tests.invariant.$n" >&2
 		return 1
 	fi
@@ -150,6 +163,22 @@ check_cgroup_scopes() {
 		return 0
 	fi
 
+	wait_for_system_scopes=5
+	while [ "${wait_for_system_scopes}" -gt 0 ]; do
+		has_active_scope=0
+		while read -r -d '' scope; do
+			if systemctl is-active "$(basename "${scope}")"; then
+				has_active_scope=1
+				break
+			fi
+		done < <(find /sys/fs/cgroup/system.slice -name 'snap.*.scope' -print0)
+		if [ "${has_active_scope}" -eq 0 ]; then
+			break
+		fi
+		: $((wait_for_system_scopes--))
+		sleep 1
+	done
+
 	n="$1" # invariant name
 	find /sys/fs/cgroup -name 'snap.*.scope' > "$TESTSTMP/tests.invariant.$n"
 	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
@@ -162,7 +191,7 @@ check_cgroup_scopes() {
 check_segmentation_violations() {
 	n="$1" # invariant name
 
-	"$TESTSTOOLS"/journal-state get-log -unit snapd | grep "segmentation violation" > "$TESTSTMP/tests.invariant.$n"
+	"$TESTSTOOLS"/journal-state get-log -u snapd | grep "segmentation violation" > "$TESTSTMP/tests.invariant.$n"
 	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
 		echo "tests.invariant: segmentation violation found" >&2
 		cat "$TESTSTMP/tests.invariant.$n" >&2

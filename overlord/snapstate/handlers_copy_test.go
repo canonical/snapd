@@ -25,6 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -46,7 +47,7 @@ func (s *copySnapDataSuite) TestDoCopySnapDataFailedRead(c *C) {
 	// With a snap "pkg" at revision 42
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(42)}
 	snapstate.Set(s.state, "pkg", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		Active:   true,
 	})

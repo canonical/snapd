@@ -278,8 +278,12 @@ class LogReader:
         return os.path.exists(self.filepath)
 
     def read_spread_log(self):
-        with open(self.filepath) as filepath:
-            self.lines = filepath.readlines()
+        try:
+            with open(self.filepath, 'r', encoding='utf-8') as filepath:
+                self.lines = filepath.readlines()
+        except UnicodeDecodeError:
+            with open(self.filepath, 'r', encoding='latin-1') as filepath:
+                self.lines = filepath.readlines()
 
         # Find the start of the log, the log file could include
         # initial lines which are not part of the spread log itself

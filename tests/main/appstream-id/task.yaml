@@ -1,5 +1,9 @@
 summary: Verify AppStream ID integration
 
+details: |
+    Verify the AppStream ID is included in the search API response and also validate
+    that the AppStream ID is included in the installed snaps and apps API response.
+
 # ubuntu-core: no curl
 # ubuntu-14.04: curl too old, missing --unix-socket
 systems: [-ubuntu-14.04-*, -ubuntu-core*]

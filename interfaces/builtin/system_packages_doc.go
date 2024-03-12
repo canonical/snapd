@@ -39,7 +39,7 @@ const systemPackagesDocBaseDeclarationSlots = `
 const systemPackagesDocConnectedPlugAppArmor = `
 # Description: can access documentation of system packages.
 
-/usr/share/doc/{,**} r,
+/usr/{,local/}share/doc/{,**} r,
 /usr/share/cups/doc-root/{,**} r,
 /usr/share/gimp/2.0/help/{,**} r,
 /usr/share/gtk-doc/{,**} r,
@@ -58,6 +58,9 @@ func (iface *systemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/doc/ -> /usr/share/doc/,\n")
 	emit("  remount options=(bind, ro) /usr/share/doc/,\n")
 	emit("  umount /usr/share/doc/,\n")
+	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/local/share/doc/ -> /usr/local/share/doc/,\n")
+	emit("  remount options=(bind, ro) /usr/local/share/doc/,\n")
+	emit("  umount /usr/local/share/doc/,\n")
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/cups/doc-root/ -> /usr/share/cups/doc-root/,\n")
 	emit("  remount options=(bind, ro) /usr/share/cups/doc-root/,\n")
 	emit("  umount /usr/share/cups/doc-root/,\n")
@@ -78,6 +81,28 @@ func (iface *systemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	apparmor.GenWritableProfile(emit, "/usr/share/cups/", 3)
 	apparmor.GenWritableProfile(emit, "/usr/share/gimp/2.0/", 3)
 	apparmor.GenWritableProfile(emit, "/usr/share/libreoffice/", 3)
+
+	if base := plug.Snap().Base; base == "bare" || base == "test-snapd-base-bare" {
+		// The bare snap does not have enough mount points, causing us to create a mimic over /
+		// which only works when snap-update-ns is invoked without the sandbox by snapd. When invoked
+		// from starting snap via the snap-run -> snap-confine -> snap-update-ns chain, the permissions
+		// are not sufficient.
+		//
+		// In essence, constructing this sort of mimic requires nearly arbitrary writes/mounts at root:
+		// See bug comments for details LP:#2044335
+		emit(`
+  # Writable mimic over / - extra permissions generalized
+  "/**" rw,
+  mount options=(rbind, rw) "/**" -> "/tmp/.snap/**",
+  mount fstype=tmpfs options=(rw) tmpfs -> "/**",
+  mount options=(rbind, rw) "/tmp/.snap/**" -> "/**",
+  mount options=(bind, rw) "/tmp/.snap/**" -> "/**",
+  mount options=(rprivate) -> "/tmp/.snap/**",
+  mount options=(rprivate) -> "/**",
+  umount "/**",
+`)
+	}
+
 	return nil
 }
 
@@ -85,6 +110,11 @@ func (iface *systemPackagesDocInterface) MountConnectedPlug(spec *mount.Specific
 	spec.AddMountEntry(osutil.MountEntry{
 		Name:    "/var/lib/snapd/hostfs/usr/share/doc",
 		Dir:     "/usr/share/doc",
+		Options: []string{"bind", "ro"},
+	})
+	spec.AddMountEntry(osutil.MountEntry{
+		Name:    "/var/lib/snapd/hostfs/usr/local/share/doc",
+		Dir:     "/usr/local/share/doc",
 		Options: []string{"bind", "ro"},
 	})
 	spec.AddMountEntry(osutil.MountEntry{

@@ -55,8 +55,9 @@ func mockRefreshCandidate(snapName, channel, version string, revision snap.Revis
 			Revision: revision,
 			RealName: snapName,
 		},
+		Version: version,
 	}
-	return snapstate.MockRefreshCandidate(sup, version)
+	return snapstate.MockRefreshCandidate(sup)
 }
 
 func (s *refreshSuite) SetUpTest(c *C) {
@@ -509,7 +510,8 @@ func (s *refreshSuite) TestRefreshPrintInhibitHint(c *C) {
 	c.Assert(err, IsNil)
 	err = lock.Lock()
 	c.Assert(err, IsNil)
-	c.Check(runinhibit.LockWithHint("snap1", runinhibit.HintInhibitedForRefresh), IsNil)
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(1)}
+	c.Check(runinhibit.LockWithHint("snap1", runinhibit.HintInhibitedForRefresh, inhibitInfo), IsNil)
 	lock.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--show-lock"}, 0)

@@ -22,7 +22,6 @@ package boot_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -88,6 +87,22 @@ func mockNamedKernelSeedSnap(rev snap.Revision, name string) *seed.Snap {
 }
 
 func mockGadgetSeedSnap(c *C, files [][]string) *seed.Snap {
+	mockGadgetYaml := `
+volumes:
+  volumename:
+    bootloader: grub
+`
+
+	hasGadgetYaml := false
+	for _, entry := range files {
+		if entry[0] == "meta/gadget.yaml" {
+			hasGadgetYaml = true
+		}
+	}
+	if !hasGadgetYaml {
+		files = append(files, []string{"meta/gadget.yaml", mockGadgetYaml})
+	}
+
 	gadgetSnapFile := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, files)
 	return &seed.Snap{
 		Path: gadgetSnapFile,
@@ -100,6 +115,8 @@ func mockGadgetSeedSnap(c *C, files [][]string) *seed.Snap {
 }
 
 func (s *sealSuite) TestSealKeyToModeenv(c *C) {
+	defer boot.MockModeenvLocked()()
+
 	for idx, tc := range []struct {
 		sealErr                  error
 		provisionErr             error
@@ -316,9 +333,12 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		})
 		defer restore()
 
+		u := mockUnlocker{}
 		err = boot.SealKeyToModeenv(myKey, myKey2, model, modeenv, boot.MockSealKeyToModeenvFlags{
-			FactoryReset: tc.factoryReset,
+			FactoryReset:  tc.factoryReset,
+			StateUnlocker: u.unlocker,
 		})
+		c.Check(u.unlocked, Equals, 1)
 		c.Check(pcrHandleOfKeyCalls, Equals, tc.expPCRHandleOfKeyCalls)
 		c.Check(provisionCalls, Equals, tc.expProvisionCalls)
 		c.Check(sealKeysCalls, Equals, tc.expSealCalls)
@@ -426,10 +446,22 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 	}
 }
 
+type mockUnlocker struct {
+	unlocked int
+}
+
+func (u *mockUnlocker) unlocker() func() {
+	return func() {
+		u.unlocked += 1
+	}
+}
+
 // TODO:UC20: also test fallback reseal
 func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 	var prevPbc boot.PredictableBootChains
 	var prevRecoveryPbc boot.PredictableBootChains
+
+	defer boot.MockModeenvLocked()()
 
 	for idx, tc := range []struct {
 		sealedKeys       bool
@@ -454,7 +486,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 
 		if tc.sealedKeys {
 			c.Assert(os.MkdirAll(dirs.SnapFDEDir, 0755), IsNil)
-			err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), nil, 0644)
+			err := os.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), nil, 0644)
 			c.Assert(err, IsNil)
 
 		}
@@ -567,8 +599,6 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 						)),
 					secboot.NewLoadChain(shim2,
 						secboot.NewLoadChain(grub,
-							secboot.NewLoadChain(runGrub,
-								secboot.NewLoadChain(runKernel)),
 							secboot.NewLoadChain(runGrub2,
 								secboot.NewLoadChain(runKernel)),
 						)),
@@ -584,8 +614,6 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 						)),
 					secboot.NewLoadChain(shim2,
 						secboot.NewLoadChain(grub,
-							secboot.NewLoadChain(runGrub,
-								secboot.NewLoadChain(runKernel2)),
 							secboot.NewLoadChain(runGrub2,
 								secboot.NewLoadChain(runKernel2)),
 						)),
@@ -636,18 +664,21 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 		})
 		defer restore()
 
+		u := mockUnlocker{}
+
 		// here we don't have unasserted kernels so just set
 		// expectReseal to false as it doesn't matter;
 		// the behavior with unasserted kernel is tested in
 		// boot_test.go specific tests
 		const expectReseal = false
-		err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal)
+		err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, u.unlocker)
 		if !tc.sealedKeys || (tc.reuseRunPbc && tc.reuseRecoveryPbc) {
 			// did nothing
 			c.Assert(err, IsNil)
 			c.Assert(resealKeysCalls, Equals, 0)
 			continue
 		}
+		c.Check(u.unlocked, Equals, 1)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
@@ -775,7 +806,7 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 	defer dirs.SetRootDir("")
 
 	c.Assert(os.MkdirAll(dirs.SnapFDEDir, 0755), IsNil)
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), nil, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	err = createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-seed"))
@@ -829,6 +860,8 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 		return model, []*seed.Snap{mockKernelSeedSnap(snap.R(kernelRev)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
+
+	defer boot.MockModeenvLocked()()
 
 	// set mock key resealing
 	resealKeysCalls := 0
@@ -917,7 +950,7 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 	// the behavior with unasserted kernel is tested in
 	// boot_test.go specific tests
 	const expectReseal = false
-	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal)
+	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, nil)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 2)
 
@@ -1045,7 +1078,7 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 	model := boottest.MakeMockUC20Model()
 
 	c.Assert(os.MkdirAll(dirs.SnapFDEDir, 0755), IsNil)
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), nil, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	modeenv := &boot.Modeenv{
@@ -1104,6 +1137,8 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 	})
 	defer restore()
 
+	defer boot.MockModeenvLocked()()
+
 	// set mock key resealing
 	resealKeysCalls := 0
 	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
@@ -1128,7 +1163,7 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 	defer restore()
 
 	const expectReseal = false
-	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal)
+	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, nil)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 2)
 
@@ -1393,7 +1428,7 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 		}
 
 		includeTryModel := false
-		bc, err := boot.RecoveryBootChainsForSystems(tc.recoverySystems, tc.modesForSystems, tbl, modeenv, includeTryModel)
+		bc, err := boot.RecoveryBootChainsForSystems(tc.recoverySystems, tc.modesForSystems, tbl, modeenv, includeTryModel, dirs.SnapSeedDir)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 			if tc.expectedBootChainsCount == 0 {
@@ -1428,7 +1463,7 @@ func createMockGrubCfg(baseDir string) error {
 	if err := os.MkdirAll(filepath.Dir(cfg), 0755); err != nil {
 		return err
 	}
-	return ioutil.WriteFile(cfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0644)
+	return os.WriteFile(cfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0644)
 }
 
 func (s *sealSuite) TestSealKeyModelParams(c *C) {
@@ -1665,6 +1700,8 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	key := keys.EncryptionKey{1, 2, 3, 4}
 	saveKey := keys.EncryptionKey{5, 6, 7, 8}
 
+	defer boot.MockModeenvLocked()()
+
 	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv, boot.MockSealKeyToModeenvFlags{HasFDESetupHook: true})
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
@@ -1704,6 +1741,8 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	key := keys.EncryptionKey{1, 2, 3, 4}
 	saveKey := keys.EncryptionKey{5, 6, 7, 8}
 
+	defer boot.MockModeenvLocked()()
+
 	model := boottest.MakeMockUC20Model()
 	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv, boot.MockSealKeyToModeenvFlags{HasFDESetupHook: true})
 	c.Assert(err, ErrorMatches, "hook failed")
@@ -1734,8 +1773,10 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 	marker := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
 	err := os.MkdirAll(filepath.Dir(marker), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(marker, []byte("fde-setup-hook"), 0644)
+	err = os.WriteFile(marker, []byte("fde-setup-hook"), 0644)
 	c.Assert(err, IsNil)
+
+	defer boot.MockModeenvLocked()()
 
 	model := boottest.MakeMockUC20Model()
 	modeenv := &boot.Modeenv{
@@ -1746,7 +1787,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 		ModelSignKeyID: model.SignKeyID(),
 	}
 	expectReseal := false
-	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal)
+	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, nil)
 	c.Assert(err, IsNil)
 	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
 }
@@ -1766,8 +1807,10 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
 	marker := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
 	err := os.MkdirAll(filepath.Dir(marker), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(marker, []byte("fde-setup-hook"), 0644)
+	err = os.WriteFile(marker, []byte("fde-setup-hook"), 0644)
 	c.Assert(err, IsNil)
+
+	defer boot.MockModeenvLocked()()
 
 	model := boottest.MakeMockUC20Model()
 	modeenv := &boot.Modeenv{
@@ -1778,7 +1821,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
 		ModelSignKeyID: model.SignKeyID(),
 	}
 	expectReseal := false
-	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal)
+	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, nil)
 	c.Assert(err, ErrorMatches, "fde setup hook failed")
 	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
 }
@@ -1789,7 +1832,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 	defer dirs.SetRootDir("")
 
 	c.Assert(os.MkdirAll(dirs.SnapFDEDir, 0755), IsNil)
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), nil, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapFDEDir, "sealed-keys"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	err = createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-seed"))
@@ -1866,6 +1909,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 		return systemModel, []*seed.Snap{mockKernelSeedSnap(snap.R(kernelRev)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
+
+	defer boot.MockModeenvLocked()()
 
 	// set mock key resealing
 	resealKeysCalls := 0
@@ -1987,7 +2032,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 	// the behavior with unasserted kernel is tested in
 	// boot_test.go specific tests
 	const expectReseal = false
-	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal)
+	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal, nil)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 2)
 
@@ -2150,10 +2195,10 @@ func (s *sealSuite) TestMarkFactoryResetComplete(c *C) {
 		if tc.encrypted {
 			c.Assert(os.MkdirAll(boot.InitramfsSeedEncryptionKeyDir, 0755), IsNil)
 			if tc.factoryKeyAlreadyMigrated {
-				c.Assert(ioutil.WriteFile(saveSealedKey, []byte{'o', 'l', 'd'}, 0644), IsNil)
-				c.Assert(ioutil.WriteFile(saveSealedKeyByFactoryReset, []byte{'n', 'e', 'w'}, 0644), IsNil)
+				c.Assert(os.WriteFile(saveSealedKey, []byte{'o', 'l', 'd'}, 0644), IsNil)
+				c.Assert(os.WriteFile(saveSealedKeyByFactoryReset, []byte{'n', 'e', 'w'}, 0644), IsNil)
 			} else {
-				c.Assert(ioutil.WriteFile(saveSealedKey, []byte{'n', 'e', 'w'}, 0644), IsNil)
+				c.Assert(os.WriteFile(saveSealedKey, []byte{'n', 'e', 'w'}, 0644), IsNil)
 			}
 		}
 

@@ -22,7 +22,6 @@ package ifacestate_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -303,7 +303,7 @@ func (s *helpersSuite) TestCheckIsSystemSnapPresentWithCore(c *C) {
 
 	snapstate.Set(s.st, snapInfo.InstanceName(), &snapstate.SnapState{
 		Active:      true,
-		Sequence:    []*snap.SideInfo{sideInfo},
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:     sideInfo.Revision,
 		SnapType:    string(snapInfo.Type()),
 		InstanceKey: snapInfo.InstanceKey,
@@ -333,7 +333,7 @@ func (s *helpersSuite) TestCheckIsSystemSnapPresentWithSnapd(c *C) {
 
 	snapstate.Set(s.st, snapInfo.InstanceName(), &snapstate.SnapState{
 		Active:      true,
-		Sequence:    []*snap.SideInfo{sideInfo},
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:     sideInfo.Revision,
 		SnapType:    string(snapInfo.Type()),
 		InstanceKey: snapInfo.InstanceKey,
@@ -359,7 +359,7 @@ func (s *helpersSuite) TestSystemKeyAndFailingProfileRegeneration(c *C) {
 	// test backends with empty name for convenience.
 	backend := &ifacetest.TestSecurityBackend{
 		BackendName: "BROKEN",
-		SetupCallback: func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
 			return errors.New("FAILED")
 		},
 	}
@@ -384,7 +384,7 @@ apps:
 	st.Lock()
 	snapst := &snapstate.SnapState{
 		SnapType: string(snap.TypeApp),
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Active:   true,
 		Current:  snap.R(1),
 	}
@@ -400,7 +400,7 @@ apps:
 	// Put a fake system key in place, we just want to see that file being removed.
 	err := os.MkdirAll(filepath.Dir(dirs.SnapSystemKeyFile), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.SnapSystemKeyFile, []byte("system-key"), 0755)
+	err = os.WriteFile(dirs.SnapSystemKeyFile, []byte("system-key"), 0755)
 	c.Assert(err, IsNil)
 
 	// Put up a fake logger to capture logged messages.
@@ -433,7 +433,7 @@ apps:
 		st.Lock()
 		snapst := &snapstate.SnapState{
 			SnapType: string(snap.TypeApp),
-			Sequence: []*snap.SideInfo{si},
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 			Active:   true,
 			Current:  snap.R(1),
 		}
@@ -452,8 +452,8 @@ func (s *helpersSuite) TestProfileRegenerationSetupMany(c *C) {
 	// Create a fake security backend
 	backend := &ifacetest.TestSecurityBackendSetupMany{
 		TestSecurityBackend: ifacetest.TestSecurityBackend{BackendName: "fake"},
-		SetupManyCallback: func(snaps []*snap.Info, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
-			c.Check(snaps, HasLen, 2)
+		SetupManyCallback: func(appSets []*interfaces.SnapAppSet, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
+			c.Check(appSets, HasLen, 2)
 			setupManyCalls++
 			return nil
 		},
@@ -496,8 +496,8 @@ func (s *helpersSuite) TestProfileRegenerationSetupManyFailsSystemKeyNotWritten(
 	// Create a fake security backend
 	backend := &ifacetest.TestSecurityBackendSetupMany{
 		TestSecurityBackend: ifacetest.TestSecurityBackend{BackendName: "fake"},
-		SetupManyCallback: func(snaps []*snap.Info, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
-			c.Check(snaps, HasLen, 2)
+		SetupManyCallback: func(appSets []*interfaces.SnapAppSet, confinement func(snapName string) interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) []error {
+			c.Check(appSets, HasLen, 2)
 			setupManyCalls++
 			return []error{fmt.Errorf("FAILED")}
 		},

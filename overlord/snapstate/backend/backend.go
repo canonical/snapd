@@ -53,6 +53,23 @@ func OpenSnapFile(snapPath string, sideInfo *snap.SideInfo) (*snap.Info, snap.Co
 	return info, snapf, nil
 }
 
+// OpenComponentFile opens a component blob returning a snap.ComponentInfo and
+// a corresponding snap.Container. Assumes the file was verified beforehand or
+// the user asked for --dangerous.
+func OpenComponentFile(compPath string) (*snap.ComponentInfo, snap.Container, error) {
+	snapf, err := snapfile.Open(compPath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	info, err := snap.ReadComponentInfoFromContainer(snapf)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return info, snapf, nil
+}
+
 func NewForPreseedMode() Backend {
 	return Backend{preseed: true}
 }

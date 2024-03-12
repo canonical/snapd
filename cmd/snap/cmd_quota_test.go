@@ -260,6 +260,13 @@ func (s *quotaSuite) TestParseQuotas(c *check.C) {
 }
 
 func (s *quotaSuite) TestSetQuotaInvalidArgs(c *check.C) {
+	const json = `{
+		"type": "sync",
+		"status-code": 200,
+		"result": {}
+	}`
+	s.RedirectClientToTestServer(s.makeFakeGetQuotaGroupHandler(c, json))
+
 	for _, args := range []struct {
 		args []string
 		err  string

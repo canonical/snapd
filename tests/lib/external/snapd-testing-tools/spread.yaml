@@ -16,15 +16,17 @@ backends:
             - ubuntu-18.04-64:
             - ubuntu-20.04-64:
             - ubuntu-22.04-64:
-            - ubuntu-22.10-64:
-            - ubuntu-23.04-64:
-            - debian-10-64:
+            - ubuntu-23.10-64:
+            - ubuntu-24.04-64:
             - debian-11-64:
+            - debian-12-64:
             - debian-sid-64:
-            - fedora-36-64:
-            - fedora-37-64:
+            - fedora-38-64:
+            - fedora-39-64:
             - arch-linux-64:
             - amazon-linux-2-64:
+                storage: preserve-size
+            - amazon-linux-2023-64:
                 storage: preserve-size
             - centos-7-64:
                 storage: preserve-size
@@ -32,8 +34,7 @@ backends:
                 storage: preserve-size
             - centos-9-64:
                 storage: preserve-size
-            - opensuse-15.3-64:
-            - opensuse-15.4-64:
+            - opensuse-15.5-64:
             - opensuse-tumbleweed-64:
 
     google-nested:

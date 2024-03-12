@@ -15,6 +15,7 @@ environment:
     TESTSLIB: $PROJECT_PATH/tests/lib
     TESTSTOOLS: $PROJECT_PATH/tests/lib/tools
     TESTSTMP: /var/tmp/snapd-tools
+    RUNTIME_STATE_PATH: $TESTSTMP/runtime-state
     # turn debug off so that we don't get errant debug messages while running
     # tests, and in some cases like on UC20 we have the kernel command line
     # parameter, snapd.debug=1 turned on to enable early boot debugging before
@@ -48,8 +49,9 @@ environment:
     UBUNTU_IMAGE_ALLOW_API_BREAK: '$(HOST: echo "${SPREAD_UBUNTU_IMAGE_ALLOW_API_BREAK:-true}")'
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
-    KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-edge}")'
-    GADGET_CHANNEL: '$(HOST: echo "${SPREAD_GADGET_CHANNEL:-edge}")'
+    # Channel for kernel cannot be edge as that one is not signed with Canonical keys
+    KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-beta}")'
+    GADGET_CHANNEL: '$(HOST: echo "${SPREAD_GADGET_CHANNEL:-beta}")'
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
@@ -73,6 +75,8 @@ environment:
     # Use the installed snapd and reset the systems without removing snapd
     REUSE_SNAPD: '$(HOST: echo "${SPREAD_REUSE_SNAPD:-0}")'
     EXPERIMENTAL_FEATURES: '$(HOST: echo "${SPREAD_EXPERIMENTAL_FEATURES:-}")'
+    # set to 1 when the snapd memory limit has to be removed
+    SNAPD_NO_MEMORY_LIMIT: '$(HOST: echo "${SPREAD_SNAPD_NO_MEMORY_LIMIT:-}")'
 
     SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
     # Build and use snapd from current branch
@@ -81,7 +85,11 @@ environment:
     # Directory where the nested images and test assets are stored
     NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
     # Channel used to create the nested vm
-    NESTED_CORE_CHANNEL: '$(HOST: echo "${NESTED_CORE_CHANNEL:-edge}")'
+    NESTED_CORE_CHANNEL: '$(HOST: echo "${NESTED_CORE_CHANNEL:-beta}")'
+    # Kernel channel used to create the nested vm
+    NESTED_KERNEL_CHANNEL: '$(HOST: echo "${NESTED_KERNEL_CHANNEL:-beta}")'
+    # Gadget channel used to create the nested vm
+    NESTED_GADGET_CHANNEL: '$(HOST: echo "${NESTED_GADGET_CHANNEL:-edge}")'
     # Use cloud init to make initial system configuration instead of user assertion
     NESTED_CORE_REFRESH_CHANNEL: '$(HOST: echo "${NESTED_CORE_REFRESH_CHANNEL:-edge}")'
     # Use cloud init to make initial system configuration instead of user assertion
@@ -96,6 +104,7 @@ environment:
     NESTED_REPACK_KERNEL_SNAP: '$(HOST: echo "${NESTED_REPACK_KERNEL_SNAP:-true}")'
     NESTED_REPACK_GADGET_SNAP: '$(HOST: echo "${NESTED_REPACK_GADGET_SNAP:-true}")'
     NESTED_REPACK_BASE_SNAP: '$(HOST: echo "${NESTED_REPACK_BASE_SNAP:-true}")'
+    NESTED_FORCE_MS_KEYS: '$(HOST: echo "${NESTED_FORCE_MS_KEYS:-false}")'
 
 backends:
     google:
@@ -137,30 +146,39 @@ backends:
             - ubuntu-22.04-64:
                   storage: 12G
                   workers: 8
-            - ubuntu-22.10-64:
+            - ubuntu-23.10-64:
                   storage: 12G
                   workers: 8
-            - ubuntu-23.04-64:
+            - ubuntu-24.04-64:
                   storage: 12G
-                  workers: 6
+                  workers: 8
 
-            - debian-10-64:
-                  workers: 6
+    google-central:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/us-central1-b
+        halt-timeout: 2h
+        systems:
             - debian-11-64:
+                  workers: 6
+            - debian-12-64:
                   workers: 6
             - debian-sid-64:
                   storage: 12G
                   workers: 6
 
-            - fedora-36-64:
+            - fedora-38-64:
                   workers: 6
-            - fedora-37-64:
+            - fedora-39-64:
                   workers: 6
 
             - arch-linux-64:
                   workers: 6
                   storage: 12G
             - amazon-linux-2-64:
+                  workers: 6
+                  storage: preserve-size
+            - amazon-linux-2023-64:
                   workers: 6
                   storage: preserve-size
 
@@ -177,12 +195,10 @@ backends:
                   storage: preserve-size
                   image: centos-9-64
 
-            # unstable systems below
-            - opensuse-15.4-64:
+            - opensuse-15.5-64:
                   workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6
-                  manual: true
 
     google-arm:
         type: google
@@ -199,6 +215,10 @@ backends:
                   image: ubuntu-os-cloud/ubuntu-2204-lts-arm64
                   workers: 8
                   storage: 12G
+            - ubuntu-core-22-arm-64:
+                  image: ubuntu-22.04-arm-64
+                  workers: 6
+                  storage: 30G
 
     google-sru:
         type: google
@@ -212,8 +232,6 @@ backends:
                   workers: 6
             - ubuntu-22.04-64:
                   workers: 6
-            - ubuntu-22.10-64:
-                  workers: 6
 
     google-nested:
         type: google
@@ -226,27 +244,38 @@ backends:
             - ubuntu-16.04-64:
                   image: ubuntu-1604-64-virt-enabled
                   storage: 20G
-                  workers: 3
+                  workers: 4
             - ubuntu-18.04-64:
                   image: ubuntu-1804-64-virt-enabled
                   storage: 20G
-                  workers: 3
+                  workers: 4
             - ubuntu-20.04-64:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
-                  workers: 8
+                  workers: 10
             - ubuntu-22.04-64:
                   image: ubuntu-2204-64-virt-enabled
                   storage: 25G
-                  workers: 8
+                  workers: 10
 
+    google-nested-arm:
+        type: google
+        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
+        location: snapd-spread/us-central1-a
+        plan: t2a-standard-2
+        halt-timeout: 2h
+        systems:
+            - ubuntu-22.04-arm-64:
+                  image: ubuntu-2204-arm-64-virt-enabled
+                  storage: 25G
+                  workers: 8
 
     google-nested-dev:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-east1-b
+        location: snapd-spread/northamerica-northeast1-a
         plan: n2-standard-4
-        halt-timeout: 2h
+        halt-timeout: 6h
         cpu-family: "Intel Cascade Lake"
         systems:
             - ubuntu-16.04-64:
@@ -335,10 +364,13 @@ backends:
             - ubuntu-22.04-64:
                   username: ubuntu
                   password: ubuntu
-            - debian-10-64:
+            - ubuntu-23.10-64:
+                  username: ubuntu
+                  password: ubuntu
+            - debian-11-64:
                   username: debian
                   password: debian
-            - debian-11-64:
+            - debian-12-64:
                   username: debian
                   password: debian
             - debian-sid-64:
@@ -389,22 +421,6 @@ backends:
             - ubuntu-16.04-s390x:
                   username: ubuntu
                   password: ubuntu
-            # Artful
-            - ubuntu-17.10-amd64:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-17.10-i386:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-17.10-ppc64el:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-17.10-armhf:
-                  username: ubuntu
-                  password: ubuntu
-            - ubuntu-17.10-s390x:
-                  username: ubuntu
-                  password: ubuntu
             # Bionic
             - ubuntu-18.04-amd64:
                   username: ubuntu
@@ -441,6 +457,25 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-20.04-arm64:
+                  username: ubuntu
+                  password: ubuntu
+            # Jammy
+            - ubuntu-22.04-amd64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-i386:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-ppc64el:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-armhf:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-s390x:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-22.04-arm64:
                   username: ubuntu
                   password: ubuntu
 
@@ -497,6 +532,9 @@ backends:
             - ubuntu-core-24-64:
                   username: external
                   password: ubuntu
+            - ubuntu-core-24-arm-64:
+                  username: external
+                  password: ubuntu
 
 path: /home/gopath/src/github.com/snapcore/snapd
 
@@ -527,6 +565,9 @@ debug-each: |
 
     echo '# Kernel information'
     uname -a
+
+    echo '# Apparmor information'
+    apparmor_parser --version || true
 
     echo '# Go information'
     go version || true
@@ -625,6 +666,9 @@ repack: |
     if ! echo "$SPREAD_BACKENDS" | grep -e linode -e google; then
         cat <&3 >&4
     elif ! git show-ref "$DELTA_REF" > /dev/null; then
+        cat <&3 >&4
+    elif [ -n "${NO_DELTA-}" ]; then
+        # delta has been disabled by the caller
         cat <&3 >&4
     else
         tmpdir="$(mktemp -d)"
@@ -762,6 +806,10 @@ prepare: |
             ubuntu-*|debian-*)
                 apt-get update >& "$tf" || ( cat "$tf"; exit 1 )
                 apt-get install -y xdelta3 curl eatmydata >& "$tf" || ( cat "$tf"; exit 1 )
+                ;;
+            amazon-linux-2023-*)
+                echo "deltas are not supported on $SPREAD_SYSTEM, use NO_DELTA=1 when running spread"
+                exit 1
                 ;;
             amazon-*|centos-7-*)
                 yum install -y xdelta curl &> "$tf" || (cat "$tf"; exit 1)
@@ -1011,10 +1059,52 @@ suites:
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
 
+    tests/perf/:
+        summary: Performance and Load tests
+        backends: [external]
+        environment:
+            CONNECTIONS_PERCENTAGE: '$(HOST: echo "${PERF_CONNECTIONS_PERCENTAGE:-100}")'
+            DISCONNECT_INTERFACES: '$(HOST: echo "${PERF_DISCONNECT_INTERFACES:-true}")'
+            CPU_LOAD: '$(HOST: echo "${PERF_CPU_LOAD:-}")'
+            LOAD_DURATION: '$(HOST: echo "${PERF_LOAD_DURATION:-1200}")'
+            NUM_PARALLEL: '$(HOST: echo "${PERF_NUM_PARALLEL:-10}")'
+            NUM_SNAPS: '$(HOST: echo "${PERF_NUM_SNAPS:-100}")'
+        manual: true
+        warn-timeout: 10m
+        kill-timeout: 60m
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+            if [ -n "$CPU_LOAD" ]; then
+                # Start load generator and wait until it is active
+                # It is generated as a systemd service to make it independent of snapd
+                # and also to make sure it is not blocking spread scripts
+                snap install --edge --devmode test-snapd-load-generator
+                tests.systemd create-and-start-unit load-generator "/snap/bin/test-snapd-load-generator.run -d $LOAD_DURATION -l $CPU_LOAD"
+                tests.systemd wait-for-service -n 5 --wait 1 --state active load-generator
+            fi
+        restore-each: |
+            if [ -n "$CPU_LOAD" ]; then
+                # Now we make sure all the load generator processes are killed before
+                # the load-generator service is removed
+                #shellcheck disable=SC2009
+                PIDs="$(ps -ef | grep -e '^root.*python3.*load-generator' | awk '{print $2}')"
+                # shellcheck disable=SC2086
+                for pid in $PIDs; do
+                    if ps -p "$pid" &>/dev/null; then 
+                        kill -9 "$pid"
+                    fi
+                done
+                tests.systemd stop-unit --remove load-generator
+            fi
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
+
     tests/nested/manual/:
         summary: Tests for nested images controlled manually from the tests
-        backends: [google-nested, google-nested-dev, qemu-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64, ubuntu-22.04-64]
+        backends: [google-nested, google-nested-dev, qemu-nested, google-nested-arm]
         environment:
             NESTED_TYPE: "classic"
             # Enable kvm in the qemu command line
@@ -1031,6 +1121,8 @@ suites:
             NESTED_IMAGE_ID: "unset"
             # Configuration file used for remote tools
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
+            # Define which tests to run in the nested vm in run-spread test
+            NESTED_SPREAD_TESTS:  '$(HOST: echo "${NESTED_SPREAD_TESTS:-}")'
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m
@@ -1041,12 +1133,19 @@ suites:
             . "$TESTSLIB"/image.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
-            if os.query is-xenial; then
+            if os.query is-xenial || os.query is-arm; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
+                # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
                get_ubuntu_image
+            fi
+
+            if os.query is-arm; then
+                export NESTED_ARCHITECTURE=arm64
+            else
+                export NESTED_ARCHITECTURE=amd64
             fi
 
             # Install the snapd built
@@ -1072,8 +1171,7 @@ suites:
 
     tests/nested/classic/:
         summary: Tests for nested images
-        backends: [google-nested, google-nested-dev, qemu-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-21.10-64, ubuntu-22.04-64]
+        backends: [google-nested, google-nested-dev, qemu-nested, google-nested-arm]
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
@@ -1092,12 +1190,19 @@ suites:
             . "$TESTSLIB"/image.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
-            if os.query is-xenial; then
+            if os.query is-xenial || os.query is-arm; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
+                # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
                 get_ubuntu_image
+            fi
+
+            if os.query is-arm; then
+                export NESTED_ARCHITECTURE=arm64
+            else
+                export NESTED_ARCHITECTURE=amd64
             fi
 
             # Install the snapd built
@@ -1123,12 +1228,11 @@ suites:
 
     tests/nested/core/:
         summary: Tests for nested images
-        backends: [google-nested, google-nested-dev, qemu-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
+        backends: [google-nested, google-nested-dev, qemu-nested, google-nested-arm]
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line
-            NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-}")'
+            NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-true}")'
             # Enable tpm in the nested vm in case it is supported
             NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-}")'
             # Enable secure boot in the nested vm in case it is supported
@@ -1147,9 +1251,10 @@ suites:
             . "$TESTSLIB"/image.sh
             distro_update_package_db
             distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
-            if os.query is-xenial; then
+            if os.query is-xenial || os.query is-arm; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
+                # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
                 get_ubuntu_image
@@ -1169,6 +1274,71 @@ suites:
         restore-each: |
             tests.nested vm remove
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+        restore: |
+            tests.nested restore
+
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
+
+    tests/nested/perf/:
+        summary: Performance and Load tests preparation suite
+        backends: [google-nested, google-nested-dev, qemu-nested]
+        environment:
+            NESTED_TYPE: "core"
+            # Enable kvm in the qemu command line
+            NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-true}")'
+            # Enable tpm in the nested vm in case it is supported
+            NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-true}")'
+            # Enable secure boot in the nested vm in case it is supported
+            NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-true}")'
+            # Add snapd debug and log to serial console
+            NESTED_SNAPD_DEBUG_TO_SERIAL: '$(HOST: echo "${NESTED_SNAPD_DEBUG_TO_SERIAL:-false}")'
+            # Add any extra cmd line parameter to the nested vm
+            NESTED_EXTRA_CMDLINE: '$(HOST: echo "${NESTED_EXTRA_CMDLINE:-}")'
+            # Configuration file used for remote tools
+            REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
+            # Indicates the number of cpus to use in the nested vm
+            NESTED_CPUS: '$(HOST: echo "${NESTED_CPUS:-2}")'
+            # Indicates the amount of memory in MB to use in the nested vm
+            NESTED_MEM: '$(HOST: echo "${NESTED_MEM:-4096}")'
+            SPREAD_URL: https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz
+
+        manual: true
+        warn-timeout: 10m
+        kill-timeout: 60m
+        prepare: |
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+            #shellcheck source=tests/lib/image.sh
+            . "$TESTSLIB"/image.sh
+            distro_update_package_db
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            if os.query is-xenial || os.query is-arm; then
+                # the new ubuntu-image expects mkfs to support -d option, which was not
+                # supported yet by the version of mkfs that shipped with Ubuntu 16.04
+                # also ubuntu-image binary is not prebuilt for arm instances
+                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            else
+                get_ubuntu_image
+            fi
+  
+            # Install the snapd built
+            dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+
+            # Configure the ssh connection to the test vm
+            remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
+
+            tests.nested prepare
+            tests.nested build-image core
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+            tests.nested create-vm core --param-cpus "$NESTED_CPUS" --param-mem "$NESTED_MEM"
+
+        restore-each: |
+            tests.nested vm remove
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+
         restore: |
             tests.nested restore
 

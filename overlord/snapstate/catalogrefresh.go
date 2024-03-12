@@ -59,6 +59,11 @@ func (r *catalogRefresh) Ensure() error {
 	r.state.Lock()
 	defer r.state.Unlock()
 
+	online, err := isStoreOnline(r.state)
+	if err != nil || !online {
+		return err
+	}
+
 	// sneakily don't do anything if in testing
 	if CanAutoRefresh == nil {
 		return nil
@@ -68,7 +73,7 @@ func (r *catalogRefresh) Ensure() error {
 	// do not bother refreshing catalog, snap list is empty anyway
 	// beside there is high change device has no internet
 	var seeded bool
-	err := r.state.Get("seeded", &seeded)
+	err = r.state.Get("seeded", &seeded)
 	if errors.Is(err, state.ErrNoState) || !seeded {
 		logger.Debugf("CatalogRefresh:Ensure: skipping refresh, system is not seeded yet")
 		// not seeded yet
@@ -118,6 +123,10 @@ func (r *catalogRefresh) Ensure() error {
 	switch err {
 	case nil:
 		logger.Debugf("Catalog refresh succeeded.")
+	case advisor.ErrNotSupported:
+		// This may happen if Bolt is disabled (e.g. Debian on RISC V).
+		logger.Debugf("Catalog refresh is not supported on this system")
+		// Do not fail silently so that tests can have the right expectations.
 	case store.ErrTooManyRequests:
 		logger.Debugf("Catalog refresh postponed.")
 		err = nil

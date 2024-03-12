@@ -89,7 +89,7 @@ func (s *lkTestSuite) TestNewLkPresentChecksBackupStorageToo(c *C) {
 	err = os.MkdirAll(filepath.Dir(f), 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(f+"bak", nil, 0644)
+	err = os.WriteFile(f+"bak", nil, 0644)
 	c.Assert(err, IsNil)
 
 	// now the bootloader is present because the backup exists

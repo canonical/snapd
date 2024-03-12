@@ -67,6 +67,17 @@ plugs:
     where: $SNAP_COMMON/{foo,other,**}
     type: [mycustomfs]
     options: [sync]
+  - what: /dev/sd[abc]
+    where: /media/someuser/**
+    options: [nofail, rw]
+  - what: /dev/sda[123]
+    where: $SNAP_COMMON/mnt/**
+    type: [ext2, ext3, ext4]
+    options: [nofail, sync, acl]
+  - what: /dev/nvme0n1p1
+    where: $SNAP_COMMON/mnt/**
+    type: [aufs]
+    options: [br:/mnt/a, add:0:/mnt/b, dirwh=1, rw]
 apps:
  app:
   plugs: [mntctl]
@@ -225,6 +236,26 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 			`mount-control option unrecognized or forbidden: "invalid"`,
 		},
 		{
+			"mount:\n  - what: /\n    where: /media/*\n    type: [ext2,ext3,ext4]\n    options: [acl,gid=2000]",
+			`mount-control option unrecognized or forbidden: "gid=2000"`,
+		},
+		{
+			"mount:\n  - what: /\n    where: /media/*\n    type: [adfs,ext2,ext3,ext4]\n    options: [acl,gid=2000]",
+			`mount-control option unrecognized or forbidden: "acl"`,
+		},
+		{
+			"mount:\n  - what: /\n    where: /media/*\n    type: [adfs]\n    options: [gid=2000,acl]",
+			`mount-control option unrecognized or forbidden: "acl"`,
+		},
+		{
+			"mount:\n  - what: /\n    where: /media/*\n    type: [aufs]\n    options: [br:/mnt/a,add:0:/mnt/b,dirwh=1,verbose:foo]",
+			`mount-control option unrecognized or forbidden: "verbose:foo"`,
+		},
+		{
+			"mount:\n  - what: /\n    where: /media/*\n    type: [aufs]\n    options: [br:/mnt/a,add:0:/mnt/b,dirwh=1,ins]",
+			`mount-control option unrecognized or forbidden: "ins"`,
+		},
+		{
 			"mount:\n  - what: /\n    where: /media/*\n    type: [ext4,debugfs]",
 			`mount-control forbidden filesystem type: "debugfs"`,
 		},
@@ -238,7 +269,7 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 		},
 		{
 			"mount:\n  - what: diag\n    where: /dev/ffs-diag\n    type: [functionfs]\n    options: [rw,make-private]",
-			`mount-control option "make-private" is incompatible with specifying filesystem type`,
+			`mount-control option unrecognized or forbidden: "make-private"`,
 		},
 		{
 			"mount:\n  - what: /tmp/..\n    where: /media/*",
@@ -287,7 +318,7 @@ func (s *MountControlInterfaceSuite) TestSanitizePlugUnhappy(c *C) {
 }
 
 func (s *MountControlInterfaceSuite) TestSecCompSpec(c *C) {
-	spec := &seccomp.Specification{}
+	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "mount\n")
@@ -296,7 +327,7 @@ func (s *MountControlInterfaceSuite) TestSecCompSpec(c *C) {
 }
 
 func (s *MountControlInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `capability sys_admin,`)
@@ -310,7 +341,7 @@ func (s *MountControlInterfaceSuite) TestAppArmorSpec(c *C) {
 
 	expectedMountLine3 := `mount fstype=(` +
 		`aufs,autofs,btrfs,ext2,ext3,ext4,hfs,iso9660,jfs,msdos,ntfs,ramfs,` +
-		`reiserfs,squashfs,tmpfs,ubifs,udf,ufs,vfat,zfs,xfs` +
+		`reiserfs,squashfs,tmpfs,ubifs,udf,ufs,vfat,xfs,zfs` +
 		`) options=(ro) "/dev/sda{0,1}" -> "/var/snap/consumer/common/**{,/}",`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine3)
 	expectedUmountLine3 := `umount "/var/snap/consumer/common/**{,/}",`
@@ -321,6 +352,26 @@ func (s *MountControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine4)
 	expectedUmountLine4 := `umount "/var/snap/consumer/common/{foo,other,**}{,/}",`
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedUmountLine4)
+
+	expectedMountLine5 := `mount fstype=(` +
+		`aufs,autofs,btrfs,ext2,ext3,ext4,hfs,iso9660,jfs,msdos,ntfs,ramfs,` +
+		`reiserfs,squashfs,tmpfs,ubifs,udf,ufs,vfat,xfs,zfs` +
+		`) options=(rw) "/dev/sd[abc]" -> "/media/someuser/**{,/}",`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine5)
+	expectedUmountLine5 := `umount "/media/someuser/**{,/}",`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedUmountLine5)
+
+	expectedMountLine6 := `mount fstype=(ext2,ext3,ext4) options=(sync) ` +
+		`"/dev/sda[123]" -> "/var/snap/consumer/common/mnt/**{,/}",`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine6)
+	expectedUmountLine6 := `umount "/var/snap/consumer/common/mnt/**{,/}",`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedUmountLine6)
+
+	expectedMountLine7 := `mount fstype=(aufs) options=(rw) ` +
+		`"/dev/nvme0n1p1" -> "/var/snap/consumer/common/mnt/**{,/}",`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedMountLine7)
+	expectedUmountLine7 := `umount "/var/snap/consumer/common/mnt/**{,/}",`
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, expectedUmountLine7)
 }
 
 func (s *MountControlInterfaceSuite) TestStaticInfo(c *C) {
@@ -347,6 +398,20 @@ func (s *MountControlInterfaceSuite) TestFunctionfsValidates(c *C) {
     where: /dev/ffs-diag
     type: [functionfs]
     options: [rw, uid=2000, gid=2000, rmode=0550, fmode=0660, no_disconnect=1]
+`
+	snapYaml := fmt.Sprintf(mountControlYaml, plugYaml)
+	plug, _ := MockConnectedPlug(c, snapYaml, nil, "mntctl")
+	err := interfaces.BeforeConnectPlug(s.iface, plug)
+	c.Check(err, IsNil)
+}
+
+func (s *MountControlInterfaceSuite) TestMountDevicePathWithCommas(c *C) {
+	plugYaml := `
+  mount:
+  - persistent: true
+    what: /dev/dma_heap/qcom,qseecom
+    where: /mnt/foo,bar
+    options: [rw]
 `
 	snapYaml := fmt.Sprintf(mountControlYaml, plugYaml)
 	plug, _ := MockConnectedPlug(c, snapYaml, nil, "mntctl")

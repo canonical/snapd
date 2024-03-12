@@ -383,54 +383,62 @@ func (s *SharedMemoryInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *SharedMemoryInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
-
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
 
-	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
-	slotSnippet := spec.SnippetForTag("snap.provider.app")
-
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.provider.app"})
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	c.Check(plugSnippet, testutil.Contains, `"/{dev,run}/shm/bar" mrwlk,`)
 	c.Check(plugSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro" r,`)
+
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap()))
+	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
+
+	slotSnippet := spec.SnippetForTag("snap.provider.app")
 
 	// Slot has read-write permissions to all paths
 	c.Check(slotSnippet, testutil.Contains, `"/{dev,run}/shm/bar" mrwlk,`)
 	c.Check(slotSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro" mrwlk,`)
 
-	wildcardSpec := &apparmor.Specification{}
+	wildcardSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.wildcardPlug.Snap()))
 	c.Assert(wildcardSpec.AddConnectedPlug(s.iface, s.wildcardPlug, s.wildcardSlot), IsNil)
 	wildcardPlugSnippet := wildcardSpec.SnippetForTag("snap.consumer.app")
 
-	c.Assert(wildcardSpec.AddConnectedSlot(s.iface, s.wildcardPlug, s.wildcardSlot), IsNil)
-	wildcardSlotSnippet := wildcardSpec.SnippetForTag("snap.provider.app")
-
-	c.Assert(wildcardSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.provider.app"})
+	c.Assert(wildcardSpec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	c.Check(wildcardPlugSnippet, testutil.Contains, `"/{dev,run}/shm/bar*" mrwlk,`)
 	c.Check(wildcardPlugSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro*" r,`)
+
+	wildcardSpec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.wildcardSlot.Snap()))
+	c.Assert(wildcardSpec.AddConnectedSlot(s.iface, s.wildcardPlug, s.wildcardSlot), IsNil)
+
+	c.Assert(wildcardSpec.SecurityTags(), DeepEquals, []string{"snap.provider.app"})
+
+	wildcardSlotSnippet := wildcardSpec.SnippetForTag("snap.provider.app")
 
 	// Slot has read-write permissions to all paths
 	c.Check(wildcardSlotSnippet, testutil.Contains, `"/{dev,run}/shm/bar*" mrwlk,`)
 	c.Check(wildcardSlotSnippet, testutil.Contains, `"/{dev,run}/shm/bar-ro*" mrwlk,`)
 
-	spec = &apparmor.Specification{}
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.privatePlug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.privatePlug, s.privateSlot), IsNil)
 	privatePlugSnippet := spec.SnippetForTag("snap.consumer.app")
 	privateUpdateNS := spec.UpdateNS()
 
-	c.Assert(spec.AddConnectedSlot(s.iface, s.privatePlug, s.privateSlot), IsNil)
-	privateSlotSnippet := spec.SnippetForTag("snap.core.app")
-
-	c.Check(privatePlugSnippet, testutil.Contains, `"/dev/shm/*" mrwlkix`)
-	c.Check(privateSlotSnippet, Equals, "")
+	c.Check(privatePlugSnippet, testutil.Contains, `"/dev/shm/**" mrwlkix`)
 	c.Check(strings.Join(privateUpdateNS, ""), Equals, `  # Private /dev/shm
   /dev/ r,
   /dev/shm/{,**} rw,
   mount options=(bind, rw) /dev/shm/snap.consumer/ -> /dev/shm/,
   umount /dev/shm/,`)
+
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.privateSlot.Snap()))
+	c.Assert(spec.AddConnectedSlot(s.iface, s.privatePlug, s.privateSlot), IsNil)
+	privateSlotSnippet := spec.SnippetForTag("snap.core.app")
+
+	c.Check(privateSlotSnippet, Equals, "")
 }
 
 func (s *SharedMemoryInterfaceSuite) TestMountSpec(c *C) {
@@ -469,4 +477,35 @@ func (s *SharedMemoryInterfaceSuite) TestAutoConnect(c *C) {
 
 func (s *SharedMemoryInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
+
+func (s *SharedMemoryInterfaceSuite) TestNoErrorOnMissingPrivate(c *C) {
+	consumerYaml := `name: consumer
+version: 0
+plugs:
+ shmem-missing:
+  interface: shared-memory
+  shared-memory: foo
+`
+	plug, _ := MockConnectedPlug(c, consumerYaml, nil, "shmem-missing")
+
+	spec := &mount.Specification{}
+	err := spec.AddConnectedPlug(s.iface, plug, nil)
+	c.Assert(err, IsNil)
+}
+
+func (s *SharedMemoryInterfaceSuite) TestErrorOnBadPlug(c *C) {
+	consumerYaml := `name: consumer
+version: 0
+plugs:
+ shmem-missing:
+  interface: shared-memory
+  shared-memory: foo
+  private: xxx
+`
+	plug, _ := MockConnectedPlug(c, consumerYaml, nil, "shmem-missing")
+
+	spec := &mount.Specification{}
+	err := spec.AddConnectedPlug(s.iface, plug, nil)
+	c.Assert(err, ErrorMatches, `snap "consumer" has interface "shared-memory" with invalid value type string for "private" attribute: \*bool`)
 }

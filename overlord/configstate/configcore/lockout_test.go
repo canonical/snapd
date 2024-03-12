@@ -20,7 +20,6 @@
 package configcore_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -66,7 +65,7 @@ func (s *faillockSuite) TestFaillockSetFalse(c *C) {
 }
 
 func (s *faillockSuite) TestFaillockSetFalseReset(c *C) {
-	err := ioutil.WriteFile(s.markerPath, nil, 0644)
+	err := os.WriteFile(s.markerPath, nil, 0644)
 	c.Assert(err, IsNil)
 
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
@@ -86,7 +85,7 @@ func (s *faillockSuite) TestFaillockHandlesErrors(c *C) {
 }
 
 func (s *faillockSuite) TestFaillockUnsetChangeNothing(c *C) {
-	err := ioutil.WriteFile(s.markerPath, nil, 0644)
+	err := os.WriteFile(s.markerPath, nil, 0644)
 	c.Assert(err, IsNil)
 
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{

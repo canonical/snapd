@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
@@ -394,12 +395,12 @@ func (s *apiValidationSetsSuite) TestGetValidationSetLatestFromRemote(c *check.C
 
 	snapstate.Set(st, "snap-a", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "snap-a", Revision: snap.R(2), SnapID: "snapaid"}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "snap-a", Revision: snap.R(2), SnapID: "snapaid"}}),
 		Current:  snap.R(2),
 	})
 	snapstate.Set(st, "snap-b", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "snap-b", Revision: snap.R(4), SnapID: "snapbid"}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "snap-b", Revision: snap.R(4), SnapID: "snapbid"}}),
 		Current:  snap.R(4),
 	})
 
@@ -462,7 +463,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetLatestFromRemoteRealValidat
 		st.Lock()
 		snapstate.Set(st, "snap-b", &snapstate.SnapState{
 			Active:   true,
-			Sequence: []*snap.SideInfo{{RealName: "snap-b", Revision: tc.revision, SnapID: "yOqKhntON3vR7kwEbVPsILm7bUViPDzz"}},
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "snap-b", Revision: tc.revision, SnapID: "yOqKhntON3vR7kwEbVPsILm7bUViPDzz"}}),
 			Current:  tc.revision,
 		})
 		st.Unlock()
@@ -519,7 +520,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetSpecificSequenceFromRemote(
 
 	snapstate.Set(st, "snap-a", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "snap-a", Revision: snap.R(33), SnapID: "snapaid"}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "snap-a", Revision: snap.R(33), SnapID: "snapaid"}}),
 		Current:  snap.R(33),
 	})
 
@@ -656,7 +657,7 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetMonitorModeError(c *check
 
 	rspe := s.errorReq(c, req, nil)
 	c.Assert(rspe.Status, check.Equals, 400)
-	c.Check(rspe.Message, check.Equals, fmt.Sprintf(`cannot get validation set assertion for %s/bar: boom`, s.dev1acct.AccountID()))
+	c.Check(rspe.Message, check.Equals, fmt.Sprintf(`cannot monitor validation set %s/bar: boom`, s.dev1acct.AccountID()))
 }
 
 func (s *apiValidationSetsSuite) TestForgetValidationSet(c *check.C) {
@@ -805,7 +806,7 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceMode(c *check.C) {
 
 	snapstate.Set(st, "snap-b", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "snap-b", Revision: snap.R(1), SnapID: "yOqKhntON3vR7kwEbVPsILm7bUViPDzz"}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "snap-b", Revision: snap.R(1), SnapID: "yOqKhntON3vR7kwEbVPsILm7bUViPDzz"}}),
 		Current:  snap.R(1),
 	})
 
@@ -857,7 +858,7 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeIgnoreValidati
 
 	snapstate.Set(st, "snap-b", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "snap-b", Revision: snap.R(1), SnapID: "yOqKhntON3vR7kwEbVPsILm7bUViPDzz"}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "snap-b", Revision: snap.R(1), SnapID: "yOqKhntON3vR7kwEbVPsILm7bUViPDzz"}}),
 		Current:  snap.R(1),
 		Flags:    snapstate.Flags{IgnoreValidation: true},
 	})
@@ -907,7 +908,7 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeSpecificSequen
 
 	snapstate.Set(st, "snap-b", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "snap-b", Revision: snap.R(1), SnapID: "yOqKhntON3vR7kwEbVPsILm7bUViPDzz"}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "snap-b", Revision: snap.R(1), SnapID: "yOqKhntON3vR7kwEbVPsILm7bUViPDzz"}}),
 		Current:  snap.R(1),
 	})
 
@@ -945,7 +946,7 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeError(c *check
 
 	snapstate.Set(st, "snap-b", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "snap-b", Revision: snap.R(1), SnapID: "yOqKhntON3vR7kwEbVPsILm7bUViPDzz"}},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "snap-b", Revision: snap.R(1), SnapID: "yOqKhntON3vR7kwEbVPsILm7bUViPDzz"}}),
 		Current:  snap.R(1),
 	})
 

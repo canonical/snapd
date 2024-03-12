@@ -194,12 +194,12 @@ distro_install_package() {
             quiet eatmydata apt-get install $APT_FLAGS -y "${pkg_names[@]}"
             retval=$?
             ;;
-        amazon-*|centos-7-*)
+        amazon-linux-2-*|centos-7-*)
             # shellcheck disable=SC2086
             quiet yum -y install $YUM_FLAGS "${pkg_names[@]}"
             retval=$?
             ;;
-        fedora-*|centos-*)
+        fedora-*|centos-*|amazon-linux-2023-*)
             # shellcheck disable=SC2086
             quiet dnf -y --refresh install $DNF_FLAGS "${pkg_names[@]}"
             retval=$?
@@ -616,7 +616,7 @@ pkg_dependencies_ubuntu_classic(){
                 shellcheck
                 "
             ;;
-        ubuntu-22.*|ubuntu-23.*)
+        ubuntu-22.*|ubuntu-23.*|ubuntu-24.*)
             # bpftool is part of linux-tools package
             echo "
                 dbus-user-session
@@ -637,6 +637,7 @@ pkg_dependencies_ubuntu_classic(){
         debian-*)
             echo "
                 autopkgtest
+                bpftool
                 cryptsetup-bin
                 debootstrap
                 eatmydata
@@ -645,20 +646,14 @@ pkg_dependencies_ubuntu_classic(){
                 gcc-multilib
                 libc6-dev-i386
                 linux-libc-dev
+                lsof
                 net-tools
                 packagekit
                 sbuild
                 schroot
+                strace
+                systemd-timesyncd
                 "
-            ;;
-    esac
-    case "$SPREAD_SYSTEM" in
-        debian-11-*|debian-sid-*)
-            echo "
-                 bpftool
-                 strace
-                 systemd-timesyncd
-                 "
             ;;
     esac
 }
@@ -730,14 +725,26 @@ pkg_dependencies_fedora(){
 }
 
 pkg_dependencies_amazon(){
+    if os.query is-amazon-linux 2 || os.query is-centos 7; then
+        echo "
+            fish
+            fwupd
+            system-lsb-core
+            upower
+            "
+    fi
+    if os.query is-amazon-linux 2023; then
+        echo "
+            bpftool
+            gpg
+            python-docutils
+            python3-gobject
+            "
+    fi
     echo "
-        python3
-        curl
         dbus-x11
         expect
-        fish
         fontconfig
-        fwupd
         git
         golang
         grub2-tools
@@ -749,12 +756,11 @@ pkg_dependencies_amazon(){
         net-tools
         nfs-utils
         PackageKit
-        system-lsb-core
+        python3
         rpm-build
         xdg-user-dirs
         xdg-utils
         udisks2
-        upower
         zsh
         "
 }
@@ -805,6 +811,7 @@ pkg_dependencies_opensuse(){
 pkg_dependencies_arch(){
     echo "
     apparmor
+    autoconf-archive
     base-devel
     bash-completion
     bpf

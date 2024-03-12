@@ -18,9 +18,6 @@ execute: |
         while ! snap changes | grep -Pq "$expected"; do sleep 1; done
     }
 
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
-
     echo "Given a snap is installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-tools
 
@@ -33,7 +30,7 @@ execute: |
 
     systemd-run --unit unmount-blocker test-snapd-tools.block
 
-    wait_for_service unmount-blocker active
+    tests.systemd wait-for-service -n 30 --state active unmount-blocker
     retry -n 20 --wait 1 sh -c "test -f $MARKER"
 
     echo "When we try to remove the snap"

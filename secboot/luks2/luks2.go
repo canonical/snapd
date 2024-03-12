@@ -19,15 +19,6 @@
 
 package luks2
 
-import (
-	"io"
-	"os"
-)
-
-var (
-	stderr io.Writer = os.Stderr
-)
-
 // SlotPriority represents the priority of a keyslot.
 type SlotPriority int
 

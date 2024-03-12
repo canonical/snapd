@@ -21,7 +21,7 @@ package main_test
 
 import (
 	"errors"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -115,7 +115,7 @@ func (s *cmdSuite) TestRecoveryChooserTriggerDoesNothingWhenMarkerPresent(c *C) 
 	})
 	defer restore()
 
-	err := ioutil.WriteFile(marker, nil, 0644)
+	err := os.WriteFile(marker, nil, 0644)
 	c.Assert(err, IsNil)
 
 	rest, err := main.Parser().ParseArgs([]string{

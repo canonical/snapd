@@ -3,22 +3,24 @@ Section: devel
 Priority: optional
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 Build-Depends: autoconf,
+               autoconf-archive,
                automake,
                autotools-dev,
                bash-completion,
                ca-certificates,
-               debhelper (>= 9),
                dbus,
+               debhelper (>= 9),
+               debhelper (>= 9.20160709~) | dh-systemd,
                dh-apparmor,
                dh-autoreconf,
                dh-golang (>=1.7),
-               debhelper (>= 9.20160709~) | dh-systemd,
                fakeroot,
+               flake8,
                gcc-multilib [amd64],
                gettext,
-               grub-common,
                gnupg2,
                golang-go (>=2:1.18~)  [!powerpc] | golang-1.18 [!powerpc],
+               grub-common,
                indent,
                init-system-helpers,
                libapparmor-dev,
@@ -32,8 +34,10 @@ Build-Depends: autoconf,
                openssh-client,
                pkg-config,
                python3,
+               python3-bs4,
                python3-docutils,
                python3-markdown,
+               python3-pytest,
                squashfs-tools,
                tzdata,
                udev,
@@ -65,17 +69,26 @@ Architecture: any
 Depends: adduser,
          apparmor (>= 2.10.95-0ubuntu2.2),
          ca-certificates,
+         fuse3 (>= 3.10.5-1) | fuse,
          openssh-client,
          squashfs-tools,
          systemd,
          udev,
+         ${dbussession:Depends},
          ${misc:Depends},
-         ${shlibs:Depends},
-         ${dbussession:Depends}
-Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22), snapd-xdg-open (<= 0.0.0)
-Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22), snapd-xdg-open (<= 0.0.0), ${snapd:Breaks}
-Recommends: gnupg,
-            fuse3 (>= 3.10.5-1) | fuse
+         ${shlibs:Depends}
+Replaces: snap-confine (<< 2.23),
+          snapd-xdg-open (<= 0.0.0),
+          ubuntu-core-launcher (<< 2.22),
+          ubuntu-snappy (<< 1.9),
+          ubuntu-snappy-cli (<< 1.9)
+Breaks: snap-confine (<< 2.23),
+        snapd-xdg-open (<= 0.0.0),
+        ubuntu-core-launcher (<< 2.22),
+        ubuntu-snappy (<< 1.9),
+        ubuntu-snappy-cli (<< 1.9),
+        ${snapd:Breaks}
+Recommends: gnupg
 Suggests: zenity | kdialog
 Conflicts: snap (<< 2013-11-29-1ubuntu1)
 Built-Using: ${Built-Using} ${misc:Built-Using}

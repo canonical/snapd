@@ -20,7 +20,7 @@
 package internal_test
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -49,7 +49,7 @@ snaps:
 
 func (s *seedYamlTestSuite) TestSimple(c *C) {
 	fn := filepath.Join(c.MkDir(), "seed.yaml")
-	err := ioutil.WriteFile(fn, mockSeedYaml, 0644)
+	err := os.WriteFile(fn, mockSeedYaml, 0644)
 	c.Assert(err, IsNil)
 
 	seedYaml, err := internal.ReadSeedYaml(fn)
@@ -78,7 +78,7 @@ snaps:
 
 func (s *seedYamlTestSuite) TestNoPathAllowed(c *C) {
 	fn := filepath.Join(c.MkDir(), "seed.yaml")
-	err := ioutil.WriteFile(fn, badMockSeedYaml, 0644)
+	err := os.WriteFile(fn, badMockSeedYaml, 0644)
 	c.Assert(err, IsNil)
 
 	_, err = internal.ReadSeedYaml(fn)
@@ -87,7 +87,7 @@ func (s *seedYamlTestSuite) TestNoPathAllowed(c *C) {
 
 func (s *seedYamlTestSuite) TestDuplicatedSnapName(c *C) {
 	fn := filepath.Join(c.MkDir(), "seed.yaml")
-	err := ioutil.WriteFile(fn, []byte(`
+	err := os.WriteFile(fn, []byte(`
 snaps:
  - name: foo
    channel: stable
@@ -104,7 +104,7 @@ snaps:
 
 func (s *seedYamlTestSuite) TestValidateChannelUnhappy(c *C) {
 	fn := filepath.Join(c.MkDir(), "seed.yaml")
-	err := ioutil.WriteFile(fn, []byte(`
+	err := os.WriteFile(fn, []byte(`
 snaps:
  - name: foo
    channel: invalid/channel/
@@ -117,7 +117,7 @@ snaps:
 
 func (s *seedYamlTestSuite) TestValidateNameUnhappy(c *C) {
 	fn := filepath.Join(c.MkDir(), "seed.yaml")
-	err := ioutil.WriteFile(fn, []byte(`
+	err := os.WriteFile(fn, []byte(`
 snaps:
  - name: invalid--name
    file: ./foo.snap
@@ -130,7 +130,7 @@ snaps:
 
 func (s *seedYamlTestSuite) TestValidateNameInstanceUnsupported(c *C) {
 	fn := filepath.Join(c.MkDir(), "seed.yaml")
-	err := ioutil.WriteFile(fn, []byte(`
+	err := os.WriteFile(fn, []byte(`
 snaps:
  - name: foo_1
    file: ./foo.snap
@@ -143,7 +143,7 @@ snaps:
 
 func (s *seedYamlTestSuite) TestValidateNameMissing(c *C) {
 	fn := filepath.Join(c.MkDir(), "seed.yaml")
-	err := ioutil.WriteFile(fn, []byte(`
+	err := os.WriteFile(fn, []byte(`
 snaps:
  - file: ./foo.snap
 `), 0644)
@@ -155,7 +155,7 @@ snaps:
 
 func (s *seedYamlTestSuite) TestValidateFileMissing(c *C) {
 	fn := filepath.Join(c.MkDir(), "seed.yaml")
-	err := ioutil.WriteFile(fn, []byte(`
+	err := os.WriteFile(fn, []byte(`
 snaps:
  - name: foo
 `), 0644)

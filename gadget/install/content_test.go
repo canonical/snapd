@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
@@ -33,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -181,7 +183,7 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 		}, {
 			mountErr:   nil,
 			unmountErr: errors.New("unmount error"),
-			err:        "unmount error",
+			err:        "cannot unmount /dev/node2 after writing filesystem content: unmount error",
 		}, {
 			observeErr: errors.New("observe error"),
 			err:        "cannot create filesystem image: cannot write filesystem content of source:grubx64.efi: cannot observe file write: observe error",
@@ -229,6 +231,85 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 					},
 				},
 			})
+		}
+	}
+}
+
+func (s *contentTestSuite) TestWriteFilesystemContentUnmountErrHandling(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir(dirs.GlobalRootDir)
+
+	log, restore := logger.MockLogger()
+	defer restore()
+
+	type unmountArgs struct {
+		target string
+		flags  int
+	}
+
+	restore = install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+		return nil
+	})
+	defer restore()
+
+	// copy existing mock
+	m := mockOnDiskStructureSystemSeed(s.gadgetRoot)
+	obs := &mockWriteObserver{
+		c:            c,
+		observeErr:   nil,
+		expectedRole: m.Role(),
+	}
+
+	for _, tc := range []struct {
+		unmountErr     error
+		lazyUnmountErr error
+
+		expectedErr string
+	}{
+		{
+			nil,
+			nil,
+			"",
+		}, {
+			errors.New("umount error"),
+			nil,
+			"", // no error as lazy unmount succeeded
+		}, {
+			errors.New("umount error"),
+			errors.New("lazy umount err"),
+			`cannot unmount /dev/node2 after writing filesystem content: lazy umount err`},
+	} {
+		log.Reset()
+
+		var unmountCalls []unmountArgs
+		restore = install.MockSysUnmount(func(target string, flags int) error {
+			unmountCalls = append(unmountCalls, unmountArgs{target, flags})
+			switch flags {
+			case 0:
+				return tc.unmountErr
+			case syscall.MNT_DETACH:
+				return tc.lazyUnmountErr
+			default:
+				return fmt.Errorf("unexpected mount flag %v", flags)
+			}
+		})
+		defer restore()
+
+		err := install.WriteFilesystemContent(m, "/dev/node2", obs)
+		if tc.expectedErr == "" {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, ErrorMatches, tc.expectedErr)
+		}
+		if tc.unmountErr == nil {
+			c.Check(unmountCalls, HasLen, 1)
+			c.Check(unmountCalls[0].flags, Equals, 0)
+			c.Check(log.String(), Equals, "")
+		} else {
+			c.Check(unmountCalls, HasLen, 2)
+			c.Check(unmountCalls[0].flags, Equals, 0)
+			c.Check(unmountCalls[1].flags, Equals, syscall.MNT_DETACH)
+			c.Check(log.String(), Matches, `(?sm).* cannot unmount /.*/run/snapd/gadget-install/dev-node2 after writing filesystem content: umount error \(trying lazy unmount next\)`)
 		}
 	}
 }

@@ -78,22 +78,31 @@ var (
 	ErrMissingPaths = errors.New("snap is unusable due to missing files")
 )
 
-// ValidateContainer does a minimal quick check on the container.
-func ValidateContainer(c Container, s *Info, logf func(format string, v ...interface{})) error {
-	// needsrx keeps track of things that need to have at least 0555 perms
+// ValidateComponentContainer does a minimal quick check on a snap component container.
+func ValidateComponentContainer(c Container, contName string, logf func(format string, v ...interface{})) error {
 	needsrx := map[string]bool{
 		".":    true,
 		"meta": true,
 	}
-	// needsx keeps track of things that need to have at least 0111 perms
 	needsx := map[string]bool{}
-	// needsr keeps track of things that need to have at least 0444 perms
+	needsr := map[string]bool{"meta/component.yaml": true}
+	needsf := map[string]bool{}
+	noskipd := map[string]bool{}
+
+	return validateContainer(c, needsrx, needsx, needsr, needsf, noskipd, "component", contName, logf)
+}
+
+// ValidateSnapContainer does a minimal quick check on a snap container.
+func ValidateSnapContainer(c Container, s *Info, logf func(format string, v ...interface{})) error {
+	needsrx := map[string]bool{
+		".":    true,
+		"meta": true,
+	}
+	needsx := map[string]bool{}
 	needsr := map[string]bool{
 		"meta/snap.yaml": true,
 	}
-	// needsf keeps track of things that need to be regular files (or symlinks to regular files)
 	needsf := map[string]bool{}
-	// noskipd tracks directories we want to descend into despite not being in needs*
 	noskipd := map[string]bool{}
 
 	for _, app := range s.Apps {
@@ -148,6 +157,21 @@ func ValidateContainer(c Container, s *Info, logf func(format string, v ...inter
 			needsrx[path] = true
 		}
 	}
+
+	return validateContainer(c, needsrx, needsx, needsr, needsf, noskipd, "snap", s.InstanceName(), logf)
+}
+
+// validateContainer validates data from a container. Arguments are the
+// container and maps which keys are filesystem nodes and values are boolean,
+// with meaning
+// - needsrx tracks nodes that need to have at least 0555 perms
+// - needsx tracks nodes that need to have at least 0111 perms
+// - needsr tracks nodes that need to have at least 0444 perms
+// - needsf tracks nodes that need to be regular files (or symlinks to regular files)
+// - noskipd tracks directories we want to descend into despite not being in needs*
+// The function also takes the type and name for the container (for logging
+// purposes) and a log function.
+func validateContainer(c Container, needsrx, needsx, needsr, needsf, noskipd map[string]bool, contType, name string, logf func(format string, v ...interface{})) error {
 	seen := make(map[string]bool, len(needsx)+len(needsrx)+len(needsr))
 
 	// bad modes are logged instead of being returned because the end user
@@ -174,7 +198,7 @@ func ValidateContainer(c Container, s *Info, logf func(format string, v ...inter
 
 		if needsrx[path] || mode.IsDir() {
 			if mode.Perm()&0555 != 0555 {
-				logf("in snap %q: %q should be world-readable and executable, and isn't: %s", s.InstanceName(), path, mode)
+				logf("in %s %q: %q should be world-readable and executable, and isn't: %s", contType, name, path, mode)
 				hasBadModes = true
 			}
 		} else {
@@ -186,19 +210,19 @@ func ValidateContainer(c Container, s *Info, logf func(format string, v ...inter
 				// more than anything else, not worth it IMHO (as I can't
 				// imagine this happening by accident).
 				if mode&(os.ModeDir|os.ModeNamedPipe|os.ModeSocket|os.ModeDevice) != 0 {
-					logf("in snap %q: %q should be a regular file (or a symlink) and isn't", s.InstanceName(), path)
+					logf("in %s %q: %q should be a regular file (or a symlink) and isn't", contType, name, path)
 					hasBadModes = true
 				}
 			}
 			if needsx[path] || strings.HasPrefix(path, "meta/hooks/") {
 				if mode.Perm()&0111 == 0 {
-					logf("in snap %q: %q should be executable, and isn't: %s", s.InstanceName(), path, mode)
+					logf("in %s %q: %q should be executable, and isn't: %s", contType, name, path, mode)
 					hasBadModes = true
 				}
 			} else {
 				// in needsr, or under meta but not a hook
 				if mode.Perm()&0444 != 0444 {
-					logf("in snap %q: %q should be world-readable, and isn't: %s", s.InstanceName(), path, mode)
+					logf("in %s %q: %q should be world-readable, and isn't: %s", contType, name, path, mode)
 					hasBadModes = true
 				}
 			}
@@ -212,7 +236,7 @@ func ValidateContainer(c Container, s *Info, logf func(format string, v ...inter
 		for _, needs := range []map[string]bool{needsx, needsrx, needsr} {
 			for path := range needs {
 				if !seen[path] {
-					logf("in snap %q: path %q does not exist", s.InstanceName(), path)
+					logf("in %s %q: path %q does not exist", contType, name, path)
 				}
 			}
 		}

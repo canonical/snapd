@@ -20,6 +20,8 @@
 package builtin
 
 import (
+	"strings"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
@@ -58,7 +60,7 @@ owner /{,var/}run/pulse/ r,
 owner /{,var/}run/pulse/native rwk,
 owner /{,var/}run/pulse/pid r,
 owner /{,var/}run/user/[0-9]*/ r,
-owner /{,var/}run/user/[0-9]*/pulse/ rw,
+owner /{,var/}run/user/[0-9]*/pulse/ r,
 
 /run/udev/data/c116:[0-9]* r,
 /run/udev/data/+sound:card[0-9]* r,
@@ -73,9 +75,15 @@ const audioPlaybackConnectedPlugAppArmorDesktop = `
 /etc/pulse/** r,
 owner @{HOME}/.pulse-cookie rk,
 owner @{HOME}/.config/pulse/cookie rk,
-owner /{,var/}run/user/*/pulse/ rwk,
+owner /{,var/}run/user/*/pulse/ r,
 owner /{,var/}run/user/*/pulse/native rwk,
 owner /{,var/}run/user/*/pulse/pid r,
+`
+
+const audioPlaybackConnectedPlugAppArmorCore = `
+owner /run/user/[0-9]*/###SLOT_SECURITY_TAGS###/pulse/ r,
+owner /run/user/[0-9]*/###SLOT_SECURITY_TAGS###/pulse/native rwk,
+owner /run/user/[0-9]*/###SLOT_SECURITY_TAGS###/pulse/pid r,
 `
 
 const audioPlaybackConnectedPlugSecComp = `
@@ -106,9 +114,16 @@ owner /{,var/}run/pulse/** rwk,
 # Shared memory based communication with clients
 /{run,dev}/shm/pulse-shm-* mrwk,
 
-owner /run/pulse/native/ rwk,
 owner /run/user/[0-9]*/ r,
 owner /run/user/[0-9]*/pulse/ rw,
+
+# This allows to share screen in Core Desktop
+owner /run/user/[0-9]*/pipewire-[0-9] rwk,
+
+# This allows wireplumber to read the pulseaudio
+# configuration if pipewire runs inside a container
+/etc/pulse/ r,
+/etc/pulse/** r,
 `
 
 const audioPlaybackPermanentSlotSecComp = `
@@ -146,6 +161,12 @@ func (iface *audioPlaybackInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	spec.AddSnippet(audioPlaybackConnectedPlugAppArmor)
 	if release.OnClassic {
 		spec.AddSnippet(audioPlaybackConnectedPlugAppArmorDesktop)
+	}
+	if !implicitSystemConnectedSlot(slot) {
+		old := "###SLOT_SECURITY_TAGS###"
+		new := "snap." + slot.Snap().InstanceName() // forms the snap-instance-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
+		snippet := strings.Replace(audioPlaybackConnectedPlugAppArmorCore, old, new, -1)
+		spec.AddSnippet(snippet)
 	}
 	return nil
 }

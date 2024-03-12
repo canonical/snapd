@@ -21,6 +21,7 @@ package boot
 
 import (
 	"fmt"
+	"sync/atomic"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
@@ -225,6 +226,12 @@ func MockRebootArgsPath(argsPath string) (restore func()) {
 	return func() { rebootArgsPath = oldRebootArgsPath }
 }
 
+func MockBootloaderFind(f func(rootdir string, opts *bootloader.Options) (bootloader.Bootloader, error)) (restore func()) {
+	r := testutil.Backup(&bootloaderFind)
+	bootloaderFind = f
+	return r
+}
+
 func MockHasFDESetupHook(f func(*snap.Info) (bool, error)) (restore func()) {
 	oldHasFDESetupHook := HasFDESetupHook
 	HasFDESetupHook = f
@@ -244,6 +251,13 @@ func MockResealKeyToModeenvUsingFDESetupHook(f func(string, *Modeenv, bool) erro
 	resealKeyToModeenvUsingFDESetupHook = f
 	return func() {
 		resealKeyToModeenvUsingFDESetupHook = old
+	}
+}
+
+func MockModeenvLocked() (restore func()) {
+	atomic.AddInt32(&modeenvLocked, 1)
+	return func() {
+		atomic.AddInt32(&modeenvLocked, -1)
 	}
 }
 

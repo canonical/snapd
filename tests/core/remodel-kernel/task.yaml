@@ -12,8 +12,6 @@ environment:
 prepare: |
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
 
     # Save the revision of the pc-kernel snap.
     readlink /snap/"$OLD_KERNEL"/current > original-revision.txt
@@ -38,8 +36,6 @@ prepare: |
 restore: |
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
 
     # Wait for the final refresh to complete (if needed).
     snap watch --last=refresh?

@@ -22,11 +22,7 @@ AC_SYS_LARGEFILE
 # Checks for header files.
 AC_CHECK_HEADERS([fcntl.h limits.h stdlib.h string.h sys/mount.h unistd.h])
 AC_CHECK_HEADERS([sys/quota.h], [], [AC_MSG_ERROR(sys/quota.h unavailable)])
-AC_CHECK_HEADERS([xfs/xqm.h], [], [AC_MSG_ERROR(xfs/xqm.h unavailable)],
-[[#define _GNU_SOURCE
-#define _FILE_OFFSET_BITS 64
-#include <xfs/xqm.h>
-]])
+AC_CHECK_HEADERS([xfs/xqm.h], [], [AC_MSG_ERROR(xfs/xqm.h unavailable)])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_CHECK_HEADER_STDBOOL
@@ -88,7 +84,7 @@ AS_IF([test "x$with_unit_tests" = "xyes"], [
 AS_IF([test "x$enable_apparmor" = "xyes"], [
     # Expect AppArmor3 when building as a snap under snapcraft
     AS_IF([test "x$SNAPCRAFT_PROJECT_NAME" = "xsnapd"], [
-        PKG_CHECK_MODULES([APPARMOR3], [libapparmor = 3.0.7], [
+        PKG_CHECK_MODULES([APPARMOR3], [libapparmor = 3.0.8], [
             AC_DEFINE([HAVE_APPARMOR], [1], [Build with apparmor3 support])], [
             AC_MSG_ERROR([unable to find apparmor3 for snap build of snapd])])], [
         PKG_CHECK_MODULES([APPARMOR], [libapparmor], [
@@ -241,21 +237,58 @@ esac],
 [enable_bpf=yes])
 AM_CONDITIONAL([ENABLE_BPF], [test "x$enable_bpf" = "xyes"])
 
-if test "x$enable_bpf" = "xyes"; then
-AC_DEFINE([ENABLE_BPF], [1], [Enable BPF support])
-AC_MSG_CHECKING([whether host BPF headers are usable])
-AC_COMPILE_IFELSE([
+AS_IF([test "x$enable_bpf" = "xyes"], [
+  AC_DEFINE([ENABLE_BPF], [1], [Enable BPF support])
+
+  AC_CACHE_CHECK([whether host BPF headers are usable], [snapd_cv_bpf_header_works], [
+      AC_COMPILE_IFELSE(
+        [AC_LANG_SOURCE([[
 #include <linux/bpf.h>
 void foo(enum bpf_attach_type type) {}
 void bar() { struct bpf_cgroup_dev_ctx ctx = {0}; }
-], [host_bpf_headers_usable=yes], [host_bpf_headers_usable=no])
-if test "x$host_bpf_headers_usable" = "xyes"; then
-   AC_MSG_RESULT([yes])
-else
-  AC_MSG_RESULT([no, using vendored BPF headers])
-fi
-fi
-AM_CONDITIONAL([USE_INTERNAL_BPF_HEADERS], [test "x$host_bpf_headers_usable" = "xno"])
+]])],
+          [snapd_cv_bpf_header_works=yes],
+          [snapd_cv_bpf_header_works=no])
+  ])
+
+  AS_IF([test "x$snapd_cv_bpf_header_works" = "xno"], [
+    use_internal_pbf_headers=yes
+  ])
+], [
+  use_internal_pbf_headers=no
+])
+AM_CONDITIONAL([USE_INTERNAL_BPF_HEADERS], [test "x$use_internal_pbf_headers" = "xyes"])
+
+AC_CACHE_CHECK([whether -Wmissing-field-initializers is correct], [snapd_cv_missing_field_initializers_works], [
+  save_CFLAGS="${CFLAGS}"
+  CFLAGS="${CFLAGS} -Wmissing-field-initializers -Werror"
+  AC_COMPILE_IFELSE(
+    [AC_LANG_SOURCE([[
+struct { int a; int b; } a = { 0 };
+struct { const char* a; int b; } b[] = { {.a = ""}, {} };
+]])], [
+    snapd_cv_missing_field_initializers_works=yes
+  ], [
+    snapd_cv_missing_field_initializers_works=no
+  ])
+  CFLAGS="${save_CFLAGS}"
+])
+
+AX_APPEND_COMPILE_FLAGS([ dnl
+  -Wall dnl
+  -Wextra dnl
+  -Wmissing-prototypes dnl
+  -Wstrict-prototypes dnl
+  -Wno-unused-parameter dnl
+ ], [CHECK_CFLAGS])
+
+AS_IF([test "x$snapd_cv_missing_field_initializers_works" = "xno"], [
+  AX_APPEND_COMPILE_FLAGS([-Wno-missing-field-initializers], [CHECK_CFLAGS])
+])
+
+AS_IF([test "x$with_unit_tests" = "xyes"], [
+  AX_APPEND_COMPILE_FLAGS([-Werror], [CHECK_CFLAGS])
+])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

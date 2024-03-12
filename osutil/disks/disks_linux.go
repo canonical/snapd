@@ -55,17 +55,17 @@ func MockUdevPropertiesForDevice(new func(string, string) (map[string]string, er
 	old := udevadmProperties
 	// for better testing we mock the udevadm command output so that we still
 	// test the parsing
-	udevadmProperties = func(typeOpt, dev string) ([]byte, error) {
+	udevadmProperties = func(typeOpt, dev string) ([]byte, []byte, error) {
 		props, err := new(typeOpt, dev)
 		if err != nil {
-			return []byte(err.Error()), err
+			return []byte(err.Error()), []byte{}, err
 		}
 		// put it into udevadm format output, i.e. "KEY=VALUE\n"
 		output := ""
 		for k, v := range props {
 			output += fmt.Sprintf("%s=%s\n", k, v)
 		}
-		return []byte(output), nil
+		return []byte(output), []byte{}, nil
 	}
 	return func() {
 		udevadmProperties = old
@@ -89,17 +89,16 @@ func parseDeviceMajorMinor(s string) (int, int, error) {
 	return maj, min, nil
 }
 
-var udevadmProperties = func(typeOpt, device string) ([]byte, error) {
+var udevadmProperties = func(typeOpt, device string) ([]byte, []byte, error) {
 	// TODO: maybe combine with gadget interfaces hotplug code where the udev
 	// db is parsed?
-	cmd := exec.Command("udevadm", "info", "--query", "property", typeOpt, device)
-	return cmd.CombinedOutput()
+	return osutil.RunSplitOutput("udevadm", "info", "--query", "property", typeOpt, device)
 }
 
 func udevProperties(typeOpt, device string) (map[string]string, error) {
-	out, err := udevadmProperties(typeOpt, device)
+	out, stderr, err := udevadmProperties(typeOpt, device)
 	if err != nil {
-		return nil, osutil.OutputErr(out, err)
+		return nil, osutil.OutputErrCombine(out, stderr, err)
 	}
 	r := bytes.NewBuffer(out)
 

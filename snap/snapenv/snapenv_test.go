@@ -21,7 +21,6 @@ package snapenv
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -149,7 +148,7 @@ func (ts *HTestSuite) TestUserForClassicConfinement(c *C) {
 	// With the classic-preserves-xdg-runtime-dir feature enabled the snap
 	// per-user environment contains no overrides for XDG_RUNTIME_DIR.
 	f := features.ClassicPreservesXdgRuntimeDir
-	c.Assert(ioutil.WriteFile(f.ControlFile(), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(f.ControlFile(), nil, 0644), IsNil)
 	env = userEnv(mockClassicSnapInfo, "/root", nil)
 	c.Assert(env, DeepEquals, osutil.Environment{
 		// NOTE: Both HOME and XDG_RUNTIME_DIR are not defined here.
@@ -281,7 +280,7 @@ func (ts *HTestSuite) TestParallelInstallUserForClassicConfinement(c *C) {
 	// With the classic-preserves-xdg-runtime-dir feature enabled the snap
 	// per-user environment contains no overrides for XDG_RUNTIME_DIR.
 	f := features.ClassicPreservesXdgRuntimeDir
-	c.Assert(ioutil.WriteFile(f.ControlFile(), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(f.ControlFile(), nil, 0644), IsNil)
 	env = userEnv(&info, "/root", nil)
 	c.Assert(env, DeepEquals, osutil.Environment{
 		// NOTE, Both HOME and XDG_RUNTIME_DIR are not defined here.

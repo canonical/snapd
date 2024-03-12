@@ -119,6 +119,8 @@ const microStackSupportConnectedPlugAppArmor = `
 @{PROC}/mtrr w,
 @{PROC}/@{pids}/environ r,
 @{PROC}/@{pids}/sched r,
+@{PROC}/@{pids}/task/@{tid}/sched r,
+@{PROC}/@{pids}/task/@{tid}/schedstat r,
 
 @{PROC}/*/status r,
 

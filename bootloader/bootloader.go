@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -57,17 +58,17 @@ type Options struct {
 	// PrepareImageTime indicates whether the booloader is being
 	// used at prepare-image time, that means not on a runtime
 	// system.
-	PrepareImageTime bool
+	PrepareImageTime bool `json:"prepare-image-time,omitempty"`
 
 	// Role specifies to use the bootloader for the given role.
-	Role Role
+	Role Role `json:"role,omitempty"`
 
 	// NoSlashBoot indicates to use the native layout of the
 	// bootloader partition and not the /boot mount.
 	// It applies only for RoleRunMode.
 	// It is implied and ignored for RoleRecovery.
 	// It is an error to set it for RoleSole.
-	NoSlashBoot bool
+	NoSlashBoot bool `json:"no-slash-boot,omitempty"`
 }
 
 func (o *Options) validate() error {
@@ -179,6 +180,8 @@ type CommandLineComponents struct {
 	// set and ExtraArgs. Note that, it is an error if extra and full
 	// arguments are non-empty.
 	FullArgs string
+	// A list of patterns to remove arguments from the default command line
+	RemoveArgs []kcmdline.ArgumentPattern
 }
 
 func (c *CommandLineComponents) Validate() error {
@@ -210,6 +213,11 @@ type TrustedAssetsBootloader interface {
 	// CandidateCommandLine is similar to CommandLine, but uses the current
 	// edition of managed built-in boot assets as reference.
 	CandidateCommandLine(pieces CommandLineComponents) (string, error)
+
+	// DefaultCommandLine returns the default kernel command-line
+	// used by the bootloader excluding the recovery mode and
+	// system parameters.
+	DefaultCommandLine(candidate bool) (string, error)
 
 	// TrustedAssets returns the list of relative paths to assets inside the
 	// bootloader's rootdir that are measured in the boot process in the

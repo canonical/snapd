@@ -181,7 +181,7 @@ func (s *baseRunnerSuite) freshStateWithBaseAndMode(c *C, base, mode string) {
 	b, err := json.Marshal(stateJSON)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(dirs.SnapRepairStateFile, b, 0600)
+	err = os.WriteFile(dirs.SnapRepairStateFile, b, 0600)
 	c.Assert(err, IsNil)
 }
 
@@ -1868,13 +1868,6 @@ type runScriptSuite struct {
 	runner     *repair.Runner
 
 	runDir string
-
-	errReport struct {
-		repair string
-		errMsg string
-		dupSig string
-		extra  map[string]string
-	}
 }
 
 var _ = Suite(&runScriptSuite{})
@@ -1884,9 +1877,6 @@ func (s *runScriptSuite) SetUpTest(c *C) {
 	s.runDir = filepath.Join(dirs.SnapRepairRunDir, "canonical", "1")
 
 	s.AddCleanup(snapdenv.SetUserAgentFromVersion("1", nil, "snap-repair"))
-
-	restoreErrTrackerReportRepair := repair.MockErrtrackerReportRepair(s.errtrackerReportRepair)
-	s.AddCleanup(restoreErrTrackerReportRepair)
 }
 
 // setupRunner must be called from the tests so that the *C passed into contains
@@ -1899,15 +1889,6 @@ func (s *runScriptSuite) setupRunner(c *C) {
 	s.runner = repair.NewRunner()
 	s.runner.BaseURL = mustParseURL(s.mockServer.URL)
 	s.runner.LoadState()
-}
-
-func (s *runScriptSuite) errtrackerReportRepair(repair, errMsg, dupSig string, extra map[string]string) (string, error) {
-	s.errReport.repair = repair
-	s.errReport.errMsg = errMsg
-	s.errReport.dupSig = dupSig
-	s.errReport.extra = extra
-
-	return "some-oops-id", nil
 }
 
 func (s *runScriptSuite) testScriptRun(c *C, mockScript string) *repair.Repair {
@@ -1992,24 +1973,6 @@ unhappy output
 
 repair canonical-1 revision 0 failed: exit status 1`)
 	verifyRepairStatus(c, repair.RetryStatus)
-
-	c.Check(s.errReport.repair, Equals, "canonical/1")
-	c.Check(s.errReport.errMsg, Equals, `repair canonical-1 revision 0 failed: exit status 1`)
-	c.Check(s.errReport.dupSig, Equals, `canonical/1
-repair canonical-1 revision 0 failed: exit status 1
-output:
-repair: canonical-1
-revision: 0
-summary: repair one
-output:
-unhappy output
-`)
-	c.Check(s.errReport.extra, DeepEquals, map[string]string{
-		"Revision": "0",
-		"RepairID": "1",
-		"BrandID":  "canonical",
-		"Status":   "retry",
-	})
 }
 
 func (s *runScriptSuite) TestRepairBasicSkip(c *C) {
@@ -2223,7 +2186,7 @@ func (s *runner16Suite) SetUpTest(c *C) {
 	err := os.MkdirAll(s.seedAssertsDir, 0755)
 	c.Assert(err, IsNil)
 	seedYamlFn := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
-	err = ioutil.WriteFile(seedYamlFn, nil, 0644)
+	err = os.WriteFile(seedYamlFn, nil, 0644)
 	c.Assert(err, IsNil)
 	seedTime, err := time.Parse(time.RFC3339, "2017-08-11T15:49:49Z")
 	c.Assert(err, IsNil)
@@ -2237,7 +2200,7 @@ func (s *runner16Suite) SetUpTest(c *C) {
 }
 
 func (s *runner16Suite) writeSeedAssert16(c *C, fname string, a asserts.Assertion) {
-	err := ioutil.WriteFile(filepath.Join(s.seedAssertsDir, fname), asserts.Encode(a), 0644)
+	err := os.WriteFile(filepath.Join(s.seedAssertsDir, fname), asserts.Encode(a), 0644)
 	c.Assert(err, IsNil)
 }
 
@@ -2265,7 +2228,7 @@ func (s *runner16Suite) TestLoadStateInitDeviceInfoFail(c *C) {
 		{func() {
 			// broken signature
 			blob := asserts.Encode(s.brandAcct)
-			err := ioutil.WriteFile(filepath.Join(s.seedAssertsDir, "brand.account"), blob[:len(blob)-3], 0644)
+			err := os.WriteFile(filepath.Join(s.seedAssertsDir, "brand.account"), blob[:len(blob)-3], 0644)
 			c.Assert(err, IsNil)
 		}, errPrefix + "cannot decode signature:.*"},
 		{func() { s.writeSeedAssert(c, "model2", s.modelAs) }, errPrefix + "multiple models in seed assertions"},
@@ -2310,7 +2273,7 @@ func (s *runner20Suite) SetUpTest(c *C) {
 	// write sample modeenv
 	err = os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.SnapModeenvFile, mockModeenv, 0644)
+	err = os.WriteFile(dirs.SnapModeenvFile, mockModeenv, 0644)
 	c.Assert(err, IsNil)
 	// validate that modeenv is actually valid
 	_, err = boot.ReadModeenv("")
@@ -2333,7 +2296,7 @@ func (s *runner20Suite) writeSeedAssert20(c *C, fname string, a asserts.Assertio
 	} else {
 		fn = filepath.Join(s.seedAssertsDir, fname)
 	}
-	err := ioutil.WriteFile(fn, asserts.Encode(a), 0644)
+	err := os.WriteFile(fn, asserts.Encode(a), 0644)
 	c.Assert(err, IsNil)
 
 	// ensure model assertion file has the correct seed time
@@ -2361,7 +2324,7 @@ func (s *runner20Suite) TestLoadStateInitDeviceInfoModeenvInvalidContent(c *C) {
 			`cannot set device information: cannot find brand/model in modeenv model string "brand-but-no-model"`,
 		},
 	} {
-		err := ioutil.WriteFile(dirs.SnapModeenvFile, []byte(tc.modelStr), 0644)
+		err := os.WriteFile(dirs.SnapModeenvFile, []byte(tc.modelStr), 0644)
 		c.Assert(err, IsNil)
 		err = runner.LoadState()
 		c.Check(err, ErrorMatches, tc.expectedErr)
@@ -2379,4 +2342,68 @@ func (s *runner20Suite) TestLoadStateInitDeviceInfoModeenvIncorrectPermissions(c
 	})
 	err = runner.LoadState()
 	c.Check(err, ErrorMatches, "cannot set device information: open /.*/modeenv: permission denied")
+}
+
+func (s *runnerSuite) TestStoreOffline(c *C) {
+	runner := repair.NewRunner()
+
+	data, err := json.Marshal(repair.RepairConfig{
+		StoreOffline: true,
+	})
+	c.Assert(err, IsNil)
+
+	err = os.MkdirAll(filepath.Dir(dirs.SnapRepairConfigFile), 0755)
+	c.Assert(err, IsNil)
+
+	err = osutil.AtomicWriteFile(dirs.SnapRepairConfigFile, data, 0644, 0)
+	c.Assert(err, IsNil)
+
+	_, _, err = runner.Fetch("canonical", 2, -1)
+	c.Assert(err, testutil.ErrorIs, repair.ErrStoreOffline)
+
+	_, err = runner.Peek("brand", 0)
+	c.Assert(err, testutil.ErrorIs, repair.ErrStoreOffline)
+}
+
+func (s *runnerSuite) TestStoreOnlineIfFileBroken(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, Equals, "/repairs/canonical/2")
+		accept := r.Header.Get("Accept")
+		switch accept {
+		case "application/x.ubuntu.assertion":
+			io.WriteString(w, testRepair)
+			io.WriteString(w, "\n")
+			io.WriteString(w, testKey)
+		case "application/json":
+			io.WriteString(w, testHeadersResp)
+		default:
+			c.Errorf("unexpected 'Accept' header: %s", accept)
+		}
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	err := os.MkdirAll(filepath.Dir(dirs.SnapRepairConfigFile), 0755)
+	c.Assert(err, IsNil)
+
+	runner := repair.NewRunner()
+	runner.BaseURL = mustParseURL(mockServer.URL)
+
+	// file is missing
+	_, _, err = runner.Fetch("canonical", 2, -1)
+	c.Assert(err, IsNil)
+
+	_, err = runner.Peek("canonical", 2)
+	c.Assert(err, IsNil)
+
+	// file is invalid json
+	err = osutil.AtomicWriteFile(dirs.SnapRepairConfigFile, []byte("}{"), 0644, 0)
+	c.Assert(err, IsNil)
+
+	_, _, err = runner.Fetch("canonical", 2, -1)
+	c.Assert(err, IsNil)
+
+	_, err = runner.Peek("canonical", 2)
+	c.Assert(err, IsNil)
 }

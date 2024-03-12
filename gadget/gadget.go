@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -41,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
@@ -89,6 +91,14 @@ const (
 	// only supported for legacy reasons
 	legacyBootImage  = "bootimg"
 	legacyBootSelect = "bootselect"
+
+	// UnboundedStructureOffset is the maximum effective partition offset
+	// that we can handle.
+	UnboundedStructureOffset = quantity.Offset(math.MaxUint64)
+
+	// UnboundedStructureSize is the maximum effective partition size
+	// that we can handle.
+	UnboundedStructureSize = quantity.Size(math.MaxUint64)
 )
 
 var (
@@ -98,11 +108,13 @@ var (
 )
 
 type KernelCmdline struct {
-	// TODO: add append and remove slices that will replace the cmdline*.txt
-	// files that can be included nowadays in the gadget.
 	// Allow is the list of allowed parameters for the system.kernel.cmdline-append
 	// system option
-	Allow []osutil.KernelArgument `yaml:"allow"`
+	Allow []kcmdline.ArgumentPattern `yaml:"allow"`
+	// Append are kernel parameters added by the gadget
+	Append []kcmdline.Argument `yaml:"append"`
+	// Remove are patterns to be removed from default command line
+	Remove []kcmdline.ArgumentPattern `yaml:"remove"`
 }
 
 type Info struct {
@@ -116,10 +128,43 @@ type Info struct {
 	KernelCmdline KernelCmdline `yaml:"kernel-cmdline"`
 }
 
+// HasRole returns true if any of the volume structures in this Info has the
+// given role.
+func (i *Info) HasRole(role string) bool {
+	for _, v := range i.Volumes {
+		for _, s := range v.Structure {
+			if s.Role == role {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// PartialProperty is a gadget property that can be partially defined.
+type PartialProperty string
+
+// These are the different properties of the gadget that can be partially
+// defined.
+// TODO What is the exact meaning of having a partial "structure" is not yet
+// fully defined, so enforcing it has not been implemented yet.
+const (
+	PartialSize       PartialProperty = "size"
+	PartialFilesystem PartialProperty = "filesystem"
+	PartialSchema     PartialProperty = "schema"
+	PartialStructure  PartialProperty = "structure"
+)
+
+var validPartialProperties = [...]PartialProperty{PartialSize, PartialFilesystem, PartialSchema, PartialStructure}
+
 // Volume defines the structure and content for the image to be written into a
 // block device.
 type Volume struct {
-	// Schema describes the schema used for the volume
+	// Partial is a list of properties that are only only partially
+	// described in the gadget and that need to be filled by an
+	// installer.
+	Partial []PartialProperty `yaml:"partial,omitempty" json:"partial,omitempty"`
+	// Schema for the volume can be either gpt or mbr.
 	Schema string `yaml:"schema" json:"schema"`
 	// Bootloader names the bootloader used by the volume
 	Bootloader string `yaml:"bootloader" json:"bootloader"`
@@ -131,18 +176,92 @@ type Volume struct {
 	Name string `json:"-"`
 }
 
-// MinSize returns the minimal size required by a volume, as implicitly
-// defined by the size structures.
+// HasPartial checks if the volume has a partially defined part.
+func (v *Volume) HasPartial(pp PartialProperty) bool {
+	for _, vp := range v.Partial {
+		if vp == pp {
+			return true
+		}
+	}
+	return false
+}
+
+// MinSize returns the minimum size required by a volume, as implicitly
+// defined by the size structures. It assumes sorted structures.
 func (v *Volume) MinSize() quantity.Size {
 	endVol := quantity.Offset(0)
 	for _, s := range v.Structure {
-		structEnd := *s.Offset + quantity.Offset(s.Size)
-		if structEnd > endVol {
-			endVol = structEnd
+		if s.Offset != nil {
+			endVol = *s.Offset + quantity.Offset(s.MinSize)
+		} else {
+			endVol += quantity.Offset(s.MinSize)
 		}
 	}
 
 	return quantity.Size(endVol)
+}
+
+// StructFromYamlIndex returns the structure defined at a given yaml index from
+// the original yaml file.
+func (v *Volume) StructFromYamlIndex(yamlIdx int) *VolumeStructure {
+	i, err := v.yamlIdxToStructureIdx(yamlIdx)
+	if err != nil {
+		return nil
+	}
+	return &v.Structure[i]
+}
+
+// yamlIdxToStructureIdx returns the index to Volume.Structure that matches the
+// yaml index from the original yaml file.
+func (v *Volume) yamlIdxToStructureIdx(yamlIdx int) (int, error) {
+	for i := range v.Structure {
+		if v.Structure[i].YamlIndex == yamlIdx {
+			return i, nil
+		}
+	}
+
+	return -1, fmt.Errorf("structure with yaml index %d not found", yamlIdx)
+}
+
+// Copy makes a deep copy of the volume structure.
+func (vs *VolumeStructure) Copy() *VolumeStructure {
+	newVs := *vs
+	if vs.Offset != nil {
+		newVs.Offset = asOffsetPtr(*vs.Offset)
+	}
+	if vs.OffsetWrite != nil {
+		offsetWr := *vs.OffsetWrite
+		newVs.OffsetWrite = &offsetWr
+	}
+	if vs.Content != nil {
+		newVs.Content = make([]VolumeContent, len(vs.Content))
+		copy(newVs.Content, vs.Content)
+		for i, c := range vs.Content {
+			if c.Offset != nil {
+				newC := &newVs.Content[i]
+				newC.Offset = asOffsetPtr(*c.Offset)
+			}
+		}
+	}
+	return &newVs
+}
+
+// Copy makes a deep copy of the volume.
+func (v *Volume) Copy() *Volume {
+	newV := *v
+	if v.Partial != nil {
+		newV.Partial = make([]PartialProperty, len(v.Partial))
+		copy(newV.Partial, v.Partial)
+	}
+	if v.Structure != nil {
+		newV.Structure = make([]VolumeStructure, len(v.Structure))
+		for i, vs := range v.Structure {
+			newVs := vs.Copy()
+			newVs.EnclosingVolume = &newV
+			newV.Structure[i] = *newVs
+		}
+	}
+	return &newV
 }
 
 const GPTPartitionGUIDESP = "C12A7328-F81F-11D2-BA4B-00A0C93EC93B"
@@ -160,9 +279,17 @@ type VolumeStructure struct {
 	// Offset defines a starting offset of the structure
 	Offset *quantity.Offset `yaml:"offset" json:"offset"`
 	// OffsetWrite describes a 32-bit address, within the volume, at which
-	// the offset of current structure will be written. The position may be
-	// specified as a byte offset relative to the start of a named structure
+	// the offset of the current structure will be written. Initially, the
+	// position could be specified as a byte offset relative to the start
+	// of any named structure in the volume, but now the scope has been
+	// limited and the only accepted structure would be one with offset
+	// 0. Which implies that actually this offset will be always absolute,
+	// which should be fine as the only known use case for this is to set
+	// an address in an MBR. Furthermore, writes outside of the first
+	// structure are now not allowed.
 	OffsetWrite *RelativeOffset `yaml:"offset-write" json:"offset-write"`
+	// Minimum size of the structure (optional)
+	MinSize quantity.Size `yaml:"min-size" json:"min-size"`
 	// Size of the structure
 	Size quantity.Size `yaml:"size" json:"size"`
 	// Type of the structure, which can be 2-hex digit MBR partition,
@@ -181,8 +308,8 @@ type VolumeStructure struct {
 	// ID is the GPT partition ID, this should always be made upper case for
 	// comparison purposes.
 	ID string `yaml:"id" json:"id"`
-	// Filesystem used for the partition, 'vfat', 'ext4' or 'none' for
-	// structures of type 'bare'
+	// Filesystem used for the partition, 'vfat', 'vfat-{16,32}', 'ext4' or 'none' for
+	// structures of type 'bare'. 'vfat' is a synonymous for 'vfat-32'.
 	Filesystem string `yaml:"filesystem" json:"filesystem"`
 	// Content of the structure
 	Content []VolumeContent `yaml:"content" json:"content"`
@@ -195,6 +322,20 @@ type VolumeStructure struct {
 
 	// Index of the structure definition in gadget YAML, note this starts at 0.
 	YamlIndex int `yaml:"-" json:"-"`
+	// EnclosingVolume is a pointer to the enclosing Volume, and should be used
+	// exclusively to check for partial information that affects the
+	// structure properties.
+	EnclosingVolume *Volume `yaml:"-" json:"-"`
+}
+
+// SetEnclosingVolumeInStructs is a helper that sets the pointer to
+// the Volume in all VolumeStructure objects it contains.
+func SetEnclosingVolumeInStructs(vv map[string]*Volume) {
+	for _, v := range vv {
+		for sidx := range v.Structure {
+			v.Structure[sidx].EnclosingVolume = v
+		}
+	}
 }
 
 // IsRoleMBR tells us if v has MBR role or not.
@@ -202,9 +343,16 @@ func (v *VolumeStructure) IsRoleMBR() bool {
 	return v.Role == schemaMBR
 }
 
-// HasFilesystem returns true if the structure is using a filesystem.
+// HasFilesystem tells us if the structure definition expects a filesystem.
 func (vs *VolumeStructure) HasFilesystem() bool {
-	return vs.Filesystem != "none" && vs.Filesystem != ""
+	switch {
+	case vs.Filesystem != "none" && vs.Filesystem != "":
+		return true
+	case vs.Type == "bare" || vs.Type == "mbr":
+		return false
+	default:
+		return vs.EnclosingVolume.HasPartial(PartialFilesystem)
+	}
 }
 
 // IsPartition returns true when the structure describes a partition in a block
@@ -213,13 +361,141 @@ func (vs *VolumeStructure) IsPartition() bool {
 	return vs.Type != "bare" && vs.Role != schemaMBR
 }
 
+// LinuxFilesystem returns the linux filesystem that corresponds to the
+// one specified in the gadget.
+func (vs *VolumeStructure) LinuxFilesystem() string {
+	switch vs.Filesystem {
+	case "vfat-16", "vfat-32":
+		return "vfat"
+	default:
+		return vs.Filesystem
+	}
+}
+
 // HasLabel checks if label matches the VolumeStructure label. It ignores
-// capitals if the structure has a vfat filesystem.
+// capitals if the structure has a fat filesystem.
 func (vs *VolumeStructure) HasLabel(label string) bool {
-	if vs.Filesystem == "vfat" {
+	if vs.LinuxFilesystem() == "vfat" {
 		return strings.EqualFold(vs.Label, label)
 	}
 	return vs.Label == label
+}
+
+// isFixedSize tells us if size is fixed or if there is range.
+func (vs *VolumeStructure) isFixedSize() bool {
+	if vs.hasPartialSize() {
+		return false
+	}
+
+	return vs.Size == vs.MinSize
+}
+
+// hasPartialSize tells us if the structure has partially defined size.
+func (vs *VolumeStructure) hasPartialSize() bool {
+	if !vs.EnclosingVolume.HasPartial(PartialSize) {
+		return false
+	}
+
+	return vs.Size == 0
+}
+
+// minStructureOffset works out the minimum start offset of an structure, which
+// depends on previous volume structures.
+func minStructureOffset(vss []VolumeStructure, idx int) quantity.Offset {
+	if vss[idx].Offset != nil {
+		return *vss[idx].Offset
+	}
+	// Move to lower indices in the slice for minimum: the minimum offset
+	// will be the first fixed offset that we find plus all the minimum
+	// sizes of the structures up to that point.
+	min := quantity.Offset(0)
+	othersSz := quantity.Size(0)
+	for i := idx - 1; i >= 0; i-- {
+		othersSz += vss[i].MinSize
+		if vss[i].Offset != nil {
+			min = *vss[i].Offset + quantity.Offset(othersSz)
+			break
+		}
+	}
+	return min
+}
+
+// maxStructureOffset works out the maximum start offset of an structure, which
+// depends on surrounding volume structures.
+func maxStructureOffset(vss []VolumeStructure, idx int) quantity.Offset {
+	if vss[idx].Offset != nil {
+		return *vss[idx].Offset
+	}
+	// There are two restrictions on the maximum:
+	// 1. There is an implicit assumption that structures are contiguous if
+	//    no offset is specified, so the max offset would be the first fixed
+	//    offset while moving to previous structures in the slice plus the
+	//    (max) size of each structure up to that point.
+	// 2. There is also a restriction if we find a fixed offset in following
+	//    structures in the slice - in that case the maximum offset needs to
+	//    be smaller than that offset minus all the minimum sizes of
+	//    structures up to that point.
+	// The final max offset will be the smaller of the two.
+
+	// Move backwards in the slice for the first restriction
+	max := quantity.Offset(0)
+	othersSz := quantity.Size(0)
+	for i := idx - 1; i >= 0; i-- {
+		if vss[i].hasPartialSize() {
+			// If a previous partition has not a defined size, the
+			// allowed offset is not really bounded.
+			max = UnboundedStructureOffset
+			break
+		}
+		othersSz += vss[i].Size
+		if vss[i].Offset != nil {
+			max = *vss[i].Offset + quantity.Offset(othersSz)
+			break
+		}
+	}
+
+	// Move forward in the slice for the second restriction
+	maxFw := UnboundedStructureOffset
+	downSz := quantity.Size(0)
+	for i := idx; i < len(vss); i++ {
+		if vss[i].Offset != nil {
+			maxFw = *vss[i].Offset - quantity.Offset(downSz)
+			break
+		}
+		downSz += vss[i].MinSize
+	}
+
+	if maxFw < max {
+		max = maxFw
+	}
+
+	return max
+}
+
+type invalidOffsetError struct {
+	offset     quantity.Offset
+	lowerBound quantity.Offset
+	upperBound quantity.Offset
+}
+
+func (e *invalidOffsetError) Error() string {
+	maxDesc := "unbounded"
+	if e.upperBound != UnboundedStructureOffset {
+		maxDesc = fmt.Sprintf("%d (%s)", e.upperBound, e.upperBound.IECString())
+	}
+	return fmt.Sprintf("offset %d (%s) is not in the valid gadget interval (min: %d (%s): max: %s)",
+		e.offset, e.offset.IECString(), e.lowerBound, e.lowerBound.IECString(), maxDesc)
+}
+
+// CheckValidStartOffset returns an error if the input offset is not valid for
+// the structure at idx, nil otherwise.
+func CheckValidStartOffset(off quantity.Offset, vss []VolumeStructure, idx int) error {
+	min := minStructureOffset(vss, idx)
+	max := maxStructureOffset(vss, idx)
+	if min <= off && off <= max {
+		return nil
+	}
+	return &invalidOffsetError{offset: off, lowerBound: min, upperBound: max}
 }
 
 // VolumeContent defines the contents of the structure. The content can be
@@ -237,10 +513,6 @@ type VolumeContent struct {
 	Image string `yaml:"image" json:"image"`
 	// Offset the image is written at
 	Offset *quantity.Offset `yaml:"offset" json:"offset"`
-	// OffsetWrite describes a 32-bit address, within the volume, at which
-	// the offset of current image will be written. The position may be
-	// specified as a byte offset relative to the start of a named structure
-	OffsetWrite *RelativeOffset `yaml:"offset-write" json:"offset-write"`
 	// Size of the image, when empty size is calculated by looking at the
 	// image
 	Size quantity.Size `yaml:"size" json:"size"`
@@ -419,25 +691,25 @@ func LoadDiskVolumesDeviceTraits(dir string) (map[string]DiskVolumeDeviceTraits,
 	return mapping, nil
 }
 
-// AllDiskVolumeDeviceTraits takes a mapping of volume name to LaidOutVolume and
-// produces a map of volume name to DiskVolumeDeviceTraits. Since doing so uses
-// DiskVolumeDeviceTraitsForDevice, it will also validate that disk devices
-// identified for the laid out volume are compatible and matching before
-// returning.
-func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPerVolume map[string]*DiskVolumeValidationOptions) (map[string]DiskVolumeDeviceTraits, error) {
+// AllDiskVolumeDeviceTraits takes a mapping of volume name to Volume
+// and produces a map of volume name to DiskVolumeDeviceTraits. Since
+// doing so uses DiskVolumeDeviceTraitsForDevice, it will also
+// validate that disk devices identified for the volume are compatible
+// and matching before returning.
+func AllDiskVolumeDeviceTraits(allVols map[string]*Volume, optsPerVolume map[string]*DiskVolumeValidationOptions) (map[string]DiskVolumeDeviceTraits, error) {
 	// build up the mapping of volumes to disk device traits
 
-	allVols := map[string]DiskVolumeDeviceTraits{}
+	allTraits := map[string]DiskVolumeDeviceTraits{}
 
 	// find all devices which map to volumes to save the current state of the
 	// system
-	for name, vol := range allLaidOutVols {
+	for name, vol := range allVols {
 		// try to find a device for a structure inside the volume, we have a
 		// loop to attempt to use all structures in the volume in case there are
 		// partitions we can't map to a device directly at first using the
 		// device symlinks that FindDeviceForStructure uses
 		dev := ""
-		for _, ls := range vol.LaidOutStructure {
+		for _, vs := range vol.Structure {
 			// TODO: This code works for volumes that have at least one
 			// partition (i.e. not type: bare structure), but does not work for
 			// volumes which contain only type: bare structures with no other
@@ -449,12 +721,12 @@ func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPer
 			// at the expected locations, but that is probably fragile and very
 			// non-performant.
 
-			if !ls.IsPartition() {
+			if !vs.IsPartition() {
 				// skip trying to find non-partitions on disk, it won't work
 				continue
 			}
 
-			structureDevice, err := FindDeviceForStructure(ls.VolumeStructure)
+			structureDevice, err := FindDeviceForStructure(&vs)
 			if err != nil && err != ErrDeviceNotFound {
 				return nil, err
 			}
@@ -487,10 +759,10 @@ func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPer
 			return nil, fmt.Errorf("cannot gather disk traits for device %s to use with volume %s: %v", dev, name, err)
 		}
 
-		allVols[name] = traits
+		allTraits[name] = traits
 	}
 
-	return allVols, nil
+	return allTraits, nil
 }
 
 // GadgetConnect describes an interface connection requested by the gadget
@@ -653,6 +925,28 @@ func orderStructuresByOffset(vss []VolumeStructure) []VolumeStructure {
 	return ordVss
 }
 
+func validatePartial(v *Volume) error {
+	var foundCache [len(validPartialProperties)]bool
+	for _, p := range v.Partial {
+		found := false
+		for vpvIdx, valid := range validPartialProperties {
+			if p == valid {
+				if foundCache[vpvIdx] == true {
+					return fmt.Errorf("partial value %q is repeated", p)
+				}
+				foundCache[vpvIdx] = true
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("%q is not a valid partial value", p)
+		}
+	}
+
+	return nil
+}
+
 // InfoFromGadgetYaml parses the provided gadget metadata.
 // If model is nil only self-consistency checks are performed.
 // If model is not nil implied values for filesystem labels will be set
@@ -700,6 +994,10 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 			return nil, fmt.Errorf("volume %q stanza is empty", name)
 		}
 
+		if err := validatePartial(v); err != nil {
+			return nil, err
+		}
+
 		// set the VolumeName for the volume
 		v.Name = name
 
@@ -708,11 +1006,12 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 
+		// Note that after this call we assume always ordered structures
+		v.Structure = orderStructuresByOffset(v.Structure)
+
 		if err := validateVolume(v); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
-
-		v.Structure = orderStructuresByOffset(v.Structure)
 
 		switch v.Bootloader {
 		case "":
@@ -763,7 +1062,7 @@ func setKnownLabel(label, filesystem string, knownFsLabels, knownVfatFsLabels ma
 	}
 	if filesystem == "vfat" {
 		// labels with same name (ignoring capitals) as an already
-		// existing vfat label are not allowed
+		// existing fat label are not allowed
 		for knownLabel := range knownFsLabels {
 			if lowerLabel == strings.ToLower(knownLabel) {
 				return false
@@ -780,9 +1079,17 @@ func setKnownLabel(label, filesystem string, knownFsLabels, knownVfatFsLabels ma
 	return true
 }
 
+func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
+	return &offs
+}
+
 func setImplicitForVolume(vol *Volume, model Model) error {
 	rs := whichVolRuleset(model)
-	if vol.Schema == "" {
+	if vol.HasPartial(PartialSchema) {
+		if vol.Schema != "" {
+			return fmt.Errorf("partial schema is set but schema is still specified as %q", vol.Schema)
+		}
+	} else if vol.Schema == "" {
 		// default for schema is gpt
 		vol.Schema = schemaGPT
 	}
@@ -792,36 +1099,50 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 	knownVfatFsLabels := make(map[string]bool, len(vol.Structure))
 	for _, s := range vol.Structure {
 		if s.Label != "" {
-			if !setKnownLabel(s.Label, s.Filesystem, knownFsLabels, knownVfatFsLabels) {
+			if !setKnownLabel(s.Label, s.LinuxFilesystem(), knownFsLabels, knownVfatFsLabels) {
 				return fmt.Errorf("filesystem label %q is not unique", s.Label)
 			}
 		}
 	}
 
-	previousEnd := quantity.Offset(0)
+	previousEnd := asOffsetPtr(0)
 	for i := range vol.Structure {
 		// set the VolumeName for the structure from the volume itself
 		vol.Structure[i].VolumeName = vol.Name
 		// Store index as we will reorder later
 		vol.Structure[i].YamlIndex = i
+		// MinSize is Size if not explicitly set
+		if vol.Structure[i].MinSize == 0 {
+			vol.Structure[i].MinSize = vol.Structure[i].Size
+		}
+		// Set the pointer to the volume
+		vol.Structure[i].EnclosingVolume = vol
 
 		// set other implicit data for the structure
 		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs, knownFsLabels, knownVfatFsLabels); err != nil {
 			return err
 		}
 
-		// set offset if it was not set (must be after setImplicitForVolumeStructure
-		// so roles are good).
-		if vol.Structure[i].Offset == nil {
+		// Set offset if it was not set (must be after setImplicitForVolumeStructure
+		// so roles are good). This is possible only if the previous structure had
+		// a well-defined end.
+		if vol.Structure[i].Offset == nil && previousEnd != nil {
 			var start quantity.Offset
-			if vol.Structure[i].Role != schemaMBR && previousEnd < NonMBRStartOffset {
+			if vol.Structure[i].Role != schemaMBR && *previousEnd < NonMBRStartOffset {
 				start = NonMBRStartOffset
 			} else {
-				start = previousEnd
+				start = *previousEnd
 			}
 			vol.Structure[i].Offset = &start
 		}
-		previousEnd = *vol.Structure[i].Offset + quantity.Offset(vol.Structure[i].Size)
+		// We know the end of the structure only if we could define an offset
+		// and the size is fixed.
+		if vol.Structure[i].Offset != nil && vol.Structure[i].isFixedSize() {
+			previousEnd = asOffsetPtr(*vol.Structure[i].Offset +
+				quantity.Offset(vol.Structure[i].Size))
+		} else {
+			previousEnd = nil
+		}
 	}
 
 	return nil
@@ -854,7 +1175,7 @@ func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset, knownFsLa
 			implicitLabel = ubuntuSaveLabel
 		}
 		if implicitLabel != "" {
-			if !setKnownLabel(implicitLabel, vs.Filesystem, knownFsLabels, knownVfatFsLabels) {
+			if !setKnownLabel(implicitLabel, vs.LinuxFilesystem(), knownFsLabels, knownVfatFsLabels) {
 				return fmt.Errorf("filesystem label %q is implied by %s role but was already set elsewhere", implicitLabel, vs.Role)
 			}
 			vs.Label = implicitLabel
@@ -941,24 +1262,16 @@ func fmtIndexAndName(idx int, name string) string {
 	return fmt.Sprintf("#%v", idx)
 }
 
-type byStructureOffset []VolumeStructure
-
-func (b byStructureOffset) Len() int           { return len(b) }
-func (b byStructureOffset) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
-func (b byStructureOffset) Less(i, j int) bool { return *(b[i].Offset) < *(b[j].Offset) }
-
 func validateVolume(vol *Volume) error {
 	if !validVolumeName.MatchString(vol.Name) {
 		return errors.New("invalid name")
 	}
-	if vol.Schema != "" && vol.Schema != schemaGPT && vol.Schema != schemaMBR {
+	if !vol.HasPartial(PartialSchema) && vol.Schema != schemaGPT && vol.Schema != schemaMBR {
 		return fmt.Errorf("invalid schema %q", vol.Schema)
 	}
 
-	// named structures, for cross-referencing relative offset-write names
-	knownStructures := make(map[string]*VolumeStructure, len(vol.Structure))
-	// for validating structure overlap
-	structures := make([]VolumeStructure, len(vol.Structure))
+	// named structures, to check that names are not repeated
+	knownStructures := make(map[string]bool, len(vol.Structure))
 
 	// TODO: should we also validate that if there is a system-recovery-select
 	// role there should also be at least 2 system-recovery-image roles and
@@ -968,7 +1281,7 @@ func validateVolume(vol *Volume) error {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
 
-		if vol.Schema == schemaGPT {
+		if vol.Schema == schemaGPT && s.Offset != nil {
 			// If the block size is 512, the First Usable LBA must be greater than or equal to
 			// 34 (allowing 1 block for the Protective MBR, 1 block for the Partition Table
 			// Header, and 32 blocks for the GPT Partition Entry Array); if the logical block
@@ -984,7 +1297,11 @@ func validateVolume(vol *Volume) error {
 			// is some data in the union - intersection of the described GPT segments, which
 			// might be fine but is suspicious.
 			start := *s.Offset
-			end := start + quantity.Offset(s.Size)
+			// MinSize instead of Size as we warn only if we are
+			// sure that there will be a problem (that is, the
+			// problem will happen even for the smallest structure
+			// case).
+			end := start + quantity.Offset(s.MinSize)
 			if start < 512*34 && end > 4096 {
 				logger.Noticef("WARNING: invalid structure: GPT header or GPT partition table overlapped with structure %q\n", s.Name)
 			} else if start < 4096*6 && end > 512 {
@@ -992,20 +1309,16 @@ func validateVolume(vol *Volume) error {
 			}
 		}
 
-		structures[idx] = vol.Structure[idx]
 		if s.Name != "" {
 			if _, ok := knownStructures[s.Name]; ok {
 				return fmt.Errorf("structure name %q is not unique", s.Name)
 			}
 			// keep track of named structures
-			knownStructures[s.Name] = &structures[idx]
+			knownStructures[s.Name] = true
 		}
 	}
 
-	// sort by starting offset
-	sort.Sort(byStructureOffset(structures))
-
-	return validateCrossVolumeStructure(structures, knownStructures)
+	return validateCrossVolumeStructure(vol)
 }
 
 // isMBR returns whether the structure is the MBR and can be used before setImplicitForVolume
@@ -1019,54 +1332,71 @@ func isMBR(vs *VolumeStructure) bool {
 	return false
 }
 
-func validateCrossVolumeStructure(structures []VolumeStructure, knownStructures map[string]*VolumeStructure) error {
+func validateCrossVolumeStructure(vol *Volume) error {
 	previousEnd := quantity.Offset(0)
 	// cross structure validation:
 	// - relative offsets that reference other structures by name
-	// - laid out structure overlap
-	// use structures laid out within the volume
-	for pidx, ps := range structures {
+	// - structure overlap
+	for pidx, ps := range vol.Structure {
 		if isMBR(&ps) {
-			if *(ps.Offset) != 0 {
+			if ps.Offset == nil || *(ps.Offset) != 0 {
 				return fmt.Errorf(`structure %q has "mbr" role and must start at offset 0`, ps.Name)
 			}
 		}
-		if ps.OffsetWrite != nil && ps.OffsetWrite.RelativeTo != "" {
-			// offset-write using a named structure
-			other := knownStructures[ps.OffsetWrite.RelativeTo]
-			if other == nil {
-				return fmt.Errorf("structure %q refers to an unknown structure %q",
-					ps.Name, ps.OffsetWrite.RelativeTo)
-			}
+		if err := validateOffsetWrite(&ps, &vol.Structure[0], vol.MinSize()); err != nil {
+			return err
 		}
+		// We are assuming ordered structures
+		if ps.Offset != nil {
+			if *(ps.Offset) < previousEnd {
+				return fmt.Errorf("structure %q overlaps with the preceding structure %q", ps.Name, vol.Structure[pidx-1].Name)
+			}
+			previousEnd = *(ps.Offset) + quantity.Offset(ps.Size)
+		} else {
+			previousEnd += quantity.Offset(ps.Size)
 
-		if *(ps.Offset) < previousEnd {
-			previous := structures[pidx-1]
-			return fmt.Errorf("structure %q overlaps with the preceding structure %q", ps.Name, previous.Name)
-		}
-		previousEnd = *(ps.Offset) + quantity.Offset(ps.Size)
-
-		if ps.HasFilesystem() {
-			// content relative offset only possible if it's a bare structure
-			continue
-		}
-		for cidx, c := range ps.Content {
-			if c.OffsetWrite == nil || c.OffsetWrite.RelativeTo == "" {
-				continue
-			}
-			relativeToStructure := knownStructures[c.OffsetWrite.RelativeTo]
-			if relativeToStructure == nil {
-				return fmt.Errorf("structure %q, content %v refers to an unknown structure %q",
-					ps.Name, fmtIndexAndName(cidx, c.Image), c.OffsetWrite.RelativeTo)
-			}
 		}
 	}
 	return nil
 }
 
+func validateOffsetWrite(s, firstStruct *VolumeStructure, volSize quantity.Size) error {
+	if s.OffsetWrite == nil {
+		return nil
+	}
+
+	if s.OffsetWrite.RelativeTo != "" {
+		// offset-write using a named structure can only refer to
+		// the first volume structure
+		if s.OffsetWrite.RelativeTo != firstStruct.Name {
+			return fmt.Errorf("structure %q refers to an unexpected structure %q",
+				s.Name, s.OffsetWrite.RelativeTo)
+		}
+		if firstStruct.Offset == nil || *(firstStruct.Offset) != 0 {
+			return fmt.Errorf("structure %q refers to structure %q, which does not have 0 offset",
+				s.Name, s.OffsetWrite.RelativeTo)
+		}
+		if quantity.Size(s.OffsetWrite.Offset)+SizeLBA48Pointer > firstStruct.MinSize {
+			return fmt.Errorf("structure %q wants to write offset of %d bytes to %d, outside of referred structure %q",
+				s.Name, SizeLBA48Pointer, s.OffsetWrite.Offset, s.OffsetWrite.RelativeTo)
+		}
+	} else if quantity.Size(s.OffsetWrite.Offset)+SizeLBA48Pointer > volSize {
+		return fmt.Errorf("structure %q wants to write offset of %d bytes to %d, outside of volume of min size %d",
+			s.Name, SizeLBA48Pointer, s.OffsetWrite.Offset, volSize)
+	}
+
+	return nil
+}
+
 func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
-	if vs.Size == 0 {
-		return errors.New("missing size")
+	if !vs.hasPartialSize() {
+		if vs.Size == 0 {
+			return errors.New("missing size")
+		}
+		if vs.MinSize > vs.Size {
+			return fmt.Errorf("min-size (%d) is bigger than size (%d)",
+				vs.MinSize, vs.Size)
+		}
 	}
 	if err := validateStructureType(vs.Type, vol); err != nil {
 		return fmt.Errorf("invalid type %q: %v", vs.Type, err)
@@ -1080,16 +1410,16 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 		}
 		return fmt.Errorf("invalid %s: %v", what, err)
 	}
-	if vs.Filesystem != "" && !strutil.ListContains([]string{"ext4", "vfat", "none"}, vs.Filesystem) {
+	if vs.Filesystem != "" && !strutil.ListContains([]string{"ext4", "vfat", "vfat-16", "vfat-32", "none"}, vs.Filesystem) {
 		return fmt.Errorf("invalid filesystem %q", vs.Filesystem)
 	}
 
 	var contentChecker func(*VolumeContent) error
 
-	if !vs.HasFilesystem() {
-		contentChecker = validateBareContent
-	} else {
+	if vs.HasFilesystem() {
 		contentChecker = validateFilesystemContent
+	} else {
+		contentChecker = validateBareContent
 	}
 	for i, c := range vs.Content {
 		if err := contentChecker(&c); err != nil {
@@ -1097,7 +1427,7 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 		}
 	}
 
-	if err := validateStructureUpdate(vs); err != nil {
+	if err := validateStructureUpdate(vs, vol); err != nil {
 		return err
 	}
 
@@ -1118,11 +1448,6 @@ func validateStructureType(s string, vol *Volume) error {
 	// Hybrid ID is 2 hex digits of MBR type, followed by 36 GUUID
 	// example: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
 
-	schema := vol.Schema
-	if schema == "" {
-		schema = schemaGPT
-	}
-
 	if s == "" {
 		return errors.New(`type is not specified`)
 	}
@@ -1137,7 +1462,7 @@ func validateStructureType(s string, vol *Volume) error {
 		return nil
 	}
 
-	var isGPT, isMBR bool
+	var isGPT, isMBR, isHybrid bool
 
 	idx := strings.IndexRune(s, ',')
 	if idx == -1 {
@@ -1152,6 +1477,7 @@ func validateStructureType(s string, vol *Volume) error {
 		}
 	} else {
 		// hybrid ID
+		isHybrid = true
 		code := s[:idx]
 		guid := s[idx+1:]
 		if len(code) != 2 || len(guid) != 36 || !validTypeID.MatchString(code) || !validGUUID.MatchString(guid) {
@@ -1159,12 +1485,19 @@ func validateStructureType(s string, vol *Volume) error {
 		}
 	}
 
-	if schema != schemaGPT && isGPT {
-		// type: <uuid> is only valid for GPT volumes
-		return fmt.Errorf("GUID structure type with non-GPT schema %q", vol.Schema)
-	}
-	if schema != schemaMBR && isMBR {
-		return fmt.Errorf("MBR structure type with non-MBR schema %q", vol.Schema)
+	if vol.HasPartial(PartialSchema) {
+		if !isHybrid {
+			return fmt.Errorf("both MBR type and GUID structure type needs to be defined on partial schemas")
+		}
+	} else {
+		schema := vol.Schema
+		if schema != schemaGPT && isGPT {
+			// type: <uuid> is only valid for GPT volumes
+			return fmt.Errorf("GUID structure type with non-GPT schema %q", vol.Schema)
+		}
+		if schema != schemaMBR && isMBR {
+			return fmt.Errorf("MBR structure type with non-MBR schema %q", vol.Schema)
+		}
 	}
 
 	return nil
@@ -1225,7 +1558,7 @@ func validateBareContent(vc *VolumeContent) error {
 }
 
 func validateFilesystemContent(vc *VolumeContent) error {
-	if vc.Image != "" || vc.Offset != nil || vc.OffsetWrite != nil || vc.Size != 0 {
+	if vc.Image != "" || vc.Offset != nil || vc.Size != 0 {
 		return fmt.Errorf("cannot use image content for non-bare file system")
 	}
 	if vc.UnresolvedSource == "" {
@@ -1237,7 +1570,7 @@ func validateFilesystemContent(vc *VolumeContent) error {
 	return nil
 }
 
-func validateStructureUpdate(vs *VolumeStructure) error {
+func validateStructureUpdate(vs *VolumeStructure, v *Volume) error {
 	if !vs.HasFilesystem() && len(vs.Update.Preserve) > 0 {
 		return errors.New("preserving files during update is not supported for non-filesystem structures")
 	}
@@ -1342,47 +1675,34 @@ func IsCompatible(current, new *Info) error {
 		return err
 	}
 
-	if currentVol.Schema == "" || newVol.Schema == "" {
-		return fmt.Errorf("internal error: unset volume schemas: old: %q new: %q", currentVol.Schema, newVol.Schema)
-	}
-
-	// layout both volumes partially, without going deep into the layout of
-	// structure content, we only want to make sure that structures are
-	// comapatible
-	pCurrent, err := LayoutVolumePartially(currentVol)
-	if err != nil {
-		return fmt.Errorf("cannot lay out the current volume: %v", err)
-	}
-	pNew, err := LayoutVolumePartially(newVol)
-	if err != nil {
-		return fmt.Errorf("cannot lay out the new volume: %v", err)
-	}
-	if err := isLayoutCompatible(pCurrent, pNew); err != nil {
+	if err := isLayoutCompatible(currentVol, newVol); err != nil {
 		return fmt.Errorf("incompatible layout change: %v", err)
 	}
 	return nil
 }
 
-// LaidOutVolumesFromGadget takes a gadget rootdir and lays out the partitions
-// on all volumes as specified. It returns the specific volume on which system-*
-// roles/partitions exist, as well as all volumes mentioned in the gadget.yaml
-// and their laid out representations. Those volumes are assumed to already be
-// flashed and managed separately at image build/flash time, while the system
-// volume with all the system-* roles on it can be manipulated during install
-// mode.
-func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model, encType secboot.EncryptionType) (system *LaidOutVolume, all map[string]*LaidOutVolume, err error) {
-	all = make(map[string]*LaidOutVolume)
-	// model should never be nil here
-	if model == nil {
-		return nil, nil, fmt.Errorf("internal error: must have model to lay out system volumes from a gadget")
+// checkCompatibleSchema checks if the schema in a new volume we are
+// updating to is compatible with the old volume.
+func checkCompatibleSchema(old, new *Volume) error {
+	// If old schema is partial, any schema in new will be fine
+	if !old.HasPartial(PartialSchema) {
+		if new.HasPartial(PartialSchema) {
+			return fmt.Errorf("new schema is partial, while old was not")
+		}
+		if old.Schema != new.Schema {
+			return fmt.Errorf("incompatible schema change from %v to %v",
+				old.Schema, new.Schema)
+		}
 	}
-	// rely on the basic validation from ReadInfo to ensure that the system-*
-	// roles are all on the same volume for example
-	info, err := ReadInfoAndValidate(gadgetRoot, model, nil)
-	if err != nil {
-		return nil, nil, err
-	}
+	return nil
+}
 
+// LaidOutVolumesFromGadget takes gadget volumes, gadget and kernel rootdirs
+// and lays out the partitions on all volumes as specified. It returns the
+// volumes mentioned in the gadget.yaml and their laid out representations.
+func LaidOutVolumesFromGadget(vols map[string]*Volume, gadgetRoot, kernelRoot string, encType secboot.EncryptionType, volToGadgetToDiskStruct map[string]map[int]*OnDiskStructure) (all map[string]*LaidOutVolume, err error) {
+
+	all = make(map[string]*LaidOutVolume)
 	// layout all volumes saving them
 	opts := &LayoutOptions{
 		GadgetRootDir: gadgetRoot,
@@ -1390,35 +1710,31 @@ func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model, encTyp
 		EncType:       encType,
 	}
 
-	// find the volume with the system-boot role on it, we already validated
-	// that the system-* roles are all on the same volume
-	for name, vol := range info.Volumes {
-		lvol, err := LayoutVolume(vol, opts)
+	for name, vol := range vols {
+		gadgetToDiskStruct, ok := volToGadgetToDiskStruct[name]
+		if !ok {
+			return nil, fmt.Errorf("internal error: volume %q does not have a map of gadget to disk partitions", name)
+		}
+		lvol, err := LayoutVolume(vol, gadgetToDiskStruct, opts)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		all[name] = lvol
-		// check if this volume is the boot volume using the system-boot volume
-		// to identify it
+	}
+
+	return all, nil
+}
+
+// FindBootVolume returns the volume that contains the system-boot partition.
+func FindBootVolume(vols map[string]*Volume) (*Volume, error) {
+	for _, vol := range vols {
 		for _, structure := range vol.Structure {
 			if structure.Role == SystemBoot {
-				if system != nil {
-					// this should be impossible, the validation above should
-					// ensure there are not multiple volumes with the same role
-					// on them
-					return nil, nil, fmt.Errorf("internal error: gadget passed validation but duplicated system-* roles across multiple volumes")
-				}
-				system = lvol
+				return vol, nil
 			}
 		}
 	}
-
-	if system == nil {
-		// this should be impossible, the validation above should ensure this
-		return nil, nil, fmt.Errorf("internal error: gadget passed validation but does not have system-* roles on any volume")
-	}
-
-	return system, all, nil
+	return nil, fmt.Errorf("no volume has system-boot role")
 }
 
 func flatten(path string, cfg interface{}, out map[string]interface{}) {
@@ -1475,34 +1791,52 @@ func isKernelArgumentAllowed(arg string) bool {
 	return true
 }
 
-var ErrNoKernelCommandline = errors.New("no kernel command line in the gadget")
-
 // KernelCommandLineFromGadget returns the desired kernel command line provided by the
 // gadget. The full flag indicates whether the gadget provides a full command
 // line or just the extra parameters that will be appended to the static ones.
-// An ErrNoKernelCommandline is returned when thea gadget does not set any
-// kernel command line.
-func KernelCommandLineFromGadget(gadgetDirOrSnapPath string) (cmdline string, full bool, err error) {
+// A model is neededed to know how to interpret the gadget yaml from the gadget.
+func KernelCommandLineFromGadget(gadgetDirOrSnapPath string, model Model) (cmdline string, full bool, removeArgs []kcmdline.ArgumentPattern, err error) {
 	sf, err := snapfile.Open(gadgetDirOrSnapPath)
 	if err != nil {
-		return "", false, fmt.Errorf("cannot open gadget snap: %v", err)
+		return "", false, []kcmdline.ArgumentPattern{}, fmt.Errorf("cannot open gadget snap: %v", err)
 	}
+
+	info, err := ReadInfoFromSnapFileNoValidate(sf, model)
+	if err != nil {
+		return "", false, []kcmdline.ArgumentPattern{}, fmt.Errorf("Cannot read snap info: %v", err)
+	}
+
+	if len(info.KernelCmdline.Append) > 0 || len(info.KernelCmdline.Remove) > 0 {
+		var asStr []string
+		for _, cmd := range info.KernelCmdline.Append {
+			value := cmd.String()
+			split := strings.SplitN(value, "=", 2)
+			if !isKernelArgumentAllowed(split[0]) {
+				return "", false, []kcmdline.ArgumentPattern{}, fmt.Errorf("kernel parameter '%s' is not allowed", value)
+			}
+			asStr = append(asStr, value)
+		}
+
+		return strutil.JoinNonEmpty(asStr, " "), false, info.KernelCmdline.Remove, nil
+	}
+
+	// Backward compatibility
 	contentExtra, err := sf.ReadFile("cmdline.extra")
 	if err != nil && !os.IsNotExist(err) {
-		return "", false, err
+		return "", false, []kcmdline.ArgumentPattern{}, err
 	}
 	// TODO: should we enforce the maximum kernel command line for cmdline.full?
 	contentFull, err := sf.ReadFile("cmdline.full")
 	if err != nil && !os.IsNotExist(err) {
-		return "", false, err
+		return "", false, []kcmdline.ArgumentPattern{}, err
 	}
 	content := contentExtra
 	whichFile := "cmdline.extra"
 	switch {
 	case contentExtra != nil && contentFull != nil:
-		return "", false, fmt.Errorf("cannot support both extra and full kernel command lines")
+		return "", false, []kcmdline.ArgumentPattern{}, fmt.Errorf("cannot support both extra and full kernel command lines")
 	case contentExtra == nil && contentFull == nil:
-		return "", false, ErrNoKernelCommandline
+		return "", false, []kcmdline.ArgumentPattern{}, nil
 	case contentFull != nil:
 		content = contentFull
 		whichFile = "cmdline.full"
@@ -1510,9 +1844,9 @@ func KernelCommandLineFromGadget(gadgetDirOrSnapPath string) (cmdline string, fu
 	}
 	parsed, err := parseCommandLineFromGadget(content)
 	if err != nil {
-		return "", full, fmt.Errorf("invalid kernel command line in %v: %v", whichFile, err)
+		return "", full, []kcmdline.ArgumentPattern{}, fmt.Errorf("invalid kernel command line in %v: %v", whichFile, err)
 	}
-	return parsed, full, nil
+	return parsed, full, []kcmdline.ArgumentPattern{}, nil
 }
 
 // parseCommandLineFromGadget parses the command line file and returns a
@@ -1545,7 +1879,7 @@ func parseCommandLineFromGadget(content []byte) (string, error) {
 	if err := s.Err(); err != nil {
 		return "", err
 	}
-	kargs, err := osutil.KernelCommandLineSplit(filtered.String())
+	kargs, err := kcmdline.Split(filtered.String())
 	if err != nil {
 		return "", err
 	}

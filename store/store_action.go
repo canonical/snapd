@@ -26,6 +26,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -40,7 +41,7 @@ type RefreshOptions struct {
 	// RefreshManaged indicates to the store that the refresh is
 	// managed via snapd-control.
 	RefreshManaged bool
-	IsAutoRefresh  bool
+	Scheduled      bool
 
 	PrivacyKey string
 }
@@ -59,6 +60,9 @@ type CurrentSnap struct {
 	CohortKey        string
 	// ValidationSets is an optional array of validation set primary keys.
 	ValidationSets []snapasserts.ValidationSetKey
+	// HeldBy is an optional array of snaps with holds on the current snap's
+	// refreshes. The "system" snap represents a hold placed by the user.
+	HeldBy []string
 }
 
 type AssertionQuery interface {
@@ -80,6 +84,9 @@ type currentSnapV2JSON struct {
 	CohortKey        string     `json:"cohort-key,omitempty"`
 	// ValidationSets is an optional array of validation set primary keys.
 	ValidationSets [][]string `json:"validation-sets,omitempty"`
+	// Held is an optional map that can contain a "by" key mapping to a list of
+	// snaps with holds on the current snap (see CurrentSnap#Held).
+	Held map[string][]string `json:"held,omitempty"`
 }
 
 type SnapActionFlags int
@@ -234,7 +241,7 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 
 	authRefreshes := 0
 	for {
-		sars, ars, err := s.snapAction(ctx, currentSnaps, actions, assertQuery, toResolve, toResolveSeq, user, opts)
+		sars, ars, err := s.snapAction(ctx, currentSnaps, actions, assertQuery, toResolve, toResolveSeq, user, opts, 0)
 
 		if saErr, ok := err.(*SnapActionError); ok && authRefreshes < 2 && len(saErr.Other) > 0 {
 			// do we need to try to refresh auths?, 2 tries
@@ -303,7 +310,7 @@ type AssertionResult struct {
 	StreamURLs []string
 }
 
-func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, assertQuery AssertionQuery, toResolve map[asserts.Grouping][]*asserts.AtRevision, toResolveSeq map[asserts.Grouping][]*asserts.AtSequence, user *auth.UserState, opts *RefreshOptions) ([]SnapActionResult, []AssertionResult, error) {
+func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, actions []*SnapAction, assertQuery AssertionQuery, toResolve map[asserts.Grouping][]*asserts.AtRevision, toResolveSeq map[asserts.Grouping][]*asserts.AtSequence, user *auth.UserState, opts *RefreshOptions, storeVer int) ([]SnapActionResult, []AssertionResult, error) {
 	requestSalt := ""
 	if opts != nil {
 		requestSalt = opts.PrivacyKey
@@ -346,6 +353,10 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			Epoch:            curSnap.Epoch,
 			CohortKey:        curSnap.CohortKey,
 			ValidationSets:   valsetKeys,
+		}
+		// `held` field was introduced in version 55 https://api.snapcraft.io/docs/
+		if len(curSnap.HeldBy) > 0 && (storeVer <= 0 || storeVer >= 55) {
+			curSnapJSONs[i].Held = map[string][]string{"by": curSnap.HeldBy}
 		}
 	}
 
@@ -527,16 +538,21 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		return nil, nil, err
 	}
 
+	u, err := s.endpointURL(snapActionEndpPath, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	reqOptions := &requestOptions{
 		Method:      "POST",
-		URL:         s.endpointURL(snapActionEndpPath, nil),
+		URL:         u,
 		Accept:      jsonContentType,
 		ContentType: jsonContentType,
 		Data:        jsonData,
 		APILevel:    apiV2Endps,
 	}
 
-	if opts.IsAutoRefresh {
+	if opts.Scheduled {
 		logger.Debugf("Auto-refresh; adding header Snap-Refresh-Reason: scheduled")
 		reqOptions.addHeader("Snap-Refresh-Reason", "scheduled")
 	}
@@ -556,6 +572,18 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	if resp.StatusCode != 200 {
+		// some fields might not be supported on proxies with old versions.
+		// we should retry with the snap store version known as we can now
+		// get it from the response header.
+		if resp.StatusCode == 400 && storeVer <= 0 {
+			verstr := resp.Header.Get("Snap-Store-Version")
+			ver, err := strconv.Atoi(verstr)
+			if err != nil || ver <= 0 {
+				logger.Debugf("cannot parse header value of Snap-Store-Version: expected positive int got %q", verstr)
+			} else {
+				return s.snapAction(ctx, currentSnaps, actions, assertQuery, toResolve, toResolveSeq, user, opts, ver)
+			}
+		}
 		return nil, nil, respToError(resp, "query the store for updates")
 	}
 

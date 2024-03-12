@@ -21,7 +21,7 @@ package asserts_test
 
 import (
 	"encoding/base64"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -786,7 +786,7 @@ func (s *snapFileDigestSuite) TestSnapFileSHA3_384(c *C) {
 
 	tempdir := c.MkDir()
 	snapFn := filepath.Join(tempdir, "ex.snap")
-	err := ioutil.WriteFile(snapFn, exData, 0644)
+	err := os.WriteFile(snapFn, exData, 0644)
 	c.Assert(err, IsNil)
 
 	encDgst, size, err := asserts.SnapFileSHA3_384(snapFn)
@@ -1002,6 +1002,25 @@ func (srs *snapRevSuite) makeValidEncoded() string {
 		"AXNpZw=="
 }
 
+func (srs *snapRevSuite) makeValidEncodedWithIntegrity() string {
+	return "type: snap-revision\n" +
+		"authority-id: store-id1\n" +
+		"snap-sha3-384: " + blobSHA3_384 + "\n" +
+		"snap-id: snap-id-1\n" +
+		"snap-size: 123\n" +
+		"snap-revision: 1\n" +
+		"integrity:\n" +
+		"  sha3-384: " + blobSHA3_384 + "\n" +
+		"  size: 128\n" +
+		"developer-id: dev-id1\n" +
+		"revision: 1\n" +
+		srs.tsLine +
+		"body-length: 0\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+}
+
 func makeSnapRevisionHeaders(overrides map[string]interface{}) map[string]interface{} {
 	headers := map[string]interface{}{
 		"authority-id":  "canonical",
@@ -1058,6 +1077,25 @@ func (srs *snapRevSuite) TestDecodeOKWithProvenance(c *C) {
 	c.Check(snapRev.Provenance(), Equals, "foo")
 }
 
+func (srs *snapRevSuite) TestDecodeOKWithIntegrity(c *C) {
+	encoded := srs.makeValidEncodedWithIntegrity()
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.SnapRevisionType)
+	snapRev := a.(*asserts.SnapRevision)
+	c.Check(snapRev.AuthorityID(), Equals, "store-id1")
+	c.Check(snapRev.Timestamp(), Equals, srs.ts)
+	c.Check(snapRev.SnapID(), Equals, "snap-id-1")
+	c.Check(snapRev.SnapSHA3_384(), Equals, blobSHA3_384)
+	c.Check(snapRev.SnapSize(), Equals, uint64(123))
+	c.Check(snapRev.SnapRevision(), Equals, 1)
+	c.Check(snapRev.DeveloperID(), Equals, "dev-id1")
+	c.Check(snapRev.Revision(), Equals, 1)
+	c.Check(snapRev.Provenance(), Equals, "global-upload")
+	c.Check(snapRev.SnapIntegrity().SHA3_384, Equals, blobSHA3_384)
+	c.Check(snapRev.SnapIntegrity().Size, Equals, uint64(128))
+}
+
 const (
 	snapRevErrPrefix = "assertion snap-revision: "
 )
@@ -1089,6 +1127,35 @@ func (srs *snapRevSuite) TestDecodeInvalid(c *C) {
 		{srs.tsLine, "", `"timestamp" header is mandatory`},
 		{srs.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{srs.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+	}
+
+	for _, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, snapRevErrPrefix+test.expectedErr)
+	}
+}
+
+func (srs *snapRevSuite) TestDecodeInvalidWithIntegrity(c *C) {
+	encoded := srs.makeValidEncodedWithIntegrity()
+
+	integrityHdr := "integrity:\n" +
+		"  sha3-384: " + blobSHA3_384 + "\n" +
+		"  size: 128\n"
+
+	integrityShaHdr := "  sha3-384: " + blobSHA3_384 + "\n"
+
+	integritySizeHdr := "  size: 128\n"
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{integrityHdr, "integrity: \n", `"integrity" header must be a map`},
+		{integrityShaHdr, "  sha3-384: \n", `"sha3-384" of integrity header should not be empty`},
+		{integrityShaHdr, "  sha3-384: #\n", `"sha3-384" of integrity header cannot be decoded:.*`},
+		{integrityShaHdr, "  sha3-384: eHl6\n", `"sha3-384" of integrity header does not have the expected bit length: 24`},
+		{integritySizeHdr, "", `"size" of integrity header is mandatory`},
+		{integritySizeHdr, "  size: \n", `"size" of integrity header should not be empty`},
+		{integritySizeHdr, "  size: -1\n", `"size" of integrity header is not an unsigned integer: -1`},
+		{integritySizeHdr, "  size: zzz\n", `"size" of integrity header is not an unsigned integer: zzz`},
 	}
 
 	for _, test := range invalidTests {

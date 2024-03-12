@@ -21,7 +21,6 @@ package devicestate_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -41,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -332,7 +332,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicEmptySeedYaml(c *C) {
 	s.WriteAssertions("model.asserts", assertsChain...)
 
 	// create an empty seed.yaml
-	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
+	err = os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -369,7 +369,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYamlWithCloudInsta
 }`
 	err := os.MkdirAll(filepath.Dir(dirs.CloudInstanceDataFile), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.CloudInstanceDataFile, []byte(instData), 0600)
+	err = os.WriteFile(dirs.CloudInstanceDataFile, []byte(instData), 0600)
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -555,7 +555,7 @@ snaps:
    unasserted: true
    file: %s
 `, coreFname, kernelFname, gadgetFname, fooFname, filepath.Base(targetSnapFile2)))
-	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err = os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -773,7 +773,7 @@ snaps:
  - name: bar
    file: %s
 `, coreFname, kernelFname, gadgetFname, fooFname, barFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -879,7 +879,7 @@ snaps:
  - name: foo
    file: %s
 `, coreFname, kernelFname, gadgetFname, fooFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -1037,7 +1037,7 @@ snaps:
  - name: foo
    file: %s
 `, coreFname, kernelFname, gadgetFname, fooFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -1415,7 +1415,7 @@ snaps:
  - name: pc
    file: %s
 `, snapdFname, core18Fname, kernelFname, gadgetFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -1538,7 +1538,7 @@ snaps:
  - name: other-base
    file: %s
 `, snapdFname, core18Fname, kernelFname, gadgetFname, snapFname, baseFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -1575,7 +1575,7 @@ snaps:
  - name: pc
    file: %s
 `, snapdFname, core18Fname, kernelFname, gadgetFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -1642,7 +1642,7 @@ snaps:
  - name: gtk-common-themes
    file: %s
 `, coreFname, kernelFname, gadgetFname, calcFname, themesFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -1682,6 +1682,103 @@ snaps:
 	c.Check(conn.(map[string]interface{})["interface"], Equals, "content")
 }
 
+func (s *firstBoot16Suite) TestPopulateFromSeedAlternativeContentProviderAndOrder(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	bloader := boottest.MockUC16Bootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+	bloader.SetBootKernel("pc-kernel_1.snap")
+	bloader.SetBootBase("core_1.snap")
+
+	coreFname, kernelFname, gadgetFname := s.makeCoreSnaps(c, "")
+
+	// a snap that uses content providers
+	snapYaml := `name: gnome-calculator
+version: 1.0
+plugs:
+ gtk-3-themes:
+  interface: content
+  default-provider: gtk-common-themes
+  target: $SNAP/data-dir/themes
+`
+	calcFname, calcDecl, calcRev := s.MakeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
+	s.WriteAssertions("calc.asserts", s.devAcct, calcRev, calcDecl)
+
+	// put a 2nd firstboot snap into the SnapBlobDir
+	snapYaml = `name: gtk-common-themes-alt
+version: 1.0
+slots:
+ gtk-3-themes:
+  interface: content
+  source:
+   read:
+    - $SNAP/share/themes/Adawaita
+`
+	themesFname, themesDecl, themesRev := s.MakeAssertedSnap(c, snapYaml, nil, snap.R(65), "developerid")
+	s.WriteAssertions("themes.asserts", s.devAcct, themesDecl, themesRev)
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c, "my-model", nil)
+	s.WriteAssertions("model.asserts", assertsChain...)
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: core
+   file: %s
+ - name: pc-kernel
+   file: %s
+ - name: pc
+   file: %s
+ - name: gnome-calculator
+   file: %s
+ - name: gtk-common-themes-alt
+   file: %s
+`, coreFname, kernelFname, gadgetFname, calcFname, themesFname))
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	s.startOverlord(c)
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	tsAll, err := devicestate.PopulateStateFromSeedImpl(s.overlord.DeviceManager(), s.perfTimings)
+	c.Assert(err, IsNil)
+	// use the expected kind otherwise settle with start another one
+	chg := st.NewChange("seed", "run the populate from seed changes")
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
+	c.Assert(st.Changes(), HasLen, 1)
+
+	// avoid device reg
+	chg1 := st.NewChange("become-operational", "init device")
+	chg1.SetStatus(state.DoingStatus)
+
+	st.Unlock()
+	err = s.overlord.Settle(settleTimeout)
+	st.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(err, IsNil)
+
+	// verify the result
+	var conns map[string]interface{}
+	err = st.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, HasLen, 1)
+	conn, hasConn := conns["gnome-calculator:gtk-3-themes gtk-common-themes-alt:gtk-3-themes"]
+	c.Check(hasConn, Equals, true)
+	c.Check(conn.(map[string]interface{})["auto"], Equals, true)
+	c.Check(conn.(map[string]interface{})["interface"], Equals, "content")
+
+	c.Check(logbuf.String(), Matches, `(?sm).*seed prerequisites: snap "gnome-calculator" requires a provider for content "gtk-3-themes", a candidate slot is available \(gtk-common-themes-alt:gtk-3-themes\) but not the default-provider, ensure a single auto-connection \(or possibly a connection\) is in-place.*`)
+}
+
 func (s *firstBoot16Suite) TestPopulateFromSeedMissingBase(c *C) {
 	s.WriteAssertions("developer.account", s.devAcct)
 
@@ -1715,7 +1812,7 @@ snaps:
    file: %s
 `, coreFname, kernelFname, gadgetFname, localFname))
 
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644), IsNil)
 
 	// run the firstboot stuff
 	s.startOverlord(c)
@@ -1763,7 +1860,7 @@ snaps:
  - name: core18
    file: %s
 `, snapdFname, fooFname, core18Fname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -1849,7 +1946,7 @@ snaps:
  - name: core18
    file: %s
 `, snapdFname, core18Fname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -1904,7 +2001,7 @@ snaps:
  - name: pc
    file: %s
 `, snapdFname, fooFname, core18Fname, gadgetFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -2109,7 +2206,7 @@ snaps:
  - name: bar
    file: %s
 `, snapdFname, core18Fname, fooFname, barFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -2186,7 +2283,7 @@ func (s *firstBoot16Suite) mockServer(c *C, reqID string) *httptest.Server {
 	fname := filepath.Join(dirs.SnapdStoreSSLCertsDir, "test-server-certs.pem")
 	err := os.MkdirAll(filepath.Dir(fname), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(fname, extraCerts, 0644)
+	err = os.WriteFile(fname, extraCerts, 0644)
 	c.Assert(err, IsNil)
 	return mockServer
 }
@@ -2236,7 +2333,7 @@ snaps:
  - name: pc
    file: %s
 `, snapdFname, core18Fname, kernelFname, gadgetFname))
-	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	err := os.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
@@ -2260,7 +2357,7 @@ snaps:
 		hdrs := vs.(map[string]interface{})
 		seq, err := strconv.Atoi(hdrs["sequence"].(string))
 		c.Assert(err, IsNil)
-		key := fmt.Sprintf("%s/%s", hdrs["account-id"].(string), hdrs["name"].(string))
+		key := fmt.Sprintf("%s/%s/%s", release.Series, hdrs["account-id"].(string), hdrs["name"].(string))
 		expectedSeqs[key] = seq
 		expectedVss[key] = []string{release.Series, hdrs["account-id"].(string), hdrs["name"].(string), hdrs["sequence"].(string)}
 	}

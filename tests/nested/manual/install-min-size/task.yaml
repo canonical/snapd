@@ -1,0 +1,58 @@
+summary: install a gadget that uses min-size
+
+details: install a gadget that uses min-size
+
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+
+environment:
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/valid-for-testing-pc-{VERSION}.model
+  NESTED_ENABLE_SECURE_BOOT: false
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+
+prepare: |
+  snap install yq
+
+  VERSION=$(tests.nested show version)
+  snap download --basename=pc --channel="$VERSION/edge" pc
+  unsquashfs -d pc-gadget pc.snap
+  # Set size of ubuntu-save to a known value
+  yq -i '(.volumes.pc.structure[] | select(.role == "system-save") | .size) |= "32M"' \
+      pc-gadget/meta/gadget.yaml
+  # Make sure that we get a different snap than the store one
+  touch pc-gadget/empty
+  snap pack --filename=pc_x1.snap pc-gadget/ "$(tests.nested get extra-snaps-path)"
+
+  tests.nested build-image core
+
+execute: |
+  tests.nested create-vm core
+
+  # Build a new gadget that uses min-size, and has content that needs to be updated
+  gadget_p=pc-gadget/meta/gadget.yaml
+  sed -i 's/This program cannot be run in DOS mode/This program cannot be run in XXX mode/' \
+      pc-gadget/grubx64.efi
+  # apply our modified gadget.yaml (ubuntu-save partition with size=64M, min-size=16M)
+  yq -i '(.volumes.pc.structure[] | select(.role == "system-save") | .min-size) |= "32M"' \
+      "$gadget_p"
+  yq -i '(.volumes.pc.structure[] | select(.role == "system-save") | .size) |= "64M"' \
+      "$gadget_p"
+  yq -i '(.volumes.pc.structure[] | select(.name == "ubuntu-boot") | .update.edition) |= . + 1' "$gadget_p"
+
+  snap pack --filename=pc.snap pc-gadget
+  remote.push pc.snap
+
+  remote.exec "sudo snap wait system seed.loaded"
+  # check ubuntu-save size
+  usaveSz=$(remote.exec "sudo blockdev --getsize64 /dev/disk/by-label/ubuntu-save")
+  test "$usaveSz" -eq 33554432
+
+  boot_id=$(tests.nested boot-id)
+
+  # Install new gadget
+  remote.exec "sudo snap install --dangerous pc.snap" || [ "$?" -eq 255 ]
+  # It should reboot now
+  remote.wait-for reboot "$boot_id"
+
+  # Check that asset has been updated
+  remote.exec sudo grep -q -a '"This program cannot be run in XXX mode"' \
+      /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi

@@ -21,14 +21,12 @@ package configcore_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -177,11 +175,17 @@ func (s *servicesSuite) TestConfigureConsoleConfEnabledFSOnly(c *C) {
 }
 
 func (s *servicesSuite) TestConfigureConsoleConfEnableNotAtRuntime(c *C) {
+	modeenvContent := `mode=run
+recovery_system=20200202
+`
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
+
 	// pretend that console-conf is disabled
 	canary := filepath.Join(dirs.GlobalRootDir, "/var/lib/console-conf/complete")
 	err := os.MkdirAll(filepath.Dir(canary), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(canary, nil, 0644)
+	err = os.WriteFile(canary, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// now enable it
@@ -195,6 +199,12 @@ func (s *servicesSuite) TestConfigureConsoleConfEnableNotAtRuntime(c *C) {
 }
 
 func (s *servicesSuite) TestConfigureConsoleConfDisableNotAtRuntime(c *C) {
+	modeenvContent := `mode=run
+recovery_system=20200202
+`
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
+
 	// console-conf is not disabled, i.e. there is no
 	// "/var/lib/console-conf/complete" file
 
@@ -209,6 +219,12 @@ func (s *servicesSuite) TestConfigureConsoleConfDisableNotAtRuntime(c *C) {
 }
 
 func (s *servicesSuite) TestConfigureConsoleConfEnableAlreadyEnabledIsFine(c *C) {
+	modeenvContent := `mode=run
+recovery_system=20200202
+`
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
+
 	// Note that we have no
 	//        /var/lib/console-conf/complete
 	// file. So console-conf is already enabled
@@ -226,8 +242,14 @@ func (s *servicesSuite) TestConfigureConsoleConfDisableAlreadyDisabledIsFine(c *
 	canary := filepath.Join(dirs.GlobalRootDir, "/var/lib/console-conf/complete")
 	err := os.MkdirAll(filepath.Dir(canary), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(canary, nil, 0644)
+	err = os.WriteFile(canary, nil, 0644)
 	c.Assert(err, IsNil)
+
+	modeenvContent := `mode=run
+recovery_system=20200202
+`
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
 
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
@@ -239,13 +261,13 @@ func (s *servicesSuite) TestConfigureConsoleConfDisableAlreadyDisabledIsFine(c *
 }
 
 func (s *servicesSuite) TestConfigureConsoleConfEnableDuringInstallMode(c *C) {
-	mockProcCmdline := filepath.Join(c.MkDir(), "cmdline")
-	err := ioutil.WriteFile(mockProcCmdline, []byte("snapd_recovery_mode=install snapd_recovery_system=20201212\n"), 0644)
-	c.Assert(err, IsNil)
-	restore := osutil.MockProcCmdline(mockProcCmdline)
-	defer restore()
+	modeenvContent := `mode=install
+recovery_system=20200202
+`
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapModeenvFile), 0755), IsNil)
+	c.Assert(os.WriteFile(dirs.SnapModeenvFile, []byte(modeenvContent), 0644), IsNil)
 
-	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{
+	err := configcore.FilesystemOnlyRun(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"service.console-conf.disable": true,

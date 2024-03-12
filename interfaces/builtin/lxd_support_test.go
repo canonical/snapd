@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -73,15 +74,68 @@ func (s *LxdSupportInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
+func (s *LxdSupportInterfaceSuite) TestSanitizePlugInvalid(c *C) {
+	const lxdSupportInvalidConsumerYaml = `name: consumer
+version: 0
+plugs:
+  lxd-support-invalid-attr:
+    interface: lxd-support
+    enable-unconfined-mode: 1
+
+apps:
+ app:
+  plugs:
+    - lxd-support-invalid-attr
+`
+
+	_, plugInfo := MockConnectedPlug(c, lxdSupportInvalidConsumerYaml, nil, "lxd-support-invalid-attr")
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches, "lxd-support plug requires bool with 'enable-unconfined-mode'")
+}
+
 func (s *LxdSupportInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,usr/}{,s}bin/aa-exec ux,\n")
 }
 
+func (s *LxdSupportInterfaceSuite) TestAppArmorSpecUserNS(c *C) {
+	r := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer r()
+	r = apparmor_sandbox.MockFeatures(nil, nil, []string{"userns"}, nil)
+	defer r()
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "userns,\n")
+}
+
+func (s *LxdSupportInterfaceSuite) TestAppArmorSpecUnconfined(c *C) {
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap))
+	c.Assert(spec.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(spec.Unconfined(), Equals, apparmor.UnconfinedSupported)
+
+	// Unconfined mode is enabled by the plug when it enables it via the
+	// enable-unconfined-mode attribute
+	const lxdSupportWithUnconfinedModeConsumerYaml = `name: consumer
+version: 0
+plugs:
+  lxd-support-with-unconfined-mode:
+    interface: lxd-support
+    enable-unconfined-mode: true
+apps:
+ app:
+  plugs: [lxd-support-with-unconfined-mode]
+`
+
+	plug, _ := MockConnectedPlug(c, lxdSupportWithUnconfinedModeConsumerYaml, nil, "lxd-support-with-unconfined-mode")
+
+	c.Assert(spec.AddConnectedPlug(s.iface, plug, s.slot), IsNil)
+	c.Assert(spec.Unconfined(), Equals, apparmor.UnconfinedEnabled)
+}
+
 func (s *LxdSupportInterfaceSuite) TestSecCompSpec(c *C) {
-	spec := &seccomp.Specification{}
+	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "@unrestricted\n")

@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/interfaces/utils"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -41,7 +43,7 @@ const customDeviceBaseDeclarationSlots = `
     allow-installation: false
     allow-connection:
       plug-attributes:
-        content: $SLOT(custom-device)
+        custom-device: $SLOT(custom-device)
     deny-auto-connection: true
 `
 
@@ -76,7 +78,8 @@ func (iface *customDeviceInterface) validateFilePath(path string, attrName strin
 		return fmt.Errorf(`custom-device %q path is not clean: %q`, attrName, path)
 	}
 
-	if _, err := utils.NewPathPattern(path); err != nil {
+	const allowCommas = true
+	if _, err := utils.NewPathPattern(path, allowCommas); err != nil {
 		return fmt.Errorf(`custom-device %q path cannot be used: %v`, attrName, err)
 	}
 
@@ -143,6 +146,24 @@ func (iface *customDeviceInterface) validateUDevValueMap(value interface{}) erro
 	return nil
 }
 
+func (iface *customDeviceInterface) validateKernelMatchesOneDeviceBasename(kernelVal string, devices []string) error {
+	matches := make([]string, 0)
+	for _, devicePath := range devices {
+		if kernelVal != filepath.Base(devicePath) {
+			continue
+		}
+		matches = append(matches, devicePath)
+	}
+	switch len(matches) {
+	case 0:
+		return fmt.Errorf(`%q does not match any specified device`, kernelVal)
+	case 1:
+		return nil
+	default:
+		return fmt.Errorf(`%q matches more than one specified device: %q`, kernelVal, matches)
+	}
+}
+
 func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]interface{}, devices []string) error {
 	hasKernelTag := false
 	for key, value := range rule {
@@ -153,14 +174,19 @@ func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]inte
 		case "kernel":
 			hasKernelTag = true
 			err = iface.validateUDevValue(value)
-			if err == nil {
-				deviceName := value.(string)
-				// furthermore, the kernel name must match the name of one of
-				// the given devices
-				if !strutil.ListContains(devices, "/dev/"+deviceName) {
-					err = fmt.Errorf(`%q does not match a specified device`, deviceName)
-				}
+			if err != nil {
+				break
 			}
+			kernelVal := value.(string)
+			// The kernel device name must match the full path of
+			// one of the given devices, stripped of the leading
+			// /dev/, or it must be the basename of a device path.
+			if strutil.ListContains(devices, "/dev/"+kernelVal) {
+				break
+			}
+			// Not a full path, so check if it matches the basename
+			// of a device path, and not more than one.
+			err = iface.validateKernelMatchesOneDeviceBasename(kernelVal, devices)
 		case "attributes", "environment":
 			err = iface.validateUDevValueMap(value)
 		default:
@@ -360,14 +386,19 @@ func (iface *customDeviceInterface) UDevConnectedPlug(spec *udev.Specification, 
 	allDevicePaths := devicePaths
 	allDevicePaths = append(allDevicePaths, readDevicePaths...)
 
-	// Generate a basic udev rule for each device; we put them into a map
-	// indexed by the device name, so that we can overwrite the entry later
-	// with a more specific rule.
+	// Create a map in which will store udev rules indexed by device name
 	deviceRules := make(map[string]string, len(allDevicePaths))
+
+	const placeholderRule string = "<placeholder>"
+
+	// Generate a placeholder udev rule for each device; we put them into a
+	// map indexed by the device name, so that we can overwrite the entry
+	// later with a specified rule, or create default rules if no
+	// "udev-tagging" rules are explicitly given.
 	for _, devicePath := range allDevicePaths {
 		if strings.HasPrefix(devicePath, "/dev/") {
-			deviceName := devicePath[5:]
-			deviceRules[deviceName] = fmt.Sprintf(`KERNEL=="%s"`, deviceName)
+			deviceName := devicePath[len("/dev/"):]
+			deviceRules[deviceName] = placeholderRule
 		}
 	}
 
@@ -404,8 +435,44 @@ func (iface *customDeviceInterface) UDevConnectedPlug(spec *udev.Specification, 
 	}
 
 	// Now write all the rules
-	for _, rule := range deviceRules {
-		spec.TagDevice(rule)
+	for deviceName, rule := range deviceRules {
+		if rule != placeholderRule {
+			spec.TagDevice(rule)
+			continue
+		}
+
+		baseName := filepath.Base(deviceName)
+
+		defaultRule := fmt.Sprintf(`KERNEL=="%s"`, deviceName)
+		defaultBaseNameRule := fmt.Sprintf(`KERNEL=="%s"`, baseName)
+
+		if baseName == deviceName {
+			spec.TagDevice(defaultRule)
+			continue
+		}
+
+		baseNameRule, exists := deviceRules[baseName]
+		if !exists {
+			// There is no rule for the basename, so emit a default
+			// rule for both the full path and basename.
+			spec.TagDevice(defaultRule)
+			spec.TagDevice(defaultBaseNameRule)
+			continue
+		}
+
+		if baseNameRule != placeholderRule && !strutil.ListContains(allDevicePaths, "/dev/"+baseName) {
+			// There is a user-defined rule for the basename of the
+			// device path, and there is not a device whose path
+			// is /dev/<basename>, so that rule should apply to
+			// the device given by this full path. Thus, do not
+			// emit a default rule for this device name.
+			// validateUDevTaggingRule() already checked that the
+			// basename rule only applies to only one device.
+			logger.Noticef(`custom-device: applying "udev-tagging" rule with kernel "%s" to device "/dev/%s", since no device with path "/dev/%s"`, baseName, deviceName, baseName)
+			continue
+		}
+
+		spec.TagDevice(defaultRule)
 	}
 
 	return nil

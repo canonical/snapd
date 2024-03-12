@@ -32,11 +32,9 @@ func MockSnapFromSender(f func(*dbus.Conn, dbus.Sender) (string, error)) func() 
 }
 
 var (
-	DesktopFileSearchPath          = desktopFileSearchPath
-	DesktopFileIDToFilename        = desktopFileIDToFilename
-	VerifyDesktopFileLocation      = verifyDesktopFileLocation
-	ParseExecCommand               = parseExecCommand
-	ReadExecCommandFromDesktopFile = readExecCommandFromDesktopFile
+	DesktopFileSearchPath     = desktopFileSearchPath
+	DesktopFileIDToFilename   = desktopFileIDToFilename
+	VerifyDesktopFileLocation = verifyDesktopFileLocation
 )
 
 func MockRegularFileExists(f func(string) (bool, bool, error)) func() {

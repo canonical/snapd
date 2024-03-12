@@ -1014,6 +1014,13 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	// The 'change_profile unsafe' rules conflict with the 'ix' rules in
 	// the home interface, so suppress them (LP: #1797786)
 	spec.SetSuppressHomeIx()
+	// New enough docker & containers it launches appear to get
+	// denial for writing pycache inside the container... which I
+	// guess to apparmor it looks like a snap. This is harmless, as
+	// docker snap no longer ships any python, and thus will not
+	// try to modify, otherwise immutable, pycache inside the
+	// snaps.
+	spec.SetSuppressPycacheDeny()
 	spec.AddSnippet(dockerSupportConnectedPlugAppArmor)
 	if privileged {
 		spec.AddSnippet(dockerSupportPrivilegedAppArmor)

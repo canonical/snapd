@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build nosecboot
-// +build nosecboot
 
 /*
  * Copyright (C) 2019-2020 Canonical Ltd
@@ -31,10 +30,6 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-var sysfsPathForBlockDevice = func(device string) (string, error) {
-	return "", fmt.Errorf("build without secboot support")
-}
-
 func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Options, _ gadget.ContentObserver, _ timings.Measurer) (*InstalledSystemSideData, error) {
 	return nil, fmt.Errorf("build without secboot support")
 }
@@ -51,7 +46,7 @@ func MountVolumes(onVolumes map[string]*gadget.Volume, encSetupData *EncryptionS
 	return "", nil, fmt.Errorf("build without secboot support")
 }
 
-func SaveStorageTraits(model gadget.Model, allLaidOutVols map[string]*gadget.LaidOutVolume, encryptSetupData *EncryptionSetupData) error {
+func SaveStorageTraits(model gadget.Model, vols map[string]*gadget.Volume, encryptSetupData *EncryptionSetupData) error {
 	return fmt.Errorf("build without secboot support")
 }
 
@@ -62,4 +57,9 @@ func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secbo
 
 func KeysForRole(setupData *EncryptionSetupData) map[string]keys.EncryptionKey {
 	return nil
+}
+
+func MatchDisksToGadgetVolumes(gVols map[string]*gadget.Volume,
+	volCompatOpts *gadget.VolumeCompatibilityOptions) (map[string]map[int]*gadget.OnDiskStructure, error) {
+	return nil, fmt.Errorf("build without secboot support")
 }

@@ -24,9 +24,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
 // User holds logged in user information.
@@ -104,44 +106,65 @@ func storeAuthDataFilename(homeDir string) string {
 	return filepath.Join(homeDir, ".snap", "auth.json")
 }
 
-// writeAuthData saves authentication details for later reuse through ReadAuthData
-func writeAuthData(user User) error {
+// realUidGid finds the real user when the command is run
+// via sudo. It returns the users record and uid,gid.
+func realUidGid() (*user.User, sys.UserID, sys.GroupID, error) {
 	real, err := osutil.UserMaybeSudoUser()
 	if err != nil {
-		return err
+		return nil, 0, 0, err
 	}
 
 	uid, gid, err := osutil.UidGid(real)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	return real, uid, gid, err
+}
+
+// writeAuthData saves authentication details for later reuse through ReadAuthData
+func writeAuthData(user User) error {
+	real, uid, gid, err := realUidGid()
 	if err != nil {
 		return err
 	}
 
 	targetFile := storeAuthDataFilename(real.HomeDir)
 
-	if err := osutil.MkdirAllChown(filepath.Dir(targetFile), 0700, uid, gid); err != nil {
+	out, err := json.Marshal(user)
+	if err != nil {
 		return err
 	}
 
-	outStr, err := json.Marshal(user)
-	if err != nil {
-		return nil
-	}
+	return sys.RunAsUidGid(uid, gid, func() error {
+		if err := os.MkdirAll(filepath.Dir(targetFile), 0700); err != nil {
+			return err
+		}
 
-	return osutil.AtomicWriteFileChown(targetFile, []byte(outStr), 0600, 0, uid, gid)
+		return osutil.AtomicWriteFile(targetFile, out, 0600, 0)
+	})
 }
 
 // readAuthData reads previously written authentication details
 func readAuthData() (*User, error) {
-	sourceFile := storeAuthDataFilename("")
-	f, err := os.Open(sourceFile)
+	_, uid, _, err := realUidGid()
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
 
 	var user User
-	dec := json.NewDecoder(f)
-	if err := dec.Decode(&user); err != nil {
+	sourceFile := storeAuthDataFilename("")
+
+	if err := sys.RunAsUidGid(uid, sys.FlagID, func() error {
+		f, err := os.Open(sourceFile)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		dec := json.NewDecoder(f)
+
+		return dec.Decode(&user)
+	}); err != nil {
 		return nil, err
 	}
 
@@ -150,6 +173,14 @@ func readAuthData() (*User, error) {
 
 // removeAuthData removes any previously written authentication details.
 func removeAuthData() error {
+	_, uid, _, err := realUidGid()
+	if err != nil {
+		return err
+	}
+
 	filename := storeAuthDataFilename("")
-	return os.Remove(filename)
+
+	return sys.RunAsUidGid(uid, sys.FlagID, func() error {
+		return os.Remove(filename)
+	})
 }

@@ -23,8 +23,6 @@ prepare: |
     fi
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
 
     if [ "$SERVICE" = "rsyslog" ] && os.query is-core18; then
         echo "The service to test does not exist in the core18 system, skipping..."
@@ -106,8 +104,6 @@ restore: |
     fi
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
 
     SUFFIX="$(get_test_snap_suffix)"
 
@@ -119,6 +115,11 @@ restore: |
     fi
     systemctl enable "$SERVICE.service" || true
     systemctl start "$SERVICE.service" || true
+
+    # remove the default configure snap before snapd lib is cleaned
+    if snap list "test-snapd-with-default-configure${SUFFIX}"; then
+        snap remove --purge "test-snapd-with-default-configure${SUFFIX}"
+    fi
 
     systemctl stop snapd.service snapd.socket
     clean_snapd_lib
@@ -148,6 +149,10 @@ restore: |
 
     # wait for first boot to be done
     wait_for_first_boot_change
+
+    # clean leftovers of test-snapd-with-configure snap
+    rm -rf "/snap/test-snapd-with-configure${SUFFIX}"
+    rm -rf "/var/snap/test-snapd-with-configure${SUFFIX}"
 
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then

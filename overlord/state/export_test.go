@@ -73,3 +73,9 @@ var (
 	ErrNoWarningExpireAfter = errNoWarningExpireAfter
 	ErrNoWarningRepeatAfter = errNoWarningRepeatAfter
 )
+
+// NumNotices returns the total bumber of notices, including expired ones that
+// haven't yet been pruned.
+func (s *State) NumNotices() int {
+	return len(s.notices)
+}

@@ -19,6 +19,7 @@
 package cgroup
 
 import (
+	"context"
 	"time"
 
 	"github.com/godbus/dbus"
@@ -50,11 +51,9 @@ func MockFsTypeForPath(mock func(string) (int64, error)) (restore func()) {
 	}
 }
 
-func MockRandomUUID(uuid string) func() {
+func MockRandomUUID(f func() (string, error)) func() {
 	old := randomUUID
-	randomUUID = func() (string, error) {
-		return uuid, nil
-	}
+	randomUUID = f
 	return func() {
 		randomUUID = old
 	}
@@ -115,3 +114,24 @@ func MockCgroupsFilePath(path string) (restore func()) {
 func MonitorDelete(folders []string, name string, channel chan string) error {
 	return currentWatcher.monitorDelete(folders, name, channel)
 }
+
+type InotifyWatcher = inotifyWatcher
+
+func MockInotifyWatcher(ctx context.Context, obsMonitor func(w *InotifyWatcher, name string)) (restore func()) {
+	restore = testutil.Backup(&currentWatcher)
+	currentWatcher = newInotifyWatcher(ctx)
+	currentWatcher.observeMonitorCb = obsMonitor
+	return restore
+}
+
+func MockInitWatcherClose() { currentWatcher.Close() }
+
+func (iw *inotifyWatcher) MonitoredDirs() map[string]uint {
+	return iw.pathList
+}
+
+func (iw *inotifyWatcher) MonitorDelete(folders []string, name string, channel chan string) error {
+	return iw.monitorDelete(folders, name, channel)
+}
+
+var NewInotifyWatcher = newInotifyWatcher

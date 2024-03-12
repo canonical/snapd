@@ -306,7 +306,15 @@ apps:
 		},
 		{
 			"devices: [/dev/null]\n  udev-tagging:\n    - kernel: bar",
-			`custom-device "udev-tagging" invalid "kernel" tag: "bar" does not match a specified device`,
+			`custom-device "udev-tagging" invalid "kernel" tag: "bar" does not match any specified device`,
+		},
+		{
+			"devices: [/dev/subdir/foo]\n  udev-tagging:\n    - kernel: foo\n      subsystem: 12",
+			`custom-device "udev-tagging" invalid "subsystem" tag: value "12" is not a string`,
+		},
+		{
+			"devices: [/dev/dir1/foo, /dev/dir2/foo]\n  udev-tagging:\n    - kernel: foo",
+			`custom-device "udev-tagging" invalid "kernel" tag: "foo" matches more than one specified device: \["/dev/dir1/foo" "/dev/dir2/foo"\]`,
 		},
 		{
 			"devices: [/dev/null]\n  udev-tagging:\n    - attributes: foo",
@@ -373,7 +381,7 @@ func (s *CustomDeviceInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *CustomDeviceInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
@@ -401,6 +409,11 @@ slots:
   devices:
     - /dev/input/event[0-9]
     - /dev/input/mice
+    - /dev/dma_heap/qcom,qseecom
+    - /dev/bar
+    - /dev/foo/bar
+    - /dev/dir1/baz
+    - /dev/dir2/baz
   read-devices:
     - /dev/js*
   %s
@@ -418,16 +431,33 @@ apps:
 			[]map[string]string{
 				// all rules are automatically-generated
 				{`KERNEL`: `"input/event[0-9]"`},
+				{`KERNEL`: `"event[0-9]"`},
 				{`KERNEL`: `"input/mice"`},
+				{`KERNEL`: `"mice"`},
 				{`KERNEL`: `"js*"`},
+				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+				{`KERNEL`: `"qcom,qseecom"`},
+				{`KERNEL`: `"bar"`},
+				{`KERNEL`: `"foo/bar"`},
+				{`KERNEL`: `"dir1/baz"`},
+				{`KERNEL`: `"dir2/baz"`},
+				{`KERNEL`: `"baz"`},
 			},
 		},
 		{
 			"udev-tagging:\n   - kernel: input/mice\n     subsystem: input",
 			[]map[string]string{
 				{`KERNEL`: `"input/event[0-9]"`},
+				{`KERNEL`: `"event[0-9]"`},
 				{`KERNEL`: `"input/mice"`, `SUBSYSTEM`: `"input"`},
 				{`KERNEL`: `"js*"`},
+				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+				{`KERNEL`: `"qcom,qseecom"`},
+				{`KERNEL`: `"bar"`},
+				{`KERNEL`: `"foo/bar"`},
+				{`KERNEL`: `"dir1/baz"`},
+				{`KERNEL`: `"dir2/baz"`},
+				{`KERNEL`: `"baz"`},
 			},
 		},
 		{
@@ -440,8 +470,16 @@ apps:
       attr2: two`,
 			[]map[string]string{
 				{`KERNEL`: `"input/event[0-9]"`},
+				{`KERNEL`: `"event[0-9]"`},
 				{`KERNEL`: `"input/mice"`, `SUBSYSTEM`: `"input"`},
 				{`KERNEL`: `"js*"`, `ATTR{attr1}`: `"one"`, `ATTR{attr2}`: `"two"`},
+				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+				{`KERNEL`: `"qcom,qseecom"`},
+				{`KERNEL`: `"bar"`},
+				{`KERNEL`: `"foo/bar"`},
+				{`KERNEL`: `"dir1/baz"`},
+				{`KERNEL`: `"dir2/baz"`},
+				{`KERNEL`: `"baz"`},
 			},
 		},
 		{
@@ -463,13 +501,130 @@ apps:
 				},
 				{`KERNEL`: `"input/mice"`, `ATTR{wheel}`: `"true"`},
 				{`KERNEL`: `"js*"`},
+				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+				{`KERNEL`: `"qcom,qseecom"`},
+				{`KERNEL`: `"bar"`},
+				{`KERNEL`: `"foo/bar"`},
+				{`KERNEL`: `"dir1/baz"`},
+				{`KERNEL`: `"dir2/baz"`},
+				{`KERNEL`: `"baz"`},
+			},
+		},
+		{
+			"udev-tagging:\n   - kernel: dma_heap/qcom,qseecom",
+			[]map[string]string{
+				{`KERNEL`: `"input/event[0-9]"`},
+				{`KERNEL`: `"event[0-9]"`},
+				{`KERNEL`: `"input/mice"`},
+				{`KERNEL`: `"mice"`},
+				{`KERNEL`: `"js*"`},
+				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+				{`KERNEL`: `"bar"`},
+				{`KERNEL`: `"foo/bar"`},
+				{`KERNEL`: `"dir1/baz"`},
+				{`KERNEL`: `"dir2/baz"`},
+				{`KERNEL`: `"baz"`},
+			},
+		},
+		{
+			"udev-tagging:\n   - kernel: qcom,qseecom",
+			[]map[string]string{
+				{`KERNEL`: `"input/event[0-9]"`},
+				{`KERNEL`: `"event[0-9]"`},
+				{`KERNEL`: `"input/mice"`},
+				{`KERNEL`: `"mice"`},
+				{`KERNEL`: `"js*"`},
+				{`KERNEL`: `"qcom,qseecom"`},
+				{`KERNEL`: `"bar"`},
+				{`KERNEL`: `"foo/bar"`},
+				{`KERNEL`: `"dir1/baz"`},
+				{`KERNEL`: `"dir2/baz"`},
+				{`KERNEL`: `"baz"`},
+			},
+		},
+		// if there happens to be a full device path which matches the
+		// basename of another device path, don't override default rule
+		// creation.
+		{
+			"udev-tagging:\n   - kernel: bar",
+			[]map[string]string{
+				{`KERNEL`: `"input/event[0-9]"`},
+				{`KERNEL`: `"event[0-9]"`},
+				{`KERNEL`: `"input/mice"`},
+				{`KERNEL`: `"mice"`},
+				{`KERNEL`: `"js*"`},
+				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+				{`KERNEL`: `"qcom,qseecom"`},
+				{`KERNEL`: `"bar"`},
+				{`KERNEL`: `"foo/bar"`},
+				{`KERNEL`: `"dir1/baz"`},
+				{`KERNEL`: `"dir2/baz"`},
+				{`KERNEL`: `"baz"`},
+			},
+		},
+		{
+			"udev-tagging:\n   - kernel: foo/bar",
+			[]map[string]string{
+				{`KERNEL`: `"input/event[0-9]"`},
+				{`KERNEL`: `"event[0-9]"`},
+				{`KERNEL`: `"input/mice"`},
+				{`KERNEL`: `"mice"`},
+				{`KERNEL`: `"js*"`},
+				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+				{`KERNEL`: `"qcom,qseecom"`},
+				{`KERNEL`: `"bar"`},
+				{`KERNEL`: `"foo/bar"`},
+				{`KERNEL`: `"dir1/baz"`},
+				{`KERNEL`: `"dir2/baz"`},
+				{`KERNEL`: `"baz"`},
+			},
+		},
+		// if there happen to be two device paths with the same
+		// basenames, create default rules for both full paths, and one
+		// default rule with the shared basename.  If there is a rule
+		// for one of the full paths, the other still gets both default
+		// rules.  If there is are rules for both full paths, don't
+		// generate the basename default rule.
+		{
+			"udev-tagging:\n   - kernel: dir1/baz",
+			[]map[string]string{
+				{`KERNEL`: `"input/event[0-9]"`},
+				{`KERNEL`: `"event[0-9]"`},
+				{`KERNEL`: `"input/mice"`},
+				{`KERNEL`: `"mice"`},
+				{`KERNEL`: `"js*"`},
+				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+				{`KERNEL`: `"qcom,qseecom"`},
+				{`KERNEL`: `"bar"`},
+				{`KERNEL`: `"foo/bar"`},
+				{`KERNEL`: `"dir1/baz"`},
+				{`KERNEL`: `"dir2/baz"`},
+				{`KERNEL`: `"baz"`},
+			},
+		},
+		{
+			`udev-tagging:
+   - kernel: dir1/baz
+   - kernel: dir2/baz`,
+			[]map[string]string{
+				{`KERNEL`: `"input/event[0-9]"`},
+				{`KERNEL`: `"event[0-9]"`},
+				{`KERNEL`: `"input/mice"`},
+				{`KERNEL`: `"mice"`},
+				{`KERNEL`: `"js*"`},
+				{`KERNEL`: `"dma_heap/qcom,qseecom"`},
+				{`KERNEL`: `"qcom,qseecom"`},
+				{`KERNEL`: `"bar"`},
+				{`KERNEL`: `"foo/bar"`},
+				{`KERNEL`: `"dir1/baz"`},
+				{`KERNEL`: `"dir2/baz"`},
 			},
 		},
 	}
 
-	for _, testData := range data {
+	for i, testData := range data {
 		testLabel := Commentf("yaml: %s", testData.slotYaml)
-		spec := &udev.Specification{}
+		spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 		snapYaml := fmt.Sprintf(slotYamlTemplate, testData.slotYaml)
 		slot, _ := MockConnectedSlot(c, snapYaml, nil, "hwdev")
 		c.Assert(spec.AddConnectedPlug(s.iface, s.plug, slot), IsNil)
@@ -478,7 +633,7 @@ apps:
 		// The first lines are for the tagging, the last one is for the
 		// snap-device-helper
 		rulesCount := len(testData.expectedRules)
-		c.Assert(snippets, HasLen, rulesCount+1)
+		c.Assert(snippets, HasLen, rulesCount+1, Commentf("Error on test case index %d", i))
 
 		// The following rule is not fixed since the order of the elements depend
 		// on the map iteration order, which in golang is not deterministic.
@@ -509,7 +664,7 @@ apps:
 		// The last line of the snippet is about snap-device-helper
 		actionLine := snippets[rulesCount]
 		c.Assert(actionLine, Matches,
-			fmt.Sprintf(`^TAG=="snap_consumer_app", RUN\+="%s/snap-device-helper .*`, dirs.DistroLibExecDir),
+			fmt.Sprintf(`^TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN\+="%s/snap-device-helper .*`, dirs.DistroLibExecDir),
 			testLabel)
 	}
 }

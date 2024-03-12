@@ -75,7 +75,7 @@ func (s *desktopLaunchSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *desktopLaunchSuite) TestConnectedPlugSnippet(c *C) {
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})

@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -105,12 +106,22 @@ owner /run/user/[0-9]*/###PLUG_SECURITY_TAGS###/{mesa,mutter,sdl,wayland-cursor,
 owner /{dev,run}/shm/###PLUG_SECURITY_TAGS###.wayland.mozilla.ipc.[0-9]* rw,
 `
 
+const waylandConnectedSlotEglstreamAppArmor = `
+# Wayland on eglstream (Nvidia) communicates using an anonymous socket
+unix (send, receive) type=stream peer=(label=###PLUG_SECURITY_TAGS###),
+`
+
 const waylandConnectedPlugAppArmor = `
 # Allow access to the Wayland compositor server socket
 owner /run/user/[0-9]*/wayland-[0-9]* rw,
 
 # Needed when using QT_QPA_PLATFORM=wayland-egl (MESA dri config)
 /etc/drirc r,
+`
+
+const waylandConnectedPlugEglstreamAppArmor = `
+# Wayland on eglstream (Nvidia) communicates using an anonymous socket
+unix (send, receive) type=stream peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
 type waylandInterface struct{}
@@ -129,6 +140,12 @@ func (iface *waylandInterface) StaticInfo() interfaces.StaticInfo {
 
 func (iface *waylandInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(waylandConnectedPlugAppArmor)
+	if !release.OnClassic {
+		old := "###SLOT_SECURITY_TAGS###"
+		new := spec.SnapAppSet().SlotLabelExpression(slot)
+		snippet := strings.Replace(waylandConnectedPlugEglstreamAppArmor, old, new, -1)
+		spec.AddSnippet(snippet)
+	}
 	return nil
 }
 
@@ -136,6 +153,11 @@ func (iface *waylandInterface) AppArmorConnectedSlot(spec *apparmor.Specificatio
 	old := "###PLUG_SECURITY_TAGS###"
 	new := "snap." + plug.Snap().InstanceName() // forms the snap-instance-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
 	snippet := strings.Replace(waylandConnectedSlotAppArmor, old, new, -1)
+	spec.AddSnippet(snippet)
+
+	old = "###PLUG_SECURITY_TAGS###"
+	new = spec.SnapAppSet().PlugLabelExpression(plug)
+	snippet = strings.Replace(waylandConnectedSlotEglstreamAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
 }

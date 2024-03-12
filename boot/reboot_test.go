@@ -21,7 +21,6 @@ package boot_test
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -51,6 +50,10 @@ func (s *rebootSuite) TestRebootActionString(c *C) {
 }
 
 func (s *rebootSuite) TestRebootHelper(c *C) {
+	bl := bootloadertest.Mock("test", "")
+	bootloader.Force(bl)
+	s.AddCleanup(func() { bootloader.Force(nil) })
+
 	cmd := testutil.MockCommand(c, "shutdown", "")
 	defer cmd.Restore()
 
@@ -88,7 +91,58 @@ func (s *rebootSuite) TestRebootHelper(c *C) {
 	}
 }
 
-func (s *rebootSuite) TestRebootWithArguments(c *C) {
+func (s *rebootSuite) TestRebootWithBootloaderError(c *C) {
+	rbl := bootloadertest.Mock("rebootargs", "")
+	bootloader.Force(rbl)
+	s.AddCleanup(func() { bootloader.Force(nil) })
+
+	r := boot.MockBootloaderFind(func(rootdir string, opts *bootloader.Options) (bootloader.Bootloader, error) {
+		c.Check(rootdir, Equals, "")
+		c.Check(opts, IsNil)
+		return nil, fmt.Errorf("oh no")
+	})
+	defer r()
+
+	cmd := testutil.MockCommand(c, "shutdown", "")
+	defer cmd.Restore()
+
+	err := boot.Reboot(0, 0, &boot.RebootInfo{
+		BootloaderOptions: nil,
+	})
+	c.Assert(err, ErrorMatches, `cannot resolve bootloader: oh no`)
+	c.Check(cmd.Calls(), HasLen, 0)
+}
+
+func (s *rebootSuite) TestRebootWithBootloader(c *C) {
+	rbl := bootloadertest.Mock("rebootargs", "")
+	bootloader.Force(rbl)
+	s.AddCleanup(func() { bootloader.Force(nil) })
+
+	// still get the file-path so we can ensure that the file
+	// has not been written
+	dir := c.MkDir()
+	rebArgsPath := filepath.Join(dir, "reboot-param")
+	restoreRebootArgs := boot.MockRebootArgsPath(rebArgsPath)
+	defer restoreRebootArgs()
+
+	cmd := testutil.MockCommand(c, "shutdown", "")
+	defer cmd.Restore()
+
+	err := boot.Reboot(0, 0, &boot.RebootInfo{
+		BootloaderOptions: &bootloader.Options{
+			Role: bootloader.RoleRunMode,
+		},
+	})
+	c.Assert(err, IsNil)
+
+	// ensure the arguments file is absent
+	c.Assert(rebArgsPath, testutil.FileAbsent)
+	c.Check(cmd.Calls(), DeepEquals, [][]string{
+		{"shutdown", "-r", "+0", "reboot scheduled to update the system"},
+	})
+}
+
+func (s *rebootSuite) TestRebootWithRebootBootloader(c *C) {
 	rbl := bootloadertest.Mock("rebootargs", "").WithRebootBootloader()
 	bootloader.Force(rbl)
 	s.AddCleanup(func() { bootloader.Force(nil) })
@@ -101,7 +155,11 @@ func (s *rebootSuite) TestRebootWithArguments(c *C) {
 	cmd := testutil.MockCommand(c, "shutdown", "")
 	defer cmd.Restore()
 
-	err := boot.Reboot(0, 0, &boot.RebootInfo{RebootRequired: true, RebootBootloader: rbl})
+	err := boot.Reboot(0, 0, &boot.RebootInfo{
+		BootloaderOptions: &bootloader.Options{
+			Role: bootloader.RoleRunMode,
+		},
+	})
 	c.Assert(err, IsNil)
 	c.Assert(rebArgsPath, testutil.FileEquals, "0 tryboot\n")
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
@@ -109,7 +167,7 @@ func (s *rebootSuite) TestRebootWithArguments(c *C) {
 	})
 }
 
-func (s *rebootSuite) TestRebootNoArguments(c *C) {
+func (s *rebootSuite) TestRebootWithRebootBootloaderNoArguments(c *C) {
 	rbl := bootloadertest.Mock("rebootargs", "").WithRebootBootloader()
 	bootloader.Force(rbl)
 	s.AddCleanup(func() { bootloader.Force(nil) })
@@ -125,9 +183,8 @@ func (s *rebootSuite) TestRebootNoArguments(c *C) {
 	err := boot.Reboot(0, 0, nil)
 	c.Assert(err, IsNil)
 
-	_, err = os.Stat(rebArgsPath)
-	c.Check(os.IsNotExist(err), Equals, true)
-
+	// ensure the arguments file is absent
+	c.Assert(rebArgsPath, testutil.FileAbsent)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"shutdown", "-r", "+0", "reboot scheduled to update the system"},
 	})

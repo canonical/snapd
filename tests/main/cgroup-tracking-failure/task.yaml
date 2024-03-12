@@ -111,7 +111,7 @@ execute: |
             MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/user.slice/user-0.slice/user@0.service/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
-        ubuntu-22*|ubuntu-23*)
+        ubuntu-22*|ubuntu-23*|ubuntu-24*)
             # Ubuntu > 22 uses unified cgroup hierarchy, where we wait
             # for the systemd to complete the job that creates a transient scope
             MATCH 'DEBUG: using session bus' <debug.txt
@@ -182,14 +182,22 @@ execute: |
     test -S /run/user/0/bus
     SNAPD_DEBUG=1 tests.session -u root exec snap run test-snapd-sh.sh -c 'exec cat /proc/self/cgroup' >cgroup.txt 2>debug.txt
     tests.session -u root restore
-    MATCH 'DEBUG: using session bus' <debug.txt
-    MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
-    if is_cgroupv2; then
-        MATCH 'DEBUG: transient scope snap.test-snapd-sh.sh.[0-9a-f-]+.scope created' <debug.txt
-        MATCH '0::/user.slice/user-0.slice/user@0.service/app.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
-    else
-        MATCH '1:name=systemd:/user.slice/user-0.slice/user@0.service/(app.slice/)?snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
-    fi
+    case "$SPREAD_SYSTEM" in
+        ubuntu-23.10*|ubuntu-24*)
+            # Ubuntu >= 23.10 uses systemd-run instead of busctl to run commands using tests.session
+            MATCH '0::/user.slice/user-0.slice/user@0.service/app.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
+            ;;
+        *)
+            MATCH 'DEBUG: using session bus' <debug.txt
+            MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
+            if is_cgroupv2; then
+                MATCH 'DEBUG: transient scope snap.test-snapd-sh.sh.[0-9a-f-]+.scope created' <debug.txt
+                MATCH '0::/user.slice/user-0.slice/user@0.service/app.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
+            else
+                MATCH '1:name=systemd:/user.slice/user-0.slice/user@0.service/(app.slice/)?snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
+            fi
+            ;;
+    esac
 
     ## Scenario 3: user is non-root, dbus user session is installed
     echo "run a snap app as a test user, having the session bus installed" >scenario.txt
@@ -225,11 +233,15 @@ execute: |
             MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/user.slice/user-12345.slice/user@12345.service/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
-        ubuntu-22*|ubuntu-23*|ubuntu-core-22-*)
+        ubuntu-22*|ubuntu-core-22-*)
             # Same as Ubuntu 20.04, but the system uses a unified cgroup hierarchy
             MATCH 'DEBUG: using session bus' <debug.txt
             MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH 'DEBUG: transient scope snap.test-snapd-sh.sh.[0-9a-f-]+.scope created' <debug.txt
+            MATCH '0::/user.slice/user-12345.slice/user@12345.service/app.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
+            ;;
+        ubuntu-23.10*|ubuntu-24*)
+            # Ubuntu >= 23.10 uses systemd-run instead of busctl to run commands using tests.session
             MATCH '0::/user.slice/user-12345.slice/user@12345.service/app.slice/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
         *)

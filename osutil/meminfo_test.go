@@ -20,7 +20,7 @@
 package osutil_test
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -132,13 +132,13 @@ func (s *meminfoSuite) TestMemInfoHappy(c *C) {
 	restore := osutil.MockProcMeminfo(p)
 	defer restore()
 
-	c.Assert(ioutil.WriteFile(p, []byte(meminfoExampleFromLiveSystem), 0644), IsNil)
+	c.Assert(os.WriteFile(p, []byte(meminfoExampleFromLiveSystem), 0644), IsNil)
 
 	mem, err := osutil.TotalUsableMemory()
 	c.Assert(err, IsNil)
 	c.Check(mem, Equals, uint64(32876680)*1024)
 
-	c.Assert(ioutil.WriteFile(p, []byte(`MemTotal:    1234 kB`), 0644), IsNil)
+	c.Assert(os.WriteFile(p, []byte(`MemTotal:    1234 kB`), 0644), IsNil)
 
 	mem, err = osutil.TotalUsableMemory()
 	c.Assert(err, IsNil)
@@ -149,13 +149,13 @@ func (s *meminfoSuite) TestMemInfoHappy(c *C) {
 MemTotal:       32876699 kB
 MemFree:         3478104 kB
 `
-	c.Assert(ioutil.WriteFile(p, []byte(meminfoReorderedWithEmptyLine), 0644), IsNil)
+	c.Assert(os.WriteFile(p, []byte(meminfoReorderedWithEmptyLine), 0644), IsNil)
 
 	mem, err = osutil.TotalUsableMemory()
 	c.Assert(err, IsNil)
 	c.Check(mem, Equals, uint64(32876699)*1024)
 
-	c.Assert(ioutil.WriteFile(p, []byte(meminfoExampleFromPi3), 0644), IsNil)
+	c.Assert(os.WriteFile(p, []byte(meminfoExampleFromPi3), 0644), IsNil)
 
 	// CmaTotal is taken correctly into account
 	mem, err = osutil.TotalUsableMemory()
@@ -209,7 +209,7 @@ Cached:         14550292 kB
 			err:     `cannot convert memory size value: strconv.ParseUint: parsing "0xabcdef": invalid syntax`,
 		},
 	} {
-		c.Assert(ioutil.WriteFile(p, []byte(tc.content), 0644), IsNil)
+		c.Assert(os.WriteFile(p, []byte(tc.content), 0644), IsNil)
 		mem, err := osutil.TotalUsableMemory()
 		c.Assert(err, ErrorMatches, tc.err)
 		c.Check(mem, Equals, uint64(0))

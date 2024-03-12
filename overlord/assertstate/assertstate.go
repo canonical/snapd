@@ -486,7 +486,7 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 
 			vsass, ok := as.(*asserts.ValidationSet)
 			if !ok {
-				return fmt.Errorf("internal error: unexpected assertion type %s for %s", vsass.Type().Name, ValidationSetKey(vs.AccountID, vs.Name))
+				return fmt.Errorf("internal error: unexpected assertion type %s for %s", as.Type().Name, ValidationSetKey(vs.AccountID, vs.Name))
 			}
 			if err := vsets.Add(vsass); err != nil {
 				return fmt.Errorf("internal error: cannot check validation sets conflicts: %v", err)
@@ -1012,11 +1012,66 @@ func ApplyEnforcedValidationSets(st *state.State, valsets map[string]*asserts.Va
 	return addCurrentTrackingToValidationSetsHistory(st)
 }
 
+func validationSetFromModel(st *state.State, accountID, name string) (*asserts.ModelValidationSet, error) {
+	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	model := deviceCtx.Model()
+	for _, vs := range model.ValidationSets() {
+		if vs.AccountID == accountID && vs.Name == name {
+			return vs, nil
+		}
+	}
+	return nil, nil
+}
+
+func sequenceSetByModelAssertion(st *state.State, accountID, name string) (int, error) {
+	vs, err := validationSetFromModel(st, accountID, name)
+	if err != nil {
+		return 0, err
+	}
+	if vs == nil {
+		return 0, nil
+	}
+	return vs.Sequence, nil
+}
+
+func validateSequenceAgainstModel(st *state.State, accountID, name string, sequence int) (int, error) {
+	modelSeq, err := sequenceSetByModelAssertion(st, accountID, name)
+	if err != nil {
+		return 0, err
+	}
+
+	// Verify the sequence requested does not differ from the one specified by the model
+	// in case one is set.
+	if sequence > 0 {
+		// Sequence was set, it must match any requirements set by model.
+		if modelSeq > 0 && modelSeq != sequence {
+			return 0, fmt.Errorf("only sequence %d allowed by model", modelSeq)
+		}
+	} else if modelSeq > 0 {
+		// Sequence was set by model, use that specifically.
+		sequence = modelSeq
+	}
+	return sequence, nil
+}
+
 // FetchAndApplyEnforcedValidationSet tries to fetch the given validation set and enforce it.
 // If all validation sets constrains are satisfied, the current validation sets
 // tracking state is saved in validation sets history.
 func FetchAndApplyEnforcedValidationSet(st *state.State, accountID, name string, sequence, userID int, snaps []*snapasserts.InstalledSnap, ignoreValidation map[string]bool) (*ValidationSetTracking, error) {
-	vs, err := validationSetAssertionForEnforce(st, accountID, name, sequence, userID, snaps, ignoreValidation)
+	// If the model has a specific sequence specified, then either we may
+	// need to use the correct sequence (if no specific is requested)
+	// or we may need to throw a validation error if the user is requesting a
+	// different sequence than is allowed by the model.
+	modelSeq, err := validateSequenceAgainstModel(st, accountID, name, sequence)
+	if err != nil {
+		return nil, fmt.Errorf("cannot enforce sequence %d of validation set %v: %v", sequence, ValidationSetKey(accountID, name), err)
+	}
+
+	vs, err := validationSetAssertionForEnforce(st, accountID, name, modelSeq, userID, snaps, ignoreValidation)
 	if err != nil {
 		return nil, err
 	}
@@ -1025,8 +1080,8 @@ func FetchAndApplyEnforcedValidationSet(st *state.State, accountID, name string,
 		AccountID: accountID,
 		Name:      name,
 		Mode:      Enforce,
-		// note, sequence may be 0, meaning not pinned.
-		PinnedAt: sequence,
+		// note, modelSeq may be 0, meaning not pinned.
+		PinnedAt: modelSeq,
 		Current:  vs.Sequence(),
 	}
 
@@ -1038,9 +1093,18 @@ func FetchAndApplyEnforcedValidationSet(st *state.State, accountID, name string,
 // MonitorValidationSet tries to fetch the given validation set and monitor it.
 // The current validation sets tracking state is saved in validation sets history.
 func MonitorValidationSet(st *state.State, accountID, name string, sequence int, userID int) (*ValidationSetTracking, error) {
-	pinned := sequence > 0
+	// If the model has a specific sequence specified, then either we may
+	// need to use the correct sequence (if no specific is requested)
+	// or we may need to throw a validation error if the user is requesting a
+	// different sequence than is allowed by the model.
+	modelSeq, err := validateSequenceAgainstModel(st, accountID, name, sequence)
+	if err != nil {
+		return nil, fmt.Errorf("cannot monitor sequence %d of validation set %v: %v", sequence, ValidationSetKey(accountID, name), err)
+	}
+
+	pinned := modelSeq > 0
 	opts := ResolveOptions{AllowLocalFallback: true}
-	as, local, err := validationSetAssertionForMonitor(st, accountID, name, sequence, pinned, userID, &opts)
+	as, local, err := validationSetAssertionForMonitor(st, accountID, name, modelSeq, pinned, userID, &opts)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get validation set assertion for %v: %v", ValidationSetKey(accountID, name), err)
 	}
@@ -1049,8 +1113,8 @@ func MonitorValidationSet(st *state.State, accountID, name string, sequence int,
 		AccountID: accountID,
 		Name:      name,
 		Mode:      Monitor,
-		// note, Sequence may be 0, meaning not pinned.
-		PinnedAt:  sequence,
+		// note, modelSeq may be 0, meaning not pinned.
+		PinnedAt:  modelSeq,
 		Current:   as.Sequence(),
 		LocalOnly: local,
 	}
@@ -1064,4 +1128,117 @@ func MonitorValidationSet(st *state.State, accountID, name string, sequence int,
 func TemporaryDB(st *state.State) *asserts.Database {
 	db := cachedDB(st)
 	return db.WithStackedBackstore(asserts.NewMemoryBackstore())
+}
+
+// FetchValidationSetsOptions contains options for FetchValidationSets.
+type FetchValidationSetsOptions struct {
+	// Offline should be set to true if the store should not be accessed. Any
+	// assertions will be retrieved from the existing assertions database. If
+	// the assertions are not present in the database, an error will be
+	// returned.
+	Offline bool
+}
+
+// FetchValidationSets fetches the given validation set assertions from either
+// the store or the existing assertions database. The validation sets are added
+// to a snapasserts.ValidationSets, checked for any conflicts, and returned.
+func FetchValidationSets(st *state.State, toFetch []*asserts.AtSequence, opts FetchValidationSetsOptions, deviceCtx snapstate.DeviceContext) (*snapasserts.ValidationSets, error) {
+	var sets []*asserts.ValidationSet
+	save := func(a asserts.Assertion) error {
+		if vs, ok := a.(*asserts.ValidationSet); ok {
+			sets = append(sets, vs)
+		}
+
+		if err := Add(st, a); err != nil {
+			if err, ok := err.(*asserts.RevisionError); ok {
+				logger.Noticef("assertion not added due to same or newer revision already present: %d", err.Current)
+				return nil
+			}
+			return err
+		}
+
+		return nil
+	}
+
+	db := DB(st)
+
+	store := snapstate.Store(st, deviceCtx)
+
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		if opts.Offline {
+			return ref.Resolve(db.Find)
+		}
+
+		st.Unlock()
+		defer st.Lock()
+
+		return store.Assertion(ref.Type, ref.PrimaryKey, nil)
+	}
+
+	retrieveSeq := func(ref *asserts.AtSequence) (asserts.Assertion, error) {
+		if opts.Offline {
+			return resolveValidationSetAssertion(ref, db)
+		}
+
+		st.Unlock()
+		defer st.Lock()
+
+		return store.SeqFormingAssertion(ref.Type, ref.SequenceKey, ref.Sequence, nil)
+	}
+
+	fetcher := asserts.NewSequenceFormingFetcher(db, retrieve, retrieveSeq, save)
+
+	for _, vs := range toFetch {
+		if err := fetcher.FetchSequence(vs); err != nil {
+			return nil, err
+		}
+	}
+
+	vSets := snapasserts.NewValidationSets()
+	for _, vs := range sets {
+		vSets.Add(vs)
+	}
+
+	if err := vSets.Conflict(); err != nil {
+		return nil, err
+	}
+
+	return vSets, nil
+}
+
+// ValidationSetsFromModel takes in a model and creates a
+// snapasserts.ValidationSets from any validation sets that the model includes.
+func ValidationSetsFromModel(st *state.State, model *asserts.Model, opts FetchValidationSetsOptions, deviceCtx snapstate.DeviceContext) (*snapasserts.ValidationSets, error) {
+	toFetch := make([]*asserts.AtSequence, 0, len(model.ValidationSets()))
+	for _, vs := range model.ValidationSets() {
+		toFetch = append(toFetch, vs.AtSequence())
+	}
+
+	return FetchValidationSets(st, toFetch, opts, deviceCtx)
+}
+
+func resolveValidationSetAssertion(seq *asserts.AtSequence, db asserts.RODatabase) (asserts.Assertion, error) {
+	if seq.Sequence <= 0 {
+		hdrs, err := asserts.HeadersFromSequenceKey(seq.Type, seq.SequenceKey)
+		if err != nil {
+			return nil, err
+		}
+		return db.FindSequence(seq.Type, hdrs, -1, seq.Type.MaxSupportedFormat())
+	}
+	return seq.Resolve(db.Find)
+}
+
+// AspectBundle returns the aspect-bundle for the given account and bundle name,
+// if it's present in the system assertion database.
+func AspectBundle(s *state.State, account, bundleName string) (*asserts.AspectBundle, error) {
+	db := DB(s)
+	as, err := db.Find(asserts.AspectBundleType, map[string]string{
+		"account-id": account,
+		"name":       bundleName,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return as.(*asserts.AspectBundle), nil
 }

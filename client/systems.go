@@ -53,6 +53,8 @@ type System struct {
 	Brand snap.StoreAccount `json:"brand,omitempty"`
 	// Actions available for this system
 	Actions []SystemAction `json:"actions,omitempty"`
+	// DefaultRecoverySystem is true when the system is the default recovery system
+	DefaultRecoverySystem bool `json:"default-recovery-system,omitempty"`
 }
 
 type SystemAction struct {
@@ -192,6 +194,7 @@ func (client *Client) SystemDetails(systemLabel string) (*SystemDetails, error) 
 	if _, err := client.doSync("GET", "/v2/systems/"+systemLabel, nil, nil, nil, &rsp); err != nil {
 		return nil, xerrors.Errorf("cannot get details for system %q: %v", systemLabel, err)
 	}
+	gadget.SetEnclosingVolumeInStructs(rsp.Volumes)
 	return &rsp, nil
 }
 
@@ -244,4 +247,23 @@ func (client *Client) InstallSystem(systemLabel string, opts *InstallSystemOptio
 		return "", xerrors.Errorf("cannot request system install for %q: %v", systemLabel, err)
 	}
 	return chgID, nil
+}
+
+// CreateSystemOptions contains the options for creating a new recovery system.
+type CreateSystemOptions struct {
+	// Label is the label of the new system.
+	Label string `json:"label,omitempty"`
+	// ValidationSets is a list of validation sets that snaps in the newly
+	// created system should be validated against.
+	ValidationSets []string `json:"validation-sets,omitempty"`
+	// TestSystem is true if the system should be tested by rebooting into the
+	// new system.
+	TestSystem bool `json:"test-system,omitempty"`
+	// MarkDefault is true if the system should be marked as the default
+	// recovery system.
+	MarkDefault bool `json:"mark-default,omitempty"`
+	// Offline is true if the system should be created without reaching out to
+	// the store. In the JSON variant of the API, only pre-installed
+	// snaps/assertions will be considered.
+	Offline bool `json:"offline,omitempty"`
 }

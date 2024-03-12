@@ -25,3 +25,12 @@ execute: |
 
     echo "Ensure passwd/group is available for snaps"
     test-snapd-sh-core18.sh -c 'cat /var/lib/extrausers/passwd' | MATCH test
+
+    # ensure apparmor works, see LP: 2024637
+    systemctl status apparmor.service
+    
+    # reboot to double check that apparmor still works after the reboot
+    # (LP: 2024637)
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        REBOOT
+    fi

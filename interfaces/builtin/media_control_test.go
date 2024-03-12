@@ -77,15 +77,15 @@ func (s *MediacontrolInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *MediacontrolInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/media[0-9]* rw,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/media[0-9]* rwk,`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/v4l-subdev[0-9]* rw,`)
 }
 
 func (s *MediacontrolInterfaceSuite) TestUDevSpec(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 3)
 	c.Assert(spec.Snippets(), testutil.Contains, `# media-control
@@ -93,7 +93,7 @@ SUBSYSTEM=="media", KERNEL=="media[0-9]*", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# media-control
 SUBSYSTEM=="video4linux", KERNEL=="v4l-subdev[0-9]*", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains,
-		fmt.Sprintf(`TAG=="snap_consumer_app", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
+		fmt.Sprintf(`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_consumer_app"`, dirs.DistroLibExecDir))
 }
 
 func (s *MediacontrolInterfaceSuite) TestStaticInfo(c *C) {

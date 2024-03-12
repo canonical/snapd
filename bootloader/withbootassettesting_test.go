@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build withbootassetstesting
-// +build withbootassetstesting
 
 /*
  * Copyright (C) 2021 Canonical Ltd
@@ -22,7 +21,7 @@
 package bootloader_test
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -40,7 +39,7 @@ var _ = Suite(&withbootasetstestingTestSuite{})
 
 func (s *withbootasetstestingTestSuite) TestInjects(c *C) {
 	d := c.MkDir()
-	c.Assert(ioutil.WriteFile(filepath.Join(d, "bootassetstesting"), []byte("with-bootassetstesting\n"), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "bootassetstesting"), []byte("with-bootassetstesting\n"), 0644), IsNil)
 	restore := bootloader.MockMaybeInjectOsReadlink(func(_ string) (string, error) {
 		return filepath.Join(d, "foo"), nil
 	})

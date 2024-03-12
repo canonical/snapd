@@ -45,8 +45,8 @@ var (
 		Path:        "/v2/accessories/themes",
 		GET:         checkThemes,
 		POST:        installThemes,
-		ReadAccess:  themesOpenAccess{},
-		WriteAccess: themesAuthenticatedAccess{Polkit: polkitActionManage},
+		ReadAccess:  interfaceOpenAccess{Interface: "snap-themes-control"},
+		WriteAccess: interfaceAuthenticatedAccess{Interface: "snap-themes-control", Polkit: polkitActionManage},
 	}
 )
 

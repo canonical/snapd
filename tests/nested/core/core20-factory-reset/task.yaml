@@ -6,8 +6,13 @@ details: |
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
 environment:
-    NESTED_ENABLE_SECURE_BOOT: true
-    NESTED_ENABLE_TPM: true
+    NESTED_ENABLE_SECURE_BOOT/fde: true
+    NESTED_ENABLE_TPM/fde: true
+    FDE/fde: "enabled"
+
+    NESTED_ENABLE_SECURE_BOOT/nofde: false
+    NESTED_ENABLE_TPM/nofde: false
+    FDE/nofde: "disabled"
 
 execute: |
     echo "Wait for the system to be seeded first"
@@ -28,7 +33,9 @@ execute: |
     remote.exec sudo touch /writable/marker
 
     # grab the ubuntu-save key
-    remote.exec cat /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key > pre-reset-save-fallback-key
+    if [ "${FDE}" = enabled ]; then
+      remote.exec cat /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key > pre-reset-save-fallback-key
+    fi
 
     # add || true in case the SSH connection is broken while executing this
     # since this command causes an immediate reboot
@@ -62,8 +69,13 @@ execute: |
     test "$old_ubuntu_seed" = "$new_ubuntu_seed"
 
     # check ubuntu-save
-    old_ubuntu_save="$(grep ' LABEL="ubuntu-save-enc"' < initial-disk)"
-    new_ubuntu_save="$(grep ' LABEL="ubuntu-save-enc"' < current-disk)"
+    if [ "${FDE}" = enabled ]; then
+      old_ubuntu_save="$(grep ' LABEL="ubuntu-save-enc"' < initial-disk)"
+      new_ubuntu_save="$(grep ' LABEL="ubuntu-save-enc"' < current-disk)"
+    else
+      old_ubuntu_save="$(grep ' LABEL="ubuntu-save"' < initial-disk)"
+      new_ubuntu_save="$(grep ' LABEL="ubuntu-save"' < current-disk)"
+    fi
     # ubuntu save is identical
     test "$old_ubuntu_save" = "$new_ubuntu_save"
 
@@ -76,8 +88,13 @@ execute: |
     test "$old_ubuntu_boot" != "$new_ubuntu_boot"
 
     # check ubuntu-data
-    old_ubuntu_data="$(grep ' LABEL="ubuntu-data-enc"' < initial-disk)"
-    new_ubuntu_data="$(grep ' LABEL="ubuntu-data-enc"' < current-disk)"
+    if [ "${FDE}" = enabled ]; then
+      old_ubuntu_data="$(grep ' LABEL="ubuntu-data-enc"' < initial-disk)"
+      new_ubuntu_data="$(grep ' LABEL="ubuntu-data-enc"' < current-disk)"
+    else
+      old_ubuntu_data="$(grep ' LABEL="ubuntu-data"' < initial-disk)"
+      new_ubuntu_data="$(grep ' LABEL="ubuntu-data"' < current-disk)"
+    fi
     # again same device
     test "$(echo "$old_ubuntu_data" | cut -f1 -d:)" = "$(echo "$new_ubuntu_data" | cut -f1 -d:)"
     # again, the UUIDs are different
@@ -92,19 +109,24 @@ execute: |
 
     # the temp factory-reset key is gone
     # TODO this is a very weak check
-    remote.exec test ! -e /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory-reset
+    if [ "${FDE}" = enabled ]; then
+      remote.exec test ! -e /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory-reset
+    fi
     # no factory reset marker
     remote.exec test ! -e /var/lib/snapd/device/factory-reset
 
     # verify that the factory-reset log was collected
     remote.exec "zcat /var/log/factory-reset-mode.log.gz" | MATCH 'performing factory reset on an installed system'
 
-    remote.exec cat /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key > post-reset-save-fallback-key
-    # not a great check as the fallback key may have been resealed, but it
-    # should be different nonetheless
-    not cmp pre-reset-save-fallback-key post-reset-save-fallback-key
+    if [ "${FDE}" = enabled ]; then
+      remote.exec cat /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key > post-reset-save-fallback-key
+      # not a great check as the fallback key may have been resealed, but it
+      # should be different nonetheless
+      not cmp pre-reset-save-fallback-key post-reset-save-fallback-key
+    fi
 
     echo "Perform subsequent factory reset"
+    boot_id=$(tests.nested boot-id)
     remote.exec "sudo snap reboot --factory-reset" || true
     remote.wait-for reboot "${boot_id}"
     remote.exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
@@ -120,7 +142,9 @@ execute: |
     # the markers are still there
     remote.exec test -e /run/mnt/ubuntu-save/marker
     remote.exec test -e /run/mnt/ubuntu-seed/marker
-    # get the key
-    remote.exec cat /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key > subsequent-reset-save-fallback-key
-    # and the key is different again
-    not cmp post-reset-save-fallback-key subsequent-reset-save-fallback-key
+    if [ "${FDE}" = enabled ]; then
+      # get the key
+      remote.exec cat /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key > subsequent-reset-save-fallback-key
+      # and the key is different again
+      not cmp post-reset-save-fallback-key subsequent-reset-save-fallback-key
+    fi

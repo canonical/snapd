@@ -39,6 +39,13 @@ Nested values may be removed via a dotted path:
 	$ snap unset snap-name user.name
 `)
 
+var longAspectUnsetHelp = i18n.G(`
+If the first argument passed into unset is an aspect identifier matching the
+format <account-id>/<bundle>/<aspect>, unset will use the aspects configuration
+API. In this case, the command removes the data stored in the provided
+dot-separated aspect paths.
+`)
+
 type cmdUnset struct {
 	waitMixin
 	Positional struct {
@@ -48,6 +55,10 @@ type cmdUnset struct {
 }
 
 func init() {
+	if err := validateAspectFeatureFlag(); err == nil {
+		longUnsetHelp += longAspectUnsetHelp
+	}
+
 	addCommand("unset", shortUnsetHelp, longUnsetHelp, func() flags.Commander { return &cmdUnset{} }, waitDescs, []argDesc{
 		{
 			name: "<snap>",
@@ -69,7 +80,25 @@ func (x *cmdUnset) Execute(args []string) error {
 	}
 
 	snapName := string(x.Positional.Snap)
-	id, err := x.client.SetConf(snapName, patchValues)
+	var id string
+	var err error
+
+	if isAspectID(snapName) {
+		if err := validateAspectFeatureFlag(); err != nil {
+			return err
+		}
+
+		// first argument is an aspectID, use the aspects API
+		aspectID := snapName
+		if err := validateAspectID(aspectID); err != nil {
+			return err
+		}
+
+		id, err = x.client.AspectSet(aspectID, patchValues)
+	} else {
+		id, err = x.client.SetConf(snapName, patchValues)
+	}
+
 	if err != nil {
 		return err
 	}

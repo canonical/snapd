@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/jessevdk/go-flags"
@@ -105,7 +104,7 @@ func main() {
 			"save-key":     saveKey[:],
 		}
 		for keyFileName, keyData := range toWrite {
-			if err := ioutil.WriteFile(keyFileName, keyData, 0644); err != nil {
+			if err := os.WriteFile(keyFileName, keyData, 0644); err != nil {
 				panic(err)
 			}
 		}

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -308,13 +308,13 @@ func removableBlockDevices() (removableDevices []string) {
 	return removableDevices
 }
 
-// inInstallmode returns true if it's UC20 system in install mode
+// inInstallmode returns true if it's UC20 system in install/factory-reset modes
 func inInstallMode() bool {
-	mode, _, err := boot.ModeAndRecoverySystemFromKernelCommandLine()
+	modeenv, err := boot.ReadModeenv(dirs.GlobalRootDir)
 	if err != nil {
 		return false
 	}
-	return mode == "install"
+	return modeenv.Mode == "install" || modeenv.Mode == "factory-reset"
 }
 
 func (x *cmdAutoImport) Execute(args []string) error {
@@ -328,7 +328,7 @@ func (x *cmdAutoImport) Execute(args []string) error {
 	}
 	// TODO:UC20: workaround for LP: #1860231
 	if inInstallMode() {
-		fmt.Fprintf(Stderr, "auto-import is disabled in install-mode\n")
+		fmt.Fprintf(Stderr, "auto-import is disabled in install modes\n")
 		return nil
 	}
 

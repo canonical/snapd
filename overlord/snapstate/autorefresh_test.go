@@ -35,9 +35,11 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -73,7 +75,7 @@ func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store
 	if assertQuery != nil {
 		panic("no assertion query support")
 	}
-	if !opts.IsAutoRefresh {
+	if !opts.Scheduled {
 		panic("AutoRefresh snap action did not set IsAutoRefresh flag")
 	}
 
@@ -122,11 +124,14 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.store)
 
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(5), SnapID: "some-snap-id"},
-		},
+		}),
 		Current:  snap.R(5),
 		SnapType: "app",
 		UserID:   1,
@@ -843,6 +848,54 @@ func (s *autoRefreshTestSuite) TestAtSeedPolicy(c *C) {
 	c.Check(t1.Equal(t2), Equals, true)
 }
 
+func (s *autoRefreshTestSuite) TestAtSeedRefreshHeld(c *C) {
+	// it is possible that refresh.hold has already been set to a valid time
+	// or "forever" even before snapd was started for the first time
+	r := release.MockOnClassic(true)
+	defer r()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "refresh.hold", "forever"), IsNil)
+	tr.Commit()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	err := af.AtSeed()
+	c.Assert(err, IsNil)
+	c.Check(af.NextRefresh().IsZero(), Equals, true)
+
+	// now use a valid timestamp
+	tr = config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "refresh.hold", time.Now().UTC()), IsNil)
+	tr.Commit()
+
+	af = snapstate.NewAutoRefresh(s.state)
+	err = af.AtSeed()
+	c.Assert(err, IsNil)
+	c.Check(af.NextRefresh().IsZero(), Equals, true)
+}
+
+func (s *autoRefreshTestSuite) TestAtSeedInvalidHold(c *C) {
+	// it is possible that refresh.hold has already been set to forever even
+	// before snapd was started for the first time
+	r := release.MockOnClassic(true)
+	defer r()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "refresh.hold", "this-is-invalid-time"), IsNil)
+	tr.Commit()
+
+	af := snapstate.NewAutoRefresh(s.state)
+
+	err := af.AtSeed()
+	c.Assert(err, ErrorMatches, `parsing time "this-is-invalid-time" .*cannot parse.*`)
+}
+
 func (s *autoRefreshTestSuite) TestCanRefreshOnMetered(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -944,7 +997,7 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
 	info := &snap.Info{SideInfo: *si}
 	snapst := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 	}
 	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
@@ -954,8 +1007,9 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 	})
 	defer restore()
 
-	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
+	inhibitionTimeout, err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
+	c.Check(inhibitionTimeout, Equals, false)
 
 	var timedErr *snapstate.TimedBusySnapError
 	c.Assert(errors.As(err, &timedErr), Equals, true)
@@ -981,7 +1035,7 @@ func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
 	info := &snap.Info{SideInfo: *si}
 	snapst := &snapstate.SnapState{
-		Sequence:             []*snap.SideInfo{si},
+		Sequence:             snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:              si.Revision,
 		RefreshInhibitedTime: &pastInstant,
 	}
@@ -992,8 +1046,9 @@ func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c
 	})
 	defer restore()
 
-	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
+	inhibitionTimeout, err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
+	c.Check(inhibitionTimeout, Equals, false)
 
 	var timedErr *snapstate.TimedBusySnapError
 	c.Assert(errors.As(err, &timedErr), Equals, true)
@@ -1024,7 +1079,7 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
 	info := &snap.Info{SideInfo: *si}
 	snapst := &snapstate.SnapState{
-		Sequence:             []*snap.SideInfo{si},
+		Sequence:             snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:              si.Revision,
 		RefreshInhibitedTime: &pastInstant,
 	}
@@ -1035,8 +1090,9 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 	})
 	defer restore()
 
-	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
+	inhibitionTimeout, err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err == nil, Equals, true)
+	c.Check(inhibitionTimeout, Equals, true)
 	c.Check(notificationCount, Equals, 1)
 }
 
@@ -1054,7 +1110,7 @@ func (s *autoRefreshTestSuite) TestInhibitNoNotificationOnManualRefresh(c *C) {
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
 	info := &snap.Info{SideInfo: *si}
 	snapst := &snapstate.SnapState{
-		Sequence:             []*snap.SideInfo{si},
+		Sequence:             snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:              si.Revision,
 		RefreshInhibitedTime: &pastInstant,
 	}
@@ -1066,8 +1122,9 @@ func (s *autoRefreshTestSuite) TestInhibitNoNotificationOnManualRefresh(c *C) {
 	})
 	defer restore()
 
-	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
+	inhibitionTimeout, err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err, testutil.ErrorIs, &snapstate.BusySnapError{})
+	c.Check(inhibitionTimeout, Equals, false)
 }
 
 func (s *autoRefreshTestSuite) TestBlockedAutoRefreshCreatesPreDownloads(c *C) {
@@ -1151,7 +1208,7 @@ func (s *autoRefreshTestSuite) addRefreshableSnap(names ...string) {
 		si := &snap.SideInfo{RealName: name, SnapID: fmt.Sprintf("%s-id", name), Revision: snap.R(1)}
 		snapstate.Set(s.state, name, &snapstate.SnapState{
 			Active:   true,
-			Sequence: []*snap.SideInfo{si},
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 			Current:  si.Revision,
 			SnapType: string(snap.TypeApp),
 		})
@@ -1166,69 +1223,102 @@ func (s *autoRefreshTestSuite) addRefreshableSnap(names ...string) {
 	}
 }
 
-func (s *autoRefreshTestSuite) TestPartiallyInhibitedAutoRefreshIsContinued(c *C) {
-	s.addRefreshableSnap("foo")
-
-	now := time.Now()
-	restore := snapstate.MockTimeNow(func() time.Time {
-		return now
-	})
-	defer restore()
-
-	af := snapstate.NewAutoRefresh(s.state)
-	s.state.Lock()
-	s.state.Cache("auto-refresh-continue-attempt", 1)
-	s.state.Unlock()
-
-	err := af.Ensure()
-	c.Check(err, IsNil)
-	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	var lastRefresh time.Time
-	err = s.state.Get("last-refresh", &lastRefresh)
-	c.Assert(err, IsNil)
-	c.Check(lastRefresh.Equal(now), Equals, true)
-	c.Check(s.state.Cached("auto-refresh-continue-attempt"), IsNil)
-
-	// check that the "IsContinuedAutoRefresh" flag is set for a
-	// continued auto-refresh
-	chgs := s.state.Changes()
-	c.Assert(chgs, HasLen, 1)
-	checkIsContinuedAutoRefresh(c, chgs[0].Tasks(), true)
-}
-
-func (s *autoRefreshTestSuite) TestContinueAutorefreshOnlyFirstOverridesDelay(c *C) {
-	// fail the auto-refresh
-	s.store.err = fmt.Errorf("random store error")
-
-	af := snapstate.NewAutoRefresh(s.state)
-	// run it once so we're in the retry delay
-	err := af.Ensure()
-	c.Assert(err, ErrorMatches, "random store error")
-
-	s.state.Lock()
-	s.state.Cache("auto-refresh-continue-attempt", 1)
-	s.state.Unlock()
-
-	err = af.Ensure()
-	c.Check(err, ErrorMatches, "random store error")
-	c.Check(s.store.ops, DeepEquals, []string{"list-refresh", "list-refresh"})
-	s.state.Lock()
-	c.Check(s.state.Cached("auto-refresh-continue-attempt"), Equals, 2)
-	s.state.Unlock()
-
-	err = af.Ensure()
-	c.Check(err, IsNil)
-	c.Check(s.store.ops, DeepEquals, []string{"list-refresh", "list-refresh"})
-	s.state.Lock()
-	c.Check(s.state.Cached("auto-refresh-continue-attempt"), Equals, 2)
-	s.state.Unlock()
-}
-
 func (s *autoRefreshTestSuite) TestTooSoonError(c *C) {
 	c.Check(snapstate.TooSoonError{}, testutil.ErrorIs, snapstate.TooSoonError{})
 	c.Check(snapstate.TooSoonError{}, Not(testutil.ErrorIs), errors.New(""))
 	c.Check(snapstate.TooSoonError{}.Error(), Equals, "cannot auto-refresh so soon")
+}
+
+func setStoreAccess(s *state.State, access interface{}) {
+	s.Lock()
+	defer s.Unlock()
+
+	tr := config.NewTransaction(s)
+	tr.Set("core", "store.access", access)
+	tr.Commit()
+}
+
+func (s *autoRefreshTestSuite) TestSnapStoreOffline(c *C) {
+	s.addRefreshableSnap("foo")
+
+	setStoreAccess(s.state, "offline")
+
+	af := snapstate.NewAutoRefresh(s.state)
+	err := af.Ensure()
+	c.Check(err, IsNil)
+
+	s.state.Lock()
+	c.Check(s.state.Changes(), HasLen, 0)
+	s.state.Unlock()
+
+	setStoreAccess(s.state, nil)
+
+	err = af.Ensure()
+	c.Check(err, IsNil)
+
+	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
+	s.state.Lock()
+	c.Check(s.state.Changes(), HasLen, 1)
+	s.state.Unlock()
+}
+
+func (s *autoRefreshTestSuite) TestMaybeAddRefreshInhibitNotice(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	err := snapstate.MaybeAddRefreshInhibitNotice(st)
+	c.Assert(err, IsNil)
+	// empty set of inhibited snaps unchanged -> [], no notice recorded
+	c.Assert(st.Notices(nil), HasLen, 0)
+	// Verify list is empty
+	checkLastRecordedInhibitedSnaps(c, st, nil)
+
+	now := time.Now()
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		}),
+		Current:              snap.R(1),
+		SnapType:             string(snap.TypeApp),
+		RefreshInhibitedTime: &now,
+	})
+	err = snapstate.MaybeAddRefreshInhibitNotice(st)
+	c.Assert(err, IsNil)
+	// set of inhibited snaps changed -> ["some-snap"], notice recorded
+	checkRefreshInhibitNotice(c, st, 1)
+	checkLastRecordedInhibitedSnaps(c, st, []string{"some-snap"})
+
+	err = snapstate.MaybeAddRefreshInhibitNotice(st)
+	c.Assert(err, IsNil)
+	// set of inhibited snaps unchanged -> ["some-snap"], no notice recorded
+	checkRefreshInhibitNotice(c, st, 1)
+	checkLastRecordedInhibitedSnaps(c, st, []string{"some-snap"})
+
+	// mark "some-snap" as not inhibited
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		}),
+		Current:              snap.R(1),
+		SnapType:             string(snap.TypeApp),
+		RefreshInhibitedTime: nil,
+	})
+	// mark "some-other-snap" as inhibited
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-other-snap", SnapID: "some-other-snap-id", Revision: snap.R(1)},
+		}),
+		Current:              snap.R(1),
+		SnapType:             string(snap.TypeApp),
+		RefreshInhibitedTime: &now,
+	})
+	err = snapstate.MaybeAddRefreshInhibitNotice(st)
+	c.Assert(err, IsNil)
+	// set of inhibited snaps changed -> ["some-other-snap"], notice recorded
+	checkRefreshInhibitNotice(c, st, 2)
+	checkLastRecordedInhibitedSnaps(c, st, []string{"some-other-snap"})
 }

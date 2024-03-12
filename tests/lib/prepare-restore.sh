@@ -69,21 +69,30 @@ build_deb(){
 
     if os.query is-debian sid; then
         # ensure we really build without vendored packages
-        rm -rf vendor/*/*
+        mv ./vendor /tmp
     fi
 
     unshare -n -- \
             su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip -uc -us" test
     # put our debs to a safe place
     cp ../*.deb "$GOHOME"
+
+    if os.query is-debian sid; then
+        # restore vendor dir, it's needed by e.g. fakestore
+        mv /tmp/vendor ./
+    fi
 }
 
 build_rpm() {
     distro=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[1]}')
     release=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[2]}')
-    if os.query is-amazon-linux; then
+    if os.query is-amazon-linux 2; then
         distro=amzn
         release=2
+    fi
+    if os.query is-amazon-linux 2023; then
+        distro=amzn
+        release=2023
     fi
     arch=x86_64
     base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
@@ -92,11 +101,11 @@ build_rpm() {
     rpm_dir=$(rpm --eval "%_topdir")
     pack_args=
     case "$SPREAD_SYSTEM" in
-        fedora-*|amazon-*|centos-*)
-            ;;
         opensuse-*)
             # use bundled snapd*.vendor.tar.xz archive
             pack_args=-s
+            ;;
+        fedora-*|amazon-*|centos-*)
             ;;
         *)
             echo "ERROR: RPM build for system $SPREAD_SYSTEM is not yet supported"
@@ -274,7 +283,15 @@ prepare_project() {
 
     # declare the "quiet" wrapper
 
-    if [ "$SPREAD_BACKEND" = external ]; then
+    if [ "$SPREAD_BACKEND" = "external" ]; then
+        chown test.test -R "$PROJECT_PATH"
+        exit 0
+    fi
+
+    if [ "$SPREAD_BACKEND" = "testflinger" ]; then
+        adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test
+        echo test:ubuntu | sudo chpasswd
+        echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test
         chown test.test -R "$PROJECT_PATH"
         exit 0
     fi
@@ -516,20 +533,6 @@ prepare_project() {
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
             best_golang=golang-1.18
-            if [[ "$SPREAD_SYSTEM" == debian-10-* ]]; then
-                # debian-10 needs backports for dh-golang
-		# TODO: drop when we drop debian-10 support fully
-		echo "deb http://deb.debian.org/debian buster-backports-sloppy main" >> /etc/apt/sources.list
-                # debian-10 needs backports for golang-1.18, there is no
-		# buser-backports anymore so we can only use a PPA
-                echo "deb https://ppa.launchpadcontent.net/snappy-dev/image/ubuntu xenial main" >> /etc/apt/sources.list
-		curl 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x78e1918602959b9c59103100f1831ddafc42e99d' | apt-key add -
-                apt update
-                # dh-golang must come from backports, gdebi/apt cannot
-                # resolve this on their own
-                apt install -y -t buster-backports-sloppy dh-golang
-                sed -i -e "s/golang-go (>=2:1.18~).*,/${best_golang},/" ./debian/control
-            fi
             # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
             gdebi --quiet --apt-line ./debian/control >deps.txt
             quiet xargs -r eatmydata apt-get install -y < deps.txt
@@ -544,7 +547,7 @@ prepare_project() {
 
     # Retry go mod vendor to minimize the number of connection errors during the sync
     for _ in $(seq 10); do
-        if quiet go mod vendor; then
+        if go mod vendor; then
             break
         fi
         sleep 1

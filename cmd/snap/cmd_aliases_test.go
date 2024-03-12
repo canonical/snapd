@@ -38,10 +38,6 @@ The aliases command lists all aliases available in the system and their status.
 $ snap aliases <snap>
 
 Lists only the aliases defined by the specified snap.
-
-An alias noted as undefined means it was explicitly enabled or disabled but is
-not defined in the current revision of the snap, possibly temporarily (e.g.
-because of a revert). This can cleared with 'snap alias --reset'.
 `
 	s.testSubCommandHelp(c, "aliases", msg)
 }

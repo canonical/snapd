@@ -161,12 +161,9 @@ func checkOnClassic() *dbus.Error {
 var validDesktopFileName = regexp.MustCompile(`^[A-Za-z-_][A-Za-z0-9-_]*(\.[A-Za-z-_][A-Za-z0-9-_]*)*\.desktop$`)
 
 func schemeHasHandler(scheme string) (bool, error) {
-	cmd := exec.Command("xdg-mime", "query", "default", "x-scheme-handler/"+scheme)
-	// TODO: consider using Output() in case xdg-mime starts logging to
-	// stderr
-	out, err := cmd.CombinedOutput()
+	out, stderr, err := osutil.RunSplitOutput("xdg-mime", "query", "default", "x-scheme-handler/"+scheme)
 	if err != nil {
-		return false, osutil.OutputErr(out, err)
+		return false, osutil.OutputErrCombine(out, stderr, err)
 	}
 	out = bytes.TrimSpace(out)
 	// if the output is a valid desktop file we have a handler for the given

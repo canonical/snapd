@@ -30,7 +30,6 @@ import (
 
 type specSuite struct {
 	iface    *ifacetest.TestInterface
-	spec     *seccomp.Specification
 	plugInfo *snap.PlugInfo
 	plug     *interfaces.ConnectedPlug
 	slotInfo *snap.SlotInfo
@@ -82,24 +81,32 @@ var _ = Suite(&specSuite{
 })
 
 func (s *specSuite) SetUpTest(c *C) {
-	s.spec = &seccomp.Specification{}
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 }
 
 // The spec.Specification can be used through the interfaces.Specification interface
 func (s *specSuite) TestSpecificationIface(c *C) {
-	var r interfaces.Specification = s.spec
+	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	var r interfaces.Specification = spec
 	c.Assert(r.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
-	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
-	c.Assert(s.spec.Snippets(), DeepEquals, map[string][]string{
+	c.Assert(spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.snap1.app1": {"connected-plug", "permanent-plug"},
+	})
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.snap1.app1"})
+	c.Assert(spec.SnippetForTag("snap.snap1.app1"), Equals, "connected-plug\npermanent-plug\n")
+
+	spec = seccomp.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap()))
+	r = spec
+	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
+	c.Assert(spec.Snippets(), DeepEquals, map[string][]string{
 		"snap.snap2.app2": {"connected-slot", "permanent-slot"},
 	})
-	c.Assert(s.spec.SecurityTags(), DeepEquals, []string{"snap.snap1.app1", "snap.snap2.app2"})
-	c.Assert(s.spec.SnippetForTag("snap.snap1.app1"), Equals, "connected-plug\npermanent-plug\n")
 
-	c.Assert(s.spec.SnippetForTag("non-existing"), Equals, "")
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.snap2.app2"})
+	c.Assert(spec.SnippetForTag("snap.snap2.app2"), Equals, "connected-slot\npermanent-slot\n")
+
+	c.Assert(spec.SnippetForTag("non-existing"), Equals, "")
 }

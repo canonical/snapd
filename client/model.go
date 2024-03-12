@@ -24,7 +24,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"mime/multipart"
+	"net/textproto"
 	"net/url"
+	"os"
+	"path/filepath"
 
 	"golang.org/x/xerrors"
 
@@ -33,12 +38,21 @@ import (
 
 type remodelData struct {
 	NewModel string `json:"new-model"`
+	Offline  bool   `json:"offline,omitempty"`
+}
+
+// RemodelOpts defines options to be used when remodeling the system.
+type RemodelOpts struct {
+	// Offline indicates whether the remodel should be done offline. If true,
+	// the remodel will be attempted to be done without contacting the store.
+	Offline bool
 }
 
 // Remodel tries to remodel the system with the given assertion data
-func (client *Client) Remodel(b []byte) (changeID string, err error) {
+func (client *Client) Remodel(b []byte, opts RemodelOpts) (changeID string, err error) {
 	data, err := json.Marshal(&remodelData{
 		NewModel: string(b),
+		Offline:  opts.Offline,
 	})
 	if err != nil {
 		return "", fmt.Errorf("cannot marshal remodel data: %v", err)
@@ -48,6 +62,115 @@ func (client *Client) Remodel(b []byte) (changeID string, err error) {
 	}
 
 	return client.doAsync("POST", "/v2/model", nil, headers, bytes.NewReader(data))
+}
+
+// RemodelWithLocalSnaps tries to remodel the system with the given model
+// assertion and local snaps and assertion files. Remodeling using this method
+// will ensure that snapd does not contact the store.
+func (client *Client) RemodelWithLocalSnaps(
+	model []byte, snapPaths, assertPaths []string) (changeID string, err error) {
+
+	// Check if all files exist before starting the go routine
+	snapFiles, err := checkAndOpenFiles(snapPaths)
+	if err != nil {
+		return "", err
+	}
+	assertsFiles, err := checkAndOpenFiles(assertPaths)
+	if err != nil {
+		return "", err
+	}
+
+	pr, pw := io.Pipe()
+	mw := multipart.NewWriter(pw)
+	go sendRemodelFiles(model, snapPaths, snapFiles, assertsFiles, pw, mw)
+
+	headers := map[string]string{
+		"Content-Type": mw.FormDataContentType(),
+	}
+
+	_, changeID, err = client.doAsyncFull("POST", "/v2/model", nil, headers, pr, doNoTimeoutAndRetry)
+	return changeID, err
+}
+
+func checkAndOpenFiles(paths []string) ([]*os.File, error) {
+	var files []*os.File
+	for _, path := range paths {
+		f, err := os.Open(path)
+		if err != nil {
+			for _, openFile := range files {
+				openFile.Close()
+			}
+			return nil, fmt.Errorf("cannot open %q: %w", path, err)
+		}
+
+		files = append(files, f)
+	}
+
+	return files, nil
+}
+
+func createAssertionPart(name string, mw *multipart.Writer) (io.Writer, error) {
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition",
+		fmt.Sprintf(`form-data; name="%s"`, name))
+	h.Set("Content-Type", asserts.MediaType)
+	return mw.CreatePart(h)
+}
+
+func sendRemodelFiles(model []byte, paths []string, files, assertFiles []*os.File, pw *io.PipeWriter, mw *multipart.Writer) {
+	defer func() {
+		for _, f := range files {
+			f.Close()
+		}
+	}()
+
+	w, err := createAssertionPart("new-model", mw)
+	if err != nil {
+		pw.CloseWithError(err)
+		return
+	}
+	_, err = w.Write(model)
+	if err != nil {
+		pw.CloseWithError(err)
+		return
+	}
+
+	for _, file := range assertFiles {
+		if err := sendPartFromFile(file,
+			func() (io.Writer, error) {
+				return createAssertionPart("assertion", mw)
+			}); err != nil {
+			pw.CloseWithError(err)
+			return
+		}
+	}
+
+	for i, file := range files {
+		if err := sendPartFromFile(file,
+			func() (io.Writer, error) {
+				return mw.CreateFormFile("snap", filepath.Base(paths[i]))
+			}); err != nil {
+			pw.CloseWithError(err)
+			return
+		}
+	}
+
+	mw.Close()
+	pw.Close()
+}
+
+func sendPartFromFile(file *os.File, writeHeader func() (io.Writer, error)) error {
+	fw, err := writeHeader()
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(fw, file)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // CurrentModelAssertion returns the current model assertion

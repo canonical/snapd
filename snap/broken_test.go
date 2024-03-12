@@ -20,7 +20,6 @@
 package snap_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -46,7 +45,7 @@ func (s *brokenSuite) TearDownTest(c *C) {
 func touch(c *C, path string) {
 	err := os.MkdirAll(filepath.Dir(path), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(path, nil, 0644)
+	err = os.WriteFile(path, nil, 0644)
 	c.Assert(err, IsNil)
 }
 

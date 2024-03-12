@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -40,6 +39,29 @@ import (
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
 )
+
+// ContainerPlaceInfo offers all the information about where a container (which
+// can be a snap or a component) and its data are located and exposed in the
+// filesystem.
+type ContainerPlaceInfo interface {
+	// ContainerName returns the name of the container, which is part of the
+	// name of the backing file (for snaps this is the instance name).
+	ContainerName() string
+
+	// Filename returns the name of the container with the revision
+	// number, as used on the filesystem.
+	Filename() string
+
+	// MountDir returns the base directory of the container.
+	MountDir() string
+
+	// MountFile returns the path where the container file that is mounted is
+	// installed.
+	MountFile() string
+
+	// MountDescription is the value for the mount unit Description field.
+	MountDescription() string
+}
 
 // PlaceInfo offers all the information about where a snap and its data are
 // located and exposed in the filesystem.
@@ -89,13 +111,13 @@ type PlaceInfo interface {
 	// UserXdgRuntimeDir returns the per user XDG_RUNTIME_DIR directory
 	UserXdgRuntimeDir(userID sys.UserID) string
 
-	// DataHomeDir returns a glob that matches all per user data directories
+	// DataHomeDirs returns a slice of globs that match all per user data directories
 	// of a snap.
-	DataHomeDir(opts *dirs.SnapDirOptions) string
+	DataHomeDirs(opts *dirs.SnapDirOptions) []string
 
-	// CommonDataHomeDir returns a glob that matches all per user data
+	// CommonDataHomeDirs returns a slice of globs that match all per user data
 	// directories common across revisions of the snap.
-	CommonDataHomeDir(opts *dirs.SnapDirOptions) string
+	CommonDataHomeDirs(opts *dirs.SnapDirOptions) []string
 
 	// XdgRuntimeDirs returns a glob that matches all XDG_RUNTIME_DIR
 	// directories for all users of the snap.
@@ -103,12 +125,22 @@ type PlaceInfo interface {
 
 	// UserExposedHomeDir returns the snap's new home directory under ~/Snap.
 	UserExposedHomeDir(home string) string
+
+	// BinaryNameGlobs returns base name globs that matches all snap binaries.
+	BinaryNameGlobs() []string
 }
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a
-// snap of the given name and revision.
-func MinimalPlaceInfo(name string, revision Revision) PlaceInfo {
-	storeName, instanceKey := SplitInstanceName(name)
+// snap of the given instance name and revision.
+func MinimalPlaceInfo(instanceName string, revision Revision) PlaceInfo {
+	storeName, instanceKey := SplitInstanceName(instanceName)
+	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
+}
+
+// MinimalSnapContainerPlaceInfo returns a ContainerPlaceInfo with just the location
+// information for a snap of the given instance name and revision.
+func MinimalSnapContainerPlaceInfo(instanceName string, revision Revision) ContainerPlaceInfo {
+	storeName, instanceKey := SplitInstanceName(instanceName)
 	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
 }
 
@@ -152,9 +184,16 @@ func MountDir(name string, revision Revision) string {
 	return filepath.Join(BaseDir(name), revision.String())
 }
 
-// MountFile returns the path where the snap file that is mounted is installed.
+// MountFile returns the path where the snap file that is mounted is installed,
+// using the default blob directory (dirs.SnapBlobDir).
 func MountFile(name string, revision Revision) string {
-	return filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", name, revision))
+	return MountFileInDir(dirs.SnapBlobDir, name, revision)
+}
+
+// MountFileInDir returns the path where the snap file that is mounted is
+// installed in a given directory.
+func MountFileInDir(dir, name string, revision Revision) string {
+	return filepath.Join(dir, fmt.Sprintf("%s_%s.snap", name, revision))
 }
 
 // ScopedSecurityTag returns the snap-specific, scope specific, security tag.
@@ -225,6 +264,16 @@ func snapDataDir(opts *dirs.SnapDirOptions) string {
 	return dirs.UserHomeSnapDir
 }
 
+// BaseDataHomeDirs returns the per user base data directories of the snap across multiple
+// home directories.
+func BaseDataHomeDirs(name string, opts *dirs.SnapDirOptions) []string {
+	var dataHomeGlob []string
+	for _, glob := range dirs.DataHomeGlobs(opts) {
+		dataHomeGlob = append(dataHomeGlob, filepath.Join(glob, name))
+	}
+	return dataHomeGlob
+}
+
 // UserDataDir returns the user-specific data directory for given snap name. The
 // name can be either a snap name or snap instance name.
 func UserDataDir(home string, name string, revision Revision, opts *dirs.SnapDirOptions) string {
@@ -272,19 +321,19 @@ func SnapDir(home string, opts *dirs.SnapDirOptions) string {
 // from the store but is not required for working offline should not
 // end up in SideInfo.
 type SideInfo struct {
-	RealName    string              `yaml:"name,omitempty" json:"name,omitempty"`
-	SnapID      string              `yaml:"snap-id" json:"snap-id"`
-	Revision    Revision            `yaml:"revision" json:"revision"`
-	Channel     string              `yaml:"channel,omitempty" json:"channel,omitempty"`
-	EditedLinks map[string][]string `yaml:"links,omitempty" json:"links,omitempty"`
+	RealName    string              `json:"name,omitempty"`
+	SnapID      string              `json:"snap-id"`
+	Revision    Revision            `json:"revision"`
+	Channel     string              `json:"channel,omitempty"`
+	EditedLinks map[string][]string `json:"links,omitempty"`
 	// subsumed by EditedLinks, by need to set for if we revert
 	// to old snapd
-	LegacyEditedContact string `yaml:"contact,omitempty" json:"contact,omitempty"`
-	EditedTitle         string `yaml:"title,omitempty" json:"title,omitempty"`
-	EditedSummary       string `yaml:"summary,omitempty" json:"summary,omitempty"`
-	EditedDescription   string `yaml:"description,omitempty" json:"description,omitempty"`
-	Private             bool   `yaml:"private,omitempty" json:"private,omitempty"`
-	Paid                bool   `yaml:"paid,omitempty" json:"paid,omitempty"`
+	LegacyEditedContact string `json:"contact,omitempty"`
+	EditedTitle         string `json:"title,omitempty"`
+	EditedSummary       string `json:"summary,omitempty"`
+	EditedDescription   string `json:"description,omitempty"`
+	Private             bool   `json:"private,omitempty"`
+	Paid                bool   `json:"paid,omitempty"`
 }
 
 // Info provides information about snaps.
@@ -315,6 +364,8 @@ type Info struct {
 	Hooks            map[string]*HookInfo
 	Plugs            map[string]*PlugInfo
 	Slots            map[string]*SlotInfo
+
+	Components map[string]*Component
 
 	// Plugs or slots with issues (they are not included in Plugs or Slots)
 	BadInterfaces map[string]string // slot or plug => message
@@ -447,6 +498,12 @@ func (s *Info) InstanceName() string {
 	return InstanceName(s.SnapName(), s.InstanceKey)
 }
 
+// ContainerName returns the name of the container, which is the instance name
+// for snaps.
+func (s *Info) ContainerName() string {
+	return s.InstanceName()
+}
+
 // SnapName returns the global blessed name of the snap.
 func (s *Info) SnapName() string {
 	if s.RealName != "" {
@@ -501,44 +558,71 @@ func (s *Info) Description() string {
 // Links returns the blessed set of snap-related links.
 func (s *Info) Links() map[string][]string {
 	if s.EditedLinks != nil {
-		// coming from thes store, assumed normalized
-		return s.EditedLinks
+		// the store used to send empty links, normalization
+		// is required to filter out persisted invalid links
+		return s.normalizedEditedLinks()
 	}
 	return s.normalizedOriginalLinks()
 }
 
-func (s *Info) normalizedOriginalLinks() map[string][]string {
-	res := make(map[string][]string, len(s.OriginalLinks))
-	addLink := func(k, v string) {
-		if v == "" {
-			return
-		}
-		u, err := url.Parse(v)
-		if err != nil {
-			// shouldn't happen if Validate succeeded but be robust
-			return
-		}
-		// assume email if no scheme
-		// Validate enforces the presence of @
-		if u.Scheme == "" {
-			v = "mailto:" + v
-		}
-		if strutil.ListContains(res[k], v) {
-			return
-		}
-		res[k] = append(res[k], v)
+// addLink adds a link if it passes validation to ensure it will not contribute to
+// ValidateLinks errors. It also attempts to convert a link with URL scheme "" to
+// "mailto" and avoids duplicate links.
+func addLink(links map[string][]string, key, link string) {
+	if key == "" || !isValidLinksKey(key) {
+		return
 	}
-	addLink("contact", s.LegacyEditedContact)
-	addLink("website", s.LegacyWebsite)
-	for k, links := range s.OriginalLinks {
-		for _, v := range links {
-			addLink(k, v)
+	if link == "" {
+		return
+	}
+	u, err := url.Parse(link)
+	if err != nil {
+		return
+	}
+	if u.Scheme == "" {
+		link = "mailto:" + link
+		u.Scheme = "mailto"
+	}
+	if u.Scheme == "mailto" {
+		// minimal check
+		if !strings.Contains(link, "@") {
+			return
+		}
+	} else if !strutil.ListContains(validLinkSchemes, u.Scheme) {
+		return
+	}
+	if strutil.ListContains(links[key], link) {
+		return
+	}
+	links[key] = append(links[key], link)
+}
+
+func (s *Info) normalizedEditedLinks() map[string][]string {
+	normalizedLinks := make(map[string][]string, len(s.EditedLinks))
+	for key, links := range s.EditedLinks {
+		for _, link := range links {
+			addLink(normalizedLinks, key, link)
 		}
 	}
-	if len(res) == 0 {
+	if len(normalizedLinks) == 0 {
 		return nil
 	}
-	return res
+	return normalizedLinks
+}
+
+func (s *Info) normalizedOriginalLinks() map[string][]string {
+	normalizedLinks := make(map[string][]string, len(s.OriginalLinks))
+	addLink(normalizedLinks, "contact", s.LegacyEditedContact)
+	addLink(normalizedLinks, "website", s.LegacyWebsite)
+	for key, links := range s.OriginalLinks {
+		for _, link := range links {
+			addLink(normalizedLinks, key, link)
+		}
+	}
+	if len(normalizedLinks) == 0 {
+		return nil
+	}
+	return normalizedLinks
 }
 
 // Contact returns the blessed contact information for the snap.
@@ -578,6 +662,11 @@ func (s *Info) MountFile() string {
 	return MountFile(s.InstanceName(), s.Revision)
 }
 
+// MountDescription returns the mount unit Description field.
+func (s *Info) MountDescription() string {
+	return fmt.Sprintf("Mount unit for %s, revision %s", s.InstanceName(), s.Revision)
+}
+
 // HooksDir returns the directory containing the snap's hooks.
 func (s *Info) HooksDir() string {
 	return HooksDir(s.InstanceName(), s.Revision)
@@ -614,28 +703,24 @@ func (s *Info) CommonDataSaveDir() string {
 	return CommonDataSaveDir(s.InstanceName())
 }
 
-// DataHomeGlob returns the globbing expression for the snap directories in use
-func DataHomeGlob(opts *dirs.SnapDirOptions) string {
-	if opts == nil {
-		opts = &dirs.SnapDirOptions{}
+// DataHomeDirs returns the per user data directories of the snap across multiple
+// home directories.
+func (s *Info) DataHomeDirs(opts *dirs.SnapDirOptions) []string {
+	var dataHomeGlob []string
+	for _, glob := range dirs.DataHomeGlobs(opts) {
+		dataHomeGlob = append(dataHomeGlob, filepath.Join(glob, s.InstanceName(), s.Revision.String()))
 	}
-
-	if opts.HiddenSnapDataDir {
-		return dirs.HiddenSnapDataHomeGlob
-	}
-
-	return dirs.SnapDataHomeGlob
+	return dataHomeGlob
 }
 
-// DataHomeDir returns the per user data directory of the snap.
-func (s *Info) DataHomeDir(opts *dirs.SnapDirOptions) string {
-	return filepath.Join(DataHomeGlob(opts), s.InstanceName(), s.Revision.String())
-}
-
-// CommonDataHomeDir returns the per user data directory common across revisions
-// of the snap.
-func (s *Info) CommonDataHomeDir(opts *dirs.SnapDirOptions) string {
-	return filepath.Join(DataHomeGlob(opts), s.InstanceName(), "common")
+// CommonDataHomeDirs returns the per user data directories common across revisions
+// of the snap in all defined home directories.
+func (s *Info) CommonDataHomeDirs(opts *dirs.SnapDirOptions) []string {
+	var comDataHomeGlob []string
+	for _, glob := range dirs.DataHomeGlobs(opts) {
+		comDataHomeGlob = append(comDataHomeGlob, filepath.Join(glob, s.InstanceName(), "common"))
+	}
+	return comDataHomeGlob
 }
 
 // UserXdgRuntimeDir returns the XDG_RUNTIME_DIR directory of the snap for a
@@ -648,6 +733,10 @@ func (s *Info) UserXdgRuntimeDir(euid sys.UserID) string {
 // snap.
 func (s *Info) XdgRuntimeDirs() string {
 	return filepath.Join(dirs.XdgRuntimeDirGlob, fmt.Sprintf("snap.%s", s.InstanceName()))
+}
+
+func (s *Info) BinaryNameGlobs() []string {
+	return []string{s.InstanceName(), fmt.Sprintf("%s.*", s.InstanceName())}
 }
 
 // NeedsDevMode returns whether the snap needs devmode.
@@ -716,6 +805,70 @@ func (s *Info) IsActive() bool {
 	cur := filepath.Join(dir, "current")
 	tag, err := os.Readlink(cur)
 	return err == nil && tag == rev
+}
+
+// AppsForPlug returns the list of apps that are associated with the given plug.
+// If the plug is unscoped, then all apps are returned.
+// TODO: implement this without using the Apps field in PlugInfo
+func (s *Info) AppsForPlug(plug *PlugInfo) []*AppInfo {
+	apps := make([]*AppInfo, 0, len(plug.Apps))
+	for _, app := range plug.Apps {
+		apps = append(apps, app)
+	}
+	return apps
+}
+
+// AppsForSlot returns the list of apps that are associated with the given slot.
+// If the slot is unscoped, then all apps are returned.
+// TODO: implement this without using the Apps field in SlotInfo
+func (s *Info) AppsForSlot(slot *SlotInfo) []*AppInfo {
+	apps := make([]*AppInfo, 0, len(slot.Apps))
+	for _, app := range slot.Apps {
+		apps = append(apps, app)
+	}
+	return apps
+}
+
+// HooksForPlug returns the list of hooks that are associated with the given
+// plug. If the plug is unscoped, then all hooks are returned.
+func (s *Info) HooksForPlug(plug *PlugInfo) []*HookInfo {
+	if plug.Unscoped {
+		hooks := make([]*HookInfo, 0, len(s.Hooks))
+		for _, hook := range s.Hooks {
+			hooks = append(hooks, hook)
+		}
+		return hooks
+	}
+
+	var hooks []*HookInfo
+	for _, hook := range s.Hooks {
+		if _, ok := hook.Plugs[plug.Name]; ok {
+			hooks = append(hooks, hook)
+		}
+	}
+
+	return hooks
+}
+
+// HooksForSlot returns the list of hooks that are associated with the given
+// slot. If the slot is unscoped, then all hooks are returned.
+func (s *Info) HooksForSlot(slot *SlotInfo) []*HookInfo {
+	if slot.Unscoped {
+		hooks := make([]*HookInfo, 0, len(s.Hooks))
+		for _, hook := range s.Hooks {
+			hooks = append(hooks, hook)
+		}
+		return hooks
+	}
+
+	var hooks []*HookInfo
+	for _, hook := range s.Hooks {
+		if _, ok := hook.Slots[slot.Name]; ok {
+			hooks = append(hooks, hook)
+		}
+	}
+
+	return hooks
 }
 
 // BadInterfacesSummary returns a summary of the problems of bad plugs
@@ -787,8 +940,11 @@ type DeltaInfo struct {
 	Sha3_384     string `json:"sha3-384,omitempty"`
 }
 
-// check that Info is a PlaceInfo
-var _ PlaceInfo = (*Info)(nil)
+// check that Info is a PlaceInfo and a ContainerPlaceInfo
+var (
+	_ PlaceInfo          = (*Info)(nil)
+	_ ContainerPlaceInfo = (*Info)(nil)
+)
 
 type AttributeNotFoundError struct{ Err error }
 
@@ -810,7 +966,11 @@ type PlugInfo struct {
 	Attrs     map[string]interface{}
 	Label     string
 	Apps      map[string]*AppInfo
-	Hooks     map[string]*HookInfo
+
+	// Unscoped is true if the plug is declared at the top-level of the
+	// snap.yaml file, and it is not specifically referenced by any apps or
+	// hooks. Unscoped plugs are attached to all apps and hooks in the snap.
+	Unscoped bool
 }
 
 func lookupAttr(attrs map[string]interface{}, path string) (interface{}, bool) {
@@ -851,19 +1011,6 @@ func (plug *PlugInfo) Lookup(key string) (interface{}, bool) {
 	return lookupAttr(plug.Attrs, key)
 }
 
-// SecurityTags returns security tags associated with a given plug.
-func (plug *PlugInfo) SecurityTags() []string {
-	tags := make([]string, 0, len(plug.Apps)+len(plug.Hooks))
-	for _, app := range plug.Apps {
-		tags = append(tags, app.SecurityTag())
-	}
-	for _, hook := range plug.Hooks {
-		tags = append(tags, hook.SecurityTag())
-	}
-	sort.Strings(tags)
-	return tags
-}
-
 // String returns the representation of the plug as snap:plug string.
 func (plug *PlugInfo) String() string {
 	return fmt.Sprintf("%s:%s", plug.Snap.InstanceName(), plug.Name)
@@ -877,25 +1024,12 @@ func (slot *SlotInfo) Lookup(key string) (interface{}, bool) {
 	return lookupAttr(slot.Attrs, key)
 }
 
-// SecurityTags returns security tags associated with a given slot.
-func (slot *SlotInfo) SecurityTags() []string {
-	tags := make([]string, 0, len(slot.Apps))
-	for _, app := range slot.Apps {
-		tags = append(tags, app.SecurityTag())
-	}
-	for _, hook := range slot.Hooks {
-		tags = append(tags, hook.SecurityTag())
-	}
-	sort.Strings(tags)
-	return tags
-}
-
 // String returns the representation of the slot as snap:slot string.
 func (slot *SlotInfo) String() string {
 	return fmt.Sprintf("%s:%s", slot.Snap.InstanceName(), slot.Name)
 }
 
-func gatherDefaultContentProvider(providerSnapsToContentTag map[string][]string, plug *PlugInfo) {
+func gatherDefaultContentProvider(providerSnapsToContentTag map[string][]string, plug *PlugInfo, filterTags map[string]bool) {
 	if plug.Interface == "content" {
 		var dprovider string
 		if err := plug.Attr("default-provider", &dprovider); err == nil && dprovider != "" {
@@ -904,6 +1038,9 @@ func gatherDefaultContentProvider(providerSnapsToContentTag map[string][]string,
 			name := strings.Split(dprovider, ":")[0]
 			var contentTag string
 			plug.Attr("content", &contentTag)
+			if filterTags[contentTag] {
+				return
+			}
 			tags := providerSnapsToContentTag[name]
 			if tags == nil {
 				tags = []string{contentTag}
@@ -923,7 +1060,7 @@ func gatherDefaultContentProvider(providerSnapsToContentTag map[string][]string,
 func DefaultContentProviders(plugs []*PlugInfo) (providerSnapsToContentTag map[string][]string) {
 	providerSnapsToContentTag = make(map[string][]string)
 	for _, plug := range plugs {
-		gatherDefaultContentProvider(providerSnapsToContentTag, plug)
+		gatherDefaultContentProvider(providerSnapsToContentTag, plug, nil)
 	}
 	return providerSnapsToContentTag
 }
@@ -937,7 +1074,11 @@ type SlotInfo struct {
 	Attrs     map[string]interface{}
 	Label     string
 	Apps      map[string]*AppInfo
-	Hooks     map[string]*HookInfo
+
+	// Unscoped is true if the slot is declared at the top-level of the
+	// snap.yaml file, and it is not specifically referenced by any apps or
+	// hooks. Unscoped slots are attached to all apps and hooks in the snap.
+	Unscoped bool
 
 	// HotplugKey is a unique key built by the slot's interface
 	// using properties of a hotplugged device so that the same
@@ -1066,6 +1207,9 @@ func (mis MediaInfos) IconURL() string {
 // HookInfo provides information about a hook.
 type HookInfo struct {
 	Snap *Info
+
+	// Component will be nil if the hook is not a component hook.
+	Component *Component
 
 	Name  string
 	Plugs map[string]*PlugInfo
@@ -1284,19 +1428,30 @@ func (e invalidMetaError) Broken() string {
 
 func MockSanitizePlugsSlots(f func(snapInfo *Info)) (restore func()) {
 	old := SanitizePlugsSlots
+	if f == nil {
+		f = sanitizePlugsSlotsUnimpl
+	}
 	SanitizePlugsSlots = f
 	return func() { SanitizePlugsSlots = old }
 }
 
-var SanitizePlugsSlots = func(snapInfo *Info) {
+func sanitizePlugsSlotsUnimpl(snapInfo *Info) {
 	panic("SanitizePlugsSlots function not set")
 }
+
+var SanitizePlugsSlots = sanitizePlugsSlotsUnimpl
 
 // ReadInfo reads the snap information for the installed snap with the given
 // name and given side-info.
 func ReadInfo(name string, si *SideInfo) (*Info, error) {
-	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
-	meta, err := ioutil.ReadFile(snapYamlFn)
+	return ReadInfoFromMountPoint(name, MountDir(name, si.Revision), MountFile(name, si.Revision), si)
+}
+
+// ReadInfoFromMountPoint reads the snap information for a mounted
+// snap given the mound point, mount file, and side info.
+func ReadInfoFromMountPoint(name, mountPoint, mountFile string, si *SideInfo) (*Info, error) {
+	snapYamlFn := filepath.Join(mountPoint, "meta", "snap.yaml")
+	meta, err := os.ReadFile(snapYamlFn)
 	if os.IsNotExist(err) {
 		return nil, &NotFoundError{Snap: name, Revision: si.Revision, Path: snapYamlFn}
 	}
@@ -1313,14 +1468,14 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	_, instanceKey := SplitInstanceName(name)
 	info.InstanceKey = instanceKey
 
-	err = addImplicitHooks(info)
+	hooksDir := filepath.Join(mountPoint, "meta", "hooks")
+	err = addImplicitHooks(info, hooksDir)
 	if err != nil {
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
 	bindImplicitHooks(info, strk)
 
-	mountFile := MountFile(name, si.Revision)
 	st, err := os.Lstat(mountFile)
 	if os.IsNotExist(err) {
 		// This can happen when "snap try" mode snap is moved around. The mount
@@ -1378,7 +1533,7 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	addImplicitHooksFromContainer(info, snapf)
+	AddImplicitHooksFromContainer(info, snapf)
 
 	bindImplicitHooks(info, strk)
 

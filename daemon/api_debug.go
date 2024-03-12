@@ -27,16 +27,13 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -284,53 +281,24 @@ func getGadgetDiskMapping(st *state.State) Response {
 	}
 	gadgetDir := gadgetInfo.MountDir()
 
-	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
-	if err != nil {
-		return InternalError("cannot get kernel info: %v", err)
-	}
-	kernelDir := kernelInfo.MountDir()
-
 	mod := deviceCtx.Model()
 
-	// Find out if we are encrypted
-	encType := secboot.EncryptionTypeNone
-	sealingMethod, err := device.SealedKeysMethod(dirs.GlobalRootDir)
+	info, err := gadget.ReadInfoAndValidate(gadgetDir, mod, nil)
 	if err != nil {
-		if err != device.ErrNoSealedKeys {
-			return InternalError("cannot find out crypto state: %v", err)
-		}
-		// no sealed keys, so no encryption
-	} else {
-		// TODO: is there a better way to find the encType
-		// than indirectly via the sealedKeyMethods? does not
-		// matter right now because there really is only one
-		// encryption type
-		switch sealingMethod {
-		case device.SealingMethodLegacyTPM, device.SealingMethodTPM, device.SealingMethodFDESetupHook:
-			// LUKS and LUKS-with-ICE are the same for what is
-			// required here
-			encType = secboot.EncryptionTypeLUKS
-		default:
-			return InternalError("unknown sealing method: %s", sealingMethod)
-		}
-	}
-
-	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetDir, kernelDir, mod, encType)
-	if err != nil {
-		return InternalError("cannot get all disk volume device traits: cannot layout volumes: %v", err)
+		return InternalError("cannot get all disk volume device traits: cannot read gadget: %v", err)
 	}
 
 	// TODO: allow passing in encrypted options info here
 
 	// allow implicit system-data on pre-uc20 only
 	optsMap := map[string]*gadget.DiskVolumeValidationOptions{}
-	for vol := range allLaidOutVols {
+	for vol := range info.Volumes {
 		optsMap[vol] = &gadget.DiskVolumeValidationOptions{
 			AllowImplicitSystemData: mod.Grade() == asserts.ModelGradeUnset,
 		}
 	}
 
-	res, err := gadget.AllDiskVolumeDeviceTraits(allLaidOutVols, optsMap)
+	res, err := gadget.AllDiskVolumeDeviceTraits(info.Volumes, optsMap)
 	if err != nil {
 		return InternalError("cannot get all disk volume device traits: %v", err)
 	}
@@ -360,7 +328,9 @@ func createRecovery(st *state.State, label string) Response {
 	if label == "" {
 		return BadRequest("cannot create a recovery system with no label")
 	}
-	chg, err := devicestate.CreateRecoverySystem(st, label)
+	chg, err := devicestate.CreateRecoverySystem(st, label, devicestate.CreateRecoverySystemOptions{
+		TestSystem: true,
+	})
 	if err != nil {
 		return InternalError("cannot create recovery system %q: %v", label, err)
 	}

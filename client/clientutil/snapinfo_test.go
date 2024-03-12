@@ -20,7 +20,6 @@
 package clientutil_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -121,6 +120,7 @@ func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
 		"MountedFrom",
 		"Hold",
 		"GatingHold",
+		"RefreshInhibit",
 	}
 	var checker func(string, reflect.Value)
 	checker = func(pfx string, x reflect.Value) {
@@ -200,7 +200,7 @@ func (*cmdSuite) TestClientSnapFromSnapInfoAppsInactive(c *C) {
 	df := si.Apps["app"].DesktopFile()
 	err := os.MkdirAll(filepath.Dir(df), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(df, nil, 0644)
+	err = os.WriteFile(df, nil, 0644)
 	c.Assert(err, IsNil)
 
 	sd := &testStatusDecorator{}

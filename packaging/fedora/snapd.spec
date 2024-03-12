@@ -1,6 +1,7 @@
 # With Fedora, nothing is bundled. For everything else, bundling is used.
+# Amazon-linux 2023 is based on fedora but it is bundled
 # To use bundled stuff, use "--with vendorized" on rpmbuild
-%if 0%{?fedora}
+%if 0%{?fedora} && ! 0%{?amzn2023}
 %bcond_with vendorized
 %else
 %bcond_without vendorized
@@ -69,7 +70,7 @@
 
 # Until we have a way to add more extldflags to gobuild macro...
 # Always use external linking when building static binaries.
-%if 0%{?fedora} || 0%{?rhel} >= 8
+%if 0%{?fedora} || 0%{?rhel} >= 8 || 0%{?amzn2023}
 %define gobuild_static(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
 %endif
 %if 0%{?rhel} == 7
@@ -78,7 +79,7 @@
 %endif
 
 # These macros are missing BUILDTAGS in RHEL 8/9, see RHBZ#1825138
-%if 0%{?rhel} >= 8
+%if 0%{?rhel} >= 8 || 0%{?amzn2023}
 %define gobuild(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags'" -a -v -x %{?**};
 %endif
 
@@ -92,6 +93,7 @@
 %{!?_environmentdir: %global _environmentdir %{_prefix}/lib/environment.d}
 %{!?_systemdgeneratordir: %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators}
 %{!?_systemd_system_env_generator_dir: %global _systemd_system_env_generator_dir %{_prefix}/lib/systemd/system-environment-generators}
+%{!?_tmpfilesdir: %global _tmpfilesdir %{_prefix}/lib/tmpfiles.d}
 
 # Fedora selinux-policy includes 'map' permission on a 'file' class. However,
 # Amazon Linux 2 does not have the updated policy containing the fix for
@@ -102,7 +104,7 @@
 %endif
 
 Name:           snapd
-Version:        2.59.2
+Version:        2.61.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -138,6 +140,13 @@ Requires:       fuse
 %else
 # snapd will use squashfuse in the event that squashfs.ko isn't available (cloud instances, containers, etc.)
 Requires:       ((squashfuse and fuse) or kmod(squashfs.ko))
+%endif
+
+# Require xdelta for delta updates of snap packages.
+%if 0%{?fedora} || ( 0%{?rhel} && 0%{?rhel} > 8 )
+%if ! 0%{?amzn2023}
+Requires:       xdelta
+%endif
 %endif
 
 # bash-completion owns /usr/share/bash-completion/completions
@@ -192,7 +201,9 @@ designed for working with self-contained, immutable packages.
 Summary:        Confinement system for snap applications
 License:        GPLv3
 BuildRequires:  autoconf
+BuildRequires:  autoconf-archive
 BuildRequires:  automake
+BuildRequires:  make
 BuildRequires:  libtool
 BuildRequires:  gcc
 BuildRequires:  gettext
@@ -215,7 +226,8 @@ BuildRequires:  libseccomp-static
 BuildRequires:  valgrind
 %endif
 BuildRequires:  %{_bindir}/rst2man
-%if 0%{?fedora}
+%if 0%{?fedora} && ! 0%{?amzn2023}
+# AL2023 does not have shellcheck
 # ShellCheck in EPEL is too old...
 BuildRequires:  %{_bindir}/shellcheck
 %endif
@@ -352,7 +364,6 @@ Provides:      golang(%{import_path}/desktop/notification) = %{version}-%{releas
 Provides:      golang(%{import_path}/desktop/notification/notificationtest) = %{version}-%{release}
 Provides:      golang(%{import_path}/dirs) = %{version}-%{release}
 Provides:      golang(%{import_path}/docs) = %{version}-%{release}
-Provides:      golang(%{import_path}/errtracker) = %{version}-%{release}
 Provides:      golang(%{import_path}/features) = %{version}-%{release}
 Provides:      golang(%{import_path}/gadget) = %{version}-%{release}
 Provides:      golang(%{import_path}/gadget/edition) = %{version}-%{release}
@@ -537,7 +548,7 @@ BUILDTAGS="nosecboot"
 
 %if ! 0%{?with_bundled}
 # We don't need the snapcore fork for bolt - it is just a fix on ppc
-sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go errtracker/*.go
+sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go
 %endif
 
 # We have to build snapd first to prevent the build from
@@ -575,7 +586,7 @@ sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
     M4PARAM='-D distro_rhel7'
 %endif
 %if 0%{?rhel} == 7 || 0%{?rhel} == 8
-    # RHEL7 and RHEL8 are missing the BPF interfaces from their reference policy
+    # RHEL7, RHEL8 are missing the BPF interfaces from their reference policy
     M4PARAM="$M4PARAM -D no_bpf"
 %endif
     # Build SELinux module
@@ -630,6 +641,7 @@ install -d -p %{buildroot}%{_sysconfdir}/profile.d
 install -d -p %{buildroot}%{_sysconfdir}/sysconfig
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/assertions
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/cookie
+install -d -p %{buildroot}%{_sharedstatedir}/snapd/cgroup
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/dbus-1/services
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/dbus-1/system-services
 install -d -p %{buildroot}%{_sharedstatedir}/snapd/desktop/applications
@@ -722,11 +734,6 @@ rm %{buildroot}%{_libexecdir}/snapd/system-shutdown
 # Remove snapd apparmor service
 rm -f %{buildroot}%{_unitdir}/snapd.apparmor.service
 rm -f %{buildroot}%{_libexecdir}/snapd/snapd-apparmor
-
-# Remove prompt services
-rm %{buildroot}%{_unitdir}/snapd.aa-prompt-listener.service
-rm %{buildroot}%{_userunitdir}/snapd.aa-prompt-ui.service
-rm %{buildroot}%{_datadir}/dbus-1/services/io.snapcraft.Prompt.service
 
 # Install Polkit configuration
 install -m 644 -D data/polkit/io.snapcraft.snapd.policy %{buildroot}%{_datadir}/polkit-1/actions
@@ -854,6 +861,7 @@ popd
 %dir %{_sharedstatedir}/snapd
 %dir %{_sharedstatedir}/snapd/assertions
 %dir %{_sharedstatedir}/snapd/cookie
+%dir %{_sharedstatedir}/snapd/cgroup
 %dir %{_sharedstatedir}/snapd/dbus-1
 %dir %{_sharedstatedir}/snapd/dbus-1/services
 %dir %{_sharedstatedir}/snapd/dbus-1/system-services
@@ -996,6 +1004,147 @@ fi
 
 
 %changelog
+* Wed Mar 06 2024 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.61.3
+ - Install systemd files in correct location for 24.04
+
+* Fri Feb 16 2024 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.61.2
+ - Fix to enable plug/slot sanitization for prepare-image
+ - Fix panic when device-service.access=offline
+ - Support offline remodeling
+ - Allow offline update only remodels without serial
+ - Fail early when remodeling to old model revision
+ - Fix to enable plug/slot sanitization for validate-seed
+ - Allow removal of core snap on classic systems
+ - Fix network-control interface denial for file lock on /run/netns
+ - Add well-known core24 snap-id
+ - Fix remodel snap installation order
+ - Prevent remodeling from UC18+ to UC16
+ - Fix cups auto-connect on classic with cups snap installed
+ - u2f-devices interface support for GoTrust Idem Key with USB-C
+ - Fix to restore services after unlink failure
+ - Add libcudnn.so to Nvidia libraries
+ - Fix skipping base snap download due to false snapd downgrade
+   conflict
+
+* Fri Nov 24 2023 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.61.1
+ - Stop requiring default provider snaps on image building and first
+   boot if alternative providers are included and available
+ - Fix auth.json access for login as non-root group ID
+ - Fix incorrect remodelling conflict when changing track to older
+   snapd version
+ - Improved check-rerefresh message
+ - Fix UC16/18 kernel/gadget update failure due volume mismatch with
+   installed disk
+ - Stop auto-import of assertions during install modes
+ - Desktop interface exposes GetIdletime
+ - Polkit interface support for new polkit versions
+ - Fix not applying snapd snap changes in tracked channel when remodelling
+
+* Fri Oct 13 2023 Philip Meulengracht <philip.meulengracht@canonical.com>
+- New upstream release 2.61
+ - Fix control of activated services in 'snap start' and 'snap stop'
+ - Correctly reflect activated services in 'snap services'
+ - Disabled services are no longer enabled again when snap is
+   refreshed
+ - interfaces/builtin: added support for Token2 U2F keys
+ - interfaces/u2f-devices: add Swissbit iShield Key
+ - interfaces/builtin: update gpio apparmor to match pattern that
+   contains multiple subdirectories under /sys/devices/platform
+ - interfaces: add a polkit-agent interface
+ - interfaces: add pcscd interface
+ - Kernel command-line can now be edited in the gadget.yaml
+ - Only track validation-sets in run-mode, fixes validation-set
+   issues on first boot.
+ - Added support for using store.access to disable access to snap
+   store
+ - Support for fat16 partition in gadget
+ - Pre-seed authority delegation is now possible
+ - Support new system-user name  daemon
+ - Several bug fixes and improvements around remodelling
+ - Offline remodelling support
+
+* Fri Sep 15 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.60.4
+ - i/b/qualcomm_ipc_router.go: switch to plug/slot and add socket
+   permission
+ - interfaces/builtin: fix custom-device udev KERNEL values
+ - overlord: allow the firmware-updater snap to install user daemons
+ - interfaces: allow loopback as a block-device
+
+* Fri Aug 25 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.60.3
+ - i/b/shared-memory: handle "private" plug attribute in shared-
+   memory interface correctly
+ - i/apparmor: support for home.d tunables from /etc/
+
+* Fri Aug 04 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.60.2
+ - i/builtin: allow directories in private /dev/shm
+ - i/builtin: add read access to /proc/task/schedstat in system-
+   observe
+ - snap-bootstrap: print version information at startup
+ - go.mod: update gopkg.in/yaml.v3 to v3.0.1 to fix CVE-2022-28948
+ - snap, store: filter out invalid snap edited links from store info
+   and persisted state
+ - o/configcore: write netplan defaults to 00-snapd-config on seeding
+ - snapcraft.yaml: pull in apparmor_parser optimization patches from
+   https://gitlab.com/apparmor/apparmor/-/merge_requests/711
+ - snap-confine: fix missing \0 after readlink
+ - cmd/snap: hide append-integrity-data
+ - interfaces/opengl: add support for ARM Mali
+
+* Tue Jul 04 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.60.1
+ - install: fallback to lazy unmount() in writeFilesystemContent
+ - data: include "modprobe.d" and "modules-load.d" in preseeded blob
+ - gadget: fix install test on armhf
+ - interfaces: fix typo in network_manager_observe
+ - sandbox/apparmor: don't let vendored apparmor conflict with system
+ - gadget/update: set parts in laid out data from the ones matched
+ - many: move SnapConfineAppArmorDir from dirs to sandbox/apparmor
+ - many: stop using `-O no-expr-simplify` in apparmor_parser
+ - go.mod: update secboot to latest uc22 branch
+
+* Thu Jun 15 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.60
+ - Support for dynamic snapshot data exclusions
+ - Apparmor userspace is vendored inside the snapd snap
+ - Added a default-configure hook that exposes gadget default
+   configuration options to snaps during first install before
+   services are started
+ - Allow install from initrd to speed up the initial installation
+   for systems that do not have a install-device hook
+ - New `snap sign --chain` flag that appends the account and
+   account-key assertions
+ - Support validation-sets in the model assertion
+ - Support new "min-size" field in gadget.yaml
+ - New interface: "userns"
+
+* Sat May 27 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.59.5
+ - Explicitly disallow the use of ioctl + TIOCLINUX
+   This fixes CVE-2023-1523.
+
+* Fri May 12 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.59.4
+ - Retry when looking for disk label on non-UEFI systems
+   (LP: #2018977)
+ - Fix remodel from UC20 to UC22
+
+* Wed May 03 2023 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.59.3
+ - Fix quiet boot
+ - i/b/physical_memory_observe: allow reading virt-phys page mappings
+ - gadget: warn instead of returning error if overlapping with GPT
+   header
+ - overlord,wrappers: restart always enabled units
+ - go.mod: update github.com/snapcore/secboot to latest uc22
+ - boot: make sure we update assets for the system-seed-null role
+ - many: ignore case for vfat partitions when validating
+
 * Tue Apr 18 2023 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.59.2
  - Notify users when a user triggered auto refresh finished

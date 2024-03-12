@@ -100,7 +100,7 @@ const sharedMemoryBaseDeclarationSlots = `
 
 const sharedMemoryPrivateConnectedPlugAppArmor = `
 # Description: Allow access to everything in private /dev/shm
-"/dev/shm/*" mrwlkix,
+"/dev/shm/**" mrwlkix,
 `
 
 func validateSharedMemoryPath(path string) error {
@@ -140,17 +140,6 @@ func validateSharedMemoryPath(path string) error {
 	return nil
 }
 
-func stringListAttribute(attrer interfaces.Attrer, key string) ([]string, error) {
-	var stringList []string
-	err := attrer.Attr(key, &stringList)
-	if err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
-		value, _ := attrer.Lookup(key)
-		return nil, fmt.Errorf(`shared-memory %q attribute must be a list of strings, not "%v"`, key, value)
-	}
-
-	return stringList, nil
-}
-
 // sharedMemoryInterface allows sharing sharedMemory between snaps
 type sharedMemoryInterface struct{}
 
@@ -186,12 +175,12 @@ func (iface *sharedMemoryInterface) BeforePrepareSlot(slot *snap.SlotInfo) error
 
 	readPaths, err := stringListAttribute(slot, "read")
 	if err != nil {
-		return err
+		return fmt.Errorf("shared-memory %v", err)
 	}
 
 	writePaths, err := stringListAttribute(slot, "write")
 	if err != nil {
-		return err
+		return fmt.Errorf("shared-memory %v", err)
 	}
 
 	// We perform the same validation for read-only and writable paths, so
@@ -285,16 +274,32 @@ func (iface *sharedMemoryInterface) BeforePreparePlug(plug *snap.PlugInfo) error
 	return nil
 }
 
-func (iface *sharedMemoryInterface) isPrivate(plug *interfaces.ConnectedPlug) bool {
+func (iface *sharedMemoryInterface) isPrivate(plug *interfaces.ConnectedPlug) (bool, error) {
+	// Note that private may not be set even if
+	// "SanitizePlugsSlots()" is called (which in turn calls
+	// BeforePreparePlug() which will set this).
+	//
+	// The code-path is an upgrade from snapd 2.54.4 where
+	// shared-memory did not have the "private" attribute
+	// yet. Then the ConnectedPlug data is written into the
+	// interface repo without this attribute and on regeneration
+	// of security profiles the connectedPlug is loaded from the
+	// interface repository in the state and not from the
+	// snap.yaml so this attribute is missing.
 	var private bool
-	if err := plug.Attr("private", &private); err == nil {
-		return private
+	if err := plug.Attr("private", &private); err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
+		return false, err
 	}
-	panic("plug is not sanitized")
+	return private, nil
 }
 
 func (iface *sharedMemoryInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if iface.isPrivate(plug) {
+	private, err := iface.isPrivate(plug)
+	if err != nil {
+		return err
+	}
+
+	if private {
 		spec.AddSnippet(sharedMemoryPrivateConnectedPlugAppArmor)
 		spec.AddUpdateNSf(`  # Private /dev/shm
   /dev/ r,
@@ -321,7 +326,12 @@ func (iface *sharedMemoryInterface) AppArmorConnectedSlot(spec *apparmor.Specifi
 }
 
 func (iface *sharedMemoryInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if !iface.isPrivate(plug) {
+	private, err := iface.isPrivate(plug)
+	if err != nil {
+		return err
+	}
+
+	if !private {
 		return nil
 	}
 

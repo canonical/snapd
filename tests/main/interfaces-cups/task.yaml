@@ -17,6 +17,7 @@ systems:
     # TODO: make the snap test-snapd-cups-consumer work well for arm64
     # currently producing error: 'nc: unix connect failed: No such file or directory'
     - -ubuntu-2*-arm-64
+    - -ubuntu-core-2*-arm-64
 
 prepare: |
     # install the test snaps

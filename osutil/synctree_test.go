@@ -20,7 +20,6 @@
 package osutil_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -44,7 +43,7 @@ func (s *EnsureTreeStateSuite) SetUpTest(c *C) {
 func (s *EnsureTreeStateSuite) TestVerifiesExpectedFiles(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(s.dir, "foo", "bar"), 0755), IsNil)
 	name := filepath.Join(s.dir, "foo", "bar", "expected.snap")
-	c.Assert(ioutil.WriteFile(name, []byte("expected"), 0600), IsNil)
+	c.Assert(os.WriteFile(name, []byte("expected"), 0600), IsNil)
 	changed, removed, err := osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
 		"foo/bar": {
 			"expected.snap": &osutil.MemoryFileState{Content: []byte("expected"), Mode: 0600},
@@ -82,8 +81,8 @@ func (s *EnsureTreeStateSuite) TestRemovesUnexpectedFiles(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(s.dir, "bar"), 0755), IsNil)
 	name1 := filepath.Join(s.dir, "foo", "evil1.snap")
 	name2 := filepath.Join(s.dir, "bar", "evil2.snap")
-	c.Assert(ioutil.WriteFile(name1, []byte(`evil-1`), 0600), IsNil)
-	c.Assert(ioutil.WriteFile(name2, []byte(`evil-2`), 0600), IsNil)
+	c.Assert(os.WriteFile(name1, []byte(`evil-1`), 0600), IsNil)
+	c.Assert(os.WriteFile(name2, []byte(`evil-2`), 0600), IsNil)
 
 	changed, removed, err := osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
 		"foo": {},
@@ -101,9 +100,9 @@ func (s *EnsureTreeStateSuite) TestRemovesEmptyDirectories(c *C) {
 	name1 := filepath.Join(s.dir, "foo", "file1.snap")
 	name2 := filepath.Join(s.dir, "foo", "unrelated")
 	name3 := filepath.Join(s.dir, "bar", "baz", "file2.snap")
-	c.Assert(ioutil.WriteFile(name1, []byte(`text`), 0600), IsNil)
-	c.Assert(ioutil.WriteFile(name2, []byte(`text`), 0600), IsNil)
-	c.Assert(ioutil.WriteFile(name3, []byte(`text`), 0600), IsNil)
+	c.Assert(os.WriteFile(name1, []byte(`text`), 0600), IsNil)
+	c.Assert(os.WriteFile(name2, []byte(`text`), 0600), IsNil)
+	c.Assert(os.WriteFile(name3, []byte(`text`), 0600), IsNil)
 
 	_, _, err := osutil.EnsureTreeState(s.dir, s.globs, nil)
 	c.Assert(err, IsNil)
@@ -117,7 +116,7 @@ func (s *EnsureTreeStateSuite) TestRemovesEmptyDirectories(c *C) {
 func (s *EnsureTreeStateSuite) TestIgnoresUnrelatedFiles(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(s.dir, "foo"), 0755), IsNil)
 	name := filepath.Join(s.dir, "foo", "unrelated")
-	err := ioutil.WriteFile(name, []byte(`text`), 0600)
+	err := os.WriteFile(name, []byte(`text`), 0600)
 	c.Assert(err, IsNil)
 	changed, removed, err := osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{})
 	c.Assert(err, IsNil)
@@ -164,9 +163,9 @@ func (s *EnsureTreeStateSuite) TestRemovesFilesOnError(c *C) {
 	name1 := filepath.Join(s.dir, "foo", "file1.snap")
 	name2 := filepath.Join(s.dir, "bar", "file2.snap")
 	name3 := filepath.Join(s.dir, "bar", "dir.snap", "sentinel")
-	c.Assert(ioutil.WriteFile(name1, []byte(`text`), 0600), IsNil)
-	c.Assert(ioutil.WriteFile(name2, []byte(`text`), 0600), IsNil)
-	c.Assert(ioutil.WriteFile(name3, []byte(`text`), 0600), IsNil)
+	c.Assert(os.WriteFile(name1, []byte(`text`), 0600), IsNil)
+	c.Assert(os.WriteFile(name2, []byte(`text`), 0600), IsNil)
+	c.Assert(os.WriteFile(name3, []byte(`text`), 0600), IsNil)
 
 	changed, removed, err := osutil.EnsureTreeState(s.dir, s.globs, map[string]map[string]osutil.FileState{
 		"foo": {

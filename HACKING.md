@@ -119,7 +119,7 @@ Now you can use remote-build with snapcraft on the snapd tree for any desired
 architectures:
 
 ```
-snapcraft remote-build --build-on=armhf,s390x,arm64
+snapcraft remote-build --build-for=armhf,s390x,arm64
 ```
 
 And to go back to building the snapd snap locally, just revert the channel back
@@ -433,6 +433,21 @@ maybe you need to replace system installed snap-seccomp with the one aligned to 
 you are testing. To do this, simply backup `/usr/lib/snapd/snap-seccomp` and overwrite it with 
 the testing one. Don't forget to roll back to the original, after you finish testing.
 
+### Testing the snap userd agent
+
+To test the `snap userd --agent` command, you must first stop the current process, if it is
+running, and then stop the dbus activation part. To do so, just run:
+
+    systemctl --user disable snapd.session-agent.socket
+    systemctl --user stop snapd.session-agent.socket
+
+After that, it's now possible to launch the daemon with `snapd userd --agent` from a command
+line.
+
+To re-enable the dbus activation, kill that process and run:
+
+    systemctl --user enable snapd.session-agent.socket
+
 ### Running nested tests
 
 Nested tests are used to validate features that cannot be tested with the regular tests.
@@ -498,7 +513,7 @@ autoreconf -i -f
 ```
 
 This will drop makefiles and let you build stuff. You may find the `make hack`
-target, available in [./cmd/snap-confine/](./cmd/snap-confine/) handy. It installs the locally built
+target, available in [./cmd/](./cmd/) handy `(cd cmd; make hack)`. It installs the locally built
 version on your system and reloads the [AppArmor](https://apparmor.net/) profile.
 
 >The above configure options assume you are on Ubuntu and are generally
@@ -508,6 +523,12 @@ architecture and `--enable-nvidia-multiarch` allows the host's graphics drivers
 and libraries to be shared with snaps. If you are on a distro other than
 Ubuntu, try `--enable-nvidia-biarch` (though you'll likely need to add further
 system-specific options too).
+
+## Testing your changes locally 
+
+After building the code locally as explained in the previous section, you can run the 
+test suite available for snap-confine (among other low-level tools) by running the 
+`make check` target available in [./cmd]((./cmd/)).
 
 ## Submitting patches
 

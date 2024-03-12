@@ -23,7 +23,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -191,8 +190,8 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 	defer restoreMakeWritableTempDir()
 
 	c.Assert(os.MkdirAll(filepath.Join(writableTmpDir, "system-data/etc/bar"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(writableTmpDir, "system-data/etc/bar/a"), nil, 0644), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(writableTmpDir, "system-data/etc/bar/b"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(writableTmpDir, "system-data/etc/bar/a"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(writableTmpDir, "system-data/etc/bar/b"), nil, 0644), IsNil)
 
 	mockTar := testutil.MockCommand(c, "tar", "")
 	defer mockTar.Restore()
@@ -203,7 +202,7 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 }`
 
 	c.Assert(os.MkdirAll(filepath.Join(preseedTmpDir, "usr/lib/snapd"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(preseedTmpDir, "usr/lib/snapd/preseed.json"), []byte(exportFileContents), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(preseedTmpDir, "usr/lib/snapd/preseed.json"), []byte(exportFileContents), 0644), IsNil)
 
 	mockWritablePaths := testutil.MockCommand(c, filepath.Join(preseedTmpDir, "/usr/lib/core/handle-writable-paths"), "")
 	defer mockWritablePaths.Restore()
@@ -220,7 +219,7 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 	defer restoreSystemSnapFromSeed()
 
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "system-seed/systems/20220203"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), []byte(`hello world`), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(tmpDir, "system-seed/systems/20220203/preseed.tgz"), []byte(`hello world`), 0644), IsNil)
 
 	opts := &preseed.CoreOptions{
 		PrepareImageDir:           tmpDir,
@@ -424,7 +423,7 @@ func (s *preseedSuite) TestRunPreseedUC20ExecFormatError(c *C) {
 	// not the image target architecture.
 	mockChrootCmd := testutil.MockCommand(c, "chroot", "")
 	defer mockChrootCmd.Restore()
-	err := ioutil.WriteFile(mockChrootCmd.Exe(), []byte("invalid-exe"), 0755)
+	err := os.WriteFile(mockChrootCmd.Exe(), []byte("invalid-exe"), 0755)
 	c.Check(err, IsNil)
 
 	popts := &preseed.PreseedCoreOptions{

@@ -61,7 +61,7 @@ func (s *baseCmdSuite) SetUpTest(c *C) {
 
 	d := c.MkDir()
 	s.markerFile = filepath.Join(d, "marker")
-	err := ioutil.WriteFile(s.markerFile, nil, 0644)
+	err := os.WriteFile(s.markerFile, nil, 0644)
 	c.Assert(err, IsNil)
 }
 
@@ -329,11 +329,7 @@ func (s *mockedClientCmdSuite) TestMainChooserBadAPI(c *C) {
 	c.Assert(s.markerFile, testutil.FileAbsent)
 }
 
-func (s *mockedClientCmdSuite) TestMainChooserDefaultsToConsoleConf(c *C) {
-	d := c.MkDir()
-	dirs.SetRootDir(d)
-	defer dirs.SetRootDir("/")
-
+func (s *mockedClientCmdSuite) testMainChooserConsoleConfAlternatives(c *C, setupCmd func(script string) *testutil.MockCmd) {
 	r := main.MockDefaultMarkerFile(s.markerFile)
 	defer r()
 	// validity
@@ -349,9 +345,10 @@ func (s *mockedClientCmdSuite) TestMainChooserDefaultsToConsoleConf(c *C) {
 		},
 	})
 
-	mockCmd := testutil.MockCommand(c, filepath.Join(dirs.GlobalRootDir, "/usr/bin/console-conf"), `
+	mockCmd := setupCmd(`
 echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
 `)
+
 	defer mockCmd.Restore()
 
 	rbt, err := main.Chooser(client.New(&s.config))
@@ -363,6 +360,33 @@ echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
 	})
 
 	c.Assert(s.markerFile, testutil.FileAbsent)
+}
+
+func (s *mockedClientCmdSuite) TestMainChooserDefaultToConsoleConf(c *C) {
+	d := c.MkDir()
+	dirs.SetRootDir(d)
+	defer dirs.SetRootDir("/")
+
+	s.testMainChooserConsoleConfAlternatives(c, func(script string) *testutil.MockCmd {
+		return testutil.MockCommand(c, filepath.Join(dirs.GlobalRootDir, "/usr/bin/console-conf"),
+			script)
+	})
+}
+
+func (s *mockedClientCmdSuite) TestMainChooserFallbackToSnapConsoleConf(c *C) {
+	d := c.MkDir()
+	dirs.SetRootDir(d)
+	defer dirs.SetRootDir("/")
+
+	s.testMainChooserConsoleConfAlternatives(c, func(script string) *testutil.MockCmd {
+		// create /snap/bin/console-conf as a symlink like when a snap
+		// is installed
+		c.Assert(os.MkdirAll(dirs.SnapBinariesDir, 0755), IsNil)
+		err := os.Symlink(filepath.Join(d, "console-conf"),
+			filepath.Join(dirs.SnapBinariesDir, "console-conf"))
+		c.Assert(err, IsNil)
+		return testutil.MockCommand(c, filepath.Join(d, "console-conf"), script)
+	})
 }
 
 func (s *mockedClientCmdSuite) TestMainChooserNoConsoleConf(c *C) {
@@ -380,7 +404,7 @@ func (s *mockedClientCmdSuite) TestMainChooserNoConsoleConf(c *C) {
 
 	// tries to look up the console-conf binary but fails
 	rbt, err := main.Chooser(client.New(&s.config))
-	c.Assert(err, ErrorMatches, `cannot locate the chooser UI tool: chooser UI tool ".*/usr/bin/console-conf" does not exist`)
+	c.Assert(err, ErrorMatches, `cannot locate the chooser UI tool: chooser UI tools \[".*/usr/bin/console-conf" ".*snap/bin/console-conf"\] do not exist`)
 	c.Assert(rbt, Equals, false)
 	c.Assert(s.markerFile, testutil.FileAbsent)
 }

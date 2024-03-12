@@ -20,7 +20,6 @@
 package backend_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -55,7 +54,7 @@ func (s *aliasesSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(dirs.CompletersDir, 0755), IsNil)
 	c.Assert(os.MkdirAll(dirs.LegacyCompletersDir, 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.CompleteShPath(s.base)), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(dirs.CompleteShPath(s.base), nil, 0644), IsNil)
 }
 
 func (s *aliasesSuite) TearDownTest(c *C) {

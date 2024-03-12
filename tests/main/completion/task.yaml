@@ -1,19 +1,20 @@
 summary: Check different completions
 
+details: |
+    Check bash completion functionality.
+
 # takes >6min to run in total
 backends: [-autopkgtest]
 
 # ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
-systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
+# amazon-linux-2023: ships with gnupg2-minimal which is missing options
+systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -amazon-linux-2023-*]
 
 environment:
     NAMES: /var/cache/snapd/names
 
 prepare: |
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB/systemd.sh"
-
-    systemd_stop_units snapd.service snapd.socket
+    tests.systemd stop-unit snapd.service snapd.socket
     if [ -e "$NAMES" ]; then
         mv "$NAMES" "$NAMES.orig"
     fi

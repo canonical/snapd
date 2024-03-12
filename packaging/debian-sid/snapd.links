@@ -1,6 +1,5 @@
 /usr/lib/snapd/snap-device-helper  /lib/udev/snappy-app-dev
-usr/lib/snapd/snapctl usr/bin/snapctl
-
 # This should be removed once we can rely on debhelper >= 11.5:
 #     https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=764678
 /usr/lib/systemd/user/snapd.session-agent.socket /usr/lib/systemd/user/sockets.target.wants/snapd.session-agent.socket
+usr/lib/snapd/snapctl usr/bin/snapctl

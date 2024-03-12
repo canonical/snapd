@@ -509,6 +509,17 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 			Timestamp: model.Timestamp(),
 			SeedTime:  seedTime,
 		}})
+
+		var defaultRecoverySystem devicestate.DefaultRecoverySystem
+		c.Assert(state.Get("default-recovery-system", &defaultRecoverySystem), IsNil)
+		c.Check(defaultRecoverySystem, Equals, devicestate.DefaultRecoverySystem{
+			System:          m.RecoverySystem,
+			Model:           "my-model",
+			BrandID:         "my-brand",
+			Timestamp:       model.Timestamp(),
+			Revision:        model.Revision(),
+			TimeMadeDefault: seedTime,
+		})
 	} else {
 		c.Assert(err, NotNil)
 	}
@@ -933,6 +944,9 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 
 func (s *firstBoot20Suite) testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c *C, modelGrade asserts.ModelGrade, modelUpdater func(*C, map[string]interface{}), expectedErr string) {
 	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "20.04"})()
+	// re-init rootdirs required after MockReleaseInfo to ensure
+	// dirs.SnapMountDir is set to /snap on e.g. fedora
+	dirs.SetRootDir(dirs.GlobalRootDir)
 	// XXX this shouldn't be needed
 	defer release.MockOnClassic(true)()
 	c.Assert(release.OnClassic, Equals, true)
@@ -1142,9 +1156,15 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesSignedRunModeNoKe
 	s.testPopulateFromSeedClassicWithModesRunModeNoKernelAndGadgetClassicSnap(c, asserts.ModelDangerous, switchToSigned, `snap "classic-installer" requires classic confinement`)
 }
 
-func (s *firstBoot20Suite) testPopulateFromSeedCore20ValidationSetTracking(c *C, valSets []string) *state.Change {
+func (s *firstBoot20Suite) testPopulateFromSeedCore20ValidationSetTracking(c *C, mode string, valSets []string) *state.Change {
+	s.extraSnapYaml["some-snap"] = `name: some-snap
+version: 1.0
+type: app
+base: core20
+`
+
 	m := boot.Modeenv{
-		Mode:           "install",
+		Mode:           mode,
 		RecoverySystem: "20191018",
 		Base:           "core20_1.snap",
 	}
@@ -1156,9 +1176,18 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20ValidationSetTracking(c *C,
 		modelGrade:      "signed",
 		kernelAndGadget: true,
 		valsets:         valSets,
-	})
+	}, "some-snap")
 	// validity check that our returned model has the expected grade
 	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
+
+	bloader := bootloadertest.Mock("mock", c.MkDir()).WithExtractedRunKernelImage()
+	bootloader.Force(bloader)
+	s.AddCleanup(func() { bootloader.Force(nil) })
+
+	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
+	c.Assert(err, IsNil)
+	r := bloader.SetEnabledKernel(kernel)
+	s.AddCleanup(r)
 
 	s.startOverlord(c)
 
@@ -1172,31 +1201,35 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20ValidationSetTracking(c *C,
 
 	// ensure the validation-set tracking task is present
 	tsEnd := tsAll[len(tsAll)-1]
-	c.Assert(tsEnd.Tasks(), HasLen, 2)
-	t := tsEnd.Tasks()[0]
-	c.Check(t.Kind(), Equals, "enforce-validation-sets")
+	if mode == "run" {
+		c.Assert(tsEnd.Tasks(), HasLen, 2)
+		t := tsEnd.Tasks()[0]
+		c.Check(t.Kind(), Equals, "enforce-validation-sets")
 
-	expectedSeqs := make(map[string]int)
-	expectedVss := make(map[string][]string)
-	for _, vs := range valSets {
-		tokens := strings.Split(vs, "/")
-		c.Check(tokens, HasLen, 3)
-		seq, err := strconv.Atoi(tokens[2])
+		expectedSeqs := make(map[string]int)
+		expectedVss := make(map[string][]string)
+		for _, vs := range valSets {
+			tokens := strings.Split(vs, "/")
+			c.Check(tokens, HasLen, 3)
+			seq, err := strconv.Atoi(tokens[2])
+			c.Assert(err, IsNil)
+			key := fmt.Sprintf("%s/%s/%s", release.Series, tokens[0], tokens[1])
+			expectedSeqs[key] = seq
+			expectedVss[key] = append([]string{release.Series}, tokens...)
+		}
+
+		// verify that the correct data is provided to the task
+		var pinnedSeqs map[string]int
+		err = t.Get("pinned-sequence-numbers", &pinnedSeqs)
 		c.Assert(err, IsNil)
-		key := fmt.Sprintf("%s/%s", tokens[0], tokens[1])
-		expectedSeqs[key] = seq
-		expectedVss[key] = append([]string{release.Series}, tokens...)
+		c.Check(pinnedSeqs, DeepEquals, expectedSeqs)
+		var vsKeys map[string][]string
+		err = t.Get("validation-set-keys", &vsKeys)
+		c.Assert(err, IsNil)
+		c.Check(vsKeys, DeepEquals, expectedVss)
+	} else {
+		c.Assert(tsEnd.Tasks(), HasLen, 1)
 	}
-
-	// verify that the correct data is provided to the task
-	var pinnedSeqs map[string]int
-	err = t.Get("pinned-sequence-numbers", &pinnedSeqs)
-	c.Assert(err, IsNil)
-	c.Check(pinnedSeqs, DeepEquals, expectedSeqs)
-	var vsKeys map[string][]string
-	err = t.Get("validation-set-keys", &vsKeys)
-	c.Assert(err, IsNil)
-	c.Check(vsKeys, DeepEquals, expectedVss)
 
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
@@ -1250,6 +1283,12 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingHappy(
 				"presence": "required",
 				"revision": "1",
 			},
+			map[string]interface{}{
+				"name":     "some-snap",
+				"id":       s.AssertedSnapID("some-snap"),
+				"presence": "required",
+				"revision": "1",
+			},
 		},
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
@@ -1257,7 +1296,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingHappy(
 	err = s.StoreSigning.Add(vsa)
 	c.Assert(err, IsNil)
 
-	chg := s.testPopulateFromSeedCore20ValidationSetTracking(c, []string{"canonical/base-set/1"})
+	chg := s.testPopulateFromSeedCore20ValidationSetTracking(c, "run", []string{"canonical/base-set/1"})
 
 	s.overlord.State().Lock()
 	defer s.overlord.State().Unlock()
@@ -1274,6 +1313,52 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingHappy(
 		Current:   1,
 		PinnedAt:  1,
 	})
+}
+
+func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingNotAddedInInstallMode(c *C) {
+	vsa, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "base-set",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "pc-kernel",
+				"id":       s.AssertedSnapID("pc-kernel"),
+				"presence": "required",
+				"revision": "1",
+			},
+			map[string]interface{}{
+				"name":     "pc",
+				"id":       s.AssertedSnapID("pc"),
+				"presence": "required",
+				"revision": "1",
+			},
+			map[string]interface{}{
+				"name":     "some-snap",
+				"id":       s.AssertedSnapID("some-snap"),
+				"presence": "required",
+				"revision": "1",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.StoreSigning.Add(vsa)
+	c.Assert(err, IsNil)
+
+	chg := s.testPopulateFromSeedCore20ValidationSetTracking(c, "install", []string{"canonical/base-set/1"})
+
+	s.overlord.State().Lock()
+	defer s.overlord.State().Unlock()
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%s", chg.Err()))
+
+	// Ensure no validation-sets are tracked
+	var tr assertstate.ValidationSetTracking
+	err = assertstate.GetValidationSet(s.overlord.State(), "canonical", "base-set", &tr)
+	c.Assert(err, ErrorMatches, `no state entry for key "validation-sets"`)
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingFailsUnmetCriterias(c *C) {
@@ -1298,7 +1383,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingFailsU
 	err = s.StoreSigning.Add(vsb)
 	c.Assert(err, IsNil)
 
-	chg := s.testPopulateFromSeedCore20ValidationSetTracking(c, []string{"canonical/base-set/2"})
+	chg := s.testPopulateFromSeedCore20ValidationSetTracking(c, "run", []string{"canonical/base-set/2"})
 
 	s.overlord.State().Lock()
 	defer s.overlord.State().Unlock()

@@ -1,5 +1,9 @@
 summary: Ensure upgrades from release version of snap works
 
+details: |
+    Verifies that when we upgrade snap from a release version to
+    the latest version, snapd and the installed snaps still work.
+
 systems: [ubuntu-1*-64, ubuntu-2*-64]
 
 prepare: |
@@ -13,8 +17,8 @@ restore: |
     distro_install_build_snapd
 
 execute: |
-    if os.query is-ubuntu 23.04; then
-        echo "Ubuntu lunar is skipped until it is released."
+    if os.query is-ubuntu 24.04; then
+        echo "Ubuntu noble is skipped until it is released."
         exit
     fi
 
@@ -22,9 +26,6 @@ execute: |
         echo "there is no content for arm64 in repo http://archive.ubuntu.com/ubuntu (just amd64 and i386)"
         exit
     fi
-
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
 
     . /etc/os-release
     # trusty has no UBUNTU_CODENAME in /etc/os-release and we need to cheat
@@ -47,7 +48,7 @@ execute: |
     fi
 
     declare -A EXPECTED_SNAPD_VERSIONS=(
-        ["22.10"]='2.57.4\+22.10'
+        ["23.10"]='2.60.4\+23.10'
         ["22.04"]='2.55.3\+22.04'
         ["20.04"]='2.44.3\+20.04'
         ["18.04"]='2.32.5\+18.04'
@@ -58,7 +59,7 @@ execute: |
 
     echo "install a test service and a test command"
     snap install go-example-webserver
-    wait_for_service snap.go-example-webserver.webserver.service
+    tests.systemd wait-for-service -n 30 --state active snap.go-example-webserver.webserver.service
     snap install test-snapd-tools
     test-snapd-tools.echo hello | MATCH hello
 
@@ -72,6 +73,6 @@ execute: |
     echo "snapd listens to requests"
     snap list
     echo "and ensure the snap service is still active"
-    wait_for_service snap.go-example-webserver.webserver.service
+    tests.systemd wait-for-service -n 30 --state active snap.go-example-webserver.webserver.service
     echo "and snap apps still work"
     test-snapd-tools.echo hello | MATCH hello

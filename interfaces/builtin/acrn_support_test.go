@@ -81,7 +81,7 @@ func (s *acrnSupportInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *acrnSupportInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, `
@@ -94,12 +94,12 @@ func (s *acrnSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *acrnSupportInterfaceSuite) TestUDevSpec(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets()[0], Equals, `# acrn-support
 KERNEL=="acrn_hsm", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", RUN+="%s/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%s/snap-device-helper snap_consumer_app"`, dirs.DistroLibExecDir))
 }
 
 func (s *acrnSupportInterfaceSuite) TestStaticInfo(c *C) {

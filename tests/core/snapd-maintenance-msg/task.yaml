@@ -1,0 +1,62 @@
+summary: Verify that the maintenance message is included in the daemon API responses when available
+
+details: |
+  Verify present of the maintenance message in the local API.
+
+# kinda slow test, probably enough to keep on one system
+systems: [ubuntu-core-20-64]
+
+prepare: |
+    # devmode as the snap does not have snapd-control
+    snap install test-snapd-curl --devmode --edge
+    snap install jq
+
+    # make sure that the snapd daemon gives us time for comms before
+    # closing the socket
+    echo "SNAPD_SHUTDOWN_DELAY=1" >> /etc/environment
+    systemctl restart snapd
+
+restore: |
+    snap remove test-snapd-curl jq
+
+    # remove SNAPD_SHUTDOWN_DELAY from /etc/environment again
+    #shellcheck disable=SC2005
+    echo "$(grep -v 'SNAPD_SHUTDOWN_DELAY=1' /etc/environment)" > /etc/environment
+    systemctl restart snapd
+
+execute: |
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        current=$(readlink /snap/snapd/current)
+        SNAPD_SNAP=$(ls /var/lib/snapd/snaps/snapd_"$current".snap)
+        
+        # we have three seconds between the maintenance json being written and the snapd listener being
+        # closed so we need to catch it in that timeframe.
+        echo "Testing maintenance message for daemon restarts"
+        snap install --dangerous "$SNAPD_SNAP" &
+        retry -n 20 --wait 0.5 sh -c 'test-snapd-curl.curl -sS --unix-socket /run/snapd.socket http://localhost/v2/changes?select=all | jq ".maintenance" | MATCH "daemon is restarting"'
+        wait
+
+        echo "Restoring the snapd snap"
+        snap revert snapd
+
+        echo "Testing maintenance message for system reboots"
+        snap refresh core20 --channel=stable --amend &
+        retry -n 20 --wait 0.5 sh -c 'test-snapd-curl.curl -sS --unix-socket /run/snapd.socket http://localhost/v2/changes?select=all | jq ".maintenance" | MATCH "system is restarting"'
+        wait
+
+        REBOOT
+    fi
+
+    if [ "$SPREAD_REBOOT" = 1 ]; then
+        echo "Waiting for the core20 to finish refresh"
+        CHANGE_ID=$(snap changes | tr -s '\n' | awk 'END{ print $1 }')
+        snap watch "$CHANGE_ID"
+
+        echo "Restoring the core20 snap"
+        snap revert core20
+        REBOOT
+    fi
+    
+    echo "Waiting for the core20 to finish revert"
+    CHANGE_ID=$(snap changes | tr -s '\n' | awk 'END{ print $1 }')
+    snap watch "$CHANGE_ID"

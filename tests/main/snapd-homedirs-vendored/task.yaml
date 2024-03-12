@@ -1,0 +1,87 @@
+summary: Test that vendored apparmor does not break any system tunables
+
+details: |
+    Verifies that on systems where we have an older snapd (pre vendored apparmor)
+    deb package, and the snap itself is upgraded to vendored apparmor, apparmor
+    snippets continue to work.
+
+# On ubuntu 18 and below snapd-internal is not available
+# ubuntu-24*: the snapd deb is version 2.60.4 which is post-vendored apparmor.
+systems: [ubuntu-18*, ubuntu-20*, ubuntu-22*, ubuntu-23*]
+
+environment:
+    USERNAME: home-sweet-home
+
+prepare: |
+    # Create a new user in a non-standard location
+    mkdir -p /remote/users
+    useradd -b /remote/users -m -U "$USERNAME"
+
+    # Download current snapd edge
+    snap download --edge snapd --basename=snapd_edge
+
+    # Repack it with currently built snapd
+    unpackdir=/tmp/snapd-current-snap
+    unsquashfs -no-progress -d "${unpackdir}" snapd_edge.snap
+    dpkg-deb -x "${GOHOME}"/snapd_*.deb "${unpackdir}"
+    snap pack "${unpackdir}" --filename snapd_modified.snap
+    rm -rf "${unpackdir}"
+
+restore: |
+    userdel -f --remove "$USERNAME"
+    rm -rf /remote/users
+
+    # Reinstall the original snap
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    distro_purge_package snapd
+    distro_install_build_snapd
+
+debug: |
+    # output custom snap-confine snippets
+    ls -l /var/lib/snapd/apparmor/snap-confine/
+    for f in /var/lib/snapd/apparmor/snap-confine/*; do
+        echo "$f"
+        cat "$f"
+    done
+
+execute: |
+    echo "Downgrading the snapd deb to pre-vendored apparmor times"
+    TARGET_VER="$(apt list -a snapd | grep -- -updates | cut -f2 -d' ')"
+    # Ubuntu release on development doesn't have updates
+    if [ -z "$TARGET_VER" ]; then
+        CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME")
+        TARGET_VER="$(apt list -a snapd | grep -E "/$CODENAME( |,)" | cut -f2 -d' ')"
+    fi
+    apt install -yqq --allow-downgrades snapd="$TARGET_VER"
+    
+    echo "But installing the vendored apparmor snapd with our changes"
+    snap install --dangerous snapd_modified.snap
+
+    # Verify supported features
+    snap debug sandbox-features --required apparmor:parser:snapd-internal
+    snap debug sandbox-features --required apparmor:parser:include-if-exists
+    
+    # Install our test snap
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+    echo "Invoke the test app without setting up homedir support"
+    if sudo -u "$USERNAME" -i test-snapd-sh.cmd echo "Hello world" 2> stderr.log; then
+        echo "The command succeeded; this is unexpected where AppArmor is fully working"
+        test "$(snap debug confinement)" = partial
+    else
+        MATCH "Sorry, home directories outside of /home needs configuration" < stderr.log
+    fi
+    rm -f stderr.log
+
+    echo "Enable the home directories under /remote/users"
+    snap set system homedirs=/remote/users
+
+    echo "Verify that the system-params file has been created"
+    MATCH "^homedirs=/remote/users$" < /var/lib/snapd/system-params
+
+    echo "And that the AppArmor tunable file is proper"
+    MATCH "^@{HOMEDIRS}\\+=\"/remote/users\" \"/home\"$" < /etc/apparmor.d/tunables/home.d/snapd
+
+    echo "Invoke the test app again (should now work)"
+    sudo -u "$USERNAME" -i test-snapd-sh.cmd echo "Hello world" | MATCH "Hello world"

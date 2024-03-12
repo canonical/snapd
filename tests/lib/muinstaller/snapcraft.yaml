@@ -8,10 +8,9 @@ confinement: classic
 base: core22
 
 apps:
+  auto:
+    command: bin/muinstaller classic auto $SNAP/bin/mk-classic-rootfs.sh
   muinstaller:
-    command: bin/muinstaller classic $SNAP/bin/mk-classic-rootfs.sh auto
-    daemon: simple
-  cli:
     command: bin/muinstaller
 
 # TODO: add spread test that builds the muinstaller from snapd to ensure
@@ -21,6 +20,10 @@ parts:
     plugin: go
     source: .
     build-snaps: [go/1.18/stable]
+    build-environment:
+      # Avoid libc deps to make muinstaller statically compiled
+      # (desirable as this is a classic snap).
+      - CGO_ENABLED: 0
     override-build: |
       snapcraftctl build
       cp -a mk-classic-rootfs.sh $SNAPCRAFT_PART_INSTALL/bin

@@ -21,7 +21,6 @@ package configcore_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -49,7 +48,7 @@ func (s *swapCfgSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/environment"), nil, 0644)
+	err = os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/environment"), nil, 0644)
 	c.Assert(err, IsNil)
 }
 
@@ -221,7 +220,7 @@ func (s *swapCfgSuite) TestSwapSizeFilesystemOnlyApplyExistingConfig(c *C) {
 	err := os.MkdirAll(filepath.Dir(s.configSwapFile), 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(s.configSwapFile, []byte(`FILE=/var/tmp/other-swapfile.swp
+	err = os.WriteFile(s.configSwapFile, []byte(`FILE=/var/tmp/other-swapfile.swp
 SIZE=0`), 0644)
 	c.Assert(err, IsNil)
 

@@ -118,12 +118,11 @@ func MockNewSystemd(f func(be Backend, rootDir string, mode InstanceMode, rep Re
 
 // systemctlCmd calls systemctl with the given args, returning its standard output (and wrapped error)
 var systemctlCmd = func(args ...string) ([]byte, error) {
-	// TODO: including stderr here breaks many things when systemd is in debug
-	// output mode, see LP #1885597
-	bs, err := exec.Command("systemctl", args...).CombinedOutput()
+	bs, stderr, err := osutil.RunSplitOutput("systemctl", args...)
 	if err != nil {
 		exitCode, runErr := osutil.ExitCode(err)
-		return nil, &Error{cmd: args, exitCode: exitCode, runErr: runErr, msg: bs}
+		return nil, &Error{cmd: args, exitCode: exitCode, runErr: runErr,
+			msg: osutil.CombineStdOutErr(bs, stderr)}
 	}
 
 	return bs, nil
@@ -302,16 +301,28 @@ func MockJournalctl(f func(svcs []string, n int, follow, namespaces bool) (io.Re
 	}
 }
 
+// MountUnitType is an enum for the supported mount unit types.
+type MountUnitType int
+
+const (
+	// RegularMountUnit is a mount with the usual dependencies
+	RegularMountUnit MountUnitType = iota
+	// BeforeDriversLoadMountUnit mounts things before kernel modules are
+	// loaded either by udevd or by systemd-modules-load.service.
+	BeforeDriversLoadMountUnit
+)
+
 type MountUnitOptions struct {
+	// MountUnitType is the type of mount unit we want
+	MountUnitType MountUnitType
 	// Whether the unit is transient or persistent across reboots
-	Lifetime UnitLifetime
-	SnapName string
-	Revision string
-	What     string
-	Where    string
-	Fstype   string
-	Options  []string
-	Origin   string
+	Lifetime    UnitLifetime
+	Description string
+	What        string
+	Where       string
+	Fstype      string
+	Options     []string
+	Origin      string
 }
 
 // Backend identifies the implementation backend in use by a Systemd instance.
@@ -360,8 +371,9 @@ type Systemd interface {
 	Restart(services []string) error
 	// Reload or restart the service via 'systemctl reload-or-restart'
 	ReloadOrRestart(services []string) error
-	// RestartAll restarts the given service using systemctl restart --all
-	RestartAll(service string) error
+	// RestartNoWaitForStop restarts the given services using systemctl restart,
+	// with no snapd specific logic to wait for the services to stop.
+	RestartNoWaitForStop(services []string) error
 	// Status fetches the status of given units. Statuses are
 	// returned in the same order as unit names passed in
 	// argument.
@@ -388,7 +400,7 @@ type Systemd interface {
 	// logs, and is required to get logs for services which are in journal namespaces.
 	LogReader(services []string, n int, follow, namespaces bool) (io.ReadCloser, error)
 	// EnsureMountUnitFile adds/enables/starts a mount unit.
-	EnsureMountUnitFile(name, revision, what, where, fstype string) (string, error)
+	EnsureMountUnitFile(description, what, where, fstype string) (string, error)
 	// EnsureMountUnitFileWithOptions adds/enables/starts a mount unit with options.
 	EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
@@ -430,6 +442,7 @@ type RunOptions struct {
 	//      and let the caller do the keyring setup but feels a bit loose
 	KeyringMode KeyringMode
 	Stdin       io.Reader
+	Properties  []string
 }
 
 // A Log is a single entry in the systemd journal.
@@ -1144,11 +1157,11 @@ func (s *systemd) Restart(serviceNames []string) error {
 	return s.Start(serviceNames)
 }
 
-func (s *systemd) RestartAll(serviceName string) error {
+func (s *systemd) RestartNoWaitForStop(services []string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call restart with GlobalUserMode")
 	}
-	_, err := s.systemctl("restart", serviceName, "--all")
+	_, err := s.systemctl(append([]string{"restart"}, services...)...)
 	return err
 }
 
@@ -1370,10 +1383,8 @@ var squashfsFsType = squashfs.FsType
 
 // Note that WantedBy=multi-user.target and Before=local-fs.target are
 // only used to allow downgrading to an older version of snapd.
-const mountUnitTemplate = `[Unit]
-Description=Mount unit for {{.SnapName}}
-{{- with .Revision}}, revision {{.}}{{end}}
-{{- with .Origin}} via {{.}}{{end}}
+const regularMountUnitTmpl = `[Unit]
+Description={{.Description}}
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
 Before=local-fs.target
@@ -1393,8 +1404,33 @@ X-SnapdOrigin={{.}}
 {{- end}}
 `
 
+// We want kernel-modules components to be mounted before modules are
+// loaded (that is before systemd-{udevd,modules-load}).
+const beforeDriversLoadUnitTmpl = `[Unit]
+Description={{.Description}}
+DefaultDependencies=no
+After=systemd-remount-fs.service
+Before=sysinit.target
+Before=systemd-udevd.service systemd-modules-load.service
+Before=umount.target
+Conflicts=umount.target
+
+[Mount]
+What={{.What}}
+Where={{.Where}}
+Type={{.Fstype}}
+Options={{join .Options ","}}
+
+[Install]
+WantedBy=sysinit.target
+{{- with .Origin}}
+X-SnapdOrigin={{.}}
+{{- end}}
+`
+
 var templateFuncs = template.FuncMap{"join": strings.Join}
-var parsedMountUnitTemplate = template.Must(template.New("unit").Funcs(templateFuncs).Parse(mountUnitTemplate))
+var parsedRegularMountUnitTmpl = template.Must(template.New("unit").Funcs(templateFuncs).Parse(regularMountUnitTmpl))
+var parsedKernelDriversMountUnitTmpl = template.Must(template.New("unit").Funcs(templateFuncs).Parse(beforeDriversLoadUnitTmpl))
 
 const (
 	snappyOriginModule = "X-SnapdOrigin"
@@ -1408,7 +1444,17 @@ func ensureMountUnitFile(u *MountUnitOptions) (mountUnitName string, modified mo
 	mu := MountUnitPathWithLifetime(u.Lifetime, u.Where)
 	var unitContent bytes.Buffer
 
-	if err := parsedMountUnitTemplate.Execute(&unitContent, &u); err != nil {
+	var mntUnitTmpl *template.Template
+	switch u.MountUnitType {
+	case RegularMountUnit:
+		mntUnitTmpl = parsedRegularMountUnitTmpl
+	case BeforeDriversLoadMountUnit:
+		mntUnitTmpl = parsedKernelDriversMountUnitTmpl
+	default:
+		return "", mountUnchanged, fmt.Errorf("internal error: unknown mount unit type")
+	}
+
+	if err := mntUnitTmpl.Execute(&unitContent, &u); err != nil {
 		return "", mountUnchanged, fmt.Errorf("cannot generate mount unit: %v", err)
 	}
 
@@ -1429,8 +1475,8 @@ func ensureMountUnitFile(u *MountUnitOptions) (mountUnitName string, modified mo
 
 	if stateErr == osutil.ErrSameState {
 		modified = mountUnchanged
-	} else if err != nil {
-		return "", mountUnchanged, err
+	} else if stateErr != nil {
+		return "", mountUnchanged, stateErr
 	}
 
 	return filepath.Base(mu), modified, nil
@@ -1462,20 +1508,19 @@ func hostFsTypeAndMountOptions(fstype string) (hostFsType string, options []stri
 	return hostFsType, options
 }
 
-func (s *systemd) EnsureMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
+func (s *systemd) EnsureMountUnitFile(description, what, where, fstype string) (string, error) {
 	hostFsType, options := hostFsTypeAndMountOptions(fstype)
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
 		hostFsType = "none"
 	}
 	return s.EnsureMountUnitFileWithOptions(&MountUnitOptions{
-		Lifetime: Persistent,
-		SnapName: snapName,
-		Revision: revision,
-		What:     what,
-		Where:    where,
-		Fstype:   hostFsType,
-		Options:  options,
+		Lifetime:    Persistent,
+		Description: description,
+		What:        what,
+		Where:       where,
+		Fstype:      hostFsType,
+		Options:     options,
 	})
 }
 
@@ -1498,11 +1543,8 @@ func (s *systemd) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) 
 		if err := s.EnableNoReload(units); err != nil {
 			return "", err
 		}
-		// In the case of mountCreated, ReloadOrRestart
-		// has the same effect as just Start.
-		// In the case of MountUpdate, we need to reload
-		// the unit.
-		if err := s.ReloadOrRestart(units); err != nil {
+		// Start/restart the created or modified unit now
+		if err := s.RestartNoWaitForStop(units); err != nil {
 			return "", err
 		}
 	}
@@ -1687,17 +1729,23 @@ func (s *systemd) Run(command []string, opts *RunOptions) ([]byte, error) {
 		"--service-type=exec",
 		"--quiet",
 	}
+	if s.mode == UserMode {
+		runArgs = append(runArgs, "--user")
+	}
 	if opts.KeyringMode != "" {
 		runArgs = append(runArgs, fmt.Sprintf("--property=KeyringMode=%v", opts.KeyringMode))
+	}
+	for _, p := range opts.Properties {
+		runArgs = append(runArgs, fmt.Sprintf("--property=%v", p))
 	}
 	runArgs = append(runArgs, "--")
 	runArgs = append(runArgs, command...)
 	cmd := exec.Command("systemd-run", runArgs...)
 	cmd.Stdin = opts.Stdin
 
-	output, err := cmd.CombinedOutput()
+	stdout, stderr, err := osutil.RunCmd(cmd)
 	if err != nil {
-		return nil, fmt.Errorf("cannot run %q: %v", command, osutil.OutputErr(output, err))
+		return nil, fmt.Errorf("cannot run %q: %v", command, osutil.OutputErrCombine(stdout, stderr, err))
 	}
-	return output, nil
+	return stdout, nil
 }

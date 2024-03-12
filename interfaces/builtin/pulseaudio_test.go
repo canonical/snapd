@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
@@ -103,28 +104,56 @@ func (s *PulseAudioInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *PulseAudioInterfaceSuite) TestSecCompOnClassic(c *C) {
-	seccompSpec := &seccomp.Specification{}
-	err := seccompSpec.AddPermanentSlot(s.iface, s.classicSlotInfo)
-	c.Assert(err, IsNil)
-	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.classicSlot)
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	err := seccompSpec.AddConnectedPlug(s.iface, s.plug, s.classicSlot)
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "shmctl\n")
 }
 
 func (s *PulseAudioInterfaceSuite) TestSecCompOnAllSnaps(c *C) {
-	seccompSpec := &seccomp.Specification{}
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
 	err := seccompSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
 	c.Assert(err, IsNil)
+
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.pulseaudio.app1"})
+	c.Assert(seccompSpec.SnippetForTag("snap.pulseaudio.app1"), testutil.Contains, "listen\n")
+
+	seccompSpec = seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap))
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot)
 	c.Assert(err, IsNil)
-	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2", "snap.pulseaudio.app1"})
-	c.Assert(seccompSpec.SnippetForTag("snap.pulseaudio.app1"), testutil.Contains, "listen\n")
+	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Assert(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "shmctl\n")
 }
 
+func (s *PulseAudioInterfaceSuite) TestApparmorOnClassic(c *C) {
+	// connected plug to classic slot
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/ r,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/native rwk,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/pid r,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), Not(testutil.Contains), "owner /run/user/[0-9]*/snap.pulseaudio/pulse/ r,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), Not(testutil.Contains), "owner /run/user/[0-9]*/snap.pulseaudio/pulse/native rwk,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), Not(testutil.Contains), "owner /run/user/[0-9]*/snap.pulseaudio/pulse/pid r,\n")
+}
+
+func (s *PulseAudioInterfaceSuite) TestApparmorOnCoreNotSnapd(c *C) {
+	// connected plug to classic slot
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/ r,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/native rwk,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /{,var/}run/user/*/pulse/pid r,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /run/user/[0-9]*/snap.pulseaudio/pulse/ r,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /run/user/[0-9]*/snap.pulseaudio/pulse/native rwk,\n")
+	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "owner /run/user/[0-9]*/snap.pulseaudio/pulse/pid r,\n")
+}
+
 func (s *PulseAudioInterfaceSuite) TestUDev(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 4)
 	c.Assert(spec.Snippets(), testutil.Contains, `# pulseaudio
@@ -133,7 +162,7 @@ KERNEL=="controlC[0-9]*", TAG+="snap_pulseaudio_app1"`)
 KERNEL=="pcmC[0-9]*D[0-9]*[cp]", TAG+="snap_pulseaudio_app1"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# pulseaudio
 KERNEL=="timer", TAG+="snap_pulseaudio_app1"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_pulseaudio_app1", RUN+="%v/snap-device-helper $env{ACTION} snap_pulseaudio_app1 $devpath $major:$minor"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_pulseaudio_app1", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_pulseaudio_app1"`, dirs.DistroLibExecDir))
 }
 
 func (s *PulseAudioInterfaceSuite) TestInterfaces(c *C) {

@@ -20,7 +20,6 @@
 package daemon_test
 
 import (
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -47,7 +46,7 @@ func (s *iconsSuite) TestAppIconGet(c *check.C) {
 	// have an icon for it in the package itself
 	iconfile := filepath.Join(info.MountDir(), "meta", "gui", "icon.ick")
 	c.Assert(os.MkdirAll(filepath.Dir(iconfile), 0755), check.IsNil)
-	c.Check(ioutil.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
+	c.Check(os.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
 	req, err := http.NewRequest("GET", "/v2/icons/foo/icon", nil)
 	c.Assert(err, check.IsNil)
@@ -68,7 +67,7 @@ func (s *iconsSuite) TestAppIconGetInactive(c *check.C) {
 	// have an icon for it in the package itself
 	iconfile := filepath.Join(info.MountDir(), "meta", "gui", "icon.ick")
 	c.Assert(os.MkdirAll(filepath.Dir(iconfile), 0755), check.IsNil)
-	c.Check(ioutil.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
+	c.Check(os.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
 	req, err := http.NewRequest("GET", "/v2/icons/foo/icon", nil)
 	c.Assert(err, check.IsNil)

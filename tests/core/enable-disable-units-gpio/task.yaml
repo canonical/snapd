@@ -21,10 +21,8 @@ prepare: |
         exit 0
     fi
 
-    # shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB/systemd.sh"
     echo "Create/enable fake gpio"
-    systemd_create_and_start_unit fake-gpio "$TESTSLIB/fakegpio/fake-gpio.py" "[Unit]\\nBefore=snap.core.interface.gpio-100.service\\n[Service]\\nType=notify"
+    tests.systemd create-and-start-unit fake-gpio "$TESTSLIB/fakegpio/fake-gpio.py" "[Unit]\\nBefore=snap.core.interface.gpio-100.service\\n[Service]\\nType=notify"
 
     echo "Given a snap declaring a plug on gpio is installed"
     "$TESTSTOOLS"/snaps-state install-local gpio-consumer
@@ -41,9 +39,7 @@ restore: |
         exit 0
     fi
 
-    # shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB/systemd.sh"
-    systemd_stop_and_remove_unit fake-gpio
+    tests.systemd stop-unit --remove fake-gpio
     umount /sys/class/gpio || true
 
 execute: |

@@ -430,7 +430,21 @@ type TrustedAssetsUpdateObserver struct {
 	seedManagedAssets []string
 	seedChangedAssets []*trackedAsset
 
-	modeenv *Modeenv
+	modeenv       *Modeenv
+	modeenvLocked bool
+}
+
+// Done must be called when done with the observer if any of the
+// gadget.ContenUpdateObserver methods might have been called.
+func (o *TrustedAssetsUpdateObserver) Done() {
+	if o.modeenvLocked {
+		o.modeenvUnlock()
+	}
+}
+
+func (o *TrustedAssetsUpdateObserver) modeenvUnlock() {
+	modeenvUnlock()
+	o.modeenvLocked = false
 }
 
 func trustedAndManagedAssetsOfBootloader(bl bootloader.Bootloader) (trustedAssets, managedAssets []string, err error) {
@@ -513,8 +527,12 @@ func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, partRo
 	}
 	if o.modeenv == nil {
 		// we've hit a trusted asset, so a modeenv is needed now too
+		modeenvLock()
+		o.modeenvLocked = true
 		o.modeenv, err = ReadModeenv("")
 		if err != nil {
+			// for test convenience
+			o.modeenvUnlock()
 			return gadget.ChangeAbort, fmt.Errorf("cannot load modeenv: %v", err)
 		}
 	}
@@ -584,6 +602,9 @@ func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, re
 			// content
 			return gadget.ChangeAbort, fmt.Errorf("cannot reuse asset name %q", ta.name)
 		}
+		// The order of assets is important. Changing it would
+		// change assumptions in
+		// bootAssetsToLoadChains
 		(*trustedAssets)[ta.name] = append((*trustedAssets)[ta.name], ta.hash)
 	}
 
@@ -674,7 +695,7 @@ func (o *TrustedAssetsUpdateObserver) BeforeWrite() error {
 		return nil
 	}
 	const expectReseal = true
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.modeenv, expectReseal); err != nil {
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.modeenv, expectReseal, nil); err != nil {
 		return err
 	}
 	return nil
@@ -740,7 +761,7 @@ func (o *TrustedAssetsUpdateObserver) Canceled() error {
 	}
 
 	const expectReseal = true
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.modeenv, expectReseal); err != nil {
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.modeenv, expectReseal, nil); err != nil {
 		return fmt.Errorf("while canceling gadget update: %v", err)
 	}
 	return nil

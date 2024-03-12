@@ -98,20 +98,22 @@ func (s *WaylandInterfaceSuite) TestAppArmorSpec(c *C) {
 	defer restore()
 
 	// connected plug to core slot
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/etc/drirc r,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "unix (send, receive) type=stream peer=(label=\"snap.wayland.app1\"),")
 
 	// connected core slot to plug
-	spec = &apparmor.Specification{}
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.coreSlot.Snap()))
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.wayland.app1"})
 	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "owner /run/user/[0-9]*/snap.consumer/{mesa,mutter,sdl,wayland-cursor,weston,xwayland}-shared-* rw,")
 	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "owner /{dev,run}/shm/snap.consumer.wayland.mozilla.ipc.[0-9]* rw,")
+	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "unix (send, receive) type=stream peer=(label=\"snap.consumer.app\"),")
 
 	// permanent core slot
-	spec = &apparmor.Specification{}
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.wayland.app1"})
 	c.Assert(spec.SnippetForTag("snap.wayland.app1"), testutil.Contains, "capability sys_tty_config,")
@@ -123,18 +125,19 @@ func (s *WaylandInterfaceSuite) TestAppArmorSpecOnClassic(c *C) {
 	defer restore()
 
 	// connected plug to classic slot
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner /run/user/[0-9]*/wayland-[0-9]* rw,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "unix (send, receive) type=stream")
 
 	// connected classic slot to plug
-	spec = &apparmor.Specification{}
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.classicSlot.Snap()))
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// permanent classic slot
-	spec = &apparmor.Specification{}
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.classicSlotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
@@ -144,7 +147,7 @@ func (s *WaylandInterfaceSuite) TestSecCompOnClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	seccompSpec := &seccomp.Specification{}
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.classicSlotInfo.Snap))
 	err := seccompSpec.AddPermanentSlot(s.iface, s.classicSlotInfo)
 	c.Assert(err, IsNil)
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.classicSlot)
@@ -158,7 +161,7 @@ func (s *WaylandInterfaceSuite) TestSecCompOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	seccompSpec := &seccomp.Specification{}
+	seccompSpec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
 	err := seccompSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
 	c.Assert(err, IsNil)
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.coreSlot)
@@ -168,7 +171,7 @@ func (s *WaylandInterfaceSuite) TestSecCompOnCore(c *C) {
 }
 
 func (s *WaylandInterfaceSuite) TestUDev(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.coreSlotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 6)
 	c.Assert(spec.Snippets(), testutil.Contains, `# wayland
@@ -181,7 +184,7 @@ KERNEL=="mouse[0-9]*", TAG+="snap_wayland_app1"`)
 KERNEL=="ts[0-9]*", TAG+="snap_wayland_app1"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# wayland
 KERNEL=="tty[0-9]*", TAG+="snap_wayland_app1"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_wayland_app1", RUN+="%v/snap-device-helper $env{ACTION} snap_wayland_app1 $devpath $major:$minor"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_wayland_app1", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_wayland_app1"`, dirs.DistroLibExecDir))
 	c.Assert(spec.TriggeredSubsystems(), DeepEquals, []string{"input"})
 }
 

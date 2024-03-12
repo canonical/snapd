@@ -22,7 +22,6 @@ package daemon_test
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -191,7 +190,7 @@ version: 1
 
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/environment"), nil, 0644)
+	err = os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/environment"), nil, 0644)
 	c.Assert(err, check.IsNil)
 
 	d.Overlord().Loop()

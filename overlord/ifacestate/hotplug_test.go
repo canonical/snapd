@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -167,7 +168,7 @@ func (s *hotplugSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -354,7 +355,7 @@ slots:
 `, gadgetSideInfo)
 	snapstate.Set(s.state, "the-gadget", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&gadgetInfo.SideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&gadgetInfo.SideInfo}),
 		Current:  snap.R(1),
 		SnapType: "gadget"})
 	st.Unlock()
@@ -444,7 +445,7 @@ func (s *hotplugSuite) TestHotplugAddWithAutoconnect(c *C) {
 	c.Assert(repo.AddPlug(testSnap.Plugs["plug"]), IsNil)
 	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -518,7 +519,7 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 	}), IsNil)
 	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -603,7 +604,7 @@ func (s *hotplugSuite) TestHotplugEnumerationDone(c *C) {
 	}), IsNil)
 	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "app"})
 
@@ -705,7 +706,7 @@ func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
 	}), IsNil)
 	snapstate.Set(s.state, "consumer", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "app"})
 

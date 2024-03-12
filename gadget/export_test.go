@@ -19,9 +19,12 @@
 
 package gadget
 
+import "github.com/snapcore/snapd/gadget/quantity"
+
 type (
 	MountedFilesystemUpdater = mountedFilesystemUpdater
 	RawStructureUpdater      = rawStructureUpdater
+	InvalidOffsetError       = invalidOffsetError
 )
 
 var (
@@ -29,6 +32,7 @@ var (
 	ValidateVolumeStructure = validateVolumeStructure
 	ValidateRole            = validateRole
 	ValidateVolume          = validateVolume
+	ValidateOffsetWrite     = validateOffsetWrite
 
 	SetImplicitForVolumeStructure = setImplicitForVolumeStructure
 
@@ -64,8 +68,9 @@ var (
 
 	OnDiskStructureIsLikelyImplicitSystemDataRole = onDiskStructureIsLikelyImplicitSystemDataRole
 
-	SearchForVolumeWithTraits = searchForVolumeWithTraits
-	OrderStructuresByOffset   = orderStructuresByOffset
+	SearchVolumeWithTraitsAndMatchParts = searchVolumeWithTraitsAndMatchParts
+	OrderStructuresByOffset             = orderStructuresByOffset
+	LayoutVolumePartially               = layoutVolumePartially
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {
@@ -83,4 +88,12 @@ func (m *MountedFilesystemWriter) WriteDirectory(volumeRoot, src, dst string, pr
 // to test handling of unknown keys when we un-marshal
 func (s *StructureEncryptionParameters) SetUnknownKeys(m map[string]string) {
 	s.unknownKeys = m
+}
+
+func NewInvalidOffsetError(offset, lowerBound, upperBound quantity.Offset) *InvalidOffsetError {
+	return &invalidOffsetError{offset: offset, lowerBound: lowerBound, upperBound: upperBound}
+}
+
+func (v *Volume) YamlIdxToStructureIdx(yamlIdx int) (int, error) {
+	return v.yamlIdxToStructureIdx(yamlIdx)
 }

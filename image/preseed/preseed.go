@@ -158,11 +158,7 @@ func writePreseedAssertion(artifactDigest []byte, opts *preseedCoreOptions) erro
 	if err != nil {
 		return err
 	}
-	essSnaps := sd.EssentialSnaps()
-	if err != nil {
-		return err
-	}
-	for _, ess := range essSnaps {
+	for _, ess := range sd.EssentialSnaps() {
 		addSnap(ess)
 	}
 	for _, msnap := range modeSnaps {

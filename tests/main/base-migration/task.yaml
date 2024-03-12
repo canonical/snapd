@@ -1,8 +1,14 @@
 summary: A snap migrates from base "core" to "core18"
 
+details: |
+  Verify that a snap can be migrated from base:core to base:core18 and
+  from base:core18 to base:core. Validate the base snaps are properly
+  downloaded, the mount namespace information file is owned by root
+  and the base version for the snap is updated accordingly.
+  
 environment:
-    DIRECTION/forward: forward
-    DIRECTION/back: back
+  DIRECTION/forward: forward
+  DIRECTION/back: back
 
 prepare: |
   snap install core18

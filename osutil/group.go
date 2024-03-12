@@ -22,7 +22,6 @@ package osutil
 import (
 	"bytes"
 	"fmt"
-	"os/exec"
 	"os/user"
 	"strconv"
 )
@@ -63,8 +62,7 @@ func getent(database, name string) (uint64, error) {
 		database,
 		name,
 	}
-	cmd := exec.Command(cmdStr[0], cmdStr[1:]...)
-	output, err := cmd.CombinedOutput()
+	output, stderr, err := RunSplitOutput(cmdStr[0], cmdStr[1:]...)
 	if err != nil {
 		// according to getent(1) the exit value of "2" means:
 		// "One or more supplied key could not be found in the
@@ -76,7 +74,7 @@ func getent(database, name string) (uint64, error) {
 			}
 			return 0, user.UnknownGroupError(name)
 		}
-		return 0, fmt.Errorf("getent failed with: %v", OutputErr(output, err))
+		return 0, fmt.Errorf("getent failed with: %v", OutputErrCombine(output, stderr, err))
 	}
 
 	// passwd has 7 entries and group 4. In both cases, parts[2] is the id

@@ -215,7 +215,7 @@ func ParseByteSize(inp string) (int64, error) {
 	return val * mul, nil
 }
 
-// CommaSeparatedList takes a comman-separated series of identifiers,
+// CommaSeparatedList takes a comma-separated series of identifiers,
 // and returns a slice of the space-trimmed identifiers, without empty
 // entries.
 // So " foo ,, bar,baz" -> {"foo", "bar", "baz"}
@@ -229,6 +229,16 @@ func CommaSeparatedList(str string) []string {
 		}
 	}
 	return filtered
+}
+
+// MultiCommaSeparatedList parses each string in strs with CommaSeparatedList
+// and returns the concatenation of all parsed values.
+func MultiCommaSeparatedList(strs []string) []string {
+	var values []string
+	for _, s := range strs {
+		values = append(values, CommaSeparatedList(s)...)
+	}
+	return values
 }
 
 // ElliptRight returns a string that is at most n runes long,

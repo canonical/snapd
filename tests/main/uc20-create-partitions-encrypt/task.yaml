@@ -1,7 +1,16 @@
 summary: Integration tests for the snap-bootstrap binary
 
+details: |
+    This test checks the snap-bootstrap binary. First it is used
+    uc20-create-partitions tool and validated partitions and 
+    ubuntu-* key files are created. Then the unsealed and save keys
+    are validated in run and recovery modes, and also it is possible to
+    add/remove new keys. Finally check the disk-mapping.json has
+    expected contents.
+
 # use the same system and tooling as uc20
-systems: [ubuntu-2*]
+# TODO: revert skip for ubuntu-23*
+systems: [ubuntu-20.*,ubuntu-22.*]
 
 environment:
     SNAPD_DEBUG: "1"
@@ -52,7 +61,7 @@ prepare: |
     echo "Get the UC20 gadget"
     if os.query is-focal; then
         snap download --channel=20/edge pc
-    elif os.query is-ubuntu 22.04 || os.query is-ubuntu 22.10 || os.query is-ubuntu 23.04; then
+    elif os.query is-ubuntu 22.04; then
         snap download --channel=22/edge pc
     fi
     unsquashfs -d gadget-dir pc_*.snap
@@ -100,7 +109,7 @@ execute: |
     fi
 
     channel=20
-    if os.query is-ubuntu 22.04 || os.query is-ubuntu 22.10 || os.query is-ubuntu 23.04; then
+    if os.query is-ubuntu-ge 22.04; then
         channel=22
     fi
 

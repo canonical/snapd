@@ -39,7 +39,7 @@ func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev
 	}
 
 	if ephemeral(dev) {
-		return errEphemeralSnapsNotRemovalable
+		return errEphemeralSnapsNotRemovable
 	}
 
 	if p.modelBase == name {
@@ -98,7 +98,7 @@ func baseUsedBy(st *state.State, baseName string) ([]string, error) {
 			continue
 		}
 
-		for _, si := range snapst.Sequence {
+		for _, si := range snapst.Sequence.SideInfos() {
 			snapInfo, err := snap.ReadInfo(name, si)
 			if err == nil {
 				if typ := snapInfo.Type(); typ != snap.TypeApp && typ != snap.TypeGadget {

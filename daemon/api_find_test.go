@@ -128,10 +128,10 @@ func (s *findSuite) TestFindRefreshSideloaded(c *check.C) {
 	err := snapstate.Get(st, "store", &snapst)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
-	c.Assert(snapst.Sequence, check.HasLen, 1)
+	c.Assert(snapst.Sequence.Revisions, check.HasLen, 1)
 
 	// clear the snapid
-	snapst.Sequence[0].SnapID = ""
+	snapst.Sequence.Revisions[0].Snap.SnapID = ""
 	st.Lock()
 	snapstate.Set(st, "store", &snapst)
 	st.Unlock()

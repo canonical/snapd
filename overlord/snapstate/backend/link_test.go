@@ -20,11 +20,10 @@
 package backend_test
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -147,6 +146,119 @@ apps:
 	l, err = filepath.Glob(filepath.Join(dirs.SnapDBusSessionServicesDir, "*.service"))
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 0)
+}
+
+func (s *linkSuite) TestLinkDoUndoGenerateWrappersNoSkipBinaries(c *C) {
+	const yaml = `name: hello
+version: 1.0
+
+apps:
+ foo:
+   command: foo
+ bar:
+   command: bar
+`
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+	// create gui/icons dir
+	guiDir := filepath.Join(info.MountDir(), "meta", "gui")
+	iconsDir := filepath.Join(info.MountDir(), "meta", "gui", "icons")
+	c.Assert(os.MkdirAll(guiDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(iconsDir, 0755), IsNil)
+	// add desktop files
+	c.Assert(os.WriteFile(filepath.Join(guiDir, "foo.desktop"), []byte(`
+[Desktop Entry]
+Name=foo
+Icon=${SNAP}/icon.png
+Exec=foo
+`), 0644), IsNil)
+	// add icons
+	c.Assert(os.WriteFile(filepath.Join(iconsDir, "snap.hello.png"), []byte(""), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(iconsDir, "snap.hello.svg"), []byte(""), 0644), IsNil)
+
+	_, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 2)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, "*.desktop"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 1)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopIconsDir, "snap.hello.*"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 2)
+
+	// undo will remove
+	err = s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null)
+	c.Assert(err, IsNil)
+
+	l, err = filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 0)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, "*.desktop"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 0)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopIconsDir, "snap.hello.*"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 0)
+}
+
+func (s *linkSuite) TestLinkDoUndoGenerateWrappersSkipBinaries(c *C) {
+	const yaml = `name: hello
+version: 1.0
+
+apps:
+ foo:
+   command: foo
+ bar:
+   command: bar
+`
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+	// create gui/icons dir
+	guiDir := filepath.Join(info.MountDir(), "meta", "gui")
+	iconsDir := filepath.Join(info.MountDir(), "meta", "gui", "icons")
+	c.Assert(os.MkdirAll(guiDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(iconsDir, 0755), IsNil)
+	// add desktop files
+	c.Assert(os.WriteFile(filepath.Join(guiDir, "foo.desktop"), []byte(`
+[Desktop Entry]
+Name=foo
+Icon=${SNAP}/icon.png
+Exec=foo
+`), 0644), IsNil)
+	// add icons
+	c.Assert(os.WriteFile(filepath.Join(iconsDir, "snap.hello.png"), []byte(""), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(iconsDir, "snap.hello.svg"), []byte(""), 0644), IsNil)
+
+	_, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	l, err := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 2)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, "*.desktop"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 1)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopIconsDir, "snap.hello.*"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 2)
+
+	// unlink should skip binaries, icons and desktop files
+	linkCtx := backend.LinkContext{
+		SkipBinaries: true,
+	}
+	err = s.be.UnlinkSnap(info, linkCtx, progress.Null)
+	c.Assert(err, IsNil)
+
+	l, err = filepath.Glob(filepath.Join(dirs.SnapBinariesDir, "*"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 2)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopFilesDir, "*.desktop"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 1)
+	l, err = filepath.Glob(filepath.Join(dirs.SnapDesktopIconsDir, "snap.hello.*"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 2)
 }
 
 func (s *linkSuite) TestLinkDoUndoCurrentSymlink(c *C) {
@@ -362,7 +474,6 @@ type: snapd
 	otherFiles := [][]string{
 		// D-Bus activation files
 		{"usr/share/dbus-1/services/io.snapcraft.Launcher.service", "[D-BUS Service]\nName=io.snapcraft.Launcher"},
-		{"usr/share/dbus-1/services/io.snapcraft.Prompt.service", "[D-BUS Service]\nName=io.snapcraft.Prompt"},
 		{"usr/share/dbus-1/services/io.snapcraft.Settings.service", "[D-BUS Service]\nName=io.snapcraft.Settings"},
 		{"usr/share/dbus-1/services/io.snapcraft.SessionAgent.service", "[D-BUS Service]\nName=io.snapcraft.SessionAgent"},
 	}
@@ -415,8 +526,6 @@ WantedBy=snapd.service
 	// D-Bus service activation files for snap userd
 	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Launcher.service"), testutil.FileEquals,
 		"[D-BUS Service]\nName=io.snapcraft.Launcher")
-	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Prompt.service"), testutil.FileEquals,
-		"[D-BUS Service]\nName=io.snapcraft.Prompt")
 	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Settings.service"), testutil.FileEquals,
 		"[D-BUS Service]\nName=io.snapcraft.Settings")
 	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.SessionAgent.service"), testutil.FileEquals,
@@ -471,7 +580,7 @@ apps:
 
 	guiDir := filepath.Join(s.info.MountDir(), "meta", "gui")
 	c.Assert(os.MkdirAll(guiDir, 0755), IsNil)
-	c.Assert(ioutil.WriteFile(filepath.Join(guiDir, "bin.desktop"), []byte(`
+	c.Assert(os.WriteFile(filepath.Join(guiDir, "bin.desktop"), []byte(`
 [Desktop Entry]
 Name=bin
 Icon=${SNAP}/bin.png
@@ -564,71 +673,6 @@ func (s *linkCleanupSuite) TestLinkCleansUpDataDirAndSymlinksOnSymlinkFail(c *C)
 	c.Check(filepath.Join(s.info.MountDir(), "..", "current"), testutil.FileAbsent)
 }
 
-func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCachesClassic(c *C) {
-	current := filepath.Join(s.info.MountDir(), "..", "current")
-
-	for _, dev := range []snap.Device{mockDev, mockClassicDev} {
-		var updateFontconfigCaches int
-		restore := backend.MockUpdateFontconfigCaches(func() error {
-			c.Assert(osutil.FileExists(current), Equals, false)
-			updateFontconfigCaches += 1
-			return nil
-		})
-		defer restore()
-
-		_, err := s.be.LinkSnap(s.info, dev, backend.LinkContext{}, s.perfTimings)
-		c.Assert(err, IsNil)
-		if dev.Classic() {
-			c.Assert(updateFontconfigCaches, Equals, 1)
-		} else {
-			c.Assert(updateFontconfigCaches, Equals, 0)
-		}
-		c.Assert(os.Remove(current), IsNil)
-	}
-}
-
-func (s *linkCleanupSuite) TestLinkRunsUpdateFontconfigCachesCallsFromNewCurrent(c *C) {
-	const yaml = `name: core
-version: 1.0
-type: os
-`
-	// old version is 'current'
-	infoOld := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
-	mountDirOld := infoOld.MountDir()
-	err := os.Symlink(filepath.Base(mountDirOld), filepath.Join(mountDirOld, "..", "current"))
-	c.Assert(err, IsNil)
-
-	oldCmdV6 := testutil.MockCommand(c, filepath.Join(mountDirOld, "bin", "fc-cache-v6"), "")
-	oldCmdV7 := testutil.MockCommand(c, filepath.Join(mountDirOld, "bin", "fc-cache-v7"), "")
-
-	infoNew := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(12)})
-	mountDirNew := infoNew.MountDir()
-
-	newCmdV6 := testutil.MockCommand(c, filepath.Join(mountDirNew, "bin", "fc-cache-v6"), "")
-	newCmdV7 := testutil.MockCommand(c, filepath.Join(mountDirNew, "bin", "fc-cache-v7"), "")
-
-	// provide our own mock, osutil.CommandFromCore expects an ELF binary
-	restore := backend.MockCommandFromSystemSnap(func(name string, args ...string) (*exec.Cmd, error) {
-		cmd := filepath.Join(dirs.SnapMountDir, "core", "current", name)
-		c.Logf("command from core: %v", cmd)
-		return exec.Command(cmd, args...), nil
-	})
-	defer restore()
-
-	_, err = s.be.LinkSnap(infoNew, mockClassicDev, backend.LinkContext{}, s.perfTimings)
-	c.Assert(err, IsNil)
-
-	c.Check(oldCmdV6.Calls(), HasLen, 0)
-	c.Check(oldCmdV7.Calls(), HasLen, 0)
-
-	c.Check(newCmdV6.Calls(), DeepEquals, [][]string{
-		{"fc-cache-v6", "--system-only"},
-	})
-	c.Check(newCmdV7.Calls(), DeepEquals, [][]string{
-		{"fc-cache-v7", "--system-only"},
-	})
-}
-
 func (s *linkCleanupSuite) testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c *C, firstInstall bool) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
@@ -680,7 +724,6 @@ func (s *linkCleanupSuite) testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c *C
 
 	// D-Bus service activation
 	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Launcher.service"), checker)
-	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Prompt.service"), checker)
 	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Settings.service"), checker)
 	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.SessionAgent.service"), checker)
 }
@@ -721,7 +764,7 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	c.Assert(err, IsNil)
 
 	info, snapdUnits := mockSnapdSnapForLink(c)
-	// all generated untis
+	// all generated units
 	generatedSnapdUnits := append(snapdUnits,
 		[]string{"usr-lib-snapd.mount", "mount unit"})
 
@@ -739,7 +782,7 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	// validity checks
 	c.Check(filepath.Join(dirs.SnapServicesDir, "snapd.service"), testutil.FileContains,
 		fmt.Sprintf("[Service]\nExecStart=%s/usr/lib/snapd/snapd\n", info.MountDir()))
-	// expecting all generated untis to be present
+	// expecting all generated units to be present
 	for _, entry := range generatedSnapdUnits {
 		c.Check(toEtcUnitPath(entry[0]), testutil.FilePresent)
 	}
@@ -759,11 +802,13 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	}
 	// unlinked snaps have a run inhibition lock
 	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FilePresent)
+	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.refresh"), testutil.FilePresent)
 
 	// unlink is idempotent
 	err = s.be.UnlinkSnap(info, linkCtx, nil)
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FilePresent)
+	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.refresh"), testutil.FilePresent)
 }
 
 func (s *snapdOnCoreUnlinkSuite) TestUnlinkNonFirstSnapdOnCoreDoesNothing(c *C) {
@@ -800,6 +845,13 @@ func (s *snapdOnCoreUnlinkSuite) TestUnlinkNonFirstSnapdOnCoreDoesNothing(c *C) 
 	// unlinked snaps have a run inhibition lock. XXX: the specific inhibition hint can change.
 	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FilePresent)
 	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FileEquals, "refresh")
+	// check inhibit info file content
+	inhibitInfoPath := filepath.Join(runinhibit.InhibitDir, "snapd.refresh")
+	var inhibitInfo runinhibit.InhibitInfo
+	buf, err := os.ReadFile(inhibitInfoPath)
+	c.Assert(err, IsNil)
+	c.Assert(json.Unmarshal(buf, &inhibitInfo), IsNil)
+	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{Previous: snap.R(11)})
 }
 
 func (s *linkSuite) TestLinkOptRequiresTooling(c *C) {

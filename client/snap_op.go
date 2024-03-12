@@ -54,6 +54,7 @@ type SnapOptions struct {
 	IgnoreValidation bool            `json:"ignore-validation,omitempty"`
 	IgnoreRunning    bool            `json:"ignore-running,omitempty"`
 	Unaliased        bool            `json:"unaliased,omitempty"`
+	Prefer           bool            `json:"prefer,omitempty"`
 	Purge            bool            `json:"purge,omitempty"`
 	Amend            bool            `json:"amend,omitempty"`
 	Transaction      TransactionType `json:"transaction,omitempty"`
@@ -101,6 +102,7 @@ func (opts *SnapOptions) writeOptionFields(mw *multipart.Writer) error {
 	fields := []field{
 		{"ignore-running", opts.IgnoreRunning},
 		{"unaliased", opts.Unaliased},
+		{"prefer", opts.Prefer},
 	}
 	if opts.Transaction != "" {
 		if err := mw.WriteField("transaction", string(opts.Transaction)); err != nil {

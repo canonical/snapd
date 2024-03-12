@@ -149,6 +149,14 @@ func MockLookPath(new func(string) (string, error)) (restore func()) {
 	}
 }
 
+func MockhasAddUserExecutable(new func() bool) (restore func()) {
+	old := hasAddUserExecutable
+	hasAddUserExecutable = new
+	return func() {
+		hasAddUserExecutable = old
+	}
+}
+
 func SetAtomicFileRenamed(aw *AtomicFile, renamed bool) {
 	aw.renamed = renamed
 }
@@ -180,7 +188,7 @@ func MockEtcFstab(text string) (restore func()) {
 	if err != nil {
 		panic(fmt.Errorf("cannot open temporary file: %s", err))
 	}
-	if err := ioutil.WriteFile(f.Name(), []byte(text), 0644); err != nil {
+	if err := os.WriteFile(f.Name(), []byte(text), 0644); err != nil {
 		panic(fmt.Errorf("cannot write mock fstab file: %s", err))
 	}
 	etcFstab = f.Name()

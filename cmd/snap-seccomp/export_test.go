@@ -42,11 +42,19 @@ func MockArchDpkgKernelArchitecture(f func() string) (restore func()) {
 	}
 }
 
-func MockErrnoOnDenial(i int16) (retore func()) {
-	origErrnoOnDenial := errnoOnDenial
-	errnoOnDenial = i
+func MockErrnoOnImplicitDenial(i int16) (retore func()) {
+	origErrnoOnImplicitDenial := errnoOnImplicitDenial
+	errnoOnImplicitDenial = i
 	return func() {
-		errnoOnDenial = origErrnoOnDenial
+		errnoOnImplicitDenial = origErrnoOnImplicitDenial
+	}
+}
+
+func MockErrnoOnExplicitDenial(i int16) (retore func()) {
+	origErrnoOnExplicitDenial := errnoOnExplicitDenial
+	errnoOnExplicitDenial = i
+	return func() {
+		errnoOnExplicitDenial = origErrnoOnExplicitDenial
 	}
 }
 

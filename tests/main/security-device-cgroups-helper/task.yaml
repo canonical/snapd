@@ -77,10 +77,10 @@ execute: |
     snap run test-strict-cgroup-helper.sh -c 'head -1 /dev/kmsg' 2>&1 | MATCH "Operation not permitted"
 
     # snap-device-helper is invoked by udev as:
-    # RUN+="$libexecdir/snapd/snap-device-helper $env{ACTION} snap_test-strict-cgroup-helper_sh $devpath $major:$minor"
+    # RUN+="$libexecdir/snapd/snap-device-helper snap_test-strict-cgroup-helper_sh"
 
-    "$libexecdir"/snapd/snap-device-helper add snap_test-strict-cgroup-helper_sh "$DEVICES_PATH_MEM_FULL" 1:7
-    "$libexecdir"/snapd/snap-device-helper change snap_test-strict-cgroup-helper_sh "$DEVICES_PATH_MEM_FULL" 1:7
+    ACTION=add MAJOR=1 MINOR=7 SUBSYSTEM=mem "$libexecdir"/snapd/snap-device-helper snap_test-strict-cgroup-helper_sh
+    ACTION=change MAJOR=1 MINOR=7 SUBSYSTEM=mem "$libexecdir"/snapd/snap-device-helper snap_test-strict-cgroup-helper_sh
     # still present
     tests.device-cgroup test-strict-cgroup-helper.sh dump | MATCH 'c 1:7 rwm'
 
@@ -91,10 +91,13 @@ execute: |
     retry -n 5 test -e /var/snap/test-strict-cgroup-helper/common/started
 
     # device got added
-    "$libexecdir"/snapd/snap-device-helper add snap_test-strict-cgroup-helper_sh "$DEVICES_PATH_MEM_KMSG" 1:11
+    ACTION=add MAJOR=1 MINOR=11 SUBSYSTEM=mem "$libexecdir"/snapd/snap-device-helper snap_test-strict-cgroup-helper_sh
     tests.device-cgroup test-strict-cgroup-helper.sh dump | MATCH 'c 1:11 rwm'
     # or changed
-    "$libexecdir"/snapd/snap-device-helper change snap_test-strict-cgroup-helper_sh "$DEVICES_PATH_MEM_KMSG" 1:11
+    ACTION=change MAJOR=1 MINOR=11 SUBSYSTEM=mem "$libexecdir"/snapd/snap-device-helper snap_test-strict-cgroup-helper_sh
+    tests.device-cgroup test-strict-cgroup-helper.sh dump | MATCH 'c 1:11 rwm'
+    # or bound to driver
+    ACTION=bind MAJOR=1 MINOR=11 SUBSYSTEM=mem "$libexecdir"/snapd/snap-device-helper snap_test-strict-cgroup-helper_sh
     tests.device-cgroup test-strict-cgroup-helper.sh dump | MATCH 'c 1:11 rwm'
     # and it should be possible to read a line now
     touch /var/snap/test-strict-cgroup-helper/common/ready
@@ -104,8 +107,12 @@ execute: |
     NOMATCH 'Operation not permitted' < run.log
     test -n "$(cat run.log)"
 
+    # unbind does not remove the device
+    ACTION=unbind MAJOR=1 MINOR=11 SUBSYSTEM=mem "$libexecdir"/snapd/snap-device-helper snap_test-strict-cgroup-helper_sh
+    tests.device-cgroup test-strict-cgroup-helper.sh dump | MATCH 'c 1:11 rwm'
+
     # remove action removes the device from the cgroup
-    "$libexecdir"/snapd/snap-device-helper remove snap_test-strict-cgroup-helper_sh "$DEVICES_PATH_MEM_KMSG" 1:11
+    ACTION=remove MAJOR=1 MINOR=11 SUBSYSTEM=mem "$libexecdir"/snapd/snap-device-helper snap_test-strict-cgroup-helper_sh
     # /dev/kmsg is not present anymore
     tests.device-cgroup test-strict-cgroup-helper.sh dump | NOMATCH 'c 1:11 rwm'
     # and it's not possible to read /dev/kmsg again
@@ -119,10 +126,10 @@ execute: |
     fi
 
     # running the helper does not fail for either device and action
-    "$libexecdir"/snapd/snap-device-helper add snap_test-strict-cgroup-helper_sh "$DEVICES_PATH_MEM_FULL" 1:7
-    "$libexecdir"/snapd/snap-device-helper change snap_test-strict-cgroup-helper_sh "$DEVICES_PATH_MEM_FULL" 1:7
-    "$libexecdir"/snapd/snap-device-helper add snap_test-strict-cgroup-helper_sh "$DEVICES_PATH_MEM_KMSG" 1:11
-    "$libexecdir"/snapd/snap-device-helper change snap_test-strict-cgroup-helper_sh "$DEVICES_PATH_MEM_KMSG" 1:11
+    ACTION=add MAJOR=1 MINOR=7 SUBSYSTEM=mem "$libexecdir"/snapd/snap-device-helper snap_test-strict-cgroup-helper_sh
+    ACTION=change MAJOR=1 MINOR=7 SUBSYSTEM=mem "$libexecdir"/snapd/snap-device-helper snap_test-strict-cgroup-helper_sh
+    ACTION=add MAJOR=1 MINOR=11 SUBSYSTEM=mem "$libexecdir"/snapd/snap-device-helper snap_test-strict-cgroup-helper_sh
+    ACTION=change MAJOR=1 MINOR=11 SUBSYSTEM=mem "$libexecdir"/snapd/snap-device-helper snap_test-strict-cgroup-helper_sh
 
     # and the device cgroup map/directory is still gone
     if is_cgroupv2; then

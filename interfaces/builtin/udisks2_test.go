@@ -21,7 +21,6 @@ package builtin_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -152,7 +151,7 @@ func (s *UDisks2InterfaceSuite) SetUpTest(c *C) {
 	producerDir := s.slotInfoWithUdevFile.Snap.MountDir()
 	ruleFile := filepath.Join(producerDir, "lib/udev/rules.d/99-udisks.rules")
 	os.MkdirAll(filepath.Dir(ruleFile), 0777)
-	err := ioutil.WriteFile(ruleFile, []byte("# Test UDev file\n"), 0777)
+	err := os.WriteFile(ruleFile, []byte("# Test UDev file\n"), 0777)
 	c.Assert(err, IsNil)
 }
 
@@ -167,74 +166,77 @@ func (s *UDisks2InterfaceSuite) TestSanitizeSlot(c *C) {
 
 func (s *UDisks2InterfaceSuite) TestAppArmorSpec(c *C) {
 	// The label uses short form when exactly one app is bound to the udisks2 slot
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.app"),`)
 
 	// The label glob when all apps are bound to the udisks2 slot
 	slot, _ := MockConnectedSlot(c, udisks2ProducerTwoAppsYaml, nil, "udisks2")
-	spec = &apparmor.Specification{}
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.*"),`)
 
 	// The label uses alternation when some, but not all, apps is bound to the udisks2 slot
 	slot, _ = MockConnectedSlot(c, udisks2ProducerThreeAppsYaml, nil, "udisks2")
-	spec = &apparmor.Specification{}
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.{app1,app3}"),`)
 
 	// The label uses short form when exactly one app is bound to the udisks2 plug
-	spec = &apparmor.Specification{}
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap()))
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label="snap.consumer.app"),`)
 
 	// The label glob when all apps are bound to the udisks2 plug
 	plug, _ := MockConnectedPlug(c, udisks2ConsumerTwoAppsYaml, nil, "udisks2")
-	spec = &apparmor.Specification{}
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap()))
 	c.Assert(spec.AddConnectedSlot(s.iface, plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label="snap.consumer.*"),`)
 
 	// The label uses alternation when some, but not all, apps is bound to the udisks2 plug
 	plug, _ = MockConnectedPlug(c, udisks2ConsumerThreeAppsYaml, nil, "udisks2")
-	spec = &apparmor.Specification{}
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap()))
 	c.Assert(spec.AddConnectedSlot(s.iface, plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label="snap.consumer.{app1,app2}"),`)
 
 	// permanent slot have a non-nil security snippet for apparmor
-	spec = &apparmor.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
-	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app", "snap.producer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.app"),`)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `peer=(label=unconfined),`)
+
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label="snap.producer.app"),`)
 }
 
 func (s *UDisks2InterfaceSuite) TestAppArmorSpecOnClassic(c *C) {
 	// connected plug to core slot
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label=unconfined),`)
 
 	// connected classic slot to plug
-	spec = &apparmor.Specification{}
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.classicSlot.Snap()))
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 
 	// permanent classic slot
-	spec = &apparmor.Specification{}
+	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.classicSlotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
 func (s *UDisks2InterfaceSuite) TestDBusSpec(c *C) {
-	spec := &dbus.Specification{}
+	spec := dbus.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, `<policy user="root">`)
@@ -242,15 +244,17 @@ func (s *UDisks2InterfaceSuite) TestDBusSpec(c *C) {
 
 func (s *UDisks2InterfaceSuite) TestDBusSpecOnClassic(c *C) {
 	// connected plug to core slot
-	spec := &dbus.Specification{}
+	spec := dbus.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.classicSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
+
+	spec = dbus.NewSpecification(interfaces.NewSnapAppSet(s.classicSlotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }
 
 func (s *UDisks2InterfaceSuite) TestUDevSpec(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 4)
 	c.Assert(spec.Snippets()[0], testutil.Contains, `LABEL="udisks_probe_end"`)
@@ -258,11 +262,11 @@ func (s *UDisks2InterfaceSuite) TestUDevSpec(c *C) {
 SUBSYSTEM=="block", TAG+="snap_producer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# udisks2
 SUBSYSTEM=="usb", TAG+="snap_producer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_producer_app", RUN+="%v/snap-device-helper $env{ACTION} snap_producer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_producer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_producer_app"`, dirs.DistroLibExecDir))
 }
 
 func (s *UDisks2InterfaceSuite) TestUDevSpecFile(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.slotInfoWithUdevFile.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfoWithUdevFile), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 1)
 	c.Assert(spec.Snippets()[0], testutil.Contains, `# Test UDev file`)
@@ -270,7 +274,7 @@ func (s *UDisks2InterfaceSuite) TestUDevSpecFile(c *C) {
 
 func (s *UDisks2InterfaceSuite) TestUDevSpecFileEvilPathRel(c *C) {
 	outsideFile := filepath.Join(dirs.GlobalRootDir, "outside")
-	c.Assert(ioutil.WriteFile(outsideFile, []byte(""), 0777), IsNil)
+	c.Assert(os.WriteFile(outsideFile, []byte(""), 0777), IsNil)
 	producerDir := s.slotInfoWithUdevFile.Snap.MountDir()
 	outsideFileRel, err := filepath.Rel(producerDir, outsideFile)
 	c.Assert(err, IsNil)
@@ -278,26 +282,26 @@ func (s *UDisks2InterfaceSuite) TestUDevSpecFileEvilPathRel(c *C) {
 	yaml := fmt.Sprintf(udisks2WithUdevFileProducerYamlTemplate, outsideFileRel)
 	_, slotInfo := MockConnectedSlot(c, yaml, nil, "udisks2")
 
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(slotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, slotInfo), ErrorMatches, "cannot resolve udev-file: invalid escaping path")
 }
 
 func (s *UDisks2InterfaceSuite) TestUDevSpecFileEvilAbsSymlink(c *C) {
 	outsideFile := filepath.Join(dirs.GlobalRootDir, "outside")
-	c.Assert(ioutil.WriteFile(outsideFile, []byte(""), 0777), IsNil)
+	c.Assert(os.WriteFile(outsideFile, []byte(""), 0777), IsNil)
 	producerDir := s.slotInfoWithUdevFile.Snap.MountDir()
 	c.Assert(os.Symlink(outsideFile, filepath.Join(producerDir, "link")), IsNil)
 
 	yaml := fmt.Sprintf(udisks2WithUdevFileProducerYamlTemplate, "link")
 	_, slotInfo := MockConnectedSlot(c, yaml, nil, "udisks2")
 
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(slotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, slotInfo), ErrorMatches, "cannot resolve udev-file: invalid absolute symlink")
 }
 
 func (s *UDisks2InterfaceSuite) TestUDevSpecFileEvilRelSymlink(c *C) {
 	outsideFile := filepath.Join(dirs.GlobalRootDir, "outside")
-	c.Assert(ioutil.WriteFile(outsideFile, []byte(""), 0777), IsNil)
+	c.Assert(os.WriteFile(outsideFile, []byte(""), 0777), IsNil)
 	producerDir := s.slotInfoWithUdevFile.Snap.MountDir()
 	outsideFileRel, err := filepath.Rel(producerDir, outsideFile)
 	c.Assert(err, IsNil)
@@ -306,7 +310,7 @@ func (s *UDisks2InterfaceSuite) TestUDevSpecFileEvilRelSymlink(c *C) {
 	yaml := fmt.Sprintf(udisks2WithUdevFileProducerYamlTemplate, "link")
 	_, slotInfo := MockConnectedSlot(c, yaml, nil, "udisks2")
 
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(slotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, slotInfo), ErrorMatches, "cannot resolve udev-file: invalid escaping path")
 }
 
@@ -314,35 +318,35 @@ func (s *UDisks2InterfaceSuite) TestUDevSpecFileDoesNotExist(c *C) {
 	yaml := fmt.Sprintf(udisks2WithUdevFileProducerYamlTemplate, "non-existent")
 	_, slotInfo := MockConnectedSlot(c, yaml, nil, "udisks2")
 
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(slotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, slotInfo), ErrorMatches, "cannot resolve udev-file: .*")
 }
 
 func (s *UDisks2InterfaceSuite) TestUDevSpecFileCannotOpen(c *C) {
 	producerDir := s.slotInfoWithUdevFile.Snap.MountDir()
-	c.Assert(ioutil.WriteFile(filepath.Join(producerDir, "non-readable"), []byte(""), 0222), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(producerDir, "non-readable"), []byte(""), 0222), IsNil)
 	yaml := fmt.Sprintf(udisks2WithUdevFileProducerYamlTemplate, "non-readable")
 	_, slotInfo := MockConnectedSlot(c, yaml, nil, "udisks2")
 
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(slotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, slotInfo), ErrorMatches, "cannot open udev-file: .*")
 }
 
 func (s *UDisks2InterfaceSuite) TestUDevSpecOnClassic(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.classicSlotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 }
 
 func (s *UDisks2InterfaceSuite) TestSecCompSpec(c *C) {
-	spec := &seccomp.Specification{}
+	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.producer.app"})
 	c.Assert(spec.SnippetForTag("snap.producer.app"), testutil.Contains, "mount\n")
 }
 
 func (s *UDisks2InterfaceSuite) TestSecCompSpecOnClassic(c *C) {
-	spec := &seccomp.Specification{}
+	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.classicSlotInfo.Snap))
 	c.Assert(spec.AddPermanentSlot(s.iface, s.classicSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
 }

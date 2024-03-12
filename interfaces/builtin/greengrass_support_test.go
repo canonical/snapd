@@ -120,7 +120,7 @@ func (s *GreengrassSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 		s.plug,
 		s.containerModePlug,
 	} {
-		spec := &apparmor.Specification{}
+		spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
 		c.Assert(spec.AddConnectedPlug(s.iface, plug, s.slot), IsNil)
 		c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 		c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "mount options=(rw, bind) /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** ,\n")
@@ -133,7 +133,7 @@ func (s *GreengrassSupportInterfaceSuite) TestProcessModeAppArmorSpec(c *C) {
 	// no features so should not support userns
 	restore := apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
 	defer restore()
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.processModePlug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.processModePlug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "/ ix,\n")
@@ -147,14 +147,14 @@ func (s *GreengrassSupportInterfaceSuite) TestSecCompSpec(c *C) {
 		s.plug,
 		s.containerModePlug,
 	} {
-		spec := &seccomp.Specification{}
+		spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
 		c.Assert(spec.AddConnectedPlug(s.iface, plug, s.slot), IsNil)
 		c.Check(spec.SnippetForTag("snap.other.app2"), testutil.Contains, "# for overlayfs and various bind mounts\nmount\numount2\npivot_root\n")
 	}
 }
 
 func (s *GreengrassSupportInterfaceSuite) TestProcessModeSecCompSpec(c *C) {
-	spec := &seccomp.Specification{}
+	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.processModePlug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.processModePlug, s.slot), IsNil)
 	c.Check(spec.SnippetForTag("snap.other.app2"), Not(testutil.Contains), "# for overlayfs and various bind mounts\nmount\numount2\npivot_root\n")
 }
@@ -165,7 +165,7 @@ func (s *GreengrassSupportInterfaceSuite) TestUdevTaggingDisablingRemoveLast(c *
 		s.containerModePlug,
 	} {
 		// make a spec with network-control that has udev tagging
-		spec := &udev.Specification{}
+		spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.extraPlug.Snap()))
 		c.Assert(spec.AddConnectedPlug(builtin.MustInterface("network-control"), s.extraPlug, s.extraSlot), IsNil)
 		c.Assert(spec.Snippets(), HasLen, 3)
 
@@ -176,7 +176,7 @@ func (s *GreengrassSupportInterfaceSuite) TestUdevTaggingDisablingRemoveLast(c *
 }
 
 func (s *GreengrassSupportInterfaceSuite) TestProcessModeUdevTaggingWorks(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.processModePlug.Snap()))
 	// connect the greengrass-support interface and ensure the spec is nil
 	c.Assert(spec.AddConnectedPlug(s.iface, s.processModePlug, s.slot), IsNil)
 	c.Check(spec.Snippets(), HasLen, 0)
@@ -191,7 +191,7 @@ func (s *GreengrassSupportInterfaceSuite) TestUdevTaggingDisablingRemoveFirst(c 
 		s.plug,
 		s.containerModePlug,
 	} {
-		spec := &udev.Specification{}
+		spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 		// connect the greengrass-support interface and ensure the spec is nil
 		c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 		c.Check(spec.Snippets(), HasLen, 0)
@@ -214,7 +214,7 @@ func (s *GreengrassSupportInterfaceSuite) TestPermanentSlotAppArmorSessionNative
 		s.plug,
 		s.containerModePlug,
 	} {
-		apparmorSpec := &apparmor.Specification{}
+		apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
 		err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
 		c.Assert(err, IsNil)
 		c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
@@ -232,7 +232,7 @@ func (s *GreengrassSupportInterfaceSuite) TestPermanentSlotAppArmorSessionClassi
 		s.plug,
 		s.containerModePlug,
 	} {
-		apparmorSpec := &apparmor.Specification{}
+		apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(plug.Snap()))
 		err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
 		c.Assert(err, IsNil)
 		c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})

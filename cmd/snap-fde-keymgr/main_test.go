@@ -22,7 +22,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -67,7 +67,7 @@ func (s *mainSuite) TestAddKey(c *C) {
 		return nil
 	})
 	defer restore()
-	c.Assert(ioutil.WriteFile(filepath.Join(d, "authz.key"), []byte{1, 1, 1}, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "authz.key"), []byte{1, 1, 1}, 0644), IsNil)
 	err := main.Run([]string{
 		"add-recovery-key",
 		"--devices", "/dev/vda4",
@@ -159,9 +159,9 @@ type addKeyTestCase struct {
 
 func (s *mainSuite) testAddKeyIdempotent(c *C, tc addKeyTestCase) {
 	d := c.MkDir()
-	c.Assert(ioutil.WriteFile(filepath.Join(d, "authz.key"), []byte{1, 1, 1}, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "authz.key"), []byte{1, 1, 1}, 0644), IsNil)
 	rkey := keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y'}
-	c.Assert(ioutil.WriteFile(filepath.Join(d, "recovery.key"), rkey[:], 0600), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "recovery.key"), rkey[:], 0600), IsNil)
 
 	addCalls := 0
 	restore := main.MockAddRecoveryKeyToLUKS(func(recoveryKey keys.RecoveryKey, luksDev string) error {
@@ -261,9 +261,9 @@ func (s *mainSuite) TestRemoveKey(c *C) {
 	defer restore()
 	d := c.MkDir()
 	// key which will be removed
-	c.Assert(ioutil.WriteFile(filepath.Join(d, "recovery.key"), []byte{0, 0, 0}, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "recovery.key"), []byte{0, 0, 0}, 0644), IsNil)
 
-	c.Assert(ioutil.WriteFile(filepath.Join(d, "authz.key"), []byte{1, 1, 1}, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "authz.key"), []byte{1, 1, 1}, 0644), IsNil)
 	err := main.Run([]string{
 		"remove-recovery-key",
 		"--devices", "/dev/vda4",

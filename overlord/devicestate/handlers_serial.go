@@ -496,6 +496,8 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 
 var httputilNewHTTPClient = httputil.NewHTTPClient
 
+var errStoreOffline = errors.New("snap store is marked offline")
+
 func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.PrivateKey, device *auth.DeviceState, tm timings.Measurer) (serial *asserts.Serial, ancillaryBatch *asserts.Batch, err error) {
 	var serialSup serialSetup
 	err = t.Get("serial-setup", &serialSup)
@@ -513,6 +515,16 @@ func getSerial(t *state.Task, regCtx registrationContext, privKey asserts.Privat
 	}
 
 	st := t.State()
+
+	shouldRequest, err := shouldRequestSerial(st, regCtx.GadgetForSerialRequestConfig())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !shouldRequest {
+		return nil, nil, errStoreOffline
+	}
+
 	proxyConf := proxyconf.New(st)
 	client := httputilNewHTTPClient(&httputil.ClientOptions{
 		Timeout:            30 * time.Second,
@@ -657,7 +669,16 @@ func getSerialRequestConfig(t *state.Task, regCtx registrationContext, client *h
 	if proxyURL != nil && svcURL != nil {
 		newEnough, err := newEnoughProxy(st, proxyURL, client)
 		if err != nil {
-			return nil, err
+			// Ignore the proxy on any error for
+			// compatibility with previous versions of
+			// snapd.
+			//
+			// TODO: provide a way for the users to specify
+			// if they want to use the proxy store for their
+			// device-service.url or not. This needs design.
+			// (see LP:#2023166)
+			logger.Noticef("cannot reach proxy store: %v; ignore the proxy", err)
+			proxyURL = nil
 		}
 		if !newEnough {
 			logger.Noticef("Proxy store does not support custom serial vault; ignoring the proxy")
@@ -668,6 +689,45 @@ func getSerialRequestConfig(t *state.Task, regCtx registrationContext, client *h
 	cfg.setURLs(proxyURL, svcURL)
 
 	return &cfg, nil
+}
+
+func shouldRequestSerial(s *state.State, gadgetName string) (bool, error) {
+	tr := config.NewTransaction(s)
+
+	var storeAccess string
+	if err := tr.GetMaybe("core", "store.access", &storeAccess); err != nil {
+		return false, err
+	}
+
+	// if there isn't a gadget, just use store.access to determine if we should
+	// request
+	if gadgetName == "" {
+		return storeAccess != "offline", nil
+	}
+
+	var deviceServiceAccess string
+	if err := tr.GetMaybe(gadgetName, "device-service.access", &deviceServiceAccess); err != nil {
+		return false, err
+	}
+
+	// if we have a gadget and device-service.access is set to offline, then we
+	// will not request a serial
+	if deviceServiceAccess == "offline" {
+		return false, nil
+	}
+
+	var deviceServiceURL string
+	if err := tr.GetMaybe(gadgetName, "device-service.url", &deviceServiceURL); err != nil {
+		return false, err
+	}
+
+	// if we'd be using the fallback device-service.url (which is the store),
+	// then use store.access to determine if we should request
+	if deviceServiceURL == "" {
+		return storeAccess != "offline", nil
+	}
+
+	return true, nil
 }
 
 func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
@@ -760,8 +820,11 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return &state.Retry{After: retryInterval}
 	}
 	if err != nil { // errors & retries
+		if errors.Is(err, errStoreOffline) {
+			t.Logf("skipping getting serial, store is marked as offline")
+			return nil
+		}
 		return err
-
 	}
 
 	// TODO: the accept* helpers put the serial directly in the

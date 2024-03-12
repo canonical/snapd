@@ -23,7 +23,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"sort"
 	"strconv"
@@ -390,5 +389,5 @@ func (sm *Manifest) Write(filePath string) error {
 	for _, key := range revisionKeys {
 		fmt.Fprintf(buf, "%s\n", sm.revsSeeded[key])
 	}
-	return ioutil.WriteFile(filePath, buf.Bytes(), 0755)
+	return os.WriteFile(filePath, buf.Bytes(), 0755)
 }

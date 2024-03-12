@@ -30,8 +30,21 @@ remap_one() {
 
 cmd_install() {
     apt-get update
-    # shellcheck disable=SC2068
-    apt-get install --yes $@
+
+    local APT_FLAGS="--yes"
+    while [ -n "$1" ]; do
+        case "$1" in
+            --no-install-recommends)
+                APT_FLAGS="$APT_FLAGS --no-install-recommends"
+                shift
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+    # shellcheck disable=SC2068,SC2086
+    apt-get install $APT_FLAGS $@
 }
 
 cmd_is_installed() {

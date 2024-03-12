@@ -118,8 +118,7 @@ var LoadProfiles = func(fnames []string, cacheDir string, flags AaParserFlags) e
 		return nil
 	}
 
-	// Use no-expr-simplify since expr-simplify is actually slower on armhf (LP: #1383858)
-	args := []string{"--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s", cacheDir)}
+	args := []string{"--replace", "--write-cache", fmt.Sprintf("--cache-loc=%s", cacheDir)}
 	if flags&ConserveCPU != 0 {
 		args = append(args, numberOfJobsParam())
 	}
@@ -295,7 +294,7 @@ var loadHomedirs = func() ([]string, error) {
 // Returns whether any modifications was made to the snap-confine snippets.
 func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 	// Create the local policy directory if it is not there.
-	if err := os.MkdirAll(dirs.SnapConfineAppArmorDir, 0755); err != nil {
+	if err := os.MkdirAll(SnapConfineAppArmorDir, 0755); err != nil {
 		return false, fmt.Errorf("cannot create snap-confine policy directory: %s", err)
 	}
 
@@ -349,7 +348,7 @@ func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 	}
 
 	// Ensure that generated policy is what we computed above.
-	created, removed, err := osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, "*", policy)
+	created, removed, err := osutil.EnsureDirState(SnapConfineAppArmorDir, "*", policy)
 	if err != nil {
 		return false, fmt.Errorf("cannot synchronize snap-confine policy: %s", err)
 	}
@@ -359,6 +358,6 @@ func SetupSnapConfineSnippets() (wasChanged bool, err error) {
 // RemoveSnapConfineSnippets clears out any previously written apparmor snippets
 // for snap-confine.
 func RemoveSnapConfineSnippets() error {
-	_, _, err := osutil.EnsureDirState(dirs.SnapConfineAppArmorDir, "*", nil)
+	_, _, err := osutil.EnsureDirState(SnapConfineAppArmorDir, "*", nil)
 	return err
 }

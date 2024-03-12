@@ -19,14 +19,17 @@
 
 package autostart
 
+import (
+	"strings"
+)
+
 var (
-	LoadAutostartDesktopFile = loadAutostartDesktopFile
-	AutostartCmd             = autostartCmd
+	AutostartCmd = autostartCmd
 )
 
 func MockCurrentDesktop(current string) func() {
 	old := currentDesktop
-	currentDesktop = splitSkippingEmpty(current, ':')
+	currentDesktop = strings.Split(current, ":")
 	return func() {
 		currentDesktop = old
 	}

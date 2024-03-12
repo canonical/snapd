@@ -16,8 +16,6 @@ prepare: |
     fi
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
 
     systemctl stop snapd.service snapd.socket
     clean_snapd_lib
@@ -49,8 +47,6 @@ restore: |
     fi
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
 
     # XXX: this should work once it is possible to install snapd on core
     SNAP=snapd

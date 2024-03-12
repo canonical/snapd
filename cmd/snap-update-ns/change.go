@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/mount"
+	"github.com/snapcore/snapd/osutil/sys"
 )
 
 // Action represents a mount action (mount, remount, unmount, etc).
@@ -97,11 +98,9 @@ func (c *Change) createPath(path string, pokeHoles bool, as *Assumptions) ([]*Ch
 	var err error
 	var changes []*Change
 
-	// In case we need to create something, some constants.
-	const (
-		uid = 0
-		gid = 0
-	)
+	// Root until proven otherwise
+	var uid sys.UserID = 0
+	var gid sys.GroupID = 0
 	mode := as.ModeForPath(path)
 
 	// If the element doesn't exist we can attempt to create it.  We will
@@ -121,12 +120,20 @@ func (c *Change) createPath(path string, pokeHoles bool, as *Assumptions) ([]*Ch
 		err = MkfileAll(path, mode, uid, gid, rs)
 	case "symlink":
 		err = MksymlinkAll(path, mode, uid, gid, c.Entry.XSnapdSymlink(), rs)
+	case "ensure-dir":
+		uid = sysGetuid()
+		gid = sysGetgid()
+		// https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
+		// Mode hints cannot be used here because it does not support specifying all
+		// directory paths within a given directory.
+		mode = 0700
+		err = MkdirAllWithin(path, c.Entry.XSnapdMustExistDir(), mode, uid, gid, rs)
 	}
 	if needsMimic, mimicPath := mimicRequired(err); needsMimic && pokeHoles {
 		// If the error can be recovered by using a writable mimic
 		// then construct one and try again.
-		logger.Debugf("need to create writable mimic needed to create path %q (original error: %v)", path, err)
-		changes, err = createWritableMimic(mimicPath, path, as)
+		logger.Debugf("need to create writable mimic needed to create path %q (mount entry id: %q) (original error: %v)", path, c.Entry.XSnapdEntryID(), err)
+		changes, err = createWritableMimic(mimicPath, c.Entry.XSnapdEntryID(), as)
 		if err != nil {
 			err = fmt.Errorf("cannot create writable mimic over %q: %s", mimicPath, err)
 		} else {
@@ -171,9 +178,14 @@ func (c *Change) ensureTarget(as *Assumptions) ([]*Change, error) {
 			} else {
 				err = fmt.Errorf("cannot create symlink in %q: existing file in the way", path)
 			}
+		case "ensure-dir":
+			if !fi.Mode().IsDir() {
+				err = fmt.Errorf("cannot create ensure-dir target %q: existing file in the way", path)
+			}
 		}
 	} else if os.IsNotExist(err) {
-		changes, err = c.createPath(path, true, as)
+		pokeHoles := kind != "ensure-dir"
+		changes, err = c.createPath(path, pokeHoles, as)
 	} else {
 		// If we cannot inspect the element let's just bail out.
 		err = fmt.Errorf("cannot inspect %q: %v", path, err)
@@ -184,6 +196,14 @@ func (c *Change) ensureTarget(as *Assumptions) ([]*Change, error) {
 func (c *Change) ensureSource(as *Assumptions) ([]*Change, error) {
 	var changes []*Change
 
+	kind := c.Entry.XSnapdKind()
+
+	// Source is not relevant to ensure-dir mounts that are intended for
+	// creating missing directories based on the mount target.
+	if kind == "ensure-dir" {
+		return nil, nil
+	}
+
 	// We only have to do ensure bind mount source exists.
 	// This also rules out symlinks.
 	flags, _ := osutil.MountOptsToCommonFlags(c.Entry.Options)
@@ -191,7 +211,6 @@ func (c *Change) ensureSource(as *Assumptions) ([]*Change, error) {
 		return nil, nil
 	}
 
-	kind := c.Entry.XSnapdKind()
 	path := c.Entry.Name
 	fi, err := osLstat(path)
 
@@ -288,6 +307,14 @@ func (c *Change) Perform(as *Assumptions) ([]*Change, error) {
 // lowLevelPerform is simple bridge from Change to mount / unmount syscall.
 func (c *Change) lowLevelPerform(as *Assumptions) error {
 	var err error
+
+	kind := c.Entry.XSnapdKind()
+	// ensure-dir mounts attempts to create a potentially missing target directory during the ensureTarget step
+	// and does not require any low-level actions. Directories created with ensure-dir mounts should never be removed.
+	if kind == "ensure-dir" {
+		return nil
+	}
+
 	switch c.Action {
 	case Mount:
 		kind := c.Entry.XSnapdKind()

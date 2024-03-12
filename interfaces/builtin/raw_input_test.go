@@ -78,7 +78,7 @@ func (s *RawInputInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *RawInputInterfaceSuite) TestSecCompSpec(c *C) {
-	spec := &seccomp.Specification{}
+	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "bind\n")
@@ -86,7 +86,7 @@ func (s *RawInputInterfaceSuite) TestSecCompSpec(c *C) {
 }
 
 func (s *RawInputInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/input/* rw,`)
@@ -96,7 +96,7 @@ func (s *RawInputInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *RawInputInterfaceSuite) TestUDevSpec(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 5)
 	c.Assert(spec.Snippets(), testutil.Contains, `# raw-input
@@ -107,7 +107,7 @@ KERNEL=="mice", TAG+="snap_consumer_app"`)
 KERNEL=="mouse[0-9]*", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# raw-input
 KERNEL=="ts[0-9]*", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_consumer_app"`, dirs.DistroLibExecDir))
 	c.Assert(spec.TriggeredSubsystems(), DeepEquals, []string{"input"})
 }
 

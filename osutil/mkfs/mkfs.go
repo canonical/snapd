@@ -38,8 +38,10 @@ type MakeFunc func(imgFile, label, contentsRootDir string, deviceSize, sectorSiz
 
 var (
 	mkfsHandlers = map[string]MakeFunc{
-		"vfat": mkfsVfat,
-		"ext4": mkfsExt4,
+		"vfat-16": mkfsVfat16,
+		"vfat":    mkfsVfat32,
+		"vfat-32": mkfsVfat32,
+		"ext4":    mkfsExt4,
 	}
 )
 
@@ -132,10 +134,18 @@ func mkfsExt4(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 	return nil
 }
 
+func mkfsVfat16(img, label, contentsRootDir string, deviceSize, sectorSize quantity.Size) error {
+	return mkfsVfat(img, label, contentsRootDir, deviceSize, sectorSize, "16")
+}
+
+func mkfsVfat32(img, label, contentsRootDir string, deviceSize, sectorSize quantity.Size) error {
+	return mkfsVfat(img, label, contentsRootDir, deviceSize, sectorSize, "32")
+}
+
 // mkfsVfat creates a VFAT filesystem in given image file, with an optional
 // filesystem label, and populates it with the contents of provided root
 // directory.
-func mkfsVfat(img, label, contentsRootDir string, deviceSize, sectorSize quantity.Size) error {
+func mkfsVfat(img, label, contentsRootDir string, deviceSize, sectorSize quantity.Size, fatBits string) error {
 	// 512B logical sector size by default, unless the specified sector size is
 	// larger than 512, in which case use the sector size
 	// mkfs.vfat will automatically increase the block size to the internal
@@ -154,7 +164,7 @@ func mkfsVfat(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 		// 1 sector per cluster
 		"-s", "1",
 		// 32b FAT size
-		"-F", "32",
+		"-F", fatBits,
 	}
 	if label != "" {
 		mkfsArgs = append(mkfsArgs, "-n", label)

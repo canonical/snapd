@@ -20,7 +20,7 @@
 package main_test
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -30,7 +30,7 @@ import (
 
 func (s *SnapSuite) TestDebugValidateCannotValidate(c *C) {
 	tmpf := filepath.Join(c.MkDir(), "seed.yaml")
-	err := ioutil.WriteFile(tmpf, []byte(`
+	err := os.WriteFile(tmpf, []byte(`
 snaps:
  -
    name: core

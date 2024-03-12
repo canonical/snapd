@@ -19,6 +19,16 @@
 
 package builtin
 
+import (
+	"path/filepath"
+
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/osutil"
+)
+
 const openglSummary = `allows access to OpenGL stack`
 
 const openglBaseDeclarationSlots = `
@@ -34,6 +44,9 @@ const openglConnectedPlugAppArmor = `
 # specific gl libs
 /var/lib/snapd/lib/gl{,32}/ r,
 /var/lib/snapd/lib/gl{,32}/** rm,
+
+# libdrm data files
+/usr/share/libdrm/amdgpu.ids r,
 
 # Bi-arch distribution nvidia support
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcuda*.so{,.*} rm,
@@ -88,6 +101,9 @@ const openglConnectedPlugAppArmor = `
 @{PROC}/modules r,
 /dev/nvidia* rw,
 unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
+# driver profiles
+/usr/share/nvidia/ r,
+/usr/share/nvidia/** r,
 
 # VideoCore/EGL (shared device with VideoCore camera)
 /dev/vchiq rw,
@@ -124,6 +140,8 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 # ARM Mali driver
 /dev/mali[0-9]* rw,
 /dev/dma_buf_te rw,
+/dev/dma_heap/linux,cma rw,
+/dev/dma_heap/system rw,
 
 # NXP i.MX driver
 # https://github.com/Freescale/kernel-module-imx-gpu-viv
@@ -167,10 +185,16 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 unix (send, receive) type=dgram peer=(addr="@var/run/nvidia-xdriver-*"),
 `
 
+type openglInterface struct {
+	commonInterface
+}
+
 // Some nvidia modules don't use sysfs (therefore they can't be udev tagged) and
 // will be added by snap-confine.
 var openglConnectedPlugUDev = []string{
 	`SUBSYSTEM=="drm", KERNEL=="card[0-9]*"`,
+	`SUBSYSTEM=="dma_heap", KERNEL=="linux,cma"`,
+	`SUBSYSTEM=="dma_heap", KERNEL=="system"`,
 	`KERNEL=="vchiq"`,
 	`KERNEL=="vcsm-cma"`,
 	`KERNEL=="renderD[0-9]*"`,
@@ -184,14 +208,64 @@ var openglConnectedPlugUDev = []string{
 	`KERNEL=="galcore"`,
 }
 
+// Those two are the same, but in theory they are separate and can move (or
+// could move) dependently. The first path is as seen on the initial mount
+// namespace of the host. The second path is as seen inside the per-snap mount
+// namespace.
+const (
+	nvProfilesDirInHostNs  = "/usr/share/nvidia"
+	nvProfilesDirInMountNs = "/usr/share/nvidia"
+)
+
+func (iface *openglInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(openglConnectedPlugAppArmor)
+
+	// Allow mounting the Nvidia driver profiles directory
+	hostNvProfilesDir := filepath.Join(dirs.GlobalRootDir, nvProfilesDirInHostNs)
+	if !osutil.IsDirectory(hostNvProfilesDir) {
+		return nil
+	}
+
+	spec.AddUpdateNSf(`	# Read-only access to Nvidia driver profiles in %[2]s
+	mount options=(bind) /var/lib/snapd/hostfs%[1]s/ -> %[2]s/,
+	remount options=(bind, ro) %[2]s/,
+	umount %[2]s/,
+`, hostNvProfilesDir, nvProfilesDirInMountNs)
+
+	apparmor.GenWritableProfile(
+		spec.AddUpdateNSf,
+		nvProfilesDirInMountNs,
+		3,
+	)
+
+	return nil
+}
+
+func (iface *openglInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// Do nothing if this doesn't exist on the host
+	hostNvProfilesDir := filepath.Join(dirs.GlobalRootDir, nvProfilesDirInHostNs)
+	if !osutil.IsDirectory(hostNvProfilesDir) {
+		return nil
+	}
+
+	spec.AddMountEntry(osutil.MountEntry{
+		Name:    filepath.Join("/var/lib/snapd/hostfs", hostNvProfilesDir),
+		Dir:     nvProfilesDirInMountNs,
+		Options: []string{"bind", "ro"},
+	})
+
+	return nil
+}
+
 func init() {
-	registerIface(&commonInterface{
-		name:                  "opengl",
-		summary:               openglSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  openglBaseDeclarationSlots,
-		connectedPlugAppArmor: openglConnectedPlugAppArmor,
-		connectedPlugUDev:     openglConnectedPlugUDev,
+	registerIface(&openglInterface{
+		commonInterface: commonInterface{
+			name:                 "opengl",
+			summary:              openglSummary,
+			implicitOnCore:       true,
+			implicitOnClassic:    true,
+			baseDeclarationSlots: openglBaseDeclarationSlots,
+			connectedPlugUDev:    openglConnectedPlugUDev,
+		},
 	})
 }

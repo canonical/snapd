@@ -28,6 +28,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"os"
 	"path/filepath"
 
 	"gopkg.in/check.v1"
@@ -289,7 +290,7 @@ func (cs *clientSuite) TestClientOpInstallPath(c *check.C) {
 	bodyData := []byte("snap-data")
 
 	snap := filepath.Join(c.MkDir(), "foo.snap")
-	err := ioutil.WriteFile(snap, bodyData, 0644)
+	err := os.WriteFile(snap, bodyData, 0644)
 	c.Assert(err, check.IsNil)
 
 	id, err := cs.cli.InstallPath(snap, "", nil)
@@ -319,7 +320,7 @@ func (cs *clientSuite) TestClientOpInstallPathIgnoreRunning(c *check.C) {
 	bodyData := []byte("snap-data")
 
 	snap := filepath.Join(c.MkDir(), "foo.snap")
-	err := ioutil.WriteFile(snap, bodyData, 0644)
+	err := os.WriteFile(snap, bodyData, 0644)
 	c.Assert(err, check.IsNil)
 
 	id, err := cs.cli.InstallPath(snap, "", &client.SnapOptions{IgnoreRunning: true})
@@ -350,7 +351,7 @@ func (cs *clientSuite) TestClientOpInstallPathInstance(c *check.C) {
 	bodyData := []byte("snap-data")
 
 	snap := filepath.Join(c.MkDir(), "foo.snap")
-	err := ioutil.WriteFile(snap, bodyData, 0644)
+	err := os.WriteFile(snap, bodyData, 0644)
 	c.Assert(err, check.IsNil)
 
 	id, err := cs.cli.InstallPath(snap, "foo_bar", nil)
@@ -382,7 +383,7 @@ func (cs *clientSuite) TestClientOpInstallPathMany(c *check.C) {
 	for _, name := range names {
 		path := filepath.Join(c.MkDir(), name)
 		paths = append(paths, path)
-		c.Assert(ioutil.WriteFile(path, []byte("snap-data"), 0644), check.IsNil)
+		c.Assert(os.WriteFile(path, []byte("snap-data"), 0644), check.IsNil)
 	}
 
 	id, err := cs.cli.InstallPathMany(paths, nil)
@@ -419,7 +420,7 @@ func (cs *clientSuite) TestClientOpInstallPathManyTransactionally(c *check.C) {
 	for _, name := range names {
 		path := filepath.Join(c.MkDir(), name)
 		paths = append(paths, path)
-		c.Assert(ioutil.WriteFile(path, []byte("snap-data"), 0644), check.IsNil)
+		c.Assert(os.WriteFile(path, []byte("snap-data"), 0644), check.IsNil)
 	}
 
 	id, err := cs.cli.InstallPathMany(paths, &client.SnapOptions{Transaction: client.TransactionAllSnaps})
@@ -456,7 +457,7 @@ func (cs *clientSuite) TestClientOpInstallPathManyWithOptions(c *check.C) {
 	for _, name := range []string{"foo.snap", "bar.snap"} {
 		path := filepath.Join(c.MkDir(), name)
 		paths = append(paths, path)
-		c.Assert(ioutil.WriteFile(path, []byte("snap-data"), 0644), check.IsNil)
+		c.Assert(os.WriteFile(path, []byte("snap-data"), 0644), check.IsNil)
 	}
 
 	// InstallPathMany supports opts
@@ -488,7 +489,7 @@ func (cs *clientSuite) TestClientOpInstallPathManyWithQuotaGroup(c *check.C) {
 	for _, name := range []string{"foo.snap", "bar.snap"} {
 		path := filepath.Join(c.MkDir(), name)
 		paths = append(paths, path)
-		c.Assert(ioutil.WriteFile(path, []byte("snap-data"), 0644), check.IsNil)
+		c.Assert(os.WriteFile(path, []byte("snap-data"), 0644), check.IsNil)
 	}
 
 	// Verify that the quota group option is serialized as a part of multipart form.
@@ -516,7 +517,7 @@ func (cs *clientSuite) TestClientOpInstallDangerous(c *check.C) {
 	bodyData := []byte("snap-data")
 
 	snap := filepath.Join(c.MkDir(), "foo.snap")
-	err := ioutil.WriteFile(snap, bodyData, 0644)
+	err := os.WriteFile(snap, bodyData, 0644)
 	c.Assert(err, check.IsNil)
 
 	opts := client.SnapOptions{
@@ -551,7 +552,7 @@ func (cs *clientSuite) TestClientOpInstallUnaliased(c *check.C) {
 	bodyData := []byte("snap-data")
 
 	snap := filepath.Join(c.MkDir(), "foo.snap")
-	err := ioutil.WriteFile(snap, bodyData, 0644)
+	err := os.WriteFile(snap, bodyData, 0644)
 	c.Assert(err, check.IsNil)
 
 	opts := client.SnapOptions{
@@ -587,7 +588,7 @@ func (cs *clientSuite) TestClientOpInstallTransactional(c *check.C) {
 	bodyData := []byte("snap-data")
 
 	snap := filepath.Join(c.MkDir(), "foo.snap")
-	err := ioutil.WriteFile(snap, bodyData, 0644)
+	err := os.WriteFile(snap, bodyData, 0644)
 	c.Assert(err, check.IsNil)
 
 	opts := client.SnapOptions{
@@ -613,6 +614,42 @@ func (cs *clientSuite) TestClientOpInstallTransactional(c *check.C) {
 
 	c.Assert(string(body), check.Matches,
 		"(?s).*Content-Disposition: form-data; name=\"transaction\"\r\n\r\nall-snaps\r\n.*")
+}
+
+func (cs *clientSuite) TestClientOpInstallPrefer(c *check.C) {
+	cs.status = 202
+	cs.rsp = `{
+		"change": "66b3",
+		"status-code": 202,
+		"type": "async"
+	}`
+	bodyData := []byte("snap-data")
+
+	snap := filepath.Join(c.MkDir(), "foo.snap")
+	err := os.WriteFile(snap, bodyData, 0644)
+	c.Assert(err, check.IsNil)
+
+	opts := client.SnapOptions{
+		Prefer: true,
+	}
+
+	_, err = cs.cli.Install("foo", &opts)
+	c.Assert(err, check.IsNil)
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	var jsonBody map[string]interface{}
+	err = json.Unmarshal(body, &jsonBody)
+	c.Assert(err, check.IsNil, check.Commentf("body: %v", string(body)))
+	c.Check(jsonBody["prefer"], check.Equals, true, check.Commentf("body: %v", string(body)))
+
+	_, err = cs.cli.InstallPath(snap, "", &opts)
+	c.Assert(err, check.IsNil)
+
+	body, err = ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"prefer\"\r\n\r\ntrue\r\n.*")
 }
 
 func formToMap(c *check.C, mr *multipart.Reader) map[string]string {
@@ -704,6 +741,7 @@ func (cs *clientSuite) TestSnapOptionsSerialises(c *check.C) {
 		`{"unaliased":true}`:         {Unaliased: true},
 		`{"purge":true}`:             {Purge: true},
 		`{"amend":true}`:             {Amend: true},
+		`{"prefer":true}`:            {Prefer: true},
 	}
 	for expected, opts := range tests {
 		buf, err := json.Marshal(&opts)

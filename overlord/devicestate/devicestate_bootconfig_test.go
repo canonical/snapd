@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -61,7 +62,7 @@ func (s *deviceMgrBootconfigSuite) mockGadget(c *C, yaml string) {
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
 		SnapType: "gadget",
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		Active:   true,
 	})
@@ -197,11 +198,21 @@ kernel-cmdline:
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Assert(chg.IsReady(), Equals, true)
+	restarting, rt := restart.Pending(s.state)
 	if errMatch == "" {
+		if opts.updateAttempted && opts.updateApplied {
+			// Expect the change to be in wait status at this point, as a restart
+			// will have been requested
+			c.Check(tsk.Status(), Equals, state.WaitStatus)
+			c.Check(chg.Status(), Equals, state.WaitStatus)
+			// Restart and re-run to completion
+			s.mockRestartAndSettle(c, s.state, chg)
+		}
+		c.Assert(chg.IsReady(), Equals, true)
 		c.Check(chg.Err(), IsNil)
 		c.Check(tsk.Status(), Equals, state.DoneStatus)
 	} else {
+		c.Assert(chg.IsReady(), Equals, true)
 		c.Check(chg.Err(), ErrorMatches, errMatch)
 		c.Check(tsk.Status(), Equals, state.ErrorStatus)
 	}
@@ -212,9 +223,11 @@ kernel-cmdline:
 			log := tsk.Log()
 			c.Assert(log, HasLen, 2)
 			c.Check(log[0], Matches, ".* updated boot config assets")
-			c.Check(log[1], Matches, ".* Requested system restart")
+			c.Check(log[1], Matches, ".* INFO Task set to wait until a system restart allows to continue")
 			// update was applied, thus a restart was requested
 			c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+			c.Check(restarting, Equals, true)
+			c.Check(rt, Equals, restart.RestartSystemNow)
 		} else {
 			// update was not applied or failed
 			c.Check(s.restartRequests, HasLen, 0)
@@ -266,9 +279,17 @@ kernel-cmdline:
 	defer s.state.Unlock()
 
 	if errMatch == "" {
-		c.Assert(chg.IsReady(), Equals, false)
+		if opts.updateAttempted && opts.updateApplied {
+			// Expect the change to be in wait status at this point, as a restart
+			// will have been requested
+			c.Check(tsk.Status(), Equals, state.WaitStatus)
+			c.Check(chg.Status(), Equals, state.WaitStatus)
+			// Restart and re-run to completion
+			s.mockRestartAndSettle(c, s.state, chg)
+		}
+		c.Assert(chg.IsReady(), Equals, true)
 		c.Check(chg.Err(), IsNil)
-		c.Check(tsk.Status(), Equals, state.WaitStatus)
+		c.Check(tsk.Status(), Equals, state.DoneStatus)
 	} else {
 		c.Assert(chg.IsReady(), Equals, true)
 		c.Check(chg.Err(), ErrorMatches, errMatch)
@@ -281,7 +302,7 @@ kernel-cmdline:
 			log := tsk.Log()
 			c.Assert(log, HasLen, 2)
 			c.Check(log[0], Matches, ".* updated boot config assets")
-			c.Check(log[1], Matches, ".* Task set to wait until a manual system restart allows to continue")
+			c.Check(log[1], Matches, ".* INFO Task set to wait until a system restart allows to continue")
 		}
 		// There must be no restart request
 		c.Check(s.restartRequests, HasLen, 0)
@@ -494,6 +515,7 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunButNotUpdated(c *C) {
 	s.setupUC20Model(c)
 	s.state.Unlock()
 
+	s.managedbl.CandidateStaticCommandLine = s.managedbl.StaticCommandLine
 	s.managedbl.Updated = false
 
 	opts := testBootConfigUpdateOpts{

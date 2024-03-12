@@ -1,0 +1,44 @@
+summary: Ensure that replacing a bind with a symlink doesn't break an update
+
+details: |
+    Recently, the steam snap replaced several bindings with symlinks in the
+    layout part, and that resulted in users not being able to update it from
+    the "binded" version to the "symlinked" one because snapd complained that
+    it couldn't update the mount namespace. The solution consists on discard
+    the namespace and retry again.
+
+systems:
+    # the snaps aren't available for ARM or 32bit systems.
+    - -ubuntu-*-32
+    - -ubuntu-*-arm*
+
+prepare: |
+    echo "Removing snaps"
+    snap remove --purge test-snapd-layout-change || true
+    snap remove --purge test-snapd-layout-change-with-daemon || true
+
+restore: |
+    echo "Removing snaps"
+    snap remove --purge test-snapd-layout-change || true
+    snap remove --purge test-snapd-layout-change-with-daemon || true
+
+execute: |
+    echo "Testing layout change"
+
+    echo "Installing test snap"
+    snap install --beta test-snapd-layout-change
+
+    echo "Refreshing test snap to newer version "
+    snap refresh --edge test-snapd-layout-change
+
+    echo "Testing layout change with a daemon"
+
+    echo "Installing test snap with daemon"
+    snap install --beta test-snapd-layout-change-with-daemon
+
+    echo "Refreshing test snap with daemon to newer version"
+    echo "(this one must fail because daemon snaps can't discard the namespace)"
+    if snap refresh --edge test-snapd-layout-change-with-daemon ; then
+        echo "ERROR: running snap refresh for test-snapd-layout-change-with-daemon did not fail as expected"
+        exit 1
+    fi

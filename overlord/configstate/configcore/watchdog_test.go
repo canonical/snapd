@@ -21,7 +21,6 @@ package configcore_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -167,7 +166,7 @@ func (s *watchdogSuite) TestConfigureWatchdogNoFileUpdate(c *C) {
 	content := "[Manager]\n" +
 		fmt.Sprintf("RuntimeWatchdogSec=%d\n", times[0]) +
 		fmt.Sprintf("ShutdownWatchdogSec=%d\n", times[1])
-	err = ioutil.WriteFile(s.mockEtcEnvironment, []byte(content), 0644)
+	err = os.WriteFile(s.mockEtcEnvironment, []byte(content), 0644)
 	c.Assert(err, IsNil)
 
 	info, err := os.Stat(s.mockEtcEnvironment)
@@ -200,14 +199,14 @@ func (s *watchdogSuite) TestConfigureWatchdogRemovesIfEmpty(c *C) {
 	c.Assert(err, IsNil)
 	// add canary to ensure we don't touch other files
 	canary := filepath.Join(dirs.SnapSystemdConfDir, "05-canary.conf")
-	err = ioutil.WriteFile(canary, nil, 0644)
+	err = os.WriteFile(canary, nil, 0644)
 	c.Assert(err, IsNil)
 
 	content := `[Manager]
 RuntimeWatchdogSec=10
 ShutdownWatchdogSec=20
 `
-	err = ioutil.WriteFile(s.mockEtcEnvironment, []byte(content), 0644)
+	err = os.WriteFile(s.mockEtcEnvironment, []byte(content), 0644)
 	c.Assert(err, IsNil)
 
 	err = configcore.FilesystemOnlyRun(coreDev, &mockConf{

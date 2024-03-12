@@ -163,8 +163,13 @@ func Prepare(opts *Options) error {
 		if model.Classic() {
 			return fmt.Errorf("cannot preseed the image for a classic model")
 		}
-		if model.Base() != "core20" {
-			return fmt.Errorf("cannot preseed the image for a model other than core20")
+
+		coreVersion, err := naming.CoreVersion(model.Base())
+		if err != nil {
+			return fmt.Errorf("cannot preseed the image for %s: %v", model.Base(), err)
+		}
+		if coreVersion < 20 {
+			return fmt.Errorf("cannot preseed the image for older base than core20")
 		}
 		coreOpts := &preseed.CoreOptions{
 			PrepareImageDir:           opts.PrepareDir,
@@ -239,7 +244,7 @@ func customizeImage(rootDir, defaultsDir string, custo *Customizations) error {
 		if err := os.MkdirAll(varCloudDir, 0755); err != nil {
 			return err
 		}
-		if err := ioutil.WriteFile(filepath.Join(varCloudDir, "meta-data"), []byte("instance-id: nocloud-static\n"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(varCloudDir, "meta-data"), []byte("instance-id: nocloud-static\n"), 0644); err != nil {
 			return err
 		}
 		dst := filepath.Join(varCloudDir, "user-data")
@@ -254,7 +259,7 @@ func customizeImage(rootDir, defaultsDir string, custo *Customizations) error {
 		if err := os.MkdirAll(filepath.Dir(consoleConfDisabled), 0755); err != nil {
 			return err
 		}
-		if err := ioutil.WriteFile(consoleConfDisabled, []byte("console-conf has been disabled by image customization\n"), 0644); err != nil {
+		if err := os.WriteFile(consoleConfDisabled, []byte("console-conf has been disabled by image customization\n"), 0644); err != nil {
 			return err
 		}
 	}

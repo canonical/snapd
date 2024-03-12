@@ -31,8 +31,23 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+// UnconfinedMode describes the states of support for the AppArmor unconfined
+// profile mode - this is only enabled when the interface supports it as a
+// static property and it is then enabled via SetUnconfinedEnabled() method
+type UnconfinedMode int
+
+const (
+	UnconfinedIgnored UnconfinedMode = iota
+	UnconfinedSupported
+	UnconfinedEnabled
+)
+
 // Specification assists in collecting apparmor entries associated with an interface.
 type Specification struct {
+	// appSet is the set of snap applications and hooks that the specification
+	// applies to.
+	appSet *interfaces.SnapAppSet
+
 	// scope for various Add{...}Snippet functions
 	securityTags []string
 
@@ -89,6 +104,23 @@ type Specification struct {
 	// the calling interface can be used with the home interface. Ideally,
 	// we would not need this, but we currently do (LP: #1797786)
 	suppressHomeIx bool
+
+	// Same as the above, but for the pycache deny rule which breaks docker
+	suppressPycacheDeny bool
+
+	// Unconfined profile mode allows a profile to be applied without any
+	// real confinement
+	unconfined UnconfinedMode
+}
+
+func NewSpecification(appSet *interfaces.SnapAppSet) *Specification {
+	return &Specification{
+		appSet: appSet,
+	}
+}
+
+func (spec *Specification) SnapAppSet() *interfaces.SnapAppSet {
+	return spec.appSet
 }
 
 // setScope sets the scope of subsequent AddSnippet family functions.
@@ -172,8 +204,8 @@ func (spec *Specification) AddDeduplicatedSnippet(snippet string) {
 // This function should be used whenever the apparmor template features more
 // than one use of "**" syntax (which represent arbitrary many directories or
 // files) and a variable component, like a device name or similar. Repeated
-// instances of this pattern require exponential memory when compiled with
-// apparmor_parser -O no-expr-simplify.
+// instances of this pattern slow down the apparmor parser in the default
+// "expr-simplify" mode (see PR#12943 for measurements).
 func (spec *Specification) AddParametricSnippet(templateFragment []string, value string) {
 	if len(spec.securityTags) == 0 {
 		return
@@ -404,7 +436,7 @@ func GenWritableMimicProfile(emit func(f string, args ...interface{}), path stri
 		// full mimic path. This is called a mimic "variant". Both of the paths
 		// must end with a slash as this is important for apparmor file vs
 		// directory path semantics.
-		mimicPath := filepath.Join(iter.CurrentBase(), iter.CurrentCleanName()) + "/"
+		mimicPath := filepath.Join(iter.CurrentBaseNoSlash(), iter.CurrentNameNoSlash()) + "/"
 		mimicAuxPath := filepath.Join("/tmp/.snap", iter.CurrentPath()) + "/"
 		emit("  # .. variant with mimic at %s\n", mimicPath)
 		emit("  # Allow reading the mimic directory, it must exist in the first place.\n")
@@ -564,6 +596,64 @@ func snippetFromLayout(layout *snap.Layout) string {
 	return fmt.Sprintf("# Layout path: %s\n# (no extra permissions required for symlink)", mountPoint)
 }
 
+// emitEnsureDir creates an apparmor snippet that permits snap-update-ns to create
+// missing directories for the calling user according to the provided ensure directory spec.
+// This function is currently used as counterpart for AddUserEnsureDirs, but can also be used
+// for permitting non-user ensure directory specs.
+func emitEnsureDir(spec *Specification, ifaceName string, ensureDirSpec *interfaces.EnsureDirSpec) {
+	ensureDir := ensureDirSpec.EnsureDir
+	mustExistDir := ensureDirSpec.MustExistDir
+	if ensureDir == mustExistDir {
+		return
+	}
+
+	// Add additional expansion here as required
+	replacePrefixHome := func(path string) string {
+		if strings.HasPrefix(path, "$HOME") {
+			return strings.Replace(path, "$HOME", "@{HOME}", -1)
+		}
+		return path
+	}
+	appArmorDir := func(path string) string {
+		if path != "/" {
+			path = path + "/"
+		}
+		return path
+	}
+	emit := spec.AddUpdateNSf
+
+	// Create entry for MustExistDir
+	iter, err := strutil.NewPathIterator(ensureDir)
+	if err != nil {
+		return
+	}
+	for iter.Next() {
+		if iter.CurrentPathNoSlash() == mustExistDir {
+			emit("  # Allow the %s interface to create potentially missing directories", ifaceName)
+			emit("  owner %s rw,", appArmorDir(replacePrefixHome(mustExistDir)))
+			break
+		}
+	}
+
+	// Create entries for the remaining directories after MustExistDir up to and including EnsureDir
+	for iter.Next() {
+		emit("  owner %s/ rw,", replacePrefixHome(iter.CurrentPathNoSlash()))
+	}
+}
+
+// AddEnsureDirMounts adds snap-update-ns snippets that permit snap-update-ns to create
+// missing directories according to the provided ensure directory mount specs.
+func (spec *Specification) AddEnsureDirMounts(ifaceName string, ensureDirSpecs []*interfaces.EnsureDirSpec) {
+	// Walk the path specs in deterministic order, by EnsureDir (the mount point).
+	sort.Slice(ensureDirSpecs, func(i, j int) bool {
+		return ensureDirSpecs[i].EnsureDir < ensureDirSpecs[j].EnsureDir
+	})
+
+	for _, ensureDirSpec := range ensureDirSpecs {
+		emitEnsureDir(spec, ifaceName, ensureDirSpec)
+	}
+}
+
 // Implementation of methods required by interfaces.Specification
 
 // AddConnectedPlug records apparmor-specific side-effects of having a connected plug.
@@ -572,7 +662,12 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 		AppArmorConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		restore := spec.setScope(plug.SecurityTags())
+		tags, err := spec.appSet.SecurityTagsForConnectedPlug(plug)
+		if err != nil {
+			return err
+		}
+
+		restore := spec.setScope(tags)
 		defer restore()
 		return iface.AppArmorConnectedPlug(spec, plug, slot)
 	}
@@ -585,7 +680,12 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 		AppArmorConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		restore := spec.setScope(slot.SecurityTags())
+		tags, err := spec.appSet.SecurityTagsForConnectedSlot(slot)
+		if err != nil {
+			return err
+		}
+
+		restore := spec.setScope(tags)
 		defer restore()
 		return iface.AppArmorConnectedSlot(spec, plug, slot)
 	}
@@ -594,11 +694,20 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 
 // AddPermanentPlug records apparmor-specific side-effects of having a plug.
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *snap.PlugInfo) error {
+	si := interfaces.StaticInfoOf(iface)
+	if si.AppArmorUnconfinedPlugs {
+		spec.setUnconfinedSupported()
+	}
 	type definer interface {
 		AppArmorPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		restore := spec.setScope(plug.SecurityTags())
+		tags, err := spec.appSet.SecurityTagsForPlug(plug)
+		if err != nil {
+			return err
+		}
+
+		restore := spec.setScope(tags)
 		defer restore()
 		return iface.AppArmorPermanentPlug(spec, plug)
 	}
@@ -607,11 +716,20 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 
 // AddPermanentSlot records apparmor-specific side-effects of having a slot.
 func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *snap.SlotInfo) error {
+	si := interfaces.StaticInfoOf(iface)
+	if si.AppArmorUnconfinedSlots {
+		spec.setUnconfinedSupported()
+	}
 	type definer interface {
 		AppArmorPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		restore := spec.setScope(slot.SecurityTags())
+		tags, err := spec.appSet.SecurityTagsForSlot(slot)
+		if err != nil {
+			return err
+		}
+
+		restore := spec.setScope(tags)
 		defer restore()
 		return iface.AppArmorPermanentSlot(spec, slot)
 	}
@@ -674,4 +792,40 @@ func (spec *Specification) SetSuppressHomeIx() {
 // suppressed.
 func (spec *Specification) SuppressHomeIx() bool {
 	return spec.suppressHomeIx
+}
+
+// SetSuppressPycacheDeny records suppression of the ix rules for the home
+// interface.
+func (spec *Specification) SetSuppressPycacheDeny() {
+	spec.suppressPycacheDeny = true
+}
+
+// SuppressPycacheDeny returns whether the ix rules of the home interface should be
+// suppressed.
+func (spec *Specification) SuppressPycacheDeny() bool {
+	return spec.suppressPycacheDeny
+}
+
+// setUnconfinedSuported records whether a profile perhaps should be applied
+// without any real confinement - this will only occur if the spec also enables
+// this by calling SetEnableUnconfined()
+func (spec *Specification) setUnconfinedSupported() {
+	spec.unconfined = UnconfinedSupported
+}
+
+// SetUnconfinedEnabled records whether a profile should be applied without any
+// real confinement - the spec must already support unconfined profiles via a
+// previous call to setUnconfinedSupported()
+func (spec *Specification) SetUnconfinedEnabled() error {
+	if spec.unconfined != UnconfinedSupported {
+		return fmt.Errorf("unconfined profiles not supported")
+	}
+	spec.unconfined = UnconfinedEnabled
+	return nil
+}
+
+// Unconfined returns whether a profile should be applied without any real
+// confinement
+func (spec *Specification) Unconfined() UnconfinedMode {
+	return spec.unconfined
 }

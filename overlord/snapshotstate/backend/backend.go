@@ -29,7 +29,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -686,7 +685,7 @@ func (t *importTransaction) Commit() error {
 }
 
 func (t *importTransaction) lock() error {
-	return ioutil.WriteFile(t.lockPath, nil, 0644)
+	return os.WriteFile(t.lockPath, nil, 0644)
 }
 
 func (t *importTransaction) unlock() error {

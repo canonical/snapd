@@ -6,9 +6,6 @@ systems:
   - ubuntu-core-20-*
   - ubuntu-core-22-*
 
-# TODO: re-enable the test once https://bugs.launchpad.net/ubuntu/+source/netplan.io/+bug/1967084 is fixed
-manual: true
-
 prepare: |
     snap install jq
     snap install yq

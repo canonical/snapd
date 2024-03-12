@@ -21,7 +21,6 @@ package bootloader_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -253,7 +252,7 @@ func (s *grubTestSuite) grubEFINativeDir() string {
 func (s *grubTestSuite) makeFakeGrubEFINativeEnv(c *C, content []byte) {
 	err := os.MkdirAll(s.grubEFINativeDir(), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), content, 0644)
+	err = os.WriteFile(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), content, 0644)
 	c.Assert(err, IsNil)
 }
 
@@ -357,7 +356,7 @@ func (s *grubTestSuite) makeKernelAssetSnap(c *C, snapFileName string) snap.Plac
 	err = os.MkdirAll(kernelSnapExtractedAssetsDir, 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(filepath.Join(kernelSnapExtractedAssetsDir, "kernel.efi"), nil, 0644)
+	err = os.WriteFile(filepath.Join(kernelSnapExtractedAssetsDir, "kernel.efi"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	return kernelSnap
@@ -408,7 +407,7 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageTryKernel(c *C) {
 	err = os.MkdirAll(kernelSnapExtractedAssetsDir, 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(badKernelSnapPath, nil, 0644)
+	err = os.WriteFile(badKernelSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
 	err = os.Symlink("bad_snap_rev_name/kernel.efi", tryKernelSymlink)

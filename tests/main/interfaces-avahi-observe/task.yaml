@@ -30,7 +30,10 @@ execute: |
     snap connect generic-consumer:avahi-observe
 
     echo "Then the snap is able to access avahi provided info"
-    hostname=$(hostname)
+    # Support the 2 possible outputs for hostname in google machines
+    # jun221608-881720
+    # jun221608-881720.c.snapd-spread.internal
+    hostname="$(hostname | cut -d . -f1)"
     avahi_dbus_call | MATCH "$hostname"
 
     if [ "$(snap debug confinement)" = partial ]; then

@@ -296,8 +296,8 @@ func (s *downloadSnapSuite) TestDoDownloadRateLimitedIntegration(c *C) {
 			name:   "foo",
 			target: filepath.Join(dirs.SnapBlobDir, "foo_11.snap"),
 			opts: &store.DownloadOptions{
-				RateLimit:     1234,
-				IsAutoRefresh: true,
+				RateLimit: 1234,
+				Scheduled: true,
 			},
 		},
 	})

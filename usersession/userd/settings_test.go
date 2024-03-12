@@ -20,7 +20,6 @@
 package userd_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -252,7 +251,7 @@ func (s *settingsSuite) testSetUserDeclined(c *C) {
 	df := filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_bar.desktop")
 	err := os.MkdirAll(filepath.Dir(df), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(df, nil, 0644)
+	err = os.WriteFile(df, nil, 0644)
 	c.Assert(err, IsNil)
 
 	err = s.settings.Set("default-web-browser", "bar.desktop", ":some-dbus-sender")
@@ -294,7 +293,7 @@ func (s *settingsSuite) testSetUserAccepts(c *C) {
 	df := filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_foo.desktop")
 	err := os.MkdirAll(filepath.Dir(df), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(df, nil, 0644)
+	err = os.WriteFile(df, nil, 0644)
 	c.Assert(err, IsNil)
 
 	err = s.settings.Set("default-web-browser", "foo.desktop", ":some-dbus-sender")
@@ -314,7 +313,7 @@ func (s *settingsSuite) testSetUserAcceptsURLScheme(c *C) {
 	df := filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_ircclient.desktop")
 	err := os.MkdirAll(filepath.Dir(df), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(df, nil, 0644)
+	err = os.WriteFile(df, nil, 0644)
 	c.Assert(err, IsNil)
 
 	err = s.settings.SetSub("default-url-scheme-handler", "irc", "ircclient.desktop", ":some-dbus-sender")
@@ -384,7 +383,7 @@ func (s *settingsSuite) TestSetUserAcceptsZenityUrlSchemeXdgSettingsError(c *C) 
 	df := filepath.Join(dirs.SnapDesktopFilesDir, "some-snap_ircclient.desktop")
 	err := os.MkdirAll(filepath.Dir(df), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(df, nil, 0644)
+	err = os.WriteFile(df, nil, 0644)
 	c.Assert(err, IsNil)
 
 	err = s.settings.SetSub("default-url-scheme-handler", "irc2", "ircclient.desktop", ":some-dbus-sender")

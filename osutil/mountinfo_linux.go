@@ -186,12 +186,13 @@ func ParseMountInfoEntry(s string) (*MountInfoEntry, error) {
 	}
 	// Parse the last three fixed fields.
 	tailFields := fields[i+1:]
-	if len(tailFields) != 3 {
+	// XXX: The last field (options) *may* contain spaces that are incorrectly escaped by some file-systems.
+	if len(tailFields) < 3 {
 		return nil, fmt.Errorf("incorrect number of tail fields, expected 3 but found %d", len(tailFields))
 	}
 	e.FsType = unescape(tailFields[0])
 	e.MountSource = unescape(tailFields[1])
-	e.SuperOptions = parseMountOpts(unescape(tailFields[2]))
+	e.SuperOptions = parseMountOpts(unescape(strings.Join(tailFields[2:], " ")))
 	return &e, nil
 }
 

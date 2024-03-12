@@ -34,6 +34,7 @@ environment:
   NESTED_ENABLE_SECURE_BOOT: true
 
   INITIAL_KERNEL_REV_URL: https://storage.googleapis.com/snapd-spread-tests/snaps/pc-kernel_838.snap
+  INITIAL_GADGET_REV_URL: https://storage.googleapis.com/snapd-spread-tests/snaps/pc_132.snap
 
 prepare: |
   # always build the snapd snap from this branch - on the new variant it gets
@@ -60,6 +61,8 @@ prepare: |
   # use a specific version of the kernel snap and thus initramfs that we know
   # doesn't support v2 secboot keys
   wget --quiet "$INITIAL_KERNEL_REV_URL"
+  # use a gadget snap that works with this kernel
+  wget --quiet "$INITIAL_GADGET_REV_URL"
 
   # unpack it and repack it so it doesn't match any store assertions and thus
   # won't be automatically refreshed behind our backs when we boot the VM
@@ -67,6 +70,11 @@ prepare: |
   touch ./pc-kernel-snap/in-case-mksquashfs-becomes-deterministic-someday
   snap pack pc-kernel-snap --filename=pc-kernel.snap
   mv pc-kernel.snap "$(tests.nested get extra-snaps-path)" 
+
+  unsquashfs -d pc-snap pc_132.snap
+  touch ./pc-snap/in-case-mksquashfs-becomes-deterministic-someday
+  snap pack pc-snap --filename=pc.snap
+  mv pc.snap "$(tests.nested get extra-snaps-path)" 
 
   # Get the nested system version
   VERSION="$(tests.nested show version)"

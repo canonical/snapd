@@ -162,7 +162,7 @@ func (s *MprisInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 	}, nil, nil)
 
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -184,7 +184,7 @@ func (s *MprisInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 	}, nil, nil)
 
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -204,7 +204,7 @@ func (s *MprisInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 		Apps:      map[string]*snap.AppInfo{"app": app},
 	}, nil, nil)
 
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
@@ -213,23 +213,34 @@ func (s *MprisInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
 
 // The label glob when all apps are bound to the mpris plug
 func (s *MprisInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelAll(c *C) {
-	app1 := &snap.AppInfo{Name: "app1"}
-	app2 := &snap.AppInfo{Name: "app2"}
+	snapInfo := &snap.Info{
+		SuggestedName: "mpris",
+		Apps:          map[string]*snap.AppInfo{"app1": {Name: "app1"}, "app2": {Name: "app2"}},
+	}
+	for _, a := range snapInfo.Apps {
+		a.Snap = snapInfo
+	}
+
 	plug := interfaces.NewConnectedPlug(&snap.PlugInfo{
-		Snap: &snap.Info{
-			SuggestedName: "mpris",
-			Apps:          map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-		},
+		Snap:      snapInfo,
 		Name:      "mpris",
 		Interface: "mpris",
-		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
+		Apps:      map[string]*snap.AppInfo{"app1": snapInfo.Apps["app1"], "app2": snapInfo.Apps["app2"]},
 	}, nil, nil)
 
-	apparmorSpec := &apparmor.Specification{}
-	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
+	slot := interfaces.NewConnectedSlot(&snap.SlotInfo{
+		Snap:      snapInfo,
+		Name:      "mpris",
+		Interface: "mpris",
+		Apps:      map[string]*snap.AppInfo{"app1": snapInfo.Apps["app1"], "app2": snapInfo.Apps["app2"]},
+	}, nil, nil)
+
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(slot.Snap()))
+	err := apparmorSpec.AddConnectedSlot(s.iface, plug, slot)
 	c.Assert(err, IsNil)
-	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mpris.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.mpris.app"), testutil.Contains, `peer=(label="snap.mpris.*"),`)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mpris.app1", "snap.mpris.app2"})
+	c.Assert(apparmorSpec.SnippetForTag("snap.mpris.app1"), testutil.Contains, `peer=(label="snap.mpris.*"),`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.mpris.app2"), testutil.Contains, `peer=(label="snap.mpris.*"),`)
 }
 
 // The label uses alternation when some, but not all, apps is bound to the mpris plug
@@ -247,7 +258,7 @@ func (s *MprisInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelSome(c *C) {
 		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
 	}, nil, nil)
 
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap()))
 	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mpris.app"})
@@ -267,7 +278,7 @@ func (s *MprisInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 		Apps:      map[string]*snap.AppInfo{"app": app},
 	}, nil, nil)
 
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slot.Snap()))
 	err := apparmorSpec.AddConnectedSlot(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mpris.app"})
@@ -275,7 +286,7 @@ func (s *MprisInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 }
 
 func (s *MprisInterfaceSuite) TestPermanentSlotAppArmor(c *C) {
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
 	err := apparmorSpec.AddPermanentSlot(s.iface, s.slotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mpris.app"})
@@ -298,7 +309,7 @@ apps:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := info.Slots["mpris-slot"]
 
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(slot.Snap))
 	err := apparmorSpec.AddPermanentSlot(s.iface, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mpris-client.app"})
@@ -311,7 +322,7 @@ func (s *MprisInterfaceSuite) TestPermanentSlotAppArmorNative(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
 	err := apparmorSpec.AddPermanentSlot(s.iface, s.slotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mpris.app"})
@@ -324,7 +335,7 @@ func (s *MprisInterfaceSuite) TestPermanentSlotAppArmorClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	apparmorSpec := &apparmor.Specification{}
+	apparmorSpec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap))
 	err := apparmorSpec.AddPermanentSlot(s.iface, s.slotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.mpris.app"})

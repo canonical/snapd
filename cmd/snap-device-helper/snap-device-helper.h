@@ -21,8 +21,9 @@
 struct sdh_invocation {
     const char *action;
     const char *tagname;
-    const char *devpath;
-    const char *majmin;
+    const char *major;
+    const char *minor;
+    const char *subsystem;
 };
 
 int snap_device_helper_run(const struct sdh_invocation *inv);

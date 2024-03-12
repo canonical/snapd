@@ -77,7 +77,7 @@ func (s *XilinxDmaInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *XilinxDmaInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/xdma[0-9]*_{c2h,h2c,events}_[0-9]* rw,`)
@@ -87,13 +87,13 @@ func (s *XilinxDmaInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *XilinxDmaInterfaceSuite) TestUDevSpec(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# xilinx-dma
 SUBSYSTEM=="xdma", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(
-		`TAG=="snap_consumer_app", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
+		`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_consumer_app"`, dirs.DistroLibExecDir))
 }
 
 func (s *XilinxDmaInterfaceSuite) TestStaticInfo(c *C) {

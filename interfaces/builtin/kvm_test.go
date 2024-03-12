@@ -21,7 +21,7 @@ package builtin_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -78,7 +78,7 @@ func (s *kvmInterfaceSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 
 	mockCpuinfo := filepath.Join(s.tmpdir, "cpuinfo")
-	c.Assert(ioutil.WriteFile(mockCpuinfo, []byte(`
+	c.Assert(os.WriteFile(mockCpuinfo, []byte(`
 processor       : 0
 flags		: cpuflags without kvm support
 
@@ -101,7 +101,7 @@ func (s *kvmInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *kvmInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Equals, `
@@ -122,12 +122,12 @@ func (s *kvmInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *kvmInterfaceSuite) TestUDevSpec(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets()[0], Equals, `# kvm
 KERNEL=="kvm", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", RUN+="%s/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%s/snap-device-helper snap_consumer_app"`, dirs.DistroLibExecDir))
 }
 
 func (s *kvmInterfaceSuite) TestStaticInfo(c *C) {
@@ -156,7 +156,7 @@ func (s *kvmInterfaceSuite) TestKModSpecWithUnknownCpu(c *C) {
 
 func (s *kvmInterfaceSuite) TestKModSpecWithIntel(c *C) {
 	mockCpuinfo := filepath.Join(s.tmpdir, "cpuinfo")
-	c.Assert(ioutil.WriteFile(mockCpuinfo, []byte(`
+	c.Assert(os.WriteFile(mockCpuinfo, []byte(`
 processor       : 0
 flags           : stuff vmx other
 `[1:]), 0644), IsNil)
@@ -170,7 +170,7 @@ flags           : stuff vmx other
 
 func (s *kvmInterfaceSuite) TestKModSpecWithAMD(c *C) {
 	mockCpuinfo := filepath.Join(s.tmpdir, "cpuinfo")
-	c.Assert(ioutil.WriteFile(mockCpuinfo, []byte(`
+	c.Assert(os.WriteFile(mockCpuinfo, []byte(`
 processor       : 0
 flags           : stuff svm other
 `[1:]), 0644), IsNil)
@@ -186,7 +186,7 @@ flags           : stuff svm other
 
 func (s *kvmInterfaceSuite) TestKModSpecWithEmptyCpuinfo(c *C) {
 	mockCpuinfo := filepath.Join(s.tmpdir, "cpuinfo")
-	c.Assert(ioutil.WriteFile(mockCpuinfo, []byte(`
+	c.Assert(os.WriteFile(mockCpuinfo, []byte(`
 `[1:]), 0644), IsNil)
 
 	s.AddCleanup(builtin.MockProcCpuinfo(mockCpuinfo))

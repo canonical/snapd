@@ -25,6 +25,7 @@ import (
 	"reflect"
 
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // FinalTasks are task kinds for final tasks in a change which means no further
@@ -98,6 +99,51 @@ func affectedSnaps(t *state.Task) ([]string, error) {
 	return nil, nil
 }
 
+func snapSetupFromChange(chg *state.Change) (*SnapSetup, error) {
+	for _, t := range chg.Tasks() {
+		// Check a known task of each change that we know keep snap info.
+		if t.Kind() != "prepare-snap" && t.Kind() != "download-snap" {
+			continue
+		}
+		return TaskSnapSetup(t)
+	}
+	return nil, nil
+}
+
+// changeIsSnapdDowngrade returns true if the change provided is a snapd
+// setup change with a version lower than what is currently installed. If a change
+// is not SnapSetup related this returns false.
+func changeIsSnapdDowngrade(st *state.State, chg *state.Change) (bool, error) {
+	snapsup, err := snapSetupFromChange(chg)
+	if err != nil {
+		return false, err
+	}
+	if snapsup == nil || snapsup.SnapName() != "snapd" {
+		return false, nil
+	}
+
+	var snapst SnapState
+	if err := Get(st, snapsup.InstanceName(), &snapst); err != nil {
+		return false, err
+	}
+
+	currentInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return false, fmt.Errorf("cannot retrieve snap info for current snapd: %v", err)
+	}
+
+	// On older snapd's 'Version' might be empty, and in this case we assume
+	// that snapd is downgrading as we cannot determine otherwise.
+	if snapsup.Version == "" {
+		return true, nil
+	}
+	res, err := strutil.VersionCompare(currentInfo.Version, snapsup.Version)
+	if err != nil {
+		return false, fmt.Errorf("cannot compare versions of snapd [cur: %s, new: %s]: %v", currentInfo.Version, snapsup.Version, err)
+	}
+	return res == 1, nil
+}
+
 func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, ignoreChangeID string) error {
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() {
@@ -134,6 +180,33 @@ func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, 
 				ChangeKind: "create-recovery-system",
 				ChangeID:   chg.ID(),
 			}
+		case "remove-recovery-system":
+			// TODO: it is not totally necessary for this to be an exclusive
+			// change, we should probably make more fine-grained exclusivity
+			// rules
+			if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
+				continue
+			}
+			return &ChangeConflictError{
+				Message:    "removing recovery system in progress, no other changes allowed until this is done",
+				ChangeKind: "remove-recovery-system",
+				ChangeID:   chg.ID(),
+			}
+		case "revert-snap", "refresh-snap":
+			// Snapd downgrades are exclusive changes
+			if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
+				continue
+			}
+			if downgrading, err := changeIsSnapdDowngrade(st, chg); err != nil {
+				return err
+			} else if !downgrading {
+				continue
+			}
+			return &ChangeConflictError{
+				Message:    "snapd downgrade in progress, no other changes allowed until this is done",
+				ChangeKind: chg.Kind(),
+				ChangeID:   chg.ID(),
+			}
 		default:
 			if newExclusiveChangeKind != "" {
 				// we want to run a new exclusive change, but other
@@ -160,7 +233,7 @@ func CheckChangeConflictRunExclusively(st *state.State, newChangeKind string) er
 // isIrrelevantChange checks if a change is ready or it can be ignored
 // if matching the passed ID, for conflict checking purposes.
 func isIrrelevantChange(chg *state.Change, ignoreChangeID string) bool {
-	if chg == nil || chg.Status().Ready() {
+	if chg == nil || chg.IsReady() {
 		return true
 	}
 	if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
@@ -285,7 +358,7 @@ func CheckUpdateKernelCommandLineConflict(st *state.State, ignoreChangeID string
 			}
 		case "update-managed-boot-config":
 			return &ChangeConflictError{
-				Message:    "boot config is being updated, no change in kernel commnd line is allowed meanwhile",
+				Message:    "boot config is being updated, no change in kernel command line is allowed meanwhile",
 				ChangeKind: task.Kind(),
 				ChangeID:   chg.ID(),
 			}

@@ -1,12 +1,18 @@
 summary: Check that `snap run` runs
 
+details: |
+    Verifies the `snap run` command and its parameters. Check
+    the parameter --strace can be used and the traced information
+    is correct. Also checks the --trace-exec and --debug-log parameters.
+
 systems:
   # strace does not support _newselect on s390x
   # (https://github.com/strace/strace/issues/57)
   - -*-s390x
-  # TODO: segfault on core22
-  - -ubuntu-core-22-*
 
+environment:
+    STRACE_STATIC_CHANNEL: candidate
+  
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local basic-run
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
@@ -31,15 +37,15 @@ execute: |
 
     # the strace on 14.04 is too old
     if os.query is-trusty; then
-        snap install strace-static --edge
+        snap install strace-static --channel="${STRACE_STATIC_CHANNEL}"
     fi
     # the strace on opensuse is too old
     if os.query is-opensuse && ! os.query is-opensuse tumbleweed; then
-        snap install strace-static --edge
+        snap install strace-static --channel="${STRACE_STATIC_CHANNEL}"
     fi
     # install the snap if no system strace is found
     if ! command -v strace; then
-        snap install strace-static --edge
+        snap install strace-static --channel="${STRACE_STATIC_CHANNEL}"
     fi
 
     echo "Test snap --strace invalid works"
@@ -47,7 +53,11 @@ execute: |
         echo "snap run with an invalid strace option should fail but it did not"
         exit 1
     fi
-    MATCH "Can't stat 'invalid': No such file or directory" < stderr
+    if os.query is-arch-linux || os.query is-opensuse tumbleweed || os.query is-fedora || os.query is-ubuntu-ge 24.04; then
+        MATCH "Cannot find executable 'invalid'" < stderr
+    else
+        MATCH "Can't stat 'invalid': No such file or directory" < stderr
+    fi
 
     if os.query is-arch-linux || os.query is-opensuse tumbleweed; then
         # Arch linux and Opensuse tumbleweed run the mainline kernel, strace

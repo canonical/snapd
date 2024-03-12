@@ -197,6 +197,8 @@ func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, ins
 		Revision: snap.R(revision),
 	})
 
+	appSet := interfaces.NewSnapAppSet(snapInfo)
+
 	if instanceName != "" {
 		_, instanceKey := snap.SplitInstanceName(instanceName)
 		snapInfo.InstanceKey = instanceKey
@@ -204,22 +206,29 @@ func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, ins
 	}
 
 	s.addPlugsSlots(c, snapInfo)
-	err := s.Backend.Setup(snapInfo, opts, s.Repo, s.meas)
+	err := s.Backend.Setup(appSet, opts, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	return snapInfo
 }
 
 // UpdateSnap "updates" an existing snap from YAML.
 func (s *BackendSuite) UpdateSnap(c *C, oldSnapInfo *snap.Info, opts interfaces.ConfinementOptions, snapYaml string, revision int) *snap.Info {
+	newSnapInfo, err := s.UpdateSnapMaybeErr(c, oldSnapInfo, opts, snapYaml, revision)
+	c.Assert(err, IsNil)
+	return newSnapInfo
+}
+
+// UpdateSnapMaybeErr "updates" an existing snap from YAML, this might error.
+func (s *BackendSuite) UpdateSnapMaybeErr(c *C, oldSnapInfo *snap.Info, opts interfaces.ConfinementOptions, snapYaml string, revision int) (*snap.Info, error) {
 	newSnapInfo := snaptest.MockInfo(c, snapYaml, &snap.SideInfo{
 		Revision: snap.R(revision),
 	})
+	appSet := interfaces.NewSnapAppSet(newSnapInfo)
 	c.Assert(newSnapInfo.InstanceName(), Equals, oldSnapInfo.InstanceName())
 	s.removePlugsSlots(c, oldSnapInfo)
 	s.addPlugsSlots(c, newSnapInfo)
-	err := s.Backend.Setup(newSnapInfo, opts, s.Repo, s.meas)
-	c.Assert(err, IsNil)
-	return newSnapInfo
+	err := s.Backend.Setup(appSet, opts, s.Repo, s.meas)
+	return newSnapInfo, err
 }
 
 // RemoveSnap "removes" an "installed" snap.

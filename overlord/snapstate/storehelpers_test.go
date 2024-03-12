@@ -22,13 +22,16 @@ package snapstate_test
 import (
 	"context"
 	"fmt"
+	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -156,9 +159,9 @@ func (f installSizeTestStore) SnapAction(ctx context.Context, currentSnaps []*st
 func (s *snapmgrTestSuite) mockCoreSnap(c *C) {
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "core", SnapID: "core-id", Revision: snap.R(1)},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
@@ -190,7 +193,7 @@ func (s *snapmgrTestSuite) TestInstallSizeSimple(c *C) {
 	})
 	snap2.Size = snap2Size
 
-	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{snapstate.InstallSnapInfo{Info: snap1}, snapstate.InstallSnapInfo{Info: snap2}}, 0)
+	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{snapstate.InstallSnapInfo{Info: snap1}, snapstate.InstallSnapInfo{Info: snap2}}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(sz, Equals, uint64(snap1Size+snap2Size))
 }
@@ -226,9 +229,9 @@ func (s *snapmgrTestSuite) TestInstallSizeWithBases(c *C) {
 	// base of some-snap4 is already installed
 	snapstate.Set(st, "yet-another-base", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "yet-another-base", Revision: snap.R(1), SnapID: "yet-another-base-id"},
-		},
+		}),
 		Current: snap.R(1),
 	})
 
@@ -236,7 +239,7 @@ func (s *snapmgrTestSuite) TestInstallSizeWithBases(c *C) {
 		snapstate.InstallSnapInfo{Info: snap1},
 		snapstate.InstallSnapInfo{Info: snap2},
 		snapstate.InstallSnapInfo{Info: snap3},
-		snapstate.InstallSnapInfo{Info: snap4}}, 0)
+		snapstate.InstallSnapInfo{Info: snap4}}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(sz, Equals, uint64(snap1Size+snap2Size+snap3Size+snap4Size+someBaseSize+otherBaseSize))
 }
@@ -267,7 +270,7 @@ func (s *snapmgrTestSuite) TestInstallSizeWithContentProviders(c *C) {
 
 	// both snaps have same content providers and base
 	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{
-		snapstate.InstallSnapInfo{Info: snap1}, snapstate.InstallSnapInfo{Info: snap2}}, 0)
+		snapstate.InstallSnapInfo{Info: snap1}, snapstate.InstallSnapInfo{Info: snap2}}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(sz, Equals, uint64(snap1Size+snap2Size+someBaseSize+snapContentSlotSize))
 }
@@ -289,7 +292,7 @@ func (s *snapmgrTestSuite) TestInstallSizeWithNestedDependencies(c *C) {
 
 	s.mockCoreSnap(c)
 
-	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{snapstate.InstallSnapInfo{Info: snap1}}, 0)
+	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{snapstate.InstallSnapInfo{Info: snap1}}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(sz, Equals, uint64(snap1Size+someBaseSize+snapOtherContentSlotSize+someOtherBaseSize))
 }
@@ -329,7 +332,7 @@ func (s *snapmgrTestSuite) TestInstallSizeWithOtherChangeAffectingSameSnaps(c *C
 	snap3.Size = snap3Size
 
 	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{
-		snapstate.InstallSnapInfo{Info: snap1}, snapstate.InstallSnapInfo{Info: snap3}}, 0)
+		snapstate.InstallSnapInfo{Info: snap1}, snapstate.InstallSnapInfo{Info: snap3}}, 0, nil)
 	c.Assert(err, IsNil)
 	// snap3 and its base installed by another change, not counted here
 	c.Check(sz, Equals, uint64(snap1Size+someBaseSize))
@@ -348,7 +351,7 @@ func (s *snapmgrTestSuite) TestInstallSizeErrorNoDownloadInfo(c *C) {
 			RealName: "snap",
 		}}
 
-	_, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{snapstate.InstallSnapInfo{Info: snap1}}, 0)
+	_, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{snapstate.InstallSnapInfo{Info: snap1}}, 0, nil)
 	c.Assert(err, ErrorMatches, `internal error: download info missing.*`)
 }
 
@@ -393,7 +396,7 @@ slots:
 	s.mockCoreSnap(c)
 
 	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{
-		snapstate.InstallSnapInfo{Info: snap1}, snapstate.InstallSnapInfo{Info: snap2}}, 0)
+		snapstate.InstallSnapInfo{Info: snap1}, snapstate.InstallSnapInfo{Info: snap2}}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(sz, Equals, uint64(snap1Size+snap2Size))
 
@@ -448,7 +451,7 @@ type: os`, &snap.SideInfo{
 	core.Size = someBaseSize
 
 	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{
-		snapstate.InstallSnapInfo{Info: snap1}, snapstate.InstallSnapInfo{Info: snap2}, snapstate.InstallSnapInfo{Info: core}}, 0)
+		snapstate.InstallSnapInfo{Info: snap1}, snapstate.InstallSnapInfo{Info: snap2}, snapstate.InstallSnapInfo{Info: core}}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(sz, Equals, uint64(snap1Size+snap2Size+someBaseSize))
 
@@ -475,11 +478,73 @@ func (s *snapmgrTestSuite) TestInstallSizeRemotePrereq(c *C) {
 	s.mockCoreSnap(c)
 
 	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{
-		snapstate.InstallSnapInfo{Info: snap1}}, 0)
+		snapstate.InstallSnapInfo{Info: snap1}}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(sz, Equals, uint64(snap1Size+snapContentSlotSize+someBaseSize))
 
 	// the prereq's size info is fetched from the store
 	op := s.fakeStore.fakeBackend.ops.MustFindOp(c, "storesvc-snap-action:action")
 	c.Assert(op.action.InstanceName, Equals, "snap-content-slot")
+}
+
+func (s *snapmgrTestSuite) TestSnapHoldsSnapsOnly(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockInstalledSnap(c, st, snapAyaml, false)
+	mockInstalledSnap(c, st, snapByaml, false)
+	mockInstalledSnap(c, st, snapCyaml, false)
+
+	_, err := snapstate.HoldRefresh(st, snapstate.HoldGeneral, "snap-c", 24*time.Hour, "snap-a", "snap-b")
+	c.Assert(err, IsNil)
+
+	snapHolds, err := snapstate.SnapHolds(st, []string{"snap-a", "snap-b", "snap-c"})
+	c.Assert(err, IsNil)
+	c.Check(snapHolds, DeepEquals, map[string][]string{
+		"snap-a": {"snap-c"},
+		"snap-b": {"snap-c"},
+	})
+}
+
+func (s *snapmgrTestSuite) TestSnapHoldsSystemOnly(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockInstalledSnap(c, st, snapAyaml, false)
+	mockInstalledSnap(c, st, snapByaml, false)
+
+	mockLastRefreshed(c, st, "2021-05-09T10:00:00Z", "snap-a", "snap-b")
+
+	now, err := time.Parse(time.RFC3339, "2021-05-10T10:00:00Z")
+	c.Assert(err, IsNil)
+	restore := snapstate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restore()
+
+	tr := config.NewTransaction(st)
+	err = tr.Set("core", "refresh.hold", "2021-05-10T11:00:00Z")
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	snapHolds, err := snapstate.SnapHolds(st, []string{"snap-a", "snap-b"})
+	c.Assert(err, IsNil)
+	c.Check(snapHolds, DeepEquals, map[string][]string{
+		"snap-a": {"system"},
+		"snap-b": {"system"},
+	})
+
+	tr = config.NewTransaction(st)
+	err = tr.Set("core", "refresh.hold", "forever")
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	snapHolds, err = snapstate.SnapHolds(st, []string{"snap-a", "snap-b"})
+	c.Assert(err, IsNil)
+	c.Check(snapHolds, DeepEquals, map[string][]string{
+		"snap-a": {"system"},
+		"snap-b": {"system"},
+	})
 }

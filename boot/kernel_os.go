@@ -37,6 +37,9 @@ var _ BootParticipant = (*coreBootParticipant)(nil)
 func (*coreBootParticipant) IsTrivial() bool { return false }
 
 func (bp *coreBootParticipant) SetNextBoot(bootCtx NextBootContext) (rebootInfo RebootInfo, err error) {
+	modeenvLock()
+	defer modeenvUnlock()
+
 	const errPrefix = "cannot set next boot: %s"
 
 	rebootInfo, u, err := bp.bs.setNext(bp.s, bootCtx)

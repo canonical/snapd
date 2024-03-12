@@ -112,7 +112,6 @@ var (
 	restartSnapdCoolOffWait = 12500 * time.Millisecond
 )
 
-// FIXME: also do error reporting via errtracker
 func (c *cmdSnapd) Execute(args []string) error {
 	var snapdPath string
 	// find previous the snapd snap
@@ -140,9 +139,9 @@ func (c *cmdSnapd) Execute(args []string) error {
 	}
 	logger.Noticef("stopping snapd socket")
 	// stop the socket unit so that we can start snapd on its own
-	output, err := exec.Command("systemctl", "stop", "snapd.socket").CombinedOutput()
+	stdout, stderr, err := osutil.RunSplitOutput("systemctl", "stop", "snapd.socket")
 	if err != nil {
-		return osutil.OutputErr(output, err)
+		return osutil.OutputErrCombine(stdout, stderr, err)
 	}
 
 	logger.Noticef("restoring invoking snapd from: %v", snapdPath)

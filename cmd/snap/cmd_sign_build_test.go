@@ -55,7 +55,7 @@ func (s *SnapSignBuildSuite) TestSignBuildMissingSnap(c *C) {
 
 func (s *SnapSignBuildSuite) TestSignBuildMissingKey(c *C) {
 	snapFilename := "foo_1_amd64.snap"
-	_err := ioutil.WriteFile(snapFilename, []byte("sample"), 0644)
+	_err := os.WriteFile(snapFilename, []byte("sample"), 0644)
 	c.Assert(_err, IsNil)
 	defer os.Remove(snapFilename)
 
@@ -73,7 +73,7 @@ func (s *SnapSignBuildSuite) TestSignBuildMissingKey(c *C) {
 func (s *SnapSignBuildSuite) TestSignBuildWorks(c *C) {
 	snapFilename := "foo_1_amd64.snap"
 	snapContent := []byte("sample")
-	_err := ioutil.WriteFile(snapFilename, snapContent, 0644)
+	_err := os.WriteFile(snapFilename, snapContent, 0644)
 	c.Assert(_err, IsNil)
 	defer os.Remove(snapFilename)
 
@@ -81,7 +81,7 @@ func (s *SnapSignBuildSuite) TestSignBuildWorks(c *C) {
 	for _, fileName := range []string{"pubring.gpg", "secring.gpg", "trustdb.gpg"} {
 		data, err := ioutil.ReadFile(filepath.Join("test-data", fileName))
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(tempdir, fileName), data, 0644)
+		err = os.WriteFile(filepath.Join(tempdir, fileName), data, 0644)
 		c.Assert(err, IsNil)
 	}
 	os.Setenv("SNAP_GNUPG_HOME", tempdir)
@@ -108,7 +108,7 @@ func (s *SnapSignBuildSuite) TestSignBuildWorks(c *C) {
 func (s *SnapSignBuildSuite) TestSignBuildWorksDevelGrade(c *C) {
 	snapFilename := "foo_1_amd64.snap"
 	snapContent := []byte("sample")
-	_err := ioutil.WriteFile(snapFilename, snapContent, 0644)
+	_err := os.WriteFile(snapFilename, snapContent, 0644)
 	c.Assert(_err, IsNil)
 	defer os.Remove(snapFilename)
 
@@ -116,7 +116,7 @@ func (s *SnapSignBuildSuite) TestSignBuildWorksDevelGrade(c *C) {
 	for _, fileName := range []string{"pubring.gpg", "secring.gpg", "trustdb.gpg"} {
 		data, err := ioutil.ReadFile(filepath.Join("test-data", fileName))
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(tempdir, fileName), data, 0644)
+		err = os.WriteFile(filepath.Join(tempdir, fileName), data, 0644)
 		c.Assert(err, IsNil)
 	}
 	os.Setenv("SNAP_GNUPG_HOME", tempdir)

@@ -1,5 +1,8 @@
 summary: Ensure snapd builds as a snap
 
+details: |
+    Ensure snapd builds as a snap
+
 # TODO: we don't need to build the snapd snap in this test on as many systems
 # when we have a way to dynamically download the snapd snap that was built for a
 # particular PR from github actions, in which case we can just download that and
@@ -155,6 +158,9 @@ execute: |
       if ! os.query is-trusty && ! os.query is-xenial; then
         systemctl status snapd.apparmor.service
       fi
+      if os.query is-ubuntu; then
+        systemctl status apparmor.service
+      fi
       cat /var/lib/snapd/system-key
       echo "Rebooted successfully"
 
@@ -192,10 +198,6 @@ execute: |
 
     echo "Unsquash the snapd snap"
     unsquashfs snapd_spread-test.snap
-
-    echo "Ensure we have the fc-cache binaries"
-    test -f squashfs-root/bin/fc-cache-v6
-    test -f squashfs-root/bin/fc-cache-v7
 
     echo "Ensure we have xdelta3"
     test -f squashfs-root/usr/bin/xdelta3
@@ -235,9 +237,24 @@ execute: |
     echo "Ensure we restarted into the snapd snap"
     "$TESTSTOOLS"/journal-state match-log  'restarting into "/snap/snapd/'
 
+    # see LP:2024637
+    if grep -q /var/lib/snapd/apparmor/ /lib/apparmor/functions; then
+       echo "SKIP: cannot test builtin apparmor parser until /lib/apparmor/functions stops loading the snapd profiles"
+       exit 0
+    fi
+
     echo "Ensure sandbox-features shows the internal apparmor_parser"
     snap debug sandbox-features --required apparmor:parser:snapd-internal
 
+    echo "Ensure snap-confine apparmor profile points to snap-confine.internal"
+    for profile in /var/lib/snapd/apparmor/profiles/snap-confine.*; do
+        MATCH '#include "/var/lib/snapd/apparmor/snap-confine.internal"' < "$profile"
+    done
+
+    echo "Ensure we support posix mqueue and userns in the internal apparmor_parser"
+    snap debug sandbox-features --required apparmor:parser:mqueue
+    snap debug sandbox-features --required apparmor:parser:userns
+    
     echo "Then we should be able to compile policy using the internal apparmor_parser"
     /snap/snapd/current/usr/lib/snapd/apparmor_parser \
       --config-file /snap/snapd/current/usr/lib/snapd/apparmor/parser.conf \

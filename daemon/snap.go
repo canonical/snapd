@@ -39,9 +39,10 @@ import (
 var errNoSnap = errors.New("snap not installed")
 
 type aboutSnap struct {
-	info   *snap.Info
-	snapst *snapstate.SnapState
-	health *client.SnapHealth
+	info           *snap.Info
+	snapst         *snapstate.SnapState
+	health         *client.SnapHealth
+	refreshInhibit *client.SnapRefreshInhibit
 
 	hold       time.Time
 	gatingHold time.Time
@@ -82,12 +83,15 @@ func localSnapInfo(st *state.State, name string) (aboutSnap, error) {
 		return aboutSnap{}, InternalError("%v", err)
 	}
 
+	refreshInhibit := clientSnapRefreshInhibit(st, &snapst, name)
+
 	return aboutSnap{
-		info:       info,
-		snapst:     &snapst,
-		health:     clientHealthFromHealthstate(health),
-		hold:       userHold,
-		gatingHold: gatingHold,
+		info:           info,
+		snapst:         &snapst,
+		health:         clientHealthFromHealthstate(health),
+		refreshInhibit: refreshInhibit,
+		hold:           userHold,
+		gatingHold:     gatingHold,
 	}, nil
 }
 
@@ -105,8 +109,17 @@ func getUserAndGatingHolds(st *state.State, name string) (userHold, gatingHold t
 	return userHold, gatingHold, err
 }
 
+type snapSelect int
+
+const (
+	snapSelectNone snapSelect = iota
+	snapSelectAll
+	snapSelectEnabled
+	snapSelectRefreshInhibited
+)
+
 // allLocalSnapInfos returns the information about the all current snaps and their SnapStates.
-func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]aboutSnap, error) {
+func allLocalSnapInfos(st *state.State, sel snapSelect, wanted map[string]bool) ([]aboutSnap, error) {
 	st.Lock()
 	defer st.Unlock()
 
@@ -132,32 +145,39 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 			return nil, err
 		}
 
+		refreshInhibit := clientSnapRefreshInhibit(st, snapst, name)
+		if sel == snapSelectRefreshInhibited && refreshInhibit == nil {
+			// skip snaps whose refresh is not inhibited
+			continue
+		}
+
 		var aboutThis []aboutSnap
 		var info *snap.Info
-		if all {
-			for _, seq := range snapst.Sequence {
-				info, err = snap.ReadInfo(name, seq)
+		if sel == snapSelectAll {
+			for _, si := range snapst.Sequence.SideInfos() {
+				info, err = snap.ReadInfo(name, si)
 				if err != nil {
 					// single revision may be broken
 					_, instanceKey := snap.SplitInstanceName(name)
 					info = &snap.Info{
-						SideInfo:    *seq,
+						SideInfo:    *si,
 						InstanceKey: instanceKey,
 						Broken:      err.Error(),
 					}
 					// clear the error
 					err = nil
 				}
-				info.Publisher, err = assertstate.PublisherStoreAccount(st, seq.SnapID)
+				info.Publisher, err = assertstate.PublisherStoreAccount(st, si.SnapID)
 				if err != nil {
 					return nil, err
 				}
 				abSnap := aboutSnap{
-					info:       info,
-					snapst:     snapst,
-					health:     health,
-					hold:       userHold,
-					gatingHold: gatingHold,
+					info:           info,
+					snapst:         snapst,
+					health:         health,
+					refreshInhibit: refreshInhibit,
+					hold:           userHold,
+					gatingHold:     gatingHold,
 				}
 				aboutThis = append(aboutThis, abSnap)
 			}
@@ -173,11 +193,12 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 			}
 
 			abSnap := aboutSnap{
-				info:       info,
-				snapst:     snapst,
-				health:     health,
-				hold:       userHold,
-				gatingHold: gatingHold,
+				info:           info,
+				snapst:         snapst,
+				health:         health,
+				refreshInhibit: refreshInhibit,
+				hold:           userHold,
+				gatingHold:     gatingHold,
 			}
 			aboutThis = append(aboutThis, abSnap)
 		}
@@ -198,6 +219,17 @@ func clientHealthFromHealthstate(h *healthstate.HealthState) *client.SnapHealth 
 		Message:   h.Message,
 		Code:      h.Code,
 	}
+}
+
+func clientSnapRefreshInhibit(st *state.State, snapst *snapstate.SnapState, instanceName string) *client.SnapRefreshInhibit {
+	proceedTime := snapst.RefreshInhibitProceedTime(st)
+	if proceedTime.After(time.Now()) || snapstate.IsSnapMonitored(st, instanceName) {
+		return &client.SnapRefreshInhibit{
+			ProceedTime: proceedTime,
+		}
+	}
+
+	return nil
 }
 
 func mapLocal(about aboutSnap, sd clientutil.StatusDecorator) *client.Snap {
@@ -232,6 +264,7 @@ func mapLocal(about aboutSnap, sd clientutil.StatusDecorator) *client.Snap {
 		result.MountedFrom, _ = os.Readlink(result.MountedFrom)
 	}
 	result.Health = about.health
+	result.RefreshInhibit = about.refreshInhibit
 
 	if !about.hold.IsZero() {
 		result.Hold = &about.hold
@@ -239,7 +272,6 @@ func mapLocal(about aboutSnap, sd clientutil.StatusDecorator) *client.Snap {
 	if !about.gatingHold.IsZero() {
 		result.GatingHold = &about.gatingHold
 	}
-
 	return result
 }
 

@@ -34,6 +34,9 @@ import (
 	"github.com/snapcore/snapd/desktop/notification"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/usersession/client"
 )
@@ -42,6 +45,7 @@ var restApi = []*Command{
 	rootCmd,
 	sessionInfoCmd,
 	serviceControlCmd,
+	serviceStatusCmd,
 	pendingRefreshNotificationCmd,
 	finishRefreshNotificationCmd,
 }
@@ -60,6 +64,11 @@ var (
 	serviceControlCmd = &Command{
 		Path: "/v1/service-control",
 		POST: postServiceControl,
+	}
+
+	serviceStatusCmd = &Command{
+		Path: "/v1/service-status",
+		GET:  serviceStatus,
 	}
 
 	pendingRefreshNotificationCmd = &Command{
@@ -128,6 +137,66 @@ func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 	})
 }
 
+func serviceRestart(inst *serviceInstruction, sysd systemd.Systemd) Response {
+	// Refuse to restart non-snap services
+	for _, service := range inst.Services {
+		if !strings.HasPrefix(service, "snap.") {
+			return InternalError("cannot restart non-snap service %v", service)
+		}
+	}
+
+	restartErrors := make(map[string]string)
+	for _, service := range inst.Services {
+		if err := sysd.Restart([]string{service}); err != nil {
+			restartErrors[service] = err.Error()
+		}
+	}
+	if len(restartErrors) == 0 {
+		return SyncResponse(nil)
+	}
+	return SyncResponse(&resp{
+		Type:   ResponseTypeError,
+		Status: 500,
+		Result: &errorResult{
+			Message: "some user services failed to restart",
+			Kind:    errorKindServiceControl,
+			Value: map[string]interface{}{
+				"restart-errors": restartErrors,
+			},
+		},
+	})
+}
+
+func serviceReloadOrRestart(inst *serviceInstruction, sysd systemd.Systemd) Response {
+	// Refuse to reload/restart non-snap services
+	for _, service := range inst.Services {
+		if !strings.HasPrefix(service, "snap.") {
+			return InternalError("cannot restart non-snap service %v", service)
+		}
+	}
+
+	restartErrors := make(map[string]string)
+	for _, service := range inst.Services {
+		if err := sysd.ReloadOrRestart([]string{service}); err != nil {
+			restartErrors[service] = err.Error()
+		}
+	}
+	if len(restartErrors) == 0 {
+		return SyncResponse(nil)
+	}
+	return SyncResponse(&resp{
+		Type:   ResponseTypeError,
+		Status: 500,
+		Result: &errorResult{
+			Message: "some user services failed to restart or reload",
+			Kind:    errorKindServiceControl,
+			Value: map[string]interface{}{
+				"restart-errors": restartErrors,
+			},
+		},
+	})
+}
+
 func serviceStop(inst *serviceInstruction, sysd systemd.Systemd) Response {
 	// Refuse to stop non-snap services
 	for _, service := range inst.Services {
@@ -169,9 +238,11 @@ func serviceDaemonReload(inst *serviceInstruction, sysd systemd.Systemd) Respons
 }
 
 var serviceInstructionDispTable = map[string]func(*serviceInstruction, systemd.Systemd) Response{
-	"start":         serviceStart,
-	"stop":          serviceStop,
-	"daemon-reload": serviceDaemonReload,
+	"start":             serviceStart,
+	"stop":              serviceStop,
+	"restart":           serviceRestart,
+	"reload-or-restart": serviceReloadOrRestart,
+	"daemon-reload":     serviceDaemonReload,
 }
 
 var systemdLock sync.Mutex
@@ -220,6 +291,65 @@ func postServiceControl(c *Command, r *http.Request) Response {
 	return impl(&inst, sysd)
 }
 
+func unitStatusToClientUnitStatus(units []*systemd.UnitStatus) []*client.ServiceUnitStatus {
+	var results []*client.ServiceUnitStatus
+	for _, u := range units {
+		results = append(results, &client.ServiceUnitStatus{
+			Daemon:           u.Daemon,
+			Id:               u.Id,
+			Name:             u.Name,
+			Names:            u.Names,
+			Enabled:          u.Enabled,
+			Active:           u.Active,
+			Installed:        u.Installed,
+			NeedDaemonReload: u.NeedDaemonReload,
+		})
+	}
+	return results
+}
+
+func serviceStatus(c *Command, r *http.Request) Response {
+	query := r.URL.Query()
+	services := strutil.CommaSeparatedList(query.Get("services"))
+
+	// Refuse to accept any non-snap services
+	for _, service := range services {
+		if !strings.HasPrefix(service, "snap.") {
+			return InternalError("cannot query non-snap service %v", service)
+		}
+	}
+
+	// Prevent multiple systemd actions from being carried out simultaneously
+	systemdLock.Lock()
+	defer systemdLock.Unlock()
+	sysd := systemd.New(systemd.UserMode, noopReporter{})
+
+	statusErrors := make(map[string]string)
+	var stss []*systemd.UnitStatus
+	for _, service := range services {
+		sts, err := sysd.Status([]string{service})
+		if err != nil {
+			statusErrors[service] = err.Error()
+			continue
+		}
+		stss = append(stss, sts...)
+	}
+	if len(statusErrors) > 0 {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: "some user services failed to respond to status query",
+				Kind:    errorKindServiceStatus,
+				Value: map[string]interface{}{
+					"status-errors": statusErrors,
+				},
+			},
+		})
+	}
+	return SyncResponse(unitStatusToClientUnitStatus(stss))
+}
+
 func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	if ok, resp := validateJSONRequest(r); !ok {
 		return resp
@@ -245,26 +375,28 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	}
 
 	// TODO: this message needs to be crafted better as it's the only thing guaranteed to be delivered.
-	summary := fmt.Sprintf(i18n.G("Pending update of %q snap"), refreshInfo.InstanceName)
+	summary := fmt.Sprintf(i18n.G("Update available for %s."), refreshInfo.InstanceName)
 	var urgencyLevel notification.Urgency
 	var body, icon string
 	var hints []notification.Hint
 
-	plzClose := i18n.G("Close the app to update now")
 	if daysLeft := int(refreshInfo.TimeRemaining.Truncate(time.Hour).Hours() / 24); daysLeft > 0 {
 		urgencyLevel = notification.LowUrgency
-		body = fmt.Sprintf("%s (%s)", plzClose, fmt.Sprintf(
-			i18n.NG("%d day left", "%d days left", daysLeft), daysLeft))
+		body = fmt.Sprintf(
+			i18n.NG("Close the application to update now. It will update automatically in %d day.",
+				"Close the application to update now. It will update automatically in %d days.", daysLeft), daysLeft)
 	} else if hoursLeft := int(refreshInfo.TimeRemaining.Truncate(time.Minute).Minutes() / 60); hoursLeft > 0 {
 		urgencyLevel = notification.NormalUrgency
-		body = fmt.Sprintf("%s (%s)", plzClose, fmt.Sprintf(
-			i18n.NG("%d hour left", "%d hours left", hoursLeft), hoursLeft))
+		body = fmt.Sprintf(
+			i18n.NG("Close the application to update now. It will update automatically in %d hour.",
+				"Close the application to update now. It will update automatically in %d hours.", hoursLeft), hoursLeft)
 	} else if minutesLeft := int(refreshInfo.TimeRemaining.Truncate(time.Minute).Minutes()); minutesLeft > 0 {
 		urgencyLevel = notification.CriticalUrgency
-		body = fmt.Sprintf("%s (%s)", plzClose, fmt.Sprintf(
-			i18n.NG("%d minute left", "%d minutes left", minutesLeft), minutesLeft))
+		body = fmt.Sprintf(
+			i18n.NG("Close the application to update now. It will update automatically in %d minute.",
+				"Close the application to update now. It will update automatically in %d minutes.", minutesLeft), minutesLeft)
 	} else {
-		summary = fmt.Sprintf(i18n.G("Snap %q is refreshing now!"), refreshInfo.InstanceName)
+		summary = fmt.Sprintf(i18n.G("%s is updating now!"), refreshInfo.InstanceName)
 		urgencyLevel = notification.CriticalUrgency
 	}
 	hints = append(hints, notification.WithUrgency(urgencyLevel))
@@ -301,6 +433,38 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	return SyncResponse(nil)
 }
 
+func guessAppIcon(si *snap.Info) string {
+	var icon string
+	parser := goconfigparser.New()
+
+	// trivial heuristic, if the app is named like a snap then
+	// it's considered to be the main user facing app and hopefully carries
+	// a nice icon
+	mainApp, ok := si.Apps[si.SnapName()]
+	if ok && !mainApp.IsService() {
+		// got the main app, grab its desktop file
+		if err := parser.ReadFile(mainApp.DesktopFile()); err == nil {
+			icon, _ = parser.Get("Desktop Entry", "Icon")
+		}
+	}
+	if icon != "" {
+		return icon
+	}
+
+	// If it doesn't exist, take the first app in the snap with a DesktopFile with icon
+	for _, app := range si.Apps {
+		if app.IsService() || app.Name == si.SnapName() {
+			continue
+		}
+		if err := parser.ReadFile(app.DesktopFile()); err == nil {
+			if icon, err = parser.Get("Desktop Entry", "Icon"); err == nil && icon != "" {
+				break
+			}
+		}
+	}
+	return icon
+}
+
 func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 	if ok, resp := validateJSONRequest(r); !ok {
 		return resp
@@ -324,17 +488,25 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		})
 	}
 
-	summary := fmt.Sprintf(i18n.G("%q snap has been refreshed"), finishRefresh.InstanceName)
-	body := i18n.G("Now available to launch")
+	summary := fmt.Sprintf(i18n.G("%s was updated."), finishRefresh.InstanceName)
+	body := i18n.G("Ready to launch.")
 	hints := []notification.Hint{
 		notification.WithDesktopEntry("io.snapcraft.SessionAgent"),
 		notification.WithUrgency(notification.LowUrgency),
+	}
+
+	var icon string
+	if si, err := snap.ReadCurrentInfo(finishRefresh.InstanceName); err == nil {
+		icon = guessAppIcon(si)
+	} else {
+		logger.Noticef("cannot load snap-info for %s: %v", finishRefresh.InstanceName, err)
 	}
 
 	msg := &notification.Message{
 		Title: summary,
 		Body:  body,
 		Hints: hints,
+		Icon:  icon,
 	}
 	if err := c.s.notificationMgr.SendNotification(notification.ID(finishRefresh.InstanceName), msg); err != nil {
 		return SyncResponse(&resp{

@@ -21,7 +21,6 @@ package main_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -364,7 +363,7 @@ func (s *snapExecSuite) TestSnapExecAppRealIntegration(c *C) {
 
 	canaryFile := filepath.Join(c.MkDir(), "canary.txt")
 	script := fmt.Sprintf("%s/snapname/42/run-app", dirs.SnapMountDir)
-	err := ioutil.WriteFile(script, []byte(fmt.Sprintf(binaryTemplate, canaryFile)), 0755)
+	err := os.WriteFile(script, []byte(fmt.Sprintf(binaryTemplate, canaryFile)), 0755)
 	c.Assert(err, IsNil)
 
 	// we can not use the real syscall.execv here because it would

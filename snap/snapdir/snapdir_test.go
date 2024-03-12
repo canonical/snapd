@@ -21,7 +21,6 @@ package snapdir_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -47,7 +46,7 @@ func (s *SnapdirTestSuite) TestIsSnapDir(c *C) {
 	d := c.MkDir()
 	err := os.MkdirAll(filepath.Join(d, "meta"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(d, "meta/snap.yaml"), nil, 0644)
+	err = os.WriteFile(filepath.Join(d, "meta/snap.yaml"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	c.Check(snapdir.IsSnapDir(d), Equals, true)
@@ -62,7 +61,7 @@ func (s *SnapdirTestSuite) TestNotIsSnapDir(c *C) {
 func (s *SnapdirTestSuite) TestReadFile(c *C) {
 	d := c.MkDir()
 	needle := []byte(`stuff`)
-	err := ioutil.WriteFile(filepath.Join(d, "foo"), needle, 0644)
+	err := os.WriteFile(filepath.Join(d, "foo"), needle, 0644)
 	c.Assert(err, IsNil)
 
 	sn := snapdir.New(d)
@@ -74,7 +73,7 @@ func (s *SnapdirTestSuite) TestReadFile(c *C) {
 func (s *SnapdirTestSuite) TestRandomAccessFile(c *C) {
 	d := c.MkDir()
 	needle := []byte(`stuff`)
-	err := ioutil.WriteFile(filepath.Join(d, "foo"), needle, 0644)
+	err := os.WriteFile(filepath.Join(d, "foo"), needle, 0644)
 	c.Assert(err, IsNil)
 
 	sn := snapdir.New(d)
@@ -96,9 +95,9 @@ func (s *SnapdirTestSuite) TestListDir(c *C) {
 
 	err := os.MkdirAll(filepath.Join(d, "test"), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(d, "test", "test1"), nil, 0644)
+	err = os.WriteFile(filepath.Join(d, "test", "test1"), nil, 0644)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(d, "test", "test2"), nil, 0644)
+	err = os.WriteFile(filepath.Join(d, "test", "test2"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	sn := snapdir.New(d)

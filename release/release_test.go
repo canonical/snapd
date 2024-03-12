@@ -22,6 +22,7 @@ package release_test
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -59,7 +60,7 @@ HOME_URL="http://www.ubuntu.com/"
 SUPPORT_URL="http://help.ubuntu.com/"
 BUG_REPORT_URL="http://bugs.launchpad.net/ubuntu/"
 `
-	err := ioutil.WriteFile(mockOSRelease, []byte(s), 0644)
+	err := os.WriteFile(mockOSRelease, []byte(s), 0644)
 	c.Assert(err, IsNil)
 
 	return mockOSRelease
@@ -128,7 +129,7 @@ VERSION_ID="0.4"
 HOME_URL="http://elementary.io/"
 SUPPORT_URL="http://elementary.io/support/"
 BUG_REPORT_URL="https://bugs.launchpad.net/elementary/+filebug"`
-	err := ioutil.WriteFile(mockOSRelease, []byte(dump), 0644)
+	err := os.WriteFile(mockOSRelease, []byte(dump), 0644)
 	c.Assert(err, IsNil)
 
 	reset := release.MockOSReleasePath(mockOSRelease)
@@ -156,7 +157,7 @@ CENTOS_MANTISBT_PROJECT="CentOS-7"
 CENTOS_MANTISBT_PROJECT_VERSION="7"
 REDHAT_SUPPORT_PRODUCT="centos"
 REDHAT_SUPPORT_PRODUCT_VERSION="7"`
-	err := ioutil.WriteFile(mockOSRelease, []byte(dump), 0644)
+	err := os.WriteFile(mockOSRelease, []byte(dump), 0644)
 	c.Assert(err, IsNil)
 
 	reset := release.MockOSReleasePath(mockOSRelease)
@@ -166,6 +167,26 @@ REDHAT_SUPPORT_PRODUCT_VERSION="7"`
 	c.Check(os.ID, Equals, "centos")
 	c.Check(os.VersionID, Equals, "7")
 	c.Check(os.IDLike, DeepEquals, []string{"rhel", "fedora"})
+}
+
+func (s *ReleaseTestSuite) TestUbuntuCoreVariantRelease(c *C) {
+	mockOSRelease := filepath.Join(c.MkDir(), "mock-os-release")
+	dump := `NAME="Ubuntu Core Desktop"
+VERSION="22"
+ID="ubuntu-core"
+VARIANT_ID="desktop"
+VERSION_ID="22"
+"`
+	err := os.WriteFile(mockOSRelease, []byte(dump), 0644)
+	c.Assert(err, IsNil)
+
+	reset := release.MockOSReleasePath(mockOSRelease)
+	defer reset()
+
+	os := release.ReadOSRelease()
+	c.Check(os.ID, Equals, "ubuntu-core")
+	c.Check(os.VariantID, Equals, "desktop")
+	c.Check(os.VersionID, Equals, "22")
 }
 
 func (s *ReleaseTestSuite) TestReadOSReleaseNotFound(c *C) {
@@ -184,6 +205,16 @@ func (s *ReleaseTestSuite) TestOnClassic(c *C) {
 	reset = release.MockOnClassic(false)
 	defer reset()
 	c.Assert(release.OnClassic, Equals, false)
+}
+
+func (s *ReleaseTestSuite) TestOnCoreDesktop(c *C) {
+	reset := release.MockOnCoreDesktop(true)
+	defer reset()
+	c.Assert(release.OnCoreDesktop, Equals, true)
+
+	reset = release.MockOnCoreDesktop(false)
+	defer reset()
+	c.Assert(release.OnCoreDesktop, Equals, false)
 }
 
 func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {

@@ -1,5 +1,9 @@
 summary: Check that `snap unset` works and removes config options.
 
+details: |
+    Verifies that the command `snap unset` properly removes the
+    config options. Also check the error scenarios.
+
 prepare: |
     echo "Build basic test snap"
     "$TESTSTOOLS"/snaps-state install-local basic-hooks

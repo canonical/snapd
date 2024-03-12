@@ -156,11 +156,11 @@ func (ac snapAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, us
 }
 
 var (
-	cgroupSnapNameFromPid = cgroup.SnapNameFromPid
-	requireThemeApiAccess = requireThemeApiAccessImpl
+	cgroupSnapNameFromPid     = cgroup.SnapNameFromPid
+	requireInterfaceApiAccess = requireInterfaceApiAccessImpl
 )
 
-func requireThemeApiAccessImpl(d *Daemon, ucred *ucrednet) *apiError {
+func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request, ucred *ucrednet, interfaceName string) *apiError {
 	if ucred == nil {
 		return Forbidden("access denied")
 	}
@@ -176,8 +176,7 @@ func requireThemeApiAccessImpl(d *Daemon, ucred *ucrednet) *apiError {
 		return Forbidden("access denied")
 	}
 
-	// Access on snapd-snap.socket requires a connected
-	// snap-themes-control plug.
+	// Access on snapd-snap.socket requires a connected plug.
 	snapName, err := cgroupSnapNameFromPid(int(ucred.Pid))
 	if err != nil {
 		return Forbidden("could not determine snap name for pid: %s", err)
@@ -191,7 +190,7 @@ func requireThemeApiAccessImpl(d *Daemon, ucred *ucrednet) *apiError {
 		return Forbidden("internal error: cannot get connections: %s", err)
 	}
 	for refStr, connState := range conns {
-		if !connState.Active() || connState.Interface != "snap-themes-control" {
+		if !connState.Active() || connState.Interface != interfaceName {
 			continue
 		}
 		connRef, err := interfaces.ParseConnRef(refStr)
@@ -199,34 +198,40 @@ func requireThemeApiAccessImpl(d *Daemon, ucred *ucrednet) *apiError {
 			return Forbidden("internal error: %s", err)
 		}
 		if connRef.PlugRef.Snap == snapName {
+			r.RemoteAddr = ucrednetAttachInterface(r.RemoteAddr, interfaceName)
 			return nil
 		}
 	}
 	return Forbidden("access denied")
 }
 
-// themesOpenAccess behaves like openAccess, but allows requests from
-// snapd-snap.socket for snaps that plug snap-themes-control.
-type themesOpenAccess struct{}
-
-func (ac themesOpenAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
-	return requireThemeApiAccess(d, ucred)
+// interfaceOpenAccess behaves like openAccess, but allows requests from
+// snapd-snap.socket for snaps that plug the provided interface.
+type interfaceOpenAccess struct {
+	// TODO: allow a list of interfaces
+	Interface string
 }
 
-// themesAuthenticatedAccess behaves like authenticatedAccess, but
-// allows requests from snapd-snap.socket for snaps that plug
-// snap-themes-control.
-type themesAuthenticatedAccess struct {
-	Polkit string
+func (ac interfaceOpenAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	return requireInterfaceApiAccess(d, r, ucred, ac.Interface)
 }
 
-func (ac themesAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
-	if rspe := requireThemeApiAccess(d, ucred); rspe != nil {
+// interfaceAuthenticatedAccess behaves like authenticatedAccess, but
+// allows requests from snapd-snap.socket that plug the provided
+// interface.
+type interfaceAuthenticatedAccess struct {
+	// TODO: allow a list of interfaces
+	Interface string
+	Polkit    string
+}
+
+func (ac interfaceAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	if rspe := requireInterfaceApiAccess(d, r, ucred, ac.Interface); rspe != nil {
 		return rspe
 	}
 
 	// check as well that we have admin permission to proceed with
-	// the theme operation
+	// the operation
 	if user != nil {
 		return nil
 	}

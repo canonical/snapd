@@ -1,4 +1,8 @@
-summary: Test a remodel that switches to a new base
+summary: Test a remodel that switches to a new base and gadget
+
+details: |
+  This test remodels to a model that uses a custom base (not one of the core?? snaps),
+  and a gadget that is based on that custom base.
 
 # TODO:UC20: enable on UC20
 systems: [ubuntu-core-18-64]
@@ -6,12 +10,11 @@ systems: [ubuntu-core-18-64]
 environment:
     OLD_BASE: core18
     NEW_BASE: test-snapd-core18
+    NEW_GADGET: test-snapd-pc-core18
 
 prepare: |
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
 
     if [ "$SPREAD_REBOOT" = 0 ]; then
         REBOOT_NEEDED=false
@@ -41,8 +44,6 @@ prepare: |
 restore: |
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
 
     if [ "$SPREAD_REBOOT" = 0 ]; then
         REBOOT_NEEDED=false
@@ -139,6 +140,7 @@ execute: |
         wait_change_done "Refresh model assertion from revision 2 to 3"
         snap debug model|MATCH "revision: 3"
         echo "cleanup"
+        snap remove --purge "$NEW_GADGET"
         snap remove --purge "$NEW_BASE"
         snap refresh --channel="$BASE_CHANNEL" "$OLD_BASE"
         REBOOT

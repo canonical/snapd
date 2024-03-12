@@ -47,7 +47,7 @@ void sc_cleanup_shallow_strv(const char ***ptr)
 	}
 }
 
-void sc_cleanup_file(FILE ** ptr)
+void sc_cleanup_file(FILE **ptr)
 {
 	if (ptr != NULL && *ptr != NULL) {
 		fclose(*ptr);
@@ -55,7 +55,7 @@ void sc_cleanup_file(FILE ** ptr)
 	}
 }
 
-void sc_cleanup_endmntent(FILE ** ptr)
+void sc_cleanup_endmntent(FILE **ptr)
 {
 	if (ptr != NULL && *ptr != NULL) {
 		endmntent(*ptr);
@@ -63,7 +63,7 @@ void sc_cleanup_endmntent(FILE ** ptr)
 	}
 }
 
-void sc_cleanup_closedir(DIR ** ptr)
+void sc_cleanup_closedir(DIR **ptr)
 {
 	if (ptr != NULL && *ptr != NULL) {
 		closedir(*ptr);

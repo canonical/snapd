@@ -30,6 +30,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -93,9 +95,9 @@ devicesLoop:
 		}
 		// check that there was no previous filesystem
 		devNode := fmt.Sprintf("/dev/%s", dev)
-		output, err := exec.Command("lsblk", "--output", "fstype", "--noheadings", devNode).CombinedOutput()
+		output, stderr, err := osutil.RunSplitOutput("lsblk", "--output", "fstype", "--noheadings", devNode)
 		if err != nil {
-			return nil, osutil.OutputErr(output, err)
+			return nil, osutil.OutputErrCombine(output, stderr, err)
 		}
 		if strings.TrimSpace(string(output)) != "" {
 			// found a filesystem, ignore
@@ -126,7 +128,7 @@ func maybeCreatePartitionTable(bootDevice, schema string) error {
 	}
 
 	// check if there is a GPT partition table already
-	output, err := exec.Command("blkid", "--probe", "--match-types", "gpt", bootDevice).CombinedOutput()
+	output, stderr, err := osutil.RunSplitOutput("blkid", "--probe", "--match-types", "gpt", bootDevice)
 	exitCode, err := osutil.ExitCode(err)
 	if err != nil {
 		return err
@@ -138,27 +140,22 @@ func maybeCreatePartitionTable(bootDevice, schema string) error {
 		// no match found, create partition table
 		cmd := exec.Command("sfdisk", bootDevice)
 		cmd.Stdin = bytes.NewBufferString("label: gpt\n")
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return osutil.OutputErr(output, err)
+		if output, stderr, err := osutil.RunCmd(cmd); err != nil {
+			return osutil.OutputErrCombine(output, stderr, err)
 		}
 		// ensure udev is aware of the new attributes
-		if output, err := exec.Command("udevadm", "settle").CombinedOutput(); err != nil {
-			return osutil.OutputErr(output, err)
+		if output, stderr, err := osutil.RunSplitOutput("udevadm", "settle"); err != nil {
+			return osutil.OutputErrCombine(output, stderr, err)
 		}
 	default:
 		// unknown error
-		return fmt.Errorf("unexpected exit code from blkid: %v", osutil.OutputErr(output, err))
+		return fmt.Errorf("unexpected exit code from blkid: %v", osutil.OutputErrCombine(output, stderr, err))
 	}
 
 	return nil
 }
 
-func createPartitions(bootDevice string, volumes map[string]*gadget.Volume, encType secboot.EncryptionType) ([]gadget.OnDiskStructure, error) {
-	// TODO: support multiple volumes, see gadget/install/install.go
-	if len(volumes) != 1 {
-		return nil, fmt.Errorf("got unexpected number of volumes %v", len(volumes))
-	}
-
+func createPartitions(bootDevice string, volumes map[string]*gadget.Volume, encType secboot.EncryptionType) ([]*gadget.OnDiskAndGadgetStructurePair, error) {
 	vol := firstVol(volumes)
 	// snapd does not create partition tables so we have to do it here
 	// or gadget.OnDiskVolumeFromDevice() will fail
@@ -170,26 +167,20 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume, encT
 	if err != nil {
 		return nil, fmt.Errorf("cannot read %v partitions: %v", bootDevice, err)
 	}
-	if len(diskLayout.Structure) > 0 {
+	if len(diskLayout.Structure) > 0 && !vol.HasPartial(gadget.PartialStructure) {
 		return nil, fmt.Errorf("cannot yet install on a disk that has partitions")
 	}
 
-	layoutOpts := &gadget.LayoutOptions{
-		IgnoreContent: true,
-		EncType:       encType,
-	}
-
-	lvol, err := gadget.LayoutVolume(vol, layoutOpts)
-	if err != nil {
-		return nil, fmt.Errorf("cannot layout volume: %v", err)
-	}
-
 	opts := &install.CreateOptions{CreateAllMissingPartitions: true}
-	created, err := install.CreateMissingPartitions(diskLayout, lvol, opts)
-	if err != nil {
-		return nil, fmt.Errorf("cannot create parititons: %v", err)
+	// Fill index, as it is not passed around to muinstaller
+	for i := range vol.Structure {
+		vol.Structure[i].YamlIndex = i
 	}
-	logger.Noticef("created %v partitions", created)
+	created, err := install.CreateMissingPartitions(diskLayout, vol, opts)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create partitions: %v", err)
+	}
+	logger.Noticef("created %d partitions", len(created))
 
 	return created, nil
 }
@@ -200,7 +191,7 @@ func runMntFor(label string) string {
 
 func postSystemsInstallSetupStorageEncryption(cli *client.Client,
 	details *client.SystemDetails, bootDevice string,
-	onDiskParts []gadget.OnDiskStructure) (map[string]string, error) {
+	dgpairs []*gadget.OnDiskAndGadgetStructurePair) (map[string]string, error) {
 
 	// We are modifiying the details struct here
 	for _, gadgetVol := range details.Volumes {
@@ -211,12 +202,7 @@ func postSystemsInstallSetupStorageEncryption(cli *client.Client,
 			default:
 				continue
 			}
-			for _, part := range onDiskParts {
-				if part.Name == gadgetVol.Structure[i].Name {
-					gadgetVol.Structure[i].Device = part.Node
-					break
-				}
-			}
+			gadgetVol.Structure[i].Device = nodeForPartLabel(dgpairs, gadgetVol.Structure[i].Name)
 		}
 	}
 
@@ -266,11 +252,22 @@ func waitChange(chgId string) error {
 	}
 }
 
+// nodeForPartLabel returns the node where a gadget structure is expected to be.
+func nodeForPartLabel(dgpairs []*gadget.OnDiskAndGadgetStructurePair, name string) string {
+	for _, pair := range dgpairs {
+		// Same partition label
+		if pair.GadgetStructure.Name == name {
+			return pair.DiskStructure.Node
+		}
+	}
+	return ""
+}
+
 // TODO laidoutStructs is used to get the devices, when encryption is
 // happening maybe we need to find the information differently.
 func postSystemsInstallFinish(cli *client.Client,
 	details *client.SystemDetails, bootDevice string,
-	onDiskParts []gadget.OnDiskStructure) error {
+	dgpairs []*gadget.OnDiskAndGadgetStructurePair) error {
 
 	vols := make(map[string]*gadget.Volume)
 	for volName, gadgetVol := range details.Volumes {
@@ -280,15 +277,8 @@ func postSystemsInstallFinish(cli *client.Client,
 				gadgetVol.Structure[i].Device = bootDevice
 				continue
 			}
-			for _, part := range onDiskParts {
-				// Same partition label
-				if part.Name == gadgetVol.Structure[i].Name {
-					node := part.Node
-					logger.Debugf("partition to install: %q", node)
-					gadgetVol.Structure[i].Device = node
-					break
-				}
-			}
+			gadgetVol.Structure[i].Device = nodeForPartLabel(dgpairs, gadgetVol.Structure[i].Name)
+			logger.Debugf("partition to install: %q", gadgetVol.Structure[i].Device)
 		}
 		vols[volName] = gadgetVol
 	}
@@ -356,8 +346,8 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 			return nil, err
 		}
 		// XXX: is there a better way?
-		if output, err := exec.Command("mount", partNode, mountPoint).CombinedOutput(); err != nil {
-			return nil, osutil.OutputErr(output, err)
+		if output, stderr, err := osutil.RunSplitOutput("mount", partNode, mountPoint); err != nil {
+			return nil, osutil.OutputErrCombine(output, stderr, err)
 		}
 		mountPoints = append(mountPoints, mountPoint)
 	}
@@ -369,8 +359,8 @@ func unmountFilesystems(mntPts []string) (err error) {
 	for _, mntPt := range mntPts {
 		// We try to unmount all mount points, and return the
 		// last error if any.
-		if output, errUmnt := exec.Command("umount", mntPt).CombinedOutput(); err != nil {
-			errUmnt = osutil.OutputErr(output, errUmnt)
+		if output, stderr, errUmnt := osutil.RunSplitOutput("umount", mntPt); err != nil {
+			errUmnt = osutil.OutputErrCombine(output, stderr, errUmnt)
 			logger.Noticef("error: cannot unmount %q: %v", mntPt, errUmnt)
 			err = errUmnt
 		}
@@ -381,31 +371,37 @@ func unmountFilesystems(mntPts []string) (err error) {
 func createClassicRootfsIfNeeded(rootfsCreator string) error {
 	dst := runMntFor("ubuntu-data")
 
-	if output, err := exec.Command(rootfsCreator, dst).CombinedOutput(); err != nil {
-		return osutil.OutputErr(output, err)
+	if output, stderr, err := osutil.RunSplitOutput(rootfsCreator, dst); err != nil {
+		return osutil.OutputErrCombine(output, stderr, err)
 	}
 
 	return nil
 }
 
-func createSeedOnTarget(bootDevice, seedLabel string) error {
-	// XXX: too naive?
-	dataMnt := runMntFor("ubuntu-data")
+func copySeedDir(src, dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+	// Note that we do not use the -a option as cp returns an error if trying to
+	// preserve attributes in a fat filesystem. And this is fine for files from
+	// the seed, that do not need anything too special in that regard.
+	if output, stderr, err := osutil.RunSplitOutput("cp", "-r", src, dst); err != nil {
+		return osutil.OutputErrCombine(output, stderr, err)
+	}
+
+	return nil
+}
+
+func copySeedToDataPartition() error {
 	src := dirs.SnapSeedDir
+	dataMnt := runMntFor("ubuntu-data")
 	dst := dirs.SnapSeedDirUnder(dataMnt)
 	// Remove any existing seed on the target fs and then put the
 	// selected seed in place on the target
 	if err := os.RemoveAll(dst); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-		return err
-	}
-	if output, err := exec.Command("cp", "-a", src, dst).CombinedOutput(); err != nil {
-		return osutil.OutputErr(output, err)
-	}
-
-	return nil
+	return copySeedDir(src, dst)
 }
 
 func detectStorageEncryption(seedLabel string) (bool, error) {
@@ -421,7 +417,89 @@ func detectStorageEncryption(seedLabel string) (bool, error) {
 	return details.StorageEncryption.Support == client.StorageEncryptionSupportAvailable, nil
 }
 
-func run(seedLabel, rootfsCreator, bootDevice string) error {
+// fillPartiallyDefinedVolume fills partial gadget information by
+// looking at the provided disk. Schema, filesystems, and sizes are
+// filled. If partial structure is set, to remove it we would need to
+// add to the volume the existing partitions present on the disk but
+// not in the gadget. But as snapd is fine with these partitions as
+// far as partial strucuture is defined, we just do nothing.
+func fillPartiallyDefinedVolume(vol *gadget.Volume, bootDevice string) error {
+	if len(vol.Partial) == 0 {
+		return nil
+	}
+
+	logger.Noticef("partial gadget for: %q", vol.Partial)
+
+	if vol.HasPartial(gadget.PartialSchema) && vol.Schema == "" {
+		vol.Schema = "gpt"
+		logger.Debugf("volume %q schema set to %q", vol.Name, vol.Schema)
+	}
+
+	if vol.HasPartial(gadget.PartialFilesystem) {
+		for sidx := range vol.Structure {
+			s := &vol.Structure[sidx]
+			if s.HasFilesystem() && s.Filesystem == "" {
+				switch s.Role {
+				case gadget.SystemSeed, gadget.SystemSeedNull:
+					s.Filesystem = "vfat"
+				default:
+					s.Filesystem = "ext4"
+				}
+				logger.Debugf("%q filesystem set to %s", s.Name, s.Filesystem)
+			}
+		}
+	}
+
+	// Fill sizes: for the moment, to avoid complicating unnecessarily the
+	// code, we do size=min-size except for the last partition.
+	output, stderr, err := osutil.RunSplitOutput("lsblk", "--bytes", "--noheadings", "--output", "SIZE", bootDevice)
+	exitCode, err := osutil.ExitCode(err)
+	if err != nil {
+		return err
+	}
+	if exitCode != 0 {
+		return fmt.Errorf("cannot find size of %q: %q (stderr: %s)", bootDevice, string(output), string(stderr))
+	}
+	lines := strings.Split(string(output), "\n")
+	if len(lines) == 0 {
+		return fmt.Errorf("error splitting %q (stderr: %s)", string(output), string(stderr))
+	}
+	diskSize, err := strconv.Atoi(lines[0])
+	if err != nil {
+		return fmt.Errorf("while converting %s to a size: %v (stderr: %s)", string(output), err, string(stderr))
+	}
+	partStart := quantity.Offset(0)
+	if vol.HasPartial(gadget.PartialSize) {
+		lastIdx := len(vol.Structure) - 1
+		for sidx := range vol.Structure {
+			s := &vol.Structure[sidx]
+			if s.Offset != nil {
+				partStart = *s.Offset
+			}
+			if s.Size == 0 {
+				if sidx == lastIdx {
+					// Last partition, give it all remaining space
+					// (except space for secondary GPT header).
+					s.Size = quantity.Size(diskSize) - quantity.Size(partStart) - 6*4096
+				} else {
+					s.Size = s.MinSize
+				}
+				logger.Debugf("size of %q set to %d", s.Name, s.Size)
+			}
+			if s.Offset == nil {
+				offset := partStart
+				s.Offset = &offset
+				logger.Debugf("offset of %q set to %d", s.Name, *s.Offset)
+			}
+			partStart += quantity.Offset(s.Size)
+		}
+	}
+
+	return nil
+}
+
+func run(seedLabel, bootDevice, rootfsCreator string) error {
+	isCore := rootfsCreator == ""
 	logger.Noticef("installing on %q", bootDevice)
 
 	cli := client.New(nil)
@@ -433,18 +511,28 @@ func run(seedLabel, rootfsCreator, bootDevice string) error {
 	if err != nil {
 		return err
 	}
+	// TODO: support multiple volumes, see gadget/install/install.go
+	if len(details.Volumes) != 1 {
+		return fmt.Errorf("gadget defines %v volumes, while we support only one at the moment", len(details.Volumes))
+	}
+
+	// If partial gadget, fill missing information based on the installation target
+	if err := fillPartiallyDefinedVolume(firstVol(details.Volumes), bootDevice); err != nil {
+		return err
+	}
+
 	// TODO: grow the data-partition based on disk size
 	encType := secboot.EncryptionTypeNone
 	if shouldEncrypt {
 		encType = secboot.EncryptionTypeLUKS
 	}
-	laidoutStructs, err := createPartitions(bootDevice, details.Volumes, encType)
+	dgpairs, err := createPartitions(bootDevice, details.Volumes, encType)
 	if err != nil {
 		return fmt.Errorf("cannot setup partitions: %v", err)
 	}
 	var encryptedDevices = make(map[string]string)
 	if shouldEncrypt {
-		encryptedDevices, err = postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, laidoutStructs)
+		encryptedDevices, err = postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, dgpairs)
 		if err != nil {
 			return fmt.Errorf("cannot setup storage encryption: %v", err)
 		}
@@ -453,16 +541,18 @@ func run(seedLabel, rootfsCreator, bootDevice string) error {
 	if err != nil {
 		return fmt.Errorf("cannot create filesystems: %v", err)
 	}
-	if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
-		return fmt.Errorf("cannot create classic rootfs: %v", err)
+	if !isCore {
+		if err := createClassicRootfsIfNeeded(rootfsCreator); err != nil {
+			return fmt.Errorf("cannot create classic rootfs: %v", err)
+		}
 	}
-	if err := createSeedOnTarget(bootDevice, seedLabel); err != nil {
-		return fmt.Errorf("cannot create seed on target: %v", err)
+	if err := copySeedToDataPartition(); err != nil {
+		return fmt.Errorf("cannot create seed on data partition: %v", err)
 	}
 	if err := unmountFilesystems(mntPts); err != nil {
 		return fmt.Errorf("cannot unmount filesystems: %v", err)
 	}
-	if err := postSystemsInstallFinish(cli, details, bootDevice, laidoutStructs); err != nil {
+	if err := postSystemsInstallFinish(cli, details, bootDevice, dgpairs); err != nil {
 		return fmt.Errorf("cannot finalize install: %v", err)
 	}
 	// TODO: reboot here automatically (optional)
@@ -471,21 +561,25 @@ func run(seedLabel, rootfsCreator, bootDevice string) error {
 }
 
 func main() {
-	if len(os.Args) != 4 {
-		// XXX: allow installing real UC without a classic-rootfs later
-		fmt.Fprintf(os.Stderr, "need seed-label, target-device and classic-rootfs as argument\n")
+	if len(os.Args) < 3 || len(os.Args) > 4 {
+		fmt.Fprintf(os.Stderr, "Usage: %s <seed-label> <target-device> [rootfs-creator]\n"+
+			"If [rootfs-creator] is specified, classic Ubuntu with core boot will be installed.\n"+
+			"Otherwise, Ubuntu Core will be installed\n", os.Args[0])
 		os.Exit(1)
 	}
 	logger.SimpleSetup()
 
 	seedLabel := os.Args[1]
-	rootfsCreator := os.Args[2]
-	bootDevice := os.Args[3]
+	bootDevice := os.Args[2]
+	rootfsCreator := ""
+	if len(os.Args) > 3 {
+		rootfsCreator = os.Args[3]
+	}
 	if bootDevice == "auto" {
 		bootDevice = waitForDevice()
 	}
 
-	if err := run(seedLabel, rootfsCreator, bootDevice); err != nil {
+	if err := run(seedLabel, bootDevice, rootfsCreator); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}

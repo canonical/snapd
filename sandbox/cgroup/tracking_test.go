@@ -20,8 +20,8 @@
 package cgroup_test
 
 import (
+	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -41,7 +41,7 @@ import (
 func enableFeatures(c *C, ff ...features.SnapdFeature) {
 	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
 	for _, f := range ff {
-		c.Assert(ioutil.WriteFile(f.ControlFile(), nil, 0755), IsNil)
+		c.Assert(os.WriteFile(f.ControlFile(), nil, 0755), IsNil)
 	}
 }
 
@@ -74,6 +74,22 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingFeatureDisabled(c *C)
 	c.Assert(err, ErrorMatches, "cannot track application process")
 }
 
+// TestCreateTransientScopeForTrackingUUIDFailure tests the UUID error path
+func (s *trackingSuite) TestCreateTransientScopeForTrackingUUIDFailure(c *C) {
+	// Hand out stub connections to both the system and session bus.
+	// Neither is really used here but they must appear to be available.
+	restore := dbusutil.MockConnections(dbustest.StubConnection, dbustest.StubConnection)
+	defer restore()
+
+	restore = cgroup.MockRandomUUID(func() (string, error) {
+		return "", errors.New("mocked uuid error")
+	})
+	defer restore()
+
+	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app", nil)
+	c.Assert(err, ErrorMatches, "mocked uuid error")
+}
+
 // CreateTransientScopeForTracking does stuff when refresh app awareness is on
 func (s *trackingSuite) TestCreateTransientScopeForTrackingFeatureEnabled(c *C) {
 	// Pretend that refresh app awareness is enabled
@@ -87,7 +103,9 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingFeatureEnabled(c *C) 
 	defer restore()
 	// Rig the random UUID generator to return this value.
 	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
-	restore = cgroup.MockRandomUUID(uuid)
+	restore = cgroup.MockRandomUUID(func() (string, error) {
+		return uuid, nil
+	})
 	defer restore()
 	signalChan := make(chan struct{})
 	// Replace interactions with DBus so that only session bus is available and responds with our logic.
@@ -99,7 +117,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingFeatureEnabled(c *C) 
 			defer func() {
 				close(signalChan)
 			}()
-			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app."+uuid+".scope", 312123)}, nil
+			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app-"+uuid+".scope", 312123)}, nil
 		case 2:
 			return []*dbus.Message{checkSystemSignalUnsubscribe(c, msg)}, nil
 		}
@@ -108,7 +126,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingFeatureEnabled(c *C) 
 	go func() {
 		select {
 		case <-signalChan:
-			inject(mockJobRemovedSignal("snap.pkg.app."+uuid+".scope", "done"))
+			inject(mockJobRemovedSignal("snap.pkg.app-"+uuid+".scope", "done"))
 		}
 	}()
 	c.Assert(err, IsNil)
@@ -116,7 +134,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingFeatureEnabled(c *C) 
 	defer restore()
 	// Replace the cgroup analyzer function
 	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
-		return "/user.slice/user-12345.slice/user@12345.service/snap.pkg.app." + uuid + ".scope", nil
+		return "/user.slice/user-12345.slice/user@12345.service/snap.pkg.app-" + uuid + ".scope", nil
 	})
 	defer restore()
 
@@ -201,7 +219,9 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyRootFallback(c
 
 	// Rig the random UUID generator to return this value.
 	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
-	restore = cgroup.MockRandomUUID(uuid)
+	restore = cgroup.MockRandomUUID(func() (string, error) {
+		return uuid, nil
+	})
 	defer restore()
 
 	// Calling StartTransientUnit fails on the session and then works on the system bus.
@@ -224,7 +244,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyRootFallback(c
 	// Rig the cgroup analyzer to pretend that we got placed into the system slice.
 	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
 		c.Assert(pid, Equals, 312123)
-		return "/system.slice/snap.pkg.app." + uuid + ".scope", nil
+		return "/system.slice/snap.pkg.app-" + uuid + ".scope", nil
 	})
 	defer restore()
 
@@ -255,7 +275,9 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyRootFailedFall
 
 	// Rig the random UUID generator to return this value.
 	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
-	restore = cgroup.MockRandomUUID(uuid)
+	restore = cgroup.MockRandomUUID(func() (string, error) {
+		return uuid, nil
+	})
 	defer restore()
 
 	// Calling StartTransientUnit fails so that we try to use the system bus as fallback.
@@ -296,7 +318,9 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyNoDBus(c *C) {
 
 	// Rig the random UUID generator to return this value.
 	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
-	restore = cgroup.MockRandomUUID(uuid)
+	restore = cgroup.MockRandomUUID(func() (string, error) {
+		return uuid, nil
+	})
 	defer restore()
 
 	// Calling StartTransientUnit is not attempted without a DBus connection.
@@ -337,7 +361,9 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingSilentlyFails(c *C) {
 
 	// Rig the random UUID generator to return this value.
 	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
-	restore = cgroup.MockRandomUUID(uuid)
+	restore = cgroup.MockRandomUUID(func() (string, error) {
+		return uuid, nil
+	})
 	defer restore()
 
 	// Calling StartTransientUnit succeeds but in reality does not move our
@@ -386,7 +412,9 @@ func (s *trackingSuite) TestCreateTransientScopeForRootOnSystemBus(c *C) {
 
 	// Rig the random UUID generator to return this value.
 	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
-	restore = cgroup.MockRandomUUID(uuid)
+	restore = cgroup.MockRandomUUID(func() (string, error) {
+		return uuid, nil
+	})
 	defer restore()
 
 	// Pretend that attempting to create a transient scope succeeds.  Measure
@@ -394,14 +422,14 @@ func (s *trackingSuite) TestCreateTransientScopeForRootOnSystemBus(c *C) {
 	// call was made on the system bus, as requested by TrackingOptions below.
 	restore = cgroup.MockDoCreateTransientScope(func(conn *dbus.Conn, unitName string, pid int) error {
 		c.Assert(conn, Equals, systemBus)
-		c.Assert(unitName, Equals, "snap.pkg.app."+uuid+".scope")
+		c.Assert(unitName, Equals, "snap.pkg.app-"+uuid+".scope")
 		return nil
 	})
 	defer restore()
 
 	// Rig the cgroup analyzer to indicate successful tracking.
 	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
-		return "snap.pkg.app." + uuid + ".scope", nil
+		return "snap.pkg.app-" + uuid + ".scope", nil
 	})
 	defer restore()
 
@@ -428,7 +456,9 @@ func (s *trackingSuite) testCreateTransientScopeConfirm(c *C, tc testTransientSc
 	defer restore()
 	restore = cgroup.MockOsGetpid(312123)
 	defer restore()
-	restore = cgroup.MockRandomUUID(tc.uuid)
+	restore = cgroup.MockRandomUUID(func() (string, error) {
+		return tc.uuid, nil
+	})
 	defer restore()
 	sessionBus, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
 		// we are not expecting any dbus traffic
@@ -440,7 +470,7 @@ func (s *trackingSuite) testCreateTransientScopeConfirm(c *C, tc testTransientSc
 	defer restore()
 	restore = cgroup.MockDoCreateTransientScope(func(conn *dbus.Conn, unitName string, pid int) error {
 		c.Assert(conn, Equals, sessionBus)
-		c.Assert(unitName, Equals, "snap.pkg.app."+tc.uuid+".scope")
+		c.Assert(unitName, Equals, "snap.pkg.app-"+tc.uuid+".scope")
 		return nil
 	})
 	defer restore()
@@ -466,7 +496,7 @@ func (s *trackingSuite) TestCreateTransientScopeConfirmHappy(c *C) {
 	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
 	s.testCreateTransientScopeConfirm(c, testTransientScopeConfirm{
 		uuid:        uuid,
-		confirmUnit: "foo/bar/baz/snap.pkg.app." + uuid + ".scope",
+		confirmUnit: "foo/bar/baz/snap.pkg.app-" + uuid + ".scope",
 	})
 }
 
@@ -609,16 +639,18 @@ func (s *trackingSuite) TestCreateTransientScopeHappyWithRetriedCheckCgroupV1(c 
 	restore = cgroup.MockOsGetpid(312123)
 	defer restore()
 	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
-	restore = cgroup.MockRandomUUID(uuid)
+	restore = cgroup.MockRandomUUID(func() (string, error) {
+		return uuid, nil
+	})
 	defer restore()
 	sessionBus, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
 		c.Logf("%v got msg: %v", n, msg)
 		switch n {
 		case 0:
-			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app."+uuid+".scope", 312123)}, nil
+			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app-"+uuid+".scope", 312123)}, nil
 			// CreateTransientScopeForTracking is called twice in the test
 		case 1:
-			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app."+uuid+".scope", 312123)}, nil
+			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app-"+uuid+".scope", 312123)}, nil
 		}
 		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
 	})
@@ -634,7 +666,7 @@ func (s *trackingSuite) TestCreateTransientScopeHappyWithRetriedCheckCgroupV1(c 
 		if pathInTrackingCgroupCalls < pathInTrackingCgroupCallsToSuccess {
 			return "vte-spawn-1234-1234-1234.scope", nil
 		}
-		return "snap.pkg.app." + uuid + ".scope", nil
+		return "snap.pkg.app-" + uuid + ".scope", nil
 	})
 	defer restore()
 
@@ -662,7 +694,9 @@ func (s *trackingSuite) TestCreateTransientScopeUnhappyJobFailed(c *C) {
 	restore = cgroup.MockOsGetpid(312123)
 	defer restore()
 	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
-	restore = cgroup.MockRandomUUID(uuid)
+	restore = cgroup.MockRandomUUID(func() (string, error) {
+		return uuid, nil
+	})
 	defer restore()
 	signalChan := make(chan struct{})
 	sessionBus, inject, err := dbustest.InjectableConnection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
@@ -674,7 +708,7 @@ func (s *trackingSuite) TestCreateTransientScopeUnhappyJobFailed(c *C) {
 			defer func() {
 				close(signalChan)
 			}()
-			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app."+uuid+".scope", 312123)}, nil
+			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app-"+uuid+".scope", 312123)}, nil
 		case 2:
 			return []*dbus.Message{checkSystemSignalUnsubscribe(c, msg)}, nil
 		}
@@ -683,7 +717,7 @@ func (s *trackingSuite) TestCreateTransientScopeUnhappyJobFailed(c *C) {
 	go func() {
 		select {
 		case <-signalChan:
-			inject(mockJobRemovedSignal("snap.pkg.app."+uuid+".scope", "failed"))
+			inject(mockJobRemovedSignal("snap.pkg.app-"+uuid+".scope", "failed"))
 		}
 	}()
 
@@ -710,7 +744,9 @@ func (s *trackingSuite) TestCreateTransientScopeUnhappyJobTimeout(c *C) {
 	restore = cgroup.MockOsGetpid(312123)
 	defer restore()
 	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
-	restore = cgroup.MockRandomUUID(uuid)
+	restore = cgroup.MockRandomUUID(func() (string, error) {
+		return uuid, nil
+	})
 	defer restore()
 	restore = cgroup.MockCreateScopeJobTimeout(100 * time.Millisecond)
 	defer restore()
@@ -721,7 +757,7 @@ func (s *trackingSuite) TestCreateTransientScopeUnhappyJobTimeout(c *C) {
 		case 0:
 			return []*dbus.Message{checkSystemdSignalSubscribe(c, msg)}, nil
 		case 1:
-			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app."+uuid+".scope", 312123)}, nil
+			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app-"+uuid+".scope", 312123)}, nil
 		case 2:
 			return []*dbus.Message{checkSystemSignalUnsubscribe(c, msg)}, nil
 		}
@@ -962,5 +998,72 @@ func (s *trackingSuite) TestConfirmSystemdServiceTrackingSad(c *C) {
 
 	// With the cgroup path faked as above, tracking is not effective.
 	err := cgroup.ConfirmSystemdServiceTracking("snap.pkg.app")
+	c.Assert(err, Equals, cgroup.ErrCannotTrackProcess)
+}
+
+func (s *trackingSuite) TestConfirmSystemdAppTrackingHappy(c *C) {
+	// Pretend our PID is this value.
+	restore := cgroup.MockOsGetpid(312123)
+	defer restore()
+	// Replace the cgroup analyzer function
+	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		c.Assert(pid, Equals, 312123)
+		return "user.slice/user-12345.slice/user@12345.service/apps.slice/snap.pkg.app-ae6d0825-dacd-454c-baec-67289f067c28.scope", nil
+	})
+	defer restore()
+
+	// With the cgroup path faked as above, we are being tracked so no error is reported.
+	err := cgroup.ConfirmSystemdAppTracking("snap.pkg.app")
+	c.Assert(err, IsNil)
+}
+
+func (s *trackingSuite) TestConfirmSystemdAppTrackingSad1(c *C) {
+	// Pretend our PID is this value.
+	restore := cgroup.MockOsGetpid(312123)
+	defer restore()
+	// Replace the cgroup analyzer function
+	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		c.Assert(pid, Equals, 312123)
+		// mark as being tracked as a service
+		return "/user.slice/user-12345.slice/user@12345.service/snap.pkg.app.service", nil
+	})
+	defer restore()
+
+	// With the cgroup path faked as above, tracking is not effective.
+	err := cgroup.ConfirmSystemdAppTracking("snap.pkg.app")
+	c.Assert(err, Equals, cgroup.ErrCannotTrackProcess)
+}
+
+func (s *trackingSuite) TestConfirmSystemdAppTrackingSad2(c *C) {
+	// Pretend our PID is this value.
+	restore := cgroup.MockOsGetpid(312123)
+	defer restore()
+	// Replace the cgroup analyzer function
+	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		c.Assert(pid, Equals, 312123)
+		// Tracking path of a gnome terminal helper process. Meant to illustrate a tracking but not related to a snap application.
+		return "user.slice/user-12345.slice/user@12345.service/apps.slice/apps-org.gnome.Terminal.slice/vte-spawn-e640104a-cddf-4bd8-ba4b-2c1baf0270c3.scope", nil
+	})
+	defer restore()
+
+	// With the cgroup path faked as above, tracking is not effective.
+	err := cgroup.ConfirmSystemdAppTracking("snap.pkg.app")
+	c.Assert(err, Equals, cgroup.ErrCannotTrackProcess)
+}
+
+func (s *trackingSuite) TestConfirmSystemdAppTrackingSad3(c *C) {
+	// Pretend our PID is this value.
+	restore := cgroup.MockOsGetpid(312123)
+	defer restore()
+	// Replace the cgroup analyzer function
+	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		c.Assert(pid, Equals, 312123)
+		// bad security tag
+		return "user.slice/user-12345.slice/user@12345.service/apps.slice/snap.pkg-ae6d0825-dacd-454c-baec-67289f067c28.scope", nil
+	})
+	defer restore()
+
+	// With the cgroup path faked as above, tracking is not effective.
+	err := cgroup.ConfirmSystemdAppTracking("snap.pkg.app")
 	c.Assert(err, Equals, cgroup.ErrCannotTrackProcess)
 }

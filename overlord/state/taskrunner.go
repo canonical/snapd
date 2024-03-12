@@ -49,9 +49,14 @@ func (r *Retry) Error() string {
 // Wait is returned from a handler to signal that the task cannot
 // proceed at the moment maybe because some manual action from the
 // user required at this point or because of errors. The task
-// will be set to WaitStatus.
+// will be set to WaitStatus, and it's wait complete status will be
+// set to WaitedStatus.
 type Wait struct {
 	Reason string
+	// If not explicitly set, then WaitedStatus will default to
+	// DoneStatus, meaning that the task will be set to DoneStatus
+	// after the wait has resolved.
+	WaitedStatus Status
 }
 
 func (r *Wait) Error() string {
@@ -258,7 +263,12 @@ func (r *TaskRunner) run(t *Task) {
 				// Would work without it but might take two ensures.
 				r.tryUndo(t)
 			} else {
-				t.SetStatus(WaitStatus)
+				// Default to DoneStatus if no status is set in Wait
+				waitedStatus := x.WaitedStatus
+				if waitedStatus == DefaultStatus {
+					waitedStatus = DoneStatus
+				}
+				t.SetToWait(waitedStatus)
 			}
 		case nil:
 			var next []*Task

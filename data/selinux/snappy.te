@@ -257,7 +257,7 @@ gen_require(`
 	type usr_t;
 ')
 allow snappy_t usr_t:dir { write remove_name add_name };
-allow snappy_t usr_t:lnk_file { create unlink };
+allow snappy_t usr_t:lnk_file { create unlink rename };
 
 # Allow snapd to use ssh-keygen
 ssh_exec_keygen(snappy_t)
@@ -402,6 +402,16 @@ allow snappy_t var_t:sock_file unlink;
 allow snappy_t unconfined_t:dir search;
 allow snappy_t unconfined_t:file { open read };
 
+# Allow snapd to get file attributes in policykit{,_auth}_exec_t domain
+gen_require(`
+    type policykit_auth_exec_t;
+    type policykit_exec_t;
+')
+allow snappy_t policykit_exec_t:file { getattr };
+allow snappy_t policykit_auth_exec_t:file { getattr };
+allow snappy_cli_t policykit_exec_t:file { getattr };
+allow snappy_cli_t policykit_auth_exec_t:file { getattr };
+
 # the release package calls stat() on /proc/sys/fs/binfmt_misc/WSLInterop to
 # detect WSL
 gen_require(`
@@ -458,6 +468,8 @@ gen_require(`
 ')
 allow snappy_t devicekit_power_exec_t:file { getattr };
 
+
+
 ########################################
 #
 # snap-update-ns, snap-dicsard-ns local policy
@@ -503,8 +515,14 @@ userdom_delete_user_tmp_files(snappy_mount_t)
 files_manage_generic_tmp_dirs(snappy_mount_t)
 files_manage_generic_tmp_files(snappy_mount_t)
 
-# Allow snap-{update,discard}-ns to mount on /etc/
-allow snappy_mount_t etc_t:dir mounton;
+# Allow snap-{update,discard}-ns to manipulate /etc/
+allow snappy_mount_t etc_t:dir { mounton write rmdir remove_name };
+
+# Allow snap-{update,discard}-ns to mount /boot/
+gen_require(`
+	type boot_t;
+')
+allow snappy_mount_t boot_t:dir { mounton };
 
 # Allow snap-{update,discard}-ns to manage mounts
 gen_require(`
@@ -556,6 +574,9 @@ allow snappy_mount_t lib_t:dir mounton;
 # when supporting interfaces such as appstream-metadata, snap-update-ns will
 # mount things labeled usr_t from the host
 allow snappy_mount_t usr_t:dir mounton;
+
+# allow mounting on top of /var/lib
+allow snappy_mount_t var_lib_t:dir mounton;
 
 # mount and unmount on top of snaps
 allow snappy_mount_t snappy_snap_t:dir mounton;
@@ -797,6 +818,8 @@ allow snappy_cli_t snappy_snap_t:lnk_file { read_lnk_file_perms };
 allow snappy_cli_t snappy_var_lib_t:dir { list_dir_perms };
 allow snappy_cli_t snappy_var_lib_t:file { read_file_perms };
 allow snappy_cli_t snappy_var_lib_t:lnk_file { read_lnk_file_perms };
+
+allow snappy_cli_t snappy_var_t:dir { search getattr };
 
 # the release package calls stat() on /proc/sys/fs/binfmt_misc/WSLInterop to
 # detect WSL

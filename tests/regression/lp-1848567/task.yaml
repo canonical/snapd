@@ -27,7 +27,7 @@ execute: |
     # caches. Use memory-observe-do to record the maximum resident memory usage
     # and store it in a file.
     "$TESTSTOOLS"/memory-observe-do -o memory-kb.txt apparmor_parser \
-      --skip-read-cache --skip-cache --skip-kernel-load -Ono-expr-simplify \
+      --skip-read-cache --skip-cache --skip-kernel-load \
       /var/lib/snapd/apparmor/profiles/snap-update-ns.test-snapd-app
     # Without de-duplicating mount rules the compiler would take about 1.5GB on a
     # 64 bit system. With the de-duplication logic it took less than 38MB on an

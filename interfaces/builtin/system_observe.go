@@ -98,6 +98,7 @@ ptrace (read),
 # but not smaps which contains a detailed mappings breakdown like
 # /proc/self/maps, which we do not allow access to for other processes
 @{PROC}/*/{,task/*/}smaps_rollup r,
+@{PROC}/*/{,task/*/}schedstat r,
 @{PROC}/*/{,task/*/}stat r,
 @{PROC}/*/{,task/*/}statm r,
 @{PROC}/*/{,task/*/}status r,

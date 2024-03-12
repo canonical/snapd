@@ -20,6 +20,8 @@
 package osutil
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -172,4 +174,27 @@ func StreamCommand(name string, args ...string) (io.ReadCloser, error) {
 	}
 
 	return &waitingReader{reader: pipe, cmd: cmd}, nil
+}
+
+// RunCmd runs a command and returns separately stdout and stderr
+// output, and an error.
+func RunCmd(c *exec.Cmd) ([]byte, []byte, error) {
+	if c.Stdout != nil {
+		return nil, nil, errors.New("osutil.Run: Stdout already set")
+	}
+	if c.Stderr != nil {
+		return nil, nil, errors.New("osutil.Run: Stderr already set")
+	}
+	var stdout, stderr bytes.Buffer
+	c.Stdout = &stdout
+	c.Stderr = &stderr
+	err := c.Run()
+	return stdout.Bytes(), stderr.Bytes(), err
+}
+
+// RunSplitOutput runs name command with arg arguments and returns
+// stdout, stderr, and an error.
+func RunSplitOutput(name string, arg ...string) ([]byte, []byte, error) {
+	cmd := exec.Command(name, arg...)
+	return RunCmd(cmd)
 }

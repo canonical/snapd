@@ -21,6 +21,12 @@ package builtin
 
 const shutdownSummary = `allows shutting down or rebooting the system`
 
+const shutdownBaseDeclarationPlugs = `
+  shutdown:
+    allow-installation: false
+    deny-auto-connection: true
+`
+
 const shutdownBaseDeclarationSlots = `
   shutdown:
     allow-installation:
@@ -45,7 +51,7 @@ dbus (send)
     bus=system
     path=/org/freedesktop/login1
     interface=org.freedesktop.login1.Manager
-    member={PowerOff,Reboot,Suspend,Hibernate,HybridSleep,CanPowerOff,CanReboot,CanSuspend,CanHibernate,CanHybridSleep,ScheduleShutdown,CancelScheduledShutdown,SetWallMessage}
+    member={Inhibit,PowerOff,Reboot,Suspend,Hibernate,HybridSleep,CanPowerOff,CanReboot,CanSuspend,CanHibernate,CanHybridSleep,ScheduleShutdown,CancelScheduledShutdown,SetWallMessage,SetRebootParameter}
     peer=(label=unconfined),
 
 # Allow clients to introspect
@@ -68,6 +74,7 @@ func init() {
 		summary:               shutdownSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
+		baseDeclarationPlugs:  shutdownBaseDeclarationPlugs,
 		baseDeclarationSlots:  shutdownBaseDeclarationSlots,
 		connectedPlugAppArmor: shutdownConnectedPlugAppArmor,
 	})

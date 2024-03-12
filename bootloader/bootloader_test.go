@@ -22,7 +22,6 @@ package bootloader_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -126,7 +125,7 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromGadget(c *C) {
 	} {
 		mockGadgetDir := c.MkDir()
 		rootDir := c.MkDir()
-		err := ioutil.WriteFile(filepath.Join(mockGadgetDir, t.gadgetFile), t.gadgetFileContent, 0644)
+		err := os.WriteFile(filepath.Join(mockGadgetDir, t.gadgetFile), t.gadgetFileContent, 0644)
 		c.Assert(err, IsNil)
 		err = bootloader.InstallBootConfig(mockGadgetDir, rootDir, t.opts)
 		c.Assert(err, IsNil, Commentf("installing boot config for %s", t.name))
@@ -219,7 +218,7 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromAssets(c *C) {
 		mockGadgetDir := c.MkDir()
 		rootDir := c.MkDir()
 		fn := filepath.Join(rootDir, t.sysFile)
-		err := ioutil.WriteFile(filepath.Join(mockGadgetDir, t.gadgetFile), t.gadgetFileContent, 0644)
+		err := os.WriteFile(filepath.Join(mockGadgetDir, t.gadgetFile), t.gadgetFileContent, 0644)
 		c.Assert(err, IsNil)
 		var restoreAsset func()
 		if t.assetName != "" {
@@ -322,7 +321,7 @@ func (s *bootenvTestSuite) TestBootloaderFind(c *C) {
 		rootDir := c.MkDir()
 		err := os.MkdirAll(filepath.Join(rootDir, filepath.Dir(tc.sysFile)), 0755)
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(rootDir, tc.sysFile), nil, 0644)
+		err = os.WriteFile(filepath.Join(rootDir, tc.sysFile), nil, 0644)
 		c.Assert(err, IsNil)
 		bl, err := bootloader.Find(rootDir, tc.opts)
 		c.Assert(err, IsNil)
@@ -350,7 +349,7 @@ func (s *bootenvTestSuite) TestBootloaderForGadget(c *C) {
 		rootDir := c.MkDir()
 		err := os.MkdirAll(filepath.Join(rootDir, filepath.Dir(tc.gadgetFile)), 0755)
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(gadgetDir, tc.gadgetFile), nil, 0644)
+		err = os.WriteFile(filepath.Join(gadgetDir, tc.gadgetFile), nil, 0644)
 		c.Assert(err, IsNil)
 		bl, err := bootloader.ForGadget(gadgetDir, rootDir, tc.opts)
 		c.Assert(err, IsNil)

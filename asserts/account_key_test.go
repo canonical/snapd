@@ -83,6 +83,9 @@ func (aks *accountKeySuite) TestDecodeOK(c *C) {
 	c.Check(accKey.Name(), Equals, "default")
 	c.Check(accKey.PublicKeyID(), Equals, aks.keyID)
 	c.Check(accKey.Since(), Equals, aks.since)
+
+	// no constraints, anything goes
+	c.Check(accKey.ConstraintsPrecheck(asserts.AccountKeyType, nil), IsNil)
 }
 
 func (aks *accountKeySuite) TestDecodeNoName(c *C) {
@@ -987,4 +990,155 @@ func (aks *accountKeySuite) TestAccountKeyRequestNoAccount(c *C) {
 
 	err = db.Check(akr)
 	c.Assert(err, ErrorMatches, `account-key-request assertion for "acc-id1" does not have a matching account assertion`)
+}
+
+func (aks *accountKeySuite) TestDecodeConstraints(c *C) {
+	encoded := "type: account-key\n" +
+		"format: 1\n" +
+		"authority-id: canonical\n" +
+		"account-id: acc-id1\n" +
+		"name: default\n" +
+		"constraints:\n" +
+		"  -\n" +
+		"    headers:\n" +
+		"      type: model\n" +
+		"      model: foo-.*\n" +
+		"  -\n" +
+		"    headers:\n" +
+		"      type: preseed\n" +
+		"public-key-sha3-384: " + aks.keyID + "\n" +
+		aks.sinceLine +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
+		aks.pubKeyBody + "\n\n" +
+		"AXNpZw=="
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.AccountKeyType)
+	accKey := a.(*asserts.AccountKey)
+	c.Check(accKey.AccountID(), Equals, "acc-id1")
+	c.Check(accKey.Name(), Equals, "default")
+	c.Check(accKey.PublicKeyID(), Equals, aks.keyID)
+	c.Check(accKey.Since(), Equals, aks.since)
+}
+
+func (aks *accountKeySuite) TestDecodeConstraintsInvalid(c *C) {
+	const constr = "\n" +
+		"  -\n" +
+		"    headers:\n" +
+		"      type: model\n" +
+		"      model: foo-.*\n"
+	encoded := "type: account-key\n" +
+		"format: 1\n" +
+		"authority-id: canonical\n" +
+		"account-id: acc-id1\n" +
+		"name: default\n" +
+		"constraints:" +
+		constr +
+		"public-key-sha3-384: " + aks.keyID + "\n" +
+		aks.sinceLine +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
+		aks.pubKeyBody + "\n\n" +
+		"AXNpZw=="
+
+	invalidHeaderTests := []struct{ original, invalid, expectedErr string }{
+		{constr, " x\n", "assertions constraints must be a list of maps"}, {constr, "\n  - foo\n", "assertions constraints must be a list of maps"},
+		{constr, "\n  -\n    headers: x\n", `"headers" constraint must be a map`},
+		{constr, "\n  -\n    header:\n      t: x\n", `"headers" constraint mandatory in asserions constraints`},
+		{constr, "\n  -\n    headers:\n      t: x\n", "type header constraint mandatory in asserions constraints"},
+		{constr, "\n  -\n    headers:\n      type:\n        - foo\n", "type header constraint must be a string"},
+		{constr, "\n  -\n    headers:\n      type: preseed|model\n", "type header constraint must be a precise string and not a regexp"},
+		{constr, "\n  -\n    headers:\n      type: foo\n      model: $X\n", `cannot compile headers constraint: cannot compile "model" constraint "\$X": no \$OP\(\) constraints supported`},
+	}
+	for _, test := range invalidHeaderTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, accKeyErrPrefix+test.expectedErr)
+	}
+}
+
+func (s *accountKeySuite) TestSuggestedFormat(c *C) {
+	fmtnum, err := asserts.SuggestFormat(asserts.AccountKeyType, nil, nil)
+	c.Assert(err, IsNil)
+	c.Check(fmtnum, Equals, 0)
+
+	headers := map[string]interface{}{
+		"constraints": []interface{}{map[string]interface{}{"headers": nil}},
+	}
+	fmtnum, err = asserts.SuggestFormat(asserts.AccountKeyType, headers, nil)
+	c.Assert(err, IsNil)
+	c.Check(fmtnum, Equals, 1)
+}
+
+func (aks *accountKeySuite) TestCanSignAndConstraintsPrecheck(c *C) {
+	encoded := "type: account-key\n" +
+		"format: 1\n" +
+		"authority-id: canonical\n" +
+		"account-id: acc-id1\n" +
+		"name: default\n" +
+		"constraints:\n" +
+		"  -\n" +
+		"    headers:\n" +
+		"      type: model\n" +
+		"      model: foo-.*\n" +
+		"  -\n" +
+		"    headers:\n" +
+		"      type: preseed\n" +
+		"public-key-sha3-384: " + aks.keyID + "\n" +
+		aks.sinceLine +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
+		aks.pubKeyBody + "\n\n" +
+		"AXNpZw=="
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.AccountKeyType)
+	accKey := a.(*asserts.AccountKey)
+	headers := map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"series":       "16",
+		"model":        "foo-200",
+		"classic":      "true",
+	}
+	c.Check(accKey.ConstraintsPrecheck(asserts.ModelType, headers), IsNil)
+	mfoo := assertstest.FakeAssertion(headers)
+	c.Check(accKey.CanSign(mfoo), Equals, true)
+	headers = map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"series":       "16",
+		"model":        "goo-200",
+		"classic":      "true",
+	}
+	c.Check(accKey.ConstraintsPrecheck(asserts.ModelType, headers), ErrorMatches, `headers do not match the account-key constraints`)
+	mnotfoo := assertstest.FakeAssertion(headers)
+	c.Check(accKey.CanSign(mnotfoo), Equals, false)
+	headers = map[string]interface{}{
+		"type":              "preseed",
+		"authority-id":      "my-brand",
+		"series":            "16",
+		"brand-id":          "my-brand",
+		"model":             "goo-200",
+		"system-label":      "2023-07-17",
+		"snaps":             []interface{}{},
+		"artifact-sha3-384": "KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABs1No7BtXj",
+	}
+	c.Check(accKey.ConstraintsPrecheck(asserts.PreseedType, headers), IsNil)
+	pr := assertstest.FakeAssertion(headers)
+	c.Check(accKey.CanSign(pr), Equals, true)
+	headers = map[string]interface{}{
+		"type":         "snap-declaration",
+		"authority-id": "my-brand",
+		"series":       "16",
+		"snap-id":      "snapid",
+		"snap-name":    "foo",
+		"publisher-id": "my-brand",
+	}
+	c.Check(accKey.ConstraintsPrecheck(asserts.ModelType, headers), ErrorMatches, `headers do not match the account-key constraints`)
+	snapDecl := assertstest.FakeAssertion(headers)
+	c.Check(accKey.CanSign(snapDecl), Equals, false)
 }

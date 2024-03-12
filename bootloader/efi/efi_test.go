@@ -20,7 +20,6 @@
 package efi_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,7 +75,7 @@ func (s *efiVarsSuite) TestNoEFISystem(c *C) {
 func (s *efiVarsSuite) TestSizeError(c *C) {
 	// mock the efi var file
 	varPath := filepath.Join(s.rootdir, "/sys/firmware/efi/efivars", "my-cool-efi-var")
-	err := ioutil.WriteFile(varPath, []byte("\x06"), 0644)
+	err := os.WriteFile(varPath, []byte("\x06"), 0644)
 	c.Assert(err, IsNil)
 
 	_, _, err = efi.ReadVarBytes("my-cool-efi-var")
@@ -86,7 +85,7 @@ func (s *efiVarsSuite) TestSizeError(c *C) {
 func (s *efiVarsSuite) TestReadVarBytes(c *C) {
 	// mock the efi var file
 	varPath := filepath.Join(s.rootdir, "/sys/firmware/efi/efivars", "my-cool-efi-var")
-	err := ioutil.WriteFile(varPath, []byte("\x06\x00\x00\x00\x01"), 0644)
+	err := os.WriteFile(varPath, []byte("\x06\x00\x00\x00\x01"), 0644)
 	c.Assert(err, IsNil)
 
 	data, attr, err := efi.ReadVarBytes("my-cool-efi-var")
@@ -98,7 +97,7 @@ func (s *efiVarsSuite) TestReadVarBytes(c *C) {
 func (s *efiVarsSuite) TestReadVarString(c *C) {
 	// mock the efi var file
 	varPath := filepath.Join(s.rootdir, "/sys/firmware/efi/efivars", "my-cool-efi-var")
-	err := ioutil.WriteFile(varPath, []byte("\x06\x00\x00\x00A\x009\x00F\x005\x00C\x009\x004\x009\x00-\x00A\x00B\x008\x009\x00-\x005\x00B\x004\x007\x00-\x00A\x007\x00B\x00F\x00-\x005\x006\x00D\x00D\x002\x008\x00F\x009\x006\x00E\x006\x005\x00\x00\x00"), 0644)
+	err := os.WriteFile(varPath, []byte("\x06\x00\x00\x00A\x009\x00F\x005\x00C\x009\x004\x009\x00-\x00A\x00B\x008\x009\x00-\x005\x00B\x004\x007\x00-\x00A\x007\x00B\x00F\x00-\x005\x006\x00D\x00D\x002\x008\x00F\x009\x006\x00E\x006\x005\x00\x00\x00"), 0644)
 	c.Assert(err, IsNil)
 
 	data, attr, err := efi.ReadVarString("my-cool-efi-var")
@@ -110,7 +109,7 @@ func (s *efiVarsSuite) TestReadVarString(c *C) {
 func (s *efiVarsSuite) TestEmpty(c *C) {
 	// mock the efi var file
 	varPath := filepath.Join(s.rootdir, "/sys/firmware/efi/efivars", "my-cool-efi-var")
-	err := ioutil.WriteFile(varPath, []byte("\x06\x00\x00\x00"), 0644)
+	err := os.WriteFile(varPath, []byte("\x06\x00\x00\x00"), 0644)
 	c.Assert(err, IsNil)
 
 	b, _, err := efi.ReadVarBytes("my-cool-efi-var")

@@ -272,6 +272,15 @@ func (cs *clientSuite) TestSystemDetailsHappy(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/20190102")
+	vols := map[string]*gadget.Volume{
+		"pc": {
+			Schema:     "gpt",
+			Bootloader: "grub",
+			Structure: []gadget.VolumeStructure{
+				{Name: "mbr", Type: "mbr", Size: 440},
+			},
+		}}
+	gadget.SetEnclosingVolumeInStructs(vols)
 	c.Check(sys, check.DeepEquals, &client.SystemDetails{
 		Current: true,
 		Label:   "20200101",
@@ -295,15 +304,7 @@ func (cs *clientSuite) TestSystemDetailsHappy(c *check.C) {
 			StorageSafety: "prefer-encrypted",
 			Type:          "cryptsetup",
 		},
-		Volumes: map[string]*gadget.Volume{
-			"pc": {
-				Schema:     "gpt",
-				Bootloader: "grub",
-				Structure: []gadget.VolumeStructure{
-					{Name: "mbr", Type: "mbr", Size: 440},
-				},
-			},
-		},
+		Volumes: vols,
 	})
 }
 
@@ -355,6 +356,7 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 					Label:      "label",
 					Name:       "vol-name",
 					ID:         "id",
+					MinSize:    1234,
 					Size:       1234,
 					Type:       "type",
 					Filesystem: "fs",
@@ -394,6 +396,7 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 						"filesystem-label": "label",
 						"name":             "vol-name",
 						"id":               "id",
+						"min-size":         float64(1234),
 						"size":             float64(1234),
 						"type":             "type",
 						"filesystem":       "fs",

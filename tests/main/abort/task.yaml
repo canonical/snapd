@@ -1,5 +1,8 @@
 summary: Check change abort
 
+details: |
+    Check a change cannot be aborted when the change is not in progress
+
 environment:
     SNAP_NAME: test-snapd-tools
 
@@ -10,7 +13,7 @@ execute: |
         exit 1
     fi
 
-    echo "Abort with valid id - error"
+    echo "Abort with a valid id - error"
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     subdirPath="$SNAP_MOUNT_DIR/$SNAP_NAME/current/foo"
     mkdir -p "$subdirPath"
@@ -26,7 +29,7 @@ execute: |
     fi
     rm -rf "$subdirPath"
 
-    echo "Abort with valid id - done"
+    echo "Abort with a valid id - done"
     "$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME"
     idPattern="\\d+(?= +Done.*?Install \"$SNAP_NAME\" snap)"
     id=$(snap changes | grep -Pzo "$idPattern")

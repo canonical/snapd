@@ -1,3 +1,180 @@
+snapd (2.61.3-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2039017
+    - Install systemd files in correct location for 24.04
+
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Wed, 06 Mar 2024 23:18:11 +0200
+
+snapd (2.61.2-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2039017
+    - Fix to enable plug/slot sanitization for prepare-image
+    - Fix panic when device-service.access=offline
+    - Support offline remodeling
+    - Allow offline update only remodels without serial
+    - Fail early when remodeling to old model revision
+    - Fix to enable plug/slot sanitization for validate-seed
+    - Allow removal of core snap on classic systems
+    - Fix network-control interface denial for file lock on /run/netns
+    - Add well-known core24 snap-id
+    - Fix remodel snap installation order
+    - Prevent remodeling from UC18+ to UC16
+    - Fix cups auto-connect on classic with cups snap installed
+    - u2f-devices interface support for GoTrust Idem Key with USB-C
+    - Fix to restore services after unlink failure
+    - Add libcudnn.so to Nvidia libraries
+    - Fix skipping base snap download due to false snapd downgrade
+      conflict
+
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Fri, 16 Feb 2024 20:22:23 +0200
+
+snapd (2.61.1-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2024007
+    - Stop requiring default provider snaps on image building and first
+      boot if alternative providers are included and available
+    - Fix auth.json access for login as non-root group ID
+    - Fix incorrect remodelling conflict when changing track to older
+      snapd version
+    - Improved check-rerefresh message
+    - Fix UC16/18 kernel/gadget update failure due volume mismatch with
+      installed disk
+    - Stop auto-import of assertions during install modes
+    - Desktop interface exposes GetIdletime
+    - Polkit interface support for new polkit versions
+    - Fix not applying snapd snap changes in tracked channel when remodelling
+
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Fri, 24 Nov 2023 10:22:55 +0200
+
+snapd (2.61-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2039017
+    - Fix control of activated services in 'snap start' and 'snap stop'
+    - Correctly reflect activated services in 'snap services'
+    - Disabled services are no longer enabled again when snap is
+      refreshed
+    - interfaces/builtin: added support for Token2 U2F keys
+    - interfaces/u2f-devices: add Swissbit iShield Key
+    - interfaces/builtin: update gpio apparmor to match pattern that
+      contains multiple subdirectories under /sys/devices/platform
+    - interfaces: add a polkit-agent interface
+    - interfaces: add pcscd interface
+    - Kernel command-line can now be edited in the gadget.yaml
+    - Only track validation-sets in run-mode, fixes validation-set
+      issues on first boot.
+    - Added support for using store.access to disable access to snap
+      store
+    - Support for fat16 partition in gadget
+    - Pre-seed authority delegation is now possible
+    - Support new system-user name  daemon
+    - Several bug fixes and improvements around remodelling
+    - Offline remodelling support
+
+ -- Philip Meulengracht <philip.meulengracht@canonical.com>  Fri, 13 Oct 2023 13:06:02 +0200
+
+snapd (2.60.4-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2024007
+    - i/b/qualcomm_ipc_router.go: switch to plug/slot and add socket
+      permission
+    - interfaces/builtin: fix custom-device udev KERNEL values
+    - overlord: allow the firmware-updater snap to install user daemons
+    - interfaces: allow loopback as a block-device
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 15 Sep 2023 20:46:59 +0200
+
+snapd (2.60.3-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2024007
+    - i/b/shared-memory: handle "private" plug attribute in shared-
+      memory interface correctly
+    - i/apparmor: support for home.d tunables from /etc/
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 25 Aug 2023 18:36:50 +0200
+
+snapd (2.60.2-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2024007
+    - i/builtin: allow directories in private /dev/shm
+    - i/builtin: add read access to /proc/task/schedstat in system-
+      observe
+    - snap-bootstrap: print version information at startup
+    - go.mod: update gopkg.in/yaml.v3 to v3.0.1 to fix CVE-2022-28948
+    - snap, store: filter out invalid snap edited links from store info
+      and persisted state
+    - o/configcore: write netplan defaults to 00-snapd-config on seeding
+    - snapcraft.yaml: pull in apparmor_parser optimization patches from
+      https://gitlab.com/apparmor/apparmor/-/merge_requests/711
+    - snap-confine: fix missing \0 after readlink
+    - cmd/snap: hide append-integrity-data
+    - interfaces/opengl: add support for ARM Mali
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 04 Aug 2023 12:14:04 +0200
+
+snapd (2.60.1-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2024007
+    - install: fallback to lazy unmount() in writeFilesystemContent
+    - data: include "modprobe.d" and "modules-load.d" in preseeded blob
+    - gadget: fix install test on armhf
+    - interfaces: fix typo in network_manager_observe
+    - sandbox/apparmor: don't let vendored apparmor conflict with system
+    - gadget/update: set parts in laid out data from the ones matched
+    - many: move SnapConfineAppArmorDir from dirs to sandbox/apparmor
+    - many: stop using `-O no-expr-simplify` in apparmor_parser
+    - go.mod: update secboot to latest uc22 branch
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 04 Jul 2023 21:21:48 +0200
+
+snapd (2.60-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2024007
+    - Support for dynamic snapshot data exclusions
+    - Apparmor userspace is vendored inside the snapd snap
+    - Added a default-configure hook that exposes gadget default
+      configuration options to snaps during first install before
+      services are started
+    - Allow install from initrd to speed up the initial installation
+      for systems that do not have a install-device hook
+    - New `snap sign --chain` flag that appends the account and
+      account-key assertions
+    - Support validation-sets in the model assertion
+    - Support new "min-size" field in gadget.yaml
+    - New interface: "userns"
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 15 Jun 2023 17:14:31 +0200
+
+snapd (2.59.5-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2009946
+    - Explicitly disallow the use of ioctl + TIOCLINUX
+      This fixes CVE-2023-1523.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Sat, 27 May 2023 09:44:43 +0200
+
+snapd (2.59.4-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2009946
+    - Retry when looking for disk label on non-UEFI systems
+      (LP: #2018977)
+    - Fix remodel from UC20 to UC22
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 12 May 2023 10:15:57 +0200
+
+snapd (2.59.3-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2009946
+    - Fix quiet boot
+    - i/b/physical_memory_observe: allow reading virt-phys page mappings
+    - gadget: warn instead of returning error if overlapping with GPT
+      header
+    - overlord,wrappers: restart always enabled units
+    - go.mod: update github.com/snapcore/secboot to latest uc22
+    - boot: make sure we update assets for the system-seed-null role
+    - many: ignore case for vfat partitions when validating
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 03 May 2023 12:31:00 +0200
+
 snapd (2.59.2-1) unstable; urgency=medium
 
   * New upstream release, LP: #2009946

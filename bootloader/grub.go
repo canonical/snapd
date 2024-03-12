@@ -29,7 +29,9 @@ import (
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // grub implements the required interfaces
@@ -364,23 +366,21 @@ func (g *grub) ManagedAssets() []string {
 }
 
 func (g *grub) commandLineForEdition(edition uint, pieces CommandLineComponents) (string, error) {
-	assetName := "grub.cfg"
-	if g.recovery {
-		assetName = "grub-recovery.cfg"
-	}
-
 	if err := pieces.Validate(); err != nil {
 		return "", err
 	}
 
 	var nonSnapdCmdline string
 	if pieces.FullArgs == "" {
-		staticCmdline := staticCommandLineForGrubAssetEdition(assetName, edition)
-		nonSnapdCmdline = staticCmdline + " " + pieces.ExtraArgs
+		staticCmdline := g.defaultCommandLineForEdition(edition)
+
+		keepDefaultArgs := kcmdline.RemoveMatchingFilter(staticCmdline, pieces.RemoveArgs)
+
+		nonSnapdCmdline = strutil.JoinNonEmpty(append(keepDefaultArgs, pieces.ExtraArgs), " ")
 	} else {
 		nonSnapdCmdline = pieces.FullArgs
 	}
-	args, err := osutil.KernelCommandLineSplit(nonSnapdCmdline)
+	args, err := kcmdline.Split(nonSnapdCmdline)
 	if err != nil {
 		return "", fmt.Errorf("cannot use badly formatted kernel command line: %v", err)
 	}
@@ -398,6 +398,35 @@ func (g *grub) commandLineForEdition(edition uint, pieces CommandLineComponents)
 	return strings.Join(append(snapdArgs, args...), " "), nil
 }
 
+func (g *grub) assetName() string {
+	if g.recovery {
+		return "grub-recovery.cfg"
+	}
+
+	return "grub.cfg"
+}
+
+func (g *grub) defaultCommandLineForEdition(edition uint) string {
+	return staticCommandLineForGrubAssetEdition(g.assetName(), edition)
+}
+
+func editionFromDiskConfigAssetFallback(bootConfig string) (uint, error) {
+	edition, err := editionFromDiskConfigAsset(bootConfig)
+	if err != nil {
+		if err != errNoEdition {
+			return 0, err
+		}
+		// we were called using the TrustedAssetsBootloader interface
+		// meaning the caller expects to us to use the managed assets,
+		// since one on disk is not managed, use the initial edition of
+		// the internal boot asset which is compatible with grub.cfg
+		// used before we started writing out the files ourselves
+		edition = 1
+	}
+
+	return edition, nil
+}
+
 // CommandLine returns the kernel command line composed of mode and
 // system arguments, followed by either a built-in bootloader specific
 // static arguments corresponding to the on-disk boot asset edition, and
@@ -408,18 +437,12 @@ func (g *grub) commandLineForEdition(edition uint, pieces CommandLineComponents)
 // Implements TrustedAssetsBootloader for the grub bootloader.
 func (g *grub) CommandLine(pieces CommandLineComponents) (string, error) {
 	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
-	edition, err := editionFromDiskConfigAsset(currentBootConfig)
+
+	edition, err := editionFromDiskConfigAssetFallback(currentBootConfig)
 	if err != nil {
-		if err != errNoEdition {
-			return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
-		}
-		// we were called using the TrustedAssetsBootloader interface
-		// meaning the caller expects to us to use the managed assets,
-		// since one on disk is not managed, use the initial edition of
-		// the internal boot asset which is compatible with grub.cfg
-		// used before we started writing out the files ourselves
-		edition = 1
+		return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
 	}
+
 	return g.commandLineForEdition(edition, pieces)
 }
 
@@ -428,15 +451,39 @@ func (g *grub) CommandLine(pieces CommandLineComponents) (string, error) {
 //
 // Implements TrustedAssetsBootloader for the grub bootloader.
 func (g *grub) CandidateCommandLine(pieces CommandLineComponents) (string, error) {
-	assetName := "grub.cfg"
-	if g.recovery {
-		assetName = "grub-recovery.cfg"
-	}
-	edition, err := editionFromInternalConfigAsset(assetName)
+	edition, err := editionFromInternalConfigAsset(g.assetName())
 	if err != nil {
 		return "", err
 	}
 	return g.commandLineForEdition(edition, pieces)
+}
+
+// DefaultCommandLine returns the default kernel command-line used by
+// the bootloader excluding the recovery mode and system parameters.
+func (g *grub) DefaultCommandLine(candidate bool) (string, error) {
+	var edition uint
+
+	// if "candidate", we look for the managed boot assets
+	// (current snapd) rather than the ones currently installed on
+	// the boot/seed disk. This is needed to know the default
+	// command line before candidate boot assets are installed
+	if candidate {
+		var err error
+		edition, err = editionFromInternalConfigAsset(g.assetName())
+		if err != nil {
+			return "", err
+		}
+	} else {
+		currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
+
+		var err error
+		edition, err = editionFromDiskConfigAssetFallback(currentBootConfig)
+		if err != nil {
+			return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
+		}
+	}
+
+	return g.defaultCommandLineForEdition(edition), nil
 }
 
 // staticCommandLineForGrubAssetEdition fetches a static command line for given

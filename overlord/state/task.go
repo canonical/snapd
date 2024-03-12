@@ -38,19 +38,22 @@ type progress struct {
 //
 // See Change for more details.
 type Task struct {
-	state     *State
-	id        string
-	kind      string
-	summary   string
-	status    Status
-	clean     bool
-	progress  *progress
-	data      customData
-	waitTasks []string
-	haltTasks []string
-	lanes     []int
-	log       []string
-	change    string
+	state   *State
+	id      string
+	kind    string
+	summary string
+	status  Status
+	// waitedStatus is the Status that should be used instead of
+	// WaitStatus once the wait is complete (i.e post reboot).
+	waitedStatus Status
+	clean        bool
+	progress     *progress
+	data         customData
+	waitTasks    []string
+	haltTasks    []string
+	lanes        []int
+	log          []string
+	change       string
 
 	spawnTime time.Time
 	readyTime time.Time
@@ -77,18 +80,19 @@ func newTask(state *State, id, kind, summary string) *Task {
 }
 
 type marshalledTask struct {
-	ID        string                      `json:"id"`
-	Kind      string                      `json:"kind"`
-	Summary   string                      `json:"summary"`
-	Status    Status                      `json:"status"`
-	Clean     bool                        `json:"clean,omitempty"`
-	Progress  *progress                   `json:"progress,omitempty"`
-	Data      map[string]*json.RawMessage `json:"data,omitempty"`
-	WaitTasks []string                    `json:"wait-tasks,omitempty"`
-	HaltTasks []string                    `json:"halt-tasks,omitempty"`
-	Lanes     []int                       `json:"lanes,omitempty"`
-	Log       []string                    `json:"log,omitempty"`
-	Change    string                      `json:"change"`
+	ID           string                      `json:"id"`
+	Kind         string                      `json:"kind"`
+	Summary      string                      `json:"summary"`
+	Status       Status                      `json:"status"`
+	WaitedStatus Status                      `json:"waited-status"`
+	Clean        bool                        `json:"clean,omitempty"`
+	Progress     *progress                   `json:"progress,omitempty"`
+	Data         map[string]*json.RawMessage `json:"data,omitempty"`
+	WaitTasks    []string                    `json:"wait-tasks,omitempty"`
+	HaltTasks    []string                    `json:"halt-tasks,omitempty"`
+	Lanes        []int                       `json:"lanes,omitempty"`
+	Log          []string                    `json:"log,omitempty"`
+	Change       string                      `json:"change"`
 
 	SpawnTime time.Time  `json:"spawn-time"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
@@ -111,18 +115,19 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 		atTime = &t.atTime
 	}
 	return json.Marshal(marshalledTask{
-		ID:        t.id,
-		Kind:      t.kind,
-		Summary:   t.summary,
-		Status:    t.status,
-		Clean:     t.clean,
-		Progress:  t.progress,
-		Data:      t.data,
-		WaitTasks: t.waitTasks,
-		HaltTasks: t.haltTasks,
-		Lanes:     t.lanes,
-		Log:       t.log,
-		Change:    t.change,
+		ID:           t.id,
+		Kind:         t.kind,
+		Summary:      t.summary,
+		Status:       t.status,
+		WaitedStatus: t.waitedStatus,
+		Clean:        t.clean,
+		Progress:     t.progress,
+		Data:         t.data,
+		WaitTasks:    t.waitTasks,
+		HaltTasks:    t.haltTasks,
+		Lanes:        t.lanes,
+		Log:          t.log,
+		Change:       t.change,
 
 		SpawnTime: t.spawnTime,
 		ReadyTime: readyTime,
@@ -148,6 +153,13 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.kind = unmarshalled.Kind
 	t.summary = unmarshalled.Summary
 	t.status = unmarshalled.Status
+	t.waitedStatus = unmarshalled.WaitedStatus
+	if t.waitedStatus == DefaultStatus {
+		// For backwards-compatibility, default the waitStatus, which is
+		// the result status after a wait, to DoneStatus to keep any previous
+		// behaviour before any upgrade.
+		t.waitedStatus = DoneStatus
+	}
 	t.clean = unmarshalled.Clean
 	t.progress = unmarshalled.Progress
 	custData := unmarshalled.Data
@@ -188,6 +200,40 @@ func (t *Task) Summary() string {
 }
 
 // Status returns the current task status.
+//
+// Possible state transitions:
+//
+//	   /----aborting lane--Do
+//	   |                   |
+//	   V                   V
+//	  Hold               Doing-->Wait
+//	   ^                /  |  \
+//	   |         abort /   V   V
+//	 no undo          /  Done  Error
+//	   |             V     |
+//	   \----------Abort   aborting lane
+//	   /          |        |
+//	   |       finished or |
+//	running    not running |
+//	   V          \------->|
+//	kill goroutine         |
+//	   |                   V
+//	  / \           ----->Undo
+//	 /   no error  /       |
+//	 |   from goroutine    |
+//	error                  |
+//	from goroutine         |
+//	 |                     V
+//	 |                  Undoing-->Wait
+//	 V                     |   \
+//	Error                  V    V
+//	                     Undone Error
+//
+// Do -> Doing -> Done is the direct success scenario.
+//
+// Wait can transition to its waited status,
+// usually Done|Undone or back to Doing.
+// See Wait struct, SetToWait and WaitedStatus.
 func (t *Task) Status() Status {
 	t.state.reading()
 	if t.status == DefaultStatus {
@@ -196,16 +242,8 @@ func (t *Task) Status() Status {
 	return t.status
 }
 
-// SetStatus sets the task status, overriding the default behavior (see Status method).
-func (t *Task) SetStatus(new Status) {
-	t.state.writing()
-	old := t.status
-	if (new == DoneStatus || new == WaitStatus) && old == AbortStatus {
-		// if the task is in AbortStatus (because some other task ran
-		// in parallel and had an error so the change is aborted) and
-		// DoneStatus/WaitStatus was requested (which can happen if the
-		// task handler sets its status explicitly) then keep it at
-		// aborted so it can transition to Undo.
+func (t *Task) changeStatus(old, new Status) {
+	if old == new {
 		return
 	}
 	t.status = new
@@ -216,6 +254,55 @@ func (t *Task) SetStatus(new Status) {
 	if chg != nil {
 		chg.taskStatusChanged(t, old, new)
 	}
+	t.state.notifyTaskStatusChangedHandlers(t, old, new)
+}
+
+// SetStatus sets the task status, overriding the default behavior (see Status method).
+func (t *Task) SetStatus(new Status) {
+	if new == WaitStatus {
+		panic("Task.SetStatus() called with WaitStatus, which is not allowed. Use SetToWait() instead")
+	}
+
+	t.state.writing()
+	old := t.status
+	if new == DoneStatus && old == AbortStatus {
+		// if the task is in AbortStatus (because some other task ran
+		// in parallel and had an error so the change is aborted) and
+		// DoneStatus was requested (which can happen if the
+		// task handler sets its status explicitly) then keep it at
+		// aborted so it can transition to Undo.
+		return
+	}
+	t.changeStatus(old, new)
+}
+
+// SetToWait puts the task into WaitStatus, and sets the status the task should be restored
+// to after the SetToWait.
+func (t *Task) SetToWait(resultStatus Status) {
+	switch resultStatus {
+	case DefaultStatus, WaitStatus:
+		panic("Task.SetToWait() cannot be invoked with either of DefaultStatus or WaitStatus")
+	}
+
+	t.state.writing()
+	old := t.status
+	if old == AbortStatus {
+		// if the task is in AbortStatus (because some other task ran
+		// in parallel and had an error so the change is aborted) and
+		// WaitStatus was requested (which can happen if the
+		// task handler sets its status explicitly) then keep it at
+		// aborted so it can transition to Undo.
+		return
+	}
+	t.waitedStatus = resultStatus
+	t.changeStatus(old, WaitStatus)
+}
+
+// WaitedStatus returns the status the Task should return to once the current WaitStatus
+// has been resolved.
+func (t *Task) WaitedStatus() Status {
+	t.state.reading()
+	return t.waitedStatus
 }
 
 // IsClean returns whether the task has been cleaned. See SetClean.

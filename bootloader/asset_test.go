@@ -21,7 +21,6 @@ package bootloader_test
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -61,7 +60,7 @@ one after that
 func (s *configAssetTestSuite) TestTrivialFromFile(c *C) {
 	d := c.MkDir()
 	p := filepath.Join(d, "foo")
-	ioutil.WriteFile(p, []byte(`# Snapd-Boot-Config-Edition: 123
+	os.WriteFile(p, []byte(`# Snapd-Boot-Config-Edition: 123
 this is some
 this too`), 0644)
 	e, err := bootloader.EditionFromDiskConfigAsset(p)
@@ -82,7 +81,7 @@ func (s *configAssetTestSuite) TestRealRecoveryConfig(c *C) {
 	c.Assert(grubRecoveryConfig, NotNil)
 	e, err := bootloader.EditionFromConfigAsset(bytes.NewReader(grubRecoveryConfig))
 	c.Assert(err, IsNil)
-	c.Assert(e, Equals, uint(1))
+	c.Assert(e, Equals, uint(2))
 }
 
 func (s *configAssetTestSuite) TestNoConfig(c *C) {
@@ -105,7 +104,7 @@ func (s *configAssetTestSuite) TestUnreadableFile(c *C) {
 	}
 	d := c.MkDir()
 	p := filepath.Join(d, "foo")
-	err := ioutil.WriteFile(p, []byte("foo"), 0000)
+	err := os.WriteFile(p, []byte("foo"), 0000)
 	c.Assert(err, IsNil)
 	_, err = bootloader.EditionFromDiskConfigAsset(p)
 	c.Assert(err, ErrorMatches, "cannot load existing config asset: .*/foo: permission denied")

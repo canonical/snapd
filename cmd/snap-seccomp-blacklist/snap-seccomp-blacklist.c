@@ -101,7 +101,7 @@ static int populate_filter(scmp_filter_ctx ctx, const uint32_t *arch_tags, size_
      * NOTE: not using scmp_rule_add_exact as that was not doing anything
      * at all (presumably due to having all the architectures defined). */
 
-    const struct scmp_arg_cmp no_tty_inject = {
+    struct scmp_arg_cmp no_tty_inject = {
         /* We learned that existing programs make legitimate requests with all
          * bits set in the more significant 32bit word of the 64 bit double
          * word. While this kernel behavior remains suspect and presumably
@@ -120,6 +120,10 @@ static int populate_filter(scmp_filter_ctx ctx, const uint32_t *arch_tags, size_
         .datum_a = 0xffffffffUL,
         .datum_b = TIOCSTI,
     };
+    sc_err = seccomp_rule_add(ctx, SCMP_ACT_ERRNO(EPERM), sys_ioctl_nr, 1, no_tty_inject);
+
+    /* also block use of TIOCLINUX */
+    no_tty_inject.datum_b = TIOCLINUX;
     sc_err = seccomp_rule_add(ctx, SCMP_ACT_ERRNO(EPERM), sys_ioctl_nr, 1, no_tty_inject);
 
     if (sc_err < 0) {

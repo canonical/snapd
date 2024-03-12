@@ -3,7 +3,6 @@ package devicestate_test
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -106,7 +105,7 @@ func (s *cloudInitUC20Suite) SetUpTest(c *C) {
 
 func (s *cloudInitUC20Suite) TestCloudInitUC20CloudGadgetNoDisable(c *C) {
 	// create a cloud.conf file in the gadget snap's mount dir
-	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapMountDir, "pc", "1", "cloud.conf"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapMountDir, "pc", "1", "cloud.conf"), nil, 0644), IsNil)
 
 	// pretend that cloud-init finished running
 	statusCalls := 0
@@ -358,7 +357,7 @@ func (s *cloudInitSuite) TestCloudInitAlreadyRestrictedFileDoesNothing(c *C) {
 	disableFile := filepath.Join(dirs.GlobalRootDir, "/etc/cloud/cloud.cfg.d/zzzz_snapd.cfg")
 	err := os.MkdirAll(filepath.Dir(disableFile), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(disableFile, nil, 0644)
+	err = os.WriteFile(disableFile, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock cloud-init command, but make it always fail, it shouldn't be called
@@ -392,7 +391,7 @@ func (s *cloudInitSuite) TestCloudInitAlreadyDisabledDoesNothing(c *C) {
 	disableFile := filepath.Join(dirs.GlobalRootDir, "/etc/cloud/cloud-init.disabled")
 	err := os.MkdirAll(filepath.Dir(disableFile), 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(disableFile, nil, 0644)
+	err = os.WriteFile(disableFile, nil, 0644)
 	c.Assert(err, IsNil)
 
 	// mock cloud-init command, but make it always fail, it shouldn't be called

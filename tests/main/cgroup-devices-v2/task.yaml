@@ -1,5 +1,13 @@
 summary: measuring basic properties of device cgroup v2
 
+details: |
+    Verify some basic properties of the device cgroups v2. Some checks are:
+    The device cgroup of the main process is the expected one.
+    The initial constraints imposed by the device cgroup made by systemd.
+    After a connection is done, the device cgroup is updated accordingly.
+    The main process for a snap is in the snapd-made cgroup after a command
+    is executed via snap-confine.
+
 # skip all systems that do not use unified cgroup hierarchy by default
 systems:
   - -amazon-*
@@ -9,7 +17,6 @@ systems:
   - -ubuntu-18.04-*
   - -ubuntu-20.04-*
   - -ubuntu-core-*
-  - -debian-10-*
   - -centos-7-*
   - -centos-8-*
   - -centos-9-*

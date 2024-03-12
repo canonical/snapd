@@ -1,6 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 //go:build !nosecboot
-// +build !nosecboot
 
 /*
  * Copyright (C) 2021 Canonical Ltd
@@ -29,7 +28,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -451,6 +449,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		rkErr               error // recovery key unlock error, only relevant if TPM not available
 		activated           bool  // the activation operation succeeded
 		activateErr         error // the activation error
+		uuidFailure         bool  // failure to get valid uuid
 		err                 string
 		skipDiskEnsureCheck bool // whether to check to ensure the mock disk contains the device label
 		expUnlockMethod     secboot.UnlockMethod
@@ -462,6 +461,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			activated:       true,
 			disk:            mockDiskWithEncDev,
 			expUnlockMethod: secboot.UnlockedWithSealedKey,
+		}, {
+			// encrypted device: failure to generate uuid based target device name
+			tpmEnabled: true, hasEncdev: true, activated: true, uuidFailure: true,
+			disk: mockDiskWithEncDev,
+			err:  "mocked uuid error",
 		}, {
 			// device activation fails
 			tpmEnabled: true, hasEncdev: true,
@@ -539,13 +543,17 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 			err: "error enumerating partitions for disk to find unencrypted device \"name\": filesystem label \"name\" not found",
 		},
 	} {
+		c.Logf("tc %v: %+v", idx, tc)
+
 		randomUUID := fmt.Sprintf("random-uuid-for-test-%d", idx)
-		restore := secboot.MockRandomKernelUUID(func() string {
-			return randomUUID
+		restore := secboot.MockRandomKernelUUID(func() (string, error) {
+			if tc.uuidFailure {
+				return "", errors.New("mocked uuid error")
+			}
+			return randomUUID, nil
 		})
 		defer restore()
 
-		c.Logf("tc %v: %+v", idx, tc)
 		_, restoreConnect := mockSbTPMConnection(c, tc.tpmErr)
 		defer restoreConnect()
 
@@ -657,7 +665,7 @@ func (s *secbootSuite) TestEFIImageFromBootFile(c *C) {
 
 	// set up some test files
 	existingFile := filepath.Join(tmpDir, "foo")
-	err := ioutil.WriteFile(existingFile, nil, 0644)
+	err := os.WriteFile(existingFile, nil, 0644)
 	c.Assert(err, IsNil)
 	missingFile := filepath.Join(tmpDir, "bar")
 	snapFile := filepath.Join(tmpDir, "test.snap")
@@ -749,7 +757,7 @@ func (s *secbootSuite) TestProvisionTPM(c *C) {
 
 		lockoutAuthData := []byte{'l', 'o', 'c', 'k', 'o', 'u', 't', 1, 1, 1, 1, 1, 1, 1, 1, 1}
 		if tc.writeLockoutAuth {
-			c.Assert(ioutil.WriteFile(filepath.Join(d, "lockout-auth"), lockoutAuthData, 0644), IsNil)
+			c.Assert(os.WriteFile(filepath.Join(d, "lockout-auth"), lockoutAuthData, 0644), IsNil)
 		}
 
 		// mock provisioning
@@ -806,7 +814,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		var mockBF []bootloader.BootFile
 		for _, name := range []string{"a", "b", "c", "d"} {
 			mockFileName := filepath.Join(tmpDir, name)
-			err := ioutil.WriteFile(mockFileName, nil, 0644)
+			err := os.WriteFile(mockFileName, nil, 0644)
 			c.Assert(err, IsNil)
 			mockBF = append(mockBF, bootloader.NewBootFile("", mockFileName, bootloader.RoleRecovery))
 		}
@@ -818,7 +826,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		var kernelSnap snap.Container
 		snapPath := filepath.Join(tmpDir, "kernel.snap")
 		if tc.badSnapFile {
-			err := ioutil.WriteFile(snapPath, nil, 0644)
+			err := os.WriteFile(snapPath, nil, 0644)
 			c.Assert(err, IsNil)
 		} else {
 			var err error
@@ -1092,12 +1100,12 @@ func (s *secbootSuite) TestResealKey(c *C) {
 	} {
 		mockTPMPolicyAuthKey := []byte{1, 3, 3, 7}
 		mockTPMPolicyAuthKeyFile := filepath.Join(c.MkDir(), "policy-auth-key-file")
-		err := ioutil.WriteFile(mockTPMPolicyAuthKeyFile, mockTPMPolicyAuthKey, 0600)
+		err := os.WriteFile(mockTPMPolicyAuthKeyFile, mockTPMPolicyAuthKey, 0600)
 		c.Assert(err, IsNil)
 
 		mockEFI := bootloader.NewBootFile("", filepath.Join(c.MkDir(), "file.efi"), bootloader.RoleRecovery)
 		if !tc.missingFile {
-			err := ioutil.WriteFile(mockEFI.Path, nil, 0644)
+			err := os.WriteFile(mockEFI.Path, nil, 0644)
 			c.Assert(err, IsNil)
 		}
 
@@ -1266,7 +1274,7 @@ func createMockSnapFile(snapDir, snapPath, snapType string) (snap.Container, err
 	if err := os.MkdirAll(filepath.Dir(snapYamlPath), 0755); err != nil {
 		return nil, err
 	}
-	if err := ioutil.WriteFile(snapYamlPath, []byte("name: foo"), 0644); err != nil {
+	if err := os.WriteFile(snapYamlPath, []byte("name: foo"), 0644); err != nil {
 		return nil, err
 	}
 	sqfs := squashfs.New(snapPath)
@@ -1298,6 +1306,28 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyBadDisk(c *C) {
 	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{})
 }
 
+func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyUUIDError(c *C) {
+	disk := &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			{
+				FilesystemLabel: "ubuntu-save-enc",
+				PartitionUUID:   "123-123-123",
+			},
+		},
+	}
+	restore := secboot.MockRandomKernelUUID(func() (string, error) {
+		return "", errors.New("mocked uuid error")
+	})
+	defer restore()
+
+	unlockRes, err := secboot.UnlockEncryptedVolumeUsingKey(disk, "ubuntu-save", []byte("fooo"))
+	c.Assert(err, ErrorMatches, "mocked uuid error")
+	c.Check(unlockRes, DeepEquals, secboot.UnlockResult{
+		PartDevice:  "/dev/disk/by-partuuid/123-123-123",
+		IsEncrypted: true,
+	})
+}
+
 func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
 	disk := &disks.MockDiskMapping{
 		Structure: []disks.Partition{
@@ -1307,8 +1337,8 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyHappy(c *C) {
 			},
 		},
 	}
-	restore := secboot.MockRandomKernelUUID(func() string {
-		return "random-uuid-123-123"
+	restore := secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-123-123", nil
 	})
 	defer restore()
 	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte,
@@ -1339,8 +1369,8 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
 			},
 		},
 	}
-	restore := secboot.MockRandomKernelUUID(func() string {
-		return "random-uuid-123-123"
+	restore := secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-123-123", nil
 	})
 	defer restore()
 	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte,
@@ -1360,7 +1390,7 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
 
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(c *C) {
 	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
-		return nil, fmt.Errorf("helper error")
+		return nil, fmt.Errorf(`cannot run ["fde-reveal-key"]: helper error`)
 	})
 	defer restore()
 
@@ -1394,7 +1424,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
 	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
-	c.Assert(err, ErrorMatches, `cannot unlock encrypted partition: cannot recover keys because of an unexpected error: cannot run fde-reveal-key "reveal": helper error`)
+	c.Assert(err, ErrorMatches, `cannot unlock encrypted partition: cannot recover keys because of an unexpected error: cannot run \["fde-reveal-key"\]: helper error`)
 }
 
 // this test that v1 hooks and raw binary v1 created sealedKey files still work
@@ -1414,8 +1444,8 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1An
 	})
 	defer restore()
 
-	restore = secboot.MockRandomKernelUUID(func() string {
-		return "random-uuid-for-test"
+	restore = secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-for-test", nil
 	})
 	defer restore()
 
@@ -1441,7 +1471,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1An
 	// disk-key without any json
 	mockSealedKeyFile := filepath.Join(c.MkDir(), "keyfile")
 	sealedKeyContent := []byte("USK$sealed-key-not-json-to-match-denver-project")
-	err := ioutil.WriteFile(mockSealedKeyFile, sealedKeyContent, 0600)
+	err := os.WriteFile(mockSealedKeyFile, sealedKeyContent, 0600)
 	c.Assert(err, IsNil)
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
@@ -1594,7 +1624,7 @@ func makeMockSealedKeyFile(c *C, handle json.RawMessage) string {
 		handleJSON = fmt.Sprintf(`"platform_handle":%s,`, handle)
 	}
 	sealedKeyContent := fmt.Sprintf(`{"platform_name":"fde-hook-v2",%s"encrypted_payload":"%s"}`, handleJSON, makeMockEncryptedPayloadString())
-	err := ioutil.WriteFile(mockSealedKeyFile, []byte(sealedKeyContent), 0600)
+	err := os.WriteFile(mockSealedKeyFile, []byte(sealedKeyContent), 0600)
 	c.Assert(err, IsNil)
 	return mockSealedKeyFile
 }
@@ -1651,8 +1681,8 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 	})
 	defer restore()
 
-	restore = secboot.MockRandomKernelUUID(func() string {
-		return "random-uuid-for-test"
+	restore = secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-for-test", nil
 	})
 	defer restore()
 
@@ -1712,8 +1742,8 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Mo
 	})
 	defer restore()
 
-	restore = secboot.MockRandomKernelUUID(func() string {
-		return "random-uuid-for-test"
+	restore = secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-for-test", nil
 	})
 	defer restore()
 
@@ -1767,8 +1797,8 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Mo
 	})
 	defer restore()
 
-	restore = secboot.MockRandomKernelUUID(func() string {
-		return "random-uuid-for-test"
+	restore = secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-for-test", nil
 	})
 	defer restore()
 
@@ -1820,8 +1850,8 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Al
 	})
 	defer restore()
 
-	restore = secboot.MockRandomKernelUUID(func() string {
-		return "random-uuid-for-test"
+	restore = secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-for-test", nil
 	})
 	defer restore()
 
@@ -1880,8 +1910,8 @@ func (s *secbootSuite) checkV2Key(c *C, keyFn string, prefixToDrop, expectedKey,
 	})
 	defer restore()
 
-	restore = secboot.MockRandomKernelUUID(func() string {
-		return "random-uuid-for-test"
+	restore = secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-for-test", nil
 	})
 	defer restore()
 
@@ -1948,8 +1978,8 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1(c
 	})
 	defer restore()
 
-	restore = secboot.MockRandomKernelUUID(func() string {
-		return "random-uuid-for-test"
+	restore = secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-for-test", nil
 	})
 	defer restore()
 
@@ -1975,7 +2005,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1(c
 	// note that we write a v1 created keyfile here, i.e. it's a raw
 	// disk-key without any json
 	mockSealedKeyFile := filepath.Join(c.MkDir(), "keyfile")
-	err := ioutil.WriteFile(mockSealedKeyFile, mockEncryptedDiskKey, 0600)
+	err := os.WriteFile(mockSealedKeyFile, mockEncryptedDiskKey, 0600)
 	c.Assert(err, IsNil)
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
@@ -2005,8 +2035,8 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJ
 	})
 	defer restore()
 
-	restore = secboot.MockRandomKernelUUID(func() string {
-		return "random-uuid-for-test"
+	restore = secboot.MockRandomKernelUUID(func() (string, error) {
+		return "random-uuid-for-test", nil
 	})
 	defer restore()
 
@@ -2048,7 +2078,7 @@ func (s *secbootSuite) TestPCRHandleOfSealedKey(c *C) {
 
 	skf := filepath.Join(d, "sealed-key")
 	// partially valid sealed key with correct header magic
-	c.Assert(ioutil.WriteFile(skf, []byte{0x55, 0x53, 0x4b, 0x24, 1, 1, 1, 'k', 'e', 'y', 1, 1, 1}, 0644), IsNil)
+	c.Assert(os.WriteFile(skf, []byte{0x55, 0x53, 0x4b, 0x24, 1, 1, 1, 'k', 'e', 'y', 1, 1, 1}, 0644), IsNil)
 	h, err = secboot.PCRHandleOfSealedKey(skf)
 	c.Assert(err, ErrorMatches, "(?s)cannot open key file: invalid key data: cannot unmarshal AFIS header: .*")
 	c.Check(h, Equals, uint32(0))
@@ -2150,7 +2180,7 @@ func (s *secbootSuite) testMarkSuccessfulEncrypted(c *C, sealingMethod device.Se
 
 	// write fake lockout auth
 	lockoutAuthValue := []byte("tpm-lockout-auth-key")
-	err = ioutil.WriteFile(filepath.Join(saveFDEDir, "tpm-lockout-auth"), lockoutAuthValue, 0600)
+	err = os.WriteFile(filepath.Join(saveFDEDir, "tpm-lockout-auth"), lockoutAuthValue, 0600)
 	c.Assert(err, IsNil)
 
 	daLockResetCalls := 0

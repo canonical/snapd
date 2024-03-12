@@ -12,7 +12,9 @@ backends: [-autopkgtest]
 # opensuse: the test is failing after retry several times the snapd service reaching the systemd start-limit.
 # fedora, centos: disable until we figure out how to handle NFS and SELinux
 #                 labels, labels can only be exported for NFSv4.2+ with security_label option
-systems: [-ubuntu-core-*, -opensuse-*, -fedora-*, -centos-*]
+# ubuntu-14.04-64: group 'systemd-journal' does not exist
+# amazon-linux-2023: nfs service unit does not exist
+systems: [-ubuntu-core-*, -opensuse-*, -fedora-*, -centos-*, -ubuntu-14.04-64, -amazon-linux-2023-*]
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
@@ -29,13 +31,12 @@ prepare: |
     fi
 
 restore: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
-
     # Unmount NFS mount over /home if one exists.
     if mountinfo.query /home; then
         umount /home
     fi
+
+    rm -f ~test/.snap/auth.json
 
     # Restore the fstab backup file if one exists.
     if [ -e /tmp/fstab.orig ]; then
@@ -136,8 +137,9 @@ execute: |
 
     # Export /home over NFS.
     mkdir -p /etc/exports.d/
-    echo '/home localhost(rw,no_subtree_check,no_root_squash)' > /etc/exports.d/test.exports
-   
+    # no no_root_squash as we want to test for that scenario
+    echo '/home localhost(rw,no_subtree_check)' > /etc/exports.d/test.exports
+
     # Make sure the nfs service is running
     case "$SPREAD_SYSTEM" in
         ubuntu-14.04-*)
@@ -195,6 +197,14 @@ execute: |
     #shellcheck disable=SC2016
     su -c 'snap run test-snapd-sh.with-home-plug -c "touch \$SNAP_USER_DATA/smoke-nfs3-tcp"' test
 
+    # With this the following snap commands will generate EOF errors but
+    # not perm issues
+    su -c 'cd; install -d -m 0700 .snap; install  -m 0600 /dev/null .snap/auth.json' test
+    # Test auth.json access
+    su -c 'snap list' test 2>&1 |MATCH EOF
+    su -c 'sudo snap list' test 2>&1 |MATCH EOF
+    su -c 'sg systemd-journal -c "snap list"' test 2>&1 |MATCH EOF
+
     # Unmount /home and restart snapd so that we can check another thing.
     umount_with_retry /home
     restart_snapd
@@ -206,7 +216,7 @@ execute: |
     # - arch: mount.nfs: requested NFS version or transport protocol is not supported
     # - debian-sid: mount.nfs: an incorrect mount option was specified
     # - ubuntu-2*: mount.nfs: an incorrect mount option was specified
-    if not os.query is-arch-linux && not os.query is-debian sid && not os.query is-debian 11 && [[ "$SPREAD_SYSTEM" != ubuntu-2* ]]; then
+    if not os.query is-arch-linux && not os.query is-debian && not os.query is-ubuntu-ge 20.04; then
         # Mount NFS-exported /home over real /home using NFSv3 and UDP transport
         mount -t nfs localhost:/home /home -o nfsvers=3,proto=udp
 
@@ -220,6 +230,10 @@ execute: |
         # As a non-root user perform a write over NFS-mounted /home
         #shellcheck disable=SC2016
         su -c 'snap run test-snapd-sh.with-home-plug -c "touch \$SNAP_USER_DATA/smoke-nfs3-udp"' test
+        # Test auth.json access
+        su -c 'snap list' test 2>&1 |MATCH EOF
+        su -c 'sudo snap list' test 2>&1 |MATCH EOF
+        su -c 'sg systemd-journal -c "snap list"' test 2>&1 |MATCH EOF
 
         # Unmount /home and restart snapd so that we can check another thing.
         umount_with_retry /home
@@ -242,6 +256,10 @@ execute: |
     # As a non-root user perform a write over NFS-mounted /home
     #shellcheck disable=SC2016
     su -c 'snap run test-snapd-sh.with-home-plug -c "touch \$SNAP_USER_DATA/smoke-nfs4"' test
+    # Test auth.json access
+    su -c 'snap list' test 2>&1 |MATCH EOF
+    su -c 'sudo snap list' test 2>&1 |MATCH EOF
+    su -c 'sg systemd-journal -c "snap list"' test 2>&1 |MATCH EOF
 
     # Unmount /home and restart snapd so that we can check another thing.
     umount_with_retry /home

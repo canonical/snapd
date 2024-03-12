@@ -27,8 +27,13 @@ if [ "$(uname -m)" = "s390x" ]; then
     fi
 fi
 
-export GOPATH="${GOPATH:-$(realpath "$(dirname "$0")"/../../../../)}"
-export PATH="$PATH:${GOPATH%%:*}/bin"
+# If GOPATH is set in the shell environment, the path will be reflected
+# in $(go env GOPATH). If no shell path was set, Go will default the internal
+# GOPATH to $HOME/go. Note that GOPATH may contain a colon delimited set
+# of paths, so in order to run any binary from any of the installed GOPATHs
+# we must add all the possible bin locations.
+GOBINS=$(go env GOPATH | sed 's|:|/bin:|g' | sed 's|.*|\0/bin|g')
+export PATH="$PATH:$GOBINS"
 
 short=
 
@@ -245,7 +250,7 @@ if [ "$STATIC" = 1 ]; then
             # shellcheck disable=SC2086
             for changed_file in $CHANGED_FILES; do
                 if [[ $changed_file == */task.yaml ]]; then
-                    FILTERED_FILES="$FILTERED_FILES $changed_file"
+                    FILTERED_FILES="$FILTERED_FILES $(pwd)/$changed_file"
                 fi
             done
         else
@@ -319,8 +324,33 @@ if [ "$STATIC" = 1 ]; then
     # FIXME: re-add staticcheck with a matching version for the used go-version
 
     if [ -z "${SKIP_TESTS_FORMAT_CHECK-}" ] || [ "$SKIP_TESTS_FORMAT_CHECK" = 0 ]; then
+        CHANGED_TESTS=""
+        FILTERED_TESTS=""
+        EXCLUDE_PATH=tests/lib/external/snapd-testing-tools
+        if [ -n "$CHANGED_FILES" ]; then
+            # shellcheck disable=SC2086
+            for changed_file in $CHANGED_FILES; do
+                if [[ $changed_file == */task.yaml ]]; then
+                    CHANGED_TESTS="$CHANGED_TESTS $changed_file"
+                fi
+            done
+        fi
+        # shellcheck disable=SC2086
+        for test in $CHANGED_TESTS; do
+            if ! echo "$test" | grep -q "$EXCLUDE_PATH"; then
+                if [ -z "$FILTERED_TESTS" ]; then
+                    FILTERED_TESTS="$test"
+                else
+                    FILTERED_TESTS="$FILTERED_TESTS $test"
+                fi
+            fi
+        done
+
         echo "Checking tests formatting"
-        ./tests/lib/external/snapd-testing-tools/utils/check-test-format ./tests
+        if [ -n "$FILTERED_TESTS" ]; then
+            # shellcheck disable=SC2086
+            ./tests/lib/external/snapd-testing-tools/utils/check-test-format --tests $FILTERED_TESTS
+        fi
     fi
 
     echo "Checking for usages of !=, == or Equals with ErrNoState"
@@ -373,6 +403,7 @@ if [ "$UNIT" = 1 ]; then
     command -v python3 && python3 ./tests/lib/tools/mountinfo.query --run-unit-tests
     command -v python2 && python2 ./tests/lib/tools/version-compare --run-unit-tests
     command -v python3 && python3 ./tests/lib/tools/version-compare --run-unit-tests
+    command -v pytest-3 && PYTHONDONTWRITEBYTECODE=1 pytest-3 ./release-tools
 fi
 
 UNCLEAN="$(git status -s|grep '^??')" || true

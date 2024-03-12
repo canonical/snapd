@@ -11,6 +11,10 @@ systems:
   - -ubuntu-core-16-32
   - -ubuntu-core-18-32
 
+environment:
+    # we unfortunately (sometimes) run out of memory while setting up test-content-layout-consumer snap
+    SNAPD_NO_MEMORY_LIMIT: 1
+
 prepare: |
     if os.query is-arm64; then
         SNAP_NAME=test-content-layout-consumer-arm64

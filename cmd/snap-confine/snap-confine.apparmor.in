@@ -172,6 +172,7 @@
 
     # boostrapping the mount namespace
     /tmp/snap.rootfs_*/ rw,
+    mount fstype=tmpfs none -> /tmp/snap.rootfs_*/,
     mount options=(rw rshared) -> /,
     mount options=(rw bind) /tmp/snap.rootfs_*/ -> /tmp/snap.rootfs_*/,
     mount options=(rw unbindable) -> /tmp/snap.rootfs_*/,
