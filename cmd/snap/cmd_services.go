@@ -188,7 +188,7 @@ func (s *svcLogs) Execute(args []string) error {
 type userAndScopeMixin struct {
 	System bool   `long:"system"`
 	User   bool   `long:"user"`
-	Users  string `long:"users" optional:"yes" optional-value:"all"`
+	Users  string `long:"users" optional:"yes"`
 }
 
 var userAndScopeDescs = mixinDescs{
@@ -202,8 +202,10 @@ var userAndScopeDescs = mixinDescs{
 
 func (um *userAndScopeMixin) validateScopes() error {
 	switch {
+	case um.System && um.User:
+		return fmt.Errorf("--system and --user cannot be used in conjunction with each other")
 	case um.Users != "" && um.User:
-		return fmt.Errorf("--user and --users cannot be used in conjunction with each other")
+		return fmt.Errorf("--user and --users=all cannot be used in conjunction with each other")
 	case um.Users != "" && um.Users != "all":
 		return fmt.Errorf("only \"all\" is supported as a value for --users")
 	}

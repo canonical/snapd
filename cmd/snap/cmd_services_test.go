@@ -213,6 +213,9 @@ func (s *appOpSuite) TestAppOpsScopeSwitches(c *check.C) {
 
 	summaries := []string{"Started.", "Stopped.", "Restarted."}
 	for i, op := range []string{"start", "stop", "restart"} {
+
+		// Check without any scope options, that should default to empty
+		// 'users' and no scope. This is the same as '--system --users'
 		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, nil), check.DeepEquals, map[string]interface{}{
 			"action": op,
 			"names":  []interface{}{"foo", "bar"},
@@ -224,18 +227,13 @@ func (s *appOpSuite) TestAppOpsScopeSwitches(c *check.C) {
 			"scope":  []interface{}{"user"},
 			"users":  "self",
 		})
-		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"user", "system"}), check.DeepEquals, map[string]interface{}{
-			"action": op,
-			"names":  []interface{}{"foo", "bar"},
-			"users":  "self",
-		})
-		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"users"}), check.DeepEquals, map[string]interface{}{
+		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"users=all"}), check.DeepEquals, map[string]interface{}{
 			"action": op,
 			"names":  []interface{}{"foo", "bar"},
 			"scope":  []interface{}{"user"},
 			"users":  "all",
 		})
-		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"users", "system"}), check.DeepEquals, map[string]interface{}{
+		c.Check(checkInvocation(op, summaries[i], []string{"foo", "bar"}, []string{"users=all", "system"}), check.DeepEquals, map[string]interface{}{
 			"action": op,
 			"names":  []interface{}{"foo", "bar"},
 			"users":  "all",
@@ -257,8 +255,9 @@ func (s *appOpSuite) TestAppOpsScopeInvalid(c *check.C) {
 	}
 
 	for _, op := range []string{"start", "stop", "restart"} {
-		c.Check(checkInvocation(op, []string{"foo"}, []string{"user", "users"}), check.ErrorMatches, `--user and --users cannot be used in conjunction with each other`)
-		c.Check(checkInvocation(op, []string{"foo"}, []string{"users=my-user", "system"}), check.ErrorMatches, `only "all" is supported as a value for --users`)
+		c.Check(checkInvocation(op, []string{"foo"}, []string{"user", "users=all"}), check.ErrorMatches, `--user and --users=all cannot be used in conjunction with each other`)
+		c.Check(checkInvocation(op, []string{"bar"}, []string{"system", "user"}), check.ErrorMatches, `--system and --user cannot be used in conjunction with each other`)
+		c.Check(checkInvocation(op, []string{"baz"}, []string{"users=my-user", "system"}), check.ErrorMatches, `only "all" is supported as a value for --users`)
 	}
 }
 
