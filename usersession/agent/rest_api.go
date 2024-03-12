@@ -402,15 +402,18 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	var body, icon, name string
 	var hints []notification.Hint
 
-	name = refreshInfo.InstanceName
+	snapname, key := snap.SplitInstanceName(refreshInfo.InstanceName)
 	// If we have a desktop file of the busy application, use that apps's icon and name, if possible
 	if refreshInfo.BusyAppDesktopEntry != "" {
 		parser := goconfigparser.New()
 		desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, refreshInfo.BusyAppDesktopEntry+".desktop")
 		if err := parser.ReadFile(desktopFilePath); err == nil {
 			icon, _ = parser.Get("Desktop Entry", "Icon")
-			name = getLocalizedAppNameFromDesktopFile(parser, refreshInfo.InstanceName)
+			name = combineNameAndKey(getLocalizedAppNameFromDesktopFile(parser, snapname), key)
 		}
+	}
+	if name == "" {
+		name = combineNameAndKey(snapname, key)
 	}
 
 	summary := fmt.Sprintf(i18n.G("Update available for %s."), name)
@@ -460,7 +463,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	return SyncResponse(nil)
 }
 
-func guessAppData(si *snap.Info, defaultName string) (string, string) {
+func guessAppData(si *snap.Info, defaultName string, defaultKey string) (string, string) {
 	var icon, name string
 	parser := goconfigparser.New()
 
@@ -477,7 +480,7 @@ func guessAppData(si *snap.Info, defaultName string) (string, string) {
 	}
 
 	if icon != "" {
-		return icon, name
+		return icon, combineNameAndKey(name, defaultKey)
 	}
 
 	// If it doesn't exist, take the first app in the snap with a DesktopFile with icon
@@ -493,7 +496,15 @@ func guessAppData(si *snap.Info, defaultName string) (string, string) {
 		}
 	}
 
-	return icon, name
+	return icon, combineNameAndKey(name, defaultKey)
+}
+
+func combineNameAndKey(name, key string) string {
+	if key != "" {
+		return fmt.Sprintf("%s (%s)", name, key)
+	} else {
+		return name
+	}
 }
 
 func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
@@ -508,14 +519,15 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		return BadRequest("cannot decode request body into finish refresh notification info: %v", err)
 	}
 
-	var icon, name string
+	var icon, name, key string
+	name, key = snap.SplitInstanceName(finishRefresh.InstanceName)
 	if si, err := snap.ReadCurrentInfo(finishRefresh.InstanceName); err == nil {
-		icon, name = guessAppData(si, finishRefresh.InstanceName)
+		icon, name = guessAppData(si, name, key)
 	} else {
-		logger.Noticef("cannot load snap-info for %s: %v", finishRefresh.InstanceName, err)
+		logger.Noticef("cannot load snap-info for %s: %v", combineNameAndKey(name, key), err)
 	}
 	if name == "" {
-		name = finishRefresh.InstanceName
+		name = combineNameAndKey(name, key)
 	}
 
 	// Note that since the connection is shared, we are not closing it.
