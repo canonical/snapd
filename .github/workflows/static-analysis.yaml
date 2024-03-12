@@ -1,0 +1,17 @@
+name: "Static code analysis"
+on:
+  pull_request_target:
+    branches: [ "master", "release/**" ]
+
+jobs:
+  static-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: TICS GitHub Action
+        uses: tiobe/tics-github-action@v2
+        with:
+          projectName: snapd
+          ticsConfiguration: https://canonical.tiobe.com/tiobeweb/TICS/api/cfg?name=config
+          ticsAuthToken: ${{ secrets.TICSAUTHTOKEN }}
+          installTics: true
