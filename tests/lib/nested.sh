@@ -76,10 +76,15 @@ nested_wait_vm_ready() {
         fi
 
         # Check during $limit seconds that the serial log is growing
+        # Consider the case then the log is not growing but the ssh can be stablished
         # shellcheck disable=SC2016
-        if ! retry -n "$log_limit" --wait 1 --env serial_log="$serial_log" --env output_lines="$output_lines" \
+        if retry -n "$log_limit" --wait 1 --env serial_log="$serial_log" --env output_lines="$output_lines" \
             sh -c 'test "$(wc -l <"$serial_log")" -gt "$output_lines"';
-        then
+            echo "Serial log for $NESTED_VM is growing"
+        elif nested_wait_for_ssh 1 1; then
+            echo "SSH connection ready"
+            return
+        else
             echo "Serial log for $NESTED_VM unit is not producing output, Aborting!"
             return 1
         fi
