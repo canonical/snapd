@@ -80,6 +80,16 @@ func (s *nfsSuite) TestIsHomeUsingNFS(c *C) {
 		// autofs that is mounted at /home.
 		mountinfo: "137 29 0:50 / /home rw,relatime shared:87 - autofs /etc/auto.master.d/home rw,fd=7,pgrp=22588,timeout=300,minproto=5,maxproto=5,indirect,pipe_ino=173399",
 		nfs:       true,
+	}, {
+		// cifs that is mounted at /home
+		// This is not real data, it is made-up.
+		mountinfo: "0 0 0:0 / /home rw,relatime shared:0 - cifs //sub.example.org/path$/all-users irrelevant-options",
+		nfs:       true,
+	}, {
+		// cifs that is mounted at /home/$USERNAME
+		// This is not real data, it is made-up.
+		mountinfo: "0 0 0:0 / /home/some-user rw,relatime shared:0 - cifs //sub.example.org/path$/some-user irrelevant-options",
+		nfs:       true,
 	}}
 	for _, tc := range cases {
 		restore := osutil.MockMountInfo(tc.mountinfo)
