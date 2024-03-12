@@ -309,6 +309,70 @@ func (s *servicectlSuite) TestRestartCommand(c *C) {
 	c.Assert(serviceChangeFuncCalled, Equals, true)
 }
 
+func (s *servicectlSuite) TestServiceCommandsScope(c *C) {
+	checkInvocation := func(action string, names, args []string, expected *servicestate.Instruction, expectedErr string) {
+		var serviceChangeFuncCalled bool
+		restore := mockServiceChangeFunc(func(appInfos []*snap.AppInfo, inst *servicestate.Instruction) {
+			serviceChangeFuncCalled = true
+			c.Check(appInfos, HasLen, 1)
+			c.Check(appInfos[0].Name, Equals, "test-service")
+			c.Check(inst, DeepEquals, expected)
+		})
+		defer restore()
+		_, _, err := ctlcmd.Run(s.mockContext, append([]string{action}, append(names, args...)...), 0)
+		c.Check(err, NotNil)
+		if expectedErr != "" {
+			c.Check(err, ErrorMatches, expectedErr)
+			c.Check(serviceChangeFuncCalled, Equals, false)
+		} else {
+			// bit weird we are always returning an error in the test code
+			c.Check(err, ErrorMatches, "forced error")
+			c.Check(serviceChangeFuncCalled, Equals, true)
+		}
+	}
+
+	for _, c := range []string{"start", "stop", "restart"} {
+		names := []string{"test-snap.test-service"}
+		checkInvocation(c, names, []string{"--system"}, &servicestate.Instruction{
+			Action: c,
+			Names:  names,
+			Scope:  []string{"system"},
+			Users: client.UserSelector{
+				Selector: client.UserSelectionList,
+				Names:    []string{},
+			},
+		}, "")
+		checkInvocation(c, names, []string{"--user"}, &servicestate.Instruction{
+			Action: c,
+			Names:  names,
+			Scope:  []string{"user"},
+			Users: client.UserSelector{
+				Selector: client.UserSelectionSelf,
+			},
+		}, "")
+		checkInvocation(c, names, []string{"--users=all"}, &servicestate.Instruction{
+			Action: c,
+			Names:  names,
+			Scope:  []string{"user"},
+			Users: client.UserSelector{
+				Selector: client.UserSelectionAll,
+			},
+		}, "")
+
+		// we *must* provide a value for --users
+		checkInvocation(c, names, []string{"--users"}, nil, "expected argument for flag `--users'")
+
+		// that value must only be 'all'
+		checkInvocation(c, names, []string{"--users=foo"}, nil, "only \"all\" is supported as a value for --users")
+
+		// --system and --user not allowed together
+		checkInvocation(c, names, []string{"--system", "--user"}, nil, "--system and --user cannot be used in conjunction with each other")
+
+		// --user and --users not allowed together
+		checkInvocation(c, names, []string{"--users=all", "--user"}, nil, "--user and --users cannot be used in conjunction with each other")
+	}
+}
+
 func (s *servicectlSuite) TestConflictingChange(c *C) {
 	s.st.Lock()
 	task := s.st.NewTask("link-snap", "conflicting task")
