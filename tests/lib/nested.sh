@@ -51,9 +51,7 @@ nested_wait_for_no_ssh() {
 nested_wait_vm_ready() {
     echo "Waiting the vm is ready to be used"
     local retry=${1:-120}
-    local log_limit=${2:-60}
 
-    local output_lines=0
     local serial_log="$NESTED_LOGS_DIR"/serial.log
     while true; do
         # Check the timeout is reached
@@ -74,21 +72,6 @@ nested_wait_vm_ready() {
             echo "SSH connection ready"
             return
         fi
-
-        # Check during $limit seconds that the serial log is growing
-        # Consider the case then the log is not growing but the ssh can be stablished
-        # shellcheck disable=SC2016
-        if retry -n "$log_limit" --wait 1 --env serial_log="$serial_log" --env output_lines="$output_lines" \
-            sh -c 'test "$(wc -l <"$serial_log")" -gt "$output_lines"';
-            echo "Serial log for $NESTED_VM is growing"
-        elif nested_wait_for_ssh 1 1; then
-            echo "SSH connection ready"
-            return
-        else
-            echo "Serial log for $NESTED_VM unit is not producing output, Aborting!"
-            return 1
-        fi
-        output_lines="$(wc -l <"$serial_log")"
 
         # Check no infinite loops during boot
         if nested_is_core_20_system || nested_is_core_22_system; then
@@ -1257,7 +1240,7 @@ nested_start_core_vm_unit() {
 
     if [ "$EXPECT_SHUTDOWN" != "1" ]; then
         # Wait until the vm is ready to receive connections
-        if ! nested_wait_vm_ready 120 120; then
+        if ! nested_wait_vm_ready 120; then
             echo "failed to wait for the vm becomes ready to receive connections"
             return 1
         fi
@@ -1505,7 +1488,7 @@ nested_start_classic_vm() {
         ${PARAM_EXTRA} \
         ${PARAM_CD} "
 
-    if ! nested_wait_vm_ready 60 60; then
+    if ! nested_wait_vm_ready 60; then
         echo "failed to wait for the vm becomes ready to receive connections"
         return 1
     fi
