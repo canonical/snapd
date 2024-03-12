@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -72,6 +72,8 @@ const (
 	RefreshAppAwarenessUX
 	// AspectsConfiguration enables experimental aspect-based configuration.
 	AspectsConfiguration
+	// AppArmorPrompting enables AppArmor to prompt the user for permission when apps perform certain operations.
+	AppArmorPrompting
 
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
@@ -115,6 +117,8 @@ var featureNames = map[SnapdFeature]string{
 
 	RefreshAppAwarenessUX: "refresh-app-awareness-ux",
 	AspectsConfiguration:  "aspects-configuration",
+
+	AppArmorPrompting: "apparmor-prompting",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
