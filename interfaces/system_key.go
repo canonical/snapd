@@ -69,6 +69,9 @@ type systemKey struct {
 	// kernel version or similar settings. If those change we may
 	// need to change the generated profiles (e.g. when the user
 	// boots into a more featureful seccomp).
+	//
+	// As an exception, the NFSHome is not renamed to RemoteFSHome
+	// to avoid needless re-computation.
 	AppArmorFeatures       []string `json:"apparmor-features"`
 	AppArmorParserMtime    int64    `json:"apparmor-parser-mtime"`
 	AppArmorParserFeatures []string `json:"apparmor-parser-features"`
@@ -83,7 +86,7 @@ type systemKey struct {
 const systemKeyVersion = 10
 
 var (
-	isHomeUsingNFS        = osutil.IsHomeUsingNFS
+	isHomeUsingRemoteFS   = osutil.IsHomeUsingRemoteFS
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
 	mockedSystemKey       *systemKey
 
@@ -119,10 +122,10 @@ func generateSystemKey() (*systemKey, error) {
 	// Add apparmor-parser-mtime
 	sk.AppArmorParserMtime = apparmor.ParserMtime()
 
-	// Add if home is using NFS, if so we need to have a different
-	// security profile and if this changes we need to change our
+	// Add if home is using a remote file system, if so we need to have a
+	// different security profile and if this changes we need to change our
 	// profile.
-	sk.NFSHome, err = isHomeUsingNFS()
+	sk.NFSHome, err = isHomeUsingRemoteFS()
 	if err != nil {
 		// just log the error here
 		logger.Noticef("cannot determine nfs usage in generateSystemKey: %v", err)
