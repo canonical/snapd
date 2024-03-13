@@ -19,7 +19,7 @@ execute: |
     # Get spread
     SPREAD="$(tests.nested download spread)"
 
-    # Run sprad test
+    # Run spread test
     export SPREAD_EXTERNAL_ADDRESS=localhost:8022
     export PERF_NUM_SNAPS="$NUM_SNAPS"
     "$SPREAD" external:"$NESTED_SPREAD_SYSTEM":tests/perf/main/"$TEST" | tee spread.log
