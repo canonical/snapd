@@ -479,7 +479,7 @@ func guessAppData(si *snap.Info, defaultName string, instanceKey string) (icon s
 	}
 
 	if icon != "" {
-		return icon, name
+		return
 	}
 
 	// If it doesn't exist, take the first app in the snap with a DesktopFile with icon
@@ -494,8 +494,7 @@ func guessAppData(si *snap.Info, defaultName string, instanceKey string) (icon s
 			}
 		}
 	}
-
-	return icon, name
+	return
 }
 
 func combineNameAndKey(name, key string) string {
