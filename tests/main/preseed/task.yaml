@@ -5,7 +5,10 @@ details: |
   command works, up to the point where the image is ready to be booted.
   The test assumes cloud image with a core and lxd snaps in its seeds/.
 
-systems: [ubuntu-2*]
+# Ubuntu 24.04: there is no longer any seeded snaps in base or minimal cloud images
+# https://bugs.launchpad.net/ubuntu/+source/ubuntu-meta/+bug/2051346
+# https://bugs.launchpad.net/ubuntu/+source/ubuntu-meta/+bug/2051572
+systems: [ubuntu-20*, ubuntu-22*, ubuntu-23*]
 
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
@@ -22,6 +25,8 @@ prepare: |
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
   mount_ubuntu_image "$(pwd)/cloudimg.img" "$IMAGE_MOUNTPOINT"
+
+  exit 1
 
   # add snapd from this branch into the seed
   "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
