@@ -108,49 +108,53 @@ execute: |
   echo "And the slice is not active anymore"
   systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=inactive"
 
-  echo "Creating a quota with a very small memory limit results in the service being unable to start"
-  snap set-quota too-small --memory=660KB go-example-webserver
+  # snap.go-example-webserver.webserver.service is using about 540K and it is not killed
+  if not os.query is-fedora; then
+    echo "Creating a quota with a very small memory limit results in the service being unable to start"
+    snap set-quota too-small --memory=660KB go-example-webserver
 
-  # wait for systemd to finish trying to automatically restart it, we want 
-  # systemd to hit the start limit for this service, otherwise systemd 
-  # restarting the service will race with removing the quota directly below
-  # the unit will jump between SubState=running and SubState=auto-restart while
-  # trying to restart it in a loop, but after systemd has hit the limit it will
-  # give up and mark the unit as failed
-  retry --wait 1 -n 30 sh -c "systemctl show --property=SubState snap.go-example-webserver.webserver.service | MATCH 'SubState=failed'"
+    # wait for systemd to finish trying to automatically restart it, we want 
+    # systemd to hit the start limit for this service, otherwise systemd 
+    # restarting the service will race with removing the quota directly below
+    # the unit will jump between SubState=running and SubState=auto-restart while
+    # trying to restart it in a loop, but after systemd has hit the limit it will
+    # give up and mark the unit as failed
+    retry --wait 1 -n 30 sh -c "systemctl show --property=SubState snap.go-example-webserver.webserver.service | MATCH 'SubState=failed'"
 
-  # clear "oom-killer" messages from dmesg or prepare-restore.sh will fail due
-  # to the oom-killer messages from go-example-webserver
-  tests.cleanup defer dmesg -c
+    # clear "oom-killer" messages from dmesg or prepare-restore.sh will fail due
+    # to the oom-killer messages from go-example-webserver
+    tests.cleanup defer dmesg -c
 
-  echo "The systemd slice should be active"
-  sliceName="snap.$(systemd-escape --path too-small).slice"
-  systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=active"
+    echo "The systemd slice should be active"
+    sliceName="snap.$(systemd-escape --path too-small).slice"
+    systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=active"
 
-  echo "But the service is not running after a short amount of time"
-  retry --wait 1 -n 100 sh -c 'snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+inactive"'
-  # check for the service to have ExecMainStatus=9 (or either of =203,219) here since 
-  # that is indicative of the service being killed by systemd ungracefully or being 
-  # unable to start up properly which is what we are expecting with the low 
-  # memory limit for the quota group.
-  # run the check in a loop, because technically what is happening now is that 
-  # systemd is starting the process, it gets killed because it doesn't have 
-  # enough memory very quickly after being started, and then systemd retries 
-  # again up to the StartLimitBurst related settings. So the service is actually
-  # very quickly transitioning through the various states and we are racing with
-  # systemd as we check the status, so doing it in a loop ensures that if the 
-  # system is working we won't fail the test simply because systemd won the race
-  retry --wait 1 -n 10 sh -c 'systemctl show --property=ExecMainStatus snap.go-example-webserver.webserver.service | MATCH "ExecMainStatus=(203|219|9)"'
+    echo "But the service is not running after a short amount of time"
+    retry --wait 1 -n 100 sh -c 'snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+inactive"'
+    # check for the service to have ExecMainStatus=9 (or either of =203,219) here since 
+    # that is indicative of the service being killed by systemd ungracefully or being 
+    # unable to start up properly which is what we are expecting with the low 
+    # memory limit for the quota group.
+    # run the check in a loop, because technically what is happening now is that 
+    # systemd is starting the process, it gets killed because it doesn't have 
+    # enough memory very quickly after being started, and then systemd retries 
+    # again up to the StartLimitBurst related settings. So the service is actually
+    # very quickly transitioning through the various states and we are racing with
+    # systemd as we check the status, so doing it in a loop ensures that if the 
+    # system is working we won't fail the test simply because systemd won the race
+    retry --wait 1 -n 10 sh -c 'systemctl show --property=ExecMainStatus snap.go-example-webserver.webserver.service | MATCH "ExecMainStatus=(203|219|9)"'
 
-  echo "And after removing the quota group, services will not automatically restart as they were inactive"
-  function service_start_time {
-    systemctl show --property=ExecMainStartTimestampMonotonic "$1" | cut -d= -f2
-  }
-  TIMESTAMP_BEFORE=$(service_start_time snap.go-example-webserver.webserver.service)
-  snap remove-quota too-small
-  snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+inactive"
-  TIMESTAMP_AFTER=$(service_start_time snap.go-example-webserver.webserver.service)
-  test "$TIMESTAMP_AFTER" -eq "$TIMESTAMP_BEFORE"
+    echo "And after removing the quota group, services will not automatically restart as they were inactive"
+    function service_start_time {
+      systemctl show --property=ExecMainStartTimestampMonotonic "$1" | cut -d= -f2
+    }
+    TIMESTAMP_BEFORE=$(service_start_time snap.go-example-webserver.webserver.service)
+    snap remove-quota too-small
+    snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+inactive"
+    TIMESTAMP_AFTER=$(service_start_time snap.go-example-webserver.webserver.service)
+    test "$TIMESTAMP_AFTER" -eq "$TIMESTAMP_BEFORE"
+
+  fi
 
   # There is a limit to how many times (5) a service can be started within a 10-second timeframe, and we can, depending
   # on timing, hit this limit because systemd tries to restart the service 3 times when it's being oomkilled by
