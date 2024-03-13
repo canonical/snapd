@@ -3,7 +3,7 @@ summary: nsure the system handles properly a installing many snaps with --no-wai
 details: |
     Install different snaps many times based on arch availability. In this
     scenario all the snaps are installed in parallel and the test checks
-    the system can handel all the installs and ramains running.
+    the system can handle all the installs and remains running.
 
 
 systems: [ubuntu-18*, ubuntu-2*]
