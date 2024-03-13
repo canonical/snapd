@@ -184,8 +184,16 @@ mount options=(rw, rbind) /oldroot/run/dbus/system_bus_socket -> /newroot/run/db
 mount options=(rw, rbind) /oldroot/run/systemd/resolve/io.systemd.Resolve -> /newroot/run/systemd/resolve/io.systemd.Resolve,
 mount options=(rw, rbind) /bindfile* -> /newroot/run/host/container-manager,
 
-# Allow mounting Nvidia drivers into the sandbox
-mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/usr/lib/@{multiarch}/** -> /newroot/var/lib/snapd/hostfs/usr/lib/@{multiarch}/**,
+# Allow mounting Nvidia drivers into the sandbox - copied from the general Nvidia driver support to allow all necessary libraries
+mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcuda*.so{,.*} -> /newroot/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcuda*.so{,.*},
+mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvidia*.so{,.*} -> /newroot/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvidia*.so{,.*},
+mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvoptix*.so{,.*} -> /newroot/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvoptix*.so{,.*},
+mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}tls/libnvidia*.so{,.*} -> /newroot/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}tls/libnvidia*.so{,.*},
+mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvcuvid.so{,.*} -> /newroot/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvcuvid.so{,.*},
+mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{GL,GLESv1_CM,GLESv2,EGL}*nvidia.so{,.*} -> /newroot/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{GL,GLESv1_CM,GLESv2,EGL}*nvidia.so{,.*},
+mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libGLdispatch.so{,.*} -> /newroot/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libGLdispatch.so{,.*},
+mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}vdpau/libvdpau_nvidia.so{,.*} -> /newroot/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}vdpau/libvdpau_nvidia.so{,.*},
+mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnv{rm,dc,imp,os}*.so{,.*} -> /newroot/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnv{rm,dc,imp,os}*.so{,.*},
 
 # Allow PV to access driver information and features necessary for some games to run
 mount options=(rw, rbind) /oldroot/var/lib/snapd/hostfs/usr/share/** -> /newroot/**,
