@@ -180,12 +180,17 @@ execute: |
     boot_id=$(tests.nested boot-id)
 
     echo "Install new gadget"
-    REMOTE_CHG_ID=$(remote.exec "sudo snap install --dangerous --no-wait pc.snap")
+    #FIXME: the gadget does not yet remove the fallback binary which will reintroduce the old
+    if [ "${FINAL_ASSET_DIR}" = "boot" ]; then
+      remote.exec sudo systemd-inhibit --what=shutdown bash -c "'snap install --dangerous pc.snap; rm -f /boot/efi/EFI/ubuntu/grub${ARCH}.efi /boot/efi/EFI/boot/fbx64.efi /boot/efi/EFI/ubuntu/shim${ARCH}.efi'"
+    else
+      remote.exec sudo snap install --dangerous pc.snap
+    fi
     # VM should reboot now
     echo "Wait for reboot"
     remote.wait-for reboot "${boot_id}"
     # Wait for previous change to finish before continuing
-    remote.exec sudo snap watch "$REMOTE_CHG_ID"
+    remote.exec sudo snap watch --last=install
 
     echo "#### Updated gadget: ####"
 
