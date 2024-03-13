@@ -1,6 +1,6 @@
 # In progress:
 * Installation of local snap components
-* Started improving support for user daemons by introducing new control switches --user/--users/--system for service operations
+* Started support for snap services to show real status of user daemons
 
 # Next:
 * state: add support for notices (from pebble)
@@ -8,6 +8,7 @@
 * Mandatory device cgroup for all snaps using bare and core24 base as well as future bases
 * Added API route for creating recovery systems: POST to `/v2/systems` with action `create`
 * Added API route for removing recovery systems: POST to `/v2/systems/{label}` with action `remove`
+* Support for user daemons by introducing new control switches --user/--system/--users for service start/stop/restart
 
 # New in snapd 2.61.3:
 * Install systemd files in correct location for 24.04
