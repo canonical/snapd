@@ -4,7 +4,10 @@ details: |
   This test checks that preseeding of Ubuntu cloud images with snap-preseed
   can be undone with --reset flag.
 
-systems: [ubuntu-2*]
+# Ubuntu 24.04: there is no longer any seeded snaps in base or minimal cloud images
+# https://bugs.launchpad.net/ubuntu/+source/ubuntu-meta/+bug/2051346
+# https://bugs.launchpad.net/ubuntu/+source/ubuntu-meta/+bug/2051572
+systems: [ubuntu-20*, ubuntu-22*, ubuntu-23*]
 
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
