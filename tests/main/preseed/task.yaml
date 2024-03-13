@@ -26,8 +26,6 @@ prepare: |
   . "$TESTSLIB/preseed.sh"
   mount_ubuntu_image "$(pwd)/cloudimg.img" "$IMAGE_MOUNTPOINT"
 
-  exit 1
-
   # add snapd from this branch into the seed
   "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
   mv snapd-from-deb.snap snapd.snap
