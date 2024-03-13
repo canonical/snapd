@@ -463,8 +463,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	return SyncResponse(nil)
 }
 
-func guessAppData(si *snap.Info, defaultName string, instanceKey string) (string, string) {
-	var icon, name string
+func guessAppData(si *snap.Info, defaultName string, instanceKey string) (icon string, name string) {
 	parser := goconfigparser.New()
 
 	// trivial heuristic, if the app is named like a snap then
@@ -474,13 +473,13 @@ func guessAppData(si *snap.Info, defaultName string, instanceKey string) (string
 	if ok && !mainApp.IsService() {
 		// got the main app, grab its desktop file
 		if err := parser.ReadFile(mainApp.DesktopFile()); err == nil {
-			name = getLocalizedAppNameFromDesktopFile(parser, defaultName)
+			name = combineNameAndKey(getLocalizedAppNameFromDesktopFile(parser, defaultName), instanceKey)
 			icon, _ = parser.Get("Desktop Entry", "Icon")
 		}
 	}
 
 	if icon != "" {
-		return icon, combineNameAndKey(name, instanceKey)
+		return icon, name
 	}
 
 	// If it doesn't exist, take the first app in the snap with a DesktopFile with icon
@@ -489,14 +488,14 @@ func guessAppData(si *snap.Info, defaultName string, instanceKey string) (string
 			continue
 		}
 		if err := parser.ReadFile(app.DesktopFile()); err == nil {
-			name = getLocalizedAppNameFromDesktopFile(parser, defaultName)
+			name = combineNameAndKey(getLocalizedAppNameFromDesktopFile(parser, defaultName), instanceKey)
 			if icon, err = parser.Get("Desktop Entry", "Icon"); err == nil && icon != "" {
 				break
 			}
 		}
 	}
 
-	return icon, combineNameAndKey(name, instanceKey)
+	return icon, name
 }
 
 func combineNameAndKey(name, key string) string {
