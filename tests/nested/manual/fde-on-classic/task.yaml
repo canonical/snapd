@@ -126,6 +126,7 @@ execute: |
   # Test aborting a kernel installation before a reboot
   refresh_rebooting_snap pc-kernel-new.snap pc-kernel no-reboot
   remote.exec sudo snap abort --last=install
+  remote.exec sudo snap watch --last=install || true
   # Make sure everything is in the same state
   not remote.exec stat /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi
   remote.exec cat /var/lib/snapd/modeenv | MATCH "^current_kernels=$current_kernel_file$"
