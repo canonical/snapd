@@ -188,7 +188,7 @@ func (s *svcLogs) Execute(args []string) error {
 type userAndScopeMixin struct {
 	System bool   `long:"system"`
 	User   bool   `long:"user"`
-	Users  string `long:"users" optional:"yes"`
+	Users  string `long:"users"`
 }
 
 var userAndScopeDescs = mixinDescs{

@@ -257,7 +257,7 @@ func (s *appOpSuite) TestAppOpsScopeInvalid(c *check.C) {
 	for _, op := range []string{"start", "stop", "restart"} {
 		c.Check(checkInvocation(op, []string{"foo"}, []string{"user", "users=all"}), check.ErrorMatches, `--user and --users=all cannot be used in conjunction with each other`)
 		c.Check(checkInvocation(op, []string{"bar"}, []string{"system", "user"}), check.ErrorMatches, `--system and --user cannot be used in conjunction with each other`)
-		c.Check(checkInvocation(op, []string{"baz"}, []string{"users=my-user", "system"}), check.ErrorMatches, `only "all" is supported as a value for --users`)
+		c.Check(checkInvocation(op, []string{"baz"}, []string{"users=my-user"}), check.ErrorMatches, `only "all" is supported as a value for --users`)
 	}
 }
 

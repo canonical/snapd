@@ -124,8 +124,8 @@ execute: |
     echo "(root) Starting user services for snap with scope --user"
     snap start --user test-snapd-user-service 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH "cannot use \"self\" for root user"
 
-    echo "(root) Starting user services for snap with scope --users"
-    snap start --users test-snapd-user-service
+    echo "(root) Starting user services for snap with scope --users=all"
+    snap start --users=all test-snapd-user-service
 
     echo "(user test) And we can see the user services running"
     tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.svc1.service | MATCH "active"
@@ -135,3 +135,20 @@ execute: |
     tests.session -u test2 exec systemctl --user is-active snap.test-snapd-user-service.svc1.service | MATCH "active"
     tests.session -u test2 exec systemctl --user is-active snap.test-snapd-user-service.svc2.service | MATCH "active"
 
+    echo "(root) Stopping all services for snap again"
+    snap stop test-snapd-user-service
+    systemctl status snap.test-snapd-user-service.svc3.service | MATCH "inactive"
+    systemctl status snap.test-snapd-user-service.svc4.service | MATCH "inactive"
+    tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.svc1.service | MATCH "inactive"
+    tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.svc2.service | MATCH "inactive"
+    tests.session -u test2 exec systemctl --user is-active snap.test-snapd-user-service.svc1.service | MATCH "inactive"
+    tests.session -u test2 exec systemctl --user is-active snap.test-snapd-user-service.svc2.service | MATCH "inactive"
+
+    echo "(root) Starting all services for snap with scopes --system and --users=all"
+    snap start --system --users=all test-snapd-user-service
+    systemctl status snap.test-snapd-user-service.svc3.service | MATCH "active"
+    systemctl status snap.test-snapd-user-service.svc4.service | MATCH "active"
+    tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.svc1.service | MATCH "active"
+    tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.svc2.service | MATCH "active"
+    tests.session -u test2 exec systemctl --user is-active snap.test-snapd-user-service.svc1.service | MATCH "active"
+    tests.session -u test2 exec systemctl --user is-active snap.test-snapd-user-service.svc2.service | MATCH "active"
