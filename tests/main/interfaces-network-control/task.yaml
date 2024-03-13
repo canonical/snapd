@@ -83,7 +83,7 @@ execute: |
     snap connect network-control-consumer:network-control
 
     # core18 has no "arp" utility
-    if [ "$(comamnd -v arp)" != "" ]; then
+    if [ "$(command -v arp)" != "" ]; then
         echo "Then the snap command can modify the network configuration"
         network-control-consumer.cmd arp -s "$ARP_ENTRY_ADDR" aa:aa:aa:aa:aa:aa -i "$INTERFACE"
         arp | MATCH "$ARP_ENTRY_ADDR.*?ether.*?CM"
