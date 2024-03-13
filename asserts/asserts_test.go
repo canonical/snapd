@@ -1210,7 +1210,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 	c.Check(withAuthority, HasLen, asserts.NumAssertionType-3) // excluding device-session-request, serial-request, account-key-request
 	for _, name := range withAuthority {
 		typ := asserts.Type(name)
-		_, err := asserts.AssembleAndSignInTest(typ, nil, nil, testPrivKey1)
+		_, err := asserts.AssembleAndSignInTest(typ, nil, []byte("{}"), testPrivKey1)
 		c.Check(err, ErrorMatches, `"authority-id" header is mandatory`)
 	}
 }
