@@ -463,8 +463,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 	return SyncResponse(nil)
 }
 
-func guessAppData(si *snap.Info, defaultName string, instanceKey string) (string, string) {
-	var name, icon string
+func guessAppData(si *snap.Info, defaultName string, instanceKey string) (icon string, name string) {
 	parser := goconfigparser.New()
 
 	// trivial heuristic, if the app is named like a snap then
