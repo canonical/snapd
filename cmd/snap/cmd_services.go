@@ -197,7 +197,7 @@ var userAndScopeDescs = mixinDescs{
 	// TRANSLATORS: This should not start with a lowercase letter.
 	"user": i18n.G("The operation should only affect user services for the current user."),
 	// TRANSLATORS: This should not start with a lowercase letter.
-	"users": i18n.G("The operation should affect all user services."),
+	"users": i18n.G("If provided and set to 'all', the operation should affect services for all users."),
 }
 
 func (um *userAndScopeMixin) validateScopes() error {
@@ -205,7 +205,7 @@ func (um *userAndScopeMixin) validateScopes() error {
 	case um.System && um.User:
 		return fmt.Errorf("--system and --user cannot be used in conjunction with each other")
 	case um.Users != "" && um.User:
-		return fmt.Errorf("--user and --users=all cannot be used in conjunction with each other")
+		return fmt.Errorf("--user and --users cannot be used in conjunction with each other")
 	case um.Users != "" && um.Users != "all":
 		return fmt.Errorf("only \"all\" is supported as a value for --users")
 	}
@@ -233,6 +233,8 @@ func (um *userAndScopeMixin) serviceUsers() client.UserSelector {
 			Selector: client.UserSelectionAll,
 		}
 	}
+	// Currently not reachable as um.Users can only be 'all' for now, but when
+	// we introduce support for lists of usernames, this will be hit.
 	return client.UserSelector{
 		Selector: client.UserSelectionList,
 		Names:    strutil.CommaSeparatedList(um.Users),
