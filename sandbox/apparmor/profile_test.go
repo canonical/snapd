@@ -56,6 +56,8 @@ func (s *appArmorSuite) SetUpTest(c *C) {
 // Tests for LoadProfiles()
 
 func (s *appArmorSuite) TestLoadProfilesRunsAppArmorParserReplace(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
 	restore := apparmor.MockParserSearchPath(cmd.BinDir())
@@ -63,11 +65,13 @@ func (s *appArmorSuite) TestLoadProfilesRunsAppArmorParserReplace(c *C) {
 	err := apparmor.LoadProfiles([]string{"/path/to/snap.samba.smbd"}, apparmor.CacheDir, 0)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd"},
+		{"apparmor_parser", "--replace", "--write-cache", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir), "--quiet", "/path/to/snap.samba.smbd"},
 	})
 }
 
 func (s *appArmorSuite) TestLoadProfilesMany(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
 	cmd := testutil.MockCommand(c, "apparmor_parser", "")
 	defer cmd.Restore()
 	restore := apparmor.MockParserSearchPath(cmd.BinDir())
@@ -75,7 +79,7 @@ func (s *appArmorSuite) TestLoadProfilesMany(c *C) {
 	err := apparmor.LoadProfiles([]string{"/path/to/snap.samba.smbd", "/path/to/another.profile"}, apparmor.CacheDir, 0)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd", "/path/to/another.profile"},
+		{"apparmor_parser", "--replace", "--write-cache", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir), "--quiet", "/path/to/snap.samba.smbd", "/path/to/another.profile"},
 	})
 }
 
@@ -90,6 +94,8 @@ func (s *appArmorSuite) TestLoadProfilesNone(c *C) {
 }
 
 func (s *appArmorSuite) TestLoadProfilesReportsErrors(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
 	cmd := testutil.MockCommand(c, "apparmor_parser", "exit 42")
 	defer cmd.Restore()
 	restore := apparmor.MockParserSearchPath(cmd.BinDir())
@@ -99,11 +105,13 @@ func (s *appArmorSuite) TestLoadProfilesReportsErrors(c *C) {
 apparmor_parser output:
 `)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd"},
+		{"apparmor_parser", "--replace", "--write-cache", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir), "--quiet", "/path/to/snap.samba.smbd"},
 	})
 }
 
 func (s *appArmorSuite) TestLoadProfilesReportsErrorWithZeroExitStatus(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
 	cmd := testutil.MockCommand(c, "apparmor_parser", "echo parser error; exit 0")
 	defer cmd.Restore()
 	restore := apparmor.MockParserSearchPath(cmd.BinDir())
@@ -114,7 +122,7 @@ apparmor_parser output:
 parser error
 `)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", "--cache-loc=/var/cache/apparmor", "--quiet", "/path/to/snap.samba.smbd"},
+		{"apparmor_parser", "--replace", "--write-cache", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir), "--quiet", "/path/to/snap.samba.smbd"},
 	})
 }
 
@@ -125,10 +133,12 @@ func (s *appArmorSuite) TestLoadProfilesRunsAppArmorParserReplaceWithSnapdDebug(
 	defer cmd.Restore()
 	restore := apparmor.MockParserSearchPath(cmd.BinDir())
 	defer restore()
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
 	err := apparmor.LoadProfiles([]string{"/path/to/snap.samba.smbd"}, apparmor.CacheDir, 0)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache", "--cache-loc=/var/cache/apparmor", "/path/to/snap.samba.smbd"},
+		{"apparmor_parser", "--replace", "--write-cache", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir), "/path/to/snap.samba.smbd"},
 	})
 }
 
