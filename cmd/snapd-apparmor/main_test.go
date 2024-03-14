@@ -143,7 +143,7 @@ func (s *mainSuite) TestLoadAppArmorProfiles(c *C) {
 
 	// check arguments to the parser are as expected
 	c.Assert(parserCmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache",
+		{"apparmor_parser", "--policy-features=<kernel>", "--replace", "--write-cache",
 			fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir),
 			profile}})
 
