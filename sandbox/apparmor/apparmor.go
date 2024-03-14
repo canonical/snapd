@@ -22,6 +22,7 @@ package apparmor
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -78,6 +79,7 @@ const (
 func setupConfCacheDirs(newrootdir string) {
 	ConfDir = filepath.Join(newrootdir, "/etc/apparmor.d")
 	CacheDir = filepath.Join(newrootdir, "/var/cache/apparmor")
+	InternalABI30File = filepath.Join(filepath.Dir(dirs.SnapAppArmorDir), "3.0") // /var/lib/snapd/apparmor/3.0
 
 	SystemCacheDir = filepath.Join(ConfDir, "cache")
 	exists, isDir, _ := osutil.DirExists(SystemCacheDir)
@@ -97,6 +99,24 @@ func setupConfCacheDirs(newrootdir string) {
 	SnapConfineAppArmorDir = filepath.Join(dirs.SnapdStateDir(newrootdir), "apparmor", snapConfineDir)
 }
 
+// WriteInternalABIFiles writes apparmor ABI files in /var/lib/snapd/apparmor/
+//
+// Those files are essential for reliably calling apparmor_parser in apparmor 2.x - 4.x
+// transition, where we want the profiles to have a specific meaning *not* floating depending
+// on parser and kernel version.
+func WriteInternalABIFiles() error {
+	if err := os.MkdirAll(filepath.Dir(InternalABI30File), 0755); err != nil {
+		return err
+	}
+	err := osutil.EnsureFileState(InternalABI30File, &osutil.MemoryFileState{Content: []byte(textABI30), Mode: 0644})
+	// This is fine, we don't need to surface this error.
+	if errors.Is(err, osutil.ErrSameState) {
+		return nil
+	}
+
+	return err
+}
+
 func init() {
 	dirs.AddRootDirCallback(setupConfCacheDirs)
 	setupConfCacheDirs(dirs.GlobalRootDir)
@@ -108,6 +128,11 @@ var (
 	SystemCacheDir         string
 	SnapConfineAppArmorDir string
 )
+
+// InternalABI30File is an absolute path to a feature file for apparmor ABI 3.0.
+//
+// The file is written by WriteInternalABIFiles.
+var InternalABI30File string
 
 func (level LevelType) String() string {
 	switch level {
