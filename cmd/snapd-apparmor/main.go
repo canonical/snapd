@@ -104,6 +104,10 @@ func isContainerWithInternalPolicy() bool {
 }
 
 func loadAppArmorProfiles() error {
+	if err := apparmor_sandbox.WriteInternalABIFiles(); err != nil {
+		return fmt.Errorf("cannot write internal ABI file: %w", err)
+	}
+
 	candidates, err := filepath.Glob(dirs.SnapAppArmorDir + "/*")
 	if err != nil {
 		return fmt.Errorf("Failed to glob profiles from snap apparmor dir %s: %v", dirs.SnapAppArmorDir, err)
