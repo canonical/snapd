@@ -1,5 +1,9 @@
 summary: Ensure that we have the right kernel
 
+details: |
+    Check the kernel version is the expected for the current
+    ubuntu core system
+
 # TODO: enable for arm?
 systems: [ubuntu-core-*-64]
 
@@ -13,5 +17,7 @@ execute: |
         VER="^5.4"
     elif os.query is-core22; then
         VER="^5.15"
+    elif os.query is-core24; then
+        VER="^6.8"
     fi
     uname -r | MATCH "$VER"

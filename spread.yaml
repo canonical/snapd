@@ -140,6 +140,10 @@ backends:
                   image: ubuntu-22.04-64
                   workers: 8
                   storage: 20G
+            - ubuntu-core-24-64:
+                  image: ubuntu-24.04-64
+                  workers: 8
+                  storage: 20G
             - ubuntu-secboot-20.04-64:
                   image: ubuntu-20.04-64
                   workers: 1
