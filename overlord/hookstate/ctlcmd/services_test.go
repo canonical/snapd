@@ -230,6 +230,10 @@ func (s *servicectlSuite) TestStopCommand(c *C) {
 			StopOptions: client.StopOptions{
 				Disable: false,
 			},
+			Users: client.UserSelector{
+				Selector: client.UserSelectionList,
+				Names:    []string{},
+			},
 		},
 		)
 	})
@@ -277,6 +281,10 @@ func (s *servicectlSuite) TestStartCommand(c *C) {
 			StartOptions: client.StartOptions{
 				Enable: false,
 			},
+			Users: client.UserSelector{
+				Selector: client.UserSelectionList,
+				Names:    []string{},
+			},
 		},
 		)
 	})
@@ -298,6 +306,10 @@ func (s *servicectlSuite) TestRestartCommand(c *C) {
 			Names:  []string{"test-snap.test-service"},
 			RestartOptions: client.RestartOptions{
 				Reload: false,
+			},
+			Users: client.UserSelector{
+				Selector: client.UserSelectionList,
+				Names:    []string{},
 			},
 		},
 		)
@@ -354,6 +366,15 @@ func (s *servicectlSuite) TestServiceCommandsScope(c *C) {
 			Action: c,
 			Names:  names,
 			Scope:  []string{"user"},
+			Users: client.UserSelector{
+				Selector: client.UserSelectionAll,
+			},
+		}, "")
+
+		// check combined cases
+		checkInvocation(c, names, []string{"--system", "--users=all"}, &servicestate.Instruction{
+			Action: c,
+			Names:  names,
 			Users: client.UserSelector{
 				Selector: client.UserSelectionAll,
 			},
