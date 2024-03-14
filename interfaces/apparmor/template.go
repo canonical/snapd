@@ -63,6 +63,7 @@ package apparmor
 var templateCommon = `
 # vim:syntax=apparmor
 
+abi <abi/3.0>,
 #include <tunables/global>
 
 ###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###
@@ -842,6 +843,7 @@ var coreSnippet = `
 //
 // It can be overridden for testing using MockClassicTemplate().
 var classicTemplate = `
+abi <abi/3.0>,
 #include <tunables/global>
 
 ###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###
@@ -938,6 +940,7 @@ var updateNSTemplate = `
 
 # vim:syntax=apparmor
 
+abi <abi/3.0>,
 #include <tunables/global>
 
 ###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###

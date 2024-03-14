@@ -1,4 +1,5 @@
 # Author: Jamie Strandboge <jamie@canonical.com>
+abi <abi/3.0>,
 #include <tunables/global>
 
 @LIBEXECDIR@/snap-confine (attach_disconnected) {
