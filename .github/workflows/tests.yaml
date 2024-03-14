@@ -1,0 +1,124 @@
+name: Jobs
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Run shellCheck for tools
+      run: |
+          # Run shellcheck from the snap which most likely is newer than what the distro provides
+          sudo apt-get remove --purge shellcheck
+          sudo snap install shellcheck
+          find tools utils remote -type f -exec sh -c "head -n 1 {} | egrep -a 'bin/bash|bin/sh' >/dev/null" \; -print -exec shellcheck {} \;
+
+          # Run shellcheck from the distro
+          sudo snap remove shellcheck
+          sudo apt-get install -y shellcheck
+          find tools utils remote -type f -exec sh -c "head -n 1 {} | egrep -a 'bin/bash|bin/sh' >/dev/null" \; -print -exec shellcheck {} \;
+
+    - name: Run codespell tool
+      run: |
+          sudo apt install python3-pip
+          pip3 install codespell
+          codespell
+
+  test:
+    needs: [unit-tests]
+    runs-on: self-hosted
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Get previous attempt
+      id: get-previous-attempt
+      run: |
+        echo "previous_attempt=$(( ${{ github.run_attempt }} - 1 ))" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Get previous cache
+      uses: actions/cache@v3
+      with:
+        path: "${{ github.workspace }}/.test-results"
+        key: "${{ github.job }}-results-${{ github.run_id }}-${{ steps.get-previous-attempt.outputs.previous_attempt }}"
+
+    - name: Prepare test results env and vars
+      id: prepare-test-results-env
+      run: |
+          # Create test results directories and save vars
+          TEST_RESULTS_DIR="${{ github.workspace }}/.test-results"
+          echo "TEST_RESULTS_DIR=$TEST_RESULTS_DIR" >> $GITHUB_ENV
+
+          # Save the var with the failed tests file
+          echo "FAILED_TESTS_FILE=$TEST_RESULTS_DIR/failed-tests" >> $GITHUB_ENV
+
+          # Make sure the test results dirs are created
+          # This step has to be after the cache is restored
+          mkdir -p "$TEST_RESULTS_DIR"
+
+    - name: Check failed tests to run
+      if: "!contains(github.event.pull_request.labels.*.name, 'Run all')"
+      run: |
+          # Save previous failed test results in FAILED_TESTS env var
+          FAILED_TESTS=""
+          if [ -f "$FAILED_TESTS_FILE" ]; then
+              echo "Failed tests file found"
+              FAILED_TESTS="$(cat $FAILED_TESTS_FILE)"
+              if [ -n "$FAILED_TESTS" ]; then
+                  echo "Failed tests to run: $FAILED_TESTS"
+                  echo "FAILED_TESTS=$FAILED_TESTS" >> $GITHUB_ENV
+              fi
+          fi
+
+    - name: Run test
+      run: |
+          RUN_TESTS="google:tests/ google-nested:tests/"
+          if [ -n "$FAILED_TESTS" ]; then
+              RUN_TESTS="$FAILED_TESTS"
+          fi
+
+          (set -o pipefail; spread $RUN_TESTS | tee spread.log)
+
+    - name: Discard spread workers
+      if: always()
+      run: |
+        shopt -s nullglob;
+        for r in .spread-reuse.*.yaml; do
+          spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
+        done
+
+    - name: analyze spread test results
+      if: always()
+      run: |
+          if [ -f spread.log ]; then
+              echo "Running spread log parser"
+              ./utils/log-parser spread.log --output spread-results.json
+    
+              echo "Determining which tests were executed"
+              RUN_TESTS="google:tests/ google-nested:tests/"
+              if [ -n "$FAILED_TESTS" ]; then
+                  RUN_TESTS="$FAILED_TESTS"
+              fi
+
+              echo "Running spread log analyzer"
+              ./utils/log-analyzer list-reexecute-tasks "$RUN_TESTS" spread-results.json > "$FAILED_TESTS_FILE"
+          else
+              echo "No spread log found, saving empty list of failed tests"
+              touch "$FAILED_TESTS_FILE"
+          fi
+
+    - name: save spread test results to cache
+      if: always()
+      uses: actions/cache/save@v3
+      with:
+        path: "${{ github.workspace }}/.test-results"
+        key: "${{ github.job }}-results-${{ github.run_id }}-${{ github.run_attempt }}"
