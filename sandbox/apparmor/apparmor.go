@@ -78,6 +78,7 @@ const (
 func setupConfCacheDirs(newrootdir string) {
 	ConfDir = filepath.Join(newrootdir, "/etc/apparmor.d")
 	CacheDir = filepath.Join(newrootdir, "/var/cache/apparmor")
+	hostAbi30File = filepath.Join(newrootdir, "/etc/apparmor.d/abi/3.0")
 
 	SystemCacheDir = filepath.Join(ConfDir, "cache")
 	exists, isDir, _ := osutil.DirExists(SystemCacheDir)
@@ -209,6 +210,12 @@ var (
 	// Filesystem root defined locally to avoid dependency on the
 	// 'dirs' package
 	rootPath = "/"
+
+	// hostAbi30File is the path to the apparmor "3.0" ABI file and is typically
+	// /etc/apparmor.d/abi/3.0. It is not present on all systems. It is notably
+	// absent when using apparmor 2.x. The variable reacts to changes to global
+	// root directory.
+	hostAbi30File = ""
 )
 
 // Each apparmor feature is manifested as a directory entry.
@@ -486,6 +493,9 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	for _, dir := range filepath.SplitList(parserSearchPath) {
 		path := filepath.Join(dir, "apparmor_parser")
 		if _, err := os.Stat(path); err == nil {
+			if fi, err := os.Lstat(hostAbi30File); err == nil && !fi.IsDir() {
+				return exec.Command(path, "--policy-features", hostAbi30File), false, nil
+			}
 			return exec.Command(path), false, nil
 		}
 	}
