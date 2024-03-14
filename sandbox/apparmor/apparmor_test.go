@@ -73,7 +73,7 @@ func (*apparmorSuite) TestAppArmorParser(c *C) {
 	defer restore()
 	cmd, internal, err := apparmor.AppArmorParser()
 	c.Check(cmd.Path, Equals, mockParserCmd.Exe())
-	c.Check(cmd.Args, DeepEquals, []string{mockParserCmd.Exe()})
+	c.Check(cmd.Args, DeepEquals, []string{mockParserCmd.Exe(), "--policy-features", apparmor.InternalABI30File})
 	c.Check(internal, Equals, false)
 	c.Check(err, Equals, nil)
 }
@@ -279,7 +279,7 @@ func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
 			} else {
 				code = 1
 			}
-			expectedCalls = append(expectedCalls, []string{"apparmor_parser", "--preprocess"})
+			expectedCalls = append(expectedCalls, []string{"apparmor_parser", "--policy-features", apparmor.InternalABI30File, "--preprocess"})
 			contents += fmt.Sprintf("%d ", code)
 		}
 		// probeParserFeatures() sorts the features

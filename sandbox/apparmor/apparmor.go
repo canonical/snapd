@@ -511,7 +511,7 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	for _, dir := range filepath.SplitList(parserSearchPath) {
 		path := filepath.Join(dir, "apparmor_parser")
 		if _, err := os.Stat(path); err == nil {
-			return exec.Command(path), false, nil
+			return exec.Command(path, "--policy-features", InternalABI30File), false, nil
 		}
 	}
 

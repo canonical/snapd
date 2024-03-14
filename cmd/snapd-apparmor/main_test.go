@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -143,7 +144,7 @@ func (s *mainSuite) TestLoadAppArmorProfiles(c *C) {
 
 	// check arguments to the parser are as expected
 	c.Assert(parserCmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache",
+		{"apparmor_parser", "--policy-features", apparmor.InternalABI30File, "--replace", "--write-cache",
 			fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir),
 			profile}})
 
