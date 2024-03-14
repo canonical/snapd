@@ -43,7 +43,9 @@ const systemPackagesDocConnectedPlugAppArmor = `
 /usr/share/cups/doc-root/{,**} r,
 /usr/share/gimp/2.0/help/{,**} r,
 /usr/share/gtk-doc/{,**} r,
+/usr/share/javascript/{jquery,sphinxdoc}/{,**} r,
 /usr/share/libreoffice/help/{,**} r,
+/usr/share/sphinx_rtd_theme/{,**} r,
 /usr/share/xubuntu-docs/{,**} r,
 `
 
@@ -70,9 +72,18 @@ func (iface *systemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/gtk-doc/ -> /usr/share/gtk-doc/,\n")
 	emit("  remount options=(bind, ro) /usr/share/gtk-doc/,\n")
 	emit("  umount /usr/share/gtk-doc/,\n")
+	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/javascript/jquery/ -> /usr/share/javascript/jquery/,\n")
+	emit("  remount options=(bind, ro) /usr/share/javascript/jquery/,\n")
+	emit("  umount /usr/share/javascript/jquery/,\n")
+	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/javascript/sphinxdoc/ -> /usr/share/javascript/sphinxdoc/,\n")
+	emit("  remount options=(bind, ro) /usr/share/javascript/sphinxdoc/,\n")
+	emit("  umount /usr/share/javascript/sphinxdoc/,\n")
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/libreoffice/help/ -> /usr/share/libreoffice/help/,\n")
 	emit("  remount options=(bind, ro) /usr/share/libreoffice/help/,\n")
 	emit("  umount /usr/share/libreoffice/help/,\n")
+	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/sphinx_rtd_theme/ -> /usr/share/sphinx_rtd_theme/,\n")
+	emit("  remount options=(bind, ro) /usr/share/sphinx_rtd_theme/,\n")
+	emit("  umount /usr/share/sphinx_rtd_theme/,\n")
 	emit("  mount options=(bind) /var/lib/snapd/hostfs/usr/share/xubuntu-docs/ -> /usr/share/xubuntu-docs/,\n")
 	emit("  remount options=(bind, ro) /usr/share/xubuntu-docs/,\n")
 	emit("  umount /usr/share/xubuntu-docs/,\n")
@@ -80,7 +91,10 @@ func (iface *systemPackagesDocInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 	// base image, in which case, we need to create a writable mimic.
 	apparmor.GenWritableProfile(emit, "/usr/share/cups/", 3)
 	apparmor.GenWritableProfile(emit, "/usr/share/gimp/2.0/", 3)
+	apparmor.GenWritableProfile(emit, "/usr/share/javascript/jquery/", 3)
+	apparmor.GenWritableProfile(emit, "/usr/share/javascript/sphinxdoc/", 3)
 	apparmor.GenWritableProfile(emit, "/usr/share/libreoffice/", 3)
+	apparmor.GenWritableProfile(emit, "/usr/share/sphinx_rtd_theme/", 3)
 
 	if base := plug.Snap().Base; base == "bare" || base == "test-snapd-base-bare" {
 		// The bare snap does not have enough mount points, causing us to create a mimic over /
@@ -133,8 +147,23 @@ func (iface *systemPackagesDocInterface) MountConnectedPlug(spec *mount.Specific
 		Options: []string{"bind", "ro"},
 	})
 	spec.AddMountEntry(osutil.MountEntry{
+		Name:    "/var/lib/snapd/hostfs/usr/share/javascript/jquery",
+		Dir:     "/usr/share/javascript/jquery",
+		Options: []string{"bind", "ro"},
+	})
+	spec.AddMountEntry(osutil.MountEntry{
+		Name:    "/var/lib/snapd/hostfs/usr/share/javascript/sphinxdoc",
+		Dir:     "/usr/share/javascript/sphinxdoc",
+		Options: []string{"bind", "ro"},
+	})
+	spec.AddMountEntry(osutil.MountEntry{
 		Name:    "/var/lib/snapd/hostfs/usr/share/libreoffice/help",
 		Dir:     "/usr/share/libreoffice/help",
+		Options: []string{"bind", "ro"},
+	})
+	spec.AddMountEntry(osutil.MountEntry{
+		Name:    "/var/lib/snapd/hostfs/usr/share/sphinx_rtd_theme",
+		Dir:     "/usr/share/sphinx_rtd_theme",
 		Options: []string{"bind", "ro"},
 	})
 	spec.AddMountEntry(osutil.MountEntry{
