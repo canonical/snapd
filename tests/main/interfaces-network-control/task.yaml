@@ -36,7 +36,6 @@ restore: |
     . "$TESTSLIB/network.sh"
 
     systemctl stop "$SERVICE_NAME"
-    arp -d "$ARP_ENTRY_ADDR" -i "$(get_default_iface)" || true
 
     ip netns delete test-ns || true
     ip link delete veth0 || true
@@ -45,8 +44,6 @@ restore: |
 execute: |
     #shellcheck source=tests/lib/network.sh
     . "$TESTSLIB/network.sh"
-
-    INTERFACE=$(get_default_iface)
 
     echo "Then the plug disconnected by default"
     snap interfaces -i network-control | MATCH "^- +network-control-consumer:network-control$"
@@ -82,25 +79,6 @@ execute: |
     echo "When the plug is connected"
     snap connect network-control-consumer:network-control
 
-    # core18 has no "arp" utility
-    if [ "$(command -v arp)" != "" ]; then
-        echo "Then the snap command can modify the network configuration"
-        network-control-consumer.cmd arp -s "$ARP_ENTRY_ADDR" aa:aa:aa:aa:aa:aa -i "$INTERFACE"
-        arp | MATCH "$ARP_ENTRY_ADDR.*?ether.*?CM"
-
-        if [ "$(snap debug confinement)" = strict ] ; then
-            echo "When the plug is disconnected"
-            snap disconnect network-control-consumer:network-control
-
-            echo "Then the snap command can not modify the network configuration"
-            if network-control-consumer.cmd arp -s "$ARP_ENTRY_ADDR" aa:aa:aa:aa:aa:aa -i "$INTERFACE" 2>net-command.output; then
-                echo "Expected error calling command with disconnected plug"
-                exit 1
-            fi
-            MATCH "Permission denied" < net-command.output
-        fi
-    fi
-
     echo "When the plug is connected"
     snap connect network-control-consumer:network-control
 
@@ -121,6 +99,12 @@ execute: |
     echo "And a command can be executed in the context of the namespace"
     network-control-consumer.cmd ip netns exec test-ns ip link list | MATCH "veth1"
 
+    echo "Then the snap command can modify the network configuration"
+    network-control-consumer.cmd ip neigh add "$ARP_ENTRY_ADDR" lladdr aa:aa:aa:aa:aa:aa dev veth0
+
+    # the entry becomes visible
+    ip neigh show dev veth0 | MATCH "aa:aa:aa:aa:aa:aa"
+
     # xdp is only support by apparmor in 20.04+
     if [ "$(snap debug confinement)" = strict ] && ! os.query is-xenial && ! os.query is-bionic && ! os.query is-core16 && ! os.query is-core18; then
         echo "Check that AF_XDP can be used"
@@ -133,6 +117,13 @@ execute: |
 
         echo "When the plug is disconnected"
         snap disconnect network-control-consumer:network-control
+
+        echo "Then the snap command can not modify the network configuration"
+        if network-control-consumer.cmd ip neigh del "$ARP_ENTRY_ADDR" lladdr aa:aa:aa:aa:aa:aa dev veth0 2>net-command.output; then
+                echo "Expected error calling command with disconnected plug"
+                exit 1
+        fi
+        MATCH "Permission denied" < net-command.output
 
         echo "The snap is not able to create a network namespace"
         if network-control-consumer.cmd ip netns add test-ns-2 2>ns-create.output; then
