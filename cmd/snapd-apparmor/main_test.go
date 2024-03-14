@@ -144,7 +144,7 @@ func (s *mainSuite) TestLoadAppArmorProfiles(c *C) {
 
 	// check arguments to the parser are as expected
 	c.Assert(parserCmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--policy-features", apparmor.InternalABI30File, "--replace", "--write-cache",
+		{"apparmor_parser", "--compile-features", apparmor.InternalABI30File, "--replace", "--write-cache",
 			fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir),
 			profile}})
 

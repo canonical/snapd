@@ -511,7 +511,9 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	for _, dir := range filepath.SplitList(parserSearchPath) {
 		path := filepath.Join(dir, "apparmor_parser")
 		if _, err := os.Stat(path); err == nil {
-			return exec.Command(path, "--policy-features", InternalABI30File), false, nil
+			// The switch --compile-features is supported all the way back in Debian 11
+			// with AppArmor parser 2.13.6, at least.
+			return exec.Command(path, "--compile-features", InternalABI30File), false, nil
 		}
 	}
 
