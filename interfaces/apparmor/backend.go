@@ -108,6 +108,12 @@ func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 		return fmt.Errorf("cannot read %s: %s", procSelfExe, err)
 	}
 
+	// Write apparmor ABI file that is referenced by apparmor_parser when
+	// using the host apparmor_parser and not snapd-snap re-exec apparmor_parser.
+	if err := apparmor_sandbox.WriteInternalABIFiles(); err != nil {
+		return fmt.Errorf("cannot write internal ABI file: %w", err)
+	}
+
 	if _, err := apparmor_sandbox.SetupSnapConfineSnippets(); err != nil {
 		return err
 	}
