@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 )
 
 type svcStatus struct {
@@ -185,12 +184,6 @@ func (s *svcLogs) Execute(args []string) error {
 	return nil
 }
 
-type userAndScopeMixin struct {
-	System bool   `long:"system"`
-	User   bool   `long:"user"`
-	Users  string `long:"users"`
-}
-
 var userAndScopeDescs = mixinDescs{
 	// TRANSLATORS: This should not start with a lowercase letter.
 	"system": i18n.G("The operation should only affect system services."),
@@ -200,50 +193,9 @@ var userAndScopeDescs = mixinDescs{
 	"users": i18n.G("If provided and set to 'all', the operation should affect services for all users."),
 }
 
-func (um *userAndScopeMixin) validateScopes() error {
-	switch {
-	case um.System && um.User:
-		return fmt.Errorf("--system and --user cannot be used in conjunction with each other")
-	case um.Users != "" && um.User:
-		return fmt.Errorf("--user and --users cannot be used in conjunction with each other")
-	case um.Users != "" && um.Users != "all":
-		return fmt.Errorf("only \"all\" is supported as a value for --users")
-	}
-	return nil
-}
-
-func (um *userAndScopeMixin) serviceScope() client.ScopeSelector {
-	switch {
-	case (um.User || um.Users != "") && !um.System:
-		return client.ScopeSelector([]string{"user"})
-	case !(um.User || um.Users != "") && um.System:
-		return client.ScopeSelector([]string{"system"})
-	}
-	return nil
-}
-
-func (um *userAndScopeMixin) serviceUsers() client.UserSelector {
-	switch {
-	case um.User:
-		return client.UserSelector{
-			Selector: client.UserSelectionSelf,
-		}
-	case um.Users == "all":
-		return client.UserSelector{
-			Selector: client.UserSelectionAll,
-		}
-	}
-	// Currently not reachable as um.Users can only be 'all' for now, but when
-	// we introduce support for lists of usernames, this will be hit.
-	return client.UserSelector{
-		Selector: client.UserSelectionList,
-		Names:    strutil.CommaSeparatedList(um.Users),
-	}
-}
-
 type svcStart struct {
 	waitMixin
-	userAndScopeMixin
+	clientutil.ServiceScopeOptions
 	Positional struct {
 		ServiceNames []serviceName `required:"1"`
 	} `positional-args:"yes" required:"yes"`
@@ -254,11 +206,11 @@ func (s *svcStart) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	if err := s.validateScopes(); err != nil {
+	if err := s.Validate(); err != nil {
 		return err
 	}
 	names := svcNames(s.Positional.ServiceNames)
-	changeID, err := s.client.Start(names, s.serviceScope(), s.serviceUsers(), client.StartOptions{Enable: s.Enable})
+	changeID, err := s.client.Start(names, s.Scope(), s.Users(), client.StartOptions{Enable: s.Enable})
 	if err != nil {
 		return err
 	}
@@ -276,7 +228,7 @@ func (s *svcStart) Execute(args []string) error {
 
 type svcStop struct {
 	waitMixin
-	userAndScopeMixin
+	clientutil.ServiceScopeOptions
 	Positional struct {
 		ServiceNames []serviceName `required:"1"`
 	} `positional-args:"yes" required:"yes"`
@@ -287,11 +239,11 @@ func (s *svcStop) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	if err := s.validateScopes(); err != nil {
+	if err := s.Validate(); err != nil {
 		return err
 	}
 	names := svcNames(s.Positional.ServiceNames)
-	changeID, err := s.client.Stop(names, s.serviceScope(), s.serviceUsers(), client.StopOptions{Disable: s.Disable})
+	changeID, err := s.client.Stop(names, s.Scope(), s.Users(), client.StopOptions{Disable: s.Disable})
 	if err != nil {
 		return err
 	}
@@ -309,7 +261,7 @@ func (s *svcStop) Execute(args []string) error {
 
 type svcRestart struct {
 	waitMixin
-	userAndScopeMixin
+	clientutil.ServiceScopeOptions
 	Positional struct {
 		ServiceNames []serviceName `required:"1"`
 	} `positional-args:"yes" required:"yes"`
@@ -320,11 +272,11 @@ func (s *svcRestart) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	if err := s.validateScopes(); err != nil {
+	if err := s.Validate(); err != nil {
 		return err
 	}
 	names := svcNames(s.Positional.ServiceNames)
-	changeID, err := s.client.Restart(names, s.serviceScope(), s.serviceUsers(), client.RestartOptions{Reload: s.Reload})
+	changeID, err := s.client.Restart(names, s.Scope(), s.Users(), client.RestartOptions{Reload: s.Reload})
 	if err != nil {
 		return err
 	}

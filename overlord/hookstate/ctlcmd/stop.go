@@ -21,13 +21,14 @@ package ctlcmd
 
 import (
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/servicestate"
 )
 
 type stopCommand struct {
 	baseCommand
-	userAndScopeOptions
+	clientutil.ServiceScopeOptions
 	Positional struct {
 		ServiceNames []string `positional-arg-name:"<service>" required:"yes"`
 	} `positional-args:"yes" required:"yes"`
@@ -46,7 +47,7 @@ func init() {
 }
 
 func (c *stopCommand) Execute(args []string) error {
-	if err := c.validateScopes(); err != nil {
+	if err := c.Validate(); err != nil {
 		return err
 	}
 
@@ -56,8 +57,8 @@ func (c *stopCommand) Execute(args []string) error {
 		StopOptions: client.StopOptions{
 			Disable: c.Disable,
 		},
-		Scope: c.serviceScope(),
-		Users: c.serviceUsers(),
+		Scope: c.Scope(),
+		Users: c.Users(),
 	}
 	return runServiceCommand(c.context(), &inst)
 }
