@@ -33,7 +33,7 @@ DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends dracut-cor
 
 [ -d /run/initramfs ] || mkdir -p /run/initramfs
 
-mount -t tmpfs -o exec,size=2G none /run/initramfs
+systemd-mount --property=DefaultDependencies=no --options=exec,size=2G none --type=tmpfs /run/initramfs
 
 cp -T "${1}" /run/initramfs/image.gz
 
@@ -44,7 +44,7 @@ for try in /usr/lib/systemd/systemd-shutdown /lib/systemd/systemd-shutdown; do
 done
 
 /usr/lib/dracut/dracut-install --ldd -D/run/initramfs -a umount systemctl dd "${systemd_shutdown}"
-/usr/lib/dracut/dracut-install -D/run/initramfs /usr/lib/initramfs-tools/bin/busybox /bin/busybox
+/usr/lib/dracut/dracut-install --ldd -D/run/initramfs /usr/lib/initramfs-tools/bin/busybox /bin/busybox
 
 ln -s busybox /run/initramfs/bin/sh
 ln -s busybox /run/initramfs/bin/gunzip
