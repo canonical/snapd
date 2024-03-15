@@ -717,6 +717,17 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 							runGrub2,
 							possibleRunKernel,
 						})
+						if shimId2 == shimId && grubId2 == grubId {
+							// due to bugs in ordering, sometimes grub2 is old and grub is new, so we need to test
+							// the case shim2 -> grub -> runGrub
+							// this happens only when we do not change the id of the asset (that is the paths are not changed)
+							possibleChains = append(possibleChains, []bootloader.BootFile{
+								shim2,
+								grub,
+								runGrub,
+								possibleRunKernel,
+							})
+						}
 					}
 				} else if shimId2 != "" {
 					// We should not test the case where we half update, to a completely new bootchain.
