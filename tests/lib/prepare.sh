@@ -993,7 +993,7 @@ setup_reflash_magic() {
     elif os.query is-core24; then
         core_name="core24"
         # TODO: revert this once snaps are ready in target channel
-        KERNEL_CHANNEL=edge
+        KERNEL_CHANNEL=beta
         GADGET_CHANNEL=edge    
     fi
     # XXX: we get "error: too early for operation, device not yet
@@ -1275,7 +1275,7 @@ EOF
     # expand the uc16 and uc18 images a little bit (400M) as it currently will
     # run out of space easily from local spread runs if there are extra files in
     # the project not included in the git ignore and spread ignore, etc.
-    if ! (os.query is-core20 || os.query is-core22); then
+    if os.query is-core-le 18; then
         # grow the image by 400M
         truncate --size=+400M "$IMAGE_HOME/$IMAGE"
         # fix the GPT table because old versions of parted complain about this 
@@ -1299,7 +1299,7 @@ EOF
     dev=$(basename "$devloop")
 
     # resize the 2nd partition from that loop device to fix the size
-    if ! (os.query is-core-ge 20); then
+    if os.query is-core-le 18; then
         resize2fs -p "/dev/mapper/${dev}p${LOOP_PARTITION}"
     fi
 
@@ -1311,7 +1311,7 @@ EOF
     # - built debs
     # - golang archive files and built packages dir
     # - govendor .cache directory and the binary,
-    if os.query is-core16 || os.query is-core18; then
+    if os.query is-core-le 18; then
         mkdir -p /mnt/user-data/
         # we need to include "core" here because -C option says to ignore 
         # files the way CVS(?!) does, so it ignores files named "core" which
@@ -1326,7 +1326,7 @@ EOF
           --exclude /gopath/pkg/ \
           --include core/ \
           /home/gopath /mnt/user-data/
-    elif os.query is-core-ge 20; then
+    else
         # prepare passwd for run-mode-overlay-data
 
         # use /etc/{group,passwd,shadow,gshadow} from the core20 snap, merged
@@ -1364,7 +1364,7 @@ EOF
     fi
 
     # now modify the image writable partition - only possible on uc16 / uc18
-    if os.query is-core16 || os.query is-core18; then
+    if os.query is-core-le 18; then
         # modify the writable partition of "core" so that we have the
         # test user
         setup_core_for_testing_by_modify_writable "$UNPACK_DIR"
