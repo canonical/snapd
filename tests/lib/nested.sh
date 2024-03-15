@@ -370,8 +370,10 @@ nested_refresh_to_new_core() {
 
 nested_get_snakeoil_key() {
     local KEYNAME="PkKek-1-snakeoil"
-    wget -q https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/$KEYNAME.key
-    wget -q https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/20/snakeoil/$KEYNAME.pem
+    local VERSION
+    VERSION="$(nested_get_version)"
+    wget -q https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/"$VERSION"/snakeoil/"$KEYNAME".key
+    wget -q https://raw.githubusercontent.com/snapcore/pc-amd64-gadget/"$VERSION"/snakeoil/"$KEYNAME".pem
     echo "$KEYNAME"
 }
 
@@ -398,6 +400,13 @@ nested_secboot_sign_gadget() {
         nested_secboot_sign_file "$GADGET_DIR/fb.efi" "$KEY" "$CERT"
     fi
     nested_secboot_sign_file "$GADGET_DIR/shim.efi.signed" "$KEY" "$CERT"
+}
+
+nested_secboot_sign_kernel() {
+    local KERNEL_DIR="$1"
+    local KEY="$2"
+    local CERT="$3"
+    nested_secboot_sign_file "$KERNEL_DIR/kernel.efi" "$KEY" "$CERT"
 }
 
 nested_prepare_env() {
