@@ -51,10 +51,7 @@ execute: |
         snap install --no-wait "--$CHANNEL" "$SNAP"
     done
 
-    while true; do
-        if snap changes | NOMATCH " Doing.*Install \".*\" snap"; then
-            break
-        fi
+    while snap changes | MATCH " (Do |Doing ).*Install \".*\" snap"; do
         sleep 1
     done
 

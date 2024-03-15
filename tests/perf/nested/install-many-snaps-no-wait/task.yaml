@@ -1,4 +1,4 @@
-summary: nsure the system handles properly a installing many snaps with --no-wait parameter
+summary: Ensure the system handles properly a installing many snaps with --no-wait parameter
 
 details: |
     Install different snaps many times based on arch availability. In this
