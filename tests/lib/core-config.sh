@@ -72,6 +72,7 @@ restore_pc_snap(){
        rm -f /etc/systemd/system/snapd.mounts.target.wants/snap-pc-x1.mount
        rm -f /etc/systemd/system/multi-user.target.wants/snap-pc-x1.mount
        rm -f /var/lib/snapd/snaps/pc_x1.snap
+       rm -rf /root/snap/pc/x1
        systemctl daemon-reload
     fi
     rm -f /var/lib/snapd/seed/snaps/pc_x1.snap
