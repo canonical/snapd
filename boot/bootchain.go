@@ -105,30 +105,15 @@ func stringListsLess(sl1, sl2 []string) bool {
 	return false
 }
 
-func toPredictableBootAsset(b *bootAsset) *bootAsset {
-	if b == nil {
-		return nil
-	}
-	newB := *b
-	if b.Hashes != nil {
-		newB.Hashes = make([]string, len(b.Hashes))
-		copy(newB.Hashes, b.Hashes)
-		sort.Strings(newB.Hashes)
-	}
-	return &newB
-}
-
 func toPredictableBootChain(b *bootChain) *bootChain {
 	if b == nil {
 		return nil
 	}
 	newB := *b
-	if b.AssetChain != nil {
-		newB.AssetChain = make([]bootAsset, len(b.AssetChain))
-		for i := range b.AssetChain {
-			newB.AssetChain[i] = *toPredictableBootAsset(&b.AssetChain[i])
-		}
-	}
+	// AssetChain is sorted list (by boot order) of sorted list (old to new asset).
+	// So it is already predictable and we can keep it the way it is.
+
+	// However we still need to sort kernel KernelCmdlines
 	if b.KernelCmdlines != nil {
 		newB.KernelCmdlines = make([]string, len(b.KernelCmdlines))
 		copy(newB.KernelCmdlines, b.KernelCmdlines)

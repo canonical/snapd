@@ -176,7 +176,6 @@ const (
 )
 
 var (
-	ToPredictableBootAsset              = toPredictableBootAsset
 	ToPredictableBootChain              = toPredictableBootChain
 	ToPredictableBootChains             = toPredictableBootChains
 	PredictableBootChainsEqualForReseal = predictableBootChainsEqualForReseal
