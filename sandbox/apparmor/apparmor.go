@@ -79,6 +79,7 @@ func setupConfCacheDirs(newrootdir string) {
 	ConfDir = filepath.Join(newrootdir, "/etc/apparmor.d")
 	CacheDir = filepath.Join(newrootdir, "/var/cache/apparmor")
 	hostAbi30File = filepath.Join(newrootdir, "/etc/apparmor.d/abi/3.0")
+	hostAbi40File = filepath.Join(newrootdir, "/etc/apparmor.d/abi/4.0")
 
 	SystemCacheDir = filepath.Join(ConfDir, "cache")
 	exists, isDir, _ := osutil.DirExists(SystemCacheDir)
@@ -216,6 +217,8 @@ var (
 	// absent when using apparmor 2.x. The variable reacts to changes to global
 	// root directory.
 	hostAbi30File = ""
+	// hostAbi40File is like hostAbi30File but for ABI 4.0
+	hostAbi40File = ""
 )
 
 // Each apparmor feature is manifested as a directory entry.
@@ -493,9 +496,17 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	for _, dir := range filepath.SplitList(parserSearchPath) {
 		path := filepath.Join(dir, "apparmor_parser")
 		if _, err := os.Stat(path); err == nil {
+			// Pin 4.0 abi if host supports it.
+			if fi, err := os.Lstat(hostAbi40File); err == nil && !fi.IsDir() {
+				return exec.Command(path, "--policy-features", hostAbi40File), false, nil
+			}
+
+			// Perhaps 3.0?
 			if fi, err := os.Lstat(hostAbi30File); err == nil && !fi.IsDir() {
 				return exec.Command(path, "--policy-features", hostAbi30File), false, nil
 			}
+
+			// Most likely 2.0
 			return exec.Command(path), false, nil
 		}
 	}
