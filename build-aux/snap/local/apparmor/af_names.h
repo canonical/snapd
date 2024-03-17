@@ -1,14 +1,16 @@
 /*
   this file was generated on a Ubuntu mantic install from the upstream
-  apparmor-4.0.0-alpha3 release tarball as follows:
+  apparmor-4.0.0-beta3 release tarball as follows:
 
-  AA_VER=4.0.0-alpha3
-  TARBALL_NAME="apparmor-${AA_VER/-/\~}"
+  AA_VER=4.0.0-beta3
+  TARBALL_NAME="apparmor-v${AA_VER}"
   wget \
-  "https://launchpad.net/apparmor/4.0/${AA_VER}/+download/${TARBALL_NAME}.tar.gz"
+  "https://gitlab.com/apparmor/apparmor/-/archive/v${AA_VER}/${TARBALL_NAME}.tar.gz"
   tar xf "${TARBALL_NAME}.tar.gz"
   cd "${TARBALL_NAME}"
   make -C parser af_names.h
+  cp ./parser/af_names.h <path-to-this-file>
+  # manually append this header
 
  */
 #ifndef AF_UNSPEC
