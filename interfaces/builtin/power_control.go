@@ -49,6 +49,10 @@ const powerControlConnectedPlugAppArmor = `
 
 # for android kernels, see https://android.googlesource.com/kernel/msm/+/android-msm-bullhead-3.10-marshmallow-dr/Documentation/devicetree/bindings/arm/msm/lpm-levels.txt
 /sys/module/lpm_levels/parameters/sleep_disabled rw,
+
+# Needed for ACPI modules to read and set values for battery charging thresholds
+/sys/class/power_supply/BAT{,*}/charge_start_threshold rw,
+/sys/class/power_supply/BAT{,*}/charge_stop_threshold rw,
 `
 
 func init() {
