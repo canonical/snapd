@@ -47,6 +47,12 @@ prepare: |
     tests.cleanup defer systemctl restart snapd.socket
 
 restore: |
+    # microk8s does not clean up services/pods/nodes nor additional services
+    # during remove
+    microk8s kubectl delete pods --all
+    microk8s kubectl delete nodes --all
+    microk8s stop
+    # now we're ready for remove
     snap remove --purge microk8s
 
     # TODO: remove handling of snap_daemon user once microk8s is updated not
