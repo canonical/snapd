@@ -73,7 +73,7 @@ is_core24() {
 }
 
 is_core_gt() {
-    VERSION=$1
+    local VERSION=$1
     if [ -z "$VERSION" ]; then
         echo "os.query: version id is expected"
         exit 1
@@ -87,7 +87,7 @@ is_core_gt() {
 }
 
 is_core_ge() {
-    VERSION=$1
+    local VERSION=$1
     if [ -z "$VERSION" ]; then
         echo "os.query: version id is expected"
         exit 1
@@ -101,7 +101,7 @@ is_core_ge() {
 }
 
 is_core_lt() {
-    VERSION=$1
+    local VERSION=$1
     if [ -z "$VERSION" ]; then
         echo "os.query: version id is expected"
         exit 1
@@ -115,7 +115,7 @@ is_core_lt() {
 }
 
 is_core_le() {
-    VERSION=$1
+    local VERSION=$1
     if [ -z "$VERSION" ]; then
         echo "os.query: version id is expected"
         exit 1
