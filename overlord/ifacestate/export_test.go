@@ -26,8 +26,6 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
