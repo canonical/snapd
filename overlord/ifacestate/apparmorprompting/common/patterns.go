@@ -2,22 +2,21 @@ package common
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 
 	doublestar "github.com/bmatcuk/doublestar/v4"
 )
 
-var ErrInvalidPathPattern = errors.New("the given path pattern is not allowed")
 var ErrNoPatterns = errors.New("no patterns given, cannot establish precedence")
 
 var allowablePathPatternRegexp = regexp.MustCompile(`^(/|(/[^/*{}]+)*(/\*|(/\*\*)?(/\*\.[^/*{}]+)?)?)$`)
 
-// Checks that the given path pattern is valid.  Returns nil if so, otherwise
-// returns ErrInvalidPathPattern.
+// ValidatePathPattern returns nil if the pattern is valid, otherwise an error.
 func ValidatePathPattern(pattern string) error {
 	if !allowablePathPatternRegexp.MatchString(pattern) {
-		return ErrInvalidPathPattern
+		return fmt.Errorf("invalid path pattern: %q", pattern)
 	}
 	return nil
 }

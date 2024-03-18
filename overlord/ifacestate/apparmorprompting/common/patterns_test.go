@@ -56,7 +56,7 @@ func (s *commonSuite) TestValidatePathPattern(c *C) {
 		"/foo/bar/**/*",
 		"/foo/bar/**/*txt",
 	} {
-		c.Check(common.ValidatePathPattern(pattern), Equals, common.ErrInvalidPathPattern, Commentf("invalid path pattern `%s` was incorrectly allowed", pattern))
+		c.Check(common.ValidatePathPattern(pattern), ErrorMatches, "invalid path pattern.*", Commentf("invalid path pattern `%s` was incorrectly allowed", pattern))
 	}
 }
 
