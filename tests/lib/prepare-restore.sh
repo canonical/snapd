@@ -724,8 +724,11 @@ restore_suite_each() {
             # shellcheck disable=SC2086
             tests.pkgs remove $packages
         fi
+        # XXX since the package managers rarely have an option to properly
+        # restore kernel or firmware related to their previous versions, use a
+        # simple heuristic to skip them during restore
         # shellcheck disable=SC2002
-        packages="$(cat removed-in-test.pkgs | tr "\n" " ")"
+        packages="$(cat removed-in-test.pkgs | grep -v -e kernel -e '-firmware' | tr "\n" " ")"
         if [ -n "$packages" ]; then
             # shellcheck disable=SC2086
             tests.pkgs install $packages
