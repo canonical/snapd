@@ -1655,14 +1655,22 @@ func (s *snapmgrTestSuite) TestUpdateWithInstalledDefaultProvider(c *C) {
 
 	err := repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "content"})
 	c.Assert(err, IsNil)
-	err = repo.AddSlot(&snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "snap-content-slot"},
+
+	sn := &snap.Info{SuggestedName: "snap-content-slot", Slots: make(map[string]*snap.SlotInfo), Version: "1"}
+	slot := &snap.SlotInfo{
+		Snap:      sn,
 		Name:      "snap-content-slot",
 		Interface: "content",
 		Attrs: map[string]interface{}{
 			"content": "shared-content",
 		},
-	})
+	}
+	sn.Slots["snap-content-slot"] = slot
+
+	appSet, err := interfaces.NewSnapAppSet(sn, nil)
+	c.Assert(err, IsNil)
+
+	err = repo.AddAppSet(appSet)
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("refresh", "refresh a snap")

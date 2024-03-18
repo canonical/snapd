@@ -1179,10 +1179,19 @@ func makeMockRepoWithConnectedSnaps(c *C, st *state.State, info11, core11 *snap.
 		err := repo.AddInterface(iface)
 		c.Assert(err, IsNil)
 	}
-	err := repo.AddSnap(info11)
+
+	info11AppSet, err := interfaces.NewSnapAppSet(info11, nil)
 	c.Assert(err, IsNil)
-	err = repo.AddSnap(core11)
+
+	err = repo.AddAppSet(info11AppSet)
 	c.Assert(err, IsNil)
+
+	core11AppSet, err := interfaces.NewSnapAppSet(core11, nil)
+	c.Assert(err, IsNil)
+
+	err = repo.AddAppSet(core11AppSet)
+	c.Assert(err, IsNil)
+
 	_, err = repo.Connect(&interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: info11.InstanceName(), Name: ifname},
 		SlotRef: interfaces.SlotRef{Snap: core11.InstanceName(), Name: ifname},

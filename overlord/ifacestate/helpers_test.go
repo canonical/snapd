@@ -668,12 +668,13 @@ func (s *helpersSuite) TestAddHotplugSlot(c *C) {
 	c.Check(stateSlots, HasLen, 0)
 
 	si := &snap.SideInfo{Revision: snap.R(1)}
-	coreInfo := snaptest.MockSnap(c, coreSnapYaml, si)
+	coreAppSet := ifacetest.MockInfoAndAppSet(c, coreSnapYaml, nil, si)
+	c.Assert(repo.AddAppSet(coreAppSet), IsNil)
 
 	slot := &snap.SlotInfo{
 		Name:       "slot",
 		Label:      "label",
-		Snap:       coreInfo,
+		Snap:       coreAppSet.Info(),
 		Interface:  "test",
 		Attrs:      map[string]interface{}{"foo": "bar"},
 		HotplugKey: "key",

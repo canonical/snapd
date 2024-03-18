@@ -45,6 +45,8 @@ type Repository struct {
 	// given a plug and a slot, are they connected?
 	plugSlots map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection
 	backends  []SecurityBackend
+	// mapping of snap name to app set that was added to the repo with AddAppSet
+	appSets map[string]*SnapAppSet
 }
 
 // NewRepository creates an empty plug repository.
@@ -56,6 +58,7 @@ func NewRepository() *Repository {
 		slots:         make(map[string]map[string]*snap.SlotInfo),
 		slotPlugs:     make(map[*snap.SlotInfo]map[*snap.PlugInfo]*Connection),
 		plugSlots:     make(map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection),
+		appSets:       make(map[string]*SnapAppSet),
 	}
 
 	return repo
@@ -306,40 +309,6 @@ func (r *Repository) Connection(connRef *ConnRef) (*Connection, error) {
 	return conn, nil
 }
 
-// AddPlug adds a plug to the repository.
-// Plug names must be valid snap names, as defined by ValidateName.
-// Plug name must be unique within a particular snap.
-func (r *Repository) AddPlug(plug *snap.PlugInfo) error {
-	r.m.Lock()
-	defer r.m.Unlock()
-
-	snapName := plug.Snap.InstanceName()
-
-	// Reject snaps with invalid names
-	if err := snap.ValidateInstanceName(snapName); err != nil {
-		return err
-	}
-	// Reject plugs with invalid names
-	if err := snap.ValidatePlugName(plug.Name); err != nil {
-		return err
-	}
-	i := r.ifaces[plug.Interface]
-	if i == nil {
-		return fmt.Errorf("cannot add plug, interface %q is not known", plug.Interface)
-	}
-	if _, ok := r.plugs[snapName][plug.Name]; ok {
-		return fmt.Errorf("snap %q has plugs conflicting on name %q", snapName, plug.Name)
-	}
-	if _, ok := r.slots[snapName][plug.Name]; ok {
-		return fmt.Errorf("snap %q has plug and slot conflicting on name %q", snapName, plug.Name)
-	}
-	if r.plugs[snapName] == nil {
-		r.plugs[snapName] = make(map[string]*snap.PlugInfo)
-	}
-	r.plugs[snapName][plug.Name] = plug
-	return nil
-}
-
 // RemovePlug removes the named plug provided by a given snap.
 // The removed plug must exist and must not be used anywhere.
 func (r *Repository) RemovePlug(snapName, plugName string) error {
@@ -428,6 +397,9 @@ func (r *Repository) AddSlot(slot *snap.SlotInfo) error {
 	}
 	if _, ok := r.plugs[snapName][slot.Name]; ok {
 		return fmt.Errorf("snap %q has plug and slot conflicting on name %q", snapName, slot.Name)
+	}
+	if r.appSets[snapName] == nil {
+		return fmt.Errorf("cannot add slot, snap %q is not known", snapName)
 	}
 	if r.slots[snapName] == nil {
 		r.slots[snapName] = make(map[string]*snap.SlotInfo)
@@ -832,11 +804,11 @@ func (r *Repository) Connections(snapName string) ([]*ConnRef, error) {
 // guessSystemSnapName returns the name of the system snap if one exists
 func (r *Repository) guessSystemSnapName() (string, error) {
 	switch {
-	case r.slots["snapd"] != nil:
+	case r.appSets["snapd"] != nil:
 		return "snapd", nil
-	case r.slots["core"] != nil:
+	case r.appSets["core"] != nil:
 		return "core", nil
-	case r.slots["ubuntu-core"] != nil:
+	case r.appSets["ubuntu-core"] != nil:
 		return "ubuntu-core", nil
 	default:
 		return "", fmt.Errorf("cannot guess the name of the core snap")
@@ -973,12 +945,12 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, appSet *Sn
 	return spec, nil
 }
 
-// AddSnap adds plugs and slots declared by the given snap to the repository.
+// AddAppSet adds plugs and slots declared by the given snap to the repository.
 //
 // This function can be used to implement snap install or, when used along with
 // RemoveSnap, snap upgrade.
 //
-// AddSnap doesn't change existing plugs/slots. The caller is responsible for
+// AddAppSet doesn't change existing plugs/slots. The caller is responsible for
 // ensuring that the snap is not present in the repository in any way prior to
 // calling this function. If this constraint is violated then no changes are
 // made and an error is returned.
@@ -986,10 +958,13 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, appSet *Sn
 // Each added plug/slot is validated according to the corresponding interface.
 // Unknown interfaces and plugs/slots that don't validate are not added.
 // Information about those failures are returned to the caller.
-func (r *Repository) AddSnap(snapInfo *snap.Info) error {
+func (r *Repository) AddAppSet(appSet *SnapAppSet) error {
+	snapInfo := appSet.Info()
+
 	if snapInfo.Broken != "" {
 		return fmt.Errorf("snap is broken: %s", snapInfo.Broken)
 	}
+
 	err := snap.Validate(snapInfo)
 	if err != nil {
 		return err
@@ -1000,9 +975,11 @@ func (r *Repository) AddSnap(snapInfo *snap.Info) error {
 
 	snapName := snapInfo.InstanceName()
 
-	if r.plugs[snapName] != nil || r.slots[snapName] != nil {
+	if r.appSets[snapName] != nil || r.plugs[snapName] != nil || r.slots[snapName] != nil {
 		return fmt.Errorf("cannot register interfaces for snap %q more than once", snapName)
 	}
+
+	r.appSets[snapName] = appSet
 
 	for plugName, plugInfo := range snapInfo.Plugs {
 		if _, ok := r.ifaces[plugInfo.Interface]; !ok {
@@ -1057,6 +1034,8 @@ func (r *Repository) RemoveSnap(snapName string) error {
 		delete(r.slotPlugs, slot)
 	}
 	delete(r.slots, snapName)
+
+	delete(r.appSets, snapName)
 
 	return nil
 }

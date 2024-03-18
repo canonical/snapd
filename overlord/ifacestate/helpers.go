@@ -56,9 +56,9 @@ var (
 	writeSystemKey = interfaces.WriteSystemKey
 )
 
-func (m *InterfaceManager) selectInterfaceMapper(snaps []*snap.Info) {
-	for _, snapInfo := range snaps {
-		if snapInfo.Type() == snap.TypeSnapd {
+func (m *InterfaceManager) selectInterfaceMapper(appSets []*interfaces.SnapAppSet) {
+	for _, set := range appSets {
+		if set.Info().Type() == snap.TypeSnapd {
 			mapper = &CoreSnapdSystemMapper{}
 			break
 		}
@@ -132,13 +132,10 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 	return nil
 }
 
-func (m *InterfaceManager) addSnaps(snaps []*snap.Info) error {
-	for _, snapInfo := range snaps {
-		if err := addImplicitSlots(m.state, snapInfo); err != nil {
-			return err
-		}
-		if err := m.repo.AddSnap(snapInfo); err != nil {
-			logger.Noticef("cannot add snap %q to interface repository: %s", snapInfo.InstanceName(), err)
+func (m *InterfaceManager) addAppSets(appSets []*interfaces.SnapAppSet) error {
+	for _, set := range appSets {
+		if err := m.repo.AddAppSet(set); err != nil {
+			logger.Noticef("cannot add app set for snap %q to interface repository: %s", set.Info().InstanceName(), err)
 		}
 	}
 	return nil
@@ -167,26 +164,9 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 	securityBackends := m.repo.Backends()
 
 	// Get all the snap infos
-	snaps, err := snapsWithSecurityProfiles(m.state)
+	appSets, err := snapsWithSecurityProfiles(m.state)
 	if err != nil {
 		return err
-	}
-
-	// TODO: should snapsWithSecurityProfiles return app sets instead of snap infos?
-	appSets := make([]*interfaces.SnapAppSet, 0, len(snaps))
-	for _, sn := range snaps {
-		set, err := appSetForSnapRevision(m.state, sn)
-		if err != nil {
-			return fmt.Errorf("cannot build app set for snap %q: %v", sn.InstanceName(), err)
-		}
-		appSets = append(appSets, set)
-	}
-
-	// Add implicit slots to all snaps
-	for _, snapInfo := range snaps {
-		if err := addImplicitSlots(m.state, snapInfo); err != nil {
-			return err
-		}
 	}
 
 	// The reason the system key is unlinked is to prevent snapd from believing
@@ -1011,12 +991,12 @@ func setConns(st *state.State, conns map[string]*schema.ConnState) {
 // is tracked with SnapState.PendingSecurity,
 // or snap about to be active (pending link-snap) with a done
 // setup-profiles
-func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
+func snapsWithSecurityProfiles(st *state.State) ([]*interfaces.SnapAppSet, error) {
 	all, err := snapstate.All(st)
 	if err != nil {
 		return nil, err
 	}
-	infos := make([]*snap.Info, 0, len(all))
+	appSets := make([]*interfaces.SnapAppSet, 0, len(all))
 	seen := make(map[string]bool, len(all))
 	for instanceName, snapst := range all {
 		if snapst.Active {
@@ -1025,7 +1005,18 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 				logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
 				continue
 			}
-			infos = append(infos, snapInfo)
+
+			if err := addImplicitSlots(st, snapInfo); err != nil {
+				return nil, err
+			}
+
+			set, err := appSetForSnapRevision(st, snapInfo)
+			if err != nil {
+				logger.Noticef("cannot build app set for snap %q: %s", instanceName, err)
+				continue
+			}
+
+			appSets = append(appSets, set)
 			seen[instanceName] = true
 		} else if snapst.PendingSecurity != nil {
 			// we tracked any pending security profiles for the snap
@@ -1040,9 +1031,22 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 				logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
 				continue
 			}
-			infos = append(infos, snapInfo)
+
+			if err := addImplicitSlots(st, snapInfo); err != nil {
+				return nil, err
+			}
+
+			// TODO: add components to SnapState.PendingSecurity
+			set, err := interfaces.NewSnapAppSet(snapInfo, nil)
+			if err != nil {
+				logger.Noticef("cannot build app set for snap %q: %s", instanceName, err)
+				continue
+			}
+
+			appSets = append(appSets, set)
 		}
 	}
+
 	// look at the changes for old snapds and also
 	// the situation that are being installed, so they do not
 	// have SnapState yet
@@ -1082,10 +1086,23 @@ func snapsWithSecurityProfiles(st *state.State) ([]*snap.Info, error) {
 			logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
 			continue
 		}
-		infos = append(infos, snapInfo)
+
+		if err := addImplicitSlots(st, snapInfo); err != nil {
+			return nil, err
+		}
+
+		// this should find any component setups that exist on the task and add
+		// them to the app set
+		set, err := appSetForTask(t, snapInfo)
+		if err != nil {
+			logger.Noticef("cannot build app set for snap %q: %s", instanceName, err)
+			continue
+		}
+
+		appSets = append(appSets, set)
 	}
 
-	return infos, nil
+	return appSets, nil
 }
 
 func resolveSnapIDToName(st *state.State, snapID string) (name string, err error) {

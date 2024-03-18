@@ -226,7 +226,9 @@ func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, ins
 		c.Assert(snapInfo.InstanceName(), Equals, instanceName)
 	}
 
-	s.addPlugsSlots(c, snapInfo)
+	err = s.Repo.AddAppSet(appSet)
+	c.Assert(err, IsNil)
+
 	err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	return snapInfo
@@ -253,7 +255,9 @@ func (s *BackendSuite) InstallSnapWithComponents(c *C, opts interfaces.Confineme
 	appSet, err := interfaces.NewSnapAppSet(snapInfo, componentInfos)
 	c.Assert(err, IsNil)
 
-	s.addPlugsSlots(c, snapInfo)
+	err = s.Repo.AddAppSet(appSet)
+	c.Assert(err, IsNil)
+
 	err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	return snapInfo
@@ -276,8 +280,11 @@ func (s *BackendSuite) UpdateSnapWithComponents(c *C, oldSnapInfo *snap.Info, op
 	appSet, err := interfaces.NewSnapAppSet(snapInfo, componentInfos)
 	c.Assert(err, IsNil)
 
-	s.removePlugsSlots(c, oldSnapInfo)
-	s.addPlugsSlots(c, snapInfo)
+	s.Repo.RemoveSnap(oldSnapInfo.InstanceName())
+
+	err = s.Repo.AddAppSet(appSet)
+	c.Assert(err, IsNil)
+
 	err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	return snapInfo
@@ -302,8 +309,11 @@ func (s *BackendSuite) UpdateSnapMaybeErr(c *C, oldSnapInfo *snap.Info, opts int
 	c.Assert(err, IsNil)
 
 	c.Assert(newSnapInfo.InstanceName(), Equals, oldSnapInfo.InstanceName())
-	s.removePlugsSlots(c, oldSnapInfo)
-	s.addPlugsSlots(c, newSnapInfo)
+	s.Repo.RemoveSnap(oldSnapInfo.InstanceName())
+
+	err = s.Repo.AddAppSet(appSet)
+	c.Assert(err, IsNil)
+
 	err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
 	return newSnapInfo, err
 }
@@ -312,27 +322,5 @@ func (s *BackendSuite) UpdateSnapMaybeErr(c *C, oldSnapInfo *snap.Info, opts int
 func (s *BackendSuite) RemoveSnap(c *C, snapInfo *snap.Info) {
 	err := s.Backend.Remove(snapInfo.InstanceName())
 	c.Assert(err, IsNil)
-	s.removePlugsSlots(c, snapInfo)
-}
-
-func (s *BackendSuite) addPlugsSlots(c *C, snapInfo *snap.Info) {
-	for _, plugInfo := range snapInfo.Plugs {
-		err := s.Repo.AddPlug(plugInfo)
-		c.Assert(err, IsNil)
-	}
-	for _, slotInfo := range snapInfo.Slots {
-		err := s.Repo.AddSlot(slotInfo)
-		c.Assert(err, IsNil)
-	}
-}
-
-func (s *BackendSuite) removePlugsSlots(c *C, snapInfo *snap.Info) {
-	for _, plug := range s.Repo.Plugs(snapInfo.InstanceName()) {
-		err := s.Repo.RemovePlug(plug.Snap.InstanceName(), plug.Name)
-		c.Assert(err, IsNil)
-	}
-	for _, slot := range s.Repo.Slots(snapInfo.InstanceName()) {
-		err := s.Repo.RemoveSlot(slot.Snap.InstanceName(), slot.Name)
-		c.Assert(err, IsNil)
-	}
+	s.Repo.RemoveSnap(snapInfo.InstanceName())
 }

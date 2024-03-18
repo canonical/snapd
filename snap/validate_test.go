@@ -2277,15 +2277,20 @@ func (s *ValidateSuite) TestSimplePrereqTracker(c *C) {
 		c.Assert(repo.AddInterface(i), IsNil)
 	}
 
-	slotSnap := &Info{SuggestedName: "slot-snap"}
+	slotSnap := &Info{SuggestedName: "slot-snap", Slots: map[string]*SlotInfo{}, Version: "1"}
 	barSlot := &SlotInfo{
 		Snap:      slotSnap,
 		Name:      "visual-themes",
 		Interface: "content",
 		Attrs:     map[string]interface{}{"content": "bar"},
 	}
-	err := repo.AddSlot(barSlot)
+	slotSnap.Slots["visual-themes"] = barSlot
+
+	slotSnapAppSet, err := interfaces.NewSnapAppSet(slotSnap, nil)
 	c.Assert(err, IsNil)
+	err = repo.AddAppSet(slotSnapAppSet)
+	c.Assert(err, IsNil)
+
 	providerContentAttrs = prqt.MissingProviderContentTags(info, repo)
 	c.Check(providerContentAttrs, HasLen, 2)
 	c.Check(providerContentAttrs["common-themes"], DeepEquals, []string{"foo"})
