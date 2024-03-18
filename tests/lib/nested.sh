@@ -400,6 +400,13 @@ nested_secboot_sign_gadget() {
     nested_secboot_sign_file "$GADGET_DIR/shim.efi.signed" "$KEY" "$CERT"
 }
 
+nested_secboot_sign_kernel() {
+    local KERNEL_DIR="$1"
+    local KEY="$2"
+    local CERT="$3"
+    nested_secboot_sign_file "$KERNEL_DIR/kernel.efi" "$KEY" "$CERT"
+}
+
 nested_prepare_env() {
     mkdir -p "$NESTED_IMAGES_DIR"
     mkdir -p "$NESTED_RUNTIME_DIR"
