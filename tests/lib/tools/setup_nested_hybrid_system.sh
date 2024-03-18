@@ -55,7 +55,8 @@ run_muinstaller() {
     fi
 
     # build the muinstaller snap
-    snap install snapcraft --candidate --classic
+    # TODO: Consider reverting to latest/candidate when Snapcraft 8.0.5, which includes the fix to deal with LXD 5.21.0 version naming change, becomes available
+    snap install snapcraft --edge --classic
     "${TESTSTOOLS}/lxd-state" prepare-snap
     (cd "${TESTSLIB}/muinstaller" && snapcraft)
 
