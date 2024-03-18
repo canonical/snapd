@@ -54,6 +54,8 @@ debug: |
         echo "cgroup devices after restarting the service:"
         cat "cgroup_device.progs-4"
     fi
+    systemctl status snap.test-snapd-service.test-snapd-service.service || true
+    journalctl -u snap.test-snapd-service.test-snapd-service.service || true
 
 execute: |
     dump_cgroup_device_progs() {
