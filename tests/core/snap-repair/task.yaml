@@ -2,7 +2,7 @@ summary: Ensure that snap-repair works on Ubuntu Core
 
 details: |
     Checks the `snap repair` command is able repair the
-    system and the repairs are lister properly.
+    system and the repairs are listed properly.
 
 environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
