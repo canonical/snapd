@@ -1,9 +1,0 @@
-#!/bin/sh
-
-h=$(snapctl get force-health)
-if [ "$h" ]; then
-    # shellcheck disable=SC2086
-    snapctl set-health $h
-fi
-snapctl set force-health=""
-

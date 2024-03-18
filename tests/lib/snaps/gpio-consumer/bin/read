@@ -1,3 +1,0 @@
-#!/bin/sh
-
-cat /sys/class/gpio/gpio100

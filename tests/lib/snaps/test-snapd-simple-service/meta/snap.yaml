@@ -1,8 +1,0 @@
-name: test-snapd-simple-service
-version: 1.0
-apps:
-    test-snapd-simple-service:
-        command: bin/service
-        daemon: simple
-        restart-delay: 0
-        restart-condition: never

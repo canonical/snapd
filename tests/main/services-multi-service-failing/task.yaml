@@ -1,9 +1,0 @@
-summary: |
-  Check that `snap install` doesn't leave a service running when the install fails.
-
-execute: |
-  echo "when a snap install fails"
-  not "$TESTSTOOLS"/snaps-state install-local test-snapd-multi-service
-
-  echo "we don't leave a service running"
-  not systemctl is-active snap.test-snapd-multi-service.ok.service

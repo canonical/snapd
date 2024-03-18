@@ -1,8 +1,0 @@
-summary: verify that python3 works in 18.04
-
-systems: [ubuntu-18.04-64]
-
-execute: |
-    echo "Install snaps"
-    snap install test-snapd-sh-core22
-    test-snapd-sh-core22.sh -c 'python3 -c "import ssl;print(ssl)"'|MATCH ssl.py

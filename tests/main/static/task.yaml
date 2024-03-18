@@ -1,9 +1,0 @@
-summary: Check that snapd can be built without cgo
-
-# debian-sid uses a different packaging with quilt patches applied on top
-# of the verbatim tree
-systems: [-ubuntu-core-*, -debian-sid-*]
-
-execute: |
-    CGO_ENABLED=0 go build -o snapd.static github.com/snapcore/snapd/cmd/snapd
-    ldd snapd.static 2>&1 | MATCH 'not a dynamic executable'

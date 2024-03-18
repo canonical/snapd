@@ -1,6 +1,0 @@
-#!/bin/sh
-#
-# This script is deprecated
-
-echo "DEPRECATED: $0"
-echo "$@"

@@ -1,7 +1,0 @@
-architecture: "x86_64"
-creation_date: 1597313423 # To get current date in Unix time, use `date +%s` command
-properties:
-  architecture: "x86_64"
-  description: "Ubuntu 20.04 preseeded for test"
-  os: "ubuntu"
-  release: "focal"

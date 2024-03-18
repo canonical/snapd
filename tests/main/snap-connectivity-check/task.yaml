@@ -1,5 +1,0 @@
-summary: Check that "snap connectivity-check" works
-
-execute: |
-    echo "Ensure the snap connectivity-check command works"
-    snap debug connectivity | MATCH " * PASS"

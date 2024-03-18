@@ -1,6 +1,0 @@
-[Desktop Entry]
-Name=test-snapd-desktop.cmd
-Comment=A desktop file for test-snapd-desktop.cmd
-Exec=test-snapd-desktop.cmd
-Terminal=true
-Type=Application

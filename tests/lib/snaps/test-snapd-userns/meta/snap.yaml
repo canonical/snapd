@@ -1,8 +1,0 @@
-name: test-snapd-userns
-summary: A no-strings-attached, no-fuss shell for writing tests
-version: 1.0
-
-apps:
-    with-userns-plug:
-        command: bin/sh
-        plugs: [userns]

@@ -1,9 +1,0 @@
-name: hardware-observe-consumer
-version: 1.0
-summary: Basic hardware-observe consumer snap
-description: A basic snap declaring a plug on hardware-observe
-
-apps:
-    consumer:
-        command: bin/consumer
-        plugs: [hardware-observe]

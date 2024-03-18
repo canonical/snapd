@@ -1,8 +1,0 @@
-source lib.exp0
-
-# buy completes remote snaps only
-# chat "snap buy \t\t" "snap buy ??$"
-chat "snap buy test-snapd-t\t\t" "test-snapd-thumbnailer*test-snapd-tools"
-
-cancel
-brexit

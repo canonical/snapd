@@ -1,6 +1,0 @@
-name: test-disconnect
-version: 1
-summary: Basic snap with a failing disconnect hook
-
-plugs:
-  network:

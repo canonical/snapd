@@ -1,7 +1,0 @@
-name: SNAPNAME
-summary: generic snap
-version: '1.0'
-
-apps:
-  test-app:
-    command: bin/sh

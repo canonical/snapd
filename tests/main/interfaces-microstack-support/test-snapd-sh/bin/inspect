@@ -1,4 +1,0 @@
-#! /bin/sh
-
-cat /proc/self/cgroup > "$SNAP_COMMON/proc_self_cgroup"
-while true; do echo "-- still running"; sleep 1; done

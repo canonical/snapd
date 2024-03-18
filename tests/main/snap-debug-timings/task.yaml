@@ -1,8 +1,0 @@
-summary: Ensure `snap debug change-timings` works
-
-execute: |
-    echo "When a snap gets installed"
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
-
-    echo "There is timing data available for it"
-    snap debug timings --last=install | MATCH 'Done +[0-9]+'

@@ -1,16 +1,6 @@
-# 18.02.2021: temporarily disabled as labeler keeps removing the labels
-# possible related issues:
-# - https://github.com/actions/labeler/issues/112
-# - https://github.com/actions/labeler/issues/104
+# Add 'needs tests' label to either any change on remote, tools or utils dir
+needs tests:
+  - remote/**/*
+  - tools/**/*
+  - utils/**/*
 
-# Add 'Run nested -auto-' label to either any change on nested lib or nested test
-Run nested -auto-:
-  - tests/lib/nested.sh
-  - tests/nested/**/*
-
-# Add 'Needs Documentation -auto-' label to indicate a change needs changes in the docs
-Needs Documentation -auto-:
-  - cmd/snap/**/*"
-  - daemon/**/*
-  - overlord/hookstate/ctlcmd/**/*
-  - overlord/configstate/configcore/**/*

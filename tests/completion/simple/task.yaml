@@ -1,8 +1,0 @@
-summary: simple completion
-
-execute: |
-  d="$PWD"
-  #shellcheck disable=SC1090
-  source "${SPREAD_PATH}/${SPREAD_SUITE}/${SPREAD_VARIANT}.vars"
-  export _OUT0 _OUT1 _OUT2 _KEY1 _KEY2 _COMP
-  expect -d -f "$d"/task.exp

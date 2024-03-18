@@ -1,4 +1,0 @@
-name: test-snapd-invalid-base
-base: test-snapd-tools
-version: 1.0
-summary: A test snap that declares a non-base snap as a base

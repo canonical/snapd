@@ -1,6 +1,0 @@
-defaults:
-  system:
-    refresh:
-      hold: "HOLD-TIME"
-    journal:
-      persistent: true

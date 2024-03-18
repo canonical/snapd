@@ -1,8 +1,0 @@
-summary: Check that the version is not dirty
-
-execute: |
-    # TODO: fix dirty version number on riscv
-    echo "Ensure the version number is not 'dirty'"
-    if not uname -m | MATCH riscv64; then
-        snap version | NOMATCH dirty
-    fi

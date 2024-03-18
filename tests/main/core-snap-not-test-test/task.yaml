@@ -1,8 +1,0 @@
-summary: Files inside the core snap are not owned by test.test
-
-debug: |
-    find /snap/core/current/ -user test || true
-
-execute: |
-    echo "Check there are not files in /snap/core/current/ owned by test user"
-    [ "$(find /snap/core/current/ -user test | wc -l)" = 0 ]

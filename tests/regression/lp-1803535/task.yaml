@@ -1,8 +1,0 @@
-summary: regression test for https://bugs.launchpad.net/snapd/+bug/1803535
-
-prepare: |
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-lp-1803535
-
-execute: |
-    # If we can construct the layout and execute /bin/true we are fine.
-    test-snapd-lp-1803535.sh -c /bin/true

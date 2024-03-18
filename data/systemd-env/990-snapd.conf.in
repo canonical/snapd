@@ -1,2 +1,0 @@
-PATH=$PATH:@SNAP_MOUNT_DIR@/bin
-XDG_DATA_DIRS=${XDG_DATA_DIRS:-/usr/local/share/:/usr/share/}:/var/lib/snapd/desktop

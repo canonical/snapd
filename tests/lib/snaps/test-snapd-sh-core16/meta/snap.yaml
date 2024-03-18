@@ -1,7 +1,0 @@
-name: test-snapd-sh-core16
-version: 1.0
-architectures: ["all"]
-base: core16
-apps:
-    sh:
-        command: bin/sh

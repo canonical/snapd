@@ -1,4 +1,0 @@
-defaults:
-   system:
-     resilience:
-       vitality-hint: "unrelated-snap,pc,test-snapd-with-configure,test-snapd-with-configure-core18"

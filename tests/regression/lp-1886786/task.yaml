@@ -1,8 +1,0 @@
-summary: regression test for LP:#1886786
-
-prepare: |
-  "$TESTSTOOLS"/snaps-state install-local test-snapd-app-with-test-name
-
-execute: |
-  echo "running the command with .test suffix does not panic"
-  test-snapd-app-with-test-name.test

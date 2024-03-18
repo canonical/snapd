@@ -1,6 +1,0 @@
-name: test-snap
-version: 1.0
-
-apps:
-  sh:
-    command: bin/sh

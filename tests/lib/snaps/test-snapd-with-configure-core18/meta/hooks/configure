@@ -1,3 +1,0 @@
-#!/bin/sh -e
-
-touch "$SNAP_COMMON"/configure-ran

@@ -1,8 +1,0 @@
-name: test-strict-cgroup
-version: 1.0
-summary: Basic strict cgroup tester
-confinement: strict
-
-apps:
-  sh:
-    command: bin/sh

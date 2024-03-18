@@ -1,6 +1,0 @@
-name:    network
-summary: allows access to the network
-plugs:
-  - network-consumer
-slots:
-  - core

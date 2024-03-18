@@ -1,9 +1,0 @@
-name: test-snapd-xdg-settings
-version: 1.0
-apps:
-  xdg-settings-wrapper:
-    command: bin/xdg-settings-wrapper
-    plugs: [ desktop ]
-  browser:
-    command: bin/browser
-    plugs: [ desktop ]

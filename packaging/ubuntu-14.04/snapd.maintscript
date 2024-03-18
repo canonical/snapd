@@ -1,6 +1,0 @@
-# we used to ship a custom grub config that is no longer needed
-rm_conffile /etc/grub.d/09_snappy 1.7.3ubuntu1
-rm_conffile /etc/ld.so.conf.d/snappy.conf 2.0.7~
-# on trusty /etc/apparmor.d/usr.lib.snapd.snap-confine was never renamed
-# so we don't need to handle this file here (unlike in xenial+)
-rm_conffile /etc/sudoers.d/99-snapd.conf 2.50~

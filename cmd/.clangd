@@ -1,2 +1,0 @@
-CompileFlags:
-  Add: [-I/usr/include/glib-2.0, -Wall, -Wextra, -Wmissing-prototypes, -Wstrict-prototypes, -Wno-missing-field-initializers, -Wno-unused-parameter]

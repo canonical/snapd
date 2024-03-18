@@ -1,1 +1,0 @@
-tar-ignore = "tests/lib/cache/*"

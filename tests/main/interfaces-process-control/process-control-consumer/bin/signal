@@ -1,6 +1,0 @@
-#!/bin/bash
-
-signal="$1"
-pid="$2"
-
-kill -s "$signal" "$pid"

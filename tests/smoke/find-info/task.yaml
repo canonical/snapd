@@ -1,9 +1,0 @@
-summary: Check that find works correctly
-
-execute: |
-  echo "Ensure 'snap find' works"
-  snap find test-snapd-tools | MATCH ^test-snapd-tools
-
-  echo "Ensure we can see useful info for it"
-  snap info test-snapd-tools | MATCH '^name:\ +test-snapd-tools'
-  

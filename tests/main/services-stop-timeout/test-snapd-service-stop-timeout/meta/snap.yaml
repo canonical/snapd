@@ -1,8 +1,0 @@
-name: test-snapd-service-stop-timeout
-version: 0.1
-apps:
-  svc:
-    daemon: forking
-    command: forking.sh
-    stop-timeout: 10s
-    stop-command: staaap.sh

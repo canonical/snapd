@@ -1,5 +1,0 @@
-summary: the mountinfo.query can be used in tests
-execute: |
-    # 2>&1 is required for some versions of python that chose
-    # to print the version to stderr, crazy!
-    mountinfo.query --version 2>&1 | MATCH 1.0

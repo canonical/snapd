@@ -1,9 +1,0 @@
-name: test-snapd-fwupd
-version: 1.0
-summary: Basic fwupd interface plug test snap
-description: A based snap to access the fwupd interface
-
-apps:
-    get-version:
-        command: bin/get-version.sh
-        plugs: [fwupd]

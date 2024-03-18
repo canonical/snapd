@@ -1,8 +1,0 @@
-#!/bin/sh
-
-set -e
-
-while true; do
-      echo looping...
-      sleep 5
-done

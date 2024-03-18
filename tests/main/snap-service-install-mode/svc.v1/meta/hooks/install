@@ -1,5 +1,0 @@
-#!/bin/sh
-
-set -e
-
-snapctl start --enable "$SNAP_NAME".svc-enabled-by-hook

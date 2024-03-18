@@ -1,4 +1,0 @@
-[D-BUS Service]
-Name=io.snapcraft.Settings
-Exec=@bindir@/snap userd
-AssumedAppArmorLabel=unconfined

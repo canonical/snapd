@@ -1,9 +1,0 @@
-name: test-launcher
-version: 1.0
-summary: Basic desktop launcher snap
-description: A basic snap that attempts to launch other snaps
-
-apps:
-  test-launcher:
-    command: bin/launcher.sh
-    plugs: [desktop-launch]

@@ -1,8 +1,0 @@
-name: test-strict-cgroup-helper
-version: 1.0
-summary: snap-device-helper tester
-confinement: strict
-
-apps:
-  sh:
-    command: bin/sh
