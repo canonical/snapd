@@ -182,8 +182,10 @@ func (s *PwmInterfaceSuite) TestApparmorConnectedPlugIgnoresMissingSymlink(c *C)
 		return "", os.ErrNotExist
 	})
 
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.gadgetPlug.Snap(), nil))
-	err := spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetPwmSlot)
+	appSet, err := interfaces.NewSnapAppSet(s.gadgetPlug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
+	err = spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetPwmSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 	c.Assert(log.String(), testutil.Contains, "cannot find not existing pwm chipbase /sys/class/pwm/pwmchip10")
@@ -200,8 +202,10 @@ func (s *PwmInterfaceSuite) TestApparmorConnectedPlug(c *C) {
 		return "/sys/dev/foo/class/pwm/pwmchip10", nil
 	})
 
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.gadgetPlug.Snap(), nil))
-	err := spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetPwmSlot)
+	appSet, err := interfaces.NewSnapAppSet(s.gadgetPlug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
+	err = spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetPwmSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.SnippetForTag("snap.my-device.svc"), testutil.Contains, `/sys/dev/foo/class/pwm/pwmchip10/pwm100/* rwk`)
 }

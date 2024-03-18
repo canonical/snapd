@@ -156,9 +156,10 @@ func (s *backendSuite) TestSecurityIsStable(c *C) {
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
-		appSet := interfaces.NewSnapAppSet(snapInfo, nil)
+		appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+		c.Assert(err, IsNil)
 		s.udevadmCmd.ForgetCalls()
-		err := s.Backend.Setup(appSet, opts, s.Repo, s.meas)
+		err = s.Backend.Setup(appSet, opts, s.Repo, s.meas)
 		c.Assert(err, IsNil)
 		// rules are not re-loaded when nothing changes
 		c.Check(s.udevadmCmd.Calls(), HasLen, 0)

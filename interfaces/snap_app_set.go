@@ -17,8 +17,13 @@ type SnapAppSet struct {
 }
 
 // NewSnapAppSet returns a new SnapAppSet for the given snap.Info.
-func NewSnapAppSet(info *snap.Info, components []*snap.ComponentInfo) *SnapAppSet {
-	return &SnapAppSet{info: info, components: components}
+func NewSnapAppSet(info *snap.Info, components []*snap.ComponentInfo) (*SnapAppSet, error) {
+	for _, c := range components {
+		if c.Component.SnapName != info.SnapName() {
+			return nil, fmt.Errorf("internal error: snap %q does not own component %q", info.SnapName(), c.Component)
+		}
+	}
+	return &SnapAppSet{info: info, components: components}, nil
 }
 
 // Info returns the snap.Info that this SnapAppSet is based on.

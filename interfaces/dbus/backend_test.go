@@ -321,12 +321,13 @@ var expectedDBusConfigFiles = []string{
 
 func (s *backendSuite) testSetupWritesDbusFilesForCoreOrSnapd(c *C, coreOrSnapdYaml string) {
 	coreOrSnapdInfo := snaptest.MockInfo(c, coreOrSnapdYaml, &snap.SideInfo{Revision: snap.R(2)})
-	coreOrSnapdAppSet := interfaces.NewSnapAppSet(coreOrSnapdInfo, nil)
+	coreOrSnapdAppSet, err := interfaces.NewSnapAppSet(coreOrSnapdInfo, nil)
+	c.Check(err, IsNil)
 
 	makeFakeDbusConfigAndUserdServiceFiles(c, coreOrSnapdInfo)
 
 	// Config files are not copied if we haven't reexecuted
-	err := s.Backend.Setup(coreOrSnapdAppSet, interfaces.ConfinementOptions{}, s.Repo, nil)
+	err = s.Backend.Setup(coreOrSnapdAppSet, interfaces.ConfinementOptions{}, s.Repo, nil)
 	c.Assert(err, IsNil)
 
 	for _, fn := range expectedDBusConfigFiles {
@@ -362,7 +363,8 @@ func (s *backendSuite) TestSetupWritesDbusFilesForSnapd(c *C) {
 
 func (s *backendSuite) TestSetupDeletesDbusFilesWhenServiceRemoved(c *C) {
 	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.R(2)})
-	snapdAppSet := interfaces.NewSnapAppSet(snapdInfo, nil)
+	snapdAppSet, err := interfaces.NewSnapAppSet(snapdInfo, nil)
+	c.Check(err, IsNil)
 	makeFakeDbusConfigAndUserdServiceFiles(c, snapdInfo)
 
 	vestigialConfigFile := "/usr/share/dbus-1/services/io.snapcraft.Prompt.service"
@@ -376,7 +378,7 @@ func (s *backendSuite) TestSetupDeletesDbusFilesWhenServiceRemoved(c *C) {
 	}
 
 	// Config files are not modified if we haven't reexecuted
-	err := s.Backend.Setup(snapdAppSet, interfaces.ConfinementOptions{}, s.Repo, nil)
+	err = s.Backend.Setup(snapdAppSet, interfaces.ConfinementOptions{}, s.Repo, nil)
 	c.Assert(err, IsNil)
 
 	for _, fn := range expectedDBusConfigFiles {
@@ -412,11 +414,13 @@ func (s *backendSuite) TestSetupWritesDbusFilesBothSnapdAndCoreInstalled(c *C) {
 
 	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(2)})
 	makeFakeDbusConfigAndUserdServiceFiles(c, coreInfo)
-	coreAppSet := interfaces.NewSnapAppSet(coreInfo, nil)
+	coreAppSet, err := interfaces.NewSnapAppSet(coreInfo, nil)
+	c.Check(err, IsNil)
 
 	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.R(3)})
 	makeFakeDbusConfigAndUserdServiceFiles(c, snapdInfo)
-	snapdAppSet := interfaces.NewSnapAppSet(snapdInfo, nil)
+	snapdAppSet, err := interfaces.NewSnapAppSet(snapdInfo, nil)
+	c.Check(err, IsNil)
 
 	restore := snapdtool.MockOsReadlink(func(string) (string, error) {
 		return filepath.Join(snapdInfo.MountDir(), "/usr/lib/snapd/snapd"), nil

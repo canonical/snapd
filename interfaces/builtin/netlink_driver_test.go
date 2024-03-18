@@ -251,19 +251,25 @@ func (s *NetlinkDriverInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *NetlinkDriverInterfaceSuite) TestApparmorConnectedPlug(c *C) {
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.appToCorePlugDriver.Snap(), nil))
+	appSet, err := interfaces.NewSnapAppSet(s.appToCorePlugDriver.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.appToCorePlugDriver, s.gadgetNetlinkSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.netlink-test"})
 	c.Assert(spec.SnippetForTag("snap.client-snap.netlink-test"), testutil.Contains, `network netlink,`)
 }
 
 func (s *NetlinkDriverInterfaceSuite) TestSecCompConnectedPlug(c *C) {
-	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.appToCorePlugDriver.Snap(), nil))
+	appSet, err := interfaces.NewSnapAppSet(s.appToCorePlugDriver.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.appToCorePlugDriver, s.osNetlinkSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.netlink-test"})
 	c.Assert(spec.SnippetForTag("snap.client-snap.netlink-test"), testutil.Contains, `socket AF_NETLINK - 777`)
 
-	spec2 := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.appToGadgetPlugDriver.Snap(), nil))
+	appSet, err = interfaces.NewSnapAppSet(s.appToGadgetPlugDriver.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec2 := seccomp.NewSpecification(appSet)
 	c.Assert(spec2.AddConnectedPlug(s.iface, s.appToGadgetPlugDriver, s.gadgetNetlinkSlot), IsNil)
 	c.Assert(spec2.SecurityTags(), DeepEquals, []string{"snap.client-snap.netlink-test"})
 	c.Assert(spec2.SnippetForTag("snap.client-snap.netlink-test"), testutil.Contains, `socket AF_NETLINK - 100`)

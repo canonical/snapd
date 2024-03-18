@@ -175,7 +175,13 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 	// TODO: should snapsWithSecurityProfiles return app sets instead of snap infos?
 	appSets := make([]*interfaces.SnapAppSet, 0, len(snaps))
 	for _, sn := range snaps {
-		appSets = append(appSets, interfaces.NewSnapAppSet(sn, nil))
+
+		set, err := interfaces.NewSnapAppSet(sn, nil)
+		if err != nil {
+			return err
+		}
+
+		appSets = append(appSets, set)
 	}
 
 	// Add implicit slots to all snaps

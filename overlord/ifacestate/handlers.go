@@ -117,7 +117,10 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 			return err
 		}
 
-		appSet := interfaces.NewSnapAppSet(affectedSnapInfo, nil)
+		appSet, err := interfaces.NewSnapAppSet(affectedSnapInfo, nil)
+		if err != nil {
+			return err
+		}
 
 		opts, err := buildConfinementOptions(st, affectedSnapInfo, snapst.Flags)
 		if err != nil {
@@ -268,8 +271,13 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 	affectedSnapSets := make([]*interfaces.SnapAppSet, 0, len(affectedSet))
 	confinementOpts := make([]interfaces.ConfinementOptions, 0, len(affectedSet))
 
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+	if err != nil {
+		return err
+	}
+
 	// For the snap being setup we know exactly what was requested.
-	affectedSnapSets = append(affectedSnapSets, interfaces.NewSnapAppSet(snapInfo, nil))
+	affectedSnapSets = append(affectedSnapSets, appSet)
 	confinementOpts = append(confinementOpts, opts)
 
 	// For remaining snaps we need to interrogate the state.
@@ -291,7 +299,12 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 			return err
 		}
 
-		affectedSnapSets = append(affectedSnapSets, interfaces.NewSnapAppSet(snapInfo, nil))
+		set, err := interfaces.NewSnapAppSet(snapInfo, nil)
+		if err != nil {
+			return err
+		}
+
+		affectedSnapSets = append(affectedSnapSets, set)
 		confinementOpts = append(confinementOpts, opts)
 	}
 
@@ -549,7 +562,10 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 	}
 
 	// TODO: should the repo return an app set here?
-	plugAppSet := interfaces.NewSnapAppSet(plug.Snap, nil)
+	plugAppSet, err := interfaces.NewSnapAppSet(plug.Snap, nil)
+	if err != nil {
+		return err
+	}
 
 	slot := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	if slot == nil {
@@ -558,7 +574,10 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 	}
 
 	// TODO: should the repo return an app set here?
-	slotAppSet := interfaces.NewSnapAppSet(slot.Snap, nil)
+	slotAppSet, err := interfaces.NewSnapAppSet(slot.Snap, nil)
+	if err != nil {
+		return err
+	}
 
 	// attributes are always present, even if there are no hooks (they're initialized by Connect).
 	plugDynamicAttrs, slotDynamicAttrs, err := getDynamicHookAttributes(task)
@@ -725,7 +744,10 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 
 		// TODO: we do this a lot, would it be possible for something like a
 		// SnapState.CurrentAppSet()?
-		appSet := interfaces.NewSnapAppSet(snapInfo, nil)
+		appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+		if err != nil {
+			return err
+		}
 
 		opts, err := buildConfinementOptions(st, snapInfo, snapst.Flags)
 		if err != nil {
@@ -832,8 +854,15 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 		return fmt.Errorf("snap %q has no %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	}
 
-	plugAppSet := interfaces.NewSnapAppSet(plug.Snap, nil)
-	slotAppSet := interfaces.NewSnapAppSet(slot.Snap, nil)
+	plugAppSet, err := interfaces.NewSnapAppSet(plug.Snap, nil)
+	if err != nil {
+		return err
+	}
+
+	slotAppSet, err := interfaces.NewSnapAppSet(slot.Snap, nil)
+	if err != nil {
+		return err
+	}
 
 	_, err = m.repo.Connect(connRef, nil, oldconn.DynamicPlugAttrs, nil, oldconn.DynamicSlotAttrs, nil)
 	if err != nil {
@@ -917,13 +946,21 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	if plug == nil {
 		return fmt.Errorf("internal error: snap %q has no %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
 	}
-	plugAppSet := interfaces.NewSnapAppSet(plug.Snap, nil)
+
+	plugAppSet, err := interfaces.NewSnapAppSet(plug.Snap, nil)
+	if err != nil {
+		return err
+	}
 
 	slot := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	if slot == nil {
 		return fmt.Errorf("internal error: snap %q has no %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	}
-	slotAppSet := interfaces.NewSnapAppSet(slot.Snap, nil)
+
+	slotAppSet, err := interfaces.NewSnapAppSet(slot.Snap, nil)
+	if err != nil {
+		return err
+	}
 
 	var plugSnapst snapstate.SnapState
 	err = snapstate.Get(st, plugRef.Snap, &plugSnapst)

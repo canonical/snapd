@@ -102,7 +102,9 @@ slots:
 }
 
 func (s *uioInterfaceSuite) TestUDevSpec(c *C) {
-	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget0), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# uio
@@ -119,7 +121,9 @@ func (s *uioInterfaceSuite) TestAppArmorConnectedPlugIgnoresMissingConfigFile(c 
 		return "", os.ErrNotExist
 	})
 
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	// Simulate two UIO connections.
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget0), IsNil)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget1), IsNil)
@@ -145,7 +149,9 @@ func (s *uioInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 		return target, nil
 	})
 
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	// Simulate two UIO connections.
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget0), IsNil)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slotGadget1), IsNil)

@@ -108,8 +108,10 @@ apps:
 		clientYaml := strings.ReplaceAll(clientYamlTmpl, "##QCIPC##", tc.tag)
 		s.plug, s.plugInfo = MockConnectedPlug(c, clientYaml, nil, "qc-router")
 
-		spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
-		err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+		appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+		c.Assert(err, IsNil)
+		spec := apparmor.NewSpecification(appSet)
+		err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
@@ -235,7 +237,9 @@ func (s *QrtrInterfaceSuite) TestSanitizePlugConnectionMissingAppArmorSandboxFea
 }
 
 func (s *QrtrInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
+	appSet, err := interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 
@@ -246,7 +250,9 @@ func (s *QrtrInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.server.app"), testutil.Contains, `unix (accept, send, receive) type=seqpacket addr="@\x00\x00" peer=(label="snap.client.app"),`)
 	c.Assert(spec.SnippetForTag("snap.server.app"), testutil.Contains, `unix (bind, listen) type=seqpacket addr="@\x00\x00",`)
 
-	spec = apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plugInfo.Snap, nil))
+	appSet, err = interfaces.NewSnapAppSet(s.plugInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	spec = apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client.app"})
@@ -258,7 +264,9 @@ func (s *QrtrInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *QrtrInterfaceSuite) TestSecCompSpec(c *C) {
-	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.slotInfo.Snap, nil))
+	appSet, err := interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	spec := seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.server.app"})
@@ -320,8 +328,10 @@ apps:
     plugs: [qualcomm-ipc-router]
 `, nil, "qualcomm-ipc-router")
 
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
-	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
+	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err.Error(), Equals, `"qcipc" attribute not allowed if connecting to a system slot`)
 }
 
@@ -360,7 +370,9 @@ func (s *QrtrInterfaceCompatSuite) TestSanitizePlugConnectionMissingNoAppArmor(c
 }
 
 func (s *QrtrInterfaceCompatSuite) TestAppArmorSpec(c *C) {
-	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "network qipcrtr,\n")
@@ -368,7 +380,9 @@ func (s *QrtrInterfaceCompatSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *QrtrInterfaceCompatSuite) TestSecCompSpec(c *C) {
-	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap(), nil))
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "bind\n")
