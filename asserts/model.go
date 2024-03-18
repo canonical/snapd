@@ -119,7 +119,7 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade
 		if !ok {
 			return nil, fmt.Errorf(wrongHeaderType)
 		}
-		modelSnap, err := checkModelSnap(snap, grade, modelIsClassic)
+		modelSnap, err := checkModelSnap(snap, base, grade, modelIsClassic)
 		if err != nil {
 			return nil, err
 		}
@@ -137,54 +137,31 @@ func checkExtendedSnaps(extendedSnaps interface{}, base string, grade ModelGrade
 			seenIDs[snapID] = modelSnap.Name
 		}
 
-		essential := false
 		switch {
 		case modelSnap.SnapType == "snapd":
 			// TODO: allow to be explicit only in grade: dangerous?
-			essential = true
 			if modelSnaps.snapd != nil {
 				return nil, fmt.Errorf("cannot specify multiple snapd snaps: %q and %q", modelSnaps.snapd.Name, modelSnap.Name)
 			}
 			modelSnaps.snapd = modelSnap
 		case modelSnap.SnapType == "kernel":
-			essential = true
 			if modelSnaps.kernel != nil {
 				return nil, fmt.Errorf("cannot specify multiple kernel snaps: %q and %q", modelSnaps.kernel.Name, modelSnap.Name)
 			}
 			modelSnaps.kernel = modelSnap
 		case modelSnap.SnapType == "gadget":
-			essential = true
 			if modelSnaps.gadget != nil {
 				return nil, fmt.Errorf("cannot specify multiple gadget snaps: %q and %q", modelSnaps.gadget.Name, modelSnap.Name)
 			}
 			modelSnaps.gadget = modelSnap
 		case modelSnap.Name == base:
-			essential = true
 			if modelSnap.SnapType != "base" {
 				return nil, fmt.Errorf(`boot base %q must specify type "base", not %q`, base, modelSnap.SnapType)
 			}
 			modelSnaps.base = modelSnap
 		}
 
-		if essential {
-			if len(modelSnap.Modes) != 0 || modelSnap.Presence != "" {
-				return nil, fmt.Errorf("essential snaps are always available, cannot specify modes or presence for snap %q", modelSnap.Name)
-			}
-			modelSnap.Modes = essentialSnapModes
-		}
-
-		if len(modelSnap.Modes) == 0 {
-			modelSnap.Modes = defaultModes
-		}
-		if modelSnap.Classic && (len(modelSnap.Modes) != 1 || modelSnap.Modes[0] != "run") {
-			return nil, fmt.Errorf("classic snap %q not allowed outside of run mode: %v", modelSnap.Name, modelSnap.Modes)
-		}
-
-		if modelSnap.Presence == "" {
-			modelSnap.Presence = "required"
-		}
-
-		if !essential {
+		if !isEssentialSnap(modelSnap.Name, modelSnap.SnapType, base) {
 			modelSnaps.snapsNoEssential = append(modelSnaps.snapsNoEssential, modelSnap)
 		}
 	}
@@ -198,7 +175,38 @@ var (
 	validSnapPresences = []string{"required", "optional"}
 )
 
-func checkModelSnap(snap map[string]interface{}, grade ModelGrade, modelIsClassic bool) (*ModelSnap, error) {
+func isEssentialSnap(snapName, snapType, modelBase string) bool {
+	switch snapType {
+	case "snapd", "kernel", "gadget":
+		return true
+	}
+	if snapName == modelBase {
+		return true
+	}
+	return false
+}
+
+func checkModesForSnap(snap map[string]interface{}, isEssential bool, what string) ([]string, error) {
+	modes, err := checkStringListInMap(snap, "modes", fmt.Sprintf("%q %s", "modes", what),
+		validSnapMode)
+	if err != nil {
+		return nil, err
+	}
+	if isEssential {
+		if len(modes) != 0 {
+			return nil, fmt.Errorf("essential snaps are always available, cannot specify modes %s", what)
+		}
+		modes = essentialSnapModes
+	}
+
+	if len(modes) == 0 {
+		modes = defaultModes
+	}
+
+	return modes, nil
+}
+
+func checkModelSnap(snap map[string]interface{}, modelBase string, grade ModelGrade, modelIsClassic bool) (*ModelSnap, error) {
 	name, err := checkNotEmptyStringWhat(snap, "name", "of snap")
 	if err != nil {
 		return nil, err
@@ -236,7 +244,22 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade, modelIsClassi
 		return nil, fmt.Errorf("type of snap %q must be one of %s", name, strings.Join(validSnapTypes, "|"))
 	}
 
-	modes, err := checkStringListInMap(snap, "modes", fmt.Sprintf("%q %s", "modes", what), validSnapMode)
+	presence, err := checkOptionalStringWhat(snap, "presence", what)
+	if err != nil {
+		return nil, err
+	}
+	if presence != "" && !strutil.ListContains(validSnapPresences, presence) {
+		return nil, fmt.Errorf("presence of snap %q must be one of required|optional", name)
+	}
+	essential := isEssentialSnap(name, typ, modelBase)
+	if essential && presence != "" {
+		return nil, fmt.Errorf("essential snaps are always available, cannot specify presence for snap %q", name)
+	}
+	if presence == "" {
+		presence = "required"
+	}
+
+	modes, err := checkModesForSnap(snap, essential, what)
 	if err != nil {
 		return nil, err
 	}
@@ -256,14 +279,6 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade, modelIsClassi
 		return nil, fmt.Errorf("default channel for snap %q must specify a track", name)
 	}
 
-	presence, err := checkOptionalStringWhat(snap, "presence", what)
-	if err != nil {
-		return nil, err
-	}
-	if presence != "" && !strutil.ListContains(validSnapPresences, presence) {
-		return nil, fmt.Errorf("presence of snap %q must be one of required|optional", name)
-	}
-
 	isClassic, err := checkOptionalBoolWhat(snap, "classic", what)
 	if err != nil {
 		return nil, err
@@ -273,6 +288,10 @@ func checkModelSnap(snap map[string]interface{}, grade ModelGrade, modelIsClassi
 	}
 	if isClassic && typ != "app" {
 		return nil, fmt.Errorf("snap %q cannot be classic with type %q instead of app", name, typ)
+	}
+	if isClassic && (len(modes) != 1 || modes[0] != "run") {
+		return nil, fmt.Errorf("classic snap %q not allowed outside of run mode: %v",
+			name, modes)
 	}
 
 	return &ModelSnap{
