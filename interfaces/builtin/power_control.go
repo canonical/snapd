@@ -51,8 +51,8 @@ const powerControlConnectedPlugAppArmor = `
 /sys/module/lpm_levels/parameters/sleep_disabled rw,
 
 # Needed for ACPI modules to read and set values for battery charging thresholds
-/sys/class/power_supply/BAT{,*}/charge_start_threshold rw,
-/sys/class/power_supply/BAT{,*}/charge_stop_threshold rw,
+/sys/devices/**/power_supply/BAT[0-9]*/charge_start_threshold rw,
+/sys/devices/**/power_supply/BAT[0-9]*/charge_stop_threshold rw,
 `
 
 func init() {
