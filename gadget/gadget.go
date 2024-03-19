@@ -684,6 +684,12 @@ func LoadDiskVolumesDeviceTraits(dir string) (map[string]DiskVolumeDeviceTraits,
 		return nil, err
 	}
 
+	if len(b) == 0 {
+		// if the file is empty, it is safe to ignore it
+		logger.Noticef("WARNING: ignoring zero sized device traits file\n")
+		return nil, nil
+	}
+
 	if err := json.Unmarshal(b, &mapping); err != nil {
 		return nil, err
 	}
