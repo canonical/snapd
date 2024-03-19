@@ -153,7 +153,7 @@ parts:
       fi
   apparmor:
     plugin: autotools
-    build-packages: [bison, flex, gettext, g++, pkg-config, wget]
+    build-packages: [autoconf-archive, bison, flex, gettext, g++, pkg-config, wget]
     source: https://gitlab.com/apparmor/apparmor/-/archive/v4.0.0-beta3/apparmor-v4.0.0-beta3.tar.gz
     override-build: |
       cd $SNAPCRAFT_PART_BUILD/libraries/libapparmor
