@@ -582,7 +582,7 @@ func (s *commonSuite) TestGetHighestPrecedencePattern(c *C) {
 		{
 			[]string{
 				"/foo/bar/**/baz",
-				"/foo/bar/**/*",
+				"/foo/bar/**",
 			},
 			"/foo/bar/**/baz",
 		},
@@ -610,7 +610,7 @@ func (s *commonSuite) TestGetHighestPrecedencePattern(c *C) {
 		{
 			[]string{
 				"/foo/bar/**/*baz",
-				"/foo/bar/**/*",
+				"/foo/bar/**",
 			},
 			"/foo/bar/**/*baz",
 		},
@@ -620,13 +620,6 @@ func (s *commonSuite) TestGetHighestPrecedencePattern(c *C) {
 				"/foo/bar*/**/baz",
 			},
 			"/foo/bar/**/*baz",
-		},
-		{
-			[]string{
-				"/foo/bar/**/",
-				"/foo/bar/**/*",
-			},
-			"/foo/bar/**/",
 		},
 		{
 			[]string{
@@ -641,13 +634,6 @@ func (s *commonSuite) TestGetHighestPrecedencePattern(c *C) {
 				"/foo/bar*/**/baz/",
 			},
 			"/foo/bar/**/",
-		},
-		{
-			[]string{
-				"/foo/bar/**/*",
-				"/foo/bar*/**/baz/",
-			},
-			"/foo/bar/**/*",
 		},
 		{
 			[]string{
@@ -784,6 +770,32 @@ func (s *commonSuite) TestGetHighestPrecedencePattern(c *C) {
 		c.Check(err, IsNil, Commentf("Error occurred during test case %d:\n%+v", i, testCase))
 		c.Check(highestPrecedence, Equals, testCase.highestPrecedence, Commentf("Highest precedence pattern incorrect for test case %d:\n%+v", i, testCase))
 	}
+
+	// Check that unicode in patterns treated as a single rune, and that escape
+	// characters are not counted, even when escaping unicode runes.
+	for i, testCase := range []struct {
+		longerRunes string
+		longerBytes string
+	}{
+		{
+			`/foo/bar`,
+			`/foo/🚵🚵`,
+		},
+		{
+			`/foo/barbar`,
+			`/foo/\🚵\🚵\🚵\🚵\🚵`,
+		},
+		{
+			`/foo/🚵🚵🚵🚵🚵🚵`,
+			`/foo/\🚵\🚵\🚵\🚵\🚵`,
+		},
+	} {
+		patterns := []string{testCase.longerRunes, testCase.longerBytes}
+		highestPrecedence, err := common.GetHighestPrecedencePattern(patterns)
+		c.Check(err, IsNil, Commentf("Error occurred during test case %d:\n%+v", i, testCase))
+		c.Check(highestPrecedence, Equals, testCase.longerRunes, Commentf("Highest precedence pattern incorrect for test case %d:\n%+v", i, testCase))
+		c.Check(len(testCase.longerRunes) < len(testCase.longerBytes), Equals, true, Commentf("Higher precedence pattern incorrectly does not have fewer bytes: len(%q) == %d >= len(%q) == %d:\n%+v", testCase.longerRunes, len(testCase.longerRunes), testCase.longerBytes, len(testCase.longerBytes), testCase))
+	}
 }
 
 func (s *commonSuite) TestGetHighestPrecedencePatternUnhappy(c *C) {
@@ -874,10 +886,8 @@ func (s *commonSuite) TestValidatePathPattern(c *C) {
 		"/foo/bar/**/file.txt",
 		"/foo/bar/*/file.txt",
 		"/foo/bar/**/*txt",
-		"/**/*",
 		"/foo/bar**",
 		"/foo/bar/**.txt",
-		"/foo/bar/**/*",
 		"/foo/ba,r",
 		"/foo/ba,r/**/*.txt",
 		"/foo/bar/**/*.txt,md",
@@ -1227,26 +1237,6 @@ func (*commonSuite) TestPathPatternMatch(c *C) {
 			"/foo/*/bar/**/baz**/fi*z/**buzz",
 			"/foo/bar/bazmn/fizz/xyzbuzz",
 			false,
-		},
-		{
-			"/foo/bar/**/*",
-			"/foo/bar",
-			false,
-		},
-		{
-			"/foo/bar/**/*",
-			"/foo/bar/",
-			false,
-		},
-		{
-			"/foo/bar/**/*",
-			"/foo/bar/baz",
-			true,
-		},
-		{
-			"/foo/bar/**/*",
-			"/foo/bar/baz/",
-			true,
 		},
 		{
 			"/foo/bar/**/*/",

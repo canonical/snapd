@@ -3,6 +3,7 @@ package common
 import (
 	"errors"
 	"fmt"
+	"io"
 	"regexp"
 	"strings"
 
@@ -26,34 +27,46 @@ var (
 	defaultPrefixes = []string{""}
 )
 
-// Expands all groups in the given path pattern. Groups are enclosed by '{' '}'.
-// Returns a list of all the expanded path patterns, or an error if the given
-// pattern is invalid.
+// ExpandPathPattern expands all groups in the given path pattern.
+//
+// Groups are enclosed by '{' '}'. Returns a list of all the expanded path
+// patterns, or an error if the given pattern is invalid.
 func ExpandPathPattern(pattern string) ([]string, error) {
 	if len(pattern) == 0 {
 		return nil, fmt.Errorf(`invalid path pattern: pattern has length 0`)
 	}
-	if pattern[len(pattern)-1] == '\\' && len(pattern) > 1 && pattern[len(pattern)-2] != '\\' {
+	if strings.HasSuffix(pattern, `\`) && !strings.HasSuffix(pattern, `\\`) {
 		return nil, fmt.Errorf(`invalid path pattern: trailing unescaped '\' character: %q`, pattern)
 	}
+	reader := strings.NewReader(pattern)
 	currPrefixes := defaultPrefixes
 	currLiteralStart := 0
-	for i := 0; i < len(pattern); i++ {
-		if pattern[i] == '\\' {
-			i += 1
+	for {
+		r, _, err := reader.ReadRune()
+		if err != nil {
+			// No more runes
+			break
+		}
+		if r == '\\' {
+			// Skip next rune.
+			reader.ReadRune() // Since suffix is not '\\', must have next rune
 			continue
 		}
-		if pattern[i] == '}' {
+		if r == '}' {
 			return nil, fmt.Errorf(`invalid path pattern: unmatched '}' character: %q`, pattern)
 		}
-		if pattern[i] != '{' {
+		if r != '{' {
 			continue
 		}
-		groupExpanded, groupEnd, err := expandPathPatternFromIndex(pattern, i+1)
+		// Saw start of new group, so get the string from currLiteralStart to
+		// the opening '{' of the new group. Do this before expanding.
+		infix := prevStringFromIndex(reader, currLiteralStart)
+		groupExpanded, err := expandPathPatternFromIndex(reader)
 		if err != nil {
 			return nil, err
 		}
-		infix := pattern[currLiteralStart:i]
+		// Now that group has been expanded, record index of next rune in reader
+		currLiteralStart = indexOfNextRune(reader)
 		newExpanded := make([]string, 0, len(currPrefixes)*len(groupExpanded))
 		for _, prefix := range currPrefixes {
 			for _, suffix := range groupExpanded {
@@ -61,8 +74,6 @@ func ExpandPathPattern(pattern string) ([]string, error) {
 			}
 		}
 		currPrefixes = newExpanded
-		currLiteralStart = groupEnd + 1
-		i = groupEnd // let for loop increment to index after '}'
 	}
 	expanded := currPrefixes
 	if len(expanded) == 1 && expanded[0] == "" {
@@ -85,33 +96,62 @@ func ExpandPathPattern(pattern string) ([]string, error) {
 	return uniqueExpanded, nil
 }
 
-// Expands the contents of a group in the given path pattern, beginning at the
-// given index, until a '}' is seen. The given index should be the index of the
-// first character after the opening '{' of the group. Returns the list of
-// expanded strings, as well as the index of the closing '}' character.
-// Whenever a ',' character is encountered, cuts off the current sub-pattern
-// and begins a new one. Any '\'-escaped '{', ',', and '}' characters are
-// treated as literals. If the pattern terminates before a non-escaped '}' is
-// seen, returns an error.
-func expandPathPatternFromIndex(pattern string, index int) (expanded []string, end int, err error) {
+// Return the substring from the given start index until the index of the
+// previous rune read by the reader.
+func prevStringFromIndex(reader *strings.Reader, startIndex int) string {
+	if err := reader.UnreadRune(); err != nil {
+		panic(err) // should only occur if used incorrectly internally
+	}
+	defer reader.ReadRune() // re-read rune so index is unchanged
+	currIndex := indexOfNextRune(reader)
+	buf := make([]byte, currIndex-startIndex)
+	reader.ReadAt(buf, int64(startIndex))
+	return string(buf)
+}
+
+// Return the byte index of the next rune in the reader.
+func indexOfNextRune(reader *strings.Reader) int {
+	index, _ := reader.Seek(0, io.SeekCurrent)
+	return int(index)
+}
+
+// Expands the contents of a group in the path pattern read by the given reader
+// until a '}' is seen.
+//
+// The reader current position of the reader should be the rune immediately
+// following the opening '{' character of the group.
+//
+// Returns the list of expanded strings. Whenever a ',' character is
+// encountered, cuts off the current sub-pattern and begins a new one.
+// Any '\'-escaped '{', ',', and '}' characters are treated as literals.
+//
+// If the pattern terminates before a non-escaped '}' is seen, returns an error.
+func expandPathPatternFromIndex(reader *strings.Reader) ([]string, error) {
 	// Record total list of expanded patterns, to which other lists are appended
-	expanded = []string{}
+	expanded := []string{}
 	// Within the current group option, record the current list of previously-
 	// expanded prefixes, and the start index of the subpattern following the
 	// most recent group.
 	currPrefixes := defaultPrefixes
-	currSubpatternStart := index
-	for i := index; i < len(pattern); i++ {
-		if pattern[i] == '\\' {
-			i += 1
+	currSubpatternStart := indexOfNextRune(reader)
+	for {
+		r, _, err := reader.ReadRune()
+		if err != nil {
+			break
+		}
+		if r == '\\' {
+			// Skip next rune.
+			reader.ReadRune() // Since suffix is not '\\', must have next rune
 			continue
 		}
-		if pattern[i] == '{' {
-			infix := pattern[currSubpatternStart:i]
-			groupExpanded, groupEnd, err := expandPathPatternFromIndex(pattern, i+1)
+		if r == '{' {
+			infix := prevStringFromIndex(reader, currSubpatternStart)
+			groupExpanded, err := expandPathPatternFromIndex(reader)
 			if err != nil {
-				return nil, 0, err
+				return nil, err
 			}
+			// Now that group has been expanded, record index of next rune in reader
+			currSubpatternStart = indexOfNextRune(reader)
 			newPrefixes := make([]string, 0, len(currPrefixes)*len(groupExpanded))
 			for _, prefix := range currPrefixes {
 				for _, suffix := range groupExpanded {
@@ -119,12 +159,10 @@ func expandPathPatternFromIndex(pattern string, index int) (expanded []string, e
 				}
 			}
 			currPrefixes = newPrefixes
-			currSubpatternStart = groupEnd + 1
-			i = groupEnd // let for loop increment to index after '}'
 			continue
 		}
-		if pattern[i] == ',' || pattern[i] == '}' {
-			suffix := pattern[currSubpatternStart:i]
+		if r == ',' || r == '}' {
+			suffix := prevStringFromIndex(reader, currSubpatternStart)
 			newExpanded := make([]string, len(expanded), len(expanded)+len(currPrefixes))
 			copy(newExpanded, expanded)
 			expanded = newExpanded
@@ -132,13 +170,16 @@ func expandPathPatternFromIndex(pattern string, index int) (expanded []string, e
 				expanded = append(expanded, prefix+suffix)
 			}
 			currPrefixes = defaultPrefixes
-			currSubpatternStart = i + 1
+			currSubpatternStart = indexOfNextRune(reader)
 		}
-		if pattern[i] == '}' {
-			return expanded, i, nil
+		if r == '}' {
+			return expanded, nil
 		}
 	}
-	return nil, 0, fmt.Errorf(`invalid path pattern: unmatched '{' character: %q`, pattern)
+	// Group missing closing '}' character, so return an error.
+	origPatternBuf := make([]byte, reader.Size())
+	reader.ReadAt(origPatternBuf, 0)
+	return nil, fmt.Errorf(`invalid path pattern: unmatched '{' character: %q`, string(origPatternBuf))
 }
 
 var (
@@ -165,7 +206,7 @@ func cleanPattern(pattern string) string {
 	})
 	if strings.HasSuffix(pattern, "/**/*") {
 		// Strip trailing "/*" from suffix
-		return pattern[:len(pattern)-2]
+		return pattern[:len(pattern)-len("/*")]
 	}
 	return pattern
 }
@@ -185,23 +226,23 @@ const (
 )
 
 type nextPatternsContainer struct {
-	currPriority    priorityType
-	nextPatternsMap map[string]int
+	currPriority     priorityType
+	nextPatternsList []*strings.Reader
 }
 
-func (np *nextPatternsContainer) addWithPriority(priority priorityType, pattern string, e int) {
+func (np *nextPatternsContainer) addWithPriority(priority priorityType, reader *strings.Reader) {
 	if priority < np.currPriority {
 		return
 	}
 	if priority > np.currPriority {
-		np.nextPatternsMap = make(map[string]int)
+		np.nextPatternsList = np.nextPatternsList[:0]
 		np.currPriority = priority
 	}
-	np.nextPatternsMap[pattern] = e
+	np.nextPatternsList = append(np.nextPatternsList, reader)
 }
 
-func (np *nextPatternsContainer) nextPatterns() map[string]int {
-	return np.nextPatternsMap
+func (np *nextPatternsContainer) nextPatterns() []*strings.Reader {
+	return np.nextPatternsList
 }
 
 // GetHighestPrecedencePattern determines which of the given path patterns is
@@ -257,71 +298,113 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 	if len(patterns) == 0 {
 		return "", ErrNoPatterns
 	}
-	// Map pattern to number of escaped characters which have been seen
-	remainingPatterns := make(map[string]int, len(patterns))
+	alreadySeen := make(map[string]bool, len(patterns))
+	patternForReader := make(map[*strings.Reader]string, len(patterns))
+	remainingPatterns := make([]*strings.Reader, 0, len(patterns))
 	for _, pattern := range patterns {
-		remainingPatterns[pattern] = 0
+		if alreadySeen[pattern] {
+			continue
+		}
+		alreadySeen[pattern] = true
+		if strings.HasSuffix(pattern, `\`) && !strings.HasSuffix(pattern, `\\`) {
+			return "", fmt.Errorf(`invalid path pattern: trailing unescaped '\' character: %q`, pattern)
+		}
+		reader := strings.NewReader(pattern)
+		patternForReader[reader] = pattern
+		remainingPatterns = append(remainingPatterns, reader)
 	}
-	// Loop over index into each pattern until only one pattern left
-	for i := 0; len(remainingPatterns) > 1; i++ {
+	for len(remainingPatterns) > 1 {
 		nextPatterns := nextPatternsContainer{}
-		for pattern, e := range remainingPatterns {
-			// For each pattern, e is number of escaped chars, thus the number
-			// which should be added to the index to compare equivalent indices
-			// into all patterns
-			if i+e == len(pattern) {
-				nextPatterns.addWithPriority(priorityTerminated, pattern, e)
+		for _, reader := range remainingPatterns {
+			r, _, err := reader.ReadRune()
+			if err != nil {
+				// No runes remaining, so pattern is terminal.
+				nextPatterns.addWithPriority(priorityTerminated, reader)
 				continue
 			}
 			// Check for '?' and '*' before '\\', since "\\*" is literal '*', etc.
-			if pattern[i+e] == '?' {
-				nextPatterns.addWithPriority(prioritySingleChar, pattern, e)
+			if r == '?' {
+				nextPatterns.addWithPriority(prioritySingleChar, reader)
 				continue
 			}
-			if pattern[i+e] == '*' {
-				if i+e+3 < len(pattern) && pattern[i+e+1:i+e+4] == "/**" {
-					// Next parts of pattern are "*/**"
-					nextPatterns.addWithPriority(priorityGlobDoublestar, pattern, e)
+			if r == '*' {
+				if nextBytesEqual(reader, "/**") {
+					// Next parts of pattern are "*/**".
+					nextPatterns.addWithPriority(priorityGlobDoublestar, reader)
 					continue
 				}
-				nextPatterns.addWithPriority(priorityGlob, pattern, e)
+				nextPatterns.addWithPriority(priorityGlob, reader)
 				continue
 			}
-			if pattern[i+e] == '\\' {
-				e += 1
-				if i+e == len(pattern) {
-					return "", fmt.Errorf(`invalid path pattern: trailing '\' character: %q`, pattern)
-				}
+			if r == '\\' {
+				// Since suffix is not unescaped '\\', must have next rune.
+				r, _, err = reader.ReadRune()
 			}
 			// Can safely check for '/' after '\\', since it is '/' either way
-			if pattern[i+e] != '/' || i+e+1 >= len(pattern) || pattern[i+e+1] != '*' {
+			if r != '/' || !nextRuneEquals(reader, '*') {
 				// Next parts of pattern are not "/*" or "/**"
-				nextPatterns.addWithPriority(priorityLiteral, pattern, e)
+				nextPatterns.addWithPriority(priorityLiteral, reader)
 				continue
 			}
-			// pattern[i+e:i+e+2] must be "/*"
-			if i+e+2 >= len(pattern) || pattern[i+e+2] != '*' {
-				// pattern[i+e:i+e+3] must not be "/**"
-				nextPatterns.addWithPriority(prioritySinglestar, pattern, e)
+			// Next part of the pattern must be "/*".
+			// This pattern will only be included in the next round if all the
+			// other patterns also have "/*" next, so it's fine to remove that.
+			reader.ReadRune()             // Discard first '*' after '/'.
+			r, _, err = reader.ReadRune() // Get next rune after "/*".
+			if err != nil || r != '*' {
+				// Next parts of pattern are not "/**"
+				reader.UnreadRune() // Discard error, which occurred if EOF.
+				nextPatterns.addWithPriority(prioritySinglestar, reader)
 				continue
 			}
-			// pattern[i+e:i+e+3] must be "/**"
-			if i+e+3 == len(pattern) || (pattern[i+e+3] == '/' && (i+e+4 == len(pattern) || (i+e+5 == len(pattern) && pattern[i+e+4] == '*'))) {
-				// pattern[i+e:] must terminate with "/**" or "/**/" or "/**/*".
+			// Next part of pattern must be "/**".
+			if reader.Len() == 0 || (reader.Len() == 1 && nextRuneEquals(reader, '/')) {
+				// Pattern must terminate with "/**" or "/**/".
+				// We don't consider patterns terminating with "/**/*" or "/**/**"
+				// here, since these are equivalent to "/**" and are replaced
+				// as such by ExpandPathPatterns.
 				// Terminal "/**/*/" is more selective, and is not matched here.
-				nextPatterns.addWithPriority(priorityTerminalDoublestar, pattern, e)
+				nextPatterns.addWithPriority(priorityTerminalDoublestar, reader)
 				continue
 			}
-			// pattern has non-terminal "/**" next
-			nextPatterns.addWithPriority(priorityDoublestar, pattern, e)
+			// Pattern has non-terminal "/**".
+			nextPatterns.addWithPriority(priorityDoublestar, reader)
 		}
 		remainingPatterns = nextPatterns.nextPatterns()
 	}
-	p := ""
-	for pattern := range remainingPatterns {
-		p = pattern
+	reader := remainingPatterns[0]
+	pattern := patternForReader[reader]
+	return pattern, nil
+}
+
+// Return true if the next rune in the reader equals the given rune.
+func nextRuneEquals(reader *strings.Reader, r rune) bool {
+	ch, _, err := reader.ReadRune()
+	if err != nil {
+		return false
 	}
-	return p, nil
+	defer reader.UnreadRune()
+	return ch == r
+}
+
+// Return true if the next bytes in the reader equal the given string.
+func nextBytesEqual(reader *strings.Reader, s string) bool {
+	if reader.Len() < len(s) {
+		return false
+	}
+	sBytes := []byte(s)
+	rBytes := make([]byte, len(sBytes))
+	currIndex := indexOfNextRune(reader)
+	_, err := reader.ReadAt(rBytes, int64(currIndex))
+	if err != nil {
+		return false
+	}
+	for i := range sBytes {
+		if rBytes[i] != sBytes[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // ValidatePathPattern returns nil if the pattern is valid, otherwise an error.
@@ -364,7 +447,7 @@ func PathPatternMatch(pattern string, path string) (bool, error) {
 	}
 	// No matter if doublestar matched, return false if pattern ends in '/' but
 	// path is not a directory.
-	if len(pattern) > 0 && pattern[len(pattern)-1] == '/' && len(path) > 0 && path[len(path)-1] != '/' {
+	if strings.HasSuffix(pattern, "/") && !strings.HasSuffix(path, "/") {
 		return false, nil
 	}
 	if matched {
