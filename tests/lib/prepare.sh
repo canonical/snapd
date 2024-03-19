@@ -432,8 +432,13 @@ repack_snapd_snap_with_deb_content() {
     unsquashfs -no-progress -d "$UNPACK_DIR" snapd_*.snap
     # clean snap apparmor.d to ensure we put the right snap-confine apparmor
     # file in place. Its called usr.lib.snapd.snap-confine on 14.04 but
-    # usr.lib.snapd.snap-confine.real everywhere else
+    # usr.lib.snapd.snap-confine.real everywhere else - also the snapd snap may
+    # have a vendored apparmor but the deb does not so make sure this is not
+    # present either in the repacked snap
     rm -f "$UNPACK_DIR"/etc/apparmor.d/*
+    rm -f "$UNPACK_DIR"/usr/lib/snapd/apparmor_parser
+    rm -rf "$UNPACK_DIR"/usr/lib/snapd/apparmor
+    rm -rf "$UNPACK_DIR"/usr/lib/snapd/apparmor.d
 
     dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
     cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/snapd
@@ -504,8 +509,13 @@ repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks() {
 
     # clean snap apparmor.d to ensure we put the right snap-confine apparmor
     # file in place. Its called usr.lib.snapd.snap-confine on 14.04 but
-    # usr.lib.snapd.snap-confine.real everywhere else
+    # usr.lib.snapd.snap-confine.real everywhere else - also the snapd snap may
+    # have a vendored apparmor but the deb does not so make sure this is not
+    # present either in the repacked snap
     rm -f "$UNPACK_DIR"/etc/apparmor.d/*
+    rm -f "$UNPACK_DIR"/usr/lib/snapd/apparmor_parser
+    rm -rf "$UNPACK_DIR"/usr/lib/snapd/apparmor
+    rm -rf "$UNPACK_DIR"/usr/lib/snapd/apparmor.d
 
     dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
     cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/snapd
