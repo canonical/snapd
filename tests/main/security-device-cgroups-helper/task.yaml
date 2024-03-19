@@ -4,7 +4,8 @@ details: |
   The test verifies that snap-device-helper correctly modifies the cgroups
 
 systems:
-  #TODO: bpftool is not available on core22 and tests.device-cgroup needs it for cgroups v2
+  #TODO: bpftool is not available on core22+ and tests.device-cgroup needs it for cgroups v2
+  - -ubuntu-core-22-*
   - -ubuntu-core-22-*
 
 environment:
