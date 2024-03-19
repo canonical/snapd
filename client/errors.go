@@ -142,6 +142,9 @@ const (
 
 	// ErrorKindValidationSetNotFound: validation set cannot be found.
 	ErrorKindValidationSetNotFound ErrorKind = "validation-set-not-found"
+
+	// ErrorKindBusySnap: cannot do action as snap is currently busy.
+	ErrorKindBusySnap ErrorKind = "busy"
 )
 
 // Maintenance error kinds.
