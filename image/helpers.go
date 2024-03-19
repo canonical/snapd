@@ -98,7 +98,7 @@ func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpack
 			if !ps.HasFilesystem() {
 				continue
 			}
-			mw, err := gadget.NewMountedFilesystemWriter(&ps, nil)
+			mw, err := gadget.NewMountedFilesystemWriter(nil, &ps, nil)
 			if err != nil {
 				return err
 			}

@@ -100,7 +100,7 @@ func writeFilesystemContent(laidOut *gadget.LaidOutStructure, fsDevice string, o
 			err = fmt.Errorf("cannot unmount %v after writing filesystem content: %v", fsDevice, errUnmount)
 		}
 	}()
-	fs, err := gadget.NewMountedFilesystemWriter(laidOut, observer)
+	fs, err := gadget.NewMountedFilesystemWriter(nil, laidOut, observer)
 	if err != nil {
 		return fmt.Errorf("cannot create filesystem image writer: %v", err)
 	}

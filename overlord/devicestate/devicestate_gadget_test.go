@@ -751,7 +751,7 @@ volumes:
 
 	expectedRollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
 	updaterForStructureCalls := 0
-	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, rootDir, rollbackDir string, _ gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, fromPs, ps *gadget.LaidOutStructure, rootDir, rollbackDir string, _ gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		updaterForStructureCalls++
 
 		c.Assert(loc, Equals, gadget.StructureLocation{
