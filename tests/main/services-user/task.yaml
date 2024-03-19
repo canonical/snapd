@@ -37,6 +37,7 @@ restore: |
         userdel --extrausers -rf test2
     fi
     snap unset system experimental.user-daemons
+    rm -f /etc/polkit-1/localauthority/50-local.d/spread.pkla
 
 debug: |
     tests.session dump
