@@ -42,15 +42,5 @@ for partition in content['volumes']['pc']['structure']:
             ]
     elif partition.get('role') == 'system-boot':
         partition['update']['edition'] += args.edition_bump
-        if args.type == 'removable':
-            partition['content'] = [
-                {'source': 'grubx64.efi',
-                 'target': 'EFI/boot/grubx64.efi'},
-            ]
-        elif args.type == 'boot_entry':
-            partition['content'] = [
-                {'source': 'grubx64.efi',
-                 'target': 'EFI/ubuntu/grubx64.efi'},
-            ]
 
 yaml.safe_dump(content, stream=args.output)
