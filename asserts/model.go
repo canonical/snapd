@@ -31,6 +31,15 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+// ModelComponent holds details for components specified by a model assertion.
+type ModelComponent struct {
+	// Presence can be optional or required
+	Presence string
+	// Modes is an optional list of modes, which must be a subset
+	// of the ones for the snap
+	Modes []string
+}
+
 // TODO: for ModelSnap
 //  * consider moving snap.Type out of snap and using it in ModelSnap
 //    but remember assertions use "core" (never "os") for TypeOS
@@ -55,6 +64,8 @@ type ModelSnap struct {
 	// Classic indicates that this classic snap is intentionally
 	// included in a classic model
 	Classic bool
+	// Components is a map of component names to ModelComponent
+	Components map[string]ModelComponent
 }
 
 // SnapName implements naming.SnapRef.
@@ -294,6 +305,11 @@ func checkModelSnap(snap map[string]interface{}, modelBase string, grade ModelGr
 			name, modes)
 	}
 
+	components, err := checkComponentsForMaps(snap, modes, what)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ModelSnap{
 		Name:           name,
 		SnapID:         snapID,
@@ -302,7 +318,94 @@ func checkModelSnap(snap map[string]interface{}, modelBase string, grade ModelGr
 		DefaultChannel: defaultChannel,
 		Presence:       presence, // can be empty
 		Classic:        isClassic,
+		Components:     components, // can be empty
 	}, nil
+}
+
+// This is what we expect for components:
+/**
+snaps:
+ - name: <snap-name>
+   ...
+   presence: "optional"|"required" # optional, defaults to "required"
+   modes:    [<mode-specifier>]    # list of modes
+   components:             	     # optional
+      <component-name-1>:
+         presence: "optional"|"required"
+         modes:    [<mode-specifier>] # list of modes, optional
+                                      # must be a subset of snap modes
+                                      # defaults to the same modes
+                                      # as the snap
+      <component-name-2>: "required"|"optional" # presence, shortcut syntax
+**/
+func checkComponentsForMaps(m map[string]interface{}, validModes []string, what string) (map[string]ModelComponent, error) {
+	const compsField = "components"
+	value, ok := m[compsField]
+	if !ok {
+		return nil, nil
+	}
+	comps, ok := value.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("%q %s must be a map from strings to components",
+			compsField, what)
+	}
+
+	res := make(map[string]ModelComponent, len(comps))
+	for name, comp := range comps {
+		// Name of component follows the same rules as snap components
+		if err := naming.ValidateSnap(name); err != nil {
+			return nil, fmt.Errorf("invalid component name %s", name)
+		}
+
+		// "comp: required|optional" case
+		compWhat := fmt.Sprintf("of component %q %s", name, what)
+		presence, ok := comp.(string)
+		if ok {
+			if !strutil.ListContains(validSnapPresences, presence) {
+				return nil, fmt.Errorf("presence %s must be one of required|optional", compWhat)
+			}
+			res[name] = ModelComponent{Presence: presence,
+				Modes: append([]string(nil), validModes...)}
+			continue
+		}
+
+		// try map otherwise
+		compFields, ok := comp.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("%s must be a map of strings to components or one of required|optional",
+				compWhat)
+		}
+		// Error out if unexpected entry
+		for key := range compFields {
+			if !strutil.ListContains([]string{"presence", "modes"}, key) {
+				return nil, fmt.Errorf("entry %q %s is unknown", key, compWhat)
+			}
+		}
+		presence, err := checkNotEmptyStringWhat(compFields, "presence", compWhat)
+		if err != nil {
+			return nil, err
+		}
+		if !strutil.ListContains(validSnapPresences, presence) {
+			return nil, fmt.Errorf("presence %s must be one of required|optional", compWhat)
+		}
+		modes, err := checkStringListInMap(compFields, "modes",
+			fmt.Sprintf("modes %s", compWhat), validSnapMode)
+		if err != nil {
+			return nil, err
+		}
+		if len(modes) == 0 {
+			modes = append([]string(nil), validModes...)
+		} else {
+			for _, m := range modes {
+				if !strutil.ListContains(validModes, m) {
+					return nil, fmt.Errorf("mode %q %s is incompatible with the snap modes", m, compWhat)
+				}
+			}
+		}
+		res[name] = ModelComponent{Presence: presence, Modes: modes}
+	}
+
+	return res, nil
 }
 
 // unextended case support
