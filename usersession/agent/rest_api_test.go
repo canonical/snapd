@@ -921,7 +921,7 @@ func createDesktopFile(c *C, desktopFilePath string, icon string, name string, l
 }
 
 func createLocalizedDesktopFile(c *C, name string, localizedNames map[string]string) *goconfigparser.ConfigParser {
-	tmpFile := c.MkDir() + "desktop.desktop"
+	tmpFile := filepath.Join(c.MkDir(), "desktop.desktop")
 	createDesktopFile(c, tmpFile, "", name, localizedNames)
 	parser := goconfigparser.New()
 	c.Assert(parser.ReadFile(tmpFile), IsNil)
@@ -1142,4 +1142,104 @@ func (s *restSuite) TestLocalizedDesktopNameLocaleNotFound(c *C) {
 	parser := createLocalizedDesktopFile(c, "testapp", localizedNames)
 	name := agent.GetLocalizedAppNameFromDesktopFile(parser, "defaultName")
 	c.Assert(name, Equals, "testapp")
+}
+
+func (s *restSuite) TestPostPendingRefreshNotificationTestInstanceKeyHappeningNow(c *C) {
+	refreshInfo := &client.PendingSnapRefreshInfo{InstanceName: "pkg_devel"}
+	s.testPostPendingRefreshNotificationBody(c, refreshInfo)
+	notifications := s.notify.GetAll()
+	c.Assert(notifications, HasLen, 1)
+	n := notifications[0]
+	c.Check(n.AppName, Equals, "")
+	c.Check(n.Icon, Equals, "")
+	c.Check(n.Summary, Equals, `pkg (devel) is updating now!`)
+	c.Check(n.Body, Equals, "")
+	c.Check(n.Actions, DeepEquals, []string{})
+	c.Check(n.Hints, DeepEquals, map[string]dbus.Variant{
+		"urgency":       dbus.MakeVariant(byte(notification.CriticalUrgency)),
+		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
+	})
+	c.Check(n.Expires, Equals, int32(0))
+}
+
+func (s *restSuite) TestPostPendingRefreshNotificationTestInstanceKeyWithDesktopFileHappeningNow(c *C) {
+	restore := agent.MockCurrentLocale("es_ES")
+	s.AddCleanup(restore)
+	localizedNames := map[string]string{
+		"es":    "pkg_es",
+		"es_ES": "pkg_es_ES",
+		"es_AR": "pkg_es_AR",
+		"en_US": "pkg_en_US",
+		"en":    "pkg_en",
+	}
+	tmpFile := filepath.Join(dirs.SnapDesktopFilesDir, "desktop.desktop")
+	createDesktopFile(c, tmpFile, "", "pkg", localizedNames)
+
+	refreshInfo := &client.PendingSnapRefreshInfo{
+		InstanceName:        "pkg_devel",
+		BusyAppDesktopEntry: "desktop",
+	}
+	s.testPostPendingRefreshNotificationBody(c, refreshInfo)
+	notifications := s.notify.GetAll()
+	c.Assert(notifications, HasLen, 1)
+	n := notifications[0]
+	c.Check(n.AppName, Equals, "")
+	c.Check(n.Icon, Equals, "")
+	c.Check(n.Summary, Equals, `pkg_es_ES (devel) is updating now!`)
+	c.Check(n.Body, Equals, "")
+	c.Check(n.Actions, DeepEquals, []string{})
+	c.Check(n.Hints, DeepEquals, map[string]dbus.Variant{
+		"urgency":       dbus.MakeVariant(byte(notification.CriticalUrgency)),
+		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
+	})
+	c.Check(n.Expires, Equals, int32(0))
+}
+
+func (s *restSuite) TestPostPendingRefreshNotificationTestInstanceKeyFewDays(c *C) {
+	refreshInfo := &client.PendingSnapRefreshInfo{
+		InstanceName:  "pkg_devel",
+		TimeRemaining: time.Hour * 72,
+	}
+	s.testPostPendingRefreshNotificationBody(c, refreshInfo)
+	notifications := s.notify.GetAll()
+	c.Assert(notifications, HasLen, 1)
+	n := notifications[0]
+	// boring stuff is checked above
+	c.Check(n.Summary, Equals, `Update available for pkg (devel).`)
+	c.Check(n.Body, Equals, "Close the application to update now. It will update automatically in 3 days.")
+	c.Check(n.Hints, DeepEquals, map[string]dbus.Variant{
+		"urgency":       dbus.MakeVariant(byte(notification.LowUrgency)),
+		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
+	})
+}
+
+func (s *restSuite) TestPostPendingRefreshNotificationTestInstanceKeyWithDesktopFileFewDays(c *C) {
+	restore := agent.MockCurrentLocale("es_ES")
+	s.AddCleanup(restore)
+	localizedNames := map[string]string{
+		"es":    "pkg_es",
+		"es_ES": "pkg_es_ES",
+		"es_AR": "pkg_es_AR",
+		"en_US": "pkg_en_US",
+		"en":    "pkg_en",
+	}
+	tmpFile := filepath.Join(dirs.SnapDesktopFilesDir, "desktop.desktop")
+	createDesktopFile(c, tmpFile, "", "pkg", localizedNames)
+
+	refreshInfo := &client.PendingSnapRefreshInfo{
+		InstanceName:        "pkg_devel",
+		TimeRemaining:       time.Hour * 72,
+		BusyAppDesktopEntry: "desktop",
+	}
+	s.testPostPendingRefreshNotificationBody(c, refreshInfo)
+	notifications := s.notify.GetAll()
+	c.Assert(notifications, HasLen, 1)
+	n := notifications[0]
+	// boring stuff is checked above
+	c.Check(n.Summary, Equals, `Update available for pkg_es_ES (devel).`)
+	c.Check(n.Body, Equals, "Close the application to update now. It will update automatically in 3 days.")
+	c.Check(n.Hints, DeepEquals, map[string]dbus.Variant{
+		"urgency":       dbus.MakeVariant(byte(notification.LowUrgency)),
+		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
+	})
 }
