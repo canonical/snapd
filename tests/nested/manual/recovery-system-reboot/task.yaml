@@ -106,6 +106,10 @@ execute: |
       # finish rebooting, since the kernel, gadget, and base snaps will be
       # updated
       remote.wait-for reboot "${boot_id}"
+
+      # one more watch to wait for the change to finish once the reboot is
+      # completed
+      remote.exec 'snap watch --last=auto-refresh'
     fi
 
     post_json_data "/v2/systems/${prev_system}" '{"action": "remove"}'
