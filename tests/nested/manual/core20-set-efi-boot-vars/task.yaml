@@ -105,12 +105,18 @@ execute: |
         if [ "$1" = "boot" ]; then
             remote.exec "ls /run/mnt/ubuntu-seed/EFI/boot/boot${ARCH}.efi"
             remote.exec "ls /run/mnt/ubuntu-seed/EFI/boot/grub${ARCH}.efi"
+            if remote.exec "ls /run/mnt/ubuntu-seed/EFI/boot/fb${ARCH}.efi"; then
+              exit 1
+            fi
         elif [ "$1" = "ubuntu" ]; then
             remote.exec "ls /run/mnt/ubuntu-seed/EFI/ubuntu/BOOT${ARCH_UPPER}.CSV"
             remote.exec "ls /run/mnt/ubuntu-seed/EFI/ubuntu/grub${ARCH}.efi"
             remote.exec "ls /run/mnt/ubuntu-seed/EFI/ubuntu/shim${ARCH}.efi"
             remote.exec "ls /run/mnt/ubuntu-seed/EFI/boot/boot${ARCH}.efi"
             remote.exec "ls /run/mnt/ubuntu-seed/EFI/boot/fb${ARCH}.efi"
+            if remote.exec "ls /run/mnt/ubuntu-seed/EFI/boot/grub${ARCH}.efi"; then
+              exit 1
+            fi
         fi
     }
 
@@ -160,17 +166,12 @@ execute: |
     boot_id=$(tests.nested boot-id)
 
     echo "Install new gadget"
-    #FIXME: the gadget does not yet remove the fallback binary which will reintroduce the old
-    if [ "${FINAL_ASSET_DIR}" = "boot" ]; then
-      remote.exec sudo systemd-inhibit --what=shutdown bash -c "'snap install --dangerous pc.snap; rm -f /boot/efi/EFI/ubuntu/grub${ARCH}.efi /boot/efi/EFI/boot/fbx64.efi /boot/efi/EFI/ubuntu/shim${ARCH}.efi'"
-    else
-      remote.exec sudo snap install --dangerous pc.snap
-    fi
+    INSTALL_ID=$(remote.exec sudo snap install --no-wait --dangerous pc.snap)
     # VM should reboot now
     echo "Wait for reboot"
     remote.wait-for reboot "${boot_id}"
     # Wait for previous change to finish before continuing
-    remote.exec sudo snap watch --last=install
+    remote.exec sudo snap watch "${INSTALL_ID}"
 
     echo "#### Updated gadget: ####"
 
