@@ -25,7 +25,7 @@ prepare: |
 
     VERSION=$(tests.nested show version)
     echo "Download pc-gadget to use in initial image"
-    snap download --basename=pc --channel="$VERSION/edge" pc
+    snap download --basename=pc --channel="${VERSION}/${GADGET_CHANNEL}" pc
     unsquashfs -d pc-gadget pc.snap
 
     ARCH=$(find pc-gadget -name 'grub*.efi' -printf '%f\n' | sed 's/grub//;s/\.efi//')
