@@ -65,14 +65,15 @@ prepare: |
     tests.nested create-vm core
 
 debug: |
-    VERSION=$(tests.nested show version)
-    echo "Current state of the remote EFI variables:"
-    remote.exec "sudo snap install --channel=${VERSION}/edge toolbox"
-    # The usual toolbox setup assumes bash, so just set PATH and LD_LIBRARY_PATH
-    # manually when executing efibootmgr.
-    augmented_path="/snap/toolbox/current/bin:/snap/toolbox/current/sbin:/snap/toolbox/current/usr/bin:/snap/toolbox/current/usr/sbin:${PATH}" # Host path is fine as base
-    augmented_ld_path="/lib:/usr/lib:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/snap/toolbox/current/lib:/snap/toolbox/current/usr/lib:/snap/toolbox/current/lib/x86_64-linux-gnu:/snap/toolbox/current/usr/lib/x86_64-linux-gnu"
-    remote.exec "PATH=${augmented_path} LD_LIBRARY_PATH=${augmented_ld_path} sh -c 'efibootmgr -v'"
+    rm -rf BootVars/
+    mkdir BootVars/
+    remote.pull '/sys/firmware/efi/efivars/Boot*-8be4df61-93ca-11d2-aa0d-00e098032b8c' BootVars/
+    echo "First boot entry:"
+    python3 get_boot_entry.py BootVars/
+    python3 get_boot_entry.py --path BootVars/
+    echo "Current boot entry"
+    python3 get_boot_entry.py --current BootVars/
+    python3 get_boot_entry.py --current --path BootVars/
 
     echo "Current state of the gadget.yaml"
     if [ -f pc-gadget/meta/gadget.yaml ]; then
@@ -80,7 +81,6 @@ debug: |
     fi
 
 execute: |
-    VERSION=$(tests.nested show version)
     ARCH="$(find pc-gadget -name 'grub*.efi' -printf '%f\n' | sed 's/grub//;s/\.efi//')"
     ARCH_UPPER="$(echo "$ARCH" | tr '[:lower:]' '[:upper:]')"
 
@@ -100,16 +100,6 @@ execute: |
     echo "Wait for the system to be seeded"
     remote.exec "sudo snap wait system seed.loaded"
 
-    echo "Install and set up toolbox on nested VM"
-    remote.exec "sudo snap install --channel=${VERSION}/edge toolbox"
-    # The usual toolbox setup assumes bash, so just set PATH and LD_LIBRARY_PATH
-    # manually when executing efibootmgr.
-    remote_exec_efibootmgr() {
-        augmented_path="/snap/toolbox/current/bin:/snap/toolbox/current/sbin:/snap/toolbox/current/usr/bin:/snap/toolbox/current/usr/sbin:${PATH}" # Host path is fine as base
-        augmented_ld_path="/lib:/usr/lib:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/snap/toolbox/current/lib:/snap/toolbox/current/usr/lib:/snap/toolbox/current/lib/x86_64-linux-gnu:/snap/toolbox/current/usr/lib/x86_64-linux-gnu"
-        remote.exec "PATH=${augmented_path} LD_LIBRARY_PATH=${augmented_ld_path} sh -c 'efibootmgr -v'"
-    }
-
     # Check that the EFI assets are correctly situated
     check_efi_assets() {
         if [ "$1" = "boot" ]; then
@@ -124,31 +114,21 @@ execute: |
         fi
     }
 
-    # Print the number of the first boot option in BootOrder.
-    get_bootorder_first_number() {
-        remote_exec_efibootmgr | MATCH "^BootOrder: "
-        remote_exec_efibootmgr | grep  "^BootOrder: " | cut -d ' ' -f 2 | cut -d ',' -f 1
-    }
-    # Check that a boot option variable exists for the given shim path, and
-    # that it is the first option in the BootOrder variable.
-    check_efi_variables() {
-        shim_path="$(echo "$1" | sed 's/\//\\\\/g')"
-        boot_var_pattern="^Boot[0-9A-F][0-9A-F][0-9A-F][0-9A-F]. ubuntu.*/File.${shim_path}.$"
-        echo "Check that there exists one EFI boot variable for ${shim_path}"
-        remote_exec_efibootmgr | MATCH "${boot_var_pattern}"
-        remote_exec_efibootmgr | grep -c "${boot_var_pattern}" | MATCH "^1$"
-        echo "Get boot number associated with that boot variable"
-        boot_num=$(remote_exec_efibootmgr | grep "${boot_var_pattern}" | grep -o '^Boot....' | sed 's/Boot//')
-        echo "Check that first boot option in BootOrder matches ${boot_num}"
-        get_bootorder_first_number | MATCH "^${boot_num}$"
-    }
-
     echo "Check that EFI assets in EFI/${INITIAL_ASSET_DIR} and variables are set correctly"
     check_efi_assets "$INITIAL_ASSET_DIR"
-    if [ "${INITIAL_ASSET_DIR}" = "boot" ]; then
-        check_efi_variables "/EFI/boot/boot${ARCH}.efi"
-    elif [ "${INITIAL_ASSET_DIR}" = "ubuntu" ]; then
-        check_efi_variables "/EFI/ubuntu/shim${ARCH}.efi"
+
+    rm -rf BootVars/
+    mkdir BootVars/
+    remote.pull '/sys/firmware/efi/efivars/Boot*-8be4df61-93ca-11d2-aa0d-00e098032b8c' BootVars/
+    # Create boot entry is first in order
+    python3 get_boot_entry.py BootVars/ | MATCH ubuntu
+    # It is also the current boot entry
+    python3 get_boot_entry.py --current BootVars/ | MATCH ubuntu
+
+    if [ "${INITIAL_ASSET_DIR}" = "ubuntu" ]; then
+      python3 get_boot_entry.py --path BootVars/ | grep -Fi "\\efi\\ubuntu\\shim${ARCH}.efi"
+    else
+      python3 get_boot_entry.py --path BootVars/ | grep -Fi "\\efi\\boot\\boot${ARCH}.efi"
     fi
 
     echo "All good!"
@@ -196,10 +176,18 @@ execute: |
 
     echo "Check that EFI assets in EFI/${INITIAL_ASSET_DIR} and variables are set correctly"
     check_efi_assets "$FINAL_ASSET_DIR"
-    if [ "${FINAL_ASSET_DIR}" = "boot" ]; then
-        check_efi_variables "/EFI/boot/boot${ARCH}.efi"
-    elif [ "${FINAL_ASSET_DIR}" = "ubuntu" ]; then
-        check_efi_variables "/EFI/ubuntu/shim${ARCH}.efi"
+
+    rm -rf BootVars/
+    mkdir BootVars/
+    remote.pull '/sys/firmware/efi/efivars/Boot*-8be4df61-93ca-11d2-aa0d-00e098032b8c' BootVars/
+    # Create boot entry is first in order
+    python3 get_boot_entry.py BootVars/ | MATCH ubuntu
+    # It is also the current boot entry
+    python3 get_boot_entry.py --current BootVars/ | MATCH ubuntu
+    if [ "${FINAL_ASSET_DIR}" = "ubuntu" ]; then
+      python3 get_boot_entry.py --path BootVars/ | grep -Fi "\\efi\\ubuntu\\shim${ARCH}.efi"
+    else
+      python3 get_boot_entry.py --path BootVars/ | grep -Fi "\\efi\\boot\\boot${ARCH}.efi"
     fi
 
     echo "All good!"
