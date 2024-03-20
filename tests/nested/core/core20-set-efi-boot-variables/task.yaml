@@ -9,47 +9,44 @@ systems: [ubuntu-2*]
 prepare: |
     "$(command -v go)" build -o setefivars setefivars.go
 
-    VERSION=$(tests.nested show version)
-
     echo "Wait for the system to be seeded"
     remote.exec "sudo snap wait system seed.loaded"
 
     echo "Wait for device initialization to be done"
     remote.exec "retry --wait 5 -n 10 sh -c 'snap changes | MATCH \"Done.*Initialize device\"'"
 
-    echo "Install toolbox (to get efibootmgr)"
-    remote.exec "sudo snap install --channel=$VERSION toolbox" || true
-
 debug: |
-    # The usual toolbox setup assumes bash, so just set PATH and LD_LIBRARY_PATH
-    # manually when executing efibootmgr.
-    remote_exec_efibootmgr() {
-        augmented_path="/snap/toolbox/current/bin:/snap/toolbox/current/sbin:/snap/toolbox/current/usr/bin:/snap/toolbox/current/usr/sbin:${PATH}" # Host path is fine as base
-        augmented_ld_path="/lib:/usr/lib:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/snap/toolbox/current/lib:/snap/toolbox/current/usr/lib:/snap/toolbox/current/lib/x86_64-linux-gnu:/snap/toolbox/current/usr/lib/x86_64-linux-gnu"
-        remote.exec "PATH=${augmented_path} LD_LIBRARY_PATH=${augmented_ld_path} sh -c 'efibootmgr -v'"
-    }
-    if [ -f orig_vars.txt ]; then
+    if [ -f debug_orig_vars.txt ]; then
         echo "Original EFI boot variables:"
-        cat orig_vars.txt
+        cat debug_orig_vars.txt
+
+        rm -rf BootVars/
+        "${TESTSLIB}/pull_uefi_boot_entries.sh" BootVars/
         echo "Current EFI boot variables:"
-        remote_exec_efibootmgr
+        echo "First boot entry:"
+        "${TESTSLIB}/get_uefi_boot_entry.py" BootVars/
+        "${TESTSLIB}/get_uefi_boot_entry.py" --path BootVars/
+        echo "Current boot entry"
+        "${TESTSLIB}/get_uefi_boot_entry.py" --current BootVars/
+        "${TESTSLIB}/get_uefi_boot_entry.py" --current --path BootVars/
     else
         echo "Original EFI variables were never recorded"
     fi
 
 execute: |
-    # The usual toolbox setup assumes bash, so just set PATH and LD_LIBRARY_PATH
-    # manually when executing efibootmgr.
-    remote_exec_efibootmgr() {
-        augmented_path="/snap/toolbox/current/bin:/snap/toolbox/current/sbin:/snap/toolbox/current/usr/bin:/snap/toolbox/current/usr/sbin:${PATH}" # Host path is fine as base
-        augmented_ld_path="/lib:/usr/lib:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/snap/toolbox/current/lib:/snap/toolbox/current/usr/lib:/snap/toolbox/current/lib/x86_64-linux-gnu:/snap/toolbox/current/usr/lib/x86_64-linux-gnu"
-        remote.exec "PATH=${augmented_path} LD_LIBRARY_PATH=${augmented_ld_path} sh -c 'efibootmgr -v'"
-    }
-
     echo "Store original variables"
-    remote_exec_efibootmgr > orig_vars.txt
-    echo "Store original boot order"
-    remote_exec_efibootmgr | grep BootOrder | cut -d ' ' -f 2 > orig_bootorder.txt
+    rm -rf BootVars.orig/
+    "${TESTSLIB}/pull_uefi_boot_entries.sh" BootVars.orig/
+
+    # Save original variables for debugging
+    (
+      echo "First boot entry:"
+      "${TESTSLIB}/get_uefi_boot_entry.py" BootVars.orig/
+      "${TESTSLIB}/get_uefi_boot_entry.py" --path BootVars.orig/
+      echo "Current boot entry"
+      "${TESTSLIB}/get_uefi_boot_entry.py" --current BootVars.orig/
+      "${TESTSLIB}/get_uefi_boot_entry.py" --current --path BootVars.orig/
+    ) >debug_orig_vars.txt
 
     echo "Push locally-built setefivars binary"
     remote.push setefivars
@@ -57,20 +54,16 @@ execute: |
     echo "Execute setefivars binary"
     remote.exec "sudo ./setefivars"
 
-    echo "Check that new boot order differs from original"
-    new_bootorder="$(remote_exec_efibootmgr | grep 'BootOrder' | cut -d ' ' -f 2)"
-    new_first="$(echo "$new_bootorder" | cut -d ',' -f 1)"
-    orig_bootorder="$(cat orig_bootorder.txt)"
+    rm -rf BootVars.after/
+    "${TESTSLIB}/pull_uefi_boot_entries.sh" BootVars.after/
 
-    remote_exec_efibootmgr -v | grep 'spread-test-var' | MATCH "^Boot${new_first}"
-
-    if [ "$new_bootorder" != "${new_first},${orig_bootorder}" ]; then
-        ERROR "New BootOrder variable is not set correctly"
-    fi
+    "${TESTSLIB}/get_uefi_boot_entry.py" BootVars.after/ | MATCH 'spread-test-var'
 
     echo "Check that running the code again results does not modify boot vars again"
-    remote_exec_efibootmgr -v > new_vars.txt
     remote.exec "sudo ./setefivars"
-    remote_exec_efibootmgr -v > newest_vars.txt
-    diff new_vars.txt newest_vars.txt
 
+    rm -rf BootVars.repeat/
+    "${TESTSLIB}/pull_uefi_boot_entries.sh" BootVars.repeat/
+    for var in BootVars.repeat/*; do
+      cmp "BootVars.after/$(basename "${var}")" "${var}"
+    done
