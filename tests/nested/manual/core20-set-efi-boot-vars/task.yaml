@@ -72,8 +72,7 @@ prepare: |
 
 debug: |
     rm -rf BootVars/
-    mkdir BootVars/
-    remote.pull '/sys/firmware/efi/efivars/Boot*-8be4df61-93ca-11d2-aa0d-00e098032b8c' BootVars/
+    "${TESTSLIB}/pull_uefi_boot_entries.sh" BootVars/
     echo "First boot entry:"
     "${TESTSLIB}/get_uefi_boot_entry.py" BootVars/
     "${TESTSLIB}/get_uefi_boot_entry.py" --path BootVars/
@@ -130,8 +129,7 @@ execute: |
     check_efi_assets "$INITIAL_ASSET_DIR"
 
     rm -rf BootVars/
-    mkdir BootVars/
-    remote.pull '/sys/firmware/efi/efivars/Boot*-8be4df61-93ca-11d2-aa0d-00e098032b8c' BootVars/
+    "${TESTSLIB}/pull_uefi_boot_entries.sh" BootVars/
     # Create boot entry is first in order
     "${TESTSLIB}/get_uefi_boot_entry.py" BootVars/ | NOMATCH fallback-created
     "${TESTSLIB}/get_uefi_boot_entry.py" BootVars/ | MATCH ubuntu
@@ -187,8 +185,7 @@ execute: |
     check_efi_assets "$FINAL_ASSET_DIR"
 
     rm -rf BootVars/
-    mkdir BootVars/
-    remote.pull '/sys/firmware/efi/efivars/Boot*-8be4df61-93ca-11d2-aa0d-00e098032b8c' BootVars/
+    "${TESTSLIB}/pull_uefi_boot_entries.sh" BootVars/
     # Create boot entry is first in order
     "${TESTSLIB}/get_uefi_boot_entry.py" BootVars/ | NOMATCH fallback-created
     "${TESTSLIB}/get_uefi_boot_entry.py" BootVars/ | MATCH ubuntu
