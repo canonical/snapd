@@ -31,13 +31,13 @@ prepare_boot_csv() {
 }
 
 prepare_fallback() {
-	if [ -f "${GADGET_DIR}/fb${ARCH}.efi" ]; then
+	if [ -f "${GADGET_DIR}/fb.efi" ]; then
 		return 0
-	elif [ -f "${GADGET_DIR}/fb${ARCH}.efi.bak" ]; then
-		mv "${GADGET_DIR}/fb${ARCH}.efi.bak" "${GADGET_DIR}/fb${ARCH}.efi"
+	elif [ -f "${GADGET_DIR}/fb.efi.bak" ]; then
+		mv "${GADGET_DIR}/fb.efi.bak" "${GADGET_DIR}/fb.efi"
 		return 0
 	elif [ -f "/usr/lib/shim/fb${ARCH}.efi" ]; then
-		cp "/usr/lib/shim/fb${ARCH}.efi" "${GADGET_DIR}/"
+		cp "/usr/lib/shim/fb${ARCH}.efi" "${GADGET_DIR}/fb.efi"
 		return 0
 	fi
 	echo "ERROR: neither gadget nor host has fallback binary: fb${ARCH}.efi"
@@ -46,7 +46,7 @@ prepare_fallback() {
 
 prepare_no_fallback() {
 	if [ -f "${GADGET_DIR}/fb${ARCH}.efi" ]; then
-		mv "${GADGET_DIR}/fb${ARCH}.efi" "${GADGET_DIR}/fb${ARCH}.efi.bak"
+		mv "${GADGET_DIR}/fb.efi" "${GADGET_DIR}/fb.efi.bak"
 	fi
 }
 
@@ -75,7 +75,7 @@ case "$FALLBACK" in
 			{"source": "grub'"$ARCH"'.efi",       "target": "EFI/ubuntu/grub'"$ARCH"'.efi"},
 			{"source": "shim.efi.signed",         "target": "EFI/ubuntu/shim'"$ARCH"'.efi"},
 			{"source": "shim.efi.signed",         "target": "EFI/boot/boot'"$ARCH"'.efi"},
-			{"source": "fb'"$ARCH"'.efi",         "target": "EFI/boot/fb'"$ARCH"'.efi"}
+			{"source": "fb.efi",                  "target": "EFI/boot/fb'"$ARCH"'.efi"}
 		]' "${GADGET_DIR}/meta/gadget.yaml"
 		;;
 	"no-fallback")
