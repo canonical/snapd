@@ -65,9 +65,9 @@ execute: |
     fi
   }
 
-  if os.query is-core16 || os.query is-core18; then
+  if os.query is-core-le 18; then
     LABEL=system-boot
-  elif os.query is-core20 || os.query is-core22; then
+  elif os.query is-core-ge 20; then
     LABEL=ubuntu-seed
   else
     echo "unknown core system, please update test"
