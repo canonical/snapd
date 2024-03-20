@@ -7,7 +7,8 @@ details: >
     depending on the version of the pc-gadget snap, and the first number in the
     BootOrder variable should be the corresponding number.
 
-systems: [ubuntu-2*]
+systems:
+  - -ubuntu-1*
 
 environment:
     DESCRIPTION/BOOTDIR: "Install with assets in EFI/boot/, then update to gadget with assets in EFI/ubuntu/"
