@@ -1,11 +1,14 @@
+#!/usr/bin/env python3
+
 import argparse
 import os
 import struct
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--current", action='store_true')
-parser.add_argument("--path", action='store_true')
-parser.add_argument("vardir")
+parser = argparse.ArgumentParser(description='show the title of the first UEFI boot entry')
+parser.add_argument("--current", action='store_true', help='show the current boot entry instead')
+parser.add_argument("--path", action='store_true', help='show path instead of title')
+parser.add_argument("vardir", nargs='?', default='/sys/firmware/efi/efivars',
+                    help='the path to the variable directory (default: /sys/firmware/efi/efivars)')
 args = parser.parse_args()
 
 u32_f = '@I'

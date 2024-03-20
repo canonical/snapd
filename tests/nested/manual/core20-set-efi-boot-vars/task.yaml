@@ -75,11 +75,11 @@ debug: |
     mkdir BootVars/
     remote.pull '/sys/firmware/efi/efivars/Boot*-8be4df61-93ca-11d2-aa0d-00e098032b8c' BootVars/
     echo "First boot entry:"
-    python3 get_boot_entry.py BootVars/
-    python3 get_boot_entry.py --path BootVars/
+    "${TESTSLIB}/get_uefi_boot_entry.py" BootVars/
+    "${TESTSLIB}/get_uefi_boot_entry.py" --path BootVars/
     echo "Current boot entry"
-    python3 get_boot_entry.py --current BootVars/
-    python3 get_boot_entry.py --current --path BootVars/
+    "${TESTSLIB}/get_uefi_boot_entry.py" --current BootVars/
+    "${TESTSLIB}/get_uefi_boot_entry.py" --current --path BootVars/
 
     echo "Current state of the gadget.yaml"
     if [ -f pc-gadget/meta/gadget.yaml ]; then
@@ -133,16 +133,16 @@ execute: |
     mkdir BootVars/
     remote.pull '/sys/firmware/efi/efivars/Boot*-8be4df61-93ca-11d2-aa0d-00e098032b8c' BootVars/
     # Create boot entry is first in order
-    python3 get_boot_entry.py BootVars/ | NOMATCH fallback-created
-    python3 get_boot_entry.py BootVars/ | MATCH ubuntu
+    "${TESTSLIB}/get_uefi_boot_entry.py" BootVars/ | NOMATCH fallback-created
+    "${TESTSLIB}/get_uefi_boot_entry.py" BootVars/ | MATCH ubuntu
     # It is also the current boot entry
-    python3 get_boot_entry.py --current BootVars/ | NOMATCH fallback-created
-    python3 get_boot_entry.py --current BootVars/ | MATCH ubuntu
+    "${TESTSLIB}/get_uefi_boot_entry.py" --current BootVars/ | NOMATCH fallback-created
+    "${TESTSLIB}/get_uefi_boot_entry.py" --current BootVars/ | MATCH ubuntu
 
     if [ "${INITIAL_ASSET_DIR}" = "ubuntu" ]; then
-      python3 get_boot_entry.py --path BootVars/ | grep -Fi "\\efi\\ubuntu\\shim${ARCH}.efi"
+      "${TESTSLIB}/get_uefi_boot_entry.py" --path BootVars/ | grep -Fi "\\efi\\ubuntu\\shim${ARCH}.efi"
     else
-      python3 get_boot_entry.py --path BootVars/ | grep -Fi "\\efi\\boot\\boot${ARCH}.efi"
+      "${TESTSLIB}/get_uefi_boot_entry.py" --path BootVars/ | grep -Fi "\\efi\\boot\\boot${ARCH}.efi"
     fi
 
     echo "All good!"
@@ -190,15 +190,15 @@ execute: |
     mkdir BootVars/
     remote.pull '/sys/firmware/efi/efivars/Boot*-8be4df61-93ca-11d2-aa0d-00e098032b8c' BootVars/
     # Create boot entry is first in order
-    python3 get_boot_entry.py BootVars/ | NOMATCH fallback-created
-    python3 get_boot_entry.py BootVars/ | MATCH ubuntu
+    "${TESTSLIB}/get_uefi_boot_entry.py" BootVars/ | NOMATCH fallback-created
+    "${TESTSLIB}/get_uefi_boot_entry.py" BootVars/ | MATCH ubuntu
     # It is also the current boot entry
-    python3 get_boot_entry.py --current BootVars/ | NOMATCH fallback-created
-    python3 get_boot_entry.py --current BootVars/ | MATCH ubuntu
+    "${TESTSLIB}/get_uefi_boot_entry.py" --current BootVars/ | NOMATCH fallback-created
+    "${TESTSLIB}/get_uefi_boot_entry.py" --current BootVars/ | MATCH ubuntu
     if [ "${FINAL_ASSET_DIR}" = "ubuntu" ]; then
-      python3 get_boot_entry.py --path BootVars/ | grep -Fi "\\efi\\ubuntu\\shim${ARCH}.efi"
+      "${TESTSLIB}/get_uefi_boot_entry.py" --path BootVars/ | grep -Fi "\\efi\\ubuntu\\shim${ARCH}.efi"
     else
-      python3 get_boot_entry.py --path BootVars/ | grep -Fi "\\efi\\boot\\boot${ARCH}.efi"
+      "${TESTSLIB}/get_uefi_boot_entry.py" --path BootVars/ | grep -Fi "\\efi\\boot\\boot${ARCH}.efi"
     fi
 
     echo "All good!"
