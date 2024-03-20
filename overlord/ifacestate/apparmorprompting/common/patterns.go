@@ -357,7 +357,7 @@ func GetHighestPrecedencePattern(patterns []string) (string, error) {
 			}
 			if r == '\\' {
 				// Since suffix is not unescaped '\\', must have next rune.
-				r, _, err = reader.ReadRune()
+				r, _, _ = reader.ReadRune()
 			}
 			// Can safely check for '/' after '\\', since it is '/' either way
 			if r != '/' || !nextRuneEquals(reader, '*') {
