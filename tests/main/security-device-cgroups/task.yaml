@@ -1,5 +1,10 @@
 summary: Ensure that the security rules related to device cgroups work.
 
+details: |
+    This test checks the when an udev rule assigning a device to a snap is added,
+    then just that device is assigned to that snap and other devices are not shown
+    as assigned to the snap
+
 systems:
   #TODO: bpftool is not available on core22+ and tests.device-cgroup needs it for cgroups v2
   - -ubuntu-core-22-*
