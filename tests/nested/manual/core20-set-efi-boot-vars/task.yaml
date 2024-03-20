@@ -48,6 +48,11 @@ prepare: |
             ;;
     esac
 
+    if [ "${INITIAL_ASSET_DIR}" = "ubuntu" ]; then
+      # make the entry different for fallback
+      sed -i 's/,ubuntu,/,fallback-created,/g' "pc-gadget/BOOT${ARCH^^}.CSV"
+    fi
+
     echo "Get snakeoil key"
     KEY_NAME=$(tests.nested download snakeoil-key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
@@ -127,8 +132,10 @@ execute: |
     mkdir BootVars/
     remote.pull '/sys/firmware/efi/efivars/Boot*-8be4df61-93ca-11d2-aa0d-00e098032b8c' BootVars/
     # Create boot entry is first in order
+    python3 get_boot_entry.py BootVars/ | NOMATCH fallback-created
     python3 get_boot_entry.py BootVars/ | MATCH ubuntu
     # It is also the current boot entry
+    python3 get_boot_entry.py --current BootVars/ | NOMATCH fallback-created
     python3 get_boot_entry.py --current BootVars/ | MATCH ubuntu
 
     if [ "${INITIAL_ASSET_DIR}" = "ubuntu" ]; then
@@ -182,8 +189,10 @@ execute: |
     mkdir BootVars/
     remote.pull '/sys/firmware/efi/efivars/Boot*-8be4df61-93ca-11d2-aa0d-00e098032b8c' BootVars/
     # Create boot entry is first in order
+    python3 get_boot_entry.py BootVars/ | NOMATCH fallback-created
     python3 get_boot_entry.py BootVars/ | MATCH ubuntu
     # It is also the current boot entry
+    python3 get_boot_entry.py --current BootVars/ | NOMATCH fallback-created
     python3 get_boot_entry.py --current BootVars/ | MATCH ubuntu
     if [ "${FINAL_ASSET_DIR}" = "ubuntu" ]; then
       python3 get_boot_entry.py --path BootVars/ | grep -Fi "\\efi\\ubuntu\\shim${ARCH}.efi"
