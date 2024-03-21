@@ -1,8 +1,9 @@
 summary: Verify that updating all of base, gadget and kernel only needs one reboot
 
 details: |
-    Check that when all of base, gadget and kernel are refreshed together, only one reboot
-    is needed. Verify that all the refreshed snaps can be reverted to the initial version.
+    Test ensures that all three of the essential snaps (base, gadget and kernel) can be updated
+    together with a single reboot. The test then reverts each of the snaps to ensure system is left
+    in untouched state. (Otherwise our spread checks will complain).
 
 systems: [ubuntu-core-18-*, ubuntu-core-2*]
 
@@ -21,10 +22,6 @@ prepare: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-
-    snap install remarshal jq
-    tests.cleanup defer snap remove remarshal
-    tests.cleanup defer snap remove jq
 
     # does not work for 16, but we don't support 16 for this
     core_snap="core${VERSION_ID}"
@@ -57,15 +54,23 @@ execute: |
     # does not work for 16, but we don't support 16 for this
     core_snap="core${VERSION_ID}"
     core_id="$(snap info "$core_snap" | awk -F: '$1 == "snap-id" {sub(/^[^:]+:/, "");print}' | xargs)"
+
+    # snap-id is not printed for core20 and core24 when run in spread
     if os.query is-core20; then
-        # snap-id doesn't appear on core20?
         core_id=DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q
+    elif os.query is-core24; then
+        core_id=dwTAh7MZZ01zyriOZErqd1JynQLiOGvM
     fi
 
     if [ "$SPREAD_REBOOT" = 0 ]; then
         echo Downloading snaps needed
         snap download pc-kernel --channel="$VERSION_ID"/edge
-        snap download "$core_snap" --edge
+
+        # repack the base snap, we always stuff it into the fakestore
+        snap download "${core_snap}" --edge
+        unsquashfs -d base-snap "${core_snap}"_*.snap
+        rm "${core_snap}"_*
+        snap pack base-snap
 
         # We run one with a vanilla gadget, and one with another gadget
         cp /var/lib/snapd/snaps/pc_*.snap gadget.snap
@@ -79,7 +84,7 @@ execute: |
             cp pc-snap/meta/gadget.yaml gadget.yaml.orig
 
             system_seed=""
-            if os.query is-core20 || os.query is-core22 ; then
+            if os.query is-core-ge 20; then
                 system_seed="--system-seed"
             fi
 
@@ -88,7 +93,7 @@ execute: |
             echo 'this is foo-x2' > foo-x2.img
             cp foo-x2.img pc-snap/foo.img
             echo 'this is foo.cfg' > pc-snap/foo.cfg
-            if os.query is-core20 || os.query is-core22; then
+            if os.query is-core-ge 20; then
                 echo 'this is foo-seed.cfg' > pc-snap/foo-seed.cfg
             fi
             sed -i -e 's/^version: \(.*\)-1/version: \1-2/' pc-snap/meta/snap.yaml
@@ -98,12 +103,26 @@ execute: |
         snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
         "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
 
+        next_snap_revision() {
+            local SNAP_REV_FILE="$1"
+            SNAP_REV="$(cat "${SNAP_REV_FILE}")"
+            if [[ "$SNAP_REV" = x* ]]; then
+                SNAP_REV=1000
+            else
+                SNAP_REV="$((SNAP_REV + 1))"
+            fi
+            echo "$SNAP_REV"
+        }
+
         prepare_snap() {
             local SNAP_NAME="$1"
             local SNAP_ID="$2"
-            local SNAP_REV="$3"
+            local SNAP_REV_FILE="$3"
             local SNAP_PATH="$4"
+            local SNAP_REV
             
+            SNAP_REV="$(next_snap_revision "${SNAP_REV_FILE}")"
+
             cat <<EOF > "$SNAP_NAME-decl-headers.json"
     {"snap-id": "$SNAP_ID"}
     EOF
@@ -118,11 +137,18 @@ execute: |
             cp -av "$SNAP_PATH" "$BLOB_DIR/"
         }
 
-        prepare_snap pc UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH 1000 "$(ls pc_*.snap)"
-        prepare_snap pc-kernel pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza 1000 "$(ls pc-kernel_*.snap)"
-        prepare_snap "$core_snap" "$core_id" 1000 "$(ls ${core_snap}_*.snap)"
+        prepare_snap pc UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH pc.rev "$(ls pc_*.snap)"
+        prepare_snap pc-kernel pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza pc-kernel.rev "$(ls pc-kernel_*.snap)"
+        prepare_snap "$core_snap" "$core_id" core.rev "$(ls ${core_snap}_*.snap)"
 
-        snap install "$(ls ${core_snap}_*.snap)" "$(ls pc_*.snap)" "$(ls pc-kernel_*.snap)" --dangerous --no-wait > refresh-change-id
+        if os.query is-core-ge 20; then
+            # on uc20+, snap we booted with is unasserted for extra debugging
+            snap install "$(ls ${core_snap}_*.snap)" "$(ls pc_*.snap)" "$(ls pc-kernel_*.snap)" --dangerous --no-wait > refresh-change-id
+        else
+            # all other platforms, the pc snap is asserted, so no flags
+            snap install "$(ls ${core_snap}_*.snap)" "$(ls pc_*.snap)" "$(ls pc-kernel_*.snap)" --no-wait > refresh-change-id
+        fi
+        
         test -n "$(cat refresh-change-id)"
         change_id="$(cat refresh-change-id)"
 
@@ -150,7 +176,7 @@ execute: |
             MATCH 'snap_mode=try' < boot-vars.dump
             MATCH 'snap_try_core=core18_.*.snap' < boot-vars.dump
             MATCH 'snap_try_kernel=pc-kernel_.*.snap' < boot-vars.dump
-        elif os.query is-core20 || os.query is-core22 || os.query is-core24; then
+        elif os.query is-core-ge 20; then
             stat /boot/grub/kernel.efi | MATCH 'pc-kernel.*.snap/kernel.efi'
             stat -L /boot/grub/kernel.efi
             stat /boot/grub/try-kernel.efi | MATCH 'pc-kernel.*.snap/kernel.efi'
@@ -180,28 +206,28 @@ execute: |
         retry -n 30 sh -c '(systemctl is-system-running || true) | MATCH "(running|degraded)"'
 
         # fake refreshes generate revision numbers that are n+1
-        expecting_kernel="$(($(cat pc-kernel.rev) + 1))"
-        expecting_core="$(($(cat core.rev) + 1))"
-        expecting_gadget="$(($(cat pc.rev) + 1))"
+        expecting_kernel="$(($(grep -o -E '[0-9]+' < pc-kernel.rev) + 1))"
+        expecting_gadget="$(($(grep -o -E '[0-9]+' < pc.rev) + 1))"
+        expecting_core="$(($(grep -o -E '[0-9]+' < core.rev) + 1))"
 
         # verify that current points to new revisions
-        test "$(readlink /snap/pc-kernel/current)" = "$expecting_kernel"
-        test "$(readlink /snap/pc/current)" = "$expecting_gadget"
-        test "$(readlink /snap/$core_snap/current)" = "$expecting_core"
+        test "$(readlink /snap/pc-kernel/current | grep -o -E '[0-9]+')" = "$expecting_kernel"
+        test "$(readlink /snap/pc/current | grep -o -E '[0-9]+')" = "$expecting_gadget"
+        test "$(readlink /snap/$core_snap/current | grep -o -E '[0-9]+')" = "$expecting_core"
 
         # now we need to revert both snaps for restore to behave properly, start
         # with the kernel
-        snap revert pc-kernel --revision "$(cat pc-kernel.rev)"
+        snap revert pc-kernel
         REBOOT
     elif [ "$SPREAD_REBOOT" = 2 ]; then
         snap watch --last=revert\?
         # now the gadget
-        snap revert pc --revision "$(cat pc.rev)"
+        snap revert pc
         REBOOT
     elif [ "$SPREAD_REBOOT" = 3 ]; then
         snap watch --last=revert\?
         # now the base
-        snap revert "$core_snap" --revision "$(cat core.rev)"
+        snap revert "$core_snap"
         REBOOT
     elif [ "$SPREAD_REBOOT" = 4 ]; then
         snap watch --last=revert\?
