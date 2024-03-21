@@ -23,9 +23,8 @@ prepare: |
         exit
     fi
 
-    snap install remarshal jq
+    snap install remarshal
     tests.cleanup defer snap remove remarshal
-    tests.cleanup defer snap remove jq
 
     # does not work for 16, but we don't support 16 for this
     core_snap="core${VERSION_ID}"
@@ -80,7 +79,7 @@ execute: |
             cp pc-snap/meta/gadget.yaml gadget.yaml.orig
 
             system_seed=""
-            if os.query is-core20 || os.query is-core22 ; then
+            if os.query is-core-ge 20; then
                 system_seed="--system-seed"
             fi
 
@@ -89,7 +88,7 @@ execute: |
             echo 'this is foo-x2' > foo-x2.img
             cp foo-x2.img pc-snap/foo.img
             echo 'this is foo.cfg' > pc-snap/foo.cfg
-            if os.query is-core20 || os.query is-core22; then
+            if os.query is-core-ge 20; then
                 echo 'this is foo-seed.cfg' > pc-snap/foo-seed.cfg
             fi
             sed -i -e 's/^version: \(.*\)-1/version: \1-2/' pc-snap/meta/snap.yaml
@@ -119,11 +118,18 @@ execute: |
             cp -av "$SNAP_PATH" "$BLOB_DIR/"
         }
 
-        prepare_snap pc UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH 1000 "$(ls pc_*.snap)"
-        prepare_snap pc-kernel pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza 1000 "$(ls pc-kernel_*.snap)"
-        prepare_snap "$core_snap" "$core_id" 1000 "$(ls ${core_snap}_*.snap)"
+        prepare_snap pc UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH "$(($(cat pc.rev) + 1))" "$(ls pc_*.snap)"
+        prepare_snap pc-kernel pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza "$(($(cat pc-kernel.rev) + 1))" "$(ls pc-kernel_*.snap)"
+        prepare_snap "$core_snap" "$core_id" "$(($(cat core.rev) + 1))" "$(ls ${core_snap}_*.snap)"
 
-        snap install "$(ls ${core_snap}_*.snap)" "$(ls pc_*.snap)" "$(ls pc-kernel_*.snap)" --dangerous --no-wait > refresh-change-id
+        if os.query is-core-ge 20; then
+            # on uc20+, snap we booted with is unasserted for extra debugging
+            snap install "$(ls ${core_snap}_*.snap)" "$(ls pc_*.snap)" "$(ls pc-kernel_*.snap)" --dangerous --no-wait > refresh-change-id
+        else
+            # all other platforms, the pc snap is asserted, so no flags
+            snap install "$(ls ${core_snap}_*.snap)" "$(ls pc_*.snap)" "$(ls pc-kernel_*.snap)" --no-wait > refresh-change-id
+        fi
+        
         test -n "$(cat refresh-change-id)"
         change_id="$(cat refresh-change-id)"
 
@@ -151,7 +157,7 @@ execute: |
             MATCH 'snap_mode=try' < boot-vars.dump
             MATCH 'snap_try_core=core18_.*.snap' < boot-vars.dump
             MATCH 'snap_try_kernel=pc-kernel_.*.snap' < boot-vars.dump
-        elif os.query is-core20 || os.query is-core22 || os.query is-core24; then
+        elif os.query is-core-ge 20; then
             stat /boot/grub/kernel.efi | MATCH 'pc-kernel.*.snap/kernel.efi'
             stat -L /boot/grub/kernel.efi
             stat /boot/grub/try-kernel.efi | MATCH 'pc-kernel.*.snap/kernel.efi'
@@ -181,14 +187,16 @@ execute: |
         retry -n 30 sh -c '(systemctl is-system-running || true) | MATCH "(running|degraded)"'
 
         # fake refreshes generate revision numbers that are n+1
-        expecting_kernel="$(($(cat pc-kernel.rev) + 1))"
-        expecting_core="$(($(cat core.rev) + 1))"
-        expecting_gadget="$(($(cat pc.rev) + 1))"
+        expecting_kernel="$(($(grep -o -E '[0-9]+' < pc-kernel.rev) + 1))"
+        expecting_gadget="$(($(grep -o -E '[0-9]+' < pc.rev) + 1))"
+
+        # for the base, we are expecting it to be 1 since the previous was 'official'
+        expecting_core="1"
 
         # verify that current points to new revisions
-        test "$(readlink /snap/pc-kernel/current)" = "$expecting_kernel"
-        test "$(readlink /snap/pc/current)" = "$expecting_gadget"
-        test "$(readlink /snap/$core_snap/current)" = "$expecting_core"
+        test "$(readlink /snap/pc-kernel/current | grep -o -E '[0-9]+')" = "$expecting_kernel"
+        test "$(readlink /snap/pc/current | grep -o -E '[0-9]+')" = "$expecting_gadget"
+        test "$(readlink /snap/$core_snap/current | grep -o -E '[0-9]+')" = "$expecting_core"
 
         # now we need to revert both snaps for restore to behave properly, start
         # with the kernel

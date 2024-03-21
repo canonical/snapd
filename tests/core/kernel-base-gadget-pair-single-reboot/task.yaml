@@ -5,7 +5,6 @@ details: |
     together with a single reboot. The test then reverts each of the snaps to ensure system is left
     in untouched state. (Otherwise our spread checks will complain).
 
-# don't run on UC16 - not supported there
 systems: [ubuntu-core-18-*, ubuntu-core-2*]
 
 environment:
@@ -30,9 +29,8 @@ prepare: |
         exit
     fi
 
-    snap install remarshal jq
+    snap install remarshal
     tests.cleanup defer snap remove remarshal
-    tests.cleanup defer snap remove jq
 
     # does not work for 16, but we don't support 16 for this
     core_snap="core${VERSION_ID}"
@@ -48,6 +46,10 @@ restore: |
         exit
     fi
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
+
+debug: |
+    change_id="$(cat refresh-change-id)"
+    snap debug state --change "$change_id" /var/lib/snapd/state.json
 
 execute: |
     # To get VERSION_ID defined
@@ -71,23 +73,44 @@ execute: |
         core_id=DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q
     fi
 
+    # correct the naming based on the system we are testing
     if [ "$SNAP_ONE" = "core" ]; then
         SNAP_ONE=$core_snap
     elif [ "$SNAP_TWO" = "core" ]; then
         SNAP_TWO=$core_snap
     fi
 
+    next_snap_revision() {
+        local SNAP_REV_FILE="$1"
+        SNAP_REV="$(cat "${SNAP_REV_FILE}")"
+        if [[ "$SNAP_REV" = x* ]]; then
+            SNAP_REV=1000
+        else
+            SNAP_REV="$((SNAP_REV + 1))"
+        fi
+        echo "$SNAP_REV"
+    }
+
     if [ "$SPREAD_REBOOT" = 0 ]; then
         echo Downloading snaps needed
         snap download pc-kernel --channel="$VERSION_ID"/edge
+
+        # repack the base snap, we always stuff it into the fakestore
         snap download "$core_snap" --edge
+        unsquashfs -d base-snap "${core_snap}"_*.snap
+        rm "${core_snap}"_*
+        snap pack base-snap
 
         # prepare gadget update if gadget variant
         if [[ "$SNAP_ONE" == "pc" ]] || [[ "$SNAP_TWO" == "pc" ]]; then
+            # unsquash gadget for modification
+            cp /var/lib/snapd/snaps/pc_*.snap gadget.snap
+            unsquashfs -d pc-snap gadget.snap
+
             cp pc-snap/meta/gadget.yaml gadget.yaml.orig
 
             system_seed=""
-            if os.query is-core20 || os.query is-core22 ; then
+            if os.query is-core-ge 20; then
                 system_seed="--system-seed"
             fi
 
@@ -96,7 +119,7 @@ execute: |
             echo 'this is foo-x2' > foo-x2.img
             cp foo-x2.img pc-snap/foo.img
             echo 'this is foo.cfg' > pc-snap/foo.cfg
-            if os.query is-core20 || os.query is-core22; then
+            if os.query is-core-ge 20; then
                 echo 'this is foo-seed.cfg' > pc-snap/foo-seed.cfg
             fi
             sed -i -e 's/^version: \(.*\)-1/version: \1-2/' pc-snap/meta/snap.yaml
@@ -109,9 +132,12 @@ execute: |
         prepare_snap() {
             local SNAP_NAME="$1"
             local SNAP_ID="$2"
-            local SNAP_REV="$3"
+            local SNAP_REV_FILE="$3"
             local SNAP_PATH="$4"
-            
+            local SNAP_REV
+
+            SNAP_REV="$(next_snap_revision "${SNAP_REV_FILE}")"
+
             cat <<EOF > "$SNAP_NAME-decl-headers.json"
     {"snap-id": "$SNAP_ID"}
     EOF
@@ -127,12 +153,18 @@ execute: |
         }
 
         if [[ "$SNAP_ONE" == "pc" ]] || [[ "$SNAP_TWO" == "pc" ]]; then
-            prepare_snap pc UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH 1000 "$(ls pc_*.snap)"
+            prepare_snap pc UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH pc.rev "$(ls pc_*.snap)"
         fi
-        prepare_snap pc-kernel pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza 1000 "$(ls pc-kernel_*.snap)"
-        prepare_snap "$core_snap" "$core_id" 1000 "$(ls ${core_snap}_*.snap)"
+        prepare_snap pc-kernel pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza pc-kernel.rev "$(ls pc-kernel_*.snap)"
+        prepare_snap "$core_snap" "$core_id" core.rev "$(ls ${core_snap}_*.snap)"
 
-        snap install "$SNAP_ONE" "$SNAP_TWO" --dangerous --no-wait > refresh-change-id
+        if os.query is-core-ge 20; then
+            # on uc20+, snap we booted with is unasserted for extra debugging
+            snap install "$(ls ${SNAP_ONE}_*.snap)" "$(ls ${SNAP_TWO}_*.snap)" --dangerous --no-wait > refresh-change-id
+        else
+            # all other platforms, the pc snap is asserted, so no flags
+            snap install "$(ls ${SNAP_ONE}_*.snap)" "$(ls ${SNAP_TWO}_*.snap)" --no-wait > refresh-change-id
+        fi
         test -n "$(cat refresh-change-id)"
         change_id="$(cat refresh-change-id)"
         
@@ -162,7 +194,7 @@ execute: |
                 MATCH 'snap_mode=try' < boot-vars.dump
                 MATCH 'snap_try_kernel=pc-kernel_.*.snap' < boot-vars.dump
             fi
-        elif os.query is-core20 || os.query is-core22 || os.query is-core24; then
+        elif os.query is-core-ge 20; then
             if [[ "$SNAP_ONE" == "pc-kernel" ]] || [[ "$SNAP_TWO" == "pc-kernel" ]]; then
                 stat /boot/grub/try-kernel.efi | MATCH 'pc_kernel.*.snap/kernel.efi'
                 stat -L /boot/grub/try-kernel.efi
@@ -197,15 +229,24 @@ execute: |
         # fake refreshes generate revision numbers that are n+1
         # verify that current points to new revisions
         if [[ "$SNAP_ONE" == *"core"* ]] || [[ "$SNAP_TWO" == *"core"* ]]; then
-            expecting_core="$(($(cat core.rev) + 1))"
+            expecting_core="x2"
+            if os.query is-core18; then
+                expecting_core="$(next_snap_revision core.rev)"
+            fi
             test "$(readlink /snap/$core_snap/current)" = "$expecting_core"
         fi
         if [[ "$SNAP_ONE" == "pc" ]] || [[ "$SNAP_TWO" == "pc" ]]; then
-            expecting_gadget="$(($(cat pc.rev) + 1))"
+            expecting_gadget="x2"
+            if os.query is-core18; then
+                expecting_gadget="$(next_snap_revision pc.rev)"
+            fi
             test "$(readlink /snap/pc/current)" = "$expecting_gadget"
         fi
         if [[ "$SNAP_ONE" == "pc-kernel" ]] || [[ "$SNAP_TWO" == "pc-kernel" ]]; then
-            expecting_kernel="$(($(cat pc-kernel.rev) + 1))"
+            expecting_kernel="x2"
+            if os.query is-core18; then
+                expecting_kernel="$(next_snap_revision pc-kernel.rev)"
+            fi
             test "$(readlink /snap/pc-kernel/current)" = "$expecting_kernel"
         fi
 
