@@ -416,9 +416,7 @@ func (m *SnapManager) doSetupKernelModules(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// kernel-modules components already in the system
-	st.Lock()
 	kmodComps := snapSt.Sequence.ComponentsWithTypeForRev(snapsup.Revision(), snap.KernelModulesComponent)
-	st.Unlock()
 
 	// Set-up the new kernel modules component - called with unlocked state
 	// as it can take a couple of seconds.

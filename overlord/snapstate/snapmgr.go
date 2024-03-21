@@ -1303,9 +1303,15 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			//   This is especially relevant for the snapd snap as if
 			// this happens, it would end up in a bad state after
 			// an update.
+			// TODO Ensure mounts of snap components as well
+			// TODO refactor so the check for kernel type is not repeated
+			// in the installation case
+			snapType, _ := snapSt.Type()
 			if _, err = sysd.EnsureMountUnitFile(info.MountDescription(),
 				squashfsPath, whereDir, "squashfs",
-				systemd.EnsureMountUnitFlags{PreventRestartIfModified: true}); err != nil {
+				systemd.EnsureMountUnitFlags{
+					PreventRestartIfModified: true,
+					StartBeforeDriversLoad:   snapType == snap.TypeKernel}); err != nil {
 				return err
 			}
 		}
