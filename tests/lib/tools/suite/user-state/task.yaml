@@ -1,5 +1,9 @@
 summary: smoke test for the user-state tool
 
+details: |
+    Check the user-state test tools works properly. Verify it can
+    remove/list users and groups.
+
 execute: |
     # Check help
     "$TESTSTOOLS"/user-state | MATCH "usage: user-state remove-with-group <user>"

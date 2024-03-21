@@ -1,5 +1,8 @@
 summary: Regression check for https://bugs.launchpad.net/snapd/+bug/1813365
 
+details: |
+    Check security issue related to local privilege escalation via snapd socket
+
 systems: [ubuntu-1*, ubuntu-2*, ubuntu-core-*, debian-*]
 
 prepare: |
