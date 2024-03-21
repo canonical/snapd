@@ -47,7 +47,7 @@ var _ = Suite(&personalFilesInterfaceSuite{
 })
 
 func (s *personalFilesInterfaceSuite) SetUpTest(c *C) {
-	const mockPlugSnapInfo = `name: other
+	const mockPlugSnapInfoYaml = `name: other
 version: 1.0
 plugs:
  personal-files:
@@ -58,15 +58,15 @@ apps:
   command: foo
   plugs: [personal-files]
 `
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "personal-files",
-		Interface: "personal-files",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
-	s.plugInfo = plugSnap.Plugs["personal-files"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	const mockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ personal-files:
+  interface: personal-files
+`
+	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "personal-files")
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "personal-files")
 }
 
 func (s *personalFilesInterfaceSuite) TestName(c *C) {
@@ -74,10 +74,8 @@ func (s *personalFilesInterfaceSuite) TestName(c *C) {
 }
 
 func (s *personalFilesInterfaceSuite) TestConnectedPlugAppArmorHappy(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), Equals, `
@@ -114,13 +112,9 @@ apps:
   command: foo
   plugs: [personal-files]
 `
-	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
-	plugInfo := plugSnap.Plugs["personal-files"]
-	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
-	appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	plug, _ := MockConnectedPlug(c, mockPlugSnapInfo, nil, "personal-files")
+	apparmorSpec := apparmor.NewSpecification(plug.AppSet())
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, ErrorMatches, `cannot connect plug personal-files: 123 \(int64\) is not a string`)
 }
 
@@ -136,13 +130,9 @@ apps:
   command: foo
   plugs: [personal-files]
 `
-	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
-	plugInfo := plugSnap.Plugs["personal-files"]
-	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
-	appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	plug, _ := MockConnectedPlug(c, mockPlugSnapInfo, nil, "personal-files")
+	apparmorSpec := apparmor.NewSpecification(plug.AppSet())
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, ErrorMatches, `cannot connect plug personal-files: "\$NOTHOME/.local/share/target" must start with "\$HOME/"`)
 }
 
@@ -178,9 +168,7 @@ apps:
   command: foo
   plugs: [personal-files]
 `
-	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
-	plugInfo := plugSnap.Plugs["personal-files"]
-	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
+	plug, _ := MockConnectedPlug(c, mockPlugSnapInfo, nil, "personal-files")
 	mountSpec := &mount.Specification{}
 	err := mountSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, ErrorMatches, `cannot connect plug personal-files: "\$NOTHOME/.local/share/target" must start with "\$HOME/"`)
@@ -198,9 +186,7 @@ apps:
   command: foo
   plugs: [personal-files]
 `
-	plugSnap := snaptest.MockInfo(c, mockPlugSnapInfo, nil)
-	plugInfo := plugSnap.Plugs["personal-files"]
-	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
+	plug, _ := MockConnectedPlug(c, mockPlugSnapInfo, nil, "personal-files")
 	mountSpec := &mount.Specification{}
 	restore := builtin.MockDirsToEnsure(func(paths []string) ([]*interfaces.EnsureDirSpec, error) {
 		return []*interfaces.EnsureDirSpec{

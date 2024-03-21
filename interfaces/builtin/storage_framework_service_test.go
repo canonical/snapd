@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -51,10 +50,7 @@ apps:
   command: foo
   slots: [storage-framework-service]
 `
-	providerInfo := snaptest.MockInfo(c, providerYaml, nil)
-	s.slotInfo = providerInfo.Slots["storage-framework-service"]
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-
+	s.slot, s.slotInfo = MockConnectedSlot(c, providerYaml, nil, "storage-framework-service")
 	const consumerYaml = `name: consumer
 version: 1.0
 apps:
@@ -62,10 +58,7 @@ apps:
   command: foo
   plugs: [storage-framework-service]
 `
-	consumerInfo := snaptest.MockInfo(c, consumerYaml, nil)
-	s.plugInfo = consumerInfo.Plugs["storage-framework-service"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
-
+	s.plug, s.plugInfo = MockConnectedPlug(c, consumerYaml, nil, "storage-framework-service")
 }
 
 func (s *StorageFrameworkServiceInterfaceSuite) TestName(c *C) {

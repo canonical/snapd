@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -43,22 +42,23 @@ var _ = Suite(&KernelFirmwareControlInterfaceSuite{
 })
 
 func (s *KernelFirmwareControlInterfaceSuite) SetUpTest(c *C) {
-	consumingSnapInfo := snaptest.MockInfo(c, `
-name: other
+	const mockPlugSnapInfoYaml = `name: other
 version: 0
 apps:
  app:
-    command: foo
-    plugs: [kernel-firmware-control]
- `, nil)
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "kernel-firmware-control",
-		Interface: "kernel-firmware-control",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	s.plugInfo = consumingSnapInfo.Plugs["kernel-firmware-control"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+  command: foo
+  plugs: [kernel-firmware-control]
+`
+	const mockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ kernel-firmware-control:
+  interface: kernel-firmware-control
+`
+
+	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "kernel-firmware-control")
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "kernel-firmware-control")
 }
 
 func (s *KernelFirmwareControlInterfaceSuite) TestName(c *C) {
@@ -75,10 +75,8 @@ func (s *KernelFirmwareControlInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *KernelFirmwareControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `/sys/module/firmware_class/parameters/path rw,`)

@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -49,19 +48,14 @@ type: os
 slots:
   hugepages-control:
 `
-	info := snaptest.MockInfo(c, producerYaml, nil)
-	s.slotInfo = info.Slots["hugepages-control"]
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-
+	s.slot, s.slotInfo = MockConnectedSlot(c, producerYaml, nil, "hugepages-control")
 	const consumerYaml = `name: consumer
 version: 0
 apps:
  app:
   plugs: [hugepages-control]
 `
-	info = snaptest.MockInfo(c, consumerYaml, nil)
-	s.plugInfo = info.Plugs["hugepages-control"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.plug, s.plugInfo = MockConnectedPlug(c, consumerYaml, nil, "hugepages-control")
 }
 
 func (s *HugepagesControlSuite) TestName(c *C) {
@@ -77,9 +71,7 @@ func (s *HugepagesControlSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *HugepagesControlSuite) TestAppArmorSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec := apparmor.NewSpecification(appSet)
+	spec := apparmor.NewSpecification(s.plug.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains,

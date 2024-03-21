@@ -100,18 +100,21 @@ slots:
         family: 100
         family-name: 12123323443432
 `, nil)
+	appSet, err := interfaces.NewSnapAppSet(gadgetInfo, nil)
+	c.Assert(err, IsNil)
+
 	s.gadgetNetlinkSlotInfo = gadgetInfo.Slots["my-driver"]
-	s.gadgetNetlinkSlot = interfaces.NewConnectedSlot(s.gadgetNetlinkSlotInfo, nil, nil)
+	s.gadgetNetlinkSlot = interfaces.NewConnectedSlot(s.gadgetNetlinkSlotInfo, appSet, nil, nil)
 	s.gadgetMissingNumberSlotInfo = gadgetInfo.Slots["missing-number"]
-	s.gadgetMissingNumberSlot = interfaces.NewConnectedSlot(s.gadgetMissingNumberSlotInfo, nil, nil)
+	s.gadgetMissingNumberSlot = interfaces.NewConnectedSlot(s.gadgetMissingNumberSlotInfo, appSet, nil, nil)
 	s.gadgetMissingNameSlotInfo = gadgetInfo.Slots["missing-name"]
-	s.gadgetMissingNameSlot = interfaces.NewConnectedSlot(s.gadgetMissingNameSlotInfo, nil, nil)
+	s.gadgetMissingNameSlot = interfaces.NewConnectedSlot(s.gadgetMissingNameSlotInfo, appSet, nil, nil)
 	s.gadgetBadNumberSlotInfo = gadgetInfo.Slots["bad-number"]
-	s.gadgetBadNumberSlot = interfaces.NewConnectedSlot(s.gadgetBadNumberSlotInfo, nil, nil)
+	s.gadgetBadNumberSlot = interfaces.NewConnectedSlot(s.gadgetBadNumberSlotInfo, appSet, nil, nil)
 	s.gadgetBadNameSlotInfo = gadgetInfo.Slots["bad-family-name"]
-	s.gadgetBadNameSlot = interfaces.NewConnectedSlot(s.gadgetBadNameSlotInfo, nil, nil)
+	s.gadgetBadNameSlot = interfaces.NewConnectedSlot(s.gadgetBadNameSlotInfo, appSet, nil, nil)
 	s.gadgetBadNameStringSlotInfo = gadgetInfo.Slots["bad-family-name-string"]
-	s.gadgetBadNameStringSlot = interfaces.NewConnectedSlot(s.gadgetBadNameStringSlotInfo, nil, nil)
+	s.gadgetBadNameStringSlot = interfaces.NewConnectedSlot(s.gadgetBadNameStringSlotInfo, appSet, nil, nil)
 
 	osInfo := snaptest.MockInfo(c, `
 name: my-core
@@ -123,8 +126,10 @@ slots:
         family: 777
         family-name: seven-7-seven
 `, nil)
+	appSet, err = interfaces.NewSnapAppSet(osInfo, nil)
+	c.Assert(err, IsNil)
 	s.osNetlinkSlotInfo = osInfo.Slots["my-driver"]
-	s.osNetlinkSlot = interfaces.NewConnectedSlot(s.osNetlinkSlotInfo, nil, nil)
+	s.osNetlinkSlot = interfaces.NewConnectedSlot(s.osNetlinkSlotInfo, appSet, nil, nil)
 
 	// Snap Consumers
 	consumingSnapInfo := snaptest.MockInfo(c, `
@@ -152,20 +157,24 @@ apps:
       - plug-for-netlink-driver-777
       - plug-for-netlink-driver-foo
 `, nil)
+
+	appSet, err = interfaces.NewSnapAppSet(consumingSnapInfo, nil)
+	c.Assert(err, IsNil)
+
 	s.appToCorePlugDriverInfo = consumingSnapInfo.Plugs["plug-for-netlink-driver-777"]
-	s.appToCorePlugDriver = interfaces.NewConnectedPlug(s.appToCorePlugDriverInfo, nil, nil)
+	s.appToCorePlugDriver = interfaces.NewConnectedPlug(s.appToCorePlugDriverInfo, appSet, nil, nil)
 
 	s.appToGadgetPlugDriverInfo = consumingSnapInfo.Plugs["plug-for-netlink-driver-foo"]
-	s.appToGadgetPlugDriver = interfaces.NewConnectedPlug(s.appToCorePlugDriverInfo, nil, nil)
+	s.appToGadgetPlugDriver = interfaces.NewConnectedPlug(s.appToCorePlugDriverInfo, appSet, nil, nil)
 
 	s.appBadFamilyNamePlugDriverInfo = consumingSnapInfo.Plugs["invalid-family-name"]
-	s.appBadFamilyNamePlugDriver = interfaces.NewConnectedPlug(s.appBadFamilyNamePlugDriverInfo, nil, nil)
+	s.appBadFamilyNamePlugDriver = interfaces.NewConnectedPlug(s.appBadFamilyNamePlugDriverInfo, appSet, nil, nil)
 
 	s.appBadFamilyNameStringPlugDriverInfo = consumingSnapInfo.Plugs["invalid-family-name-string"]
-	s.appBadFamilyNameStringPlugDriver = interfaces.NewConnectedPlug(s.appBadFamilyNameStringPlugDriverInfo, nil, nil)
+	s.appBadFamilyNameStringPlugDriver = interfaces.NewConnectedPlug(s.appBadFamilyNameStringPlugDriverInfo, appSet, nil, nil)
 
 	s.appMissingFamilyNamePlugDriverInfo = consumingSnapInfo.Plugs["missing-family-name"]
-	s.appMissingFamilyNamePlugDriver = interfaces.NewConnectedPlug(s.appMissingFamilyNamePlugDriverInfo, nil, nil)
+	s.appMissingFamilyNamePlugDriver = interfaces.NewConnectedPlug(s.appMissingFamilyNamePlugDriverInfo, appSet, nil, nil)
 }
 
 func (s *NetlinkDriverInterfaceSuite) TestStaticInfo(c *C) {
@@ -251,25 +260,19 @@ func (s *NetlinkDriverInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *NetlinkDriverInterfaceSuite) TestApparmorConnectedPlug(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.appToCorePlugDriver.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec := apparmor.NewSpecification(appSet)
+	spec := apparmor.NewSpecification(s.appToCorePlugDriver.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.appToCorePlugDriver, s.gadgetNetlinkSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.netlink-test"})
 	c.Assert(spec.SnippetForTag("snap.client-snap.netlink-test"), testutil.Contains, `network netlink,`)
 }
 
 func (s *NetlinkDriverInterfaceSuite) TestSecCompConnectedPlug(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.appToCorePlugDriver.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec := seccomp.NewSpecification(appSet)
+	spec := seccomp.NewSpecification(s.appToCorePlugDriver.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.appToCorePlugDriver, s.osNetlinkSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.netlink-test"})
 	c.Assert(spec.SnippetForTag("snap.client-snap.netlink-test"), testutil.Contains, `socket AF_NETLINK - 777`)
 
-	appSet, err = interfaces.NewSnapAppSet(s.appToGadgetPlugDriver.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec2 := seccomp.NewSpecification(appSet)
+	spec2 := seccomp.NewSpecification(s.appToGadgetPlugDriver.AppSet())
 	c.Assert(spec2.AddConnectedPlug(s.iface, s.appToGadgetPlugDriver, s.gadgetNetlinkSlot), IsNil)
 	c.Assert(spec2.SecurityTags(), DeepEquals, []string{"snap.client-snap.netlink-test"})
 	c.Assert(spec2.SnippetForTag("snap.client-snap.netlink-test"), testutil.Contains, `socket AF_NETLINK - 100`)

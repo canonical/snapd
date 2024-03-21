@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -46,20 +45,21 @@ apps:
   plugs: [cpu-control]
 `
 
+const cpuControlMockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ cpu-control:
+  interface: cpu-control
+`
+
 var _ = Suite(&CpuControlInterfaceSuite{
 	iface: builtin.MustInterface("cpu-control"),
 })
 
 func (s *CpuControlInterfaceSuite) SetUpTest(c *C) {
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "cpu-control",
-		Interface: "cpu-control",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	plugSnap := snaptest.MockInfo(c, cpuControlMockPlugSnapInfoYaml, nil)
-	s.plugInfo = plugSnap.Plugs["cpu-control"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.slot, s.slotInfo = MockConnectedSlot(c, cpuControlMockSlotSnapInfoYaml, nil, "cpu-control")
+	s.plug, s.plugInfo = MockConnectedPlug(c, cpuControlMockPlugSnapInfoYaml, nil, "cpu-control")
 }
 
 func (s *CpuControlInterfaceSuite) TestName(c *C) {
@@ -76,10 +76,8 @@ func (s *CpuControlInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *CpuControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec := apparmor.NewSpecification(appSet)
-	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	spec := apparmor.NewSpecification(s.plug.AppSet())
+	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/sys/devices/system/cpu/cpu*/online rw,\n")

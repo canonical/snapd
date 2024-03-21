@@ -60,11 +60,19 @@ var _ = Suite(&TestInterfaceSuite{
 	},
 })
 
+func (s *TestInterfaceSuite) SetUpTest(c *C) {
+	plugAppSet, err := interfaces.NewSnapAppSet(s.plugInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	s.plug = interfaces.NewConnectedPlug(s.plugInfo, plugAppSet, nil, nil)
+
+	slotAppSet, err := interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
+	c.Assert(err, IsNil)
+	s.slot = interfaces.NewConnectedSlot(s.slotInfo, slotAppSet, nil, nil)
+}
+
 // TestInterface has a working Name() function
 func (s *TestInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "test")
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
 }
 
 func (s *TestInterfaceSuite) TestStaticInfo(c *C) {

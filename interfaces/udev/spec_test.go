@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type specSuite struct {
@@ -65,27 +64,26 @@ var _ = Suite(&specSuite{
 })
 
 func (s *specSuite) SetUpSuite(c *C) {
-	info1 := snaptest.MockInfo(c, `name: snap1
+	const plugYaml = `name: snap1
 version: 0
 plugs:
-    name:
-        interface: test
+ name:
+  interface: test
 apps:
-    foo:
-        command: bin/foo
+ foo:
+  command: bin/foo
 hooks:
-    configure:
-`, nil)
-	info2 := snaptest.MockInfo(c, `name: snap2
+ configure:
+`
+	s.plug, s.plugInfo = ifacetest.MockConnectedPlug(c, plugYaml, nil, "name")
+
+	const slotYaml = `name: snap2
 version: 0
 slots:
-    name:
-        interface: test
-`, nil)
-	s.plugInfo = info1.Plugs["name"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
-	s.slotInfo = info2.Slots["name"]
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
+ name:
+  interface: test
+`
+	s.slot, s.slotInfo = ifacetest.MockConnectedSlot(c, slotYaml, nil, "name")
 }
 
 func (s *specSuite) SetUpTest(c *C) {

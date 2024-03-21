@@ -48,9 +48,9 @@ var _ = Suite(&utilsSuite{
 	slotApp:      &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeApp}},
 	slotSnapd:    &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeSnapd, SuggestedName: "snapd"}},
 	slotGadget:   &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeGadget}},
-	conSlotOS:    interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeOS}}, nil, nil),
-	conSlotSnapd: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeSnapd}}, nil, nil),
-	conSlotApp:   interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeApp}}, nil, nil),
+	conSlotOS:    interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeOS}}, nil, nil, nil),
+	conSlotSnapd: interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeSnapd}}, nil, nil, nil),
+	conSlotApp:   interfaces.NewConnectedSlot(&snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeApp}}, nil, nil, nil),
 })
 
 func (s *utilsSuite) TestIsSlotSystemSlot(c *C) {
@@ -204,16 +204,24 @@ func MockSlot(c *C, yaml string, si *snap.SideInfo, slotName string) *snap.SlotI
 
 func MockConnectedPlug(c *C, yaml string, si *snap.SideInfo, plugName string) (*interfaces.ConnectedPlug, *snap.PlugInfo) {
 	info := snaptest.MockInfo(c, yaml, si)
+
+	set, err := interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, IsNil)
+
 	if plugInfo, ok := info.Plugs[plugName]; ok {
-		return interfaces.NewConnectedPlug(plugInfo, nil, nil), plugInfo
+		return interfaces.NewConnectedPlug(plugInfo, set, nil, nil), plugInfo
 	}
 	panic(fmt.Sprintf("cannot find plug %q in snap %q", plugName, info.InstanceName()))
 }
 
 func MockConnectedSlot(c *C, yaml string, si *snap.SideInfo, slotName string) (*interfaces.ConnectedSlot, *snap.SlotInfo) {
 	info := snaptest.MockInfo(c, yaml, si)
+
+	set, err := interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, IsNil)
+
 	if slotInfo, ok := info.Slots[slotName]; ok {
-		return interfaces.NewConnectedSlot(slotInfo, nil, nil), slotInfo
+		return interfaces.NewConnectedSlot(slotInfo, set, nil, nil), slotInfo
 	}
 	panic(fmt.Sprintf("cannot find slot %q in snap %q", slotName, info.InstanceName()))
 }
@@ -241,11 +249,11 @@ slots:
  shared-memory:
   write: ["foo", "bar"]
 `
-	snap := snaptest.MockInfo(c, snapYaml, nil)
-	plugInfo := snap.Plugs["personal-files"]
-	slotInfo := snap.Slots["shared-memory"]
-	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
-	slot := interfaces.NewConnectedSlot(slotInfo, nil, nil)
+	set := ifacetest.MockInfoAndAppSet(c, snapYaml, nil, nil)
+	plugInfo := set.Info().Plugs["personal-files"]
+	slotInfo := set.Info().Slots["shared-memory"]
+	plug := interfaces.NewConnectedPlug(plugInfo, set, nil, nil)
+	slot := interfaces.NewConnectedSlot(slotInfo, set, nil, nil)
 	list, err := builtin.StringListAttribute(plug, "write")
 	c.Assert(err, IsNil)
 	c.Check(list, DeepEquals, []string{"$HOME/dir1", "/etc/.hidden2"})
@@ -264,9 +272,9 @@ plugs:
  personal-files:
   write: [1, "two"]
 `
-	snap := snaptest.MockInfo(c, snapYaml, nil)
-	plugInfo := snap.Plugs["personal-files"]
-	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
+	set := ifacetest.MockInfoAndAppSet(c, snapYaml, nil, nil)
+	plugInfo := set.Info().Plugs["personal-files"]
+	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil, nil)
 	list, err := builtin.StringListAttribute(plug, "write")
 	c.Assert(list, IsNil)
 	c.Assert(err, ErrorMatches, `"write" attribute must be a list of strings, not "\[1 two\]"`)

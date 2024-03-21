@@ -128,7 +128,7 @@ func (iface *storageFrameworkServiceInterface) StaticInfo() interfaces.StaticInf
 func (iface *storageFrameworkServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	snippet := storageFrameworkServiceConnectedPlugAppArmor
 	old := "###SLOT_SECURITY_TAGS###"
-	new := spec.SnapAppSet().SlotLabelExpression(slot)
+	new := slot.LabelExpression()
 	snippet = strings.Replace(snippet, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
@@ -142,7 +142,7 @@ func (iface *storageFrameworkServiceInterface) AppArmorPermanentSlot(spec *appar
 func (iface *storageFrameworkServiceInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	snippet := storageFrameworkServiceConnectedSlotAppArmor
 	old := "###PLUG_SECURITY_TAGS###"
-	new := spec.SnapAppSet().PlugLabelExpression(plug)
+	new := plug.LabelExpression()
 	snippet = strings.Replace(snippet, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil

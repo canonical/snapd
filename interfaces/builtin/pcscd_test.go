@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -50,15 +49,15 @@ apps:
   command: foo
   plugs: [pcscd]
 `
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "pcscd",
-		Interface: "pcscd",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
-	s.plugInfo = snapInfo.Plugs["pcscd"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	var mockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ pcscd:
+   interface: pcscd
+`
+	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "pcscd")
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "pcscd")
 }
 
 func (s *pcscdInterfaceSuite) TestName(c *C) {
@@ -74,9 +73,7 @@ func (s *pcscdInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *pcscdInterfaceSuite) TestAppArmorSpec(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec := apparmor.NewSpecification(appSet)
+	spec := apparmor.NewSpecification(s.plug.AppSet())
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(spec.SnippetForTag("snap.other.app"), testutil.Contains, "/{var/,}run/pcscd/pcscd.comm rw")

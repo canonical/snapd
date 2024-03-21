@@ -59,9 +59,7 @@ slots:
 		name:              "common",
 		connectedPlugUDev: []string{`KERNEL=="foo"`},
 	}
-	appSet, err := interfaces.NewSnapAppSet(plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	spec := udev.NewSpecification(appSet)
+	spec := udev.NewSpecification(plug.AppSet())
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.Snippets(), DeepEquals, []string{
 		`# common
@@ -78,10 +76,7 @@ KERNEL=="foo", TAG+="snap_consumer_app-c"`,
 		name: "common",
 	}
 
-	appSet, err = interfaces.NewSnapAppSet(plug.Snap(), nil)
-	c.Assert(err, IsNil)
-
-	spec = udev.NewSpecification(appSet)
+	spec = udev.NewSpecification(plug.AppSet())
 
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)

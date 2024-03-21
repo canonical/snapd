@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -62,12 +61,8 @@ apps:
   command: foo
   slots: [media-hub]
 `
-	snapInfo := snaptest.MockInfo(c, mockSlotSnapInfoYaml, nil)
-	s.slotInfo = snapInfo.Slots["media-hub"]
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	snapInfo = snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
-	s.plugInfo = snapInfo.Plugs["media-hub"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "media-hub")
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "media-hub")
 }
 
 func (s *MediaHubInterfaceSuite) TestName(c *C) {
@@ -76,25 +71,19 @@ func (s *MediaHubInterfaceSuite) TestName(c *C) {
 
 // The label glob when all apps are bound to the media-hub slot
 func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
-	app1 := &snap.AppInfo{Name: "app1"}
-	app2 := &snap.AppInfo{Name: "app2"}
+	appSet := appSetWithApps(c, "media-hub", "app1", "app2")
+	si := appSet.Info()
 	slot := interfaces.NewConnectedSlot(&snap.SlotInfo{
-		Snap: &snap.Info{
-			SuggestedName: "media-hub",
-			Apps: map[string]*snap.AppInfo{"app1": app1,
-				"app2": app2},
-		},
+		Snap:      si,
 		Name:      "media-hub",
 		Interface: "media-hub",
-		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil, nil)
+		Apps:      map[string]*snap.AppInfo{"app1": si.Apps["app1"], "app2": si.Apps["app2"]},
+	}, appSet, nil, nil)
 
 	release.OnClassic = false
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains,
@@ -103,52 +92,40 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) 
 
 // The label uses alternation when some, but not all, apps is bound to the media-hub slot
 func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
-	app1 := &snap.AppInfo{Name: "app1"}
-	app2 := &snap.AppInfo{Name: "app2"}
-	app3 := &snap.AppInfo{Name: "app3"}
+	appSet := appSetWithApps(c, "media-hub", "app1", "app2", "app3")
+	si := appSet.Info()
 	slot := interfaces.NewConnectedSlot(&snap.SlotInfo{
-		Snap: &snap.Info{
-			SuggestedName: "media-hub",
-			Apps: map[string]*snap.AppInfo{"app1": app1,
-				"app2": app2,
-				"app3": app3},
-		},
+		Snap:      si,
 		Name:      "media-hub",
 		Interface: "media-hub",
-		Apps:      map[string]*snap.AppInfo{"app1": app1, "app2": app2},
-	}, nil, nil)
+		Apps:      map[string]*snap.AppInfo{"app1": si.Apps["app1"], "app2": si.Apps["app2"]},
+	}, appSet, nil, nil)
 
 	release.OnClassic = false
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains,
-		`peer=(label="snap.media-hub.{app1,app2}"),`)
+		`peer=(label="snap.media-hub{.app1,.app2}"),`)
 }
 
 // The label uses short form when exactly one app is bound to the media-hub slot
 func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) {
-	app := &snap.AppInfo{Name: "app"}
+	appSet := appSetWithApps(c, "media-hub", "app")
+	si := appSet.Info()
 	slot := interfaces.NewConnectedSlot(&snap.SlotInfo{
-		Snap: &snap.Info{
-			SuggestedName: "media-hub",
-			Apps:          map[string]*snap.AppInfo{"app": app},
-		},
+		Snap:      si,
 		Name:      "media-hub",
 		Interface: "media-hub",
-		Apps:      map[string]*snap.AppInfo{"app": app},
-	}, nil, nil)
+		Apps:      map[string]*snap.AppInfo{"app": si.Apps["app"]},
+	}, appSet, nil, nil)
 
 	release.OnClassic = false
 
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains,
@@ -156,10 +133,8 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelOne(c *C) 
 }
 
 func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-	c.Assert(err, IsNil)
-	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), Not(IsNil))
@@ -170,10 +145,8 @@ func (s *MediaHubInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 }
 
 func (s *MediaHubInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
-	c.Assert(err, IsNil)
-	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddPermanentSlot(s.iface, s.slotInfo)
+	apparmorSpec := apparmor.NewSpecification(s.slot.AppSet())
+	err := apparmorSpec.AddPermanentSlot(s.iface, s.slotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.media-hub.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.media-hub.app"), Not(IsNil))
@@ -184,10 +157,8 @@ func (s *MediaHubInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 }
 
 func (s *MediaHubInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.slot.Snap(), nil)
-	c.Assert(err, IsNil)
-	apparmorSpec := apparmor.NewSpecification(appSet)
-	err = apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.slot)
+	apparmorSpec := apparmor.NewSpecification(s.slot.AppSet())
+	err := apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.media-hub.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.media-hub.app"), Not(IsNil))
@@ -196,9 +167,7 @@ func (s *MediaHubInterfaceSuite) TestConnectedSlotSnippetAppArmor(c *C) {
 }
 
 func (s *MediaHubInterfaceSuite) TestPermanentSlotSnippetSecComp(c *C) {
-	appSet, err := interfaces.NewSnapAppSet(s.slotInfo.Snap, nil)
-	c.Assert(err, IsNil)
-	spec := seccomp.NewSpecification(appSet)
+	spec := seccomp.NewSpecification(s.slot.AppSet())
 	c.Assert(spec.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
 	c.Assert(spec.SnippetForTag("snap.media-hub.app"), testutil.Contains, "bind\n")
 }

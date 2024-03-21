@@ -343,7 +343,7 @@ func (iface *dbusInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 	snippet = strings.Replace(snippet, old, new, -1)
 
 	old = "###SLOT_SECURITY_TAGS###"
-	new = spec.SnapAppSet().SlotLabelExpression(slot)
+	new = slot.LabelExpression()
 	snippet = strings.Replace(snippet, old, new, -1)
 
 	spec.AddSnippet(snippet)
@@ -423,7 +423,7 @@ func (iface *dbusInterface) AppArmorConnectedSlot(spec *apparmor.Specification, 
 	snippet := getAppArmorSnippet(dbusConnectedSlotAppArmor, bus, name)
 
 	old := "###PLUG_SECURITY_TAGS###"
-	new := spec.SnapAppSet().PlugLabelExpression(plug)
+	new := plug.LabelExpression()
 	snippet = strings.Replace(snippet, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil

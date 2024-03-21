@@ -120,23 +120,45 @@ func (s *specSuite) TestDifferentObjectsNotClashing(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func mockConnectedPlug(c *C, yaml string, si *snap.SideInfo, plugName string) (*interfaces.ConnectedPlug, *snap.PlugInfo) {
+	info := snaptest.MockInfo(c, yaml, si)
+
+	set, err := interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, IsNil)
+
+	if plugInfo, ok := info.Plugs[plugName]; ok {
+		return interfaces.NewConnectedPlug(plugInfo, set, nil, nil), plugInfo
+	}
+	panic(fmt.Sprintf("cannot find plug %q in snap %q", plugName, info.InstanceName()))
+}
+
+func mockConnectedSlot(c *C, yaml string, si *snap.SideInfo, slotName string) (*interfaces.ConnectedSlot, *snap.SlotInfo) {
+	info := snaptest.MockInfo(c, yaml, si)
+
+	set, err := interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, IsNil)
+
+	if slotInfo, ok := info.Slots[slotName]; ok {
+		return interfaces.NewConnectedSlot(slotInfo, set, nil, nil), slotInfo
+	}
+	panic(fmt.Sprintf("cannot find slot %q in snap %q", slotName, info.InstanceName()))
+}
+
 func (s *specSuite) TestAddMethods(c *C) {
-	info1 := snaptest.MockInfo(c, `name: snap1
+	const plugYaml = `name: snap1
 version: 0
 plugs:
-    plug1:
-        interface: test
-`, nil)
-	info2 := snaptest.MockInfo(c, `name: snap2
+ plug1:
+  interface: test
+`
+	plug, plugInfo := mockConnectedPlug(c, plugYaml, nil, "plug1")
+	const slotYaml = `name: snap2
 version: 0
 slots:
-    slot2:
-        interface: test
-`, nil)
-	plugInfo := info1.Plugs["plug1"]
-	plug := interfaces.NewConnectedPlug(plugInfo, nil, nil)
-	slotInfo := info2.Slots["slot2"]
-	slot := interfaces.NewConnectedSlot(slotInfo, nil, nil)
+ slot2:
+  interface: test
+`
+	slot, slotInfo := mockConnectedSlot(c, slotYaml, nil, "slot2")
 
 	spec := systemd.Specification{}
 

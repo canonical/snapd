@@ -37,15 +37,30 @@ type Connection struct {
 // ConnectedPlug represents a plug that is connected to a slot.
 type ConnectedPlug struct {
 	plugInfo     *snap.PlugInfo
+	appSet       *SnapAppSet
 	staticAttrs  map[string]interface{}
 	dynamicAttrs map[string]interface{}
+}
+
+func (plug *ConnectedPlug) LabelExpression() string {
+	return plug.appSet.plugLabelExpression(plug)
 }
 
 // ConnectedSlot represents a slot that is connected to a plug.
 type ConnectedSlot struct {
 	slotInfo     *snap.SlotInfo
+	appSet       *SnapAppSet
 	staticAttrs  map[string]interface{}
 	dynamicAttrs map[string]interface{}
+}
+
+// Apps returns all the apps associated with this plug.
+func (slot *ConnectedSlot) AppSet() *SnapAppSet {
+	return slot.appSet
+}
+
+func (slot *ConnectedSlot) LabelExpression() string {
+	return slot.appSet.slotLabelExpression(slot)
 }
 
 // Attrer is an interface with Attr getter method common
@@ -94,7 +109,7 @@ func getAttribute(snapName string, ifaceName string, staticAttrs map[string]inte
 }
 
 // NewConnectedSlot creates an object representing a connected slot.
-func NewConnectedSlot(slot *snap.SlotInfo, staticAttrs, dynamicAttrs map[string]interface{}) *ConnectedSlot {
+func NewConnectedSlot(slot *snap.SlotInfo, appSet *SnapAppSet, staticAttrs, dynamicAttrs map[string]interface{}) *ConnectedSlot {
 	var static map[string]interface{}
 	if staticAttrs != nil {
 		static = staticAttrs
@@ -103,13 +118,14 @@ func NewConnectedSlot(slot *snap.SlotInfo, staticAttrs, dynamicAttrs map[string]
 	}
 	return &ConnectedSlot{
 		slotInfo:     slot,
+		appSet:       appSet,
 		staticAttrs:  utils.CopyAttributes(static),
 		dynamicAttrs: utils.NormalizeInterfaceAttributes(dynamicAttrs).(map[string]interface{}),
 	}
 }
 
 // NewConnectedPlug creates an object representing a connected plug.
-func NewConnectedPlug(plug *snap.PlugInfo, staticAttrs, dynamicAttrs map[string]interface{}) *ConnectedPlug {
+func NewConnectedPlug(plug *snap.PlugInfo, appSet *SnapAppSet, staticAttrs, dynamicAttrs map[string]interface{}) *ConnectedPlug {
 	var static map[string]interface{}
 	if staticAttrs != nil {
 		static = staticAttrs
@@ -118,6 +134,7 @@ func NewConnectedPlug(plug *snap.PlugInfo, staticAttrs, dynamicAttrs map[string]
 	}
 	return &ConnectedPlug{
 		plugInfo:     plug,
+		appSet:       appSet,
 		staticAttrs:  utils.CopyAttributes(static),
 		dynamicAttrs: utils.NormalizeInterfaceAttributes(dynamicAttrs).(map[string]interface{}),
 	}
@@ -139,8 +156,8 @@ func (plug *ConnectedPlug) Snap() *snap.Info {
 }
 
 // Apps returns all the apps associated with this plug.
-func (plug *ConnectedPlug) Apps() map[string]*snap.AppInfo {
-	return plug.plugInfo.Apps
+func (plug *ConnectedPlug) AppSet() *SnapAppSet {
+	return plug.appSet
 }
 
 // StaticAttr returns a static attribute with the given key, or error if attribute doesn't exist.

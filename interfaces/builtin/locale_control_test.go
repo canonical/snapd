@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -43,6 +42,13 @@ var _ = Suite(&LocaleControlInterfaceSuite{
 })
 
 func (s *LocaleControlInterfaceSuite) SetUpTest(c *C) {
+	var mockSlotSnapInfoYaml = `name: core
+version: 1.0
+type: os
+slots:
+ locale-control:
+  interface: locale-control
+`
 	var mockPlugSnapInfoYaml = `name: other
 version: 1.0
 apps:
@@ -50,15 +56,8 @@ apps:
   command: foo
   plugs: [locale-control]
 `
-	snapInfo := snaptest.MockInfo(c, mockPlugSnapInfoYaml, nil)
-	s.plugInfo = snapInfo.Plugs["locale-control"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "locale-control",
-		Interface: "locale-control",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
+	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "locale-control")
+	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "locale-control")
 }
 
 func (s *LocaleControlInterfaceSuite) TestName(c *C) {
