@@ -6,6 +6,7 @@ go 1.18
 replace maze.io/x/crypto => github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066
 
 require (
+	github.com/bmatcuk/doublestar/v4 v4.6.1
 	github.com/canonical/go-efilib v0.3.1-0.20220815143333-7e5151412e93 // indirect
 	github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 // indirect
 	github.com/canonical/go-tpm2 v0.0.0-20210827151749-f80ff5afff61
@@ -36,7 +37,6 @@ require (
 )
 
 require (
-	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
 	github.com/canonical/go-sp800.108-kdf v0.0.0-20210314145419-a3359f2d21b9 // indirect
 	github.com/canonical/tcglog-parser v0.0.0-20210824131805-69fa1e9f0ad2 // indirect
 	github.com/kr/pretty v0.2.2-0.20200810074440-814ac30b4b18 // indirect
