@@ -84,6 +84,10 @@ execute: |
 
         # prepare gadget update if gadget variant
         if [[ "$SNAP_ONE" == "pc" ]] || [[ "$SNAP_TWO" == "pc" ]]; then
+            # unsquash gadget for modification
+            cp /var/lib/snapd/snaps/pc_*.snap gadget.snap
+            unsquashfs -d pc-snap gadget.snap        
+
             cp pc-snap/meta/gadget.yaml gadget.yaml.orig
 
             system_seed=""
