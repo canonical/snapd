@@ -123,7 +123,14 @@ execute: |
         prepare_snap pc-kernel pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza 1000 "$(ls pc-kernel_*.snap)"
         prepare_snap "$core_snap" "$core_id" 1000 "$(ls ${core_snap}_*.snap)"
 
-        snap install "$(ls ${core_snap}_*.snap)" "$(ls pc_*.snap)" "$(ls pc-kernel_*.snap)" --dangerous --no-wait > refresh-change-id
+        if os.query is-core-ge 20; then
+            # on uc20+, snap we booted with is unasserted for extra debugging
+            snap install "$(ls ${core_snap}_*.snap)" "$(ls pc_*.snap)" "$(ls pc-kernel_*.snap)" --dangerous --no-wait > refresh-change-id
+        else
+            # all other platforms, the pc snap is asserted, so no flags
+            snap install "$(ls ${core_snap}_*.snap)" "$(ls pc_*.snap)" "$(ls pc-kernel_*.snap)" --no-wait > refresh-change-id
+        fi
+        
         test -n "$(cat refresh-change-id)"
         change_id="$(cat refresh-change-id)"
 
