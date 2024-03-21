@@ -1172,6 +1172,10 @@ EOF
             for cmd in "console=ttyS0" "dangerous" "systemd.journald.forward_to_console=1" "rd.systemd.journald.forward_to_console=1" "panic=-1"; do
                 echo "$cmd" >> pc-gadget/cmdline.full
             done
+            # On GCE, cloud-init enables itself even though is not
+            # expected in the tests. So we need to disable it
+            # manually.
+            echo "cloud-init=disabled" >>pc-gadget/cmdline.full
         else
             # but for other backends, just add the additional debugging things
             # on top of whatever the gadget currently is configured to use
