@@ -435,7 +435,7 @@ func ValidatePathPattern(pattern string) error {
 		return fmt.Errorf("invalid path pattern: must start with '/': %q", pattern)
 	}
 	if !allowablePathPatternRegexp.MatchString(pattern) {
-		return fmt.Errorf("invalid path pattern: cannot contain unescaped '[', ']', or '?': %q", pattern)
+		return fmt.Errorf("invalid path pattern: cannot contain unescaped '[' or ']': %q", pattern)
 	}
 	return nil
 }
