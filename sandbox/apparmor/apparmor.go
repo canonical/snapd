@@ -496,9 +496,15 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	for _, dir := range filepath.SplitList(parserSearchPath) {
 		path := filepath.Join(dir, "apparmor_parser")
 		if _, err := os.Stat(path); err == nil {
-			// Pin 4.0 abi if host supports it.
+			// Detect but ignore apparmor 4.0 ABI support.
+			//
+			// At present this causes some bugs with mqueue mediation that can
+			// be avoided by pinning to 3.0 (which is also supported on
+			// apparmor 4). Once the mqueue issue is analyzed and fixed, this
+			// can be replaced with a --policy-features=hostAbi40File pin like
+			// we do below.
 			if fi, err := os.Lstat(hostAbi40File); err == nil && !fi.IsDir() {
-				return exec.Command(path, "--policy-features", hostAbi40File), false, nil
+				logger.Debugf("apparmor 4.0 ABI detected but ignored")
 			}
 
 			// Perhaps 3.0?
