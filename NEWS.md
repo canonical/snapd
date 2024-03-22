@@ -1,3 +1,16 @@
+# In progress:
+* Installation of local snap components
+* Started support for snap services to show real status of user daemons
+
+# Next:
+* state: add support for notices (from pebble)
+* daemon: add notices to the snapd API under `/v2/notices` and `/v2/notice`
+* Mandatory device cgroup for all snaps using bare and core24 base as well as future bases
+* Added API route for creating recovery systems: POST to `/v2/systems` with action `create`
+* Added API route for removing recovery systems: POST to `/v2/systems/{label}` with action `remove`
+* Support for user daemons by introducing new control switches --user/--system/--users for service start/stop/restart
+* client,daemon: expose features supported/enabled in `/v2/system-info`
+
 # New in snapd 2.62:
 * Aspects based configuration schema support (experimental)
 * Refresh app awareness support for UI (experimental)
