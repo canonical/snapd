@@ -170,11 +170,11 @@ func testBuildKernelDriversTree(c *C) {
 	modsRoot := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1", "lib", "modules", kversion)
 	modsMntDir := filepath.Join(mountDir, "modules", kversion)
 	expected := []expectInode{
-		{"components", fs.ModeDir, ""},
 		{"kernel", fs.ModeSymlink, filepath.Join(modsMntDir, "kernel")},
 		{"modules.builtin.alias.bin", 0, ""},
 		{"modules.dep.bin", 0, ""},
 		{"modules.symbols", 0, ""},
+		{"updates", fs.ModeDir, ""},
 		{"vdso", fs.ModeSymlink, filepath.Join(modsMntDir, "vdso")},
 	}
 	doDirChecks(c, modsRoot, expected)
@@ -443,17 +443,17 @@ func testBuildKernelDriversTreeWithComps(c *C, opts *kernel.KernelDriversTreeOpt
 	modsRoot := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1", "lib", "modules", kversion)
 	modsMntDir := filepath.Join(mountDir, "modules", kversion)
 	expected := []expectInode{
-		{"components", fs.ModeDir, ""},
 		{"kernel", fs.ModeSymlink, filepath.Join(modsMntDir, "kernel")},
 		{"modules.builtin.alias.bin", 0, ""},
 		{"modules.dep.bin", 0, ""},
 		{"modules.symbols", 0, ""},
+		{"updates", fs.ModeDir, ""},
 		{"vdso", fs.ModeSymlink, filepath.Join(modsMntDir, "vdso")},
 	}
 	doDirChecks(c, modsRoot, expected)
 
 	// Check links for modules shipped in components
-	updatesDir := filepath.Join(modsRoot, "components")
+	updatesDir := filepath.Join(modsRoot, "updates")
 	expected = []expectInode{
 		{"comp1", fs.ModeSymlink, filepath.Join(compMntDir1, "modules", kversion)},
 		{"comp2", fs.ModeSymlink, filepath.Join(compMntDir2, "modules", kversion)},

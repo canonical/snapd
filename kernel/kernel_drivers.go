@@ -163,7 +163,7 @@ func createModulesSubtree(kernelMount, kernelTree, kversion, kname string, krev 
 func setupModsFromComp(kernelTree, kversion, kname string, krev snap.Revision, compInfos []*snap.ComponentSideInfo) error {
 	// This folder needs to exist always to allow for directory swapping
 	// in the future, even if right now we don't have components.
-	compsRoot := filepath.Join(kernelTree, "lib", "modules", kversion, "components")
+	compsRoot := filepath.Join(kernelTree, "lib", "modules", kversion, "updates")
 	if err := os.MkdirAll(compsRoot, 0755); err != nil {
 		return err
 	}

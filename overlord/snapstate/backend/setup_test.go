@@ -711,7 +711,7 @@ func checkInstalled(c *C, installed []*snap.ComponentSideInfo, ksnap string, ker
 	for _, csi := range installed {
 		treedir := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir),
 			"kernel", ksnap, kernRev.String(),
-			"/lib/modules/6.5.4-3-generic/components",
+			"/lib/modules/6.5.4-3-generic/updates",
 			csi.Component.ComponentName)
 		dest, err := os.Readlink(treedir)
 		c.Assert(err, IsNil)
@@ -728,7 +728,7 @@ func checkRemoved(c *C, removed []*snap.ComponentSideInfo, ksnap string, kernRev
 	for _, csi := range removed {
 		treedir := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir),
 			"kernel", ksnap, kernRev.String(),
-			"lib/modules/6.5.4-3-generic/components",
+			"lib/modules/6.5.4-3-generic/updates",
 			csi.Component.ComponentName)
 		dest, err := os.Readlink(treedir)
 		if err == nil {
