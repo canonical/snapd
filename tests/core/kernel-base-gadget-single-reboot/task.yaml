@@ -188,14 +188,16 @@ execute: |
         retry -n 30 sh -c '(systemctl is-system-running || true) | MATCH "(running|degraded)"'
 
         # fake refreshes generate revision numbers that are n+1
-        expecting_kernel="$(($(cat pc-kernel.rev) + 1))"
-        expecting_core="$(($(cat core.rev) + 1))"
-        expecting_gadget="$(($(cat pc.rev) + 1))"
+        expecting_kernel="$(($(cat pc-kernel.rev | grep -o -E '[0-9]+') + 1))"
+        expecting_gadget="$(($(cat pc.rev | grep -o -E '[0-9]+') + 1))"
+
+        # for the base, we are expecting it to be 1 since the previous was 'official'
+        expecting_core="1"
 
         # verify that current points to new revisions
-        test "$(readlink /snap/pc-kernel/current)" = "$expecting_kernel"
-        test "$(readlink /snap/pc/current)" = "$expecting_gadget"
-        test "$(readlink /snap/$core_snap/current)" = "$expecting_core"
+        test "$(readlink /snap/pc-kernel/current | grep -o -E '[0-9]+')" = "$expecting_kernel"
+        test "$(readlink /snap/pc/current | grep -o -E '[0-9]+')" = "$expecting_gadget"
+        test "$(readlink /snap/$core_snap/current | grep -o -E '[0-9]+')" = "$expecting_core"
 
         # now we need to revert both snaps for restore to behave properly, start
         # with the kernel
