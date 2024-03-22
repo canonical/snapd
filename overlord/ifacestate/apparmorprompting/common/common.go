@@ -39,8 +39,8 @@ var (
 )
 
 type Constraints struct {
-	PathPattern string   `json:"path-pattern"`
-	Permissions []string `json:"permissions"`
+	PathPattern string   `json:"path-pattern,omitempty"`
+	Permissions []string `json:"permissions,omitempty"`
 }
 
 // ValidateForInterface returns nil if the constraints are valid for the given
