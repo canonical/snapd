@@ -213,7 +213,7 @@ parts:
       cd "${CRAFT_PART_BUILD}/cmd"
 
       autoreconf -fvi
-      ./configure --prefix=/usr --libexec=/usr/lib/snapd --without-unit-tests --enable-static-libapparmor
+      ./configure --prefix=/usr --libexec=/usr/lib/snapd --without-unit-tests --enable-static-libapparmor --disable-host-binaries
       make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
       make DESTDIR="${CRAFT_PART_INSTALL}" install
 
