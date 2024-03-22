@@ -1,3 +1,7 @@
+# In progress:
+* Installation of local snap components
+* Started support for snap services to show real status of user daemons
+
 # New in snapd 2.62:
 * Aspects based configuration schema support (experimental)
 * Refresh app awareness support for UI (experimental)
