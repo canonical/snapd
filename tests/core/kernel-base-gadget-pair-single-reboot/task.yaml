@@ -138,10 +138,10 @@ execute: |
 
         if os.query is-core-ge 20; then
             # on uc20+, snap we booted with is unasserted for extra debugging
-            snap install "$(ls ${SNAP_ONE}_*.snap)""$(ls ${SNAP_TWO}_*.snap)" --dangerous --no-wait > refresh-change-id
+            snap install "$(ls ${SNAP_ONE}_*.snap)" "$(ls ${SNAP_TWO}_*.snap)" --dangerous --no-wait > refresh-change-id
         else
             # all other platforms, the pc snap is asserted, so no flags
-            snap install "$(ls ${SNAP_ONE}_*.snap)""$(ls ${SNAP_TWO}_*.snap)" --no-wait > refresh-change-id
+            snap install "$(ls ${SNAP_ONE}_*.snap)" "$(ls ${SNAP_TWO}_*.snap)" --no-wait > refresh-change-id
         fi
         test -n "$(cat refresh-change-id)"
         change_id="$(cat refresh-change-id)"
