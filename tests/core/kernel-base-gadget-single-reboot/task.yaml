@@ -188,8 +188,8 @@ execute: |
         retry -n 30 sh -c '(systemctl is-system-running || true) | MATCH "(running|degraded)"'
 
         # fake refreshes generate revision numbers that are n+1
-        expecting_kernel="$(($(cat pc-kernel.rev | grep -o -E '[0-9]+') + 1))"
-        expecting_gadget="$(($(cat pc.rev | grep -o -E '[0-9]+') + 1))"
+        expecting_kernel="$(($(grep -o -E '[0-9]+' < pc-kernel.rev) + 1))"
+        expecting_gadget="$(($(grep -o -E '[0-9]+' < pc.rev) + 1))"
 
         # for the base, we are expecting it to be 1 since the previous was 'official'
         expecting_core="1"
