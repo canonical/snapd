@@ -45,49 +45,48 @@ type Constraints struct {
 
 // ValidateForInterface returns nil if the constraints are valid for the given
 // interface, otherwise returns an error.
-func (constraints *Constraints) ValidateForInterface(iface string) error {
+func (c *Constraints) ValidateForInterface(iface string) error {
 	switch iface {
 	case "home", "camera":
 		// TODO: change to this once PR #13730 is merged:
-		// if err := ValidatePathPattern(constraints.PathPattern); err != nil {
+		// if err := ValidatePathPattern(c.PathPattern); err != nil {
 		//	return err
 		// }
 	default:
-		return fmt.Errorf("constraints incompatible with the given interface: %s", iface)
+		return fmt.Errorf("constraints incompatible with the given interface: %q", iface)
 	}
-	permissions, err := AbstractPermissionsFromList(iface, constraints.Permissions)
+	permissions, err := AbstractPermissionsFromList(iface, c.Permissions)
 	if err != nil {
 		return err
 	}
-	constraints.Permissions = permissions
+	c.Permissions = permissions
 	return nil
 }
 
 // Match returns true if the constraints match the given path, otherwise false.
 //
 // If the constraints or path are invalid, returns an error.
-func (constraints *Constraints) Match(path string) (bool, error) {
+func (c *Constraints) Match(path string) (bool, error) {
 	// TODO: change to this once PR #13730 is merged:
-	// return PathPatternMatch(constraints.PathPattern, path)
+	// return PathPatternMatch(c.PathPattern, path)
 	return true, nil
 }
 
 // RemovePermission removes every instance of the given permission from the
 // permissions list associated with the constraints. If the permission does
 // not exist in the list, returns ErrPermissionNotInList.
-func (constraints *Constraints) RemovePermission(permission string) error {
-	origLen := len(constraints.Permissions)
-	i := 0
-	for i < len(constraints.Permissions) {
-		perm := constraints.Permissions[i]
+func (c *Constraints) RemovePermission(permission string) error {
+	origLen := len(c.Permissions)
+	for i := 0; i < len(c.Permissions); {
+		perm := c.Permissions[i]
 		if perm != permission {
 			i++
 			continue
 		}
-		copy(constraints.Permissions[i:], constraints.Permissions[i+1:])
-		constraints.Permissions = constraints.Permissions[:len(constraints.Permissions)-1]
+		copy(c.Permissions[i:], c.Permissions[i+1:])
+		c.Permissions = c.Permissions[:len(c.Permissions)-1]
 	}
-	if origLen == len(constraints.Permissions) {
+	if origLen == len(c.Permissions) {
 		return ErrPermissionNotInList
 	}
 	return nil
@@ -95,9 +94,9 @@ func (constraints *Constraints) RemovePermission(permission string) error {
 
 // ContainPermissions returns true if the constraints include every one of the
 // givne permissions.
-func (constraints *Constraints) ContainPermissions(permissions []string) bool {
+func (c *Constraints) ContainPermissions(permissions []string) bool {
 	for _, perm := range permissions {
-		if !strutil.ListContains(constraints.Permissions, perm) {
+		if !strutil.ListContains(c.Permissions, perm) {
 			return false
 		}
 	}
@@ -120,7 +119,7 @@ func (outcome OutcomeType) AsBool() (bool, error) {
 	case OutcomeDeny:
 		return false, nil
 	default:
-		return false, fmt.Errorf(`invalid outcome: must be "%v" or "%v": "%v"`, OutcomeAllow, OutcomeDeny, outcome)
+		return false, fmt.Errorf(`invalid outcome: must be %q or %q: %q`, OutcomeAllow, OutcomeDeny, outcome)
 	}
 }
 
@@ -245,7 +244,7 @@ func SelectSingleInterface(interfaces []string) string {
 func AvailablePermissions(iface string) ([]string, error) {
 	available, exist := interfacePermissionsAvailable[iface]
 	if !exist {
-		return nil, fmt.Errorf("cannot get available permissions: unsupported interface: %s", iface)
+		return nil, fmt.Errorf("cannot get available permissions: unsupported interface: %q", iface)
 	}
 	return available, nil
 }
@@ -257,7 +256,7 @@ func AbstractPermissionsFromAppArmorPermissions(iface string, permissions interf
 	case "home", "camera":
 		return abstractPermissionsFromAppArmorFilePermissions(iface, permissions)
 	}
-	return nil, fmt.Errorf("cannot parse AppArmor permissions: unsupported interface: %s", iface)
+	return nil, fmt.Errorf("cannot parse AppArmor permissions: unsupported interface: %q", iface)
 }
 
 // abstractPermissionsFromAppArmorFilePermissions returns the list of permissions
@@ -270,12 +269,12 @@ func abstractPermissionsFromAppArmorFilePermissions(iface string, permissions in
 	abstractPermsAvailable, exists := interfacePermissionsAvailable[iface]
 	if !exists {
 		// This should never happen, since iface is checked in the calling function.
-		return nil, fmt.Errorf("internal error: no permissions list defined for interface: %s", iface)
+		return nil, fmt.Errorf("internal error: no permissions list defined for interface: %q", iface)
 	}
 	abstractPermsMap, exists := interfaceFilePermissionsMaps[iface]
 	if !exists {
 		// This should never happen, since iface is checked in the calling function.
-		return nil, fmt.Errorf("internal error: no file permissions map defined for interface: %s", iface)
+		return nil, fmt.Errorf("internal error: no file permissions map defined for interface: %q", iface)
 	}
 	if filePerms == notify.AA_MAY_OPEN {
 		// Should not occur, but if a request is received for only open, treat it as read.
@@ -289,7 +288,7 @@ func abstractPermissionsFromAppArmorFilePermissions(iface string, permissions in
 		if !exists {
 			// This should never happen, since permission mappings are
 			// predefined and should be checked for correctness.
-			return nil, fmt.Errorf("internal error: no permission map defined for abstract permission %s for interface %s", abstractPerm, iface)
+			return nil, fmt.Errorf("internal error: no permission map defined for abstract permission %q for interface %q", abstractPerm, iface)
 		}
 		if filePerms&aaPermMapping != 0 {
 			abstractPerms = append(abstractPerms, abstractPerm)
@@ -297,11 +296,11 @@ func abstractPermissionsFromAppArmorFilePermissions(iface string, permissions in
 		}
 	}
 	if filePerms != notify.FilePermission(0) {
-		return nil, fmt.Errorf("received unexpected permission for interface %s in AppArmor permission mask: %v", iface, filePerms)
+		return nil, fmt.Errorf("received unexpected permission for interface %q in AppArmor permission mask: %q", iface, filePerms)
 	}
 	if len(abstractPerms) == 0 {
 		origMask := permissions.(notify.FilePermission)
-		return nil, fmt.Errorf("no abstract permissions after parsing AppArmor permissions for interface: %s; original file permissions: %v", iface, origMask)
+		return nil, fmt.Errorf("no abstract permissions after parsing AppArmor permissions for interface: %q; original file permissions: %v", iface, origMask)
 	}
 	return abstractPerms, nil
 }
@@ -312,12 +311,12 @@ func abstractPermissionsFromAppArmorFilePermissions(iface string, permissions in
 func AbstractPermissionsFromList(iface string, permissions []string) ([]string, error) {
 	availablePerms, ok := interfacePermissionsAvailable[iface]
 	if !ok {
-		return nil, fmt.Errorf("unsupported interface: %s", iface)
+		return nil, fmt.Errorf("unsupported interface: %q", iface)
 	}
 	permsSet := make(map[string]bool, len(permissions))
 	for _, perm := range permissions {
 		if !strutil.ListContains(availablePerms, perm) {
-			return nil, fmt.Errorf("unsupported permission for %s interface: %s", iface, perm)
+			return nil, fmt.Errorf("unsupported permission for %q interface: %q", iface, perm)
 		}
 		permsSet[perm] = true
 	}
@@ -340,7 +339,7 @@ func AbstractPermissionsToAppArmorPermissions(iface string, permissions []string
 	case "home", "camera":
 		return abstractPermissionsToAppArmorFilePermissions(iface, permissions)
 	}
-	return nil, fmt.Errorf("cannot convert abstract permissions to AppArmor permissions: unsupported interface: %s", iface)
+	return nil, fmt.Errorf("cannot convert abstract permissions to AppArmor permissions: unsupported interface: %q", iface)
 }
 
 // AbstractPermissionsToAppArmorFilePermissions returns AppArmor file
@@ -352,14 +351,14 @@ func abstractPermissionsToAppArmorFilePermissions(iface string, permissions []st
 	filePermsMap, exists := interfaceFilePermissionsMaps[iface]
 	if !exists {
 		// This should never happen, since iface is checked in the calling function
-		return notify.FilePermission(0), fmt.Errorf("internal error: no AppArmor file permissions map defined for interface: %s", iface)
+		return notify.FilePermission(0), fmt.Errorf("internal error: no AppArmor file permissions map defined for interface: %q", iface)
 	}
 	filePerms := notify.FilePermission(0)
 	for _, perm := range permissions {
 		permMask, exists := filePermsMap[perm]
 		if !exists {
 			// Should not occur, since stored permissions list should have been validated
-			return notify.FilePermission(0), fmt.Errorf("no AppArmor file permission mapping for %s interface with abstract permission: %s", iface, perm)
+			return notify.FilePermission(0), fmt.Errorf("no AppArmor file permission mapping for %q interface with abstract permission: %q", iface, perm)
 		}
 		filePerms |= permMask
 	}
@@ -375,7 +374,7 @@ func ValidateOutcome(outcome OutcomeType) error {
 	case OutcomeAllow, OutcomeDeny:
 		return nil
 	default:
-		return fmt.Errorf(`invalid outcome: must be "%v" or "%v": "%v"`, OutcomeAllow, OutcomeDeny, outcome)
+		return fmt.Errorf(`invalid outcome: must be %q or %q: %q`, OutcomeAllow, OutcomeDeny, outcome)
 	}
 }
 
@@ -389,21 +388,21 @@ func ValidateLifespanExpiration(lifespan LifespanType, expiration string, currTi
 	switch lifespan {
 	case LifespanForever, LifespanSession, LifespanSingle:
 		if expiration != "" {
-			return fmt.Errorf(`invalid expiration: expiration must be empty when lifespan is "%v", but received non-empty expiration: %s`, lifespan, expiration)
+			return fmt.Errorf(`invalid expiration: expiration must be empty when lifespan is %q, but received non-empty expiration: %q`, lifespan, expiration)
 		}
 	case LifespanTimespan:
 		if expiration == "" {
-			return fmt.Errorf(`invalid expiration: expiration must be non-empty when lifespan is "%v", but received empty expiration`, lifespan)
+			return fmt.Errorf(`invalid expiration: expiration must be non-empty when lifespan is %q, but received empty expiration`, lifespan)
 		}
 		parsedTime, err := time.Parse(time.RFC3339, expiration)
 		if err != nil {
-			return fmt.Errorf("invalid expiration: expiration not parsable as a time in RFC3339 format: %s", expiration)
+			return fmt.Errorf("invalid expiration: expiration not parsable as a time in RFC3339 format: %q", expiration)
 		}
 		if currTime.After(parsedTime) {
-			return fmt.Errorf("invalid expiration: expiration time has already passed: %s", expiration)
+			return fmt.Errorf("invalid expiration: expiration time has already passed: %q", expiration)
 		}
 	default:
-		return fmt.Errorf(`invalid lifespan: "%v"`, lifespan)
+		return fmt.Errorf(`invalid lifespan: %q`, lifespan)
 	}
 	return nil
 }
@@ -421,22 +420,22 @@ func ValidateLifespanParseDuration(lifespan LifespanType, duration string) (stri
 	switch lifespan {
 	case LifespanForever, LifespanSession, LifespanSingle:
 		if duration != "" {
-			return "", fmt.Errorf(`invalid duration: duration must be empty when lifespan is "%v", but received non-empty duration: %s`, lifespan, duration)
+			return "", fmt.Errorf(`invalid duration: duration must be empty when lifespan is %q, but received non-empty duration: %q`, lifespan, duration)
 		}
 	case LifespanTimespan:
 		if duration == "" {
-			return "", fmt.Errorf(`invalid duration: duration must be non-empty when lifespan is "%v", but received empty expiration`, lifespan)
+			return "", fmt.Errorf(`invalid duration: duration must be non-empty when lifespan is %q, but received empty expiration`, lifespan)
 		}
 		parsedDuration, err := time.ParseDuration(duration)
 		if err != nil {
-			return "", fmt.Errorf(`invalid duration: error parsing duration string: %s`, duration)
+			return "", fmt.Errorf(`invalid duration: error parsing duration string: %q`, duration)
 		}
 		if parsedDuration <= 0 {
-			return "", fmt.Errorf(`invalid duration: duration must be greater than zero: %s`, duration)
+			return "", fmt.Errorf(`invalid duration: duration must be greater than zero: %q`, duration)
 		}
 		expirationString = time.Now().Add(parsedDuration).Format(time.RFC3339)
 	default:
-		return "", fmt.Errorf(`invalid lifespan: "%v"`, lifespan)
+		return "", fmt.Errorf(`invalid lifespan: %q`, lifespan)
 	}
 	return expirationString, nil
 }
