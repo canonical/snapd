@@ -476,7 +476,7 @@ version: 1.0
 
 	// ensure the right unit is created
 	where := filepath.Join(dirs.StripRootDir(dirs.SnapMountDir),
-		instanceName+"/components/"+snapRev.String()+"/"+compName)
+		instanceName+"/components/"+snapRev.String()+"/"+compName+"_"+compRev.String())
 	mup := systemd.MountUnitPath(where)
 	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s", where))
 	compBlobPath := "/var/lib/snapd/snaps/" + compFileName
