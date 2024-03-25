@@ -967,6 +967,8 @@ func (s *requestrulesSuite) TestRulesLookup(c *C) {
 		Permissions: permissions,
 	}
 
+	origIface := iface
+
 	rule1, err := rdb.AddRule(origUser, snap, iface, constraints, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
 
@@ -1008,7 +1010,7 @@ func (s *requestrulesSuite) TestRulesLookup(c *C) {
 	c.Assert(origUserRules[0], DeepEquals, rule1)
 
 	userRules := rdb.Rules(user)
-	c.Assert(userRules, HasLen, 3)
+	c.Check(userRules, HasLen, 3)
 OUTER_LOOP_USER:
 	for _, rule := range []*requestrules.Rule{rule2, rule3, rule4} {
 		for _, userRule := range userRules {
@@ -1016,25 +1018,41 @@ OUTER_LOOP_USER:
 				continue OUTER_LOOP_USER
 			}
 		}
-		c.Assert(rule, DeepEquals, userRules[2])
+		c.Errorf("rule not found in userRules:\nrule: %+v\nuserRules: %+v", rule, userRules)
 	}
 
 	userSnapRules := rdb.RulesForSnap(user, snap)
-	c.Assert(userSnapRules, HasLen, 2)
+	c.Check(userSnapRules, HasLen, 2)
 OUTER_LOOP_USER_SNAP:
 	for _, rule := range []*requestrules.Rule{rule3, rule4} {
-		for _, userRule := range userRules {
+		for _, userRule := range userSnapRules {
 			if reflect.DeepEqual(rule, userRule) {
 				continue OUTER_LOOP_USER_SNAP
 			}
 		}
-		c.Assert(rule, DeepEquals, userRules[1])
+		c.Errorf("rule not found in userRules:\nrule: %+v\nuserSnapRules: %+v", rule, userRules)
 	}
 
+	userInterfaceRules := rdb.RulesForInterface(user, origIface)
+	c.Check(userInterfaceRules, HasLen, 2)
+OUTER_LOOP_USER_INTERFACE:
+	for _, rule := range []*requestrules.Rule{rule2, rule3} {
+		for _, userRule := range userInterfaceRules {
+			if reflect.DeepEqual(rule, userRule) {
+				continue OUTER_LOOP_USER_INTERFACE
+			}
+		}
+		c.Errorf("rule not found in userRules:\nrule: %+v\nuserInterfaceRules: %+v", rule, userRules)
+	}
+
+	userInterfaceRules = rdb.RulesForInterface(user, iface)
+	c.Check(userInterfaceRules, HasLen, 1)
+	c.Check(userInterfaceRules[0], DeepEquals, rule4)
+
 	userSnapInterfaceRules := rdb.RulesForSnapInterface(user, snap, iface)
-	c.Assert(userSnapInterfaceRules, HasLen, 1)
-	c.Assert(userSnapInterfaceRules[0], DeepEquals, rule4)
+	c.Check(userSnapInterfaceRules, HasLen, 1)
+	c.Check(userSnapInterfaceRules[0], DeepEquals, rule4)
 
 	// Looking up these rules should not cause any notices
-	c.Assert(ruleNotices, HasLen, 0, Commentf("ruleNoticeIDs: %+v; rdb.ByID: %+v", ruleNotices, rdb.ByID))
+	c.Check(ruleNotices, HasLen, 0, Commentf("ruleNoticeIDs: %+v; rdb.ByID: %+v", ruleNotices, rdb.ByID))
 }

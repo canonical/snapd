@@ -624,12 +624,22 @@ func (rdb *RuleDB) rulesInternal(ruleFilter func(rule *Rule) bool) []*Rule {
 	return rules
 }
 
-// Returns all rules which apply to the given user and the given snap.
+// Returns all rules which apply to the given user and snap.
 func (rdb *RuleDB) RulesForSnap(user uint32, snap string) []*Rule {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 	ruleFilter := func(rule *Rule) bool {
 		return rule.User == user && rule.Snap == snap
+	}
+	return rdb.rulesInternal(ruleFilter)
+}
+
+// Returns all rules which apply to the given user and interface.
+func (rdb *RuleDB) RulesForInterface(user uint32, iface string) []*Rule {
+	rdb.mutex.Lock()
+	defer rdb.mutex.Unlock()
+	ruleFilter := func(rule *Rule) bool {
+		return rule.User == user && rule.Interface == iface
 	}
 	return rdb.rulesInternal(ruleFilter)
 }
