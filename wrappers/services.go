@@ -132,7 +132,9 @@ func newUserServiceClientNames(users []string, inter Interacter) (*userServiceCl
 func (c *userServiceClient) stopServices(services ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
-	failures, err := c.cli.ServicesStop(ctx, services)
+
+	const disable = false
+	failures, err := c.cli.ServicesStop(ctx, services, disable)
 	for _, f := range failures {
 		c.inter.Notify(fmt.Sprintf("Could not stop service %q for uid %d: %s", f.Service, f.Uid, f.Error))
 	}
@@ -142,7 +144,8 @@ func (c *userServiceClient) stopServices(services ...string) error {
 func (c *userServiceClient) startServices(services ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
-	startFailures, stopFailures, err := c.cli.ServicesStart(ctx, services)
+
+	startFailures, stopFailures, err := c.cli.ServicesStart(ctx, services, client.ClientServicesStartOptions{})
 	for _, f := range startFailures {
 		c.inter.Notify(fmt.Sprintf("Could not start service %q for uid %d: %s", f.Service, f.Uid, f.Error))
 	}
@@ -155,13 +158,7 @@ func (c *userServiceClient) startServices(services ...string) error {
 func (c *userServiceClient) restartServices(reload bool, services ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
-	var failures []client.ServiceFailure
-	var err error
-	if reload {
-		failures, err = c.cli.ServicesReloadOrRestart(ctx, services)
-	} else {
-		failures, err = c.cli.ServicesRestart(ctx, services)
-	}
+	failures, err := c.cli.ServicesRestart(ctx, services, reload)
 	for _, f := range failures {
 		c.inter.Notify(fmt.Sprintf("Could not restart service %q for uid %d: %s", f.Service, f.Uid, f.Error))
 	}

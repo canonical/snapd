@@ -448,7 +448,7 @@ func (s *restSuite) TestServicesRestartReportsError(c *C) {
 }
 
 func (s *restSuite) TestServicesRestartOrReload(c *C) {
-	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"reload-or-restart","services":["snap.foo.service", "snap.bar.service"]}`))
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"restart", "reload":true,"services":["snap.foo.service", "snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
@@ -467,7 +467,7 @@ func (s *restSuite) TestServicesRestartOrReload(c *C) {
 }
 
 func (s *restSuite) TestServicesRestartOrReloadNonSnap(c *C) {
-	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"reload-or-restart","services":["snap.foo.service", "not-snap.bar.service"]}`))
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"restart", "reload":true,"services":["snap.foo.service", "not-snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
@@ -499,7 +499,7 @@ func (s *restSuite) TestServicesRestartOrReloadReportsError(c *C) {
 	})
 	defer restore()
 
-	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"reload-or-restart","services":["snap.foo.service", "snap.bar.service"]}`))
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"restart", "reload":true,"services":["snap.foo.service", "snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
@@ -511,7 +511,7 @@ func (s *restSuite) TestServicesRestartOrReloadReportsError(c *C) {
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
 	c.Check(rsp.Result, DeepEquals, map[string]interface{}{
 		"kind":    "service-control",
-		"message": "some user services failed to restart or reload",
+		"message": "some user services failed to restart",
 		"value": map[string]interface{}{
 			"restart-errors": map[string]interface{}{
 				"snap.bar.service": "mock systemctl error",
