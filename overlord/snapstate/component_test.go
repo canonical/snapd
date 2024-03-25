@@ -31,7 +31,7 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func (s *snapmgrTestSuite) mockComponentInfos(c *C, snapName string, compNames []string) {
+func (s *snapmgrTestSuite) mockComponentInfos(c *C, snapName string, compNames []string, compRevs []snap.Revision) {
 	cis := make([]*snap.ComponentInfo, len(compNames))
 	for i, comp := range compNames {
 		componentYaml := fmt.Sprintf(`component: %s+%s
@@ -45,8 +45,8 @@ version: 1.0
 
 	s.AddCleanup(snapstate.MockReadComponentInfo(func(
 		compMntDir string) (*snap.ComponentInfo, error) {
-		for _, ci := range cis {
-			if strings.HasSuffix(compMntDir, "/"+ci.Component.ComponentName) {
+		for i, ci := range cis {
+			if strings.HasSuffix(compMntDir, "/"+ci.Component.ComponentName+"_"+compRevs[i].String()) {
 				return ci, nil
 			}
 		}
@@ -73,7 +73,8 @@ func (s *snapmgrTestSuite) TestComponentHelpers(c *C) {
 	csi := snap.NewComponentSideInfo(cref, compRev)
 	cref2 := naming.NewComponentRef(snapName, compName2)
 	csi2 := snap.NewComponentSideInfo(cref2, compRev)
-	s.mockComponentInfos(c, snapName, []string{compName, compName2})
+	s.mockComponentInfos(c, snapName, []string{compName, compName2},
+		[]snap.Revision{compRev, compRev})
 
 	snapSt := &snapstate.SnapState{
 		Active: true,
