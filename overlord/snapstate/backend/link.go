@@ -25,6 +25,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
@@ -182,6 +183,32 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 	}
 
 	return rebootInfo, nil
+}
+
+func componentLinkPath(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) string {
+	instanceName, compName, _ := strings.Cut(cpi.ContainerName(), "+")
+	compBase := snap.ComponentsBaseDir(instanceName)
+	return filepath.Join(compBase, snapRev.String(), compName)
+}
+
+func (b Backend) LinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error {
+	mountDir := cpi.MountDir()
+	linkPath := componentLinkPath(cpi, snapRev)
+
+	// Create components directory
+	compsDir := filepath.Dir(linkPath)
+	if err := os.MkdirAll(compsDir, 0755); err != nil {
+		return fmt.Errorf("while linking component: %v", err)
+	}
+
+	// Work out relative path to go from the dir where the symlink lives to
+	// the mount dir
+	linkTarget, err := filepath.Rel(compsDir, mountDir)
+	if err != nil {
+		return err
+	}
+
+	return osutil.AtomicSymlink(linkTarget, linkPath)
 }
 
 func (b Backend) StartServices(apps []*snap.AppInfo, disabledSvcs []string, meter progress.Meter, tm timings.Measurer) error {
@@ -362,6 +389,21 @@ func removeCurrentSymlinks(info snap.PlaceInfo) error {
 		return fmt.Errorf("cannot remove snap current symlink: %v", err1)
 	} else if err2 != nil {
 		return fmt.Errorf("cannot remove snap current symlink: %v", err2)
+	}
+
+	return nil
+}
+
+func (b Backend) UnlinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error {
+	linkPath := componentLinkPath(cpi, snapRev)
+
+	err := os.Remove(linkPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			logger.Noticef("cannot remove symlink %q: %v", linkPath, err)
+		} else {
+			return err
+		}
 	}
 
 	return nil

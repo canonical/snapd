@@ -1136,6 +1136,14 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx b
 	return boot.RebootInfo{RebootRequired: reboot}, nil
 }
 
+func (f *fakeSnappyBackend) LinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error {
+	f.appendOp(&fakeOp{
+		op:   "link-component",
+		path: cpi.MountDir(),
+	})
+	return f.maybeErrForLastOp()
+}
+
 func svcSnapMountDir(svcs []*snap.AppInfo) string {
 	if len(svcs) == 0 {
 		return "<no services>"
@@ -1244,6 +1252,14 @@ func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, linkCtx backend.LinkCont
 
 		unlinkFirstInstallUndo: linkCtx.FirstInstall,
 		unlinkSkipBinaries:     linkCtx.SkipBinaries,
+	})
+	return f.maybeErrForLastOp()
+}
+
+func (f *fakeSnappyBackend) UnlinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error {
+	f.appendOp(&fakeOp{
+		op:   "unlink-component",
+		path: cpi.MountDir(),
 	})
 	return f.maybeErrForLastOp()
 }

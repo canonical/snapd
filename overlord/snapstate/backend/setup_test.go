@@ -463,7 +463,7 @@ version: 1.0
 `, snapName, compName)
 
 	compPath := snaptest.MakeTestComponent(c, componentYaml)
-	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, instanceName, snapRev)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, instanceName)
 
 	installRecord, err := s.be.SetupComponent(compPath, cpi, mockDev, progress.Null)
 	c.Assert(err, IsNil)
@@ -476,7 +476,7 @@ version: 1.0
 
 	// ensure the right unit is created
 	where := filepath.Join(dirs.StripRootDir(dirs.SnapMountDir),
-		instanceName+"/components/"+snapRev.String()+"/"+compName+"_"+compRev.String())
+		instanceName+"/components/mnt/"+compName+"/"+compRev.String())
 	mup := systemd.MountUnitPath(where)
 	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s", where))
 	compBlobPath := "/var/lib/snapd/snaps/" + compFileName
@@ -490,7 +490,7 @@ version: 1.0
 
 func (s *setupSuite) testSetupComponentUndo(c *C, compName, snapName, instanceName string, compRev, snapRev snap.Revision, installRecord *backend.InstallRecord) {
 	// undo undoes the mount unit and the instdir creation
-	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, instanceName, snapRev)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, instanceName)
 
 	err := s.be.UndoSetupComponent(cpi, installRecord, mockDev, progress.Null)
 	c.Assert(err, IsNil)
@@ -514,7 +514,6 @@ func (s *setupSuite) testSetupComponentDoUndo(c *C, compName, snapName, instance
 func (s *setupSuite) TestSetupComponentCleanupAfterFail(c *C) {
 	snapName := "mysnap"
 	compName := "mycomp"
-	snapRev := snap.R(11)
 	compRev := snap.R(33)
 
 	componentYaml := fmt.Sprintf(`component: %s+%s
@@ -524,7 +523,7 @@ version: 1.0
 
 	compPath := snaptest.MakeTestComponent(c, componentYaml)
 
-	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapName, snapRev)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapName)
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		// mount unit start fails
@@ -552,7 +551,7 @@ func (s *setupSuite) TestSetupComponentFilesDir(c *C) {
 	compRev := snap.R(33)
 	compName := "mycomp"
 	snapInstance := "mysnap_inst"
-	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapInstance, snapRev)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapInstance)
 
 	installRecord := s.testSetupComponentDo(c, compName, "mysnap", snapInstance, compRev, snapRev)
 
