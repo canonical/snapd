@@ -42,4 +42,5 @@ execute: |
         remote.refresh full
     fi
 
-    "$SPREAD" -v "$RUN_TESTS" | tee spread.log
+    # shellcheck disable=SC2086
+    "$SPREAD" -v $RUN_TESTS | tee spread.log
