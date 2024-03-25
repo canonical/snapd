@@ -310,13 +310,16 @@ func (p *Prompting) GetRules(userID uint32, snap string, iface string) ([]*reque
 	if !PromptingEnabled() {
 		return nil, fmt.Errorf("AppArmor Prompting is not enabled")
 	}
-	// Daemon already checked that if iface != "", then snap != ""
-	if iface != "" {
-		rules := p.rules.RulesForSnapInterface(userID, snap, iface)
+	if snap != "" {
+		if iface != "" {
+			rules := p.rules.RulesForSnapInterface(userID, snap, iface)
+			return rules, nil
+		}
+		rules := p.rules.RulesForSnap(userID, snap)
 		return rules, nil
 	}
-	if snap != "" {
-		rules := p.rules.RulesForSnap(userID, snap)
+	if iface != "" {
+		rules := p.rules.RulesForInterface(userID, iface)
 		return rules, nil
 	}
 	rules := p.rules.Rules(userID)
