@@ -161,10 +161,6 @@ func getRules(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return Forbidden("cannot get remote user: %v", err)
 	}
-
-	if iface != "" && snap == "" {
-		return BadRequest(`"interface" field provided, must also provide "snap" field`)
-	}
 	result, err := c.d.overlord.InterfaceManager().Prompting().GetRules(ucred.Uid, snap, iface)
 	if err != nil {
 		return InternalError("%v", err)
