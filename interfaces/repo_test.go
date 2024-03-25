@@ -534,37 +534,6 @@ plugs:
 	c.Assert(s.testRepo.Plug("zz_instance", "c"), Not(IsNil))
 }
 
-// Tests for Repository.RemovePlug()
-
-func (s *RepositorySuite) TestRemovePlugSucceedsWhenPlugExistsAndDisconnected(c *C) {
-	err := s.testRepo.AddAppSet(s.consumer)
-	c.Assert(err, IsNil)
-	err = s.testRepo.RemovePlug(s.consumerPlug.Snap.InstanceName(), s.consumerPlug.Name)
-	c.Assert(err, IsNil)
-	c.Assert(s.testRepo.AllPlugs(""), HasLen, 0)
-}
-
-func (s *RepositorySuite) TestRemovePlugFailsWhenPlugDoesntExist(c *C) {
-	err := s.emptyRepo.RemovePlug(s.consumerPlug.Snap.InstanceName(), s.consumerPlug.Name)
-	c.Assert(err, ErrorMatches, `cannot remove plug "plug" from snap "consumer", no such plug`)
-}
-
-func (s *RepositorySuite) TestRemovePlugFailsWhenPlugIsConnected(c *C) {
-	err := s.testRepo.AddAppSet(s.consumer)
-	c.Assert(err, IsNil)
-	err = s.testRepo.AddAppSet(s.producer)
-	c.Assert(err, IsNil)
-	connRef := NewConnRef(s.consumerPlug, s.producerSlot)
-	_, err = s.testRepo.Connect(connRef, nil, nil, nil, nil, nil)
-	c.Assert(err, IsNil)
-	// Removing a plug used by a slot returns an appropriate error
-	err = s.testRepo.RemovePlug(s.consumerPlug.Snap.InstanceName(), s.consumerPlug.Name)
-	c.Assert(err, ErrorMatches, `cannot remove plug "plug" from snap "consumer", it is still connected`)
-	// The plug is still there
-	slot := s.testRepo.Plug(s.consumerPlug.Snap.InstanceName(), s.consumerPlug.Name)
-	c.Assert(slot, Not(IsNil))
-}
-
 // Tests for Repository.AllPlugs()
 
 func (s *RepositorySuite) TestAllPlugsWithoutInterfaceName(c *C) {

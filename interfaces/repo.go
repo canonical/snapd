@@ -309,28 +309,6 @@ func (r *Repository) Connection(connRef *ConnRef) (*Connection, error) {
 	return conn, nil
 }
 
-// RemovePlug removes the named plug provided by a given snap.
-// The removed plug must exist and must not be used anywhere.
-func (r *Repository) RemovePlug(snapName, plugName string) error {
-	r.m.Lock()
-	defer r.m.Unlock()
-
-	// Ensure that such plug exists
-	plug := r.plugs[snapName][plugName]
-	if plug == nil {
-		return fmt.Errorf("cannot remove plug %q from snap %q, no such plug", plugName, snapName)
-	}
-	// Ensure that the plug is not used by any slot
-	if len(r.plugSlots[plug]) > 0 {
-		return fmt.Errorf("cannot remove plug %q from snap %q, it is still connected", plugName, snapName)
-	}
-	delete(r.plugs[snapName], plugName)
-	if len(r.plugs[snapName]) == 0 {
-		delete(r.plugs, snapName)
-	}
-	return nil
-}
-
 // AllSlots returns all slots of the given interface.
 // If interfaceName is the empty string, all slots are returned.
 func (r *Repository) AllSlots(interfaceName string) []*snap.SlotInfo {
