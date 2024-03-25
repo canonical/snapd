@@ -286,6 +286,14 @@ func (m *SnapManager) doLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 	}
 	snapSt.LastCompRefreshTime[compSetup.ComponentName()] = timeNow()
 
+	// Create the symlink
+	csi := cs.SideInfo
+	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
+		csi.Revision, snapInfo.InstanceName(), snapInfo.Revision)
+	if err := m.backend.LinkComponent(cpi); err != nil {
+		return err
+	}
+
 	// Finally, write the state
 	Set(st, snapsup.InstanceName(), snapSt)
 	// Make sure we won't be rerun
@@ -320,6 +328,15 @@ func (m *SnapManager) undoLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 
 	// Restore old state
 	// relinking of the old component is done in the undo of unlink-current-snap
+
+	// Remove the symlink
+	csi := linkedComp.SideInfo
+	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
+		csi.Revision, snapInfo.InstanceName(), snapInfo.Revision)
+	if err := m.backend.UnlinkComponent(cpi); err != nil {
+		return err
+	}
+
 	snapSt.Sequence.RemoveComponentForRevision(snapInfo.Revision,
 		linkedComp.SideInfo.Component)
 
@@ -354,6 +371,14 @@ func (m *SnapManager) doUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (err
 	unlinkedComp := snapSt.Sequence.RemoveComponentForRevision(snapInfo.Revision, cref)
 	if unlinkedComp == nil {
 		return fmt.Errorf("internal error while unlinking: %s expected but not found", cref)
+	}
+
+	// Remove symlink
+	csi := unlinkedComp.SideInfo
+	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
+		csi.Revision, snapInfo.InstanceName(), snapInfo.Revision)
+	if err := m.backend.UnlinkComponent(cpi); err != nil {
+		return err
 	}
 
 	// set information for undoUnlinkCurrentComponent in the task
@@ -393,6 +418,14 @@ func (m *SnapManager) undoUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (e
 
 	if err := snapSt.Sequence.AddComponentForRevision(snapInfo.Revision, &unlinkedComp); err != nil {
 		return fmt.Errorf("internal error while undo unlink component: %w", err)
+	}
+
+	// Re-create the symlink
+	csi := unlinkedComp.SideInfo
+	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
+		csi.Revision, snapInfo.InstanceName(), snapInfo.Revision)
+	if err := m.backend.LinkComponent(cpi); err != nil {
+		return err
 	}
 
 	// Finally, write the state

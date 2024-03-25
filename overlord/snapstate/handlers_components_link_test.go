@@ -20,8 +20,10 @@
 package snapstate_test
 
 import (
+	"path/filepath"
 	"time"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -80,6 +82,15 @@ func (s *linkCompSnapSuite) testDoLinkComponent(c *C, snapName string, snapRev s
 	cs := sequence.NewComponentState(csi, snap.TestComponent)
 	t.Get("linked-component", &storedCs)
 	c.Assert(&storedCs, DeepEquals, cs)
+	// the link has been created
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op: "link-component",
+			path: filepath.Join(
+				dirs.SnapMountDir, snapName, "components",
+				snapRev.String(), compName+"_"+compRev.String()),
+		},
+	})
 	// state is modified as expected
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
@@ -154,6 +165,21 @@ func (s *linkCompSnapSuite) testDoLinkThenUndoLinkComponent(c *C, snapName strin
 	cs := sequence.NewComponentState(csi, snap.TestComponent)
 	t.Get("linked-component", &storedCs)
 	c.Assert(&storedCs, DeepEquals, cs)
+	// the link has been created and then removed
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op: "link-component",
+			path: filepath.Join(
+				dirs.SnapMountDir, snapName, "components",
+				snapRev.String(), compName+"_"+compRev.String()),
+		},
+		{
+			op: "unlink-component",
+			path: filepath.Join(
+				dirs.SnapMountDir, snapName, "components",
+				snapRev.String(), compName+"_"+compRev.String()),
+		},
+	})
 	// the component is not in the state
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
@@ -215,6 +241,15 @@ func (s *linkCompSnapSuite) testDoUnlinkCurrentComponent(c *C, snapName string, 
 	cs := sequence.NewComponentState(csi, snap.TestComponent)
 	t.Get("unlinked-component", &storedCs)
 	c.Assert(&storedCs, DeepEquals, cs)
+	// the link has been removed
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op: "unlink-component",
+			path: filepath.Join(
+				dirs.SnapMountDir, snapName, "components",
+				snapRev.String(), compName+"_"+compRev.String()),
+		},
+	})
 	// state is modified as expected
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
@@ -290,6 +325,21 @@ func (s *linkCompSnapSuite) testDoUnlinkThenUndoUnlinkCurrentComponent(c *C, sna
 	cs := sequence.NewComponentState(csi, snap.TestComponent)
 	t.Get("unlinked-component", &storedCs)
 	c.Assert(&storedCs, DeepEquals, cs)
+	// the link has been removed and then re-created
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op: "unlink-component",
+			path: filepath.Join(
+				dirs.SnapMountDir, snapName, "components",
+				snapRev.String(), compName+"_"+compRev.String()),
+		},
+		{
+			op: "link-component",
+			path: filepath.Join(
+				dirs.SnapMountDir, snapName, "components",
+				snapRev.String(), compName+"_"+compRev.String()),
+		},
+	})
 	// the component is still in the state
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
