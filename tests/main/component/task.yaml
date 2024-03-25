@@ -3,7 +3,7 @@ summary: Test basic component tasks
 details: |
   Verifies that basic snap component operations (install, refresh, remove) work.
 
-systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*]
+systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
 
 execute: |
   # Build snap and component
@@ -15,23 +15,50 @@ execute: |
       exit 1
   fi
 
-  # Install snap and component
+  # Install snap
   snap install --dangerous snap-with-comps_1.0_all.snap
-  chg_id=$(snap install --no-wait --dangerous snap-with-comps+comp1_1.0.comp)
-  snap watch "$chg_id"
 
-  # Chech component install change was as expected
-  snap change "$chg_id" | MATCH "^Done .*Prepare component"
-  snap change "$chg_id" | MATCH "^Done .*Mount component"
-  snap change "$chg_id" | MATCH "^Done .*Make component .* available to the system"
+  SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
 
-  # File has been copied around
-  comp_inst_path=/var/lib/snapd/snaps/snap-with-comps+comp1_x1.comp
-  stat "$comp_inst_path"
+  # Install local component function
+  # $1: expected component revision
+  install_comp() {
+      comp_rev=$1
+      chg_id=$(snap install --no-wait --dangerous snap-with-comps+comp1_1.0.comp)
+      snap watch "$chg_id"
 
-  # Component is mounted (note that we need to escape the "+" in the path)
-  mount | MATCH "^${comp_inst_path/+/\\+} on /snap/snap-with-comps/components/x1/comp1.*"
-  # and is seen from snap app
-  snap-with-comps.test
+      # Check component install change was as expected
+      snap change "$chg_id" | MATCH "^Done .*Prepare component"
+      snap change "$chg_id" | MATCH "^Done .*Mount component"
+      snap change "$chg_id" | MATCH "^Done .*Make component .* available to the system"
 
-  # TODO: refresh and remove checks when implemented by snapd
+      # File has been copied around
+      comp_inst_path=/var/lib/snapd/snaps/snap-with-comps+comp1_${comp_rev}.comp
+      stat "$comp_inst_path"
+
+      # Component is mounted (note that we need to escape the "+" in the path)
+      # x1 is the snap revision
+      symlink=$SNAP_MOUNT_DIR/snap-with-comps/components/x1/comp1
+      mnt_point=$SNAP_MOUNT_DIR/snap-with-comps/components/mnt/comp1/${comp_rev}
+      mount | MATCH "^${comp_inst_path/+/\\+} on ${mnt_point} .*"
+      # And symlinked
+      readlink "$symlink" | MATCH "\\.\\./mnt/comp1/$comp_rev"
+      readlink -f "$symlink" | MATCH "$mnt_point"
+      # and is seen from snap app
+      snap-with-comps.test
+  }
+
+  # Install, then reinstall local component
+  install_comp x1
+  install_comp x2
+
+  # TODO: add checks for components removals when implemented by snapd
+  # For the moment, remove the snap and then manually the components
+  snap remove snap-with-comps
+  cd /etc/systemd/system/
+  systemctl stop -- *'snap\x2dwith\x2dcomps-components-mnt-comp1-x1.mount'
+  systemctl stop -- *'snap\x2dwith\x2dcomps-components-mnt-comp1-x2.mount'
+  cd -
+  rm /etc/systemd/system/*'-snap\x2dwith\x2dcomps-components-mnt-comp1-x1.mount'
+  rm /etc/systemd/system/*'-snap\x2dwith\x2dcomps-components-mnt-comp1-x2.mount'
+  rm -rf "$SNAP_MOUNT_DIR"/snap-with-comps/
