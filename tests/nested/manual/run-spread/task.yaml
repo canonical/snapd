@@ -43,4 +43,5 @@ execute: |
     fi
 
     # shellcheck disable=SC2086
+    echo "Running $SPREAD -v $RUN_TESTS"
     "$SPREAD" -v $RUN_TESTS | tee spread.log
