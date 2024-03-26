@@ -102,23 +102,26 @@ func (s *sequenceTestSuite) TestAddComponentForRevision(c *C) {
 	const compName1 = "comp1"
 	csi1 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName1), snap.R(2))
 	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName1), snap.R(3))
+	csi3 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, "other-comp"), snap.R(1))
 	cs1 := sequence.NewComponentState(csi1, snap.TestComponent)
 	cs2 := sequence.NewComponentState(csi2, snap.TestComponent)
+	cs3 := sequence.NewComponentState(csi3, snap.TestComponent)
 
 	ssi := &snap.SideInfo{RealName: snapName,
 		Revision: snap.R(1), SnapID: "some-snap-id"}
-	comps := []*sequence.ComponentState{cs1, cs2}
+	sliceCs1 := []*sequence.ComponentState{cs1}
 	seq := snapstatetest.NewSequenceFromRevisionSideInfos(
-		[]*sequence.RevisionSideState{sequence.NewRevisionSideState(ssi, comps)})
+		[]*sequence.RevisionSideState{sequence.NewRevisionSideState(ssi, sliceCs1)})
 	c.Assert(seq.AddComponentForRevision(snapRev, cs1), IsNil)
 	// Not re-appended
-	c.Assert(seq.Revisions[0].Components, DeepEquals, comps)
+	c.Assert(seq.Revisions[0].Components, DeepEquals, sliceCs1)
 
-	csi3 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, "other-comp"), snap.R(1))
-	cs3 := sequence.NewComponentState(csi3, snap.TestComponent)
+	// Replace component with different revision
+	c.Assert(seq.AddComponentForRevision(snapRev, cs2), IsNil)
+	c.Assert(seq.Revisions[0].Components, DeepEquals, []*sequence.ComponentState{cs2})
+
 	c.Assert(seq.AddComponentForRevision(snapRev, cs3), IsNil)
-	comps = []*sequence.ComponentState{cs1, cs2, cs3}
-	c.Assert(seq.Revisions[0].Components, DeepEquals, comps)
+	c.Assert(seq.Revisions[0].Components, DeepEquals, []*sequence.ComponentState{cs2, cs3})
 
 	c.Assert(seq.AddComponentForRevision(snap.R(2), cs3), Equals, sequence.ErrSnapRevNotInSequence)
 }
