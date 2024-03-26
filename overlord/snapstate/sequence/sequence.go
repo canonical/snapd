@@ -148,8 +148,9 @@ func (snapSeq *SnapSequence) AddComponentForRevision(snapRev snap.Revision, cs *
 	}
 	revSt := snapSeq.Revisions[snapIdx]
 
-	if revSt.FindComponent(cs.SideInfo.Component) != nil {
-		// Component already present
+	if currentCompSt := revSt.FindComponent(cs.SideInfo.Component); currentCompSt != nil {
+		// Component already present, replace revision
+		*currentCompSt = *cs
 		return nil
 	}
 

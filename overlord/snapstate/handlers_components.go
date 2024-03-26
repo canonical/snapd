@@ -128,7 +128,7 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) (err error) 
 
 	csi := compSetup.CompSideInfo
 	cpi := snap.MinimalComponentContainerPlaceInfo(compSetup.ComponentName(),
-		csi.Revision, snapsup.InstanceName(), snapsup.Revision())
+		csi.Revision, snapsup.InstanceName())
 
 	defer func() {
 		st.Lock()
@@ -235,7 +235,7 @@ func (m *SnapManager) undoMountComponent(t *state.Task, _ *tomb.Tomb) error {
 
 	csi := compSetup.CompSideInfo
 	cpi := snap.MinimalComponentContainerPlaceInfo(compSetup.ComponentName(),
-		csi.Revision, snapsup.InstanceName(), snapsup.Revision())
+		csi.Revision, snapsup.InstanceName())
 
 	pm := NewTaskProgressAdapterUnlocked(t)
 	if err := m.backend.UndoSetupComponent(cpi, &installRecord, deviceCtx, pm); err != nil {
@@ -289,8 +289,8 @@ func (m *SnapManager) doLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 	// Create the symlink
 	csi := cs.SideInfo
 	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
-		csi.Revision, snapInfo.InstanceName(), snapInfo.Revision)
-	if err := m.backend.LinkComponent(cpi); err != nil {
+		csi.Revision, snapInfo.InstanceName())
+	if err := m.backend.LinkComponent(cpi, snapInfo.Revision); err != nil {
 		return err
 	}
 
@@ -332,8 +332,8 @@ func (m *SnapManager) undoLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 	// Remove the symlink
 	csi := linkedComp.SideInfo
 	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
-		csi.Revision, snapInfo.InstanceName(), snapInfo.Revision)
-	if err := m.backend.UnlinkComponent(cpi); err != nil {
+		csi.Revision, snapInfo.InstanceName())
+	if err := m.backend.UnlinkComponent(cpi, snapInfo.Revision); err != nil {
 		return err
 	}
 
@@ -376,8 +376,8 @@ func (m *SnapManager) doUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (err
 	// Remove symlink
 	csi := unlinkedComp.SideInfo
 	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
-		csi.Revision, snapInfo.InstanceName(), snapInfo.Revision)
-	if err := m.backend.UnlinkComponent(cpi); err != nil {
+		csi.Revision, snapInfo.InstanceName())
+	if err := m.backend.UnlinkComponent(cpi, snapInfo.Revision); err != nil {
 		return err
 	}
 
@@ -423,8 +423,8 @@ func (m *SnapManager) undoUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (e
 	// Re-create the symlink
 	csi := unlinkedComp.SideInfo
 	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
-		csi.Revision, snapInfo.InstanceName(), snapInfo.Revision)
-	if err := m.backend.LinkComponent(cpi); err != nil {
+		csi.Revision, snapInfo.InstanceName())
+	if err := m.backend.LinkComponent(cpi, snapInfo.Revision); err != nil {
 		return err
 	}
 

@@ -46,7 +46,7 @@ version: 1.0
 	s.AddCleanup(snapstate.MockReadComponentInfo(func(
 		compMntDir string) (*snap.ComponentInfo, error) {
 		for i, ci := range cis {
-			if strings.HasSuffix(compMntDir, "/"+ci.Component.ComponentName+"_"+compRevs[i].String()) {
+			if strings.HasSuffix(compMntDir, "/"+ci.Component.ComponentName+"/"+compRevs[i].String()) {
 				return ci, nil
 			}
 		}

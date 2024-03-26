@@ -88,7 +88,7 @@ func (s *linkCompSnapSuite) testDoLinkComponent(c *C, snapName string, snapRev s
 			op: "link-component",
 			path: filepath.Join(
 				dirs.SnapMountDir, snapName, "components",
-				snapRev.String(), compName+"_"+compRev.String()),
+				"mnt", compName, compRev.String()),
 		},
 	})
 	// state is modified as expected
@@ -171,13 +171,13 @@ func (s *linkCompSnapSuite) testDoLinkThenUndoLinkComponent(c *C, snapName strin
 			op: "link-component",
 			path: filepath.Join(
 				dirs.SnapMountDir, snapName, "components",
-				snapRev.String(), compName+"_"+compRev.String()),
+				"mnt", compName, compRev.String()),
 		},
 		{
 			op: "unlink-component",
 			path: filepath.Join(
 				dirs.SnapMountDir, snapName, "components",
-				snapRev.String(), compName+"_"+compRev.String()),
+				"mnt", compName, compRev.String()),
 		},
 	})
 	// the component is not in the state
@@ -247,7 +247,7 @@ func (s *linkCompSnapSuite) testDoUnlinkCurrentComponent(c *C, snapName string, 
 			op: "unlink-component",
 			path: filepath.Join(
 				dirs.SnapMountDir, snapName, "components",
-				snapRev.String(), compName+"_"+compRev.String()),
+				"mnt", compName, compRev.String()),
 		},
 	})
 	// state is modified as expected
@@ -331,13 +331,13 @@ func (s *linkCompSnapSuite) testDoUnlinkThenUndoUnlinkCurrentComponent(c *C, sna
 			op: "unlink-component",
 			path: filepath.Join(
 				dirs.SnapMountDir, snapName, "components",
-				snapRev.String(), compName+"_"+compRev.String()),
+				"mnt", compName, compRev.String()),
 		},
 		{
 			op: "link-component",
 			path: filepath.Join(
 				dirs.SnapMountDir, snapName, "components",
-				snapRev.String(), compName+"_"+compRev.String()),
+				"mnt", compName, compRev.String()),
 		},
 	})
 	// the component is still in the state
