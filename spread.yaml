@@ -231,12 +231,14 @@ backends:
         location: snapd-spread/us-east1-b
         halt-timeout: 2h
         systems:
-            - ubuntu-18.04-64:
-                  workers: 6
             - ubuntu-20.04-64:
-                  workers: 6
+                  workers: 8
             - ubuntu-22.04-64:
-                  workers: 6
+                  workers: 8
+            - ubuntu-23.10-64:
+                  workers: 8
+            - ubuntu-24.04-64:
+                  workers: 8
 
     google-nested:
         type: google
