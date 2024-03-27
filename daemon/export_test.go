@@ -378,3 +378,11 @@ func MockSystemUserFromRequest(f func(r *http.Request) (*user.User, error)) (res
 	systemUserFromRequest = f
 	return restore
 }
+
+func MockOsReadlink(f func(string) (string, error)) func() {
+	old := osReadlink
+	osReadlink = f
+	return func() {
+		osReadlink = old
+	}
+}

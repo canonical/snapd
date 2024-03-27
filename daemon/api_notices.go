@@ -16,6 +16,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -25,19 +26,23 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
 var noticeReadInterfaces = map[state.NoticeType][]string{
 	state.ChangeUpdateNotice:   {"snap-refresh-observe"},
 	state.RefreshInhibitNotice: {"snap-refresh-observe"},
+	state.SnapRunInhibitNotice: {"snap-refresh-observe"},
 }
 
 var (
 	noticesCmd = &Command{
-		Path:       "/v2/notices",
-		GET:        getNotices,
-		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}},
+		Path:        "/v2/notices",
+		GET:         getNotices,
+		POST:        postNotices,
+		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}},
+		WriteAccess: openAccess{},
 	}
 
 	noticeCmd = &Command{
@@ -46,6 +51,12 @@ var (
 		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}},
 	}
 )
+
+// addedNotice is the result of adding a new notice.
+type addedNotice struct {
+	// ID is the id of the newly added notice.
+	ID string `json:"id"`
+}
 
 func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
@@ -230,6 +241,71 @@ func allowedNoticeTypesForInterface(iface string) []state.NoticeType {
 	}
 
 	return types
+}
+
+func postNotices(c *Command, r *http.Request, user *auth.UserState) Response {
+	requestUID, err := uidFromRequest(r)
+	if err != nil {
+		return Forbidden("cannot determine UID of request, so cannot create notice")
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	var inst noticeInstruction
+	if err := decoder.Decode(&inst); err != nil {
+		return BadRequest("cannot decode request body into notice instruction: %v", err)
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	if err := inst.validate(r); err != nil {
+		return err
+	}
+
+	noticeId, err := st.AddNotice(&requestUID, state.SnapRunInhibitNotice, inst.Key, nil)
+	if err != nil {
+		return InternalError("%v", err)
+	}
+
+	return SyncResponse(addedNotice{ID: noticeId})
+}
+
+type noticeInstruction struct {
+	Action string           `json:"action"`
+	Type   state.NoticeType `json:"type"`
+	Key    string           `json:"key"`
+	// NOTE: Data and RepeatAfter fields are not needed for snap-run-inhibit notices.
+}
+
+func (inst *noticeInstruction) validate(r *http.Request) *apiError {
+	if inst.Action != "add" {
+		return BadRequest("invalid action %q", inst.Action)
+	}
+	if err := state.ValidateNotice(inst.Type, inst.Key, nil); err != nil {
+		return BadRequest("%s", err)
+	}
+
+	switch inst.Type {
+	case state.SnapRunInhibitNotice:
+		return inst.validateSnapRunInhibitNotice(r)
+	default:
+		return BadRequest(`cannot add notice with invalid type %q (can only add "snap-run-inhibit" notices)`, inst.Type)
+	}
+}
+
+func (inst *noticeInstruction) validateSnapRunInhibitNotice(r *http.Request) *apiError {
+	if fromSnapCmd, err := isRequestFromSnapCmd(r); err != nil {
+		return InternalError("cannot check request source: %v", err)
+	} else if !fromSnapCmd {
+		return Forbidden("only snap command can record notices")
+	}
+
+	if err := naming.ValidateInstance(inst.Key); err != nil {
+		return BadRequest("invalid key: %v", err)
+	}
+
+	return nil
 }
 
 func getNotice(c *Command, r *http.Request, user *auth.UserState) Response {
