@@ -22,6 +22,7 @@ package snapstate_test
 import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -121,17 +122,28 @@ func (s *handlersComponentsSuite) TestComponentSetupsForTaskComponentInstall(c *
 	chg.AddTask(t)
 	chg.AddTask(t2)
 
+	t2.SetStatus(state.DoingStatus)
+	t.SetStatus(state.DoingStatus)
+
 	setups, err := snapstate.ComponentSetupsForTask(t2)
 	c.Assert(err, IsNil)
 
-	c.Check(setups, HasLen, 1)
+	c.Assert(setups, HasLen, 1)
 	c.Check(setups[0], DeepEquals, compsup)
 
 	setups, err = snapstate.ComponentSetupsForTask(t)
 	c.Assert(err, IsNil)
 
-	c.Check(setups, HasLen, 1)
+	c.Assert(setups, HasLen, 1)
 	c.Check(setups[0], DeepEquals, compsup)
+
+	// if the task isn't being done right now, then the component shouldn't be
+	// considered as being setup
+	t2.SetStatus(state.UndoStatus)
+	t.SetStatus(state.UndoStatus)
+	setups, err = snapstate.ComponentSetupsForTask(t)
+	c.Assert(err, IsNil)
+	c.Check(setups, HasLen, 0)
 }
 
 func (s *handlersComponentsSuite) TestComponentSetupsForTaskSnapWithoutComponents(c *C) {
