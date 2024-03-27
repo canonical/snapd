@@ -152,3 +152,56 @@ func (ts *SystemdTestSuite) TestEscapePath(c *C) {
 		c.Assert(systemd.EscapeUnitNamePath(t.in), Equals, t.out, Commentf(t.comment+" (with input %q)", t.in))
 	}
 }
+
+func (ts *SystemdTestSuite) TestEscapeUnitName(c *C) {
+	tt := []struct {
+		in      string
+		out     string
+		comment string
+	}{
+		{
+			`Hallöchen, Meister`,
+			`Hall\xc3\xb6chen\x2c\x20Meister`,
+			`utf-8 char and spaces`,
+		},
+		{
+			`/tmp//waldi/foobar/`,
+			`-tmp--waldi-foobar-`,
+			`unclean path, but we're not treating it as a path`,
+		},
+		{
+			`/.foo/.bar`,
+			`-.foo-.bar`,
+			`leading dot should not be escaped differently with leading slash`,
+		},
+		{
+			`.foo/.bar`,
+			`\x2efoo-.bar`,
+			`leading dot escaped differently`,
+		},
+		{
+			``,
+			``,
+			`empty string`,
+		},
+		{
+			`/`,
+			`-`,
+			`single slash`,
+		},
+		{
+			`////////`,
+			`--------`,
+			`many slashes`,
+		},
+		{
+			`snap.pkg+comp.hook.install`,
+			`snap.pkg\x2bcomp.hook.install`,
+			`component hook security tag (plus sign)`,
+		},
+	}
+
+	for _, t := range tt {
+		c.Assert(systemd.EscapeUnitName(t.in), Equals, t.out, Commentf(t.comment+" (with input %q)", t.in))
+	}
+}
