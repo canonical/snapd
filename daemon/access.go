@@ -20,7 +20,10 @@
 package daemon
 
 import (
+	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/snapcore/snapd/client"
@@ -37,6 +40,8 @@ import (
 var polkitCheckAuthorization = polkit.CheckAuthorization
 
 var checkPolkitAction = checkPolkitActionImpl
+
+var osReadlink = os.Readlink
 
 func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) *apiError {
 	var flags polkit.CheckFlags
@@ -254,4 +259,42 @@ func (ac interfaceAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, u
 	}
 
 	return Unauthorized("access denied")
+}
+
+// isRequestFromSnapCmd checks that the request is coming from snap command.
+//
+// It checks that the request process "/proc/PID/exe" points to one of the
+// known locations of the snap command. This not a security-oriented check.
+func isRequestFromSnapCmd(r *http.Request) (bool, error) {
+	ucred, err := ucrednetGet(r.RemoteAddr)
+	if err != nil {
+		return false, err
+	}
+	exe, err := osReadlink(fmt.Sprintf("/proc/%d/exe", ucred.Pid))
+	if err != nil {
+		return false, err
+	}
+
+	// SNAP_REEXEC=0
+	if exe == filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap") {
+		return true, nil
+	}
+
+	// Check if re-exec in snapd
+	path := filepath.Join(dirs.SnapMountDir, "snapd/*/usr/bin/snap")
+	if matched, err := filepath.Match(path, exe); err != nil {
+		return false, err
+	} else if matched {
+		return true, nil
+	}
+
+	// Check if re-exec in core
+	path = filepath.Join(dirs.SnapMountDir, "core/*/usr/bin/snap")
+	if matched, err := filepath.Match(path, exe); err != nil {
+		return false, err
+	} else if matched {
+		return true, nil
+	}
+
+	return false, nil
 }
