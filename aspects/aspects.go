@@ -1383,12 +1383,7 @@ func set(subKeys []string, index int, node map[string]json.RawMessage, value int
 		}
 
 		node[key] = data
-		newData, err := json.Marshal(node)
-		if err != nil {
-			return nil, err
-		}
-
-		return newData, nil
+		return json.Marshal(node)
 	}
 
 	rawLevel, ok := node[key]
@@ -1430,15 +1425,12 @@ func unset(subKeys []string, index int, node map[string]json.RawMessage) (json.R
 	matchAll := isPlaceholder(key)
 
 	if index == len(subKeys)-1 {
-		if !matchAll {
-			delete(node, key)
-		}
-
-		if matchAll || len(node) == 0 {
+		if matchAll {
 			// remove entire level
 			return nil, nil
 		}
 
+		delete(node, key)
 		return json.Marshal(node)
 	}
 
@@ -1478,10 +1470,6 @@ func unset(subKeys []string, index int, node map[string]json.RawMessage) (json.R
 		if err := unsetKey(node, key); err != nil {
 			return nil, err
 		}
-	}
-
-	if len(node) == 0 {
-		return nil, nil
 	}
 
 	return json.Marshal(node)
