@@ -21,10 +21,13 @@ package daemon
 
 import (
 	"encoding/json"
+	"math"
 	"net/http"
+	"strconv"
 
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -67,7 +70,7 @@ func userAllowedPromptingClient(user *auth.UserState) bool {
 func userNotAllowedPromptingClientResponse(user *auth.UserState) Response {
 	// The user is not authorized to be a prompt UI client
 	// TODO: fix this
-	return SyncResponse("user not allowed")
+	return Forbidden("user not allowed")
 }
 
 type postRulesRequestBody struct {
@@ -86,17 +89,52 @@ func getPrompts(c *Command, r *http.Request, user *auth.UserState) Response {
 		return userNotAllowedPromptingClientResponse(user)
 	}
 
-	ucred, err := ucrednetGet(r.RemoteAddr)
-	if err != nil {
-		return Forbidden("cannot get remote user: %v", err)
+	userID, errorResp := getUserID(r)
+	if errorResp != nil {
+		return errorResp
 	}
 
-	result, err := c.d.overlord.InterfaceManager().Prompting().GetPrompts(ucred.Uid)
+	result, err := c.d.overlord.InterfaceManager().Prompting().GetPrompts(userID)
 	if err != nil {
 		return InternalError("%v", err)
 	}
 
 	return SyncResponse(result)
+}
+
+// getUserID returns the UID specified by the user-id parameter of the query,
+// otherwise the UID of the connection.
+//
+// Only admin users are allowed to use the user-id parameter.
+//
+// If an error occurs, returns an error response, otherwise returns the user ID
+// and a nil response.
+func getUserID(r *http.Request) (uint32, Response) {
+	ucred, err := ucrednetGet(r.RemoteAddr)
+	if err != nil {
+		return 0, Forbidden("cannot get remote user: %v", err)
+	}
+	reqUID := ucred.Uid
+	query := r.URL.Query()
+	if len(query["user-id"]) == 0 {
+		return reqUID, nil
+	}
+	if reqUID != 0 {
+		return 0, Forbidden(`only admins may use the "user-id" parameter`)
+	}
+	prefix := `invalid "user-id" parameter`
+	queryUserIDs := strutil.MultiCommaSeparatedList(query["user-id"])
+	if len(queryUserIDs) != 1 {
+		return 0, BadRequest(`%v: must only include one "user-id"`, prefix)
+	}
+	userIDInt, err := strconv.ParseInt(queryUserIDs[0], 10, 64)
+	if err != nil {
+		return 0, BadRequest("%v: %v", prefix, err)
+	}
+	if userIDInt < 0 || userIDInt > math.MaxUint32 {
+		return 0, BadRequest("%v: user ID is not a valid uint32: %d", prefix, userIDInt)
+	}
+	return uint32(userIDInt), nil
 }
 
 func getPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -107,12 +145,12 @@ func getPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 		return userNotAllowedPromptingClientResponse(user)
 	}
 
-	ucred, err := ucrednetGet(r.RemoteAddr)
-	if err != nil {
-		return Forbidden("cannot get remote user: %v", err)
+	userID, errorResp := getUserID(r)
+	if errorResp != nil {
+		return errorResp
 	}
 
-	result, err := c.d.overlord.InterfaceManager().Prompting().GetPrompt(ucred.Uid, id)
+	result, err := c.d.overlord.InterfaceManager().Prompting().GetPrompt(userID, id)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -128,9 +166,9 @@ func postPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 		return userNotAllowedPromptingClientResponse(user)
 	}
 
-	ucred, err := ucrednetGet(r.RemoteAddr)
-	if err != nil {
-		return Forbidden("cannot get remote user: %v", err)
+	userID, errorResp := getUserID(r)
+	if errorResp != nil {
+		return errorResp
 	}
 
 	var reply apparmorprompting.PromptReply
@@ -139,7 +177,7 @@ func postPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into prompt reply: %v", err)
 	}
 
-	result, err := c.d.overlord.InterfaceManager().Prompting().PostPrompt(ucred.Uid, id, &reply)
+	result, err := c.d.overlord.InterfaceManager().Prompting().PostPrompt(userID, id, &reply)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -152,16 +190,16 @@ func getRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		return userNotAllowedPromptingClientResponse(user)
 	}
 
-	query := r.URL.Query()
+	userID, errorResp := getUserID(r)
+	if errorResp != nil {
+		return errorResp
+	}
 
+	query := r.URL.Query()
 	snap := query.Get("snap")
 	iface := query.Get("interface")
 
-	ucred, err := ucrednetGet(r.RemoteAddr)
-	if err != nil {
-		return Forbidden("cannot get remote user: %v", err)
-	}
-	result, err := c.d.overlord.InterfaceManager().Prompting().GetRules(ucred.Uid, snap, iface)
+	result, err := c.d.overlord.InterfaceManager().Prompting().GetRules(userID, snap, iface)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -174,9 +212,9 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		return userNotAllowedPromptingClientResponse(user)
 	}
 
-	ucred, err := ucrednetGet(r.RemoteAddr)
-	if err != nil {
-		return Forbidden("cannot get remote user: %v", err)
+	userID, errorResp := getUserID(r)
+	if errorResp != nil {
+		return errorResp
 	}
 
 	var postBody postRulesRequestBody
@@ -190,7 +228,7 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		if postBody.AddRule == nil {
 			return BadRequest(`must include "rule" field in request body when action is "add"`)
 		}
-		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesAdd(ucred.Uid, postBody.AddRule)
+		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesAdd(userID, postBody.AddRule)
 		if err != nil {
 			return InternalError("%v", err)
 		}
@@ -202,7 +240,7 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		if postBody.RemoveSelector.Snap == "" {
 			return BadRequest(`must include "snap" field in "selector"`)
 		}
-		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesRemove(ucred.Uid, postBody.RemoveSelector)
+		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulesRemove(userID, postBody.RemoveSelector)
 		if err != nil {
 			return InternalError("%v", err)
 		}
@@ -220,12 +258,12 @@ func getRule(c *Command, r *http.Request, user *auth.UserState) Response {
 		return userNotAllowedPromptingClientResponse(user)
 	}
 
-	ucred, err := ucrednetGet(r.RemoteAddr)
-	if err != nil {
-		return Forbidden("cannot get remote user: %v", err)
+	userID, errorResp := getUserID(r)
+	if errorResp != nil {
+		return errorResp
 	}
 
-	result, err := c.d.overlord.InterfaceManager().Prompting().GetRule(ucred.Uid, id)
+	result, err := c.d.overlord.InterfaceManager().Prompting().GetRule(userID, id)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -247,9 +285,9 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into request rule modification or deletion: %v", err)
 	}
 
-	ucred, err := ucrednetGet(r.RemoteAddr)
-	if err != nil {
-		return Forbidden("cannot get remote user: %v", err)
+	userID, errorResp := getUserID(r)
+	if errorResp != nil {
+		return errorResp
 	}
 
 	switch postBody.Action {
@@ -257,13 +295,13 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 		if postBody.PatchRule == nil {
 			return BadRequest(`must include "rule" field in request body when action is "patch"`)
 		}
-		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulePatch(ucred.Uid, id, postBody.PatchRule)
+		result, err := c.d.overlord.InterfaceManager().Prompting().PostRulePatch(userID, id, postBody.PatchRule)
 		if err != nil {
 			return InternalError("%v", err)
 		}
 		return SyncResponse(result)
 	case "remove":
-		result, err := c.d.overlord.InterfaceManager().Prompting().PostRuleRemove(ucred.Uid, id)
+		result, err := c.d.overlord.InterfaceManager().Prompting().PostRuleRemove(userID, id)
 		if err != nil {
 			return InternalError("%v", err)
 		}
