@@ -1374,9 +1374,30 @@ func (s JSONDataBag) Set(path string, value interface{}) error {
 	return err
 }
 
+func removeNilValues(value interface{}) interface{} {
+	level, ok := value.(map[string]interface{})
+	if !ok {
+		return value
+	}
+
+	for k, v := range level {
+		if v == nil {
+			delete(level, k)
+			continue
+		}
+
+		level[k] = removeNilValues(v)
+	}
+
+	return level
+}
+
 func set(subKeys []string, index int, node map[string]json.RawMessage, value interface{}) (json.RawMessage, error) {
 	key := subKeys[index]
 	if index == len(subKeys)-1 {
+		// remove nil values that may be nested in the value
+		value = removeNilValues(value)
+
 		data, err := json.Marshal(value)
 		if err != nil {
 			return nil, err
