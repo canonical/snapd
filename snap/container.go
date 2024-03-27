@@ -104,39 +104,38 @@ type symlinkInfo struct {
 // continue further either due to absolute symlinks or symlinks
 // that escape the container.
 //
-//       max depth reached?<------
-//               /\               \
-//            yes  no              \
-//            /      \              \
-//           V        V              \
-//        error      path             \
-//                    │                \
-//                    V                 \
-//                read target            \
-//                    │                   \
-//                    V                    \
-//               is absolute?               \
-//                   /\                      \
-//                yes  no                     \
-//                /      \                     \
-//               V        V                     \
-//       isExternal     eval relative target     \
-//           +               \                    \
-//     return target          V                    \
-//                     escapes container?           \
-//                           /\                      \
-//                        yes  no                     \
-//                       /      \                      |
-//                      V        V                     |
-//              isExternal      is symlink?            |
-//                   +                /\               |
-//             return target       yes  no             │
-//                                /      \             │
-//                               V        V            │
-//                       !isExternal    path = target  │
-//                            +             \----------│
-//                      return target
-//
+//	  max depth reached?<------
+//	          /\               \
+//	       yes  no              \
+//	       /      \              \
+//	      V        V              \
+//	   error      path             \
+//	               │                \
+//	               V                 \
+//	           read target            \
+//	               │                   \
+//	               V                    \
+//	          is absolute?               \
+//	              /\                      \
+//	           yes  no                     \
+//	           /      \                     \
+//	          V        V                     \
+//	  isExternal     eval relative target     \
+//	      +               \                    \
+//	return target          V                    \
+//	                escapes container?           \
+//	                      /\                      \
+//	                   yes  no                     \
+//	                  /      \                      |
+//	                 V        V                     |
+//	         isExternal      is symlink?            |
+//	              +                /\               |
+//	        return target       yes  no             │
+//	                           /      \             │
+//	                          V        V            │
+//	                  !isExternal    path = target  │
+//	                       +             \----------│
+//	                 return target
 func evalSymlink(c Container, path string) (symlinkInfo, error) {
 	var naiveTarget string
 
