@@ -402,11 +402,12 @@ distro_install_build_snapd(){
         add-apt-repository -y "$PPA_VALIDATION_NAME"
         apt update
         apt install -y --only-upgrade snapd
-        add-apt-repository --remove "$PPA_VALIDATION_NAME"
-        apt update
 
         # Double check that it really comes from the PPA
         apt show snapd | MATCH "APT-Sources: http.*ppa\.launchpad(content)?\.net"
+
+        add-apt-repository --remove "$PPA_VALIDATION_NAME"
+        apt update
     else
         packages=
         case "$SPREAD_SYSTEM" in
