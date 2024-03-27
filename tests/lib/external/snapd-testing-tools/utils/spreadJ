@@ -79,7 +79,7 @@ list() {
 
     if [ -z "$target" ]; then
         echo "spreadJ: result target cannot be empty"
-        exit 1  
+        exit 1
     fi
 
     local query
@@ -112,7 +112,7 @@ main() {
         show_help
         exit 1
     fi
-    
+
     "$action" "$@"
 }
 

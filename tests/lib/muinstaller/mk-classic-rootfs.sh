@@ -17,7 +17,7 @@ prepare_classic_rootfs() {
         echo "internal error: prepare_classic_rootfs called without 'ROLE'"
         exit 1
     fi
-    
+
     # Create basic devices to be able to install packages
     [ -e "$DESTDIR"/dev/null ] || sudo mknod -m 666 "$DESTDIR"/dev/null c 1 3
     [ -e "$DESTDIR"/dev/zero ] || sudo mknod -m 666 "$DESTDIR"/dev/zero c 1 5
@@ -63,7 +63,7 @@ EOF
 		 "DEBIAN_FRONTEND=noninteractive apt install -y /var/cache/apt/archives/$(basename "$package")"
 	fi
     fi
-        
+
     # ensure we can login
     sudo chroot "$DESTDIR" /usr/sbin/adduser --disabled-password --gecos "" user1
     printf "ubuntu\nubuntu\n" | sudo chroot "$DESTDIR" /usr/bin/passwd user1

@@ -66,7 +66,7 @@ do_refresh() {
 process_refresh() {
     local snap_name=$1
     local refresh_channel=$2
-    
+
     if [ -z "$refresh_channel" ]; then
         # Tracking is retrieved from snap info command because in old versions of
         # snapd the tracking is not included in the snap list output

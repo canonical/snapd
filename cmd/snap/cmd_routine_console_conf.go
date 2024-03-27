@@ -42,7 +42,7 @@ The console-conf-start command starts synchronization with console-conf
 
 This command is used by console-conf when it starts up. It delays refreshes if
 there are none currently ongoing, and exits with a specific error code if there
-are ongoing refreshes which console-conf should wait for before prompting the 
+are ongoing refreshes which console-conf should wait for before prompting the
 user to begin configuring the device.
 `)
 

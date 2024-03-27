@@ -671,7 +671,7 @@ exit 1
 	sn := makeSnap(c, "", data)
 	err := sn.Unpack("*", "some-output-dir")
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, `cannot extract "*" to "some-output-dir": 
+	c.Check(err.Error(), Equals, `cannot extract "*" to "some-output-dir":
 -----
 Write on output file failed because No space left on device
 

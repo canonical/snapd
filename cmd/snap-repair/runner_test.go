@@ -1500,7 +1500,7 @@ func (s *runnerSuite) TestRepairModesAndBases(c *C) {
 authority-id: canonical
 brand-id: canonical
 repair-id: 1
-summary: uc20 recovery repair 
+summary: uc20 recovery repair
 timestamp: 2017-07-03T12:00:00Z
 body-length: 17
 sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj

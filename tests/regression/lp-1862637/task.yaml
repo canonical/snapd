@@ -8,7 +8,7 @@ restore: |
     rm -f /var/lib/dhcp/.canary
 
 execute: |
-    # The snap always sees /var/lib/dhcp. 
+    # The snap always sees /var/lib/dhcp.
     test-snapd-app.sh -c 'test -d /var/lib/dhcp'
     if not os.query is-core16; then
         if [ -d /var/lib/dhcp ]; then

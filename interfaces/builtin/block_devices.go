@@ -74,7 +74,7 @@ const blockDevicesConnectedPlugAppArmor = `
 # Allow /dev/nvmeXnY namespace block devices. Please note this grants access to all
 # NVMe namespace block devices and that the numeric suffix on the character device
 # does not necessarily correspond to a namespace block device with the same suffix
-# From 'man nvme-format' : 
+# From 'man nvme-format' :
 #   Note, the numeric suffix on the character device, for example the 0 in
 #   /dev/nvme0, does NOT indicate this device handle is the parent controller
 #   of any namespaces with the same suffix. The namespace handle's numeral may

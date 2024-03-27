@@ -24,7 +24,7 @@ execute: |
     expected="error: while creating user: access denied"
     if obtained=$(su - test /bin/sh -c "snap create-user $USER_EMAIL 2>&1"); then
         echo "create-user command should have failed"
-    fi 
+    fi
     [[ "$obtained" =~ $expected ]]
 
     if [ "$(snap managed)" = "true" ]; then

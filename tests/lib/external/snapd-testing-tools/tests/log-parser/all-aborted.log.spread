@@ -43,4 +43,4 @@
 error: unsuccessful run
 2021-01-20 12:33:01 Cannot allocate google:ubuntu-21.04-64: cannot allocate new Google server google:ubuntu-21.04-64 (jan201229-232278): cannot find ready marker in console output for google:ubuntu-21.04-64 (jan201229-232278)
 2021-01-20 12:33:01 Successful tasks: 0
-2021-01-20 12:33:01 Aborted tasks: 505 
+2021-01-20 12:33:01 Aborted tasks: 505

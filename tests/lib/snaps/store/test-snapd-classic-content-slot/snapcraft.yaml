@@ -1,7 +1,7 @@
 name: test-snapd-classic-content-slot
 version: 1.0
-summary: Classic snap with content slot 
-description: Classic snap with content slot 
+summary: Classic snap with content slot
+description: Classic snap with content slot
 confinement: classic
 architectures:
   - build-on: amd64

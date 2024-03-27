@@ -2,7 +2,7 @@
 
 # some commands need either root or sudo permissions, so check for that early
 if [ "$(id -u)" != 0 ]; then
-    if ! sudo echo "authentication as root successful"; then 
+    if ! sudo echo "authentication as root successful"; then
         echo "this script needs to be run as root or use sudo permission"
         exit 1
     fi
@@ -30,7 +30,7 @@ snap changes --abs-time
 
 GADGET_SNAP="$(snap list | awk '($6 ~ /.*gadget.*$/) {print $1}')"
 if [ -z "$GADGET_SNAP" ]; then
-    # could be a serious bug/problem or otherwise could be just on a classic 
+    # could be a serious bug/problem or otherwise could be just on a classic
     # device
     h1 "NO GADGET SNAP DETECTED"
 else

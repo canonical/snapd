@@ -32,9 +32,9 @@ const networkSetupObserveBaseDeclarationSlots = `
 const networkSetupObserveConnectedPlugAppArmor = `
 # Description: Can read netplan configuration files
 
-# Allow use of the netplan binary from the base snap. With this interface, this 
-# is expected to be able to only get information about the current network 
-# configuration and not generate or apply it like is allowed with 
+# Allow use of the netplan binary from the base snap. With this interface, this
+# is expected to be able to only get information about the current network
+# configuration and not generate or apply it like is allowed with
 # network-setup-control.
 /usr/sbin/netplan ixr,
 # core18+ has /usr/sbin/netplan as a symlink to this script

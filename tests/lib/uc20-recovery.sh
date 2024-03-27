@@ -12,7 +12,7 @@ transition_to_recover_mode(){
 
     # TODO: the following mocking of systemctl should be combined with the code
     # in tests/core/snapd-refresh-vs-services-reboots into a generic shutdown
-    # helper to get better observability and less race conditions around 
+    # helper to get better observability and less race conditions around
     # snapd rebooting things from a live system under spread
 
     # save the original systemctl command since we essentially need to mock it
@@ -26,7 +26,7 @@ transition_to_recover_mode(){
     echo "Request rebooting into recovery mode"
     if [ "$HAVE_LABEL" = 1 ]; then
         snap reboot --recover "$label" | MATCH 'Reboot into ".*" "recover" mode'
-    else 
+    else
         snap reboot --recover | MATCH 'Reboot into "recover" mode'
     fi
 
@@ -43,7 +43,7 @@ transition_to_recover_mode(){
     umount /bin/systemctl
 
     # with the external backend, we do not have the special snapd snap with
-    # the first-boot run mode tweaks as created from $TESTLIB/prepare.sh's 
+    # the first-boot run mode tweaks as created from $TESTLIB/prepare.sh's
     # repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks func
     # so instead to get the spread gopath and other data needed to continue
     # the test, we need to add a .ssh/rc script which copies all of the data
@@ -112,7 +112,7 @@ transition_to_run_mode() {
     # message like this:
     # ssh: unexpected packet in response to channel open: <nil>
     if [ "$SPREAD_BACKEND" = "external" ]; then
-        # TODO:UC20: if/when /host is mounted ro, then we will need to 
+        # TODO:UC20: if/when /host is mounted ro, then we will need to
         # either remount it rw or do some other hack to fix this
         rm -f /host/ubuntu-data/user-data/external/.ssh/rc
     fi

@@ -12,7 +12,7 @@ execute: |
 
     echo "then the oom score is set to 899"
     systemctl show snap.test-snapd-go-webserver.webserver.service |MATCH "OOMScoreAdjust=-899"
-    snap remove test-snapd-go-webserver    
+    snap remove test-snapd-go-webserver
 
     echo "When installing a snap without vitality-hint set"
     snap unset core resilience.vitality-hint

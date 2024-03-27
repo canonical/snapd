@@ -25,6 +25,6 @@ execute: |
     for _ in $(seq 10); do
         snap changes|MATCH ".*80999.*Done" && break
         sleep 1
-    done 
+    done
     snap changes | MATCH ".*80999.*Done"
     snap change 80999 | MATCH ".*INFO no handler for task \"alien-task\", task ignored"

@@ -52,12 +52,12 @@ prepare: |
     for f in system-services/$NETPLAN.service system.d/$NETPLAN.conf; do
         if [ -f /usr/share/dbus-1/"$f" ]; then
             mv /usr/share/dbus-1/"$f" /usr/share/dbus-1/"$f".backup
-        fi      
+        fi
     done
 
     echo "Install the dbus policy config file and service unit for our fake netplan system dbus service"
     echo "Install the netplan D-Bus activatable system service"
-    mkdir -p /usr/share/dbus-1/system.d 
+    mkdir -p /usr/share/dbus-1/system.d
     mkdir -p /usr/share/dbus-1/system-services
     cp $NETPLAN.conf /usr/share/dbus-1/system.d/$NETPLAN.conf
 
@@ -86,7 +86,7 @@ restore: |
     for f in system-services/$NETPLAN.service system.d/$NETPLAN.conf; do
         if [ -f /usr/share/dbus-1/"$f".backup ]; then
             mv /usr/share/dbus-1/"$f".backup /usr/share/dbus-1/"$f"
-        fi      
+        fi
     done
 
 execute: |

@@ -66,7 +66,7 @@ execute: |
 
   INITIAL_REV=$(snap list snapd | tail -n +2 | awk '{print $3}')
 
-  # first thing is to install snapd 2.49.1 before the Requires= change was 
+  # first thing is to install snapd 2.49.1 before the Requires= change was
   # introduced so we can install a snap service that will not have Requires= in
   # it
   if os.query is-pc-amd64; then
@@ -89,7 +89,7 @@ execute: |
   # check that it is initially active
   snap services|MATCH ".*test-snapd-simple-service\s*enabled\s*active.*"
 
-  # check that it doesn't have any dependencies on usr-lib-snapd.mount at the 
+  # check that it doesn't have any dependencies on usr-lib-snapd.mount at the
   # start
   NOMATCH Requires=usr-lib-snapd.mount < /etc/systemd/system/snap.test-snapd-simple-service.test-snapd-simple-service.service
   NOMATCH Wants=usr-lib-snapd.mount < /etc/systemd/system/snap.test-snapd-simple-service.test-snapd-simple-service.service
@@ -113,7 +113,7 @@ execute: |
     snap version | MATCH 2.49.2
 
   elif [ "${SNAPD_VERSION_UNDER_TEST}" = "pr" ]; then
-      # refresh back to the version we originally had from before the test 
+      # refresh back to the version we originally had from before the test
       # started
       echo "Refreshing snapd to version from the pr"
       snap install --dangerous snapd-pr.snap
@@ -127,9 +127,9 @@ execute: |
   snap services|MATCH ".*test-snapd-simple-service_alt.test-snapd-simple-service\s*enabled\s*active.*"
 
   # if we are not running with 2.49.2, then the second service should have been
-  # generated with Wants=, but if we are doing 2.49.2 then the second service 
+  # generated with Wants=, but if we are doing 2.49.2 then the second service
   # should have Requires= in it
-  if [ "${SNAPD_VERSION_UNDER_TEST}" = "2.49.2" ];then 
+  if [ "${SNAPD_VERSION_UNDER_TEST}" = "2.49.2" ];then
     MATCH Requires=usr-lib-snapd.mount < /etc/systemd/system/snap.test-snapd-simple-service_alt.test-snapd-simple-service.service
   else
     MATCH Wants=usr-lib-snapd.mount < /etc/systemd/system/snap.test-snapd-simple-service_alt.test-snapd-simple-service.service
@@ -159,7 +159,7 @@ execute: |
   # and pr, then we also should not have had the alt service pid change due to a
   # restart
   # for the other variant (2.49.2 only), we unfortunately ended up needing to
-  # restart the service so it should have a different PID, but it should be 
+  # restart the service so it should have a different PID, but it should be
   # running again
 
   systemctl show -p MainPID snap.test-snapd-simple-service_alt.test-snapd-simple-service > new-main_alt.pid

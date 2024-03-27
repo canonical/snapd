@@ -18,23 +18,23 @@ execute: |
     snap set-quota foobar --memory=1MB 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH "systemd version 2[0-2][0-9] is too old \(expected at least 230\)"
     exit 0
   fi
-  
+
   echo "Installing hello-world and assigning it quota group not-exists"
   snap install hello-world --quota-group not-exists 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH "\(group \"not-exists\" does not exist\)"
-  
+
   echo "Creating quota group (no snaps)"
   snap set-quota group-one --memory=400MB
-  
+
   echo "Installing hello-world and assigning it quota group group-one"
   snap install hello-world --quota-group group-one
-  
+
   # We expect that group-one will use memory, but we do not care how much memory
   # it's using, so we just accept whatever (if any) memory in use.
   echo "Checking that all quotas can be listed"
   snap quotas | cat -n > quotas.txt
   MATCH "     1\s+Quota\s+Parent\s+Constraints\s+Current$" < quotas.txt
   MATCH "     2\s+group-one\s+memory=400MB(\s*|\s*memory=[0-9.a-zA-Z]+)\s*$" < quotas.txt
-  
+
   echo "Checking quota group details"
   snap quota group-one | cat -n > details.txt
   MATCH "     1\s+name:\s+group-one$" < details.txt
@@ -44,10 +44,10 @@ execute: |
   MATCH "     5\s+memory:\s+[0-9.a-zA-Z]+B$" < details.txt
   MATCH "     6\s+snaps:$" < details.txt
   MATCH "     7\s+-\s+hello-world$" < details.txt
-  
+
   echo "Removing the snap from the system"
   snap remove hello-world
-  
+
   echo "Checking that the quota group is now empty"
   snap quota group-one | cat -n > details2.txt
   MATCH "     1\s+name:\s+group-one$" < details2.txt
@@ -59,10 +59,10 @@ execute: |
     echo "FAIL: Quota group is not empty"
     exit 1
   fi
-  
+
   echo "Installing a local snap into same group to verify option is supported for sideloaded snaps"
   snap install --quota-group group-one --dangerous ./basic_1.0_all.snap
-  
+
   echo "Checking quota group details again"
   snap quota group-one | cat -n > details.txt
   MATCH "     1\s+name:\s+group-one$" < details.txt

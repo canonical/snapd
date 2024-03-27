@@ -18,7 +18,7 @@ execute: |
     ( (sleep 3; snap set basic-hooks foo=1)& )
     snap wait basic-hooks foo
     end=$(date +%s)
-    # ensure we waited 
+    # ensure we waited
     if [ $((end-start)) -lt 2 ]; then
         echo "snap wait returned too early"
         exit 1

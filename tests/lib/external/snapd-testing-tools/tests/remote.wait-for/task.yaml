@@ -60,7 +60,7 @@ execute: |
 
     # Check waiting for reboot with not enough time
     # shellcheck disable=SC2016
-    remote.retry --wait 1 -n 10 'test -n "$(cat /proc/sys/kernel/random/boot_id)"'    
+    remote.retry --wait 1 -n 10 'test -n "$(cat /proc/sys/kernel/random/boot_id)"'
     second_boot_id="$(remote.exec "cat /proc/sys/kernel/random/boot_id")"
 
     remote.exec "sudo reboot" || true
@@ -78,6 +78,6 @@ execute: |
     # Check boot ids are different
     test "$initial_boot_id" != "$second_boot_id"
     test "$second_boot_id" != "$third_boot_id"
-    
+
     # Check waiting for refresh in case no refresh in progress
     remote.wait-for refresh

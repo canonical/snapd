@@ -2,7 +2,7 @@ summary: Check that removal of essential snaps does not work
 
 details: |
     This test validates snapd and base snaps cannot be
-    removed. Also checks that a core base snap cannot be 
+    removed. Also checks that a core base snap cannot be
     removed when other installed snap is based on that one.
 
 # UC16 does not seed the snapd snap (yet)

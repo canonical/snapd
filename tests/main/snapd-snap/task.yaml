@@ -62,7 +62,7 @@ prepare: |
     fi
 
     if os.query is-fedora || os.query is-arch-linux || os.query is-centos; then
-        # in order to install classic snaps, we need to setup the /snap 
+        # in order to install classic snaps, we need to setup the /snap
         # symlink on these distros
         SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
         ln -sf "$SNAP_MOUNT_DIR" /snap
@@ -94,16 +94,16 @@ prepare: |
         echo "Switch the core snap back due to spread system prepare shenanigans"
         # When we run spread, we will repack the core snap that is installed on
         # the system to match the binaries that we built on this system so that
-        # we keep executing the stuff from the branch, even if re-exec is 
+        # we keep executing the stuff from the branch, even if re-exec is
         # enabled unconditionally for all spread tests. This presents a problem
-        # for snapcraft, which downloads the current snap file from snapd 
-        # directly using the /v2/snaps/{name}/file endpoint, which will just 
+        # for snapcraft, which downloads the current snap file from snapd
+        # directly using the /v2/snaps/{name}/file endpoint, which will just
         # send over the modified file without indicating at all that the current
         # file is modified from the installed revision (indeed snapd reports to
-        # snapcraft that it is running the specific edge revision from the 
+        # snapcraft that it is running the specific edge revision from the
         # store, and not x1 as it would in devmode for example which snapcraft
         # correctly handles).
-        # As such, we need to switch the modified core snap on the system back 
+        # As such, we need to switch the modified core snap on the system back
         # with the original core snap on the system that is unmodified and will
         # match the expected assertions that snapcraft calculates
 
@@ -254,7 +254,7 @@ execute: |
     echo "Ensure we support posix mqueue and userns in the internal apparmor_parser"
     snap debug sandbox-features --required apparmor:parser:mqueue
     snap debug sandbox-features --required apparmor:parser:userns
-    
+
     echo "Then we should be able to compile policy using the internal apparmor_parser"
     /snap/snapd/current/usr/lib/snapd/apparmor_parser \
       --config-file /snap/snapd/current/usr/lib/snapd/apparmor/parser.conf \

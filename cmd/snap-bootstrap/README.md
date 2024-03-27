@@ -1,18 +1,18 @@
 # _snap-bootstrap_
 
-Welcome to the world of the initramfs of UC20! 
+Welcome to the world of the initramfs of UC20!
 
 ## Short intro
 
 _snap-bootstrap_ is the main executable that is run during the initramfs stage of UC20. It has several responsibilities:
 
 1. Mounting some partitions from the disk that UC20 is installed to. This includes ubuntu-data, ubuntu-boot, ubuntu-seed, and if present, ubuntu-save (ubuntu-save is optional on unencrypted devices).
-1. As part of mounting those partitions, _snap-bootstrap_ may perform the necessary steps to unlock any encrypted partitions such as ubuntu-data and ubuntu-save. 
+1. As part of mounting those partitions, _snap-bootstrap_ may perform the necessary steps to unlock any encrypted partitions such as ubuntu-data and ubuntu-save.
 1. After unlocking and mounting all such partitions, _snap-bootstrap_ then chooses which base snap file is to be used for the root filesystem of userspace (as the root filesystem of the initramfs is just a static set of files built into the initramfs and is not the final root filesystem), and mounts this base snap file.
 1. _snap-bootstrap_ then chooses which kernel snap file is to be used to mount and find additional kernel modules that are not compiled into the kernel or shipped as modules inside the initramfs or otherwise loaded as DTBs, etc.
 1. _snap-bootstrap_ then also will mount the ubuntu-data partition such that either the writable components of the root filesystem come from this actual partition, or if the mode the system is booting into is an ephemeral system such as install or recover, will mount a temporary filesystem for this.
 1. _snap-bootstrap_ on kernel and base snap upgrades will also handle updating bootloader environment variables to implement A/B or try-boot functionality.
-1. _snap-bootstrap_ then finally may do some additional setup of the root filesystem such as copying some default files for ephemeral system modes such as recover. 
+1. _snap-bootstrap_ then finally may do some additional setup of the root filesystem such as copying some default files for ephemeral system modes such as recover.
 
 ## In depth walkthrough
 
@@ -32,7 +32,7 @@ Install mode has the following steps:
 1. Next, we will load the "recovery system seed", which is the set of snaps associated with this recovery system, this includes the base snap, the kernel snap, the snapd snap and the gadget snap. These snaps are verified to match their assertions via hashing.
 1. Next we do another measurement to the TPM (if available) of the model assertion from the recovery system we loaded.
 1. After having verified that the recovery system seed snaps are valid and that the model assertion is correct, we will then mount these snaps at /run/mnt/base, /run/mnt/kernel, and /run/mnt/snapd (the gadget is not mounted at this time).
-1. Next, we create a tmpfs mount at /run/mnt/data, which will be the root filesystem we pivot_root into at the end of the initramfs. 
+1. Next, we create a tmpfs mount at /run/mnt/data, which will be the root filesystem we pivot_root into at the end of the initramfs.
 1. Next, we will "configure" the target system root filesystem using the gadget snap itself, this will handle things like "early snap config" and cloud-init config, etc. that need to be applied before we fully boot to userspace.
 1. Next, we will write out a modeenv file to the root filesystem based on the model assertion and the recovery system seed snaps that will be read by snapd in userspace when we get there.
 1. Finally, the last step of all modes is to expose any boot flags. There is currently only one boot flag and this is used during install mode to allow factory-specific behavior in the install-device hook, stopping re-execution if the device is re-installed in the field and re-enters install mode again. A boot flag is set by a bootloader environment variable which is then put into a file in /run for userspace to measure. See https://ubuntu.com/core/docs/uc20/installation-process for full details of how this can be used from an image building standpoint, and see the implementation of `boot.InitramfsExposeBootFlagsForSystem` for how this works at a low-level for a snapd/Ubuntu Core developer.
@@ -55,7 +55,7 @@ Install mode has the following steps:
 
 The first 8 steps for recover mode are shared exactly with install mode, so they are not repeated here, but see the steps 1-8 for install mode, then we continue:
 
-9. The next thing we check is whether we are inside the recovery environment to actually do recover mode, or if we are simply validating that the recovery system we are booting into is valid. We do this by inspecting bootloader environment variables via `boot.InitramfsIsTryingRecoverySystem`. 
+9. The next thing we check is whether we are inside the recovery environment to actually do recover mode, or if we are simply validating that the recovery system we are booting into is valid. We do this by inspecting bootloader environment variables via `boot.InitramfsIsTryingRecoverySystem`.
 10. In the case that we are trying a recovery system, we will ensure that the next reboot will transition us back to run mode. Additionally, if we are in an inconsistent state, such as there being no agreement on the state of the tried recover system, for example, we will reboot and attempt to go back to run mode and give up on recover mode.
 11. If we are either not trying a recovery system, or we are in a consistent state and are trying a recovery system, then we enter the following magical state machine. This state diagram essentially allows recover mode to be extra robust against failure modes, such as having a partition disappear, keys not being able to unlock some partitions, etc. This is referred to as "degraded mode". Specifically, if we don't use all the _happy paths_ then we are in a "degraded" recover mode as opposed to being in a normal recover mode. For the case where we are trying a recovery system, none of the fallback paths are allowed to be taken and will immediately exit the state machine and the state machine is marked as being in "degraded mode".
 

@@ -50,10 +50,10 @@ execute: |
                 echo "Channel info not proccessed correctly: $CHANNEL_INFO"
                 continue
             fi
-            
+
             if snap install "$SNAP" --$CHANNEL $PARAMS 2> stderr.out; then
                 INSTALLED=$(( INSTALLED + 1 ))
-            else 
+            else
                 # this could cause the failure https://bugs.launchpad.net/snapstore-server/+bug/2049071
                 MATCH "error: snap \"$SNAP\" not found" < stderr.out
             fi
@@ -62,7 +62,7 @@ execute: |
                 echo "already $NUM_SNAPS installed, now check other features"
                 break
             fi
-        done        
+        done
     done
 
     snap refresh

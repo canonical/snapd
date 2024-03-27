@@ -15,14 +15,14 @@ prepare: |
     readlink "/snap/pc-kernel/current" > pc-kernel.rev
     readlink "/snap/core18/current" > core.rev
     readlink "/snap/pc/current" > pc.rev
-    
+
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
-    
+
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -45,7 +45,7 @@ execute: |
         snap refresh --no-wait core18 pc pc-kernel > refresh-change-id
         test -n "$(cat refresh-change-id)"
         change_id="$(cat refresh-change-id)"
-        
+
         # wait for the link task to be done for base
         retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
 

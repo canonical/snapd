@@ -109,7 +109,7 @@ _diff_tasks_lists() {
         if ! grep -Fxq "$elem1" "$list2_file"; then
             diff_list="$diff_list $elem1"
         fi
-    done 
+    done
     rm "$list2_file"
     echo "$diff_list"
 }
@@ -206,12 +206,12 @@ list_reexecute_tasks() {
     # In case all the tests are failed or aborted, then the execution expression is used to reexecute
     if [ "$(echo "$reexec_tasks" | wc -w)" = "$(echo "$all_tasks" | wc -w)" ]; then
         echo "$exec_exp"
-        return 
+        return
     fi
 
     # When all the tests were successful, then no tests need to be reexecuted
     if [ "$(echo "$reexec_tasks" | wc -w)" = 0 ]; then
-        return 
+        return
     fi
     echo "$reexec_tasks"
 }
@@ -240,8 +240,8 @@ list_successful_tasks() {
 
     if [ -n "$failed_tasks" ]; then
         executed_tasks="$(_diff_tasks_lists "$executed_tasks" "$failed_tasks")"
-    fi    
-    
+    fi
+
     echo "$executed_tasks"
 }
 
@@ -291,8 +291,8 @@ list_aborted_tasks() {
         _diff_tasks_lists "$all_tasks" "$exec_and_failed_tasks"
         return
     fi
-    
-    # In other cases the aborted tasks are all the tasks - the executed - the that failed 
+
+    # In other cases the aborted tasks are all the tasks - the executed - the that failed
     _diff_tasks_lists "$all_tasks" "$executed_tasks"
 }
 

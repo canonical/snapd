@@ -2,7 +2,7 @@
 # Source spread-funcs.sh which, at runtime, contains the real definition of
 # REBOOT and execute it.
 
-# shellcheck source=tests/lib/spread-funcs.sh 
+# shellcheck source=tests/lib/spread-funcs.sh
 . "$TESTSLIB/spread-funcs.sh"
 
 REBOOT "$@"

@@ -13,7 +13,7 @@ execute: |
     systemctl status systemd-backlight@foo | MATCH "Loaded: masked"
     test -L "$MASKFILE"
     [ "$(readlink $MASKFILE)" = "/dev/null" ]
-        
+
     echo "Check that backlight service can be enabled"
     snap set core system.disable-backlight-service=false
 

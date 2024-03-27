@@ -41,11 +41,11 @@ prepare: |
   # put into the image, on the old variant it will be refreshed to
   snap download --channel="latest/edge" snapd
   "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
-  mv snapd-from-deb.snap snapd-from-branch.snap  
+  mv snapd-from-deb.snap snapd-from-branch.snap
 
   # on both variants we use a local, non-asserted version of the snapd snap
   # for the startwithnew variant, we use the snapd from this branch, for the
-  # startwithold variant, we use the snapd from stable but unpack it to 
+  # startwithold variant, we use the snapd from stable but unpack it to
   # prevent auto-refreshes from happening which may affect the test setup
   if [ "$START_SNAPD_VERSION" = "new" ]; then
     mv snapd-from-branch.snap "$(tests.nested get extra-snaps-path)"
@@ -69,12 +69,12 @@ prepare: |
   unsquashfs -d pc-kernel-snap pc-kernel_838.snap
   touch ./pc-kernel-snap/in-case-mksquashfs-becomes-deterministic-someday
   snap pack pc-kernel-snap --filename=pc-kernel.snap
-  mv pc-kernel.snap "$(tests.nested get extra-snaps-path)" 
+  mv pc-kernel.snap "$(tests.nested get extra-snaps-path)"
 
   unsquashfs -d pc-snap pc_132.snap
   touch ./pc-snap/in-case-mksquashfs-becomes-deterministic-someday
   snap pack pc-snap --filename=pc.snap
-  mv pc.snap "$(tests.nested get extra-snaps-path)" 
+  mv pc.snap "$(tests.nested get extra-snaps-path)"
 
   # Get the nested system version
   VERSION="$(tests.nested show version)"

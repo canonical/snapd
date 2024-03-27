@@ -10,7 +10,7 @@
 2022-05-24 18:07:32 Connected to google:ubuntu-22.04-64 (may242106-435572) at 34.148.101.55.
 2022-05-24 18:07:32 Sending project content to google:ubuntu-22.04-64 (may242106-435572)...
 2022-05-24 18:07:36 Preparing google:ubuntu-22.04-64 (may242106-435572)...
-2022-05-24 18:07:37 Error preparing google:ubuntu-22.04-64 (may242106-435572) : 
+2022-05-24 18:07:37 Error preparing google:ubuntu-22.04-64 (may242106-435572) :
 -----
 + echo 'Prepare log-analyzer-reexec project'
 Prepare log-analyzer-reexec project
@@ -24,7 +24,7 @@ Prepare log-analyzer-reexec project
 2022-05-24 18:07:42 Connected to google:ubuntu-20.04-64 (may242106-435744) at 34.148.4.171.
 2022-05-24 18:07:42 Sending project content to google:ubuntu-20.04-64 (may242106-435744)...
 2022-05-24 18:07:46 Preparing google:ubuntu-20.04-64 (may242106-435744)...
-2022-05-24 18:07:47 Error preparing google:ubuntu-20.04-64 (may242106-435744) : 
+2022-05-24 18:07:47 Error preparing google:ubuntu-20.04-64 (may242106-435744) :
 -----
 + echo 'Prepare log-analyzer-reexec project'
 Prepare log-analyzer-reexec project

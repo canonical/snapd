@@ -13,7 +13,7 @@ environment:
 
     SNAP_ONE/gadget_base: core
     SNAP_TWO/gadget_base: pc
-    
+
     SNAP_ONE/kernel_gadget: pc
     SNAP_TWO/kernel_gadget: pc-kernel
 
@@ -98,7 +98,7 @@ execute: |
         snap refresh --no-wait "$SNAP_ONE" "$SNAP_TWO" > refresh-change-id
         test -n "$(cat refresh-change-id)"
         change_id="$(cat refresh-change-id)"
-        
+
         # wait for the link tasks to be done
         retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
 

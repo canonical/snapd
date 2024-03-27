@@ -36,7 +36,7 @@ execute: |
 
     # Check that the subcommand match-log works
     "$TESTSTOOLS"/journal-state match-log TEST-XX1
-    
+
     # Check match-log parameters
     "$TESTSTOOLS"/journal-state match-log --wait 1 --attempts 2 TEST-XX1
     "$TESTSTOOLS"/journal-state match-log --wait 1 -n 2 TEST-XX1

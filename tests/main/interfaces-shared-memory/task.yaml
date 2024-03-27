@@ -56,7 +56,7 @@ execute: |
             echo "Plug snap should not be able to write to read-only SHM area"
             exit 1
         fi
-        
+
         echo "Double-check that the data was not changed"
         shm-slot.cmd cat /dev/shm/readable-foo | MATCH "read-only area"
         shm-slot.cmd cat /dev/shm/any-readable-FOO | MATCH "read-only area"

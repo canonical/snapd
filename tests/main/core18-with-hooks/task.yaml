@@ -6,7 +6,7 @@ restore: |
 execute: |
     # FIXME: we need at least beta of core18 for this to work
     snap install --beta core18
-  
+
     "$TESTSTOOLS"/snaps-state install-local test-snapd-snapctl-core18
 
     journalctl -u test-snapd-snapctl-core18.service

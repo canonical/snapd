@@ -29,7 +29,7 @@ if [ -e /var/lib/dpkg/info/snapd.postrm ]; then
 fi
 
 # wait for cloud-init to finish before doing any apt operations, since it will
-# re-write the apt sources.list file and we will be racing with the re-write 
+# re-write the apt sources.list file and we will be racing with the re-write
 # trying to do apt operations before cloud-init is done
 # TODO: we should eventually use `cloud-init status --wait`, but that doesn't work
 # in nested containers, see https://bugs.launchpad.net/cloud-init/+bug/1905493
@@ -43,7 +43,7 @@ done
 apt autoremove --purge -y snapd ubuntu-core-launcher
 apt update
 
-# requires the snapd deb to already have been "lxd file push"d into the 
+# requires the snapd deb to already have been "lxd file push"d into the
 # container
 apt install -y /root/snapd_*.deb
 

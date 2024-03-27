@@ -21,7 +21,7 @@ execute: |
             not tests.session has-session-systemd-and-dbus
             ;;
         ubuntu-14.04-*)
-            # Ubuntu 14.04 does not use systemd. 
+            # Ubuntu 14.04 does not use systemd.
             tests.session has-system-systemd-and-dbus | MATCH 'no busctl'
             not tests.session has-system-systemd-and-dbus
             tests.session has-session-systemd-and-dbus | MATCH 'no busctl'

@@ -30,11 +30,11 @@ execute: |
     # appropriately confined by apparmor as it may be from the snapd
     # snap
     if os.query is-core16; then
-        # on uc16, we should just use /usr/lib/snapd/snap-confine from the host 
-        # which by definition will come from the currently installed core snap 
+        # on uc16, we should just use /usr/lib/snapd/snap-confine from the host
+        # which by definition will come from the currently installed core snap
         SNAP_CONFINE=/usr/lib/snapd/snap-confine
     elif os.query is-core; then
-        # on UC18+, snap-confine will come from the snapd snap, so use the 
+        # on UC18+, snap-confine will come from the snapd snap, so use the
         # active installed revision as the snap-confine to execute
         SNAPD_SNAP_REV=$(snap list snapd | tail -n +2 | awk '{print $3}')
         SNAP_CONFINE="/snap/snapd/$SNAPD_SNAP_REV/usr/lib/snapd/snap-confine"

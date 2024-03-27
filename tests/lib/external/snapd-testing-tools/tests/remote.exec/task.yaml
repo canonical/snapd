@@ -15,7 +15,7 @@ restore: |
 
 execute: |
     remote.exec --help | MATCH 'usage: remote.exec \[--user <USER>\] \[--pass <PASS>\] <CMD>'
-    remote.exec -h | MATCH 'usage: remote.exec \[--user <USER>\] \[--pass <PASS>\] <CMD>'    
+    remote.exec -h | MATCH 'usage: remote.exec \[--user <USER>\] \[--pass <PASS>\] <CMD>'
 
     remote.exec "touch testfile"
     test -f /home/tools-user-1/testfile
@@ -31,7 +31,7 @@ execute: |
 
     mkdir -p /home/tools-user-1/.ssh
     cat my-key.pub > /home/tools-user-1/.ssh/authorized_keys
-    
+
     remote.setup config --host localhost --port 22 --user tools-user-1 --cert my-key
     remote.exec "ls /home/tools-user-1/testfile" | MATCH testfile
 

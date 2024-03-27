@@ -6,7 +6,7 @@
 # 9 or 10), with the real Debian kernel, with real build-packages (that is,
 # devoid of any patches potentially present only in Ubuntu), with correct
 # pristine build environment, unspoiled by convenience packages often present on
-# workstation environments. 
+# workstation environments.
 #
 # The system is "portable", being able to execute on anything capable of
 # running Multipass and apt-cacher-ng. The workflow is as follows:

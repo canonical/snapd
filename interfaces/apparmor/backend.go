@@ -807,7 +807,7 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
   # allow executing the snap command from either the rootfs (for base: core) or
   # from the system snaps (all other bases) - this is very specifically only to
   # enable proper apparmor profile transition to snap-confine below, if we don't
-  # include these exec rules, then when executing the snap command, apparmor 
+  # include these exec rules, then when executing the snap command, apparmor
   # will create a new, unique sub-profile which then cannot be transitioned from
   # to the actual snap-confine profile
   /usr/bin/snap ixr,
@@ -816,7 +816,7 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
   # allow transitioning to snap-confine to support executing strict snaps from
   # inside devmode confined snaps
 
-  # this first rule is to handle the case of exec()ing 
+  # this first rule is to handle the case of exec()ing
   # /usr/lib/snapd/snap-confine directly, the profile we transition to depends
   # on whether we are classic or not, what snaps (snapd or core) are installed
   # and also whether this snap is a base: core snap or a differently based snap.
@@ -825,10 +825,10 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
   %[1]s
 
   # the second (and possibly third if both core and snapd are installed) rule is
-  # to handle direct exec() of snap-confine from the respective snaps directly, 
-  # this happens mostly on non-core based snaps, wherein the base snap has a 
+  # to handle direct exec() of snap-confine from the respective snaps directly,
+  # this happens mostly on non-core based snaps, wherein the base snap has a
   # symlink from /usr/bin/snap -> /snap/snapd/current/usr/bin/snap, which makes
-  # the snap command execute snap-confine directly from the associated system 
+  # the snap command execute snap-confine directly from the associated system
   # snap in /snap/{snapd,core}/<rev>/usr/lib/snapd/snap-confine
   %[2]s
 `, usrLibSnapdConfineTransitionRule, nonBaseCoreTransitionSnippet)

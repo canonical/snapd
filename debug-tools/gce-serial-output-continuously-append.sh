@@ -8,7 +8,7 @@ if [ -z "$INSTANCE" ]; then
 fi
 
 # wait for the instance to exist
-until gcloud compute --project=snapd-spread instances describe "$INSTANCE" --zone=us-east1-b >/dev/null 2>&1; do 
+until gcloud compute --project=snapd-spread instances describe "$INSTANCE" --zone=us-east1-b >/dev/null 2>&1; do
     echo "waiting for instance to exist"
     sleep 1
 done

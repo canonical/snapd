@@ -46,7 +46,7 @@ execute: |
         # make in their own mount namespace are not propagated to each other.
         #
         # In result, the source of a content share, if placed in $SNAP
-        # somewhere, must exist in the snap and cannot be created dynamically. 
+        # somewhere, must exist in the snap and cannot be created dynamically.
         test-snapd-content-advanced-slot.sh -c "$(printf 'test -d $%s/source' "$VAR")"
     fi
 

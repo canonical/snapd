@@ -46,7 +46,7 @@ execute: |
         *)
             # check bootnev command can be called
             "$TESTSTOOLS"/boot-state bootenv show
-            ;; 
+            ;;
     esac
 
     echo "Check a new variable can be set with  bootenv set command"

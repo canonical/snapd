@@ -8,7 +8,7 @@ debug: |
     cat /etc/lsb-release || true
 
 execute: |
-    echo "Check the DISTRIB_RELEASE is correct in /etc/lsb-release file" 
+    echo "Check the DISTRIB_RELEASE is correct in /etc/lsb-release file"
     if os.query is-core16; then
         MATCH "DISTRIB_RELEASE=16" < /etc/lsb-release
     elif os.query is-core18; then
@@ -24,5 +24,5 @@ execute: |
         exit 1
     fi
 
-    echo "Check the ID is correct in /etc/os-release file" 
+    echo "Check the ID is correct in /etc/os-release file"
     MATCH "ID=ubuntu-core" < /etc/os-release

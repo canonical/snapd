@@ -52,7 +52,7 @@ cleanup() {
         esac
     done
     # remove all base/os snaps at the end
-    # skip the base snaps for the 
+    # skip the base snaps for the
     if [ -n "$remove_bases" ]; then
         for base in $remove_bases; do
             if ! [[ $skip_bases =~ (^|[[:space:]])$base($|[[:space:]]) ]]; then

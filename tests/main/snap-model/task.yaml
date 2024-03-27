@@ -28,7 +28,7 @@ execute: |
     exit 1
   fi
 
-  # the model may have a display-name so `snap model` output will be different, 
+  # the model may have a display-name so `snap model` output will be different,
   # so use `snap model --verbose` which will not show the display-name alongside
   # the model
   modelCmdModel="$(snap model --verbose | grep -Po "model:\s+\K(.*)")"

@@ -21,7 +21,7 @@ environment:
     TESTS/custom: ""
     NESTED_BUILD_SNAPD_FROM_CURRENT/custom: false
 
-artifacts: 
+artifacts:
     - spread.log
 
 prepare: |

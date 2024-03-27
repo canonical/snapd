@@ -1,7 +1,7 @@
 summary: Functional test for journal quota-related snap commands.
 
 details: |
-  Functional test for snap journal quota group commands ensuring that they are 
+  Functional test for snap journal quota group commands ensuring that they are
   effective in practice.
 
 # these systems do not support journal quota groups due to their old systemd versions.
@@ -53,11 +53,11 @@ execute: |
   MATCH "^RuntimeMaxUse=16000000"       < /etc/systemd/journald@snap-group-one.conf
   MATCH "^RateLimitIntervalSec=10000us" < /etc/systemd/journald@snap-group-one.conf
   MATCH "^RateLimitBurst=100"           < /etc/systemd/journald@snap-group-one.conf
-  
+
   # Verify the contents of /etc/systemd/system/systemd-journald@snap-group-one.service.d/00-snap.conf
   echo "Verifying the systemd-journald@snap-group-one config contents"
   MATCH "^LogsDirectory=$" < /etc/systemd/system/systemd-journald@snap-group-one.service.d/00-snap.conf
-  
+
   # Now ask for the namespace logs and lets see if we can see messages from 'LogDaemon'
   retry -n 5 sh -c "$TESTSTOOLS/journal-state get-log --namespace snap-group-one | MATCH LogDaemon"
 
@@ -76,7 +76,7 @@ execute: |
   MATCH "^RuntimeMaxUse=64000000"   < /etc/systemd/journald@snap-group-one.conf
   MATCH "^RateLimitIntervalSec=0us" < /etc/systemd/journald@snap-group-one.conf
   MATCH "^RateLimitBurst=0"         < /etc/systemd/journald@snap-group-one.conf
-  
+
   # Ensure that the new size is printed in the journal logs. We requested 64MB but
   # this will most likely print out as 61.0M, so lets be a bit flexible
   "$TESTSTOOLS"/journal-state get-log --namespace snap-group-one | MATCH "max 6[0-9].[0-9]M,"

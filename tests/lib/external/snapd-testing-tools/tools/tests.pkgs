@@ -71,7 +71,7 @@ import_backend() {
     if [ -n "$TESTSTOOLS" ]; then
         TOOLS_DIR="$TESTSTOOLS"
     fi
-    
+
     if os.query is-core; then
         echo "tests.pkgs: Ubuntu Core is not supported" >&2
         return 1

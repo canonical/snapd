@@ -1,7 +1,7 @@
 summary: Check that `snap run` can actually run hooks
 
 details: |
-    Verifies the `snap run` can run snap hooks. Also check 
+    Verifies the `snap run` can run snap hooks. Also check
     `snap run` cannot call invalid hooks.
 
 environment:

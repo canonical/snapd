@@ -47,8 +47,8 @@ prepare: |
   fi
 
   # setup the fakestore, but don't use it for our snapd here on the host VM, so
-  # tear down the staging_store immediately afterwards so that only the SAS is 
-  # running and our snapd is not pointed at it, ubuntu-image is the only thing 
+  # tear down the staging_store immediately afterwards so that only the SAS is
+  # running and our snapd is not pointed at it, ubuntu-image is the only thing
   # that actually needs to use the fakestore, and we will manually point it at
   # the fakestore below using NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL
   "$TESTSTOOLS"/store-state setup-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
@@ -74,7 +74,7 @@ prepare: |
 
   # delay all refreshes for a week from now, as otherwise refreshes for our
   # snaps (which are asserted by the testrootorg authority-id) may happen, which
-  # will break things because the signing keys won't match, etc. and 
+  # will break things because the signing keys won't match, etc. and
   # specifically snap-bootstrap in the kernel snap from the store won't trust
   # the seed keys to unlock the encrypted data partition in the initramfs
   sed defaults.yaml -e "s/@HOLD-TIME@/$(date --date='next week' +%Y-%m-%dT%H:%M:%S%:z)/" >> \
@@ -94,7 +94,7 @@ prepare: |
   systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
 
   tests.nested build-image core
-  # first boot will use seed1 to create the normal-user in addition to the 
+  # first boot will use seed1 to create the normal-user in addition to the
   # system-user assertion
   tests.nested create-vm core
 

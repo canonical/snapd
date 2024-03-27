@@ -155,7 +155,7 @@ static void test_sc_snap_or_instance_name_validate(gconstpointer data)
 	validate("hello-world", &err);
 	g_assert_null(err);
 
-	// Smoke test: invalid character 
+	// Smoke test: invalid character
 	validate("hello world", &err);
 	g_assert_nonnull(err);
 	g_assert_true(sc_error_match

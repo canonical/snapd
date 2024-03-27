@@ -40,7 +40,7 @@ execute: |
 
     # get the model assertion
     gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-22-classic-dangerous.json > "$ROOT/model.assertion"
-    
+
     echo Expose the needed assertions through the fakestore
     cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
     cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"

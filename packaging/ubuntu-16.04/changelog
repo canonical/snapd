@@ -2373,7 +2373,7 @@ snapd (2.53.1) xenial; urgency=medium
       specific cgroup (2.53)
     - interfaces/u2f-devices: add Nitrokey 3
     - Update the ubuntu-image channel to candidate
-    - Allow hostnames up to 253 characters, with dot-delimited elements 
+    - Allow hostnames up to 253 characters, with dot-delimited elements
       (as suggested by man 7 hostname).
     - Disable i386 until it is possible to build snapd using lxd
     - o/snapstate, hookstate: print remaining hold time on snapctl
@@ -3411,7 +3411,7 @@ snapd (2.51) xenial; urgency=medium
 snapd (2.50.1) xenial; urgency=medium
 
   * New upstream release, LP: #1926005
-    - interfaces: update permitted /lib/.. paths to be compatible with 
+    - interfaces: update permitted /lib/.. paths to be compatible with
       UC20
     - interfaces: builtin: update permitted paths to be compatible with
       UC20
@@ -5242,7 +5242,7 @@ snapd (2.46) xenial; urgency=medium
       future work
     - asserts: make clearer that with label we mean a serialized label
     - cmd/snap-bootstrap: tweak recovery trigger log messages
-    - asserts: introduce PoolTo 
+    - asserts: introduce PoolTo
     - userd: allow setting default-url-scheme-handler
     - secboot: append uuid to ubuntu-data when decrypting
     - o/configcore: pass extra options to FileSystemOnlyApply
@@ -11622,7 +11622,7 @@ snapd (2.26.4) xenial; urgency=medium
     - Disable "mknod |N" in the default seccomp template
       reasons outline in https://forum.snapcraft.io/t/snapd-2-25-blocked-because-of-revert-race-condition
     - errtracker: include bits of snap-confine apparmor profile
-    - errtracker: report if snapd did re-execute itself 
+    - errtracker: report if snapd did re-execute itself
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 01 Jun 2017 18:50:52 +0200
 
@@ -12065,7 +12065,7 @@ snapd (2.23.1) xenial; urgency=medium
     - interfaces: fix default content attribute value
     - tests: do not nuke the entire snapd.conf.d dir when changing
       store settings
-    - hookstate: run the right "snap" command in the hookmanager 
+    - hookstate: run the right "snap" command in the hookmanager
     - snapstate: revert PR#2958, run configure hook again everywhere
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 08 Mar 2017 14:29:56 +0100
@@ -12099,7 +12099,7 @@ snapd (2.23) xenial; urgency=medium
     - cmd/snap-update-ns: move test data and helpers to new module
     - vet: fix vet error on mount test.
     - tests: empty init (systemd) failover test
-    - cmd: add .indent.pro file to the tree 
+    - cmd: add .indent.pro file to the tree
     - interfaces: specs for apparmor, seccomp, udev
     - wrappers/services: RemainAfterExit=yes for oneshot daemons w/ stop
       cmds
@@ -12116,7 +12116,7 @@ snapd (2.23) xenial; urgency=medium
     - interfaces/builtin: add /boot/uboot/config.txt access to core-
       support
     - release: assume higher version of supported distros will still
-      work 
+      work
     - cmd/snap-update-ns: add compare function for mount entries
     - tests: enable docker test
     - tests: bail out if core snap is not installed
@@ -12171,7 +12171,7 @@ snapd (2.23) xenial; urgency=medium
     - tests: nested image testing
     - tests: add basic test for docker
     - hookstate,ifacestate: support snapctl set/get slot and plug attrs
-      (step 3) 
+      (step 3)
     - cmd/snap: add shell completion to connect
     - cmd: add functions to load/save fstab-like files
     - snap run: create "current" symlink in user data dir

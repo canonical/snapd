@@ -48,7 +48,7 @@ execute: |
     exit 1
   fi
   "$TESTSTOOLS"/to-one-line "$(cat log.txt)" | MATCH "error: cannot install \"hello-world\": cannot install snap \"hello-world\" due to enforcing rules of validation set 16/$ACCOUNT_ID/testenforce1/1"
-  
+
   echo "But it can be installed with --ignore-validation flag"
   snap install --ignore-validation hello-world
   snap validate | MATCH "^$ACCOUNT_ID/testenforce1=1 +enforce +1 +invalid"

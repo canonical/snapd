@@ -91,8 +91,8 @@ execute: |
         fi
     done
 
-    # ensure that disk-mapping.json is created - we check the format of this 
-    # file in unit tests and in uc20-create-partitions so we don't check 
+    # ensure that disk-mapping.json is created - we check the format of this
+    # file in unit tests and in uc20-create-partitions so we don't check
     # anything here, just that the file exists
     test -e /var/lib/snapd/device/disk-mapping.json
     # ubuntu-save has it too

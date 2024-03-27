@@ -3,7 +3,7 @@
 # show what mode we are in
 echo "$SNAP_SYSTEM_MODE"
 
-# touch a file in /host to show that we did something from recover mode that 
+# touch a file in /host to show that we did something from recover mode that
 # persists to run mode
 touch /host/ubuntu-data/system-data/var/lib/snapd/FIXED
 

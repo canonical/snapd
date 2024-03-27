@@ -16,7 +16,7 @@ execute: |
     echo "check output lines for the logs"
     snap logs -n=20 test-snapd-service | MATCH "running"
     snap logs -n=all test-snapd-service | MATCH "running"
-    
+
     echo "check -f option works"
     # XXX: journalctl -f -u .. drops some lines of service output when
     # asked for multiple units, therefore query for specific service instead

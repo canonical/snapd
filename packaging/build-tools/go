@@ -7,7 +7,7 @@
 
 # The real go is passed as an environment variable SNAPD_VANILLA_GO.
 
-import sys 
+import sys
 import os
 
 if __name__ == "__main__":

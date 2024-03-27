@@ -2403,7 +2403,7 @@ snapd (2.53.1-1) unstable; urgency=medium
       specific cgroup (2.53)
     - interfaces/u2f-devices: add Nitrokey 3
     - Update the ubuntu-image channel to candidate
-    - Allow hostnames up to 253 characters, with dot-delimited elements 
+    - Allow hostnames up to 253 characters, with dot-delimited elements
       (as suggested by man 7 hostname).
     - Disable i386 until it is possible to build snapd using lxd
     - o/snapstate, hookstate: print remaining hold time on snapctl
@@ -3452,7 +3452,7 @@ snapd (2.51-1) unstable; urgency=medium
 snapd (2.50.1-1) unstable; urgency=medium
 
   * New upstream release, LP: #1926005
-    - interfaces: update permitted /lib/.. paths to be compatible with 
+    - interfaces: update permitted /lib/.. paths to be compatible with
       UC20
     - interfaces: builtin: update permitted paths to be compatible with
       UC20
@@ -5283,7 +5283,7 @@ snapd (2.46-1) unstable; urgency=medium
       future work
     - asserts: make clearer that with label we mean a serialized label
     - cmd/snap-bootstrap: tweak recovery trigger log messages
-    - asserts: introduce PoolTo 
+    - asserts: introduce PoolTo
     - userd: allow setting default-url-scheme-handler
     - secboot: append uuid to ubuntu-data when decrypting
     - o/configcore: pass extra options to FileSystemOnlyApply
@@ -6414,7 +6414,7 @@ snapd (2.37.3-1) unstable; urgency=medium
 
 snapd (2.37.2-1) unstable; urgency=medium
 
-  * New upstream releease. 
+  * New upstream releease.
 
  -- Michael Hudson-Doyle <mwhudson@debian.org>  Thu, 07 Feb 2019 21:26:34 +1300
 

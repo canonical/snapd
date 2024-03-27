@@ -6,7 +6,7 @@ details: |
     channel pointed by the NESTED_CORE_REFRESH_CHANNEL env var.
 
 systems: [ubuntu-16.04-64]
-    
+
 execute: |
     INITIAL_REV="$(tests.nested snap-rev core "${NESTED_CORE_CHANNEL}")"
     NEW_REV="$(tests.nested snap-rev core "${NESTED_CORE_REFRESH_CHANNEL}")"

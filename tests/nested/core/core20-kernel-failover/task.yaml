@@ -21,8 +21,8 @@ prepare: |
 
   # use the kernel snap from the nested VM and repack it so that it panic's in
   # the initramfs and rolls back to the original version
-  # TODO:UC20: this doesn't work for some reason when we copy it from the 
-  #            running system, we should look into that, but for now just 
+  # TODO:UC20: this doesn't work for some reason when we copy it from the
+  #            running system, we should look into that, but for now just
   #            re-download the snap
   version=20
   if tests.nested is-nested uc22; then
@@ -79,9 +79,9 @@ execute: |
       remote.wait-for reboot "${boot_id}"
   fi
 
-  # Wait for the change to finish - note it will exit with non-zero since the 
+  # Wait for the change to finish - note it will exit with non-zero since the
   # change will fail, so don't let that kill the test here
-  if remote.exec sudo snap watch "${REMOTE_CHG_ID}"; then 
+  if remote.exec sudo snap watch "${REMOTE_CHG_ID}"; then
     echo "remote snap change ${REMOTE_CHG_ID} for broken kernel snap refresh should have failed!"
     exit 1
   fi

@@ -421,7 +421,7 @@ prepare_project() {
             # Ubuntu is the only system where snapd is preinstalled, so we have
             # to purge it
 
-            # first mask snapd.failure so that even if we kill snapd and it 
+            # first mask snapd.failure so that even if we kill snapd and it
             # dies, snap-failure doesn't run and try to revive snapd
             systemctl mask snapd.failure
 
@@ -461,7 +461,7 @@ prepare_project() {
             fi
 
             # unmask snapd.failure so that it can run during tests if needed
-            systemctl unmask snapd.failure 
+            systemctl unmask snapd.failure
             ;;
         *)
             # snapd state directory must not exist when the package is not
@@ -715,7 +715,7 @@ restore_suite_each() {
     # restore test directory saved during prepare
     tests.backup restore
 
-    # Save all the installed packages and remove the new packages installed 
+    # Save all the installed packages and remove the new packages installed
     if os.query is-classic; then
         tests.pkgs list-installed > installed-final.pkgs
         diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-in-test.pkgs

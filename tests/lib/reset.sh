@@ -161,11 +161,11 @@ reset_all_snap() {
 # mounted at /snap/<name>/x<rev>/ and if we execute multiple tests that use this
 # same snap, the previous mount unit for x2 for example will stay around if we
 # simply revert to x1 and then delete state.json, since x2 is still mounted if
-# we then again install that snap again twice (i.e. to get to x2), the mount 
-# unit will still be active and thus the previous iteration of this snap at 
-# revision x2 will be used as this new revision's files for x2. This is 
-# particularly damaging for the snapd snap when we are installing different 
-# versions such as in the snapd-refresh-vs-services (and the -reboots variant) 
+# we then again install that snap again twice (i.e. to get to x2), the mount
+# unit will still be active and thus the previous iteration of this snap at
+# revision x2 will be used as this new revision's files for x2. This is
+# particularly damaging for the snapd snap when we are installing different
+# versions such as in the snapd-refresh-vs-services (and the -reboots variant)
 # test, since the bug manifests as us trying to refresh to a particular revision
 # of snapd, but that revision is still mounted from the previous iteration of
 # the test and thus gets the wrong version, as displayed in this output:

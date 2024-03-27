@@ -52,7 +52,7 @@ execute: |
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
-    
+
     echo "When the plug is disconnected"
     snap disconnect test-snapd-location-control-provider:location-control test-snapd-location-control-provider:location-control-test
 

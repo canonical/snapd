@@ -18,7 +18,7 @@
 2022-05-24 17:59:38 Preparing google:ubuntu-22.04-64:tests/test-1 (may242058-071834)...
 2022-05-24 17:59:38 Allocated google:ubuntu-22.04-64 (may242058-072021).
 2022-05-24 17:59:38 Connecting to google:ubuntu-22.04-64 (may242058-072021)...
-2022-05-24 17:59:39 Error preparing google:ubuntu-22.04-64:tests/test-1 (may242058-071834) : 
+2022-05-24 17:59:39 Error preparing google:ubuntu-22.04-64:tests/test-1 (may242058-071834) :
 -----
 + echo prepare
 prepare
@@ -74,7 +74,7 @@ prepare
 2022-05-24 17:59:55 Restoring google:ubuntu-20.04-64:tests/test-2 (may242058-072004)...
 2022-05-24 17:59:56 Preparing google:ubuntu-20.04-64:tests/test-1 (may242058-072004)...
 2022-05-24 17:59:56 Restoring google:ubuntu-20.04-64:tests/ (may242058-071935)...
-2022-05-24 17:59:56 Error preparing google:ubuntu-20.04-64:tests/test-1 (may242058-072004) : 
+2022-05-24 17:59:56 Error preparing google:ubuntu-20.04-64:tests/test-1 (may242058-072004) :
 -----
 + echo prepare
 prepare

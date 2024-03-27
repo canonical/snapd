@@ -1,7 +1,7 @@
 summary: Functional test for cpu quota-related snap commands.
 
 details: |
-  Functional test for snap cpu quota group commands ensuring that they are 
+  Functional test for snap cpu quota group commands ensuring that they are
   effective in practice.
 
 # these systems do not support quota groups due to their old systemd versions,
@@ -30,11 +30,11 @@ execute: |
     local service_name="$1"
     local expected_usage="$(($2*100))"
     local n
-    
+
     n=0
     until [ "$n" -ge 5 ]
     do
-      # We use 'top' here to get the current CPU usage as top sorts by CPU usage, 
+      # We use 'top' here to get the current CPU usage as top sorts by CPU usage,
       # so we assume that 'stress' is going to lie in the top as the odds of another
       # process being in the top is close to 0.
       usage=$(top -w256 -b -n 2 -d 0.2 | head | grep "$service_name" | awk '{print $9*100}')
@@ -48,7 +48,7 @@ execute: |
     echo "Expected cpu usage to be minimum $expected_usage%, got $usage%"
     exit 1
   }
-  
+
   echo "Verifying cpu usage, expecting at least above 60% as we test against 50%"
   ensure_cpu_usage_higher_than "stress" 60
 
@@ -100,7 +100,7 @@ execute: |
     n=0
     until [ "$n" -ge 5 ]
     do
-      # We use 'top' here to get the current CPU usage as top sorts by CPU usage, 
+      # We use 'top' here to get the current CPU usage as top sorts by CPU usage,
       # so we assume that 'stress' is going to lie in the top as the odds of another
       # process being in the top is close to 0.
       usage=$(top -w256 -b -n 2 -d 0.2 | head | grep "$service_name" | awk '{print $9*100}')

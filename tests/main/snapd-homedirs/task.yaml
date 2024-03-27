@@ -59,7 +59,7 @@ execute: |
     # to verify that the existing namespace is not discarded
     sudo SNAPD_DEBUG=1 -u "$USERNAME" -i test-snapd-sh.sh -c "echo Hello world" 2>&1 \
         | MATCH "preserved mount is not stale, reusing"
-    
+
     # Get the revison of the snap
     rev=$(snap list test-snapd-sh|tail -n1|tr -s ' '|cut -f3 -d' ')
 

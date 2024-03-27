@@ -14,6 +14,6 @@ execute: |
     echo "Now with the network-control plug"
     snap connect test-snapd-with-configure-nc:network-control
     snap set test-snapd-with-configure-nc foo=bar
-    
+
     echo "Ensure configure was run fully"
     test -e /var/snap/test-snapd-with-configure-nc/common/configure-ran

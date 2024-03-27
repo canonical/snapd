@@ -655,7 +655,7 @@ func (s *sysconfigSuite) TestCloudInitStatus(c *C) {
 if [ "$1" = "status" ]; then
 	echo '%s'
 	exit %d
-else 
+else
 	echo "unexpected args, $"
 	exit 1
 fi

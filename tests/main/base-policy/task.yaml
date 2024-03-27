@@ -2,11 +2,11 @@ summary: Ensure the default policy is correct for base and core bases
 
 details: |
     Ideally we would check that:
-    
+
     1. 'base: core' can access a core-only rule that 'base: other' cannot
     2. 'base: other' can access a base-only rule that 'base: core' cannot
     3. both can access something allowed by common rules
-    
+
     While there are no core-only rules at this time for '1', we can at least
     test that 'grep --version' (differently allowed by core-only and
     base-only rules) does not get blocked. Combined with '2', this proves

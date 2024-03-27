@@ -72,7 +72,7 @@ execute: |
     echo "Ensure 'advise-snap --command' works as command-not-found symlink"
     # it's already this symlink on uc16, just use as-is there
     if ! os.query is-core16; then
-        ln -s /usr/bin/snap /usr/lib/command-not-found    
+        ln -s /usr/bin/snap /usr/lib/command-not-found
     fi
     /usr/lib/command-not-found test-snapd-tools.echo | MATCH test-snapd-tools
 

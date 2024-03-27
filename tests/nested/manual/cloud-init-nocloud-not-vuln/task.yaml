@@ -32,7 +32,7 @@ prepare: |
     # if we are not building from current, then we need to seed the specific,
     # old version of snapd that was vulnerable into the image to start there,
     # otherwise we will start from stable or edge which already has the fix and
-    # thus this test would no longer be testing that old vulnerable devices 
+    # thus this test would no longer be testing that old vulnerable devices
     # become safe after refreshing to the fix
     if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "false" ]; then
         snap install test-snapd-curl --edge --devmode # devmode so it can save to any dir
@@ -44,16 +44,16 @@ prepare: |
             # it is installed with --dangerous as it has a different hash
             unsquashfs -d core-snap core_2.45.snap
             snap pack core-snap/ "$(tests.nested get extra-snaps-path)"
-        else 
+        else
             # uc18 uses snapd snap
             test-snapd-curl.curl -s -o snapd_2.45.snap "$SNAPD_2_45_SNAPD_SNAP"
             cp snapd_2.45.snap "$(tests.nested get extra-snaps-path)"
         fi
     fi
 
-    tests.nested build-image core 
+    tests.nested build-image core
 
-    # first boot uses seed1 to create the normal-user in addition to the 
+    # first boot uses seed1 to create the normal-user in addition to the
     # system-user assertion
     tests.nested create-vm core --param-cdrom "-cdrom $(pwd)/seed.iso"
 
@@ -66,7 +66,7 @@ debug: |
 
 execute: |
     # the VM here will use both system-user assertions and cloud-init to create
-    # users on the system, the system-user assertion is for the user1 user, and 
+    # users on the system, the system-user assertion is for the user1 user, and
     # the legitimate cloud-init user is the normal-user user
 
     # wait for cloud-init to finish importing the first seed
@@ -105,15 +105,15 @@ execute: |
         fi
     fi
 
-    # Note: there is a race here after we have installed the fix (or we have 
-    # booted a fresh image with the fix). 
-    # Namely, snapd will begin checking on cloud-init status after it has 
+    # Note: there is a race here after we have installed the fix (or we have
+    # booted a fresh image with the fix).
+    # Namely, snapd will begin checking on cloud-init status after it has
     # ensured that the boot was okay in the device manager, but this will not
     # happen immediately in zero time, and moreover, snapd will not do anything
     # substantial or measurable until cloud-init has reached a steady state or
-    # otherwise times out. 
-    # As such, in this test, we first wait for cloud-init to settle down, and 
-    # then wait a bit longer to give snapd a chance to run again and take 
+    # otherwise times out.
+    # As such, in this test, we first wait for cloud-init to settle down, and
+    # then wait a bit longer to give snapd a chance to run again and take
     # action that we can test for.
 
     echo "Waiting for cloud-init..."

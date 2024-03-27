@@ -29,7 +29,7 @@ prepare: |
 
     SUFFIX="$(get_test_snap_suffix)"
     snap download --edge "test-snapd-with-configure${SUFFIX}"
-    
+
     # Configure the pc snap
     unpack_pc_snap
 
@@ -54,7 +54,7 @@ prepare: |
     cp "test-snapd-with-configure${SUFFIX}"_*.snap /var/lib/snapd/seed/snaps/
     prepare_core_model
     prepare_and_manip_seed "test-snapd-with-configure${SUFFIX}"_*.snap
-    
+
     prepare_test_account developer1
     prepare_test_model developer1-pc-w-config
     prepare_testrootorg_store

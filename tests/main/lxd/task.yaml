@@ -4,7 +4,7 @@ details: |
     Verifies lxd snap works properly. Ensure we can run things inside lxd
     container, we can use snapd inside lxd snd we can run snaps as regular
     users. Check that we can run lxd as a snap inside a container to create
-    a nested container and we can use lxd as a snap inside lxd. Finally 
+    a nested container and we can use lxd as a snap inside lxd. Finally
     exercise the lxd interface and check that snaps in containers don't
     prevent refreshes in the host.
 

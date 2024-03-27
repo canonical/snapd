@@ -3,7 +3,7 @@
 =====================
 
 -----------------------------------------------
-internal tool to set /snap/bin to PATH 
+internal tool to set /snap/bin to PATH
 -----------------------------------------------
 
 :Author: michael.vogt@ubuntu.com

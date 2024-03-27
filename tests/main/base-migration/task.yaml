@@ -5,7 +5,7 @@ details: |
   from base:core18 to base:core. Validate the base snaps are properly
   downloaded, the mount namespace information file is owned by root
   and the base version for the snap is updated accordingly.
-  
+
 environment:
   DIRECTION/forward: forward
   DIRECTION/back: back
@@ -48,7 +48,7 @@ execute: |
       pid=$!
       test-snapd-core-migration.sh -c "cat /usr/lib/os-release" | MATCH 'VERSION_ID="16"'
       MATCH 'base-snap-name=core' < /run/snapd/ns/snap.test-snapd-core-migration.info
-      # there is a sleep process running in the background in the snap context, due to 
+      # there is a sleep process running in the background in the snap context, due to
       # refresh-app-awareness we need to ignore it
       snap install --ignore-running --dangerous test-snapd-core-migration_2_all.snap
       # With core -> core18 migration this doesn't work however, as now

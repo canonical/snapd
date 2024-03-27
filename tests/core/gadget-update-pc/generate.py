@@ -191,7 +191,7 @@ def make_v2(doc, system_seed, system_bios):
     #     - image: foo.img
     #   update:
     #       edition: 2
-    if system_bios: 
+    if system_bios:
         biosboot["update"] = bump_update_edition(biosboot.get("update"))
 
     if system_seed:

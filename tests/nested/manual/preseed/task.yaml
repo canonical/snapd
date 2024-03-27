@@ -84,9 +84,9 @@ execute: |
 
   echo "Checking that the system-key after first boot is the same as that from preseeding"
 
-  # TODO: re-enable the system-key check when we are using the same kernel for 
-  # the host VM as the nested VM, currently we are not, and as such there is a 
-  # diff between the preseed apparmor-features and the nested VM actual 
+  # TODO: re-enable the system-key check when we are using the same kernel for
+  # the host VM as the nested VM, currently we are not, and as such there is a
+  # diff between the preseed apparmor-features and the nested VM actual
   # system-key
   if not os.query is-focal && not os.query is-jammy; then
     # note, this doesn't actually test the functionality, but acts as a canary:
@@ -98,7 +98,7 @@ execute: |
 
     # also check the system-key diff using snap debug seeding
 
-    # we should not have had any system-key difference as per above, so we 
+    # we should not have had any system-key difference as per above, so we
     # shouldn't output the preseed system-key or the seed-restart-system-key
     remote.exec "snap debug seeding" | NOMATCH "preseed-system-key:"
     remote.exec "snap debug seeding" | NOMATCH "seed-restart-system-key:"
@@ -107,7 +107,7 @@ execute: |
   remote.exec "snap debug seeding" | MATCH "preseeded:\s+true"
   remote.exec "snap debug seeding" | MATCH "seeded:\s+true"
   # FIXME: this just checks that the time is of the form "xxx.xxxs", which could
-  # break if the preseeding takes more than 60s and golang formats the 
+  # break if the preseeding takes more than 60s and golang formats the
   # time.Duration as "1m2.03s", etc. but for now this should be good enough
   remote.exec "snap debug seeding" | MATCH "image-preseeding:\s+[0-9]+\.[0-9]+s"
   remote.exec "snap debug seeding" | MATCH "seed-completion:\s+[0-9]+\.[0-9]+s"

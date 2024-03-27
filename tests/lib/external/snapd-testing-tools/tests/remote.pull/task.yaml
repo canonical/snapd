@@ -17,14 +17,14 @@ execute: |
     remote.pull --help | MATCH 'usage: remote.pull <REMOTE_PATH> \[LOCAL_PATH\]'
     remote.pull -h | MATCH 'usage: remote.pull <REMOTE_PATH> \[LOCAL_PATH\]'
 
-    # check basic pull 
+    # check basic pull
     touch /home/tools-user-1/testfile
     remote.pull testfile .
     test -f testfile
 
     # check pull without local dir
     touch /tmp/testfile2
-    remote.pull /tmp/testfile2 
+    remote.pull /tmp/testfile2
     test -f ./testfile2
 
     # Check no parameters

@@ -33,7 +33,7 @@ execute: |
     id "$USER_NAME"
     echo "precondition check: has sudoer file"
     test -f "/etc/sudoers.d/create-user-$USER_NAME"
-    echo "precondition check: user has a home" 
+    echo "precondition check: user has a home"
     test -d "/home/$USER_NAME"
 
     echo "snap remove-user fails when run as non-root user without sudo"

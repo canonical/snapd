@@ -1,4 +1,4 @@
-summary: Ensure that content meta-data is updated on refresh 
+summary: Ensure that content meta-data is updated on refresh
 
 details: |
     When a snap providing content is refreshed the peers of that snap would see

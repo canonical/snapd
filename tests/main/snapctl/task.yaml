@@ -43,7 +43,7 @@ execute: |
 
     echo "Verify that snapctl fails with correct error message using flag if regular user"
     su -c "snapctl start --enable" test 2>&1 | MATCH "cannot use \"start\" with uid [0-9]+, try with sudo"
- 
+
     echo "Verify that the snapd API is only available via the snapd socket"
     if ! printf 'GET /v2/snaps HTTP/1.0\r\n\r\n' | nc -U -w 1 /run/snapd.socket | grep '200 OK'; then
         echo "Expected snapd API to be available on the snapd socket"

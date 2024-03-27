@@ -59,7 +59,7 @@ if [ ! -f /var/lib/snapd/device/ownership-change.before ]; then
     find  /writable/system-data /writable/system-data/var /writable/system-data/var/lib /writable/system-data/boot /writable/system-data/etc -maxdepth 0 -printf '%M %U %G %p\n' >> /var/lib/snapd/device/ownership-change.before.tmp || true
     mv /var/lib/snapd/device/ownership-change.before.tmp /var/lib/snapd/device/ownership-change.before
 fi
-    
+
 # cleanup read/write files and directories (CVE-2017-10600)
 for i in /etc/cloud /var/lib/cloud /var/lib/snapd ; do
   # restore ownership to root:root

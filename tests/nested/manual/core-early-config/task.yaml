@@ -16,7 +16,7 @@ prepare: |
     rm -rf squashfs-root
     mv "$GADGET_SNAP" "$(tests.nested get extra-snaps-path)"
 
-    tests.nested build-image core 
+    tests.nested build-image core
 
     # Modify seed to use devmode for pc gadget snap. This is needed for the
     # install hook to have access to /etc/systemd. Ideally we would use

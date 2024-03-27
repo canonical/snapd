@@ -927,9 +927,9 @@ tracking:     beta
 refresh-date: 2006-01-02T22:04:07Z
 channels:
   1/stable:    2.10 2018-12-18T15:16:56Z   (1) 65kB -
-  1/candidate: ^                                    
-  1/beta:      ^                                    
-  1/edge:      ^                                    
+  1/candidate: ^
+  1/beta:      ^
+  1/edge:      ^
 installed:     2.10                      (100)  1kB disabled
 `)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -954,9 +954,9 @@ tracking:     beta
 refresh-date: %s
 channels:
   1/stable:    2.10 2018-12-18   (1) 65kB -
-  1/candidate: ^                          
-  1/beta:      ^                          
-  1/edge:      ^                          
+  1/candidate: ^
+  1/beta:      ^
+  1/edge:      ^
 installed:     2.10            (100)  1kB disabled
 `, refreshDate))
 	c.Check(s.Stderr(), check.Equals, "")
@@ -980,9 +980,9 @@ tracking:     beta
 refresh-date: %s
 channels:
   1/stable:    2.10 2018-12-18   (1) 65kB -
-  1/candidate: ↑                          
-  1/beta:      ↑                          
-  1/edge:      ↑                          
+  1/candidate: ↑
+  1/beta:      ↑
+  1/edge:      ↑
 installed:     2.10            (100)  1kB disabled
 `, refreshDate))
 	c.Check(s.Stderr(), check.Equals, "")
@@ -1033,7 +1033,7 @@ func (infoSuite) TestDescr(c *check.C) {
 	for k, v := range map[string]string{
 		"": "  \n",
 		`one:
- * two three four five six  
+ * two three four five six
    * seven height nine ten
 `: `  one:
    * two three four
@@ -1252,9 +1252,9 @@ tracking:     beta
 refresh-date: %s
 channels:
   1/stable:    2.10 2018-12-18   (1) 65kB -
-  1/candidate: ^                          
-  1/beta:      ^                          
-  1/edge:      ^                          
+  1/candidate: ^
+  1/beta:      ^
+  1/edge:      ^
 installed:     2.10            (100)  1kB disabled
 `, refreshDate))
 	c.Check(s.Stderr(), check.Equals, "")
@@ -1332,9 +1332,9 @@ tracking:     beta
 refresh-date: %s
 channels:
   1/stable:    2.10 2018-12-18   (1) 65kB -
-  1/candidate: ^                          
-  1/beta:      ^                          
-  1/edge:      ^                          
+  1/candidate: ^
+  1/beta:      ^
+  1/edge:      ^
 installed:     2.10            (100)  1kB disabled
 `, refreshDate))
 	c.Check(s.Stderr(), check.Equals, "")

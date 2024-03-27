@@ -63,7 +63,7 @@ endif
 # NOTE: This *depends* on building out of tree. Some of the built binaries
 # conflict with directory names in the tree.
 .PHONY: all
-all: $(go_binaries) 
+all: $(go_binaries)
 
 $(builddir)/snap: GO_TAGS += nomanagers
 $(builddir)/snap $(builddir)/snap-seccomp $(builddir)/snapd-apparmor:
@@ -153,7 +153,7 @@ install:: | $(DESTDIR)$(snap_mount_dir)
 install::
 	install -m 755 -d $(DESTDIR)$(snap_mount_dir)/bin
 
-# Install misc directories: 
+# Install misc directories:
 install::
 	install -m 755 -d $(DESTDIR)$(localstatedir)/cache/snapd
 	install -m 755 -d $(DESTDIR)$(datadir)/polkit-1/actions
@@ -199,4 +199,4 @@ check:
 
 .PHONY: clean
 clean:
-	rm -f $(go_binaries) 
+	rm -f $(go_binaries)

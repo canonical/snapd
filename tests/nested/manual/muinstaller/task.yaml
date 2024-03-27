@@ -63,7 +63,7 @@ execute: |
   echo Expose the needed assertions through the fakestore
   cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
   cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
-  cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts" 
+  cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts"
   export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
   # shellcheck source=tests/lib/prepare.sh

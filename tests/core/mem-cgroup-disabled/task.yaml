@@ -36,7 +36,7 @@ prepare: |
   fi
 
   snap pack pc-gadget-no-cgroup --filename=pc-cgroup-disabled.snap
-  
+
   # make sure that the snapd daemon gives us time for comms before
   # closing the socket
   sed -i '/^Environment=/ s/$/ SNAPD_SHUTDOWN_DELAY=1/' /etc/systemd/system/snapd.service.d/local.conf
@@ -52,7 +52,7 @@ execute: |
     echo "Skipping non-grub device test"
     exit 0
   fi
-  case "$SPREAD_REBOOT" in 
+  case "$SPREAD_REBOOT" in
     0)
       # ensure memory cgroups is enabled to start
       if [ "$(grep memory < /proc/cgroups | awk '{print $4}')" != "1" ]; then
@@ -69,7 +69,7 @@ execute: |
       # check it is in the slice
       MATCH Slice=snap.grp.slice < "$SVC_UNIT"
 
-      # now disable the memory cgroup by adding cgroup_disable=memory to the 
+      # now disable the memory cgroup by adding cgroup_disable=memory to the
       # kernel command line
       snap install --dangerous pc-cgroup-disabled.snap
       REBOOT
@@ -84,7 +84,7 @@ execute: |
         echo "expected memory cgroup to be disabled"
         exit 1
       fi
-      
+
       # we cannot check quota group usage
       if snap quota grp; then
         echo "expected quota command to fail"
@@ -110,7 +110,7 @@ execute: |
 
       # finally we can still remove the snap without issue
       snap remove test-snapd-simple-service
-      
+
       # revert back to normal pc gadget without the command line
       snap revert pc
       REBOOT

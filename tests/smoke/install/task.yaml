@@ -55,7 +55,7 @@ execute: |
         if [ "$base" = "core20" ] && os.query is-pc-i386; then
             continue
         fi
-        
+
         # TODO remove this logic once this and core22 snap leaves --edge
         if [ "$base" = "core22" ]; then
             snap install --edge core22
@@ -63,7 +63,7 @@ execute: |
         else
             snap install test-snapd-sh-${base}
         fi
-        
+
         test-snapd-sh-${base}.sh -c "echo hello $base" | MATCH "hello $base"
         # shellcheck disable=SC2016
         test-snapd-sh-${base}.sh -c 'touch $SNAP_COMMON/test'

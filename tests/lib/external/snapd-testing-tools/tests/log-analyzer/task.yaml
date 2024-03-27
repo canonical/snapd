@@ -39,7 +39,7 @@ execute: |
     #   ubuntu-20.04 (F:0 P:5 A:0)
     #   ubuntu-22.04 (F:0 P:5 A:0)
     # failed-prepare-task.json
-    #   Tasks which fail to prepare are not counted as failed and are counted as aborted  
+    #   Tasks which fail to prepare are not counted as failed and are counted as aborted
     #   ubuntu-20.04 (F:1 P:4 A:1)
     #   ubuntu-22.04 (F:1 P:4 A:1)
     # failed-prepare-and-restore.json
@@ -67,7 +67,7 @@ execute: |
     #   ubuntu-20.04 (F:0 P:0 A:0)
     #   ubuntu-22.04 (F:1 P:1 A:0)
 
-    ### CHECK HELP ###    
+    ### CHECK HELP ###
     log-analyzer | MATCH "usage: log-analyzer list-failed-tasks <EXEC-PARAM> <PARSED-LOG>"
     log-analyzer -h | MATCH "usage: log-analyzer list-failed-tasks <EXEC-PARAM> <PARSED-LOG>"
     log-analyzer --help | MATCH "usage: log-analyzer list-failed-tasks <EXEC-PARAM> <PARSED-LOG>"
@@ -126,29 +126,29 @@ execute: |
     # When some tests failed to execute and the suite and project fails to restore, just the failed test is re-executed
     log-analyzer list-reexecute-tasks google: data/with-failed-and-failed-restore-suite.json | MATCH "google:ubuntu-22.04-64:tests/test-2"
     compare_tasks_count "$(log-analyzer list-reexecute-tasks google: data/with-failed-and-failed-restore-suite.json)" 1
-    
+
     ### CHECK ABORTED ###
 
     compare_tasks_count "$(log-analyzer list-aborted-tasks google: data/all-aborted.json)" 10
     compare_tasks_count "$(log-analyzer list-aborted-tasks google:ubuntu-20.04-64: data/all-aborted.json)" 5
-    
+
     compare_tasks_count "$(log-analyzer list-aborted-tasks google: data/all-success-failed-restore.json)" 0
-    
+
     compare_tasks_count "$(log-analyzer list-aborted-tasks google: data/all-success.json)" 0
-    compare_tasks_count "$(log-analyzer list-aborted-tasks google:ubuntu-20.04-64: data/all-success.json)" 0   
-    
+    compare_tasks_count "$(log-analyzer list-aborted-tasks google:ubuntu-20.04-64: data/all-success.json)" 0
+
     compare_tasks_count "$(log-analyzer list-aborted-tasks google: data/all-failed.json)" 0
-    
+
     compare_tasks_count "$(log-analyzer list-aborted-tasks google: data/failed-prepare-project.json)" 5
-    
+
     compare_tasks_count "$(log-analyzer list-aborted-tasks google: data/failed-prepare-suite.json)" 5
     compare_tasks_count "$(log-analyzer list-aborted-tasks google:ubuntu-20.04-64: data/failed-prepare-suite.json)" 5
     compare_tasks_count "$(log-analyzer list-aborted-tasks google:ubuntu-22.04-64: data/failed-prepare-suite.json)" 0
 
     compare_tasks_count "$(log-analyzer list-aborted-tasks google: data/with-aborted-and-failed-restore.json)" 8
-    
+
     compare_tasks_count "$(log-analyzer list-aborted-tasks google: data/failed-prepare-task.json)" 2
-    
+
     compare_tasks_count "$(log-analyzer list-aborted-tasks google: data/failed-prepare-and-restore.json)" 5
 
     compare_tasks_count "$(log-analyzer list-aborted-tasks google: data/aborted-and-failed-execute-and-restore.json)" 3
@@ -160,24 +160,24 @@ execute: |
     compare_tasks_count "$(log-analyzer list-successful-tasks google: data/all-aborted.json)" 0
 
     compare_tasks_count "$(log-analyzer list-successful-tasks google: data/all-success-failed-restore.json)" 10
-    
+
     compare_tasks_count "$(log-analyzer list-successful-tasks google: data/all-success.json)" 10
     compare_tasks_count "$(log-analyzer list-successful-tasks google:ubuntu-20.04-64: data/all-success.json)" 5
-    
+
     compare_tasks_count "$(log-analyzer list-successful-tasks google: data/all-failed.json)" 0
-    
+
     compare_tasks_count "$(log-analyzer list-successful-tasks google: data/failed-prepare-project.json)" 5
-    
+
     compare_tasks_count "$(log-analyzer list-successful-tasks google: data/failed-prepare-suite.json)" 5
     compare_tasks_count "$(log-analyzer list-successful-tasks google:ubuntu-22.04-64: data/failed-prepare-suite.json)" 5
     compare_tasks_count "$(log-analyzer list-successful-tasks google:ubuntu-20.04-64: data/failed-prepare-suite.json)" 0
 
     compare_tasks_count "$(log-analyzer list-successful-tasks google: data/with-aborted-and-failed-restore.json)" 0
-    
+
     compare_tasks_count "$(log-analyzer list-successful-tasks google: data/failed-prepare-task.json)" 8
     compare_tasks_count "$(log-analyzer list-successful-tasks google:ubuntu-20.04-64: data/failed-prepare-task.json)" 4
     compare_tasks_count "$(log-analyzer list-successful-tasks google:ubuntu-22.04-64: data/failed-prepare-task.json)" 4
-    
+
     compare_tasks_count "$(log-analyzer list-successful-tasks google: data/failed-prepare-and-restore.json)" 5
 
     compare_tasks_count "$(log-analyzer list-successful-tasks google: data/aborted-and-failed-execute-and-restore.json)" 5
@@ -189,20 +189,20 @@ execute: |
     compare_tasks_count "$(log-analyzer list-failed-tasks google: data/all-aborted.json)" 0
 
     compare_tasks_count "$(log-analyzer list-failed-tasks google: data/all-success-failed-restore.json)" 0
-    
+
     compare_tasks_count "$(log-analyzer list-failed-tasks google: data/all-success.json)" 0
-    
+
     compare_tasks_count "$(log-analyzer list-failed-tasks google: data/all-failed.json)" 10
     compare_tasks_count "$(log-analyzer list-failed-tasks google:ubuntu-20.04-64: data/all-failed.json)" 5
 
     compare_tasks_count "$(log-analyzer list-failed-tasks google: data/failed-prepare-project.json)" 0
-    
+
     compare_tasks_count "$(log-analyzer list-failed-tasks google: data/failed-prepare-suite.json)" 0
-    
+
     compare_tasks_count "$(log-analyzer list-failed-tasks google: data/with-aborted-and-failed-restore.json)" 0
-    
+
     compare_tasks_count "$(log-analyzer list-failed-tasks google: data/failed-prepare-task.json)" 0
-    
+
     compare_tasks_count "$(log-analyzer list-failed-tasks google: data/failed-prepare-and-restore.json)" 0
 
     compare_tasks_count "$(log-analyzer list-failed-tasks google: data/aborted-and-failed-execute-and-restore.json)" 2
@@ -214,21 +214,21 @@ execute: |
     compare_tasks_count "$(log-analyzer list-executed-tasks google: data/all-aborted.json)" 0
 
     compare_tasks_count "$(log-analyzer list-executed-tasks google: data/all-success-failed-restore.json)" 10
-    
+
     compare_tasks_count "$(log-analyzer list-executed-tasks google: data/all-success.json)" 10
-    
+
     compare_tasks_count "$(log-analyzer list-executed-tasks google: data/all-failed.json)" 10
     compare_tasks_count "$(log-analyzer list-executed-tasks google:ubuntu-20.04-64: data/all-failed.json)" 5
     compare_tasks_count "$(log-analyzer list-executed-tasks google:ubuntu-22.04-64: data/all-failed.json)" 5
 
     compare_tasks_count "$(log-analyzer list-executed-tasks google: data/failed-prepare-project.json)" 5
-    
+
     compare_tasks_count "$(log-analyzer list-executed-tasks google: data/failed-prepare-suite.json)" 5
-    
+
     compare_tasks_count "$(log-analyzer list-executed-tasks google: data/with-aborted-and-failed-restore.json)" 2
-    
+
     compare_tasks_count "$(log-analyzer list-executed-tasks google: data/failed-prepare-task.json)" 8
-    
+
     compare_tasks_count "$(log-analyzer list-executed-tasks google: data/failed-prepare-and-restore.json)" 5
 
     compare_tasks_count "$(log-analyzer list-executed-tasks google: data/aborted-and-failed-execute-and-restore.json)" 7

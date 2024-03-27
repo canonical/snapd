@@ -161,7 +161,7 @@ execute: |
         "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap core "$PWD"/core noexist.deb 2>&1 | MATCH "snaps-state: deb file used to repack not found: noexist.deb"
     fi
 
-    # Check the repack of the core snap info snapd snap. This check is executed 
+    # Check the repack of the core snap info snapd snap. This check is executed
     # on any system with the core snap installed
     if [ -d /snap/core/current ]; then
         "$TESTSTOOLS"/snaps-state repack-core-snap-into-snapd-snap

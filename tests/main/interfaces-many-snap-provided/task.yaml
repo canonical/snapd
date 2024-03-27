@@ -3,7 +3,7 @@ summary: Ensure that commands run when their snap provided interfaces are connec
 details: |
     Install a test snap that plugs as many snap provided interfaces as is
     possible and verify the command can run (ie, don't test the interface
-    functionality itself). This will help catch things like AppArmor 
+    functionality itself). This will help catch things like AppArmor
     policy syntax errors, seccomp policy parsing, udev querying bugs, etc.
 
 # memory issue inside the adt environment
@@ -50,7 +50,7 @@ debug: |
     "$TESTSTOOLS"/journal-state get-log
 
 execute: |
-    PROVIDER_SNAP="test-snapd-policy-app-provider-classic"    
+    PROVIDER_SNAP="test-snapd-policy-app-provider-classic"
     if os.query is-core; then
         PROVIDER_SNAP="test-snapd-policy-app-provider-core"
     fi

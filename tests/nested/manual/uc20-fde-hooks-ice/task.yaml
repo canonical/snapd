@@ -32,7 +32,7 @@ prepare: |
   # ensure the install-mode.log.gz contains all DEBUG messages
   echo "SNAPD_DEBUG=1" >> core22/etc/environment
   snap pack ./core22 --filename=core22-new.snap
-  mv core22-new.snap "$(tests.nested get extra-snaps-path)" 
+  mv core22-new.snap "$(tests.nested get extra-snaps-path)"
 
   # build fde-reveal-key hook into the "extra-initrd"
   # nested_create_core_vm picks this up

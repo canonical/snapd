@@ -68,7 +68,7 @@ execute: |
   echo "Trigger auto-refresh of test-snapd-refresh-control-provider but hold it via test-snapd-refresh-control's hook"
   "$TESTSTOOLS"/snapd-state force-autorefresh
   systemctl start snapd.{service,socket}
-  
+
   LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-autorefresh "$LAST_REFRESH_CHANGE_ID")
 
   echo "Check that the --pending information is available from the snap"

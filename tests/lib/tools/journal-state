@@ -81,10 +81,10 @@ match_log(){
     done
 
     for _ in $(seq "$attempts"); do
-        # forcibly silence this particular bit because it produces GOBS of 
-        # output and we really don't need to see all the output when we are 
-        # checking the output for an expression, as if it is missing we want to 
-        # check the journal once at the end of this loop, likely in the debug 
+        # forcibly silence this particular bit because it produces GOBS of
+        # output and we really don't need to see all the output when we are
+        # checking the output for an expression, as if it is missing we want to
+        # check the journal once at the end of this loop, likely in the debug
         # section
         set +x
         local log

@@ -1,7 +1,7 @@
 name: test-snapd-with-default-configure
 version: 4.0
 summary: Basic snap with a default-configure and configure hook
-description: | 
+description: |
   This snap can be used to test that gadget configurations are made available
   to snaps with the combination of a default-configure and configure hook
 

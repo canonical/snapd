@@ -82,7 +82,7 @@ execute: |
     # then its an error to not specify --user scope
     echo "(user test) Trying to start services for snap, which will fail with no scope set"
     tests.session -u test exec snap start test-snapd-user-service 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH "non-root users must specify service scope when targeting user services"
-    
+
     echo "(user test) Starting user services for snap with scope --user"
     tests.session -u test exec snap start --user test-snapd-user-service
 

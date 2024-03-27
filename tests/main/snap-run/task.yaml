@@ -12,7 +12,7 @@ systems:
 
 environment:
     STRACE_STATIC_CHANNEL: candidate
-  
+
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local basic-run
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh

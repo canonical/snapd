@@ -2276,12 +2276,12 @@ const MockSectionsJSON = `{
     "clickindex:sections": [
       {
         "name": "featured"
-      }, 
+      },
       {
         "name": "database"
       }
     ]
-  }, 
+  },
   "_links": {
     "self": {
       "href": "http://api.snapcraft.io/api/v1/snaps/sections"

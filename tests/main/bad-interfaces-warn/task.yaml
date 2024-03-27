@@ -18,6 +18,6 @@ execute: |
   echo "And the warning contains the list of bad interfaces"
   snap warnings | MATCH '.*snap "test-snap" has bad plugs or slots: badinterface1 \(unknown interface'
   snap warnings | MATCH 'badinterface2 \(unknown interface "foo"\)'
-  
+
   echo "And the valid home interface is present"
   snap connections test-snap | MATCH 'home *test-snap:home'

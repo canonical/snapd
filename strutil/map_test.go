@@ -86,7 +86,7 @@ k: v
 
 func (s *orderedMapSuite) TestYamlErr(c *C) {
 	yamlStr := []byte(`
-k: 
+k:
  nested: var
 `)
 	var om strutil.OrderedMap

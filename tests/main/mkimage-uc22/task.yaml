@@ -47,7 +47,7 @@ prepare: |
   remote.setup config --host localhost --port 10022 --user user1 --pass ubuntu
   remote.wait-for ssh
 
-  # wait until the image boots and seeds  
+  # wait until the image boots and seeds
   remote.exec "sudo snap wait system seed.loaded"
 
 restore: |

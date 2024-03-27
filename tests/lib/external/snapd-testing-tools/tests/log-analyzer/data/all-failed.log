@@ -20,7 +20,7 @@
 2022-05-24 17:53:30 Preparing google:ubuntu-20.04-64:tests/ (may242052-202754)...
 2022-05-24 17:53:30 Executing google:ubuntu-22.04-64:tests/test-3 (may242052-202652) (1/10)...
 2022-05-24 17:53:30 Preparing google:ubuntu-20.04-64:tests/test-5 (may242052-202754)...
-2022-05-24 17:53:31 Error executing google:ubuntu-22.04-64:tests/test-3 (may242052-202652) : 
+2022-05-24 17:53:31 Error executing google:ubuntu-22.04-64:tests/test-3 (may242052-202652) :
 -----
 + echo execute
 execute
@@ -29,7 +29,7 @@ execute
 .
 2022-05-24 17:53:31 Restoring google:ubuntu-22.04-64:tests/test-3 (may242052-202652)...
 2022-05-24 17:53:31 Executing google:ubuntu-20.04-64:tests/test-5 (may242052-202754) (2/10)...
-2022-05-24 17:53:31 Error executing google:ubuntu-20.04-64:tests/test-5 (may242052-202754) : 
+2022-05-24 17:53:31 Error executing google:ubuntu-20.04-64:tests/test-5 (may242052-202754) :
 -----
 + echo execute
 execute
@@ -41,7 +41,7 @@ execute
 2022-05-24 17:53:32 Preparing google:ubuntu-20.04-64:tests/test-2 (may242052-202754)...
 2022-05-24 17:53:32 Executing google:ubuntu-20.04-64:tests/test-2 (may242052-202754) (3/10)...
 2022-05-24 17:53:32 Executing google:ubuntu-22.04-64:tests/test-4 (may242052-202652) (4/10)...
-2022-05-24 17:53:33 Error executing google:ubuntu-20.04-64:tests/test-2 (may242052-202754) : 
+2022-05-24 17:53:33 Error executing google:ubuntu-20.04-64:tests/test-2 (may242052-202754) :
 -----
 + echo execute
 execute
@@ -49,7 +49,7 @@ execute
 -----
 .
 2022-05-24 17:53:33 Restoring google:ubuntu-20.04-64:tests/test-2 (may242052-202754)...
-2022-05-24 17:53:33 Error executing google:ubuntu-22.04-64:tests/test-4 (may242052-202652) : 
+2022-05-24 17:53:33 Error executing google:ubuntu-22.04-64:tests/test-4 (may242052-202652) :
 -----
 + echo execute
 execute
@@ -61,7 +61,7 @@ execute
 2022-05-24 17:53:33 Preparing google:ubuntu-22.04-64:tests/test-2 (may242052-202652)...
 2022-05-24 17:53:34 Executing google:ubuntu-20.04-64:tests/test-3 (may242052-202754) (5/10)...
 2022-05-24 17:53:34 Executing google:ubuntu-22.04-64:tests/test-2 (may242052-202652) (6/10)...
-2022-05-24 17:53:34 Error executing google:ubuntu-20.04-64:tests/test-3 (may242052-202754) : 
+2022-05-24 17:53:34 Error executing google:ubuntu-20.04-64:tests/test-3 (may242052-202754) :
 -----
 + echo execute
 execute
@@ -69,7 +69,7 @@ execute
 -----
 .
 2022-05-24 17:53:34 Restoring google:ubuntu-20.04-64:tests/test-3 (may242052-202754)...
-2022-05-24 17:53:35 Error executing google:ubuntu-22.04-64:tests/test-2 (may242052-202652) : 
+2022-05-24 17:53:35 Error executing google:ubuntu-22.04-64:tests/test-2 (may242052-202652) :
 -----
 + echo execute
 execute
@@ -80,7 +80,7 @@ execute
 2022-05-24 17:53:35 Preparing google:ubuntu-20.04-64:tests/test-4 (may242052-202754)...
 2022-05-24 17:53:35 Executing google:ubuntu-20.04-64:tests/test-4 (may242052-202754) (7/10)...
 2022-05-24 17:53:35 Preparing google:ubuntu-22.04-64:tests/test-1 (may242052-202652)...
-2022-05-24 17:53:36 Error executing google:ubuntu-20.04-64:tests/test-4 (may242052-202754) : 
+2022-05-24 17:53:36 Error executing google:ubuntu-20.04-64:tests/test-4 (may242052-202754) :
 -----
 + echo execute
 execute
@@ -90,7 +90,7 @@ execute
 2022-05-24 17:53:36 Restoring google:ubuntu-20.04-64:tests/test-4 (may242052-202754)...
 2022-05-24 17:53:36 Executing google:ubuntu-22.04-64:tests/test-1 (may242052-202652) (8/10)...
 2022-05-24 17:53:36 Preparing google:ubuntu-20.04-64:tests/test-1 (may242052-202754)...
-2022-05-24 17:53:36 Error executing google:ubuntu-22.04-64:tests/test-1 (may242052-202652) : 
+2022-05-24 17:53:36 Error executing google:ubuntu-22.04-64:tests/test-1 (may242052-202652) :
 -----
 + echo execute
 execute
@@ -100,7 +100,7 @@ execute
 2022-05-24 17:53:36 Restoring google:ubuntu-22.04-64:tests/test-1 (may242052-202652)...
 2022-05-24 17:53:37 Executing google:ubuntu-20.04-64:tests/test-1 (may242052-202754) (9/10)...
 2022-05-24 17:53:37 Preparing google:ubuntu-22.04-64:tests/test-5 (may242052-202652)...
-2022-05-24 17:53:37 Error executing google:ubuntu-20.04-64:tests/test-1 (may242052-202754) : 
+2022-05-24 17:53:37 Error executing google:ubuntu-20.04-64:tests/test-1 (may242052-202754) :
 -----
 + echo execute
 execute
@@ -111,7 +111,7 @@ execute
 2022-05-24 17:53:38 Restoring google:ubuntu-20.04-64:tests/ (may242052-202754)...
 2022-05-24 17:53:38 Executing google:ubuntu-22.04-64:tests/test-5 (may242052-202652) (10/10)...
 2022-05-24 17:53:38 Restoring google:ubuntu-20.04-64 (may242052-202754)...
-2022-05-24 17:53:38 Error executing google:ubuntu-22.04-64:tests/test-5 (may242052-202652) : 
+2022-05-24 17:53:38 Error executing google:ubuntu-22.04-64:tests/test-5 (may242052-202652) :
 -----
 + echo execute
 execute

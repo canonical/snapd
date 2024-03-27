@@ -8,7 +8,7 @@
 # expression, in that it doesn't cause the script to fail to execute.
 set -e
 # NOTE: disable shellcheck warning about this gotcha, since this test
-# explicitly documents and measures the behavior. 
+# explicitly documents and measures the behavior.
 # shellcheck disable=SC2251
 ! true
 echo "surprise, last error: $?"

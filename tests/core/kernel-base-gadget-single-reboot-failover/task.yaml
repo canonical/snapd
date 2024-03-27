@@ -26,7 +26,7 @@ restore: |
         exit
     fi
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
-    
+
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -46,7 +46,7 @@ execute: |
         "$TESTSTOOLS"/store-state init-fake-refreshes "$BLOB_DIR" pc
 
         snap refresh --no-wait core18 pc pc-kernel > refresh-change-id
-        
+
         # wait for the link tasks to be done
         retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
 
@@ -63,7 +63,7 @@ execute: |
         snap watch "$change_id" || true
         snap changes | MATCH "$change_id\s+Error"
         snap change "$change_id" > tasks.done
-        
+
         # and since kernel, gadget and base all are considered to be forced as a transaction
         # we expect all to be undone
         MATCH 'Undone\s+.*Make snap "pc-kernel" .* available' < tasks.done

@@ -20,7 +20,7 @@ mount_ubuntu_image() {
     if ! retry -n 30 --wait 1 test -e /dev/nbd0p1; then
         echo "ERROR: /dev/nbd0p1 did not show up"
         journalctl -u qemu-nbd-preseed.service
-        find /dev/ -name "nbd0*" -ls        
+        find /dev/ -name "nbd0*" -ls
         exit 1
     fi
     mount /dev/nbd0p1 "$IMAGE_MOUNTPOINT"
@@ -47,7 +47,7 @@ umount_ubuntu_image() {
 # inject_snap_info_seed adds a snap to the seed.yaml, and works for snaps not
 # already in the seed. It requires base snaps, default-providers, etc. to all be
 # worked out and manually added with additional invocations
-# the first argument is the mountpoint of the image, the second argument is the 
+# the first argument is the mountpoint of the image, the second argument is the
 # name of the snap, the snap file must be the same as the name with .snap as the
 # file extension in the current working directory
 # example:
@@ -65,7 +65,7 @@ inject_snap_into_seed() {
         snap install remarshal
     fi
 
-    # XXX: this is very simplistic and will break easily, refactor to use the 
+    # XXX: this is very simplistic and will break easily, refactor to use the
     #      iterative seed modification prepare-image args when those exist
 
     snapsWithName=$(yaml2json < "$SEED_YAML" | jq -r --arg NAME "$SNAP_NAME" '[.snaps[] | select(.name == $NAME)] | length')

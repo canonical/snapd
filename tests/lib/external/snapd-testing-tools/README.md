@@ -3,7 +3,7 @@
 # Welcome to snapd-testing-tools
 
 This is the code repository for **snapd-testing-tools**, the set of tools
-used by snapd for testing porpuses. 
+used by snapd for testing porpuses.
 
 The tools in this project are designed and tested independently, making them easy
 to be imported and used by any project.

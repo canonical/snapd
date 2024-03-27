@@ -2,7 +2,7 @@ summary: Integration tests for the snap-bootstrap binary
 
 details: |
     This test checks the snap-bootstrap binary. First it is used
-    uc20-create-partitions tool and validated partitions and 
+    uc20-create-partitions tool and validated partitions and
     ubuntu-* key files are created. Then the unsealed and save keys
     are validated in run and recovery modes, and also it is possible to
     add/remove new keys. Finally check the disk-mapping.json has

@@ -2,7 +2,7 @@
 
 set -e
 
-# "powerpc" is not supported unfortunately, do nothing here# 
+# "powerpc" is not supported unfortunately, do nothing here#
 if [ "$DPKG_MAINTSCRIPT_ARCH" = powerpc ]; then
     exit 0
 fi

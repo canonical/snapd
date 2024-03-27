@@ -20,7 +20,7 @@ execute: |
       exit 1
   fi
   def_size=$(df --output=size /tmp | tail -1)
-  
+
   echo "Ensure setting tmp.size works"
   for size in 100 200; do
       snap set system tmp.size="$size"M

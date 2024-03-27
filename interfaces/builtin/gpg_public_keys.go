@@ -49,7 +49,7 @@ owner @{HOME}/.gnupg/trustdb.gpg r,
 deny @{HOME}/.gnupg/trustdb.gpg w,
 
 # Certain gpg operations (like --export) require to create a lock file
-# to return successfully. 
+# to return successfully.
 owner @{HOME}/.gnupg/.#lk0x* w,
 owner @{HOME}/.gnupg/pubring.kbx.lock rwk,
 `

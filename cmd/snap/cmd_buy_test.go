@@ -311,7 +311,7 @@ func (s *BuySnapSuite) TestBuySnapSuccess(c *check.C) {
 	c.Check(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, `Please re-enter your Ubuntu One password to purchase "hello" from "canonical"
 for 2.99GBP. Press ctrl-c to cancel.
-Password of "hello@mail.com": 
+Password of "hello@mail.com":
 Thanks for purchasing "hello". You may now install it on any of your devices
 with 'snap install hello'.
 `)
@@ -374,7 +374,7 @@ payment details at https://my.ubuntu.com/payment/edit and try again.`)
 	c.Check(rest, check.DeepEquals, []string{"hello"})
 	c.Check(s.Stdout(), check.Equals, `Please re-enter your Ubuntu One password to purchase "hello" from "canonical"
 for 2.99GBP. Press ctrl-c to cancel.
-Password of "hello@mail.com": 
+Password of "hello@mail.com":
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }

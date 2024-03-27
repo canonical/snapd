@@ -28,7 +28,7 @@ prepare: |
 
 restore: |
     snap remove --purge test-snapd-sh
-    
+
     # Remove the package we installed above.
     case "$SPECIAL_USER_NAME" in
         jenkins)

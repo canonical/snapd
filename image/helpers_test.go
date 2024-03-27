@@ -153,7 +153,7 @@ func (s *imageSuite) testWriteResolvedContent(c *check.C, prepareImageDir string
 	lines := strings.Split(string(tree), "\n")
 	sort.Sort(treeLines(lines))
 	c.Check(strings.Join(lines, "\n"), check.Equals, `
-d 
+d
 d resolved-content
 d resolved-content/vol1
 l resolved-content/vol1/part1

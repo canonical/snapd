@@ -60,7 +60,7 @@ func (s *SnapSuite) TestLoginSimple(c *C) {
 	c.Check(s.Stdout(), Equals, `Personal information is handled as per our privacy notice at
 https://www.ubuntu.com/legal/dataprivacy/snap-store
 
-Password of "foo@example.com": 
+Password of "foo@example.com":
 Login successful
 `)
 	c.Check(s.Stderr(), Equals, "")
@@ -85,7 +85,7 @@ func (s *SnapSuite) TestLoginAskEmail(c *C) {
 	c.Check(s.Stdout(), Equals, `Personal information is handled as per our privacy notice at
 https://www.ubuntu.com/legal/dataprivacy/snap-store
 
-Email address: Password of "foo@example.com": 
+Email address: Password of "foo@example.com":
 Login successful
 `)
 	c.Check(s.Stderr(), Equals, "")

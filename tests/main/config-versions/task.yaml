@@ -61,7 +61,7 @@ execute: |
     echo "Revert back to the rev 2"
     snap revert --revision=x2 config-versions
     verify_config_value 400
-    
+
     echo "Failing refresh of rev 2"
     snap refresh --revision=x1 config-versions
     snap get config-versions post-refresh-hook-marker | MATCH "executed-for-v1"

@@ -21,7 +21,7 @@ execute: |
 
     echo "Reinstall the system"
     boot_id=$(tests.nested boot-id)
-    # add || true in case the SSH connection is broken while executing this 
+    # add || true in case the SSH connection is broken while executing this
     # since this command causes an immediate reboot
     remote.exec "sudo snap reboot --install" || true
 

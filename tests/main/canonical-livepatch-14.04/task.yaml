@@ -30,7 +30,7 @@ execute: |
 
     echo "Ensure snapd re-execs"
     SNAPD_DEBUG=1 snap list 2>&1 | MATCH "DEBUG: restarting into"
-    
+
     echo "Ensure canonical-livepatch can be installed"
     snap install canonical-livepatch
 

@@ -5,13 +5,13 @@ systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 execute: |
     SEALED_KEY_MTIME_1="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
     RESEAL_COUNT_1="$(remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
-    
+
     echo "Install new (unasserted) gadget without changes and wait for change without reboot"
     boot_id="$( tests.nested boot-id )"
     REMOTE_CHG_ID=$(remote.exec sudo snap install --dangerous /var/lib/snapd/snaps/pc_*.snap --no-wait)
     # no reboot here, no gadget changes
     remote.exec sudo snap watch "${REMOTE_CHG_ID}"
-  
+
     echo "Check nothing in the gadget has changed so no reseal was needed"
     SEALED_KEY_MTIME_2="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
     test "$SEALED_KEY_MTIME_2" -eq "$SEALED_KEY_MTIME_1"
@@ -22,12 +22,12 @@ execute: |
     KEY_NAME=$(tests.nested download snakeoil-key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-    
+
     echo "Ensure clean pc-gadget dir"
     rm -rf pc-gadget
     GADGET_SNAP="$(ls "$(tests.nested get assets-path)"/pc_*.snap)"
     unsquashfs -d pc-gadget "$GADGET_SNAP"
-    
+
     echo "Change a few bytes in the compat header and check sed worked"
     sed -i 's/This program cannot be run in DOS mode/This program cannot be run in XXX mode/' pc-gadget/grubx64.efi
     grep -q -a "This program cannot be run in XXX mode" pc-gadget/grubx64.efi

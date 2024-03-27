@@ -60,7 +60,7 @@ remote_exec() {
                 exit 1
                 ;;
             *)
-                break    
+                break
                 ;;
         esac
     done
@@ -81,7 +81,7 @@ remote_exec() {
     $SSH_PASS ssh $SSH_CERT -p "$TESTS_REMOTE_PORT" -o LogLevel=ERROR -o ServerAliveInterval=10 -o ConnectTimeout="$timeout" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$TESTS_REMOTE_USER"@"$TESTS_REMOTE_HOST" "$@"
 }
 
-main() {    
+main() {
     remote_exec "$@"
 }
 

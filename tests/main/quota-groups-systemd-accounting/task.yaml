@@ -1,8 +1,8 @@
 summary: Test to ensure that quota groups and systemd accounting is effective.
 
 details: |
-  Some older systemd's such as that of xenial, Amazon Linux 2, and Centos 7 
-  suffer from an unfortunate bug wherein the accounting for memory and tasks 
+  Some older systemd's such as that of xenial, Amazon Linux 2, and Centos 7
+  suffer from an unfortunate bug wherein the accounting for memory and tasks
   becomes broken and returns the maximum value for a 64-bit integer instead of
   the real value. This test checks that supported systems work and does not
   trigger the accounting bug. For systems that have the bug, we check that they
@@ -44,7 +44,7 @@ execute: |
   # and exists
   snap set-quota --memory=49MB --parent=sub2 sub21 hello-world
 
-  # check that usage is still sensible for the groups that have real usage - 
+  # check that usage is still sensible for the groups that have real usage -
   # here 18.4EB is how we format the maximum size of a 64-bit unsigned integer
   # that systemd returns
   # TODO: change this to use the no unit flag when that is a thing so we can

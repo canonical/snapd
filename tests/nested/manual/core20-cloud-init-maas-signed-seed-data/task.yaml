@@ -56,8 +56,8 @@ prepare: |
   . "$TESTSLIB/nested.sh"
 
   # setup the fakestore, but don't use it for our snapd here on the host VM, so
-  # tear down the staging_store immediately afterwards so that only the SAS is 
-  # running and our snapd is not pointed at it, ubuntu-image is the only thing 
+  # tear down the staging_store immediately afterwards so that only the SAS is
+  # running and our snapd is not pointed at it, ubuntu-image is the only thing
   # that actually needs to use the fakestore, and we will manually point it at
   # the fakestore below using NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL
   "$TESTSTOOLS"/store-state setup-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
@@ -85,14 +85,14 @@ prepare: |
 
   # delay all refreshes for a week from now, as otherwise refreshes for our
   # snaps (which are asserted by the testrootorg authority-id) may happen, which
-  # will break things because the signing keys won't match, etc. and 
+  # will break things because the signing keys won't match, etc. and
   # specifically snap-bootstrap in the kernel snap from the store won't trust
   # the seed keys to unlock the encrypted data partition in the initramfs
   sed defaults.yaml -e "s/@HOLD-TIME@/$(date --date='next week' +%Y-%m-%dT%H:%M:%S%:z)/" >> \
     pc-gadget/meta/gadget.yaml
 
   # install the cloud.conf for the variant
-  case "$GADGET_DATASOURCE" in 
+  case "$GADGET_DATASOURCE" in
     maas)
       cp gadget-says-maas.conf pc-gadget/cloud.conf
       ;;
@@ -122,11 +122,11 @@ prepare: |
 
   # now mount the image and add our cloud-init config to the image, which will
   # point cloud-init at MAAS, but we don't run MAAS here since that would be
-  # fragile and slow, so instead the test will just check that we copied the 
+  # fragile and slow, so instead the test will just check that we copied the
   # right files
   img="$NESTED_IMAGES_DIR/$(nested_get_image_name core)"
 
-  # meh this is inefficient but it is simpler than trying to handle variable 
+  # meh this is inefficient but it is simpler than trying to handle variable
   # arguments inside nested_add_file_to_image
   nested_add_file_to_image "$img" 50-cloudconfig-maas-cloud-config.cfg
   nested_add_file_to_image "$img" 50-cloudconfig-maas-datasource.cfg
@@ -135,7 +135,7 @@ prepare: |
   nested_add_file_to_image "$img" 50-curtin-networking.cfg
   nested_add_file_to_image "$img" 50-cloudconfig-gce-unsupported-config.cfg
 
-  # first boot will now copy the cloud-init config we put on ubuntu-seed to 
+  # first boot will now copy the cloud-init config we put on ubuntu-seed to
   # the run system, filtering it in the process
   tests.nested create-vm core
 
@@ -169,7 +169,7 @@ execute: |
 
   # due to a cascade of failures, nothing works correctly when nesting/combining
   # tests.nested with retry, so just give up entirely and manually copy all the
-  # commands we want to run below to individual scripts and execute them by 
+  # commands we want to run below to individual scripts and execute them by
   # themselves, I literally probably cannot touch this code again without crying
   cat > /tmp/snapd-journal-match-script-disable-state.sh << 'EOF'
   #!/bin/bash -e
@@ -193,8 +193,8 @@ execute: |
   remote.exec "chmod +x /home/user1/snapd-journal-match-script-error-notice-state.sh"
   remote.exec "chmod +x /home/user1/snapd-journal-match-script-error-disable-state.sh"
 
-  # there are two options here, one is where we actually let cloud-init stay 
-  # enabled with the variant where the gadget allowed it, in which case 
+  # there are two options here, one is where we actually let cloud-init stay
+  # enabled with the variant where the gadget allowed it, in which case
   # cloud-init will be in error, and we actually have to check for two messages,
   # and the other is where cloud-init is not allowed to run at all by disabling
   # all datasources in which case snapd notices cloud-init as being disabled
@@ -209,7 +209,7 @@ execute: |
     # relatively quickly
     retry --wait 1 -n 60 sh -c 'remote.exec /home/user1/snapd-journal-match-script-error-notice-state.sh'
 
-    # we now wait for 3 minutes before snapd gives up waiting and disables 
+    # we now wait for 3 minutes before snapd gives up waiting and disables
     # cloud-init
     retry --wait 4 -n 60 sh -c 'remote.exec /home/user1/snapd-journal-match-script-error-disable-state.sh'
 
@@ -219,7 +219,7 @@ execute: |
   echo "Ensuring that cloud-init got disabled"
   # either in the case of the gadget saying no datasources or in the case of the
   # MAAS datasource being broken and thus getting eventually disabled by snapd
-  # uggggggghhhhhhhhhh bash quoting strikes again - arguments to the test 
+  # uggggggghhhhhhhhhh bash quoting strikes again - arguments to the test
   # command do not get passed if we do something obvious like
   # retry --wait 1 -n 240 sh -c "remote.exec sh -c 'test -f /etc/cloud/cloud-init.disabled'"
   # so instead we must put this command into a file, copy it over and then
@@ -252,7 +252,7 @@ execute: |
   remote.exec "! test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-ubuntu-sso.cfg"
   remote.exec "! test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-gce-unsupported-config.cfg"
 
-  # check that the gadget cloud.conf was copied too if it exists and is 
+  # check that the gadget cloud.conf was copied too if it exists and is
   # meaningful
   echo "The gadget cloud.conf was copied if it was in the gadget"
   if [ "$GADGET_DATASOURCE" = absent ]; then
@@ -267,7 +267,7 @@ execute: |
   if [ "$GADGET_DATASOURCE" = "explicitly-none" ]; then
     # we only copied files from ubuntu-seed if the intersection between what we
     # statically support and what the gadget says and what ubuntu-seed says is
-    # not empty, so the only case where files don't get installed of the 3 
+    # not empty, so the only case where files don't get installed of the 3
     # variants is where the gadget datasource says explicitly none
     remote.exec "! test -f /etc/cloud/cloud.cfg.d/99_snapd_datasource.cfg"
   else

@@ -14,7 +14,7 @@ def _make_parser():
                         **environ_or_required('MONGO_HOST'))
     parser.add_argument('--port', help="Port for the mongo database",
                         **environ_or_required('MONGO_PORT'))
-    
+
     parser.add_argument('--db-name', help="Name for the database used to insert", default="snapd")
     parser.add_argument('--db-collection', help="Name for the collection used to insert", default="spread_errors")
     parser.add_argument('--after-date', help="Find results after a date (yyyy-mm-dd)", default="2000-01-01")
@@ -102,12 +102,12 @@ def main():
     find(
         db,
         args.db_collection,
-        args.after_date, 
-        args.after_time, 
-        args.before_date, 
-        args.before_time, 
-        args.system, 
-        args.backend, 
+        args.after_date,
+        args.after_time,
+        args.before_date,
+        args.before_time,
+        args.system,
+        args.backend,
         args.task,
         args.type,
         args.phase,

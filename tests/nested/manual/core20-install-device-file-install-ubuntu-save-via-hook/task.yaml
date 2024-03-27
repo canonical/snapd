@@ -48,7 +48,7 @@ prepare: |
 
     # Setup the fake-store for ubuntu-image to use when creating our core image.
     # We immediately tear down the staging store, to make sure snapd is not pointed
-    # towards this once we invoke ubuntu-image. 
+    # towards this once we invoke ubuntu-image.
     # We also need to point NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL towards the newly
     # setup fake-store to actually have it use it.
     "$TESTSTOOLS"/store-state setup-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
@@ -81,13 +81,13 @@ prepare: |
     # convert our yaml files to json (yaml is easier to write and maintain in VCS)
     yaml2json < pc-gadget/meta/snap.yaml | tee pc-gadget/meta/snap.json > /dev/null
     yaml2json < snap-yaml-extras.yaml | tee snap-yaml-extras.json > /dev/null
-    # slurp our two json files together into one json document, then convert 
+    # slurp our two json files together into one json document, then convert
     # back to yaml and write out to the snap.yaml in the unpacked gadget snap
     jq -s '.[0] * .[1]' <(cat snap-yaml-extras.json) <(cat pc-gadget/meta/snap.json) | json2yaml | tee pc-gadget/meta/snap.yaml
 
-    # delay all refreshes for a week from now, as otherwise refreshes for our 
+    # delay all refreshes for a week from now, as otherwise refreshes for our
     # snaps (which are asserted by the testrootorg authority-id) may happen, which
-    # will break things because the signing keys won't match, etc. and 
+    # will break things because the signing keys won't match, etc. and
     # specifically snap-bootstrap in the kernel snap from the store won't trust
     # the seed keys to unlock the encrypted data partition in the initramfs
     sed defaults.yaml -e "s/HOLD-TIME/$(date --date="next week" +%Y-%m-%dT%H:%M:%S%:z)/" >> \

@@ -28,7 +28,7 @@ execute: |
 
     # ensure apparmor works, see LP: 2024637
     systemctl status apparmor.service
-    
+
     # reboot to double check that apparmor still works after the reboot
     # (LP: 2024637)
     if [ "$SPREAD_REBOOT" = 0 ]; then

@@ -22,7 +22,7 @@
 #include <stddef.h>
 
 /**
- * Convert flags for mount(2) system call to a string representation. 
+ * Convert flags for mount(2) system call to a string representation.
  **/
 const char *sc_mount_opt2str(char *buf, size_t buf_size, unsigned long flags);
 

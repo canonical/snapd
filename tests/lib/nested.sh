@@ -246,10 +246,10 @@ nested_create_assertions_disk() {
     retry -n 3 --wait 1 test -e "/dev/mapper/loop${LOOP_DEV}p1"
     # make a vfat partition
     mkfs.vfat -n SYSUSER "/dev/mapper/loop${LOOP_DEV}p1"
-    # mount the partition and copy the files 
+    # mount the partition and copy the files
     mkdir -p "$NESTED_ASSETS_DIR/sys-user-partition"
     mount "/dev/mapper/loop${LOOP_DEV}p1" "$NESTED_ASSETS_DIR/sys-user-partition"
-    
+
     # use custom assertion if set
     local AUTO_IMPORT_ASSERT
     if [ -n "$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION" ]; then
@@ -300,7 +300,7 @@ nested_get_snap_rev_for_channel() {
 nested_is_nested_system() {
     if nested_is_core_system || nested_is_classic_system ; then
         return 0
-    else 
+    else
         return 1
     fi
 }
@@ -697,7 +697,7 @@ EOF
         fi
         # sign the pc gadget snap with fakestore if requested
         if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-            # XXX: this is a bit of a hack, but some nested tests 
+            # XXX: this is a bit of a hack, but some nested tests
             # need extra bits in their snap declaration, so inject
             # that here, it could end up being empty in which case
             # it is ignored
@@ -731,7 +731,7 @@ nested_prepare_base() {
             fi
             return
         fi
-        
+
         if [ ! -f "$NESTED_ASSETS_DIR/$output_name" ]; then
             echo "Repacking $snap_name snap"
             snap download --channel="$CORE_CHANNEL" --basename="$snap_name" "$snap_name"
@@ -746,7 +746,7 @@ nested_prepare_base() {
         if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
             "$TESTSTOOLS"/store-state make-snap-installable --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/${snap_name}.snap" "$snap_id"
         fi
-    fi 
+    fi
 }
 
 nested_prepare_essential_snaps() {
@@ -818,14 +818,14 @@ nested_create_core_vm() {
             # Invoke ubuntu image
             local NESTED_MODEL
             NESTED_MODEL="$(nested_get_model)"
-            
+
             local EXTRA_SNAPS=""
             for mysnap in $(nested_get_extra_snaps); do
                 EXTRA_SNAPS="$EXTRA_SNAPS --snap $mysnap"
             done
 
-            # only set SNAPPY_FORCE_SAS_URL because we don't need it defined 
-            # anywhere else but here, where snap prepare-image as called by 
+            # only set SNAPPY_FORCE_SAS_URL because we don't need it defined
+            # anywhere else but here, where snap prepare-image as called by
             # ubuntu-image will look for assertions for the snaps we provide
             # to it
             SNAPPY_FORCE_SAS_URL="$NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL"
@@ -834,7 +834,7 @@ nested_create_core_vm() {
             export UBUNTU_IMAGE_SNAP_CMD
             if [ -n "$NESTED_CORE_CHANNEL" ]; then
                 UBUNTU_IMAGE_CHANNEL_ARG="--channel $NESTED_CORE_CHANNEL"
-            else 
+            else
                 UBUNTU_IMAGE_CHANNEL_ARG=""
             fi
 
@@ -880,10 +880,10 @@ nested_configure_cloud_init_on_core_vm() {
     kpartx -avs "$IMAGE"
     devloop=$(losetup --list --noheadings | grep "$IMAGE" | awk '{print $1}')
     dev=$(basename "$devloop")
-    
+
     # we add cloud-init data to the 3rd partition, which is writable
     writableDev="/dev/mapper/${dev}p3"
-    
+
     # wait for the loop device to show up
     retry -n 3 --wait 1 test -e "$writableDev"
     tmp=$(mktemp -d)
@@ -1128,7 +1128,7 @@ nested_start_core_vm_unit() {
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
     fi
-    
+
     local PARAM_ASSERTIONS PARAM_BIOS PARAM_TPM PARAM_IMAGE
     PARAM_ASSERTIONS=""
     PARAM_BIOS=""
@@ -1137,9 +1137,9 @@ nested_start_core_vm_unit() {
     if [ "$NESTED_USE_CLOUD_INIT" != "true" ]; then
         # TODO: fix using the old way of an ext4 formatted drive w/o partitions
         #       as this used to work but has since regressed
-        
+
         # this simulates a usb drive attached to the device, the removable=true
-        # is necessary otherwise snapd will not import it, as snapd only 
+        # is necessary otherwise snapd will not import it, as snapd only
         # considers removable devices for cold-plug first-boot runs
         # the nec-usb-xhci device is necessary to create the bus we attach the
         # storage to
@@ -1257,8 +1257,8 @@ nested_start_core_vm_unit() {
         # Wait for the snap command to be available
         nested_wait_for_snap_command 120 1
         # Wait for snap seeding to be done
-        # retry this wait command up to 3 times since we sometimes see races 
-        # where the snap command appears, then immediately disappears and then 
+        # retry this wait command up to 3 times since we sometimes see races
+        # where the snap command appears, then immediately disappears and then
         # re-appears immediately after and so the next command fails
         attempts=0
         until remote.exec "sudo snap wait system seed.loaded"; do
@@ -1477,7 +1477,7 @@ nested_start_classic_vm() {
     # save logs from previous runs
     nested_save_serial_log
 
-    # Systemd unit is created, it is important to respect the qemu parameters 
+    # Systemd unit is created, it is important to respect the qemu parameters
     # order
     tests.systemd create-and-start-unit "$NESTED_VM" "${QEMU}  \
         ${PARAM_SMP} \
@@ -1511,7 +1511,7 @@ nested_destroy_vm() {
     tests.systemd stop-unit --remove "$NESTED_VM"
 
     local CURRENT_IMAGE
-    CURRENT_IMAGE="$NESTED_IMAGES_DIR/$(nested_get_current_image_name)" 
+    CURRENT_IMAGE="$NESTED_IMAGES_DIR/$(nested_get_current_image_name)"
     rm -f "$CURRENT_IMAGE"
 }
 

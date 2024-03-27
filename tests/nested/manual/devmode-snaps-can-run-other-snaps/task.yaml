@@ -37,7 +37,7 @@ prepare: |
   "$TESTSTOOLS"/lxd-state prepare-snap
   snap install snapcraft --channel=4.x/candidate --classic
 
-  # TODO: do we need to address the spread system prepare shenanigans as 
+  # TODO: do we need to address the spread system prepare shenanigans as
   # mentioned in tests/main/snapd-snap ?
 
   # shellcheck disable=SC2164
@@ -67,13 +67,13 @@ prepare: |
   coredir=edge-core-snap
 
   # backup the meta dir
-  mv "$coredir/meta" "$coredir/meta-backup" 
+  mv "$coredir/meta" "$coredir/meta-backup"
   # copy everything from the snapd snap into the core snap
   cp -ar "$snapddir"/* "$coredir"
 
   # restore the meta dir
   rm -r "$coredir/meta"
-  mv "$coredir/meta-backup" "$coredir/meta" 
+  mv "$coredir/meta-backup" "$coredir/meta"
 
   # set the version for the core snap to be the version from the snapd snap
   SNAPD_SNAP_VERSION=$(grep -Po "version: \K.*" "$snapddir/meta/snap.yaml")
@@ -86,11 +86,11 @@ prepare: |
   rm -r "$coredir"
   rm -r "$snapddir"
 
-  tests.nested build-image core 
+  tests.nested build-image core
   tests.nested create-vm core
 
 execute: |
-  # TODO: should we also just test the classic cases on the system that is 
+  # TODO: should we also just test the classic cases on the system that is
   # driving the nested VM? That would save some time/resources
 
   # wait for snap seeding to be done
@@ -132,9 +132,9 @@ execute: |
     remote.exec sudo systemctl start snapd.socket snapd.service
 
     # also install the non-core base snap, note that we can install and use it
-    # even without the snapd snap, but we cannot execute other snaps from this 
+    # even without the snapd snap, but we cannot execute other snaps from this
     # devmode snap without also installing the snapd snap, as inside non-core
-    # base snaps, there is a symlink 
+    # base snaps, there is a symlink
     # /usr/bin/snap -> /snap/snapd/current/usr/bin/snap
     # which effectively requires the snapd snap to be installed to execute other
     # snaps from inside the devmode non-core based snap

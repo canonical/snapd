@@ -1,4 +1,4 @@
-summary: Check that snap try can be used for snaps in /tmp 
+summary: Check that snap try can be used for snaps in /tmp
 
 prepare: |
     cp -a "$TESTSLIB"/snaps/test-snapd-sh /tmp

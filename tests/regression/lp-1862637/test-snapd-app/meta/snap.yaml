@@ -1,5 +1,5 @@
 name: test-snapd-app
-summary: shell with network-control plug 
+summary: shell with network-control plug
 version: 1
 
 apps:

@@ -16,7 +16,7 @@
 2022-05-24 17:48:42 Restoring google:ubuntu-22.04-64:tests/test-5 (may242047-566626)...
 2022-05-24 17:48:42 Allocated google:ubuntu-20.04-64 (may242047-566476).
 2022-05-24 17:48:42 Connecting to google:ubuntu-20.04-64 (may242047-566476)...
-2022-05-24 17:48:43 Error restoring google:ubuntu-22.04-64:tests/test-5 (may242047-566626) : 
+2022-05-24 17:48:43 Error restoring google:ubuntu-22.04-64:tests/test-5 (may242047-566626) :
 -----
 + echo restore
 restore
@@ -33,7 +33,7 @@ restore
 2022-05-24 17:48:47 Preparing google:ubuntu-20.04-64:tests/test-1 (may242047-566476)...
 2022-05-24 17:48:48 Executing google:ubuntu-20.04-64:tests/test-1 (may242047-566476) (2/10)...
 2022-05-24 17:48:48 Restoring google:ubuntu-20.04-64:tests/test-1 (may242047-566476)...
-2022-05-24 17:48:49 Error restoring google:ubuntu-20.04-64:tests/test-1 (may242047-566476) : 
+2022-05-24 17:48:49 Error restoring google:ubuntu-20.04-64:tests/test-1 (may242047-566476) :
 -----
 + echo restore
 restore

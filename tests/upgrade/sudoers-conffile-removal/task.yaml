@@ -3,7 +3,7 @@ summary: Ensure conffile removal from upgrades <2.46 works
 details: |
     Ensure that upgrading from 2.45.1 works and conffile cleanup for
     /etc/sudoers.d/99-snapd.conf happens.
-    
+
     The exact version of snapd is a bit arbitrary (anything before
     2.46 is fine).
 
@@ -21,7 +21,7 @@ execute: |
 
     echo "Check that the sudoers.d conffile is there"
     test -e /etc/sudoers.d/99-snapd.conf
-    
+
     echo "upgrade to current snapd"
     apt install -y "$GOHOME"/snapd*.deb
 

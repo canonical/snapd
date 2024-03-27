@@ -12,7 +12,7 @@ execute: |
 
     echo "The plug is disconnected by default"
     snap interfaces -i hostname-control | MATCH -- '- +test-snapd-sh:hostname-control'
-    
+
     echo "When the plug is connected"
     snap connect test-snapd-sh:hostname-control
 
@@ -29,7 +29,7 @@ execute: |
     echo "And hostname can be get/set through dbus"
     test-snapd-sh.with-hostname-control-plug -c "hostnamectl" | MATCH "$hostname"
     test-snapd-sh.with-hostname-control-plug -c "hostnamectl set-hostname $hostname"
-    
+
     if [ "$(snap debug confinement)" = partial ]; then
         exit 0
     fi

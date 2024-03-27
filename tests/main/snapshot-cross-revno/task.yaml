@@ -34,7 +34,7 @@ execute: |
 
     # take a snapshot
     set_id=$( snap save test-snapd-tools | cut -d\  -f1 | tail -n1 )
-    
+
     # remove the canary
     find {/root,/home/test}/snap/test-snapd-tools/ -name canary.txt -delete -printf '%p deleted\n'
 

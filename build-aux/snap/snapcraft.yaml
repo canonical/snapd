@@ -54,7 +54,7 @@ parts:
       ./get-deps.sh --skip-unused-check
     override-build: |
       # unset the LD_FLAGS and LD_LIBRARY_PATH vars that snapcraft sets for us
-      # as those will point to the $SNAPCRAFT_STAGE which on re-builds will 
+      # as those will point to the $SNAPCRAFT_STAGE which on re-builds will
       # contain things like libc and friends that confuse the debian package
       # build system
       # TODO: should we unset $PATH to not include $SNAPCRAFT_STAGE too?

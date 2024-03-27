@@ -397,19 +397,19 @@ As such, that they will follow this pattern:
           slot-snap-type:
             - core                     # implicit slot
         #allow-auto-connection: true   # allow auto-connect, default
-  
+
       manual-connected-implicit-slot:
         allow-installation:
           slot-snap-type:
             - core                     # implicit slot
         deny-auto-connection: true     # force manual connect
-  
+
       auto-connected-provided-slot:
         allow-installation:
           slot-snap-type:
             - app                      # app provided slot
         deny-connection: true          # require allow-connection in snap decl
-  
+
       manual-connected-provided-slot:
         allow-installation:
           slot-snap-type:
@@ -558,7 +558,7 @@ Some interfaces might need complex policies that mix many of these patterns, for
          - app
          - gadget
      deny-auto-connection: true
- 
+
  plugs:
   shared-memory:
      allow-connection:

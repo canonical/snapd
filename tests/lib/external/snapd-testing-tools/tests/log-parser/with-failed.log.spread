@@ -67,7 +67,7 @@ xfsprogs-devel
 2021-01-20 12:49:17 Restoring google:centos-8-64:tests/main/services-snapctl (jan201228-089626)...
 2021-01-20 12:49:17 Executing google:centos-8-64:tests/completion/simple:hosts (jan201228-089636) (93/435)...
 2021-01-20 12:49:17 Preparing google:centos-8-64:tests/main/services-refresh-mode (jan201228-089626)...
-2021-01-20 12:49:21 Error executing google:centos-8-64:tests/lib/tools/suite/tests.pkgs (jan201228-089359) : 
+2021-01-20 12:49:21 Error executing google:centos-8-64:tests/lib/tools/suite/tests.pkgs (jan201228-089359) :
 -----
 + os.query is-core
 + MATCH 'usage: tests.pkgs {install,remove} \[PACKAGE...\]'
@@ -82,19 +82,19 @@ xfsprogs-devel
 ++ command -v dnf
 + '[' /usr/bin/dnf '!=' '' ']'
 + dnf install -y robotfindskitten
-CentOS-8 - AppStream                            3.6 MB/s | 6.3 MB     00:01    
-CentOS-8 - Base                                 5.3 MB/s | 2.3 MB     00:00    
-CentOS-8 - Extras                               3.5 kB/s | 8.6 kB     00:02    
-CentOS-8 - PowerTools                           1.3 MB/s | 2.0 MB     00:01    
-Extra Packages for Enterprise Linux Modular 8 - 708 kB/s | 537 kB     00:00    
-Extra Packages for Enterprise Linux 8 - x86_64   14 MB/s | 8.8 MB     00:00    
-Google Compute Engine                           8.9 kB/s | 7.4 kB     00:00    
-Google Cloud SDK                                 18 MB/s |  24 MB     00:01    
+CentOS-8 - AppStream                            3.6 MB/s | 6.3 MB     00:01
+CentOS-8 - Base                                 5.3 MB/s | 2.3 MB     00:00
+CentOS-8 - Extras                               3.5 kB/s | 8.6 kB     00:02
+CentOS-8 - PowerTools                           1.3 MB/s | 2.0 MB     00:01
+Extra Packages for Enterprise Linux Modular 8 - 708 kB/s | 537 kB     00:00
+Extra Packages for Enterprise Linux 8 - x86_64   14 MB/s | 8.8 MB     00:00
+Google Compute Engine                           8.9 kB/s | 7.4 kB     00:00
+Google Cloud SDK                                 18 MB/s |  24 MB     00:01
 No match for argument: robotfindskitten
 Error: Unable to find a match: robotfindskitten
 -----
 .
-2021-01-20 12:49:22 Debug output for google:centos-8-64:tests/lib/tools/suite/tests.pkgs (jan201228-089359) : 
+2021-01-20 12:49:22 Debug output for google:centos-8-64:tests/lib/tools/suite/tests.pkgs (jan201228-089359) :
 -----
 + '[' 1 = 1 ']'
 + . /home/gopath/src/github.com/snapcore/snapd/tests/lib/state.sh
@@ -213,4 +213,4 @@ error: unsuccessful run
 2021-01-20 13:30:13 Successful tasks: 434
 2021-01-20 13:30:13 Aborted tasks: 0
 2021-01-20 13:30:13 Failed tasks: 1
-    - google:centos-8-64:tests/lib/tools/suite/tests.pkgs 
+    - google:centos-8-64:tests/lib/tools/suite/tests.pkgs

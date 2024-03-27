@@ -1,7 +1,7 @@
 summary: Ensure the system handles properly a big number of core provided connections
 
 details: |
-    Install a test snap that plugs as many core provided interfaces as is 
+    Install a test snap that plugs as many core provided interfaces as is
     possible and verify the command can run. This will help catch performance
     issues in snapd, AppArmor,seccomp policy parsing, etc.
 
@@ -21,7 +21,7 @@ prepare: |
     fi
 
 restore: |
-    # Remove the snaps to avoid timeout in next test    
+    # Remove the snaps to avoid timeout in next test
     if tests.session has-session-systemd-and-dbus; then
         tests.session -u test restore
     fi
@@ -119,6 +119,6 @@ execute: |
     done
 
     echo "Removing the consumer snap"
-    # When DISCONNECT_INTERFACES = false, then all the interfaces are connected and 
+    # When DISCONNECT_INTERFACES = false, then all the interfaces are connected and
     # are disconnected suring the snap removal
     snap remove --purge "$CONSUMER_SNAP"

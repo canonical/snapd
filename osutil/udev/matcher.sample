@@ -1,13 +1,13 @@
 {
 	"rules": [
 		{
-			"action": "^ad+$", 
+			"action": "^ad+$",
 			"env": {
 				"SUBSYSTEM": "^usb.*"
 			}
 		},
 		{
-			"action": "remove", 
+			"action": "remove",
 			"env": {
 				"SUBSYSTEM": "^usb.*"
 			}

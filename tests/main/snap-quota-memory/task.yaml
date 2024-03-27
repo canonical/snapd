@@ -1,7 +1,7 @@
 summary: Functional test for memory quota-related snap commands.
 
 details: |
-  Functional test for snap memory quota group commands ensuring that they are 
+  Functional test for snap memory quota group commands ensuring that they are
   effective in practice.
 
 # these systems do not support quota groups due to their old systemd versions,
@@ -62,8 +62,8 @@ execute: |
   # the group is double escaped
   systemctl show --property=ControlGroup snap.go-example-webserver.webserver.service | MATCH 'ControlGroup=/snap.group(.*)one.slice/snap.go-example-webserver.webserver.service'
 
-  # snap quota group-one formats the memory usage as a nice human readable 
-  # string, which complicates the comparison here, so instead just grab the 
+  # snap quota group-one formats the memory usage as a nice human readable
+  # string, which complicates the comparison here, so instead just grab the
   # memory usage in raw bytes from the REST API instead
   echo "The memory usage reported for the slice from snapd is within 10% of what the kernel reports"
 
@@ -88,7 +88,7 @@ execute: |
   pyCmd="import math; print(math.ceil(abs($snapdSaysMemUsage - $kernelSaysMemUsage) / $snapdSaysMemUsage * 100))"
   if command -v python3 > /dev/null; then
     percentChg="$(python3 -c "$pyCmd")"
-  else 
+  else
     percentChg="$(python -c "$pyCmd")"
   fi
 
@@ -113,8 +113,8 @@ execute: |
     echo "Creating a quota with a very small memory limit results in the service being unable to start"
     snap set-quota too-small --memory=660KB go-example-webserver
 
-    # wait for systemd to finish trying to automatically restart it, we want 
-    # systemd to hit the start limit for this service, otherwise systemd 
+    # wait for systemd to finish trying to automatically restart it, we want
+    # systemd to hit the start limit for this service, otherwise systemd
     # restarting the service will race with removing the quota directly below
     # the unit will jump between SubState=running and SubState=auto-restart while
     # trying to restart it in a loop, but after systemd has hit the limit it will
@@ -131,16 +131,16 @@ execute: |
 
     echo "But the service is not running after a short amount of time"
     retry --wait 1 -n 100 sh -c 'snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+inactive"'
-    # check for the service to have ExecMainStatus=9 (or either of =203,219) here since 
-    # that is indicative of the service being killed by systemd ungracefully or being 
-    # unable to start up properly which is what we are expecting with the low 
+    # check for the service to have ExecMainStatus=9 (or either of =203,219) here since
+    # that is indicative of the service being killed by systemd ungracefully or being
+    # unable to start up properly which is what we are expecting with the low
     # memory limit for the quota group.
-    # run the check in a loop, because technically what is happening now is that 
-    # systemd is starting the process, it gets killed because it doesn't have 
-    # enough memory very quickly after being started, and then systemd retries 
+    # run the check in a loop, because technically what is happening now is that
+    # systemd is starting the process, it gets killed because it doesn't have
+    # enough memory very quickly after being started, and then systemd retries
     # again up to the StartLimitBurst related settings. So the service is actually
     # very quickly transitioning through the various states and we are racing with
-    # systemd as we check the status, so doing it in a loop ensures that if the 
+    # systemd as we check the status, so doing it in a loop ensures that if the
     # system is working we won't fail the test simply because systemd won the race
     retry --wait 1 -n 10 sh -c 'systemctl show --property=ExecMainStatus snap.go-example-webserver.webserver.service | MATCH "ExecMainStatus=(203|219|9)"'
 
@@ -178,14 +178,14 @@ execute: |
   snap set-quota group-five --memory=10MB --parent=group-four hello-world
 
   snapdSaysMemUsage="$(sudo snap run test-snapd-curl.curl --unix-socket /run/snapd.socket http://localhost/v2/quotas/group-five | jq -r '.result.current.memory')"
-  # both 0 and up to 12KiB values are expected here, 0 is for older systemd/kernels 
-  # where an empty cgroup has exactly 0, but on newer systems there is some 
+  # both 0 and up to 12KiB values are expected here, 0 is for older systemd/kernels
+  # where an empty cgroup has exactly 0, but on newer systems there is some
   # minimum amount of accounting memory for an empty cgroup, which is observed
   # to be up to 12KiB due to cached memory.
   case "$snapdSaysMemUsage" in
       null|0|4096|8192|12288)
           # expected
-          ;; 
+          ;;
       *)
           echo "unexpected memory usage for empty quota group group-five, snapd says: $snapdSaysMemUsage"
           exit 1
@@ -195,7 +195,7 @@ execute: |
   case "$snapdSaysMemUsage" in
       null|0|4096|8192|12288)
           # expected
-          ;; 
+          ;;
       *)
           echo "unexpected memory usage for empty quota group group-four, snapd says: $snapdSaysMemUsage"
           exit 1

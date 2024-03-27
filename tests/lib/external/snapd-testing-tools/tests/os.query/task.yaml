@@ -29,7 +29,7 @@ execute: |
             ! os.query is-ubuntu 14.04
             ! os.query is-core
             os.query is-pc-i386
-            ;;       
+            ;;
         ubuntu-18.04-64)
             os.query is-bionic
             os.query is-classic
@@ -133,18 +133,18 @@ execute: |
             os.query is-classic
             ! os.query is-core
             ;;
-        centos-7-64)            
+        centos-7-64)
             os.query is-centos
             os.query is-centos 7
             os.query is-classic
             ! os.query is-core
             ;;
-        centos-8-64)            
+        centos-8-64)
             os.query is-centos
             os.query is-centos 8
             ! os.query is-core
             ;;
-        centos-9-64)            
+        centos-9-64)
             os.query is-centos 9
             os.query is-centos
             ! os.query is-core
@@ -162,7 +162,7 @@ execute: |
             ! os.query is-core
             ;;
         *)
-            echo "System $SPREAD_SYSTEM not supported" 
+            echo "System $SPREAD_SYSTEM not supported"
             exit 1
             ;;
     esac

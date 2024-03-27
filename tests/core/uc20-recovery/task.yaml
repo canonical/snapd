@@ -73,13 +73,13 @@ execute: |
         test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/system-info > system-info
         jq -r '.result["system-mode"]' < system-info | MATCH 'run'
 
-        # now go back to recover mode so we can test that a simple reboot 
+        # now go back to recover mode so we can test that a simple reboot
         # works to transition us back to run mode
         label="$(jq -r .result.systems[0].label < systems.json)"
         transition_to_recover_mode "$label"
     elif [ "$SPREAD_REBOOT" == "3" ]; then
         echo "In recover mode again"
-        
+
         prepare_recover_mode
 
         # if we are using the external backend, remove the .ssh/rc hack we used
@@ -89,7 +89,7 @@ execute: |
         # message like this:
         # ssh: unexpected packet in response to channel open: <nil>
         if [ "$SPREAD_BACKEND" = "external" ]; then
-            # TODO:UC20: if/when /host is mounted ro, then we will need to 
+            # TODO:UC20: if/when /host is mounted ro, then we will need to
             # either remount it rw or do some other hack to fix this
             rm -f /host/ubuntu-data/user-data/external/.ssh/rc
         fi

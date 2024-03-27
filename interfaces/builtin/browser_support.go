@@ -74,7 +74,7 @@ owner /{dev,run}/shm/.io.nwjs.* mrw,
 /run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/{,.}com.google.Chrome.*/SS r,
 /run/user/[0-9]*/snap.@{SNAP_INSTANCE_NAME}/{,.}com.microsoft.Edge.*/SS r,
 
-# Allow access to Jupyter notebooks. 
+# Allow access to Jupyter notebooks.
 # This is temporary and will be reverted once LP: #1959417 is fixed upstream.
 owner @{HOME}/.local/share/jupyter/** rw,
 
@@ -328,7 +328,7 @@ chroot
 sched_setscheduler
 
 # Chromium will attempt to set the affinity of it's renderer threads, primarily
-# on android, but also on Linux where it is available. See 
+# on android, but also on Linux where it is available. See
 # https://github.com/chromium/chromium/blob/99314be8152e688bafbbf9a615536bdbb289ea87/content/common/android/cpu_affinity.cc#L51
 sched_setaffinity
 

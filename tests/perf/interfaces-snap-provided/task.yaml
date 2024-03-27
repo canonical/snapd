@@ -9,7 +9,7 @@ environment:
     CONSUMER_SNAP: test-snapd-policy-app-consumer
 
 execute: |
-    PROVIDER_SNAP="test-snapd-policy-app-provider-classic"    
+    PROVIDER_SNAP="test-snapd-policy-app-provider-classic"
     if os.query is-core; then
         PROVIDER_SNAP="test-snapd-policy-app-provider-core"
     fi
@@ -48,7 +48,7 @@ execute: |
     done
 
     echo "Removing the consumer snap"
-    # When DISCONNECT_INTERFACES = false, then all the interfaces are connected and 
+    # When DISCONNECT_INTERFACES = false, then all the interfaces are connected and
     # are disconnected suring the snap removal
     PROVIDER_SNAP="test-snapd-policy-app-provider-classic"
     if os.query is-core; then

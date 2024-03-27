@@ -156,7 +156,7 @@ execute: |
         snap ack "$p"
         cp -av pc_x2.snap "$BLOB_DIR/"
 
-        
+
         if os.query is-core-ge 20; then
             # on uc20, the pc snap we booted with is unasserted for extra debugging
             snap install pc_x2.snap --dangerous

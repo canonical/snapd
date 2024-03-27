@@ -15,4 +15,4 @@ execute: |
 
     CONNECTED_PATTERN_2="test-snapd-content-circular2:content-slot +test-snapd-content-circular1:content-plug"
     snap interfaces | MATCH "$CONNECTED_PATTERN_2"
-    
+

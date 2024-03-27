@@ -2,7 +2,7 @@ summary: Ensure that snapctl is-connected command works.
 
 details: |
   Verifies that `snapctl is-connected` command when executed from a
-  snap indicates properly if a connection is established. 
+  snap indicates properly if a connection is established.
 
 prepare: |
   snap pack test-snap

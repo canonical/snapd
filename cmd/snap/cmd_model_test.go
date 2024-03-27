@@ -426,11 +426,11 @@ base:                   core18
 gadget:                 pc=18
 kernel:                 pc-kernel=18
 store:                  mememestore
-system-user-authority:  
+system-user-authority:
   - youyouyou
   - mememe
 timestamp:       2017-07-27T00:00:00Z
-required-snaps:  
+required-snaps:
   - core
   - hello-world
 `[1:])
@@ -503,11 +503,11 @@ display-name:           Model Name
 gadget:                 pc=18
 kernel:                 pc-kernel=18
 store:                  mememestore
-system-user-authority:  
+system-user-authority:
   - youyouyou
   - mememe
 timestamp:       2017-07-27T00:00:00Z
-required-snaps:  
+required-snaps:
   - core
   - hello-world
 `[1:])
@@ -534,11 +534,11 @@ base:                   core18
 gadget:                 pc=18
 kernel:                 pc-kernel=18
 store:                  mememestore
-system-user-authority:  
+system-user-authority:
   - youyouyou
   - mememe
 timestamp:       2017-07-27T00:00:00Z
-required-snaps:  
+required-snaps:
   - core
   - hello-world
 `[1:])

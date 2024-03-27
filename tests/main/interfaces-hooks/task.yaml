@@ -52,7 +52,7 @@ execute: |
 
     echo "Ensure the hooks were actually executed"
     check_hooks_were_run
-  
+
     # stop snapd before inspecting state.json
     systemctl stop snapd.service snapd.socket
 
@@ -84,7 +84,7 @@ execute: |
     test -f "$PRODUCER_DATA/connect-slot-producer-done"
     test -f "$PRODUCER_DATA/disconnect-slot-producer-done"
 
-    MATCH "plug-changed.consumer-value" < "$CONSUMER_DATA/unprepare-plug-consumer-done" 
+    MATCH "plug-changed.consumer-value" < "$CONSUMER_DATA/unprepare-plug-consumer-done"
 
     remove_markers
 

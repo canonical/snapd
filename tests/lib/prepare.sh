@@ -273,7 +273,7 @@ EOF
 
 prepare_reexec_override() {
     local reexec_file=/etc/systemd/system/snapd.service.d/reexec.conf
- 
+
     # First time it is needed to save the initial env var value
     if not tests.env is-set initial SNAP_REEXEC; then
         tests.env set initial SNAP_REEXEC "$SNAP_REEXEC"
@@ -654,7 +654,7 @@ uc20_build_initramfs_kernel_snap() {
             initramfsEpochBumpTime="${optArg#--epoch-bump-time=}"
             ;;
     esac
-    
+
     # kernel snap is huge, unpacking to current dir
     unsquashfs -d repacked-kernel "$ORIG_SNAP"
 
@@ -676,8 +676,8 @@ uc20_build_initramfs_kernel_snap() {
         unmkinitramfs initrd unpacked-initrd
 
         # use only the initrd we got from the kernel snap to inject our changes
-        # we don't use the distro package because the distro package may be 
-        # different systemd version, etc. in the initrd from the one in the 
+        # we don't use the distro package because the distro package may be
+        # different systemd version, etc. in the initrd from the one in the
         # kernel and we don't want to test that, just test our snap-bootstrap
         cp -ar unpacked-initrd skeleton
         # all the skeleton edits go to a local copy of distro directory
@@ -718,7 +718,7 @@ EOF
             echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> "$snap_bootstrap_file"
         fi
 
-        # bump the epoch time file timestamp, converting unix timestamp to 
+        # bump the epoch time file timestamp, converting unix timestamp to
         # touch's date format
         touch -t "$(date --utc "--date=@$initramfsEpochBumpTime" '+%Y%m%d%H%M')" "$clock_epoch_file"
 
@@ -780,7 +780,7 @@ EOF
     if [ -d ./extra-kernel-snap/ ]; then
         cp -a ./extra-kernel-snap/* ./repacked-kernel
     fi
-    
+
     snap pack repacked-kernel "$TARGET"
     rm -rf repacked-kernel
 }
@@ -994,7 +994,7 @@ setup_reflash_magic() {
         core_name="core24"
         # TODO: revert this once snaps are ready in target channel
         KERNEL_CHANNEL=beta
-        GADGET_CHANNEL=edge    
+        GADGET_CHANNEL=edge
     fi
     # XXX: we get "error: too early for operation, device not yet
     # seeded or device model not acknowledged" here sometimes. To
@@ -1129,7 +1129,7 @@ EOF
         # build the initramfs with our snapd assets into the kernel snap
         if os.query is-core-ge 24; then
             uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
-        else    
+        else
             uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
         fi
         EXTRA_FUNDAMENTAL="--snap $IMAGE_HOME/pc-kernel_*.snap"
@@ -1158,16 +1158,16 @@ EOF
         # TODO: it would be desirable when we need to do in-depth debugging of
         # UC20 runs in google to have snapd.debug=1 always on the kernel command
         # line, but we can't do this universally because the logic for the env
-        # variable SNAPD_DEBUG=0|false does not overwrite the turning on of 
+        # variable SNAPD_DEBUG=0|false does not overwrite the turning on of
         # debug messages in some places when the kernel command line is set, so
-        # we get failing tests since there is extra stuff on stderr than 
+        # we get failing tests since there is extra stuff on stderr than
         # expected in the test when SNAPD_DEBUG is turned off
         # so for now, don't include snapd.debug=1, but eventually it would be
         # nice to have this on
 
         if [ "$SPREAD_BACKEND" = "google" ]; then
             # the default console settings for snapd aren't super useful in GCE,
-            # instead it's more useful to have all console go to ttyS0 which we 
+            # instead it's more useful to have all console go to ttyS0 which we
             # can read more easily than tty1 for example
             for cmd in "console=ttyS0" "dangerous" "systemd.journald.forward_to_console=1" "rd.systemd.journald.forward_to_console=1" "panic=-1"; do
                 echo "$cmd" >> pc-gadget/cmdline.full
@@ -1180,9 +1180,9 @@ EOF
             done
         fi
 
-        # TODO: this probably means it's time to move this helper out of 
+        # TODO: this probably means it's time to move this helper out of
         # nested.sh to somewhere more general
-        
+
         #shellcheck source=tests/lib/nested.sh
         . "$TESTSLIB/nested.sh"
         KEY_NAME=$(nested_get_snakeoil_key)
@@ -1191,7 +1191,7 @@ EOF
         SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
         nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-        snap pack --filename=pc-repacked.snap pc-gadget 
+        snap pack --filename=pc-repacked.snap pc-gadget
         mv pc-repacked.snap $IMAGE_HOME/pc-repacked.snap
         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $IMAGE_HOME/pc-repacked.snap"
     fi
@@ -1222,14 +1222,14 @@ EOF
             BASE=core22
         fi
         snap download "${BASE}" --channel="$BASE_CHANNEL" --basename="${BASE}"
-        
-        # we want to download the specific channel referenced by $BASE_CHANNEL, 
+
+        # we want to download the specific channel referenced by $BASE_CHANNEL,
         # but if we just seed that revision and $BASE_CHANNEL != $IMAGE_CHANNEL,
         # then immediately on booting, snapd will refresh from the revision that
         # is seeded via $BASE_CHANNEL to the revision that is in $IMAGE_CHANNEL,
-        # so to prevent that from happening (since that automatic refresh will 
+        # so to prevent that from happening (since that automatic refresh will
         # confuse spread and make tests fail in awkward, confusing ways), we
-        # unpack the snap and re-pack it so that it is not asserted and thus 
+        # unpack the snap and re-pack it so that it is not asserted and thus
         # won't be automatically refreshed
         # note that this means that when $IMAGE_CHANNEL != $BASE_CHANNEL, we
         # will have unasserted snaps for all snaps on UC20 in GCE spread:
@@ -1242,10 +1242,10 @@ EOF
             snap pack --filename="${BASE}-repacked.snap" "${BASE}-snap"
             rm -r "${BASE}-snap"
             mv "${BASE}-repacked.snap" "${IMAGE_HOME}/${BASE}.snap"
-        else 
+        else
             mv "${BASE}.snap" "${IMAGE_HOME}/${BASE}.snap"
         fi
-        
+
         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap ${IMAGE_HOME}/${BASE}.snap"
     fi
     local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
@@ -1278,8 +1278,8 @@ EOF
     if os.query is-core-le 18; then
         # grow the image by 400M
         truncate --size=+400M "$IMAGE_HOME/$IMAGE"
-        # fix the GPT table because old versions of parted complain about this 
-        # and refuse to properly run the next command unless the GPT table is 
+        # fix the GPT table because old versions of parted complain about this
+        # and refuse to properly run the next command unless the GPT table is
         # updated
         # this command moves the backup gpt partition to the end of the disk,
         # which is sensible since we've just resized the backing storage
@@ -1313,9 +1313,9 @@ EOF
     # - govendor .cache directory and the binary,
     if os.query is-core-le 18; then
         mkdir -p /mnt/user-data/
-        # we need to include "core" here because -C option says to ignore 
+        # we need to include "core" here because -C option says to ignore
         # files the way CVS(?!) does, so it ignores files named "core" which
-        # are core dumps, but we have a test suite named "core", so including 
+        # are core dumps, but we have a test suite named "core", so including
         # this here will ensure that portion of the git tree is included in the
         # image
         rsync -a -C \

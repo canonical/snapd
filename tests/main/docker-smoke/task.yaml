@@ -35,7 +35,7 @@ execute: |
     # and dockerd to be "ready" enough such that docker can talk to it properly
     retry -n 30 --wait 1 docker run hello-world | MATCH "installation appears to be working correctly"
 
-    # also check that the docker snap can be installed in devmode for some 
+    # also check that the docker snap can be installed in devmode for some
     # specific customer use cases related to microk8s
     snap remove docker --purge
     snap install --channel="$CHANNEL" docker --devmode

@@ -3,7 +3,7 @@ summary: Ensure that the netlink connector interface works.
 details: |
     The netlink-connector interface allows communication through the kernel netlink connector.
 
-    The test-snapd-netlink-connector snap creates a netlink socket and binds it. 
+    The test-snapd-netlink-connector snap creates a netlink socket and binds it.
 
 prepare: |
     # Install a snap declaring a plug on netlink-connector

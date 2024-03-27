@@ -24,7 +24,7 @@ execute: |
     for i in $(seq 10); do
        echo "Install $i"
        snap install "${names[@]}"
-       # snap remove --purge doesn't support multiple snaps, need to run 
+       # snap remove --purge doesn't support multiple snaps, need to run
        # sequentially
        for n in $(seq 9); do
           snap remove --purge "test-snapd-tools_$n"

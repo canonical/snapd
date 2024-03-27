@@ -48,7 +48,7 @@ execute: |
     # available
     echo "Start the VM, which should automatically shut itself down"
 
-    # below is extracted from nested_start_core_vm, we don't want the 
+    # below is extracted from nested_start_core_vm, we don't want the
     # nested_prepare_ssh to run yet, since it will fail when the VM shuts itself
     # down, we need to manually run it later
     CURRENT_NAME="$(tests.nested get current-name)"
@@ -64,7 +64,7 @@ execute: |
 
     echo "Check that the partitions were created on the VM's disk"
     sfdisk --json "$IMAGE_FILE" | jq -r '.partitiontable.partitions | .[].name' > partitions.txt
-    # note that ubuntu-data and ubuntu-save have partition labels without the 
+    # note that ubuntu-data and ubuntu-save have partition labels without the
     # -enc suffix, but have filesystem labels of ubuntu-data-enc etc, here we
     # are just seeing the partition labels, we check the filesystem labels and
     # thus whether encryption happened below when the VM boots up
@@ -81,7 +81,7 @@ execute: |
     # shut down while still in install mode, we need to manually do this stage
     nested_prepare_ssh
 
-    # the start-vm command just waits for SSH, it doesn't wait for the other 
+    # the start-vm command just waits for SSH, it doesn't wait for the other
     # things here, so wait for those too
     remote.wait-for snap-command
     # Wait for snap seeding to be done

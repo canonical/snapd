@@ -18,7 +18,7 @@ execute: |
        echo "snap refresh --amend without --edge should error but it did not"
        exit 1
     fi
- 
+
     echo "A refresh with --amend refreshes it to the store revision"
     snap refresh --edge --amend test-snapd-just-edge
     echo "And we have a store revision now"

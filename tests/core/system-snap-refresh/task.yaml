@@ -25,7 +25,7 @@ restore: |
     TARGET_SNAP_NAME="$(snaps.name core)"
     # We need to make sure the base snap has the initial rev
     test "$("$TESTSTOOLS"/snaps-state show-revision "$TARGET_SNAP_NAME")" == "$(cat initi_rev.log)"
-    
+
     # remove SNAPD_SHUTDOWN_DELAY from /etc/environment again
     #shellcheck disable=SC2005
     echo "$(grep -v 'SNAPD_SHUTDOWN_DELAY=1' /etc/environment)" > /etc/environment

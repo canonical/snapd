@@ -79,7 +79,7 @@ func (s *personalFilesInterfaceSuite) TestConnectedPlugAppArmorHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), Equals, `
-# Description: Can access specific personal files or directories in the 
+# Description: Can access specific personal files or directories in the
 # users's home directory.
 # This is restricted because it gives file access to arbitrary locations.
 owner "@{HOME}/.read-dir{,/,/**}" rk,

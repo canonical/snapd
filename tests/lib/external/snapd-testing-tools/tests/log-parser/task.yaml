@@ -8,12 +8,12 @@ systems: [ubuntu-22.04-64]
 execute: |
     log-parser --help | MATCH 'usage: log-parser \[-h\] \[-c CUT\]'
     log-parser -h | MATCH 'usage: log-parser \[-h\] \[-c CUT\]'
-    
+
     # Check results when the log just contains successful tests
     log-parser all-successful.log.spread
     TESTS_SUCCESSFUL=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Successful") | .number' spread-results.json)
     test "$TESTS_SUCCESSFUL" = "434"
-    
+
     # Check results when the log contains failed tests
     log-parser with-failed.log.spread
     TESTS_SUCCESSFUL=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Successful") | .number' spread-results.json)
@@ -35,7 +35,7 @@ execute: |
     test "$TESTS_SUCCESSFUL" = "0"
     test -z "$TESTS_FAILED"
     test "$TESTS_ABORTED" = "505"
-    
+
     # Check results when the log contains aborted, failed and successful TESTS
     log-parser with-failed-and-aborted.log.spread
     TESTS_SUCCESSFUL=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Successful") | .number' spread-results.json)
@@ -69,7 +69,7 @@ execute: |
     test "$TESTS_FAILED_PROJECT_PREPARE" = "1"
     test "$TESTS_FAILED_PROJECT_RESTORE" = "2"
     test "$TESTS_ABORTED" = "3061"
-    
+
     # Check results when a detail contains results
     log-parser with-results-in-detail.log.spread
     TESTS_SUCCESSFUL=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Successful") | .number' spread-results.json)
@@ -84,7 +84,7 @@ execute: |
     # Check the filter
     test "$(log-parser with-failed-and-aborted.log.spread -pd error | grep -c "Error preparing")" -eq 5
     test "$(log-parser with-failed-and-aborted.log.spread -pd error | grep -c "command -v restorecon")" -eq 4
-    
+
     # Check the filter cuting the logs
     test "$(log-parser with-failed-and-aborted.log.spread -pd error | wc -l)" -eq 184
     test "$(log-parser with-failed-and-aborted.log.spread -pd error -c 0 | wc -l)" -eq 14
@@ -96,7 +96,7 @@ execute: |
     test "$(log-parser with-failed-and-aborted.log.spread -pd error -c 3 | wc -l)" -eq 32
     test "$(log-parser with-failed-and-aborted.log.spread -pd error -c 3 | grep -c "Error preparing")" -eq 5
     test "$(log-parser with-failed-and-aborted.log.spread -pd error -c 3 | grep -c "<kill-timeout reached>")" -eq 5
-    
+
     # Check the results can be filtered
     log-parser with-failed-and-aborted.log.spread -pr failed | grep -q "Failed tasks: 1"
     log-parser with-failed-and-aborted.log.spread -pr failed | grep -c "Failed project prepare: 4"

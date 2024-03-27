@@ -46,8 +46,8 @@ type netlinkDriverInterface struct {
 
 const netlinkDriverConnectedPlugApparmor = `
 # allow accessing the Linux kernel custom netlink protocol
-# this allows all netlink protocol communication - further 
-# confinement for particular families/protocols is 
+# this allows all netlink protocol communication - further
+# confinement for particular families/protocols is
 # implemented via seccomp filtering
 network netlink,
 

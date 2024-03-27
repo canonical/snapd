@@ -148,7 +148,7 @@ plugs:
 apps:
   netlink-test:
     command: bin/foo.sh
-    plugs: 
+    plugs:
       - plug-for-netlink-driver-777
       - plug-for-netlink-driver-foo
 `, nil)

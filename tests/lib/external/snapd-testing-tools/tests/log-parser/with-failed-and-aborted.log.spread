@@ -25,7 +25,7 @@
 2020-11-27 19:31:30 Connecting to google:opensuse-tumbleweed-64 (nov271930-268558)...
 2020-11-27 19:31:30 Preparing google:opensuse-tumbleweed-64 (nov271930-268530)...
 2020-11-27 20:01:27 Preparing google:opensuse-tumbleweed-64:tests/main/user-data-handling (nov271930-268530)...
-2020-11-27 20:01:30 Error preparing google:opensuse-tumbleweed-64 (nov271930-268552) : 
+2020-11-27 20:01:30 Error preparing google:opensuse-tumbleweed-64 (nov271930-268552) :
 -----
 + cat
 + mv gai.conf /etc/gai.conf
@@ -62,7 +62,7 @@ All repositories have been refreshed.
 -----
 .
 2020-11-27 20:01:30 Discarding google:opensuse-tumbleweed-64 (nov271930-268552)...
-2020-11-27 20:01:30 Error preparing google:opensuse-tumbleweed-64 (nov271930-268558) : 
+2020-11-27 20:01:30 Error preparing google:opensuse-tumbleweed-64 (nov271930-268558) :
 -----
 + cat
 + mv gai.conf /etc/gai.conf
@@ -79,7 +79,7 @@ All repositories have been refreshed.
 -----
 .
 2020-11-27 20:01:30 Discarding google:opensuse-tumbleweed-64 (nov271930-268558)...
-2020-11-27 20:01:30 Error preparing google:opensuse-tumbleweed-64 (nov271930-268563) : 
+2020-11-27 20:01:30 Error preparing google:opensuse-tumbleweed-64 (nov271930-268563) :
 -----
 + cat
 + mv gai.conf /etc/gai.conf
@@ -107,7 +107,7 @@ Building repository 'kernel-repo' cache [....done]
 -----
 .
 2020-11-27 20:01:30 Discarding google:opensuse-tumbleweed-64 (nov271930-268563)...
-2020-11-27 20:01:30 Error preparing google:opensuse-tumbleweed-64 (nov271930-268545) : 
+2020-11-27 20:01:30 Error preparing google:opensuse-tumbleweed-64 (nov271930-268545) :
 -----
 + cat
 + mv gai.conf /etc/gai.conf
@@ -132,7 +132,7 @@ Building repository 'kernel-repo' cache [....done]
 2020-11-27 20:51:45 Executing google:opensuse-tumbleweed-64:tests/main/snap-disconnect (nov271930-268530) (339/425)...
 2020-11-27 20:51:59 Restoring google:opensuse-tumbleweed-64:tests/main/snap-disconnect (nov271930-268530)...
 2020-11-27 20:52:00 Preparing google:opensuse-tumbleweed-64:tests/main/services-disable-install-hook (nov271930-268530)...
-2020-11-27 20:52:02 Error executing google:opensuse-tumbleweed-64:tests/main/interfaces-x11-unix-socket (nov271930-268322) : 
+2020-11-27 20:52:02 Error executing google:opensuse-tumbleweed-64:tests/main/interfaces-x11-unix-socket (nov271930-268322) :
 -----
 + echo 'Install test snaps'
 Install test snaps
@@ -161,7 +161,7 @@ grep error: pattern not found, got:
 <kill-timeout reached>
 -----
 .
-2020-11-27 20:52:02 Debug output for google:opensuse-tumbleweed-64:tests/main/interfaces-x11-unix-socket (nov271930-268322) : 
+2020-11-27 20:52:02 Debug output for google:opensuse-tumbleweed-64:tests/main/interfaces-x11-unix-socket (nov271930-268322) :
 -----
 + '[' 1 = 1 ']'
 + . /home/gopath/src/github.com/snapcore/snapd/tests/lib/state.sh
@@ -192,7 +192,7 @@ grep error: pattern not found, got:
 2020-11-27 20:53:48 Preparing google:opensuse-tumbleweed-64:tests/main/snapctl-is-connected (nov271930-268530)...
 2020-11-27 20:54:03 Executing google:opensuse-tumbleweed-64:tests/main/snapctl-is-connected (nov271930-268530) (344/425)...
 2020-11-27 21:15:00 Preparing google:opensuse-tumbleweed-64:tests/main/install-sideload:reexec0 (nov271930-268530)...
-2020-11-27 21:15:04 Error preparing google:opensuse-tumbleweed-64:tests/main/install-sideload:reexec0 (nov271930-268530) : 
+2020-11-27 21:15:04 Error preparing google:opensuse-tumbleweed-64:tests/main/install-sideload:reexec0 (nov271930-268530) :
 -----
 + /home/gopath/src/github.com/snapcore/snapd/tests/lib/prepare-restore.sh --prepare-project-each
 + set -e

@@ -73,7 +73,7 @@ prepare: |
     pack_pc_snap
 
     cp "test-snapd-with-configure${SUFFIX}"_*.snap /var/lib/snapd/seed/snaps/
-    
+
     # Generic setup for test account
     prepare_core_model
     prepare_and_manip_seed "test-snapd-with-configure${SUFFIX}"_*.snap

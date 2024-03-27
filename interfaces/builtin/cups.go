@@ -58,12 +58,12 @@ const cupsConnectedPlugAppArmor = `
 # Allow communicating with the cups server
 
 # Do not allow reading the user or global client.conf for this snap, as this may
-# allow a user to point an application at an unconfined cupsd which could be 
-# used to load printer drivers etc. We only want client snaps with the cups 
+# allow a user to point an application at an unconfined cupsd which could be
+# used to load printer drivers etc. We only want client snaps with the cups
 # interface plug connected to be able to talk to a version of cupsd which is
 # strictly confined and performs mediation. This means only allowing to talk to
 # /var/cups/cups.sock and not /run/cups/cups.sock since snapd has no way to know
-# if the latter cupsd is confined and performs mediation, but the upstream 
+# if the latter cupsd is confined and performs mediation, but the upstream
 # maintained cups snap providing a cups slot will always perform mediation.
 # As such, do not use the <abstractions/cups-client> include file here.
 
@@ -72,7 +72,7 @@ owner @{HOME}/.cups/lpoptions r,
 
 /{,var/}run/cups/printcap r,
 
-# Allow talking to the snap version of cupsd socket that we expose via bind 
+# Allow talking to the snap version of cupsd socket that we expose via bind
 # mounts from a snap providing the cups slot to this snap.
 /var/cups/cups.sock rw,
 `

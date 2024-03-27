@@ -3,7 +3,7 @@
 summary: Ensure that the daemon-notify interface works.
 
 details: |
-    The daemon-notify interface allows sending notification messages 
+    The daemon-notify interface allows sending notification messages
     to systemd through the notify socket
 
 

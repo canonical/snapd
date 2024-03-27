@@ -43,8 +43,8 @@ var _ = Suite(&authTestSuite{})
 const mockStoreInvalidLoginCode = 401
 const mockStoreInvalidLogin = `
 {
-    "message": "Provided email/password is not correct.", 
-    "code": "INVALID_CREDENTIALS", 
+    "message": "Provided email/password is not correct.",
+    "code": "INVALID_CREDENTIALS",
     "extra": {}
 }
 `
@@ -52,8 +52,8 @@ const mockStoreInvalidLogin = `
 const mockStoreNeeds2faHTTPCode = 401
 const mockStoreNeeds2fa = `
 {
-    "message": "2-factor authentication required.", 
-    "code": "TWOFACTOR_REQUIRED", 
+    "message": "2-factor authentication required.",
+    "code": "TWOFACTOR_REQUIRED",
     "extra": {}
 }
 `
@@ -61,8 +61,8 @@ const mockStoreNeeds2fa = `
 const mockStore2faFailedHTTPCode = 403
 const mockStore2faFailedResponse = `
 {
-    "message": "The provided 2-factor key is not recognised.", 
-    "code": "TWOFACTOR_FAILURE", 
+    "message": "The provided 2-factor key is not recognised.",
+    "code": "TWOFACTOR_FAILURE",
     "extra": {}
 }
 `

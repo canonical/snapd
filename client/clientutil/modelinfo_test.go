@@ -252,7 +252,7 @@ architecture:             amd64
 base:                     core20
 display-name:             Baz 3000
 store:                    brand-store
-system-user-authority:    
+system-user-authority:
   - partner
   - brand-id1
 timestamp:    %s

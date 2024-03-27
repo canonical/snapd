@@ -12,7 +12,7 @@ execute: |
         echo "Save current core revision"
         snap list | awk "/^core / {print(\$3)}" > prevBoot
 
-        echo "Refresh core to ${NEW_CORE_CHANNEL} channel" 
+        echo "Refresh core to ${NEW_CORE_CHANNEL} channel"
         snap refresh core "--${NEW_CORE_CHANNEL}"
 
         echo "Check boot env vars"

@@ -1,9 +1,9 @@
 summary: Ensure that commands run when their core provided interfaces are connected
 
 details: |
-    Install a test snap that plugs as many core provided interfaces as is 
-    possible and verify the command can run (ie, don't test the interface 
-    functionality itself). This will help catch things like AppArmor 
+    Install a test snap that plugs as many core provided interfaces as is
+    possible and verify the command can run (ie, don't test the interface
+    functionality itself). This will help catch things like AppArmor
     policy syntax errors, seccomp policy parsing, udev querying bugs, etc.
 
 systems: [ubuntu-18*, ubuntu-2*]

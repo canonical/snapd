@@ -417,7 +417,7 @@ class LogReader:
                 break
             else:
                 detail.append(line)
-        
+
         # We leave the iter in the last time in case the log has finished
         if not self.iter == len(self.lines):
             self.iter = self.iter - 1

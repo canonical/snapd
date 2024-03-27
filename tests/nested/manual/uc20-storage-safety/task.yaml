@@ -18,7 +18,7 @@ prepare: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-  
+
     # setup the fakestore, but don't use it for our snapd here on the
     # host VM, so tear down the staging_store immediately afterwards
     # so that only the SAS is running and our snapd is not pointed at

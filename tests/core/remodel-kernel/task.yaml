@@ -91,7 +91,7 @@ execute: |
         snap changes | MATCH "$chg_summary"
     }
 
-    # initial boot with the current model 
+    # initial boot with the current model
     if [ "$SPREAD_REBOOT" = 0 ]; then
         # precondition check
         snap list "$OLD_KERNEL"

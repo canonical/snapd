@@ -59,7 +59,7 @@ const maliitPermanentSlotAppArmor = `
 # DBus accesses
 #include <abstractions/dbus-session-strict>
 
-# Allow binding to the well-known maliit DBus service name for address 
+# Allow binding to the well-known maliit DBus service name for address
 # negotiation
 dbus (bind)
     bus=session
@@ -70,7 +70,7 @@ dbus (bind)
 
 # maliit uses peer-to-peer dbus over a unix socket after address negotiation.
 # Each application has its own one-to-one communication channel with the maliit
-# server, over which all further communication happens. Send and receive rules 
+# server, over which all further communication happens. Send and receive rules
 # are in the per-snap connection policy.
 unix (bind, listen, accept) type=stream addr="@/tmp/maliit-server/dbus-*",
 `

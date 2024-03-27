@@ -174,19 +174,19 @@ pivot_root,
 # use 'privileged-containers: true' to support --security-opts
 
 # defaults for docker-default
-# Unfortunately, the docker snap is currently (by design?) setup to have both 
-# the privileged and unprivileged variant of the docker-support interface 
-# connected which means we have rules that are compatible to allow both 
-# transitioning to docker-default profile here AAAAAAND transitioning to any 
-# other profile below in the privileged snippet, BUUUUUUUT also need to be 
-# triply compatible with the injected compatibility snap-confine transition 
-# rules to temporarily support executing other snaps from devmode snaps. 
-# So we are left with writing out these extremely verbose regexps because AARE 
-# does not have a negative concept to exclude just the paths we want. 
+# Unfortunately, the docker snap is currently (by design?) setup to have both
+# the privileged and unprivileged variant of the docker-support interface
+# connected which means we have rules that are compatible to allow both
+# transitioning to docker-default profile here AAAAAAND transitioning to any
+# other profile below in the privileged snippet, BUUUUUUUT also need to be
+# triply compatible with the injected compatibility snap-confine transition
+# rules to temporarily support executing other snaps from devmode snaps.
+# So we are left with writing out these extremely verbose regexps because AARE
+# does not have a negative concept to exclude just the paths we want.
 # See also https://bugs.launchpad.net/apparmor/+bug/1964853 and
-# https://bugs.launchpad.net/apparmor/+bug/1964854 for more details on the 
+# https://bugs.launchpad.net/apparmor/+bug/1964854 for more details on the
 # AppArmor parser side of things.
-# TODO: When we drop support for executing other snaps from devmode snaps (or 
+# TODO: When we drop support for executing other snaps from devmode snaps (or
 # when the AppArmor parser bugs are fixed) this can go back to the much simpler
 # rule:
 # change_profile unsafe /** -> docker-default,
@@ -267,7 +267,7 @@ ptrace (read, trace) peer=docker-default,
 
 
 # defaults for containerd
-# TODO: When we drop support for executing other snaps from devmode snaps (or 
+# TODO: When we drop support for executing other snaps from devmode snaps (or
 # when the AppArmor parser bugs are fixed) this can go back to the much simpler
 # rule:	
 # change_profile unsafe /** -> cri-containerd.apparmor.d,
@@ -822,12 +822,12 @@ const dockerSupportPrivilegedAppArmor = `
 # These rules are here to allow Docker to launch unconfined containers but
 # allow the docker daemon itself to go unconfined. Since it runs as root, this
 # grants device ownership.
-# TODO: When we drop support for executing other snaps from devmode snaps (or 
+# TODO: When we drop support for executing other snaps from devmode snaps (or
 # when the AppArmor parser bugs are fixed) this can go back to the much simpler
 # rule:
 # change_profile unsafe /**,
 # but until then we need this set of rules to avoid exec transition conflicts.
-# See also the comment above the "change_profile unsafe /** -> docker-default," 
+# See also the comment above the "change_profile unsafe /** -> docker-default,"
 # rule for more context.
 change_profile unsafe /[^s]**,
 change_profile unsafe /s[^n]**,
@@ -898,7 +898,7 @@ change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-conf[^i]**,
 change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-confi[^n]**,
 change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-confin[^e]**,
 
-# allow signaling and tracing any unconfined process since if containers are 
+# allow signaling and tracing any unconfined process since if containers are
 # launched without confinement docker still needs to trace them
 signal (send) peer=unconfined,
 ptrace (read, trace) peer=unconfined,
@@ -912,12 +912,12 @@ ptrace (read, trace) peer=unconfined,
 # Allow any file except for executing /snap/{snapd,core}/*/usr/lib/snapd/snap-confine
 # because in devmode confinement we will have a separate "x" transition on exec
 # rule that is in the policy that will overlap and thus conflict with this rule.
-# TODO: When we drop support for executing other snaps from devmode snaps (or 
+# TODO: When we drop support for executing other snaps from devmode snaps (or
 # when the AppArmor parser bugs are fixed) this can go back to the much simpler
 # rule:
 # /** rwlix,
 # but until then we need this set of rules to avoid exec transition conflicts.
-# See also the comment above the "change_profile unsafe /** -> docker-default," 
+# See also the comment above the "change_profile unsafe /** -> docker-default,"
 # rule for more context.
 /[^s]** rwlix,
 /s[^n]** rwlix,

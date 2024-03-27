@@ -18,7 +18,7 @@ prepare: |
     system-usernames:
       $SNAP_USER: shared
     EOF
-    
+
 restore: |
     # remove any leftovers
     snap remove --purge daemon-user || true

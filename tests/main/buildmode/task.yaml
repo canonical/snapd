@@ -9,7 +9,7 @@ execute: |
     # `objdump -f` will report "DYNAMIC" for binaries build with
     # -buildmode=pie
     needle="DYNAMIC"
-    
+
     # 32bit arches (like armhf/i386) are build without -buildmode=pie
     # as it breaks too many things if we do.
     if [ "$(getconf LONG_BIT)" = 32 ]; then

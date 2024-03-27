@@ -8,5 +8,5 @@ backends:
 path: /home/test
 
 suites:
-    checks/: 
+    checks/:
         summary: Verification tasks.

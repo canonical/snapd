@@ -70,7 +70,7 @@ execute: |
     mount -o bind "$TESTSLIB/mock-shutdown" /bin/systemctl
     tests.cleanup defer umount /bin/systemctl
 
-    # now refresh to the new version of snapd - this will trigger a reboot of 
+    # now refresh to the new version of snapd - this will trigger a reboot of
     # the system
     snap install --dangerous snapd-pr.snap 2>&1 | MATCH "snapd is about to reboot the system"
 
@@ -97,10 +97,10 @@ execute: |
   fi
 
   # we rebooted after installing the new snapd as expected, make sure that the
-  # service is active and that the snap change finishes successfully 
+  # service is active and that the snap change finishes successfully
 
   snap watch --last=install
-  snap changes snapd | NOMATCH Error 
+  snap changes snapd | NOMATCH Error
   snap changes snapd | NOMATCH Undone
   snap changes snapd | NOMATCH Hold
 

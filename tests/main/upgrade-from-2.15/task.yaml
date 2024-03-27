@@ -52,7 +52,7 @@ execute: |
 
     echo "Install a test snap"
     snap install test-snapd-sh
-    
+
     echo "upgrade to current snapd"
     apt install -y "$GOHOME"/snapd*.deb
 

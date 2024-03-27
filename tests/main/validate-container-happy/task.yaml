@@ -15,7 +15,7 @@ execute: |
     # Then we pack the snap with these symlinks and then install
     # Finally we check to see if the symlinks actually support the intervined symlinks
 
-    # Untar the symlinks 
+    # Untar the symlinks
     tar -xvf "$SNAP"/hell/hell.tar -C "$SNAP"/hell
 
     snap try "$SNAP"

@@ -74,7 +74,7 @@ prepare: |
     systemctl restart snapd.socket
 
     if [ ! -d '/snap' ]; then
-        SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"        
+        SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
         ln -s "$SNAP_MOUNT_DIR" /snap
     fi
 

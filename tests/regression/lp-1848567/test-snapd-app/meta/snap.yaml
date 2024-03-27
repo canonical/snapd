@@ -1,5 +1,5 @@
-name: test-snapd-app 
-version: 1 
+name: test-snapd-app
+version: 1
 base: core18
 architectures: [all]
 plugs:

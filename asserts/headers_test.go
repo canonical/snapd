@@ -44,7 +44,7 @@ bar: baz`))
 func (s *headersSuite) TestParseHeadersMultiline(c *C) {
 	m, err := asserts.ParseHeaders([]byte(`foo:
     abc
-    
+
 bar: baz`))
 	c.Assert(err, IsNil)
 	c.Check(m, DeepEquals, map[string]interface{}{
@@ -74,7 +74,7 @@ bar:
 	m, err = asserts.ParseHeaders([]byte(`foo: 1
 bar:
     baz
-    
+
     baz2`))
 	c.Assert(err, IsNil)
 	c.Check(m, DeepEquals, map[string]interface{}{
@@ -102,7 +102,7 @@ func (s *headersSuite) TestParseHeadersListNestedMultiline(c *C) {
   -
       y1
       y2
-      
+
   - z
 bar: baz`))
 	c.Assert(err, IsNil)
@@ -131,7 +131,7 @@ func (s *headersSuite) TestParseHeadersSimpleMap(c *C) {
 	m, err := asserts.ParseHeaders([]byte(`foo:
   x: X
   yy: YY
-  z5: 
+  z5:
 bar: baz`))
 	c.Assert(err, IsNil)
 	c.Check(m, DeepEquals, map[string]interface{}{

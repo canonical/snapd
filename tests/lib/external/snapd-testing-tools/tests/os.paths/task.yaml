@@ -33,7 +33,7 @@ execute: |
             test "$(os.paths libexec-dir)" = "/usr/lib"
             ;;
         *)
-            echo "System $SPREAD_SYSTEM not supported" 
+            echo "System $SPREAD_SYSTEM not supported"
             exit 1
             ;;
     esac

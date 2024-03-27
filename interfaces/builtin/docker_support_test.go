@@ -66,7 +66,7 @@ version: 1.0
 apps:
  app:
   command: foo
-  plugs: 
+  plugs:
    - docker-support
    - network-control
 `

@@ -46,7 +46,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Unpack the original with fakeroot (to preserve ownership of files). 
+# Unpack the original with fakeroot (to preserve ownership of files).
 fakeroot tar \
 	--auto-compress \
 	--extract \

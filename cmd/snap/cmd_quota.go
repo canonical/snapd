@@ -37,8 +37,8 @@ import (
 
 var shortQuotaHelp = i18n.G("Show quota group for a set of snaps")
 var longQuotaHelp = i18n.G(`
-The quota command shows information about a quota group, including the set of 
-snaps and any sub-groups it contains, as well as its resource constraints and 
+The quota command shows information about a quota group, including the set of
+snaps and any sub-groups it contains, as well as its resource constraints and
 the current usage of those constrained resources.
 `)
 
@@ -49,9 +49,9 @@ The quotas command shows all quota groups.
 
 var shortRemoveQuotaHelp = i18n.G("Remove quota group")
 var longRemoveQuotaHelp = i18n.G(`
-The remove-quota command removes the given quota group. 
+The remove-quota command removes the given quota group.
 
-Currently, only quota groups with no sub-groups can be removed. In order to 
+Currently, only quota groups with no sub-groups can be removed. In order to
 remove a quota group with sub-groups, the sub-groups must first be removed until
 there are no sub-groups for the group, then the group itself can be removed.
 `)
@@ -62,19 +62,19 @@ The set-quota command updates or creates a quota group with the specified set of
 snaps.
 
 A quota group sets resource limits on the set of snaps or snap services it contains.
-Snaps can be at most in one quota group but quota groups can be nested. Nested quota 
+Snaps can be at most in one quota group but quota groups can be nested. Nested quota
 groups are subject to the restriction that the total sum of each existing quota
 in sub-groups cannot exceed that of the parent group the nested groups are part of.
 
 All provided snaps are appended to the group; to remove a snap from a
-quota group, the entire group must be removed with remove-quota and recreated 
-without the snap. To remove a sub-group from the quota group, the 
+quota group, the entire group must be removed with remove-quota and recreated
+without the snap. To remove a sub-group from the quota group, the
 sub-group must be removed directly with the remove-quota command.
 
 To set limits on individual services, one or more services can be placed into a
 sub-group. The respective snap for each service must belong to the sub-group's
 parent group. These sub-groups will have the same limitations as nested groups
-which means their combined resource usage cannot exceed the resource limits set 
+which means their combined resource usage cannot exceed the resource limits set
 for the parent group. Sub-groups which contain services cannot have their own
 journal quotas set, and instead automatically inherit any journal quota their
 parent quota group may have.
@@ -82,14 +82,14 @@ parent quota group may have.
 The memory limit for a quota group can be increased but not decreased. To
 decrease the memory limit for a quota group, the entire group must be removed
 with the remove-quota command and recreated with a lower limit. Increasing the
-memory limit for a quota group does not restart any services associated with 
+memory limit for a quota group does not restart any services associated with
 snaps in the quota group.
 
 The CPU limit for a quota group can be both increased and decreased after being
 set on a quota group. The CPU limit can be specified as a single percentage which
 means that the quota group is allowed an overall percentage of the CPU resources. Setting
 it to 50% means that the quota group is allowed to use up to 50% of all CPU cores
-in the allowed CPU set. Setting the percentage to 2x100% means that the quota group 
+in the allowed CPU set. Setting the percentage to 2x100% means that the quota group
 is allowed up to 100% on two cpu cores.
 
 The CPU set limit for a quota group can be modified to include new cpus, or to remove
@@ -106,7 +106,7 @@ journal namespace. This will affect the behaviour of the log command.
 New quotas can be set on existing quota groups, but existing quotas cannot be removed
 from a quota group, without removing and recreating the entire group.
 
-Adding new snaps to a quota group will result in all non-disabled services in 
+Adding new snaps to a quota group will result in all non-disabled services in
 that snap being restarted.
 
 An existing sub group cannot be moved from one parent to another.

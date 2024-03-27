@@ -17,7 +17,7 @@ set -e
 # - the GO_GENERATE_BUILDDIR which may be the toplevel pkg dir. but
 #   during "dpkg-buildpackage" it will become a different _build/ dir
 #   that dh-golang creates and that only contains a subset of the
-#   files of the toplevel buildir. 
+#   files of the toplevel buildir.
 PKG_BUILDDIR=$(dirname "$0")
 GO_GENERATE_BUILDDIR="${GO_GENERATE_BUILDDIR:-$(pwd)}"
 
@@ -45,12 +45,12 @@ DIRTY=false
 # can be in git, so try not to confuse the two.
 if command -v git >/dev/null && [ -d "$(dirname "$0")/.git" ] ; then
     # don't include --dirty here as we independently track whether the tree is
-    # dirty and append that last, including it here will make dirty trees 
+    # dirty and append that last, including it here will make dirty trees
     # directly on top of tags show up with version_from_git as 2.46-dirty which
     # will not match 2.46 from the changelog and then result in a final version
     # like 2.46+git2.46.2.46 which is silly and unhelpful
     # tracking the dirty independently like this will produce instead 2.46-dirty
-    # for a dirty tree on top of a tag, and 2.46+git83.g1671726-dirty for a 
+    # for a dirty tree on top of a tag, and 2.46+git83.g1671726-dirty for a
     # commit not directly on top of a tag
     version_from_git="$(git describe --always | sed -e 's/-/+git/;y/-/./' )"
 

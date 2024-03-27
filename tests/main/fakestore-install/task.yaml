@@ -12,7 +12,7 @@ restore: |
         exit
     fi
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
-  
+
 execute: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"

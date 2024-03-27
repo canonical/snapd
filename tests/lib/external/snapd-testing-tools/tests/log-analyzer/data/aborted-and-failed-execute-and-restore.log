@@ -20,7 +20,7 @@
 2022-05-24 18:38:04 Restoring google:ubuntu-22.04-64:tests/test-4 (may242137-942720)...
 2022-05-24 18:38:05 Preparing google:ubuntu-22.04-64:tests/test-2 (may242137-942720)...
 2022-05-24 18:38:05 Executing google:ubuntu-22.04-64:tests/test-2 (may242137-942720) (2/10)...
-2022-05-24 18:38:06 Error executing google:ubuntu-22.04-64:tests/test-2 (may242137-942720) : 
+2022-05-24 18:38:06 Error executing google:ubuntu-22.04-64:tests/test-2 (may242137-942720) :
 -----
 + echo execute
 execute
@@ -29,7 +29,7 @@ execute
 .
 2022-05-24 18:38:06 Restoring google:ubuntu-22.04-64:tests/test-2 (may242137-942720)...
 2022-05-24 18:38:06 Preparing google:ubuntu-20.04-64 (may242137-942824)...
-2022-05-24 18:38:06 Error restoring google:ubuntu-22.04-64:tests/test-2 (may242137-942720) : 
+2022-05-24 18:38:06 Error restoring google:ubuntu-22.04-64:tests/test-2 (may242137-942720) :
 -----
 + echo restore
 restore
@@ -54,7 +54,7 @@ restore
 2022-05-24 18:38:13 Restoring google:ubuntu-20.04-64:tests/test-4 (may242137-942824)...
 2022-05-24 18:38:13 Preparing google:ubuntu-20.04-64:tests/test-2 (may242137-942824)...
 2022-05-24 18:38:14 Executing google:ubuntu-20.04-64:tests/test-2 (may242137-942824) (7/10)...
-2022-05-24 18:38:14 Error executing google:ubuntu-20.04-64:tests/test-2 (may242137-942824) : 
+2022-05-24 18:38:14 Error executing google:ubuntu-20.04-64:tests/test-2 (may242137-942824) :
 -----
 + echo execute
 execute
@@ -62,7 +62,7 @@ execute
 -----
 .
 2022-05-24 18:38:14 Restoring google:ubuntu-20.04-64:tests/test-2 (may242137-942824)...
-2022-05-24 18:38:15 Error restoring google:ubuntu-20.04-64:tests/test-2 (may242137-942824) : 
+2022-05-24 18:38:15 Error restoring google:ubuntu-20.04-64:tests/test-2 (may242137-942824) :
 -----
 + echo restore
 restore

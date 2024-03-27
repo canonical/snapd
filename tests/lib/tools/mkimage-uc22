@@ -10,10 +10,10 @@ DEFAULT_CACHE_DIR="cache"
 DEFAULT_MNT_DIR="mnt"
 DEFAULT_SNAPD_BINPATH="/usr/lib/snapd"
 DEFAULT_BASE_IMAGE_URL="http://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04-base-amd64.tar.gz"
-DEFAULT_SNAPD_DEB_URL=https://storage.googleapis.com/snapd-spread-tests/snapd-tests/packages/ubuntu-22.04-64.tar 
+DEFAULT_SNAPD_DEB_URL=https://storage.googleapis.com/snapd-spread-tests/snapd-tests/packages/ubuntu-22.04-64.tar
 
 show_help() {
-    echo "usage: mkimage-uc22 [--boot-img BOOT_IMG] [--cache-dir CACHE_DIR] [--mnt-dir MNT_DIR] [--snap <SNAP_PATH> ...] model_assertion" 
+    echo "usage: mkimage-uc22 [--boot-img BOOT_IMG] [--cache-dir CACHE_DIR] [--mnt-dir MNT_DIR] [--snap <SNAP_PATH> ...] model_assertion"
     echo ""
     echo "create an image that looks like a classic image"
     echo ""
@@ -64,7 +64,7 @@ get_assets() {
 
     # get the snaps
     local NAME
-    for snap in pc-kernel pc; do        
+    for snap in pc-kernel pc; do
         NAME="$(find_snap "$CACHE" "$snap")"
         if [ -z "$NAME" ]; then
             echo "mkimage-uc22: downloading snap $snap"
@@ -90,7 +90,7 @@ get_assets() {
     else
         echo "mkimage-uc22: downloading the ubuntu classic base"
         wget -c -P "$CACHE" "$BASE_IMAGE_URL"
-    fi    
+    fi
 
     echo "mkimage-uc22: image assets ready"
 }
@@ -131,7 +131,7 @@ boot.img5 : start=     4030464, size=     8423391, type=0FC63DAF-8483-4772-8E79-
 EOF
 }
 
-install_data_partition() {    
+install_data_partition() {
     set -x
 
     local DESTDIR=$1
@@ -151,10 +151,10 @@ install_data_partition() {
 
     # ensure resolving works inside the chroot
     echo "nameserver 8.8.8.8" | sudo tee -a "$DESTDIR"/etc/resolv.conf
-    
+
     local pkgs="snapd ssh openssh-server sudo iproute2 iputils-ping isc-dhcp-client netplan.io vim-tiny kmod cloud-init jq update-notifier-common"
     echo "mkimage-uc22: installing additional packages: $pkgs"
-    sudo chroot "$DESTDIR" /usr/bin/sh -c "DEBIAN_FRONTEND=noninteractive apt -qq update"    
+    sudo chroot "$DESTDIR" /usr/bin/sh -c "DEBIAN_FRONTEND=noninteractive apt -qq update"
     sudo chroot "$DESTDIR" /usr/bin/sh -c \
          "DEBIAN_FRONTEND=noninteractive apt -qq install --no-install-recommends -y $pkgs" < /dev/null > /dev/null
 
@@ -446,7 +446,7 @@ main() {
     local MNT_DIR="$DEFAULT_MNT_DIR"
     local SNAPD_BINPATH="$DEFAULT_SNAPD_BINPATH"
     local BASE_IMAGE_URL="$DEFAULT_BASE_IMAGE_URL"
-    
+
     local SNAPD_DEB=""
     local BASE_IMAGE_PATH=""
     local MODEL_ASSERTION=""

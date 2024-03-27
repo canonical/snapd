@@ -145,7 +145,7 @@ execute: |
     snap set system system.timezone=America/Lima
     MATCH "America/Lima" < /etc/timezone
     test "$(readlink -f /etc/localtime)" = "/usr/share/zoneinfo/America/Lima"
-    
+
     echo "and setting the timezone outside of snapd is reflected by snap get"
     timedatectl set-timezone "America/Denver"
     snap get system system.timezone | MATCH "America/Denver"

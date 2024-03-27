@@ -83,7 +83,7 @@ wait_for_snap_command() {
         sleep "$wait"
     done
     echo ""
-    echo "remote.wait-for: snap command ready"   
+    echo "remote.wait-for: snap command ready"
 }
 
 get_boot_id() {

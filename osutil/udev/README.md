@@ -114,7 +114,7 @@ Don't hesitate to notice if you detect a problem with this tool or library.
 ## Links
 
 - Netlink Manual: http://man7.org/linux/man-pages/man7/netlink.7.html
-- Linux source code about: 
+- Linux source code about:
   * Struct sockaddr_netlink: http://elixir.free-electrons.com/linux/v3.12/source/lib/kobject_uevent.c#L45
   * KObject action: http://elixir.free-electrons.com/linux/v3.12/source/lib/kobject_uevent.c#L45
 

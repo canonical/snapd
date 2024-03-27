@@ -21,6 +21,6 @@ execute: |
   remote.exec "snap list test-snapd-devmode-core$VERSION"
   remote.exec "snap info --verbose test-snapd-devmode-core$VERSION" | MATCH "confinement:\s+devmode"
   remote.exec "snap info --verbose test-snapd-devmode-core$VERSION" | MATCH "devmode:\s+true"
-  
+
   echo "Check that the devmode snap can be run"
   remote.exec "test-snapd-devmode-core$VERSION"

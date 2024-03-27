@@ -27,7 +27,7 @@ execute: |
     echo "And the snap has read access to ACM USB modems and various USB devices"
     for exp in 'c166:*' 'c167:*' 'b180:*' 'c180:*' 'c188:*' 'c189:*' '+usb:*'; do
         file=$(find /run/udev/data/ -name "$exp" | head -1)
-        if [ -n "$file" ]; then 
+        if [ -n "$file" ]; then
             test-snapd-sh.with-raw-usb-plug -c "cat \"$file\""
         fi
     done

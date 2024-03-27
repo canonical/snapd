@@ -40,7 +40,7 @@ execute: |
   # succeed but we will fail with leftovers in /var/snap/lxd/common.
   snap remove lxd --purge
 
-  # We would fail on restore of test suite anyway, but make it more explicit. 
+  # We would fail on restore of test suite anyway, but make it more explicit.
   if test -d /var/snap/lxd/common; then
     echo "lxd snap wasn't fully removed"
     exit 1

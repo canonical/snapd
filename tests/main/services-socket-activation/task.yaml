@@ -13,7 +13,7 @@ restore: |
 execute: |
     [ -f /etc/systemd/system/snap.socket-activation.sleep-daemon.sock.socket ]
     [ -S /var/snap/socket-activation/common/socket ]
-    
+
     echo "Checking that services are listed correctly"
     snap services | cat -n > svcs.txt
     MATCH "     1\s+Service\s+Startup\s+Current\s+Notes$" < svcs.txt
@@ -38,7 +38,7 @@ execute: |
     snap services | cat -n > svcs.txt
     MATCH "     1\s+Service\s+Startup\s+Current\s+Notes$" < svcs.txt
     MATCH "     2\s+socket-activation.sleep-daemon\s+disabled\s+inactive\s+socket-activated$" < svcs.txt
-    
+
     echo "Checking that service activation unit is reported as disabled and inactive"
     systemctl show --property=UnitFileState snap.socket-activation.sleep-daemon.sock.socket | grep "disabled"
     systemctl show --property=ActiveState snap.socket-activation.sleep-daemon.sock.socket | grep "ActiveState=inactive"

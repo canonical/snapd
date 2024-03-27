@@ -19,7 +19,7 @@ execute: |
 
     echo "Verify that the plug with invalid characters raised a warning"
     snap warnings |
-        tr -d '\n' | # remove newlines 
+        tr -d '\n' | # remove newlines
         sed -e 's,\s\+, ,g' | # remove any extra spaces
         MATCH 'snap "content-consumer" has bad plugs or slots: invalid-char'
 

@@ -48,7 +48,7 @@ make_snap_installable(){
     local revision="1"
     while [ $# -gt 0 ]; do
         case "$1" in
-            (--noack) 
+            (--noack)
                 ack=false
                 shift
                 ;;
@@ -143,7 +143,7 @@ setup_fake_store(){
 
     # debugging
     systemctl status fakestore || true
-    
+
     # When a controlled store service is up
     # Create fakestore at the given port
     local https_proxy=${https_proxy:-}

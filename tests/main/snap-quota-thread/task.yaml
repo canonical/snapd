@@ -1,7 +1,7 @@
 summary: Functional test for thread/task quota-related snap commands.
 
 details: |
-  Functional test for snap thread/task quota group commands ensuring that they are 
+  Functional test for snap thread/task quota group commands ensuring that they are
   effective in practice.
 
 # these systems do not support quota groups due to their old systemd versions,
@@ -34,7 +34,7 @@ execute: |
   echo "Starting service"
   # the reason we start the service afterwards is because the task limit
   # wont kill any tasks that exceeds the limit, so we test instead that we
-  # can increment the limit. 
+  # can increment the limit.
   snap start test-snapd-stressd.spawner
   sleep 1
 

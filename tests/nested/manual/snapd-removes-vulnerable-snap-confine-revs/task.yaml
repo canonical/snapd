@@ -66,7 +66,7 @@ execute: |
   VULN_REV=$(remote.exec "snap list $SNAPD_SOURCE_SNAP" | tail -n +2 | awk '{print $3}')
 
   # now install our snapd deb from the branch - this is so we know the patched
-  # snapd is always executing, regardless of which snapd/core snap re-exec 
+  # snapd is always executing, regardless of which snapd/core snap re-exec
   # nonsense is going on
   SNAPD_DEB_ARR=( "$SPREAD_PATH"/../snapd_*.deb )
   SNAPD_DEB=${SNAPD_DEB_ARR[0]}
@@ -77,7 +77,7 @@ execute: |
   remote.push "$REPACKED_SNAP_NAME"
   remote.exec "sudo snap install $REPACKED_SNAP_NAME --dangerous"
 
-  # there is a race between the snap install finishing and removing the 
+  # there is a race between the snap install finishing and removing the
   # vulnerable revision, so we have to wait a bit
   VULN_SNAP_REMOVED=false
   #shellcheck disable=SC2034

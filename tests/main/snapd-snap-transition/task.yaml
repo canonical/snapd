@@ -23,4 +23,4 @@ execute: |
     done
     snap list snapd
     snap changes | MATCH "Transition to the snapd snap"
-    
+

@@ -59,13 +59,13 @@ prepare: |
   gendeveloper1 sign-model < ./user2-final.json > user2.assert
   gendeveloper1 sign-model < ./user2-2-final.json > user2-2.assert
   gendeveloper1 sign-model < ./user3-final.json > user3.assert
-  
+
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
 
   # Setup the fake-store for ubuntu-image to use when creating our core image.
   # We immediately tear down the staging store, to make sure snapd is not pointed
-  # towards this once we invoke ubuntu-image. 
+  # towards this once we invoke ubuntu-image.
   # We also need to point NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL towards the newly
   # setup fake-store to actually have it use it.
   "$TESTSTOOLS"/store-state setup-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
@@ -93,9 +93,9 @@ prepare: |
   mkdir -p pc-gadget/meta/hooks
   cp prepare-device pc-gadget/meta/hooks/prepare-device
 
-  # delay all refreshes for a week from now, as otherwise refreshes for our 
+  # delay all refreshes for a week from now, as otherwise refreshes for our
   # snaps (which are asserted by the testrootorg authority-id) may happen, which
-  # will break things because the signing keys won't match, etc. and 
+  # will break things because the signing keys won't match, etc. and
   # specifically snap-bootstrap in the kernel snap from the store won't trust
   # the seed keys to unlock the encrypted data partition in the initramfs
   sed defaults.yaml -e "s/HOLD-TIME/$(date --date="next week" +%Y-%m-%dT%H:%M:%S%:z)/" >> \

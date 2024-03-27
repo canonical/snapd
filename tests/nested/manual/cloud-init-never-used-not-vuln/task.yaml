@@ -16,7 +16,7 @@ environment:
     SNAPD_2_45_CORE_SNAP: https://storage.googleapis.com/snapd-spread-tests/snaps/core_2.45_9289.snap
 
 prepare: |
-    # build an unrelated empty cdrom drive to provide to first boot with no 
+    # build an unrelated empty cdrom drive to provide to first boot with no
     # real files on it to use as a placeholder in qemu args
     tests.nested build-seed "$TESTSLIB/cloud-init-seeds/emptykthxbai" seed.iso notcidata emptykthxbai
 
@@ -26,7 +26,7 @@ prepare: |
     # if we are not building from current, then we need to seed the specific,
     # old version of snapd that was vulnerable into the image to start there,
     # otherwise we will start from stable or edge which already has the fix and
-    # thus this test would no longer be testing that old vulnerable devices 
+    # thus this test would no longer be testing that old vulnerable devices
     # become safe after refreshing to the fix
     if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "false" ]; then
         snap install test-snapd-curl --edge --devmode # devmode so it can save to any dir
@@ -38,7 +38,7 @@ prepare: |
             # it is installed with --dangerous as it has a different hash
             unsquashfs -d core-snap core_2.45.snap
             snap pack core-snap/ "$(tests.nested get extra-snaps-path)"
-        else 
+        else
             # uc18 uses snapd snap
             test-snapd-curl.curl -s -o snapd_2.45.snap "$SNAPD_2_45_SNAPD_SNAP"
             # The snapd snap is unpacked and repacked to prevent it from being
@@ -48,9 +48,9 @@ prepare: |
         fi
     fi
 
-    tests.nested build-image core 
+    tests.nested build-image core
 
-    # first boot will use seed1 which is empty, but the same file name will be 
+    # first boot will use seed1 which is empty, but the same file name will be
     # replace while the VM is shutdown to use the second attacker iso
     tests.nested create-vm core --param-cdrom "-cdrom $(pwd)/seed.iso"
 
@@ -85,7 +85,7 @@ execute: |
             # now we wait for the reboot for the new core snap
             tests.nested wait-for no-ssh
             tests.nested wait-for ssh
-            
+
         else
             # build the snapd snap for this run
             "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
@@ -96,18 +96,18 @@ execute: |
         fi
     fi
 
-    # Note: there is a race here after we have installed the fix (or we have 
-    # booted a fresh image with the fix). 
-    # Namely, snapd will begin checking on cloud-init status after it has 
+    # Note: there is a race here after we have installed the fix (or we have
+    # booted a fresh image with the fix).
+    # Namely, snapd will begin checking on cloud-init status after it has
     # ensured that the boot was okay in the device manager, but this will not
     # happen immediately in zero time, and moreover, snapd will not do anything
     # substantial or measurable until cloud-init has reached a steady state or
-    # otherwise times out. 
-    # As such, in this test, we first wait for cloud-init to settle down, and 
-    # then wait a bit longer to give snapd a chance to run again and take 
-    # action that we can test for. Since in this test, cloud-init was never 
-    # used, the status command should not take much time at all, since it will 
-    # not have been triggered. 
+    # otherwise times out.
+    # As such, in this test, we first wait for cloud-init to settle down, and
+    # then wait a bit longer to give snapd a chance to run again and take
+    # action that we can test for. Since in this test, cloud-init was never
+    # used, the status command should not take much time at all, since it will
+    # not have been triggered.
 
     echo "Waiting for cloud-init..."
     remote.exec "cloud-init status --wait"

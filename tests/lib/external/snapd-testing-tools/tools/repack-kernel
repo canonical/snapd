@@ -29,7 +29,7 @@ setup() {
     # carries ubuntu-core-initframfs
     add-apt-repository ppa:snappy-dev/image -y
     apt update
-    
+
     if ! dpkg -s ubuntu-core-initramfs >/dev/null 2>&1; then
         if ! apt install -y ubuntu-core-initramfs; then
             echo "ubuntu-core-initramfs was not available in deb repository!"
@@ -78,7 +78,7 @@ extract() {
 
     # this works on 20.04 but not on 18.04
     unmkinitramfs "$target"/work/initrd "$target"/work/unpacked-initrd
-    
+
     # copy the unpacked initrd to use as the target skeleton
     cp -ar "$target/work/unpacked-initrd" "$target/skeleton"
 
@@ -99,7 +99,7 @@ prepare() {
     fi
 
     target=$(realpath "$target")
-    
+
     local kver
     kver="$(get_kver "$target/kernel")"
 
@@ -144,7 +144,7 @@ cull_firmware() {
         echo "repack-kernel: missing target for cull-firmware"
         exit 1
     fi
-    
+
     # XXX: drop ~450MB+ of firmware which should not be needed in under qemu
     # or the cloud system
     rm -rf "$target"/kernel/firmware/*
@@ -159,7 +159,7 @@ cull_modules() {
     fi
 
     target=$(realpath "$target")
-    
+
     local kver
     kver="$(get_kver "$target/kernel")"
 
@@ -192,7 +192,7 @@ pack() {
         echo "repack-kernel: missing target for pack"
         exit 1
     fi
-    snap pack "${@:2}" "$target/kernel" 
+    snap pack "${@:2}" "$target/kernel"
 }
 
 main() {

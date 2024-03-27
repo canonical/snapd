@@ -30,7 +30,7 @@ execute: |
     echo "Ensure snap unset works"
     snap unset system store-certs.cert1
     not test -f /var/lib/snapd/ssl/store-certs/cert1.pem
-    
+
     echo "Now check that revert works, first install cert2 as canary"
     snap set system store-certs.cert2="$(cat $CERT)"
     test -f /var/lib/snapd/ssl/store-certs/cert2.pem

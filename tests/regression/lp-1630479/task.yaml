@@ -5,7 +5,7 @@ details: |
     core snap. Snap-confine contains code that sets it accordingly but during
     the introduction of the namespace sharing feature that code would run only
     when the namespace was initially constructed. Subsequent calls would not
-    see the correct path. 
+    see the correct path.
 
 prepare: |
     echo "Having installed a test snap"

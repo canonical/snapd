@@ -30,18 +30,18 @@ restore: |
 execute: |
   echo "Starting service and verifying that log messages are sent to default journal namespace"
   snap start test-snapd-journal-quota.logger
-  
+
   # Now ask for logs and lets see if we can see messages from 'LogDaemon'
   # The format of the log messages are 'LogDaemon: message number: X'
   retry -n 5 sh -c "snap logs test-snapd-journal-quota.logger | MATCH LogDaemon"
-   
+
   echo "Create a group with the logger snap in it"
   snap set-quota group-one --journal-size=16MB --journal-rate-limit=100/10ms test-snapd-journal-quota
 
   # retry a few times if we check before the service had a chance to restart entirely
   echo "The service should still be active"
   retry -n 3 sh -c "snap services test-snapd-journal-quota.logger | MATCH 'test-snapd-journal-quota.logger\s+enabled\s+active'"
-  
+
   # Now ask for the namespace logs and lets see if we can see messages from 'LogDaemon'
   NEW_MESSAGE_DETECTED=0
   INITIAL_NO=$(snap logs test-snapd-journal-quota.logger | grep "LogDaemon" | tail -n 1 | awk '{print $NF}')

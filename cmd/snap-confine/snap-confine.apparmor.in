@@ -45,8 +45,8 @@
 
     @LIBEXECDIR@/snap-confine mr,
 
-    # This rule is needed when executing from a "base: core" devmode snap on 
-    # UC18 and newer where the /usr/lib/snapd/snap-confine inside the 
+    # This rule is needed when executing from a "base: core" devmode snap on
+    # UC18 and newer where the /usr/lib/snapd/snap-confine inside the
     # "base: core" mount namespace always comes from the snapd snap, and thus
     # we will execute snap-confine via this path, and thus need to be able to
     # read this path when executing. It's also necessary on classic where both

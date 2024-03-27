@@ -27,7 +27,7 @@ execute: |
 
         not snap connect shm-plug:shmem-private-true shm-slot:shmem
         not snap connect shm-plug:shmem-private-true
-        
+
         echo "Save current revision"
         snap list | awk "/^$SNAP / {print(\$3)}" > prevBoot
         snap info "$SNAP" | grep "latest/stable:" | awk "{print(\$4)}" | sed -e 's/(\(.*\))/\1/' > nextBoot
@@ -37,14 +37,14 @@ execute: |
         snap connections | MATCH "shared-memory +shm-plug:shmem +:shared-memory +manual"
         snap connections | MATCH "shared-memory +shm-plug:shmem +shm-slot:shmem +manual"
 
-        echo "Refresh to stable channel" 
-        snap refresh "$SNAP" --stable --amend 
+        echo "Refresh to stable channel"
+        snap refresh "$SNAP" --stable --amend
 
         #"$TESTSTOOLS"/journal-state get-log -u snapd | NOMATCH "panic:"
 
         REBOOT
     fi
-    
+
     if [ "$SPREAD_REBOOT" = 1 ]; then
 
         echo "And check there are no errors in the changes list"
@@ -71,7 +71,7 @@ execute: |
     snap connections | MATCH "shared-memory +shm-plug:shmem +:shared-memory +manual"
     snap connections | MATCH "shared-memory +shm-plug:shmem +shm-slot:shmem +manual"
 
-    # Check shared memory    
+    # Check shared memory
     shm-slot.cmd sh -c 'echo "writable area" > /dev/shm/any-writable-1'
     shm-plug.cmd cat /dev/shm/any-writable-1 | MATCH "writable area"
 

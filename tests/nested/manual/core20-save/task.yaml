@@ -56,7 +56,7 @@ execute: |
             echo "$save_out" | MATCH '^/dev/vda[0-9]\s+'
         fi
         save_size="$(echo "$save_out" | awk '{print $4}')"
-        
+
         echo "check that there is at least 6MB of free space available on ubuntu-save"
         test "$save_size" -gt "$((6*1024*1024))"
 

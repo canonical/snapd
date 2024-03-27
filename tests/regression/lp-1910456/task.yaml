@@ -1,7 +1,7 @@
 summary: container management snaps should have special systemd unit directives
 
 details: |
-    Some special interfaces have additional systemd unit directives added to 
+    Some special interfaces have additional systemd unit directives added to
     their systemd units, specifically container management interfaces have the
     Delegate=true snippet added to prevent CVE-2020-27352.
 
@@ -79,7 +79,7 @@ execute: |
             MATCH "Delegate=true" < "$serviceFile"
             test "$(grep -c "Delegate=true" "$serviceFile")" = 1
 
-            # connect and disconnect the interfaces to ensure that 
+            # connect and disconnect the interfaces to ensure that
             # connection/disconnection does not effect the presence of Delegate=true
 
             if [ "$svc" = "multiple-plugs" ]; then
@@ -109,13 +109,13 @@ execute: |
 
         echo "Check that the non-container manager services do not have Delegate=true in their service units"
 
-        for svc in bare "autobind-unix" "greengrass-no-cont"; do 
+        for svc in bare "autobind-unix" "greengrass-no-cont"; do
             serviceFile="/etc/systemd/system/snap.$snapName.$svc.service"
             NOMATCH "Delegate=true" < "$serviceFile"
         done
     done
 
-    # only run this test on ubuntu since the docker snap is not guaranteed to 
+    # only run this test on ubuntu since the docker snap is not guaranteed to
     # work on non-ubuntu systems
 
     if ! os.query is-ubuntu; then
@@ -150,7 +150,7 @@ execute: |
         containerCgroupBefore=$(grep devices "/proc/$containerPID/cgroup")
     fi
 
-    # reload systemd 
+    # reload systemd
     systemctl daemon-reload
 
     # check the container cgroup again

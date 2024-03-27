@@ -21,12 +21,12 @@ execute: |
   # pick up snap-failure from the current snapd
   (cd ./snapd-broken && snap pack .)
 
-  # try to install it multiple times to ensure that we can revert back to the 
+  # try to install it multiple times to ensure that we can revert back to the
   # core snap as many times as needed, if a device for some reason keeps wanting
   # to try to transition to the snapd snap and keeps failing
   #shellcheck disable=SC2167
   for _ in $(seq 1 2); do
-    # get the number of times that snapd.failure was started before we do 
+    # get the number of times that snapd.failure was started before we do
     # anything
     started_before="$("$TESTSTOOLS"/journal-state get-log -u snapd.failure | grep -c 'Started Failure handling of the snapd snap.' || true)"
 

@@ -17,7 +17,7 @@
 
 		// Recommended extensions (type @recommended in Extensions tab to list)
 		"recommendations": [
-			"golang.go", // Golang extensions 
+			"golang.go", // Golang extensions
 			"ms-vscode.cpptools-extension-pack", // C/C++ extensions
 
 			// Useful extra extensions, for reference:

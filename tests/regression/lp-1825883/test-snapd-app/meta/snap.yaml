@@ -3,7 +3,7 @@ version: 1
 summary: Snap using the content snap for shared resources
 plugs:
   things:
-    interface: content 
+    interface: content
     # NOTE: in the original bug the target directory was $SNAP/data-dir/themes
     # and the $SNAP/data-dir directory was not present in the application snap.
     target: $SNAP/things

@@ -43,7 +43,7 @@ execute: |
 
     lxd.lxc file push --quiet "$GOHOME"/snapd_*.deb "ubuntu/root/"
     DEB=$(basename "$GOHOME"/snapd_*.deb)
-    
+
     lxd.lxc exec ubuntu -- apt update
     # As for ubuntu noble it is not using the official image, snapd is not installed by default
     # This should be removed once the official image is released

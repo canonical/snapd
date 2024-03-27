@@ -23,7 +23,7 @@ Contributors can help us by observing the following guidelines:
 - Commit emails should not include non-ASCII characters.
 - Several smaller PRs are better than one large PR.
 - Try not to mix potentially controversial and trivial changes together.
-  (Proposing trivial changes separately makes landing them easier and 
+  (Proposing trivial changes separately makes landing them easier and
   makes reviewing controversial changes simpler)
 - Do not [force push][git-force] a PR after it has received reviews. It is
   acceptable to force push when a PR is ready to merge, however.
@@ -73,7 +73,7 @@ Contributions are submitted through a [pull request][pull-request] created from
 a [fork][fork] of the `snapd` repository (under your GitHub account).
 
 GitHub's documentation outlines the [process][github-pr], but for a more
-concise and informative version try [this GitHub gist][pr-gist]. 
+concise and informative version try [this GitHub gist][pr-gist].
 
 ### Linear git history
 
@@ -99,7 +99,7 @@ The following labels are commonly used:
   features (though this should almost never happen).
   * Our user-facing documentation can be found here: https://snapcraft.io/docs
   * The PR description must explain any required documentation changes.
-  * For internal documentation in this repository, it's expected that 
+  * For internal documentation in this repository, it's expected that
     documentation changes are delivered in the same branch.
     Please don't abuse this tag.
 - `Needs Samuele review`: Samuele (@pedronis) is our architect, and this label
@@ -169,7 +169,7 @@ different parts of a solution in the future.
 [pr-gist]: https://gist.github.com/Chaser324/ce0505fbed06b947d962
 [linear-git]: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/defining-the-mergeability-of-pull-requests/about-protected-branches#require-linear-history
 [git-bisect]: https://git-scm.com/docs/git-bisect
-[github-draft]: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-pull-requests#draft-pull-requests 
+[github-draft]: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-pull-requests#draft-pull-requests
 [github-labels]: https://docs.github.com/en/issues/using-labels-and-milestones-to-track-work/managing-labels
 [nested-tests]: https://github.com/snapcore/snapd/tree/master/tests/nested
 [github-rebase]: https://docs.github.com/en/get-started/using-git/about-git-rebase

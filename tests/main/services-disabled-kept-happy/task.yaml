@@ -54,7 +54,7 @@ summary: Check that disabled snap services stay disabled across happy refreshes,
 
 prepare: |
   snap install --edge jq
-  # keep more revisions to simplify switching around between revisions in the 
+  # keep more revisions to simplify switching around between revisions in the
   # test
   snap set system refresh.retain=5
   rm -rf disabled-svcs-kept*
@@ -73,7 +73,7 @@ prepare: |
     -e s@THEVERSION@2.0@ \
     -e s@THESVCNAME@svc2@ \
     -e "s@THEDAEMON@daemon: simple@" \
-    disabled-svcs-kept2/meta/snap.yaml.in > disabled-svcs-kept2/meta/snap.yaml 
+    disabled-svcs-kept2/meta/snap.yaml.in > disabled-svcs-kept2/meta/snap.yaml
   snap pack ./disabled-svcs-kept2
 
 

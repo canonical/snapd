@@ -6,4 +6,4 @@ execute: |
 
   echo "Ensure we can see useful info for it"
   snap info test-snapd-tools | MATCH '^name:\ +test-snapd-tools'
-  
+

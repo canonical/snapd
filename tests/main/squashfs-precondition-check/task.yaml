@@ -21,6 +21,6 @@ execute: |
 
     echo "Ensure GET commands still work"
     snap list | MATCH core
-    
+
     echo "Ensure snap commands reply with precondition check error"
     snap install test-snapd-sh 2>&1 | MATCH "system does not fully support snapd: cannot mount squashfs image"

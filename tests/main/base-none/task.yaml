@@ -3,7 +3,7 @@ summary: Check that a snap with base "none" can be installed
 details: |
     Verify it is not possible to pack a snap with base "none",
     also it is not possible install a snap with base "none" which
-    was manually generated 
+    was manually generated
 
 execute: |
     echo "Install a snap with 'base: none'"
@@ -20,4 +20,3 @@ execute: |
     # we cannot use snap pack, create snap manually
     mksquashfs test-snapd-base-none-invalid test-snapd-base-none-invalid_x1.snap -comp xz -no-fragments -no-progress
     snap install --dangerous test-snapd-base-none-invalid_x1.snap 2>&1 | MATCH "error: cannot read snap file: cannot have apps or hooks with base \"none\""
-    

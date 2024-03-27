@@ -1,4 +1,4 @@
-summary: Test that we can run go-code as effectively another user. 
+summary: Test that we can run go-code as effectively another user.
 
 # exclude core as there is no go
 systems: [-ubuntu-core-*]

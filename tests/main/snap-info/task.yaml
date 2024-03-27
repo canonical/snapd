@@ -44,7 +44,7 @@ execute: |
     MATCH 'no snap found for "no-such-snap"' < out.stderr
 
     snap info no-such-snap no-such-other-snap > out.stdout 2> out.stderr || true
-    MATCH 'warning: no snap found for "no-such-snap"' < out.stdout 
+    MATCH 'warning: no snap found for "no-such-snap"' < out.stdout
     MATCH 'warning: no snap found for "no-such-other-snap"' < out.stdout
     MATCH 'error: no valid snaps given' < out.stderr
 

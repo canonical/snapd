@@ -3,7 +3,7 @@ project: snapd-testing-tools
 environment:
     PROJECT_PATH: /root/snapd-testing-tools
     PATH: $PATH:$PROJECT_PATH/tools:$PROJECT_PATH/utils:$PROJECT_PATH/remote
-    
+
 backends:
     google:
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'

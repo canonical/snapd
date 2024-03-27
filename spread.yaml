@@ -58,7 +58,7 @@ environment:
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
     DELTA_REF: 2.52
     DELTA_PREFIX: snapd-$DELTA_REF/
-    REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'    
+    REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'
     HTTP_PROXY: '$(HOST: echo "$SPREAD_HTTP_PROXY")'
     HTTPS_PROXY: '$(HOST: echo "$SPREAD_HTTPS_PROXY")'
     NO_PROXY: "127.0.0.1"
@@ -657,7 +657,7 @@ debug-each: |
 
     # Keep it as the last step in debug-each
     echo '# tasks executed on system'
-    # since the runs file does not have a newline at EOF, add one 
+    # since the runs file does not have a newline at EOF, add one
     echo "" | cat "$RUNTIME_STATE_PATH/runs" - || true
 
 rename:
@@ -872,7 +872,7 @@ prepare: |
             exit 1
         fi
     fi
-    
+
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.
     "$TESTSLIB"/prepare-restore.sh --prepare-project
@@ -1099,7 +1099,7 @@ suites:
                 PIDs="$(ps -ef | grep -e '^root.*python3.*load-generator' | awk '{print $2}')"
                 # shellcheck disable=SC2086
                 for pid in $PIDs; do
-                    if ps -p "$pid" &>/dev/null; then 
+                    if ps -p "$pid" &>/dev/null; then
                         kill -9 "$pid"
                     fi
                 done
@@ -1329,7 +1329,7 @@ suites:
             else
                 get_ubuntu_image
             fi
-  
+
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 

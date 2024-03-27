@@ -54,14 +54,14 @@ execute: |
         TARGET_VER="$(apt list -a snapd | grep -E "/$CODENAME( |,)" | cut -f2 -d' ')"
     fi
     apt install -yqq --allow-downgrades snapd="$TARGET_VER"
-    
+
     echo "But installing the vendored apparmor snapd with our changes"
     snap install --dangerous snapd_modified.snap
 
     # Verify supported features
     snap debug sandbox-features --required apparmor:parser:snapd-internal
     snap debug sandbox-features --required apparmor:parser:include-if-exists
-    
+
     # Install our test snap
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 

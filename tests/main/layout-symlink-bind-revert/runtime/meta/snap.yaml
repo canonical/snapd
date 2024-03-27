@@ -1,7 +1,7 @@
-name: runtime 
+name: runtime
 version: 1
 slots:
     runtime:
         interface: content
         content: runtime-1
-        read: [ $SNAP/opt/runtime ] 
+        read: [ $SNAP/opt/runtime ]

@@ -27,7 +27,7 @@ debug: |
     ls -lh /var/cache/snapd
     # low tech dump of db
     strings /var/cache/snapd/commands.db | sed  -e 's#"}\(]\)\?#"}\1\n#g'
-    
+
 execute: |
     echo "Ensure we have a snap catalog in our cache"
     for _ in {1..30}; do
@@ -54,10 +54,10 @@ execute: |
     cat > expected <<EOF
 
     WARNING: apt does not have a stable CLI interface. Use with caution in scripts.
-    
+
     No apt package "aws-cli", but there is a snap with that name.
     Try "snap install aws-cli"
-    
+
     E: Unable to locate package aws-cli
     EOF
 

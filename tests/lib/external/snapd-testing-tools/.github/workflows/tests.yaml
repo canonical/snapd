@@ -102,7 +102,7 @@ jobs:
           if [ -f spread.log ]; then
               echo "Running spread log parser"
               ./utils/log-parser spread.log --output spread-results.json
-    
+
               echo "Determining which tests were executed"
               RUN_TESTS="google:tests/ google-nested:tests/"
               if [ -n "$FAILED_TESTS" ]; then

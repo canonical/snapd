@@ -37,7 +37,7 @@ execute: |
         snapd.tool exec snap-repair run
 
         echo "No repairs should have been run yet"
-        snapd.tool exec snap-repair list 2>&1 | MATCH "no repairs yet" 
+        snapd.tool exec snap-repair list 2>&1 | MATCH "no repairs yet"
 
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
             echo "This test needs test keys to be trusted"
@@ -88,11 +88,11 @@ execute: |
             snapd.tool exec snap-repair show testrootorg-1 | MATCH "echo ''"
         fi
 
-        # produce a retry repair assertion with repair ID 2 that does not 
+        # produce a retry repair assertion with repair ID 2 that does not
         # complete, and another revision that succeeds
 
-        # note that the value "2" here _must_ be a string, otherwise we can't 
-        # sign it as all values must be strings or lists of strings, etc. 
+        # note that the value "2" here _must_ be a string, otherwise we can't
+        # sign it as all values must be strings or lists of strings, etc.
         jq '."repair-id" = "2"' < "$PWD/$REPAIR_JSON" > "$PWD/$REPAIR_JSON.tmp"
         mv "$PWD/$REPAIR_JSON.tmp" "$PWD/2-$REPAIR_JSON"
 
@@ -120,7 +120,7 @@ execute: |
         snapd.tool exec snap-repair list | MATCH "testrootorg-2\s+0\s+retry\s+some test keys repair"
         snapd.tool exec snap-repair list | MATCH "testrootorg-2\s+1\s+done\s+some test keys repair"
 
-        # on UC20 we also check that repair assertions scoped to recover mode 
+        # on UC20 we also check that repair assertions scoped to recover mode
         # work too
         if os.query is-core20 || os.query is-core22; then
             transition_to_recover_mode ""
@@ -131,7 +131,7 @@ execute: |
 
         snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
 
-        # we have to standup the fakestore again 
+        # we have to standup the fakestore again
         if os.query is-core20; then
             fakestore new-repair --dir "$BLOB_DIR" uc20-recover.sh --repair-json="$PWD/uc20-recover.json"
         elif os.query is-core22; then
@@ -154,7 +154,7 @@ execute: |
 
         echo "Transition back to run mode"
         transition_to_run_mode ""
-        
+
     elif [ "$SPREAD_REBOOT" == "2" ]; then
         echo "In run mode again"
 

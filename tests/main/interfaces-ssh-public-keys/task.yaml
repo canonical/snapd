@@ -24,7 +24,7 @@ execute: |
 
     echo "When the interface is connected"
     snap connect test-snapd-sh:ssh-public-keys
-    
+
     echo "Then the snap is able to see ssh version"
     test-snapd-sh.with-ssh-public-keys-plug -c "ssh -V"
 
@@ -44,7 +44,7 @@ execute: |
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-sh:ssh-public-keys
-    
+
     echo "Then the snap is not able to access the ssh public keys"
     if test-snapd-sh.with-ssh-public-keys-plug -c "cat $TESTKEY.pub" 2> call.error; then
         echo "Expected permission error accessing to ssh"

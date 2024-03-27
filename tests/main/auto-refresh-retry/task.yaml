@@ -22,7 +22,7 @@ debug: |
 execute: |
     echo "Install a snap from stable"
     snap install test-snapd-tools
-  
+
     snap set system refresh.schedule="0:00-23:59"
     # ensure there are no refresh holds, otherwise can't force auto-refresh
     snap set system refresh.hold!

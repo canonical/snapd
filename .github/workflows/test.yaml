@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [ "master", "release/**" ]
   push:
-    # we trigger runs on master branch, but we do not run spread on master 
+    # we trigger runs on master branch, but we do not run spread on master
     # branch, the master branch runs are just for unit tests + codecov.io
     branches: [ "master","release/**" ]
 
@@ -106,7 +106,7 @@ jobs:
 
     strategy:
       # we cache successful runs so it's fine to keep going
-      fail-fast: false      
+      fail-fast: false
       matrix:
         gochannel:
           - 1.18
@@ -250,7 +250,7 @@ jobs:
       GITHUB_PULL_REQUEST: ${{ github.event.number }}
     strategy:
       # we cache successful runs so it's fine to keep going
-      fail-fast: false      
+      fail-fast: false
       matrix:
         gochannel:
           - 1.18
@@ -511,7 +511,7 @@ jobs:
 
           # Make sure the test results dirs are created
           # This step has to be after the cache is restored
-          mkdir -p "$TEST_RESULTS_DIR"        
+          mkdir -p "$TEST_RESULTS_DIR"
 
     - name: Check failed tests to run
       if: "!contains(github.event.pull_request.labels.*.name, 'Run all')"
@@ -765,7 +765,7 @@ jobs:
           if [ -f spread.log ]; then
               echo "Running spread log parser"
               ./tests/lib/external/snapd-testing-tools/utils/log-parser spread.log --output spread-results.json
-    
+
               echo "Determining which tests were executed"
               RUN_TESTS="google-nested:${{ matrix.system }}:tests/nested/..."
               if [ -n "$FAILED_TESTS" ]; then

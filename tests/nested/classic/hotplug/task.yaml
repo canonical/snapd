@@ -5,7 +5,7 @@ prepare: |
     remote.push "${GOHOME}"/snapd_*.deb
     remote.exec "sudo apt update"
     remote.exec "sudo apt install -y ./snapd_*.deb"
-    
+
     echo "Install linux-modules-extra package as it provides ftdi_sio and usbserial kernel modules"
     #shellcheck disable=SC2016
     remote.exec 'DEBIAN_FRONTEND=noninteractive sudo -E apt install -y "linux-modules-extra-$(uname -r)"'
@@ -32,7 +32,7 @@ execute: |
     . "$TESTSLIB/hotplug.sh"
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-    
+
     if remote.exec "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
         echo "USB serial already registered, exiting..."
         exit 1

@@ -4,7 +4,7 @@ details: |
     The physical-memory-observe interface allows to read the physical memory.
 
     The test-snapd-physical-memory-observe snap checks that /dev/mem can be read
-    and the interface can be connected and disconnected. 
+    and the interface can be connected and disconnected.
 
 # As the ubuntu kernels are configured with CONFIG_STRICT_DEVMEM=y, this interface is
 # validated just in the other supported systems.

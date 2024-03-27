@@ -17,7 +17,7 @@ execute: |
     remote.push --help | MATCH 'usage: remote.push <LOCAL_PATH> \[REMOTE_PATH\]'
     remote.push -h | MATCH 'usage: remote.push <LOCAL_PATH> \[REMOTE_PATH\]'
 
-    # check basic push 
+    # check basic push
     touch testfile
     remote.push testfile "/home/tools-user-1"
     test -f /home/tools-user-1/testfile

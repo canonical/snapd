@@ -3,7 +3,7 @@ summary: A no-strings-attached, no-fuss shell for writing tests
 version: 1.0
 
 plugs:
-    opt-ros:  
+    opt-ros:
         interface: ros-opt-data
 
 apps:

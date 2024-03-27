@@ -50,7 +50,7 @@ execute: |
         echo "filtering broken: program should have failed to run"
         exit 1
     fi
-    
+
     # from the old test_unrestricted
     echo "Test that the @unrestricted keyword works"
     rm -f "${PROFILE}.bin"
@@ -103,7 +103,7 @@ execute: |
     fi
     echo "$output" | MATCH "cannot fit .* to memory buffer"
 
-    
+
     echo "Ensure the code cannot not run with a missing .bin profile"
     rm -f "${PROFILE}.bin"
     if test-snapd-sh.sh -c 'echo hello'; then

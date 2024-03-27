@@ -60,7 +60,7 @@ prepare: |
     cd $PROJECT_PATH
     # we may have uninstalled snapcraft in the snapd_first variant, so we need
     # to re-install it in order to clean up
-    if ! command -v snapcraft; then 
+    if ! command -v snapcraft; then
         snap install snapcraft --channel=4.x/candidate --classic
     fi
     snap run snapcraft clean
@@ -77,13 +77,13 @@ prepare: |
     coredir=edge-core-snap
 
     # backup the meta dir
-    mv "$coredir/meta" "$coredir/meta-backup" 
+    mv "$coredir/meta" "$coredir/meta-backup"
     # copy everything from the snapd snap into the core snap
     cp -ar "$snapddir"/* "$coredir"
 
     # restore the meta dir
     rm -r "$coredir/meta"
-    mv "$coredir/meta-backup" "$coredir/meta" 
+    mv "$coredir/meta-backup" "$coredir/meta"
 
     # set the version for the core snap to be the version from the snapd snap
     SNAPD_SNAP_VERSION=$(grep -Po "version: \K.*" "$snapddir/meta/snap.yaml")
@@ -98,7 +98,7 @@ prepare: |
 
 execute: |
     if [ "$SNAP_TO_USE_FIRST" = "core" ]; then
-        # first install our core snap because we don't have the snapd snap on 
+        # first install our core snap because we don't have the snapd snap on
         # the system yet, so we don't need to do any shenanigans
         snap install --dangerous core-from-branch.snap
 
@@ -115,16 +115,16 @@ execute: |
         snap install --dangerous snapd-from-branch.snap
 
         # trigger profile re-generation because the same build-id for snapd is
-        # in the core and snapd snaps we are using, so profiles won't be 
+        # in the core and snapd snaps we are using, so profiles won't be
         # regenerated when we install the snapd snap above
         systemctl stop snapd.socket snapd.service
         rm /var/lib/snapd/system-key
         systemctl start snapd.socket snapd.service
 
         # also install the non-core base snap, note that we can install and use it
-        # even without the snapd snap, but we cannot execute other snaps from this 
+        # even without the snapd snap, but we cannot execute other snaps from this
         # devmode snap without also installing the snapd snap, as inside non-core
-        # base snaps, there is a symlink 
+        # base snaps, there is a symlink
         # /usr/bin/snap -> /snap/snapd/current/usr/bin/snap
         # which effectively requires the snapd snap to be installed to execute other
         # snaps from inside the devmode non-core based snap
@@ -170,7 +170,7 @@ execute: |
         snap install --dangerous core-from-branch.snap
 
         # trigger profile re-generation because the same build-id for snapd is
-        # in the core and snapd snaps we are using, so profiles won't be 
+        # in the core and snapd snaps we are using, so profiles won't be
         # regenerated when we install the snapd snap above
         systemctl stop snapd.socket snapd.service
         rm /var/lib/snapd/system-key
