@@ -2319,3 +2319,34 @@ func (*aspectSuite) TestAspectInvalidMapKeys(c *C) {
 		c.Assert(err, ErrorMatches, fmt.Sprintf("cannot set \"foo\" in aspect acc/foo/bar: key %q doesn't conform to required format: .*", tc.invalidKey), cmt)
 	}
 }
+
+func (s *aspectSuite) TestUnsetUsingMapWithNilValuesAtLeaves(c *C) {
+	databag := aspects.NewJSONDataBag()
+	aspectBundle, err := aspects.NewBundle("acc", "bundle", map[string]interface{}{
+		"foo": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{"request": "foo.a", "storage": "foo.a"},
+				map[string]interface{}{"request": "foo.b", "storage": "foo.b"},
+			},
+		},
+	}, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	asp := aspectBundle.Aspect("foo")
+	c.Assert(asp, NotNil)
+
+	err = asp.Set(databag, "foo", map[string]interface{}{
+		"a": "value",
+		"b": "other",
+	})
+	c.Assert(err, IsNil)
+
+	err = asp.Set(databag, "foo", map[string]interface{}{
+		"a": nil,
+		"b": nil,
+	})
+	c.Assert(err, IsNil)
+
+	_, err = asp.Get(databag, "foo")
+	c.Assert(err, FitsTypeOf, &aspects.NotFoundError{})
+}

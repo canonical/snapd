@@ -1363,7 +1363,14 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *i
 // If the value is nil, the entry is deleted.
 func (s JSONDataBag) Set(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
-	_, err := set(subKeys, 0, s, value)
+
+	var err error
+	if value != nil {
+		_, err = set(subKeys, 0, s, value)
+	} else {
+		_, err = unset(subKeys, 0, s)
+	}
+
 	return err
 }
 
