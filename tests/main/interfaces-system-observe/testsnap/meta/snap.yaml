@@ -4,4 +4,8 @@ base: core18
 apps:
   cmd:
     command: bin/cmd
-    plugs: [ system-observe ]
+    plugs:
+      # for the test
+      - system-observe
+      # so that we can run busctl
+      - network-setup-observe
