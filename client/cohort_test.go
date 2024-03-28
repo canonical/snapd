@@ -22,7 +22,7 @@ package client_test
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"io"
 
 	"golang.org/x/xerrors"
 	"gopkg.in/check.v1"
@@ -33,7 +33,7 @@ func (cs *clientSuite) TestClientCreateCohortsEndpoint(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/cohorts")
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 	var jsonBody map[string]interface{}
 	err = json.Unmarshal(body, &jsonBody)
@@ -57,7 +57,7 @@ func (cs *clientSuite) TestClientCreateCohorts(c *check.C) {
 		"bar": "what-what",
 	})
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 	var jsonBody map[string]interface{}
 	err = json.Unmarshal(body, &jsonBody)

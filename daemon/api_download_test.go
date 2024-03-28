@@ -25,7 +25,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -155,7 +154,7 @@ func (s *snapDownloadSuite) DownloadStream(ctx context.Context, name string, dow
 		if resume > 0 {
 			status = 206
 		}
-		return ioutil.NopCloser(bytes.NewReader([]byte(snapContent[resume:]))), status, nil
+		return io.NopCloser(bytes.NewReader([]byte(snapContent[resume:]))), status, nil
 	}
 	panic(fmt.Sprintf("internal error: trying to download %s but not in storeSnaps", name))
 }

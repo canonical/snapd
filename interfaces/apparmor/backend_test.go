@@ -22,7 +22,6 @@ package apparmor_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -814,7 +813,7 @@ func (s *backendSuite) TestDefaultCoreRuntimesTemplateOnlyUsed(c *C) {
 		err := s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 		c.Assert(err, IsNil)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
-		data, err := ioutil.ReadFile(profile)
+		data, err := os.ReadFile(profile)
 		c.Assert(err, IsNil)
 		for _, line := range []string{
 			// preamble
@@ -854,7 +853,7 @@ func (s *backendSuite) TestBaseDefaultTemplateOnlyUsed(c *C) {
 	err := s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
-	data, err := ioutil.ReadFile(profile)
+	data, err := os.ReadFile(profile)
 	c.Assert(err, IsNil)
 	for _, line := range []string{
 		// preamble
@@ -1722,11 +1721,13 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithNFS(c *C, profileF
 	c.Assert(err, IsNil)
 
 	// Because NFS is being used, we have the extra policy file.
-	files, err := ioutil.ReadDir(apparmor_sandbox.SnapConfineAppArmorDir)
+	files, err := os.ReadDir(apparmor_sandbox.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 1)
 	c.Assert(files[0].Name(), Equals, "nfs-support")
-	c.Assert(files[0].Mode(), Equals, os.FileMode(0644))
+	fi, err := files[0].Info()
+	c.Assert(err, IsNil)
+	c.Assert(fi.Mode().Perm(), Equals, os.FileMode(0644))
 	c.Assert(files[0].IsDir(), Equals, false)
 
 	// The policy allows network access.
@@ -1770,11 +1771,13 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFSAndReExec(c *C)
 	c.Assert(err, IsNil)
 
 	// Because NFS is being used, we have the extra policy file.
-	files, err := ioutil.ReadDir(apparmor_sandbox.SnapConfineAppArmorDir)
+	files, err := os.ReadDir(apparmor_sandbox.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 1)
 	c.Assert(files[0].Name(), Equals, "nfs-support")
-	c.Assert(files[0].Mode(), Equals, os.FileMode(0644))
+	fi, err := files[0].Info()
+	c.Assert(err, IsNil)
+	c.Assert(fi.Mode().Perm(), Equals, os.FileMode(0644))
 	c.Assert(files[0].IsDir(), Equals, false)
 
 	// The policy allows network access.
@@ -1812,7 +1815,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError1(c *C) {
 	c.Assert(err, ErrorMatches, "cannot read .*corrupt-proc-self-exe: .*")
 
 	// We didn't create the policy file.
-	files, err := ioutil.ReadDir(apparmor_sandbox.SnapConfineAppArmorDir)
+	files, err := os.ReadDir(apparmor_sandbox.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 0)
 
@@ -1851,7 +1854,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 
 	// While created the policy file initially we also removed it so that
 	// no side-effects remain.
-	files, err := ioutil.ReadDir(apparmor_sandbox.SnapConfineAppArmorDir)
+	files, err := os.ReadDir(apparmor_sandbox.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 0)
 
@@ -1920,15 +1923,17 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithOverlay(c *C, prof
 	c.Assert(err, IsNil)
 
 	// Because overlay is being used, we have the extra policy file.
-	files, err := ioutil.ReadDir(apparmor_sandbox.SnapConfineAppArmorDir)
+	files, err := os.ReadDir(apparmor_sandbox.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 1)
 	c.Assert(files[0].Name(), Equals, "overlay-root")
-	c.Assert(files[0].Mode(), Equals, os.FileMode(0644))
+	fi, err := files[0].Info()
+	c.Assert(err, IsNil)
+	c.Assert(fi.Mode().Perm(), Equals, os.FileMode(0644))
 	c.Assert(files[0].IsDir(), Equals, false)
 
 	// The policy allows upperdir access.
-	data, err := ioutil.ReadFile(filepath.Join(apparmor_sandbox.SnapConfineAppArmorDir, files[0].Name()))
+	data, err := os.ReadFile(filepath.Join(apparmor_sandbox.SnapConfineAppArmorDir, files[0].Name()))
 	c.Assert(err, IsNil)
 	c.Assert(string(data), testutil.Contains, "\"/upper/{,**/}\" r,")
 
@@ -1967,15 +1972,17 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithOverlayAndReExec(c
 	c.Assert(err, IsNil)
 
 	// Because overlay is being used, we have the extra policy file.
-	files, err := ioutil.ReadDir(apparmor_sandbox.SnapConfineAppArmorDir)
+	files, err := os.ReadDir(apparmor_sandbox.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 1)
 	c.Assert(files[0].Name(), Equals, "overlay-root")
-	c.Assert(files[0].Mode(), Equals, os.FileMode(0644))
+	fi, err := files[0].Info()
+	c.Assert(err, IsNil)
+	c.Assert(fi.Mode().Perm(), Equals, os.FileMode(0644))
 	c.Assert(files[0].IsDir(), Equals, false)
 
 	// The policy allows upperdir access
-	data, err := ioutil.ReadFile(filepath.Join(apparmor_sandbox.SnapConfineAppArmorDir, files[0].Name()))
+	data, err := os.ReadFile(filepath.Join(apparmor_sandbox.SnapConfineAppArmorDir, files[0].Name()))
 	c.Assert(err, IsNil)
 	c.Assert(string(data), testutil.Contains, "\"/upper/{,**/}\" r,")
 
@@ -2021,11 +2028,13 @@ func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithBPFCapability(c *C
 
 	// Capability bpf is supported by the parser, so an extra policy file
 	// for snap-confine is present
-	files, err := ioutil.ReadDir(apparmor_sandbox.SnapConfineAppArmorDir)
+	files, err := os.ReadDir(apparmor_sandbox.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 1)
 	c.Assert(files[0].Name(), Equals, "cap-bpf")
-	c.Assert(files[0].Mode(), Equals, os.FileMode(0644))
+	fi, err := files[0].Info()
+	c.Assert(err, IsNil)
+	c.Assert(fi.Mode().Perm(), Equals, os.FileMode(0644))
 	c.Assert(files[0].IsDir(), Equals, false)
 
 	c.Assert(filepath.Join(apparmor_sandbox.SnapConfineAppArmorDir, files[0].Name()),
@@ -2089,7 +2098,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithBPFProbeError(c *C
 
 	// Probing apparmor_parser capabilities failed, so nothing gets written
 	// to the snap-confine policy directory
-	files, err := ioutil.ReadDir(apparmor_sandbox.SnapConfineAppArmorDir)
+	files, err := os.ReadDir(apparmor_sandbox.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 0)
 
@@ -2396,7 +2405,7 @@ func (s *backendSuite) TestPtraceTraceRule(c *C) {
 		c.Assert(err, IsNil)
 
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
-		data, err := ioutil.ReadFile(profile)
+		data, err := os.ReadFile(profile)
 		c.Assert(err, IsNil)
 
 		if tc.expected {
@@ -2442,7 +2451,7 @@ func (s *backendSuite) TestHomeIxRule(c *C) {
 
 		snapInfo := s.InstallSnap(c, tc.opts, "", ifacetest.SambaYamlV1, 1)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
-		data, err := ioutil.ReadFile(profile)
+		data, err := os.ReadFile(profile)
 		c.Assert(err, IsNil)
 
 		c.Assert(string(data), testutil.Contains, tc.expected)
@@ -2483,7 +2492,7 @@ func (s *backendSuite) TestPycacheDenyRule(c *C) {
 
 		snapInfo := s.InstallSnap(c, tc.opts, "", ifacetest.SambaYamlV1, 1)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
-		data, err := ioutil.ReadFile(profile)
+		data, err := os.ReadFile(profile)
 		c.Assert(err, IsNil)
 
 		c.Assert(string(data), tc.expected, "deny /usr/lib/python3*/{,**/}__pycache__/ w,")
@@ -2508,7 +2517,7 @@ apps:
 
 	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", snapYaml, 1)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.app.cmd")
-	data, err := ioutil.ReadFile(profile)
+	data, err := os.ReadFile(profile)
 	c.Assert(err, IsNil)
 	c.Assert(string(data), testutil.Contains, "capability setuid,")
 	c.Assert(string(data), testutil.Contains, "capability setgid,")
@@ -2531,7 +2540,7 @@ apps:
 
 	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", snapYaml, 1)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.app.cmd")
-	data, err := ioutil.ReadFile(profile)
+	data, err := os.ReadFile(profile)
 	c.Assert(err, IsNil)
 	c.Assert(string(data), Not(testutil.Contains), "capability setuid,")
 	c.Assert(string(data), Not(testutil.Contains), "capability setgid,")

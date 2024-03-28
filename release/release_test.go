@@ -21,7 +21,6 @@ package release_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -69,7 +68,7 @@ BUG_REPORT_URL="http://bugs.launchpad.net/ubuntu/"
 // MockFilesystemRootType changes relase.ProcMountsPath so that it points to a temp file
 // generated to contain the provided filesystem type
 func MockFilesystemRootType(c *C, fsType string) (restorer func()) {
-	tmpfile, err := ioutil.TempFile(c.MkDir(), "proc_mounts_mock_")
+	tmpfile, err := os.CreateTemp(c.MkDir(), "proc_mounts_mock_")
 	c.Assert(err, IsNil)
 
 	// Sample contents of /proc/mounts. The second line is the one that matters.

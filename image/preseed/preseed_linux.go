@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -376,11 +375,11 @@ func systemForPreseeding(systemsDir string) (label string, err error) {
 }
 
 var makePreseedTempDir = func() (string, error) {
-	return ioutil.TempDir("", "preseed-")
+	return os.MkdirTemp("", "preseed-")
 }
 
 var makeWritableTempDir = func() (string, error) {
-	return ioutil.TempDir("", "writable-")
+	return os.MkdirTemp("", "writable-")
 }
 
 func prepareCore20Chroot(opts *CoreOptions) (popts *preseedCoreOptions, cleanup func(), err error) {

@@ -22,7 +22,6 @@ package backend_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -178,16 +177,16 @@ func (s *copydataSuite) testCopyDataMulti(c *C, snapDir string, opts *dirs.SnapD
 	c.Assert(err, IsNil)
 
 	canaryDataFile := filepath.Join(v1.DataDir(), "canary.txt")
-	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
+	err = os.WriteFile(canaryDataFile, canaryData, 0644)
 	c.Assert(err, IsNil)
 	canaryDataFile = filepath.Join(v1.CommonDataDir(), "canary.common")
-	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
+	err = os.WriteFile(canaryDataFile, canaryData, 0644)
 	c.Assert(err, IsNil)
 
 	for i := range snapHomeDataDirs {
-		err = ioutil.WriteFile(filepath.Join(snapHomeDataDirs[i], "canary.home"), canaryData, 0644)
+		err = os.WriteFile(filepath.Join(snapHomeDataDirs[i], "canary.home"), canaryData, 0644)
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(snapHomeCommonDirs[i], "canary.common_home"), canaryData, 0644)
+		err = os.WriteFile(filepath.Join(snapHomeCommonDirs[i], "canary.common_home"), canaryData, 0644)
 		c.Assert(err, IsNil)
 	}
 
@@ -263,7 +262,7 @@ func (s *copydataSuite) populateData(c *C, revision snap.Revision) {
 }
 
 func (s *copydataSuite) populatedData(d string) string {
-	bs, err := ioutil.ReadFile(filepath.Join(dirs.SnapDataDir, "hello", d, "random-subdir", "canary"))
+	bs, err := os.ReadFile(filepath.Join(dirs.SnapDataDir, "hello", d, "random-subdir", "canary"))
 	if err == nil {
 		return string(bs)
 	}
@@ -797,13 +796,13 @@ func (s *copydataSuite) TestHideSnapData(c *C) {
 	// check versioned file was moved
 	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
 	revFile := filepath.Join(info.UserDataDir(homedir, opts), "canary.home")
-	data, err := ioutil.ReadFile(revFile)
+	data, err := os.ReadFile(revFile)
 	c.Assert(err, IsNil)
 	c.Assert(data, DeepEquals, []byte("10\n"))
 
 	// check common file was moved
 	commonFile := filepath.Join(info.UserCommonDataDir(homedir, opts), "file.txt")
-	data, err = ioutil.ReadFile(commonFile)
+	data, err = os.ReadFile(commonFile)
 	c.Assert(err, IsNil)
 	c.Assert(data, DeepEquals, []byte("some content"))
 
@@ -894,7 +893,7 @@ func (s *copydataSuite) TestHideSnapDataOverwrite(c *C) {
 	c.Assert(s.be.HideSnapData("hello"), IsNil)
 
 	// check versioned file was moved and previous contents were overwritten
-	data, err := ioutil.ReadFile(revFile)
+	data, err := os.ReadFile(revFile)
 	c.Assert(err, IsNil)
 	c.Assert(data, DeepEquals, []byte("10\n"))
 
@@ -949,13 +948,13 @@ func (s *copydataSuite) TestUndoHideSnapData(c *C) {
 
 	// check versioned file was restored
 	revFile := filepath.Join(info.UserDataDir(homedir, nil), "file.txt")
-	data, err := ioutil.ReadFile(revFile)
+	data, err := os.ReadFile(revFile)
 	c.Assert(err, IsNil)
 	c.Assert(data, DeepEquals, []byte("some content"))
 
 	// check common file was restored
 	commonFile := filepath.Join(info.UserCommonDataDir(homedir, nil), "file.txt")
-	data, err = ioutil.ReadFile(commonFile)
+	data, err = os.ReadFile(commonFile)
 	c.Assert(err, IsNil)
 	c.Assert(data, DeepEquals, []byte("other content"))
 
@@ -1069,7 +1068,7 @@ func (s *copydataSuite) TestRemoveIfEmpty(c *C) {
 
 	// dir contains a file, shouldn't do anything
 	c.Assert(backend.RemoveIfEmpty(dirs.GlobalRootDir), IsNil)
-	files, err := ioutil.ReadDir(dirs.GlobalRootDir)
+	files, err := os.ReadDir(dirs.GlobalRootDir)
 	c.Assert(err, IsNil)
 	c.Check(files, HasLen, 1)
 	c.Check(filepath.Join(dirs.GlobalRootDir, files[0].Name()), testutil.FileEquals, "stuff")
@@ -1158,7 +1157,7 @@ func (s *copydataSuite) TestInitSnapUserHome(c *C) {
 	c.Check(undoInfo.Created, DeepEquals, []string{exposedHome})
 
 	expectedFile := filepath.Join(exposedHome, "file")
-	data, err := ioutil.ReadFile(expectedFile)
+	data, err := os.ReadFile(expectedFile)
 	c.Assert(err, IsNil)
 	c.Check(string(data), Equals, "stuff")
 
@@ -1340,7 +1339,7 @@ func (s *copydataSuite) TestInitSnapNothingToCopy(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, true)
 
-	entries, err := ioutil.ReadDir(newHomeDir)
+	entries, err := os.ReadDir(newHomeDir)
 	c.Assert(err, IsNil)
 	c.Check(entries, HasLen, 0)
 }
@@ -1405,7 +1404,7 @@ func (s *copydataSuite) TestInitAlreadyExistsDir(c *C) {
 	c.Check(exists, Equals, true)
 	c.Check(isDir, Equals, true)
 
-	files, err := ioutil.ReadDir(newHome)
+	files, err := os.ReadDir(newHome)
 	c.Assert(err, IsNil)
 	c.Check(files, HasLen, 1)
 	c.Check(files[0].Name(), Equals, "file")

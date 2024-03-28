@@ -21,7 +21,6 @@ package testutil
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -90,11 +89,11 @@ func (s *mockCommandSuite) TestMockShellchecksWhenAvailable(c *check.C) {
 		{"shellcheck", "-s", "bash", "-"},
 	})
 
-	scriptData, err := ioutil.ReadFile(mock.Exe())
+	scriptData, err := os.ReadFile(mock.Exe())
 	c.Assert(err, check.IsNil)
 	c.Assert(string(scriptData), Contains, "\necho some-command\n")
 
-	data, err := ioutil.ReadFile(filepath.Join(tmpDir, "input"))
+	data, err := os.ReadFile(filepath.Join(tmpDir, "input"))
 	c.Assert(err, check.IsNil)
 	c.Assert(data, check.DeepEquals, scriptData)
 }

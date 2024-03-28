@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -811,7 +810,7 @@ func (s *appsSuite) expectLogsAccess() {
 func (s *appsSuite) TestLogs(c *check.C) {
 	s.expectLogsAccess()
 
-	s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(`
+	s.jctlRCs = []io.ReadCloser{io.NopCloser(strings.NewReader(`
 {"MESSAGE": "hello1", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "42"}
 {"MESSAGE": "hello2", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "44"}
 {"MESSAGE": "hello3", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "46"}
@@ -847,7 +846,7 @@ func (s *appsSuite) TestLogsNoNamespaceOption(c *check.C) {
 
 	s.expectLogsAccess()
 
-	s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(""))}
+	s.jctlRCs = []io.ReadCloser{io.NopCloser(strings.NewReader(""))}
 
 	req, err := http.NewRequest("GET", "/v2/logs?names=snap-a.svc2&n=42&follow=false", nil)
 	c.Assert(err, check.IsNil)
@@ -871,7 +870,7 @@ func (s *appsSuite) TestLogsWithNamespaceOption(c *check.C) {
 
 	s.expectLogsAccess()
 
-	s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(""))}
+	s.jctlRCs = []io.ReadCloser{io.NopCloser(strings.NewReader(""))}
 
 	req, err := http.NewRequest("GET", "/v2/logs?names=snap-a.svc2&n=42&follow=false", nil)
 	c.Assert(err, check.IsNil)
@@ -905,7 +904,7 @@ func (s *appsSuite) TestLogsN(c *check.C) {
 		{in: strconv.Itoa(math.MaxInt32), out: math.MaxInt32},
 	} {
 
-		s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(""))}
+		s.jctlRCs = []io.ReadCloser{io.NopCloser(strings.NewReader(""))}
 		s.jctlNs = nil
 
 		req, err := http.NewRequest("GET", "/v2/logs?n="+t.in, nil)
@@ -932,9 +931,9 @@ func (s *appsSuite) TestLogsFollow(c *check.C) {
 	s.expectLogsAccess()
 
 	s.jctlRCs = []io.ReadCloser{
-		ioutil.NopCloser(strings.NewReader("")),
-		ioutil.NopCloser(strings.NewReader("")),
-		ioutil.NopCloser(strings.NewReader("")),
+		io.NopCloser(strings.NewReader("")),
+		io.NopCloser(strings.NewReader("")),
+		io.NopCloser(strings.NewReader("")),
 	}
 
 	reqT, err := http.NewRequest("GET", "/v2/logs?follow=true", nil)

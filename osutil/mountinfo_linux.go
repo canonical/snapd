@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"sort"
 	"strconv"
@@ -97,7 +96,7 @@ func MockProcSelfMountInfoLocation(filename string) (restore func()) {
 }
 
 func MockMountInfo(content string) (restore func()) {
-	return mockMountInfo(func() (io.ReadCloser, error) { return ioutil.NopCloser(bytes.NewBufferString(content)), nil })
+	return mockMountInfo(func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewBufferString(content)), nil })
 }
 
 // LoadMountInfo loads list of mounted entries from /proc/self/mountinfo. This

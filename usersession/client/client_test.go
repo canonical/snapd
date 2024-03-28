@@ -23,7 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -719,7 +719,7 @@ func (s *clientSuite) TestFinishRefreshNotification(c *C) {
 	s.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&n, 1)
 		c.Assert(r.URL.Path, Equals, "/v1/notifications/finish-refresh")
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(string(body), DeepEquals, `{"instance-name":"some-snap"}`)
 	})

@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -85,7 +84,7 @@ func (s *runInhibitSuite) TestLockWithUnsetRevision(c *C) {
 func testInhibitInfo(c *C, snapName, hint string, expectedInfo runinhibit.InhibitInfo) {
 	infoPath := filepath.Join(runinhibit.InhibitDir, fmt.Sprintf("%s.%s", snapName, hint))
 	var info runinhibit.InhibitInfo
-	buf, err := ioutil.ReadFile(infoPath)
+	buf, err := os.ReadFile(infoPath)
 	c.Assert(err, IsNil)
 	c.Assert(json.Unmarshal(buf, &info), IsNil)
 	c.Check(info, Equals, expectedInfo)

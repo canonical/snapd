@@ -20,7 +20,7 @@
 package main_test
 
 import (
-	"io/ioutil"
+	"io"
 	"os"
 	"strconv"
 	"syscall"
@@ -74,7 +74,7 @@ func (r *repairSuite) TestStatusHappy(c *C) {
 		err = repair.ParseArgs([]string{s})
 		c.Check(err, IsNil)
 
-		status, err := ioutil.ReadAll(rp)
+		status, err := io.ReadAll(rp)
 		c.Assert(err, IsNil)
 		c.Check(string(status), Equals, s+"\n")
 	}

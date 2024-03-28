@@ -24,7 +24,7 @@ import (
 	"bytes"
 	"debug/elf"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -44,7 +44,7 @@ func elfInterp(cmd string) (string, error) {
 	for _, prog := range el.Progs {
 		if prog.Type == elf.PT_INTERP {
 			r := prog.Open()
-			interp, err := ioutil.ReadAll(r)
+			interp, err := io.ReadAll(r)
 			if err != nil {
 				return "", nil
 			}

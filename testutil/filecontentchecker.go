@@ -22,7 +22,7 @@ package testutil
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"regexp"
 	"strings"
 
@@ -77,7 +77,7 @@ func (c *fileContentChecker) Check(params []interface{}, names []string) (result
 }
 
 func fileContentCheck(filename string, content interface{}, exact bool) (result bool, error string) {
-	buf, err := ioutil.ReadFile(filename)
+	buf, err := os.ReadFile(filename)
 	if err != nil {
 		return false, fmt.Sprintf("Cannot read file %q: %v", filename, err)
 	}
@@ -93,7 +93,7 @@ func fileContentCheck(filename string, content interface{}, exact bool) (result 
 			result = presentableBuf == content.String()
 		case FileContentRef:
 			referenceFilename := string(content)
-			reference, err := ioutil.ReadFile(referenceFilename)
+			reference, err := os.ReadFile(referenceFilename)
 			if err != nil {
 				return false, fmt.Sprintf("Cannot read reference file %q: %v", referenceFilename, err)
 			}

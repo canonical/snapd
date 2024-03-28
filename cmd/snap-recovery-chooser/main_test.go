@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log/syslog"
 	"net/http"
 	"net/http/httptest"
@@ -127,7 +126,7 @@ echo '{}'
 	_, err := main.RunUI(exec.Command(mockCmd.Exe()), mockSystems)
 	c.Assert(err, IsNil)
 
-	data, err := ioutil.ReadFile(tf)
+	data, err := os.ReadFile(tf)
 	c.Assert(err, IsNil)
 	var input *main.ChooserSystems
 	err = json.Unmarshal(data, &input)
@@ -266,7 +265,7 @@ echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
 		{"tool"},
 	})
 
-	capturedStdin, err := ioutil.ReadFile(capturedStdinPath)
+	capturedStdin, err := os.ReadFile(capturedStdinPath)
 	c.Assert(err, IsNil)
 	var stdoutSystems main.ChooserSystems
 	err = json.Unmarshal(capturedStdin, &stdoutSystems)

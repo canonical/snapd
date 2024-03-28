@@ -25,7 +25,7 @@ import (
 	_ "crypto/sha1"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -153,7 +153,7 @@ func (m *MountedFilesystemWriter) writeDirectory(volumeRoot, src, dst string, pr
 		dst = filepath.Join(dst, filepath.Base(src))
 	}
 
-	fis, err := ioutil.ReadDir(src)
+	fis, err := os.ReadDir(src)
 	if err != nil {
 		return fmt.Errorf("cannot list directory entries: %v", err)
 	}
@@ -382,7 +382,7 @@ func (f *mountedFilesystemUpdater) Update() error {
 	return nil
 }
 
-func (f *mountedFilesystemUpdater) sourceDirectoryEntries(srcPath string) ([]os.FileInfo, error) {
+func (f *mountedFilesystemUpdater) sourceDirectoryEntries(srcPath string) ([]fs.DirEntry, error) {
 	if err := checkSourceIsDir(srcPath); err != nil {
 		return nil, err
 	}
@@ -392,7 +392,7 @@ func (f *mountedFilesystemUpdater) sourceDirectoryEntries(srcPath string) ([]os.
 		return nil, fmt.Errorf("source is a symbolic link")
 	}
 
-	return ioutil.ReadDir(srcPath)
+	return os.ReadDir(srcPath)
 }
 
 // targetInSourceDir resolves the actual target for given source directory name

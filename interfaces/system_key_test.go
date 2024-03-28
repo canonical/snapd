@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -104,7 +103,7 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome, overlayRoot 
 	err := interfaces.WriteSystemKey()
 	c.Assert(err, IsNil)
 
-	systemKey, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
+	systemKey, err := os.ReadFile(dirs.SnapSystemKeyFile)
 	c.Assert(err, IsNil)
 
 	kernelFeatures, _ := apparmor.KernelFeatures()
