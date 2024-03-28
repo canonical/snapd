@@ -207,6 +207,22 @@ if [ "$STATIC" = 1 ]; then
         exit 1
     fi
 
+    echo "Checking for usages of deprecated io/ioutil"
+    got=""
+    for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' ); do
+        # shellcheck disable=SC2063
+        s="$(grep -nP io/ioutil "$dir"/*.go || true)"
+        if [ -n "$s" ]; then
+            got="$s\\n$got"
+        fi
+    done
+
+    if [ -n "$got" ]; then
+        echo 'Found usages of deprecated io/ioutil, please use "io" or "os" equivalents'
+        echo "$got"
+        exit 1
+    fi
+
     if command -v shellcheck >/dev/null; then
         exclude_tools_path=tests/lib/external/snapd-testing-tools
         echo "Checking shell scripts..."
