@@ -98,8 +98,24 @@ func (s *RunSuite) SetUpTest(c *check.C) {
 		// default to showing no existing tracking
 		return cgroup.ErrCannotTrackProcess
 	}))
-	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(false)
-	s.AddCleanup(restoreIsGraphicalSession)
+	// Mock notices/connections api calls
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/notices":
+			c.Assert(r.Method, check.Equals, "POST")
+			EncodeResponseBody(c, w, map[string]any{
+				"type":   "sync",
+				"result": map[string]string{"id": "1"},
+			})
+		case "/v2/connections":
+			EncodeResponseBody(c, w, map[string]any{
+				"type":   "sync",
+				"result": nil,
+			})
+		default:
+			c.Error("this should never be reached")
+		}
+	})
 }
 
 func (s *RunSuite) TestInvalidParameters(c *check.C) {
