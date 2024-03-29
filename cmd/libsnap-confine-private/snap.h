@@ -37,6 +37,8 @@ enum {
 	SC_SNAP_INVALID_INSTANCE_NAME = 3,
 	/** System configuration is not supported. */
 	SC_SNAP_MOUNT_DIR_UNSUPPORTED = 4,
+	/** The component name of the snap is not valid. */
+	SC_SNAP_INVALID_COMPONENT = 5,
 };
 
 /* SNAP_NAME_LEN is the maximum length of a snap name, enforced by snapd and the
@@ -81,6 +83,23 @@ void sc_instance_key_validate(const char *instance_key,
 			      struct sc_error **errorp);
 
 /**
+ * Validate the given snap component.
+ *
+ * Valid snap component must be composed of a valid snap name and a valid
+ * component name, separated by a plus sign. The component name must conform to
+ * the same rules as a snap name.
+ *
+ * If snap_instance is not NULL, then the snap name in the snap component will
+ * be compared to the snap name in the snap instance. If they don't match, an
+ * error will be raised.
+ *
+ * The error protocol is observed so if the caller doesn't provide an outgoing
+ * error pointer the function will die on any error.
+ **/
+void sc_snap_component_validate(const char *snap_component,
+				const char *snap_instance, sc_error ** errorp);
+
+/**
  * Validate the given snap instance name.
  *
  * Valid instance name must be composed of a valid snap name and a valid
@@ -93,17 +112,27 @@ void sc_instance_name_validate(const char *instance_name,
 			       struct sc_error **errorp);
 
 /**
- * Validate security tag against strict naming requirements and snap name.
+ * Validate security tag against strict naming requirements, snap name,
+ * and an optional component name.
+ *
+ * Note that component_name should be NULL if the security tag should
+ * not contain a component name. If a component name is found in the tag
+ * and component_name is NULL, an error will be raised. Conversely, if
+ * a component name is expected but not found in the tag, an error will
+ * be raised.
  *
  *  The executable name is of form:
- *   snap.<name>.(<appname>|hook.<hookname>)
+ *   snap.<name>(.<appname>|(+<componentname>)?.hook.<hookname>)
  *  - <name> must start with lowercase letter, then may contain
  *   lowercase alphanumerics and '-'; it must match snap_name
  *  - <appname> may contain alphanumerics and '-'
+ *  - <componentname must start with a lowercase letter, then may
+ *   contain lowercase letters and '-'
  *  - <hookname must start with a lowercase letter, then may
  *   contain lowercase letters and '-'
  **/
-bool sc_security_tag_validate(const char *security_tag, const char *snap_name);
+bool sc_security_tag_validate(const char *security_tag, const char *snap_name,
+			      const char *component_name);
 
 bool sc_is_hook_security_tag(const char *security_tag);
 
@@ -134,5 +163,16 @@ void sc_snap_drop_instance_key(const char *instance_name, char *snap_name,
 void sc_snap_split_instance_name(const char *instance_name, char *snap_name,
 				 size_t snap_name_size, char *instance_key,
 				 size_t instance_key_size);
+
+/**
+ * Extract snap name and component name out of a snap component.
+ *
+ * For example:
+ *   snap+component => "snap" & "component"
+ *
+ **/
+void sc_snap_split_snap_component(const char *snap_component, char *snap_name,
+				  size_t snap_name_size, char *component_name,
+				  size_t component_name_size);
 
 #endif

@@ -359,7 +359,12 @@ int main(int argc, char **argv)
 	if (snap_instance_name_env == NULL) {
 		die("SNAP_INSTANCE_NAME is not set");
 	}
-	sc_init_invocation(&invocation, args, snap_instance_name_env);
+	// SNAP_COMPONENT_NAME might not be set by the environment, so callers
+	// should be prepared to handle NULL.
+	const char *snap_component_name_env = getenv("SNAP_COMPONENT_NAME");
+
+	sc_init_invocation(&invocation, args, snap_instance_name_env,
+			   snap_component_name_env);
 
 	// Who are we?
 	uid_t real_uid, effective_uid, saved_uid;

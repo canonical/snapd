@@ -28,21 +28,24 @@
 #include "string-utils.h"
 #include "cleanup-funcs.h"
 
-bool sc_security_tag_validate(const char *security_tag, const char *snap_name)
+bool sc_security_tag_validate(const char *security_tag,
+			      const char *snap_instance,
+			      const char *component_name)
 {
 	/* Don't even check overly long tags. */
 	if (strlen(security_tag) > SNAP_SECURITY_TAG_MAX_LEN) {
 		return false;
 	}
 	const char *whitelist_re =
-	    "^snap\\.([a-z0-9](-?[a-z0-9])*(_[a-z0-9]{1,10})?)\\.([a-zA-Z0-9](-?[a-zA-Z0-9])*|hook\\.[a-z](-?[a-z0-9])*)$";
+	    "^snap\\.([a-z0-9](-?[a-z0-9])*(_[a-z0-9]{1,10})?)(\\.[a-zA-Z0-9](-?[a-zA-Z0-9])*|(\\+([a-z0-9](-?[a-z0-9])*))?\\.hook\\.[a-z](-?[a-z0-9])*)$";
 	regex_t re;
 	if (regcomp(&re, whitelist_re, REG_EXTENDED) != 0)
 		die("can not compile regex %s", whitelist_re);
 
 	// first capture is for verifying the full security tag, second capture
-	// for verifying the snap_name is correct for this security tag
-	regmatch_t matches[2];
+	// for verifying the snap_name is correct for this security tag, eighth capture
+	// for verifying the component_name is correct for this security tag
+	regmatch_t matches[8];
 	int status =
 	    regexec(&re, security_tag, sizeof matches / sizeof *matches,
 		    matches, 0);
@@ -52,10 +55,37 @@ bool sc_security_tag_validate(const char *security_tag, const char *snap_name)
 	if (status != 0 || matches[1].rm_so < 0) {
 		return false;
 	}
+	// if we expect a component name (a non-null string was passed in here),
+	// then we need to make sure that the regex captured a component name
+	if (component_name != NULL) {
+		// don't allow empty component names, only allow NULL as an indication
+		// that we don't expect a component name.
+		if (strlen(component_name) == 0) {
+			return false;
+		}
+		// fail if the security tag doesn't contain a component name and we
+		// expected one
+		if (matches[7].rm_so < 0) {
+			return false;
+		}
+
+		size_t component_name_len = strlen(component_name);
+		size_t len = matches[7].rm_eo - matches[7].rm_so;
+		if (len != component_name_len
+		    || strncmp(security_tag + matches[7].rm_so, component_name,
+			       len) != 0) {
+			return false;
+		}
+	} else if (matches[7].rm_so >= 0) {
+		// fail if the security tag contains a component name and we didn't
+		// expect one
+		return false;
+	}
 
 	size_t len = matches[1].rm_eo - matches[1].rm_so;
-	return len == strlen(snap_name)
-	    && strncmp(security_tag + matches[1].rm_so, snap_name, len) == 0;
+	return len == strlen(snap_instance)
+	    && strncmp(security_tag + matches[1].rm_so, snap_instance,
+		       len) == 0;
 }
 
 bool sc_is_hook_security_tag(const char *security_tag)
@@ -100,6 +130,89 @@ static int skip_one_char(const char **p, char c)
 		return 1;
 	}
 	return 0;
+}
+
+static void sc_snap_or_component_name_validate(const char *snap_name,
+					       bool is_component,
+					       sc_error **errorp)
+{
+	// NOTE: This function should be synchronized with the two other
+	// implementations: validate_snap_name and snap.ValidateName.
+	sc_error *err = NULL;
+	int err_code =
+	    is_component ? SC_SNAP_INVALID_COMPONENT : SC_SNAP_INVALID_NAME;
+
+	// Ensure that name is not NULL
+	if (snap_name == NULL) {
+		err = sc_error_init(SC_SNAP_DOMAIN, err_code,
+				    "snap name cannot be NULL");
+		goto out;
+	}
+	// This is a regexp-free routine hand-codes the following pattern:
+	//
+	// "^([a-z0-9]+-?)*[a-z](-?[a-z0-9])*$"
+	//
+	// The only motivation for not using regular expressions is so that we
+	// don't run untrusted input against a potentially complex regular
+	// expression engine.
+	const char *p = snap_name;
+	if (skip_one_char(&p, '-')) {
+		err = sc_error_init(SC_SNAP_DOMAIN, err_code,
+				    "snap name cannot start with a dash");
+		goto out;
+	}
+	bool got_letter = false;
+	int n = 0, m;
+	for (; *p != '\0';) {
+		if ((m = skip_lowercase_letters(&p)) > 0) {
+			n += m;
+			got_letter = true;
+			continue;
+		}
+		if ((m = skip_digits(&p)) > 0) {
+			n += m;
+			continue;
+		}
+		if (skip_one_char(&p, '-') > 0) {
+			n++;
+			if (*p == '\0') {
+				err =
+				    sc_error_init(SC_SNAP_DOMAIN,
+						  err_code,
+						  "snap name cannot end with a dash");
+				goto out;
+			}
+			if (skip_one_char(&p, '-') > 0) {
+				err =
+				    sc_error_init(SC_SNAP_DOMAIN,
+						  err_code,
+						  "snap name cannot contain two consecutive dashes");
+				goto out;
+			}
+			continue;
+		}
+		err = sc_error_init(SC_SNAP_DOMAIN, err_code,
+				    "snap name must use lower case letters, digits or dashes");
+		goto out;
+	}
+	if (!got_letter) {
+		err = sc_error_init(SC_SNAP_DOMAIN, err_code,
+				    "snap name must contain at least one letter");
+		goto out;
+	}
+	if (n < 2) {
+		err = sc_error_init(SC_SNAP_DOMAIN, err_code,
+				    "snap name must be longer than 1 character");
+		goto out;
+	}
+	if (n > SNAP_NAME_LEN) {
+		err = sc_error_init(SC_SNAP_DOMAIN, err_code,
+				    "snap name must be shorter than 40 characters");
+		goto out;
+	}
+
+ out:
+	sc_error_forward(errorp, err);
 }
 
 void sc_instance_name_validate(const char *instance_name, sc_error **errorp)
@@ -195,83 +308,80 @@ void sc_instance_key_validate(const char *instance_key, sc_error **errorp)
 	sc_error_forward(errorp, err);
 }
 
-void sc_snap_name_validate(const char *snap_name, sc_error **errorp)
+void sc_snap_component_validate(const char *snap_component,
+				const char *snap_instance, sc_error **errorp)
 {
-	// NOTE: This function should be synchronized with the two other
-	// implementations: validate_snap_name and snap.ValidateName.
 	sc_error *err = NULL;
 
-	// Ensure that name is not NULL
-	if (snap_name == NULL) {
-		err = sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME,
-				    "snap name cannot be NULL");
+	// ensure that name is not NULL
+	if (snap_component == NULL) {
+		err =
+		    sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_COMPONENT,
+				  "snap component cannot be NULL");
 		goto out;
 	}
-	// This is a regexp-free routine hand-codes the following pattern:
-	//
-	// "^([a-z0-9]+-?)*[a-z](-?[a-z0-9])*$"
-	//
-	// The only motivation for not using regular expressions is so that we
-	// don't run untrusted input against a potentially complex regular
-	// expression engine.
-	const char *p = snap_name;
-	if (skip_one_char(&p, '-')) {
-		err = sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME,
-				    "snap name cannot start with a dash");
+
+	const char *pos = strchr(snap_component, '+');
+	if (pos == NULL) {
+		err =
+		    sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_COMPONENT,
+				  "snap component must contain a +");
 		goto out;
 	}
-	bool got_letter = false;
-	int n = 0, m;
-	for (; *p != '\0';) {
-		if ((m = skip_lowercase_letters(&p)) > 0) {
-			n += m;
-			got_letter = true;
-			continue;
+
+	size_t snap_name_len = pos - snap_component;
+	if (snap_name_len > SNAP_NAME_LEN) {
+		err =
+		    sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_COMPONENT,
+				  "snap name must be shorter than 40 characters");
+		goto out;
+	}
+
+	size_t component_name_len = strlen(pos + 1);
+	if (component_name_len > SNAP_NAME_LEN) {
+		err =
+		    sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_COMPONENT,
+				  "component name must be shorter than 40 characters");
+		goto out;
+	}
+
+	char snap_name[SNAP_NAME_LEN + 1] = { 0 };
+	strncpy(snap_name, snap_component, snap_name_len);
+
+	char component_name[SNAP_NAME_LEN + 1] = { 0 };
+	strncpy(component_name, pos + 1, component_name_len);
+
+	sc_snap_or_component_name_validate(snap_name, true, &err);
+	if (err != NULL) {
+		goto out;
+	}
+
+	sc_snap_or_component_name_validate(component_name, true, &err);
+	if (err != NULL) {
+		goto out;
+	}
+
+	if (snap_instance != NULL) {
+		char snap_name_in_instance[SNAP_NAME_LEN + 1] = { 0 };
+		sc_snap_drop_instance_key(snap_instance, snap_name_in_instance,
+					  sizeof snap_name_in_instance);
+
+		if (strcmp(snap_name, snap_name_in_instance) != 0) {
+			err =
+			    sc_error_init(SC_SNAP_DOMAIN,
+					  SC_SNAP_INVALID_COMPONENT,
+					  "snap name in component must match snap name in instance");
+			goto out;
 		}
-		if ((m = skip_digits(&p)) > 0) {
-			n += m;
-			continue;
-		}
-		if (skip_one_char(&p, '-') > 0) {
-			n++;
-			if (*p == '\0') {
-				err =
-				    sc_error_init(SC_SNAP_DOMAIN,
-						  SC_SNAP_INVALID_NAME,
-						  "snap name cannot end with a dash");
-				goto out;
-			}
-			if (skip_one_char(&p, '-') > 0) {
-				err =
-				    sc_error_init(SC_SNAP_DOMAIN,
-						  SC_SNAP_INVALID_NAME,
-						  "snap name cannot contain two consecutive dashes");
-				goto out;
-			}
-			continue;
-		}
-		err = sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME,
-				    "snap name must use lower case letters, digits or dashes");
-		goto out;
-	}
-	if (!got_letter) {
-		err = sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME,
-				    "snap name must contain at least one letter");
-		goto out;
-	}
-	if (n < 2) {
-		err = sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME,
-				    "snap name must be longer than 1 character");
-		goto out;
-	}
-	if (n > SNAP_NAME_LEN) {
-		err = sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_NAME,
-				    "snap name must be shorter than 40 characters");
-		goto out;
 	}
 
  out:
 	sc_error_forward(errorp, err);
+}
+
+void sc_snap_name_validate(const char *snap_name, sc_error **errorp)
+{
+	sc_snap_or_component_name_validate(snap_name, false, errorp);
 }
 
 void sc_snap_drop_instance_key(const char *instance_name, char *snap_name,
@@ -285,39 +395,15 @@ void sc_snap_split_instance_name(const char *instance_name, char *snap_name,
 				 size_t snap_name_size, char *instance_key,
 				 size_t instance_key_size)
 {
-	if (instance_name == NULL) {
-		die("internal error: cannot split instance name when it is unset");
-	}
-	if (snap_name == NULL && instance_key == NULL) {
-		die("internal error: cannot split instance name when both snap name and instance key are unset");
-	}
+	sc_string_split(instance_name, '_', snap_name, snap_name_size,
+			instance_key, instance_key_size);
+}
 
-	const char *pos = strchr(instance_name, '_');
-	const char *instance_key_start = "";
-	size_t snap_name_len = 0;
-	size_t instance_key_len = 0;
-	if (pos == NULL) {
-		snap_name_len = strlen(instance_name);
-	} else {
-		snap_name_len = pos - instance_name;
-		instance_key_start = pos + 1;
-		instance_key_len = strlen(instance_key_start);
-	}
-
-	if (snap_name != NULL) {
-		if (snap_name_len >= snap_name_size) {
-			die("snap name buffer too small");
-		}
-
-		memcpy(snap_name, instance_name, snap_name_len);
-		snap_name[snap_name_len] = '\0';
-	}
-
-	if (instance_key != NULL) {
-		if (instance_key_len >= instance_key_size) {
-			die("instance key buffer too small");
-		}
-		memcpy(instance_key, instance_key_start, instance_key_len);
-		instance_key[instance_key_len] = '\0';
-	}
+void sc_snap_split_snap_component(const char *snap_component,
+				  char *snap_name, size_t snap_name_size,
+				  char *component_name,
+				  size_t component_name_size)
+{
+	sc_string_split(snap_component, '+', snap_name, snap_name_size,
+			component_name, component_name_size);
 }

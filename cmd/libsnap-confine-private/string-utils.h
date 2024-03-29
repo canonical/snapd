@@ -113,4 +113,15 @@ void sc_string_init(char *buf, size_t buf_size);
  **/
 void sc_string_quote(char *buf, size_t buf_size, const char *str);
 
+/**
+ * Split a string into two parts on the first occurrence of a delimiter.
+ *
+ * The size of prefix must be large enough to hold the prefix part of the
+ * string, and the size of suffix must be large enough to hold the suffix part
+ * of the string.
+ **/
+void sc_string_split(const char *string, char delimiter,
+		     char *prefix, size_t prefix_size,
+		     char *suffix, size_t suffix_size);
+
 #endif

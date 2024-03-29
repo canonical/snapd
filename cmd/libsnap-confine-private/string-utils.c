@@ -267,3 +267,44 @@ void sc_string_quote(char *buf, size_t buf_size, const char *str)
 	}
 	sc_string_append_char(buf, buf_size, '"');
 }
+
+void sc_string_split(const char *string, char delimiter,
+		     char *prefix, size_t prefix_size,
+		     char *suffix, size_t suffix_size)
+{
+	if (string == NULL) {
+		die("internal error: cannot split string when it is unset");
+	}
+	if (prefix == NULL && suffix == NULL) {
+		die("internal error: cannot split string when both prefix and suffix are unset");
+	}
+
+	const char *pos = strchr(string, delimiter);
+	const char *prefix_start = "";
+	size_t prefix_len = 0;
+	size_t suffix_len = 0;
+	if (pos == NULL) {
+		prefix_len = strlen(string);
+	} else {
+		prefix_len = pos - string;
+		prefix_start = pos + 1;
+		suffix_len = strlen(prefix_start);
+	}
+
+	if (prefix != NULL) {
+		if (prefix_len >= prefix_size) {
+			die("prefix buffer too small");
+		}
+
+		memcpy(prefix, string, prefix_len);
+		prefix[prefix_len] = '\0';
+	}
+
+	if (suffix != NULL) {
+		if (suffix_len >= suffix_size) {
+			die("suffix buffer too small");
+		}
+		memcpy(suffix, prefix_start, suffix_len);
+		suffix[suffix_len] = '\0';
+	}
+}
