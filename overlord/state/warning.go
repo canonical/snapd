@@ -31,14 +31,13 @@ import (
 )
 
 var (
-	DefaultRepeatAfter = time.Hour * 24
-	DefaultExpireAfter = time.Hour * 24 * 28
+	defaultWarningRepeatAfter = time.Hour * 24
+	defaultWarningExpireAfter = time.Hour * 24 * 28
 
 	errNoWarningMessage     = errors.New("warning has no message")
 	errBadWarningMessage    = errors.New("malformed warning message")
 	errNoWarningFirstAdded  = errors.New("warning has no first-added timestamp")
 	errNoWarningExpireAfter = errors.New("warning has no expire-after duration")
-	errNoWarningRepeatAfter = errors.New("warning has no repeat-after duration")
 )
 
 type jsonWarning struct {
@@ -125,9 +124,7 @@ func (w *Warning) validate() (e error) {
 	if w.expireAfter == 0 {
 		return errNoWarningExpireAfter
 	}
-	if w.repeatAfter == 0 {
-		return errNoWarningRepeatAfter
-	}
+
 	return nil
 }
 
@@ -184,26 +181,52 @@ func (s *State) Warnf(template string, args ...interface{}) {
 	} else {
 		message = template
 	}
-	s.addWarning(Warning{
-		message:     message,
-		expireAfter: DefaultExpireAfter,
-		repeatAfter: DefaultRepeatAfter,
-	}, time.Now().UTC())
+	s.AddWarning(message, &AddWarningOptions{
+		RepeatAfter: defaultWarningRepeatAfter,
+	})
 }
 
-func (s *State) addWarning(w Warning, t time.Time) {
+// AddWarningOptions holds optional parameters for an AddWarning call.
+type AddWarningOptions struct {
+	// RepeatAfter defines how long after this warning was last shown we
+	// should allow it to repeat. Zero means always repeat.
+	RepeatAfter time.Duration
+
+	// Time, if set, overrides time.Now() as the warning lastAdded time.
+	Time time.Time
+}
+
+// AddWarning records a warning with the specified message and options.
+func (s *State) AddWarning(message string, options *AddWarningOptions) {
+	if options == nil {
+		options = &AddWarningOptions{}
+	}
+
 	s.writing()
 
-	if s.warnings[w.message] == nil {
-		w.firstAdded = t
-		if err := w.validate(); err != nil {
+	now := options.Time
+	if now.IsZero() {
+		now = time.Now()
+	}
+	now = now.UTC()
+
+	warning, ok := s.warnings[message]
+	if !ok {
+		warning = &Warning{
+			message:     message,
+			firstAdded:  now,
+			expireAfter: defaultWarningExpireAfter,
+		}
+		if err := warning.validate(); err != nil {
 			// programming error!
 			logger.Panicf("internal error, please report: attempted to add invalid warning: %v", err)
 			return
 		}
-		s.warnings[w.message] = &w
+		s.warnings[message] = warning
 	}
-	s.warnings[w.message].lastAdded = t
+
+	warning.lastAdded = now
+	warning.repeatAfter = options.RepeatAfter
 }
 
 type byLastAdded []*Warning

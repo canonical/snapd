@@ -57,8 +57,8 @@ func (stateSuite) testMarshalWarning(shown bool, c *check.C) {
 	c.Assert(v, check.HasLen, 1)
 	c.Check(v[0], check.HasLen, expectedNumKeys)
 	c.Check(v[0]["message"], check.DeepEquals, "hello")
-	c.Check(v[0]["expire-after"], check.Equals, state.DefaultExpireAfter.String())
-	c.Check(v[0]["repeat-after"], check.Equals, state.DefaultRepeatAfter.String())
+	c.Check(v[0]["expire-after"], check.Equals, state.DefaultWarningExpireAfter.String())
+	c.Check(v[0]["repeat-after"], check.Equals, state.DefaultWarningRepeatAfter.String())
 	c.Check(v[0]["first-added"], check.Equals, v[0]["last-added"])
 	t, err := time.Parse(time.RFC3339, v[0]["first-added"])
 	c.Assert(err, check.IsNil)
@@ -105,7 +105,6 @@ func (stateSuite) TestUnmarshalErrors(c *check.C) {
 		{`{                "first-added": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, state.ErrNoWarningMessage},
 		{`{"message": "x",                                        "expire-after": "1h", "repeat-after": "1h"}`, state.ErrNoWarningFirstAdded},
 		{`{"message": "x", "first-added": "2006-01-02T15:04:05Z",                       "repeat-after": "1h"}`, state.ErrNoWarningExpireAfter},
-		{`{"message": "x", "first-added": "2006-01-02T15:04:05Z", "expire-after": "1h"                      }`, state.ErrNoWarningRepeatAfter},
 	} {
 		var w state.Warning
 		c.Check(json.Unmarshal([]byte(t.b), &w), check.Equals, t.e)
@@ -135,12 +134,15 @@ func (stateSuite) TestEmptyStateWarnings(c *check.C) {
 
 func (stateSuite) TestDeleteExpired(c *check.C) {
 	const dt = 20 * time.Millisecond
-	oldTime := time.Now()
+	oldTime := time.Now().Add(dt - state.DefaultWarningExpireAfter)
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
 	st.Warnf("hello again") // adding this twice to trigger the swap in sort
-	st.AddWarning("hello", oldTime, never, dt, state.DefaultRepeatAfter)
+	st.AddWarning("hello", &state.AddWarningOptions{
+		Time:        oldTime,
+		RepeatAfter: state.DefaultWarningRepeatAfter,
+	})
 	st.Warnf("hello again")
 
 	allWs := st.AllWarnings()
@@ -163,11 +165,14 @@ func (stateSuite) TestDeleteExpired(c *check.C) {
 
 func (stateSuite) TestOldRepeatedWarning(c *check.C) {
 	now := time.Now()
-	oldTime := now.UTC().Add(-2 * state.DefaultExpireAfter)
+	oldTime := now.UTC().Add(-2 * state.DefaultWarningExpireAfter)
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
-	st.AddWarning("hello", oldTime, never, state.DefaultExpireAfter, state.DefaultRepeatAfter)
+	st.AddWarning("hello", &state.AddWarningOptions{
+		Time:        oldTime,
+		RepeatAfter: state.DefaultWarningRepeatAfter,
+	})
 	st.Warnf("hello")
 
 	allWs := st.AllWarnings()
@@ -199,10 +204,13 @@ func (stateSuite) TestWarningsSummaryReturnsLastLastAdded(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 	t0 := time.Now().Add(-100 * time.Hour)
-	st.AddWarning("hello", t0, never, state.DefaultExpireAfter, state.DefaultRepeatAfter)
+	st.AddWarning("hello", &state.AddWarningOptions{
+		Time:        t0,
+		RepeatAfter: state.DefaultWarningRepeatAfter,
+	})
 	n, t := st.WarningsSummary()
 	c.Check(n, check.Equals, 1)
-	c.Check(t, check.DeepEquals, t0)
+	c.Check(t.Equal(t0), check.Equals, true)
 }
 
 func (stateSuite) TestShowAndOkay(c *check.C) {
@@ -246,7 +254,7 @@ func (stateSuite) TestShowAndOkayWithRepeats(c *check.C) {
 	defer st.Unlock()
 	const myRepeatAfter = 2 * time.Second
 	t0 := time.Now()
-	st.AddWarning("hello", t0, never, state.DefaultExpireAfter, myRepeatAfter)
+	st.AddWarning("hello", &state.AddWarningOptions{Time: t0})
 	ws, t1 := st.PendingWarnings()
 	c.Assert(ws, check.HasLen, 1)
 	c.Check(fmt.Sprintf("%q", ws), check.Equals, `["hello"]`)
@@ -254,7 +262,7 @@ func (stateSuite) TestShowAndOkayWithRepeats(c *check.C) {
 	n := st.OkayWarnings(t1)
 	c.Check(n, check.Equals, 1)
 
-	st.Warnf("hello")
+	st.AddWarning("hello", &state.AddWarningOptions{RepeatAfter: myRepeatAfter})
 
 	ws, _ = st.PendingWarnings()
 	c.Check(ws, check.HasLen, 0) // not enough time has passed
