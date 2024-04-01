@@ -950,7 +950,7 @@ func addAppToSnap(c *C, snapinfo *snap.Info, app string, isService bool, icon st
 	createDesktopFile(c, newInfo.DesktopFile(), icon, name, nil)
 }
 
-func (s *restSuite) TestGuessAppIconNoIconPrefixEqualApp(c *C) {
+func (s *restSuite) TestGuessAppDataNoIconPrefixEqualApp(c *C) {
 	si := createSnapInfo("app1")
 	addAppToSnap(c, si, "app1", false, "", "")
 	icon, name := agent.GuessAppData(si, "", "")
@@ -958,7 +958,7 @@ func (s *restSuite) TestGuessAppIconNoIconPrefixEqualApp(c *C) {
 	c.Check(name, Equals, "")
 }
 
-func (s *restSuite) TestGuessAppIconNoIconPrefixDifferentApp(c *C) {
+func (s *restSuite) TestGuessAppDataNoIconPrefixDifferentApp(c *C) {
 	si := createSnapInfo("snap1")
 	addAppToSnap(c, si, "app1", false, "", "")
 	icon, name := agent.GuessAppData(si, "", "")
@@ -966,7 +966,7 @@ func (s *restSuite) TestGuessAppIconNoIconPrefixDifferentApp(c *C) {
 	c.Check(name, Equals, "")
 }
 
-func (s *restSuite) TestGuessAppIconPrefixDifferentApp(c *C) {
+func (s *restSuite) TestGuessAppDataPrefixDifferentApp(c *C) {
 	si := createSnapInfo("snap1")
 	addAppToSnap(c, si, "app1", false, "iconname", "appname")
 	icon, name := agent.GuessAppData(si, "", "")
@@ -974,7 +974,7 @@ func (s *restSuite) TestGuessAppIconPrefixDifferentApp(c *C) {
 	c.Check(name, Equals, "appname")
 }
 
-func (s *restSuite) TestGuessAppIconPrefixEqualApp(c *C) {
+func (s *restSuite) TestGuessAppDataPrefixEqualApp(c *C) {
 	si := createSnapInfo("app1")
 	addAppToSnap(c, si, "app1", false, "iconname1", "appname1")
 	addAppToSnap(c, si, "app2", false, "iconname2", "appname2")
@@ -983,7 +983,7 @@ func (s *restSuite) TestGuessAppIconPrefixEqualApp(c *C) {
 	c.Check(name, Equals, "appname1")
 }
 
-func (s *restSuite) TestGuessAppIconServicePrefixEqualApp(c *C) {
+func (s *restSuite) TestGuessAppDataServicePrefixEqualApp(c *C) {
 	si := createSnapInfo("app1")
 	addAppToSnap(c, si, "app1", true, "iconname", "appname")
 	icon, name := agent.GuessAppData(si, "", "")
@@ -991,7 +991,7 @@ func (s *restSuite) TestGuessAppIconServicePrefixEqualApp(c *C) {
 	c.Check(name, Equals, "")
 }
 
-func (s *restSuite) TestGuessAppIconServicePrefixDifferentApp(c *C) {
+func (s *restSuite) TestGuessAppDataServicePrefixDifferentApp(c *C) {
 	si := createSnapInfo("snap1")
 	addAppToSnap(c, si, "app1", true, "iconname", "appname")
 	icon, name := agent.GuessAppData(si, "", "")
@@ -999,7 +999,7 @@ func (s *restSuite) TestGuessAppIconServicePrefixDifferentApp(c *C) {
 	c.Check(name, Equals, "")
 }
 
-func (s *restSuite) TestGuessAppIconServiceTwoApps(c *C) {
+func (s *restSuite) TestGuessAppDataServiceTwoApps(c *C) {
 	si := createSnapInfo("app1")
 	addAppToSnap(c, si, "app1", true, "iconname1", "appname1")
 	addAppToSnap(c, si, "app2", false, "iconname2", "appname2")
@@ -1008,7 +1008,7 @@ func (s *restSuite) TestGuessAppIconServiceTwoApps(c *C) {
 	c.Check(name, Equals, "appname2")
 }
 
-func (s *restSuite) TestGuessAppIconServiceTwoAppsServices(c *C) {
+func (s *restSuite) TestGuessAppDataServiceTwoAppsServices(c *C) {
 	si := createSnapInfo("app1")
 	addAppToSnap(c, si, "app1", true, "iconname1", "appname1")
 	addAppToSnap(c, si, "app2", true, "iconname2", "appname2")
@@ -1017,7 +1017,7 @@ func (s *restSuite) TestGuessAppIconServiceTwoAppsServices(c *C) {
 	c.Check(name, Equals, "")
 }
 
-func (s *restSuite) TestGuessAppIconServiceTwoAppsOneServicePrefixDifferent(c *C) {
+func (s *restSuite) TestGuessAppDataServiceTwoAppsOneServicePrefixDifferent(c *C) {
 	si := createSnapInfo("snap1")
 	addAppToSnap(c, si, "app1", true, "iconname1", "appname1")
 	addAppToSnap(c, si, "app2", false, "iconname2", "appname2")
@@ -1026,7 +1026,7 @@ func (s *restSuite) TestGuessAppIconServiceTwoAppsOneServicePrefixDifferent(c *C
 	c.Check(name, Equals, "appname2")
 }
 
-func (s *restSuite) TestGuessAppIconTwoAppsPrefixDifferent(c *C) {
+func (s *restSuite) TestGuessAppDataTwoAppsPrefixDifferent(c *C) {
 	si := createSnapInfo("snap1")
 	addAppToSnap(c, si, "app1", false, "iconname1", "appname1")
 	addAppToSnap(c, si, "app2", false, "iconname2", "appname2")
@@ -1042,7 +1042,7 @@ func (s *restSuite) TestGuessAppIconTwoAppsPrefixDifferent(c *C) {
 	}
 }
 
-func (s *restSuite) TestGuessAppIconWithKey(c *C) {
+func (s *restSuite) TestGuessAppDataWithKey(c *C) {
 	si := createSnapInfo("snap1")
 	addAppToSnap(c, si, "app1", false, "iconname", "appname")
 	icon, name := agent.GuessAppData(si, "", "akey")
