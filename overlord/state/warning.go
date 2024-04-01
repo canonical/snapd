@@ -229,6 +229,20 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 	warning.repeatAfter = options.RepeatAfter
 }
 
+// RemoveWarning removes a warning given its message.
+//
+// Returns state.ErrNoState if no warning exists with given message.
+func (s *State) RemoveWarning(message string) error {
+	s.writing()
+	_, ok := s.warnings[message]
+	if !ok {
+		return ErrNoState
+	}
+
+	delete(s.warnings, message)
+	return nil
+}
+
 type byLastAdded []*Warning
 
 func (a byLastAdded) Len() int           { return len(a) }

@@ -28,9 +28,8 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/testutil"
 )
-
-var never time.Time
 
 func (stateSuite) testMarshalWarning(shown bool, c *check.C) {
 	st := state.New(nil)
@@ -272,4 +271,27 @@ func (stateSuite) TestShowAndOkayWithRepeats(c *check.C) {
 	ws, _ = st.PendingWarnings()
 	c.Check(ws, check.HasLen, 1)
 	c.Check(fmt.Sprintf("%q", ws), check.Equals, `["hello"]`)
+}
+
+func (stateSuite) TestRemoveWarning(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	// cannot replace a non existing warning
+	err := st.RemoveWarning("this warning does not exist")
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+	ws := st.AllWarnings()
+	c.Check(ws, check.HasLen, 0)
+
+	st.Warnf("this warning exists")
+	ws = st.AllWarnings()
+	c.Check(ws, check.HasLen, 1)
+	c.Check(ws[0].String(), check.Equals, "this warning exists")
+
+	// check warning is removed
+	err = st.RemoveWarning("this warning exists")
+	c.Assert(err, check.IsNil)
+	ws = st.AllWarnings()
+	c.Check(ws, check.HasLen, 0)
 }
