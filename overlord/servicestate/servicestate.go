@@ -397,7 +397,7 @@ func (sd *StatusDecorator) hasEnabledActivator(appInfo *client.AppInfo) bool {
 	return false
 }
 
-// queryUserServiceStatus returns a list of service-statuses for the users configured.
+// queryUserServiceStatus returns a list of service-statuses for the configured users.
 func (sd *StatusDecorator) queryUserServiceStatus(units []string) ([]*systemd.UnitStatus, error) {
 	// Avoid any expensive call if there are no user daemons
 	if len(units) == 0 {
