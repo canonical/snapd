@@ -10237,7 +10237,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshCreatePreDownload(c *C) {
 	c.Assert(tasks[0].Summary(), testutil.Contains, "Pre-download snap \"some-snap\" (2) from channel")
 }
 
-func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecorded(c *C) {
+func (s *snapmgrTestSuite) testAutoRefreshRefreshInhibitNoticeRecorded(c *C, markerInterfaceConnected bool, warningFallback bool) {
 	refreshAppsCheckCalled := 0
 	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
 		refreshAppsCheckCalled++
@@ -10254,6 +10254,20 @@ func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecorded(c *C) {
 		return nil
 	})
 	defer restore()
+
+	var connCheckCalled int
+	restore = snapstate.MockHasActiveConnection(func(st *state.State, iface string) (bool, error) {
+		connCheckCalled++
+		c.Check(iface, Equals, "snap-refresh-observe")
+		return markerInterfaceConnected, nil
+	})
+	defer restore()
+
+	// let's add some random warnings
+	s.state.Lock()
+	s.state.Warnf("this is a random warning 1")
+	s.state.Warnf("this is a random warning 2")
+	s.state.Unlock()
 
 	s.state.Lock()
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
@@ -10294,8 +10308,10 @@ func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecorded(c *C) {
 	c.Check(chgs[1].Status(), Equals, state.DoStatus)
 	c.Check(chgs[0].Kind(), Equals, "auto-refresh")
 	c.Check(chgs[0].Status(), Equals, state.DoStatus)
-	// No notices are recorded until auto-refresh change is marked as ready.
+	// No notices or warnings are recorded until auto-refresh change is marked as ready.
 	checkRefreshInhibitNotice(c, s.state, 0)
+	// no "refresh inhibition" warnings recorded
+	checkNoRefreshInhibitWarning(c, s.state)
 
 	s.settle(c)
 
@@ -10317,8 +10333,33 @@ func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecorded(c *C) {
 	c.Check(chgs[0].Kind(), Equals, "auto-refresh")
 	c.Check(chgs[0].Status(), Equals, state.DoneStatus)
 
-	// Aggregate notice is recorded when auto-refresh change is marked as ready.
+	// Aggregate notice and warning is recorded when auto-refresh change is marked as ready.
 	checkRefreshInhibitNotice(c, s.state, 1)
+	if warningFallback {
+		checkRefreshInhibitWarning(c, s.state, []string{"some-snap"}, time.Time{})
+	} else {
+		checkNoRefreshInhibitWarning(c, s.state)
+	}
+}
+
+func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecorded(c *C) {
+	s.enableRefreshAppAwarenessUX()
+	const markerInterfaceConnected = true
+	const warningFallback = false
+	s.testAutoRefreshRefreshInhibitNoticeRecorded(c, markerInterfaceConnected, warningFallback)
+}
+
+func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecordedWarningFallback(c *C) {
+	s.enableRefreshAppAwarenessUX()
+	const markerInterfaceConnected = false
+	const warningFallback = true
+	s.testAutoRefreshRefreshInhibitNoticeRecorded(c, markerInterfaceConnected, warningFallback)
+}
+
+func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecordedWarningFallbackNoRAAUX(c *C) {
+	const markerInterfaceConnected = false
+	const warningFallback = false
+	s.testAutoRefreshRefreshInhibitNoticeRecorded(c, markerInterfaceConnected, warningFallback)
 }
 
 func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecordedOnPreDownloadOnly(c *C) {

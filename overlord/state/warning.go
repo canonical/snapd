@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -206,7 +206,7 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 
 	now := options.Time
 	if now.IsZero() {
-		now = time.Now()
+		now = timeNow()
 	}
 	now = now.UTC()
 
