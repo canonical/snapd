@@ -1,0 +1,5 @@
+component: snap-with-comps+comp-with-install-hook
+type: test
+version: 1.0
+summary: Component 1
+description: First component for snap-with-comps

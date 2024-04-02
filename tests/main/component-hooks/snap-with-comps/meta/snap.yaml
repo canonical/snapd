@@ -1,0 +1,13 @@
+name: snap-with-comps
+version: 1.0
+summary: Snap with components
+description: A snap that defines components
+base: core22
+components:
+  comp-with-install-hook:
+    type: test
+    hooks:
+      install:
+        plugs: [network]
+plugs:
+  network:

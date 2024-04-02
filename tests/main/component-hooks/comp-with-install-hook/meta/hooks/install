@@ -1,0 +1,7 @@
+#!/bin/bash
+
+set -xe
+
+printf "GET /ip HTTP/1.0\r\n\r\n" | nc httpbin.org 80 > "${SNAP_COMMON}/install-logs" 2>&1
+
+touch "${SNAP_COMMON}/install-done"
