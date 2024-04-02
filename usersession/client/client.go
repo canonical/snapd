@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/systemd"
 )
 
 // dialSessionAgent connects to a user's session agent
@@ -332,6 +333,19 @@ type ServiceUnitStatus struct {
 	Active           bool     `json:"active"`
 	Installed        bool     `json:"installed"`
 	NeedDaemonReload bool     `json:"needs-reload"`
+}
+
+func (us *ServiceUnitStatus) SystemdUnitStatus() *systemd.UnitStatus {
+	return &systemd.UnitStatus{
+		Daemon:           us.Daemon,
+		Id:               us.Id,
+		Name:             us.Name,
+		Names:            us.Names,
+		Enabled:          us.Enabled,
+		Active:           us.Active,
+		Installed:        us.Installed,
+		NeedDaemonReload: us.NeedDaemonReload,
+	}
 }
 
 func (client *Client) ServiceStatus(ctx context.Context, services []string) (map[int][]ServiceUnitStatus, map[int][]ServiceFailure, error) {
