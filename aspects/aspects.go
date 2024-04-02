@@ -269,16 +269,6 @@ func parseRule(parent *aspectRule, ruleRaw interface{}) ([]*aspectRule, error) {
 		return nil, errors.New("each aspect rule should be a map")
 	}
 
-	requestRaw, ok := ruleMap["request"]
-	if !ok || requestRaw == "" {
-		return nil, errors.New(`aspect rules must have a "request" field`)
-	}
-
-	request, ok := requestRaw.(string)
-	if !ok {
-		return nil, errors.New(`"request" must be a string`)
-	}
-
 	storageRaw, ok := ruleMap["storage"]
 	if !ok || storageRaw == "" {
 		return nil, errors.New(`aspect rules must have a "storage" field`)
@@ -287,6 +277,18 @@ func parseRule(parent *aspectRule, ruleRaw interface{}) ([]*aspectRule, error) {
 	storage, ok := storageRaw.(string)
 	if !ok {
 		return nil, errors.New(`"storage" must be a string`)
+	}
+
+	requestRaw, ok := ruleMap["request"]
+	if !ok {
+		requestRaw = storage
+	} else if requestRaw == "" {
+		return nil, errors.New(`aspect rules' "request" field must be non-empty, if it exists`)
+	}
+
+	request, ok := requestRaw.(string)
+	if !ok {
+		return nil, errors.New(`"request" must be a string`)
 	}
 
 	if err := validateRequestStoragePair(request, storage); err != nil {

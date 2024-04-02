@@ -68,15 +68,20 @@ func (*aspectSuite) TestNewAspectBundle(c *C) {
 		},
 		{
 			bundle: map[string]interface{}{"bar": map[string]interface{}{"rules": []interface{}{map[string]interface{}{}}}},
-			err:    `cannot define aspect "bar": aspect rules must have a "request" field`,
+			err:    `cannot define aspect "bar": aspect rules must have a "storage" field`,
+		},
+
+		{
+			bundle: map[string]interface{}{"bar": map[string]interface{}{"rules": []interface{}{map[string]interface{}{"request": "foo", "storage": 1}}}},
+			err:    `cannot define aspect "bar": "storage" must be a string`,
 		},
 		{
-			bundle: map[string]interface{}{"bar": map[string]interface{}{"rules": []interface{}{map[string]interface{}{"request": 1}}}},
+			bundle: map[string]interface{}{"bar": map[string]interface{}{"rules": []interface{}{map[string]interface{}{"storage": "foo", "request": 1}}}},
 			err:    `cannot define aspect "bar": "request" must be a string`,
 		},
 		{
-			bundle: map[string]interface{}{"bar": map[string]interface{}{"rules": []interface{}{map[string]interface{}{"request": "foo"}}}},
-			err:    `cannot define aspect "bar": aspect rules must have a "storage" field`,
+			bundle: map[string]interface{}{"bar": map[string]interface{}{"rules": []interface{}{map[string]interface{}{"storage": "foo", "request": ""}}}},
+			err:    `cannot define aspect "bar": aspect rules' "request" field must be non-empty, if it exists`,
 		},
 		{
 			bundle: map[string]interface{}{"bar": map[string]interface{}{"rules": []interface{}{map[string]interface{}{"request": "foo", "storage": 1}}}},
@@ -119,6 +124,33 @@ func (*aspectSuite) TestNewAspectBundle(c *C) {
 			c.Check(aspectBundle, Not(IsNil), cmt)
 		}
 	}
+}
+
+func (s *aspectSuite) TestMissingRequestDefaultsToStorage(c *C) {
+	databag := aspects.NewJSONDataBag()
+	bundle := map[string]interface{}{
+		"foo": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{"storage": "a.b"},
+			},
+		},
+	}
+	bun, err := aspects.NewBundle("acc", "foo", bundle, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	asp := bun.Aspect("foo")
+	c.Assert(asp, NotNil)
+
+	err = asp.Set(databag, "a.b", "value")
+	c.Assert(err, IsNil)
+
+	value, err := asp.Get(databag, "")
+	c.Assert(err, IsNil)
+	c.Assert(value, DeepEquals, map[string]interface{}{
+		"a": map[string]interface{}{
+			"b": "value",
+		},
+	})
 }
 
 func (s *aspectSuite) TestBundleWithSample(c *C) {
