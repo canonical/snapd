@@ -21,11 +21,11 @@ package osutil_test
 
 import (
 	"fmt"
-	"os/user"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/testutil"
 )
 

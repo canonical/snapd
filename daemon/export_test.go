@@ -22,7 +22,6 @@ package daemon
 import (
 	"context"
 	"net/http"
-	"os/user"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -30,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client/clientutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/restart"

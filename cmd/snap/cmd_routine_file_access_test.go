@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os/user"
 	"path/filepath"
 	"strings"
 
@@ -31,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/osutil/user"
 )
 
 type SnapRoutineFileAccessSuite struct {

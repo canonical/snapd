@@ -22,7 +22,6 @@ package snapenv
 import (
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
 	"testing"
 
@@ -33,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"

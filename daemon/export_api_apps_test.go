@@ -20,8 +20,7 @@
 package daemon
 
 import (
-	"os/user"
-
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/state"

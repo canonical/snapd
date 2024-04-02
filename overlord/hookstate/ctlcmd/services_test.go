@@ -22,7 +22,6 @@ package ctlcmd_test
 import (
 	"context"
 	"fmt"
-	"os/user"
 	"sort"
 	"strings"
 
@@ -34,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"

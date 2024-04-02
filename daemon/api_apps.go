@@ -26,12 +26,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os/user"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/client/clientutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/state"
