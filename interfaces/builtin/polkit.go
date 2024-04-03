@@ -22,7 +22,7 @@ package builtin
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -96,7 +96,7 @@ func (iface *polkitInterface) getActionPrefix(attribs interfaces.Attrer) (string
 }
 
 func loadPolkitPolicy(filename, actionPrefix string) (polkit.Policy, error) {
-	content, err := ioutil.ReadFile(filename)
+	content, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf(`cannot read file %q: %v`, filename, err)
 	}

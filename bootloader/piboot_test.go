@@ -20,7 +20,6 @@
 package bootloader_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -155,7 +154,7 @@ func (s *pibootTestSuite) testExtractKernelAssets(c *C, dtbDir string) {
 	snapf, err := snapfile.Open(fn)
 	c.Assert(err, IsNil)
 
-	assetsDir, err := ioutil.TempDir("", "kernel-assets")
+	assetsDir, err := os.MkdirTemp("", "kernel-assets")
 	c.Assert(err, IsNil)
 	defer os.RemoveAll(assetsDir)
 
@@ -313,7 +312,7 @@ func (s *pibootTestSuite) TestCreateConfig(c *C) {
 		},
 	}
 	for _, fInfo := range files {
-		readData, err := ioutil.ReadFile(fInfo.path)
+		readData, err := os.ReadFile(fInfo.path)
 		c.Assert(err, IsNil)
 		c.Assert(string(readData), Equals, fInfo.data)
 	}
@@ -347,7 +346,7 @@ func (s *pibootTestSuite) TestCreateTrybootCfg(c *C) {
 		},
 	}
 	for _, fInfo := range files {
-		readData, err := ioutil.ReadFile(fInfo.path)
+		readData, err := os.ReadFile(fInfo.path)
 		c.Assert(err, IsNil)
 		c.Assert(string(readData), Equals, fInfo.data)
 	}
@@ -376,7 +375,7 @@ func (s *pibootTestSuite) TestCreateTrybootCfg(c *C) {
 		},
 	}
 	for _, fInfo := range files {
-		readData, err := ioutil.ReadFile(fInfo.path)
+		readData, err := os.ReadFile(fInfo.path)
 		c.Assert(err, IsNil)
 		c.Assert(string(readData), Equals, fInfo.data)
 	}
@@ -418,7 +417,7 @@ func (s *pibootTestSuite) TestCreateConfigCurrentNotEmpty(c *C) {
 		},
 	}
 	for _, fInfo := range files {
-		readData, err := ioutil.ReadFile(fInfo.path)
+		readData, err := os.ReadFile(fInfo.path)
 		c.Assert(err, IsNil)
 		c.Assert(string(readData), Equals, fInfo.data)
 	}
@@ -449,7 +448,7 @@ func (s *pibootTestSuite) TestCreateConfigCurrentNotEmpty(c *C) {
 		},
 	}
 	for _, fInfo := range files {
-		readData, err := ioutil.ReadFile(fInfo.path)
+		readData, err := os.ReadFile(fInfo.path)
 		c.Assert(err, IsNil)
 		c.Assert(string(readData), Equals, fInfo.data)
 	}
@@ -487,7 +486,7 @@ func (s *pibootTestSuite) TestOnlyOneOsPrefix(c *C) {
 		},
 	}
 	for _, fInfo := range files {
-		readData, err := ioutil.ReadFile(fInfo.path)
+		readData, err := os.ReadFile(fInfo.path)
 		c.Assert(err, IsNil)
 		c.Assert(string(readData), Equals, fInfo.data)
 	}

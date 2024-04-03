@@ -25,7 +25,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -558,7 +557,7 @@ func (s *sideloadSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 version: 1`, nil)
 	digest, size, err := asserts.SnapFileSHA3_384(fooSnap)
 	c.Assert(err, check.IsNil)
-	fooSnapBytes, err := ioutil.ReadFile(fooSnap)
+	fooSnapBytes, err := os.ReadFile(fooSnap)
 	c.Assert(err, check.IsNil)
 
 	dev1Acct := assertstest.NewAccount(s.StoreSigning, "devel1", nil, "")
@@ -807,7 +806,7 @@ func (s *sideloadSuite) TestFormdataIsWrittenToCorrectTmpLocation(c *check.C) {
 	chgSummary, _ := s.sideloadCheck(c, sideLoadBodyWithoutDevMode, head, "local", snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap})
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 
-	files, err := ioutil.ReadDir(tmpDir)
+	files, err := os.ReadDir(tmpDir)
 	c.Assert(err, check.IsNil)
 	c.Assert(files, check.HasLen, 0)
 
@@ -1158,7 +1157,7 @@ func (s *sideloadSuite) TestSideloadManySnapsOneNotAsserted(c *check.C) {
 	// unasserted snap
 	twoSnap := snaptest.MakeTestSnapWithFiles(c, `name: two
 version: 1`, nil)
-	twoSnapData, err := ioutil.ReadFile(twoSnap)
+	twoSnapData, err := os.ReadFile(twoSnap)
 	c.Assert(err, check.IsNil)
 	snapData = append(snapData, twoSnapData)
 
@@ -1186,7 +1185,7 @@ func (s *sideloadSuite) mockAssertions(c *check.C, st *state.State, snaps []stri
 version: 1`, snap), nil)
 		digest, size, err := asserts.SnapFileSHA3_384(thisSnap)
 		c.Assert(err, check.IsNil)
-		thisSnapData, err := ioutil.ReadFile(thisSnap)
+		thisSnapData, err := os.ReadFile(thisSnap)
 		c.Assert(err, check.IsNil)
 		snapData = append(snapData, thisSnapData)
 

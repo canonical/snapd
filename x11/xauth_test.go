@@ -20,7 +20,6 @@
 package x11_test
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -51,7 +50,7 @@ func (s *xauthTestSuite) TestXauthFileExistsButIsEmpty(c *C) {
 }
 
 func (s *xauthTestSuite) TestXauthFileExistsButHasInvalidContent(c *C) {
-	f, err := ioutil.TempFile("", "xauth")
+	f, err := os.CreateTemp("", "xauth")
 	c.Assert(err, IsNil)
 	defer os.Remove(f.Name())
 

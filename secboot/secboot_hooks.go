@@ -26,7 +26,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 
 	sb "github.com/snapcore/secboot"
@@ -137,7 +136,7 @@ func unlockVolumeUsingSealedKeyFDERevealKey(sealedEncryptionKeyFile, sourceDevic
 func unlockVolumeUsingSealedKeyFDERevealKeyV1(sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string) (UnlockResult, error) {
 	res := UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
 
-	sealedKey, err := ioutil.ReadFile(sealedEncryptionKeyFile)
+	sealedKey, err := os.ReadFile(sealedEncryptionKeyFile)
 	if err != nil {
 		return res, fmt.Errorf("cannot read sealed key file: %v", err)
 	}

@@ -28,7 +28,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -1098,7 +1097,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 			return
 		case "auth:sessions":
 			// quick validity check
-			reqBody, err := ioutil.ReadAll(r.Body)
+			reqBody, err := io.ReadAll(r.Body)
 			c.Check(err, IsNil)
 			c.Check(bytes.Contains(reqBody, []byte("nonce: NONCE")), Equals, true)
 			c.Check(bytes.Contains(reqBody, []byte(fmt.Sprintf("serial: %s", s.expectedSerial))), Equals, true)

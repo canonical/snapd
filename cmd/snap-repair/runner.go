@@ -27,7 +27,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -750,7 +749,7 @@ func findDevInfo20() (*deviceInfo, error) {
 func findDevInfo16() (*deviceInfo, error) {
 	workBS := asserts.NewMemoryBackstore()
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
-	dc, err := ioutil.ReadDir(assertSeedDir)
+	dc, err := os.ReadDir(assertSeedDir)
 	if err != nil {
 		return nil, err
 	}

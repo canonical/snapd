@@ -25,7 +25,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1182,7 +1181,7 @@ func (m *recoverModeStateMachine) unlockEncryptedSaveRunKey() (stateFunc, error)
 	// to get to this state, we needed to have mounted ubuntu-data on host, so
 	// if encrypted, we can try to read the run key from host ubuntu-data
 	saveKey := device.SaveKeyUnder(dirs.SnapFDEDirUnder(boot.InitramfsHostWritableDir(m.model)))
-	key, err := ioutil.ReadFile(saveKey)
+	key, err := os.ReadFile(saveKey)
 	if err != nil {
 		// log the error and skip to trying the fallback key
 		m.degradedState.LogErrorf("cannot access run ubuntu-save key: %v", err)
@@ -1774,7 +1773,7 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 			return false, fmt.Errorf("cannot find ubuntu-save encryption key at %v", saveKey)
 		}
 		// we have save.key, volume exists and is encrypted
-		key, err := ioutil.ReadFile(saveKey)
+		key, err := os.ReadFile(saveKey)
 		if err != nil {
 			return true, err
 		}

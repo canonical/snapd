@@ -21,7 +21,7 @@ package main_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	. "gopkg.in/check.v1"
@@ -463,7 +463,7 @@ seed-completion:   --
 				c.Assert(r.Method, Equals, "GET", comment)
 				c.Assert(r.URL.Path, Equals, "/v2/debug", comment)
 				c.Assert(r.URL.RawQuery, Equals, "aspect=seeding", comment)
-				data, err := ioutil.ReadAll(r.Body)
+				data, err := io.ReadAll(r.Body)
 				c.Assert(err, IsNil, comment)
 				c.Assert(string(data), Equals, "", comment)
 				fmt.Fprintln(w, t.jsonResp)

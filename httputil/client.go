@@ -23,10 +23,10 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -62,7 +62,7 @@ func (e *ExtraSSLCertsFromDir) Certs() ([]*CertData, error) {
 	}
 	extraCerts := make([]*CertData, 0, len(extraCertFiles))
 	for _, p := range extraCertFiles {
-		cert, err := ioutil.ReadFile(p)
+		cert, err := os.ReadFile(p)
 		if err != nil {
 			return nil, fmt.Errorf("cannot read certificate: %v", err)
 		}

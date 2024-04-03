@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -894,7 +893,7 @@ func (x *cmdRun) runCmdUnderGdb(origCmd []string, envForExec envForExecFunc) err
 
 func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc) error {
 	// setup private tmp dir with strace fifo
-	straceTmp, err := ioutil.TempDir("", "exec-trace")
+	straceTmp, err := os.MkdirTemp("", "exec-trace")
 	if err != nil {
 		return err
 	}
@@ -1278,7 +1277,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 func getSnapDirOptions(snap string) (*dirs.SnapDirOptions, error) {
 	var opts dirs.SnapDirOptions
 
-	data, err := ioutil.ReadFile(filepath.Join(dirs.SnapSeqDir, snap+".json"))
+	data, err := os.ReadFile(filepath.Join(dirs.SnapSeqDir, snap+".json"))
 	if errors.Is(err, os.ErrNotExist) {
 		return &opts, nil
 	} else if err != nil {

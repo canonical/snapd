@@ -24,7 +24,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -180,7 +179,7 @@ fi`)
 		{"snap-seccomp", "version-info"}, // from Initialize()
 		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
 	})
-	raw, err := ioutil.ReadFile(profile + ".src")
+	raw, err := os.ReadFile(profile + ".src")
 	c.Assert(err, IsNil)
 	c.Assert(bytes.HasPrefix(raw, []byte(`# snap-seccomp version information:
 # 2345cdef 2.3.4 2345cdef -
@@ -275,7 +274,7 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 	err := s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
-	data, err := ioutil.ReadFile(profile + ".src")
+	data, err := os.ReadFile(profile + ".src")
 	c.Assert(err, IsNil)
 	for _, line := range []string{
 		// NOTE: a few randomly picked lines from the real profile.  Comments
@@ -764,7 +763,7 @@ apps:
 	c.Assert(err, IsNil)
 	// NOTE: we don't call seccomp.MockTemplate()
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.app.cmd")
-	data, err := ioutil.ReadFile(profile + ".src")
+	data, err := os.ReadFile(profile + ".src")
 	c.Assert(err, IsNil)
 	for _, line := range []string{
 		// NOTE: a few randomly picked lines from the real
@@ -810,7 +809,7 @@ apps:
 	c.Assert(err, IsNil)
 	// NOTE: we don't call seccomp.MockTemplate()
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.app.cmd")
-	data, err := ioutil.ReadFile(profile + ".src")
+	data, err := os.ReadFile(profile + ".src")
 	c.Assert(err, IsNil)
 	for _, line := range []string{
 		// and a few randomly picked lines from root syscalls

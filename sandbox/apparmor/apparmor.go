@@ -23,7 +23,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -346,8 +345,8 @@ func (aap *appArmorProbe) ParserFeatures() ([]string, error) {
 }
 
 func probeKernelFeatures() ([]string, error) {
-	// note that ioutil.ReadDir() is already sorted
-	dentries, err := ioutil.ReadDir(filepath.Join(rootPath, featuresSysPath))
+	// note that os.ReadDir() is already sorted
+	dentries, err := os.ReadDir(filepath.Join(rootPath, featuresSysPath))
 	if err != nil {
 		return []string{}, err
 	}
@@ -356,7 +355,7 @@ func probeKernelFeatures() ([]string, error) {
 		if fi.IsDir() {
 			features = append(features, fi.Name())
 			// also read any sub-features
-			subdenties, err := ioutil.ReadDir(filepath.Join(rootPath, featuresSysPath, fi.Name()))
+			subdenties, err := os.ReadDir(filepath.Join(rootPath, featuresSysPath, fi.Name()))
 			if err != nil {
 				return []string{}, err
 			}

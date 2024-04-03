@@ -22,7 +22,6 @@ package main_test
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -70,7 +69,7 @@ func (s *SnapKeysSuite) SetUpTest(c *C) {
 
 	s.tempdir = c.MkDir()
 	for _, fileName := range []string{"pubring.gpg", "secring.gpg", "trustdb.gpg"} {
-		data, err := ioutil.ReadFile(filepath.Join("test-data", fileName))
+		data, err := os.ReadFile(filepath.Join("test-data", fileName))
 		c.Assert(err, IsNil)
 		err = os.WriteFile(filepath.Join(s.tempdir, fileName), data, 0644)
 		c.Assert(err, IsNil)
