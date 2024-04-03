@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os/user"
 	"sort"
 	"strings"
 	"time"
@@ -263,11 +264,12 @@ func (s *appOpSuite) TestAppOpsScopeInvalid(c *check.C) {
 
 func (s *appOpSuite) TestAppStatus(c *check.C) {
 	n := 0
+	var expectedArgCount int
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
-		case 0:
+		case 0, 1, 2, 3:
 			c.Check(r.URL.Path, check.Equals, "/v2/apps")
-			c.Check(r.URL.Query(), check.HasLen, 1)
+			c.Check(r.URL.Query(), check.HasLen, expectedArgCount)
 			c.Check(r.URL.Query().Get("select"), check.Equals, "service")
 			c.Check(r.Method, check.Equals, "GET")
 			w.WriteHeader(200)
@@ -319,18 +321,46 @@ func (s *appOpSuite) TestAppStatus(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"services"})
-	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.HasLen, 0)
-	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(s.Stdout(), check.Equals, `Service  Startup  Current   Notes
+
+	tests := []struct {
+		uid             string
+		arguments       []string
+		userServiceLine string
+	}{
+		{"0", []string{"services"}, "foo.qux  enabled  -         user"},
+		{"0", []string{"services", "--global"}, "foo.qux  enabled  -         user"},
+		{"1337", []string{"services"}, "foo.qux  enabled  inactive  user"},
+		{"1337", []string{"services", "--global"}, "foo.qux  enabled  -         user"},
+	}
+
+	var testsRun int
+	for _, t := range tests {
+		testsRun++
+		s.stdout.Reset()
+		expectedArgCount = len(t.arguments)
+
+		r := snap.MockUserCurrent(func() (*user.User, error) {
+			return &user.User{
+				Uid: t.uid,
+			}, nil
+		})
+
+		rest, err := snap.Parser(snap.Client()).ParseArgs(t.arguments)
+		c.Check(err, check.IsNil)
+		c.Check(rest, check.HasLen, 0)
+		c.Check(s.Stderr(), check.Equals, "")
+		c.Check(s.Stdout(), check.Equals, fmt.Sprintf(`Service  Startup  Current   Notes
 foo.bar  enabled  inactive  timer-activated
 foo.baz  enabled  inactive  socket-activated
-foo.qux  enabled  inactive  user
+%s
 foo.zed  enabled  active    -
-`)
-	// ensure that the fake server api was actually hit
-	c.Check(n, check.Equals, 1)
+`, t.userServiceLine))
+		// ensure that the fake server api was actually hit
+		c.Check(n, check.Equals, testsRun)
+
+		// restore the user mock
+		r()
+	}
 }
 
 func (s *appOpSuite) TestAppStatusGlobal(c *check.C) {
