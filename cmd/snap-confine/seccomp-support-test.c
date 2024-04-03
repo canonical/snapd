@@ -55,7 +55,7 @@ static void test_must_read_and_validate_header_from_file__missing_file(void)
 
 	if (g_test_subprocess()) {
 		FILE *file SC_CLEANUP(sc_cleanup_file) = fopen(profile, "rb");
-	    sc_must_read_and_validate_header_from_file(file, profile, &hdr);
+		sc_must_read_and_validate_header_from_file(file, profile, &hdr);
 		// the function above is expected to call die()
 		g_assert_not_reached();
 		// reference "file" to keep the compiler from warning
@@ -78,7 +78,7 @@ static void must_read_and_validate_header_from_file_dies_with(struct
 		make_seccomp_profile(&hdr, &fd, &profile);
 
 		FILE *file SC_CLEANUP(sc_cleanup_file) = fopen(profile, "rb");
-        sc_must_read_and_validate_header_from_file(file, profile, &hdr);
+		sc_must_read_and_validate_header_from_file(file, profile, &hdr);
 		// the function above is expected to call die()
 		g_assert_not_reached();
 		// reference "file" to keep the compiler from warning
