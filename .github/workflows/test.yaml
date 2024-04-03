@@ -241,7 +241,8 @@ jobs:
     needs: [cache-build-deps]
     #if: github.ref != 'refs/heads/master'
     steps:
-      name: check-branch-ubuntu-daily-spread
+
+    - name: check-branch-ubuntu-daily-spread
       run: |
         # Compare the daily system in master and in the current branch
         wget -q -O test_master.yaml https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/test.yaml
