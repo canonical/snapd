@@ -105,30 +105,15 @@ func stringListsLess(sl1, sl2 []string) bool {
 	return false
 }
 
-func toPredictableBootAsset(b *bootAsset) *bootAsset {
-	if b == nil {
-		return nil
-	}
-	newB := *b
-	if b.Hashes != nil {
-		newB.Hashes = make([]string, len(b.Hashes))
-		copy(newB.Hashes, b.Hashes)
-		sort.Strings(newB.Hashes)
-	}
-	return &newB
-}
-
 func toPredictableBootChain(b *bootChain) *bootChain {
 	if b == nil {
 		return nil
 	}
 	newB := *b
-	if b.AssetChain != nil {
-		newB.AssetChain = make([]bootAsset, len(b.AssetChain))
-		for i := range b.AssetChain {
-			newB.AssetChain[i] = *toPredictableBootAsset(&b.AssetChain[i])
-		}
-	}
+	// AssetChain is sorted list (by boot order) of sorted list (old to new asset).
+	// So it is already predictable and we can keep it the way it is.
+
+	// However we still need to sort kernel KernelCmdlines
 	if b.KernelCmdlines != nil {
 		newB.KernelCmdlines = make([]string, len(b.KernelCmdlines))
 		copy(newB.KernelCmdlines, b.KernelCmdlines)
@@ -257,13 +242,7 @@ func predictableBootChainsEqualForReseal(pb1, pb2 predictableBootChains) bootCha
 // bootAssetsToLoadChains generates a list of load chains covering given boot
 // assets sequence. At the end of each chain, adds an entry for the kernel boot
 // file.
-// We do not calculate some boot chains because they are impossible as
-// when we update assets we write first the binaries that are used
-// later, that is, if updating both shim and grub, the new grub is
-// copied first to the disk, so booting from the new shim to the old
-// grub is not possible. This is controlled by expectNew, that tells
-// us that the previous step in the chain is from a new asset.
-func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFile, roleToBlName map[bootloader.Role]string, expectNew bool) ([]*secboot.LoadChain, error) {
+func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFile, roleToBlName map[bootloader.Role]string) ([]*secboot.LoadChain, error) {
 	// kernel is added after all the assets
 	addKernelBootFile := len(assets) == 0
 	if addKernelBootFile {
@@ -276,24 +255,7 @@ func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFi
 		return nil, fmt.Errorf("internal error: no bootloader name for boot asset role %q", thisAsset.Role)
 	}
 	var chains []*secboot.LoadChain
-
-	for i, hash := range thisAsset.Hashes {
-		// There should be 1 or 2 assets, and their position has a meaning.
-		// See TrustedAssetsUpdateObserver.observeUpdate
-		if i == 0 {
-			// i == 0 means currently installed asset.
-			// We do not expect this asset to be used as
-			// we have new assets earlier in the chain
-			if len(thisAsset.Hashes) == 2 && expectNew {
-				continue
-			}
-		} else if i == 1 {
-			// i == 1 means new asset
-		} else {
-			// If there is a second asset, it is the next asset to be installed
-			return nil, fmt.Errorf("internal error: did not expect more than 2 hashes for %s", thisAsset.Name)
-		}
-
+	for _, hash := range thisAsset.Hashes {
 		var bf bootloader.BootFile
 		var next []*secboot.LoadChain
 		var err error
@@ -309,7 +271,7 @@ func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFi
 			p,
 			thisAsset.Role,
 		)
-		next, err = bootAssetsToLoadChains(assets[1:], kernelBootFile, roleToBlName, expectNew || i == 1)
+		next, err = bootAssetsToLoadChains(assets[1:], kernelBootFile, roleToBlName)
 		if err != nil {
 			return nil, err
 		}

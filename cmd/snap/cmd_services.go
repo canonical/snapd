@@ -93,17 +93,17 @@ func init() {
 		}), argdescs)
 
 	addCommand("start", shortStartHelp, longStartHelp, func() flags.Commander { return &svcStart{} },
-		waitDescs.also(map[string]string{
+		waitDescs.also(userAndScopeDescs).also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"enable": i18n.G("As well as starting the service now, arrange for it to be started on boot."),
 		}), argdescs)
 	addCommand("stop", shortStopHelp, longStopHelp, func() flags.Commander { return &svcStop{} },
-		waitDescs.also(map[string]string{
+		waitDescs.also(userAndScopeDescs).also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"disable": i18n.G("As well as stopping the service now, arrange for it to no longer be started on boot."),
 		}), argdescs)
 	addCommand("restart", shortRestartHelp, longRestartHelp, func() flags.Commander { return &svcRestart{} },
-		waitDescs.also(map[string]string{
+		waitDescs.also(userAndScopeDescs).also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"reload": i18n.G("If the service has a reload command, use it instead of restarting."),
 		}), argdescs)
@@ -184,8 +184,18 @@ func (s *svcLogs) Execute(args []string) error {
 	return nil
 }
 
+var userAndScopeDescs = mixinDescs{
+	// TRANSLATORS: This should not start with a lowercase letter.
+	"system": i18n.G("The operation should only affect system services."),
+	// TRANSLATORS: This should not start with a lowercase letter.
+	"user": i18n.G("The operation should only affect user services for the current user."),
+	// TRANSLATORS: This should not start with a lowercase letter.
+	"users": i18n.G("If provided and set to 'all', the operation should affect services for all users."),
+}
+
 type svcStart struct {
 	waitMixin
+	clientutil.ServiceScopeOptions
 	Positional struct {
 		ServiceNames []serviceName `required:"1"`
 	} `positional-args:"yes" required:"yes"`
@@ -196,8 +206,11 @@ func (s *svcStart) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
+	if err := s.Validate(); err != nil {
+		return err
+	}
 	names := svcNames(s.Positional.ServiceNames)
-	changeID, err := s.client.Start(names, client.StartOptions{Enable: s.Enable})
+	changeID, err := s.client.Start(names, s.Scope(), s.Users(), client.StartOptions{Enable: s.Enable})
 	if err != nil {
 		return err
 	}
@@ -215,6 +228,7 @@ func (s *svcStart) Execute(args []string) error {
 
 type svcStop struct {
 	waitMixin
+	clientutil.ServiceScopeOptions
 	Positional struct {
 		ServiceNames []serviceName `required:"1"`
 	} `positional-args:"yes" required:"yes"`
@@ -225,8 +239,11 @@ func (s *svcStop) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
+	if err := s.Validate(); err != nil {
+		return err
+	}
 	names := svcNames(s.Positional.ServiceNames)
-	changeID, err := s.client.Stop(names, client.StopOptions{Disable: s.Disable})
+	changeID, err := s.client.Stop(names, s.Scope(), s.Users(), client.StopOptions{Disable: s.Disable})
 	if err != nil {
 		return err
 	}
@@ -237,13 +254,14 @@ func (s *svcStop) Execute(args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, i18n.G("Stopped.\n"))
+	fmt.Fprintln(Stdout, i18n.G("Stopped."))
 
 	return nil
 }
 
 type svcRestart struct {
 	waitMixin
+	clientutil.ServiceScopeOptions
 	Positional struct {
 		ServiceNames []serviceName `required:"1"`
 	} `positional-args:"yes" required:"yes"`
@@ -254,8 +272,11 @@ func (s *svcRestart) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
+	if err := s.Validate(); err != nil {
+		return err
+	}
 	names := svcNames(s.Positional.ServiceNames)
-	changeID, err := s.client.Restart(names, client.RestartOptions{Reload: s.Reload})
+	changeID, err := s.client.Restart(names, s.Scope(), s.Users(), client.RestartOptions{Reload: s.Reload})
 	if err != nil {
 		return err
 	}
@@ -266,7 +287,7 @@ func (s *svcRestart) Execute(args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, i18n.G("Restarted.\n"))
+	fmt.Fprintln(Stdout, i18n.G("Restarted."))
 
 	return nil
 }

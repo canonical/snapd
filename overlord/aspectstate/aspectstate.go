@@ -58,7 +58,14 @@ func SetAspect(st *state.State, account, bundleName, aspect string, requests map
 	}
 
 	for field, value := range requests {
-		if err := asp.Set(tx, field, value); err != nil {
+		var err error
+		if value == nil {
+			err = asp.Unset(tx, field)
+		} else {
+			err = asp.Set(tx, field, value)
+		}
+
+		if err != nil {
 			return err
 		}
 	}

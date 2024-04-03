@@ -68,6 +68,10 @@ func (s *snapsSuite) SetUpTest(c *check.C) {
 	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
 }
 
+func (s *snapsSuite) expectSnapsReadAccess() {
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interface: "snap-refresh-observe"})
+}
+
 func (s *snapsSuite) TestSnapsInfoIntegration(c *check.C) {
 	s.checkSnapsInfoIntegration(c, false, nil)
 }
@@ -96,6 +100,7 @@ func snapList(rawSnaps interface{}) []map[string]interface{} {
 }
 
 func (s *snapsSuite) checkSnapsInfoIntegration(c *check.C, all bool, names []string) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	type tsnap struct {
@@ -170,6 +175,7 @@ func (s *snapsSuite) checkSnapsInfoIntegration(c *check.C, all bool, names []str
 }
 
 func (s *snapsSuite) TestSnapsInfoOnlyLocal(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	s.rsnaps = []*snap.Info{{
@@ -209,6 +215,7 @@ func (s *snapsSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapsInfoAllMixedPublishers(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	// the first 'local' is from a 'local' snap
@@ -236,6 +243,7 @@ func (s *snapsSuite) TestSnapsInfoAllMixedPublishers(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapsInfoAll(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(1), false, "")
@@ -282,6 +290,7 @@ func (s *snapsSuite) TestSnapsInfoAll(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapsInfoOnlyStore(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	s.suggestedCurrency = "EUR"
@@ -315,6 +324,7 @@ func (s *snapsSuite) TestSnapsInfoOnlyStore(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	state := d.Overlord().State()
@@ -340,6 +350,7 @@ func (s *snapsSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapsInfoLocalAndStore(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	s.rsnaps = []*snap.Info{{
@@ -386,6 +397,7 @@ func (s *snapsSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapsInfoDefaultSources(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 
 	s.rsnaps = []*snap.Info{{
@@ -412,6 +424,7 @@ func (s *snapsSuite) TestSnapsInfoDefaultSources(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapsInfoFilterRemote(c *check.C) {
+	s.expectSnapsReadAccess()
 	s.daemon(c)
 
 	s.rsnaps = nil
@@ -1272,6 +1285,7 @@ func (s *snapsSuite) TestSnapInfoReturnsHolds(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapManyInfosReturnsHolds(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 	s.mkInstalledInState(c, d, "snap-a", "bar", "v0", snap.R(5), true, "")
 	s.mkInstalledInState(c, d, "snap-b", "bar", "v0", snap.R(5), true, "")
@@ -1348,6 +1362,7 @@ func (s *snapsSuite) TestSnapInfoReturnsRefreshInhibitProceedTime(c *check.C) {
 }
 
 func (s *snapsSuite) TestSnapManyInfosReturnsRefreshInhibitProceedTime(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 	s.mkInstalledInState(c, d, "snap-a", "bar", "v0", snap.R(5), true, "")
 	s.mkInstalledInState(c, d, "snap-b", "bar", "v0", snap.R(5), true, "")
@@ -1395,10 +1410,14 @@ func (s *snapsSuite) TestSnapManyInfosReturnsRefreshInhibitProceedTime(c *check.
 		switch snap["name"] {
 		case "snap-a":
 			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
-			c.Assert(refreshInhibit["proceed-time"], check.Equals, expectedProceedTimeA.Format(time.RFC3339Nano), testCmt)
+			proceedTime, err := time.Parse(time.RFC3339Nano, refreshInhibit["proceed-time"].(string))
+			c.Assert(err, check.IsNil)
+			c.Assert(proceedTime.Equal(expectedProceedTimeA), check.Equals, true, testCmt)
 		case "snap-b":
 			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
-			c.Assert(refreshInhibit["proceed-time"], check.Equals, expectedProceedTimeB.Format(time.RFC3339Nano), testCmt)
+			proceedTime, err := time.Parse(time.RFC3339Nano, refreshInhibit["proceed-time"].(string))
+			c.Assert(err, check.IsNil)
+			c.Assert(proceedTime.Equal(expectedProceedTimeB), check.Equals, true, testCmt)
 		case "snap-c":
 			_, ok := snap["refresh-inhibit"]
 			c.Assert(ok, check.Equals, false)
@@ -1407,6 +1426,7 @@ func (s *snapsSuite) TestSnapManyInfosReturnsRefreshInhibitProceedTime(c *check.
 }
 
 func (s *snapsSuite) TestSnapManyInfosSelectRefreshInhibited(c *check.C) {
+	s.expectSnapsReadAccess()
 	d := s.daemon(c)
 	s.mkInstalledInState(c, d, "snap-a", "bar", "v0", snap.R(5), true, "")
 	s.mkInstalledInState(c, d, "snap-b", "bar", "v0", snap.R(5), true, "")
@@ -1447,19 +1467,23 @@ func (s *snapsSuite) TestSnapManyInfosSelectRefreshInhibited(c *check.C) {
 
 	rsp := s.jsonReq(c, req, nil)
 	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 2)
 
 	for _, snap := range snaps {
 		testCmt := check.Commentf("snap %s failed", snap["name"])
 		switch snap["name"] {
 		case "snap-a":
 			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
-			c.Assert(refreshInhibit["proceed-time"], check.Equals, expectedProceedTimeA.Format(time.RFC3339Nano), testCmt)
+			proceedTime, err := time.Parse(time.RFC3339Nano, refreshInhibit["proceed-time"].(string))
+			c.Assert(err, check.IsNil)
+			c.Assert(proceedTime.Equal(expectedProceedTimeA), check.Equals, true, testCmt)
 		case "snap-b":
 			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
-			c.Assert(refreshInhibit["proceed-time"], check.Equals, expectedProceedTimeB.Format(time.RFC3339Nano), testCmt)
+			proceedTime, err := time.Parse(time.RFC3339Nano, refreshInhibit["proceed-time"].(string))
+			c.Assert(err, check.IsNil)
+			c.Assert(proceedTime.Equal(expectedProceedTimeB), check.Equals, true, testCmt)
 		case "snap-c":
-			_, ok := snap["refresh-inhibit"]
-			c.Assert(ok, check.Equals, false)
+			c.Error("snap-c should not be listed")
 		}
 	}
 }

@@ -145,6 +145,28 @@ func (s *noticesSuite) TestString(c *C) {
 	c.Assert(notice.String(), Equals, "Notice 2 (public:warning:scary)")
 }
 
+func (s *noticesSuite) TestType(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
+	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
+	addNotice(c, st, nil, state.WarningNotice, "danger!", nil)
+
+	notices := st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.ChangeUpdateNotice}})
+	c.Assert(notices, HasLen, 1)
+	c.Check(notices[0].Type(), Equals, state.ChangeUpdateNotice)
+
+	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.RefreshInhibitNotice}})
+	c.Assert(notices, HasLen, 1)
+	c.Check(notices[0].Type(), Equals, state.RefreshInhibitNotice)
+
+	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}})
+	c.Assert(notices, HasLen, 1)
+	c.Check(notices[0].Type(), Equals, state.WarningNotice)
+}
+
 func (s *noticesSuite) TestOccurrences(c *C) {
 	st := state.New(nil)
 	st.Lock()

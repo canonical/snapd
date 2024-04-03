@@ -155,6 +155,9 @@ repack_snapd_deb_into_snap() {
 
             # extract all the files from the snapd deb
             dpkg-deb -x "$deb_file" ./snapd-unpacked
+            # copy preseed config, like we do in snapcraft.yaml for the snap
+            # build
+            cp -av "$PROJECT_PATH/data/preseed.json" ./snapd-unpacked/usr/lib/snapd/
 
             # repack into the target dir specified
             snap pack --filename=snapd-from-deb.snap  snapd-unpacked "$target_dir"

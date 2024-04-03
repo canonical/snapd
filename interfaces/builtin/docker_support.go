@@ -62,6 +62,11 @@ const dockerSupportConnectedPlugAppArmorUserNS = `
 userns,
 `
 
+const dockerSupportConnectedPlugAppArmorMqueue = `
+# allow unrestricted use of posix message queues
+mqueue,
+`
+
 const dockerSupportConnectedPlugAppArmor = `
 # Description: allow operating as the Docker daemon/containerd. This policy is
 # intentionally not restrictive and is here to help guard against programming
@@ -1036,6 +1041,9 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 		}
 		if strutil.ListContains(features, "userns") {
 			spec.AddSnippet(dockerSupportConnectedPlugAppArmorUserNS)
+		}
+		if strutil.ListContains(features, "mqueue") {
+			spec.AddSnippet(dockerSupportConnectedPlugAppArmorMqueue)
 		}
 	}
 

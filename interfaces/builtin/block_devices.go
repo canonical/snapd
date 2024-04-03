@@ -68,6 +68,8 @@ const blockDevicesConnectedPlugAppArmor = `
 /dev/vd[a-z] rwk,                                          # virtio
 /dev/loop[0-9]{,[0-9],[0-9][0-9]} rwk,                     # loopback (up to 1000 devices)
 /dev/loop-control rw,                                      # loopback control
+/dev/zd[0-9]{,[0-9],[0-9][0-9]} rwk,                       # ZFS volumes (up to 1000 devices)
+/dev/zfs rw,                                               # ZFS control
 
 # Allow /dev/nvmeXnY namespace block devices. Please note this grants access to all
 # NVMe namespace block devices and that the numeric suffix on the character device

@@ -68,6 +68,7 @@ var (
 	SealKeyToModeenv                = sealKeyToModeenvImpl
 	ResealKeyToModeenv              = resealKeyToModeenv
 	RecoveryBootChainsForSystems    = recoveryBootChainsForSystems
+	RunModeBootChains               = runModeBootChains
 	SealKeyModelParams              = sealKeyModelParams
 
 	BootVarsForTrustedCommandLineFromGadget = bootVarsForTrustedCommandLineFromGadget
@@ -87,6 +88,10 @@ func (t *TrackedAsset) Equals(blName, name, hash string) error {
 		return fmt.Errorf("not equal to bootloader %q tracked asset %v:%v", t.blName, t.name, t.hash)
 	}
 	return nil
+}
+
+func (t *TrackedAsset) GetHash() string {
+	return t.hash
 }
 
 func (o *TrustedAssetsInstallObserver) CurrentTrustedBootAssetsMap() BootAssetsMap {
@@ -171,7 +176,6 @@ const (
 )
 
 var (
-	ToPredictableBootAsset              = toPredictableBootAsset
 	ToPredictableBootChain              = toPredictableBootChain
 	ToPredictableBootChains             = toPredictableBootChains
 	PredictableBootChainsEqualForReseal = predictableBootChainsEqualForReseal

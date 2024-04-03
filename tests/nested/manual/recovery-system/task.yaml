@@ -1,0 +1,97 @@
+summary: create and remove a recovery system using the API
+details: |
+  This test creates and removes a recovery system using the recovery system API.
+  A few variants are tested, including testing the new recovery system and
+  marking it as the default recovery system.
+
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+
+environment:
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/test-snapd-recovery-system-pc-{VERSION}.model
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+
+  TEST_SYSTEM: false
+  MARK_DEFAULT: false
+
+  TEST_SYSTEM/no_test_or_default: false
+  MARK_DEFAULT/no_test_or_default: false
+
+  TEST_SYSTEM/tested: true
+
+  MARK_DEFAULT/default: true
+
+  TEST_SYSTEM/tested_and_default: true
+  MARK_DEFAULT/tested_and_default: true
+
+prepare: |
+    tests.nested build-image core
+    tests.nested create-vm core
+
+execute: |
+  function post_json_data() {
+    route=$1
+    template=$2
+    shift 2
+
+    # shellcheck disable=SC2059
+    response=$(printf "${template}" "$@" | remote.exec "sudo test-snapd-curl.curl -X POST -H 'Content-Type: application/json' --unix-socket /run/snapd.socket -d @- http://localhost${route}")
+    if ! jq -e .change <<< "${response}"; then
+      echo "could not get change id from response: ${response}"
+      false
+    fi
+  }
+
+  #shellcheck source=tests/lib/core-config.sh
+  . "$TESTSLIB"/core-config.sh
+
+  wait_for_first_boot_change
+
+  remote.exec sudo snap install --edge --devmode test-snapd-curl
+
+  boot_id="$(tests.nested boot-id)"
+
+  # create the system
+  change_id=$(post_json_data /v2/systems '{"action": "create", "label": "new-system", "validation-sets": ["test-snapd/recovery-system-pinned=1"], "test-system": %s, "mark-default": %s}' "${TEST_SYSTEM}" "${MARK_DEFAULT}")
+
+  if [ "${TEST_SYSTEM}" = 'true' ]; then
+    remote.wait-for reboot "${boot_id}"
+    remote.exec 'sudo cat /proc/cmdline' | MATCH 'snapd_recovery_mode=run'
+  fi
+
+  remote.exec snap watch "${change_id}"
+
+  # check that the new label was appended to the current and good recovery
+  # system lists
+  remote.exec 'test -d /run/mnt/ubuntu-seed/systems/new-system'
+  remote.exec 'sudo cat /var/lib/snapd/modeenv' > modeenv
+  MATCH 'current_recovery_systems=.*,new-system$' < modeenv
+  MATCH 'good_recovery_systems=.*,new-system$' < modeenv
+
+  remote.exec sudo snap recovery | MATCH 'new-system'
+
+  if [ "${MARK_DEFAULT}" = 'true' ]; then
+    remote.exec 'sudo snap recovery' | awk '$1 == "new-system" { print $4 }' | MATCH 'default-recovery'
+  fi
+
+  remote.exec "test -f /var/lib/snapd/seed/snaps/hello-world_28.snap"
+
+  # remove the system
+  change_id=$(post_json_data /v2/systems/new-system '{"action": "remove"}')
+
+  if [ "${MARK_DEFAULT}" = 'true' ]; then
+    # task should fail if we try and remove the default system
+    remote.exec "! snap watch ${change_id}"
+    exit 0
+  fi
+
+  remote.exec "snap watch ${change_id}"
+
+  remote.exec "! test -f /var/lib/snapd/seed/snaps/hello-world_28.snap"
+  remote.exec '! test -d /run/mnt/ubuntu-seed/systems/new-system'
+  remote.exec 'sudo cat /var/lib/snapd/modeenv' > modeenv
+  NOMATCH 'current_recovery_systems=.*,new-system$' < modeenv
+  NOMATCH 'good_recovery_systems=.*,new-system$' < modeenv
+
+  remote.exec sudo snap recovery | NOMATCH 'new-system'

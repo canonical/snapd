@@ -4922,7 +4922,7 @@ const (
 	noConfigure = 1 << iota
 	isGadget
 	isKernel
-	hasModeenv
+	needsKernelSetup
 )
 
 func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags int) int {
@@ -4934,7 +4934,7 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 		if flags&isKernel != 0 {
 			what = "kernel"
 		}
-		if flags&isKernel != 0 && flags&hasModeenv != 0 {
+		if flags&isKernel != 0 && flags&needsKernelSetup != 0 {
 			c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup kernel driver tree for "%s" (%s)`, name, revno))
 			i++
 		}
@@ -4951,7 +4951,7 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Make snap "%s" (%s) available to the system`, name, revno))
 	i++
-	if flags&isKernel != 0 && flags&hasModeenv != 0 {
+	if flags&isKernel != 0 && flags&needsKernelSetup != 0 {
 		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Cleanup kernel driver tree for "%s" (%s)`, name, revno))
 		i++
 	}
@@ -4995,7 +4995,7 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string, flags i
 		if flags&isKernel != 0 {
 			what = "kernel"
 		}
-		if flags&isKernel != 0 && flags&hasModeenv != 0 {
+		if flags&isKernel != 0 && flags&needsKernelSetup != 0 {
 			c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup kernel driver tree for "%s" (%s)`, name, revno))
 			i++
 		}
@@ -5014,7 +5014,7 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Automatically connect eligible plugs and slots of snap "%s"`, name))
 	i++
-	if flags&isKernel != 0 && flags&hasModeenv != 0 {
+	if flags&isKernel != 0 && flags&needsKernelSetup != 0 {
 		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Cleanup kernel driver tree for "%s" (%s)`, name, revno))
 		i++
 	}
@@ -8025,7 +8025,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentKernelChannel(c *C) {
 	// then create recovery
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then all installs in sequential order
-	validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel|hasModeenv)
+	validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel)
 }
 
 func (s *mgrsSuiteCore) TestRemodelUC20DifferentGadgetChannel(c *C) {
@@ -9681,7 +9681,7 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 	// then create recovery
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then all refreshes and install in sequential order (no configure hooks for bases though)
-	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel|hasModeenv)
+	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel)
 	i += validateInstallTasks(c, tasks[i:], "core22", "1", noConfigure)
 	i += validateRefreshTasks(c, tasks[i:], "pc", "34", isGadget)
 	// finally new model assertion
@@ -9993,7 +9993,7 @@ func (s *mgrsSuiteCore) testRemodelUC20ToUC22(c *C, mockSnapdRefresh bool) {
 	// then create recovery
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then all refreshes and install in sequential order (no configure hooks for bases though)
-	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel|hasModeenv)
+	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel)
 	i += validateInstallTasks(c, tasks[i:], "core22", "1", noConfigure)
 	i += validateRefreshTasks(c, tasks[i:], "pc", "34", isGadget)
 	// finally new model assertion
@@ -10251,7 +10251,7 @@ WantedBy=multi-user.target
 			c.Check(cmd, DeepEquals, []string{"--no-reload", "enable", "snap-snapd-x1.mount"})
 			return nil, nil
 		case 3:
-			c.Check(cmd, DeepEquals, []string{"reload-or-restart", "snap-snapd-x1.mount"})
+			c.Check(cmd, DeepEquals, []string{"restart", "snap-snapd-x1.mount"})
 			return nil, nil
 			// next we get the calls for the rewritten service files after snapd
 			// restarts
@@ -10487,7 +10487,7 @@ WantedBy=multi-user.target
 			c.Check(cmd, DeepEquals, []string{"--no-reload", "enable", "snap-snapd-x1.mount"})
 			return nil, nil
 		case 3:
-			c.Check(cmd, DeepEquals, []string{"reload-or-restart", "snap-snapd-x1.mount"})
+			c.Check(cmd, DeepEquals, []string{"restart", "snap-snapd-x1.mount"})
 			return nil, nil
 			// next we get the calls for the rewritten service files after snapd
 			// restarts

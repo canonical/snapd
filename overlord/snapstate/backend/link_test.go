@@ -339,10 +339,10 @@ func (s *linkSuite) TestLinkSnapdSnapCallsWrappersWithPreseedingFlag(c *C) {
 	defer restore()
 
 	var called bool
-	restoreAddSnapdSnapWrappers := backend.MockWrappersAddSnapdSnapServices(func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) error {
+	restoreAddSnapdSnapWrappers := backend.MockWrappersAddSnapdSnapServices(func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) (wrappers.SnapdRestart, error) {
 		c.Check(opts.Preseeding, Equals, true)
 		called = true
-		return nil
+		return nil, nil
 	})
 	defer restoreAddSnapdSnapWrappers()
 
@@ -704,7 +704,7 @@ func (s *linkCleanupSuite) testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c *C
 		FirstInstall: firstInstall,
 	}
 	reboot, err := s.be.LinkSnap(info, mockDev, linkCtx, s.perfTimings)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("symlink %s /.*/snapd/current: permission denied", info.Revision))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("symlink %s /.*/snapd/current.*: permission denied", info.Revision))
 	c.Assert(reboot, Equals, boot.RebootInfo{RebootRequired: false})
 
 	checker := testutil.FilePresent
@@ -910,4 +910,64 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(filepath.Join(dirs.SnapServicesDir, "snap.hello.svc.service"), testutil.FileContains,
 		"\nSlice=snap.foogroup.slice\n")
+}
+
+type OverridenSnapdRestart struct {
+	callback func() error
+}
+
+func (r *OverridenSnapdRestart) Restart() error {
+	return r.callback()
+}
+
+func (s *linkSuite) TestLinkSnapdSnapSetSymlinks(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	const yaml = `name: snapd
+version: 1.0
+type: snapd
+`
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+	mountDir := info.MountDir()
+	dataDir := info.DataDir()
+	currentActiveSymlink := filepath.Join(filepath.Dir(mountDir), "current")
+	currentDataSymlink := filepath.Join(filepath.Dir(dataDir), "current")
+	err := os.Symlink("oldactivevalue", currentActiveSymlink)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Dir(dataDir), os.ModePerm)
+	c.Assert(err, IsNil)
+	err = os.Symlink("olddatavalue", currentDataSymlink)
+	c.Assert(err, IsNil)
+
+	var restartDone bool
+	restartFunc := func() error {
+		restartDone = true
+		mountTarget, err := os.Readlink(currentDataSymlink)
+		c.Assert(err, IsNil)
+		dataTarget, err := os.Readlink(currentDataSymlink)
+		c.Assert(err, IsNil)
+		c.Check(mountTarget, Equals, filepath.Base(mountDir))
+		c.Check(dataTarget, Equals, filepath.Base(dataDir))
+		return fmt.Errorf("BROKEN")
+	}
+	restoreAddSnapdSnapWrappers := backend.MockWrappersAddSnapdSnapServices(func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) (wrappers.SnapdRestart, error) {
+		return &OverridenSnapdRestart{callback: restartFunc}, nil
+	})
+	defer restoreAddSnapdSnapWrappers()
+
+	be := backend.NewForPreseedMode()
+	coreDev := boottest.MockUC20Device("run", nil)
+
+	_, err = be.LinkSnap(info, coreDev, backend.LinkContext{}, s.perfTimings)
+	c.Assert(err, ErrorMatches, `BROKEN`)
+	c.Assert(restartDone, Equals, true)
+
+	readMountTarget, err := os.Readlink(currentActiveSymlink)
+	c.Assert(err, IsNil)
+	readDataTarget, err := os.Readlink(currentDataSymlink)
+	c.Assert(err, IsNil)
+
+	c.Check(readMountTarget, Equals, "oldactivevalue")
+	c.Check(readDataTarget, Equals, "olddatavalue")
 }

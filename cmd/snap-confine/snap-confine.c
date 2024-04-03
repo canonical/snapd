@@ -39,6 +39,7 @@
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/feature.h"
+#include "../libsnap-confine-private/infofile.h"
 #include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/secure-getenv.h"
 #include "../libsnap-confine-private/snap.h"
@@ -623,6 +624,67 @@ static void enter_classic_execution_environment(const sc_invocation *inv,
 	}
 }
 
+/* max wait time for /var/lib/snapd/cgroup/<snap>.devices to appear */
+static const size_t DEVICES_FILE_MAX_WAIT = 120;
+
+static bool is_device_cgroup_self_managed(const sc_invocation *inv)
+{
+	char info_path[PATH_MAX] = { 0 };
+	sc_must_snprintf(info_path,
+			 sizeof info_path,
+			 "/var/lib/snapd/cgroup/snap.%s.device",
+			 inv->snap_instance);
+
+	/* TODO allow overriding timeout through env? */
+	if (!sc_wait_for_file(info_path, DEVICES_FILE_MAX_WAIT)) {
+		/* don't die explicitly here, we'll die when trying to open the file
+		 * (unless it shows up) */
+		debug("timeout waiting for devices file at %s", info_path);
+	}
+
+	FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
+	stream = fopen(info_path, "r");
+	if (stream == NULL) {
+		die("cannot open %s", info_path);
+	}
+
+	char *self_managed_value SC_CLEANUP(sc_cleanup_string) = NULL;
+	sc_error *err = NULL;
+	if (sc_infofile_get_key
+	    (stream, "self-managed", &self_managed_value, &err) < 0) {
+		sc_die_on_error(err);
+	}
+
+	return sc_streq(self_managed_value, "true");
+}
+
+static sc_device_cgroup_mode device_cgroup_mode_for_snap(sc_invocation *inv)
+{
+    /** Conditionally create, populate and join the device cgroup. */
+	sc_device_cgroup_mode mode = SC_DEVICE_CGROUP_MODE_REQUIRED;
+
+	/* Preserve the legacy behavior of no default device cgroup for snaps
+	 * using one of the following bases. Snaps using core24 and later bases
+	 * will be placed within a device cgroup. Note that 'bare' base is also
+	 * subject to the new behavior. */
+	const char *non_required_cgroup_bases[] = {
+		"core", "core16", "core18", "core20", "core22",
+		NULL,
+	};
+	for (const char **non_required_on_base =
+	     non_required_cgroup_bases; *non_required_on_base != NULL;
+	     non_required_on_base++) {
+		if (sc_streq(inv->base_snap_name, *non_required_on_base)) {
+			debug
+			    ("device cgroup not required due to base %s",
+			     *non_required_on_base);
+			mode = SC_DEVICE_CGROUP_MODE_OPTIONAL;
+			break;
+		}
+	}
+	return mode;
+}
+
 static void enter_non_classic_execution_environment(sc_invocation *inv,
 						    struct sc_apparmor *aa,
 						    uid_t real_uid,
@@ -648,25 +710,14 @@ static void enter_non_classic_execution_environment(sc_invocation *inv,
 	// Init and check rootfs_dir, apply any fallback behaviors.
 	sc_check_rootfs_dir(inv);
 
-	/** Conditionally create, populate and join the device cgroup. */
-	sc_device_cgroup_mode mode = SC_DEVICE_CGROUP_MODE_REQUIRED;
-	const char *non_required_cgroup_bases[] = {
-		/* XXX the list is subject to change if no 'bare' base snaps using
-		 * system-files interface are found in the snap store */
-		"bare",
-		"core", "core16", "core18", "core20", "core22",
-		NULL,
-	};
-	for (const char **non_required_on_base = non_required_cgroup_bases;
-	     *non_required_on_base != NULL; non_required_on_base++) {
-		if (sc_streq(inv->base_snap_name, *non_required_on_base)) {
-			debug("device cgroup not required due to base %s",
-			      *non_required_on_base);
-			mode = SC_DEVICE_CGROUP_MODE_OPTIONAL;
-			break;
-		}
+	// Set up a device cgroup, unless the snap has been allowed to manage the
+	// device cgroup by itself.
+	if (!is_device_cgroup_self_managed(inv)) {
+		sc_device_cgroup_mode mode = device_cgroup_mode_for_snap(inv);
+		sc_setup_device_cgroup(inv->security_tag, mode);
+	} else {
+		debug("device cgroup is self-managed by the snap");
 	}
-	sc_setup_device_cgroup(inv->security_tag, mode);
 
 	/**
 	 * is_normal_mode controls if we should pivot into the base snap.

@@ -71,6 +71,7 @@ import (
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeutil"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 func TestSnapManager(t *testing.T) { TestingT(t) }
@@ -91,7 +92,7 @@ type snapmgrBaseTest struct {
 	user2 *auth.UserState
 	user3 *auth.UserState
 
-	reloadOrRestarts map[string]int
+	restarts map[string]int
 }
 
 // state must be locked by caller
@@ -132,10 +133,10 @@ func (s *snapmgrBaseTest) mockSystemctlCallsUpdateMounts(c *C) (restore func()) 
 		if len(args) == 3 && args[0] == "--no-reload" && args[1] == "enable" {
 			return []byte(""), nil
 		}
-		if len(args) == 2 && args[0] == "reload-or-restart" {
-			value, ok := s.reloadOrRestarts[args[1]]
+		if len(args) == 2 && args[0] == "restart" {
+			value, ok := s.restarts[args[1]]
 			if ok {
-				s.reloadOrRestarts[args[1]] = value + 1
+				s.restarts[args[1]] = value + 1
 			}
 			return []byte(""), nil
 		}
@@ -331,12 +332,12 @@ SNAPD_APPARMOR_REEXEC=1
 	}))
 	s.AddCleanup(osutil.MockMountInfo(""))
 
-	s.reloadOrRestarts = make(map[string]int)
+	s.restarts = make(map[string]int)
 	s.AddCleanup(s.mockSystemctlCallsUpdateMounts(c))
 
 	// mock so the actual notification code isn't called. It races with the SetRootDir
 	// call in the TearDown function. It's harmless but triggers go test -race
-	s.AddCleanup(snapstate.MockAsyncPendingRefreshNotification(func(context.Context, *userclient.Client, *userclient.PendingSnapRefreshInfo) {}))
+	s.AddCleanup(snapstate.MockAsyncPendingRefreshNotification(func(context.Context, *userclient.PendingSnapRefreshInfo) {}))
 }
 
 func (s *snapmgrBaseTest) TearDownTest(c *C) {
@@ -509,7 +510,8 @@ const (
 	noLastBeforeModificationsEdge
 	preferInstalled
 	localSnap
-	hasModeenv
+	needsKernelSetup
+	isHybrid
 )
 
 func taskKinds(tasks []*state.Task) []string {
@@ -3747,8 +3749,8 @@ func (s *snapmgrTestSuite) TestEsnureCleansOldSideloads(c *C) {
 	c.Assert(filenames(), HasLen, 0)
 
 	s0 := filepath.Join(dirs.SnapBlobDir, "some.snap")
-	s1 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-12345")
-	s2 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-67890")
+	s1 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-12345.snap")
+	s2 := filepath.Join(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"-67890.snap")
 
 	c.Assert(os.WriteFile(s0, nil, 0600), IsNil)
 	c.Assert(os.WriteFile(s1, nil, 0600), IsNil)
@@ -4329,11 +4331,11 @@ func (s *snapmgrTestSuite) TestFinishRestartGeneratesSnapdWrappersOnCore(c *C) {
 	defer r()
 
 	var generateWrappersCalled bool
-	restore := snapstate.MockGenerateSnapdWrappers(func(snapInfo *snap.Info, opts *backend.GenerateSnapdWrappersOptions) error {
+	restore := snapstate.MockGenerateSnapdWrappers(func(snapInfo *snap.Info, opts *backend.GenerateSnapdWrappersOptions) (wrappers.SnapdRestart, error) {
 		c.Assert(snapInfo.SnapName(), Equals, "snapd")
 		c.Assert(opts, IsNil)
 		generateWrappersCalled = true
-		return nil
+		return nil, nil
 	})
 	defer restore()
 
@@ -7174,24 +7176,69 @@ func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnRefresh(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnKernelRefresh(c *C) {
-	s.testGadgetUpdateTaskAddedOnUC20KernelRefresh(c, doesReRefresh)
+	s.testGadgetUpdateTaskAddedOnUCKernelRefresh(c, DefaultModel(), doesReRefresh)
 }
 
 func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnUC20KernelRefresh(c *C) {
-	s.testGadgetUpdateTaskAddedOnUC20KernelRefresh(c, doesReRefresh|hasModeenv)
+	s.testGadgetUpdateTaskAddedOnUCKernelRefresh(c, MakeModel20("brand-gadget", nil), doesReRefresh)
 }
 
-func (s *snapmgrTestSuite) testGadgetUpdateTaskAddedOnUC20KernelRefresh(c *C, opts int) {
+func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnUC24KernelRefresh(c *C) {
+	s.testGadgetUpdateTaskAddedOnUCKernelRefresh(c,
+		MakeModel20("brand-gadget", map[string]interface{}{"base": "core24"}),
+		doesReRefresh|needsKernelSetup)
+}
+
+func (s *snapmgrTestSuite) testGadgetUpdateTaskAddedOnUCKernelRefresh(c *C, model *asserts.Model, opts int) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	if opts&hasModeenv != 0 {
-		// UC20 model has additional tasks for the kernel
-		defer snapstatetest.MockDeviceModel(MakeModel20("brand-gadget", nil))()
-	}
+	defer snapstatetest.MockDeviceModel(model)()
+
+	snapstate.Set(s.state, "brand-kernel", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "brand-kernel", SnapID: "brand-kernel-id", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: "kernel",
+	})
+
+	// and on update
+	ts, err := snapstate.Update(s.state, "brand-kernel", &snapstate.RevisionOptions{}, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+	verifyUpdateTasks(c, snap.TypeKernel, opts, 0, ts)
+}
+
+func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c *C) {
+	s.testGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c, "2.62.1",
+		doesReRefresh|needsKernelSetup|isHybrid)
+}
+
+func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnUCKernelRefreshHybridOldSnapd(c *C) {
+	s.testGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c, "2.61.3",
+		doesReRefresh|isHybrid)
+}
+
+func (s *snapmgrTestSuite) testGadgetUpdateTaskAddedOnUCKernelRefreshHybrid(c *C, snapdVersion string, opts int) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	defer snapstatetest.MockDeviceModel(MakeModelClassicWithModes("brand-gadget", nil))()
+
+	// Mock debian package version information
+	libDir := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir)
+	c.Assert(os.MkdirAll(libDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(libDir, "info"),
+		[]byte(fmt.Sprintf("VERSION=%s\n", snapdVersion)), 0644), IsNil)
 
 	snapstate.Set(s.state, "brand-kernel", &snapstate.SnapState{
 		Active: true,
@@ -7940,14 +7987,21 @@ func kindsToSet(kinds []string) map[string]bool {
 }
 
 func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelHappy(c *C) {
-	s.testRemodelLinkNewBaseOrKernelHappy(c, 0)
+	s.testRemodelLinkNewBaseOrKernelHappy(c, DefaultModel(), 0)
 }
 
 func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrUC20KernelHappy(c *C) {
-	s.testRemodelLinkNewBaseOrKernelHappy(c, hasModeenv)
+	s.testRemodelLinkNewBaseOrKernelHappy(c, MakeModel20("brand-gadget", nil), 0)
 }
 
-func (s *snapmgrTestSuite) testRemodelLinkNewBaseOrKernelHappy(c *C, opts int) {
+func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrUC24KernelHappy(c *C) {
+	// UC24 model has additional tasks for the kernel
+	s.testRemodelLinkNewBaseOrKernelHappy(c,
+		MakeModel20("brand-gadget", map[string]interface{}{"base": "core24"}),
+		needsKernelSetup)
+}
+
+func (s *snapmgrTestSuite) testRemodelLinkNewBaseOrKernelHappy(c *C, model *asserts.Model, opts int) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -7955,10 +8009,7 @@ func (s *snapmgrTestSuite) testRemodelLinkNewBaseOrKernelHappy(c *C, opts int) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	if opts&hasModeenv != 0 {
-		// UC20 model has additional tasks for the kernel
-		defer snapstatetest.MockDeviceModel(MakeModel20("brand-gadget", nil))()
-	}
+	defer snapstatetest.MockDeviceModel(model)()
 
 	s.addSnapsForRemodel(c)
 
@@ -7968,7 +8019,7 @@ func (s *snapmgrTestSuite) testRemodelLinkNewBaseOrKernelHappy(c *C, opts int) {
 	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, opts, 0, []string{"prepare-snap"}, kindsToSet(nonReLinkKinds)))
 	tPrepare := tasks[0]
 	var tLink, tUpdateGadgetAssets *state.Task
-	if opts&hasModeenv != 0 {
+	if opts&needsKernelSetup != 0 {
 		c.Assert(tasks, HasLen, 4)
 		tSetupKernelSnap := tasks[1]
 		c.Assert(tSetupKernelSnap.Kind(), Equals, "setup-kernel-snap")
@@ -8048,14 +8099,21 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelNoRemodelConflict(c *C)
 }
 
 func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrKernel(c *C) {
-	s.testRemodelAddLinkNewBaseOrKernel(c, 0)
+	s.testRemodelAddLinkNewBaseOrKernel(c, DefaultModel(), 0)
 }
 
 func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrUC20Kernel(c *C) {
-	s.testRemodelAddLinkNewBaseOrKernel(c, hasModeenv)
+	s.testRemodelAddLinkNewBaseOrKernel(c, MakeModel20("brand-gadget", nil), 0)
 }
 
-func (s *snapmgrTestSuite) testRemodelAddLinkNewBaseOrKernel(c *C, opts int) {
+func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrUC24Kernel(c *C) {
+	// UC24 model has additional tasks for the kernel
+	s.testRemodelAddLinkNewBaseOrKernel(c,
+		MakeModel20("brand-gadget", map[string]interface{}{"base": "core24"}),
+		needsKernelSetup)
+}
+
+func (s *snapmgrTestSuite) testRemodelAddLinkNewBaseOrKernel(c *C, model *asserts.Model, opts int) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -8063,10 +8121,7 @@ func (s *snapmgrTestSuite) testRemodelAddLinkNewBaseOrKernel(c *C, opts int) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	if opts&hasModeenv != 0 {
-		// UC20 model has additional tasks for the kernel
-		defer snapstatetest.MockDeviceModel(MakeModel20("brand-gadget", nil))()
-	}
+	defer snapstatetest.MockDeviceModel(model)()
 
 	// try a kernel snap first
 	si := &snap.SideInfo{RealName: "some-kernel", Revision: snap.R(2)}
@@ -8086,7 +8141,7 @@ func (s *snapmgrTestSuite) testRemodelAddLinkNewBaseOrKernel(c *C, opts int) {
 	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeKernel, opts, 0, []string{"prepare-snap", "test-task"}, kindsToSet(nonReLinkKinds)))
 	// since this is the kernel, we have our task + test task + update-gadget-assets + link-snap
 	var tLink, tUpdateGadgetAssets *state.Task
-	if opts&hasModeenv != 0 {
+	if opts&needsKernelSetup != 0 {
 		c.Assert(tasks, HasLen, 5)
 		tSetupKernelSnap := tasks[2]
 		c.Assert(tSetupKernelSnap.Kind(), Equals, "setup-kernel-snap")
@@ -8789,6 +8844,14 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorWithInvalidS
 }
 
 func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMounts(c *C) {
+	s.testEnsureSnapStateRewriteMounts(c, "app")
+}
+
+func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsSnapdSnap(c *C) {
+	s.testEnsureSnapStateRewriteMounts(c, "snapd")
+}
+
+func (s *snapmgrTestSuite) testEnsureSnapStateRewriteMounts(c *C, snapType string) {
 	restore := snapstate.MockEnsuredMountsUpdated(s.snapmgr, false)
 	defer restore()
 
@@ -8797,7 +8860,7 @@ func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMounts(c *C) {
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{testSnapSideInfo}),
 		Current:  snap.R(42),
 		Active:   true,
-		SnapType: "app",
+		SnapType: snapType,
 	}
 	testYaml := `name: test-snap
 version: v1
@@ -8836,12 +8899,13 @@ WantedBy=multi-user.target
 	err := os.WriteFile(mountFile, []byte(mountContent), 0644)
 	c.Assert(err, IsNil)
 
-	s.reloadOrRestarts[unitName] = 0
+	s.restarts[unitName] = 0
 
 	err = s.snapmgr.Ensure()
 	c.Assert(err, IsNil)
 
-	c.Assert(s.reloadOrRestarts[unitName], Equals, 1)
+	// no restarts of mount unit expected even if changed
+	c.Assert(s.restarts[unitName], Equals, 0)
 
 	expectedContent := fmt.Sprintf(`
 [Unit]
@@ -8913,12 +8977,12 @@ WantedBy=multi-user.target
 	err := os.WriteFile(mountFile, []byte(mountContent), 0644)
 	c.Assert(err, IsNil)
 
-	s.reloadOrRestarts[unitName] = 0
+	s.restarts[unitName] = 0
 
 	err = s.snapmgr.Ensure()
 	c.Assert(err, IsNil)
 
-	c.Assert(s.reloadOrRestarts[unitName], Equals, 0)
+	c.Assert(s.restarts[unitName], Equals, 0)
 
 	c.Assert(mountFile, testutil.FileEquals, mountContent)
 }
@@ -8953,12 +9017,12 @@ apps:
 	restore := snapstate.MockEnsuredMountsUpdated(s.snapmgr, false)
 	defer restore()
 
-	s.reloadOrRestarts[unitName] = 0
+	s.restarts[unitName] = 0
 
 	err := s.snapmgr.Ensure()
 	c.Assert(err, IsNil)
 
-	c.Assert(s.reloadOrRestarts[unitName], Equals, 1)
+	c.Assert(s.restarts[unitName], Equals, 1)
 
 	expectedContent := fmt.Sprintf(`
 [Unit]

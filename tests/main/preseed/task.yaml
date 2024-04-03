@@ -5,7 +5,10 @@ details: |
   command works, up to the point where the image is ready to be booted.
   The test assumes cloud image with a core and lxd snaps in its seeds/.
 
-systems: [ubuntu-2*]
+# Ubuntu 24.04: there is no longer any seeded snaps in base or minimal cloud images
+# https://bugs.launchpad.net/ubuntu/+source/ubuntu-meta/+bug/2051346
+# https://bugs.launchpad.net/ubuntu/+source/ubuntu-meta/+bug/2051572
+systems: [ubuntu-20*, ubuntu-22*, ubuntu-23*]
 
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg

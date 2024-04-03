@@ -64,7 +64,7 @@ restore: |
 
 suites:
     tests/:
-        summary: Main test suite for snapd-testing-tools
+        summary: Main test suite for snapd-testing-tools project
         prepare: |
             echo "Preparing snapd-testing-tools main suite"
             # Create users for the tests

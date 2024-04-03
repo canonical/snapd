@@ -1,0 +1,9 @@
+{
+    "revision": "0",
+    "bases": [
+        "core24"
+    ],
+    "modes": [
+        "run"
+    ]
+}

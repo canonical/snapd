@@ -68,3 +68,42 @@ func (s *prepareSnapSuite) TestDoPrepareComponentSimple(c *C) {
 	))
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
+
+func (s *prepareSnapSuite) TestDoPrepareComponentAlreadyPresent(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	// Unset component revision
+	compRev := snap.R(0)
+	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	ssu := createTestSnapSetup(si, snapstate.Flags{})
+
+	s.state.Lock()
+
+	// state with some component around already
+	setStateWithOneComponent(s.state, snapName, snapRev, compName, snap.R(-1))
+
+	t := s.state.NewTask("prepare-component", "task desc")
+	cref := naming.NewComponentRef(snapName, compName)
+	csi := snap.NewComponentSideInfo(cref, compRev)
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.TestComponent, "path-to-component"))
+	t.Set("snap-setup", ssu)
+
+	s.state.NewChange("test change", "change desc").AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var csup snapstate.ComponentSetup
+	t.Get("component-setup", &csup)
+	// Revision should have been set to x2 (-2)
+	c.Check(csup.CompSideInfo, DeepEquals, snap.NewComponentSideInfo(
+		cref, snap.R(-2),
+	))
+	c.Check(t.Status(), Equals, state.DoneStatus)
+}

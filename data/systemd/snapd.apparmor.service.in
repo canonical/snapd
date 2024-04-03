@@ -18,6 +18,8 @@ After=snapd.mounts.target
 Wants=snapd.mounts.target
 ConditionSecurity=apparmor
 RequiresMountsFor=/var/cache/apparmor /var/lib/snapd/apparmor/profiles
+# This is handled by snapd
+# X-Snapd-Snap: do-not-start
 
 [Service]
 Type=oneshot

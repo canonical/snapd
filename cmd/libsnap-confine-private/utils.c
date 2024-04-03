@@ -250,3 +250,14 @@ bool sc_is_expected_path(const char *path)
 	regfree(&re);
 	return status == 0;
 }
+
+bool sc_wait_for_file(const char *path, size_t timeout_sec)
+{
+	for (size_t i = 0; i < timeout_sec; ++i) {
+		if (access(path, F_OK) == 0) {
+			return true;
+		}
+		sleep(1);
+	}
+	return false;
+}

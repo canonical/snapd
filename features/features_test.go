@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/systemd"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -63,6 +64,7 @@ func (*featureSuite) TestName(c *C) {
 	check(features.QuotaGroups, "quota-groups")
 	check(features.RefreshAppAwarenessUX, "refresh-app-awareness-ux")
 	check(features.AspectsConfiguration, "aspects-configuration")
+	check(features.AppArmorPrompting, "apparmor-prompting")
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 	c.Check(func() { _ = features.SnapdFeature(1000).String() }, PanicMatches, "unknown feature flag code 1000")
@@ -101,9 +103,10 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.CheckDiskSpaceRefresh, false)
 	check(features.CheckDiskSpaceRemove, false)
 	check(features.GateAutoRefreshHook, false)
+	check(features.QuotaGroups, false)
 	check(features.RefreshAppAwarenessUX, true)
 	check(features.AspectsConfiguration, true)
-	check(features.QuotaGroups, false)
+	check(features.AppArmorPrompting, false)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 }
@@ -150,9 +153,10 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	check(features.CheckDiskSpaceRefresh, false)
 	check(features.CheckDiskSpaceRemove, false)
 	check(features.GateAutoRefreshHook, false)
+	check(features.QuotaGroups, false)
 	check(features.RefreshAppAwarenessUX, false)
 	check(features.AspectsConfiguration, false)
-	check(features.QuotaGroups, false)
+	check(features.AppArmorPrompting, false)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 }
@@ -215,4 +219,67 @@ func (s *featureSuite) TestFlag(c *C) {
 	c.Assert(tr.Set("core", "experimental.layouts", "banana"), IsNil)
 	_, err = features.Flag(tr, features.Layouts)
 	c.Assert(err, ErrorMatches, `layouts can only be set to 'true' or 'false', got "banana"`)
+}
+
+func (s *featureSuite) TestAll(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+	tr := config.NewTransaction(st)
+
+	allFeaturesInfo := features.All(tr)
+
+	// Feature flags are included even if value unset
+	layoutsInfo, exists := allFeaturesInfo[features.Layouts.String()]
+	c.Assert(exists, Equals, true)
+	// Feature flags are supported even if no callback defined.
+	c.Check(layoutsInfo.Supported, Equals, true)
+	// Feature flags have a value even if unset.
+	c.Check(layoutsInfo.Enabled, Equals, true)
+
+	// Feature flags with defined supported callbacks work correctly.
+
+	// Callbacks which return false result in Supported: false
+	restore := systemd.MockSystemdVersion(229, nil)
+	defer restore()
+	allFeaturesInfo = features.All(tr)
+	quotaGroupsInfo, exists := allFeaturesInfo[features.QuotaGroups.String()]
+	c.Assert(exists, Equals, true)
+	c.Check(quotaGroupsInfo.Supported, Equals, false)
+	c.Check(quotaGroupsInfo.UnsupportedReason, Matches, "systemd version 229 is too old.*")
+	c.Check(quotaGroupsInfo.Enabled, Equals, false)
+
+	// Feature flags can be enabled but unsupported.
+	c.Assert(tr.Set("core", "experimental.quota-groups", "true"), IsNil)
+	allFeaturesInfo = features.All(tr)
+	quotaGroupsInfo, exists = allFeaturesInfo[features.QuotaGroups.String()]
+	c.Assert(exists, Equals, true)
+	c.Check(quotaGroupsInfo.Supported, Equals, false)
+	c.Check(quotaGroupsInfo.UnsupportedReason, Matches, "systemd version 229 is too old.*")
+	c.Check(quotaGroupsInfo.Enabled, Equals, true)
+
+	// Callbacks which return true result in Supported: true
+	restore = systemd.MockSystemdVersion(230, nil)
+	defer restore()
+	allFeaturesInfo = features.All(tr)
+	quotaGroupsInfo, exists = allFeaturesInfo[features.QuotaGroups.String()]
+	c.Assert(exists, Equals, true)
+	c.Check(quotaGroupsInfo.Supported, Equals, true)
+	c.Check(quotaGroupsInfo.UnsupportedReason, Equals, "")
+	c.Check(quotaGroupsInfo.Enabled, Equals, true)
+
+	// Feature flags can be disabled but supported.
+	c.Assert(tr.Set("core", "experimental.quota-groups", "false"), IsNil)
+	allFeaturesInfo = features.All(tr)
+	quotaGroupsInfo, exists = allFeaturesInfo[features.QuotaGroups.String()]
+	c.Assert(exists, Equals, true)
+	c.Check(quotaGroupsInfo.Supported, Equals, true)
+	c.Check(quotaGroupsInfo.UnsupportedReason, Equals, "")
+	c.Check(quotaGroupsInfo.Enabled, Equals, false)
+
+	// Feature flags with bad values are omitted, even if supported.
+	c.Assert(tr.Set("core", "experimental.quota-groups", "banana"), IsNil)
+	allFeaturesInfo = features.All(tr)
+	quotaGroupsInfo, exists = allFeaturesInfo[features.QuotaGroups.String()]
+	c.Assert(exists, Equals, false)
 }

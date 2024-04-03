@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -39,6 +39,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -350,16 +351,26 @@ func (cs *clientSuite) TestClientWhoAmISomebody(c *C) {
 }
 
 func (cs *clientSuite) TestClientSysInfo(c *C) {
-	cs.rsp = `{"type": "sync", "result":
-                     {"series": "16",
-                      "version": "2",
-                      "os-release": {"id": "ubuntu", "version-id": "16.04"},
-                      "on-classic": true,
-                      "build-id": "1234",
-                      "confinement": "strict",
-                      "architecture": "TI-99/4A",
-                      "virtualization": "MESS",
-                      "sandbox-features": {"backend": ["feature-1", "feature-2"]}}}`
+	cs.rsp = `{
+  "type": "sync",
+  "result": {
+    "series": "16",
+    "version": "2",
+    "os-release": {"id": "ubuntu", "version-id": "16.04"},
+    "on-classic": true,
+    "build-id": "1234",
+    "confinement": "strict",
+    "architecture": "TI-99/4A",
+    "virtualization": "MESS",
+    "sandbox-features": {"backend": ["feature-1", "feature-2"]},
+    "features": {
+      "foo": {"supported": false, "unsupported-reason": "too foo", "enabled": false},
+      "bar": {"supported": false, "unsupported-reason": "not bar enough", "enabled": true},
+      "baz": {"supported": true, "enabled": false},
+      "buzz": {"supported": true, "enabled": true}
+    }
+  }
+}`
 	sysInfo, err := cs.cli.SysInfo()
 	c.Check(err, IsNil)
 	c.Check(sysInfo, DeepEquals, &client.SysInfo{
@@ -377,6 +388,12 @@ func (cs *clientSuite) TestClientSysInfo(c *C) {
 		BuildID:        "1234",
 		Architecture:   "TI-99/4A",
 		Virtualization: "MESS",
+		Features: map[string]features.FeatureInfo{
+			"foo":  {Supported: false, UnsupportedReason: "too foo", Enabled: false},
+			"bar":  {Supported: false, UnsupportedReason: "not bar enough", Enabled: true},
+			"baz":  {Supported: true, Enabled: false},
+			"buzz": {Supported: true, Enabled: true},
+		},
 	})
 }
 

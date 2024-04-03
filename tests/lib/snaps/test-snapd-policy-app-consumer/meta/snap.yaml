@@ -212,6 +212,9 @@ apps:
   kernel-crypto-api:
     command: bin/run
     plugs: [ kernel-crypto-api ]
+  kernel-firmware-control:
+    command: bin/run
+    plugs: [ kernel-firmware-control ]
   kernel-module-control:
     command: bin/run
     plugs: [ kernel-module-control ]
@@ -266,6 +269,9 @@ apps:
   microceph:
     command: bin/run
     plugs: [ microceph ]
+  microceph-support:
+    command: bin/run
+    plugs: [ microceph-support ]
   microovn:
     command: bin/run
     plugs: [ microovn ]
@@ -323,6 +329,9 @@ apps:
   network-status:
     command: bin/run
     plugs: [ network-status ]
+  nfs-mount:
+    command: bin/run
+    plugs: [ nfs-mount ]
   nvidia-drivers-support:
     command: bin/run
     plugs: [ nvidia-drivers-support ]
@@ -398,6 +407,9 @@ apps:
   raw-volume:
     command: bin/run
     plugs: [ raw-volume ]
+  remoteproc:
+    command: bin/run
+    plugs: [ remoteproc ]
   removable-media:
     command: bin/run
     plugs: [ removable-media ]
@@ -425,6 +437,9 @@ apps:
   snap-themes-control:
     command: bin/run
     plugs: [ snap-themes-control ]
+  snap-refresh-observe:
+    command: bin/run
+    plugs: [ snap-refresh-observe ]
   service-watchdog:
     command: bin/run
     plugs: [ daemon-notify ]

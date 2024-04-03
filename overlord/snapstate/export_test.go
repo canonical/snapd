@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 	userclient "github.com/snapcore/snapd/usersession/client"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 type (
@@ -269,11 +270,19 @@ func MockLocalInstallLastCleanup(t time.Time) (restore func()) {
 	}
 }
 
-func MockAsyncPendingRefreshNotification(fn func(context.Context, *userclient.Client, *userclient.PendingSnapRefreshInfo)) (restore func()) {
+func MockAsyncPendingRefreshNotification(fn func(context.Context, *userclient.PendingSnapRefreshInfo)) (restore func()) {
 	old := asyncPendingRefreshNotification
 	asyncPendingRefreshNotification = fn
 	return func() {
 		asyncPendingRefreshNotification = old
+	}
+}
+
+func MockHasActiveConnection(fn func(st *state.State, iface string) (bool, error)) (restore func()) {
+	old := HasActiveConnection
+	HasActiveConnection = fn
+	return func() {
+		HasActiveConnection = old
 	}
 }
 
@@ -367,7 +376,7 @@ func MockInstallSize(f func(st *state.State, snaps []minimalInstallInfo, userID 
 	}
 }
 
-func MockGenerateSnapdWrappers(f func(snapInfo *snap.Info, opts *backend.GenerateSnapdWrappersOptions) error) func() {
+func MockGenerateSnapdWrappers(f func(snapInfo *snap.Info, opts *backend.GenerateSnapdWrappersOptions) (wrappers.SnapdRestart, error)) func() {
 	old := generateSnapdWrappers
 	generateSnapdWrappers = f
 	return func() {
@@ -381,10 +390,11 @@ var (
 
 // autorefresh
 var (
-	InhibitRefresh               = inhibitRefresh
-	MaxInhibition                = maxInhibition
-	MaxDuration                  = maxDuration
-	MaybeAddRefreshInhibitNotice = maybeAddRefreshInhibitNotice
+	InhibitRefresh                       = inhibitRefresh
+	MaxInhibition                        = maxInhibition
+	MaxDuration                          = maxDuration
+	MaybeAddRefreshInhibitNotice         = maybeAddRefreshInhibitNotice
+	MaybeAsyncPendingRefreshNotification = maybeAsyncPendingRefreshNotification
 )
 
 type RefreshCandidate = refreshCandidate

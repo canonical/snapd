@@ -283,7 +283,15 @@ prepare_project() {
 
     # declare the "quiet" wrapper
 
-    if [ "$SPREAD_BACKEND" = external ]; then
+    if [ "$SPREAD_BACKEND" = "external" ]; then
+        chown test.test -R "$PROJECT_PATH"
+        exit 0
+    fi
+
+    if [ "$SPREAD_BACKEND" = "testflinger" ]; then
+        adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test
+        echo test:ubuntu | sudo chpasswd
+        echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test
         chown test.test -R "$PROJECT_PATH"
         exit 0
     fi
@@ -311,6 +319,9 @@ prepare_project() {
     create_test_user
 
     distro_update_package_db
+    # XXX this should be part of the image update in spread-images
+    # remove any packages that are marked for auto removal before running any tests
+    distro_auto_remove_packages
 
     if os.query is-arch-linux; then
         # perform system upgrade on Arch so that we run with most recent kernel

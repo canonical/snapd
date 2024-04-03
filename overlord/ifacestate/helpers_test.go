@@ -770,3 +770,21 @@ func (s *helpersSuite) TestDiscardLateBackendViaSnapstate(c *C) {
 		{"this-fails", "12", "app"},
 	})
 }
+
+func (s *helpersSuite) TestHasActiveConnection(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.st.Set("conns", map[string]map[string]string{
+		"consumer-1:browser-support core:browser-support": {"interface": "browser-support"},
+		"consumer-2:home core:home":                       {"interface": "home"},
+	})
+
+	active, err := ifacestate.HasActiveConnection(s.st, "snap-refresh-observe")
+	c.Assert(err, IsNil)
+	c.Check(active, Equals, false)
+
+	active, err = ifacestate.HasActiveConnection(s.st, "browser-support")
+	c.Assert(err, IsNil)
+	c.Check(active, Equals, true)
+}

@@ -4927,45 +4927,37 @@ func (f *fakeAssertionStore) SeqFormingAssertion(assertType *asserts.AssertionTy
 	return f.seqFormingAssertion(assertType, sequenceKey, sequence, user)
 }
 
+func (s *assertMgrSuite) TestFetchValidationSetsOnline(c *C) {
+	s.testFetchValidationSets(c, testFetchValidationSetsOpts{})
+}
+
+func (s *assertMgrSuite) TestFetchValidationSetsOffline(c *C) {
+	s.testFetchValidationSets(c, testFetchValidationSetsOpts{
+		Offline: true,
+	})
+}
+
 func (s *assertMgrSuite) TestValidationSetsFromModelOnline(c *C) {
-	const offline = false
-	s.testValidationSetsFromModel(c, offline)
+	s.testFetchValidationSets(c, testFetchValidationSetsOpts{
+		FromModel: true,
+	})
 }
 
 func (s *assertMgrSuite) TestValidationSetsFromModelOffline(c *C) {
-	const offline = true
-	s.testValidationSetsFromModel(c, offline)
+	s.testFetchValidationSets(c, testFetchValidationSetsOpts{
+		Offline:   true,
+		FromModel: true,
+	})
 }
 
-func (s *assertMgrSuite) testValidationSetsFromModel(c *C, offline bool) {
+type testFetchValidationSetsOpts struct {
+	Offline   bool
+	FromModel bool
+}
+
+func (s *assertMgrSuite) testFetchValidationSets(c *C, opts testFetchValidationSetsOpts) {
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	model := assertstest.FakeAssertion(map[string]interface{}{
-		"type":         "model",
-		"authority-id": "my-brand",
-		"series":       "16",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
-		"architecture": "amd64",
-		"gadget":       "gadget",
-		"kernel":       "krnl",
-		"validation-sets": []interface{}{
-			map[string]interface{}{
-				"account-id": s.dev1Acct.AccountID(),
-				"name":       "foo",
-				"mode":       "enforce",
-			},
-			map[string]interface{}{
-				"account-id": s.dev1Acct.AccountID(),
-				"name":       "bar",
-				"sequence":   "2",
-				"mode":       "enforce",
-			},
-		},
-	}).(*asserts.Model)
-
-	s.setModel(model)
 
 	snapsInFoo := []interface{}{
 		map[string]interface{}{
@@ -4988,7 +4980,7 @@ func (s *assertMgrSuite) testValidationSetsFromModel(c *C, offline bool) {
 	barVset := s.validationSetAssertForSnaps(c, "bar", "2", "1", snapsInBar)
 
 	var store snapstate.StoreService
-	if offline {
+	if opts.Offline {
 		c.Assert(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")), IsNil)
 		c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
 		c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
@@ -5035,10 +5027,64 @@ func (s *assertMgrSuite) testValidationSetsFromModel(c *C, offline bool) {
 		CtxStore: store,
 	}
 
-	sets, err := assertstate.ValidationSetsFromModel(s.state, model, assertstate.ValidationSetsModelOptions{
-		Offline: offline,
-	}, deviceCtx)
-	c.Assert(err, IsNil)
+	var sets *snapasserts.ValidationSets
+
+	if opts.FromModel {
+		model := assertstest.FakeAssertion(map[string]interface{}{
+			"type":         "model",
+			"authority-id": "my-brand",
+			"series":       "16",
+			"brand-id":     "my-brand",
+			"model":        "my-model",
+			"architecture": "amd64",
+			"gadget":       "gadget",
+			"kernel":       "krnl",
+			"validation-sets": []interface{}{
+				map[string]interface{}{
+					"account-id": s.dev1Acct.AccountID(),
+					"name":       "foo",
+					"mode":       "enforce",
+				},
+				map[string]interface{}{
+					"account-id": s.dev1Acct.AccountID(),
+					"name":       "bar",
+					"sequence":   "2",
+					"mode":       "enforce",
+				},
+			},
+		}).(*asserts.Model)
+
+		s.setModel(model)
+
+		model.ValidationSets()
+
+		var err error
+		sets, err = assertstate.ValidationSetsFromModel(s.state, model, assertstate.FetchValidationSetsOptions{
+			Offline: opts.Offline,
+		}, deviceCtx)
+		c.Assert(err, IsNil)
+	} else {
+		toFetch := []*asserts.AtSequence{
+			{
+				Type:        asserts.ValidationSetType,
+				SequenceKey: []string{release.Series, s.dev1Acct.AccountID(), "foo"},
+				Revision:    asserts.RevisionNotKnown,
+			},
+			{
+				Type:        asserts.ValidationSetType,
+				SequenceKey: []string{release.Series, s.dev1Acct.AccountID(), "bar"},
+				Sequence:    2,
+				Pinned:      true,
+				Revision:    asserts.RevisionNotKnown,
+			},
+		}
+
+		var err error
+		sets, err = assertstate.FetchValidationSets(s.state, toFetch, assertstate.FetchValidationSetsOptions{
+			Offline: opts.Offline,
+		}, deviceCtx)
+		c.Assert(err, IsNil)
+	}
 
 	c.Check(sets.RequiredSnaps(), testutil.DeepUnsortedMatches, []string{"some-snap", "some-other-snap"})
 	c.Check(sets.Keys(), testutil.DeepUnsortedMatches, []snapasserts.ValidationSetKey{
@@ -5103,13 +5149,13 @@ func (s *assertMgrSuite) TestValidationSetsFromModelConflict(c *C) {
 	c.Assert(assertstate.Add(s.state, barVset), IsNil)
 	c.Assert(assertstate.Add(s.state, fooVset), IsNil)
 
-	_, err := assertstate.ValidationSetsFromModel(s.state, model, assertstate.ValidationSetsModelOptions{
+	_, err := assertstate.ValidationSetsFromModel(s.state, model, assertstate.FetchValidationSetsOptions{
 		Offline: true,
 	}, s.trivialDeviceCtx)
 	c.Check(err, testutil.ErrorIs, &snapasserts.ValidationSetsConflictError{})
 }
 
-func (s *assertMgrSuite) aspectBundle(c *C, name string, extraHeaders map[string]interface{}) *asserts.AspectBundle {
+func (s *assertMgrSuite) aspectBundle(c *C, name string, extraHeaders map[string]interface{}, body string) *asserts.AspectBundle {
 	headers := map[string]interface{}{
 		"series":       "16",
 		"account-id":   s.dev1AcctKey.AccountID(),
@@ -5121,7 +5167,7 @@ func (s *assertMgrSuite) aspectBundle(c *C, name string, extraHeaders map[string
 		headers[h] = v
 	}
 
-	as, err := s.dev1Signing.Sign(asserts.AspectBundleType, headers, nil, "")
+	as, err := s.dev1Signing.Sign(asserts.AspectBundleType, headers, []byte(body), "")
 	c.Assert(err, IsNil)
 
 	return as.(*asserts.AspectBundle)
@@ -5139,7 +5185,6 @@ func (s *assertMgrSuite) TestAspectBundle(c *C) {
 	c.Assert(err, IsNil)
 
 	aspectBundleFoo := s.aspectBundle(c, "foo", map[string]interface{}{
-		"storage": `{"schema": {"a": "string", "b": "string"}}`,
 		"aspects": map[string]interface{}{
 			"an-aspect": map[string]interface{}{
 				"rules": []interface{}{
@@ -5148,7 +5193,15 @@ func (s *assertMgrSuite) TestAspectBundle(c *C) {
 				},
 			},
 		},
-	})
+	},
+		`{
+  "storage": {
+    "schema": {
+      "a": "string",
+      "b": "string"
+    }
+  }
+}`)
 	err = assertstate.Add(s.state, aspectBundleFoo)
 	c.Assert(err, IsNil)
 

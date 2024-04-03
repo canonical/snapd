@@ -899,7 +899,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 func asyncRefreshOnSnapClose(st *state.State, snapName string, refreshInfo *userclient.PendingSnapRefreshInfo) error {
 	// there's already a goroutine waiting for this snap to close so just notify
 	if IsSnapMonitored(st, snapName) {
-		asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
+		maybeAsyncPendingRefreshNotification(context.TODO(), st, refreshInfo)
 		return nil
 	}
 
@@ -919,7 +919,7 @@ func asyncRefreshOnSnapClose(st *state.State, snapName string, refreshInfo *user
 	}
 
 	// notify the user about the blocked refresh
-	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
+	maybeAsyncPendingRefreshNotification(context.TODO(), st, refreshInfo)
 
 	go continueRefreshOnSnapClose(st, snapName, done, refreshCtx)
 	return nil
@@ -1663,7 +1663,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 		// no other instances of this snap, shared data directory can be
 		// removed now too
-		if err := m.backend.RemoveSnapDataDir(newInfo, otherInstances); err != nil {
+		if err := m.backend.RemoveSnapDataDir(newInfo, otherInstances, dirOpts); err != nil {
 			t.Errorf("cannot undo partial snap %q data copy, failed removing shared directory: %v", snapsup.InstanceName(), err)
 		}
 		return copyDataErr
@@ -1856,7 +1856,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 	// no other instances of this snap and no other revisions, shared data
 	// directory can be removed
-	if err := m.backend.RemoveSnapDataDir(newInfo, otherInstances); err != nil {
+	if err := m.backend.RemoveSnapDataDir(newInfo, otherInstances, dirOpts); err != nil {
 		return err
 	}
 	return nil
@@ -3385,7 +3385,7 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 		// Snap data directory can be removed now too
-		if err := m.backend.RemoveSnapDataDir(info, otherInstances); err != nil {
+		if err := m.backend.RemoveSnapDataDir(info, otherInstances, dirOpts); err != nil {
 			return err
 		}
 	}

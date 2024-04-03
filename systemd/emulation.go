@@ -92,8 +92,8 @@ func (s *emulation) ReloadOrRestart(services []string) error {
 	return &notImplementedError{"ReloadOrRestart"}
 }
 
-func (s *emulation) RestartAll(service string) error {
-	return &notImplementedError{"RestartAll"}
+func (s *emulation) RestartNoWaitForStop(services []string) error {
+	return &notImplementedError{"RestartNoWaitForStop"}
 }
 
 func (s *emulation) Status(units []string) ([]*UnitStatus, error) {
@@ -124,7 +124,7 @@ func (s *emulation) LogReader(services []string, n int, follow, namespaces bool)
 	return nil, fmt.Errorf("LogReader")
 }
 
-func (s *emulation) EnsureMountUnitFile(description, what, where, fstype string) (string, error) {
+func (s *emulation) EnsureMountUnitFile(description, what, where, fstype string, flags EnsureMountUnitFlags) (string, error) {
 	// We don't build the options in exactly the same way as in the systemd
 	// type because these options will be written in a unit that is used in
 	// a host different to where this is running (the one used while
@@ -132,12 +132,13 @@ func (s *emulation) EnsureMountUnitFile(description, what, where, fstype string)
 	// target is not a container.
 	mountUnitOptions := append(fsMountOptions(fstype), squashfs.StandardOptions()...)
 	return s.EnsureMountUnitFileWithOptions(&MountUnitOptions{
-		Lifetime:    Persistent,
-		Description: description,
-		What:        what,
-		Where:       where,
-		Fstype:      fstype,
-		Options:     mountUnitOptions,
+		Lifetime:                 Persistent,
+		Description:              description,
+		What:                     what,
+		Where:                    where,
+		Fstype:                   fstype,
+		Options:                  mountUnitOptions,
+		PreventRestartIfModified: flags.PreventRestartIfModified,
 	})
 }
 

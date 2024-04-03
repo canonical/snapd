@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime/multipart"
 	"os"
 	"path/filepath"
@@ -63,6 +62,9 @@ type FileReference struct {
 	TmpPath  string
 }
 
+// RemoveAllExcept removes all temporary files uploaded with form, except for
+// the given paths. Should be called once the files uploaded with the form are
+// no longer needed.
 func (f *Form) RemoveAllExcept(paths []string) {
 	for _, refs := range f.FileRefs {
 		for _, ref := range refs {
@@ -527,7 +529,7 @@ func readForm(reader *multipart.Reader) (_ *Form, apiErr *apiError) {
 // its path. If the path is not empty then a file was written and it's the
 // caller's responsibility to clean it up (even if the error is non-nil).
 func writeToTempFile(reader io.Reader) (path string, err error) {
-	tmpf, err := ioutil.TempFile(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix)
+	tmpf, err := os.CreateTemp(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"*.snap")
 	if err != nil {
 		return "", fmt.Errorf("cannot create temp file for form data file part: %v", err)
 	}

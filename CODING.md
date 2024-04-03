@@ -222,6 +222,15 @@ The CI tooling will check and enforce the order and required sections when a spr
   * When no golang code is involved, the context prefix before the colon can refer to directories or top-level files instead.
     * `build-aux,.github/workflows: limit make processes with nproc`
 
+* Merging
+  * Only use `Squash and Merge` or `Rebase and Merge`, never `Create a merge commit`
+  * `Squash and Merge`: Preferred method because it simplifies cherry-picking of PR content
+    * Also for single commits
+    * This merge will use the title as commit message so double check that it is accurate and concise
+  * `Rebase and Merge`: Required when it is important to be able to distinguish different parts of a solution in the future
+    * Keep commits to a minimum
+    * Squash uninteresting commits such as review improvements after review approval
+
 ## Further readings
 
 * [Notes on state and changes](https://github.com/snapcore/snapd/blob/master/overlord/README.md)

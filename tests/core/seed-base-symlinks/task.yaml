@@ -1,11 +1,13 @@
 summary: Check that the seed symlinks work
 
+details: |
+    This test checks that the snap is a symlink into the seed
+
 # We explicitly don't want symlinks from /var/lib/snapd/snaps to
 # /var/lib/snapd/seed in UC20 run mode because /var/lib/snapd/seed snaps are
 # essentially untrusted
 systems:
-  - -ubuntu-core-20-*
-  - -ubuntu-core-22-*
+  - -ubuntu-core-2*
 
 execute: |
     # shellcheck source=tests/lib/systems.sh

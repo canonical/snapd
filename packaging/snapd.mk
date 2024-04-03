@@ -117,6 +117,7 @@ install::
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/apparmor/snap-confine
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/assertions
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/cache
+	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/cgroup
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/cookie
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/dbus-1/services
 	install -m 755 -d $(DESTDIR)/$(sharedstatedir)/snapd/dbus-1/system-services

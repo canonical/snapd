@@ -42,7 +42,8 @@ environment:
     SUDO_UID: ""
     TRUST_TEST_KEYS: '$(HOST: echo "${SPREAD_TRUST_TEST_KEYS:-true}")'
     # a global setting for LXD channel to use in the tests
-    LXD_SNAP_CHANNEL: "latest/candidate"
+    # TODO: Consider reverting to latest/candidate after Snapcraft compatibility with LXD 5.21 extended version string "5.21 LTS" is fixed
+    LXD_SNAP_CHANNEL: "latest/edge"
     UBUNTU_IMAGE_SNAP_CHANNEL: "2/stable"
     # controls whether ubuntu-image is built using the current snapd tree as a
     # dependency or the one listed in its go.mod
@@ -104,6 +105,7 @@ environment:
     NESTED_REPACK_KERNEL_SNAP: '$(HOST: echo "${NESTED_REPACK_KERNEL_SNAP:-true}")'
     NESTED_REPACK_GADGET_SNAP: '$(HOST: echo "${NESTED_REPACK_GADGET_SNAP:-true}")'
     NESTED_REPACK_BASE_SNAP: '$(HOST: echo "${NESTED_REPACK_BASE_SNAP:-true}")'
+    NESTED_FORCE_MS_KEYS: '$(HOST: echo "${NESTED_FORCE_MS_KEYS:-false}")'
 
 backends:
     google:
@@ -136,6 +138,10 @@ backends:
                   storage: 20G
             - ubuntu-core-22-64:
                   image: ubuntu-22.04-64
+                  workers: 8
+                  storage: 20G
+            - ubuntu-core-24-64:
+                  image: ubuntu-24.04-64
                   workers: 8
                   storage: 20G
             - ubuntu-secboot-20.04-64:
@@ -225,12 +231,14 @@ backends:
         location: snapd-spread/us-east1-b
         halt-timeout: 2h
         systems:
-            - ubuntu-18.04-64:
-                  workers: 6
             - ubuntu-20.04-64:
-                  workers: 6
+                  workers: 8
             - ubuntu-22.04-64:
-                  workers: 6
+                  workers: 8
+            - ubuntu-23.10-64:
+                  workers: 8
+            - ubuntu-24.04-64:
+                  workers: 8
 
     google-nested:
         type: google
@@ -364,6 +372,9 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-23.10-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-24.04-64:
                   username: ubuntu
                   password: ubuntu
             - debian-11-64:
@@ -1067,6 +1078,7 @@ suites:
             CPU_LOAD: '$(HOST: echo "${PERF_CPU_LOAD:-}")'
             LOAD_DURATION: '$(HOST: echo "${PERF_LOAD_DURATION:-1200}")'
             NUM_PARALLEL: '$(HOST: echo "${PERF_NUM_PARALLEL:-10}")'
+            NUM_SNAPS: '$(HOST: echo "${PERF_NUM_SNAPS:-100}")'
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m

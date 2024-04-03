@@ -108,12 +108,11 @@ hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-up
 
 # for the hack target also:
 snap-update-ns/snap-update-ns: snap-update-ns/*.go snap-update-ns/*.[ch]
-	cd snap-update-ns && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build \
-		-ldflags='-extldflags=-static -linkmode=external' -v
+	cd snap-update-ns && go build	-ldflags='-extldflags=-static -linkmode=external' -v
 snap-seccomp/snap-seccomp: snap-seccomp/*.go
-	cd snap-seccomp && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -v
+	cd snap-seccomp && go build -v
 snapd-apparmor/snapd-apparmor: snapd-apparmor/*.go
-	cd snapd-apparmor && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -v
+	cd snapd-apparmor && go build -v
 
 ##
 ## libsnap-confine-private.a

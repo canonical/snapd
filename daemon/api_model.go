@@ -220,6 +220,9 @@ func remodelForm(c *Command, r *http.Request, contentTypeParams map[string]strin
 
 	// we are in charge of the temp files, until they're handed off to the change
 	var pathsToNotRemove []string
+
+	// TODO: temp files are not removed if devicestate.Remodel returns an error
+	// right now. change this to work how postSystemsActionForm does it.
 	defer func() {
 		form.RemoveAllExcept(pathsToNotRemove)
 	}()

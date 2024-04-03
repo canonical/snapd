@@ -323,6 +323,9 @@ type MountUnitOptions struct {
 	Fstype      string
 	Options     []string
 	Origin      string
+	// PreventRestartIfModified is set if we do not want to restart the
+	// mount unit if modified
+	PreventRestartIfModified bool
 }
 
 // Backend identifies the implementation backend in use by a Systemd instance.
@@ -344,6 +347,15 @@ const (
 	mountUpdated
 	mountCreated
 )
+
+// EnsureMountUnitFlags contains flags that modify behavior of EnsureMountUnitFile
+// TODO should we call directly EnsureMountUnitFileWithOptions and
+// remove this type instead?
+type EnsureMountUnitFlags struct {
+	// PreventRestartIfModified is set if we do not want to restart the
+	// mount unit if even though it was modified
+	PreventRestartIfModified bool
+}
 
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
@@ -371,8 +383,9 @@ type Systemd interface {
 	Restart(services []string) error
 	// Reload or restart the service via 'systemctl reload-or-restart'
 	ReloadOrRestart(services []string) error
-	// RestartAll restarts the given service using systemctl restart --all
-	RestartAll(service string) error
+	// RestartNoWaitForStop restarts the given services using systemctl restart,
+	// with no snapd specific logic to wait for the services to stop.
+	RestartNoWaitForStop(services []string) error
 	// Status fetches the status of given units. Statuses are
 	// returned in the same order as unit names passed in
 	// argument.
@@ -399,7 +412,7 @@ type Systemd interface {
 	// logs, and is required to get logs for services which are in journal namespaces.
 	LogReader(services []string, n int, follow, namespaces bool) (io.ReadCloser, error)
 	// EnsureMountUnitFile adds/enables/starts a mount unit.
-	EnsureMountUnitFile(description, what, where, fstype string) (string, error)
+	EnsureMountUnitFile(description, what, where, fstype string, flags EnsureMountUnitFlags) (string, error)
 	// EnsureMountUnitFileWithOptions adds/enables/starts a mount unit with options.
 	EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
@@ -1156,11 +1169,11 @@ func (s *systemd) Restart(serviceNames []string) error {
 	return s.Start(serviceNames)
 }
 
-func (s *systemd) RestartAll(serviceName string) error {
+func (s *systemd) RestartNoWaitForStop(services []string) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call restart with GlobalUserMode")
 	}
-	_, err := s.systemctl("restart", serviceName, "--all")
+	_, err := s.systemctl(append([]string{"restart"}, services...)...)
 	return err
 }
 
@@ -1507,19 +1520,20 @@ func hostFsTypeAndMountOptions(fstype string) (hostFsType string, options []stri
 	return hostFsType, options
 }
 
-func (s *systemd) EnsureMountUnitFile(description, what, where, fstype string) (string, error) {
+func (s *systemd) EnsureMountUnitFile(description, what, where, fstype string, flags EnsureMountUnitFlags) (string, error) {
 	hostFsType, options := hostFsTypeAndMountOptions(fstype)
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
 		hostFsType = "none"
 	}
 	return s.EnsureMountUnitFileWithOptions(&MountUnitOptions{
-		Lifetime:    Persistent,
-		Description: description,
-		What:        what,
-		Where:       where,
-		Fstype:      hostFsType,
-		Options:     options,
+		Lifetime:                 Persistent,
+		Description:              description,
+		What:                     what,
+		Where:                    where,
+		Fstype:                   hostFsType,
+		Options:                  options,
+		PreventRestartIfModified: flags.PreventRestartIfModified,
 	})
 }
 
@@ -1542,12 +1556,13 @@ func (s *systemd) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) 
 		if err := s.EnableNoReload(units); err != nil {
 			return "", err
 		}
-		// In the case of mountCreated, ReloadOrRestart
-		// has the same effect as just Start.
-		// In the case of MountUpdate, we need to reload
-		// the unit.
-		if err := s.ReloadOrRestart(units); err != nil {
-			return "", err
+
+		// If just modified, some times it is not convenient to restart
+		if modified != mountUpdated || !unitOptions.PreventRestartIfModified {
+			// Start/restart the created or modified unit now
+			if err := s.RestartNoWaitForStop(units); err != nil {
+				return "", err
+			}
 		}
 	}
 

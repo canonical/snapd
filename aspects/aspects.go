@@ -56,7 +56,7 @@ func newAccessType(access string) (accessType, error) {
 		}
 	}
 
-	return readWrite, fmt.Errorf("expected 'access' to be one of %s but was %q", strutil.Quoted(accessTypeStrings), access)
+	return readWrite, fmt.Errorf("expected 'access' to be either %s or empty but was %q", strutil.Quoted(accessTypeStrings), access)
 }
 
 type NotFoundError struct {
@@ -127,6 +127,7 @@ func badRequestErrorFrom(a *Aspect, operation, request, errMsg string, v ...inte
 type DataBag interface {
 	Get(path string) (interface{}, error)
 	Set(path string, value interface{}) error
+	Unset(path string) error
 	Data() ([]byte, error)
 }
 
@@ -217,71 +218,36 @@ func NewBundle(account string, bundleName string, aspects map[string]interface{}
 
 func newAspect(bundle *Bundle, name string, aspectRules []interface{}) (*Aspect, error) {
 	aspect := &Aspect{
-		Name:        name,
-		aspectRules: make([]*aspectRule, 0, len(aspectRules)),
-		bundle:      bundle,
+		Name:   name,
+		rules:  make([]*aspectRule, 0, len(aspectRules)),
+		bundle: bundle,
 	}
 
-	readRequests := make(map[string]bool)
 	for _, ruleRaw := range aspectRules {
-		aspectRule, ok := ruleRaw.(map[string]interface{})
-		if !ok {
-			return nil, errors.New("each aspect rule should be a map")
-		}
-
-		requestRaw, ok := aspectRule["request"]
-		if !ok || requestRaw == "" {
-			return nil, errors.New(`aspect rules must have a "request" field`)
-		}
-
-		request, ok := requestRaw.(string)
-		if !ok {
-			return nil, errors.New(`"request" must be a string`)
-		}
-
-		storageRaw, ok := aspectRule["storage"]
-		if !ok || storageRaw == "" {
-			return nil, errors.New(`aspect rules must have a "storage" field`)
-		}
-
-		storage, ok := storageRaw.(string)
-		if !ok {
-			return nil, errors.New(`"storage" must be a string`)
-		}
-
-		if err := validateRequestStoragePair(request, storage); err != nil {
-			return nil, err
-		}
-
-		accessRaw, ok := aspectRule["access"]
-		var access string
-		if ok {
-			access, ok = accessRaw.(string)
-			if !ok {
-				return nil, errors.New(`"access" must be a string`)
-			}
-		}
-
-		switch access {
-		case "read", "read-write", "":
-			if readRequests[request] {
-				return nil, fmt.Errorf(`cannot have several reading rules with the same "request" field`)
-			}
-			readRequests[request] = true
-		}
-
-		rule, err := newAspectRule(request, storage, access)
+		rules, err := parseRule(nil, ruleRaw)
 		if err != nil {
 			return nil, err
 		}
 
-		aspect.aspectRules = append(aspect.aspectRules, rule)
+		aspect.rules = append(aspect.rules, rules...)
+	}
+
+	readRequests := make(map[string]bool)
+	for _, rule := range aspect.rules {
+		switch rule.access {
+		case read, readWrite:
+			if readRequests[rule.originalRequest] {
+				return nil, fmt.Errorf(`cannot have several reading rules with the same "request" field`)
+			}
+
+			readRequests[rule.originalRequest] = true
+		}
 	}
 
 	// check that the rules matching a given request can be satisfied with some
 	// data type (otherwise, no data can ever be written there)
 	pathToRules := make(map[string][]*aspectRule)
-	for _, rule := range aspect.aspectRules {
+	for _, rule := range aspect.rules {
 		// TODO: once the paths support list index placeholders, also add mapping
 		// for the prefixes of each path and their implied types (Map or Array)
 		path := rule.originalRequest
@@ -295,6 +261,75 @@ func newAspect(bundle *Bundle, name string, aspectRules []interface{}) (*Aspect,
 	}
 
 	return aspect, nil
+}
+
+func parseRule(parent *aspectRule, ruleRaw interface{}) ([]*aspectRule, error) {
+	ruleMap, ok := ruleRaw.(map[string]interface{})
+	if !ok {
+		return nil, errors.New("each aspect rule should be a map")
+	}
+
+	requestRaw, ok := ruleMap["request"]
+	if !ok || requestRaw == "" {
+		return nil, errors.New(`aspect rules must have a "request" field`)
+	}
+
+	request, ok := requestRaw.(string)
+	if !ok {
+		return nil, errors.New(`"request" must be a string`)
+	}
+
+	storageRaw, ok := ruleMap["storage"]
+	if !ok || storageRaw == "" {
+		return nil, errors.New(`aspect rules must have a "storage" field`)
+	}
+
+	storage, ok := storageRaw.(string)
+	if !ok {
+		return nil, errors.New(`"storage" must be a string`)
+	}
+
+	if err := validateRequestStoragePair(request, storage); err != nil {
+		return nil, err
+	}
+
+	accessRaw, ok := ruleMap["access"]
+	var access string
+	if ok {
+		access, ok = accessRaw.(string)
+		if !ok {
+			return nil, errors.New(`"access" must be a string`)
+		}
+	}
+
+	if parent != nil {
+		request = parent.originalRequest + "." + request
+		storage = parent.originalStorage + "." + storage
+	}
+
+	rule, err := newAspectRule(request, storage, access)
+	if err != nil {
+		return nil, err
+	}
+
+	rules := []*aspectRule{rule}
+	if contentRaw, ok := ruleMap["content"]; ok {
+		contentRulesRaw, ok := contentRaw.([]interface{})
+		if !ok || len(contentRulesRaw) == 0 {
+			return nil, fmt.Errorf(`"content" must be a non-empty list`)
+		}
+
+		for _, contentRule := range contentRulesRaw {
+			nestedRules, err := parseRule(rule, contentRule)
+			if err != nil {
+				return nil, err
+			}
+
+			rules = append(rules, nestedRules...)
+		}
+	}
+
+	return rules, nil
 }
 
 // validateRequestStoragePair checks that:
@@ -389,9 +424,9 @@ func (d *Bundle) Aspect(aspect string) *Aspect {
 
 // Aspect carries access rules for a particular aspect in a bundle.
 type Aspect struct {
-	Name        string
-	aspectRules []*aspectRule
-	bundle      *Bundle
+	Name   string
+	rules  []*aspectRule
+	bundle *Bundle
 }
 
 type expandedMatch struct {
@@ -406,44 +441,19 @@ type expandedMatch struct {
 	value interface{}
 }
 
-// Set sets the named aspect to a specified value.
+// Set sets the named aspect to a specified non-nil value.
 func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	if err := validateAspectDottedPath(request, nil); err != nil {
 		return badRequestErrorFrom(a, "set", request, err.Error())
 	}
 
-	var matches []requestMatch
-	subkeys := strings.Split(request, ".")
-	for _, rule := range a.aspectRules {
-		placeholders, suffixParts, ok := rule.match(subkeys)
-		if !ok {
-			continue
-		}
+	if value == nil {
+		return fmt.Errorf("internal error: Set value cannot be nil")
+	}
 
-		if !rule.isWriteable() {
-			continue
-		}
-
-		path, err := rule.storagePath(placeholders)
-		if err != nil {
-			return err
-		}
-
-		if value == nil {
-			// TODO: in the future, check the storage and complete paths according to
-			// the data that is currently stored?
-			for _, part := range strings.Split(path, ".") {
-				if isPlaceholder(part) {
-					return badRequestErrorFrom(a, "set", request, "cannot unset with unmatched placeholders")
-				}
-			}
-		}
-
-		matches = append(matches, requestMatch{
-			storagePath: path,
-			suffixParts: suffixParts,
-			request:     rule.originalRequest,
-		})
+	matches, err := a.matchWriteRequest(request)
+	if err != nil {
+		return err
 	}
 
 	if len(matches) == 0 {
@@ -501,6 +511,69 @@ func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	}
 
 	return nil
+}
+
+func (a *Aspect) Unset(databag DataBag, request string) error {
+	if err := validateAspectDottedPath(request, nil); err != nil {
+		return badRequestErrorFrom(a, "unset", request, err.Error())
+	}
+
+	matches, err := a.matchWriteRequest(request)
+	if err != nil {
+		return err
+	}
+
+	if len(matches) == 0 {
+		return notFoundErrorFrom(a, "unset", request, "no matching write rule")
+	}
+
+	for _, match := range matches {
+		if err := databag.Unset(match.storagePath); err != nil {
+			return err
+		}
+
+		data, err := databag.Data()
+		if err != nil {
+			return err
+		}
+
+		// TODO: when using a transaction, the data only changes on commit so
+		// this is a bit of a waste. Maybe cache the result so we only do the first
+		// validation and then in aspectstate on Commit
+		if err := a.bundle.Schema.Validate(data); err != nil {
+			return fmt.Errorf(`cannot unset data: %w`, err)
+		}
+	}
+
+	return nil
+}
+
+func (a *Aspect) matchWriteRequest(request string) ([]requestMatch, error) {
+	var matches []requestMatch
+	subkeys := strings.Split(request, ".")
+	for _, rule := range a.rules {
+		placeholders, suffixParts, ok := rule.match(subkeys)
+		if !ok {
+			continue
+		}
+
+		if !rule.isWriteable() {
+			continue
+		}
+
+		path, err := rule.storagePath(placeholders)
+		if err != nil {
+			return nil, err
+		}
+
+		matches = append(matches, requestMatch{
+			storagePath: path,
+			suffixParts: suffixParts,
+			request:     rule.originalRequest,
+		})
+	}
+
+	return matches, nil
 }
 
 // checkSchemaMismatch checks whether the rules accept compatible schema types.
@@ -912,7 +985,7 @@ func (a *Aspect) matchGetRequest(request string) (matches []requestMatch, err er
 		subkeys = strings.Split(request, ".")
 	}
 
-	for _, rule := range a.aspectRules {
+	for _, rule := range a.rules {
 		placeholders, restSuffix, ok := rule.match(subkeys)
 		if !ok {
 			continue
@@ -1258,14 +1331,7 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *i
 // If the value is nil, the entry is deleted.
 func (s JSONDataBag) Set(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
-
-	var err error
-	if value == nil {
-		_, err = unset(subKeys, 0, s)
-	} else {
-		_, err = set(subKeys, 0, s, value)
-	}
-
+	_, err := set(subKeys, 0, s, value)
 	return err
 }
 
@@ -1314,42 +1380,69 @@ func set(subKeys []string, index int, node map[string]json.RawMessage, value int
 	return json.Marshal(node)
 }
 
+func (s JSONDataBag) Unset(path string) error {
+	subKeys := strings.Split(path, ".")
+	_, err := unset(subKeys, 0, s)
+	return err
+}
+
 func unset(subKeys []string, index int, node map[string]json.RawMessage) (json.RawMessage, error) {
 	key := subKeys[index]
+	matchAll := isPlaceholder(key)
+
 	if index == len(subKeys)-1 {
-		delete(node, key)
-		// if the parent node has no other entries, it can also be deleted
-		if len(node) == 0 {
+		if !matchAll {
+			delete(node, key)
+		}
+
+		if matchAll || len(node) == 0 {
+			// remove entire level
 			return nil, nil
 		}
 
 		return json.Marshal(node)
 	}
 
-	rawLevel, ok := node[key]
-	if !ok {
-		// no such entry, nothing to unset
-		return json.Marshal(node)
+	unsetKey := func(level map[string]json.RawMessage, key string) error {
+		nextLevelRaw, ok := level[key]
+		if !ok {
+			return nil
+		}
+
+		var nextLevel map[string]json.RawMessage
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(nextLevelRaw), &nextLevel); err != nil {
+			return err
+		}
+
+		updated, err := unset(subKeys, index+1, nextLevel)
+		if err != nil {
+			return err
+		}
+
+		// update the map with the sublevel which may have changed or been removed
+		if updated == nil {
+			delete(level, key)
+		} else {
+			level[key] = updated
+		}
+
+		return nil
 	}
 
-	var level map[string]json.RawMessage
-	if err := jsonutil.DecodeWithNumber(bytes.NewReader(rawLevel), &level); err != nil {
-		return nil, err
-	}
-
-	rawLevel, err := unset(subKeys, index+1, level)
-	if err != nil {
-		return nil, err
-	}
-
-	if rawLevel == nil {
-		delete(node, key)
-
-		if len(node) == 0 {
-			return nil, nil
+	if matchAll {
+		for k := range node {
+			if err := unsetKey(node, k); err != nil {
+				return nil, err
+			}
 		}
 	} else {
-		node[key] = rawLevel
+		if err := unsetKey(node, key); err != nil {
+			return nil, err
+		}
+	}
+
+	if len(node) == 0 {
+		return nil, nil
 	}
 
 	return json.Marshal(node)

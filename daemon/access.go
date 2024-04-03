@@ -160,7 +160,7 @@ var (
 	requireInterfaceApiAccess = requireInterfaceApiAccessImpl
 )
 
-func requireInterfaceApiAccessImpl(d *Daemon, ucred *ucrednet, interfaceName string) *apiError {
+func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request, ucred *ucrednet, interfaceName string) *apiError {
 	if ucred == nil {
 		return Forbidden("access denied")
 	}
@@ -198,6 +198,7 @@ func requireInterfaceApiAccessImpl(d *Daemon, ucred *ucrednet, interfaceName str
 			return Forbidden("internal error: %s", err)
 		}
 		if connRef.PlugRef.Snap == snapName {
+			r.RemoteAddr = ucrednetAttachInterface(r.RemoteAddr, interfaceName)
 			return nil
 		}
 	}
@@ -207,23 +208,25 @@ func requireInterfaceApiAccessImpl(d *Daemon, ucred *ucrednet, interfaceName str
 // interfaceOpenAccess behaves like openAccess, but allows requests from
 // snapd-snap.socket for snaps that plug the provided interface.
 type interfaceOpenAccess struct {
+	// TODO: allow a list of interfaces
 	Interface string
 }
 
 func (ac interfaceOpenAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
-	return requireInterfaceApiAccess(d, ucred, ac.Interface)
+	return requireInterfaceApiAccess(d, r, ucred, ac.Interface)
 }
 
 // interfaceAuthenticatedAccess behaves like authenticatedAccess, but
 // allows requests from snapd-snap.socket that plug the provided
 // interface.
 type interfaceAuthenticatedAccess struct {
+	// TODO: allow a list of interfaces
 	Interface string
 	Polkit    string
 }
 
 func (ac interfaceAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
-	if rspe := requireInterfaceApiAccess(d, ucred, ac.Interface); rspe != nil {
+	if rspe := requireInterfaceApiAccess(d, r, ucred, ac.Interface); rspe != nil {
 		return rspe
 	}
 

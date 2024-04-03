@@ -276,161 +276,6 @@ NeedDaemonReload=no
 	}
 }
 
-type userSelectorSuite struct{}
-
-var _ = Suite(&userSelectorSuite{})
-
-func (s *userSelectorSuite) TestUserScopeMarshalListOfUsernames(c *C) {
-	us := servicestate.UserSelector{
-		Names: []string{"user", "user-two"},
-	}
-	b, err := json.Marshal(us)
-	c.Assert(err, IsNil)
-	c.Check(string(b), Equals, `["user","user-two"]`)
-}
-
-func (s *userSelectorSuite) TestUserScopeMarshalStringKeyword(c *C) {
-	us := servicestate.UserSelector{
-		Selector: servicestate.UserSelectionSelf,
-	}
-	b, err := json.Marshal(us)
-	c.Assert(err, IsNil)
-	c.Check(string(b), Equals, `"self"`)
-}
-
-func (s *userSelectorSuite) TestUserScopeMarshalInvalidSelector(c *C) {
-	us := servicestate.UserSelector{
-		Selector: 42,
-	}
-	_, err := json.Marshal(us)
-	c.Assert(err, ErrorMatches, `.* internal error: unsupported selector 42 specified`)
-}
-
-func (s *userSelectorSuite) TestUserScopeUnmarshalInvalidType(c *C) {
-	const userScopeJson = `1`
-	var us servicestate.UserSelector
-	err := json.Unmarshal([]byte(userScopeJson), &us)
-	c.Assert(err, ErrorMatches, `cannot unmarshal, expected a string or a list of strings`)
-}
-
-func (s *userSelectorSuite) TestUserScopeUnmarshalListOfUsernames(c *C) {
-	const userScopeJson = `["my-user","other-user"]`
-	var us servicestate.UserSelector
-	err := json.Unmarshal([]byte(userScopeJson), &us)
-	c.Assert(err, IsNil)
-	c.Check(us, DeepEquals, servicestate.UserSelector{
-		Names: []string{"my-user", "other-user"},
-	})
-}
-
-func (s *userSelectorSuite) TestUserScopeUnmarshalStringKeyword(c *C) {
-	const userScopeJson = `"all"`
-	var us servicestate.UserSelector
-	err := json.Unmarshal([]byte(userScopeJson), &us)
-	c.Assert(err, IsNil)
-	c.Check(us, DeepEquals, servicestate.UserSelector{
-		Selector: servicestate.UserSelectionAll,
-	})
-}
-
-func (s *userSelectorSuite) TestUserListCurrentUser(c *C) {
-	us := servicestate.UserSelector{
-		Selector: servicestate.UserSelectionSelf,
-	}
-
-	users, err := us.UserList(&user.User{
-		Uid:      "1000",
-		Username: "my-user",
-	})
-	c.Assert(err, IsNil)
-	c.Check(users, DeepEquals, []string{"my-user"})
-}
-
-func (s *userSelectorSuite) TestUserListCurrentUserInvalidNil(c *C) {
-	us := servicestate.UserSelector{
-		Selector: servicestate.UserSelectionSelf,
-	}
-
-	users, err := us.UserList(nil)
-	c.Assert(err, ErrorMatches, `internal error: for "self" the current user must be provided`)
-	c.Check(users, IsNil)
-}
-
-func (s *userSelectorSuite) TestUserListCurrentUserNotValidForRoot(c *C) {
-	us := servicestate.UserSelector{
-		Selector: servicestate.UserSelectionSelf,
-	}
-
-	users, err := us.UserList(&user.User{
-		Uid:      "0",
-		Username: "my-user",
-	})
-	c.Assert(err, ErrorMatches, `cannot use "self" for root user`)
-	c.Check(users, IsNil)
-}
-
-func (s *userSelectorSuite) TestUserListInvalidSelector(c *C) {
-	us := servicestate.UserSelector{
-		Selector: 42,
-	}
-
-	users, err := us.UserList(nil)
-	c.Assert(err, ErrorMatches, `internal error: unsupported selector 42 specified`)
-	c.Check(users, IsNil)
-}
-
-func (s *userSelectorSuite) TestUserListUsersReturnsEmpty(c *C) {
-	us := servicestate.UserSelector{
-		Selector: servicestate.UserSelectionAll,
-	}
-
-	users, err := us.UserList(nil)
-	c.Assert(err, IsNil)
-	c.Check(users, IsNil)
-}
-
-type scopeSelectorSuite struct{}
-
-var _ = Suite(&scopeSelectorSuite{})
-
-func (s *scopeSelectorSuite) TestScopeUnmarshalInvalidType(c *C) {
-	const userScopeJson = `1`
-	var us servicestate.ScopeSelector
-	err := json.Unmarshal([]byte(userScopeJson), &us)
-	c.Assert(err, ErrorMatches, `cannot unmarshal, expected a list of strings`)
-}
-
-func (s *scopeSelectorSuite) TestScopeUnmarshalInvalidKeyword(c *C) {
-	const userScopeJson = `["all"]`
-	var us servicestate.ScopeSelector
-	err := json.Unmarshal([]byte(userScopeJson), &us)
-	c.Assert(err, ErrorMatches, `cannot unmarshal, expected one of: "system", "user"`)
-}
-
-func (s *scopeSelectorSuite) TestScopeUnmarshalNone(c *C) {
-	const userScopeJson = `[]`
-	var us servicestate.ScopeSelector
-	err := json.Unmarshal([]byte(userScopeJson), &us)
-	c.Assert(err, IsNil)
-	c.Check(us, DeepEquals, servicestate.ScopeSelector{})
-}
-
-func (s *scopeSelectorSuite) TestScopeUnmarshalSystem(c *C) {
-	const userScopeJson = `["system"]`
-	var us servicestate.ScopeSelector
-	err := json.Unmarshal([]byte(userScopeJson), &us)
-	c.Assert(err, IsNil)
-	c.Check(us, DeepEquals, servicestate.ScopeSelector{"system"})
-}
-
-func (s *scopeSelectorSuite) TestScopeUnmarshalUser(c *C) {
-	const userScopeJson = `["user"]`
-	var us servicestate.ScopeSelector
-	err := json.Unmarshal([]byte(userScopeJson), &us)
-	c.Assert(err, IsNil)
-	c.Check(us, DeepEquals, servicestate.ScopeSelector{"user"})
-}
-
 type instructionSuite struct {
 	rootUser       *user.User
 	defaultUser    *user.User
@@ -486,7 +331,7 @@ func (s *instructionSuite) TestUnmarshalEmpty(c *C) {
 	// Scope and users has custom unmarshal logic, test they are set
 	// to expected empty values
 	c.Check(us.Scope, HasLen, 0)
-	c.Check(us.Users.Selector, Equals, servicestate.UserSelectionList)
+	c.Check(us.Users.Selector, Equals, client.UserSelectionList)
 	c.Check(us.Users.Names, HasLen, 0)
 }
 
@@ -506,7 +351,7 @@ func (s *instructionSuite) TestUnmarshalSimple(c *C) {
 	// Scope and users has custom unmarshal logic, test they are set
 	// to expected empty values
 	c.Check(us.Scope, HasLen, 0)
-	c.Check(us.Users.Selector, Equals, servicestate.UserSelectionList)
+	c.Check(us.Users.Selector, Equals, client.UserSelectionList)
 	c.Check(us.Users.Names, HasLen, 0)
 }
 
@@ -522,8 +367,8 @@ func (s *instructionSuite) TestUnmarshalWithScopes(c *C) {
 			Reload: true,
 		},
 		Scope: []string{"user"},
-		Users: servicestate.UserSelector{
-			Selector: servicestate.UserSelectionAll,
+		Users: client.UserSelector{
+			Selector: client.UserSelectionAll,
 		},
 	})
 }
@@ -531,25 +376,25 @@ func (s *instructionSuite) TestUnmarshalWithScopes(c *C) {
 func (s *instructionSuite) TestEnsureDefaultScopeForUserDefaultRoot(c *C) {
 	inst := &servicestate.Instruction{}
 	inst.EnsureDefaultScopeForUser(s.rootUser)
-	c.Check(inst.Scope, DeepEquals, servicestate.ScopeSelector{"system", "user"})
+	c.Check(inst.Scope, DeepEquals, client.ScopeSelector{"system", "user"})
 }
 
 func (s *instructionSuite) TestEnsureDefaultScopeForUserAlreadySetDoesNothingRoot(c *C) {
-	inst := &servicestate.Instruction{Scope: servicestate.ScopeSelector{"system"}}
+	inst := &servicestate.Instruction{Scope: client.ScopeSelector{"system"}}
 	inst.EnsureDefaultScopeForUser(s.rootUser)
-	c.Check(inst.Scope, DeepEquals, servicestate.ScopeSelector{"system"})
+	c.Check(inst.Scope, DeepEquals, client.ScopeSelector{"system"})
 }
 
 func (s *instructionSuite) TestEnsureDefaultScopeForUserDefaultNonRoot(c *C) {
 	inst := &servicestate.Instruction{}
 	inst.EnsureDefaultScopeForUser(s.defaultUser)
-	c.Check(inst.Scope, DeepEquals, servicestate.ScopeSelector{"system"})
+	c.Check(inst.Scope, DeepEquals, client.ScopeSelector{"system"})
 }
 
 func (s *instructionSuite) TestEnsureDefaultScopeForUserAlreadySetDoesNothingNonRoot(c *C) {
-	inst := &servicestate.Instruction{Scope: servicestate.ScopeSelector{"user"}}
+	inst := &servicestate.Instruction{Scope: client.ScopeSelector{"user"}}
 	inst.EnsureDefaultScopeForUser(s.defaultUser)
-	c.Check(inst.Scope, DeepEquals, servicestate.ScopeSelector{"user"})
+	c.Check(inst.Scope, DeepEquals, client.ScopeSelector{"user"})
 }
 
 func (s *instructionSuite) TestValidateNoScopesForRootOnlySystemServicesHappy(c *C) {
@@ -574,34 +419,34 @@ func (s *instructionSuite) TestValidateNoScopesForNonRootMixServicesFails(c *C) 
 
 func (s *instructionSuite) TestValidateNoUsersForRootOnlySystemServicesHappy(c *C) {
 	// Provide scopes to avoid hitting any checks in validateScope
-	inst := &servicestate.Instruction{Scope: servicestate.ScopeSelector{"system", "user"}}
+	inst := &servicestate.Instruction{Scope: client.ScopeSelector{"system", "user"}}
 	c.Check(inst.Validate(s.rootUser, s.systemServices), IsNil)
 }
 
 func (s *instructionSuite) TestValidateNoUsersForRootMixServicesHappy(c *C) {
 	// Provide scopes to avoid hitting any checks in validateScope
-	inst := &servicestate.Instruction{Scope: servicestate.ScopeSelector{"system", "user"}}
+	inst := &servicestate.Instruction{Scope: client.ScopeSelector{"system", "user"}}
 	c.Check(inst.Validate(s.rootUser, s.mixServices), IsNil)
 }
 
 func (s *instructionSuite) TestValidateNoUsersForNonRootOnlySystemServicesHappy(c *C) {
 	// Provide scopes to avoid hitting any checks in validateScope
-	inst := &servicestate.Instruction{Scope: servicestate.ScopeSelector{"system", "user"}}
+	inst := &servicestate.Instruction{Scope: client.ScopeSelector{"system", "user"}}
 	c.Check(inst.Validate(s.defaultUser, s.systemServices), IsNil)
 }
 
 func (s *instructionSuite) TestValidateAllUsersForNonRootHappy(c *C) {
 	// Provide scopes to avoid hitting any checks in validateScope
 	inst := &servicestate.Instruction{
-		Scope: servicestate.ScopeSelector{"system", "user"},
-		Users: servicestate.UserSelector{Selector: servicestate.UserSelectionAll},
+		Scope: client.ScopeSelector{"system", "user"},
+		Users: client.UserSelector{Selector: client.UserSelectionAll},
 	}
 	c.Check(inst.Validate(s.defaultUser, s.mixServices), IsNil)
 }
 
 func (s *instructionSuite) TestValidateNoUsersForNonRootMixServicesFails(c *C) {
 	// Provide scopes to avoid hitting any checks in validateScope
-	inst := &servicestate.Instruction{Scope: servicestate.ScopeSelector{"system", "user"}}
+	inst := &servicestate.Instruction{Scope: client.ScopeSelector{"system", "user"}}
 	c.Check(inst.Validate(s.defaultUser, s.mixServices), ErrorMatches, `non-root users must specify users when targeting user services`)
 }
 
@@ -842,8 +687,8 @@ func (s *snapServiceOptionsSuite) TestServiceControlServiceAction(c *C) {
 		{
 			&servicestate.Instruction{
 				Action: "start",
-				Scope:  servicestate.ScopeSelector{"user"},
-				Users:  servicestate.UserSelector{Names: []string{"my-user"}},
+				Scope:  client.ScopeSelector{"user"},
+				Users:  client.UserSelector{Names: []string{"my-user"}},
 				StartOptions: client.StartOptions{
 					Enable: true,
 				},
@@ -862,8 +707,8 @@ func (s *snapServiceOptionsSuite) TestServiceControlServiceAction(c *C) {
 		{
 			&servicestate.Instruction{
 				Action: "restart",
-				Scope:  servicestate.ScopeSelector{"user"},
-				Users:  servicestate.UserSelector{Names: []string{"foo"}},
+				Scope:  client.ScopeSelector{"user"},
+				Users:  client.UserSelector{Names: []string{"foo"}},
 			},
 			&servicestate.ServiceAction{
 				SnapName:                "foo",
@@ -879,7 +724,7 @@ func (s *snapServiceOptionsSuite) TestServiceControlServiceAction(c *C) {
 		{
 			&servicestate.Instruction{
 				Action: "restart",
-				Scope:  servicestate.ScopeSelector{"system"},
+				Scope:  client.ScopeSelector{"system"},
 				Names:  []string{"foo.svc2"},
 			},
 			&servicestate.ServiceAction{
@@ -898,8 +743,8 @@ func (s *snapServiceOptionsSuite) TestServiceControlServiceAction(c *C) {
 				Action:         "restart",
 				RestartOptions: client.RestartOptions{Reload: true},
 				Names:          []string{"foo.svc2", "foo.svc1"},
-				Scope:          servicestate.ScopeSelector{"system", "user"},
-				Users:          servicestate.UserSelector{Names: []string{"foo"}},
+				Scope:          client.ScopeSelector{"system", "user"},
+				Users:          client.UserSelector{Names: []string{"foo"}},
 			},
 			&servicestate.ServiceAction{
 				SnapName:                "foo",
@@ -916,8 +761,8 @@ func (s *snapServiceOptionsSuite) TestServiceControlServiceAction(c *C) {
 			&servicestate.Instruction{
 				Action: "stop",
 				Names:  []string{"foo.svc1"},
-				Scope:  servicestate.ScopeSelector{"user"},
-				Users:  servicestate.UserSelector{Names: []string{"baz"}},
+				Scope:  client.ScopeSelector{"user"},
+				Users:  client.UserSelector{Names: []string{"baz"}},
 			},
 			&servicestate.ServiceAction{
 				SnapName:         "foo",

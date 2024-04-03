@@ -80,8 +80,6 @@ gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c h1:Hei/4ADfdWqJk1ZMxUNpqntN
 gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c/go.mod h1:JHkPIbrfpd72SG/EVd6muEfDQjcINNoR0C8j2r3qZ4Q=
 gopkg.in/macaroon.v1 v1.0.0-20150121114231-ab3940c6c165 h1:85xqOSyTpSzplW7fyO9bOZpSsemJc9UKzEQR2L4k32k=
 gopkg.in/macaroon.v1 v1.0.0-20150121114231-ab3940c6c165/go.mod h1:PABpHZvxAbIuSYTPWJdQsNu0mtx+HX/1NIm3IT95IX0=
-gopkg.in/mgo.v2 v2.0.0-20180704144907-a7e2c1d573e1 h1:pZKliRm58MUzYBqgNxAAGvnLp27Oy76J6Il8oSsaSrI=
-gopkg.in/mgo.v2 v2.0.0-20180704144907-a7e2c1d573e1/go.mod h1:yeKp02qBN3iKW1OzL3MGk2IdtZzaj7SFntXj72NppTA=
 gopkg.in/retry.v1 v1.0.3 h1:a9CArYczAVv6Qs6VGoLMio99GEs7kY9UzSF9+LD+iGs=
 gopkg.in/retry.v1 v1.0.3/go.mod h1:FJkXmWiMaAo7xB+xhvDF59zhfjDWyzmyAxiT4dB688g=
 gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637 h1:yiW+nvdHb9LVqSHQBXfZCieqV4fzYhNBql77zY0ykqs=

@@ -20,6 +20,7 @@
 package asserts
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"time"
@@ -81,17 +82,19 @@ func assembleAspectBundle(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	v, ok := assert.headers["storage"]
-	if !ok {
-		return nil, fmt.Errorf(`"storage" stanza is mandatory`)
+	var bodyMap map[string]json.RawMessage
+	if err := json.Unmarshal(assert.body, &bodyMap); err != nil {
+		return nil, err
 	}
-	storageStr, ok := v.(string)
+
+	schemaRaw, ok := bodyMap["storage"]
 	if !ok {
-		return nil, fmt.Errorf(`invalid "storage" schema stanza, expected schema text`)
+		return nil, fmt.Errorf(`body must contain a "storage" stanza`)
 	}
-	schema, err := aspects.ParseSchema([]byte(storageStr))
+
+	schema, err := aspects.ParseSchema(schemaRaw)
 	if err != nil {
-		return nil, fmt.Errorf(`invalid "storage" schema stanza: %w`, err)
+		return nil, fmt.Errorf(`invalid schema: %w`, err)
 	}
 
 	bundle, err := aspects.NewBundle(accountID, name, aspectsMap, schema)

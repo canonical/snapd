@@ -130,6 +130,14 @@ override_dh_clean:
 	$(MAKE) -C cmd distclean || true
 
 override_dh_auto_build:
+	# Drop the go.mod entry of github.com/snapcore/bolt and
+	# advisor/backend_bolt.go as it is not packaged in Debian.
+	# The program dh_golang uses "go list" to enumerate packages but this code
+	# does not support build tags (go list does support this but the feature is
+	# unused). The only way to avoid the problem of importing the package we
+	# don't want to import, is to remove the file altogether.
+	rm _build/src/$(DH_GOPKG)/advisor/backend_bolt.go
+	sed -i -e '/\tgithub.com\/snapcore\/bolt/d' _build/src/$(DH_GOPKG)/go.mod
 	# usually done via `go generate` but that is not supported on powerpc
 	GO_GENERATE_BUILDDIR=_build/src/$(DH_GOPKG) GO111MODULE=off GOPATH=$$(pwd)/_build ./mkversion.sh
 	# Build golang bits
