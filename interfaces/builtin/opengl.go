@@ -231,7 +231,7 @@ const openglHybrisConnectedPlugAppArmor = `
 /{,android/}apex/com.android.i18n/lib{,64}/**.so     m,
 /{,dev/}socket/property_service rw, # attach_disconnected path
 /{,dev/}socket/logdw rw, # attach_disconnected path
-/{,dev/}__properties__/** rw, # attach_disconnected path
+/{,dev/}__properties__/** r, # attach_disconnected path
 /dev/{,binderfs/}binder rw,
 /dev/{,binderfs/}hwbinder rw,
 /dev/ashmem rw,
