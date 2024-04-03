@@ -54,7 +54,7 @@ var (
 	sysInfoCmd = &Command{
 		Path:       "/v2/system-info",
 		GET:        sysInfo,
-		ReadAccess: openAccess{},
+		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-prompting-control"}},
 	}
 
 	stateChangeCmd = &Command{
