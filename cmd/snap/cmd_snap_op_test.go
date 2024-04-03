@@ -135,7 +135,7 @@ func (s *SnapOpSuite) TestWait(c *check.C) {
 	// lazy way of getting a URL that won't work nor break stuff
 	server := httptest.NewServer(nil)
 	snap.ClientConfig.BaseURL = server.URL
-	server.Close()
+	defer server.Close()
 
 	cli := snap.Client()
 	chg, err := snap.Wait(cli, "x")
