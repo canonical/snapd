@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -41,8 +41,8 @@ static void test_must_read_and_validate_header_from_file__happy(void)
 	int SC_CLEANUP(sc_cleanup_close) fd = 0;
 	make_seccomp_profile(&hdr, &fd, &profile);
 
-	FILE *SC_CLEANUP(sc_cleanup_file) file =
-	    sc_must_read_and_validate_header_from_file(profile, &hdr);
+	FILE *file SC_CLEANUP(sc_cleanup_file) = fopen(profile, "rb");
+	sc_must_read_and_validate_header_from_file(file, profile, &hdr);
 	g_assert_true(file != NULL);
 }
 
@@ -54,8 +54,8 @@ static void test_must_read_and_validate_header_from_file__missing_file(void)
 	    "cannot open seccomp filter /path/to/missing/file: No such file or directory\n";
 
 	if (g_test_subprocess()) {
-		FILE *SC_CLEANUP(sc_cleanup_file) file =
-		    sc_must_read_and_validate_header_from_file(profile, &hdr);
+		FILE *file SC_CLEANUP(sc_cleanup_file) = fopen(profile, "rb");
+	    sc_must_read_and_validate_header_from_file(file, profile, &hdr);
 		// the function above is expected to call die()
 		g_assert_not_reached();
 		// reference "file" to keep the compiler from warning
@@ -77,8 +77,8 @@ static void must_read_and_validate_header_from_file_dies_with(struct
 		int SC_CLEANUP(sc_cleanup_close) fd = 0;
 		make_seccomp_profile(&hdr, &fd, &profile);
 
-		FILE *SC_CLEANUP(sc_cleanup_file) file =
-		    sc_must_read_and_validate_header_from_file(profile, &hdr);
+		FILE *file SC_CLEANUP(sc_cleanup_file) = fopen(profile, "rb");
+        sc_must_read_and_validate_header_from_file(file, profile, &hdr);
 		// the function above is expected to call die()
 		g_assert_not_reached();
 		// reference "file" to keep the compiler from warning
@@ -93,12 +93,9 @@ static void must_read_and_validate_header_from_file_dies_with(struct
 
 static void test_must_read_and_validate_header_from_file__invalid_header(void)
 {
-	// workaround bug in gcc from 14.04, the pragma can be removed when
-	// we stop supporting 14.04
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-braces"
-	struct sc_seccomp_file_header hdr = { 0 };
-#pragma GCC diagnostic pop
+	//  when we stop supporting 14.04 we could just use hdr = {0}
+	struct sc_seccomp_file_header hdr;
+	memset(&hdr, 0, 1);
 	const char *expected_err = "unexpected seccomp header: 00\n";
 	must_read_and_validate_header_from_file_dies_with(hdr, expected_err);
 }

@@ -798,6 +798,7 @@ func complainAction() seccomp.ScmpAction {
 var osCreateTemp = os.CreateTemp
 
 func exportBPF(fout *os.File, filter *seccomp.ScmpFilter) (bpfLen int64, err error) {
+	// TODO: use a common way to handle prefixed errors across snapd
 	errPrefixFmt := "cannot export bpf filter: %w"
 
 	oldPos, err := fout.Seek(0, os.SEEK_CUR)

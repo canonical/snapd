@@ -149,12 +149,14 @@ static void sc_must_read_filter_from_file(FILE *file, uint32_t len_bytes,
 		    what);
 	}
 	prog->len = len_bytes / sizeof(struct sock_filter);
-	prog->filter = (struct sock_filter *)malloc(len_bytes);
+	prog->filter = malloc(len_bytes);
 	if (prog->filter == NULL) {
 		die("cannot allocate %u bytes of memory for %s seccomp filter ",
 		    len_bytes, what);
 	}
-	size_t num_read = fread(prog->filter, 1, len_bytes, file);
+	size_t num_read =
+	    fread(prog->filter, 1, prog->len * sizeof(struct sock_filter),
+		  file);
 	if (ferror(file)) {
 		die("cannot read %s filter", what);
 	}
@@ -164,12 +166,12 @@ static void sc_must_read_filter_from_file(FILE *file, uint32_t len_bytes,
 	}
 }
 
-static FILE *sc_must_read_and_validate_header_from_file(const char
-							*profile_path, struct
-							sc_seccomp_file_header
-							*hdr)
+static void sc_must_read_and_validate_header_from_file(FILE *file,
+						       const char *profile_path,
+						       struct
+						       sc_seccomp_file_header
+						       *hdr)
 {
-	FILE *file = fopen(profile_path, "rb");
 	if (file == NULL) {
 		die("cannot open seccomp filter %s", profile_path);
 	}
@@ -211,8 +213,6 @@ static FILE *sc_must_read_and_validate_header_from_file(const char
 		die("unexpected filesize %ju != %ju", stat_buf.st_size,
 		    expected_size);
 	}
-
-	return file;
 }
 
 bool sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
@@ -260,15 +260,13 @@ bool sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
 	// set on the system.
 	validate_bpfpath_is_safe(profile_path);
 
-	// workaround bug in gcc from 14.04, the pragma can be removed when
-	// we stop supporting 14.04
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-braces"
-	struct sc_seccomp_file_header hdr = { 0 };
-#pragma GCC diagnostic pop
-	FILE *file SC_CLEANUP(sc_cleanup_file) =
-	    sc_must_read_and_validate_header_from_file(profile_path, &hdr);
-	if (hdr.unrestricted == 0x1) {
+	//  when we stop supporting 14.04 we could just use hdr = {0}
+	struct sc_seccomp_file_header hdr;
+	memset(&hdr, 0, 1);
+	FILE *file SC_CLEANUP(sc_cleanup_file) = fopen(profile_path, "rb");
+
+	sc_must_read_and_validate_header_from_file(file, profile_path, &hdr);
+	if (hdr.unrestricted & 0x1) {
 		return false;
 	}
 	// populate allow
