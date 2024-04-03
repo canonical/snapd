@@ -95,7 +95,7 @@ static void test_must_read_and_validate_header_from_file__invalid_header(void)
 {
 	//  when we stop supporting 14.04 we could just use hdr = {0}
 	struct sc_seccomp_file_header hdr;
-	memset(&hdr, 0, 1);
+	memset(&hdr, 0, sizeof hdr);
 	const char *expected_err = "unexpected seccomp header: 00\n";
 	must_read_and_validate_header_from_file_dies_with(hdr, expected_err);
 }
