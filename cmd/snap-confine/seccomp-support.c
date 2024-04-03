@@ -262,7 +262,7 @@ bool sc_apply_seccomp_profile_for_security_tag(const char *security_tag)
 
 	//  when we stop supporting 14.04 we could just use hdr = {0}
 	struct sc_seccomp_file_header hdr;
-	memset(&hdr, 0, 1);
+	memset(&hdr, 0, sizeof hdr);
 	FILE *file SC_CLEANUP(sc_cleanup_file) = fopen(profile_path, "rb");
 
 	sc_must_read_and_validate_header_from_file(file, profile_path, &hdr);

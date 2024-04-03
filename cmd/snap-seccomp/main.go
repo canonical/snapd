@@ -212,6 +212,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -801,14 +802,14 @@ func exportBPF(fout *os.File, filter *seccomp.ScmpFilter) (bpfLen int64, err err
 	// TODO: use a common way to handle prefixed errors across snapd
 	errPrefixFmt := "cannot export bpf filter: %w"
 
-	oldPos, err := fout.Seek(0, os.SEEK_CUR)
+	oldPos, err := fout.Seek(0, io.SeekCurrent)
 	if err != nil {
 		return 0, fmt.Errorf(errPrefixFmt, err)
 	}
 	if err := filter.ExportBPF(fout); err != nil {
 		return 0, fmt.Errorf(errPrefixFmt, err)
 	}
-	nowPos, err := fout.Seek(0, os.SEEK_CUR)
+	nowPos, err := fout.Seek(0, io.SeekCurrent)
 	if err != nil {
 		return 0, fmt.Errorf(errPrefixFmt, err)
 	}
@@ -883,7 +884,7 @@ func writeSeccompFilter(outFile string, filterAllow, filterDeny *seccomp.ScmpFil
 	// now write final header
 	hdr.lenAllowFilter = uint32(allowSize)
 	hdr.lenDenyFilter = uint32(denySize)
-	if _, err := fout.Seek(0, 0); err != nil {
+	if _, err := fout.Seek(0, io.SeekStart); err != nil {
 		return err
 	}
 	if err := binary.Write(fout, arch.Endian(), hdr); err != nil {
