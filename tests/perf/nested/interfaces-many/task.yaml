@@ -49,4 +49,8 @@ execute: |
     export SPREAD_EXTERNAL_ADDRESS=localhost:8022
     export PERF_CONNECTIONS_PERCENTAGE="$CONNECTIONS_PERCENTAGE"
     export PERF_DISCONNECT_INTERFACES="$DISCONNECT_INTERFACES"    
-    "$SPREAD" external:"$NESTED_SPREAD_SYSTEM":tests/perf/"$TEST"
+    "$SPREAD" external:"$NESTED_SPREAD_SYSTEM":tests/perf/main/"$TEST" |& tee spread.log
+
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    nested_check_spread_results spread.log
