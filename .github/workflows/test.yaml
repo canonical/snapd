@@ -254,7 +254,7 @@ jobs:
         wget -q -O test_master.yaml https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/test.yaml
         system_daily="$(yq '.jobs.spread.strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems'  test_master.yaml)"
         current_daily="$(yq '.jobs.spread.strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems'  .github/workflows/test.yaml)"
-        test "$system_daily" == "$current_daily"
+        test "$system_daily" != "$current_daily"
       shell: bash
 
   unit-tests:
