@@ -236,6 +236,20 @@ jobs:
               exit 1
           fi
 
+  branch-static-checks:
+    runs-on: ubuntu-latest
+    needs: [cache-build-deps]
+    #if: github.ref != 'refs/heads/master'
+    steps:
+      name: check-branch-ubuntu-daily-spread
+      run: |
+        # Compare the daily system in master and in the current branch
+        wget -q -O test_master.yaml https://raw.githubusercontent.com/snapcore/snapd/master/.github/workflows/test.yaml
+        system_daily="$(yq '.jobs.spread.strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems'  test_master.yaml)"
+        current_daily="$(yq '.jobs.spread.strategy.matrix.include.[] | select(.group == "ubuntu-daily") | .systems'  .github/workflows/test.yaml)"
+        test "$system_daily" == "$current_daily"
+      shell: bash
+
   unit-tests:
     needs: [static-checks]
     runs-on: ubuntu-22.04
