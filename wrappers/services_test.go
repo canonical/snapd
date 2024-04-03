@@ -4765,7 +4765,7 @@ NeedDaemonReload=no
 
 	flags := wrappers.RestartServicesFlags{Reload: true, AlsoEnabledNonActive: true}
 	err = wrappers.RestartServices(info.Services(), nil, &flags, progress.Null, s.perfTimings)
-	c.Assert(err, ErrorMatches, `some user services failed to restart or reload`)
+	c.Assert(err, ErrorMatches, `some user services failed to restart`)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"--user", "daemon-reload"},
 		{"--user", "show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},

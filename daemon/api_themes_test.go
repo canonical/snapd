@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2020-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -72,8 +72,8 @@ func (s *themesSuite) daemon(c *C) *daemon.Daemon {
 }
 
 func (s *themesSuite) expectThemesAccess() {
-	s.expectReadAccess(daemon.InterfaceOpenAccess{Interface: "snap-themes-control"})
-	s.expectWriteAccess(daemon.InterfaceAuthenticatedAccess{Interface: "snap-themes-control", Polkit: "io.snapcraft.snapd.manage"})
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-themes-control"}})
+	s.expectWriteAccess(daemon.InterfaceAuthenticatedAccess{Interfaces: []string{"snap-themes-control"}, Polkit: "io.snapcraft.snapd.manage"})
 }
 
 func (s *themesSuite) TestInstalledThemes(c *C) {

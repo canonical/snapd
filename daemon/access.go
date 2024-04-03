@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2021-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var polkitCheckAuthorization = polkit.CheckAuthorization
@@ -160,7 +161,7 @@ var (
 	requireInterfaceApiAccess = requireInterfaceApiAccessImpl
 )
 
-func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request, ucred *ucrednet, interfaceName string) *apiError {
+func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request, ucred *ucrednet, interfaceNames []string) *apiError {
 	if ucred == nil {
 		return Forbidden("access denied")
 	}
@@ -189,8 +190,9 @@ func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request, ucred *ucrednet, 
 	if err != nil {
 		return Forbidden("internal error: cannot get connections: %s", err)
 	}
+	foundMatchingInterface := false
 	for refStr, connState := range conns {
-		if !connState.Active() || connState.Interface != interfaceName {
+		if !connState.Active() || !strutil.ListContains(interfaceNames, connState.Interface) {
 			continue
 		}
 		connRef, err := interfaces.ParseConnRef(refStr)
@@ -198,35 +200,36 @@ func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request, ucred *ucrednet, 
 			return Forbidden("internal error: %s", err)
 		}
 		if connRef.PlugRef.Snap == snapName {
-			r.RemoteAddr = ucrednetAttachInterface(r.RemoteAddr, interfaceName)
-			return nil
+			r.RemoteAddr = ucrednetAttachInterface(r.RemoteAddr, connState.Interface)
+			foundMatchingInterface = true
 		}
+	}
+	if foundMatchingInterface {
+		return nil
 	}
 	return Forbidden("access denied")
 }
 
 // interfaceOpenAccess behaves like openAccess, but allows requests from
-// snapd-snap.socket for snaps that plug the provided interface.
+// snapd-snap.socket for snaps that plug one of the provided interfaces.
 type interfaceOpenAccess struct {
-	// TODO: allow a list of interfaces
-	Interface string
+	Interfaces []string
 }
 
 func (ac interfaceOpenAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
-	return requireInterfaceApiAccess(d, r, ucred, ac.Interface)
+	return requireInterfaceApiAccess(d, r, ucred, ac.Interfaces)
 }
 
 // interfaceAuthenticatedAccess behaves like authenticatedAccess, but
-// allows requests from snapd-snap.socket that plug the provided
-// interface.
+// allows requests from snapd-snap.socket that plug one of the provided
+// interfaces.
 type interfaceAuthenticatedAccess struct {
-	// TODO: allow a list of interfaces
-	Interface string
-	Polkit    string
+	Interfaces []string
+	Polkit     string
 }
 
 func (ac interfaceAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
-	if rspe := requireInterfaceApiAccess(d, r, ucred, ac.Interface); rspe != nil {
+	if rspe := requireInterfaceApiAccess(d, r, ucred, ac.Interfaces); rspe != nil {
 		return rspe
 	}
 

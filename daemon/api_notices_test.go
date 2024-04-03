@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Canonical Ltd
+// Copyright (c) 2023-2024 Canonical Ltd
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License version 3 as
@@ -40,7 +40,7 @@ type noticesSuite struct {
 func (s *noticesSuite) SetUpTest(c *C) {
 	s.apiBaseSuite.SetUpTest(c)
 
-	s.expectReadAccess(daemon.InterfaceOpenAccess{Interface: "snap-refresh-observe"})
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}})
 }
 
 func (s *noticesSuite) TestNoticesFilterUserID(c *C) {
@@ -143,7 +143,7 @@ func (s *noticesSuite) TestNoticesFilterMultipleTypes(c *C) {
 	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
 	st.Unlock()
 
-	req, err := http.NewRequest("GET", "/v2/notices?types=change-update&types=warning&types=refresh-inhibit", nil)
+	req, err := http.NewRequest("GET", "/v2/notices?types=change-update&types=warning,warning&types=refresh-inhibit", nil)
 	c.Assert(err, IsNil)
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapdSocket)
 	rsp := s.syncReq(c, req, nil)
@@ -661,6 +661,131 @@ func (s *noticesSuite) testNoticesBadRequest(c *C, query, errorMatch string) {
 	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 400)
 	c.Assert(rsp.Message, Matches, errorMatch)
+}
+
+// Check that duplicate explicitly-given notice types are removed from filter.
+func (s *noticesSuite) TestSanitizeNoticeTypesFilterDuplicateGivenTypes(c *C) {
+	typeStrs := []string{
+		string(state.ChangeUpdateNotice),
+		fmt.Sprintf(
+			"%s,%s,%s",
+			state.WarningNotice,
+			state.ChangeUpdateNotice,
+			state.RefreshInhibitNotice,
+		),
+		string(state.WarningNotice),
+		string(state.RefreshInhibitNotice),
+		string(state.WarningNotice),
+		string(state.ChangeUpdateNotice),
+	}
+	types := []state.NoticeType{
+		state.ChangeUpdateNotice,
+		state.WarningNotice,
+		state.RefreshInhibitNotice,
+	}
+	// Request unnecessary since explicitly-specified types are validated later.
+	result, err := daemon.SanitizeNoticeTypesFilter(typeStrs, nil)
+	c.Assert(err, IsNil)
+	c.Check(result, DeepEquals, types)
+}
+
+// Check that notice types granted by default by multiple connected interfaces
+// are only included once in the filter.
+func (s *noticesSuite) TestSanitizeNoticeTypesFilterDuplicateDefaultTypes(c *C) {
+	types := []state.NoticeType{
+		state.NoticeType("foo"),
+		state.NoticeType("bar"),
+		state.NoticeType("baz"),
+	}
+	ifaces := []string{
+		"abc",
+		"xyz",
+		"123",
+	}
+	fakeNoticeReadInterfaces := map[state.NoticeType][]string{
+		types[0]: {ifaces[0], ifaces[1]},
+		types[1]: {ifaces[1], ifaces[2]},
+		types[2]: {ifaces[2]},
+	}
+	restore := daemon.MockNoticeReadInterfaces(fakeNoticeReadInterfaces)
+	defer restore()
+
+	// Check that multiple interfaces which grant the same notice type do not
+	// result in duplicates of that type
+	req, err := http.NewRequest("GET", "/v2/notices", nil)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=%s&%s;", dirs.SnapSocket, ifaces[0], ifaces[1])
+	result, err := daemon.SanitizeNoticeTypesFilter(nil, req)
+	c.Assert(err, IsNil)
+	c.Check(result, DeepEquals, types[:2])
+}
+
+// Check that requests for notice types granted by multiple connected interfaces
+// behave correctly.
+func (s *noticesSuite) TestNoticeTypesViewableBySnap(c *C) {
+	types := []state.NoticeType{
+		state.NoticeType("foo"),
+		state.NoticeType("bar"),
+		state.NoticeType("baz"),
+	}
+	ifaces := []string{
+		"abc",
+		"xyz",
+		"123",
+	}
+	fakeNoticeReadInterfaces := map[state.NoticeType][]string{
+		types[0]: {ifaces[0], ifaces[1]},
+		types[1]: {ifaces[1], ifaces[2]},
+		types[2]: {ifaces[2]},
+	}
+	restore := daemon.MockNoticeReadInterfaces(fakeNoticeReadInterfaces)
+	defer restore()
+
+	// Check notice types granted by different connected interfaces.
+	req, err := http.NewRequest("GET", "/v2/notices", nil)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=%s&%s;", dirs.SnapSocket, ifaces[0], ifaces[2])
+	requestedTypes := []state.NoticeType{types[0], types[1], types[2]}
+	viewable := daemon.NoticeTypesViewableBySnap(requestedTypes, req)
+	c.Check(viewable, Equals, true)
+
+	// Check notice types granted by the same connected interface.
+	req, err = http.NewRequest("GET", "/v2/notices", nil)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=%s&%s;", dirs.SnapSocket, ifaces[0], ifaces[1])
+	// Types viewable by both interfaces
+	requestedTypes = []state.NoticeType{types[0]}
+	viewable = daemon.NoticeTypesViewableBySnap(requestedTypes, req)
+	c.Check(viewable, Equals, true)
+	// Types viewable by at least one interface
+	requestedTypes = []state.NoticeType{types[0], types[1]}
+	viewable = daemon.NoticeTypesViewableBySnap(requestedTypes, req)
+	c.Check(viewable, Equals, true)
+	// Type not viewable by any interface
+	requestedTypes = []state.NoticeType{types[2]}
+	viewable = daemon.NoticeTypesViewableBySnap(requestedTypes, req)
+	c.Check(viewable, Equals, false)
+	// Mix of viewable and unviewable types
+	requestedTypes = []state.NoticeType{types[0], types[2]}
+	viewable = daemon.NoticeTypesViewableBySnap(requestedTypes, req)
+	c.Check(viewable, Equals, false)
+
+	// Check no types results in not viewable, no matter what
+	requestedTypes = make([]state.NoticeType, 0)
+	req, err = http.NewRequest("GET", "/v2/notices", nil)
+	c.Assert(err, IsNil)
+	// No "iface=" field given
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapSocket)
+	viewable = daemon.NoticeTypesViewableBySnap(requestedTypes, req)
+	c.Check(viewable, Equals, false)
+	// Empty "iface=" field
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=;", dirs.SnapSocket)
+	viewable = daemon.NoticeTypesViewableBySnap(requestedTypes, req)
+	c.Check(viewable, Equals, false)
+	// Non-empty "iface=" field
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-refresh-observe;", dirs.SnapSocket)
+	viewable = daemon.NoticeTypesViewableBySnap(requestedTypes, req)
+	c.Check(viewable, Equals, false)
 }
 
 func (s *noticesSuite) TestNotice(c *C) {
