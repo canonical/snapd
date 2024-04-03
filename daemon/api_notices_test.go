@@ -46,7 +46,7 @@ type noticesSuite struct {
 func (s *noticesSuite) SetUpTest(c *C) {
 	s.apiBaseSuite.SetUpTest(c)
 
-	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}})
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "snap-prompting-control"}})
 	s.expectWriteAccess(daemon.OpenAccess{})
 }
 
@@ -236,10 +236,13 @@ func (s *noticesSuite) TestNoticesShowsTypesAllowedForSnap(c *C) {
 
 	st := s.d.Overlord().State()
 	st.Lock()
+	addNotice(c, st, nil, state.RequestsPromptNotice, "abc", nil)
+	addNotice(c, st, nil, state.RequestsRuleUpdateNotice, "xyz", nil)
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
 	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
 	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
 	addNotice(c, st, nil, state.SnapRunInhibitNotice, "snap-name", nil)
+	addNotice(c, st, nil, state.RequestsPromptNotice, "def", nil)
 	st.Unlock()
 
 	// Check that a snap request without specifying types filter only shows
@@ -274,6 +277,29 @@ func (s *noticesSuite) TestNoticesShowsTypesAllowedForSnap(c *C) {
 	c.Check(seenNoticeType["change-update"], Equals, 1)
 	c.Check(seenNoticeType["refresh-inhibit"], Equals, 1)
 	c.Check(seenNoticeType["snap-run-inhibit"], Equals, 1)
+
+	// Check that multiple interfaces allow accessing notice types granted by
+	// any of the connected interfaces
+	req, err = http.NewRequest("GET", "/v2/notices", nil)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-refresh-observe&snap-prompting-control;", dirs.SnapSocket)
+	rsp = s.syncReq(c, req, nil)
+	c.Check(rsp.Status, Equals, 200)
+	notices, ok = rsp.Result.([]*state.Notice)
+	c.Assert(ok, Equals, true)
+	c.Assert(notices, HasLen, 6)
+
+	seenNoticeType = make(map[string]int)
+	for _, notice := range notices {
+		n := noticeToMap(c, notice)
+		noticeType := n["type"].(string)
+		seenNoticeType[noticeType]++
+	}
+	c.Check(seenNoticeType["change-update"], Equals, 1)
+	c.Check(seenNoticeType["refresh-inhibit"], Equals, 1)
+	c.Check(seenNoticeType["snap-run-inhibit"], Equals, 1)
+	c.Check(seenNoticeType["interfaces-requests-prompt"], Equals, 2)
+	c.Check(seenNoticeType["interfaces-requests-rule-update"], Equals, 1)
 }
 
 func (s *noticesSuite) TestNoticesFilterTypesForSnap(c *C) {
@@ -339,17 +365,17 @@ func (s *noticesSuite) TestNoticesFilterTypesForSnapForbidden(c *C) {
 	rsp = s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 403)
 
-	// snap-themes-control doesn't give access to change-update notices.
+	// snap-prompting-control doesn't give access to change-update notices.
 	req, err = http.NewRequest("GET", "/v2/notices?types=change-update", nil)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-themes-control;", dirs.SnapSocket)
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-prompting-control;", dirs.SnapSocket)
 	rsp = s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 403)
 
-	// snap-themes-control doesn't give access to refresh-inhibit notices.
+	// snap-prompting-control doesn't give access to refresh-inhibit notices.
 	req, err = http.NewRequest("GET", "/v2/notices?types=refresh-inhibit", nil)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-themes-control;", dirs.SnapSocket)
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-prompting-control;", dirs.SnapSocket)
 	rsp = s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 403)
 
