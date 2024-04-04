@@ -152,3 +152,57 @@ func (ts *SystemdTestSuite) TestEscapePath(c *C) {
 		c.Assert(systemd.EscapeUnitNamePath(t.in), Equals, t.out, Commentf(t.comment+" (with input %q)", t.in))
 	}
 }
+
+func (ts *SystemdTestSuite) TestUnitNameFromSecurityTag(c *C) {
+	type test struct {
+		tag  string
+		unit string
+		err  string
+	}
+
+	cases := []test{
+		{
+			tag:  `snap.name.app`,
+			unit: `snap.name.app`,
+		},
+		{
+			tag:  `snap.name_key.app`,
+			unit: `snap.name_key.app`,
+		},
+		{
+			tag:  `snap.name.APP`,
+			unit: `snap.name.APP`,
+		},
+		{
+			tag:  `snap.other-name.app`,
+			unit: `snap.other-name.app`,
+		},
+		{
+			tag:  `snap.name.hook.pre-refresh`,
+			unit: `snap.name.hook.pre-refresh`,
+		},
+		{
+			tag:  `snap.name+comp.hook.install`,
+			unit: `snap.name\x2bcomp.hook.install`,
+		},
+		{
+			tag: `snap.name/comp.hook.install`,
+			err: `invalid character in security tag: '/'`,
+		},
+	}
+
+	for _, t := range cases {
+		unit, err := systemd.UnitNameFromSecurityTag(t.tag)
+		if t.err == "" {
+			c.Check(unit, Equals, t.unit)
+			c.Check(err, IsNil)
+
+			// if we don't expect the conversion to fail, check that the inverse
+			// function works too
+			tag := systemd.SecurityTagFromUnitName(unit)
+			c.Check(tag, Equals, t.tag)
+		} else {
+			c.Check(err, ErrorMatches, t.err)
+		}
+	}
+}
