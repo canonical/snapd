@@ -65,7 +65,9 @@ mq_getsetattr
 mq_unlink
 mq_notify
 mq_timedreceive
+mq_timedreceive_time64
 mq_timedsend
+mq_timedsend_time64
 `
 
 var posixMQPlugPermissions = []string{
@@ -360,9 +362,11 @@ func (iface *posixMQInterface) SecCompConnectedPlug(spec *seccomp.Specification,
 		switch perm {
 		case "read":
 			syscalls = append(syscalls, "mq_timedreceive")
+			syscalls = append(syscalls, "mq_timedreceive_time64")
 			syscalls = append(syscalls, "mq_notify")
 		case "write":
 			syscalls = append(syscalls, "mq_timedsend")
+			syscalls = append(syscalls, "mq_timedsend_time64")
 		case "delete":
 			syscalls = append(syscalls, "mq_unlink")
 		}
