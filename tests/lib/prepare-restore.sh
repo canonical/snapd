@@ -664,7 +664,7 @@ prepare_suite_each() {
     tests.backup prepare
 
     # save the job which is going to be executed in the system
-    echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
+    echo -n "${SPREAD_JOB:-} " >> "$RUNTIME_STATE_PATH/runs"
 
     # Restart journal log and reset systemd journal cursor.
     systemctl reset-failed systemd-journald.service
