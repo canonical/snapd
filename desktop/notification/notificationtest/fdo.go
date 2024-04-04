@@ -92,6 +92,9 @@ func (server *FdoServer) Stop() error {
 // If not nil, all the fdoApi methods will return the provided error
 // in place of performing their usual task.
 func (server *FdoServer) SetError(err *dbus.Error) {
+	server.mu.Lock()
+	defer server.mu.Unlock()
+
 	server.err = err
 }
 
@@ -136,6 +139,9 @@ type fdoApi struct {
 }
 
 func (a fdoApi) GetCapabilities() ([]string, *dbus.Error) {
+	a.server.mu.Lock()
+	defer a.server.mu.Unlock()
+
 	if a.server.err != nil {
 		return nil, a.server.err
 	}
@@ -144,12 +150,12 @@ func (a fdoApi) GetCapabilities() ([]string, *dbus.Error) {
 }
 
 func (a fdoApi) Notify(appName string, replacesID uint32, icon, summary, body string, actions []string, hints map[string]dbus.Variant, expires int32) (uint32, *dbus.Error) {
+	a.server.mu.Lock()
+	defer a.server.mu.Unlock()
+
 	if a.server.err != nil {
 		return 0, a.server.err
 	}
-
-	a.server.mu.Lock()
-	defer a.server.mu.Unlock()
 
 	a.server.lastID += 1
 	notification := &FdoNotification{
@@ -171,6 +177,9 @@ func (a fdoApi) Notify(appName string, replacesID uint32, icon, summary, body st
 }
 
 func (a fdoApi) CloseNotification(id uint32) *dbus.Error {
+	a.server.mu.Lock()
+	defer a.server.mu.Unlock()
+
 	if a.server.err != nil {
 		return a.server.err
 	}
@@ -187,6 +196,9 @@ func (a fdoApi) CloseNotification(id uint32) *dbus.Error {
 }
 
 func (a fdoApi) GetServerInformation() (name, vendor, version, specVersion string, err *dbus.Error) {
+	a.server.mu.Lock()
+	defer a.server.mu.Unlock()
+
 	if a.server.err != nil {
 		return "", "", "", "", a.server.err
 	}
