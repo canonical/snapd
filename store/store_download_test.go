@@ -883,6 +883,10 @@ func (s *storeDownloadSuite) TestDownloadTimeout(c *C) {
 }
 
 func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterHappy(c *C) {
+	if os.Getenv("SNAPD_SKIP_SLOW_TESTS") != "" {
+		c.Skip("skipping slow test")
+	}
+
 	origCtx := context.TODO()
 	w, ctx := store.NewTransferSpeedMonitoringWriterAndContext(origCtx, 50*time.Millisecond, 1)
 
@@ -907,6 +911,10 @@ func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterHappy(c *C) {
 }
 
 func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterUnhappy(c *C) {
+	if os.Getenv("SNAPD_SKIP_SLOW_TESTS") != "" {
+		c.Skip("skipping slow test")
+	}
+
 	origCtx := context.TODO()
 	w, ctx := store.NewTransferSpeedMonitoringWriterAndContext(origCtx, 50*time.Millisecond, 1000)
 
