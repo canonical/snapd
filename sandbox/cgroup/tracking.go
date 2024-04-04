@@ -82,13 +82,18 @@ func CreateTransientScopeForTracking(securityTag string, opts *TrackingOptions) 
 		return err
 	}
 
+	securityTagUnitName, err := systemd.UnitNameFromSecurityTag(securityTag)
+	if err != nil {
+		return err
+	}
+
 	// Enforcing uniqueness is preferred to reusing an existing scope for
 	// simplicity since doing otherwise by joining an existing scope has
 	// limitations:
 	// - the originally started scope must be marked as a delegate, with all
 	//   consequences.
 	// - the method AttachProcessesToUnit is unavailable on Ubuntu 16.04
-	unitName := fmt.Sprintf("%s-%s.scope", systemd.EscapeUnitName(securityTag), uuid)
+	unitName := fmt.Sprintf("%s-%s.scope", securityTagUnitName, uuid)
 
 	pid := osGetpid()
 	start := time.Now()
@@ -157,17 +162,20 @@ tryAgain:
 //
 // If the application process is not tracked then ErrCannotTrackProcess is returned.
 func ConfirmSystemdAppTracking(securityTag string) error {
+	unitName, err := systemd.UnitNameFromSecurityTag(securityTag)
+	if err != nil {
+		return err
+	}
+
 	pid := osGetpid()
 	path, err := cgroupProcessPathInTrackingCgroup(pid)
 	if err != nil {
 		return err
 	}
 
-	escapedTag := systemd.EscapeUnitName(securityTag)
-
 	// the transient scope of the application carries the security tag, eg:
 	// snap.hello-world.sh-4706fe54-7802-4808-aa7e-ae8b567239e0.scope
-	if strings.HasPrefix(filepath.Base(path), escapedTag+"-") && strings.HasSuffix(path, ".scope") {
+	if strings.HasPrefix(filepath.Base(path), unitName+"-") && strings.HasSuffix(path, ".scope") {
 		return nil
 	}
 
