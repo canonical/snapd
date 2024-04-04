@@ -214,7 +214,7 @@ const openglHybrisConnectedPlugAppArmor = `
 /{,var/}run/shm/hybris_shm_data rw, # FIXME: LP: #1226569 (make app-specific)
 # This is a LD_PRELOADed TLS padding library allowing use of both
 # Android 9 and glibc TLS slots at the same time. Only used on Halium 9.
-/usr/lib/@{multiarch}/libtls-padding.so  mr,
+/var/lib/snapd/hostfs/usr/lib/@{multiarch}/libtls-padding.so  mr,
 /android{,/**} r,
 /{,android/}system/build.prop r,
 /{,android/}vendor/lib{,64}/**           r,
