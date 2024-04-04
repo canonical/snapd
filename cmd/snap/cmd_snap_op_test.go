@@ -132,10 +132,9 @@ func (s *SnapOpSuite) TestWait(c *check.C) {
 	restore := snap.MockMaxGoneTime(time.Millisecond)
 	defer restore()
 
-	// lazy way of getting a URL that won't work nor break stuff
-	server := httptest.NewServer(nil)
-	snap.ClientConfig.BaseURL = server.URL
-	defer server.Close()
+	// should always result in a connection refused error, since port zero isn't
+	// valid
+	snap.ClientConfig.BaseURL = "http://localhost:0"
 
 	cli := snap.Client()
 	chg, err := snap.Wait(cli, "x")
