@@ -1,5 +1,10 @@
 summary: Ensure that core(16) compatibility is there
 
+details: |
+    Ensure that when snap test-snapd-sh is install, the core
+    snap is pulled and check test-snapd-sh see the core16
+    environment.
+
 execute: |
     echo "Install test-snapd-sh (which uses the core snap)"
     snap install test-snapd-sh

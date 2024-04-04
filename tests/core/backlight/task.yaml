@@ -1,5 +1,9 @@
 summary: Test system.disable-backlight-service core config option
 
+details: |
+    Check the backlight service can be enabled and disabled through
+    system.disable-backlight-service core config option
+
 environment:
     MASKFILE: /etc/systemd/system/systemd-backlight@.service
 
