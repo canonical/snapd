@@ -101,27 +101,41 @@ func ParseSecurityTag(tag string) (SecurityTag, error) {
 	if snapLiteral != "snap" {
 		return nil, errInvalidSecurityTag
 	}
-	if err := ValidateInstance(snapName); err != nil {
-		return nil, errInvalidSecurityTag
-	}
 	// Depending on the type of the tag we either expect application name or
 	// the "hook" literal and the hook name.
 	if len(parts) == 3 {
+		// TODO: if components get apps, we can lift this check out of the if
+		// statement and move the strings.Cut to earlier in the function
+		if err := ValidateInstance(snapName); err != nil {
+			return nil, errInvalidSecurityTag
+		}
+
 		appName := parts[2]
 		if err := ValidateApp(appName); err != nil {
 			return nil, errInvalidSecurityTag
 		}
 		return &appSecurityTag{instanceName: snapName, appName: appName}, nil
-	} else {
-		hookLiteral, hookName := parts[2], parts[3]
-		if hookLiteral != "hook" {
-			return nil, errInvalidSecurityTag
-		}
-		if err := ValidateHook(hookName); err != nil {
-			return nil, errInvalidSecurityTag
-		}
-		return &hookSecurityTag{instanceName: snapName, hookName: hookName}, nil
 	}
+
+	snapName, compName, isComponent := strings.Cut(snapName, "+")
+	if err := ValidateInstance(snapName); err != nil {
+		return nil, errInvalidSecurityTag
+	}
+
+	if isComponent {
+		if err := ValidateSnap(compName); err != nil {
+			return nil, errInvalidSecurityTag
+		}
+	}
+
+	hookLiteral, hookName := parts[2], parts[3]
+	if hookLiteral != "hook" {
+		return nil, errInvalidSecurityTag
+	}
+	if err := ValidateHook(hookName); err != nil {
+		return nil, errInvalidSecurityTag
+	}
+	return &hookSecurityTag{instanceName: snapName, hookName: hookName}, nil
 }
 
 // ParseAppSecurityTag parses an app security tag.

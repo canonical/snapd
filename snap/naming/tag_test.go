@@ -55,6 +55,18 @@ func (s *tagSuite) TestParseSecurityTag(c *C) {
 	c.Check(tag.InstanceName(), Equals, "pkg_key")
 	c.Check(tag.(naming.HookSecurityTag).HookName(), Equals, "configure")
 
+	tag, err = naming.ParseSecurityTag("snap.pkg+comp.hook.configure")
+	c.Assert(err, IsNil)
+	c.Check(tag.String(), Equals, "snap.pkg.hook.configure")
+	c.Check(tag.InstanceName(), Equals, "pkg")
+	c.Check(tag.(naming.HookSecurityTag).HookName(), Equals, "configure")
+
+	tag, err = naming.ParseSecurityTag("snap.pkg_key+comp.hook.configure")
+	c.Assert(err, IsNil)
+	c.Check(tag.String(), Equals, "snap.pkg_key.hook.configure")
+	c.Check(tag.InstanceName(), Equals, "pkg_key")
+	c.Check(tag.(naming.HookSecurityTag).HookName(), Equals, "configure")
+
 	// invalid format is rejected
 	_, err = naming.ParseSecurityTag("snap.pkg.app.surprise")
 	c.Check(err, ErrorMatches, "invalid security tag")
@@ -84,6 +96,10 @@ func (s *tagSuite) TestParseSecurityTag(c *C) {
 	_, err = naming.ParseSecurityTag("snap.")
 	c.Check(err, ErrorMatches, "invalid security tag")
 	_, err = naming.ParseSecurityTag("snap")
+	c.Check(err, ErrorMatches, "invalid security tag")
+	_, err = naming.ParseSecurityTag("snap.pkg+.hook.install")
+	c.Check(err, ErrorMatches, "invalid security tag")
+	_, err = naming.ParseSecurityTag("snap.pkg+comp+comp.hook.install")
 	c.Check(err, ErrorMatches, "invalid security tag")
 
 	// things that are not snap.* tags
