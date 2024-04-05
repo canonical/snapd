@@ -13,63 +13,67 @@ show_help() {
 }
 
 is_core() {
-    # We need to check $SPREAD_SYSTEM var because in snapd the os-release file does
-    # not contain the ubuntu-core info while the system is being prepared
-    if [ -n "$SPREAD_SYSTEM" ]; then
-        [[ "$SPREAD_SYSTEM" == ubuntu-core-* ]]
-    else
-        grep -qFx 'ID=ubuntu-core' /etc/os-release
-    fi
+    grep -qFx 'ID=ubuntu-core' /etc/os-release
 }
 
 is_core16() {
-    # We need to check $SPREAD_SYSTEM var because in snapd the os-release file does
-    # not contain the ubuntu-core info while the system is being prepared
-    if [ -n "$SPREAD_SYSTEM" ]; then
-        [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]
-    else
-        grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="16"' /etc/os-release
-    fi
+    grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="16"' /etc/os-release
 }
 
 is_core18() {
-    # We need to check $SPREAD_SYSTEM var because in snapd the os-release file does
-    # not contain the ubuntu-core info while the system is being prepared
-    if [ -n "$SPREAD_SYSTEM" ]; then
-        [[ "$SPREAD_SYSTEM" == ubuntu-core-18-* ]]
-    else
-        grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="18"' /etc/os-release
-    fi
+    grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="18"' /etc/os-release
 }
 
 is_core20() {
-    # We need to check $SPREAD_SYSTEM var because in snapd the os-release file does
-    # not contain the ubuntu-core info while the system is being prepared
-    if [ -n "$SPREAD_SYSTEM" ]; then
-        [[ "$SPREAD_SYSTEM" == ubuntu-core-20-* ]]
-    else
-        grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="20"' /etc/os-release
-    fi
+    grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="20"' /etc/os-release
 }
 
 is_core22() {
-    # We need to check $SPREAD_SYSTEM var because in snapd the os-release file does
-    # not contain the ubuntu-core info while the system is being prepared
-    if [ -n "$SPREAD_SYSTEM" ]; then
-        [[ "$SPREAD_SYSTEM" == ubuntu-core-22-* ]]
-    else
-        grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="22"' /etc/os-release
-    fi
+    grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="22"' /etc/os-release
 }
 
 is_core24() {
-    # We need to check $SPREAD_SYSTEM var because in snapd the os-release file does
-    # not contain the ubuntu-core info while the system is being prepared
-    if [ -n "$SPREAD_SYSTEM" ]; then
-        [[ "$SPREAD_SYSTEM" == ubuntu-core-24-* ]]
-    else
-        grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="24"' /etc/os-release
+    grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="24"' /etc/os-release
+}
+
+is_core_gt() {
+    local VERSION=$1
+    if [ -z "$VERSION" ]; then
+        echo "os.query: version id is expected"
+        exit 1
     fi
+
+    compare_ubuntu "$VERSION" "-gt"
+}
+
+is_core_ge() {
+    local VERSION=$1
+    if [ -z "$VERSION" ]; then
+        echo "os.query: version id is expected"
+        exit 1
+    fi
+
+    compare_ubuntu "$VERSION" "-ge"
+}
+
+is_core_lt() {
+    local VERSION=$1
+    if [ -z "$VERSION" ]; then
+        echo "os.query: version id is expected"
+        exit 1
+    fi
+
+    compare_ubuntu "$VERSION" "-lt"
+}
+
+is_core_le() {
+    local VERSION=$1
+    if [ -z "$VERSION" ]; then
+        echo "os.query: version id is expected"
+        exit 1
+    fi
+
+    compare_ubuntu "$VERSION" "-le"
 }
 
 is_core_gt() {
