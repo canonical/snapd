@@ -132,13 +132,44 @@ func (s *handlersSuite) TestBuildConfinementOptions(c *C) {
 
 	snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
 	flags := snapstate.Flags{}
-	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{})
+	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{}, nil)
 
 	c.Check(err, IsNil)
 	c.Check(len(opts.ExtraLayouts), Equals, 0)
 	c.Check(opts.Classic, Equals, flags.Classic)
 	c.Check(opts.DevMode, Equals, flags.DevMode)
 	c.Check(opts.JailMode, Equals, flags.JailMode)
+	c.Check(opts.AppArmorPrompting, Equals, false)
+}
+
+func (s *handlersSuite) TestBuildConfinementOptionsWithTask(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	task := s.st.NewTask("fake-kind", "arbitrary summary")
+	task.Set("use-prompt-prefix", true)
+
+	snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
+	flags := snapstate.Flags{}
+	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{}, task)
+
+	c.Check(err, IsNil)
+	c.Check(len(opts.ExtraLayouts), Equals, 0)
+	c.Check(opts.Classic, Equals, flags.Classic)
+	c.Check(opts.DevMode, Equals, flags.DevMode)
+	c.Check(opts.JailMode, Equals, flags.JailMode)
+	c.Check(opts.AppArmorPrompting, Equals, true)
+
+	task.Set("use-prompt-prefix", false)
+
+	opts, err = ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{}, task)
+
+	c.Check(err, IsNil)
+	c.Check(len(opts.ExtraLayouts), Equals, 0)
+	c.Check(opts.Classic, Equals, flags.Classic)
+	c.Check(opts.DevMode, Equals, flags.DevMode)
+	c.Check(opts.JailMode, Equals, flags.JailMode)
+	c.Check(opts.AppArmorPrompting, Equals, false)
 }
 
 func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {
@@ -158,7 +189,7 @@ func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {
 	c.Assert(err, IsNil)
 
 	flags := snapstate.Flags{}
-	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{})
+	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{}, nil)
 
 	c.Check(err, IsNil)
 	c.Assert(len(opts.ExtraLayouts), Equals, 1)

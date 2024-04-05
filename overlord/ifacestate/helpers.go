@@ -162,7 +162,7 @@ func snapdAppArmorServiceIsDisabledImpl() bool {
 }
 
 // regenerateAllSecurityProfiles will regenerate all security profiles.
-func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) error {
+func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, task *state.Task) error {
 	// Get all the security backends
 	securityBackends := m.repo.Backends()
 
@@ -195,6 +195,14 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 	shouldWriteSystemKey := true
 	os.Remove(dirs.SnapSystemKeyFile)
 
+	// I think we need to pass in a usePromptPrefix bool to buildConfinementOptions
+	// rather than a task, since in the ifacemgr.StartUp() use case, there is
+	// no task, but we still want to generate profiles with prompting if
+	// prompting is supported and enabled.
+	// Or we could create a dummy task, but that seems not ideal.
+	// But there is no transaction here to easily get the config state of the
+	// experimental.apparmor-prompting flag.
+
 	confinementOpts := func(snapName string) interfaces.ConfinementOptions {
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(m.state, snapName, &snapst); err != nil {
@@ -206,7 +214,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 			logger.Noticef("cannot get current info for snap %q: %s", snapName, err)
 			return interfaces.ConfinementOptions{}
 		}
-		opts, err := buildConfinementOptions(m.state, snapInfo, snapst.Flags)
+		opts, err := buildConfinementOptions(m.state, snapInfo, snapst.Flags, task)
 		if err != nil {
 			logger.Noticef("cannot get confinement options for snap %q: %s", snapName, err)
 		}

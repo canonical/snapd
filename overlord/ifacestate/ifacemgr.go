@@ -173,7 +173,7 @@ func (m *InterfaceManager) StartUp() error {
 		return err
 	}
 	if profilesNeedRegeneration() {
-		if err := m.regenerateAllSecurityProfiles(perfTimings); err != nil {
+		if err := m.regenerateAllSecurityProfiles(perfTimings, nil); err != nil {
 			return err
 		}
 	}

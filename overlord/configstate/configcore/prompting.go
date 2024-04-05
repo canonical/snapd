@@ -54,6 +54,8 @@ func doExperimentalApparmorPromptProfileRegeneration(c RunTransaction, opts *fsO
 	regenerateProfilesChg := st.NewChange("regenerate-all-security-profiles",
 		i18n.G("Regenerate all profiles due to change in prompting"))
 	t := st.NewTask("regenerate-all-security-profiles", i18n.G("Regenerate all profiles due to change in prompting"))
+	usePromptPrefix := prompting && features.AppArmorPrompting.IsSupported()
+	t.Set("use-prompt-prefix", usePromptPrefix)
 	regenerateProfilesChg.AddTask(t)
 	st.Unlock()
 	st.EnsureBefore(0)

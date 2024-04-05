@@ -108,6 +108,9 @@ type Specification struct {
 	// Same as the above, but for the pycache deny rule which breaks docker
 	suppressPycacheDeny bool
 
+	// Include prompt prefixes for relevant interfaces when generating profiles.
+	usePromptPrefix bool
+
 	// Unconfined profile mode allows a profile to be applied without any
 	// real confinement
 	unconfined UnconfinedMode
@@ -804,6 +807,18 @@ func (spec *Specification) SetSuppressPycacheDeny() {
 // suppressed.
 func (spec *Specification) SuppressPycacheDeny() bool {
 	return spec.suppressPycacheDeny
+}
+
+// SetUsePromptPrefix records that the prompt prefix should be included for
+// relevant interfaces when generating profiles.
+func (spec *Specification) SetUsePromptPrefix() {
+	spec.usePromptPrefix = true
+}
+
+// UsePromptPrefix returns whether the prompt prefix should be included for
+// relevant interfaces when generating profiles.
+func (spec *Specification) UsePromptPrefix() bool {
+	return spec.usePromptPrefix
 }
 
 // setUnconfinedSuported records whether a profile perhaps should be applied

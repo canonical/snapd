@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/snap"
@@ -110,12 +109,12 @@ func (iface *homeInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	return nil
 }
 
-func evalPrompting(s string) string {
+func evalPrompting(plugStr string, spec *apparmor.Specification) string {
 	repl := ""
-	if features.AppArmorPrompting.IsEnabled() && features.AppArmorPrompting.IsSupported() {
+	if spec.UsePromptPrefix() {
 		repl = "prompt "
 	}
-	return strings.Replace(s, "###PROMPT###", repl, -1)
+	return strings.Replace(plugStr, "###PROMPT###", repl, -1)
 }
 
 func (iface *homeInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -123,12 +122,12 @@ func (iface *homeInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 	_ = plug.Attr("read", &read)
 
 	// 'owner' is the standard policy
-	spec.AddSnippet(evalPrompting(homeConnectedPlugAppArmor))
+	spec.AddSnippet(evalPrompting(homeConnectedPlugAppArmor, spec))
 
 	// 'all' grants standard policy plus read access to home without owner
 	// match
 	if read == "all" {
-		spec.AddSnippet(evalPrompting(homeConnectedPlugAppArmorWithAllRead))
+		spec.AddSnippet(evalPrompting(homeConnectedPlugAppArmorWithAllRead, spec))
 	}
 	return nil
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -81,17 +81,30 @@ func getExtraLayouts(st *state.State, snapInfo *snap.Info) ([]snap.Layout, error
 	return extraLayouts, nil
 }
 
-func buildConfinementOptions(st *state.State, snapInfo *snap.Info, flags snapstate.Flags) (interfaces.ConfinementOptions, error) {
+func buildConfinementOptions(st *state.State, snapInfo *snap.Info, flags snapstate.Flags, task *state.Task) (interfaces.ConfinementOptions, error) {
 	extraLayouts, err := getExtraLayouts(st, snapInfo)
 	if err != nil {
 		return interfaces.ConfinementOptions{}, fmt.Errorf("cannot get extra mount layouts of snap %q: %s", snapInfo.InstanceName(), err)
 	}
 
+	var usePromptPrefix bool
+	if task != nil {
+		task.Get("use-prompt-prefix", &usePromptPrefix)
+		// If "use-prompt-prefix" unset, includePromptPrefix remains false.
+		//
+		// XXX:
+		// But if unset (as is the case in most calls to buildConfinementOptions),
+		// will prompt profiles be overwritten with profiles which do not have
+		// prompt prefixes? Or is buildConfinementOptions only used to build
+		// profiles when a task with "use-prompt-prefix" set is passed in?
+	}
+
 	return interfaces.ConfinementOptions{
-		DevMode:      flags.DevMode,
-		JailMode:     flags.JailMode,
-		Classic:      flags.Classic,
-		ExtraLayouts: extraLayouts,
+		DevMode:           flags.DevMode,
+		JailMode:          flags.JailMode,
+		Classic:           flags.Classic,
+		ExtraLayouts:      extraLayouts,
+		AppArmorPrompting: usePromptPrefix,
 	}, nil
 }
 
@@ -119,7 +132,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 
 		appSet := interfaces.NewSnapAppSet(affectedSnapInfo)
 
-		opts, err := buildConfinementOptions(st, affectedSnapInfo, snapst.Flags)
+		opts, err := buildConfinementOptions(st, affectedSnapInfo, snapst.Flags, nil)
 		if err != nil {
 			return err
 		}
@@ -165,7 +178,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return nil
 	}
 
-	opts, err := buildConfinementOptions(task.State(), snapInfo, snapsup.Flags)
+	opts, err := buildConfinementOptions(task.State(), snapInfo, snapsup.Flags, nil)
 	if err != nil {
 		return err
 	}
@@ -286,7 +299,7 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 		if err := addImplicitSlots(st, snapInfo); err != nil {
 			return err
 		}
-		opts, err := buildConfinementOptions(st, snapInfo, snapst.Flags)
+		opts, err := buildConfinementOptions(st, snapInfo, snapst.Flags, nil)
 		if err != nil {
 			return err
 		}
@@ -388,7 +401,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		if err != nil {
 			return err
 		}
-		opts, err := buildConfinementOptions(task.State(), snapInfo, snapst.Flags)
+		opts, err := buildConfinementOptions(task.State(), snapInfo, snapst.Flags, nil)
 		if err != nil {
 			return err
 		}
@@ -606,7 +619,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 		if err != nil {
 			return err
 		}
-		slotOpts, err := buildConfinementOptions(st, slotSnapInfo, slotSnapst.Flags)
+		slotOpts, err := buildConfinementOptions(st, slotSnapInfo, slotSnapst.Flags, nil)
 		if err != nil {
 			return err
 		}
@@ -618,7 +631,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 		if err != nil {
 			return err
 		}
-		plugOpts, err := buildConfinementOptions(st, plugSnapInfo, plugSnapst.Flags)
+		plugOpts, err := buildConfinementOptions(st, plugSnapInfo, plugSnapst.Flags, nil)
 		if err != nil {
 			return err
 		}
@@ -727,7 +740,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		// SnapState.CurrentAppSet()?
 		appSet := interfaces.NewSnapAppSet(snapInfo)
 
-		opts, err := buildConfinementOptions(st, snapInfo, snapst.Flags)
+		opts, err := buildConfinementOptions(st, snapInfo, snapst.Flags, nil)
 		if err != nil {
 			return err
 		}
@@ -844,7 +857,7 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	if err != nil {
 		return err
 	}
-	slotOpts, err := buildConfinementOptions(st, slotSnapInfo, slotSnapst.Flags)
+	slotOpts, err := buildConfinementOptions(st, slotSnapInfo, slotSnapst.Flags, nil)
 	if err != nil {
 		return err
 	}
@@ -856,7 +869,7 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	if err != nil {
 		return err
 	}
-	plugOpts, err := buildConfinementOptions(st, plugSnapInfo, plugSnapst.Flags)
+	plugOpts, err := buildConfinementOptions(st, plugSnapInfo, plugSnapst.Flags, nil)
 	if err != nil {
 		return err
 	}
@@ -946,7 +959,7 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	slotOpts, err := buildConfinementOptions(st, slotSnapInfo, slotSnapst.Flags)
+	slotOpts, err := buildConfinementOptions(st, slotSnapInfo, slotSnapst.Flags, nil)
 	if err != nil {
 		return err
 	}
@@ -958,7 +971,7 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	plugOpts, err := buildConfinementOptions(st, plugSnapInfo, plugSnapst.Flags)
+	plugOpts, err := buildConfinementOptions(st, plugSnapInfo, plugSnapst.Flags, nil)
 	if err != nil {
 		return err
 	}
@@ -1970,5 +1983,5 @@ func (m *InterfaceManager) doRegenerateAllSecurityProfiles(task *state.Task, _ *
 	perfTimings := state.TimingsForTask(task)
 	defer perfTimings.Save(task.State())
 
-	return m.regenerateAllSecurityProfiles(perfTimings)
+	return m.regenerateAllSecurityProfiles(perfTimings, task)
 }

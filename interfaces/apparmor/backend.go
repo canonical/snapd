@@ -350,6 +350,14 @@ func (b *Backend) prepareProfiles(appSet *interfaces.SnapAppSet, opts interfaces
 		return nil, fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
 	}
 
+	// XXX: By this point, spec.AddConnectedPlug has already been called during
+	// repo.SnapSpecification, and as spec.AddConnectedPlug is the only caller
+	// of AppArmorConnectedPlug, it is now too late to correctly set
+	// UsePromptPrefix in the spec, if appropriate:
+	// if opts.AppArmorPrompting {
+	//	spec.(*Specification).SetUsePromptPrefix()
+	// }
+
 	snapInfo := appSet.Info()
 
 	// Add snippets for parallel snap installation mapping
@@ -967,8 +975,11 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 }
 
 // NewSpecification returns a new, empty apparmor specification.
-func (b *Backend) NewSpecification(appSet *interfaces.SnapAppSet) interfaces.Specification {
-	return &Specification{appSet: appSet}
+func (b *Backend) NewSpecification(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions) interfaces.Specification {
+	return &Specification{
+		appSet:          appSet,
+		usePromptPrefix: opts.AppArmorPrompting,
+	}
 }
 
 // SandboxFeatures returns the list of apparmor features supported by the kernel.

@@ -69,6 +69,9 @@ type ConfinementOptions struct {
 	// as systemd provides a mount namespace which will clash with the
 	// one snapd sets up.
 	ExtraLayouts []snap.Layout
+	// AppArmorPrompting flag indicates whether the prompt prefix should be
+	// included when generating AppArmor profiles for relevant interfaces.
+	AppArmorPrompting bool
 }
 
 // SecurityBackendOptions carries extra flags that affect initialization of the
