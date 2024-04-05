@@ -922,7 +922,7 @@ func (s *RunSuite) TestSnapRunAppMaxRetry(c *check.C) {
 	defer restore()
 
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
-	c.Assert(err, check.ErrorMatches, "internal error: race condition detected, snap-run can only retry once")
+	c.Assert(err, check.ErrorMatches, "race condition detected, snap-run can only retry once")
 	// check we only retried once
 	c.Check(called, check.Equals, 2)
 }

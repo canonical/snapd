@@ -513,7 +513,7 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 		if retryCnt > 1 {
 			// This should never happen, but it is better to fail instead
 			// of retrying forever.
-			return fmt.Errorf("internal error: race condition detected, snap-run can only retry once")
+			return fmt.Errorf("race condition detected, snap-run can only retry once")
 		}
 
 		info, app, hintFlock, err := maybeWaitWhileInhibited(context.Background(), snapName, appName)
