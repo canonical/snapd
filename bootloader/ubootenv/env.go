@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -110,7 +109,7 @@ func OpenWithFlags(fname string, flags OpenFlags) (*Env, error) {
 	}
 	defer f.Close()
 
-	contentWithHeader, err := ioutil.ReadAll(f)
+	contentWithHeader, err := io.ReadAll(f)
 	if err != nil {
 		return nil, err
 	}

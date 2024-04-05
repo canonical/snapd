@@ -22,7 +22,7 @@ package main_test
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"mime"
 	"mime/multipart"
 	"net/http"
@@ -948,7 +948,7 @@ func formFile(form *multipart.Form, c *check.C) (name, filename string, content 
 		c.Assert(err, check.IsNil)
 		defer body.Close()
 		filename = fheaders[0].Filename
-		content, err = ioutil.ReadAll(body)
+		content, err = io.ReadAll(body)
 		c.Assert(err, check.IsNil)
 
 		return name, filename, content
@@ -1287,7 +1287,7 @@ func formFiles(form *multipart.Form, c *check.C) (names, filenames []string, con
 			c.Assert(err, check.IsNil)
 			defer body.Close()
 
-			content, err := ioutil.ReadAll(body)
+			content, err := io.ReadAll(body)
 			c.Assert(err, check.IsNil)
 			contents = append(contents, content)
 			filenames = append(filenames, h.Filename)

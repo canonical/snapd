@@ -213,13 +213,12 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
 	"syscall"
 
-	"github.com/seccomp/libseccomp-golang"
+	seccomp "github.com/seccomp/libseccomp-golang"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/osutil"
@@ -1026,7 +1025,7 @@ func main() {
 			fmt.Println("compile needs an input and output file")
 			os.Exit(1)
 		}
-		content, err = ioutil.ReadFile(os.Args[2])
+		content, err = os.ReadFile(os.Args[2])
 		if err != nil {
 			break
 		}

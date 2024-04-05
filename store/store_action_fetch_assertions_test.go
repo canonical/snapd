@@ -22,7 +22,7 @@ package store_test
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -81,7 +81,7 @@ func (s *storeActionFetchAssertionsSuite) testFetch(c *C, assertionMaxFormats ma
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -187,7 +187,7 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateIfNewerThan(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -318,7 +318,7 @@ func (s *storeActionFetchAssertionsSuite) TestFetchNotFound(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -413,7 +413,7 @@ func (s *storeActionFetchAssertionsSuite) TestFetchValidationSetNotFound(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -584,7 +584,7 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateSequenceForming(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -734,7 +734,7 @@ func (s *storeActionFetchAssertionsSuite) TestUpdateSequenceFormingCommonGroupin
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -899,7 +899,7 @@ func (s *storeActionFetchAssertionsSuite) TestFetchOptionalPrimaryKeys(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`

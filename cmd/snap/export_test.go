@@ -382,10 +382,10 @@ func MockSyscallUmount(f func(string, int) error) (restore func()) {
 }
 
 func MockIoutilTempDir(f func(string, string) (string, error)) (restore func()) {
-	old := ioutilTempDir
-	ioutilTempDir = f
+	old := osMkdirTemp
+	osMkdirTemp = f
 	return func() {
-		ioutilTempDir = old
+		osMkdirTemp = old
 	}
 }
 

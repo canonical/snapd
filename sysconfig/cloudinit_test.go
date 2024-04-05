@@ -21,7 +21,6 @@ package sysconfig_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -1445,7 +1444,7 @@ reporting:
 		}
 
 		// otherwise we have expected output in the file
-		b, err := ioutil.ReadFile(out)
+		b, err := os.ReadFile(out)
 		c.Assert(err, IsNil, comment)
 		c.Assert(string(b), Equals, t.outStr, comment)
 	}

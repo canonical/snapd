@@ -40,7 +40,6 @@ package apparmor
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -162,10 +161,10 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 	// We must test the ".real" suffix first, this is a workaround for
 	// https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=858004
 	vanillaProfilePath := filepath.Join(info.MountDir(), "/etc/apparmor.d/usr.lib.snapd.snap-confine.real")
-	vanillaProfileText, err := ioutil.ReadFile(vanillaProfilePath)
+	vanillaProfileText, err := os.ReadFile(vanillaProfilePath)
 	if os.IsNotExist(err) {
 		vanillaProfilePath = filepath.Join(info.MountDir(), "/etc/apparmor.d/usr.lib.snapd.snap-confine")
-		vanillaProfileText, err = ioutil.ReadFile(vanillaProfilePath)
+		vanillaProfileText, err = os.ReadFile(vanillaProfilePath)
 	}
 	if err != nil {
 		return "", "", nil, fmt.Errorf("cannot open apparmor profile for vanilla snap-confine: %s", err)
@@ -264,10 +263,10 @@ func (b *Backend) setupSnapConfineReexec(info *snap.Info) error {
 
 	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
 	if len(changed) == 0 {
-		// XXX: because NFS workaround is handled separately the same correct
-		// snap-confine profile may need to be re-loaded. This is because the
-		// profile contains include directives and those load a second file
-		// that has changed outside of the scope of EnsureDirState.
+		// XXX: because remote file system workaround is handled separately the
+		// same correct snap-confine profile may need to be re-loaded. This is
+		// because the profile contains include directives and those load a
+		// second file that has changed outside of the scope of EnsureDirState.
 		//
 		// To counter that, always reload the profile by pretending it had
 		// changed.
@@ -907,12 +906,13 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 				// ignoring all apparmor snippets as they may conflict with the
 				// super-broad template we are starting with.
 			} else {
-				// Check if NFS is mounted at or under $HOME. Because NFS is not
-				// transparent to apparmor we must alter the profile to counter that and
-				// allow access to SNAP_USER_* files.
+				// Check if a remote file system is mounted at or under $HOME.
+				// Because some file systems, like NFS, are not transparent to
+				// apparmor we must alter the profile to counter that and allow
+				// access to SNAP_USER_* files.
 				tagSnippets = snippetForTag
-				if nfs, _ := osutil.IsHomeUsingNFS(); nfs {
-					tagSnippets += apparmor_sandbox.NfsSnippet
+				if isRemote, _ := osutil.IsHomeUsingRemoteFS(); isRemote {
+					tagSnippets += apparmor_sandbox.RemoteFSSnippet
 				}
 
 				if overlayRoot, _ := isRootWritableOverlay(); overlayRoot != "" {

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -69,7 +68,7 @@ func runFdeSetup() error {
 
 	if fromInitrd {
 		var err error
-		input, err = ioutil.ReadAll(os.Stdin)
+		input, err = io.ReadAll(os.Stdin)
 		if err != nil {
 			return err
 		}
@@ -157,7 +156,7 @@ func runFdeRevealKey() error {
 	var js fdeRevealJSON
 	var jsStrict fdeRevealJSONStrict
 
-	b, err := ioutil.ReadAll(osStdin)
+	b, err := io.ReadAll(osStdin)
 	if err != nil {
 		return err
 	}

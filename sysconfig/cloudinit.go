@@ -22,7 +22,6 @@ package sysconfig
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -169,14 +168,14 @@ func filterCloudCfgFile(in string, allowedDatasources []string) (string, error) 
 	//   intersect with what we support
 
 	dstFileName := filepath.Base(in)
-	filteredFile, err := ioutil.TempFile("", dstFileName)
+	filteredFile, err := os.CreateTemp("", dstFileName)
 	if err != nil {
 		return "", err
 	}
 	defer filteredFile.Close()
 
 	// open the source and unmarshal it as yaml
-	unfilteredFileBytes, err := ioutil.ReadFile(in)
+	unfilteredFileBytes, err := os.ReadFile(in)
 	if err != nil {
 		return "", err
 	}
@@ -238,7 +237,7 @@ func cloudDatasourcesInUse(configFile string) (*cloudDatasourcesInUseResult, err
 	// TODO: are there other keys in addition to those that we support in
 	// filtering that might mention datasources ?
 
-	b, err := ioutil.ReadFile(configFile)
+	b, err := os.ReadFile(configFile)
 	if err != nil {
 		return nil, err
 	}

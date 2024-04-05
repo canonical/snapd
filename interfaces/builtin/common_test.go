@@ -21,7 +21,7 @@ package builtin
 
 import (
 	"fmt"
-	"os"
+	"io/fs"
 
 	. "gopkg.in/check.v1"
 
@@ -89,8 +89,8 @@ func MockEvalSymlinks(test *testutil.BaseTest, fn func(string) (string, error)) 
 	})
 }
 
-// MockReadDir replaces the io/ioutil.ReadDir function used inside the caps package.
-func MockReadDir(test *testutil.BaseTest, fn func(string) ([]os.FileInfo, error)) {
+// MockReadDir replaces the os.ReadDir function used inside the caps package.
+func MockReadDir(test *testutil.BaseTest, fn func(string) ([]fs.DirEntry, error)) {
 	orig := readDir
 	readDir = fn
 	test.AddCleanup(func() {

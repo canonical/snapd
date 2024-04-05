@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -186,7 +185,7 @@ func (s *SystemdTestSuite) myJctl(svcs []string, n int, follow, namespaces bool)
 		return nil, err
 	}
 
-	return ioutil.NopCloser(bytes.NewReader(out)), err
+	return io.NopCloser(bytes.NewReader(out)), err
 }
 
 func (s *SystemdTestSuite) TestMockVersion(c *C) {
@@ -945,7 +944,7 @@ func (s *SystemdTestSuite) TestLogs(c *C) {
 
 	reader, err := New(SystemMode, s.rep).LogReader([]string{"foo"}, 24, false, false)
 	c.Check(err, IsNil)
-	logs, err := ioutil.ReadAll(reader)
+	logs, err := io.ReadAll(reader)
 	c.Assert(err, IsNil)
 	c.Check(string(logs), Equals, expected)
 	c.Check(s.jns, DeepEquals, []string{"24"})
@@ -2223,7 +2222,7 @@ HereIsOneLineWithoutAnEqualSign
 }
 
 func (s *SystemdTestSuite) TestListMountUnitsHappy(c *C) {
-	tmpDir, err := ioutil.TempDir("/tmp", "snapd-systemd-test-list-mounts-*")
+	tmpDir, err := os.MkdirTemp("/tmp", "snapd-systemd-test-list-mounts-*")
 	c.Assert(err, IsNil)
 	defer os.RemoveAll(tmpDir)
 

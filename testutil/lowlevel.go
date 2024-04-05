@@ -21,6 +21,7 @@ package testutil
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"strings"
 	"syscall"
@@ -53,6 +54,27 @@ func (*fakeFileInfo) Sys() interface{}     { panic("unexpected call") }
 // FakeFileInfo returns a fake object implementing os.FileInfo
 func FakeFileInfo(name string, mode os.FileMode) os.FileInfo {
 	return &fakeFileInfo{name: name, mode: mode}
+}
+
+// fakeDirEntry implements fs.DirEntry for testing.
+type fakeDirEntry struct {
+	name string
+	mode os.FileMode
+}
+
+func (de *fakeDirEntry) Name() string      { return de.name }
+func (de *fakeDirEntry) Type() fs.FileMode { return de.mode.Type() }
+func (de *fakeDirEntry) IsDir() bool       { return de.Type().IsDir() }
+func (de *fakeDirEntry) Info() (fs.FileInfo, error) {
+	return &fakeFileInfo{
+		name: de.Name(),
+		mode: de.mode,
+	}, nil
+}
+
+// FakeDirEntry returns a fake object implementing fs.DirEntry
+func FakeDirEntry(name string, mode os.FileMode) fs.DirEntry {
+	return &fakeDirEntry{name: name, mode: mode}
 }
 
 // Convenient FakeFileInfo objects for InsertLstatResult
@@ -160,7 +182,7 @@ type SyscallRecorder struct {
 	sysLstats   map[string]syscall.Stat_t
 	fstats      map[string]syscall.Stat_t
 	fstatfses   map[string]func() syscall.Statfs_t
-	readdirs    map[string][]os.FileInfo
+	readdirs    map[string][]fs.DirEntry
 	readlinkats map[string]string
 	// allocated file descriptors
 	fds map[int]string
@@ -467,15 +489,15 @@ func (sys *SyscallRecorder) Fstatfs(fd int, buf *syscall.Statfs_t) error {
 }
 
 // InsertReadDirResult makes given subsequent call readdir return the specified fake file infos.
-func (sys *SyscallRecorder) InsertReadDirResult(call string, infos []os.FileInfo) {
+func (sys *SyscallRecorder) InsertReadDirResult(call string, infos []fs.DirEntry) {
 	if sys.readdirs == nil {
-		sys.readdirs = make(map[string][]os.FileInfo)
+		sys.readdirs = make(map[string][]fs.DirEntry)
 	}
 	sys.readdirs[call] = infos
 }
 
 // ReadDir is a fake implementation of os.ReadDir
-func (sys *SyscallRecorder) ReadDir(dirname string) ([]os.FileInfo, error) {
+func (sys *SyscallRecorder) ReadDir(dirname string) ([]fs.DirEntry, error) {
 	call := fmt.Sprintf("readdir %q", dirname)
 	val, err := sys.rcall(call, func(call string) (interface{}, error) {
 		if fi, ok := sys.readdirs[call]; ok {
@@ -484,7 +506,7 @@ func (sys *SyscallRecorder) ReadDir(dirname string) ([]os.FileInfo, error) {
 		panic(fmt.Sprintf("one of InsertReadDirResult() or InsertFault() for %s must be used", call))
 	})
 	if err == nil {
-		return val.([]os.FileInfo), nil
+		return val.([]fs.DirEntry), nil
 	}
 	return nil, err
 }

@@ -21,7 +21,6 @@ package kernel
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -66,7 +65,7 @@ func InfoFromKernelYaml(kernelYaml []byte) (*Info, error) {
 // in the snap root directory if the file exists.
 func ReadInfo(kernelSnapRootDir string) (*Info, error) {
 	p := filepath.Join(kernelSnapRootDir, "meta", "kernel.yaml")
-	content, err := ioutil.ReadFile(p)
+	content, err := os.ReadFile(p)
 	// meta/kernel.yaml is optional so we should not error here if
 	// it is missing
 	if os.IsNotExist(err) {

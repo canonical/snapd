@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,7 +68,7 @@ var (
 	sysGetuid = sys.Getuid
 	sysGetgid = sys.Getgid
 
-	ioutilReadDir = ioutil.ReadDir
+	osReadDir = os.ReadDir
 )
 
 // ReadOnlyFsError is an error encapsulating encountered EROFS.
@@ -634,7 +633,7 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 		},
 	})
 	// Iterate over the items in the original directory (nothing is mounted _yet_).
-	entries, err := ioutilReadDir(dir)
+	entries, err := osReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -646,7 +645,7 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 		// Bind mount each element from the safe-keeping directory into the
 		// tmpfs. Our Change.Perform() engine can create the missing
 		// directories automatically so we don't bother creating those.
-		m := fi.Mode()
+		m := fi.Type()
 		switch {
 		case m.IsDir():
 			ch.Entry.Options = []string{"rbind"}

@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -127,7 +126,7 @@ func (cs *clientSuite) TestClientRemodel(c *C) {
 	c.Check(id, Equals, "d728")
 	c.Assert(cs.req.Header.Get("Content-Type"), Equals, "application/json")
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, IsNil)
 	jsonBody := make(map[string]interface{})
 	err = json.Unmarshal(body, &jsonBody)
@@ -235,7 +234,7 @@ func (cs *clientSuite) TestClientOfflineRemodel(c *C) {
 	c.Assert(len(matches), Equals, 2)
 	boundary := "--" + matches[1]
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, IsNil)
 	expected := boundary + `
 Content-Disposition: form-data; name="new-model"

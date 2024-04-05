@@ -913,7 +913,8 @@ func sealKeyModelParams(pbc predictableBootChains, roleToBlName map[bootloader.R
 	for _, bc := range pbc {
 		modelForSealing := bc.modelForSealing()
 		modelID := modelUniqueID(modelForSealing)
-		loadChains, err := bootAssetsToLoadChains(bc.AssetChain, bc.kernelBootFile, roleToBlName)
+		const expectNew = false
+		loadChains, err := bootAssetsToLoadChains(bc.AssetChain, bc.kernelBootFile, roleToBlName, expectNew)
 		if err != nil {
 			return nil, fmt.Errorf("cannot build load chains with current boot assets: %s", err)
 		}

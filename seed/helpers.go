@@ -21,7 +21,6 @@ package seed
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -61,7 +60,7 @@ func newMemAssertionsDB(commitObserve func(verified asserts.Assertion)) (db *ass
 
 func loadAssertions(assertsDir string, loadedFunc func(*asserts.Ref) error) (*asserts.Batch, error) {
 	logger.Debugf("loading assertions from %s", assertsDir)
-	dc, err := ioutil.ReadDir(assertsDir)
+	dc, err := os.ReadDir(assertsDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, ErrNoAssertions

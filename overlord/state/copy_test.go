@@ -20,7 +20,6 @@
 package state_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -94,7 +93,7 @@ func (ss *stateSuite) TestCopyStateIntegration(c *C) {
 	c.Assert(err, IsNil)
 
 	// and check that the right bits got copied
-	dstContent, err := ioutil.ReadFile(dstStateFile)
+	dstContent, err := os.ReadFile(dstStateFile)
 	c.Assert(err, IsNil)
 	c.Check(string(dstContent), Equals, `{"data":{"auth":{"last-id":1,"users":[{"id":1,"email":"some@user.com","macaroon":"1234","store-macaroon":"5678","store-discharges":["9012345"]}]}}`+stateSuffix)
 }
@@ -117,7 +116,7 @@ func (ss *stateSuite) TestCopyState(c *C) {
 	err = state.CopyState(srcStateFile, dstStateFile, []string{"A.B", "no-existing-does-not-error", "E.F", "E", "I", "E.non-existing"})
 	c.Assert(err, IsNil)
 
-	dstContent, err := ioutil.ReadFile(dstStateFile)
+	dstContent, err := os.ReadFile(dstStateFile)
 	c.Assert(err, IsNil)
 	c.Check(string(dstContent), Equals, `{"data":{"A":{"B":[{"C":1},{"D":2}]},"E":{"F":2,"G":3},"I":null}`+stateSuffix)
 }
@@ -141,7 +140,7 @@ func (ss *stateSuite) TestCopyStateDuplicatesInDataEntriesAreFine(c *C) {
 	err = state.CopyState(srcStateFile, dstStateFile, []string{"E", "E"})
 	c.Assert(err, IsNil)
 
-	dstContent, err := ioutil.ReadFile(dstStateFile)
+	dstContent, err := os.ReadFile(dstStateFile)
 	c.Assert(err, IsNil)
 	c.Check(string(dstContent), Equals, `{"data":{"E":{"F":2,"G":3}}`+stateSuffix)
 }

@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -228,7 +227,7 @@ func (s *Snap) Size() (size int64, err error) {
 }
 
 func (s *Snap) withUnpackedFile(filePath string, f func(p string) error) error {
-	tmpdir, err := ioutil.TempDir("", "read-file")
+	tmpdir, err := os.MkdirTemp("", "read-file")
 	if err != nil {
 		return err
 	}
@@ -264,7 +263,7 @@ func (s *Snap) RandomAccessFile(filePath string) (interface {
 // ReadFile returns the content of a single file inside a squashfs snap.
 func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
 	err = s.withUnpackedFile(filePath, func(p string) (err error) {
-		content, err = ioutil.ReadFile(p)
+		content, err = os.ReadFile(p)
 		return
 	})
 	if err != nil {

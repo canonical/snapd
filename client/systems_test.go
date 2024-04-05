@@ -21,7 +21,7 @@ package client_test
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 
 	"gopkg.in/check.v1"
 
@@ -140,7 +140,7 @@ func (cs *clientSuite) TestRequestSystemActionHappy(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/1234")
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 	var req map[string]interface{}
 	err = json.Unmarshal(body, &req)
@@ -182,7 +182,7 @@ func (cs *clientSuite) TestRequestSystemRebootHappy(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/20201212")
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 	var req map[string]interface{}
 	err = json.Unmarshal(body, &req)
@@ -377,7 +377,7 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/1234")
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 	var req map[string]interface{}
 	err = json.Unmarshal(body, &req)

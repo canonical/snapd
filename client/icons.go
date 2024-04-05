@@ -22,7 +22,7 @@ package client
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"regexp"
 
 	"golang.org/x/xerrors"
@@ -58,7 +58,7 @@ func (c *Client) Icon(pkgID string) (*Icon, error) {
 		return nil, fmt.Errorf("%s: cannot determine filename", errPrefix)
 	}
 
-	content, err := ioutil.ReadAll(response.Body)
+	content, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %s", errPrefix, err)
 	}

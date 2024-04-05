@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime"
 	"mime/multipart"
 	"net/http"
@@ -150,7 +149,7 @@ func (cs *clientSuite) TestClientOpSnap(c *check.C) {
 		_, ok := cs.req.Context().Deadline()
 		c.Check(ok, check.Equals, true)
 
-		body, err := ioutil.ReadAll(cs.req.Body)
+		body, err := io.ReadAll(cs.req.Body)
 		c.Assert(err, check.IsNil, check.Commentf(s.action))
 		jsonBody := make(map[string]string)
 		err = json.Unmarshal(body, &jsonBody)
@@ -178,7 +177,7 @@ func (cs *clientSuite) TestClientMultiOpSnap(c *check.C) {
 
 		c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, "application/json", check.Commentf(s.action))
 
-		body, err := ioutil.ReadAll(cs.req.Body)
+		body, err := io.ReadAll(cs.req.Body)
 		c.Assert(err, check.IsNil, check.Commentf(s.action))
 		jsonBody := make(map[string]interface{})
 		err = json.Unmarshal(body, &jsonBody)
@@ -207,7 +206,7 @@ func (cs *clientSuite) TestClientMultiOpSnapTransactional(c *check.C) {
 
 		c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, "application/json", check.Commentf(s.action))
 
-		body, err := ioutil.ReadAll(cs.req.Body)
+		body, err := io.ReadAll(cs.req.Body)
 		c.Assert(err, check.IsNil, check.Commentf(s.action))
 		jsonBody := make(map[string]interface{})
 		err = json.Unmarshal(body, &jsonBody)
@@ -238,7 +237,7 @@ func (cs *clientSuite) TestClientMultiOpSnapIgnoreRunning(c *check.C) {
 
 		c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, "application/json", check.Commentf(s.action))
 
-		body, err := ioutil.ReadAll(cs.req.Body)
+		body, err := io.ReadAll(cs.req.Body)
 		c.Assert(err, check.IsNil, check.Commentf(s.action))
 		jsonBody := make(map[string]interface{})
 		err = json.Unmarshal(body, &jsonBody)
@@ -267,7 +266,7 @@ func (cs *clientSuite) TestClientMultiSnapshot(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(cs.req.Header.Get("Content-Type"), check.Equals, "application/json")
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 	jsonBody := make(map[string]interface{})
 	err = json.Unmarshal(body, &jsonBody)
@@ -296,7 +295,7 @@ func (cs *clientSuite) TestClientOpInstallPath(c *check.C) {
 	id, err := cs.cli.InstallPath(snap, "", nil)
 	c.Assert(err, check.IsNil)
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(string(body), testutil.Contains, "\r\nsnap-data\r\n")
@@ -326,7 +325,7 @@ func (cs *clientSuite) TestClientOpInstallPathIgnoreRunning(c *check.C) {
 	id, err := cs.cli.InstallPath(snap, "", &client.SnapOptions{IgnoreRunning: true})
 	c.Assert(err, check.IsNil)
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(string(body), check.Matches, "(?s).*\r\nsnap-data\r\n.*")
@@ -357,7 +356,7 @@ func (cs *clientSuite) TestClientOpInstallPathInstance(c *check.C) {
 	id, err := cs.cli.InstallPath(snap, "foo_bar", nil)
 	c.Assert(err, check.IsNil)
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(string(body), check.Matches, "(?s).*\r\nsnap-data\r\n.*")
@@ -389,7 +388,7 @@ func (cs *clientSuite) TestClientOpInstallPathMany(c *check.C) {
 	id, err := cs.cli.InstallPathMany(paths, nil)
 	c.Assert(err, check.IsNil)
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 
 	for _, name := range names {
@@ -426,7 +425,7 @@ func (cs *clientSuite) TestClientOpInstallPathManyTransactionally(c *check.C) {
 	id, err := cs.cli.InstallPathMany(paths, &client.SnapOptions{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, check.IsNil)
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 
 	for _, name := range names {
@@ -469,7 +468,7 @@ func (cs *clientSuite) TestClientOpInstallPathManyWithOptions(c *check.C) {
 
 	c.Assert(err, check.IsNil)
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 
 	c.Check(string(body), check.Matches, `(?s).*Content-Disposition: form-data; name="dangerous"\r\n\r\ntrue\r\n.*`)
@@ -500,7 +499,7 @@ func (cs *clientSuite) TestClientOpInstallPathManyWithQuotaGroup(c *check.C) {
 
 	c.Assert(err, check.IsNil)
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 
 	c.Check(string(body), check.Matches, `(?s).*Content-Disposition: form-data; name="dangerous"\r\n\r\ntrue\r\n.*`)
@@ -528,7 +527,7 @@ func (cs *clientSuite) TestClientOpInstallDangerous(c *check.C) {
 	_, err = cs.cli.InstallPath(snap, "", &opts)
 	c.Assert(err, check.IsNil)
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"dangerous\"\r\n\r\ntrue\r\n.*")
@@ -562,7 +561,7 @@ func (cs *clientSuite) TestClientOpInstallUnaliased(c *check.C) {
 	_, err = cs.cli.Install("foo", &opts)
 	c.Assert(err, check.IsNil)
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 	jsonBody := make(map[string]interface{})
 	err = json.Unmarshal(body, &jsonBody)
@@ -572,7 +571,7 @@ func (cs *clientSuite) TestClientOpInstallUnaliased(c *check.C) {
 	_, err = cs.cli.InstallPath(snap, "", &opts)
 	c.Assert(err, check.IsNil)
 
-	body, err = ioutil.ReadAll(cs.req.Body)
+	body, err = io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"unaliased\"\r\n\r\ntrue\r\n.*")
@@ -598,7 +597,7 @@ func (cs *clientSuite) TestClientOpInstallTransactional(c *check.C) {
 	_, err = cs.cli.InstallMany([]string{"foo", "bar"}, &opts)
 	c.Assert(err, check.IsNil)
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 	jsonBody := make(map[string]interface{})
 	err = json.Unmarshal(body, &jsonBody)
@@ -609,7 +608,7 @@ func (cs *clientSuite) TestClientOpInstallTransactional(c *check.C) {
 	_, err = cs.cli.InstallPath(snap, "", &opts)
 	c.Assert(err, check.IsNil)
 
-	body, err = ioutil.ReadAll(cs.req.Body)
+	body, err = io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(string(body), check.Matches,
@@ -636,7 +635,7 @@ func (cs *clientSuite) TestClientOpInstallPrefer(c *check.C) {
 	_, err = cs.cli.Install("foo", &opts)
 	c.Assert(err, check.IsNil)
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 	var jsonBody map[string]interface{}
 	err = json.Unmarshal(body, &jsonBody)
@@ -646,7 +645,7 @@ func (cs *clientSuite) TestClientOpInstallPrefer(c *check.C) {
 	_, err = cs.cli.InstallPath(snap, "", &opts)
 	c.Assert(err, check.IsNil)
 
-	body, err = ioutil.ReadAll(cs.req.Body)
+	body, err = io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"prefer\"\r\n\r\ntrue\r\n.*")
@@ -660,7 +659,7 @@ func formToMap(c *check.C, mr *multipart.Reader) map[string]string {
 			break
 		}
 		c.Assert(err, check.IsNil)
-		slurp, err := ioutil.ReadAll(p)
+		slurp, err := io.ReadAll(p)
 		c.Assert(err, check.IsNil)
 		formData[p.FormName()] = string(slurp)
 	}
@@ -779,7 +778,7 @@ func (cs *clientSuite) TestClientOpDownload(c *check.C) {
 	// check we posted the right stuff
 	c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, "application/json")
 	c.Assert(cs.req.Header.Get("range"), check.Equals, "")
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 	var jsonBody client.DownloadAction
 	err = json.Unmarshal(body, &jsonBody)
@@ -790,7 +789,7 @@ func (cs *clientSuite) TestClientOpDownload(c *check.C) {
 	c.Check(jsonBody.HeaderPeek, check.Equals, true)
 
 	// ensure we can read the response
-	content, err := ioutil.ReadAll(rc)
+	content, err := io.ReadAll(rc)
 	c.Assert(err, check.IsNil)
 	c.Check(string(content), check.Equals, cs.rsp)
 	// and we can close it
@@ -827,7 +826,7 @@ func (cs *clientSuite) TestClientOpDownloadResume(c *check.C) {
 	// check we posted the right stuff
 	c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, "application/json")
 	c.Assert(cs.req.Header.Get("range"), check.Equals, "bytes: 64-")
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 	var jsonBody client.DownloadAction
 	err = json.Unmarshal(body, &jsonBody)
@@ -839,7 +838,7 @@ func (cs *clientSuite) TestClientOpDownloadResume(c *check.C) {
 	c.Check(jsonBody.ResumeToken, check.Equals, "some-token")
 
 	// ensure we can read the response
-	content, err := ioutil.ReadAll(rc)
+	content, err := io.ReadAll(rc)
 	c.Assert(err, check.IsNil)
 	c.Check(string(content), check.Equals, cs.rsp)
 	// and we can close it
@@ -865,7 +864,7 @@ func (cs *clientSuite) TestClientRefreshWithValidationSets(c *check.C) {
 		ValidationSets []string `json:"validation-sets"`
 		Action         string   `json:"action"`
 	}
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 
 	var decodedBody req
@@ -900,7 +899,7 @@ func (cs *clientSuite) TestClientHoldMany(c *check.C) {
 		Time      string   `json:"time"`
 		HoldLevel string   `json:"hold-level"`
 	}
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 
 	var decodedBody req

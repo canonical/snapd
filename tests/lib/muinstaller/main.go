@@ -25,7 +25,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -75,7 +74,7 @@ func emptyFixedBlockDevices() (devices []string, err error) {
 	}
 devicesLoop:
 	for _, removableAttr := range removable {
-		val, err := ioutil.ReadFile(removableAttr)
+		val, err := os.ReadFile(removableAttr)
 		if err != nil || string(val) != "0\n" {
 			// removable, ignore
 			continue
