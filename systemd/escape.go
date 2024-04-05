@@ -84,6 +84,7 @@ func EscapeUnitNamePath(in string) string {
 //
 // Examples of conversion:
 //   - "snap.name.app" -> "snap.name.app"
+//   - "snap.some-name.some-app" -> "snap.some-name.some-app"
 //   - "snap.name+comp.hook.install" -> "snap.name\x2bcomp.hook.install"
 func UnitNameFromSecurityTag(tag string) (string, error) {
 	var builder strings.Builder
