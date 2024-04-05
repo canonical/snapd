@@ -1,5 +1,8 @@
 summary: Check snap listings
 
+details: |
+    Check the output of command `snap list` is the expected based on the current systems
+
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
