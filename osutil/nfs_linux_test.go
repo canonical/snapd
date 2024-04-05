@@ -20,6 +20,8 @@
 package osutil_test
 
 import (
+	"os"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
@@ -105,4 +107,16 @@ func (s *nfsSuite) TestIsHomeUsingRemoteFS(c *C) {
 		}
 		c.Assert(isRemoteFS, Equals, tc.isRemoteFS)
 	}
+
+	os.Setenv("SNAPD_HOME_REMOTE_FS", "1")
+	defer os.Unsetenv("SNAPD_HOME_REMOTE_FS")
+	restore := osutil.MockMountInfo("")
+	defer restore()
+	restore = osutil.MockEtcFstab("")
+	defer restore()
+
+	isRemoteFS, err := osutil.IsHomeUsingRemoteFS()
+	c.Assert(err, IsNil)
+	c.Assert(isRemoteFS, Equals, true)
+
 }

@@ -28,10 +28,20 @@ var etcFstab = "/etc/fstab"
 
 // isHomeUsingRemoteFS informs if remote filesystems are defined or mounted under /home.
 //
-// Internally /proc/self/mountinfo and /etc/fstab are interrogated (for current
-// and possible mounted filesystems). If either of those describes NFS
+// This returns true of SNAPD_HOME_REMOTE_FS is set to "1" or other values
+// recognized as true by strconv.ParseBool. If that value is unset then
+// /proc/self/mountinfo and /etc/fstab are interrogated (for current and
+// possible mounted filesystems). If either of those describes NFS or CIFS
 // filesystem mounted under or beneath /home/ then the return value is true.
 var isHomeUsingRemoteFS = func() (bool, error) {
+	// This case allows us to have a way to tell snapd that /home is going to
+	// be remote but the mount operation happens inside a non-trivial
+	// component, such as deep in pam_mount, without having to arrange snapd to
+	// be restarte after that mount finishes.
+	if GetenvBool("SNAPD_HOME_REMOTE_FS") {
+		return true, nil
+	}
+
 	mountinfo, err := LoadMountInfo()
 	if err != nil {
 		return false, fmt.Errorf("cannot parse mountinfo: %s", err)
