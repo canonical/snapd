@@ -241,7 +241,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.AddCleanup(daemon.MockSystemUserFromRequest(func(r *http.Request) (*user.User, error) {
 		if s.authUser != nil {
 			return &user.User{
-				Uid:      fmt.Sprintf("%d", os.Getuid()),
+				Uid:      "1337",
 				Gid:      "42",
 				Username: s.authUser.Username,
 				Name:     s.authUser.Username,

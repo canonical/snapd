@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -54,6 +55,14 @@ var (
 		ReadAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 )
+
+var newStatusDecorator = func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator {
+	if uid == "0" || isGlobal {
+		return servicestate.NewStatusDecorator(progress.Null)
+	} else {
+		return servicestate.NewStatusDecoratorForUid(progress.Null, ctx, uid)
+	}
+}
 
 func readMaybeBoolValue(query url.Values, name string) (bool, error) {
 	if sel := query.Get(name); sel != "" {
@@ -93,12 +102,7 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot retrieve services: %v", err)
 	}
 
-	var sd *servicestate.StatusDecorator
-	if u.Uid == "0" || global {
-		sd = servicestate.NewStatusDecorator(progress.Null)
-	} else {
-		sd = servicestate.NewStatusDecoratorForUid(progress.Null, r.Context(), u.Uid)
-	}
+	sd := newStatusDecorator(r.Context(), global, u.Uid)
 	clientAppInfos, err := clientutil.ClientAppInfosFromSnapAppInfos(appInfos, sd)
 	if err != nil {
 		return InternalError("%v", err)

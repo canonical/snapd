@@ -21,6 +21,7 @@ package daemon_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,7 +29,6 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"os/user"
 	"sort"
 	"strconv"
@@ -37,8 +37,8 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/daemon"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -46,14 +46,18 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
-	"github.com/snapcore/snapd/usersession/agent"
 )
 
 var _ = check.Suite(&appsSuite{})
 
+type appsSuiteDecoratorResult struct {
+	daemonType string
+	active     bool
+	enabled    bool
+}
+
 type appsSuite struct {
 	apiBaseSuite
-	testutil.DBusTest
 
 	journalctlRestorer func()
 	jctlSvcses         [][]string
@@ -62,12 +66,12 @@ type appsSuite struct {
 	jctlNamespaces     []bool
 	jctlRCs            []io.ReadCloser
 	jctlErrs           []error
+	decoratorResults   map[string]appsSuiteDecoratorResult
 
 	serviceControlError error
 	serviceControlCalls []serviceControlArgs
 
 	infoA, infoB, infoC, infoD, infoE *snap.Info
-	agent                             *agent.SessionAgent
 }
 
 func (s *appsSuite) journalctl(svcs []string, n int, follow, namespaces bool) (rc io.ReadCloser, err error) {
@@ -132,7 +136,6 @@ func (s *appsSuite) fakeServiceControl(st *state.State, appInfos []*snap.AppInfo
 
 func (s *appsSuite) SetUpSuite(c *check.C) {
 	s.apiBaseSuite.SetUpSuite(c)
-	s.DBusTest.SetUpSuite(c)
 	s.journalctlRestorer = systemd.MockJournalctl(s.journalctl)
 }
 
@@ -140,13 +143,11 @@ func (s *appsSuite) TearDownSuite(c *check.C) {
 	if s.journalctlRestorer != nil {
 		s.journalctlRestorer()
 	}
-	s.DBusTest.TearDownSuite(c)
 	s.apiBaseSuite.TearDownSuite(c)
 }
 
 func (s *appsSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
-	s.DBusTest.SetUpTest(c)
 
 	s.jctlSvcses = nil
 	s.jctlNs = nil
@@ -177,22 +178,6 @@ func (s *appsSuite) SetUpTest(c *check.C) {
 	s.AddCleanup(func() { d.Overlord().Stop() })
 	s.AddCleanup(systemd.MockSystemdVersion(237, nil))
 	s.expectAppsAccess()
-
-	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
-	err := os.MkdirAll(xdgRuntimeDir, 0700)
-	c.Assert(err, check.IsNil)
-	s.agent, err = agent.New()
-	c.Assert(err, check.IsNil)
-	s.agent.Start()
-}
-
-func (s *appsSuite) TearDownTest(c *check.C) {
-	if s.agent != nil {
-		err := s.agent.Stop()
-		c.Check(err, check.IsNil)
-	}
-	s.DBusTest.TearDownTest(c)
-	s.apiBaseSuite.TearDownTest(c)
 }
 
 func (s *appsSuite) expectAppsAccess() {
@@ -422,22 +407,44 @@ NeedDaemonReload=no
 	c.Check(sort.StringsAreSorted(appNames), check.Equals, true)
 }
 
-func (s *appsSuite) TestGetUserAppsInfoServices(c *check.C) {
-	// System and user services from active snaps
-	svcNames := []string{"snap-a.svc1", "snap-a.svc2", "snap-e.svc4"}
-	for _, name := range svcNames {
-		s.SysctlBufs = append(s.SysctlBufs, []byte(fmt.Sprintf(`
-Id=snap.%s.service
-Names=snap.%[1]s.service
-Type=simple
-ActiveState=active
-UnitFileState=enabled
-NeedDaemonReload=no
-`[1:], name)))
+func (s *appsSuite) DecorateWithStatus(appInfo *client.AppInfo, snapApp *snap.AppInfo) error {
+	name := snapApp.Snap.RealName + "." + appInfo.Name
+	dec, ok := s.decoratorResults[name]
+	if !ok {
+		return fmt.Errorf("%s not found in expected test decorator results", name)
 	}
-	// System services from inactive snaps
-	svcNames = append(svcNames, "snap-b.svc3")
-	s.SysctlBufs = append(s.SysctlBufs, []byte("enabled\n"))
+	appInfo.Daemon = dec.daemonType
+	appInfo.Enabled = dec.enabled
+	appInfo.Active = dec.active
+	return nil
+}
+
+func (s *appsSuite) TestGetUserAppsInfoServices(c *check.C) {
+	r := daemon.MockNewStatusDecorator(func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator {
+		c.Check(isGlobal, check.Equals, false)
+		c.Check(uid, check.Equals, "1337")
+		return s
+	})
+	defer r()
+
+	// System and user services from active snaps
+	s.decoratorResults = map[string]appsSuiteDecoratorResult{
+		"snap-a.svc1": {
+			daemonType: "simple",
+			active:     true,
+			enabled:    true,
+		},
+		"snap-a.svc2": {
+			daemonType: "simple",
+			active:     true,
+			enabled:    true,
+		},
+		"snap-e.svc4": {
+			daemonType: "simple",
+			active:     true,
+			enabled:    true,
+		},
+	}
 
 	// Perform the request as a non-root uid
 	req, err := http.NewRequest("GET", "/v2/apps?select=service", nil)
@@ -450,7 +457,7 @@ NeedDaemonReload=no
 	svcs := rsp.Result.([]client.AppInfo)
 	c.Assert(svcs, check.HasLen, 4)
 
-	for _, name := range svcNames {
+	for name, _ := range s.decoratorResults {
 		snapName, app := daemon.SplitAppName(name)
 		needle := client.AppInfo{
 			Snap:        snapName,

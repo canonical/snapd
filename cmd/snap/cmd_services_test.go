@@ -480,6 +480,15 @@ func (s *appOpSuite) TestServiceCompletion(c *check.C) {
 	c.Check(n, check.Equals, 7)
 }
 
+func (s *appOpSuite) TestAppStatusUserFailed(c *check.C) {
+	r := snap.MockUserCurrent(func() (*user.User, error) {
+		return nil, fmt.Errorf("oh-no")
+	})
+	defer r()
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"services"})
+	c.Check(err, check.ErrorMatches, `cannot get the current user: oh-no`)
+}
+
 func (s *appOpSuite) TestAppStatusNoServices(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
