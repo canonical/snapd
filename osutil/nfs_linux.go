@@ -37,7 +37,7 @@ var isHomeUsingRemoteFS = func() (bool, error) {
 	// This case allows us to have a way to tell snapd that /home is going to
 	// be remote but the mount operation happens inside a non-trivial
 	// component, such as deep in pam_mount, without having to arrange snapd to
-	// be restarte after that mount finishes.
+	// be restarted after that mount finishes.
 	if GetenvBool("SNAPD_HOME_REMOTE_FS") {
 		return true, nil
 	}
