@@ -2,6 +2,9 @@
 * Installation of local snap components
 * Started support for snap services to show real status of user daemons
 
+# New in snapd 2.63:
+* system-observe now allows listing systemd units and querying their properties over DBus
+
 # New in snapd 2.62:
 * Aspects based configuration schema support (experimental)
 * Refresh app awareness support for UI (experimental)
