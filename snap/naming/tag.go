@@ -65,11 +65,17 @@ type HookSecurityTag interface {
 	SecurityTag
 	// HookName returns the name of the hook.
 	HookName() string
+
+	// ComponentName returns the name of the component that this hook is
+	// associated with, if there is one. If this hook isn't a component hook,
+	// this will return an empty string.
+	ComponentName() string
 }
 
 type hookSecurityTag struct {
-	instanceName string
-	hookName     string
+	instanceName  string
+	hookName      string
+	componentName string
 }
 
 func (t hookSecurityTag) String() string {
@@ -82,6 +88,10 @@ func (t hookSecurityTag) InstanceName() string {
 
 func (t hookSecurityTag) HookName() string {
 	return t.hookName
+}
+
+func (t hookSecurityTag) ComponentName() string {
+	return t.componentName
 }
 
 // ParseSecurityTag parses a snap security tag and returns a parsed representation or an error.
@@ -117,17 +127,6 @@ func ParseSecurityTag(tag string) (SecurityTag, error) {
 		return &appSecurityTag{instanceName: snapName, appName: appName}, nil
 	}
 
-	snapName, compName, isComponent := strings.Cut(snapName, "+")
-	if err := ValidateInstance(snapName); err != nil {
-		return nil, errInvalidSecurityTag
-	}
-
-	if isComponent {
-		if err := ValidateSnap(compName); err != nil {
-			return nil, errInvalidSecurityTag
-		}
-	}
-
 	hookLiteral, hookName := parts[2], parts[3]
 	if hookLiteral != "hook" {
 		return nil, errInvalidSecurityTag
@@ -135,7 +134,23 @@ func ParseSecurityTag(tag string) (SecurityTag, error) {
 	if err := ValidateHook(hookName); err != nil {
 		return nil, errInvalidSecurityTag
 	}
-	return &hookSecurityTag{instanceName: snapName, hookName: hookName}, nil
+
+	snapName, componentName, isComponent := strings.Cut(snapName, "+")
+	if err := ValidateInstance(snapName); err != nil {
+		return nil, errInvalidSecurityTag
+	}
+
+	if isComponent {
+		if err := ValidateSnap(componentName); err != nil {
+			return nil, errInvalidSecurityTag
+		}
+	}
+
+	return &hookSecurityTag{
+		instanceName:  snapName,
+		hookName:      hookName,
+		componentName: componentName,
+	}, nil
 }
 
 // ParseAppSecurityTag parses an app security tag.
