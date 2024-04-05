@@ -196,13 +196,47 @@ func (ts *SystemdTestSuite) TestUnitNameFromSecurityTag(c *C) {
 		if t.err == "" {
 			c.Check(unit, Equals, t.unit)
 			c.Check(err, IsNil)
-
-			// if we don't expect the conversion to fail, check that the inverse
-			// function works too
-			tag := systemd.SecurityTagFromUnitName(unit)
-			c.Check(tag, Equals, t.tag)
 		} else {
 			c.Check(err, ErrorMatches, t.err)
 		}
+	}
+}
+
+func (ts *SystemdTestSuite) TestSecurityTagFromUnitName(c *C) {
+	type test struct {
+		tag  string
+		unit string
+	}
+
+	cases := []test{
+		{
+			unit: `snap.name.app`,
+			tag:  `snap.name.app`,
+		},
+		{
+			unit: `snap.name_key.app`,
+			tag:  `snap.name_key.app`,
+		},
+		{
+			unit: `snap.name.APP`,
+			tag:  `snap.name.APP`,
+		},
+		{
+			unit: `snap.other-name.app`,
+			tag:  `snap.other-name.app`,
+		},
+		{
+			unit: `snap.name.hook.pre-refresh`,
+			tag:  `snap.name.hook.pre-refresh`,
+		},
+		{
+			unit: `snap.name\x2bcomp.hook.install`,
+			tag:  `snap.name+comp.hook.install`,
+		},
+	}
+
+	for _, t := range cases {
+		tag := systemd.SecurityTagFromUnitName(t.unit)
+		c.Check(tag, Equals, t.tag)
 	}
 }
