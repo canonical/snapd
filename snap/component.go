@@ -161,7 +161,7 @@ func ReadComponentInfoFromContainer(compf Container, snapInfo *Info) (*Component
 
 	component, ok := snapInfo.Components[componentName]
 	if !ok {
-		return nil, fmt.Errorf("internal error: %q is not a component for snap %q", componentName, snapInfo.RealName)
+		return nil, fmt.Errorf("cannot find component %q in snap %q", componentName, snapInfo.SnapName())
 	}
 
 	// attach the explicit hooks, these are defined in the snap.yaml. plugs are

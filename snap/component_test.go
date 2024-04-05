@@ -368,3 +368,33 @@ plugs:
 	c.Check(preRefreshHook.Plugs, HasLen, 1)
 	c.Check(preRefreshHook.Plugs["network-client"], NotNil)
 }
+
+func (s *componentSuite) TestReadComponentInfoFinishedWithDifferentSnapInfoError(c *C) {
+	const componentYaml = `component: snap+component
+type: test
+version: 1.0
+summary: short description
+description: long description
+`
+	const compName = "snap+component"
+	testComp := snaptest.MakeTestComponentWithFiles(c, compName+".comp", componentYaml, [][]string{
+		{"meta/hooks/install", "echo 'explicit hook'"},
+		{"meta/hooks/pre-refresh", "echo 'implicit hook'"},
+	})
+
+	compf, err := snapfile.Open(testComp)
+	c.Assert(err, IsNil)
+
+	const snapYaml = `
+name: snap
+components:
+  other-component:
+    type: test
+`
+
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadComponentInfoFromContainer(compf, snapInfo)
+	c.Assert(err, ErrorMatches, `cannot find component "component" in snap "snap"`)
+}
