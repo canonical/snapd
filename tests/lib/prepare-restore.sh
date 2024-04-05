@@ -666,6 +666,7 @@ prepare_suite_each() {
     tests.backup prepare
 
     # save the job which is going to be executed in the system
+    # shellcheck disable=SC2153
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
 
     # Restart journal log and reset systemd journal cursor.
