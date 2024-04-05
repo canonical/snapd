@@ -24,7 +24,7 @@ package seccomp
 var defaultTemplate = []byte(`
 # Description: Allows access to app-specific directories and basic runtime
 #
-# The default seccomp policy is default deny with a whitelist of allowed
+# The default seccomp policy is default deny with an allowlist of allowed
 # syscalls. The default policy is intended to be safe for any application to
 # use and should be evaluated in conjunction with other security backends (eg
 # AppArmor). For example, a few particularly problematic syscalls that are left

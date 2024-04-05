@@ -257,7 +257,7 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 // posix_fadvise, pread64, pwrite64, readahead,	sync_file_range, and truncate64.
 //
 // Once we start using those. See `man syscall`
-func (s *snapSeccompSuite) runBpf(c *C, seccompWhitelist, bpfInput string, expected int) {
+func (s *snapSeccompSuite) runBpf(c *C, seccompAllowlist, bpfInput string, expected int) {
 	// Common syscalls we need to allow for a minimal statically linked
 	// c program.
 	//
@@ -287,7 +287,7 @@ restart_syscall
 mprotect
 `
 	bpfPath := filepath.Join(c.MkDir(), "bpf")
-	err := main.Compile([]byte(common+seccompWhitelist), bpfPath)
+	err := main.Compile([]byte(common+seccompAllowlist), bpfPath)
 	c.Assert(err, IsNil)
 
 	// default syscall runner
@@ -338,7 +338,7 @@ mprotect
 	case syscallNr == -10165:
 		// "mknod" on arm64 is not available at all on arm64
 		// only "mknodat" but libseccomp will not generate a
-		// "mknodat" whitelist, it geneates a whitelist with
+		// "mknodat" allowlist, it geneates a allowlist with
 		// syscall -10165 (!?!) so we cannot test this.
 		c.Skip("skipping mknod tests on arm64")
 	case syscallNr < 0:
@@ -375,25 +375,25 @@ mprotect
 	// else is unexpected (segv, strtoll failure, ...)
 	exitCode, e := osutil.ExitCode(err)
 	c.Assert(e, IsNil)
-	c.Assert(exitCode == 0 || exitCode == 10 || exitCode == 20, Equals, true, Commentf("unexpected exit code: %v for %v - test setup broken", exitCode, seccompWhitelist))
+	c.Assert(exitCode == 0 || exitCode == 10 || exitCode == 20, Equals, true, Commentf("unexpected exit code: %v for %v - test setup broken", exitCode, seccompAllowlist))
 	switch expected {
 	case Allow:
 		if err != nil {
-			c.Fatalf("unexpected error for %q (failed to run %q)", seccompWhitelist, err)
+			c.Fatalf("unexpected error for %q (failed to run %q)", seccompAllowlist, err)
 		}
 	case Deny:
 		if exitCode != 10 {
-			c.Fatalf("unexpected exit code for %q %q (%v != %v)", seccompWhitelist, bpfInput, exitCode, 10)
+			c.Fatalf("unexpected exit code for %q %q (%v != %v)", seccompAllowlist, bpfInput, exitCode, 10)
 		}
 		if err == nil {
-			c.Fatalf("unexpected success for %q %q (ran but should have failed)", seccompWhitelist, bpfInput)
+			c.Fatalf("unexpected success for %q %q (ran but should have failed)", seccompAllowlist, bpfInput)
 		}
 	case DenyExplicit:
 		if exitCode != 20 {
-			c.Fatalf("unexpected exit code for %q %q (%v != %v)", seccompWhitelist, bpfInput, exitCode, 20)
+			c.Fatalf("unexpected exit code for %q %q (%v != %v)", seccompAllowlist, bpfInput, exitCode, 20)
 		}
 		if err == nil {
-			c.Fatalf("unexpected success for %q %q (ran but should have failed)", seccompWhitelist, bpfInput)
+			c.Fatalf("unexpected success for %q %q (ran but should have failed)", seccompAllowlist, bpfInput)
 		}
 	default:
 		c.Fatalf("unknown expected result %v", expected)
@@ -412,7 +412,7 @@ func (s *snapSeccompSuite) TestUnrestricted(c *C) {
 	c.Check(fileContent, DeepEquals, expected[:])
 }
 
-// TestCompile iterates over a range of textual seccomp whitelist rules and
+// TestCompile iterates over a range of textual seccomp allowlist rules and
 // mocked kernel syscall input. For each rule, the test consists of compiling
 // the rule into a bpf program and then running that program on a virtual bpf
 // machine and comparing the bpf machine output to the specified expected
@@ -430,7 +430,7 @@ func (s *snapSeccompSuite) TestUnrestricted(c *C) {
 func (s *snapSeccompSuite) TestCompile(c *C) {
 
 	for _, t := range []struct {
-		seccompWhitelist string
+		seccompAllowlist string
 		bpfInput         string
 		expected         int
 	}{
@@ -550,7 +550,7 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"chown - -1 -1", "chown;native;-,-1,-1", Allow},
 		{"chown - -1 -1", "chown;native;-,99,-1", Deny},
 	} {
-		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		s.runBpf(c, t.seccompAllowlist, t.bpfInput, t.expected)
 	}
 }
 
@@ -565,7 +565,7 @@ func (s *snapSeccompSuite) TestCompileSocket(c *C) {
 	}
 
 	for _, t := range []struct {
-		seccompWhitelist string
+		seccompAllowlist string
 		bpfInput         string
 		expected         int
 	}{
@@ -578,7 +578,7 @@ func (s *snapSeccompSuite) TestCompileSocket(c *C) {
 		{"socket AF_CONN", "socket;native;AF_CONN", Allow},
 		{"socket AF_CONN", "socket;native;99", Deny},
 	} {
-		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		s.runBpf(c, t.seccompAllowlist, t.bpfInput, t.expected)
 	}
 
 }
@@ -688,29 +688,29 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsSocket(c *C) {
 
 	for _, pre := range []string{"AF", "PF"} {
 		for _, i := range []string{"UNIX", "LOCAL", "INET", "INET6", "IPX", "NETLINK", "X25", "AX25", "ATMPVC", "APPLETALK", "PACKET", "ALG", "CAN", "BRIDGE", "NETROM", "ROSE", "NETBEUI", "SECURITY", "KEY", "ASH", "ECONET", "SNA", "IRDA", "PPPOX", "WANPIPE", "BLUETOOTH", "RDS", "LLC", "TIPC", "IUCV", "RXRPC", "ISDN", "PHONET", "IEEE802154", "CAIF", "NFC", "VSOCK", "MPLS", "IB"} {
-			seccompWhitelist := fmt.Sprintf("socket %s_%s", pre, i)
+			seccompAllowlist := fmt.Sprintf("socket %s_%s", pre, i)
 			bpfInputGood := fmt.Sprintf("socket;native;%s_%s", pre, i)
 			bpfInputBad := "socket;native;99999"
-			s.runBpf(c, seccompWhitelist, bpfInputGood, Allow)
-			s.runBpf(c, seccompWhitelist, bpfInputBad, Deny)
+			s.runBpf(c, seccompAllowlist, bpfInputGood, Allow)
+			s.runBpf(c, seccompAllowlist, bpfInputBad, Deny)
 
 			for _, j := range []string{"SOCK_STREAM", "SOCK_DGRAM", "SOCK_SEQPACKET", "SOCK_RAW", "SOCK_RDM", "SOCK_PACKET"} {
-				seccompWhitelist := fmt.Sprintf("socket %s_%s %s", pre, i, j)
+				seccompAllowlist := fmt.Sprintf("socket %s_%s %s", pre, i, j)
 				bpfInputGood := fmt.Sprintf("socket;native;%s_%s,%s", pre, i, j)
 				bpfInputBad := fmt.Sprintf("socket;native;%s_%s,9999", pre, i)
-				s.runBpf(c, seccompWhitelist, bpfInputGood, Allow)
-				s.runBpf(c, seccompWhitelist, bpfInputBad, Deny)
+				s.runBpf(c, seccompAllowlist, bpfInputGood, Allow)
+				s.runBpf(c, seccompAllowlist, bpfInputBad, Deny)
 			}
 		}
 	}
 
 	for _, i := range []string{"NETLINK_ROUTE", "NETLINK_USERSOCK", "NETLINK_FIREWALL", "NETLINK_SOCK_DIAG", "NETLINK_NFLOG", "NETLINK_XFRM", "NETLINK_SELINUX", "NETLINK_ISCSI", "NETLINK_AUDIT", "NETLINK_FIB_LOOKUP", "NETLINK_CONNECTOR", "NETLINK_NETFILTER", "NETLINK_IP6_FW", "NETLINK_DNRTMSG", "NETLINK_KOBJECT_UEVENT", "NETLINK_GENERIC", "NETLINK_SCSITRANSPORT", "NETLINK_ECRYPTFS", "NETLINK_RDMA", "NETLINK_CRYPTO", "NETLINK_INET_DIAG"} {
 		for _, j := range []string{"AF_NETLINK", "PF_NETLINK"} {
-			seccompWhitelist := fmt.Sprintf("socket %s - %s", j, i)
+			seccompAllowlist := fmt.Sprintf("socket %s - %s", j, i)
 			bpfInputGood := fmt.Sprintf("socket;native;%s,0,%s", j, i)
 			bpfInputBad := fmt.Sprintf("socket;native;%s,0,99", j)
-			s.runBpf(c, seccompWhitelist, bpfInputGood, Allow)
-			s.runBpf(c, seccompWhitelist, bpfInputBad, Deny)
+			s.runBpf(c, seccompAllowlist, bpfInputGood, Allow)
+			s.runBpf(c, seccompAllowlist, bpfInputBad, Deny)
 		}
 	}
 }
@@ -719,12 +719,12 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsSocket(c *C) {
 func (s *snapSeccompSuite) TestRestrictionsWorkingArgsQuotactl(c *C) {
 	for _, arg := range []string{"Q_QUOTAON", "Q_QUOTAOFF", "Q_GETQUOTA", "Q_SETQUOTA", "Q_GETINFO", "Q_SETINFO", "Q_GETFMT", "Q_SYNC", "Q_XQUOTAON", "Q_XQUOTAOFF", "Q_XGETQUOTA", "Q_XSETQLIM", "Q_XGETQSTAT", "Q_XQUOTARM"} {
 		// good input
-		seccompWhitelist := fmt.Sprintf("quotactl %s", arg)
+		seccompAllowlist := fmt.Sprintf("quotactl %s", arg)
 		bpfInputGood := fmt.Sprintf("quotactl;native;%s", arg)
-		s.runBpf(c, seccompWhitelist, bpfInputGood, Allow)
+		s.runBpf(c, seccompAllowlist, bpfInputGood, Allow)
 		// bad input
 		for _, bad := range []string{"quotactl;native;99999", "read;native;"} {
-			s.runBpf(c, seccompWhitelist, bad, Deny)
+			s.runBpf(c, seccompAllowlist, bad, Deny)
 		}
 	}
 }
@@ -733,24 +733,24 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsQuotactl(c *C) {
 func (s *snapSeccompSuite) TestRestrictionsWorkingArgsPrctl(c *C) {
 	for _, arg := range []string{"PR_CAP_AMBIENT", "PR_CAP_AMBIENT_RAISE", "PR_CAP_AMBIENT_LOWER", "PR_CAP_AMBIENT_IS_SET", "PR_CAP_AMBIENT_CLEAR_ALL", "PR_CAPBSET_READ", "PR_CAPBSET_DROP", "PR_SET_CHILD_SUBREAPER", "PR_GET_CHILD_SUBREAPER", "PR_SET_DUMPABLE", "PR_GET_DUMPABLE", "PR_GET_ENDIAN", "PR_SET_FPEMU", "PR_GET_FPEMU", "PR_SET_FPEXC", "PR_GET_FPEXC", "PR_SET_KEEPCAPS", "PR_GET_KEEPCAPS", "PR_MCE_KILL", "PR_MCE_KILL_GET", "PR_SET_MM", "PR_SET_MM_START_CODE", "PR_SET_MM_END_CODE", "PR_SET_MM_START_DATA", "PR_SET_MM_END_DATA", "PR_SET_MM_START_STACK", "PR_SET_MM_START_BRK", "PR_SET_MM_BRK", "PR_SET_MM_ARG_START", "PR_SET_MM_ARG_END", "PR_SET_MM_ENV_START", "PR_SET_MM_ENV_END", "PR_SET_MM_AUXV", "PR_SET_MM_EXE_FILE", "PR_MPX_ENABLE_MANAGEMENT", "PR_MPX_DISABLE_MANAGEMENT", "PR_SET_NAME", "PR_GET_NAME", "PR_SET_NO_NEW_PRIVS", "PR_GET_NO_NEW_PRIVS", "PR_SET_PDEATHSIG", "PR_GET_PDEATHSIG", "PR_SET_PTRACER", "PR_SET_SECCOMP", "PR_GET_SECCOMP", "PR_SET_SECUREBITS", "PR_GET_SECUREBITS", "PR_SET_THP_DISABLE", "PR_TASK_PERF_EVENTS_DISABLE", "PR_TASK_PERF_EVENTS_ENABLE", "PR_GET_THP_DISABLE", "PR_GET_TID_ADDRESS", "PR_SET_TIMERSLACK", "PR_GET_TIMERSLACK", "PR_SET_TIMING", "PR_GET_TIMING", "PR_SET_TSC", "PR_GET_TSC", "PR_SET_UNALIGN", "PR_GET_UNALIGN"} {
 		// good input
-		seccompWhitelist := fmt.Sprintf("prctl %s", arg)
+		seccompAllowlist := fmt.Sprintf("prctl %s", arg)
 		bpfInputGood := fmt.Sprintf("prctl;native;%s", arg)
-		s.runBpf(c, seccompWhitelist, bpfInputGood, Allow)
+		s.runBpf(c, seccompAllowlist, bpfInputGood, Allow)
 		// bad input
 		for _, bad := range []string{"prctl;native;99999", "setpriority;native;"} {
-			s.runBpf(c, seccompWhitelist, bad, Deny)
+			s.runBpf(c, seccompAllowlist, bad, Deny)
 		}
 
 		if arg == "PR_CAP_AMBIENT" {
 			for _, j := range []string{"PR_CAP_AMBIENT_RAISE", "PR_CAP_AMBIENT_LOWER", "PR_CAP_AMBIENT_IS_SET", "PR_CAP_AMBIENT_CLEAR_ALL"} {
-				seccompWhitelist := fmt.Sprintf("prctl %s %s", arg, j)
+				seccompAllowlist := fmt.Sprintf("prctl %s %s", arg, j)
 				bpfInputGood := fmt.Sprintf("prctl;native;%s,%s", arg, j)
-				s.runBpf(c, seccompWhitelist, bpfInputGood, Allow)
+				s.runBpf(c, seccompAllowlist, bpfInputGood, Allow)
 				for _, bad := range []string{
 					fmt.Sprintf("prctl;native;%s,99999", arg),
 					"setpriority;native;",
 				} {
-					s.runBpf(c, seccompWhitelist, bad, Deny)
+					s.runBpf(c, seccompAllowlist, bad, Deny)
 				}
 			}
 		}
@@ -760,7 +760,7 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsPrctl(c *C) {
 // ported from test_restrictions_working_args_clone
 func (s *snapSeccompSuite) TestRestrictionsWorkingArgsClone(c *C) {
 	for _, t := range []struct {
-		seccompWhitelist string
+		seccompAllowlist string
 		bpfInput         string
 		expected         int
 	}{
@@ -779,14 +779,14 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsClone(c *C) {
 		{"setns - CLONE_NEWUSER", "setns;native;-,99", Deny},
 		{"setns - CLONE_NEWUTS", "setns;native;-,99", Deny},
 	} {
-		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		s.runBpf(c, t.seccompAllowlist, t.bpfInput, t.expected)
 	}
 }
 
 // ported from test_restrictions_working_args_mknod
 func (s *snapSeccompSuite) TestRestrictionsWorkingArgsMknod(c *C) {
 	for _, t := range []struct {
-		seccompWhitelist string
+		seccompAllowlist string
 		bpfInput         string
 		expected         int
 	}{
@@ -803,14 +803,14 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsMknod(c *C) {
 		{"mknod - S_IFIFO", "mknod;native;-,999", Deny},
 		{"mknod - S_IFSOCK", "mknod;native;-,999", Deny},
 	} {
-		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		s.runBpf(c, t.seccompAllowlist, t.bpfInput, t.expected)
 	}
 }
 
 // ported from test_restrictions_working_args_prio
 func (s *snapSeccompSuite) TestRestrictionsWorkingArgsPrio(c *C) {
 	for _, t := range []struct {
-		seccompWhitelist string
+		seccompAllowlist string
 		bpfInput         string
 		expected         int
 	}{
@@ -823,14 +823,14 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsPrio(c *C) {
 		{"setpriority PRIO_PGRP", "setpriority;native;99", Deny},
 		{"setpriority PRIO_USER", "setpriority;native;99", Deny},
 	} {
-		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		s.runBpf(c, t.seccompAllowlist, t.bpfInput, t.expected)
 	}
 }
 
 // ported from test_restrictions_working_args_termios
 func (s *snapSeccompSuite) TestRestrictionsWorkingArgsTermios(c *C) {
 	for _, t := range []struct {
-		seccompWhitelist string
+		seccompAllowlist string
 		bpfInput         string
 		expected         int
 	}{
@@ -839,7 +839,7 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsTermios(c *C) {
 		// bad input
 		{"ioctl - TIOCSTI", "quotactl;native;-,99", Deny},
 	} {
-		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		s.runBpf(c, t.seccompAllowlist, t.bpfInput, t.expected)
 	}
 }
 
@@ -853,7 +853,7 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsUidGid(c *C) {
 	}
 
 	for _, t := range []struct {
-		seccompWhitelist string
+		seccompAllowlist string
 		bpfInput         string
 		expected         int
 	}{
@@ -869,7 +869,7 @@ func (s *snapSeccompSuite) TestRestrictionsWorkingArgsUidGid(c *C) {
 		{"setgid g:root", "setgid;native;99", Deny},
 		{"setgid g:daemon", "setgid;native;99", Deny},
 	} {
-		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+		s.runBpf(c, t.seccompAllowlist, t.bpfInput, t.expected)
 	}
 }
 
@@ -879,7 +879,7 @@ func (s *snapSeccompSuite) TestCompatArchWorks(c *C) {
 	}
 	for _, t := range []struct {
 		arch             string
-		seccompWhitelist string
+		seccompAllowlist string
 		bpfInput         string
 		expected         int
 	}{
@@ -906,7 +906,7 @@ func (s *snapSeccompSuite) TestCompatArchWorks(c *C) {
 		// here because on endian mismatch the arch will *not* be
 		// added
 		if arch.DpkgArchitecture() == t.arch {
-			s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
+			s.runBpf(c, t.seccompAllowlist, t.bpfInput, t.expected)
 		}
 	}
 }

@@ -291,7 +291,7 @@
     # pivot_root mediation in AppArmor is not complete. See LP: #1791711.
     # However, we can mediate the new_root and put_old to be what we expect,
     # and then deny directory creation within old_root to prevent trivial
-    # pivoting into a whitelisted path.
+    # pivoting into an allowlisted path.
     pivot_root oldroot=/tmp/snap.rootfs_*/var/lib/snapd/hostfs/ /tmp/snap.rootfs_*/,
     # Explicitly deny creating the old_root directory in case it is
     # inadvertently added somewhere else. While this doesn't resolve
