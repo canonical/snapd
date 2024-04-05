@@ -764,6 +764,7 @@ version: 1.0
 type: app
 components:
  comp:
+  type: test
   hooks:
    install:
 `

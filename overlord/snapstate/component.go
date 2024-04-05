@@ -49,30 +49,11 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		return nil, err
 	}
 
-	// Read ComponentInfo
+	// Read ComponentInfo and verify that the component is consistent with the
+	// data in the snap info
 	compInfo, _, err := backend.OpenComponentFile(path, info)
 	if err != nil {
 		return nil, err
-	}
-
-	// Check snap name matches
-	if compInfo.Component.SnapName != info.SnapName() {
-		return nil, fmt.Errorf(
-			"component snap name %q does not match snap name %q",
-			compInfo.Component.SnapName, info.RealName)
-	}
-
-	// Check that the component is specified in snap metadata
-	comp, ok := info.Components[csi.Component.ComponentName]
-	if !ok {
-		return nil, fmt.Errorf("%q is not a component for snap %q",
-			csi.Component.ComponentName, info.RealName)
-	}
-	// and that types in snap and component match
-	if comp.Type != compInfo.Type {
-		return nil,
-			fmt.Errorf("inconsistent component type (%q in snap, %q in component)",
-				comp.Type, compInfo.Type)
 	}
 
 	snapsup := &SnapSetup{

@@ -136,7 +136,8 @@ func (c *componentPlaceInfo) MountDescription() string {
 // ReadComponentInfoFromContainer reads ComponentInfo from a snap component
 // container. If snapInfo is not nil, it is used to complete the ComponentInfo
 // information about the component's implicit and explicit hooks, and their
-// associated plugs.
+// associated plugs. If snapInfo is not nil, consistency checks are performed
+// to ensure that the component is a component of the provided snap.
 func ReadComponentInfoFromContainer(compf Container, snapInfo *Info) (*ComponentInfo, error) {
 	yamlData, err := compf.ReadFile("meta/component.yaml")
 	if err != nil {
@@ -157,11 +158,20 @@ func ReadComponentInfoFromContainer(compf Container, snapInfo *Info) (*Component
 		return componentInfo, nil
 	}
 
+	if snapInfo.SnapName() != componentInfo.Component.SnapName {
+		return nil, fmt.Errorf(
+			"component %q is not a component for snap %q", componentInfo.Component, snapInfo.SnapName())
+	}
+
 	componentName := componentInfo.Component.ComponentName
 
 	component, ok := snapInfo.Components[componentName]
 	if !ok {
-		return nil, fmt.Errorf("cannot find component %q in snap %q", componentName, snapInfo.SnapName())
+		return nil, fmt.Errorf("%q is not a component for snap %q", componentName, snapInfo.SnapName())
+	}
+
+	if component.Type != componentInfo.Type {
+		return nil, fmt.Errorf("inconsistent component type (%q in snap, %q in component)", component.Type, componentInfo.Type)
 	}
 
 	// attach the explicit hooks, these are defined in the snap.yaml. plugs are

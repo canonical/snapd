@@ -240,14 +240,14 @@ func (s *snapmgrTestSuite) TestInstallComponentPathWrongType(c *C) {
 	const snapName = "mysnap"
 	const compName = "mycomp"
 	snapRev := snap.R(1)
-	info := createTestSnapInfoForComponent(c, snapName, snapRev, "other-comp")
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	_, compPath := createTestComponent(c, snapName, compName, info)
+
 	// The component in snap.yaml has type different to the one in component.yaml
 	// (we have to set it in this way as parsers check for allowed types).
 	info.Components[compName] = &snap.Component{
 		Type: "random-comp-type",
 	}
-
-	_, compPath := createTestComponent(c, snapName, compName, info)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -307,21 +307,24 @@ func (s *snapmgrTestSuite) TestInstallComponentPathWrongSnap(c *C) {
 	const snapName = "mysnap"
 	const compName = "mycomp"
 	snapRev := snap.R(1)
-	info := createTestSnapInfoForComponent(c, "other-snap", snapRev, compName)
+	info := createTestSnapInfoForComponent(c, "mysnap", snapRev, compName)
 	_, compPath := createTestComponent(c, snapName, compName, info)
+
+	otherInfo := createTestSnapInfoForComponent(c, "other-snap", snapRev, "mycomp")
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	setStateWithOneSnap(s.state, "mysnap", snapRev)
 	setStateWithOneSnap(s.state, "other-snap", snapRev)
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
 		SnapName: snapName, ComponentName: compName}, snap.R(33))
-	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
+	ts, err := snapstate.InstallComponentPath(s.state, csi, otherInfo, compPath,
 		snapstate.Flags{})
 	c.Assert(ts, IsNil)
-	c.Assert(err.Error(), Equals,
-		`component snap name "mysnap" does not match snap name "other-snap"`)
+	c.Assert(err, ErrorMatches,
+		`component "mysnap\+mycomp" is not a component for snap "other-snap"`)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresent(c *C) {
