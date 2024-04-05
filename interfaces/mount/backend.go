@@ -59,13 +59,16 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 }
 
 // Setup creates mount mount profile files specific to a given snap.
-func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+func (b *Backend) Setup(appSet *interfaces.SnapAppSet, confinement interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	// Record all changes to the mount system for this snap.
-	snapName := snapInfo.InstanceName()
-	spec, err := repo.SnapSpecification(b.Name(), snapName)
+	snapName := appSet.InstanceName()
+	spec, err := repo.SnapSpecification(b.Name(), appSet)
 	if err != nil {
 		return fmt.Errorf("cannot obtain mount security snippets for snap %q: %s", snapName, err)
 	}
+
+	snapInfo := appSet.Info()
+
 	spec.(*Specification).AddOvername(snapInfo)
 	spec.(*Specification).AddLayout(snapInfo)
 	spec.(*Specification).AddExtraLayouts(confinement.ExtraLayouts)
@@ -136,7 +139,7 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]osutil.F
 }
 
 // NewSpecification returns a new mount specification.
-func (b *Backend) NewSpecification() interfaces.Specification {
+func (b *Backend) NewSpecification(*interfaces.SnapAppSet) interfaces.Specification {
 	return &Specification{}
 }
 

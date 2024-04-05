@@ -1,7 +1,13 @@
 summary: Test that vendored apparmor does not break any system tunables
 
+details: |
+    Verifies that on systems where we have an older snapd (pre vendored apparmor)
+    deb package, and the snap itself is upgraded to vendored apparmor, apparmor
+    snippets continue to work.
+
 # On ubuntu 18 and below snapd-internal is not available
-systems: [ubuntu-18*, ubuntu-2*]
+# ubuntu-24*: the snapd deb is version 2.60.4 which is post-vendored apparmor.
+systems: [ubuntu-18*, ubuntu-20*, ubuntu-22*, ubuntu-23*]
 
 environment:
     USERNAME: home-sweet-home
@@ -75,7 +81,7 @@ execute: |
     MATCH "^homedirs=/remote/users$" < /var/lib/snapd/system-params
 
     echo "And that the AppArmor tunable file is proper"
-    MATCH "^@{HOMEDIRS}\\+=\"/remote/users\"$" < /etc/apparmor.d/tunables/home.d/snapd
+    MATCH "^@{HOMEDIRS}\\+=\"/remote/users\" \"/home\"$" < /etc/apparmor.d/tunables/home.d/snapd
 
     echo "Invoke the test app again (should now work)"
     sudo -u "$USERNAME" -i test-snapd-sh.cmd echo "Hello world" | MATCH "Hello world"

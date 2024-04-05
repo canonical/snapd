@@ -76,12 +76,12 @@ func checkSystemRequestConflict(st *state.State, systemLabel string) error {
 	return nil
 }
 
-func systemFromSeed(label string, current *currentSystem) (*System, error) {
-	_, sys, err := loadSeedAndSystem(label, current)
+func systemFromSeed(label string, current *currentSystem, defaultRecoverySystem *DefaultRecoverySystem) (*System, error) {
+	_, sys, err := loadSeedAndSystem(label, current, defaultRecoverySystem)
 	return sys, err
 }
 
-func loadSeedAndSystem(label string, current *currentSystem) (seed.Seed, *System, error) {
+func loadSeedAndSystem(label string, current *currentSystem, defaultRecoverySystem *DefaultRecoverySystem) (seed.Seed, *System, error) {
 	s, err := seedOpen(dirs.SnapSeedDir, label)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot open: %v", err)
@@ -95,6 +95,7 @@ func loadSeedAndSystem(label string, current *currentSystem) (seed.Seed, *System
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot obtain brand: %v", err)
 	}
+
 	system := &System{
 		Current: false,
 		Label:   label,
@@ -102,6 +103,7 @@ func loadSeedAndSystem(label string, current *currentSystem) (seed.Seed, *System
 		Brand:   brand,
 		Actions: defaultSystemActions,
 	}
+	system.DefaultRecoverySystem = defaultRecoverySystem.sameAs(system)
 	if current.sameAs(system) {
 		system.Current = true
 		system.Actions = current.actions
@@ -151,9 +153,6 @@ func currentSystemForMode(st *state.State, mode string) (*currentSystem, error) 
 }
 
 func currentSeededSystem(st *state.State) (*seededSystem, error) {
-	st.Lock()
-	defer st.Unlock()
-
 	var whatseeded []seededSystem
 	if err := st.Get("seeded-systems", &whatseeded); err != nil {
 		return nil, err
@@ -179,7 +178,7 @@ func seededSystemFromModeenv() (*seededSystem, error) {
 		return nil, fmt.Errorf("internal error: recovery system is unset")
 	}
 
-	system, err := systemFromSeed(modeEnv.RecoverySystem, nil)
+	system, err := systemFromSeed(modeEnv.RecoverySystem, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -195,10 +194,11 @@ func seededSystemFromModeenv() (*seededSystem, error) {
 }
 
 // getInfoFunc is expected to return for a given snap name a snap.Info for that
-// snap and whether the snap is present is present. The second bit is relevant
-// for non-essential snaps mentioned in the model, which if present and having
-// an 'optional' presence in the model, will be added to the recovery system.
-type getSnapInfoFunc func(name string) (info *snap.Info, snapIsPresent bool, err error)
+// snap, a path on disk where the snap file can be found, and whether the snap
+// is present. The last bit is relevant for non-essential snaps mentioned in the
+// model, which if present and having an 'optional' presence in the model, will
+// be added to the recovery system.
+type getSnapInfoFunc func(name string) (info *snap.Info, path string, snapIsPresent bool, err error)
 
 // snapWriteObserveFunc is called with the recovery system directory and the
 // path to a snap file being written. The snap file may be written to a location
@@ -248,7 +248,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 				kind = fmt.Sprintf("non-essential but %v", nonEssentialPresence)
 			}
 		}
-		info, present, err := getInfo(name)
+		info, snapPath, present, err := getInfo(name)
 		if err != nil {
 			return fmt.Errorf("cannot obtain %v snap information: %v", kind, err)
 		}
@@ -262,7 +262,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		if !present {
 			return fmt.Errorf("internal error: %v snap %q not present", kind, name)
 		}
-		if _, ok := modelSnaps[info.MountFile()]; ok {
+		if _, ok := modelSnaps[snapPath]; ok {
 			// we've already seen this snap
 			return nil
 		}
@@ -270,9 +270,9 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		// TODO: for grade dangerous we could have a channel here which is not
 		//       the model channel, handle that here
 		optsSnaps = append(optsSnaps, &seedwriter.OptionsSnap{
-			Path: info.MountFile(),
+			Path: snapPath,
 		})
-		modelSnaps[info.MountFile()] = info
+		modelSnaps[snapPath] = info
 		return nil
 	}
 
@@ -301,7 +301,19 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		fromDB := func(ref *asserts.Ref) (asserts.Assertion, error) {
 			return ref.Resolve(db.Find)
 		}
-		return asserts.NewFetcher(db, fromDB, save)
+
+		seqFromDB := func(ref *asserts.AtSequence) (asserts.Assertion, error) {
+			if ref.Sequence <= 0 {
+				hdrs, err := asserts.HeadersFromSequenceKey(ref.Type, ref.SequenceKey)
+				if err != nil {
+					return nil, err
+				}
+				return db.FindSequence(ref.Type, hdrs, -1, -1)
+			}
+			return ref.Resolve(db.Find)
+		}
+
+		return asserts.NewSequenceFormingFetcher(db, fromDB, seqFromDB, save)
 	}
 
 	sf := seedwriter.MakeSeedAssertionFetcher(newFetcher)

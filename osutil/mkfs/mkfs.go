@@ -21,7 +21,6 @@ package mkfs
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -185,7 +184,7 @@ func mkfsVfat(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 	// mkfs.vfat does not know how to populate the filesystem with contents,
 	// we need to do the work ourselves
 
-	fis, err := ioutil.ReadDir(contentsRootDir)
+	fis, err := os.ReadDir(contentsRootDir)
 	if err != nil {
 		return fmt.Errorf("cannot list directory contents: %v", err)
 	}

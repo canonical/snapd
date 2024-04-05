@@ -229,7 +229,7 @@ func (t *Task) Summary() string {
 //	Error                  V    V
 //	                     Undone Error
 //
-// Do -> Doing -> Done is the direct succcess scenario.
+// Do -> Doing -> Done is the direct success scenario.
 //
 // Wait can transition to its waited status,
 // usually Done|Undone or back to Doing.

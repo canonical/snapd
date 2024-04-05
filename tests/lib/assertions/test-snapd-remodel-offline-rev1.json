@@ -8,9 +8,15 @@
     "serial-authority": ["generic"],
     "system-user-authority": "*",
     "architecture": "amd64",
-    "timestamp": "2023-06-12T12:18:12+00:00",
+    "timestamp": "2023-10-30T11:01:45+00:00",
     "grade": "dangerous",
     "base": "core22",
+    "validation-sets": [
+        {
+            "name": "test-snapd-core22-required-vset",
+            "mode": "enforce"
+        }
+    ],
     "snaps": [
         {
             "default-channel": "22/edge",
@@ -29,6 +35,18 @@
             "id": "amcUKQILKXHHTlmSa7NMdnXSx02dNeeT",
             "name": "core22",
             "type": "base"
+        },
+        {
+            "default-channel": "latest/stable",
+            "id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+            "name": "hello-world",
+            "type": "app"
+        },
+        {
+            "default-channel": "latest/stable",
+            "id": "99T7MUlRhtI3U0QFgl5mXXESAiSwt776",
+            "name": "core",
+            "type": "core"
         },
         {
             "default-channel": "latest/edge",

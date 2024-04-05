@@ -22,7 +22,6 @@ package cgroup
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -94,7 +93,7 @@ func freezeSnapProcessesImplV1(snapName string) error {
 		return fmt.Errorf("cannot freeze processes of snap %q, %v", snapName, err)
 	}
 	for i := 0; i < 30; i++ {
-		data, err := ioutil.ReadFile(fname)
+		data, err := os.ReadFile(fname)
 		if err != nil {
 			return fmt.Errorf("cannot determine the freeze state of processes of snap %q, %v", snapName, err)
 		}
@@ -206,7 +205,7 @@ func freezeSnapProcessesImplV2(snapName string) error {
 			return fmt.Errorf("cannot freeze processes of snap %q, %v", snapName, err)
 		}
 		for i := 0; i < 30; i++ {
-			data, err := ioutil.ReadFile(fname)
+			data, err := os.ReadFile(fname)
 			if err != nil {
 				if os.IsNotExist(err) {
 					// group may be gone

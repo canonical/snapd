@@ -23,9 +23,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -474,7 +474,7 @@ func (s *storeTestSuite) TestDoRequestSetsAuth(c *C) {
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
-	responseData, err := ioutil.ReadAll(response.Body)
+	responseData, err := io.ReadAll(response.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(responseData), Equals, "response-data")
 }
@@ -510,7 +510,7 @@ func (s *storeTestSuite) TestDoRequestDoesNotSetAuthForLocalOnlyUser(c *C) {
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
-	responseData, err := ioutil.ReadAll(response.Body)
+	responseData, err := io.ReadAll(response.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(responseData), Equals, "response-data")
 }
@@ -543,7 +543,7 @@ func (s *storeTestSuite) TestDoRequestAuthNoSerial(c *C) {
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
-	responseData, err := ioutil.ReadAll(response.Body)
+	responseData, err := io.ReadAll(response.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(responseData), Equals, "response-data")
 }
@@ -588,7 +588,7 @@ func (s *storeTestSuite) TestDoRequestRefreshesAuth(c *C) {
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
-	responseData, err := ioutil.ReadAll(response.Body)
+	responseData, err := io.ReadAll(response.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(responseData), Equals, "response-data")
 	c.Check(refreshDischargeEndpointHit, Equals, true)
@@ -640,7 +640,7 @@ func (s *storeTestSuite) TestEnsureDeviceSession(c *C) {
 			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
 		case authSessionPath:
 			// validity of request
-			jsonReq, err := ioutil.ReadAll(r.Body)
+			jsonReq, err := io.ReadAll(r.Body)
 			c.Assert(err, IsNil)
 			var req map[string]string
 			err = json.Unmarshal(jsonReq, &req)
@@ -686,7 +686,7 @@ func (s *storeTestSuite) TestEnsureDeviceSessionSerialisation(c *C) {
 			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
 		case authSessionPath:
 			// validity of request
-			jsonReq, err := ioutil.ReadAll(r.Body)
+			jsonReq, err := io.ReadAll(r.Body)
 			c.Assert(err, IsNil)
 			var req map[string]string
 			err = json.Unmarshal(jsonReq, &req)
@@ -774,7 +774,7 @@ func (s *storeTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
 		case authSessionPath:
 			// validity of request
-			jsonReq, err := ioutil.ReadAll(r.Body)
+			jsonReq, err := io.ReadAll(r.Body)
 			c.Assert(err, IsNil)
 			var req map[string]string
 			err = json.Unmarshal(jsonReq, &req)
@@ -814,7 +814,7 @@ func (s *storeTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 	c.Assert(err, IsNil)
 	defer response.Body.Close()
 
-	responseData, err := ioutil.ReadAll(response.Body)
+	responseData, err := io.ReadAll(response.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(responseData), Equals, "response-data")
 	c.Check(deviceSessionRequested, Equals, true)
@@ -865,7 +865,7 @@ func (s *storeTestSuite) TestDoRequestSetsAndRefreshesBothAuths(c *C) {
 			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
 		case authSessionPath:
 			// validity of request
-			jsonReq, err := ioutil.ReadAll(r.Body)
+			jsonReq, err := io.ReadAll(r.Body)
 			c.Assert(err, IsNil)
 			var req map[string]string
 			err = json.Unmarshal(jsonReq, &req)
@@ -906,7 +906,7 @@ func (s *storeTestSuite) TestDoRequestSetsAndRefreshesBothAuths(c *C) {
 
 	c.Check(resp.StatusCode, Equals, 200)
 
-	responseData, err := ioutil.ReadAll(resp.Body)
+	responseData, err := io.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(responseData), Equals, "response-data")
 	c.Check(refreshDischargeEndpointHit, Equals, true)
@@ -940,7 +940,7 @@ func (s *storeTestSuite) TestDoRequestSetsExtraHeaders(c *C) {
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
-	responseData, err := ioutil.ReadAll(response.Body)
+	responseData, err := io.ReadAll(response.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(responseData), Equals, "response-data")
 }
@@ -2538,6 +2538,9 @@ func (s *storeTestSuite) testSnapCommands(c *C, onClassic bool) {
 	sto := store.New(&store.Config{StoreBaseURL: serverURL}, dauthCtx)
 
 	db, err := advisor.Create()
+	if errors.Is(err, advisor.ErrNotSupported) {
+		c.Skip("bolt support is disabled")
+	}
 	c.Assert(err, IsNil)
 	defer db.Rollback()
 
@@ -2583,6 +2586,9 @@ func (s *storeTestSuite) TestSnapCommandsTooMany(c *C) {
 	sto := store.New(&store.Config{StoreBaseURL: serverURL}, dauthCtx)
 
 	db, err := advisor.Create()
+	if errors.Is(err, advisor.ErrNotSupported) {
+		c.Skip("bolt support is disabled")
+	}
 	c.Assert(err, IsNil)
 	defer db.Rollback()
 
@@ -4001,7 +4007,7 @@ func (s *storeTestSuite) TestBuy(c *C) {
 				c.Check(r.Header.Get("Accept"), Equals, store.JsonContentType)
 				c.Check(r.Header.Get("Content-Type"), Equals, store.JsonContentType)
 				c.Check(r.URL.Path, Equals, buyPath)
-				jsonReq, err := ioutil.ReadAll(r.Body)
+				jsonReq, err := io.ReadAll(r.Body)
 				c.Assert(err, IsNil)
 				c.Check(string(jsonReq), Equals, test.expectedInput)
 				if test.buyErrorCode == "" {

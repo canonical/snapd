@@ -1146,7 +1146,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 				Device: "/dev/vda",
 				Offset: quantity.OffsetMiB,
 			})
-		case 2:
+		case 5:
 			// ubuntu-seed
 			c.Check(ps.Name(), Equals, "ubuntu-seed")
 			c.Check(ps.HasFilesystem(), Equals, true)
@@ -1160,7 +1160,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: "/run/mnt/ubuntu-seed",
 			})
-		case 3:
+		case 4:
 			// ubuntu-boot
 			c.Check(ps.Name(), Equals, "ubuntu-boot")
 			c.Check(ps.HasFilesystem(), Equals, true)
@@ -1174,7 +1174,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: "/run/mnt/ubuntu-boot",
 			})
-		case 4:
+		case 2:
 			// ubuntu-save
 			c.Check(ps.Name(), Equals, "ubuntu-save")
 			c.Check(ps.HasFilesystem(), Equals, true)
@@ -1188,7 +1188,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: "/run/mnt/ubuntu-save",
 			})
-		case 5:
+		case 3:
 			// ubuntu-data
 			c.Check(ps.Name(), Equals, "ubuntu-data")
 			c.Check(ps.HasFilesystem(), Equals, true)
@@ -1414,7 +1414,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 				Device: "/dev/vda",
 				Offset: quantity.Offset(0),
 			})
-		case 1:
+		case 3:
 			// ubuntu-seed
 			c.Check(ps.Name(), Equals, "ubuntu-seed")
 			c.Check(ps.HasFilesystem(), Equals, true)
@@ -1440,7 +1440,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: "/run/mnt/ubuntu-boot",
 			})
-		case 3:
+		case 1:
 			// ubuntu-save
 			c.Check(ps.Name(), Equals, "ubuntu-save")
 			c.Check(ps.HasFilesystem(), Equals, true)
@@ -1701,7 +1701,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 				Device: "/dev/vda",
 				Offset: quantity.OffsetMiB,
 			})
-		case 2:
+		case 5:
 			// ubuntu-seed
 			c.Check(ps.Name(), Equals, "ubuntu-seed")
 			c.Check(ps.HasFilesystem(), Equals, true)
@@ -1714,7 +1714,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: "/run/mnt/ubuntu-seed",
 			})
-		case 3:
+		case 4:
 			// ubuntu-boot
 			c.Check(ps.Name(), Equals, "ubuntu-boot")
 			c.Check(ps.HasFilesystem(), Equals, true)
@@ -1727,7 +1727,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: "/run/mnt/ubuntu-boot",
 			})
-		case 4:
+		case 2:
 			// ubuntu-save
 			c.Check(ps.Name(), Equals, "ubuntu-save")
 			c.Check(ps.HasFilesystem(), Equals, true)
@@ -1740,7 +1740,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			c.Assert(loc, Equals, gadget.StructureLocation{
 				RootMountPoint: "/run/mnt/ubuntu-save",
 			})
-		case 5:
+		case 3:
 			// ubuntu-data
 			c.Check(ps.Name(), Equals, "ubuntu-data")
 			c.Check(ps.HasFilesystem(), Equals, true)
@@ -1983,7 +1983,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 					Device: "/dev/vda",
 					Offset: quantity.OffsetMiB,
 				})
-			case 2:
+			case 5:
 				// ubuntu-seed
 				c.Check(ps.Name(), Equals, "ubuntu-seed")
 				c.Check(ps.HasFilesystem(), Equals, true)
@@ -1996,7 +1996,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed"),
 				})
-			case 3:
+			case 4:
 				// ubuntu-boot
 				c.Check(ps.Name(), Equals, "ubuntu-boot")
 				c.Check(ps.HasFilesystem(), Equals, true)
@@ -2009,7 +2009,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-boot"),
 				})
-			case 4:
+			case 2:
 				// ubuntu-save
 				c.Check(ps.Name(), Equals, "ubuntu-save")
 				c.Check(ps.HasFilesystem(), Equals, true)
@@ -2022,7 +2022,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 				c.Assert(loc, Equals, gadget.StructureLocation{
 					RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save"),
 				})
-			case 5:
+			case 3:
 				// ubuntu-data
 				c.Check(ps.Name(), Equals, "ubuntu-data")
 				c.Check(ps.HasFilesystem(), Equals, true)
@@ -3431,6 +3431,66 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 	})
 	c.Assert(toUpdate, DeepEquals, map[string]int{
 		"second": 1,
+	})
+}
+
+func (u *updateTestSuite) TestUpdateApplyUpdatesDefaultPolicy(c *C) {
+	oldData, newData, rollbackDir := u.policyDataSet(c)
+	c.Assert(oldData.Info.Volumes["foo"].Structure, HasLen, 5)
+	c.Assert(newData.Info.Volumes["foo"].Structure, HasLen, 5)
+
+	c.Check(oldData.Info.Volumes["foo"].Structure[1].Name, Equals, "first")
+	// no previous edition specified in the structure, as if it was not
+	// specified in gadget.yaml
+	c.Assert(oldData.Info.Volumes["foo"].Structure[1].Update, DeepEquals, gadget.VolumeUpdate{})
+	// new one has edition set explicitly
+	newData.Info.Volumes["foo"].Structure[1].Update.Edition = 5
+
+	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.GadgetData, _ gadget.Model, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		return map[string]map[int]gadget.StructureLocation{
+				"foo": {
+					0: {
+						Device: "/dev/foo",
+						Offset: quantity.OffsetMiB,
+					},
+					1: {
+						RootMountPoint: "/foo",
+					},
+					2: {
+						RootMountPoint: "/foo",
+					},
+					3: {
+						RootMountPoint: "/foo",
+					},
+					4: {
+						RootMountPoint: "/foo",
+					},
+				},
+			}, map[string]map[int]*gadget.OnDiskStructure{
+				"foo": {
+					0: {},
+					1: {},
+					2: {},
+					3: {},
+					4: {},
+				},
+			},
+			nil
+	})
+	defer r()
+
+	toUpdate := map[string]int{}
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		toUpdate[ps.Name()]++
+		return &mockUpdater{}, nil
+	})
+	defer restore()
+
+	err := gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(toUpdate, DeepEquals, map[string]int{
+		// the structure was picked for update
+		"first": 1,
 	})
 }
 
@@ -5209,6 +5269,60 @@ func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20NonFatalError(
 	}
 	_, err = gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, vols)
 	c.Assert(err, Equals, gadget.ErrSkipUpdateProceedRefresh)
+
+	// it's a fatal error on UC20 though
+	_, err = gadget.BuildNewVolumeToDeviceMapping(uc20Model, old, vols)
+	c.Assert(err, Not(Equals), gadget.ErrSkipUpdateProceedRefresh)
+}
+
+func (u *updateTestSuite) TestBuildNewVolumeToDeviceMappingPreUC20CannotMap(c *C) {
+	mockLogBuf, restore := logger.MockLogger()
+	defer restore()
+
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.UC16YAMLImplicitSystemData, uc16Model)
+	c.Assert(err, IsNil)
+
+	old := gadget.GadgetData{
+		Info: &gadget.Info{
+			Volumes: make(map[string]*gadget.Volume),
+		},
+	}
+
+	for volName, laidOutVol := range allLaidOutVolumes {
+		old.Info.Volumes[volName] = laidOutVol.Volume
+	}
+
+	// setup symlink for the system-boot partition
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+	fakedevicepart := filepath.Join(dirs.GlobalRootDir, "/dev/vda1")
+	err = os.Symlink(fakedevicepart, filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel", disks.BlkIDEncodeLabel("EFI System")))
+	c.Assert(err, IsNil)
+	err = os.WriteFile(fakedevicepart, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// mock the partition device node to mock disk
+	restore = disks.MockPartitionDeviceNodeToDiskMapping(map[string]*disks.MockDiskMapping{
+		filepath.Join(dirs.GlobalRootDir, "/dev/vda1"): gadgettest.VMSystemVolumeDiskMapping,
+	})
+	defer restore()
+
+	// and the device name to the disk itself
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": gadgettest.VMSystemVolumeDiskMapping,
+	})
+	defer restore()
+
+	vols := map[string]*gadget.Volume{}
+	for name, lov := range allLaidOutVolumes {
+		vols[name] = lov.Volume
+	}
+
+	// The call will fail as it won't find a match between /dev/vda2 and
+	// any partition defined in the gadget. But it is ok for UC16/18.
+	_, err = gadget.BuildNewVolumeToDeviceMapping(uc16Model, old, vols)
+	c.Assert(err, Equals, gadget.ErrSkipUpdateProceedRefresh)
+	c.Assert(mockLogBuf.String(), testutil.Contains, "WARNING: not applying gadget asset updates on main system-boot volume due to error while finding disk traits")
 
 	// it's a fatal error on UC20 though
 	_, err = gadget.BuildNewVolumeToDeviceMapping(uc20Model, old, vols)

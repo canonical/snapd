@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -232,20 +233,34 @@ func (s *RunSuite) TestSnapRunAppRunsChecksInhibitionLock(c *check.C) {
 	})
 	defer restorer()
 
-	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh), check.IsNil)
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R("x2")}
+	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, inhibitInfo), check.IsNil)
 	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
 	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
 	var called int
-	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint) (bool, error) {
+	restore := snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
 		called++
-		return false, nil
+		c.Check(snapName, check.Equals, "snapname")
+		c.Check(ctx, check.NotNil)
+
+		cont, err := inhibited(ctx, runinhibit.HintInhibitedForRefresh, nil)
+		c.Assert(err, check.IsNil)
+		// non-service apps should keep waiting
+		c.Check(cont, check.Equals, false)
+		if notInhibited != nil {
+			c.Errorf("this should never be reached")
+		}
+
+		flock, err = openHintFileLock(snapName)
+		c.Assert(err, check.IsNil)
+		return flock, nil
 	})
 	defer restore()
 
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
 	c.Assert(err, check.IsNil)
-	c.Check(called, check.Equals, 2)
+	c.Check(called, check.Equals, 1)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
@@ -276,14 +291,15 @@ func (s *RunSuite) TestSnapRunHookNoRuninhibit(c *check.C) {
 	defer restorer()
 
 	var called bool
-	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint) (bool, error) {
+	restore := snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
 		called = true
-		c.Errorf("WaitInhibitUnlock should not have been called")
-		return false, nil
+		c.Errorf("runinhibit.WaitWhileInhibited should not have been called")
+		return nil, nil
 	})
 	defer restore()
 
-	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh), check.IsNil)
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(42)}
+	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, inhibitInfo), check.IsNil)
 	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
 	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
@@ -315,15 +331,16 @@ func (s *RunSuite) TestSnapRunAppRuninhibitSkipsServices(c *check.C) {
 	})
 	defer restorer()
 
-	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh), check.IsNil)
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R("x2")}
+	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, inhibitInfo), check.IsNil)
 	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
 	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
 	var called bool
-	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint) (bool, error) {
+	restore := snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
 		called = true
-		c.Errorf("WaitInhibitUnlock should not have been called")
-		return false, nil
+		c.Errorf("runinhibit.WaitWhileInhibited should not have been called")
+		return nil, nil
 	})
 	defer restore()
 
@@ -1059,6 +1076,45 @@ execve("%s/snapName/x2/bin/foo")
 interessting strace output
 and more
 `
+	expectedFull := fmt.Sprintf(expectedFullFmt, dirs.SnapMountDir)
+
+	for _, tc := range []struct {
+		arg   string
+		entry []string
+	}{
+		{arg: "--raw"},
+		{arg: "-o foo", entry: []string{"-o", "foo"}},
+		{arg: "-o=foo", entry: []string{"-o=foo"}},
+		{arg: "--output foo", entry: []string{"--output", "foo"}},
+		{arg: "--output=foo", entry: []string{"--output=foo"}},
+	} {
+		s.ResetStdStreams()
+		sudoCmd.ForgetCalls()
+
+		rest, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{
+			"run", "--strace=" + tc.arg, "--", "snapname.app", "--arg1", "arg2",
+		})
+		c.Assert(err, check.IsNil)
+		c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+		c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
+			append(append([]string{
+				"sudo", "-E",
+				filepath.Join(straceCmd.BinDir(), "strace"),
+				"-u", user.Username,
+				"-f",
+				"-e", strace.ExcludedSyscalls,
+			},
+				tc.entry...),
+				[]string{
+					filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+					"snap.snapname.app",
+					filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+					"snapname.app", "--arg1", "arg2",
+				}...),
+		})
+		c.Check(s.Stdout(), check.Equals, "stdout output 1\nstdout output 2\n")
+		c.Check(s.Stderr(), check.Equals, expectedFull)
+	}
 	c.Check(s.Stderr(), check.Equals, fmt.Sprintf(expectedFullFmt, dirs.SnapMountDir))
 }
 
@@ -1807,104 +1863,191 @@ func (s *RunSuite) TestRunGdbserverNoGdbserver(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "please install gdbserver on your system")
 }
 
-func (s *RunSuite) TestWaitInhibitUnlock(c *check.C) {
-	var called int
-	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
-		called++
-		if called < 5 {
-			return runinhibit.HintInhibitedForRefresh, nil
-		}
-		return runinhibit.HintNotInhibited, nil
-	})
-	defer restore()
-
-	notInhibited, err := snaprun.WaitInhibitUnlock("some-snap", runinhibit.HintNotInhibited)
-	c.Assert(err, check.IsNil)
-	c.Check(notInhibited, check.Equals, true)
-	c.Check(called, check.Equals, 5)
+func openHintFileLock(snapName string) (*osutil.FileLock, error) {
+	return osutil.NewFileLockWithMode(runinhibit.HintFile(snapName), 0644)
 }
 
-func (s *RunSuite) TestWaitInhibitUnlockWaitsForSpecificHint(c *check.C) {
-	var called int
-	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
-		called++
-		if called < 5 {
-			return runinhibit.HintInhibitedGateRefresh, nil
-		}
-		return runinhibit.HintInhibitedForRefresh, nil
-	})
-	defer restore()
-
-	notInhibited, err := snaprun.WaitInhibitUnlock("some-snap", runinhibit.HintInhibitedForRefresh)
+func checkHintFileNotLocked(c *check.C, snapName string) {
+	flock, err := openHintFileLock(snapName)
 	c.Assert(err, check.IsNil)
-	c.Check(notInhibited, check.Equals, false)
-	c.Check(called, check.Equals, 5)
+	c.Check(flock.TryLock(), check.IsNil)
+	flock.Close()
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedNoop(c *check.C) {
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(11)}
+	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedGateRefresh, inhibitInfo), check.IsNil)
+
 	var called int
-	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+	restore := snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
 		called++
-		if called < 2 {
-			return runinhibit.HintInhibitedGateRefresh, nil
+
+		c.Check(snapName, check.Equals, "some-snap")
+		c.Check(ctx, check.NotNil)
+		for i := 0; i < 3; i++ {
+			cont, err := inhibited(ctx, runinhibit.HintInhibitedGateRefresh, nil)
+			c.Assert(err, check.IsNil)
+			// non-service apps should keep waiting
+			c.Check(cont, check.Equals, false)
 		}
-		return runinhibit.HintNotInhibited, nil
+		if notInhibited != nil {
+			c.Errorf("this should never be reached")
+		}
+
+		flock, err := openHintFileLock(snapName)
+		c.Assert(err, check.IsNil)
+		return flock, nil
 	})
 	defer restore()
 
 	meter := &progresstest.Meter{}
 	defer progress.MockMeter(meter)()
 
-	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedGateRefresh), check.IsNil)
-	c.Assert(snaprun.WaitWhileInhibited("some-snap"), check.IsNil)
-	c.Check(called, check.Equals, 2)
+	c.Assert(snaprun.WaitWhileInhibited(context.TODO(), "some-snap"), check.IsNil)
+	c.Check(called, check.Equals, 1)
 
 	c.Check(meter.Values, check.HasLen, 0)
 	c.Check(meter.Written, check.HasLen, 0)
 	c.Check(meter.Finishes, check.Equals, 0)
 	c.Check(meter.Labels, check.HasLen, 0)
 	c.Check(meter.Labels, check.HasLen, 0)
+
+	// lock must be released
+	checkHintFileNotLocked(c, "some-snap")
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedTextFlow(c *check.C) {
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(11)}
+	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedGateRefresh, inhibitInfo), check.IsNil)
+
 	var called int
-	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+	restore := snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
 		called++
-		if called < 2 {
-			return runinhibit.HintInhibitedForRefresh, nil
+
+		c.Check(snapName, check.Equals, "some-snap")
+		cont, err := inhibited(ctx, runinhibit.HintInhibitedGateRefresh, nil)
+		c.Assert(err, check.IsNil)
+		// non-service apps should keep waiting
+		c.Check(cont, check.Equals, false)
+		cont, err = inhibited(ctx, runinhibit.HintInhibitedForRefresh, nil)
+		c.Assert(err, check.IsNil)
+		// non-service apps should keep waiting
+		c.Check(cont, check.Equals, false)
+		if notInhibited != nil {
+			c.Errorf("this should never be reached")
 		}
-		return runinhibit.HintNotInhibited, nil
+
+		flock, err = openHintFileLock(snapName)
+		c.Assert(err, check.IsNil)
+		return flock, nil
 	})
 	defer restore()
 
-	meter := &progresstest.Meter{}
-	defer progress.MockMeter(meter)()
+	c.Assert(snaprun.WaitWhileInhibited(context.TODO(), "some-snap"), check.IsNil)
+	c.Check(called, check.Equals, 1)
 
-	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedGateRefresh), check.IsNil)
-	c.Assert(snaprun.WaitWhileInhibited("some-snap"), check.IsNil)
-	c.Check(called, check.Equals, 2)
+	c.Check(s.Stdout(), check.Equals, "snap package \"some-snap\" is being refreshed, please wait\n")
 
-	c.Check(s.Stdout(), check.Equals, "snap package cannot be used now: gate-refresh\n")
-	c.Check(meter.Values, check.HasLen, 0)
-	c.Check(meter.Written, check.HasLen, 0)
-	c.Check(meter.Finishes, check.Equals, 1)
-	c.Check(meter.Labels, check.DeepEquals, []string{"please wait..."})
+	// lock must be released
+	checkHintFileNotLocked(c, "some-snap")
+}
+
+func (s *RunSuite) TestWaitWhileInhibitedDesktopIntegrationFlow(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
+	var dbusCalled int
+	conn, _, err := dbustest.InjectableConnection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
+		dbusCalled++
+		return []*dbus.Message{makeDBusMethodAvailableMessage(c, msg)}, nil
+	})
+	c.Assert(err, check.IsNil)
+
+	restore := dbusutil.MockOnlySessionBusAvailable(conn)
+	defer restore()
+
+	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(true)
+	defer restoreIsGraphicalSession()
+
+	var pendingRefreshNotificationCalled int
+	restorePendingRefreshNotification := snaprun.MockPendingRefreshNotification(func(ctx context.Context, refreshInfo *usersessionclient.PendingSnapRefreshInfo) error {
+		pendingRefreshNotificationCalled++
+		c.Error("this should never be reached")
+		return nil
+	})
+	defer restorePendingRefreshNotification()
+
+	var finishRefreshNotificationCalled int
+	restoreFinishRefreshNotification := snaprun.MockFinishRefreshNotification(func(ctx context.Context, refreshInfo *usersessionclient.FinishedSnapRefreshInfo) error {
+		finishRefreshNotificationCalled++
+		c.Error("this should never be reached")
+		return nil
+	})
+	defer restoreFinishRefreshNotification()
+
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(11)}
+	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh, inhibitInfo), check.IsNil)
+
+	var called int
+	restore = snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
+		called++
+
+		c.Check(snapName, check.Equals, "some-snap")
+		for i := 0; i < 3; i++ {
+			cont, err := inhibited(ctx, runinhibit.HintInhibitedForRefresh, nil)
+			c.Assert(err, check.IsNil)
+			// non-service apps should keep waiting
+			c.Check(cont, check.Equals, false)
+		}
+		if notInhibited != nil {
+			c.Errorf("this should never be reached")
+		}
+
+		flock, err := openHintFileLock(snapName)
+		c.Assert(err, check.IsNil)
+		return flock, nil
+	})
+	defer restore()
+
+	c.Assert(snaprun.WaitWhileInhibited(context.TODO(), "some-snap"), check.IsNil)
+	c.Check(called, check.Equals, 1)
+	c.Check(s.Stdout(), check.Equals, "")
+
+	// snapd-desktop-integration snap monitors inhibit file
+	// flow.Finish is a no-op, so it's only called once
+	c.Check(dbusCalled, check.Equals, 1)
+	// session flow was not called
+	c.Check(pendingRefreshNotificationCalled, check.Equals, 0)
+	c.Check(finishRefreshNotificationCalled, check.Equals, 0)
+
+	// lock must be released
+	checkHintFileNotLocked(c, "some-snap")
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlow(c *check.C) {
 	_, r := logger.MockLogger()
 	defer r()
 
+	originalCtx := context.Background()
+
 	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(true)
 	defer restoreIsGraphicalSession()
 
-	restoreTryNotifyRefresh := snaprun.MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(func(snapName string) (bool, error) {
+	restoreTryNotifyRefresh := snaprun.MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(func(ctx context.Context, snapName string) bool {
 		c.Check(snapName, check.Equals, "some-snap")
-		return false, nil
+		// check context is propagated properly
+		c.Assert(ctx, check.Equals, originalCtx)
+		c.Check(ctx.Err(), check.IsNil)
+		return false
 	})
 	defer restoreTryNotifyRefresh()
 
-	restorePendingRefreshNotification := snaprun.MockPendingRefreshNotification(func(refreshInfo *usersessionclient.PendingSnapRefreshInfo) error {
+	var pendingRefreshNotificationCalled int
+	restorePendingRefreshNotification := snaprun.MockPendingRefreshNotification(func(ctx context.Context, refreshInfo *usersessionclient.PendingSnapRefreshInfo) error {
+		pendingRefreshNotificationCalled++
+		// check context is propagated properly
+		c.Assert(ctx, check.Equals, originalCtx)
+		c.Check(ctx.Err(), check.IsNil)
 		c.Check(refreshInfo, check.DeepEquals, &usersessionclient.PendingSnapRefreshInfo{
 			InstanceName:  "some-snap",
 			TimeRemaining: 0,
@@ -1913,7 +2056,12 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlow(c *check.C) {
 	})
 	defer restorePendingRefreshNotification()
 
-	restoreFinishRefreshNotification := snaprun.MockFinishRefreshNotification(func(refreshInfo *usersessionclient.FinishedSnapRefreshInfo) error {
+	var finishRefreshNotificationCalled int
+	restoreFinishRefreshNotification := snaprun.MockFinishRefreshNotification(func(ctx context.Context, refreshInfo *usersessionclient.FinishedSnapRefreshInfo) error {
+		finishRefreshNotificationCalled++
+		// check context is propagated properly
+		c.Assert(ctx, check.Equals, originalCtx)
+		c.Check(ctx.Err(), check.IsNil)
 		c.Check(refreshInfo, check.DeepEquals, &usersessionclient.FinishedSnapRefreshInfo{
 			InstanceName: "some-snap",
 		})
@@ -1921,21 +2069,39 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlow(c *check.C) {
 	})
 	defer restoreFinishRefreshNotification()
 
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(11)}
+	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh, inhibitInfo), check.IsNil)
+
 	var called int
-	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
-		c.Check(snapName, check.Equals, "some-snap")
+	restore := snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
 		called++
-		if called < 2 {
-			return runinhibit.HintInhibitedForRefresh, nil
+
+		c.Check(snapName, check.Equals, "some-snap")
+		for i := 0; i < 3; i++ {
+			cont, err := inhibited(ctx, runinhibit.HintInhibitedForRefresh, nil)
+			c.Assert(err, check.IsNil)
+			// non-service apps should keep waiting
+			c.Check(cont, check.Equals, false)
 		}
-		return runinhibit.HintNotInhibited, nil
+		if notInhibited != nil {
+			c.Errorf("this should never be reached")
+		}
+
+		flock, err := openHintFileLock(snapName)
+		c.Assert(err, check.IsNil)
+		return flock, nil
 	})
 	defer restore()
 
-	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh), check.IsNil)
-	c.Assert(snaprun.WaitWhileInhibited("some-snap"), check.IsNil)
-	c.Check(called, check.Equals, 2)
+	c.Assert(snaprun.WaitWhileInhibited(originalCtx, "some-snap"), check.IsNil)
+	c.Check(called, check.Equals, 1)
 	c.Check(s.Stdout(), check.Equals, "")
+
+	c.Check(pendingRefreshNotificationCalled, check.Equals, 1)
+	c.Check(finishRefreshNotificationCalled, check.Equals, 1)
+
+	// lock must be released
+	checkHintFileNotLocked(c, "some-snap")
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowError(c *check.C) {
@@ -1945,13 +2111,15 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowError(c *check.C) {
 	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(true)
 	defer restoreIsGraphicalSession()
 
-	restoreTryNotifyRefresh := snaprun.MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(func(snapName string) (bool, error) {
+	restoreTryNotifyRefresh := snaprun.MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(func(ctx context.Context, snapName string) bool {
 		c.Check(snapName, check.Equals, "some-snap")
-		return false, nil
+		return false
 	})
 	defer restoreTryNotifyRefresh()
 
-	restorePendingRefreshNotification := snaprun.MockPendingRefreshNotification(func(refreshInfo *usersessionclient.PendingSnapRefreshInfo) error {
+	var pendingRefreshNotificationCalled int
+	restorePendingRefreshNotification := snaprun.MockPendingRefreshNotification(func(ctx context.Context, refreshInfo *usersessionclient.PendingSnapRefreshInfo) error {
+		pendingRefreshNotificationCalled++
 		c.Check(refreshInfo, check.DeepEquals, &usersessionclient.PendingSnapRefreshInfo{
 			InstanceName:  "some-snap",
 			TimeRemaining: 0,
@@ -1960,14 +2128,27 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowError(c *check.C) {
 	})
 	defer restorePendingRefreshNotification()
 
-	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh), check.IsNil)
-	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+	restoreFinishRefreshNotification := snaprun.MockFinishRefreshNotification(func(ctx context.Context, refreshInfo *usersessionclient.FinishedSnapRefreshInfo) error {
+		c.Errorf("this should never be reached")
+		return nil
+	})
+	defer restoreFinishRefreshNotification()
+
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(11)}
+	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh, inhibitInfo), check.IsNil)
+
+	restore := snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
 		c.Check(snapName, check.Equals, "some-snap")
-		return runinhibit.HintInhibitedForRefresh, nil
+
+		_, err := inhibited(ctx, runinhibit.HintInhibitedForRefresh, nil)
+		c.Assert(err, check.ErrorMatches, "boom")
+		return nil, err
 	})
 	defer restore()
 
-	c.Assert(snaprun.WaitWhileInhibited("some-snap"), check.ErrorMatches, "boom")
+	c.Assert(snaprun.WaitWhileInhibited(context.TODO(), "some-snap"), check.ErrorMatches, "boom")
+
+	c.Check(pendingRefreshNotificationCalled, check.Equals, 1)
 }
 
 func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowErrorOnFinish(c *check.C) {
@@ -1977,13 +2158,15 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowErrorOnFinish(c *ch
 	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(true)
 	defer restoreIsGraphicalSession()
 
-	restoreTryNotifyRefresh := snaprun.MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(func(snapName string) (bool, error) {
+	restoreTryNotifyRefresh := snaprun.MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(func(ctx context.Context, snapName string) bool {
 		c.Check(snapName, check.Equals, "some-snap")
-		return false, nil
+		return false
 	})
 	defer restoreTryNotifyRefresh()
 
-	restorePendingRefreshNotification := snaprun.MockPendingRefreshNotification(func(refreshInfo *usersessionclient.PendingSnapRefreshInfo) error {
+	var pendingRefreshNotificationCalled int
+	restorePendingRefreshNotification := snaprun.MockPendingRefreshNotification(func(ctx context.Context, refreshInfo *usersessionclient.PendingSnapRefreshInfo) error {
+		pendingRefreshNotificationCalled++
 		c.Check(refreshInfo, check.DeepEquals, &usersessionclient.PendingSnapRefreshInfo{
 			InstanceName:  "some-snap",
 			TimeRemaining: 0,
@@ -1992,7 +2175,9 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowErrorOnFinish(c *ch
 	})
 	defer restorePendingRefreshNotification()
 
-	restoreFinishRefreshNotification := snaprun.MockFinishRefreshNotification(func(refreshInfo *usersessionclient.FinishedSnapRefreshInfo) error {
+	var finishRefreshNotificationCalled int
+	restoreFinishRefreshNotification := snaprun.MockFinishRefreshNotification(func(ctx context.Context, refreshInfo *usersessionclient.FinishedSnapRefreshInfo) error {
+		finishRefreshNotificationCalled++
 		c.Check(refreshInfo, check.DeepEquals, &usersessionclient.FinishedSnapRefreshInfo{
 			InstanceName: "some-snap",
 		})
@@ -2000,19 +2185,58 @@ func (s *RunSuite) TestWaitWhileInhibitedGraphicalSessionFlowErrorOnFinish(c *ch
 	})
 	defer restoreFinishRefreshNotification()
 
-	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh), check.IsNil)
-	n := 0
-	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(11)}
+	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh, inhibitInfo), check.IsNil)
+
+	restore := snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
 		c.Check(snapName, check.Equals, "some-snap")
-		n++
-		if n == 1 {
-			return runinhibit.HintInhibitedForRefresh, nil
+
+		cont, err := inhibited(ctx, runinhibit.HintInhibitedForRefresh, nil)
+		c.Assert(err, check.IsNil)
+		// non-service apps should keep waiting
+		c.Check(cont, check.Equals, false)
+		if notInhibited != nil {
+			c.Errorf("this should never be reached")
 		}
-		return runinhibit.HintNotInhibited, nil
+
+		flock, err = openHintFileLock(snapName)
+		c.Assert(err, check.IsNil)
+		return flock, nil
 	})
 	defer restore()
 
-	c.Assert(snaprun.WaitWhileInhibited("some-snap"), check.ErrorMatches, "boom")
+	c.Assert(snaprun.WaitWhileInhibited(context.TODO(), "some-snap"), check.ErrorMatches, "boom")
+
+	c.Check(pendingRefreshNotificationCalled, check.Equals, 1)
+	c.Check(finishRefreshNotificationCalled, check.Equals, 1)
+
+	// lock must be released
+	checkHintFileNotLocked(c, "some-snap")
+}
+
+func (s *RunSuite) TestWaitWhileInhibitedContextCancellationOnError(c *check.C) {
+	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(11)}
+	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedForRefresh, inhibitInfo), check.IsNil)
+
+	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(true)
+	defer restoreIsGraphicalSession()
+
+	originalCtx, cancel := context.WithCancel(context.Background())
+	restoreTryNotifyRefresh := snaprun.MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(func(ctx context.Context, snapName string) bool {
+		c.Check(snapName, check.Equals, "some-snap")
+		// check context is propagated properly
+		c.Assert(ctx, check.Equals, originalCtx)
+		c.Check(ctx.Err(), check.IsNil)
+		// cancel context to trigger cancellation error
+		cancel()
+		return true
+	})
+	defer restoreTryNotifyRefresh()
+
+	err := snaprun.WaitWhileInhibited(originalCtx, "some-snap")
+	c.Assert(err, check.ErrorMatches, "context canceled")
+	c.Assert(errors.Is(err, context.Canceled), check.Equals, true)
+	c.Assert(errors.Is(originalCtx.Err(), context.Canceled), check.Equals, true)
 }
 
 func (s *RunSuite) TestCreateSnapDirPermissions(c *check.C) {
@@ -2111,9 +2335,8 @@ func (s *RunSuite) TestDesktopIntegrationNoDBus(c *check.C) {
 	restore := dbusutil.MockConnections(noDBus, noDBus)
 	defer restore()
 
-	sent, err := snaprun.TryNotifyRefreshViaSnapDesktopIntegrationFlow("Test")
+	sent := snaprun.TryNotifyRefreshViaSnapDesktopIntegrationFlow(context.TODO(), "Test")
 	c.Assert(sent, check.Equals, false)
-	c.Assert(err, check.IsNil)
 }
 
 func makeDBusMethodNotAvailableMessage(c *check.C, msg *dbus.Message) *dbus.Message {
@@ -2140,9 +2363,8 @@ func (s *RunSuite) TestDesktopIntegrationDBusAvailableNoMethod(c *check.C) {
 	restore := dbusutil.MockOnlySessionBusAvailable(conn)
 	defer restore()
 
-	sent, err := snaprun.TryNotifyRefreshViaSnapDesktopIntegrationFlow("SnapTest")
+	sent := snaprun.TryNotifyRefreshViaSnapDesktopIntegrationFlow(context.TODO(), "some-snap")
 	c.Assert(sent, check.Equals, false)
-	c.Assert(err, check.IsNil)
 }
 
 func makeDBusMethodAvailableMessage(c *check.C, msg *dbus.Message) *dbus.Message {
@@ -2156,9 +2378,9 @@ func makeDBusMethodAvailableMessage(c *check.C, msg *dbus.Message) *dbus.Message
 		dbus.FieldMember:      dbus.MakeVariant("ApplicationIsBeingRefreshed"),
 		dbus.FieldSignature:   dbus.MakeVariant(dbus.SignatureOf("", "", make(map[string]dbus.Variant))),
 	})
-	c.Check(msg.Body[0], check.Equals, "SnapTest")
+	c.Check(msg.Body[0], check.Equals, "some-snap")
 	param2 := fmt.Sprintf("%s", msg.Body[1])
-	c.Check(strings.HasSuffix(param2, "/var/lib/snapd/inhibit/SnapTest.lock"), check.Equals, true)
+	c.Check(strings.HasSuffix(param2, "/var/lib/snapd/inhibit/some-snap.lock"), check.Equals, true)
 	return &dbus.Message{
 		Type: dbus.TypeMethodReply,
 		Headers: map[dbus.HeaderField]dbus.Variant{
@@ -2180,7 +2402,6 @@ func (s *RunSuite) TestDesktopIntegrationDBusAvailableMethodWorks(c *check.C) {
 	restore := dbusutil.MockOnlySessionBusAvailable(conn)
 	defer restore()
 
-	sent, err := snaprun.TryNotifyRefreshViaSnapDesktopIntegrationFlow("SnapTest")
+	sent := snaprun.TryNotifyRefreshViaSnapDesktopIntegrationFlow(context.TODO(), "some-snap")
 	c.Assert(sent, check.Equals, true)
-	c.Assert(err, check.IsNil)
 }

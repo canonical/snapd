@@ -21,15 +21,23 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/install"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -86,8 +94,9 @@ func getAllSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 
 		rsp.Systems = append(rsp.Systems, client.System{
-			Current: ss.Current,
-			Label:   ss.Label,
+			Current:               ss.Current,
+			DefaultRecoverySystem: ss.DefaultRecoverySystem,
+			Label:                 ss.Label,
 			Model: client.SystemModelData{
 				Model:       ss.Model.Model(),
 				BrandID:     ss.Model.BrandID(),
@@ -138,6 +147,8 @@ func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEn
 var (
 	devicestateInstallFinish                 = devicestate.InstallFinish
 	devicestateInstallSetupStorageEncryption = devicestate.InstallSetupStorageEncryption
+	devicestateCreateRecoverySystem          = devicestate.CreateRecoverySystem
+	devicestateRemoveRecoverySystem          = devicestate.RemoveRecoverySystem
 )
 
 func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -179,9 +190,55 @@ type systemActionRequest struct {
 
 	client.SystemAction
 	client.InstallSystemOptions
+	client.CreateSystemOptions
 }
 
 func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Response {
+	contentType := r.Header.Get("Content-Type")
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		mediaType = "application/json"
+	}
+
+	switch mediaType {
+	case "application/json":
+		return postSystemsActionJSON(c, r)
+	case "multipart/form-data":
+		return postSystemsActionForm(c, r, params)
+	default:
+		return BadRequest("unexpected media type %q", mediaType)
+	}
+}
+
+func postSystemsActionForm(c *Command, r *http.Request, contentTypeParams map[string]string) (res Response) {
+	boundary := contentTypeParams["boundary"]
+	mpReader := multipart.NewReader(r.Body, boundary)
+	form, errRsp := readForm(mpReader)
+	if errRsp != nil {
+		return errRsp
+	}
+
+	action := form.Values["action"]
+	if len(action) != 1 {
+		return BadRequest("expected exactly one action in form")
+	}
+
+	defer func() {
+		// remove all files associated with the form if we're returning an error
+		if _, ok := res.(*apiError); ok {
+			form.RemoveAllExcept(nil)
+		}
+	}()
+
+	switch action[0] {
+	case "create":
+		return postSystemActionCreateOffline(c, form)
+	default:
+		return BadRequest("%s action is not supported for content type multipart/form-data", action[0])
+	}
+}
+
+func postSystemsActionJSON(c *Command, r *http.Request) Response {
 	var req systemActionRequest
 	systemLabel := muxVars(r)["label"]
 
@@ -199,6 +256,13 @@ func postSystemsAction(c *Command, r *http.Request, user *auth.UserState) Respon
 		return postSystemActionReboot(c, systemLabel, &req)
 	case "install":
 		return postSystemActionInstall(c, systemLabel, &req)
+	case "create":
+		if systemLabel != "" {
+			return BadRequest("label should not be provided in route when creating a system")
+		}
+		return postSystemActionCreate(c, &req)
+	case "remove":
+		return postSystemActionRemove(c, systemLabel)
 	default:
 		return BadRequest("unsupported action %q", req.Action)
 	}
@@ -270,4 +334,225 @@ func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRe
 	default:
 		return BadRequest("unsupported install step %q", req.Step)
 	}
+}
+
+func assertionsFromValidationSetStrings(validationSets []string) ([]*asserts.AtSequence, error) {
+	sets := make([]*asserts.AtSequence, 0, len(validationSets))
+	for _, vs := range validationSets {
+		account, name, seq, err := snapasserts.ParseValidationSet(vs)
+		if err != nil {
+			return nil, err
+		}
+
+		assertion := asserts.AtSequence{
+			Type:        asserts.ValidationSetType,
+			SequenceKey: []string{release.Series, account, name},
+			Pinned:      seq > 0,
+			Sequence:    seq,
+			Revision:    asserts.RevisionNotKnown,
+		}
+
+		sets = append(sets, &assertion)
+	}
+
+	return sets, nil
+}
+
+func readFormValue(form *Form, key string) (string, *apiError) {
+	values := form.Values[key]
+	if len(values) != 1 {
+		return "", BadRequest("expected exactly one %q value in form", key)
+	}
+	return values[0], nil
+}
+
+func readOptionalFormValue(form *Form, key string, defaultValue string) (string, *apiError) {
+	values := form.Values[key]
+	switch len(values) {
+	case 0:
+		return defaultValue, nil
+	case 1:
+		return values[0], nil
+	default:
+		return "", BadRequest("expected at most one %q value in form", key)
+	}
+}
+
+func readOptionalFormBoolean(form *Form, key string, defaultValue bool) (bool, *apiError) {
+	values := form.Values[key]
+	switch len(values) {
+	case 0:
+		return defaultValue, nil
+	case 1:
+		b, err := strconv.ParseBool(values[0])
+		if err != nil {
+			return false, BadRequest("cannot parse %q value as boolean: %s", key, values[0])
+		}
+		return b, nil
+	default:
+		return false, BadRequest("expected at most one %q value in form", key)
+	}
+}
+
+func postSystemActionCreateOffline(c *Command, form *Form) Response {
+	label, errRsp := readFormValue(form, "label")
+	if errRsp != nil {
+		return errRsp
+	}
+
+	testSystem, errRsp := readOptionalFormBoolean(form, "test-system", false)
+	if errRsp != nil {
+		return errRsp
+	}
+
+	markDefault, errRsp := readOptionalFormBoolean(form, "mark-default", false)
+	if errRsp != nil {
+		return errRsp
+	}
+
+	vsetsList, errRsp := readOptionalFormValue(form, "validation-sets", "")
+	if errRsp != nil {
+		return errRsp
+	}
+
+	var splitVSets []string
+	if vsetsList != "" {
+		splitVSets = strings.Split(vsetsList, ",")
+	}
+
+	// this could be multiple "validation-set" values, but that would make it so
+	// that the field names in the form and JSON APIs are different, since the
+	// JSON API uses "validation-sets" (plural). to keep the APIs consistent, we
+	// use a comma-delimeted list of validation sets strings.
+	sequences, err := assertionsFromValidationSetStrings(splitVSets)
+	if err != nil {
+		return BadRequest("cannot parse validation sets: %v", err)
+	}
+
+	var snapFiles []*uploadedSnap
+	if len(form.FileRefs["snap"]) > 0 {
+		snaps, errRsp := form.GetSnapFiles()
+		if errRsp != nil {
+			return errRsp
+		}
+
+		snapFiles = snaps
+	}
+
+	batch := asserts.NewBatch(nil)
+	for _, a := range form.Values["assertion"] {
+		if _, err := batch.AddStream(strings.NewReader(a)); err != nil {
+			return BadRequest("cannot decode assertion: %v", err)
+		}
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	if err := assertstate.AddBatch(st, batch, &asserts.CommitOptions{Precheck: true}); err != nil {
+		return BadRequest("error committing assertions: %v", err)
+	}
+
+	validationSets, err := assertstate.FetchValidationSets(st, sequences, assertstate.FetchValidationSetsOptions{
+		Offline: true,
+	}, nil)
+	if err != nil {
+		return BadRequest("cannot find validation sets in db: %v", err)
+	}
+
+	slInfo, apiErr := sideloadSnapsInfo(st, snapFiles, sideloadFlags{})
+	if apiErr != nil {
+		return apiErr
+	}
+
+	if len(slInfo.sideInfos) != len(slInfo.tmpPaths) {
+		return InternalError("mismatch between number of snap side infos and temporary paths")
+	}
+
+	localSnaps := make([]devicestate.LocalSnap, 0, len(slInfo.sideInfos))
+	for i := range slInfo.sideInfos {
+		localSnaps = append(localSnaps, devicestate.LocalSnap{
+			SideInfo: slInfo.sideInfos[i],
+			Path:     slInfo.tmpPaths[i],
+		})
+	}
+
+	chg, err := devicestateCreateRecoverySystem(st, label, devicestate.CreateRecoverySystemOptions{
+		ValidationSets: validationSets.Sets(),
+		LocalSnaps:     localSnaps,
+		TestSystem:     testSystem,
+		MarkDefault:    markDefault,
+		// using the form-based API implies that this should be an offline operation
+		Offline: true,
+	})
+	if err != nil {
+		return InternalError("cannot create recovery system %q: %v", label[0], err)
+	}
+
+	ensureStateSoon(st)
+
+	return AsyncResponse(nil, chg.ID())
+}
+
+func postSystemActionCreate(c *Command, req *systemActionRequest) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	if req.Label == "" {
+		return BadRequest("label must be provided in request body for action %q", req.Action)
+	}
+
+	sequences, err := assertionsFromValidationSetStrings(req.ValidationSets)
+	if err != nil {
+		return BadRequest("cannot parse validation sets: %v", err)
+	}
+
+	validationSets, err := assertstate.FetchValidationSets(c.d.state, sequences, assertstate.FetchValidationSetsOptions{
+		Offline: req.Offline,
+	}, nil)
+	if err != nil {
+		if errors.Is(err, &asserts.NotFoundError{}) {
+			return BadRequest("cannot fetch validation sets: %v", err)
+		}
+		return InternalError("cannot fetch validation sets: %v", err)
+	}
+
+	chg, err := devicestateCreateRecoverySystem(st, req.Label, devicestate.CreateRecoverySystemOptions{
+		ValidationSets: validationSets.Sets(),
+		TestSystem:     req.TestSystem,
+		MarkDefault:    req.MarkDefault,
+		Offline:        req.Offline,
+	})
+	if err != nil {
+		return InternalError("cannot create recovery system %q: %v", req.Label, err)
+	}
+
+	ensureStateSoon(st)
+
+	return AsyncResponse(nil, chg.ID())
+}
+
+func postSystemActionRemove(c *Command, systemLabel string) Response {
+	if systemLabel == "" {
+		return BadRequest("system action requires the system label to be provided")
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	chg, err := devicestateRemoveRecoverySystem(st, systemLabel)
+	if err != nil {
+		if errors.Is(err, devicestate.ErrNoRecoverySystem) {
+			return NotFound(err.Error())
+		}
+
+		return InternalError("cannot remove recovery system %q: %v", systemLabel, err)
+	}
+
+	ensureStateSoon(st)
+
+	return AsyncResponse(nil, chg.ID())
 }

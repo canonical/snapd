@@ -438,3 +438,23 @@ func (s *AllSuite) TestUnexpectedSpecSignatures(c *C) {
 		}
 	}
 }
+
+var appArmorUnconfinedPlugs = map[string]bool{
+	"lxd-support": true,
+}
+
+var appArmorUnconfinedSlots = map[string]bool{}
+
+func (s *AllSuite) TestAppArmorUnconfinedPlugs(c *C) {
+	all := builtin.Interfaces()
+	for _, iface := range all {
+		c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedPlugs, Equals, appArmorUnconfinedPlugs[iface.Name()])
+	}
+}
+
+func (s *AllSuite) TestAppArmorUnconfinedSlots(c *C) {
+	all := builtin.Interfaces()
+	for _, iface := range all {
+		c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedSlots, Equals, appArmorUnconfinedSlots[iface.Name()])
+	}
+}

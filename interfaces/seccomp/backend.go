@@ -48,7 +48,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/seccomp"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -237,16 +236,16 @@ func parallelCompile(compiler Compiler, profiles []string) error {
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
-	snapName := snapInfo.InstanceName()
+func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+	snapName := appSet.InstanceName()
 	// Get the snippets that apply to this snap
-	spec, err := repo.SnapSpecification(b.Name(), snapName)
+	spec, err := repo.SnapSpecification(b.Name(), appSet)
 	if err != nil {
 		return fmt.Errorf("cannot obtain seccomp specification for snap %q: %s", snapName, err)
 	}
 
 	// Get the snippets that apply to this snap
-	content, err := b.deriveContent(spec.(*Specification), opts, snapInfo)
+	content, err := b.deriveContent(spec.(*Specification), opts, appSet)
 	if err != nil {
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
@@ -297,7 +296,8 @@ func uidGidChownSnippet(name string) (string, error) {
 
 // deriveContent combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
-func (b *Backend) deriveContent(spec *Specification, opts interfaces.ConfinementOptions, snapInfo *snap.Info) (content map[string]osutil.FileState, err error) {
+func (b *Backend) deriveContent(spec *Specification, opts interfaces.ConfinementOptions, appSet *interfaces.SnapAppSet) (content map[string]osutil.FileState, err error) {
+	snapInfo := appSet.Info()
 	// Some base snaps and systems require the socketcall() in the default
 	// template
 	addSocketcall := requiresSocketcall(snapInfo.Base)
@@ -339,6 +339,8 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 			Mode:    0644,
 		}
 	}
+
+	// TODO: something with component hooks will need to happen here
 
 	return content, nil
 }
@@ -382,8 +384,8 @@ func generateContent(opts interfaces.ConfinementOptions, snippetForTag string, a
 }
 
 // NewSpecification returns an empty seccomp specification.
-func (b *Backend) NewSpecification() interfaces.Specification {
-	return &Specification{}
+func (b *Backend) NewSpecification(appSet *interfaces.SnapAppSet) interfaces.Specification {
+	return &Specification{appSet: appSet}
 }
 
 // SandboxFeatures returns the list of seccomp features supported by the kernel

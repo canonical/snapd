@@ -185,8 +185,9 @@ func (s *backendSuite) TestSecurityIsStable(c *C) {
 
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
+		appSet := interfaces.NewSnapAppSet(snapInfo)
 		s.modprobeCmd.ForgetCalls()
-		err := s.Backend.Setup(snapInfo, opts, s.Repo, s.meas)
+		err := s.Backend.Setup(appSet, opts, s.Repo, s.meas)
 		c.Assert(err, IsNil)
 		// modules conf is not re-loaded when nothing changes
 		c.Check(s.modprobeCmd.Calls(), HasLen, 0)

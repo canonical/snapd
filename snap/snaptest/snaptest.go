@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/pack"
 	"github.com/snapcore/snapd/snap/snapdir"
+	"github.com/snapcore/snapd/snap/squashfs"
 )
 
 func mockSnap(c *check.C, instanceName, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
@@ -205,19 +206,45 @@ func MakeTestSnapWithFiles(c *check.C, snapYamlContent string, files [][]string)
 	return path
 }
 
+// MakeTestComponentWithFiles builds a snap component container with a
+// given name and content for component.yaml, populating additionally
+// the squashfs with files if required.
+func MakeTestComponentWithFiles(c *check.C, componentName, componentYaml string, files [][]string) (snapFilePath string) {
+	compSource := populateContainer(c, "component.yaml", componentYaml, files)
+	err := osutil.ChDir(compSource, func() error {
+		d := squashfs.New(componentName)
+		err := d.Build(compSource, nil)
+		return err
+	})
+	c.Assert(err, check.IsNil)
+	return filepath.Join(compSource, componentName)
+}
+
+func MakeTestComponent(c *check.C, compYaml string) string {
+	compInfo, err := snap.InfoFromComponentYaml([]byte(compYaml))
+	c.Assert(err, check.IsNil)
+	return MakeTestComponentWithFiles(c, compInfo.FullName()+".comp", compYaml, nil)
+}
+
+func populateContainer(c *check.C, yamlFile, yamlContent string, files [][]string) string {
+	tmpdir := c.MkDir()
+	snapSource := filepath.Join(tmpdir, "snapsrc")
+	err := os.MkdirAll(filepath.Join(snapSource, "meta"), 0755)
+	c.Assert(err, check.IsNil)
+	snapYamlFn := filepath.Join(snapSource, "meta", yamlFile)
+	err = os.WriteFile(snapYamlFn, []byte(yamlContent), 0644)
+	c.Assert(err, check.IsNil)
+	PopulateDir(snapSource, files)
+	return snapSource
+}
+
 // MakeTestSnapInfoWithFiles makes a squashfs snap file with the given snap.yaml
 // content and optional extra files specified as pairs of relative file path and
 // it's contents, and returns the path to the snap file and a suitable snap.Info
 // for the snap
 func MakeTestSnapInfoWithFiles(c *check.C, snapYamlContent string, files [][]string, si *snap.SideInfo) (snapFilePath string, info *snap.Info) {
-	tmpdir := c.MkDir()
-	snapSource := filepath.Join(tmpdir, "snapsrc")
-	err := os.MkdirAll(filepath.Join(snapSource, "meta"), 0755)
-	c.Assert(err, check.IsNil)
-	snapYamlFn := filepath.Join(snapSource, "meta", "snap.yaml")
-	err = os.WriteFile(snapYamlFn, []byte(snapYamlContent), 0644)
-	c.Assert(err, check.IsNil)
-	PopulateDir(snapSource, files)
+	snapSource := populateContainer(c, "snap.yaml", snapYamlContent, files)
+
 	restoreSanitize := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	defer restoreSanitize()
 
@@ -229,12 +256,11 @@ func MakeTestSnapInfoWithFiles(c *check.C, snapYamlContent string, files [][]str
 	}
 	err = osutil.ChDir(snapSource, func() error {
 		var err error
-		snapFilePath, err = pack.Snap(snapSource, nil)
+		snapFilePath, err = pack.Pack(snapSource, nil)
 		return err
 	})
 	c.Assert(err, check.IsNil)
 	return filepath.Join(snapSource, snapFilePath), snapInfo
-
 }
 
 // MakeSnapFileAndDir makes a squashfs snap file and a directory under
@@ -247,7 +273,7 @@ func MakeSnapFileAndDir(c *check.C, snapYamlContent string, files [][]string, si
 	defer restoreSanitize()
 
 	err := osutil.ChDir(info.MountDir(), func() error {
-		snapName, err := pack.Snap(info.MountDir(), &pack.Options{
+		snapName, err := pack.Pack(info.MountDir(), &pack.Options{
 			SnapName: info.MountFile(),
 		})
 		c.Check(snapName, check.Equals, info.MountFile())

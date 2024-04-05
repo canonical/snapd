@@ -22,7 +22,6 @@ package store
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -148,7 +147,7 @@ func (cm *CacheManager) Put(cacheKey, sourcePath string) error {
 func (cm *CacheManager) count() int {
 	// TODO: Use something more effective than a list of all entries
 	//       here. This will waste a lot of memory on large dirs.
-	if l, err := ioutil.ReadDir(cm.cacheDir); err == nil {
+	if l, err := os.ReadDir(cm.cacheDir); err == nil {
 		return len(l)
 	}
 	return 0
@@ -161,10 +160,22 @@ func (cm *CacheManager) path(cacheKey string) string {
 
 // cleanup ensures that only maxItems are stored in the cache
 func (cm *CacheManager) cleanup() error {
-	fil, err := ioutil.ReadDir(cm.cacheDir)
+	entries, err := os.ReadDir(cm.cacheDir)
 	if err != nil {
 		return err
 	}
+
+	// we need the modtime so convert to FileInfo
+	fil := make([]os.FileInfo, 0, len(entries))
+	for _, entry := range entries {
+		fi, err := entry.Info()
+		if err != nil {
+			return err
+		}
+
+		fil = append(fil, fi)
+	}
+
 	if len(fil) <= cm.maxItems {
 		return nil
 	}

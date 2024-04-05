@@ -1,0 +1,10 @@
+summary: this is the summary
+
+details: details
+
+unsupported: not supported
+
+systems: [ ubuntu-20.04-64 ]
+
+execute: |
+    echo "execute"

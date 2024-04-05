@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -193,7 +192,7 @@ func (cmd *MockCmd) Restore() {
 //	    {"cmd", "arg1", "arg2"}, // second invocation of "cmd"
 //	}
 func (cmd *MockCmd) Calls() [][]string {
-	raw, err := ioutil.ReadFile(cmd.logFile)
+	raw, err := os.ReadFile(cmd.logFile)
 	if os.IsNotExist(err) {
 		return nil
 	}

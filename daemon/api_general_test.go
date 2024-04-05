@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -35,18 +35,24 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
+	"github.com/snapcore/snapd/systemd"
 )
 
 var _ = check.Suite(&generalSuite{})
 
 type generalSuite struct {
 	apiBaseSuite
+}
+
+func (s *generalSuite) expectChangesReadAccess() {
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}})
 }
 
 func (s *generalSuite) TestRoot(c *check.C) {
@@ -86,6 +92,8 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	tr := config.NewTransaction(st)
 	tr.Set("core", "refresh.schedule", "00:00-9:00/12:00-13:00")
 	tr.Set("core", "refresh.timer", "8:00~9:00/2")
+	tr.Set("core", "experimental.parallel-instances", "false")
+	tr.Set("core", "experimental.quota-groups", "true")
 	tr.Commit()
 	st.Unlock()
 
@@ -98,6 +106,9 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	// reload dirs for release info to have effect
 	dirs.SetRootDir(dirs.GlobalRootDir)
 	restore = daemon.MockSystemdVirt("magic")
+	defer restore()
+	// Set systemd version <230 so QuotaGroups feature unsupported
+	restore = systemd.MockSystemdVersion(229, nil)
 	defer restore()
 
 	buildID := "this-is-my-build-id"
@@ -141,7 +152,48 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	const kernelVersionKey = "kernel-version"
 	c.Check(rsp.Result.(map[string]interface{})[kernelVersionKey], check.Not(check.Equals), "")
 	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
+	// Extract "features" field and remove it from result; check it later.
+	const featuresKey = "features"
+	resultFeatures := rsp.Result.(map[string]interface{})[featuresKey]
+	c.Check(resultFeatures, check.Not(check.Equals), "")
+	delete(rsp.Result.(map[string]interface{}), featuresKey)
+
 	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	// Check that "features" is map
+	featuresAll, ok := resultFeatures.(map[string]interface{})
+	c.Assert(ok, check.Equals, true)
+	// Ensure that Layouts exists and is feature.FeatureInfo
+	layoutsInfoRaw, exists := featuresAll[features.Layouts.String()]
+	c.Assert(exists, check.Equals, true)
+	layoutsInfo, ok := layoutsInfoRaw.(map[string]interface{})
+	c.Assert(ok, check.Equals, true, check.Commentf("%+v", layoutsInfoRaw))
+	// Ensure that Layouts is supported and enabled
+	c.Check(layoutsInfo["supported"], check.Equals, true)
+	_, exists = layoutsInfo["unsupported-reason"]
+	c.Check(exists, check.Equals, false)
+	c.Check(layoutsInfo["enabled"], check.Equals, true)
+	// Ensure that ParallelInstances exists and is a feature.FeatureInfo
+	parallelInstancesInfoRaw, exists := featuresAll[features.ParallelInstances.String()]
+	c.Assert(exists, check.Equals, true)
+	parallelInstancesInfo, ok := parallelInstancesInfoRaw.(map[string]interface{})
+	c.Assert(ok, check.Equals, true)
+	// Ensure that ParallelInstances is supported and not enabled
+	c.Check(parallelInstancesInfo["supported"], check.Equals, true)
+	_, exists = parallelInstancesInfo["unsupported-reason"]
+	c.Check(exists, check.Equals, false)
+	c.Check(parallelInstancesInfo["enabled"], check.Equals, false)
+	// Ensure that QuotaGroups exists and is a feature.FeatureInfo
+	quotaGroupsInfoRaw, exists := featuresAll[features.QuotaGroups.String()]
+	c.Assert(exists, check.Equals, true)
+	quotaGroupsInfo, ok := quotaGroupsInfoRaw.(map[string]interface{})
+	c.Assert(ok, check.Equals, true)
+	// Ensure that QuotaGroups is unsupported but enabled
+	c.Check(quotaGroupsInfo["supported"], check.Equals, false)
+	unsupportedReason, exists := quotaGroupsInfo["unsupported-reason"]
+	c.Check(exists, check.Equals, true)
+	c.Check(unsupportedReason, check.Not(check.Equals), "")
+	c.Check(quotaGroupsInfo["enabled"], check.Equals, true)
 }
 
 func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
@@ -220,6 +272,8 @@ func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	const kernelVersionKey = "kernel-version"
 	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
+	const featuresKey = "features"
+	delete(rsp.Result.(map[string]interface{}), featuresKey)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
@@ -298,6 +352,8 @@ func (s *generalSuite) testSysInfoSystemMode(c *check.C, mode string) {
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	const kernelVersionKey = "kernel-version"
 	delete(rsp.Result.(map[string]interface{}), kernelVersionKey)
+	const featuresKey = "features"
+	delete(rsp.Result.(map[string]interface{}), featuresKey)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
@@ -367,6 +423,7 @@ func (s *generalSuite) TestStateChangesDefaultToInProgress(c *check.C) {
 	defer restore()
 
 	// Setup
+	s.expectChangesReadAccess()
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
@@ -395,6 +452,7 @@ func (s *generalSuite) TestStateChangesInProgress(c *check.C) {
 	defer restore()
 
 	// Setup
+	s.expectChangesReadAccess()
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
@@ -423,6 +481,7 @@ func (s *generalSuite) TestStateChangesAll(c *check.C) {
 	defer restore()
 
 	// Setup
+	s.expectChangesReadAccess()
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
@@ -452,6 +511,7 @@ func (s *generalSuite) TestStateChangesReady(c *check.C) {
 	defer restore()
 
 	// Setup
+	s.expectChangesReadAccess()
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
@@ -480,6 +540,7 @@ func (s *generalSuite) TestStateChangesForSnapName(c *check.C) {
 	defer restore()
 
 	// Setup
+	s.expectChangesReadAccess()
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
@@ -509,6 +570,7 @@ func (s *generalSuite) TestStateChangesForSnapNameWithApp(c *check.C) {
 	defer restore()
 
 	// Setup
+	s.expectChangesReadAccess()
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
@@ -544,6 +606,7 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 	defer restore()
 
 	// Setup
+	s.expectChangesReadAccess()
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
@@ -614,6 +677,7 @@ func (s *generalSuite) TestStateChangeAbort(c *check.C) {
 	defer restore()
 
 	// Setup
+	s.expectChangesReadAccess()
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
@@ -679,6 +743,7 @@ func (s *generalSuite) TestStateChangeAbortIsReady(c *check.C) {
 	defer restore()
 
 	// Setup
+	s.expectChangesReadAccess()
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()

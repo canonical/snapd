@@ -381,7 +381,7 @@ func (s *CustomDeviceInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *CustomDeviceInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
@@ -624,7 +624,7 @@ apps:
 
 	for i, testData := range data {
 		testLabel := Commentf("yaml: %s", testData.slotYaml)
-		spec := &udev.Specification{}
+		spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 		snapYaml := fmt.Sprintf(slotYamlTemplate, testData.slotYaml)
 		slot, _ := MockConnectedSlot(c, snapYaml, nil, "hwdev")
 		c.Assert(spec.AddConnectedPlug(s.iface, s.plug, slot), IsNil)

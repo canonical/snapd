@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -296,7 +296,7 @@ func (r *TaskRunner) run(t *Task) {
 			t.SetStatus(ErrorStatus)
 			t.Errorf("%s", err)
 			// ensure the error is available in the global log too
-			logger.Noticef("[change %s %q task] failed: %v", t.Change().ID(), t.Summary(), err)
+			logger.Noticef("Change %s task (%s) failed: %v", t.Change().ID(), t.Summary(), err)
 			if r.taskErrorCallback != nil {
 				r.taskErrorCallback(err)
 			}

@@ -20,11 +20,11 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -259,12 +259,12 @@ func (x *cmdRun) Execute(args []string) error {
 	return x.snapRunApp(snapApp, args)
 }
 
-func maybeWaitWhileInhibited(snapName string) error {
+func maybeWaitWhileInhibited(ctx context.Context, snapName string) error {
 	// If the snap is inhibited from being used then postpone running it until
 	// that condition passes. Inhibition UI can be dismissed by the user, in
 	// which case we don't run the application at all.
 	if features.RefreshAppAwareness.IsEnabled() {
-		return waitWhileInhibited(snapName)
+		return waitWhileInhibited(ctx, snapName)
 	}
 	return nil
 }
@@ -473,10 +473,20 @@ func (x *cmdRun) straceOpts() (opts []string, raw bool, err error) {
 
 	opts = make([]string, 0, len(split))
 	for _, opt := range split {
-		if opt == "--raw" {
+		switch {
+		case opt == "--raw":
 			raw = true
 			continue
+
+		case opt == "--output" || opt == "-o" ||
+			strings.HasPrefix(opt, "--output=") ||
+			strings.HasPrefix(opt, "-o="):
+			// the user may have redirected strace output to a file,
+			// in which case we cannot filter out
+			// strace-confine/strace-exec call chain
+			raw = true
 		}
+
 		opts = append(opts, opt)
 	}
 	return opts, raw, nil
@@ -499,7 +509,8 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 	}
 
 	if !app.IsService() {
-		if err := maybeWaitWhileInhibited(snapName); err != nil {
+		// TODO: use signal.NotifyContext as context when snap-run flow is finalized
+		if err := maybeWaitWhileInhibited(context.Background(), snapName); err != nil {
 			return err
 		}
 	}
@@ -882,7 +893,7 @@ func (x *cmdRun) runCmdUnderGdb(origCmd []string, envForExec envForExecFunc) err
 
 func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc) error {
 	// setup private tmp dir with strace fifo
-	straceTmp, err := ioutil.TempDir("", "exec-trace")
+	straceTmp, err := os.MkdirTemp("", "exec-trace")
 	if err != nil {
 		return err
 	}
@@ -948,23 +959,30 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 	// run with filter
 	cmd.Env = envForExec(nil)
 	cmd.Stdin = Stdin
-	cmd.Stdout = Stdout
+	if raw {
+		// no output filtering, we can pass the child's stdout/stderr
+		// directly
+		cmd.Stdout = Stdout
+		cmd.Stderr = Stderr
+
+		return cmd.Run()
+	}
+
+	// note hijacking stdout, means it is no longer a tty and programs
+	// expecting stdout to be on a terminal (eg. bash) may misbehave at this
+	// point
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return err
 	}
-	filterDone := make(chan bool, 1)
+	filterDone := make(chan struct{})
+	stdoutProxyDone := make(chan struct{})
 	go func() {
-		defer func() { filterDone <- true }()
-
-		if raw {
-			// Passing --strace='--raw' disables the filtering of
-			// early strace output. This is useful when tracking
-			// down issues with snap helpers such as snap-confine,
-			// snap-exec ...
-			io.Copy(Stderr, stderr)
-			return
-		}
+		defer close(filterDone)
 
 		r := bufio.NewReader(stderr)
 
@@ -1013,10 +1031,17 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 		}
 		io.Copy(Stderr, r)
 	}()
+
+	go func() {
+		defer close(stdoutProxyDone)
+		io.Copy(Stdout, stdout)
+	}()
+
 	if err := cmd.Start(); err != nil {
 		return err
 	}
 	<-filterDone
+	<-stdoutProxyDone
 	err = cmd.Wait()
 	return err
 }
@@ -1252,7 +1277,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 func getSnapDirOptions(snap string) (*dirs.SnapDirOptions, error) {
 	var opts dirs.SnapDirOptions
 
-	data, err := ioutil.ReadFile(filepath.Join(dirs.SnapSeqDir, snap+".json"))
+	data, err := os.ReadFile(filepath.Join(dirs.SnapSeqDir, snap+".json"))
 	if errors.Is(err, os.ErrNotExist) {
 		return &opts, nil
 	} else if err != nil {

@@ -1,0 +1,59 @@
+summary: Ensure the system properly handles installing many snaps with the --no-wait flag
+
+details: |
+    Install different snaps many times based on arch availability. In this
+    scenario all the snaps are installed in parallel and the test checks
+    the system can handel all the installs and ramains running.
+
+kill-timeout: 30m
+
+execute: |
+    if [ -z "$NUM_SNAPS" ]; then
+        NUM_SNAPS=20
+    fi
+
+    LETTERS="$(echo {a..z})"
+    INCLUDED=0
+    CHANNEL="stable"
+    SNAP_LIST=""
+
+    # shellcheck disable=SC2086
+    for letter in $LETTERS; do
+        if [ "$INCLUDED" = "$NUM_SNAPS" ]; then
+            echo "already $NUM_SNAPS ready to install, now check other features"
+            break
+        fi
+
+        snaps="$(snap find --narrow "$letter")"
+        SNAP_NAMES="$(echo "$snaps" | awk '{if($4~/-/){print $1}}' | tail -n+2)"
+        for SNAP in $SNAP_NAMES; do
+            # Get the info from latest/$CHANNEL
+            # shellcheck disable=SC2153
+            if ! CHANNEL_INFO="$(snap info --unicode=never "$SNAP" | grep " latest/$CHANNEL: ")"; then
+                echo "Snap $SNAP not found"
+                continue
+            fi
+            if echo "$CHANNEL_INFO" | MATCH "$CHANNEL:.*-$"; then
+                SNAP_LIST="$SNAP_LIST $SNAP"
+                INCLUDED=$(( INCLUDED + 1 ))
+            fi
+
+            if [ "$INCLUDED" = "$NUM_SNAPS" ]; then
+                echo "already $NUM_SNAPS included in the list"
+                break
+            fi
+        done
+    done
+
+    echo "Installing snaps: $SNAP_LIST"
+    # shellcheck disable=SC2086
+    for SNAP in $SNAP_LIST; do
+        snap install --no-wait "--$CHANNEL" "$SNAP"
+    done
+
+    while snap changes | MATCH " (Do |Doing ).*Install \".*\" snap"; do
+        sleep 1
+    done
+
+    test "$(snap changes | grep -cE ' Done.*Install \".*\" snap')" -ge "$NUM_SNAPS"
+    systemctl is-active snapd

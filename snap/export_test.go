@@ -19,16 +19,23 @@
 
 package snap
 
+import "os"
+
 var (
 	ValidateSocketName           = validateSocketName
-	ValidateDescription          = validateDescription
 	ValidateTitle                = validateTitle
 	InfoFromSnapYamlWithSideInfo = infoFromSnapYamlWithSideInfo
 	GetAttribute                 = getAttribute
+	EvalAndValidateSymlink       = evalAndValidateSymlink
+	ShouldValidateSymlink        = shouldValidateSymlink
 )
 
 func (info *Info) ForceRenamePlug(oldName, newName string) {
 	info.forceRenamePlug(oldName, newName)
+}
+
+func (symlinkInfo *symlinkInfo) Mode() os.FileMode {
+	return symlinkInfo.targetMode
 }
 
 func NewScopedTracker() *scopedTracker {

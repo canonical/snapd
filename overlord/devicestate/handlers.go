@@ -27,10 +27,13 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
@@ -71,6 +74,23 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 				logger.Debugf("unmounting snap %s at %s", info.InstanceName(), info.MountDir())
 				if _, err := exec.Command("umount", "-d", "-l", info.MountDir()).CombinedOutput(); err != nil {
 					return err
+				}
+				// Remove early mount for the kernel snap
+				if tp, _ := snapSt.Type(); tp == snap.TypeKernel {
+					earlyMntPt := kernel.EarlyKernelMountDir(info.RealName, info.Revision)
+					mounted, err := osutil.IsMounted(earlyMntPt)
+					if err != nil {
+						return fmt.Errorf("cannot check early kernel mount point: %w", err)
+					}
+					if mounted {
+						logger.Debugf("unmount early kernel mount at %s", earlyMntPt)
+						if _, err := exec.Command("umount", "-d", "-l",
+							earlyMntPt).CombinedOutput(); err != nil {
+							return err
+						}
+					} else {
+						logger.Debugf("early kernel not mounted")
+					}
 				}
 			}
 
@@ -181,6 +201,18 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 		if err := m.recordSeededSystem(st, whatSeeded); err != nil {
 			return fmt.Errorf("cannot record the seeded system: %v", err)
 		}
+
+		// since this is the most recently seeded system, it should also be the
+		// default recovery system. this is important when coming back from a
+		// factory-reset.
+		st.Set("default-recovery-system", DefaultRecoverySystem{
+			System:          whatSeeded.System,
+			Model:           whatSeeded.Model,
+			BrandID:         whatSeeded.BrandID,
+			Revision:        whatSeeded.Revision,
+			Timestamp:       whatSeeded.Timestamp,
+			TimeMadeDefault: now,
+		})
 	}
 	st.Set("seed-time", now)
 	st.Set("seeded", true)

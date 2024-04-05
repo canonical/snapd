@@ -37,8 +37,11 @@ var isHomeUsingNFS = func() (bool, error) {
 		return false, fmt.Errorf("cannot parse mountinfo: %s", err)
 	}
 	for _, entry := range mountinfo {
-		if (entry.FsType == "nfs4" || entry.FsType == "nfs" || entry.FsType == "autofs") && (strings.HasPrefix(entry.MountDir, "/home/") || entry.MountDir == "/home") {
-			return true, nil
+		switch entry.FsType {
+		case "nfs4", "nfs", "autofs", "cifs":
+			if strings.HasPrefix(entry.MountDir, "/home/") || entry.MountDir == "/home" {
+				return true, nil
+			}
 		}
 	}
 	fstab, err := LoadMountProfile(etcFstab)
@@ -46,8 +49,11 @@ var isHomeUsingNFS = func() (bool, error) {
 		return false, fmt.Errorf("cannot parse %s: %s", etcFstab, err)
 	}
 	for _, entry := range fstab.Entries {
-		if (entry.Type == "nfs4" || entry.Type == "nfs") && (strings.HasPrefix(entry.Dir, "/home/") || entry.Dir == "/home") {
-			return true, nil
+		switch entry.Type {
+		case "nfs4", "nfs", "autofs", "cifs":
+			if strings.HasPrefix(entry.Dir, "/home/") || entry.Dir == "/home" {
+				return true, nil
+			}
 		}
 	}
 	return false, nil

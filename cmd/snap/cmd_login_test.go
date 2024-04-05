@@ -21,7 +21,7 @@ package main_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	. "gopkg.in/check.v1"
@@ -37,7 +37,7 @@ func makeLoginTestServer(c *C, n *int) func(w http.ResponseWriter, r *http.Reque
 		case 0:
 			c.Check(r.URL.Path, Equals, "/v2/login")
 			c.Check(r.Method, Equals, "POST")
-			postData, err := ioutil.ReadAll(r.Body)
+			postData, err := io.ReadAll(r.Body)
 			c.Assert(err, IsNil)
 			c.Check(string(postData), Equals, `{"email":"foo@example.com","password":"some-password"}`+"\n")
 			fmt.Fprintln(w, mockLoginRsp)

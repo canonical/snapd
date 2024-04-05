@@ -272,7 +272,7 @@ func (iface *bluezInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 	if release.OnClassic {
 		new = "unconfined"
 	} else {
-		new = slotAppLabelExpr(slot)
+		new = spec.SnapAppSet().SlotLabelExpression(slot)
 	}
 	snippet := strings.Replace(bluezConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
@@ -282,7 +282,7 @@ func (iface *bluezInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 func (iface *bluezInterface) AppArmorConnectedSlot(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if !release.OnClassic {
 		old := "###PLUG_SECURITY_TAGS###"
-		new := plugAppLabelExpr(plug)
+		new := spec.SnapAppSet().PlugLabelExpression(plug)
 		snippet := strings.Replace(bluezConnectedSlotAppArmor, old, new, -1)
 		spec.AddSnippet(snippet)
 	}

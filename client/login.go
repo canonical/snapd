@@ -146,7 +146,7 @@ func writeAuthData(user User) error {
 
 // readAuthData reads previously written authentication details
 func readAuthData() (*User, error) {
-	_, uid, gid, err := realUidGid()
+	_, uid, _, err := realUidGid()
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +154,7 @@ func readAuthData() (*User, error) {
 	var user User
 	sourceFile := storeAuthDataFilename("")
 
-	if err := sys.RunAsUidGid(uid, gid, func() error {
+	if err := sys.RunAsUidGid(uid, sys.FlagID, func() error {
 		f, err := os.Open(sourceFile)
 		if err != nil {
 			return err
@@ -173,14 +173,14 @@ func readAuthData() (*User, error) {
 
 // removeAuthData removes any previously written authentication details.
 func removeAuthData() error {
-	_, uid, gid, err := realUidGid()
+	_, uid, _, err := realUidGid()
 	if err != nil {
 		return err
 	}
 
 	filename := storeAuthDataFilename("")
 
-	return sys.RunAsUidGid(uid, gid, func() error {
+	return sys.RunAsUidGid(uid, sys.FlagID, func() error {
 		return os.Remove(filename)
 	})
 }

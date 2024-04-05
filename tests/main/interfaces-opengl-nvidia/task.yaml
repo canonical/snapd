@@ -1,5 +1,11 @@
 summary: Ensure that basic opengl works with faked nvidia
 
+details: |
+    The opengl interface provides access to specific device nodes and libraries.
+    Some of the libraries are exposed from the classic host. There is
+    considerable complexity in providing access to nvidia user-space libraries.
+    Depending on the host operating system version the location of the
+    libraries differs.
 systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-2*]
 
 environment:
@@ -75,6 +81,11 @@ prepare: |
         echo "canary-32-legacy" >> /usr/lib32/nvidia-123/vdpau/libvdpau_nvidia.so."$NV_VERSION"
     fi
 
+    mkdir -p /usr/share/nvidia/
+    echo "nvoptix" > /usr/share/nvidia/nvoptix.bin
+    echo "rc" > /usr/share/nvidia/nvidia-application-profiles-535.54.03-rc
+    echo "documentation" > /usr/share/nvidia/nvidia-application-profiles-535.54.03-key-documentation
+
 restore: |
     umount /sys/module
     rm -rf /usr/share/vulkan
@@ -98,6 +109,7 @@ restore: |
     fi
     rm -rf /usr/lib/nvidia-123
     rm -rf /usr/lib32/nvidia-123
+    rm -rf /usr/share/nvidia
 
 execute: |
     "$TESTSTOOLS"/snaps-state install-local gl-core16
@@ -152,3 +164,8 @@ execute: |
             gl-core20 cat /var/lib/snapd/lib/gl32/libGLX_nvidia.so.0.0.1 | MATCH canary-32-triplet
         fi
     fi
+
+    echo "Can we access nvidia driver profiles in /usr/share/nvidia?"
+    gl-core16 cat /usr/share/nvidia/nvidia-application-profiles-535.54.03-rc | MATCH rc
+    gl-core16 cat /usr/share/nvidia/nvidia-application-profiles-535.54.03-key-documentation | MATCH documentation
+    gl-core16 cat /usr/share/nvidia/nvoptix.bin | MATCH nvoptix

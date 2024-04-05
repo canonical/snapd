@@ -61,6 +61,11 @@ func (e *ValidationSetsConflictError) Error() string {
 	return buf.String()
 }
 
+func (e *ValidationSetsConflictError) Is(err error) bool {
+	_, ok := err.(*ValidationSetsConflictError)
+	return ok
+}
+
 // ValidationSetsValidationError describes an error arising
 // from validation of snaps against ValidationSets.
 type ValidationSetsValidationError struct {
@@ -320,6 +325,47 @@ func NewValidationSets() *ValidationSets {
 
 func valSetKey(valset *asserts.ValidationSet) string {
 	return fmt.Sprintf("%s/%s", valset.AccountID(), valset.Name())
+}
+
+// Revisions returns the set of snap revisions that is enforced by the
+// validation sets that ValidationSets manages.
+func (v *ValidationSets) Revisions() (map[string]snap.Revision, error) {
+	if err := v.Conflict(); err != nil {
+		return nil, fmt.Errorf("cannot get revisions when validation sets are in conflict: %w", err)
+	}
+
+	snapNameToRevision := make(map[string]snap.Revision, len(v.snaps))
+	for _, sn := range v.snaps {
+		for revision := range sn.revisions {
+			switch revision {
+			case invalidPresRevision, unspecifiedRevision:
+				continue
+			default:
+				snapNameToRevision[sn.name] = revision
+			}
+		}
+	}
+	return snapNameToRevision, nil
+}
+
+// Keys returns a slice of ValidationSetKey structs that represent each
+// validation set that this ValidationSets knows about.
+func (v *ValidationSets) Keys() []ValidationSetKey {
+	keys := make([]ValidationSetKey, 0, len(v.sets))
+	for _, vs := range v.sets {
+		keys = append(keys, NewValidationSetKey(vs))
+	}
+	return keys
+}
+
+// Sets returns a slice of all of the validation sets that this ValidationSets
+// knows about.
+func (v *ValidationSets) Sets() []*asserts.ValidationSet {
+	sets := make([]*asserts.ValidationSet, 0, len(v.sets))
+	for _, vs := range v.sets {
+		sets = append(sets, vs)
+	}
+	return sets
 }
 
 // Add adds the given asserts.ValidationSet to the combination.
@@ -590,6 +636,34 @@ func (v *ValidationSets) CheckPresenceRequired(snapRef naming.SnapRef) ([]Valida
 
 	sort.Sort(ValidationSetKeySlice(keys))
 	return keys, snapRev, nil
+}
+
+// CanBePresent returns true if a snap can be present in a situation in which
+// these validation sets are being applied.
+func (v *ValidationSets) CanBePresent(snapRef naming.SnapRef) bool {
+	cstrs := v.constraintsForSnap(snapRef)
+	if cstrs == nil {
+		return true
+	}
+	return cstrs.presence != asserts.PresenceInvalid
+}
+
+// RequiredSnaps returns a list of the names of all of the snaps that are
+// required by any validation set known to this ValidationSets.
+func (v *ValidationSets) RequiredSnaps() []string {
+	var names []string
+	for _, sn := range v.snaps {
+		if sn.presence == asserts.PresenceRequired {
+			names = append(names, sn.name)
+		}
+	}
+	return names
+}
+
+// SnapConstrained returns true if the given snap is constrained by any of the
+// validation sets known to this ValidationSets.
+func (v *ValidationSets) SnapConstrained(snapRef naming.SnapRef) bool {
+	return v.constraintsForSnap(snapRef) != nil
 }
 
 // CheckPresenceInvalid returns the list of all validation sets that declare

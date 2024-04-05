@@ -21,7 +21,7 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"github.com/jessevdk/go-flags"
 
@@ -60,7 +60,7 @@ func init() {
 }
 
 func ackFile(cli *client.Client, assertFile string) error {
-	assertData, err := ioutil.ReadFile(assertFile)
+	assertData, err := os.ReadFile(assertFile)
 	if err != nil {
 		return err
 	}

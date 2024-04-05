@@ -452,7 +452,9 @@ func boundaryDirectionFromStatus(status state.Status) RestartBoundaryDirection {
 	}
 }
 
-func taskIsRestartBoundary(t *state.Task, dir RestartBoundaryDirection) bool {
+// TaskIsRestartBoundary returns true if the task is a restart-boundary for the
+// given direction.
+func TaskIsRestartBoundary(t *state.Task, dir RestartBoundaryDirection) bool {
 	var boundary RestartBoundaryDirection
 	if err := t.Get("restart-boundary", &boundary); err != nil {
 		return false
@@ -462,7 +464,7 @@ func taskIsRestartBoundary(t *state.Task, dir RestartBoundaryDirection) bool {
 
 func changeHasRestartBoundary(chg *state.Change, dir RestartBoundaryDirection) bool {
 	for _, t := range chg.Tasks() {
-		if taskIsRestartBoundary(t, dir) {
+		if TaskIsRestartBoundary(t, dir) {
 			return true
 		}
 	}
@@ -521,7 +523,7 @@ func FinishTaskWithRestart(t *state.Task, status state.Status, restartType Resta
 		// tasks *always* needing immediate restart if a change has no restart boundary.
 		setTaskToWait := true
 		if changeHasRestartBoundary(chg, boundaryDir) {
-			setTaskToWait = taskIsRestartBoundary(t, boundaryDir)
+			setTaskToWait = TaskIsRestartBoundary(t, boundaryDir)
 		}
 		markTaskForRestart(t, status, setTaskToWait)
 	default:
@@ -572,6 +574,13 @@ func processRestartForChange(chg *state.Change, old, new state.Status) {
 	if !isStatusThatCanNeedRestart(new) {
 		return
 	}
+
+	// XXX: What is missing here is to handle when snaps have requested reboots, but a part
+	// of the change undo's. A TODO here is to both confirm we are rebooting for the right
+	// direction, but also maybe ensure that a reboot-request is matching up with the snap
+	// that requested it's lane.
+	// XXX: Take into consideration a snaps lane
+	// XXX: Take into consideration the direction of a requested snap
 
 	var rp RestartParameters
 	if err := chg.Get("pending-system-restart", &rp); err != nil {

@@ -22,13 +22,14 @@ package seed_test
 import (
 	"crypto"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
-	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -3086,7 +3087,7 @@ func (s *seed20Suite) testLoadAutoImportAssertion(c *C, grade asserts.ModelGrade
 	sysLabel := "20191018"
 	seed20 := s.createMinimalSeed(c, string(grade), sysLabel)
 	c.Assert(seed20, NotNil)
-	c.Check(seed20.Model().Grade(), check.Equals, grade)
+	c.Check(seed20.Model().Grade(), Equals, grade)
 
 	// write test auto import assertion
 	switch sua {
@@ -3106,7 +3107,7 @@ func (s *seed20Suite) testLoadAutoImportAssertion(c *C, grade asserts.ModelGrade
 		c.Check(err, ErrorMatches, loadError.Error())
 	}
 	assertions, err := s.findAutoImportAssertion(seed20)
-	c.Check(err, check.ErrorMatches, "system-user assertion not found")
+	c.Check(err, ErrorMatches, "system-user assertion not found")
 	c.Assert(assertions, IsNil)
 }
 
@@ -3114,7 +3115,7 @@ func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousAutoImportAsserti
 	sysLabel := "20191018"
 	seed20 := s.createMinimalSeed(c, "dangerous", sysLabel)
 	c.Assert(seed20, NotNil)
-	c.Check(seed20.Model().Grade(), check.Equals, asserts.ModelDangerous)
+	c.Check(seed20.Model().Grade(), Equals, asserts.ModelDangerous)
 
 	seedtest.WriteValidAutoImportAssertion(c, s.Brands, s.SeedDir, sysLabel, 0644)
 
@@ -3126,12 +3127,12 @@ func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousAutoImportAsserti
 	assertions, err := s.findAutoImportAssertion(seed20)
 	c.Assert(err, IsNil)
 	// validate it's our assertion
-	c.Check(len(assertions), check.Equals, 1)
+	c.Check(len(assertions), Equals, 1)
 	systemUser := assertions[0].(*asserts.SystemUser)
-	c.Check(systemUser.Username(), check.Equals, "guy")
-	c.Check(systemUser.Email(), check.Equals, "foo@bar.com")
-	c.Check(systemUser.Name(), check.Equals, "Boring Guy")
-	c.Check(systemUser.AuthorityID(), check.Equals, "my-brand")
+	c.Check(systemUser.Username(), Equals, "guy")
+	c.Check(systemUser.Email(), Equals, "foo@bar.com")
+	c.Check(systemUser.Name(), Equals, "Boring Guy")
+	c.Check(systemUser.AuthorityID(), Equals, "my-brand")
 }
 
 func (s *seed20Suite) createMinimalSeed(c *C, grade string, sysLabel string) seed.Seed {
@@ -3506,4 +3507,211 @@ func (s *seed20Suite) TestPreseedCapableSeedAlternateAuthority(c *C) {
 	preseedAs2, err := preseedSeed.LoadPreseedAssertion()
 	c.Assert(err, IsNil)
 	c.Check(preseedAs2, DeepEquals, preseedAs)
+}
+
+func (s *seed20Suite) TestCopy(c *C) {
+	const label = "20240126"
+	s.testCopy(c, label)
+}
+
+func (s *seed20Suite) TestCopyEmptyLabel(c *C) {
+	const label = ""
+	s.testCopy(c, label)
+}
+
+func (s *seed20Suite) testCopy(c *C, destLabel string) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	requiredFn := s.makeLocalSnap(c, "required20")
+
+	const srcLabel = "20191030"
+	s.MakeSeed(c, srcLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "required20",
+				"id":   s.AssertedSnapID("required20"),
+			}},
+	}, []*seedwriter.OptionsSnap{
+		{Path: requiredFn},
+	})
+
+	seed20, err := seed.Open(s.SeedDir, srcLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	copier, ok := seed20.(seed.Copier)
+	c.Assert(ok, Equals, true)
+
+	destSeedDir := c.MkDir()
+
+	err = copier.Copy(destSeedDir, destLabel, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	checkDirContents(c, filepath.Join(destSeedDir, "snaps"), []string{
+		"core20_1.snap",
+		"pc_1.snap",
+		"pc-kernel_1.snap",
+		"snapd_1.snap",
+	})
+
+	copiedLabel := destLabel
+	if copiedLabel == "" {
+		copiedLabel = srcLabel
+	}
+
+	destSystemDir := filepath.Join(destSeedDir, "systems", copiedLabel)
+
+	checkDirContents(c, destSystemDir, []string{
+		"assertions",
+		"model",
+		"options.yaml",
+		"snaps",
+	})
+
+	checkDirContents(c, filepath.Join(destSystemDir, "assertions"), []string{
+		"model-etc",
+		"snaps",
+	})
+
+	checkDirContents(c, filepath.Join(destSystemDir, "snaps"), []string{
+		"required20_1.0.snap",
+	})
+
+	compareDirs(c, filepath.Join(s.SeedDir, "snaps"), filepath.Join(destSeedDir, "snaps"))
+	compareDirs(c, filepath.Join(s.SeedDir, "systems", srcLabel), destSystemDir)
+
+	err = copier.Copy(destSeedDir, copiedLabel, s.perfTimings)
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot create system: system %q already exists at %q`, copiedLabel, destSystemDir))
+}
+
+func (s *seed20Suite) TestCopyCleanup(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	requiredFn := s.makeLocalSnap(c, "required20")
+
+	const label = "20191030"
+	s.MakeSeed(c, label, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "required20",
+				"id":   s.AssertedSnapID("required20"),
+			}},
+	}, []*seedwriter.OptionsSnap{
+		{Path: requiredFn},
+	})
+
+	seed20, err := seed.Open(s.SeedDir, label)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(s.db, s.commitTo)
+	c.Assert(err, IsNil)
+
+	copier, ok := seed20.(seed.Copier)
+	c.Assert(ok, Equals, true)
+
+	removedSnap := filepath.Join(s.SeedDir, "snaps", "snapd_1.snap")
+
+	// remove a snap from the original seed to make the copy fail
+	err = os.Remove(removedSnap)
+	c.Assert(err, IsNil)
+
+	destSeedDir := c.MkDir()
+	err = copier.Copy(destSeedDir, label, s.perfTimings)
+	c.Check(err, ErrorMatches, fmt.Sprintf("cannot stat snap: stat %s: no such file or directory", removedSnap))
+
+	// seed destination should have been cleaned up
+	c.Check(filepath.Join(destSeedDir, "systems", label), testutil.FileAbsent)
+}
+
+func checkDirContents(c *C, dir string, expected []string) {
+	sort.Strings(expected)
+
+	entries, err := os.ReadDir(dir)
+	c.Assert(err, IsNil)
+
+	found := make([]string, 0, len(entries))
+	for _, e := range entries {
+		found = append(found, e.Name())
+	}
+
+	c.Check(found, DeepEquals, expected)
+}
+
+func compareDirs(c *C, expected, got string) {
+	expected, err := filepath.Abs(expected)
+	c.Assert(err, IsNil)
+
+	got, err = filepath.Abs(got)
+	c.Assert(err, IsNil)
+
+	expectedCount := 0
+	err = filepath.WalkDir(expected, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		expectedCount++
+
+		gotPath := filepath.Join(got, strings.TrimPrefix(path, expected))
+
+		if d.IsDir() {
+			c.Check(osutil.IsDirectory(gotPath), Equals, true)
+			return nil
+		}
+
+		c.Check(gotPath, testutil.FileEquals, testutil.FileContentRef(path))
+
+		return nil
+	})
+	c.Assert(err, IsNil)
+
+	gotCount := 0
+	err = filepath.WalkDir(got, func(_ string, _ fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		gotCount++
+		return nil
+	})
+	c.Assert(err, IsNil)
+
+	c.Check(gotCount, Equals, expectedCount)
 }

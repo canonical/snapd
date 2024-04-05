@@ -133,7 +133,7 @@ func (s *vitalitySuite) testConfigureVitalityWithValidSnap(c *C, uc18 bool) {
 	snaptest.MockSnap(c, mockSnapWithService, si)
 	s.state.Lock()
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		Active:   true,
 		SnapType: "app",
@@ -173,7 +173,7 @@ func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 	snaptest.MockSnap(c, mockSnapWithService, si)
 	s.state.Lock()
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		Active:   true,
 		SnapType: "app",
@@ -241,7 +241,7 @@ func (s *vitalitySuite) TestConfigureVitalityManySnaps(c *C) {
 		snaptest.MockSnap(c, mockSnapWithService, si)
 		s.state.Lock()
 		snapstate.Set(s.state, snapName, &snapstate.SnapState{
-			Sequence: []*snap.SideInfo{si},
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 			Current:  snap.R(1),
 			Active:   true,
 			SnapType: "app",
@@ -272,7 +272,7 @@ func (s *vitalitySuite) TestConfigureVitalityManySnapsDelta(c *C) {
 		snaptest.MockSnap(c, mockSnapWithService, si)
 		s.state.Lock()
 		snapstate.Set(s.state, snapName, &snapstate.SnapState{
-			Sequence: []*snap.SideInfo{si},
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 			Current:  snap.R(1),
 			Active:   true,
 			SnapType: "app",
@@ -307,7 +307,7 @@ func (s *vitalitySuite) TestConfigureVitalityManySnapsOneRemovedOneUnchanged(c *
 		snaptest.MockSnap(c, mockSnapWithService, si)
 		s.state.Lock()
 		snapstate.Set(s.state, snapName, &snapstate.SnapState{
-			Sequence: []*snap.SideInfo{si},
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 			Current:  snap.R(1),
 			Active:   true,
 			SnapType: "app",
@@ -365,7 +365,7 @@ func (s *vitalitySuite) TestConfigureVitalityNotActiveSnap(c *C) {
 	snaptest.MockSnap(c, mockSnapWithService, si)
 	s.state.Lock()
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		Active:   false,
 		SnapType: "app",

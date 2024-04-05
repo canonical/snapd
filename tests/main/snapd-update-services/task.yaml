@@ -1,5 +1,9 @@
 summary: systemd units get regenerated when snapd is refreshed
 
+details: |
+  Check that updating snapd does not remount already installed
+  snaps.
+
 systems:
   # there seems to be some kernel issue with duplicated mounts in
   # /proc/*/mounts on 14.04 so it makes it more difficult to test
@@ -71,9 +75,13 @@ execute: |
   systemctl is-active snap.test-snapd-service.test-snapd-service.service
   systemctl show -p TimeoutStopUSec snap.test-snapd-service.test-snapd-service.service | MATCH 'TimeoutStopUSec=30s'
 
-  # Check the mounts have been updated
+  # Check the mounts have been updated and that we have option "nodev"
+  # XXX Actually, check that the mounts *have not* been updated
+  # because we are not reloading the mount units for installed snaps anymore,
+  # as it is not clear we should change things for running processes.
+  # But leaving the test around in case we change our mind.
   for unit in "${mount_units[@]}"; do
     what="$(systemctl show -p What "${unit}")"
     what="${what#What=}"
-    findmnt -o OPTIONS -n "${what}" | MATCH nodev
+    findmnt -o OPTIONS -n "${what}" | NOMATCH nodev
   done

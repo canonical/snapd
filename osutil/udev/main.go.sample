@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
@@ -127,7 +126,7 @@ func getOptionnalMatcher() (matcher netlink.Matcher, err error) {
 		return nil, nil
 	}
 
-	stream, err := ioutil.ReadFile(*filePath)
+	stream, err := os.ReadFile(*filePath)
 	if err != nil {
 		return nil, err
 	}

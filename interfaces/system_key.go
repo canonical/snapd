@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -269,7 +268,7 @@ func SystemKeyMismatch() (bool, error) {
 }
 
 func readSystemKey() (*systemKey, error) {
-	raw, err := ioutil.ReadFile(dirs.SnapSystemKeyFile)
+	raw, err := os.ReadFile(dirs.SnapSystemKeyFile)
 	if err != nil && os.IsNotExist(err) {
 		return nil, ErrSystemKeyMissing
 	}

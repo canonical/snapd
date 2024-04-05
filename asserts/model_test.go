@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type modelSuite struct {
@@ -190,6 +191,77 @@ snaps:
     type: app
     presence: optional
     classic: true
+OTHERgrade: secured
+storage-safety: encrypted
+` + "TSLINE" +
+		"body-length: 0\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+
+	coreModelWithComponentsExample = `type: model
+authority-id: brand-id1
+series: 16
+brand-id: brand-id1
+model: baz-3000
+display-name: Baz 3000
+architecture: amd64
+system-user-authority: *
+base: core24
+store: brand-store
+snaps:
+  -
+    name: baz-linux
+    id: bazlinuxidididididididididididid
+    type: kernel
+    default-channel: 20
+  -
+    name: brand-gadget
+    id: brandgadgetdidididididididididid
+    type: gadget
+  -
+    name: other-base
+    id: otherbasedididididididididididid
+    type: base
+    presence: required
+  -
+    name: nm
+    id: nmididididididididididididididid
+    modes:
+      - ephemeral
+      - run
+    default-channel: 1.0
+    components:
+      comp1:
+        presence: optional
+        modes:
+          - ephemeral
+      comp2: required
+  -
+    name: myapp
+    id: myappdididididididididididididid
+    type: app
+    default-channel: 2.0
+    presence: optional
+    modes:
+      - ephemeral
+      - run
+    components:
+      comp1:
+        presence: optional
+        modes:
+          - ephemeral
+          - run
+      comp2: required
+  -
+    name: myappopt
+    id: myappoptidididididididididididid
+    type: app
+    presence: required
+    components:
+      comp1:
+        presence: optional
+      comp2: required
 OTHERgrade: secured
 storage-safety: encrypted
 ` + "TSLINE" +
@@ -1036,10 +1108,10 @@ func (mods *modelSuite) testWithSnapsDecodeInvalid(c *C, modelRaw string, isClas
 		{"OTHER", "  -\n    name: myapp2\n    id: myappdididididididididididididid\n", `cannot specify the same snap id "myappdididididididididididididid" multiple times, specified for snaps "myapp" and "myapp2"`},
 		{"OTHER", "  -\n    name: kernel2\n    id: kernel2didididididididididididid\n    type: kernel\n", `cannot specify multiple kernel snaps: "baz-linux" and "kernel2"`},
 		{"OTHER", "  -\n    name: gadget2\n    id: gadget2didididididididididididid\n    type: gadget\n", `cannot specify multiple gadget snaps: "brand-gadget" and "gadget2"`},
-		{"type: gadget\n", "type: gadget\n    presence: required\n", `essential snaps are always available, cannot specify modes or presence for snap "brand-gadget"`},
-		{"type: gadget\n", "type: gadget\n    modes:\n      - run\n", `essential snaps are always available, cannot specify modes or presence for snap "brand-gadget"`},
-		{"type: kernel\n", "type: kernel\n    presence: required\n", `essential snaps are always available, cannot specify modes or presence for snap "baz-linux"`},
-		{"OTHER", "  -\n    name: core20\n    id: core20ididididididididididididid\n    type: base\n    presence: optional\n", `essential snaps are always available, cannot specify modes or presence for snap "core20"`},
+		{"type: gadget\n", "type: gadget\n    presence: required\n", `essential snaps are always available, cannot specify presence for snap "brand-gadget"`},
+		{"type: gadget\n", "type: gadget\n    modes:\n      - run\n", `essential snaps are always available, cannot specify modes of snap "brand-gadget"`},
+		{"type: kernel\n", "type: kernel\n    presence: required\n", `essential snaps are always available, cannot specify presence for snap "baz-linux"`},
+		{"OTHER", "  -\n    name: core20\n    id: core20ididididididididididididid\n    type: base\n    presence: optional\n", `essential snaps are always available, cannot specify presence for snap "core20"`},
 		{"OTHER", "  -\n    name: core20\n    id: core20ididididididididididididid\n    type: app\n", `boot base "core20" must specify type "base", not "app"`},
 		{"OTHER", "kernel: foo\n", `cannot specify separate "kernel" header once using the extended snaps header`},
 		{"OTHER", "gadget: foo\n", `cannot specify separate "gadget" header once using the extended snaps header`},
@@ -1394,5 +1466,268 @@ func (mods *modelSuite) TestValidationSetsDecodeOK(c *C) {
 		c.Check(model.Classic(), Equals, false)
 		c.Check(model.Base(), Equals, "core20")
 		c.Check(model.ValidationSets(), DeepEquals, t.expected)
+	}
+}
+
+func (mods *modelSuite) TestModelValidationSetSequenceKey(c *C) {
+	mvs := &asserts.ModelValidationSet{
+		AccountID: "test",
+		Name:      "set",
+		Sequence:  1,
+		Mode:      asserts.ModelValidationSetModeEnforced,
+	}
+
+	c.Check(mvs.SequenceKey(), Equals, "16/test/set")
+}
+
+func (mods *modelSuite) TestAllSnaps(c *C) {
+	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", "", 1)
+
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.ModelType)
+
+	model := a.(*asserts.Model)
+
+	allSnaps := append([]*asserts.ModelSnap(nil), model.EssentialSnaps()...)
+
+	// make sure that we have essential snaps to compare to
+	c.Assert(len(allSnaps), testutil.IntGreaterThan, 0)
+
+	essentialLen := len(allSnaps)
+
+	allSnaps = append(allSnaps, model.SnapsWithoutEssential()...)
+
+	// same here, make sure that we have non-essential snaps to compare to
+	c.Assert(len(allSnaps), testutil.IntGreaterThan, essentialLen)
+
+	c.Check(model.AllSnaps(), DeepEquals, allSnaps)
+}
+
+func (mods *modelSuite) TestDecodeWithComponentsOK(c *C) {
+	encoded := strings.Replace(coreModelWithComponentsExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", "", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	c.Check(a.Type(), Equals, asserts.ModelType)
+	model := a.(*asserts.Model)
+	c.Check(model.AuthorityID(), Equals, "brand-id1")
+	c.Check(model.Timestamp(), Equals, mods.ts)
+	c.Check(model.Series(), Equals, "16")
+	c.Check(model.BrandID(), Equals, "brand-id1")
+	c.Check(model.Model(), Equals, "baz-3000")
+	c.Check(model.DisplayName(), Equals, "Baz 3000")
+	c.Check(model.Architecture(), Equals, "amd64")
+	c.Check(model.GadgetSnap(), DeepEquals, &asserts.ModelSnap{
+		Name:           "brand-gadget",
+		SnapID:         "brandgadgetdidididididididididid",
+		SnapType:       "gadget",
+		Modes:          []string{"run", "ephemeral"},
+		Presence:       "required",
+		DefaultChannel: "latest/stable",
+	})
+	c.Check(model.Gadget(), Equals, "brand-gadget")
+	c.Check(model.GadgetTrack(), Equals, "")
+	c.Check(model.KernelSnap(), DeepEquals, &asserts.ModelSnap{
+		Name:           "baz-linux",
+		SnapID:         "bazlinuxidididididididididididid",
+		SnapType:       "kernel",
+		Modes:          []string{"run", "ephemeral"},
+		Presence:       "required",
+		DefaultChannel: "20",
+	})
+	c.Check(model.Kernel(), Equals, "baz-linux")
+	c.Check(model.KernelTrack(), Equals, "")
+	c.Check(model.Base(), Equals, "core24")
+	c.Check(model.BaseSnap(), DeepEquals, &asserts.ModelSnap{
+		Name:           "core24",
+		SnapID:         "dwTAh7MZZ01zyriOZErqd1JynQLiOGvM",
+		SnapType:       "base",
+		Modes:          []string{"run", "ephemeral"},
+		Presence:       "required",
+		DefaultChannel: "latest/stable",
+	})
+	c.Check(model.Store(), Equals, "brand-store")
+	c.Check(model.Grade(), Equals, asserts.ModelSecured)
+	c.Check(model.StorageSafety(), Equals, asserts.StorageSafetyEncrypted)
+	essentialSnaps := model.EssentialSnaps()
+	c.Check(essentialSnaps, DeepEquals, []*asserts.ModelSnap{
+		model.KernelSnap(),
+		model.BaseSnap(),
+		model.GadgetSnap(),
+	})
+	snaps := model.SnapsWithoutEssential()
+	c.Check(snaps, DeepEquals, []*asserts.ModelSnap{
+		{
+			Name:           "other-base",
+			SnapID:         "otherbasedididididididididididid",
+			SnapType:       "base",
+			Modes:          []string{"run"},
+			DefaultChannel: "latest/stable",
+			Presence:       "required",
+		},
+		{
+			Name:           "nm",
+			SnapID:         "nmididididididididididididididid",
+			SnapType:       "app",
+			Modes:          []string{"ephemeral", "run"},
+			DefaultChannel: "1.0",
+			Presence:       "required",
+			Components: map[string]asserts.ModelComponent{
+				"comp1": {
+					Presence: "optional",
+					Modes:    []string{"ephemeral"},
+				},
+				"comp2": {
+					Presence: "required",
+					Modes:    []string{"ephemeral", "run"},
+				},
+			},
+		},
+		{
+			Name:           "myapp",
+			SnapID:         "myappdididididididididididididid",
+			SnapType:       "app",
+			Modes:          []string{"ephemeral", "run"},
+			DefaultChannel: "2.0",
+			Presence:       "optional",
+			Components: map[string]asserts.ModelComponent{
+				"comp1": {
+					Presence: "optional",
+					Modes:    []string{"ephemeral", "run"},
+				},
+				"comp2": {
+					Presence: "required",
+					Modes:    []string{"ephemeral", "run"},
+				},
+			},
+		},
+		{
+			Name:           "myappopt",
+			SnapID:         "myappoptidididididididididididid",
+			SnapType:       "app",
+			DefaultChannel: "latest/stable",
+			Presence:       "required",
+			Modes:          []string{"run"},
+			Components: map[string]asserts.ModelComponent{
+				"comp1": {
+					Presence: "optional",
+					Modes:    []string{"run"},
+				},
+				"comp2": {
+					Presence: "required",
+					Modes:    []string{"run"},
+				},
+			},
+		},
+	})
+
+	c.Check(model.SystemUserAuthority(), HasLen, 0)
+	c.Check(model.SerialAuthority(), DeepEquals, []string{"brand-id1"})
+	c.Check(model.PreseedAuthority(), DeepEquals, []string{"brand-id1"})
+}
+
+func (mods *modelSuite) TestDecodeWithComponentsBadPresence1(c *C) {
+	encoded := strings.Replace(coreModelWithComponentsExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", `  -
+    name: somesnap
+    id: somesnapidididididididididididid
+    type: app
+    presence: required
+    components:
+      comp1: badpresenceval
+`, 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err.Error(), Equals, `assertion model: presence of component "comp1" of snap "somesnap" must be one of required|optional`)
+	c.Assert(a, IsNil)
+}
+
+func (mods *modelSuite) TestDecodeWithComponentsBadPresence2(c *C) {
+	encoded := strings.Replace(coreModelWithComponentsExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", `  -
+    name: somesnap
+    id: somesnapidididididididididididid
+    type: app
+    presence: required
+    components:
+      comp1:
+        presence: badpresenceval
+`, 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err.Error(), Equals, `assertion model: presence of component "comp1" of snap "somesnap" must be one of required|optional`)
+	c.Assert(a, IsNil)
+}
+
+func (mods *modelSuite) TestDecodeWithComponentsBadMode(c *C) {
+	encoded := strings.Replace(coreModelWithComponentsExample, "TSLINE", mods.tsLine, 1)
+	encoded = strings.Replace(encoded, "OTHER", `  -
+    name: somesnap
+    id: somesnapidididididididididididid
+    type: app
+    presence: required
+    modes:
+      - run
+    components:
+      comp1:
+        presence: required
+        modes:
+          - ephemeral
+`, 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err.Error(), Equals, `assertion model: mode "ephemeral" of component "comp1" of snap "somesnap" is incompatible with the snap modes`)
+	c.Assert(a, IsNil)
+}
+
+func (mods *modelSuite) TestDecodeWithComponentsBadContent(c *C) {
+	for i, tc := range []struct {
+		compsEntry string
+		errMsg     string
+	}{
+		{`    components:
+      - comp1
+      - comp2
+`,
+			`assertion model: "components" of snap "somesnap" must be a map from strings to components`},
+		{`    components:
+      comp_1: required
+`,
+			`parsing assertion headers: invalid map entry key: "comp_1"`},
+		{`    components:
+      comp1:
+        presence: required
+        other: something
+`,
+			`assertion model: entry "other" of component "comp1" of snap "somesnap" is unknown`},
+		{`    components:
+      comp1:
+        modes:
+          - run
+`,
+			`assertion model: "presence" of component "comp1" of snap "somesnap" is mandatory`,
+		},
+		{`    components:
+      comp1:
+        presence: required
+        modes:
+          - foomode
+`,
+			`assertion model: mode "foomode" of component "comp1" of snap "somesnap" is incompatible with the snap modes`,
+		},
+	} {
+		c.Logf("test %d: %q", i, tc.compsEntry)
+		encoded := strings.Replace(coreModelWithComponentsExample, "TSLINE", mods.tsLine, 1)
+		encoded = strings.Replace(encoded, "OTHER", `  -
+    name: somesnap
+    id: somesnapidididididididididididid
+    type: app
+    presence: required
+    modes:
+      - run
+`+tc.compsEntry, 1)
+		a, err := asserts.Decode([]byte(encoded))
+		c.Assert(err.Error(), Equals, tc.errMsg)
+		c.Assert(a, IsNil)
 	}
 }

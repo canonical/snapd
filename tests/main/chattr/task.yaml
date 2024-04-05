@@ -1,5 +1,10 @@
 summary: test chattr
 
+details: |
+  Verify that through github.com/snapcore/snapd/osutil it is possible
+  to change file attributes. For that a toggle binary is compiled and
+  used to change the immutability attributes of a file.
+
 # ubuntu-core doesn't have go :-)
 # ppc64el disabled because of https://github.com/snapcore/snapd/issues/2503
 systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]

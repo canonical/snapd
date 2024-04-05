@@ -5,6 +5,7 @@ show_help() {
     echo "       install-local <snap-name> [OPTIONS]"
     echo "       install-local-as <snap-name> <dest-name> [OPTIONS]"
     echo "       show-name <snap>"
+    echo "       show-revision <snap>"
     echo "       is-confinement-supported <classic|devmode|strict>"
     echo "       repack-snapd-deb-into-snap <snapd|core>"
     echo "       repack-core-snap-into-snapd-snap"
@@ -99,6 +100,15 @@ show_name() {
     esac
 }
 
+show_revision() {
+    local snap="$1"
+    if not snap list "$snap" &>/dev/null; then
+        echo "snaps-state: the snap $snap is not installed" >&2
+        exit 1
+    fi
+    snap info "$snap" | awk "/installed: / {print(\$3)}" | sed -e 's/(\(.*\))/\1/'
+}
+
 is_confinement_supported() {
     local confinement="$1"
     if [ -z "$confinement" ]; then
@@ -145,6 +155,9 @@ repack_snapd_deb_into_snap() {
 
             # extract all the files from the snapd deb
             dpkg-deb -x "$deb_file" ./snapd-unpacked
+            # copy preseed config, like we do in snapcraft.yaml for the snap
+            # build
+            cp -av "$PROJECT_PATH/data/preseed.json" ./snapd-unpacked/usr/lib/snapd/
 
             # repack into the target dir specified
             snap pack --filename=snapd-from-deb.snap  snapd-unpacked "$target_dir"

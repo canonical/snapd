@@ -59,6 +59,7 @@ var piConfigKeys = map[string]bool{
 	"gpu_mem_512":              true,
 	"gpu_mem":                  true,
 	"sdtv_aspect":              true,
+	"sdtv_mode":                true,
 	"config_hdmi_boost":        true,
 	"hdmi_force_hotplug":       true,
 	"start_x":                  true,

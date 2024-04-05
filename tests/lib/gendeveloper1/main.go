@@ -77,7 +77,17 @@ func main() {
 		assertType = asserts.Type(assertTypeStr)
 	}
 
-	clModel, err := devSigning.Sign(assertType, headers, nil, "")
+	var body []byte
+	if bodyHeader, ok := headers["body"]; ok {
+		bodyStr, ok := bodyHeader.(string)
+		if !ok {
+			log.Fatalf("failed to decode body: expected string but got %T", bodyHeader)
+		}
+		body = []byte(bodyStr)
+		delete(headers, "body")
+	}
+
+	clModel, err := devSigning.Sign(assertType, headers, body, "")
 	if err != nil {
 		log.Fatalf("failed to sign the model: %v", err)
 	}

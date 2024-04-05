@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,7 +65,10 @@ var (
 	sysFchdir     = syscall.Fchdir
 	sysLstat      = syscall.Lstat
 
-	ioutilReadDir = ioutil.ReadDir
+	sysGetuid = sys.Getuid
+	sysGetgid = sys.Getgid
+
+	osReadDir = os.ReadDir
 )
 
 // ReadOnlyFsError is an error encapsulating encountered EROFS.
@@ -108,7 +110,7 @@ func OpenPath(path string) (int, error) {
 		if !strings.HasSuffix(iter.CurrentName(), "/") {
 			openFlags &^= syscall.O_DIRECTORY
 		}
-		fd, err = sysOpenat(fd, iter.CurrentCleanName(), openFlags, 0)
+		fd, err = sysOpenat(fd, iter.CurrentNameNoSlash(), openFlags, 0)
 		if err != nil {
 			return -1, err
 		}
@@ -173,7 +175,7 @@ func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs
 		// Keep closing the previous descriptor as we go, so that we have the
 		// last one handy from the MkDir below.
 		defer sysClose(fd)
-		fd, err = MkDir(fd, iter.CurrentBase(), iter.CurrentCleanName(), perm, uid, gid, rs)
+		fd, err = MkDir(fd, iter.CurrentBaseNoSlash(), iter.CurrentNameNoSlash(), perm, uid, gid, rs)
 		if err != nil {
 			return -1, err
 		}
@@ -336,6 +338,119 @@ func MkSymlink(dirFd int, dirName string, name string, oldname string, rs *Restr
 		}
 	}
 
+	return nil
+}
+
+// MkdirAllWithin is the secure variant of os.MkdirAll that creates all the missing directories of the given path within the
+// given existing parent directory.
+//
+// Unlike os.MkdirAll this implementation does not follow any symbolic
+// links. At all times the new directory segment is created using mkdirat(2)
+// while holding an open file descriptor to the parent directory.
+//
+// The only handled error is mkdirat(2) that fails with EEXIST. All other
+// errors are fatal but there is no attempt to undo anything that was created.
+//
+// The uid and gid are used for the fchown(2) system call which is performed
+// after each segment is created and opened. The special value -1 may be used
+// to request that ownership is not changed.
+func MkdirAllWithin(path, parent string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs *Restrictions) error {
+	path = filepath.Clean(path)
+	parent = filepath.Clean(parent)
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("cannot use relative path %q", path)
+	}
+	if !filepath.IsAbs(parent) {
+		return fmt.Errorf("cannot use relative parent path %q", parent)
+	}
+	isParent := func(path, parent string) bool {
+		if path == parent {
+			return false
+		}
+		if parent == "/" {
+			return true
+		}
+		return strings.HasPrefix(path, parent+string(filepath.Separator))
+	}
+	if !isParent(path, parent) {
+		return fmt.Errorf("path %q is not a parent of %q", parent, path)
+	}
+
+	// Check if we need to do anything
+	fi, err := osLstat(path)
+	if err == nil {
+		if !fi.Mode().IsDir() {
+			return fmt.Errorf("cannot create directory %q: existing file in the way", path)
+		}
+		return nil
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("cannot inspect path %q: %v", path, err)
+	}
+
+	// Check that the parent path exists
+	fi, err = osLstat(parent)
+	if err == nil {
+		if !fi.Mode().IsDir() {
+			return fmt.Errorf("cannot use parent path %q: not a directory", parent)
+		}
+	} else if os.IsNotExist(err) {
+		return fmt.Errorf("parent directory %q does not exist", parent)
+	} else {
+		return fmt.Errorf("cannot inspect parent path %q: %v", parent, err)
+	}
+
+	iter, err := strutil.NewPathIterator(path)
+	if err != nil {
+		return fmt.Errorf("cannot iterate over path %q: %v", path, err)
+	}
+	// Advance the iterator to the parent. Finding the parent is
+	// guaranteed by the earlier check isParent.
+	for iter.Next() {
+		if iter.CurrentPathNoSlash() == parent {
+			break
+		}
+	}
+	// Advance the iterator to the first missing directory
+	for iter.Next() {
+		if iter.CurrentPathNoSlash() == path {
+			// Already confirmed path does not exist
+			break
+		}
+		fi, err = osLstat(iter.CurrentPathNoSlash())
+		if err == nil {
+			if !fi.Mode().IsDir() {
+				return fmt.Errorf("cannot create directory %q: existing file in the way", iter.CurrentPathNoSlash())
+			}
+			continue
+		}
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("cannot inspect path %q: %v", iter.CurrentPathNoSlash(), err)
+		}
+		break
+	}
+
+	// Create the first missing directory. From this point onward all file descriptors are kept open
+	// until all missing directories have been created or failure, and then closed in reverse order.
+	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
+	fd, err := sysOpen(iter.CurrentBaseNoSlash(), openFlags, 0)
+	if err != nil {
+		return fmt.Errorf("cannot open directory %q: %v", iter.CurrentBaseNoSlash(), err)
+	}
+	defer sysClose(fd)
+	fd, err = MkDir(fd, iter.CurrentBaseNoSlash(), iter.CurrentNameNoSlash(), perm, uid, gid, rs)
+	if err != nil {
+		return err
+	}
+	defer sysClose(fd)
+
+	// Create the remaining missing directories
+	for iter.Next() {
+		fd, err = MkDir(fd, iter.CurrentBaseNoSlash(), iter.CurrentNameNoSlash(), perm, uid, gid, rs)
+		if err != nil {
+			return err
+		}
+		defer sysClose(fd)
+	}
 	return nil
 }
 
@@ -518,7 +633,7 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 		},
 	})
 	// Iterate over the items in the original directory (nothing is mounted _yet_).
-	entries, err := ioutilReadDir(dir)
+	entries, err := osReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -530,7 +645,7 @@ func planWritableMimic(dir, neededBy string) ([]*Change, error) {
 		// Bind mount each element from the safe-keeping directory into the
 		// tmpfs. Our Change.Perform() engine can create the missing
 		// directories automatically so we don't bother creating those.
-		m := fi.Mode()
+		m := fi.Type()
 		switch {
 		case m.IsDir():
 			ch.Entry.Options = []string{"rbind"}

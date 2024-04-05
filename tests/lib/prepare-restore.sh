@@ -86,9 +86,13 @@ build_deb(){
 build_rpm() {
     distro=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[1]}')
     release=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[2]}')
-    if os.query is-amazon-linux; then
+    if os.query is-amazon-linux 2; then
         distro=amzn
         release=2
+    fi
+    if os.query is-amazon-linux 2023; then
+        distro=amzn
+        release=2023
     fi
     arch=x86_64
     base_version="$(head -1 debian/changelog | awk -F '[()]' '{print $2}')"
@@ -97,11 +101,11 @@ build_rpm() {
     rpm_dir=$(rpm --eval "%_topdir")
     pack_args=
     case "$SPREAD_SYSTEM" in
-        fedora-*|amazon-*|centos-*)
-            ;;
         opensuse-*)
             # use bundled snapd*.vendor.tar.xz archive
             pack_args=-s
+            ;;
+        fedora-*|amazon-*|centos-*)
             ;;
         *)
             echo "ERROR: RPM build for system $SPREAD_SYSTEM is not yet supported"
@@ -279,7 +283,15 @@ prepare_project() {
 
     # declare the "quiet" wrapper
 
-    if [ "$SPREAD_BACKEND" = external ]; then
+    if [ "$SPREAD_BACKEND" = "external" ]; then
+        chown test.test -R "$PROJECT_PATH"
+        exit 0
+    fi
+
+    if [ "$SPREAD_BACKEND" = "testflinger" ]; then
+        adduser --uid 12345 --extrausers --quiet --disabled-password --gecos '' test
+        echo test:ubuntu | sudo chpasswd
+        echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test
         chown test.test -R "$PROJECT_PATH"
         exit 0
     fi
@@ -307,6 +319,9 @@ prepare_project() {
     create_test_user
 
     distro_update_package_db
+    # XXX this should be part of the image update in spread-images
+    # remove any packages that are marked for auto removal before running any tests
+    distro_auto_remove_packages
 
     if os.query is-arch-linux; then
         # perform system upgrade on Arch so that we run with most recent kernel
@@ -535,7 +550,7 @@ prepare_project() {
 
     # Retry go mod vendor to minimize the number of connection errors during the sync
     for _ in $(seq 10); do
-        if quiet go mod vendor; then
+        if go mod vendor; then
             break
         fi
         sleep 1

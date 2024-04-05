@@ -241,7 +241,7 @@ const (
 	pkgName = "chatroom"
 )
 
-func (cs *clientSuite) TestClientSnap(c *check.C) {
+func (cs *clientSuite) testClientSnap(c *check.C, refreshInhibited bool) {
 	// example data obtained via
 	// printf "GET /v2/find?name=test-snapd-tools HTTP/1.0\r\n\r\n" | nc -U -q 1 /run/snapd.socket|grep '{'|python3 -m json.tool
 	// XXX: update / sync with what daemon is actually putting out
@@ -288,8 +288,16 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
                             "website": ["http://example.com/funky"]
                         },
                         "website": "http://example.com/funky",
-                        "common-ids": ["org.funky.snap"],
-                        "store-url": "https://snapcraft.io/chatroom"
+                        "common-ids": ["org.funky.snap"],`
+	if refreshInhibited {
+		cs.rsp += `
+                        "store-url": "https://snapcraft.io/chatroom",
+                        "refresh-inhibit": { "proceed-time": "2024-02-09T15:04:05Z" }`
+	} else {
+		cs.rsp += `
+                        "store-url": "https://snapcraft.io/chatroom"`
+	}
+	cs.rsp += `
 		}
 	}`
 	pkg, _, err := cs.cli.Snap(pkgName)
@@ -300,6 +308,12 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 	c.Assert(pkg.InstallDate.Equal(time.Date(2016, 1, 2, 15, 4, 5, 0, time.UTC)), check.Equals, true)
 	pkg.InstallDate = nil
 
+	var expectedSnapRefreshInhibit *client.SnapRefreshInhibit
+	if refreshInhibited {
+		expectedSnapRefreshInhibit = &client.SnapRefreshInhibit{
+			ProceedTime: time.Date(2024, 2, 9, 15, 4, 5, 0, time.UTC),
+		}
+	}
 	c.Assert(pkg, check.DeepEquals, &client.Snap{
 		ID:            "funky-snap-id",
 		Summary:       "bla bla",
@@ -339,9 +353,20 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		Links: map[string][]string{
 			"website": {"http://example.com/funky"},
 		},
-		Website:  "http://example.com/funky",
-		StoreURL: "https://snapcraft.io/chatroom",
+		Website:        "http://example.com/funky",
+		StoreURL:       "https://snapcraft.io/chatroom",
+		RefreshInhibit: expectedSnapRefreshInhibit,
 	})
+}
+
+func (cs *clientSuite) TestClientSnap(c *check.C) {
+	const refreshInhibited = false
+	cs.testClientSnap(c, refreshInhibited)
+}
+
+func (cs *clientSuite) TestClientSnapRefreshInhibited(c *check.C) {
+	const refreshInhibited = true
+	cs.testClientSnap(c, refreshInhibited)
 }
 
 func (cs *clientSuite) TestAppInfoNoServiceNoDaemon(c *check.C) {

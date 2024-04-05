@@ -22,7 +22,7 @@ package daemon
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -610,7 +611,7 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 	si := &snap.SideInfo{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"}
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 	})
 	st.Unlock()
@@ -749,7 +750,7 @@ func (s *daemonSuite) TestGracefulStop(c *check.C) {
 	si := &snap.SideInfo{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"}
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 	})
 	st.Unlock()
@@ -800,7 +801,7 @@ version: 1`, si)
 		res, err := http.Get(fmt.Sprintf("http://%s/endp", snapdL.Addr()))
 		c.Assert(err, check.IsNil)
 		c.Check(res.StatusCode, check.Equals, 200)
-		body, err := ioutil.ReadAll(res.Body)
+		body, err := io.ReadAll(res.Body)
 		res.Body.Close()
 		c.Assert(err, check.IsNil)
 		c.Check(string(body), check.Equals, "OKOK")
@@ -1043,7 +1044,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 
 	// finally check that maintenance.json was written appropriate for this
 	// restart reason
-	b, err := ioutil.ReadFile(dirs.SnapdMaintenanceFile)
+	b, err := os.ReadFile(dirs.SnapdMaintenanceFile)
 	c.Assert(err, check.IsNil)
 
 	maintErr := &errorResult{}

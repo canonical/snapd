@@ -39,7 +39,7 @@ typedef struct sc_invocation {
     char *base_snap_name;
     char *rootfs_dir;
     char **homedirs;
-    int  num_homedirs;
+    int num_homedirs;
     bool is_normal_mode;
 } sc_invocation;
 

@@ -309,7 +309,7 @@ func forgetValidationSet(st *state.State, accountID, name string, sequence int) 
 	if err != nil {
 		return InternalError("accessing validation sets failed: %v", err)
 	}
-	if err := assertstate.ForgetValidationSet(st, accountID, name); err != nil {
+	if err := assertstate.ForgetValidationSet(st, accountID, name, assertstate.ForgetValidationSetOpts{}); err != nil {
 		return BadRequest("cannot forget validation set %v: %v", assertstate.ValidationSetKey(accountID, name), err)
 	}
 	return SyncResponse(nil)

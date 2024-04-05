@@ -3,9 +3,9 @@ Section: devel
 Priority: optional
 Maintainer: Michael Hudson-Doyle <mwhudson@debian.org>
 Uploaders: Steve Langasek <vorlon@debian.org>,
-	Zygmunt Krynicki <me@zygoon.pl>,
-	Luke Faraone <lfaraone@debian.org>,
-        Michael Vogt <mvo@debian.org>
+           Zygmunt Krynicki <me@zygoon.pl>,
+           Luke Faraone <lfaraone@debian.org>,
+           Michael Vogt <mvo@debian.org>
 Build-Depends: autoconf,
                autoconf-archive,
                automake,
@@ -20,31 +20,30 @@ Build-Depends: autoconf,
                fakeroot,
                gcc-multilib [amd64],
                gettext,
-               grub-common,
                gnupg2,
-               golang-gopkg-check.v1-dev,
                golang-dbus-dev,
-               golang-github-boltdb-bolt-dev,
                golang-github-coreos-go-systemd-dev,
-               golang-github-juju-ratelimit-dev,
                golang-github-gorilla-mux-dev,
+               golang-github-jessevdk-go-flags-dev,
+               golang-github-juju-ratelimit-dev,
                golang-github-kr-pretty-dev,
                golang-github-mvo5-goconfigparser-dev,
                golang-github-seccomp-libseccomp-golang-dev,
-               golang-github-jessevdk-go-flags-dev,
+               golang-go (>=2:1.18),
                golang-golang-x-crypto-dev,
                golang-golang-x-xerrors-dev,
-               golang-gopkg-tomb.v2-dev (>= 0.0~git20161208.0.d5d1b58),
-               golang-gopkg-yaml.v2-dev,
+               golang-gopkg-check.v1-dev,
                golang-gopkg-macaroon.v1-dev,
                golang-gopkg-mgo.v2-dev,
                golang-gopkg-retry.v1-dev,
+               golang-gopkg-tomb.v2-dev (>= 0.0~git20161208.0.d5d1b58),
                golang-gopkg-tylerb-graceful.v1-dev,
+               golang-gopkg-yaml.v2-dev,
                golang-gopkg-yaml.v3-dev,
-               golang-go (>=2:1.18),
+               grub-common,
                indent,
-               libcap-dev,
                libapparmor-dev,
+               libcap-dev,
                libglib2.0-dev,
                liblzo2-dev,
                libseccomp-dev,
@@ -79,16 +78,25 @@ Architecture: any
 Depends: adduser,
          apparmor (>= 2.10.95-5),
          ca-certificates,
+         default-dbus-session-bus | dbus-session-bus,
          gnupg1 | gnupg,
          openssh-client,
          squashfs-tools,
          systemd,
          udev,
          ${misc:Depends},
-         ${shlibs:Depends},
-         default-dbus-session-bus | dbus-session-bus
-Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22), snapd-xdg-open (<= 0.0.0)
-Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9), snap-confine (<< 2.23), ubuntu-core-launcher (<< 2.22), snapd-xdg-open (<= 0.0.0), ${snapd:Breaks}
+         ${shlibs:Depends}
+Replaces: snap-confine (<< 2.23),
+          snapd-xdg-open (<= 0.0.0),
+          ubuntu-core-launcher (<< 2.22),
+          ubuntu-snappy (<< 1.9),
+          ubuntu-snappy-cli (<< 1.9)
+Breaks: snap-confine (<< 2.23),
+        snapd-xdg-open (<= 0.0.0),
+        ubuntu-core-launcher (<< 2.22),
+        ubuntu-snappy (<< 1.9),
+        ubuntu-snappy-cli (<< 1.9),
+        ${snapd:Breaks}
 Recommends: gnupg
 Suggests: zenity | kdialog
 Conflicts: snap (<< 2013-11-29-1ubuntu1)
@@ -115,4 +123,3 @@ Section: oldlibs
 Pre-Depends: dpkg (>= 1.15.7.2)
 Description: Transitional package for snapd
  This is a transitional dummy package. It can safely be removed.
-

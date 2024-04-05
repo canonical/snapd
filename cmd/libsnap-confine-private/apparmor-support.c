@@ -92,7 +92,8 @@ void sc_init_apparmor_support(struct sc_apparmor *apparmor)
 	// expect to be confined by a profile with the name of a valid
 	// snap-confine binary since if not we may be executed under a
 	// profile with more permissions than expected
-	if (label != NULL && sc_streq(mode, SC_AA_ENFORCE_STR) && sc_is_expected_path(label)) {
+	if (label != NULL && sc_streq(mode, SC_AA_ENFORCE_STR)
+	    && sc_is_expected_path(label)) {
 		apparmor->is_confined = true;
 	} else {
 		apparmor->is_confined = false;
@@ -130,8 +131,8 @@ sc_maybe_aa_change_onexec(struct sc_apparmor *apparmor, const char *profile)
 			errno = aa_change_onexec_errno;
 			if (errno == ENOENT) {
 				fprintf(stderr, "missing profile %s.\n"
-				        "Please make sure that the snapd.apparmor service is enabled and started\n",
-				        profile);
+					"Please make sure that the snapd.apparmor service is enabled and started\n",
+					profile);
 				exit(1);
 			} else {
 				die("cannot change profile for the next exec call");

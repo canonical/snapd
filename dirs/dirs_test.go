@@ -37,6 +37,78 @@ var _ = Suite(&DirsTestSuite{})
 
 type DirsTestSuite struct{}
 
+func (s *DirsTestSuite) TestSnapHomeDirs(c *C) {
+	defer dirs.SetRootDir("")
+	hidden := dirs.SnapDirOptions{HiddenSnapDataDir: true}
+	// Expected ouptut should be ROOTDIR/home
+	c.Check(dirs.SnapHomeDirs(), DeepEquals, []string{filepath.Join(dirs.GlobalRootDir, "/home")})
+	c.Check(dirs.DataHomeGlobs(nil), DeepEquals, []string{filepath.Join(dirs.GlobalRootDir, "/home", "*", "snap")})
+	c.Check(dirs.DataHomeGlobs(&hidden), DeepEquals, []string{filepath.Join(dirs.GlobalRootDir, "/home", "*", ".snap", "data")})
+
+	// Expected output should remove all trailing '/' and add /home if it is not present.
+	getSnapHomeFromSet := dirs.SetSnapHomeDirs("/home/homeDir1,/home/homeDirs/homeDir1///,/home/homeDir2/,/home/homeTest/users/")
+	snapHomeDirs := []string{"/home/homeDir1", "/home/homeDirs/homeDir1", "/home/homeDir2", "/home/homeTest/users", "/home"}
+	dataGlob := []string{"/home/homeDir1/*/snap", "/home/homeDirs/homeDir1/*/snap", "/home/homeDir2/*/snap", "/home/homeTest/users/*/snap",
+		"/home/*/snap"}
+	hiddenDataGlob := []string{"/home/homeDir1/*/.snap/data", "/home/homeDirs/homeDir1/*/.snap/data", "/home/homeDir2/*/.snap/data",
+		"/home/homeTest/users/*/.snap/data", "/home/*/.snap/data"}
+	getSnapHomeDirs := dirs.SnapHomeDirs()
+	c.Check(getSnapHomeDirs, DeepEquals, snapHomeDirs)
+	c.Check(dirs.DataHomeGlobs(nil), DeepEquals, dataGlob)
+	c.Check(dirs.DataHomeGlobs(&hidden), DeepEquals, hiddenDataGlob)
+	// Useful for detecting if any output changes were made to dirs.SnapHomeDirs() and not reflected in dirs.SetSnapHomeDirs()
+	c.Check(getSnapHomeFromSet, DeepEquals, snapHomeDirs)
+
+	// Expected output, should remove all trailing '/' and not add /home since it is already present.
+	getSnapHomeFromSet = dirs.SetSnapHomeDirs("/home/homeDir1,/home/homeDirs/homeDir1///,/home/,/home/homeDir2/,/home/homeTest/users/")
+	snapHomeDirs = []string{"/home/homeDir1", "/home/homeDirs/homeDir1", "/home", "/home/homeDir2", "/home/homeTest/users"}
+	dataGlob = []string{"/home/homeDir1/*/snap", "/home/homeDirs/homeDir1/*/snap", "/home/*/snap", "/home/homeDir2/*/snap",
+		"/home/homeTest/users/*/snap"}
+	hiddenDataGlob = []string{"/home/homeDir1/*/.snap/data", "/home/homeDirs/homeDir1/*/.snap/data", "/home/*/.snap/data",
+		"/home/homeDir2/*/.snap/data", "/home/homeTest/users/*/.snap/data"}
+	getSnapHomeDirs = dirs.SnapHomeDirs()
+	c.Check(getSnapHomeDirs, DeepEquals, snapHomeDirs)
+	c.Check(getSnapHomeFromSet, DeepEquals, snapHomeDirs)
+	c.Check(dirs.DataHomeGlobs(nil), DeepEquals, dataGlob)
+	c.Check(dirs.DataHomeGlobs(&hidden), DeepEquals, hiddenDataGlob)
+
+	// Expected output should only return /ROOTDIR/home as a home directory
+	dirs.SetRootDir("/new/root")
+	getSnapHomeFromSet = dirs.SetSnapHomeDirs("")
+	snapHomeDirs = []string{"/new/root/home"}
+	dataGlob = []string{"/new/root/home/*/snap"}
+	hiddenDataGlob = []string{"/new/root/home/*/.snap/data"}
+	getSnapHomeDirs = dirs.SnapHomeDirs()
+	c.Check(getSnapHomeDirs, DeepEquals, snapHomeDirs)
+	c.Check(getSnapHomeFromSet, DeepEquals, snapHomeDirs)
+	c.Check(dirs.DataHomeGlobs(nil), DeepEquals, dataGlob)
+	c.Check(dirs.DataHomeGlobs(&hidden), DeepEquals, hiddenDataGlob)
+
+	// Expected output should append /ROOTDIR to each entry except if already present
+	getSnapHomeFromSet = dirs.SetSnapHomeDirs("/home/homeDir1,/new/root/home/homeDirs/homeDir1///,/home/homeDir2/,/new/root/home/homeTest/users/")
+	snapHomeDirs = []string{"/new/root/home/homeDir1", "/new/root/home/homeDirs/homeDir1", "/new/root/home/homeDir2", "/new/root/home/homeTest/users", "/new/root/home"}
+	dataGlob = []string{"/new/root/home/homeDir1/*/snap", "/new/root/home/homeDirs/homeDir1/*/snap", "/new/root/home/homeDir2/*/snap",
+		"/new/root/home/homeTest/users/*/snap", "/new/root/home/*/snap"}
+	hiddenDataGlob = []string{"/new/root/home/homeDir1/*/.snap/data", "/new/root/home/homeDirs/homeDir1/*/.snap/data", "/new/root/home/homeDir2/*/.snap/data",
+		"/new/root/home/homeTest/users/*/.snap/data", "/new/root/home/*/.snap/data"}
+	getSnapHomeDirs = dirs.SnapHomeDirs()
+	c.Check(getSnapHomeDirs, DeepEquals, snapHomeDirs)
+	c.Check(getSnapHomeFromSet, DeepEquals, snapHomeDirs)
+	c.Check(dirs.DataHomeGlobs(nil), DeepEquals, dataGlob)
+	c.Check(dirs.DataHomeGlobs(&hidden), DeepEquals, hiddenDataGlob)
+
+	// setting a Root directory should reset the home directory
+	dirs.SetRootDir("/new")
+	c.Check(dirs.SnapHomeDirs(), DeepEquals, []string{"/new/home"})
+	c.Check(dirs.DataHomeGlobs(nil), DeepEquals, []string{"/new/home/*/snap"})
+	c.Check(dirs.DataHomeGlobs(&hidden), DeepEquals, []string{"/new/home/*/.snap/data"})
+	dirs.SetRootDir("/")
+	c.Check(dirs.SnapHomeDirs(), DeepEquals, []string{"/home"})
+	c.Check(dirs.DataHomeGlobs(nil), DeepEquals, []string{"/home/*/snap"})
+	c.Check(dirs.DataHomeGlobs(&hidden), DeepEquals, []string{"/home/*/.snap/data"})
+
+}
+
 func (s *DirsTestSuite) TestStripRootDir(c *C) {
 	dirs.SetRootDir("/")
 	// strip does nothing if the default (empty) root directory is used

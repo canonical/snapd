@@ -30,6 +30,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/testutil"
@@ -44,7 +45,8 @@ type snapConfSuite struct {
 func (s *snapConfSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 
-	s.expectAuthenticatedAccess()
+	s.expectReadAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage-configuration"})
+	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage-configuration"})
 }
 
 func (s *snapConfSuite) runGetConf(c *check.C, snapName string, keys []string, statusCode int) map[string]interface{} {

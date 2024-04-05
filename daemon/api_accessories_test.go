@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2021-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -35,7 +35,7 @@ type accessoriesSuite struct {
 }
 
 func (s *accessoriesSuite) expectThemesAccess() {
-	s.expectReadAccess(daemon.InterfaceOpenAccess{Interface: "snap-themes-control"})
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-themes-control"}})
 }
 
 func (s *accessoriesSuite) TestChangeInfo(c *C) {

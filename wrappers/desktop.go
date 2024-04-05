@@ -23,7 +23,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -287,7 +286,7 @@ func deriveDesktopFilesContent(s *snap.Info) (map[string]osutil.FileState, error
 	content := make(map[string]osutil.FileState)
 	for _, df := range desktopFiles {
 		base := filepath.Base(df)
-		fileContent, err := ioutil.ReadFile(df)
+		fileContent, err := os.ReadFile(df)
 		if err != nil {
 			return nil, err
 		}

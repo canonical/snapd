@@ -159,8 +159,8 @@ func (s *patch2Suite) TestPatch2(c *C) {
 	var snapst snapstate.SnapState
 	err = snapstate.Get(st, "foo", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(snapst.Sequence[0].RealName, Equals, "foo")
-	c.Check(snapst.Sequence[1].RealName, Equals, "foo")
+	c.Check(snapst.Sequence.Revisions[0].Snap.RealName, Equals, "foo")
+	c.Check(snapst.Sequence.Revisions[1].Snap.RealName, Equals, "foo")
 
 	// transition of:
 	// - Candidate for "bar" -> tasks SnapSetup.SideInfo

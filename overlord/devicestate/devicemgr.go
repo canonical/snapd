@@ -203,7 +203,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	// kernel command line updates from a gadget supplied file
 	runner.AddHandler("update-gadget-cmdline", m.doUpdateGadgetCommandLine, m.undoUpdateGadgetCommandLine)
 	// recovery systems
+	runner.AddHandler("remove-recovery-system", m.doRemoveRecoverySystem, nil)
 	runner.AddHandler("create-recovery-system", m.doCreateRecoverySystem, m.undoCreateRecoverySystem)
+	runner.AddCleanup("create-recovery-system", m.cleanupRecoverySystem)
 	runner.AddHandler("finalize-recovery-system", m.doFinalizeTriedRecoverySystem, m.undoFinalizeTriedRecoverySystem)
 	runner.AddCleanup("finalize-recovery-system", m.cleanupRecoverySystem)
 
@@ -2036,10 +2038,15 @@ type System struct {
 	Brand *asserts.Account
 	// Actions available for this system
 	Actions []SystemAction
+	// DefaultRecoverySystem is true when the system is the default recovery
+	// system.
+	DefaultRecoverySystem bool
 }
 
 var defaultSystemActions = []SystemAction{
 	{Title: "Install", Mode: "install"},
+	{Title: "Recover", Mode: "recover"},
+	{Title: "Factory reset", Mode: "factory-reset"},
 }
 var currentSystemActions = []SystemAction{
 	{Title: "Reinstall", Mode: "install"},
@@ -2058,8 +2065,20 @@ var ErrNoSystems = errors.New("no systems seeds")
 // Systems list the available recovery/seeding systems. Returns the list of
 // systems, ErrNoSystems when no systems seeds were found or other error.
 func (m *DeviceManager) Systems() ([]*System, error) {
-	// it's tough luck when we cannot determine the current system seed
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	// currently we hold the lock for the entire duration of this method. this
+	// should be fine for now, since we aren't calling LoadMeta on any of the
+	// seeds that m.systems operates on. if that changes, when we might need to
+	// rethink the locking strategy here.
+	return m.systems()
+}
+
+func (m *DeviceManager) systems() ([]*System, error) {
 	systemMode := m.SystemMode(SysAny)
+
+	// it's tough luck when we cannot determine the current system seed
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
 
 	systemLabels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*"))
@@ -2071,13 +2090,18 @@ func (m *DeviceManager) Systems() ([]*System, error) {
 		return nil, ErrNoSystems
 	}
 
+	defaultRecoverySystem, err := m.defaultRecoverySystem()
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, err
+	}
+
 	var systems []*System
 	for _, fpLabel := range systemLabels {
 		label := filepath.Base(fpLabel)
-		system, err := systemFromSeed(label, currentSys)
+		system, err := systemFromSeed(label, currentSys, defaultRecoverySystem)
 		if err != nil {
-			// TODO:UC20 add a Broken field to the seed system like
-			// we do for snap.Info
+			// TODO:UC20 add a Broken field to the seed system like we do for
+			// snap.Info
 			logger.Noticef("cannot load system %q seed: %v", label, err)
 			continue
 		}
@@ -2094,23 +2118,23 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 	// installer is not anymore.
 
 	// System information
-	sys, snapInfos, seedSnaps, err := m.loadSystemAndEssentialSnaps(wantedSystemLabel, []snap.Type{snap.TypeKernel, snap.TypeGadget})
+	systemAndSnaps, err := m.loadSystemAndEssentialSnaps(wantedSystemLabel, []snap.Type{snap.TypeKernel, snap.TypeGadget})
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	// Gadget information
-	snapf, err := snapfile.Open(seedSnaps[snap.TypeGadget].Path)
+	snapf, err := snapfile.Open(systemAndSnaps.SeedSnapsByType[snap.TypeGadget].Path)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("cannot open gadget snap: %v", err)
 	}
-	gadgetInfo, err := gadget.ReadInfoFromSnapFileNoValidate(snapf, sys.Model)
+	gadgetInfo, err := gadget.ReadInfoFromSnapFileNoValidate(snapf, systemAndSnaps.Model)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("reading gadget information: %v", err)
 	}
 
 	// Encryption details
-	encInfo, err := m.encryptionSupportInfo(sys.Model, secboot.TPMProvisionFull, snapInfos[snap.TypeKernel], gadgetInfo)
+	encInfo, err := m.encryptionSupportInfo(systemAndSnaps.Model, secboot.TPMProvisionFull, systemAndSnaps.InfosByType[snap.TypeKernel], gadgetInfo)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -2119,32 +2143,63 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(wantedSystemLabel strin
 	opts := &gadget.ValidationConstraints{
 		EncryptedData: encInfo.StorageSafety == asserts.StorageSafetyEncrypted,
 	}
-	if err := gadget.Validate(gadgetInfo, sys.Model, opts); err != nil {
+	if err := gadget.Validate(gadgetInfo, systemAndSnaps.Model, opts); err != nil {
 		return nil, nil, nil, fmt.Errorf("cannot validate gadget.yaml: %v", err)
 	}
 
-	return sys, gadgetInfo, &encInfo, err
+	return systemAndSnaps.System, gadgetInfo, &encInfo, err
+}
+
+type systemAndEssentialSnaps struct {
+	*System
+	Seed            seed.Seed
+	InfosByType     map[snap.Type]*snap.Info
+	SeedSnapsByType map[snap.Type]*seed.Snap
+}
+
+// DefaultRecoverySystem returns the default recovery system, if there is one.
+// state.ErrNoState is returned if a default recovery system has not been set.
+func (m *DeviceManager) DefaultRecoverySystem() (*DefaultRecoverySystem, error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	return m.defaultRecoverySystem()
+}
+
+func (m *DeviceManager) defaultRecoverySystem() (*DefaultRecoverySystem, error) {
+	var defaultSystem DefaultRecoverySystem
+	if err := m.state.Get("default-recovery-system", &defaultSystem); err != nil {
+		return nil, err
+	}
+	return &defaultSystem, nil
 }
 
 // loadSystemAndEssentialSnaps loads information for the given label, which
 // includes system, gadget information, gadget and kernel snaps info,
 // and gadget and kernel seed snap info.
-func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, types []snap.Type) (
-	*System, map[snap.Type]*snap.Info, map[snap.Type]*seed.Snap, error) {
-
+// TODO: make this method optionally return the system seed, since it might not
+// always be needed, and it is quite large.
+func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, types []snap.Type) (*systemAndEssentialSnaps, error) {
 	// get current system as input for loadSeedAndSystem()
 	systemMode := m.SystemMode(SysAny)
+	m.state.Lock()
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
+	m.state.Unlock()
 
-	s, sys, err := loadSeedAndSystem(wantedSystemLabel, currentSys)
+	defaultRecoverySystem, err := m.DefaultRecoverySystem()
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, err
+	}
+
+	s, sys, err := loadSeedAndSystem(wantedSystemLabel, currentSys, defaultRecoverySystem)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	// 2. get the gadget volumes for the given system-label
 	perf := &timings.Timings{}
 	if err := s.LoadEssentialMeta(types, perf); err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot load essential snaps metadata: %v", err)
+		return nil, fmt.Errorf("cannot load essential snaps metadata: %v", err)
 	}
 	// EssentialSnaps is always ordered, see asserts.Model.EssentialSnaps:
 	// "snapd, kernel, boot base, gadget." and snaps not loaded above
@@ -2155,27 +2210,32 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 	for _, seedSnap := range s.EssentialSnaps() {
 		typ := seedSnap.EssentialType
 		if seedSnap.Path == "" {
-			return nil, nil, nil, fmt.Errorf("internal error: cannot get snap path for %s", typ)
+			return nil, fmt.Errorf("internal error: cannot get snap path for %s", typ)
 		}
 		snapf, err := snapfile.Open(seedSnap.Path)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("cannot open snap from %q: %v", seedSnap.Path, err)
+			return nil, fmt.Errorf("cannot open snap from %q: %v", seedSnap.Path, err)
 		}
 		snapInfo, err := snap.ReadInfoFromSnapFile(snapf, seedSnap.SideInfo)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, err
 		}
 		if snapInfo.SnapType != typ {
-			return nil, nil, nil, fmt.Errorf("cannot use snap info, expected %s but got %s", typ, snapInfo.SnapType)
+			return nil, fmt.Errorf("cannot use snap info, expected %s but got %s", typ, snapInfo.SnapType)
 		}
 		seedSnaps[typ] = seedSnap
 		snapInfos[typ] = snapInfo
 	}
 	if len(snapInfos) != len(types) {
-		return nil, nil, nil, fmt.Errorf("internal error: retrieved snap infos (%d) does not match number of types (%d)", len(snapInfos), len(types))
+		return nil, fmt.Errorf("internal error: retrieved snap infos (%d) does not match number of types (%d)", len(snapInfos), len(types))
 	}
 
-	return sys, snapInfos, seedSnaps, nil
+	return &systemAndEssentialSnaps{
+		System:          sys,
+		Seed:            s,
+		InfosByType:     snapInfos,
+		SeedSnapsByType: seedSnaps,
+	}, nil
 }
 
 var ErrUnsupportedAction = errors.New("unsupported action")
@@ -2205,14 +2265,15 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 		return nil
 	}
 
-	// no systemLabel means "current" so get the current system label
+	// no systemLabel means we need to fall back to either the default recovery
+	// system, or the current system, depending on the requested mode
 	if systemLabel == "" {
-		systemMode := m.SystemMode(SysAny)
-		currentSys, err := currentSystemForMode(m.state, systemMode)
+		defaultLabel, err := defaultSystemLabel(m.state, m, mode)
 		if err != nil {
-			return fmt.Errorf("cannot get current system: %v", err)
+			return err
 		}
-		systemLabel = currentSys.System
+
+		systemLabel = defaultLabel
 	}
 
 	switched := func(systemLabel string, sysAction *SystemAction) {
@@ -2222,6 +2283,38 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 	// even if we are already in the right mode we restart here by
 	// passing rebootCurrent as this is what the user requested
 	return m.switchToSystemAndMode(systemLabel, mode, rebootCurrent, switched)
+}
+
+func defaultSystemLabel(st *state.State, manager *DeviceManager, mode string) (string, error) {
+	st.Lock()
+	defer st.Unlock()
+
+	switch mode {
+	case "recover", "factory-reset", "install":
+		defaultRecoverySystem, err := manager.defaultRecoverySystem()
+		if err != nil && !errors.Is(err, state.ErrNoState) {
+			return "", err
+		}
+
+		if defaultRecoverySystem != nil {
+			return defaultRecoverySystem.System, nil
+		}
+
+		// intentionally fall through here, since we fall back to using the most
+		// recently seeded system if there isn't a default recovery system
+		// explicitly set
+		fallthrough
+	case "run":
+		systemMode := manager.SystemMode(SysAny)
+		currentSys, err := currentSystemForMode(st, systemMode)
+		if err != nil {
+			return "", fmt.Errorf("cannot get current system: %v", err)
+		}
+
+		return currentSys.System, nil
+	default:
+		return "", ErrUnsupportedAction
+	}
 }
 
 // RequestSystemAction requests the provided system to be run in a
@@ -2257,14 +2350,21 @@ func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSyst
 	// make sure that currentSys == nil does not break
 	// the code below!
 	// TODO: should we log the error?
+	m.state.Lock()
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
+	m.state.Unlock()
+
+	defaultRecoverySystem, err := m.DefaultRecoverySystem()
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
 
 	systemSeedDir := filepath.Join(dirs.SnapSeedDir, "systems", systemLabel)
 	if _, err := os.Stat(systemSeedDir); err != nil {
 		// XXX: should we wrap this instead return a naked stat error?
 		return err
 	}
-	system, err := systemFromSeed(systemLabel, currentSys)
+	system, err := systemFromSeed(systemLabel, currentSys, defaultRecoverySystem)
 	if err != nil {
 		return fmt.Errorf("cannot load seed system: %v", err)
 	}

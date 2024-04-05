@@ -63,14 +63,23 @@ func (t *Transaction) Set(path string, value interface{}) error {
 	return nil
 }
 
+// Unset unsets a value in the transaction's databag. The change isn't persisted
+// until Commit returns without errors.
+func (t *Transaction) Unset(path string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.deltas = append(t.deltas, map[string]interface{}{path: nil})
+	return nil
+}
+
 // Get reads a value from the transaction's databag including uncommitted changes.
-func (t *Transaction) Get(path string, value interface{}) error {
+func (t *Transaction) Get(path string) (interface{}, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
 	// if there aren't any changes, just use the pristine bag
 	if len(t.deltas) == 0 {
-		return t.pristine.Get(path, value)
+		return t.pristine.Get(path)
 	}
 
 	// if there are changes, use a cached bag with modifications to do the Get
@@ -83,11 +92,11 @@ func (t *Transaction) Get(path string, value interface{}) error {
 	if err := applyDeltas(t.modified, t.deltas[t.appliedDeltas:]); err != nil {
 		t.modified = nil
 		t.appliedDeltas = 0
-		return err
+		return nil, err
 	}
 	t.appliedDeltas = len(t.deltas)
 
-	return t.modified.Get(path, value)
+	return t.modified.Get(path)
 }
 
 // Commit applies the previous writes and validates the final databag. If any
@@ -135,7 +144,14 @@ func applyDeltas(bag JSONDataBag, deltas []map[string]interface{}) error {
 	// changes must be applied in the order they were written
 	for _, delta := range deltas {
 		for k, v := range delta {
-			if err := bag.Set(k, v); err != nil {
+			var err error
+			if v == nil {
+				err = bag.Unset(k)
+			} else {
+				err = bag.Set(k, v)
+			}
+
+			if err != nil {
 				return err
 			}
 		}

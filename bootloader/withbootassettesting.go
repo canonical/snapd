@@ -23,7 +23,6 @@ package bootloader
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -59,7 +58,7 @@ func MaybeInjectTestingBootloaderAssets() {
 		panic(fmt.Sprintf("cannot readlink: %v", err))
 	}
 
-	injectPieceRaw, err := ioutil.ReadFile(filepath.Join(filepath.Dir(selfExe), "bootassetstesting"))
+	injectPieceRaw, err := os.ReadFile(filepath.Join(filepath.Dir(selfExe), "bootassetstesting"))
 	if os.IsNotExist(err) {
 		logger.Noticef("no boot asset testing marker")
 		return

@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -64,7 +63,7 @@ var errNoPrevious = errors.New("no revision to go back to")
 
 func prevRevision(snapName string) (string, error) {
 	seqFile := filepath.Join(dirs.SnapSeqDir, snapName+".json")
-	content, err := ioutil.ReadFile(seqFile)
+	content, err := os.ReadFile(seqFile)
 	if os.IsNotExist(err) {
 		return "", errNoSnapd
 	}
@@ -145,6 +144,16 @@ func (c *cmdSnapd) Execute(args []string) error {
 	}
 
 	logger.Noticef("restoring invoking snapd from: %v", snapdPath)
+	if prevRev != "0" {
+		// if prevRev was "0" it means we did *not* find a
+		// previous revision and we would obey the current
+		// symlink. So we overwrite the symlink only if
+		// prevRev != "0".
+		currentSymlink := filepath.Join(dirs.SnapMountDir, "snapd", "current")
+		if err := osutil.AtomicSymlink(prevRev, currentSymlink); err != nil {
+			return fmt.Errorf("cannot create symlink %s: %v", currentSymlink, err)
+		}
+	}
 	// start previous snapd
 	cmd := runCmd(snapdPath, nil, []string{"SNAPD_REVERT_TO_REV=" + prevRev, "SNAPD_DEBUG=1"})
 	if err = cmd.Run(); err != nil {

@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -77,7 +78,7 @@ func (s *healthSuite) SetUpTest(c *check.C) {
 	snapstate.ReplaceStore(s.state, storetest.Store{})
 	sideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
 	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{sideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:  snap.R(42),
 		Active:   true,
 		SnapType: "app",

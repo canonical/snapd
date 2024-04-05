@@ -25,10 +25,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"os/user"
 	"sort"
 	"strconv"
 	"strings"
@@ -85,9 +85,11 @@ type serviceControlArgs struct {
 	action  string
 	options string
 	names   []string
+	scope   client.ScopeSelector
+	users   []string
 }
 
-func (s *appsSuite) fakeServiceControl(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction, flags *servicestate.Flags, context *hookstate.Context) ([]*state.TaskSet, error) {
+func (s *appsSuite) fakeServiceControl(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction, cu *user.User, flags *servicestate.Flags, context *hookstate.Context) ([]*state.TaskSet, error) {
 	if flags != nil {
 		panic("flags are not expected")
 	}
@@ -96,7 +98,12 @@ func (s *appsSuite) fakeServiceControl(st *state.State, appInfos []*snap.AppInfo
 		return nil, s.serviceControlError
 	}
 
-	serviceCommand := serviceControlArgs{action: inst.Action}
+	users, err := inst.Users.UserList(cu)
+	if err != nil {
+		return nil, err
+	}
+
+	serviceCommand := serviceControlArgs{action: inst.Action, scope: inst.Scope, users: users}
 	if inst.RestartOptions.Reload {
 		serviceCommand.options = "reload"
 	}
@@ -159,6 +166,12 @@ func (s *appsSuite) SetUpTest(c *check.C) {
 	d.Overlord().Loop()
 	s.AddCleanup(func() { d.Overlord().Stop() })
 	s.AddCleanup(systemd.MockSystemdVersion(237, nil))
+	s.expectAppsAccess()
+}
+
+func (s *appsSuite) expectAppsAccess() {
+	s.expectOpenAccess()
+	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
 }
 
 func (s *appsSuite) TestSplitAppName(c *check.C) {
@@ -471,7 +484,41 @@ func (s *appsSuite) testPostApps(c *check.C, inst servicestate.Instruction, serv
 	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBuffer(postBody))
 	c.Assert(err, check.IsNil)
 
-	rsp := s.asyncReq(c, req, nil)
+	rsp := s.asyncReq(c, req, s.authUser)
+	c.Assert(rsp.Status, check.Equals, 202)
+	c.Check(rsp.Change, check.Matches, `[0-9]+`)
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+	c.Check(chg.Tasks(), check.HasLen, len(servicecmds))
+
+	st.Unlock()
+	<-chg.Ready()
+	st.Lock()
+
+	c.Check(s.serviceControlCalls, check.DeepEquals, servicecmds)
+	return chg
+}
+
+func (s *appsSuite) testPostAppsUser(c *check.C, inst servicestate.Instruction, servicecmds []serviceControlArgs, expectedErr string) *state.Change {
+	postBody, err := json.Marshal(inst)
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBuffer(postBody))
+	c.Assert(err, check.IsNil)
+	s.asUserAuth(c, req)
+
+	if expectedErr != "" {
+		rspe := s.errorReq(c, req, s.authUser)
+		c.Check(rspe.Status, check.Equals, 400)
+		c.Check(rspe.Message, check.Matches, expectedErr)
+		return nil
+	}
+
+	rsp := s.asyncReq(c, req, s.authUser)
 	c.Assert(rsp.Status, check.Equals, 202)
 	c.Check(rsp.Change, check.Matches, `[0-9]+`)
 
@@ -493,7 +540,7 @@ func (s *appsSuite) testPostApps(c *check.C, inst servicestate.Instruction, serv
 func (s *appsSuite) TestPostAppsStartOne(c *check.C) {
 	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a.svc2"}}
 	expected := []serviceControlArgs{
-		{action: "start", names: []string{"snap-a.svc2"}},
+		{action: "start", names: []string{"snap-a.svc2"}, scope: client.ScopeSelector{"system", "user"}},
 	}
 	chg := s.testPostApps(c, inst, expected)
 	chg.State().Lock()
@@ -508,7 +555,7 @@ func (s *appsSuite) TestPostAppsStartOne(c *check.C) {
 func (s *appsSuite) TestPostAppsStartTwo(c *check.C) {
 	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a"}}
 	expected := []serviceControlArgs{
-		{action: "start", names: []string{"snap-a.svc1", "snap-a.svc2"}},
+		{action: "start", names: []string{"snap-a.svc1", "snap-a.svc2"}, scope: client.ScopeSelector{"system", "user"}},
 	}
 	chg := s.testPostApps(c, inst, expected)
 
@@ -524,7 +571,7 @@ func (s *appsSuite) TestPostAppsStartTwo(c *check.C) {
 func (s *appsSuite) TestPostAppsStartThree(c *check.C) {
 	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a", "snap-b"}}
 	expected := []serviceControlArgs{
-		{action: "start", names: []string{"snap-a.svc1", "snap-a.svc2", "snap-b.svc3"}},
+		{action: "start", names: []string{"snap-a.svc1", "snap-a.svc2", "snap-b.svc3"}, scope: client.ScopeSelector{"system", "user"}},
 	}
 	chg := s.testPostApps(c, inst, expected)
 	// check the summary expands the snap into actual apps
@@ -541,7 +588,7 @@ func (s *appsSuite) TestPostAppsStartThree(c *check.C) {
 func (s *appsSuite) TestPostAppsStop(c *check.C) {
 	inst := servicestate.Instruction{Action: "stop", Names: []string{"snap-a.svc2"}}
 	expected := []serviceControlArgs{
-		{action: "stop", names: []string{"snap-a.svc2"}},
+		{action: "stop", names: []string{"snap-a.svc2"}, scope: client.ScopeSelector{"system", "user"}},
 	}
 	s.testPostApps(c, inst, expected)
 }
@@ -549,7 +596,7 @@ func (s *appsSuite) TestPostAppsStop(c *check.C) {
 func (s *appsSuite) TestPostAppsRestart(c *check.C) {
 	inst := servicestate.Instruction{Action: "restart", Names: []string{"snap-a.svc2"}}
 	expected := []serviceControlArgs{
-		{action: "restart", names: []string{"snap-a.svc2"}},
+		{action: "restart", names: []string{"snap-a.svc2"}, scope: client.ScopeSelector{"system", "user"}},
 	}
 	s.testPostApps(c, inst, expected)
 }
@@ -558,7 +605,7 @@ func (s *appsSuite) TestPostAppsReload(c *check.C) {
 	inst := servicestate.Instruction{Action: "restart", Names: []string{"snap-a.svc2"}}
 	inst.Reload = true
 	expected := []serviceControlArgs{
-		{action: "restart", options: "reload", names: []string{"snap-a.svc2"}},
+		{action: "restart", options: "reload", names: []string{"snap-a.svc2"}, scope: client.ScopeSelector{"system", "user"}},
 	}
 	s.testPostApps(c, inst, expected)
 }
@@ -567,7 +614,7 @@ func (s *appsSuite) TestPostAppsEnableNow(c *check.C) {
 	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-a.svc2"}}
 	inst.Enable = true
 	expected := []serviceControlArgs{
-		{action: "start", options: "enable", names: []string{"snap-a.svc2"}},
+		{action: "start", options: "enable", names: []string{"snap-a.svc2"}, scope: client.ScopeSelector{"system", "user"}},
 	}
 	s.testPostApps(c, inst, expected)
 }
@@ -576,9 +623,134 @@ func (s *appsSuite) TestPostAppsDisableNow(c *check.C) {
 	inst := servicestate.Instruction{Action: "stop", Names: []string{"snap-a.svc2"}}
 	inst.Disable = true
 	expected := []serviceControlArgs{
-		{action: "stop", options: "disable", names: []string{"snap-a.svc2"}},
+		{action: "stop", options: "disable", names: []string{"snap-a.svc2"}, scope: client.ScopeSelector{"system", "user"}},
 	}
 	s.testPostApps(c, inst, expected)
+}
+
+func (s *appsSuite) TestPostAppsFailedToGetUser(c *check.C) {
+	r := daemon.MockSystemUserFromRequest(func(r *http.Request) (*user.User, error) {
+		return nil, fmt.Errorf("failed")
+	})
+	defer r()
+
+	req, err := http.NewRequest("POST", "/v2/apps", nil)
+	c.Assert(err, check.IsNil)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Matches, "cannot perform operation on services: failed")
+}
+
+func (s *appsSuite) TestPostAppsScopesSelfAsRootNotAllowed(c *check.C) {
+	inst := servicestate.Instruction{
+		Action: "start",
+		Names:  []string{"snap-a.svc1"},
+		Scope:  client.ScopeSelector{"user"},
+		Users: client.UserSelector{
+			Selector: client.UserSelectionSelf,
+		},
+	}
+	postBody, err := json.Marshal(inst)
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBuffer(postBody))
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, s.authUser)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Matches, `cannot use "self" for root user`)
+}
+
+func (s *appsSuite) TestPostAppsAllUsersAsRootHappy(c *check.C) {
+	inst := servicestate.Instruction{
+		Action: "start",
+		Names:  []string{"snap-a.svc1"},
+		Scope:  client.ScopeSelector{"user"},
+		Users: client.UserSelector{
+			Selector: client.UserSelectionAll,
+		},
+	}
+	expected := []serviceControlArgs{
+		// Expect no user to appear as we are not logged in
+		{action: "start", names: []string{"snap-a.svc1"}, scope: client.ScopeSelector{"user"}},
+	}
+	s.testPostApps(c, inst, expected)
+}
+
+func (s *appsSuite) TestPostAppsScopesNotSpecifiedForRoot(c *check.C) {
+	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-e.svc4"}}
+	expected := []serviceControlArgs{
+		{action: "start", names: []string{"snap-e.svc4"}, scope: client.ScopeSelector{"system", "user"}},
+	}
+	s.testPostApps(c, inst, expected)
+}
+
+func (s *appsSuite) TestPostAppsUsersAsUserHappy(c *check.C) {
+	inst := servicestate.Instruction{
+		Action: "start",
+		Names:  []string{"snap-a.svc1"},
+		Scope:  client.ScopeSelector{"user"},
+		Users: client.UserSelector{
+			Selector: client.UserSelectionAll,
+		},
+	}
+	expected := []serviceControlArgs{
+		{action: "start", names: []string{"snap-a.svc1"}, scope: client.ScopeSelector{"user"}},
+	}
+	s.testPostAppsUser(c, inst, expected, "")
+}
+
+func (s *appsSuite) TestPostAppsScopesNotSpecifiedForUser(c *check.C) {
+	inst := servicestate.Instruction{
+		Action: "start",
+		Names:  []string{"snap-e.svc4"},
+		Users: client.UserSelector{
+			Selector: client.UserSelectionSelf,
+		},
+	}
+	s.testPostAppsUser(c, inst, nil, "cannot perform operation on services: non-root users must specify service scope when targeting user services")
+}
+
+func (s *appsSuite) TestPostAppsUsersUser(c *check.C) {
+	inst := servicestate.Instruction{
+		Action: "start",
+		Names:  []string{"snap-a.svc1"},
+		Users: client.UserSelector{
+			Selector: client.UserSelectionSelf,
+		},
+	}
+	expected := []serviceControlArgs{
+		{action: "start", names: []string{"snap-a.svc1"}, scope: client.ScopeSelector{"system"}, users: []string{"username"}},
+	}
+	s.testPostAppsUser(c, inst, expected, "")
+}
+
+func (s *appsSuite) TestPostAppsUsersWithUsernames(c *check.C) {
+	inst := servicestate.Instruction{
+		Action: "start",
+		Names:  []string{"snap-a.svc1"},
+		Users: client.UserSelector{
+			Names: []string{"my-user", "other-user"},
+		},
+	}
+	expected := []serviceControlArgs{
+		// Expect no user to appear as we are not logged in
+		{action: "start", names: []string{"snap-a.svc1"}, scope: client.ScopeSelector{"system", "user"}, users: []string{"my-user", "other-user"}},
+	}
+	s.testPostApps(c, inst, expected)
+}
+
+func (s *appsSuite) TestPostAppsUserNotSpecifiedForRoot(c *check.C) {
+	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-e.svc4"}, Scope: client.ScopeSelector{"system"}}
+	expected := []serviceControlArgs{
+		{action: "start", names: []string{"snap-e.svc4"}, scope: client.ScopeSelector{"system"}},
+	}
+	s.testPostApps(c, inst, expected)
+}
+
+func (s *appsSuite) TestPostAppsUserNotSpecifiedForUser(c *check.C) {
+	inst := servicestate.Instruction{Action: "start", Names: []string{"snap-e.svc4"}, Scope: client.ScopeSelector{"user"}}
+	s.testPostAppsUser(c, inst, nil, "cannot perform operation on services: non-root users must specify users when targeting user services")
 }
 
 func (s *appsSuite) TestPostAppsBadJSON(c *check.C) {
@@ -638,7 +810,7 @@ func (s *appsSuite) expectLogsAccess() {
 func (s *appsSuite) TestLogs(c *check.C) {
 	s.expectLogsAccess()
 
-	s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(`
+	s.jctlRCs = []io.ReadCloser{io.NopCloser(strings.NewReader(`
 {"MESSAGE": "hello1", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "42"}
 {"MESSAGE": "hello2", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "44"}
 {"MESSAGE": "hello3", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "46"}
@@ -674,7 +846,7 @@ func (s *appsSuite) TestLogsNoNamespaceOption(c *check.C) {
 
 	s.expectLogsAccess()
 
-	s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(""))}
+	s.jctlRCs = []io.ReadCloser{io.NopCloser(strings.NewReader(""))}
 
 	req, err := http.NewRequest("GET", "/v2/logs?names=snap-a.svc2&n=42&follow=false", nil)
 	c.Assert(err, check.IsNil)
@@ -698,7 +870,7 @@ func (s *appsSuite) TestLogsWithNamespaceOption(c *check.C) {
 
 	s.expectLogsAccess()
 
-	s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(""))}
+	s.jctlRCs = []io.ReadCloser{io.NopCloser(strings.NewReader(""))}
 
 	req, err := http.NewRequest("GET", "/v2/logs?names=snap-a.svc2&n=42&follow=false", nil)
 	c.Assert(err, check.IsNil)
@@ -732,7 +904,7 @@ func (s *appsSuite) TestLogsN(c *check.C) {
 		{in: strconv.Itoa(math.MaxInt32), out: math.MaxInt32},
 	} {
 
-		s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(""))}
+		s.jctlRCs = []io.ReadCloser{io.NopCloser(strings.NewReader(""))}
 		s.jctlNs = nil
 
 		req, err := http.NewRequest("GET", "/v2/logs?n="+t.in, nil)
@@ -759,9 +931,9 @@ func (s *appsSuite) TestLogsFollow(c *check.C) {
 	s.expectLogsAccess()
 
 	s.jctlRCs = []io.ReadCloser{
-		ioutil.NopCloser(strings.NewReader("")),
-		ioutil.NopCloser(strings.NewReader("")),
-		ioutil.NopCloser(strings.NewReader("")),
+		io.NopCloser(strings.NewReader("")),
+		io.NopCloser(strings.NewReader("")),
+		io.NopCloser(strings.NewReader("")),
 	}
 
 	reqT, err := http.NewRequest("GET", "/v2/logs?follow=true", nil)

@@ -35,9 +35,11 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -122,11 +124,14 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.store)
 
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(5), SnapID: "some-snap-id"},
-		},
+		}),
 		Current:  snap.R(5),
 		SnapType: "app",
 		UserID:   1,
@@ -843,6 +848,54 @@ func (s *autoRefreshTestSuite) TestAtSeedPolicy(c *C) {
 	c.Check(t1.Equal(t2), Equals, true)
 }
 
+func (s *autoRefreshTestSuite) TestAtSeedRefreshHeld(c *C) {
+	// it is possible that refresh.hold has already been set to a valid time
+	// or "forever" even before snapd was started for the first time
+	r := release.MockOnClassic(true)
+	defer r()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "refresh.hold", "forever"), IsNil)
+	tr.Commit()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	err := af.AtSeed()
+	c.Assert(err, IsNil)
+	c.Check(af.NextRefresh().IsZero(), Equals, true)
+
+	// now use a valid timestamp
+	tr = config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "refresh.hold", time.Now().UTC()), IsNil)
+	tr.Commit()
+
+	af = snapstate.NewAutoRefresh(s.state)
+	err = af.AtSeed()
+	c.Assert(err, IsNil)
+	c.Check(af.NextRefresh().IsZero(), Equals, true)
+}
+
+func (s *autoRefreshTestSuite) TestAtSeedInvalidHold(c *C) {
+	// it is possible that refresh.hold has already been set to forever even
+	// before snapd was started for the first time
+	r := release.MockOnClassic(true)
+	defer r()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "refresh.hold", "this-is-invalid-time"), IsNil)
+	tr.Commit()
+
+	af := snapstate.NewAutoRefresh(s.state)
+
+	err := af.AtSeed()
+	c.Assert(err, ErrorMatches, `parsing time "this-is-invalid-time" .*cannot parse.*`)
+}
+
 func (s *autoRefreshTestSuite) TestCanRefreshOnMetered(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -936,7 +989,7 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, refreshInfo *userclient.PendingSnapRefreshInfo) {
 		c.Fatal("shouldn't trigger pending refresh notification unless it was an auto-refresh and we're overdue")
 	})
 	defer restore()
@@ -944,7 +997,7 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
 	info := &snap.Info{SideInfo: *si}
 	snapst := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 	}
 	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
@@ -954,8 +1007,9 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 	})
 	defer restore()
 
-	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
+	inhibitionTimeout, err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
+	c.Check(inhibitionTimeout, Equals, false)
 
 	var timedErr *snapstate.TimedBusySnapError
 	c.Assert(errors.As(err, &timedErr), Equals, true)
@@ -970,7 +1024,7 @@ func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, refreshInfo *userclient.PendingSnapRefreshInfo) {
 		c.Fatal("shouldn't trigger pending refresh notification unless it was an auto-refresh and we're overdue")
 	})
 	defer restore()
@@ -981,7 +1035,7 @@ func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
 	info := &snap.Info{SideInfo: *si}
 	snapst := &snapstate.SnapState{
-		Sequence:             []*snap.SideInfo{si},
+		Sequence:             snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:              si.Revision,
 		RefreshInhibitedTime: &pastInstant,
 	}
@@ -992,8 +1046,9 @@ func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c
 	})
 	defer restore()
 
-	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
+	inhibitionTimeout, err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
+	c.Check(inhibitionTimeout, Equals, false)
 
 	var timedErr *snapstate.TimedBusySnapError
 	c.Assert(errors.As(err, &timedErr), Equals, true)
@@ -1011,7 +1066,7 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 	defer s.state.Unlock()
 
 	notificationCount := 0
-	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, refreshInfo *userclient.PendingSnapRefreshInfo) {
 		notificationCount++
 		c.Check(refreshInfo.InstanceName, Equals, "pkg")
 		c.Check(refreshInfo.TimeRemaining, Equals, time.Duration(0))
@@ -1024,7 +1079,7 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
 	info := &snap.Info{SideInfo: *si}
 	snapst := &snapstate.SnapState{
-		Sequence:             []*snap.SideInfo{si},
+		Sequence:             snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:              si.Revision,
 		RefreshInhibitedTime: &pastInstant,
 	}
@@ -1035,8 +1090,9 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 	})
 	defer restore()
 
-	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
+	inhibitionTimeout, err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err == nil, Equals, true)
+	c.Check(inhibitionTimeout, Equals, true)
 	c.Check(notificationCount, Equals, 1)
 }
 
@@ -1044,7 +1100,7 @@ func (s *autoRefreshTestSuite) TestInhibitNoNotificationOnManualRefresh(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, refreshInfo *userclient.PendingSnapRefreshInfo) {
 		c.Fatal("shouldn't trigger pending refresh notification if refresh was manual")
 	})
 	defer restore()
@@ -1054,7 +1110,7 @@ func (s *autoRefreshTestSuite) TestInhibitNoNotificationOnManualRefresh(c *C) {
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
 	info := &snap.Info{SideInfo: *si}
 	snapst := &snapstate.SnapState{
-		Sequence:             []*snap.SideInfo{si},
+		Sequence:             snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:              si.Revision,
 		RefreshInhibitedTime: &pastInstant,
 	}
@@ -1066,8 +1122,9 @@ func (s *autoRefreshTestSuite) TestInhibitNoNotificationOnManualRefresh(c *C) {
 	})
 	defer restore()
 
-	err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
+	inhibitionTimeout, err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err, testutil.ErrorIs, &snapstate.BusySnapError{})
+	c.Check(inhibitionTimeout, Equals, false)
 }
 
 func (s *autoRefreshTestSuite) TestBlockedAutoRefreshCreatesPreDownloads(c *C) {
@@ -1151,7 +1208,7 @@ func (s *autoRefreshTestSuite) addRefreshableSnap(names ...string) {
 		si := &snap.SideInfo{RealName: name, SnapID: fmt.Sprintf("%s-id", name), Revision: snap.R(1)}
 		snapstate.Set(s.state, name, &snapstate.SnapState{
 			Active:   true,
-			Sequence: []*snap.SideInfo{si},
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 			Current:  si.Revision,
 			SnapType: string(snap.TypeApp),
 		})
@@ -1203,4 +1260,109 @@ func (s *autoRefreshTestSuite) TestSnapStoreOffline(c *C) {
 	s.state.Lock()
 	c.Check(s.state.Changes(), HasLen, 1)
 	s.state.Unlock()
+}
+
+func (s *autoRefreshTestSuite) TestMaybeAddRefreshInhibitNotice(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	err := snapstate.MaybeAddRefreshInhibitNotice(st)
+	c.Assert(err, IsNil)
+	// empty set of inhibited snaps unchanged -> [], no notice recorded
+	c.Assert(st.Notices(nil), HasLen, 0)
+	// Verify list is empty
+	checkLastRecordedInhibitedSnaps(c, st, nil)
+
+	now := time.Now()
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		}),
+		Current:              snap.R(1),
+		SnapType:             string(snap.TypeApp),
+		RefreshInhibitedTime: &now,
+	})
+	err = snapstate.MaybeAddRefreshInhibitNotice(st)
+	c.Assert(err, IsNil)
+	// set of inhibited snaps changed -> ["some-snap"], notice recorded
+	checkRefreshInhibitNotice(c, st, 1)
+	checkLastRecordedInhibitedSnaps(c, st, []string{"some-snap"})
+
+	err = snapstate.MaybeAddRefreshInhibitNotice(st)
+	c.Assert(err, IsNil)
+	// set of inhibited snaps unchanged -> ["some-snap"], no notice recorded
+	checkRefreshInhibitNotice(c, st, 1)
+	checkLastRecordedInhibitedSnaps(c, st, []string{"some-snap"})
+
+	// mark "some-snap" as not inhibited
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		}),
+		Current:              snap.R(1),
+		SnapType:             string(snap.TypeApp),
+		RefreshInhibitedTime: nil,
+	})
+	// mark "some-other-snap" as inhibited
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-other-snap", SnapID: "some-other-snap-id", Revision: snap.R(1)},
+		}),
+		Current:              snap.R(1),
+		SnapType:             string(snap.TypeApp),
+		RefreshInhibitedTime: &now,
+	})
+	err = snapstate.MaybeAddRefreshInhibitNotice(st)
+	c.Assert(err, IsNil)
+	// set of inhibited snaps changed -> ["some-other-snap"], notice recorded
+	checkRefreshInhibitNotice(c, st, 2)
+	checkLastRecordedInhibitedSnaps(c, st, []string{"some-other-snap"})
+}
+
+func (s *autoRefreshTestSuite) TestMaybeAsyncPendingRefreshNotification(c *C) {
+	var connCheckCalled int
+	restore := snapstate.MockHasActiveConnection(func(st *state.State, iface string) (bool, error) {
+		connCheckCalled++
+		c.Check(iface, Equals, "snap-refresh-observe")
+		// no snap has the marker interface connected
+		return false, nil
+	})
+	defer restore()
+
+	expectedInfo := &userclient.PendingSnapRefreshInfo{
+		InstanceName:  "pkg",
+		TimeRemaining: 10 * time.Second,
+	}
+	var notificationCalled int
+	restore = snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, psri *userclient.PendingSnapRefreshInfo) {
+		notificationCalled++
+		c.Check(psri, Equals, expectedInfo)
+	})
+	defer restore()
+
+	snapstate.MaybeAsyncPendingRefreshNotification(context.TODO(), s.state, expectedInfo)
+	c.Check(connCheckCalled, Equals, 1)
+	c.Check(notificationCalled, Equals, 1)
+}
+
+func (s *autoRefreshTestSuite) TestMaybeAsyncPendingRefreshNotificationSkips(c *C) {
+	var connCheckCalled int
+	restore := snapstate.MockHasActiveConnection(func(st *state.State, iface string) (bool, error) {
+		connCheckCalled++
+		c.Check(iface, Equals, "snap-refresh-observe")
+		// marker interface found
+		return true, nil
+	})
+	defer restore()
+
+	restore = snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, psri *userclient.PendingSnapRefreshInfo) {
+		c.Fatal("shouldn't trigger pending refresh notification because marker interface is connected")
+	})
+	defer restore()
+
+	snapstate.MaybeAsyncPendingRefreshNotification(context.TODO(), s.state, &userclient.PendingSnapRefreshInfo{})
 }

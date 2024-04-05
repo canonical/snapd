@@ -52,7 +52,7 @@ execute: |
   done
   # Bump edition of ubuntu-boot content
   gadget_p=pc-gadget/meta/gadget.yaml
-  yq -i '(.volumes.pc.structure | with_entries(select(.value.name == "ubuntu-boot")) | .[].update.edition) |= . + 1' "$gadget_p"
+  yq -i '(.volumes.pc.structure[] | select(.name == "ubuntu-boot") | .update.edition) |= . + 1' "$gadget_p"
   # Re-pack snaps we want to update
   snap pack --filename=pc-new.snap pc-gadget
   snap pack --filename=pc-kernel-new.snap "$CACHE_D"/snap-pc-kernel
@@ -126,6 +126,7 @@ execute: |
   # Test aborting a kernel installation before a reboot
   refresh_rebooting_snap pc-kernel-new.snap pc-kernel no-reboot
   remote.exec sudo snap abort --last=install
+  remote.exec sudo snap watch --last=install || true
   # Make sure everything is in the same state
   not remote.exec stat /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi
   remote.exec cat /var/lib/snapd/modeenv | MATCH "^current_kernels=$current_kernel_file$"

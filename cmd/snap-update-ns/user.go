@@ -21,6 +21,9 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"syscall"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -33,10 +36,48 @@ type UserProfileUpdateContext struct {
 	// the update operation is occurring. It may be the current UID but doesn't
 	// need to be.
 	uid int
+	// home contains the user's real home directory
+	home      string
+	homeError error
+}
+
+// isPlausibleHome returns an error if the path is empty, not clean, not absolute or cannot
+// be opened for reading.
+//
+// See bootstrap.c function switch_to_privileged_user(). When snap-update-ns is invoked for
+// user mounts, the effective uid and gid is changed to the calling user and supplementary
+// groups dropped, while retaining capability SYS_ADMIN. Having the effective uid and gid
+// changed to the calling user is a prerequisite for isPlausibleHome to function as intended.
+func isPlausibleHome(path string) error {
+	if path == "" {
+		return fmt.Errorf("cannot allow empty path")
+	}
+	if path != filepath.Clean(path) {
+		return fmt.Errorf("cannot allow unclean path")
+	}
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("cannot allow relative path")
+	}
+	const openFlags = syscall.O_NOFOLLOW | syscall.O_CLOEXEC | syscall.O_DIRECTORY
+	fd, err := sysOpen(path, openFlags, 0)
+	if err != nil {
+		return err
+	}
+	sysClose(fd)
+	return nil
 }
 
 // NewUserProfileUpdateContext returns encapsulated information for performing a per-user mount namespace update.
-func NewUserProfileUpdateContext(instanceName string, fromSnapConfine bool, uid int) *UserProfileUpdateContext {
+func NewUserProfileUpdateContext(instanceName string, fromSnapConfine bool, uid int) (*UserProfileUpdateContext, error) {
+	realHome := os.Getenv("SNAP_REAL_HOME")
+	var realHomeError error
+	if realHome == "" {
+		realHomeError = fmt.Errorf("cannot retrieve home directory")
+	}
+	if err := isPlausibleHome(realHome); err != nil {
+		realHomeError = fmt.Errorf("cannot use invalid home directory %q: %v", realHome, err)
+	}
+
 	return &UserProfileUpdateContext{
 		CommonProfileUpdateContext: CommonProfileUpdateContext{
 			instanceName:       instanceName,
@@ -44,13 +85,10 @@ func NewUserProfileUpdateContext(instanceName string, fromSnapConfine bool, uid 
 			currentProfilePath: currentUserProfilePath(instanceName, uid),
 			desiredProfilePath: desiredUserProfilePath(instanceName),
 		},
-		uid: uid,
-	}
-}
-
-// UID returns the user ID of the mount namespace being updated.
-func (upCtx *UserProfileUpdateContext) UID() int {
-	return upCtx.uid
+		uid:       uid,
+		home:      realHome,
+		homeError: realHomeError,
+	}, nil
 }
 
 // Lock acquires locks / freezes needed to synchronize mount namespace changes.
@@ -65,6 +103,9 @@ func (upCtx *UserProfileUpdateContext) Assumptions() *Assumptions {
 	// TODO: configure the secure helper and inform it about directories that
 	// can be created without trespassing.
 	as := &Assumptions{}
+	if upCtx.homeError == nil {
+		as.AddUnrestrictedPaths(upCtx.home)
+	}
 	// TODO: Handle /home/*/snap/* when we do per-user mount namespaces and
 	// allow defining layout items that refer to SNAP_USER_DATA and
 	// SNAP_USER_COMMON.
@@ -75,6 +116,12 @@ func (upCtx *UserProfileUpdateContext) Assumptions() *Assumptions {
 func (upCtx *UserProfileUpdateContext) LoadDesiredProfile() (*osutil.MountProfile, error) {
 	profile, err := upCtx.CommonProfileUpdateContext.LoadDesiredProfile()
 	if err != nil {
+		return nil, err
+	}
+	home := func() (path string, err error) {
+		return upCtx.home, upCtx.homeError
+	}
+	if err := expandHomeDir(profile, home); err != nil {
 		return nil, err
 	}
 	// TODO: when SNAP_USER_DATA, SNAP_USER_COMMON or other variables relating

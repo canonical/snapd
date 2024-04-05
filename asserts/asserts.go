@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2022 Canonical Ltd
+ * Copyright (C) 2015-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,8 +23,10 @@ import (
 	"bufio"
 	"bytes"
 	"crypto"
+	"encoding/json"
 	"fmt"
 	"io"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -39,6 +41,7 @@ type typeFlags int
 const (
 	noAuthority typeFlags = 1 << iota
 	sequenceForming
+	jsonBody
 )
 
 // MetaHeaders is a list of headers in assertions which are about the assertion
@@ -100,7 +103,7 @@ func (at *AssertionType) MaxSupportedFormat() int {
 	return maxSupportedFormat[at.Name]
 }
 
-// SequencingForming returns true if the assertion type has a positive
+// SequenceForming returns true if the assertion type has a positive
 // integer >= 1 as the last component (preferably called "sequence")
 // of its primary key over which the assertions of the type form
 // sequences, usually without gaps, one sequence per sequence key (the
@@ -123,23 +126,26 @@ func (at *AssertionType) AcceptablePrimaryKey(key []string) bool {
 
 // Understood assertion types.
 var (
-	AccountType         = &AssertionType{"account", []string{"account-id"}, nil, assembleAccount, 0}
-	AccountKeyType      = &AssertionType{"account-key", []string{"public-key-sha3-384"}, nil, assembleAccountKey, 0}
-	RepairType          = &AssertionType{"repair", []string{"brand-id", "repair-id"}, nil, assembleRepair, sequenceForming}
-	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, nil, assembleModel, 0}
-	SerialType          = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, nil, assembleSerial, 0}
-	BaseDeclarationType = &AssertionType{"base-declaration", []string{"series"}, nil, assembleBaseDeclaration, 0}
-	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, nil, assembleSnapDeclaration, 0}
-	SnapBuildType       = &AssertionType{"snap-build", []string{"snap-sha3-384"}, nil, assembleSnapBuild, 0}
-	SnapRevisionType    = &AssertionType{"snap-revision", []string{"snap-sha3-384", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapRevision, 0}
-	SnapDeveloperType   = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, nil, assembleSnapDeveloper, 0}
-	SystemUserType      = &AssertionType{"system-user", []string{"brand-id", "email"}, nil, assembleSystemUser, 0}
-	ValidationType      = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, nil, assembleValidation, 0}
-	ValidationSetType   = &AssertionType{"validation-set", []string{"series", "account-id", "name", "sequence"}, nil, assembleValidationSet, sequenceForming}
-	StoreType           = &AssertionType{"store", []string{"store"}, nil, assembleStore, 0}
-	PreseedType         = &AssertionType{"preseed", []string{"series", "brand-id", "model", "system-label"}, nil, assemblePreseed, 0}
+	AccountType              = &AssertionType{"account", []string{"account-id"}, nil, assembleAccount, 0}
+	AccountKeyType           = &AssertionType{"account-key", []string{"public-key-sha3-384"}, nil, assembleAccountKey, 0}
+	RepairType               = &AssertionType{"repair", []string{"brand-id", "repair-id"}, nil, assembleRepair, sequenceForming}
+	ModelType                = &AssertionType{"model", []string{"series", "brand-id", "model"}, nil, assembleModel, 0}
+	SerialType               = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, nil, assembleSerial, 0}
+	BaseDeclarationType      = &AssertionType{"base-declaration", []string{"series"}, nil, assembleBaseDeclaration, 0}
+	SnapDeclarationType      = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, nil, assembleSnapDeclaration, 0}
+	SnapBuildType            = &AssertionType{"snap-build", []string{"snap-sha3-384"}, nil, assembleSnapBuild, 0}
+	SnapRevisionType         = &AssertionType{"snap-revision", []string{"snap-sha3-384", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapRevision, 0}
+	SnapDeveloperType        = &AssertionType{"snap-developer", []string{"snap-id", "publisher-id"}, nil, assembleSnapDeveloper, 0}
+	SystemUserType           = &AssertionType{"system-user", []string{"brand-id", "email"}, nil, assembleSystemUser, 0}
+	ValidationType           = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, nil, assembleValidation, 0}
+	ValidationSetType        = &AssertionType{"validation-set", []string{"series", "account-id", "name", "sequence"}, nil, assembleValidationSet, sequenceForming}
+	StoreType                = &AssertionType{"store", []string{"store"}, nil, assembleStore, 0}
+	PreseedType              = &AssertionType{"preseed", []string{"series", "brand-id", "model", "system-label"}, nil, assemblePreseed, 0}
+	SnapResourceRevisionType = &AssertionType{"snap-resource-revision", []string{"snap-id", "resource-name", "resource-sha3-384", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapResourceRevision, 0}
+	SnapResourcePairType     = &AssertionType{"snap-resource-pair", []string{"snap-id", "resource-name", "resource-revision", "snap-revision", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapResourcePair, 0}
+	AspectBundleType         = &AssertionType{"aspect-bundle", []string{"account-id", "name"}, nil, assembleAspectBundle, jsonBody}
 
-// ...
+	// ...
 )
 
 // Assertion types without a definite authority set (on the wire and/or self-signed).
@@ -150,25 +156,28 @@ var (
 )
 
 var typeRegistry = map[string]*AssertionType{
-	AccountType.Name:         AccountType,
-	AccountKeyType.Name:      AccountKeyType,
-	ModelType.Name:           ModelType,
-	SerialType.Name:          SerialType,
-	BaseDeclarationType.Name: BaseDeclarationType,
-	SnapDeclarationType.Name: SnapDeclarationType,
-	SnapBuildType.Name:       SnapBuildType,
-	SnapRevisionType.Name:    SnapRevisionType,
-	SnapDeveloperType.Name:   SnapDeveloperType,
-	SystemUserType.Name:      SystemUserType,
-	ValidationType.Name:      ValidationType,
-	ValidationSetType.Name:   ValidationSetType,
-	RepairType.Name:          RepairType,
-	StoreType.Name:           StoreType,
+	AccountType.Name:              AccountType,
+	AccountKeyType.Name:           AccountKeyType,
+	ModelType.Name:                ModelType,
+	SerialType.Name:               SerialType,
+	BaseDeclarationType.Name:      BaseDeclarationType,
+	SnapDeclarationType.Name:      SnapDeclarationType,
+	SnapBuildType.Name:            SnapBuildType,
+	SnapRevisionType.Name:         SnapRevisionType,
+	SnapDeveloperType.Name:        SnapDeveloperType,
+	SystemUserType.Name:           SystemUserType,
+	ValidationType.Name:           ValidationType,
+	ValidationSetType.Name:        ValidationSetType,
+	RepairType.Name:               RepairType,
+	StoreType.Name:                StoreType,
+	PreseedType.Name:              PreseedType,
+	SnapResourceRevisionType.Name: SnapResourceRevisionType,
+	SnapResourcePairType.Name:     SnapResourcePairType,
+	AspectBundleType.Name:         AspectBundleType,
 	// no authority
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialRequestType.Name:        SerialRequestType,
 	AccountKeyRequestType.Name:    AccountKeyRequestType,
-	PreseedType.Name:              PreseedType,
 }
 
 // Type returns the AssertionType with name or nil
@@ -988,6 +997,34 @@ func checkNoAuthority(assertType *AssertionType, headers map[string]interface{})
 	return nil
 }
 
+func checkJSON(assertType *AssertionType, body []byte) (err error) {
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("assertion %s: %v", assertType.Name, err)
+		}
+	}()
+
+	if body == nil {
+		return fmt.Errorf(`body must contain JSON`)
+	}
+
+	var val interface{}
+	if err := json.Unmarshal(body, &val); err != nil {
+		return fmt.Errorf("invalid JSON in body: %v", err)
+	}
+
+	formatted, err := json.MarshalIndent(val, "", "  ")
+	if err != nil {
+		return fmt.Errorf("invalid JSON in body: %v", err)
+	}
+
+	if !reflect.DeepEqual(body, formatted) {
+		return fmt.Errorf(`JSON in body must be indented with 2 spaces and sort object entries by key`)
+	}
+
+	return nil
+}
+
 // assemble is the internal variant of Assemble, assumes headers are already checked for supported types
 func assemble(headers map[string]interface{}, body, content, signature []byte) (Assertion, error) {
 	length, err := checkIntWithDefault(headers, "body-length", 0)
@@ -1013,6 +1050,12 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 	assertType := Type(typ)
 	if assertType == nil {
 		return nil, fmt.Errorf("unknown assertion type: %q", typ)
+	}
+
+	if assertType.flags&jsonBody != 0 {
+		if err := checkJSON(assertType, body); err != nil {
+			return nil, err
+		}
 	}
 
 	if assertType.flags&noAuthority == 0 {
@@ -1075,6 +1118,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	}
 
 	withAuthority := assertType.flags&noAuthority == 0
+	withJSONBody := assertType.flags&jsonBody != 0
 
 	err = checkHeaders(headers)
 	if err != nil {
@@ -1085,6 +1129,12 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	// make sure we actually enforce that
 	if !utf8.Valid(body) {
 		return nil, fmt.Errorf("assertion body is not utf8")
+	}
+
+	if withJSONBody {
+		if err := checkJSON(assertType, body); err != nil {
+			return nil, err
+		}
 	}
 
 	finalHeaders := copyHeaders(headers)

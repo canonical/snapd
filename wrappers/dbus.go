@@ -21,7 +21,6 @@ package wrappers
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -68,7 +67,7 @@ var snapNameLine = regexp.MustCompile(`(?m)^X-Snap=(.*)$`)
 
 // snapNameFromServiceFile returns the snap name for the D-Bus service activation file.
 func snapNameFromServiceFile(filename string) (owner string, err error) {
-	content, err := ioutil.ReadFile(filename)
+	content, err := os.ReadFile(filename)
 	if err != nil {
 		return "", err
 	}

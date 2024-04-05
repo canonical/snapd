@@ -96,9 +96,9 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(5), SnapID: "some-snap-id"},
-		},
+		}),
 		Current:         snap.R(5),
 		SnapType:        "app",
 		UserID:          1,
@@ -203,9 +203,9 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "other-snap", Revision: snap.R(1), SnapID: "other-snap-id"},
-		},
+		}),
 		Current:         snap.R(1),
 		SnapType:        "app",
 		TrackingChannel: "devel",
@@ -234,8 +234,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 				"default-provider": "foo-snap:",
 				"content":          "some-content",
 			},
-			Apps:  map[string]*snap.AppInfo{},
-			Hooks: map[string]*snap.HookInfo{},
+			Apps: map[string]*snap.AppInfo{},
 		}}
 	info2.Plugs = plugs
 
@@ -285,7 +284,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	err = snapstate.Get(s.state, "some-snap", &snapst1)
 	c.Assert(err, IsNil)
 
-	sup, snapst, err := cand1.SnapSetupForUpdate(s.state, nil, 0, nil)
+	sup, snapst, err := cand1.SnapSetupForUpdate(s.state, nil, 0, nil, nil)
 	c.Assert(err, IsNil)
 	c.Check(sup, DeepEquals, &snapstate.SnapSetup{
 		Base:    "some-base",
@@ -311,7 +310,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	err = snapstate.Get(s.state, "other-snap", &snapst2)
 	c.Assert(err, IsNil)
 
-	sup, snapst, err = cand2.SnapSetupForUpdate(s.state, nil, 0, nil)
+	sup, snapst, err = cand2.SnapSetupForUpdate(s.state, nil, 0, nil, nil)
 	c.Assert(err, IsNil)
 	c.Check(sup, DeepEquals, &snapstate.SnapSetup{
 		Type:    "app",
@@ -375,8 +374,26 @@ func (s *refreshHintsTestSuite) TestPruneRefreshCandidates(c *C) {
 				},
 			},
 		},
+		"snap-f": {
+			SnapSetup: snapstate.SnapSetup{
+				Type: "app",
+				SideInfo: &snap.SideInfo{
+					RealName: "snap-c",
+					Revision: snap.R(1),
+				},
+			},
+			Monitored: true,
+		},
 	}
 	st.Set("refresh-candidates", candidates)
+
+	abortCalled := false
+
+	st.Cache("monitored-snaps", map[string]context.CancelFunc{
+		"snap-f": func() {
+			abortCalled = true
+		},
+	})
 
 	c.Assert(snapstate.PruneRefreshCandidates(st, "snap-a"), IsNil)
 
@@ -388,6 +405,13 @@ func (s *refreshHintsTestSuite) TestPruneRefreshCandidates(c *C) {
 	c.Check(ok, Equals, true)
 	_, ok = candidates2["snap-c"]
 	c.Check(ok, Equals, true)
+	_, ok = candidates2["snap-f"]
+	c.Check(ok, Equals, true)
+	m := st.Cached("monitored-snaps")
+	monitored, ok := m.(map[string]context.CancelFunc)
+	c.Assert(ok, Equals, true)
+	c.Check(monitored["snap-f"], NotNil)
+	c.Check(abortCalled, Equals, false)
 
 	var candidates3 map[string]*snapstate.RefreshCandidate
 	c.Assert(snapstate.PruneRefreshCandidates(st, "snap-b"), IsNil)
@@ -398,6 +422,25 @@ func (s *refreshHintsTestSuite) TestPruneRefreshCandidates(c *C) {
 	c.Check(ok, Equals, false)
 	_, ok = candidates3["snap-c"]
 	c.Check(ok, Equals, true)
+	_, ok = candidates3["snap-f"]
+	c.Check(ok, Equals, true)
+	m = st.Cached("monitored-snaps")
+	monitored, ok = m.(map[string]context.CancelFunc)
+	c.Assert(ok, Equals, true)
+	c.Check(monitored["snap-f"], NotNil)
+	c.Check(abortCalled, Equals, false)
+
+	var candidates4 map[string]*snapstate.RefreshCandidate
+	c.Assert(snapstate.PruneRefreshCandidates(st, "snap-f"), IsNil)
+	c.Assert(st.Get("refresh-candidates", &candidates4), IsNil)
+	_, ok = candidates4["snap-c"]
+	c.Check(ok, Equals, true)
+	_, ok = candidates4["snap-f"]
+	c.Check(ok, Equals, false)
+	m = st.Cached("monitored-snaps")
+	// this is expected as the monitoring handler normally does the cleanup
+	c.Assert(m, NotNil)
+	c.Check(abortCalled, Equals, true)
 }
 
 func (s *refreshHintsTestSuite) TestPruneRefreshCandidatesIncorrectFormat(c *C) {
@@ -420,11 +463,14 @@ func (s *refreshHintsTestSuite) TestPruneRefreshCandidatesIncorrectFormat(c *C) 
 
 func (s *refreshHintsTestSuite) TestRefreshHintsNotApplicableWrongArch(c *C) {
 	s.state.Lock()
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "other-snap", Revision: snap.R(1), SnapID: "other-snap-id"},
-		},
+		}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -468,9 +514,9 @@ func (s *refreshHintsTestSuite) TestRefreshHintsAbortsMonitoringForRemovedCandid
 	s.state.Lock()
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "other-snap", Revision: snap.R(1), SnapID: "other-snap-id"},
-		},
+		}),
 		Current: snap.R(1),
 	})
 	s.state.Unlock()
@@ -517,12 +563,14 @@ func (s *refreshHintsTestSuite) TestRefreshHintsAbortsMonitoringForRemovedCandid
 
 func (s *refreshHintsTestSuite) TestRefreshHintsNotApplicableWrongEpoch(c *C) {
 	s.state.Lock()
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
 
 	si := &snap.SideInfo{RealName: "other-snap", Revision: snap.R(1), SnapID: "other-snap-id"}
 	snaptest.MockSnap(c, otherSnapYaml, si)
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{si},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
@@ -573,4 +621,99 @@ func (s *refreshHintsTestSuite) TestSnapStoreOffline(c *C) {
 	c.Check(err, IsNil)
 
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
+}
+
+func (s *refreshHintsTestSuite) TestUpdateCandidatesNonDiscriminating(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var hints map[string]*snapstate.RefreshCandidate
+
+	err := snapstate.UpdateRefreshCandidates(s.state, nil, nil)
+	c.Assert(err, IsNil)
+	s.state.Get("refresh-candidates", &hints)
+	c.Check(hints, HasLen, 0)
+
+	err = snapstate.UpdateRefreshCandidates(s.state, map[string]*snapstate.RefreshCandidate{
+		"foo": {SnapSetup: snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "foo", Revision: snap.R(1)}}},
+		"bar": {
+			SnapSetup: snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "bar", Revision: snap.R(1)}},
+			Monitored: true,
+		},
+	}, nil)
+	c.Assert(err, IsNil)
+
+	hints = nil
+	s.state.Get("refresh-candidates", &hints)
+	c.Check(hints, HasLen, 2)
+	c.Check(hints["foo"], NotNil)
+	c.Assert(hints["bar"], NotNil)
+	c.Check(hints["bar"].SideInfo.Revision, Equals, snap.R(1))
+	c.Check(hints["bar"].Monitored, Equals, true)
+
+	err = snapstate.UpdateRefreshCandidates(s.state, map[string]*snapstate.RefreshCandidate{
+		// bar with Monitored flag preserved by the caller, as in
+		// refreshHintsFromCandidates()
+		"bar": {
+			SnapSetup: snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "bar", Revision: snap.R(2)}},
+			Monitored: true,
+		},
+		"baz": {SnapSetup: snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "baz", Revision: snap.R(4)}}},
+	}, nil)
+	c.Assert(err, IsNil)
+
+	hints = nil
+	s.state.Get("refresh-candidates", &hints)
+	c.Check(hints, HasLen, 2)
+	// "foo" was dropped
+	c.Check(hints["foo"], IsNil)
+	// "bar" was 'updated'
+	c.Assert(hints["bar"], NotNil)
+	c.Check(hints["bar"].SideInfo.Revision, Equals, snap.R(2))
+	c.Check(hints["bar"].Monitored, Equals, true)
+	// "baz" was added
+	c.Check(hints["baz"], NotNil)
+}
+
+func (s *refreshHintsTestSuite) TestUpdateCandidatesDiscriminating(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var hints map[string]*snapstate.RefreshCandidate
+
+	err := snapstate.UpdateRefreshCandidates(s.state, nil, nil)
+	c.Assert(err, IsNil)
+	s.state.Get("refresh-candidates", &hints)
+	c.Check(hints, HasLen, 0)
+
+	err = snapstate.UpdateRefreshCandidates(s.state, map[string]*snapstate.RefreshCandidate{
+		"foo": {SnapSetup: snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "foo", Revision: snap.R(1)}}},
+		"bar": {
+			SnapSetup: snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "bar", Revision: snap.R(1)}},
+			Monitored: true,
+		},
+	}, nil)
+	c.Assert(err, IsNil)
+
+	hints = nil
+	s.state.Get("refresh-candidates", &hints)
+	c.Check(hints, HasLen, 2)
+	c.Check(hints["foo"], NotNil)
+	c.Assert(hints["bar"], NotNil)
+	c.Check(hints["bar"].SideInfo.Revision, Equals, snap.R(1))
+	c.Check(hints["bar"].Monitored, Equals, true)
+
+	// like re-refresh code path would eventually call it
+	err = snapstate.UpdateRefreshCandidates(s.state, nil, []string{"foo"})
+	c.Assert(err, IsNil)
+
+	hints = nil
+	s.state.Get("refresh-candidates", &hints)
+	c.Check(hints, HasLen, 1)
+	// "foo" was dropped
+	c.Check(hints["foo"], IsNil)
+	// "bar" was preserved
+	c.Assert(hints["bar"], NotNil)
+	c.Check(hints["bar"].SideInfo.Revision, Equals, snap.R(1))
+	c.Check(hints["bar"].Monitored, Equals, true)
 }

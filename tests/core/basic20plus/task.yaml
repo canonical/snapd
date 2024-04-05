@@ -1,5 +1,12 @@
 summary: Check basic core20 and later system functionality
 
+details: |
+    Verify some basic functionalities in ubuntu core (>=20): system
+    snaps are present, the system is fully seeded, install a simple
+    snap, check boot configuration, symlinks in /var/lib/snapd/snaps,
+    snap recovery, loop devices and apparmor after a reboot works
+    properly
+
 systems:
   - ubuntu-core-20-*
   - ubuntu-core-22-*
@@ -40,8 +47,8 @@ execute: |
     echo "Ensure passwd/group is available for snaps"
     "test-snapd-sh-${base_snap}.sh" -c 'cat /var/lib/extrausers/passwd' | MATCH test
 
-    case "$SPREAD_SYSTEM" in
-      ubuntu-core-20-64|ubuntu-core-22-64|ubuntu-core-22-arm-64)
+    # rpi devices don't use grub
+    if ( os.query is-core20 || os.query is-core22 ) && not snap list pi-kernel &>/dev/null; then
         echo "Ensure extracted kernel.efi exists"
         kernel_name="$(snaps.name kernel)"
         test -e /boot/grub/"$kernel_name"*/kernel.efi
@@ -52,13 +59,11 @@ execute: |
         echo "Ensure we are using managed boot assets"
         MATCH '# Snapd-Boot-Config-Edition: [0-9]+' < /boot/grub/grub.cfg
         MATCH '# Snapd-Boot-Config-Edition: [0-9]+' < /run/mnt/ubuntu-seed/EFI/ubuntu/grub.cfg
-        ;;
-      *)
+    else
         echo "Ensure extracted {kernel,initrd}.img exists"
         test -e /run/mnt/ubuntu-seed/systems/*/kernel/kernel.img
         test -e /run/mnt/ubuntu-seed/systems/*/kernel/initrd.img
-        ;;
-    esac
+    fi
 
     echo "Ensure that model was written to ubuntu-boot"
     test -e /run/mnt/ubuntu-boot/device/model
@@ -66,7 +71,7 @@ execute: |
     # ensure that our the-tool (and thus our snap-bootstrap ran)
     # for external backend the initramfs is not rebuilt
     echo "Check that we booted with the rebuilt initramfs in the kernel snap"
-    if [ "$SPREAD_BACKEND" != "external" ]; then
+    if [ "$SPREAD_BACKEND" != "external" ] && [ "$SPREAD_BACKEND" != "testflinger" ]; then
         test -e /writable/system-data/the-tool-ran
     fi
 

@@ -24,7 +24,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -180,7 +179,7 @@ fi`)
 		{"snap-seccomp", "version-info"}, // from Initialize()
 		{"snap-seccomp", "compile", profile + ".src", profile + ".bin"},
 	})
-	raw, err := ioutil.ReadFile(profile + ".src")
+	raw, err := os.ReadFile(profile + ".src")
 	c.Assert(err, IsNil)
 	c.Assert(bytes.HasPrefix(raw, []byte(`# snap-seccomp version information:
 # 2345cdef 2.3.4 2345cdef -
@@ -270,11 +269,12 @@ func (s *backendSuite) TestUpdatingSnapToOneWithNoHooks(c *C) {
 
 func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
+	appSet := interfaces.NewSnapAppSet(snapInfo)
 	// NOTE: we don't call seccomp.MockTemplate()
-	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	err := s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
-	data, err := ioutil.ReadFile(profile + ".src")
+	data, err := os.ReadFile(profile + ".src")
 	c.Assert(err, IsNil)
 	for _, line := range []string{
 		// NOTE: a few randomly picked lines from the real profile.  Comments
@@ -392,8 +392,9 @@ func (s *backendSuite) TestBindIsAddedForNonFullApparmorSystems(c *C) {
 	defer restore()
 
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
+	appSet := interfaces.NewSnapAppSet(snapInfo)
 	// NOTE: we don't call seccomp.MockTemplate()
-	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	err := s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 	c.Assert(profile+".src", testutil.FileContains, "# Add bind() for systems with only Seccomp enabled to workaround\n# LP #1644573\nbind\n")
@@ -404,8 +405,9 @@ func (s *backendSuite) TestSocketcallIsAddedWhenRequired(c *C) {
 	defer restore()
 
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
+	appSet := interfaces.NewSnapAppSet(snapInfo)
 	// NOTE: we don't call seccomp.MockTemplate()
-	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	err := s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 	c.Assert(profile+".src", testutil.FileContains, "\nsocketcall\n")
@@ -416,8 +418,9 @@ func (s *backendSuite) TestSocketcallIsNotAddedWhenNotRequired(c *C) {
 	defer restore()
 
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
+	appSet := interfaces.NewSnapAppSet(snapInfo)
 	// NOTE: we don't call seccomp.MockTemplate()
-	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	err := s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 	c.Assert(profile+".src", Not(testutil.FileContains), "\nsocketcall\n")
@@ -642,7 +645,8 @@ func (s *backendSuite) TestRebuildsWithVersionInfoWhenNeeded(c *C) {
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1, nil)
-	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	appSet := interfaces.NewSnapAppSet(snapInfo)
+	err := s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	c.Check(profile+".src", testutil.FileEquals, s.profileHeader+"\ndefault\n")
 
@@ -651,7 +655,7 @@ func (s *backendSuite) TestRebuildsWithVersionInfoWhenNeeded(c *C) {
 	})
 
 	// unchanged snap-seccomp version will not trigger a rebuild
-	err = s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	err = s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 
 	// compilation from this first Setup()
@@ -679,7 +683,7 @@ fi`)
 	})
 
 	// the profile should be rebuilt now
-	err = s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	err = s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	c.Check(profile+".src", testutil.FileEquals, updatedProfileHeader+"\ndefault\n")
 
@@ -753,12 +757,13 @@ apps:
   cmd:
 `
 	snapInfo := snaptest.MockInfo(c, snapYaml, nil)
+	appSet := interfaces.NewSnapAppSet(snapInfo)
 	// NOTE: we don't call seccomp.MockTemplate()
-	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	err := s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	// NOTE: we don't call seccomp.MockTemplate()
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.app.cmd")
-	data, err := ioutil.ReadFile(profile + ".src")
+	data, err := os.ReadFile(profile + ".src")
 	c.Assert(err, IsNil)
 	for _, line := range []string{
 		// NOTE: a few randomly picked lines from the real
@@ -798,12 +803,13 @@ apps:
   cmd:
 `
 	snapInfo := snaptest.MockInfo(c, snapYaml, nil)
+	appSet := interfaces.NewSnapAppSet(snapInfo)
 	// NOTE: we don't call seccomp.MockTemplate()
-	err := s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	err := s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	// NOTE: we don't call seccomp.MockTemplate()
 	profile := filepath.Join(dirs.SnapSeccompDir, "snap.app.cmd")
-	data, err := ioutil.ReadFile(profile + ".src")
+	data, err := os.ReadFile(profile + ".src")
 	c.Assert(err, IsNil)
 	for _, line := range []string{
 		// and a few randomly picked lines from root syscalls
@@ -853,7 +859,8 @@ fi
 	nmbdProfile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.nmbd")
 
 	snapInfo := snaptest.MockInfo(c, ifacetest.SambaYamlV1WithNmbd, nil)
-	err = s.Backend.Setup(snapInfo, interfaces.ConfinementOptions{}, s.Repo, s.meas)
+	appSet := interfaces.NewSnapAppSet(snapInfo)
+	err = s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, s.Repo, s.meas)
 	c.Assert(err, ErrorMatches, "cannot compile .*nmbd.src: mocked failure")
 	for _, profile := range []string{smbdProfile, nmbdProfile} {
 		c.Check(profile+".bin", testutil.FileAbsent)

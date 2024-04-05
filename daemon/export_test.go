@@ -22,11 +22,11 @@ package daemon
 import (
 	"context"
 	"net/http"
+	"os/user"
 	"time"
 
 	"github.com/gorilla/mux"
 
-	"github.com/snapcore/snapd/aspects"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord"
@@ -113,6 +113,14 @@ func MockUnsafeReadSnapInfo(mock func(string) (*snap.Info, error)) (restore func
 	}
 }
 
+func MockReadComponentInfoFromCont(mock func(tempPath string) (*snap.ComponentInfo, error)) (restore func()) {
+	oldUnsafeReadSnapInfo := readComponentInfoFromCont
+	readComponentInfoFromCont = mock
+	return func() {
+		readComponentInfoFromCont = oldUnsafeReadSnapInfo
+	}
+}
+
 func MockAssertstateRefreshSnapAssertions(mock func(*state.State, int, *assertstate.RefreshAssertionsOptions) error) (restore func()) {
 	oldAssertstateRefreshSnapAssertions := assertstateRefreshSnapAssertions
 	assertstateRefreshSnapAssertions = mock
@@ -135,7 +143,7 @@ func MockSnapstateInstall(mock func(context.Context, *state.State, string, *snap
 	}
 }
 
-func MockSnapstateInstallPath(mock func(*state.State, *snap.SideInfo, string, string, string, snapstate.Flags) (*state.TaskSet, *snap.Info, error)) (restore func()) {
+func MockSnapstateInstallPath(mock func(*state.State, *snap.SideInfo, string, string, string, snapstate.Flags, snapstate.PrereqTracker) (*state.TaskSet, *snap.Info, error)) (restore func()) {
 	oldSnapstateInstallPath := snapstateInstallPath
 	snapstateInstallPath = mock
 	return func() {
@@ -212,6 +220,14 @@ func MockSnapstateInstallPathMany(f func(context.Context, *state.State, []*snap.
 	snapstateInstallPathMany = f
 	return func() {
 		snapstateInstallPathMany = old
+	}
+}
+
+func MockSnapstateInstallComponentPath(f func(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info, path string, flags snapstate.Flags) (*state.TaskSet, error)) func() {
+	old := snapstateInstallComponentPath
+	snapstateInstallComponentPath = f
+	return func() {
+		snapstateInstallComponentPath = old
 	}
 }
 
@@ -335,7 +351,7 @@ var (
 	MaxReadBuflen = maxReadBuflen
 )
 
-func MockAspectstateGet(f func(databag aspects.DataBag, account, bundleName, aspect, field string, value interface{}) error) (restore func()) {
+func MockAspectstateGet(f func(st *state.State, account, bundleName, aspect string, field []string) (interface{}, error)) (restore func()) {
 	old := aspectstateGetAspect
 	aspectstateGetAspect = f
 	return func() {
@@ -343,7 +359,7 @@ func MockAspectstateGet(f func(databag aspects.DataBag, account, bundleName, asp
 	}
 }
 
-func MockAspectstateSet(f func(databag aspects.DataBag, account, bundleName, aspect, field string, val interface{}) error) (restore func()) {
+func MockAspectstateSet(f func(st *state.State, account, bundleName, aspect string, requests map[string]interface{}) error) (restore func()) {
 	old := aspectstateSetAspect
 	aspectstateSetAspect = f
 	return func() {
@@ -354,5 +370,11 @@ func MockAspectstateSet(f func(databag aspects.DataBag, account, bundleName, asp
 func MockRebootNoticeWait(d time.Duration) (restore func()) {
 	restore = testutil.Backup(&rebootNoticeWait)
 	rebootNoticeWait = d
+	return restore
+}
+
+func MockSystemUserFromRequest(f func(r *http.Request) (*user.User, error)) (restore func()) {
+	restore = testutil.Backup(&systemUserFromRequest)
+	systemUserFromRequest = f
 	return restore
 }

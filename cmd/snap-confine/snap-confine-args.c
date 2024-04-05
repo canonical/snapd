@@ -38,7 +38,7 @@ struct sc_args {
 };
 
 struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
-				       sc_error ** errorp)
+				       sc_error **errorp)
 {
 	struct sc_args *args = NULL;
 	sc_error *err = NULL;

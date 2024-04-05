@@ -38,8 +38,8 @@ var (
 		Path:        "/v2/snaps/{name}/conf",
 		GET:         getSnapConf,
 		PUT:         setSnapConf,
-		ReadAccess:  authenticatedAccess{},
-		WriteAccess: authenticatedAccess{},
+		ReadAccess:  authenticatedAccess{Polkit: polkitActionManageConfiguration},
+		WriteAccess: authenticatedAccess{Polkit: polkitActionManageConfiguration},
 	}
 )
 

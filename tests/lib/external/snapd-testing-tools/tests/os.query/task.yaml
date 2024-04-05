@@ -70,21 +70,15 @@ execute: |
             ! os.query is-ubuntu 20.04
             ! os.query is-core
             ;;
-        ubuntu-23.04-64)
-            os.query is-classic
-            os.query is-ubuntu 23.04
-            ! os.query is-ubuntu 21.04
-            ! os.query is-core
-            ;;
         ubuntu-23.10-64)
             os.query is-classic
             os.query is-ubuntu 23.10
             ! os.query is-ubuntu 21.04
             ! os.query is-core
             ;;
-        debian-11-64)
+        ubuntu-24.04-64)
             os.query is-classic
-            os.query is-ubuntu 23.10
+            os.query is-ubuntu 24.04
             ! os.query is-ubuntu 21.04
             ! os.query is-core
             ;;
@@ -93,11 +87,6 @@ execute: |
             os.query is-debian 11
             os.query is-classic
             ! os.query is-core
-
-            # check ubuntu comparisons
-            ! os.query is-ubuntu-lt 20.04
-            os.query is-ubuntu-ge 20.04 | MATCH "os.query: comparing non ubuntu system"
-            os.query is-ubuntu-lt 2>&1 | MATCH "os.query: version id is expected"
             ;;
         debian-12-64)
             os.query is-debian
@@ -111,16 +100,16 @@ execute: |
             os.query is-classic
             ! os.query is-core
             ;;
-        fedora-37-64)
+        fedora-38-64)
             os.query is-fedora
-            os.query is-fedora 37
+            os.query is-fedora 38
             ! os.query is-fedora rawhide
             os.query is-classic
             ! os.query is-core
             ;;
-        fedora-38-64)
+        fedora-39-64)
             os.query is-fedora
-            os.query is-fedora 38
+            os.query is-fedora 39
             ! os.query is-fedora rawhide
             os.query is-classic
             ! os.query is-core
@@ -132,6 +121,15 @@ execute: |
             ;;
         amazon-linux-2-64)
             os.query is-amazon-linux
+            os.query is-amazon-linux 2
+            ! os.query is-amazon-linux 2023
+            os.query is-classic
+            ! os.query is-core
+            ;;
+        amazon-linux-2023-64)
+            os.query is-amazon-linux
+            os.query is-amazon-linux 2023
+            ! os.query is-amazon-linux 2
             os.query is-classic
             ! os.query is-core
             ;;
@@ -149,13 +147,6 @@ execute: |
         centos-9-64)            
             os.query is-centos 9
             os.query is-centos
-            ! os.query is-core
-            ;;
-        opensuse-15.4-64)
-            os.query is-opensuse
-            os.query is-opensuse 15.4
-            ! os.query is-opensuse tumbleweed
-            os.query is-classic
             ! os.query is-core
             ;;
         opensuse-15.5-64)

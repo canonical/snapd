@@ -1,5 +1,9 @@
 summary: Check that auto-refresh is retried after a permanent network error
 
+details: |
+    Verify that an auto-refresh is completed after a networking error which
+    made the previous auto-refresh fail.
+
 systems: [-ubuntu-14.04-*]
 
 prepare: |

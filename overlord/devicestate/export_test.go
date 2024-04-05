@@ -161,27 +161,33 @@ func MockRepeatRequestSerial(label string) (restore func()) {
 	}
 }
 
-func MockSnapstateInstallWithDeviceContext(f func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
+func MockSnapstateInstallWithDeviceContext(f func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
 	r := testutil.Backup(&snapstateInstallWithDeviceContext)
 	snapstateInstallWithDeviceContext = f
 	return r
 }
 
-func MockSnapstateInstallPathWithDeviceContext(f func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
+func MockSnapstateInstallPathWithDeviceContext(f func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
 	r := testutil.Backup(&snapstateInstallPathWithDeviceContext)
 	snapstateInstallPathWithDeviceContext = f
 	return r
 }
 
-func MockSnapstateUpdateWithDeviceContext(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
+func MockSnapstateUpdateWithDeviceContext(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
 	r := testutil.Backup(&snapstateUpdateWithDeviceContext)
 	snapstateUpdateWithDeviceContext = f
 	return r
 }
 
-func MockSnapstateUpdatePathWithDeviceContext(f func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
+func MockSnapstateUpdatePathWithDeviceContext(f func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, prqt snapstate.PrereqTracker, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
 	r := testutil.Backup(&snapstateUpdatePathWithDeviceContext)
 	snapstateUpdatePathWithDeviceContext = f
+	return r
+}
+
+func MockSnapstateDownload(f func(ctx context.Context, st *state.State, name string, blobDirectory string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext) (*state.TaskSet, *snap.Info, error)) (restore func()) {
+	r := testutil.Backup(&snapstateDownload)
+	snapstateDownload = f
 	return r
 }
 
@@ -264,6 +270,7 @@ type (
 	RegistrationContext = registrationContext
 	RemodelContext      = remodelContext
 	SeededSystem        = seededSystem
+	RecoverySystemSetup = recoverySystemSetup
 )
 
 func RegistrationCtx(m *DeviceManager, t *state.Task) (registrationContext, error) {
@@ -581,3 +588,5 @@ func CleanUpEncryptionSetupDataInCache(st *state.State, label string) {
 	key := encryptionSetupDataKey{label}
 	st.Cache(key, nil)
 }
+
+type UniqueSnapsInRecoverySystem = uniqueSnapsInRecoverySystem

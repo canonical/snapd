@@ -139,16 +139,17 @@ const (
 // while the individual Task values would track the running of
 // the hooks themselves.
 type Change struct {
-	state              *State
-	id                 string
-	kind               string
-	summary            string
-	status             Status
-	clean              bool
-	data               customData
-	taskIDs            []string
-	ready              chan struct{}
-	lastObservedStatus Status
+	state                    *State
+	id                       string
+	kind                     string
+	summary                  string
+	status                   Status
+	clean                    bool
+	data                     customData
+	taskIDs                  []string
+	ready                    chan struct{}
+	lastObservedStatus       Status
+	lastRecordedNoticeStatus Status
 
 	spawnTime time.Time
 	readyTime time.Time
@@ -184,6 +185,8 @@ type marshalledChange struct {
 
 	SpawnTime time.Time  `json:"spawn-time"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
+
+	LastRecordedNoticeStatus Status `json:"last-recorded-notice-status,omitempty"`
 }
 
 // MarshalJSON makes Change a json.Marshaller
@@ -204,6 +207,8 @@ func (c *Change) MarshalJSON() ([]byte, error) {
 
 		SpawnTime: c.spawnTime,
 		ReadyTime: readyTime,
+
+		LastRecordedNoticeStatus: c.lastRecordedNoticeStatus,
 	})
 }
 
@@ -233,6 +238,7 @@ func (c *Change) UnmarshalJSON(data []byte) error {
 	if unmarshalled.ReadyTime != nil {
 		c.readyTime = *unmarshalled.ReadyTime
 	}
+	c.lastRecordedNoticeStatus = unmarshalled.LastRecordedNoticeStatus
 	return nil
 }
 
@@ -423,12 +429,33 @@ func (c *Change) Status() Status {
 	panic(fmt.Sprintf("internal error: cannot process change status: %v", statusStats))
 }
 
-func (c *Change) notifyStatusChange(new Status) {
-	if c.lastObservedStatus == new {
-		return
+// addNotice records an occurrence of a change-update notice for this change.
+// The notice key is set to the change ID.
+func (c *Change) addNotice() error {
+	opts := &AddNoticeOptions{
+		Data: map[string]string{"kind": c.Kind()},
 	}
-	c.state.notifyChangeStatusChangedHandlers(c, c.lastObservedStatus, new)
-	c.lastObservedStatus = new
+	_, err := c.state.AddNotice(nil, ChangeUpdateNotice, c.id, opts)
+	return err
+}
+
+func shouldSkipChangeUpdateNotice(old, new Status) bool {
+	// Skip alternating Doing->Do->Doing and Undoing->Undo->Undoing notices
+	return (old == new) || (old == DoingStatus && new == DoStatus) || (old == UndoingStatus && new == UndoStatus)
+}
+
+func (c *Change) notifyStatusChange(new Status) {
+	if c.lastObservedStatus != new {
+		c.state.notifyChangeStatusChangedHandlers(c, c.lastObservedStatus, new)
+		c.lastObservedStatus = new
+	}
+	if !shouldSkipChangeUpdateNotice(c.lastRecordedNoticeStatus, new) {
+		// NOTE: Implies State.writing()
+		if err := c.addNotice(); err != nil {
+			logger.Panicf(`internal error: failed to add "change-update" notice on status change: %v`, err)
+		}
+		c.lastRecordedNoticeStatus = new
+	}
 }
 
 // SetStatus sets the change status, overriding the default behavior (see Status method).

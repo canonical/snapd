@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -132,7 +133,7 @@ func (s *baseHookManagerSuite) setUpSnap(c *C, instanceName string, yaml string)
 	snaptest.MockSnapInstance(c, instanceName, yaml, sideInfo)
 	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 		Active:      true,
-		Sequence:    []*snap.SideInfo{sideInfo},
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:     snap.R(1),
 		InstanceKey: instanceKey,
 	})
@@ -1016,7 +1017,7 @@ func (s *hookManagerSuite) TestHookTasksForDifferentSnapsRunConcurrently(c *C) {
 	c.Assert(info.Hooks, HasLen, 1)
 	snapstate.Set(s.state, "test-snap-1", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:  snap.R(1),
 	})
 
@@ -1024,7 +1025,7 @@ func (s *hookManagerSuite) TestHookTasksForDifferentSnapsRunConcurrently(c *C) {
 	snaptest.MockSnap(c, snapYaml2, sideInfo)
 	snapstate.Set(s.state, "test-snap-2", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfo},
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:  snap.R(1),
 	})
 
