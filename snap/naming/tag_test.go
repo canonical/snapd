@@ -107,6 +107,8 @@ func (s *tagSuite) TestParseSecurityTag(c *C) {
 	c.Check(err, ErrorMatches, "invalid security tag")
 	_, err = naming.ParseSecurityTag("snap.pkG+comp.hook.install")
 	c.Check(err, ErrorMatches, "invalid security tag")
+	_, err = naming.ParseSecurityTag("snap.pkg+comp.app")
+	c.Check(err, ErrorMatches, "invalid security tag")
 
 	// things that are not snap.* tags
 	_, err = naming.ParseSecurityTag("foo.bar.froz")
