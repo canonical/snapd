@@ -2,8 +2,8 @@
 
 show_help() {
     echo "usage: remote.refresh snap [--channel CHANNEL] <SNAPNAME>"
-    echo "usage: remote.refresh full [--channel CHANNEL]"
-    echo "usage: remote.refresh disable-refreshes"
+    echo "       remote.refresh full [--channel CHANNEL]"
+    echo "       remote.refresh disable-refreshes"
     echo ""
     echo "SNAPNAME: allowed options are: kernel, core, base, gadget, snapd or the snap name"
     echo ""

@@ -1,0 +1,9 @@
+summary: test for the quiet tool
+
+backends: [google]
+
+execute: |
+    quiet echo test | NOMATCH test
+    quiet "cat nofile" 2>&1 | MATCH nofile
+    quiet "cat nofile" 2>&1 | MATCH "quiet: exit status 127"
+    quiet "cat nofile" 2>&1 | MATCH "quiet: end of output"

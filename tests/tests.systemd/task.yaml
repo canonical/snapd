@@ -5,7 +5,7 @@ backends: [google]
 systems: [-ubuntu-14.04-64]
 
 restore: |
-    tests.systemd stop-and-remove-unit my-test || true
+    tests.systemd stop-unit --remove my-test
 
 execute: |
     tests.systemd | MATCH 'usage: tests.systemd create-and-start-unit'
@@ -15,30 +15,50 @@ execute: |
     # check a simple unit
     tests.systemd create-and-start-unit my-test "/bin/sleep 500"
     systemctl is-active my-test
-    tests.systemd stop-and-remove-unit my-test
+    tests.systemd stop-unit --remove my-test
     not systemctl is-active my-test
 
     # check the wait-for-service works when unit is inactive
     tests.systemd create-and-start-unit my-test "/bin/sleep 5"
-    tests.systemd wait-for-service my-test active
-    tests.systemd wait-for-service my-test inactive
-    tests.systemd stop-and-remove-unit my-test
+    tests.systemd wait-for-service --state active my-test
+    tests.systemd wait-for-service --state inactive my-test
+    tests.systemd stop-unit --remove my-test
     systemctl list-unit-files | NOMATCH my-test
+
+    # check the wait-for-service works when unit is inactive
+    tests.systemd create-and-start-unit my-test "/bin/sleep 10"
+    tests.systemd wait-for-service --state active my-test
+    not tests.systemd wait-for-service --state inactive --wait 1 -n 3 my-test
+    tests.systemd wait-for-service --state inactive --wait 2 --attempts 5 my-test
+    tests.systemd stop-unit --remove my-test
+    systemctl list-unit-files | NOMATCH my-test
+
+    # Check stop-unit
+    tests.systemd create-and-start-unit my-test-1 "/bin/sleep 10"
+    tests.systemd create-and-start-unit my-test-2 "/bin/sleep 10"
+    tests.systemd stop-unit my-test-1 my-test-2
+    not systemctl is-active my-test-1
+    not systemctl is-active my-test-2
+    systemctl is-enabled my-test-1
+    systemctl is-enabled my-test-2
+    tests.systemd stop-unit --remove my-test-1 my-test-2
+    not systemctl is-enabled my-test-1
+    not systemctl is-enabled my-test-2
 
     # check missing parameters and start twice the same unit
     tests.systemd create-and-start-unit 2>&1 | MATCH "tests.systemd: unit name cannot be empty"
     tests.systemd create-and-start-unit my-test  2>&1 | MATCH "tests.systemd: unit command line cannot be empty"
     tests.systemd create-and-start-unit my-test "/bin/sleep 5"
-    tests.systemd create-and-start-unit my-test "/bin/sleep 5" 2>&1 | MATCH "tests.systemd: unit service file already exist"
-    tests.systemd stop-and-remove-unit 2>&1 | MATCH "tests.systemd: unit name cannot be empty"
-    tests.systemd stop-and-remove-unit 2>&1 | MATCH "tests.systemd: unit name cannot be empty"
-    tests.systemd stop-and-remove-unit my-test
+    tests.systemd create-and-start-unit my-test "/bin/sleep 5" | MATCH "tests.systemd: unit service file already exist, it is going to be overwritten"
+    tests.systemd stop-unit 2>&1 | MATCH "tests.systemd: at least a unit name is required"
+    tests.systemd stop-unit --remove 2>&1 | MATCH "tests.systemd: at least a unit name is required"
+    tests.systemd stop-unit --remove my-test
 
     # check unit override
     tests.systemd create-and-start-unit my-test "/bin/sleep 100" "[Unit]\nAfter=foo"
     systemctl cat my-test | MATCH "^ExecStart=/bin/sleep 100$"
     systemctl cat my-test | MATCH "^After=foo$"
-    tests.systemd stop-and-remove-unit my-test
+    tests.systemd stop-unit --remove my-test
 
     # check a unit can be removed when it already was removed
-    tests.systemd stop-and-remove-unit my-test
+    tests.systemd stop-unit --remove my-test
