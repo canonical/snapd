@@ -20,6 +20,7 @@ EnvironmentFile=-@SNAPD_ENVIRONMENT_FILE@
 Restart=always
 WatchdogSec=5m
 Type=notify
+NotifyAccess=all
 SuccessExitStatus=42
 RestartPreventExitStatus=42
 KillMode=process
