@@ -1,0 +1,121 @@
+summary: Test that snaps still work when /home is a CIFS mount
+
+details: |
+    Snapd now contains a feature where CIFS-mounted /home (or any sub-directory)
+    initializes a workaround mode where all snaps gain minimal amount of network
+    permissions sufficient for CIFS to operate.
+
+# Limit the test to systems that have samba fairly new samba.
+systems:
+  - ubuntu-22.04-*
+  - ubuntu-24.04-*
+
+prepare: |
+    # We don't expect to leak the test-remote user, group or mount.
+    tests.cleanup defer NOMATCH 'test-remote' /etc/passwd
+    tests.cleanup defer NOMATCH 'test-remote' /etc/group
+    tests.cleanup defer NOMATCH 'test-remote' /proc/self/mountinfo
+
+    # Install a package with additional kernel modules, so that we can mount cifs.
+    if ! tests.pkgs install "linux-modules-extra-$(uname -r)"; then
+      echo "SKIP: Kernel version and extras module mismatch"
+      # TODO: figure out something better. This sort of skew can happen at any time,
+      # and we have no good way of solving the problem apart from a real SKIP command
+      # in spread.
+      exit 0
+    fi
+    tests.cleanup defer tests.pkgs remove "linux-modules-extra-$(uname -r)"
+
+    # Install samba.
+    tests.pkgs install samba
+    tests.cleanup defer tests.pkgs remove samba
+
+    # Create the var-home share.
+    tests.backup prepare /etc/samba
+    tests.cleanup defer tests.backup restore /etc/samba
+    cat <<-__SMB__ >>'/etc/samba/smb.conf'
+    [var-home]
+       comment = Roaming home directories
+       path = /var/home
+       browseable = no
+       read only = no
+       create mask = 0755
+       directory mask = 0755
+       smb3 unix extensions = yes
+       ea support = yes
+    __SMB__
+    systemctl restart smbd.service
+
+    # Create a user called test-remote
+    adduser --uid 54321 --quiet --disabled-password --gecos '' test-remote
+    tests.cleanup defer deluser test-remote
+
+    # Allow user test-remote to authenticate to samba, with the password 'secret'.
+    printf 'secret\nsecret\n' | smbpasswd -a test-remote
+    tests.cleanup defer smbpasswd -x test-remote
+
+    # Later on, restart snapd and ensure that nfs/cifs workaround is gone.
+    # This cleanup handler is registered before we mount the cifs file system.
+    if [ "$(snap debug confinement)" = strict ]; then
+        tests.cleanup defer test ! -e /var/lib/snapd/apparmor/snap-confine/nfs-support
+    fi
+    tests.cleanup defer systemctl restart snapd.service
+    tests.cleanup defer systemctl reset-failed snapd.service snapd.socket
+
+    # Move the actual home directory of the user test-remote to /var/home and mount /home/test-remote from samba.
+    if [ ! -d /var/home ]; then
+      mkdir /var/home
+      tests.cleanup defer rmdir /var/home
+    fi
+    mkdir /var/home/test-remote
+    chown test-remote.test-remote /var/home/test-remote
+    tests.cleanup defer rm -rf /var/home/test-remote
+    # TODO: it would be nice to successfully pass ",posix" option and get things to mount.
+    mount -t cifs //127.0.0.1/var-home/test-remote /home/test-remote -o vers=3.1.1,nomapposix,mfsymlinks,username=test-remote,password=secret,uid=54321,gid=54321
+    tests.cleanup defer umount /home/test-remote
+
+    # Ensure the session is working.
+    tests.session -u test-remote prepare
+    tests.cleanup defer tests.session -u test-remote restore
+
+    # Install local copy of test-snapd-sh which plugs in the home interface but not the network interface.
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+    # Check that snapd works around CIFS apparmor interaction. Note that the
+    # name of the file is "nfs-support" as we are not trying to change too much
+    # of the extension interface visible to the system.
+    systemctl reset-failed snapd.service snapd.socket
+    systemctl restart snapd.service
+    if [ "$(snap debug confinement)" = strict ]; then
+        MATCH 'network inet,' < /var/lib/snapd/apparmor/snap-confine/nfs-support
+        MATCH 'network inet,' < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh.with-home-plug
+    fi
+
+restore: |
+    # Run cleanup handlers registered earlier.
+    tests.cleanup restore
+
+debug: |
+    set +e
+    uname -a
+    dmesg | tail -n 15
+    smbd --version
+    lsof | grep /home/test-remote
+    fuser -mv /home/test-remote
+    set -e
+
+execute: |
+    # As a non-root user check that the $SNAP_USER_DATA directory is in fact a
+    # symbolic link.  We use a trick SNAP_USER_COMMON/../current because
+    # $SNAP_USER_DATA contains an actual revision number and does not traverse
+    # the symbolic link.
+    #shellcheck disable=SC2016
+    tests.session -u test-remote exec snap run test-snapd-sh.with-home-plug -c 'test -h $SNAP_USER_COMMON/../current'
+
+    # As a non-root user perform a write to $SNAP_USER_DATA which is mounted over CIFS.
+    #shellcheck disable=SC2016
+    tests.session -u test-remote exec snap run test-snapd-sh.with-home-plug -c 'touch $SNAP_USER_DATA/smoke-cifs'
+
+    # As a non-root user perform a write to $SNAP_USER_COMMON which is mounted over CIFS.
+    #shellcheck disable=SC2016
+    tests.session -u test-remote exec snap run test-snapd-sh.with-home-plug -c 'touch $SNAP_USER_COMMON/smoke-cifs'
