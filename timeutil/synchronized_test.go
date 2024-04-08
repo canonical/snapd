@@ -22,6 +22,7 @@ package timeutil_test
 import (
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
@@ -41,6 +42,7 @@ type mockTimedate1 struct {
 
 	NTPSynchronized bool
 
+	m                 sync.Mutex
 	getPropertyCalled []string
 }
 
@@ -69,7 +71,7 @@ func newMockTimedate1() (*mockTimedate1, error) {
 }
 
 func (server *mockTimedate1) Export() {
-	server.conn.Export(timedate1Api{server}, timedate1ObjectPath, "org.freedesktop.DBus.Properties")
+	server.conn.Export(&timedate1Api{server}, timedate1ObjectPath, "org.freedesktop.DBus.Properties")
 }
 
 func (server *mockTimedate1) Stop() error {
@@ -79,11 +81,22 @@ func (server *mockTimedate1) Stop() error {
 	return server.conn.Close()
 }
 
+func (server *mockTimedate1) reset(ntpSynchronized bool) {
+	server.m.Lock()
+	defer server.m.Unlock()
+
+	server.NTPSynchronized = ntpSynchronized
+	server.getPropertyCalled = nil
+}
+
 type timedate1Api struct {
 	server *mockTimedate1
 }
 
-func (a timedate1Api) Get(iff, prop string) (dbus.Variant, *dbus.Error) {
+func (a *timedate1Api) Get(iff, prop string) (dbus.Variant, *dbus.Error) {
+	a.server.m.Lock()
+	defer a.server.m.Unlock()
+
 	a.server.getPropertyCalled = append(a.server.getPropertyCalled, fmt.Sprintf("if=%s;prop=%s", iff, prop))
 	return dbus.MakeVariant(a.server.NTPSynchronized), nil
 }
@@ -115,16 +128,19 @@ func (s *syncedSuite) TestIsNTPSynchronized(c *C) {
 	backend.Export()
 
 	for _, v := range []bool{true, false} {
-		backend.getPropertyCalled = nil
-		backend.NTPSynchronized = v
+		backend.reset(v)
 
 		synced, err := timeutil.IsNTPSynchronized()
 		c.Assert(err, IsNil)
 		c.Check(synced, Equals, v)
 
-		c.Check(backend.getPropertyCalled, DeepEquals, []string{
-			"if=org.freedesktop.timedate1;prop=NTPSynchronized",
-		})
+		func() {
+			backend.m.Lock()
+			defer backend.m.Unlock()
+			c.Check(backend.getPropertyCalled, DeepEquals, []string{
+				"if=org.freedesktop.timedate1;prop=NTPSynchronized",
+			})
+		}()
 	}
 }
 

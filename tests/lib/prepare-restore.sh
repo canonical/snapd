@@ -631,7 +631,7 @@ prepare_suite() {
     . "$TESTSLIB"/prepare.sh
     # os.query cannot be used because first time the suite is prepared, the current system
     # is classic ubuntu, so it is needed to check the system set in $SPREAD_SYSTEM
-    if is_core; then
+    if is_test_target_core; then
         prepare_ubuntu_core
     else
         prepare_classic
@@ -666,8 +666,7 @@ prepare_suite_each() {
     tests.backup prepare
 
     # save the job which is going to be executed in the system
-    # shellcheck disable=SC2153
-    echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
+    echo -n "${SPREAD_JOB:-} " >> "$RUNTIME_STATE_PATH/runs"
 
     # Restart journal log and reset systemd journal cursor.
     systemctl reset-failed systemd-journald.service

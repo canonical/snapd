@@ -50,12 +50,12 @@ EOF
 # helpers assume a specific formatting of SPREAD_SYSTEM environment
 # variable which follows this pattern: ubuntu-core-<VERSION>[-ARCH]-<BITS>
 # where arch is "" for amd64, arm for armhf and arm64, etc
-is_core() {
+is_test_target_core() {
     local VERSION=${1:-}
     [[ "$SPREAD_SYSTEM" = ubuntu-core-${VERSION}* ]]
 }
 
-is_core_ge() {
+is_test_target_core_ge() {
     local VERSION=${1:-}
     if [ -z "$VERSION" ]; then
         echo "version id is expected"
@@ -65,7 +65,7 @@ is_core_ge() {
     [ "$CURR_VERSION" -ge "${VERSION}" ]
 }
 
-is_core_le() {
+is_test_target_core_le() {
     local VERSION=${1:-}
     if [ -z "$VERSION" ]; then
         echo "version id is expected"
@@ -1009,19 +1009,19 @@ setup_reflash_magic() {
     snap wait system seed.loaded
 
     # download the snapd snap for all uc systems except uc16
-    if ! is_core 16; then
+    if ! is_test_target_core 16; then
         snap download "--channel=${SNAPD_CHANNEL}" snapd
     fi
 
     # we cannot use "snaps.names tool" here because no snaps are installed yet
     core_name="core"
-    if is_core 18; then
+    if is_test_target_core 18; then
         core_name="core18"
-    elif is_core 20; then
+    elif is_test_target_core 20; then
         core_name="core20"
-    elif is_core 22; then
+    elif is_test_target_core 22; then
         core_name="core22"
-    elif is_core 24; then
+    elif is_test_target_core 24; then
         core_name="core24"
         # TODO: revert this once snaps are ready in target channel
         KERNEL_CHANNEL=beta
@@ -1041,7 +1041,7 @@ setup_reflash_magic() {
 
     if os.query is-arm; then
         snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-    elif is_core 16; then
+    elif is_test_target_core 16; then
         # the new ubuntu-image expects mkfs to support -d option, which was not
         # supported yet by the version of mkfs that shipped with Ubuntu 16.04
         snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
@@ -1064,21 +1064,21 @@ setup_reflash_magic() {
     cp /usr/bin/snap "$IMAGE_HOME"
     export UBUNTU_IMAGE_SNAP_CMD="$IMAGE_HOME/snap"
 
-    if is_core 18; then
+    if is_test_target_core 18; then
         repack_snapd_snap_with_deb_content "$IMAGE_HOME"
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
-    elif is_core 20; then
+    elif is_test_target_core 20; then
         repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
         cp "$TESTSLIB/assertions/ubuntu-core-20-amd64.model" "$IMAGE_HOME/pc.model"
-    elif is_core 22; then
+    elif is_test_target_core 22; then
         repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
         if os.query is-arm; then
             cp "$TESTSLIB/assertions/ubuntu-core-22-arm64.model" "$IMAGE_HOME/pc.model"
         else
             cp "$TESTSLIB/assertions/ubuntu-core-22-amd64.model" "$IMAGE_HOME/pc.model"
         fi
-    elif is_core 24; then
+    elif is_test_target_core 24; then
         repack_snapd_snap_with_deb_content_and_run_mode_firstboot_tweaks "$IMAGE_HOME"
         cp "$TESTSLIB/assertions/ubuntu-core-24-amd64.model" "$IMAGE_HOME/pc.model"
     else
@@ -1124,10 +1124,10 @@ EOF
         IMAGE_CHANNEL="$KERNEL_CHANNEL"
     else
         IMAGE_CHANNEL="$GADGET_CHANNEL"
-        if is_core_le 18; then
-            if is_core 16; then
+        if is_test_target_core_le 18; then
+            if is_test_target_core 16; then
                 BRANCH=latest
-            elif is_core 18; then
+            elif is_test_target_core 18; then
                 BRANCH=18
             fi
             # download pc-kernel snap for the specified channel and set
@@ -1146,19 +1146,19 @@ EOF
         fi
     fi
 
-    if is_core_ge 20; then
-        if is_core 20; then
+    if is_test_target_core_ge 20; then
+        if is_test_target_core 20; then
             BRANCH=20
-        elif is_core 22; then
+        elif is_test_target_core 22; then
             BRANCH=22
-        elif is_core 24; then
+        elif is_test_target_core 24; then
             BRANCH=24
         fi
         snap download --basename=pc-kernel --channel="${BRANCH}/${KERNEL_CHANNEL}" pc-kernel
         # make sure we have the snap
         test -e pc-kernel.snap
         # build the initramfs with our snapd assets into the kernel snap
-        if is_core_ge 24; then
+        if is_test_target_core_ge 24; then
             uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
         else    
             uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
@@ -1167,7 +1167,7 @@ EOF
 
         # also add debug command line parameters to the kernel command line via
         # the gadget in case things go side ways and we need to debug
-        if is_core 24; then
+        if is_test_target_core 24; then
             # TODO: remove this once pc snap is available in beta channel
             snap download --basename=pc --channel="${BRANCH}/edge" pc
         else
@@ -1223,7 +1223,7 @@ EOF
 
     # on core18 we need to use the modified snapd snap and on core16
     # it is the modified core that contains our freshly build snapd
-    if is_core_ge 18; then
+    if is_test_target_core_ge 18; then
         extra_snap=("$IMAGE_HOME"/snapd_*.snap)
     else
         extra_snap=("$IMAGE_HOME"/core_*.snap)
@@ -1236,12 +1236,12 @@ EOF
     fi
 
     # download the core20 snap manually from the specified channel for UC20
-    if is_core_ge 20; then
-        if is_core 20; then
+    if is_test_target_core_ge 20; then
+        if is_test_target_core 20; then
             BASE=core20
-        elif is_core 22; then
+        elif is_test_target_core 22; then
             BASE=core22
-        elif is_core 24; then
+        elif is_test_target_core 24; then
             BASE=core24
         fi
         snap download "${BASE}" --channel="$BASE_CHANNEL" --basename="${BASE}"
@@ -1272,7 +1272,7 @@ EOF
         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap ${IMAGE_HOME}/${BASE}.snap"
     fi
     local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
-    if is_core 16 || os.query is-arm; then
+    if is_test_target_core 16 || os.query is-arm; then
         # ubuntu-image on 16.04 needs to be installed from a snap
         UBUNTU_IMAGE=/snap/bin/ubuntu-image
     fi
@@ -1288,7 +1288,7 @@ EOF
 
     if os.query is-arm; then
         LOOP_PARTITION=1
-    elif is_core_ge 20; then
+    elif is_test_target_core_ge 20; then
         # (ab)use ubuntu-seed
         LOOP_PARTITION=2
     else
@@ -1298,7 +1298,7 @@ EOF
     # expand the uc16 and uc18 images a little bit (400M) as it currently will
     # run out of space easily from local spread runs if there are extra files in
     # the project not included in the git ignore and spread ignore, etc.
-    if is_core_le 18; then
+    if is_test_target_core_le 18; then
         # grow the image by 400M
         truncate --size=+400M "$IMAGE_HOME/$IMAGE"
         # fix the GPT table because old versions of parted complain about this 
@@ -1334,7 +1334,7 @@ EOF
     # - built debs
     # - golang archive files and built packages dir
     # - govendor .cache directory and the binary,
-    if is_core_le 18; then
+    if is_test_target_core_le 18; then
         mkdir -p /mnt/user-data/
         # we need to include "core" here because -C option says to ignore 
         # files the way CVS(?!) does, so it ignores files named "core" which
@@ -1387,7 +1387,7 @@ EOF
     fi
 
     # now modify the image writable partition - only possible on uc16 / uc18
-    if is_core_le 18; then
+    if is_test_target_core_le 18; then
         # modify the writable partition of "core" so that we have the
         # test user
         setup_core_for_testing_by_modify_writable "$UNPACK_DIR"
@@ -1398,7 +1398,7 @@ EOF
     kpartx -d "$IMAGE_HOME/$IMAGE"
 
     gzip "${IMAGE_HOME}/${IMAGE}"
-    if is_core 16; then
+    if is_test_target_core 16; then
         "${TESTSLIB}/uc16-reflash.sh" "${IMAGE_HOME}/${IMAGE}.gz"
     else
         "${TESTSLIB}/reflash.sh" "${IMAGE_HOME}/${IMAGE}.gz"
