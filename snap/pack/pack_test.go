@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -124,7 +123,7 @@ func makeExampleComponentSourceDir(c *C, componentYaml string) string {
 	metaDir := filepath.Join(tempdir, "meta")
 	err := os.Mkdir(metaDir, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(metaDir, "component.yaml"), []byte(componentYaml), 0644)
+	err = os.WriteFile(filepath.Join(metaDir, "component.yaml"), []byte(componentYaml), 0644)
 	c.Assert(err, IsNil)
 	return tempdir
 }

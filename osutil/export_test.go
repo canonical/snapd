@@ -22,7 +22,6 @@ package osutil
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -184,7 +183,7 @@ func MockOsReadlink(f func(string) (string, error)) func() {
 // MockEtcFstab mocks content of /etc/fstab read by IsHomeUsingNFS
 func MockEtcFstab(text string) (restore func()) {
 	old := etcFstab
-	f, err := ioutil.TempFile("", "fstab")
+	f, err := os.CreateTemp("", "fstab")
 	if err != nil {
 		panic(fmt.Errorf("cannot open temporary file: %s", err))
 	}

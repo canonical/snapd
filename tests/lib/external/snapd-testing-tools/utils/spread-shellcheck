@@ -117,6 +117,16 @@ def checksection(data, env: Dict[str, str]):
     # shellcheck knows about that
     script_data = []
     script_data.append('set -e')
+    script_data.append('export SPREAD_BACKEND=placeholder')
+    script_data.append('export SPREAD_BACKENDS=placeholder,list')
+    script_data.append('export SPREAD_SYSTEM=placeholder')
+    script_data.append('export SPREAD_JOB=placeholder')
+    script_data.append('export SPREAD_VARIANT=placeholder')
+    script_data.append('export SPREAD_PATH=placeholder')
+    script_data.append('export SPREAD_SYSTEM_USERNAME=placeholder')
+    script_data.append('export SPREAD_SYSTEM_PASSWORD=placeholder')
+    script_data.append('export SPREAD_SYSTEM_ADDRESS=placeholder')
+    script_data.append('export SPREAD_REBOOT=123')
 
     for key, value in env.items():
         value = str(value)

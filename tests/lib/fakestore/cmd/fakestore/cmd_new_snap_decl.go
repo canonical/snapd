@@ -22,7 +22,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"github.com/snapcore/snapd/tests/lib/fakestore/refresh"
 )
@@ -39,7 +39,7 @@ type cmdNewSnapDeclaration struct {
 func (x *cmdNewSnapDeclaration) Execute(args []string) error {
 	headers := map[string]interface{}{}
 	if x.SnapDeclJsonPath != "" {
-		content, err := ioutil.ReadFile(x.SnapDeclJsonPath)
+		content, err := os.ReadFile(x.SnapDeclJsonPath)
 		if err != nil {
 			return err
 		}

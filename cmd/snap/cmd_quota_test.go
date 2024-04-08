@@ -23,7 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 
@@ -142,7 +142,7 @@ func (s *quotaSuite) makeFakeQuotaPostHandler(c *check.C, opts fakeQuotaGroupPos
 		c.Check(r.URL.Path, check.Equals, "/v2/quotas")
 		c.Check(r.Method, check.Equals, "POST")
 
-		buf, err := ioutil.ReadAll(r.Body)
+		buf, err := io.ReadAll(r.Body)
 		c.Assert(err, check.IsNil)
 
 		switch opts.action {

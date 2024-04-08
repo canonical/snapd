@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -95,7 +94,7 @@ func (s *storeActionSuite) TestSnapAction(c *C) {
 		c.Check(r.Header.Get("Snap-Device-Location"), Equals, "")
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -206,7 +205,7 @@ func (s *storeActionSuite) TestSnapActionNonZeroEpochAndEpochBump(c *C) {
 		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -305,7 +304,7 @@ func (s *storeActionSuite) TestSnapActionNoResults(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -369,7 +368,7 @@ func (s *storeActionSuite) TestSnapActionRefreshedDateIsOptional(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -422,7 +421,7 @@ func (s *storeActionSuite) TestSnapActionSkipBlocked(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -511,7 +510,7 @@ func (s *storeActionSuite) TestSnapActionSkipCurrent(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -672,7 +671,7 @@ func (s *storeActionSuite) TestSnapActionIgnoreValidation(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -828,7 +827,7 @@ func (s *storeActionSuite) TestInstallFallbackChannelIsStable(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -923,7 +922,7 @@ func (s *storeActionSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 		c.Check(r.Header.Get("Snap-Device-Location"), Equals, `cloud-name="gcp" region="us-west1" availability-zone="us-west1-b"`)
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "true")
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -1018,7 +1017,7 @@ func (s *storeActionSuite) TestSnapActionWithDeltas(c *C) {
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
 		c.Check(r.Header.Get("Snap-Accept-Delta-Format"), Equals, "xdelta3")
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -1104,7 +1103,7 @@ func (s *storeActionSuite) TestSnapActionOptions(c *C) {
 
 		c.Check(r.Header.Get("Snap-Refresh-Managed"), Equals, "true")
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -1222,7 +1221,7 @@ func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel str
 		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -1335,7 +1334,7 @@ func (s *storeActionSuite) TestSnapActionInstallAmend(c *C) {
 		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -1505,7 +1504,7 @@ func (s *storeActionSuite) testSnapActionGetWithRevision(action string, c *C) {
 		c.Check(r.Header.Get("Snap-Device-Architecture"), Equals, arch.DpkgArchitecture())
 		c.Check(r.Header.Get("Snap-Classic"), Equals, "false")
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -1582,7 +1581,7 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailable(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -1763,7 +1762,7 @@ func (s *storeActionSuite) TestSnapActionSnapNotFound(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -1887,7 +1886,7 @@ func (s *storeActionSuite) TestSnapActionOtherErrors(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -2239,7 +2238,7 @@ func (s *storeActionSuite) TestSnapActionRefreshesBothAuths(c *C) {
 			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
 		case authSessionPath:
 			// validity of request
-			jsonReq, err := ioutil.ReadAll(r.Body)
+			jsonReq, err := io.ReadAll(r.Body)
 			c.Assert(err, IsNil)
 			var req map[string]string
 			err = json.Unmarshal(jsonReq, &req)
@@ -2301,7 +2300,7 @@ func (s *storeActionSuite) TestSnapActionRefreshParallelInstall(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -2404,7 +2403,7 @@ func (s *storeActionSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -2515,7 +2514,7 @@ func (s *storeActionSuite) TestSnapActionRefreshWithHeld(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -2609,7 +2608,7 @@ func (s *storeActionSuite) TestSnapActionRefreshWithHeldUnsupportedProxy(c *C) {
 		// mock version that doesn't support `held` field (e.g. 52)
 		w.Header().Set("Snap-Store-Version", "52")
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -2708,7 +2707,7 @@ func (s *storeActionSuite) TestSnapActionRefreshWithValidationSets(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -2800,7 +2799,7 @@ func (s *storeActionSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -2946,7 +2945,7 @@ func (s *storeActionSuite) TestSnapActionInstallParallelInstall(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -3060,7 +3059,7 @@ func (s *storeActionSuite) TestSnapActionInstallUnexpectedInstallKey(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -3144,7 +3143,7 @@ func (s *storeActionSuite) TestSnapActionRefreshUnexpectedInstanceKey(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`
@@ -3228,7 +3227,7 @@ func (s *storeActionSuite) TestSnapActionUnexpectedErrorKey(c *C) {
 		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var req struct {
 			Context []map[string]interface{} `json:"context"`

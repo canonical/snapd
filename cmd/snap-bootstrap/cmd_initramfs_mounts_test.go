@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -3774,7 +3773,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 }
 
 func checkDegradedJSON(c *C, name string, exp map[string]interface{}) {
-	b, err := ioutil.ReadFile(filepath.Join(dirs.SnapBootstrapRunDir, name))
+	b, err := os.ReadFile(filepath.Join(dirs.SnapBootstrapRunDir, name))
 	c.Assert(err, IsNil)
 	degradedJSONObj := make(map[string]interface{})
 	err = json.Unmarshal(b, &degradedJSONObj)
@@ -8229,7 +8228,7 @@ echo '{"features":[]}'
 		{"fde-setup"},
 	})
 
-	fdeSetupInput, err := ioutil.ReadFile(filepath.Join(s.tmpDir, "fde-setup.input"))
+	fdeSetupInput, err := os.ReadFile(filepath.Join(s.tmpDir, "fde-setup.input"))
 	c.Assert(err, IsNil)
 	c.Assert(fdeSetupInput, DeepEquals, []byte(`{"op":"features"}`))
 

@@ -22,7 +22,7 @@ package syscheck
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -41,7 +41,7 @@ func init() {
 // and set to proper value
 func supportsMayDetachMounts(kver string) error {
 	p := filepath.Join(dirs.GlobalRootDir, "/proc/sys/fs/may_detach_mounts")
-	value, err := ioutil.ReadFile(p)
+	value, err := os.ReadFile(p)
 	if err != nil {
 		return fmt.Errorf("cannot read the value of fs.may_detach_mounts kernel parameter: %v", err)
 	}

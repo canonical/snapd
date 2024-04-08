@@ -20,7 +20,7 @@
 package builtin_test
 
 import (
-	"io/ioutil"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -85,8 +85,8 @@ func (s *displayControlInterfaceSuite) TestSanitizePlug(c *C) {
 func (s *displayControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(s.tmpdir, "foo_backlight"), 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(s.tmpdir, "bar_backlight"), 0755), IsNil)
-	builtin.MockReadDir(&s.BaseTest, func(path string) ([]os.FileInfo, error) {
-		return ioutil.ReadDir(s.tmpdir)
+	builtin.MockReadDir(&s.BaseTest, func(path string) ([]fs.DirEntry, error) {
+		return os.ReadDir(s.tmpdir)
 	})
 	builtin.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
 		return "(dereferenced)" + path, nil

@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -771,7 +770,7 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 	})
 	c.Check(runSnaps[0].Path, testutil.FilePresent)
 
-	l, err := ioutil.ReadDir(seedsnapsdir)
+	l, err := os.ReadDir(seedsnapsdir)
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 4)
 
@@ -1197,7 +1196,7 @@ func (s *imageSuite) TestSetupSeedWithBase(c *C) {
 	})
 	c.Check(runSnaps[0].Path, testutil.FilePresent)
 
-	l, err := ioutil.ReadDir(seedsnapsdir)
+	l, err := os.ReadDir(seedsnapsdir)
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 5)
 
@@ -1520,7 +1519,7 @@ func (s *imageSuite) TestSetupSeedWithBaseLegacySnap(c *C) {
 	})
 	c.Check(runSnaps[1].Path, testutil.FilePresent)
 
-	l, err := ioutil.ReadDir(seedsnapsdir)
+	l, err := os.ReadDir(seedsnapsdir)
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 6)
 
@@ -1657,7 +1656,7 @@ func (s *imageSuite) TestSetupSeedWithBaseDefaultTrackSnap(c *C) {
 	})
 	c.Check(runSnaps[0].Path, testutil.FilePresent)
 
-	l, err := ioutil.ReadDir(seedsnapsdir)
+	l, err := os.ReadDir(seedsnapsdir)
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 5)
 
@@ -1800,7 +1799,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAsserts(c *C) {
 	})
 	c.Check(runSnaps[0].Path, testutil.FilePresent)
 
-	l, err := ioutil.ReadDir(seedsnapsdir)
+	l, err := os.ReadDir(seedsnapsdir)
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 4)
 
@@ -2028,7 +2027,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAssertsValidationEnforce(c 
 	})
 	c.Check(runSnaps[0].Path, testutil.FilePresent)
 
-	l, err := ioutil.ReadDir(seedsnapsdir)
+	l, err := os.ReadDir(seedsnapsdir)
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 4)
 
@@ -2237,7 +2236,7 @@ func (s *imageSuite) TestPrepareClassicModelNoModelAssertion(c *C) {
 
 	// check assertions
 	seedassertsdir := filepath.Join(seeddir, "assertions")
-	l, err := ioutil.ReadDir(seedassertsdir)
+	l, err := os.ReadDir(seedassertsdir)
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 9)
 }
@@ -2863,7 +2862,7 @@ func (s *imageSuite) TestSetupSeedClassic(c *C) {
 	})
 	c.Check(runSnaps[0].Path, testutil.FilePresent)
 
-	l, err := ioutil.ReadDir(seedsnapsdir)
+	l, err := os.ReadDir(seedsnapsdir)
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 3)
 
@@ -2973,7 +2972,7 @@ func (s *imageSuite) TestSetupSeedClassicUC20(c *C) {
 	})
 	c.Check(runSnaps[0].Path, testutil.FilePresent)
 
-	l, err := ioutil.ReadDir(seedsnapsdir)
+	l, err := os.ReadDir(seedsnapsdir)
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 5)
 
@@ -3036,7 +3035,7 @@ func (s *imageSuite) TestSetupSeedClassicWithLocalClassicSnap(c *C) {
 	})
 	c.Check(runSnaps[0].Path, testutil.FilePresent)
 
-	l, err := ioutil.ReadDir(seedsnapsdir)
+	l, err := os.ReadDir(seedsnapsdir)
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 2)
 
@@ -3105,7 +3104,7 @@ func (s *imageSuite) TestSetupSeedClassicSnapdOnly(c *C) {
 	})
 	c.Check(runSnaps[0].Path, testutil.FilePresent)
 
-	l, err := ioutil.ReadDir(seedsnapsdir)
+	l, err := os.ReadDir(seedsnapsdir)
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 4)
 
@@ -3150,7 +3149,7 @@ func (s *imageSuite) TestSetupSeedClassicNoSnaps(c *C) {
 	c.Check(essSnaps, HasLen, 0)
 	c.Check(runSnaps, HasLen, 0)
 
-	l, err := ioutil.ReadDir(seedsnapsdir)
+	l, err := os.ReadDir(seedsnapsdir)
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 0)
 
@@ -3340,7 +3339,7 @@ func (s *imageSuite) testSetupSeedCore20Grub(c *C, kernelContent [][]string, exp
 	})
 	c.Check(runSnaps[0].Path, testutil.FilePresent)
 
-	l, err := ioutil.ReadDir(seedsnapsdir)
+	l, err := os.ReadDir(seedsnapsdir)
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 5)
 
@@ -3505,7 +3504,7 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 	essSnaps, runSnaps, _ := s.loadSeed(c, seeddir)
 	c.Check(essSnaps, HasLen, 4)
 	c.Check(runSnaps, HasLen, 0)
-	l, err := ioutil.ReadDir(seedsnapsdir)
+	l, err := os.ReadDir(seedsnapsdir)
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 4)
 
@@ -3894,7 +3893,7 @@ func (s *imageSuite) testSetupSeedWithMixedSnapsAndRevisions(c *C, rules map[str
 		})
 	}
 
-	l, err := ioutil.ReadDir(seedsnapsdir)
+	l, err := os.ReadDir(seedsnapsdir)
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 4)
 
@@ -4041,7 +4040,7 @@ func (s *imageSuite) TestSetupSeedSnapRevisionsDownloadHappy(c *C) {
 	})
 	c.Check(runSnaps[0].Path, testutil.FilePresent)
 
-	l, err := ioutil.ReadDir(seedsnapsdir)
+	l, err := os.ReadDir(seedsnapsdir)
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 5)
 
@@ -4234,7 +4233,7 @@ func (s *imageSuite) TestLocalSnapRevisionMatchingStoreRevision(c *C) {
 	})
 	c.Check(runSnaps[0].Path, testutil.FilePresent)
 
-	l, err := ioutil.ReadDir(seedsnapsdir)
+	l, err := os.ReadDir(seedsnapsdir)
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 4)
 

@@ -20,6 +20,7 @@
 package main
 
 import (
+	"io/fs"
 	"os"
 	"syscall"
 
@@ -67,7 +68,7 @@ var (
 type SystemCalls interface {
 	OsLstat(name string) (os.FileInfo, error)
 	SysLstat(name string, buf *syscall.Stat_t) error
-	ReadDir(dirname string) ([]os.FileInfo, error)
+	ReadDir(dirname string) ([]fs.DirEntry, error)
 	Symlinkat(oldname string, dirfd int, newname string) error
 	Readlinkat(dirfd int, path string, buf []byte) (int, error)
 	Remove(name string) error
@@ -89,7 +90,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	// save
 	oldOsLstat := osLstat
 	oldRemove := osRemove
-	oldIoutilReadDir := ioutilReadDir
+	oldOsReadDir := osReadDir
 
 	oldSysClose := sysClose
 	oldSysFchown := sysFchown
@@ -108,7 +109,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 	// override
 	osLstat = sc.OsLstat
 	osRemove = sc.Remove
-	ioutilReadDir = sc.ReadDir
+	osReadDir = sc.ReadDir
 
 	sysClose = sc.Close
 	sysFchown = sc.Fchown
@@ -128,7 +129,7 @@ func MockSystemCalls(sc SystemCalls) (restore func()) {
 		// restore
 		osLstat = oldOsLstat
 		osRemove = oldRemove
-		ioutilReadDir = oldIoutilReadDir
+		osReadDir = oldOsReadDir
 
 		sysClose = oldSysClose
 		sysFchown = oldSysFchown
@@ -184,11 +185,11 @@ func MockNeededChanges(f func(old, new *osutil.MountProfile) []*Change) (restore
 	}
 }
 
-func MockReadDir(fn func(string) ([]os.FileInfo, error)) (restore func()) {
-	old := ioutilReadDir
-	ioutilReadDir = fn
+func MockReadDir(fn func(string) ([]fs.DirEntry, error)) (restore func()) {
+	old := osReadDir
+	osReadDir = fn
 	return func() {
-		ioutilReadDir = old
+		osReadDir = old
 	}
 }
 

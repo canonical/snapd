@@ -25,7 +25,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -955,7 +954,7 @@ func (s *snapServiceOptionsSuite) TestLogReader(c *C) {
 		c.Check(n, Equals, 100)
 		c.Check(follow, Equals, false)
 		c.Check(namespaces, Equals, false)
-		return ioutil.NopCloser(strings.NewReader("")), nil
+		return io.NopCloser(strings.NewReader("")), nil
 	})
 	defer restore()
 
@@ -1033,7 +1032,7 @@ func (s *snapServiceOptionsSuite) TestLogReaderNamespaces(c *C) {
 		c.Check(n, Equals, 100)
 		c.Check(follow, Equals, false)
 		c.Check(namespaces, Equals, true)
-		return ioutil.NopCloser(strings.NewReader("")), nil
+		return io.NopCloser(strings.NewReader("")), nil
 	})
 	defer restore()
 

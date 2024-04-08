@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -84,7 +83,7 @@ func logNewSystemSnapFile(logfile, fileName string) error {
 	if !strings.HasPrefix(filepath.Dir(fileName), boot.InitramfsUbuntuSeedDir+"/") {
 		return fmt.Errorf("internal error: unexpected recovery system snap location %q", fileName)
 	}
-	currentLog, err := ioutil.ReadFile(logfile)
+	currentLog, err := os.ReadFile(logfile)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}

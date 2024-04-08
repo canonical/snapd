@@ -23,7 +23,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/snapcore/snapd/osutil"
@@ -349,7 +349,7 @@ func parseArgument(args []byte) (argument Argument, end int) {
 
 // KernelCommandLine returns the command line reported by the running kernel.
 func KernelCommandLine() (string, error) {
-	buf, err := ioutil.ReadFile(procCmdline)
+	buf, err := os.ReadFile(procCmdline)
 	if err != nil {
 		return "", err
 	}

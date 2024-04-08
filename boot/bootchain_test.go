@@ -972,7 +972,7 @@ var nbf = bootloader.NewBootFile
 func (s *bootchainSuite) TestBootAssetsToLoadChainTrivialKernel(c *C) {
 	kbl := bootloader.NewBootFile("pc-kernel", "kernel.efi", bootloader.RoleRunMode)
 
-	chains, err := boot.BootAssetsToLoadChains(nil, kbl, nil)
+	chains, err := boot.BootAssetsToLoadChains(nil, kbl, nil, false)
 	c.Assert(err, IsNil)
 
 	c.Check(chains, DeepEquals, []*secboot.LoadChain{
@@ -994,7 +994,7 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainErr(c *C) {
 		// missing bootloader name for role "run-mode"
 	}
 	// fails when probing the shim asset in the cache
-	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames)
+	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames, false)
 	c.Assert(err, ErrorMatches, "file .*/recovery-bl/shim-hash0 not found in boot assets cache")
 	c.Check(chains, IsNil)
 	// make it work now
@@ -1002,7 +1002,7 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainErr(c *C) {
 	c.Assert(os.WriteFile(cPath("recovery-bl/shim-hash0"), nil, 0644), IsNil)
 
 	// nested error bubbled up
-	chains, err = boot.BootAssetsToLoadChains(assets, kbl, blNames)
+	chains, err = boot.BootAssetsToLoadChains(assets, kbl, blNames, false)
 	c.Assert(err, ErrorMatches, "file .*/recovery-bl/loader-recovery-hash0 not found in boot assets cache")
 	c.Check(chains, IsNil)
 	// again, make it work
@@ -1010,7 +1010,7 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainErr(c *C) {
 	c.Assert(os.WriteFile(cPath("recovery-bl/loader-recovery-hash0"), nil, 0644), IsNil)
 
 	// fails on missing bootloader name for role "run-mode"
-	chains, err = boot.BootAssetsToLoadChains(assets, kbl, blNames)
+	chains, err = boot.BootAssetsToLoadChains(assets, kbl, blNames, false)
 	c.Assert(err, ErrorMatches, `internal error: no bootloader name for boot asset role "run-mode"`)
 	c.Check(chains, IsNil)
 }
@@ -1040,7 +1040,7 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainSimpleChain(c *C) {
 		bootloader.RoleRunMode:  "run-bl",
 	}
 
-	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames)
+	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames, false)
 	c.Assert(err, IsNil)
 
 	c.Logf("got:")
@@ -1082,7 +1082,7 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainWithAlternativeChains(c *C) {
 		bootloader.RoleRecovery: "recovery-bl",
 		bootloader.RoleRunMode:  "run-bl",
 	}
-	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames)
+	chains, err := boot.BootAssetsToLoadChains(assets, kbl, blNames, false)
 	c.Assert(err, IsNil)
 
 	c.Logf("got:")
@@ -1098,19 +1098,10 @@ func (s *bootchainSuite) TestBootAssetsToLoadChainWithAlternativeChains(c *C) {
 				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash1"), bootloader.RoleRunMode),
 					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode)))),
 			secboot.NewLoadChain(nbf("", cPath("recovery-bl/loader-recovery-hash1"), bootloader.RoleRecovery),
-				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash0"), bootloader.RoleRunMode),
-					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode))),
 				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash1"), bootloader.RoleRunMode),
 					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode))))),
 		secboot.NewLoadChain(nbf("", cPath("recovery-bl/shim-hash1"), bootloader.RoleRecovery),
-			secboot.NewLoadChain(nbf("", cPath("recovery-bl/loader-recovery-hash0"), bootloader.RoleRecovery),
-				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash0"), bootloader.RoleRunMode),
-					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode))),
-				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash1"), bootloader.RoleRunMode),
-					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode)))),
 			secboot.NewLoadChain(nbf("", cPath("recovery-bl/loader-recovery-hash1"), bootloader.RoleRecovery),
-				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash0"), bootloader.RoleRunMode),
-					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode))),
 				secboot.NewLoadChain(nbf("", cPath("run-bl/loader-run-hash1"), bootloader.RoleRunMode),
 					secboot.NewLoadChain(nbf("pc-kernel", "kernel.efi", bootloader.RoleRunMode))))),
 	}

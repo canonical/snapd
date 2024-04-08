@@ -22,7 +22,6 @@ package wrappers_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -4100,7 +4099,7 @@ func (s *servicesTestSuite) TestServiceWatchdog(c *C) {
 	err := s.addSnapServices(info, false)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc2.service"))
+	content, err := os.ReadFile(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc2.service"))
 	c.Assert(err, IsNil)
 	c.Check(strings.Contains(string(content), "\nWatchdogSec=12\n"), Equals, true)
 
@@ -4109,7 +4108,7 @@ func (s *servicesTestSuite) TestServiceWatchdog(c *C) {
 		filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc4.service"),
 	}
 	for _, svcPath := range noWatchdog {
-		content, err := ioutil.ReadFile(svcPath)
+		content, err := os.ReadFile(svcPath)
 		c.Assert(err, IsNil)
 		c.Check(strings.Contains(string(content), "WatchdogSec="), Equals, false)
 	}
@@ -4530,11 +4529,11 @@ func (s *servicesTestSuite) TestServiceRestartDelay(c *C) {
 	err := s.addSnapServices(info, false)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc2.service"))
+	content, err := os.ReadFile(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc2.service"))
 	c.Assert(err, IsNil)
 	c.Check(strings.Contains(string(content), "\nRestartSec=12\n"), Equals, true)
 
-	content, err = ioutil.ReadFile(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc3.service"))
+	content, err = os.ReadFile(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.hello-snap.svc3.service"))
 	c.Assert(err, IsNil)
 	c.Check(strings.Contains(string(content), "RestartSec="), Equals, false)
 }
@@ -4765,7 +4764,7 @@ NeedDaemonReload=no
 
 	flags := wrappers.RestartServicesFlags{Reload: true, AlsoEnabledNonActive: true}
 	err = wrappers.RestartServices(info.Services(), nil, &flags, progress.Null, s.perfTimings)
-	c.Assert(err, ErrorMatches, `some user services failed to restart or reload`)
+	c.Assert(err, ErrorMatches, `some user services failed to restart`)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"--user", "daemon-reload"},
 		{"--user", "show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},

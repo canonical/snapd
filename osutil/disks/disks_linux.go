@@ -26,7 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
@@ -495,13 +495,13 @@ func parentPartitionPropsForOptions(props map[string]string) (map[string]string,
 	majmin := props["MAJOR"] + ":" + props["MINOR"]
 
 	dmDir := filepath.Join(dirs.SysfsDir, "dev", "block", majmin, "dm")
-	dmUUID, err := ioutil.ReadFile(filepath.Join(dmDir, "uuid"))
+	dmUUID, err := os.ReadFile(filepath.Join(dmDir, "uuid"))
 	if err != nil {
 		return nil, fmt.Errorf(errFmt, err)
 	}
 	dmUUID = bytes.TrimSpace(dmUUID)
 
-	dmName, err := ioutil.ReadFile(filepath.Join(dmDir, "name"))
+	dmName, err := os.ReadFile(filepath.Join(dmDir, "name"))
 	if err != nil {
 		return nil, fmt.Errorf(errFmt, err)
 	}
@@ -687,7 +687,7 @@ func (d *disk) populatePartitions() error {
 			// /dev/mmcblk0boot0 disk device on the dragonboard which exists
 			// under the /dev/mmcblk0 disk, but is not a partition and is
 			// instead a proper disk
-			_, err := ioutil.ReadFile(filepath.Join(path, "partition"))
+			_, err := os.ReadFile(filepath.Join(path, "partition"))
 			if err != nil {
 				continue
 			}
@@ -934,7 +934,7 @@ func AllPhysicalDisks() ([]Disk, error) {
 	// get disks for every block device in /sys/block/
 	blockDir := filepath.Join(dirs.SysfsDir, "block")
 
-	files, err := ioutil.ReadDir(blockDir)
+	files, err := os.ReadDir(blockDir)
 	if err != nil {
 		return nil, err
 	}

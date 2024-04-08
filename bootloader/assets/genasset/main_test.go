@@ -22,7 +22,6 @@ package main_test
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -84,7 +83,7 @@ func (s *generateAssetsTestSuite) TestSimpleAsset(c *C) {
 	c.Assert(err, IsNil)
 	err = generate.Run("asset-name", filepath.Join(d, "in"), filepath.Join(d, "out"))
 	c.Assert(err, IsNil)
-	data, err := ioutil.ReadFile(filepath.Join(d, "out"))
+	data, err := os.ReadFile(filepath.Join(d, "out"))
 	c.Assert(err, IsNil)
 
 	const exp = `// -*- Mode: Go; indent-tabs-mode: t -*-

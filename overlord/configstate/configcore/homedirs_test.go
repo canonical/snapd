@@ -21,7 +21,6 @@ package configcore_test
 
 import (
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -239,7 +238,7 @@ func (s *homedirsSuite) TestConfigureHomedirsHappy(c *C) {
 
 	// Check that the config file has been written
 	configPath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "system-params")
-	contents, err := ioutil.ReadFile(configPath)
+	contents, err := os.ReadFile(configPath)
 	c.Assert(err, IsNil)
 	c.Check(string(contents), Equals, "homedirs=/home/existingDir\n")
 

@@ -21,7 +21,6 @@ package strace_test
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 
 	. "gopkg.in/check.v1"
@@ -118,7 +117,7 @@ var sampleStraceSimple = []byte(`21616 1542882400.198907 execve("/snap/bin/test-
 `)
 
 func (s *timingSuite) TestTraceExecveTimings(c *C) {
-	f, err := ioutil.TempFile("", "strace-extract-test-")
+	f, err := os.CreateTemp("", "strace-extract-test-")
 	c.Assert(err, IsNil)
 	defer os.Remove(f.Name())
 	_, err = f.Write(sampleStraceSimple)

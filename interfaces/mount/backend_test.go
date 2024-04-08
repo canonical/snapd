@@ -21,7 +21,6 @@ package mount_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -158,14 +157,14 @@ func (s *backendSuite) TestSetupSetsupSimple(c *C) {
 	expected := strings.Split(fmt.Sprintf("%s\n%s\n", fsEntry1, fsEntry2), "\n")
 	// and that we have the modern fstab file (global for snap)
 	fn := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.fstab")
-	content, err := ioutil.ReadFile(fn)
+	content, err := os.ReadFile(fn)
 	c.Assert(err, IsNil, Commentf("Expected mount profile for the whole snap"))
 	got := strings.Split(string(content), "\n")
 	c.Check(got, testutil.DeepUnsortedMatches, expected)
 
 	// Check that the user-fstab file was written with the user mount
 	fn = filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.user-fstab")
-	content, err = ioutil.ReadFile(fn)
+	content, err = os.ReadFile(fn)
 	c.Assert(err, IsNil, Commentf("Expected user mount profile for the whole snap"))
 	c.Check(string(content), Equals, fsEntry3.String()+"\n")
 }
@@ -276,7 +275,7 @@ func (s *backendSuite) TestSetupUpdates(c *C) {
 	expected := strings.Split(fmt.Sprintf("%s\n%s\n", fsEntry1, fsEntry2), "\n")
 	// and that we have the modern fstab file (global for snap)
 	fn := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.fstab")
-	content, err := ioutil.ReadFile(fn)
+	content, err := os.ReadFile(fn)
 	c.Assert(err, IsNil, Commentf("Expected mount profile for the whole snap"))
 	got := strings.Split(string(content), "\n")
 	c.Check(got, testutil.DeepUnsortedMatches, expected)
@@ -297,7 +296,7 @@ func (s *backendSuite) TestSetupUpdates(c *C) {
 	// (because mount profiles are global in the whole snap)
 	expected = strings.Split(fmt.Sprintf("%s\n%s\n%s\n", fsEntry1, fsEntry2, fsEntry3), "\n")
 	// and that we have the modern fstab file (global for snap)
-	content, err = ioutil.ReadFile(fn)
+	content, err = os.ReadFile(fn)
 	c.Assert(err, IsNil, Commentf("Expected mount profile for the whole snap"))
 	got = strings.Split(string(content), "\n")
 	c.Check(got, testutil.DeepUnsortedMatches, expected)
@@ -348,7 +347,7 @@ func (s *backendSuite) TestSetupEndureUpdatesError(c *C) {
 	expected := strings.Split(fmt.Sprintf("%s\n%s\n%s\n", fsEntry1, fsEntry2, fsEntry3), "\n")
 	// and that we have the modern fstab file (global for snap)
 	fn := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.fstab")
-	content, err := ioutil.ReadFile(fn)
+	content, err := os.ReadFile(fn)
 	c.Assert(err, IsNil, Commentf("Expected mount profile for the whole snap"))
 	got := strings.Split(string(content), "\n")
 	c.Check(got, testutil.DeepUnsortedMatches, expected)
@@ -417,7 +416,7 @@ func (s *backendSuite) TestSetupUpdatesErrorDiscardsNs(c *C) {
 	expected := strings.Split(fmt.Sprintf("%s\n%s\n%s\n", fsEntry1, fsEntry2, fsEntry3), "\n")
 	// and that we have the modern fstab file (global for snap)
 	fn := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.fstab")
-	content, err := ioutil.ReadFile(fn)
+	content, err := os.ReadFile(fn)
 	c.Assert(err, IsNil, Commentf("Expected mount profile for the whole snap"))
 	got := strings.Split(string(content), "\n")
 	c.Check(got, testutil.DeepUnsortedMatches, expected)
