@@ -457,7 +457,7 @@ func (s *appsSuite) TestGetUserAppsInfoServices(c *check.C) {
 	svcs := rsp.Result.([]client.AppInfo)
 	c.Assert(svcs, check.HasLen, 4)
 
-	for name, _ := range s.decoratorResults {
+	for name := range s.decoratorResults {
 		snapName, app := daemon.SplitAppName(name)
 		needle := client.AppInfo{
 			Snap:        snapName,
