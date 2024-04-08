@@ -334,7 +334,7 @@ apps:
 	c.Assert(err, IsNil)
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
-Exec=snap.app %U
+Exec=snap.app %%f %c %U
 `)
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
@@ -342,7 +342,7 @@ Exec=snap.app %U
 X-SnapInstanceName=snap
 Name=foo
 Exec=/usr/bin/snap routine desktop-launch --desktop foo.desktop -- %U
-X-Snap-Exec=snap.app %U
+X-Snap-Exec=snap.app %%f %c %U
 `)
 }
 

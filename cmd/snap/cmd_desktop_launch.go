@@ -68,7 +68,7 @@ func cmdlineArgsToUris(args []string) ([]string, error) {
 		} else {
 			fullPath, err := filepath.Abs(arg)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("cannot make path absolute: %s", err)
 			}
 			u := &url.URL{Scheme: "file", Path: fullPath}
 			uris[i] = u.String()

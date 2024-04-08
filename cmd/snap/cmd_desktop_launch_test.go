@@ -20,7 +20,6 @@
 package main_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -62,7 +61,7 @@ func (s *DesktopLaunchSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.desktopFile = filepath.Join(dirs.SnapDesktopFilesDir, "foo_foo.desktop")
-	err = ioutil.WriteFile(s.desktopFile, []byte(sampleDesktopFile), 0o644)
+	err = os.WriteFile(s.desktopFile, []byte(sampleDesktopFile), 0o644)
 	c.Assert(err, IsNil)
 
 	bamfDesktopFileHint := os.Getenv("BAMF_DESKTOP_FILE_HINT")
