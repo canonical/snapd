@@ -738,6 +738,7 @@ jobs:
           (set -o pipefail; $SPREAD $RUN_TESTS | tee spread.log | tests/lib/tools/filter-debug-output -f debug.log)
 
     - name: Uploading debug logs
+      if: always()
       uses: actions/upload-artifact@v3
       with:
         name: spread-logs-${{ matrix.system }}
@@ -912,6 +913,7 @@ jobs:
           (set -o pipefail; spread $RUN_TESTS | tee spread.log | tests/lib/tools/filter-debug-output -f debug.log)
 
     - name: Uploading spread logs
+      if: always()
       uses: actions/upload-artifact@v3
       with:
         name: spread-logs-${{ matrix.system }}
