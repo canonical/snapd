@@ -441,9 +441,38 @@ type expandedMatch struct {
 	value interface{}
 }
 
+// validateSetValue checks that map keys conform to the same format as path sub-keys.
+// TODO: check recursion limit here as well
+func validateSetValue(v interface{}) error {
+	var nestedVals []interface{}
+	switch typedVal := v.(type) {
+	case map[string]interface{}:
+		for k, v := range typedVal {
+			if !validSubkey.Match([]byte(k)) {
+				return fmt.Errorf(`key %q doesn't conform to required format: %s`, k, validSubkey.String())
+			}
+
+			nestedVals = append(nestedVals, v)
+		}
+
+	case []interface{}:
+		nestedVals = typedVal
+	}
+
+	for _, v := range nestedVals {
+		if err := validateSetValue(v); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // Set sets the named aspect to a specified non-nil value.
 func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	if err := validateAspectDottedPath(request, nil); err != nil {
+		return badRequestErrorFrom(a, "set", request, err.Error())
+	} else if err := validateSetValue(value); err != nil {
 		return badRequestErrorFrom(a, "set", request, err.Error())
 	}
 

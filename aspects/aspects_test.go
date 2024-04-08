@@ -2232,3 +2232,58 @@ func (*aspectSuite) TestAspectSeveralNestedContentRules(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "value")
 }
+
+func (*aspectSuite) TestAspectInvalidMapKeys(c *C) {
+	bundle, err := aspects.NewBundle("acc", "foo", map[string]interface{}{
+		"bar": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{
+					"request": "foo",
+					"storage": "foo",
+				},
+			},
+		},
+	}, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	databag := aspects.NewJSONDataBag()
+	asp := bundle.Aspect("bar")
+
+	type testcase struct {
+		value      interface{}
+		invalidKey string
+	}
+
+	tcs := []testcase{
+		{
+			value:      map[string]interface{}{"-foo": 2},
+			invalidKey: "-foo",
+		},
+		{
+			value:      map[string]interface{}{"foo--bar": 2},
+			invalidKey: "foo--bar",
+		},
+		{
+			value:      map[string]interface{}{"foo-": 2},
+			invalidKey: "foo-",
+		},
+		{
+			value:      map[string]interface{}{"foo": map[string]interface{}{"-bar": 2}},
+			invalidKey: "-bar",
+		},
+		{
+			value:      map[string]interface{}{"foo": map[string]interface{}{"bar": map[string]interface{}{"baz-": 2}}},
+			invalidKey: "baz-",
+		},
+		{
+			value:      []interface{}{map[string]interface{}{"foo": 2}, map[string]interface{}{"bar-": 2}},
+			invalidKey: "bar-",
+		},
+	}
+
+	for _, tc := range tcs {
+		cmt := Commentf("expected invalid key err for value: %v", tc.value)
+		err = asp.Set(databag, "foo", tc.value)
+		c.Assert(err, ErrorMatches, fmt.Sprintf("cannot set \"foo\" in aspect acc/foo/bar: key %q doesn't conform to required format: .*", tc.invalidKey), cmt)
+	}
+}

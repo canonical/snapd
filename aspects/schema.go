@@ -509,7 +509,7 @@ func (v *mapSchema) Validate(raw []byte) error {
 func validMapKeys(v map[string]json.RawMessage) error {
 	for k := range v {
 		if !validSubkey.Match([]byte(k)) {
-			return fmt.Errorf(`key %q doesn't conform to required format`, k)
+			return fmt.Errorf(`key %q doesn't conform to required format: %s`, k, validSubkey.String())
 		}
 	}
 
