@@ -300,6 +300,17 @@ func genInstanceKey(curSnap *CurrentSnap, salt string) (string, error) {
 // action of the SnapAction call.
 type SnapActionResult struct {
 	*snap.Info
+	Resources       []SnapResourceResult
+	RedirectChannel string
+}
+
+type SnapResourceResult struct {
+	DownloadInfo    snap.DownloadInfo
+	Type            snap.ComponentType
+	Name            string
+	Revision        int
+	Version         string
+	CreatedAt       string
 	RedirectChannel string
 }
 
@@ -673,7 +684,24 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		_, instanceKey := snap.SplitInstanceName(instanceName)
 		snapInfo.InstanceKey = instanceKey
 
-		sars = append(sars, SnapActionResult{Info: snapInfo, RedirectChannel: res.RedirectChannel})
+		resources := make([]SnapResourceResult, 0, len(res.Snap.Resources))
+		for _, r := range res.Snap.Resources {
+			resources = append(resources, SnapResourceResult{
+				DownloadInfo:    downloadInfoFromStoreDownload(r.Download),
+				Type:            "",
+				Name:            instanceName,
+				Revision:        0,
+				Version:         "",
+				CreatedAt:       "",
+				RedirectChannel: "",
+			})
+		}
+
+		sars = append(sars, SnapActionResult{
+			Info:            snapInfo,
+			RedirectChannel: res.RedirectChannel,
+			Resources:       resources,
+		})
 	}
 
 	for _, errObj := range results.ErrorList {

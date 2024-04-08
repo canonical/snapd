@@ -386,8 +386,8 @@ func fillStruct(a interface{}, c *C) {
 			var p safejson.Paragraph
 			c.Assert(json.Unmarshal([]byte(`"foo"`), &p), IsNil)
 			x = p
-		case storeSnapDownload:
-			x = storeSnapDownload{
+		case storeDownload:
+			x = storeDownload{
 				URL:      "http://example.com/foo",
 				Size:     42,
 				Sha3_384: "foo",
@@ -423,6 +423,17 @@ func fillStruct(a interface{}, c *C) {
 			x = map[string][]string{
 				"contact": {"mailto:foo", "mailto:bar"},
 			}
+		case []storeResource:
+			x = []storeResource{{
+				Type: "component/kernel-modules",
+				Download: storeDownload{
+					URL:      "http://example.com/resource",
+					Size:     42,
+					Sha3_384: "sha",
+				},
+				Name:     "some-component",
+				Revision: 1,
+			}}
 		default:
 			c.Fatalf("unhandled field type %T", field.Interface())
 		}
