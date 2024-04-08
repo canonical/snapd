@@ -127,7 +127,9 @@ version: 1.0
 	compf, err := snapfile.Open(compPath)
 	c.Assert(err, IsNil)
 
-	ci, err := snap.ReadComponentInfoFromContainer(compf, snapInfo)
+	ci, err := snap.ReadComponentInfoFromContainer(compf, snapInfo, &snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
 	c.Assert(err, IsNil)
 
 	return ci, compPath

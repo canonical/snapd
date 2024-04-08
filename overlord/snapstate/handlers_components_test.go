@@ -201,4 +201,5 @@ func (s *handlersComponentsSuite) testComponentInfoFromComponentSetup(c *C, inst
 
 	c.Check(compInfo.Component, Equals, cref)
 	c.Check(compInfo.Type, Equals, snap.TestComponent)
+	c.Check(compInfo.ComponentSideInfo.Revision, Equals, compRev)
 }

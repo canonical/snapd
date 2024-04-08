@@ -48,7 +48,10 @@ func (s *discardCompSnapSuite) TestDoDiscardComponent(c *C) {
 	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
 	ssu := createTestSnapSetup(si, snapstate.Flags{})
 	s.AddCleanup(snapstate.MockReadComponentInfo(func(
-		compMntDir string, snapInfo *snap.Info) (*snap.ComponentInfo, error) {
+		compMntDir string, snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		if csi != nil {
+			ci.ComponentSideInfo = *csi
+		}
 		return ci, nil
 	}))
 
@@ -100,7 +103,10 @@ func (s *discardCompSnapSuite) TestDoDiscardComponentNoUnlinkedComp(c *C) {
 	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
 	ssu := createTestSnapSetup(si, snapstate.Flags{})
 	s.AddCleanup(snapstate.MockReadComponentInfo(func(
-		compMntDir string, snapInfo *snap.Info) (*snap.ComponentInfo, error) {
+		compMntDir string, snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		if csi != nil {
+			ci.ComponentSideInfo = *csi
+		}
 		return ci, nil
 	}))
 

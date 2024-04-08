@@ -113,7 +113,7 @@ version: 33
 `
 
 	compPath := snaptest.MakeTestComponent(c, componentYaml)
-	compInfo, cont, err := backend.OpenComponentFile(compPath, nil)
+	compInfo, cont, err := backend.OpenComponentFile(compPath, nil, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(cont, FitsTypeOf, &squashfs.Snap{})

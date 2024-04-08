@@ -51,7 +51,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 
 	// Read ComponentInfo and verify that the component is consistent with the
 	// data in the snap info
-	compInfo, _, err := backend.OpenComponentFile(path, info)
+	compInfo, _, err := backend.OpenComponentFile(path, info, csi)
 	if err != nil {
 		return nil, err
 	}

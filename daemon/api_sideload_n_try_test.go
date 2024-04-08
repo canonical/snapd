@@ -367,9 +367,12 @@ func (s *sideloadSuite) TestSideloadComponentForNotInstalledSnap(c *check.C) {
 	defer daemon.MockUnsafeReadSnapInfo(func(path string) (*snap.Info, error) {
 		return nil, daemon.BadRequest("mocking error to force reading as component")
 	})()
-	defer daemon.MockReadComponentInfoFromCont(func(tempPath string) (*snap.ComponentInfo, error) {
-		return snap.NewComponentInfo(naming.NewComponentRef("local", "comp"),
-			snap.TestComponent, "1.0", "", ""), nil
+	defer daemon.MockReadComponentInfoFromCont(func(tempPath string, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		return &snap.ComponentInfo{
+			Component: naming.NewComponentRef("local", "comp"),
+			Type:      snap.TestComponent,
+			Version:   "1.0",
+		}, nil
 	})()
 
 	st := s.d.Overlord().State()
@@ -437,9 +440,12 @@ func (s *sideloadSuite) sideloadComponentCheck(c *check.C, content string,
 		return nil, daemon.BadRequest("mocking error to force reading as component")
 	})()
 
-	defer daemon.MockReadComponentInfoFromCont(func(tempPath string) (*snap.ComponentInfo, error) {
-		return snap.NewComponentInfo(expectedCompSideInfo.Component,
-			snap.TestComponent, "1.0", "", ""), nil
+	defer daemon.MockReadComponentInfoFromCont(func(tempPath string, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		return &snap.ComponentInfo{
+			Component: expectedCompSideInfo.Component,
+			Type:      snap.TestComponent,
+			Version:   "1.0",
+		}, nil
 	})()
 
 	defer daemon.MockSnapstateInstallComponentPath(func(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info,

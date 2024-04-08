@@ -70,7 +70,7 @@ func MockSnapReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, err
 	return func() { snapReadInfo = old }
 }
 
-func MockReadComponentInfo(mock func(compMntDir string, snapInfo *snap.Info) (*snap.ComponentInfo, error)) (restore func()) {
+func MockReadComponentInfo(mock func(compMntDir string, snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error)) (restore func()) {
 	old := readComponentInfo
 	readComponentInfo = mock
 	return func() { readComponentInfo = old }
