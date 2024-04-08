@@ -177,11 +177,13 @@ func (a fdoApi) Notify(appName string, replacesID uint32, icon, summary, body st
 }
 
 func (a fdoApi) CloseNotification(id uint32) *dbus.Error {
-	a.server.mu.Lock()
-	defer a.server.mu.Unlock()
-
-	if a.server.err != nil {
+	dErr := func() *dbus.Error {
+		a.server.mu.Lock()
+		defer a.server.mu.Unlock()
 		return a.server.err
+	}()
+	if dErr != nil {
+		return dErr
 	}
 
 	// close reason 3 is "closed by a call to CloseNotification"
