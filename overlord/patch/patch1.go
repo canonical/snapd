@@ -21,7 +21,7 @@ package patch
 
 import (
 	"errors"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/logger"
@@ -48,7 +48,7 @@ type patch1SideInfo struct {
 
 var patch1ReadType = func(name string, rev snap.Revision) (snap.Type, error) {
 	snapYamlFn := filepath.Join(snap.MountDir(name, rev), "meta", "snap.yaml")
-	meta, err := ioutil.ReadFile(snapYamlFn)
+	meta, err := os.ReadFile(snapYamlFn)
 	if err != nil {
 		return snap.TypeApp, err
 	}

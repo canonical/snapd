@@ -22,7 +22,6 @@ package snapstate_test
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -339,7 +338,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSeqFile(c *C) {
 	c.Assert(err, IsNil)
 
 	// and check that the sequence file got updated
-	seqContent, err := ioutil.ReadFile(filepath.Join(dirs.SnapSeqDir, "foo.json"))
+	seqContent, err := os.ReadFile(filepath.Join(dirs.SnapSeqDir, "foo.json"))
 	c.Assert(err, IsNil)
 	c.Check(string(seqContent), Equals, `{"sequence":[{"name":"foo","snap-id":"","revision":"11"},{"name":"foo","snap-id":"","revision":"33"}],"current":"33","migrated-hidden":false,"migrated-exposed-home":false}`)
 }
@@ -404,7 +403,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
 	// and check that the sequence file got updated
-	seqContent, err := ioutil.ReadFile(filepath.Join(dirs.SnapSeqDir, "foo.json"))
+	seqContent, err := os.ReadFile(filepath.Join(dirs.SnapSeqDir, "foo.json"))
 	c.Assert(err, IsNil)
 	c.Check(string(seqContent), Equals, `{"sequence":[],"current":"unset","migrated-hidden":false,"migrated-exposed-home":false}`)
 

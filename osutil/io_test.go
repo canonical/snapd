@@ -21,7 +21,6 @@ package osutil_test
 
 import (
 	"errors"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -50,7 +49,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFile(c *C) {
 	c.Check(p, testutil.FileEquals, "canary")
 
 	// no files left behind!
-	d, err := ioutil.ReadDir(tmpdir)
+	d, err := os.ReadDir(tmpdir)
 	c.Assert(err, IsNil)
 	c.Assert(len(d), Equals, 1)
 }
@@ -509,12 +508,12 @@ func (ts *AtomicWriteTestSuite) TestAtomicRenameDir(c *C) {
 	err = osutil.AtomicRename(src+"/", dst+"/")
 	c.Assert(err, IsNil)
 
-	d, err := ioutil.ReadDir(dst)
+	d, err := os.ReadDir(dst)
 	c.Assert(err, IsNil)
 	c.Assert(len(d), Equals, 1)
 	c.Assert(d[0].Name(), Equals, "file")
 
-	data, err := ioutil.ReadFile(filepath.Join(dst, "file"))
+	data, err := os.ReadFile(filepath.Join(dst, "file"))
 	c.Assert(err, IsNil)
 	c.Assert(data, DeepEquals, contents)
 

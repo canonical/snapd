@@ -22,7 +22,6 @@ package configcore
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -108,7 +107,7 @@ func handleTmpfsConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyCon
 			Content: []byte(content),
 			Mode:    0644,
 		}
-		oldContent, err := ioutil.ReadFile(cfgFilePath)
+		oldContent, err := os.ReadFile(cfgFilePath)
 		if err == nil && content == string(oldContent) {
 			modify = false
 		}

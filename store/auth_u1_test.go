@@ -21,7 +21,6 @@ package store_test
 
 import (
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"time"
@@ -240,7 +239,7 @@ func (s *authTestSuite) TestRefreshDischargeMacaroonMissingData(c *C) {
 func (s *authTestSuite) TestRefreshDischargeMacaroonError(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		data, err := ioutil.ReadAll(r.Body)
+		data, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		c.Assert(data, NotNil)
 		c.Assert(string(data), Equals, `{"discharge_macaroon":"soft-expired-serialized-discharge-macaroon"}`)
@@ -374,7 +373,7 @@ func (pe *testDeviceSessionRequestParamsEncoder) EncodedModel() string {
 
 func (s *authTestSuite) TestRequestDeviceSession(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		c.Check(string(jsonReq), Equals, `{"device-session-request":"session-request","model-assertion":"model-assertion","serial-assertion":"serial-assertion"}`)
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, "")
@@ -391,7 +390,7 @@ func (s *authTestSuite) TestRequestDeviceSession(c *C) {
 
 func (s *authTestSuite) TestRequestDeviceSessionWithPreviousSession(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		jsonReq, err := ioutil.ReadAll(r.Body)
+		jsonReq, err := io.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		c.Check(string(jsonReq), Equals, `{"device-session-request":"session-request","model-assertion":"model-assertion","serial-assertion":"serial-assertion"}`)
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="previous-session"`)

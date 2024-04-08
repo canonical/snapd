@@ -20,7 +20,7 @@
 package main_test
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 
@@ -55,7 +55,7 @@ func (s *SnapSuite) TestInterfaceListEmpty(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
 		c.Check(r.URL.RawQuery, Equals, "select=connected")
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -75,7 +75,7 @@ func (s *SnapSuite) TestInterfaceListAllEmpty(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
 		c.Check(r.URL.RawQuery, Equals, "select=all")
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -95,7 +95,7 @@ func (s *SnapSuite) TestInterfaceList(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
 		c.Check(r.URL.RawQuery, Equals, "select=connected")
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -125,7 +125,7 @@ func (s *SnapSuite) TestInterfaceListAll(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
 		c.Check(r.URL.RawQuery, Equals, "select=all")
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -159,7 +159,7 @@ func (s *SnapSuite) TestInterfaceDetails(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
 		c.Check(r.URL.RawQuery, Equals, "doc=true&names=network&plugs=true&select=all&slots=true")
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -197,7 +197,7 @@ func (s *SnapSuite) TestInterfaceDetailsAndAttrs(c *C) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/interfaces")
 		c.Check(r.URL.RawQuery, Equals, "doc=true&names=serial-port&plugs=true&select=all&slots=true")
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{

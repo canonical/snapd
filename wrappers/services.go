@@ -22,7 +22,6 @@ package wrappers
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -413,7 +412,7 @@ func tryFileUpdate(path string, desiredContent []byte) (old *osutil.MemoryFileSt
 	oldFileState := osutil.MemoryFileState{}
 
 	if st, err := os.Stat(path); err == nil {
-		b, err := ioutil.ReadFile(path)
+		b, err := os.ReadFile(path)
 		if err != nil {
 			return nil, false, err
 		}

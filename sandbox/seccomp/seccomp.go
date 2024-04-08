@@ -20,7 +20,7 @@
 package seccomp
 
 import (
-	"io/ioutil"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -58,10 +58,10 @@ func (scp *secCompProbe) actions() []string {
 	return scp.probedActions
 }
 
-var ioutilReadFile = ioutil.ReadFile
+var osReadFile = os.ReadFile
 
 func probeActions() []string {
-	contents, err := ioutilReadFile("/proc/sys/kernel/seccomp/actions_avail")
+	contents, err := osReadFile("/proc/sys/kernel/seccomp/actions_avail")
 	if err != nil {
 		return []string{}
 	}

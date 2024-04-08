@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"crypto"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -898,13 +897,13 @@ func (s *installSuite) TestPrepareEncryptedSystemData(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
-	marker, err := ioutil.ReadFile(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker"))
+	marker, err := os.ReadFile(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker"))
 	c.Assert(err, IsNil)
 	c.Check(marker, HasLen, 32)
 	c.Check(filepath.Join(boot.InstallHostFDESaveDir, "marker"), testutil.FileEquals, marker)
 
 	// the assets cache was written to
-	l, err := ioutil.ReadDir(filepath.Join(dirs.SnapBootAssetsDir, "trusted"))
+	l, err := os.ReadDir(filepath.Join(dirs.SnapBootAssetsDir, "trusted"))
 	c.Assert(err, IsNil)
 	c.Assert(l, HasLen, 1)
 }

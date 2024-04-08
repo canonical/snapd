@@ -21,6 +21,7 @@ package testutil_test
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"syscall"
 
@@ -40,9 +41,11 @@ func (s *lowLevelSuite) SetUpTest(c *check.C) {
 }
 
 func (s *lowLevelSuite) TestFakeFileInfo(c *check.C) {
-	ffi := testutil.FakeFileInfo("name", 0755)
+	ffi := testutil.FakeDirEntry("name", 0755)
 	c.Assert(ffi.Name(), check.Equals, "name")
-	c.Assert(ffi.Mode(), check.Equals, os.FileMode(0755))
+	fi, err := ffi.Info()
+	c.Assert(err, check.IsNil)
+	c.Assert(fi.Mode().Perm(), check.Equals, os.FileMode(0755))
 
 	c.Assert(testutil.FileInfoFile.Mode().IsDir(), check.Equals, false)
 	c.Assert(testutil.FileInfoFile.Mode().IsRegular(), check.Equals, true)
@@ -625,9 +628,9 @@ func (s *lowLevelSuite) TestReadDir(c *check.C) {
 }
 
 func (s *lowLevelSuite) TestReadDirSuccess(c *check.C) {
-	files := []os.FileInfo{
-		testutil.FakeFileInfo("file", 0644),
-		testutil.FakeFileInfo("dir", 0755|os.ModeDir),
+	files := []fs.DirEntry{
+		testutil.FakeDirEntry("file", 0644),
+		testutil.FakeDirEntry("dir", 0755|os.ModeDir),
 	}
 	s.sys.InsertReadDirResult(`readdir "/foo"`, files)
 	files, err := s.sys.ReadDir("/foo")

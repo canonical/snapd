@@ -7,7 +7,6 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -174,13 +173,13 @@ func readContent(fname string) (content []byte, err error) {
 	// If no search directories have been specified or we have an
 	// absolute path, just try to read the contents directly.
 	if len(opts.Directories) == 0 || filepath.IsAbs(fname) {
-		return ioutil.ReadFile(fname)
+		return os.ReadFile(fname)
 	}
 
 	// Otherwise, search for the file in each of the configured
 	// directories.
 	for _, dir := range opts.Directories {
-		content, err = ioutil.ReadFile(filepath.Join(dir, fname))
+		content, err = os.ReadFile(filepath.Join(dir, fname))
 		if !os.IsNotExist(err) {
 			break
 		}
@@ -324,7 +323,7 @@ func main() {
 
 	var files []string
 	if opts.FilesFrom != "" {
-		content, err := ioutil.ReadFile(opts.FilesFrom)
+		content, err := os.ReadFile(opts.FilesFrom)
 		if err != nil {
 			log.Fatalf("cannot read file %v: %v", opts.FilesFrom, err)
 		}

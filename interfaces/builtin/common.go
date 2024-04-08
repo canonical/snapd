@@ -20,7 +20,7 @@
 package builtin
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -37,9 +37,9 @@ import (
 // applicable for testing.
 var evalSymlinks = filepath.EvalSymlinks
 
-// readDir is either ioutil.ReadDir or a mocked function applicable for
+// readDir is either os.ReadDir or a mocked function applicable for
 // testing.
-var readDir = ioutil.ReadDir
+var readDir = os.ReadDir
 
 type commonInterface struct {
 	name    string

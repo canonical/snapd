@@ -627,8 +627,18 @@ static void enter_classic_execution_environment(const sc_invocation *inv,
 /* max wait time for /var/lib/snapd/cgroup/<snap>.devices to appear */
 static const size_t DEVICES_FILE_MAX_WAIT = 120;
 
-static bool is_device_cgroup_self_managed(const sc_invocation *inv)
+struct sc_device_cgroup_options {
+	bool self_managed;
+	bool non_strict;
+};
+
+static void sc_get_device_cgroup_setup(const sc_invocation *inv, struct sc_device_cgroup_options
+				       *devsetup)
 {
+	if (devsetup == NULL) {
+		die("internal error: devsetup is NULL");
+	}
+
 	char info_path[PATH_MAX] = { 0 };
 	sc_must_snprintf(info_path,
 			 sizeof info_path,
@@ -648,14 +658,22 @@ static bool is_device_cgroup_self_managed(const sc_invocation *inv)
 		die("cannot open %s", info_path);
 	}
 
+	sc_error *err SC_CLEANUP(sc_cleanup_error) = NULL;
 	char *self_managed_value SC_CLEANUP(sc_cleanup_string) = NULL;
-	sc_error *err = NULL;
 	if (sc_infofile_get_key
 	    (stream, "self-managed", &self_managed_value, &err) < 0) {
 		sc_die_on_error(err);
 	}
+	rewind(stream);
 
-	return sc_streq(self_managed_value, "true");
+	char *non_strict_value SC_CLEANUP(sc_cleanup_string) = NULL;
+	if (sc_infofile_get_key(stream, "non-strict", &non_strict_value, &err) <
+	    0) {
+		sc_die_on_error(err);
+	}
+
+	devsetup->self_managed = sc_streq(self_managed_value, "true");
+	devsetup->non_strict = sc_streq(non_strict_value, "true");
 }
 
 static sc_device_cgroup_mode device_cgroup_mode_for_snap(sc_invocation *inv)
@@ -682,6 +700,7 @@ static sc_device_cgroup_mode device_cgroup_mode_for_snap(sc_invocation *inv)
 			break;
 		}
 	}
+
 	return mode;
 }
 
@@ -712,11 +731,15 @@ static void enter_non_classic_execution_environment(sc_invocation *inv,
 
 	// Set up a device cgroup, unless the snap has been allowed to manage the
 	// device cgroup by itself.
-	if (!is_device_cgroup_self_managed(inv)) {
+	struct sc_device_cgroup_options cgdevopts = { false, false };
+	sc_get_device_cgroup_setup(inv, &cgdevopts);
+	if (cgdevopts.self_managed) {
+		debug("device cgroup is self-managed by the snap");
+	} else if (cgdevopts.non_strict) {
+		debug("device cgroup skipped, snap in non-strict confinement");
+	} else {
 		sc_device_cgroup_mode mode = device_cgroup_mode_for_snap(inv);
 		sc_setup_device_cgroup(inv->security_tag, mode);
-	} else {
-		debug("device cgroup is self-managed by the snap");
 	}
 
 	/**

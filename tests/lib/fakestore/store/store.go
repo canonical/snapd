@@ -24,10 +24,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -561,7 +561,7 @@ func (s *Store) collectAssertions() (asserts.Backstore, error) {
 	}
 
 	for _, fn := range aFiles {
-		b, err := ioutil.ReadFile(fn)
+		b, err := os.ReadFile(fn)
 		if err != nil {
 			return nil, err
 		}

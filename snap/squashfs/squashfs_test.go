@@ -23,7 +23,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math"
 	"os"
 	"os/exec"
@@ -122,7 +122,7 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 	restore := osutil.MockMountInfo("")
 	s.AddCleanup(restore)
 
-	s.outf, err = ioutil.TempFile(c.MkDir(), "")
+	s.outf, err = os.CreateTemp(c.MkDir(), "")
 	c.Assert(err, IsNil)
 	s.oldStdout, s.oldStderr = os.Stdout, os.Stderr
 	os.Stdout, os.Stderr = s.outf, s.outf
@@ -134,7 +134,7 @@ func (s *SquashfsTestSuite) TearDownTest(c *C) {
 	// this ensures things were quiet
 	_, err := s.outf.Seek(0, 0)
 	c.Assert(err, IsNil)
-	outbuf, err := ioutil.ReadAll(s.outf)
+	outbuf, err := io.ReadAll(s.outf)
 	c.Assert(err, IsNil)
 	c.Check(string(outbuf), Equals, "")
 }

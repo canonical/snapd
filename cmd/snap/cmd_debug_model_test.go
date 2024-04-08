@@ -21,7 +21,7 @@ package main_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"gopkg.in/check.v1"
@@ -37,7 +37,7 @@ func (s *SnapSuite) TestGetModel(c *check.C) {
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/debug")
 			c.Check(r.URL.RawQuery, check.Equals, "aspect=model")
-			data, err := ioutil.ReadAll(r.Body)
+			data, err := io.ReadAll(r.Body)
 			c.Check(err, check.IsNil)
 			c.Check(string(data), check.Equals, "")
 			fmt.Fprintln(w, `{"type": "sync", "result": {"model": "some-model-json"}}`)

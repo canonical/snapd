@@ -23,7 +23,7 @@ import (
 	cryptorand "crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 )
 
@@ -56,7 +56,7 @@ var kernelUUIDPath = "/proc/sys/kernel/random/uuid"
 // /proc/sys/kernel/random/uuid. Only to be used in very specific uses, most
 // random code should use CryptoToken(Bytes) instead.
 func RandomKernelUUID() (string, error) {
-	b, err := ioutil.ReadFile(kernelUUIDPath)
+	b, err := os.ReadFile(kernelUUIDPath)
 	if err != nil {
 		return "", fmt.Errorf("cannot read kernel generated uuid: %w", err)
 	}

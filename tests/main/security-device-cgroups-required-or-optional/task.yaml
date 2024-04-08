@@ -13,14 +13,19 @@ systems:
   - -ubuntu-18.04-32
 
 execute: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+
     echo "Given snap is installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core20
     test -f /var/lib/snapd/cgroup/snap.test-snapd-sh-core20.device
+    NOMATCH "non-strict=true" < /var/lib/snapd/cgroup/snap.test-snapd-sh-core20.device
 
     # XXX explicitly install core24 until there is no release into the stable channel
     snap install --edge core24
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
-    test -f /var/lib/snapd/cgroup/snap.test-snapd-sh-core20.device
+    test -f /var/lib/snapd/cgroup/snap.test-snapd-sh-core24.device
+    NOMATCH "non-strict=true" < /var/lib/snapd/cgroup/snap.test-snapd-sh-core24.device
 
     echo "No devices are assigned to either snap"
     udevadm info "/dev/null" | NOMATCH "E: TAGS=.*snap_test-snapd-sh.*"
@@ -43,3 +48,30 @@ execute: |
 
     echo "Device is listed as allowed"
     tests.device-cgroup test-snapd-sh-core24.sh dump | MATCH "c 1:3"
+
+    # drop persistent cgroup information
+    if is_cgroupv2; then
+        rm /sys/fs/bpf/snap/snap_test-snapd-sh-core24_sh
+        test ! -e /sys/fs/bpf/snap/snap_test-snapd-sh-core20_sh
+    else
+        rmdir /sys/fs/cgroup/devices/snap.test-snapd-sh-core24.sh
+        test ! -e /sys/fs/cgroup/devices/snap.test-snapd-sh-core20.sh
+    fi
+
+    echo "When snaps are installed in devmode"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core20 --devmode
+    MATCH "non-strict=true" < /var/lib/snapd/cgroup/snap.test-snapd-sh-core20.device
+
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24 --devmode
+    MATCH "non-strict=true" < /var/lib/snapd/cgroup/snap.test-snapd-sh-core24.device
+
+    test-snapd-sh-core20.sh -c 'true'
+    test-snapd-sh-core24.sh -c 'true'
+
+    if is_cgroupv2; then
+        test ! -e /sys/fs/bpf/snap/snap_test-snapd-sh-core24_sh
+        test ! -e /sys/fs/bpf/snap/snap_test-snapd-sh-core20_sh
+    else
+        test ! -e /sys/fs/cgroup/devices/snap.test-snapd-sh-core24.sh
+        test ! -e /sys/fs/cgroup/devices/snap.test-snapd-sh-core20.sh
+    fi

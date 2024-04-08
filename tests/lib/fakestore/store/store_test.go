@@ -22,7 +22,7 @@ package store
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -97,7 +97,7 @@ func (s *storeTestSuite) TestTrivialGetWorks(c *C) {
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 418)
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Assert(string(body), Equals, "I'm a teapot")
 
@@ -109,7 +109,7 @@ func (s *storeTestSuite) TestSearchEndpoint(c *C) {
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 501)
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Assert(string(body), Equals, "search not implemented")
 
@@ -471,7 +471,7 @@ func (s *storeTestSuite) TestAssertionsEndpointPreloaded(c *C) {
 	c.Assert(resp.StatusCode, Equals, 200)
 	c.Check(resp.Header.Get("Content-Type"), Equals, "application/x.ubuntu.assertion")
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(body), Equals, string(asserts.Encode(systestkeys.TestRootAccount)))
 }
@@ -490,7 +490,7 @@ func (s *storeTestSuite) TestAssertionsEndpointFromAssertsDir(c *C) {
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(body), Equals, exampleSnapRev)
 }
@@ -504,7 +504,7 @@ func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertion(c *C) {
 	defer resp.Body.Close()
 
 	c.Check(resp.StatusCode, Equals, 200)
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(body), Equals, exampleValidationSet)
 }
@@ -518,7 +518,7 @@ func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertionLatest(c *C) {
 	defer resp.Body.Close()
 
 	c.Check(resp.StatusCode, Equals, 200)
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(body), Equals, exampleValidationSet)
 }
@@ -532,7 +532,7 @@ func (s *storeTestSuite) TestAssertionsEndpointSequenceAssertionInvalidSequence(
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 400)
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(body), Equals, "cannot retrieve assertion [16 canonical base-set]: the requested sequence must be above 0\n")
 }
@@ -543,7 +543,7 @@ func (s *storeTestSuite) TestAssertionsEndpointSequenceInvalid(c *C) {
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 400)
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(body), Equals, "cannot retrieve assertion [16 canonical base-set]: cannot parse sequence foo: strconv.Atoi: parsing \"foo\": invalid syntax\n")
 }

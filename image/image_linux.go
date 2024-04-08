@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -190,7 +189,7 @@ var reserved = []string{"core", "os", "class", "allowed-modes"}
 func decodeModelAssertion(opts *Options) (*asserts.Model, error) {
 	fn := opts.ModelFile
 
-	rawAssert, err := ioutil.ReadFile(fn)
+	rawAssert, err := os.ReadFile(fn)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read model assertion: %s", err)
 	}

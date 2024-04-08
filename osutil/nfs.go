@@ -19,17 +19,17 @@
 
 package osutil
 
-func IsHomeUsingNFS() (bool, error) {
-	return isHomeUsingNFS()
+func IsHomeUsingRemoteFS() (bool, error) {
+	return isHomeUsingRemoteFS()
 }
 
-// MockIsHomeUsingNFS mocks the real implementation of osutil.IsHomeUsingNFS.
+// MockIsHomeUsingRemoteFS mocks the real implementation of osutil.IsHomeUsingRemoteFS.
 // This is exported so that other packages that indirectly interact with this
-// functionality can mock IsHomeUsingNFS.
-func MockIsHomeUsingNFS(new func() (bool, error)) (restore func()) {
-	old := isHomeUsingNFS
-	isHomeUsingNFS = new
+// functionality can mock IsHomeUsingRemoteFS.
+func MockIsHomeUsingRemoteFS(new func() (bool, error)) (restore func()) {
+	old := isHomeUsingRemoteFS
+	isHomeUsingRemoteFS = new
 	return func() {
-		isHomeUsingNFS = old
+		isHomeUsingRemoteFS = old
 	}
 }

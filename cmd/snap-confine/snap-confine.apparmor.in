@@ -3,7 +3,7 @@
 
 @LIBEXECDIR@/snap-confine (attach_disconnected) {
     # Include any additional files that snapd chose to generate.
-    # - for $HOME on NFS
+    # - for $HOME on remote file system.
     # - for $HOME on encrypted media
     #
     # Those are discussed on https://forum.snapcraft.io/t/snapd-vs-upstream-kernel-vs-apparmor

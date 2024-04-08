@@ -22,7 +22,6 @@ package grubenv
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/snapcore/snapd/strutil"
@@ -56,7 +55,7 @@ func (g *Env) Set(key, value string) {
 }
 
 func (g *Env) Load() error {
-	buf, err := ioutil.ReadFile(g.path)
+	buf, err := os.ReadFile(g.path)
 	if err != nil {
 		return err
 	}

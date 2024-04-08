@@ -23,7 +23,6 @@ import (
 	"context"
 	"crypto"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/user"
@@ -537,7 +536,7 @@ version: %s
 	}, nil, "")
 	c.Assert(err, check.IsNil)
 
-	content, err := ioutil.ReadFile(snapInfo.MountFile())
+	content, err := os.ReadFile(snapInfo.MountFile())
 	c.Assert(err, check.IsNil)
 	h := sha3.Sum384(content)
 	dgst, err := asserts.EncodeDigest(crypto.SHA3_384, h[:])

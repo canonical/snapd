@@ -25,7 +25,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -82,13 +81,13 @@ func checkSquashfsMount() error {
 		return err
 	}
 
-	tmpSquashfsFile, err := ioutil.TempFile("", "syscheck-squashfs-")
+	tmpSquashfsFile, err := os.CreateTemp("", "syscheck-squashfs-")
 	if err != nil {
 		return err
 	}
 	defer os.Remove(tmpSquashfsFile.Name())
 
-	tmpMountDir, err := ioutil.TempDir("", "syscheck-mountpoint-")
+	tmpMountDir, err := os.MkdirTemp("", "syscheck-mountpoint-")
 	if err != nil {
 		return err
 	}
@@ -127,7 +126,7 @@ func checkSquashfsMount() error {
 	}()
 
 	// syscheck check the
-	content, err := ioutil.ReadFile(filepath.Join(tmpMountDir, "canary.txt"))
+	content, err := os.ReadFile(filepath.Join(tmpMountDir, "canary.txt"))
 	if err != nil {
 		return fmt.Errorf("squashfs mount returned no err but canary file cannot be read")
 	}

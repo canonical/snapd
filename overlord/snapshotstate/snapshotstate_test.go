@@ -26,7 +26,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -1844,7 +1843,7 @@ func (snapshotSuite) TestImportSnapshotHappy(c *check.C) {
 
 	buf := bytes.NewBufferString(fakeSnapshotData)
 	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader, flags *backend.ImportFlags) ([]string, error) {
-		d, err := ioutil.ReadAll(r)
+		d, err := io.ReadAll(r)
 		c.Assert(err, check.IsNil)
 		c.Check(fakeSnapshotData, check.Equals, string(d))
 		return fakeSnapNames, nil

@@ -21,7 +21,7 @@ package builtin
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -445,7 +445,7 @@ func (iface *udisks2Interface) UDevPermanentSlot(spec *udev.Specification, slot 
 			if err != nil {
 				return fmt.Errorf("cannot resolve udev-file: %v", err)
 			}
-			data, err := ioutil.ReadFile(filepath.Join(mountDir, resolvedPath))
+			data, err := os.ReadFile(filepath.Join(mountDir, resolvedPath))
 			if err != nil {
 				return fmt.Errorf("cannot open udev-file: %v", err)
 			}

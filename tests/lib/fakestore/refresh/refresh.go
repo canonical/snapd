@@ -21,7 +21,6 @@ package refresh
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -114,7 +113,7 @@ func writeAssert(a asserts.Assertion, targetDir string) (string, error) {
 
 func makeFakeRefreshForSnap(snap, targetDir, snapBlob, snapOrigBlob string, db *asserts.Database, f asserts.Fetcher) error {
 	// make a fake update snap in /var/tmp (which is not a tempfs)
-	fakeUpdateDir, err := ioutil.TempDir("/var/tmp", "snap-build-")
+	fakeUpdateDir, err := os.MkdirTemp("/var/tmp", "snap-build-")
 	if err != nil {
 		return fmt.Errorf("creating tmp for fake update: %v", err)
 	}
