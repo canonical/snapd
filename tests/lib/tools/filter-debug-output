@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
+import argparse
 import re
 import sys
 
-DEBUG_FILENAME = 'debug.log'
 OPERATIONS = [
     'Preparing', 'Executing', 'Restoring',
     'Rebooting', 'Discarding', 'Allocating', 'Waiting',
@@ -37,12 +37,12 @@ def is_debug_finished(line):
 
 
 # Process spread output lines
-def process_spread_output():
+def process_spread_output(debug_file):
     debug_lines = ""
     for line in sys.stdin:
         if debug_lines:
             if is_debug_finished(line):
-                with open(DEBUG_FILENAME, 'a+') as myfile:
+                with open(debug_file, 'a+') as myfile:
                    myfile.write(debug_lines)
 
                 # There is a Debug output right after
@@ -64,6 +64,25 @@ def process_spread_output():
             else:
                 print(line.strip())
 
+def _make_parser():
+    # type: () -> argparse.ArgumentParser
+    parser = argparse.ArgumentParser(
+        description="""
+This tool is used to reduce the size of the spread output. It parses the spread output and sends 
+the Debug Output to the file passed as parameter. When a file is not provided
+the debug output is sent to debug.log
+""")
+    parser.add_argument(
+        "-f",
+        "--debug-file", 
+        metavar="PATH",
+        default="debug.log",
+        help="path to the debug output file"
+    )
+    return parser
+
 
 if __name__ == "__main__":
-    process_spread_output()
+    parser = _make_parser()
+    args = parser.parse_args()
+    process_spread_output(args.debug_file)
