@@ -281,6 +281,7 @@ func parseRule(parent *aspectRule, ruleRaw interface{}) ([]*aspectRule, error) {
 
 	requestRaw, ok := ruleMap["request"]
 	if !ok {
+		// if omitted the "request" field defaults to the same as the "storage"
 		requestRaw = storage
 	} else if requestRaw == "" {
 		return nil, errors.New(`aspect rules' "request" field must be non-empty, if it exists`)
