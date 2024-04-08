@@ -44,9 +44,12 @@ EOF
     systemctl daemon-reload
 }
 
-# It is supposed the name of the system follows 
-# ubuntu-core-<VERSION>[-ARCH]-<BITS>
-# with arch is "" for amd64, arm for armhf and arm64, etc
+# Set of helpers for checking if the test system is expected to be
+# Ubuntu Core. The helpers can be used both in a UC system or in
+# a classic system which will be transformed into UC. Note, the 
+# helpers assume a specific formatting of SPREAD_SYSTEM environment
+# variable which follows this pattern: ubuntu-core-<VERSION>[-ARCH]-<BITS>
+# where arch is "" for amd64, arm for armhf and arm64, etc
 is_core() {
     local VERSION=${1:-}
     [[ "$SPREAD_SYSTEM" = ubuntu-core-${VERSION}* ]]
