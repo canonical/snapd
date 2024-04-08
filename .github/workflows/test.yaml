@@ -735,7 +735,13 @@ jobs:
           # propagated; and we use a subshell as this option could trigger
           # undesired changes elsewhere
           echo "Running command: $SPREAD $RUN_TESTS"
-          (set -o pipefail; $SPREAD $RUN_TESTS | tee spread.log)
+          (set -o pipefail; $SPREAD $RUN_TESTS | tee spread.log | tests/lib/tools/filter-debug-output)
+
+    - name: Uploading debug logs
+      uses: actions/upload-artifact@v3
+      with:
+        name: debug-logs
+        path: "debug.log"
 
     - name: Discard spread workers
       if: always()
@@ -903,7 +909,13 @@ jobs:
           # "pipefail" ensures that a non-zero status from the spread is
           # propagated; and we use a subshell as this option could trigger
           # undesired changes elsewhere
-          (set -o pipefail; spread $RUN_TESTS | tee spread.log)
+          (set -o pipefail; spread $RUN_TESTS | tee spread.log | tests/lib/tools/filter-debug-output)
+
+    - name: Uploading debug logs
+      uses: actions/upload-artifact@v3
+      with:
+        name: debug-logs
+        path: "debug.log"
 
     - name: Discard spread workers
       if: always()

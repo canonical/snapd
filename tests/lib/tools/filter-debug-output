@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+
+import re
+import sys
+
+DEBUG_FILENAME = 'debug.log'
+OPERATIONS = [
+    'Preparing', 'Executing', 'Restoring',
+    'Rebooting', 'Discarding', 'Allocating', 'Waiting',
+    'Allocated', 'Connecting', 'Connected', 'Sending',
+    'Error', 'Debug', 'WARNING'
+    ]
+
+def match_date(date):
+    return re.findall(r'\d{4}-\d{2}-\d{2}', date)
+
+def match_time(time):
+    return re.findall(r'\d{2}:\d{2}:\d{2}', time)
+
+# Debug line starts with 
+def match_debug(line):
+    parts = line.strip().split(' ')
+    return len(parts) > 5 and \
+        match_date(parts[0]) and \
+        match_time(parts[1]) and \
+        parts[2] == 'Debug' and \
+        parts[3] == 'output' and \
+        parts[4] == 'for'
+
+# Debug output finishes when a new other line starts
+def is_debug_finished(line):
+    parts = line.strip().split(' ')
+    return len(parts) > 3 and \
+        match_date(parts[0]) and \
+        match_time(parts[1]) and \
+        parts[2] in OPERATIONS
+
+
+# Process spread output lines
+def process_spread_output():
+    debug_lines = ""
+    for line in sys.stdin:
+        if debug_lines:
+            if is_debug_finished(line):
+                with open(DEBUG_FILENAME, 'a+') as myfile:
+                   myfile.write(debug_lines)
+
+                # There is a Debug output right after
+                if match_debug(line):
+                    debug_lines = line
+                else:
+                    print(line.strip())
+                    debug_lines = ""
+                continue
+            else:
+                debug_lines = debug_lines + line
+                continue
+        else:
+            # A Debug section starts
+            if match_debug(line):
+                debug_lines = line
+                continue
+            # No debug line, just print it
+            else:
+                print(line.strip())
+
+
+if __name__ == "__main__":
+    process_spread_output()
