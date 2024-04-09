@@ -377,6 +377,7 @@ func (s *infoSuite) TestReadCurrentInfo(c *C) {
 	snapInfo3, err := snap.ReadCurrentInfo("not-sample")
 	c.Check(snapInfo3, IsNil)
 	c.Assert(err, ErrorMatches, `cannot find current revision for snap not-sample:.*`)
+	c.Assert(errors.As(err, &snap.NotFoundError{}), Equals, true)
 }
 
 func (s *infoSuite) TestReadCurrentInfoWithInstance(c *C) {
@@ -395,6 +396,7 @@ func (s *infoSuite) TestReadCurrentInfoWithInstance(c *C) {
 	snapInfo3, err := snap.ReadCurrentInfo("sample_other")
 	c.Check(snapInfo3, IsNil)
 	c.Assert(err, ErrorMatches, `cannot find current revision for snap sample_other:.*`)
+	c.Assert(errors.As(err, &snap.NotFoundError{}), Equals, true)
 }
 
 func (s *infoSuite) TestInstallDate(c *C) {
