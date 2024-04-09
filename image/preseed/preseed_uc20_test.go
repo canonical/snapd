@@ -168,7 +168,13 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 	dirs.SetRootDir(tmpDir)
 	defer mockChrootDirs(c, tmpDir, true)()
 
-	mockChootCmd := testutil.MockCommand(c, "chroot", "")
+	writableTmpDir := filepath.Join(tmpDir, "writable-tmp")
+
+	mockChootCmd := testutil.MockCommand(c, "chroot", fmt.Sprintf(`#!/bin/sh
+	set -eux
+	[ -L %[1]s/system-data/snap/snapd/current ]
+	[ "$(readlink %[1]s/system-data/snap/snapd/current)" = preseeding ]
+`, writableTmpDir))
 	defer mockChootCmd.Restore()
 
 	mockMountCmd := testutil.MockCommand(c, "mount", "")
@@ -183,7 +189,6 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 	})
 	defer restoreMakePreseedTmpDir()
 
-	writableTmpDir := filepath.Join(tmpDir, "writable-tmp")
 	restoreMakeWritableTempDir := preseed.MockMakeWritableTempDir(func() (string, error) {
 		return writableTmpDir, nil
 	})
@@ -253,11 +258,13 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 		{"mount", "--bind", filepath.Join(writableTmpDir, "system-data/etc/udev/rules.d"), filepath.Join(preseedTmpDir, "etc/udev/rules.d")},
 		{"mount", "--bind", filepath.Join(writableTmpDir, "system-data/var/lib/extrausers"), filepath.Join(preseedTmpDir, "var/lib/extrausers")},
 		{"mount", "--bind", filepath.Join(targetSnapdRoot, "/usr/lib/snapd"), filepath.Join(preseedTmpDir, "usr/lib/snapd")},
+		{"mount", "--bind", targetSnapdRoot, filepath.Join(preseedTmpDir, "snap/snapd/preseeding")},
 		{"mount", "--bind", filepath.Join(tmpDir, "system-seed"), filepath.Join(preseedTmpDir, "var/lib/snapd/seed")},
 	}
 
 	expectedUmountCalls := [][]string{
 		{"umount", filepath.Join(preseedTmpDir, "var/lib/snapd/seed")},
+		{"umount", filepath.Join(preseedTmpDir, "snap/snapd/preseeding")},
 		{"umount", filepath.Join(preseedTmpDir, "usr/lib/snapd")},
 		{"umount", filepath.Join(preseedTmpDir, "var/lib/extrausers")},
 		{"umount", filepath.Join(preseedTmpDir, "etc/udev/rules.d")},
@@ -288,7 +295,7 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 			expectedMountCalls = append(expectedMountCalls[:sysFsMountFirstIndex+i+1], expectedMountCalls[sysFsMountFirstIndex+i:]...)
 			expectedMountCalls[sysFsMountFirstIndex+i] = []string{"mount", "--bind", filepath.Join(sysfsOverlay, "sys", dir), filepath.Join(preseedTmpDir, "sys", dir)}
 			// order of umounts is reversed, prepend
-			const sysFsUmountFirstIndex = 11
+			const sysFsUmountFirstIndex = 12
 			expectedUmountCalls = append(expectedUmountCalls[:sysFsUmountFirstIndex+1], expectedUmountCalls[sysFsUmountFirstIndex:]...)
 			expectedUmountCalls[sysFsUmountFirstIndex] = []string{"umount", filepath.Join(preseedTmpDir, "sys", dir)}
 		}
