@@ -2,7 +2,7 @@ summary: Check basic core18 system functionality
 
 details: |
     Validate basic functionalities are working for uc18. Check commands
-    like: list, changesand install. And run a basic shell snap.
+    like: list, changes and install. And run a basic shell snap.
 
 systems: [ubuntu-core-18-*]
 
