@@ -1,7 +1,7 @@
 summary: Ensure we have no unpacked kernel.img/initrd.img on grub systems
 
 details: |
-    Check the vmlinuz, kernel.img and initrd.img are not found in /boot/grub
+    Check that vmlinuz, kernel.img and initrd.img are not found in /boot/grub
     in Ubuntu Core systems
 
 systems: [ubuntu-core-*-64]
