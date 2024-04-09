@@ -1,4 +1,6 @@
-summary: Check that the refresh data copy works.
+summary: Check handling of exceptionally high user IDs
+details: |
+  Check that osutil handling of exceptionally high user IDs is correct.
 
 systems:
     - -ubuntu-14.04-*  # no support for tests.session
