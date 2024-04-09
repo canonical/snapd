@@ -2,7 +2,7 @@ summary: Ensure that snap create-user works in ubuntu-core
 # FIXME: combine this test with tests/core/create-user-2?
 
 details: |
-    Checks the command `snap create-user` works in ubuntu core. Ensure there are
+    Check that the command `snap create-user` works in ubuntu core.
     ssh keys imported for the user and it can be created as sudoer.
 
 environment:
