@@ -6,8 +6,9 @@ details: |
   bases).
 
 systems:
-  #TODO: bpftool is not available on core22 and tests.device-cgroup needs it for cgroups v2
+  #TODO: bpftool is not available on core22+ and tests.device-cgroup needs it for cgroups v2
   - -ubuntu-core-22-*
+  - -ubuntu-core-24-*
   # no core20 i386
   - -ubuntu-18.04-32
 

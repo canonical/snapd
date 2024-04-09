@@ -21,6 +21,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -28,22 +29,70 @@ import (
 	"github.com/godbus/dbus"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dbusutil"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/usersession/client"
 )
 
 var runinhibitWaitWhileInhibited = runinhibit.WaitWhileInhibited
 
-func waitWhileInhibited(ctx context.Context, snapName string) error {
+// errSnapRefreshConflict indicates that a retry is needed because snap-run
+// might have started without a hint lock file and now there is an ongoing refresh
+// which could alter the current snap revision.
+var errSnapRefreshConflict = fmt.Errorf("snap refresh conflict detected")
+
+// maybeWaitWhileInhibited is a wrapper for waitWhileInhibited that skips waiting
+// if refresh-app-awareness flag is disabled.
+func maybeWaitWhileInhibited(ctx context.Context, snapName string, appName string) (info *snap.Info, app *snap.AppInfo, hintFlock *osutil.FileLock, err error) {
+	// wait only if refresh-app-awareness flag is enabled
+	if features.RefreshAppAwareness.IsEnabled() {
+		return waitWhileInhibited(ctx, snapName, appName)
+	}
+
+	info, app, err = getInfoAndApp(snapName, appName, snap.R(0))
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return info, app, nil, nil
+}
+
+// waitWhileInhibited blocks until snap is not inhibited for refresh anymore and then
+// returns a locked hint file lock along with the latest snap and app information.
+// If the snap is inhibited for refresh, a notification flow is initiated during
+// the inhibition period.
+//
+// NOTE: A snap without a hint file is considered not inhibited and a nil FileLock is returned.
+//
+// NOTE: It is the caller's responsibility to release the returned file lock.
+func waitWhileInhibited(ctx context.Context, snapName string, appName string) (info *snap.Info, app *snap.AppInfo, hintFlock *osutil.FileLock, err error) {
 	flow := newInhibitionFlow(snapName)
 	notified := false
+	notInhibited := func(ctx context.Context) (err error) {
+		// Get updated "current" snap info.
+		info, app, err = getInfoAndApp(snapName, appName, snap.R(0))
+		// We might have started without a hint lock file and we have an
+		// ongoing refresh which removed current symlink.
+		if errors.As(err, &snap.NotFoundError{}) {
+			// Race condition detected
+			logger.Debugf("%v", err)
+			return errSnapRefreshConflict
+		}
+		return err
+	}
 	inhibited := func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error) {
 		if !notified {
-			// wait for HintInhibitedForRefresh set by gate-auto-refresh hook handler
-			// when it has finished; the hook starts with HintInhibitedGateRefresh lock
-			// and then either unlocks it or changes to HintInhibitedForRefresh (see
-			// gateAutoRefreshHookHandler in hooks.go).
+			info, app, err = getInfoAndApp(snapName, appName, inhibitInfo.Previous)
+			if err != nil {
+				return false, err
+			}
+			// Don't wait, continue with old revision.
+			if app.IsService() {
+				return true, nil
+			}
+			// Don't start flow if we are not inhibited for refresh.
 			if hint != runinhibit.HintInhibitedForRefresh {
 				return false, nil
 			}
@@ -57,26 +106,38 @@ func waitWhileInhibited(ctx context.Context, snapName string) error {
 		return false, nil
 	}
 
-	hintFlock, err := runinhibitWaitWhileInhibited(ctx, snapName, nil, inhibited, 500*time.Millisecond)
+	// If the snap is inhibited from being used then postpone running it until
+	// that condition passes.
+	hintFlock, err = runinhibitWaitWhileInhibited(ctx, snapName, notInhibited, inhibited, 500*time.Millisecond)
 	if err != nil {
 		// It is fine to return an error here without finishing the notification
 		// flow because we either failed because of it or before it, so it
 		// should not have started in the first place.
-		return err
-	}
-
-	// XXX: closing as we don't need it for now, this lock will be used in a later iteration
-	if hintFlock != nil {
-		hintFlock.Close()
+		return nil, nil, nil, err
 	}
 
 	if notified {
 		if err := flow.FinishInhibitionNotification(ctx); err != nil {
-			return err
+			hintFlock.Close()
+			return nil, nil, nil, err
 		}
 	}
 
-	return nil
+	return info, app, hintFlock, nil
+}
+
+func getInfoAndApp(snapName, appName string, rev snap.Revision) (*snap.Info, *snap.AppInfo, error) {
+	info, err := getSnapInfo(snapName, rev)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	app, exists := info.Apps[appName]
+	if !exists {
+		return nil, nil, fmt.Errorf(i18n.G("cannot find app %q in %q"), appName, snapName)
+	}
+
+	return info, app, nil
 }
 
 type inhibitionFlow interface {
