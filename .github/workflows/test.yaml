@@ -741,7 +741,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v3
       with:
-        name: spread-logs-${{ matrix.system }}
+        name: spread-logs-${{ matrix.systems }}
         path: "*.log"
 
     - name: Discard spread workers
@@ -916,7 +916,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v3
       with:
-        name: spread-logs-${{ matrix.system }}
+        name: spread-logs-${{ matrix.systems }}
         path: "*.log"
 
     - name: Discard spread workers
