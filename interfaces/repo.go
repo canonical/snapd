@@ -929,15 +929,7 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, appSet *Sn
 		return nil, fmt.Errorf("cannot handle interfaces of snap %q, security system %q is not known", snapName, securitySystem)
 	}
 
-	spec := backend.NewSpecification(appSet)
-
-	if opts.AppArmorPrompting {
-		// Need to set UsePromptPrefix() here, but can't, because the backend
-		// might not be apparmor.
-		// And can't wait to do it in spec.AddConnectedPlug, since then it is
-		// re-added for every plug slot, which is innecessary.
-		// XXX: could do it in NewSpecification, but that is called ~750 times.
-	}
+	spec := backend.NewSpecification(appSet, opts)
 
 	// XXX: If either of the AddConnected{Plug,Slot} methods for a connection
 	// fail resiliently as-in they can never succeed (such as the case where a
@@ -973,9 +965,6 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, appSet *Sn
 			return nil, err
 		}
 		for _, conn := range r.plugSlots[plugInfo] {
-			// XXX: confinementOptions containing AppArmorPrompting must either
-			// get here or get inside interfaces/apparmor/spec.go:AddConnectedPlug(),
-			// neither of which is the case.
 			if err := spec.AddConnectedPlug(iface, conn.Plug, conn.Slot); err != nil {
 				return nil, err
 			}

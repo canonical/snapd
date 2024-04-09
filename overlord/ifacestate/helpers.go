@@ -162,7 +162,12 @@ func snapdAppArmorServiceIsDisabledImpl() bool {
 }
 
 // regenerateAllSecurityProfiles will regenerate all security profiles.
-func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, task *state.Task) error {
+func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, usePromptPrefix func(task *state.Task) bool) error {
+	// XXX: task is not accessible here, nor is change.
+	// XXX: Where should tasks be added for each snap? Seems like it must be here?
+	// XXX: But this is the handler for tasks of that type, so it should be called
+	// on the regenerate profiles task for a particular snap.
+
 	// Get all the security backends
 	securityBackends := m.repo.Backends()
 
@@ -203,6 +208,21 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, ta
 	// But there is no transaction here to easily get the config state of the
 	// experimental.apparmor-prompting flag.
 
+	usePromptPrefix := func(task *state.Task) {
+		if task == nil {
+			return false
+		}
+		var usePromptPrefix bool
+		task.Get("use-prompt-prefix", &usePromptPrefix)
+		// If "use-prompt-prefix" unset, includePromptPrefix remains false.
+		//
+		// XXX:
+		// But if unset (as is the case in most calls to buildConfinementOptions),
+		// will prompt profiles be overwritten with profiles which do not have
+		// prompt prefixes? Or is buildConfinementOptions only used to build
+		// profiles when a task with "use-prompt-prefix" set is passed in?
+	}
+
 	confinementOpts := func(snapName string) interfaces.ConfinementOptions {
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(m.state, snapName, &snapst); err != nil {
@@ -214,7 +234,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, ta
 			logger.Noticef("cannot get current info for snap %q: %s", snapName, err)
 			return interfaces.ConfinementOptions{}
 		}
-		opts, err := buildConfinementOptions(m.state, snapInfo, snapst.Flags, task)
+		opts, err := buildConfinementOptions(m.state, snapInfo, snapst.Flags, usePromptPrefix, task)
 		if err != nil {
 			logger.Noticef("cannot get confinement options for snap %q: %s", snapName, err)
 		}

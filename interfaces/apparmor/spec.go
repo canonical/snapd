@@ -809,12 +809,6 @@ func (spec *Specification) SuppressPycacheDeny() bool {
 	return spec.suppressPycacheDeny
 }
 
-// SetUsePromptPrefix records that the prompt prefix should be included for
-// relevant interfaces when generating profiles.
-func (spec *Specification) SetUsePromptPrefix() {
-	spec.usePromptPrefix = true
-}
-
 // UsePromptPrefix returns whether the prompt prefix should be included for
 // relevant interfaces when generating profiles.
 func (spec *Specification) UsePromptPrefix() bool {

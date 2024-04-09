@@ -173,7 +173,15 @@ func (m *InterfaceManager) StartUp() error {
 		return err
 	}
 	if profilesNeedRegeneration() {
-		if err := m.regenerateAllSecurityProfiles(perfTimings, nil); err != nil {
+		tr := state.NewTransaction()
+		doPrompting, _ := features.Flag(tr, features.AppArmorPrompting)
+		if doPrompting {
+			doPrompting, _ = features.AppArmorPrompting.IsSupported()
+		}
+		usePromptPrefix := func() bool {
+			return doPrompting
+		}
+		if err := m.regenerateAllSecurityProfiles(perfTimings, usePrompting); err != nil {
 			return err
 		}
 	}

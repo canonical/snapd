@@ -81,22 +81,10 @@ func getExtraLayouts(st *state.State, snapInfo *snap.Info) ([]snap.Layout, error
 	return extraLayouts, nil
 }
 
-func buildConfinementOptions(st *state.State, snapInfo *snap.Info, flags snapstate.Flags, task *state.Task) (interfaces.ConfinementOptions, error) {
+func buildConfinementOptions(st *state.State, snapInfo *snap.Info, flags snapstate.Flags, usePromptPrefix func(task *state.Task) bool, task *state.Task) (interfaces.ConfinementOptions, error) {
 	extraLayouts, err := getExtraLayouts(st, snapInfo)
 	if err != nil {
 		return interfaces.ConfinementOptions{}, fmt.Errorf("cannot get extra mount layouts of snap %q: %s", snapInfo.InstanceName(), err)
-	}
-
-	var usePromptPrefix bool
-	if task != nil {
-		task.Get("use-prompt-prefix", &usePromptPrefix)
-		// If "use-prompt-prefix" unset, includePromptPrefix remains false.
-		//
-		// XXX:
-		// But if unset (as is the case in most calls to buildConfinementOptions),
-		// will prompt profiles be overwritten with profiles which do not have
-		// prompt prefixes? Or is buildConfinementOptions only used to build
-		// profiles when a task with "use-prompt-prefix" set is passed in?
 	}
 
 	return interfaces.ConfinementOptions{
@@ -104,7 +92,7 @@ func buildConfinementOptions(st *state.State, snapInfo *snap.Info, flags snapsta
 		JailMode:          flags.JailMode,
 		Classic:           flags.Classic,
 		ExtraLayouts:      extraLayouts,
-		AppArmorPrompting: usePromptPrefix,
+		AppArmorPrompting: usePromptPrefix(task),
 	}, nil
 }
 

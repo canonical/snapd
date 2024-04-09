@@ -345,18 +345,10 @@ type profilePathsResults struct {
 
 func (b *Backend) prepareProfiles(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) (prof *profilePathsResults, err error) {
 	snapName := appSet.InstanceName()
-	spec, err := repo.SnapSpecification(b.Name(), appSet)
+	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
 		return nil, fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
 	}
-
-	// XXX: By this point, spec.AddConnectedPlug has already been called during
-	// repo.SnapSpecification, and as spec.AddConnectedPlug is the only caller
-	// of AppArmorConnectedPlug, it is now too late to correctly set
-	// UsePromptPrefix in the spec, if appropriate:
-	// if opts.AppArmorPrompting {
-	//	spec.(*Specification).SetUsePromptPrefix()
-	// }
 
 	snapInfo := appSet.Info()
 
