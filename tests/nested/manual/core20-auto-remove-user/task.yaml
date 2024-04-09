@@ -1,6 +1,6 @@
 summary: Verify that snapd correctly removes expired users created with assertions.
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
   # use snapd from the spread run so that we have testkeys trusted in the

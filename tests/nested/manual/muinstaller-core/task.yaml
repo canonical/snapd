@@ -6,7 +6,7 @@ details: |
   We test both the encrypted and unencrypted cases. We also verify that the
   system has properly installed system seed post-installation.
 
-systems: [ubuntu-22.04-64]
+systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
   # Test both encrypted and unencrypted install using the muinstaller

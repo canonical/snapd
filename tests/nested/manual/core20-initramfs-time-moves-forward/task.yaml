@@ -1,6 +1,6 @@
 summary: Test that time moves forward when the RTC is broken/unavailable in UC20
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
   NESTED_BUILD_SNAPD_FROM_CURRENT: true

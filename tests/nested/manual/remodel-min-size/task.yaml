@@ -7,7 +7,7 @@ details: |
   assertion that uses a different gadget to the one used when building
   the image.
 
-systems: [ubuntu-22.04-64]
+systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
   NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/test-snapd-remodel-auto-import.assert

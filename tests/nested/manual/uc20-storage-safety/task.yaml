@@ -1,6 +1,6 @@
 summary: Test that storage-safety prefer-unencrypted works
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
     NESTED_ENABLE_TPM: true

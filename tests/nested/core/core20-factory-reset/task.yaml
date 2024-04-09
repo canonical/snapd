@@ -3,7 +3,7 @@ summary: Verify factory reset of a UC20 system
 details: |
     This test checks that UC20 can be reset to factory state
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
     NESTED_ENABLE_SECURE_BOOT/fde: true

@@ -6,7 +6,7 @@ details: |
     conditions (whether the hook is executed in install mode, or factory-reset
     mode ).
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
     # use snapd from the spread run so that we have testkeys trusted in the

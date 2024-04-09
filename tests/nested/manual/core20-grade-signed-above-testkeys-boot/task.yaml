@@ -1,6 +1,6 @@
 summary: Test that snapd with testkeys on UC2* can boot a model with grade signed.
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
   # use tpm + secure boot to get full disk encryption, this is explicitly needed

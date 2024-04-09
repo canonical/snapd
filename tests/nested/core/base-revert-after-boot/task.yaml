@@ -5,7 +5,7 @@ details: |
   that already booted can be reverted properly if something else fails, like a
   post-refresh hook.
 
-systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-*]
 
 execute: |
   echo "Build base with failing post-refresh hook"

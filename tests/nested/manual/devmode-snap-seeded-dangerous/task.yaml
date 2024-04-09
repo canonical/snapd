@@ -1,7 +1,7 @@
 summary: Check that devmode snaps can be seeded with a dangerous uc20 model
 
 # this is a UC20 specific test
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
   NESTED_BUILD_SNAPD_FROM_CURRENT: true

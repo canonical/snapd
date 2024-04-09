@@ -1,9 +1,10 @@
 summary: create a recovery system and reboot into it
+
 details: |
   This test creates a recovery system and validates that the newly created
   system can be rebooted into.
 
-systems: [ubuntu-22.04-64]
+systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/test-snapd-recovery-system-pc-22.model

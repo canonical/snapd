@@ -1,6 +1,6 @@
 summary: Update boot assets through gadgets in secure boot
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
   NESTED_ENABLE_SECURE_BOOT: true

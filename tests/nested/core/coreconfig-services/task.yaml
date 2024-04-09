@@ -1,6 +1,6 @@
 summary: Disable and enable back core services via snap set with reboot.
 
-systems: [ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-18.04-64, ubuntu-2*]
 
 execute: |
   remote.exec "systemctl status systemd-resolved.service" | MATCH "Active: +active"

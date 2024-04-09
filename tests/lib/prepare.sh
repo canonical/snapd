@@ -1017,9 +1017,6 @@ setup_reflash_magic() {
         core_name="core22"
     elif is_test_target_core 24; then
         core_name="core24"
-        # TODO: revert this once snaps are ready in target channel
-        KERNEL_CHANNEL=beta
-        GADGET_CHANNEL=edge    
     fi
     # XXX: we get "error: too early for operation, device not yet
     # seeded or device model not acknowledged" here sometimes. To
@@ -1162,14 +1159,9 @@ EOF
         # also add debug command line parameters to the kernel command line via
         # the gadget in case things go side ways and we need to debug
         if is_test_target_core 24; then
-            # TODO: remove this once pc snap is available in beta channel
-            snap download --basename=pc --channel="${BRANCH}/edge" pc
-        else
-            snap download --basename=pc --channel="${BRANCH}/${KERNEL_CHANNEL}" pc
-        fi
+        snap download --basename=pc --channel="${BRANCH}/${KERNEL_CHANNEL}" pc
         test -e pc.snap
         unsquashfs -d pc-gadget pc.snap
-
         # TODO: it would be desirable when we need to do in-depth debugging of
         # UC20 runs in google to have snapd.debug=1 always on the kernel command
         # line, but we can't do this universally because the logic for the env

@@ -2,7 +2,7 @@ summary: Check that refreshing snapd to a fixed version removes vulnerable revs
 
 # just focal is fine for this test - we only need to check that things happen on
 # classic
-systems: [ubuntu-20.04-*, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
   # which snap snapd comes from in this test

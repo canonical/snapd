@@ -2,7 +2,7 @@ summary: Check that the /system/<label> API works via fake installer
 
 # this is a UC20+ specific test
 # TODO this currently fails on ubuntu-20.04-64 timing out
-systems: [ubuntu-22.04-64]
+systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
     # nested test so that we can test encryted installs eventually

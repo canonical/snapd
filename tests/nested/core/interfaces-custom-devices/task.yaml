@@ -4,7 +4,7 @@ details: |
     The custom-device interface allows a gadget snap to provide custom slots
     granting access to the devices it defines.
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 prepare: |
     # Add our interface to the gadget snap

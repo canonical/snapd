@@ -1,6 +1,6 @@
 summary: Create ubuntu core image, install snapd and test hotplug feature
 
-systems: [ubuntu-16.04-64, ubuntu-18.04-64]
+systems: [ubuntu-1*]
 
 prepare: |
     snap pack "$TESTSLIB"/snaps/serial-port-hotplug

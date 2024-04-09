@@ -1,7 +1,7 @@
 summary: Test that UC2* can boot with gadget provided cloud.conf for all grades
 
 # TODO: enable similar test for UC18 and UC16 gadgets that use cloud.conf?
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
   # use tpm + secure boot to get full disk encryption, this is explicitly needed
