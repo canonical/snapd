@@ -3,7 +3,7 @@ summary: |
 
 details: |
     Checks that configuration defaults are only applied once, and
-    those are not applied when it is installed a snap that could
+    those are not applied when a snap is installed, which could
     trigger system defaults to be reapplied.
 
 # it is not yet possible to install snapd on UC16
