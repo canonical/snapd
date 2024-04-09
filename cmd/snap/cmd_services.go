@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/snap"
 )
 
 type svcStatus struct {
@@ -133,24 +132,6 @@ func svcNames(s []serviceName) []string {
 	return svcNames
 }
 
-func fmtServiceStatus(svc *client.AppInfo, isGlobal bool) string {
-	startup := i18n.G("disabled")
-	if svc.Enabled {
-		startup = i18n.G("enabled")
-	}
-
-	// When requesting global service status, we don't have any active
-	// information available for user daemons.
-	current := i18n.G("inactive")
-	if svc.DaemonScope == snap.UserDaemon && isGlobal {
-		current = "-"
-	} else if svc.Active {
-		current = i18n.G("active")
-	}
-
-	return fmt.Sprintf("%s.%s\t%s\t%s\t%s", svc.Snap, svc.Name, startup, current, clientutil.ClientAppInfoNotes(svc))
-}
-
 func (s *svcStatus) showGlobalEnablement(u *user.User) bool {
 	if u.Uid == "0" && !s.User {
 		return true
@@ -201,7 +182,7 @@ func (s *svcStatus) Execute(args []string) error {
 
 	fmt.Fprintln(w, i18n.G("Service\tStartup\tCurrent\tNotes"))
 	for _, svc := range services {
-		fmt.Fprintln(w, fmtServiceStatus(svc, isGlobal))
+		fmt.Fprintln(w, clientutil.FmtServiceStatus(svc, isGlobal))
 	}
 	return nil
 }

@@ -20,6 +20,7 @@
 package ctlcmd
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"text/tabwriter"
@@ -47,6 +48,8 @@ type servicesCommand struct {
 	Positional struct {
 		ServiceNames []string `positional-arg-name:"<service>"`
 	} `positional-args:"yes"`
+	Global bool `long:"global" short:"g" description:"Show the global enable status for user-services instead of the status for the current user"`
+	User   bool `long:"user" short:"u" description:"Show the current user's user-services instead of the global enable status"`
 }
 
 type byApp []*snap.AppInfo
@@ -57,21 +60,62 @@ func (a byApp) Less(i, j int) bool {
 	return a[i].Name < a[j].Name
 }
 
+var newStatusDecorator = func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator {
+	if isGlobal {
+		return servicestate.NewStatusDecorator(progress.Null)
+	} else {
+		return servicestate.NewStatusDecoratorForUid(progress.Null, ctx, uid)
+	}
+}
+
+func (c *servicesCommand) showGlobalEnablement() bool {
+	if c.uid == "0" && !c.User {
+		return true
+	} else if c.uid != "0" && c.Global {
+		return true
+	}
+	return false
+}
+
+func (c *servicesCommand) validateArguments() error {
+	// can't use --global and --user together
+	if c.Global && c.User {
+		return fmt.Errorf(i18n.G("cannot combine --global and --user switches."))
+	}
+
+	// --user is supported for root
+	if c.User && c.uid != "0" {
+		return fmt.Errorf(i18n.G("unsupported argument --user when not root."))
+	}
+
+	// --global is supported for non-root
+	if c.Global && c.uid == "0" {
+		return fmt.Errorf(i18n.G("unsupported argument --global when root."))
+	}
+	return nil
+}
+
+// The 'snapctl services' command is one of the few commands that can run as
+// non-root through snapctl.
 func (c *servicesCommand) Execute([]string) error {
-	context, err := c.ensureContext()
+	ctx, err := c.ensureContext()
 	if err != nil {
 		return err
 	}
 
-	st := context.State()
-	svcInfos, err := getServiceInfos(st, context.InstanceName(), c.Positional.ServiceNames)
+	if err := c.validateArguments(); err != nil {
+		return err
+	}
+
+	st := ctx.State()
+	svcInfos, err := getServiceInfos(st, ctx.InstanceName(), c.Positional.ServiceNames)
 	if err != nil {
 		return err
 	}
 	sort.Sort(byApp(svcInfos))
 
-	sd := servicestate.NewStatusDecorator(progress.Null)
-
+	isGlobal := c.showGlobalEnablement()
+	sd := newStatusDecorator(context.TODO(), isGlobal, c.uid)
 	services, err := clientutil.ClientAppInfosFromSnapAppInfos(svcInfos, sd)
 	if err != nil || len(services) == 0 {
 		return err
@@ -81,19 +125,8 @@ func (c *servicesCommand) Execute([]string) error {
 	defer w.Flush()
 
 	fmt.Fprintln(w, i18n.G("Service\tStartup\tCurrent\tNotes"))
-
 	for _, svc := range services {
-		startup := i18n.G("disabled")
-		if svc.Enabled {
-			startup = i18n.G("enabled")
-		}
-		current := i18n.G("inactive")
-		if svc.DaemonScope == snap.UserDaemon {
-			current = "-"
-		} else if svc.Active {
-			current = i18n.G("active")
-		}
-		fmt.Fprintf(w, "%s.%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current, clientutil.ClientAppInfoNotes(&svc))
+		fmt.Fprintln(w, clientutil.FmtServiceStatus(&svc, isGlobal))
 	}
 
 	return nil

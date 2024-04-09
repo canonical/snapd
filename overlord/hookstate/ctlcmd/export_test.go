@@ -20,10 +20,12 @@
 package ctlcmd
 
 import (
+	"context"
 	"fmt"
 	"os/user"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -155,4 +157,10 @@ func MockAutoRefreshForGatingSnap(f func(st *state.State, gatingSnap string) err
 	return func() {
 		autoRefreshForGatingSnap = old
 	}
+}
+
+func MockNewStatusDecorator(f func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator) (restore func()) {
+	restore = testutil.Backup(&newStatusDecorator)
+	newStatusDecorator = f
+	return restore
 }
