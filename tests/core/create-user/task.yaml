@@ -3,7 +3,7 @@ summary: Ensure that snap create-user works in ubuntu-core
 
 details: |
     Check that the command `snap create-user` works in ubuntu core.
-    ssh keys imported for the user and it can be created as sudoer.
+    Ensure that the keys are imported for the user and it can be created as a sudoer.
 
 environment:
     USER_EMAIL: mvo@ubuntu.com
