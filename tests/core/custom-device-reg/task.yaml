@@ -1,5 +1,7 @@
-summary: |
-    Test that device initialisation and registration can be customized
+summary: Test the customized device registration through a gadget hook
+
+details: |
+    Check that device initialisation and registration can be customized
     with the prepare-device gadget hook
 
 # TODO:UC20: enable for UC20, it assumes /var/lib/snapd/seed/assertions/model

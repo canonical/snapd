@@ -2,6 +2,10 @@ summary: |
     Test that device initialisation and registration work with the model
     specifying serial-authority: [generic]
 
+details: |
+    Check that a device is initialized and registered properly when a
+    generic serial-authority is used in its model. 
+
 # TODO:UC20: enable for UC20, it assumes /var/lib/snapd/seed/assertions/model
 #            which we don't have currently
 systems: [ubuntu-core-18*]

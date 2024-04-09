@@ -1,5 +1,9 @@
 summary: Ensure that the core systems have a special apt placeholder
 
+details: |
+  Check apt command is not available in uc20+ and there is a fake apt-get script
+  for uc16 and uc18.
+
 systems: [ubuntu-core-*]
 
 execute: |

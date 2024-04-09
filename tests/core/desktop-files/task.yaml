@@ -1,5 +1,8 @@
 summary: Ensure that desktop files installed on Core systems
 
+details: |
+     Check that desktop files are present on Ubuntu Core systems
+
 execute: |
     echo "Desktop files are present on Ubuntu Core systems"
     test -f /var/lib/snapd/desktop/applications/io.snapcraft.SessionAgent.desktop -o \
