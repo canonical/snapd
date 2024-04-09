@@ -242,7 +242,19 @@ func prepareCore20Mountpoints(opts *preseedCoreOptions) (cleanupMounts func(), e
 		}
 	}
 
+	underWritable := func(path string) string {
+		return filepath.Join(opts.WritableDir, path)
+	}
+
+	currentLink := underWritable("system-data/snap/snapd/current")
+	currentSnapdMountPoint := underWritable("system-data/snap/snapd/preseeding")
+
 	cleanupMounts = func() {
+		path, err := os.Readlink(currentLink)
+		if err == nil && path == "preseeding" {
+			os.Remove(currentLink)
+		}
+
 		// unmount all the mounts but the first one, which is the base
 		// and it is cleaned up last
 		for i := len(mounted) - 1; i > 0; i-- {
@@ -266,6 +278,9 @@ func prepareCore20Mountpoints(opts *preseedCoreOptions) (cleanupMounts func(), e
 		if len(mounted) > 0 {
 			doUnmount(mounted[0])
 		}
+
+		// Remove mount point if empty
+		os.Remove(currentSnapdMountPoint)
 	}
 
 	cleanupOnError := func() {
@@ -331,9 +346,23 @@ func prepareCore20Mountpoints(opts *preseedCoreOptions) (cleanupMounts func(), e
 		}
 	}
 
-	underWritable := func(path string) string {
-		return filepath.Join(opts.WritableDir, path)
+	// because of the way snapd snap is built, we need the
+	// 'current' symlink to exist when the snapd binary is
+	// invoked, so that any runtime libraries will be correctly
+	// resolved, so we bind-mount the snapd snap at a side
+	// location, and create the symlink 'current' to point to that
+	// location This symlink can then be easily replaced by snapd
+	// as it preseeds the image
+	if err := os.MkdirAll(filepath.Dir(currentLink), 0755); err != nil {
+		return nil, err
 	}
+	if err := os.MkdirAll(currentSnapdMountPoint, 0755); err != nil {
+		return nil, err
+	}
+	if err := os.Symlink("preseeding", currentLink); err != nil {
+		return nil, err
+	}
+
 	mounts = [][]string{
 		{"--bind", underWritable("system-data/var/lib/snapd"), underPreseed("var/lib/snapd")},
 		{"--bind", underWritable("system-data/var/cache/snapd"), underPreseed("var/cache/snapd")},
@@ -345,6 +374,7 @@ func prepareCore20Mountpoints(opts *preseedCoreOptions) (cleanupMounts func(), e
 		{"--bind", underWritable("system-data/etc/udev/rules.d"), underPreseed("etc/udev/rules.d")},
 		{"--bind", underWritable("system-data/var/lib/extrausers"), underPreseed("var/lib/extrausers")},
 		{"--bind", filepath.Join(snapdMountPath, "/usr/lib/snapd"), underPreseed("/usr/lib/snapd")},
+		{"--bind", snapdMountPath, underPreseed("/snap/snapd/preseeding")},
 		{"--bind", filepath.Join(opts.PrepareImageDir, "system-seed"), underPreseed("var/lib/snapd/seed")},
 	}
 
@@ -558,6 +588,27 @@ func prepareClassicChroot(preseedChroot string) (*targetSnapdInfo, func(), error
 		return nil, nil, err
 	}
 	addCleanup(unmountSnapd)
+
+	// because of the way snapd snap is built, we need the
+	// 'current' symlink to exist when the snapd binary is
+	// invoked, so that any runtime libraries will be correctly
+	// resolved, so we bind-mount the snapd snap at a side
+	// location, and create the symlink 'current' to point to that
+	// location This symlink can then be easily replaced by snapd
+	// as it preseeds the image
+	currentLink := filepath.Join(rootDir, "snap/snapd/current")
+	if err := os.MkdirAll(filepath.Dir(currentLink), 0755); err != nil {
+		return nil, nil, err
+	}
+	if err := os.Symlink(snapdMountPath, currentLink); err != nil {
+		return nil, nil, err
+	}
+	addCleanup(func() {
+		path, err := os.Readlink(currentLink)
+		if err == nil && path == snapdMountPath {
+			os.Remove(currentLink)
+		}
+	})
 
 	targetSnapd, err := chooseTargetSnapdVersion()
 	if err != nil {
