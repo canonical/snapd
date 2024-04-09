@@ -5,8 +5,9 @@ details: |
   the device cgroup.
 
 systems:
-  # bpftool is not available on core22 and tests.device-cgroup needs it for cgroups v2
+  # bpftool is not available on core22+ and tests.device-cgroup needs it for cgroups v2
   - -ubuntu-core-22-*
+  - -ubuntu-core-24-*
   # no i386 build of core24
   - -ubuntu-18.04-32
   # because udev is a mess there
