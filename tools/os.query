@@ -43,7 +43,7 @@ is_core_gt() {
         exit 1
     fi
 
-    compare_ubuntu "$VERSION" "-gt"
+    is_core && compare_ubuntu "$VERSION" "-gt"
 }
 
 is_core_ge() {
@@ -53,7 +53,7 @@ is_core_ge() {
         exit 1
     fi
 
-    compare_ubuntu "$VERSION" "-ge"
+    is_core && compare_ubuntu "$VERSION" "-ge"
 }
 
 is_core_lt() {
@@ -63,7 +63,7 @@ is_core_lt() {
         exit 1
     fi
 
-    compare_ubuntu "$VERSION" "-lt"
+    is_core && compare_ubuntu "$VERSION" "-lt"
 }
 
 is_core_le() {
@@ -73,7 +73,7 @@ is_core_le() {
         exit 1
     fi
 
-    compare_ubuntu "$VERSION" "-le"
+    is_core && compare_ubuntu "$VERSION" "-le"
 }
 
 is_classic() {
@@ -114,19 +114,19 @@ is_ubuntu() {
 }
 
 is_ubuntu_gt() {
-    compare_ubuntu "${1:-}" "-gt"
+    is_classic && compare_ubuntu "${1:-}" "-gt"
 }
 
 is_ubuntu_ge() {
-    compare_ubuntu "${1:-}" "-ge"
+    is_classic && compare_ubuntu "${1:-}" "-ge"
 }
 
 is_ubuntu_lt() {
-    compare_ubuntu "${1:-}" "-lt"
+    is_classic && compare_ubuntu "${1:-}" "-lt"
 }
 
 is_ubuntu_le() {
-    compare_ubuntu "${1:-}" "-le"
+    is_classic && compare_ubuntu "${1:-}" "-le"
 }
 
 compare_ubuntu() {

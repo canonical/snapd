@@ -60,6 +60,8 @@ execute: |
             ! os.query is-debian
             os.query is-classic
             ! os.query is-core
+            ! os.query is-core-ge 20
+            ! os.query is-core-le 20
             os.query is-pc-amd64
             ! os.query is-arm
             ;;
