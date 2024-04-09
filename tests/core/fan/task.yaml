@@ -1,7 +1,7 @@
 summary: Test ubuntu-fan
 
 details: |
-    Check that fanctl exists in UC16 and it is created a fan bridge
+    Check that fanctl exists in UC16 and it can create a fan bridge
 
 # Ubuntu fan not available on ubuntu-core-18 and later, it is not shipped in the
 # base snap
