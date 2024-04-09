@@ -1,7 +1,7 @@
 summary: Make sure we can generate core dumps on UC
 
 details: |
-  Checks it is possible to generate core dumps on UC. Make sure that dumps
+  Check it is possible to generate core dumps on UC. Make sure that dumps
   are produced in little time in a place writable from snap context.
 
 execute: |
