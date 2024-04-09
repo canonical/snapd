@@ -32,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type appOpSuite struct {
@@ -264,12 +265,16 @@ func (s *appOpSuite) TestAppOpsScopeInvalid(c *check.C) {
 
 func (s *appOpSuite) TestAppStatus(c *check.C) {
 	n := 0
-	var expectedArgCount int
+	var hasGlobal bool
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
 		case 0, 1, 2, 3:
 			c.Check(r.URL.Path, check.Equals, "/v2/apps")
-			c.Check(r.URL.Query(), check.HasLen, expectedArgCount)
+			if hasGlobal {
+				c.Check(r.URL.Query(), check.HasLen, 2)
+			} else {
+				c.Check(r.URL.Query(), check.HasLen, 1)
+			}
 			c.Check(r.URL.Query().Get("select"), check.Equals, "service")
 			c.Check(r.Method, check.Equals, "GET")
 			w.WriteHeader(200)
@@ -328,7 +333,7 @@ func (s *appOpSuite) TestAppStatus(c *check.C) {
 		userServiceLine string
 	}{
 		{"0", []string{"services"}, "foo.qux  enabled  -         user"},
-		{"0", []string{"services", "--global"}, "foo.qux  enabled  -         user"},
+		{"0", []string{"services", "--user"}, "foo.qux  enabled  inactive  user"},
 		{"1337", []string{"services"}, "foo.qux  enabled  inactive  user"},
 		{"1337", []string{"services", "--global"}, "foo.qux  enabled  -         user"},
 	}
@@ -337,8 +342,7 @@ func (s *appOpSuite) TestAppStatus(c *check.C) {
 	for _, t := range tests {
 		testsRun++
 		s.stdout.Reset()
-		expectedArgCount = len(t.arguments)
-
+		hasGlobal = (t.uid == "0" && !strutil.ListContains(t.arguments, "--user")) || strutil.ListContains(t.arguments, "--global")
 		r := snap.MockUserCurrent(func() (*user.User, error) {
 			return &user.User{
 				Uid: t.uid,
