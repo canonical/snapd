@@ -55,6 +55,9 @@ const maxPostponementBuffer = 5 * 24 * time.Hour
 // maxDuration is used to represent "forever" internally (it's 290 years).
 const maxDuration = time.Duration(1<<63 - 1)
 
+// time in days by default to wait until a pending refresh is forced by the system
+const defaultMaxInhibitionDays = 14
+
 // hooks setup by devicestate
 var (
 	CanAutoRefresh        func(st *state.State) (bool, error)
