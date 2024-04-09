@@ -65,10 +65,10 @@ execute: |
     MATCH "     5\s+test-snapd-user-service.svc4\s+enabled\s+active\s+-$" < services-root.txt
 
     echo "(root) Verifying what snap services is reporting with --user"
-    snap services --user | cat -n > services-root.txt
+    snap services --user | cat -n > services-root-user.txt
     MATCH "     1\s+Service\s+Startup\s+Current\s+Notes$" < services-root-user.txt
     MATCH "     2\s+test-snapd-user-service.svc1\s+enabled\s+active\s+user$" < services-root-user.txt
-    MATCH "     3\s+test-snapd-user-service.svc2\s+enabled\s+active\s+user$" < services-root.txt
+    MATCH "     3\s+test-snapd-user-service.svc2\s+enabled\s+active\s+user$" < services-root-user.txt
     MATCH "     4\s+test-snapd-user-service.svc3\s+enabled\s+active\s+-$" < services-root-user.txt
     MATCH "     5\s+test-snapd-user-service.svc4\s+enabled\s+active\s+-$" < services-root-user.txt
 
