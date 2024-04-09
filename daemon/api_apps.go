@@ -57,7 +57,7 @@ var (
 )
 
 var newStatusDecorator = func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator {
-	if uid == "0" || isGlobal {
+	if isGlobal {
 		return servicestate.NewStatusDecorator(progress.Null)
 	} else {
 		return servicestate.NewStatusDecoratorForUid(progress.Null, ctx, uid)

@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"os/user"
 	"strconv"
 
 	"github.com/jessevdk/go-flags"
@@ -37,6 +38,7 @@ type svcStatus struct {
 		ServiceNames []serviceName
 	} `positional-args:"yes"`
 	Global bool `long:"global" short:"g"`
+	User   bool `long:"user" short:"u"`
 }
 
 type svcLogs struct {
@@ -87,6 +89,8 @@ func init() {
 	addCommand("services", shortServicesHelp, longServicesHelp, func() flags.Commander { return &svcStatus{} }, map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
 		"global": i18n.G("Show the global enable status for user-services instead of the status for the current user."),
+		// TRANSLATORS: This should not start with a lowercase letter.
+		"user": i18n.G("Show the current status of the user-services instead of the global enable status."),
 	}, argdescs)
 	addCommand("logs", shortLogsHelp, longLogsHelp, func() flags.Commander { return &svcLogs{} },
 		timeDescs.also(map[string]string{
@@ -136,7 +140,34 @@ func fmtServiceStatus(svc *client.AppInfo, isGlobal bool) string {
 		current = i18n.G("active")
 	}
 
-	return fmt.Sprintf("%s.%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current, clientutil.ClientAppInfoNotes(svc))
+	return fmt.Sprintf("%s.%s\t%s\t%s\t%s", svc.Snap, svc.Name, startup, current, clientutil.ClientAppInfoNotes(svc))
+}
+
+func (s *svcStatus) showGlobalEnablement(u *user.User) bool {
+	if u.Uid == "0" && !s.User {
+		return true
+	} else if u.Uid != "0" && s.Global {
+		return true
+	}
+	return false
+}
+
+func (s *svcStatus) validateArguments(u *user.User) error {
+	// can't use --global and --user together
+	if s.Global && s.User {
+		return fmt.Errorf(i18n.G("cannot combine --global and --user switches."))
+	}
+
+	// --user is supported for root
+	if s.User && u.Uid != "0" {
+		return fmt.Errorf(i18n.G("unsupported argument --user when not root."))
+	}
+
+	// --global is supported for non-root
+	if s.Global && u.Uid == "0" {
+		return fmt.Errorf(i18n.G("unsupported argument --global when root."))
+	}
+	return nil
 }
 
 func (s *svcStatus) Execute(args []string) error {
@@ -144,15 +175,19 @@ func (s *svcStatus) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	// retrieve the user early to detect any issues
 	u, err := userCurrent()
 	if err != nil {
-		return fmt.Errorf(i18n.G("cannot get the current user: %s"), err)
+		return fmt.Errorf(i18n.G("cannot get the current user: %s."), err)
 	}
 
+	if err := s.validateArguments(u); err != nil {
+		return err
+	}
+
+	isGlobal := s.showGlobalEnablement(u)
 	services, err := s.client.Apps(svcNames(s.Positional.ServiceNames), client.AppOptions{
 		Service: true,
-		Global:  s.Global,
+		Global:  isGlobal,
 	})
 	if err != nil {
 		return err
@@ -168,7 +203,7 @@ func (s *svcStatus) Execute(args []string) error {
 
 	fmt.Fprintln(w, i18n.G("Service\tStartup\tCurrent\tNotes"))
 	for _, svc := range services {
-		fmt.Fprintf(w, fmtServiceStatus(svc, u.Uid == "0" || s.Global))
+		fmt.Fprintln(w, fmtServiceStatus(svc, isGlobal))
 	}
 	return nil
 }

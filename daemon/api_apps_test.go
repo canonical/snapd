@@ -223,7 +223,7 @@ NeedDaemonReload=no
 	svcNames = append(svcNames, "snap-e.svc4")
 	s.SysctlBufs = append(s.SysctlBufs, []byte("enabled\n"))
 
-	req, err := http.NewRequest("GET", "/v2/apps", nil)
+	req, err := http.NewRequest("GET", "/v2/apps?global=true", nil)
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -295,23 +295,38 @@ func (s *appsSuite) TestGetAppsInfoNames(c *check.C) {
 }
 
 func (s *appsSuite) TestGetAppsInfoServices(c *check.C) {
+	r := daemon.MockNewStatusDecorator(func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator {
+		c.Check(isGlobal, check.Equals, false)
+		c.Check(uid, check.Equals, "0")
+		return s
+	})
+	defer r()
+
+	// System and user services from active snaps
+	s.decoratorResults = map[string]appsSuiteDecoratorResult{
+		"snap-a.svc1": {
+			daemonType: "simple",
+			active:     true,
+			enabled:    true,
+		},
+		"snap-a.svc2": {
+			daemonType: "simple",
+			active:     true,
+			enabled:    true,
+		},
+		"snap-e.svc4": {
+			daemonType: "simple",
+			active:     false,
+			enabled:    true,
+		},
+	}
+
 	// System services from active snaps
 	svcNames := []string{"snap-a.svc1", "snap-a.svc2"}
-	for _, name := range svcNames {
-		s.SysctlBufs = append(s.SysctlBufs, []byte(fmt.Sprintf(`
-Id=snap.%s.service
-Names=snap.%[1]s.service
-Type=simple
-ActiveState=active
-UnitFileState=enabled
-NeedDaemonReload=no
-`[1:], name)))
-	}
 	// System services from inactive snaps
 	svcNames = append(svcNames, "snap-b.svc3")
 	// User services from active snaps
 	svcNames = append(svcNames, "snap-e.svc4")
-	s.SysctlBufs = append(s.SysctlBufs, []byte("enabled\n"))
 
 	req, err := http.NewRequest("GET", "/v2/apps?select=service", nil)
 	c.Assert(err, check.IsNil)
@@ -350,7 +365,7 @@ NeedDaemonReload=no
 	c.Check(sort.StringsAreSorted(appNames), check.Equals, true)
 }
 
-func (s *appsSuite) TestGetUserAppsInfoServicesWithGlobal(c *check.C) {
+func (s *appsSuite) TestGetAppsInfoServicesWithGlobal(c *check.C) {
 	// System services from active snaps
 	svcNames := []string{"snap-a.svc1", "snap-a.svc2"}
 	for _, name := range svcNames {
