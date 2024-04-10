@@ -920,6 +920,9 @@ func (s *commonSuite) TestValidatePathPattern(c *C) {
 		"/foo{bar,/baz}{fizz,buzz}",
 		"/foo{bar,/baz}/{fizz,buzz}",
 		"/foo?bar",
+		"/foo/{a,b}{c,d}{e,f}{g,h}{i,j}{k,l}{m,n}{o,p}{q,r}{s,t}",
+		"/foo/{a,{b,{c,{d,{e,{f,{g,{h,{i,{j,k}}}}}}}}}}",
+		"/foo/{{{{{{{{{{a,b},c},d},e},f},g},h},i},j},k}",
 	} {
 		c.Check(common.ValidatePathPattern(pattern), IsNil, Commentf("valid path pattern %q was incorrectly not allowed", pattern))
 	}
@@ -932,6 +935,9 @@ func (s *commonSuite) TestValidatePathPattern(c *C) {
 		"{/,foo}",
 		"/foo/ba[rz]",
 		`/foo/bar\`,
+		"/foo/{a,b}{c,d}{e,f}{g,h}{i,j}{k,l}{m,n}{o,p}{q,r}{s,t}{w,x}",
+		"/foo/{a,{b,{c,{d,{e,{f,{g,{h,{i,{j,{k,l}}}}}}}}}}}",
+		"/foo/{{{{{{{{{{{a,b},c},d},e},f},g},h},i},j},k},l}",
 	} {
 		c.Check(common.ValidatePathPattern(pattern), ErrorMatches, "invalid path pattern.*", Commentf("invalid path pattern %q was incorrectly allowed", pattern))
 	}

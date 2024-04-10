@@ -32,10 +32,6 @@ import (
 var ErrNoPatterns = errors.New("no patterns given, cannot establish precedence")
 
 var (
-	// The following matches valid path patterns. Patterns must begin with '\'
-	// and cannot contain unescaped '[' or ']' characters.
-	allowablePathPatternRegexp = regexp.MustCompile(`^/([^\[\]]|\\[\[\]])*$`)
-
 	// The default previously-expanded prefixes to which new patterns or
 	// expanded groups are concatenated. This must be a slice containing the
 	// empty string, since at the beginning of the pattern, we have only one
@@ -434,8 +430,40 @@ func ValidatePathPattern(pattern string) error {
 	if pattern == "" || pattern[0] != '/' {
 		return fmt.Errorf("invalid path pattern: must start with '/': %q", pattern)
 	}
-	if !allowablePathPatternRegexp.MatchString(pattern) {
-		return fmt.Errorf("invalid path pattern: cannot contain unescaped '[' or ']': %q", pattern)
+	maxNumGroups := 10
+	depth := 0
+	totalGroups := 0
+	reader := strings.NewReader(pattern)
+	for {
+		r, _, err := reader.ReadRune()
+		if err != nil {
+			// No more runes
+			break
+		}
+		switch r {
+		case '{':
+			depth += 1
+			totalGroups += 1
+			if totalGroups > maxNumGroups {
+				return fmt.Errorf("invalid path pattern: exceeded maximum number of groups (%d): %q", maxNumGroups, pattern)
+			}
+		case '}':
+			depth -= 1
+			if depth < 0 {
+				return fmt.Errorf("invalid path pattern: unmatched '}' character: %q", pattern)
+			}
+		case '\\':
+			// Skip next rune
+			_, _, err = reader.ReadRune()
+			if err != nil {
+				return fmt.Errorf(`invalid path pattern: trailing unescaped '\' character: %q`, pattern)
+			}
+		case '[', ']':
+			return fmt.Errorf("invalid path pattern: cannot contain unescaped '[' or ']': %q", pattern)
+		}
+	}
+	if depth != 0 {
+		return fmt.Errorf("invalid path pattern: unmatched '{' character: %q", pattern)
 	}
 	return nil
 }
