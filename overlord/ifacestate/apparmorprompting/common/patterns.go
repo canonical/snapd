@@ -512,6 +512,9 @@ func PathPatternMatch(pattern string, path string) (bool, error) {
 	if matched {
 		return true, nil
 	}
+	if strings.HasSuffix(pattern, "/") {
+		return false, nil
+	}
 	// Try again with a '/' appended to the pattern, so patterns like `/foo`
 	// match paths like `/foo/`.
 	return doublestar.Match(pattern+"/", path)
