@@ -366,6 +366,12 @@ func probeKernelFeatures() ([]string, error) {
 			}
 		}
 	}
+	if data, err := os.ReadFile(filepath.Join(rootPath, featuresSysPath, "policy", "permstable32")); err == nil {
+		permstableFeatures := strings.Split(string(data), " ")
+		if strutil.ListContains(permstableFeatures, "prompt") {
+			features = append(features, "prompt")
+		}
+	}
 	return features, nil
 }
 
@@ -411,6 +417,10 @@ func probeParserFeatures() ([]string, error) {
 			feature: "unconfined",
 			flags:   []string{"unconfined"},
 			probe:   "# test unconfined",
+		},
+		{
+			feature: "prompt",
+			probe:   "prompt /foo r,",
 		},
 	}
 	_, internal, err := AppArmorParser()

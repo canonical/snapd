@@ -264,7 +264,7 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 }
 
 func (s *apparmorSuite) TestProbeAppArmorParserFeatures(c *C) {
-	var features = []string{"unsafe", "include-if-exists", "qipcrtr-socket", "mqueue", "cap-bpf", "cap-audit-read", "xdp", "userns", "unconfined"}
+	var features = []string{"unsafe", "include-if-exists", "qipcrtr-socket", "mqueue", "cap-bpf", "cap-audit-read", "xdp", "userns", "unconfined", "prompt"}
 	// test all combinations of features
 	for i := 0; i < int(math.Pow(2, float64(len(features)))); i++ {
 		expFeatures := []string{}
@@ -336,6 +336,9 @@ profile snap-test {
 profile snap-test flags=(unconfined) {
  # test unconfined
 }
+profile snap-test {
+ prompt /foo r,
+}
 `)
 	}
 
@@ -387,7 +390,7 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "mqueue", "qipcrtr-socket", "unconfined", "unsafe", "userns", "xdp"})
+	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "mqueue", "prompt", "qipcrtr-socket", "unconfined", "unsafe", "userns", "xdp"})
 }
 
 func (s *apparmorSuite) TestAppArmorParserMtime(c *C) {
@@ -427,7 +430,7 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 	c.Check(features, DeepEquals, []string{"network", "policy"})
 	features, err = apparmor.ParserFeatures()
 	c.Assert(err, IsNil)
-	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "mqueue", "qipcrtr-socket", "unconfined", "unsafe", "userns", "xdp"})
+	c.Check(features, DeepEquals, []string{"cap-audit-read", "cap-bpf", "include-if-exists", "mqueue", "prompt", "qipcrtr-socket", "unconfined", "unsafe", "userns", "xdp"})
 
 	// this makes probing fails but is not done again
 	err = os.RemoveAll(d)

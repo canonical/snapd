@@ -26,6 +26,8 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -166,10 +168,26 @@ var featuresSupportedCallbacks = map[SnapdFeature]func() (bool, string){
 		}
 		return true, ""
 	},
-	// AppArmorPrompting requires a newer version of snapd with all the
+	// AppArmorPrompting requires AppArmor parser and kernel support for
+	// prompting, as well as a newer version of snapd with all the
 	// prompting components in place. TODO: change this callback once ready.
 	AppArmorPrompting: func() (bool, string) {
+		kernelFeatures, err := apparmor.KernelFeatures()
+		if err != nil {
+			return false, fmt.Sprintf("error checking apparmor kernel features: %v", err)
+		}
+		if !strutil.ListContains(kernelFeatures, "policy:permstable:prompt") {
+			return false, "apparmor kernel features do not support prompting"
+		}
+		parserFeatures, err := apparmor.ParserFeatures()
+		if err != nil {
+			return false, fmt.Sprintf("error checking apparmor parser features: %v", err)
+		}
+		if !strutil.ListContains(parserFeatures, "prompt") {
+			return false, "apparmor parser does not support the prompt flag"
+		}
 		return false, "requires newer version of snapd"
+		// TODO: return true once snapd supports prompting
 	},
 }
 
