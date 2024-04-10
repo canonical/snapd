@@ -35,10 +35,16 @@ jobs:
         path: ./src/github.com/snapcore/snapd
 
     - name: Download Debian dependencies
-      uses: actions/download-artifact@v3
-      with:
-        name: debian-dependencies
-        path: ./debian-deps/
+      run: |
+          sudo apt clean
+          sudo apt update
+          sudo apt build-dep -d -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+          # for indent
+          sudo apt install -y texinfo autopoint
+
+    - name: Copy dependencies
+      run: |
+        sudo tar cvf cached-apt.tar /var/cache/apt
 
     - name: Copy dependencies
       run: |
