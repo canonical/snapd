@@ -57,13 +57,13 @@ var (
 The services command lists information about the services specified, or about
 the services in all currently installed snaps.
 
-If executed as root user, the enable status of any user service will be whether
-it's globally enabled (i.e systemctl is-enabled). To view the current enable/active
+If executed as root user, the 'Startup' column of any user service will be whether
+it's globally enabled (i.e systemctl is-enabled). To view the actual 'Startup'|'Current'
 status of the user services for the root user itself, --user can be provided.
 
-If executed as a non-root user, the enable/active status of user services will be
-the current status for the invoking user. To view the global enablement status of
-user services, --global can be provided.
+If executed as a non-root user, the 'Startup'|'Current' status of user services 
+will be the current status for the invoking user. To view the global enablement
+status of user services, --global can be provided.
 `)
 	shortLogsHelp = i18n.G("Retrieve logs for services")
 	longLogsHelp  = i18n.G(`
