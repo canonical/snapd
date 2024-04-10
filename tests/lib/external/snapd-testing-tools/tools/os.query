@@ -76,62 +76,6 @@ is_core_le() {
     is_core && compare_ubuntu "$VERSION" "-le"
 }
 
-is_core_gt() {
-    local VERSION=$1
-    if [ -z "$VERSION" ]; then
-        echo "os.query: version id is expected"
-        exit 1
-    fi
-
-    # While ubuntu classic image is used to build a core image
-    if ! grep -qFx 'ID=ubuntu-core' /etc/os-release; then
-        VERSION="${VERSION}.04"
-    fi
-    compare_ubuntu "$VERSION" "-gt"
-}
-
-is_core_ge() {
-    local VERSION=$1
-    if [ -z "$VERSION" ]; then
-        echo "os.query: version id is expected"
-        exit 1
-    fi
-
-    # While ubuntu classic image is used to build a core image
-    if ! grep -qFx 'ID=ubuntu-core' /etc/os-release; then
-        VERSION="${VERSION}.04"
-    fi
-    compare_ubuntu "$VERSION" "-ge"
-}
-
-is_core_lt() {
-    local VERSION=$1
-    if [ -z "$VERSION" ]; then
-        echo "os.query: version id is expected"
-        exit 1
-    fi
-
-    # While ubuntu classic image is used to build a core image
-    if ! grep -qFx 'ID=ubuntu-core' /etc/os-release; then
-        VERSION="${VERSION}.04"
-    fi
-    compare_ubuntu "$VERSION" "-lt"
-}
-
-is_core_le() {
-    local VERSION=$1
-    if [ -z "$VERSION" ]; then
-        echo "os.query: version id is expected"
-        exit 1
-    fi
-
-    # This case is when ubuntu classic image is used to build a core image
-    if ! grep -qFx 'ID=ubuntu-core' /etc/os-release; then
-        VERSION="${VERSION}.04"
-    fi
-    compare_ubuntu "$VERSION" "-le"
-}
-
 is_classic() {
     ! is_core
 }
