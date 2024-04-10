@@ -662,11 +662,11 @@ func (s *infoSuite) TestAppEnvSimple(c *C) {
 version: 1.0
 type: app
 environment:
- global-k: global-v
+  global-k: global-v
 apps:
- foo:
-  environment:
-   app-k: app-v
+  foo:
+    environment:
+      app-k: app-v
 `
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
@@ -682,13 +682,13 @@ func (s *infoSuite) TestAppEnvOverrideGlobal(c *C) {
 version: 1.0
 type: app
 environment:
- global-k: global-v
- global-and-local: global-v
+  global-k: global-v
+  global-and-local: global-v
 apps:
- foo:
-  environment:
-   app-k: app-v
-   global-and-local: local-v
+  foo:
+    environment:
+      app-k: app-v
+      global-and-local: local-v
 `
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
@@ -704,11 +704,11 @@ func (s *infoSuite) TestHookEnvSimple(c *C) {
 version: 1.0
 type: app
 environment:
- global-k: global-v
+  global-k: global-v
 hooks:
- foo:
-  environment:
-   app-k: app-v
+  foo:
+    environment:
+      app-k: app-v
 `
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
@@ -724,13 +724,13 @@ func (s *infoSuite) TestHookEnvOverrideGlobal(c *C) {
 version: 1.0
 type: app
 environment:
- global-k: global-v
- global-and-local: global-v
+  global-k: global-v
+  global-and-local: global-v
 hooks:
- foo:
-  environment:
-   app-k: app-v
-   global-and-local: local-v
+  foo:
+    environment:
+      app-k: app-v
+      global-and-local: local-v
 `
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
