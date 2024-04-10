@@ -70,6 +70,12 @@ func (csi *ComponentSideInfo) Equal(other *ComponentSideInfo) bool {
 	return *csi == *other
 }
 
+// ComponentBaseDir returns where components are to be found for the
+// snap with name instanceName.
+func ComponentsBaseDir(instanceName string) string {
+	return filepath.Join(BaseDir(instanceName), "components")
+}
+
 // componentPlaceInfo holds information about where to put a component in the
 // system. It implements ContainerPlaceInfo and should be used only via this
 // interface.
@@ -77,22 +83,20 @@ type componentPlaceInfo struct {
 	// Name and revision for the component
 	compName     string
 	compRevision Revision
-	// snapInstance and snapRevision identify the snap that uses this component.
+	// snapInstance identifies the snap that uses this component.
 	snapInstance string
-	snapRevision Revision
 }
 
 var _ ContainerPlaceInfo = (*componentPlaceInfo)(nil)
 
 // MinimalComponentContainerPlaceInfo returns a ContainerPlaceInfo with just
 // the location information for a component of the given name and revision that
-// is used by a snapInstance with revision snapRev.
-func MinimalComponentContainerPlaceInfo(compName string, compRev Revision, snapInstance string, snapRev Revision) ContainerPlaceInfo {
+// is used by a snapInstance.
+func MinimalComponentContainerPlaceInfo(compName string, compRev Revision, snapInstance string) ContainerPlaceInfo {
 	return &componentPlaceInfo{
 		compName:     compName,
 		compRevision: compRev,
 		snapInstance: snapInstance,
-		snapRevision: snapRev,
 	}
 }
 
@@ -108,10 +112,10 @@ func (c *componentPlaceInfo) Filename() string {
 
 // MountDir returns the directory where a component gets mounted, which
 // will be of the form:
-// /snaps/<snap_instance>/components/<snap_revision>/<component_name>
+// /snaps/<snap_instance>/components/mnt/<component_name>/<component_revision>
 func (c *componentPlaceInfo) MountDir() string {
-	return filepath.Join(BaseDir(c.snapInstance), "components", c.snapRevision.String(),
-		fmt.Sprintf("%s_%s", c.compName, c.compRevision.String()))
+	return filepath.Join(ComponentsBaseDir(c.snapInstance), "mnt",
+		c.compName, c.compRevision.String())
 }
 
 // MountFile returns the path of the file to be mounted for a component,

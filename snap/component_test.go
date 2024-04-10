@@ -277,14 +277,14 @@ description: %s
 }
 
 func (s *componentSuite) TestComponentContainerPlaceInfoImpl(c *C) {
-	cpi := snap.MinimalComponentContainerPlaceInfo("test-info", snap.R(25), "mysnap_instance", snap.R(11))
+	cpi := snap.MinimalComponentContainerPlaceInfo("test-info", snap.R(25), "mysnap_instance")
 
 	var contPi snap.ContainerPlaceInfo = cpi
 
 	c.Check(contPi.ContainerName(), Equals, "mysnap_instance+test-info")
 	c.Check(contPi.Filename(), Equals, "mysnap_instance+test-info_25.comp")
 	c.Check(contPi.MountDir(), Equals,
-		filepath.Join(dirs.SnapMountDir, "mysnap_instance/components/11/test-info_25"))
+		filepath.Join(dirs.SnapMountDir, "mysnap_instance/components/mnt/test-info/25"))
 	c.Check(contPi.MountFile(), Equals,
 		filepath.Join(dirs.GlobalRootDir, "var/lib/snapd/snaps/mysnap_instance+test-info_25.comp"))
 	c.Check(contPi.MountDescription(), Equals, "Mount unit for mysnap_instance+test-info, revision 25")
