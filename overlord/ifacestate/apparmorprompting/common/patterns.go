@@ -42,11 +42,16 @@ var (
 	defaultPrefixes = []string{""}
 )
 
+// Limit the number of groups which are allowed to occur in a pattern.
+// This number includes all groups, including those nested or in series.
+const maxGroupsInPattern = 10
+
 // ExpandPathPattern expands all groups in the given path pattern.
 //
 // Groups are enclosed by '{' '}'. Returns a list of all the expanded path
 // patterns, or an error if the given pattern is invalid.
 func ExpandPathPattern(pattern string) ([]string, error) {
+	seenGroups := 0
 	if len(pattern) == 0 {
 		return nil, fmt.Errorf(`invalid path pattern: pattern has length 0`)
 	}
@@ -76,7 +81,7 @@ func ExpandPathPattern(pattern string) ([]string, error) {
 		// Saw start of new group, so get the string from currLiteralStart to
 		// the opening '{' of the new group. Do this before expanding.
 		infix := prevStringFromIndex(reader, currLiteralStart)
-		groupExpanded, err := expandPathPatternRecursively(reader)
+		groupExpanded, err := expandPathPatternRecursively(reader, &seenGroups)
 		if err != nil {
 			return nil, err
 		}
@@ -131,7 +136,10 @@ func indexOfNextRune(reader *strings.Reader) int {
 }
 
 // Expands the contents of a group in the path pattern read by the given reader
-// until a '}' is seen.
+// until a '}' is seen. Also takes the current number of groups seen prior to
+// the group which this function call will expand. If this group causes the
+// total number of groups seen to exceed the limit set by maxGroupsInPattern,
+// return an error.
 //
 // The reader current position of the reader should be the rune immediately
 // following the opening '{' character of the group.
@@ -141,7 +149,11 @@ func indexOfNextRune(reader *strings.Reader) int {
 // Any '\'-escaped '{', ',', and '}' characters are treated as literals.
 //
 // If the pattern terminates before a non-escaped '}' is seen, returns an error.
-func expandPathPatternRecursively(reader *strings.Reader) ([]string, error) {
+func expandPathPatternRecursively(reader *strings.Reader, seenGroups *int) ([]string, error) {
+	*seenGroups += 1
+	if *seenGroups > maxGroupsInPattern {
+		return nil, fmt.Errorf("invalid path pattern: exceeded maximum number of groups (%d): %q", maxGroupsInPattern, origPatternFromReader(reader))
+	}
 	// Record total list of expanded patterns, to which other lists are appended
 	expanded := []string{}
 	alreadySeenExpanded := make(map[string]bool)
@@ -162,7 +174,7 @@ func expandPathPatternRecursively(reader *strings.Reader) ([]string, error) {
 		}
 		if r == '{' {
 			infix := prevStringFromIndex(reader, currSubpatternStart)
-			groupExpanded, err := expandPathPatternRecursively(reader)
+			groupExpanded, err := expandPathPatternRecursively(reader, seenGroups)
 			if err != nil {
 				return nil, err
 			}
@@ -204,9 +216,13 @@ func expandPathPatternRecursively(reader *strings.Reader) ([]string, error) {
 		}
 	}
 	// Group missing closing '}' character, so return an error.
+	return nil, fmt.Errorf(`invalid path pattern: unmatched '{' character: %q`, origPatternFromReader(reader))
+}
+
+func origPatternFromReader(reader *strings.Reader) string {
 	origPatternBuf := make([]byte, reader.Size())
 	reader.ReadAt(origPatternBuf, 0)
-	return nil, fmt.Errorf(`invalid path pattern: unmatched '{' character: %q`, string(origPatternBuf))
+	return string(origPatternBuf)
 }
 
 var (
@@ -442,7 +458,6 @@ func ValidatePathPattern(pattern string) error {
 	if pattern == "" || pattern[0] != '/' {
 		return fmt.Errorf("invalid path pattern: must start with '/': %q", pattern)
 	}
-	maxNumGroups := 10
 	depth := 0
 	totalGroups := 0
 	reader := strings.NewReader(pattern)
@@ -456,8 +471,8 @@ func ValidatePathPattern(pattern string) error {
 		case '{':
 			depth += 1
 			totalGroups += 1
-			if totalGroups > maxNumGroups {
-				return fmt.Errorf("invalid path pattern: exceeded maximum number of groups (%d): %q", maxNumGroups, pattern)
+			if totalGroups > maxGroupsInPattern {
+				return fmt.Errorf("invalid path pattern: exceeded maximum number of groups (%d): %q", maxGroupsInPattern, pattern)
 			}
 		case '}':
 			depth -= 1

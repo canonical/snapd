@@ -143,6 +143,38 @@ func (s *commonSuite) TestExpandPathPattern(c *C) {
 				`a\{eg\}h`,
 			},
 		},
+		{
+			"/foo/{a,{b,{c,{d,{e,{f,{g,{h,{i,{j,k}}}}}}}}}}",
+			[]string{
+				"/foo/a",
+				"/foo/b",
+				"/foo/c",
+				"/foo/d",
+				"/foo/e",
+				"/foo/f",
+				"/foo/g",
+				"/foo/h",
+				"/foo/i",
+				"/foo/j",
+				"/foo/k",
+			},
+		},
+		{
+			"/foo/{{{{{{{{{{a,b},c},d},e},f},g},h},i},j},k}",
+			[]string{
+				"/foo/a",
+				"/foo/b",
+				"/foo/c",
+				"/foo/d",
+				"/foo/e",
+				"/foo/f",
+				"/foo/g",
+				"/foo/h",
+				"/foo/i",
+				"/foo/j",
+				"/foo/k",
+			},
+		},
 	} {
 		expanded, err := common.ExpandPathPattern(testCase.pattern)
 		c.Check(err, IsNil, Commentf("test case: %+v", testCase))
@@ -186,6 +218,18 @@ func (s *commonSuite) TestExpandPathPatternUnhappy(c *C) {
 		{
 			`/foo/bar{baz{`,
 			`invalid path pattern: unmatched '{' character.*`,
+		},
+		{
+			`/foo/{a,b}{c,d}{e,f}{g,h}{i,j}{k,l}{m,n}{o,p}{q,r}{s,t}{w,x}`,
+			`invalid path pattern: exceeded maximum number of groups.*`,
+		},
+		{
+			`/foo/{a,{b,{c,{d,{e,{f,{g,{h,{i,{j,{k,l}}}}}}}}}}}`,
+			`invalid path pattern: exceeded maximum number of groups.*`,
+		},
+		{
+			`/foo/{{{{{{{{{{{a,b},c},d},e},f},g},h},i},j},k},l}`,
+			`invalid path pattern: exceeded maximum number of groups.*`,
 		},
 	} {
 		result, err := common.ExpandPathPattern(testCase.pattern)
