@@ -15,7 +15,7 @@ build_ubuntu_image() {
             # use go get so that ubuntu-image is built with current snapd
             # sources
             go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
-            go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
+            go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image@9196729ef8f14f530bec2c7512adea07e8f74da5
         )
     else
         (
@@ -28,6 +28,7 @@ build_ubuntu_image() {
             cd /tmp || exit 1
             git clone https://github.com/canonical/ubuntu-image
             cd ubuntu-image || exit 1
+            git checkout 9196729ef8f14f530bec2c7512adea07e8f74da5 || exit 1
             go build -tags 'withtestkeys' ./cmd/ubuntu-image
         )
         # make it available

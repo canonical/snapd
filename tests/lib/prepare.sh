@@ -1048,7 +1048,7 @@ setup_reflash_magic() {
     else
         # shellcheck source=tests/lib/image.sh
         . "$TESTSLIB/image.sh"
-        get_ubuntu_image
+        build_ubuntu_image
     fi
 
     # needs to be under /home because ubuntu-device-flash
