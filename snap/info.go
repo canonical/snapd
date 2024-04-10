@@ -1635,9 +1635,8 @@ func SplitSnapComponentInstanceName(name string) (snapInstance, componentName st
 	return snapInstance, componentName
 }
 
-// SnapComponentName takes the snap name, the component name, and the
-// instance key and returns an instance name of the snap component. The instance
-// key will only be included if it is not empty.
+// SnapComponentName takes a snap instance name and a component name and returns
+// a snap component name.
 func SnapComponentName(snapInstance, componentName string) string {
 	return fmt.Sprintf("%s+%s", snapInstance, componentName)
 }
