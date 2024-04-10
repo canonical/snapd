@@ -767,7 +767,15 @@ func (s *commonSuite) TestGetHighestPrecedencePattern(c *C) {
 			},
 			"/foo/**bar",
 		},
-		// Duplicate patterns should never be passed into GetHighestPrecedencePattern
+		// Duplicate patterns should never be passed into GetHighestPrecedencePattern,
+		// but if they are, handle them correctly.
+		{
+			[]string{
+				"/foo/bar/",
+				"/foo/bar/",
+			},
+			"/foo/bar/",
+		},
 		{
 			[]string{
 				"/foo/bar/",
