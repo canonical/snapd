@@ -22,6 +22,7 @@ package store
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/jsonutil/safejson"
@@ -316,9 +317,7 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	info.Base = d.Base
 	info.License = d.License
 	info.Publisher = d.Publisher
-
 	info.DownloadInfo = downloadInfoFromStoreDownload(d.Download)
-
 	info.CommonIDs = d.CommonIDs
 	if len(info.EditedLinks) == 0 {
 		// if non empty links was provided, no need to set this
@@ -341,12 +340,48 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 		info.Prices = prices
 	}
 
+	// if snap-yaml is not available, try to fill in components from the
+	// resources available
+	if d.SnapYAML == "" {
+		addComponents(info, d.Resources)
+	}
+
 	// media
 	addMedia(info, d.Media)
 
 	addCategories(info, d.Categories)
 
 	return info, nil
+}
+
+func componentFromStoreResource(r storeResource) (*snap.Component, bool) {
+	compType, ok := strings.CutPrefix(r.Type, "component/")
+	if !ok {
+		return nil, false
+	}
+
+	comp := &snap.Component{
+		Name:        r.Name,
+		Summary:     r.Description.Clean(),
+		Description: r.Description.Clean(),
+		Type:        snap.ComponentType(compType),
+
+		// unable to fill the rest of the struct from a store resource
+	}
+
+	return comp, true
+}
+
+func addComponents(info *snap.Info, resources []storeResource) {
+	for _, r := range resources {
+		if comp, ok := componentFromStoreResource(r); ok {
+			if info.Components == nil {
+				info.Components = make(map[string]*snap.Component)
+			}
+
+			info.Components[comp.Name] = comp
+		}
+	}
 }
 
 func downloadInfoFromStoreDownload(d storeDownload) snap.DownloadInfo {

@@ -305,13 +305,12 @@ type SnapActionResult struct {
 }
 
 type SnapResourceResult struct {
-	DownloadInfo    snap.DownloadInfo
-	Type            snap.ComponentType
-	Name            string
-	Revision        int
-	Version         string
-	CreatedAt       string
-	RedirectChannel string
+	DownloadInfo snap.DownloadInfo
+	Type         string
+	Name         string
+	Revision     int
+	Version      string
+	CreatedAt    string
 }
 
 // AssertionResult encapsulates the non-error result for one assertion
@@ -687,13 +686,12 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		resources := make([]SnapResourceResult, 0, len(res.Snap.Resources))
 		for _, r := range res.Snap.Resources {
 			resources = append(resources, SnapResourceResult{
-				DownloadInfo:    downloadInfoFromStoreDownload(r.Download),
-				Type:            "",
-				Name:            instanceName,
-				Revision:        0,
-				Version:         "",
-				CreatedAt:       "",
-				RedirectChannel: "",
+				DownloadInfo: downloadInfoFromStoreDownload(r.Download),
+				Type:         r.Type,
+				Name:         r.Name,
+				Version:      r.Version,
+				CreatedAt:    r.CreatedAt,
+				Revision:     r.Revision,
 			})
 		}
 
