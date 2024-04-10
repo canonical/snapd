@@ -24,7 +24,7 @@ package seccomp
 var defaultTemplate = []byte(`
 # Description: Allows access to app-specific directories and basic runtime
 #
-# The default seccomp policy is default deny with a whitelist of allowed
+# The default seccomp policy is default deny with an allowlist of allowed
 # syscalls. The default policy is intended to be safe for any application to
 # use and should be evaluated in conjunction with other security backends (eg
 # AppArmor). For example, a few particularly problematic syscalls that are left
@@ -205,14 +205,7 @@ inotify_rm_watch
 # TODO: this should be scaled back even more
 ~ioctl - TIOCSTI
 ~ioctl - TIOCLINUX
-# restrict argument otherwise will match all uses of ioctl() and allow the rules
-# that were disallowed above
-# TODO: Fix the need to keep TIOCLINUX here - the issue is a unrestricted
-#       allow for "ioctl" here makes libseccomp "optimize" the deny rules
-#       above away and the generated bpf becomes just "allow ioctl".
-#       We should fix this by creating a way to make "AND" rules, so
-#       this becomes "ioctl - !TIOCSTI&&!TIOCLINUX" and remove the "~" again.
-ioctl - !TIOCSTI
+ioctl
 
 io_cancel
 io_destroy
