@@ -73,6 +73,11 @@ capability dac_override,
 /etc/ssl/certs/java/{,*} r,
 #include <abstractions/ssl_certs>
 
+
+# some workloads like cilium may attempt to use tc to set up complex
+# network traffic control, which in turn uses seqpacket
+network alg seqpacket,
+
 /{,usr/}bin/systemd-run Cxr -> systemd_run,
 /run/systemd/private r,
 profile systemd_run (attach_disconnected,mediate_deleted) {
