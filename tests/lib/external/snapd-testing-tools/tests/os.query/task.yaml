@@ -71,6 +71,10 @@ execute: |
             os.query is-ubuntu 22.04
             ! os.query is-ubuntu 20.04
             ! os.query is-core
+            ! os.query is-core-ge 20
+            ! os.query is-core-le 20
+            ! os.query is-core-le 24
+            ! os.query is-core-ge 24
             ;;
         ubuntu-23.10-64)
             os.query is-classic
