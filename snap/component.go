@@ -181,12 +181,12 @@ func ReadComponentInfoFromContainer(compf Container, snapInfo *Info) (*Component
 
 	// attach the implicit hooks, these are not defined in the snap.yaml.
 	// unscoped plugs are bound to the implicit hooks here.
-	addAndBindImplicitComponentHooksFromContainer(compf, componentInfo, snapInfo, component)
+	addAndBindImplicitComponentHooksFromContainer(compf, componentInfo, component, snapInfo)
 
 	return componentInfo, nil
 }
 
-func addAndBindImplicitComponentHooksFromContainer(compf Container, componentInfo *ComponentInfo, info *Info, component *Component) {
+func addAndBindImplicitComponentHooksFromContainer(compf Container, componentInfo *ComponentInfo, component *Component, info *Info) {
 	hooks, err := compf.ListDir("meta/hooks")
 	if err != nil {
 		return
