@@ -352,7 +352,7 @@ plugs:
 	c.Check(ci.Description, Equals, "long description")
 	c.Check(ci.FullName(), Equals, compName)
 
-	c.Check(ci.Hooks, HasLen, 2)
+	c.Check(ci.Hooks, HasLen, 3)
 
 	installHook := ci.Hooks["install"]
 	c.Assert(installHook, NotNil)

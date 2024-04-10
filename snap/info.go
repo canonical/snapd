@@ -262,8 +262,8 @@ func HooksDir(name string, revision Revision) string {
 // ComponentHooksDir returns the directory containing the component's hooks for
 // the given component hook name. The provided snap name can be either a snap
 // name or snap instance name.
-func ComponentHooksDir(snapName, componentName string, revision Revision) string {
-	return filepath.Join(BaseDir(snapName), "components", revision.String(), componentName, "meta", "hooks")
+func ComponentHooksDir(componentName string, compRevision Revision, snapInstance string) string {
+	return filepath.Join(ComponentMountDir(componentName, compRevision, snapInstance), "meta", "hooks")
 }
 
 func snapDataDir(opts *dirs.SnapDirOptions) string {
@@ -1233,18 +1233,6 @@ type HookInfo struct {
 	CommandChain []string
 
 	Explicit bool
-}
-
-// Path returns the path to the this hook. This handles both the component and
-// regular hook cases.
-func (hook *HookInfo) Path() string {
-	var dir string
-	if hook.Component != nil {
-		dir = ComponentHooksDir(hook.Snap.InstanceName(), hook.Component.Name, hook.Snap.Revision)
-	} else {
-		dir = HooksDir(hook.Snap.InstanceName(), hook.Snap.Revision)
-	}
-	return filepath.Join(dir, hook.Name)
 }
 
 // SystemUsernameInfo provides information about a system username (ie, a
