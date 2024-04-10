@@ -39,7 +39,7 @@ type ComponentInfo struct {
 	// component itself and the snap.Info that represents the snap this
 	// component is associated with. This field may be empty if the
 	// ComponentInfo was not created with the help of a snap.Info.
-	Hooks map[string]*HookInfo `json:"hooks,omitempty"`
+	Hooks map[string]*HookInfo `yaml:"-"`
 }
 
 // NewComponentInfo creates a new ComponentInfo.
