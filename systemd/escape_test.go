@@ -192,7 +192,7 @@ func (ts *SystemdTestSuite) TestUnitNameFromSecurityTag(c *C) {
 	}
 
 	for _, t := range cases {
-		unit, err := systemd.UnitNameFromSecurityTag(t.tag)
+		unit, err := systemd.SecurityTagToUnitName(t.tag)
 		if t.err == "" {
 			c.Check(unit, Equals, t.unit)
 			c.Check(err, IsNil)
@@ -236,7 +236,7 @@ func (ts *SystemdTestSuite) TestSecurityTagFromUnitName(c *C) {
 	}
 
 	for _, t := range cases {
-		tag := systemd.SecurityTagFromUnitName(t.unit)
+		tag := systemd.UnitNameToSecurityTag(t.unit)
 		c.Check(tag, Equals, t.tag)
 	}
 }

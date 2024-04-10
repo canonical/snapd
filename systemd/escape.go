@@ -68,7 +68,7 @@ func EscapeUnitNamePath(in string) string {
 	return buf.String()
 }
 
-// UnitNameFromSecurityTag converts a security tag to a unit name. It also
+// SecurityTagToUnitName converts a security tag to a unit name. It also
 // verifies that no unhandled characters are present in the security tag. Valid
 // characters are: a-z, A-Z, 0-9, '_', '-', '.' and '+'. All characters are
 // passed through, except for the '+' character, which is converted to '\x2b'.
@@ -86,7 +86,7 @@ func EscapeUnitNamePath(in string) string {
 //   - "snap.name.app" -> "snap.name.app"
 //   - "snap.some-name.some-app" -> "snap.some-name.some-app"
 //   - "snap.name+comp.hook.install" -> "snap.name\x2bcomp.hook.install"
-func UnitNameFromSecurityTag(tag string) (string, error) {
+func SecurityTagToUnitName(tag string) (string, error) {
 	var builder strings.Builder
 	for _, c := range tag {
 		switch {
@@ -101,7 +101,7 @@ func UnitNameFromSecurityTag(tag string) (string, error) {
 	return builder.String(), nil
 }
 
-// SecurityTagFromUnitName converts a unit name to a security tag. Currently,
+// UnitNameToSecurityTag converts a unit name to a security tag. Currently,
 // the only character that is unescaped is the '+' character.
 //
 // See UnitNameFromSecurityTag for more information.
@@ -109,6 +109,6 @@ func UnitNameFromSecurityTag(tag string) (string, error) {
 // Examples of conversion:
 //   - "snap.name.app" -> "snap.name.app"
 //   - "snap.name\x2bcomp.hook.install" -> "snap.name+comp.hook.install"
-func SecurityTagFromUnitName(unitName string) string {
+func UnitNameToSecurityTag(unitName string) string {
 	return strings.ReplaceAll(unitName, `\x2b`, "+")
 }

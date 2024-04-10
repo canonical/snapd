@@ -77,7 +77,7 @@ func securityTagFromCgroupPath(path string) naming.SecurityTag {
 		// first position, the tag submatch in the second position, and
 		// the UUID submatch in the third position.
 		if matches := re.FindStringSubmatch(leaf); len(matches) == 3 {
-			tag := systemd.SecurityTagFromUnitName(matches[1])
+			tag := systemd.UnitNameToSecurityTag(matches[1])
 			if parsed, err := naming.ParseSecurityTag(tag); err == nil {
 				return parsed
 			}
@@ -86,7 +86,7 @@ func securityTagFromCgroupPath(path string) naming.SecurityTag {
 
 	for _, re := range []*regexp.Regexp{roughHookTagPattern, roughAppTagPattern} {
 		if maybeTag := re.FindString(leaf); maybeTag != "" {
-			tag := systemd.SecurityTagFromUnitName(maybeTag)
+			tag := systemd.UnitNameToSecurityTag(maybeTag)
 			if parsed, err := naming.ParseSecurityTag(tag); err == nil {
 				return parsed
 			}

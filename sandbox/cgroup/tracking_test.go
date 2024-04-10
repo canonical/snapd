@@ -471,7 +471,7 @@ func (s *trackingSuite) testCreateTransientScopeConfirm(c *C, tc testTransientSc
 	restore = dbusutil.MockOnlySessionBusAvailable(sessionBus)
 	defer restore()
 	restore = cgroup.MockDoCreateTransientScope(func(conn *dbus.Conn, unitName string, pid int) error {
-		escapedTag, err := systemd.UnitNameFromSecurityTag(tc.securityTag)
+		escapedTag, err := systemd.SecurityTagToUnitName(tc.securityTag)
 		c.Assert(err, IsNil)
 
 		c.Assert(conn, Equals, sessionBus)

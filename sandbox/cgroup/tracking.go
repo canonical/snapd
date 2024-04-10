@@ -82,7 +82,7 @@ func CreateTransientScopeForTracking(securityTag string, opts *TrackingOptions) 
 		return err
 	}
 
-	securityTagUnitName, err := systemd.UnitNameFromSecurityTag(securityTag)
+	securityTagUnitName, err := systemd.SecurityTagToUnitName(securityTag)
 	if err != nil {
 		return err
 	}
@@ -162,7 +162,7 @@ tryAgain:
 //
 // If the application process is not tracked then ErrCannotTrackProcess is returned.
 func ConfirmSystemdAppTracking(securityTag string) error {
-	unitName, err := systemd.UnitNameFromSecurityTag(securityTag)
+	unitName, err := systemd.SecurityTagToUnitName(securityTag)
 	if err != nil {
 		return err
 	}
