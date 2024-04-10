@@ -333,6 +333,7 @@ components:
     hooks:
       install:
         plugs: [network]
+      remove:
 plugs:
   network-client:
 `
@@ -367,6 +368,13 @@ plugs:
 	c.Check(preRefreshHook.Explicit, Equals, false)
 	c.Check(preRefreshHook.Plugs, HasLen, 1)
 	c.Check(preRefreshHook.Plugs["network-client"], NotNil)
+
+	removeHook := ci.Hooks["remove"]
+	c.Assert(removeHook, NotNil)
+	c.Check(removeHook.Name, Equals, "remove")
+	c.Check(removeHook.Explicit, Equals, true)
+	c.Check(removeHook.Plugs, HasLen, 1)
+	c.Check(removeHook.Plugs["network-client"], NotNil)
 }
 
 func (s *componentSuite) TestReadComponentInfoFinishedWithSnapInfoMissingComponentError(c *C) {
