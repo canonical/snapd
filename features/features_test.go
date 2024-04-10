@@ -19,6 +19,7 @@
 package features_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -109,6 +110,102 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.AppArmorPrompting, false)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
+}
+
+func (*featureSuite) TestQuotaGroupsSupportedCallback(c *C) {
+	callback, exists := features.FeaturesSupportedCallbacks[features.QuotaGroups]
+	c.Assert(exists, Equals, true)
+
+	restore1 := systemd.MockSystemdVersion(229, nil)
+	defer restore1()
+	supported, reason := callback()
+	c.Check(supported, Equals, false)
+	c.Check(reason, Matches, "systemd version 229 is too old.*")
+
+	restore2 := systemd.MockSystemdVersion(230, nil)
+	defer restore2()
+	supported, reason = callback()
+	c.Check(supported, Equals, true)
+	c.Check(reason, Equals, "")
+}
+
+func (*featureSuite) TestUserDaemonsSupportedCallback(c *C) {
+	callback, exists := features.FeaturesSupportedCallbacks[features.UserDaemons]
+	c.Assert(exists, Equals, true)
+
+	restore1 := features.MockReleaseSystemctlSupportsUserUnits(func() bool { return false })
+	defer restore1()
+	supported, reason := callback()
+	c.Check(supported, Equals, false)
+	c.Check(reason, Matches, "user session daemons are not supported.*")
+
+	restore2 := features.MockReleaseSystemctlSupportsUserUnits(func() bool { return true })
+	defer restore2()
+	supported, reason = callback()
+	c.Check(supported, Equals, true)
+	c.Check(reason, Equals, "")
+}
+
+func (*featureSuite) TestAppArmorPromptingSupportedCallback(c *C) {
+	callback, exists := features.FeaturesSupportedCallbacks[features.AppArmorPrompting]
+	c.Assert(exists, Equals, true)
+
+	kernelFeatures := &[]string{}
+	parserFeatures := &[]string{}
+	var kernelError error
+	var parserError error
+
+	restoreKernel := features.MockApparmorKernelFeatures(func() ([]string, error) {
+		return *kernelFeatures, kernelError
+	})
+	defer restoreKernel()
+	restoreParser := features.MockApparmorParserFeatures(func() ([]string, error) {
+		return *parserFeatures, parserError
+	})
+	defer restoreParser()
+
+	// Both unsupported
+	kernelFeatures = &[]string{"foo", "bar"}
+	parserFeatures = &[]string{"baz", "qux"}
+	supported, reason := callback()
+	c.Check(supported, Equals, false)
+	c.Check(reason, Equals, "apparmor kernel features do not support prompting")
+
+	// Kernel unsupported, parser supported
+	kernelFeatures = &[]string{"foo", "bar"}
+	parserFeatures = &[]string{"baz", "qux", "prompt"}
+	supported, reason = callback()
+	c.Check(supported, Equals, false)
+	c.Check(reason, Equals, "apparmor kernel features do not support prompting")
+
+	// Kernel supported, parser unsupported
+	kernelFeatures = &[]string{"foo", "bar", "policy:permstable32:prompt"}
+	parserFeatures = &[]string{"baz", "qux"}
+	supported, reason = callback()
+	c.Check(supported, Equals, false)
+	c.Check(reason, Equals, "apparmor parser does not support the prompt qualifier")
+
+	// Both supported
+	kernelFeatures = &[]string{"foo", "bar", "policy:permstable32:prompt"}
+	parserFeatures = &[]string{"baz", "qux", "prompt"}
+	supported, reason = callback()
+	//c.Check(supported, Equals, true)
+	//c.Check(reason, Equals, "")
+	// TODO: change once prompting is fully supported
+	c.Check(supported, Equals, false)
+	c.Check(reason, Equals, "requires newer version of snapd")
+
+	// Parser error
+	parserError = fmt.Errorf("bad parser")
+	supported, reason = callback()
+	c.Check(supported, Equals, false)
+	c.Check(reason, Matches, "error checking apparmor parser features.*")
+
+	// Kernel error
+	kernelError = fmt.Errorf("bad kernel")
+	supported, reason = callback()
+	c.Check(supported, Equals, false)
+	c.Check(reason, Matches, "error checking apparmor kernel features.*")
 }
 
 func (*featureSuite) TestIsEnabled(c *C) {

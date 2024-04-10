@@ -26,6 +26,8 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -161,17 +163,39 @@ var featuresSupportedCallbacks = map[SnapdFeature]func() (bool, string){
 	},
 	// UserDaemons requires user units
 	UserDaemons: func() (bool, string) {
-		if !release.SystemctlSupportsUserUnits() {
+		if !releaseSystemctlSupportsUserUnits() {
 			return false, "user session daemons are not supported on this system's distribution version"
 		}
 		return true, ""
 	},
-	// AppArmorPrompting requires a newer version of snapd with all the
+	// AppArmorPrompting requires AppArmor parser and kernel support for
+	// prompting, as well as a newer version of snapd with all the
 	// prompting components in place. TODO: change this callback once ready.
 	AppArmorPrompting: func() (bool, string) {
+		kernelFeatures, err := apparmorKernelFeatures()
+		if err != nil {
+			return false, fmt.Sprintf("error checking apparmor kernel features: %v", err)
+		}
+		if !strutil.ListContains(kernelFeatures, "policy:permstable32:prompt") {
+			return false, "apparmor kernel features do not support prompting"
+		}
+		parserFeatures, err := apparmorParserFeatures()
+		if err != nil {
+			return false, fmt.Sprintf("error checking apparmor parser features: %v", err)
+		}
+		if !strutil.ListContains(parserFeatures, "prompt") {
+			return false, "apparmor parser does not support the prompt qualifier"
+		}
 		return false, "requires newer version of snapd"
+		// TODO: return true once snapd supports prompting
 	},
 }
+
+var (
+	releaseSystemctlSupportsUserUnits = release.SystemctlSupportsUserUnits
+	apparmorKernelFeatures            = apparmor.KernelFeatures
+	apparmorParserFeatures            = apparmor.ParserFeatures
+)
 
 // String returns the name of a snapd feature.
 // The function panics for bogus feature values.
