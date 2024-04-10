@@ -1,0 +1,111 @@
+name: Nightly static code analysis
+
+on:
+  schedule:
+    - cron: '30 0 * * *'
+
+jobs:
+
+  tics:
+    runs-on: ubuntu-22.04
+    env:
+      GOPATH: ${{ github.workspace }}
+      # Set PATH to ignore the load of magic binaries from /usr/local/bin And
+      # to use the go snap automatically. Note that we install go from the
+      # snap in a step below. Without this we get the GitHub-controlled latest
+      # version of go.
+      PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
+      GOROOT: ""
+      GITHUB_PULL_REQUEST: ${{ github.event.number }}
+    strategy:
+      matrix:
+        gochannel:
+          - 1.18
+        unit-scenario:
+          - normal
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        # needed for git commit history
+        fetch-depth: 0
+        # NOTE: checkout the code in a fixed location, even for forks, as this
+        # is relevant for go's import system.
+        path: ./src/github.com/snapcore/snapd
+
+    - name: Download Debian dependencies
+      uses: actions/download-artifact@v3
+      with:
+        name: debian-dependencies
+        path: ./debian-deps/
+
+    - name: Copy dependencies
+      run: |
+        test -f ./debian-deps/cached-apt.tar
+        sudo tar xvf ./debian-deps/cached-apt.tar -C /
+
+    - name: Install Debian dependencies
+      run: |
+          sudo apt update
+          sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+
+    # golang latest ensures things work on the edge
+    - name: Install the go snap
+      run: |
+          sudo snap install --classic --channel=${{ matrix.gochannel }} go
+
+    - name: Get deps
+      run: |
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/ && ./get-deps.sh
+
+    - name: Build C
+      run: |
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
+          ./autogen.sh
+          make -j$(nproc)
+
+    - name: Build Go
+      run: |
+          go build github.com/snapcore/snapd/...
+
+    - name: Test C
+      run: |
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
+
+    - name: Reset code coverage data
+      run: |
+          rm -rf ${{ github.workspace }}/.coverage/
+
+    - name: Test Go
+      if: ${{ matrix.unit-scenario == 'normal' }}
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        ./run-checks --unit
+
+    - name: Save coverage
+      if: ${{ matrix.unit-scenario == 'normal' }}
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        ./run-checks --unit
+
+    - name: Upload the coverage results
+      run: |
+        mv ${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage ${{ github.workspace }}
+
+    - name: TICS scan
+      run: |
+        export TICSAUTHTOKEN=${{ secrets.TICSAUTHTOKEN }}
+
+        # Install the TICS
+        . <(curl --silent --show-error 'https://canonical.tiobe.com/tiobeweb/TICS/api/public/v1/fapi/installtics/Script?cfg=default&platform=linux&url=https://canonical.tiobe.com/tiobeweb/TICS/')
+
+        TICSQServer -project snapd -tmpdir /tmp/tics -branchdir ${{ github.workspace }}/src/github.com/snapcore/snapd
+        tar -cvzf tics-logs.tar.gz /tmp/tics
+        mv tics-logs.tar.gz ../../
+
+    - name: Uploading TICS logs
+      uses: actions/upload-artifact@v4
+      with:
+        name: tics-logs.tar.gz
+        path: tics-logs.tar.gz
