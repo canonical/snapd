@@ -76,7 +76,7 @@ func ExpandPathPattern(pattern string) ([]string, error) {
 		// Saw start of new group, so get the string from currLiteralStart to
 		// the opening '{' of the new group. Do this before expanding.
 		infix := prevStringFromIndex(reader, currLiteralStart)
-		groupExpanded, err := expandPathPatternFromIndex(reader)
+		groupExpanded, err := expandPathPatternRecursively(reader)
 		if err != nil {
 			return nil, err
 		}
@@ -141,9 +141,10 @@ func indexOfNextRune(reader *strings.Reader) int {
 // Any '\'-escaped '{', ',', and '}' characters are treated as literals.
 //
 // If the pattern terminates before a non-escaped '}' is seen, returns an error.
-func expandPathPatternFromIndex(reader *strings.Reader) ([]string, error) {
+func expandPathPatternRecursively(reader *strings.Reader) ([]string, error) {
 	// Record total list of expanded patterns, to which other lists are appended
 	expanded := []string{}
+	alreadySeenExpanded := make(map[string]bool)
 	// Within the current group option, record the current list of previously-
 	// expanded prefixes, and the start index of the subpattern following the
 	// most recent group.
@@ -161,16 +162,22 @@ func expandPathPatternFromIndex(reader *strings.Reader) ([]string, error) {
 		}
 		if r == '{' {
 			infix := prevStringFromIndex(reader, currSubpatternStart)
-			groupExpanded, err := expandPathPatternFromIndex(reader)
+			groupExpanded, err := expandPathPatternRecursively(reader)
 			if err != nil {
 				return nil, err
 			}
 			// Now that group has been expanded, record index of next rune in reader
 			currSubpatternStart = indexOfNextRune(reader)
+			alreadySeen := make(map[string]bool, len(currPrefixes)*len(groupExpanded))
 			newPrefixes := make([]string, 0, len(currPrefixes)*len(groupExpanded))
 			for _, prefix := range currPrefixes {
 				for _, suffix := range groupExpanded {
-					newPrefixes = append(newPrefixes, prefix+infix+suffix)
+					newPrefix := prefix + infix + suffix
+					if alreadySeen[newPrefix] {
+						continue
+					}
+					alreadySeen[newPrefix] = true
+					newPrefixes = append(newPrefixes, newPrefix)
 				}
 			}
 			currPrefixes = newPrefixes
@@ -182,7 +189,12 @@ func expandPathPatternFromIndex(reader *strings.Reader) ([]string, error) {
 			copy(newExpanded, expanded)
 			expanded = newExpanded
 			for _, prefix := range currPrefixes {
-				expanded = append(expanded, prefix+suffix)
+				newSubPattern := prefix + suffix
+				if alreadySeenExpanded[newSubPattern] {
+					continue
+				}
+				alreadySeenExpanded[newSubPattern] = true
+				expanded = append(expanded, newSubPattern)
 			}
 			currPrefixes = defaultPrefixes
 			currSubpatternStart = indexOfNextRune(reader)
