@@ -504,28 +504,6 @@ func (s *appOpSuite) TestAppStatusInvalidUserGlobalSwitches(c *check.C) {
 	c.Check(err, check.ErrorMatches, `cannot combine --global and --user switches.`)
 }
 
-func (s *appOpSuite) TestAppStatusInvalidUserGlobalSwitchesRoot(c *check.C) {
-	r := snap.MockUserCurrent(func() (*user.User, error) {
-		return &user.User{
-			Uid: "0",
-		}, nil
-	})
-	defer r()
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"services", "--global"})
-	c.Check(err, check.ErrorMatches, `unsupported argument --global when root.`)
-}
-
-func (s *appOpSuite) TestAppStatusInvalidUserGlobalSwitchesNonRoot(c *check.C) {
-	r := snap.MockUserCurrent(func() (*user.User, error) {
-		return &user.User{
-			Uid: "1337",
-		}, nil
-	})
-	defer r()
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"services", "--user"})
-	c.Check(err, check.ErrorMatches, `unsupported argument --user when not root.`)
-}
-
 func (s *appOpSuite) TestAppStatusNoServices(c *check.C) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {

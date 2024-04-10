@@ -56,6 +56,14 @@ var (
 	longServicesHelp  = i18n.G(`
 The services command lists information about the services specified, or about
 the services in all currently installed snaps.
+
+If executed as root user, the enable status of any user service will be whether
+it's globally enabled (i.e systemctl is-enabled). To view the current enable/active
+status of the user services for the root user itself, --user can be provided.
+
+If executed as a non-root user, the enable/active status of user services will be
+the current status for the invoking user. To view the global enablement status of
+user services, --global can be provided.
 `)
 	shortLogsHelp = i18n.G("Retrieve logs for services")
 	longLogsHelp  = i18n.G(`
@@ -152,20 +160,10 @@ func (s *svcStatus) showGlobalEnablement(u *user.User) bool {
 	return false
 }
 
-func (s *svcStatus) validateArguments(u *user.User) error {
+func (s *svcStatus) validateArguments() error {
 	// can't use --global and --user together
 	if s.Global && s.User {
 		return fmt.Errorf(i18n.G("cannot combine --global and --user switches."))
-	}
-
-	// --user is supported for root
-	if s.User && u.Uid != "0" {
-		return fmt.Errorf(i18n.G("unsupported argument --user when not root."))
-	}
-
-	// --global is supported for non-root
-	if s.Global && u.Uid == "0" {
-		return fmt.Errorf(i18n.G("unsupported argument --global when root."))
 	}
 	return nil
 }
@@ -175,13 +173,13 @@ func (s *svcStatus) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
+	if err := s.validateArguments(); err != nil {
+		return err
+	}
+
 	u, err := userCurrent()
 	if err != nil {
 		return fmt.Errorf(i18n.G("cannot get the current user: %s."), err)
-	}
-
-	if err := s.validateArguments(u); err != nil {
-		return err
 	}
 
 	isGlobal := s.showGlobalEnablement(u)
