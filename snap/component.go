@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap/naming"
 	"gopkg.in/yaml.v2"
 )
@@ -197,13 +198,14 @@ func addAndBindImplicitComponentHooksFromContainer(compf Container, componentInf
 }
 
 func addAndBindImplicitComponentHook(componentInfo *ComponentInfo, snapInfo *Info, component *Component, hook string) {
-	// TODO: ignore unsupported implicit component hooks, or return an error?
-	if !IsComponentHookSupported(hook) {
+	// don't overwrite a hook that has already been loaded from the snap.yaml
+	if _, ok := componentInfo.Hooks[hook]; ok {
 		return
 	}
 
-	// don't overwrite a hook that has already been loaded from the snap.yaml
-	if _, ok := componentInfo.Hooks[hook]; ok {
+	// TODO: ignore unsupported implicit component hooks, or return an error?
+	if !IsComponentHookSupported(hook) {
+		logger.Debugf("ignoring unsupported implicit hook %q for component %q", componentInfo.Component, hook)
 		return
 	}
 
