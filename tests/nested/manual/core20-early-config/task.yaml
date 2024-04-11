@@ -68,7 +68,7 @@ execute: |
         remote.exec "cat /var/snap/pc/common/debug.txt" | MATCH "backlight symlink: /dev/null"
 
         # timezone is set
-        remote.exec "cat /etc/timezone" | MATCH "Europe/Malta"
+        remote.exec "timedatectl show -p Timezone --value" | MATCH "Europe/Malta"
         remote.exec "readlink -f /etc/localtime" | MATCH "Europe/Malta"
         remote.exec "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
 
