@@ -81,7 +81,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"filename": i18n.G("Output to this filename"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"compression": i18n.G("Compression to use (e.g. xz or lzo)"),
+			"compression": i18n.G("Compression to use (e.g. xz, lzo or zstd)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"append-integrity-data": i18n.G("Generate and append dm-verity data"),
 		}, nil)

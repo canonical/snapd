@@ -134,7 +134,7 @@ printf "hello world"
 func (s *SnapSuite) TestPackPacksASnapWithCompressionHappy(c *check.C) {
 	snapDir := makeSnapDirForPack(c, "name: hello\nversion: 1.0")
 
-	for _, comp := range []string{"xz", "lzo"} {
+	for _, comp := range []string{"xz", "lzo", "zstd"} {
 		_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", "--compression", comp, snapDir, snapDir})
 		c.Assert(err, check.IsNil)
 
@@ -149,7 +149,7 @@ func (s *SnapSuite) TestPackPacksASnapWithCompressionHappy(c *check.C) {
 func (s *SnapSuite) TestPackPacksASnapWithCompressionUnhappy(c *check.C) {
 	snapDir := makeSnapDirForPack(c, "name: hello\nversion: 1.0")
 
-	for _, comp := range []string{"gzip", "zstd", "silly"} {
+	for _, comp := range []string{"gzip", "silly"} {
 		_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"pack", "--compression", comp, snapDir, snapDir})
 		c.Assert(err, check.ErrorMatches, fmt.Sprintf(`cannot pack "/.*": cannot use compression %q`, comp))
 	}
