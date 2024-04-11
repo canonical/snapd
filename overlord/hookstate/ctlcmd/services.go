@@ -82,16 +82,6 @@ func (c *servicesCommand) validateArguments() error {
 	if c.Global && c.User {
 		return fmt.Errorf(i18n.G("cannot combine --global and --user switches."))
 	}
-
-	// --user is supported for root
-	if c.User && c.uid != "0" {
-		return fmt.Errorf(i18n.G("unsupported argument --user when not root."))
-	}
-
-	// --global is supported for non-root
-	if c.Global && c.uid == "0" {
-		return fmt.Errorf(i18n.G("unsupported argument --global when root."))
-	}
 	return nil
 }
 

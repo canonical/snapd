@@ -844,16 +844,6 @@ func (s *servicectlSuite) TestAppStatusInvalidUserGlobalSwitches(c *C) {
 	c.Assert(err, ErrorMatches, "cannot combine --global and --user switches.")
 }
 
-func (s *servicectlSuite) TestAppStatusInvalidUserGlobalSwitchesRoot(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"services", "--global"}, 0)
-	c.Assert(err, ErrorMatches, "unsupported argument --global when root.")
-}
-
-func (s *servicectlSuite) TestAppStatusInvalidUserGlobalSwitchesNonRoot(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"services", "--user"}, 1337)
-	c.Assert(err, ErrorMatches, "unsupported argument --user when not root.")
-}
-
 func (s *servicectlSuite) TestServicesWithoutContext(c *C) {
 	actions := []string{
 		"start",
