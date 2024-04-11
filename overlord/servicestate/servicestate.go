@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -364,7 +365,7 @@ type StatusDecorator struct {
 // user.
 func NewStatusDecorator(rep interface {
 	Notify(string)
-}) *StatusDecorator {
+}) clientutil.StatusDecorator {
 	return &StatusDecorator{
 		sysd:           systemd.New(systemd.SystemMode, rep),
 		globalUserSysd: systemd.New(systemd.GlobalUserMode, rep),
@@ -376,7 +377,7 @@ func NewStatusDecorator(rep interface {
 // user-services for a specific user.
 func NewStatusDecoratorForUid(rep interface {
 	Notify(string)
-}, context context.Context, uid string) *StatusDecorator {
+}, context context.Context, uid string) clientutil.StatusDecorator {
 	return &StatusDecorator{
 		sysd:           systemd.New(systemd.SystemMode, rep),
 		globalUserSysd: systemd.New(systemd.GlobalUserMode, rep),
