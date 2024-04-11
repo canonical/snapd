@@ -1031,7 +1031,7 @@ func (s *SquashfsTestSuite) TestBuildWithCompressionHappy(c *C) {
 	c.Assert(err, IsNil)
 
 	defaultComp := "xz"
-	for _, comp := range []string{"", "xz", "gzip", "lzo"} {
+	for _, comp := range []string{"", "xz", "gzip", "lzo", "zstd"} {
 		sn := squashfs.New(filepath.Join(c.MkDir(), "foo.snap"))
 		err = sn.Build(buildDir, &squashfs.BuildOpts{
 			Compression: comp,
