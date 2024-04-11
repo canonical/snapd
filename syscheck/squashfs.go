@@ -51,7 +51,7 @@ func init() {
 // EOF
 // cat $0 >> canary.txt
 //
-// mksquashfs . /tmp/canary.squashfs -noappend -comp xz -no-xattrs -no-fragments >/dev/nul
+// mksquashfs . /tmp/canary.squashfs -noappend -comp xz -no-xattrs -no-fragments >/dev/null
 // cat /tmp/canary.squashfs | gzip - | base64
 var b64SquashfsImage = []byte(`
 H4sIAGxdFVsAA8soLixmYmBgyIkVjWZgALEYGFgYBBkuMDECaQYGFQYI4INIMbBB6f9Q0MAI4R+D
