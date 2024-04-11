@@ -138,20 +138,8 @@ execute: |
     sysctl -n kernel.printk|MATCH "^4\s+"
 
     echo "setting the timezone works"
-
-    get_tz() {
-        if os.query is-core-le 18; then
-            current_tz=$(cat /etc/timezone)
-        else
-            current_tz=$(timedatectl show | sed -n 's/^Timezone=//p')
-        fi
-    }
-
-    get_tz
-    tests.cleanup defer timedatectl set-timezone "$current_tz"
+    tests.cleanup defer timedatectl set-timezone "$("${TESTSLIB}"/get-timezone.sh)"
     snap set system system.timezone=Europe/Malta
-    get_tz
-    test "$current_tz" = "Europe/Malta"
     test "$(readlink -f /etc/localtime)" = "/usr/share/zoneinfo/Europe/Malta"
 
     echo "and timezone setting shows up in the document"
@@ -161,8 +149,6 @@ execute: |
 
     echo "and setting it again in snapd also works"
     snap set system system.timezone=America/Lima
-    get_tz
-    test "$current_tz" = "America/Lima"
     test "$(readlink -f /etc/localtime)" = "/usr/share/zoneinfo/America/Lima"
     
     echo "and setting the timezone outside of snapd is reflected by snap get"
