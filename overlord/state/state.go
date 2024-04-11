@@ -172,6 +172,8 @@ type marshalledState struct {
 	LastTaskId   int `json:"last-task-id"`
 	LastLaneId   int `json:"last-lane-id"`
 	LastNoticeId int `json:"last-notice-id"`
+
+	NoticeLastDate time.Time `json:"notice-last-date,omitempty"`
 }
 
 // MarshalJSON makes State a json.Marshaller
@@ -188,6 +190,8 @@ func (s *State) MarshalJSON() ([]byte, error) {
 		LastChangeId: s.lastChangeId,
 		LastLaneId:   s.lastLaneId,
 		LastNoticeId: s.lastNoticeId,
+
+		NoticeLastDate: s.noticeLastDate,
 	})
 }
 
@@ -208,6 +212,7 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	s.lastTaskId = unmarshalled.LastTaskId
 	s.lastLaneId = unmarshalled.LastLaneId
 	s.lastNoticeId = unmarshalled.LastNoticeId
+	s.noticeLastDate = unmarshalled.NoticeLastDate
 	// backlink state again
 	for _, t := range s.tasks {
 		t.state = s

@@ -228,22 +228,6 @@ type AddNoticeOptions struct {
 	Time time.Time
 }
 
-var getTimeNow = time.Now
-
-func compareDates(date1, date2 time.Time) int {
-	// time.Time.Compare() was added in Go v1.20 :-(
-
-	dif := date1.Sub(date2)
-
-	switch {
-	case dif < 0:
-		return -1
-	case dif > 0:
-		return +1
-	}
-	return 0
-}
-
 // AddNotice records an occurrence of a notice with the specified type and key
 // and options.
 func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, options *AddNoticeOptions) (string, error) {
@@ -259,7 +243,7 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 
 	now := options.Time
 	if now.IsZero() {
-		now = getTimeNow()
+		now = timeNow()
 		// ensure that two notices never have the same sent time
 		if !now.After(s.noticeLastDate) {
 			now = s.noticeLastDate.Add(time.Nanosecond)

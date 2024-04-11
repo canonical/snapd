@@ -721,12 +721,14 @@ func (s *noticesSuite) TestAvoidTwoNoticesWithSameDateTime(c *C) {
 	c.Assert(notice2 == notice3, Equals, false)
 
 	// ensure that the notices are ordered in time
-	c.Assert(state.CompareDates(notice1.GetLastOccurred(), testDate), Equals, 0)
-	c.Assert(state.CompareDates(notice1.GetLastOccurred(), notice2.GetLastOccurred()), Equals, -1)
-	c.Assert(state.CompareDates(notice1.GetLastOccurred(), notice3.GetLastOccurred()), Equals, -1)
-	c.Assert(state.CompareDates(notice2.GetLastOccurred(), notice3.GetLastOccurred()), Equals, -1)
-	c.Assert(state.CompareDates(notice4.GetLastOccurred(), testDate2), Equals, 0)
-	c.Assert(state.CompareDates(notice4.GetLastOccurred(), notice3.GetLastOccurred()), Equals, 1)
+	c.Assert(notice1.GetLastOccurred().Before(testDate), Equals, false)
+	c.Assert(notice1.GetLastOccurred().After(testDate), Equals, false)
+	c.Assert(notice1.GetLastOccurred().Before(notice2.GetLastOccurred()), Equals, true)
+	c.Assert(notice1.GetLastOccurred().Before(notice3.GetLastOccurred()), Equals, true)
+	c.Assert(notice2.GetLastOccurred().Before(notice3.GetLastOccurred()), Equals, true)
+	c.Assert(notice4.GetLastOccurred().Before(testDate2), Equals, false)
+	c.Assert(notice4.GetLastOccurred().After(testDate2), Equals, false)
+	c.Assert(notice4.GetLastOccurred().After(notice3.GetLastOccurred()), Equals, true)
 
 	json1, err := notice1.MarshalJSON()
 	c.Assert(err, IsNil)
@@ -758,32 +760,14 @@ func (s *noticesSuite) TestAvoidTwoNoticesWithSameDateTime(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure that the notices are ordered in time even after JSON marshall/unmarshall
-	c.Assert(state.CompareDates(notice1b.GetLastOccurred(), testDate), Equals, 0)
-	c.Assert(state.CompareDates(notice1b.GetLastOccurred(), notice2b.GetLastOccurred()), Equals, -1)
-	c.Assert(state.CompareDates(notice1b.GetLastOccurred(), notice3b.GetLastOccurred()), Equals, -1)
-	c.Assert(state.CompareDates(notice2b.GetLastOccurred(), notice3b.GetLastOccurred()), Equals, -1)
-	c.Assert(state.CompareDates(notice4b.GetLastOccurred(), testDate2), Equals, 0)
-	c.Assert(state.CompareDates(notice4b.GetLastOccurred(), notice3b.GetLastOccurred()), Equals, 1)
-}
-
-func (s *noticesSuite) TestCompareDates(c *C) {
-	testDate0 := time.Date(2024, time.April, 11, 11, 24, 5, 40, time.UTC)
-	testDate1 := time.Date(2024, time.April, 11, 11, 24, 5, 40, time.UTC)
-	testDate2 := time.Date(2023, time.May, 12, 12, 25, 6, 41, time.UTC)
-	testDate3 := time.Date(2025, time.April, 10, 10, 23, 4, 30, time.UTC)
-	testDate4 := time.Date(2024, time.April, 11, 11, 24, 5, 40, time.UTC)
-	testDate5 := time.Date(2024, time.March, 10, 10, 23, 4, 30, time.UTC)
-	testDate6 := time.Date(2024, time.May, 12, 12, 25, 6, 41, time.UTC)
-	testDate7 := time.Date(2024, time.April, 11, 11, 24, 5, 40, time.UTC)
-	testDate8 := time.Date(2024, time.April, 11, 11, 24, 5, 41, time.UTC)
-
-	c.Assert(state.CompareDates(testDate0, testDate1), Equals, 0)
-	c.Assert(state.CompareDates(testDate0, testDate2), Equals, 1)
-	c.Assert(state.CompareDates(testDate0, testDate3), Equals, -1)
-	c.Assert(state.CompareDates(testDate4, testDate5), Equals, 1)
-	c.Assert(state.CompareDates(testDate4, testDate6), Equals, -1)
-	c.Assert(state.CompareDates(testDate7, testDate8), Equals, -1)
-
+	c.Assert(notice1b.GetLastOccurred().Before(testDate), Equals, false)
+	c.Assert(notice1b.GetLastOccurred().After(testDate), Equals, false)
+	c.Assert(notice1b.GetLastOccurred().Before(notice2b.GetLastOccurred()), Equals, true)
+	c.Assert(notice1b.GetLastOccurred().Before(notice3b.GetLastOccurred()), Equals, true)
+	c.Assert(notice2b.GetLastOccurred().Before(notice3b.GetLastOccurred()), Equals, true)
+	c.Assert(notice4b.GetLastOccurred().Before(testDate2), Equals, false)
+	c.Assert(notice4b.GetLastOccurred().After(testDate2), Equals, false)
+	c.Assert(notice4b.GetLastOccurred().After(notice3b.GetLastOccurred()), Equals, true)
 }
 
 // noticeToMap converts a Notice to a map using a JSON marshal-unmarshal round trip.
