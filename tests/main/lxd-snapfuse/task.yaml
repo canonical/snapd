@@ -68,3 +68,13 @@ execute: |
     lxd.lxc file push --quiet test-snapd-sh-lzo.snap "my-ubuntu/$GOHOME/test-snapd-sh-lzo.snap"
     lxd.lxc exec my-ubuntu -- snap install --dangerous "$GOHOME/test-snapd-sh-lzo.snap"
     lxd.lxc exec my-ubuntu -- test-snapd-sh.sh -c "echo hello-lzo" | MATCH "hello-lzo"
+
+    snap pack --compression=zstd "$TESTSLIB/snaps/test-snapd-sh" . --filename test-snapd-sh-zstd.snap
+    test -e test-snapd-sh-zstd.snap
+    unsquashfs -l test-snapd-sh-zstd.snap
+    unsquashfs -s test-snapd-sh-zstd.snap | MATCH "Compression zstd"
+
+    echo "zstd compressed snaps can be used normally inside the lxd container"
+    lxd.lxc file push --quiet test-snapd-sh-zstd.snap "my-ubuntu/$GOHOME/test-snapd-sh-zstd.snap"
+    lxd.lxc exec my-ubuntu -- snap install --dangerous "$GOHOME/test-snapd-sh-zstd.snap"
+    lxd.lxc exec my-ubuntu -- test-snapd-sh.sh -c "echo hello-zstd" | MATCH "hello-zstd"
