@@ -1,5 +1,11 @@
 summary: Checks for parallel installation of sideloaded snaps containing desktop applications
 
+details: |
+    This test installs multiple instances of a snap that provides
+    desktop files. It checks to make sure the desktop files for each
+    instance are installed, and that they launch the correct instance
+    of the snap.
+
 restore: |
     snap set system experimental.parallel-instances=null
 
