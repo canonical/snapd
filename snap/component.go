@@ -205,7 +205,7 @@ func addAndBindImplicitComponentHook(componentInfo *ComponentInfo, snapInfo *Inf
 
 	// TODO: ignore unsupported implicit component hooks, or return an error?
 	if !IsComponentHookSupported(hook) {
-		logger.Debugf("ignoring unsupported implicit hook %q for component %q", componentInfo.Component, hook)
+		logger.Noticef("ignoring unsupported implicit hook %q for component %q", componentInfo.Component, hook)
 		return
 	}
 
