@@ -774,12 +774,15 @@ func (s *noticesSuite) TestCompareDates(c *C) {
 	testDate4 := time.Date(2024, time.April, 11, 11, 24, 5, 40, time.UTC)
 	testDate5 := time.Date(2024, time.March, 10, 10, 23, 4, 30, time.UTC)
 	testDate6 := time.Date(2024, time.May, 12, 12, 25, 6, 41, time.UTC)
+	testDate7 := time.Date(2024, time.April, 11, 11, 24, 5, 40, time.UTC)
+	testDate8 := time.Date(2024, time.April, 11, 11, 24, 5, 41, time.UTC)
 
 	c.Assert(state.CompareDates(testDate0, testDate1), Equals, 0)
 	c.Assert(state.CompareDates(testDate0, testDate2), Equals, 1)
 	c.Assert(state.CompareDates(testDate0, testDate3), Equals, -1)
 	c.Assert(state.CompareDates(testDate4, testDate5), Equals, 1)
 	c.Assert(state.CompareDates(testDate4, testDate6), Equals, -1)
+	c.Assert(state.CompareDates(testDate7, testDate8), Equals, -1)
 
 }
 
