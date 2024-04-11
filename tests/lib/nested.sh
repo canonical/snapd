@@ -992,7 +992,7 @@ nested_create_cloud_init_uc20_config() {
     local CONFIG_PATH=$1
     cat << 'EOF' > "$CONFIG_PATH"
 #cloud-config
-datasource_list: [NoCloud]
+datasource_list: [ None ]
 users:
   - name: user1
     sudo: "ALL=(ALL) NOPASSWD:ALL"
