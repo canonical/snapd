@@ -94,7 +94,7 @@ func checkSquashfsMount() error {
 	defer os.RemoveAll(tmpMountDir)
 
 	// write the squashfs image
-	b64dec := base64.NewDecoder(base64.StdEncoding, bytes.NewBuffer(b64SquashfsImage))
+	b64dec := base64.NewDecoder(base64.StdEncoding, bytes.NewReader(blob))
 	gzReader, err := gzip.NewReader(b64dec)
 	if err != nil {
 		return err
