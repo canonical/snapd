@@ -721,12 +721,12 @@ func (s *noticesSuite) TestAvoidTwoNoticesWithSameDateTime(c *C) {
 	c.Assert(notice2 == notice3, Equals, false)
 
 	// ensure that the notices are ordered in time
-	c.Assert(notice1.GetLastOccurred().Compare(testDate), Equals, 0)
-	c.Assert(notice1.GetLastOccurred().Compare(notice2.GetLastOccurred()), Equals, -1)
-	c.Assert(notice1.GetLastOccurred().Compare(notice3.GetLastOccurred()), Equals, -1)
-	c.Assert(notice2.GetLastOccurred().Compare(notice3.GetLastOccurred()), Equals, -1)
-	c.Assert(notice4.GetLastOccurred().Compare(testDate2), Equals, 0)
-	c.Assert(notice4.GetLastOccurred().Compare(notice3.GetLastOccurred()), Equals, 1)
+	c.Assert(state.CompareDates(notice1.GetLastOccurred(), testDate), Equals, 0)
+	c.Assert(state.CompareDates(notice1.GetLastOccurred(), notice2.GetLastOccurred()), Equals, -1)
+	c.Assert(state.CompareDates(notice1.GetLastOccurred(), notice3.GetLastOccurred()), Equals, -1)
+	c.Assert(state.CompareDates(notice2.GetLastOccurred(), notice3.GetLastOccurred()), Equals, -1)
+	c.Assert(state.CompareDates(notice4.GetLastOccurred(), testDate2), Equals, 0)
+	c.Assert(state.CompareDates(notice4.GetLastOccurred(), notice3.GetLastOccurred()), Equals, 1)
 
 	json1, err := notice1.MarshalJSON()
 	c.Assert(err, IsNil)
@@ -758,12 +758,12 @@ func (s *noticesSuite) TestAvoidTwoNoticesWithSameDateTime(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure that the notices are ordered in time even after JSON marshall/unmarshall
-	c.Assert(notice1b.GetLastOccurred().Compare(testDate), Equals, 0)
-	c.Assert(notice1b.GetLastOccurred().Compare(notice2b.GetLastOccurred()), Equals, -1)
-	c.Assert(notice1b.GetLastOccurred().Compare(notice3b.GetLastOccurred()), Equals, -1)
-	c.Assert(notice2b.GetLastOccurred().Compare(notice3b.GetLastOccurred()), Equals, -1)
-	c.Assert(notice4b.GetLastOccurred().Compare(testDate2), Equals, 0)
-	c.Assert(notice4b.GetLastOccurred().Compare(notice3b.GetLastOccurred()), Equals, 1)
+	c.Assert(state.CompareDates(notice1b.GetLastOccurred(), testDate), Equals, 0)
+	c.Assert(state.CompareDates(notice1b.GetLastOccurred(), notice2b.GetLastOccurred()), Equals, -1)
+	c.Assert(state.CompareDates(notice1b.GetLastOccurred(), notice3b.GetLastOccurred()), Equals, -1)
+	c.Assert(state.CompareDates(notice2b.GetLastOccurred(), notice3b.GetLastOccurred()), Equals, -1)
+	c.Assert(state.CompareDates(notice4b.GetLastOccurred(), testDate2), Equals, 0)
+	c.Assert(state.CompareDates(notice4b.GetLastOccurred(), notice3b.GetLastOccurred()), Equals, 1)
 }
 
 // noticeToMap converts a Notice to a map using a JSON marshal-unmarshal round trip.

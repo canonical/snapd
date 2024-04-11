@@ -230,6 +230,46 @@ type AddNoticeOptions struct {
 
 var getTimeNow = time.Now
 
+func compareValues(v1, v2 int) int {
+	if v1 > v2 {
+		return 1
+	}
+	if v1 < v2 {
+		return -1
+	}
+	return 0
+}
+
+func compareDates(date1, date2 time.Time) int {
+	// time.Time.Compare() was added in Go v1.20 :-(
+
+	if val := compareValues(date1.Year(), date2.Year()); val != 0 {
+		return val
+	}
+	if val := compareValues(int(date1.Month()), int(date2.Month())); val != 0 {
+		return val
+	}
+	if val := compareValues(date1.Day(), date2.Day()); val != 0 {
+		return val
+	}
+	if val := compareValues(date1.Hour(), date2.Hour()); val != 0 {
+		return val
+	}
+	if val := compareValues(date1.Minute(), date2.Minute()); val != 0 {
+		return val
+	}
+	if val := compareValues(date1.Second(), date2.Second()); val != 0 {
+		return val
+	}
+	if date1.Nanosecond() > date2.Nanosecond() {
+		return 1
+	}
+	if date1.Nanosecond() < date2.Nanosecond() {
+		return -1
+	}
+	return 0
+}
+
 // AddNotice records an occurrence of a notice with the specified type and key
 // and options.
 func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, options *AddNoticeOptions) (string, error) {
@@ -247,7 +287,7 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	if now.IsZero() {
 		now = getTimeNow()
 		// ensure that two notices never have the same sent time
-		if now.Compare(s.noticeLastDate) <= 0 {
+		if compareDates(now, s.noticeLastDate) <= 0 {
 			now = s.noticeLastDate.Add(time.Nanosecond)
 		}
 		s.noticeLastDate = now

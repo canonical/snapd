@@ -65,6 +65,8 @@ var (
 	ErrBadWarningMessage    = errBadWarningMessage
 	ErrNoWarningFirstAdded  = errNoWarningFirstAdded
 	ErrNoWarningExpireAfter = errNoWarningExpireAfter
+
+	CompareDates = compareDates
 )
 
 // NumNotices returns the total bumber of notices, including expired ones that
