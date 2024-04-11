@@ -92,12 +92,13 @@ type State struct {
 	// for registering runtime callbacks
 	lastHandlerId int
 
-	backend  Backend
-	data     customData
-	changes  map[string]*Change
-	tasks    map[string]*Task
-	warnings map[string]*Warning
-	notices  map[noticeKey]*Notice
+	backend        Backend
+	data           customData
+	changes        map[string]*Change
+	tasks          map[string]*Task
+	warnings       map[string]*Warning
+	notices        map[noticeKey]*Notice
+	noticeLastDate time.Time
 
 	noticeCond *sync.Cond
 

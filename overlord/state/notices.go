@@ -228,6 +228,8 @@ type AddNoticeOptions struct {
 	Time time.Time
 }
 
+var getTimeNow = time.Now
+
 // AddNotice records an occurrence of a notice with the specified type and key
 // and options.
 func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, options *AddNoticeOptions) (string, error) {
@@ -243,7 +245,12 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 
 	now := options.Time
 	if now.IsZero() {
-		now = time.Now()
+		now = getTimeNow()
+		// ensure that two notices never have the same sent time
+		if now.Compare(s.noticeLastDate) <= 0 {
+			now = s.noticeLastDate.Add(time.Nanosecond)
+		}
+		s.noticeLastDate = now
 	}
 	now = now.UTC()
 	newOrRepeated := false

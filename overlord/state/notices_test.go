@@ -679,6 +679,93 @@ func (s *noticesSuite) TestValidateNotice(c *C) {
 	c.Check(id, Equals, "")
 }
 
+func (s *noticesSuite) TestAvoidTwoNoticesWithSameDateTime(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	testDate := time.Date(2024, time.April, 11, 11, 24, 5, 20, time.UTC)
+	restore := state.MockGetTimeNow(func() time.Time {
+		return testDate
+	})
+	defer restore()
+
+	id1, err := st.AddNotice(nil, state.ChangeUpdateNotice, "123", nil)
+	c.Assert(err, IsNil)
+	notice1 := st.Notice(id1)
+	c.Assert(notice1, NotNil)
+
+	id2, err := st.AddNotice(nil, state.ChangeUpdateNotice, "456", nil)
+	c.Assert(err, IsNil)
+	notice2 := st.Notice(id2)
+	c.Assert(notice2, NotNil)
+
+	id3, err := st.AddNotice(nil, state.ChangeUpdateNotice, "789", nil)
+	c.Assert(err, IsNil)
+	notice3 := st.Notice(id3)
+	c.Assert(notice3, NotNil)
+
+	testDate2 := time.Date(2024, time.April, 11, 11, 24, 5, 40, time.UTC)
+	restore2 := state.MockGetTimeNow(func() time.Time {
+		return testDate2
+	})
+	defer restore2()
+
+	id4, err := st.AddNotice(nil, state.ChangeUpdateNotice, "ABC", nil)
+	c.Assert(err, IsNil)
+	notice4 := st.Notice(id4)
+	c.Assert(notice4, NotNil)
+
+	c.Assert(notice1 == notice2, Equals, false)
+	c.Assert(notice1 == notice3, Equals, false)
+	c.Assert(notice2 == notice3, Equals, false)
+
+	// ensure that the notices are ordered in time
+	c.Assert(notice1.GetLastOccurred().Compare(testDate), Equals, 0)
+	c.Assert(notice1.GetLastOccurred().Compare(notice2.GetLastOccurred()), Equals, -1)
+	c.Assert(notice1.GetLastOccurred().Compare(notice3.GetLastOccurred()), Equals, -1)
+	c.Assert(notice2.GetLastOccurred().Compare(notice3.GetLastOccurred()), Equals, -1)
+	c.Assert(notice4.GetLastOccurred().Compare(testDate2), Equals, 0)
+	c.Assert(notice4.GetLastOccurred().Compare(notice3.GetLastOccurred()), Equals, 1)
+
+	json1, err := notice1.MarshalJSON()
+	c.Assert(err, IsNil)
+	c.Assert(json1, NotNil)
+	json2, err := notice2.MarshalJSON()
+	c.Assert(err, IsNil)
+	c.Assert(json2, NotNil)
+	json3, err := notice3.MarshalJSON()
+	c.Assert(err, IsNil)
+	c.Assert(json3, NotNil)
+	json4, err := notice4.MarshalJSON()
+	c.Assert(err, IsNil)
+	c.Assert(json4, NotNil)
+
+	notice1b := state.Notice{}
+	err = notice1b.UnmarshalJSON(json1)
+	c.Assert(err, IsNil)
+
+	notice2b := state.Notice{}
+	err = notice2b.UnmarshalJSON(json2)
+	c.Assert(err, IsNil)
+
+	notice3b := state.Notice{}
+	err = notice3b.UnmarshalJSON(json3)
+	c.Assert(err, IsNil)
+
+	notice4b := state.Notice{}
+	err = notice4b.UnmarshalJSON(json4)
+	c.Assert(err, IsNil)
+
+	// ensure that the notices are ordered in time even after JSON marshall/unmarshall
+	c.Assert(notice1b.GetLastOccurred().Compare(testDate), Equals, 0)
+	c.Assert(notice1b.GetLastOccurred().Compare(notice2b.GetLastOccurred()), Equals, -1)
+	c.Assert(notice1b.GetLastOccurred().Compare(notice3b.GetLastOccurred()), Equals, -1)
+	c.Assert(notice2b.GetLastOccurred().Compare(notice3b.GetLastOccurred()), Equals, -1)
+	c.Assert(notice4b.GetLastOccurred().Compare(testDate2), Equals, 0)
+	c.Assert(notice4b.GetLastOccurred().Compare(notice3b.GetLastOccurred()), Equals, 1)
+}
+
 // noticeToMap converts a Notice to a map using a JSON marshal-unmarshal round trip.
 func noticeToMap(c *C, notice *state.Notice) map[string]any {
 	buf, err := json.Marshal(notice)
