@@ -6,6 +6,7 @@ details: |
 
 restore: |
     snap remove test-snapd-sh-lzo
+    snap remove test-snapd-sh-zstd
 
 execute: |
     echo "Packing a simple snap works"
@@ -35,3 +36,13 @@ execute: |
     echo "The lzo snap can be used normally"
     snap install --dangerous test-snapd-sh-lzo.snap
     test-snapd-sh.sh -c "echo hello-lzo" | MATCH "hello-lzo"
+
+    echo "Packing a simple snap with zstd works"
+    snap pack --compression=zstd "$TESTSLIB/snaps/test-snapd-sh" . --filename test-snapd-sh-zstd.snap
+    test -e test-snapd-sh-zstd.snap
+    unsquashfs -l test-snapd-sh-zstd.snap
+    unsquashfs -s test-snapd-sh-zstd.snap | MATCH "Compression zstd"
+
+    echo "The zstd snap can be used normally"
+    snap install --dangerous test-snapd-sh-zstd.snap
+    test-snapd-sh.sh -c "echo hello-zstd" | MATCH "hello-zstd"
