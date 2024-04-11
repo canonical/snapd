@@ -281,7 +281,6 @@ jobs:
           - snapd_debug
           - withbootassetstesting
           - nosecboot
-          - nobolt
           - faultinject
 
     steps:
@@ -371,12 +370,6 @@ jobs:
         # ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
         # ${{ github.workspace }}/bin/govendor remove +unused
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
-
-    - name: Test Go (nobolt)
-      if: ${{ matrix.unit-scenario == 'nobolt' }}
-      run: |
-        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nobolt ./run-checks --unit
 
     - name: Test Go (faultinject)
       if: ${{ matrix.unit-scenario == 'faultinject' }}
