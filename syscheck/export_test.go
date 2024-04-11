@@ -20,11 +20,11 @@
 package syscheck
 
 var (
-	CheckSquashfsMount  = checkSquashfsMount
-	CheckKernelVersion  = checkKernelVersion
-	CheckApparmorUsable = checkApparmorUsable
-	CheckWSL            = checkWSL
-	CheckCgroup         = checkCgroup
+	CheckSquashfsXzMount = checkSquashfsXzMount
+	CheckKernelVersion   = checkKernelVersion
+	CheckApparmorUsable  = checkApparmorUsable
+	CheckWSL             = checkWSL
+	CheckCgroup          = checkCgroup
 
 	CheckFuse = firstCheckFuse
 )

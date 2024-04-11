@@ -36,7 +36,7 @@ import (
 )
 
 func init() {
-	checks = append(checks, checkSquashfsMount)
+	checks = append(checks, checkSquashfsXzMount, checkSquashfsZstdMount)
 }
 
 // This image was created using:
@@ -53,7 +53,7 @@ func init() {
 //
 // mksquashfs . /tmp/canary.squashfs -noappend -comp xz -no-xattrs -no-fragments >/dev/null
 // cat /tmp/canary.squashfs | gzip - | base64
-var b64SquashfsImage = []byte(`
+var b64SquashfsXzImage = []byte(`
 H4sIAGxdFVsAA8soLixmYmBgyIkVjWZgALEYGFgYBBkuMDECaQYGFQYI4INIMbBB6f9Q0MAI4R+D
 0s+g9A8o/de8KiKKgYExU+meGfOB54wzmBUZuYDiVhPYbR4wTme4H8ugJcWpniK5waL4VLewwsUC
 PgdVnS/pCycWn34g1rpj6bIywdLqaQdZFYQcYr7/vR1w9dTbDivRH3GahXc578hdW3Ri7mu9+KeF
@@ -63,6 +63,18 @@ R9XSJUxv/7/y2f2zid0+OnGi1+ey1/vatzDPvfbq+0LLwIu1Wx/u+m6/c8IN21vNCQwMX2dtWsHA
 +BvodwaGpcmXftsZ8HaDg5ExMsqlgYlhCTisQDEAYiRAQxckNgMooADEjAwH4GqgEQCOK0UgBhrK
 INcAFWRghMtyMiQn5iUWVeqVVJQIwOVh8QmLJ5aGF8wMsIgfBaNgFIyCUTAKRsEoGAWjYBSMglEw
 bAEA+f+YuAAQAAA=
+`)
+
+// This image is similar to the one above, except that it is using zstd compressor.
+var b64SquashfsZstdImage = []byte(`
+H4sIAAAAAAAAA8soLixmYmBguHFKPI2BAcRiYGBjEGS4wMTIwAJkqzBAwBlGCH0ESv+HAm8ovwVK
+L4HS26C0xlb9vwlrGHjZGTad05V36JfjWRX9Kyl1u/bam9N+Vk48emT7QebHtnZvzxWETmc+U5CR
+7nlby/BSmsarRX2XLji+9q/2ynHN+7t56cHyM9ci926bULY25uKzVzXbz5tIRnPcWvbAwvXJwgyL
+OW2cEn2tChMrTtuLd2vaZ8yXz+bYkDv372UZi7OHjq/btuVvmdjdQM3CBgbnI9Ontv7NMc3NnKst
+q9hjq/txyuvAkn1q+/ZMuB11Kj8x9dVvmfrl1z/mfuW+vT7Xy+21kRMTH4NOw+ofB/h7d3Y0Gm84
+x9SUluyiqLBNeoPYNWCQKU3medRS/qCM0RzsWQWXUkaGTc6cQhfSeVtcWvyTWQ/4Mm7p3OmbwsUv
+z17fcOt62r93756EuQTlq3MwMti3VjHJNUADmQEaaMB44GRITsxLLKrUK6koEYDLw2IDFsosDS+Y
+GRj2wbSNglEwCkbBKBgFo2AUjIJRMApGwSgYBTgAAGPYjbIAEAAA
 `)
 
 var fuseBinary = "mount.fuse"
@@ -76,7 +88,16 @@ func firstCheckFuse() error {
 	return nil
 }
 
-func checkSquashfsMount() error {
+func checkSquashfsXzMount() error {
+	return doCheckSquashfsMount(b64SquashfsXzImage)
+}
+
+func checkSquashfsZstdMount() error {
+	return doCheckSquashfsMount(b64SquashfsZstdImage)
+}
+
+// XXX: tests are sensitive to functions with prefix "check".
+func doCheckSquashfsMount(blob []byte) error {
 	if err := firstCheckFuse(); err != nil {
 		return err
 	}
