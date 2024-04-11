@@ -49,7 +49,7 @@ func init() {
 //
 // The squashfs was generated with:
 // EOF
-// cat $0 >> canary.txt
+// cat $OLDPWD/$0 >> canary.txt
 //
 // mksquashfs . /tmp/canary.squashfs -noappend -comp xz -no-xattrs -no-fragments >/dev/null
 // cat /tmp/canary.squashfs | gzip - | base64
