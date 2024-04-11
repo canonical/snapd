@@ -356,6 +356,7 @@ snap_confine_unit_tests_SOURCES = \
 	snap-confine/cookie-support-test.c \
 	snap-confine/mount-support-test.c \
 	snap-confine/ns-support-test.c \
+	snap-confine/seccomp-support-test.c \
 	snap-confine/snap-confine-args-test.c \
 	snap-confine/snap-confine-invocation-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)

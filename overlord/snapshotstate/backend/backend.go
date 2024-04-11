@@ -1081,6 +1081,16 @@ func (se *SnapshotExport) StreamTo(w io.Writer) error {
 		files = append(files, path.Base(snapshotFile.Name()))
 	}
 
+	// SnapshotExporter has se.Close() set as a finalizer, thus when the object
+	// is no longer referenced, se.Close() (which closes all files) will be
+	// called automatically after/during a GC pass. We don't know if the caller
+	// retains a reference to the object (eg. for any outstanding calls to some
+	// of its functions), and the last explicit reference in the code above was
+	// kept for the purpose of accessing the snapshot files list, which is done
+	// before the final file is read, so we need to mark object as alive until
+	// after every file has been read.
+	runtime.KeepAlive(se)
+
 	// write the metadata last, then the client can use that to
 	// validate the archive is complete
 	meta := exportMetadata{

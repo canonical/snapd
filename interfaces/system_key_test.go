@@ -80,12 +80,12 @@ func (s *systemKeySuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
-func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome, overlayRoot bool) {
+func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, remoteFSHome, overlayRoot bool) {
 	var overlay string
 	if overlayRoot {
 		overlay = "overlay"
 	}
-	restore := interfaces.MockIsHomeUsingNFS(func() (bool, error) { return nfsHome, nil })
+	restore := interfaces.MockIsHomeUsingRemoteFS(func() (bool, error) { return remoteFSHome, nil })
 	defer restore()
 
 	restore = interfaces.MockReadBuildID(func(p string) (string, error) {
@@ -135,18 +135,18 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, nfsHome, overlayRoot 
 		apparmorFeaturesStr,
 		apparmorParserMtime,
 		apparmorParserFeaturesStr,
-		nfsHome,
+		remoteFSHome,
 		overlay,
 		seccompActionsStr,
 		seccompCompilerVersion,
 	))
 }
 
-func (s *systemKeySuite) TestInterfaceWriteSystemKeyNoNFS(c *C) {
+func (s *systemKeySuite) TestInterfaceWriteSystemKeyNoRemoteFS(c *C) {
 	s.testInterfaceWriteSystemKey(c, false, false)
 }
 
-func (s *systemKeySuite) TestInterfaceWriteSystemKeyWithNFS(c *C) {
+func (s *systemKeySuite) TestInterfaceWriteSystemKeyWithRemoteFS(c *C) {
 	s.testInterfaceWriteSystemKey(c, true, false)
 }
 
@@ -155,12 +155,12 @@ func (s *systemKeySuite) TestInterfaceWriteSystemKeyWithOverlayRoot(c *C) {
 }
 
 // bonus points to someone who actually runs this
-func (s *systemKeySuite) TestInterfaceWriteSystemKeyWithNFSWithOverlayRoot(c *C) {
+func (s *systemKeySuite) TestInterfaceWriteSystemKeyWithRemoteFSWithOverlayRoot(c *C) {
 	s.testInterfaceWriteSystemKey(c, true, true)
 }
 
 func (s *systemKeySuite) TestInterfaceWriteSystemKeyErrorOnBuildID(c *C) {
-	restore := interfaces.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	restore := interfaces.MockIsHomeUsingRemoteFS(func() (bool, error) { return false, nil })
 	defer restore()
 
 	restore = interfaces.MockReadBuildID(func(p string) (string, error) {

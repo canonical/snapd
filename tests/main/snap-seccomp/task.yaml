@@ -1,8 +1,14 @@
 summary: Ensure that the snap-seccomp bpf handling works
 
-# FIXME: once $(snap debug confinment) can be used (in 2.27+) remove
-#        the systems line
-systems: [ubuntu-16*, ubuntu-18*]
+details: |
+    This test installs the test-snapd-sh snap and runs different checks 
+    to validate that snap-seccomp bpf handling works as expected. Those 
+    checks include the use of @complain and @unrestricted keywords, 
+    missing, empty and invalid profiles, checks the filter size limit 
+    and ensures that that snap-confine waits for security profiles to 
+    appear. It also verifies that amd64 arch works with i386 binaries.
+
+systems: [ubuntu-*]
 
 # Start early as it takes a long time.
 priority: 100
@@ -16,26 +22,30 @@ execute: |
     snap install test-snapd-sh
     test-snapd-sh.sh -c 'echo hello' | MATCH hello
 
-    # FIXME: use dirs.sh in 2.27+
-    echo "Ensure snap-seccomp is statically linked"
-    if ldd /usr/lib/snapd/snap-seccomp | MATCH libseccomp ; then
-        echo "found dynamically linked libseccomp, we need a staticly linked one"
-        exit 1
+    # The 16.04 build is static as it goes into the snapd snap but 14.04
+    # is dynamically linked.
+    if ! os.query is-trusty; then
+        echo "Ensure snap-seccomp is statically linked"
+        # FIXME: use dirs.sh in 2.27+
+        if ldd /usr/lib/snapd/snap-seccomp | MATCH libseccomp ; then
+            echo "found dynamically linked libseccomp, we need a staticly linked one"
+            exit 1
+        fi
     fi
 
     # from the old test_complain
     echo "Test that the @complain keyword works"
-    rm -f "${PROFILE}.bin"
+    rm -f "${PROFILE}.bin2"
     cat >"${PROFILE}.src" <<EOF
     # some comment
     @complain
     EOF
-    $SNAP_SECCOMP compile "${PROFILE}.src" "${PROFILE}.bin"
+    $SNAP_SECCOMP compile "${PROFILE}.src" "${PROFILE}.bin2"
     echo "Ensure the code still runs"
     test-snapd-sh.sh -c 'echo hello' | MATCH hello
 
     # from the old test_complain_missed
-    rm -f "${PROFILE}.bin"
+    rm -f "${PROFILE}.bin2"
     cat >"${PROFILE}.src" <<EOF
     # super strict filter
     @complai
@@ -44,7 +54,7 @@ execute: |
     @COMPLAIN
     complain
     EOF
-    $SNAP_SECCOMP compile "${PROFILE}.src" "${PROFILE}.bin"
+    $SNAP_SECCOMP compile "${PROFILE}.src" "${PROFILE}.bin2"
     echo "Ensure the code cannot not run due to impossible filtering"
     if test-snapd-sh.sh -c 'echo hello'; then
         echo "filtering broken: program should have failed to run"
@@ -53,17 +63,17 @@ execute: |
     
     # from the old test_unrestricted
     echo "Test that the @unrestricted keyword works"
-    rm -f "${PROFILE}.bin"
+    rm -f "${PROFILE}.bin2"
     cat >"${PROFILE}.src" <<EOF
     # some comment
     @unrestricted
     EOF
-    $SNAP_SECCOMP compile "${PROFILE}.src" "${PROFILE}.bin"
+    $SNAP_SECCOMP compile "${PROFILE}.src" "${PROFILE}.bin2"
     echo "Ensure the code still runs"
     test-snapd-sh.sh -c 'echo hello' | MATCH hello
 
     # from the old test_unrestricted_missed
-    rm -f "${PROFILE}.bin"
+    rm -f "${PROFILE}.bin2"
     cat >"${PROFILE}.src" <<EOF
     # super strict filter
     @unrestricte
@@ -72,7 +82,7 @@ execute: |
     @UNRESTRICTED
     unrestricted
     EOF
-    $SNAP_SECCOMP compile "${PROFILE}.src" "${PROFILE}.bin"
+    $SNAP_SECCOMP compile "${PROFILE}.src" "${PROFILE}.bin2"
     echo "Ensure the code cannot not run due to impossible filtering"
     if test-snapd-sh.sh -c 'echo hello'; then
         echo "filtering broken: program should have failed to run"
@@ -80,52 +90,53 @@ execute: |
     fi
 
     # from the old test_noprofile
-    rm -f "${PROFILE}.bin"
+    rm -f "${PROFILE}.bin2"
     echo "Ensure the code cannot not run due to missing filter"
     if SNAP_CONFINE_MAX_PROFILE_WAIT=3 test-snapd-sh.sh -c 'echo hello'; then
         echo "filtering broken: program should have failed to run"
         exit 1
     fi
 
-    echo "Break snapd.test-snapd-sh.bin to ensure (kernel) validation works"
-    dd if=/dev/urandom of="${PROFILE}.bin" count=1 bs=1024
+    echo "Break snapd.test-snapd-sh.bin2 to ensure (kernel) validation works"
+    dd if=/dev/urandom of="${PROFILE}.bin2" count=1 bs=1024
     if output=$(test-snapd-sh.sh -c 'echo hello' 2>&1 ); then
         echo "test-snapd-sh.sh should fail with invalid seccomp profile"
         exit 1
     fi
-    echo "$output" | MATCH "cannot apply seccomp profile: Invalid argument"
+    echo "$output" | MATCH "unexpected seccomp header: .*"
 
-    echo "Add huge snapd.test-snapd-sh.bin to ensure size limit works"
-    dd if=/dev/zero of="${PROFILE}.bin" count=50 bs=1M
+    echo "Add huge snapd.test-snapd-sh filters to ensure size limit works"
+    dd if=/dev/zero of="${PROFILE}.bin2" count=50 bs=1M
     if output=$(test-snapd-sh.sh -c 'echo hello' 2>&1 ); then
         echo "test-snapd-sh.sh should fail with big seccomp profile"
         exit 1
     fi
-    echo "$output" | MATCH "cannot fit .* to memory buffer"
+    # TODO: adjust the test so that the header is valid and the profile big
+    #echo "$output" | MATCH "cannot fit .* to memory buffer"
 
     
-    echo "Ensure the code cannot not run with a missing .bin profile"
-    rm -f "${PROFILE}.bin"
+    echo "Ensure the code cannot not run with a missing filter profile"
+    rm -f "${PROFILE}.bin2"
     if test-snapd-sh.sh -c 'echo hello'; then
         echo "filtering broken: program should have failed to run"
         exit 1
     fi
 
     echo "Ensure the code cannot not run with an empty seccomp profile"
-    rm -f "${PROFILE}.bin"
+    rm -f "${PROFILE}.bin2"
     echo "" > "${PROFILE}.src"
-    $SNAP_SECCOMP compile "${PROFILE}.src" "${PROFILE}.bin"
+    $SNAP_SECCOMP compile "${PROFILE}.src" "${PROFILE}.bin2"
     if test-snapd-sh.sh -c 'echo hello'; then
         echo "filtering broken: program should have failed to run"
         exit 1
     fi
 
     echo "Ensure snap-confine waits for security profiles to appear"
-    rm -f "${PROFILE}.bin"
+    rm -f "${PROFILE}.bin2"
     cat >"${PROFILE}.src" <<EOF
     @unrestricted
     EOF
-    ( (sleep 3; $SNAP_SECCOMP compile "${PROFILE}.src" "${PROFILE}.bin") &)
+    ( (sleep 3; $SNAP_SECCOMP compile "${PROFILE}.src" "${PROFILE}.bin2") &)
     echo "Ensure the code still runs"
     test-snapd-sh.sh -c 'echo hello' | MATCH hello
 

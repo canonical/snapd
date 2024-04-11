@@ -23,7 +23,7 @@
  * sc_apply_seccomp_profile_for_security_tag applies a seccomp profile to the
  * current process. The filter is loaded from a pre-compiled bpf bytecode
  * stored in "/var/lib/snap/seccomp/bpf" using the security tag and the
- * extension ".bin". All components along that path must be owned by root and
+ * extension ".bin2". All components along that path must be owned by root and
  * cannot be writable by UNIX _other_.
  *
  * The security tag is shared with other parts of snapd.

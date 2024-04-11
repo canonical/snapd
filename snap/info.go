@@ -1402,6 +1402,12 @@ type NotFoundError struct {
 }
 
 func (e NotFoundError) Error() string {
+	if e.Revision.Unset() {
+		if e.Path != "" {
+			return fmt.Sprintf("cannot find current revision for snap %s: missing file %s", e.Snap, e.Path)
+		}
+		return fmt.Sprintf("cannot find current revision for snap %s", e.Snap)
+	}
 	if e.Path != "" {
 		return fmt.Sprintf("cannot find installed snap %q at revision %s: missing file %s", e.Snap, e.Revision, e.Path)
 	}
@@ -1503,7 +1509,7 @@ func ReadCurrentInfo(snapName string) (*Info, error) {
 	curFn := filepath.Join(dirs.SnapMountDir, snapName, "current")
 	realFn, err := os.Readlink(curFn)
 	if err != nil {
-		return nil, fmt.Errorf("cannot find current revision for snap %s: %s", snapName, err)
+		return nil, fmt.Errorf("%w: %s", NotFoundError{Snap: snapName, Revision: R(0)}, err)
 	}
 	rev := filepath.Base(realFn)
 	revision, err := ParseRevision(rev)

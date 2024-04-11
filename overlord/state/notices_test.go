@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -286,14 +287,16 @@ func (s *noticesSuite) TestNoticesFilterType(c *C) {
 	addNotice(c, st, nil, state.WarningNotice, "Warning 1!", nil)
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.WarningNotice, "Warning 2!", nil)
+	time.Sleep(time.Microsecond)
+	addNotice(c, st, nil, state.SnapRunInhibitNotice, "snap-name", nil)
 
 	// No filter
 	notices := st.Notices(nil)
-	c.Assert(notices, HasLen, 4)
+	c.Assert(notices, HasLen, 5)
 
 	// No types
 	notices = st.Notices(&state.NoticeFilter{})
-	c.Assert(notices, HasLen, 4)
+	c.Assert(notices, HasLen, 5)
 
 	// One type
 	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}})
@@ -322,6 +325,14 @@ func (s *noticesSuite) TestNoticesFilterType(c *C) {
 	c.Check(n["user-id"], Equals, nil)
 	c.Check(n["type"], Equals, "refresh-inhibit")
 	c.Check(n["key"], Equals, "-")
+
+	// Another type
+	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.SnapRunInhibitNotice}})
+	c.Assert(notices, HasLen, 1)
+	n = noticeToMap(c, notices[0])
+	c.Check(n["user-id"], Equals, nil)
+	c.Check(n["type"], Equals, "snap-run-inhibit")
+	c.Check(n["key"], Equals, "snap-name")
 
 	// Multiple types
 	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{
@@ -649,17 +660,22 @@ func (s *noticesSuite) TestValidateNotice(c *C) {
 
 	// Invalid type
 	id, err := st.AddNotice(nil, "bad-type", "123", nil)
-	c.Check(err, ErrorMatches, `internal error: attempted to add notice with invalid type "bad-type"`)
+	c.Check(err, ErrorMatches, `internal error: cannot add notice with invalid type "bad-type"`)
 	c.Check(id, Equals, "")
 
 	// Empty key
 	id, err = st.AddNotice(nil, state.ChangeUpdateNotice, "", nil)
-	c.Check(err, ErrorMatches, `internal error: attempted to add change-update notice with invalid key ""`)
+	c.Check(err, ErrorMatches, `internal error: cannot add change-update notice with invalid key ""`)
+	c.Check(id, Equals, "")
+
+	// Large key
+	id, err = st.AddNotice(nil, state.ChangeUpdateNotice, strings.Repeat("x", 257), nil)
+	c.Check(err, ErrorMatches, `internal error: cannot add change-update notice with invalid key: key must be 256 bytes or less`)
 	c.Check(id, Equals, "")
 
 	// Unxpected key for refresh-inhibit notice
 	id, err = st.AddNotice(nil, state.RefreshInhibitNotice, "123", nil)
-	c.Check(err, ErrorMatches, `internal error: attempted to add refresh-inhibit notice with invalid key "123", only "-" key is supported`)
+	c.Check(err, ErrorMatches, `internal error: cannot add refresh-inhibit notice with invalid key "123": only "-" key is supported`)
 	c.Check(id, Equals, "")
 }
 

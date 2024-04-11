@@ -156,6 +156,7 @@ var (
 	WaitWhileInhibited                            = waitWhileInhibited
 	TryNotifyRefreshViaSnapDesktopIntegrationFlow = tryNotifyRefreshViaSnapDesktopIntegrationFlow
 	NewInhibitionFlow                             = newInhibitionFlow
+	ErrSnapRefreshConflict                        = errSnapRefreshConflict
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -359,6 +360,14 @@ func MockConfirmSystemdServiceTracking(fn func(securityTag string) error) (resto
 	}
 }
 
+func MockConfirmSystemdAppTracking(fn func(securityTag string) error) (restore func()) {
+	old := cgroupConfirmSystemdAppTracking
+	cgroupConfirmSystemdAppTracking = fn
+	return func() {
+		cgroupConfirmSystemdAppTracking = old
+	}
+}
+
 func MockApparmorSnapAppFromPid(f func(pid int) (string, string, string, error)) (restore func()) {
 	old := apparmorSnapAppFromPid
 	apparmorSnapAppFromPid = f
@@ -460,6 +469,16 @@ func MockTryNotifyRefreshViaSnapDesktopIntegrationFlow(f func(ctx context.Contex
 	tryNotifyRefreshViaSnapDesktopIntegrationFlow = f
 	return func() {
 		tryNotifyRefreshViaSnapDesktopIntegrationFlow = old
+	}
+}
+
+func MockInhibitionFlow(flow inhibitionFlow) (restore func()) {
+	old := newInhibitionFlow
+	newInhibitionFlow = func(name string) inhibitionFlow {
+		return flow
+	}
+	return func() {
+		newInhibitionFlow = old
 	}
 }
 

@@ -269,16 +269,6 @@ func parseRule(parent *aspectRule, ruleRaw interface{}) ([]*aspectRule, error) {
 		return nil, errors.New("each aspect rule should be a map")
 	}
 
-	requestRaw, ok := ruleMap["request"]
-	if !ok || requestRaw == "" {
-		return nil, errors.New(`aspect rules must have a "request" field`)
-	}
-
-	request, ok := requestRaw.(string)
-	if !ok {
-		return nil, errors.New(`"request" must be a string`)
-	}
-
 	storageRaw, ok := ruleMap["storage"]
 	if !ok || storageRaw == "" {
 		return nil, errors.New(`aspect rules must have a "storage" field`)
@@ -287,6 +277,19 @@ func parseRule(parent *aspectRule, ruleRaw interface{}) ([]*aspectRule, error) {
 	storage, ok := storageRaw.(string)
 	if !ok {
 		return nil, errors.New(`"storage" must be a string`)
+	}
+
+	requestRaw, ok := ruleMap["request"]
+	if !ok {
+		// if omitted the "request" field defaults to the same as the "storage"
+		requestRaw = storage
+	} else if requestRaw == "" {
+		return nil, errors.New(`aspect rules' "request" field must be non-empty, if it exists`)
+	}
+
+	request, ok := requestRaw.(string)
+	if !ok {
+		return nil, errors.New(`"request" must be a string`)
 	}
 
 	if err := validateRequestStoragePair(request, storage); err != nil {
@@ -441,9 +444,38 @@ type expandedMatch struct {
 	value interface{}
 }
 
+// validateSetValue checks that map keys conform to the same format as path sub-keys.
+// TODO: check recursion limit here as well
+func validateSetValue(v interface{}) error {
+	var nestedVals []interface{}
+	switch typedVal := v.(type) {
+	case map[string]interface{}:
+		for k, v := range typedVal {
+			if !validSubkey.Match([]byte(k)) {
+				return fmt.Errorf(`key %q doesn't conform to required format: %s`, k, validSubkey.String())
+			}
+
+			nestedVals = append(nestedVals, v)
+		}
+
+	case []interface{}:
+		nestedVals = typedVal
+	}
+
+	for _, v := range nestedVals {
+		if err := validateSetValue(v); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // Set sets the named aspect to a specified non-nil value.
 func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	if err := validateAspectDottedPath(request, nil); err != nil {
+		return badRequestErrorFrom(a, "set", request, err.Error())
+	} else if err := validateSetValue(value); err != nil {
 		return badRequestErrorFrom(a, "set", request, err.Error())
 	}
 

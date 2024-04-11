@@ -3,7 +3,7 @@
 
 @LIBEXECDIR@/snap-confine (attach_disconnected) {
     # Include any additional files that snapd chose to generate.
-    # - for $HOME on NFS
+    # - for $HOME on remote file system.
     # - for $HOME on encrypted media
     #
     # Those are discussed on https://forum.snapcraft.io/t/snapd-vs-upstream-kernel-vs-apparmor
@@ -148,8 +148,11 @@
     # deny change_profile unsafe /** -> {unconfined,/**},
     # change_profile unsafe /** -> **,
 
-    # reading seccomp filters
-    /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/bpf/*.bin r,
+    # reading seccomp filters.
+    # Note 1: We still need to consider .bin extension because of global.bin file.
+    # Note 2: This rule is not needed because of rule '/var/lib/** rw', however we keep it because at
+    # some point we want to investigate if we can narrow the scope of the aforementioned rule.
+    /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/bpf/*.bin{,2} r,
 
     # adding a missing bpf mount
     mount fstype=bpf options=(rw) bpf -> /sys/fs/bpf/,
@@ -288,7 +291,7 @@
     # pivot_root mediation in AppArmor is not complete. See LP: #1791711.
     # However, we can mediate the new_root and put_old to be what we expect,
     # and then deny directory creation within old_root to prevent trivial
-    # pivoting into a whitelisted path.
+    # pivoting into an allowlisted path.
     pivot_root oldroot=/tmp/snap.rootfs_*/var/lib/snapd/hostfs/ /tmp/snap.rootfs_*/,
     # Explicitly deny creating the old_root directory in case it is
     # inadvertently added somewhere else. While this doesn't resolve
