@@ -1,6 +1,7 @@
 name: Nightly static code analysis
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: '30 0 * * *'
 
@@ -16,7 +17,6 @@ jobs:
       # version of go.
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
       GOROOT: ""
-      GITHUB_PULL_REQUEST: ${{ github.event.number }}
     strategy:
       matrix:
         gochannel:
@@ -38,22 +38,6 @@ jobs:
       run: |
           sudo apt clean
           sudo apt update
-          sudo apt build-dep -d -y ${{ github.workspace }}/src/github.com/snapcore/snapd
-          # for indent
-          sudo apt install -y texinfo autopoint
-
-    - name: Copy dependencies
-      run: |
-        sudo tar cvf cached-apt.tar /var/cache/apt
-
-    - name: Copy dependencies
-      run: |
-        test -f ./debian-deps/cached-apt.tar
-        sudo tar xvf ./debian-deps/cached-apt.tar -C /
-
-    - name: Install Debian dependencies
-      run: |
-          sudo apt update
           sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
 
     # golang latest ensures things work on the edge
@@ -63,7 +47,8 @@ jobs:
 
     - name: Get deps
       run: |
-          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/ && ./get-deps.sh
+          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/
+          ./get-deps.sh
 
     - name: Build C
       run: |
@@ -83,32 +68,27 @@ jobs:
       run: |
           rm -rf ${{ github.workspace }}/.coverage/
 
-    - name: Test Go
-      if: ${{ matrix.unit-scenario == 'normal' }}
+    - name: Test Go with coverage
       run: |
-        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-        ./run-checks --unit
+        go install github.com/boumenot/gocover-cobertura@latest
 
-    - name: Save coverage
-      if: ${{ matrix.unit-scenario == 'normal' }}
-      run: |
-        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-        ./run-checks --unit
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd
+        COVERAGE_OUT=.coverage/coverage.txt ./run-checks --unit
+        gocover-cobertura < .coverage/coverage.txt > .coverage/coverage.xml
 
-    - name: Upload the coverage results
-      run: |
-        mv ${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage ${{ github.workspace }}
+        mv .coverage ${{ github.workspace }}
+        test -f "${{ github.workspace }}/.coverage/coverage.xml"
 
     - name: TICS scan
       run: |
+        set -x
         export TICSAUTHTOKEN=${{ secrets.TICSAUTHTOKEN }}
 
         # Install the TICS
-        . <(curl --silent --show-error 'https://canonical.tiobe.com/tiobeweb/TICS/api/public/v1/fapi/installtics/Script?cfg=default&platform=linux&url=https://canonical.tiobe.com/tiobeweb/TICS/')
+        curl --silent --show-error "https://canonical.tiobe.com/tiobeweb/TICS/api/public/v1/fapi/installtics/Script?cfg=default&platform=linux&url=https://canonical.tiobe.com/tiobeweb/TICS/" > install_tics.sh
+        . ./install_tics.sh
 
         TICSQServer -project snapd -tmpdir /tmp/tics -branchdir ${{ github.workspace }}/src/github.com/snapcore/snapd
-        tar -cvzf tics-logs.tar.gz /tmp/tics
-        mv tics-logs.tar.gz ../../
 
     - name: Uploading TICS logs
       uses: actions/upload-artifact@v4
