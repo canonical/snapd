@@ -766,6 +766,23 @@ func (s *noticesSuite) TestAvoidTwoNoticesWithSameDateTime(c *C) {
 	c.Assert(state.CompareDates(notice4b.GetLastOccurred(), notice3b.GetLastOccurred()), Equals, 1)
 }
 
+func (s *noticesSuite) TestCompareDates(c *C) {
+	testDate0 := time.Date(2024, time.April, 11, 11, 24, 5, 40, time.UTC)
+	testDate1 := time.Date(2024, time.April, 11, 11, 24, 5, 40, time.UTC)
+	testDate2 := time.Date(2023, time.May, 12, 12, 25, 6, 41, time.UTC)
+	testDate3 := time.Date(2025, time.April, 10, 10, 23, 4, 30, time.UTC)
+	testDate4 := time.Date(2024, time.April, 11, 11, 24, 5, 40, time.UTC)
+	testDate5 := time.Date(2024, time.March, 10, 10, 23, 4, 30, time.UTC)
+	testDate6 := time.Date(2024, time.May, 12, 12, 25, 6, 41, time.UTC)
+
+	c.Assert(state.CompareDates(testDate0, testDate1), Equals, 0)
+	c.Assert(state.CompareDates(testDate0, testDate2), Equals, 1)
+	c.Assert(state.CompareDates(testDate0, testDate3), Equals, -1)
+	c.Assert(state.CompareDates(testDate4, testDate5), Equals, 1)
+	c.Assert(state.CompareDates(testDate4, testDate6), Equals, -1)
+
+}
+
 // noticeToMap converts a Notice to a map using a JSON marshal-unmarshal round trip.
 func noticeToMap(c *C, notice *state.Notice) map[string]any {
 	buf, err := json.Marshal(notice)
