@@ -87,6 +87,13 @@ func buildConfinementOptions(st *state.State, snapInfo *snap.Info, flags snapsta
 		return interfaces.ConfinementOptions{}, fmt.Errorf("cannot get extra mount layouts of snap %q: %s", snapInfo.InstanceName(), err)
 	}
 
+	if usePromptPrefix == nil {
+		// Get a usePromptPrefix closure which will use the "use-prompt-prefix"
+		// value from the given task, if it exists, or check the current state
+		// as to whether prompting is supported and enabled.
+		usePromptPrefix = buildDefaultUsePromptPrefixFunc(st)
+	}
+
 	return interfaces.ConfinementOptions{
 		DevMode:           flags.DevMode,
 		JailMode:          flags.JailMode,
@@ -94,6 +101,29 @@ func buildConfinementOptions(st *state.State, snapInfo *snap.Info, flags snapsta
 		ExtraLayouts:      extraLayouts,
 		AppArmorPrompting: usePromptPrefix(task),
 	}, nil
+}
+
+func buildDefaultUsePromptPrefixFunc(st *state.State) func(t *state.Task) bool {
+	// If not passed a task, or passed a task with no "use-prompt-prefix" set,
+	// use the default value according to the current state.
+	defaultUsePromptPrefixValue := shouldUsePromptPrefix(st)
+	usePromptPrefix := func(task *state.Task) bool {
+		if task != nil {
+			if task.Has("use-prompt-prefix") {
+				var taskUsePromptPrefixValue bool
+				// If the task hase "use-prompt-prefix" set, use that value
+				// instead of the default value.
+				if err := task.Get("use-prompt-prefix", &taskUsePromptPrefixValue); err == nil {
+					return taskUsePromptPrefixValue
+				}
+			}
+			// If passed a task with no "use-prompt-prefix" value given, set it
+			// to the default value, in case it is used elsewhere in the future.
+			task.Set("use-prompt-prefix", &defaultUsePromptPrefixValue)
+		}
+		return defaultUsePromptPrefixValue
+	}
+	return usePromptPrefix
 }
 
 func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap string, affectedSnaps []string, tm timings.Measurer) error {
@@ -120,7 +150,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 
 		appSet := interfaces.NewSnapAppSet(affectedSnapInfo)
 
-		opts, err := buildConfinementOptions(st, affectedSnapInfo, snapst.Flags, nil)
+		opts, err := buildConfinementOptions(st, affectedSnapInfo, snapst.Flags, nil, task)
 		if err != nil {
 			return err
 		}
@@ -166,7 +196,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return nil
 	}
 
-	opts, err := buildConfinementOptions(task.State(), snapInfo, snapsup.Flags, nil)
+	opts, err := buildConfinementOptions(task.State(), snapInfo, snapsup.Flags, nil, task)
 	if err != nil {
 		return err
 	}
@@ -287,7 +317,7 @@ func (m *InterfaceManager) setupProfilesForSnap(task *state.Task, _ *tomb.Tomb, 
 		if err := addImplicitSlots(st, snapInfo); err != nil {
 			return err
 		}
-		opts, err := buildConfinementOptions(st, snapInfo, snapst.Flags, nil)
+		opts, err := buildConfinementOptions(st, snapInfo, snapst.Flags, nil, task)
 		if err != nil {
 			return err
 		}
@@ -389,7 +419,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		if err != nil {
 			return err
 		}
-		opts, err := buildConfinementOptions(task.State(), snapInfo, snapst.Flags, nil)
+		opts, err := buildConfinementOptions(task.State(), snapInfo, snapst.Flags, nil, task)
 		if err != nil {
 			return err
 		}
@@ -607,7 +637,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 		if err != nil {
 			return err
 		}
-		slotOpts, err := buildConfinementOptions(st, slotSnapInfo, slotSnapst.Flags, nil)
+		slotOpts, err := buildConfinementOptions(st, slotSnapInfo, slotSnapst.Flags, nil, task)
 		if err != nil {
 			return err
 		}
@@ -619,7 +649,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 		if err != nil {
 			return err
 		}
-		plugOpts, err := buildConfinementOptions(st, plugSnapInfo, plugSnapst.Flags, nil)
+		plugOpts, err := buildConfinementOptions(st, plugSnapInfo, plugSnapst.Flags, nil, task)
 		if err != nil {
 			return err
 		}
@@ -728,7 +758,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		// SnapState.CurrentAppSet()?
 		appSet := interfaces.NewSnapAppSet(snapInfo)
 
-		opts, err := buildConfinementOptions(st, snapInfo, snapst.Flags, nil)
+		opts, err := buildConfinementOptions(st, snapInfo, snapst.Flags, nil, task)
 		if err != nil {
 			return err
 		}
@@ -845,7 +875,7 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	if err != nil {
 		return err
 	}
-	slotOpts, err := buildConfinementOptions(st, slotSnapInfo, slotSnapst.Flags, nil)
+	slotOpts, err := buildConfinementOptions(st, slotSnapInfo, slotSnapst.Flags, nil, task)
 	if err != nil {
 		return err
 	}
@@ -857,7 +887,7 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	if err != nil {
 		return err
 	}
-	plugOpts, err := buildConfinementOptions(st, plugSnapInfo, plugSnapst.Flags, nil)
+	plugOpts, err := buildConfinementOptions(st, plugSnapInfo, plugSnapst.Flags, nil, task)
 	if err != nil {
 		return err
 	}
@@ -947,7 +977,7 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	slotOpts, err := buildConfinementOptions(st, slotSnapInfo, slotSnapst.Flags, nil)
+	slotOpts, err := buildConfinementOptions(st, slotSnapInfo, slotSnapst.Flags, nil, task)
 	if err != nil {
 		return err
 	}
@@ -959,7 +989,7 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	plugOpts, err := buildConfinementOptions(st, plugSnapInfo, plugSnapst.Flags, nil)
+	plugOpts, err := buildConfinementOptions(st, plugSnapInfo, plugSnapst.Flags, nil, task)
 	if err != nil {
 		return err
 	}
@@ -1962,14 +1992,15 @@ func (m *InterfaceManager) doHotplugSeqWait(task *state.Task, _ *tomb.Tomb) erro
 	return nil
 }
 
-func (m *InterfaceManager) doRegenerateAllSecurityProfiles(task *state.Task, _ *tomb.Tomb) error {
-	// XXX: this will make snapd unusable for a long time :(
-	st := task.State()
-	st.Lock()
-	defer st.Unlock()
-
-	perfTimings := state.TimingsForTask(task)
-	defer perfTimings.Save(task.State())
-
-	return m.regenerateAllSecurityProfiles(perfTimings, task)
-}
+// XXX: Instead, create task for each snap, and embed whether prompting is enabled in the task.
+//func (m *InterfaceManager) doRegenerateAllSecurityProfiles(task *state.Task, _ *tomb.Tomb) error {
+//	// XXX: this will make snapd unusable for a long time :(
+//	st := task.State()
+//	st.Lock()
+//	defer st.Unlock()
+//
+//	perfTimings := state.TimingsForTask(task)
+//	defer perfTimings.Save(task.State())
+//
+//	return m.regenerateAllSecurityProfiles(perfTimings, task)
+//}

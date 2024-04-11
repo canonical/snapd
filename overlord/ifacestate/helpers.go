@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,6 +30,8 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/policy"
@@ -37,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/schema"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -163,10 +166,11 @@ func snapdAppArmorServiceIsDisabledImpl() bool {
 
 // regenerateAllSecurityProfiles will regenerate all security profiles.
 func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, usePromptPrefix func(task *state.Task) bool) error {
-	// XXX: task is not accessible here, nor is change.
-	// XXX: Where should tasks be added for each snap? Seems like it must be here?
-	// XXX: But this is the handler for tasks of that type, so it should be called
-	// on the regenerate profiles task for a particular snap.
+	if usePromptPrefix == nil {
+		// Create common usePromptPrefix function so all profiles share the
+		// same value as to whether to use prompt prefix.
+		usePromptPrefix = buildDefaultUsePromptPrefixFunc(m.state)
+	}
 
 	// Get all the security backends
 	securityBackends := m.repo.Backends()
@@ -200,29 +204,6 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, us
 	shouldWriteSystemKey := true
 	os.Remove(dirs.SnapSystemKeyFile)
 
-	// I think we need to pass in a usePromptPrefix bool to buildConfinementOptions
-	// rather than a task, since in the ifacemgr.StartUp() use case, there is
-	// no task, but we still want to generate profiles with prompting if
-	// prompting is supported and enabled.
-	// Or we could create a dummy task, but that seems not ideal.
-	// But there is no transaction here to easily get the config state of the
-	// experimental.apparmor-prompting flag.
-
-	usePromptPrefix := func(task *state.Task) {
-		if task == nil {
-			return false
-		}
-		var usePromptPrefix bool
-		task.Get("use-prompt-prefix", &usePromptPrefix)
-		// If "use-prompt-prefix" unset, includePromptPrefix remains false.
-		//
-		// XXX:
-		// But if unset (as is the case in most calls to buildConfinementOptions),
-		// will prompt profiles be overwritten with profiles which do not have
-		// prompt prefixes? Or is buildConfinementOptions only used to build
-		// profiles when a task with "use-prompt-prefix" set is passed in?
-	}
-
 	confinementOpts := func(snapName string) interfaces.ConfinementOptions {
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(m.state, snapName, &snapst); err != nil {
@@ -234,7 +215,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, us
 			logger.Noticef("cannot get current info for snap %q: %s", snapName, err)
 			return interfaces.ConfinementOptions{}
 		}
-		opts, err := buildConfinementOptions(m.state, snapInfo, snapst.Flags, usePromptPrefix, task)
+		opts, err := buildConfinementOptions(m.state, snapInfo, snapst.Flags, usePromptPrefix, nil)
 		if err != nil {
 			logger.Noticef("cannot get confinement options for snap %q: %s", snapName, err)
 		}
@@ -261,6 +242,37 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, us
 		}
 	}
 	return nil
+}
+
+// shouldUsePromptPrefix returns true if prompting is supported and enabled.
+func shouldUsePromptPrefix(st *state.State) bool {
+	tr := config.NewTransaction(st)
+	usePromptPrefix, _ := features.Flag(tr, features.AppArmorPrompting)
+	if usePromptPrefix {
+		usePromptPrefix = features.AppArmorPrompting.IsSupported()
+	}
+	return usePromptPrefix
+}
+
+func CreateSnapSetupProfilesTasks(st *state.State) ([]*state.Task, error) {
+	snaps, err := snapsWithSecurityProfiles(st)
+	if err != nil {
+		return nil, err
+	}
+
+	tasks := make([]*state.Task, len(snaps))
+
+	for i, snapInfo := range snaps {
+		t := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Regenerate snap %q (%s) security profiles due to change in prompting"), snapInfo.SnapName(), snapInfo.Revision))
+		t.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: snapInfo.SnapName(),
+				Revision: snapInfo.Revision,
+			},
+		})
+		tasks[i] = t
+	}
+	return tasks, nil
 }
 
 // renameCorePlugConnection renames one connection from "core-support" plug to

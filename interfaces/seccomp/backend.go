@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2018 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -239,7 +239,7 @@ func parallelCompile(compiler Compiler, profiles []string) error {
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
 	snapName := appSet.InstanceName()
 	// Get the snippets that apply to this snap
-	spec, err := repo.SnapSpecification(b.Name(), appSet)
+	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
 		return fmt.Errorf("cannot obtain seccomp specification for snap %q: %s", snapName, err)
 	}
@@ -384,7 +384,7 @@ func generateContent(opts interfaces.ConfinementOptions, snippetForTag string, a
 }
 
 // NewSpecification returns an empty seccomp specification.
-func (b *Backend) NewSpecification(appSet *interfaces.SnapAppSet) interfaces.Specification {
+func (b *Backend) NewSpecification(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions) interfaces.Specification {
 	return &Specification{appSet: appSet}
 }
 

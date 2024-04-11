@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -113,7 +113,7 @@ type SecurityBackend interface {
 	Remove(snapName string) error
 
 	// NewSpecification returns a new specification associated with this backend.
-	NewSpecification(*SnapAppSet) Specification
+	NewSpecification(*SnapAppSet, ConfinementOptions) Specification
 
 	// SandboxFeatures returns a list of tags that identify sandbox features.
 	SandboxFeatures() []string

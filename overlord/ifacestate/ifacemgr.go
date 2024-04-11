@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -115,7 +115,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	addHandler("transition-ubuntu-core", m.doTransitionUbuntuCore, m.undoTransitionUbuntuCore)
 
 	// helper for apparmor prompting backend
-	addHandler("regenerate-all-security-profiles", m.doRegenerateAllSecurityProfiles, nil)
+	//addHandler("regenerate-all-security-profiles", m.doRegenerateAllSecurityProfiles, nil)
+	// XXX: Instead, create task for each snap, and embed whether prompting is enabled in the task.
 
 	// interface tasks might touch more than the immediate task target snap, serialize them
 	runner.AddBlocked(func(t *state.Task, running []*state.Task) bool {
@@ -173,15 +174,7 @@ func (m *InterfaceManager) StartUp() error {
 		return err
 	}
 	if profilesNeedRegeneration() {
-		tr := state.NewTransaction()
-		doPrompting, _ := features.Flag(tr, features.AppArmorPrompting)
-		if doPrompting {
-			doPrompting, _ = features.AppArmorPrompting.IsSupported()
-		}
-		usePromptPrefix := func() bool {
-			return doPrompting
-		}
-		if err := m.regenerateAllSecurityProfiles(perfTimings, usePrompting); err != nil {
+		if err := m.regenerateAllSecurityProfiles(perfTimings, nil); err != nil {
 			return err
 		}
 	}

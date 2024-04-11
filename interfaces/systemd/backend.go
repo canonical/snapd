@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2021 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -65,7 +65,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, confinement interfaces.Co
 	// Record all the extra systemd services for this snap.
 	snapName := appSet.InstanceName()
 	// Get the services that apply to this snap
-	spec, err := repo.SnapSpecification(b.Name(), appSet)
+	spec, err := repo.SnapSpecification(b.Name(), appSet, confinement)
 	if err != nil {
 		return fmt.Errorf("cannot obtain systemd services for snap %q: %s", snapName, err)
 	}
@@ -155,7 +155,7 @@ func (b *Backend) Remove(snapName string) error {
 }
 
 // NewSpecification returns a new systemd specification.
-func (b *Backend) NewSpecification(*interfaces.SnapAppSet) interfaces.Specification {
+func (b *Backend) NewSpecification(*interfaces.SnapAppSet, interfaces.ConfinementOptions) interfaces.Specification {
 	return &Specification{}
 }
 

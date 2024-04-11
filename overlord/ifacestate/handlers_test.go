@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -132,7 +132,7 @@ func (s *handlersSuite) TestBuildConfinementOptions(c *C) {
 
 	snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
 	flags := snapstate.Flags{}
-	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{}, nil)
+	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{}, nil, nil)
 
 	c.Check(err, IsNil)
 	c.Check(len(opts.ExtraLayouts), Equals, 0)
@@ -151,7 +151,7 @@ func (s *handlersSuite) TestBuildConfinementOptionsWithTask(c *C) {
 
 	snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
 	flags := snapstate.Flags{}
-	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{}, task)
+	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{}, nil, task)
 
 	c.Check(err, IsNil)
 	c.Check(len(opts.ExtraLayouts), Equals, 0)
@@ -162,7 +162,7 @@ func (s *handlersSuite) TestBuildConfinementOptionsWithTask(c *C) {
 
 	task.Set("use-prompt-prefix", false)
 
-	opts, err = ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{}, task)
+	opts, err = ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{}, nil, task)
 
 	c.Check(err, IsNil)
 	c.Check(len(opts.ExtraLayouts), Equals, 0)
@@ -189,7 +189,7 @@ func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {
 	c.Assert(err, IsNil)
 
 	flags := snapstate.Flags{}
-	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{}, nil)
+	opts, err := ifacestate.BuildConfinementOptions(s.st, snapInfo, snapstate.Flags{}, nil, nil)
 
 	c.Check(err, IsNil)
 	c.Assert(len(opts.ExtraLayouts), Equals, 1)
