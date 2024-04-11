@@ -2313,6 +2313,14 @@ func (*aspectSuite) TestAspectInvalidMapKeys(c *C) {
 			value:      []interface{}{map[string]interface{}{"foo": 2}, map[string]interface{}{"bar-": 2}},
 			invalidKey: "bar-",
 		},
+		{
+			value:      []interface{}{nil, map[string]interface{}{"bar-": 2}},
+			invalidKey: "bar-",
+		},
+		{
+			value:      map[string]interface{}{"foo": nil, "bar": map[string]interface{}{"-baz": 2}},
+			invalidKey: "-baz",
+		},
 	}
 
 	for _, tc := range tcs {
@@ -2427,4 +2435,36 @@ func (s *aspectSuite) TestSetWithNilAndNonNilLeaves(c *C) {
 	c.Assert(value, DeepEquals, map[string]interface{}{
 		"c": "value",
 	})
+}
+
+func (*aspectSuite) TestSetEnforcesNestednessLimit(c *C) {
+	restore := aspects.MockMaxValueDepth(2)
+	defer restore()
+
+	bundle, err := aspects.NewBundle("acc", "foo", map[string]interface{}{
+		"bar": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{
+					"request": "foo",
+					"storage": "foo",
+				},
+			},
+		},
+	}, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	databag := aspects.NewJSONDataBag()
+	asp := bundle.Aspect("bar")
+
+	err = asp.Set(databag, "foo", map[string]interface{}{
+		"bar": "baz",
+	})
+	c.Assert(err, IsNil)
+
+	err = asp.Set(databag, "foo", map[string]interface{}{
+		"bar": map[string]interface{}{
+			"baz": "value",
+		},
+	})
+	c.Assert(err, ErrorMatches, `cannot set "foo" in aspect acc/foo/bar: value cannot have more than 2 nested levels`)
 }
