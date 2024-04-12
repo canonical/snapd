@@ -629,11 +629,23 @@ func createKModsComps(c *C, idx, num int, ksnap string, kernRev snap.Revision) [
 		compName := "comp" + idxStr
 		compRev := snap.R((idx+i)*10 + idx)
 		compDir := filepath.Join(dirs.SnapMountDir,
-			ksnap, "components", kernRev.String(), compName)
+			ksnap, "components", "mnt", compName, compRev.String())
 		modsDir := filepath.Join(compDir, "modules/6.5.4-3-generic")
 		c.Assert(os.MkdirAll(modsDir, 0755), IsNil)
 		c.Assert(os.WriteFile(filepath.Join(modsDir, "foo.ko"),
 			[]byte{}, 0644), IsNil)
+
+		// Link that marks it as active
+		snapCompForRevDir := filepath.Join(dirs.SnapMountDir,
+			ksnap, "components", kernRev.String())
+		c.Assert(os.MkdirAll(snapCompForRevDir, 0755), IsNil)
+		linkPath := filepath.Join(snapCompForRevDir, compName)
+		// Might have a link for a previous component revision
+		err := os.Remove(linkPath)
+		if err != nil && !os.IsNotExist(err) {
+			c.Error(err)
+		}
+		c.Assert(os.Symlink(compDir, linkPath), IsNil)
 
 		comps[i] = snap.NewComponentSideInfo(
 			naming.NewComponentRef(ksnap, compName), compRev)
@@ -715,8 +727,8 @@ func checkInstalled(c *C, installed []*snap.ComponentSideInfo, ksnap string, ker
 		dest, err := os.Readlink(treedir)
 		c.Assert(err, IsNil)
 		expected := filepath.Join(dirs.SnapMountDir,
-			ksnap, "components", kernRev.String(),
-			csi.Component.ComponentName, "modules/6.5.4-3-generic")
+			ksnap, "components", "mnt", csi.Component.ComponentName,
+			csi.Revision.String(), "modules/6.5.4-3-generic")
 		c.Assert(dest, Equals, expected)
 
 		c.Assert(osutil.FileExists(filepath.Join(treedir, "foo.ko")), Equals, true)
@@ -736,8 +748,7 @@ func checkRemoved(c *C, removed []*snap.ComponentSideInfo, ksnap string, kernRev
 			revLink := filepath.Join(dirs.SnapMountDir,
 				ksnap, "components", kernRev.String(),
 				csi.Component.ComponentName, "modules/6.5.4-3-generic")
-			// TODO change to "false" when we have links for components
-			c.Assert(dest == revLink, Equals, true)
+			c.Assert(dest == revLink, Equals, false)
 		}
 	}
 }

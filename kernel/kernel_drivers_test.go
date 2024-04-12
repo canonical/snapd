@@ -418,8 +418,8 @@ func testBuildKernelDriversTreeWithComps(c *C, opts *kernel.KernelDriversTreeOpt
 	kversion := "5.15.0-78-generic"
 	createKernelSnapFiles(c, kversion, mountDir)
 
-	compMntDir1 := filepath.Join(dirs.SnapMountDir, "pc-kernel/components/1/comp1")
-	compMntDir2 := filepath.Join(dirs.SnapMountDir, "pc-kernel/components/1/comp2")
+	compMntDir1 := filepath.Join(dirs.SnapMountDir, "pc-kernel/components/mnt/comp1/11")
+	compMntDir2 := filepath.Join(dirs.SnapMountDir, "pc-kernel/components/mnt/comp2/22")
 	createKernelModulesCompFiles(c, kversion, compMntDir1, "comp1")
 	createKernelModulesCompFiles(c, kversion, compMntDir2, "comp2")
 	kmods := []*snap.ComponentSideInfo{
