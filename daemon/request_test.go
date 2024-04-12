@@ -30,7 +30,7 @@ type requestSuite struct{}
 
 var _ = check.Suite(&requestSuite{})
 
-func (s *requestSuite) TestParseDateHasNanosecondPrecision(c *check.C) {
+func (s *requestSuite) TestParseOptionalTimeHasNanosecondPrecision(c *check.C) {
 	oDateTime := time.Date(2024, time.April, 11, 15, 5, 3, 123456789, time.UTC).Format(time.RFC3339Nano)
 	dateTime, err := daemon.ParseOptionalTime(oDateTime)
 	c.Assert(err, check.IsNil)
