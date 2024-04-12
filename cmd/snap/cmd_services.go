@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/snap"
 )
 
 type svcStatus struct {
@@ -96,9 +95,9 @@ func init() {
 	}}
 	addCommand("services", shortServicesHelp, longServicesHelp, func() flags.Commander { return &svcStatus{} }, map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
-		"global": i18n.G("Show the global enable status for user-services instead of the status for the current user."),
+		"global": i18n.G("Show the global enable status for user services instead of the status for the current user."),
 		// TRANSLATORS: This should not start with a lowercase letter.
-		"user": i18n.G("Show the current status of the user-services instead of the global enable status."),
+		"user": i18n.G("Show the current status of the user services instead of the global enable status."),
 	}, argdescs)
 	addCommand("logs", shortLogsHelp, longLogsHelp, func() flags.Commander { return &svcLogs{} },
 		timeDescs.also(map[string]string{
@@ -131,24 +130,6 @@ func svcNames(s []serviceName) []string {
 		svcNames[i] = string(svcName)
 	}
 	return svcNames
-}
-
-func fmtServiceStatus(svc *client.AppInfo, isGlobal bool) string {
-	startup := i18n.G("disabled")
-	if svc.Enabled {
-		startup = i18n.G("enabled")
-	}
-
-	// When requesting global service status, we don't have any active
-	// information available for user daemons.
-	current := i18n.G("inactive")
-	if svc.DaemonScope == snap.UserDaemon && isGlobal {
-		current = "-"
-	} else if svc.Active {
-		current = i18n.G("active")
-	}
-
-	return fmt.Sprintf("%s.%s\t%s\t%s\t%s", svc.Snap, svc.Name, startup, current, clientutil.ClientAppInfoNotes(svc))
 }
 
 func (s *svcStatus) showGlobalEnablement(u *user.User) bool {
@@ -201,7 +182,7 @@ func (s *svcStatus) Execute(args []string) error {
 
 	fmt.Fprintln(w, i18n.G("Service\tStartup\tCurrent\tNotes"))
 	for _, svc := range services {
-		fmt.Fprintln(w, fmtServiceStatus(svc, isGlobal))
+		fmt.Fprintln(w, clientutil.FmtServiceStatus(svc, isGlobal))
 	}
 	return nil
 }
