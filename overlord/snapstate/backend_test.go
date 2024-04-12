@@ -181,7 +181,18 @@ type fakeStore struct {
 	state           *state.State
 	seenPrivacyKeys map[string]bool
 
+	// snapResources is called for each snap that gets returned by SnapAction,
+	// it should return the resources that the snap should have.
+	snapResourcesFn func(*snap.Info) []store.SnapResourceResult
+
 	downloadCallback func()
+}
+
+func (f *fakeStore) snapResources(info *snap.Info) []store.SnapResourceResult {
+	if f.snapResourcesFn == nil {
+		return nil
+	}
+	return f.snapResourcesFn(info)
 }
 
 func (f *fakeStore) pokeStateLock() {
@@ -647,7 +658,10 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 				info.Channel = ""
 			}
 			info.InstanceKey = instanceKey
-			sar := store.SnapActionResult{Info: info}
+			sar := store.SnapActionResult{
+				Info:      info,
+				Resources: f.snapResources(info),
+			}
 			if strings.HasSuffix(snapName, "-with-default-track") && strutil.ListContains([]string{"stable", "candidate", "beta", "edge"}, a.Channel) {
 				sar.RedirectChannel = "2.0/" + a.Channel
 			}
@@ -704,7 +718,10 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			info.Channel = ""
 		}
 		info.InstanceKey = instanceKey
-		res = append(res, store.SnapActionResult{Info: info})
+		res = append(res, store.SnapActionResult{
+			Info:      info,
+			Resources: f.snapResources(info),
+		})
 	}
 
 	if len(refreshErrors)+len(installErrors)+len(downloadErrors) > 0 || len(res) == 0 {
