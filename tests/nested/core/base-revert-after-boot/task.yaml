@@ -14,8 +14,8 @@ execute: |
   if [ "$VERSION" -eq 16 ]; then
       base=core
   fi
-  rm -rf "$base"  
-  snap download --basename="$base" "$base"
+  snap download --basename="$base" --channel="$NESTED_CORE_CHANNEL" "$base"
+
   unsquashfs -d "$base" "$base".snap
   HOOKS_D=$base/meta/hooks/
   POST_REFRESH_P=$HOOKS_D/post-refresh
