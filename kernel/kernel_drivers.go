@@ -175,7 +175,7 @@ func setupModsFromComp(kernelTree, kversion, kname string, krev snap.Revision, c
 	// Symbolic links to components
 	for _, ci := range compInfos {
 		compPI := snap.MinimalComponentContainerPlaceInfo(ci.Component.ComponentName,
-			ci.Revision, kname, krev)
+			ci.Revision, kname)
 		lname := filepath.Join(compsRoot, ci.Component.ComponentName)
 		to := filepath.Join(compPI.MountDir(), "modules", kversion)
 		if err := osSymlink(to, lname); err != nil {
@@ -282,7 +282,7 @@ func EnsureKernelDriversTree(ksnapName string, rev snap.Revision, kernelMount st
 	}
 	for _, kmi := range kmodsInfos {
 		compPI := snap.MinimalComponentContainerPlaceInfo(kmi.Component.ComponentName,
-			kmi.Revision, ksnapName, rev)
+			kmi.Revision, ksnapName)
 		if err := createFirmwareSymlinks(compPI.MountDir(), updateFwDir); err != nil {
 			return err
 		}
