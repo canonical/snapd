@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/timings"
 	"gopkg.in/tomb.v2"
 )
@@ -126,6 +127,85 @@ func (m *SnapManager) doPrepareComponent(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	t.Set("component-setup", compSetup)
+	return nil
+}
+
+func (m *SnapManager) doDownloadComponent(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	compsup, snapsup, err := TaskComponentSetup(t)
+	if err != nil {
+		return err
+	}
+
+	if compsup.CompPath != "" {
+		return fmt.Errorf("internal error: cannot download component %q that specifies a local file path", compsup.ComponentName())
+	}
+
+	if compsup.DownloadInfo == nil {
+		return fmt.Errorf("internal error: cannot download component %q that does not specify download information", compsup.ComponentName())
+	}
+
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return err
+	}
+
+	// TODO: actually get the user ID here, like in doDownloadSnap, and do
+	// something with it. this will require some plumbing
+	const userID = 0
+	user, err := userFromUserID(st, userID)
+	if err != nil {
+		return fmt.Errorf("cannot get user for user ID %d: %w", userID, err)
+	}
+
+	var rate int64
+	if snapsup.IsAutoRefresh {
+		rate = autoRefreshRateLimited(st)
+	}
+
+	cpi := snap.MinimalComponentContainerPlaceInfo(
+		compsup.ComponentName(), compsup.CompSideInfo.Revision,
+		snapsup.InstanceName(),
+	)
+
+	// TODO: to be consistent with snaps, this should be able to point somewhere
+	// else, based on a path that is in the compsup. this would be used for
+	// creating new recovery systems, like it is now for snaps
+	target := cpi.MountFile()
+
+	sto := Store(st, deviceCtx)
+	meter := NewTaskProgressAdapterUnlocked(t)
+	perf := state.TimingsForTask(t)
+
+	st.Unlock()
+	timings.Run(perf, "download", fmt.Sprintf("download component %q", compsup.ComponentName()), func(timings.Measurer) {
+		err = sto.Download(
+			tomb.Context(nil),
+			compsup.CompSideInfo.Component.String(),
+			target,
+			compsup.DownloadInfo,
+			meter,
+			user,
+			&store.DownloadOptions{
+				Scheduled: snapsup.IsAutoRefresh,
+				RateLimit: rate,
+			},
+		)
+	})
+	st.Lock()
+	if err != nil {
+		return fmt.Errorf("cannot download component %q: %w", compsup.ComponentName(), err)
+	}
+
+	// update component path for all the future tasks
+	compsup.CompPath = target
+	t.Set("component-setup", compsup)
+
+	perf.Save(st)
+
 	return nil
 }
 
