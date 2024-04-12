@@ -4,7 +4,7 @@ show_help() {
     echo "usage: os.query is-core, is-classic"
     echo "       os.query is-core16, is-core18, is-core20, is-core22, is-core24"
     echo "       os.query is-core-gt, is-core-ge, is-core-lt, is-core-le"
-    echo "       os.query is-trusty, is-xenial, is-bionic, is-focal, is-jammy"
+    echo "       os.query is-trusty, is-xenial, is-bionic, is-focal, is-jammy, is-noble"
     echo "       os.query is-ubuntu [ID], is-debian [ID], is-fedora [ID], is-amazon-linux [ID], is-arch-linux, is-centos [ID], is-opensuse [ID]"
     echo "       os.query is-ubuntu-gt [ID], is-ubuntu-ge [ID], is-ubuntu-lt [ID], is-ubuntu-le [ID]"
     echo "       os.query is-pc-amd64, is-pc-i386, is-arm, is-armhf, is-arm64, is-s390x"
@@ -73,19 +73,59 @@ is_core24() {
 }
 
 is_core_gt() {
-    compare_ubuntu "${1:-}" "-gt"
+    local VERSION=$1
+    if [ -z "$VERSION" ]; then
+        echo "os.query: version id is expected"
+        exit 1
+    fi
+
+    # While ubuntu classic image is used to build a core image
+    if ! grep -qFx 'ID=ubuntu-core' /etc/os-release; then
+        VERSION="${VERSION}.04"
+    fi
+    compare_ubuntu "$VERSION" "-gt"
 }
 
 is_core_ge() {
-    compare_ubuntu "${1:-}" "-ge"
+    local VERSION=$1
+    if [ -z "$VERSION" ]; then
+        echo "os.query: version id is expected"
+        exit 1
+    fi
+
+    # While ubuntu classic image is used to build a core image
+    if ! grep -qFx 'ID=ubuntu-core' /etc/os-release; then
+        VERSION="${VERSION}.04"
+    fi
+    compare_ubuntu "$VERSION" "-ge"
 }
 
 is_core_lt() {
-    compare_ubuntu "${1:-}" "-lt"
+    local VERSION=$1
+    if [ -z "$VERSION" ]; then
+        echo "os.query: version id is expected"
+        exit 1
+    fi
+
+    # While ubuntu classic image is used to build a core image
+    if ! grep -qFx 'ID=ubuntu-core' /etc/os-release; then
+        VERSION="${VERSION}.04"
+    fi
+    compare_ubuntu "$VERSION" "-lt"
 }
 
 is_core_le() {
-    compare_ubuntu "${1:-}" "-le"
+    local VERSION=$1
+    if [ -z "$VERSION" ]; then
+        echo "os.query: version id is expected"
+        exit 1
+    fi
+
+    # This case is when ubuntu classic image is used to build a core image
+    if ! grep -qFx 'ID=ubuntu-core' /etc/os-release; then
+        VERSION="${VERSION}.04"
+    fi
+    compare_ubuntu "$VERSION" "-le"
 }
 
 is_classic() {
@@ -110,6 +150,10 @@ is_focal() {
 
 is_jammy() {
     grep -qFx 'UBUNTU_CODENAME=jammy' /etc/os-release
+}
+
+is_noble() {
+    grep -qFx 'UBUNTU_CODENAME=noble' /etc/os-release
 }
 
 is_ubuntu() {
@@ -167,7 +211,6 @@ compare_ubuntu() {
 
     test "$SYS_VERSION" "$OPERAND" "$NUM_VERSION"
 }
-
 
 is_debian() {
     VERSION=$1

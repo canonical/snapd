@@ -350,6 +350,16 @@ static void test_sc_instance_name_validate(void)
 			"snap instance name can contain only one underscore");
 	sc_error_free(err);
 
+	// too long, 52
+	sc_instance_name_validate
+	    ("0123456789012345678901234567890123456789012345678901", &err);
+	g_assert_nonnull(err);
+	g_assert_true(sc_error_match
+		      (err, SC_SNAP_DOMAIN, SC_SNAP_INVALID_INSTANCE_NAME));
+	g_assert_cmpstr(sc_error_msg(err), ==,
+			"snap instance name can be at most 51 characters long");
+	sc_error_free(err);
+
 	const char *valid_names[] = {
 		"aa", "aaa", "aaaa",
 		"aa_a", "aa_1", "aa_123", "aa_0123456789",

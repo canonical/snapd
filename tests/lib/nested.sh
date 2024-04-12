@@ -400,6 +400,13 @@ nested_secboot_sign_gadget() {
     nested_secboot_sign_file "$GADGET_DIR/shim.efi.signed" "$KEY" "$CERT"
 }
 
+nested_secboot_sign_kernel() {
+    local KERNEL_DIR="$1"
+    local KEY="$2"
+    local CERT="$3"
+    nested_secboot_sign_file "$KERNEL_DIR/kernel.efi" "$KEY" "$CERT"
+}
+
 nested_prepare_env() {
     mkdir -p "$NESTED_IMAGES_DIR"
     mkdir -p "$NESTED_RUNTIME_DIR"
@@ -1639,4 +1646,26 @@ nested_wait_for_device_initialized_change() {
         fi
         sleep "$wait"
     done
+}
+
+nested_check_spread_results() {
+    SPREAD_LOG=$1
+    if [ -z "$SPREAD_LOG" ]; then
+        return 1
+    fi
+
+    if grep -eq "Successful tasks:" "$SPREAD_LOG"; then
+        if grep -E "Failed (task|suite|project)" "$SPREAD_LOG"; then
+            return 1
+        fi
+        if ! grep -eq "Aborted tasks: 0" "$SPREAD_LOG"; then
+            return 1
+        fi
+
+        if [ "$EXIT_STATUS" = "0" ]; then
+            return 0
+        fi    
+    else
+        return 1
+    fi
 }

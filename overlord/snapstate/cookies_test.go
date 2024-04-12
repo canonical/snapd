@@ -23,7 +23,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -108,14 +107,14 @@ func (s *cookiesSuite) TestSyncCookies(c *C) {
 
 		cookieFile := filepath.Join(dirs.SnapCookieDir, "snap.some-snap")
 		c.Assert(osutil.FileExists(cookieFile), Equals, true)
-		data, err := ioutil.ReadFile(cookieFile)
+		data, err := os.ReadFile(cookieFile)
 		c.Assert(err, IsNil)
 		c.Assert(newCookies[string(data)], NotNil)
 		c.Assert(newCookies[string(data)], Equals, "some-snap")
 
 		cookieFile = filepath.Join(dirs.SnapCookieDir, "snap.other-snap")
 		c.Assert(osutil.FileExists(cookieFile), Equals, true)
-		data, err = ioutil.ReadFile(cookieFile)
+		data, err = os.ReadFile(cookieFile)
 		c.Assert(err, IsNil)
 		c.Assert(newCookies[string(data)], NotNil)
 		c.Assert(newCookies[string(data)], Equals, "other-snap")

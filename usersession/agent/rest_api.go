@@ -88,13 +88,7 @@ func sessionInfo(c *Command, r *http.Request) Response {
 	}
 	return SyncResponse(m)
 }
-
-type serviceInstruction struct {
-	Action   string   `json:"action"`
-	Services []string `json:"services"`
-}
-
-func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
+func serviceStart(inst *client.ServiceInstruction, sysd systemd.Systemd) Response {
 	// Refuse to start non-snap services
 	for _, service := range inst.Services {
 		if !strings.HasPrefix(service, "snap.") {
@@ -137,7 +131,7 @@ func serviceStart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 	})
 }
 
-func serviceRestart(inst *serviceInstruction, sysd systemd.Systemd) Response {
+func serviceRestart(inst *client.ServiceInstruction, sysd systemd.Systemd) Response {
 	// Refuse to restart non-snap services
 	for _, service := range inst.Services {
 		if !strings.HasPrefix(service, "snap.") {
@@ -147,8 +141,14 @@ func serviceRestart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 
 	restartErrors := make(map[string]string)
 	for _, service := range inst.Services {
-		if err := sysd.Restart([]string{service}); err != nil {
-			restartErrors[service] = err.Error()
+		if inst.Reload {
+			if err := sysd.ReloadOrRestart([]string{service}); err != nil {
+				restartErrors[service] = err.Error()
+			}
+		} else {
+			if err := sysd.Restart([]string{service}); err != nil {
+				restartErrors[service] = err.Error()
+			}
 		}
 	}
 	if len(restartErrors) == 0 {
@@ -167,37 +167,7 @@ func serviceRestart(inst *serviceInstruction, sysd systemd.Systemd) Response {
 	})
 }
 
-func serviceReloadOrRestart(inst *serviceInstruction, sysd systemd.Systemd) Response {
-	// Refuse to reload/restart non-snap services
-	for _, service := range inst.Services {
-		if !strings.HasPrefix(service, "snap.") {
-			return InternalError("cannot restart non-snap service %v", service)
-		}
-	}
-
-	restartErrors := make(map[string]string)
-	for _, service := range inst.Services {
-		if err := sysd.ReloadOrRestart([]string{service}); err != nil {
-			restartErrors[service] = err.Error()
-		}
-	}
-	if len(restartErrors) == 0 {
-		return SyncResponse(nil)
-	}
-	return SyncResponse(&resp{
-		Type:   ResponseTypeError,
-		Status: 500,
-		Result: &errorResult{
-			Message: "some user services failed to restart or reload",
-			Kind:    errorKindServiceControl,
-			Value: map[string]interface{}{
-				"restart-errors": restartErrors,
-			},
-		},
-	})
-}
-
-func serviceStop(inst *serviceInstruction, sysd systemd.Systemd) Response {
+func serviceStop(inst *client.ServiceInstruction, sysd systemd.Systemd) Response {
 	// Refuse to stop non-snap services
 	for _, service := range inst.Services {
 		if !strings.HasPrefix(service, "snap.") {
@@ -227,7 +197,7 @@ func serviceStop(inst *serviceInstruction, sysd systemd.Systemd) Response {
 	})
 }
 
-func serviceDaemonReload(inst *serviceInstruction, sysd systemd.Systemd) Response {
+func serviceDaemonReload(inst *client.ServiceInstruction, sysd systemd.Systemd) Response {
 	if len(inst.Services) != 0 {
 		return InternalError("daemon-reload should not be called with any services")
 	}
@@ -237,12 +207,11 @@ func serviceDaemonReload(inst *serviceInstruction, sysd systemd.Systemd) Respons
 	return SyncResponse(nil)
 }
 
-var serviceInstructionDispTable = map[string]func(*serviceInstruction, systemd.Systemd) Response{
-	"start":             serviceStart,
-	"stop":              serviceStop,
-	"restart":           serviceRestart,
-	"reload-or-restart": serviceReloadOrRestart,
-	"daemon-reload":     serviceDaemonReload,
+var serviceInstructionDispTable = map[string]func(*client.ServiceInstruction, systemd.Systemd) Response{
+	"start":         serviceStart,
+	"stop":          serviceStop,
+	"restart":       serviceRestart,
+	"daemon-reload": serviceDaemonReload,
 }
 
 var systemdLock sync.Mutex
@@ -276,7 +245,7 @@ func postServiceControl(c *Command, r *http.Request) Response {
 	}
 
 	decoder := json.NewDecoder(r.Body)
-	var inst serviceInstruction
+	var inst client.ServiceInstruction
 	if err := decoder.Decode(&inst); err != nil {
 		return BadRequest("cannot decode request body into service instruction: %v", err)
 	}

@@ -22,7 +22,6 @@ package bootloader
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -444,7 +443,7 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 		// this is live system, extracted bootimg needs to be flashed to
 		// free bootimg partition and env has to be updated with
 		// new kernel snap to bootimg partition mapping
-		tmpdir, err := ioutil.TempDir("", "bootimg")
+		tmpdir, err := os.MkdirTemp("", "bootimg")
 		if err != nil {
 			return fmt.Errorf("cannot create temp directory: %v", err)
 		}

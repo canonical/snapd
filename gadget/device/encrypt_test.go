@@ -20,7 +20,6 @@
 package device_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -124,7 +123,7 @@ func (s *deviceSuite) TestStampSealedKeysRunthrough(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(tc.mth, Equals, mth)
 
-		content, err := ioutil.ReadFile(filepath.Join(root, "/var/lib/snapd/device/fde/sealed-keys"))
+		content, err := os.ReadFile(filepath.Join(root, "/var/lib/snapd/device/fde/sealed-keys"))
 		c.Assert(err, IsNil)
 		c.Check(string(content), Equals, tc.expected)
 	}

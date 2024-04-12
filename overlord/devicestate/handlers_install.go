@@ -27,7 +27,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -818,7 +817,7 @@ func verifyFactoryResetMarkerInRun(marker string, hasEncryption bool) error {
 }
 
 func rotateEncryptionKeys() error {
-	kd, err := ioutil.ReadFile(filepath.Join(dirs.SnapFDEDir, "ubuntu-save.key"))
+	kd, err := os.ReadFile(filepath.Join(dirs.SnapFDEDir, "ubuntu-save.key"))
 	if err != nil {
 		return fmt.Errorf("cannot open encryption key file: %v", err)
 	}

@@ -22,7 +22,6 @@ package device
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -45,11 +44,11 @@ func HasEncryptedMarkerUnder(deviceFDEDir string) bool {
 // ReadEncryptionMarkers reads the encryption marker files at the appropriate
 // locations.
 func ReadEncryptionMarkers(dataFDEDir, saveFDEDir string) ([]byte, []byte, error) {
-	marker1, err := ioutil.ReadFile(encryptionMarkerUnder(dataFDEDir))
+	marker1, err := os.ReadFile(encryptionMarkerUnder(dataFDEDir))
 	if err != nil {
 		return nil, nil, err
 	}
-	marker2, err := ioutil.ReadFile(encryptionMarkerUnder(saveFDEDir))
+	marker2, err := os.ReadFile(encryptionMarkerUnder(saveFDEDir))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -132,7 +131,7 @@ func SealedKeysMethod(rootdir string) (sm SealingMethod, err error) {
 	// TODO:UC20: consider more than the marker for cases where we reseal
 	// outside of run mode
 	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
-	content, err := ioutil.ReadFile(stamp)
+	content, err := os.ReadFile(stamp)
 	if os.IsNotExist(err) {
 		return sm, ErrNoSealedKeys
 	}

@@ -319,6 +319,9 @@ prepare_project() {
     create_test_user
 
     distro_update_package_db
+    # XXX this should be part of the image update in spread-images
+    # remove any packages that are marked for auto removal before running any tests
+    distro_auto_remove_packages
 
     if os.query is-arch-linux; then
         # perform system upgrade on Arch so that we run with most recent kernel

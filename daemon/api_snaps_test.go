@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2022 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -69,7 +69,7 @@ func (s *snapsSuite) SetUpTest(c *check.C) {
 }
 
 func (s *snapsSuite) expectSnapsReadAccess() {
-	s.expectReadAccess(daemon.InterfaceOpenAccess{Interface: "snap-refresh-observe"})
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}})
 }
 
 func (s *snapsSuite) TestSnapsInfoIntegration(c *check.C) {
@@ -1410,10 +1410,14 @@ func (s *snapsSuite) TestSnapManyInfosReturnsRefreshInhibitProceedTime(c *check.
 		switch snap["name"] {
 		case "snap-a":
 			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
-			c.Assert(refreshInhibit["proceed-time"], check.Equals, expectedProceedTimeA.Format(time.RFC3339Nano), testCmt)
+			proceedTime, err := time.Parse(time.RFC3339Nano, refreshInhibit["proceed-time"].(string))
+			c.Assert(err, check.IsNil)
+			c.Assert(proceedTime.Equal(expectedProceedTimeA), check.Equals, true, testCmt)
 		case "snap-b":
 			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
-			c.Assert(refreshInhibit["proceed-time"], check.Equals, expectedProceedTimeB.Format(time.RFC3339Nano), testCmt)
+			proceedTime, err := time.Parse(time.RFC3339Nano, refreshInhibit["proceed-time"].(string))
+			c.Assert(err, check.IsNil)
+			c.Assert(proceedTime.Equal(expectedProceedTimeB), check.Equals, true, testCmt)
 		case "snap-c":
 			_, ok := snap["refresh-inhibit"]
 			c.Assert(ok, check.Equals, false)
@@ -1463,19 +1467,23 @@ func (s *snapsSuite) TestSnapManyInfosSelectRefreshInhibited(c *check.C) {
 
 	rsp := s.jsonReq(c, req, nil)
 	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 2)
 
 	for _, snap := range snaps {
 		testCmt := check.Commentf("snap %s failed", snap["name"])
 		switch snap["name"] {
 		case "snap-a":
 			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
-			c.Assert(refreshInhibit["proceed-time"], check.Equals, expectedProceedTimeA.Format(time.RFC3339Nano), testCmt)
+			proceedTime, err := time.Parse(time.RFC3339Nano, refreshInhibit["proceed-time"].(string))
+			c.Assert(err, check.IsNil)
+			c.Assert(proceedTime.Equal(expectedProceedTimeA), check.Equals, true, testCmt)
 		case "snap-b":
 			refreshInhibit := snap["refresh-inhibit"].(map[string]interface{})
-			c.Assert(refreshInhibit["proceed-time"], check.Equals, expectedProceedTimeB.Format(time.RFC3339Nano), testCmt)
+			proceedTime, err := time.Parse(time.RFC3339Nano, refreshInhibit["proceed-time"].(string))
+			c.Assert(err, check.IsNil)
+			c.Assert(proceedTime.Equal(expectedProceedTimeB), check.Equals, true, testCmt)
 		case "snap-c":
-			_, ok := snap["refresh-inhibit"]
-			c.Assert(ok, check.Equals, false)
+			c.Error("snap-c should not be listed")
 		}
 	}
 }

@@ -63,7 +63,7 @@ func (s *snapdSuite) SetUpTest(c *C) {
 func (s *snapdSuite) TestSyscheckFailGoesIntoDegradedMode(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
-	restore = osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	restore = osutil.MockIsHomeUsingRemoteFS(func() (bool, error) { return false, nil })
 	defer restore()
 	restore = seccomp.MockSnapSeccompVersionInfo("abcdef 1.2.3 1234abcd -")
 	defer restore()

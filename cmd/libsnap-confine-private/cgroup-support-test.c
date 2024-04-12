@@ -250,7 +250,10 @@ static void cgroupv2_own_group_set_up(cgroupv2_own_group_fixture *fixture, gcons
 
 static void cgroupv2_own_group_tear_down(cgroupv2_own_group_fixture *fixture, gconstpointer user_data) {
     sc_set_self_cgroup_path("/proc/self/cgroup");
-    g_remove(fixture->self_cgroup);
+    if (g_remove(fixture->self_cgroup) < 0) {
+        /* test may have removed the file */
+        g_assert_cmpint(errno, ==, ENOENT);
+    }
     g_free(fixture->self_cgroup);
 }
 

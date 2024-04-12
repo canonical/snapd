@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -64,7 +63,7 @@ var errNoPrevious = errors.New("no revision to go back to")
 
 func prevRevision(snapName string) (string, error) {
 	seqFile := filepath.Join(dirs.SnapSeqDir, snapName+".json")
-	content, err := ioutil.ReadFile(seqFile)
+	content, err := os.ReadFile(seqFile)
 	if os.IsNotExist(err) {
 		return "", errNoSnapd
 	}

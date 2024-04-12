@@ -21,7 +21,7 @@ package internal
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -63,7 +63,7 @@ type Options20 struct {
 func ReadOptions20(optionsFn string) (*Options20, error) {
 	errPrefix := "cannot read grade dangerous options yaml"
 
-	yamlData, err := ioutil.ReadFile(optionsFn)
+	yamlData, err := os.ReadFile(optionsFn)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %v", errPrefix, err)
 	}

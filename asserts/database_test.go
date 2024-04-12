@@ -25,7 +25,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -137,7 +136,7 @@ func (dbs *databaseSuite) TestImportKey(c *C) {
 	c.Check(info.Mode().Perm(), Equals, os.FileMode(0600)) // secret
 	// too much "clear box" testing? ok at least until we have
 	// more functionality
-	privKey, err := ioutil.ReadFile(keyPath)
+	privKey, err := os.ReadFile(keyPath)
 	c.Assert(err, IsNil)
 
 	privKeyFromDisk, err := asserts.DecodePrivateKeyInTest(privKey)

@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"sync"
@@ -269,7 +268,7 @@ func requestDeviceSession(httpClient *http.Client, deviceSessionEndpoint string,
 		if resp.StatusCode == 200 || resp.StatusCode == 202 {
 			return json.NewDecoder(resp.Body).Decode(&responseData)
 		}
-		body, _ := ioutil.ReadAll(io.LimitReader(resp.Body, 1e6)) // do our best to read the body
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1e6)) // do our best to read the body
 		return fmt.Errorf("store server returned status %d and body %q", resp.StatusCode, body)
 	})
 	if err != nil {

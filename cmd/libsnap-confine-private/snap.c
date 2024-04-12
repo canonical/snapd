@@ -115,6 +115,14 @@ void sc_instance_name_validate(const char *instance_name, sc_error **errorp)
 				  "snap instance name cannot be NULL");
 		goto out;
 	}
+
+	if (strlen(instance_name) > SNAP_INSTANCE_LEN) {
+		err =
+		    sc_error_init(SC_SNAP_DOMAIN, SC_SNAP_INVALID_INSTANCE_NAME,
+				  "snap instance name can be at most %d characters long",
+				  SNAP_INSTANCE_LEN);
+		goto out;
+	}
 	// instance name length + 1 extra overflow + 1 NULL
 	char s[SNAP_INSTANCE_LEN + 1 + 1] = { 0 };
 	strncpy(s, instance_name, sizeof(s) - 1);

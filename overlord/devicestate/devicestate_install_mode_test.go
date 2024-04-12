@@ -22,7 +22,7 @@ package devicestate_test
 import (
 	"compress/gzip"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -1111,7 +1111,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPMAndSave(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
-	marker, err := ioutil.ReadFile(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker"))
+	marker, err := os.ReadFile(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "marker"))
 	c.Assert(err, IsNil)
 	c.Check(marker, HasLen, 32)
 	c.Check(filepath.Join(boot.InstallHostFDESaveDir, "marker"), testutil.FileEquals, marker)
@@ -1514,7 +1514,7 @@ echo "mock output of: $(basename "$0") $*"
 	defer f.Close()
 	gz, err := gzip.NewReader(f)
 	c.Assert(err, IsNil)
-	content, err := ioutil.ReadAll(gz)
+	content, err := io.ReadAll(gz)
 	c.Assert(err, IsNil)
 	c.Check(string(content), Equals, `---- Output of: snap changes
 mock output of: snap changes

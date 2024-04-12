@@ -22,7 +22,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"github.com/snapcore/snapd/tests/lib/fakestore/refresh"
 )
@@ -39,7 +39,7 @@ type cmdNewRepair struct {
 func (x *cmdNewRepair) Execute(args []string) error {
 	headers := map[string]interface{}{}
 	if x.RepairJSON != "" {
-		content, err := ioutil.ReadFile(x.RepairJSON)
+		content, err := os.ReadFile(x.RepairJSON)
 		if err != nil {
 			return err
 		}

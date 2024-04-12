@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2021 Canonical Ltd
+ * Copyright (C) 2021-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -235,12 +235,14 @@ type: os
 version: 1
 slots:
   snap-themes-control:
+  snap-refresh-control:
 `)
 	s.mockSnap(c, `
 name: some-snap
 version: 1
 plugs:
   snap-themes-control:
+  snap-refresh-control:
 `)
 
 	restore := daemon.MockCgroupSnapNameFromPid(func(pid int) (string, error) {
@@ -251,7 +253,7 @@ plugs:
 	})
 	defer restore()
 
-	var ac daemon.AccessChecker = daemon.InterfaceOpenAccess{Interface: "snap-themes-control"}
+	var ac daemon.AccessChecker = daemon.InterfaceOpenAccess{Interfaces: []string{"snap-themes-control", "snap-refresh-control"}}
 
 	// Access with no ucred data is forbidden
 	c.Check(ac.CheckAccess(d, nil, nil, nil), DeepEquals, errForbidden)
@@ -290,6 +292,23 @@ plugs:
 	// Interface is attached to RemoteAddr
 	c.Check(req.RemoteAddr, Equals, fmt.Sprintf("%siface=snap-themes-control;", ucred))
 
+	// Now connect both interfaces
+	st.Lock()
+	st.Set("conns", map[string]interface{}{
+		"some-snap:snap-themes-control core:snap-themes-control": map[string]interface{}{
+			"interface": "snap-themes-control",
+		},
+		"some-snap:snap-refresh-control core:snap-refresh-control": map[string]interface{}{
+			"interface": "snap-refresh-control",
+		},
+	})
+	st.Unlock()
+	req = http.Request{RemoteAddr: ucred.String()}
+	c.Check(ac.CheckAccess(s.d, &req, ucred, nil), IsNil)
+	// Check that both interfaces are attached to RemoteAddr.
+	// Since conns is a map, order is not guaranteed.
+	c.Check(req.RemoteAddr, Matches, fmt.Sprintf("^%siface=(snap-themes-control&snap-refresh-control|snap-refresh-control&snap-themes-control);$", ucred))
+
 	// A left over "undesired" connection does not grant access
 	st.Lock()
 	st.Set("conns", map[string]interface{}{
@@ -305,12 +324,12 @@ plugs:
 }
 
 func (s *accessSuite) TestInterfaceOpenAccess(c *C) {
-	var ac daemon.AccessChecker = daemon.InterfaceOpenAccess{Interface: "snap-themes-control"}
+	var ac daemon.AccessChecker = daemon.InterfaceOpenAccess{Interfaces: []string{"snap-themes-control"}}
 
 	s.daemon(c)
 	// interfaceOpenAccess allows access if requireInterfaceApiAccess() succeeds
 	ucred := &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapSocket}
-	restore := daemon.MockRequireInterfaceApiAccess(func(d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, interfaceName string) *daemon.APIError {
+	restore := daemon.MockRequireInterfaceApiAccess(func(d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, interfaceNames []string) *daemon.APIError {
 		c.Check(d, Equals, s.d)
 		c.Check(u, Equals, ucred)
 		return nil
@@ -319,7 +338,7 @@ func (s *accessSuite) TestInterfaceOpenAccess(c *C) {
 	c.Check(ac.CheckAccess(s.d, nil, ucred, nil), IsNil)
 
 	// Access is forbidden if requireInterfaceApiAccess() fails
-	restore = daemon.MockRequireInterfaceApiAccess(func(d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, interfaceName string) *daemon.APIError {
+	restore = daemon.MockRequireInterfaceApiAccess(func(d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, interfaceNames []string) *daemon.APIError {
 		return errForbidden
 	})
 	defer restore()
@@ -342,7 +361,7 @@ func (s *accessSuite) TestInterfaceAuthenticatedAccess(c *C) {
 
 	// themesAuthenticatedAccess denies access if requireInterfaceApiAccess fails
 	ucred := &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapSocket}
-	restore = daemon.MockRequireInterfaceApiAccess(func(d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, interfaceName string) *daemon.APIError {
+	restore = daemon.MockRequireInterfaceApiAccess(func(d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, interfaceNames []string) *daemon.APIError {
 		c.Check(d, Equals, s.d)
 		c.Check(u, Equals, ucred)
 		return errForbidden
@@ -352,7 +371,7 @@ func (s *accessSuite) TestInterfaceAuthenticatedAccess(c *C) {
 	c.Check(ac.CheckAccess(s.d, req, ucred, user), DeepEquals, errForbidden)
 
 	// If requireInterfaceApiAccess succeeds, root is granted access
-	restore = daemon.MockRequireInterfaceApiAccess(func(d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, interfaceName string) *daemon.APIError {
+	restore = daemon.MockRequireInterfaceApiAccess(func(d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, interfaceNames []string) *daemon.APIError {
 		return nil
 	})
 	defer restore()
@@ -374,7 +393,7 @@ func (s *accessSuite) TestInterfaceAuthenticatedAccessPolkit(c *C) {
 	ucred := &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapSocket}
 
 	s.daemon(c)
-	restore := daemon.MockRequireInterfaceApiAccess(func(d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, interfaceName string) *daemon.APIError {
+	restore := daemon.MockRequireInterfaceApiAccess(func(d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, interfaceNames []string) *daemon.APIError {
 		c.Check(d, Equals, s.d)
 		c.Check(u, Equals, ucred)
 		return nil

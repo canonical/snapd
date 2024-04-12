@@ -23,7 +23,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -78,6 +77,8 @@ const (
 func setupConfCacheDirs(newrootdir string) {
 	ConfDir = filepath.Join(newrootdir, "/etc/apparmor.d")
 	CacheDir = filepath.Join(newrootdir, "/var/cache/apparmor")
+	hostAbi30File = filepath.Join(newrootdir, "/etc/apparmor.d/abi/3.0")
+	hostAbi40File = filepath.Join(newrootdir, "/etc/apparmor.d/abi/4.0")
 
 	SystemCacheDir = filepath.Join(ConfDir, "cache")
 	exists, isDir, _ := osutil.DirExists(SystemCacheDir)
@@ -209,6 +210,14 @@ var (
 	// Filesystem root defined locally to avoid dependency on the
 	// 'dirs' package
 	rootPath = "/"
+
+	// hostAbi30File is the path to the apparmor "3.0" ABI file and is typically
+	// /etc/apparmor.d/abi/3.0. It is not present on all systems. It is notably
+	// absent when using apparmor 2.x. The variable reacts to changes to global
+	// root directory.
+	hostAbi30File = ""
+	// hostAbi40File is like hostAbi30File but for ABI 4.0
+	hostAbi40File = ""
 )
 
 // Each apparmor feature is manifested as a directory entry.
@@ -336,8 +345,8 @@ func (aap *appArmorProbe) ParserFeatures() ([]string, error) {
 }
 
 func probeKernelFeatures() ([]string, error) {
-	// note that ioutil.ReadDir() is already sorted
-	dentries, err := ioutil.ReadDir(filepath.Join(rootPath, featuresSysPath))
+	// note that os.ReadDir() is already sorted
+	dentries, err := os.ReadDir(filepath.Join(rootPath, featuresSysPath))
 	if err != nil {
 		return []string{}, err
 	}
@@ -346,7 +355,7 @@ func probeKernelFeatures() ([]string, error) {
 		if fi.IsDir() {
 			features = append(features, fi.Name())
 			// also read any sub-features
-			subdenties, err := ioutil.ReadDir(filepath.Join(rootPath, featuresSysPath, fi.Name()))
+			subdenties, err := os.ReadDir(filepath.Join(rootPath, featuresSysPath, fi.Name()))
 			if err != nil {
 				return []string{}, err
 			}
@@ -486,6 +495,23 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 	for _, dir := range filepath.SplitList(parserSearchPath) {
 		path := filepath.Join(dir, "apparmor_parser")
 		if _, err := os.Stat(path); err == nil {
+			// Detect but ignore apparmor 4.0 ABI support.
+			//
+			// At present this causes some bugs with mqueue mediation that can
+			// be avoided by pinning to 3.0 (which is also supported on
+			// apparmor 4). Once the mqueue issue is analyzed and fixed, this
+			// can be replaced with a --policy-features=hostAbi40File pin like
+			// we do below.
+			if fi, err := os.Lstat(hostAbi40File); err == nil && !fi.IsDir() {
+				logger.Debugf("apparmor 4.0 ABI detected but ignored")
+			}
+
+			// Perhaps 3.0?
+			if fi, err := os.Lstat(hostAbi30File); err == nil && !fi.IsDir() {
+				return exec.Command(path, "--policy-features", hostAbi30File), false, nil
+			}
+
+			// Most likely 2.0
 			return exec.Command(path), false, nil
 		}
 	}

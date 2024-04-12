@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -209,7 +208,7 @@ base_status=try
 	err = dupDiskModeenv.Write()
 	c.Assert(err, IsNil)
 	c.Assert(dirs.SnapModeenvFileUnder(s.tmpdir), testutil.FilePresent)
-	origBytes, err := ioutil.ReadFile(dirs.SnapModeenvFileUnder(s.tmpdir) + ".orig")
+	origBytes, err := os.ReadFile(dirs.SnapModeenvFileUnder(s.tmpdir) + ".orig")
 	c.Assert(err, IsNil)
 	// the files should be the same
 	c.Assert(dirs.SnapModeenvFileUnder(s.tmpdir), testutil.FileEquals, string(origBytes))

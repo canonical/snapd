@@ -22,7 +22,7 @@ package selinux
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/osutil"
@@ -48,7 +48,7 @@ func IsEnforcing() (bool, error) {
 		return false, nil
 	}
 
-	rawState, err := ioutil.ReadFile(filepath.Join(mnt, "enforce"))
+	rawState, err := os.ReadFile(filepath.Join(mnt, "enforce"))
 	if err != nil {
 		return false, err
 	}
