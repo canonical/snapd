@@ -1,5 +1,9 @@
 summary: Update command line from gadget in secure boot
 
+details: |
+  Check that Ubuntu Core image boots properly with updated command line
+  through gadget in secure boot
+
 systems: [ubuntu-2*]
 
 environment:

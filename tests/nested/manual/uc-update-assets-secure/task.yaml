@@ -1,5 +1,9 @@
 summary: Update boot assets through gadgets in secure boot
 
+details: |
+  Check that Ubuntu Core image boots properly with updated boot assets
+  through gadget in secure boot
+
 systems: [ubuntu-2*]
 
 environment:

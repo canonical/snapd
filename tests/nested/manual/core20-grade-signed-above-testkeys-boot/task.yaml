@@ -1,5 +1,8 @@
 summary: Test that snapd with testkeys on UC2* can boot a model with grade signed.
 
+details: |
+    Check that snapd can boot a model with grade signed using testkeys.
+
 systems: [ubuntu-2*]
 
 environment:

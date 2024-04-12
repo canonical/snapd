@@ -1,5 +1,10 @@
 summary: Create ubuntu core image, install snapd and test hotplug feature
 
+details: |
+    Check that when a device is plugged the hotplug slot is present, and when it
+    is unplugged, the slot is no longer present. Also validates a snap can be
+    connected to the device and serial-port permissions of the snap are correct.
+
 systems: [ubuntu-1*]
 
 prepare: |

@@ -1,5 +1,9 @@
 summary: verify a simple UC2* scenario with 4k sector size
 
+details: |
+    Check the basic snap commands when the Ubuntu Core image has been
+    created with 4k sector size
+
 systems: [ubuntu-2*]
 
 environment:

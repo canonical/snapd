@@ -1,5 +1,9 @@
 summary: Check that the boot config is correctly updated when snapd is refreshed
 
+details: |
+  Verify that when snapd is refreshed with new boot config assets, then boot assets
+  have been updated
+
 systems: [ubuntu-2*]
 
 environment:

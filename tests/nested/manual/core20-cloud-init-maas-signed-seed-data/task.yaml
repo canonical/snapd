@@ -1,5 +1,10 @@
 summary: Test that UC2* can use cloud-init config on ubuntu-seed with grade signed.
 
+details: |
+  Verify that on Ubuntu Core 20+ it is possible to configure cloud-init on
+  ubuntu-seed with grade signed. Check files have been copied depending on the variant
+  and cloud-init is disabled after it is executed.
+
 systems: [ubuntu-2*]
 
 environment:

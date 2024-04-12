@@ -146,7 +146,7 @@ nested_uc20_transition_to_system_mode() {
     local recovery_system="$1"
     local mode="$2"
 
-    if nested_is_core_ge 20; then
+    if nested_is_core_le 18; then
         echo "Transition can be done just on uc20+ systems, exiting..."
         exit 1
     fi
