@@ -1225,7 +1225,7 @@ func (s *backendSuite) TestCombineSnippetsIncludeIfExistsSnapTuning(c *C) {
 func (s *backendSuite) TestCombineSnippetsIncludeIfExistsLocalSnapProfile(c *C) {
 	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
-	restore = osutil.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	restore = osutil.MockIsHomeUsingRemoteFS(func() (bool, error) { return false, nil })
 	defer restore()
 	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
 	defer restore()
