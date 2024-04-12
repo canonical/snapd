@@ -385,20 +385,25 @@ if [ "$UNIT" = 1 ]; then
     go version
 
     tags=
+    race=
     if [ -n "${GO_BUILD_TAGS-}" ]; then
         echo "Using build tags: $GO_BUILD_TAGS"
         tags="-tags $GO_BUILD_TAGS"
     fi
+    if [ -n "${GO_TEST_RACE-}" ]; then
+        echo "Using go test -race"
+        race="-race"
+    fi
 
     echo Building
     # shellcheck disable=SC2086
-    go build -v $tags github.com/snapcore/snapd/...
+    go build -v $tags $race github.com/snapcore/snapd/...
 
     # tests
     echo Running tests from "$PWD"
     if [ "$short" = 1 ]; then
             # shellcheck disable=SC2046,SC2086
-            GOTRACEBACK=1 $goctest $tags -short -timeout 5m $(go list ./... | grep -v '/vendor/' )
+            GOTRACEBACK=1 $goctest $tags $race -short -timeout 5m $(go list ./... | grep -v '/vendor/' )
     else
         coverage=""
         if [ -z "${SKIP_COVERAGE-}" ]; then
@@ -411,7 +416,7 @@ if [ "$UNIT" = 1 ]; then
         fi
 
         # shellcheck disable=SC2046,SC2086
-        GOTRACEBACK=1 $goctest $tags -timeout 5m $coverage $(go list ./... | grep -v '/vendor/' )
+        GOTRACEBACK=1 $goctest $tags $race -timeout 5m $coverage $(go list ./... | grep -v '/vendor/' )
     fi
 
     # python unit test for mountinfo.query and version-compare
