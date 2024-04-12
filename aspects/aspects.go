@@ -444,9 +444,18 @@ type expandedMatch struct {
 	value interface{}
 }
 
+// maxValueDepth is the limit on a value's nestedness. Creating a highly nested
+// JSON value only requires a few bytes per level, but when recursively traversing
+// such a value, each level requires about 2Kb stack. Prevent excessive stack
+// usage by limiting the recursion depth.
+var maxValueDepth = 64
+
 // validateSetValue checks that map keys conform to the same format as path sub-keys.
-// TODO: check recursion limit here as well
-func validateSetValue(v interface{}) error {
+func validateSetValue(v interface{}, depth int) error {
+	if depth > maxValueDepth {
+		return fmt.Errorf("value cannot have more than %d nested levels", maxValueDepth)
+	}
+
 	var nestedVals []interface{}
 	switch typedVal := v.(type) {
 	case map[string]interface{}:
@@ -463,7 +472,12 @@ func validateSetValue(v interface{}) error {
 	}
 
 	for _, v := range nestedVals {
-		if err := validateSetValue(v); err != nil {
+		if v == nil {
+			// the value can be nil (used to unset values for compatibility w/ options)
+			continue
+		}
+
+		if err := validateSetValue(v, depth+1); err != nil {
 			return err
 		}
 	}
@@ -475,7 +489,10 @@ func validateSetValue(v interface{}) error {
 func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	if err := validateAspectDottedPath(request, nil); err != nil {
 		return badRequestErrorFrom(a, "set", request, err.Error())
-	} else if err := validateSetValue(value); err != nil {
+	}
+
+	depth := 1
+	if err := validateSetValue(value, depth); err != nil {
 		return badRequestErrorFrom(a, "set", request, err.Error())
 	}
 
