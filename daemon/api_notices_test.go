@@ -937,19 +937,19 @@ func (s *noticesSuite) testAddNoticeBadRequest(c *C, body, errorMatch string) {
 }
 
 func (s *noticesSuite) TestAddNoticesSnapCmdNoReexec(c *C) {
-	s.testAddNoticesSnapCmd(c, "/usr/bin/snap", false)
+	s.testAddNoticesSnapCmd(c, filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap"), false)
 }
 
 func (s *noticesSuite) TestAddNoticesSnapCmdReexecSnapd(c *C) {
-	s.testAddNoticesSnapCmd(c, "/snap/snapd/11/usr/bin/snap", false)
+	s.testAddNoticesSnapCmd(c, filepath.Join(dirs.SnapMountDir, "snapd/11/usr/bin/snap"), false)
 }
 
 func (s *noticesSuite) TestAddNoticesSnapCmdReexecCore(c *C) {
-	s.testAddNoticesSnapCmd(c, "/snap/core/12/usr/bin/snap", false)
+	s.testAddNoticesSnapCmd(c, filepath.Join(dirs.SnapMountDir, "core/12/usr/bin/snap"), false)
 }
 
 func (s *noticesSuite) TestAddNoticesSnapCmdUnknownBinary(c *C) {
-	s.testAddNoticesSnapCmd(c, "/snap/bad-c0re/12/usr/bin/snap", true)
+	s.testAddNoticesSnapCmd(c, filepath.Join(dirs.SnapMountDir, "bad-c0re/12/usr/bin/snap"), true)
 }
 
 func (s *noticesSuite) testAddNoticesSnapCmd(c *C, exePath string, shouldFail bool) {
@@ -958,7 +958,7 @@ func (s *noticesSuite) testAddNoticesSnapCmd(c *C, exePath string, shouldFail bo
 	// mock request coming from snap command
 	restore := daemon.MockOsReadlink(func(path string) (string, error) {
 		c.Check(path, Equals, "/proc/100/exe")
-		return filepath.Join(dirs.GlobalRootDir, exePath), nil
+		return exePath, nil
 	})
 	defer restore()
 
