@@ -666,7 +666,7 @@ func (s *aspectSuite) TestAspectUnsetWithNestedEntry(c *C) {
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
 }
 
-func (s *aspectSuite) TestAspectUnsetLeafUnsetsParent(c *C) {
+func (s *aspectSuite) TestAspectUnsetLeafLeavesEmptyParent(c *C) {
 	databag := aspects.NewJSONDataBag()
 	aspectBundle, err := aspects.NewBundle("acc", "foo", map[string]interface{}{
 		"my-aspect": map[string]interface{}{
@@ -689,8 +689,9 @@ func (s *aspectSuite) TestAspectUnsetLeafUnsetsParent(c *C) {
 	err = aspect.Unset(databag, "bar")
 	c.Assert(err, IsNil)
 
-	_, err = aspect.Get(databag, "foo")
-	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
+	value, err = aspect.Get(databag, "foo")
+	c.Assert(err, IsNil)
+	c.Assert(value, DeepEquals, map[string]interface{}{})
 }
 
 func (s *aspectSuite) TestAspectUnsetAlreadyUnsetEntry(c *C) {
@@ -1864,7 +1865,7 @@ func (s *aspectSuite) TestUnsetUnmatchedPlaceholderMid(c *C) {
 			"one": "value",
 			"two": "other",
 		},
-		// should be completely removed (only has a "one" path)
+		// the nested value should be removed, leaving an empty map
 		"b": map[string]interface{}{
 			"one": "value",
 		},
@@ -1884,6 +1885,7 @@ func (s *aspectSuite) TestUnsetUnmatchedPlaceholderMid(c *C) {
 		"a": map[string]interface{}{
 			"two": "other",
 		},
+		"b": map[string]interface{}{},
 		"c": map[string]interface{}{
 			"two": "value",
 		},
@@ -2318,4 +2320,111 @@ func (*aspectSuite) TestAspectInvalidMapKeys(c *C) {
 		err = asp.Set(databag, "foo", tc.value)
 		c.Assert(err, ErrorMatches, fmt.Sprintf("cannot set \"foo\" in aspect acc/foo/bar: key %q doesn't conform to required format: .*", tc.invalidKey), cmt)
 	}
+}
+
+func (s *aspectSuite) TestSetUsingMapWithNilValuesAtLeaves(c *C) {
+	databag := aspects.NewJSONDataBag()
+	aspectBundle, err := aspects.NewBundle("acc", "bundle", map[string]interface{}{
+		"foo": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{"request": "foo", "storage": "foo"},
+				map[string]interface{}{"request": "foo.a", "storage": "foo.a"},
+				map[string]interface{}{"request": "foo.b", "storage": "foo.b"},
+			},
+		},
+	}, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	asp := aspectBundle.Aspect("foo")
+	c.Assert(asp, NotNil)
+
+	err = asp.Set(databag, "foo", map[string]interface{}{
+		"a": "value",
+		"b": "other",
+	})
+	c.Assert(err, IsNil)
+
+	err = asp.Set(databag, "foo", map[string]interface{}{
+		"a": nil,
+		"b": nil,
+	})
+	c.Assert(err, IsNil)
+
+	value, err := asp.Get(databag, "foo")
+	c.Assert(err, IsNil)
+	c.Assert(value, DeepEquals, map[string]interface{}{})
+}
+
+func (s *aspectSuite) TestSetWithMultiplePathsNestedAtLeaves(c *C) {
+	databag := aspects.NewJSONDataBag()
+	aspectBundle, err := aspects.NewBundle("acc", "bundle", map[string]interface{}{
+		"foo": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{"request": "foo.a", "storage": "foo.a"},
+				map[string]interface{}{"request": "foo.b", "storage": "foo.b"},
+			},
+		},
+	}, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	asp := aspectBundle.Aspect("foo")
+	c.Assert(asp, NotNil)
+
+	err = asp.Set(databag, "foo", map[string]interface{}{
+		"a": map[string]interface{}{
+			"c": "value",
+			"d": "other",
+		},
+		"b": "other",
+	})
+	c.Assert(err, IsNil)
+
+	err = asp.Set(databag, "foo", map[string]interface{}{
+		"a": map[string]interface{}{
+			"d": nil,
+		},
+		"b": nil,
+	})
+	c.Assert(err, IsNil)
+
+	value, err := asp.Get(databag, "foo")
+	c.Assert(err, IsNil)
+	c.Assert(value, DeepEquals, map[string]interface{}{
+		// consistent with the previous configuration mechanism
+		"a": map[string]interface{}{},
+	})
+}
+
+func (s *aspectSuite) TestSetWithNilAndNonNilLeaves(c *C) {
+	databag := aspects.NewJSONDataBag()
+	aspectBundle, err := aspects.NewBundle("acc", "bundle", map[string]interface{}{
+		"foo": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{"request": "foo", "storage": "foo"},
+			},
+		},
+	}, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	asp := aspectBundle.Aspect("foo")
+	c.Assert(asp, NotNil)
+
+	err = asp.Set(databag, "foo", map[string]interface{}{
+		"a": "value",
+		"b": "other",
+	})
+	c.Assert(err, IsNil)
+
+	err = asp.Set(databag, "foo", map[string]interface{}{
+		"a": nil,
+		"c": "value",
+	})
+	c.Assert(err, IsNil)
+
+	value, err := asp.Get(databag, "foo")
+	c.Assert(err, IsNil)
+	// nil values aren't stored but non-nil values are
+	c.Assert(value, DeepEquals, map[string]interface{}{
+		"c": "value",
+	})
 }

@@ -1363,25 +1363,48 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *i
 // If the value is nil, the entry is deleted.
 func (s JSONDataBag) Set(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
-	_, err := set(subKeys, 0, s, value)
+
+	var err error
+	if value != nil {
+		_, err = set(subKeys, 0, s, value)
+	} else {
+		_, err = unset(subKeys, 0, s)
+	}
+
 	return err
+}
+
+func removeNilValues(value interface{}) interface{} {
+	level, ok := value.(map[string]interface{})
+	if !ok {
+		return value
+	}
+
+	for k, v := range level {
+		if v == nil {
+			delete(level, k)
+			continue
+		}
+
+		level[k] = removeNilValues(v)
+	}
+
+	return level
 }
 
 func set(subKeys []string, index int, node map[string]json.RawMessage, value interface{}) (json.RawMessage, error) {
 	key := subKeys[index]
 	if index == len(subKeys)-1 {
+		// remove nil values that may be nested in the value
+		value = removeNilValues(value)
+
 		data, err := json.Marshal(value)
 		if err != nil {
 			return nil, err
 		}
 
 		node[key] = data
-		newData, err := json.Marshal(node)
-		if err != nil {
-			return nil, err
-		}
-
-		return newData, nil
+		return json.Marshal(node)
 	}
 
 	rawLevel, ok := node[key]
@@ -1423,15 +1446,12 @@ func unset(subKeys []string, index int, node map[string]json.RawMessage) (json.R
 	matchAll := isPlaceholder(key)
 
 	if index == len(subKeys)-1 {
-		if !matchAll {
-			delete(node, key)
-		}
-
-		if matchAll || len(node) == 0 {
+		if matchAll {
 			// remove entire level
 			return nil, nil
 		}
 
+		delete(node, key)
 		return json.Marshal(node)
 	}
 
@@ -1471,10 +1491,6 @@ func unset(subKeys []string, index int, node map[string]json.RawMessage) (json.R
 		if err := unsetKey(node, key); err != nil {
 			return nil, err
 		}
-	}
-
-	if len(node) == 0 {
-		return nil, nil
 	}
 
 	return json.Marshal(node)
