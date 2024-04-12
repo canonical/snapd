@@ -48,8 +48,8 @@ type servicesCommand struct {
 	Positional struct {
 		ServiceNames []string `positional-arg-name:"<service>"`
 	} `positional-args:"yes"`
-	Global bool `long:"global" short:"g" description:"Show the global enable status for user-services instead of the status for the current user"`
-	User   bool `long:"user" short:"u" description:"Show the current user's user-services instead of the global enable status"`
+	Global bool `long:"global" short:"g" description:"Show the global enable status for user services instead of the status for the current user"`
+	User   bool `long:"user" short:"u" description:"Show the current status of the user services instead of the global enable status"`
 }
 
 type byApp []*snap.AppInfo

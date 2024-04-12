@@ -95,9 +95,9 @@ func init() {
 	}}
 	addCommand("services", shortServicesHelp, longServicesHelp, func() flags.Commander { return &svcStatus{} }, map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
-		"global": i18n.G("Show the global enable status for user-services instead of the status for the current user."),
+		"global": i18n.G("Show the global enable status for user services instead of the status for the current user."),
 		// TRANSLATORS: This should not start with a lowercase letter.
-		"user": i18n.G("Show the current status of the user-services instead of the global enable status."),
+		"user": i18n.G("Show the current status of the user services instead of the global enable status."),
 	}, argdescs)
 	addCommand("logs", shortLogsHelp, longLogsHelp, func() flags.Commander { return &svcLogs{} },
 		timeDescs.also(map[string]string{
