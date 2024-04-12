@@ -372,7 +372,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		return err
 	}
 	preseedSeed, ok := currentSeed.(seed.PreseedCapable)
-	if ok {
+	if ok && preseedSeed.HasArtifact("preseed.tgz") {
 		runMode := false
 		if err := installApplyPreseededData(preseedSeed, boot.InitramfsWritableDir(model, runMode)); err != nil {
 			return err
