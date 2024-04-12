@@ -73,14 +73,6 @@ func (s *State) NumNotices() int {
 	return len(s.notices)
 }
 
-func MockGetTimeNow(f func() time.Time) (restore func()) {
-	old := timeNow
-	timeNow = f
-	return func() {
-		timeNow = old
-	}
-}
-
 func (n *Notice) GetLastOccurred() time.Time {
 	return n.lastOccurred
 }

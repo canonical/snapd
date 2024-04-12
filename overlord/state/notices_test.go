@@ -685,9 +685,7 @@ func (s *noticesSuite) TestAvoidTwoNoticesWithSameDateTime(c *C) {
 	defer st.Unlock()
 
 	testDate := time.Date(2024, time.April, 11, 11, 24, 5, 20, time.UTC)
-	restore := state.MockGetTimeNow(func() time.Time {
-		return testDate
-	})
+	restore := state.MockTime(testDate)
 	defer restore()
 
 	id1, err := st.AddNotice(nil, state.ChangeUpdateNotice, "123", nil)
@@ -706,9 +704,7 @@ func (s *noticesSuite) TestAvoidTwoNoticesWithSameDateTime(c *C) {
 	c.Assert(notice3, NotNil)
 
 	testDate2 := time.Date(2024, time.April, 11, 11, 24, 5, 40, time.UTC)
-	restore2 := state.MockGetTimeNow(func() time.Time {
-		return testDate2
-	})
+	restore2 := state.MockTime(testDate2)
 	defer restore2()
 
 	id4, err := st.AddNotice(nil, state.ChangeUpdateNotice, "ABC", nil)
