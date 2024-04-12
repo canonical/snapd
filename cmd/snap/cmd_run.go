@@ -516,7 +516,7 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 			return fmt.Errorf("race condition detected, snap-run can only retry once")
 		}
 
-		info, app, hintFlock, err := maybeWaitWhileInhibited(context.Background(), snapName, appName)
+		info, app, hintFlock, err := maybeWaitWhileInhibited(context.Background(), x.client, snapName, appName)
 		if errors.Is(err, errSnapRefreshConflict) {
 			// Possible race condition detected, let's retry.
 
