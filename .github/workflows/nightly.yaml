@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-22.04
     env:
       GOPATH: ${{ github.workspace }}
-      # Set PATH to ignore the load of magic binaries from /usr/local/bin And
+      # Set PATH to ignore the load of magic binaries from /usr/local/bin and
       # to use the go snap automatically. Note that we install go from the
       # snap in a step below. Without this we get the GitHub-controlled latest
       # version of go.
@@ -40,7 +40,6 @@ jobs:
           sudo apt update
           sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
 
-    # golang latest ensures things work on the edge
     - name: Install the go snap
       run: |
           sudo snap install --classic --channel=${{ matrix.gochannel }} go
