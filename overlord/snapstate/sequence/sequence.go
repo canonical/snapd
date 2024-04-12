@@ -206,3 +206,24 @@ func (snapSeq *SnapSequence) IsComponentRevPresent(compSi *snap.ComponentSideInf
 	}
 	return false
 }
+
+func (snapSeq *SnapSequence) ComponentsForRevision(rev snap.Revision) []*ComponentState {
+	for _, rss := range snapSeq.Revisions {
+		if rss.Snap.Revision == rev {
+			return rss.Components
+		}
+	}
+	return nil
+}
+
+func (snapSeq *SnapSequence) ComponentsWithTypeForRev(rev snap.Revision, compType snap.ComponentType) []*snap.ComponentSideInfo {
+	comps := snapSeq.ComponentsForRevision(rev)
+	kmodComps := make([]*snap.ComponentSideInfo, 0, len(comps))
+	for _, comp := range comps {
+		if comp.CompType != snap.KernelModulesComponent {
+			continue
+		}
+		kmodComps = append(kmodComps, comp.SideInfo)
+	}
+	return kmodComps
+}

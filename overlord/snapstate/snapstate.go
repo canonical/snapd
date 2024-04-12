@@ -553,7 +553,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 
 	// This task is necessary only for UC20+ and hybrid
 	if snapsup.Type == snap.TypeKernel && needsKernelSetup(deviceCtx) {
-		setupKernel := st.NewTask("setup-kernel-snap", fmt.Sprintf(i18n.G("Setup kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
+		setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(setupKernel)
 		prev = setupKernel
 	}
@@ -619,7 +619,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if snapsup.Type == snap.TypeKernel && needsKernelSetup(deviceCtx) {
 		// This task needs to run after we're back and running the new
 		// kernel after a reboot was requested in link-snap handler.
-		setupKernel := st.NewTask("remove-old-kernel-snap-setup", fmt.Sprintf(i18n.G("Cleanup kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
+		setupKernel := st.NewTask("discard-old-kernel-snap-setup", fmt.Sprintf(i18n.G("Discard kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(setupKernel)
 		prev = setupKernel
 	}
@@ -3146,7 +3146,7 @@ func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*stat
 			return nil, err
 		}
 		if needsKernelSetup(deviceCtx) {
-			setupKernel := st.NewTask("setup-kernel-snap", fmt.Sprintf(i18n.G("Setup kernel driver tree for %q (%s) for remodel"), snapsup.InstanceName(), snapst.Current))
+			setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q (%s) for remodel"), snapsup.InstanceName(), snapst.Current))
 			ts.AddTask(setupKernel)
 			setupKernel.Set("snap-setup-task", prepareSnap.ID())
 			setupKernel.WaitFor(prev)
@@ -3205,7 +3205,7 @@ func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet,
 			return nil, err
 		}
 		if needsKernelSetup(deviceCtx) {
-			setupKernel := st.NewTask("setup-kernel-snap", fmt.Sprintf(i18n.G("Setup kernel driver tree for %q (%s) for remodel"), snapsup.InstanceName(), snapsup.Revision()))
+			setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(i18n.G("Prepare kernel driver tree for %q (%s) for remodel"), snapsup.InstanceName(), snapsup.Revision()))
 			setupKernel.Set("snap-setup-task", snapSetupTask.ID())
 			setupKernel.WaitFor(prev)
 			ts.AddTask(setupKernel)

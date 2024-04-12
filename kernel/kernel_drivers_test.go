@@ -158,7 +158,7 @@ func doDirChecks(c *C, dir string, expected []expectInode) {
 }
 
 func testBuildKernelDriversTree(c *C) {
-	mountDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
+	mountDir := filepath.Join(dirs.SnapMountDir, "pc-kernel/1")
 	kversion := "5.15.0-78-generic"
 	createKernelSnapFiles(c, kversion, mountDir)
 
@@ -211,7 +211,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversNoModsOrFw(c *C) {
 	buf, restore := logger.MockLogger()
 	defer restore()
 
-	mountDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
+	mountDir := filepath.Join(dirs.SnapMountDir, "pc-kernel/11")
 	c.Assert(os.MkdirAll(mountDir, 0755), IsNil)
 
 	// Build the tree should not fail
@@ -414,12 +414,12 @@ func testBuildKernelDriversTreeWithComps(c *C, opts *kernel.KernelDriversTreeOpt
 	mockCmd := testutil.MockCommand(c, "depmod", "")
 	defer mockCmd.Restore()
 
-	mountDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
+	mountDir := filepath.Join(dirs.SnapMountDir, "pc-kernel/1")
 	kversion := "5.15.0-78-generic"
 	createKernelSnapFiles(c, kversion, mountDir)
 
-	compMntDir1 := filepath.Join(dirs.RunDir, "mnt/kernel-snaps/pc-kernel/components/1/comp1/11")
-	compMntDir2 := filepath.Join(dirs.RunDir, "mnt/kernel-snaps/pc-kernel/components/1/comp2/22")
+	compMntDir1 := filepath.Join(dirs.SnapMountDir, "pc-kernel/components/1/comp1")
+	compMntDir2 := filepath.Join(dirs.SnapMountDir, "pc-kernel/components/1/comp2")
 	createKernelModulesCompFiles(c, kversion, compMntDir1, "comp1")
 	createKernelModulesCompFiles(c, kversion, compMntDir2, "comp2")
 	kmods := []*snap.ComponentSideInfo{

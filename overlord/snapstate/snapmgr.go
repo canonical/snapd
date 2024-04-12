@@ -643,8 +643,8 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("conditional-auto-refresh", m.doConditionalAutoRefresh, nil)
 
 	// specific set-up for the kernel snap
-	runner.AddHandler("setup-kernel-snap", m.doSetupKernelSnap, m.undoSetupKernelSnap)
-	runner.AddHandler("remove-old-kernel-snap-setup", m.doCleanupOldKernelSnap, m.undoCleanupOldKernelSnap)
+	runner.AddHandler("prepare-kernel-snap", m.doSetupKernelSnap, m.undoSetupKernelSnap)
+	runner.AddHandler("discard-old-kernel-snap-setup", m.doCleanupOldKernelSnap, m.undoCleanupOldKernelSnap)
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
@@ -681,6 +681,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("mount-component", m.doMountComponent, m.undoMountComponent)
 	runner.AddHandler("unlink-current-component", m.doUnlinkCurrentComponent, m.undoUnlinkCurrentComponent)
 	runner.AddHandler("link-component", m.doLinkComponent, m.undoLinkComponent)
+	runner.AddHandler("prepare-kernel-modules-components", m.doSetupKernelModules, m.doRemoveKernelModulesSetup)
 
 	// control serialisation
 	runner.AddBlocked(m.blockedTask)
@@ -1302,9 +1303,15 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			//   This is especially relevant for the snapd snap as if
 			// this happens, it would end up in a bad state after
 			// an update.
+			// TODO Ensure mounts of snap components as well
+			// TODO refactor so the check for kernel type is not repeated
+			// in the installation case
+			snapType, _ := snapSt.Type()
 			if _, err = sysd.EnsureMountUnitFile(info.MountDescription(),
 				squashfsPath, whereDir, "squashfs",
-				systemd.EnsureMountUnitFlags{PreventRestartIfModified: true}); err != nil {
+				systemd.EnsureMountUnitFlags{
+					PreventRestartIfModified: true,
+					StartBeforeDriversLoad:   snapType == snap.TypeKernel}); err != nil {
 				return err
 			}
 		}

@@ -41,21 +41,6 @@ var osSymlink = os.Symlink
 // separated by dots for the kernel version.
 var utsRelease = regexp.MustCompile(`^([0-9]+\.){2}[0-9]+`)
 
-const earlyKernelsDir = "mnt/kernel-snaps"
-
-// EarlyKernelModsComponentMountDir returns the path where components are mounted on
-// early boot.
-func EarlyKernelModsComponentMountDir(compName string, compRev snap.Revision, ksnapName string, snapRev snap.Revision) string {
-	return filepath.Join(dirs.RunDir, earlyKernelsDir,
-		ksnapName, "components", snapRev.String(), compName, compRev.String())
-}
-
-// EarlyKernelMountDir returns the mount directory for early on boot mount of
-// kernel snaps.
-func EarlyKernelMountDir(ksnapName string, rev snap.Revision) string {
-	return filepath.Join(dirs.RunDir, "mnt/kernel-snaps", ksnapName, rev.String())
-}
-
 // KernelVersionFromModulesDir returns the kernel version for a mounted kernel
 // snap (this would be the output if "uname -r" for a running kernel). It
 // assumes that there is a folder named modules/$(uname -r) inside the snap.
@@ -189,10 +174,10 @@ func setupModsFromComp(kernelTree, kversion, kname string, krev snap.Revision, c
 
 	// Symbolic links to components
 	for _, ci := range compInfos {
-		compMntDir := filepath.Join(EarlyKernelModsComponentMountDir(
-			ci.Component.ComponentName, ci.Revision, kname, krev))
+		compPI := snap.MinimalComponentContainerPlaceInfo(ci.Component.ComponentName,
+			ci.Revision, kname, krev)
 		lname := filepath.Join(compsRoot, ci.Component.ComponentName)
-		to := filepath.Join(compMntDir, "modules", kversion)
+		to := filepath.Join(compPI.MountDir(), "modules", kversion)
 		if err := osSymlink(to, lname); err != nil {
 			return err
 		}
@@ -296,10 +281,9 @@ func EnsureKernelDriversTree(ksnapName string, rev snap.Revision, kernelMount st
 		return err
 	}
 	for _, kmi := range kmodsInfos {
-		compMntDir := filepath.Join(EarlyKernelModsComponentMountDir(
-			kmi.Component.ComponentName,
-			kmi.Revision, ksnapName, rev))
-		if err := createFirmwareSymlinks(compMntDir, updateFwDir); err != nil {
+		compPI := snap.MinimalComponentContainerPlaceInfo(kmi.Component.ComponentName,
+			kmi.Revision, ksnapName, rev)
+		if err := createFirmwareSymlinks(compPI.MountDir(), updateFwDir); err != nil {
 			return err
 		}
 	}

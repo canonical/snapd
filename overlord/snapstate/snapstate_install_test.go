@@ -100,7 +100,7 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 		expected = append(expected, "unlink-current-snap")
 	}
 	if opts&updatesGadgetAssets != 0 && opts&needsKernelSetup != 0 {
-		expected = append(expected, "setup-kernel-snap")
+		expected = append(expected, "prepare-kernel-snap")
 	}
 	if opts&(updatesGadget|updatesGadgetAssets) != 0 {
 		expected = append(expected, "update-gadget-assets")
@@ -114,7 +114,7 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 		"link-snap",
 		"auto-connect")
 	if opts&updatesGadgetAssets != 0 && opts&needsKernelSetup != 0 {
-		expected = append(expected, "remove-old-kernel-snap-setup")
+		expected = append(expected, "discard-old-kernel-snap-setup")
 	}
 	expected = append(expected,
 		"set-auto-aliases",
