@@ -825,35 +825,29 @@ uc24_build_initramfs_kernel_snap() {
 
     unmkinitramfs initrd.img initrd
 
-    local output_initrd="${PWD}/initrd.img"
-
-    local unpacked_initrd_root="${PWD}/initrd"
-    if os.query is-pc-amd64; then
-        unpacked_initrd_root="${unpacked_initrd_root}/main"
+    if [ -d ./extra-initrd ]; then
+        if [ -d ./initrd/early ]; then
+            cp -aT ./extra-initrd ./initrd/main
+        else
+            cp -aT ./extra-initrd ./initrd
+        fi
     fi
 
-    # copy in snap-bootstrap from the current build
-    cp /usr/lib/snapd/snap-bootstrap "${unpacked_initrd_root}/usr/lib/snapd/snap-bootstrap"
+    if [ -d ./initrd/early ]; then
+        cp -a /usr/lib/snapd/snap-bootstrap ./initrd/main/usr/lib/snapd/snap-bootstrap
 
-    # copy in extra files that tests may need for the initrd
-    if [ -d ./extra-initrd/ ]; then
-        cp -a ./extra-initrd/* "${unpacked_initrd_root}/"
+        (cd ./initrd/early; find . | cpio --create --quiet --format=newc --owner=0:0) >initrd.img
+        (cd ./initrd/main; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >>initrd.img
+    else
+        cp -a /usr/lib/snapd/snap-bootstrap ./initrd/usr/lib/snapd/snap-bootstrap
+
+        (cd ./initrd; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >initrd.img
     fi
 
-    cd "${unpacked_initrd_root}"
-    find . | cpio --create --quiet --format=newc --owner=0:0 | lz4 -l -7 > "${output_initrd}"
-    cd -
-
-    quiet apt download systemd-boot-efi
-    quiet apt install -y llvm
-    dpkg --fsys-tarfile systemd-boot-efi_*.deb |
-       tar xf - ./usr/lib/systemd/boot/efi/linuxx64.efi.stub
+    quiet apt install -y systemd-boot-efi systemd-ukify
     objcopy -O binary -j .linux pc-kernel/kernel.efi linux
 
-    llvm-objcopy --add-section .linux=linux --set-section-flags .linux=readonly,data \
-          --add-section .initrd=initrd.img --set-section-flags .initrd=readonly,data \
-          usr/lib/systemd/boot/efi/linuxx64.efi.stub \
-          pc-kernel/kernel.efi
+    /usr/lib/systemd/ukify build --linux=linux --initrd=initrd.img --output=pc-kernel/kernel.efi
 
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
