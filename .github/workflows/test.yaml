@@ -375,6 +375,7 @@ jobs:
           - withbootassetstesting
           - nosecboot
           - faultinject
+          - race
 
     steps:
     - name: Checkout code
@@ -463,6 +464,12 @@ jobs:
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=faultinject ./run-checks --unit
+
+    - name: Test Go (-race)
+      if: ${{ matrix.unit-scenario == 'race' }}
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        SKIP_DIRTY_CHECK=1 GO_TEST_RACE=1 SKIP_COVERAGE=1 ./run-checks --unit
 
     - name: Upload the coverage results
       if: ${{ matrix.gochannel != 'latest/stable' }}
