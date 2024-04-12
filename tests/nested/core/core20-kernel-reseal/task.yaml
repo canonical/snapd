@@ -1,5 +1,9 @@
 summary: Check that a kernel refresh reseals
 
+details: |
+  Verifies that after installing a new (unasserted) kernel, we are using the new
+  kernel, ubuntu-data.sealed-key mtime is newer and we have boot chains.
+
 systems: [ubuntu-2*]
 
 prepare: |
