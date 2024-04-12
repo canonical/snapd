@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018-2019 Canonical Ltd
+ * Copyright (C) 2018-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,6 +31,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
@@ -75,6 +76,7 @@ type systemKey struct {
 	AppArmorFeatures       []string `json:"apparmor-features"`
 	AppArmorParserMtime    int64    `json:"apparmor-parser-mtime"`
 	AppArmorParserFeatures []string `json:"apparmor-parser-features"`
+	AppArmorPrompting      bool     `json:"apparmor-prompting"`
 	NFSHome                bool     `json:"nfs-home"`
 	OverlayRoot            string   `json:"overlay-root"`
 	SecCompActions         []string `json:"seccomp-features"`
@@ -83,7 +85,7 @@ type systemKey struct {
 }
 
 // IMPORTANT: when adding/removing/changing inputs bump this
-const systemKeyVersion = 10
+const systemKeyVersion = 11
 
 var (
 	isHomeUsingRemoteFS   = osutil.IsHomeUsingRemoteFS
@@ -121,6 +123,11 @@ func generateSystemKey() (*systemKey, error) {
 
 	// Add apparmor-parser-mtime
 	sk.AppArmorParserMtime = apparmor.ParserMtime()
+
+	if features.AppArmorPrompting.IsEnabled() {
+		// Add AppArmor prompting status
+		sk.AppArmorPrompting = features.AppArmorPrompting.IsSupported()
+	}
 
 	// Add if home is using a remote file system, if so we need to have a
 	// different security profile and if this changes we need to change our

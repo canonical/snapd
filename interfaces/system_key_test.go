@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,6 +31,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
@@ -118,6 +119,10 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, remoteFSHome, overlay
 	apparmorParserFeaturesStr, err := json.Marshal(parserFeatures)
 	c.Assert(err, IsNil)
 
+	apparmorPrompting := features.AppArmorPrompting.IsEnabled() && features.AppArmorPrompting.IsSupported()
+	apparmorPromptingStr, err := json.Marshal(apparmorPrompting)
+	c.Assert(err, IsNil)
+
 	seccompActionsStr, err := json.Marshal(seccomp.Actions())
 	c.Assert(err, IsNil)
 
@@ -129,12 +134,13 @@ func (s *systemKeySuite) testInterfaceWriteSystemKey(c *C, remoteFSHome, overlay
 	c.Assert(err, IsNil)
 	c.Assert(seccompCompilerVersion, Equals, s.seccompCompilerVersion)
 
-	c.Check(string(systemKey), testutil.EqualsWrapped, fmt.Sprintf(`{"version":%d,"build-id":"%s","apparmor-features":%s,"apparmor-parser-mtime":%s,"apparmor-parser-features":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s,"seccomp-compiler-version":"%s","cgroup-version":"1"}`,
+	c.Check(string(systemKey), testutil.EqualsWrapped, fmt.Sprintf(`{"version":%d,"build-id":"%s","apparmor-features":%s,"apparmor-parser-mtime":%s,"apparmor-parser-features":%s,"apparmor-prompting":%s,"nfs-home":%v,"overlay-root":%q,"seccomp-features":%s,"seccomp-compiler-version":"%s","cgroup-version":"1"}`,
 		interfaces.SystemKeyVersion,
 		s.buildID,
 		apparmorFeaturesStr,
 		apparmorParserMtime,
 		apparmorParserFeaturesStr,
+		apparmorPromptingStr,
 		remoteFSHome,
 		overlay,
 		seccompActionsStr,
@@ -275,6 +281,7 @@ func (s *systemKeySuite) TestStaticVersion(c *C) {
 		"AppArmorFeatures:[]",
 		"AppArmorParserMtime:0",
 		"AppArmorParserFeatures:[]",
+		"AppArmorPrompting:false",
 		"NFSHome:false",
 		"OverlayRoot:",
 		"SecCompActions:[]",
@@ -374,6 +381,7 @@ func (s *systemKeySuite) TestSystemKeysUnmarshalSame(c *C) {
 		],
 		"apparmor-parser-features": [],
 		"apparmor-parser-mtime": 1589907589,
+		"apparmor-prompting": true,
 		"build-id": "cb94e5eeee4cf7ecda53f8308a984cb155b55732",
 		"cgroup-version": "1",
 		"nfs-home": false,
