@@ -48,7 +48,6 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
-	snapd_features "github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -347,7 +346,7 @@ type profilePathsResults struct {
 
 func (b *Backend) prepareProfiles(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) (prof *profilePathsResults, err error) {
 	snapName := appSet.InstanceName()
-	spec, err := repo.SnapSpecification(b.Name(), appSet)
+	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
 		return nil, fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
 	}
@@ -961,15 +960,8 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 
 				// Use prompt prefix if prompting is supported and enabled
 				repl = ""
-				if snapd_features.AppArmorPrompting.IsEnabled() {
-					// If prompting flag not set, no change in behavior
-					if snapd_features.AppArmorPrompting.IsSupported() {
-						// Prompting support requires apparmor kernel and parser
-						// features, and these are only checked once during
-						// startup, so checking IsSupported() will be consistent
-						// within a given snapd run.
-						repl = "prompt "
-					}
+				if spec.UsePromptPrefix() {
+					repl = "prompt "
 				}
 				tagSnippets = strings.Replace(tagSnippets, "###PROMPT###", repl, -1)
 
@@ -997,8 +989,11 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 }
 
 // NewSpecification returns a new, empty apparmor specification.
-func (b *Backend) NewSpecification(appSet *interfaces.SnapAppSet) interfaces.Specification {
-	return &Specification{appSet: appSet}
+func (b *Backend) NewSpecification(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions) interfaces.Specification {
+	return &Specification{
+		appSet:          appSet,
+		usePromptPrefix: opts.AppArmorPrompting,
+	}
 }
 
 // SandboxFeatures returns the list of apparmor features supported by the kernel.

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -139,6 +139,7 @@ func (s *handlersSuite) TestBuildConfinementOptions(c *C) {
 	c.Check(opts.Classic, Equals, flags.Classic)
 	c.Check(opts.DevMode, Equals, flags.DevMode)
 	c.Check(opts.JailMode, Equals, flags.JailMode)
+	c.Check(opts.AppArmorPrompting, Equals, false) // XXX: is this guaranteed in the future?
 }
 
 func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,6 +31,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/hotplug"
@@ -87,11 +88,16 @@ func buildConfinementOptions(st *state.State, snapInfo *snap.Info, flags snapsta
 		return interfaces.ConfinementOptions{}, fmt.Errorf("cannot get extra mount layouts of snap %q: %s", snapInfo.InstanceName(), err)
 	}
 
+	// TODO: Look up a previous value, rather than re-checking.
+	// XXX: Probably check system key or whether the listener is running.
+	apparmorPrompting := features.AppArmorPrompting.IsEnabled() && features.AppArmorPrompting.IsSupported()
+
 	return interfaces.ConfinementOptions{
-		DevMode:      flags.DevMode,
-		JailMode:     flags.JailMode,
-		Classic:      flags.Classic,
-		ExtraLayouts: extraLayouts,
+		DevMode:           flags.DevMode,
+		JailMode:          flags.JailMode,
+		Classic:           flags.Classic,
+		ExtraLayouts:      extraLayouts,
+		AppArmorPrompting: apparmorPrompting,
 	}, nil
 }
 
