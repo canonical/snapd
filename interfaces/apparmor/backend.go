@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -48,6 +48,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	snapd_features "github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -957,6 +958,20 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 					repl = ""
 				}
 				tagSnippets = strings.Replace(tagSnippets, "###HOME_IX###", repl, -1)
+
+				// Use prompt prefix if prompting is supported and enabled
+				repl = ""
+				if snapd_features.AppArmorPrompting.IsEnabled() {
+					// If prompting flag not set, no change in behavior
+					if snapd_features.AppArmorPrompting.IsSupported() {
+						// Prompting support requires apparmor kernel and parser
+						// features, and these are only checked once during
+						// startup, so checking IsSupported() will be consistent
+						// within a given snapd run.
+						repl = "prompt "
+					}
+				}
+				tagSnippets = strings.Replace(tagSnippets, "###PROMPT###", repl, -1)
 
 				// Conditionally add privilege dropping policy
 				if len(snapInfo.SystemUsernames) > 0 {

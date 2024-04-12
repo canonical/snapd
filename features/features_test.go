@@ -107,7 +107,7 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.QuotaGroups, false)
 	check(features.RefreshAppAwarenessUX, true)
 	check(features.AspectsConfiguration, true)
-	check(features.AppArmorPrompting, false)
+	check(features.AppArmorPrompting, true)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
 }
@@ -208,6 +208,41 @@ func (*featureSuite) TestAppArmorPromptingSupportedCallback(c *C) {
 	c.Check(reason, Matches, "error checking apparmor kernel features.*")
 }
 
+func (*featureSuite) TestIsSupported(c *C) {
+	fakeFeature := features.SnapdFeature(len(features.KnownFeatures()))
+
+	// Check that feature without callback always returns true
+	c.Check(fakeFeature.IsSupported(), Equals, true)
+
+	var fakeSupported bool
+	var fakeReason string
+	fakeCallback := func() (bool, string) {
+		return fakeSupported, fakeReason
+	}
+	features.FeaturesSupportedCallbacks[fakeFeature] = fakeCallback
+	defer func() {
+		delete(features.FeaturesSupportedCallbacks, fakeFeature)
+	}()
+
+	fakeSupported = true
+	fakeReason = ""
+	c.Check(fakeFeature.IsSupported(), Equals, true)
+
+	// Check that a non-empty reason is ignored
+	fakeSupported = true
+	fakeReason = "foo"
+	c.Check(fakeFeature.IsSupported(), Equals, true)
+
+	fakeSupported = false
+	fakeReason = "foo"
+	c.Check(fakeFeature.IsSupported(), Equals, false)
+
+	// Check that unsupported value does not require reason
+	fakeSupported = false
+	fakeReason = ""
+	c.Check(fakeFeature.IsSupported(), Equals, false)
+}
+
 func (*featureSuite) TestIsEnabled(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
@@ -266,9 +301,10 @@ func (*featureSuite) TestControlFile(c *C) {
 	c.Check(features.HiddenSnapDataHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/hidden-snap-folder")
 	c.Check(features.MoveSnapHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/move-snap-home-dir")
 	c.Check(features.RefreshAppAwarenessUX.ControlFile(), Equals, "/var/lib/snapd/features/refresh-app-awareness-ux")
+	c.Check(features.AspectsConfiguration.ControlFile(), Equals, "/var/lib/snapd/features/aspects-configuration")
+	c.Check(features.AppArmorPrompting.ControlFile(), Equals, "/var/lib/snapd/features/apparmor-prompting")
 	// Features that are not exported don't have a control file.
 	c.Check(features.Layouts.ControlFile, PanicMatches, `cannot compute the control file of feature "layouts" because that feature is not exported`)
-	c.Check(features.AspectsConfiguration.ControlFile(), Equals, "/var/lib/snapd/features/aspects-configuration")
 }
 
 func (*featureSuite) TestConfigOptionLayouts(c *C) {

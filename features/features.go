@@ -147,6 +147,7 @@ var featuresExported = map[SnapdFeature]bool{
 
 	RefreshAppAwarenessUX: true,
 	AspectsConfiguration:  true,
+	AppArmorPrompting:     true,
 }
 
 // featuresSupportedCallbacks maps features to a callback function which may be
@@ -240,6 +241,16 @@ func (f SnapdFeature) ControlFile() string {
 // ConfigOption returns the snap name and configuration option associated with this feature.
 func (f SnapdFeature) ConfigOption() (snapName, confName string) {
 	return "core", "experimental." + f.String()
+}
+
+// IsSupported returns true if the feature's supported callback returns true,
+// or if it has no supportedCallback.
+func (f SnapdFeature) IsSupported() bool {
+	if callback, exists := featuresSupportedCallbacks[f]; exists {
+		supported, _ := callback() // discard unsupported reason
+		return supported
+	}
+	return true
 }
 
 // IsEnabled checks if a given exported snapd feature is enabled.

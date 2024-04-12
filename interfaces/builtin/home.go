@@ -56,25 +56,25 @@ owner @{HOME}/ r,
 
 # Allow read/write access to all files in @{HOME}, except snap application
 # data in @{HOME}/snap and toplevel hidden directories in @{HOME}.
-owner @{HOME}/[^s.]**             rwkl###HOME_IX###,
-owner @{HOME}/s[^n]**             rwkl###HOME_IX###,
-owner @{HOME}/sn[^a]**            rwkl###HOME_IX###,
-owner @{HOME}/sna[^p]**           rwkl###HOME_IX###,
-owner @{HOME}/snap[^/]**          rwkl###HOME_IX###,
+###PROMPT###owner @{HOME}/[^s.]**             rwkl###HOME_IX###,
+###PROMPT###owner @{HOME}/s[^n]**             rwkl###HOME_IX###,
+###PROMPT###owner @{HOME}/sn[^a]**            rwkl###HOME_IX###,
+###PROMPT###owner @{HOME}/sna[^p]**           rwkl###HOME_IX###,
+###PROMPT###owner @{HOME}/snap[^/]**          rwkl###HOME_IX###,
 
 # Allow creating a few files not caught above
-owner @{HOME}/{s,sn,sna}{,/} rwkl###HOME_IX###,
+###PROMPT###owner @{HOME}/{s,sn,sna}{,/} rwkl###HOME_IX###,
 
 # Allow access to @{HOME}/snap/ to allow directory traversals from
 # @{HOME}/snap/@{SNAP_INSTANCE_NAME} through @{HOME}/snap to @{HOME}.
 # While this leaks snap names, it fixes usability issues for snaps
 # that require this transitional interface.
-owner @{HOME}/snap/ r,
+###PROMPT###owner @{HOME}/snap/ r,
 
 # Allow access to gvfs mounts for files owned by the user (including hidden
 # files; only allow writes to files, not the mount point).
-owner /run/user/[0-9]*/gvfs/{,**} r,
-owner /run/user/[0-9]*/gvfs/*/**  w,
+###PROMPT###owner /run/user/[0-9]*/gvfs/{,**} r,
+###PROMPT###owner /run/user/[0-9]*/gvfs/*/**  w,
 
 # Disallow writes to the well-known directory included in
 # the user's PATH on several distributions
@@ -85,13 +85,13 @@ audit deny @{HOME}/bin wl,
 const homeConnectedPlugAppArmorWithAllRead = `
 # Allow non-owner read to non-hidden and non-snap files and directories
 capability dac_read_search,
-@{HOME}/               r,
-@{HOME}/[^s.]**        r,
-@{HOME}/s[^n]**        r,
-@{HOME}/sn[^a]**       r,
-@{HOME}/sna[^p]**      r,
-@{HOME}/snap[^/]**     r,
-@{HOME}/{s,sn,sna}{,/} r,
+###PROMPT###@{HOME}/               r,
+###PROMPT###@{HOME}/[^s.]**        r,
+###PROMPT###@{HOME}/s[^n]**        r,
+###PROMPT###@{HOME}/sn[^a]**       r,
+###PROMPT###@{HOME}/sna[^p]**      r,
+###PROMPT###@{HOME}/snap[^/]**     r,
+###PROMPT###@{HOME}/{s,sn,sna}{,/} r,
 `
 
 type homeInterface struct {
