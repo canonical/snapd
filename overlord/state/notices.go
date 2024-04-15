@@ -245,10 +245,10 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	if now.IsZero() {
 		now = timeNow()
 		// ensure that two notices never have the same sent time
-		if !now.After(s.noticeLastDate) {
-			now = s.noticeLastDate.Add(time.Nanosecond)
+		if !now.After(s.noticeLastTimestamp) {
+			now = s.noticeLastTimestamp.Add(time.Nanosecond)
 		}
-		s.noticeLastDate = now
+		s.noticeLastTimestamp = now
 	}
 	now = now.UTC()
 	newOrRepeated := false

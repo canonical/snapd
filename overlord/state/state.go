@@ -92,13 +92,13 @@ type State struct {
 	// for registering runtime callbacks
 	lastHandlerId int
 
-	backend        Backend
-	data           customData
-	changes        map[string]*Change
-	tasks          map[string]*Task
-	warnings       map[string]*Warning
-	notices        map[noticeKey]*Notice
-	noticeLastDate time.Time
+	backend             Backend
+	data                customData
+	changes             map[string]*Change
+	tasks               map[string]*Task
+	warnings            map[string]*Warning
+	notices             map[noticeKey]*Notice
+	noticeLastTimestamp time.Time
 
 	noticeCond *sync.Cond
 
@@ -191,7 +191,7 @@ func (s *State) MarshalJSON() ([]byte, error) {
 		LastLaneId:   s.lastLaneId,
 		LastNoticeId: s.lastNoticeId,
 
-		NoticeLastDate: s.noticeLastDate,
+		NoticeLastDate: s.noticeLastTimestamp,
 	})
 }
 
@@ -212,7 +212,7 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	s.lastTaskId = unmarshalled.LastTaskId
 	s.lastLaneId = unmarshalled.LastLaneId
 	s.lastNoticeId = unmarshalled.LastNoticeId
-	s.noticeLastDate = unmarshalled.NoticeLastDate
+	s.noticeLastTimestamp = unmarshalled.NoticeLastDate
 	// backlink state again
 	for _, t := range s.tasks {
 		t.state = s

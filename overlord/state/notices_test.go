@@ -684,23 +684,23 @@ func (s *noticesSuite) TestAvoidTwoNoticesWithSameDateTime(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	testDate := time.Date(2024, time.April, 11, 11, 24, 5, 20, time.UTC)
+	testDate := time.Date(2024, time.April, 11, 11, 24, 5, 21, time.UTC)
 	restore := state.MockTime(testDate)
 	defer restore()
 
 	id1, err := st.AddNotice(nil, state.ChangeUpdateNotice, "123", nil)
 	c.Assert(err, IsNil)
-	notice1 := st.Notice(id1)
+	notice1 := noticeToMap(c, st.Notice(id1))
 	c.Assert(notice1, NotNil)
 
 	id2, err := st.AddNotice(nil, state.ChangeUpdateNotice, "456", nil)
 	c.Assert(err, IsNil)
-	notice2 := st.Notice(id2)
+	notice2 := noticeToMap(c, st.Notice(id2))
 	c.Assert(notice2, NotNil)
 
 	id3, err := st.AddNotice(nil, state.ChangeUpdateNotice, "789", nil)
 	c.Assert(err, IsNil)
-	notice3 := st.Notice(id3)
+	notice3 := noticeToMap(c, st.Notice(id3))
 	c.Assert(notice3, NotNil)
 
 	testDate2 := time.Date(2024, time.April, 11, 11, 24, 5, 40, time.UTC)
@@ -709,61 +709,27 @@ func (s *noticesSuite) TestAvoidTwoNoticesWithSameDateTime(c *C) {
 
 	id4, err := st.AddNotice(nil, state.ChangeUpdateNotice, "ABC", nil)
 	c.Assert(err, IsNil)
-	notice4 := st.Notice(id4)
+	notice4 := noticeToMap(c, st.Notice(id4))
 	c.Assert(notice4, NotNil)
 
-	c.Assert(notice1 == notice2, Equals, false)
-	c.Assert(notice1 == notice3, Equals, false)
-	c.Assert(notice2 == notice3, Equals, false)
-
 	// ensure that the notices are ordered in time
-	c.Assert(notice1.GetLastOccurred().Before(testDate), Equals, false)
-	c.Assert(notice1.GetLastOccurred().After(testDate), Equals, false)
-	c.Assert(notice1.GetLastOccurred().Before(notice2.GetLastOccurred()), Equals, true)
-	c.Assert(notice1.GetLastOccurred().Before(notice3.GetLastOccurred()), Equals, true)
-	c.Assert(notice2.GetLastOccurred().Before(notice3.GetLastOccurred()), Equals, true)
-	c.Assert(notice4.GetLastOccurred().Before(testDate2), Equals, false)
-	c.Assert(notice4.GetLastOccurred().After(testDate2), Equals, false)
-	c.Assert(notice4.GetLastOccurred().After(notice3.GetLastOccurred()), Equals, true)
-
-	json1, err := notice1.MarshalJSON()
+	lastOccurred1, err := time.Parse(time.RFC3339, notice1["last-occurred"].(string))
 	c.Assert(err, IsNil)
-	c.Assert(json1, NotNil)
-	json2, err := notice2.MarshalJSON()
+	lastOccurred2, err := time.Parse(time.RFC3339, notice2["last-occurred"].(string))
 	c.Assert(err, IsNil)
-	c.Assert(json2, NotNil)
-	json3, err := notice3.MarshalJSON()
+	lastOccurred3, err := time.Parse(time.RFC3339, notice3["last-occurred"].(string))
 	c.Assert(err, IsNil)
-	c.Assert(json3, NotNil)
-	json4, err := notice4.MarshalJSON()
-	c.Assert(err, IsNil)
-	c.Assert(json4, NotNil)
-
-	notice1b := state.Notice{}
-	err = notice1b.UnmarshalJSON(json1)
+	lastOccurred4, err := time.Parse(time.RFC3339, notice4["last-occurred"].(string))
 	c.Assert(err, IsNil)
 
-	notice2b := state.Notice{}
-	err = notice2b.UnmarshalJSON(json2)
-	c.Assert(err, IsNil)
-
-	notice3b := state.Notice{}
-	err = notice3b.UnmarshalJSON(json3)
-	c.Assert(err, IsNil)
-
-	notice4b := state.Notice{}
-	err = notice4b.UnmarshalJSON(json4)
-	c.Assert(err, IsNil)
-
-	// ensure that the notices are ordered in time even after JSON marshall/unmarshall
-	c.Assert(notice1b.GetLastOccurred().Before(testDate), Equals, false)
-	c.Assert(notice1b.GetLastOccurred().After(testDate), Equals, false)
-	c.Assert(notice1b.GetLastOccurred().Before(notice2b.GetLastOccurred()), Equals, true)
-	c.Assert(notice1b.GetLastOccurred().Before(notice3b.GetLastOccurred()), Equals, true)
-	c.Assert(notice2b.GetLastOccurred().Before(notice3b.GetLastOccurred()), Equals, true)
-	c.Assert(notice4b.GetLastOccurred().Before(testDate2), Equals, false)
-	c.Assert(notice4b.GetLastOccurred().After(testDate2), Equals, false)
-	c.Assert(notice4b.GetLastOccurred().After(notice3b.GetLastOccurred()), Equals, true)
+	c.Assert(lastOccurred1.Equal(testDate), Equals, true)
+	c.Assert(lastOccurred2.Equal(testDate), Equals, false)
+	c.Assert(lastOccurred3.Equal(testDate), Equals, false)
+	c.Assert(lastOccurred1.Before(lastOccurred2), Equals, true)
+	c.Assert(lastOccurred1.Before(lastOccurred3), Equals, true)
+	c.Assert(lastOccurred2.Before(lastOccurred3), Equals, true)
+	c.Assert(lastOccurred4.Equal(testDate2), Equals, true)
+	c.Assert(lastOccurred4.After(lastOccurred3), Equals, true)
 }
 
 // noticeToMap converts a Notice to a map using a JSON marshal-unmarshal round trip.
