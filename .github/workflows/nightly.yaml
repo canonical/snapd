@@ -76,13 +76,15 @@ jobs:
         COVERAGE_OUT=.coverage/coverage.txt ./run-checks --unit
         gocover-cobertura < .coverage/coverage.txt > .coverage/coverage.xml
 
+    - name: Install TICS dependencies snap
+      run: |
+          sudo snap refresh --classic --channel=latest/stable go
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+
     - name: TICS scan
       run: |
         set -x
         export TICSAUTHTOKEN="${{ secrets.TICSAUTHTOKEN }}"
-
-        # Install staticcheck dependency
-        go install honnef.co/go/tools/cmd/staticcheck@latest
 
         # Install and run TICS
         curl --silent --show-error "https://canonical.tiobe.com/tiobeweb/TICS/api/public/v1/fapi/installtics/Script?cfg=default&platform=linux&url=https://canonical.tiobe.com/tiobeweb/TICS/" > install_tics.sh
