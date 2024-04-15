@@ -4006,7 +4006,9 @@ component: snap+comp1
 type: test
 version: 1.0
 `
-	compInfo := snaptest.MockComponent(c, compomentYaml, snapInfo)
+	compInfo := snaptest.MockComponent(c, compomentYaml, snapInfo, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
 
 	// initialize the manager
 	_ = s.manager(c)
@@ -4053,7 +4055,9 @@ version: 1.0
 }
 
 func (s *interfaceManagerSuite) mockComponentForSnap(c *C, compName string, compYaml string, snapInfo *snap.Info) *snap.ComponentInfo {
-	compInfo := snaptest.MockComponent(c, compYaml, snapInfo)
+	compInfo := snaptest.MockComponent(c, compYaml, snapInfo, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -4085,7 +4089,9 @@ component: snap+comp1
 type: test
 version: 1.0
 `
-	compInfo := snaptest.MockComponent(c, compomentYaml, snapInfo)
+	compInfo := snaptest.MockComponent(c, compomentYaml, snapInfo, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
 
 	// initialize the manager
 	_ = s.manager(c)
@@ -4149,7 +4155,9 @@ component: snap+comp1
 type: test
 version: 1.0
 `
-	compInfo := snaptest.MockComponent(c, compomentYaml, snapInfo)
+	compInfo := snaptest.MockComponent(c, compomentYaml, snapInfo, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
 
 	// initialize the manager
 	_ = s.manager(c)
@@ -4205,12 +4213,16 @@ func (s *interfaceManagerSuite) TestSetupProfilesOfAffectedSnapWithComponents(c 
 	s.MockModel(c, nil)
 
 	snapInfo := s.mockSnap(c, sampleSnapWithComponentsYaml)
-	snaptest.MockComponent(c, "component: snap+comp2\ntype: test", snapInfo)
+	snaptest.MockComponent(c, "component: snap+comp2\ntype: test", snapInfo, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
 
 	// core snap is here so that it appears as an affected snap when "snap" has
 	// its profiles setup
 	coreSnapInfo := s.mockSnap(c, ubuntuCoreSnapWithComponentYaml)
-	snaptest.MockComponent(c, "component: ubuntu-core+comp\ntype: test", coreSnapInfo)
+	snaptest.MockComponent(c, "component: ubuntu-core+comp\ntype: test", coreSnapInfo, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
 
 	s.state.Lock()
 	var snapst snapstate.SnapState
@@ -4248,7 +4260,9 @@ component: snap+comp1
 type: test
 version: 1.0
 `
-	compInfo := snaptest.MockComponent(c, compomentYaml, snapInfo)
+	compInfo := snaptest.MockComponent(c, compomentYaml, snapInfo, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
 
 	// initialize the manager
 	_ = s.manager(c)

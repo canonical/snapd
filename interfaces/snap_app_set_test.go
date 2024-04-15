@@ -181,7 +181,9 @@ plugs:
 slots:
   slot:`
 	info, connectedPlug := mockInfoAndConnectedPlug(c, yaml, nil, "plug")
-	compInfo := snaptest.MockComponent(c, "component: name+comp\ntype: test\nversion: 1", info)
+	compInfo := snaptest.MockComponent(c, "component: name+comp\ntype: test\nversion: 1", info, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
 
 	set, err := interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{compInfo})
 	c.Assert(err, IsNil)
@@ -267,7 +269,9 @@ components:
 `
 	info := snaptest.MockInfo(c, yaml, nil)
 
-	compInfo := snaptest.MockComponent(c, "component: name+comp\ntype: test\nversion: 1.0", info)
+	compInfo := snaptest.MockComponent(c, "component: name+comp\ntype: test\nversion: 1.0", info, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
 
 	set, err := interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{compInfo})
 	c.Assert(err, IsNil)

@@ -245,7 +245,9 @@ func (s *BackendSuite) InstallSnapWithComponents(c *C, opts interfaces.Confineme
 
 	componentInfos := make([]*snap.ComponentInfo, 0, len(componentYamls))
 	for _, componentYaml := range componentYamls {
-		componentInfos = append(componentInfos, snaptest.MockComponent(c, componentYaml, snapInfo))
+		componentInfos = append(componentInfos, snaptest.MockComponent(c, componentYaml, snapInfo, snap.ComponentSideInfo{
+			Revision: snap.R(1),
+		}))
 	}
 
 	appSet, err := interfaces.NewSnapAppSet(snapInfo, componentInfos)
@@ -266,7 +268,9 @@ func (s *BackendSuite) UpdateSnapWithComponents(c *C, oldSnapInfo *snap.Info, op
 
 	componentInfos := make([]*snap.ComponentInfo, 0, len(componentYamls))
 	for _, componentYaml := range componentYamls {
-		componentInfos = append(componentInfos, snaptest.MockComponent(c, componentYaml, snapInfo))
+		componentInfos = append(componentInfos, snaptest.MockComponent(c, componentYaml, snapInfo, snap.ComponentSideInfo{
+			Revision: snap.R(1),
+		}))
 	}
 
 	appSet, err := interfaces.NewSnapAppSet(snapInfo, componentInfos)

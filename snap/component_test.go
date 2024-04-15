@@ -505,7 +505,9 @@ version: 1
 
 	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
 
-	componentInfo := snaptest.MockComponent(c, componentYaml, info)
+	componentInfo := snaptest.MockComponent(c, componentYaml, info, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
 
 	scoped := info.Plugs["scoped-plug"]
 	c.Assert(scoped, NotNil)
