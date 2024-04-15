@@ -38,11 +38,19 @@ prepare: |
         sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/base: core20/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
         snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-20.snap
         snap install --dangerous netplan-snap-20.snap
-    elif os.query is-ubuntu-ge 22.04; then
+    elif os.query is-jammy || os.query is-ubuntu 23.10; then
         # use base: core22
         sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/base: core22/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
         snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-22.snap
         snap install --dangerous netplan-snap-22.snap
+    elif os.query is-noble; then
+        # use base: core24
+        sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/base: core24/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
+        snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-24.snap
+        snap install --edge core24
+        tests.cleanup defer snap remove --purge core24
+        snap install --dangerous netplan-snap-24.snap
+        tests.cleanup defer snap remove --purge netplan-snap
     else
         echo "new core release, please update test for new ubuntu core version"
         exit 1
@@ -88,6 +96,8 @@ restore: |
             mv /usr/share/dbus-1/"$f".backup /usr/share/dbus-1/"$f"
         fi      
     done
+
+    tests.cleanup restore
 
 execute: |
     echo "The network-setup-control interface is disconnected by default"
