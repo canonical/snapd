@@ -1585,6 +1585,32 @@ func ReadCurrentInfo(snapName string) (*Info, error) {
 	return ReadInfo(snapName, &SideInfo{Revision: revision})
 }
 
+func ReadCurrentComponentInfo(component string, info *Info, container func(string) (Container, error)) (*ComponentInfo, error) {
+	link := filepath.Join(ComponentsBaseDir(info.InstanceName()), info.Revision.String(), component)
+
+	linkSource, err := os.Readlink(link)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find current component %q for snap %q", component, info.InstanceName())
+	}
+
+	rev := filepath.Base(linkSource)
+
+	revision, err := ParseRevision(rev)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read revision %s: %s", rev, err)
+	}
+
+	cont, err := container(link)
+	if err != nil {
+		return nil, err
+	}
+
+	return ReadComponentInfoFromContainer(cont, info, &ComponentSideInfo{
+		Revision:  revision,
+		Component: naming.NewComponentRef(info.SnapName(), component),
+	})
+}
+
 // ReadInfoFromSnapFile reads the snap information from the given Container and
 // completes it with the given side-info if this is not nil.
 func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {

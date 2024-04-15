@@ -35,6 +35,8 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snap/squashfs"
@@ -378,6 +380,40 @@ func (s *infoSuite) TestReadCurrentInfo(c *C) {
 	c.Check(snapInfo3, IsNil)
 	c.Assert(err, ErrorMatches, `cannot find current revision for snap not-sample:.*`)
 	c.Assert(errors.As(err, &snap.NotFoundError{}), Equals, true)
+}
+
+func (s *infoSuite) TestReadCurrentComponentInfo(c *C) {
+	const snapYaml = `
+name: sample
+version: 1
+components:
+ comp:
+   type: test`
+
+	const componentYaml = `
+component: sample+comp
+type: test
+`
+
+	info := snaptest.MockSnapCurrent(c, snapYaml, &snap.SideInfo{
+		Revision: snap.R(42),
+	})
+
+	snaptest.MockComponentCurrent(c, componentYaml, info, snap.ComponentSideInfo{
+		Component: naming.NewComponentRef("sample", "comp"),
+		Revision:  snap.R(21),
+	})
+
+	// TODO: fix this annoying import cycle issue
+	container := func(p string) (snap.Container, error) {
+		return snapdir.New(p), nil
+	}
+
+	currentCompInfo, err := snap.ReadCurrentComponentInfo("comp", info, container)
+	c.Assert(err, IsNil)
+
+	c.Assert(currentCompInfo.Revision, Equals, snap.R(21))
+	c.Assert(currentCompInfo.Component, DeepEquals, naming.NewComponentRef("sample", "comp"))
 }
 
 func (s *infoSuite) TestReadCurrentInfoWithInstance(c *C) {
