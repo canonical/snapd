@@ -72,6 +72,21 @@ type AAREExclusionPatternsOptions struct {
 	// need in the home interface
 }
 
+func InsertAAREExclusionPatterns(aaRules string, excludePatterns []string, opts *AAREExclusionPatternsOptions) (string, error) {
+
+	exclussionPatterns, err := GenerateAAREExclusionPatterns(excludePatterns, opts)
+	if err != nil {
+		return "", err
+	}
+
+	placeHolder := fmt.Sprintf("###EXCL{%s<>%s:%s}###", opts.Prefix, opts.Suffix, strings.Join(excludePatterns[:], ","))
+
+	if !strings.Contains(aaRules, placeHolder) {
+		return "", errors.New("place holder not be found in apparmor rules")
+	}
+	return strings.Replace(aaRules, placeHolder, exclussionPatterns, -1), nil
+}
+
 // GenerateAAREExclusionPatterns generates a series of valid AppArmor
 // regular expression negation rules such that anything except the specific
 // excludePatterns will match with the specified prefix and suffix rules. For

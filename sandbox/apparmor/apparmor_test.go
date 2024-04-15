@@ -610,6 +610,72 @@ func (s *apparmorSuite) TestSystemAppArmorLoadsSnapPolicy(c *C) {
 	}
 }
 
+func (s *apparmorSuite) TestInsertAAREExclusionPatterns(c *C) {
+	tt := []struct {
+		comment         string
+		aaRules         string
+		excludePatterns []string
+		prefix          string
+		suffix          string
+		err             string
+		expRule         string
+	}{
+		// simple single pattern cases
+		{
+			comment: "happy",
+			aaRules: `
+# Start of exclusion pattern
+###EXCL{change_profile <> -> suf,:/ab}###
+# End of exclusion pattern
+`[1:],
+			excludePatterns: []string{"/ab"},
+			prefix:          "change_profile ",
+			suffix:          " -> suf,",
+			expRule: `
+# Start of exclusion pattern
+change_profile /[^a]** -> suf,
+change_profile /a[^b]** -> suf,
+# End of exclusion pattern
+`[1:],
+		}, {
+			comment: "missing pattern",
+			aaRules: `
+# Start of exclusion pattern
+###EXCL{change_profile <> -> wrong_suf,:/ab}###
+# End of exclusion pattern
+`[1:],
+			excludePatterns: []string{"/ab"},
+			prefix:          "change_profile ",
+			suffix:          " -> suf,",
+			err:             "place holder not be found in apparmor rules",
+		},
+	}
+
+	for _, t := range tt {
+		comment := Commentf(t.comment)
+		opts := &apparmor.AAREExclusionPatternsOptions{
+			Prefix: t.prefix,
+			Suffix: t.suffix,
+		}
+		res, err := apparmor.InsertAAREExclusionPatterns(t.aaRules, t.excludePatterns, opts)
+		if t.err != "" {
+			c.Assert(err, ErrorMatches, t.err, comment)
+			continue
+		}
+		c.Assert(err, IsNil)
+
+		resHash, err1 := testutil.AppArmorParseAndHashHelper("profile test {" + res + "}")
+		expectedHash, err2 := testutil.AppArmorParseAndHashHelper("profile test {" + t.expRule + "}")
+		if (err1 != nil) || (err2 != nil) {
+			comment = Commentf(t.comment + "\n\nNote that an error occurred in AppArmorParseAndHashHelper " +
+				"while compiling and hashing the apparmor policy and string comparison was used as fallback.")
+			c.Assert(res, Equals, t.expRule, comment)
+		} else {
+			c.Assert(resHash, Equals, expectedHash, comment)
+		}
+	}
+}
+
 func (s *apparmorSuite) TestGenerateAAREExclusionPatterns(c *C) {
 	tt := []struct {
 		comment         string

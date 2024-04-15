@@ -186,7 +186,7 @@ pivot_root,
 # rule:
 # change_profile unsafe /** -> docker-default,
 # below are auto-generated rules using GenerateAAREExclusionPatterns
-%s
+###EXCL{change_profile unsafe <> -> docker-default,:/snap/snapd/*/usr/lib/snapd/snap-confine,/snap/core/*/usr/lib/snapd/snap-confine}###
 
 # signal/tracing rules too
 signal (send) peer=docker-default,
@@ -198,7 +198,7 @@ ptrace (read, trace) peer=docker-default,
 # rule:	
 # change_profile unsafe /** -> cri-containerd.apparmor.d,
 # below are auto-generated rules using GenerateAAREExclusionPatterns
-%s
+###EXCL{change_profile unsafe <> -> cri-containerd.apparmor.d,:/snap/snapd/*/usr/lib/snapd/snap-confine,/snap/core/*/usr/lib/snapd/snap-confine}###
 
 # signal/tracing rules too
 signal (send) peer=cri-containerd.apparmor.d,
@@ -689,7 +689,7 @@ const dockerSupportPrivilegedAppArmor = `
 # See also the comment above the "change_profile unsafe /** -> docker-default," 
 # rule for more context.
 # below are auto-generated rules using GenerateAAREExclusionPatterns
-%s
+###EXCL{change_profile unsafe <>,:/snap/snapd/*/usr/lib/snapd/snap-confine,/snap/core/*/usr/lib/snapd/snap-confine}###
 
 # allow signaling and tracing any unconfined process since if containers are 
 # launched without confinement docker still needs to trace them
@@ -713,7 +713,7 @@ ptrace (read, trace) peer=unconfined,
 # See also the comment above the "change_profile unsafe /** -> docker-default," 
 # rule for more context.
 # below are auto-generated rules using GenerateAAREExclusionPatterns
-%s
+###EXCL{<> rwlix,:/snap/snapd/*/usr/lib/snapd/snap-confine,/snap/core/*/usr/lib/snapd/snap-confine}###
 `
 
 const dockerSupportPrivilegedSecComp = `
@@ -755,7 +755,8 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	// snaps.
 	spec.SetSuppressPycacheDeny()
 
-	dockerDefaultTransitionRules, err := apparmor_sandbox.GenerateAAREExclusionPatterns(
+	defaultSnippet, err := apparmor_sandbox.InsertAAREExclusionPatterns(
+		dockerSupportConnectedPlugAppArmor,
 		[]string{
 			"/snap/snapd/*/usr/lib/snapd/snap-confine",
 			"/snap/core/*/usr/lib/snapd/snap-confine",
@@ -769,7 +770,8 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 		return err
 	}
 
-	containerdTransitionRules, err := apparmor_sandbox.GenerateAAREExclusionPatterns(
+	defaultSnippet, err = apparmor_sandbox.InsertAAREExclusionPatterns(
+		defaultSnippet,
 		[]string{
 			"/snap/snapd/*/usr/lib/snapd/snap-confine",
 			"/snap/core/*/usr/lib/snapd/snap-confine",
@@ -783,10 +785,10 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 		return err
 	}
 
-	defaultSnippet := fmt.Sprintf(dockerSupportConnectedPlugAppArmor, dockerDefaultTransitionRules, containerdTransitionRules)
 	spec.AddSnippet(defaultSnippet)
 	if privileged {
-		changeProfileAnythingRules, err := apparmor_sandbox.GenerateAAREExclusionPatterns(
+		privilegedSnippet, err := apparmor_sandbox.InsertAAREExclusionPatterns(
+			dockerSupportPrivilegedAppArmor,
 			[]string{
 				"/snap/snapd/*/usr/lib/snapd/snap-confine",
 				"/snap/core/*/usr/lib/snapd/snap-confine",
@@ -800,7 +802,8 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 			return err
 		}
 
-		inheritExecAnythingRules, err := apparmor_sandbox.GenerateAAREExclusionPatterns(
+		privilegedSnippet, err = apparmor_sandbox.InsertAAREExclusionPatterns(
+			privilegedSnippet,
 			[]string{
 				"/snap/snapd/*/usr/lib/snapd/snap-confine",
 				"/snap/core/*/usr/lib/snapd/snap-confine",
@@ -814,7 +817,6 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 			return err
 		}
 
-		privilegedSnippet := fmt.Sprintf(dockerSupportPrivilegedAppArmor, changeProfileAnythingRules, inheritExecAnythingRules)
 		spec.AddSnippet(privilegedSnippet)
 	}
 	if !release.OnClassic {
