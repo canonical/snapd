@@ -31,7 +31,7 @@ prepare: |
   if tests.nested is-nested uc22; then
     version=22
   fi
-  snap download pc-kernel --channel="$version/edge" --basename=pc-kernel
+  snap download pc-kernel --channel="$version/beta" --basename=pc-kernel
   case "$PROBLEM_TYPE" in
       crash)
           uc20_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-in-initramfs
