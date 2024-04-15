@@ -81,7 +81,10 @@ jobs:
         set -x
         export TICSAUTHTOKEN="${{ secrets.TICSAUTHTOKEN }}"
 
-        # Install the TICS
+        # Install staticcheck dependency
+        go install honnef.co/go/tools/cmd/staticcheck@latest
+
+        # Install and run TICS
         curl --silent --show-error "https://canonical.tiobe.com/tiobeweb/TICS/api/public/v1/fapi/installtics/Script?cfg=default&platform=linux&url=https://canonical.tiobe.com/tiobeweb/TICS/" > install_tics.sh
         . ./install_tics.sh
 
@@ -91,4 +94,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: tics-logs.tar.gz
-        path: tics-logs.tar.gz
+        path: ${{ github.workspace }}/src/github.com/snapcore/snapd/tics-logs.tar.gz
