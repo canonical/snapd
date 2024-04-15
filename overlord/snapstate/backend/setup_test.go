@@ -71,6 +71,8 @@ func (s *setupSuite) SetUpTest(c *C) {
 	})
 
 	s.umount = testutil.MockCommand(c, "umount", "")
+	depmod := testutil.MockCommand(c, "depmod", `echo "depmod default mock" >&2; exit 1`)
+	s.AddCleanup(func() { depmod.Restore() })
 }
 
 func (s *setupSuite) TearDownTest(c *C) {
@@ -658,6 +660,9 @@ func (s *setupSuite) TestSetupAndRemoveKernelModulesComponents(c *C) {
 	kernRev := snap.R(33)
 	toInstall := createKModsComps(c, 1, 2, ksnap, kernRev)
 
+	depmod := testutil.MockCommand(c, "depmod", "")
+	defer depmod.Restore()
+
 	// Set-up and then remove
 	s.testSetupKernelModulesComponents(c, toInstall, nil, ksnap, kernRev, "")
 	s.testRemoveKernelModulesComponents(c, toInstall, nil, ksnap, kernRev, "")
@@ -666,6 +671,9 @@ func (s *setupSuite) TestSetupAndRemoveKernelModulesComponents(c *C) {
 func (s *setupSuite) TestSetupAndRemoveKernelModulesComponentsWithInstalled(c *C) {
 	ksnap := "kernel"
 	kernRev := snap.R(33)
+
+	depmod := testutil.MockCommand(c, "depmod", "")
+	defer depmod.Restore()
 
 	// Set-up
 	firstInstalled := createKModsComps(c, 1, 2, ksnap, kernRev)
@@ -770,6 +778,9 @@ func (s *setupSuite) testRemoveKernelModulesComponents(c *C, toRemove, finalComp
 func (s *setupSuite) TestRemoveKernelModulesComponentsFails(c *C) {
 	ksnap := "kernel"
 	kernRev := snap.R(33)
+
+	depmod := testutil.MockCommand(c, "depmod", "")
+	defer depmod.Restore()
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		// Fail in the penultimate invocation, which disables the unit
