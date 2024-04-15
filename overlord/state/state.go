@@ -173,7 +173,7 @@ type marshalledState struct {
 	LastLaneId   int `json:"last-lane-id"`
 	LastNoticeId int `json:"last-notice-id"`
 
-	NoticeLastTimestam time.Time `json:"notice-last-timestamp,omitempty"`
+	NoticeLastTimestamp time.Time `json:"notice-last-timestamp,omitempty"`
 }
 
 // MarshalJSON makes State a json.Marshaller
