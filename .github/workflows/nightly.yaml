@@ -89,9 +89,10 @@ jobs:
         . ./install_tics.sh
 
         TICSQServer -project snapd -tmpdir /tmp/tics -branchdir "${{ github.workspace }}/src/github.com/snapcore/snapd"
+        tar -cvzf tics-logs.tar.gz /tmp/tics
 
     - name: Uploading TICS logs
       uses: actions/upload-artifact@v4
       with:
         name: tics-logs.tar.gz
-        path: ${{ github.workspace }}/src/github.com/snapcore/snapd/tics-logs.tar.gz
+        path: tics-logs.tar.gz
