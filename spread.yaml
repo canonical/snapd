@@ -503,52 +503,52 @@ backends:
         systems:
             - ubuntu-core-16-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-16-32:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-16-arm-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-16-arm-32:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-18-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-18-32:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-18-arm-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-18-arm-32:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-20-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-20-arm-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-20-arm-32:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-22-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-22-arm-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-22-arm-32:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-24-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-24-arm-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
 
 path: /home/gopath/src/github.com/snapcore/snapd
 
