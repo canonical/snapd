@@ -76,9 +76,9 @@ jobs:
         COVERAGE_OUT=.coverage/coverage.txt ./run-checks --unit
         gocover-cobertura < .coverage/coverage.txt > .coverage/coverage.xml
 
-    - name: Install TICS dependencies snap
+    - name: Install TICS dependencies
       run: |
-          sudo snap refresh --classic --channel=latest/stable go
+          sudo snap refresh --channel=latest/stable go
           go install honnef.co/go/tools/cmd/staticcheck@latest
 
     - name: TICS scan
