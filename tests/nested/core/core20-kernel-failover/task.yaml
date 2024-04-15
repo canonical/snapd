@@ -1,5 +1,8 @@
 summary: Check that a broken kernel snap automatically rolls itself back
 
+details: |
+    Check that a broken kernel snap automatically rolls itself back
+
 # TODO:UC20: write equivalent test for base snap failover
 systems: [ubuntu-20.04-64, ubuntu-22.04-64]
 
@@ -68,7 +71,7 @@ execute: |
   echo "Install it and get the ID for the change"
   REMOTE_CHG_ID=$(remote.exec sudo snap install --dangerous panicking-initramfs-kernel.snap --no-wait)
   if [ "$PROBLEM_TYPE" = "nolink" ]; then
-      remote.exec "retry --wait 1 -n 50 sh -c 'sudo rm /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi'"
+      remote.exec "retry --wait 1 -n 100 sh -c 'sudo rm /run/mnt/ubuntu-boot/EFI/ubuntu/try-kernel.efi'"
   fi
 
   # wait for a reboot. Note that failure is immediate for kernel.efi
