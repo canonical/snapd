@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"fmt"
 	"path/filepath"
 	"time"
 
@@ -239,7 +240,7 @@ func (s *linkCompSnapSuite) testDoUnlinkCurrentComponent(c *C, snapName string, 
 	// undo information has been stored
 	var storedCs sequence.ComponentState
 	cs := sequence.NewComponentState(csi, snap.TestComponent)
-	t.Get("unlinked-component", &storedCs)
+	c.Assert(t.Change().Get(fmt.Sprintf("unlinked-component-%s", cref.String()), &storedCs), IsNil)
 	c.Assert(&storedCs, DeepEquals, cs)
 	// the link has been removed
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
@@ -323,7 +324,7 @@ func (s *linkCompSnapSuite) testDoUnlinkThenUndoUnlinkCurrentComponent(c *C, sna
 	// undo information was stored
 	var storedCs sequence.ComponentState
 	cs := sequence.NewComponentState(csi, snap.TestComponent)
-	t.Get("unlinked-component", &storedCs)
+	c.Assert(t.Change().Get(fmt.Sprintf("unlinked-component-%s", cref.String()), &storedCs), IsNil)
 	c.Assert(&storedCs, DeepEquals, cs)
 	// the link has been removed and then re-created
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{

@@ -381,8 +381,9 @@ func (m *SnapManager) doUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (err
 		return err
 	}
 
-	// set information for undoUnlinkCurrentComponent in the task
-	t.Set("unlinked-component", unlinkedComp)
+	// set information for undoUnlinkCurrentComponent in the change
+	t.Change().Set(fmt.Sprintf("unlinked-component-%s",
+		unlinkedComp.SideInfo.Component.String()), unlinkedComp)
 
 	// Finally, write the state
 	Set(st, snapsup.InstanceName(), snapSt)
@@ -399,7 +400,7 @@ func (m *SnapManager) undoUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (e
 	defer st.Unlock()
 
 	// snapSt is a copy of the current state
-	_, snapsup, snapSt, err := compSetupAndState(t)
+	compsup, snapsup, snapSt, err := compSetupAndState(t)
 	if err != nil {
 		return err
 	}
@@ -411,7 +412,8 @@ func (m *SnapManager) undoUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (e
 	}
 
 	var unlinkedComp sequence.ComponentState
-	err = t.Get("unlinked-component", &unlinkedComp)
+	err = t.Change().Get(fmt.Sprintf("unlinked-component-%s",
+		compsup.CompSideInfo.Component.String()), &unlinkedComp)
 	if err != nil {
 		return err
 	}
