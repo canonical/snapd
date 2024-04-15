@@ -178,7 +178,7 @@ func (s *backendSuite) testInstallingComponentWritesHookProfiles(c *C, instanceN
 
 		// and got compiled
 		c.Check(s.snapSeccomp.Calls(), testutil.DeepContains, []string{
-			"snap-seccomp", "compile", componentHookProfile + ".src", componentHookProfile + ".bin",
+			"snap-seccomp", "compile", componentHookProfile + ".src", componentHookProfile + ".bin2",
 		})
 
 		s.RemoveSnap(c, info)
@@ -321,7 +321,7 @@ func (s *backendSuite) testUpdatingSnapToOneWithMoreComponents(c *C, instanceNam
 		c.Check(profile+".src", testutil.FilePresent)
 
 		// and got compiled
-		c.Check(s.snapSeccomp.Calls(), testutil.DeepContains, []string{"snap-seccomp", "compile", profile + ".src", profile + ".bin"})
+		c.Check(s.snapSeccomp.Calls(), testutil.DeepContains, []string{"snap-seccomp", "compile", profile + ".src", profile + ".bin2"})
 		s.snapSeccomp.ForgetCalls()
 
 		s.RemoveSnap(c, info)
