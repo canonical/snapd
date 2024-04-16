@@ -47,15 +47,10 @@ func doExperimentalApparmorPromptingDaemonRestart(c RunTransaction, opts *fsOnly
 		return nil
 	}
 
-	// XXX: what if apparmor-prompting flag value unchanged but support changed?
-	// Prompting support (currently) depends only on AppArmor kernel and parser
-	// features, which are checked only once at startup, so this cannot occur.
-
-	if !features.AppArmorPrompting.IsSupported() {
-		// prompting flag changed, but prompting unsupported, so no need to
-		// regenerate security profiles via a restart.
-		return nil
-	}
+	// No matter whether prompting is supported or not, request a restart of
+	// snapd, since it may be the case that AppArmor has been updated and the
+	// kernel or parser support for prompting has changed, and this isn't picked
+	// up without re-probing the AppArmor features, which occurs during startup.
 
 	st.Lock()
 	defer st.Unlock()
