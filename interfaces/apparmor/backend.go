@@ -676,6 +676,9 @@ func addUpdateNSProfile(snapInfo *snap.Info, snippets string, content map[string
 	}
 }
 
+// Allow optional trailing ' ' after "###PROMPT###"
+var promptReplacer = regexp.MustCompile("###PROMPT### ?")
+
 func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]osutil.FileState, spec *Specification) {
 	// If base is specified and it doesn't match the core snaps (not
 	// specifying a base should use the default core policy since in this
@@ -963,7 +966,7 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 				if spec.UsePromptPrefix() {
 					repl = "prompt "
 				}
-				tagSnippets = strings.Replace(tagSnippets, "###PROMPT###", repl, -1)
+				tagSnippets = promptReplacer.ReplaceAllLiteralString(tagSnippets, repl)
 
 				// Conditionally add privilege dropping policy
 				if len(snapInfo.SystemUsernames) > 0 {
