@@ -6,7 +6,7 @@ details: |
 
 backends: [google-nested-dev]
 
-systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-*]
 
 manual: true
 

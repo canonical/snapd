@@ -1,10 +1,11 @@
 summary: create and remove a recovery system using the API
+
 details: |
   This test creates and removes a recovery system using the recovery system API.
   A few variants are tested, including testing the new recovery system and
   marking it as the default recovery system.
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/test-snapd-recovery-system-pc-{VERSION}.model

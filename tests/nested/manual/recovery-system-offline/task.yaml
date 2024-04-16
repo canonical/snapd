@@ -1,9 +1,10 @@
 summary: create and remove a recovery system using the offline API
+
 details: |
   This test creates a recovery system using the offline version of the recovery
   system creation API.
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/test-snapd-recovery-system-pc-{VERSION}.model

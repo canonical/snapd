@@ -6,7 +6,7 @@ details: |
     onto the run system ubuntu-data on UC20 during install mode to avoid an
     additional reboot during the first boot process.
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
     # use snapd from the spread run so that we have testkeys trusted in the

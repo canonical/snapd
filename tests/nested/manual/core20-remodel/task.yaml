@@ -8,7 +8,7 @@ details: |
   requires a base that was not previously installed on the system. A remodel of
   this kind requires snaps to be installed in a specific order.
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/valid-for-testing-pc-{VERSION}.model

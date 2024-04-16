@@ -1,0 +1,44 @@
+type: model
+authority-id: developer1
+series: 16
+brand-id: developer1
+model: developer1-24-secured
+architecture: amd64
+base: core24
+grade: secured
+serial-authority:
+  - generic
+snaps:
+  -
+    default-channel: 24/edge
+    id: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
+    name: pc
+    type: gadget
+  -
+    default-channel: 24/edge
+    id: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
+    name: pc-kernel
+    type: kernel
+  -
+    default-channel: latest/edge
+    id: dwTAh7MZZ01zyriOZErqd1JynQLiOGvM
+    name: core24
+    type: base
+  -
+    default-channel: latest/stable
+    id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+    name: snapd
+    type: snapd
+timestamp: 2024-04-09T22:00:00+00:00
+sign-key-sha3-384: EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+
+AcLBUgQAAQoABgUCZhWfAQAAC6sQAFmVs+Cr9Dm5ZgEVz1D/2bb7cSDkab0+UGl/QN/+vxki6jr+
+M56V69ZNUvaAAW9CIvNh1TNfj4SX9wk69NGBjycnGaOpE/X4g9N0yNPMQp7sIJy7SyHtp87Ry0SJ
+iJDZ0pZwE0mM7vJz7fmutI5SJDfe6mqMr7RyLuuxgevvilTCRaeX4prxeKw8nwE74XidITd943Jo
+jfHwUihqhrIf6I7Ijw6SdOvhGqTRv6peoag6iFHL+oWC94UK6GrwLneDKuT+V8wQVnQo1WVYuB6h
+Z1KATIXahgJ6Yjkl8IEekp8QdsJs2J9dwd1WHTRcqaMCvfUeBOakP6ikC7C7A5Qky28Z+gqW6qJz
+GfJgOvUHU/y+ePSr2PodYxWKm9xGqVNwo1jbG7e2E4Rxh+qV9DMriUARE2SoksABD2bB3MjYxv3S
+xdNpvGWQ4FLLh6EjVWo/wBcuBZ7El/EgbBa1YvHn0YXJu9pU0vfGa7xVbxhCs1c0c+MtGARGOWhJ
+lsZaAdErSn9SJrycyzxAfguWxriL02EONkxpCFK4wfi5H5hamef9+qUt1CDfpRIoOQry0lvSyRtA
++VPUqNBmIrTXP6uu80VGlU3ipEIQWXoAxghygU6ZaU371Z7Jf72eagUT2q02cw2zuPg9VMUhcKOb
+nRYOOfG5BjthyFCF9oT2I40NMZlN

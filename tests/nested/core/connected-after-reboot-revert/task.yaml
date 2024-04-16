@@ -6,7 +6,7 @@ details: |
   update, we still have connections to the base snap. This could happen in
   the past if one of the updated snaps was snapd.
 
-systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-*]
 
 execute: |
   echo "Build kernel with failing post-refresh hook"

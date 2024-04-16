@@ -1,6 +1,10 @@
 summary: Test that gadget config defaults are applied early on core20.
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+details: |
+    Check that defaults are applied early when the Ubuntu Core image is
+    booted and also after transition to recovery mode.
+
+systems: [ubuntu-2*]
 
 environment:
     NESTED_ENABLE_TPM: true
