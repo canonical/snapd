@@ -1,0 +1,43 @@
+summary: smoke test for the filter-debug-output tool
+
+details: |
+    Check the filter-debug-output tool filters the spread log and stores the
+    debug output to the debug.log file.
+
+systems: [ubuntu-22.04-64]
+
+execute: |
+    # Check help
+    "$TESTSTOOLS"/filter-debug-output -h | MATCH "usage: filter-debug-output"
+    "$TESTSTOOLS"/filter-debug-output --help | MATCH "usage: filter-debug-output"
+
+    cat spread.log | "$TESTSTOOLS"/filter-debug-output -f debug.log | tee result.log
+
+    # Check the number of debug logs in both files is the same
+    test "$(grep -c "###DEBUG-" debug.log)" -eq 3
+    test "$(grep -c "###DEBUG-" result.log)" -eq 3
+
+    # Check the DEBUG-3 tag is sent to both files
+    test "$(grep -c "###DEBUG-3###" debug.log)" -eq 1
+    test "$(grep -c "###DEBUG-3###" result.log)" -eq 1
+
+    # Check the main "Debug output for" line is displayed in both files
+    test "$(grep -c "Debug output for" debug.log)" -eq 3
+    test "$(grep -c "Debug output for" result.log)" -eq 3
+
+    # Check the debug output is just displayed in debug.log
+    test "$(grep -c "journalctl -n" debug.log)" -eq 3
+    test "$(grep -c "journalctl -n" result.log)" -eq 0
+
+    # Check the error debugging is not included in debug.log
+    test "$(grep -c "journalctl -u" debug.log)" -eq 0
+    test "$(grep -c "journalctl -u" result.log)" -eq 1
+
+    # Check other lines are not included in debug.log
+    test "$(grep -c "Allocating google" debug.log)" -eq 0
+    test "$(grep -c "Waiting for google" debug.log)" -eq 0
+    test "$(grep -c "Connecting to google" debug.log)" -eq 0
+    test "$(grep -c "Preparing google" debug.log)" -eq 0
+    test "$(grep -c "Executing google" debug.log)" -eq 0
+    test "$(grep -c "Restoring google" debug.log)" -eq 0
+    test "$(grep -c "Discarding google" debug.log)" -eq 0

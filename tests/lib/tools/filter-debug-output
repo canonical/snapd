@@ -35,15 +35,31 @@ def is_debug_finished(line):
         match_time(parts[1]) and \
         parts[2] in OPERATIONS
 
+def get_debug_tag(debug_num):
+    return "###DEBUG-{}###".format(debug_num)
+
+# Prints the debug line and the tag that helps for cross-referencing
+def print_debug_line(line, debug_num):
+    print(line)
+    print("-----")
+    print(get_debug_tag(debug_num))
+    print("-----")
+
+# Writes in the file the debug output lines including the tag that
+# helps for cross-referencing
+def write_debug_lines(debug_lines, debug_num, debug_file):
+    with open(debug_file, 'a+') as myfile:
+        myfile.write(get_debug_tag(debug_num) + '\n')
+        myfile.write(debug_lines)
 
 # Process spread output lines
 def process_spread_output(debug_file):
+    debug_num = 0
     debug_lines = ""
     for line in sys.stdin:
         if debug_lines:
             if is_debug_finished(line):
-                with open(debug_file, 'a+') as myfile:
-                   myfile.write(debug_lines)
+                write_debug_lines(debug_lines, debug_num, debug_file)
 
                 # There is a Debug output right after
                 if match_debug(line):
@@ -58,7 +74,10 @@ def process_spread_output(debug_file):
         else:
             # A Debug section starts
             if match_debug(line):
+                debug_num += 1
                 debug_lines = line
+                print_debug_line(line.strip(), debug_num)
+
                 continue
             # No debug line, just print it
             else:
