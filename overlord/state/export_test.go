@@ -72,7 +72,3 @@ var (
 func (s *State) NumNotices() int {
 	return len(s.notices)
 }
-
-func (n *Notice) GetLastOccurred() time.Time {
-	return n.lastOccurred
-}
