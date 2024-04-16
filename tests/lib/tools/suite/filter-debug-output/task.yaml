@@ -11,7 +11,7 @@ execute: |
     "$TESTSTOOLS"/filter-debug-output -h | MATCH "usage: filter-debug-output"
     "$TESTSTOOLS"/filter-debug-output --help | MATCH "usage: filter-debug-output"
 
-    cat spread.log | "$TESTSTOOLS"/filter-debug-output -f debug.log | tee result.log
+    "$TESTSTOOLS"/filter-debug-output -f debug.log < spread.log | tee result.log
 
     # Check the number of debug logs in both files is the same
     test "$(grep -c "###DEBUG-" debug.log)" -eq 3
