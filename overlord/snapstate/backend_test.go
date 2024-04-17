@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 type fakeOp struct {
@@ -1192,7 +1193,7 @@ func svcSnapMountDir(svcs []*snap.AppInfo) string {
 	return svcs[0].Snap.MountDir()
 }
 
-func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, disabledSvcs []string, meter progress.Meter, tm timings.Measurer) error {
+func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, meter progress.Meter, tm timings.Measurer) error {
 	services := make([]string, 0, len(svcs))
 	for _, svc := range svcs {
 		services = append(services, svc.Name)
@@ -1203,8 +1204,8 @@ func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, disabledSvcs []s
 		services: services,
 	}
 	// only add the services to the op if there's something to add
-	if len(disabledSvcs) != 0 {
-		op.disabledServices = disabledSvcs
+	if disabledSvcs != nil && len(disabledSvcs.SystemServices) != 0 {
+		op.disabledServices = disabledSvcs.SystemServices
 	}
 	f.appendOp(&op)
 	return f.maybeErrForLastOp()
@@ -1218,7 +1219,7 @@ func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, reason snap.Servi
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) QueryDisabledServices(info *snap.Info, meter progress.Meter) ([]string, error) {
+func (f *fakeSnappyBackend) QueryDisabledServices(info *snap.Info, meter progress.Meter) (*wrappers.DisabledServices, error) {
 	var l []string
 
 	// return the disabled services as disabled and nothing else
@@ -1238,7 +1239,9 @@ func (f *fakeSnappyBackend) QueryDisabledServices(info *snap.Info, meter progres
 		disabledServices: f.servicesCurrentlyDisabled,
 	})
 
-	return l, f.maybeErrForLastOp()
+	return &wrappers.DisabledServices{
+		SystemServices: l,
+	}, f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *backend.InstallRecord, dev snap.Device, p progress.Meter) error {

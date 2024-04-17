@@ -7484,9 +7484,11 @@ func (s *snapmgrTestSuite) TestStopSnapServicesUndo(c *C) {
 	c.Check(t.Get("old-last-active-disabled-services", &oldDisabledSvcs), IsNil)
 	c.Check(oldDisabledSvcs, DeepEquals, []string{"old-svc"})
 
-	var disabled []string
+	var disabled wrappers.DisabledServices
 	c.Check(t.Get("disabled-services", &disabled), IsNil)
-	c.Check(disabled, DeepEquals, []string{"svc1"})
+	c.Check(disabled, DeepEquals, wrappers.DisabledServices{
+		SystemServices: []string{"svc1"},
+	})
 }
 
 func (s *snapmgrTestSuite) TestStopSnapServicesErrInUndo(c *C) {
