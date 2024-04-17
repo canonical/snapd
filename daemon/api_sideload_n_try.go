@@ -392,7 +392,10 @@ func readComponentInfoFromContImpl(tempPath string) (*snap.ComponentInfo, error)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open container: %w", err)
 	}
-	return snap.ReadComponentInfoFromContainer(compf)
+
+	// hook information isn't loaded here, but it shouldn't be needed in this
+	// context
+	return snap.ReadComponentInfoFromContainer(compf, nil)
 }
 
 // readComponentInfo reads ComponentInfo from a snap component file and the

@@ -22,11 +22,12 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap/naming"
 	"gopkg.in/yaml.v2"
 )
 
-// ComponentInfo is the content of a component.yaml file.
+// ComponentInfo contains information about a snap component.
 type ComponentInfo struct {
 	Component   naming.ComponentRef `yaml:"component"`
 	Type        ComponentType       `yaml:"type"`
@@ -34,8 +35,12 @@ type ComponentInfo struct {
 	Summary     string              `yaml:"summary"`
 	Description string              `yaml:"description"`
 
-	// TODO: we will need to add fields here to carry around details about
-	// explicit and implicit hooks.
+	// Hooks contains information about implicit and explicit hooks that this
+	// component has. This information is derived from a combination of the
+	// component itself and the snap.Info that represents the snap this
+	// component is associated with. This field may be empty if the
+	// ComponentInfo was not created with the help of a snap.Info.
+	Hooks map[string]*HookInfo `yaml:"-"`
 }
 
 // NewComponentInfo creates a new ComponentInfo.
@@ -114,8 +119,7 @@ func (c *componentPlaceInfo) Filename() string {
 // will be of the form:
 // /snaps/<snap_instance>/components/mnt/<component_name>/<component_revision>
 func (c *componentPlaceInfo) MountDir() string {
-	return filepath.Join(ComponentsBaseDir(c.snapInstance), "mnt",
-		c.compName, c.compRevision.String())
+	return ComponentMountDir(c.compName, c.compRevision, c.snapInstance)
 }
 
 // MountFile returns the path of the file to be mounted for a component,
@@ -130,14 +134,99 @@ func (c *componentPlaceInfo) MountDescription() string {
 	return fmt.Sprintf("Mount unit for %s, revision %s", c.ContainerName(), c.compRevision)
 }
 
-// ReadComponentInfoFromContainer reads ComponentInfo from a snap component container.
-func ReadComponentInfoFromContainer(compf Container) (*ComponentInfo, error) {
+// ReadComponentInfoFromContainer reads ComponentInfo from a snap component
+// container. If snapInfo is not nil, it is used to complete the ComponentInfo
+// information about the component's implicit and explicit hooks, and their
+// associated plugs. If snapInfo is not nil, consistency checks are performed
+// to ensure that the component is a component of the provided snap.
+func ReadComponentInfoFromContainer(compf Container, snapInfo *Info) (*ComponentInfo, error) {
 	yamlData, err := compf.ReadFile("meta/component.yaml")
 	if err != nil {
 		return nil, err
 	}
 
-	return InfoFromComponentYaml(yamlData)
+	componentInfo, err := InfoFromComponentYaml(yamlData)
+	if err != nil {
+		return nil, err
+	}
+
+	// if snapInfo is nil, then we can't complete the component info with
+	// implicit and explicit hooks, so we return the component info as is.
+	//
+	// we could technically create the hooks, but would be unable to bind plugs
+	// to them, so it is probably best to just leave them out.
+	if snapInfo == nil {
+		return componentInfo, nil
+	}
+
+	if snapInfo.SnapName() != componentInfo.Component.SnapName {
+		return nil, fmt.Errorf(
+			"component %q is not a component for snap %q", componentInfo.Component, snapInfo.SnapName())
+	}
+
+	componentName := componentInfo.Component.ComponentName
+
+	component, ok := snapInfo.Components[componentName]
+	if !ok {
+		return nil, fmt.Errorf("%q is not a component for snap %q", componentName, snapInfo.SnapName())
+	}
+
+	if component.Type != componentInfo.Type {
+		return nil, fmt.Errorf("inconsistent component type (%q in snap, %q in component)", component.Type, componentInfo.Type)
+	}
+
+	// attach the explicit hooks, these are defined in the snap.yaml. plugs are
+	// already bound to the hooks.
+	componentInfo.Hooks = component.ExplicitHooks
+
+	// attach the implicit hooks, these are not defined in the snap.yaml.
+	// unscoped plugs are bound to the implicit hooks here.
+	addAndBindImplicitComponentHooksFromContainer(compf, componentInfo, component, snapInfo)
+
+	return componentInfo, nil
+}
+
+func addAndBindImplicitComponentHooksFromContainer(compf Container, componentInfo *ComponentInfo, component *Component, info *Info) {
+	hooks, err := compf.ListDir("meta/hooks")
+	if err != nil {
+		return
+	}
+
+	for _, hook := range hooks {
+		addAndBindImplicitComponentHook(componentInfo, info, component, hook)
+	}
+}
+
+func addAndBindImplicitComponentHook(componentInfo *ComponentInfo, snapInfo *Info, component *Component, hook string) {
+	// don't overwrite a hook that has already been loaded from the snap.yaml
+	if _, ok := componentInfo.Hooks[hook]; ok {
+		return
+	}
+
+	// TODO: ignore unsupported implicit component hooks, or return an error?
+	if !IsComponentHookSupported(hook) {
+		logger.Noticef("ignoring unsupported implicit hook %q for component %q", componentInfo.Component, hook)
+		return
+	}
+
+	// implicit hooks get all unscoped plugs
+	unscopedPlugs := make(map[string]*PlugInfo)
+	for name, plug := range snapInfo.Plugs {
+		if plug.Unscoped {
+			unscopedPlugs[name] = plug
+		}
+	}
+
+	// TODO: if hooks ever get slots, then unscoped slots will need to be
+	// bound here
+
+	componentInfo.Hooks[hook] = &HookInfo{
+		Snap:      snapInfo,
+		Component: component,
+		Name:      hook,
+		Plugs:     unscopedPlugs,
+		Explicit:  false,
+	}
 }
 
 // InfoFromComponentYaml parses a ComponentInfo from the raw yaml data.
