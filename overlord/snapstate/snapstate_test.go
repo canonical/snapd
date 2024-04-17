@@ -8881,6 +8881,7 @@ apps:
 [Unit]
 Description=Mount unit for test-snap, revision 42
 After=snapd.mounts-pre.target
+Before=local-fs.target
 Before=snapd.mounts.target
 Before=local-fs.target
 
@@ -8911,6 +8912,7 @@ WantedBy=multi-user.target
 [Unit]
 Description=Mount unit for test-snap, revision 42
 After=snapd.mounts-pre.target
+Before=local-fs.target
 Before=snapd.mounts.target
 
 [Mount]
@@ -8958,6 +8960,7 @@ apps:
 [Unit]
 Description=Mount unit for test-snap, revision 42
 After=snapd.mounts-pre.target
+Before=local-fs.target
 Before=snapd.mounts.target
 
 [Mount]
@@ -9026,6 +9029,7 @@ apps:
 [Unit]
 Description=Mount unit for test-snap, revision 42
 After=snapd.mounts-pre.target
+Before=local-fs.target
 Before=snapd.mounts.target
 
 [Mount]

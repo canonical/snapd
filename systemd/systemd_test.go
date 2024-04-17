@@ -1167,6 +1167,7 @@ func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
 [Unit]
 Description=Mount unit for foo, revision 42
 After=snapd.mounts-pre.target
+Before=local-fs.target
 Before=snapd.mounts.target
 
 [Mount]
@@ -1204,6 +1205,7 @@ func (s *SystemdTestSuite) TestEnsureMountUnitUnchanged(c *C) {
 [Unit]
 Description=Mount unit for foo, revision 42
 After=snapd.mounts-pre.target
+Before=local-fs.target
 Before=snapd.mounts.target
 
 [Mount]
@@ -1228,6 +1230,7 @@ WantedBy=multi-user.target
 [Unit]
 Description=Mount unit for foo, revision 42
 After=snapd.mounts-pre.target
+Before=local-fs.target
 Before=snapd.mounts.target
 
 [Mount]
@@ -1296,6 +1299,7 @@ WantedBy=multi-user.target
 [Unit]
 Description=Mount unit for foo, revision 42
 After=snapd.mounts-pre.target
+Before=local-fs.target
 Before=snapd.mounts.target
 
 [Mount]
@@ -1334,6 +1338,7 @@ func (s *SystemdTestSuite) TestAddMountUnitForDirs(c *C) {
 [Unit]
 Description=Mount unit for foodir, revision x1
 After=snapd.mounts-pre.target
+Before=local-fs.target
 Before=snapd.mounts.target
 
 [Mount]
@@ -1370,6 +1375,7 @@ func (s *SystemdTestSuite) TestAddMountUnitStartBeforeDriversLoad(c *C) {
 [Unit]
 Description=Mount unit for foo, revision x1
 After=snapd.mounts-pre.target
+Before=local-fs.target
 Before=snapd.mounts.target
 Before=systemd-udevd.service systemd-modules-load.service
 
@@ -1418,6 +1424,7 @@ func (s *SystemdTestSuite) TestAddMountUnitTransient(c *C) {
 [Unit]
 Description=Mount unit for foo via bar
 After=snapd.mounts-pre.target
+Before=local-fs.target
 Before=snapd.mounts.target
 
 [Mount]
@@ -1466,6 +1473,7 @@ func (s *SystemdTestSuite) TestAddKernelModulesMountUnit(c *C) {
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`[Unit]
 Description=Mount unit for wifi kernel modules component
 After=snapd.mounts-pre.target
+Before=local-fs.target
 Before=snapd.mounts.target
 Before=systemd-udevd.service systemd-modules-load.service
 
@@ -1513,6 +1521,7 @@ func (s *SystemdTestSuite) TestAddKernelTreeMountUnit(c *C) {
 	c.Assert(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`[Unit]
 Description=Mount unit for kernel modules in kernel tree
 After=snapd.mounts-pre.target
+Before=local-fs.target
 Before=snapd.mounts.target
 Before=systemd-udevd.service systemd-modules-load.service
 
@@ -1557,6 +1566,7 @@ func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 [Unit]
 Description=Mount unit for foo, revision 42
 After=snapd.mounts-pre.target
+Before=local-fs.target
 Before=snapd.mounts.target
 
 [Mount]
@@ -1602,6 +1612,7 @@ exit 0
 [Unit]
 Description=Mount unit for foo, revision x1
 After=snapd.mounts-pre.target
+Before=local-fs.target
 Before=snapd.mounts.target
 
 [Mount]
@@ -1643,6 +1654,7 @@ exit 0
 [Unit]
 Description=Mount unit for foo, revision x1
 After=snapd.mounts-pre.target
+Before=local-fs.target
 Before=snapd.mounts.target
 
 [Mount]
@@ -1908,6 +1920,7 @@ const unitTemplate = `
 [Unit]
 Description=Mount unit for foo, revision 42
 After=snapd.mounts-pre.target
+Before=local-fs.target
 Before=snapd.mounts.target
 
 [Mount]
@@ -1962,6 +1975,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitUnchanged(c *C) {
 [Unit]
 Description=Mount unit for foo, revision 42
 After=snapd.mounts-pre.target
+Before=local-fs.target
 Before=snapd.mounts.target
 
 [Mount]
@@ -2006,6 +2020,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUniModified(c *C) {
 [Unit]
 Description=Mount unit for foo, revision 42
 After=snapd.mounts-pre.target
+Before=local-fs.target
 Before=snapd.mounts.target
 
 [Mount]
@@ -2084,6 +2099,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithOptions(c *C) {
 		fmt.Sprintf(`[Unit]
 Description=Early mount unit for kernel snap
 After=snapd.mounts-pre.target
+Before=local-fs.target
 Before=snapd.mounts.target
 Before=systemd-udevd.service systemd-modules-load.service
 

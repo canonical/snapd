@@ -1404,6 +1404,7 @@ var squashfsFsType = squashfs.FsType
 const snapMountUnitTmpl = `[Unit]
 Description={{.Description}}
 After=snapd.mounts-pre.target
+Before=local-fs.target
 Before=snapd.mounts.target{{if isBeforeDrivers .MountUnitType}}
 Before=systemd-udevd.service systemd-modules-load.service{{end}}
 
