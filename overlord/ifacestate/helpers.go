@@ -175,7 +175,6 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer) er
 	// TODO: should snapsWithSecurityProfiles return app sets instead of snap infos?
 	appSets := make([]*interfaces.SnapAppSet, 0, len(snaps))
 	for _, sn := range snaps {
-
 		set, err := interfaces.NewSnapAppSet(sn, nil)
 		if err != nil {
 			return err
