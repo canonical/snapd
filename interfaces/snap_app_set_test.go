@@ -1,15 +1,25 @@
 package interfaces_test
 
 import (
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 	. "gopkg.in/check.v1"
 )
 
-type snapAppSetSuite struct{}
+type snapAppSetSuite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&snapAppSetSuite{})
+
+func (s *snapAppSetSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+}
 
 const yaml = `name: test-snap
 version: 1
@@ -158,6 +168,11 @@ version: 1
 apps:
   app1:
   app2:
+components:
+  comp:
+    type: test
+    hooks:
+      install:
 hooks:
   install:
 plugs:
