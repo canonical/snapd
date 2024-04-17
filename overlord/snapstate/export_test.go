@@ -139,6 +139,8 @@ var (
 	ArrangeSnapToWaitForBaseIfPresent    = arrangeSnapToWaitForBaseIfPresent
 	ArrangeSnapTaskSetsLinkageAndRestart = arrangeSnapTaskSetsLinkageAndRestart
 	ReRefreshSummary                     = reRefreshSummary
+
+	MaybeFindTasksetForSnap = maybeFindTasksetForSnap
 )
 
 const (
@@ -560,4 +562,8 @@ func SetRestoredMonitoring(snapmgr *SnapManager, value bool) {
 
 func SetPreseed(snapmgr *SnapManager, value bool) {
 	snapmgr.preseed = value
+}
+
+func SplitEssentialUpdates(deviceCtx DeviceContext, updates []minimalInstallInfo) (essential, nonEssential []MinimalInstallInfo) {
+	return splitEssentialUpdates(deviceCtx, updates)
 }
