@@ -1,0 +1,42 @@
+summary: Ensure that the personal-files interface works with a non-standard home dir
+
+details: |
+    Check that the personal-files interface works with a non-standard home directory
+    like /home/department/user_name. The issue raise shows how the snap connected
+    to the personal-files interface returns an error like:
+    cannot use invalid home directory "/home/department/user_name": permission denied
+
+systems: [ubuntu-22.04-64]
+
+environment:
+    TEST_USER: test2
+    TEST_USER_HOME: /home/subdir/test2
+
+prepare: |
+    useradd --create-home --home-dir "$TEST_USER_HOME" "$TEST_USER"
+    tests.cleanup defer rmdir /home/subdir
+    tests.cleanup defer userdel --remove "$TEST_USER"
+    mkdir "$TEST_USER_HOME"/other-subdir
+    touch "$TEST_USER_HOME"/other-subdir/testfile
+    chown -R "$TEST_USER" -R "$TEST_USER_HOME"
+
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+    tests.session prepare -u "$TEST_USER"
+    tests.cleanup defer tests.session restore -u "$TEST_USER"
+
+restore: |
+    tests.cleanup restore
+
+debug: |
+    set +x
+    journalctl | grep DENIED
+    cat /etc/apparmor.d/tunables/home
+    cat /etc/apparmor.d/tunables/home.d/snapd
+    set -e
+
+execute: |
+    snap set system homedirs="$(dirname "$TEST_USER_HOME")"
+    snap connect test-snapd-sh:personal-files
+
+    tests.session -u "$TEST_USER" exec test-snapd-sh.with-personal-files-plug -c 'ls other-subdir/' | MATCH testfile

@@ -1,0 +1,12 @@
+name: test-snapd-sh
+summary: A no-strings-attached, no-fuss shell for writing tests
+version: 1.0
+
+plugs:
+    personal-files:
+        write: [$HOME/other-subdir]
+
+apps:
+    with-personal-files-plug:
+        command: bin/sh
+        plugs: [personal-files]
