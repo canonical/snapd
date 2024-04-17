@@ -22,7 +22,7 @@ package install_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"syscall"
 
@@ -220,7 +220,7 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 
 		if err == nil {
 			// the target file system is mounted on a directory named after the structure index
-			content, err := ioutil.ReadFile(filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2", "EFI/boot/grubx64.efi"))
+			content, err := os.ReadFile(filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2", "EFI/boot/grubx64.efi"))
 			c.Assert(err, IsNil)
 			c.Check(string(content), Equals, "grubx64.efi content")
 			c.Assert(obs.content, DeepEquals, map[string][]*mockContentChange{

@@ -341,6 +341,31 @@ func (s *transactionTestSuite) TestReadDatabagsAreCopiedForIsolation(c *C) {
 	c.Assert(value, Equals, "bar")
 }
 
+func (s *transactionTestSuite) TestUnset(c *C) {
+	witness := &witnessReadWriter{bag: aspects.NewJSONDataBag()}
+	tx, err := aspects.NewTransaction(witness.read, witness.write, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	err = tx.Set("foo", "bar")
+	c.Assert(err, IsNil)
+
+	err = tx.Commit()
+	c.Assert(err, IsNil)
+
+	val, err := witness.writtenDatabag.Get("foo")
+	c.Assert(err, IsNil)
+	c.Assert(val, Equals, "bar")
+
+	err = tx.Unset("foo")
+	c.Assert(err, IsNil)
+
+	err = tx.Commit()
+	c.Assert(err, IsNil)
+
+	_, err = witness.writtenDatabag.Get("foo")
+	c.Assert(err, FitsTypeOf, aspects.PathError(""))
+}
+
 func txData(c *C, tx *aspects.Transaction) string {
 	data, err := tx.Data()
 	c.Assert(err, IsNil)

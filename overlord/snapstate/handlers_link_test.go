@@ -22,7 +22,6 @@ package snapstate_test
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -339,7 +338,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSeqFile(c *C) {
 	c.Assert(err, IsNil)
 
 	// and check that the sequence file got updated
-	seqContent, err := ioutil.ReadFile(filepath.Join(dirs.SnapSeqDir, "foo.json"))
+	seqContent, err := os.ReadFile(filepath.Join(dirs.SnapSeqDir, "foo.json"))
 	c.Assert(err, IsNil)
 	c.Check(string(seqContent), Equals, `{"sequence":[{"name":"foo","snap-id":"","revision":"11"},{"name":"foo","snap-id":"","revision":"33"}],"current":"33","migrated-hidden":false,"migrated-exposed-home":false}`)
 }
@@ -404,7 +403,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
 	// and check that the sequence file got updated
-	seqContent, err := ioutil.ReadFile(filepath.Join(dirs.SnapSeqDir, "foo.json"))
+	seqContent, err := os.ReadFile(filepath.Join(dirs.SnapSeqDir, "foo.json"))
 	c.Assert(err, IsNil)
 	c.Check(string(seqContent), Equals, `{"sequence":[],"current":"unset","migrated-hidden":false,"migrated-exposed-home":false}`)
 
@@ -650,6 +649,81 @@ func (s *linkSnapSuite) TestDoUnlinkSnapdUnlinks(c *C) {
 		op:   "unlink-snap",
 		path: filepath.Join(dirs.SnapMountDir, "snapd/20"),
 	}}
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+}
+
+func (s *linkSnapSuite) TestDoUnlinkCurrentSnapRelinksOnFailure(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// With a snap "foo" at revision 42
+	si := &snap.SideInfo{RealName: "foo", Revision: snap.R(42)}
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		Active:   true,
+	})
+
+	// With an app belonging to the snap that is apparently running.
+	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		c.Assert(name, Equals, "foo")
+		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
+		info.Apps = map[string]*snap.AppInfo{
+			"app": {Snap: info, Name: "app"},
+		}
+		return info, nil
+	})
+	restore := snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
+		c.Assert(instanceName, Equals, "foo")
+		return map[string][]int{"snap.foo.app": {1234}}, nil
+	})
+	defer restore()
+
+	// We can unlink the current revision of that snap, by setting IgnoreRunning flag.
+	task := s.state.NewTask("unlink-current-snap", "")
+	task.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Flags:    snapstate.Flags{IgnoreRunning: true},
+		Type:     "app",
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(task)
+
+	// Inject an error in unlink
+	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+		if op.op == "unlink-snap" {
+			return fmt.Errorf("oh noes something failed during unlink")
+		}
+		return nil
+	}
+
+	// Run the task we created
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	// And observe the results.
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "foo", &snapst)
+	c.Assert(err, IsNil)
+
+	// We should still see Rev 42 active
+	c.Check(snapst.Active, Equals, true)
+	c.Check(snapst.Sequence.Revisions, HasLen, 1)
+	c.Check(snapst.Current, Equals, snap.R(42))
+	c.Check(task.Status(), Equals, state.ErrorStatus)
+	expected := fakeOps{
+		{
+			op:   "unlink-snap",
+			path: filepath.Join(dirs.SnapMountDir, "foo/42"),
+		},
+		// We should see link-snap restoring the snap again as unlink-snap fails
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, "foo/42"),
+		},
+	}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 }
 

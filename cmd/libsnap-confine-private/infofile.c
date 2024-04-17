@@ -88,6 +88,11 @@ int sc_infofile_get_ini_section_key(FILE *stream, const char *section, const cha
         /* Replace the trailing newline character with the NUL byte. */
         line_buf[nread - 1] = '\0';
 
+        if (line_buf[0] == '#') {
+            /* A comment, advance to next line. */
+            continue;
+        }
+
         /* Handle ini sections (if requested via non-null section name) */
         if (line_buf[0] == '[') {
             if (section == NULL) {

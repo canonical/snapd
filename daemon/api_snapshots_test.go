@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
@@ -449,7 +448,7 @@ func (s *snapshotSuite) TestImportSnapshotLimits(c *check.C) {
 	var dataRead int
 
 	defer daemon.MockSnapshotImport(func(ctx context.Context, st *state.State, r io.Reader) (uint64, []string, error) {
-		data, err := ioutil.ReadAll(r)
+		data, err := io.ReadAll(r)
 		c.Assert(err, check.IsNil)
 		dataRead = len(data)
 		return uint64(0), nil, nil

@@ -1,5 +1,11 @@
 summary: Test the failover scenario of the snapd snap installation on a UC16 system
 
+details: |
+  Check the failover scenario of the snapd snap installation by installing it
+  multiple times to ensure that we can revert back to the core snap as many times
+  as needed. Verify that snapd.failure was activated when we tried to install
+  a broken snapd.
+
 # snapd snap is already installed by default on uc18+
 systems: [ubuntu-core-16-*]
 

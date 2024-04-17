@@ -22,13 +22,14 @@ package daemon
 import (
 	"context"
 	"net/http"
+	"os/user"
 	"time"
 
 	"github.com/gorilla/mux"
 
-	"github.com/snapcore/snapd/aspects"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -351,7 +352,7 @@ var (
 	MaxReadBuflen = maxReadBuflen
 )
 
-func MockAspectstateGet(f func(databag aspects.DataBag, account, bundleName, aspect, field string) (interface{}, error)) (restore func()) {
+func MockAspectstateGet(f func(st *state.State, account, bundleName, aspect string, field []string) (interface{}, error)) (restore func()) {
 	old := aspectstateGetAspect
 	aspectstateGetAspect = f
 	return func() {
@@ -359,7 +360,7 @@ func MockAspectstateGet(f func(databag aspects.DataBag, account, bundleName, asp
 	}
 }
 
-func MockAspectstateSet(f func(databag aspects.DataBag, account, bundleName, aspect, field string, val interface{}) error) (restore func()) {
+func MockAspectstateSet(f func(st *state.State, account, bundleName, aspect string, requests map[string]interface{}) error) (restore func()) {
 	old := aspectstateSetAspect
 	aspectstateSetAspect = f
 	return func() {
@@ -370,5 +371,25 @@ func MockAspectstateSet(f func(databag aspects.DataBag, account, bundleName, asp
 func MockRebootNoticeWait(d time.Duration) (restore func()) {
 	restore = testutil.Backup(&rebootNoticeWait)
 	rebootNoticeWait = d
+	return restore
+}
+
+func MockSystemUserFromRequest(f func(r *http.Request) (*user.User, error)) (restore func()) {
+	restore = testutil.Backup(&systemUserFromRequest)
+	systemUserFromRequest = f
+	return restore
+}
+
+func MockOsReadlink(f func(string) (string, error)) func() {
+	old := osReadlink
+	osReadlink = f
+	return func() {
+		osReadlink = old
+	}
+}
+
+func MockNewStatusDecorator(f func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator) (restore func()) {
+	restore = testutil.Backup(&newStatusDecorator)
+	newStatusDecorator = f
 	return restore
 }

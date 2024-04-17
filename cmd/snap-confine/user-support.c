@@ -38,10 +38,11 @@ void setup_user_data(void)
 
 	debug("creating user data directory: %s", user_data);
 	if (sc_nonfatal_mkpath(user_data, 0755) < 0) {
-		if ((errno == EROFS || errno == EACCES) && !sc_startswith(user_data, "/home/")) {
+		if ((errno == EROFS || errno == EACCES)
+		    && !sc_startswith(user_data, "/home/")) {
 			// clear errno or it will be displayed in die()
 			errno = 0;
-                        // XXX: may point to the right config option here?
+			// XXX: may point to the right config option here?
 			die("Sorry, home directories outside of /home needs configuration.\nSee https://forum.snapcraft.io/t/11209 for details.");
 		}
 		die("cannot create user data directory: %s", user_data);

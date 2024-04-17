@@ -31,8 +31,23 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+// UnconfinedMode describes the states of support for the AppArmor unconfined
+// profile mode - this is only enabled when the interface supports it as a
+// static property and it is then enabled via SetUnconfinedEnabled() method
+type UnconfinedMode int
+
+const (
+	UnconfinedIgnored UnconfinedMode = iota
+	UnconfinedSupported
+	UnconfinedEnabled
+)
+
 // Specification assists in collecting apparmor entries associated with an interface.
 type Specification struct {
+	// appSet is the set of snap applications and hooks that the specification
+	// applies to.
+	appSet *interfaces.SnapAppSet
+
 	// scope for various Add{...}Snippet functions
 	securityTags []string
 
@@ -94,9 +109,18 @@ type Specification struct {
 	suppressPycacheDeny bool
 
 	// Unconfined profile mode allows a profile to be applied without any
-	// real confinement TODO: instead of a boolean, should this instead be a
-	// set of flags which get applied to the profile?
-	unconfined bool
+	// real confinement
+	unconfined UnconfinedMode
+}
+
+func NewSpecification(appSet *interfaces.SnapAppSet) *Specification {
+	return &Specification{
+		appSet: appSet,
+	}
+}
+
+func (spec *Specification) SnapAppSet() *interfaces.SnapAppSet {
+	return spec.appSet
 }
 
 // setScope sets the scope of subsequent AddSnippet family functions.
@@ -638,7 +662,12 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 		AppArmorConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		restore := spec.setScope(plug.SecurityTags())
+		tags, err := spec.appSet.SecurityTagsForConnectedPlug(plug)
+		if err != nil {
+			return err
+		}
+
+		restore := spec.setScope(tags)
 		defer restore()
 		return iface.AppArmorConnectedPlug(spec, plug, slot)
 	}
@@ -651,7 +680,12 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 		AppArmorConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		restore := spec.setScope(slot.SecurityTags())
+		tags, err := spec.appSet.SecurityTagsForConnectedSlot(slot)
+		if err != nil {
+			return err
+		}
+
+		restore := spec.setScope(tags)
 		defer restore()
 		return iface.AppArmorConnectedSlot(spec, plug, slot)
 	}
@@ -662,13 +696,18 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *snap.PlugInfo) error {
 	si := interfaces.StaticInfoOf(iface)
 	if si.AppArmorUnconfinedPlugs {
-		spec.setUnconfined()
+		spec.setUnconfinedSupported()
 	}
 	type definer interface {
 		AppArmorPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		restore := spec.setScope(plug.SecurityTags())
+		tags, err := spec.appSet.SecurityTagsForPlug(plug)
+		if err != nil {
+			return err
+		}
+
+		restore := spec.setScope(tags)
 		defer restore()
 		return iface.AppArmorPermanentPlug(spec, plug)
 	}
@@ -679,13 +718,18 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *snap.SlotInfo) error {
 	si := interfaces.StaticInfoOf(iface)
 	if si.AppArmorUnconfinedSlots {
-		spec.setUnconfined()
+		spec.setUnconfinedSupported()
 	}
 	type definer interface {
 		AppArmorPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		restore := spec.setScope(slot.SecurityTags())
+		tags, err := spec.appSet.SecurityTagsForSlot(slot)
+		if err != nil {
+			return err
+		}
+
+		restore := spec.setScope(tags)
 		defer restore()
 		return iface.AppArmorPermanentSlot(spec, slot)
 	}
@@ -762,14 +806,26 @@ func (spec *Specification) SuppressPycacheDeny() bool {
 	return spec.suppressPycacheDeny
 }
 
-// setUnconfined records whether a profile should be applied without any real
-// confinement
-func (spec *Specification) setUnconfined() {
-	spec.unconfined = true
+// setUnconfinedSuported records whether a profile perhaps should be applied
+// without any real confinement - this will only occur if the spec also enables
+// this by calling SetEnableUnconfined()
+func (spec *Specification) setUnconfinedSupported() {
+	spec.unconfined = UnconfinedSupported
+}
+
+// SetUnconfinedEnabled records whether a profile should be applied without any
+// real confinement - the spec must already support unconfined profiles via a
+// previous call to setUnconfinedSupported()
+func (spec *Specification) SetUnconfinedEnabled() error {
+	if spec.unconfined != UnconfinedSupported {
+		return fmt.Errorf("unconfined profiles not supported")
+	}
+	spec.unconfined = UnconfinedEnabled
+	return nil
 }
 
 // Unconfined returns whether a profile should be applied without any real
 // confinement
-func (spec *Specification) Unconfined() bool {
+func (spec *Specification) Unconfined() UnconfinedMode {
 	return spec.unconfined
 }

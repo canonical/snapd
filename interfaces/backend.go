@@ -102,7 +102,7 @@ type SecurityBackend interface {
 	//
 	// This method should be called after changing plug, slots, connections
 	// between them or application present in the snap.
-	Setup(snapInfo *snap.Info, opts ConfinementOptions, repo *Repository, tm timings.Measurer) error
+	Setup(appSet *SnapAppSet, opts ConfinementOptions, repo *Repository, tm timings.Measurer) error
 
 	// Remove removes and unloads security artefacts of a given snap.
 	//
@@ -110,7 +110,7 @@ type SecurityBackend interface {
 	Remove(snapName string) error
 
 	// NewSpecification returns a new specification associated with this backend.
-	NewSpecification() Specification
+	NewSpecification(*SnapAppSet) Specification
 
 	// SandboxFeatures returns a list of tags that identify sandbox features.
 	SandboxFeatures() []string
@@ -121,7 +121,7 @@ type SecurityBackend interface {
 type SecurityBackendSetupMany interface {
 	// SetupMany creates and loads apparmor profiles of multiple snaps. It tries to process all snaps and doesn't interrupt processing
 	// on errors of individual snaps.
-	SetupMany(snaps []*snap.Info, confinement func(snapName string) ConfinementOptions, repo *Repository, tm timings.Measurer) []error
+	SetupMany(appSets []*SnapAppSet, confinement func(snapName string) ConfinementOptions, repo *Repository, tm timings.Measurer) []error
 }
 
 // SecurityBackendDiscardingLate interface may be implemented by backends that

@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1325,7 +1324,7 @@ func (ovs *overlordSuite) TestStartupTimeout(c *C) {
 }
 
 func (ovs *overlordSuite) TestLockWithTimeoutHappy(c *C) {
-	f, err := ioutil.TempFile("", "testlock-*")
+	f, err := os.CreateTemp("", "testlock-*")
 	defer func() {
 		f.Close()
 		os.Remove(f.Name())
@@ -1354,7 +1353,7 @@ func (ovs *overlordSuite) TestLockWithTimeoutFailed(c *C) {
 	})
 	defer restoreNotify()
 
-	f, err := ioutil.TempFile("", "testlock-*")
+	f, err := os.CreateTemp("", "testlock-*")
 	defer func() {
 		f.Close()
 		os.Remove(f.Name())

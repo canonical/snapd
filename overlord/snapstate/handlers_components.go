@@ -85,15 +85,21 @@ func (m *SnapManager) doPrepareComponent(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	compSetup, _, err := TaskComponentSetup(t)
+	compSetup, _, snapSt, err := compSetupAndState(t)
 	if err != nil {
 		return err
 	}
 
 	if compSetup.Revision().Unset() {
-		// This is a local installation, revision is -1 (there
-		// is no history of local revisions for components).
-		compSetup.CompSideInfo.Revision = snap.R(-1)
+		// This is a local installation, revision is -1 if the current
+		// one is non-local or not installed, or current one
+		// decremented by one otherwise.
+		revision := snap.R(-1)
+		current := snapSt.CurrentComponentSideInfo(compSetup.CompSideInfo.Component)
+		if current != nil && current.Revision.N < 0 {
+			revision = snap.R(current.Revision.N - 1)
+		}
+		compSetup.CompSideInfo.Revision = revision
 	}
 
 	t.Set("component-setup", compSetup)
@@ -122,7 +128,7 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) (err error) 
 
 	csi := compSetup.CompSideInfo
 	cpi := snap.MinimalComponentContainerPlaceInfo(compSetup.ComponentName(),
-		csi.Revision, snapsup.InstanceName(), snapsup.Revision())
+		csi.Revision, snapsup.InstanceName())
 
 	defer func() {
 		st.Lock()
@@ -229,7 +235,7 @@ func (m *SnapManager) undoMountComponent(t *state.Task, _ *tomb.Tomb) error {
 
 	csi := compSetup.CompSideInfo
 	cpi := snap.MinimalComponentContainerPlaceInfo(compSetup.ComponentName(),
-		csi.Revision, snapsup.InstanceName(), snapsup.Revision())
+		csi.Revision, snapsup.InstanceName())
 
 	pm := NewTaskProgressAdapterUnlocked(t)
 	if err := m.backend.UndoSetupComponent(cpi, &installRecord, deviceCtx, pm); err != nil {
@@ -280,6 +286,14 @@ func (m *SnapManager) doLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 	}
 	snapSt.LastCompRefreshTime[compSetup.ComponentName()] = timeNow()
 
+	// Create the symlink
+	csi := cs.SideInfo
+	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
+		csi.Revision, snapInfo.InstanceName())
+	if err := m.backend.LinkComponent(cpi, snapInfo.Revision); err != nil {
+		return err
+	}
+
 	// Finally, write the state
 	Set(st, snapsup.InstanceName(), snapSt)
 	// Make sure we won't be rerun
@@ -314,6 +328,15 @@ func (m *SnapManager) undoLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 
 	// Restore old state
 	// relinking of the old component is done in the undo of unlink-current-snap
+
+	// Remove the symlink
+	csi := linkedComp.SideInfo
+	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
+		csi.Revision, snapInfo.InstanceName())
+	if err := m.backend.UnlinkComponent(cpi, snapInfo.Revision); err != nil {
+		return err
+	}
+
 	snapSt.Sequence.RemoveComponentForRevision(snapInfo.Revision,
 		linkedComp.SideInfo.Component)
 
@@ -348,6 +371,14 @@ func (m *SnapManager) doUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (err
 	unlinkedComp := snapSt.Sequence.RemoveComponentForRevision(snapInfo.Revision, cref)
 	if unlinkedComp == nil {
 		return fmt.Errorf("internal error while unlinking: %s expected but not found", cref)
+	}
+
+	// Remove symlink
+	csi := unlinkedComp.SideInfo
+	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
+		csi.Revision, snapInfo.InstanceName())
+	if err := m.backend.UnlinkComponent(cpi, snapInfo.Revision); err != nil {
+		return err
 	}
 
 	// set information for undoUnlinkCurrentComponent in the task
@@ -389,10 +420,85 @@ func (m *SnapManager) undoUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (e
 		return fmt.Errorf("internal error while undo unlink component: %w", err)
 	}
 
+	// Re-create the symlink
+	csi := unlinkedComp.SideInfo
+	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
+		csi.Revision, snapInfo.InstanceName())
+	if err := m.backend.LinkComponent(cpi, snapInfo.Revision); err != nil {
+		return err
+	}
+
 	// Finally, write the state
 	Set(st, snapsup.InstanceName(), snapSt)
 	// Make sure we won't be rerun
 	t.SetStatus(state.UndoneStatus)
 
+	return nil
+}
+
+func (m *SnapManager) doSetupKernelModules(t *state.Task, _ *tomb.Tomb) error {
+	// invariant: component not linked yet
+	st := t.State()
+
+	// snapSt is a copy of the current state
+	st.Lock()
+	compSetup, snapsup, snapSt, err := compSetupAndState(t)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	// kernel-modules components already in the system
+	kmodComps := snapSt.Sequence.ComponentsWithTypeForRev(snapsup.Revision(), snap.KernelModulesComponent)
+
+	// Set-up the new kernel modules component - called with unlocked state
+	// as it can take a couple of seconds.
+	pm := NewTaskProgressAdapterUnlocked(t)
+	err = m.backend.SetupKernelModulesComponents(
+		[]*snap.ComponentSideInfo{compSetup.CompSideInfo},
+		kmodComps, snapsup.InstanceName(), snapsup.Revision(), pm)
+	if err != nil {
+		return err
+	}
+
+	// Make sure we won't be rerun
+	st.Lock()
+	defer st.Unlock()
+	t.SetStatus(state.DoneStatus)
+	return nil
+}
+
+func (m *SnapManager) doRemoveKernelModulesSetup(t *state.Task, _ *tomb.Tomb) error {
+	// invariant: component unlinked on undo
+	st := t.State()
+
+	// snapSt is a copy of the current state
+	st.Lock()
+	compSetup, snapsup, snapSt, err := compSetupAndState(t)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	// current kernel-modules components in the system
+	st.Lock()
+	kmodComps := snapSt.Sequence.ComponentsWithTypeForRev(snapsup.Revision(), snap.KernelModulesComponent)
+	st.Unlock()
+
+	// Restore kernel modules components state - called with unlocked state
+	// as it can take a couple of seconds.
+	pm := NewTaskProgressAdapterUnlocked(t)
+	// Component from compSetup has already been unlinked, so it is not in kmodComps
+	err = m.backend.RemoveKernelModulesComponentsSetup(
+		[]*snap.ComponentSideInfo{compSetup.CompSideInfo},
+		kmodComps, snapsup.InstanceName(), snapsup.Revision(), pm)
+	if err != nil {
+		return err
+	}
+
+	// Make sure we won't be rerun
+	st.Lock()
+	defer st.Unlock()
+	t.SetStatus(state.UndoneStatus)
 	return nil
 }

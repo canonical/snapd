@@ -19,22 +19,22 @@ require (
 	// if below two libseccomp-golang lines are updated, one must also update packaging/ubuntu-14.04/rules
 	github.com/mvo5/libseccomp-golang v0.9.1-0.20180308152521-f4de83b52afb // old trusty builds only
 	github.com/seccomp/libseccomp-golang v0.9.2-0.20220502024300-f57e1d55ea18
-	github.com/snapcore/bolt v1.3.2-0.20210908134111-63c8bfcf7af8
 	github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785
-	github.com/snapcore/secboot v0.0.0-20230623151406-4d331d24f830
+	github.com/snapcore/secboot v0.0.0-20240411101434-f3ad7c92552a
 	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90
 	golang.org/x/net v0.9.0 // indirect
 	golang.org/x/sys v0.7.0
 	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/macaroon.v1 v1.0.0-20150121114231-ab3940c6c165
-	gopkg.in/mgo.v2 v2.0.0-20180704144907-a7e2c1d573e1
 	gopkg.in/retry.v1 v1.0.3
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 	gopkg.in/tylerb/graceful.v1 v1.2.15
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 )
+
+require go.etcd.io/bbolt v1.3.9
 
 require (
 	github.com/canonical/go-sp800.108-kdf v0.0.0-20210314145419-a3359f2d21b9 // indirect

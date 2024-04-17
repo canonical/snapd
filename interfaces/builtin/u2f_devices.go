@@ -75,7 +75,7 @@ var u2fDevices = []u2fDevice{
 	{
 		Name:             "JaCarta U2F",
 		VendorIDPattern:  "24dc",
-		ProductIDPattern: "0101",
+		ProductIDPattern: "0101|0501",
 	},
 	{
 		Name:             "U2F Zero",
@@ -150,7 +150,7 @@ var u2fDevices = []u2fDevice{
 	{
 		Name:             "GoTrust Idem Key",
 		VendorIDPattern:  "32a3",
-		ProductIDPattern: "3201",
+		ProductIDPattern: "3201|3203",
 	},
 	{
 		Name:             "Trezor",
@@ -181,6 +181,16 @@ var u2fDevices = []u2fDevice{
 		Name:             "RSA DS100",
 		VendorIDPattern:  "15e1",
 		ProductIDPattern: "2019",
+	},
+	{
+		Name:             "Kensington VeriMark Guard Fingerprint Key",
+		VendorIDPattern:  "047d",
+		ProductIDPattern: "8055",
+	},
+	{
+		Name:             "TrustKey TrustKey G310H",
+		VendorIDPattern:  "311f",
+		ProductIDPattern: "4a2a",
 	},
 }
 

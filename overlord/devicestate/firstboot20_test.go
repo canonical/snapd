@@ -509,6 +509,17 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 			Timestamp: model.Timestamp(),
 			SeedTime:  seedTime,
 		}})
+
+		var defaultRecoverySystem devicestate.DefaultRecoverySystem
+		c.Assert(state.Get("default-recovery-system", &defaultRecoverySystem), IsNil)
+		c.Check(defaultRecoverySystem, Equals, devicestate.DefaultRecoverySystem{
+			System:          m.RecoverySystem,
+			Model:           "my-model",
+			BrandID:         "my-brand",
+			Timestamp:       model.Timestamp(),
+			Revision:        model.Revision(),
+			TimeMadeDefault: seedTime,
+		})
 	} else {
 		c.Assert(err, NotNil)
 	}

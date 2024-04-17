@@ -85,6 +85,9 @@ type fakeOp struct {
 
 	dirOpts  *dirs.SnapDirOptions
 	undoInfo *backend.UndoInfo
+
+	compsToInstall, currentComps []*snap.ComponentSideInfo
+	compsToRemove, finalComps    []*snap.ComponentSideInfo
 }
 
 type fakeOps []fakeOp
@@ -370,6 +373,9 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "some-snap-now-classic"
 	case "some-snap-was-classic-id":
 		name = "some-snap-was-classic"
+	case "some-snap-with-new-base-id":
+		name = "some-snap-with-new-base"
+		base = "core22"
 	case "core-snap-id":
 		name = "core"
 		typ = snap.TypeOS
@@ -396,7 +402,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "snap-content-plug"
 	case "snap-content-slot-id":
 		name = "snap-content-slot"
-	case "snapd-snap-id":
+	case "snapd-snap-id", "snapd-without-version-id":
 		name = "snapd"
 		typ = snap.TypeSnapd
 	case "kernel-id":
@@ -468,6 +474,10 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		Architectures: []string{"all"},
 		Epoch:         epoch,
 		Base:          base,
+	}
+
+	if strings.HasSuffix(cand.snapID, "-without-version-id") {
+		info.Version = ""
 	}
 
 	if name == "outdated-consumer" {
@@ -902,6 +912,22 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 	return snapType, &backend.InstallRecord{}, nil
 }
 
+func (f *fakeSnappyBackend) SetupKernelSnap(instanceName string, rev snap.Revision, meter progress.Meter) (err error) {
+	meter.Notify("prepare-kernel-snap")
+	f.appendOp(&fakeOp{
+		op: "prepare-kernel-snap",
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) RemoveKernelSnapSetup(instanceName string, rev snap.Revision, meter progress.Meter) error {
+	meter.Notify("remove-kernel-snap-setup")
+	f.appendOp(&fakeOp{
+		op: "remove-kernel-snap-setup",
+	})
+	return nil
+}
+
 func (f *fakeSnappyBackend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *backend.InstallRecord, err error) {
 	meter.Notify("setup-component")
 	f.appendOp(&fakeOp{
@@ -911,6 +937,32 @@ func (f *fakeSnappyBackend) SetupComponent(compFilePath string, compPi snap.Cont
 		return nil, fmt.Errorf("cannot set-up component %q", compPi.ContainerName())
 	}
 	return &backend.InstallRecord{}, nil
+}
+
+func (f *fakeSnappyBackend) SetupKernelModulesComponents(compsToInstall, currentComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error) {
+	meter.Notify("setup-kernel-modules-components")
+	f.appendOp(&fakeOp{
+		op:             "setup-kernel-modules-components",
+		compsToInstall: compsToInstall,
+		currentComps:   currentComps,
+	})
+	if strings.HasSuffix(ksnapName, "+broken") {
+		return fmt.Errorf("cannot set-up kernel-modules for %s", ksnapName)
+	}
+	return nil
+}
+
+func (f *fakeSnappyBackend) RemoveKernelModulesComponentsSetup(compsToRemove, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error) {
+	meter.Notify("remove-kernel-modules-components-setup")
+	f.appendOp(&fakeOp{
+		op:            "remove-kernel-modules-components-setup",
+		compsToRemove: compsToRemove,
+		finalComps:    finalComps,
+	})
+	if strings.HasSuffix(ksnapName, "+reverterr") {
+		return fmt.Errorf("cannot remove set-up of kernel-modules for %s", ksnapName)
+	}
+	return nil
 }
 
 func (f *fakeSnappyBackend) UndoSetupComponent(cpi snap.ContainerPlaceInfo, installRecord *backend.InstallRecord, dev snap.Device, meter progress.Meter) error {
@@ -1113,6 +1165,14 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx b
 	return boot.RebootInfo{RebootRequired: reboot}, nil
 }
 
+func (f *fakeSnappyBackend) LinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error {
+	f.appendOp(&fakeOp{
+		op:   "link-component",
+		path: cpi.MountDir(),
+	})
+	return f.maybeErrForLastOp()
+}
+
 func svcSnapMountDir(svcs []*snap.AppInfo) string {
 	if len(svcs) == 0 {
 		return "<no services>"
@@ -1225,6 +1285,14 @@ func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, linkCtx backend.LinkCont
 	return f.maybeErrForLastOp()
 }
 
+func (f *fakeSnappyBackend) UnlinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error {
+	f.appendOp(&fakeOp{
+		op:   "unlink-component",
+		path: cpi.MountDir(),
+	})
+	return f.maybeErrForLastOp()
+}
+
 func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord *backend.InstallRecord, dev snap.Device, meter progress.Meter) error {
 	meter.Notify("remove-snap-files")
 	f.appendOp(&fakeOp{
@@ -1259,7 +1327,7 @@ func (f *fakeSnappyBackend) RemoveSnapSaveData(info *snap.Info, _ snap.Device) e
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bool) error {
+func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bool, opts *dirs.SnapDirOptions) error {
 	f.ops = append(f.ops, fakeOp{
 		op:             "remove-snap-data-dir",
 		name:           info.InstanceName(),

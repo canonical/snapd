@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime/multipart"
 	"os"
 	"path/filepath"
@@ -63,6 +62,9 @@ type FileReference struct {
 	TmpPath  string
 }
 
+// RemoveAllExcept removes all temporary files uploaded with form, except for
+// the given paths. Should be called once the files uploaded with the form are
+// no longer needed.
 func (f *Form) RemoveAllExcept(paths []string) {
 	for _, refs := range f.FileRefs {
 		for _, ref := range refs {
@@ -336,7 +338,10 @@ func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) 
 
 	msg := fmt.Sprintf(i18n.G("Install %q %s from file %q"), instanceName, container, snapFile.filename)
 	chg := newChange(st, "install-"+container, msg, []*state.TaskSet{tset}, []string{instanceName})
-	apiData := map[string]string{"snap-name": instanceName}
+	apiData := map[string]interface{}{
+		"snap-name":  instanceName,
+		"snap-names": []string{instanceName},
+	}
 	if compInfo != nil {
 		apiData["component-name"] = compInfo.Component.ComponentName
 	}
@@ -524,7 +529,7 @@ func readForm(reader *multipart.Reader) (_ *Form, apiErr *apiError) {
 // its path. If the path is not empty then a file was written and it's the
 // caller's responsibility to clean it up (even if the error is non-nil).
 func writeToTempFile(reader io.Reader) (path string, err error) {
-	tmpf, err := ioutil.TempFile(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix)
+	tmpf, err := os.CreateTemp(dirs.SnapBlobDir, dirs.LocalInstallBlobTempPrefix+"*.snap")
 	if err != nil {
 		return "", fmt.Errorf("cannot create temp file for form data file part: %v", err)
 	}
@@ -578,7 +583,10 @@ func trySnap(st *state.State, trydir string, flags snapstate.Flags) Response {
 
 	msg := fmt.Sprintf(i18n.G("Try %q snap from %s"), info.InstanceName(), trydir)
 	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tset}, []string{info.InstanceName()})
-	chg.Set("api-data", map[string]string{"snap-name": info.InstanceName()})
+	chg.Set("api-data", map[string]interface{}{
+		"snap-name":  info.InstanceName(),
+		"snap-names": []string{info.InstanceName()},
+	})
 
 	ensureStateSoon(st)
 

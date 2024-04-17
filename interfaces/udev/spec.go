@@ -43,9 +43,21 @@ type Specification struct {
 	entries  []entry
 	iface    string
 
+	appSet *interfaces.SnapAppSet
+
 	securityTags             []string
 	udevadmSubsystemTriggers []string
 	controlsDeviceCgroup     bool
+}
+
+func NewSpecification(appSet *interfaces.SnapAppSet) *Specification {
+	return &Specification{
+		appSet: appSet,
+	}
+}
+
+func (spec *Specification) SnapAppSet() *interfaces.SnapAppSet {
+	return spec.appSet
 }
 
 // SetControlsDeviceCgroup marks a specification as needing to control
@@ -98,7 +110,7 @@ func (spec *Specification) TagDevice(snippet string) {
 		// SUBSYSTEM=="subsystem" is for subsystems (the top directories in /sys/class). Not for devices.
 		// When loaded, they send an ADD event
 		// snap-device-helper expects devices only, not modules nor subsystems
-		spec.addEntry(fmt.Sprintf("TAG==\"%s\", SUBSYSTEM!=\"module\", SUBSYSTEM!=\"subsystem\", RUN+=\"%s/snap-device-helper $env{ACTION} %s $devpath $major:$minor\"",
+		spec.addEntry(fmt.Sprintf("TAG==\"%s\", SUBSYSTEM!=\"module\", SUBSYSTEM!=\"subsystem\", RUN+=\"%s/snap-device-helper %s\"",
 			tag, dirs.DistroLibExecDir, tag), tag)
 	}
 }
@@ -144,7 +156,12 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 	}
 	ifname := iface.Name()
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = plug.SecurityTags()
+		tags, err := spec.appSet.SecurityTagsForConnectedPlug(plug)
+		if err != nil {
+			return err
+		}
+
+		spec.securityTags = tags
 		spec.iface = ifname
 		defer func() { spec.securityTags = nil; spec.iface = "" }()
 		return iface.UDevConnectedPlug(spec, plug, slot)
@@ -159,7 +176,12 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 	}
 	ifname := iface.Name()
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = slot.SecurityTags()
+		tags, err := spec.appSet.SecurityTagsForConnectedSlot(slot)
+		if err != nil {
+			return err
+		}
+
+		spec.securityTags = tags
 		spec.iface = ifname
 		defer func() { spec.securityTags = nil; spec.iface = "" }()
 		return iface.UDevConnectedSlot(spec, plug, slot)
@@ -174,7 +196,12 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 	}
 	ifname := iface.Name()
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = plug.SecurityTags()
+		tags, err := spec.appSet.SecurityTagsForPlug(plug)
+		if err != nil {
+			return err
+		}
+
+		spec.securityTags = tags
 		spec.iface = ifname
 		defer func() { spec.securityTags = nil; spec.iface = "" }()
 		return iface.UDevPermanentPlug(spec, plug)
@@ -189,7 +216,12 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 	}
 	ifname := iface.Name()
 	if iface, ok := iface.(definer); ok {
-		spec.securityTags = slot.SecurityTags()
+		tags, err := spec.appSet.SecurityTagsForSlot(slot)
+		if err != nil {
+			return err
+		}
+
+		spec.securityTags = tags
 		spec.iface = ifname
 		defer func() { spec.securityTags = nil; spec.iface = "" }()
 		return iface.UDevPermanentSlot(spec, slot)

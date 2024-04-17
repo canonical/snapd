@@ -197,6 +197,8 @@ func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, ins
 		Revision: snap.R(revision),
 	})
 
+	appSet := interfaces.NewSnapAppSet(snapInfo)
+
 	if instanceName != "" {
 		_, instanceKey := snap.SplitInstanceName(instanceName)
 		snapInfo.InstanceKey = instanceKey
@@ -204,7 +206,7 @@ func (s *BackendSuite) InstallSnap(c *C, opts interfaces.ConfinementOptions, ins
 	}
 
 	s.addPlugsSlots(c, snapInfo)
-	err := s.Backend.Setup(snapInfo, opts, s.Repo, s.meas)
+	err := s.Backend.Setup(appSet, opts, s.Repo, s.meas)
 	c.Assert(err, IsNil)
 	return snapInfo
 }
@@ -221,10 +223,11 @@ func (s *BackendSuite) UpdateSnapMaybeErr(c *C, oldSnapInfo *snap.Info, opts int
 	newSnapInfo := snaptest.MockInfo(c, snapYaml, &snap.SideInfo{
 		Revision: snap.R(revision),
 	})
+	appSet := interfaces.NewSnapAppSet(newSnapInfo)
 	c.Assert(newSnapInfo.InstanceName(), Equals, oldSnapInfo.InstanceName())
 	s.removePlugsSlots(c, oldSnapInfo)
 	s.addPlugsSlots(c, newSnapInfo)
-	err := s.Backend.Setup(newSnapInfo, opts, s.Repo, s.meas)
+	err := s.Backend.Setup(appSet, opts, s.Repo, s.meas)
 	return newSnapInfo, err
 }
 

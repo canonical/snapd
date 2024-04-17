@@ -5,7 +5,7 @@
     "brand-id": "<YOUR_ID_HERE>",
     "model": "ubuntu-core-22-pc-amd64",
     "architecture": "amd64",
-    "timestamp": "2022-03-31T12:00:00.0Z",
+    "timestamp": "2023-11-09T07:50:10+00:00",
     "base": "core22",
     "grade": "dangerous",
     "classic": "true",

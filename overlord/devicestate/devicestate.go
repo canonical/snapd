@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -52,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snapfile"
 )
 
 var (
@@ -60,6 +62,7 @@ var (
 	snapstateUpdateWithDeviceContext      = snapstate.UpdateWithDeviceContext
 	snapstateSwitch                       = snapstate.Switch
 	snapstateUpdatePathWithDeviceContext  = snapstate.UpdatePathWithDeviceContext
+	snapstateDownload                     = snapstate.Download
 )
 
 // findModel returns the device model assertion.
@@ -531,7 +534,22 @@ func (ro *remodelVariant) UpdateWithDeviceContext(st *state.State, snapName stri
 	}
 
 	if opts != nil && !opts.Revision.Unset() && info.Revision != opts.Revision {
-		return nil, fmt.Errorf("installed snap %q does not match revision required to be used for offline remodel: %s != %s", snapName, opts.Revision, info.Revision)
+		var ss snapstate.SnapState
+		if err := snapstate.Get(st, snapName, &ss); err != nil {
+			return nil, err
+		}
+
+		// if the current revision isn't the revision that is installed, then
+		// look at the previous revisions that we have to see if any of those
+		// match
+		if ss.Sequence.LastIndex(opts.Revision) == -1 {
+			return nil, fmt.Errorf("installed snap %q does not match revision required to be used for offline remodel: %s != %s", snapName, opts.Revision, info.Revision)
+		}
+
+		// this won't reach out to the store since we know that we already have
+		// the snap revision on disk
+		return snapstateUpdateWithDeviceContext(st, snapName, opts,
+			userID, snapStateFlags, tracker, deviceCtx, fromChange)
 	}
 
 	// this would only occur from programmer error, since
@@ -1117,8 +1135,15 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		firstInstallInChain.WaitFor(lastDownloadInChain)
 	}
 
+	// hybrid core/classic systems might have a system-seed-null; in that case,
+	// we cannot create a recovery system
+	hasSystemSeed, err := checkForSystemSeed(st, deviceCtx)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find ubuntu seed role: %w", err)
+	}
+
 	recoverySetupTaskID := ""
-	if new.Grade() != asserts.ModelGradeUnset {
+	if new.Grade() != asserts.ModelGradeUnset && hasSystemSeed {
 		// create a recovery when remodeling to a UC20 system, actual
 		// policy for possible remodels has already been verified by the
 		// caller
@@ -1127,7 +1152,11 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		if err != nil {
 			return nil, fmt.Errorf("cannot select non-conflicting label for recovery system %q: %v", labelBase, err)
 		}
-		createRecoveryTasks, err := createRecoverySystemTasks(st, label, snapSetupTasks)
+		// we don't pass in the list of local snaps here because they are
+		// already represented by snapSetupTasks
+		createRecoveryTasks, err := createRecoverySystemTasks(st, label, snapSetupTasks, CreateRecoverySystemOptions{
+			TestSystem: true,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -1188,7 +1217,7 @@ func checkRequiredGadgetMatchesModelBase(model *asserts.Model, tracker *snap.Sel
 }
 
 func verifyModelValidationSets(st *state.State, newModel *asserts.Model, offline bool, deviceCtx snapstate.DeviceContext) (*snapasserts.ValidationSets, error) {
-	vSets, err := assertstate.ValidationSetsFromModel(st, newModel, assertstate.ValidationSetsModelOptions{
+	vSets, err := assertstate.ValidationSetsFromModel(st, newModel, assertstate.FetchValidationSetsOptions{
 		Offline: offline,
 	}, deviceCtx)
 	if err != nil {
@@ -1199,14 +1228,14 @@ func verifyModelValidationSets(st *state.State, newModel *asserts.Model, offline
 		return nil, err
 	}
 
-	if err := checkForRequiredSnapsNotInModel(newModel, vSets); err != nil {
+	if err := checkForRequiredSnapsNotRequiredInModel(newModel, vSets); err != nil {
 		return nil, err
 	}
 
 	return vSets, nil
 }
 
-func checkForRequiredSnapsNotInModel(model *asserts.Model, vSets *snapasserts.ValidationSets) error {
+func checkForRequiredSnapsNotRequiredInModel(model *asserts.Model, vSets *snapasserts.ValidationSets) error {
 	snapsInModel := make(map[string]bool, len(model.RequiredWithEssentialSnaps()))
 	for _, sn := range model.RequiredWithEssentialSnaps() {
 		snapsInModel[sn.SnapName()] = true
@@ -1222,13 +1251,31 @@ func checkForRequiredSnapsNotInModel(model *asserts.Model, vSets *snapasserts.Va
 }
 
 func checkForInvalidSnapsInModel(model *asserts.Model, vSets *snapasserts.ValidationSets) error {
-	for _, sn := range model.AllSnaps() {
-		if !vSets.CanBePresent(sn) {
-			return fmt.Errorf("snap presence is invalid: %s", sn.SnapName())
-		}
+	if len(vSets.Keys()) == 0 {
+		return nil
 	}
 
+	for _, sn := range model.AllSnaps() {
+		if !vSets.CanBePresent(sn) {
+			return fmt.Errorf("snap presence is marked invalid by validation set: %s", sn.SnapName())
+		}
+	}
 	return nil
+}
+
+func checkForSystemSeed(st *state.State, deviceCtx snapstate.DeviceContext) (bool, error) {
+	// on non-classic systems, we will always have a seed partition. this check
+	// isn't needed, but it makes testing classic systems simpler.
+	if !deviceCtx.Classic() {
+		return true, nil
+	}
+
+	gadgetData, err := CurrentGadgetData(st, deviceCtx)
+	if err != nil {
+		return false, fmt.Errorf("cannot get gadget data: %w", err)
+	}
+
+	return gadgetData.Info.HasRole(gadget.SystemSeed), nil
 }
 
 // RemodelOptions are options for Remodel.
@@ -1301,10 +1348,15 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 		return nil, fmt.Errorf("cannot remodel to different series yet")
 	}
 
-	// don't allow remodel on classic for now
-	if current.Classic() {
-		return nil, fmt.Errorf("cannot remodel from classic model")
+	devCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get device context: %v", err)
 	}
+
+	if devCtx.IsClassicBoot() {
+		return nil, fmt.Errorf("cannot remodel from classic (non-hybrid) model")
+	}
+
 	if current.Classic() != new.Classic() {
 		return nil, fmt.Errorf("cannot remodel across classic and non-classic models")
 	}
@@ -1379,6 +1431,10 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 		}
 		fallthrough
 	case UpdateRemodel:
+		// TODO: make this case follow the same pattern as ReregRemodel, where
+		// we call remodelTasks from inside another task, so that the tasks for
+		// the remodel are added to an existing and running change. this will
+		// allow us to avoid things like calling snapstate.CheckChangeConflictRunExclusively again.
 		var err error
 		tss, err = remodelTasks(context.TODO(), st, current, new, remodCtx, "", localSnaps, paths, opts)
 		if err != nil {
@@ -1403,6 +1459,11 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 			ChangeKind: chg.Kind(),
 			ChangeID:   chg.ID(),
 		}
+	}
+
+	// check for exclusive changes again since we released the lock
+	if err := snapstate.CheckChangeConflictRunExclusively(st, "remodel"); err != nil {
+		return nil, err
 	}
 
 	var msg string
@@ -1438,9 +1499,20 @@ type recoverySystemSetup struct {
 	// are kept, typically /run/mnt/ubuntu-seed/systems/<label>, set when
 	// tasks are created
 	Directory string `json:"directory"`
-	// SnapSetupTasks is a list of task IDs that carry snap setup
-	// information, relevant only during remodel, set when tasks are created
+	// SnapSetupTasks is a list of task IDs that carry snap setup information.
+	// Tasks could come from a remodel, or from downloading snaps that were
+	// required by a validation set.
 	SnapSetupTasks []string `json:"snap-setup-tasks"`
+	// LocalSnaps is a list of snaps that should be used to create the recovery
+	// system.
+	LocalSnaps []LocalSnap `json:"local-snaps,omitempty"`
+	// TestSystem is set to true if the new recovery system should
+	// not be verified by rebooting into the new system. Once the system is
+	// created, it will immediately be considered a valid recovery system.
+	TestSystem bool `json:"test-system,omitempty"`
+	// MarkDefault is set to true if the new recovery system should be marked as
+	// the default recovery system.
+	MarkDefault bool `json:"mark-default,omitempty"`
 }
 
 func pickRecoverySystemLabel(labelBase string) (string, error) {
@@ -1472,7 +1544,20 @@ func pickRecoverySystemLabel(labelBase string) (string, error) {
 	return fmt.Sprintf("%s-%d", labelBase, maxExistingNumber+1), nil
 }
 
-func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []string) (*state.TaskSet, error) {
+type removeRecoverySystemSetup struct {
+	Label string `json:"label"`
+}
+
+func removeRecoverySystemTasks(st *state.State, label string) (*state.TaskSet, error) {
+	remove := st.NewTask("remove-recovery-system", fmt.Sprintf("Remove recovery system with label %q", label))
+	remove.Set("remove-recovery-system-setup", &removeRecoverySystemSetup{
+		Label: label,
+	})
+
+	return state.NewTaskSet(remove), nil
+}
+
+func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []string, opts CreateRecoverySystemOptions) (*state.TaskSet, error) {
 	// precondition check, the directory should not exist yet
 	systemDirectory := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label)
 	exists, _, err := osutil.DirExists(systemDirectory)
@@ -1490,33 +1575,337 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []s
 		Directory: systemDirectory,
 		// IDs of the tasks carrying snap-setup
 		SnapSetupTasks: snapSetupTasks,
+		LocalSnaps:     opts.LocalSnaps,
+		TestSystem:     opts.TestSystem,
+		MarkDefault:    opts.MarkDefault,
 	})
-	// Create recovery system requires us to boot into it before finalize
-	restart.MarkTaskAsRestartBoundary(create, restart.RestartBoundaryDirectionDo)
 
-	finalize := st.NewTask("finalize-recovery-system", fmt.Sprintf("Finalize recovery system with label %q", label))
-	finalize.WaitFor(create)
-	// finalize needs to know the label too
-	finalize.Set("recovery-system-setup-task", create.ID())
-	return state.NewTaskSet(create, finalize), nil
+	ts := state.NewTaskSet(create)
+
+	if opts.TestSystem {
+		// Create recovery system requires us to boot into it before finalize
+		restart.MarkTaskAsRestartBoundary(create, restart.RestartBoundaryDirectionDo)
+
+		finalize := st.NewTask("finalize-recovery-system", fmt.Sprintf("Finalize recovery system with label %q", label))
+		finalize.WaitFor(create)
+		// finalize needs to know the label too
+		finalize.Set("recovery-system-setup-task", create.ID())
+
+		ts.AddTask(finalize)
+	}
+
+	return ts, nil
 }
 
-func CreateRecoverySystem(st *state.State, label string) (*state.Change, error) {
+// LocalSnap is a pair of a snap.SideInfo and a path to the snap file on disk
+// that is represented by the snap.SideInfo.
+type LocalSnap struct {
+	// SideInfo is the snap.SideInfo struct that represents a local snap that
+	// will be used to create a recovery system.
+	SideInfo *snap.SideInfo
+
+	// Path is the path on disk to a snap that will be used to create a recovery
+	// system.
+	Path string
+}
+
+// CreateRecoverySystemOptions is the set of options that can be used with
+// CreateRecoverySystem.
+type CreateRecoverySystemOptions struct {
+	// ValidationSets is a list of validation sets to use when creating the new
+	// recovery system. If provided, all snaps used to create recovery system
+	// will follow the constraints imposed by the validation sets. If required
+	// snaps are not present on the system, and LocalSnapSideInfos is not
+	// provided, then the snaps will be downloaded.
+	ValidationSets []*asserts.ValidationSet
+
+	// LocalSnaps is an optional list of snaps that will be used to create
+	// the new recovery system. If provided, this list must contain any snap
+	// that is not already installed that will be needed by the new recovery
+	// system.
+	LocalSnaps []LocalSnap
+
+	// TestSystem is set to true if the new recovery system should be verified
+	// by rebooting into the new system, prior to marking it as a valid recovery
+	// system. If false, the system will immediately be considered a valid
+	// recovery system.
+	TestSystem bool
+
+	// MarkDefault is set to true if the new recovery system should be marked as
+	// the default recovery system.
+	MarkDefault bool
+
+	// Offline is true if the recovery system should be created without reaching
+	// out to the store. Offline must be set to true if LocalSnaps is provided.
+	Offline bool
+}
+
+var ErrNoRecoverySystem = errors.New("recovery system does not exist")
+
+// RemoveRecoverySystem removes the recovery system with the given label. The
+// current recovery system cannot be removed.
+func RemoveRecoverySystem(st *state.State, label string) (*state.Change, error) {
+	if err := snapstate.CheckChangeConflictRunExclusively(st, "remove-recovery-system"); err != nil {
+		return nil, err
+	}
+
+	recoverySystemsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems")
+	exists, _, err := osutil.DirExists(filepath.Join(recoverySystemsDir, label))
+	if err != nil {
+		return nil, err
+	}
+
+	if !exists {
+		return nil, fmt.Errorf("%q not found: %w", label, ErrNoRecoverySystem)
+	}
+
+	chg := st.NewChange("remove-recovery-system", fmt.Sprintf("Remove recovery system with label %q", label))
+
+	removeTS, err := removeRecoverySystemTasks(st, label)
+	if err != nil {
+		return nil, err
+	}
+
+	chg.AddAll(removeTS)
+
+	return chg, nil
+}
+
+// CreateRecoverySystem creates a new recovery system with the given label. See
+// CreateRecoverySystemOptions for details on the options that can be provided.
+func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySystemOptions) (chg *state.Change, err error) {
+	if err := snapstate.CheckChangeConflictRunExclusively(st, "create-recovery-system"); err != nil {
+		return nil, err
+	}
+
+	if !opts.Offline && len(opts.LocalSnaps) > 0 {
+		return nil, errors.New("locally provided snaps cannot be provided when creating a recovery system online")
+	}
+
 	var seeded bool
-	err := st.Get("seeded", &seeded)
+	err = st.Get("seeded", &seeded)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if !seeded {
 		return nil, fmt.Errorf("cannot create new recovery systems until fully seeded")
 	}
-	chg := st.NewChange("create-recovery-system", fmt.Sprintf("Create new recovery system with label %q", label))
-	ts, err := createRecoverySystemTasks(st, label, nil)
+
+	model, err := findModel(st)
 	if err != nil {
 		return nil, err
 	}
-	chg.AddAll(ts)
+
+	valsets, err := assertstate.TrackedEnforcedValidationSetsForModel(st, model)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, vs := range opts.ValidationSets {
+		valsets.Add(vs)
+	}
+
+	if err := valsets.Conflict(); err != nil {
+		return nil, err
+	}
+
+	revisions, err := valsets.Revisions()
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: this restriction should be lifted eventually (in the case that we
+	// have a dangerous model), and we should fall back to using snap names in
+	// places that IDs are used
+	if err := checkForSnapIDs(model, opts.LocalSnaps); err != nil {
+		return nil, err
+	}
+
+	// check that all snaps from the model are valid in the validation sets
+	if err := checkForInvalidSnapsInModel(model, valsets); err != nil {
+		return nil, err
+	}
+
+	tracker := snap.NewSelfContainedSetPrereqTracker()
+
+	var downloadTSS []*state.TaskSet
+	for _, sn := range model.AllSnaps() {
+		rev := revisions[sn.Name]
+
+		needsInstall, err := snapNeedsInstall(st, sn.Name, rev)
+		if err != nil {
+			return nil, err
+		}
+
+		if !needsInstall {
+			info, err := snapstate.CurrentInfo(st, sn.Name)
+			if err != nil {
+				return nil, err
+			}
+			tracker.Add(info)
+			continue
+		}
+
+		if sn.Presence != "required" {
+			sets, _, err := valsets.CheckPresenceRequired(sn)
+			if err != nil {
+				return nil, err
+			}
+
+			// snap isn't already installed, and it isn't required by model or
+			// any validation sets, so we should skip it
+			if len(sets) == 0 {
+				continue
+			}
+		}
+
+		if opts.Offline {
+			info, err := offlineSnapInfo(sn, rev, opts)
+			if err != nil {
+				return nil, err
+			}
+			tracker.Add(info)
+			continue
+		}
+
+		const userID = 0
+		// TODO: this respects the passed in validation sets, but does not
+		// currently respect refresh-control style of constraining snap
+		// revisions.
+		ts, info, err := snapstateDownload(context.TODO(), st, sn.Name, dirs.SnapBlobDir, &snapstate.RevisionOptions{
+			Channel:        sn.DefaultChannel,
+			Revision:       rev,
+			ValidationSets: valsets.Keys(),
+		}, userID, snapstate.Flags{}, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		tracker.Add(info)
+		downloadTSS = append(downloadTSS, ts)
+	}
+
+	warnings, errs := tracker.Check()
+	for _, w := range warnings {
+		logger.Noticef("create recovery system prerequisites warning: %v", w)
+	}
+
+	// TODO: use function from other branch
+	if len(errs) > 0 {
+		var builder strings.Builder
+		builder.WriteString("cannot create recovery system from model that is not self-contained:")
+
+		for _, err := range errs {
+			builder.WriteString("\n  - ")
+			builder.WriteString(err.Error())
+		}
+
+		return nil, errors.New(builder.String())
+	}
+
+	var snapsupTaskIDs []string
+	if len(downloadTSS) > 0 {
+		snapsupTaskIDs, err = extractSnapSetupTaskIDs(downloadTSS)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	chg = st.NewChange("create-recovery-system", fmt.Sprintf("Create new recovery system with label %q", label))
+	createTS, err := createRecoverySystemTasks(st, label, snapsupTaskIDs, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	chg.AddAll(createTS)
+
+	for _, ts := range downloadTSS {
+		createTS.WaitAll(ts)
+		chg.AddAll(ts)
+	}
+
 	return chg, nil
+}
+
+func checkForSnapIDs(model *asserts.Model, localSnaps []LocalSnap) error {
+	for _, sn := range model.AllSnaps() {
+		if sn.ID() == "" {
+			return fmt.Errorf("cannot create recovery system from model with snap that has no snap id: %q", sn.Name)
+		}
+	}
+
+	for _, sn := range localSnaps {
+		if sn.SideInfo.SnapID == "" {
+			return fmt.Errorf("cannot create recovery system from provided snap that has no snap id: %q", sn.SideInfo.RealName)
+		}
+	}
+
+	return nil
+}
+
+func offlineSnapInfo(sn *asserts.ModelSnap, rev snap.Revision, opts CreateRecoverySystemOptions) (*snap.Info, error) {
+	index := -1
+	for i, si := range opts.LocalSnaps {
+		if sn.ID() == si.SideInfo.SnapID {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return nil, fmt.Errorf(
+			"missing snap from local snaps provided for offline creation of recovery system: %q, rev %v", sn.Name, rev,
+		)
+	}
+
+	localSnap := opts.LocalSnaps[index]
+
+	if !rev.Unset() && rev != localSnap.SideInfo.Revision {
+		return nil, fmt.Errorf(
+			"snap %q does not match revision required by validation sets: %v != %v", localSnap.SideInfo.RealName, localSnap.SideInfo.Revision, rev,
+		)
+	}
+
+	s, err := snapfile.Open(localSnap.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	return snap.ReadInfoFromSnapFile(s, localSnap.SideInfo)
+}
+
+func snapNeedsInstall(st *state.State, name string, rev snap.Revision) (bool, error) {
+	info, err := snapstate.CurrentInfo(st, name)
+	if err != nil {
+		if isNotInstalled(err) {
+			return true, nil
+		}
+		return false, err
+	}
+
+	if rev.Unset() {
+		return false, nil
+	}
+
+	return rev != info.Revision, nil
+}
+
+func extractSnapSetupTaskIDs(tss []*state.TaskSet) ([]string, error) {
+	var taskIDs []string
+	for _, ts := range tss {
+		found := false
+		for _, t := range ts.Tasks() {
+			if t.Has("snap-setup") {
+				taskIDs = append(taskIDs, t.ID())
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return nil, errors.New("internal error: snap setup task missing from task set")
+		}
+	}
+	return taskIDs, nil
 }
 
 // InstallFinish creates a change that will finish the install for the given

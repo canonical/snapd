@@ -21,7 +21,7 @@ package main_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 
@@ -68,7 +68,7 @@ func mkWarningsFakeHandler(c *check.C, body string) func(w http.ResponseWriter, 
 		c.Check(r.URL.Path, check.Equals, "/v2/warnings")
 		c.Check(r.URL.Query(), check.HasLen, 0)
 
-		buf, err := ioutil.ReadAll(r.Body)
+		buf, err := io.ReadAll(r.Body)
 		c.Assert(err, check.IsNil)
 		c.Check(string(buf), check.Equals, "")
 		c.Check(r.Method, check.Equals, "GET")
@@ -189,7 +189,7 @@ func (s *warningSuite) TestListWithWarnings(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
 		c.Check(r.URL.Query(), check.HasLen, 0)
 
-		buf, err := ioutil.ReadAll(r.Body)
+		buf, err := io.ReadAll(r.Body)
 		c.Assert(err, check.IsNil)
 		c.Check(string(buf), check.Equals, "")
 		c.Check(r.Method, check.Equals, "GET")

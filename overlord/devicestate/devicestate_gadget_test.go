@@ -297,7 +297,7 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 	if grade != "" {
 		bootDir := c.MkDir()
 		tbl := bootloadertest.Mock("trusted", bootDir).WithTrustedAssets()
-		tbl.TrustedAssetsList = []string{"trusted-asset"}
+		tbl.TrustedAssetsMap = map[string]string{"trusted-asset": "trusted-asset"}
 		tbl.ManagedAssetsList = []string{"managed-asset"}
 		bootloader.Force(tbl)
 		defer func() { bootloader.Force(nil) }()
@@ -751,7 +751,7 @@ volumes:
 
 	expectedRollbackDir := filepath.Join(dirs.SnapRollbackDir, "foo-gadget_34")
 	updaterForStructureCalls := 0
-	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, ps *gadget.LaidOutStructure, rootDir, rollbackDir string, _ gadget.ContentUpdateObserver) (gadget.Updater, error) {
+	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, fromPs, ps *gadget.LaidOutStructure, rootDir, rollbackDir string, _ gadget.ContentUpdateObserver) (gadget.Updater, error) {
 		updaterForStructureCalls++
 
 		c.Assert(loc, Equals, gadget.StructureLocation{

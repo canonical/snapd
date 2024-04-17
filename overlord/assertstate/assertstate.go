@@ -1130,8 +1130,8 @@ func TemporaryDB(st *state.State) *asserts.Database {
 	return db.WithStackedBackstore(asserts.NewMemoryBackstore())
 }
 
-// ValidationSetsModelOptions contains options for ValidationSetsFromModel.
-type ValidationSetsModelOptions struct {
+// FetchValidationSetsOptions contains options for FetchValidationSets.
+type FetchValidationSetsOptions struct {
 	// Offline should be set to true if the store should not be accessed. Any
 	// assertions will be retrieved from the existing assertions database. If
 	// the assertions are not present in the database, an error will be
@@ -1139,9 +1139,10 @@ type ValidationSetsModelOptions struct {
 	Offline bool
 }
 
-// ValidationSetsFromModel takes in a model and creates a
-// snapasserts.ValidationSets from any validation sets that the model includes.
-func ValidationSetsFromModel(st *state.State, model *asserts.Model, opts ValidationSetsModelOptions, deviceCtx snapstate.DeviceContext) (*snapasserts.ValidationSets, error) {
+// FetchValidationSets fetches the given validation set assertions from either
+// the store or the existing assertions database. The validation sets are added
+// to a snapasserts.ValidationSets, checked for any conflicts, and returned.
+func FetchValidationSets(st *state.State, toFetch []*asserts.AtSequence, opts FetchValidationSetsOptions, deviceCtx snapstate.DeviceContext) (*snapasserts.ValidationSets, error) {
 	var sets []*asserts.ValidationSet
 	save := func(a asserts.Assertion) error {
 		if vs, ok := a.(*asserts.ValidationSet); ok {
@@ -1187,8 +1188,8 @@ func ValidationSetsFromModel(st *state.State, model *asserts.Model, opts Validat
 
 	fetcher := asserts.NewSequenceFormingFetcher(db, retrieve, retrieveSeq, save)
 
-	for _, vs := range model.ValidationSets() {
-		if err := fetcher.FetchSequence(vs.AtSequence()); err != nil {
+	for _, vs := range toFetch {
+		if err := fetcher.FetchSequence(vs); err != nil {
 			return nil, err
 		}
 	}
@@ -1205,6 +1206,17 @@ func ValidationSetsFromModel(st *state.State, model *asserts.Model, opts Validat
 	return vSets, nil
 }
 
+// ValidationSetsFromModel takes in a model and creates a
+// snapasserts.ValidationSets from any validation sets that the model includes.
+func ValidationSetsFromModel(st *state.State, model *asserts.Model, opts FetchValidationSetsOptions, deviceCtx snapstate.DeviceContext) (*snapasserts.ValidationSets, error) {
+	toFetch := make([]*asserts.AtSequence, 0, len(model.ValidationSets()))
+	for _, vs := range model.ValidationSets() {
+		toFetch = append(toFetch, vs.AtSequence())
+	}
+
+	return FetchValidationSets(st, toFetch, opts, deviceCtx)
+}
+
 func resolveValidationSetAssertion(seq *asserts.AtSequence, db asserts.RODatabase) (asserts.Assertion, error) {
 	if seq.Sequence <= 0 {
 		hdrs, err := asserts.HeadersFromSequenceKey(seq.Type, seq.SequenceKey)
@@ -1214,4 +1226,19 @@ func resolveValidationSetAssertion(seq *asserts.AtSequence, db asserts.RODatabas
 		return db.FindSequence(seq.Type, hdrs, -1, seq.Type.MaxSupportedFormat())
 	}
 	return seq.Resolve(db.Find)
+}
+
+// AspectBundle returns the aspect-bundle for the given account and bundle name,
+// if it's present in the system assertion database.
+func AspectBundle(s *state.State, account, bundleName string) (*asserts.AspectBundle, error) {
+	db := DB(s)
+	as, err := db.Find(asserts.AspectBundleType, map[string]string{
+		"account-id": account,
+		"name":       bundleName,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return as.(*asserts.AspectBundle), nil
 }

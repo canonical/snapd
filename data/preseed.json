@@ -12,11 +12,13 @@
         "var/lib/snapd/system-key",
         "var/lib/snapd/assertions",
         "var/lib/snapd/seccomp",
+        "var/lib/snapd/cgroup",
         "var/lib/snapd/desktop",
         "var/lib/snapd/sequence",
         "var/lib/snapd/cookie",
         "var/lib/snapd/dbus-1",
         "var/lib/snapd/mount",
+        "var/lib/snapd/kernel",
         "var/snap",
         "var/cache/snapd/aux",
         "var/cache/apparmor"

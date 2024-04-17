@@ -20,7 +20,7 @@
 package client_test
 
 import (
-	"io/ioutil"
+	"io"
 
 	. "gopkg.in/check.v1"
 
@@ -46,7 +46,7 @@ func (cs *clientSuite) TestClientRemoveUser(c *C) {
 		{ID: 11, Username: "one-user", Email: "user@test.com"},
 	})
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, IsNil)
 	c.Assert(string(body), Equals, `{"action":"remove","username":"one-user"}`)
 }
@@ -69,7 +69,7 @@ func (cs *clientSuite) TestClientRemoveUserError(c *C) {
 	c.Assert(err, ErrorMatches, "no can do")
 	c.Assert(removed, IsNil)
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, IsNil)
 	c.Assert(string(body), Equals, `{"action":"remove","username":"one-user"}`)
 }
@@ -92,7 +92,7 @@ func (cs *clientSuite) TestClientCreateUser(c *C) {
 	c.Assert(cs.req.URL.Path, Equals, "/v2/users")
 	c.Assert(err, IsNil)
 
-	body, err := ioutil.ReadAll(cs.req.Body)
+	body, err := io.ReadAll(cs.req.Body)
 	c.Assert(err, IsNil)
 	c.Assert(string(body), Equals, `{"action":"create","email":"one@email.com","sudoer":true,"known":true}`)
 
@@ -170,7 +170,7 @@ func (cs *clientSuite) TestClientCreateUsers(c *C) {
 		for _, req := range cs.reqs {
 			c.Assert(req.Method, Equals, "POST")
 			c.Assert(req.URL.Path, Equals, "/v2/users")
-			data, err := ioutil.ReadAll(req.Body)
+			data, err := io.ReadAll(req.Body)
 			c.Assert(err, IsNil)
 			bodies = append(bodies, string(data))
 		}

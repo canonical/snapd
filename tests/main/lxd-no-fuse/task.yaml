@@ -1,4 +1,8 @@
-summary: Check that we can install snaps when fuse is missing in lxd
+summary: Check that we can install snaps when fuse/fuse3 is missing in lxd
+
+details: |
+    Verify that fuse/fuse3 is pulled in as a dependency when installing snapd
+    from deb.
 
 # we just need a single system to verify this
 systems: [ubuntu-22.04-64]
@@ -24,8 +28,8 @@ execute: |
         exit 1
     fi
 
-    echo "Remove fuse to trigger the fuse precondition check"
-    lxd.lxc exec my-ubuntu -- apt autoremove -y fuse
+    echo "Remove fuse/fuse3 to trigger the fuse precondition check"
+    lxd.lxc exec my-ubuntu -- apt autoremove -y fuse fuse3
 
     echo "Install snapd"
     lxd.lxc exec my-ubuntu -- mkdir -p "$GOHOME"

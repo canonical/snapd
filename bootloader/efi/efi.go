@@ -26,7 +26,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"unicode/utf16"
@@ -113,7 +112,7 @@ func ReadVarBytes(name string) ([]byte, VariableAttr, error) {
 		return nil, 0, cannotReadError(name, err)
 	}
 	defer varf.Close()
-	b, err := ioutil.ReadAll(varf)
+	b, err := io.ReadAll(varf)
 	if err != nil {
 		return nil, 0, cannotReadError(name, err)
 	}
@@ -173,7 +172,7 @@ func MockVars(vars map[string][]byte, attrs map[string]VariableAttr) (restore fu
 			if !ok {
 				attr = VariableRuntimeAccess | VariableBootServiceAccess
 			}
-			return ioutil.NopCloser(bytes.NewBuffer(val)), attr, int64(len(val)), nil
+			return io.NopCloser(bytes.NewBuffer(val)), attr, int64(len(val)), nil
 		}
 		return nil, 0, 0, fmt.Errorf("EFI variable %s not mocked", name)
 	}

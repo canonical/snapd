@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,7 @@ package ctlcmd
 
 import (
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/servicestate"
 )
@@ -38,6 +39,7 @@ func init() {
 
 type startCommand struct {
 	baseCommand
+	clientutil.ServiceScopeOptions
 	Positional struct {
 		ServiceNames []string `positional-arg-name:"<service>" required:"yes"`
 	} `positional-args:"yes" required:"yes"`
@@ -45,12 +47,18 @@ type startCommand struct {
 }
 
 func (c *startCommand) Execute(args []string) error {
+	if err := c.Validate(); err != nil {
+		return err
+	}
+
 	inst := servicestate.Instruction{
 		Action: "start",
 		Names:  c.Positional.ServiceNames,
 		StartOptions: client.StartOptions{
 			Enable: c.Enable,
 		},
+		Scope: c.Scope(),
+		Users: c.Users(),
 	}
 	return runServiceCommand(c.context(), &inst)
 }

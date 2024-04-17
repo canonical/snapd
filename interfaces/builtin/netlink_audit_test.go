@@ -93,7 +93,7 @@ func (s *NetlinkAuditInterfaceSuite) TestSanitizePlugConnectionMissingNoAppArmor
 }
 
 func (s *NetlinkAuditInterfaceSuite) TestAppArmorSpec(c *C) {
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
@@ -101,7 +101,7 @@ func (s *NetlinkAuditInterfaceSuite) TestAppArmorSpec(c *C) {
 }
 
 func (s *NetlinkAuditInterfaceSuite) TestSecCompSpec(c *C) {
-	spec := &seccomp.Specification{}
+	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})

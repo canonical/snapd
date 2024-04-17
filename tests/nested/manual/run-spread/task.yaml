@@ -1,0 +1,47 @@
+summary: execute all the spread tests in a nested Ubuntu Core VM
+
+details: |
+    Verify that it is possible to run the full test suite in ubuntu core system
+    using a nested vm. The test can be used to validate specific pre-built images.
+
+backends: [google-nested-dev]
+
+systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
+
+manual: true
+
+warn-timeout: 3m
+kill-timeout: 8h
+
+environment:
+    TESTS/full: "tests/"
+    NESTED_BUILD_SNAPD_FROM_CURRENT/full: true
+    TESTS/smoke: "tests/smoke/"
+    NESTED_BUILD_SNAPD_FROM_CURRENT/smoke: true
+    TESTS/custom: ""
+    NESTED_BUILD_SNAPD_FROM_CURRENT/custom: false
+
+artifacts: 
+    - spread.log
+
+prepare: |
+    tests.nested build-image core
+    tests.nested create-vm core
+
+execute: |
+    SPREAD="$(tests.nested download spread)"
+
+    # Get the nested system to use
+    NESTED_SPREAD_SYSTEM="$(tests.nested nested-system)"
+
+    set +x
+    export SPREAD_EXTERNAL_ADDRESS=localhost:8022
+    RUN_TESTS="external:$NESTED_SPREAD_SYSTEM:$TESTS"
+    if [ "$SPREAD_VARIANT" = "custom" ]; then
+        RUN_TESTS="$NESTED_SPREAD_TESTS"
+        remote.refresh full
+    fi
+
+    echo "Running $SPREAD -v $RUN_TESTS"
+    # shellcheck disable=SC2086
+    "$SPREAD" -v $RUN_TESTS |& tee spread.log

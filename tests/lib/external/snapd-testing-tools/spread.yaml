@@ -16,7 +16,6 @@ backends:
             - ubuntu-18.04-64:
             - ubuntu-20.04-64:
             - ubuntu-22.04-64:
-            - ubuntu-23.04-64:
             - ubuntu-23.10-64:
             - ubuntu-24.04-64:
             - debian-11-64:
@@ -65,7 +64,7 @@ restore: |
 
 suites:
     tests/:
-        summary: Main test suite for snapd-testing-tools
+        summary: Main test suite for snapd-testing-tools project
         prepare: |
             echo "Preparing snapd-testing-tools main suite"
             # Create users for the tests

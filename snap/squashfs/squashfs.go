@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -228,7 +227,7 @@ func (s *Snap) Size() (size int64, err error) {
 }
 
 func (s *Snap) withUnpackedFile(filePath string, f func(p string) error) error {
-	tmpdir, err := ioutil.TempDir("", "read-file")
+	tmpdir, err := os.MkdirTemp("", "read-file")
 	if err != nil {
 		return err
 	}
@@ -264,13 +263,48 @@ func (s *Snap) RandomAccessFile(filePath string) (interface {
 // ReadFile returns the content of a single file inside a squashfs snap.
 func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
 	err = s.withUnpackedFile(filePath, func(p string) (err error) {
-		content, err = ioutil.ReadFile(p)
+		content, err = os.ReadFile(p)
 		return
 	})
 	if err != nil {
 		return nil, err
 	}
 	return content, nil
+}
+
+func (s *Snap) ReadLink(filePath string) (string, error) {
+	// XXX: This could be optimized by reading a cached version of
+	// unsquashfs raw output where the symlink's target is available.
+	// Check -> func fromRaw(raw []byte) (*stat, error)
+	var target string
+	err := s.withUnpackedFile(filePath, func(p string) (err error) {
+		target, err = os.Readlink(p)
+		return err
+	})
+	if err != nil {
+		return "", err
+	}
+	return target, nil
+}
+
+func (s *Snap) Lstat(filePath string) (os.FileInfo, error) {
+	var fileInfo os.FileInfo
+
+	err := s.Walk(filePath, func(path string, info os.FileInfo, err error) error {
+		if filePath == path {
+			fileInfo = info
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if fileInfo == nil {
+		return nil, os.ErrNotExist
+	}
+
+	return fileInfo, nil
 }
 
 // skipper is used to track directories that should be skipped
@@ -353,8 +387,12 @@ func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
 				return err
 			}
 		} else {
-			path := filepath.Join(relative, st.Path())
+			path := filepath.Join(".", st.Path())
 			if skipper.Has(path) {
+				continue
+			}
+			// skip if path is not under given relative path
+			if relative != "." && !strings.HasPrefix(path, relative) {
 				continue
 			}
 			err = walkFn(path, st, nil)

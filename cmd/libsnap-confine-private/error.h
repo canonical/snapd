@@ -128,7 +128,7 @@ sc_error *sc_error_init_from_errno(int errno_copy, const char *msgfmt, ...);
  * No change of ownership takes place.
  **/
 __attribute__((warn_unused_result SC_APPEND_RETURNS_NONNULL))
-const char *sc_error_domain(sc_error * err);
+const char *sc_error_domain(sc_error *err);
 
 /**
  * Get the error code out of an error object.
@@ -141,7 +141,7 @@ const char *sc_error_domain(sc_error * err);
  * without having to allocate a distinct code for each one.
  **/
 __attribute__((warn_unused_result))
-int sc_error_code(sc_error * err);
+int sc_error_code(sc_error *err);
 
 /**
  * Get the error message out of an error object.
@@ -150,14 +150,14 @@ int sc_error_code(sc_error * err);
  * No change of ownership takes place.
  **/
 __attribute__((warn_unused_result SC_APPEND_RETURNS_NONNULL))
-const char *sc_error_msg(sc_error * err);
+const char *sc_error_msg(sc_error *err);
 
 /**
  * Free an error object.
  *
  * The error object can be NULL.
  **/
-void sc_error_free(sc_error * error);
+void sc_error_free(sc_error *error);
 
 /**
  * Cleanup an error with sc_error_free()
@@ -166,7 +166,7 @@ void sc_error_free(sc_error * error);
  * __attribute__((cleanup(sc_cleanup_error))).
  **/
 __attribute__((nonnull))
-void sc_cleanup_error(sc_error ** ptr);
+void sc_cleanup_error(sc_error **ptr);
 
 /**
  *
@@ -177,7 +177,7 @@ void sc_cleanup_error(sc_error ** ptr);
  * The error message is derived from the data in the error, using the special
  * errno domain to provide additional information if that is available.
  **/
-void sc_die_on_error(sc_error * error);
+void sc_die_on_error(sc_error *error);
 
 /**
  * Forward an error to the caller.
@@ -194,7 +194,7 @@ void sc_die_on_error(sc_error * error);
  **/
 // NOTE: There's no nonnull(1) attribute as the recipient *can* be NULL. With
 // the attribute in place GCC optimizes some things out and tests fail.
-int sc_error_forward(sc_error ** recipient, sc_error * error);
+int sc_error_forward(sc_error **recipient, sc_error *error);
 
 /**
  * Check if a given error matches the specified domain and code.
@@ -203,6 +203,6 @@ int sc_error_forward(sc_error ** recipient, sc_error * error);
  * case. The domain cannot be NULL though.
  **/
 __attribute__((warn_unused_result))
-bool sc_error_match(sc_error * error, const char *domain, int code);
+bool sc_error_match(sc_error *error, const char *domain, int code);
 
 #endif

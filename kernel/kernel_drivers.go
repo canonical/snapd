@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"syscall"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -70,9 +71,8 @@ func KernelVersionFromModulesDir(mountPoint string) (string, error) {
 	return kversion, nil
 }
 
-func createFirmwareSymlinks(orig, dest string) error {
-	fwOrig := filepath.Join(orig, "firmware")
-	fwDest := filepath.Join(dest, "lib", "firmware")
+func createFirmwareSymlinks(fwMount, fwDest string) error {
+	fwOrig := filepath.Join(fwMount, "firmware")
 	if err := os.MkdirAll(fwDest, 0755); err != nil {
 		return err
 	}
@@ -122,27 +122,18 @@ func createFirmwareSymlinks(orig, dest string) error {
 	return nil
 }
 
-func createModulesSubtree(origin, dest string) error {
-	kversion, err := KernelVersionFromModulesDir(origin)
-	if err != nil {
-		// Bit of a corner case, but maybe possible. Log anyway.
-		// TODO detect this issue in snap pack, should be enforced
-		// if the snap declares kernel-modules components.
-		logger.Noticef("no modules found in %q", origin)
-		return nil
-	}
-
+func createModulesSubtree(kernelMount, kernelTree, kversion, kname string, krev snap.Revision, compInfos []*snap.ComponentSideInfo) error {
 	// Although empty we need "lib" because "depmod" always appends
 	// "/lib/modules/<kernel_version>" to the directory passed with option
 	// "-b".
-	modsRoot := filepath.Join(dest, "lib", "modules", kversion)
+	modsRoot := filepath.Join(kernelTree, "lib", "modules", kversion)
 	if err := os.MkdirAll(modsRoot, 0755); err != nil {
 		return err
 	}
 
 	// Copy modinfo files from the snap (these might be overwritten if
 	// kernel-modules components are installed).
-	modsGlob := filepath.Join(origin, "modules", kversion, "modules.*")
+	modsGlob := filepath.Join(kernelMount, "modules", kversion, "modules.*")
 	modFiles, err := filepath.Glob(modsGlob)
 	if err != nil {
 		// Should not really happen (only possible error is ErrBadPattern)
@@ -156,7 +147,7 @@ func createModulesSubtree(origin, dest string) error {
 	}
 
 	// Symbolic links to early mount kernel snap
-	earlyMntDir := filepath.Join(origin, "modules", kversion)
+	earlyMntDir := filepath.Join(kernelMount, "modules", kversion)
 	for _, d := range []string{"kernel", "vdso"} {
 		lname := filepath.Join(modsRoot, d)
 		to := filepath.Join(earlyMntDir, d)
@@ -165,48 +156,173 @@ func createModulesSubtree(origin, dest string) error {
 		}
 	}
 
+	// If necessary, add modules from components and run depmod
+	return setupModsFromComp(kernelTree, kversion, kname, krev, compInfos)
+}
+
+func setupModsFromComp(kernelTree, kversion, kname string, krev snap.Revision, compInfos []*snap.ComponentSideInfo) error {
+	// This folder needs to exist always to allow for directory swapping
+	// in the future, even if right now we don't have components.
+	compsRoot := filepath.Join(kernelTree, "lib", "modules", kversion, "updates")
+	if err := os.MkdirAll(compsRoot, 0755); err != nil {
+		return err
+	}
+
+	if len(compInfos) == 0 {
+		return nil
+	}
+
+	// Symbolic links to components
+	for _, ci := range compInfos {
+		compPI := snap.MinimalComponentContainerPlaceInfo(ci.Component.ComponentName,
+			ci.Revision, kname)
+		lname := filepath.Join(compsRoot, ci.Component.ComponentName)
+		to := filepath.Join(compPI.MountDir(), "modules", kversion)
+		if err := osSymlink(to, lname); err != nil {
+			return err
+		}
+	}
+
+	// Run depmod
+	stdout, stderr, err := osutil.RunSplitOutput("depmod", "-b", kernelTree, kversion)
+	if err != nil {
+		return osutil.OutputErrCombine(stdout, stderr, err)
+	}
+	logger.Noticef("depmod output:\n%s\n", string(osutil.CombineStdOutErr(stdout, stderr)))
+
 	return nil
 }
 
-func driversTreeDir(ksnapName string, rev snap.Revision) string {
-	return filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", ksnapName, rev.String())
+func driversTreeDir(kernelSubdir string, rev snap.Revision) string {
+	return filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", kernelSubdir, rev.String())
 }
 
-// RemoveKernelDriversTree cleans-up the writable kernel tree for a given snap
-// and revision.
-func RemoveKernelDriversTree(ksnapName string, rev snap.Revision) (err error) {
-	treeRoot := driversTreeDir(ksnapName, rev)
+// RemoveKernelDriversTree cleans-up the writable kernel tree in snapd data
+// folder, under kernelSubdir/<rev> (kernelSubdir is usually the snap name).
+func RemoveKernelDriversTree(kernelSubdir string, rev snap.Revision) (err error) {
+	treeRoot := driversTreeDir(kernelSubdir, rev)
 	return os.RemoveAll(treeRoot)
 }
 
-// EnsureKernelDriversTree creates a tree in
-// /var/lib/snapd/kernel/<ksnapName>/<rev> with subfolders can be bind-mounted
-// on boot to /usr/lib/{modules,firmware}. This tree contains files from the
-// kernel snap mounted on kernelMount, as well as symlinks to it.
-// TODO this will be extended to consider kernel-modules components.
-func EnsureKernelDriversTree(ksnapName string, rev snap.Revision, kernelMount string) (err error) {
+type KernelDriversTreeOptions struct {
+	// Set if we are building the tree for a kernel we are installing right now
+	KernelInstall bool
+}
+
+// EnsureKernelDriversTree creates a drivers tree that can include modules/fw
+// from kernel-modules components. opts.KernelInstall tells the function if
+// this is a kernel install (which might be installing components at the same
+// time) or an only components install.
+//
+// For kernel installs, this function creates a tree in
+// /var/lib/snapd/kernel/<ksnapName>/<rev>, which is bind-mounted after a
+// reboot to /usr/lib/{modules,firmware} (the currently active kernel is using
+// a different path as it has a different revision). This tree contains files
+// from the kernel snap mounted on kernelMount, as well as symlinks to it.
+//
+// For components-only install, we want the components to be available without
+// rebooting. For this, we work on a temporary tree, and after finishing it we
+// swap atomically the affected modules/firmware folders with those of the
+// currently active kernel drivers tree.
+func EnsureKernelDriversTree(ksnapName string, rev snap.Revision, kernelMount string, kmodsInfos []*snap.ComponentSideInfo, opts *KernelDriversTreeOptions) (err error) {
+	// The temporal dir when installing only components can be fixed as a
+	// task installing/updating a kernel-modules component must conflict
+	// with changes containing this same task. This helps with clean-ups if
+	// something goes wrong. Note that this folder needs to be in the same
+	// filesystem as the final one so we can atomically switch the folders.
+	ksnapDir := ksnapName + "_tmp"
+	if opts.KernelInstall {
+		ksnapDir = ksnapName
+	}
 	// Initial clean-up to make the function idempotent
-	if rmErr := RemoveKernelDriversTree(ksnapName, rev); rmErr != nil &&
+	if rmErr := RemoveKernelDriversTree(ksnapDir, rev); rmErr != nil &&
 		!errors.Is(err, fs.ErrNotExist) {
 		logger.Noticef("while removing old kernel tree: %v", rmErr)
 	}
 
-	// Remove tree in case something goes wrong
 	defer func() {
-		if err != nil {
-			if rmErr := RemoveKernelDriversTree(ksnapName, rev); rmErr != nil &&
-				!errors.Is(err, fs.ErrNotExist) {
-				logger.Noticef("while cleaning up kernel tree: %v", rmErr)
-			}
+		// Remove on return if error or if temporary tree
+		if err == nil && opts.KernelInstall {
+			return
+		}
+		if rmErr := RemoveKernelDriversTree(ksnapDir, rev); rmErr != nil &&
+			!errors.Is(err, fs.ErrNotExist) {
+			logger.Noticef("while cleaning up kernel tree: %v", rmErr)
 		}
 	}()
 
-	// Root of our kernel tree
-	treeRoot := driversTreeDir(ksnapName, rev)
+	treeRoot := driversTreeDir(ksnapDir, rev)
 
-	if err := createModulesSubtree(kernelMount, treeRoot); err != nil {
-		return err
+	// Create drivers tree
+	kversion, err := KernelVersionFromModulesDir(kernelMount)
+	if err == nil {
+		if err := createModulesSubtree(kernelMount, treeRoot,
+			kversion, ksnapName, rev, kmodsInfos); err != nil {
+			return err
+		}
+	} else {
+		// Bit of a corner case, but maybe possible. Log anyway.
+		// TODO detect this issue in snap pack, should be enforced
+		// if the snap declares kernel-modules components.
+		logger.Noticef("no modules found in %q", kernelMount)
 	}
 
-	return createFirmwareSymlinks(kernelMount, treeRoot)
+	fwDir := filepath.Join(treeRoot, "lib", "firmware")
+	if opts.KernelInstall {
+		// symlinks in /lib/firmware are not affected by components
+		if err := createFirmwareSymlinks(kernelMount, fwDir); err != nil {
+			return err
+		}
+	}
+	updateFwDir := filepath.Join(fwDir, "updates")
+	// This folder needs to exist always to allow for directory swapping
+	// in the future, even if right now we don't have components.
+	if err := os.MkdirAll(updateFwDir, 0755); err != nil {
+		return err
+	}
+	for _, kmi := range kmodsInfos {
+		compPI := snap.MinimalComponentContainerPlaceInfo(kmi.Component.ComponentName,
+			kmi.Revision, ksnapName)
+		if err := createFirmwareSymlinks(compPI.MountDir(), updateFwDir); err != nil {
+			return err
+		}
+	}
+
+	// Sync before returning successfully (install kernel case) and also
+	// for swapping case so we have consistent content before swapping
+	// folder.
+	syscall.Sync()
+
+	if !opts.KernelInstall {
+		// There is a (very small) chance of a poweroff/reboot while
+		// having swapped only one of these two folders. If that
+		// happens, snapd will re-run the task on the next boot, but
+		// with mismatching modules/fw for the installed components. As
+		// modules shipped by components should not be that critical,
+		// in principle the system should recover.
+
+		// Swap modules directories
+		oldRoot := driversTreeDir(ksnapName, rev)
+
+		// Swap updates directory inside firmware dir
+		oldFwUpdates := filepath.Join(oldRoot, "lib", "firmware", "updates")
+		if err := osutil.SwapDirs(oldFwUpdates, updateFwDir); err != nil {
+			return fmt.Errorf("while swapping %q <-> %q: %w", oldFwUpdates, updateFwDir, err)
+		}
+
+		newMods := filepath.Join(treeRoot, "lib", "modules", kversion)
+		oldMods := filepath.Join(oldRoot, "lib", "modules", kversion)
+		if err := osutil.SwapDirs(oldMods, newMods); err != nil {
+			// Undo firmware swap
+			if err := osutil.SwapDirs(oldFwUpdates, updateFwDir); err != nil {
+				logger.Noticef("while reverting modules swap: %v", err)
+			}
+			return fmt.Errorf("while swapping %q <-> %q: %w", newMods, oldMods, err)
+		}
+
+		// Make sure that changes are written
+		syscall.Sync()
+	}
+
+	return nil
 }

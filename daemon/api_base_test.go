@@ -23,9 +23,9 @@ import (
 	"context"
 	"crypto"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
 	"time"
 
@@ -237,6 +237,25 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 
 	s.Brands = assertstest.NewSigningAccounts(s.StoreSigning)
 	s.Brands.Register("my-brand", brandPrivKey, nil)
+
+	s.AddCleanup(daemon.MockSystemUserFromRequest(func(r *http.Request) (*user.User, error) {
+		if s.authUser != nil {
+			return &user.User{
+				Uid:      "1337",
+				Gid:      "42",
+				Username: s.authUser.Username,
+				Name:     s.authUser.Username,
+				HomeDir:  "",
+			}, nil
+		}
+		return &user.User{
+			Uid:      "0",
+			Gid:      "0",
+			Username: "root",
+			Name:     "root",
+			HomeDir:  "",
+		}, nil
+	}))
 }
 
 func (s *apiBaseSuite) mockModel(st *state.State, model *asserts.Model) {
@@ -517,7 +536,7 @@ version: %s
 	}, nil, "")
 	c.Assert(err, check.IsNil)
 
-	content, err := ioutil.ReadFile(snapInfo.MountFile())
+	content, err := os.ReadFile(snapInfo.MountFile())
 	c.Assert(err, check.IsNil)
 	h := sha3.Sum384(content)
 	dgst, err := asserts.EncodeDigest(crypto.SHA3_384, h[:])

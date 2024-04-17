@@ -58,17 +58,17 @@ func (b *Backend) Name() interfaces.SecuritySystem {
 // Setup installs the polkit policy files specific to a given snap.
 //
 // Polkit has no concept of a complain mode so confinment type is ignored.
-func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
-	snapName := snapInfo.InstanceName()
+func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+	snapName := appSet.InstanceName()
 	// Get the policies that apply to this snap
-	spec, err := repo.SnapSpecification(b.Name(), snapName)
+	spec, err := repo.SnapSpecification(b.Name(), appSet)
 	if err != nil {
 		return fmt.Errorf("cannot obtain polkit specification for snap %q: %s", snapName, err)
 	}
 
 	// Get the files that this snap should have
 	glob := polkitPolicyName(snapName, "*")
-	content := deriveContent(spec.(*Specification), snapInfo)
+	content := deriveContent(spec.(*Specification), appSet)
 	dir := dirs.SnapPolkitPolicyDir
 
 	// If we do not have any content to write, there is no point
@@ -99,14 +99,14 @@ func (b *Backend) Remove(snapName string) error {
 
 // deriveContent combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
-func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]osutil.FileState {
+func deriveContent(spec *Specification, appSet *interfaces.SnapAppSet) map[string]osutil.FileState {
 	policies := spec.Policies()
 	if len(policies) == 0 {
 		return nil
 	}
 	content := make(map[string]osutil.FileState, len(policies)+1)
 	for nameSuffix, policyContent := range policies {
-		filename := polkitPolicyName(snapInfo.InstanceName(), nameSuffix)
+		filename := polkitPolicyName(appSet.InstanceName(), nameSuffix)
 		content[filename] = &osutil.MemoryFileState{
 			Content: policyContent,
 			Mode:    0644,
@@ -115,7 +115,7 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]osutil.F
 	return content
 }
 
-func (b *Backend) NewSpecification() interfaces.Specification {
+func (b *Backend) NewSpecification(*interfaces.SnapAppSet) interfaces.Specification {
 	return &Specification{}
 }
 

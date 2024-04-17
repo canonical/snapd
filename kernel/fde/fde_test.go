@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -43,6 +44,8 @@ func TestFde(t *testing.T) { TestingT(t) }
 
 type fdeSuite struct {
 	testutil.BaseTest
+
+	sysd systemd.Systemd
 }
 
 var _ = Suite(&fdeSuite{})
@@ -50,6 +53,11 @@ var _ = Suite(&fdeSuite{})
 func (s *fdeSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
+
+	s.sysd = systemd.New(systemd.UserMode, nil)
+	s.AddCleanup(systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+		return s.sysd
+	}))
 }
 
 func (s *fdeSuite) TestHasRevealKey(c *C) {
@@ -179,8 +187,6 @@ func checkSystemdRunOrSkip(c *C) {
 func (s *fdeSuite) TestLockSealedKeysCallsFdeReveal(c *C) {
 	checkSystemdRunOrSkip(c)
 
-	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
-	defer restore()
 	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
 	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
 cat - > %s
@@ -201,38 +207,14 @@ cat - > %s
 func (s *fdeSuite) TestLockSealedKeysHonorsRuntimeMax(c *C) {
 	checkSystemdRunOrSkip(c)
 
-	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
-	defer restore()
 	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", "sleep 60")
 	defer mockSystemdRun.Restore()
 
-	restore = fde.MockFdeRevealKeyPollWaitParanoiaFactor(100)
-	defer restore()
-
-	restore = fde.MockFdeRevealKeyRuntimeMax(100 * time.Millisecond)
+	restore := fde.MockFdeRevealKeyRuntimeMax(100 * time.Millisecond)
 	defer restore()
 
 	err := fde.LockSealedKeys()
-	c.Assert(err, ErrorMatches, `cannot run fde-reveal-key "lock": service result: timeout`)
-}
-
-func (s *fdeSuite) TestLockSealedKeysHonorsParanoia(c *C) {
-	checkSystemdRunOrSkip(c)
-
-	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
-	defer restore()
-	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", "sleep 60")
-	defer mockSystemdRun.Restore()
-
-	restore = fde.MockFdeRevealKeyPollWaitParanoiaFactor(1)
-	defer restore()
-
-	// shorter than the fdeRevealKeyPollWait time
-	restore = fde.MockFdeRevealKeyRuntimeMax(1 * time.Millisecond)
-	defer restore()
-
-	err := fde.LockSealedKeys()
-	c.Assert(err, ErrorMatches, `cannot run fde-reveal-key "lock": internal error: systemd-run did not honor RuntimeMax=1ms setting`)
+	c.Assert(err, ErrorMatches, `cannot run \["fde-reveal-key"\]: exit status 1`)
 }
 
 func (s *fdeSuite) TestReveal(c *C) {
@@ -244,8 +226,6 @@ func (s *fdeSuite) TestReveal(c *C) {
 	sealedKey := []byte("sealed-v2-payload")
 	v2payload := []byte("unsealed-v2-payload")
 
-	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
-	defer restore()
 	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
 	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
 cat - > %s
@@ -278,8 +258,6 @@ func (s *fdeSuite) TestRevealV1(c *C) {
 	// fix randutil outcome
 	rand.Seed(1)
 
-	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
-	defer restore()
 	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
 	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
 cat - > %s
@@ -312,8 +290,6 @@ func (s *fdeSuite) TestRevealV2PayloadV1Hook(c *C) {
 	sealedKey := []byte("sealed-v2-payload")
 	v2payload := []byte("unsealed-v2-payload")
 
-	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
-	defer restore()
 	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
 	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
 cat - > %s
@@ -348,8 +324,6 @@ func (s *fdeSuite) TestRevealV2BadJSON(c *C) {
 
 	sealedKey := []byte("sealed-v2-payload")
 
-	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
-	defer restore()
 	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
 	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
 cat - > %s
@@ -382,8 +356,6 @@ func (s *fdeSuite) TestRevealV1BadOutputSize(c *C) {
 	// fix randutil outcome
 	rand.Seed(1)
 
-	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
-	defer restore()
 	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
 	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
 cat - > %s
@@ -401,95 +373,6 @@ printf "bad-size"
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
 }
 
-func (s *fdeSuite) TestedRevealTruncatesStreamFiles(c *C) {
-	checkSystemdRunOrSkip(c)
-
-	// fix randutil outcome
-	rand.Seed(1)
-
-	// create the temporary output file streams with garbage data to ensure that
-	// by the time the hook runs the files are emptied and recreated with the
-	// right permissions
-	streamFiles := []string{}
-	for _, stream := range []string{"stdin", "stdout", "stderr"} {
-		streamFile := filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key/fde-reveal-key."+stream)
-		streamFiles = append(streamFiles, streamFile)
-		// make the dir 0700
-		err := os.MkdirAll(filepath.Dir(streamFile), 0700)
-		c.Assert(err, IsNil)
-		// but make the file world-readable as it should be reset to 0600 before
-		// the hook is run
-		err = os.WriteFile(streamFile, []byte("blah blah blah blah blah blah blah blah blah blah"), 0755)
-		c.Assert(err, IsNil)
-	}
-
-	// the hook script only verifies that the stdout file is empty since we
-	// need to write to the stderr file for performing the test, but we still
-	// check the stderr file for correct permissions
-	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
-# check that stdin has the right sealed key content
-if [ "$(cat %[1]s)" != "{\"op\":\"reveal\",\"sealed-key\":\"AQIDBA==\",\"key-name\":\"deprecated-pw7MpXh0JB4P\"}" ]; then
-	echo "test failed: stdin file has wrong content: $(cat %[1]s)" 1>&2
-else
-	echo "stdin file has correct content" 1>&2
-fi
-
-# check that stdout is empty
-if [ -n "$(cat %[2]s)" ]; then
-	echo "test failed: stdout file is not empty: $(cat %[2]s)" 1>&2
-else
-	echo "stdout file is correctly empty" 1>&2
-fi
-
-# check that stdin has the right 600 perms
-if [ "$(stat --format=%%a %[1]s)" != "600" ]; then
-	echo "test failed: stdin file has wrong permissions: $(stat --format=%%a %[1]s)" 1>&2
-else
-	echo "stdin file has correct 600 permissions" 1>&2
-fi
-
-# check that stdout has the right 600 perms
-if [ "$(stat --format=%%a %[2]s)" != "600" ]; then
-	echo "test failed: stdout file has wrong permissions: $(stat --format=%%a %[2]s)" 1>&2
-else
-	echo "stdout file has correct 600 permissions" 1>&2
-fi
-
-# check that stderr has the right 600 perms
-if [ "$(stat --format=%%a %[3]s)" != "600" ]; then
-	echo "test failed: stderr file has wrong permissions: $(stat --format=%%a %[3]s)" 1>&2
-else
-	echo "stderr file has correct 600 permissions" 1>&2
-fi
-
-echo "making the hook always fail for simpler test code" 1>&2
-
-# always make the hook exit 1 for simpler test code
-exit 1
-`, streamFiles[0], streamFiles[1], streamFiles[2]))
-	defer mockSystemdRun.Restore()
-	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
-	defer restore()
-
-	sealedKey := []byte{1, 2, 3, 4}
-	p := fde.RevealParams{
-		SealedKey: sealedKey,
-	}
-	_, err := fde.Reveal(&p)
-	c.Assert(err, ErrorMatches, `(?s)cannot run fde-reveal-key "reveal": 
------
-stdin file has correct content
-stdout file is correctly empty
-stdin file has correct 600 permissions
-stdout file has correct 600 permissions
-stderr file has correct 600 permissions
-making the hook always fail for simpler test code
-service result: exit-code
------`)
-	// ensure no tmp files are left behind
-	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
-}
-
 func (s *fdeSuite) TestRevealErr(c *C) {
 	checkSystemdRunOrSkip(c)
 
@@ -498,29 +381,24 @@ func (s *fdeSuite) TestRevealErr(c *C) {
 
 	mockSystemdRun := testutil.MockCommand(c, "systemd-run", `echo failed 1>&2; false`)
 	defer mockSystemdRun.Restore()
-	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
-	defer restore()
 
 	sealedKey := []byte{1, 2, 3, 4}
 	p := fde.RevealParams{
 		SealedKey: sealedKey,
 	}
 	_, err := fde.Reveal(&p)
-	c.Assert(err, ErrorMatches, `(?s)cannot run fde-reveal-key "reveal": failed`)
+	c.Assert(err, ErrorMatches, `(?s)cannot run [[]"fde-reveal-key"[]]: .*failed.*`)
 
-	root := dirs.GlobalRootDir
+	//root := dirs.GlobalRootDir
 	calls := mockSystemdRun.Calls()
 	c.Check(calls, DeepEquals, [][]string{
 		{
-			"systemd-run", "--collect", "--service-type=exec", "--quiet",
-			"--property=RuntimeMaxSec=2m0s",
-			"--property=SystemCallFilter=~@mount",
+			"systemd-run", "--wait", "--pipe", "--collect",
+			"--service-type=exec", "--quiet", "--user",
 			"--property=DefaultDependencies=no",
-			fmt.Sprintf("--property=StandardInput=file:%s/run/fde-reveal-key/fde-reveal-key.stdin", root),
-			fmt.Sprintf("--property=StandardOutput=file:%s/run/fde-reveal-key/fde-reveal-key.stdout", root),
-			fmt.Sprintf("--property=StandardError=file:%s/run/fde-reveal-key/fde-reveal-key.stderr", root),
-			fmt.Sprintf(`--property=ExecStopPost=/bin/sh -c 'if [ "$EXIT_STATUS" = 0 ]; then touch %[1]s/run/fde-reveal-key/fde-reveal-key.success; else echo "service result: $SERVICE_RESULT" >%[1]s/run/fde-reveal-key/fde-reveal-key.failed; fi'`, root),
-			"--user",
+			"--property=SystemCallFilter=~@mount",
+			"--property=RuntimeMaxSec=2m0s",
+			"--",
 			"fde-reveal-key",
 		},
 	})

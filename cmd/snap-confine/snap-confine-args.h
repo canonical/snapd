@@ -66,7 +66,7 @@ struct sc_args;
  **/
 __attribute__((warn_unused_result))
 struct sc_args *sc_nonfatal_parse_args(int *argcp, char ***argvp,
-				       sc_error ** errorp);
+				       sc_error **errorp);
 
 /**
  * Free the object describing command-line arguments to snap-confine.

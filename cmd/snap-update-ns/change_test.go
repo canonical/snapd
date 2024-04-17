@@ -21,7 +21,7 @@ package main_test
 
 import (
 	"errors"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"syscall"
 
@@ -776,7 +776,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 
 		// error, read only filesystem, create a mimic
 		{C: `lstat "/rofs" <ptr>`, R: syscall.Stat_t{Uid: 0, Gid: 0, Mode: 0755}},
-		{C: `readdir "/rofs"`, R: []os.FileInfo(nil)},
+		{C: `readdir "/rofs"`, R: []fs.DirEntry(nil)},
 		{C: `lstat "/tmp/.snap/rofs"`, E: syscall.ENOENT},
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `mkdirat 3 "tmp" 0755`},
@@ -911,7 +911,7 @@ func (s *changeSuite) TestPerformFilesystemMountWithoutMountPointAndReadOnlyBase
 
 		// error, read only filesystem, create a mimic
 		{C: `lstat "/rofs" <ptr>`, R: syscall.Stat_t{Uid: 0, Gid: 0, Mode: 0755}},
-		{C: `readdir "/rofs"`, R: []os.FileInfo(nil)},
+		{C: `readdir "/rofs"`, R: []fs.DirEntry(nil)},
 		{C: `lstat "/tmp/.snap/rofs"`, E: syscall.ENOENT},
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `mkdirat 3 "tmp" 0755`},
@@ -1287,7 +1287,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountPointAndReadOnlyB
 
 		// error, read only filesystem, create a mimic
 		{C: `lstat "/rofs" <ptr>`, R: syscall.Stat_t{Uid: 0, Gid: 0, Mode: 0755}},
-		{C: `readdir "/rofs"`, R: []os.FileInfo(nil)},
+		{C: `readdir "/rofs"`, R: []fs.DirEntry(nil)},
 		{C: `lstat "/tmp/.snap/rofs"`, E: syscall.ENOENT},
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `mkdirat 3 "tmp" 0755`},
@@ -1437,7 +1437,7 @@ func (s *changeSuite) TestPerformDirectoryBindMountWithoutMountSourceAndReadOnly
 
 		// error /rofs is a read-only filesystem, create a mimic
 		{C: `lstat "/rofs" <ptr>`, R: syscall.Stat_t{Mode: 0755}},
-		{C: `readdir "/rofs"`, R: []os.FileInfo(nil)},
+		{C: `readdir "/rofs"`, R: []fs.DirEntry(nil)},
 		{C: `lstat "/tmp/.snap/rofs"`, E: syscall.ENOENT},
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `mkdirat 3 "tmp" 0755`},
@@ -1828,7 +1828,7 @@ func (s *changeSuite) TestPerformFileBindMountWithoutMountPointAndReadOnlyBase(c
 
 		// error, read only filesystem, create a mimic
 		{C: `lstat "/rofs" <ptr>`, R: syscall.Stat_t{Mode: 0755}},
-		{C: `readdir "/rofs"`, R: []os.FileInfo(nil)},
+		{C: `readdir "/rofs"`, R: []fs.DirEntry(nil)},
 		{C: `lstat "/tmp/.snap/rofs"`, E: syscall.ENOENT},
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `mkdirat 3 "tmp" 0755`},
@@ -2223,7 +2223,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithoutBaseDirAndReadOnlyBase(c *C
 
 		// error, read only filesystem, create a mimic
 		{C: `lstat "/rofs" <ptr>`, R: syscall.Stat_t{Mode: 0755}},
-		{C: `readdir "/rofs"`, R: []os.FileInfo(nil)},
+		{C: `readdir "/rofs"`, R: []fs.DirEntry(nil)},
 		{C: `lstat "/tmp/.snap/rofs"`, E: syscall.ENOENT},
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `mkdirat 3 "tmp" 0755`},
@@ -2368,12 +2368,14 @@ func (s *changeSuite) TestPerformCreateSymlinkWithAvoidedTrespassing(c *C) {
 		syscall.Statfs_t{Type: update.TmpfsMagic})
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
 	s.sys.InsertSysLstatResult(`lstat "/etc" <ptr>`, syscall.Stat_t{Mode: 0755})
-	otherConf := testutil.FakeFileInfo("other.conf", 0755)
-	s.sys.InsertReadDirResult(`readdir "/etc"`, []os.FileInfo{otherConf})
+	otherConf := testutil.FakeDirEntry("other.conf", 0755)
+	s.sys.InsertReadDirResult(`readdir "/etc"`, []fs.DirEntry{otherConf})
 	s.sys.InsertFault(`lstat "/tmp/.snap/etc"`, syscall.ENOENT)
 	s.sys.InsertFault(`lstat "/tmp/.snap/etc/other.conf"`, syscall.ENOENT)
 	s.sys.InsertOsLstatResult(`lstat "/etc"`, testutil.FileInfoDir)
-	s.sys.InsertOsLstatResult(`lstat "/etc/other.conf"`, otherConf)
+	otherConfInfo, err := otherConf.Info()
+	c.Assert(err, IsNil)
+	s.sys.InsertOsLstatResult(`lstat "/etc/other.conf"`, otherConfInfo)
 	s.sys.InsertFault(`mkdirat 3 "tmp" 0755`, syscall.EEXIST)
 	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{Mode: syscall.S_IFREG})
 	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{Mode: syscall.S_IFDIR})
@@ -2415,7 +2417,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithAvoidedTrespassing(c *C) {
 		// For convenience we pretend that /etc is empty. The mimic
 		// replicates /etc in /tmp/.snap/etc for subsequent re-construction.
 		{C: `lstat "/etc" <ptr>`, R: syscall.Stat_t{Mode: 0755}},
-		{C: `readdir "/etc"`, R: []os.FileInfo{otherConf}},
+		{C: `readdir "/etc"`, R: []fs.DirEntry{otherConf}},
 		{C: `lstat "/tmp/.snap/etc"`, E: syscall.ENOENT},
 		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY 0`, R: 3},
 		{C: `mkdirat 3 "tmp" 0755`, E: syscall.EEXIST},
@@ -2469,7 +2471,7 @@ func (s *changeSuite) TestPerformCreateSymlinkWithAvoidedTrespassing(c *C) {
 		{C: `lstat "/etc"`, R: testutil.FileInfoDir},
 		{C: `mount "tmpfs" "/etc" "tmpfs" 0 "mode=0755,uid=0,gid=0"`},
 		// Here we restore the contents of /etc: here it's just one file - other.conf
-		{C: `lstat "/etc/other.conf"`, R: otherConf},
+		{C: `lstat "/etc/other.conf"`, R: otherConfInfo},
 		{C: `lstat "/tmp/.snap/etc/other.conf"`, E: syscall.ENOENT},
 
 		// Create /tmp/.snap/etc/other.conf as an empty file.
@@ -2987,7 +2989,7 @@ func (s *changeSuite) TestSyntheticNeededByUsesMountEntryID(c *C) {
 	s.sys.InsertFault(`mkdirat 6 "rofs" 0755`, syscall.EEXIST)
 	s.sys.InsertFault(`mkdirat 7 "dir" 0755`, syscall.EROFS, nil)
 	s.sys.InsertSysLstatResult(`lstat "/snap/some-snap/x1/rofs" <ptr>`, syscall.Stat_t{})
-	s.sys.InsertReadDirResult(`readdir "/snap/some-snap/x1/rofs"`, []os.FileInfo{})
+	s.sys.InsertReadDirResult(`readdir "/snap/some-snap/x1/rofs"`, []fs.DirEntry{})
 	s.sys.InsertOsLstatResult(`lstat "/tmp/.snap/snap/some-snap/x1/rofs"`, testutil.FileInfoDir)
 	s.sys.InsertOsLstatResult(`lstat "/snap/some-snap/x1/rofs"`, testutil.FileInfoDir)
 	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{})
@@ -3023,7 +3025,7 @@ func (s *changeSuite) TestSyntheticNeededByUsesDefaultMountEntryID(c *C) {
 	s.sys.InsertFault(`mkdirat 6 "rofs" 0755`, syscall.EEXIST)
 	s.sys.InsertFault(`mkdirat 7 "dir" 0755`, syscall.EROFS, nil)
 	s.sys.InsertSysLstatResult(`lstat "/snap/some-snap/x1/rofs" <ptr>`, syscall.Stat_t{})
-	s.sys.InsertReadDirResult(`readdir "/snap/some-snap/x1/rofs"`, []os.FileInfo{})
+	s.sys.InsertReadDirResult(`readdir "/snap/some-snap/x1/rofs"`, []fs.DirEntry{})
 	s.sys.InsertOsLstatResult(`lstat "/tmp/.snap/snap/some-snap/x1/rofs"`, testutil.FileInfoDir)
 	s.sys.InsertOsLstatResult(`lstat "/snap/some-snap/x1/rofs"`, testutil.FileInfoDir)
 	s.sys.InsertFstatResult(`fstat 7 <ptr>`, syscall.Stat_t{})

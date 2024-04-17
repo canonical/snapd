@@ -21,6 +21,7 @@ package main_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -72,9 +73,15 @@ func (r *failureSuite) TestCallPrevSnapdFromSnap(c *C) {
 		{Revision: snap.R(123)},
 	})
 
+	mockScript := `
+set -eu
+
+[ -L '%[1]s/snapd/current' ]
+[ "$(readlink '%[1]s/snapd/current')" = 100 ]
+[ "${SNAPD_REVERT_TO_REV}" = 100 ]
+`
 	// mock snapd command from 'previous' revision
-	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"),
-		`test "$SNAPD_REVERT_TO_REV" = "100"`)
+	snapdCmd := testutil.MockCommand(c, filepath.Join(dirs.SnapMountDir, "snapd", "100", "/usr/lib/snapd/snapd"), fmt.Sprintf(mockScript, dirs.SnapMountDir))
 	defer snapdCmd.Restore()
 
 	systemctlCmd := testutil.MockCommand(c, "systemctl", "")

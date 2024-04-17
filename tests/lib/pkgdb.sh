@@ -194,12 +194,12 @@ distro_install_package() {
             quiet eatmydata apt-get install $APT_FLAGS -y "${pkg_names[@]}"
             retval=$?
             ;;
-        amazon-*|centos-7-*)
+        amazon-linux-2-*|centos-7-*)
             # shellcheck disable=SC2086
             quiet yum -y install $YUM_FLAGS "${pkg_names[@]}"
             retval=$?
             ;;
-        fedora-*|centos-*)
+        fedora-*|centos-*|amazon-linux-2023-*)
             # shellcheck disable=SC2086
             quiet dnf -y --refresh install $DNF_FLAGS "${pkg_names[@]}"
             retval=$?
@@ -376,7 +376,11 @@ distro_install_build_snapd(){
         cp /etc/apt/sources.list sources.list.back
         echo "deb http://archive.ubuntu.com/ubuntu/ $(lsb_release -c -s)-proposed restricted main multiverse universe" | tee /etc/apt/sources.list -a
         apt update
-        apt install -y --only-upgrade snapd
+        if os.query is-ubuntu-ge 23.10; then
+            apt install -y --only-upgrade -t "$(lsb_release -c -s)-proposed" snapd
+        else
+            apt install -y --only-upgrade snapd
+        fi
         mv sources.list.back /etc/apt/sources.list
         apt update
 
@@ -398,11 +402,12 @@ distro_install_build_snapd(){
         add-apt-repository -y "$PPA_VALIDATION_NAME"
         apt update
         apt install -y --only-upgrade snapd
-        add-apt-repository --remove "$PPA_VALIDATION_NAME"
-        apt update
 
         # Double check that it really comes from the PPA
         apt show snapd | MATCH "APT-Sources: http.*ppa\.launchpad(content)?\.net"
+
+        add-apt-repository --remove "$PPA_VALIDATION_NAME"
+        apt update
     else
         packages=
         case "$SPREAD_SYSTEM" in
@@ -736,13 +741,12 @@ pkg_dependencies_amazon(){
     if os.query is-amazon-linux 2023; then
         echo "
             bpftool
-            gnupg2-full
+            gpg
             python-docutils
             python3-gobject
             "
     fi
     echo "
-        curl
         dbus-x11
         expect
         fontconfig

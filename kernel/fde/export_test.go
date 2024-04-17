@@ -23,26 +23,10 @@ import (
 	"time"
 )
 
-func MockFdeInitramfsHelperCommandExtra(args []string) (restore func()) {
-	oldFdeRevealKeyCommandExtra := fdeInitramfsHelperCommandExtra
-	fdeInitramfsHelperCommandExtra = args
-	return func() {
-		fdeInitramfsHelperCommandExtra = oldFdeRevealKeyCommandExtra
-	}
-}
-
 func MockFdeRevealKeyRuntimeMax(d time.Duration) (restore func()) {
 	oldFdeRevealKeyRuntimeMax := fdeInitramfsHelperRuntimeMax
 	fdeInitramfsHelperRuntimeMax = d
 	return func() {
 		fdeInitramfsHelperRuntimeMax = oldFdeRevealKeyRuntimeMax
-	}
-}
-
-func MockFdeRevealKeyPollWaitParanoiaFactor(n int) (restore func()) {
-	oldFdeRevealKeyPollWaitParanoiaFactor := fdeInitramfsHelperPollWaitParanoiaFactor
-	fdeInitramfsHelperPollWaitParanoiaFactor = n
-	return func() {
-		fdeInitramfsHelperPollWaitParanoiaFactor = oldFdeRevealKeyPollWaitParanoiaFactor
 	}
 }

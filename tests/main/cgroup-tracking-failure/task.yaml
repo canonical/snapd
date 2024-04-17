@@ -233,7 +233,7 @@ execute: |
             MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt
             MATCH '1:name=systemd:/user.slice/user-12345.slice/user@12345.service/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
-        ubuntu-22*|ubuntu-23.04*|ubuntu-core-22-*)
+        ubuntu-22*|ubuntu-core-22-*)
             # Same as Ubuntu 20.04, but the system uses a unified cgroup hierarchy
             MATCH 'DEBUG: using session bus' <debug.txt
             MATCH 'DEBUG: create transient scope job: /org/freedesktop/systemd1/job/[0-9]+' <debug.txt

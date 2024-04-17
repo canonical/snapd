@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strconv"
 
 	"github.com/jessevdk/go-flags"
 
@@ -45,10 +46,15 @@ type baseCommand struct {
 	stderr io.Writer
 	c      *hookstate.Context
 	name   string
+	uid    string
 }
 
 func (c *baseCommand) setName(name string) {
 	c.name = name
+}
+
+func (c *baseCommand) setUid(uid uint32) {
+	c.uid = strconv.FormatUint(uint64(uid), 10)
 }
 
 func (c *baseCommand) setStdout(w io.Writer) {
@@ -88,6 +94,7 @@ func (c *baseCommand) ensureContext() (context *hookstate.Context, err error) {
 
 type command interface {
 	setName(name string)
+	setUid(uid uint32)
 
 	setStdout(w io.Writer)
 	setStderr(w io.Writer)
@@ -157,6 +164,7 @@ func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr 
 	for name, cmdInfo := range commands {
 		cmd := cmdInfo.generator()
 		cmd.setName(name)
+		cmd.setUid(uid)
 		cmd.setStdout(&stdoutBuffer)
 		cmd.setStderr(&stderrBuffer)
 		cmd.setContext(context)

@@ -26,9 +26,14 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/kernel"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/systemd"
 )
 
 // InstallRecord keeps a record of what installation effectively did as hints
@@ -96,11 +101,15 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 	}
 
 	// generate the mount unit for the squashfs
-	if err := addMountUnit(s, b.preseed, meter); err != nil {
+	t := s.Type()
+	mountFlags := systemd.EnsureMountUnitFlags{
+		PreventRestartIfModified: false,
+		StartBeforeDriversLoad:   t == snap.TypeKernel,
+	}
+	if err := addMountUnit(s, mountFlags, newSystemd(b.preseed, meter)); err != nil {
 		return snapType, nil, err
 	}
 
-	t := s.Type()
 	if !setupOpts.SkipKernelExtraction {
 		if err := boot.Kernel(s, t, dev).ExtractKernelAssets(snapf); err != nil {
 			return snapType, nil, fmt.Errorf("cannot install kernel: %s", err)
@@ -111,11 +120,23 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 	return t, installRecord, nil
 }
 
+// SetupKernelSnap does extra configuration for kernel snaps.
+func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, meter progress.Meter) (err error) {
+	// Build kernel tree that will be mounted from initramfs
+	cpi := snap.MinimalSnapContainerPlaceInfo(instanceName, rev)
+	return kernel.EnsureKernelDriversTree(instanceName, rev,
+		cpi.MountDir(), nil, &kernel.KernelDriversTreeOptions{KernelInstall: true})
+}
+
+func (b Backend) RemoveKernelSnapSetup(instanceName string, rev snap.Revision, meter progress.Meter) error {
+	return kernel.RemoveKernelDriversTree(instanceName, rev)
+}
+
 // SetupComponent prepares and mounts a component for further processing.
 func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *InstallRecord, err error) {
 	// This assumes that the component was already verified or --dangerous was used.
 
-	_, snapf, oErr := OpenComponentFile(compFilePath)
+	compInfo, snapf, oErr := OpenComponentFile(compFilePath)
 	if oErr != nil {
 		return nil, oErr
 	}
@@ -153,7 +174,11 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 	}
 
 	// generate the mount unit for the squashfs
-	if err := addMountUnit(compPi, b.preseed, meter); err != nil {
+	mountFlags := systemd.EnsureMountUnitFlags{
+		PreventRestartIfModified: false,
+		StartBeforeDriversLoad:   compInfo.Type == snap.KernelModulesComponent,
+	}
+	if err := addMountUnit(compPi, mountFlags, newSystemd(b.preseed, meter)); err != nil {
 		return nil, err
 	}
 
@@ -263,4 +288,82 @@ func (b Backend) UndoSetupComponent(cpi snap.ContainerPlaceInfo, installRecord *
 // RemoveSnapInhibitLock removes the file controlling inhibition of "snap run".
 func (b Backend) RemoveSnapInhibitLock(instanceName string) error {
 	return runinhibit.RemoveLockFile(instanceName)
+}
+
+// SetupKernelModulesComponents changes kernel-modules configuration by adding
+// compsToInstall. The components currently active are currentComps, while
+// ksnapName and ksnapRev identify the currently active kernel.
+func (b Backend) SetupKernelModulesComponents(compsToInstall, currentComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error) {
+	sysd := newSystemd(b.preseed, meter)
+
+	// newActiveComps will contain the new revisions of components, taken from compsToInstall
+	newActiveComps := mergeCompSideInfosUpdatingRev(currentComps, compsToInstall)
+
+	return moveKModsComponentsState(
+		currentComps, newActiveComps, ksnapName, ksnapRev, sysd,
+		"after failure to set-up kernel modules components")
+}
+
+// RemoveKernelModulesComponentsSetup changes kernel-modules configuration by
+// removing compsToRemove and making the final state consider only finalComps.
+func (b Backend) RemoveKernelModulesComponentsSetup(compsToRemove, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error) {
+	sysd := newSystemd(b.preseed, meter)
+
+	// currentActiveComps will contain the current revision, taken from compsToRemove
+	currentActiveComps := mergeCompSideInfosUpdatingRev(finalComps, compsToRemove)
+
+	return moveKModsComponentsState(
+		currentActiveComps, finalComps, ksnapName, ksnapRev, sysd,
+		"after failure to remove set-up of kernel modules components")
+}
+
+// mergeCompSideInfosUpdatingRev returns a merged list from two lists
+// of ComponentSideInfo, using the criteria of the elements having the
+// same ComponentRef. The rest of the data for an element will come
+// from comps2 if ComponentRef is the same in comps1 and comps2, that
+// is, the revision is updated in that case.
+func mergeCompSideInfosUpdatingRev(comps1, comps2 []*snap.ComponentSideInfo) (merged []*snap.ComponentSideInfo) {
+	numInComps2 := len(comps2)
+	comps2Map := make(map[naming.ComponentRef]*snap.ComponentSideInfo, numInComps2)
+	for _, cti := range comps2 {
+		comps2Map[cti.Component] = cti
+	}
+	merged = append(merged, comps2...)
+	for _, instComp := range comps1 {
+		if _, ok := comps2Map[instComp.Component]; !ok {
+			// Component not in comps2, add
+			merged = append(merged, instComp)
+		}
+	}
+
+	return merged
+}
+
+// moveKModsComponentsState changes kernel-modules set-up from currentComps to
+// finalComps, for the kernel/revision specified by ksnapName/ksnapRev.
+func moveKModsComponentsState(currentComps, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, sysd systemd.Systemd, cleanErrMsg string) (err error) {
+	cpi := snap.MinimalSnapContainerPlaceInfo(ksnapName, ksnapRev)
+	if err := kernel.EnsureKernelDriversTree(ksnapName, ksnapRev,
+		cpi.MountDir(), finalComps,
+		&kernel.KernelDriversTreeOptions{KernelInstall: false}); err != nil {
+
+		if e := kernel.EnsureKernelDriversTree(ksnapName, ksnapRev,
+			cpi.MountDir(),
+			currentComps,
+			&kernel.KernelDriversTreeOptions{
+				KernelInstall: false}); e != nil {
+			logger.Noticef("while restoring kernel tree %s: %v", cleanErrMsg, e)
+		}
+
+		return err
+	}
+
+	return nil
+}
+
+func newSystemd(preseed bool, meter progress.Meter) systemd.Systemd {
+	if preseed {
+		return systemd.NewEmulationMode(dirs.GlobalRootDir)
+	}
+	return systemd.New(systemd.SystemMode, meter)
 }

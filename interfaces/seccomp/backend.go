@@ -48,7 +48,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/seccomp"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -80,6 +79,16 @@ type Backend struct {
 	versionInfo seccomp.VersionInfo
 }
 
+// TODO: now that snap-seccomp has full support for deny-listing this
+// should be replaced with something like:
+//
+//	~ioctl - 4294967295|TIOCSTI
+//	~ioctl - 4294967295|TIOCLINUX
+//
+// in the default template. This requires that MaskedEq learns
+// to deal with two arguments (see also https://github.com/snapcore/snapd/compare/master...mvo5:rework-seccomp-denylist-incoperate-global.bin?expand=1)
+//
+// globalProfileLE is generated via cmd/snap-seccomp-black list
 var globalProfileLE = []byte{
 	0x20, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x15, 0x00, 0x00, 0x04, 0x3e, 0x00, 0x00, 0xc0,
 	0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x35, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x40,
@@ -93,6 +102,7 @@ var globalProfileLE = []byte{
 	0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x7f,
 }
 
+// globalProfileBE is generated via cmd/snap-seccomp-black list
 var globalProfileBE = []byte{
 	0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x15, 0x00, 0x08, 0x80, 0x00, 0x00, 0x16,
 	0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x15, 0x00, 0x06, 0x00, 0x00, 0x00, 0x36,
@@ -149,7 +159,7 @@ func bpfSrcPath(srcName string) string {
 }
 
 func bpfBinPath(srcName string) string {
-	return filepath.Join(dirs.SnapSeccompDir, strings.TrimSuffix(srcName, ".src")+".bin")
+	return filepath.Join(dirs.SnapSeccompDir, strings.TrimSuffix(srcName, ".src")+".bin2")
 }
 
 func parallelCompile(compiler Compiler, profiles []string) error {
@@ -237,16 +247,16 @@ func parallelCompile(compiler Compiler, profiles []string) error {
 //
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
-func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
-	snapName := snapInfo.InstanceName()
+func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository, tm timings.Measurer) error {
+	snapName := appSet.InstanceName()
 	// Get the snippets that apply to this snap
-	spec, err := repo.SnapSpecification(b.Name(), snapName)
+	spec, err := repo.SnapSpecification(b.Name(), appSet)
 	if err != nil {
 		return fmt.Errorf("cannot obtain seccomp specification for snap %q: %s", snapName, err)
 	}
 
 	// Get the snippets that apply to this snap
-	content, err := b.deriveContent(spec.(*Specification), opts, snapInfo)
+	content, err := b.deriveContent(spec.(*Specification), opts, appSet)
 	if err != nil {
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
 	}
@@ -297,7 +307,8 @@ func uidGidChownSnippet(name string) (string, error) {
 
 // deriveContent combines security snippets collected from all the interfaces
 // affecting a given snap into a content map applicable to EnsureDirState.
-func (b *Backend) deriveContent(spec *Specification, opts interfaces.ConfinementOptions, snapInfo *snap.Info) (content map[string]osutil.FileState, err error) {
+func (b *Backend) deriveContent(spec *Specification, opts interfaces.ConfinementOptions, appSet *interfaces.SnapAppSet) (content map[string]osutil.FileState, err error) {
+	snapInfo := appSet.Info()
 	// Some base snaps and systems require the socketcall() in the default
 	// template
 	addSocketcall := requiresSocketcall(snapInfo.Base)
@@ -339,6 +350,8 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 			Mode:    0644,
 		}
 	}
+
+	// TODO: something with component hooks will need to happen here
 
 	return content, nil
 }
@@ -382,8 +395,8 @@ func generateContent(opts interfaces.ConfinementOptions, snippetForTag string, a
 }
 
 // NewSpecification returns an empty seccomp specification.
-func (b *Backend) NewSpecification() interfaces.Specification {
-	return &Specification{}
+func (b *Backend) NewSpecification(appSet *interfaces.SnapAppSet) interfaces.Specification {
+	return &Specification{appSet: appSet}
 }
 
 // SandboxFeatures returns the list of seccomp features supported by the kernel

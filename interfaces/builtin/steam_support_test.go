@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -76,14 +77,14 @@ func (s *SteamSupportInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *SteamSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 
-	spec := &apparmor.Specification{}
+	spec := apparmor.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "mount options=(rw, rbind) /tmp/newroot/ -> /tmp/newroot/,\n")
 }
 
 func (s *SteamSupportInterfaceSuite) TestSecCompSpec(c *C) {
-	spec := &seccomp.Specification{}
+	spec := seccomp.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow Steam to set up \"pressure-vessel\" containers to run games in.\nmount\numount2\npivot_root\n")
 }
@@ -93,9 +94,17 @@ func (s *SteamSupportInterfaceSuite) TestInterfaces(c *C) {
 }
 
 func (s *SteamSupportInterfaceSuite) TestUDevSpec(c *C) {
-	spec := &udev.Specification{}
+	spec := udev.NewSpecification(interfaces.NewSnapAppSet(s.plug.Snap()))
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets()[0], testutil.Contains, `SUBSYSTEM=="usb", ATTRS{idVendor}=="28de", MODE="0660", TAG+="uaccess"`)
 	c.Assert(spec.Snippets()[1], testutil.Contains, `KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="114d", ATTRS{idProduct}=="8a12", MODE="0660", TAG+="uaccess"`)
+}
+
+func (s *SteamSupportInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, release.OnCoreDesktop)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+	c.Assert(si.Summary, Equals, `allow Steam to configure pressure-vessel containers`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "steam-support")
 }

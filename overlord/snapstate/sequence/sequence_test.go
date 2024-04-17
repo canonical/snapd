@@ -102,23 +102,26 @@ func (s *sequenceTestSuite) TestAddComponentForRevision(c *C) {
 	const compName1 = "comp1"
 	csi1 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName1), snap.R(2))
 	csi2 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName1), snap.R(3))
+	csi3 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, "other-comp"), snap.R(1))
 	cs1 := sequence.NewComponentState(csi1, snap.TestComponent)
 	cs2 := sequence.NewComponentState(csi2, snap.TestComponent)
+	cs3 := sequence.NewComponentState(csi3, snap.TestComponent)
 
 	ssi := &snap.SideInfo{RealName: snapName,
 		Revision: snap.R(1), SnapID: "some-snap-id"}
-	comps := []*sequence.ComponentState{cs1, cs2}
+	sliceCs1 := []*sequence.ComponentState{cs1}
 	seq := snapstatetest.NewSequenceFromRevisionSideInfos(
-		[]*sequence.RevisionSideState{sequence.NewRevisionSideState(ssi, comps)})
+		[]*sequence.RevisionSideState{sequence.NewRevisionSideState(ssi, sliceCs1)})
 	c.Assert(seq.AddComponentForRevision(snapRev, cs1), IsNil)
 	// Not re-appended
-	c.Assert(seq.Revisions[0].Components, DeepEquals, comps)
+	c.Assert(seq.Revisions[0].Components, DeepEquals, sliceCs1)
 
-	csi3 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, "other-comp"), snap.R(1))
-	cs3 := sequence.NewComponentState(csi3, snap.TestComponent)
+	// Replace component with different revision
+	c.Assert(seq.AddComponentForRevision(snapRev, cs2), IsNil)
+	c.Assert(seq.Revisions[0].Components, DeepEquals, []*sequence.ComponentState{cs2})
+
 	c.Assert(seq.AddComponentForRevision(snapRev, cs3), IsNil)
-	comps = []*sequence.ComponentState{cs1, cs2, cs3}
-	c.Assert(seq.Revisions[0].Components, DeepEquals, comps)
+	c.Assert(seq.Revisions[0].Components, DeepEquals, []*sequence.ComponentState{cs2, cs3})
 
 	c.Assert(seq.AddComponentForRevision(snap.R(2), cs3), Equals, sequence.ErrSnapRevNotInSequence)
 }
@@ -170,21 +173,26 @@ func (s *sequenceTestSuite) TestSequenceHelpers(c *C) {
 	cref2 := naming.NewComponentRef(snapName, compName2)
 	csi2 := snap.NewComponentSideInfo(cref2, compRev)
 
+	rev1Comps := []*sequence.ComponentState{
+		sequence.NewComponentState(csi2, snap.TestComponent),
+		sequence.NewComponentState(csi, snap.TestComponent)}
 	seq := snapstatetest.NewSequenceFromRevisionSideInfos(
 		[]*sequence.RevisionSideState{
-			sequence.NewRevisionSideState(ssi,
-				[]*sequence.ComponentState{sequence.NewComponentState(csi2, snap.TestComponent), sequence.NewComponentState(csi, snap.TestComponent)})})
+			sequence.NewRevisionSideState(ssi, rev1Comps)})
 
 	c.Check(seq.IsComponentRevPresent(csi), Equals, true)
 	foundCsi := seq.ComponentSideInfoForRev(0, cref)
 	c.Check(foundCsi, DeepEquals, csi)
 	foundCsi2 := seq.ComponentSideInfoForRev(0, cref2)
 	c.Check(foundCsi2, DeepEquals, csi2)
+	c.Check(seq.ComponentsForRevision(snapRev), DeepEquals, rev1Comps)
 
+	rev1Comps = []*sequence.ComponentState{
+		sequence.NewComponentState(csi, snap.TestComponent)}
 	seq = snapstatetest.NewSequenceFromRevisionSideInfos(
 		[]*sequence.RevisionSideState{
 			sequence.NewRevisionSideState(ssi2, nil),
-			sequence.NewRevisionSideState(ssi, []*sequence.ComponentState{sequence.NewComponentState(csi, snap.TestComponent)}),
+			sequence.NewRevisionSideState(ssi, rev1Comps),
 		})
 
 	c.Check(seq.IsComponentRevPresent(csi), Equals, true)
@@ -192,6 +200,8 @@ func (s *sequenceTestSuite) TestSequenceHelpers(c *C) {
 	c.Check(seq.ComponentSideInfoForRev(0, cref2), IsNil)
 	foundCsi = seq.ComponentSideInfoForRev(0, cref)
 	c.Check(foundCsi, IsNil)
+	c.Check(seq.ComponentsForRevision(snapRev), DeepEquals, rev1Comps)
+	c.Check(seq.ComponentsForRevision(snapRev2), IsNil)
 
 	seq = snapstatetest.NewSequenceFromRevisionSideInfos(
 		[]*sequence.RevisionSideState{
@@ -202,4 +212,34 @@ func (s *sequenceTestSuite) TestSequenceHelpers(c *C) {
 	c.Check(seq.IsComponentRevPresent(csi), Equals, false)
 	c.Check(seq.ComponentSideInfoForRev(0, cref), IsNil)
 	c.Check(seq.ComponentSideInfoForRev(1, cref2), IsNil)
+}
+
+func (s *sequenceTestSuite) TestKernelModulesComponentsForRev(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	const compName2 = "mycomp2"
+	snapRev := snap.R(1)
+	snapRev2 := snap.R(2)
+	compRev := snap.R(33)
+
+	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev, SnapID: "some-snap-id"}
+	ssi2 := &snap.SideInfo{RealName: snapName, Revision: snapRev2, SnapID: "some-snap-id"}
+	cref := naming.NewComponentRef(snapName, compName)
+	csi := snap.NewComponentSideInfo(cref, compRev)
+	cref2 := naming.NewComponentRef(snapName, compName2)
+	csi2 := snap.NewComponentSideInfo(cref2, compRev)
+
+	rev1Comps := []*sequence.ComponentState{
+		sequence.NewComponentState(csi2, snap.KernelModulesComponent),
+		sequence.NewComponentState(csi, snap.TestComponent)}
+	seq := snapstatetest.NewSequenceFromRevisionSideInfos(
+		[]*sequence.RevisionSideState{
+			sequence.NewRevisionSideState(ssi2, nil),
+			sequence.NewRevisionSideState(ssi, rev1Comps),
+		})
+
+	c.Check(seq.ComponentsWithTypeForRev(snapRev, snap.KernelModulesComponent),
+		DeepEquals, []*snap.ComponentSideInfo{csi2})
+	c.Check(len(seq.ComponentsWithTypeForRev(snapRev2, snap.KernelModulesComponent)),
+		Equals, 0)
 }

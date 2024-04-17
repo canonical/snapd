@@ -2,6 +2,10 @@ summary: |
    Test that vitality defaults specified in the gadget are picked up
    for first boot snaps
 
+details: |
+    Check that vitality defaults specified in the gadget are applied
+    properly for first boot snaps.
+
 # the test is only meaningful on core devices
 # TODO:UC20: enable for UC20, it assumes /var/lib/snapd/seed/assertions/model
 #            which we don't have currently

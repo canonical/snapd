@@ -1,6 +1,11 @@
 summary: |
   Test that devmode confined snaps can execute other snaps.
 
+details: |
+  For xenial the test covers running core and non-core based devmode snaps from core based strict snap and
+  and for boinic the test covers running a non-core based devmode snap from a non-core based strict snap as
+  well as running core and non-core based devmode snaps from a core based strict snap.
+
 systems:
   - ubuntu-18.04-64
   - ubuntu-16.04-64
@@ -20,6 +25,9 @@ environment:
 
   # build the snap with lxd
   SNAPCRAFT_BUILD_ENVIRONMENT: lxd
+
+  # pin LXD to 5.20/stable to ensure to prevent snapcraft problem with handling new version naming that may include "LTS"
+  LXD_SNAP_CHANNEL: 5.20/stable
 
 prepare: |
   # load the fuse kernel module before installing lxd

@@ -1,96 +1,60 @@
-summary: Check the aspects API
+summary: Check the aspects configuration features
 
 details: |
-  Verify the basic scenarios of the aspects API
-
-# ubuntu-14.04-64's curl doesn't support --unix-socket
-systems: [-ubuntu-14.04-*]
+  Verify basic features of the aspects configuration system
 
 prepare: |
   snap set system experimental.aspects-configuration=true
-
-  snap install test-snapd-curl --edge --devmode
-  snap alias test-snapd-curl.curl curl
   snap install --edge jq
 
 execute: |
-  calc_expected_change() {
-    local LAST_CHG
-    LAST_CHG=$(snap changes | tail -n 2 | awk '{print $1}')
-    EXPECTED_CHG="$((LAST_CHG + 1))"
-  }
+  if [ "$TRUST_TEST_KEYS" = "false" ]; then
+    echo "This test needs test keys to be trusted"
+    exit
+  fi
+
+  snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
+  snap ack "$TESTSLIB/assertions/developer1-network.aspect-bundle"
 
   # write a value
-  calc_expected_change
-  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects/system/network/wifi-setup -X PUT -d '{"ssid": "canonical"}' > response.txt
-  jq -r '."status-code"' < response.txt | MATCH 202
-  jq -r '."change"' < response.txt | MATCH "$EXPECTED_CHG"
+  snap set developer1/network/wifi-setup ssid=canonical
 
   # read the same value
-  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects/system/network/wifi-setup?fields=ssid -X GET > response.txt
-  jq -r '."status-code"' < response.txt | MATCH 200
-  jq -r '.result' < response.txt | MATCH "canonical"
+  snap get developer1/network/wifi-setup ssid | MATCH "canonical"
 
   # delete it
-  calc_expected_change
-  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects/system/network/wifi-setup -X PUT -d '{"ssid": null}' > response.txt
-  jq -r '."status-code"' < response.txt | MATCH 202
-  jq -r '."change"' < response.txt | MATCH "$EXPECTED_CHG"
+  snap set developer1/network/wifi-setup ssid!
 
   # check it was deleted
-  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects/system/network/wifi-setup?fields=ssid -X GET > response.txt
-  jq -r '."status-code"' < response.txt | MATCH 404
-  jq -r '.result.message' < response.txt | MATCH $'cannot get "ssid" in aspect system/network/wifi-setup: matching rules don\'t map to any values'
+  snap get developer1/network/wifi-setup ssid 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH $'cannot get "ssid" in aspect developer1/network/wifi-setup: matching rules don\'t map to any values'
 
   # write values using a placeholder access
-  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects/system/network/wifi-setup -X PUT -d '{"private.my-company": "my-config"}' > response.txt
-  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects/system/network/wifi-setup -X PUT -d '{"private.your-company": "your-config"}' > response.txt
+  snap set -t developer1/network/wifi-setup private.my-company=\"my-config\" private.your-company=\"your-config\"
 
-  # check first value
-  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects/system/network/wifi-setup?fields=private.my-company -X GET > response.txt
-  jq -r '."status-code"' < response.txt | MATCH 200
-  jq -r '.result' < response.txt | MATCH "my-config"
+  # check values were set
+  snap get developer1/network/wifi-setup private.my-company | MATCH "my-config"
+  snap get developer1/network/wifi-setup private.your-company | MATCH "your-config"
 
   # delete it
-  calc_expected_change
-  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects/system/network/wifi-setup -X PUT -d '{"private.my-company": null}' > response.txt
-  jq -r '."status-code"' < response.txt | MATCH 202
-  jq -r '."change"' < response.txt | MATCH "$EXPECTED_CHG"
+  snap set developer1/network/wifi-setup private.my-company!
 
   # check it was deleted
-  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects/system/network/wifi-setup?fields=private.my-company -X GET > response.txt
-  jq -r '."status-code"' < response.txt | MATCH 404
-  jq -r '.result.message' < response.txt | MATCH $'cannot get "private.my-company" in aspect system/network/wifi-setup: matching rules don\'t map to any values'
+  snap get developer1/network/wifi-setup private.my-company 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH $'cannot get "private.my-company" in aspect developer1/network/wifi-setup: matching rules don\'t map to any values'
 
   # check second value remains
-  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects/system/network/wifi-setup?fields=private.your-company -X GET > response.txt
-  jq -r '."status-code"' < response.txt | MATCH 200
-  jq -r '.result' < response.txt | MATCH "your-config"
-  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects/system/network/wifi-setup -X PUT -d '{"private.your-company": null}' > response.txt
+  snap get developer1/network/wifi-setup private.your-company | MATCH "your-config"
+  snap set developer1/network/wifi-setup private.your-company!
 
   # write a list
-  calc_expected_change
-  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects/system/network/wifi-setup -X PUT -d '{"ssids": ["one", 2]}' > response.txt
-  jq -r '."status-code"' < response.txt | MATCH 202
-  jq -r '."change"' < response.txt | MATCH "$EXPECTED_CHG"
+  snap set -t developer1/network/wifi-setup ssids='["one", 2]'
 
   # read the same value
-  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects/system/network/wifi-setup?fields=ssids -X GET > response.txt
-  jq -r '."status-code"' < response.txt | MATCH 200
-  jq -r '.result' < response.txt | MATCH '["one", 2]'
+  snap get -d developer1/network/wifi-setup ssids | jq -c .ssids | MATCH '["one", 2]'
 
   # check read-only access control works
-  calc_expected_change
-  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects/system/network/wifi-setup -X PUT -d '{"status": "foo"}' > response.txt
-  jq -r '."status-code"' < response.txt | MATCH 404
-  jq -r '.result.message' < response.txt | MATCH 'cannot set "status" in aspect system/network/wifi-setup: no matching write rule'
+  snap set developer1/network/wifi-setup status=foo 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH 'cannot set "status" in aspect developer1/network/wifi-setup: no matching write rule'
 
   # check write-only access control works
-  calc_expected_change
-  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects/system/network/wifi-setup -X PUT -d '{"password": "foo"}' > response.txt
-  jq -r '."status-code"' < response.txt | MATCH 202
-  jq -r '."change"' < response.txt | MATCH "$EXPECTED_CHG"
+  snap set developer1/network/wifi-setup password=foo
 
-  curl -sS --unix-socket /run/snapd.socket localhost/v2/aspects/system/network/wifi-setup?fields=password -X GET > response.txt
-  jq -r '."status-code"' < response.txt | MATCH 404
-  jq -r '.result.message' < response.txt | MATCH 'cannot get "password" in aspect system/network/wifi-setup: no matching read rule'
+  snap get developer1/network/wifi-setup password 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH 'cannot get "password" in aspect developer1/network/wifi-setup: no matching read rule'

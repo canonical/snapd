@@ -104,6 +104,11 @@ check_stray_dbus_daemon() {
 			if [ "$user" = "external" ]; then
 				continue
 			fi
+                        # On qemu backend, sudo from user "ubuntu" is used. So the session
+                        # for user "ubuntu" is expected to exist.
+			if [ "$user" = "ubuntu" ]; then
+				continue
+			fi
 			# Report stray dbus-daemon.
 			failed+=("pid:$pid user:$user cmdline:$cmdline")
 		done
@@ -194,6 +199,14 @@ check_segmentation_violations() {
 	fi
 }
 
+check_fakestore_cleaned() {
+    # Check if fakestore was properly cleaned to avoid leaking into other tests.
+    if [ -f "/etc/systemd/system/snapd.service.d/store.conf" ]; then
+        echo "/etc/systemd/system/snapd.service.d/store.conf was not cleaned properly"
+        exit 1
+    fi
+}
+
 check_invariant() {
 	case "$1" in
 		root-files-in-home)
@@ -220,6 +233,9 @@ check_invariant() {
 		segmentation-violations)
 			check_segmentation_violations "$1"
 			;;
+		check-fakestore-cleaned)
+			check_fakestore_cleaned
+			;;
 		*)
 			echo "tests.invariant: unknown invariant $1" >&2
 			exit 1
@@ -228,7 +244,7 @@ check_invariant() {
 }
 
 main() {
-	ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh broken-snaps cgroup-scopes segmentation-violations"
+	ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh broken-snaps cgroup-scopes segmentation-violations check-fakestore-cleaned"
 
 	case "$action" in
 		check)

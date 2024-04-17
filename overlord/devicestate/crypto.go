@@ -23,7 +23,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,9 +33,9 @@ import (
 
 func generateRSAKey(keyLength int) (*rsa.PrivateKey, error) {
 	// The temporary directory is created with mode
-	// 0700 by ioutil.TempDir, see:
-	//   https://github.com/golang/go/blob/master/src/io/ioutil/tempfile.go#L84
-	tempDir, err := ioutil.TempDir(os.TempDir(), "snapd")
+	// 0700 by os.MkdirTemp, see:
+	//   https://github.com/golang/go/blob/3b29222ffdcaea70842ed167632468f54a1783ae/src/os/tempfile.go#L98
+	tempDir, err := os.MkdirTemp(os.TempDir(), "snapd")
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +50,7 @@ func generateRSAKey(keyLength int) (*rsa.PrivateKey, error) {
 		return nil, osutil.OutputErr(out, err)
 	}
 
-	d, err := ioutil.ReadFile(rsaKeyFile)
+	d, err := os.ReadFile(rsaKeyFile)
 	if err != nil {
 		return nil, err
 	}

@@ -1,5 +1,10 @@
 summary: Check that removal of essential snaps does not work
 
+details: |
+    This test validates snapd and base snaps cannot be
+    removed. Also checks that a core base snap cannot be 
+    removed when other installed snap is based on that one.
+
 # UC16 does not seed the snapd snap (yet)
 systems: [-ubuntu-core-16-*]
 
@@ -16,6 +21,8 @@ execute: |
         base=core20
     elif os.query is-core22; then
         base=core22
+    elif os.query is-core24; then
+        base=core24
     fi
     echo "Ensure $base cannot be removed"
     if snap remove --purge "$base"; then

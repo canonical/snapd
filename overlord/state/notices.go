@@ -26,6 +26,8 @@ import (
 const (
 	// defaultNoticeExpireAfter is the default expiry time for notices.
 	defaultNoticeExpireAfter = 7 * 24 * time.Hour
+	// maxNoticeKeyLength is the max size in bytes for a notice key.
+	maxNoticeKeyLength = 256
 )
 
 // Notice represents an aggregated notice. The combination of type and key is unique.
@@ -98,6 +100,12 @@ func (n *Notice) UserID() (userID uint32, isSet bool) {
 	// Importantly, doesn't expose the address of the notice's user ID, so the
 	// caller cannot mutate the value.
 	return flattenUserID(n.userID)
+}
+
+// Type returns the notice type which represents a group of notices
+// originating from a common source.
+func (n *Notice) Type() NoticeType {
+	return n.noticeType
 }
 
 func flattenUserID(userID *uint32) (uid uint32, isSet bool) {
@@ -190,11 +198,18 @@ const (
 	// Warnings are a subset of notices where the key is a human-readable
 	// warning message.
 	WarningNotice NoticeType = "warning"
+
+	// Recorded whenever an auto-refresh is inhibited for one or more snaps.
+	RefreshInhibitNotice NoticeType = "refresh-inhibit"
+
+	// Recorded by "snap run" command when it is inhibited from running a
+	// a snap due an ongoing refresh.
+	SnapRunInhibitNotice NoticeType = "snap-run-inhibit"
 )
 
 func (t NoticeType) Valid() bool {
 	switch t {
-	case ChangeUpdateNotice, WarningNotice:
+	case ChangeUpdateNotice, WarningNotice, RefreshInhibitNotice, SnapRunInhibitNotice:
 		return true
 	}
 	return false
@@ -219,9 +234,9 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	if options == nil {
 		options = &AddNoticeOptions{}
 	}
-	err := validateNotice(noticeType, key, options)
+	err := ValidateNotice(noticeType, key, options)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("internal error: %w", err)
 	}
 
 	s.writing()
@@ -270,12 +285,19 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	return notice.id, nil
 }
 
-func validateNotice(noticeType NoticeType, key string, options *AddNoticeOptions) error {
+// ValidateNotice validates notice type and key before adding.
+func ValidateNotice(noticeType NoticeType, key string, options *AddNoticeOptions) error {
 	if !noticeType.Valid() {
-		return fmt.Errorf("internal error: attempted to add notice with invalid type %q", noticeType)
+		return fmt.Errorf("cannot add notice with invalid type %q", noticeType)
 	}
 	if key == "" {
-		return fmt.Errorf("internal error: attempted to add %s notice with invalid key %q", noticeType, key)
+		return fmt.Errorf("cannot add %s notice with invalid key %q", noticeType, key)
+	}
+	if len(key) > maxNoticeKeyLength {
+		return fmt.Errorf("cannot add %s notice with invalid key: key must be %d bytes or less", noticeType, maxNoticeKeyLength)
+	}
+	if noticeType == RefreshInhibitNotice && key != "-" {
+		return fmt.Errorf(`cannot add %s notice with invalid key %q: only "-" key is supported`, noticeType, key)
 	}
 	return nil
 }

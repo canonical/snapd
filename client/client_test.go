@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2015-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -39,6 +38,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -135,7 +135,7 @@ func (cs *clientSuite) TestClientDoReportsErrors(c *C) {
 func (cs *clientSuite) TestClientWorks(c *C) {
 	var v []int
 	cs.rsp = `[1,2]`
-	reqBody := ioutil.NopCloser(strings.NewReader(""))
+	reqBody := io.NopCloser(strings.NewReader(""))
 	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, nil)
 	c.Check(err, IsNil)
 	c.Check(statusCode, Equals, 200)
@@ -187,7 +187,7 @@ func (cs *clientSuite) TestClientDoNoTimeoutIgnoresRetry(c *C) {
 	var v []int
 	cs.rsp = `[1,2]`
 	cs.err = fmt.Errorf("borken")
-	reqBody := ioutil.NopCloser(strings.NewReader(""))
+	reqBody := io.NopCloser(strings.NewReader(""))
 	doOpts := &client.DoOptions{
 		// Timeout is unset, thus 0, and thus we ignore the retry and only run
 		// once even though there is an error
@@ -201,7 +201,7 @@ func (cs *clientSuite) TestClientDoNoTimeoutIgnoresRetry(c *C) {
 func (cs *clientSuite) TestClientDoRetryValidation(c *C) {
 	var v []int
 	cs.rsp = `[1,2]`
-	reqBody := ioutil.NopCloser(strings.NewReader(""))
+	reqBody := io.NopCloser(strings.NewReader(""))
 	doOpts := &client.DoOptions{
 		Retry:   time.Duration(-1),
 		Timeout: time.Duration(time.Minute),
@@ -212,7 +212,7 @@ func (cs *clientSuite) TestClientDoRetryValidation(c *C) {
 }
 
 func (cs *clientSuite) TestClientDoRetryWorks(c *C) {
-	reqBody := ioutil.NopCloser(strings.NewReader(""))
+	reqBody := io.NopCloser(strings.NewReader(""))
 	cs.err = fmt.Errorf("borken")
 	doOpts := &client.DoOptions{
 		Retry:   time.Duration(time.Millisecond),
@@ -227,7 +227,7 @@ func (cs *clientSuite) TestClientDoRetryWorks(c *C) {
 }
 
 func (cs *clientSuite) TestClientOnlyRetryAppropriateErrors(c *C) {
-	reqBody := ioutil.NopCloser(strings.NewReader(""))
+	reqBody := io.NopCloser(strings.NewReader(""))
 	doOpts := &client.DoOptions{
 		Retry:   time.Millisecond,
 		Timeout: 1 * time.Minute,
@@ -250,7 +250,7 @@ func (cs *clientSuite) TestClientUnderstandsStatusCode(c *C) {
 	var v []int
 	cs.status = 202
 	cs.rsp = `[1,2]`
-	reqBody := ioutil.NopCloser(strings.NewReader(""))
+	reqBody := io.NopCloser(strings.NewReader(""))
 	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, nil)
 	c.Check(err, IsNil)
 	c.Check(statusCode, Equals, 202)
@@ -350,16 +350,26 @@ func (cs *clientSuite) TestClientWhoAmISomebody(c *C) {
 }
 
 func (cs *clientSuite) TestClientSysInfo(c *C) {
-	cs.rsp = `{"type": "sync", "result":
-                     {"series": "16",
-                      "version": "2",
-                      "os-release": {"id": "ubuntu", "version-id": "16.04"},
-                      "on-classic": true,
-                      "build-id": "1234",
-                      "confinement": "strict",
-                      "architecture": "TI-99/4A",
-                      "virtualization": "MESS",
-                      "sandbox-features": {"backend": ["feature-1", "feature-2"]}}}`
+	cs.rsp = `{
+  "type": "sync",
+  "result": {
+    "series": "16",
+    "version": "2",
+    "os-release": {"id": "ubuntu", "version-id": "16.04"},
+    "on-classic": true,
+    "build-id": "1234",
+    "confinement": "strict",
+    "architecture": "TI-99/4A",
+    "virtualization": "MESS",
+    "sandbox-features": {"backend": ["feature-1", "feature-2"]},
+    "features": {
+      "foo": {"supported": false, "unsupported-reason": "too foo", "enabled": false},
+      "bar": {"supported": false, "unsupported-reason": "not bar enough", "enabled": true},
+      "baz": {"supported": true, "enabled": false},
+      "buzz": {"supported": true, "enabled": true}
+    }
+  }
+}`
 	sysInfo, err := cs.cli.SysInfo()
 	c.Check(err, IsNil)
 	c.Check(sysInfo, DeepEquals, &client.SysInfo{
@@ -377,6 +387,12 @@ func (cs *clientSuite) TestClientSysInfo(c *C) {
 		BuildID:        "1234",
 		Architecture:   "TI-99/4A",
 		Virtualization: "MESS",
+		Features: map[string]features.FeatureInfo{
+			"foo":  {Supported: false, UnsupportedReason: "too foo", Enabled: false},
+			"bar":  {Supported: false, UnsupportedReason: "not bar enough", Enabled: true},
+			"baz":  {Supported: true, Enabled: false},
+			"buzz": {Supported: true, Enabled: true},
+		},
 	})
 }
 
@@ -542,7 +558,7 @@ func (cs *clientSuite) TestParseError(c *C) {
 	resp = &http.Response{
 		Status: "400 Bad Request",
 		Header: h,
-		Body: ioutil.NopCloser(strings.NewReader(`{
+		Body: io.NopCloser(strings.NewReader(`{
 			"status-code": 400,
 			"type": "error",
 			"result": {
@@ -556,7 +572,7 @@ func (cs *clientSuite) TestParseError(c *C) {
 	resp = &http.Response{
 		Status: "400 Bad Request",
 		Header: h,
-		Body:   ioutil.NopCloser(strings.NewReader("{}")),
+		Body:   io.NopCloser(strings.NewReader("{}")),
 	}
 	err = client.ParseErrorInTest(resp)
 	c.Check(err, ErrorMatches, `server error: "400 Bad Request"`)
@@ -597,7 +613,7 @@ func (cs *clientSuite) TestDebugEnsureStateSoon(c *C) {
 	c.Check(cs.reqs, HasLen, 1)
 	c.Check(cs.reqs[0].Method, Equals, "POST")
 	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/debug")
-	data, err := ioutil.ReadAll(cs.reqs[0].Body)
+	data, err := io.ReadAll(cs.reqs[0].Body)
 	c.Assert(err, IsNil)
 	c.Check(data, DeepEquals, []byte(`{"action":"ensure-state-soon"}`))
 }
@@ -612,7 +628,7 @@ func (cs *clientSuite) TestDebugGeneric(c *C) {
 	c.Check(cs.reqs, HasLen, 1)
 	c.Check(cs.reqs[0].Method, Equals, "POST")
 	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/debug")
-	data, err := ioutil.ReadAll(cs.reqs[0].Body)
+	data, err := io.ReadAll(cs.reqs[0].Body)
 	c.Assert(err, IsNil)
 	c.Check(string(data), DeepEquals, `{"action":"do-something","params":["param1","param2"]}`)
 }
@@ -642,7 +658,7 @@ func (cs *clientSuite) TestDebugMigrateHome(c *C) {
 	c.Check(cs.reqs, HasLen, 1)
 	c.Check(cs.reqs[0].Method, Equals, "POST")
 	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/debug")
-	data, err := ioutil.ReadAll(cs.reqs[0].Body)
+	data, err := io.ReadAll(cs.reqs[0].Body)
 	c.Assert(err, IsNil)
 	c.Check(string(data), Equals, `{"action":"migrate-home","snaps":["foo","bar"]}`)
 }

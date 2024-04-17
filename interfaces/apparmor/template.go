@@ -250,6 +250,7 @@ var templateCommon = `
   /dev/{,u}random w,
   /etc/machine-id r,
   /etc/mime.types r,
+  /etc/default/keyboard r,
   @{PROC}/ r,
   @{PROC}/version r,
   @{PROC}/version_signature r,
@@ -975,15 +976,19 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   /sys/devices/system/cpu/online r,
 
   # Allow reading the command line (snap-update-ns uses it in pre-Go bootstrap code).
-  @{PROC}/@{pid}/cmdline r,
+  owner @{PROC}/@{pid}/cmdline r,
+
+  # Allow reading of own maps (Go runtime)
+  owner @{PROC}/@{pid}/maps r,
 
   # Allow reading file descriptor paths
-  @{PROC}/@{pid}/fd/* r,
+  owner @{PROC}/@{pid}/fd/* r,
+
   # Allow reading /proc/version. For release.go WSL detection.
   @{PROC}/version r,
 
   # Allow reading own cgroups
-  @{PROC}/@{pid}/cgroup r,
+  owner @{PROC}/@{pid}/cgroup r,
 
   # Allow reading somaxconn, required in newer distro releases
   @{PROC}/sys/net/core/somaxconn r,

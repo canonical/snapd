@@ -36,7 +36,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -77,7 +76,7 @@ func isContainerWithInternalPolicy() bool {
 	var nsStackedPath = filepath.Join(appArmorSecurityFSPath, ".ns_stacked")
 	var nsNamePath = filepath.Join(appArmorSecurityFSPath, ".ns_name")
 
-	contents, err := ioutil.ReadFile(nsStackedPath)
+	contents, err := os.ReadFile(nsStackedPath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		logger.Noticef("Failed to read %s: %v", nsStackedPath, err)
 		return false
@@ -87,7 +86,7 @@ func isContainerWithInternalPolicy() bool {
 		return false
 	}
 
-	contents, err = ioutil.ReadFile(nsNamePath)
+	contents, err = os.ReadFile(nsNamePath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		logger.Noticef("Failed to read %s: %v", nsNamePath, err)
 		return false

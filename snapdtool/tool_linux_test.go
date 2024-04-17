@@ -1,7 +1,6 @@
 package snapdtool_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -89,7 +88,7 @@ VERSION=42
 `
 
 func benchmarkCSRE(b *testing.B, data string) {
-	tempdir, err := ioutil.TempDir("", "")
+	tempdir, err := os.MkdirTemp("", "")
 	if err != nil {
 		b.Fatalf("tempdir: %v", err)
 	}

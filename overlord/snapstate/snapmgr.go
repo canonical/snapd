@@ -70,6 +70,8 @@ type SnapManager struct {
 	ensuredMountsUpdated       bool
 	ensuredDesktopFilesUpdated bool
 	ensuredDownloadsCleaned    bool
+
+	changeCallbackID int
 }
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
@@ -519,7 +521,7 @@ func (snapst *SnapState) CurrentComponentInfo(cref naming.ComponentRef) (*snap.C
 	}
 
 	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
-		csi.Revision, si.InstanceName(), si.SnapRevision())
+		csi.Revision, si.InstanceName())
 	return readComponentInfo(cpi.MountDir())
 }
 
@@ -529,6 +531,22 @@ func (snapst *SnapState) InstanceName() string {
 		return ""
 	}
 	return snap.InstanceName(cur.RealName, snapst.InstanceKey)
+}
+
+// RefreshInhibitProceedTime is the time after which a pending refresh is forced
+// for a running snap in the next auto-refresh. Zero time indicates that there
+// are no pending refreshes.
+//
+// The provided state must be locked by the caller.
+func (snapst *SnapState) RefreshInhibitProceedTime(st *state.State) time.Time {
+	if snapst.RefreshInhibitedTime == nil {
+		// Zero time, no pending refreshes.
+		return time.Time{}
+	}
+	// TODO: state is needed for when configurable max inhibition
+	// is introduced (i.e. "core.refresh.max-inhibition-days").
+	proceedTime := snapst.RefreshInhibitedTime.Add(maxInhibition)
+	return proceedTime
 }
 
 func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
@@ -624,6 +642,10 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("check-rerefresh", m.doCheckReRefresh, nil)
 	runner.AddHandler("conditional-auto-refresh", m.doConditionalAutoRefresh, nil)
 
+	// specific set-up for the kernel snap
+	runner.AddHandler("prepare-kernel-snap", m.doSetupKernelSnap, m.undoSetupKernelSnap)
+	runner.AddHandler("discard-old-kernel-snap-setup", m.doCleanupOldKernelSnap, m.undoCleanupOldKernelSnap)
+
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
 	runner.AddHandler("cleanup", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
@@ -659,6 +681,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("mount-component", m.doMountComponent, m.undoMountComponent)
 	runner.AddHandler("unlink-current-component", m.doUnlinkCurrentComponent, m.undoUnlinkCurrentComponent)
 	runner.AddHandler("link-component", m.doLinkComponent, m.undoLinkComponent)
+	runner.AddHandler("prepare-kernel-modules-components", m.doSetupKernelModules, m.doRemoveKernelModulesSetup)
 
 	// control serialisation
 	runner.AddBlocked(m.blockedTask)
@@ -678,7 +701,21 @@ func (m *SnapManager) StartUp() error {
 		return fmt.Errorf("failed to generate cookies: %q", err)
 	}
 
+	// register handler that records a refresh-inhibit notice when
+	// the set of inhibited snaps is changed.
+	m.changeCallbackID = m.state.AddChangeStatusChangedHandler(processInhibitedAutoRefresh)
+
 	return nil
+}
+
+// Stop implements StateStopper. It will unregister the change callback
+// handler from state.
+func (m *SnapManager) Stop() {
+	st := m.state
+	st.Lock()
+	defer st.Unlock()
+
+	st.RemoveChangeStatusChangedHandler(m.changeCallbackID)
 }
 
 func (m *SnapManager) CanStandby() bool {
@@ -964,9 +1001,23 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 		return nil
 	}
 
+	// Wait for the system to be seeded before transtioning
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil {
+		if !errors.Is(err, state.ErrNoState) {
+			// already seeded or other error
+			return err
+		}
+		return nil
+	}
+	if !seeded {
+		return nil
+	}
+
 	// check if snapd snap is installed
 	var snapst SnapState
-	err := Get(m.state, "snapd", &snapst)
+	err = Get(m.state, "snapd", &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -1058,6 +1109,20 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	}
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
+	}
+
+	// Wait for the system to be seeded before transtioning
+	var seeded bool
+	err = m.state.Get("seeded", &seeded)
+	if err != nil {
+		if !errors.Is(err, state.ErrNoState) {
+			// already seeded or other error
+			return err
+		}
+		return nil
+	}
+	if !seeded {
+		return nil
 	}
 
 	// check that there is no change in flight already, this is a
@@ -1231,7 +1296,22 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			}
 			squashfsPath := dirs.StripRootDir(info.MountFile())
 			whereDir := dirs.StripRootDir(info.MountDir())
-			if _, err = sysd.EnsureMountUnitFile(info.MountDescription(), squashfsPath, whereDir, "squashfs"); err != nil {
+			// Ensure mount files, but do not restart mount units
+			// of snap files if the units are modified as services
+			// in the snap have a Requires= on them. Otherwise the
+			// services would be restarted.
+			//   This is especially relevant for the snapd snap as if
+			// this happens, it would end up in a bad state after
+			// an update.
+			// TODO Ensure mounts of snap components as well
+			// TODO refactor so the check for kernel type is not repeated
+			// in the installation case
+			snapType, _ := snapSt.Type()
+			if _, err = sysd.EnsureMountUnitFile(info.MountDescription(),
+				squashfsPath, whereDir, "squashfs",
+				systemd.EnsureMountUnitFlags{
+					PreventRestartIfModified: true,
+					StartBeforeDriversLoad:   snapType == snap.TypeKernel}); err != nil {
 				return err
 			}
 		}

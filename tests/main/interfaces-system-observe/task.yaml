@@ -20,7 +20,10 @@ prepare: |
         systemctl start systemd-hostnamed
     fi
 
+    # TODO: we should use only one snap for testing
     "$TESTSTOOLS"/snaps-state install-local testsnap
+    snap connect testsnap:system-observe
+    snap connect testsnap:network-setup-observe
 
 restore: |
     if not os.query is-trusty; then
@@ -36,7 +39,6 @@ execute: |
         && ! os.query is-arch-linux \
         && ! os.query is-opensuse tumbleweed; then
         echo "Check that we can read /boot"
-        snap connect testsnap:system-observe
         KERNEL_VERSION="$(uname -r)"
         testsnap.cmd cat "/boot/config-$KERNEL_VERSION" | MATCH "CONFIG_"
 
@@ -63,6 +65,21 @@ execute: |
         su -l -c "test-snapd-system-observe-consumer.dbus-introspect" test | MATCH "$expected"
     fi
 
+    echo "Snap is able is able to query systemd properties"
+    testsnap.cmd busctl call org.freedesktop.systemd1 /org/freedesktop/systemd1 org.freedesktop.DBus.Properties \
+        GetAll s org.freedesktop.systemd1.Manager
+
+    # systemd in 14.04 does not implement org.freedesktop.systemd1.Unit for units
+    if not os.query is-trusty; then
+        echo "Snap is able to list units"
+        testsnap.cmd busctl call org.freedesktop.systemd1 /org/freedesktop/systemd1 org.freedesktop.systemd1.Manager ListUnits
+
+        echo "Snap is able to query unit properties"
+        testsnap.cmd busctl call org.freedesktop.systemd1 /org/freedesktop/systemd1/unit/snapd_2eservice \
+            org.freedesktop.DBus.Properties GetAll s org.freedesktop.systemd1.Unit
+    fi
+
+
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
@@ -72,6 +89,7 @@ execute: |
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-system-observe-consumer:system-observe
+    snap disconnect testsnap:system-observe
 
     echo "Then the snap is not able to get system information"
     if su -l -c "test-snapd-system-observe-consumer.consumer" test 2> consumer.error; then
@@ -87,5 +105,22 @@ execute: |
             exit 1
         fi
         MATCH "Permission denied" < introspect.error
+    fi
+
+    echo "Snap is not permitted to query systemd properties"
+    not testsnap.cmd busctl call org.freedesktop.systemd1 /org/freedesktop/systemd1 org.freedesktop.DBus.Properties \
+        GetAll s org.freedesktop.systemd1.Manager 2> log.error
+    MATCH 'Access denied' < log.error
+
+    if not os.query is-trusty; then
+        echo "Snap is not able to list units"
+        not testsnap.cmd busctl call org.freedesktop.systemd1 /org/freedesktop/systemd1 org.freedesktop.systemd1.Manager \
+            ListUnits 2> log.error
+        MATCH 'Access denied' < log.error
+
+        echo "Snap is not permitted to query unit properties"
+        not testsnap.cmd busctl call org.freedesktop.systemd1 /org/freedesktop/systemd1/unit/snapd_2eservice \
+            org.freedesktop.DBus.Properties GetAll s org.freedesktop.systemd1.Unit 2> log.error
+        MATCH 'Access denied' < log.error
     fi
 

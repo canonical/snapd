@@ -51,10 +51,12 @@ const desktopBaseDeclarationSlots = `
     deny-installation:
       slot-snap-type:
         - app
-    deny-connection:
-      on-classic: false
     deny-auto-connection:
-      on-classic: false
+      slot-snap-type:
+        - app
+    deny-connection:
+      slot-snap-type:
+        - app
 `
 
 const desktopConnectedPlugAppArmor = `
@@ -179,14 +181,14 @@ dbus (send)
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
     member="{GetCapabilities,GetServerInformation,Notify,CloseNotification}"
-    peer=(label=unconfined),
+    peer=(label="{plasmashell,unconfined}"),
 
 dbus (receive)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
     member={ActionInvoked,NotificationClosed,NotificationReplied}
-    peer=(label=unconfined),
+    peer=(label="{plasmashell,unconfined}"),
 
 # KDE Plasma's Inhibited property indicating "do not disturb" mode
 # https://invent.kde.org/plasma/plasma-workspace/-/blob/master/libnotificationmanager/dbus/org.freedesktop.Notifications.xml#L42
@@ -195,14 +197,14 @@ dbus (send)
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.DBus.Properties
     member="Get{,All}"
-    peer=(label=unconfined),
+    peer=(label="{plasmashell,unconfined}"),
 
 dbus (receive)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
-    peer=(label=unconfined),
+    peer=(label="{plasmashell,unconfined}"),
 
 # DesktopAppInfo Launched
 dbus (send)
@@ -498,7 +500,7 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 		// provided by the OS snap and so will run unconfined
 		new = "unconfined"
 	} else {
-		new = slotAppLabelExpr(slot)
+		new = spec.SnapAppSet().SlotLabelExpression(slot)
 	}
 	snippet := strings.Replace(desktopConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)

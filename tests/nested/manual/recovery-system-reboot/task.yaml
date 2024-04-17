@@ -1,0 +1,134 @@
+summary: create a recovery system and reboot into it
+details: |
+  This test creates a recovery system and validates that the newly created
+  system can be rebooted into.
+
+systems: [ubuntu-22.04-64]
+
+environment:
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/test-snapd-recovery-system-pc-22.model
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  NESTED_REPACK_GADGET_SNAP: false
+  NESTED_REPACK_KERNEL_SNAP: false
+  NESTED_REPACK_BASE_SNAP: false
+  NESTED_FORCE_MS_KEYS: true
+
+  MODE/recover: "recover"
+  MODE/factory_reset: "factory-reset"
+  MODE/install: "install"
+
+  # TODO: figure out a way to do this test without disabling secure boot and TMP
+  # see tests/nested/core/core20-reinstall-partitions/task.yaml for more details
+  NESTED_ENABLE_SECURE_BOOT/install: false
+  NESTED_ENABLE_TPM/install: false
+
+prepare: |
+    tests.nested build-image core
+    tests.nested create-vm core
+
+execute: |
+  function post_json_data() {
+    route=$1
+    template=$2
+    shift 2
+
+    # shellcheck disable=SC2059
+    response=$(printf "${template}" "$@" | remote.exec "sudo test-snapd-curl.curl -X POST -H 'Content-Type: application/json' --unix-socket /run/snapd.socket -d @- http://localhost${route}")
+    if ! jq -e .change <<< "${response}"; then
+      echo "could not get change id from response: ${response}"
+      false
+    fi
+  }
+
+  #shellcheck source=tests/lib/core-config.sh
+  . "$TESTSLIB"/core-config.sh
+
+  wait_for_first_boot_change
+
+  remote.exec sudo snap install --edge --devmode test-snapd-curl
+
+  boot_id="$(tests.nested boot-id)"
+
+  prev_system=$(remote.exec 'sudo snap recovery' | awk 'NR != 1 { print $1 }')
+
+  # create the system
+  change_id=$(post_json_data /v2/systems '{"action": "create", "label": "new-system", "validation-sets": ["test-snapd/test-snapd-pinned-essential-snaps=1"], "mark-default": true, "test-system": true}')
+
+  # wait for reboot since we tested the system
+  remote.wait-for reboot "${boot_id}"
+  boot_id="$(tests.nested boot-id)"
+
+  remote.wait-for snap-command
+
+  remote.exec snap watch "${change_id}"
+
+  remote.exec 'test -d /run/mnt/ubuntu-seed/systems/new-system'
+  remote.exec 'sudo cat /var/lib/snapd/modeenv' > modeenv
+  MATCH 'current_recovery_systems=.*,new-system$' < modeenv
+  MATCH 'good_recovery_systems=.*,new-system$' < modeenv
+
+  remote.exec 'sudo snap recovery' | awk '$1 == "new-system" { print $4 }' | MATCH 'default-recovery'
+
+  remote.exec "sudo snap reboot --${MODE}" || true
+  remote.wait-for reboot "${boot_id}"
+
+  remote.wait-for snap-command
+  wait_for_first_boot_change
+
+  # wait for the system to finish being seeded
+  remote.exec "sudo snap wait system seed.loaded"
+
+  boot_id="$(tests.nested boot-id)"
+
+  if [ "${MODE}" = 'recover' ]; then
+    remote.exec 'cat /proc/cmdline' | MATCH 'snapd_recovery_mode=recover'
+    remote.exec 'sudo cat /var/lib/snapd/modeenv' > modeenv
+    MATCH 'mode=recover' < modeenv
+    MATCH 'recovery_system=new-system' < modeenv
+  elif [ "${MODE}" = 'factory-reset' ] || [ "${MODE}" = "install" ]; then
+    # should be back into run mode since we reset the device
+    remote.exec cat /proc/cmdline | MATCH 'snapd_recovery_mode=run'
+
+    # new system should be the default recovery system and the current system
+    remote.exec 'sudo snap recovery' | awk '$1 == "new-system" { print $4 }' | MATCH 'current,default-recovery'
+
+    remote.exec sudo snap install --edge --devmode test-snapd-curl
+
+    # since out new system is now the default and the current recovery system,
+    # we should be able to remove the old one
+
+    # removing a recovery system conflicts with auto-refresh, wait for the
+    # auto-refresh to start and finish before attempting the removal.
+    if retry -n 60 --wait 1 remote.exec 'snap watch --last=auto-refresh'; then
+      # if an auto-refresh happened, we know we need to wait for the system to
+      # finish rebooting, since the kernel, gadget, and base snaps will be
+      # updated
+      remote.wait-for reboot "${boot_id}"
+
+      # one more watch to wait for the change to finish once the reboot is
+      # completed
+      remote.exec 'snap watch --last=auto-refresh'
+    fi
+
+    post_json_data "/v2/systems/${prev_system}" '{"action": "remove"}'
+
+    remote.exec "snap watch --last=remove-recovery-system"
+    remote.exec "sudo snap recovery" | NOMATCH "${prev_system}"
+  fi
+
+  # since hello-world has ['run', 'ephemeral'] as its modes in the model, it
+  # should be here in all tested modes.
+  remote.exec 'snap list hello-world'
+
+  # make sure that all our other snaps are there too. we can't check their
+  # revisions here, since auto-refresh might have updated them.
+  remote.exec 'snap list core22'
+  remote.exec 'snap list pc'
+  remote.exec 'snap list pc-kernel'
+
+  # however, we can check that the seed contains the correct revisions
+  remote.exec "test -f /var/lib/snapd/seed/snaps/core22_1033.snap"
+  remote.exec "test -f /var/lib/snapd/seed/snaps/pc-kernel_1606.snap"
+  remote.exec "test -f /var/lib/snapd/seed/snaps/pc_145.snap"

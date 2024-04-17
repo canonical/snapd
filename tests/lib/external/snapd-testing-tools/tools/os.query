@@ -4,7 +4,7 @@ show_help() {
     echo "usage: os.query is-core, is-classic"
     echo "       os.query is-core16, is-core18, is-core20, is-core22, is-core24"
     echo "       os.query is-core-gt, is-core-ge, is-core-lt, is-core-le"
-    echo "       os.query is-trusty, is-xenial, is-bionic, is-focal, is-jammy"
+    echo "       os.query is-trusty, is-xenial, is-bionic, is-focal, is-jammy, is-noble"
     echo "       os.query is-ubuntu [ID], is-debian [ID], is-fedora [ID], is-amazon-linux [ID], is-arch-linux, is-centos [ID], is-opensuse [ID]"
     echo "       os.query is-ubuntu-gt [ID], is-ubuntu-ge [ID], is-ubuntu-lt [ID], is-ubuntu-le [ID]"
     echo "       os.query is-pc-amd64, is-pc-i386, is-arm, is-armhf, is-arm64, is-s390x"
@@ -13,79 +13,67 @@ show_help() {
 }
 
 is_core() {
-    # We need to check $SPREAD_SYSTEM var because in snapd the os-release file does
-    # not contain the ubuntu-core info while the system is being prepared
-    if [ -n "$SPREAD_SYSTEM" ]; then
-        [[ "$SPREAD_SYSTEM" == ubuntu-core-* ]]
-    else
-        grep -qFx 'ID=ubuntu-core' /etc/os-release
-    fi
+    grep -qFx 'ID=ubuntu-core' /etc/os-release
 }
 
 is_core16() {
-    # We need to check $SPREAD_SYSTEM var because in snapd the os-release file does
-    # not contain the ubuntu-core info while the system is being prepared
-    if [ -n "$SPREAD_SYSTEM" ]; then
-        [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]
-    else
-        grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="16"' /etc/os-release
-    fi
+    grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="16"' /etc/os-release
 }
 
 is_core18() {
-    # We need to check $SPREAD_SYSTEM var because in snapd the os-release file does
-    # not contain the ubuntu-core info while the system is being prepared
-    if [ -n "$SPREAD_SYSTEM" ]; then
-        [[ "$SPREAD_SYSTEM" == ubuntu-core-18-* ]]
-    else
-        grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="18"' /etc/os-release
-    fi
+    grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="18"' /etc/os-release
 }
 
 is_core20() {
-    # We need to check $SPREAD_SYSTEM var because in snapd the os-release file does
-    # not contain the ubuntu-core info while the system is being prepared
-    if [ -n "$SPREAD_SYSTEM" ]; then
-        [[ "$SPREAD_SYSTEM" == ubuntu-core-20-* ]]
-    else
-        grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="20"' /etc/os-release
-    fi
+    grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="20"' /etc/os-release
 }
 
 is_core22() {
-    # We need to check $SPREAD_SYSTEM var because in snapd the os-release file does
-    # not contain the ubuntu-core info while the system is being prepared
-    if [ -n "$SPREAD_SYSTEM" ]; then
-        [[ "$SPREAD_SYSTEM" == ubuntu-core-22-* ]]
-    else
-        grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="22"' /etc/os-release
-    fi
+    grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="22"' /etc/os-release
 }
 
 is_core24() {
-    # We need to check $SPREAD_SYSTEM var because in snapd the os-release file does
-    # not contain the ubuntu-core info while the system is being prepared
-    if [ -n "$SPREAD_SYSTEM" ]; then
-        [[ "$SPREAD_SYSTEM" == ubuntu-core-24-* ]]
-    else
-        grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="24"' /etc/os-release
-    fi
+    grep -qFx 'ID=ubuntu-core' /etc/os-release && grep -qFx 'VERSION_ID="24"' /etc/os-release
 }
 
 is_core_gt() {
-    compare_ubuntu "${1:-}" "-gt"
+    local VERSION=$1
+    if [ -z "$VERSION" ]; then
+        echo "os.query: version id is expected"
+        exit 1
+    fi
+
+    is_core && compare_ubuntu "$VERSION" "-gt"
 }
 
 is_core_ge() {
-    compare_ubuntu "${1:-}" "-ge"
+    local VERSION=$1
+    if [ -z "$VERSION" ]; then
+        echo "os.query: version id is expected"
+        exit 1
+    fi
+
+    is_core && compare_ubuntu "$VERSION" "-ge"
 }
 
 is_core_lt() {
-    compare_ubuntu "${1:-}" "-lt"
+    local VERSION=$1
+    if [ -z "$VERSION" ]; then
+        echo "os.query: version id is expected"
+        exit 1
+    fi
+
+    is_core && compare_ubuntu "$VERSION" "-lt"
 }
 
 is_core_le() {
-    compare_ubuntu "${1:-}" "-le"
+    local VERSION=$1
+    if [ -z "$VERSION" ]; then
+        echo "os.query: version id is expected"
+        exit 1
+    fi
+
+    is_core && compare_ubuntu "$VERSION" "-le"
 }
 
 is_classic() {
@@ -112,6 +100,10 @@ is_jammy() {
     grep -qFx 'UBUNTU_CODENAME=jammy' /etc/os-release
 }
 
+is_noble() {
+    grep -qFx 'UBUNTU_CODENAME=noble' /etc/os-release
+}
+
 is_ubuntu() {
     VERSION=$1
     if [ -z "$VERSION" ]; then
@@ -122,19 +114,19 @@ is_ubuntu() {
 }
 
 is_ubuntu_gt() {
-    compare_ubuntu "${1:-}" "-gt"
+    is_classic && compare_ubuntu "${1:-}" "-gt"
 }
 
 is_ubuntu_ge() {
-    compare_ubuntu "${1:-}" "-ge"
+    is_classic && compare_ubuntu "${1:-}" "-ge"
 }
 
 is_ubuntu_lt() {
-    compare_ubuntu "${1:-}" "-lt"
+    is_classic && compare_ubuntu "${1:-}" "-lt"
 }
 
 is_ubuntu_le() {
-    compare_ubuntu "${1:-}" "-le"
+    is_classic && compare_ubuntu "${1:-}" "-le"
 }
 
 compare_ubuntu() {
@@ -167,7 +159,6 @@ compare_ubuntu() {
 
     test "$SYS_VERSION" "$OPERAND" "$NUM_VERSION"
 }
-
 
 is_debian() {
     VERSION=$1

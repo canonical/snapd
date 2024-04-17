@@ -23,7 +23,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math"
 	"os"
 	"os/exec"
@@ -76,6 +76,9 @@ func makeSnapContents(c *C, manifest, data string) string {
 	err = os.MkdirAll(filepath.Join(tmp, "food", "bard", "bazd"), 0755)
 	c.Assert(err, IsNil)
 
+	err = os.Symlink("target", filepath.Join(tmp, "symlink"))
+	c.Assert(err, IsNil)
+
 	// some data
 	err = os.WriteFile(filepath.Join(tmp, "data.bin"), []byte(data), 0644)
 	c.Assert(err, IsNil)
@@ -119,7 +122,7 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 	restore := osutil.MockMountInfo("")
 	s.AddCleanup(restore)
 
-	s.outf, err = ioutil.TempFile(c.MkDir(), "")
+	s.outf, err = os.CreateTemp(c.MkDir(), "")
 	c.Assert(err, IsNil)
 	s.oldStdout, s.oldStderr = os.Stdout, os.Stderr
 	os.Stdout, os.Stderr = s.outf, s.outf
@@ -131,7 +134,7 @@ func (s *SquashfsTestSuite) TearDownTest(c *C) {
 	// this ensures things were quiet
 	_, err := s.outf.Seek(0, 0)
 	c.Assert(err, IsNil)
-	outbuf, err := ioutil.ReadAll(s.outf)
+	outbuf, err := io.ReadAll(s.outf)
 	c.Assert(err, IsNil)
 	c.Check(string(outbuf), Equals, "")
 }
@@ -325,6 +328,56 @@ func (s *SquashfsTestSuite) TestReadFileFail(c *C) {
 	c.Assert(err, ErrorMatches, "cannot run unsquashfs: boom")
 }
 
+func (s *SquashfsTestSuite) TestReadlink(c *C) {
+	sn := makeSnap(c, "name: foo", "")
+
+	target, err := sn.ReadLink("symlink")
+	c.Assert(err, IsNil)
+	c.Assert(target, Equals, "target")
+}
+
+func (s *SquashfsTestSuite) TestReadlinkFail(c *C) {
+	sn := makeSnap(c, "name: foo", "")
+
+	target, err := sn.ReadLink("meta/snap.yaml")
+	c.Assert(err, ErrorMatches, "readlink .*/meta/snap.yaml: invalid argument")
+	c.Assert(target, Equals, "")
+}
+
+func (s *SquashfsTestSuite) TestLstat(c *C) {
+	sn := makeSnap(c, "name: foo", "")
+
+	base := c.MkDir()
+	c.Assert(sn.Unpack("*", base), IsNil)
+
+	for _, file := range []string{
+		"symlink",
+		"meta",
+		"meta/snap.yaml",
+		"meta/hooks/dir",
+	} {
+		expectedInfo, err := os.Lstat(filepath.Join(base, file))
+		c.Assert(err, IsNil)
+		info, err := sn.Lstat(file)
+		c.Assert(err, IsNil)
+
+		c.Check(info.Name(), Equals, expectedInfo.Name())
+		c.Check(info.Mode(), Equals, expectedInfo.Mode())
+		// sometimes 4096 bytes is the smallest allocation unit for some
+		// filesystems. let's just skip size check for directories.
+		if !expectedInfo.IsDir() {
+			c.Check(info.Size(), Equals, expectedInfo.Size())
+		}
+	}
+}
+
+func (s *SquashfsTestSuite) TestLstatErrNotExist(c *C) {
+	sn := makeSnap(c, "name: foo", "")
+
+	_, err := sn.Lstat("meta/non-existent")
+	c.Check(errors.Is(err, os.ErrNotExist), Equals, true)
+}
+
 func (s *SquashfsTestSuite) TestRandomAccessFile(c *C) {
 	sn := makeSnap(c, "name: foo", "")
 
@@ -413,6 +466,42 @@ func (s *SquashfsTestSuite) TestWalkNative(c *C) {
 		squashfs.Alike(sqw[k], sdw[k], c, Commentf(k))
 	}
 
+}
+
+func (s *SquashfsTestSuite) TestWalkRelativeSingleFile(c *C) {
+	sn := makeSnap(c, "name: foo", "")
+
+	cnt := 0
+	found := false
+	err := sn.Walk("meta/snap.yaml", func(path string, info os.FileInfo, err error) error {
+		if path == "meta/snap.yaml" {
+			found = true
+		}
+		cnt++
+		return nil
+	})
+	c.Assert(err, IsNil)
+
+	c.Check(found, Equals, true)
+	c.Check(cnt, Equals, 1)
+}
+
+func (s *SquashfsTestSuite) TestWalkRelativeDirectory(c *C) {
+	sn := makeSnap(c, "name: foo", "")
+
+	cnt := 0
+	found := map[string]bool{}
+	err := sn.Walk("food", func(path string, info os.FileInfo, err error) error {
+		found[path] = true
+		cnt++
+		return nil
+	})
+	c.Assert(err, IsNil)
+
+	c.Check(found["food"], Equals, true)
+	c.Check(found["food/bard"], Equals, true)
+	c.Check(found["food/bard/bazd"], Equals, true)
+	c.Check(cnt, Equals, 3)
 }
 
 func (s *SquashfsTestSuite) testWalkMockedUnsquashfs(c *C) {

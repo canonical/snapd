@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"hash"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -126,7 +125,7 @@ func Open(fn string, setID uint64) (reader *Reader, e error) {
 		reader.Broken = err.Error()
 		return reader, err
 	}
-	metaHashBuf, err := ioutil.ReadAll(io.TeeReader(metaHashReader, &sz))
+	metaHashBuf, err := io.ReadAll(io.TeeReader(metaHashReader, &sz))
 	if err != nil {
 		reader.Broken = err.Error()
 		return reader, err
@@ -294,7 +293,7 @@ func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames [
 		}
 
 		// TODO: have something more atomic in osutil
-		tempdir, err := ioutil.TempDir(parent, ".snapshot")
+		tempdir, err := os.MkdirTemp(parent, ".snapshot")
 		if err != nil {
 			return rs, err
 		}

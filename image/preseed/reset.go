@@ -21,7 +21,6 @@ package preseed
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -37,7 +36,7 @@ import (
 // lxd.lxc -> /snap/core/current/usr/lib/snapd/complete.sh
 // lxc -> lxd.lxc
 func resetCompletionSymlinks(completersPath string) error {
-	files, err := ioutil.ReadDir(completersPath)
+	files, err := os.ReadDir(completersPath)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("error reading %s: %v", completersPath, err)
 	}
@@ -46,7 +45,7 @@ func resetCompletionSymlinks(completersPath string) error {
 
 	// pass 1: find all symlinks pointing at complete.sh
 	for _, fileInfo := range files {
-		if fileInfo.Mode()&os.ModeSymlink == 0 {
+		if fileInfo.Type()&os.ModeSymlink == 0 {
 			continue
 		}
 		fullPath := filepath.Join(completersPath, fileInfo.Name())

@@ -51,9 +51,7 @@ nested_wait_for_no_ssh() {
 nested_wait_vm_ready() {
     echo "Waiting the vm is ready to be used"
     local retry=${1:-120}
-    local log_limit=${2:-30}
 
-    local output_lines=0
     local serial_log="$NESTED_LOGS_DIR"/serial.log
     while true; do
         # Check the timeout is reached
@@ -65,15 +63,15 @@ nested_wait_vm_ready() {
 
         # Check the vm is active
         if ! systemctl is-active "$NESTED_VM"; then
-            echo "Unit $nested_unit is not active. Aborting!"
+            echo "Unit $NESTED_VM is not active. Aborting!"
             return 1
         fi
 
-        # Check during $limit seconds that the serial log is growing
-        # shellcheck disable=SC2016
-        retry -n "$log_limit" --wait 1 --quiet --env serial_log="$serial_log" --env output_lines="$output_lines" \
-            sh -c 'test "$(wc -l <"$serial_log")" -gt "$output_lines"'
-        output_lines="$(wc -l <"$serial_log")"
+        # Check if ssh connection can be established, and return if it is possible
+        if nested_wait_for_ssh 1 1; then
+            echo "SSH connection ready"
+            return
+        fi
 
         # Check no infinite loops during boot
         if nested_is_core_20_system || nested_is_core_22_system; then
@@ -81,12 +79,6 @@ nested_wait_vm_ready() {
             test "$(grep -c -E "Command line:.*snapd_recovery_mode=run" "$serial_log")" -le 1
         elif nested_is_core_16_system || nested_is_core_18_system; then
             test "$(grep -c -E "Command line:.*BOOT_IMAGE=\(loop\)/kernel.img" "$serial_log")" -le 1
-        fi
-
-        # Check if ssh connection can be established, and return if it is possible
-        if nested_wait_for_ssh 1 1; then
-            echo "SSH connection ready"
-            return
         fi
 
         sleep 3
@@ -402,7 +394,17 @@ nested_secboot_sign_gadget() {
     local GADGET_DIR="$1"
     local KEY="$2"
     local CERT="$3"
+    if [ -f "$GADGET_DIR/fb.efi" ]; then
+        nested_secboot_sign_file "$GADGET_DIR/fb.efi" "$KEY" "$CERT"
+    fi
     nested_secboot_sign_file "$GADGET_DIR/shim.efi.signed" "$KEY" "$CERT"
+}
+
+nested_secboot_sign_kernel() {
+    local KERNEL_DIR="$1"
+    local KEY="$2"
+    local CERT="$3"
+    nested_secboot_sign_file "$KERNEL_DIR/kernel.efi" "$KEY" "$CERT"
 }
 
 nested_prepare_env() {
@@ -843,13 +845,13 @@ nested_create_core_vm() {
             fi
             # ubuntu-image creates sparse image files
             # shellcheck disable=SC2086
-            "$UBUNTU_IMAGE" snap --image-size 10G --validation=enforce \
+            SNAPD_DEBUG=1 "$UBUNTU_IMAGE" snap --image-size 10G --validation=enforce \
                "$NESTED_MODEL" \
                 $UBUNTU_IMAGE_CHANNEL_ARG \
                 "${UBUNTU_IMAGE_PRESEED_ARGS[@]:-}" \
                 --output-dir "$NESTED_IMAGES_DIR" \
                 --sector-size "${NESTED_DISK_LOGICAL_BLOCK_SIZE}" \
-                $EXTRA_SNAPS
+                $EXTRA_SNAPS |& tee "$NESTED_LOGS_DIR/ubuntu-image.log"
 
             # ubuntu-image dropped the --output parameter, so we have to rename
             # the image ourselves, the images are named after volumes listed in
@@ -1161,7 +1163,7 @@ nested_start_core_vm_unit() {
             mv OVMF_VARS.snakeoil.fd /usr/share/OVMF/OVMF_VARS.snakeoil.fd
         fi
         # In this case the kernel.efi is unsigned and signed with snaleoil certs
-        if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
+        if [ "$NESTED_FORCE_MS_KEYS" != "true" ] && [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
             OVMF_VARS="snakeoil"
         fi
 
@@ -1248,7 +1250,7 @@ nested_start_core_vm_unit() {
 
     if [ "$EXPECT_SHUTDOWN" != "1" ]; then
         # Wait until the vm is ready to receive connections
-        if ! nested_wait_vm_ready 120 40; then
+        if ! nested_wait_vm_ready 120; then
             echo "failed to wait for the vm becomes ready to receive connections"
             return 1
         fi
@@ -1496,7 +1498,7 @@ nested_start_classic_vm() {
         ${PARAM_EXTRA} \
         ${PARAM_CD} "
 
-    if ! nested_wait_vm_ready 60 60; then
+    if ! nested_wait_vm_ready 60; then
         echo "failed to wait for the vm becomes ready to receive connections"
         return 1
     fi
@@ -1644,4 +1646,26 @@ nested_wait_for_device_initialized_change() {
         fi
         sleep "$wait"
     done
+}
+
+nested_check_spread_results() {
+    SPREAD_LOG=$1
+    if [ -z "$SPREAD_LOG" ]; then
+        return 1
+    fi
+
+    if grep -eq "Successful tasks:" "$SPREAD_LOG"; then
+        if grep -E "Failed (task|suite|project)" "$SPREAD_LOG"; then
+            return 1
+        fi
+        if ! grep -eq "Aborted tasks: 0" "$SPREAD_LOG"; then
+            return 1
+        fi
+
+        if [ "$EXIT_STATUS" = "0" ]; then
+            return 0
+        fi    
+    else
+        return 1
+    fi
 }

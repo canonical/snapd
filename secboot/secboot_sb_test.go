@@ -1390,7 +1390,7 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
 
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(c *C) {
 	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
-		return nil, fmt.Errorf("helper error")
+		return nil, fmt.Errorf(`cannot run ["fde-reveal-key"]: helper error`)
 	})
 	defer restore()
 
@@ -1424,7 +1424,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
 	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
-	c.Assert(err, ErrorMatches, `cannot unlock encrypted partition: cannot recover keys because of an unexpected error: cannot run fde-reveal-key "reveal": helper error`)
+	c.Assert(err, ErrorMatches, `cannot unlock encrypted partition: cannot recover keys because of an unexpected error: cannot run \["fde-reveal-key"\]: helper error`)
 }
 
 // this test that v1 hooks and raw binary v1 created sealedKey files still work

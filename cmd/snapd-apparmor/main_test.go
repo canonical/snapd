@@ -134,6 +134,10 @@ func (s *mainSuite) TestLoadAppArmorProfiles(c *C) {
 	err = os.WriteFile(profile, nil, 0644)
 	c.Assert(err, IsNil)
 
+	// pretend that the host apparmor has a 3.0 abi file.
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d/abi"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d/abi/3.0"), nil, 0644), IsNil)
+
 	// ensure SNAPD_DEBUG is set in the environment so then --quiet
 	// will *not* be included in the apparmor_parser arguments (since
 	// when these test are run in via CI SNAPD_DEBUG is set)
@@ -143,9 +147,9 @@ func (s *mainSuite) TestLoadAppArmorProfiles(c *C) {
 
 	// check arguments to the parser are as expected
 	c.Assert(parserCmd.Calls(), DeepEquals, [][]string{
-		{"apparmor_parser", "--replace", "--write-cache",
-			fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir),
-			profile}})
+		{"apparmor_parser", "--policy-features", filepath.Join(dirs.GlobalRootDir, "/etc/apparmor.d/abi/3.0"),
+			"--replace", "--write-cache",
+			fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", dirs.GlobalRootDir), profile}})
 
 	// test error case
 	parserCmd = testutil.MockCommand(c, "apparmor_parser", "echo mocked parser failed > /dev/stderr; exit 1")

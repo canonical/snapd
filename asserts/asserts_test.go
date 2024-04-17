@@ -51,7 +51,7 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 		"account",
 		"account-key",
 		"account-key-request",
-		// XXX "authority-delegation",
+		"aspect-bundle",
 		"base-declaration",
 		"device-session-request",
 		"model",
@@ -1190,7 +1190,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 	withAuthority := []string{
 		"account",
 		"account-key",
-		// XXX "authority-delegation",
+		"aspect-bundle",
 		"base-declaration",
 		"store",
 		"snap-declaration",
@@ -1210,7 +1210,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 	c.Check(withAuthority, HasLen, asserts.NumAssertionType-3) // excluding device-session-request, serial-request, account-key-request
 	for _, name := range withAuthority {
 		typ := asserts.Type(name)
-		_, err := asserts.AssembleAndSignInTest(typ, nil, nil, testPrivKey1)
+		_, err := asserts.AssembleAndSignInTest(typ, nil, []byte("{}"), testPrivKey1)
 		c.Check(err, ErrorMatches, `"authority-id" header is mandatory`)
 	}
 }

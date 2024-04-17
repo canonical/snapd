@@ -21,7 +21,7 @@ package internal
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -62,7 +62,7 @@ type Seed16 struct {
 func ReadSeedYaml(fn string) (*Seed16, error) {
 	errPrefix := "cannot read seed yaml"
 
-	yamlData, err := ioutil.ReadFile(fn)
+	yamlData, err := os.ReadFile(fn)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %v", errPrefix, err)
 	}

@@ -421,3 +421,40 @@ func (s *aspectsSuite) TestAspectGetDisabledFlag(c *check.C) {
 	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz", "abc"})
 	c.Assert(err, check.ErrorMatches, "aspect-based configuration is disabled: you must set 'experimental.aspects-configuration' to true")
 }
+
+func (s *aspectsSuite) TestAspectGetNoFields(c *check.C) {
+	restore := s.mockAspectsFlag(c)
+	defer restore()
+
+	var reqs int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch reqs {
+		case 0:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/aspects/foo/bar/baz")
+
+			fields := r.URL.Query().Get("fields")
+			c.Check(fields, Equals, "")
+
+			w.WriteHeader(200)
+			fmt.Fprintf(w, syncResp, `{"abc": 1, "xyz": false}`)
+		default:
+			err := fmt.Errorf("expected to get 1 request, now on %d (%v)", reqs+1, r)
+			w.WriteHeader(500)
+			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+			c.Error(err)
+		}
+
+		reqs++
+	})
+
+	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"get", "foo/bar/baz"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, HasLen, 0)
+
+	c.Check(s.Stdout(), Equals, `{
+	"abc": 1,
+	"xyz": false
+}
+`)
+}
