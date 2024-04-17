@@ -25,7 +25,7 @@ remap_one() {
             echo "python-gobject"
             ;;
         test-snapd-pkg-1)
-            echo "curseofwar"
+            echo "freeglut"
             ;;
         test-snapd-pkg-2)
             echo "robotfindskitten"
@@ -37,33 +37,35 @@ remap_one() {
 }
 
 cmd_install() {
-    set -x
-    # shellcheck disable=SC2068
-    pacman -S --noconfirm $@
-    set +x
+    local PACMAN_FLAGS="--noconfirm"
+    while [ -n "$1" ]; do
+        case "$1" in
+            --no-install-recommends)
+                # Pacman only ever installs the required dependencies
+                shift
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+    # shellcheck disable=SC2068,SC2086
+    pacman -S $PACMAN_FLAGS $@
 }
 
 cmd_is_installed() {
-    set -x
     pacman -Qi "$1" >/dev/null 2>&1
-    set +x
 }
 
 cmd_query() {
-    set -x
     pacman -Si "$1"
-    set +x
 }
 
 cmd_list_installed() {
-    set -x
     pacman -Qe | awk '{ print $1 }' | sort
-    set +x
 }
 
 cmd_remove() {
-    set -x
     # shellcheck disable=SC2068
     pacman -Rnsc --noconfirm $@
-    set +x
 }

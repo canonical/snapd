@@ -1,5 +1,10 @@
 summary: smoke test for the remote.wait-for tool
 
+details: |
+    Check the remote.wait-for tool waits properly for several
+    events in the remote instance. Supported events are:
+    device-initialized, reboot, refresh, ssh, no-ssh, etc
+
 backends: [google-nested]
 
 systems: [ubuntu-20.04-64]
@@ -27,7 +32,7 @@ prepare: |
     remote.setup config --host "$host" --port "$port" --user "$user" --pass "$pass"
 
 restore: |
-    tests.systemd stop-and-remove-unit "$unit"    
+    tests.systemd stop-unit --remove "$unit"
     rm -f pc.img "$(remote.setup get-config-path)"
 
 execute: |
@@ -51,7 +56,7 @@ execute: |
     # Check waiting when reboot
     remote.exec "sudo reboot" || true
     remote.wait-for no-ssh --wait 1 -n 20
-    remote.wait-for ssh --wait 1 -n 60
+    remote.wait-for ssh --wait 1 -n 120
 
     # Check waiting for reboot
     initial_boot_id="$(remote.exec "cat /proc/sys/kernel/random/boot_id")"

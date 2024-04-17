@@ -1,5 +1,8 @@
 summary: test for the not tool
 
+details: |
+    Check the not tool works the same than the logical not (!)
+
 backends: [google]
 
 execute: |
