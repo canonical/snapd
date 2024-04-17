@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -440,6 +441,7 @@ func (s *trackingSuite) TestCreateTransientScopeForRootOnSystemBus(c *C) {
 
 type testTransientScopeConfirm struct {
 	uuid        string
+	securityTag string
 	confirmUnit string
 	confirmErr  error
 	expectedErr string
@@ -469,8 +471,11 @@ func (s *trackingSuite) testCreateTransientScopeConfirm(c *C, tc testTransientSc
 	restore = dbusutil.MockOnlySessionBusAvailable(sessionBus)
 	defer restore()
 	restore = cgroup.MockDoCreateTransientScope(func(conn *dbus.Conn, unitName string, pid int) error {
+		escapedTag, err := systemd.SecurityTagToUnitName(tc.securityTag)
+		c.Assert(err, IsNil)
+
 		c.Assert(conn, Equals, sessionBus)
-		c.Assert(unitName, Equals, "snap.pkg.app-"+tc.uuid+".scope")
+		c.Assert(unitName, Equals, escapedTag+"-"+tc.uuid+".scope")
 		return nil
 	})
 	defer restore()
@@ -481,7 +486,7 @@ func (s *trackingSuite) testCreateTransientScopeConfirm(c *C, tc testTransientSc
 	defer restore()
 
 	// creating transient scope fails when systemd reports that the job failed
-	err = cgroup.CreateTransientScopeForTracking("snap.pkg.app", nil)
+	err = cgroup.CreateTransientScopeForTracking(tc.securityTag, nil)
 	if tc.expectedErr == "" {
 		c.Assert(err, IsNil)
 	} else {
@@ -495,14 +500,25 @@ func (s *trackingSuite) testCreateTransientScopeConfirm(c *C, tc testTransientSc
 func (s *trackingSuite) TestCreateTransientScopeConfirmHappy(c *C) {
 	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
 	s.testCreateTransientScopeConfirm(c, testTransientScopeConfirm{
+		securityTag: "snap.pkg.app",
 		uuid:        uuid,
 		confirmUnit: "foo/bar/baz/snap.pkg.app-" + uuid + ".scope",
+	})
+}
+
+func (s *trackingSuite) TestCreateTransientScopeConfirmEscaped(c *C) {
+	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
+	s.testCreateTransientScopeConfirm(c, testTransientScopeConfirm{
+		securityTag: "snap.pkg+comp.hook.install",
+		uuid:        uuid,
+		confirmUnit: "foo/bar/baz/snap.pkg\\x2bcomp.hook.install-" + uuid + ".scope",
 	})
 }
 
 func (s *trackingSuite) TestCreateTransientScopeConfirmOtherUnit(c *C) {
 	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
 	s.testCreateTransientScopeConfirm(c, testTransientScopeConfirm{
+		securityTag: "snap.pkg.app",
 		uuid:        uuid,
 		confirmUnit: "foo/bar/baz/other-unit.scope",
 		expectedErr: cgroup.ErrCannotTrackProcess.Error(),
@@ -512,9 +528,20 @@ func (s *trackingSuite) TestCreateTransientScopeConfirmOtherUnit(c *C) {
 func (s *trackingSuite) TestCreateTransientScopeConfirmCheckError(c *C) {
 	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
 	s.testCreateTransientScopeConfirm(c, testTransientScopeConfirm{
+		securityTag: "snap.pkg.app",
 		uuid:        uuid,
 		confirmErr:  fmt.Errorf("mock failure"),
 		expectedErr: "mock failure",
+	})
+}
+
+func (s *trackingSuite) TestCreateTransientScopeConfirmInvalidTag(c *C) {
+	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
+	s.testCreateTransientScopeConfirm(c, testTransientScopeConfirm{
+		securityTag: "snap.pkg/comp.hook.install",
+		uuid:        uuid,
+		confirmErr:  fmt.Errorf("invalid character in security tag: '/'"),
+		expectedErr: "invalid character in security tag: '/'",
 	})
 }
 
@@ -1015,6 +1042,36 @@ func (s *trackingSuite) TestConfirmSystemdAppTrackingHappy(c *C) {
 	// With the cgroup path faked as above, we are being tracked so no error is reported.
 	err := cgroup.ConfirmSystemdAppTracking("snap.pkg.app")
 	c.Assert(err, IsNil)
+}
+
+func (s *trackingSuite) TestConfirmSystemdAppTrackingEscaped(c *C) {
+	// Pretend our PID is this value.
+	restore := cgroup.MockOsGetpid(312123)
+	defer restore()
+	// Replace the cgroup analyzer function
+	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		c.Assert(pid, Equals, 312123)
+		return "user.slice/user-12345.slice/user@12345.service/apps.slice/snap.pkg\\x2bcomp.hook.install-ae6d0825-dacd-454c-baec-67289f067c28.scope", nil
+	})
+	defer restore()
+
+	// With the cgroup path faked as above, we are being tracked so no error is reported.
+	err := cgroup.ConfirmSystemdAppTracking("snap.pkg+comp.hook.install")
+	c.Assert(err, IsNil)
+}
+
+func (s *trackingSuite) TestConfirmSystemdAppTrackingInvalidTag(c *C) {
+	restore := cgroup.MockOsGetpid(312123)
+	defer restore()
+
+	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		c.Fatalf("unexpected call")
+		return "", nil
+	})
+	defer restore()
+
+	err := cgroup.ConfirmSystemdAppTracking("snap.pkg/comp.hook.install")
+	c.Assert(err, ErrorMatches, "invalid character in security tag: '/'")
 }
 
 func (s *trackingSuite) TestConfirmSystemdAppTrackingSad1(c *C) {
