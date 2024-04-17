@@ -4,6 +4,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 	. "gopkg.in/check.v1"
@@ -259,6 +260,14 @@ func (s *snapAppSetSuite) TestInstanceName(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(set.InstanceName(), Equals, "test-snap")
+}
+
+func (s *snapAppSetSuite) TestNewAppSetWithWrongComponent(c *C) {
+	info := snaptest.MockInfo(c, yaml, nil)
+	_, err := interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{{
+		Component: naming.NewComponentRef("other-name", "comp"),
+	}})
+	c.Assert(err, ErrorMatches, `internal error: snap "test-snap" does not own component "other-name\+comp"`)
 }
 
 func appsInMap(apps map[string]*snap.AppInfo) []*snap.AppInfo {
