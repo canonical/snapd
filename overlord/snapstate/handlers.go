@@ -1324,7 +1324,7 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 // Note this function takes a snap info rather than snapst because there are
 // situations where we want to call this on non-current snap infos, i.e. in the
 // undo handlers, see undoLinkSnap for an example.
-func (m *SnapManager) queryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
+func (m *SnapManager) queryDisabledServices(info *snap.Info, pb progress.Meter) (*wrappers.DisabledServices, error) {
 	return m.backend.QueryDisabledServices(info, pb)
 }
 
@@ -3055,7 +3055,9 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	pb := NewTaskProgressAdapterUnlocked(t)
 
 	st.Unlock()
-	err = m.backend.StartServices(startupOrdered, svcsToDisable, pb, perfTimings)
+	err = m.backend.StartServices(startupOrdered, &wrappers.DisabledServices{
+		SystemServices: svcsToDisable,
+	}, pb, perfTimings)
 	st.Lock()
 
 	return err
@@ -3169,7 +3171,7 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	// no longer present.
 	snapst.LastActiveDisabledServices = append(
 		snapst.LastActiveDisabledServices,
-		disabledServices...,
+		disabledServices.SystemServices...,
 	)
 
 	// reset services tracked by operations from hooks
@@ -3215,13 +3217,13 @@ func (m *SnapManager) undoStopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	snapst.LastActiveDisabledServices = lastActiveDisabled
 	Set(st, snapsup.InstanceName(), snapst)
 
-	var disabledServices []string
+	var disabledServices wrappers.DisabledServices
 	if err := t.Get("disabled-services", &disabledServices); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
 	st.Unlock()
-	err = m.backend.StartServices(startupOrdered, disabledServices, progress.Null, perfTimings)
+	err = m.backend.StartServices(startupOrdered, &disabledServices, progress.Null, perfTimings)
 	st.Lock()
 	if err != nil {
 		return err
