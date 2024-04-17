@@ -1,5 +1,9 @@
 summary: smoke test for the retry tool
 
+details: |
+    Check the retry tool allows to retry a command. Verify that on
+    failure the exit code from the final attempt is returned
+
 backends: [google]
 
 execute: |

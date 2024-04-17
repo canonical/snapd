@@ -1,5 +1,10 @@
 summary: integration tests for log-analyzer tool
 
+details: |
+    This test checks the log-analyzer retrieves properly the tests-to-reexecute
+    based on the spread log analysis. Also checks it retrieves properly the
+    tests by result status and all the tasks executed.
+
 backends: [google]
 
 # Github actions agents are just running ubuntu jammy

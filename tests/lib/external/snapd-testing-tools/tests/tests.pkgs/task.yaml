@@ -1,5 +1,10 @@
 summary: Smoke test for tests.pkgs tool
 
+details: |
+    Check the tests.pkgs tool allows to manage native packages independently
+    of the system being used. Verify that packages can be installed, queried
+    and removed among other operations.
+
 backends: [google]
 
 execute: |

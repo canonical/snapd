@@ -1,5 +1,9 @@
 summary: smoke test for the os.query tool
 
+details: |
+    Check the os.query tool detects properly the current system. Also
+    verify the versions comparison works.
+
 backends: [google]
 
 execute: |

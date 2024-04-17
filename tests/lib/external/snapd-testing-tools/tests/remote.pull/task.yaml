@@ -1,5 +1,9 @@
 summary: smoke test for the remote.pull tool
 
+details: |
+    Check the remote.pull tool is able to retrieve files from the
+    remote instance through scp
+
 backends: [google]
 
 # Amazon linux is skipped because no sshpass available
