@@ -217,6 +217,11 @@ func (m *SnapManager) undoMountComponent(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	return m.undoSetupComponent(t, compSetup.CompSideInfo, snapsup.InstanceName())
+}
+
+func (m *SnapManager) undoSetupComponent(t *state.Task, csi *snap.ComponentSideInfo, instanceName string) error {
+	st := t.State()
 	st.Lock()
 	deviceCtx, err := DeviceCtx(st, t, nil)
 	st.Unlock()
@@ -233,17 +238,13 @@ func (m *SnapManager) undoMountComponent(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	csi := compSetup.CompSideInfo
-	cpi := snap.MinimalComponentContainerPlaceInfo(compSetup.ComponentName(),
-		csi.Revision, snapsup.InstanceName())
+	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
+		csi.Revision, instanceName)
 
 	pm := NewTaskProgressAdapterUnlocked(t)
 	if err := m.backend.UndoSetupComponent(cpi, &installRecord, deviceCtx, pm); err != nil {
 		return err
 	}
-
-	st.Lock()
-	defer st.Unlock()
 
 	return m.backend.RemoveComponentDir(cpi)
 }
@@ -503,4 +504,27 @@ func (m *SnapManager) doRemoveKernelModulesSetup(t *state.Task, _ *tomb.Tomb) er
 	defer st.Unlock()
 	t.SetStatus(state.UndoneStatus)
 	return nil
+}
+
+func (m *SnapManager) doDiscardComponent(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+
+	st.Lock()
+	compsup, snapsup, err := TaskComponentSetup(t)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	// Retrieve unlinked component
+	var unlinkedComp sequence.ComponentState
+	st.Lock()
+	err = t.Change().Get(fmt.Sprintf("unlinked-component-%s",
+		compsup.CompSideInfo.Component.String()), &unlinkedComp)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	return m.undoSetupComponent(t, unlinkedComp.SideInfo, snapsup.InstanceName())
 }
