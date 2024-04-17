@@ -24,9 +24,6 @@ environment:
   # build the snap with lxd
   SNAPCRAFT_BUILD_ENVIRONMENT: lxd
 
-  # pin LXD to 5.20/stable to ensure to prevent snapcraft problem with handling new version naming that may include "LTS"
-  LXD_SNAP_CHANNEL: 5.20/stable
-
 prepare: |
   # load the fuse kernel module before installing lxd
   modprobe fuse
