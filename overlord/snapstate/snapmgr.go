@@ -1294,6 +1294,11 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			if err != nil {
 				return err
 			}
+			dev, err := DeviceCtx(m.state, nil, nil)
+			// Ignore error if model assertion not yet known
+			if err != nil && !errors.Is(err, state.ErrNoState) {
+				return err
+			}
 			squashfsPath := dirs.StripRootDir(info.MountFile())
 			whereDir := dirs.StripRootDir(info.MountDir())
 			// Ensure mount files, but do not restart mount units
@@ -1307,11 +1312,19 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			// TODO refactor so the check for kernel type is not repeated
 			// in the installation case
 			snapType, _ := snapSt.Type()
+			// We cannot ensure for this type yet as the mount unit
+			// flags depend on the model in this case.
+			if snapType == snap.TypeKernel && dev == nil {
+				continue
+			}
 			if _, err = sysd.EnsureMountUnitFile(info.MountDescription(),
 				squashfsPath, whereDir, "squashfs",
 				systemd.EnsureMountUnitFlags{
 					PreventRestartIfModified: true,
-					StartBeforeDriversLoad:   snapType == snap.TypeKernel}); err != nil {
+					// We need early mounts only for UC20+/hybrid, also 16.04
+					// systemd seems to be buggy if we enable this.
+					StartBeforeDriversLoad: snapType == snap.TypeKernel &&
+						dev.HasModeenv()}); err != nil {
 				return err
 			}
 		}
