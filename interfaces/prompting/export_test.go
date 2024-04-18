@@ -20,7 +20,6 @@
 package prompting
 
 var (
-	InterfacePriorities           = interfacePriorities
 	InterfacePermissionsAvailable = interfacePermissionsAvailable
 	InterfaceFilePermissionsMaps  = interfaceFilePermissionsMaps
 )

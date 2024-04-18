@@ -43,7 +43,7 @@ type Constraints struct {
 // interface, otherwise returns an error.
 func (c *Constraints) ValidateForInterface(iface string) error {
 	switch iface {
-	case "home", "camera":
+	case "home":
 		// TODO: change to this once PR #13730 is merged:
 		// if err := ValidatePathPattern(c.PathPattern); err != nil {
 		//	return err
@@ -100,18 +100,10 @@ func (c *Constraints) ContainPermissions(permissions []string) bool {
 }
 
 var (
-	// If kernel request contains multiple interfaces, one must take priority.
-	// Lower value is higher priority, and entries should be in priority order.
-	interfacePriorities = map[string]int{
-		"home":   0,
-		"camera": 1,
-	}
-
 	// List of permissions available for each interface. This also defines the
 	// order in which the permissions should be presented.
 	interfacePermissionsAvailable = map[string][]string{
-		"home":   {"read", "write", "execute"},
-		"camera": {"access"},
+		"home": {"read", "write", "execute"},
 	}
 
 	// A mapping from interfaces which support AppArmor file permissions to
@@ -126,30 +118,8 @@ var (
 			"write":   notify.AA_MAY_WRITE | notify.AA_MAY_APPEND | notify.AA_MAY_CREATE | notify.AA_MAY_DELETE | notify.AA_MAY_RENAME | notify.AA_MAY_CHMOD | notify.AA_MAY_LOCK | notify.AA_MAY_LINK,
 			"execute": notify.AA_MAY_EXEC | notify.AA_EXEC_MMAP,
 		},
-		"camera": {
-			"access": notify.AA_MAY_WRITE | notify.AA_MAY_READ | notify.AA_MAY_APPEND,
-		},
 	}
 )
-
-// SelectSingleInterface selects the interface with the highest priority from
-// the given list. If none of the given interfaces are included in
-// interfacePriorities, or if the list is empty, return "other".
-func SelectSingleInterface(interfaces []string) string {
-	bestIface := "other"
-	bestPriority := len(interfacePriorities)
-	for _, iface := range interfaces {
-		priority, exists := interfacePriorities[iface]
-		if !exists {
-			continue
-		}
-		if priority < bestPriority {
-			bestPriority = priority
-			bestIface = iface
-		}
-	}
-	return bestIface
-}
 
 // AvailablePermissions returns the list of available permissions for the given
 // interface.
@@ -165,7 +135,7 @@ func AvailablePermissions(iface string) ([]string, error) {
 // corresponding to the given AppArmor permissions for the given interface.
 func AbstractPermissionsFromAppArmorPermissions(iface string, permissions interface{}) ([]string, error) {
 	switch iface {
-	case "home", "camera":
+	case "home":
 		return abstractPermissionsFromAppArmorFilePermissions(iface, permissions)
 	}
 	return nil, fmt.Errorf("cannot parse AppArmor permissions: unsupported interface: %q", iface)
@@ -248,7 +218,7 @@ func AbstractPermissionsFromList(iface string, permissions []string) ([]string, 
 // corresponding to the given permissions for the given interface.
 func AbstractPermissionsToAppArmorPermissions(iface string, permissions []string) (interface{}, error) {
 	switch iface {
-	case "home", "camera":
+	case "home":
 		return abstractPermissionsToAppArmorFilePermissions(iface, permissions)
 	}
 	return nil, fmt.Errorf("cannot convert abstract permissions to AppArmor permissions: unsupported interface: %q", iface)

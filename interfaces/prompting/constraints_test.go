@@ -76,12 +76,6 @@ func (s *promptingSuite) TestConstraintsValidateForInterface(c *C) {
 		//	"invalid path pattern.*",
 		// },
 		{
-			"camera",
-			"/valid/path",
-			[]string{"invalid"},
-			"unsupported permission.*",
-		},
-		{
 			"home",
 			"/valid/path",
 			[]string{},
@@ -288,14 +282,11 @@ func (s *promptingSuite) TestInterfacesAndPermissionsCompleteness(c *C) {
 	// interfacePermissionsAvailable are identical to the permissions in the
 	// interface's permissions map.
 	// Also, check that each priority only occurs once.
-	usedPriorities := make(map[int]bool)
-	for iface, priority := range prompting.InterfacePriorities {
-		_, exists := usedPriorities[priority]
-		c.Check(exists, Equals, false, Commentf("priority for %s interface is not unique: %d", iface, priority))
-		usedPriorities[priority] = true
-		perms, err := prompting.AvailablePermissions(iface)
+	for iface, perms := range prompting.InterfacePermissionsAvailable {
+		availablePerms, err := prompting.AvailablePermissions(iface)
 		c.Check(err, IsNil, Commentf("interface missing from interfacePermissionsAvailable: %s", iface))
 		c.Check(perms, Not(HasLen), 0, Commentf("interface has no available permissions: %s", iface))
+		c.Check(availablePerms, DeepEquals, perms)
 		found := false
 		for _, permsMaps := range permissionsMaps {
 			pMap, exists := permsMaps[iface]
@@ -315,20 +306,6 @@ func (s *promptingSuite) TestInterfacesAndPermissionsCompleteness(c *C) {
 			c.Errorf("interface not included in any map of interface permissions maps: %s", iface)
 		}
 	}
-	// Check that every interface in interfacePermissionsAvailable is also in
-	// interfacePriorities.
-	for iface := range prompting.InterfacePermissionsAvailable {
-		_, exists := prompting.InterfacePriorities[iface]
-		c.Check(exists, Equals, true, Commentf("interfacePriorities missing interface from interfacePermissionsAvailable: %s", iface))
-	}
-	// Check that every interface in one of the permissions maps is also in
-	// interfacePriorities.
-	for _, permsMaps := range permissionsMaps {
-		for iface := range permsMaps {
-			_, exists := prompting.InterfacePriorities[iface]
-			c.Check(exists, Equals, true, Commentf("interface not found in any map of permissions maps: %s", iface))
-		}
-	}
 }
 
 func (s *promptingSuite) TestInterfaceFilePermissionsMapsCorrectness(c *C) {
@@ -342,22 +319,6 @@ func (s *promptingSuite) TestInterfaceFilePermissionsMapsCorrectness(c *C) {
 			seenPermissions |= mask
 		}
 	}
-}
-
-func (s *promptingSuite) TestSelectSingleInterface(c *C) {
-	defaultInterface := "other"
-	fakeInterface := "foo"
-	c.Check(prompting.SelectSingleInterface([]string{}), Equals, defaultInterface, Commentf("input: []string{}"))
-	c.Check(prompting.SelectSingleInterface([]string{""}), Equals, defaultInterface, Commentf(`input: []string{""}`))
-	c.Check(prompting.SelectSingleInterface([]string{fakeInterface}), Equals, defaultInterface, Commentf(`input: []string{""}`))
-	for iface := range prompting.InterfacePriorities {
-		c.Check(prompting.SelectSingleInterface([]string{iface}), Equals, iface)
-		fakeList := []string{iface, fakeInterface}
-		c.Check(prompting.SelectSingleInterface(fakeList), Equals, iface)
-		fakeList = []string{fakeInterface, iface}
-		c.Check(prompting.SelectSingleInterface(fakeList), Equals, iface)
-	}
-	c.Check(prompting.SelectSingleInterface([]string{"home", "camera", "foo"}), Equals, "home")
 }
 
 func (s *promptingSuite) TestAvailablePermissions(c *C) {
@@ -407,16 +368,6 @@ func (s *promptingSuite) TestAbstractPermissionsFromAppArmorFilePermissionsHappy
 			notify.AA_MAY_EXEC | notify.AA_MAY_WRITE | notify.AA_MAY_READ,
 			[]string{"read", "write", "execute"},
 		},
-		{
-			"camera",
-			notify.AA_MAY_WRITE | notify.AA_MAY_READ | notify.AA_MAY_APPEND,
-			[]string{"access"},
-		},
-		{
-			"camera",
-			notify.AA_MAY_OPEN,
-			[]string{"access"},
-		},
 	}
 	for _, testCase := range cases {
 		perms, err := prompting.AbstractPermissionsFromAppArmorPermissions(testCase.iface, testCase.mask)
@@ -449,16 +400,6 @@ func (s *promptingSuite) TestAbstractPermissionsFromAppArmorFilePermissionsUnhap
 		{
 			"home",
 			notify.AA_MAY_GETATTR | notify.AA_MAY_READ,
-			"received unexpected permission for interface.*",
-		},
-		{
-			"camera",
-			notify.AA_MAY_EXEC,
-			"received unexpected permission for interface.*",
-		},
-		{
-			"camera",
-			notify.AA_MAY_EXEC | notify.AA_MAY_READ,
 			"received unexpected permission for interface.*",
 		},
 		{
@@ -495,11 +436,6 @@ func (s *promptingSuite) TestAbstractPermissionsFromListHappy(c *C) {
 			[]string{"write", "write", "write"},
 			[]string{"write"},
 		},
-		{
-			"camera",
-			[]string{"access", "access", "access"},
-			[]string{"access"},
-		},
 	}
 	for _, testCase := range cases {
 		perms, err := prompting.AbstractPermissionsFromList(testCase.iface, testCase.initial)
@@ -527,11 +463,6 @@ func (s *promptingSuite) TestAbstractPermissionsFromListUnhappy(c *C) {
 		{
 			"home",
 			[]string{"read", "write", "access"},
-			"unsupported permission.*",
-		},
-		{
-			"camera",
-			[]string{"read", "access"},
 			"unsupported permission.*",
 		},
 		{
@@ -578,11 +509,6 @@ func (s *promptingSuite) TestAbstractPermissionsToAppArmorFilePermissionsHappy(c
 			[]string{"execute", "write", "read"},
 			notify.AA_MAY_OPEN | notify.AA_MAY_READ | notify.AA_MAY_EXEC | notify.AA_EXEC_MMAP | notify.AA_MAY_WRITE | notify.AA_MAY_APPEND | notify.AA_MAY_CREATE | notify.AA_MAY_DELETE | notify.AA_MAY_RENAME | notify.AA_MAY_CHMOD | notify.AA_MAY_LOCK | notify.AA_MAY_LINK,
 		},
-		{
-			"camera",
-			[]string{"access"},
-			notify.AA_MAY_OPEN | notify.AA_MAY_WRITE | notify.AA_MAY_READ | notify.AA_MAY_APPEND,
-		},
 	}
 	for _, testCase := range cases {
 		ret, err := prompting.AbstractPermissionsToAppArmorPermissions(testCase.iface, testCase.list)
@@ -622,11 +548,6 @@ func (s *promptingSuite) TestAbstractPermissionsToAppArmorFilePermissionsUnhappy
 		{
 			"home",
 			[]string{"read", "foo", "write"},
-			"no AppArmor file permission mapping .* abstract permission.*",
-		},
-		{
-			"camera",
-			[]string{"read"},
 			"no AppArmor file permission mapping .* abstract permission.*",
 		},
 	}
