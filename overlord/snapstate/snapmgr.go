@@ -148,6 +148,9 @@ type SnapSetup struct {
 	// DownloadBlobDir is the directory where the snap blob is downloaded to. If
 	// empty, dir.SnapBlobDir is used.
 	DownloadBlobDir string `json:"download-blob-dir,omitempty"`
+
+	// PreviousKernelRev is needed for cleaning-up tasks when refreshing a kernel snap
+	PreviousKernelRev snap.Revision `json:"previous-kernel-revision,omitempty"`
 }
 
 func (snapsup *SnapSetup) InstanceName() string {
