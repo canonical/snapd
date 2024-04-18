@@ -76,7 +76,9 @@ func (s *mountCompSnapSuite) TestDoMountComponent(c *C) {
 	// Ensure backend calls have happened with the expected data
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "setup-component",
+			op:                "setup-component",
+			containerName:     "mysnap+mycomp",
+			containerFileName: "mysnap+mycomp_7.comp",
 		},
 	})
 	// File not removed
@@ -127,13 +129,19 @@ func (s *mountCompSnapSuite) TestDoUndoMountComponent(c *C) {
 	// ensure undo was called the right way
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "setup-component",
+			op:                "setup-component",
+			containerName:     "mysnap+mycomp",
+			containerFileName: "mysnap+mycomp_7.comp",
 		},
 		{
-			op: "undo-setup-component",
+			op:                "undo-setup-component",
+			containerName:     "mysnap+mycomp",
+			containerFileName: "mysnap+mycomp_7.comp",
 		},
 		{
-			op: "remove-component-dir",
+			op:                "remove-component-dir",
+			containerName:     "mysnap+mycomp",
+			containerFileName: "mysnap+mycomp_7.comp",
 		},
 	})
 }
@@ -177,10 +185,14 @@ func (s *mountCompSnapSuite) TestDoMountComponentSetupFails(c *C) {
 	// ensure undo was called the right way
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "setup-component",
+			op:                "setup-component",
+			containerName:     "mysnap+broken",
+			containerFileName: "mysnap+broken_7.comp",
 		},
 		{
-			op: "remove-component-dir",
+			op:                "remove-component-dir",
+			containerName:     "mysnap+broken",
+			containerFileName: "mysnap+broken_7.comp",
 		},
 	})
 }
@@ -231,10 +243,14 @@ func (s *mountCompSnapSuite) TestDoUndoMountComponentFails(c *C) {
 	// ensure undo was called the right way
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "setup-component",
+			op:                "setup-component",
+			containerName:     "mysnap+brokenundo",
+			containerFileName: "mysnap+brokenundo_7.comp",
 		},
 		{
-			op: "undo-setup-component",
+			op:                "undo-setup-component",
+			containerName:     "mysnap+brokenundo",
+			containerFileName: "mysnap+brokenundo_7.comp",
 		},
 	})
 }
@@ -278,13 +294,19 @@ func (s *mountCompSnapSuite) TestDoMountComponentMountFails(c *C) {
 	// ensure undo was called the right way
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "setup-component",
+			op:                "setup-component",
+			containerName:     "mysnap+mycomp",
+			containerFileName: "mysnap+mycomp_7.comp",
 		},
 		{
-			op: "undo-setup-component",
+			op:                "undo-setup-component",
+			containerName:     "mysnap+mycomp",
+			containerFileName: "mysnap+mycomp_7.comp",
 		},
 		{
-			op: "remove-component-dir",
+			op:                "remove-component-dir",
+			containerName:     "mysnap+mycomp",
+			containerFileName: "mysnap+mycomp_7.comp",
 		},
 	})
 }

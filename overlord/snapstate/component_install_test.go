@@ -67,6 +67,9 @@ func expectedComponentInstallTasks(opts int) []string {
 	}
 	// link-component is always present
 	startTasks = append(startTasks, "link-component")
+	if opts&compOptIsActive != 0 {
+		startTasks = append(startTasks, "discard-component")
+	}
 
 	return startTasks
 }
