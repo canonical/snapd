@@ -48,6 +48,8 @@ type (
 	TooSoonError = tooSoonError
 )
 
+var ComponentSetupTask = componentSetupTask
+
 const (
 	None         = none
 	Full         = full
