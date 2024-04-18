@@ -48,7 +48,7 @@ type (
 	TooSoonError = tooSoonError
 )
 
-var SetTaskComponentSetup = setTaskComponentSetup
+var ComponentSetupTask = componentSetupTask
 
 const (
 	None         = none

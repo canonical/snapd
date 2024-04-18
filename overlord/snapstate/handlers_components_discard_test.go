@@ -60,8 +60,9 @@ func (s *discardCompSnapSuite) TestDoDiscardComponent(c *C) {
 	compDiscardRev := snap.R(5)
 	csiToDiscard := snap.NewComponentSideInfo(cref, compDiscardRev)
 	csToDiscard := sequence.NewComponentState(csiToDiscard, snap.TestComponent)
-	compsup := snapstate.NewComponentSetup(csi, snap.TestComponent, compPath, csToDiscard)
+	compsup := snapstate.NewComponentSetup(csi, snap.TestComponent, compPath)
 	t.Set("component-setup", compsup)
+	t.Set("unlinked-component", *csToDiscard)
 	t.Set("snap-setup", ssu)
 	chg := s.state.NewChange("test change", "change desc")
 	chg.AddTask(t)
@@ -109,7 +110,7 @@ func (s *discardCompSnapSuite) TestDoDiscardComponentNoUnlinkedComp(c *C) {
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
 	// No unlinked component in the task
-	compsup := snapstate.NewComponentSetup(csi, snap.TestComponent, compPath, nil)
+	compsup := snapstate.NewComponentSetup(csi, snap.TestComponent, compPath)
 	t.Set("component-setup", compsup)
 	t.Set("snap-setup", ssu)
 	chg := s.state.NewChange("test change", "change desc")
@@ -122,7 +123,7 @@ func (s *discardCompSnapSuite) TestDoDiscardComponentNoUnlinkedComp(c *C) {
 
 	s.state.Lock()
 	c.Check(chg.Err().Error(), Equals, "cannot perform the following tasks:\n"+
-		"- task desc (internal error: no component to discard)")
+		"- task desc (internal error: no component to discard: no state entry for key \"unlinked-component\")")
 	s.state.Unlock()
 
 	c.Check(s.fakeBackend.ops, IsNil)

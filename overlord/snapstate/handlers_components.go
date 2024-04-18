@@ -80,31 +80,29 @@ func compSetupAndState(t *state.Task) (*ComponentSetup, *SnapSetup, *SnapState, 
 	return csup, ssup, &snapst, nil
 }
 
-// setTaskComponentSetup writes the given ComponentSetup to the provided task's
-// component-setup-task task, or to the task itself if the task does not have a
-// component-setup-task (i.e. it _is_ the component setup task)
-func setTaskComponentSetup(t *state.Task, compsup *ComponentSetup) error {
+// componentSetupTask returns the task that contains the ComponentSetup
+// identified by the component-setup-task contained by task t, or directly it
+// returns t if it contains a ComponentSetup.
+func componentSetupTask(t *state.Task) (*state.Task, error) {
 	if t.Has("component-setup") {
-		// this is the component setup task so just write to the task
-		t.Set("component-setup", compsup)
+		return t, nil
 	} else {
 		// this task isn't the component-setup-task, so go get that and
 		// write to that one
 		var id string
 		err := t.Get("component-setup-task", &id)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		ts := t.State().Task(id)
 		if ts == nil {
-			return fmt.Errorf("internal error: tasks are being pruned")
+			return nil, fmt.Errorf("internal error: tasks are being pruned")
 		}
-		ts.Set("component-setup", compsup)
+		return ts, nil
 	}
-
-	return nil
 }
+
 func (m *SnapManager) doPrepareComponent(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -409,10 +407,11 @@ func (m *SnapManager) doUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (err
 
 	// set information for undoUnlinkCurrentComponent/doDiscardComponent in
 	// the setup task
-	compSetup.UnlinkedComp = unlinkedComp
-	if err := setTaskComponentSetup(t, compSetup); err != nil {
+	setupTask, err := componentSetupTask(t)
+	if err != nil {
 		return err
 	}
+	setupTask.Set("unlinked-component", *unlinkedComp)
 
 	// Finally, write the state
 	Set(st, snapsup.InstanceName(), snapSt)
@@ -429,7 +428,7 @@ func (m *SnapManager) undoUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (e
 	defer st.Unlock()
 
 	// snapSt is a copy of the current state
-	compsup, snapsup, snapSt, err := compSetupAndState(t)
+	_, snapsup, snapSt, err := compSetupAndState(t)
 	if err != nil {
 		return err
 	}
@@ -440,17 +439,22 @@ func (m *SnapManager) undoUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (e
 		return err
 	}
 
-	if compsup.UnlinkedComp == nil {
-		return fmt.Errorf("internal error: no unlinked component")
+	setupTask, err := componentSetupTask(t)
+	if err != nil {
+		return err
+	}
+	var unlinkedComp sequence.ComponentState
+	if err := setupTask.Get("unlinked-component", &unlinkedComp); err != nil {
+		return fmt.Errorf("internal error: no unlinked component: err")
 	}
 
 	if err := snapSt.Sequence.AddComponentForRevision(
-		snapInfo.Revision, compsup.UnlinkedComp); err != nil {
+		snapInfo.Revision, &unlinkedComp); err != nil {
 		return fmt.Errorf("internal error while undo unlink component: %w", err)
 	}
 
 	// Re-create the symlink
-	csi := compsup.UnlinkedComp.SideInfo
+	csi := unlinkedComp.SideInfo
 	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
 		csi.Revision, snapInfo.InstanceName())
 	if err := m.backend.LinkComponent(cpi, snapInfo.Revision); err != nil {
@@ -532,20 +536,36 @@ func (m *SnapManager) doRemoveKernelModulesSetup(t *state.Task, _ *tomb.Tomb) er
 	return nil
 }
 
-func (m *SnapManager) doDiscardComponent(t *state.Task, _ *tomb.Tomb) error {
+func infoForCompUndo(t *state.Task) (*snap.ComponentSideInfo, string, error) {
 	st := t.State()
-
 	st.Lock()
-	compsup, snapsup, err := TaskComponentSetup(t)
-	st.Unlock()
+	defer st.Unlock()
+
+	_, snapsup, err := TaskComponentSetup(t)
+	if err != nil {
+		return nil, "", err
+	}
+
+	setupTask, err := componentSetupTask(t)
+	if err != nil {
+		return nil, "", err
+	}
+	var unlinkedComp sequence.ComponentState
+	err = setupTask.Get("unlinked-component", &unlinkedComp)
+	if err != nil {
+		return nil, "", fmt.Errorf("internal error: no component to discard: %w", err)
+	}
+
+	return unlinkedComp.SideInfo, snapsup.InstanceName(), nil
+}
+
+func (m *SnapManager) doDiscardComponent(t *state.Task, _ *tomb.Tomb) error {
+
+	compSideInfo, instanceName, err := infoForCompUndo(t)
 	if err != nil {
 		return err
 	}
 
-	if compsup.UnlinkedComp == nil {
-		return fmt.Errorf("internal error: no component to discard")
-	}
-
 	// Discard the previously unlinked component
-	return m.undoSetupComponent(t, compsup.UnlinkedComp.SideInfo, snapsup.InstanceName())
+	return m.undoSetupComponent(t, compSideInfo, instanceName)
 }

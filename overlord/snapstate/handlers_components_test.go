@@ -38,7 +38,7 @@ func (s *handlersComponentsSuite) SetUpTest(c *C) {
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 }
 
-func (s *handlersComponentsSuite) TestSetTaskComponentSetupFirstTask(c *C) {
+func (s *handlersComponentsSuite) TestComponentSetupTaskFirstTask(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -50,26 +50,19 @@ func (s *handlersComponentsSuite) TestSetTaskComponentSetupFirstTask(c *C) {
 	compRev := snap.R(7)
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	compsup := snapstate.NewComponentSetup(csi, snap.KernelModulesComponent, "", nil)
+	compsup := snapstate.NewComponentSetup(csi, snap.KernelModulesComponent, "")
 	t.Set("component-setup", compsup)
 	s.state.NewChange("sample", "...").AddTask(t)
 
-	// mutate it and rewrite it with the helper
-	compsup.CompSideInfo.Revision = snap.R(8)
-	err := snapstate.SetTaskComponentSetup(t, compsup)
+	// Check that the returned task contains the data
+	setupTask, err := snapstate.ComponentSetupTask(t)
 	c.Assert(err, IsNil)
-
-	// get a fresh version of this task from state to check that the task's
-	// component-setup has the changes in it
-	newT := s.state.Task(t.ID())
-	c.Assert(newT, Not(IsNil))
 	var newcompsup snapstate.ComponentSetup
-	err = newT.Get("component-setup", &newcompsup)
+	err = setupTask.Get("component-setup", &newcompsup)
 	c.Assert(err, IsNil)
-	c.Assert(newcompsup.Revision(), Equals, compsup.CompSideInfo.Revision)
 }
 
-func (s *handlersComponentsSuite) TestSetTaskComponentSetupLaterTask(c *C) {
+func (s *handlersComponentsSuite) TestComponentSetupTaskLaterTask(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	t := s.state.NewTask("prepare-component", "test")
@@ -79,7 +72,7 @@ func (s *handlersComponentsSuite) TestSetTaskComponentSetupLaterTask(c *C) {
 	compRev := snap.R(7)
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	compsup := snapstate.NewComponentSetup(csi, snap.KernelModulesComponent, "", nil)
+	compsup := snapstate.NewComponentSetup(csi, snap.KernelModulesComponent, "")
 	// setup component-setup for the first task
 	t.Set("component-setup", compsup)
 
@@ -91,16 +84,12 @@ func (s *handlersComponentsSuite) TestSetTaskComponentSetupLaterTask(c *C) {
 	chg.AddTask(t)
 	chg.AddTask(t2)
 
-	// mutate it and rewrite it with the helper
-	compsup.CompSideInfo.Revision = snap.R(8)
-	err := snapstate.SetTaskComponentSetup(t2, compsup)
+	// Check that the returned task contains the data
+	setupTask, err := snapstate.ComponentSetupTask(t2)
 	c.Assert(err, IsNil)
-
-	// check that the original task's component-setup is different now
-	newT := s.state.Task(t.ID())
-	c.Assert(newT, Not(IsNil))
 	var newcompsup snapstate.ComponentSetup
-	err = newT.Get("component-setup", &newcompsup)
+	err = setupTask.Get("component-setup", &newcompsup)
 	c.Assert(err, IsNil)
-	c.Assert(newcompsup.Revision(), Equals, compsup.CompSideInfo.Revision)
+	// and is the expected task
+	c.Assert(setupTask.ID(), Equals, t.ID())
 }
