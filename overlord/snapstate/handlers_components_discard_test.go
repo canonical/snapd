@@ -20,8 +20,6 @@
 package snapstate_test
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -46,11 +44,11 @@ func (s *discardCompSnapSuite) TestDoDiscardComponent(c *C) {
 	const compName = "mycomp"
 	snapRev := snap.R(1)
 	compRev := snap.R(7)
-	ci, compPath := createTestComponent(c, snapName, compName)
+	ci, compPath := createTestComponent(c, snapName, compName, nil)
 	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
 	ssu := createTestSnapSetup(si, snapstate.Flags{})
 	s.AddCleanup(snapstate.MockReadComponentInfo(func(
-		compMntDir string) (*snap.ComponentInfo, error) {
+		compMntDir string, snapInfo *snap.Info) (*snap.ComponentInfo, error) {
 		return ci, nil
 	}))
 
@@ -59,16 +57,14 @@ func (s *discardCompSnapSuite) TestDoDiscardComponent(c *C) {
 	t := s.state.NewTask("discard-component", "task desc")
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	compsup := snapstate.NewComponentSetup(csi, snap.TestComponent, compPath)
+	compDiscardRev := snap.R(5)
+	csiToDiscard := snap.NewComponentSideInfo(cref, compDiscardRev)
+	csToDiscard := sequence.NewComponentState(csiToDiscard, snap.TestComponent)
+	compsup := snapstate.NewComponentSetup(csi, snap.TestComponent, compPath, csToDiscard)
 	t.Set("component-setup", compsup)
 	t.Set("snap-setup", ssu)
 	chg := s.state.NewChange("test change", "change desc")
 	chg.AddTask(t)
-
-	compDiscardRev := snap.R(5)
-	csiToDiscard := snap.NewComponentSideInfo(cref, compDiscardRev)
-	cs := sequence.NewComponentState(csiToDiscard, snap.TestComponent)
-	chg.Set(fmt.Sprintf("unlinked-component-%s", cs.SideInfo.Component.String()), cs)
 
 	s.state.Unlock()
 
@@ -99,11 +95,11 @@ func (s *discardCompSnapSuite) TestDoDiscardComponentNoUnlinkedComp(c *C) {
 	const compName = "mycomp"
 	snapRev := snap.R(1)
 	compRev := snap.R(7)
-	ci, compPath := createTestComponent(c, snapName, compName)
+	ci, compPath := createTestComponent(c, snapName, compName, nil)
 	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
 	ssu := createTestSnapSetup(si, snapstate.Flags{})
 	s.AddCleanup(snapstate.MockReadComponentInfo(func(
-		compMntDir string) (*snap.ComponentInfo, error) {
+		compMntDir string, snapInfo *snap.Info) (*snap.ComponentInfo, error) {
 		return ci, nil
 	}))
 
@@ -112,13 +108,12 @@ func (s *discardCompSnapSuite) TestDoDiscardComponentNoUnlinkedComp(c *C) {
 	t := s.state.NewTask("discard-component", "task desc")
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
-	compsup := snapstate.NewComponentSetup(csi, snap.TestComponent, compPath)
+	// No unlinked component in the task
+	compsup := snapstate.NewComponentSetup(csi, snap.TestComponent, compPath, nil)
 	t.Set("component-setup", compsup)
 	t.Set("snap-setup", ssu)
 	chg := s.state.NewChange("test change", "change desc")
 	chg.AddTask(t)
-
-	// No unlinked component in the change
 
 	s.state.Unlock()
 
@@ -127,7 +122,7 @@ func (s *discardCompSnapSuite) TestDoDiscardComponentNoUnlinkedComp(c *C) {
 
 	s.state.Lock()
 	c.Check(chg.Err().Error(), Equals, "cannot perform the following tasks:\n"+
-		"- task desc (no state entry for key \"unlinked-component-mysnap+mycomp\")")
+		"- task desc (internal error: no component to discard)")
 	s.state.Unlock()
 
 	c.Check(s.fakeBackend.ops, IsNil)

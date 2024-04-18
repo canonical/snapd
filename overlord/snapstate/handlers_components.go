@@ -407,9 +407,12 @@ func (m *SnapManager) doUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (err
 		return err
 	}
 
-	// set information for undoUnlinkCurrentComponent in the change
-	t.Change().Set(fmt.Sprintf("unlinked-component-%s",
-		unlinkedComp.SideInfo.Component.String()), unlinkedComp)
+	// set information for undoUnlinkCurrentComponent/doDiscardComponent in
+	// the setup task
+	compSetup.UnlinkedComp = unlinkedComp
+	if err := setTaskComponentSetup(t, compSetup); err != nil {
+		return err
+	}
 
 	// Finally, write the state
 	Set(st, snapsup.InstanceName(), snapSt)
@@ -437,19 +440,17 @@ func (m *SnapManager) undoUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (e
 		return err
 	}
 
-	var unlinkedComp sequence.ComponentState
-	err = t.Change().Get(fmt.Sprintf("unlinked-component-%s",
-		compsup.CompSideInfo.Component.String()), &unlinkedComp)
-	if err != nil {
-		return err
+	if compsup.UnlinkedComp == nil {
+		return fmt.Errorf("internal error: no unlinked component")
 	}
 
-	if err := snapSt.Sequence.AddComponentForRevision(snapInfo.Revision, &unlinkedComp); err != nil {
+	if err := snapSt.Sequence.AddComponentForRevision(
+		snapInfo.Revision, compsup.UnlinkedComp); err != nil {
 		return fmt.Errorf("internal error while undo unlink component: %w", err)
 	}
 
 	// Re-create the symlink
-	csi := unlinkedComp.SideInfo
+	csi := compsup.UnlinkedComp.SideInfo
 	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
 		csi.Revision, snapInfo.InstanceName())
 	if err := m.backend.LinkComponent(cpi, snapInfo.Revision); err != nil {
@@ -541,15 +542,10 @@ func (m *SnapManager) doDiscardComponent(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// Retrieve unlinked component
-	var unlinkedComp sequence.ComponentState
-	st.Lock()
-	err = t.Change().Get(fmt.Sprintf("unlinked-component-%s",
-		compsup.CompSideInfo.Component.String()), &unlinkedComp)
-	st.Unlock()
-	if err != nil {
-		return err
+	if compsup.UnlinkedComp == nil {
+		return fmt.Errorf("internal error: no component to discard")
 	}
 
-	return m.undoSetupComponent(t, unlinkedComp.SideInfo, snapsup.InstanceName())
+	// Discard the previously unlinked component
+	return m.undoSetupComponent(t, compsup.UnlinkedComp.SideInfo, snapsup.InstanceName())
 }
