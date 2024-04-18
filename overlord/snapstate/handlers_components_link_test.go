@@ -291,6 +291,68 @@ func (s *linkCompSnapSuite) TestDoUnlinkCurrentComponentOtherCompPresent(c *C) {
 	s.testDoUnlinkCurrentComponent(c, snapName, snapRev, compName, compRev)
 }
 
+func (s *linkCompSnapSuite) TestDoUnlinkCurrentComponentTwoTasks(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	compRev := snap.R(7)
+
+	s.state.Lock()
+	// state must contain the component
+	setStateWithOneComponent(s.state, snapName, snapRev, compName, compRev)
+	s.state.Unlock()
+
+	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	ssu := createTestSnapSetup(si, snapstate.Flags{})
+
+	s.state.Lock()
+
+	ts := s.state.NewTask("nop", "first task")
+	t := s.state.NewTask("unlink-current-component", "task desc")
+	t.WaitFor(ts)
+	cref := naming.NewComponentRef(snapName, compName)
+	csi := snap.NewComponentSideInfo(cref, compRev)
+	ts.Set("component-setup", snapstate.NewComponentSetup(csi, snap.TestComponent, ""))
+	ts.Set("snap-setup", ssu)
+	t.Set("snap-setup-task", ts.ID())
+	t.Set("component-setup-task", ts.ID())
+	chg := s.state.NewChange("test change", "change desc")
+	chg.AddTask(ts)
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Check(chg.Err(), IsNil)
+	// undo information has been stored in the setup task
+	var unlinkedComp sequence.ComponentState
+	c.Assert(ts.Get("unlinked-component", &unlinkedComp), IsNil)
+	c.Assert(&unlinkedComp, DeepEquals,
+		sequence.NewComponentState(csi, snap.TestComponent))
+	// the link has been removed
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op: "unlink-component",
+			path: filepath.Join(
+				dirs.SnapMountDir, snapName, "components",
+				"mnt", compName, compRev.String()),
+		},
+	})
+	// state is modified as expected
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
+	c.Assert(snapst.CurrentComponentSideInfo(cref), IsNil)
+	c.Assert(t.Status(), Equals, state.DoneStatus)
+
+	s.state.Unlock()
+}
+
 func (s *linkCompSnapSuite) testDoUnlinkThenUndoUnlinkCurrentComponent(c *C, snapName string, snapRev snap.Revision, compName string, compRev snap.Revision) {
 	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
 	ssu := createTestSnapSetup(si, snapstate.Flags{})

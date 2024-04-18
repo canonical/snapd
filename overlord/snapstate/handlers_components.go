@@ -560,7 +560,6 @@ func infoForCompUndo(t *state.Task) (*snap.ComponentSideInfo, string, error) {
 }
 
 func (m *SnapManager) doDiscardComponent(t *state.Task, _ *tomb.Tomb) error {
-
 	compSideInfo, instanceName, err := infoForCompUndo(t)
 	if err != nil {
 		return err

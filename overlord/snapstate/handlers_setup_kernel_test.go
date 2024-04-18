@@ -77,6 +77,49 @@ func (s *setupKernelSnapSuite) TestSetupKernelSnap(c *C) {
 	})
 }
 
+func (s *setupKernelSnapSuite) TestSetupKernelSnapTwoTasks(c *C) {
+	v1 := "name: mykernel\nversion: 1.0\ntype: kernel\n"
+	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
+
+	s.state.Lock()
+
+	ts := s.state.NewTask("nop", "first task")
+	ts.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "mykernel",
+			Revision: snap.R(33),
+		},
+		SnapPath: testSnap,
+	})
+	t := s.state.NewTask("prepare-kernel-snap", "test kernel setup")
+	t.Set("snap-setup-task", ts.ID())
+	t.WaitFor(ts)
+	chg := s.state.NewChange("test change", "change desc")
+	chg.AddTask(ts)
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	c.Check(chg.Err(), IsNil)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	var prevKernelRev snap.Revision
+	c.Check(ts.Get("previous-kernel-rev", &prevKernelRev), IsNil)
+	c.Check(prevKernelRev, Equals, snap.R(0))
+	s.state.Unlock()
+
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op: "prepare-kernel-snap",
+		},
+	})
+}
+
 func (s *setupKernelSnapSuite) TestUndoSetupKernelSnap(c *C) {
 	v1 := "name: mykernel\nversion: 1.0\ntype: kernel\n"
 	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)

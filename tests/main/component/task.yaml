@@ -56,6 +56,7 @@ execute: |
           prev_comp_inst_path=/var/lib/snapd/snaps/snap-with-comps+comp1_${prev_comp_rev}.comp
           mount | not MATCH "^${prev_comp_inst_path/+/\\+} on ${prev_mnt_point} .*"
           not stat "$prev_comp_inst_path"
+          not stat "$prev_mnt_point"
       fi
   }
 
