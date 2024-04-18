@@ -267,15 +267,16 @@ func (b Backend) RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error {
 
 func (b Backend) RemoveComponentDir(cpi snap.ContainerPlaceInfo) error {
 	compMountDir := cpi.MountDir()
-	// Remove /snap/<snap_instance>/components/mnt/<snap_rev>/<comp_name>/<comp_rev>
-	os.Remove(compMountDir)
-	// and /snap/<snap_instance>/components/mnt/<snap_rev>/<comp_name> (might fail
-	// if there are other revisions for this component)
-	os.Remove(filepath.Dir(compMountDir))
-
-	// TODO should we check here if there are other components installed
-	// for this snap revision or for other revisions and if not delete
-	// <snap_rev>/ and maybe also components/mnt/<snap_rev>/?
+	// Remove last 3 directories of
+	// /snap/<snap_instance>/components/mnt/<comp_name>/ if they
+	// are empty (last one should be). Note that subdirectories with snap
+	// revisions are handled by UnlinkComponent.
+	for i := 0; i < 3; i++ {
+		compMountDir = filepath.Dir(compMountDir)
+		if err := os.Remove(compMountDir); err != nil {
+			break
+		}
+	}
 
 	return nil
 }

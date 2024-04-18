@@ -568,8 +568,39 @@ func (s *setupSuite) TestSetupComponentFilesDir(c *C) {
 
 	err = s.be.RemoveComponentDir(cpi)
 	c.Assert(err, IsNil)
-	// Directory for the snap revision should be gone
-	c.Assert(osutil.FileExists(filepath.Dir(cpi.MountDir())), Equals, false)
+	// Directories components/mnt/<comp_name>/ should be gone
+	compDir := filepath.Dir(cpi.MountDir())
+	mntDir := filepath.Dir(compDir)
+	compsDir := filepath.Dir(mntDir)
+	c.Assert(osutil.FileExists(compDir), Equals, false)
+	c.Assert(osutil.FileExists(mntDir), Equals, false)
+	c.Assert(osutil.FileExists(compsDir), Equals, false)
+}
+
+func (s *setupSuite) TestSetupComponentFilesDirNotRemoved(c *C) {
+	snapRev := snap.R(11)
+	compRev := snap.R(33)
+	secondCompRev := snap.R(55)
+	compName := "mycomp"
+	snapInstance := "mysnap_inst"
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapInstance)
+
+	installRecord := s.testSetupComponentDo(c, compName, "mysnap", snapInstance, compRev, snapRev)
+	s.testSetupComponentDo(c, compName, "mysnap", snapInstance, secondCompRev, snapRev)
+
+	err := s.be.RemoveComponentFiles(cpi, installRecord, mockDev, progress.Null)
+	c.Assert(err, IsNil)
+	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
+	// Still a mount file for the second component
+	c.Assert(l, HasLen, 1)
+	c.Assert(osutil.FileExists(cpi.MountDir()), Equals, false)
+	c.Assert(osutil.FileExists(cpi.MountFile()), Equals, false)
+
+	err = s.be.RemoveComponentDir(cpi)
+	c.Assert(err, IsNil)
+	// Directory components/mnt/<comp_name>/ should be still around
+	compDir := filepath.Dir(cpi.MountDir())
+	c.Assert(osutil.FileExists(compDir), Equals, true)
 }
 
 func (s *setupSuite) TestSetupAndRemoveKernelSnapSetup(c *C) {
