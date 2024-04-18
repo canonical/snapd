@@ -57,38 +57,6 @@ func (s *promptingSuite) TestOutcomeAsBool(c *C) {
 	c.Check(err, ErrorMatches, `invalid outcome.*`)
 }
 
-func (s *promptingSuite) TestTimestamps(c *C) {
-	before := time.Now()
-	ts := time.Now().Format(time.RFC3339Nano)
-	after := time.Now()
-	parsedTime, err := prompting.TimestampToTime(ts)
-	c.Assert(err, IsNil)
-	c.Assert(parsedTime.After(before), Equals, true)
-	c.Assert(parsedTime.Before(after), Equals, true)
-}
-
-func (s *promptingSuite) TestNewIDAndTimestamp(c *C) {
-	before := time.Now()
-	id, _ := prompting.NewIDAndTimestamp()
-	idPaired, timestampPaired := prompting.NewIDAndTimestamp()
-	after := time.Now()
-	data1, err := base32.StdEncoding.DecodeString(id)
-	c.Assert(err, IsNil)
-	data2, err := base32.StdEncoding.DecodeString(idPaired)
-	c.Assert(err, IsNil)
-	parsedNs := int64(binary.BigEndian.Uint64(data1))
-	parsedNsPaired := int64(binary.BigEndian.Uint64(data2))
-	parsedTime := time.Unix(parsedNs/1000000000, parsedNs%1000000000)
-	parsedTimePaired := time.Unix(parsedNsPaired/1000000000, parsedNsPaired%1000000000)
-	c.Assert(parsedTime.After(before), Equals, true)
-	c.Assert(parsedTime.Before(after), Equals, true)
-	c.Assert(parsedTimePaired.After(before), Equals, true)
-	c.Assert(parsedTimePaired.Before(after), Equals, true)
-	parsedTimestamp, err := prompting.TimestampToTime(timestampPaired)
-	c.Assert(err, IsNil)
-	c.Assert(parsedTimePaired, Equals, parsedTimestamp)
-}
-
 func (s *promptingSuite) TestValidateOutcome(c *C) {
 	c.Assert(prompting.ValidateOutcome(prompting.OutcomeAllow), Equals, nil)
 	c.Assert(prompting.ValidateOutcome(prompting.OutcomeDeny), Equals, nil)
@@ -170,4 +138,36 @@ func (s *promptingSuite) TestValidateLifespanParseDuration(c *C) {
 	c.Check(err, IsNil)
 	c.Check(expirationTime.After(time.Now()), Equals, true)
 	c.Check(expirationTime.Before(time.Now().Add(parsedValidDuration)), Equals, true)
+}
+
+func (s *promptingSuite) TestTimestampToTime(c *C) {
+	before := time.Now()
+	ts := time.Now().Format(time.RFC3339Nano)
+	after := time.Now()
+	parsedTime, err := prompting.TimestampToTime(ts)
+	c.Assert(err, IsNil)
+	c.Assert(parsedTime.After(before), Equals, true)
+	c.Assert(parsedTime.Before(after), Equals, true)
+}
+
+func (s *promptingSuite) TestNewIDAndTimestamp(c *C) {
+	before := time.Now()
+	id, _ := prompting.NewIDAndTimestamp()
+	idPaired, timestampPaired := prompting.NewIDAndTimestamp()
+	after := time.Now()
+	data1, err := base32.StdEncoding.DecodeString(id)
+	c.Assert(err, IsNil)
+	data2, err := base32.StdEncoding.DecodeString(idPaired)
+	c.Assert(err, IsNil)
+	parsedNs := int64(binary.BigEndian.Uint64(data1))
+	parsedNsPaired := int64(binary.BigEndian.Uint64(data2))
+	parsedTime := time.Unix(parsedNs/1000000000, parsedNs%1000000000)
+	parsedTimePaired := time.Unix(parsedNsPaired/1000000000, parsedNsPaired%1000000000)
+	c.Assert(parsedTime.After(before), Equals, true)
+	c.Assert(parsedTime.Before(after), Equals, true)
+	c.Assert(parsedTimePaired.After(before), Equals, true)
+	c.Assert(parsedTimePaired.Before(after), Equals, true)
+	parsedTimestamp, err := prompting.TimestampToTime(timestampPaired)
+	c.Assert(err, IsNil)
+	c.Assert(parsedTimePaired, Equals, parsedTimestamp)
 }

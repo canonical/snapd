@@ -46,41 +46,6 @@ func (outcome OutcomeType) AsBool() (bool, error) {
 	}
 }
 
-type LifespanType string
-
-const (
-	LifespanUnset    LifespanType = ""
-	LifespanForever  LifespanType = "forever"
-	LifespanSession  LifespanType = "session"
-	LifespanSingle   LifespanType = "single"
-	LifespanTimespan LifespanType = "timespan"
-)
-
-// TimestampToTime converts the given timestamp string to a time.Time in Local
-// time. The timestamp string is expected to be of the format time.RFC3339Nano.
-// If it cannot be parsed as such, returns an error.
-func TimestampToTime(timestamp string) (time.Time, error) {
-	t, err := time.Parse(time.RFC3339Nano, timestamp)
-	if err != nil {
-		return t, err
-	}
-	return t.Local(), nil
-}
-
-// NewIDAndTimestamp returns a new unique ID and corresponding timestamp.
-//
-// The ID is the current unix time in nanoseconds encoded as a string in base32.
-// The timestamp is the same time, encoded as a string in time.RFC3339Nano.
-func NewIDAndTimestamp() (id string, timestamp string) {
-	now := time.Now()
-	nowUnix := uint64(now.UnixNano())
-	nowBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(nowBytes, nowUnix)
-	id = base32.StdEncoding.EncodeToString(nowBytes)
-	timestamp = now.Format(time.RFC3339Nano)
-	return id, timestamp
-}
-
 // ValidateOutcome returns nil if the given outcome is valid, otherwise an error.
 func ValidateOutcome(outcome OutcomeType) error {
 	switch outcome {
@@ -90,6 +55,16 @@ func ValidateOutcome(outcome OutcomeType) error {
 		return fmt.Errorf(`invalid outcome: must be %q or %q: %q`, OutcomeAllow, OutcomeDeny, outcome)
 	}
 }
+
+type LifespanType string
+
+const (
+	LifespanUnset    LifespanType = ""
+	LifespanForever  LifespanType = "forever"
+	LifespanSession  LifespanType = "session"
+	LifespanSingle   LifespanType = "single"
+	LifespanTimespan LifespanType = "timespan"
+)
 
 // ValidateLifespanExpiration checks that the given lifespan is valid and that
 // the given expiration is valid for that lifespan.
@@ -151,4 +126,29 @@ func ValidateLifespanParseDuration(lifespan LifespanType, duration string) (stri
 		return "", fmt.Errorf(`invalid lifespan: %q`, lifespan)
 	}
 	return expirationString, nil
+}
+
+// TimestampToTime converts the given timestamp string to a time.Time in Local
+// time. The timestamp string is expected to be of the format time.RFC3339Nano.
+// If it cannot be parsed as such, returns an error.
+func TimestampToTime(timestamp string) (time.Time, error) {
+	t, err := time.Parse(time.RFC3339Nano, timestamp)
+	if err != nil {
+		return t, err
+	}
+	return t.Local(), nil
+}
+
+// NewIDAndTimestamp returns a new unique ID and corresponding timestamp.
+//
+// The ID is the current unix time in nanoseconds encoded as a string in base32.
+// The timestamp is the same time, encoded as a string in time.RFC3339Nano.
+func NewIDAndTimestamp() (id string, timestamp string) {
+	now := time.Now()
+	nowUnix := uint64(now.UnixNano())
+	nowBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(nowBytes, nowUnix)
+	id = base32.StdEncoding.EncodeToString(nowBytes)
+	timestamp = now.Format(time.RFC3339Nano)
+	return id, timestamp
 }
