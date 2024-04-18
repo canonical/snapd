@@ -69,7 +69,7 @@ func (s *promptingSuite) TestTimestamps(c *C) {
 
 func (s *promptingSuite) TestNewIDAndTimestamp(c *C) {
 	before := time.Now()
-	id := prompting.NewID()
+	id, _ := prompting.NewIDAndTimestamp()
 	idPaired, timestampPaired := prompting.NewIDAndTimestamp()
 	after := time.Now()
 	data1, err := base32.StdEncoding.DecodeString(id)

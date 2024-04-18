@@ -72,17 +72,6 @@ func CurrentTimestamp() string {
 	return time.Now().Format(time.RFC3339Nano)
 }
 
-// NewID returns a new unique ID.
-//
-// The ID is the current unix time in nanoseconds encoded as base32.
-func NewID() string {
-	nowUnix := uint64(time.Now().UnixNano())
-	nowBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(nowBytes, nowUnix)
-	id := base32.StdEncoding.EncodeToString(nowBytes)
-	return id
-}
-
 // NewIDAndTimestamp returns a new unique ID and corresponding timestamp.
 //
 // The ID is the current unix time in nanoseconds encoded as a string in base32.
