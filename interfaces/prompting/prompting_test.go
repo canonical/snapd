@@ -59,7 +59,7 @@ func (s *promptingSuite) TestOutcomeAsBool(c *C) {
 
 func (s *promptingSuite) TestTimestamps(c *C) {
 	before := time.Now()
-	ts := prompting.CurrentTimestamp()
+	ts := time.Now().Format(time.RFC3339Nano)
 	after := time.Now()
 	parsedTime, err := prompting.TimestampToTime(ts)
 	c.Assert(err, IsNil)

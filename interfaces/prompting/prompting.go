@@ -67,11 +67,6 @@ func TimestampToTime(timestamp string) (time.Time, error) {
 	return t.Local(), nil
 }
 
-// CurrentTimestamp returns the current time as a time.RFC3339Nano string.
-func CurrentTimestamp() string {
-	return time.Now().Format(time.RFC3339Nano)
-}
-
 // NewIDAndTimestamp returns a new unique ID and corresponding timestamp.
 //
 // The ID is the current unix time in nanoseconds encoded as a string in base32.
