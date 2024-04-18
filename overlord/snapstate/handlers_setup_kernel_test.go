@@ -65,9 +65,9 @@ func (s *setupKernelSnapSuite) TestSetupKernelSnap(c *C) {
 	s.state.Lock()
 	c.Check(chg.Err(), IsNil)
 	c.Check(t.Status(), Equals, state.DoneStatus)
-	var snapsup snapstate.SnapSetup
-	c.Check(t.Get("snap-setup", &snapsup), IsNil)
-	c.Check(snapsup.PreviousKernelRev, Equals, snap.R(0))
+	var prevKernelRev snap.Revision
+	c.Check(t.Get("previous-kernel-rev", &prevKernelRev), IsNil)
+	c.Check(prevKernelRev, Equals, snap.R(0))
 	s.state.Unlock()
 
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
@@ -107,9 +107,9 @@ func (s *setupKernelSnapSuite) TestUndoSetupKernelSnap(c *C) {
 	s.state.Lock()
 	c.Check(chg.Err(), ErrorMatches, `(?s).*provoking undo kernel setup.*`)
 	c.Check(t.Status(), Equals, state.UndoneStatus)
-	var snapsup snapstate.SnapSetup
-	c.Check(t.Get("snap-setup", &snapsup), IsNil)
-	c.Check(snapsup.PreviousKernelRev, Equals, snap.R(0))
+	var prevKernelRev snap.Revision
+	c.Check(t.Get("previous-kernel-rev", &prevKernelRev), IsNil)
+	c.Check(prevKernelRev, Equals, snap.R(0))
 	s.state.Unlock()
 
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
@@ -141,9 +141,9 @@ func (s *setupKernelSnapSuite) TestRemoveKernelSnapSetup(c *C) {
 			RealName: "mykernel",
 			Revision: snap.R(33),
 		},
-		SnapPath:          testSnap,
-		PreviousKernelRev: snap.R(30),
+		SnapPath: testSnap,
 	})
+	t.Set("previous-kernel-rev", snap.R(30))
 	chg := s.state.NewChange("test change", "change desc")
 	chg.AddTask(t)
 
@@ -183,9 +183,9 @@ func (s *setupKernelSnapSuite) TestUndoRemoveKernelSnapSetup(c *C) {
 			RealName: "mykernel",
 			Revision: snap.R(33),
 		},
-		SnapPath:          testSnap,
-		PreviousKernelRev: snap.R(30),
+		SnapPath: testSnap,
 	})
+	t.Set("previous-kernel-rev", snap.R(30))
 	chg := s.state.NewChange("test change", "change desc")
 	chg.AddTask(t)
 	terr := s.state.NewTask("error-trigger", "provoking undo kernel cleanup")
