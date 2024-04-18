@@ -406,5 +406,9 @@ func (b Backend) UnlinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revis
 		}
 	}
 
+	// Try also to remove the <snap_rev>/ subdirectory, as this might be
+	// the only installed component. But simply ignore if not empty.
+	os.Remove(filepath.Dir(linkPath))
+
 	return nil
 }

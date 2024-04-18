@@ -193,6 +193,14 @@ func doInstallComponent(st *state.State, snapst *SnapState, compSetup *Component
 			compSi.Component, revisionStr))
 	addTask(linkSnap)
 
+	// clean-up previous revision of the component if present
+	if compInstalled {
+		discardComp := st.NewTask("discard-component", fmt.Sprintf(i18n.G(
+			"Discard previous revision for component %q"),
+			compSi.Component))
+		addTask(discardComp)
+	}
+
 	installSet := state.NewTaskSet(tasks...)
 	installSet.MarkEdge(prepare, BeginEdge)
 	installSet.MarkEdge(linkSnap, MaybeRebootEdge)
