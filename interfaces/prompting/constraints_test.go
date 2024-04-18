@@ -66,7 +66,7 @@ func (s *promptingSuite) TestConstraintsValidateForInterface(c *C) {
 			"foo",
 			"invalid/path",
 			[]string{"read"},
-			"constraints incompatible with the given interface.*",
+			"unsupported interface.*",
 		},
 		// TODO: add this once PR #13730 is merged:
 		// {
@@ -383,11 +383,6 @@ func (s *promptingSuite) TestAbstractPermissionsFromAppArmorFilePermissionsUnhap
 		errStr string
 	}{
 		{
-			"foo",
-			"anything",
-			".*unsupported interface.*",
-		},
-		{
 			"home",
 			"not a file permission",
 			"failed to parse the given permissions as file permissions",
@@ -525,11 +520,6 @@ func (s *promptingSuite) TestAbstractPermissionsToAppArmorFilePermissionsUnhappy
 		perms  []string
 		errStr string
 	}{
-		{
-			"foo",
-			[]string{},
-			".*unsupported interface.*",
-		},
 		{
 			"home",
 			[]string{},

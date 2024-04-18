@@ -42,15 +42,10 @@ type Constraints struct {
 // ValidateForInterface returns nil if the constraints are valid for the given
 // interface, otherwise returns an error.
 func (c *Constraints) ValidateForInterface(iface string) error {
-	switch iface {
-	case "home":
-		// TODO: change to this once PR #13730 is merged:
-		// if err := ValidatePathPattern(c.PathPattern); err != nil {
-		//	return err
-		// }
-	default:
-		return fmt.Errorf("constraints incompatible with the given interface: %q", iface)
-	}
+	// TODO: change to this once PR #13730 is merged:
+	// if err := ValidatePathPattern(c.PathPattern); err != nil {
+	//	return err
+	// }
 	permissions, err := AbstractPermissionsFromList(iface, c.Permissions)
 	if err != nil {
 		return err
@@ -134,11 +129,7 @@ func AvailablePermissions(iface string) ([]string, error) {
 // AbstractPermissionsFromAppArmorPermissions returns the list of permissions
 // corresponding to the given AppArmor permissions for the given interface.
 func AbstractPermissionsFromAppArmorPermissions(iface string, permissions interface{}) ([]string, error) {
-	switch iface {
-	case "home":
-		return abstractPermissionsFromAppArmorFilePermissions(iface, permissions)
-	}
-	return nil, fmt.Errorf("cannot parse AppArmor permissions: unsupported interface: %q", iface)
+	return abstractPermissionsFromAppArmorFilePermissions(iface, permissions)
 }
 
 // abstractPermissionsFromAppArmorFilePermissions returns the list of permissions
@@ -217,11 +208,7 @@ func AbstractPermissionsFromList(iface string, permissions []string) ([]string, 
 // AbstractPermissionsToAppArmorPermissions returns AppArmor permissions
 // corresponding to the given permissions for the given interface.
 func AbstractPermissionsToAppArmorPermissions(iface string, permissions []string) (interface{}, error) {
-	switch iface {
-	case "home":
-		return abstractPermissionsToAppArmorFilePermissions(iface, permissions)
-	}
-	return nil, fmt.Errorf("cannot convert abstract permissions to AppArmor permissions: unsupported interface: %q", iface)
+	return abstractPermissionsToAppArmorFilePermissions(iface, permissions)
 }
 
 // AbstractPermissionsToAppArmorFilePermissions returns AppArmor file
