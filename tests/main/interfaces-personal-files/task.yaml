@@ -104,7 +104,7 @@ execute: |
     if ! os.query is-ubuntu 14.04; then
         echo "Cannot abuse snap-confine to create $TEST_USER_HOME/.missing owned by user $TEST_USER2"
         # This command is based on what snap run contructs for running a non-classic app with non-root user without the final snap-exec stage
-        cmd="SNAP_INSTANCE_NAME=test-snapd-sh SNAP_REVISION=x1 SNAP_REAL_HOME=$TEST_USER_HOME  $SNAP_CONFINE snap.test-snapd-sh.with-personal-files-plug /bin/sh -c exit"
+        cmd="SNAP_INSTANCE_NAME=test-snapd-sh SNAP_REVISION=x1 SNAP_REAL_HOME=$TEST_USER_HOME  $SNAP_CONFINE snap.test-snapd-sh.with-personal-files-plug -c exit"
         if tests.session -u $TEST_USER2 exec sh -c "$cmd" > call.error 2>&1; then
             echo 'Expected error: "snap-update-ns failed with code 1"'
             exit 1
@@ -115,7 +115,7 @@ execute: |
 
         echo "Cannot abuse snap-confine to create $ROOT_OWNED_DIR/.missing owned by user $TEST_USER2"
         # This command is based on what snap run contructs for running a non-classic app with non-root user without the final snap-exec stage
-        cmd="SNAP_INSTANCE_NAME=test-snapd-sh SNAP_REVISION=x1 SNAP_REAL_HOME=$ROOT_OWNED_DIR $SNAP_CONFINE snap.test-snapd-sh.with-personal-files-plug /bin/sh -c exit"
+        cmd="SNAP_INSTANCE_NAME=test-snapd-sh SNAP_REVISION=x1 SNAP_REAL_HOME=$ROOT_OWNED_DIR $SNAP_CONFINE snap.test-snapd-sh.with-personal-files-plug -c exit"
         tests.session -u $TEST_USER2 exec sh -c "$cmd" 2> call.error
         prefix="cannot change mount namespace according to change mount \(none $ROOT_OWNED_DIR/.missing none x-snapd.kind=ensure-dir,x-snapd.must-exist-dir=$ROOT_OWNED_DIR 0 0\)"
         MATCH "$prefix: cannot create directory \"$ROOT_OWNED_DIR/.missing\": permission denied" < call.error || \
