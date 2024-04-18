@@ -80,6 +80,31 @@ func compSetupAndState(t *state.Task) (*ComponentSetup, *SnapSetup, *SnapState, 
 	return csup, ssup, &snapst, nil
 }
 
+// setTaskComponentSetup writes the given ComponentSetup to the provided task's
+// component-setup-task task, or to the task itself if the task does not have a
+// component-setup-task (i.e. it _is_ the component setup task)
+func setTaskComponentSetup(t *state.Task, compsup *ComponentSetup) error {
+	if t.Has("component-setup") {
+		// this is the component setup task so just write to the task
+		t.Set("component-setup", compsup)
+	} else {
+		// this task isn't the component-setup-task, so go get that and
+		// write to that one
+		var id string
+		err := t.Get("component-setup-task", &id)
+		if err != nil {
+			return err
+		}
+
+		ts := t.State().Task(id)
+		if ts == nil {
+			return fmt.Errorf("internal error: tasks are being pruned")
+		}
+		ts.Set("component-setup", compsup)
+	}
+
+	return nil
+}
 func (m *SnapManager) doPrepareComponent(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
