@@ -89,46 +89,6 @@ func (s *promptingSuite) TestNewIDAndTimestamp(c *C) {
 	c.Assert(parsedTimePaired, Equals, parsedTimestamp)
 }
 
-func (s *promptingSuite) TestLabelToSnapHappy(c *C) {
-	cases := []struct {
-		label string
-		snap  string
-	}{
-		{
-			label: "snap.nextcloud.occ",
-			snap:  "nextcloud",
-		},
-		{
-			label: "snap.lxd.lxc",
-			snap:  "lxd",
-		},
-		{
-			label: "snap.firefox.firefox",
-			snap:  "firefox",
-		},
-	}
-	for _, testCase := range cases {
-		snap, err := prompting.LabelToSnap(testCase.label)
-		c.Check(err, IsNil)
-		c.Check(snap, Equals, testCase.snap)
-	}
-}
-
-func (s *promptingSuite) TestLabelToSnapUnhappy(c *C) {
-	cases := []string{
-		"snap",
-		"snap.nextcloud",
-		"nextcloud.occ",
-		"snap.nextcloud.nextcloud.occ",
-		"SNAP.NEXTCLOUD.OCC",
-	}
-	for _, label := range cases {
-		snap, err := prompting.LabelToSnap(label)
-		c.Check(err, Equals, prompting.ErrInvalidSnapLabel)
-		c.Check(snap, Equals, label)
-	}
-}
-
 func (s *promptingSuite) TestValidateOutcome(c *C) {
 	c.Assert(prompting.ValidateOutcome(prompting.OutcomeAllow), Equals, nil)
 	c.Assert(prompting.ValidateOutcome(prompting.OutcomeDeny), Equals, nil)

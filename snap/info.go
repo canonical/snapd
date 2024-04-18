@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2022 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -206,6 +206,17 @@ func MountFileInDir(dir, name string, revision Revision) string {
 // ScopedSecurityTag returns the snap-specific, scope specific, security tag.
 func ScopedSecurityTag(snapName, scopeName, suffix string) string {
 	return fmt.Sprintf("snap.%s.%s.%s", snapName, scopeName, suffix)
+}
+
+// SplitSecurityTag will extract the snap name from a string of the form
+// `snap.<snap>[.<app>]`. If the tag is not of that form, returns an error.
+func SplitSecurityTag(tag string) (string, error) {
+	errMsg := fmt.Errorf("invalid security tag: must be of the form 'snap.<snap>' or 'snap.<snap>.<app>': %q", tag)
+	l := strings.SplitN(tag, ".", 3)
+	if len(l) < 2 || l[0] != "snap" || len(l[1]) == 0 {
+		return "", errMsg
+	}
+	return l[1], nil
 }
 
 // SecurityTag returns the snap-specific security tag.

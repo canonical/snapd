@@ -22,14 +22,8 @@ package prompting
 import (
 	"encoding/base32"
 	"encoding/binary"
-	"errors"
 	"fmt"
-	"strings"
 	"time"
-)
-
-var (
-	ErrInvalidSnapLabel = errors.New("the given label cannot be converted to snap")
 )
 
 type OutcomeType string
@@ -101,19 +95,6 @@ func NewIDAndTimestamp() (id string, timestamp string) {
 	id = base32.StdEncoding.EncodeToString(nowBytes)
 	timestamp = now.Format(time.RFC3339Nano)
 	return id, timestamp
-}
-
-// LabelToSnap extracts the snap name from the given AppArmor label.
-//
-// If the label is not of the form 'snap.<snap>.<app>', returns an error, and
-// returns the label as the snap.
-func LabelToSnap(label string) (string, error) {
-	components := strings.Split(label, ".")
-	if len(components) != 3 || components[0] != "snap" {
-		return label, ErrInvalidSnapLabel
-	}
-	snap := components[1]
-	return snap, nil
 }
 
 // ValidateOutcome returns nil if the given outcome is valid, otherwise an error.
