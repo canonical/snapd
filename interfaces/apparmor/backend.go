@@ -972,6 +972,8 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 		default:
 			if snapdenv.Testing() || osutil.IsTestBinary() {
 				panic(fmt.Sprintf("cannot expand snippet for pattern %q", placeholder))
+			} else {
+				logger.Noticef("WARNING: cannto expand snippet for pattern %q", placeholder)
 			}
 		}
 		return ""
