@@ -50,6 +50,11 @@ bool sc_is_debug_enabled(void);
 bool sc_is_reexec_enabled(void);
 
 /**
+ * Return true if executing inside a container.
+ **/
+bool sc_is_in_container(void);
+
+/**
  * sc_identity describes the user performing certain operation.
  *
  * UID and GID represent user and group accounts numbers and are controlled by
