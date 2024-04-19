@@ -1,5 +1,9 @@
 summary: Test refreshing snapd and running new units
 
+details: |
+    Check that snapd can be installed and reverted many times in a row resulting in a
+    working snapd. Also ensure snapd is working after a reboot
+
 # UC16 still uses the core snap rather than the snapd snap, so disable this test
 # for UC16
 systems: [-ubuntu-core-16-*]

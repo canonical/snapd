@@ -1,5 +1,11 @@
 summary: Ensure that netplan config integration works
 
+details: |
+    Check the netplan configuration is correct in Ubuntu Core 20+. Verify
+    that is is possible to add a br54 interface via netplan, including the
+    configuration for dhcp4 and dhcp6. Verify the unset for the whole br54
+    subtree works
+
 # TODO: enable for all ubuntu core versions once netplan.io got SRUed
 #       into the older versions of ubuntu
 systems:

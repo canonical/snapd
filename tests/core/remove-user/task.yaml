@@ -1,5 +1,11 @@
 summary: Ensure remove-user functionality
 
+details: |
+    Check the command `snap remove-user` works properly. Verify that
+    fails when run as non-root user without sudo and works when run
+    as non-root user with sudo. Also Verify the root user cannot be
+    removed
+
 systems: [ubuntu-core-*]
 
 environment:

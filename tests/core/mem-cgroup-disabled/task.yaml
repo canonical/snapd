@@ -1,5 +1,11 @@
 summary: Check basic functionality when memory cgroup is disabled
 
+details: |
+  Check that when memory cgroups is disabled by adding cgroup_disable=memory
+  to the kernel command line, then updating quota groups does not work and
+  the installed snaps still have the Slice setting. Verify also that the
+  snaps can be refresh (still have the Slice setting) and removed.
+
 # external backends fails because a signed gadget cannot be replaced
 # with an unsigned one
 # TODO: remove once https://github.com/snapcore/snapd/pull/11589 landed

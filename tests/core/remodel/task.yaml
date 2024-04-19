@@ -1,5 +1,11 @@
-summary: |
-    Test remodel
+summary: Test remodel
+
+details: |
+    Check that when `snap remodel` is executed, then it is used a new model
+    assertion and the required snaps defined in the new model are installed.
+    Verify that the required snaps cannot be removed, but after remodel
+    back to the initial model, the required snaps are not still required
+    and can be removed. 
 
 # TODO:UC20: enable for UC20
 systems: [ubuntu-core-16-64, ubuntu-core-18-64]

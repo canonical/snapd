@@ -1,5 +1,9 @@
 summary: System settings work
 
+details: |
+    Check that in Ubuntu Core systems, setting the hostname and
+    timezone works through the hostnamectl command. 
+
 prepare: |
     hostname > hostname.bak
     cp /etc/timezone timezone.bak

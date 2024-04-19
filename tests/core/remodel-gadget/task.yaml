@@ -1,5 +1,12 @@
 summary: Test a remodel that switches to a new gadget
 
+details: |
+    Check that is it possible to `snap remodel` to a new gadget.
+    Verify after the reboot the new gadget is installed, the new
+    model assertion is being used and it is not possible to remove
+    the new gadget snap. Finally check it is possible to remodel
+    back to the initial model.
+
 # TODO:UC20: enable for UC20
 systems: [ubuntu-core-18-64]
 
