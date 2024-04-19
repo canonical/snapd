@@ -294,11 +294,19 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 	var updateCalled bool
 	var passedRollbackDir string
 
+	defer boot.MockSetEfiBootVariables(func(description string, assetPath string, optionalData []byte) error {
+		c.Check(description, Equals, "ubuntu-test")
+		return nil
+	})()
+
 	if grade != "" {
 		bootDir := c.MkDir()
 		tbl := bootloadertest.Mock("trusted", bootDir).WithTrustedAssets()
 		tbl.TrustedAssetsMap = map[string]string{"trusted-asset": "trusted-asset"}
 		tbl.ManagedAssetsList = []string{"managed-asset"}
+		tbl.EfiLoadOptionDesc = "ubuntu-test"
+		tbl.EfiLoadOptionPath = "/some/path"
+		tbl.EfiLoadOptionData = nil
 		bootloader.Force(tbl)
 		defer func() { bootloader.Force(nil) }()
 	}

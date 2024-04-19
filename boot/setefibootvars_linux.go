@@ -187,7 +187,7 @@ func setEfiBootOrderVariable(newBootNum uint16) error {
 // the EFI boot variable Boot#### to contain the resulting load option. Then,
 // sets the BootOrder variable so that the #### number from the chosen Boot####
 // is first, removing it from elsewhere in the BootOrder if it occurs.
-func SetEfiBootVariables(description string, assetPath string, optionalData []byte) error {
+func setEfiBootVariablesImpl(description string, assetPath string, optionalData []byte) error {
 	loadOptionData, err := constructLoadOption(description, assetPath, optionalData)
 	if err != nil {
 		return err
@@ -197,4 +197,14 @@ func SetEfiBootVariables(description string, assetPath string, optionalData []by
 		return err
 	}
 	return setEfiBootOrderVariable(bootNum)
+}
+
+var SetEfiBootVariables = setEfiBootVariablesImpl
+
+func MockSetEfiBootVariables(f func(description string, assetPath string, optionalData []byte) error) func() {
+	old := SetEfiBootVariables
+	SetEfiBootVariables = f
+	return func() {
+		SetEfiBootVariables = old
+	}
 }

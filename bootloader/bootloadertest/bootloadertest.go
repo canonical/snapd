@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -433,6 +433,11 @@ type MockTrustedAssetsMixin struct {
 	StaticCommandLine          string
 	CandidateStaticCommandLine string
 	CommandLineErr             error
+
+	EfiLoadOptionErr     error
+	EfiLoadOptionDesc    string
+	EfiLoadOptionPath    string
+	EfiLoadOptionData    []byte
 }
 
 // MockTrustedAssetsBootloader mocks a bootloader implementing the
@@ -446,6 +451,14 @@ type MockTrustedAssetsBootloader struct {
 func (b *MockBootloader) WithTrustedAssets() *MockTrustedAssetsBootloader {
 	return &MockTrustedAssetsBootloader{
 		MockBootloader: b,
+	}
+}
+
+func (b *MockTrustedAssetsBootloader) ParametersForEfiLoadOption(updatedAssets []string) (string, string, []byte, error) {
+	if b.EfiLoadOptionErr != nil {
+		return "", "", nil, b.EfiLoadOptionErr
+	} else {
+		return b.EfiLoadOptionDesc, b.EfiLoadOptionPath, b.EfiLoadOptionData, nil
 	}
 }
 
