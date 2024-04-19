@@ -322,6 +322,9 @@ backends:
             - ubuntu-22.04-64:
                   username: ubuntu
                   password: ubuntu
+            - ubuntu-24.04-64:
+                  username: ubuntu
+                  password: ubuntu
 
     qemu:
         memory: 4G
