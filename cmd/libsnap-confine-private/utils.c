@@ -281,7 +281,7 @@ static bool _sc_is_in_container(const char *p)
 		return false;
 	}
 
-	size_t r = strlen(container);
+	size_t r = strnlen(container, sizeof container);
 	// TODO add sc_str_chomp()?
 	if (r > 0 && container[r - 1] == '\n') {
 		/* replace trailing newline */
