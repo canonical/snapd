@@ -1001,6 +1001,12 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   /run/snapd/lock/###SNAP_INSTANCE_NAME###.lock rwk,
   /run/snapd/lock/.lock rwk,
 
+  # While the base abstraction has rules for encryptfs encrypted home and
+  # private directories, it is missing rules for directory read on the toplevel
+  # directory of the mount (LP: #1848919)
+  owner @{HOME}/.Private/ r,
+  owner @{HOMEDIRS}/.ecryptfs/*/.Private/ r,
+
   # Allow reading stored mount namespaces,
   /run/snapd/ns/ r,
   /run/snapd/ns/###SNAP_INSTANCE_NAME###.mnt r,
