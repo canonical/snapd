@@ -504,6 +504,13 @@ func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, standalone, factory
 
 	bootloader.Force(nil)
 
+	uefiVariableSet := 0
+	defer boot.MockSetEfiBootVariables(func(description string, assetPath string, optionalData []byte) error {
+		uefiVariableSet += 1
+		c.Check(description, Equals, "ubuntu")
+		return nil
+	})()
+
 	var model *asserts.Model
 	if classic {
 		model = boottest.MakeMockUC20Model(map[string]interface{}{
@@ -797,6 +804,8 @@ version: 5.0
 	// also do the logical thing and make the next boot go to run mode
 	err = boot.EnsureNextBootToRunMode("20191216")
 	c.Assert(err, IsNil)
+
+	c.Check(uefiVariableSet, Equals, 1)
 
 	// ensure grub.cfg in boot was installed from internal assets
 	c.Check(mockBootGrubCfg, testutil.FileEquals, string(grubCfgAsset))
@@ -1224,6 +1233,13 @@ func (s *makeBootable20Suite) testMakeSystemRunnable20WithCustomKernelArgs(c *C,
 	}
 	bootloader.Force(nil)
 
+	uefiVariableSet := 0
+	defer boot.MockSetEfiBootVariables(func(description string, assetPath string, optionalData []byte) error {
+		uefiVariableSet += 1
+		c.Check(description, Equals, "ubuntu")
+		return nil
+	})()
+
 	model := boottest.MakeMockUC20Model()
 	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
 	err := os.MkdirAll(seedSnapsDirs, 0755)
@@ -1390,6 +1406,8 @@ version: 5.0
 	// also do the logical thing and make the next boot go to run mode
 	err = boot.EnsureNextBootToRunMode("20191216")
 	c.Assert(err, IsNil)
+
+	c.Check(uefiVariableSet, Equals, 1)
 
 	// ensure grub.cfg in boot was installed from internal assets
 	c.Check(mockBootGrubCfg, testutil.FileEquals, string(grubCfgAsset))
