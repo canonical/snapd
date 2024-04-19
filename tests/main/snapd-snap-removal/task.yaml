@@ -1,5 +1,9 @@
 summary: Ensure snapd can be removed on classic if its the last snap
 
+details: |
+    Check in classic systems that snapd snap can be remove when it
+    is the last snap, and it cannot otherwise
+
 systems: [-ubuntu-core-*]
 
 execute: |

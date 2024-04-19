@@ -1,5 +1,8 @@
 summary: Ensure snapd builds correctly in sbuild
 
+details: |
+    Check snapd can be built using sbuilt in debian sid
+
 systems: [debian-sid-*]
 
 # takes a while

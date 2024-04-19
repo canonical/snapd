@@ -1,5 +1,10 @@
 summary: Check that upgrade works
 
+details: |
+    Check that the spapd can be upgraded and it still wokrs after. 
+    Verify that snapd/core has been refreshed, the snaps after upgrade
+    are still working and automatic aliases survived
+
 # arch: there is no snapd in arch repos
 # amazon: enable once it's possible to install snapd from EPEL
 # centos-9: enable once it's possible to install snapd from CentOS Stream 9
