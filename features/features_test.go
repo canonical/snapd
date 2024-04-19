@@ -199,13 +199,13 @@ func (*featureSuite) TestAppArmorPromptingSupportedCallback(c *C) {
 	parserError = fmt.Errorf("bad parser")
 	supported, reason = callback()
 	c.Check(supported, Equals, false)
-	c.Check(reason, Matches, "error checking apparmor parser features.*")
+	c.Check(reason, Matches, "cannot check apparmor parser features.*")
 
 	// Kernel error
 	kernelError = fmt.Errorf("bad kernel")
 	supported, reason = callback()
 	c.Check(supported, Equals, false)
-	c.Check(reason, Matches, "error checking apparmor kernel features.*")
+	c.Check(reason, Matches, "cannot check apparmor kernel features.*")
 }
 
 func (*featureSuite) TestIsSupported(c *C) {

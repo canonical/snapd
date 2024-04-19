@@ -175,14 +175,14 @@ var featuresSupportedCallbacks = map[SnapdFeature]func() (bool, string){
 	AppArmorPrompting: func() (bool, string) {
 		kernelFeatures, err := apparmorKernelFeatures()
 		if err != nil {
-			return false, fmt.Sprintf("error checking apparmor kernel features: %v", err)
+			return false, fmt.Sprintf("cannot check apparmor kernel features: %v", err)
 		}
 		if !strutil.ListContains(kernelFeatures, "policy:permstable32:prompt") {
 			return false, "apparmor kernel features do not support prompting"
 		}
 		parserFeatures, err := apparmorParserFeatures()
 		if err != nil {
-			return false, fmt.Sprintf("error checking apparmor parser features: %v", err)
+			return false, fmt.Sprintf("cannot check apparmor parser features: %v", err)
 		}
 		if !strutil.ListContains(parserFeatures, "prompt") {
 			return false, "apparmor parser does not support the prompt qualifier"
