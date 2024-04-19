@@ -1,5 +1,9 @@
 summary: Check that installing and running a snap works
 
+details: |
+     Smoke test to verify that snaps can be installed using
+     all the bases and running snaps works
+
 restore: |
     rm -f /home/test/stderr.log
     rm -f /home/test/stdout.log

@@ -1,5 +1,8 @@
 summary: Check that find works correctly
 
+details: |
+  Smoke test to check the output of `snap find` and `snap info` commands
+
 execute: |
   echo "Ensure 'snap find' works"
   snap find test-snapd-tools | MATCH ^test-snapd-tools

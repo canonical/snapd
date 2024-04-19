@@ -1,5 +1,8 @@
 summary: Check that the version is not dirty
 
+details: |
+    Smoke test to check `snap version` is not 'dirty'
+
 execute: |
     # TODO: fix dirty version number on riscv
     echo "Ensure the version number is not 'dirty'"

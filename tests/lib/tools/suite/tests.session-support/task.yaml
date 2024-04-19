@@ -1,4 +1,9 @@
 summary: check the session support status of various distributions
+
+details: |
+    Check the tests.session tools indicates properly the system and session status
+    of various distributions
+
 execute: |
 
     # In case ubuntu core is not already built in prepare helper, the check for uc18

@@ -1,5 +1,8 @@
 summary: Check that install/remove works
 
+details: |
+    Smoke test to verify that snaps can be installed and removed
+
 execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
