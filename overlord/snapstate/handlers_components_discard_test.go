@@ -44,7 +44,7 @@ func (s *discardCompSnapSuite) TestDoDiscardComponent(c *C) {
 	const compName = "mycomp"
 	snapRev := snap.R(1)
 	compRev := snap.R(7)
-	ci, compPath := createTestComponent(c, snapName, compName, nil)
+	ci, compPath := createTestComponent(c, snapName, compName)
 	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
 	ssu := createTestSnapSetup(si, snapstate.Flags{})
 	s.AddCleanup(snapstate.MockReadComponentInfo(func(
@@ -96,7 +96,7 @@ func (s *discardCompSnapSuite) TestDoDiscardComponentNoUnlinkedComp(c *C) {
 	const compName = "mycomp"
 	snapRev := snap.R(1)
 	compRev := snap.R(7)
-	ci, compPath := createTestComponent(c, snapName, compName, nil)
+	ci, compPath := createTestComponent(c, snapName, compName)
 	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
 	ssu := createTestSnapSetup(si, snapstate.Flags{})
 	s.AddCleanup(snapstate.MockReadComponentInfo(func(
