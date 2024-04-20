@@ -21,12 +21,16 @@ package patterns
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"regexp"
 	"strings"
 
 	doublestar "github.com/bmatcuk/doublestar/v4"
 )
+
+var ErrNoPatterns = errors.New("cannot establish precedence: no patterns given")
 
 // Limit the number of expanded path patterns for a particular pattern.
 // When fully expanded, the number of patterns for a given unexpanded pattern
@@ -172,4 +176,200 @@ func PathPatternMatches(pattern string, path string) (bool, error) {
 	// Try again with a '/' appended to the pattern, so patterns like `/foo`
 	// match paths like `/foo/`.
 	return doublestar.Match(pattern+"/", path)
+}
+
+type priorityType int
+
+const (
+	lastPriority priorityType = iota
+	priorityGlobDoublestar
+	priorityTerminalDoublestar
+	priorityDoublestar
+	priorityGlob
+	prioritySinglestar
+	prioritySingleChar
+	priorityTerminated
+	priorityLiteral
+)
+
+type nextPatternsContainer struct {
+	currPriority     priorityType
+	nextPatternsList []*strings.Reader
+}
+
+func (np *nextPatternsContainer) addWithPriority(priority priorityType, reader *strings.Reader) {
+	if priority < np.currPriority {
+		return
+	}
+	if priority > np.currPriority {
+		np.nextPatternsList = np.nextPatternsList[:0]
+		np.currPriority = priority
+	}
+	np.nextPatternsList = append(np.nextPatternsList, reader)
+}
+
+func (np *nextPatternsContainer) nextPatterns() []*strings.Reader {
+	return np.nextPatternsList
+}
+
+// HighestPrecedencePattern determines which of the given path patterns is the
+// most specific.
+//
+// Assumes that all of the given patterns satisfy ValidatePathPattern(), so this
+// is not verified as part of this function. Additionally, also assumes that the
+// patterns have been previously expanded using ExpandPathPattern(), so there
+// are no groups in any of the patterns.
+//
+// Below are some sample patterns, in order of precedence, though precedence is
+// only guaranteed between two patterns which may match the same path:
+//
+//	# literals
+//	- /foo/bar/baz
+//	- /foo/bar/
+//	# terminated
+//	- /foo/bar
+//	# any single character
+//	- /foo/bar?baz
+//	- /foo/bar?
+//	- /foo/bar?/
+//	# singlestars
+//	- /foo/bar/*/baz
+//	- /foo/bar/*/
+//	- /foo/bar/*/*baz
+//	- /foo/bar/*/*
+//	- /foo/bar/*
+//	- /foo/bar/*/**
+//	# glob
+//	- /foo/bar*baz
+//	- /foo/bar*/baz
+//	- /foo/bar*/baz/**
+//	- /foo/bar*/
+//	- /foo/bar*/*baz
+//	- /foo/bar*/*/baz
+//	- /foo/bar*/*/
+//	- /foo/bar*/*
+//	- /foo/bar*
+//	# doublestars
+//	- /foo/bar/**/baz
+//	- /foo/bar/**/*baz/
+//	- /foo/bar/**/*baz
+//	# terminal doublestar
+//	- /foo/bar/**/        # These are tough... usually, /foo/bar/**/ would have precedence over
+//	- /foo/bar/**/*       # precedence over /foo/bar/**/*baz, but in this case,
+//	- /foo/bar/**         # the trailing *baz adds more specificity.
+//	# glob with immediate doublestar
+//	- /foo/bar*/**/baz
+//	- /foo/bar*/**/
+//	- /foo/bar*/**
+func HighestPrecedencePattern(patterns []string) (string, error) {
+	if len(patterns) == 0 {
+		return "", ErrNoPatterns
+	}
+	alreadySeen := make(map[string]bool, len(patterns))
+	patternForReader := make(map[*strings.Reader]string, len(patterns))
+	remainingPatterns := make([]*strings.Reader, 0, len(patterns))
+	for _, pattern := range patterns {
+		if alreadySeen[pattern] {
+			continue
+		}
+		alreadySeen[pattern] = true
+		if strings.HasSuffix(pattern, `\`) && !strings.HasSuffix(pattern, `\\`) {
+			return "", fmt.Errorf(`invalid path pattern: trailing unescaped '\' character: %q`, pattern)
+		}
+		reader := strings.NewReader(pattern)
+		patternForReader[reader] = pattern
+		remainingPatterns = append(remainingPatterns, reader)
+	}
+	for len(remainingPatterns) > 1 {
+		nextPatterns := nextPatternsContainer{}
+		for _, reader := range remainingPatterns {
+			r, _, err := reader.ReadRune()
+			if err != nil {
+				// No runes remaining, so pattern is terminal.
+				nextPatterns.addWithPriority(priorityTerminated, reader)
+				continue
+			}
+			// Check for '?' and '*' before '\\', since "\\*" is literal '*', etc.
+			if r == '?' {
+				nextPatterns.addWithPriority(prioritySingleChar, reader)
+				continue
+			}
+			if r == '*' {
+				if nextBytesEqual(reader, "/**") {
+					// Next parts of pattern are "*/**".
+					nextPatterns.addWithPriority(priorityGlobDoublestar, reader)
+					continue
+				}
+				nextPatterns.addWithPriority(priorityGlob, reader)
+				continue
+			}
+			if r == '\\' {
+				// Since suffix is not unescaped '\\', must have next rune.
+				r, _, _ = reader.ReadRune()
+			}
+			// Can safely check for '/' after '\\', since it is '/' either way
+			if r != '/' || !nextRuneEquals(reader, '*') {
+				// Next parts of pattern are not "/*" or "/**"
+				nextPatterns.addWithPriority(priorityLiteral, reader)
+				continue
+			}
+			// Next part of the pattern must be "/*".
+			// This pattern will only be included in the next round if all the
+			// other patterns also have "/*" next, so it's fine to remove that.
+			reader.ReadRune()             // Discard first '*' after '/'.
+			r, _, err = reader.ReadRune() // Get next rune after "/*".
+			if err != nil || r != '*' {
+				// Next parts of pattern are not "/**"
+				reader.UnreadRune() // Discard error, which occurred if EOF.
+				nextPatterns.addWithPriority(prioritySinglestar, reader)
+				continue
+			}
+			// Next part of pattern must be "/**".
+			if reader.Len() == 0 || (reader.Len() == 1 && nextRuneEquals(reader, '/')) {
+				// Pattern must terminate with "/**" or "/**/".
+				// We don't consider patterns terminating with "/**/*" or "/**/**"
+				// here, since these are equivalent to "/**" and are replaced
+				// as such by ExpandPathPatterns.
+				// Terminal "/**/*/" is more selective, and is not matched here.
+				nextPatterns.addWithPriority(priorityTerminalDoublestar, reader)
+				continue
+			}
+			// Pattern has non-terminal "/**".
+			nextPatterns.addWithPriority(priorityDoublestar, reader)
+		}
+		remainingPatterns = nextPatterns.nextPatterns()
+	}
+	reader := remainingPatterns[0]
+	pattern := patternForReader[reader]
+	return pattern, nil
+}
+
+// Return true if the next rune in the reader equals the given rune.
+func nextRuneEquals(reader *strings.Reader, r rune) bool {
+	ch, _, err := reader.ReadRune()
+	if err != nil {
+		return false
+	}
+	defer reader.UnreadRune()
+	return ch == r
+}
+
+// Return true if the next bytes in the reader equal the given string.
+func nextBytesEqual(reader *strings.Reader, s string) bool {
+	if reader.Len() < len(s) {
+		return false
+	}
+	sBytes := []byte(s)
+	rBytes := make([]byte, len(sBytes))
+	currIndex, _ := reader.Seek(0, io.SeekCurrent)
+	_, err := reader.ReadAt(rBytes, currIndex)
+	if err != nil {
+		return false
+	}
+	for i := range sBytes {
+		if rBytes[i] != sBytes[i] {
+			return false
+		}
+	}
+	return true
 }
