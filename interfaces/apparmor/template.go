@@ -1065,6 +1065,8 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   /tmp/ r,
   /usr/ r,
   /var/ r,
+  /var/lib/ r,
+  /var/lib/snapd/ r,
   /var/snap/ r,
 
   # Allow reading timezone data.
