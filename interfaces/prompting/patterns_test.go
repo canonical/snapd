@@ -20,6 +20,8 @@
 package prompting_test
 
 import (
+	"strings"
+
 	. "gopkg.in/check.v1"
 
 	doublestar "github.com/bmatcuk/doublestar/v4"
@@ -30,6 +32,320 @@ import (
 type patternsSuite struct{}
 
 var _ = Suite(&patternsSuite{})
+
+func (s *patternsSuite) TestExpandPathPattern(c *C) {
+	for _, testCase := range []struct {
+		pattern  string
+		expanded []string
+	}{
+		{
+			`/foo`,
+			[]string{`/foo`},
+		},
+		{
+			`/{foo,bar/}`,
+			[]string{`/foo`, `/bar/`},
+		},
+		{
+			`{/foo,/bar/}`,
+			[]string{`/foo`, `/bar/`},
+		},
+		{
+			`/foo**/bar/*/**baz/**/fizz*buzz/**`,
+			[]string{`/foo*/bar/*/*baz/**/fizz*buzz/**`},
+		},
+		{
+			`/{,//foo**/bar/*/**baz/**/fizz*buzz/**}`,
+			[]string{`/`, `/foo*/bar/*/*baz/**/fizz*buzz/**`},
+		},
+		{
+			`/{foo,bar,/baz}`,
+			[]string{`/foo`, `/bar`, `/baz`},
+		},
+		{
+			`/{foo,/bar,bar,/baz}`,
+			[]string{`/foo`, `/bar`, `/baz`},
+		},
+		{
+			`/foo/bar\**baz`,
+			[]string{`/foo/bar\**baz`},
+		},
+		{
+			`/foo/bar/baz/**/*.txt`,
+			[]string{`/foo/bar/baz/**/*.txt`},
+		},
+		{
+			`/foo/bar/baz/***.txt`,
+			[]string{`/foo/bar/baz/*.txt`},
+		},
+		{
+			`/foo/bar/baz******.txt`,
+			[]string{`/foo/bar/baz*.txt`},
+		},
+		{
+			`/foo/bar/baz/{?***,*?**,**?*,***?}.txt`,
+			[]string{`/foo/bar/baz/?*.txt`},
+		},
+		{
+			`/foo/bar/baz/{?***?,*?**?,**?*?,***??}.txt`,
+			[]string{`/foo/bar/baz/??*.txt`},
+		},
+		{
+			`/foo/bar/baz/{?***??,*?**??,**?*??,***???}.txt`,
+			[]string{`/foo/bar/baz/???*.txt`},
+		},
+		{
+			`/foo///bar/**/**/**/baz/***.txt/**/**/*`,
+			[]string{`/foo/bar/**/baz/*.txt/**`},
+		},
+		{
+			`{a,b}c{d,e}f{g,h}`,
+			[]string{
+				`acdfg`,
+				`acdfh`,
+				`acefg`,
+				`acefh`,
+				`bcdfg`,
+				`bcdfh`,
+				`bcefg`,
+				`bcefh`,
+			},
+		},
+		{
+			`a{{b,c},d,{e{f,{,g}}}}h`,
+			[]string{
+				`abh`,
+				`ach`,
+				`adh`,
+				`aefh`,
+				`aeh`,
+				`aegh`,
+			},
+		},
+		{
+			`a{{b,c},d,\{e{f,{,g\}}}}h`,
+			[]string{
+				`abh`,
+				`ach`,
+				`adh`,
+				`a\{efh`,
+				`a\{eh`,
+				`a\{eg\}h`,
+			},
+		},
+		{
+			"/foo/{a,{b,{c,{d,{e,{f,{g,{h,{i,{j,k}}}}}}}}}}",
+			[]string{
+				"/foo/a",
+				"/foo/b",
+				"/foo/c",
+				"/foo/d",
+				"/foo/e",
+				"/foo/f",
+				"/foo/g",
+				"/foo/h",
+				"/foo/i",
+				"/foo/j",
+				"/foo/k",
+			},
+		},
+		{
+			"/foo/{{{{{{{{{{a,b},c},d},e},f},g},h},i},j},k}",
+			[]string{
+				"/foo/a",
+				"/foo/b",
+				"/foo/c",
+				"/foo/d",
+				"/foo/e",
+				"/foo/f",
+				"/foo/g",
+				"/foo/h",
+				"/foo/i",
+				"/foo/j",
+				"/foo/k",
+			},
+		},
+	} {
+		expanded, err := prompting.ExpandPathPattern(testCase.pattern)
+		c.Check(err, IsNil, Commentf("test case: %+v", testCase))
+		c.Check(expanded, DeepEquals, testCase.expanded, Commentf("test case: %+v", testCase))
+	}
+}
+
+func (s *patternsSuite) TestExpandPathPatternUnhappy(c *C) {
+	for _, testCase := range []struct {
+		pattern string
+		errStr  string
+	}{
+		{
+			``,
+			`invalid path pattern: pattern has length 0`,
+		},
+		{
+			`/foo{bar`,
+			`invalid path pattern: unmatched '{' character.*`,
+		},
+		{
+			`/foo}bar`,
+			`invalid path pattern: unmatched '}' character.*`,
+		},
+		{
+			`/foo/bar\`,
+			`invalid path pattern: trailing unescaped '\\' character.*`,
+		},
+		{
+			`/foo/bar{`,
+			`invalid path pattern: unmatched '{' character.*`,
+		},
+		{
+			`/foo/bar{baz\`,
+			`invalid path pattern: trailing unescaped '\\' character.*`,
+		},
+		{
+			`/foo/bar{baz{\`,
+			`invalid path pattern: trailing unescaped '\\' character.*`,
+		},
+		{
+			`/foo/bar{baz{`,
+			`invalid path pattern: unmatched '{' character.*`,
+		},
+		{
+			`/foo/{a,b}{c,d}{e,f}{g,h}{i,j}{k,l}{m,n}{o,p}{q,r}{s,t}{w,x}`,
+			`invalid path pattern: exceeded maximum number of expanded path patterns.*`,
+		},
+	} {
+		result, err := prompting.ExpandPathPattern(testCase.pattern)
+		c.Check(result, IsNil)
+		c.Check(err, ErrorMatches, testCase.errStr)
+	}
+}
+
+func (s *patternsSuite) TestValidatePathPattern(c *C) {
+	for _, pattern := range []string{
+		"/",
+		"/*",
+		"/**",
+		"/**/*.txt",
+		"/foo",
+		"/foo/",
+		"/foo/file.txt",
+		"/foo*",
+		"/foo*bar",
+		"/foo*bar/baz",
+		"/foo/bar*baz",
+		"/foo/*",
+		"/foo/*bar",
+		"/foo/*bar/",
+		"/foo/*bar/baz",
+		"/foo/*bar/baz/",
+		"/foo/*/",
+		"/foo/*/bar",
+		"/foo/*/bar/",
+		"/foo/*/bar/baz",
+		"/foo/*/bar/baz/",
+		"/foo/**/bar",
+		"/foo/**/bar/",
+		"/foo/**/bar/baz",
+		"/foo/**/bar/baz/",
+		"/foo/**/bar*",
+		"/foo/**/bar*baz",
+		"/foo/**/bar*baz/",
+		"/foo/**/bar*/",
+		"/foo/**/bar*/baz",
+		"/foo/**/bar*/baz/fizz/",
+		"/foo/**/bar/*",
+		"/foo/**/bar/*.tar.gz",
+		"/foo/**/bar/*baz",
+		"/foo/**/bar/*baz/fizz/",
+		"/foo/**/bar/*/",
+		"/foo/**/bar/*baz",
+		"/foo/**/bar/buzz/*baz/",
+		"/foo/**/bar/*baz/fizz",
+		"/foo/**/bar/buzz/*baz/fizz/",
+		"/foo/**/bar/*/baz",
+		"/foo/**/bar/buzz/*/baz/",
+		"/foo/**/bar/*/baz/fizz",
+		"/foo/**/bar/buzz/*/baz/fizz/",
+		"/foo/**/bar/buzz*baz/fizz/",
+		"/foo/**/*bar",
+		"/foo/**/*bar/",
+		"/foo/**/*bar/baz.tar.gz",
+		"/foo/**/*bar/baz/",
+		"/foo/**/*/",
+		"/foo/**/*/bar",
+		"/foo/**/*/bar/baz/",
+		"/foo{,/,bar,*baz,*.baz,/*fizz,/*.fizz,/**/*buzz}",
+		"/foo/{,*.bar,**/baz}",
+		"/foo/bar/*",
+		"/foo/bar/*.tar.gz",
+		"/foo/bar/**",
+		"/foo/bar/**/*.zip",
+		"/foo/bar/**/*.tar.gz",
+		`/foo/bar\,baz`,
+		`/foo/bar\{baz`,
+		`/foo/bar\\baz`,
+		`/foo/bar\*baz`,
+		`/foo/bar{,/baz/*,/fizz/**/*.txt}`,
+		"/foo/*/bar",
+		"/foo/bar/",
+		"/foo/**/bar",
+		"/foo/bar*",
+		"/foo/bar*.txt",
+		"/foo/bar/*txt",
+		"/foo/bar/**/file.txt",
+		"/foo/bar/*/file.txt",
+		"/foo/bar/**/*txt",
+		"/foo/bar**",
+		"/foo/bar/**.txt",
+		"/foo/ba,r",
+		"/foo/ba,r/**/*.txt",
+		"/foo/bar/**/*.txt,md",
+		"/foo//bar",
+		"/foo{//,bar}",
+		"/foo{//*.bar,baz}",
+		"/foo/{/*.bar,baz}",
+		"/foo/*/**",
+		"/foo/*/bar/**",
+		"/foo/*/bar/*",
+		"/foo{bar,/baz}{fizz,buzz}",
+		"/foo{bar,/baz}/{fizz,buzz}",
+		"/foo?bar",
+		"/foo/{a,b}{c,d}{e,f}{g,h}{i,j}{k,l}{m,n}{o,p}{q,r}", // expands to 512
+		"/foo/{a,{b,{c,{d,{e,{f,{g,{h,{i,{j,{k,{l,{m,{n,{o,p}}}}}}}}}}}}}}}",
+		"/foo/{{{{{{{{{{{{{{{a,b},c},d},e},f},g},h},i},j},k},l},m},n},o},p}",
+		"/foo/{a,b}{c,d}{e,f}{g,h,i,j,k}{l,m,n,o,p}{q,r,s,t,u}",       // expands to 1000
+		"/foo/{a,b}{c,d}{e,f}{g,h,i,j,k}{l,m,n,o,p}{q,r,s,t,u},1,2,3", // expands to 1000, with commas outside groups
+		"/" + strings.Repeat("{a,", 999) + "a" + strings.Repeat("}", 999),
+		"/" + strings.Repeat("{", 999) + "a" + strings.Repeat(",a}", 999),
+	} {
+		c.Check(prompting.ValidatePathPattern(pattern), IsNil, Commentf("valid path pattern %q was incorrectly not allowed", pattern))
+	}
+
+	for _, pattern := range []string{
+		"file.txt",
+		"/foo/bar{/**/*.txt",
+		"/foo/bar}/**/*.txt",
+		"/foo/bar/**/*.{txt",
+		"/foo/bar/**/*.}txt",
+		"{,/foo}",
+		"{/,foo}",
+		"/foo/ba[rz]",
+		`/foo/bar\`,
+		"/foo/{a,b}{c,d}{e,f}{g,h}{i,j}{k,l}{m,n}{o,p}{q,r}{s,t}",                // expands to 1024
+		"/foo/{a,b,c,d,e,f,g}{h,i,j,k,l,m,n,o,p,q,r}{s,t,u,v,w,x,y,z,1,2,3,4,5}", // expands to 1001
+	} {
+		c.Check(prompting.ValidatePathPattern(pattern), ErrorMatches, "invalid path pattern.*", Commentf("invalid path pattern %q was incorrectly allowed", pattern))
+	}
+
+	// Check that too-deeply-nested patterns throw an error before fully expanding
+	for _, pattern := range []string{
+		"/" + strings.Repeat("{a,", 1000) + "a" + strings.Repeat("}", 1000),
+		"/" + strings.Repeat("{", 1000) + "a" + strings.Repeat(",a}", 1000),
+		"/" + strings.Repeat("{", 10000),
+	} {
+		c.Check(prompting.ValidatePathPattern(pattern), ErrorMatches, "invalid path pattern: nested group depth exceeded maximum number of expanded path patterns.*")
+	}
+}
 
 func (s *patternsSuite) TestPathPatternMatch(c *C) {
 	cases := []struct {
