@@ -120,6 +120,9 @@
     # To find if apparmor is enabled
     /sys/module/apparmor/parameters/enabled r,
 
+    # For detecting if we're in a container
+    /run/systemd/container r,
+
     # Don't allow changing profile to unconfined or profiles that start with
     # '/'. Use 'unsafe' to support snap-exec on armhf and its reliance on
     # the environment for determining the capabilities of the architecture.
