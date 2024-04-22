@@ -1,5 +1,16 @@
 summary: regression test for https://bugs.launchpad.net/snapd/+bug/1815722
 
+details: |
+    Snapd runs certain hooks during the installation of a package. If a certain
+    hook fails, snapd will abort the installation of the package and undo all
+    the tasks that had been executed. As a part of that process, it is important
+    that the preserved mount namespace that is created for the hook is
+    discarded, as it otherwise may prevent subsequent installation of a snap
+    with the same name to fail.
+
+    The test installs an specially crafted snap and ensures that the mount
+    namespace is not left behind.
+
 restore: |
     snapd.tool exec snap-discard-ns snap-hooks-bad-install
 
