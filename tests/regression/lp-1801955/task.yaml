@@ -1,5 +1,15 @@
 summary: Check that snapshot works with unknown users in /home/*/snap
 
+details: |
+    Snapd can create data snapshots containing per-user data for a particular
+    snap. Normally those files are stored in the $HOME/snap directory (or the
+    hidden alternative) but are made for all the users of the system. The way
+    snapd enumerates users is complicated, but it relies on being able to find
+    the name of the user. The test creates a directory that looks like a home
+    directory of a user "potato", but the actual user is not in the static user
+    database, causing snapd to skip archiving data from that "user" without
+    failing.
+
 prepare: |
     snap install test-snapd-sh
     not grep :9999: /etc/passwd
