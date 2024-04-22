@@ -213,7 +213,7 @@ func ScopedSecurityTag(snapName, scopeName, suffix string) string {
 func SplitSecurityTag(tag string) (string, error) {
 	errMsg := fmt.Errorf("invalid security tag: must be of the form 'snap.<snap>' or 'snap.<snap>.<app>': %q", tag)
 	l := strings.SplitN(tag, ".", 3)
-	if len(l) < 2 || l[0] != "snap" || len(l[1]) == 0 {
+	if len(l) < 2 || l[0] != "snap" || len(l[1]) == 0 || (len(l) == 3 && len(l[2]) == 0) {
 		return "", errMsg
 	}
 	return l[1], nil

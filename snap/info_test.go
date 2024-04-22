@@ -286,6 +286,7 @@ func (s *infoSuite) TestSplitSecurityTagUnhappy(c *C) {
 		"snap.",
 		"SNAP.foo",
 		"SNAP.FOO",
+		"snap.foo.",
 	}
 	for _, testCase := range cases {
 		snap, err := snap.SplitSecurityTag(testCase)
