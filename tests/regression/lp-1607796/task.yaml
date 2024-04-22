@@ -1,4 +1,13 @@
-summary: Check that /root is bind mounted to the real /root
+summary: Regression test for https://bugs.launchpad.net/snap-confine/+bug/1607796
+
+details: |
+    During construction of the snap execution environment, the snap-confine
+    program runs under apparmor confinement and needs to have permission to
+    mount the /root directory from the host system into the snap execution
+    environment being constructed. If snap-confine lacks permission to mount
+    that directory a snap running in devmode, with non-enforced confinement,
+    would not be able to see any files in the /root directory as seen from
+    the perspective of the running snap application.
 
 prepare: |
     echo "Having installed a test snap in devmode"
