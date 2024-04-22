@@ -3,7 +3,7 @@ summary: Check that installing and running a snap works
 restore: |
     rm -f /home/test/stderr.log
     rm -f /home/test/stdout.log
-    # requied! in autopkgtest no suite restore is run at all
+    # required! in autopkgtest no suite restore is run at all
     snap remove --purge test-snapd-sh
 
 debug: |
