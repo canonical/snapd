@@ -163,7 +163,7 @@ func MockBackendImport(f func(context.Context, uint64, io.Reader, *backend.Impor
 	}
 }
 
-func MockBackenCleanupAbandonedImports(f func() (int, error)) (restore func()) {
+func MockBackendCleanupAbandonedImports(f func() (int, error)) (restore func()) {
 	old := backendCleanupAbandonedImports
 	backendCleanupAbandonedImports = f
 	return func() {
