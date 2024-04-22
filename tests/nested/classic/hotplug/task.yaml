@@ -97,7 +97,7 @@ execute: |
     remote.exec "sudo snap connect serial-port-hotplug:serial-port :qemuusbserial"
     check_slot_connected qemuusbserial
 
-    echo "Veryfing serial-port permissions of the snap"
+    echo "Verifying serial-port permissions of the snap"
     verify_apparmor_profile "/dev/ttyUSB0"
     remote.exec "/snap/bin/serial-port-hotplug.consumer write-1" | MATCH "Access to /dev/ttyUSB0 ok"
     remote.exec "/snap/bin/serial-port-hotplug.consumer write-2" | MATCH "Access to /dev/ttyUSB1 failed"
@@ -133,7 +133,7 @@ execute: |
     check_slot_connected qemuusbserial
     check_slot_not_gone qemuusbserial
 
-    echo "Veryfing serial-port permissions of the snap, the first device is now expected on ttyUSB1"
+    echo "Verifying serial-port permissions of the snap, the first device is now expected on ttyUSB1"
     check_slot_device_path qemuusbserial "/dev/ttyUSB1"
     verify_apparmor_profile "/dev/ttyUSB1"
     remote.exec "/snap/bin/serial-port-hotplug.consumer write-3" | MATCH "Access to /dev/ttyUSB0 failed"
