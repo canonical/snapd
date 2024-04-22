@@ -2,7 +2,7 @@ summary: Sandboxing of the snaps works
 
 restore: |
     rm -f /home/test/foo
-    # requied! in autopkgtest no suite restore is run at all
+    # required! in autopkgtest no suite restore is run at all
     snap remove --purge test-snapd-sandbox
     snap remove --purge test-snapd-hello-multi-arch
 
