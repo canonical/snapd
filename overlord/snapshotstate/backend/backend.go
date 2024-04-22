@@ -694,14 +694,14 @@ func (t *importTransaction) unlock() error {
 
 var filepathGlob = filepath.Glob
 
-// CleanupAbandondedImports will clean any import that is in progress.
+// CleanupAbandonedImports will clean any import that is in progress.
 // This is meant to be called at startup of snapd before any real imports
 // happen. It is not safe to run this concurrently with any other snapshot
 // operation.
 //
 // The amount of snapshots cleaned is returned and an error if one or
 // more cleanups did not succeed.
-func CleanupAbandondedImports() (cleaned int, err error) {
+func CleanupAbandonedImports() (cleaned int, err error) {
 	inProgressSnapshots, err := filepathGlob(filepath.Join(dirs.SnapshotsDir, importingFnGlob))
 	if err != nil {
 		return 0, err
