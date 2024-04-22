@@ -1008,7 +1008,7 @@ func (se *SnapshotExport) Init() error {
 	// but a known issue with this approach here.
 	var sz osutil.Sizer
 	if err := se.StreamTo(&sz); err != nil {
-		return fmt.Errorf("cannot calculcate the size for %v: %s", se.setID, err)
+		return fmt.Errorf("cannot calculate the size for %v: %s", se.setID, err)
 	}
 	se.size = sz.Size()
 	return nil
