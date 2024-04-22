@@ -238,7 +238,7 @@ func (s *systemKeySuite) TestInterfaceSystemKeyMismatchParserMtimeHappy(c *C) {
 }
 
 func (s *systemKeySuite) TestInterfaceSystemKeyMismatchVersions(c *C) {
-	// we calculcate v1
+	// we calculate v1
 	s.AddCleanup(interfaces.MockSystemKey(`
 {
 "version":1,
