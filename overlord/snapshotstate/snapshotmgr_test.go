@@ -888,7 +888,7 @@ func (rs *readerSuite) TestDoForgetRemovesAutomaticSnapshotExpiry(c *check.C) {
 
 func (snapshotSuite) TestManagerRunCleanupAbandonedImportsAtStartup(c *check.C) {
 	n := 0
-	restore := snapshotstate.MockBackenCleanupAbandonedImports(func() (int, error) {
+	restore := snapshotstate.MockBackendCleanupAbandonedImports(func() (int, error) {
 		n++
 		return 0, nil
 	})
@@ -910,7 +910,7 @@ func (snapshotSuite) TestManagerRunCleanupAbandonedImportsAtStartupErrorLogged(c
 	defer restore()
 
 	n := 0
-	restore = snapshotstate.MockBackenCleanupAbandonedImports(func() (int, error) {
+	restore = snapshotstate.MockBackendCleanupAbandonedImports(func() (int, error) {
 		n++
 		return 0, errors.New("some error")
 	})
