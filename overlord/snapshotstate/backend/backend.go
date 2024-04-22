@@ -566,7 +566,7 @@ func (me *multiError) Error() string {
 	return me.nestedError(0)
 }
 
-// helper to ensure formating of nested multiErrors works.
+// helper to ensure formatting of nested multiErrors works.
 func (me *multiError) nestedError(level int) string {
 	indent := strings.Repeat(" ", level)
 	buf := bytes.NewBufferString(fmt.Sprintf("%s:\n", me.header))
