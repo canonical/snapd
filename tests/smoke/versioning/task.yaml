@@ -1,5 +1,13 @@
 summary: Check that the version is not dirty
 
+details: |
+    Snapd has a script that generates the version string based on the Debian
+    changelog file or on Git history, and the status of the git repository. When
+    Git-based version is computed, it could contain the word "dirty" if the
+    working directory contains uncommitted changes. We want to make sure this
+    doesn't happen in CI, where it could indicate that part of the tests
+    modified the code in unintended ways.
+
 execute: |
     # TODO: fix dirty version number on riscv
     echo "Ensure the version number is not 'dirty'"
