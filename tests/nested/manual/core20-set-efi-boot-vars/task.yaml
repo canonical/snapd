@@ -13,12 +13,28 @@ systems:
 environment:
     DESCRIPTION/BOOTDIR: "Install with assets in EFI/boot/, then update to gadget with assets in EFI/ubuntu/"
     DESCRIPTION/UBUNTUDIR: "Install with assets in EFI/ubuntu/, then update to gadget with assets in EFI/boot/"
+    DESCRIPTION/BOOTDIR_NOSEC: "Install with assets in EFI/boot/, then update to gadget with assets in EFI/ubuntu/ (no secure boot)"
+    DESCRIPTION/UBUNTUDIR_NOSEC: "Install with assets in EFI/ubuntu/, then update to gadget with assets in EFI/boot/ (no secure boot)"
 
     INITIAL_ASSET_DIR/BOOTDIR: "boot"
     INITIAL_ASSET_DIR/UBUNTUDIR: "ubuntu"
+    INITIAL_ASSET_DIR/BOOTDIR_NOSEC: "boot"
+    INITIAL_ASSET_DIR/UBUNTUDIR_NOSEC: "ubuntu"
 
     FINAL_ASSET_DIR/BOOTDIR: "ubuntu"
     FINAL_ASSET_DIR/UBUNTUDIR: "boot"
+    FINAL_ASSET_DIR/BOOTDIR_NOSEC: "ubuntu"
+    FINAL_ASSET_DIR/UBUNTUDIR_NOSEC: "boot"
+
+    NESTED_ENABLE_TPM/BOOTDIR: "true"
+    NESTED_ENABLE_TPM/UBUNTUDIR: "true"
+    NESTED_ENABLE_TPM/BOOTDIR_NOSEC: "false"
+    NESTED_ENABLE_TPM/UBUNTUDIR_NOSEC: "false"
+
+    NESTED_ENABLE_SECURE_BOOT/BOOTDIR: "true"
+    NESTED_ENABLE_SECURE_BOOT/UBUNTUDIR: "true"
+    NESTED_ENABLE_SECURE_BOOT/BOOTDIR_NOSEC: "false"
+    NESTED_ENABLE_SECURE_BOOT/UBUNTUDIR_NOSEC: "false"
 
 prepare: |
     snap install yq
@@ -130,7 +146,7 @@ execute: |
 
     rm -rf BootVars/
     "${TESTSLIB}/pull_uefi_boot_entries.sh" BootVars/
-    # Create boot entry is first in order
+    # Created boot entry is first in order
     "${TESTSLIB}/get_uefi_boot_entry.py" BootVars/ | NOMATCH fallback-created
     "${TESTSLIB}/get_uefi_boot_entry.py" BootVars/ | MATCH ubuntu
     # It is also the current boot entry
@@ -157,6 +173,11 @@ execute: |
             ERROR "Invalid initial asset dir: ${FINAL_ASSET_DIR}"
             ;;
     esac
+
+    if [ "${FINAL_ASSET_DIR}" = "ubuntu" ]; then
+      # make the entry different for fallback
+      sed -i 's/,ubuntu,/,fallback-created,/g' "pc-gadget/BOOT${ARCH^^}.CSV"
+    fi
 
     echo "Get snakeoil key"
     KEY_NAME=$(tests.nested download snakeoil-key)
