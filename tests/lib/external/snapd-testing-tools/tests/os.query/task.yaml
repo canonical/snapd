@@ -1,8 +1,8 @@
 summary: smoke test for the os.query tool
 
 details: |
-    Check the os.query tool detects properly the current system. Also
-    verify the versions comparison works.
+    Check the os.query tool properly detects the current system. Also
+    verify the version comparison works.
 
 backends: [google]
 
