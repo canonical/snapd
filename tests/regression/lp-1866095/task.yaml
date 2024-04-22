@@ -1,5 +1,14 @@
 summary: services see proxy settings
 
+details: |
+    On Ubuntu Core systems, snapd provides a way to centrally manage the HTTP
+    proxy, using the snap configuration system, on the reserved snap name
+    "system". Due to a flaw, this setting was only visible to
+    interactively-running application but not to services.
+
+    The test sets the proxy and ensures it was visible to service provided by a
+    snap package.
+
 # Proxy settings are only honored on core systems.
 systems: [ubuntu-core-*]
 
