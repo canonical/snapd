@@ -35,7 +35,7 @@ execute: |
     remote.exec "sudo snap refresh --${NESTED_CORE_REFRESH_CHANNEL} core" || true
 
     if ! tests.nested wait-for ssh; then
-        echo "ssh not stablished, exiting..."
+        echo "ssh connection not established, exiting..."
         exit 1
     fi
 
@@ -50,7 +50,7 @@ execute: |
     remote.exec "sudo snap revert core" || true
 
     if ! tests.nested wait-for ssh; then
-        echo "ssh not stablished, exiting..."
+        echo "ssh connection not established, exiting..."
         exit 1
     fi
 
