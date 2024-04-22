@@ -77,6 +77,6 @@ execute: |
     if os.query is-pc-amd64; then
         echo "Ensure secondary arch works for amd64 with i386 binaries"
         snap install --edge test-snapd-hello-multi-arch
-        # this will fail if the seccomp seconardy arch handling is broken
+        # this will fail if the seccomp secondary arch handling is broken
         test-snapd-hello-multi-arch.hello-i386 | MATCH Hello
     fi
