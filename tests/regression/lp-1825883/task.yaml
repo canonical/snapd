@@ -13,6 +13,9 @@ details: |
     interface and updates one of them, to ensure that the expected changes
     coming from the second version of the snap are reflected in the system.
 
+    This test is related to lp-1942266 which handles the case for "system-files"
+    interface.
+
 prepare: |
     snap pack test-snapd-app
     snap pack test-snapd-content.v1
