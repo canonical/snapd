@@ -69,7 +69,7 @@ execute: |
     remote.wait-for snap-command
     remote.exec "sudo snap wait system seed.loaded"
 
-    echo "Prepare snapd snapto install with the fix"
+    echo "Prepare snapd snap to install with the fix"
     # if we are not building from current, then we need to prep the snapd snap
     # to install with the fix, this simulates/verifies that devices in the field
     # without the fix will actually be fixed after they refresh
