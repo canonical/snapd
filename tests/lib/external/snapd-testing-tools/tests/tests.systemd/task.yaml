@@ -1,7 +1,7 @@
 summary: smoke test for the tests.systemd tool
 
 details: |
-    Check the tests.systemd manages properly systemd services.
+    Check the tests.systemd properly manages systemd services.
     Verify the tool is able to create units, wait for status and
     stop units.
 
