@@ -1,4 +1,4 @@
-summary: sevices see proxy settings
+summary: services see proxy settings
 
 # Proxy settings are only honored on core systems.
 systems: [ubuntu-core-*]
