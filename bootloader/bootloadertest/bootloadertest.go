@@ -433,11 +433,14 @@ type MockTrustedAssetsMixin struct {
 	StaticCommandLine          string
 	CandidateStaticCommandLine string
 	CommandLineErr             error
+}
 
-	EfiLoadOptionErr     error
-	EfiLoadOptionDesc    string
-	EfiLoadOptionPath    string
-	EfiLoadOptionData    []byte
+type MockEfiLoadOptionMixin struct {
+	EfiLoadOptionErr  error
+	EfiLoadOptionDesc string
+	EfiLoadOptionPath string
+	EfiLoadOptionData []byte
+	SeenUpdatedAssets [][]string
 }
 
 // MockTrustedAssetsBootloader mocks a bootloader implementing the
@@ -448,13 +451,27 @@ type MockTrustedAssetsBootloader struct {
 	MockTrustedAssetsMixin
 }
 
+type MockTrustedAssetsBootloaderWithEfi struct {
+	*MockBootloader
+
+	MockTrustedAssetsMixin
+	MockEfiLoadOptionMixin
+}
+
 func (b *MockBootloader) WithTrustedAssets() *MockTrustedAssetsBootloader {
 	return &MockTrustedAssetsBootloader{
 		MockBootloader: b,
 	}
 }
 
-func (b *MockTrustedAssetsBootloader) ParametersForEfiLoadOption(updatedAssets []string) (string, string, []byte, error) {
+func (b *MockBootloader) WithTrustedAssetsAndEfi() *MockTrustedAssetsBootloaderWithEfi {
+	return &MockTrustedAssetsBootloaderWithEfi{
+		MockBootloader: b,
+	}
+}
+
+func (b *MockEfiLoadOptionMixin) ParametersForEfiLoadOption(updatedAssets []string) (string, string, []byte, error) {
+	b.SeenUpdatedAssets = append(b.SeenUpdatedAssets, updatedAssets)
 	if b.EfiLoadOptionErr != nil {
 		return "", "", nil, b.EfiLoadOptionErr
 	} else {

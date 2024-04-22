@@ -301,7 +301,7 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 
 	if grade != "" {
 		bootDir := c.MkDir()
-		tbl := bootloadertest.Mock("trusted", bootDir).WithTrustedAssets()
+		tbl := bootloadertest.Mock("trusted", bootDir).WithTrustedAssetsAndEfi()
 		tbl.TrustedAssetsMap = map[string]string{"trusted-asset": "trusted-asset"}
 		tbl.ManagedAssetsList = []string{"managed-asset"}
 		tbl.EfiLoadOptionDesc = "ubuntu-test"

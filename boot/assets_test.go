@@ -2803,3 +2803,160 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedNonEncryption(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(resealCalls, Equals, 0)
 }
+
+func (s *assetsSuite) TestUpdateBootEntryOnUpdate(c *C) {
+	tab := bootloadertest.Mock("trusted", "").WithTrustedAssetsAndEfi()
+
+	tab.TrustedAssetsMap = map[string]string{
+		"A": "chain1-asset1",
+		"B": "chain1-asset2",
+		"C": "chain2-asset1",
+		"D": "chain2-asset2",
+	}
+	tab.RecoveryBootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "chain1-asset1", bootloader.RoleRecovery),
+		bootloader.NewBootFile("", "chain1-asset2", bootloader.RoleRecovery),
+		bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery),
+	}
+	tab.BootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "chain2-asset1", bootloader.RoleRecovery),
+		bootloader.NewBootFile("", "chain2-asset2", bootloader.RoleRecovery),
+		bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRunMode),
+	}
+
+	tab.EfiLoadOptionDesc = "bootentry"
+	tab.EfiLoadOptionPath = "/some/path"
+
+	bootloader.Force(tab)
+	defer bootloader.Force(nil)
+
+	uc20Model := boottest.MakeMockUC20Model()
+
+	efiVariablesSet := 0
+	boot.MockSetEfiBootVariables(func(description string, assetPath string, optionalData []byte) error {
+		c.Check(description, Equals, "bootentry")
+		c.Check(assetPath, Equals, "/some/path")
+		efiVariablesSet += 1
+		return nil
+	})
+
+	d := c.MkDir()
+
+	obs, err := boot.TrustedAssetsUpdateObserverForModel(uc20Model, d)
+	c.Assert(err, IsNil)
+	c.Check(obs, NotNil)
+
+	m := boot.Modeenv{
+		Mode: "run",
+	}
+	err = m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	root := c.MkDir()
+
+	c.Assert(os.WriteFile(filepath.Join(d, "C"), []byte("C"), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "D"), []byte("D"), 0644), IsNil)
+
+	change := &gadget.ContentChange{After: filepath.Join(d, "C")}
+	res, err := obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "C", change)
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, gadget.ChangeApply)
+
+	change = &gadget.ContentChange{After: filepath.Join(d, "D")}
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, root, "D", change)
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, gadget.ChangeApply)
+
+	obs.Done()
+
+	err = obs.UpdateBootEntry()
+	c.Assert(err, IsNil)
+
+	c.Check(efiVariablesSet, Equals, 1)
+	c.Assert(tab.SeenUpdatedAssets, HasLen, 1)
+	foundAsset1 := 0
+	foundAsset2 := 0
+	foundOther := 0
+	for _, v := range tab.SeenUpdatedAssets[0] {
+		if v == "chain2-asset1" {
+			foundAsset1 += 1
+		} else if v == "chain2-asset2" {
+			foundAsset2 += 1
+		} else {
+			foundOther += 1
+		}
+	}
+	c.Check(foundAsset1, Equals, 1)
+	c.Check(foundAsset2, Equals, 1)
+	c.Check(foundOther, Equals, 0)
+}
+
+func (s *assetsSuite) TestUpdateBootEntryOnInstall(c *C) {
+	tab := bootloadertest.Mock("trusted", "").WithTrustedAssetsAndEfi()
+
+	tab.TrustedAssetsMap = map[string]string{
+		"A": "chain1-asset1",
+		"B": "chain1-asset2",
+		"C": "chain2-asset1",
+		"D": "chain2-asset2",
+	}
+	tab.RecoveryBootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "chain1-asset1", bootloader.RoleRecovery),
+		bootloader.NewBootFile("", "chain1-asset2", bootloader.RoleRecovery),
+		bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery),
+	}
+	tab.BootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "chain2-asset1", bootloader.RoleRecovery),
+		bootloader.NewBootFile("", "chain2-asset2", bootloader.RoleRecovery),
+		bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRunMode),
+	}
+
+	tab.EfiLoadOptionDesc = "bootentry"
+	tab.EfiLoadOptionPath = "/some/path"
+
+	bootloader.Force(tab)
+	defer bootloader.Force(nil)
+
+	uc20Model := boottest.MakeMockUC20Model()
+
+	efiVariablesSet := 0
+	boot.MockSetEfiBootVariables(func(description string, assetPath string, optionalData []byte) error {
+		c.Check(description, Equals, "bootentry")
+		c.Check(assetPath, Equals, "/some/path")
+		efiVariablesSet += 1
+		return nil
+	})
+
+	d := c.MkDir()
+
+	encryption := false
+	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, encryption)
+	c.Assert(err, IsNil)
+	c.Check(obs, NotNil)
+
+	c.Assert(os.WriteFile(filepath.Join(d, "C"), []byte("C"), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, "D"), []byte("D"), 0644), IsNil)
+
+	obs.ObserveExistingTrustedRecoveryAssets(d)
+
+	err = obs.UpdateBootEntry()
+	c.Assert(err, IsNil)
+
+	c.Check(efiVariablesSet, Equals, 1)
+	c.Assert(tab.SeenUpdatedAssets, HasLen, 1)
+	foundAsset1 := 0
+	foundAsset2 := 0
+	foundOther := 0
+	for _, v := range tab.SeenUpdatedAssets[0] {
+		if v == "chain2-asset1" {
+			foundAsset1 += 1
+		} else if v == "chain2-asset2" {
+			foundAsset2 += 1
+		} else {
+			foundOther += 1
+		}
+	}
+	c.Check(foundAsset1, Equals, 1)
+	c.Check(foundAsset2, Equals, 1)
+	c.Check(foundOther, Equals, 0)
+}

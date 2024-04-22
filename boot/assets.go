@@ -201,7 +201,8 @@ func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string
 	if err != nil {
 		return nil, err
 	}
-	if !useEncryption {
+	_, seedBlHasEfiEntries := seedBl.(bootloader.UefiBootloader)
+	if !useEncryption && !seedBlHasEfiEntries {
 		// we do not care about trusted assets when not encrypting data
 		// partition
 		runTrusted = nil
@@ -417,11 +418,13 @@ func TrustedAssetsUpdateObserverForModel(model *asserts.Model, gadgetDir string)
 		return nil, err
 	}
 
+	_, seedBlHasEfiEntries := seedBl.(bootloader.UefiBootloader)
+
 	hasManaged := len(runManaged) > 0 || len(seedManaged) > 0
 	hasTrusted := len(runTrusted) > 0 || len(seedTrusted) > 0
 	if !hasManaged {
 		// no managed assets
-		if !hasTrusted || !trackTrustedAssets {
+		if !hasTrusted || (!trackTrustedAssets && !seedBlHasEfiEntries) {
 			// no trusted assets or we are not tracking them either
 			return nil, ErrObserverNotApplicable
 		}
@@ -437,7 +440,7 @@ func TrustedAssetsUpdateObserverForModel(model *asserts.Model, gadgetDir string)
 		seedBootloader:    seedBl,
 		seedManagedAssets: seedManaged,
 	}
-	if trackTrustedAssets {
+	if trackTrustedAssets || seedBlHasEfiEntries {
 		obs.seedTrustedAssets = seedTrusted
 		obs.bootTrustedAssets = runTrusted
 	}
