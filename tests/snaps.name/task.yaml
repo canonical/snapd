@@ -1,7 +1,7 @@
 summary: smoke test for the snaps.name tool
 
-detrails: |
-    Check the snaps.name tool retrieves properly the names of the
+details: |
+    Check the snaps.name tool properly retrieves the names of the
     gadget and kernel snaps installed in the system. Also verifies
     the snap-sufix command works properly.
 

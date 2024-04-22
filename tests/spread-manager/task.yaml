@@ -1,7 +1,7 @@
 summary: smoke test for the spread-manager tool
 
 details: |
-    Check the spread-manager tool allows to set a list of tests as manual.
+    Check the spread-manager tool allows setting a list of tests as manual.
     Also checks manual tag can be removed for a list of tests.
 
 backends: [google]
