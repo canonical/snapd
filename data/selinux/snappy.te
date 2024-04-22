@@ -761,6 +761,10 @@ kernel_unmount_proc(snappy_confine_t)
 seutil_read_file_contexts(snappy_confine_t)
 term_mount_pty_fs(snappy_confine_t)
 
+# check if /run/systemd/container
+# note, it's unlikely we're ever going to need to read that file on Fedora
+init_search_pid_dirs(snappy_confine_t)
+
 # device group
 fs_manage_cgroup_dirs(snappy_confine_t)
 fs_manage_cgroup_files(snappy_confine_t)
