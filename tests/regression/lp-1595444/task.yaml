@@ -11,7 +11,7 @@ systems: [-ubuntu-core-*, -debian-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*,
 prepare: |
     echo "Having installed the test snap"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
-    echo "Hanving created a directory not present in the core snap"
+    echo "Having created a directory not present in the core snap"
     mkdir -p "/foo"
 
 restore: |
