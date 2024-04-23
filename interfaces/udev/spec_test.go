@@ -40,6 +40,8 @@ type specSuite struct {
 	plug     *interfaces.ConnectedPlug
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
+
+	oldCallCleanup func()
 }
 
 var _ = Suite(&specSuite{
@@ -86,6 +88,11 @@ slots:
 	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
 	s.slotInfo = info2.Slots["name"]
 	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
+	s.oldCallCleanup = udev.MockUseOldCall(false)
+}
+
+func (s *specSuite) TearDownSuite(c *C) {
+	s.oldCallCleanup()
 }
 
 func (s *specSuite) SetUpTest(c *C) {
@@ -170,4 +177,46 @@ func (s *specSuite) TestControlsDeviceCgroup(c *C) {
 	c.Assert(s.spec.ControlsDeviceCgroup(), Equals, false)
 	s.spec.SetControlsDeviceCgroup()
 	c.Assert(s.spec.ControlsDeviceCgroup(), Equals, true)
+}
+
+func (s *specSuite) TestOldVersion(c *C) {
+	defer func() { dirs.SetRootDir("") }()
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+	defer udev.MockUseOldCall(true)()
+
+	dirs.SetRootDir("")
+	// TagDevice acts in the scope of the plug/slot (as appropriate) and
+	// affects all of the apps and hooks related to the given plug or slot
+	// (with the exception that slots cannot have hooks).
+	iface := &ifacetest.TestInterface{
+		InterfaceName: "iface-1",
+		UDevConnectedPlugCallback: func(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+			spec.TagDevice(`kernel="voodoo"`)
+			return nil
+		},
+	}
+	c.Assert(s.spec.AddConnectedPlug(iface, s.plug, s.slot), IsNil)
+
+	iface = &ifacetest.TestInterface{
+		InterfaceName: "iface-2",
+		UDevConnectedPlugCallback: func(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+			spec.TagDevice(`kernel="hoodoo"`)
+			return nil
+		},
+	}
+	c.Assert(s.spec.AddConnectedPlug(iface, s.plug, s.slot), IsNil)
+
+	c.Assert(s.spec.Snippets(), DeepEquals, []string{
+		`# iface-1
+kernel="voodoo", TAG+="snap_snap1_foo"`,
+		`# iface-2
+kernel="hoodoo", TAG+="snap_snap1_foo"`,
+		`TAG=="snap_snap1_foo", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_snap1_foo $devpath $major:$minor"`,
+		`# iface-1
+kernel="voodoo", TAG+="snap_snap1_hook_configure"`,
+		`# iface-2
+kernel="hoodoo", TAG+="snap_snap1_hook_configure"`,
+		`TAG=="snap_snap1_hook_configure", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_snap1_hook_configure $devpath $major:$minor"`,
+	})
 }

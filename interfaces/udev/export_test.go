@@ -22,3 +22,21 @@ package udev
 func (b *Backend) ReloadRules(subsystemTriggers []string) error {
 	return b.reloadRules(subsystemTriggers)
 }
+
+func MockUseOldCall(value bool) func() {
+	old := useOldCallCache
+	useOldCallCache = &value
+	return func() {
+		useOldCallCache = old
+	}
+}
+
+func MockUseOldCallReset() func() {
+	old := useOldCallCache
+	useOldCallCache = nil
+	return func() {
+		useOldCallCache = old
+	}
+}
+
+var UseOldCall = useOldCall
