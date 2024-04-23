@@ -3,7 +3,7 @@ summary: verify that new snapd's do not break old snap-bootstrap/kernel initrds
 details: |
   The snapd secure boot implementation is complex, and some of the elements that live in the
   snapd.git repository end up as a part of the signed kernel package's initrd
-  file. This allows a skew to occur, where future snapd is booted with past
+  file. This inadvertently allows a skew to occur, where a future snapd is booted with a past
   initrd.
 
   The test exercises two scenarios:
