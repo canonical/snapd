@@ -1,8 +1,8 @@
 summary: Check that gadget.yaml can remove/add kernel command lines
 
 details: |
-  Snapd gadget snaps have influence over the boot process. Among others, they
-  can control the kernel command line - a critical resource in many ways. The
+  Gadget snaps have influence over the boot process, and subsequently, 
+  can control the kernel command line - a critical resource in many ways. This
   test verifies that an updated gadget snap can effectively add or remove kernel
   command line arguments.
 
