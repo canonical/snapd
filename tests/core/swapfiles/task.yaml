@@ -2,7 +2,7 @@ summary: Ensure that we can create swapfiles
 
 details: |
   Check that snapd allows to create swapfiles with a specific size through
-  the 'swap.size' config. Verify also the unset of the config removes
+  the 'swap.size' config. Verify also that unsetting the config removes
   the swapfile.
 
 execute: |
