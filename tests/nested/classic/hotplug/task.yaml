@@ -2,7 +2,7 @@ summary: Create ubuntu classic image, install snapd and test hotplug feature
 
 details: |
     Snapd contains a little-used subsystem for reacting to dynamic device
-    reconfiguration events, and in response maintain a set of system-provided
+    reconfiguration events, and in response, maintains a set of system-provided
     slots for certain snapd interfaces.
 
     One of the first interfaces to support this feature was the serial-port
