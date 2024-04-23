@@ -2,7 +2,7 @@ summary: Test snapd install on a UC16 system
 
 details: |
     Check that snapd can be install and removed in
-    Ubuntu Core 16
+    Ubuntu Core 16.
 
 # snapd snap is already installed by default on uc18+
 systems: [ubuntu-core-16-*]
