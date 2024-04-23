@@ -1,5 +1,8 @@
 summary: create ubuntu-core image and execute the suite in a nested qemu instance
 
+details: |
+    This test runs several spread tests against a core16 image running in qemu.
+
 systems: [ubuntu-16.04-64]
 
 execute: |
