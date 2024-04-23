@@ -6,7 +6,7 @@ details: |
     slots for certain snapd interfaces.
 
     One of the first interfaces to support this feature was the serial-port
-    interface, where snapd was able to detect serial ports that are not declared
+    interface. Using this, snapd was able to detect serial ports that were not declared
     statically in the gadget snap, but instead were enumerated on startup or
     discovered dynamically when attached to the system over the USB bus.
 
