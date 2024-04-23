@@ -1,5 +1,22 @@
 summary: regression test for https://bugs.launchpad.net/snapd/+bug/1852361
 
+details: |
+    Snapd attempts to update preserved mount namespaces when the per-snap mount
+    profile is changed by interface connection changes, snap refreshes or even
+    base snap refreshes. The exact way in which this is done is very complex and
+    over time, a simpler method was devised, where bulk of the changes are
+    undone and the namespace is re-constructed with the minimal attempt to
+    reuse.
+
+    This test constructs a mount namespace with features that captures the
+    essence of a failure encountered in the field by a real snap application
+    package, in order to show that the failure no longer occurs.
+
+    Historically this test also enabled the robust-mount-namespace-updates feature,
+    but it is now enabled by default.
+
+    This test is related to lp-1844496, lp-1852361 and lp-1867193.
+
 environment:
     SNAP_CONFINE_DEBUG: yes
 

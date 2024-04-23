@@ -1,5 +1,13 @@
 summary: mount changes can happen while a bind-mount file is open
 
+details: |
+    Snapd has ability to bind-mount files between two snaps, using the content
+    interface. When snapd is updating the mount namespace it will unmount the
+    bind-mount. This operation may fail, like any unmount, if the accessed file
+    is busy. Snapd was later updated to detach instead of unmounting, relying on
+    kernel garbage collection logic to finish unmounting when no more references
+    remain, and the file system can be cleanly unmounted.
+
 prepare: |
     snap pack test-snapd-app
     snap pack test-snapd-extra-content

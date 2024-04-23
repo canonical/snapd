@@ -1,8 +1,14 @@
 summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1595444
 
 details: |
-    This task checks the behavior of snap-confine when it is started from
-    a directory that doesn't exist in the execution environment (chroot).
+    The snap execution environment uses a mount namespace that is somewhat
+    different from that of the host, and it is possible to start a snap
+    application from a directory that does not exists on the host but does not
+    exist inside the execution environment (at least, not with the same path).
+    When this happens, the start-up code changes the directory to
+    /var/lib/snapd/void which is not readable or writable by anyone, with the
+    hope to provide the "permission denied" error instead of something more
+    confusing or technical in nature.
 
 #ubuntu-core: this test only applies to classic systems
 #debian, fedora, opensuse, arch, amazon-linux-2, centos: just available for systems with confinement (AppArmor, Seccomp)

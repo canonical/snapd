@@ -1,5 +1,30 @@
 summary: Regression test for https://bugs.launchpad.net/snapd/+bug/1815869
 
+details: |
+    During snap application startup, on apparmor-capable systems, snap-confine
+    executes with apparmor confinement. When a process is started, for example
+    by the shell, with inherited file descriptor (either additional or re-opened
+    0, 1 or 2), apparmor discovers what the descriptor is referring to, and
+    ensures that the apparmor profile allows that sort of access. In other
+    words, one cannot cheat apparmor by opening a descriptor and switching the
+    process image (apparmor profile switch is effective when the exec system
+    call is used) and somehow allowing the confined process to interact with the
+    resource that the profile otherwise disallows.
+
+    This affects the basic use case of running a snap application and
+    redirecting one of the standard input/output streams to a location we do not
+    expect snap-confine to access.
+
+    Since the problem is entirely open-ended, as a special exception for
+    commonly used programs, snap-confine is allowed to write to anything under
+    /var/lib, as this is where Jenkins stores state directories in commonly used
+    CI solutions.
+
+    The test runs a python application, as a snap, inside LXD, to test the most
+    conservative case of that problem (LXD sandbox is another factor), and one
+    that matches the way we want to allow LXD + Jenkins + Snaps to work
+    together.
+
 systems: [ubuntu-18.04-64]
 
 prepare: |

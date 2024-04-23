@@ -1,5 +1,21 @@
 summary: Regression test for LP 1942266
 
+details: |
+    Snapd has a state system which stores information about connected
+    interfaces. The connection itself carries certain attributes and those
+    attributes were being left stale, when one of the connected snaps were
+    refreshed, bringing in with them updated values of the attribute. This was
+    particularly problematic for the system-files loophole interface, as the
+    "read" or "write" attributes contained a list of files or directories to
+    expose to the connected snap
+
+    This test installs and refreshes a snap to make sure that system-files works
+    as expected both before and after the refresh. After the refresh the updated
+    list of directories is respected by the system.
+
+    This test is related to lp-1825883 which handles the case for "content"
+    interface.
+
 # Don't run on systems without full AppArmor confinement
 systems:
   - -centos-*

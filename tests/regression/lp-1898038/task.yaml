@@ -1,5 +1,20 @@
 summary: docker-support and multipass-support should mount base /etc/apparmor.d
 
+details: |
+    Snap interfaces "docker-support" and "multipass-support" are highly
+    privileged and allow interacting with apparmor itself. Applications using
+    those interfaces are most likely interested in compiling and attaching
+    apparmor profiles, and this needs access to meaningful content stored in
+    /etc/apparmor and /etc/apparmor.d directories.
+
+    Since the /etc directory is shared from the host, that directory may not
+    have any apparmor related content whatsoever, the aforementioned interfaces
+    grew special ability to hide the two directories from host's /etc and
+    replace them with static content from the base snap instead.
+
+    The test uses both interfaces and ensures that the directories, according to
+    fstatfs(2), are squashfs.
+
 # no nsenter on ubuntu-14.04
 # core16 uses "legacy" mount layout and does not mount /etc/apparmor{,d} as it's
 # not pivoting to a base snap to begin with.
