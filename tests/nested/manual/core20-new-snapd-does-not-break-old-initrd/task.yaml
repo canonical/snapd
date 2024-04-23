@@ -1,7 +1,7 @@
 summary: verify that new snapd's do not break old snap-bootstrap/kernel initrds
 
 details: |
-  Snapd secure boot story is complex as some of the elements that live in the
+  The snapd secure boot implementation is complex, and some of the elements that live in the
   snapd.git repository end up as a part of the signed kernel package's initrd
   file. This allows a skew to occur, where future snapd is booted with past
   initrd.
