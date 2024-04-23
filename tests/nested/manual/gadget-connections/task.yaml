@@ -2,7 +2,7 @@ summary: Check that connections from gadget are automatically connected
 
 details: |
     Snapd gadget snaps have influence over the default connections of seeded
-    snaps. The test verifies that an a gadget snap can effectively connect
+    snaps. The test verifies that a gadget snap can effectively connect
     interfaces on a system that is booted for the first time.
 
 systems: [ubuntu-20.04-64]
