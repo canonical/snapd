@@ -26,7 +26,7 @@ execute: |
     echo "$content" > /etc/udev/rules.d/70-snap.test-strict-cgroup.rules
     libexecdir=$(os.paths libexec-dir)
     # populate a RUN rule like the one snapd adds for snap apps
-    content="TAG==\"snap_test-strict-cgroup_sh\" RUN+=\"$libexecdir/snapd/snap-device-helper snap_test-strict-cgroup_sh\""
+    content="TAG==\"snap_test-strict-cgroup_sh\" RUN+=\"$libexecdir/snapd/snap-device-helper \$env{ACTION} snap_test-strict-cgroup_sh \$devpath \$major:\$minor\""
     echo "$content" >> /etc/udev/rules.d/70-snap.test-strict-cgroup.rules
     udevadm control --reload-rules
     udevadm settle
