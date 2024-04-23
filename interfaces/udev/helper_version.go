@@ -33,7 +33,7 @@ import (
 )
 
 func helperVersion() (string, error) {
-	snap := filepath.Join(dirs.DistroLibExecDir, "snap")
+	snap := filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap")
 	cmd := exec.Command(snap, "--version")
 	cmd.Env = append(cmd.Environ(), "SNAP_REEXEC=0")
 	output, _, err := osutil.RunCmd(cmd)
