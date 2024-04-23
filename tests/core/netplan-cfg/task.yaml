@@ -9,9 +9,7 @@ details: |
 # TODO: enable for all ubuntu core versions once netplan.io got SRUed
 #       into the older versions of ubuntu
 systems:
-    - ubuntu-core-2*
-  - ubuntu-core-20-*
-  - ubuntu-core-22-*
+  - ubuntu-core-2*
 
 prepare: |
     snap install jq
