@@ -905,9 +905,9 @@ func maybeAddRefreshInhibitNotice(st *state.State) error {
 // inhibited snaps was changed since the last notice.
 //
 // The warning is recorded only if:
-// 	1. There is at least 1 inhibited snap.
-// 	2. The "refresh-app-awareness-ux" experimental flag is enabled.
-// 	3. No snap exists with the marker "snap-refresh-observe" interface connected.
+//  1. There is at least 1 inhibited snap.
+//  2. The "refresh-app-awareness-ux" experimental flag is enabled.
+//  3. No snap exists with the marker "snap-refresh-observe" interface connected.
 //
 // Note: If no snaps are inhibited then existing inhibition warning
 // will be removed.

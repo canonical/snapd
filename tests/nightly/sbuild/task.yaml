@@ -1,7 +1,17 @@
 summary: Ensure snapd builds correctly in sbuild
 
 details: |
-    Check snapd can be built using sbuilt in debian sid
+    The Debian package of snapd is sensitive to new dependencies that are not
+    provided as other Debian packages. We prefer to discover build issues
+    during the development process, and not during the final stages of release
+    preparation.
+
+    This nightly test builds the Debian package, using the packaging/debian-sid
+    directory, in a manner that is similar to what happens in the Debian buildd
+    network.
+
+    Additional tooling is provided to iteratively and incrementally work on the
+    packaging process, so that failures are easier to investigate.
 
 systems: [debian-sid-*]
 

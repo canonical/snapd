@@ -1,8 +1,8 @@
 summary: Check that correct SELinux file contexts were assigned on upgrade
 
 details: |
-    Check that after installing snpad and refresh it to a newer version, the
-    SELinux file contexts were assigned on the refresh process
+    On classic systems using SELinux, installing the local package applies
+    specific labels to programs related to snapd.
 
 # Only distros that support SELinux and have snapd in their repositories
 systems: [fedora-*, centos-*]

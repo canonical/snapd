@@ -655,6 +655,16 @@ func addUpdateNSProfile(snapInfo *snap.Info, snippets string, content map[string
 				snippets += strings.Replace(apparmor_sandbox.OverlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
 			}
 			return snippets
+		case "###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###":
+			// XXX: refactor this so that we don't have to duplicate this part.
+			// TODO: rewrite this whole mess with go templates.
+			features, _ := parserFeatures()
+			if strutil.ListContains(features, "snapd-internal") {
+				return `#include if exists "/etc/apparmor.d/tunables/home.d"`
+			}
+			return ""
+		default:
+			// TODO: Warn that an invalid pattern is being used.
 		}
 		return ""
 	})

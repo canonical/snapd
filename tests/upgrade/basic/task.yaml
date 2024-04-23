@@ -1,9 +1,9 @@
 summary: Check that upgrade works
 
 details: |
-    Check that the spapd can be upgraded and it still wokrs after. 
-    Verify that snapd/core has been refreshed, the snaps after upgrade
-    are still working and automatic aliases survived
+    On classic systems, the snapd package can be upgraded. Certain properties,
+    such as aliases, are retained. On SELinux-based systems extra care is taken
+    to ensure extended attributes carrying the labels are set up properly.
 
 # arch: there is no snapd in arch repos
 # amazon: enable once it's possible to install snapd from EPEL
@@ -11,7 +11,7 @@ details: |
 systems: [-debian-sid-*, -arch-*, -amazon-*, -centos-9-*]
 
 environment:
-    # downlading the core snap triggers OOM occasionally
+    # downloading the core snap triggers OOM occasionally
     SNAPD_NO_MEMORY_LIMIT: 1
 
 restore: |

@@ -1,5 +1,10 @@
 summary: smoke test for the remote.wait-for tool
 
+details: |
+    Check the remote.wait-for tool waits properly for several
+    events in the remote instance. Supported events are:
+    device-initialized, reboot, refresh, ssh, no-ssh, etc
+
 backends: [google-nested]
 
 systems: [ubuntu-20.04-64]

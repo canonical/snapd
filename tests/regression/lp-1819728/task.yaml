@@ -1,8 +1,12 @@
 summary: Ensure that the systemctl from PR#8803 is fixed
 
 details: |
-    See https://bugs.launchpad.net/ubuntu/+source/systemd/+bug/1819728
-    for details about this issue.
+    Snapd is sensitive to a bug in specific versions of systemd. This test
+    attempts to trigger a race between systemctl daemon-reload and other
+    systemctl commands by restarting systemd and starting the ssh service
+    concurrently many times over.
+
+    The original bug is reported as https://bugs.launchpad.net/ubuntu/+source/systemd/+bug/1819728
 
 # TODO: enable on ubuntu-16.04-64, ubuntu-18.04-64 once the SRU
 #       for systemd is in the "-updates" pocket.

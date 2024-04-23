@@ -23,6 +23,11 @@ execute: |
   # Install local component function
   # $1: expected component revision
   install_comp() {
+      # x1 is the snap revision
+      # Find out previous comp rev
+      symlink=$SNAP_MOUNT_DIR/snap-with-comps/components/x1/comp1
+      prev_comp_rev=$(basename "$(readlink "$symlink")")
+
       comp_rev=$1
       chg_id=$(snap install --no-wait --dangerous snap-with-comps+comp1_1.0.comp)
       snap watch "$chg_id"
@@ -37,8 +42,6 @@ execute: |
       stat "$comp_inst_path"
 
       # Component is mounted (note that we need to escape the "+" in the path)
-      # x1 is the snap revision
-      symlink=$SNAP_MOUNT_DIR/snap-with-comps/components/x1/comp1
       mnt_point=$SNAP_MOUNT_DIR/snap-with-comps/components/mnt/comp1/${comp_rev}
       mount | MATCH "^${comp_inst_path/+/\\+} on ${mnt_point} .*"
       # And symlinked
@@ -46,6 +49,15 @@ execute: |
       readlink -f "$symlink" | MATCH "$mnt_point"
       # and is seen from snap app
       snap-with-comps.test
+
+      # Old component is not mounted and has been removed
+      if [ -n "$prev_comp_rev" ]; then
+          prev_mnt_point=$SNAP_MOUNT_DIR/snap-with-comps/components/mnt/comp1/${prev_comp_rev}
+          prev_comp_inst_path=/var/lib/snapd/snaps/snap-with-comps+comp1_${prev_comp_rev}.comp
+          mount | not MATCH "^${prev_comp_inst_path/+/\\+} on ${prev_mnt_point} .*"
+          not stat "$prev_comp_inst_path"
+          not stat "$prev_mnt_point"
+      fi
   }
 
   # Install, then reinstall local component
@@ -56,9 +68,7 @@ execute: |
   # For the moment, remove the snap and then manually the components
   snap remove snap-with-comps
   cd /etc/systemd/system/
-  systemctl stop -- *'snap\x2dwith\x2dcomps-components-mnt-comp1-x1.mount'
   systemctl stop -- *'snap\x2dwith\x2dcomps-components-mnt-comp1-x2.mount'
   cd -
-  rm /etc/systemd/system/*'-snap\x2dwith\x2dcomps-components-mnt-comp1-x1.mount'
   rm /etc/systemd/system/*'-snap\x2dwith\x2dcomps-components-mnt-comp1-x2.mount'
   rm -rf "$SNAP_MOUNT_DIR"/snap-with-comps/

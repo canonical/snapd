@@ -86,7 +86,7 @@ execute: |
     remote.exec "sudo snap connect serial-port-hotplug:serial-port :qemuusbserial"
     check_slot_connected qemuusbserial
 
-    echo "Veryfing serial-port permissions of the snap"
+    echo "Verifying serial-port permissions of the snap"
     verify_apparmor_profile "/dev/ttyUSB0"
 
     echo "Unplugging the device"
@@ -119,7 +119,7 @@ execute: |
     check_slot_connected qemuusbserial
     check_slot_not_gone qemuusbserial
 
-    echo "Veryfing serial-port permissions of the snap, the first device is now expected on ttyUSB1"
+    echo "Verifying serial-port permissions of the snap, the first device is now expected on ttyUSB1"
     check_slot_device_path qemuusbserial "/dev/ttyUSB1"
     verify_apparmor_profile "/dev/ttyUSB1"
 
