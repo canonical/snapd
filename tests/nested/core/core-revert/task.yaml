@@ -1,7 +1,7 @@
 summary: core revert test
 
 details: |
-    Snapd used to change the way seccomp profiles are handled, which could cause
+    Older versions of snapd used to change the way seccomp profiles are handled, which could cause
     problems when future snapd was reverted to old snapd, causing old profiles
     fail to parse and load. This was addressed with the introduction of system
     key and eventually with the switch to pre-compiled seccomp profiles. This
