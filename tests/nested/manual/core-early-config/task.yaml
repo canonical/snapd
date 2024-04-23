@@ -3,7 +3,7 @@ summary: Test that config defaults are applied early when image is created.
 details: |
     Snapd gadget snaps have influence over the default configuration of seeded
     snaps. The test verifies that an a gadget snap can effectively apply default
-    configuration settings to the system that is booted for the first time.
+    configuration settings to a system that is booted for the first time.
 
 # core18 specific test (and nested vm is derived from host system)
 systems: [ubuntu-18.04-64]
