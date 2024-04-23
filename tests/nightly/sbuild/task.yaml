@@ -2,7 +2,7 @@ summary: Ensure snapd builds correctly in sbuild
 
 details: |
     The Debian package of snapd is sensitive to new dependencies that are not
-    master provided as other Debian packages. We prefer to discover build issues
+    provided as other Debian packages. We prefer to discover build issues
     during the development process, and not during the final stages of release
     preparation.
 
