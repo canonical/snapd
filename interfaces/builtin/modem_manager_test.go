@@ -213,7 +213,7 @@ func (s *ModemManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(udevSpec.Snippets()[0], testutil.Contains, `SUBSYSTEMS=="usb"`)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# modem-manager
 KERNEL=="rfcomm*|tty[a-zA-Z]*[0-9]*|cdc-wdm[0-9]*|*MBIM|*QMI|*AT|*QCDM", TAG+="snap_modem-manager_mm"`)
-	c.Assert(udevSpec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_modem-manager_mm", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_modem-manager_mm"`, dirs.DistroLibExecDir))
+	c.Assert(udevSpec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_modem-manager_mm", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_modem-manager_mm $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *ModemManagerInterfaceSuite) TestPermanentSlotDBus(c *C) {

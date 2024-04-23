@@ -241,7 +241,7 @@ func (s *NetworkManagerInterfaceSuite) TestUDevPermanentSlot(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# network-manager
 KERNEL=="rfkill", TAG+="snap_network-manager_nm"`)
-	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_network-manager_nm", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_network-manager_nm"`, dirs.DistroLibExecDir))
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_network-manager_nm", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_network-manager_nm $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *NetworkManagerInterfaceSuite) TestInterfaces(c *C) {

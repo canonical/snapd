@@ -149,7 +149,7 @@ KERNEL=="mouse[0-9]*", TAG+="snap_mir-server_mir"`)
 KERNEL=="event[0-9]*", TAG+="snap_mir-server_mir"`)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# mir
 KERNEL=="ts[0-9]*", TAG+="snap_mir-server_mir"`)
-	c.Assert(udevSpec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_mir-server_mir", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_mir-server_mir"`, dirs.DistroLibExecDir))
+	c.Assert(udevSpec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_mir-server_mir", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_mir-server_mir $devpath $major:$minor"`, dirs.DistroLibExecDir))
 	c.Assert(udevSpec.TriggeredSubsystems(), DeepEquals, []string{"input"})
 }
 
