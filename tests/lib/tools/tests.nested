@@ -426,7 +426,7 @@ nested_system() {
         echo ubuntu-core-20-64
     elif os.query is-ubuntu 22.04; then
         echo ubuntu-core-22-64
-    elif os.query is-ubuntu 22.04; then
+    elif os.query is-ubuntu 24.04; then
         echo ubuntu-core-24-64
     else
         echo "unsupported nested system"

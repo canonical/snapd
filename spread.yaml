@@ -287,7 +287,7 @@ backends:
             - ubuntu-24.04-64:
                   image: ubuntu-2404-64-virt-enabled
                   storage: 25G
-                  workers: 4
+                  workers: 8
 
     google-nested-arm:
         type: google

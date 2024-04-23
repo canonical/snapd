@@ -4,13 +4,20 @@
     "series": "16",
     "brand-id": "test-snapd",
     "model": "my-model",
+    "revision": "2",
     "architecture": "amd64",
     "timestamp": "2024-04-24T00:00:00+00:00",
     "grade": "dangerous",
     "base": "core24",
     "serial-authority": ["generic"],
-    "snaps": [
+    "validation-sets": [
         {
+            "name": "test-snapd-invalid-hello-world",
+            "mode": "enforce"
+        }
+    ],
+    "snaps": [
+         {
             "default-channel": "24/edge",
             "id": "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH",
             "name": "pc",
@@ -33,6 +40,18 @@
             "id": "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4",
             "name": "snapd",
             "type": "snapd"
+        },
+        {
+            "default-channel": "latest/stable",
+            "id": "99T7MUlRhtI3U0QFgl5mXXESAiSwt776",
+            "name": "core",
+            "type": "core"
+        },
+        {
+            "default-channel": "latest/stable",
+            "id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+            "name": "hello-world",
+            "type": "app"
         }
     ]
 }

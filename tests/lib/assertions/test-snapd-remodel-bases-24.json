@@ -1,19 +1,20 @@
 {
     "type": "model",
-    "authority-id": "test-snapd",
     "series": "16",
+    "authority-id": "test-snapd",
     "brand-id": "test-snapd",
-    "model": "my-model",
+    "store": "CQvkdMjgbapk821Po2cF",
+    "model": "test-snapd-remodel-pc-24",
+    "system-user-authority": "*",
     "architecture": "amd64",
     "timestamp": "2024-04-24T00:00:00+00:00",
     "grade": "dangerous",
     "base": "core24",
-    "serial-authority": ["generic"],
     "snaps": [
         {
-            "default-channel": "24/edge",
-            "id": "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH",
-            "name": "pc",
+            "default-channel": "latest/edge",
+            "id": "tTs9DVS01mt4L11PGqbrSiKcIxFHpUJq",
+            "name": "test-snapd-remodel-pc-min-size",
             "type": "gadget"
         },
         {
@@ -21,6 +22,18 @@
             "id": "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza",
             "name": "pc-kernel",
             "type": "kernel"
+        },
+        {
+            "default-channel": "latest/edge",
+            "id": "DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q",
+            "name": "core20",
+            "type": "base"
+        },
+        {
+            "default-channel": "latest/edge",
+            "id": "amcUKQILKXHHTlmSa7NMdnXSx02dNeeT",
+            "name": "core22",
+            "type": "base"
         },
         {
             "default-channel": "latest/edge",

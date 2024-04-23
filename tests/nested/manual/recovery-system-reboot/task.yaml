@@ -7,7 +7,7 @@ details: |
 systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
-  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/test-snapd-recovery-system-pc-22.model
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/test-snapd-recovery-system-pc-{VERSION}.model
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
@@ -129,11 +129,19 @@ execute: |
 
   # make sure that all our other snaps are there too. we can't check their
   # revisions here, since auto-refresh might have updated them.
-  remote.exec 'snap list core22'
+  VERSION="$(tests.nested show version)"
+  remote.exec "snap list core${VERSION}"
   remote.exec 'snap list pc'
   remote.exec 'snap list pc-kernel'
 
   # however, we can check that the seed contains the correct revisions
-  remote.exec "test -f /var/lib/snapd/seed/snaps/core22_1380.snap"
-  remote.exec "test -f /var/lib/snapd/seed/snaps/pc-kernel_1606.snap"
-  remote.exec "test -f /var/lib/snapd/seed/snaps/pc_145.snap"
+  if tests.nested is-nested uc22; then
+    remote.exec "test -f /var/lib/snapd/seed/snaps/core22_1033.snap"
+    remote.exec "test -f /var/lib/snapd/seed/snaps/pc-kernel_1606.snap"
+    remote.exec "test -f /var/lib/snapd/seed/snaps/pc_145.snap"
+  else # uc24
+    # however, we can check that the seed contains the correct revisions
+    remote.exec "test -f /var/lib/snapd/seed/snaps/core24_1033.snap"
+    remote.exec "test -f /var/lib/snapd/seed/snaps/pc-kernel_1606.snap"
+    remote.exec "test -f /var/lib/snapd/seed/snaps/pc_145.snap"
+  fi
