@@ -6,7 +6,7 @@ details: |
   to the new version of snapd which triggers a reboot of the system in the worst
   case reboots if things go sideways. Verify that before shutting down, snapd rewrote
   the unit service file to contain Wants= instead of Requires= and after installing
-  the new snapd, the service is active and that the snap change finishes successfully 
+  the new snapd, the service is active and that the snap change finishes successfully.
 
 # TODO: move this test to tests/regression/lp-1924805 ?
 
