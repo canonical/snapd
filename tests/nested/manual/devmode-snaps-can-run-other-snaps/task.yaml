@@ -3,7 +3,7 @@ summary: |
 
 details: |
   For xenial the test covers running core and non-core based devmode snaps from core based strict snap and
-  and for boinic the test covers running a non-core based devmode snap from a non-core based strict snap as
+  and for Bionic the test covers running a non-core based devmode snap from a non-core based strict snap as
   well as running core and non-core based devmode snaps from a core based strict snap.
 
 systems: [ubuntu-1*]
