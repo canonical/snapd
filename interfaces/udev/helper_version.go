@@ -20,42 +20,11 @@
 package udev
 
 import (
-	"bufio"
-	"bytes"
-	"os/exec"
-	"path/filepath"
-	"strings"
-
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 )
-
-func helperVersion() (string, error) {
-	snap := filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap")
-	cmd := exec.Command(snap, "--version")
-	cmd.Env = append(cmd.Environ(), "SNAP_REEXEC=0")
-	output, _, err := osutil.RunCmd(cmd)
-	if err != nil {
-		return "", err
-	}
-
-	reader := bufio.NewReader(bytes.NewReader(output))
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			return "", err
-		}
-		if !strings.HasPrefix(line, "snap ") {
-			continue
-		}
-		line = strings.TrimPrefix(line, "snap ")
-		line = strings.TrimLeft(line, " ")
-		line = strings.TrimRight(line, "\n")
-		return line, nil
-	}
-}
 
 var useOldCallCache *bool
 
@@ -63,7 +32,7 @@ func useOldCall() bool {
 	if useOldCallCache != nil {
 		return *useOldCallCache
 	}
-	version, err := helperVersion()
+	version, _, err := snapdtool.SnapdVersionFromInfoFile(dirs.DistroLibExecDir)
 	if err != nil {
 		logger.Noticef("WARNING: could not find the version of the helper: %v", err)
 		v := false

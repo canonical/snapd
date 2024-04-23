@@ -20,13 +20,13 @@
 package udev_test
 
 import (
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/testutil"
 )
 
 type helperVersionSuite struct {
@@ -38,8 +38,9 @@ func (s *helperVersionSuite) TestOld(c *C) {
 	top := c.MkDir()
 	dirs.SetRootDir(top)
 
-	snapCmd := testutil.MockCommand(c, filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap"), `echo 'snap 2.61.9'`)
-	defer snapCmd.Restore()
+	c.Assert(os.MkdirAll(dirs.DistroLibExecDir, 0755), IsNil)
+	infoFile := filepath.Join(dirs.DistroLibExecDir, "info")
+	c.Assert(os.WriteFile(infoFile, []byte(`VERSION=2.61.9`), 0644), IsNil)
 
 	defer udev.MockUseOldCallReset()()
 	c.Check(udev.UseOldCall(), Equals, true)
@@ -49,8 +50,9 @@ func (s *helperVersionSuite) TestNew(c *C) {
 	top := c.MkDir()
 	dirs.SetRootDir(top)
 
-	snapCmd := testutil.MockCommand(c, filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap"), `echo 'snap 2.62'`)
-	defer snapCmd.Restore()
+	c.Assert(os.MkdirAll(dirs.DistroLibExecDir, 0755), IsNil)
+	infoFile := filepath.Join(dirs.DistroLibExecDir, "info")
+	c.Assert(os.WriteFile(infoFile, []byte(`VERSION=2.62`), 0644), IsNil)
 
 	defer udev.MockUseOldCallReset()()
 	c.Check(udev.UseOldCall(), Equals, false)
@@ -60,19 +62,9 @@ func (s *helperVersionSuite) TestGarbage(c *C) {
 	top := c.MkDir()
 	dirs.SetRootDir(top)
 
-	snapCmd := testutil.MockCommand(c, filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap"), `echo '123'`)
-	defer snapCmd.Restore()
-
-	defer udev.MockUseOldCallReset()()
-	c.Check(udev.UseOldCall(), Equals, false)
-}
-
-func (s *helperVersionSuite) TestFail(c *C) {
-	top := c.MkDir()
-	dirs.SetRootDir(top)
-
-	snapCmd := testutil.MockCommand(c, filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap"), `exit 1`)
-	defer snapCmd.Restore()
+	c.Assert(os.MkdirAll(dirs.DistroLibExecDir, 0755), IsNil)
+	infoFile := filepath.Join(dirs.DistroLibExecDir, "info")
+	c.Assert(os.WriteFile(infoFile, []byte(`garbage`), 0644), IsNil)
 
 	defer udev.MockUseOldCallReset()()
 	c.Check(udev.UseOldCall(), Equals, false)
