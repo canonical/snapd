@@ -1,5 +1,12 @@
 summary: test snapshots work when core snap is refreshed and reverted
 
+details: |
+    Snapd can create and restore snapshots of snap application data. This test
+    checks if refreshing and reverting the core snap breaks this capability. The
+    test allows comparison of the locally-built snapd with the core snap from a
+    given channel in the store, making it useful for ensuring the data format is
+    stable or compatible across snapd updates.
+
 prepare: |
     echo "Configure hosts file"
     # shellcheck disable=SC2016
