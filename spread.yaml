@@ -305,6 +305,10 @@ backends:
                   image: ubuntu-2204-64-virt-enabled
                   storage: 20G
                   workers: 8
+            - ubuntu-24.04-64:
+                  image: ubuntu-2404-64-virt-enabled
+                  storage: 20G
+                  workers: 8
 
     qemu-nested:
         memory: 4G
@@ -320,6 +324,9 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-22.04-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-24.04-64:
                   username: ubuntu
                   password: ubuntu
 

@@ -211,7 +211,7 @@ func (b Backend) LinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revisio
 	return osutil.AtomicSymlink(linkTarget, linkPath)
 }
 
-func (b Backend) StartServices(apps []*snap.AppInfo, disabledSvcs []string, meter progress.Meter, tm timings.Measurer) error {
+func (b Backend) StartServices(apps []*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, meter progress.Meter, tm timings.Measurer) error {
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	return wrappers.StartServices(apps, disabledSvcs, flags, meter, tm)
 }
@@ -358,7 +358,7 @@ func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress
 	return firstErr(err0, err1, err2)
 }
 
-func (b Backend) QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
+func (b Backend) QueryDisabledServices(info *snap.Info, pb progress.Meter) (*wrappers.DisabledServices, error) {
 	return wrappers.QueryDisabledServices(info, pb)
 }
 
@@ -405,6 +405,10 @@ func (b Backend) UnlinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revis
 			return err
 		}
 	}
+
+	// Try also to remove the <snap_rev>/ subdirectory, as this might be
+	// the only installed component. But simply ignore if not empty.
+	os.Remove(filepath.Dir(linkPath))
 
 	return nil
 }

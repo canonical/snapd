@@ -110,29 +110,35 @@ func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
 	return &snapsup, nil
 }
 
-// SetTaskSnapSetup writes the given SnapSetup to the provided task's
-// snap-setup-task Task, or to the task itself if the task does not have a
-// snap-setup-task (i.e. it _is_ the snap-setup-task)
-func SetTaskSnapSetup(t *state.Task, snapsup *SnapSetup) error {
+func snapSetupTask(t *state.Task) (*state.Task, error) {
 	if t.Has("snap-setup") {
-		// this is the snap-setup-task so just write to the task directly
-		t.Set("snap-setup", snapsup)
+		// this is the snap-setup-task so just return the task directly
+		return t, nil
 	} else {
-		// this task isn't the snap-setup-task, so go get that and write to that
-		// one
+		// this task isn't the snap-setup-task, so go get that
 		var id string
 		err := t.Get("snap-setup-task", &id)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		ts := t.State().Task(id)
 		if ts == nil {
-			return fmt.Errorf("internal error: tasks are being pruned")
+			return nil, fmt.Errorf("internal error: tasks are being pruned")
 		}
-		ts.Set("snap-setup", snapsup)
+		return ts, nil
 	}
+}
 
+// SetTaskSnapSetup writes the given SnapSetup to the provided task's
+// snap-setup-task Task, or to the task itself if the task does not have a
+// snap-setup-task (i.e. it _is_ the snap-setup-task)
+func SetTaskSnapSetup(t *state.Task, snapsup *SnapSetup) error {
+	ts, err := snapSetupTask(t)
+	if err != nil {
+		return err
+	}
+	ts.Set("snap-setup", snapsup)
 	return nil
 }
 
@@ -1318,7 +1324,7 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 // Note this function takes a snap info rather than snapst because there are
 // situations where we want to call this on non-current snap infos, i.e. in the
 // undo handlers, see undoLinkSnap for an example.
-func (m *SnapManager) queryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
+func (m *SnapManager) queryDisabledServices(info *snap.Info, pb progress.Meter) (*wrappers.DisabledServices, error) {
 	return m.backend.QueryDisabledServices(info, pb)
 }
 
@@ -3049,7 +3055,9 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	pb := NewTaskProgressAdapterUnlocked(t)
 
 	st.Unlock()
-	err = m.backend.StartServices(startupOrdered, svcsToDisable, pb, perfTimings)
+	err = m.backend.StartServices(startupOrdered, &wrappers.DisabledServices{
+		SystemServices: svcsToDisable,
+	}, pb, perfTimings)
 	st.Lock()
 
 	return err
@@ -3163,7 +3171,7 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	// no longer present.
 	snapst.LastActiveDisabledServices = append(
 		snapst.LastActiveDisabledServices,
-		disabledServices...,
+		disabledServices.SystemServices...,
 	)
 
 	// reset services tracked by operations from hooks
@@ -3209,13 +3217,13 @@ func (m *SnapManager) undoStopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	snapst.LastActiveDisabledServices = lastActiveDisabled
 	Set(st, snapsup.InstanceName(), snapst)
 
-	var disabledServices []string
+	var disabledServices wrappers.DisabledServices
 	if err := t.Get("disabled-services", &disabledServices); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
 	st.Unlock()
-	err = m.backend.StartServices(startupOrdered, disabledServices, progress.Null, perfTimings)
+	err = m.backend.StartServices(startupOrdered, &disabledServices, progress.Null, perfTimings)
 	st.Lock()
 	if err != nil {
 		return err
@@ -4899,8 +4907,11 @@ func (m *SnapManager) doSetupKernelSnap(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings.Save(st)
 
 	// Needed so the old drivers tree can be removed later
-	prevRev := snapSt.Current
-	t.Change().Set("previous-kernel-rev", prevRev)
+	setupTask, err := snapSetupTask(t)
+	if err != nil {
+		return err
+	}
+	setupTask.Set("previous-kernel-rev", snapSt.Current)
 
 	// Make sure we won't be rerun
 	t.SetStatus(state.DoneStatus)
@@ -4955,23 +4966,26 @@ func (m *SnapManager) doCleanupOldKernelSnap(t *state.Task, _ *tomb.Tomb) error 
 		return err
 	}
 
-	// This is stored by doSetupKernelSnap - now after the reboot triggered
-	// after linking the new snap, we can remove the old drivers tree.
-	var prevRev snap.Revision
-	err = t.Change().Get("previous-kernel-rev", &prevRev)
+	// Now after the reboot triggered after linking the new snap, we can
+	// remove the old drivers tree if this was not the first installation.
+	setupTask, err := snapSetupTask(t)
 	if err != nil {
 		return err
 	}
+	var prevKernelRev snap.Revision
+	err = setupTask.Get("previous-kernel-rev", &prevKernelRev)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
 
-	// Might be unset on first installation
-	if !prevRev.Unset() {
+	if !prevKernelRev.Unset() {
 		st.Unlock()
 		pm := NewTaskProgressAdapterUnlocked(t)
 		timings.Run(perfTimings, "discard-old-kernel-snap-setup",
 			fmt.Sprintf("discard previous kernel snap set-up %q", currInfo.InstanceName()),
 			func(timings.Measurer) {
 				err = m.backend.RemoveKernelSnapSetup(
-					currInfo.InstanceName(), prevRev, pm)
+					currInfo.InstanceName(), prevKernelRev, pm)
 			})
 		st.Lock()
 		if err != nil {
@@ -5002,21 +5016,25 @@ func (m *SnapManager) undoCleanupOldKernelSnap(t *state.Task, _ *tomb.Tomb) erro
 		return err
 	}
 
-	// Now we must re-do the previous revision kernel drivers tree
-	var prevRev snap.Revision
-	err = t.Change().Get("previous-kernel-rev", &prevRev)
+	setupTask, err := snapSetupTask(t)
 	if err != nil {
 		return err
 	}
+	var prevKernelRev snap.Revision
+	err = setupTask.Get("previous-kernel-rev", &prevKernelRev)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
 
-	if !prevRev.Unset() {
+	// Now we must re-do the previous revision kernel drivers tree
+	if !prevKernelRev.Unset() {
 		st.Unlock()
 		pm := NewTaskProgressAdapterUnlocked(t)
 		timings.Run(perfTimings, "undo-remove-old-kernel-snap-setup",
 			fmt.Sprintf("undo cleanup of previous kernel snap %q", currInfo.InstanceName()),
 			func(timings.Measurer) {
 				err = m.backend.SetupKernelSnap(
-					currInfo.InstanceName(), prevRev, pm)
+					currInfo.InstanceName(), prevKernelRev, pm)
 			})
 		st.Lock()
 		if err != nil {

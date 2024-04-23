@@ -1,13 +1,18 @@
 summary: Check that installing and running a snap works
 
 details: |
-     Smoke test to verify that snaps can be installed using
-     all the bases and running snaps works
+    Snapd installs packages by mounting them in a structure under /snap or
+    /var/lib/snapd/snap directories, depending on distribution policy. Ensure
+    that a trivial test snap can be installed, shows up in the list of installed
+    packages, can be started as both root and non-root user and that a snapd
+    state recorded that installation in the change system. The test snap is
+    installed, and partially tested (only as root) for each of the major base
+    snaps: core, core18, core20 and core22.
 
 restore: |
     rm -f /home/test/stderr.log
     rm -f /home/test/stdout.log
-    # requied! in autopkgtest no suite restore is run at all
+    # required! in autopkgtest no suite restore is run at all
     snap remove --purge test-snapd-sh
 
 debug: |

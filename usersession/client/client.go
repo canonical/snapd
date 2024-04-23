@@ -465,7 +465,6 @@ func (us *ServiceUnitStatus) SystemdUnitStatus() *systemd.UnitStatus {
 func (client *Client) ServiceStatus(ctx context.Context, services []string) (map[int][]ServiceUnitStatus, map[int][]ServiceFailure, error) {
 	q := make(url.Values)
 	q.Add("services", strings.Join(services, ","))
-
 	responses, err := client.doMany(ctx, "GET", "/v1/service-status", q, nil, nil)
 	if err != nil {
 		return nil, nil, err

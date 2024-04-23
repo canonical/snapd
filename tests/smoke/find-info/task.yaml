@@ -1,7 +1,9 @@
 summary: Check that find works correctly
 
 details: |
-  Smoke test to check the output of `snap find` and `snap info` commands
+  Snapd offers a way to search the snap store using the "snap find" command.
+  Ensure that we can find a test snap called test-snapd-tools and that we can
+  display detailed information about it by using the "snap info" command.
 
 execute: |
   echo "Ensure 'snap find' works"
