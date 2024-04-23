@@ -22,6 +22,7 @@ package udev
 import (
 	"bufio"
 	"bytes"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -33,7 +34,9 @@ import (
 
 func helperVersion() (string, error) {
 	snap := filepath.Join(dirs.DistroLibExecDir, "snap")
-	output, _, err := osutil.RunSplitOutput(snap, "--version")
+	cmd := exec.Command(snap, "--version")
+	cmd.Env = append(cmd.Environ(), "SNAP_REEXEC=0")
+	output, _, err := osutil.RunCmd(cmd)
 	if err != nil {
 		return "", err
 	}
