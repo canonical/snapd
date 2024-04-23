@@ -177,7 +177,7 @@ func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
 		"last-task-id": 0,
 		"last-lane-id": 0,
 		"last-notice-id": 0,
-		"notice-last-timestamp":"0001-01-01T00:00:00Z"
+		"last-notice-timestamp":"0001-01-01T00:00:00Z"
 	}`, patch.Level, patch.Sublevel, snapdtool.Version))
 	err := os.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)

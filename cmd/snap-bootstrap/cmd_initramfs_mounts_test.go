@@ -3310,7 +3310,7 @@ grade=signed
 		c.Check(fiParent.Mode(), Equals, os.FileMode(os.ModeDir|0750))
 	}
 
-	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"last-id":1,"macaroon-key":"not-a-cookie","users":[{"id":1,"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0,"last-notice-id":0,"notice-last-timestamp":"0001-01-01T00:00:00Z"}`)
+	c.Check(filepath.Join(ephemeralUbuntuData, "system-data/var/lib/snapd/state.json"), testutil.FileEquals, `{"data":{"auth":{"last-id":1,"macaroon-key":"not-a-cookie","users":[{"id":1,"name":"mvo"}]}},"changes":{},"tasks":{},"last-change-id":0,"last-task-id":0,"last-lane-id":0,"last-notice-id":0,"last-notice-timestamp":"0001-01-01T00:00:00Z"}`)
 
 	// finally check that the recovery system bootenv was updated to be in run
 	// mode
