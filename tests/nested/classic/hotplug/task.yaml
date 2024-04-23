@@ -10,7 +10,7 @@ details: |
     statically in the gadget snap, but instead were enumerated on startup or
     discovered dynamically when attached to the system over the USB bus.
 
-    Testing this sort of interaction requires a nested virtual machine, where
+    Simulating and testing this sort of interaction requires a nested virtual machine, where
     qemu can be scripted to dynamically attach devices to the running virtual
     machine.
 
