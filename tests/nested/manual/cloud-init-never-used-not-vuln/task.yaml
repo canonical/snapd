@@ -2,6 +2,12 @@ summary: |
     Test that cloud-init is no longer vulnerable on Ubuntu Core with the fix for
     CVE-2020-11933 in place.
 
+details: |
+    CVE-2020-11933 allowed anyone to present the device with cloud-info
+    meta-data, for example on a removable media, and reboot the machine to gain
+    elevated privileges. The test ensures that once snapd snap is refreshed to a
+    version which contains the fix, cloud-init gets disabled.
+
 systems: [ubuntu-18.04-64, ubuntu-16.04-64]
 
 environment:
