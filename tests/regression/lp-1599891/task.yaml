@@ -1,5 +1,12 @@
 summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1599891
 
+details: |
+    During the transition to snap-confine as a part of snapd, we had issues with
+    the apparmor profile for the snap-confine program installed in
+    /usr/lib/snapd/snap-confine which was related to how Debian handles
+    configuration files. This test ensures that at the end of the day,
+    snap-confine was still executed with an enforced profile.
+
 # No confinement (AppArmor, Seccomp) available on these systems
 systems: [-debian-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 

@@ -123,23 +123,10 @@ var userSessionQueryServiceStatusMany = func(units []string) (map[int][]client.S
 	return cli.ServiceStatus(ctx, units)
 }
 
-func clientUnitStatusToSystemdUnitStatus(unitStatus client.ServiceUnitStatus) *systemd.UnitStatus {
-	return &systemd.UnitStatus{
-		Daemon:           unitStatus.Daemon,
-		Id:               unitStatus.Id,
-		Name:             unitStatus.Name,
-		Names:            unitStatus.Names,
-		Enabled:          unitStatus.Enabled,
-		Active:           unitStatus.Active,
-		Installed:        unitStatus.Installed,
-		NeedDaemonReload: unitStatus.NeedDaemonReload,
-	}
-}
-
 func mapServiceStatusMany(stss []client.ServiceUnitStatus) map[string]*systemd.UnitStatus {
 	stsMap := make(map[string]*systemd.UnitStatus, len(stss))
 	for _, sts := range stss {
-		stsMap[sts.Name] = clientUnitStatusToSystemdUnitStatus(sts)
+		stsMap[sts.Name] = sts.SystemdUnitStatus()
 	}
 	return stsMap
 }

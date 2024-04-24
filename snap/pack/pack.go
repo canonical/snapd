@@ -22,7 +22,6 @@ package pack
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -162,7 +161,7 @@ func snapPath(info *snap.Info, targetDir, snapName string) string {
 }
 
 func excludesFile() (filename string, err error) {
-	tmpf, err := ioutil.TempFile("", ".snap-pack-exclude-")
+	tmpf, err := os.CreateTemp("", ".snap-pack-exclude-")
 	if err != nil {
 		return "", err
 	}
@@ -252,7 +251,7 @@ func packSnap(sourceDir string, yaml []byte, opts *Options) (string, error) {
 
 func packComponent(sourceDir string, yaml []byte, opts *Options) (string, error) {
 	cont := snapdir.New(sourceDir)
-	ci, err := snap.ReadComponentInfoFromContainer(cont)
+	ci, err := snap.InfoFromComponentYaml(yaml)
 	if err != nil {
 		return "", err
 	}

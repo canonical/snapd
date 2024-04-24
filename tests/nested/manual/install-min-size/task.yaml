@@ -2,7 +2,7 @@ summary: install a gadget that uses min-size
 
 details: install a gadget that uses min-size
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/valid-for-testing-pc-{VERSION}.model

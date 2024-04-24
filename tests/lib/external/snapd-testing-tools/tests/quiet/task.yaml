@@ -1,5 +1,8 @@
 summary: test for the quiet tool
 
+details: |
+    Check the quiet tool hides the command stdout and but shows the stderr
+
 backends: [google]
 
 execute: |

@@ -521,8 +521,8 @@ func (snapst *SnapState) CurrentComponentInfo(cref naming.ComponentRef) (*snap.C
 	}
 
 	cpi := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
-		csi.Revision, si.InstanceName(), si.SnapRevision())
-	return readComponentInfo(cpi.MountDir())
+		csi.Revision, si.InstanceName())
+	return readComponentInfo(cpi.MountDir(), si)
 }
 
 func (snapst *SnapState) InstanceName() string {
@@ -643,8 +643,8 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("conditional-auto-refresh", m.doConditionalAutoRefresh, nil)
 
 	// specific set-up for the kernel snap
-	runner.AddHandler("setup-kernel-snap", m.doSetupKernelSnap, m.undoSetupKernelSnap)
-	runner.AddHandler("remove-old-kernel-snap-setup", m.doCleanupOldKernelSnap, m.undoCleanupOldKernelSnap)
+	runner.AddHandler("prepare-kernel-snap", m.doSetupKernelSnap, m.undoSetupKernelSnap)
+	runner.AddHandler("discard-old-kernel-snap-setup", m.doCleanupOldKernelSnap, m.undoCleanupOldKernelSnap)
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
@@ -681,6 +681,10 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("mount-component", m.doMountComponent, m.undoMountComponent)
 	runner.AddHandler("unlink-current-component", m.doUnlinkCurrentComponent, m.undoUnlinkCurrentComponent)
 	runner.AddHandler("link-component", m.doLinkComponent, m.undoLinkComponent)
+	// We cannot undo much after a component file is removed. And it is the
+	// last task anyway.
+	runner.AddHandler("discard-component", m.doDiscardComponent, nil)
+	runner.AddHandler("prepare-kernel-modules-components", m.doSetupKernelModules, m.doRemoveKernelModulesSetup)
 
 	// control serialisation
 	runner.AddBlocked(m.blockedTask)
@@ -1293,6 +1297,11 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			if err != nil {
 				return err
 			}
+			dev, err := DeviceCtx(m.state, nil, nil)
+			// Ignore error if model assertion not yet known
+			if err != nil && !errors.Is(err, state.ErrNoState) {
+				return err
+			}
 			squashfsPath := dirs.StripRootDir(info.MountFile())
 			whereDir := dirs.StripRootDir(info.MountDir())
 			// Ensure mount files, but do not restart mount units
@@ -1302,9 +1311,23 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			//   This is especially relevant for the snapd snap as if
 			// this happens, it would end up in a bad state after
 			// an update.
+			// TODO Ensure mounts of snap components as well
+			// TODO refactor so the check for kernel type is not repeated
+			// in the installation case
+			snapType, _ := snapSt.Type()
+			// We cannot ensure for this type yet as the mount unit
+			// flags depend on the model in this case.
+			if snapType == snap.TypeKernel && dev == nil {
+				continue
+			}
 			if _, err = sysd.EnsureMountUnitFile(info.MountDescription(),
 				squashfsPath, whereDir, "squashfs",
-				systemd.EnsureMountUnitFlags{PreventRestartIfModified: true}); err != nil {
+				systemd.EnsureMountUnitFlags{
+					PreventRestartIfModified: true,
+					// We need early mounts only for UC20+/hybrid, also 16.04
+					// systemd seems to be buggy if we enable this.
+					StartBeforeDriversLoad: snapType == snap.TypeKernel &&
+						dev.HasModeenv()}); err != nil {
 				return err
 			}
 		}

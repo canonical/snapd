@@ -354,7 +354,7 @@ func (s *toolSuite) TestInternalToolPathSnapdSnapNotExecutable(c *C) {
 	// the internal one is not executable
 	p, err := snapdtool.InternalToolPath("snapd")
 	c.Assert(err, IsNil)
-	c.Check(p, Equals, filepath.Join(dirs.GlobalRootDir, "/usr/lib/snapd/snapd"))
+	c.Check(p, Equals, filepath.Join(dirs.DistroLibExecDir, "snapd"))
 }
 
 func (s *toolSuite) TestInternalToolPathWithLibexecdirLocation(c *C) {

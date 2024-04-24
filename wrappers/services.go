@@ -22,7 +22,6 @@ package wrappers
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -132,7 +131,9 @@ func newUserServiceClientNames(users []string, inter Interacter) (*userServiceCl
 func (c *userServiceClient) stopServices(services ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
-	failures, err := c.cli.ServicesStop(ctx, services)
+
+	const disable = false
+	failures, err := c.cli.ServicesStop(ctx, services, disable)
 	for _, f := range failures {
 		c.inter.Notify(fmt.Sprintf("Could not stop service %q for uid %d: %s", f.Service, f.Uid, f.Error))
 	}
@@ -142,7 +143,8 @@ func (c *userServiceClient) stopServices(services ...string) error {
 func (c *userServiceClient) startServices(services ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
-	startFailures, stopFailures, err := c.cli.ServicesStart(ctx, services)
+
+	startFailures, stopFailures, err := c.cli.ServicesStart(ctx, services, client.ClientServicesStartOptions{})
 	for _, f := range startFailures {
 		c.inter.Notify(fmt.Sprintf("Could not start service %q for uid %d: %s", f.Service, f.Uid, f.Error))
 	}
@@ -155,13 +157,7 @@ func (c *userServiceClient) startServices(services ...string) error {
 func (c *userServiceClient) restartServices(reload bool, services ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
-	var failures []client.ServiceFailure
-	var err error
-	if reload {
-		failures, err = c.cli.ServicesReloadOrRestart(ctx, services)
-	} else {
-		failures, err = c.cli.ServicesRestart(ctx, services)
-	}
+	failures, err := c.cli.ServicesRestart(ctx, services, reload)
 	for _, f := range failures {
 		c.inter.Notify(fmt.Sprintf("Could not restart service %q for uid %d: %s", f.Service, f.Uid, f.Error))
 	}
@@ -227,7 +223,7 @@ type StartServicesFlags struct {
 // StartServices starts service units for the applications from the snap which
 // are services. Service units will be started in the order provided by the
 // caller.
-func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServicesFlags, inter Interacter, tm timings.Measurer) (err error) {
+func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, flags *StartServicesFlags, inter Interacter, tm timings.Measurer) (err error) {
 	if flags == nil {
 		flags = &StartServicesFlags{}
 	}
@@ -293,6 +289,11 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 			toEnableUser = append(toEnableUser, svcs...)
 		}
 	}
+
+	isSystemSvcDisabled := func(name string) bool {
+		return disabledSvcs != nil && strutil.ListContains(disabledSvcs.SystemServices, name)
+	}
+
 	// first, gather all socket and timer units
 	for _, app := range apps {
 		if !app.IsService() {
@@ -302,7 +303,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 		if !flags.Scope.matches(app.DaemonScope) {
 			continue
 		}
-		if strutil.ListContains(disabledSvcs, app.Name) {
+		if isSystemSvcDisabled(app.Name) {
 			continue
 		}
 		// Get all units for the service, but we only deal with
@@ -330,7 +331,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 		if serviceIsActivated(app) {
 			continue
 		}
-		if strutil.ListContains(disabledSvcs, app.Name) {
+		if isSystemSvcDisabled(app.Name) {
 			continue
 		}
 		svcName := app.ServiceName()
@@ -416,7 +417,7 @@ func tryFileUpdate(path string, desiredContent []byte) (old *osutil.MemoryFileSt
 	oldFileState := osutil.MemoryFileState{}
 
 	if st, err := os.Stat(path); err == nil {
-		b, err := ioutil.ReadFile(path)
+		b, err := os.ReadFile(path)
 		if err != nil {
 			return nil, false, err
 		}
@@ -1217,28 +1218,50 @@ func RestartServices(apps []*snap.AppInfo, explicitServices []string,
 	return nil
 }
 
-// QueryDisabledServices returns a list of all currently disabled snap services
-// in the snap.
-func QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
-	sysd := systemd.New(systemd.SystemMode, pb)
+// DisabledServices represents an overview of which services in a snap
+// are currently disabled, both of system services and user services.
+// User services are indexed by the system uid as user services may run
+// in one instance per user.
+type DisabledServices struct {
+	SystemServices []string
+	UserServices   map[int][]string
+}
 
-	// TODO: support user-daemons being reported back here, as it will be possible
-	// for services to have different enablement status on different users.
-	sts, _, err := internal.QueryServiceStatusMany(info.Services(), sysd)
-	if err != nil {
-		return nil, err
-	}
-
+func disabledServiceNames(sts []*internal.ServiceStatus) []string {
 	// add all disabled services to the list
-	disabledSnapSvcs := []string{}
+	var names []string
 	for _, st := range sts {
 		if !st.IsEnabled() {
-			disabledSnapSvcs = append(disabledSnapSvcs, st.Name())
+			names = append(names, st.Name())
 		}
 	}
 
 	// sort for easier testing
-	sort.Strings(disabledSnapSvcs)
+	sort.Strings(names)
+	return names
+}
 
-	return disabledSnapSvcs, nil
+// QueryDisabledServices returns a list of all currently disabled snap services
+// in the snap.
+func QueryDisabledServices(info *snap.Info, pb progress.Meter) (*DisabledServices, error) {
+	sysd := systemd.New(systemd.SystemMode, pb)
+	ssts, usts, err := internal.QueryServiceStatusMany(info.Services(), sysd)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build a new map of the disabled service strings instead
+	// of the internal service status objects
+	var userSvcs map[int][]string
+	if len(usts) > 0 {
+		userSvcs = make(map[int][]string, len(usts))
+		for uid, sts := range usts {
+			userSvcs[uid] = disabledServiceNames(sts)
+		}
+	}
+
+	return &DisabledServices{
+		SystemServices: disabledServiceNames(ssts),
+		UserServices:   userSvcs,
+	}, nil
 }

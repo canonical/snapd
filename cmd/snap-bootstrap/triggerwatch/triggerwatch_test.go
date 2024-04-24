@@ -22,6 +22,7 @@ package triggerwatch_test
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -39,22 +40,32 @@ type triggerwatchSuite struct{}
 var _ = Suite(&triggerwatchSuite{})
 
 type mockTriggerDevice struct {
+	sync.Mutex
+
 	waitForTriggerCalls int
 	closeCalls          int
 	ev                  *triggerwatch.KeyEvent
 }
 
 func (m *mockTriggerDevice) WaitForTrigger(n chan triggerwatch.KeyEvent) {
-	m.waitForTriggerCalls++
-	if m.ev != nil {
-		ev := *m.ev
-		ev.Dev = m
-		n <- ev
-	}
+	m.withLocked(func() {
+		m.waitForTriggerCalls++
+		if m.ev != nil {
+			ev := *m.ev
+			ev.Dev = m
+			n <- ev
+		}
+	})
 }
 
 func (m *mockTriggerDevice) String() string { return "mock-device" }
 func (m *mockTriggerDevice) Close()         { m.closeCalls++ }
+
+func (m *mockTriggerDevice) withLocked(f func()) {
+	m.Lock()
+	defer m.Unlock()
+	f()
+}
 
 type mockTrigger struct {
 	f               triggerwatch.TriggerCapabilityFilter
@@ -115,8 +126,10 @@ func (s *triggerwatchSuite) TestNoDevsWaitKeyTimeout(c *C) {
 	err := triggerwatch.Wait(testTriggerTimeout, testDeviceTimeout)
 	c.Assert(err, Equals, triggerwatch.ErrTriggerNotDetected)
 	c.Assert(mi.findMatchingCalls, Equals, 1)
-	c.Assert(md.waitForTriggerCalls, Equals, 1)
-	c.Assert(md.closeCalls, Equals, 1)
+	md.withLocked(func() {
+		c.Assert(md.waitForTriggerCalls, Equals, 1)
+		c.Assert(md.closeCalls, Equals, 1)
+	})
 }
 
 func (s *triggerwatchSuite) TestNoDevsWaitNoMatching(c *C) {
@@ -177,8 +190,10 @@ func (s *triggerwatchSuite) TestUdevEvent(c *C) {
 	c.Assert(mi.findMatchingCalls, Equals, 1)
 
 	c.Assert(mi.openCalls, Equals, 1)
-	c.Assert(md.waitForTriggerCalls, Equals, 1)
-	c.Assert(md.closeCalls, Equals, 1)
+	md.withLocked(func() {
+		c.Assert(md.waitForTriggerCalls, Equals, 1)
+		c.Assert(md.closeCalls, Equals, 1)
+	})
 }
 
 func (s *triggerwatchSuite) TestUdevEventNoKeyEvent(c *C) {
@@ -213,6 +228,8 @@ func (s *triggerwatchSuite) TestUdevEventNoKeyEvent(c *C) {
 	c.Assert(mi.findMatchingCalls, Equals, 1)
 
 	c.Assert(mi.openCalls, Equals, 1)
-	c.Assert(md.waitForTriggerCalls, Equals, 1)
-	c.Assert(md.closeCalls, Equals, 1)
+	md.withLocked(func() {
+		c.Assert(md.waitForTriggerCalls, Equals, 1)
+		c.Assert(md.closeCalls, Equals, 1)
+	})
 }

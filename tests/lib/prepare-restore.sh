@@ -319,6 +319,9 @@ prepare_project() {
     create_test_user
 
     distro_update_package_db
+    # XXX this should be part of the image update in spread-images
+    # remove any packages that are marked for auto removal before running any tests
+    distro_auto_remove_packages
 
     if os.query is-arch-linux; then
         # perform system upgrade on Arch so that we run with most recent kernel
@@ -626,7 +629,9 @@ prepare_project_each() {
 prepare_suite() {
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
-    if os.query is-core; then
+    # os.query cannot be used because first time the suite is prepared, the current system
+    # is classic ubuntu, so it is needed to check the system set in $SPREAD_SYSTEM
+    if is_test_target_core; then
         prepare_ubuntu_core
     else
         prepare_classic
@@ -661,7 +666,7 @@ prepare_suite_each() {
     tests.backup prepare
 
     # save the job which is going to be executed in the system
-    echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
+    echo -n "${SPREAD_JOB:-} " >> "$RUNTIME_STATE_PATH/runs"
 
     # Restart journal log and reset systemd journal cursor.
     systemctl reset-failed systemd-journald.service

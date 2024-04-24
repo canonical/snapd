@@ -21,7 +21,7 @@ package snap
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"github.com/snapcore/snapd/osutil"
 )
@@ -37,7 +37,7 @@ func addImplicitHooks(snapInfo *Info, hooksDir string) error {
 		return nil
 	}
 
-	fileInfos, err := ioutil.ReadDir(hooksDir)
+	fileInfos, err := os.ReadDir(hooksDir)
 	if err != nil {
 		return fmt.Errorf("unable to read hooks directory: %s", err)
 	}

@@ -20,3 +20,11 @@
 package aspects
 
 var GetValuesThroughPaths = getValuesThroughPaths
+
+func MockMaxValueDepth(newDepth int) (restore func()) {
+	oldDepth := maxValueDepth
+	maxValueDepth = newDepth
+	return func() {
+		maxValueDepth = oldDepth
+	}
+}

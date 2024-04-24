@@ -37,6 +37,7 @@ restore: |
         userdel --extrausers -rf test2
     fi
     snap unset system experimental.user-daemons
+    rm -f /etc/polkit-1/localauthority/50-local.d/spread.pkla
 
 debug: |
     tests.session dump
@@ -55,14 +56,54 @@ execute: |
     systemctl status snap.test-snapd-user-service.svc3.service | MATCH "running"
     systemctl status snap.test-snapd-user-service.svc4.service | MATCH "running"
 
+    echo "(root) Verifying what snap services is reporting"
+    snap services | cat -n > services-root.txt
+    MATCH "     1\s+Service\s+Startup\s+Current\s+Notes$" < services-root.txt
+    MATCH "     2\s+test-snapd-user-service.svc1\s+enabled\s+-\s+user$" < services-root.txt
+    MATCH "     3\s+test-snapd-user-service.svc2\s+enabled\s+-\s+user$" < services-root.txt
+    MATCH "     4\s+test-snapd-user-service.svc3\s+enabled\s+active\s+-$" < services-root.txt
+    MATCH "     5\s+test-snapd-user-service.svc4\s+enabled\s+active\s+-$" < services-root.txt
+
+    echo "(root) Verifying what snap services is reporting with --user"
+    snap services --user | cat -n > services-root-user.txt
+    MATCH "     1\s+Service\s+Startup\s+Current\s+Notes$" < services-root-user.txt
+    MATCH "     2\s+test-snapd-user-service.svc1\s+enabled\s+active\s+user$" < services-root-user.txt
+    MATCH "     3\s+test-snapd-user-service.svc2\s+enabled\s+active\s+user$" < services-root-user.txt
+    MATCH "     4\s+test-snapd-user-service.svc3\s+enabled\s+active\s+-$" < services-root-user.txt
+    MATCH "     5\s+test-snapd-user-service.svc4\s+enabled\s+active\s+-$" < services-root-user.txt
+
     echo "(user test) We can see the user services running"
     tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.svc1.service | MATCH "active"
     tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.svc2.service | MATCH "active"
+
+    echo "(user test) Verifying what snap services is reporting"
+    tests.session -u test exec snap services | cat -n > services-user.txt
+    MATCH "     1\s+Service\s+Startup\s+Current\s+Notes$" < services-user.txt
+    MATCH "     2\s+test-snapd-user-service.svc1\s+enabled\s+active\s+user$" < services-user.txt
+    MATCH "     3\s+test-snapd-user-service.svc2\s+enabled\s+active\s+user$" < services-user.txt
+    MATCH "     4\s+test-snapd-user-service.svc3\s+enabled\s+active\s+-$" < services-user.txt
+    MATCH "     5\s+test-snapd-user-service.svc4\s+enabled\s+active\s+-$" < services-user.txt
 
     echo "(user test2) We can see the user services running"
     tests.session -u test2 exec systemctl --user is-active snap.test-snapd-user-service.svc1.service | MATCH "active"
     tests.session -u test2 exec systemctl --user is-active snap.test-snapd-user-service.svc2.service | MATCH "active"
 
+    echo "(user test2) Verifying what snap services is reporting"
+    tests.session -u test2 exec snap services | cat -n > services-user2.txt
+    MATCH "     1\s+Service\s+Startup\s+Current\s+Notes$" < services-user2.txt
+    MATCH "     2\s+test-snapd-user-service.svc1\s+enabled\s+active\s+user$" < services-user2.txt
+    MATCH "     3\s+test-snapd-user-service.svc2\s+enabled\s+active\s+user$" < services-user2.txt
+    MATCH "     4\s+test-snapd-user-service.svc3\s+enabled\s+active\s+-$" < services-user2.txt
+    MATCH "     5\s+test-snapd-user-service.svc4\s+enabled\s+active\s+-$" < services-user2.txt
+
+    # when --global is passed we should see identical output to the one from root
+    tests.session -u test exec snap services --global | cat -n > services-user-global.txt
+    MATCH "     1\s+Service\s+Startup\s+Current\s+Notes$" < services-user-global.txt
+    MATCH "     2\s+test-snapd-user-service.svc1\s+enabled\s+-\s+user$" < services-user-global.txt
+    MATCH "     3\s+test-snapd-user-service.svc2\s+enabled\s+-\s+user$" < services-user-global.txt
+    MATCH "     4\s+test-snapd-user-service.svc3\s+enabled\s+active\s+-$" < services-user-global.txt
+    MATCH "     5\s+test-snapd-user-service.svc4\s+enabled\s+active\s+-$" < services-user-global.txt
+    
     # if root is making this request, implied scopes are all
     echo "(root) Stopping all services for snap"
     snap stop test-snapd-user-service

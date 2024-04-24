@@ -21,11 +21,11 @@ package daemon_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -37,6 +37,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -49,6 +50,12 @@ import (
 
 var _ = check.Suite(&appsSuite{})
 
+type appsSuiteDecoratorResult struct {
+	daemonType string
+	active     bool
+	enabled    bool
+}
+
 type appsSuite struct {
 	apiBaseSuite
 
@@ -59,6 +66,7 @@ type appsSuite struct {
 	jctlNamespaces     []bool
 	jctlRCs            []io.ReadCloser
 	jctlErrs           []error
+	decoratorResults   map[string]appsSuiteDecoratorResult
 
 	serviceControlError error
 	serviceControlCalls []serviceControlArgs
@@ -132,7 +140,9 @@ func (s *appsSuite) SetUpSuite(c *check.C) {
 }
 
 func (s *appsSuite) TearDownSuite(c *check.C) {
-	s.journalctlRestorer()
+	if s.journalctlRestorer != nil {
+		s.journalctlRestorer()
+	}
 	s.apiBaseSuite.TearDownSuite(c)
 }
 
@@ -213,7 +223,7 @@ NeedDaemonReload=no
 	svcNames = append(svcNames, "snap-e.svc4")
 	s.SysctlBufs = append(s.SysctlBufs, []byte("enabled\n"))
 
-	req, err := http.NewRequest("GET", "/v2/apps", nil)
+	req, err := http.NewRequest("GET", "/v2/apps?global=true", nil)
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -285,23 +295,38 @@ func (s *appsSuite) TestGetAppsInfoNames(c *check.C) {
 }
 
 func (s *appsSuite) TestGetAppsInfoServices(c *check.C) {
+	r := daemon.MockNewStatusDecorator(func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator {
+		c.Check(isGlobal, check.Equals, false)
+		c.Check(uid, check.Equals, "0")
+		return s
+	})
+	defer r()
+
+	// System and user services from active snaps
+	s.decoratorResults = map[string]appsSuiteDecoratorResult{
+		"snap-a.svc1": {
+			daemonType: "simple",
+			active:     true,
+			enabled:    true,
+		},
+		"snap-a.svc2": {
+			daemonType: "simple",
+			active:     true,
+			enabled:    true,
+		},
+		"snap-e.svc4": {
+			daemonType: "simple",
+			active:     false,
+			enabled:    true,
+		},
+	}
+
 	// System services from active snaps
 	svcNames := []string{"snap-a.svc1", "snap-a.svc2"}
-	for _, name := range svcNames {
-		s.SysctlBufs = append(s.SysctlBufs, []byte(fmt.Sprintf(`
-Id=snap.%s.service
-Names=snap.%[1]s.service
-Type=simple
-ActiveState=active
-UnitFileState=enabled
-NeedDaemonReload=no
-`[1:], name)))
-	}
 	// System services from inactive snaps
 	svcNames = append(svcNames, "snap-b.svc3")
 	// User services from active snaps
 	svcNames = append(svcNames, "snap-e.svc4")
-	s.SysctlBufs = append(s.SysctlBufs, []byte("enabled\n"))
 
 	req, err := http.NewRequest("GET", "/v2/apps?select=service", nil)
 	c.Assert(err, check.IsNil)
@@ -329,6 +354,141 @@ NeedDaemonReload=no
 			// snap-e contains user services
 			needle.DaemonScope = snap.UserDaemon
 			needle.Active = false
+		}
+		c.Check(svcs, testutil.DeepContains, needle)
+	}
+
+	appNames := make([]string, len(svcs))
+	for i, svc := range svcs {
+		appNames[i] = svc.Snap + "." + svc.Name
+	}
+	c.Check(sort.StringsAreSorted(appNames), check.Equals, true)
+}
+
+func (s *appsSuite) TestGetAppsInfoServicesWithGlobal(c *check.C) {
+	// System services from active snaps
+	svcNames := []string{"snap-a.svc1", "snap-a.svc2"}
+	for _, name := range svcNames {
+		s.SysctlBufs = append(s.SysctlBufs, []byte(fmt.Sprintf(`
+Id=snap.%s.service
+Names=snap.%[1]s.service
+Type=simple
+ActiveState=active
+UnitFileState=enabled
+NeedDaemonReload=no
+`[1:], name)))
+	}
+	// System services from inactive snaps
+	svcNames = append(svcNames, "snap-b.svc3")
+	// User services from active snaps
+	svcNames = append(svcNames, "snap-e.svc4")
+	s.SysctlBufs = append(s.SysctlBufs, []byte("enabled\n"))
+
+	req, err := http.NewRequest("GET", "/v2/apps?select=service&global=true", nil)
+	c.Assert(err, check.IsNil)
+	s.asUserAuth(c, req)
+
+	rsp := s.syncReq(c, req, nil)
+	c.Assert(rsp.Status, check.Equals, 200)
+	c.Assert(rsp.Result, check.FitsTypeOf, []client.AppInfo{})
+	svcs := rsp.Result.([]client.AppInfo)
+	c.Assert(svcs, check.HasLen, 4)
+
+	for _, name := range svcNames {
+		snapName, app := daemon.SplitAppName(name)
+		needle := client.AppInfo{
+			Snap:        snapName,
+			Name:        app,
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
+		}
+		if snapName != "snap-b" {
+			// snap-b is not active (all the others are)
+			needle.Active = true
+			needle.Enabled = true
+		}
+		if snapName == "snap-e" {
+			// snap-e contains user services
+			needle.DaemonScope = snap.UserDaemon
+			needle.Active = false
+		}
+		c.Check(svcs, testutil.DeepContains, needle)
+	}
+
+	appNames := make([]string, len(svcs))
+	for i, svc := range svcs {
+		appNames[i] = svc.Snap + "." + svc.Name
+	}
+	c.Check(sort.StringsAreSorted(appNames), check.Equals, true)
+}
+
+func (s *appsSuite) DecorateWithStatus(appInfo *client.AppInfo, snapApp *snap.AppInfo) error {
+	name := snapApp.Snap.RealName + "." + appInfo.Name
+	dec, ok := s.decoratorResults[name]
+	if !ok {
+		return fmt.Errorf("%s not found in expected test decorator results", name)
+	}
+	appInfo.Daemon = dec.daemonType
+	appInfo.Enabled = dec.enabled
+	appInfo.Active = dec.active
+	return nil
+}
+
+func (s *appsSuite) TestGetUserAppsInfoServices(c *check.C) {
+	r := daemon.MockNewStatusDecorator(func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator {
+		c.Check(isGlobal, check.Equals, false)
+		c.Check(uid, check.Equals, "1337")
+		return s
+	})
+	defer r()
+
+	// System and user services from active snaps
+	s.decoratorResults = map[string]appsSuiteDecoratorResult{
+		"snap-a.svc1": {
+			daemonType: "simple",
+			active:     true,
+			enabled:    true,
+		},
+		"snap-a.svc2": {
+			daemonType: "simple",
+			active:     true,
+			enabled:    true,
+		},
+		"snap-e.svc4": {
+			daemonType: "simple",
+			active:     true,
+			enabled:    true,
+		},
+	}
+
+	// Perform the request as a non-root uid
+	req, err := http.NewRequest("GET", "/v2/apps?select=service", nil)
+	c.Assert(err, check.IsNil)
+	s.asUserAuth(c, req)
+
+	rsp := s.syncReq(c, req, nil)
+	c.Assert(rsp.Status, check.Equals, 200)
+	c.Assert(rsp.Result, check.FitsTypeOf, []client.AppInfo{})
+	svcs := rsp.Result.([]client.AppInfo)
+	c.Assert(svcs, check.HasLen, 4)
+
+	for name := range s.decoratorResults {
+		snapName, app := daemon.SplitAppName(name)
+		needle := client.AppInfo{
+			Snap:        snapName,
+			Name:        app,
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
+		}
+		if snapName != "snap-b" {
+			// snap-b is not active (all the others are)
+			needle.Active = true
+			needle.Enabled = true
+		}
+		if snapName == "snap-e" {
+			// snap-e contains user services
+			needle.DaemonScope = snap.UserDaemon
+			needle.Active = true
 		}
 		c.Check(svcs, testutil.DeepContains, needle)
 	}
@@ -811,7 +971,7 @@ func (s *appsSuite) expectLogsAccess() {
 func (s *appsSuite) TestLogs(c *check.C) {
 	s.expectLogsAccess()
 
-	s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(`
+	s.jctlRCs = []io.ReadCloser{io.NopCloser(strings.NewReader(`
 {"MESSAGE": "hello1", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "42"}
 {"MESSAGE": "hello2", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "44"}
 {"MESSAGE": "hello3", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "46"}
@@ -847,7 +1007,7 @@ func (s *appsSuite) TestLogsNoNamespaceOption(c *check.C) {
 
 	s.expectLogsAccess()
 
-	s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(""))}
+	s.jctlRCs = []io.ReadCloser{io.NopCloser(strings.NewReader(""))}
 
 	req, err := http.NewRequest("GET", "/v2/logs?names=snap-a.svc2&n=42&follow=false", nil)
 	c.Assert(err, check.IsNil)
@@ -871,7 +1031,7 @@ func (s *appsSuite) TestLogsWithNamespaceOption(c *check.C) {
 
 	s.expectLogsAccess()
 
-	s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(""))}
+	s.jctlRCs = []io.ReadCloser{io.NopCloser(strings.NewReader(""))}
 
 	req, err := http.NewRequest("GET", "/v2/logs?names=snap-a.svc2&n=42&follow=false", nil)
 	c.Assert(err, check.IsNil)
@@ -905,7 +1065,7 @@ func (s *appsSuite) TestLogsN(c *check.C) {
 		{in: strconv.Itoa(math.MaxInt32), out: math.MaxInt32},
 	} {
 
-		s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(""))}
+		s.jctlRCs = []io.ReadCloser{io.NopCloser(strings.NewReader(""))}
 		s.jctlNs = nil
 
 		req, err := http.NewRequest("GET", "/v2/logs?n="+t.in, nil)
@@ -932,9 +1092,9 @@ func (s *appsSuite) TestLogsFollow(c *check.C) {
 	s.expectLogsAccess()
 
 	s.jctlRCs = []io.ReadCloser{
-		ioutil.NopCloser(strings.NewReader("")),
-		ioutil.NopCloser(strings.NewReader("")),
-		ioutil.NopCloser(strings.NewReader("")),
+		io.NopCloser(strings.NewReader("")),
+		io.NopCloser(strings.NewReader("")),
+		io.NopCloser(strings.NewReader("")),
 	}
 
 	reqT, err := http.NewRequest("GET", "/v2/logs?follow=true", nil)

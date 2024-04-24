@@ -87,6 +87,8 @@ parts:
           git diff
         ) > $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/dirty-git-tree-info.txt
       fi
+      # copy helper for collecting debug output
+      cp -av debug-tools/snap-debug-info.sh $SNAPCRAFT_PART_INSTALL/usr/lib/snapd/
 
   # xdelta is used to enable delta downloads (even if the host does not have it)
   xdelta3:

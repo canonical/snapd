@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Canonical Ltd
+// Copyright (c) 2023-2024 Canonical Ltd
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License version 3 as
@@ -15,19 +15,25 @@
 package daemon_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -40,7 +46,8 @@ type noticesSuite struct {
 func (s *noticesSuite) SetUpTest(c *C) {
 	s.apiBaseSuite.SetUpTest(c)
 
-	s.expectReadAccess(daemon.InterfaceOpenAccess{Interface: "snap-refresh-observe"})
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}})
+	s.expectWriteAccess(daemon.OpenAccess{})
 }
 
 func (s *noticesSuite) TestNoticesFilterUserID(c *C) {
@@ -143,7 +150,7 @@ func (s *noticesSuite) TestNoticesFilterMultipleTypes(c *C) {
 	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
 	st.Unlock()
 
-	req, err := http.NewRequest("GET", "/v2/notices?types=change-update&types=warning&types=refresh-inhibit", nil)
+	req, err := http.NewRequest("GET", "/v2/notices?types=change-update&types=warning,warning&types=refresh-inhibit", nil)
 	c.Assert(err, IsNil)
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapdSocket)
 	rsp := s.syncReq(c, req, nil)
@@ -232,6 +239,7 @@ func (s *noticesSuite) TestNoticesShowsTypesAllowedForSnap(c *C) {
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
 	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
 	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
+	addNotice(c, st, nil, state.SnapRunInhibitNotice, "snap-name", nil)
 	st.Unlock()
 
 	// Check that a snap request without specifying types filter only shows
@@ -255,7 +263,7 @@ func (s *noticesSuite) TestNoticesShowsTypesAllowedForSnap(c *C) {
 	c.Check(rsp.Status, Equals, 200)
 	notices, ok = rsp.Result.([]*state.Notice)
 	c.Assert(ok, Equals, true)
-	c.Assert(notices, HasLen, 2)
+	c.Assert(notices, HasLen, 3)
 
 	seenNoticeType := make(map[string]int)
 	for _, notice := range notices {
@@ -265,6 +273,7 @@ func (s *noticesSuite) TestNoticesShowsTypesAllowedForSnap(c *C) {
 	}
 	c.Check(seenNoticeType["change-update"], Equals, 1)
 	c.Check(seenNoticeType["refresh-inhibit"], Equals, 1)
+	c.Check(seenNoticeType["snap-run-inhibit"], Equals, 1)
 }
 
 func (s *noticesSuite) TestNoticesFilterTypesForSnap(c *C) {
@@ -275,20 +284,21 @@ func (s *noticesSuite) TestNoticesFilterTypesForSnap(c *C) {
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
 	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
 	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
+	addNotice(c, st, nil, state.SnapRunInhibitNotice, "snap-name", nil)
 	st.Unlock()
 
 	// Check that a snap request with types filter allows access to
 	// snaps with required interfaces only.
 
-	// snap-refresh-observe interface allows accessing change-update notices
-	req, err := http.NewRequest("GET", "/v2/notices?types=change-update,refresh-inhibit", nil)
+	// snap-refresh-observe interface allows accessing change-update, refresh-inhibit and snap-run-inhibit notices
+	req, err := http.NewRequest("GET", "/v2/notices?types=change-update,refresh-inhibit,snap-run-inhibit", nil)
 	c.Assert(err, IsNil)
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-refresh-observe;", dirs.SnapSocket)
 	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 200)
 	notices, ok := rsp.Result.([]*state.Notice)
 	c.Assert(ok, Equals, true)
-	c.Assert(notices, HasLen, 2)
+	c.Assert(notices, HasLen, 3)
 
 	seenNoticeType := make(map[string]int)
 	for _, notice := range notices {
@@ -298,6 +308,7 @@ func (s *noticesSuite) TestNoticesFilterTypesForSnap(c *C) {
 	}
 	c.Check(seenNoticeType["change-update"], Equals, 1)
 	c.Check(seenNoticeType["refresh-inhibit"], Equals, 1)
+	c.Check(seenNoticeType["snap-run-inhibit"], Equals, 1)
 }
 
 func (s *noticesSuite) TestNoticesFilterTypesForSnapForbidden(c *C) {
@@ -308,6 +319,7 @@ func (s *noticesSuite) TestNoticesFilterTypesForSnapForbidden(c *C) {
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
 	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
 	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
+	addNotice(c, st, nil, state.SnapRunInhibitNotice, "snap-name", nil)
 	st.Unlock()
 
 	// Check that a snap request with types filter denies access to
@@ -341,8 +353,15 @@ func (s *noticesSuite) TestNoticesFilterTypesForSnapForbidden(c *C) {
 	rsp = s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 403)
 
+	// snap-themes-control doesn't give access to snap-run-inhibit notices.
+	req, err = http.NewRequest("GET", "/v2/notices?types=snap-run-inhibit", nil)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-themes-control;", dirs.SnapSocket)
+	rsp = s.errorReq(c, req, nil)
+	c.Check(rsp.Status, Equals, 403)
+
 	// No interfaces connected.
-	req, err = http.NewRequest("GET", "/v2/notices?types=change-update,refresh-inhibit", nil)
+	req, err = http.NewRequest("GET", "/v2/notices?types=change-update,refresh-inhibit,snap-run-inhibit", nil)
 	c.Assert(err, IsNil)
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=;", dirs.SnapSocket)
 	rsp = s.errorReq(c, req, nil)
@@ -661,6 +680,314 @@ func (s *noticesSuite) testNoticesBadRequest(c *C, query, errorMatch string) {
 	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 400)
 	c.Assert(rsp.Message, Matches, errorMatch)
+}
+
+// Check that duplicate explicitly-given notice types are removed from filter.
+func (s *noticesSuite) TestSanitizeNoticeTypesFilterDuplicateGivenTypes(c *C) {
+	typeStrs := []string{
+		string(state.ChangeUpdateNotice),
+		fmt.Sprintf(
+			"%s,%s,%s",
+			state.WarningNotice,
+			state.ChangeUpdateNotice,
+			state.RefreshInhibitNotice,
+		),
+		string(state.WarningNotice),
+		string(state.RefreshInhibitNotice),
+		string(state.WarningNotice),
+		string(state.ChangeUpdateNotice),
+	}
+	types := []state.NoticeType{
+		state.ChangeUpdateNotice,
+		state.WarningNotice,
+		state.RefreshInhibitNotice,
+	}
+	// Request unnecessary since explicitly-specified types are validated later.
+	result, err := daemon.SanitizeNoticeTypesFilter(typeStrs, nil)
+	c.Assert(err, IsNil)
+	c.Check(result, DeepEquals, types)
+}
+
+// Check that notice types granted by default by multiple connected interfaces
+// are only included once in the filter.
+func (s *noticesSuite) TestSanitizeNoticeTypesFilterDuplicateDefaultTypes(c *C) {
+	types := []state.NoticeType{
+		state.NoticeType("foo"),
+		state.NoticeType("bar"),
+		state.NoticeType("baz"),
+	}
+	ifaces := []string{
+		"abc",
+		"xyz",
+		"123",
+	}
+	fakeNoticeReadInterfaces := map[state.NoticeType][]string{
+		types[0]: {ifaces[0], ifaces[1]},
+		types[1]: {ifaces[1], ifaces[2]},
+		types[2]: {ifaces[2]},
+	}
+	restore := daemon.MockNoticeReadInterfaces(fakeNoticeReadInterfaces)
+	defer restore()
+
+	// Check that multiple interfaces which grant the same notice type do not
+	// result in duplicates of that type
+	req, err := http.NewRequest("GET", "/v2/notices", nil)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=%s&%s;", dirs.SnapSocket, ifaces[0], ifaces[1])
+	result, err := daemon.SanitizeNoticeTypesFilter(nil, req)
+	c.Assert(err, IsNil)
+	c.Check(result, DeepEquals, types[:2])
+}
+
+// Check that requests for notice types granted by multiple connected interfaces
+// behave correctly.
+func (s *noticesSuite) TestNoticeTypesViewableBySnap(c *C) {
+	types := []state.NoticeType{
+		state.NoticeType("foo"),
+		state.NoticeType("bar"),
+		state.NoticeType("baz"),
+	}
+	ifaces := []string{
+		"abc",
+		"xyz",
+		"123",
+	}
+	fakeNoticeReadInterfaces := map[state.NoticeType][]string{
+		types[0]: {ifaces[0], ifaces[1]},
+		types[1]: {ifaces[1], ifaces[2]},
+		types[2]: {ifaces[2]},
+	}
+	restore := daemon.MockNoticeReadInterfaces(fakeNoticeReadInterfaces)
+	defer restore()
+
+	// Check notice types granted by different connected interfaces.
+	req, err := http.NewRequest("GET", "/v2/notices", nil)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=%s&%s;", dirs.SnapSocket, ifaces[0], ifaces[2])
+	requestedTypes := []state.NoticeType{types[0], types[1], types[2]}
+	viewable := daemon.NoticeTypesViewableBySnap(requestedTypes, req)
+	c.Check(viewable, Equals, true)
+
+	// Check notice types granted by the same connected interface.
+	req, err = http.NewRequest("GET", "/v2/notices", nil)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=%s&%s;", dirs.SnapSocket, ifaces[0], ifaces[1])
+	// Types viewable by both interfaces
+	requestedTypes = []state.NoticeType{types[0]}
+	viewable = daemon.NoticeTypesViewableBySnap(requestedTypes, req)
+	c.Check(viewable, Equals, true)
+	// Types viewable by at least one interface
+	requestedTypes = []state.NoticeType{types[0], types[1]}
+	viewable = daemon.NoticeTypesViewableBySnap(requestedTypes, req)
+	c.Check(viewable, Equals, true)
+	// Type not viewable by any interface
+	requestedTypes = []state.NoticeType{types[2]}
+	viewable = daemon.NoticeTypesViewableBySnap(requestedTypes, req)
+	c.Check(viewable, Equals, false)
+	// Mix of viewable and unviewable types
+	requestedTypes = []state.NoticeType{types[0], types[2]}
+	viewable = daemon.NoticeTypesViewableBySnap(requestedTypes, req)
+	c.Check(viewable, Equals, false)
+
+	// Check no types results in not viewable, no matter what
+	requestedTypes = make([]state.NoticeType, 0)
+	req, err = http.NewRequest("GET", "/v2/notices", nil)
+	c.Assert(err, IsNil)
+	// No "iface=" field given
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapSocket)
+	viewable = daemon.NoticeTypesViewableBySnap(requestedTypes, req)
+	c.Check(viewable, Equals, false)
+	// Empty "iface=" field
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=;", dirs.SnapSocket)
+	viewable = daemon.NoticeTypesViewableBySnap(requestedTypes, req)
+	c.Check(viewable, Equals, false)
+	// Non-empty "iface=" field
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-refresh-observe;", dirs.SnapSocket)
+	viewable = daemon.NoticeTypesViewableBySnap(requestedTypes, req)
+	c.Check(viewable, Equals, false)
+}
+
+func (s *noticesSuite) TestAddNotice(c *C) {
+	s.daemon(c)
+
+	// mock request coming from snap command
+	restore := daemon.MockOsReadlink(func(path string) (string, error) {
+		c.Check(path, Equals, "/proc/100/exe")
+		return filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap"), nil
+	})
+	defer restore()
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	// mock existing snap
+	snapstate.Set(st, "snap-name", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "snap-name", Revision: snap.R(2)}}),
+	})
+	st.Unlock()
+
+	start := time.Now()
+	body := []byte(`{
+		"action": "add",
+		"type": "snap-run-inhibit",
+		"key": "snap-name"
+	}`)
+	req, err := http.NewRequest("POST", "/v2/notices", bytes.NewReader(body))
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rsp := s.syncReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 200)
+
+	resultBytes, err := json.Marshal(rsp.Result)
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	notices := st.Notices(nil)
+	st.Unlock()
+	c.Assert(notices, HasLen, 1)
+	n := noticeToMap(c, notices[0])
+	noticeID, ok := n["id"].(string)
+	c.Assert(ok, Equals, true)
+	c.Assert(string(resultBytes), Equals, `{"id":"`+noticeID+`"}`)
+
+	firstOccurred, err := time.Parse(time.RFC3339, n["first-occurred"].(string))
+	c.Assert(err, IsNil)
+	c.Assert(firstOccurred.After(start), Equals, true)
+	lastOccurred, err := time.Parse(time.RFC3339, n["last-occurred"].(string))
+	c.Assert(err, IsNil)
+	c.Assert(lastOccurred.Equal(firstOccurred), Equals, true)
+	lastRepeated, err := time.Parse(time.RFC3339, n["last-repeated"].(string))
+	c.Assert(err, IsNil)
+	c.Assert(lastRepeated.Equal(firstOccurred), Equals, true)
+
+	delete(n, "first-occurred")
+	delete(n, "last-occurred")
+	delete(n, "last-repeated")
+	c.Assert(n, DeepEquals, map[string]any{
+		"id":           noticeID,
+		"user-id":      1000.0,
+		"type":         "snap-run-inhibit",
+		"key":          "snap-name",
+		"occurrences":  1.0,
+		"expire-after": "168h0m0s",
+	})
+}
+
+func (s *noticesSuite) TestAddNoticeInvalidRequestUid(c *C) {
+	s.daemon(c)
+
+	body := []byte(`{
+		"action": "add",
+		"type": "snap-run-inhibit",
+		"key": "snap-name"
+	}`)
+	req, err := http.NewRequest("POST", "/v2/notices", bytes.NewReader(body))
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=;socket=;"
+	rsp := s.errorReq(c, req, nil)
+	c.Assert(rsp.Status, Equals, 403)
+}
+
+func (s *noticesSuite) TestAddNoticeInvalidAction(c *C) {
+	s.testAddNoticeBadRequest(c, `{"action": "bad"}`, "invalid action.*")
+}
+
+func (s *noticesSuite) TestAddNoticeInvalidTypeUnkown(c *C) {
+	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "foo"}`, `cannot add notice with invalid type "foo"`)
+}
+
+func (s *noticesSuite) TestAddNoticeInvalidTypeKnown(c *C) {
+	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "change-update", "key": "test"}`, "cannot add notice with invalid type.*")
+}
+
+func (s *noticesSuite) TestAddNoticeEmptyKey(c *C) {
+	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "snap-run-inhibit", "key": ""}`, `cannot add snap-run-inhibit notice with invalid key ""`)
+}
+
+func (s *noticesSuite) TestAddNoticeKeyTooLong(c *C) {
+	request, err := json.Marshal(map[string]any{
+		"action": "add",
+		"type":   "snap-run-inhibit",
+		"key":    strings.Repeat("x", 257),
+	})
+	c.Assert(err, IsNil)
+	s.testAddNoticeBadRequest(c, string(request), "cannot add snap-run-inhibit notice with invalid key: key must be 256 bytes or less")
+}
+
+func (s *noticesSuite) TestAddNoticeInvalidSnapName(c *C) {
+	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "snap-run-inhibit", "key": "Snap-Name"}`, `invalid key: invalid snap name: "Snap-Name"`)
+}
+
+func (s *noticesSuite) testAddNoticeBadRequest(c *C, body, errorMatch string) {
+	s.daemon(c)
+
+	// mock request coming from snap command
+	restore := daemon.MockOsReadlink(func(path string) (string, error) {
+		c.Check(path, Equals, "/proc/100/exe")
+		return filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap"), nil
+	})
+	defer restore()
+
+	req, err := http.NewRequest("POST", "/v2/notices", strings.NewReader(body))
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rsp := s.errorReq(c, req, nil)
+	c.Check(rsp.Status, Equals, 400)
+	c.Assert(rsp.Message, Matches, errorMatch)
+}
+
+func (s *noticesSuite) TestAddNoticesSnapCmdNoReexec(c *C) {
+	s.testAddNoticesSnapCmd(c, filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap"), false)
+}
+
+func (s *noticesSuite) TestAddNoticesSnapCmdReexecSnapd(c *C) {
+	s.testAddNoticesSnapCmd(c, filepath.Join(dirs.SnapMountDir, "snapd/11/usr/bin/snap"), false)
+}
+
+func (s *noticesSuite) TestAddNoticesSnapCmdReexecCore(c *C) {
+	s.testAddNoticesSnapCmd(c, filepath.Join(dirs.SnapMountDir, "core/12/usr/bin/snap"), false)
+}
+
+func (s *noticesSuite) TestAddNoticesSnapCmdUnknownBinary(c *C) {
+	s.testAddNoticesSnapCmd(c, filepath.Join(dirs.SnapMountDir, "bad-c0re/12/usr/bin/snap"), true)
+}
+
+func (s *noticesSuite) testAddNoticesSnapCmd(c *C, exePath string, shouldFail bool) {
+	s.daemon(c)
+
+	// mock request coming from snap command
+	restore := daemon.MockOsReadlink(func(path string) (string, error) {
+		c.Check(path, Equals, "/proc/100/exe")
+		return exePath, nil
+	})
+	defer restore()
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	// mock existing snap
+	snapstate.Set(st, "snap-name", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "snap-name", Revision: snap.R(2)}}),
+	})
+	st.Unlock()
+
+	body := []byte(`{
+		"action": "add",
+		"type": "snap-run-inhibit",
+		"key": "snap-name"
+	}`)
+	req, err := http.NewRequest("POST", "/v2/notices", bytes.NewReader(body))
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+
+	if shouldFail {
+		rsp := s.errorReq(c, req, nil)
+		c.Check(rsp.Status, Equals, 403)
+		c.Assert(rsp.Message, Matches, "only snap command can record notices")
+	} else {
+		rsp := s.syncReq(c, req, nil)
+		c.Assert(rsp.Status, Equals, 200)
+	}
 }
 
 func (s *noticesSuite) TestNotice(c *C) {

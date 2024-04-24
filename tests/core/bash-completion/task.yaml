@@ -1,5 +1,8 @@
 summary: bash completion
 
+details: |
+  Check the bash completion works in ubuntu core 22+
+
 systems:
   - ubuntu-core-22-*
 

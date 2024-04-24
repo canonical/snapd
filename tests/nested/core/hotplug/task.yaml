@@ -1,6 +1,11 @@
 summary: Create ubuntu core image, install snapd and test hotplug feature
 
-systems: [ubuntu-16.04-64, ubuntu-18.04-64]
+details: |
+    Check that when a device is plugged the hotplug slot is present, and when it
+    is unplugged, the slot is no longer present. Also validates a snap can be
+    connected to the device and serial-port permissions of the snap are correct.
+
+systems: [ubuntu-1*]
 
 prepare: |
     snap pack "$TESTSLIB"/snaps/serial-port-hotplug
@@ -81,7 +86,7 @@ execute: |
     remote.exec "sudo snap connect serial-port-hotplug:serial-port :qemuusbserial"
     check_slot_connected qemuusbserial
 
-    echo "Veryfing serial-port permissions of the snap"
+    echo "Verifying serial-port permissions of the snap"
     verify_apparmor_profile "/dev/ttyUSB0"
 
     echo "Unplugging the device"
@@ -114,7 +119,7 @@ execute: |
     check_slot_connected qemuusbserial
     check_slot_not_gone qemuusbserial
 
-    echo "Veryfing serial-port permissions of the snap, the first device is now expected on ttyUSB1"
+    echo "Verifying serial-port permissions of the snap, the first device is now expected on ttyUSB1"
     check_slot_device_path qemuusbserial "/dev/ttyUSB1"
     verify_apparmor_profile "/dev/ttyUSB1"
 

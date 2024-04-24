@@ -20,6 +20,8 @@
 package builtin_test
 
 import (
+	"strings"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -444,14 +446,23 @@ func (s *PosixMQInterfaceSuite) SetUpTest(c *C) {
 	s.testPathArrayPlug = interfaces.NewConnectedPlug(s.testPathArrayPlugInfo, nil, nil)
 }
 
+// splitSnippet converts the trimmed string snippet to a string slice
+func splitSnippet(snippet string) []string {
+	return strings.Split(strings.TrimSpace(snippet), "\n")
+}
+
 func (s *PosixMQInterfaceSuite) checkSlotSeccompSnippet(c *C, spec *seccomp.Specification) {
 	slotSnippet := spec.SnippetForTag("snap.producer.app")
+
+	c.Check(splitSnippet(slotSnippet), HasLen, 8)
 	c.Check(slotSnippet, testutil.Contains, "mq_open")
 	c.Check(slotSnippet, testutil.Contains, "mq_unlink")
 	c.Check(slotSnippet, testutil.Contains, "mq_getsetattr")
 	c.Check(slotSnippet, testutil.Contains, "mq_notify")
 	c.Check(slotSnippet, testutil.Contains, "mq_timedreceive")
+	c.Check(slotSnippet, testutil.Contains, "mq_timedreceive_time64")
 	c.Check(slotSnippet, testutil.Contains, "mq_timedsend")
+	c.Check(slotSnippet, testutil.Contains, "mq_timedsend_time64")
 }
 
 func (s *PosixMQInterfaceSuite) TestReadWriteMQAppArmor(c *C) {
@@ -490,10 +501,13 @@ func (s *PosixMQInterfaceSuite) TestReadWriteMQSeccomp(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
+	c.Check(splitSnippet(plugSnippet), HasLen, 7)
 	c.Check(plugSnippet, testutil.Contains, "mq_open")
 	c.Check(plugSnippet, testutil.Contains, "mq_notify")
 	c.Check(plugSnippet, testutil.Contains, "mq_timedreceive")
+	c.Check(plugSnippet, testutil.Contains, "mq_timedreceive_time64")
 	c.Check(plugSnippet, testutil.Contains, "mq_timedsend")
+	c.Check(plugSnippet, testutil.Contains, "mq_timedsend_time64")
 	c.Check(plugSnippet, testutil.Contains, "mq_getsetattr")
 	c.Check(plugSnippet, Not(testutil.Contains), "mq_unlink")
 }
@@ -533,10 +547,13 @@ func (s *PosixMQInterfaceSuite) TestDefaultReadWriteMQSeccomp(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
+	c.Check(splitSnippet(plugSnippet), HasLen, 7)
 	c.Check(plugSnippet, testutil.Contains, "mq_open")
 	c.Check(plugSnippet, testutil.Contains, "mq_notify")
 	c.Check(plugSnippet, testutil.Contains, "mq_timedreceive")
+	c.Check(plugSnippet, testutil.Contains, "mq_timedreceive_time64")
 	c.Check(plugSnippet, testutil.Contains, "mq_timedsend")
+	c.Check(plugSnippet, testutil.Contains, "mq_timedsend_time64")
 	c.Check(plugSnippet, testutil.Contains, "mq_getsetattr")
 	c.Check(plugSnippet, Not(testutil.Contains), "mq_unlink")
 }
@@ -575,11 +592,14 @@ func (s *PosixMQInterfaceSuite) TestReadOnlyMQSeccomp(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
+	c.Check(splitSnippet(plugSnippet), HasLen, 5)
 	c.Check(plugSnippet, testutil.Contains, "mq_open")
 	c.Check(plugSnippet, testutil.Contains, "mq_notify")
 	c.Check(plugSnippet, testutil.Contains, "mq_timedreceive")
+	c.Check(plugSnippet, testutil.Contains, "mq_timedreceive_time64")
 	c.Check(plugSnippet, testutil.Contains, "mq_getsetattr")
 	c.Check(plugSnippet, Not(testutil.Contains), "mq_timedsend")
+	c.Check(plugSnippet, Not(testutil.Contains), "mq_timedsend_time64")
 	c.Check(plugSnippet, Not(testutil.Contains), "mq_unlink")
 }
 
@@ -623,10 +643,13 @@ func (s *PosixMQInterfaceSuite) TestPathArrayMQSeccomp(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
+	c.Check(splitSnippet(plugSnippet), HasLen, 7)
 	c.Check(plugSnippet, testutil.Contains, "mq_open")
 	c.Check(plugSnippet, testutil.Contains, "mq_notify")
 	c.Check(plugSnippet, testutil.Contains, "mq_timedreceive")
+	c.Check(plugSnippet, testutil.Contains, "mq_timedreceive_time64")
 	c.Check(plugSnippet, testutil.Contains, "mq_timedsend")
+	c.Check(plugSnippet, testutil.Contains, "mq_timedsend_time64")
 	c.Check(plugSnippet, testutil.Contains, "mq_getsetattr")
 	c.Check(plugSnippet, Not(testutil.Contains), "mq_unlink")
 }
@@ -664,12 +687,15 @@ func (s *PosixMQInterfaceSuite) TestAllPermsMQSeccomp(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 
 	plugSnippet := spec.SnippetForTag("snap.consumer.app")
+	c.Check(splitSnippet(plugSnippet), HasLen, 8)
 	c.Check(plugSnippet, testutil.Contains, "mq_open")
 	c.Check(plugSnippet, testutil.Contains, "mq_unlink")
 	c.Check(plugSnippet, testutil.Contains, "mq_getsetattr")
 	c.Check(plugSnippet, testutil.Contains, "mq_notify")
 	c.Check(plugSnippet, testutil.Contains, "mq_timedreceive")
+	c.Check(plugSnippet, testutil.Contains, "mq_timedreceive_time64")
 	c.Check(plugSnippet, testutil.Contains, "mq_timedsend")
+	c.Check(plugSnippet, testutil.Contains, "mq_timedsend_time64")
 }
 
 func (s *PosixMQInterfaceSuite) TestPathValidationPosixMQ(c *C) {

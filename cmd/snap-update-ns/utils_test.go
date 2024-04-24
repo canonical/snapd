@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -686,21 +687,21 @@ func (s *utilsSuite) TestSecureMkdirAllOpenError(c *C) {
 
 func (s *utilsSuite) TestPlanWritableMimic(c *C) {
 	s.sys.InsertSysLstatResult(`lstat "/foo" <ptr>`, syscall.Stat_t{Uid: 0, Gid: 0, Mode: 0755})
-	restore := update.MockReadDir(func(dir string) ([]os.FileInfo, error) {
+	restore := update.MockReadDir(func(dir string) ([]fs.DirEntry, error) {
 		c.Assert(dir, Equals, "/foo")
-		return []os.FileInfo{
-			testutil.FakeFileInfo("file", 0),
-			testutil.FakeFileInfo("dir", os.ModeDir),
-			testutil.FakeFileInfo("symlink", os.ModeSymlink),
-			testutil.FakeFileInfo("error-symlink-readlink", os.ModeSymlink),
+		return []fs.DirEntry{
+			testutil.FakeDirEntry("file", 0),
+			testutil.FakeDirEntry("dir", os.ModeDir),
+			testutil.FakeDirEntry("symlink", os.ModeSymlink),
+			testutil.FakeDirEntry("error-symlink-readlink", os.ModeSymlink),
 			// NOTE: None of the filesystem entries below are supported because
 			// they cannot be placed inside snaps or can only be created at
 			// runtime in areas that are already writable and this would never
 			// have to be handled in a writable mimic.
-			testutil.FakeFileInfo("block-dev", os.ModeDevice),
-			testutil.FakeFileInfo("char-dev", os.ModeDevice|os.ModeCharDevice),
-			testutil.FakeFileInfo("socket", os.ModeSocket),
-			testutil.FakeFileInfo("pipe", os.ModeNamedPipe),
+			testutil.FakeDirEntry("block-dev", os.ModeDevice),
+			testutil.FakeDirEntry("char-dev", os.ModeDevice|os.ModeCharDevice),
+			testutil.FakeDirEntry("socket", os.ModeSocket),
+			testutil.FakeDirEntry("pipe", os.ModeNamedPipe),
 		}, nil
 	})
 	defer restore()
@@ -737,7 +738,7 @@ func (s *utilsSuite) TestPlanWritableMimic(c *C) {
 
 func (s *utilsSuite) TestPlanWritableMimicErrors(c *C) {
 	s.sys.InsertSysLstatResult(`lstat "/foo" <ptr>`, syscall.Stat_t{Uid: 0, Gid: 0, Mode: 0755})
-	restore := update.MockReadDir(func(dir string) ([]os.FileInfo, error) {
+	restore := update.MockReadDir(func(dir string) ([]fs.DirEntry, error) {
 		c.Assert(dir, Equals, "/foo")
 		return nil, errTesting
 	})

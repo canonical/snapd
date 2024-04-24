@@ -21,7 +21,7 @@ package builtin
 
 import (
 	"fmt"
-	"os"
+	"io/fs"
 
 	. "gopkg.in/check.v1"
 
@@ -64,11 +64,11 @@ slots:
 	c.Assert(spec.Snippets(), DeepEquals, []string{
 		`# common
 KERNEL=="foo", TAG+="snap_consumer_app-a"`,
-		fmt.Sprintf(`TAG=="snap_consumer_app-a", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_consumer_app-a"`, dirs.DistroLibExecDir),
+		fmt.Sprintf(`TAG=="snap_consumer_app-a", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app-a $devpath $major:$minor"`, dirs.DistroLibExecDir),
 		// NOTE: app-b is unaffected as it doesn't have a plug reference.
 		`# common
 KERNEL=="foo", TAG+="snap_consumer_app-c"`,
-		fmt.Sprintf(`TAG=="snap_consumer_app-c", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper snap_consumer_app-c"`, dirs.DistroLibExecDir),
+		fmt.Sprintf(`TAG=="snap_consumer_app-c", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app-c $devpath $major:$minor"`, dirs.DistroLibExecDir),
 	})
 
 	// connected plug udev rules are optional
@@ -89,8 +89,8 @@ func MockEvalSymlinks(test *testutil.BaseTest, fn func(string) (string, error)) 
 	})
 }
 
-// MockReadDir replaces the io/ioutil.ReadDir function used inside the caps package.
-func MockReadDir(test *testutil.BaseTest, fn func(string) ([]os.FileInfo, error)) {
+// MockReadDir replaces the os.ReadDir function used inside the caps package.
+func MockReadDir(test *testutil.BaseTest, fn func(string) ([]fs.DirEntry, error)) {
 	orig := readDir
 	readDir = fn
 	test.AddCleanup(func() {

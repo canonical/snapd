@@ -25,6 +25,7 @@ package netplantest
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/godbus/dbus"
 
@@ -41,6 +42,7 @@ const (
 
 type NetplanServer struct {
 	conn *dbus.Conn
+	sync.Mutex
 
 	MockNetplanConfigYaml string
 
@@ -110,6 +112,13 @@ func (server *NetplanServer) Stop() error {
 	return server.conn.Close()
 }
 
+func (server *NetplanServer) WithLocked(f func()) {
+	server.Lock()
+	defer server.Unlock()
+
+	f()
+}
+
 // netplanApiV1 implements the original netplan DBus API that is found
 // in netplan 0.98. It can only do a global "Apply".
 type netplanApiV1 struct {
@@ -117,6 +126,9 @@ type netplanApiV1 struct {
 }
 
 func (a netplanApiV1) Apply() (bool, *dbus.Error) {
+	a.server.Lock()
+	defer a.server.Unlock()
+
 	return true, a.server.ConfigApiApplyErr
 }
 
@@ -140,26 +152,41 @@ type netplanConfigApi struct {
 }
 
 func (c netplanConfigApi) Get() (string, *dbus.Error) {
+	c.server.Lock()
+	defer c.server.Unlock()
+
 	c.server.ConfigApiGetCalls++
 	return c.server.MockNetplanConfigYaml, c.server.ConfigApiGetErr
 }
 
 func (c netplanConfigApi) Set(value, originHint string) (bool, *dbus.Error) {
+	c.server.Lock()
+	defer c.server.Unlock()
+
 	c.server.ConfigApiSetCalls = append(c.server.ConfigApiSetCalls, fmt.Sprintf("%s/%s", value, originHint))
 	return c.server.ConfigApiSetRet, c.server.ConfigApiSetErr
 }
 
 func (c netplanConfigApi) Apply() (bool, *dbus.Error) {
+	c.server.Lock()
+	defer c.server.Unlock()
+
 	c.server.ConfigApiApplyCalls++
 	return c.server.ConfigApiApplyRet, c.server.ConfigApiApplyErr
 }
 
 func (c netplanConfigApi) Cancel() (bool, *dbus.Error) {
+	c.server.Lock()
+	defer c.server.Unlock()
+
 	c.server.ConfigApiCancelCalls++
 	return c.server.ConfigApiCancelRet, c.server.ConfigApiCancelErr
 }
 
 func (c netplanConfigApi) Try(timeout int) (bool, *dbus.Error) {
+	c.server.Lock()
+	defer c.server.Unlock()
+
 	c.server.ConfigApiTryCalls++
 	return c.server.ConfigApiTryRet, c.server.ConfigApiTryErr
 }

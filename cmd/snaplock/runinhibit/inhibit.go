@@ -25,7 +25,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -383,7 +383,7 @@ var WaitWhileInhibited = func(ctx context.Context, snapName string, notInhibited
 }
 
 func hintFromFile(hintFile *os.File) (Hint, error) {
-	buf, err := ioutil.ReadAll(hintFile)
+	buf, err := io.ReadAll(hintFile)
 	if err != nil {
 		return "", err
 	}
@@ -391,7 +391,7 @@ func hintFromFile(hintFile *os.File) (Hint, error) {
 }
 
 func readInhibitInfo(snapName string, hint Hint) (InhibitInfo, error) {
-	buf, err := ioutil.ReadFile(InhibitInfoFile(snapName, hint))
+	buf, err := os.ReadFile(InhibitInfoFile(snapName, hint))
 	if err != nil {
 		return InhibitInfo{}, err
 	}

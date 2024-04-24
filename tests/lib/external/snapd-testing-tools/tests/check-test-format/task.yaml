@@ -1,5 +1,9 @@
 summary: smoke test for the spread checker tool
 
+details: |
+    Verify that the check-test-format tool checks properly the desired
+    order and mandatory keys in spread tasks.
+
 backends: [google]
 
 systems: [ ubuntu-20.04-64 ]

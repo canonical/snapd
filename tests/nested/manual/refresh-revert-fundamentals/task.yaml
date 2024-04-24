@@ -4,7 +4,7 @@ details: |
     This test validates the fundamental snaps can be refreshed
     and reverted to the new snaps published to edge channel.
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 environment:
     NESTED_CORE_CHANNEL: beta

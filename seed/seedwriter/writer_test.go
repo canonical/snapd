@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -890,7 +889,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore16(c *C) {
 		})
 	}
 
-	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 3)
 
@@ -1009,7 +1008,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 		})
 	}
 
-	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 6)
 
@@ -1247,7 +1246,7 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 	}
 	c.Check(assertedNum, Equals, 2)
 
-	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 6)
 
@@ -2037,7 +2036,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 		})
 	}
 
-	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 8)
 
@@ -2194,7 +2193,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 		})
 	}
 
-	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 8)
 
@@ -2311,7 +2310,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 		c.Check(p, testutil.FilePresent)
 	}
 
-	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 7)
 
@@ -2381,11 +2380,11 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 	c.Check(filepath.Join(systemDir, "extra-snaps"), testutil.FileAbsent)
 
 	// check auxiliary store info
-	l, err = ioutil.ReadDir(filepath.Join(systemDir, "snaps"))
+	l, err = os.ReadDir(filepath.Join(systemDir, "snaps"))
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 1)
 
-	b, err := ioutil.ReadFile(filepath.Join(systemDir, "snaps", "aux-info.json"))
+	b, err := os.ReadFile(filepath.Join(systemDir, "snaps", "aux-info.json"))
 	c.Assert(err, IsNil)
 	var auxInfos map[string]map[string]interface{}
 	err = json.Unmarshal(b, &auxInfos)
@@ -3030,7 +3029,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalSnaps(c *C) {
 	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
 	c.Check(systemDir, testutil.FilePresent)
 
-	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 4)
 
@@ -3128,7 +3127,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ChannelOverrides(c *C) {
 	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
 	c.Check(systemDir, testutil.FilePresent)
 
-	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 5)
 
@@ -3247,7 +3246,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ModelOverrideSnapd(c *C) {
 		c.Check(p, testutil.FilePresent)
 	}
 
-	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 4)
 
@@ -3433,7 +3432,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
 	c.Check(systemDir, testutil.FilePresent)
 
-	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 4)
 
@@ -3589,7 +3588,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalAssertedSnaps(c *C) {
 	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
 	c.Check(systemDir, testutil.FilePresent)
 
-	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 4)
 
@@ -3705,7 +3704,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20SignedLocalAssertedSnaps(c *C)
 	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
 	c.Check(systemDir, testutil.FilePresent)
 
-	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 4)
 
@@ -4101,7 +4100,7 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedHappy(c *C) {
 	c.Check(systemDir, testutil.FilePresent)
 
 	// check snaps
-	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 4)
 
@@ -4211,7 +4210,7 @@ func (s *writerSuite) TestValidateValidationSetsCore18EnforcedHappy(c *C) {
 	c.Assert(seedYaml.Snaps, HasLen, 4)
 
 	// check snaps
-	l, err := ioutil.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
+	l, err := os.ReadDir(filepath.Join(s.opts.SeedDir, "snaps"))
 	c.Assert(err, IsNil)
 	c.Check(l, HasLen, 4)
 
@@ -4346,7 +4345,7 @@ func (s *writerSuite) TestManifestCorrectlyProduced(c *C) {
 	err = w.WriteMeta()
 	c.Assert(err, IsNil)
 
-	b, err := ioutil.ReadFile(path.Join(s.opts.SeedDir, "seed.manifest"))
+	b, err := os.ReadFile(path.Join(s.opts.SeedDir, "seed.manifest"))
 	c.Assert(err, IsNil)
 	c.Check(string(b), Equals, `core20 1
 pc 1
@@ -4637,7 +4636,7 @@ sequence: 1`)
 	// the manifest is tracking validation-sets, then we should not
 	// see pc/pc-kernel in the manifest, instead it should just show
 	// the validation-set tracking those.
-	m, err := ioutil.ReadFile(s.opts.ManifestPath)
+	m, err := os.ReadFile(s.opts.ManifestPath)
 	c.Assert(err, IsNil)
 	c.Check(string(m), Equals, `canonical/base-set 1
 core20 1

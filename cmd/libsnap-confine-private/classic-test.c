@@ -59,7 +59,8 @@ static void mock_meta_snap_yaml(const char *mocked)
 	const char *old = meta_snap_yaml;
 	if (mocked != NULL) {
 		meta_snap_yaml = "snap-yaml.test";
-		g_file_set_contents(meta_snap_yaml, mocked, -1, NULL);
+		g_assert_true(g_file_set_contents
+			      (meta_snap_yaml, mocked, -1, NULL));
 	} else {
 		meta_snap_yaml = "snap-yaml.missing";
 	}

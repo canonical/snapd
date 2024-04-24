@@ -110,7 +110,7 @@ func (spec *Specification) TagDevice(snippet string) {
 		// SUBSYSTEM=="subsystem" is for subsystems (the top directories in /sys/class). Not for devices.
 		// When loaded, they send an ADD event
 		// snap-device-helper expects devices only, not modules nor subsystems
-		spec.addEntry(fmt.Sprintf("TAG==\"%s\", SUBSYSTEM!=\"module\", SUBSYSTEM!=\"subsystem\", RUN+=\"%s/snap-device-helper %s\"",
+		spec.addEntry(fmt.Sprintf("TAG==\"%s\", SUBSYSTEM!=\"module\", SUBSYSTEM!=\"subsystem\", RUN+=\"%s/snap-device-helper $env{ACTION} %s $devpath $major:$minor\"",
 			tag, dirs.DistroLibExecDir, tag), tag)
 	}
 }

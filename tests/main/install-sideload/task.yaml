@@ -1,5 +1,9 @@
 summary: Checks for snap sideload install
 
+details: |
+    Check snaps installation with --dangerous, --jailmode, --devmode, and
+    deprecated options. Also validate snaps can be removed with --revision option. 
+
 # slow in autopkgtest (>1m)
 backends: [-autopkgtest]
 
@@ -68,7 +72,7 @@ execute: |
     # TODO:UC20: fix to work on uc20 too
     # The "seed/" dir is on a FAT partition on uc20 so the permissions are
     # different here.
-    if ! os.query is-core20 && ! os.query is-core22; then
+    if os.query is-core-le 18; then
         echo "All snap blobs are 0600"
         test "$( find /var/lib/snapd/{snaps,cache,seed/snaps}/ -type f -printf '%#m\n' | sort -u | xargs )" = "0600"
     fi

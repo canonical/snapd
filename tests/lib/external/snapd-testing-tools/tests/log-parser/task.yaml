@@ -1,5 +1,10 @@
 summary: test for the log parser tool
 
+details: |
+    This test checks the log-parser tool is able to read different spread
+    logs and produce a json file with the logs info. This json file contains
+    all the information from the log but structured in json format.
+
 backends: [google]
 
 # Github actions agents are just running ubuntu jammy

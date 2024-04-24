@@ -22,7 +22,7 @@ package assets_test
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -160,7 +160,7 @@ func (s *grubAssetsTestSuite) TestGrubAssetsWereRegenerated(c *C) {
 	} {
 		assetData := assets.Internal(tc.asset)
 		c.Assert(assetData, NotNil)
-		data, err := ioutil.ReadFile(tc.file)
+		data, err := os.ReadFile(tc.file)
 		c.Assert(err, IsNil)
 		c.Check(assetData, DeepEquals, data, Commentf("asset %q has not been updated", tc.asset))
 	}

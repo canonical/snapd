@@ -114,6 +114,9 @@ func (server *GtkServer) Stop() error {
 // If not nil, all the gtkApi methods will return the provided error
 // in place of performing their usual task.
 func (server *GtkServer) SetError(err *dbus.Error) {
+	server.mu.Lock()
+	defer server.mu.Unlock()
+
 	server.err = err
 }
 
@@ -135,12 +138,12 @@ type gtkApi struct {
 }
 
 func (a gtkApi) AddNotification(desktopID, id string, info map[string]dbus.Variant) *dbus.Error {
+	a.server.mu.Lock()
+	defer a.server.mu.Unlock()
+
 	if a.server.err != nil {
 		return a.server.err
 	}
-
-	a.server.mu.Lock()
-	defer a.server.mu.Unlock()
 
 	notification := &GtkNotification{
 		ID:        id,
@@ -152,8 +155,15 @@ func (a gtkApi) AddNotification(desktopID, id string, info map[string]dbus.Varia
 }
 
 func (a gtkApi) RemoveNotification(desktopId, id string) *dbus.Error {
-	if a.server.err != nil {
+	// Close() called below locks the server, so the error check must be
+	// locked separately
+	dErr := func() *dbus.Error {
+		a.server.mu.Lock()
+		defer a.server.mu.Unlock()
 		return a.server.err
+	}()
+	if dErr != nil {
+		return dErr
 	}
 
 	if err := a.server.Close(id); err != nil {

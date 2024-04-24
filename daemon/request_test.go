@@ -1,6 +1,5 @@
-//go:build nobolt
-
 // -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2024 Canonical Ltd
  *
@@ -18,19 +17,23 @@
  *
  */
 
-package advisor
+package daemon_test
 
-// Create fails with ErrNotSupported.
-func Create() (CommandDB, error) {
-	return nil, ErrNotSupported
-}
+import (
+	"time"
 
-// DumpCommands fails with ErrNotSupported.
-func DumpCommands() (map[string]string, error) {
-	return nil, ErrNotSupported
-}
+	"github.com/snapcore/snapd/daemon"
+	"gopkg.in/check.v1"
+)
 
-// Open fails with ErrNotSupported.
-func Open() (Finder, error) {
-	return nil, ErrNotSupported
+type requestSuite struct{}
+
+var _ = check.Suite(&requestSuite{})
+
+func (s *requestSuite) TestParseOptionalTimeHasNanosecondPrecision(c *check.C) {
+	oDateTime := time.Date(2024, time.April, 11, 15, 5, 3, 123456789, time.UTC).Format(time.RFC3339Nano)
+	dateTime, err := daemon.ParseOptionalTime(oDateTime)
+	c.Assert(err, check.IsNil)
+	c.Assert(dateTime, check.NotNil)
+	c.Assert(dateTime.Nanosecond(), check.Equals, 123456789)
 }

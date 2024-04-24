@@ -21,12 +21,12 @@ package main_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/cmd/snap"
+	main "github.com/snapcore/snapd/cmd/snap"
 )
 
 type validateSuite struct {
@@ -45,7 +45,7 @@ func makeFakeValidationSetPostHandler(c *check.C, body, action string, sequence 
 		c.Check(r.URL.Path, check.Equals, "/v2/validation-sets/foo/bar")
 		c.Check(r.Method, check.Equals, "POST")
 
-		buf, err := ioutil.ReadAll(r.Body)
+		buf, err := io.ReadAll(r.Body)
 		c.Assert(err, check.IsNil)
 		switch {
 		case sequence != 0 && action != "forget":

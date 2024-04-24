@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 )
 
 // InternalSnapctlCmdNeedsStdin returns true if the given snapctl command
@@ -72,7 +71,7 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 	var stdinData []byte
 	if stdin != nil {
 		limitedStdin := &io.LimitedReader{R: stdin, N: stdinReadLimit + 1}
-		stdinData, err = ioutil.ReadAll(limitedStdin)
+		stdinData, err = io.ReadAll(limitedStdin)
 		if err != nil {
 			return nil, nil, fmt.Errorf("cannot read stdin: %v", err)
 		}

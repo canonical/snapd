@@ -25,7 +25,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"os"
 	"path/filepath"
@@ -679,9 +678,15 @@ func LoadDiskVolumesDeviceTraits(dir string) (map[string]DiskVolumeDeviceTraits,
 		return nil, nil
 	}
 
-	b, err := ioutil.ReadFile(filename)
+	b, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(b) == 0 {
+		// if the file is empty, it is safe to ignore it
+		logger.Noticef("WARNING: ignoring zero sized device traits file\n")
+		return nil, nil
 	}
 
 	if err := json.Unmarshal(b, &mapping); err != nil {
@@ -1203,7 +1208,7 @@ func readInfo(f func(string) ([]byte, error), gadgetYamlFn string, model Model) 
 // validation like Validate.
 func ReadInfo(gadgetSnapRootDir string, model Model) (*Info, error) {
 	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
-	ginfo, err := readInfo(ioutil.ReadFile, gadgetYamlFn, model)
+	ginfo, err := readInfo(os.ReadFile, gadgetYamlFn, model)
 	if err != nil {
 		return nil, err
 	}
@@ -1903,7 +1908,7 @@ func parseCommandLineFromGadget(content []byte) (string, error) {
 // but could be used on any known to be properly installed gadget.
 func HasRole(gadgetSnapRootDir string, roles []string) (foundRole string, err error) {
 	gadgetYamlFn := filepath.Join(gadgetSnapRootDir, "meta", "gadget.yaml")
-	gadgetYaml, err := ioutil.ReadFile(gadgetYamlFn)
+	gadgetYaml, err := os.ReadFile(gadgetYamlFn)
 	if err != nil {
 		return "", err
 	}

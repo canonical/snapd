@@ -466,7 +466,7 @@ func (*schemaSuite) TestMapSchemaWithInvalidKeyFormat(c *C) {
 }`)
 
 	_, err := aspects.ParseSchema(schemaStr)
-	c.Assert(err, ErrorMatches, `cannot parse map: key "-foo" doesn't conform to required format`)
+	c.Assert(err, ErrorMatches, `cannot parse map: key "-foo" doesn't conform to required format: .*`)
 }
 
 func (*schemaSuite) TestMapRejectsInputMapWithInvalidKeyFormat(c *C) {
@@ -483,7 +483,7 @@ func (*schemaSuite) TestMapRejectsInputMapWithInvalidKeyFormat(c *C) {
 	"-foo": 1
 }`)
 	err = schema.Validate(input)
-	c.Assert(err, ErrorMatches, `cannot accept top level element: key "-foo" doesn't conform to required format`)
+	c.Assert(err, ErrorMatches, `cannot accept top level element: key "-foo" doesn't conform to required format: .*`)
 }
 
 func (*schemaSuite) TestMapInvalidConstraintCombos(c *C) {

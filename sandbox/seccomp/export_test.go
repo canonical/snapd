@@ -20,10 +20,10 @@
 package seccomp
 
 func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func()) {
-	old := ioutilReadFile
-	ioutilReadFile = newReadfile
+	old := osReadFile
+	osReadFile = newReadfile
 	return func() {
-		ioutilReadFile = old
+		osReadFile = old
 	}
 }
 

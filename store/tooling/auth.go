@@ -24,7 +24,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 
@@ -61,7 +60,7 @@ func getAuthorizer() (store.Authorizer, error) {
 		}
 
 		var err error
-		data, err = ioutil.ReadFile(authFn)
+		data, err = os.ReadFile(authFn)
 		if err != nil {
 			return nil, fmt.Errorf("cannot read auth file %q: %v", authFn, err)
 		}

@@ -25,6 +25,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
@@ -184,7 +185,33 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 	return rebootInfo, nil
 }
 
-func (b Backend) StartServices(apps []*snap.AppInfo, disabledSvcs []string, meter progress.Meter, tm timings.Measurer) error {
+func componentLinkPath(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) string {
+	instanceName, compName, _ := strings.Cut(cpi.ContainerName(), "+")
+	compBase := snap.ComponentsBaseDir(instanceName)
+	return filepath.Join(compBase, snapRev.String(), compName)
+}
+
+func (b Backend) LinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error {
+	mountDir := cpi.MountDir()
+	linkPath := componentLinkPath(cpi, snapRev)
+
+	// Create components directory
+	compsDir := filepath.Dir(linkPath)
+	if err := os.MkdirAll(compsDir, 0755); err != nil {
+		return fmt.Errorf("while linking component: %v", err)
+	}
+
+	// Work out relative path to go from the dir where the symlink lives to
+	// the mount dir
+	linkTarget, err := filepath.Rel(compsDir, mountDir)
+	if err != nil {
+		return err
+	}
+
+	return osutil.AtomicSymlink(linkTarget, linkPath)
+}
+
+func (b Backend) StartServices(apps []*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, meter progress.Meter, tm timings.Measurer) error {
 	flags := &wrappers.StartServicesFlags{Enable: true}
 	return wrappers.StartServices(apps, disabledSvcs, flags, meter, tm)
 }
@@ -331,7 +358,7 @@ func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress
 	return firstErr(err0, err1, err2)
 }
 
-func (b Backend) QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
+func (b Backend) QueryDisabledServices(info *snap.Info, pb progress.Meter) (*wrappers.DisabledServices, error) {
 	return wrappers.QueryDisabledServices(info, pb)
 }
 
@@ -363,6 +390,25 @@ func removeCurrentSymlinks(info snap.PlaceInfo) error {
 	} else if err2 != nil {
 		return fmt.Errorf("cannot remove snap current symlink: %v", err2)
 	}
+
+	return nil
+}
+
+func (b Backend) UnlinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error {
+	linkPath := componentLinkPath(cpi, snapRev)
+
+	err := os.Remove(linkPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			logger.Noticef("cannot remove symlink %q: %v", linkPath, err)
+		} else {
+			return err
+		}
+	}
+
+	// Try also to remove the <snap_rev>/ subdirectory, as this might be
+	// the only installed component. But simply ignore if not empty.
+	os.Remove(filepath.Dir(linkPath))
 
 	return nil
 }

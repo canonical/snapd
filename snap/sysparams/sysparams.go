@@ -22,7 +22,7 @@ package sysparams
 import (
 	"bufio"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
@@ -98,7 +98,7 @@ func Open(rootdir string) (*SystemParams, error) {
 		return &SystemParams{rootdir: rootdir}, nil
 	}
 
-	data, err := ioutil.ReadFile(sspFile)
+	data, err := os.ReadFile(sspFile)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read system-params: %v", err)
 	}

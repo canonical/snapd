@@ -35,6 +35,23 @@ reset_classic() {
             ;;
     esac
 
+    local unexpected_units=0
+    for unit in $(systemctl --plain --no-legend --full | awk '/^ *snap\..*\.service +loaded/ {print $1}'); do
+        case "$unit" in
+            snap.lxd.workaround.service)
+                systemctl stop "$unit" || true
+                ;;
+            *)
+                echo "unexpected unit $unit"
+                unexpected_units=1
+                ;;
+        esac
+    done
+    if [ "$unexpected_units" != "0" ]; then
+        echo "error: found unexpected systemd units after purge"
+        exit 1
+    fi
+
     # purge may have removed udev rules, retrigger device events
     udevadm trigger
     udevadm settle

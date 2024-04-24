@@ -75,6 +75,11 @@ type AppOptions struct {
 	// If Service is true, only return apps that are services
 	// (app.IsService() is true); otherwise, return all.
 	Service bool
+	// Global if set, returns only the global status of the services. This
+	// is only relevant for user services, where we either return the status
+	// of the services for the current user, or the global enable status.
+	// For root-users, global is always implied.
+	Global bool
 }
 
 // Apps returns information about all matching apps. Each name can be
@@ -87,6 +92,9 @@ func (client *Client) Apps(names []string, opts AppOptions) ([]*AppInfo, error) 
 	}
 	if opts.Service {
 		q.Add("select", "service")
+	}
+	if opts.Global {
+		q.Add("global", fmt.Sprintf("%t", opts.Global))
 	}
 
 	var appInfos []*AppInfo

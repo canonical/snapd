@@ -22,7 +22,6 @@ package wrappers
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -49,7 +48,7 @@ func snapdSkipStart(content []byte) bool {
 // snapdUnitSkipStart returns true for units that should not be started
 // automatically
 func snapdUnitSkipStart(unitPath string) (skip bool, err error) {
-	content, err := ioutil.ReadFile(unitPath)
+	content, err := os.ReadFile(unitPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// no point in starting units that do not exist
@@ -238,7 +237,7 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 		if err != nil {
 			return nil, err
 		}
-		content, err := ioutil.ReadFile(unit)
+		content, err := os.ReadFile(unit)
 		if err != nil {
 			return nil, err
 		}
@@ -483,7 +482,7 @@ func writeSnapdUserServicesOnCore(s *snap.Info, opts *AddSnapdSnapServicesOption
 		if err != nil {
 			return err
 		}
-		content, err := ioutil.ReadFile(unit)
+		content, err := os.ReadFile(unit)
 		if err != nil {
 			return err
 		}

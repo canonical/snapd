@@ -19,7 +19,7 @@
 
 package osutil
 
-// isHomeUsingNFS is not implemented on darwin
-var isHomeUsingNFS = func() (bool, error) {
+// isHomeUsingRemoteFS is not implemented on darwin
+var isHomeUsingRemoteFS = func() (bool, error) {
 	return false, ErrDarwin
 }

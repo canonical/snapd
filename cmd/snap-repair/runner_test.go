@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -154,7 +153,7 @@ func (s *baseRunnerSuite) signSeqRepairs(c *C, repairs []string) []string {
 
 func checkStateJSON(c *C, file string, exp map[string]interface{}) {
 	stateFile := map[string]interface{}{}
-	b, err := ioutil.ReadFile(file)
+	b, err := os.ReadFile(file)
 	c.Assert(err, IsNil)
 	err = json.Unmarshal(b, &stateFile)
 	c.Assert(err, IsNil)
@@ -948,7 +947,7 @@ func (s *runnerSuite) TestVerify(c *C) {
 }
 
 func (s *runnerSuite) loadSequences(c *C) map[string][]*repair.RepairState {
-	data, err := ioutil.ReadFile(dirs.SnapRepairStateFile)
+	data, err := os.ReadFile(dirs.SnapRepairStateFile)
 	c.Assert(err, IsNil)
 	var x struct {
 		Sequences map[string][]*repair.RepairState `json:"sequences"`
@@ -1911,7 +1910,7 @@ func (s *runScriptSuite) testScriptRun(c *C, mockScript string) *repair.Repair {
 }
 
 func (s *runScriptSuite) verifyRundir(c *C, names []string) {
-	dirents, err := ioutil.ReadDir(s.runDir)
+	dirents, err := os.ReadDir(s.runDir)
 	c.Assert(err, IsNil)
 	c.Assert(dirents, HasLen, len(names))
 	for i := range dirents {

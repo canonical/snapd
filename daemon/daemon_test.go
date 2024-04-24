@@ -22,7 +22,7 @@ package daemon
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -801,7 +801,7 @@ version: 1`, si)
 		res, err := http.Get(fmt.Sprintf("http://%s/endp", snapdL.Addr()))
 		c.Assert(err, check.IsNil)
 		c.Check(res.StatusCode, check.Equals, 200)
-		body, err := ioutil.ReadAll(res.Body)
+		body, err := io.ReadAll(res.Body)
 		res.Body.Close()
 		c.Assert(err, check.IsNil)
 		c.Check(string(body), check.Equals, "OKOK")
@@ -1044,7 +1044,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 
 	// finally check that maintenance.json was written appropriate for this
 	// restart reason
-	b, err := ioutil.ReadFile(dirs.SnapdMaintenanceFile)
+	b, err := os.ReadFile(dirs.SnapdMaintenanceFile)
 	c.Assert(err, check.IsNil)
 
 	maintErr := &errorResult{}

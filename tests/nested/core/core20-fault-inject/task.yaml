@@ -4,7 +4,7 @@ details: |
     The test injects a reboot fault during link snap and verifies that a reboot
     actually happens.
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+systems: [ubuntu-2*]
 
 execute: |
     # automatically cleaned up in restore

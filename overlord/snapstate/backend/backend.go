@@ -53,16 +53,17 @@ func OpenSnapFile(snapPath string, sideInfo *snap.SideInfo) (*snap.Info, snap.Co
 	return info, snapf, nil
 }
 
-// OpenComponentFile opens a component blob returning a snap.ComponentInfo and
-// a corresponding snap.Container. Assumes the file was verified beforehand or
-// the user asked for --dangerous.
-func OpenComponentFile(compPath string) (*snap.ComponentInfo, snap.Container, error) {
+// OpenComponentFile opens a component blob returning a snap.ComponentInfo and a
+// corresponding snap.Container. Assumes the file was verified beforehand or the
+// user asked for --dangerous. The returned snap.ComponentInfo is completed by
+// the provided snap.Info, if it is not nil.
+func OpenComponentFile(compPath string, snapInfo *snap.Info) (*snap.ComponentInfo, snap.Container, error) {
 	snapf, err := snapfile.Open(compPath)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	info, err := snap.ReadComponentInfoFromContainer(snapf)
+	info, err := snap.ReadComponentInfoFromContainer(snapf, snapInfo)
 	if err != nil {
 		return nil, nil, err
 	}

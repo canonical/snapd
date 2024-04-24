@@ -971,3 +971,116 @@ type: snapd
 	c.Check(readMountTarget, Equals, "oldactivevalue")
 	c.Check(readDataTarget, Equals, "olddatavalue")
 }
+
+func (s *linkSuite) TestLinkComponentIdempotent(c *C) {
+	compName := "mycomp"
+	compRev := snap.R(-2)
+	snapName := "mysnap"
+	snapRev := snap.R(2)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapName)
+	c.Assert(os.MkdirAll(cpi.MountDir(), 0755), IsNil)
+
+	err := s.be.LinkComponent(cpi, snapRev)
+	c.Assert(err, IsNil)
+	err = s.be.LinkComponent(cpi, snapRev)
+	c.Assert(err, IsNil)
+
+	linkPath := filepath.Join(dirs.SnapMountDir, snapName,
+		"components", snapRev.String(), compName)
+	relTarget, err := os.Readlink(linkPath)
+	c.Assert(relTarget, Equals, filepath.Join("../mnt", compName, compRev.String()))
+	c.Assert(err, IsNil)
+	linkTarget, err := filepath.EvalSymlinks(linkPath)
+	c.Assert(err, IsNil)
+	c.Assert(linkTarget, Equals,
+		filepath.Join(snap.ComponentsBaseDir(snapName), "mnt", compName, compRev.String()))
+}
+
+func (s *linkSuite) TestLinkComponentError(c *C) {
+	compName := "mycomp"
+	compRev := snap.R(-2)
+	snapName := "mysnap"
+	snapRev := snap.R(2)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapName)
+	c.Assert(os.MkdirAll(cpi.MountDir(), 0755), IsNil)
+	// Put a regular directory in the link path
+	linkPath := filepath.Join(dirs.SnapMountDir, snapName,
+		"components", snapRev.String(), compName)
+	c.Assert(os.MkdirAll(linkPath, 0755), IsNil)
+
+	err := s.be.LinkComponent(cpi, snapRev)
+	c.Assert(err, ErrorMatches, `rename .*: file exists`)
+}
+
+func (s *linkSuite) TestUnlinkComponentIdempotent(c *C) {
+	compName := "mycomp"
+	compRev := snap.R(-2)
+	snapName := "mysnap"
+	snapRev := snap.R(2)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapName)
+	linkPath := filepath.Join(dirs.SnapMountDir, snapName,
+		"components", snapRev.String(), compName)
+	target := filepath.Join("../mnt", compName, compRev.String())
+
+	c.Assert(os.MkdirAll(cpi.MountDir(), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(linkPath), 0755), IsNil)
+	c.Assert(osutil.AtomicSymlink(target, linkPath), IsNil)
+
+	err := s.be.UnlinkComponent(cpi, snapRev)
+	c.Assert(err, IsNil)
+	c.Assert(cpi.MountDir(), testutil.FilePresent)
+	// <snap_rev>/<comp_name>/ should be gone
+	c.Assert(linkPath, testutil.FileAbsent)
+	c.Assert(filepath.Dir(linkPath), testutil.FileAbsent)
+
+	err = s.be.UnlinkComponent(cpi, snapRev)
+	c.Assert(err, IsNil)
+}
+
+func (s *linkSuite) TestUnlinkTwoComponents(c *C) {
+	compName := "mycomp"
+	compRev := snap.R(-2)
+	snapName := "mysnap"
+	snapRev := snap.R(2)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapName)
+	compRevPath := filepath.Join(dirs.SnapMountDir, snapName,
+		"components", snapRev.String())
+	linkPath := filepath.Join(compRevPath, compName)
+	target := filepath.Join("../mnt", compName, compRev.String())
+
+	c.Assert(os.MkdirAll(cpi.MountDir(), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(linkPath), 0755), IsNil)
+	c.Assert(osutil.AtomicSymlink(target, linkPath), IsNil)
+
+	// Simulate another component installed (dangling symlink, but
+	// that does not matter)
+	target2 := filepath.Join("../mnt", "other-comp", "1")
+	c.Assert(osutil.AtomicSymlink(target2,
+		filepath.Join(compRevPath, "other-comp")), IsNil)
+
+	err := s.be.UnlinkComponent(cpi, snapRev)
+	c.Assert(err, IsNil)
+	c.Assert(cpi.MountDir(), testutil.FilePresent)
+	// Only last subdir of <snap_rev>/<comp_name>/ should be gone
+	c.Assert(linkPath, testutil.FileAbsent)
+	c.Assert(filepath.Dir(linkPath), testutil.FilePresent)
+
+	err = s.be.UnlinkComponent(cpi, snapRev)
+	c.Assert(err, IsNil)
+}
+
+func (s *linkSuite) TestUnlinkComponentError(c *C) {
+	compName := "mycomp"
+	compRev := snap.R(-2)
+	snapName := "mysnap"
+	snapRev := snap.R(2)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapName)
+	c.Assert(os.MkdirAll(cpi.MountDir(), 0755), IsNil)
+	// Put a regular directory inside the link path
+	insideLinkPath := filepath.Join(dirs.SnapMountDir, snapName,
+		"components", snapRev.String(), compName, "xx")
+	c.Assert(os.MkdirAll(insideLinkPath, 0755), IsNil)
+
+	err := s.be.UnlinkComponent(cpi, snapRev)
+	c.Assert(err, ErrorMatches, `remove .*: directory not empty`)
+}

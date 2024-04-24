@@ -269,16 +269,6 @@ func parseRule(parent *aspectRule, ruleRaw interface{}) ([]*aspectRule, error) {
 		return nil, errors.New("each aspect rule should be a map")
 	}
 
-	requestRaw, ok := ruleMap["request"]
-	if !ok || requestRaw == "" {
-		return nil, errors.New(`aspect rules must have a "request" field`)
-	}
-
-	request, ok := requestRaw.(string)
-	if !ok {
-		return nil, errors.New(`"request" must be a string`)
-	}
-
 	storageRaw, ok := ruleMap["storage"]
 	if !ok || storageRaw == "" {
 		return nil, errors.New(`aspect rules must have a "storage" field`)
@@ -287,6 +277,19 @@ func parseRule(parent *aspectRule, ruleRaw interface{}) ([]*aspectRule, error) {
 	storage, ok := storageRaw.(string)
 	if !ok {
 		return nil, errors.New(`"storage" must be a string`)
+	}
+
+	requestRaw, ok := ruleMap["request"]
+	if !ok {
+		// if omitted the "request" field defaults to the same as the "storage"
+		requestRaw = storage
+	} else if requestRaw == "" {
+		return nil, errors.New(`aspect rules' "request" field must be non-empty, if it exists`)
+	}
+
+	request, ok := requestRaw.(string)
+	if !ok {
+		return nil, errors.New(`"request" must be a string`)
 	}
 
 	if err := validateRequestStoragePair(request, storage); err != nil {
@@ -441,9 +444,55 @@ type expandedMatch struct {
 	value interface{}
 }
 
+// maxValueDepth is the limit on a value's nestedness. Creating a highly nested
+// JSON value only requires a few bytes per level, but when recursively traversing
+// such a value, each level requires about 2Kb stack. Prevent excessive stack
+// usage by limiting the recursion depth.
+var maxValueDepth = 64
+
+// validateSetValue checks that map keys conform to the same format as path sub-keys.
+func validateSetValue(v interface{}, depth int) error {
+	if depth > maxValueDepth {
+		return fmt.Errorf("value cannot have more than %d nested levels", maxValueDepth)
+	}
+
+	var nestedVals []interface{}
+	switch typedVal := v.(type) {
+	case map[string]interface{}:
+		for k, v := range typedVal {
+			if !validSubkey.Match([]byte(k)) {
+				return fmt.Errorf(`key %q doesn't conform to required format: %s`, k, validSubkey.String())
+			}
+
+			nestedVals = append(nestedVals, v)
+		}
+
+	case []interface{}:
+		nestedVals = typedVal
+	}
+
+	for _, v := range nestedVals {
+		if v == nil {
+			// the value can be nil (used to unset values for compatibility w/ options)
+			continue
+		}
+
+		if err := validateSetValue(v, depth+1); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // Set sets the named aspect to a specified non-nil value.
 func (a *Aspect) Set(databag DataBag, request string, value interface{}) error {
 	if err := validateAspectDottedPath(request, nil); err != nil {
+		return badRequestErrorFrom(a, "set", request, err.Error())
+	}
+
+	depth := 1
+	if err := validateSetValue(value, depth); err != nil {
 		return badRequestErrorFrom(a, "set", request, err.Error())
 	}
 
@@ -1331,25 +1380,48 @@ func get(subKeys []string, index int, node map[string]json.RawMessage, result *i
 // If the value is nil, the entry is deleted.
 func (s JSONDataBag) Set(path string, value interface{}) error {
 	subKeys := strings.Split(path, ".")
-	_, err := set(subKeys, 0, s, value)
+
+	var err error
+	if value != nil {
+		_, err = set(subKeys, 0, s, value)
+	} else {
+		_, err = unset(subKeys, 0, s)
+	}
+
 	return err
+}
+
+func removeNilValues(value interface{}) interface{} {
+	level, ok := value.(map[string]interface{})
+	if !ok {
+		return value
+	}
+
+	for k, v := range level {
+		if v == nil {
+			delete(level, k)
+			continue
+		}
+
+		level[k] = removeNilValues(v)
+	}
+
+	return level
 }
 
 func set(subKeys []string, index int, node map[string]json.RawMessage, value interface{}) (json.RawMessage, error) {
 	key := subKeys[index]
 	if index == len(subKeys)-1 {
+		// remove nil values that may be nested in the value
+		value = removeNilValues(value)
+
 		data, err := json.Marshal(value)
 		if err != nil {
 			return nil, err
 		}
 
 		node[key] = data
-		newData, err := json.Marshal(node)
-		if err != nil {
-			return nil, err
-		}
-
-		return newData, nil
+		return json.Marshal(node)
 	}
 
 	rawLevel, ok := node[key]
@@ -1391,15 +1463,12 @@ func unset(subKeys []string, index int, node map[string]json.RawMessage) (json.R
 	matchAll := isPlaceholder(key)
 
 	if index == len(subKeys)-1 {
-		if !matchAll {
-			delete(node, key)
-		}
-
-		if matchAll || len(node) == 0 {
+		if matchAll {
 			// remove entire level
 			return nil, nil
 		}
 
+		delete(node, key)
 		return json.Marshal(node)
 	}
 
@@ -1439,10 +1508,6 @@ func unset(subKeys []string, index int, node map[string]json.RawMessage) (json.R
 		if err := unsetKey(node, key); err != nil {
 			return nil, err
 		}
-	}
-
-	if len(node) == 0 {
-		return nil, nil
 	}
 
 	return json.Marshal(node)

@@ -302,35 +302,35 @@ dbus (send)
     path=/{StatusNotifierWatcher,org/ayatana/NotificationItem/*}
     interface=org.kde.StatusNotifierWatcher
     member=RegisterStatusNotifierItem
-    peer=(label=unconfined),
+    peer=(label="{plasmashell,unconfined}"),
 
 dbus (send)
     bus=session
     path=/{StatusNotifierItem,org/ayatana/NotificationItem/*}
     interface=org.kde.StatusNotifierItem
     member="New{AttentionIcon,Icon,IconThemePath,OverlayIcon,Status,Title,ToolTip}"
-    peer=(name=org.freedesktop.DBus, label=unconfined),
+    peer=(name=org.freedesktop.DBus, label="{plasmashell,unconfined}"),
 
 dbus (receive)
     bus=session
     path=/{StatusNotifierItem,org/ayatana/NotificationItem/*}
     interface=org.kde.StatusNotifierItem
     member={Activate,ContextMenu,Scroll,SecondaryActivate,ProvideXdgActivationToken,XAyatanaSecondaryActivate}
-    peer=(label=unconfined),
+    peer=(label="{plasmashell,unconfined}"),
 
 dbus (send)
     bus=session
     path=/{StatusNotifierItem/menu,org/ayatana/NotificationItem/*/Menu}
     interface=com.canonical.dbusmenu
     member="{LayoutUpdated,ItemsPropertiesUpdated}"
-    peer=(name=org.freedesktop.DBus, label=unconfined),
+    peer=(name=org.freedesktop.DBus, label="{plasmashell,unconfined}"),
 
 dbus (receive)
     bus=session
     path=/{StatusNotifierItem,StatusNotifierItem/menu,org/ayatana/NotificationItem/**}
     interface={org.freedesktop.DBus.Properties,com.canonical.dbusmenu}
     member={Get*,AboutTo*,Event*}
-    peer=(label=unconfined),
+    peer=(label="{plasmashell,unconfined}"),
 
 # notifications
 dbus (send)
@@ -368,7 +368,7 @@ dbus (send)
     path=/org/ayatana/NotificationItem/*
     interface=org.kde.StatusNotifierItem
     member=XAyatanaNew*
-    peer=(name=org.freedesktop.DBus, label=unconfined),
+    peer=(name=org.freedesktop.DBus, label="{plasmashell,unconfined}"),
 `
 
 const desktopLegacyConnectedPlugSecComp = `

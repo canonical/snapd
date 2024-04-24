@@ -718,32 +718,34 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// Ensure that hostfs exists and is group-owned by root. We may have (now
 	// or earlier) created the directory as the user who first ran a snap on a
 	// given system and the group identity of that user is visible on disk.
-	// This was LP:#1665004
-	struct stat sb;
-	if (stat(SC_HOSTFS_DIR, &sb) < 0) {
-		if (errno == ENOENT) {
-			// Create the hostfs directory if one is missing. This directory is a part
-			// of packaging now so perhaps this code can be removed later.
-			// Note: we use 0000 as permissions here, to avoid the risk that
-			// the user manages to fiddle with the newly created directory
-			// before we have the chance to chown it to root:root. We are
-			// setting the usual 0755 permissions just after the chown below.
-			if (mkdir(SC_HOSTFS_DIR, 0000) < 0) {
-				die("cannot perform operation: mkdir %s",
-				    SC_HOSTFS_DIR);
-			}
-			if (chown(SC_HOSTFS_DIR, 0, 0) < 0) {
-				die("cannot set root ownership on %s directory",
-				    SC_HOSTFS_DIR);
-			}
-			if (chmod(SC_HOSTFS_DIR, 0755) < 0) {
-				die("cannot set 0755 permissions on %s directory", SC_HOSTFS_DIR);
+	// This was LP:#1665004. We do this by trying to create the hostfs directory
+	// if one is missing. This directory is a part of packaging now so perhaps
+	// this code can be removed later. Note: we use 0000 as permissions here, to
+	// avoid the risk that the user manages to fiddle with the newly created
+	// directory before we have the chance to chown it to root:root. We are
+	// setting the usual 0755 permissions just after the chown below.
+	if (mkdir(SC_HOSTFS_DIR, 0000) < 0) {
+		if (errno == EEXIST) {
+			// The directory exists, verify its ownership.
+			struct stat sb;
+			if (stat(SC_HOSTFS_DIR, &sb) < 0) {
+				die("cannot stat %s", SC_HOSTFS_DIR);
+			} else if (sb.st_uid != 0 || sb.st_gid != 0) {
+				die("%s is not owned by root", SC_HOSTFS_DIR);
 			}
 		} else {
-			die("cannot stat %s", SC_HOSTFS_DIR);
+			die("cannot perform operation: mkdir %s",
+			    SC_HOSTFS_DIR);
 		}
-	} else if (sb.st_uid != 0 || sb.st_gid != 0) {
-		die("%s is not owned by root", SC_HOSTFS_DIR);
+	} else {
+		if (chown(SC_HOSTFS_DIR, 0, 0) < 0) {
+			die("cannot set root ownership on %s directory",
+			    SC_HOSTFS_DIR);
+		}
+		if (chmod(SC_HOSTFS_DIR, 0755) < 0) {
+			die("cannot set 0755 permissions on %s directory",
+			    SC_HOSTFS_DIR);
+		}
 	}
 	// Make the upcoming "put_old" directory for pivot_root private so that
 	// mount events don't propagate to any peer group. In practice pivot root

@@ -79,6 +79,16 @@ type Backend struct {
 	versionInfo seccomp.VersionInfo
 }
 
+// TODO: now that snap-seccomp has full support for deny-listing this
+// should be replaced with something like:
+//
+//	~ioctl - 4294967295|TIOCSTI
+//	~ioctl - 4294967295|TIOCLINUX
+//
+// in the default template. This requires that MaskedEq learns
+// to deal with two arguments (see also https://github.com/snapcore/snapd/compare/master...mvo5:rework-seccomp-denylist-incoperate-global.bin?expand=1)
+//
+// globalProfileLE is generated via cmd/snap-seccomp-black list
 var globalProfileLE = []byte{
 	0x20, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x15, 0x00, 0x00, 0x04, 0x3e, 0x00, 0x00, 0xc0,
 	0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x35, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x40,
@@ -92,6 +102,7 @@ var globalProfileLE = []byte{
 	0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x7f,
 }
 
+// globalProfileBE is generated via cmd/snap-seccomp-black list
 var globalProfileBE = []byte{
 	0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x15, 0x00, 0x08, 0x80, 0x00, 0x00, 0x16,
 	0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x15, 0x00, 0x06, 0x00, 0x00, 0x00, 0x36,
@@ -148,7 +159,7 @@ func bpfSrcPath(srcName string) string {
 }
 
 func bpfBinPath(srcName string) string {
-	return filepath.Join(dirs.SnapSeccompDir, strings.TrimSuffix(srcName, ".src")+".bin")
+	return filepath.Join(dirs.SnapSeccompDir, strings.TrimSuffix(srcName, ".src")+".bin2")
 }
 
 func parallelCompile(compiler Compiler, profiles []string) error {

@@ -2554,22 +2554,22 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 		case 1:
 			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
 				secboot.NewLoadChain(shimBf,
-					secboot.NewLoadChain(assetBf,
-						secboot.NewLoadChain(recoveryKernelBf)),
 					secboot.NewLoadChain(beforeAssetBf,
+						secboot.NewLoadChain(recoveryKernelBf)),
+					secboot.NewLoadChain(assetBf,
 						secboot.NewLoadChain(recoveryKernelBf))),
 				secboot.NewLoadChain(shimBf,
-					secboot.NewLoadChain(assetBf,
-						secboot.NewLoadChain(runKernelBf)),
 					secboot.NewLoadChain(beforeAssetBf,
+						secboot.NewLoadChain(runKernelBf)),
+					secboot.NewLoadChain(assetBf,
 						secboot.NewLoadChain(runKernelBf))),
 			})
 		case 2:
 			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
 				secboot.NewLoadChain(shimBf,
-					secboot.NewLoadChain(assetBf,
-						secboot.NewLoadChain(recoveryKernelBf)),
 					secboot.NewLoadChain(beforeAssetBf,
+						secboot.NewLoadChain(recoveryKernelBf)),
+					secboot.NewLoadChain(assetBf,
 						secboot.NewLoadChain(recoveryKernelBf))),
 			})
 		default:

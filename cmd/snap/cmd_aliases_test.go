@@ -20,7 +20,7 @@
 package main_test
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	. "gopkg.in/check.v1"
@@ -46,7 +46,7 @@ func (s *SnapSuite) TestAliases(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/aliases")
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -82,7 +82,7 @@ func (s *SnapSuite) TestAliasesFilterSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/aliases")
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -114,7 +114,7 @@ func (s *SnapSuite) TestAliasesNone(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/aliases")
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{
@@ -132,7 +132,7 @@ func (s *SnapSuite) TestAliasesNoneFilterSnap(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Method, Equals, "GET")
 		c.Check(r.URL.Path, Equals, "/v2/aliases")
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		c.Check(err, IsNil)
 		c.Check(body, DeepEquals, []byte{})
 		EncodeResponseBody(c, w, map[string]interface{}{

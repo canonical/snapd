@@ -4,8 +4,9 @@ details: |
   The test verifies that device cgroup control is enforced for tagged devices.
 
 systems:
-  #TODO: bpftool is not available on core22 and tests.device-cgroup needs it for cgroups v2
+  #TODO: bpftool is not available on core22+ and tests.device-cgroup needs it for cgroups v2
   - -ubuntu-core-22-*
+  - -ubuntu-core-24-*
 
 environment:
     # note that /dev/full has well known major:minor which is 1:7
@@ -25,7 +26,7 @@ execute: |
     echo "$content" > /etc/udev/rules.d/70-snap.test-strict-cgroup.rules
     libexecdir=$(os.paths libexec-dir)
     # populate a RUN rule like the one snapd adds for snap apps
-    content="TAG==\"snap_test-strict-cgroup_sh\" RUN+=\"$libexecdir/snapd/snap-device-helper snap_test-strict-cgroup_sh\""
+    content="TAG==\"snap_test-strict-cgroup_sh\" RUN+=\"$libexecdir/snapd/snap-device-helper \$env{ACTION} snap_test-strict-cgroup_sh \$devpath \$major:\$minor\""
     echo "$content" >> /etc/udev/rules.d/70-snap.test-strict-cgroup.rules
     udevadm control --reload-rules
     udevadm settle

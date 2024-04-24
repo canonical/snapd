@@ -68,15 +68,20 @@ func (*aspectSuite) TestNewAspectBundle(c *C) {
 		},
 		{
 			bundle: map[string]interface{}{"bar": map[string]interface{}{"rules": []interface{}{map[string]interface{}{}}}},
-			err:    `cannot define aspect "bar": aspect rules must have a "request" field`,
+			err:    `cannot define aspect "bar": aspect rules must have a "storage" field`,
+		},
+
+		{
+			bundle: map[string]interface{}{"bar": map[string]interface{}{"rules": []interface{}{map[string]interface{}{"request": "foo", "storage": 1}}}},
+			err:    `cannot define aspect "bar": "storage" must be a string`,
 		},
 		{
-			bundle: map[string]interface{}{"bar": map[string]interface{}{"rules": []interface{}{map[string]interface{}{"request": 1}}}},
+			bundle: map[string]interface{}{"bar": map[string]interface{}{"rules": []interface{}{map[string]interface{}{"storage": "foo", "request": 1}}}},
 			err:    `cannot define aspect "bar": "request" must be a string`,
 		},
 		{
-			bundle: map[string]interface{}{"bar": map[string]interface{}{"rules": []interface{}{map[string]interface{}{"request": "foo"}}}},
-			err:    `cannot define aspect "bar": aspect rules must have a "storage" field`,
+			bundle: map[string]interface{}{"bar": map[string]interface{}{"rules": []interface{}{map[string]interface{}{"storage": "foo", "request": ""}}}},
+			err:    `cannot define aspect "bar": aspect rules' "request" field must be non-empty, if it exists`,
 		},
 		{
 			bundle: map[string]interface{}{"bar": map[string]interface{}{"rules": []interface{}{map[string]interface{}{"request": "foo", "storage": 1}}}},
@@ -119,6 +124,33 @@ func (*aspectSuite) TestNewAspectBundle(c *C) {
 			c.Check(aspectBundle, Not(IsNil), cmt)
 		}
 	}
+}
+
+func (s *aspectSuite) TestMissingRequestDefaultsToStorage(c *C) {
+	databag := aspects.NewJSONDataBag()
+	bundle := map[string]interface{}{
+		"foo": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{"storage": "a.b"},
+			},
+		},
+	}
+	bun, err := aspects.NewBundle("acc", "foo", bundle, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	asp := bun.Aspect("foo")
+	c.Assert(asp, NotNil)
+
+	err = asp.Set(databag, "a.b", "value")
+	c.Assert(err, IsNil)
+
+	value, err := asp.Get(databag, "")
+	c.Assert(err, IsNil)
+	c.Assert(value, DeepEquals, map[string]interface{}{
+		"a": map[string]interface{}{
+			"b": "value",
+		},
+	})
 }
 
 func (s *aspectSuite) TestBundleWithSample(c *C) {
@@ -634,7 +666,7 @@ func (s *aspectSuite) TestAspectUnsetWithNestedEntry(c *C) {
 	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
 }
 
-func (s *aspectSuite) TestAspectUnsetLeafUnsetsParent(c *C) {
+func (s *aspectSuite) TestAspectUnsetLeafLeavesEmptyParent(c *C) {
 	databag := aspects.NewJSONDataBag()
 	aspectBundle, err := aspects.NewBundle("acc", "foo", map[string]interface{}{
 		"my-aspect": map[string]interface{}{
@@ -657,8 +689,9 @@ func (s *aspectSuite) TestAspectUnsetLeafUnsetsParent(c *C) {
 	err = aspect.Unset(databag, "bar")
 	c.Assert(err, IsNil)
 
-	_, err = aspect.Get(databag, "foo")
-	c.Assert(err, testutil.ErrorIs, &aspects.NotFoundError{})
+	value, err = aspect.Get(databag, "foo")
+	c.Assert(err, IsNil)
+	c.Assert(value, DeepEquals, map[string]interface{}{})
 }
 
 func (s *aspectSuite) TestAspectUnsetAlreadyUnsetEntry(c *C) {
@@ -1832,7 +1865,7 @@ func (s *aspectSuite) TestUnsetUnmatchedPlaceholderMid(c *C) {
 			"one": "value",
 			"two": "other",
 		},
-		// should be completely removed (only has a "one" path)
+		// the nested value should be removed, leaving an empty map
 		"b": map[string]interface{}{
 			"one": "value",
 		},
@@ -1852,6 +1885,7 @@ func (s *aspectSuite) TestUnsetUnmatchedPlaceholderMid(c *C) {
 		"a": map[string]interface{}{
 			"two": "other",
 		},
+		"b": map[string]interface{}{},
 		"c": map[string]interface{}{
 			"two": "value",
 		},
@@ -2231,4 +2265,206 @@ func (*aspectSuite) TestAspectSeveralNestedContentRules(c *C) {
 	val, err := asp.Get(databag, "a.b.c.d")
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "value")
+}
+
+func (*aspectSuite) TestAspectInvalidMapKeys(c *C) {
+	bundle, err := aspects.NewBundle("acc", "foo", map[string]interface{}{
+		"bar": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{
+					"request": "foo",
+					"storage": "foo",
+				},
+			},
+		},
+	}, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	databag := aspects.NewJSONDataBag()
+	asp := bundle.Aspect("bar")
+
+	type testcase struct {
+		value      interface{}
+		invalidKey string
+	}
+
+	tcs := []testcase{
+		{
+			value:      map[string]interface{}{"-foo": 2},
+			invalidKey: "-foo",
+		},
+		{
+			value:      map[string]interface{}{"foo--bar": 2},
+			invalidKey: "foo--bar",
+		},
+		{
+			value:      map[string]interface{}{"foo-": 2},
+			invalidKey: "foo-",
+		},
+		{
+			value:      map[string]interface{}{"foo": map[string]interface{}{"-bar": 2}},
+			invalidKey: "-bar",
+		},
+		{
+			value:      map[string]interface{}{"foo": map[string]interface{}{"bar": map[string]interface{}{"baz-": 2}}},
+			invalidKey: "baz-",
+		},
+		{
+			value:      []interface{}{map[string]interface{}{"foo": 2}, map[string]interface{}{"bar-": 2}},
+			invalidKey: "bar-",
+		},
+		{
+			value:      []interface{}{nil, map[string]interface{}{"bar-": 2}},
+			invalidKey: "bar-",
+		},
+		{
+			value:      map[string]interface{}{"foo": nil, "bar": map[string]interface{}{"-baz": 2}},
+			invalidKey: "-baz",
+		},
+	}
+
+	for _, tc := range tcs {
+		cmt := Commentf("expected invalid key err for value: %v", tc.value)
+		err = asp.Set(databag, "foo", tc.value)
+		c.Assert(err, ErrorMatches, fmt.Sprintf("cannot set \"foo\" in aspect acc/foo/bar: key %q doesn't conform to required format: .*", tc.invalidKey), cmt)
+	}
+}
+
+func (s *aspectSuite) TestSetUsingMapWithNilValuesAtLeaves(c *C) {
+	databag := aspects.NewJSONDataBag()
+	aspectBundle, err := aspects.NewBundle("acc", "bundle", map[string]interface{}{
+		"foo": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{"request": "foo", "storage": "foo"},
+				map[string]interface{}{"request": "foo.a", "storage": "foo.a"},
+				map[string]interface{}{"request": "foo.b", "storage": "foo.b"},
+			},
+		},
+	}, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	asp := aspectBundle.Aspect("foo")
+	c.Assert(asp, NotNil)
+
+	err = asp.Set(databag, "foo", map[string]interface{}{
+		"a": "value",
+		"b": "other",
+	})
+	c.Assert(err, IsNil)
+
+	err = asp.Set(databag, "foo", map[string]interface{}{
+		"a": nil,
+		"b": nil,
+	})
+	c.Assert(err, IsNil)
+
+	value, err := asp.Get(databag, "foo")
+	c.Assert(err, IsNil)
+	c.Assert(value, DeepEquals, map[string]interface{}{})
+}
+
+func (s *aspectSuite) TestSetWithMultiplePathsNestedAtLeaves(c *C) {
+	databag := aspects.NewJSONDataBag()
+	aspectBundle, err := aspects.NewBundle("acc", "bundle", map[string]interface{}{
+		"foo": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{"request": "foo.a", "storage": "foo.a"},
+				map[string]interface{}{"request": "foo.b", "storage": "foo.b"},
+			},
+		},
+	}, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	asp := aspectBundle.Aspect("foo")
+	c.Assert(asp, NotNil)
+
+	err = asp.Set(databag, "foo", map[string]interface{}{
+		"a": map[string]interface{}{
+			"c": "value",
+			"d": "other",
+		},
+		"b": "other",
+	})
+	c.Assert(err, IsNil)
+
+	err = asp.Set(databag, "foo", map[string]interface{}{
+		"a": map[string]interface{}{
+			"d": nil,
+		},
+		"b": nil,
+	})
+	c.Assert(err, IsNil)
+
+	value, err := asp.Get(databag, "foo")
+	c.Assert(err, IsNil)
+	c.Assert(value, DeepEquals, map[string]interface{}{
+		// consistent with the previous configuration mechanism
+		"a": map[string]interface{}{},
+	})
+}
+
+func (s *aspectSuite) TestSetWithNilAndNonNilLeaves(c *C) {
+	databag := aspects.NewJSONDataBag()
+	aspectBundle, err := aspects.NewBundle("acc", "bundle", map[string]interface{}{
+		"foo": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{"request": "foo", "storage": "foo"},
+			},
+		},
+	}, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	asp := aspectBundle.Aspect("foo")
+	c.Assert(asp, NotNil)
+
+	err = asp.Set(databag, "foo", map[string]interface{}{
+		"a": "value",
+		"b": "other",
+	})
+	c.Assert(err, IsNil)
+
+	err = asp.Set(databag, "foo", map[string]interface{}{
+		"a": nil,
+		"c": "value",
+	})
+	c.Assert(err, IsNil)
+
+	value, err := asp.Get(databag, "foo")
+	c.Assert(err, IsNil)
+	// nil values aren't stored but non-nil values are
+	c.Assert(value, DeepEquals, map[string]interface{}{
+		"c": "value",
+	})
+}
+
+func (*aspectSuite) TestSetEnforcesNestednessLimit(c *C) {
+	restore := aspects.MockMaxValueDepth(2)
+	defer restore()
+
+	bundle, err := aspects.NewBundle("acc", "foo", map[string]interface{}{
+		"bar": map[string]interface{}{
+			"rules": []interface{}{
+				map[string]interface{}{
+					"request": "foo",
+					"storage": "foo",
+				},
+			},
+		},
+	}, aspects.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	databag := aspects.NewJSONDataBag()
+	asp := bundle.Aspect("bar")
+
+	err = asp.Set(databag, "foo", map[string]interface{}{
+		"bar": "baz",
+	})
+	c.Assert(err, IsNil)
+
+	err = asp.Set(databag, "foo", map[string]interface{}{
+		"bar": map[string]interface{}{
+			"baz": "value",
+		},
+	})
+	c.Assert(err, ErrorMatches, `cannot set "foo" in aspect acc/foo/bar: value cannot have more than 2 nested levels`)
 }

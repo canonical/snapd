@@ -43,7 +43,7 @@ environment:
     TRUST_TEST_KEYS: '$(HOST: echo "${SPREAD_TRUST_TEST_KEYS:-true}")'
     # a global setting for LXD channel to use in the tests
     # TODO: Consider reverting to latest/candidate after Snapcraft compatibility with LXD 5.21 extended version string "5.21 LTS" is fixed
-    LXD_SNAP_CHANNEL: "latest/stable"
+    LXD_SNAP_CHANNEL: "latest/edge"
     UBUNTU_IMAGE_SNAP_CHANNEL: "2/stable"
     # controls whether ubuntu-image is built using the current snapd tree as a
     # dependency or the one listed in its go.mod
@@ -140,6 +140,10 @@ backends:
                   image: ubuntu-22.04-64
                   workers: 8
                   storage: 20G
+            - ubuntu-core-24-64:
+                  image: ubuntu-24.04-64
+                  workers: 8
+                  storage: 20G
             - ubuntu-secboot-20.04-64:
                   image: ubuntu-20.04-64
                   workers: 1
@@ -227,12 +231,14 @@ backends:
         location: snapd-spread/us-east1-b
         halt-timeout: 2h
         systems:
-            - ubuntu-18.04-64:
-                  workers: 6
             - ubuntu-20.04-64:
-                  workers: 6
+                  workers: 8
             - ubuntu-22.04-64:
-                  workers: 6
+                  workers: 8
+            - ubuntu-23.10-64:
+                  workers: 8
+            - ubuntu-24.04-64:
+                  workers: 8
 
     google-nested:
         type: google
@@ -258,6 +264,10 @@ backends:
                   image: ubuntu-2204-64-virt-enabled
                   storage: 25G
                   workers: 10
+            - ubuntu-24.04-64:
+                  image: ubuntu-2404-64-virt-enabled
+                  storage: 25G
+                  workers: 4
 
     google-nested-arm:
         type: google
@@ -295,6 +305,10 @@ backends:
                   image: ubuntu-2204-64-virt-enabled
                   storage: 20G
                   workers: 8
+            - ubuntu-24.04-64:
+                  image: ubuntu-2404-64-virt-enabled
+                  storage: 20G
+                  workers: 8
 
     qemu-nested:
         memory: 4G
@@ -310,6 +324,9 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-22.04-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-24.04-64:
                   username: ubuntu
                   password: ubuntu
 
@@ -366,6 +383,9 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-23.10-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-24.04-64:
                   username: ubuntu
                   password: ubuntu
             - debian-11-64:
@@ -490,52 +510,52 @@ backends:
         systems:
             - ubuntu-core-16-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-16-32:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-16-arm-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-16-arm-32:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-18-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-18-32:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-18-arm-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-18-arm-32:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-20-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-20-arm-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-20-arm-32:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-22-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-22-arm-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-22-arm-32:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-24-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
             - ubuntu-core-24-arm-64:
                   username: external
-                  password: ubuntu
+                  password: ubuntu123
 
 path: /home/gopath/src/github.com/snapcore/snapd
 
@@ -1060,7 +1080,7 @@ suites:
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
 
-    tests/perf/:
+    tests/perf/main/:
         summary: Performance and Load tests
         backends: [external]
         environment:
@@ -1133,7 +1153,7 @@ suites:
             #shellcheck source=tests/lib/image.sh
             . "$TESTSLIB"/image.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
             if os.query is-xenial || os.query is-arm; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
@@ -1190,7 +1210,7 @@ suites:
             #shellcheck source=tests/lib/image.sh
             . "$TESTSLIB"/image.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
             if os.query is-xenial || os.query is-arm; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
@@ -1251,7 +1271,7 @@ suites:
             #shellcheck source=tests/lib/image.sh
             . "$TESTSLIB"/image.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
             if os.query is-xenial || os.query is-arm; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
@@ -1282,7 +1302,7 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
 
-    tests/nested/perf/:
+    tests/perf/nested/:
         summary: Performance and Load tests preparation suite
         backends: [google-nested, google-nested-dev, qemu-nested]
         environment:
@@ -1314,7 +1334,7 @@ suites:
             #shellcheck source=tests/lib/image.sh
             . "$TESTSLIB"/image.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
+            distro_install_package snapd qemu-kvm qemu-utils genisoimage sshpass cloud-image-utils ovmf kpartx xz-utils mtools ca-certificates xdelta3
             if os.query is-xenial || os.query is-arm; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04

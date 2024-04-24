@@ -123,7 +123,7 @@ execute: |
   # the list of expected profiles isn't exhaustive, we're just checking some critical ones
   for prof in snap.lxd.lxd snap.lxd.hook.install snap.lxd.hook.configure snap.lxd.daemon; do
     test -f "$AA_PROFILES/$prof"
-    test -f "$SECCOMP_PROFILES/$prof.bin"
+    test -f "$SECCOMP_PROFILES/$prof.bin2"
   done
 
   echo "Checking that mount units have been created and enabled on the target image"

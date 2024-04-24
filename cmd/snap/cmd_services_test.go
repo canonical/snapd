@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os/user"
 	"sort"
 	"strings"
 	"time"
@@ -31,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type appOpSuite struct {
@@ -263,11 +265,16 @@ func (s *appOpSuite) TestAppOpsScopeInvalid(c *check.C) {
 
 func (s *appOpSuite) TestAppStatus(c *check.C) {
 	n := 0
+	var hasGlobal bool
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
-		case 0:
+		case 0, 1, 2, 3:
 			c.Check(r.URL.Path, check.Equals, "/v2/apps")
-			c.Check(r.URL.Query(), check.HasLen, 1)
+			if hasGlobal {
+				c.Check(r.URL.Query(), check.HasLen, 2)
+			} else {
+				c.Check(r.URL.Query(), check.HasLen, 1)
+			}
 			c.Check(r.URL.Query().Get("select"), check.Equals, "service")
 			c.Check(r.Method, check.Equals, "GET")
 			w.WriteHeader(200)
@@ -319,7 +326,106 @@ func (s *appOpSuite) TestAppStatus(c *check.C) {
 
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"services"})
+
+	tests := []struct {
+		uid             string
+		arguments       []string
+		userServiceLine string
+	}{
+		{"0", []string{"services"}, "foo.qux  enabled  -         user"},
+		{"0", []string{"services", "--user"}, "foo.qux  enabled  inactive  user"},
+		{"1337", []string{"services"}, "foo.qux  enabled  inactive  user"},
+		{"1337", []string{"services", "--global"}, "foo.qux  enabled  -         user"},
+	}
+
+	var testsRun int
+	for _, t := range tests {
+		testsRun++
+		s.stdout.Reset()
+		hasGlobal = (t.uid == "0" && !strutil.ListContains(t.arguments, "--user")) || strutil.ListContains(t.arguments, "--global")
+		r := snap.MockUserCurrent(func() (*user.User, error) {
+			return &user.User{
+				Uid: t.uid,
+			}, nil
+		})
+
+		rest, err := snap.Parser(snap.Client()).ParseArgs(t.arguments)
+		c.Check(err, check.IsNil)
+		c.Check(rest, check.HasLen, 0)
+		c.Check(s.Stderr(), check.Equals, "")
+		c.Check(s.Stdout(), check.Equals, fmt.Sprintf(`Service  Startup  Current   Notes
+foo.bar  enabled  inactive  timer-activated
+foo.baz  enabled  inactive  socket-activated
+%s
+foo.zed  enabled  active    -
+`, t.userServiceLine))
+		// ensure that the fake server api was actually hit
+		c.Check(n, check.Equals, testsRun)
+
+		// restore the user mock
+		r()
+	}
+}
+
+func (s *appOpSuite) TestAppStatusGlobal(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/apps")
+			c.Check(r.URL.Query(), check.HasLen, 2)
+			c.Check(r.URL.Query().Get("select"), check.Equals, "service")
+			c.Check(r.Method, check.Equals, "GET")
+			w.WriteHeader(200)
+			enc := json.NewEncoder(w)
+			enc.Encode(map[string]interface{}{
+				"type": "sync",
+				"result": []map[string]interface{}{
+					{
+						"snap":         "foo",
+						"name":         "bar",
+						"daemon":       "oneshot",
+						"daemon-scope": "system",
+						"active":       false,
+						"enabled":      true,
+						"activators": []map[string]interface{}{
+							{"name": "bar", "type": "timer", "active": true, "enabled": true},
+						},
+					}, {
+						"snap":         "foo",
+						"name":         "baz",
+						"daemon":       "oneshot",
+						"daemon-scope": "system",
+						"active":       false,
+						"enabled":      true,
+						"activators": []map[string]interface{}{
+							{"name": "baz-sock1", "type": "socket", "active": true, "enabled": true},
+							{"name": "baz-sock2", "type": "socket", "active": false, "enabled": true},
+						},
+					}, {
+						"snap":         "foo",
+						"name":         "qux",
+						"daemon":       "simple",
+						"daemon-scope": "user",
+						"active":       false,
+						"enabled":      true,
+					}, {
+						"snap":    "foo",
+						"name":    "zed",
+						"active":  true,
+						"enabled": true,
+					},
+				},
+				"status":      "OK",
+				"status-code": 200,
+			})
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"services", "--global"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -376,6 +482,26 @@ func (s *appOpSuite) TestServiceCompletion(c *check.C) {
 
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 7)
+}
+
+func (s *appOpSuite) TestAppStatusUserFailed(c *check.C) {
+	r := snap.MockUserCurrent(func() (*user.User, error) {
+		return nil, fmt.Errorf("oh-no")
+	})
+	defer r()
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"services"})
+	c.Check(err, check.ErrorMatches, `cannot get the current user: oh-no.`)
+}
+
+func (s *appOpSuite) TestAppStatusInvalidUserGlobalSwitches(c *check.C) {
+	r := snap.MockUserCurrent(func() (*user.User, error) {
+		return &user.User{
+			Uid: "0",
+		}, nil
+	})
+	defer r()
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"services", "--global", "--user"})
+	c.Check(err, check.ErrorMatches, `cannot combine --global and --user switches.`)
 }
 
 func (s *appOpSuite) TestAppStatusNoServices(c *check.C) {

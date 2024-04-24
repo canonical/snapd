@@ -1699,7 +1699,7 @@ func applyUpdates(structureLocations map[string]map[int]StructureLocation, new G
 		if err != nil {
 			return fmt.Errorf("cannot prepare update for volume structure %v on volume %s: %v", one.to, one.volume.Name, err)
 		}
-		up, err := updaterForStructure(loc, one.to, new.RootDir, rollbackDir, observer)
+		up, err := updaterForStructure(loc, one.from, one.to, new.RootDir, rollbackDir, observer)
 		if err != nil {
 			return fmt.Errorf("cannot prepare update for volume structure %v on volume %s: %v", one.to, one.volume.Name, err)
 		}
@@ -1772,7 +1772,7 @@ func applyUpdates(structureLocations map[string]map[int]StructureLocation, new G
 
 var updaterForStructure = updaterForStructureImpl
 
-func updaterForStructureImpl(loc StructureLocation, ps *LaidOutStructure, newRootDir, rollbackDir string, observer ContentUpdateObserver) (Updater, error) {
+func updaterForStructureImpl(loc StructureLocation, fromPs *LaidOutStructure, ps *LaidOutStructure, newRootDir, rollbackDir string, observer ContentUpdateObserver) (Updater, error) {
 	// TODO: this is sort of clunky, we already did the lookup, but doing the
 	// lookup out of band from this function makes for easier mocking
 	if !ps.HasFilesystem() {
@@ -1784,12 +1784,12 @@ func updaterForStructureImpl(loc StructureLocation, ps *LaidOutStructure, newRoo
 		lookup := func(ps *LaidOutStructure) (string, error) {
 			return loc.RootMountPoint, nil
 		}
-		return newMountedFilesystemUpdater(ps, rollbackDir, lookup, observer)
+		return newMountedFilesystemUpdater(fromPs, ps, rollbackDir, lookup, observer)
 	}
 }
 
 // MockUpdaterForStructure replace internal call with a mocked one, for use in tests only
-func MockUpdaterForStructure(mock func(loc StructureLocation, ps *LaidOutStructure, rootDir, rollbackDir string, observer ContentUpdateObserver) (Updater, error)) (restore func()) {
+func MockUpdaterForStructure(mock func(loc StructureLocation, fromPs, ps *LaidOutStructure, rootDir, rollbackDir string, observer ContentUpdateObserver) (Updater, error)) (restore func()) {
 	old := updaterForStructure
 	updaterForStructure = mock
 	return func() {

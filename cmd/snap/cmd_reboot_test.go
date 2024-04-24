@@ -21,7 +21,7 @@ package main_test
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 
@@ -107,7 +107,7 @@ func (s *SnapSuite) TestRebootHappy(c *C) {
 				c.Check(r.Method, Equals, "POST")
 				c.Check(r.URL.Path, Equals, tc.expectedEndpoint, Commentf("%v", tc.cmdline))
 				c.Check(r.URL.RawQuery, Equals, "")
-				body, err := ioutil.ReadAll(r.Body)
+				body, err := io.ReadAll(r.Body)
 				c.Check(err, IsNil)
 				c.Check(string(body), Equals, tc.expectedJSON+"\n")
 				fmt.Fprintln(w, `{"type": "sync", "result": {}}`)

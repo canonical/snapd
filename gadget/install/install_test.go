@@ -22,7 +22,6 @@ package install_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -1038,10 +1037,10 @@ func (s *installSuite) testWriteContent(c *C, opts writeContentOpts) {
 
 	var data []byte
 	for _, mntPt := range []string{espMntPt, bootMntPt} {
-		data, err = ioutil.ReadFile(filepath.Join(mntPt, "EFI/boot/bootx64.efi"))
+		data, err = os.ReadFile(filepath.Join(mntPt, "EFI/boot/bootx64.efi"))
 		c.Check(err, IsNil)
 		c.Check(string(data), Equals, "shim.efi.signed content")
-		data, err = ioutil.ReadFile(filepath.Join(mntPt, "EFI/boot/grubx64.efi"))
+		data, err = os.ReadFile(filepath.Join(mntPt, "EFI/boot/grubx64.efi"))
 		c.Check(err, IsNil)
 		c.Check(string(data), Equals, "grubx64.efi content")
 	}

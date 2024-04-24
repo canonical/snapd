@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017-2023 Canonical Ltd
+ * Copyright (C) 2017-2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,12 +20,15 @@
 package snapstate
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -739,8 +742,19 @@ var asyncPendingRefreshNotification = func(ctx context.Context, refreshInfo *use
 // maybeAsyncPendingRefreshNotification broadcasts desktop notification in a goroutine.
 //
 // The notification is sent only if no snap has the marker "snap-refresh-observe"
-// interface connected.
+// interface connected and the "refresh-app-awareness-ux" experimental flag is disabled.
 func maybeAsyncPendingRefreshNotification(ctx context.Context, st *state.State, refreshInfo *userclient.PendingSnapRefreshInfo) {
+	tr := config.NewTransaction(st)
+	experimentalRefreshAppAwarenessUX, err := features.Flag(tr, features.RefreshAppAwarenessUX)
+	if err != nil && !config.IsNoOption(err) {
+		logger.Noticef("Cannot send notification about pending refresh: %v", err)
+		return
+	}
+	if experimentalRefreshAppAwarenessUX {
+		// use notices + warnings fallback flow instead
+		return
+	}
+
 	markerExists, err := HasActiveConnection(st, "snap-refresh-observe")
 	if err != nil {
 		logger.Noticef("Cannot send notification about pending refresh: %v", err)
@@ -880,6 +894,86 @@ func maybeAddRefreshInhibitNotice(st *state.State) error {
 		st.Set("last-recorded-inhibited-snaps", curInhibitedSnaps)
 	}
 
+	if err := maybeAddRefreshInhibitWarningFallback(st, curInhibitedSnaps); err != nil {
+		logger.Noticef("Cannot add refresh inhibition warning: %v", err)
+	}
+
+	return nil
+}
+
+// maybeAddRefreshInhibitWarningFallback records a warning if the set of
+// inhibited snaps was changed since the last notice.
+//
+// The warning is recorded only if:
+//  1. There is at least 1 inhibited snap.
+//  2. The "refresh-app-awareness-ux" experimental flag is enabled.
+//  3. No snap exists with the marker "snap-refresh-observe" interface connected.
+//
+// Note: If no snaps are inhibited then existing inhibition warning
+// will be removed.
+func maybeAddRefreshInhibitWarningFallback(st *state.State, inhibitedSnaps map[string]bool) error {
+	if len(inhibitedSnaps) == 0 {
+		// no more inhibited snaps, remove inhibition warning if it exists.
+		return removeRefreshInhibitWarning(st)
+	}
+
+	tr := config.NewTransaction(st)
+	experimentalRefreshAppAwarenessUX, err := features.Flag(tr, features.RefreshAppAwarenessUX)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	if !experimentalRefreshAppAwarenessUX {
+		// snapd will send notifications directly, check maybeAsyncPendingRefreshNotification
+		return nil
+	}
+
+	markerExists, err := HasActiveConnection(st, "snap-refresh-observe")
+	if err != nil {
+		return err
+	}
+	if markerExists {
+		// do nothing
+		return nil
+	}
+
+	// let's fallback to issuing warnings if no snap exists with the
+	// marker snap-refresh-observe interface connected.
+
+	// remove inhibition warning if it exists.
+	if err := removeRefreshInhibitWarning(st); err != nil {
+		return err
+	}
+
+	// building warning message
+	var snapsBuf bytes.Buffer
+	i := 0
+	for snap := range inhibitedSnaps {
+		if i > 0 {
+			snapsBuf.WriteString(", ")
+		}
+		snapsBuf.WriteString(snap)
+		i++
+	}
+	message := fmt.Sprintf("cannot refresh (%s) due running apps; close running apps to continue refresh.", snapsBuf.String())
+
+	// wait some time before showing the same warning to the user again after okaying.
+	st.AddWarning(message, &state.AddWarningOptions{RepeatAfter: 24 * time.Hour})
+
+	return nil
+}
+
+// removeRefreshInhibitWarning removes inhibition warning if it exists.
+func removeRefreshInhibitWarning(st *state.State) error {
+	// XXX: is it worth it to check for unexpected multiple matches?
+	for _, warning := range st.AllWarnings() {
+		if !strings.HasSuffix(warning.String(), "close running apps to continue refresh.") {
+			continue
+		}
+		if err := st.RemoveWarning(warning.String()); err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+		return nil
+	}
 	return nil
 }
 

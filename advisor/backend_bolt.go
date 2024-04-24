@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-//go:build !nobolt
 
 /*
  * Copyright (C) 2018-2024 Canonical Ltd
@@ -26,7 +25,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/snapcore/bolt"
+	"go.etcd.io/bbolt"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -40,10 +39,10 @@ var (
 
 type writer struct {
 	fn        string
-	db        *bolt.DB
-	tx        *bolt.Tx
-	cmdBucket *bolt.Bucket
-	pkgBucket *bolt.Bucket
+	db        *bbolt.DB
+	tx        *bbolt.Tx
+	cmdBucket *bbolt.Bucket
+	pkgBucket *bbolt.Bucket
 }
 
 // Create opens the commands database for writing, and starts a
@@ -57,7 +56,7 @@ func Create() (CommandDB, error) {
 		fn: dirs.SnapCommandsDB + "." + randutil.RandomString(12) + "~",
 	}
 
-	t.db, err = bolt.Open(t.fn, 0644, &bolt.Options{Timeout: 1 * time.Second})
+	t.db, err = bbolt.Open(t.fn, 0644, &bbolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +177,7 @@ func (t *writer) done(commit bool) error {
 // DumpCommands returns the whole database as a map. For use in
 // testing and debugging.
 func DumpCommands() (map[string]string, error) {
-	db, err := bolt.Open(dirs.SnapCommandsDB, 0644, &bolt.Options{
+	db, err := bbolt.Open(dirs.SnapCommandsDB, 0644, &bbolt.Options{
 		ReadOnly: true,
 		Timeout:  1 * time.Second,
 	})
@@ -208,7 +207,7 @@ func DumpCommands() (map[string]string, error) {
 }
 
 type boltFinder struct {
-	*bolt.DB
+	*bbolt.DB
 }
 
 // Open the database for reading.
@@ -220,7 +219,7 @@ func Open() (Finder, error) {
 	if !osutil.FileExists(dirs.SnapCommandsDB) {
 		return nil, os.ErrNotExist
 	}
-	db, err := bolt.Open(dirs.SnapCommandsDB, 0644, &bolt.Options{
+	db, err := bbolt.Open(dirs.SnapCommandsDB, 0644, &bbolt.Options{
 		ReadOnly: true,
 		Timeout:  1 * time.Second,
 	})

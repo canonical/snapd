@@ -7484,9 +7484,11 @@ func (s *snapmgrTestSuite) TestStopSnapServicesUndo(c *C) {
 	c.Check(t.Get("old-last-active-disabled-services", &oldDisabledSvcs), IsNil)
 	c.Check(oldDisabledSvcs, DeepEquals, []string{"old-svc"})
 
-	var disabled []string
+	var disabled wrappers.DisabledServices
 	c.Check(t.Get("disabled-services", &disabled), IsNil)
-	c.Check(disabled, DeepEquals, []string{"svc1"})
+	c.Check(disabled, DeepEquals, wrappers.DisabledServices{
+		SystemServices: []string{"svc1"},
+	})
 }
 
 func (s *snapmgrTestSuite) TestStopSnapServicesErrInUndo(c *C) {
@@ -7975,7 +7977,7 @@ var nonReLinkKinds = []string{
 	"start-snap-services",
 	"run-hook[configure]",
 	"run-hook[check-health]",
-	"remove-old-kernel-snap-setup",
+	"discard-old-kernel-snap-setup",
 }
 
 func kindsToSet(kinds []string) map[string]bool {
@@ -8022,8 +8024,8 @@ func (s *snapmgrTestSuite) testRemodelLinkNewBaseOrKernelHappy(c *C, model *asse
 	if opts&needsKernelSetup != 0 {
 		c.Assert(tasks, HasLen, 4)
 		tSetupKernelSnap := tasks[1]
-		c.Assert(tSetupKernelSnap.Kind(), Equals, "setup-kernel-snap")
-		c.Assert(tSetupKernelSnap.Summary(), Equals, `Setup kernel driver tree for "some-kernel" (2) for remodel`)
+		c.Assert(tSetupKernelSnap.Kind(), Equals, "prepare-kernel-snap")
+		c.Assert(tSetupKernelSnap.Summary(), Equals, `Prepare kernel driver tree for "some-kernel" (2) for remodel`)
 		c.Assert(tSetupKernelSnap.WaitTasks(), DeepEquals, []*state.Task{tPrepare})
 		tUpdateGadgetAssets = tasks[2]
 		tLink = tasks[3]
@@ -8144,8 +8146,8 @@ func (s *snapmgrTestSuite) testRemodelAddLinkNewBaseOrKernel(c *C, model *assert
 	if opts&needsKernelSetup != 0 {
 		c.Assert(tasks, HasLen, 5)
 		tSetupKernelSnap := tasks[2]
-		c.Assert(tSetupKernelSnap.Kind(), Equals, "setup-kernel-snap")
-		c.Assert(tSetupKernelSnap.Summary(), Equals, `Setup kernel driver tree for "some-kernel" (2) for remodel`)
+		c.Assert(tSetupKernelSnap.Kind(), Equals, "prepare-kernel-snap")
+		c.Assert(tSetupKernelSnap.Summary(), Equals, `Prepare kernel driver tree for "some-kernel" (2) for remodel`)
 		c.Assert(tSetupKernelSnap.WaitTasks(), DeepEquals, []*state.Task{
 			testTask,
 		})
@@ -8912,7 +8914,6 @@ WantedBy=multi-user.target
 Description=Mount unit for test-snap, revision 42
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
-Before=local-fs.target
 
 [Mount]
 What=%s
@@ -8960,7 +8961,6 @@ apps:
 Description=Mount unit for test-snap, revision 42
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
-Before=local-fs.target
 
 [Mount]
 What=%s
@@ -9029,7 +9029,6 @@ apps:
 Description=Mount unit for test-snap, revision 42
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
-Before=local-fs.target
 
 [Mount]
 What=%s

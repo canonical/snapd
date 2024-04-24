@@ -21,7 +21,7 @@ package client_test
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/url"
 
 	. "gopkg.in/check.v1"
@@ -50,7 +50,7 @@ func (cs *clientSuite) TestAspectSet(c *C) {
 	c.Check(cs.reqs[0].Method, Equals, "PUT")
 	c.Check(cs.reqs[0].Header.Get("Content-Type"), Equals, "application/json")
 	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/aspects/a/b/c")
-	data, err := ioutil.ReadAll(cs.reqs[0].Body)
+	data, err := io.ReadAll(cs.reqs[0].Body)
 	c.Assert(err, IsNil)
 
 	// need to decode because entries may have been encoded in any order

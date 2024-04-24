@@ -21,7 +21,7 @@ package refresh
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -115,7 +115,7 @@ func NewRepair(targetDir string, scriptFilename string, headers map[string]inter
 		}
 	}
 
-	scriptBodyBytes, err := ioutil.ReadFile(scriptFilename)
+	scriptBodyBytes, err := os.ReadFile(scriptFilename)
 	if err != nil {
 		return "", err
 	}

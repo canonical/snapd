@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Canonical Ltd
+// Copyright (c) 2023-2024 Canonical Ltd
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License version 3 as
@@ -16,6 +16,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -25,27 +26,37 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
 var noticeReadInterfaces = map[state.NoticeType][]string{
 	state.ChangeUpdateNotice:   {"snap-refresh-observe"},
 	state.RefreshInhibitNotice: {"snap-refresh-observe"},
+	state.SnapRunInhibitNotice: {"snap-refresh-observe"},
 }
 
 var (
 	noticesCmd = &Command{
-		Path:       "/v2/notices",
-		GET:        getNotices,
-		ReadAccess: interfaceOpenAccess{Interface: "snap-refresh-observe"},
+		Path:        "/v2/notices",
+		GET:         getNotices,
+		POST:        postNotices,
+		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}},
+		WriteAccess: openAccess{},
 	}
 
 	noticeCmd = &Command{
 		Path:       "/v2/notices/{id}",
 		GET:        getNotice,
-		ReadAccess: interfaceOpenAccess{Interface: "snap-refresh-observe"},
+		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe"}},
 	}
 )
+
+// addedNotice is the result of adding a new notice.
+type addedNotice struct {
+	// ID is the id of the newly added notice.
+	ID string `json:"id"`
+}
 
 func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
@@ -172,6 +183,7 @@ func sanitizeNoticeUserIDFilter(queryUserID []string) (*uint32, error) {
 // Construct the types filter which will be passed to state.Notices.
 func sanitizeNoticeTypesFilter(queryTypes []string, r *http.Request) ([]state.NoticeType, error) {
 	typeStrs := strutil.MultiCommaSeparatedList(queryTypes)
+	alreadySeen := make(map[state.NoticeType]bool, len(typeStrs))
 	types := make([]state.NoticeType, 0, len(typeStrs))
 	for _, typeStr := range typeStrs {
 		noticeType := state.NoticeType(typeStr)
@@ -180,6 +192,10 @@ func sanitizeNoticeTypesFilter(queryTypes []string, r *http.Request) ([]state.No
 			// with unknown types succeed).
 			continue
 		}
+		if alreadySeen[noticeType] {
+			continue
+		}
+		alreadySeen[noticeType] = true
 		types = append(types, noticeType)
 	}
 	if len(types) == 0 {
@@ -188,7 +204,7 @@ func sanitizeNoticeTypesFilter(queryTypes []string, r *http.Request) ([]state.No
 		}
 		// No types were specified, populate with notice types snap can view
 		// with its connected interface.
-		ucred, iface, err := ucrednetGetWithInterface(r.RemoteAddr)
+		ucred, ifaces, err := ucrednetGetWithInterfaces(r.RemoteAddr)
 		if err != nil {
 			return nil, err
 		}
@@ -196,7 +212,16 @@ func sanitizeNoticeTypesFilter(queryTypes []string, r *http.Request) ([]state.No
 			// Not connecting through snapd-snap.socket, should have read-access to all types.
 			return nil, nil
 		}
-		types = allowedNoticeTypesForInterface(iface)
+		for _, iface := range ifaces {
+			ifaceNoticeTypes := allowedNoticeTypesForInterface(iface)
+			for _, t := range ifaceNoticeTypes {
+				if alreadySeen[t] {
+					continue
+				}
+				alreadySeen[t] = true
+				types = append(types, t)
+			}
+		}
 		if len(types) == 0 {
 			return nil, errors.New("snap cannot access any notice type")
 		}
@@ -216,6 +241,71 @@ func allowedNoticeTypesForInterface(iface string) []state.NoticeType {
 	}
 
 	return types
+}
+
+func postNotices(c *Command, r *http.Request, user *auth.UserState) Response {
+	requestUID, err := uidFromRequest(r)
+	if err != nil {
+		return Forbidden("cannot determine UID of request, so cannot create notice")
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	var inst noticeInstruction
+	if err := decoder.Decode(&inst); err != nil {
+		return BadRequest("cannot decode request body into notice instruction: %v", err)
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	if err := inst.validate(r); err != nil {
+		return err
+	}
+
+	noticeId, err := st.AddNotice(&requestUID, state.SnapRunInhibitNotice, inst.Key, nil)
+	if err != nil {
+		return InternalError("%v", err)
+	}
+
+	return SyncResponse(addedNotice{ID: noticeId})
+}
+
+type noticeInstruction struct {
+	Action string           `json:"action"`
+	Type   state.NoticeType `json:"type"`
+	Key    string           `json:"key"`
+	// NOTE: Data and RepeatAfter fields are not needed for snap-run-inhibit notices.
+}
+
+func (inst *noticeInstruction) validate(r *http.Request) *apiError {
+	if inst.Action != "add" {
+		return BadRequest("invalid action %q", inst.Action)
+	}
+	if err := state.ValidateNotice(inst.Type, inst.Key, nil); err != nil {
+		return BadRequest("%s", err)
+	}
+
+	switch inst.Type {
+	case state.SnapRunInhibitNotice:
+		return inst.validateSnapRunInhibitNotice(r)
+	default:
+		return BadRequest(`cannot add notice with invalid type %q (can only add "snap-run-inhibit" notices)`, inst.Type)
+	}
+}
+
+func (inst *noticeInstruction) validateSnapRunInhibitNotice(r *http.Request) *apiError {
+	if fromSnapCmd, err := isRequestFromSnapCmd(r); err != nil {
+		return InternalError("cannot check request source: %v", err)
+	} else if !fromSnapCmd {
+		return Forbidden("only snap command can record notices")
+	}
+
+	if err := naming.ValidateInstance(inst.Key); err != nil {
+		return BadRequest("invalid key: %v", err)
+	}
+
+	return nil
 }
 
 func getNotice(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -259,7 +349,7 @@ func noticeViewableByUser(notice *state.Notice, requestUID uint32) bool {
 // noticeTypesViewableBySnap checks if passed interface allows the snap
 // to have read-access for the passed notice types.
 func noticeTypesViewableBySnap(types []state.NoticeType, r *http.Request) bool {
-	ucred, iface, err := ucrednetGetWithInterface(r.RemoteAddr)
+	ucred, ifaces, err := ucrednetGetWithInterfaces(r.RemoteAddr)
 	if err != nil {
 		return false
 	}
@@ -273,11 +363,15 @@ func noticeTypesViewableBySnap(types []state.NoticeType, r *http.Request) bool {
 		return false
 	}
 
+InterfaceTypeLoop:
 	for _, noticeType := range types {
 		allowedInterfaces := noticeReadInterfaces[noticeType]
-		if !strutil.ListContains(allowedInterfaces, iface) {
-			return false
+		for _, iface := range ifaces {
+			if strutil.ListContains(allowedInterfaces, iface) {
+				continue InterfaceTypeLoop
+			}
 		}
+		return false
 	}
 	return true
 }

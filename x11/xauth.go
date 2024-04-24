@@ -23,7 +23,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 )
 
@@ -122,7 +121,7 @@ func ValidateXauthority(r io.Reader) error {
 // MockXauthority will create a fake xauthority file and place it
 // on a temporary path which is returned as result.
 func MockXauthority(cookies int) (string, error) {
-	f, err := ioutil.TempFile("", "xauth")
+	f, err := os.CreateTemp("", "xauth")
 	if err != nil {
 		return "", err
 	}

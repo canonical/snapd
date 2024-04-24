@@ -5,7 +5,7 @@ details: |
   version that is lower than the version currently installed on the system.
   Make sure that the remodel downgrades the snap to the lower pinned revision.
 
-systems: [ubuntu-22.04-64]
+systems: [ubuntu-22.04-64, ubuntu-24.04-64]
 
 environment:
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/test-snapd-remodel-without-vset-pc-{VERSION}.model

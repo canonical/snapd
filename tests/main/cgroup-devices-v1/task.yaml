@@ -9,6 +9,17 @@ details: |
     is executed via snap-confine.
 
 # Disable the test on all systems that boot with cgroup v2
-systems: [ -fedora-*, -debian-*, -arch-*, -opensuse-tumbleweed-*, -ubuntu-22.*, -ubuntu-23.*, -ubuntu-24.*, -ubuntu-core-22-*, -centos-9-*, -amazon-linux-2023-*]
+systems: 
+    - -fedora-*
+    - -debian-*
+    - -arch-*
+    - -opensuse-tumbleweed-*
+    - -centos-9-*
+    - -amazon-linux-2023-*
+    - -ubuntu-22.*
+    - -ubuntu-23.*
+    - -ubuntu-24.*
+    - -ubuntu-core-22-*
+    - -ubuntu-core-24-*
 
 execute: ./task.sh
