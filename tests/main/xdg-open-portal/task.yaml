@@ -1,5 +1,16 @@
 summary: Verify xdg-open forwarding requests to the desktop portal
 
+details: |
+    Snapd contains a system where XDG utility programs, that applications may
+    commonly call, are replaced with programs that communicate the request back
+    to snapd user session daemon, to present a question to the user.
+
+    The test exercises the xdg-open' program ability to open web URLs, file URLs
+    and files by path. In all cases the request is forwarded to the desktop
+    portal. The portal is configured to service the request with a test
+    application that records it, allowing the test to ensure all requests were
+    properly redirected.
+
 # Only enable the test on systems we know portals to function on.
 # Expand as needed.
 systems:
