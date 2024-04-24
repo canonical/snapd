@@ -239,7 +239,7 @@ func abstractPermissionsToAppArmorFilePermissions(iface string, permissions []st
 
 // ValidateConstraintsOutcomeLifespanExpiration returns an error if the given
 // constraints, outcome, lifespan, or duration are invalid, else returns nil.
-func ValidateConstraintsOutcomeLifespanExpiration(iface string, constraints *Constraints, outcome OutcomeType, lifespan LifespanType, expiration string, currTime time.Time) error {
+func ValidateConstraintsOutcomeLifespanExpiration(iface string, constraints *Constraints, outcome OutcomeType, lifespan LifespanType, expiration *time.Time, currTime time.Time) error {
 	if err := constraints.ValidateForInterface(iface); err != nil {
 		return err
 	}
@@ -252,12 +252,12 @@ func ValidateConstraintsOutcomeLifespanExpiration(iface string, constraints *Con
 // ValidateConstraintsOutcomeLifespanDuration returns an error if the given
 // constraints, outcome, lifespan, or duration are invalid. Otherwise, converts
 // the given duration to an expiration timestamp and returns it and nil error.
-func ValidateConstraintsOutcomeLifespanDuration(iface string, constraints *Constraints, outcome OutcomeType, lifespan LifespanType, duration string) (string, error) {
+func ValidateConstraintsOutcomeLifespanDuration(iface string, constraints *Constraints, outcome OutcomeType, lifespan LifespanType, duration string) (*time.Time, error) {
 	if err := constraints.ValidateForInterface(iface); err != nil {
-		return "", err
+		return nil, err
 	}
 	if err := ValidateOutcome(outcome); err != nil {
-		return "", err
+		return nil, err
 	}
 	return ValidateLifespanParseDuration(lifespan, duration)
 }
