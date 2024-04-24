@@ -1,7 +1,7 @@
 summary: the mountinfo.query can be used in tests
 
 details: |
-    Check the mountinfo.query tool allows to query a specified mountinfo file
+    Check the mountinfo.query tool allows querying a specified mountinfo file
 
 execute: |
     # 2>&1 is required for some versions of python that chose
