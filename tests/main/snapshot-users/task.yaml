@@ -1,5 +1,16 @@
 summary: Check that the basic snapshots functionality works for different users
 
+details: |
+    Snapd allows saving a snapshot of the data used by snap applications,
+    presumably to be restored at another time. This functionality is
+    system-wide, encompassing all the users possessing snap-specific data on the
+    system.
+
+    The test comprehensively ensures that the snapshot handles both the root
+    user, and a non root user, and that all types of snap data directories are
+    present in the resulting archive. Data is then removed manually the created
+    snapshot is restored, testing the other side of the snapshot equation.
+
 # ubuntu-14.04: the test sets up a user session, which requires more recent systemd
 systems: [-ubuntu-14.04-*]
 
