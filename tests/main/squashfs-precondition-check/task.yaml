@@ -1,5 +1,17 @@
 summary: Ensure that the squashfs precondition check works
 
+details: |
+    Snapd is used in a wide rage of diverse environments. Not all of the
+    environments use a kernel that contains sufficient functionality for snapd
+    to work as a package manager. One such case is when the kernel does not
+    contain support for mounting squashfs file systems that are used as vessels
+    for snap packages.
+
+    The test breaks mounting of all file systems and restarts snapd to ensure
+    that this condition is detected early, and snapd switches to a degraded mode
+    where most commands fail outright, and there are fewer surprises down the
+    line.
+
 prepare: |
     echo "Break mounting so that the precondition check of a squashfs mount fails"
     mount -o bind /bin/false /bin/mount
