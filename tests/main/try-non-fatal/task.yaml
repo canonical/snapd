@@ -1,5 +1,11 @@
 summary: Checks that removing the base directory of a tried snap works.
 
+details: |
+    The snap try command can be used to install a snap without creating the
+    squashfs file, which for large snaps is very costly. The test shows that
+    even if the directory holding try-mode snap's files is removed, snapd does
+    not malfunction but instead shows the snap as in "broken" state.
+
 systems: [-ubuntu-core-*]
 
 execute: |
