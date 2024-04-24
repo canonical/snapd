@@ -1,5 +1,10 @@
 summary: Ensure that refresh --amend works
 
+details: |
+    Check snapd can handle a refresh for a dangerous snap by using the
+    `snap --amend` command. Verify after the refresh process the snap
+    has a store revision.
+
 execute: |
     echo "When installing a local snap"
     snap download --edge test-snapd-just-edge

@@ -1,5 +1,10 @@
 summary: Ensure that the squashfs precondition check works
 
+details: |
+    Check that if the precondition check of a squashfs mount fails when snapd
+    is restarted, the precondition is checked and the journal log shows the message
+    "cannot mount squashfs image"
+
 prepare: |
     echo "Break mounting so that the precondition check of a squashfs mount fails"
     mount -o bind /bin/false /bin/mount
