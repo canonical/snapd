@@ -1,5 +1,11 @@
 summary: Test that the snap vitality score works
 
+details: |
+    Snapd offers a system to influence the out-of-memory behavior for snap
+    applications, that prefers to sacrifice a particular memory-hungry process
+    over another. The test sets up the so-called vitality hint, and observes how
+    the setting is carried over to the corresponding systemd setting.
+
 execute: |
     echo "On install of a service the oom score is 0"
     snap install test-snapd-go-webserver
