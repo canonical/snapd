@@ -1,7 +1,7 @@
 summary: Checks for snap create-key
 
 details: |
-    Check the command `snap create-key` allows to create
+    Check the command `snap create-key` allows creating
     a key which is displayed through `snap keys` command. 
 
 # slow in autopkgtest (>1m)
