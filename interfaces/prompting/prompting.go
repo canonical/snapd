@@ -70,20 +70,20 @@ const (
 // the given expiration is valid for that lifespan.
 //
 // If the lifespan is LifespanTimespan LifespanTimespan, then expiration must
-// be non-nil. Otherwise, it must be nil. Returns an error if any of the above
-// are invalid.
-func ValidateLifespanExpiration(lifespan LifespanType, expiration *time.Time, currTime time.Time) error {
+// be non-zero and be after the given currTime. Otherwise, it must be zero.
+// Returns an error if any of the above are invalid.
+func ValidateLifespanExpiration(lifespan LifespanType, expiration time.Time, currTime time.Time) error {
 	switch lifespan {
 	case LifespanForever, LifespanSession, LifespanSingle:
-		if expiration != nil {
-			return fmt.Errorf(`invalid expiration: expiration must be nil when lifespan is %q, but received non-nil expiration: %q`, lifespan, *expiration)
+		if !expiration.IsZero() {
+			return fmt.Errorf(`expiration must be omitted when lifespan is %q, but received non-zero expiration: %q`, lifespan, expiration)
 		}
 	case LifespanTimespan:
-		if expiration == nil {
-			return fmt.Errorf(`invalid expiration: expiration must be non-nil when lifespan is %q, but received nil expiration`, lifespan)
+		if expiration.IsZero() {
+			return fmt.Errorf(`expiration must be non-zero when lifespan is %q, but received empty expiration`, lifespan)
 		}
-		if currTime.After(*expiration) {
-			return fmt.Errorf("invalid expiration: expiration time has already passed: %q", *expiration)
+		if currTime.After(expiration) {
+			return fmt.Errorf("expiration time has already passed: %q", expiration)
 		}
 	default:
 		return fmt.Errorf(`invalid lifespan: %q`, lifespan)
@@ -99,28 +99,27 @@ func ValidateLifespanExpiration(lifespan LifespanType, expiration *time.Time, cu
 // should be valid. Otherwise, it must be empty. Returns an error if any of the
 // above are invalid, otherwise computes the expiration time of the rule based
 // on the current time and the given duration and returns it.
-func ValidateLifespanParseDuration(lifespan LifespanType, duration string) (*time.Time, error) {
-	var expiration *time.Time
+func ValidateLifespanParseDuration(lifespan LifespanType, duration string) (time.Time, error) {
+	var expiration time.Time
 	switch lifespan {
 	case LifespanForever, LifespanSession, LifespanSingle:
 		if duration != "" {
-			return nil, fmt.Errorf(`invalid duration: duration must be empty when lifespan is %q, but received non-empty duration: %q`, lifespan, duration)
+			return expiration, fmt.Errorf(`duration must be empty when lifespan is %q, but received non-empty duration: %q`, lifespan, duration)
 		}
 	case LifespanTimespan:
 		if duration == "" {
-			return nil, fmt.Errorf(`invalid duration: duration must be non-empty when lifespan is %q, but received empty expiration`, lifespan)
+			return expiration, fmt.Errorf(`duration must be non-empty when lifespan is %q, but received empty expiration`, lifespan)
 		}
 		parsedDuration, err := time.ParseDuration(duration)
 		if err != nil {
-			return nil, fmt.Errorf(`invalid duration: error parsing duration string: %q`, duration)
+			return expiration, fmt.Errorf(`error parsing duration string: %q`, duration)
 		}
 		if parsedDuration <= 0 {
-			return nil, fmt.Errorf(`invalid duration: duration must be greater than zero: %q`, duration)
+			return expiration, fmt.Errorf(`duration must be greater than zero: %q`, duration)
 		}
-		expirationValue := time.Now().Add(parsedDuration)
-		expiration = &expirationValue
+		expiration = time.Now().Add(parsedDuration)
 	default:
-		return nil, fmt.Errorf(`invalid lifespan: %q`, lifespan)
+		return expiration, fmt.Errorf(`invalid lifespan: %q`, lifespan)
 	}
 	return expiration, nil
 }

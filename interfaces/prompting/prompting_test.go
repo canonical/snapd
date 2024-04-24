@@ -65,12 +65,10 @@ func (s *promptingSuite) TestValidateOutcome(c *C) {
 }
 
 func (s *promptingSuite) TestValidateLifespanExpiration(c *C) {
-	var unsetExpiration *time.Time
+	var unsetExpiration time.Time
 	currTime := time.Now()
-	negativeExpirationValue := currTime.Add(-5 * time.Second)
-	negativeExpiration := &negativeExpirationValue
-	validExpirationValue := currTime.Add(10 * time.Minute)
-	validExpiration := &validExpirationValue
+	negativeExpiration := currTime.Add(-5 * time.Second)
+	validExpiration := currTime.Add(10 * time.Minute)
 
 	for _, lifespan := range []prompting.LifespanType{
 		prompting.LifespanForever,
@@ -79,17 +77,17 @@ func (s *promptingSuite) TestValidateLifespanExpiration(c *C) {
 	} {
 		err := prompting.ValidateLifespanExpiration(lifespan, unsetExpiration, currTime)
 		c.Check(err, IsNil)
-		for _, exp := range []*time.Time{negativeExpiration, validExpiration} {
+		for _, exp := range []time.Time{negativeExpiration, validExpiration} {
 			err = prompting.ValidateLifespanExpiration(lifespan, exp, currTime)
-			c.Check(err, ErrorMatches, `invalid expiration: expiration must be nil.*`)
+			c.Check(err, ErrorMatches, `expiration must be omitted.*`)
 		}
 	}
 
 	err := prompting.ValidateLifespanExpiration(prompting.LifespanTimespan, unsetExpiration, currTime)
-	c.Check(err, ErrorMatches, `invalid expiration: expiration must be non-nil.*`)
+	c.Check(err, ErrorMatches, `expiration must be non-zero.*`)
 
 	err = prompting.ValidateLifespanExpiration(prompting.LifespanTimespan, negativeExpiration, currTime)
-	c.Check(err, ErrorMatches, `invalid expiration: expiration time has already passed.*`)
+	c.Check(err, ErrorMatches, `expiration time has already passed.*`)
 
 	err = prompting.ValidateLifespanExpiration(prompting.LifespanTimespan, validExpiration, currTime)
 	c.Check(err, IsNil)
@@ -109,26 +107,26 @@ func (s *promptingSuite) TestValidateLifespanParseDuration(c *C) {
 		prompting.LifespanSingle,
 	} {
 		expiration, err := prompting.ValidateLifespanParseDuration(lifespan, unsetDuration)
-		c.Check(expiration, IsNil)
+		c.Check(expiration.IsZero(), Equals, true)
 		c.Check(err, IsNil)
 		for _, dur := range []string{invalidDuration, negativeDuration, validDuration} {
 			expiration, err = prompting.ValidateLifespanParseDuration(lifespan, dur)
-			c.Check(expiration, IsNil)
-			c.Check(err, ErrorMatches, `invalid duration: duration must be empty.*`)
+			c.Check(expiration.IsZero(), Equals, true)
+			c.Check(err, ErrorMatches, `duration must be empty.*`)
 		}
 	}
 
 	expiration, err := prompting.ValidateLifespanParseDuration(prompting.LifespanTimespan, unsetDuration)
-	c.Check(expiration, IsNil)
-	c.Check(err, ErrorMatches, `invalid duration: duration must be non-empty.*`)
+	c.Check(expiration.IsZero(), Equals, true)
+	c.Check(err, ErrorMatches, `duration must be non-empty.*`)
 
 	expiration, err = prompting.ValidateLifespanParseDuration(prompting.LifespanTimespan, invalidDuration)
-	c.Check(expiration, IsNil)
-	c.Check(err, ErrorMatches, `invalid duration: error parsing duration string.*`)
+	c.Check(expiration.IsZero(), Equals, true)
+	c.Check(err, ErrorMatches, `error parsing duration string.*`)
 
 	expiration, err = prompting.ValidateLifespanParseDuration(prompting.LifespanTimespan, negativeDuration)
-	c.Check(expiration, IsNil)
-	c.Check(err, ErrorMatches, `invalid duration: duration must be greater than zero.*`)
+	c.Check(expiration.IsZero(), Equals, true)
+	c.Check(err, ErrorMatches, `duration must be greater than zero.*`)
 
 	expiration, err = prompting.ValidateLifespanParseDuration(prompting.LifespanTimespan, validDuration)
 	c.Check(err, IsNil)
