@@ -59,7 +59,7 @@ func (s *requestrulesSuite) TestPopulateNewRule(c *C) {
 		c.Check(rule.Constraints, Equals, constraints)
 		c.Check(rule.Outcome, Equals, outcome)
 		c.Check(rule.Lifespan, Equals, lifespan)
-		c.Check(rule.Expiration, IsNil)
+		c.Check(rule.Expiration.IsZero(), Equals, true)
 	}
 
 	for _, pattern := range []string{
@@ -561,7 +561,7 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	}
 	expiredRule, err := rdb.PopulateNewRule(user, snap, iface, expiredConstraints, outcome, common.LifespanTimespan, "1s")
 	c.Assert(err, IsNil)
-	*expiredRule.Expiration = time.Now().Add(-10 * time.Second)
+	expiredRule.Expiration = time.Now().Add(-10 * time.Second)
 
 	rdb.ByID[expiredRule.ID] = expiredRule
 	rdb.RefreshTreeEnforceConsistency(notifyEveryRule)

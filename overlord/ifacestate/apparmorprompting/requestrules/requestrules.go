@@ -30,7 +30,7 @@ type Rule struct {
 	expandedPatterns []string            `json:"-"`
 	Outcome          common.OutcomeType  `json:"outcome"`
 	Lifespan         common.LifespanType `json:"lifespan"`
-	Expiration       *time.Time          `json:"expiration,omitempty"`
+	Expiration       time.Time           `json:"expiration,omitempty"`
 }
 
 func (rule *Rule) removePermission(permission string) error {
@@ -46,11 +46,11 @@ func (rule *Rule) removePermission(permission string) error {
 func (rule *Rule) Expired(currentTime time.Time) (bool, error) {
 	switch rule.Lifespan {
 	case common.LifespanTimespan:
-		if rule.Expiration == nil {
+		if rule.Expiration.IsZero() {
 			// Should not occur
 			return false, fmt.Errorf("encountered rule with lifespan timespan but no expiration")
 		}
-		if currentTime.After(*rule.Expiration) {
+		if currentTime.After(rule.Expiration) {
 			return true, nil
 		}
 		return false, nil
