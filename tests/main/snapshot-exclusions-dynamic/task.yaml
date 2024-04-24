@@ -61,7 +61,7 @@ execute: |
     # and the snapshot metadata includes options
     test-snapd-curl.curl -s --unix-socket /run/snapd.socket --max-time 5 http://localhost/v2/snapshots?set="$SET_ID" | MATCH '"options":'
 
-    # Check that shapshot is exportable
+    # Check that snapshot is exportable
     snap export-snapshot "$SET_ID" "${SET_ID}_export.snapshot"
     test -e "${SET_ID}_export.snapshot"
     # and importable
