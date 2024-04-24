@@ -520,7 +520,7 @@ func getSnapdVersion(rootDir string) (string, error) {
 	return ver, nil
 }
 
-func prepareClassicChroot(preseedChroot string) (*targetSnapdInfo, func(), error) {
+func prepareClassicChroot(preseedChroot string, reset bool) (*targetSnapdInfo, func(), error) {
 	if err := syscallChroot(preseedChroot); err != nil {
 		return nil, nil, fmt.Errorf("cannot chroot into %s: %v", preseedChroot, err)
 	}
@@ -599,6 +599,9 @@ func prepareClassicChroot(preseedChroot string) (*targetSnapdInfo, func(), error
 	currentLink := filepath.Join(rootDir, "snap/snapd/current")
 	if err := os.MkdirAll(filepath.Dir(currentLink), 0755); err != nil {
 		return nil, nil, err
+	}
+	if reset {
+		os.Remove(currentLink)
 	}
 	if err := os.Symlink(snapdMountPath, currentLink); err != nil {
 		return nil, nil, err
@@ -769,7 +772,8 @@ func Classic(chrootDir string) error {
 	// beginning of prepareClassicChroot), then we could have a single
 	// runPreseedMode/runUC20PreseedMode function that handles both classic
 	// and core20.
-	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir)
+	const reset = false
+	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir, reset)
 	if err != nil {
 		return err
 	}
@@ -798,7 +802,8 @@ func ClassicReset(chrootDir string) error {
 		return ResetPreseededChroot(chrootDir)
 	}
 
-	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir)
+	const reset = true
+	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir, reset)
 	if err != nil {
 		return err
 	}
