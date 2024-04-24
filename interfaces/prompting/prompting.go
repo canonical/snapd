@@ -62,9 +62,10 @@ type LifespanType string
 const (
 	LifespanUnset    LifespanType = ""
 	LifespanForever  LifespanType = "forever"
-	LifespanSession  LifespanType = "session"
 	LifespanSingle   LifespanType = "single"
 	LifespanTimespan LifespanType = "timespan"
+	// TODO: add LifespanSession which expires after the user logs out
+	// LifespanSession  LifespanType = "session"
 )
 
 // ValidateLifespanExpiration checks that the given lifespan is valid and that
@@ -75,7 +76,7 @@ const (
 // Returns an error if any of the above are invalid.
 func ValidateLifespanExpiration(lifespan LifespanType, expiration time.Time, currTime time.Time) error {
 	switch lifespan {
-	case LifespanForever, LifespanSession, LifespanSingle:
+	case LifespanForever, LifespanSingle:
 		if !expiration.IsZero() {
 			return fmt.Errorf(`expiration must be omitted when lifespan is %q, but received non-zero expiration: %q`, lifespan, expiration)
 		}
@@ -103,7 +104,7 @@ func ValidateLifespanExpiration(lifespan LifespanType, expiration time.Time, cur
 func ValidateLifespanParseDuration(lifespan LifespanType, duration string) (time.Time, error) {
 	var expiration time.Time
 	switch lifespan {
-	case LifespanForever, LifespanSession, LifespanSingle:
+	case LifespanForever, LifespanSingle:
 		if duration != "" {
 			return expiration, fmt.Errorf(`duration must be empty when lifespan is %q, but received non-empty duration: %q`, lifespan, duration)
 		}

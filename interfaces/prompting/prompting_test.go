@@ -72,7 +72,6 @@ func (s *promptingSuite) TestValidateLifespanExpiration(c *C) {
 
 	for _, lifespan := range []prompting.LifespanType{
 		prompting.LifespanForever,
-		prompting.LifespanSession,
 		prompting.LifespanSingle,
 	} {
 		err := prompting.ValidateLifespanExpiration(lifespan, unsetExpiration, currTime)
@@ -103,7 +102,6 @@ func (s *promptingSuite) TestValidateLifespanParseDuration(c *C) {
 
 	for _, lifespan := range []prompting.LifespanType{
 		prompting.LifespanForever,
-		prompting.LifespanSession,
 		prompting.LifespanSingle,
 	} {
 		expiration, err := prompting.ValidateLifespanParseDuration(lifespan, unsetDuration)
