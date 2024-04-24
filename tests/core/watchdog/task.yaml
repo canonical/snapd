@@ -1,5 +1,11 @@
 summary: Check that the core.watchdog settings work
 
+details: |
+    Check the snap service watchdog can be updated through
+    the watchdog.runtime-timeout and watchdog.shutdown-timeout
+    configs. Verify that when the configs are unset, the default
+    values are used.
+
 environment:
     WATCHDOG_FILE: /etc/systemd/system.conf.d/10-snapd-watchdog.conf
 

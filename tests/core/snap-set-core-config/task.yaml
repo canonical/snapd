@@ -1,5 +1,12 @@
 summary: Ensure "snap set core" works
 
+details: |
+    Check that through the command `snap set core` the config
+    "service.rsyslog.disable" can be used to enable and disable the
+    systemd rsyslog service. Also verify that work the configs
+    system.power-key-action, ctrl-alt-del-action and
+    proxy.${proto} among others
+
 systems: [ubuntu-core-*]
 
 # TODO: use `snap set system` instead of `snap set core`
