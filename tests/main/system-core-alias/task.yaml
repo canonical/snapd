@@ -1,5 +1,20 @@
 summary: Verify that 'system' can be used as an alias for 'core'
 
+details: |
+    Snapd associates configuration with each snap. Over time there was a desire
+    to use the "core" snap as the placeholder for system-wide configuration,
+    such as the network proxy settings. Once core18 was created, and core was
+    effectively a core16 snap - just another base, the decision to associate
+    settings with "core" alone was problematic, as in the future a ubuntu-core
+    system may exist without the core snap being necessary.
+
+    It was thus decided that another snap name, a virtual "system" snap should
+    be used as a portable placeholder for system-wide settings and "core" became
+    an alias of "system" to ensure the transition is smooth.
+
+    The test uses the "core" and "system" snap names interchangeably, to confirm
+    that settings really are stored in the same place for both of them.
+
 debug: |
     snap get core -d || true
     snap get system -d || true
