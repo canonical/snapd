@@ -1,5 +1,16 @@
 summary: Check the basic static snapshot data exclusion functionality
 
+details: |
+    Snapd allows saving a snapshot of the data used by snap applications,
+    presumably to be restored at another time. Since applications may commonly
+    contain large amount of not-so-important data, such as caches, snaps may
+    statically declare that part of their data set is to be excluded from all
+    snapshot operations.
+
+    The test installs a snap with such meta-data and observes that the exclusion
+    rules are respected by creating the appropriate data, requesting a snapshot
+    and finally looking at the resulting content.
+
 environment:
     # tar invoked when creating snapshots triggers OOM
     SNAPD_NO_MEMORY_LIMIT: 1
