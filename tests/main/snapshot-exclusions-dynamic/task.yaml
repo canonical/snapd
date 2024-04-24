@@ -1,5 +1,18 @@
 summary: Check the basic dynamic snapshot data exclusion functionality
 
+details: |
+    Snapd allows saving a snapshot of the data used by snap applications,
+    presumably to be restored at another time. Should a need arise to
+    dynamically create a snapshot of part of the data, for example from a
+    management agent that implements business behavior that closely matches that
+    of the application snap, then a dedicated dynamic snapshot exclusion API can
+    be used for this purpose.
+
+    The test installs a snap with  static exclusion meta-data and requests a
+    snapshot with additional dynamic exclusion conveyed as a list of files to
+    skip stored in a dedicated file provided with the snapshot request, and
+    finally looking at the resulting content.
+
 systems: [-ubuntu-14.04-*]
 
 environment:
