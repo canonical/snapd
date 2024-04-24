@@ -1,5 +1,15 @@
 summary: Check that cross-revision snapshot functionality is ok
 
+details: |
+    Snapd allows saving a snapshot of the data used by snap applications,
+    presumably to be restored at another time. When the snapshot is created for
+    one revision of a snap, and restored for another revision, care must be
+    taken to properly account for the new location of the revision-specific
+    data.
+
+    The test creates a snapshot on one revision, refreshes the snap, restores
+    the snapshot and looks at the location of the restored content.
+
 prepare: |
     # clean up just in case
     for d in {/root,/home/test}/snap/test-snapd-tools/; do
