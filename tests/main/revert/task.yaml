@@ -1,10 +1,10 @@
 summary: Check that revert works.
 
 details: |
-    Check that when a snap is refresh it can be reverted to the previous
+    Check that when a snap is refreshed it can be reverted to the previous
     version. Verify that the data directories are present and the snap
     runs confined. Also check that a revert on an already reverted snap
-    should fail
+    fails
 
 # ubuntu-14.04: systemd-run not supported
 systems: [-ubuntu-14.04*]
