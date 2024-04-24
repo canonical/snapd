@@ -2,7 +2,7 @@ summary: Check that the refresh data copy works.
 
 details: |
     Check that when a snap is refreshed, the user data gets copied
-    and when the snap is removed with --purge, all the user data and
+    and when the snap is removed with --purge, all the user and
     root data is gone
 
 execute: |
