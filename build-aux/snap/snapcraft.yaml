@@ -154,7 +154,7 @@ parts:
   apparmor:
     plugin: autotools
     build-packages: [autoconf-archive, bison, flex, gettext, g++, pkg-config, wget]
-    source: https://gitlab.com/apparmor/apparmor/-/archive/v4.0.0-beta3/apparmor-v4.0.0-beta3.tar.gz
+    source: https://gitlab.com/apparmor/apparmor/-/archive/v4.0.1/apparmor-v4.0.1.tar.gz
     override-build: |
       cd $SNAPCRAFT_PART_BUILD/libraries/libapparmor
       ./autogen.sh
