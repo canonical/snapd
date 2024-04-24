@@ -3,7 +3,7 @@ summary: Checks parallel installation of classic snaps
 details: |
     Check it is possible to install 2 versions of a classic snap through
     parallel-instances config. Verify both instances are properly installed
-    and the instances can access to the desired data.
+    and the instances can access the desired data.
 
 # core does not support classic confinement
 systems: [-ubuntu-core-*]
