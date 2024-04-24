@@ -1,7 +1,7 @@
 summary: Check that undo for snap refresh works
 
 details: |
-    Check that when s snap refresh fails, the refresh is undone.
+    Check that when a snap refresh fails, the refresh is undone.
     Verify the `snap tasks` command shows the proper information.
 
 # ubuntu-14.04: systemd-run not supported
