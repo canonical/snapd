@@ -1,8 +1,8 @@
 summary: smoke test for the journal-state tool
 
 details: |
-    Check the journal-state tool allows que establish a test context by using
-    journalctl cursors, and also to query and match the journal logs
+    Check the journal-state tool can establish a test context using
+    journalctl cursors and it can also query and match the journal logs
 
 execute: |
     # Check help
