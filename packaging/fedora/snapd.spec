@@ -104,7 +104,7 @@
 %endif
 
 Name:           snapd
-Version:        2.62
+Version:        2.63
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -1004,6 +1004,54 @@ fi
 
 
 %changelog
+* Wed Apr 24 2024 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.63
+ - Support for snap services to show the current status of user
+   services (experimental)
+ - Refresh app awareness: record snap-run-inhibit notice when
+   starting app from snap that is busy with refresh (experimental)
+ - Refresh app awareness: use warnings as fallback for desktop
+   notifications (experimental)
+ - Aspect based configuration: make request fields in the aspect-
+   bundle's rules optional (experimental)
+ - Aspect based configuration: make map keys conform to the same
+   format as path sub-keys (experimental)
+ - Aspect based configuration: make unset and set behaviour similar
+   to configuration options (experimental)
+ - Aspect based configuration: limit nesting level for setting value
+   (experimental)
+ - Components: use symlinks to point active snap component revisions
+ - Components: add model assertion support for components
+ - Components: fix to ensure local component installation always gets
+   a new revision number
+ - Add basic support for a CIFS remote filesystem-based home
+   directory
+ - Add support for AppArmor profile kill mode to avoid snap-confine
+   error
+ - Allow more than one interface to grant access to the same API
+   endpoint or notice type
+ - Allow all snapd service's control group processes to send systemd
+   notifications to prevent warnings flooding the log
+ - Enable not preseeded single boot install
+ - Update secboot to handle new sbatlevel
+ - Fix to not use cgroup for non-strict confined snaps (devmode,
+   classic)
+ - Fix two race conditions relating to freedesktop notifications
+ - Fix missing tunables in snap-update-ns AppArmor template
+ - Fix rejection of snapd snap udev command line by older host snap-
+   device-helper
+ - Rework seccomp allow/deny list
+ - Clean up files removed by gadgets
+ - Remove non-viable boot chains to avoid secboot failure
+ - posix_mq interface: add support for missing time64 mqueue syscalls
+   mq_timedreceive_time64 and mq_timedsend_time64
+ - password-manager-service interface: allow kwalletd version 6
+ - kubernetes-support interface: allow SOCK_SEQPACKET sockets
+ - system-observe interface: allow listing systemd units and their
+   properties
+ - opengl interface: enable use of nvidia container toolkit CDI
+   config generation
+
 * Thu Mar 21 2024 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.62
  - Aspects based configuration schema support (experimental)
