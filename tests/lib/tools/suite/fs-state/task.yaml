@@ -1,7 +1,7 @@
 summary: smoke test for the fs-state tool
 
 details: |
-    Check the fs-state tool allows to mock and restore files and directories    
+    Check the fs-state tool allows mocking and restoring files and directories    
 
 execute: |
     # Check help
