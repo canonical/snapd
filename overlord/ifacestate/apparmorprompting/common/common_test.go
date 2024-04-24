@@ -497,25 +497,6 @@ func (s *commonSuite) TestOutcomeAsBool(c *C) {
 	c.Check(err, ErrorMatches, `invalid outcome.*`)
 }
 
-func (s *commonSuite) TestTimestampToTime(c *C) {
-	t1, err := common.TimestampToTime("2004-10-20T10:04:05.999999999-05:00")
-	c.Assert(err, IsNil)
-	c.Check(t1.UTC(), Equals, time.Date(2004, time.October, 20, 15, 4, 5, 999999999, time.UTC))
-	c.Check(t1.UTC(), Not(Equals), time.Date(2004, time.October, 20, 10, 4, 5, 999999999, time.UTC))
-	_, err = common.TimestampToTime("2004-10-20")
-	c.Assert(err, NotNil)
-}
-
-func (s *commonSuite) TestTimestamps(c *C) {
-	before := time.Now()
-	ts := common.CurrentTimestamp()
-	after := time.Now()
-	parsedTime, err := common.TimestampToTime(ts)
-	c.Assert(err, IsNil)
-	c.Assert(parsedTime.After(before), Equals, true)
-	c.Assert(parsedTime.Before(after), Equals, true)
-}
-
 func (s *commonSuite) TestNewIDAndTimestamp(c *C) {
 	before := time.Now()
 	id := common.NewID()
@@ -533,9 +514,7 @@ func (s *commonSuite) TestNewIDAndTimestamp(c *C) {
 	c.Assert(parsedTime.Before(after), Equals, true)
 	c.Assert(parsedTimePaired.After(before), Equals, true)
 	c.Assert(parsedTimePaired.Before(after), Equals, true)
-	parsedTimestamp, err := common.TimestampToTime(timestampPaired)
-	c.Assert(err, IsNil)
-	c.Assert(parsedTimePaired, Equals, parsedTimestamp)
+	c.Assert(parsedTimePaired.Equal(timestampPaired), Equals, true)
 }
 
 func (s *commonSuite) TestLabelToSnap(c *C) {
@@ -1841,11 +1820,12 @@ func (s *commonSuite) TestValidateOutcome(c *C) {
 }
 
 func (s *commonSuite) TestValidateLifespanExpiration(c *C) {
-	unsetExpiration := ""
-	invalidExpiration := "foo"
+	var unsetExpiration *time.Time
 	currTime := time.Now()
-	negativeExpiration := currTime.Add(-5 * time.Second).Format(time.RFC3339)
-	validExpiration := currTime.Add(10 * time.Minute).Format(time.RFC3339)
+	negativeExpirationValue := currTime.Add(-5 * time.Second)
+	negativeExpiration := &negativeExpirationValue
+	validExpirationValue := currTime.Add(10 * time.Minute)
+	validExpiration := &validExpirationValue
 
 	for _, lifespan := range []common.LifespanType{
 		common.LifespanForever,
@@ -1854,7 +1834,7 @@ func (s *commonSuite) TestValidateLifespanExpiration(c *C) {
 	} {
 		err := common.ValidateLifespanExpiration(lifespan, unsetExpiration, currTime)
 		c.Check(err, IsNil)
-		for _, exp := range []string{invalidExpiration, negativeExpiration, validExpiration} {
+		for _, exp := range []*time.Time{negativeExpiration, validExpiration} {
 			err = common.ValidateLifespanExpiration(lifespan, exp, currTime)
 			c.Check(err, ErrorMatches, `invalid expiration: expiration must be empty.*`)
 		}
@@ -1862,9 +1842,6 @@ func (s *commonSuite) TestValidateLifespanExpiration(c *C) {
 
 	err := common.ValidateLifespanExpiration(common.LifespanTimespan, unsetExpiration, currTime)
 	c.Check(err, ErrorMatches, `invalid expiration: expiration must be non-empty.*`)
-
-	err = common.ValidateLifespanExpiration(common.LifespanTimespan, invalidExpiration, currTime)
-	c.Check(err, ErrorMatches, `invalid expiration: expiration not parsable.*`)
 
 	err = common.ValidateLifespanExpiration(common.LifespanTimespan, negativeExpiration, currTime)
 	c.Check(err, ErrorMatches, `invalid expiration: expiration time has already passed.*`)
@@ -1887,33 +1864,31 @@ func (s *commonSuite) TestValidateLifespanParseDuration(c *C) {
 		common.LifespanSingle,
 	} {
 		expiration, err := common.ValidateLifespanParseDuration(lifespan, unsetDuration)
-		c.Check(expiration, Equals, "")
+		c.Check(expiration, IsNil)
 		c.Check(err, IsNil)
 		for _, dur := range []string{invalidDuration, negativeDuration, validDuration} {
 			expiration, err = common.ValidateLifespanParseDuration(lifespan, dur)
-			c.Check(expiration, Equals, "")
+			c.Check(expiration, IsNil)
 			c.Check(err, ErrorMatches, `invalid duration: duration must be empty.*`)
 		}
 	}
 
 	expiration, err := common.ValidateLifespanParseDuration(common.LifespanTimespan, unsetDuration)
-	c.Check(expiration, Equals, "")
+	c.Check(expiration, IsNil)
 	c.Check(err, ErrorMatches, `invalid duration: duration must be non-empty.*`)
 
 	expiration, err = common.ValidateLifespanParseDuration(common.LifespanTimespan, invalidDuration)
-	c.Check(expiration, Equals, "")
+	c.Check(expiration, IsNil)
 	c.Check(err, ErrorMatches, `invalid duration: error parsing duration string.*`)
 
 	expiration, err = common.ValidateLifespanParseDuration(common.LifespanTimespan, negativeDuration)
-	c.Check(expiration, Equals, "")
+	c.Check(expiration, IsNil)
 	c.Check(err, ErrorMatches, `invalid duration: duration must be greater than zero.*`)
 
 	expiration, err = common.ValidateLifespanParseDuration(common.LifespanTimespan, validDuration)
 	c.Check(err, IsNil)
-	expirationTime, err := time.Parse(time.RFC3339, expiration)
-	c.Check(err, IsNil)
-	c.Check(expirationTime.After(time.Now()), Equals, true)
-	c.Check(expirationTime.Before(time.Now().Add(parsedValidDuration)), Equals, true)
+	c.Check(expiration.After(time.Now()), Equals, true)
+	c.Check(expiration.Before(time.Now().Add(parsedValidDuration)), Equals, true)
 }
 
 func (s *commonSuite) TestValidateConstraintsOutcomeLifespanExpiration(c *C) {
@@ -1932,20 +1907,20 @@ func (s *commonSuite) TestValidateConstraintsOutcomeLifespanExpiration(c *C) {
 	goodLifespan := common.LifespanTimespan
 	badLifespan := common.LifespanType("foo")
 	currTime := time.Now()
-	goodExpiration := currTime.Add(10 * time.Second).Format(time.RFC3339)
-	badExpiration := currTime.Add(-1 * time.Second).Format(time.RFC3339)
+	goodExpiration := currTime.Add(10 * time.Second)
+	badExpiration := currTime.Add(-1 * time.Second)
 
-	err := common.ValidateConstraintsOutcomeLifespanExpiration(goodInterface, goodConstraints, goodOutcome, goodLifespan, goodExpiration, currTime)
+	err := common.ValidateConstraintsOutcomeLifespanExpiration(goodInterface, goodConstraints, goodOutcome, goodLifespan, &goodExpiration, currTime)
 	c.Check(err, IsNil)
-	err = common.ValidateConstraintsOutcomeLifespanExpiration(badInterface, goodConstraints, goodOutcome, goodLifespan, goodExpiration, currTime)
+	err = common.ValidateConstraintsOutcomeLifespanExpiration(badInterface, goodConstraints, goodOutcome, goodLifespan, &goodExpiration, currTime)
 	c.Check(err, NotNil)
-	err = common.ValidateConstraintsOutcomeLifespanExpiration(goodInterface, badConstraints, goodOutcome, goodLifespan, goodExpiration, currTime)
+	err = common.ValidateConstraintsOutcomeLifespanExpiration(goodInterface, badConstraints, goodOutcome, goodLifespan, &goodExpiration, currTime)
 	c.Check(err, ErrorMatches, "unsupported permission.*")
-	err = common.ValidateConstraintsOutcomeLifespanExpiration(goodInterface, goodConstraints, badOutcome, goodLifespan, goodExpiration, currTime)
+	err = common.ValidateConstraintsOutcomeLifespanExpiration(goodInterface, goodConstraints, badOutcome, goodLifespan, &goodExpiration, currTime)
 	c.Check(err, ErrorMatches, "invalid outcome.*")
-	err = common.ValidateConstraintsOutcomeLifespanExpiration(goodInterface, goodConstraints, goodOutcome, badLifespan, goodExpiration, currTime)
+	err = common.ValidateConstraintsOutcomeLifespanExpiration(goodInterface, goodConstraints, goodOutcome, badLifespan, &goodExpiration, currTime)
 	c.Check(err, ErrorMatches, "invalid lifespan.*")
-	err = common.ValidateConstraintsOutcomeLifespanExpiration(goodInterface, goodConstraints, goodOutcome, goodLifespan, badExpiration, currTime)
+	err = common.ValidateConstraintsOutcomeLifespanExpiration(goodInterface, goodConstraints, goodOutcome, goodLifespan, &badExpiration, currTime)
 	c.Check(err, ErrorMatches, "invalid expiration.*")
 }
 

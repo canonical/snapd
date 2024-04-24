@@ -59,7 +59,7 @@ func (s *requestrulesSuite) TestPopulateNewRule(c *C) {
 		c.Check(rule.Constraints, Equals, constraints)
 		c.Check(rule.Outcome, Equals, outcome)
 		c.Check(rule.Lifespan, Equals, lifespan)
-		c.Check(rule.Expiration, Equals, "")
+		c.Check(rule.Expiration, IsNil)
 	}
 
 	for _, pattern := range []string{
@@ -489,14 +489,15 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	duration := ""
 	permissions := []string{"read", "write", "execute"}
 
-	// Create two rules with bad timestamps
+	// Create two rules with early
 	constraints1 := &common.Constraints{
 		PathPattern: "/home/test/{Documents,Downloads}/**/foo.txt",
 		Permissions: copyPermissions(permissions[:1]),
 	}
 	badTsRule1, err := rdb.PopulateNewRule(user, snap, iface, constraints1, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
-	badTsRule1.Timestamp = "bar"
+	var timeZero time.Time
+	badTsRule1.Timestamp = timeZero
 	time.Sleep(time.Millisecond)
 	constraints2 := &common.Constraints{
 		PathPattern: "/home/test/{Downloads,Documents/**}/foo.txt",
@@ -504,7 +505,7 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	}
 	badTsRule2, err := rdb.PopulateNewRule(user, snap, iface, constraints2, outcome, lifespan, duration)
 	c.Assert(err, IsNil)
-	badTsRule2.Timestamp = "baz"
+	badTsRule2.Timestamp = timeZero.Add(time.Second)
 	rdb.ByID[badTsRule1.ID] = badTsRule1
 	rdb.ByID[badTsRule2.ID] = badTsRule2
 
@@ -516,7 +517,7 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	c.Assert(rdb.ByID, HasLen, 1, Commentf("rdb.ByID: %+v", rdb.ByID))
 	_, exists := rdb.ByID[badTsRule2.ID]
 	c.Assert(exists, Equals, true)
-	// The latter should be overwritten by any conflicting rule which has a valid timestamp
+	// The latter should be overwritten by any conflicting rule which has a later timestamp
 
 	// Since notifyEveryRule = false, only one notice should be issued, for the overwritten rule
 	c.Assert(ruleNoticeIDs, HasLen, 1, Commentf("ruleNoticeIDs: %v; rdb.ByID: %+v", ruleNoticeIDs, rdb.ByID))
@@ -560,7 +561,7 @@ func (s *requestrulesSuite) TestRefreshTreeEnforceConsistencyComplex(c *C) {
 	}
 	expiredRule, err := rdb.PopulateNewRule(user, snap, iface, expiredConstraints, outcome, common.LifespanTimespan, "1s")
 	c.Assert(err, IsNil)
-	expiredRule.Expiration = time.Now().Add(-10 * time.Second).Format(time.RFC3339)
+	*expiredRule.Expiration = time.Now().Add(-10 * time.Second)
 
 	rdb.ByID[expiredRule.ID] = expiredRule
 	rdb.RefreshTreeEnforceConsistency(notifyEveryRule)
@@ -727,10 +728,19 @@ func (s *requestrulesSuite) TestNewSaveLoad(c *C) {
 		previous = append(previous, ruleID)
 		return nil
 	}
-	loadedArdb, err := requestrules.New(notifyRule)
+	loadedRdb, err := requestrules.New(notifyRule)
 	c.Assert(err, IsNil)
-	c.Assert(rdb.ByID, DeepEquals, loadedArdb.ByID)
-	c.Assert(rdb.PerUser, DeepEquals, loadedArdb.PerUser)
+	// DeepEquals does not treat time.Time well, so manually validate them and
+	// set them to be explicitly equal so the DeepEquals check succeeds.
+	c.Check(loadedRdb.ByID, HasLen, len(rdb.ByID))
+	for id, rule := range rdb.ByID {
+		loadedRule, exists := loadedRdb.ByID[id]
+		c.Assert(exists, Equals, true, Commentf("missing rule after loading: %+v", rule))
+		c.Check(rule.Timestamp.Equal(loadedRule.Timestamp), Equals, true, Commentf("%s != %s", rule.Timestamp, loadedRule.Timestamp))
+		rule.Timestamp = loadedRule.Timestamp
+	}
+	c.Check(rdb.ByID, DeepEquals, loadedRdb.ByID)
+	c.Check(rdb.PerUser, DeepEquals, loadedRdb.PerUser)
 }
 
 func (s *requestrulesSuite) TestIsPathAllowed(c *C) {

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -23,7 +22,7 @@ var ErrUserNotAllowed = errors.New("the given user is not allowed to request the
 
 type Rule struct {
 	ID               string              `json:"id"`
-	Timestamp        string              `json:"timestamp"`
+	Timestamp        time.Time           `json:"timestamp"`
 	User             uint32              `json:"user"`
 	Snap             string              `json:"snap"`
 	Interface        string              `json:"interface"`
@@ -31,7 +30,7 @@ type Rule struct {
 	expandedPatterns []string            `json:"-"`
 	Outcome          common.OutcomeType  `json:"outcome"`
 	Lifespan         common.LifespanType `json:"lifespan"`
-	Expiration       string              `json:"expiration"`
+	Expiration       *time.Time          `json:"expiration,omitempty"`
 }
 
 func (rule *Rule) removePermission(permission string) error {
@@ -47,12 +46,11 @@ func (rule *Rule) removePermission(permission string) error {
 func (rule *Rule) Expired(currentTime time.Time) (bool, error) {
 	switch rule.Lifespan {
 	case common.LifespanTimespan:
-		expiration, err := time.Parse(time.RFC3339, rule.Expiration)
-		if err != nil {
-			// Expiration is malformed, should not occur
-			return false, err
+		if rule.Expiration == nil {
+			// Should not occur
+			return false, fmt.Errorf("encountered rule with lifespan timespan but no expiration")
 		}
-		if currentTime.After(expiration) {
+		if currentTime.After(*rule.Expiration) {
 			return true, nil
 		}
 		return false, nil
@@ -217,28 +215,6 @@ func (rdb *RuleDB) removeRuleFromTree(rule *Rule) error {
 	return err
 }
 
-func getNewerRule(id1 string, ts1 string, id2 string, ts2 string) string {
-	// Returns the id with the newest timestamp. If the timestamp for one id
-	// cannot be parsed, return the other id. If both cannot be parsed, return
-	// the id corresponding to the timestamp which is larger lexicographically.
-	// If there is a tie, return id1.
-	time1, err1 := common.TimestampToTime(ts1)
-	time2, err2 := common.TimestampToTime(ts2)
-	if err1 != nil {
-		if err2 != nil {
-			if strings.Compare(ts1, ts2) == -1 {
-				return id2
-			}
-			return id1
-		}
-		return id2
-	}
-	if time1.Before(time2) {
-		return id2
-	}
-	return id1
-}
-
 // TODO: unexport (probably)
 // This function is only required if database is left inconsistent (should not
 // occur) or when loading, in case the stored rules on disk were corrupted.
@@ -305,7 +281,7 @@ func (rdb *RuleDB) RefreshTreeEnforceConsistency(notifyEveryRule bool) {
 			// Err must be ErrPathPatternConflict.
 			// Prioritize newer rules by pruning permission from old rule until no conflicts remain.
 			conflictingRule := rdb.ByID[conflictingID] // must exist
-			if getNewerRule(id, rule.Timestamp, conflictingID, conflictingRule.Timestamp) == id {
+			if rule.Timestamp.After(conflictingRule.Timestamp) {
 				rdb.removeRulePermissionFromTree(conflictingRule, conflictingPermission) // must return nil
 				if conflictingRule.removePermission(conflictingPermission) == common.ErrPermissionsListEmpty {
 					delete(newByID, conflictingID)

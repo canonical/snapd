@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"sync"
+	"time"
 
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting/common"
 	"github.com/snapcore/snapd/overlord/state"
@@ -16,7 +17,7 @@ var ErrUserNotFound = errors.New("no prompts found for the given user")
 
 type Prompt struct {
 	ID           string              `json:"id"`
-	Timestamp    string              `json:"timestamp"`
+	Timestamp    time.Time           `json:"timestamp"`
 	Snap         string              `json:"snap"`
 	Interface    string              `json:"interface"`
 	Constraints  *promptConstraints  `json:"constraints"`

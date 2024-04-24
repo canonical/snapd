@@ -108,22 +108,6 @@ const (
 	LifespanTimespan LifespanType = "timespan"
 )
 
-// Converts the given timestamp string to a time.Time in Local time.
-// The timestamp string is expected to be of the format time.RFC3999Nano.
-// If it cannot be parsed as such, returns an error.
-func TimestampToTime(timestamp string) (time.Time, error) {
-	t, err := time.Parse(time.RFC3339Nano, timestamp)
-	if err != nil {
-		return t, err
-	}
-	return t.Local(), nil
-}
-
-// Returns the current time as a string in time.RFC3999Nano format.
-func CurrentTimestamp() string {
-	return time.Now().Format(time.RFC3339Nano)
-}
-
 // Returns a new unique ID.
 // The ID is the current unix time in nanoseconds encoded as base32.
 func NewID() string {
@@ -137,14 +121,13 @@ func NewID() string {
 // Returns a new unique ID and corresponding timestamp.
 // The ID is the current unix time in nanoseconds encoded as a string in base32.
 // The timestamp is the same time, encoded as a string in time.RFC3999Nano.
-func NewIDAndTimestamp() (id string, timestamp string) {
+func NewIDAndTimestamp() (id string, timestamp time.Time) {
 	now := time.Now()
 	nowUnix := uint64(now.UnixNano())
 	nowBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(nowBytes, nowUnix)
 	id = base32.StdEncoding.EncodeToString(nowBytes)
-	timestamp = now.Format(time.RFC3339Nano)
-	return id, timestamp
+	return id, now
 }
 
 // Extracts the snap name from the given label. If the label is not of the form
@@ -668,27 +651,23 @@ func ValidateOutcome(outcome OutcomeType) error {
 	}
 }
 
-// ValidateLifespanParseDuration checks that the given lifespan is valid and
+// ValidateLifespanParseExpiration checks that the given lifespan is valid and
 // that the given expiration is valid for that lifespan. If the lifespan is
 // LifespanTimespan, then expiration must be a string parsable as time.Duration
 // with RFC3339 format. Otherwise, it must be empty. Returns an error if any of
 // the above are invalid.
-func ValidateLifespanExpiration(lifespan LifespanType, expiration string, currTime time.Time) error {
+func ValidateLifespanExpiration(lifespan LifespanType, expiration *time.Time, currTime time.Time) error {
 	switch lifespan {
 	case LifespanForever, LifespanSession, LifespanSingle:
-		if expiration != "" {
-			return fmt.Errorf(`invalid expiration: expiration must be empty when lifespan is "%v", but received non-empty expiration: %s`, lifespan, expiration)
+		if expiration != nil {
+			return fmt.Errorf(`invalid expiration: expiration must be empty when lifespan is "%v", but received non-empty expiration: %s`, lifespan, *expiration)
 		}
 	case LifespanTimespan:
-		if expiration == "" {
+		if expiration == nil {
 			return fmt.Errorf(`invalid expiration: expiration must be non-empty when lifespan is "%v", but received empty expiration`, lifespan)
 		}
-		parsedTime, err := time.Parse(time.RFC3339, expiration)
-		if err != nil {
-			return fmt.Errorf("invalid expiration: expiration not parsable as a time in RFC3339 format: %s", expiration)
-		}
-		if currTime.After(parsedTime) {
-			return fmt.Errorf("invalid expiration: expiration time has already passed: %s", expiration)
+		if currTime.After(*expiration) {
+			return fmt.Errorf("invalid expiration: expiration time has already passed: %s", *expiration)
 		}
 	default:
 		return fmt.Errorf(`invalid lifespan: "%v"`, lifespan)
@@ -703,34 +682,35 @@ func ValidateLifespanExpiration(lifespan LifespanType, expiration string, currTi
 // should be valid. Otherwise, it must be empty. Returns an error if any of the
 // above are invalid, otherwise computes the expiration time of the rule based
 // on the current time and the given duration and returns it.
-func ValidateLifespanParseDuration(lifespan LifespanType, duration string) (string, error) {
-	expirationString := ""
+func ValidateLifespanParseDuration(lifespan LifespanType, duration string) (*time.Time, error) {
+	var expiration *time.Time
 	switch lifespan {
 	case LifespanForever, LifespanSession, LifespanSingle:
 		if duration != "" {
-			return "", fmt.Errorf(`invalid duration: duration must be empty when lifespan is "%v", but received non-empty duration: %s`, lifespan, duration)
+			return nil, fmt.Errorf(`invalid duration: duration must be empty when lifespan is "%v", but received non-empty duration: %s`, lifespan, duration)
 		}
 	case LifespanTimespan:
 		if duration == "" {
-			return "", fmt.Errorf(`invalid duration: duration must be non-empty when lifespan is "%v", but received empty expiration`, lifespan)
+			return nil, fmt.Errorf(`invalid duration: duration must be non-empty when lifespan is "%v", but received empty expiration`, lifespan)
 		}
 		parsedDuration, err := time.ParseDuration(duration)
 		if err != nil {
-			return "", fmt.Errorf(`invalid duration: error parsing duration string: %s`, duration)
+			return nil, fmt.Errorf(`invalid duration: error parsing duration string: %s`, duration)
 		}
 		if parsedDuration <= 0 {
-			return "", fmt.Errorf(`invalid duration: duration must be greater than zero: %s`, duration)
+			return nil, fmt.Errorf(`invalid duration: duration must be greater than zero: %s`, duration)
 		}
-		expirationString = time.Now().Add(parsedDuration).Format(time.RFC3339)
+		expirationValue := time.Now().Add(parsedDuration)
+		expiration = &expirationValue
 	default:
-		return "", fmt.Errorf(`invalid lifespan: "%v"`, lifespan)
+		return nil, fmt.Errorf(`invalid lifespan: "%v"`, lifespan)
 	}
-	return expirationString, nil
+	return expiration, nil
 }
 
 // Ensures that the given constraints, outcome, lifespan, and expiration are
 // valid for the given interface. If not, returns an error.
-func ValidateConstraintsOutcomeLifespanExpiration(iface string, constraints *Constraints, outcome OutcomeType, lifespan LifespanType, expiration string, currTime time.Time) error {
+func ValidateConstraintsOutcomeLifespanExpiration(iface string, constraints *Constraints, outcome OutcomeType, lifespan LifespanType, expiration *time.Time, currTime time.Time) error {
 	if err := constraints.ValidateForInterface(iface); err != nil {
 		return err
 	}
@@ -743,12 +723,12 @@ func ValidateConstraintsOutcomeLifespanExpiration(iface string, constraints *Con
 // Ensures that the given constraints, outcome, lifespan, and duration are valid
 // for the given interface. If not, returns an error. Additionally, converts the
 // given duration to an expiration timestamp.
-func ValidateConstraintsOutcomeLifespanDuration(iface string, constraints *Constraints, outcome OutcomeType, lifespan LifespanType, duration string) (string, error) {
+func ValidateConstraintsOutcomeLifespanDuration(iface string, constraints *Constraints, outcome OutcomeType, lifespan LifespanType, duration string) (*time.Time, error) {
 	if err := constraints.ValidateForInterface(iface); err != nil {
-		return "", err
+		return nil, err
 	}
 	if err := ValidateOutcome(outcome); err != nil {
-		return "", err
+		return nil, err
 	}
 	return ValidateLifespanParseDuration(lifespan, duration)
 }

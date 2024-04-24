@@ -81,10 +81,8 @@ func (s *requestpromptsSuite) TestAddOrMergePrompt(c *C) {
 	// Merged prompts should not trigger notice
 	c.Assert(promptNoticeIDs, HasLen, 0, Commentf("promptNoticeIDs: %v; pdb.PerUser[%d]: %+v", promptNoticeIDs, user, pdb.PerUser[user]))
 
-	timestamp, err := common.TimestampToTime(prompt1.Timestamp)
-	c.Assert(err, IsNil)
-	c.Check(timestamp.After(before), Equals, true)
-	c.Check(timestamp.Before(after), Equals, true)
+	c.Check(prompt1.Timestamp.After(before), Equals, true)
+	c.Check(prompt1.Timestamp.Before(after), Equals, true)
 
 	c.Check(prompt1.Snap, Equals, snap)
 	c.Check(prompt1.Interface, Equals, iface)
