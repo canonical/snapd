@@ -1,5 +1,17 @@
 summary: Check that users with homes in /var/lib can run *classic* snaps
 
+details: |
+    Snapd restricts the allowed location of home directories to /home and /root.
+    As snaps became more popular a need to allow using snap applications for
+    non-traditional users, such as a CI system operating from a directory in
+    /var/lib. A decision was made to allow uses with home directories in such
+    location to use snaps using classic confinement without any extra
+    configuration.
+
+    The test installs Jenkins and Postgres, and checks that they use provide a
+    system user with a home directory matching that limitation, and that snaps
+    using classic confinement can be launched from such location.
+
 systems: [ubuntu-2*]
 
 environment:
