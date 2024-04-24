@@ -1,7 +1,7 @@
 summary: check the session support status of various distributions
 
 details: |
-    Check the tests.session tools indicates properly the system and session status
+    Check the tests.session tools properly indicates the system and session status
     of various distributions
 
 execute: |
