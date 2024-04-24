@@ -1,7 +1,7 @@
 summary: tests for tests.env
 
 details: |
-    Check the tests.env tool allows to get/set variables that can be shared
+    Check the tests.env tool allows getting and setting variables that can be shared
     among different tests.
 
 restore: |
