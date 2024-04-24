@@ -1,7 +1,7 @@
 summary: integration tests for "$TESTSTOOLS"/version-compare
 
 details: |
-    Check the version-compare tools allos to compare applications
+    Check the version-compare tools allows comparing applications
     and snap versions.
 
 execute: |
