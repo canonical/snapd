@@ -246,55 +246,6 @@ func (s *infoSuite) TestWebsiteFromLinks(c *C) {
 	c.Check(info.Website(), Equals, "http://website1")
 }
 
-func (s *infoSuite) TestSplitSecurityTagHappy(c *C) {
-	cases := []struct {
-		tag  string
-		snap string
-	}{
-		{
-			tag:  "snap.foo",
-			snap: "foo",
-		},
-		{
-			tag:  "snap.foo.foo",
-			snap: "foo",
-		},
-		{
-			tag:  "snap.foo.bar",
-			snap: "foo",
-		},
-		{
-			tag:  "snap.foo_bar",
-			snap: "foo_bar",
-		},
-		{
-			tag:  "snap.foo_bar.baz",
-			snap: "foo_bar",
-		},
-	}
-	for _, testCase := range cases {
-		snap, err := snap.SplitSecurityTag(testCase.tag)
-		c.Check(err, IsNil)
-		c.Check(snap, Equals, testCase.snap)
-	}
-}
-
-func (s *infoSuite) TestSplitSecurityTagUnhappy(c *C) {
-	cases := []string{
-		"snap",
-		"snap_foo",
-		"snap.",
-		"SNAP.foo",
-		"SNAP.FOO",
-		"snap.foo.",
-	}
-	for _, testCase := range cases {
-		snap, err := snap.SplitSecurityTag(testCase)
-		c.Check(err, Not(IsNil))
-		c.Check(snap, Equals, "")
-	}
-}
-
 func (s *infoSuite) TestAppInfoSecurityTag(c *C) {
 	appInfo := &snap.AppInfo{Snap: &snap.Info{SuggestedName: "http"}, Name: "GET"}
 	c.Check(appInfo.SecurityTag(), Equals, "snap.http.GET")
