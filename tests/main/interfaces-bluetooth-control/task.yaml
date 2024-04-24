@@ -1,8 +1,8 @@
 summary: check that the bluetooth-control interface works
 
 details: |
-    Check the bluetooth-control interface allows to read usb, class and dev under
-    /sys directory. Verify the interface doesn't allow to read when it is disconnected.
+    Check the bluetooth-control interface allows reading usb, class and dev under
+    /sys directory. Verify the interface doesn't allow reading when it is disconnected.
 
 # currently only enabled for the system that has bluetooth hardware (dragonboard)
 systems: [ubuntu-core-16-arm-64]
