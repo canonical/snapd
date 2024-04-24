@@ -1,5 +1,17 @@
 summary: Check that the basic snapshots functionality is ok
 
+details: |
+    Snapd allows saving a snapshot of the data used by snap applications,
+    presumably to be restored at another time.
+
+    Despite the name the test covers a wide range of interaction with the
+    snapshot system, including creation of both automatic and manual snapshots,
+    handling of the snapshot expiration system, where old snapshots are
+    automatically removed, removing (forgetting) a snapshot manually,  exporting
+    snapshots to files on disk, importing snapshots back to the snapd-managed
+    area and, probably most importantly, restoring a snapshot to recover
+    possibly lost or damaged data.
+
 environment:
     # tar invoked when creating snapshots triggers OOM
     SNAPD_NO_MEMORY_LIMIT: 1
