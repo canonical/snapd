@@ -1,7 +1,7 @@
 summary: smoke test for the snaps-state tool
 
 details: |
-   Check that the snaps-state tool allows to pack and install local snaps. 
+   Check that the snaps-state tool allows packing and installing local snaps. 
    Verify that by default the tool tries to retrieve the snap from the local test,
    and otherwise it tries from $TESTSLIB. Finally verifies that the confinement for 
    the current system can be checked
