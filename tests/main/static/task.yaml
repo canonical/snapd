@@ -1,5 +1,15 @@
 summary: Check that snapd can be built without cgo
 
+details: |
+    Go can build executables with or without the use of the C compiler. In
+    certain ways, having access to the C standard library is a benefit, in other
+    ways it is a source of complex problems.
+
+    As snapd maintainers we want to know that we have the option to keep
+    building snapd without the C standard library (even if that is only snapd,
+    we know certain parts of of the codebase require C), if that is ever a
+    necessity.
+
 # debian-sid uses a different packaging with quilt patches applied on top
 # of the verbatim tree
 systems: [-ubuntu-core-*, -debian-sid-*]
