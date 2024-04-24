@@ -44,24 +44,24 @@ func (s *promptingSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(s.tmpdir)
 }
 
-func (s *promptingSuite) TestOutcomeAsBool(c *C) {
-	result, err := prompting.OutcomeAllow.AsBool()
+func (s *promptingSuite) TestOutcomeIsAllow(c *C) {
+	result, err := prompting.OutcomeAllow.IsAllow()
 	c.Check(err, IsNil)
 	c.Check(result, Equals, true)
-	result, err = prompting.OutcomeDeny.AsBool()
+	result, err = prompting.OutcomeDeny.IsAllow()
 	c.Check(err, IsNil)
 	c.Check(result, Equals, false)
-	_, err = prompting.OutcomeUnset.AsBool()
-	c.Check(err, ErrorMatches, `invalid outcome.*`)
-	_, err = prompting.OutcomeType("foo").AsBool()
-	c.Check(err, ErrorMatches, `invalid outcome.*`)
+	_, err = prompting.OutcomeUnset.IsAllow()
+	c.Check(err, ErrorMatches, `outcome must be.*`)
+	_, err = prompting.OutcomeType("foo").IsAllow()
+	c.Check(err, ErrorMatches, `outcome must be.*`)
 }
 
 func (s *promptingSuite) TestValidateOutcome(c *C) {
 	c.Assert(prompting.ValidateOutcome(prompting.OutcomeAllow), Equals, nil)
 	c.Assert(prompting.ValidateOutcome(prompting.OutcomeDeny), Equals, nil)
-	c.Assert(prompting.ValidateOutcome(prompting.OutcomeUnset), ErrorMatches, `invalid outcome.*`)
-	c.Assert(prompting.ValidateOutcome(prompting.OutcomeType("foo")), ErrorMatches, `invalid outcome.*`)
+	c.Assert(prompting.ValidateOutcome(prompting.OutcomeUnset), ErrorMatches, `outcome must be.*`)
+	c.Assert(prompting.ValidateOutcome(prompting.OutcomeType("foo")), ErrorMatches, `outcome must be.*`)
 }
 
 func (s *promptingSuite) TestValidateLifespanExpiration(c *C) {

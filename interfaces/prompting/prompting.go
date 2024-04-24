@@ -34,15 +34,16 @@ const (
 	OutcomeDeny  OutcomeType = "deny"
 )
 
-// AsBool returns the outcome as a boolean, or an error if it cannot be parsed.
-func (outcome OutcomeType) AsBool() (bool, error) {
+// IsAllow returns true if the outcome is OutcomeAllow, false if the outcome is
+// OutcomeDeny, or an error if it cannot be parsed.
+func (outcome OutcomeType) IsAllow() (bool, error) {
 	switch outcome {
 	case OutcomeAllow:
 		return true, nil
 	case OutcomeDeny:
 		return false, nil
 	default:
-		return false, fmt.Errorf(`invalid outcome: must be %q or %q: %q`, OutcomeAllow, OutcomeDeny, outcome)
+		return false, fmt.Errorf(`outcome must be %q or %q: %q`, OutcomeAllow, OutcomeDeny, outcome)
 	}
 }
 
@@ -52,7 +53,7 @@ func ValidateOutcome(outcome OutcomeType) error {
 	case OutcomeAllow, OutcomeDeny:
 		return nil
 	default:
-		return fmt.Errorf(`invalid outcome: must be %q or %q: %q`, OutcomeAllow, OutcomeDeny, outcome)
+		return fmt.Errorf(`outcome must be %q or %q: %q`, OutcomeAllow, OutcomeDeny, outcome)
 	}
 }
 
