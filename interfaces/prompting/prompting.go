@@ -70,24 +70,20 @@ const (
 // the given expiration is valid for that lifespan.
 //
 // If the lifespan is LifespanTimespan LifespanTimespan, then expiration must
-// be a string parsable as time.Duration with RFC3339 format. Otherwise, it must
-// be empty. Returns an error if any of the above are invalid.
-func ValidateLifespanExpiration(lifespan LifespanType, expiration string, currTime time.Time) error {
+// be non-nil. Otherwise, it must be nil. Returns an error if any of the above
+// are invalid.
+func ValidateLifespanExpiration(lifespan LifespanType, expiration *time.Time, currTime time.Time) error {
 	switch lifespan {
 	case LifespanForever, LifespanSession, LifespanSingle:
-		if expiration != "" {
-			return fmt.Errorf(`invalid expiration: expiration must be empty when lifespan is %q, but received non-empty expiration: %q`, lifespan, expiration)
+		if expiration != nil {
+			return fmt.Errorf(`invalid expiration: expiration must be nil when lifespan is %q, but received non-nil expiration: %q`, lifespan, *expiration)
 		}
 	case LifespanTimespan:
-		if expiration == "" {
-			return fmt.Errorf(`invalid expiration: expiration must be non-empty when lifespan is %q, but received empty expiration`, lifespan)
+		if expiration == nil {
+			return fmt.Errorf(`invalid expiration: expiration must be non-nil when lifespan is %q, but received nil expiration`, lifespan)
 		}
-		parsedTime, err := time.Parse(time.RFC3339, expiration)
-		if err != nil {
-			return fmt.Errorf("invalid expiration: expiration not parsable as a time in RFC3339 format: %q", expiration)
-		}
-		if currTime.After(parsedTime) {
-			return fmt.Errorf("invalid expiration: expiration time has already passed: %q", expiration)
+		if currTime.After(*expiration) {
+			return fmt.Errorf("invalid expiration: expiration time has already passed: %q", *expiration)
 		}
 	default:
 		return fmt.Errorf(`invalid lifespan: %q`, lifespan)
@@ -103,52 +99,41 @@ func ValidateLifespanExpiration(lifespan LifespanType, expiration string, currTi
 // should be valid. Otherwise, it must be empty. Returns an error if any of the
 // above are invalid, otherwise computes the expiration time of the rule based
 // on the current time and the given duration and returns it.
-func ValidateLifespanParseDuration(lifespan LifespanType, duration string) (string, error) {
-	expirationString := ""
+func ValidateLifespanParseDuration(lifespan LifespanType, duration string) (*time.Time, error) {
+	var expiration *time.Time
 	switch lifespan {
 	case LifespanForever, LifespanSession, LifespanSingle:
 		if duration != "" {
-			return "", fmt.Errorf(`invalid duration: duration must be empty when lifespan is %q, but received non-empty duration: %q`, lifespan, duration)
+			return nil, fmt.Errorf(`invalid duration: duration must be empty when lifespan is %q, but received non-empty duration: %q`, lifespan, duration)
 		}
 	case LifespanTimespan:
 		if duration == "" {
-			return "", fmt.Errorf(`invalid duration: duration must be non-empty when lifespan is %q, but received empty expiration`, lifespan)
+			return nil, fmt.Errorf(`invalid duration: duration must be non-empty when lifespan is %q, but received empty expiration`, lifespan)
 		}
 		parsedDuration, err := time.ParseDuration(duration)
 		if err != nil {
-			return "", fmt.Errorf(`invalid duration: error parsing duration string: %q`, duration)
+			return nil, fmt.Errorf(`invalid duration: error parsing duration string: %q`, duration)
 		}
 		if parsedDuration <= 0 {
-			return "", fmt.Errorf(`invalid duration: duration must be greater than zero: %q`, duration)
+			return nil, fmt.Errorf(`invalid duration: duration must be greater than zero: %q`, duration)
 		}
-		expirationString = time.Now().Add(parsedDuration).Format(time.RFC3339)
+		expirationValue := time.Now().Add(parsedDuration)
+		expiration = &expirationValue
 	default:
-		return "", fmt.Errorf(`invalid lifespan: %q`, lifespan)
+		return nil, fmt.Errorf(`invalid lifespan: %q`, lifespan)
 	}
-	return expirationString, nil
-}
-
-// TimestampToTime converts the given timestamp string to a time.Time in Local
-// time. The timestamp string is expected to be of the format time.RFC3339Nano.
-// If it cannot be parsed as such, returns an error.
-func TimestampToTime(timestamp string) (time.Time, error) {
-	t, err := time.Parse(time.RFC3339Nano, timestamp)
-	if err != nil {
-		return t, err
-	}
-	return t.Local(), nil
+	return expiration, nil
 }
 
 // NewIDAndTimestamp returns a new unique ID and corresponding timestamp.
 //
 // The ID is the current unix time in nanoseconds encoded as a string in base32.
 // The timestamp is the same time, encoded as a string in time.RFC3339Nano.
-func NewIDAndTimestamp() (id string, timestamp string) {
+func NewIDAndTimestamp() (id string, timestamp time.Time) {
 	now := time.Now()
 	nowUnix := uint64(now.UnixNano())
 	nowBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(nowBytes, nowUnix)
 	id = base32.StdEncoding.EncodeToString(nowBytes)
-	timestamp = now.Format(time.RFC3339Nano)
-	return id, timestamp
+	return id, now
 }

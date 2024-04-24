@@ -65,11 +65,12 @@ func (s *promptingSuite) TestValidateOutcome(c *C) {
 }
 
 func (s *promptingSuite) TestValidateLifespanExpiration(c *C) {
-	unsetExpiration := ""
-	invalidExpiration := "foo"
+	var unsetExpiration *time.Time
 	currTime := time.Now()
-	negativeExpiration := currTime.Add(-5 * time.Second).Format(time.RFC3339)
-	validExpiration := currTime.Add(10 * time.Minute).Format(time.RFC3339)
+	negativeExpirationValue := currTime.Add(-5 * time.Second)
+	negativeExpiration := &negativeExpirationValue
+	validExpirationValue := currTime.Add(10 * time.Minute)
+	validExpiration := &validExpirationValue
 
 	for _, lifespan := range []prompting.LifespanType{
 		prompting.LifespanForever,
@@ -78,17 +79,14 @@ func (s *promptingSuite) TestValidateLifespanExpiration(c *C) {
 	} {
 		err := prompting.ValidateLifespanExpiration(lifespan, unsetExpiration, currTime)
 		c.Check(err, IsNil)
-		for _, exp := range []string{invalidExpiration, negativeExpiration, validExpiration} {
+		for _, exp := range []*time.Time{negativeExpiration, validExpiration} {
 			err = prompting.ValidateLifespanExpiration(lifespan, exp, currTime)
-			c.Check(err, ErrorMatches, `invalid expiration: expiration must be empty.*`)
+			c.Check(err, ErrorMatches, `invalid expiration: expiration must be nil.*`)
 		}
 	}
 
 	err := prompting.ValidateLifespanExpiration(prompting.LifespanTimespan, unsetExpiration, currTime)
-	c.Check(err, ErrorMatches, `invalid expiration: expiration must be non-empty.*`)
-
-	err = prompting.ValidateLifespanExpiration(prompting.LifespanTimespan, invalidExpiration, currTime)
-	c.Check(err, ErrorMatches, `invalid expiration: expiration not parsable.*`)
+	c.Check(err, ErrorMatches, `invalid expiration: expiration must be non-nil.*`)
 
 	err = prompting.ValidateLifespanExpiration(prompting.LifespanTimespan, negativeExpiration, currTime)
 	c.Check(err, ErrorMatches, `invalid expiration: expiration time has already passed.*`)
@@ -111,43 +109,31 @@ func (s *promptingSuite) TestValidateLifespanParseDuration(c *C) {
 		prompting.LifespanSingle,
 	} {
 		expiration, err := prompting.ValidateLifespanParseDuration(lifespan, unsetDuration)
-		c.Check(expiration, Equals, "")
+		c.Check(expiration, IsNil)
 		c.Check(err, IsNil)
 		for _, dur := range []string{invalidDuration, negativeDuration, validDuration} {
 			expiration, err = prompting.ValidateLifespanParseDuration(lifespan, dur)
-			c.Check(expiration, Equals, "")
+			c.Check(expiration, IsNil)
 			c.Check(err, ErrorMatches, `invalid duration: duration must be empty.*`)
 		}
 	}
 
 	expiration, err := prompting.ValidateLifespanParseDuration(prompting.LifespanTimespan, unsetDuration)
-	c.Check(expiration, Equals, "")
+	c.Check(expiration, IsNil)
 	c.Check(err, ErrorMatches, `invalid duration: duration must be non-empty.*`)
 
 	expiration, err = prompting.ValidateLifespanParseDuration(prompting.LifespanTimespan, invalidDuration)
-	c.Check(expiration, Equals, "")
+	c.Check(expiration, IsNil)
 	c.Check(err, ErrorMatches, `invalid duration: error parsing duration string.*`)
 
 	expiration, err = prompting.ValidateLifespanParseDuration(prompting.LifespanTimespan, negativeDuration)
-	c.Check(expiration, Equals, "")
+	c.Check(expiration, IsNil)
 	c.Check(err, ErrorMatches, `invalid duration: duration must be greater than zero.*`)
 
 	expiration, err = prompting.ValidateLifespanParseDuration(prompting.LifespanTimespan, validDuration)
 	c.Check(err, IsNil)
-	expirationTime, err := time.Parse(time.RFC3339, expiration)
-	c.Check(err, IsNil)
-	c.Check(expirationTime.After(time.Now()), Equals, true)
-	c.Check(expirationTime.Before(time.Now().Add(parsedValidDuration)), Equals, true)
-}
-
-func (s *promptingSuite) TestTimestampToTime(c *C) {
-	before := time.Now()
-	ts := time.Now().Format(time.RFC3339Nano)
-	after := time.Now()
-	parsedTime, err := prompting.TimestampToTime(ts)
-	c.Assert(err, IsNil)
-	c.Assert(parsedTime.After(before), Equals, true)
-	c.Assert(parsedTime.Before(after), Equals, true)
+	c.Check(expiration.After(time.Now()), Equals, true)
+	c.Check(expiration.Before(time.Now().Add(parsedValidDuration)), Equals, true)
 }
 
 func (s *promptingSuite) TestNewIDAndTimestamp(c *C) {
@@ -167,7 +153,5 @@ func (s *promptingSuite) TestNewIDAndTimestamp(c *C) {
 	c.Assert(parsedTime.Before(after), Equals, true)
 	c.Assert(parsedTimePaired.After(before), Equals, true)
 	c.Assert(parsedTimePaired.Before(after), Equals, true)
-	parsedTimestamp, err := prompting.TimestampToTime(timestampPaired)
-	c.Assert(err, IsNil)
-	c.Assert(parsedTimePaired, Equals, parsedTimestamp)
+	c.Assert(parsedTimePaired.Equal(timestampPaired), Equals, true)
 }
