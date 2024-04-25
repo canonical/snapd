@@ -440,6 +440,8 @@ type Systemd interface {
 	CurrentTasksCount(unit string) (uint64, error)
 	// Run a command
 	Run(command []string, opts *RunOptions) ([]byte, error)
+	// Set log level for the system
+	SetLogLevel(logLevel string) error
 }
 
 // KeyringMode describes how the kernel keyring is setup, see systemd.exec(5)
@@ -1744,4 +1746,9 @@ func (s *systemd) Run(command []string, opts *RunOptions) ([]byte, error) {
 		return nil, fmt.Errorf("cannot run %q: %v", command, osutil.OutputErrCombine(stdout, stderr, err))
 	}
 	return stdout, nil
+}
+
+func (s *systemd) SetLogLevel(logLevel string) error {
+	_, err := s.systemctl("log-level", logLevel)
+	return err
 }
