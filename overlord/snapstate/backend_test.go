@@ -169,6 +169,8 @@ func (ba byAction) Less(i, j int) bool {
 type fakeStore struct {
 	storetest.Store
 
+	mu sync.Mutex
+
 	downloads           []fakeDownload
 	refreshRevnos       map[string]snap.Revision
 	fakeBackend         *fakeSnappyBackend
@@ -208,6 +210,12 @@ func (f *fakeStore) SnapInfo(ctx context.Context, spec store.SnapSpec, user *aut
 	f.fakeBackend.appendOp(&fakeOp{op: "storesvc-snap", name: spec.Name, revno: info.Revision, userID: userID})
 
 	return info, err
+}
+
+func (f *fakeStore) appendDownload(dl *fakeDownload) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.downloads = append(f.downloads, *dl)
 }
 
 type snapSpec struct {
@@ -741,7 +749,7 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	if dlOpts != nil && *dlOpts == (store.DownloadOptions{}) {
 		dlOpts = nil
 	}
-	f.downloads = append(f.downloads, fakeDownload{
+	f.appendDownload(&fakeDownload{
 		macaroon: macaroon,
 		name:     name,
 		target:   targetFn,
