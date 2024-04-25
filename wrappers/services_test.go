@@ -3031,10 +3031,11 @@ func (s *servicesTestSuite) TestQueryDisabledServicesMixedServices(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure svc1+svc4 was reported as disabled
+	uid := os.Getuid()
 	c.Assert(disabledSvcs, DeepEquals, &wrappers.DisabledServices{
 		SystemServices: []string{"svc1"},
 		UserServices: map[int][]string{
-			1000: {"svc4"},
+			uid: {"svc4"},
 		},
 	})
 
@@ -3104,9 +3105,10 @@ func (s *servicesTestSuite) TestQueryDisabledServicesUserServices(c *C) {
 	c.Assert(err, IsNil)
 
 	// ensure svc1 was reported as disabled
+	uid := os.Getuid()
 	c.Assert(disabledSvcs, DeepEquals, &wrappers.DisabledServices{
 		UserServices: map[int][]string{
-			1000: {"svc1"},
+			uid: {"svc1"},
 		},
 	})
 
