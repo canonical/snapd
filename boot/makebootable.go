@@ -532,7 +532,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		return fmt.Errorf("cannot write modeenv: %v", err)
 	}
 
-	if sealer != nil {
+	if sealer != nil && sealer.useEncryption {
 		hasHook, err := HasFDESetupHook(bootWith.Kernel)
 		if err != nil {
 			return fmt.Errorf("cannot check for fde-setup hook: %v", err)

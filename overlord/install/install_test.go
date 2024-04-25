@@ -889,6 +889,9 @@ func (s *installSuite) TestPrepareEncryptedSystemData(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(to, NotNil)
 
+	err = to.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir)
+	c.Assert(err, IsNil)
+
 	keyForRole := map[string]keys.EncryptionKey{
 		gadget.SystemData: dataEncryptionKey,
 		gadget.SystemSave: saveKey,

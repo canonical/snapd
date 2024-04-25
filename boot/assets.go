@@ -271,10 +271,16 @@ type TrustedAssetsInstallObserver struct {
 	trustedRecoveryAssets map[string]string
 	trackedRecoveryAssets bootAssetsMap
 
+	useEncryption     bool
 	dataEncryptionKey keys.EncryptionKey
 	saveEncryptionKey keys.EncryptionKey
 
 	seedBootloader bootloader.Bootloader
+}
+
+func (o *TrustedAssetsInstallObserver) BootLoaderSupportsEfiVariables() bool {
+	_, seedBlHasEfiEntries := o.seedBootloader.(bootloader.UefiBootloader)
+	return seedBlHasEfiEntries
 }
 
 // Observe observes the operation related to the content of a given gadget
@@ -355,6 +361,7 @@ func (o *TrustedAssetsInstallObserver) currentTrustedRecoveryBootAssetsMap() boo
 }
 
 func (o *TrustedAssetsInstallObserver) ChosenEncryptionKeys(key, saveKey keys.EncryptionKey) {
+	o.useEncryption = true
 	o.dataEncryptionKey = key
 	o.saveEncryptionKey = saveKey
 }

@@ -1350,6 +1350,8 @@ version: 5.0
 	err = obs.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir)
 	c.Assert(err, IsNil)
 
+	obs.ChosenEncryptionKeys(keys.EncryptionKey{}, keys.EncryptionKey{})
+
 	// set a mock recovery kernel
 	readSystemEssentialCalls := 0
 	restore = boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {

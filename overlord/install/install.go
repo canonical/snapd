@@ -228,7 +228,7 @@ func BuildInstallObserver(model *asserts.Model, gadgetDir string, useEncryption 
 	}
 	if err == nil {
 		observer = trustedObserver
-		if !useEncryption {
+		if !useEncryption && !trustedObserver.BootLoaderSupportsEfiVariables() {
 			// there will be no key sealing, so past the
 			// installation pass no other methods need to be called
 			trustedObserver = nil
@@ -253,11 +253,6 @@ func PrepareEncryptedSystemData(model *asserts.Model, keyForRole map[string]keys
 	// make note of the encryption keys
 	trustedInstallObserver.ChosenEncryptionKeys(dataEncryptionKey, saveEncryptionKey)
 
-	// XXX is the asset cache problematic from initramfs?
-	// keep track of recovery assets
-	if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
-		return fmt.Errorf("cannot observe existing trusted recovery assets: %v", err)
-	}
 	if err := saveKeys(model, keyForRole); err != nil {
 		return err
 	}
