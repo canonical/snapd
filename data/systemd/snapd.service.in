@@ -17,6 +17,7 @@ OnFailure=snapd.failure.service
 OOMScoreAdjust=-900
 ExecStart=@libexecdir@/snapd/snapd
 EnvironmentFile=-@SNAPD_ENVIRONMENT_FILE@
+EnvironmentFile=-/var/lib/snapd/environment/snapd.conf
 Restart=always
 WatchdogSec=5m
 Type=notify
