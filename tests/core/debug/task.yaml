@@ -1,0 +1,54 @@
+summary: Check that UC debug settings work
+
+details: |
+  Check that UC debug settings enable logging for snapd and
+  setting the log level for systemd as expected.
+
+# Some systemctl calls are not supported on UC16
+systems: [-ubuntu-core-16-*]
+
+execute: |
+  get_log_level() {
+      if os.query is-core-le 18; then
+          systemd-analyze get-log-level
+      else
+          systemctl log-level
+      fi
+  }
+
+  if [ "$SPREAD_REBOOT" = 0 ]; then
+      # Remove the variable introduced by prepare.sh
+      sed -i 's/SNAPD_DEBUG=1//' /etc/systemd/system/snapd.service.d/local.conf
+      systemctl daemon-reload
+      systemctl restart snapd
+      NOMATCH SNAPD_DEBUG=1 < /proc/"$(pgrep snapd)"/environ
+
+      # Check enable/disable snapd debug traces
+      snap set system debug.snapd.log=true
+      MATCH SNAPD_DEBUG=1 < /var/lib/snapd/environment/snapd.conf
+      systemctl restart snapd
+      MATCH SNAPD_DEBUG=1 < /proc/"$(pgrep snapd)"/environ
+      snap set system debug.snapd.log=false
+      not test -f /var/lib/snapd/environment/snapd.conf
+      systemctl restart snapd
+      NOMATCH SNAPD_DEBUG=1 < /proc/"$(pgrep snapd)"/environ
+
+      # Check set systemd log level
+      log_level=$(get_log_level)
+      test "$log_level" = info
+      snap set system debug.systemd.log-level=debug
+      MATCH LogLevel=debug < /etc/systemd/system.conf.d/20-debug_systemd_log-level.conf
+      log_level=$(get_log_level)
+      test "$log_level" = debug
+
+      # Reboot to check log-level is as expected when systemd restarts
+      REBOOT
+  else
+      log_level=$(get_log_level)
+      test "$log_level" = debug
+
+      snap set system debug.systemd.log-level=info
+      MATCH LogLevel=info < /etc/systemd/system.conf.d/20-debug_systemd_log-level.conf
+      log_level=$(get_log_level)
+      test "$log_level" = info
+  fi
