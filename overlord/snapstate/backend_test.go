@@ -1150,7 +1150,7 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx b
 		vitalityRank = linkCtx.ServiceOptions.VitalityRank
 	}
 
-	op := fakeOp{
+	op := &fakeOp{
 		op:   "link-snap",
 		path: info.MountDir(),
 
@@ -1160,11 +1160,11 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx b
 
 	if info.MountDir() == f.linkSnapFailTrigger {
 		op.op = "link-snap.failed"
-		f.ops = append(f.ops, op)
+		f.appendOp(op)
 		return boot.RebootInfo{RebootRequired: false}, errors.New("fail")
 	}
 
-	f.appendOp(&op)
+	f.appendOp(op)
 
 	reboot := false
 	if f.linkSnapMaybeReboot {
