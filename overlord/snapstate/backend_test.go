@@ -675,7 +675,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			}
 			hit = info.Revision
 		}
-		f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{
+		f.fakeBackend.appendOp(&fakeOp{
 			op:     "storesvc-snap-action:action",
 			action: *a,
 			revno:  hit,
@@ -1340,7 +1340,7 @@ func (f *fakeSnappyBackend) RemoveSnapSaveData(info *snap.Info, _ snap.Device) e
 }
 
 func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bool, opts *dirs.SnapDirOptions) error {
-	f.ops = append(f.ops, fakeOp{
+	f.appendOp(&fakeOp{
 		op:             "remove-snap-data-dir",
 		name:           info.InstanceName(),
 		path:           snap.BaseDataDir(info.SnapName()),
@@ -1350,7 +1350,7 @@ func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bo
 }
 
 func (f *fakeSnappyBackend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter progress.Meter) error {
-	f.ops = append(f.ops, fakeOp{
+	f.appendOp(&fakeOp{
 		op:   "remove-snap-mount-units",
 		name: s.ContainerName(),
 	})
@@ -1358,7 +1358,7 @@ func (f *fakeSnappyBackend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo,
 }
 
 func (f *fakeSnappyBackend) RemoveSnapDir(s snap.PlaceInfo, otherInstances bool) error {
-	f.ops = append(f.ops, fakeOp{
+	f.appendOp(&fakeOp{
 		op:             "remove-snap-dir",
 		name:           s.InstanceName(),
 		path:           snap.BaseDir(s.SnapName()),
