@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2020, 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -767,9 +767,19 @@ func CloudInitStatus() (CloudInitState, error) {
 		return CloudInitErrored, fmt.Errorf("invalid cloud-init output: %v", osutil.OutputErrCombine(out, stderr, err))
 	}
 
+	hasError := false
+	if err != nil {
+		exitError, isExitError := err.(*exec.ExitError)
+		if isExitError && exitError.ExitCode() == 2 {
+			logger.Noticef("cloud-init status returned 'recoverable error' status: cloud-init completed but experienced errors")
+		} else {
+			hasError = true
+		}
+	}
+
 	// otherwise we had a successful match, but we need to check if the status
 	// command errored itself
-	if err != nil {
+	if hasError {
 		if string(match[1]) == "error" {
 			// then the status was indeed error and we should treat this as the
 			// "positively identified" error case

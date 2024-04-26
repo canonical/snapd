@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2020, 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -579,11 +580,19 @@ func (s *sysconfigSuite) TestCloudInitStatus(c *C) {
 		restrictedFile  bool
 		disabledFile    bool
 		expError        string
+		expectedLog     string
 	}{
 		{
 			comment:         "done",
 			cloudInitOutput: "status: done",
 			exp:             sysconfig.CloudInitDone,
+		},
+		{
+			comment:         "done",
+			cloudInitOutput: "status: done",
+			exp:             sysconfig.CloudInitDone,
+			exitCode:        2,
+			expectedLog:     `.*cloud-init status returned 'recoverable error' status: cloud-init completed but experienced errors\n`,
 		},
 		{
 			comment:         "running",
@@ -676,6 +685,9 @@ fi
 			c.Assert(err, IsNil)
 		}
 
+		logBuf, restore := logger.MockLogger()
+		defer restore()
+
 		status, err := sysconfig.CloudInitStatus()
 		if t.expError != "" {
 			c.Assert(err, ErrorMatches, t.expError, Commentf(t.comment))
@@ -694,6 +706,10 @@ fi
 
 		c.Assert(cmd.Calls(), DeepEquals, expCalls, Commentf(t.comment))
 		cmd.Restore()
+
+		if t.expectedLog != "" {
+			c.Check(logBuf.String(), Matches, t.expectedLog)
+		}
 	}
 }
 
