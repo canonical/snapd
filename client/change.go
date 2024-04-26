@@ -65,6 +65,10 @@ type Task struct {
 
 	SpawnTime time.Time `json:"spawn-time,omitempty"`
 	ReadyTime time.Time `json:"ready-time,omitempty"`
+
+	SnapName     string `json:"snap-name,omitempty"`
+	InstanceName string `json:"instance-name,omitempty"`
+	Revision     string `json:"revision,omitempty"`
 }
 
 type TaskProgress struct {

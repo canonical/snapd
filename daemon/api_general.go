@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
@@ -336,6 +337,10 @@ type taskInfo struct {
 
 	SpawnTime time.Time  `json:"spawn-time,omitempty"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
+
+	SnapName     string `json:"snap-name,omitempty"`
+	InstanceName string `json:"instance-name,omitempty"`
+	Revision     string `json:"revision,omitempty"`
 }
 
 type taskInfoProgress struct {
@@ -380,6 +385,12 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 				Total: total,
 			},
 			SpawnTime: t.SpawnTime(),
+		}
+		snapsup, err := snapstate.TaskSnapSetup(t)
+		if err == nil {
+			taskInfo.SnapName = snapsup.SnapName()
+			taskInfo.InstanceName = snapsup.InstanceName()
+			taskInfo.Revision = snapsup.Revision().String()
 		}
 		readyTime := t.ReadyTime()
 		if !readyTime.IsZero() {

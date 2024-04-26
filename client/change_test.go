@@ -107,7 +107,7 @@ func (cs *clientSuite) TestClientChangeError(c *check.C) {
   "summary": "...",
   "status": "Error",
   "ready": true,
-  "tasks": [{"kind": "bar", "summary": "...", "status": "Error", "progress": {"done": 1, "total": 1}, "log": ["ERROR: something broke"]}],
+  "tasks": [{"kind": "bar", "summary": "...", "status": "Error", "progress": {"done": 1, "total": 1}, "log": ["ERROR: something broke"], "snap-name": "a_snap", "instance-name": "instance_value", "revision": "891"}],
   "err": "error message"
 }}`
 
@@ -119,11 +119,14 @@ func (cs *clientSuite) TestClientChangeError(c *check.C) {
 		Summary: "...",
 		Status:  "Error",
 		Tasks: []*client.Task{{
-			Kind:     "bar",
-			Summary:  "...",
-			Status:   "Error",
-			Progress: client.TaskProgress{Done: 1, Total: 1},
-			Log:      []string{"ERROR: something broke"},
+			Kind:         "bar",
+			Summary:      "...",
+			Status:       "Error",
+			Progress:     client.TaskProgress{Done: 1, Total: 1},
+			Log:          []string{"ERROR: something broke"},
+			SnapName:     "a_snap",
+			InstanceName: "instance_value",
+			Revision:     "891",
 		}},
 		Err:   "error message",
 		Ready: true,
