@@ -351,6 +351,7 @@ jobs:
         name: coverage-files
         path: "${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage/coverage*.cov"
 
+  # TODO run unit tests of C code
   unit-tests-special:
     needs: [static-checks]
     runs-on: ubuntu-22.04
