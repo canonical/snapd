@@ -1,5 +1,10 @@
 summary: Check snap known --store
 
+details: |
+    The "snap known" command allows to query the store for assertions that have
+    particular properties, such as assertion type. Those assertions do not need
+    to be in the snapd assertion store on the local system.
+
 execute: |
     echo "Check getting assertion from the store"
     output=$(snap known --remote model series=16 brand-id=canonical model=pi2)
