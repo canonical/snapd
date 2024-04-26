@@ -1114,7 +1114,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 		return err
 	}
 
-	// Wait for the system to be seeded before transtioning
+	// Wait for the system to be seeded before transitioning
 	var seeded bool
 	err = m.state.Get("seeded", &seeded)
 	if err != nil {
