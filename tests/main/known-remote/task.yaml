@@ -1,4 +1,4 @@
-summary: Check snap known --store
+summary: Check snap known --remote
 
 details: |
     The "snap known" command allows to query the store for assertions that have
