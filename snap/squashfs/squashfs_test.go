@@ -113,6 +113,8 @@ type SquashfsTestSuite struct {
 var _ = Suite(&SquashfsTestSuite{})
 
 func (s *SquashfsTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	d := c.MkDir()
 	dirs.SetRootDir(d)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
@@ -137,6 +139,8 @@ func (s *SquashfsTestSuite) TearDownTest(c *C) {
 	outbuf, err := io.ReadAll(s.outf)
 	c.Assert(err, IsNil)
 	c.Check(string(outbuf), Equals, "")
+
+	s.BaseTest.TearDownTest(c)
 }
 
 func (s *SquashfsTestSuite) TestFileHasSquashfsHeader(c *C) {
