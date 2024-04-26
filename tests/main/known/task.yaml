@@ -1,5 +1,11 @@
 summary: Check snap known
 
+details: |
+    The "snap known" command can be used to display assertions that snapd knows
+    about. The command supports filtering by attribute value, to limit the
+    display to a subset of assertion types or assertions with particular
+    properties in general.
+
 execute: |
     echo "Listing all account assertions"
     snap known account|MATCH "^type: account$"
