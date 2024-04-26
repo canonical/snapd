@@ -1,13 +1,14 @@
 summary: Ensure that the hardware-observe interface works.
 
-summary: |
+details: |
     The hardware-observe interface allows a snap to access hardware information.
 
-    A snap which defines the hardware-observe plug must be shown in the interfaces list.
-    The plug must not be connected on install and, as usual, must be able to be
-    reconnected.
+    A snap which defines the hardware-observe plug must be shown in the
+    interfaces list. The plug must not be connected on install and, as usual,
+    must be able to be reconnected.
 
-    A snap declaring a plug on this interface must be able to read files in /sys/{block,bus,class,devices}
+    A snap declaring a plug on this interface must be able to read files in
+    /sys/{block,bus,class,devices}
 
 prepare: |
     echo "Given a snap declaring a plug on the hardware-observe interface is installed"
