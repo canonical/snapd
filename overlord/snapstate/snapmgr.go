@@ -274,7 +274,7 @@ type SnapState struct {
 	InstanceKey string `json:"instance-key,omitempty"`
 	CohortKey   string `json:"cohort-key,omitempty"`
 
-	// RefreshInhibitedime records the time when the refresh was first
+	// RefreshInhibitedTime records the time when the refresh was first
 	// attempted but inhibited because the snap was busy. This value is
 	// reset on each successful refresh.
 	RefreshInhibitedTime *time.Time `json:"refresh-inhibited-time,omitempty"`
