@@ -478,6 +478,71 @@ jobs:
         name: coverage-files
         path: "${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage/coverage*.cov"
 
+
+  unit-tests-cross-distro:
+    needs: [static-checks]
+    env:
+      # Set PATH to ignore the load of magic binaries from /usr/local/bin And
+      # to use the go snap automatically. Note that we install go from the
+      # snap in a step below. Without this we get the GitHub-controlled latest
+      # version of go.
+      PATH: /usr/sbin:/usr/bin:/sbin:/bin
+      GITHUB_PULL_REQUEST: ${{ github.event.number }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        distro:
+          # TODO add arch?
+          - fedora:39
+          - opensuse/tumbleweed
+
+    runs-on: ubuntu-latest
+    container: ${{ matrix.distro }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        # needed for git commit history
+        fetch-depth: 0
+
+    - name: Install dependencies
+      run: |
+        # approximation to handle both typical foo:bar (tagged) and foo/bar
+        # (with implicit :latest)
+        distroname="$(echo "${{ matrix.distro }}" | tr : - | tr / -)"
+        case "${{ matrix.distro }}" in
+        fedora:*)
+            dnf install -y rpmdevtools
+            dnf install -y $(rpmspec -q --buildrequires "./packaging/$distroname/snapd.spec")
+            # TODO these are needed only by cmd/snap-seccomp unit tests, and
+            # should be added to BuildRequires
+            dnf install -y glibc-devel.i686 glibc-static.i686
+            ;;
+        opensuse/*)
+            zypper --non-interactive install -y rpmdevtools rpm-build git
+            zypper --non-interactive install -y $(rpmspec -q --buildrequires "./packaging/$distroname/snapd.spec")
+            ;;
+        *)
+            echo "Unsupported distribution variant ${{ matrix.distro }}"
+            exit 1
+            ;;
+        esac
+    - name: Set up test user
+      run: |
+        useradd test-user
+        chown -R test-user:test-user $PWD
+
+    - name: Unit tests (Go)
+      run: |
+        su test-user sh -c "SKIP_DIRTY_CHECK=1 ./run-checks --unit"
+
+    - name: Unit tests (C)
+      run: |
+        su test-user sh -c "./mkversion.sh 1337-git && cd ./cmd && ./autogen.sh && make -j && make check"
+
+
   code-coverage:
     needs: [unit-tests, unit-tests-special]
     runs-on: ubuntu-20.04
