@@ -1051,7 +1051,7 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 
 	// get current core snap and use same channel/user for the snapd snap
 	err = Get(m.state, "core", &snapst)
-	// Note that state.ErrNoState should never happen in practise. However
+	// Note that state.ErrNoState should never happen in practice. However
 	// if it *does* happen we still want to fix those systems by installing
 	// the snapd snap.
 	if err != nil && !errors.Is(err, state.ErrNoState) {
