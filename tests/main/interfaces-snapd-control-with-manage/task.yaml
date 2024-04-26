@@ -1,5 +1,20 @@
 summary: Ensure that the snapd-control "refresh-schedule" attribute works.
 
+details: |
+    The snapd-control interface offers a way for a connected snap to manage
+    refreshes of all the snaps on the system. The test prepares an environment
+    in which a snap is given this permission, by signing a specifically crafted
+    snap declaration assertion, ensures that no snap can manage refreshes,
+    installs the snap and the assertion and ensures that snapd now recognizes
+    the new permission. The test then continues to exercise the permission in
+    practice, by setting refresh schedule to the special "managed" value. The
+    test explores what happens when the plug carrying the permission is
+    disconnected.
+
+    While in managed mode, snapd does not refresh snaps automatically anymore,
+    relinquishing complete control to a management agent carrying the
+    permission.
+
 # ubuntu-14.04: systemd-run not supported
 systems: [-ubuntu-14.04*]
 
