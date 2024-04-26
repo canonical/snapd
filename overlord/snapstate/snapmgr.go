@@ -53,7 +53,7 @@ import (
 )
 
 var (
-	snapdTransitionDelayWithRandomess = 3*time.Hour + randutil.RandomDuration(4*time.Hour)
+	snapdTransitionDelayWithRandomness = 3*time.Hour + randutil.RandomDuration(4*time.Hour)
 )
 
 // SnapManager is responsible for the installation and removal of snaps.
@@ -1075,7 +1075,7 @@ func (m *SnapManager) ensureSnapdSnapTransition() error {
 		return err
 	}
 	now := time.Now()
-	if !lastSnapdTransitionAttempt.IsZero() && lastSnapdTransitionAttempt.Add(snapdTransitionDelayWithRandomess).After(now) {
+	if !lastSnapdTransitionAttempt.IsZero() && lastSnapdTransitionAttempt.Add(snapdTransitionDelayWithRandomness).After(now) {
 		return nil
 	}
 	m.state.Set("snapd-transition-last-retry-time", now)
