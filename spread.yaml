@@ -602,6 +602,8 @@ debug-each: |
         echo
 
         remote.exec "sudo journalctl --no-pager -u snapd" || true
+
+        exit
     fi
 
     echo "# definition of snapd.service"
@@ -671,8 +673,11 @@ debug-each: |
 
     # Keep it as the last step in debug-each
     echo '# tasks executed on system'
-    # since the runs file does not have a newline at EOF, add one 
-    echo "" | cat "$RUNTIME_STATE_PATH/runs" - || true
+    if [ -f "$RUNTIME_STATE_PATH/runs" ]; then
+        echo "EXECUTED_TESTS=$(cat "$RUNTIME_STATE_PATH/runs)"
+    fi
+    # Add new line at the end of the debug output
+    echo ''
 
 rename:
     # Move content into a directory, so that deltas computed by repack benefit
