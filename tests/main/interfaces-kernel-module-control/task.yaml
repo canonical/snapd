@@ -5,7 +5,7 @@ details: |
     of modules.
 
     A snap which defines a kernel-module-control plug must be shown in the
-    interfaces list. The plug must not be autoconnected on install and, as
+    interfaces list. The plug must not be auto-connected on install and, as
     usual, must be able to be reconnected.
 
     A snap declaring a plug on this interface must be able to list the modules

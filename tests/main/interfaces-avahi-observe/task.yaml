@@ -1,5 +1,10 @@
 summary: check that avahi-observe interface works
 
+details: |
+    The avahi-observe interface allows applications to interact with avahi, the
+    mdns/zeroconf service, D-Bus APIs. The test ensures that the interface
+    connection really governs access to the service.
+
 systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
 prepare: |
