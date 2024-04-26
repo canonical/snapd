@@ -674,7 +674,7 @@ debug-each: |
     # Keep it as the last step in debug-each
     echo '# tasks executed on system'
     if [ -f "$RUNTIME_STATE_PATH/runs" ]; then
-        echo "EXECUTED_TESTS=$(cat "$RUNTIME_STATE_PATH/runs)"
+        echo "EXECUTED_TESTS=$(cat $RUNTIME_STATE_PATH/runs)"
     fi
     # Add new line at the end of the debug output
     echo ''
