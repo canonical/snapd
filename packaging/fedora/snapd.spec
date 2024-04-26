@@ -125,6 +125,7 @@ BuildRequires: make
 BuildRequires:  %{?go_compiler:compiler(go-compiler)}%{!?go_compiler:golang >= 1.9}
 BuildRequires:  systemd
 BuildRequires:  fakeroot
+BuildRequires:  squashfs-tools
 %{?systemd_requires}
 
 Requires:       snap-confine%{?_isa} = %{version}-%{release}
