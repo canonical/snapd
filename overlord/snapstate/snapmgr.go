@@ -821,7 +821,7 @@ func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
 	// circumvention for the issue where vulnerable snaps are left in place, we
 	// do not intend to ever do this again and instead will unmount or remount
 	// vulnerable old snaps as nosuid to prevent the suid snap-confine binaries
-	// in them from being available to abuse for fixed vulnerabilies that are
+	// in them from being available to abuse for fixed vulnerabilities that are
 	// not exploitable in the current versions of snapd/core snaps.
 	var alreadyRemoved bool
 	key := fmt.Sprintf("%s-snap-cve-2022-3328-vuln-removed", name)
