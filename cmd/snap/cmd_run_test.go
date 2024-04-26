@@ -820,6 +820,9 @@ func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingRefreshMissing
 	restore = snaprun.MockInhibitionFlow(&inhibitionFlow)
 	defer restore()
 
+	// Mock that snap exists
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapMountDir, "snapname"), 0755), check.IsNil)
+
 	var waitWhileInhibitedCalled int
 	restore = snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
 		waitWhileInhibitedCalled++
@@ -1287,9 +1290,9 @@ func (s *RunSuite) TestSnapRunErorsForMissingApp(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "need the application to run as argument")
 }
 
-func (s *RunSuite) TestSnapRunErorrForUnavailableApp(c *check.C) {
+func (s *RunSuite) TestSnapRunErrorForUnavailableApp(c *check.C) {
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "not-there"})
-	c.Assert(err, check.ErrorMatches, fmt.Sprintf("cannot find current revision for snap not-there: readlink %s/not-there/current: no such file or directory", dirs.SnapMountDir))
+	c.Assert(err, check.ErrorMatches, fmt.Sprintf(`snap "not-there" is not installed`))
 }
 
 func (s *RunSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {

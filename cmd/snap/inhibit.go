@@ -23,10 +23,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -126,6 +128,16 @@ func waitWhileInhibited(ctx context.Context, cli *client.Client, snapName string
 
 func getInfoAndApp(snapName, appName string, rev snap.Revision) (*snap.Info, *snap.AppInfo, error) {
 	info, err := getSnapInfo(snapName, rev)
+	// Differentiate between snap not existing and missing current symlink.
+	if errors.As(err, &snap.NotFoundError{}) {
+		exists, isDir, dirErr := osutil.DirExists(filepath.Join(dirs.SnapMountDir, snapName))
+		if dirErr != nil {
+			return nil, nil, dirErr
+		}
+		if !exists || !isDir {
+			return nil, nil, fmt.Errorf(i18n.G("snap %q is not installed"), snapName)
+		}
+	}
 	if err != nil {
 		return nil, nil, err
 	}
