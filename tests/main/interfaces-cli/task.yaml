@@ -1,5 +1,10 @@
 summary: Check the interfaces command
 
+details: |
+    The "snap interfaces" command allows looking at plugs and slots in all the
+    snaps on the system. The command provides different behavior when invoked
+    with a snap name or with an interface name.
+
 environment:
     SNAP_NAME: network-consumer
     PLUG: network
