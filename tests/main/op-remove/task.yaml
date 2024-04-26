@@ -1,5 +1,16 @@
 summary: Check snap remove operations.
 
+details: |
+    Removing a snap is somewhat non-trivial: services need to be stopped, all
+    the revisions need to be unmounted, a snapshot of data is taken for
+    preservation, the snap file itself is removed. For snap packages that are
+    bases there cannot be any snap applications that rely on the base to be
+    present.
+
+    The test checks a small subset of that set, namely that removal affects all
+    revisions and that a base snap is not removable for as long as there are
+    other snaps referencing it.
+
 execute: |
     snap_revisions(){
         local snap_name=$1
