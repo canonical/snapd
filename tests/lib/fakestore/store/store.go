@@ -20,6 +20,7 @@
 package store
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -33,8 +34,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"gopkg.in/tylerb/graceful.v1"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
@@ -68,7 +67,7 @@ type Store struct {
 	assertFallback bool
 	fallback       *store.Store
 
-	srv *graceful.Server
+	srv *http.Server
 }
 
 // NewStore creates a new store server serving snaps from the given top directory and assertions from topDir/asserts. If assertFallback is true missing assertions are looked up in the main online store.
@@ -87,13 +86,9 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 		fallback:       sto,
 
 		url: fmt.Sprintf("http://%s", addr),
-		srv: &graceful.Server{
-			Timeout: 2 * time.Second,
-
-			Server: &http.Server{
-				Addr:    addr,
-				Handler: mux,
-			},
+		srv: &http.Server{
+			Addr:    addr,
+			Handler: mux,
 		},
 	}
 
@@ -134,12 +129,18 @@ func (s *Store) Start() error {
 // Stop stops the server
 func (s *Store) Stop() error {
 	timeoutTime := 2000 * time.Millisecond
-	s.srv.Stop(timeoutTime / 2)
+	closedC := make(chan error, 1)
+	ctx, cancel := context.WithTimeout(context.Background(), timeoutTime)
+	defer cancel()
+	go func() {
+		closedC <- s.srv.Shutdown(ctx)
+	}()
 
-	select {
-	case <-s.srv.StopChan():
-	case <-time.After(timeoutTime):
-		return fmt.Errorf("store failed to stop after %s", timeoutTime)
+	err := <-closedC
+	if err != nil {
+		// forceful close
+		s.srv.Close()
+		return fmt.Errorf("store failed to stop after: %s", timeoutTime)
 	}
 
 	return nil
