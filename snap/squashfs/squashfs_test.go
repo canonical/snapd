@@ -108,6 +108,8 @@ type SquashfsTestSuite struct {
 	testutil.BaseTest
 
 	oldStdout, oldStderr, outf *os.File
+
+	realMksquashfs string
 }
 
 var _ = Suite(&SquashfsTestSuite{})
@@ -128,6 +130,10 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.oldStdout, s.oldStderr = os.Stdout, os.Stderr
 	os.Stdout, os.Stderr = s.outf, s.outf
+
+	p, err := exec.LookPath("mksquashfs")
+	c.Assert(err, IsNil, Commentf("cannot find real mksquashfs in $PATH"))
+	s.realMksquashfs = p
 }
 
 func (s *SquashfsTestSuite) TearDownTest(c *C) {
@@ -764,7 +770,7 @@ func (s *SquashfsTestSuite) TestBuildSupportsMultipleExcludesWithOnlyOneWildcard
 		c.Check(cmd, Equals, "/usr/bin/mksquashfs")
 		return nil, errors.New("bzzt")
 	})()
-	mksq := testutil.MockCommand(c, "mksquashfs", `/usr/bin/mksquashfs "$@"`)
+	mksq := testutil.MockCommand(c, "mksquashfs", s.realMksquashfs+` "$@"`)
 	defer mksq.Restore()
 
 	fakeSourcedir := c.MkDir()
@@ -794,7 +800,7 @@ func (s *SquashfsTestSuite) TestBuildUsesMksquashfsFromCoreIfAvailable(c *C) {
 	defer squashfs.MockCommandFromSystemSnap(func(cmd string, args ...string) (*exec.Cmd, error) {
 		usedFromCore = true
 		c.Check(cmd, Equals, "/usr/bin/mksquashfs")
-		fakeCmd := exec.Cmd{Path: "/usr/bin/mksquashfs", Args: []string{"/usr/bin/mksquashfs"}}
+		fakeCmd := exec.Cmd{Path: s.realMksquashfs, Args: []string{s.realMksquashfs}}
 		return &fakeCmd, nil
 	})()
 	mksq := testutil.MockCommand(c, "mksquashfs", "exit 1")
@@ -816,7 +822,7 @@ func (s *SquashfsTestSuite) TestBuildUsesMksquashfsFromClassicIfCoreUnavailable(
 		c.Check(cmd, Equals, "/usr/bin/mksquashfs")
 		return nil, errors.New("bzzt")
 	})()
-	mksq := testutil.MockCommand(c, "mksquashfs", `/usr/bin/mksquashfs "$@"`)
+	mksq := testutil.MockCommand(c, "mksquashfs", s.realMksquashfs+` "$@"`)
 	defer mksq.Restore()
 
 	buildDir := c.MkDir()
@@ -851,7 +857,7 @@ func (s *SquashfsTestSuite) TestBuildVariesArgsByType(c *C) {
 	defer squashfs.MockCommandFromSystemSnap(func(cmd string, args ...string) (*exec.Cmd, error) {
 		return nil, errors.New("bzzt")
 	})()
-	mksq := testutil.MockCommand(c, "mksquashfs", `/usr/bin/mksquashfs "$@"`)
+	mksq := testutil.MockCommand(c, "mksquashfs", s.realMksquashfs+` "$@"`)
 	defer mksq.Restore()
 
 	buildDir := c.MkDir()
