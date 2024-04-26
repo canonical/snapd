@@ -129,15 +129,9 @@ func (s *Store) Start() error {
 // Stop stops the server
 func (s *Store) Stop() error {
 	timeoutTime := 2000 * time.Millisecond
-	closedC := make(chan error, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutTime)
 	defer cancel()
-	go func() {
-		closedC <- s.srv.Shutdown(ctx)
-	}()
-
-	err := <-closedC
-	if err != nil {
+	if err := s.srv.Shutdown(ctx); err != nil {
 		// forceful close
 		s.srv.Close()
 		return fmt.Errorf("store failed to stop after: %s", timeoutTime)
