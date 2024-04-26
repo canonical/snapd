@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2020, 2024 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -822,14 +822,17 @@ func observeSuccessfulBootAssetsForBootloader(m *Modeenv, root string, opts *boo
 			if !os.IsNotExist(err) {
 				return nil, fmt.Errorf("cannot calculate the digest of existing trusted asset: %v", err)
 			}
-			logger.Noticef("system booted without %v bootloader trusted asset %q", whichBootloader, trustedAsset)
-			// Asset names are supposed to be unique, that
-			// is no 2 different paths can used the same
-			// name. If this path is not used, it is safe
-			// to say that asset name will not be used
-			// either. So we can safely removed it from
-			// the trusted asset map.
-			delete(*trustedAssetsMap, assetName)
+			_, inModeenv := (*trustedAssetsMap)[assetName]
+			if inModeenv {
+				logger.Noticef("system booted without %v bootloader trusted asset %q", whichBootloader, trustedAsset)
+				// Asset names are supposed to be unique, that
+				// is no 2 different paths can use the same
+				// name. If this path is not used, it is safe
+				// to say that asset name will not be used
+				// either. So we can safely remove it from
+				// the trusted asset map.
+				delete(*trustedAssetsMap, assetName)
+			}
 			continue
 		}
 
