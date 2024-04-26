@@ -1,4 +1,19 @@
-summary: Check that prepare-image works for grub-systems
+summary: Check that prepare-image works for with enforced validation
+
+details: |
+    Snapd contains intricate implementation details needed for the first-boot
+    process, also known as seeding. It is only natural that it also carries
+    logic for validating and preparing seed directories.
+
+    The test prepares the environment to run "snap prepare-image --custom",
+    passing a JSON file with customizations that enable enforced snap
+    validation. Once the seed is created the test looks if the expected revision
+    of a snap that was in the seed, as actually used, even though the revision
+    published to the selected channel is different.
+
+    A local variant of the test downloads the the wrong revision from the store,
+    passing it to "snap prepare-image" to show that enforced validation
+    correctly selects the revision indicated by the validation set.
 
 backends: [-autopkgtest]
 
