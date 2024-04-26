@@ -1,5 +1,13 @@
 summary: Checks for parallel installation of snaps from the store
 
+details: |
+    Snapd allows installation of the same snap more than once by combining the
+    same snap name with different values of an instance key.
+
+    The test checks that snapd can successfully install snaps, as parallel
+    instances, from the snap store, to ensure that the store is not confused by
+    the presence of the instance key.
+
 restore: |
     snap set system experimental.parallel-instances=
 
