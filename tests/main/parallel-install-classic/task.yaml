@@ -1,9 +1,24 @@
 summary: Checks parallel installation of classic snaps
 
 details: |
-    Check it is possible to install 2 versions of a classic snap through
-    parallel-instances config. Verify both instances are properly installed
-    and the instances can access the desired data.
+    Snapd allows installation of the same snap more than once by combining the
+    same snap name with different values of an instance key.
+
+    With classic confinement and parallel instances used together we _do_ set up
+    a limited mount namespace and use it to mask the fact that instances are in
+    use for the directory where snap applications are mounted and for the
+    directory with instance wide data (/var/snap). Remaining locations are
+    unaffected by the special mount namespace and instead we provide
+    applications with the right environment variables that do encode the
+    instance key, such as $SNAP_USER_DATA and $SNAP_USER_COMMON.
+
+    The test installs a snap twice, and inspects that the applications can be
+    invoked separately, obtain tailored environment variables which are aware of
+    the difference in the instance key, read and write data to separate
+    directories and that while the directories to not always show up as the
+    instance-key-aware names on the inside of the snap execution environment, on
+    the outside the names are indeed correct and do contain the instance key. In
+    other words, the two applications are separate and have separate state.
 
 # core does not support classic confinement
 systems: [-ubuntu-core-*]
